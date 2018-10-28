@@ -15,9 +15,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <Library Include="dependencies\Engine.lib" />
-  </ItemGroup>
-  <ItemGroup>
     <ClCompile Include="src\Application.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -26,5 +23,8 @@
     <ClInclude Include="dependencies\Math.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="dependencies\Engine.lib" />
   </ItemGroup>
 </Project>
