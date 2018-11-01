@@ -1,7 +1,3 @@
 ﻿  Math.cpp
-d:\__develop\engine\engine\src\math.cpp(4): warning C4273: 'GB::Utils::Print': vinculación de DLL incoherente
-  d:\__develop\engine\engine\src\math.h(15): note: vea la definición anterior de 'Print'
-d:\__develop\engine\engine\src\math.cpp(9): warning C4273: 'GB::Utils::SecondTest': vinculación de DLL incoherente
-  d:\__develop\engine\engine\src\math.h(17): note: vea la definición anterior de 'SecondTest'
      Creando biblioteca D:\__develop\Engine\bin\Debug-x64\Engine\Engine.lib y objeto D:\__develop\Engine\bin\Debug-x64\Engine\Engine.exp
   Engine.vcxproj -> D:\__develop\Engine\bin\Debug-x64\Engine\Engine.dll

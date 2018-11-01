@@ -9,3 +9,8 @@ void GB::Utils::SecondTest()
 {
 	std::cout << "Welcome to the second test" << std::endl;
 }
+
+void GB::Core::Example_Command::execute()
+{
+	std::cout << "Command example 1" << std::endl;
+}
