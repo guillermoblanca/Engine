@@ -14,3 +14,4 @@ void GB::Core::Example_Command::execute()
 {
 	std::cout << "Command example 1" << std::endl;
 }
+
