@@ -20,14 +20,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <Library Include="dependencies\Engine.lib" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="dependencies\Math.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
     <None Include="packages.config" />
   </ItemGroup>
 </Project>

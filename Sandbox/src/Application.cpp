@@ -1,6 +1,6 @@
 
 #include <iostream>
-#include "../dependencies/Math.h"
+#include "src/Math.h"
 
 
 int main()
@@ -17,7 +17,7 @@ int main()
 	std::cout << vector1.x << std::endl;
 	command.execute();
 	GB::Core::Window window;
-	window.CreateWindow(10,10,"..",NULL);
+	window.CreateWindow(600,480,"..",NULL);
 	std::cin.get();
 	return 0;
 }
