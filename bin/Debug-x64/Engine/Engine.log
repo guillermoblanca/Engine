@@ -1,9 +1,8 @@
 ﻿  Math.cpp
-d:\__develop\engine\engine\src\math.cpp(62): warning C4172: devolución de dirección de la variable local o temporal: vector
-d:\__develop\engine\engine\src\math.cpp(51): warning C4172: devolución de dirección de la variable local o temporal: vector
-d:\__develop\engine\engine\src\math.cpp(91): warning C4172: devolución de dirección de la variable local o temporal: vector
-d:\__develop\engine\engine\src\math.cpp(112): warning C4172: devolución de dirección de la variable local o temporal: vector
-d:\__develop\engine\engine\src\math.cpp(123): warning C4172: devolución de dirección de la variable local o temporal: vector
-d:\__develop\engine\engine\src\math.cpp(130): warning C4172: devolución de dirección de la variable local o temporal: r
-     Creando biblioteca D:\__develop\Engine\bin\Debug-x64\Engine\Engine.lib y objeto D:\__develop\Engine\bin\Debug-x64\Engine\Engine.exp
-  Engine.vcxproj -> D:\__develop\Engine\bin\Debug-x64\Engine\Engine.dll
+e:\dev\git\engine\engine\src\math.cpp(85): warning C4172: devolución de dirección de la variable local o temporal: vector
+e:\dev\git\engine\engine\src\math.cpp(74): warning C4172: devolución de dirección de la variable local o temporal: vector
+e:\dev\git\engine\engine\src\math.cpp(114): warning C4172: devolución de dirección de la variable local o temporal: vector
+e:\dev\git\engine\engine\src\math.cpp(135): warning C4172: devolución de dirección de la variable local o temporal: vector
+e:\dev\git\engine\engine\src\math.cpp(146): warning C4172: devolución de dirección de la variable local o temporal: vector
+e:\dev\git\engine\engine\src\math.cpp(153): warning C4172: devolución de dirección de la variable local o temporal: r
+  Engine.vcxproj -> E:\DEV\GIT\engine\bin\Debug-x64\Engine\Engine.dll

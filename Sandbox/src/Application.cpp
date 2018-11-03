@@ -16,6 +16,8 @@ int main()
 	vector1 = vector1 + vector2;
 	std::cout << vector1.x << std::endl;
 	command.execute();
+	GB::Core::Window window;
+	window.CreateWindow(10,10,"..",NULL);
 	std::cin.get();
 	return 0;
 }

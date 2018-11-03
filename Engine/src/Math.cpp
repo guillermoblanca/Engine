@@ -128,9 +128,9 @@ DLL Vector3 & Vector3::operator/(const float & x)
 {
 	Vector3 vector;
 
-	vector.x = this->x /x;
-	vector.y = this->y /x;
-	vector.z = this->z /x;
+	vector.x = this->x / x;
+	vector.y = this->y / x;
+	vector.z = this->z / x;
 
 	return vector;
 }
@@ -139,9 +139,9 @@ DLL Vector3 & Vector3::operator/=(const float & x)
 {
 	Vector3 vector;
 
-	vector.x = this->x /x;
-	vector.y = this->y /x;
-	vector.z = this->z /x;
+	vector.x = this->x / x;
+	vector.y = this->y / x;
+	vector.z = this->z / x;
 
 	return vector;
 }
@@ -167,4 +167,22 @@ DLL Vector3 Vector3::Normalized()
 	z /= m;
 
 	return *this;
+}
+
+DLL void GB::Core::Window::CreateWindow(int w, int h, const char * title, const Command * context)
+{
+	if (!glfwInit())
+	{
+		std::cout << "Failed loading GLFW" << std::endl;
+	}
+
+	GLFWwindow * window = glfwCreateWindow(w, h, title, NULL, NULL);
+
+	while (!glfwWindowShouldClose(window))
+	{
+
+	//	glClear(GL_COLOR_BUFFER_BIT);
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
 }

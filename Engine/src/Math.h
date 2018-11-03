@@ -1,12 +1,12 @@
 #pragma once
 
 #include <iostream>
+#include "GLFW\glfw3.h"
 #ifndef DLL
 #define DLL __declspec(dllexport)
 #else 
 #define DLL __declspec(dllimport)
 #endif
-
 
 class Vector3
 {
