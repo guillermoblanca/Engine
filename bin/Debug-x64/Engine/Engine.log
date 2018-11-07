@@ -1,9 +1,0 @@
-﻿  Math.cpp
-e:\dev\git\engine\engine\src\math.cpp(85): warning C4172: devolución de dirección de la variable local o temporal: vector
-e:\dev\git\engine\engine\src\math.cpp(74): warning C4172: devolución de dirección de la variable local o temporal: vector
-e:\dev\git\engine\engine\src\math.cpp(114): warning C4172: devolución de dirección de la variable local o temporal: vector
-e:\dev\git\engine\engine\src\math.cpp(135): warning C4172: devolución de dirección de la variable local o temporal: vector
-e:\dev\git\engine\engine\src\math.cpp(146): warning C4172: devolución de dirección de la variable local o temporal: vector
-e:\dev\git\engine\engine\src\math.cpp(153): warning C4172: devolución de dirección de la variable local o temporal: r
-     Creando biblioteca E:\DEV\GIT\engine\bin\Debug-x64\Engine\Engine.lib y objeto E:\DEV\GIT\engine\bin\Debug-x64\Engine\Engine.exp
-  Engine.vcxproj -> E:\DEV\GIT\engine\bin\Debug-x64\Engine\Engine.dll
