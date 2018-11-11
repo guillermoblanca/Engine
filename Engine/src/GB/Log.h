@@ -20,6 +20,7 @@ namespace GB
 }
 
 //Core log macros
+//TODO: FIX TRACE MACRO
 #define GB_CORE_TRACE(...)			::GB::Log::GetCoreLogger()->trace(__VA_ARGS__)
 #define GB_CORE_INFO(...)			::GB::Log::GetCoreLogger()->info(__VA_ARGS__)
 #define GB_CORE_WARN(...)		    ::GB::Log::GetCoreLogger()->warn(__VA_ARGS__)
