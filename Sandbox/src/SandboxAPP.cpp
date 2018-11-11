@@ -6,7 +6,7 @@ public:
 
 	Sandbox()
 	{
-
+		GB::CreateApplication();
 	}
 
 	~Sandbox()
