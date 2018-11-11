@@ -5,6 +5,9 @@ extern GB::Application* GB::CreateApplication();
 
 int main(int argc, char** argv)
 {
+	GB::Log::Init();
+	GB_CORE_ERROR("Create and error! :(");
+	GB_CLIENT_INFO("Create and INFO ");
 
 	auto app = GB::CreateApplication();
 	app->Run();

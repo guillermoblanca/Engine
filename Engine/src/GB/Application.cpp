@@ -2,6 +2,7 @@
 
 GB::Application::Application()
 {
+
 }
 
 GB::Application::~Application()
