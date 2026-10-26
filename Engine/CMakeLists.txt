@@ -6,6 +6,7 @@ add_library(GB STATIC
     src/GB/Input.cpp
     src/GB/Log.cpp
     src/GB/Assets/Model.cpp
+    src/GB/Assets/ModelInstance.cpp
     src/GB/Window.cpp
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/Image.cpp

@@ -54,18 +54,35 @@ Sandbox: flechas/WASD o stick derecho orbitan, Q/E zoom.
 `GB::Model::Load("modelo.glb")` carga glTF 2.0 (`.glb`/`.gltf`, exportado de Blender: *File > Export > glTF 2.0*) y `model->AddToScene(scene)` lo añade al renderer.
 
 Soportado: mallas (normales/tangentes generadas si faltan), jerarquía de nodos, materiales metálico-rugosidad con texturas (color base, metal/rugosidad, normal, oclusión, emisivo), modos alfa (opaco, máscara, mezcla ordenada), doble cara, `KHR_materials_emissive_strength`, texturas embebidas o externas.
-Pendiente: esqueletos y animaciones (siguiente fase), morph targets, cámaras y luces del archivo, UV distintas de UV0, `KHR_texture_transform`.
+Pendiente: morph targets, cámaras y luces del archivo, UV distintas de UV0, `KHR_texture_transform`.
 
 `Sandbox --scene=model --model=ruta.glb [--yaw=GRADOS] [--nofloor]` (por defecto el casco de `assets/models`, CC BY 4.0).
 Validado con el casco y modelos de prueba de Khronos (BoomBox, AlphaBlendModeTest, NormalTangentMirrorTest) y con un `.glb` generado por `tools/make_test_gltf.py` para el test automático.
 
 ![glTF](docs/gltf_models.jpg)
 
+## Animación (Fase 4)
+
+```cpp
+auto model = GB::Model::Load("personaje.glb");          // asset inmutable y compartible
+GB::ModelInstance actor(*model);                        // estado de reproducción + pose
+actor.Play("Walk");                                     // bucle por defecto, mezcla de 0,2 s
+actor.Play("Run", true, 0.3f);                          // cross-fade de 0,3 s desde la animación actual
+actor.Update(dt);                                       // cada frame
+actor.AddToScene(scene);                                // objetos con la pose actual (skinning en GPU)
+```
+
+Animación de nodos y esqueletal (skinning por GPU con SSBO de huesos, también en las sombras), interpolación STEP / LINEAR (slerp) / CUBICSPLINE, bucle o una sola pasada, velocidad, pausa, `SetTime` y mezcla entre clips.
+`Sandbox --scene=model --model=x.glb --anim=Walk --time=0.3` (congela ese instante, ideal para capturas); teclas 1-9 cambian de clip y Espacio pausa.
+Pendiente: morph targets (blend shapes), máquina de estados / blend trees, retargeting.
+
+![Animación](docs/animation.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
 1. Ventana (GLFW), OpenGL 4.5, input teclado/mando, capturas PNG  ✔
 2. Render PBR, luces, sombras, HDR/bloom  ✔ (primera pasada, ver abajo)
-3. Importación glTF 2.0 (Blender)  ✔ (sin animación todavía)
-4. Cámaras, animación esquelética, partículas, audio
+3. Importación glTF 2.0 (Blender)  ✔
+4. Animación esquelética  ✔ · cámaras · partículas · audio
 5. Editor (ImGui) y API para agentes (headless, capturas PNG, escenas en texto)

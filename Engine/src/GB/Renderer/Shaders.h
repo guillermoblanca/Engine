@@ -19,6 +19,15 @@ layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 uniform mat4 uLightVP;
 uniform mat4 uModel;
+layout(location = 4) in uvec4 aJoints;
+layout(location = 5) in vec4 aWeights;
+layout(std430, binding = 0) readonly buffer JointBuffer { mat4 uJointMatrices[]; };
+uniform int uSkinned;
+mat4 SkinMatrix()
+{
+	return aWeights.x * uJointMatrices[aJoints.x] + aWeights.y * uJointMatrices[aJoints.y]
+		+ aWeights.z * uJointMatrices[aJoints.z] + aWeights.w * uJointMatrices[aJoints.w];
+}
 uniform int uHasHeight;
 uniform float uHeightScale;
 uniform float uUVScale;
@@ -28,6 +37,8 @@ void main()
 	vec3 pos = aPos;
 	if (uHasHeight != 0)
 		pos += normalize(aNormal) * (textureLod(uHeightMap, aUV * uUVScale, 0.0).r - 0.5) * uHeightScale;
+	if (uSkinned != 0)
+		pos = (SkinMatrix() * vec4(pos, 1.0)).xyz;
 	gl_Position = uLightVP * uModel * vec4(pos, 1.0);
 }
 )GLSL";
@@ -43,6 +54,15 @@ layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aTangent;
 uniform mat4 uModel;
 uniform mat4 uViewProj;
+layout(location = 4) in uvec4 aJoints;
+layout(location = 5) in vec4 aWeights;
+layout(std430, binding = 0) readonly buffer JointBuffer { mat4 uJointMatrices[]; };
+uniform int uSkinned;
+mat4 SkinMatrix()
+{
+	return aWeights.x * uJointMatrices[aJoints.x] + aWeights.y * uJointMatrices[aJoints.y]
+		+ aWeights.z * uJointMatrices[aJoints.z] + aWeights.w * uJointMatrices[aJoints.w];
+}
 uniform int uHasHeight;
 uniform float uHeightScale;
 uniform float uUVScale;
@@ -56,11 +76,20 @@ void main()
 	vec3 pos = aPos;
 	if (uHasHeight != 0)
 		pos += normalize(aNormal) * (textureLod(uHeightMap, aUV * uUVScale, 0.0).r - 0.5) * uHeightScale;
+	vec3 nrm = aNormal;
+	vec3 tng = aTangent.xyz;
+	if (uSkinned != 0)
+	{
+		mat4 skin = SkinMatrix();
+		pos = (skin * vec4(pos, 1.0)).xyz;
+		nrm = mat3(skin) * nrm;
+		tng = mat3(skin) * tng;
+	}
 	vec4 world = uModel * vec4(pos, 1.0);
 	mat3 normalMatrix = mat3(transpose(inverse(uModel)));
 	vPos = world.xyz;
-	vNormal = normalMatrix * aNormal;
-	vTangent = vec4(mat3(uModel) * aTangent.xyz, aTangent.w);
+	vNormal = normalMatrix * nrm;
+	vTangent = vec4(mat3(uModel) * tng, aTangent.w);
 	vUV = aUV * uUVScale;
 	gl_Position = uViewProj * world;
 }

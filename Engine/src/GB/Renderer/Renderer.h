@@ -64,6 +64,8 @@ namespace GB
 		const Mesh* MeshPtr = nullptr;
 		Material Mat;
 		glm::mat4 Transform{ 1.0f };
+		// Skinned meshes: joint palette (joint world * inverse bind), uploaded when drawing. Not owned.
+		const std::vector<glm::mat4>* JointMatrices = nullptr;
 	};
 
 	struct Environment
@@ -123,5 +125,9 @@ namespace GB
 		std::unique_ptr<Framebuffer> m_ShadowMap, m_SceneMSAA, m_SceneResolved;
 		std::vector<std::unique_ptr<Framebuffer>> m_BloomChain;
 		uint32_t m_EmptyVAO = 0;
+		uint32_t m_JointBuffer = 0;   // SSBO with the joint palette of the object being drawn
+
+		// Binds the palette for skinned objects and sets uSkinned on `shader`.
+		void BindSkin(Shader& shader, const RenderObject& obj);
 	};
 }
