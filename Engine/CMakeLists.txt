@@ -12,6 +12,7 @@ add_library(GB STATIC
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/Image.cpp
     src/GB/Renderer/Mesh.cpp
+    src/GB/Renderer/Particles.cpp
     src/GB/Renderer/Renderer.cpp
     src/GB/Renderer/Shader.cpp
     src/GB/Renderer/Texture.cpp)

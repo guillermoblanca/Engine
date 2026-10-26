@@ -8,7 +8,10 @@
 #include <string>
 #include <vector>
 
-// Three scenes, picked with --scene=pbr (default), --scene=textures or --scene=model:
+// Four scenes, picked with --scene=pbr (default), --scene=textures, --scene=model or --scene=particles:
+//   particles night campfire: fire, smoke, sparks, flickering light, snow, periodic explosion.
+//            --simulate=SECONDS (warm-up before the first frame, default 3), --explosion-every=SECONDS
+//            (default 4, 0 = off), --nosnow.  Key B: explosion.
 //   model    loads a glTF/GLB (e.g. exported from Blender): --model=path.glb (default: DamagedHelmet),
 //            --nofloor, --yaw=DEG initial camera yaw, --anim=NAME|INDEX, --time=SECONDS (freeze there),
 //            --speed=X, --noanim, --playlist=A,B,C --switch=SECONDS (cycle clips with cross-fade),
@@ -48,6 +51,8 @@ public:
 			BuildTextureScene(options);
 		else if (sceneName == "model")
 			BuildModelScene(options);
+		else if (sceneName == "particles")
+			BuildParticleScene(options);
 		else
 			BuildScene();
 
@@ -73,6 +78,15 @@ protected:
 		if (cameraKey && !m_CameraKeyWasDown)
 			SwitchCamera((m_CameraMode + 1) % CameraModeCount(), true);
 		m_CameraKeyWasDown = cameraKey;
+
+		if (!m_Particles.empty())
+		{
+			UpdateParticles(dt);
+			const bool boom = GB::Input::IsKeyDown(Key::B);
+			if (boom && !m_BoomKeyWasDown && m_Explosion)
+				m_Explosion->Burst(110);
+			m_BoomKeyWasDown = boom;
+		}
 
 		if (m_CameraMode == 0)
 			m_Orbit.Update(dt);
@@ -263,6 +277,115 @@ private:
 		m_Orbit.Distance = single >= 0 ? 6.0f : 10.5f;
 	}
 
+	void BuildParticleScene(const GB::LaunchOptions& options)
+	{
+		m_Sphere = std::make_unique<GB::Mesh>(GB::Mesh::CreateSphere(0.5f, 24, 12));
+		m_Plane = std::make_unique<GB::Mesh>(GB::Mesh::CreatePlane(80.0f));
+		m_Cube = std::make_unique<GB::Mesh>(GB::Mesh::CreateCube(1.0f));
+
+		auto add = [&](const GB::Mesh* mesh, glm::vec3 pos, glm::vec3 scale, float yawDeg, GB::Material mat)
+		{
+			GB::RenderObject o;
+			o.MeshPtr = mesh;
+			mat.HeightScale = 0.0f;
+			mat.CavityStrength = 0.0f;
+			o.Mat = mat;
+			o.Transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), pos), glm::radians(yawDeg), glm::vec3(0, 1, 0)), scale);
+			m_Scene.Objects.push_back(o);
+		};
+
+		GB::Material ground;
+		ground.Albedo = { 0.16f, 0.15f, 0.14f };
+		ground.Roughness = 0.9f;
+		add(m_Plane.get(), { 0, 0, 0 }, glm::vec3(1.0f), 0.0f, ground);
+
+		GB::Material stone;
+		stone.Albedo = { 0.3f, 0.3f, 0.32f };
+		stone.Roughness = 0.85f;
+		for (int i = 0; i < 9; ++i)   // ring of stones around the fire
+		{
+			const float a = glm::radians(40.0f * static_cast<float>(i));
+			add(m_Sphere.get(), { 0.85f * std::cos(a), 0.12f, 0.85f * std::sin(a) }, { 0.38f, 0.26f, 0.34f }, 0.0f, stone);
+		}
+		GB::Material wood;
+		wood.Albedo = { 0.22f, 0.12f, 0.06f };
+		wood.Roughness = 0.8f;
+		add(m_Cube.get(), { 0.0f, 0.1f, 0.0f }, { 0.12f, 0.12f, 0.9f }, 30.0f, wood);
+		add(m_Cube.get(), { 0.0f, 0.1f, 0.0f }, { 0.12f, 0.12f, 0.9f }, -35.0f, wood);
+		add(m_Cube.get(), { 0.0f, 0.22f, 0.0f }, { 0.12f, 0.12f, 0.8f }, 95.0f, wood);
+
+		auto system = [&](GB::ParticleEmitterDesc desc, glm::vec3 position)
+		{
+			m_Particles.push_back(std::make_unique<GB::ParticleSystem>(desc));
+			m_Particles.back()->SetPosition(position);
+			m_Scene.Particles.push_back(m_Particles.back().get());
+			return m_Particles.back().get();
+		};
+		system(GB::ParticlePresets::Smoke(), { 0.0f, 1.0f, 0.0f });
+		system(GB::ParticlePresets::Fire(), { 0.0f, 0.18f, 0.0f });
+		system(GB::ParticlePresets::Sparks(), { 0.0f, 0.45f, 0.0f });
+		GB::ParticleEmitterDesc magic = GB::ParticlePresets::Magic();
+		magic.Radius = 0.35f;
+		system(magic, { 2.6f, 1.1f, -0.5f });
+		if (!options.HasFlag("nosnow"))
+			system(GB::ParticlePresets::Snow(), { 0.0f, 6.0f, 0.0f });
+		GB::ParticleEmitterDesc boom = GB::ParticlePresets::Explosion();
+		boom.Looping = true;     // restarted by us; Looping keeps it "alive" so IsFinished stays false
+		boom.Bursts.clear();
+		boom.Rate = 0.0f;
+		m_Explosion = system(boom, { -3.2f, 1.1f, 0.8f });
+		m_ExplosionEvery = static_cast<float>(std::atof(options.GetValue("explosion-every", "4").c_str()));
+		m_ExplosionTimer = m_ExplosionEvery > 0.0f ? m_ExplosionEvery * 0.5f : 0.0f;
+		m_FireLightBase = 9.0f;
+		m_Scene.PointLights.push_back({ { 0.0f, 0.7f, 0.0f }, { 1.0f, 0.55f, 0.22f }, m_FireLightBase });
+
+		// Night: dim cool moonlight and a dark sky; the fire is the main source and drives the bloom.
+		m_Scene.Sun.Direction = { -0.4f, -0.8f, -0.35f };
+		m_Scene.Sun.Color = { 0.55f, 0.65f, 1.0f };
+		m_Scene.Sun.Intensity = 0.35f;
+		m_Scene.Env.SkyTop = { 0.005f, 0.01f, 0.035f };
+		m_Scene.Env.SkyHorizon = { 0.03f, 0.04f, 0.08f };
+		m_Scene.Env.SkyGround = { 0.01f, 0.01f, 0.012f };
+		m_Scene.Env.Intensity = 0.7f;
+		m_Scene.Env.Exposure = 1.1f;
+		m_Scene.Env.BloomThreshold = 1.0f;
+		m_Scene.Env.BloomIntensity = 0.7f;
+		m_Scene.Env.ShadowCenter = { 0.0f, 0.0f, 0.0f };
+		m_Scene.Env.ShadowRadius = 8.0f;
+		m_Orbit.Target = { 0.0f, 1.0f, 0.0f };
+		m_Orbit.Pitch = 0.2f;
+		m_Orbit.Yaw = 0.35f;
+		m_Orbit.Distance = 6.5f;
+		m_Orbit.MinDistance = 1.5f;
+		m_Orbit.MaxDistance = 30.0f;
+
+		// Warm up so the first frame (and screenshots) show a steady state.
+		const float warmup = static_cast<float>(std::atof(options.GetValue("simulate", "3").c_str()));
+		for (float t = 0.0f; t < warmup; t += 1.0f / 60.0f)
+			UpdateParticles(1.0f / 60.0f);
+	}
+
+	void UpdateParticles(float dt)
+	{
+		for (auto& p : m_Particles)
+			p->Update(dt);
+		m_Time += dt;
+		if (m_ExplosionEvery > 0.0f && m_Explosion)
+		{
+			m_ExplosionTimer -= dt;
+			if (m_ExplosionTimer <= 0.0f)
+			{
+				m_ExplosionTimer = m_ExplosionEvery;
+				m_Explosion->Burst(110);
+			}
+		}
+		if (!m_Scene.PointLights.empty() && m_FireLightBase > 0.0f)   // flicker
+		{
+			const float f = 1.0f + 0.18f * std::sin(m_Time * 17.0f) + 0.12f * std::sin(m_Time * 31.0f + 1.3f) + 0.08f * std::sin(m_Time * 7.0f + 4.0f);
+			m_Scene.PointLights[0].Intensity = m_FireLightBase * f;
+		}
+	}
+
 	void BuildModelScene(const GB::LaunchOptions& options)
 	{
 		const std::string path = options.GetValue("model", std::string(GB_ASSET_DIR) + "/models/DamagedHelmet.glb");
@@ -423,6 +546,10 @@ private:
 	std::unique_ptr<GB::Model> m_Model;
 	std::unique_ptr<GB::ModelInstance> m_Instance;
 	size_t m_StaticObjects = 0;
+	std::vector<std::unique_ptr<GB::ParticleSystem>> m_Particles;
+	GB::ParticleSystem* m_Explosion = nullptr;
+	float m_ExplosionEvery = 0.0f, m_ExplosionTimer = 0.0f, m_FireLightBase = 0.0f, m_Time = 0.0f;
+	bool m_BoomKeyWasDown = false;
 	std::vector<int> m_Playlist;
 	size_t m_PlaylistIndex = 0;
 	float m_PlaylistTimer = 0.0f, m_SwitchSeconds = 1.5f, m_OrbitSpeed = 0.0f;
