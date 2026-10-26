@@ -1,18 +1,23 @@
 #pragma once
-#ifdef GB_PLATFORM_WINDOWS
+#include "Application.h"
+#include "Log.h"
+#include <cstdlib>
+#include <cstring>
+#include <memory>
 
-extern GB::Application* GB::CreateApplication();
-
+// Usage: <app> [--frames=N]   (N frames then exit; default runs until closed)
 int main(int argc, char** argv)
 {
 	GB::Log::Init();
-	GB_CORE_ERROR("Create and error! :(");
-	GB_CLIENT_INFO("Create and INFO ");
-	GB_CLIENT_WARN("Checking dll dependencies fix");
-	auto app = GB::CreateApplication();
-	app->Run();
 
-	delete app;
-	
+	std::unique_ptr<GB::Application> app(GB::CreateApplication());
+
+	for (int i = 1; i < argc; ++i)
+	{
+		if (std::strncmp(argv[i], "--frames=", 9) == 0)
+			app->SetMaxFrames(std::strtoull(argv[i] + 9, nullptr, 10));
+	}
+
+	app->Run();
+	return 0;
 }
-#endif // GB_PLATFORM_WINDOWS

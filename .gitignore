@@ -1,0 +1,25 @@
+# Build outputs
+/build*/
+/out/
+/bin/
+/cmake-build-*/
+CMakeUserPresets.json
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+*.user
+*.VC.db
+*.suo
+.DS_Store
+
+# Binaries
+*.obj
+*.o
+*.pdb
+*.ilk
+*.exp
+*.dll
+*.lib
+*.exe
