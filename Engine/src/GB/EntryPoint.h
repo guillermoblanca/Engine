@@ -5,7 +5,7 @@
 #include <cstring>
 #include <memory>
 
-// Usage: <app> [--frames=N] [--screenshot=out.png] [--hidden] [--novsync]
+// Usage: <app> [--frames=N] [--screenshot=out.png] [--hidden] [--novsync] [app specific --key=value]
 int main(int argc, char** argv)
 {
 	GB::Log::Init();
@@ -23,7 +23,7 @@ int main(int argc, char** argv)
 		else if (std::strcmp(arg, "--novsync") == 0)
 			options.NoVSync = true;
 		else
-			GB_CORE_WARN("Unknown argument '{}'", arg);
+			options.Extra.emplace_back(arg);
 	}
 
 	std::unique_ptr<GB::Application> app(GB::CreateApplication());

@@ -5,6 +5,23 @@
 
 namespace GB
 {
+	std::string LaunchOptions::GetValue(const std::string& key, const std::string& fallback) const
+	{
+		const std::string prefix = "--" + key + "=";
+		for (const std::string& arg : Extra)
+			if (arg.compare(0, prefix.size(), prefix) == 0)
+				return arg.substr(prefix.size());
+		return fallback;
+	}
+
+	bool LaunchOptions::HasFlag(const std::string& flag) const
+	{
+		for (const std::string& arg : Extra)
+			if (arg == "--" + flag)
+				return true;
+		return false;
+	}
+
 	LaunchOptions& GetLaunchOptions()
 	{
 		static LaunchOptions options;

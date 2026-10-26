@@ -30,7 +30,12 @@ FetchContent_Declare(stb
     GIT_REPOSITORY https://github.com/nothings/stb.git
     GIT_TAG 003501f6d7a8668ce8b6d875e34dd97ad0d5d5b5)
 
-FetchContent_MakeAvailable(spdlog glfw)
+FetchContent_Declare(glm
+    GIT_REPOSITORY https://github.com/g-truc/glm.git
+    GIT_TAG 1.0.1
+    GIT_SHALLOW TRUE)
+
+FetchContent_MakeAvailable(spdlog glfw glm)
 FetchContent_GetProperties(stb)
 if(NOT stb_POPULATED)
     FetchContent_Populate(stb)

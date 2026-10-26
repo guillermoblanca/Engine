@@ -4,10 +4,24 @@
 
 namespace GB
 {
-	// RGBA8 color + 24-bit depth offscreen target.
+	enum class ColorFormat { None, RGBA8, RGBA16F };
+
+	struct FramebufferSpec
+	{
+		uint32_t Width = 1;
+		uint32_t Height = 1;
+		ColorFormat Format = ColorFormat::RGBA8;
+		uint32_t Samples = 1;          // >1 = multisampled (resolve with Framebuffer::Blit)
+		bool Depth = true;             // 24-bit depth
+		bool DepthAsTexture = false;   // depth stored in a comparison texture (shadow maps)
+	};
+
+	// Offscreen render target.
 	class Framebuffer
 	{
 	public:
+		explicit Framebuffer(const FramebufferSpec& spec);
+		// RGBA8 + depth shortcut.
 		Framebuffer(uint32_t width, uint32_t height);
 		~Framebuffer();
 		Framebuffer(const Framebuffer&) = delete;
@@ -17,26 +31,29 @@ namespace GB
 		void Bind() const;   // also sets the viewport
 		static void BindDefault(uint32_t viewportWidth, uint32_t viewportHeight);
 
-		uint32_t GetWidth() const { return m_Width; }
-		uint32_t GetHeight() const { return m_Height; }
+		uint32_t GetWidth() const { return m_Spec.Width; }
+		uint32_t GetHeight() const { return m_Spec.Height; }
+		uint32_t GetID() const { return m_FBO; }
+		uint32_t GetColorTexture() const { return m_Color; }
+		uint32_t GetDepthTexture() const { return m_DepthTexture; }
 
-		// Top-left origin RGBA8, width*height*4 bytes.
+		// Copies the color buffer (e.g. resolves MSAA into a single-sample target).
+		static void BlitColor(const Framebuffer& src, const Framebuffer& dst);
+
+		// Single-sample RGBA8 only. Top-left origin, width*height*4 bytes.
 		std::vector<uint8_t> ReadPixels() const;
-		// Convenience: ReadPixels + PNG on disk. Returns false if the write failed.
+		// ReadPixels + PNG on disk. Returns false if the write failed.
 		bool SavePNG(const char* path) const;
 
 	private:
-		uint32_t m_FBO = 0, m_Color = 0, m_Depth = 0;
-		uint32_t m_Width, m_Height;
+		void Create();
+		FramebufferSpec m_Spec;
+		uint32_t m_FBO = 0, m_Color = 0, m_Depth = 0, m_DepthTexture = 0;
 		bool m_Complete = false;
 	};
 
 	// Writes RGBA8 pixels (top-left origin) to a PNG file.
 	bool SavePNG(const char* path, uint32_t width, uint32_t height, const uint8_t* rgba);
-}
-
-namespace GB
-{
 	// Saves the currently bound default framebuffer (back buffer) as PNG.
 	bool SaveBackbufferPNG(const char* path, uint32_t width, uint32_t height);
 }
