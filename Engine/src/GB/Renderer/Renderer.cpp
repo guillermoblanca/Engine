@@ -92,6 +92,20 @@ namespace GB
 		m_SpriteSmoke = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Smoke, 128), TextureEncoding::Linear);
 		m_SpriteSpark = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Spark, 32), TextureEncoding::Linear);
 		m_SpriteStreak = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Streak, 64), TextureEncoding::Linear);
+		{
+			const std::string sky2 = Shaders::SkyCommon;
+			m_GrassShader = std::make_unique<Shader>(
+				std::string(Shaders::GrassVS) + Shaders::GrassTrailCommon + Shaders::GrassVSMain,
+				std::string(Shaders::GrassFS) + sky2 + Shaders::GrassFSMain);
+			glCreateVertexArrays(1, &m_GrassVAO);
+			glVertexArrayBindingDivisor(m_GrassVAO, 0, 1);
+			for (GLuint i = 0; i < 2; ++i)
+			{
+				glEnableVertexArrayAttrib(m_GrassVAO, i);
+				glVertexArrayAttribFormat(m_GrassVAO, i, 4, GL_FLOAT, GL_FALSE, i * 16);
+				glVertexArrayAttribBinding(m_GrassVAO, i, 0);
+			}
+		}
 		glCreateBuffers(1, &m_ParticleVBO);
 		glCreateVertexArrays(1, &m_ParticleVAO);
 		glVertexArrayVertexBuffer(m_ParticleVAO, 0, m_ParticleVBO, 0, sizeof(ParticleInstance));
@@ -112,7 +126,7 @@ namespace GB
 		CreateTargets();
 
 		m_Valid = m_ShadowShader->IsValid() && m_PBRShader->IsValid() && m_SkyShader->IsValid() &&
-			m_BloomDown->IsValid() && m_BloomUp->IsValid() && m_Composite->IsValid() && m_ParticleShader->IsValid() &&
+			m_BloomDown->IsValid() && m_BloomUp->IsValid() && m_Composite->IsValid() && m_ParticleShader->IsValid() && m_GrassShader->IsValid() &&
 			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete() && m_SceneDepth->IsComplete();
 		if (!m_Valid)
 			GB_CORE_ERROR("Renderer failed to initialize");
@@ -124,6 +138,7 @@ namespace GB
 		glDeleteBuffers(1, &m_JointBuffer);
 		glDeleteBuffers(1, &m_ParticleVBO);
 		glDeleteVertexArrays(1, &m_ParticleVAO);
+		glDeleteVertexArrays(1, &m_GrassVAO);
 	}
 
 	void Renderer::CreateTargets()
@@ -187,6 +202,8 @@ namespace GB
 
 	void Renderer::ShadowPass(const Scene& scene, const glm::mat4& lightVP)
 	{
+		m_ShadowShader->SetFloat("uTime", scene.Env.Time);
+		m_ShadowShader->SetVec3("uWind", scene.Env.Wind);
 		m_ShadowMap->Bind();
 		glEnable(GL_DEPTH_TEST);
 		glDepthMask(GL_TRUE);
@@ -201,6 +218,9 @@ namespace GB
 			if (!obj.MeshPtr || obj.Mat.Alpha == AlphaMode::Blend)
 				continue;
 			m_ShadowShader->SetMat4("uModel", obj.Transform);
+			m_ShadowShader->SetFloat("uWindStrength", obj.Mat.WindSway);
+			m_ShadowShader->SetFloat("uWindHeight", obj.Mat.WindHeight);
+			m_ShadowShader->SetFloat("uWindFlutter", obj.Mat.WindFlutter);
 			BindSkin(*m_ShadowShader, obj);
 			const bool displaced = obj.Mat.HeightMap && obj.Mat.HeightScale != 0.0f;
 			m_ShadowShader->SetInt("uHasHeight", displaced ? 1 : 0);
@@ -267,6 +287,8 @@ namespace GB
 		pbr.SetMat4("uViewProj", viewProj);
 		pbr.SetVec3("uCamPos", camera.Position);
 		pbr.SetInt("uShadowsOn", shadows ? 1 : 0);
+		pbr.SetFloat("uTime", env.Time);
+		pbr.SetVec3("uWind", env.Wind);
 		if (scene.Ground && scene.Ground->IsValid())
 		{
 			pbr.SetVec4("uTrailRect", scene.Ground->GetRect());
@@ -310,6 +332,10 @@ namespace GB
 			pbr.SetInt("uHasMRMap", m.MetallicRoughnessMap ? 1 : 0);
 			pbr.SetInt("uHasOcclusionMap", m.OcclusionMap ? 1 : 0);
 			pbr.SetInt("uHasEmissiveMap", m.EmissiveMap ? 1 : 0);
+			pbr.SetFloat("uWindStrength", m.WindSway);
+			pbr.SetFloat("uWindHeight", m.WindHeight);
+			pbr.SetFloat("uWindFlutter", m.WindFlutter);
+			pbr.SetInt("uNoNormalFlip", m.FoliageNormals ? 1 : 0);
 			pbr.SetInt("uHasMacroMap", m.MacroMap ? 1 : 0);
 			const bool trail = scene.Ground && scene.Ground->IsValid() && m.TrailDepth > 0.0f;
 			pbr.SetFloat("uTrailDepth", trail ? m.TrailDepth : 0.0f);
@@ -353,6 +379,8 @@ namespace GB
 				drawObject(obj);
 		}
 
+		GrassPass(scene, camera, viewProj, lightVP, shadows);
+
 		if (!translucent.empty())
 		{
 			auto distance2 = [&](const RenderObject* o)
@@ -376,6 +404,70 @@ namespace GB
 		ParticlePass(scene, camera, viewProj);
 
 		Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);
+	}
+
+	void Renderer::GrassPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows)
+	{
+		if (scene.Grass.empty())
+			return;
+		const Environment& env = scene.Env;
+		Shader& g = *m_GrassShader;
+		g.Bind();
+		g.SetMat4("uViewProj", viewProj);
+		g.SetVec3("uCamPos", camera.Position);
+		g.SetFloat("uTime", env.Time);
+		g.SetVec3("uWind", env.Wind);
+		g.SetFloat("uSnowCover", env.SnowCover);
+		g.SetFloat("uWetness", env.Wetness);
+		g.SetVec3("uSkyTop", env.SkyTop);
+		g.SetVec3("uSkyHorizon", env.SkyHorizon);
+		g.SetVec3("uSkyGround", env.SkyGround);
+		g.SetFloat("uEnvIntensity", env.Intensity);
+		g.SetVec3("uSunDir", glm::normalize(scene.Sun.Direction));
+		g.SetVec3("uSunColor", scene.Sun.Color * scene.Sun.Intensity);
+		g.SetVec3("uFogColor", env.FogColor);
+		g.SetFloat("uFogDensity", env.FogDensity);
+		g.SetFloat("uFogHeight", env.FogHeightFalloff);
+		g.SetInt("uShadowsOn", shadows ? 1 : 0);
+		g.SetMat4("uLightVP", lightVP);
+		g.SetFloat("uShadowTexel", 2.0f * env.ShadowRadius / static_cast<float>(m_ShadowSize));
+		glBindTextureUnit(0, m_ShadowMap->GetDepthTexture());
+		const bool trails = scene.Ground && scene.Ground->IsValid();
+		if (trails)
+		{
+			g.SetVec4("uTrailRect", scene.Ground->GetRect());
+			glBindTextureUnit(8, scene.Ground->GetTexture());
+		}
+
+		glDisable(GL_CULL_FACE);
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);
+		glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);   // soft blade edges with the MSAA target
+		glBindVertexArray(m_GrassVAO);
+
+		const glm::vec3 forward = camera.GetForward();
+		for (const GrassField* field : scene.Grass)
+		{
+			if (!field || field->GetBladeCount() == 0)
+				continue;
+			const uint32_t buffer = field->GetBuffer();
+			const GrassParams& p = field->Params;
+			g.SetFloat("uDrawDistance", p.DrawDistance);
+			g.SetFloat("uTrailBend", trails ? p.TrailBend : 0.0f);
+			g.SetVec3("uBase", p.BaseColor);
+			g.SetVec3("uTip", p.TipColor);
+			g.SetVec3("uDry", p.DryColor);
+			g.SetFloat("uDryAmount", p.DryAmount);
+			for (const GrassChunk& chunk : field->GetChunks())
+			{
+				const glm::vec3 d = chunk.Center - camera.Position;
+				if (glm::length(d) - chunk.Radius > p.DrawDistance || glm::dot(d, forward) < -chunk.Radius)
+					continue;
+				glVertexArrayVertexBuffer(m_GrassVAO, 0, buffer, static_cast<GLintptr>(chunk.First) * sizeof(GrassBlade), sizeof(GrassBlade));
+				glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 10, static_cast<GLsizei>(chunk.Count));
+			}
+		}
+		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 	}
 
 	void Renderer::DrawBatch(const ParticleBatch& batch)

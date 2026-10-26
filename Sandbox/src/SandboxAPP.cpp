@@ -551,6 +551,20 @@ private:
 		for (int i = 0; i < 3; ++i)   // a ruined obelisk group
 			place(m_Cube.get(), 14.0f + 2.5f * static_cast<float>(i), -22.0f + 1.5f * static_cast<float>(i), { 1.2f, 6.0f - 1.6f * static_cast<float>(i), 1.2f }, 12.0f * static_cast<float>(i), 1.0f);
 
+		if (kind == "hills" && style == GB::TerrainStyle::Meadow && options.GetValue("grass", "on") != "none")
+		{
+			GB::GrassParams gp;
+			gp.Seed = seed;
+			gp.Size = 190.0f;
+			gp.HeightFn = m_Terrain->MakeGroundFunction();
+			const GB::Heightmap* hm = &m_Terrain->GetHeightmap();
+			gp.NormalFn = [hm](float x, float z) { return hm->GetNormal(x, z); };
+			gp.Density = static_cast<float>(std::atof(options.GetValue("grass-density", "45").c_str()));
+			m_Grass = std::make_unique<GB::GrassField>(gp);
+			m_Scene.Grass.push_back(m_Grass.get());
+			GB_CLIENT_INFO("Grass: {} blades in {} chunks", m_Grass->GetBladeCount(), m_Grass->GetChunks().size());
+		}
+
 		m_SandSpray = std::make_unique<GB::SandSpray>(*m_Terrain, 4);
 		if (!options.HasFlag("nospray") && kind == "dunes" && style == GB::TerrainStyle::Desert)
 			m_SandSpray->AddToScene(m_Scene);
@@ -592,6 +606,48 @@ private:
 		m_Orbit.MinDistance = 3.0f;
 		m_Orbit.MaxDistance = 200.0f;
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
+
+		// Trees: species depend on the style (oaks and pines in meadows, pines and bare trees in snow, palms in the desert).
+		{
+			const int defaultTrees = style == GB::TerrainStyle::Meadow ? 38 : style == GB::TerrainStyle::Snow ? 26 : 0;
+			const int treeCount = std::atoi(options.GetValue("trees", std::to_string(defaultTrees)).c_str());
+			if (treeCount > 0)
+			{
+				m_TreeFactory = std::make_unique<GB::TreeFactory>();
+				std::vector<GB::TreeParams> recipes;
+				auto add = [&](GB::TreeSpecies sp, float h, uint32_t sd, glm::vec3 tint = glm::vec3(1.0f)) { GB::TreeParams tp; tp.Species = sp; tp.Height = h; tp.Seed = sd; tp.LeafTint = tint; recipes.push_back(tp); };
+				if (style == GB::TerrainStyle::Meadow)
+				{
+					add(GB::TreeSpecies::Broadleaf, 8.0f, 1); add(GB::TreeSpecies::Broadleaf, 10.0f, 2); add(GB::TreeSpecies::Broadleaf, 7.0f, 3, { 1.15f, 1.0f, 0.7f });
+					add(GB::TreeSpecies::Conifer, 11.0f, 4); add(GB::TreeSpecies::Conifer, 9.0f, 5);
+				}
+				else if (style == GB::TerrainStyle::Snow)
+				{
+					add(GB::TreeSpecies::Conifer, 10.0f, 1); add(GB::TreeSpecies::Conifer, 12.0f, 2); add(GB::TreeSpecies::Conifer, 8.0f, 3);
+					add(GB::TreeSpecies::Bare, 8.0f, 4); add(GB::TreeSpecies::Bare, 6.5f, 5);
+				}
+				else
+				{
+					add(GB::TreeSpecies::Palm, 7.5f, 1); add(GB::TreeSpecies::Palm, 9.0f, 2); add(GB::TreeSpecies::Palm, 6.0f, 3);
+				}
+				for (const GB::TreeParams& tp : recipes)
+					m_TreeVariants.push_back(m_TreeFactory->Create(tp));
+				const float snowLine = 1e9f;
+				const auto placements = GB::ScatterTrees(*m_Terrain, treeCount, static_cast<int>(m_TreeVariants.size()), 7.0f, seed + 11,
+					-1e9f, snowLine, 24.0f, [](float x, float z) { return std::hypot(x, z) > 16.0f; });   // keep the middle clear for the walker
+				for (const GB::TreePlacement& pl : placements)
+					m_TreeVariants[static_cast<size_t>(pl.Variant)]->AddToScene(m_Scene, pl.Position, pl.Yaw, pl.Scale);
+				if (options.HasFlag("gallery"))   // every variant in a row, for a close look
+				{
+					for (size_t i = 0; i < m_TreeVariants.size(); ++i)
+					{
+						const float x = (static_cast<float>(i) - 0.5f * static_cast<float>(m_TreeVariants.size() - 1)) * 11.0f, z = -24.0f;
+						m_TreeVariants[i]->AddToScene(m_Scene, { x, m_Terrain->GetHeight(x, z), z }, 0.0f, 1.0f);
+					}
+				}
+				GB_CLIENT_INFO("Trees: {} placed ({} variants)", placements.size(), m_TreeVariants.size());
+			}
+		}
 
 		m_StaticObjects = m_Scene.Objects.size();
 		const std::string walker = options.GetValue("walker", "none");
@@ -984,6 +1040,9 @@ private:
 	std::unique_ptr<GB::Weather> m_Weather;
 	std::unique_ptr<GB::Terrain> m_Terrain;
 	std::unique_ptr<GB::SandSpray> m_SandSpray;
+	std::unique_ptr<GB::GrassField> m_Grass;
+	std::unique_ptr<GB::TreeFactory> m_TreeFactory;
+	std::vector<std::unique_ptr<GB::Tree>> m_TreeVariants;
 	std::unique_ptr<Walker> m_Walker;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
 	std::unique_ptr<GB::ParticleSystem> m_FootDust;

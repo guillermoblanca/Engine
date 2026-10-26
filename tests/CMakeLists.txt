@@ -50,3 +50,8 @@ add_executable(GBGroundTests ground_test.cpp)
 target_link_libraries(GBGroundTests PRIVATE GB::GB)
 add_test(NAME ground COMMAND GBGroundTests)
 set_tests_properties(ground PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBGrassTests grass_test.cpp)
+target_link_libraries(GBGrassTests PRIVATE GB::GB)
+add_test(NAME grass COMMAND GBGrassTests)
+set_tests_properties(grass PROPERTIES SKIP_RETURN_CODE 77)
