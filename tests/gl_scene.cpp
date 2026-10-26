@@ -91,6 +91,37 @@ int main()
 	const uint8_t* quadPx = at(W / 2 + 80, H / 2 - 30);   // inside the textured quad, right of the sphere
 	Check(quadPx[0] > quadPx[1] + 30 && quadPx[0] > quadPx[2] + 30, "albedo map tints the displaced quad red");
 
+	// Particles: an additive white puff in front of the camera must brighten the center but not the corners.
+	{
+		GB::ParticleEmitterDesc d;
+		d.Shape = GB::ParticleShape::Point;
+		d.ConeAngleDegrees = 0.0f;
+		d.Rate = 0.0f;
+		d.Lifetime = { 50.0f, 50.0f };
+		d.Speed = { 0.0f, 0.0f };
+		d.StartSize = { 1.2f, 1.2f };
+		d.StartColor = d.EndColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+		d.Intensity = 2.0f;
+		d.FadeInFraction = 0.0f;
+		GB::ParticleSystem puff(d);
+		puff.SetPosition({ 0.0f, 1.0f, 2.5f });
+		puff.Burst(1);
+		puff.Update(0.01f);
+
+		GB::Scene withParticle = scene;
+		withParticle.Particles.push_back(&puff);
+		GB::Framebuffer target2(W, H);
+		renderer.Render(withParticle, camera, &target2);
+		const auto after = target2.ReadPixels();
+		auto lum = [&](const std::vector<uint8_t>& v, uint32_t x, uint32_t y) { const uint8_t* p = &v[(static_cast<size_t>(y) * W + x) * 4]; return p[0] + p[1] + p[2]; };
+		// Camera looks at (0,0.5,0) from (0,1.5,4); the puff at (0,1,2.5) projects near the middle of the frame.
+		Check(lum(after, W / 2, H / 2 - 10) > lum(px, W / 2, H / 2 - 10) + 150, "additive particle brightens where it is drawn");
+		const int cornerChange = static_cast<int>(lum(after, 3, 3)) - static_cast<int>(lum(px, 3, 3));
+		std::fprintf(stderr, "info: particle bloom changes the corner by %d (sum of RGB)\n", cornerChange);
+		// Only the bloom halo (wide, faint) reaches the corner, far less than the puff itself.
+		Check(cornerChange >= 0 && cornerChange < 40, "particles barely affect pixels far from them");
+	}
+
 	// Every pixel must have been written: the sky pass covers the whole frame.
 	size_t black = 0;
 	for (size_t i = 0; i < px.size(); i += 4)

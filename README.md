@@ -98,11 +98,25 @@ ffmpeg -framerate 24 -i frames/frame_%05d.png -c:v libx264 -pix_fmt yuv420p clip
 Sandbox: `C` (o botón Y del mando) recorre órbita / vuelo / cámaras del archivo con transición suave; `--camera=orbit|fly|N`.
 `tools/add_camera_rig.py in.glb out.glb` añade a un modelo una plataforma de cámaras de demostración (giro 360°, travelling, cenital ortográfica).
 
+## Partículas (Fase 6)
+
+```cpp
+GB::ParticleSystem fire(GB::ParticlePresets::Fire());   // Fire, Smoke, Sparks, Explosion, Snow, Magic
+fire.SetPosition({0, 0.2f, 0});
+scene.Particles.push_back(&fire);                        // el Renderer las dibuja tras la geometría
+fire.Update(dt);                                         // cada frame
+```
+
+Simulación en CPU **determinista** (misma semilla + mismos `Update` = mismas partículas), render por instancias en GPU (billboards).
+`ParticleEmitterDesc`: formas de emisión (punto, esfera, cono, caja), tasa y ráfagas, bucle/duración, vida/velocidad/tamaño aleatorios por rango, gravedad (negativa = flotabilidad), viento, rozamiento, espacio local o mundial, color e intensidad HDR (alimenta el bloom), fundido, rotación, **estiramiento por velocidad** (chispas), mezcla aditiva o alfa (ordenada), sprites procedurales, textura propia y hoja de sprites (flipbook).
+Sandbox: `--scene=particles` (hoguera nocturna: fuego, humo, chispas con luz parpadeante, nieve, orbe mágico y una explosión periódica; tecla B = explosión; `--simulate=S` calienta la simulación antes del primer frame).
+Pendiente: partículas suaves (fade contra la geometría, necesita la profundidad de la escena: hoy los sprites grandes se recortan con el suelo), colisiones, emisión desde mallas, sombras de partículas, GPU compute para cientos de miles.
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
 1. Ventana (GLFW), OpenGL 4.5, input teclado/mando, capturas PNG  ✔
 2. Render PBR, luces, sombras, HDR/bloom  ✔ (primera pasada, ver abajo)
 3. Importación glTF 2.0 (Blender)  ✔
-4. Animación esquelética  ✔ · cámaras  ✔ · partículas · audio
+4. Animación esquelética  ✔ · cámaras  ✔ · partículas  ✔ · audio
 5. Editor (ImGui) y API para agentes (headless, capturas PNG, escenas en texto)

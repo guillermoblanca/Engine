@@ -2,6 +2,7 @@
 #include "Camera.h"
 #include "Framebuffer.h"
 #include "Mesh.h"
+#include "Particles.h"
 #include "Shader.h"
 #include "Texture.h"
 #include <glm/glm.hpp>
@@ -91,6 +92,7 @@ namespace GB
 		std::vector<RenderObject> Objects;
 		DirectionalLight Sun;
 		std::vector<PointLight> PointLights;   // at most MaxPointLights are used
+		std::vector<const ParticleSystem*> Particles;   // drawn after the geometry, not owned
 		Environment Env;
 	};
 
@@ -115,16 +117,21 @@ namespace GB
 		void CreateTargets();
 		void ShadowPass(const Scene& scene, const glm::mat4& lightVP);
 		void ScenePass(const Scene& scene, const Camera& camera, const glm::mat4& lightVP, bool shadows);
+		void ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
 		void BloomPass(const Environment& env);
 		void CompositePass(const Environment& env, const Framebuffer* target);
 
 		uint32_t m_Width, m_Height, m_Samples, m_ShadowSize;
 		bool m_Valid = false;
 
-		std::unique_ptr<Shader> m_ShadowShader, m_PBRShader, m_SkyShader, m_BloomDown, m_BloomUp, m_Composite;
+		std::unique_ptr<Shader> m_ShadowShader, m_PBRShader, m_SkyShader, m_BloomDown, m_BloomUp, m_Composite, m_ParticleShader;
 		std::unique_ptr<Framebuffer> m_ShadowMap, m_SceneMSAA, m_SceneResolved;
 		std::vector<std::unique_ptr<Framebuffer>> m_BloomChain;
 		uint32_t m_EmptyVAO = 0;
+		uint32_t m_ParticleVAO = 0, m_ParticleVBO = 0;
+		size_t m_ParticleVBOCapacity = 0;
+		std::unique_ptr<Texture2D> m_SpriteSoft, m_SpriteSmoke, m_SpriteSpark;
+		std::vector<ParticleInstance> m_ParticleScratch;
 		uint32_t m_JointBuffer = 0;   // SSBO with the joint palette of the object being drawn
 
 		// Binds the palette for skinned objects and sets uSkinned on `shader`.

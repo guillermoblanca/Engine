@@ -5,11 +5,60 @@
 #include <cmath>
 #include <glad/gl.h>
 #include <glm/gtc/matrix_transform.hpp>
+#include <cstdint>
 #include <string>
 #include <vector>
 
 namespace GB
 {
+	namespace
+	{
+		float Hash2(int x, int y)
+		{
+			uint32_t h = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u;
+			h = (h ^ (h >> 13)) * 1274126177u;
+			return static_cast<float>((h ^ (h >> 16)) & 0xFFFFu) / 65535.0f;
+		}
+
+		float ValueNoise(float x, float y)
+		{
+			const int ix = static_cast<int>(std::floor(x)), iy = static_cast<int>(std::floor(y));
+			const float fx = x - static_cast<float>(ix), fy = y - static_cast<float>(iy);
+			const float ux = fx * fx * (3.0f - 2.0f * fx), uy = fy * fy * (3.0f - 2.0f * fy);
+			const float a = Hash2(ix, iy), b = Hash2(ix + 1, iy), c = Hash2(ix, iy + 1), d = Hash2(ix + 1, iy + 1);
+			return glm::mix(glm::mix(a, b, ux), glm::mix(c, d, ux), uy);
+		}
+
+		// White RGB with a procedural alpha mask (the particle color comes from the emitter).
+		Image MakeSprite(ParticleSprite kind, uint32_t size)
+		{
+			Image image = Image::Solid(size, size, 255, 255, 255, 0);
+			for (uint32_t y = 0; y < size; ++y)
+			{
+				for (uint32_t x = 0; x < size; ++x)
+				{
+					const float u = (static_cast<float>(x) + 0.5f) / static_cast<float>(size) * 2.0f - 1.0f;
+					const float v = (static_cast<float>(y) + 0.5f) / static_cast<float>(size) * 2.0f - 1.0f;
+					const float r = std::sqrt(u * u + v * v);
+					float a = 0.0f;
+					if (kind == ParticleSprite::Smoke)
+					{
+						float n = 0.0f, amp = 0.5f, freq = 3.0f;
+						for (int o = 0; o < 4; ++o, amp *= 0.5f, freq *= 2.0f)
+							n += amp * ValueNoise((u + 3.0f) * freq, (v + 3.0f) * freq);
+						a = glm::smoothstep(1.0f, 0.3f, r) * glm::clamp(0.3f + 1.1f * n, 0.0f, 1.0f);
+					}
+					else if (kind == ParticleSprite::Spark)
+						a = std::pow(std::max(1.0f - r, 0.0f), 2.2f);
+					else
+						a = std::pow(std::max(1.0f - r, 0.0f), 1.6f);
+					image.Pixels[(static_cast<size_t>(y) * size + x) * 4 + 3] = static_cast<uint8_t>(glm::clamp(a, 0.0f, 1.0f) * 255.0f + 0.5f);
+				}
+			}
+			return image;
+		}
+	}
+
 	Renderer::Renderer(uint32_t width, uint32_t height, uint32_t msaaSamples, uint32_t shadowMapSize)
 		: m_Width(std::max(width, 1u)), m_Height(std::max(height, 1u)),
 		  m_Samples(std::max(msaaSamples, 1u)), m_ShadowSize(shadowMapSize)
@@ -33,6 +82,21 @@ namespace GB
 		glCreateVertexArrays(1, &m_EmptyVAO);
 		glCreateBuffers(1, &m_JointBuffer);
 
+		m_ParticleShader = std::make_unique<Shader>(Shaders::ParticleVS, Shaders::ParticleFS);
+		m_SpriteSoft = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::SoftCircle, 64), TextureEncoding::Linear);
+		m_SpriteSmoke = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Smoke, 128), TextureEncoding::Linear);
+		m_SpriteSpark = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Spark, 32), TextureEncoding::Linear);
+		glCreateBuffers(1, &m_ParticleVBO);
+		glCreateVertexArrays(1, &m_ParticleVAO);
+		glVertexArrayVertexBuffer(m_ParticleVAO, 0, m_ParticleVBO, 0, sizeof(ParticleInstance));
+		glVertexArrayBindingDivisor(m_ParticleVAO, 0, 1);
+		for (GLuint i = 0; i < 4; ++i)
+		{
+			glEnableVertexArrayAttrib(m_ParticleVAO, i);
+			glVertexArrayAttribFormat(m_ParticleVAO, i, 4, GL_FLOAT, GL_FALSE, i * 16);
+			glVertexArrayAttribBinding(m_ParticleVAO, i, 0);
+		}
+
 		FramebufferSpec shadow;
 		shadow.Width = shadow.Height = m_ShadowSize;
 		shadow.Format = ColorFormat::None;
@@ -42,7 +106,7 @@ namespace GB
 		CreateTargets();
 
 		m_Valid = m_ShadowShader->IsValid() && m_PBRShader->IsValid() && m_SkyShader->IsValid() &&
-			m_BloomDown->IsValid() && m_BloomUp->IsValid() && m_Composite->IsValid() &&
+			m_BloomDown->IsValid() && m_BloomUp->IsValid() && m_Composite->IsValid() && m_ParticleShader->IsValid() &&
 			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete();
 		if (!m_Valid)
 			GB_CORE_ERROR("Renderer failed to initialize");
@@ -52,6 +116,8 @@ namespace GB
 	{
 		glDeleteVertexArrays(1, &m_EmptyVAO);
 		glDeleteBuffers(1, &m_JointBuffer);
+		glDeleteBuffers(1, &m_ParticleVBO);
+		glDeleteVertexArrays(1, &m_ParticleVAO);
 	}
 
 	void Renderer::CreateTargets()
@@ -268,7 +334,60 @@ namespace GB
 		}
 		glDisable(GL_CULL_FACE);
 
+		ParticlePass(scene, camera, viewProj);
+
 		Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);
+	}
+
+	void Renderer::ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj)
+	{
+		if (scene.Particles.empty())
+			return;
+
+		const glm::mat4 view = camera.GetView();
+		const glm::vec3 right(view[0][0], view[1][0], view[2][0]);
+		const glm::vec3 up(view[0][1], view[1][1], view[2][1]);
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);     // particles are tested against the scene but never occlude each other
+		glDisable(GL_CULL_FACE);
+		glEnable(GL_BLEND);
+		m_ParticleShader->Bind();
+		m_ParticleShader->SetMat4("uViewProj", viewProj);
+		m_ParticleShader->SetVec3("uCamRight", right);
+		m_ParticleShader->SetVec3("uCamUp", up);
+		glBindVertexArray(m_ParticleVAO);
+
+		for (const ParticleSystem* system : scene.Particles)
+		{
+			if (!system)
+				continue;
+			system->BuildInstances(camera.Position, m_ParticleScratch);
+			if (m_ParticleScratch.empty())
+				continue;
+
+			const size_t bytes = m_ParticleScratch.size() * sizeof(ParticleInstance);
+			glNamedBufferData(m_ParticleVBO, static_cast<GLsizeiptr>(bytes), m_ParticleScratch.data(), GL_STREAM_DRAW);
+
+			const ParticleEmitterDesc& d = system->Desc;
+			if (d.Blend == ParticleBlend::Additive)
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+			else
+				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+			const Texture2D* sprite = m_SpriteSoft.get();
+			if (d.Sprite == ParticleSprite::Smoke) sprite = m_SpriteSmoke.get();
+			else if (d.Sprite == ParticleSprite::Spark) sprite = m_SpriteSpark.get();
+			else if (d.Sprite == ParticleSprite::Custom && d.CustomTexture) sprite = d.CustomTexture;
+			sprite->Bind(0);
+
+			m_ParticleShader->SetFloat("uStretch", d.Stretch);
+			m_ParticleShader->SetVec2("uSheet", { static_cast<float>(std::max(1u, d.SheetColumns)), static_cast<float>(std::max(1u, d.SheetRows)) });
+			glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(m_ParticleScratch.size()));
+		}
+
+		glDepthMask(GL_TRUE);
+		glDisable(GL_BLEND);
 	}
 
 	void Renderer::BloomPass(const Environment& env)

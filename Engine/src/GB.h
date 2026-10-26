@@ -13,6 +13,7 @@
 #include "GB/Renderer/Framebuffer.h"
 #include "GB/Renderer/Image.h"
 #include "GB/Renderer/Mesh.h"
+#include "GB/Renderer/Particles.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/Shader.h"
 #include "GB/Renderer/Texture.h"
