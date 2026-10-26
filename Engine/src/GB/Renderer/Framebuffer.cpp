@@ -61,8 +61,16 @@ namespace GB
 				glTextureParameteri(m_DepthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 				const float border[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 				glTextureParameterfv(m_DepthTexture, GL_TEXTURE_BORDER_COLOR, border);
-				glTextureParameteri(m_DepthTexture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-				glTextureParameteri(m_DepthTexture, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+				if (m_Spec.DepthCompare)
+				{
+					glTextureParameteri(m_DepthTexture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
+					glTextureParameteri(m_DepthTexture, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
+				}
+				else
+				{
+					glTextureParameteri(m_DepthTexture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+					glTextureParameteri(m_DepthTexture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				}
 				glNamedFramebufferTexture(m_FBO, GL_DEPTH_ATTACHMENT, m_DepthTexture, 0);
 			}
 			else
@@ -107,6 +115,14 @@ namespace GB
 	{
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h));
+	}
+
+	void Framebuffer::BlitDepth(const Framebuffer& src, const Framebuffer& dst)
+	{
+		glBlitNamedFramebuffer(src.m_FBO, dst.m_FBO,
+			0, 0, static_cast<GLint>(src.m_Spec.Width), static_cast<GLint>(src.m_Spec.Height),
+			0, 0, static_cast<GLint>(dst.m_Spec.Width), static_cast<GLint>(dst.m_Spec.Height),
+			GL_DEPTH_BUFFER_BIT, GL_NEAREST);
 	}
 
 	std::vector<uint8_t> Framebuffer::ReadPixels() const

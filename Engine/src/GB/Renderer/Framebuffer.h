@@ -13,7 +13,8 @@ namespace GB
 		ColorFormat Format = ColorFormat::RGBA8;
 		uint32_t Samples = 1;          // >1 = multisampled (resolve with Framebuffer::Blit)
 		bool Depth = true;             // 24-bit depth
-		bool DepthAsTexture = false;   // depth stored in a comparison texture (shadow maps)
+		bool DepthAsTexture = false;   // depth stored in a texture instead of a renderbuffer
+		bool DepthCompare = true;      // with DepthAsTexture: comparison sampler (shadow maps); false = plain sampler2D
 	};
 
 	// Offscreen render target.
@@ -39,6 +40,8 @@ namespace GB
 
 		// Copies the color buffer (e.g. resolves MSAA into a single-sample target).
 		static void BlitColor(const Framebuffer& src, const Framebuffer& dst);
+		// Copies the depth buffer (e.g. resolves an MSAA depth buffer). Both need a 24-bit depth attachment.
+		static void BlitDepth(const Framebuffer& src, const Framebuffer& dst);
 
 		// Single-sample RGBA8 only. Top-left origin, width*height*4 bytes.
 		std::vector<uint8_t> ReadPixels() const;

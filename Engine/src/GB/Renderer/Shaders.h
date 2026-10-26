@@ -100,6 +100,11 @@ void main()
 uniform vec3 uSkyTop;
 uniform vec3 uSkyHorizon;
 uniform vec3 uSkyGround;
+uniform vec3 uFogColor;
+uniform float uFogDensity;
+uniform float uFogHeight;
+uniform float uWetness;
+uniform float uSnowCover;
 
 vec3 SkyColor(vec3 d)
 {
@@ -140,8 +145,10 @@ void main()
 	vec4 w = uInvViewProj * vec4(vUV * 2.0 - 1.0, 1.0, 1.0);
 	vec3 d = normalize(w.xyz / w.w - uCamPos);
 	vec3 col = SkyColor(d) * uEnvIntensity;
+	float fogAmount = clamp(uFogDensity * 30.0, 0.0, 1.0);
+	col = mix(col, uFogColor, fogAmount * (1.0 - smoothstep(0.0, 0.6, d.y)));
 	float s = max(dot(d, -uSunDir), 0.0);
-	col += uSunColor * (pow(s, 1500.0) * 40.0 + pow(s, 24.0) * 0.06);
+	col += uSunColor * (pow(s, 1500.0) * 40.0 + pow(s, 24.0) * 0.06) * (1.0 - fogAmount * 0.85);
 	outColor = vec4(col, 1.0);
 }
 )GLSL";
@@ -278,6 +285,16 @@ void main()
 		alpha *= t.a;
 	}
 	if (uAlphaMode == 1 && alpha < uAlphaCutoff) discard;
+	albedo *= mix(1.0, 0.55, uWetness);   // wet surfaces are darker...
+	// Snow settles on surfaces that face up (with a little noise so the edge is not a clean line).
+	float snow = 0.0;
+	if (uSnowCover > 0.0)
+	{
+		float upFacing = clamp(normalize(vNormal).y, 0.0, 1.0);
+		float grain = fract(sin(dot(floor(vPos.xz * 6.0), vec2(12.9898, 78.233))) * 43758.5453) * 0.12;
+		snow = smoothstep(0.55, 0.85, upFacing + grain - (1.0 - uSnowCover) * 0.35) * uSnowCover;
+		albedo = mix(albedo, vec3(0.92, 0.94, 0.97), snow);
+	}
 	float ao = uAO;
 	if (uHasOcclusionMap != 0)
 		ao *= mix(1.0, texture(uOcclusionMap, vUV).r, uOcclusionStrength);
@@ -295,6 +312,9 @@ void main()
 		metallic *= mr.b;
 	}
 	metallic = clamp(metallic, 0.0, 1.0);
+	metallic *= 1.0 - snow;
+	roughness = mix(roughness, roughness * 0.25, uWetness * (1.0 - metallic) * (1.0 - snow));   // ...and glossier
+	roughness = mix(roughness, 0.85, snow);
 	roughness = clamp(roughness, 0.045, 1.0);
 	float a = roughness * roughness;
 	vec3 F0 = mix(vec3(0.04), albedo, metallic);
@@ -326,6 +346,12 @@ void main()
 	vec3 emissive = uEmissive;
 	if (uHasEmissiveMap != 0) emissive *= texture(uEmissiveMap, vUV).rgb;
 	vec3 color = Lo + ambient + emissive;
+	if (uFogDensity > 0.0)
+	{
+		float dist = length(vPos - uCamPos);
+		float density = uFogDensity * exp(-uFogHeight * max(vPos.y, 0.0));
+		color = mix(uFogColor * uEnvIntensity, color, exp(-density * density * dist * dist));
+	}
 	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), uAlphaMode == 2 ? alpha : 1.0);
 }
 )GLSL";
@@ -422,6 +448,7 @@ uniform float uStretch;
 uniform vec2 uSheet;                       // columns, rows
 out vec2 vUV;
 out vec4 vColor;
+out vec3 vWorld;
 void main()
 {
 	// Triangle strip corners: (-1,-1) (1,-1) (-1,1) (1,1)
@@ -443,6 +470,7 @@ void main()
 	}
 	vec3 world = aPosSize.xyz + uCamRight * offset.x + uCamUp * offset.y;
 	gl_Position = uViewProj * vec4(world, 1.0);
+	vWorld = world;
 
 	vec2 uv = vec2(corner.x * 0.5 + 0.5, 0.5 - corner.y * 0.5);   // top-left origin
 	float frame = aFrame.x;
@@ -456,12 +484,42 @@ void main()
 	inline constexpr const char* ParticleFS = R"GLSL(#version 450 core
 in vec2 vUV;
 in vec4 vColor;
+in vec3 vWorld;
 out vec4 outColor;
 layout(binding = 0) uniform sampler2D uSprite;
+layout(binding = 1) uniform sampler2D uSceneDepth;
+uniform float uSoft;            // soft particle fade distance (world units), 0 = off
+uniform vec2 uNearFar;
+uniform int uOrtho;
+uniform vec3 uCamPos;
+uniform vec3 uFogColor;
+uniform float uFogDensity;
+uniform float uFogHeight;
+
+float LinearDepth(float d)
+{
+	if (uOrtho != 0) return uNearFar.x + d * (uNearFar.y - uNearFar.x);
+	float z = d * 2.0 - 1.0;
+	return 2.0 * uNearFar.x * uNearFar.y / (uNearFar.y + uNearFar.x - z * (uNearFar.y - uNearFar.x));
+}
+
 void main()
 {
 	vec4 t = texture(uSprite, vUV);
-	outColor = vec4(vColor.rgb * t.rgb, vColor.a * t.a);
+	float a = vColor.a * t.a;
+	if (uSoft > 0.0)
+	{
+		vec2 uv = gl_FragCoord.xy / vec2(textureSize(uSceneDepth, 0));
+		float diff = LinearDepth(texture(uSceneDepth, uv).r) - LinearDepth(gl_FragCoord.z);
+		a *= clamp(diff / uSoft, 0.0, 1.0);
+	}
+	if (uFogDensity > 0.0)
+	{
+		float dist = length(vWorld - uCamPos);
+		float density = uFogDensity * exp(-uFogHeight * max(vWorld.y, 0.0));
+		a *= exp(-density * density * dist * dist);   // distant particles melt into the fog
+	}
+	outColor = vec4(vColor.rgb * t.rgb, a);
 }
 )GLSL";
 }
