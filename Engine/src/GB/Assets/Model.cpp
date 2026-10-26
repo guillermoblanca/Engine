@@ -589,6 +589,14 @@ namespace GB
 		return -1;
 	}
 
+	int Model::FindNode(const std::string& name) const
+	{
+		for (size_t i = 0; i < m_Nodes.size(); ++i)
+			if (m_Nodes[i].Name == name)
+				return static_cast<int>(i);
+		return -1;
+	}
+
 	Material Model::GetMaterial(int materialIndex) const
 	{
 		if (materialIndex >= 0 && static_cast<size_t>(materialIndex) < m_Materials.size())

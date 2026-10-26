@@ -3,6 +3,7 @@
 #include "Framebuffer.h"
 #include "Mesh.h"
 #include "Particles.h"
+#include "GB/World/GroundInteraction.h"
 #include "Shader.h"
 #include "Texture.h"
 #include <glm/glm.hpp>
@@ -43,6 +44,12 @@ namespace GB
 		// and multiplied into the albedo. Terrain uses it for slope/altitude coloring.
 		const Texture2D* MacroMap = nullptr;
 		glm::vec4 MacroRect{ 0.0f, 0.0f, 1.0f, 1.0f };
+
+		// Ground marks (needs Scene::Ground): the surface is pressed down by `TrailDepth` meters where the
+		// interaction map is 1, darkened toward `TrailTint`, and its normal follows the dent's edges.
+		float TrailDepth = 0.0f;
+		glm::vec3 TrailTint{ 1.0f };
+		float TrailNormalBoost = 1.0f;
 
 		AlphaMode Alpha = AlphaMode::Opaque;       // Mask: cutout at AlphaCutoff, Blend: sorted translucency
 		float AlphaCutoff = 0.5f;
@@ -107,6 +114,7 @@ namespace GB
 		std::vector<PointLight> PointLights;   // at most MaxPointLights are used
 		std::vector<const ParticleSystem*> Particles;   // drawn after the geometry, not owned
 		std::vector<ParticleBatch> ParticleBatches;     // extra ready-made batches (lightning...), drawn after Particles
+		const GroundInteraction* Ground = nullptr;      // marks left on the ground (footprints, trails); not owned
 		Environment Env;
 	};
 

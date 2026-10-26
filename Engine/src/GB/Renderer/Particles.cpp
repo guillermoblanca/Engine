@@ -477,6 +477,32 @@ namespace GB
 			return d;
 		}
 
+		ParticleEmitterDesc FootDust(const glm::vec3& color)
+		{
+			ParticleEmitterDesc d;
+			d.Shape = ParticleShape::Cone;
+			d.Radius = 0.05f;
+			d.ConeAngleDegrees = 60.0f;
+			d.Rate = 0.0f;
+			d.MaxParticles = 600;
+			d.Lifetime = { 0.5f, 1.1f };
+			d.Speed = { 0.3f, 1.0f };
+			d.Gravity = { 0.0f, -1.0f, 0.0f };
+			d.GravityScale = -0.15f;
+			d.Drag = 1.6f;
+			d.StartSize = { 0.07f, 0.15f };
+			d.EndSizeScale = 2.6f;
+			d.AngularVelocityDegrees = { -60.0f, 60.0f };
+			d.StartColor = { color.r, color.g, color.b, 0.32f };
+			d.EndColor = { color.r, color.g, color.b, 0.0f };
+			d.FadeInFraction = 0.05f;
+			d.Blend = ParticleBlend::Alpha;
+			d.Sprite = ParticleSprite::Smoke;
+			d.SoftDistance = 0.25f;
+			d.Seed = 71;
+			return d;
+		}
+
 		ParticleEmitterDesc DustDevil()
 		{
 			ParticleEmitterDesc d;

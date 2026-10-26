@@ -45,3 +45,8 @@ add_executable(GBTerrainTests terrain_test.cpp)
 target_link_libraries(GBTerrainTests PRIVATE GB::GB)
 add_test(NAME terrain COMMAND GBTerrainTests)
 set_tests_properties(terrain PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBGroundTests ground_test.cpp)
+target_link_libraries(GBGroundTests PRIVATE GB::GB)
+add_test(NAME ground COMMAND GBGroundTests)
+set_tests_properties(ground PROPERTIES SKIP_RETURN_CODE 77)

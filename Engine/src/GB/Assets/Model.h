@@ -106,6 +106,8 @@ namespace GB
 		const std::vector<AnimationClip>& GetClips() const { return m_Clips; }
 		// Index of the clip with this name, or -1.
 		int FindClip(const std::string& name) const;
+		// Index of the node with this exact name, or -1 (e.g. a foot bone).
+		int FindNode(const std::string& name) const;
 
 		struct Primitive
 		{
