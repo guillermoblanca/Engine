@@ -6,6 +6,7 @@
 #include <glad/gl.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <string>
+#include <vector>
 
 namespace GB
 {
@@ -102,7 +103,7 @@ namespace GB
 		m_ShadowShader->SetMat4("uLightVP", lightVP);
 		for (const RenderObject& obj : scene.Objects)
 		{
-			if (!obj.MeshPtr)
+			if (!obj.MeshPtr || obj.Mat.Alpha == AlphaMode::Blend)
 				continue;
 			m_ShadowShader->SetMat4("uModel", obj.Transform);
 			const bool displaced = obj.Mat.HeightMap && obj.Mat.HeightScale != 0.0f;
@@ -183,31 +184,72 @@ namespace GB
 			pbr.SetVec3Array("uPointColor", colors, pointCount);
 		}
 
-		for (const RenderObject& obj : scene.Objects)
+		auto drawObject = [&](const RenderObject& obj)
 		{
-			if (!obj.MeshPtr)
-				continue;
-			pbr.SetMat4("uModel", obj.Transform);
-			pbr.SetVec3("uAlbedo", obj.Mat.Albedo);
-			pbr.SetFloat("uMetallic", obj.Mat.Metallic);
-			pbr.SetFloat("uRoughness", obj.Mat.Roughness);
-			pbr.SetFloat("uAO", obj.Mat.AO);
-			pbr.SetVec3("uEmissive", obj.Mat.Emissive);
-
 			const Material& m = obj.Mat;
+			if (m.DoubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
+
+			pbr.SetMat4("uModel", obj.Transform);
+			pbr.SetVec3("uAlbedo", m.Albedo);
+			pbr.SetFloat("uMetallic", m.Metallic);
+			pbr.SetFloat("uRoughness", m.Roughness);
+			pbr.SetFloat("uAO", m.AO);
+			pbr.SetVec3("uEmissive", m.Emissive);
+
 			pbr.SetInt("uHasAlbedoMap", m.AlbedoMap ? 1 : 0);
 			pbr.SetInt("uHasNormalMap", m.NormalMap ? 1 : 0);
 			pbr.SetInt("uHasHeightMap", m.HeightMap ? 1 : 0);
 			pbr.SetInt("uHasHeight", m.HeightMap && m.HeightScale != 0.0f ? 1 : 0);
+			pbr.SetInt("uHasMRMap", m.MetallicRoughnessMap ? 1 : 0);
+			pbr.SetInt("uHasOcclusionMap", m.OcclusionMap ? 1 : 0);
+			pbr.SetInt("uHasEmissiveMap", m.EmissiveMap ? 1 : 0);
 			pbr.SetFloat("uHeightScale", m.HeightScale);
 			pbr.SetFloat("uUVScale", m.UVScale);
 			pbr.SetFloat("uNormalStrength", m.NormalStrength);
 			pbr.SetVec2("uNormalFlip", { m.NormalFlipX ? -1.0f : 1.0f, m.NormalFlipY ? -1.0f : 1.0f });
 			pbr.SetFloat("uCavityStrength", m.CavityStrength);
+			pbr.SetFloat("uOcclusionStrength", m.OcclusionStrength);
+			pbr.SetInt("uAlphaMode", static_cast<int>(m.Alpha));
+			pbr.SetFloat("uAlphaCutoff", m.AlphaCutoff);
+			pbr.SetFloat("uOpacity", m.Opacity);
 			if (m.AlbedoMap) m.AlbedoMap->Bind(1);
 			if (m.NormalMap) m.NormalMap->Bind(2);
 			if (m.HeightMap) m.HeightMap->Bind(3);
+			if (m.MetallicRoughnessMap) m.MetallicRoughnessMap->Bind(4);
+			if (m.OcclusionMap) m.OcclusionMap->Bind(5);
+			if (m.EmissiveMap) m.EmissiveMap->Bind(6);
 			obj.MeshPtr->Draw();
+		};
+
+		// Opaque and alpha-masked first, then translucent objects back to front without depth writes.
+		std::vector<const RenderObject*> translucent;
+		for (const RenderObject& obj : scene.Objects)
+		{
+			if (!obj.MeshPtr)
+				continue;
+			if (obj.Mat.Alpha == AlphaMode::Blend)
+				translucent.push_back(&obj);
+			else
+				drawObject(obj);
+		}
+
+		if (!translucent.empty())
+		{
+			auto distance2 = [&](const RenderObject* o)
+			{
+				const glm::vec3 d = glm::vec3(o->Transform[3]) - camera.Position;
+				return glm::dot(d, d);
+			};
+			std::sort(translucent.begin(), translucent.end(),
+				[&](const RenderObject* a, const RenderObject* b) { return distance2(a) > distance2(b); });
+
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glDepthMask(GL_FALSE);
+			for (const RenderObject* obj : translucent)
+				drawObject(*obj);
+			glDepthMask(GL_TRUE);
+			glDisable(GL_BLEND);
 		}
 		glDisable(GL_CULL_FACE);
 

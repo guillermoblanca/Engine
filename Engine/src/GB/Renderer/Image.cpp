@@ -26,6 +26,24 @@ namespace GB
 		return image;
 	}
 
+	Image Image::LoadFromMemory(const uint8_t* data, size_t size, bool flipY)
+	{
+		stbi_set_flip_vertically_on_load(flipY ? 1 : 0);
+		int w = 0, h = 0, channels = 0;
+		stbi_uc* pixels = stbi_load_from_memory(data, static_cast<int>(size), &w, &h, &channels, 4);
+		if (!pixels)
+		{
+			GB_CORE_ERROR("Could not decode embedded image: {}", stbi_failure_reason());
+			return {};
+		}
+		Image image;
+		image.Width = static_cast<uint32_t>(w);
+		image.Height = static_cast<uint32_t>(h);
+		image.Pixels.assign(pixels, pixels + static_cast<size_t>(w) * h * 4);
+		stbi_image_free(pixels);
+		return image;
+	}
+
 	Image Image::Solid(uint32_t width, uint32_t height, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 	{
 		Image image;

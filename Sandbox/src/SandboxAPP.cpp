@@ -7,7 +7,9 @@
 #include <string>
 #include <vector>
 
-// Two scenes, picked with --scene=pbr (default) or --scene=textures:
+// Three scenes, picked with --scene=pbr (default), --scene=textures or --scene=model:
+//   model    loads a glTF/GLB (e.g. exported from Blender): --model=path.glb (default: DamagedHelmet),
+//            --nofloor, --yaw=DEG initial camera yaw
 //   pbr      roughness sweep of metal and dielectric spheres under sun, sky and point lights.
 //   textures 4x3 material gallery on subdivided quads with normal mapping + height displacement.
 //            Extra options: --tile=N (0-11, single large tile) --grid=N (subdivisions)
@@ -28,8 +30,11 @@ public:
 			return;
 		}
 		const GB::LaunchOptions& options = GB::GetLaunchOptions();
-		if (options.GetValue("scene", "pbr") == "textures")
+		const std::string sceneName = options.GetValue("scene", "pbr");
+		if (sceneName == "textures")
 			BuildTextureScene(options);
+		else if (sceneName == "model")
+			BuildModelScene(options);
 		else
 			BuildScene();
 	}
@@ -51,7 +56,7 @@ protected:
 
 		m_Yaw += yaw * 1.5f * dt;
 		m_Pitch = std::clamp(m_Pitch + pitch * 1.0f * dt, 0.05f, 1.4f);
-		m_Distance = std::clamp(m_Distance + zoom * 6.0f * dt, 3.0f, 30.0f);
+		m_Distance = std::clamp(m_Distance + zoom * 0.5f * m_Distance * dt, m_ZoomMin, m_ZoomMax);
 
 		if (GB::Input::IsKeyDown(Key::Escape) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::Back))
 			Close();
@@ -63,6 +68,9 @@ protected:
 		camera.Target = m_CameraTarget;
 		camera.Position = camera.Target + m_Distance * glm::vec3(
 			std::sin(m_Yaw) * std::cos(m_Pitch), std::sin(m_Pitch), std::cos(m_Yaw) * std::cos(m_Pitch));
+		// Scale the clip planes with the viewing distance so tiny and huge models both fit.
+		camera.NearPlane = m_Distance * 0.01f;
+		camera.FarPlane = m_Distance * 500.0f;
 		m_Renderer->Resize(GetWindow()->GetWidth(), GetWindow()->GetHeight());
 		m_Renderer->Render(m_Scene, camera);
 	}
@@ -159,6 +167,47 @@ private:
 		m_Distance = single >= 0 ? 6.0f : 10.5f;
 	}
 
+	void BuildModelScene(const GB::LaunchOptions& options)
+	{
+		const std::string path = options.GetValue("model", std::string(GB_ASSET_DIR) + "/models/DamagedHelmet.glb");
+		m_Model = GB::Model::Load(path);
+		if (!m_Model)
+		{
+			GB_CLIENT_ERROR("Could not load model '{}'", path);
+			Close();
+			return;
+		}
+		m_Model->AddToScene(m_Scene);
+
+		const glm::vec3 center = m_Model->GetBoundsCenter();
+		const float radius = std::max(m_Model->GetBoundsRadius(), 0.01f);
+		if (!options.HasFlag("nofloor"))
+		{
+			m_Plane = std::make_unique<GB::Mesh>(GB::Mesh::CreatePlane(radius * 60.0f));
+			GB::RenderObject floor;
+			floor.MeshPtr = m_Plane.get();
+			floor.Mat.Albedo = { 0.28f, 0.29f, 0.31f };
+			floor.Mat.Roughness = 0.6f;
+			floor.Mat.HeightScale = 0.0f;
+			floor.Mat.CavityStrength = 0.0f;
+			floor.Transform = glm::translate(glm::mat4(1.0f), { center.x, m_Model->GetBoundsMin().y - 0.001f * radius, center.z });
+			m_Scene.Objects.push_back(floor);
+		}
+
+		m_Scene.Sun.Direction = { -0.5f, -0.75f, -0.45f };
+		m_Scene.Sun.Intensity = 3.5f;
+		m_Scene.Env.Intensity = 0.8f;
+		m_Scene.Env.BloomThreshold = 1.5f;
+		m_Scene.Env.ShadowCenter = center;
+		m_Scene.Env.ShadowRadius = radius * 3.0f;
+		m_CameraTarget = center;
+		m_Pitch = 0.18f;
+		m_Yaw = glm::radians(static_cast<float>(std::atof(options.GetValue("yaw", "0").c_str())));
+		m_Distance = radius / std::sin(glm::radians(22.5f)) * 1.15f;
+		m_ZoomMin = radius * 0.5f;
+		m_ZoomMax = radius * 20.0f;
+	}
+
 	void BuildScene()
 	{
 		m_Sphere = std::make_unique<GB::Mesh>(GB::Mesh::CreateSphere(0.5f));
@@ -231,6 +280,8 @@ private:
 	glm::vec3 m_CameraTarget{ 0.0f, 1.3f, 0.0f };
 	GB::Scene m_Scene;
 	float m_Yaw = 0.0f, m_Pitch = 0.22f, m_Distance = 13.0f;
+	float m_ZoomMin = 3.0f, m_ZoomMax = 30.0f;
+	std::unique_ptr<GB::Model> m_Model;
 };
 
 GB::Application* GB::CreateApplication()

@@ -5,6 +5,7 @@ add_library(GB STATIC
     src/GB/Application.cpp
     src/GB/Input.cpp
     src/GB/Log.cpp
+    src/GB/Assets/Model.cpp
     src/GB/Window.cpp
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/Image.cpp
@@ -16,7 +17,7 @@ add_library(GB::GB ALIAS GB)
 
 target_include_directories(GB PUBLIC src)
 target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw)
-target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR})
+target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR})
 # glm is header-only; added as SYSTEM so its headers do not trip our warning flags.
 target_include_directories(GB SYSTEM PUBLIC ${glm_SOURCE_DIR})
 
