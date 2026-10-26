@@ -173,6 +173,9 @@ layout(binding = 3) uniform sampler2D uHeightMap;
 layout(binding = 4) uniform sampler2D uMRMap;
 layout(binding = 5) uniform sampler2D uOcclusionMap;
 layout(binding = 6) uniform sampler2D uEmissiveMap;
+layout(binding = 7) uniform sampler2D uMacroMap;
+uniform int uHasMacroMap;
+uniform vec4 uMacroRect;
 uniform int uHasMRMap;
 uniform int uHasOcclusionMap;
 uniform int uHasEmissiveMap;
@@ -284,6 +287,8 @@ void main()
 		albedo *= t.rgb;
 		alpha *= t.a;
 	}
+	if (uHasMacroMap != 0)
+		albedo *= texture(uMacroMap, (vPos.xz - uMacroRect.xy) / uMacroRect.zw).rgb;
 	if (uAlphaMode == 1 && alpha < uAlphaCutoff) discard;
 	albedo *= mix(1.0, 0.55, uWetness);   // wet surfaces are darker...
 	// Snow settles on surfaces that face up (with a little noise so the edge is not a clean line).

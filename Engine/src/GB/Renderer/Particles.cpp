@@ -204,13 +204,14 @@ namespace GB
 			p.Position += p.Velocity * dt;
 			p.Rotation += p.AngularVelocity * dt;
 
-			if (collide && p.Position.y < Desc.GroundY)
+			const float groundY = collide && Desc.GroundHeightFn ? Desc.GroundHeightFn(p.Position.x, p.Position.z) : Desc.GroundY;
+			if (collide && p.Position.y < groundY)
 			{
 				if (m_Hits.size() < 512)
-					m_Hits.push_back({ glm::vec3(p.Position.x, Desc.GroundY, p.Position.z), glm::length(p.Velocity) });
+					m_Hits.push_back({ glm::vec3(p.Position.x, groundY, p.Position.z), glm::length(p.Velocity) });
 				if (Desc.Bounce > 0.0f && std::fabs(p.Velocity.y) > 0.3f)
 				{
-					p.Position.y = Desc.GroundY;
+					p.Position.y = groundY;
 					p.Velocity.y = -p.Velocity.y * Desc.Bounce;
 					p.Velocity.x *= 1.0f - Desc.BounceFriction;
 					p.Velocity.z *= 1.0f - Desc.BounceFriction;
@@ -473,6 +474,37 @@ namespace GB
 			d.Blend = ParticleBlend::Additive;
 			d.Sprite = ParticleSprite::SoftCircle;
 			d.Seed = 53;
+			return d;
+		}
+
+		ParticleEmitterDesc DustDevil()
+		{
+			ParticleEmitterDesc d;
+			d.Shape = ParticleShape::Cone;
+			d.Radius = 0.6f;
+			d.ConeAngleDegrees = 12.0f;
+			d.Rate = 220.0f;
+			d.MaxParticles = 1500;
+			d.Lifetime = { 2.5f, 4.5f };
+			d.Speed = { 2.0f, 4.0f };
+			d.Drag = 1.1f;
+			d.Vortex = true;
+			d.VortexSwirl = 12.0f;
+			d.VortexInward = 20.0f;
+			d.VortexInwardTop = -0.5f;
+			d.VortexHeight = 14.0f;
+			d.VortexLift = 8.0f;
+			d.VortexRadius = 14.0f;
+			d.StartSize = { 0.5f, 1.0f };
+			d.EndSizeScale = 3.0f;
+			d.AngularVelocityDegrees = { -40.0f, 40.0f };
+			d.StartColor = { 0.72f, 0.55f, 0.36f, 0.26f };
+			d.EndColor = { 0.68f, 0.52f, 0.34f, 0.0f };
+			d.FadeInFraction = 0.1f;
+			d.Blend = ParticleBlend::Alpha;
+			d.Sprite = ParticleSprite::Smoke;
+			d.SoftDistance = 1.0f;
+			d.Seed = 61;
 			return d;
 		}
 	}

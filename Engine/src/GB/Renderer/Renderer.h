@@ -39,6 +39,11 @@ namespace GB
 		float OcclusionStrength = 1.0f;
 		const Texture2D* EmissiveMap = nullptr;    // sRGB, multiplied with Emissive
 
+		// Large-scale color: sampled with the world XZ position mapped over MacroRect (x, z, sizeX, sizeZ)
+		// and multiplied into the albedo. Terrain uses it for slope/altitude coloring.
+		const Texture2D* MacroMap = nullptr;
+		glm::vec4 MacroRect{ 0.0f, 0.0f, 1.0f, 1.0f };
+
 		AlphaMode Alpha = AlphaMode::Opaque;       // Mask: cutout at AlphaCutoff, Blend: sorted translucency
 		float AlphaCutoff = 0.5f;
 		float Opacity = 1.0f;                      // multiplies the albedo map alpha

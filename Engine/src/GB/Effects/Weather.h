@@ -4,6 +4,7 @@
 #include "GB/Renderer/Particles.h"
 #include "GB/Renderer/Renderer.h"
 #include <glm/glm.hpp>
+#include <functional>
 #include <memory>
 
 namespace GB
@@ -22,6 +23,8 @@ namespace GB
 		// Ground height used for rain/snow impacts and where the tornado touches down.
 		float GroundY = 0.0f;
 		float TransitionSeconds = 4.0f;   // time to go from 0 to 1 (or back)
+		// Terrain height(x, z) for rain/snow impacts, ground mist and the tornado; replaces the flat GroundY.
+		void SetGroundFunction(std::function<float(float, float)> fn);
 
 		void SetPreset(WeatherPreset preset);
 		void SetRain(float level) { m_Target.Rain = glm::clamp(level, 0.0f, 1.0f); }
@@ -49,6 +52,9 @@ namespace GB
 		// Captures the scene's current environment, sun and the number of particle systems / lights /
 		// batches it already has. Call once after building the scene, before the first Apply.
 		void SetBase(const Scene& scene);
+		// The captured base environment/sun, e.g. to move the shadow area with the camera between frames.
+		Environment& BaseEnvironment() { return m_BaseEnv; }
+		DirectionalLight& BaseSun() { return m_BaseSun; }
 
 		void Update(float dt, const Camera& camera);
 		// Writes the weather into `scene`: environment (sky, fog, wetness, flash), sun, lightning light
@@ -85,5 +91,7 @@ namespace GB
 		DirectionalLight m_BaseSun;
 		size_t m_BaseParticles = 0, m_BaseBatches = 0, m_BaseLights = 0;
 		bool m_HasBase = false;
+		std::function<float(float, float)> m_GroundFn;
+		float GroundAt(float x, float z) const { return m_GroundFn ? m_GroundFn(x, z) : GroundY; }
 	};
 }

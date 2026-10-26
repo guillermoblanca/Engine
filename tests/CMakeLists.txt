@@ -40,3 +40,8 @@ add_test(NAME particles COMMAND GBParticleTests)
 add_executable(GBWeatherTests weather_test.cpp)
 target_link_libraries(GBWeatherTests PRIVATE GB::GB)
 add_test(NAME weather COMMAND GBWeatherTests)
+
+add_executable(GBTerrainTests terrain_test.cpp)
+target_link_libraries(GBTerrainTests PRIVATE GB::GB)
+add_test(NAME terrain COMMAND GBTerrainTests)
+set_tests_properties(terrain PROPERTIES SKIP_RETURN_CODE 77)

@@ -290,6 +290,13 @@ namespace GB
 		m_SnowCover = m_Level.Snow > 0.05f ? 0.9f : 0.0f;
 	}
 
+	void Weather::SetGroundFunction(std::function<float(float, float)> fn)
+	{
+		m_GroundFn = std::move(fn);
+		for (auto* s : { m_Rain.get(), m_SnowFlakes.get() })
+			s->Desc.GroundHeightFn = m_GroundFn;
+	}
+
 	void Weather::SetBase(const Scene& scene)
 	{
 		m_BaseEnv = scene.Env;
@@ -315,8 +322,9 @@ namespace GB
 		const glm::vec3 wind = Horizontal(m_Wind);
 		const float windSpeed = glm::length(wind);
 		const glm::vec3 windDir = windSpeed > 1e-3f ? wind / windSpeed : glm::vec3(1, 0, 0);
-		const float top = std::max(cam.y, GroundY) + 15.0f;
-		const float snowTop = std::max(cam.y, GroundY) + 9.0f;
+		const float ground = GroundAt(cam.x, cam.z);   // terrain height under the camera
+		const float top = std::max(cam.y, ground) + 15.0f;
+		const float snowTop = std::max(cam.y, ground) + 9.0f;
 
 		// Rain falls at an angle set by the wind and lands on GroundY.
 		{
@@ -325,28 +333,28 @@ namespace GB
 			d.Rate = 7000.0f * m_Level.Rain;
 			d.GroundY = GroundY;
 			m_Rain->SetPosition({ cam.x - wind.x * 0.5f, top, cam.z - wind.z * 0.5f });
-			m_Rain->Desc.Lifetime = { (top - GroundY) / 21.0f, (top - GroundY) / 16.0f };
+			m_Rain->Desc.Lifetime = { (top - ground + 6.0f) / 21.0f, (top - ground + 6.0f) / 16.0f };
 		}
-		m_Splash->SetPosition({ cam.x, GroundY, cam.z });
+		m_Splash->SetPosition({ cam.x, ground, cam.z });
 		m_Mist->Desc.Rate = 7.0f * m_Level.Rain;
 		m_Mist->Desc.Wind = wind * 0.1f;
-		m_Mist->SetPosition({ cam.x, GroundY + 0.4f, cam.z });
+		m_Mist->SetPosition({ cam.x, ground + 0.4f, cam.z });
 
 		{
 			ParticleEmitterDesc& d = m_SnowFlakes->Desc;
 			d.Rate = 2600.0f * m_Level.Snow;
 			d.Wind = wind * 0.55f;
 			d.GroundY = GroundY;
-			d.Lifetime = { (snowTop - GroundY) / 1.1f, (snowTop - GroundY) / 0.6f };
+			d.Lifetime = { (snowTop - ground + 6.0f) / 1.1f, (snowTop - ground + 6.0f) / 0.6f };
 			m_SnowFlakes->SetPosition({ cam.x - wind.x, snowTop, cam.z - wind.z });
 		}
 
 		m_Motes->Desc.Rate = 140.0f * m_Level.Dust;
 		m_Motes->Desc.Wind = wind * 0.3f;
-		m_Motes->SetPosition({ cam.x, GroundY + 2.5f, cam.z });
+		m_Motes->SetPosition({ cam.x, ground + 2.5f, cam.z });
 		m_Haze->Desc.Rate = 6.0f * m_Level.Dust;
 		m_Haze->Desc.Wind = wind * 0.2f;
-		m_Haze->SetPosition({ cam.x, GroundY + 1.5f, cam.z });
+		m_Haze->SetPosition({ cam.x, ground + 1.5f, cam.z });
 
 		// Sandstorm: boxes are upwind of the camera and shoot along the wind.
 		const float yawRad = std::atan2(windDir.z, windDir.x);
@@ -354,7 +362,7 @@ namespace GB
 		for (auto* system : { m_SandStreaks.get(), m_SandClouds.get() })
 		{
 			system->Desc.Direction = windDir;
-			glm::mat4 t = glm::translate(glm::mat4(1.0f), { cam.x - windDir.x * 20.0f, GroundY + 3.5f, cam.z - windDir.z * 20.0f }) * toWind;
+			glm::mat4 t = glm::translate(glm::mat4(1.0f), { cam.x - windDir.x * 20.0f, ground + 3.5f, cam.z - windDir.z * 20.0f }) * toWind;
 			system->SetTransform(t);
 			system->Desc.Direction = { 1.0f, 0.0f, 0.0f };   // emitter-local; the rotation above aims it
 		}
@@ -363,7 +371,7 @@ namespace GB
 		m_SandClouds->Desc.Rate = 28.0f * m_Level.Sandstorm;
 
 		// Tornado touches down at its position.
-		const glm::vec3 base = { m_TornadoPosition.x, GroundY, m_TornadoPosition.z };
+		const glm::vec3 base = { m_TornadoPosition.x, GroundAt(m_TornadoPosition.x, m_TornadoPosition.z), m_TornadoPosition.z };
 		m_Funnel->SetPosition(base);
 		m_Funnel->Desc.Rate = 420.0f * m_Level.Tornado;
 		m_FunnelBase->SetPosition(base);
@@ -406,7 +414,7 @@ namespace GB
 		forward.y = 0.0f;
 		forward = glm::length(forward) > 1e-3f ? glm::normalize(forward) : glm::vec3(0.0f, 0.0f, -1.0f);
 		m_Lightning.Desc.AreaRadius = 38.0f;
-		m_Lightning.Desc.Center = { camera.Position.x + forward.x * 52.0f, GroundY, camera.Position.z + forward.z * 52.0f };
+		m_Lightning.Desc.Center = { camera.Position.x + forward.x * 52.0f, GroundAt(camera.Position.x, camera.Position.z), camera.Position.z + forward.z * 52.0f };
 		m_Lightning.Desc.Automatic = m_Level.Storm > 0.55f;
 		m_Lightning.Desc.Interval = { glm::mix(9.0f, 3.0f, m_Level.Storm), glm::mix(18.0f, 7.0f, m_Level.Storm) };
 		m_Lightning.SetListener(camera.Position);
