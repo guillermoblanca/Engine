@@ -76,6 +76,15 @@ Animación de nodos y esqueletal (skinning por GPU con SSBO de huesos, también 
 `Sandbox --scene=model --model=x.glb --anim=Walk --time=0.3` (congela ese instante, ideal para capturas); teclas 1-9 cambian de clip y Espacio pausa.
 Pendiente: morph targets (blend shapes), máquina de estados / blend trees, retargeting.
 
+### Grabar un clip
+
+```
+xvfb-run -a ./build/Sandbox/Sandbox --scene=model --model=Fox.glb --playlist=Survey,Walk,Run --switch=1.2 \
+    --orbit=25 --size=960x540 --hidden --frames=96 --fps=24 --record=frames
+ffmpeg -framerate 24 -i frames/frame_%05d.png -c:v libx264 -pix_fmt yuv420p clip.mp4
+```
+`--record=DIR` guarda un PNG por frame con paso de tiempo fijo (1/fps), así el resultado es determinista aunque el render sea lento.
+
 ![Animación](docs/animation.jpg)
 
 ## Hoja de ruta

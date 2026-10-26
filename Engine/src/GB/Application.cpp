@@ -2,6 +2,8 @@
 #include "Log.h"
 #include "Renderer/Framebuffer.h"
 #include <GLFW/glfw3.h>
+#include <cstdio>
+#include <filesystem>
 
 namespace GB
 {
@@ -54,6 +56,14 @@ namespace GB
 		if (!m_Valid)
 			return;
 
+		const LaunchOptions& options = GetLaunchOptions();
+		const bool recording = m_Window && !options.RecordDir.empty() && options.RecordFps > 0.0f;
+		if (recording)
+		{
+			std::filesystem::create_directories(options.RecordDir);
+			GB_CORE_INFO("Recording to '{}' at {} fps (fixed time step)", options.RecordDir, options.RecordFps);
+		}
+
 		double last = m_Window ? glfwGetTime() : 0.0;
 		while (m_Running)
 		{
@@ -64,6 +74,8 @@ namespace GB
 				const double now = glfwGetTime();
 				dt = static_cast<float>(now - last);
 				last = now;
+				if (recording)
+					dt = 1.0f / options.RecordFps;   // deterministic, independent of render speed
 			}
 
 			OnUpdate(dt);
@@ -71,6 +83,13 @@ namespace GB
 			++m_FrameCount;
 
 			const bool lastFrame = m_MaxFrames != 0 && m_FrameCount >= m_MaxFrames;
+			if (recording)
+			{
+				char name[32];
+				std::snprintf(name, sizeof(name), "frame_%05llu.png", static_cast<unsigned long long>(m_FrameCount));
+				SaveBackbufferPNG((std::filesystem::path(options.RecordDir) / name).string().c_str(),
+					m_Window->GetWidth(), m_Window->GetHeight());
+			}
 			if (m_Window)
 			{
 				if (lastFrame && !m_Screenshot.empty())
