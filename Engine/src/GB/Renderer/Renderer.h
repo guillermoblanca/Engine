@@ -10,11 +10,8 @@
 
 namespace GB
 {
-<<<<<<< HEAD
 	enum class AlphaMode { Opaque, Mask, Blend };
 
-=======
->>>>>>> origin/master
 	// Metallic/roughness PBR material (constant parameters; textures come with the glTF importer).
 	struct Material
 	{
@@ -34,7 +31,6 @@ namespace GB
 		bool NormalFlipX = false;               // invert the red channel (map disagrees with its height map)
 		bool NormalFlipY = false;               // true for DirectX-style normal maps
 		float CavityStrength = 0.6f;            // how much the height map darkens crevices
-<<<<<<< HEAD
 
 		// glTF-style maps. MetallicRoughnessMap: G = roughness, B = metallic (times the factors above).
 		const Texture2D* MetallicRoughnessMap = nullptr;
@@ -46,8 +42,6 @@ namespace GB
 		float AlphaCutoff = 0.5f;
 		float Opacity = 1.0f;                      // multiplies the albedo map alpha
 		bool DoubleSided = false;
-=======
->>>>>>> origin/master
 	};
 
 	struct DirectionalLight

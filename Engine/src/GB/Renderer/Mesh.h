@@ -10,11 +10,7 @@ namespace GB
 		glm::vec3 Position;
 		glm::vec3 Normal;
 		glm::vec2 UV;
-<<<<<<< HEAD
 		glm::vec4 Tangent;   // xyz = direction of increasing U, w = bitangent handedness (+1/-1)
-=======
-		glm::vec3 Tangent;   // direction of increasing U
->>>>>>> origin/master
 	};
 
 	// Immutable indexed triangle mesh stored on the GPU.

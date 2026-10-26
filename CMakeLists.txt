@@ -35,7 +35,6 @@ FetchContent_Declare(glm
     GIT_TAG 1.0.1
     GIT_SHALLOW TRUE)
 
-<<<<<<< HEAD
 # cgltf: single-header glTF 2.0 parser, pinned.
 FetchContent_Declare(cgltf
     GIT_REPOSITORY https://github.com/jkuhlmann/cgltf.git
@@ -46,9 +45,6 @@ FetchContent_GetProperties(cgltf)
 if(NOT cgltf_POPULATED)
     FetchContent_Populate(cgltf)
 endif()
-=======
-FetchContent_MakeAvailable(spdlog glfw glm)
->>>>>>> origin/master
 FetchContent_GetProperties(stb)
 if(NOT stb_POPULATED)
     FetchContent_Populate(stb)

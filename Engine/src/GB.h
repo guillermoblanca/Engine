@@ -6,10 +6,7 @@
 #include "GB/KeyCodes.h"
 #include "GB/Log.h"
 #include "GB/Window.h"
-<<<<<<< HEAD
 #include "GB/Assets/Model.h"
-=======
->>>>>>> origin/master
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Framebuffer.h"
 #include "GB/Renderer/Image.h"

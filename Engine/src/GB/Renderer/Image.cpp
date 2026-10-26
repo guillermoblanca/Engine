@@ -26,7 +26,6 @@ namespace GB
 		return image;
 	}
 
-<<<<<<< HEAD
 	Image Image::LoadFromMemory(const uint8_t* data, size_t size, bool flipY)
 	{
 		stbi_set_flip_vertically_on_load(flipY ? 1 : 0);
@@ -45,8 +44,6 @@ namespace GB
 		return image;
 	}
 
-=======
->>>>>>> origin/master
 	Image Image::Solid(uint32_t width, uint32_t height, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 	{
 		Image image;

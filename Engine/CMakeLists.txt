@@ -17,11 +17,7 @@ add_library(GB::GB ALIAS GB)
 
 target_include_directories(GB PUBLIC src)
 target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw)
-<<<<<<< HEAD
 target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR})
-=======
-target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR})
->>>>>>> origin/master
 # glm is header-only; added as SYSTEM so its headers do not trip our warning flags.
 target_include_directories(GB SYSTEM PUBLIC ${glm_SOURCE_DIR})
 
