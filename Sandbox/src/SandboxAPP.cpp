@@ -8,7 +8,11 @@
 #include <string>
 #include <vector>
 
-// Five scenes, picked with --scene=pbr (default), --scene=textures, --scene=model, --scene=particles or --scene=weather:
+// Six scenes, picked with --scene=pbr (default), --scene=textures, --scene=model, --scene=particles, --scene=weather
+// or --scene=desert:
+//   desert   procedural dune field with wind ripples, sand blowing off the crests and a dust devil. Weather applies
+//            on top: --weather=clear|sandstorm|storm|snow|... .  Options: --terrain=dunes|hills --style=desert|snow|meadow
+//            --seed=N --wind-angle=DEG --wavelength=M --height=M --nospray --simulate=S.
 //   weather  a small town square under changing weather. --weather=clear|lightrain|rain|storm|snow|blizzard|
 //            dust|sandstorm|tornado (default storm), --simulate=SECONDS warm-up (default 8), --strike (a
 //            lightning bolt at the start), --nosnap (ease in instead of starting at full intensity).
@@ -59,6 +63,8 @@ public:
 			BuildParticleScene(options);
 		else if (sceneName == "weather")
 			BuildWeatherScene(options);
+		else if (sceneName == "desert")
+			BuildDesertScene(options);
 		else
 			BuildScene();
 
@@ -99,9 +105,12 @@ protected:
 			if (strike && !m_StrikeKeyWasDown)
 				m_Weather->GetLightning().Strike();
 			m_StrikeKeyWasDown = strike;
-			UpdateWeather(dt);
+			if (m_Terrain)
+				UpdateDesert(dt);
+			else
+				UpdateWeather(dt);
 		}
-		if (!m_Particles.empty())
+		if (!m_Particles.empty() && !m_Terrain)   // (the desert scene updates its own particle systems)
 		{
 			UpdateParticles(dt);
 			const bool boom = GB::Input::IsKeyDown(Key::B);
@@ -482,6 +491,142 @@ private:
 		}
 	}
 
+	void BuildDesertScene(const GB::LaunchOptions& options)
+	{
+		m_Sphere = std::make_unique<GB::Mesh>(GB::Mesh::CreateSphere(0.5f, 20, 10));
+		m_Cube = std::make_unique<GB::Mesh>(GB::Mesh::CreateCube(1.0f));
+
+		const std::string kind = options.GetValue("terrain", "dunes");
+		const std::string styleName = options.GetValue("style", kind == "dunes" ? "desert" : "meadow");
+		const GB::TerrainStyle style = styleName == "snow" ? GB::TerrainStyle::Snow : styleName == "meadow" ? GB::TerrainStyle::Meadow : GB::TerrainStyle::Desert;
+		const uint32_t seed = static_cast<uint32_t>(std::atoi(options.GetValue("seed", "1").c_str()));
+		if (kind == "hills")
+		{
+			GB::HillParams hp;
+			hp.Seed = seed;
+			hp.Height = static_cast<float>(std::atof(options.GetValue("height", "16").c_str()));
+			m_Terrain = GB::Terrain::CreateHills(hp, 360.0f, 641, style);
+		}
+		else
+		{
+			GB::DuneParams dp;
+			dp.Seed = seed;
+			dp.WindAngleDegrees = static_cast<float>(std::atof(options.GetValue("wind-angle", "28").c_str()));
+			dp.Wavelength = static_cast<float>(std::atof(options.GetValue("wavelength", "58").c_str()));
+			dp.Height = static_cast<float>(std::atof(options.GetValue("height", "7.5").c_str()));
+			m_Terrain = GB::Terrain::CreateDunes(dp, 360.0f, 641, style);
+		}
+		m_Terrain->AddToScene(m_Scene);
+		GB_CLIENT_INFO("Terrain: {} ({}), height range {:.1f} .. {:.1f} m, {} crest points", kind, styleName,
+			m_Terrain->GetHeightmap().GetMinHeight(), m_Terrain->GetHeightmap().GetMaxHeight(), m_Terrain->GetCrestPoints().size());
+
+		// A few boulders and a ruin for scale.
+		GB::Material rock;
+		rock.Albedo = style == GB::TerrainStyle::Snow ? glm::vec3(0.42f, 0.41f, 0.40f) : glm::vec3(0.27f, 0.19f, 0.13f);
+		rock.Roughness = 0.92f;
+		rock.HeightScale = 0.0f;
+		rock.CavityStrength = 0.0f;
+		auto place = [&](const GB::Mesh* mesh, float x, float z, glm::vec3 scale, float yawDeg, float sink)
+		{
+			GB::RenderObject o;
+			o.MeshPtr = mesh;
+			o.Mat = rock;
+			const float y = m_Terrain->GetHeight(x, z) - sink;
+			o.Transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), { x, y, z }), glm::radians(yawDeg), glm::vec3(0, 1, 0)), scale);
+			m_Scene.Objects.push_back(o);
+		};
+		uint32_t rng = 12345u + seed;
+		auto rnd = [&]() { rng = rng * 1664525u + 1013904223u; return static_cast<float>(rng >> 8) / 16777216.0f; };
+		for (int i = 0; i < 26; ++i)
+		{
+			const float s = 0.6f + 2.0f * rnd();
+			place(m_Sphere.get(), (rnd() - 0.5f) * 220.0f, (rnd() - 0.5f) * 220.0f, { s * 1.7f, s * 1.1f, s * 1.3f }, rnd() * 360.0f, s * 0.12f);
+		}
+		for (int i = 0; i < 3; ++i)   // a ruined obelisk group
+			place(m_Cube.get(), 14.0f + 2.5f * static_cast<float>(i), -22.0f + 1.5f * static_cast<float>(i), { 1.2f, 6.0f - 1.6f * static_cast<float>(i), 1.2f }, 12.0f * static_cast<float>(i), 1.0f);
+
+		m_SandSpray = std::make_unique<GB::SandSpray>(*m_Terrain, 4);
+		if (!options.HasFlag("nospray") && kind == "dunes" && style == GB::TerrainStyle::Desert)
+			m_SandSpray->AddToScene(m_Scene);
+		else
+			m_SandSpray.reset();
+
+		GB::ParticleEmitterDesc devil = GB::ParticlePresets::DustDevil();
+		devil.CollideGround = true;
+		devil.GroundHeightFn = m_Terrain->MakeGroundFunction();
+		m_Particles.push_back(std::make_unique<GB::ParticleSystem>(devil));
+		m_Scene.Particles.push_back(m_Particles.back().get());
+		m_DustDevilIndex = 0;
+
+		// Warm low sun, hazy sky.
+		// Raking sun along the wind: windward slopes lit, lee faces in long shadows.
+		const float windAngleRad = m_Terrain->GetWindAngle();
+		const float elevation = glm::radians(static_cast<float>(std::atof(options.GetValue("sun", "24").c_str())));
+		m_Scene.Sun.Direction = { std::cos(windAngleRad) * std::cos(elevation), -std::sin(elevation), std::sin(windAngleRad) * std::cos(elevation) };
+		m_Scene.Sun.Color = { 1.0f, 0.86f, 0.66f };
+		m_Scene.Sun.Intensity = 5.5f;
+		m_Scene.Env.SkyTop = { 0.14f, 0.30f, 0.62f };
+		m_Scene.Env.SkyHorizon = { 0.80f, 0.72f, 0.60f };
+		m_Scene.Env.SkyGround = { 0.30f, 0.24f, 0.18f };
+		m_Scene.Env.Intensity = 0.85f;
+		m_Scene.Env.FogColor = { 0.82f, 0.72f, 0.58f };
+		m_Scene.Env.FogDensity = 0.0035f;
+		m_Scene.Env.FogHeightFalloff = 0.02f;
+		m_Scene.Env.ShadowRadius = 70.0f;
+		m_Scene.Env.BloomThreshold = 1.4f;
+		m_Scene.Env.BloomIntensity = 0.35f;
+		m_Scene.Env.Exposure = 1.0f;
+
+		const float cx = 0.0f, cz = 0.0f;
+		m_Orbit.Target = { cx, m_Terrain->GetHeight(cx, cz) + 2.5f, cz };
+		// View across the dunes (perpendicular to the wind) from above, so the profiles are visible.
+		m_Orbit.Yaw = std::atan2(-std::sin(windAngleRad), std::cos(windAngleRad));
+		m_Orbit.Pitch = 0.2f;
+		m_Orbit.Distance = 80.0f;
+		m_Orbit.MinDistance = 3.0f;
+		m_Orbit.MaxDistance = 200.0f;
+		m_Scene.Env.ShadowCenter = m_Orbit.Target;
+
+		m_Weather = std::make_unique<GB::Weather>(5);
+		m_Weather->SetGroundFunction(m_Terrain->MakeGroundFunction());
+		const float windAngle = m_Terrain->GetWindAngle();
+		m_DesertWind = { std::cos(windAngle) * 9.0f, 0.0f, std::sin(windAngle) * 9.0f };
+		m_Weather->SetBase(m_Scene);
+		ApplyWeatherPreset(options.GetValue("weather", "clear"), true);
+		m_Weather->SetWind(m_DesertWind * (m_Weather->GetSandstorm() > 0.5f ? 1.8f : 1.0f));
+		m_Weather->SetTornadoPosition({ 60.0f, 0.0f, -70.0f });
+
+		m_LastCamera = BuildCamera(0);
+		const float warmup = static_cast<float>(std::atof(options.GetValue("simulate", "6").c_str()));
+		for (float t = 0.0f; t < warmup; t += 1.0f / 60.0f)
+			UpdateDesert(1.0f / 60.0f);
+	}
+
+	void UpdateDesert(float dt)
+	{
+		m_Time += dt;
+		// The shadow map follows what the camera looks at.
+		m_Weather->BaseEnvironment().ShadowCenter = m_Orbit.Target;
+		if (m_SandSpray)
+		{
+			m_SandSpray->SetWind(m_Weather->GetWind());
+			m_SandSpray->Intensity = glm::clamp(1.0f - 0.5f * m_Weather->GetRain() - 0.8f * m_Weather->GetSnow(), 0.0f, 1.0f);
+			m_SandSpray->Update(dt, m_LastCamera);
+		}
+		// Dust devil drifts across the dunes.
+		if (!m_Particles.empty())
+		{
+			const float x = 55.0f - 6.0f * m_Time * 0.8f, z = -48.0f + 3.0f * m_Time * 0.4f;
+			const float wrapped = std::fmod(x + 200.0f, 140.0f) - 70.0f;
+			m_Particles[m_DustDevilIndex]->SetPosition({ wrapped, m_Terrain->GetHeight(wrapped, z), z });
+			m_Particles[m_DustDevilIndex]->Update(dt);
+		}
+		m_Weather->Update(dt, m_LastCamera);
+		for (const GB::ThunderEvent& t : m_Weather->GetLightning().TakeThunder())
+			GB_CLIENT_INFO("Thunder: {:.0f} m away, loudness {:.2f}", t.Distance, t.Loudness);
+		m_Weather->Apply(m_Scene);
+	}
+
 	void ApplyWeatherPreset(const std::string& name, bool snap)
 	{
 		static const std::pair<const char*, GB::WeatherPreset> presets[] = {
@@ -696,6 +841,10 @@ private:
 	size_t m_StaticObjects = 0;
 	std::vector<std::unique_ptr<GB::ParticleSystem>> m_Particles;
 	std::unique_ptr<GB::Weather> m_Weather;
+	std::unique_ptr<GB::Terrain> m_Terrain;
+	std::unique_ptr<GB::SandSpray> m_SandSpray;
+	glm::vec3 m_DesertWind{ 9.0f, 0.0f, 3.0f };
+	size_t m_DustDevilIndex = 0;
 	float m_TornadoSwing = 24.0f;
 	bool m_WeatherSteady = true, m_StrikeKeyWasDown = false, m_WeatherKeyWasDown[9] = {};
 	GB::ParticleSystem* m_Explosion = nullptr;

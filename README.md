@@ -130,6 +130,22 @@ for (auto& t : weather.GetLightning().TakeThunder()) // truenos con retardo = di
 - **Partículas**: turbulencia (ruido 3D), vórtice (giro, atracción, elevación), colisión con el suelo (matar o rebotar) con emisor de impactos (`SetHitEmitter`), `EmitAt`, sprite `Streak`.
 - Sandbox: `--scene=weather --weather=clear|lightrain|rain|storm|snow|blizzard|dust|sandstorm|tornado` (teclas 1-9, L = rayo, `--strike`).
 
+## Terreno y desierto (Fase 7B)
+
+```cpp
+GB::DuneParams dunes;  dunes.WindAngleDegrees = 28;  dunes.Wavelength = 58;  dunes.Height = 7.5f;
+auto terrain = GB::Terrain::CreateDunes(dunes, 360.0f, 641);    // o CreateHills({...}, ..., GB::TerrainStyle::Meadow / Snow)
+terrain->AddToScene(scene);
+weather.SetGroundFunction(terrain->MakeGroundFunction());       // lluvia, nieve, tornado... se apoyan en el relieve
+GB::SandSpray spray(*terrain);  spray.AddToScene(scene);        // arena soplada desde las crestas (spray.Update(dt, camera))
+```
+
+- **Dunas procedurales** (`Terrain::CreateDunes`): cara de barlovento suave y de sotavento empinada (medido: 0,13 frente a 0,46 de pendiente media), crestas que serpentean, dunas de distinto tamaño y ondulaciones de fondo; determinista por semilla.
+- **Material del terreno**: grano de arena, **rizado de viento** (normal map que sigue la dirección del viento), **mapa de color a gran escala** por pendiente y altitud (`Material::MacroMap`, sombra más oscura en las caras de sotavento, crestas claras). Estilos `Desert`, `Snow` y `Meadow`; `CreateHills` para colinas.
+- `Heightmap` (altura bilineal, normales, límites) y colisión de partículas con el relieve (`ParticleEmitterDesc::GroundHeightFn`).
+- `SandSpray` (granos alargados que viajan con el viento, con ráfagas, y polvo suave), `ParticlePresets::DustDevil()` (remolino de polvo).
+- Sandbox: `--scene=desert [--terrain=dunes|hills --style=desert|snow|meadow --seed=N --wind-angle=° --wavelength=m --height=m --weather=sandstorm|tornado|snow|... --nospray]`.
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔

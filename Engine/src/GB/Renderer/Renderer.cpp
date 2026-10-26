@@ -305,6 +305,12 @@ namespace GB
 			pbr.SetInt("uHasMRMap", m.MetallicRoughnessMap ? 1 : 0);
 			pbr.SetInt("uHasOcclusionMap", m.OcclusionMap ? 1 : 0);
 			pbr.SetInt("uHasEmissiveMap", m.EmissiveMap ? 1 : 0);
+			pbr.SetInt("uHasMacroMap", m.MacroMap ? 1 : 0);
+			if (m.MacroMap)
+			{
+				pbr.SetVec4("uMacroRect", m.MacroRect);
+				m.MacroMap->Bind(7);
+			}
 			pbr.SetFloat("uHeightScale", m.HeightScale);
 			pbr.SetFloat("uUVScale", m.UVScale);
 			pbr.SetFloat("uNormalStrength", m.NormalStrength);

@@ -1,6 +1,7 @@
 #pragma once
 #include "Texture.h"
 #include <cstdint>
+#include <functional>
 #include <glm/glm.hpp>
 #include <vector>
 
@@ -74,6 +75,7 @@ namespace GB
 		// --- Ground collision (a horizontal plane in world space)
 		bool CollideGround = false;
 		float GroundY = 0.0f;
+		std::function<float(float, float)> GroundHeightFn;   // optional terrain height(x, z); replaces GroundY
 		float Bounce = 0.0f;                       // 0 = particles die on impact, > 0 = restitution
 		float BounceFriction = 0.3f;               // horizontal speed lost per bounce
 	};
@@ -184,5 +186,6 @@ namespace GB
 		ParticleEmitterDesc Explosion();  // one burst; call system.Burst() or Reset() to fire again
 		ParticleEmitterDesc Snow();       // drifting flakes from a box above the scene
 		ParticleEmitterDesc Magic();      // glowing motes drifting upward
+		ParticleEmitterDesc DustDevil();  // small whirlwind of dust (emit at its base; uses the vortex force)
 	}
 }
