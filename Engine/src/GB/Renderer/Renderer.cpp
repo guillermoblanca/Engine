@@ -6,7 +6,10 @@
 #include <glad/gl.h>
 #include <glm/gtc/matrix_transform.hpp>
 #include <string>
+<<<<<<< HEAD
 #include <vector>
+=======
+>>>>>>> origin/master
 
 namespace GB
 {
@@ -103,7 +106,11 @@ namespace GB
 		m_ShadowShader->SetMat4("uLightVP", lightVP);
 		for (const RenderObject& obj : scene.Objects)
 		{
+<<<<<<< HEAD
 			if (!obj.MeshPtr || obj.Mat.Alpha == AlphaMode::Blend)
+=======
+			if (!obj.MeshPtr)
+>>>>>>> origin/master
 				continue;
 			m_ShadowShader->SetMat4("uModel", obj.Transform);
 			const bool displaced = obj.Mat.HeightMap && obj.Mat.HeightScale != 0.0f;
@@ -184,6 +191,7 @@ namespace GB
 			pbr.SetVec3Array("uPointColor", colors, pointCount);
 		}
 
+<<<<<<< HEAD
 		auto drawObject = [&](const RenderObject& obj)
 		{
 			const Material& m = obj.Mat;
@@ -196,18 +204,36 @@ namespace GB
 			pbr.SetFloat("uAO", m.AO);
 			pbr.SetVec3("uEmissive", m.Emissive);
 
+=======
+		for (const RenderObject& obj : scene.Objects)
+		{
+			if (!obj.MeshPtr)
+				continue;
+			pbr.SetMat4("uModel", obj.Transform);
+			pbr.SetVec3("uAlbedo", obj.Mat.Albedo);
+			pbr.SetFloat("uMetallic", obj.Mat.Metallic);
+			pbr.SetFloat("uRoughness", obj.Mat.Roughness);
+			pbr.SetFloat("uAO", obj.Mat.AO);
+			pbr.SetVec3("uEmissive", obj.Mat.Emissive);
+
+			const Material& m = obj.Mat;
+>>>>>>> origin/master
 			pbr.SetInt("uHasAlbedoMap", m.AlbedoMap ? 1 : 0);
 			pbr.SetInt("uHasNormalMap", m.NormalMap ? 1 : 0);
 			pbr.SetInt("uHasHeightMap", m.HeightMap ? 1 : 0);
 			pbr.SetInt("uHasHeight", m.HeightMap && m.HeightScale != 0.0f ? 1 : 0);
+<<<<<<< HEAD
 			pbr.SetInt("uHasMRMap", m.MetallicRoughnessMap ? 1 : 0);
 			pbr.SetInt("uHasOcclusionMap", m.OcclusionMap ? 1 : 0);
 			pbr.SetInt("uHasEmissiveMap", m.EmissiveMap ? 1 : 0);
+=======
+>>>>>>> origin/master
 			pbr.SetFloat("uHeightScale", m.HeightScale);
 			pbr.SetFloat("uUVScale", m.UVScale);
 			pbr.SetFloat("uNormalStrength", m.NormalStrength);
 			pbr.SetVec2("uNormalFlip", { m.NormalFlipX ? -1.0f : 1.0f, m.NormalFlipY ? -1.0f : 1.0f });
 			pbr.SetFloat("uCavityStrength", m.CavityStrength);
+<<<<<<< HEAD
 			pbr.SetFloat("uOcclusionStrength", m.OcclusionStrength);
 			pbr.SetInt("uAlphaMode", static_cast<int>(m.Alpha));
 			pbr.SetFloat("uAlphaCutoff", m.AlphaCutoff);
@@ -250,6 +276,12 @@ namespace GB
 				drawObject(*obj);
 			glDepthMask(GL_TRUE);
 			glDisable(GL_BLEND);
+=======
+			if (m.AlbedoMap) m.AlbedoMap->Bind(1);
+			if (m.NormalMap) m.NormalMap->Bind(2);
+			if (m.HeightMap) m.HeightMap->Bind(3);
+			obj.MeshPtr->Draw();
+>>>>>>> origin/master
 		}
 		glDisable(GL_CULL_FACE);
 

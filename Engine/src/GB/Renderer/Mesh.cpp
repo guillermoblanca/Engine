@@ -28,7 +28,11 @@ namespace GB
 		glVertexArrayAttribFormat(m_VAO, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, UV));
 		glVertexArrayAttribBinding(m_VAO, 2, 0);
 		glEnableVertexArrayAttrib(m_VAO, 3);
+<<<<<<< HEAD
 		glVertexArrayAttribFormat(m_VAO, 3, 4, GL_FLOAT, GL_FALSE, offsetof(Vertex, Tangent));
+=======
+		glVertexArrayAttribFormat(m_VAO, 3, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, Tangent));
+>>>>>>> origin/master
 		glVertexArrayAttribBinding(m_VAO, 3, 0);
 	}
 
@@ -81,7 +85,11 @@ namespace GB
 				const float u = static_cast<float>(x) / static_cast<float>(segments);
 				const float theta = u * 2.0f * pi;
 				const glm::vec3 n(std::sin(phi) * std::cos(theta), std::cos(phi), std::sin(phi) * std::sin(theta));
+<<<<<<< HEAD
 				const glm::vec4 t(-std::sin(theta), 0.0f, std::cos(theta), 1.0f);
+=======
+				const glm::vec3 t(-std::sin(theta), 0.0f, std::cos(theta));
+>>>>>>> origin/master
 				vertices.push_back({ n * radius, n, { u, 1.0f - v }, t });
 			}
 		}
@@ -102,10 +110,17 @@ namespace GB
 		const float h = size * 0.5f;
 		const glm::vec3 n(0, 1, 0);
 		std::vector<Vertex> vertices = {
+<<<<<<< HEAD
 			{ { -h, 0,  h }, n, { 0, 0 }, { 1, 0, 0, 1 } },
 			{ {  h, 0,  h }, n, { uvScale, 0 }, { 1, 0, 0, 1 } },
 			{ {  h, 0, -h }, n, { uvScale, uvScale }, { 1, 0, 0, 1 } },
 			{ { -h, 0, -h }, n, { 0, uvScale }, { 1, 0, 0, 1 } },
+=======
+			{ { -h, 0,  h }, n, { 0, 0 }, { 1, 0, 0 } },
+			{ {  h, 0,  h }, n, { uvScale, 0 }, { 1, 0, 0 } },
+			{ {  h, 0, -h }, n, { uvScale, uvScale }, { 1, 0, 0 } },
+			{ { -h, 0, -h }, n, { 0, uvScale }, { 1, 0, 0 } },
+>>>>>>> origin/master
 		};
 		return Mesh(vertices, { 0, 1, 2, 0, 2, 3 });
 	}
@@ -126,7 +141,11 @@ namespace GB
 			for (uint32_t i = 0; i <= subdivisions; ++i)
 			{
 				const float u = static_cast<float>(i) / static_cast<float>(subdivisions);
+<<<<<<< HEAD
 				vertices.push_back({ { (u - 0.5f) * size, 0.0f, (0.5f - v) * size }, { 0, 1, 0 }, { u, v }, { 1, 0, 0, 1 } });
+=======
+				vertices.push_back({ { (u - 0.5f) * size, 0.0f, (0.5f - v) * size }, { 0, 1, 0 }, { u, v }, { 1, 0, 0 } });
+>>>>>>> origin/master
 			}
 		}
 		for (uint32_t j = 0; j < subdivisions; ++j)
@@ -157,10 +176,17 @@ namespace GB
 		for (const Face& f : faces)
 		{
 			const uint32_t base = static_cast<uint32_t>(vertices.size());
+<<<<<<< HEAD
 			vertices.push_back({ (f.N - f.U - f.V) * h, f.N, { 0, 0 }, glm::vec4(f.U, 1.0f) });
 			vertices.push_back({ (f.N + f.U - f.V) * h, f.N, { 1, 0 }, glm::vec4(f.U, 1.0f) });
 			vertices.push_back({ (f.N + f.U + f.V) * h, f.N, { 1, 1 }, glm::vec4(f.U, 1.0f) });
 			vertices.push_back({ (f.N - f.U + f.V) * h, f.N, { 0, 1 }, glm::vec4(f.U, 1.0f) });
+=======
+			vertices.push_back({ (f.N - f.U - f.V) * h, f.N, { 0, 0 }, f.U });
+			vertices.push_back({ (f.N + f.U - f.V) * h, f.N, { 1, 0 }, f.U });
+			vertices.push_back({ (f.N + f.U + f.V) * h, f.N, { 1, 1 }, f.U });
+			vertices.push_back({ (f.N - f.U + f.V) * h, f.N, { 0, 1 }, f.U });
+>>>>>>> origin/master
 			indices.insert(indices.end(), { base, base + 1, base + 2, base, base + 2, base + 3 });
 		}
 		return Mesh(vertices, indices);

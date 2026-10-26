@@ -40,7 +40,11 @@ void main() {}
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
+<<<<<<< HEAD
 layout(location = 3) in vec4 aTangent;
+=======
+layout(location = 3) in vec3 aTangent;
+>>>>>>> origin/master
 uniform mat4 uModel;
 uniform mat4 uViewProj;
 uniform int uHasHeight;
@@ -49,7 +53,11 @@ uniform float uUVScale;
 layout(binding = 3) uniform sampler2D uHeightMap;
 out vec3 vPos;
 out vec3 vNormal;
+<<<<<<< HEAD
 out vec4 vTangent;
+=======
+out vec3 vTangent;
+>>>>>>> origin/master
 out vec2 vUV;
 void main()
 {
@@ -60,7 +68,11 @@ void main()
 	mat3 normalMatrix = mat3(transpose(inverse(uModel)));
 	vPos = world.xyz;
 	vNormal = normalMatrix * aNormal;
+<<<<<<< HEAD
 	vTangent = vec4(mat3(uModel) * aTangent.xyz, aTangent.w);
+=======
+	vTangent = mat3(uModel) * aTangent;
+>>>>>>> origin/master
 	vUV = aUV * uUVScale;
 	gl_Position = uViewProj * world;
 }
@@ -120,7 +132,11 @@ void main()
 	inline constexpr const char* PBRFS = R"GLSL(#version 450 core
 in vec3 vPos;
 in vec3 vNormal;
+<<<<<<< HEAD
 in vec4 vTangent;
+=======
+in vec3 vTangent;
+>>>>>>> origin/master
 in vec2 vUV;
 out vec4 outColor;
 
@@ -134,6 +150,7 @@ uniform float uCavityStrength;
 layout(binding = 1) uniform sampler2D uAlbedoMap;
 layout(binding = 2) uniform sampler2D uNormalMap;
 layout(binding = 3) uniform sampler2D uHeightMap;
+<<<<<<< HEAD
 layout(binding = 4) uniform sampler2D uMRMap;
 layout(binding = 5) uniform sampler2D uOcclusionMap;
 layout(binding = 6) uniform sampler2D uEmissiveMap;
@@ -144,6 +161,8 @@ uniform float uOcclusionStrength;
 uniform int uAlphaMode;          // 0 opaque, 1 mask, 2 blend
 uniform float uAlphaCutoff;
 uniform float uOpacity;
+=======
+>>>>>>> origin/master
 uniform vec3 uAlbedo;
 uniform float uMetallic;
 uniform float uRoughness;
@@ -228,19 +247,30 @@ void main()
 {
 	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCamPos - vPos);
+<<<<<<< HEAD
 	if (!gl_FrontFacing) N = -N;   // back faces of double-sided materials
+=======
+	if (dot(N, V) < 0.0 && !gl_FrontFacing) N = -N;
+	vec3 geometricN = N;
+>>>>>>> origin/master
 
 	if (uHasNormalMap != 0)
 	{
 		vec3 tn = texture(uNormalMap, vUV).xyz * 2.0 - 1.0;
 		tn.xy *= uNormalFlip;
 		tn.xy *= uNormalStrength;
+<<<<<<< HEAD
 		vec3 T = normalize(vTangent.xyz - N * dot(N, vTangent.xyz));
 		vec3 B = cross(N, T) * vTangent.w;
+=======
+		vec3 T = normalize(vTangent - N * dot(N, vTangent));
+		vec3 B = cross(N, T);
+>>>>>>> origin/master
 		N = normalize(mat3(T, B, N) * normalize(tn));
 	}
 
 	vec3 albedo = uAlbedo;
+<<<<<<< HEAD
 	float alpha = uOpacity;
 	if (uHasAlbedoMap != 0)
 	{
@@ -252,11 +282,16 @@ void main()
 	float ao = uAO;
 	if (uHasOcclusionMap != 0)
 		ao *= mix(1.0, texture(uOcclusionMap, vUV).r, uOcclusionStrength);
+=======
+	if (uHasAlbedoMap != 0) albedo *= texture(uAlbedoMap, vUV).rgb;
+	float ao = uAO;
+>>>>>>> origin/master
 	if (uHasHeightMap != 0)
 	{
 		float h = texture(uHeightMap, vUV).r;
 		ao *= mix(1.0, clamp(h * 1.4, 0.0, 1.0), uCavityStrength);
 	}
+<<<<<<< HEAD
 	float metallic = uMetallic;
 	float roughness = uRoughness;
 	if (uHasMRMap != 0)
@@ -267,6 +302,10 @@ void main()
 	}
 	metallic = clamp(metallic, 0.0, 1.0);
 	roughness = clamp(roughness, 0.045, 1.0);
+=======
+	float metallic = clamp(uMetallic, 0.0, 1.0);
+	float roughness = clamp(uRoughness, 0.045, 1.0);
+>>>>>>> origin/master
 	float a = roughness * roughness;
 	vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
@@ -290,6 +329,7 @@ void main()
 	vec3 ambientDiffuse = kd * albedo * SkyIrradiance(N);
 	vec3 ambientSpec = SkyPrefiltered(R, roughness) * F;
 	// Horizon occlusion: reflections under the surface plane fade out.
+<<<<<<< HEAD
 	float horizon = clamp(1.0 + dot(R, N) * 1.5, 0.0, 1.0);
 	vec3 ambient = (ambientDiffuse + ambientSpec * horizon) * ao * uEnvIntensity;
 
@@ -298,6 +338,14 @@ void main()
 	if (uHasEmissiveMap != 0) emissive *= texture(uEmissiveMap, vUV).rgb;
 	vec3 color = Lo + ambient + emissive;
 	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), uAlphaMode == 2 ? alpha : 1.0);
+=======
+	float horizon = clamp(1.0 + dot(R, geometricN) * 1.5, 0.0, 1.0);
+	vec3 ambient = (ambientDiffuse + ambientSpec * horizon) * ao * uEnvIntensity;
+
+	// RGBA16F overflows at 65504; a tiny GGX lobe can exceed that and the bloom would spread the inf.
+	vec3 color = Lo + ambient + uEmissive;
+	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), 1.0);
+>>>>>>> origin/master
 }
 )GLSL";
 
