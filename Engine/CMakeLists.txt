@@ -1,10 +1,18 @@
+add_library(glad STATIC vendor/glad/src/gl.c)
+target_include_directories(glad SYSTEM PUBLIC vendor/glad/include)
+
 add_library(GB STATIC
     src/GB/Application.cpp
-    src/GB/Log.cpp)
+    src/GB/Input.cpp
+    src/GB/Log.cpp
+    src/GB/Window.cpp
+    src/GB/Renderer/Framebuffer.cpp
+    src/GB/Renderer/Shader.cpp)
 add_library(GB::GB ALIAS GB)
 
 target_include_directories(GB PUBLIC src)
-target_link_libraries(GB PUBLIC spdlog::spdlog)
+target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw)
+target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR})
 
 if(MSVC)
     target_compile_options(GB PRIVATE /W4 /permissive-)
