@@ -15,9 +15,21 @@ void main()
 
 	inline constexpr const char* ShadowVS = R"GLSL(#version 450 core
 layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;
+layout(location = 2) in vec2 aUV;
 uniform mat4 uLightVP;
 uniform mat4 uModel;
-void main() { gl_Position = uLightVP * uModel * vec4(aPos, 1.0); }
+uniform int uHasHeight;
+uniform float uHeightScale;
+uniform float uUVScale;
+layout(binding = 3) uniform sampler2D uHeightMap;
+void main()
+{
+	vec3 pos = aPos;
+	if (uHasHeight != 0)
+		pos += normalize(aNormal) * (textureLod(uHeightMap, aUV * uUVScale, 0.0).r - 0.5) * uHeightScale;
+	gl_Position = uLightVP * uModel * vec4(pos, 1.0);
+}
 )GLSL";
 
 	inline constexpr const char* ShadowFS = R"GLSL(#version 450 core
@@ -28,17 +40,28 @@ void main() {}
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
+layout(location = 3) in vec3 aTangent;
 uniform mat4 uModel;
 uniform mat4 uViewProj;
+uniform int uHasHeight;
+uniform float uHeightScale;
+uniform float uUVScale;
+layout(binding = 3) uniform sampler2D uHeightMap;
 out vec3 vPos;
 out vec3 vNormal;
+out vec3 vTangent;
 out vec2 vUV;
 void main()
 {
-	vec4 world = uModel * vec4(aPos, 1.0);
+	vec3 pos = aPos;
+	if (uHasHeight != 0)
+		pos += normalize(aNormal) * (textureLod(uHeightMap, aUV * uUVScale, 0.0).r - 0.5) * uHeightScale;
+	vec4 world = uModel * vec4(pos, 1.0);
+	mat3 normalMatrix = mat3(transpose(inverse(uModel)));
 	vPos = world.xyz;
-	vNormal = mat3(transpose(inverse(uModel))) * aNormal;
-	vUV = aUV;
+	vNormal = normalMatrix * aNormal;
+	vTangent = mat3(uModel) * aTangent;
+	vUV = aUV * uUVScale;
 	gl_Position = uViewProj * world;
 }
 )GLSL";
@@ -97,10 +120,20 @@ void main()
 	inline constexpr const char* PBRFS = R"GLSL(#version 450 core
 in vec3 vPos;
 in vec3 vNormal;
+in vec3 vTangent;
 in vec2 vUV;
 out vec4 outColor;
 
 uniform vec3 uCamPos;
+uniform int uHasAlbedoMap;
+uniform int uHasNormalMap;
+uniform int uHasHeightMap;       // height doubles as a cavity/AO term
+uniform float uNormalStrength;
+uniform vec2 uNormalFlip;        // per-axis sign: y = -1 for DirectX style maps
+uniform float uCavityStrength;
+layout(binding = 1) uniform sampler2D uAlbedoMap;
+layout(binding = 2) uniform sampler2D uNormalMap;
+layout(binding = 3) uniform sampler2D uHeightMap;
 uniform vec3 uAlbedo;
 uniform float uMetallic;
 uniform float uRoughness;
@@ -186,8 +219,26 @@ void main()
 	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCamPos - vPos);
 	if (dot(N, V) < 0.0 && !gl_FrontFacing) N = -N;
+	vec3 geometricN = N;
+
+	if (uHasNormalMap != 0)
+	{
+		vec3 tn = texture(uNormalMap, vUV).xyz * 2.0 - 1.0;
+		tn.xy *= uNormalFlip;
+		tn.xy *= uNormalStrength;
+		vec3 T = normalize(vTangent - N * dot(N, vTangent));
+		vec3 B = cross(N, T);
+		N = normalize(mat3(T, B, N) * normalize(tn));
+	}
 
 	vec3 albedo = uAlbedo;
+	if (uHasAlbedoMap != 0) albedo *= texture(uAlbedoMap, vUV).rgb;
+	float ao = uAO;
+	if (uHasHeightMap != 0)
+	{
+		float h = texture(uHeightMap, vUV).r;
+		ao *= mix(1.0, clamp(h * 1.4, 0.0, 1.0), uCavityStrength);
+	}
 	float metallic = clamp(uMetallic, 0.0, 1.0);
 	float roughness = clamp(uRoughness, 0.045, 1.0);
 	float a = roughness * roughness;
@@ -213,8 +264,8 @@ void main()
 	vec3 ambientDiffuse = kd * albedo * SkyIrradiance(N);
 	vec3 ambientSpec = SkyPrefiltered(R, roughness) * F;
 	// Horizon occlusion: reflections under the surface plane fade out.
-	float horizon = clamp(1.0 + dot(R, normalize(vNormal)) * 1.5, 0.0, 1.0);
-	vec3 ambient = (ambientDiffuse + ambientSpec * horizon) * uAO * uEnvIntensity;
+	float horizon = clamp(1.0 + dot(R, geometricN) * 1.5, 0.0, 1.0);
+	vec3 ambient = (ambientDiffuse + ambientSpec * horizon) * ao * uEnvIntensity;
 
 	// RGBA16F overflows at 65504; a tiny GGX lobe can exceed that and the bloom would spread the inf.
 	vec3 color = Lo + ambient + uEmissive;

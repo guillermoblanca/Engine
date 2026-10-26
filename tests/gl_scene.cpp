@@ -55,6 +55,23 @@ int main()
 	scene.Objects.push_back(ball);
 	scene.Env.ShadowRadius = 6.0f;
 
+	// Textured + displaced grid: a red albedo map must tint the grid and displacement must not break rendering.
+	GB::Mesh grid = GB::Mesh::CreateGrid(2.0f, 32);
+	GB::Texture2D redMap(GB::Image::Solid(8, 8, 255, 0, 0), GB::TextureEncoding::SRGB);
+	GB::Texture2D flatNormal(GB::Image::Solid(8, 8, 128, 128, 255), GB::TextureEncoding::Linear);
+	GB::Texture2D midHeight(GB::Image::Solid(8, 8, 128, 128, 128), GB::TextureEncoding::Linear);
+	Check(redMap.IsValid() && flatNormal.IsValid() && midHeight.IsValid(), "textures upload");
+	GB::RenderObject quad;
+	quad.MeshPtr = &grid;
+	quad.Mat.AlbedoMap = &redMap;
+	quad.Mat.NormalMap = &flatNormal;
+	quad.Mat.HeightMap = &midHeight;
+	quad.Mat.HeightScale = 0.2f;
+	quad.Mat.UVScale = 2.0f;
+	quad.Transform = glm::translate(glm::mat4(1.0f), glm::vec3(2.0f, 1.0f, 0.0f)) *
+		glm::rotate(glm::mat4(1.0f), glm::radians(90.0f), glm::vec3(1, 0, 0));
+	scene.Objects.push_back(quad);
+
 	GB::Camera camera;
 	camera.Position = { 0, 1.5f, 4.0f };
 	camera.Target = { 0, 0.5f, 0 };
@@ -70,6 +87,9 @@ int main()
 	Check(ballPx[0] > ballPx[1] + 20 && ballPx[0] > ballPx[2] + 20, "sphere is red");
 	const uint8_t* floorPx = at(W / 2, H - 4);          // bottom: floor
 	Check(floorPx[0] > 10 && floorPx[1] > 10, "floor is lit (not black)");
+
+	const uint8_t* quadPx = at(W / 2 + 80, H / 2 - 30);   // inside the textured quad, right of the sphere
+	Check(quadPx[0] > quadPx[1] + 30 && quadPx[0] > quadPx[2] + 30, "albedo map tints the displaced quad red");
 
 	// Every pixel must have been written: the sky pass covers the whole frame.
 	size_t black = 0;

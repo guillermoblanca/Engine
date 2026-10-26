@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace GB
 {
@@ -13,6 +14,11 @@ namespace GB
 		std::string Screenshot;     // --screenshot=file.png   save the last frame
 		bool Hidden = false;        // --hidden     hidden window (headless / CI)
 		bool NoVSync = false;       // --novsync
+		std::vector<std::string> Extra;   // any other argument, for the application itself
+
+		// Value of "--key=value" among the extra arguments, or `fallback`.
+		std::string GetValue(const std::string& key, const std::string& fallback = "") const;
+		bool HasFlag(const std::string& flag) const;   // "--flag"
 	};
 	LaunchOptions& GetLaunchOptions();
 

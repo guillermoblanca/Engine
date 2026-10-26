@@ -7,9 +7,11 @@ add_library(GB STATIC
     src/GB/Log.cpp
     src/GB/Window.cpp
     src/GB/Renderer/Framebuffer.cpp
+    src/GB/Renderer/Image.cpp
     src/GB/Renderer/Mesh.cpp
     src/GB/Renderer/Renderer.cpp
-    src/GB/Renderer/Shader.cpp)
+    src/GB/Renderer/Shader.cpp
+    src/GB/Renderer/Texture.cpp)
 add_library(GB::GB ALIAS GB)
 
 target_include_directories(GB PUBLIC src)

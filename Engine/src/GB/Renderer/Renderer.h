@@ -3,6 +3,7 @@
 #include "Framebuffer.h"
 #include "Mesh.h"
 #include "Shader.h"
+#include "Texture.h"
 #include <glm/glm.hpp>
 #include <memory>
 #include <vector>
@@ -17,6 +18,17 @@ namespace GB
 		float Roughness = 0.5f;
 		float AO = 1.0f;
 		glm::vec3 Emissive{ 0.0f };
+
+		// Optional maps (not owned). Albedo is multiplied with `Albedo`.
+		const Texture2D* AlbedoMap = nullptr;
+		const Texture2D* NormalMap = nullptr;
+		const Texture2D* HeightMap = nullptr;   // vertex displacement + cavity AO
+		float UVScale = 1.0f;                   // texture repeats per UV unit
+		float HeightScale = 0.1f;               // displacement amplitude in object units (0 = off)
+		float NormalStrength = 1.0f;
+		bool NormalFlipX = false;               // invert the red channel (map disagrees with its height map)
+		bool NormalFlipY = false;               // true for DirectX-style normal maps
+		float CavityStrength = 0.6f;            // how much the height map darkens crevices
 	};
 
 	struct DirectionalLight

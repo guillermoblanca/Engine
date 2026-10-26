@@ -11,3 +11,8 @@ add_executable(GBSceneTests gl_scene.cpp)
 target_link_libraries(GBSceneTests PRIVATE GB::GB)
 add_test(NAME gl_scene COMMAND GBSceneTests)
 set_tests_properties(gl_scene PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBImageTests image_test.cpp)
+target_link_libraries(GBImageTests PRIVATE GB::GB)
+target_compile_definitions(GBImageTests PRIVATE GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME image COMMAND GBImageTests)

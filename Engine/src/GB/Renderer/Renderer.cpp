@@ -105,6 +105,14 @@ namespace GB
 			if (!obj.MeshPtr)
 				continue;
 			m_ShadowShader->SetMat4("uModel", obj.Transform);
+			const bool displaced = obj.Mat.HeightMap && obj.Mat.HeightScale != 0.0f;
+			m_ShadowShader->SetInt("uHasHeight", displaced ? 1 : 0);
+			if (displaced)
+			{
+				m_ShadowShader->SetFloat("uHeightScale", obj.Mat.HeightScale);
+				m_ShadowShader->SetFloat("uUVScale", obj.Mat.UVScale);
+				obj.Mat.HeightMap->Bind(3);
+			}
 			obj.MeshPtr->Draw();
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
@@ -185,6 +193,20 @@ namespace GB
 			pbr.SetFloat("uRoughness", obj.Mat.Roughness);
 			pbr.SetFloat("uAO", obj.Mat.AO);
 			pbr.SetVec3("uEmissive", obj.Mat.Emissive);
+
+			const Material& m = obj.Mat;
+			pbr.SetInt("uHasAlbedoMap", m.AlbedoMap ? 1 : 0);
+			pbr.SetInt("uHasNormalMap", m.NormalMap ? 1 : 0);
+			pbr.SetInt("uHasHeightMap", m.HeightMap ? 1 : 0);
+			pbr.SetInt("uHasHeight", m.HeightMap && m.HeightScale != 0.0f ? 1 : 0);
+			pbr.SetFloat("uHeightScale", m.HeightScale);
+			pbr.SetFloat("uUVScale", m.UVScale);
+			pbr.SetFloat("uNormalStrength", m.NormalStrength);
+			pbr.SetVec2("uNormalFlip", { m.NormalFlipX ? -1.0f : 1.0f, m.NormalFlipY ? -1.0f : 1.0f });
+			pbr.SetFloat("uCavityStrength", m.CavityStrength);
+			if (m.AlbedoMap) m.AlbedoMap->Bind(1);
+			if (m.NormalMap) m.NormalMap->Bind(2);
+			if (m.HeightMap) m.HeightMap->Bind(3);
 			obj.MeshPtr->Draw();
 		}
 		glDisable(GL_CULL_FACE);

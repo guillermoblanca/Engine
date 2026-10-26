@@ -1,5 +1,6 @@
 #include "Mesh.h"
 #include <glad/gl.h>
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -26,6 +27,9 @@ namespace GB
 		glEnableVertexArrayAttrib(m_VAO, 2);
 		glVertexArrayAttribFormat(m_VAO, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, UV));
 		glVertexArrayAttribBinding(m_VAO, 2, 0);
+		glEnableVertexArrayAttrib(m_VAO, 3);
+		glVertexArrayAttribFormat(m_VAO, 3, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, Tangent));
+		glVertexArrayAttribBinding(m_VAO, 3, 0);
 	}
 
 	Mesh::~Mesh()
@@ -77,7 +81,8 @@ namespace GB
 				const float u = static_cast<float>(x) / static_cast<float>(segments);
 				const float theta = u * 2.0f * pi;
 				const glm::vec3 n(std::sin(phi) * std::cos(theta), std::cos(phi), std::sin(phi) * std::sin(theta));
-				vertices.push_back({ n * radius, n, { u, 1.0f - v } });
+				const glm::vec3 t(-std::sin(theta), 0.0f, std::cos(theta));
+				vertices.push_back({ n * radius, n, { u, 1.0f - v }, t });
 			}
 		}
 		const uint32_t stride = segments + 1;
@@ -97,12 +102,42 @@ namespace GB
 		const float h = size * 0.5f;
 		const glm::vec3 n(0, 1, 0);
 		std::vector<Vertex> vertices = {
-			{ { -h, 0,  h }, n, { 0, 0 } },
-			{ {  h, 0,  h }, n, { uvScale, 0 } },
-			{ {  h, 0, -h }, n, { uvScale, uvScale } },
-			{ { -h, 0, -h }, n, { 0, uvScale } },
+			{ { -h, 0,  h }, n, { 0, 0 }, { 1, 0, 0 } },
+			{ {  h, 0,  h }, n, { uvScale, 0 }, { 1, 0, 0 } },
+			{ {  h, 0, -h }, n, { uvScale, uvScale }, { 1, 0, 0 } },
+			{ { -h, 0, -h }, n, { 0, uvScale }, { 1, 0, 0 } },
 		};
 		return Mesh(vertices, { 0, 1, 2, 0, 2, 3 });
+	}
+
+	Mesh Mesh::CreateGrid(float size, uint32_t subdivisions)
+	{
+		subdivisions = std::max(subdivisions, 1u);
+		const uint32_t stride = subdivisions + 1;
+		std::vector<Vertex> vertices;
+		std::vector<uint32_t> indices;
+		vertices.reserve(static_cast<size_t>(stride) * stride);
+		indices.reserve(static_cast<size_t>(subdivisions) * subdivisions * 6);
+
+		// Same orientation as CreatePlane: u grows along +X, v grows along -Z.
+		for (uint32_t j = 0; j <= subdivisions; ++j)
+		{
+			const float v = static_cast<float>(j) / static_cast<float>(subdivisions);
+			for (uint32_t i = 0; i <= subdivisions; ++i)
+			{
+				const float u = static_cast<float>(i) / static_cast<float>(subdivisions);
+				vertices.push_back({ { (u - 0.5f) * size, 0.0f, (0.5f - v) * size }, { 0, 1, 0 }, { u, v }, { 1, 0, 0 } });
+			}
+		}
+		for (uint32_t j = 0; j < subdivisions; ++j)
+		{
+			for (uint32_t i = 0; i < subdivisions; ++i)
+			{
+				const uint32_t i0 = j * stride + i, i1 = i0 + 1, i2 = i0 + stride, i3 = i2 + 1;
+				indices.insert(indices.end(), { i0, i1, i3, i0, i3, i2 });
+			}
+		}
+		return Mesh(vertices, indices);
 	}
 
 	Mesh Mesh::CreateCube(float size)
@@ -122,10 +157,10 @@ namespace GB
 		for (const Face& f : faces)
 		{
 			const uint32_t base = static_cast<uint32_t>(vertices.size());
-			vertices.push_back({ (f.N - f.U - f.V) * h, f.N, { 0, 0 } });
-			vertices.push_back({ (f.N + f.U - f.V) * h, f.N, { 1, 0 } });
-			vertices.push_back({ (f.N + f.U + f.V) * h, f.N, { 1, 1 } });
-			vertices.push_back({ (f.N - f.U + f.V) * h, f.N, { 0, 1 } });
+			vertices.push_back({ (f.N - f.U - f.V) * h, f.N, { 0, 0 }, f.U });
+			vertices.push_back({ (f.N + f.U - f.V) * h, f.N, { 1, 0 }, f.U });
+			vertices.push_back({ (f.N + f.U + f.V) * h, f.N, { 1, 1 }, f.U });
+			vertices.push_back({ (f.N - f.U + f.V) * h, f.N, { 0, 1 }, f.U });
 			indices.insert(indices.end(), { base, base + 1, base + 2, base, base + 2, base + 3 });
 		}
 		return Mesh(vertices, indices);
