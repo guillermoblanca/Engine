@@ -4,6 +4,7 @@
 #include "GB/Log.h"
 #include "GB/Window.h"
 #include "GB/Renderer/Renderer.h"
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -120,6 +121,81 @@ int main()
 		std::fprintf(stderr, "info: particle bloom changes the corner by %d (sum of RGB)\n", cornerChange);
 		// Only the bloom halo (wide, faint) reaches the corner, far less than the puff itself.
 		Check(cornerChange >= 0 && cornerChange < 40, "particles barely affect pixels far from them");
+	}
+
+	// Environment effects on the same floor pixel (near the bottom of the frame).
+	{
+		auto floorLum = [&](const GB::Environment& env)
+		{
+			GB::Scene variant = scene;
+			variant.Env = env;
+			GB::Framebuffer t(W, H);
+			renderer.Render(variant, camera, &t);
+			const auto v = t.ReadPixels();
+			const uint8_t* p = &v[(static_cast<size_t>(H - 6) * W + W / 2 + 20) * 4];
+			return std::array<int, 3>{ p[0], p[1], p[2] };
+		};
+		const auto base = floorLum(scene.Env);
+
+		GB::Environment wet = scene.Env;
+		wet.Wetness = 1.0f;
+		const auto wetLum = floorLum(wet);
+		Check(wetLum[0] + wetLum[1] + wetLum[2] < base[0] + base[1] + base[2], "wet surfaces are darker");
+
+		GB::Environment snowy = scene.Env;
+		snowy.SnowCover = 1.0f;
+		const auto snowLum = floorLum(snowy);
+		Check(snowLum[0] + snowLum[1] + snowLum[2] > base[0] + base[1] + base[2] + 40, "snow cover whitens upward-facing surfaces");
+
+		GB::Environment foggy = scene.Env;
+		foggy.FogDensity = 3.0f;
+		foggy.FogColor = { 1.0f, 0.0f, 0.0f };
+		const auto fogLum = floorLum(foggy);
+		std::fprintf(stderr, "info: fog floor pixel = %d %d %d (base %d %d %d)\n", fogLum[0], fogLum[1], fogLum[2], base[0], base[1], base[2]);
+		Check(fogLum[0] > 100 && fogLum[1] < 25 && fogLum[2] < 25, "dense fog replaces distant colors with the fog color");
+	}
+
+	// Soft particles fade where they meet the floor.
+	{
+		GB::Scene floorOnly;
+		GB::RenderObject darkFloor = floor;
+		darkFloor.Mat.Albedo = glm::vec3(0.02f);   // dark, so the particle's contribution is not lost in saturation
+		floorOnly.Objects.push_back(darkFloor);
+		floorOnly.Sun.CastShadows = false;
+		floorOnly.Env.ShadowRadius = 6.0f;
+
+		auto puffLum = [&](float soft)
+		{
+			GB::ParticleEmitterDesc d;
+			d.Shape = GB::ParticleShape::Point;
+			d.ConeAngleDegrees = 0.0f;
+			d.Rate = 0.0f;
+			d.Lifetime = { 50.0f, 50.0f };
+			d.Speed = { 0.0f, 0.0f };
+			d.StartSize = { 1.0f, 1.0f };
+			d.StartColor = d.EndColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+			d.Intensity = 0.5f;   // not so bright that the tone mapper saturates both cases
+			d.FadeInFraction = 0.0f;
+			d.SoftDistance = soft;
+			GB::ParticleSystem puff(d);
+			puff.SetPosition({ 0.0f, 0.4f, 0.0f });
+			puff.Burst(1);
+			puff.Update(0.01f);
+			GB::Scene sc = floorOnly;
+			sc.Particles.push_back(&puff);
+			GB::Framebuffer t(W, H);
+			renderer.Render(sc, camera, &t);
+			const auto v = t.ReadPixels();
+			// Pixel of the world point just above the floor under the puff.
+			const glm::vec4 clip = camera.GetProjection(static_cast<float>(W) / H) * camera.GetView() * glm::vec4(0.0f, 0.04f, 0.0f, 1.0f);
+			const int x = static_cast<int>((clip.x / clip.w * 0.5f + 0.5f) * W);
+			const int y = static_cast<int>((1.0f - (clip.y / clip.w * 0.5f + 0.5f)) * H);
+			const uint8_t* p = &v[(static_cast<size_t>(y) * W + x) * 4];
+			return p[0] + p[1] + p[2];
+		};
+		const int hard = puffLum(0.0f), soft = puffLum(1.0f);
+		std::fprintf(stderr, "info: puff hard=%d soft=%d\n", hard, soft);
+		Check(hard > soft + 40, "a soft particle fades out where it touches the floor");
 	}
 
 	// Every pixel must have been written: the sky pass covers the whole frame.

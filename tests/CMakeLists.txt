@@ -36,3 +36,7 @@ add_test(NAME camera COMMAND GBCameraTests)
 add_executable(GBParticleTests particles_test.cpp)
 target_link_libraries(GBParticleTests PRIVATE GB::GB)
 add_test(NAME particles COMMAND GBParticleTests)
+
+add_executable(GBWeatherTests weather_test.cpp)
+target_link_libraries(GBWeatherTests PRIVATE GB::GB)
+add_test(NAME weather COMMAND GBWeatherTests)

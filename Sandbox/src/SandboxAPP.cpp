@@ -8,7 +8,11 @@
 #include <string>
 #include <vector>
 
-// Four scenes, picked with --scene=pbr (default), --scene=textures, --scene=model or --scene=particles:
+// Five scenes, picked with --scene=pbr (default), --scene=textures, --scene=model, --scene=particles or --scene=weather:
+//   weather  a small town square under changing weather. --weather=clear|lightrain|rain|storm|snow|blizzard|
+//            dust|sandstorm|tornado (default storm), --simulate=SECONDS warm-up (default 8), --strike (a
+//            lightning bolt at the start), --nosnap (ease in instead of starting at full intensity).
+//            Keys 1-9 pick the same presets in that order, L = lightning strike.
 //   particles night campfire: fire, smoke, sparks, flickering light, snow, periodic explosion.
 //            --simulate=SECONDS (warm-up before the first frame, default 3), --explosion-every=SECONDS
 //            (default 4, 0 = off), --nosnow.  Key B: explosion.
@@ -53,6 +57,8 @@ public:
 			BuildModelScene(options);
 		else if (sceneName == "particles")
 			BuildParticleScene(options);
+		else if (sceneName == "weather")
+			BuildWeatherScene(options);
 		else
 			BuildScene();
 
@@ -79,6 +85,22 @@ protected:
 			SwitchCamera((m_CameraMode + 1) % CameraModeCount(), true);
 		m_CameraKeyWasDown = cameraKey;
 
+		if (m_Weather)
+		{
+			static const char* names[9] = { "clear", "lightrain", "rain", "storm", "snow", "blizzard", "dust", "sandstorm", "tornado" };
+			for (int i = 0; i < 9; ++i)
+			{
+				const bool down = GB::Input::IsKeyDown(static_cast<Key>(static_cast<int>(Key::D1) + i));
+				if (down && !m_WeatherKeyWasDown[i])
+					ApplyWeatherPreset(names[i], false);
+				m_WeatherKeyWasDown[i] = down;
+			}
+			const bool strike = GB::Input::IsKeyDown(Key::L);
+			if (strike && !m_StrikeKeyWasDown)
+				m_Weather->GetLightning().Strike();
+			m_StrikeKeyWasDown = strike;
+			UpdateWeather(dt);
+		}
 		if (!m_Particles.empty())
 		{
 			UpdateParticles(dt);
@@ -333,7 +355,7 @@ private:
 		boom.Looping = true;     // restarted by us; Looping keeps it "alive" so IsFinished stays false
 		boom.Bursts.clear();
 		boom.Rate = 0.0f;
-		m_Explosion = system(boom, { -3.2f, 1.1f, 0.8f });
+		m_Explosion = system(boom, { -3.2f, 0.5f, 0.8f });
 		m_ExplosionEvery = static_cast<float>(std::atof(options.GetValue("explosion-every", "4").c_str()));
 		m_ExplosionTimer = m_ExplosionEvery > 0.0f ? m_ExplosionEvery * 0.5f : 0.0f;
 		m_FireLightBase = 9.0f;
@@ -363,6 +385,132 @@ private:
 		const float warmup = static_cast<float>(std::atof(options.GetValue("simulate", "3").c_str()));
 		for (float t = 0.0f; t < warmup; t += 1.0f / 60.0f)
 			UpdateParticles(1.0f / 60.0f);
+	}
+
+	void BuildWeatherScene(const GB::LaunchOptions& options)
+	{
+		m_Sphere = std::make_unique<GB::Mesh>(GB::Mesh::CreateSphere(0.5f, 24, 12));
+		m_Plane = std::make_unique<GB::Mesh>(GB::Mesh::CreatePlane(1200.0f));
+		m_Cube = std::make_unique<GB::Mesh>(GB::Mesh::CreateCube(1.0f));
+
+		auto add = [&](const GB::Mesh* mesh, glm::vec3 pos, glm::vec3 scale, GB::Material mat)
+		{
+			GB::RenderObject o;
+			o.MeshPtr = mesh;
+			mat.HeightScale = 0.0f;
+			mat.CavityStrength = 0.0f;
+			o.Mat = mat;
+			o.Transform = glm::scale(glm::translate(glm::mat4(1.0f), pos), scale);
+			m_Scene.Objects.push_back(o);
+		};
+
+		GB::Material road;
+		road.Albedo = { 0.22f, 0.22f, 0.24f };
+		road.Roughness = 0.75f;
+		add(m_Plane.get(), { 0, 0, 0 }, glm::vec3(1.0f), road);
+
+		// Buildings around a square, in a loose ring, and a few lamp posts with lights.
+		const glm::vec3 wall[3] = { { 0.55f, 0.42f, 0.35f }, { 0.62f, 0.60f, 0.55f }, { 0.40f, 0.44f, 0.52f } };
+		for (int i = 0; i < 26; ++i)
+		{
+			const float a = glm::radians(360.0f * static_cast<float>(i) / 26.0f + 7.0f * static_cast<float>(i % 3));
+			const float r = 34.0f + 14.0f * static_cast<float>((i * 7) % 5);
+			const float h = 6.0f + 3.0f * static_cast<float>((i * 5) % 7);
+			GB::Material m;
+			m.Albedo = wall[i % 3];
+			m.Roughness = 0.85f;
+			add(m_Cube.get(), { std::cos(a) * r, h * 0.5f, std::sin(a) * r }, { 9.0f, h, 9.0f }, m);
+		}
+		GB::Material metal;
+		metal.Albedo = { 0.12f, 0.12f, 0.13f };
+		metal.Metallic = 0.8f;
+		metal.Roughness = 0.4f;
+		const glm::vec3 lamps[3] = { { -6.0f, 0.0f, 4.0f }, { 7.0f, 0.0f, -3.0f }, { -1.0f, 0.0f, -14.0f } };
+		for (const glm::vec3& l : lamps)
+		{
+			add(m_Cube.get(), l + glm::vec3(0.0f, 2.6f, 0.0f), { 0.16f, 5.2f, 0.16f }, metal);
+			GB::Material bulb;
+			bulb.Albedo = { 0.1f, 0.1f, 0.1f };
+			bulb.Emissive = { 9.0f, 6.0f, 2.8f };
+			add(m_Sphere.get(), l + glm::vec3(0.0f, 5.3f, 0.0f), glm::vec3(0.45f), bulb);
+			m_Scene.PointLights.push_back({ l + glm::vec3(0.0f, 5.0f, 0.0f), { 1.0f, 0.68f, 0.35f }, 45.0f });
+		}
+		GB::Material stone;
+		stone.Albedo = { 0.5f, 0.5f, 0.52f };
+		stone.Roughness = 0.9f;
+		for (int i = 0; i < 12; ++i)
+			add(m_Sphere.get(), { -10.0f + 2.1f * static_cast<float>(i), 0.3f, 9.0f - 0.5f * static_cast<float>(i % 3) }, glm::vec3(0.9f, 0.6f, 0.8f), stone);
+
+		m_Scene.Sun.Direction = { -0.45f, -0.7f, -0.55f };
+		m_Scene.Sun.Intensity = 3.5f;
+		m_Scene.Env.Intensity = 0.9f;
+		m_Scene.Env.ShadowCenter = { 0.0f, 0.0f, 0.0f };
+		m_Scene.Env.ShadowRadius = 22.0f;
+		m_Scene.Env.BloomThreshold = 1.3f;
+		m_Scene.Env.BloomIntensity = 0.5f;
+
+		m_Orbit.Target = { 0.0f, 2.5f, -4.0f };
+		m_Orbit.Yaw = 0.35f;
+		m_Orbit.Pitch = 0.12f;
+		m_Orbit.Distance = 16.0f;
+		m_Orbit.MinDistance = 3.0f;
+		m_Orbit.MaxDistance = 90.0f;
+
+		m_Weather = std::make_unique<GB::Weather>(3);
+		m_Weather->SetBase(m_Scene);
+		m_WeatherSteady = options.HasFlag("nosnap") ? false : true;
+		const std::string weatherName = options.GetValue("weather", "storm");
+		ApplyWeatherPreset(weatherName, m_WeatherSteady);
+		if (weatherName == "tornado")   // frame the whole funnel from a distance
+		{
+			m_Orbit.Target = { 0.0f, 17.0f, -40.0f };
+			m_Orbit.Distance = 80.0f;
+			m_Orbit.Pitch = 0.06f;
+			m_Orbit.Yaw = 0.0f;
+			m_TornadoSwing = 5.0f;
+		}
+
+		m_LastCamera = BuildCamera(0);
+		const float warmup = static_cast<float>(std::atof(options.GetValue("simulate", "8").c_str()));
+		for (float t = 0.0f; t < warmup; t += 1.0f / 60.0f)
+			UpdateWeather(1.0f / 60.0f);
+		if (options.HasFlag("strike"))
+		{
+			const glm::vec3 target(-9.0f, 0.0f, -26.0f);
+			m_Weather->GetLightning().Strike(&target);
+			UpdateWeather(0.02f);
+		}
+	}
+
+	void ApplyWeatherPreset(const std::string& name, bool snap)
+	{
+		static const std::pair<const char*, GB::WeatherPreset> presets[] = {
+			{ "clear", GB::WeatherPreset::Clear }, { "lightrain", GB::WeatherPreset::LightRain }, { "rain", GB::WeatherPreset::Rain },
+			{ "storm", GB::WeatherPreset::Thunderstorm }, { "snow", GB::WeatherPreset::Snowfall }, { "blizzard", GB::WeatherPreset::Blizzard },
+			{ "dust", GB::WeatherPreset::Dust }, { "sandstorm", GB::WeatherPreset::Sandstorm }, { "tornado", GB::WeatherPreset::Tornado } };
+		for (const auto& p : presets)
+		{
+			if (name == p.first)
+			{
+				m_Weather->SetPreset(p.second);
+				if (snap)
+					m_Weather->Snap();
+				GB_CLIENT_INFO("Weather: {}", p.first);
+				return;
+			}
+		}
+		GB_CLIENT_WARN("Unknown weather '{}'", name);
+	}
+
+	void UpdateWeather(float dt)
+	{
+		m_Time += dt;
+		// The tornado wanders across the far field.
+		m_Weather->SetTornadoPosition({ m_TornadoSwing * std::sin(m_Time * 0.08f), 0.0f, -42.0f + 8.0f * std::sin(m_Time * 0.05f) });
+		m_Weather->Update(dt, m_LastCamera);
+		for (const GB::ThunderEvent& t : m_Weather->GetLightning().TakeThunder())
+			GB_CLIENT_INFO("Thunder: {:.0f} m away, loudness {:.2f}", t.Distance, t.Loudness);
+		m_Weather->Apply(m_Scene);
 	}
 
 	void UpdateParticles(float dt)
@@ -547,6 +695,9 @@ private:
 	std::unique_ptr<GB::ModelInstance> m_Instance;
 	size_t m_StaticObjects = 0;
 	std::vector<std::unique_ptr<GB::ParticleSystem>> m_Particles;
+	std::unique_ptr<GB::Weather> m_Weather;
+	float m_TornadoSwing = 24.0f;
+	bool m_WeatherSteady = true, m_StrikeKeyWasDown = false, m_WeatherKeyWasDown[9] = {};
 	GB::ParticleSystem* m_Explosion = nullptr;
 	float m_ExplosionEvery = 0.0f, m_ExplosionTimer = 0.0f, m_FireLightBase = 0.0f, m_Time = 0.0f;
 	bool m_BoomKeyWasDown = false;

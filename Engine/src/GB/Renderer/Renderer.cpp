@@ -48,6 +48,11 @@ namespace GB
 							n += amp * ValueNoise((u + 3.0f) * freq, (v + 3.0f) * freq);
 						a = glm::smoothstep(1.0f, 0.3f, r) * glm::clamp(0.3f + 1.1f * n, 0.0f, 1.0f);
 					}
+					else if (kind == ParticleSprite::Streak)
+					{
+						// Long axis along u: flat core, soft ends; gaussian-ish across v.
+						a = std::pow(std::max(1.0f - std::fabs(v), 0.0f), 2.6f) * (1.0f - glm::smoothstep(0.55f, 1.0f, std::fabs(u)));
+					}
 					else if (kind == ParticleSprite::Spark)
 						a = std::pow(std::max(1.0f - r, 0.0f), 2.2f);
 					else
@@ -86,6 +91,7 @@ namespace GB
 		m_SpriteSoft = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::SoftCircle, 64), TextureEncoding::Linear);
 		m_SpriteSmoke = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Smoke, 128), TextureEncoding::Linear);
 		m_SpriteSpark = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Spark, 32), TextureEncoding::Linear);
+		m_SpriteStreak = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Streak, 64), TextureEncoding::Linear);
 		glCreateBuffers(1, &m_ParticleVBO);
 		glCreateVertexArrays(1, &m_ParticleVAO);
 		glVertexArrayVertexBuffer(m_ParticleVAO, 0, m_ParticleVBO, 0, sizeof(ParticleInstance));
@@ -107,7 +113,7 @@ namespace GB
 
 		m_Valid = m_ShadowShader->IsValid() && m_PBRShader->IsValid() && m_SkyShader->IsValid() &&
 			m_BloomDown->IsValid() && m_BloomUp->IsValid() && m_Composite->IsValid() && m_ParticleShader->IsValid() &&
-			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete();
+			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete() && m_SceneDepth->IsComplete();
 		if (!m_Valid)
 			GB_CORE_ERROR("Renderer failed to initialize");
 	}
@@ -132,6 +138,16 @@ namespace GB
 		spec.Samples = 1;
 		spec.Depth = false;
 		m_SceneResolved = std::make_unique<Framebuffer>(spec);
+
+		// Single-sample copy of the scene depth (soft particles, water depth...).
+		FramebufferSpec depthSpec;
+		depthSpec.Width = m_Width;
+		depthSpec.Height = m_Height;
+		depthSpec.Format = ColorFormat::None;
+		depthSpec.Depth = true;
+		depthSpec.DepthAsTexture = true;
+		depthSpec.DepthCompare = false;
+		m_SceneDepth = std::make_unique<Framebuffer>(depthSpec);
 
 		m_BloomChain.clear();
 		const uint32_t smallest = std::min(m_Width, m_Height);
@@ -222,6 +238,11 @@ namespace GB
 			s.SetFloat("uEnvIntensity", env.Intensity);
 			s.SetVec3("uSunDir", sunDir);
 			s.SetVec3("uSunColor", sunColor);
+			s.SetVec3("uFogColor", env.FogColor);
+			s.SetFloat("uFogDensity", env.FogDensity);
+			s.SetFloat("uFogHeight", env.FogHeightFalloff);
+			s.SetFloat("uWetness", env.Wetness);
+			s.SetFloat("uSnowCover", env.SnowCover);
 		};
 
 		// Background sky
@@ -339,14 +360,44 @@ namespace GB
 		Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);
 	}
 
+	void Renderer::DrawBatch(const ParticleBatch& batch)
+	{
+		if (!batch.Instances || batch.Instances->empty())
+			return;
+		const size_t bytes = batch.Instances->size() * sizeof(ParticleInstance);
+		glNamedBufferData(m_ParticleVBO, static_cast<GLsizeiptr>(bytes), batch.Instances->data(), GL_STREAM_DRAW);
+
+		if (batch.Blend == ParticleBlend::Additive)
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		else
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+		const Texture2D* sprite = m_SpriteSoft.get();
+		if (batch.Sprite == ParticleSprite::Smoke) sprite = m_SpriteSmoke.get();
+		else if (batch.Sprite == ParticleSprite::Spark) sprite = m_SpriteSpark.get();
+		else if (batch.Sprite == ParticleSprite::Streak) sprite = m_SpriteStreak.get();
+		else if (batch.Sprite == ParticleSprite::Custom && batch.CustomTexture) sprite = batch.CustomTexture;
+		sprite->Bind(0);
+
+		m_ParticleShader->SetFloat("uStretch", batch.Stretch);
+		m_ParticleShader->SetVec2("uSheet", batch.Sheet);
+		m_ParticleShader->SetFloat("uSoft", batch.SoftDistance);
+		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(batch.Instances->size()));
+	}
+
 	void Renderer::ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj)
 	{
-		if (scene.Particles.empty())
+		if (scene.Particles.empty() && scene.ParticleBatches.empty())
 			return;
 
 		const glm::mat4 view = camera.GetView();
 		const glm::vec3 right(view[0][0], view[1][0], view[2][0]);
 		const glm::vec3 up(view[0][1], view[1][1], view[2][1]);
+		const Environment& env = scene.Env;
+
+		// Single-sample depth for soft particles.
+		Framebuffer::BlitDepth(*m_SceneMSAA, *m_SceneDepth);
+		m_SceneMSAA->Bind();
 
 		glEnable(GL_DEPTH_TEST);
 		glDepthMask(GL_FALSE);     // particles are tested against the scene but never occlude each other
@@ -356,6 +407,13 @@ namespace GB
 		m_ParticleShader->SetMat4("uViewProj", viewProj);
 		m_ParticleShader->SetVec3("uCamRight", right);
 		m_ParticleShader->SetVec3("uCamUp", up);
+		m_ParticleShader->SetVec3("uCamPos", camera.Position);
+		m_ParticleShader->SetVec2("uNearFar", { camera.NearPlane, camera.FarPlane });
+		m_ParticleShader->SetInt("uOrtho", camera.Orthographic ? 1 : 0);
+		m_ParticleShader->SetVec3("uFogColor", env.FogColor);
+		m_ParticleShader->SetFloat("uFogDensity", env.FogDensity);
+		m_ParticleShader->SetFloat("uFogHeight", env.FogHeightFalloff);
+		glBindTextureUnit(1, m_SceneDepth->GetDepthTexture());
 		glBindVertexArray(m_ParticleVAO);
 
 		for (const ParticleSystem* system : scene.Particles)
@@ -363,28 +421,10 @@ namespace GB
 			if (!system)
 				continue;
 			system->BuildInstances(camera.Position, m_ParticleScratch);
-			if (m_ParticleScratch.empty())
-				continue;
-
-			const size_t bytes = m_ParticleScratch.size() * sizeof(ParticleInstance);
-			glNamedBufferData(m_ParticleVBO, static_cast<GLsizeiptr>(bytes), m_ParticleScratch.data(), GL_STREAM_DRAW);
-
-			const ParticleEmitterDesc& d = system->Desc;
-			if (d.Blend == ParticleBlend::Additive)
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-			else
-				glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
-			const Texture2D* sprite = m_SpriteSoft.get();
-			if (d.Sprite == ParticleSprite::Smoke) sprite = m_SpriteSmoke.get();
-			else if (d.Sprite == ParticleSprite::Spark) sprite = m_SpriteSpark.get();
-			else if (d.Sprite == ParticleSprite::Custom && d.CustomTexture) sprite = d.CustomTexture;
-			sprite->Bind(0);
-
-			m_ParticleShader->SetFloat("uStretch", d.Stretch);
-			m_ParticleShader->SetVec2("uSheet", { static_cast<float>(std::max(1u, d.SheetColumns)), static_cast<float>(std::max(1u, d.SheetRows)) });
-			glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(m_ParticleScratch.size()));
+			DrawBatch(system->MakeBatch(m_ParticleScratch));
 		}
+		for (const ParticleBatch& batch : scene.ParticleBatches)
+			DrawBatch(batch);
 
 		glDepthMask(GL_TRUE);
 		glDisable(GL_BLEND);

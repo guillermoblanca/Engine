@@ -15,6 +15,26 @@ namespace GB
 			return t * t * (3.0f - 2.0f * t);
 		}
 
+		float Hash3(int x, int y, int z)
+		{
+			uint32_t h = static_cast<uint32_t>(x) * 73856093u ^ static_cast<uint32_t>(y) * 19349663u ^ static_cast<uint32_t>(z) * 83492791u;
+			h = (h ^ (h >> 13)) * 1274126177u;
+			return static_cast<float>((h ^ (h >> 16)) & 0xFFFFu) / 65535.0f;
+		}
+
+		// Smooth value noise in [0,1].
+		float Noise3(const glm::vec3& p)
+		{
+			const glm::vec3 f = glm::floor(p);
+			const glm::vec3 t = p - f;
+			const glm::vec3 u = t * t * (3.0f - 2.0f * t);
+			const int x = static_cast<int>(f.x), y = static_cast<int>(f.y), z = static_cast<int>(f.z);
+			auto lerp = [](float a, float b, float k) { return a + (b - a) * k; };
+			const float c00 = lerp(Hash3(x, y, z), Hash3(x + 1, y, z), u.x), c10 = lerp(Hash3(x, y + 1, z), Hash3(x + 1, y + 1, z), u.x);
+			const float c01 = lerp(Hash3(x, y, z + 1), Hash3(x + 1, y, z + 1), u.x), c11 = lerp(Hash3(x, y + 1, z + 1), Hash3(x + 1, y + 1, z + 1), u.x);
+			return lerp(lerp(c00, c10, u.y), lerp(c01, c11, u.y), u.z);
+		}
+
 		// Orthonormal basis (right, up) perpendicular to `axis`.
 		void Basis(const glm::vec3& axis, glm::vec3& right, glm::vec3& up)
 		{
@@ -53,7 +73,7 @@ namespace GB
 		return !Desc.Looping && m_Time >= Desc.Duration && m_Particles.empty();
 	}
 
-	void ParticleSystem::Emit(uint32_t count, float maxAge)
+	void ParticleSystem::Emit(uint32_t count, float maxAge, const glm::vec3* worldOrigin)
 	{
 		const glm::mat3 rotation(m_Transform);
 		for (uint32_t i = 0; i < count && m_Particles.size() < Desc.MaxParticles; ++i)
@@ -111,17 +131,19 @@ namespace GB
 			glm::vec3 velocity = direction * Random(Desc.Speed);
 			if (!Desc.LocalSpace)
 			{
-				p.Position = glm::vec3(m_Transform * glm::vec4(position, 1.0f));
+				p.Position = worldOrigin ? *worldOrigin : glm::vec3(m_Transform * glm::vec4(position, 1.0f));
 				velocity = rotation * velocity;
 			}
 			else
-				p.Position = position;
+				p.Position = worldOrigin ? glm::vec3(glm::inverse(m_Transform) * glm::vec4(*worldOrigin, 1.0f)) : position;
 			p.Velocity = velocity;
 			m_Particles.push_back(p);
 		}
 	}
 
 	void ParticleSystem::Burst(uint32_t count) { Emit(count, 0.0f); }
+
+	void ParticleSystem::EmitAt(const glm::vec3& worldPosition, uint32_t count) { Emit(count, 0.0f, &worldPosition); }
 
 	void ParticleSystem::EmitWindow(float from, float to)
 	{
@@ -136,8 +158,13 @@ namespace GB
 			return;
 
 		// 1. Move and age the existing particles (before emission so new ones start at their spawn point).
-		const glm::vec3 acceleration = Desc.Gravity * Desc.GravityScale + Desc.Wind;
+		m_Hits.clear();
+		m_TotalTime += dt;
+		const glm::vec3 baseAcceleration = Desc.Gravity * Desc.GravityScale + Desc.Wind;
 		const float damping = std::exp(-Desc.Drag * dt);
+		const glm::vec3 vortexCenter = Desc.LocalSpace ? glm::vec3(0.0f) : glm::vec3(m_Transform[3]);
+		const glm::vec3 vortexAxis = glm::length(Desc.VortexAxis) > 0.0f ? glm::normalize(Desc.VortexAxis) : glm::vec3(0, 1, 0);
+		const bool collide = Desc.CollideGround && !Desc.LocalSpace;
 		for (size_t i = 0; i < m_Particles.size();)
 		{
 			Particle& p = m_Particles[i];
@@ -148,10 +175,61 @@ namespace GB
 				m_Particles.pop_back();
 				continue;
 			}
+
+			glm::vec3 acceleration = baseAcceleration;
+			if (Desc.TurbulenceStrength != 0.0f)
+			{
+				const glm::vec3 q = p.Position * Desc.TurbulenceFrequency + glm::vec3(0.0f, m_TotalTime * Desc.TurbulenceSpeed, 0.0f);
+				const glm::vec3 n(Noise3(q), Noise3(q + glm::vec3(31.4f, 17.2f, 5.9f)), Noise3(q + glm::vec3(-12.1f, 47.3f, 23.8f)));
+				acceleration += (n * 2.0f - 1.0f) * Desc.TurbulenceStrength;
+			}
+			if (Desc.Vortex)
+			{
+				const glm::vec3 d = p.Position - vortexCenter;
+				const float height = glm::dot(d, vortexAxis);
+				const glm::vec3 radial = d - vortexAxis * height;
+				const float r = glm::length(radial);
+				if (r > 1e-4f)
+				{
+					const float falloff = 1.0f - Smooth(0.0f, std::max(Desc.VortexRadius, 1e-3f), r);
+					const float k = glm::clamp(height / std::max(Desc.VortexHeight, 1e-3f), 0.0f, 1.0f);
+					const float inward = glm::mix(Desc.VortexInward, Desc.VortexInwardTop, k);
+					const glm::vec3 outward = radial / r;
+					const glm::vec3 tangent = glm::cross(vortexAxis, outward);
+					acceleration += (tangent * Desc.VortexSwirl - outward * inward + vortexAxis * Desc.VortexLift) * falloff;
+				}
+			}
+
 			p.Velocity = (p.Velocity + acceleration * dt) * damping;
 			p.Position += p.Velocity * dt;
 			p.Rotation += p.AngularVelocity * dt;
+
+			if (collide && p.Position.y < Desc.GroundY)
+			{
+				if (m_Hits.size() < 512)
+					m_Hits.push_back({ glm::vec3(p.Position.x, Desc.GroundY, p.Position.z), glm::length(p.Velocity) });
+				if (Desc.Bounce > 0.0f && std::fabs(p.Velocity.y) > 0.3f)
+				{
+					p.Position.y = Desc.GroundY;
+					p.Velocity.y = -p.Velocity.y * Desc.Bounce;
+					p.Velocity.x *= 1.0f - Desc.BounceFriction;
+					p.Velocity.z *= 1.0f - Desc.BounceFriction;
+				}
+				else
+				{
+					p = m_Particles.back();
+					m_Particles.pop_back();
+					continue;
+				}
+			}
 			++i;
+		}
+
+		if (m_HitTarget)
+		{
+			for (const ParticleHit& hit : m_Hits)
+				if (m_HitProbability >= 1.0f || Random() < m_HitProbability)
+					m_HitTarget->EmitAt(hit.Position, m_HitCount);
 		}
 
 		// 2. Emit.
@@ -185,6 +263,19 @@ namespace GB
 			m_Accumulator -= static_cast<float>(count);
 			Emit(count, dt);
 		}
+	}
+
+	ParticleBatch ParticleSystem::MakeBatch(const std::vector<ParticleInstance>& instances) const
+	{
+		ParticleBatch b;
+		b.Instances = &instances;
+		b.Blend = Desc.Blend;
+		b.Sprite = Desc.Sprite;
+		b.CustomTexture = Desc.CustomTexture;
+		b.Stretch = Desc.Stretch;
+		b.Sheet = { static_cast<float>(std::max(1u, Desc.SheetColumns)), static_cast<float>(std::max(1u, Desc.SheetRows)) };
+		b.SoftDistance = Desc.SoftDistance;
+		return b;
 	}
 
 	void ParticleSystem::BuildInstances(const glm::vec3& cameraPosition, std::vector<ParticleInstance>& out) const
@@ -250,6 +341,7 @@ namespace GB
 			d.Intensity = 1.5f;
 			d.Blend = ParticleBlend::Additive;
 			d.Sprite = ParticleSprite::SoftCircle;
+			d.SoftDistance = 0.35f;
 			d.Seed = 11;
 			return d;
 		}
@@ -276,6 +368,7 @@ namespace GB
 			d.FadeInFraction = 0.15f;
 			d.Blend = ParticleBlend::Alpha;
 			d.Sprite = ParticleSprite::Smoke;
+			d.SoftDistance = 1.0f;
 			d.Seed = 23;
 			return d;
 		}
@@ -330,6 +423,7 @@ namespace GB
 			d.FadeInFraction = 0.02f;
 			d.Blend = ParticleBlend::Additive;
 			d.Sprite = ParticleSprite::SoftCircle;
+			d.SoftDistance = 0.7f;
 			d.Seed = 5;
 			return d;
 		}

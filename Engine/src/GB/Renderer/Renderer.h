@@ -76,6 +76,14 @@ namespace GB
 		glm::vec3 SkyGround{ 0.14f, 0.13f, 0.12f };
 		float Intensity = 1.0f;
 
+		// Exponential-squared distance fog, thinner with height. Density 0 = off.
+		glm::vec3 FogColor{ 0.55f, 0.62f, 0.72f };
+		float FogDensity = 0.0f;           // ~0.01 light haze, 0.05 heavy fog
+		float FogHeightFalloff = 0.0f;     // 0 = uniform; larger = fog hugs the ground
+		float Wetness = 0.0f;              // 0..1: darker, glossier non-metal surfaces (rain)
+		float SnowCover = 0.0f;            // 0..1: upward-facing surfaces turn white (accumulated snow)
+		float Time = 0.0f;                 // seconds; drives wind, waves and other animated shaders
+
 		float Exposure = 1.0f;
 		float BloomThreshold = 1.0f;
 		float BloomIntensity = 0.5f;
@@ -93,6 +101,7 @@ namespace GB
 		DirectionalLight Sun;
 		std::vector<PointLight> PointLights;   // at most MaxPointLights are used
 		std::vector<const ParticleSystem*> Particles;   // drawn after the geometry, not owned
+		std::vector<ParticleBatch> ParticleBatches;     // extra ready-made batches (lightning...), drawn after Particles
 		Environment Env;
 	};
 
@@ -118,6 +127,7 @@ namespace GB
 		void ShadowPass(const Scene& scene, const glm::mat4& lightVP);
 		void ScenePass(const Scene& scene, const Camera& camera, const glm::mat4& lightVP, bool shadows);
 		void ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
+		void DrawBatch(const ParticleBatch& batch);
 		void BloomPass(const Environment& env);
 		void CompositePass(const Environment& env, const Framebuffer* target);
 
@@ -125,12 +135,12 @@ namespace GB
 		bool m_Valid = false;
 
 		std::unique_ptr<Shader> m_ShadowShader, m_PBRShader, m_SkyShader, m_BloomDown, m_BloomUp, m_Composite, m_ParticleShader;
-		std::unique_ptr<Framebuffer> m_ShadowMap, m_SceneMSAA, m_SceneResolved;
+		std::unique_ptr<Framebuffer> m_ShadowMap, m_SceneMSAA, m_SceneResolved, m_SceneDepth;
 		std::vector<std::unique_ptr<Framebuffer>> m_BloomChain;
 		uint32_t m_EmptyVAO = 0;
 		uint32_t m_ParticleVAO = 0, m_ParticleVBO = 0;
 		size_t m_ParticleVBOCapacity = 0;
-		std::unique_ptr<Texture2D> m_SpriteSoft, m_SpriteSmoke, m_SpriteSpark;
+		std::unique_ptr<Texture2D> m_SpriteSoft, m_SpriteSmoke, m_SpriteSpark, m_SpriteStreak;
 		std::vector<ParticleInstance> m_ParticleScratch;
 		uint32_t m_JointBuffer = 0;   // SSBO with the joint palette of the object being drawn
 
