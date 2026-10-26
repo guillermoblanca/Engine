@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
+#include <cstdio>
 #include <cstdlib>
 #include <memory>
 #include <string>
@@ -9,7 +10,9 @@
 
 // Three scenes, picked with --scene=pbr (default), --scene=textures or --scene=model:
 //   model    loads a glTF/GLB (e.g. exported from Blender): --model=path.glb (default: DamagedHelmet),
-//            --nofloor, --yaw=DEG initial camera yaw
+//            --nofloor, --yaw=DEG initial camera yaw, --anim=NAME|INDEX, --time=SECONDS (freeze there),
+//            --speed=X, --noanim, --playlist=A,B,C --switch=SECONDS (cycle clips with cross-fade),
+//            --orbit=DEG_PER_SEC (camera turns by itself).  All scenes: --size=WxH.  Keys: 1-9 switch animation (cross-fade), Space pause/resume
 //   pbr      roughness sweep of metal and dielectric spheres under sun, sky and point lights.
 //   textures 4x3 material gallery on subdivided quads with normal mapping + height displacement.
 //            Extra options: --tile=N (0-11, single large tile) --grid=N (subdivisions)
@@ -58,6 +61,29 @@ protected:
 		m_Pitch = std::clamp(m_Pitch + pitch * 1.0f * dt, 0.05f, 1.4f);
 		m_Distance = std::clamp(m_Distance + zoom * 0.5f * m_Distance * dt, m_ZoomMin, m_ZoomMax);
 
+		if (m_Instance)
+		{
+			const bool space = GB::Input::IsKeyDown(Key::Space) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::A);
+			if (space && !m_SpaceWasDown)
+				m_Instance->SetPaused(!m_Instance->IsPaused());
+			m_SpaceWasDown = space;
+			for (int i = 0; i < 9; ++i)
+				if (GB::Input::IsKeyDown(static_cast<Key>(static_cast<int>(Key::D1) + i)))
+					m_Instance->Play(i, true, 0.3f);
+			if (m_Playlist.size() > 1 && !m_Instance->IsPaused())
+			{
+				m_PlaylistTimer += dt;
+				if (m_PlaylistTimer >= m_SwitchSeconds)
+				{
+					m_PlaylistTimer = 0.0f;
+					m_PlaylistIndex = (m_PlaylistIndex + 1) % m_Playlist.size();
+					m_Instance->Play(m_Playlist[m_PlaylistIndex], true, 0.3f);
+				}
+			}
+			m_Instance->Update(dt);
+		}
+		m_Yaw += m_OrbitSpeed * dt;
+
 		if (GB::Input::IsKeyDown(Key::Escape) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::Back))
 			Close();
 	}
@@ -72,6 +98,11 @@ protected:
 		camera.NearPlane = m_Distance * 0.01f;
 		camera.FarPlane = m_Distance * 500.0f;
 		m_Renderer->Resize(GetWindow()->GetWidth(), GetWindow()->GetHeight());
+		if (m_Instance)
+		{
+			m_Scene.Objects.resize(m_StaticObjects);
+			m_Instance->AddToScene(m_Scene);
+		}
 		m_Renderer->Render(m_Scene, camera);
 	}
 
@@ -82,6 +113,12 @@ private:
 		config.Title = "GB Sandbox - PBR";
 		config.Width = 1600;
 		config.Height = 900;
+		unsigned w = 0, h = 0;
+		if (std::sscanf(GB::GetLaunchOptions().GetValue("size").c_str(), "%ux%u", &w, &h) == 2 && w > 0 && h > 0)
+		{
+			config.Width = w;
+			config.Height = h;
+		}
 		config.CreateWindow = true;
 		return config;
 	}
@@ -177,7 +214,6 @@ private:
 			Close();
 			return;
 		}
-		m_Model->AddToScene(m_Scene);
 
 		const glm::vec3 center = m_Model->GetBoundsCenter();
 		const float radius = std::max(m_Model->GetBoundsRadius(), 0.01f);
@@ -192,6 +228,47 @@ private:
 			floor.Mat.CavityStrength = 0.0f;
 			floor.Transform = glm::translate(glm::mat4(1.0f), { center.x, m_Model->GetBoundsMin().y - 0.001f * radius, center.z });
 			m_Scene.Objects.push_back(floor);
+		}
+
+		m_StaticObjects = m_Scene.Objects.size();
+		m_Instance = std::make_unique<GB::ModelInstance>(*m_Model);
+		m_Instance->SetSpeed(static_cast<float>(std::atof(options.GetValue("speed", "1").c_str())));
+		for (size_t i = 0; i < m_Model->GetClips().size(); ++i)
+			GB_CLIENT_INFO("Animation {}: '{}' ({:.2f}s)", i, m_Model->GetClips()[i].Name, m_Model->GetClips()[i].Duration);
+		m_OrbitSpeed = glm::radians(static_cast<float>(std::atof(options.GetValue("orbit", "0").c_str())));
+		m_SwitchSeconds = static_cast<float>(std::atof(options.GetValue("switch", "1.5").c_str()));
+		{
+			std::string list = options.GetValue("playlist");
+			size_t start = 0;
+			while (!list.empty() && start <= list.size())
+			{
+				const size_t comma = list.find(',', start);
+				const std::string item = list.substr(start, comma == std::string::npos ? std::string::npos : comma - start);
+				const int clip = m_Model->FindClip(item);
+				if (clip >= 0)
+					m_Playlist.push_back(clip);
+				else
+					GB_CLIENT_WARN("Playlist: unknown animation '{}'", item);
+				if (comma == std::string::npos)
+					break;
+				start = comma + 1;
+			}
+		}
+		if (!options.HasFlag("noanim") && !m_Model->GetClips().empty())
+		{
+			const std::string anim = options.GetValue("anim", "0");
+			int clip = m_Model->FindClip(anim);
+			if (clip < 0)
+				clip = std::atoi(anim.c_str());
+			if (!m_Playlist.empty())
+				clip = m_Playlist[0];
+			if (!m_Instance->Play(clip, true, 0.0f))
+				GB_CLIENT_WARN("Unknown animation '{}'", anim);
+			if (!options.GetValue("time").empty())
+			{
+				m_Instance->SetTime(static_cast<float>(std::atof(options.GetValue("time").c_str())));
+				m_Instance->SetPaused(true);
+			}
 		}
 
 		m_Scene.Sun.Direction = { -0.5f, -0.75f, -0.45f };
@@ -282,6 +359,12 @@ private:
 	float m_Yaw = 0.0f, m_Pitch = 0.22f, m_Distance = 13.0f;
 	float m_ZoomMin = 3.0f, m_ZoomMax = 30.0f;
 	std::unique_ptr<GB::Model> m_Model;
+	std::unique_ptr<GB::ModelInstance> m_Instance;
+	size_t m_StaticObjects = 0;
+	std::vector<int> m_Playlist;
+	size_t m_PlaylistIndex = 0;
+	float m_PlaylistTimer = 0.0f, m_SwitchSeconds = 1.5f, m_OrbitSpeed = 0.0f;
+	bool m_SpaceWasDown = false;
 };
 
 GB::Application* GB::CreateApplication()

@@ -1,10 +1,13 @@
 #include "Model.h"
+#include "ModelInstance.h"
 #include "GB/Log.h"
 #include "GB/Renderer/Image.h"
 #include <algorithm>
 #include <cstring>
+#include <functional>
 #include <limits>
 #include <map>
+#include <glm/gtc/matrix_transform.hpp>
 
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
@@ -208,7 +211,14 @@ namespace GB
 			return m;
 		}
 
-		std::unique_ptr<Mesh> ConvertPrimitive(const cgltf_primitive& prim)
+		// CPU copies kept until the bounds are computed.
+		struct PrimitiveCPU
+		{
+			std::vector<glm::vec3> Positions;
+			std::vector<SkinVertex> Skin;   // empty if not skinned
+		};
+
+		std::unique_ptr<Mesh> ConvertPrimitive(const cgltf_primitive& prim, PrimitiveCPU& cpu)
 		{
 			if (prim.type != cgltf_primitive_type_triangles)
 			{
@@ -216,6 +226,7 @@ namespace GB
 				return nullptr;
 			}
 			const cgltf_accessor *position = nullptr, *normal = nullptr, *tangent = nullptr, *uv = nullptr;
+			const cgltf_accessor *joints = nullptr, *weights = nullptr;
 			for (cgltf_size i = 0; i < prim.attributes_count; ++i)
 			{
 				const cgltf_attribute& a = prim.attributes[i];
@@ -223,6 +234,8 @@ namespace GB
 				else if (a.type == cgltf_attribute_type_normal) normal = a.data;
 				else if (a.type == cgltf_attribute_type_tangent) tangent = a.data;
 				else if (a.type == cgltf_attribute_type_texcoord && a.index == 0) uv = a.data;
+				else if (a.type == cgltf_attribute_type_joints && a.index == 0) joints = a.data;
+				else if (a.type == cgltf_attribute_type_weights && a.index == 0) weights = a.data;
 			}
 			if (!position)
 			{
@@ -270,19 +283,158 @@ namespace GB
 
 			if (!normal) GenerateNormals(vertices, indices);
 			if (!tangent) GenerateTangents(vertices, indices);
+
+			std::vector<SkinVertex> skin;
+			if (joints && weights && joints->count >= count && weights->count >= count)
+			{
+				skin.resize(count);
+				std::vector<float> w(weights->count * 4);
+				cgltf_accessor_unpack_floats(weights, w.data(), w.size());
+				for (size_t i = 0; i < count; ++i)
+				{
+					cgltf_uint j[4] = { 0, 0, 0, 0 };
+					cgltf_accessor_read_uint(joints, i, j, 4);
+					float sum = w[i * 4] + w[i * 4 + 1] + w[i * 4 + 2] + w[i * 4 + 3];
+					for (int k = 0; k < 4; ++k)
+					{
+						skin[i].Joints[k] = j[k];
+						skin[i].Weights[k] = sum > 1e-6f ? w[i * 4 + k] / sum : (k == 0 ? 1.0f : 0.0f);
+					}
+				}
+			}
+
+			cpu.Positions.resize(count);
+			for (size_t i = 0; i < count; ++i)
+				cpu.Positions[i] = vertices[i].Position;
+			cpu.Skin = skin;
+
 			Out.m_TriangleCount += indices.size() / 3;
-			return std::make_unique<Mesh>(vertices, indices);
+			return std::make_unique<Mesh>(vertices, indices, skin.empty() ? nullptr : &skin);
 		}
 
-		void VisitNode(const cgltf_node& node, const glm::mat4& parent)
+		static void DecomposeMatrix(const float* m, ModelNode& node)
 		{
-			float local[16];
-			cgltf_node_transform_local(&node, local);
-			const glm::mat4 world = parent * ToMat4(local);
-			if (node.mesh)
-				Out.m_Instances.push_back({ static_cast<int>(cgltf_mesh_index(Data, node.mesh)), world });
-			for (cgltf_size i = 0; i < node.children_count; ++i)
-				VisitNode(*node.children[i], world);
+			const glm::mat4 mat = ToMat4(m);
+			node.Translation = glm::vec3(mat[3]);
+			glm::vec3 c0(mat[0]), c1(mat[1]), c2(mat[2]);
+			glm::vec3 scale(glm::length(c0), glm::length(c1), glm::length(c2));
+			if (glm::dot(glm::cross(c0, c1), c2) < 0.0f)
+				scale.x = -scale.x;
+			node.Scale = scale;
+			if (scale.x != 0.0f && scale.y != 0.0f && scale.z != 0.0f)
+				node.Rotation = glm::quat_cast(glm::mat3(c0 / scale.x, c1 / scale.y, c2 / scale.z));
+		}
+
+		void ConvertNodes()
+		{
+			Out.m_Nodes.resize(Data->nodes_count);
+			for (cgltf_size i = 0; i < Data->nodes_count; ++i)
+			{
+				const cgltf_node& src = Data->nodes[i];
+				ModelNode& node = Out.m_Nodes[i];
+				node.Name = src.name ? src.name : "";
+				node.Parent = src.parent ? static_cast<int>(cgltf_node_index(Data, src.parent)) : -1;
+				for (cgltf_size c = 0; c < src.children_count; ++c)
+					node.Children.push_back(static_cast<int>(cgltf_node_index(Data, src.children[c])));
+				if (src.has_matrix)
+					DecomposeMatrix(src.matrix, node);
+				else
+				{
+					if (src.has_translation) node.Translation = { src.translation[0], src.translation[1], src.translation[2] };
+					if (src.has_rotation) node.Rotation = glm::quat(src.rotation[3], src.rotation[0], src.rotation[1], src.rotation[2]);
+					if (src.has_scale) node.Scale = { src.scale[0], src.scale[1], src.scale[2] };
+				}
+				node.MeshIndex = src.mesh ? static_cast<int>(cgltf_mesh_index(Data, src.mesh)) : -1;
+				node.SkinIndex = src.skin ? static_cast<int>(cgltf_skin_index(Data, src.skin)) : -1;
+				if (node.MeshIndex >= 0)
+					++Out.m_MeshNodeCount;
+			}
+
+			if (Data->scene)
+				for (cgltf_size i = 0; i < Data->scene->nodes_count; ++i)
+					Out.m_RootNodes.push_back(static_cast<int>(cgltf_node_index(Data, Data->scene->nodes[i])));
+			else if (Data->scenes_count > 0)
+				for (cgltf_size i = 0; i < Data->scenes[0].nodes_count; ++i)
+					Out.m_RootNodes.push_back(static_cast<int>(cgltf_node_index(Data, Data->scenes[0].nodes[i])));
+			else
+				for (size_t i = 0; i < Out.m_Nodes.size(); ++i)
+					if (Out.m_Nodes[i].Parent < 0)
+						Out.m_RootNodes.push_back(static_cast<int>(i));
+
+			std::function<void(int)> visit = [&](int n)
+			{
+				Out.m_Order.push_back(n);
+				for (int child : Out.m_Nodes[n].Children)
+					visit(child);
+			};
+			for (int root : Out.m_RootNodes)
+				visit(root);
+		}
+
+		void ConvertSkins()
+		{
+			for (cgltf_size i = 0; i < Data->skins_count; ++i)
+			{
+				const cgltf_skin& src = Data->skins[i];
+				ModelSkin skin;
+				for (cgltf_size j = 0; j < src.joints_count; ++j)
+					skin.Joints.push_back(static_cast<int>(cgltf_node_index(Data, src.joints[j])));
+				skin.InverseBind.assign(src.joints_count, glm::mat4(1.0f));
+				if (src.inverse_bind_matrices && src.inverse_bind_matrices->count >= src.joints_count)
+				{
+					std::vector<float> f(src.joints_count * 16);
+					cgltf_accessor_unpack_floats(src.inverse_bind_matrices, f.data(), f.size());
+					for (cgltf_size j = 0; j < src.joints_count; ++j)
+						skin.InverseBind[j] = ToMat4(&f[j * 16]);
+				}
+				Out.m_Skins.push_back(std::move(skin));
+			}
+		}
+
+		void ConvertAnimations()
+		{
+			for (cgltf_size i = 0; i < Data->animations_count; ++i)
+			{
+				const cgltf_animation& src = Data->animations[i];
+				AnimationClip clip;
+				clip.Name = src.name ? src.name : "Animation " + std::to_string(i);
+				for (cgltf_size c = 0; c < src.channels_count; ++c)
+				{
+					const cgltf_animation_channel& ch = src.channels[c];
+					if (!ch.target_node || !ch.sampler)
+						continue;
+					AnimationChannel channel;
+					channel.Node = static_cast<int>(cgltf_node_index(Data, ch.target_node));
+					size_t components = 3;
+					switch (ch.target_path)
+					{
+					case cgltf_animation_path_type_translation: channel.Target = AnimationTarget::Translation; break;
+					case cgltf_animation_path_type_scale: channel.Target = AnimationTarget::Scale; break;
+					case cgltf_animation_path_type_rotation: channel.Target = AnimationTarget::Rotation; components = 4; break;
+					default:
+						GB_CORE_WARN("glTF: animation '{}' targets morph weights, which are not supported yet", clip.Name);
+						continue;
+					}
+					switch (ch.sampler->interpolation)
+					{
+					case cgltf_interpolation_type_step: channel.Interpolation = AnimationInterpolation::Step; break;
+					case cgltf_interpolation_type_cubic_spline: channel.Interpolation = AnimationInterpolation::CubicSpline; break;
+					default: channel.Interpolation = AnimationInterpolation::Linear; break;
+					}
+
+					const size_t keys = ch.sampler->input->count;
+					const size_t perKey = channel.Interpolation == AnimationInterpolation::CubicSpline ? 3 : 1;
+					if (keys == 0 || ch.sampler->output->count < keys * perKey)
+						continue;
+					channel.Times.resize(keys);
+					cgltf_accessor_unpack_floats(ch.sampler->input, channel.Times.data(), keys);
+					channel.Values.resize(keys * perKey * components);
+					cgltf_accessor_unpack_floats(ch.sampler->output, channel.Values.data(), channel.Values.size());
+					clip.Duration = std::max(clip.Duration, channel.Times.back());
+					clip.Channels.push_back(std::move(channel));
+				}
+				Out.m_Clips.push_back(std::move(clip));
+			}
 		}
 	};
 
@@ -312,62 +464,76 @@ namespace GB
 		for (cgltf_size i = 0; i < data->materials_count; ++i)
 			model->m_Materials.push_back(loader.ConvertMaterial(data->materials[i]));
 
+		loader.ConvertNodes();
+		loader.ConvertSkins();
+		loader.ConvertAnimations();
+
 		model->m_Meshes.resize(data->meshes_count);
+		std::vector<std::vector<ModelLoader::PrimitiveCPU>> cpu(data->meshes_count);
 		for (cgltf_size m = 0; m < data->meshes_count; ++m)
 		{
 			const cgltf_mesh& mesh = data->meshes[m];
 			for (cgltf_size p = 0; p < mesh.primitives_count; ++p)
 			{
 				const cgltf_primitive& prim = mesh.primitives[p];
-				std::unique_ptr<Mesh> gpu = loader.ConvertPrimitive(prim);
+				ModelLoader::PrimitiveCPU primitiveCPU;
+				std::unique_ptr<Mesh> gpu = loader.ConvertPrimitive(prim, primitiveCPU);
 				if (!gpu)
 					continue;
 				Primitive primitive;
 				primitive.MeshData = std::move(gpu);
 				primitive.MaterialIndex = prim.material ? static_cast<int>(cgltf_material_index(data, prim.material)) : -1;
 				model->m_Meshes[m].push_back(std::move(primitive));
+				cpu[m].push_back(std::move(primitiveCPU));
 			}
 		}
 
-		const glm::mat4 identity(1.0f);
-		if (data->scene)
+		// Bounds in the rest pose: rigid vertices by their node's world, skinned ones through the rest palette.
+		const size_t nodeCount = model->m_Nodes.size();
+		std::vector<glm::mat4> world(nodeCount, glm::mat4(1.0f));
 		{
-			for (cgltf_size i = 0; i < data->scene->nodes_count; ++i)
-				loader.VisitNode(*data->scene->nodes[i], identity);
-		}
-		else if (data->scenes_count > 0)
-		{
-			for (cgltf_size i = 0; i < data->scenes[0].nodes_count; ++i)
-				loader.VisitNode(*data->scenes[0].nodes[i], identity);
-		}
-		else
-		{
-			for (cgltf_size i = 0; i < data->nodes_count; ++i)
-				if (!data->nodes[i].parent)
-					loader.VisitNode(data->nodes[i], identity);
-		}
-
-		// Bounds: transform each primitive accessor's min/max corners (cgltf provides them when present).
-		glm::vec3 lo(std::numeric_limits<float>::max()), hi(std::numeric_limits<float>::lowest());
-		for (const Instance& inst : model->m_Instances)
-		{
-			const cgltf_mesh& mesh = data->meshes[inst.MeshIndex];
-			for (cgltf_size p = 0; p < mesh.primitives_count; ++p)
+			std::function<void(int, const glm::mat4&)> visit = [&](int n, const glm::mat4& parent)
 			{
-				for (cgltf_size a = 0; a < mesh.primitives[p].attributes_count; ++a)
+				const ModelNode& node = model->m_Nodes[n];
+				world[n] = parent * glm::translate(glm::mat4(1.0f), node.Translation) * glm::mat4_cast(node.Rotation)
+					* glm::scale(glm::mat4(1.0f), node.Scale);
+				for (int child : node.Children)
+					visit(child, world[n]);
+			};
+			for (int root : model->m_RootNodes)
+				visit(root, glm::mat4(1.0f));
+		}
+		glm::vec3 lo(std::numeric_limits<float>::max()), hi(std::numeric_limits<float>::lowest());
+		for (size_t n = 0; n < nodeCount; ++n)
+		{
+			const ModelNode& node = model->m_Nodes[n];
+			if (node.MeshIndex < 0)
+				continue;
+			std::vector<glm::mat4> palette;
+			if (node.SkinIndex >= 0)
+			{
+				const ModelSkin& skin = model->m_Skins[node.SkinIndex];
+				for (size_t j = 0; j < skin.Joints.size(); ++j)
+					palette.push_back(world[skin.Joints[j]] * skin.InverseBind[j]);
+			}
+			for (const ModelLoader::PrimitiveCPU& prim : cpu[node.MeshIndex])
+			{
+				for (size_t v = 0; v < prim.Positions.size(); ++v)
 				{
-					const cgltf_attribute& attr = mesh.primitives[p].attributes[a];
-					if (attr.type != cgltf_attribute_type_position || !attr.data->has_min || !attr.data->has_max)
-						continue;
-					for (int corner = 0; corner < 8; ++corner)
+					glm::vec4 p(prim.Positions[v], 1.0f), w4;
+					if (!prim.Skin.empty() && !palette.empty())
 					{
-						const glm::vec3 c((corner & 1) ? attr.data->max[0] : attr.data->min[0],
-							(corner & 2) ? attr.data->max[1] : attr.data->min[1],
-							(corner & 4) ? attr.data->max[2] : attr.data->min[2]);
-						const glm::vec3 w = glm::vec3(inst.Transform * glm::vec4(c, 1.0f));
-						lo = glm::min(lo, w);
-						hi = glm::max(hi, w);
+						const SkinVertex& sv = prim.Skin[v];
+						glm::vec4 acc(0.0f);
+						for (int k = 0; k < 4; ++k)
+							if (sv.Weights[k] > 0.0f && sv.Joints[k] < palette.size())
+								acc += sv.Weights[k] * (palette[sv.Joints[k]] * p);
+						w4 = acc;
 					}
+					else
+						w4 = world[n] * p;
+					lo = glm::min(lo, glm::vec3(w4));
+					hi = glm::max(hi, glm::vec3(w4));
 				}
 			}
 		}
@@ -378,32 +544,39 @@ namespace GB
 		}
 
 		cgltf_free(data);
-		GB_CORE_INFO("Loaded glTF '{}': {} meshes, {} instances, {} materials, {} textures, {} triangles",
-			path, model->m_Meshes.size(), model->m_Instances.size(), model->m_Materials.size(),
-			model->m_Textures.size(), model->m_TriangleCount);
+		GB_CORE_INFO("Loaded glTF '{}': {} meshes, {} nodes, {} materials, {} textures, {} triangles, {} skins, {} animations",
+			path, model->m_Meshes.size(), model->m_Nodes.size(), model->m_Materials.size(),
+			model->m_Textures.size(), model->m_TriangleCount, model->m_Skins.size(), model->m_Clips.size());
 		return model;
+	}
+
+	int Model::FindClip(const std::string& name) const
+	{
+		for (size_t i = 0; i < m_Clips.size(); ++i)
+			if (m_Clips[i].Name == name)
+				return static_cast<int>(i);
+		return -1;
+	}
+
+	Material Model::GetMaterial(int materialIndex) const
+	{
+		if (materialIndex >= 0 && static_cast<size_t>(materialIndex) < m_Materials.size())
+			return m_Materials[materialIndex];
+		Material m;   // glTF default material
+		m.Metallic = 1.0f;
+		m.Roughness = 1.0f;
+		m.HeightScale = 0.0f;
+		m.CavityStrength = 0.0f;
+		return m;
 	}
 
 	void Model::AddToScene(Scene& scene, const glm::mat4& root) const
 	{
-		for (const Instance& inst : m_Instances)
-		{
-			for (const Primitive& prim : m_Meshes[inst.MeshIndex])
-			{
-				RenderObject obj;
-				obj.MeshPtr = prim.MeshData.get();
-				if (prim.MaterialIndex >= 0)
-					obj.Mat = m_Materials[prim.MaterialIndex];
-				else
-				{
-					obj.Mat.Metallic = 1.0f;   // glTF default material
-					obj.Mat.Roughness = 1.0f;
-					obj.Mat.HeightScale = 0.0f;
-					obj.Mat.CavityStrength = 0.0f;
-				}
-				obj.Transform = root * inst.Transform;
-				scene.Objects.push_back(std::move(obj));
-			}
-		}
+		ModelInstance rest(*this);   // rest pose, no playback
+		const size_t first = scene.Objects.size();
+		rest.AddToScene(scene, root);
+		// The palettes die with `rest`: skinned meshes are drawn unskinned (bind pose) in static scenes.
+		for (size_t i = first; i < scene.Objects.size(); ++i)
+			scene.Objects[i].JointMatrices = nullptr;
 	}
 }

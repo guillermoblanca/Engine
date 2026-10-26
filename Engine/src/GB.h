@@ -7,6 +7,7 @@
 #include "GB/Log.h"
 #include "GB/Window.h"
 #include "GB/Assets/Model.h"
+#include "GB/Assets/ModelInstance.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Framebuffer.h"
 #include "GB/Renderer/Image.h"

@@ -13,11 +13,20 @@ namespace GB
 		glm::vec4 Tangent;   // xyz = direction of increasing U, w = bitangent handedness (+1/-1)
 	};
 
+	// Per-vertex skinning data (glTF JOINTS_0 / WEIGHTS_0). Joint indices refer to the skin's joint list.
+	struct SkinVertex
+	{
+		uint32_t Joints[4] = { 0, 0, 0, 0 };
+		float Weights[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+	};
+
 	// Immutable indexed triangle mesh stored on the GPU.
 	class Mesh
 	{
 	public:
-		Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices);
+		// `skin` (optional) must have one entry per vertex.
+		Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices,
+			const std::vector<SkinVertex>* skin = nullptr);
 		~Mesh();
 		Mesh(const Mesh&) = delete;
 		Mesh& operator=(const Mesh&) = delete;
@@ -26,6 +35,7 @@ namespace GB
 
 		void Draw() const;
 		uint32_t GetIndexCount() const { return m_IndexCount; }
+		bool HasSkin() const { return m_SkinVBO != 0; }
 
 		// Procedural primitives (counter-clockwise, outward normals).
 		static Mesh CreateSphere(float radius = 0.5f, uint32_t segments = 64, uint32_t rings = 32);
@@ -35,7 +45,7 @@ namespace GB
 		static Mesh CreateCube(float size = 1.0f);
 
 	private:
-		uint32_t m_VAO = 0, m_VBO = 0, m_IBO = 0;
+		uint32_t m_VAO = 0, m_VBO = 0, m_IBO = 0, m_SkinVBO = 0;
 		uint32_t m_IndexCount = 0;
 	};
 }

@@ -14,6 +14,8 @@ namespace GB
 		std::string Screenshot;     // --screenshot=file.png   save the last frame
 		bool Hidden = false;        // --hidden     hidden window (headless / CI)
 		bool NoVSync = false;       // --novsync
+		std::string RecordDir;      // --record=dir   write frame_00001.png... with a fixed time step
+		float RecordFps = 30.0f;    // --fps=N        time step (1/N s) and rate of the recorded frames
 		std::vector<std::string> Extra;   // any other argument, for the application itself
 
 		// Value of "--key=value" among the extra arguments, or `fallback`.

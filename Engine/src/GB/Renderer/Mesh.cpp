@@ -6,7 +6,8 @@
 
 namespace GB
 {
-	Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
+	Mesh::Mesh(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices,
+		const std::vector<SkinVertex>* skin)
 		: m_IndexCount(static_cast<uint32_t>(indices.size()))
 	{
 		glCreateBuffers(1, &m_VBO);
@@ -30,6 +31,19 @@ namespace GB
 		glEnableVertexArrayAttrib(m_VAO, 3);
 		glVertexArrayAttribFormat(m_VAO, 3, 4, GL_FLOAT, GL_FALSE, offsetof(Vertex, Tangent));
 		glVertexArrayAttribBinding(m_VAO, 3, 0);
+
+		if (skin && skin->size() == vertices.size())
+		{
+			glCreateBuffers(1, &m_SkinVBO);
+			glNamedBufferStorage(m_SkinVBO, static_cast<GLsizeiptr>(skin->size() * sizeof(SkinVertex)), skin->data(), 0);
+			glVertexArrayVertexBuffer(m_VAO, 1, m_SkinVBO, 0, sizeof(SkinVertex));
+			glEnableVertexArrayAttrib(m_VAO, 4);
+			glVertexArrayAttribIFormat(m_VAO, 4, 4, GL_UNSIGNED_INT, offsetof(SkinVertex, Joints));
+			glVertexArrayAttribBinding(m_VAO, 4, 1);
+			glEnableVertexArrayAttrib(m_VAO, 5);
+			glVertexArrayAttribFormat(m_VAO, 5, 4, GL_FLOAT, GL_FALSE, offsetof(SkinVertex, Weights));
+			glVertexArrayAttribBinding(m_VAO, 5, 1);
+		}
 	}
 
 	Mesh::~Mesh()
@@ -37,11 +51,13 @@ namespace GB
 		glDeleteVertexArrays(1, &m_VAO);
 		glDeleteBuffers(1, &m_VBO);
 		glDeleteBuffers(1, &m_IBO);
+		glDeleteBuffers(1, &m_SkinVBO);
 	}
 
 	Mesh::Mesh(Mesh&& other) noexcept
 		: m_VAO(std::exchange(other.m_VAO, 0)), m_VBO(std::exchange(other.m_VBO, 0)),
-		  m_IBO(std::exchange(other.m_IBO, 0)), m_IndexCount(std::exchange(other.m_IndexCount, 0))
+		  m_IBO(std::exchange(other.m_IBO, 0)), m_SkinVBO(std::exchange(other.m_SkinVBO, 0)),
+		  m_IndexCount(std::exchange(other.m_IndexCount, 0))
 	{
 	}
 
@@ -52,6 +68,8 @@ namespace GB
 			glDeleteVertexArrays(1, &m_VAO);
 			glDeleteBuffers(1, &m_VBO);
 			glDeleteBuffers(1, &m_IBO);
+			glDeleteBuffers(1, &m_SkinVBO);
+			m_SkinVBO = std::exchange(other.m_SkinVBO, 0);
 			m_VAO = std::exchange(other.m_VAO, 0);
 			m_VBO = std::exchange(other.m_VBO, 0);
 			m_IBO = std::exchange(other.m_IBO, 0);

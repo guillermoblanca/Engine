@@ -31,6 +31,7 @@ namespace GB
 		}
 
 		glCreateVertexArrays(1, &m_EmptyVAO);
+		glCreateBuffers(1, &m_JointBuffer);
 
 		FramebufferSpec shadow;
 		shadow.Width = shadow.Height = m_ShadowSize;
@@ -50,6 +51,7 @@ namespace GB
 	Renderer::~Renderer()
 	{
 		glDeleteVertexArrays(1, &m_EmptyVAO);
+		glDeleteBuffers(1, &m_JointBuffer);
 	}
 
 	void Renderer::CreateTargets()
@@ -90,6 +92,17 @@ namespace GB
 		CreateTargets();
 	}
 
+	void Renderer::BindSkin(Shader& shader, const RenderObject& obj)
+	{
+		const bool skinned = obj.JointMatrices && !obj.JointMatrices->empty() && obj.MeshPtr->HasSkin();
+		shader.SetInt("uSkinned", skinned ? 1 : 0);
+		if (!skinned)
+			return;
+		glNamedBufferData(m_JointBuffer, static_cast<GLsizeiptr>(obj.JointMatrices->size() * sizeof(glm::mat4)),
+			obj.JointMatrices->data(), GL_STREAM_DRAW);
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_JointBuffer);
+	}
+
 	void Renderer::ShadowPass(const Scene& scene, const glm::mat4& lightVP)
 	{
 		m_ShadowMap->Bind();
@@ -106,6 +119,7 @@ namespace GB
 			if (!obj.MeshPtr || obj.Mat.Alpha == AlphaMode::Blend)
 				continue;
 			m_ShadowShader->SetMat4("uModel", obj.Transform);
+			BindSkin(*m_ShadowShader, obj);
 			const bool displaced = obj.Mat.HeightMap && obj.Mat.HeightScale != 0.0f;
 			m_ShadowShader->SetInt("uHasHeight", displaced ? 1 : 0);
 			if (displaced)
@@ -190,6 +204,7 @@ namespace GB
 			if (m.DoubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
 
 			pbr.SetMat4("uModel", obj.Transform);
+			BindSkin(pbr, obj);
 			pbr.SetVec3("uAlbedo", m.Albedo);
 			pbr.SetFloat("uMetallic", m.Metallic);
 			pbr.SetFloat("uRoughness", m.Roughness);
