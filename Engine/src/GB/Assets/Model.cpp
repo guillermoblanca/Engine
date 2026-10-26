@@ -371,6 +371,36 @@ namespace GB
 				visit(root);
 		}
 
+		void ConvertCameras()
+		{
+			for (cgltf_size i = 0; i < Data->nodes_count; ++i)
+			{
+				const cgltf_camera* src = Data->nodes[i].camera;
+				if (!src)
+					continue;
+				ModelCamera cam;
+				cam.Name = src->name ? src->name : (Data->nodes[i].name ? Data->nodes[i].name : "");
+				cam.Node = static_cast<int>(i);
+				if (src->type == cgltf_camera_type_orthographic)
+				{
+					cam.Orthographic = true;
+					cam.OrthoHalfHeight = src->data.orthographic.ymag;
+					cam.NearPlane = src->data.orthographic.znear;
+					cam.FarPlane = src->data.orthographic.zfar;
+				}
+				else if (src->type == cgltf_camera_type_perspective)
+				{
+					cam.FovYDegrees = glm::degrees(src->data.perspective.yfov);
+					cam.NearPlane = src->data.perspective.znear;
+					if (src->data.perspective.has_zfar)
+						cam.FarPlane = src->data.perspective.zfar;
+				}
+				else
+					continue;
+				Out.m_Cameras.push_back(std::move(cam));
+			}
+		}
+
 		void ConvertSkins()
 		{
 			for (cgltf_size i = 0; i < Data->skins_count; ++i)
@@ -466,6 +496,7 @@ namespace GB
 
 		loader.ConvertNodes();
 		loader.ConvertSkins();
+		loader.ConvertCameras();
 		loader.ConvertAnimations();
 
 		model->m_Meshes.resize(data->meshes_count);
@@ -544,9 +575,9 @@ namespace GB
 		}
 
 		cgltf_free(data);
-		GB_CORE_INFO("Loaded glTF '{}': {} meshes, {} nodes, {} materials, {} textures, {} triangles, {} skins, {} animations",
+		GB_CORE_INFO("Loaded glTF '{}': {} meshes, {} nodes, {} materials, {} textures, {} triangles, {} skins, {} animations, {} cameras",
 			path, model->m_Meshes.size(), model->m_Nodes.size(), model->m_Materials.size(),
-			model->m_Textures.size(), model->m_TriangleCount, model->m_Skins.size(), model->m_Clips.size());
+			model->m_Textures.size(), model->m_TriangleCount, model->m_Skins.size(), model->m_Clips.size(), model->m_Cameras.size());
 		return model;
 	}
 

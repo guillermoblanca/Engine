@@ -6,7 +6,35 @@ namespace GB
 {
 	static GLFWwindow* s_Window = nullptr;
 
-	void Input::Bind(GLFWwindow* window) { s_Window = window; }
+	static double s_LastX = 0.0, s_LastY = 0.0, s_DeltaX = 0.0, s_DeltaY = 0.0;
+	static bool s_HasLast = false;
+	static float s_Scroll = 0.0f;
+
+	void Input::Bind(GLFWwindow* window)
+	{
+		s_Window = window;
+		s_HasLast = false;
+		s_DeltaX = s_DeltaY = 0.0;
+		s_Scroll = 0.0f;
+	}
+
+	void Input::NewFrame() { s_Scroll = 0.0f; }
+	void Input::AddScroll(float amount) { s_Scroll += amount; }
+	float Input::GetScrollDelta() { return s_Scroll; }
+	std::pair<double, double> Input::GetMouseDelta() { return { s_DeltaX, s_DeltaY }; }
+
+	void Input::PostPoll()
+	{
+		if (!s_Window)
+			return;
+		double x = 0.0, y = 0.0;
+		glfwGetCursorPos(s_Window, &x, &y);
+		s_DeltaX = s_HasLast ? x - s_LastX : 0.0;
+		s_DeltaY = s_HasLast ? y - s_LastY : 0.0;
+		s_LastX = x;
+		s_LastY = y;
+		s_HasLast = true;
+	}
 
 	bool Input::IsKeyDown(Key key)
 	{

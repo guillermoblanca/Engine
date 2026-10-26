@@ -54,6 +54,7 @@ namespace GB
 		}
 		glfwSwapInterval(props.VSync ? 1 : 0);
 		Input::Bind(window->m_Handle);
+		glfwSetScrollCallback(window->m_Handle, [](GLFWwindow*, double, double yOffset) { Input::AddScroll(static_cast<float>(yOffset)); });
 
 		GB_CORE_INFO("OpenGL {} | {} | {}",
 			reinterpret_cast<const char*>(glGetString(GL_VERSION)),

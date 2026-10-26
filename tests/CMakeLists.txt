@@ -28,3 +28,7 @@ target_link_libraries(GBAnimationTests PRIVATE GB::GB)
 target_compile_definitions(GBAnimationTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME animation COMMAND GBAnimationTests)
 set_tests_properties(animation PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBCameraTests camera_test.cpp)
+target_link_libraries(GBCameraTests PRIVATE GB::GB)
+add_test(NAME camera COMMAND GBCameraTests)
