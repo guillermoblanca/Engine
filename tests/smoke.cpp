@@ -9,7 +9,7 @@ namespace
 	public:
 		int updates = 0;
 	protected:
-		void OnUpdate() override { ++updates; }
+		void OnUpdate(float) override { ++updates; }
 	};
 
 	int failures = 0;

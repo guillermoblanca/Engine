@@ -11,7 +11,16 @@ ctest --test-dir build -C Release --output-on-failure
 ./build/Sandbox/Sandbox --frames=3     # Windows: build\Sandbox\Release\Sandbox.exe
 ```
 
-Las dependencias (spdlog, y más adelante GLFW, glad, etc.) se descargan con CMake FetchContent.
+Las dependencias (spdlog, GLFW 3.4, stb) se descargan con CMake FetchContent; glad (OpenGL 4.5 core) está generado en `Engine/vendor/glad`.
+En Linux hacen falta las cabeceras de X11: `sudo apt install xorg-dev libgl1-mesa-dev`.
+
+## Ejecutar sin pantalla (agentes / CI)
+
+```
+xvfb-run -a ./build/Sandbox/Sandbox --hidden --frames=5 --screenshot=shot.png   # Linux
+Sandbox.exe --hidden --frames=5 --screenshot=shot.png                           # Windows
+```
+Opciones: `--frames=N`, `--screenshot=file.png`, `--hidden`, `--novsync`. Sandbox: WASD/flechas o stick izquierdo mueven el triángulo, Esc/Back salen.
 
 ## Estructura
 
@@ -21,8 +30,8 @@ Las dependencias (spdlog, y más adelante GLFW, glad, etc.) se descargan con CMa
 
 ## Hoja de ruta
 
-0. Base CMake, log, bucle headless, CI  ← actual
-1. Ventana (GLFW), OpenGL 4.5, input teclado/mando
+0. Base CMake, log, bucle headless, CI  ✔
+1. Ventana (GLFW), OpenGL 4.5, input teclado/mando, capturas PNG  ← actual
 2. Render PBR, luces, sombras, HDR/bloom
 3. Importación glTF 2.0 (Blender)
 4. Cámaras, animación esquelética, partículas, audio
