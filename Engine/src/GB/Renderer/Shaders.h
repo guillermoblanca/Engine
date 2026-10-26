@@ -54,6 +54,16 @@ layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aTangent;
 uniform mat4 uModel;
 uniform mat4 uViewProj;
+layout(binding = 8) uniform sampler2D uTrailMap;
+uniform vec4 uTrailRect;       // window center x, z, size (m), texel size (m)
+uniform float uTrailDepth;     // 0 = this material ignores ground marks
+uniform vec3 uTrailTint;
+uniform float uTrailBoost;
+float TrailAt(vec2 xz)
+{
+	float edge = max(abs(xz.x - uTrailRect.x), abs(xz.y - uTrailRect.y)) / uTrailRect.z;
+	return textureLod(uTrailMap, xz / uTrailRect.z, 0.0).r * (1.0 - smoothstep(0.38, 0.5, edge));
+}
 layout(location = 4) in uvec4 aJoints;
 layout(location = 5) in vec4 aWeights;
 layout(std430, binding = 0) readonly buffer JointBuffer { mat4 uJointMatrices[]; };
@@ -86,6 +96,8 @@ void main()
 		tng = mat3(skin) * tng;
 	}
 	vec4 world = uModel * vec4(pos, 1.0);
+	if (uTrailDepth > 0.0)
+		world.y -= TrailAt(world.xz) * uTrailDepth;   // footprints, tracks
 	mat3 normalMatrix = mat3(transpose(inverse(uModel)));
 	vPos = world.xyz;
 	vNormal = normalMatrix * nrm;
@@ -176,6 +188,17 @@ layout(binding = 6) uniform sampler2D uEmissiveMap;
 layout(binding = 7) uniform sampler2D uMacroMap;
 uniform int uHasMacroMap;
 uniform vec4 uMacroRect;
+layout(binding = 8) uniform sampler2D uTrailMap;
+uniform vec4 uTrailRect;       // window center x, z, size (m), texel size (m)
+uniform float uTrailDepth;     // 0 = this material ignores ground marks
+uniform vec3 uTrailTint;
+uniform float uTrailBoost;
+float TrailAt(vec2 xz)
+{
+	float edge = max(abs(xz.x - uTrailRect.x), abs(xz.y - uTrailRect.y)) / uTrailRect.z;
+	return textureLod(uTrailMap, xz / uTrailRect.z, 0.0).r * (1.0 - smoothstep(0.38, 0.5, edge));
+}
+
 uniform int uHasMRMap;
 uniform int uHasOcclusionMap;
 uniform int uHasEmissiveMap;
@@ -268,6 +291,16 @@ void main()
 	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCamPos - vPos);
 	if (!gl_FrontFacing) N = -N;   // back faces of double-sided materials
+	float trailT = 0.0;
+	if (uTrailDepth > 0.0)
+	{
+		// The surface is lower where the map is high: its normal tilts toward the dent's rim.
+		float e = uTrailRect.w;
+		trailT = TrailAt(vPos.xz);
+		vec2 grad = vec2(TrailAt(vPos.xz + vec2(e, 0.0)) - TrailAt(vPos.xz - vec2(e, 0.0)),
+		                 TrailAt(vPos.xz + vec2(0.0, e)) - TrailAt(vPos.xz - vec2(0.0, e))) / (2.0 * e);
+		N = normalize(N + vec3(grad.x, 0.0, grad.y) * uTrailDepth * uTrailBoost);
+	}
 
 	if (uHasNormalMap != 0)
 	{
@@ -289,6 +322,7 @@ void main()
 	}
 	if (uHasMacroMap != 0)
 		albedo *= texture(uMacroMap, (vPos.xz - uMacroRect.xy) / uMacroRect.zw).rgb;
+	albedo *= mix(vec3(1.0), uTrailTint, clamp(trailT * 1.3, 0.0, 1.0));   // compacted / wetter ground
 	if (uAlphaMode == 1 && alpha < uAlphaCutoff) discard;
 	albedo *= mix(1.0, 0.55, uWetness);   // wet surfaces are darker...
 	// Snow settles on surfaces that face up (with a little noise so the edge is not a clean line).

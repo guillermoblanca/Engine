@@ -267,6 +267,11 @@ namespace GB
 		pbr.SetMat4("uViewProj", viewProj);
 		pbr.SetVec3("uCamPos", camera.Position);
 		pbr.SetInt("uShadowsOn", shadows ? 1 : 0);
+		if (scene.Ground && scene.Ground->IsValid())
+		{
+			pbr.SetVec4("uTrailRect", scene.Ground->GetRect());
+			glBindTextureUnit(8, scene.Ground->GetTexture());
+		}
 		pbr.SetMat4("uLightVP", lightVP);
 		pbr.SetFloat("uShadowTexel", 2.0f * env.ShadowRadius / static_cast<float>(m_ShadowSize));
 		glBindTextureUnit(0, m_ShadowMap->GetDepthTexture());
@@ -306,6 +311,13 @@ namespace GB
 			pbr.SetInt("uHasOcclusionMap", m.OcclusionMap ? 1 : 0);
 			pbr.SetInt("uHasEmissiveMap", m.EmissiveMap ? 1 : 0);
 			pbr.SetInt("uHasMacroMap", m.MacroMap ? 1 : 0);
+			const bool trail = scene.Ground && scene.Ground->IsValid() && m.TrailDepth > 0.0f;
+			pbr.SetFloat("uTrailDepth", trail ? m.TrailDepth : 0.0f);
+			if (trail)
+			{
+				pbr.SetVec3("uTrailTint", m.TrailTint);
+				pbr.SetFloat("uTrailBoost", m.TrailNormalBoost);
+			}
 			if (m.MacroMap)
 			{
 				pbr.SetVec4("uMacroRect", m.MacroRect);

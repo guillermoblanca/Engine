@@ -6,6 +6,8 @@ add_library(GB STATIC
     src/GB/Input.cpp
     src/GB/Log.cpp
     src/GB/Assets/Model.cpp
+    src/GB/World/Footsteps.cpp
+    src/GB/World/GroundInteraction.cpp
     src/GB/World/Terrain.cpp
     src/GB/Effects/Lightning.cpp
     src/GB/Effects/SandSpray.cpp

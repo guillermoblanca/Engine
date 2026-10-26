@@ -309,6 +309,13 @@ namespace GB
 		m_Material.UVScale = 1.0f;
 		m_Material.HeightScale = 0.0f;
 		m_Material.CavityStrength = 0.0f;
+		// Ground marks: sand holds shallow, compacted prints; snow takes deep, blue-shaded ones.
+		switch (style)
+		{
+		case TerrainStyle::Desert: m_Material.TrailDepth = 0.07f; m_Material.TrailTint = { 0.60f, 0.52f, 0.44f }; m_Material.TrailNormalBoost = 3.5f; break;
+		case TerrainStyle::Snow: m_Material.TrailDepth = 0.14f; m_Material.TrailTint = { 0.70f, 0.80f, 0.96f }; m_Material.TrailNormalBoost = 3.0f; break;
+		default: m_Material.TrailDepth = 0.05f; m_Material.TrailTint = { 0.62f, 0.70f, 0.50f }; m_Material.TrailNormalBoost = 3.0f; break;
+		}
 		m_Material.MacroMap = m_Macro.get();
 		m_Material.MacroRect = { hm.GetMin().x, hm.GetMin().y, hm.GetSize(), hm.GetSize() };
 		(void)wavelengthMeters;

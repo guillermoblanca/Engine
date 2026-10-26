@@ -8,6 +8,8 @@
 #include "GB/Window.h"
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
+#include "GB/World/Footsteps.h"
+#include "GB/World/GroundInteraction.h"
 #include "GB/World/Terrain.h"
 #include "GB/Effects/Lightning.h"
 #include "GB/Effects/SandSpray.h"

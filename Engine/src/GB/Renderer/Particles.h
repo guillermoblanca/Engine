@@ -186,6 +186,7 @@ namespace GB
 		ParticleEmitterDesc Explosion();  // one burst; call system.Burst() or Reset() to fire again
 		ParticleEmitterDesc Snow();       // drifting flakes from a box above the scene
 		ParticleEmitterDesc Magic();      // glowing motes drifting upward
+		ParticleEmitterDesc FootDust(const glm::vec3& color = { 0.78f, 0.62f, 0.42f });   // small puff kicked up by a step; emit with EmitAt
 		ParticleEmitterDesc DustDevil();  // small whirlwind of dust (emit at its base; uses the vortex force)
 	}
 }

@@ -146,6 +146,24 @@ GB::SandSpray spray(*terrain);  spray.AddToScene(scene);        // arena soplada
 - `SandSpray` (granos alargados que viajan con el viento, con ráfagas, y polvo suave), `ParticlePresets::DustDevil()` (remolino de polvo).
 - Sandbox: `--scene=desert [--terrain=dunes|hills --style=desert|snow|meadow --seed=N --wind-angle=° --wavelength=m --height=m --weather=sandstorm|tornado|snow|... --nospray]`.
 
+## Rastros en el suelo (Fase 7C)
+
+```cpp
+GB::GroundInteraction marks({ /*Size*/ 48.0f, /*Resolution*/ 1024, /*RecoveryPerSecond*/ 0.035f });
+scene.Ground = &marks;                                       // los materiales con TrailDepth > 0 muestran las marcas
+marks.StampFootprint(position, heading, 0.28f, 0.11f);       // también StampCircle y StampLine (estelas de ruedas, colas...)
+marks.Update(dt, player.Position);                           // dibuja, recupera y desplaza la ventana
+GB::FootstepTracker steps(2);                                // detecta cuándo cada pie toca el suelo
+for (auto& plant : steps.Update(feetWorldPositions, terrain->MakeGroundFunction(), heading, dt)) ...
+```
+
+- `GroundInteraction` es una textura (RGBA16F) alrededor del jugador donde se «estampan» marcas de profundidad 0..1. Las marcas se **recuperan con el tiempo** (`exp(-k·dt)`: la arena se rellena en segundos, la nieve guarda el rastro minutos) y la ventana **se desplaza** con el jugador sin copiar nada (toroidal; solo se limpian las franjas que entran). Marcas solapadas toman el máximo.
+- Los materiales con `TrailDepth` (el terreno ya lo trae según estilo) **hunden** la superficie, la **oscurecen** (`TrailTint`, compactación o sombra azulada en la nieve) y **tuercen la normal** en los bordes de la huella.
+- `FootstepTracker` detecta aterrizajes de pies con histéresis, a partir de las posiciones (p. ej. los huesos del pie de un personaje animado) y la altura del terreno.
+- La hierba (siguiente etapa) leerá la misma textura para aplastarse.
+- Sandbox: `--scene=desert --walker=cesium|fox [--style=snow --weather=snow]` camina en círculo dejando huellas y una nubecilla de polvo en cada paso (`--walker-speed`, `--walker-yaw`, `--distance`, `--pitch`, `--yaw`).
+- Modelos de ejemplo `CesiumMan.glb` y `Fox.glb` en `assets/models` (atribuciones en su README).
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔

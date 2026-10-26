@@ -13,6 +13,7 @@
 //   desert   procedural dune field with wind ripples, sand blowing off the crests and a dust devil. Weather applies
 //            on top: --weather=clear|sandstorm|storm|snow|... .  Options: --terrain=dunes|hills --style=desert|snow|meadow
 //            --seed=N --wind-angle=DEG --wavelength=M --height=M --nospray --simulate=S.
+//            --walker=cesium|fox walks a circle and leaves footprints (--walker-speed=M/S --walker-yaw=DEG).
 //   weather  a small town square under changing weather. --weather=clear|lightrain|rain|storm|snow|blizzard|
 //            dust|sandstorm|tornado (default storm), --simulate=SECONDS warm-up (default 8), --strike (a
 //            lightning bolt at the start), --nosnap (ease in instead of starting at full intensity).
@@ -168,6 +169,11 @@ protected:
 		{
 			m_Scene.Objects.resize(m_StaticObjects);
 			m_Instance->AddToScene(m_Scene);
+		}
+		else if (m_Walker)
+		{
+			m_Scene.Objects.resize(m_StaticObjects);
+			m_Walker->Instance->AddToScene(m_Scene, m_Walker->Root);
 		}
 		m_Renderer->Render(m_Scene, camera);
 	}
@@ -587,6 +593,18 @@ private:
 		m_Orbit.MaxDistance = 200.0f;
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 
+		m_StaticObjects = m_Scene.Objects.size();
+		const std::string walker = options.GetValue("walker", "none");
+		if (walker != "none")
+			BuildWalker(walker, options, style);
+
+		if (!options.GetValue("distance").empty())
+			m_Orbit.Distance = static_cast<float>(std::atof(options.GetValue("distance").c_str()));
+		if (!options.GetValue("pitch").empty())
+			m_Orbit.Pitch = static_cast<float>(std::atof(options.GetValue("pitch").c_str()));
+		if (!options.GetValue("yaw").empty())
+			m_Orbit.Yaw = glm::radians(static_cast<float>(std::atof(options.GetValue("yaw").c_str())));
+
 		m_Weather = std::make_unique<GB::Weather>(5);
 		m_Weather->SetGroundFunction(m_Terrain->MakeGroundFunction());
 		const float windAngle = m_Terrain->GetWindAngle();
@@ -602,9 +620,132 @@ private:
 			UpdateDesert(1.0f / 60.0f);
 	}
 
+	// An animated character that walks a circle over the terrain and stamps a footprint wherever a foot lands.
+	struct Walker
+	{
+		std::unique_ptr<GB::Model> Model;
+		std::unique_ptr<GB::ModelInstance> Instance;
+		std::vector<int> FootNodes;
+		std::vector<float> FootBase;           // model-space height of each foot joint when planted
+		GB::FootstepTracker Tracker{ 2 };
+		float Scale = 1.0f, Speed = 1.4f, Radius = 12.0f, Phase = 0.0f, YawOffset = 0.0f;
+		float FootLength = 0.28f, FootWidth = 0.11f;
+		glm::vec3 Position{ 0.0f }, Heading{ 0.0f, 0.0f, 1.0f };
+		glm::mat4 Root{ 1.0f };
+		glm::vec3 DustColor{ 0.78f, 0.62f, 0.42f };
+	};
+
+	void BuildWalker(const std::string& kind, const GB::LaunchOptions& options, GB::TerrainStyle style)
+	{
+		m_Walker = std::make_unique<Walker>();
+		Walker& w = *m_Walker;
+		std::vector<std::string> feet;
+		float height = 1.75f;
+		std::string clip = "";
+		if (kind == "fox")
+		{
+			w.Model = GB::Model::Load(std::string(GB_ASSET_DIR) + "/models/Fox.glb");
+			feet = { "b_LeftFoot02_018", "b_RightFoot02_022", "b_LeftHand_011", "b_RightHand_08" };
+			height = 0.75f; w.FootLength = 0.10f; w.FootWidth = 0.07f; w.Speed = 1.8f; clip = "Walk";
+		}
+		else
+		{
+			w.Model = GB::Model::Load(std::string(GB_ASSET_DIR) + "/models/CesiumMan.glb");
+			feet = { "leg_joint_L_5", "leg_joint_R_5" };
+		}
+		if (!w.Model)
+		{
+			GB_CLIENT_ERROR("Could not load the walker model");
+			m_Walker.reset();
+			return;
+		}
+		w.Instance = std::make_unique<GB::ModelInstance>(*w.Model);
+		const int clipIndex = clip.empty() ? 0 : w.Model->FindClip(clip);
+		w.Instance->Play(clipIndex < 0 ? 0 : clipIndex, true, 0.0f);
+		w.Speed = static_cast<float>(std::atof(options.GetValue("walker-speed", std::to_string(w.Speed)).c_str()));
+		w.YawOffset = glm::radians(static_cast<float>(std::atof(options.GetValue("walker-yaw", "0").c_str())));
+		const float modelHeight = w.Model->GetBoundsMax().y - w.Model->GetBoundsMin().y;
+		w.Scale = modelHeight > 1e-3f ? height / modelHeight : 1.0f;
+		w.Tracker = GB::FootstepTracker(static_cast<int>(feet.size()));
+		for (const std::string& name : feet)
+		{
+			const int node = w.Model->FindNode(name);
+			if (node < 0)
+				GB_CLIENT_WARN("Walker: foot node '{}' not found", name);
+			else
+				w.FootNodes.push_back(node);
+		}
+		// Height of each foot joint when planted = its lowest point over one cycle of the clip.
+		w.FootBase.assign(w.FootNodes.size(), 1e9f);
+		{
+			GB::ModelInstance probe(*w.Model);
+			probe.Play(clipIndex < 0 ? 0 : clipIndex, true, 0.0f);
+			const float duration = w.Model->GetClips()[probe.GetCurrentClip()].Duration;
+			for (float t = 0.0f; t < duration; t += duration / 90.0f)
+			{
+				probe.SetTime(t);
+				for (size_t i = 0; i < w.FootNodes.size(); ++i)
+					w.FootBase[i] = std::min(w.FootBase[i], probe.GetNodeWorld(w.FootNodes[i])[3].y);
+			}
+		}
+		w.Tracker.PlantHeight = 0.045f * height / 1.75f;   // a few centimeters above the planted height, scaled to the character
+		w.Tracker.LiftHeight = w.Tracker.PlantHeight * 2.0f;
+		w.DustColor = style == GB::TerrainStyle::Snow ? glm::vec3(0.92f, 0.95f, 1.0f) : style == GB::TerrainStyle::Meadow ? glm::vec3(0.45f, 0.40f, 0.30f) : glm::vec3(0.78f, 0.62f, 0.42f);
+
+		GB::GroundInteractionDesc gd;
+		gd.Size = 48.0f;
+		gd.Resolution = 1024;
+		gd.RecoveryPerSecond = style == GB::TerrainStyle::Snow ? 0.004f : style == GB::TerrainStyle::Meadow ? 0.02f : 0.035f;
+		m_Ground = std::make_unique<GB::GroundInteraction>(gd);
+		m_Scene.Ground = m_Ground.get();
+		m_FootDust = std::make_unique<GB::ParticleSystem>(GB::ParticlePresets::FootDust(w.DustColor));
+		m_Scene.Particles.push_back(m_FootDust.get());
+		m_Follow = true;
+		m_Orbit.Distance = w.Scale > 1.0f || height > 1.0f ? 9.0f : 4.5f;
+		m_Orbit.Pitch = 0.24f;
+		m_Orbit.Yaw = 2.4f;   // looking back along the trail
+		m_Orbit.MinDistance = 1.5f;
+		GB_CLIENT_INFO("Walker '{}': scale {:.3f}, {} feet, speed {:.1f} m/s", kind, w.Scale, w.FootNodes.size(), w.Speed);
+	}
+
+	void UpdateWalker(float dt)
+	{
+		Walker& w = *m_Walker;
+		w.Phase += w.Speed / w.Radius * dt;
+		const glm::vec2 c(0.0f, 0.0f);
+		const glm::vec2 p(c.x + w.Radius * std::cos(w.Phase), c.y + w.Radius * std::sin(w.Phase));
+		const glm::vec2 h(-std::sin(w.Phase), std::cos(w.Phase));
+		w.Position = { p.x, m_Terrain->GetHeight(p.x, p.y), p.y };
+		w.Heading = { h.x, 0.0f, h.y };
+		const float yaw = std::atan2(h.x, h.y) + w.YawOffset;
+		w.Root = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), w.Position), yaw, glm::vec3(0, 1, 0)), glm::vec3(w.Scale));
+		w.Instance->Update(dt);
+
+		// Foot positions in the world; the planted height is subtracted so "on the ground" means height ~ 0.
+		std::vector<glm::vec3> feet;
+		for (size_t i = 0; i < w.FootNodes.size(); ++i)
+		{
+			glm::vec3 f = glm::vec3(w.Root * w.Instance->GetNodeWorld(w.FootNodes[i])[3]);
+			f.y -= w.FootBase[i] * w.Scale;
+			feet.push_back(f);
+		}
+		const auto ground = m_Terrain->MakeGroundFunction();
+		for (const GB::FootPlant& plant : w.Tracker.Update(feet, ground, w.Heading, dt))
+		{
+			m_Ground->StampFootprint(plant.Position, plant.Heading, w.FootLength, w.FootWidth, 1.0f);
+			m_FootDust->EmitAt(plant.Position + glm::vec3(0.0f, 0.04f, 0.0f), 3 + static_cast<uint32_t>(w.Scale > 1.0f));   // a small puff per step
+		}
+		m_Ground->Update(dt, w.Position);
+		m_FootDust->Update(dt);
+		if (m_Follow)
+			m_Orbit.Target = glm::mix(m_Orbit.Target, w.Position + glm::vec3(0.0f, 0.9f, 0.0f), glm::clamp(dt * 3.0f, 0.0f, 1.0f));
+	}
+
 	void UpdateDesert(float dt)
 	{
 		m_Time += dt;
+		if (m_Walker)
+			UpdateWalker(dt);
 		// The shadow map follows what the camera looks at.
 		m_Weather->BaseEnvironment().ShadowCenter = m_Orbit.Target;
 		if (m_SandSpray)
@@ -843,6 +984,10 @@ private:
 	std::unique_ptr<GB::Weather> m_Weather;
 	std::unique_ptr<GB::Terrain> m_Terrain;
 	std::unique_ptr<GB::SandSpray> m_SandSpray;
+	std::unique_ptr<Walker> m_Walker;
+	std::unique_ptr<GB::GroundInteraction> m_Ground;
+	std::unique_ptr<GB::ParticleSystem> m_FootDust;
+	bool m_Follow = false;
 	glm::vec3 m_DesertWind{ 9.0f, 0.0f, 3.0f };
 	size_t m_DustDevilIndex = 0;
 	float m_TornadoSwing = 24.0f;
