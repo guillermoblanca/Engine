@@ -606,6 +606,199 @@ void main()
 }
 )GLSL";
 
+	// Shared by the water VS and FS: the same four Gerstner waves as WaterSurface::HeightAt.
+	inline constexpr const char* WaterWaves = R"GLSL(
+uniform float uTime;
+uniform vec2 uWaveDir;
+uniform float uWaveHeight;
+uniform float uWaveLength;
+uniform float uSteep;
+uniform float uChop;
+
+const float kAngle[4] = float[4](0.0, 0.42, -0.58, 0.95);
+const float kLen[4] = float[4](1.0, 0.62, 0.38, 0.24);
+const float kAmp[4] = float[4](1.0, 0.55, 0.30, 0.16);
+
+// xz offset in .xz, height in .y; the surface slope (dh/dx, dh/dz) in `slope`. `fade` removes the small waves with distance.
+vec3 Waves(vec2 p, float fade, out vec2 slope)
+{
+	vec3 o = vec3(0.0);
+	slope = vec2(0.0);
+	for (int i = 0; i < 4; ++i)
+	{
+		float c = cos(kAngle[i]), s = sin(kAngle[i]);
+		vec2 d = vec2(uWaveDir.x * c - uWaveDir.y * s, uWaveDir.x * s + uWaveDir.y * c);
+		float k = 6.2831853 / (uWaveLength * kLen[i]);
+		float amp = uWaveHeight * kAmp[i] * (i == 0 ? 1.0 : uChop * mix(1.0, fade, float(i) / 3.0));
+		float ph = k * dot(d, p) - k * sqrt(9.81 / k) * uTime;
+		float sn = sin(ph), cs = cos(ph);
+		float q = uSteep / max(k * uWaveHeight * 4.0, 1e-3);   // keeps loops from forming
+		q = min(q, 1.0) * 0.5;
+		o.xz += d * (q * amp * cs);
+		o.y += amp * sn;
+		slope += d * (amp * k * cs);
+	}
+	return o;
+}
+)GLSL";
+
+	inline constexpr const char* WaterVS = R"GLSL(#version 450 core
+layout(location = 0) in vec3 aPos;
+uniform mat4 uViewProj;
+uniform vec3 uOrigin;
+uniform vec3 uCamPos;
+out vec3 vPos;
+)GLSL";
+
+	inline constexpr const char* WaterVSMain = R"GLSL(
+void main()
+{
+	vec3 world = aPos + uOrigin;
+	float fade = 1.0 - smoothstep(30.0, 120.0, length(world.xz - uCamPos.xz));
+	vec2 slope;
+	vec3 w = Waves(world.xz, fade, slope);
+	world += vec3(w.x, w.y, w.z);
+	vPos = world;
+	gl_Position = uViewProj * vec4(world, 1.0);
+}
+)GLSL";
+
+	inline constexpr const char* WaterFS = R"GLSL(#version 450 core
+in vec3 vPos;
+out vec4 outColor;
+layout(binding = 1) uniform sampler2D uSceneDepth;
+layout(binding = 2) uniform sampler2D uRipples;
+uniform vec3 uCamPos;
+uniform vec3 uSunDir;
+uniform vec3 uSunColor;
+uniform float uEnvIntensity;
+uniform vec2 uNearFar;
+uniform int uOrtho;
+uniform vec3 uShallow;
+uniform vec3 uDeep;
+uniform float uClarity;
+uniform float uRoughness;
+uniform float uFoam;
+uniform float uFoamWidth;
+uniform float uRippleStrength;
+uniform vec4 uRippleRect;     // window center x, z, size, texel size (size 0 = off)
+uniform float uOriginY;
+uniform vec3 uOriginXZ;     // water center
+uniform float uMask;          // > 0: discard beyond this radius
+)GLSL";
+
+	inline constexpr const char* WaterFSMain = R"GLSL(
+float LinearDepth(float d)
+{
+	if (uOrtho != 0) return uNearFar.x + d * (uNearFar.y - uNearFar.x);
+	float z = d * 2.0 - 1.0;
+	return 2.0 * uNearFar.x * uNearFar.y / (uNearFar.y + uNearFar.x - z * (uNearFar.y - uNearFar.x));
+}
+
+float Hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float Noise(vec2 p)
+{
+	vec2 i = floor(p), f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(Hash(i), Hash(i + vec2(1, 0)), f.x), mix(Hash(i + vec2(0, 1)), Hash(i + vec2(1, 1)), f.x), f.y);
+}
+
+float RippleAt(vec2 xz)
+{
+	float edge = max(abs(xz.x - uRippleRect.x), abs(xz.y - uRippleRect.y)) / uRippleRect.z;
+	return textureLod(uRipples, xz / uRippleRect.z, 0.0).r * (1.0 - smoothstep(0.38, 0.5, edge));
+}
+
+void main()
+{
+	if (uMask > 0.0 && length(vPos.xz - uOriginXZ.xz) > uMask)
+		discard;
+	vec3 V = normalize(uCamPos - vPos);
+	float camDist = length(uCamPos - vPos);
+	float fade = 1.0 - smoothstep(30.0, 120.0, length(vPos.xz - uCamPos.xz));
+	vec2 slope;
+	Waves(vPos.xz - vec2(0.0), fade, slope);   // slope of the wave sum (position offsets are tiny for shading)
+	vec3 N = normalize(vec3(-slope.x, 1.0, -slope.y));
+
+	// Fine detail: two scrolling noise layers, fading with distance.
+	vec2 q = vPos.xz;
+	float t = uTime;
+	vec2 n1 = vec2(Noise(q * 1.7 + vec2(t * 0.35, t * 0.2)), Noise(q * 1.7 + 17.0 + vec2(-t * 0.25, t * 0.3))) - 0.5;
+	vec2 n2 = vec2(Noise(q * 4.3 + vec2(-t * 0.5, t * 0.4)), Noise(q * 4.3 + 31.0 + vec2(t * 0.45, -t * 0.35))) - 0.5;
+	vec2 detail = (n1 * 0.14 + n2 * 0.07) * uChop * fade;
+	N = normalize(N + vec3(detail.x, 0.0, detail.y));
+
+	// Ripples from rain, feet and swimmers.
+	float ripple = 0.0, ringLight = 0.0;
+	if (uRippleRect.z > 0.0)
+	{
+		float e = uRippleRect.w;
+		float hL = RippleAt(vPos.xz - vec2(e, 0.0)), hR = RippleAt(vPos.xz + vec2(e, 0.0));
+		float hD = RippleAt(vPos.xz - vec2(0.0, e)), hU = RippleAt(vPos.xz + vec2(0.0, e));
+		vec2 g = vec2(hR - hL, hU - hD) / (2.0 * e);
+		N = normalize(N + vec3(-g.x, 0.0, -g.y) * (uRippleStrength * 4.0));
+		ripple = RippleAt(vPos.xz);
+		ringLight = clamp(length(g) * uRippleStrength * 5.0, 0.0, 1.0);
+	}
+	if (dot(N, V) < 0.0) N = reflect(N, vec3(0, 1, 0)); // keeps the horizon from flipping
+
+	// Thickness of the water along the view ray.
+	vec2 uv = gl_FragCoord.xy / vec2(textureSize(uSceneDepth, 0));
+	float sceneZ = LinearDepth(texture(uSceneDepth, uv).r);
+	float surfZ = LinearDepth(gl_FragCoord.z);
+	float thick = max(sceneZ - surfZ, 0.0);
+	// Vertical depth is what colors the water; the slanted view ray only changes how hidden the bottom is.
+	float vdepth = thick * clamp(V.y, 0.05, 1.0);
+
+	float absorb = 1.0 - exp(-vdepth / max(uClarity, 0.05));
+	vec3 body = mix(uShallow, uDeep, pow(absorb, 0.8));
+	vec3 L = normalize(-uSunDir);
+	vec3 amb = SkyIrradiance(vec3(0, 1, 0)) * uEnvIntensity * 0.55;
+	body *= amb + uSunColor * max(dot(vec3(0, 1, 0), L), 0.0) * 0.06;
+
+	// Fresnel sky reflection with a sharp sun glint.
+	float cosT = clamp(dot(N, V), 0.0, 1.0);
+	float F = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
+	F = clamp(F, 0.0, 1.0);
+	vec3 R = reflect(-V, N);
+	R.y = abs(R.y);
+	vec3 refl = SkyPrefiltered(R, uRoughness * 3.0) * uEnvIntensity;
+	vec3 H = normalize(L + V);
+	float a2 = max(uRoughness * uRoughness, 1e-3);
+	float nh = max(dot(N, H), 0.0);
+	float spec = min(pow(nh, 2.0 / a2 - 1.0) * (2.0 / a2) * 0.05, 60.0);
+	vec3 glint = uSunColor * spec * step(0.0, L.y) * F;
+
+	// Foam at the shore, on crests and where ripples are strong.
+	float foam = 0.0;
+	if (uFoam > 0.0)
+	{
+		float nz = Noise(q * 3.0 + vec2(t * 0.3, -t * 0.2)) * 0.6 + Noise(q * 9.0 - t * 0.5) * 0.4;
+		float shore = 1.0 - smoothstep(0.0, uFoamWidth * (0.6 + 0.8 * nz), vdepth);
+		float wave = 0.5 + 0.5 * sin(vdepth * 7.0 - t * 1.6 + nz * 5.0);   // lapping bands
+		shore *= mix(0.55, 1.0, wave);
+		float crest = smoothstep(0.8, 1.0, (vPos.y - uOriginY) / max(uWaveHeight * 2.2, 1e-3)) * smoothstep(0.45, 0.9, nz);
+		float rip = smoothstep(0.015, 0.06, abs(ripple)) * 0.5;
+		foam = clamp((shore + crest * 0.6 + rip) * uFoam, 0.0, 1.0) * smoothstep(0.35, 0.65, nz + shore * 0.5);
+	}
+	vec3 foamColor = (amb + uSunColor * max(L.y, 0.0) * 0.1) * vec3(1.6);
+
+	vec3 color = mix(body, refl, F) + glint;
+	color += (uSkyHorizon * uEnvIntensity * 0.8 + 0.06) * ringLight * 0.8;   // rings catch the light of the sky
+	color = mix(color, foamColor, foam);
+	float alpha = clamp(mix(0.35, 1.0, absorb) + F * 0.6 + foam, 0.0, 1.0);
+	alpha *= smoothstep(0.0, 0.05, thick);   // no hard edge where the water meets the shore
+	alpha = max(alpha, foam * smoothstep(0.0, 0.01, thick));
+
+	if (uFogDensity > 0.0)
+	{
+		float density = uFogDensity * exp(-uFogHeight * max(vPos.y, 0.0));
+		color = mix(uFogColor * uEnvIntensity, color, exp(-density * density * camDist * camDist));
+	}
+	outColor = vec4(min(color, vec3(64.0)), alpha);
+}
+)GLSL";
+
 	// Shared by the grass VS/FS: ground-mark lookup (same map the terrain uses).
 	inline constexpr const char* GrassTrailCommon = R"GLSL(
 layout(binding = 8) uniform sampler2D uTrailMap;

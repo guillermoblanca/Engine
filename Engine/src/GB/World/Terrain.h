@@ -64,6 +64,11 @@ namespace GB
 		float Scale = 140.0f;             // meters of the largest features
 		int Octaves = 5;
 		float Flatten = 0.25f;            // pushes valleys flatter (0 = none)
+		// A lake basin carved into the hills (LakeRadius 0 = none). The shore is raised to stay above WaterLevel.
+		glm::vec2 LakeCenter{ 0.0f, 0.0f };
+		float LakeRadius = 0.0f;          // meters of the water edge
+		float LakeDepth = 2.5f;           // meters below WaterLevel at the center
+		float WaterLevel = 1.0f;
 	};
 
 	// A drawable heightfield with a matching material (grain, wind ripples, slope-based coloring).
@@ -81,10 +86,14 @@ namespace GB
 		Material& GetMaterial() { return m_Material; }
 		const Mesh& GetMesh() const { return *m_Mesh; }
 		TerrainStyle GetStyle() const { return m_Style; }
+		bool HasLake() const { return m_HasLake; }
+		float GetWaterLevel() const { return m_WaterLevel; }
+		glm::vec2 GetLakeCenter() const { return m_LakeCenter; }
+		float GetLakeRadius() const { return m_LakeRadius; }
 		float GetWindAngle() const { return m_WindAngle; }   // radians, dune terrains only
 
 		// A function usable as ParticleEmitterDesc::GroundHeightFn. The Terrain must outlive it.
-		std::function<float(float, float)> MakeGroundFunction() const;
+		std::function<float(float, float)> MakeGroundFunction(bool waterIsGround = false) const;   // waterIsGround: lakes count as ground (rain splashes on them)
 
 		// Points along the dune crests (local maxima across the wind), for effects such as blowing sand.
 		const std::vector<glm::vec3>& GetCrestPoints() const { return m_Crests; }
@@ -98,6 +107,9 @@ namespace GB
 		Heightmap m_Heightmap;
 		TerrainStyle m_Style = TerrainStyle::Desert;
 		float m_WindAngle = 0.0f;
+		bool m_HasLake = false;
+		float m_WaterLevel = 0.0f, m_LakeRadius = 0.0f;
+		glm::vec2 m_LakeCenter{ 0.0f };
 		std::unique_ptr<Mesh> m_Mesh;
 		std::unique_ptr<Texture2D> m_Grain, m_Ripples, m_Macro;
 		Material m_Material;

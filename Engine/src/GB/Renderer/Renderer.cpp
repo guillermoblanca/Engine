@@ -106,6 +106,12 @@ namespace GB
 				glVertexArrayAttribBinding(m_GrassVAO, i, 0);
 			}
 		}
+		{
+			const std::string sky3 = Shaders::SkyCommon;
+			m_WaterShader = std::make_unique<Shader>(
+				std::string(Shaders::WaterVS) + Shaders::WaterWaves + Shaders::WaterVSMain,
+				std::string(Shaders::WaterFS) + sky3 + Shaders::WaterWaves + Shaders::WaterFSMain);
+		}
 		glCreateBuffers(1, &m_ParticleVBO);
 		glCreateVertexArrays(1, &m_ParticleVAO);
 		glVertexArrayVertexBuffer(m_ParticleVAO, 0, m_ParticleVBO, 0, sizeof(ParticleInstance));
@@ -126,7 +132,7 @@ namespace GB
 		CreateTargets();
 
 		m_Valid = m_ShadowShader->IsValid() && m_PBRShader->IsValid() && m_SkyShader->IsValid() &&
-			m_BloomDown->IsValid() && m_BloomUp->IsValid() && m_Composite->IsValid() && m_ParticleShader->IsValid() && m_GrassShader->IsValid() &&
+			m_BloomDown->IsValid() && m_BloomUp->IsValid() && m_Composite->IsValid() && m_ParticleShader->IsValid() && m_GrassShader->IsValid() && m_WaterShader->IsValid() &&
 			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete() && m_SceneDepth->IsComplete();
 		if (!m_Valid)
 			GB_CORE_ERROR("Renderer failed to initialize");
@@ -380,6 +386,7 @@ namespace GB
 		}
 
 		GrassPass(scene, camera, viewProj, lightVP, shadows);
+		WaterPass(scene, camera, viewProj);
 
 		if (!translucent.empty())
 		{
@@ -468,6 +475,76 @@ namespace GB
 			}
 		}
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+	}
+
+	void Renderer::WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj)
+	{
+		if (scene.Water.empty())
+			return;
+		const Environment& env = scene.Env;
+		// The water reads the depth of everything opaque to measure how deep it is.
+		Framebuffer::BlitDepth(*m_SceneMSAA, *m_SceneDepth);
+		m_SceneMSAA->Bind();
+
+		Shader& w = *m_WaterShader;
+		w.Bind();
+		w.SetMat4("uViewProj", viewProj);
+		w.SetVec3("uCamPos", camera.Position);
+		w.SetFloat("uTime", env.Time);
+		w.SetVec3("uSkyTop", env.SkyTop);
+		w.SetVec3("uSkyHorizon", env.SkyHorizon);
+		w.SetVec3("uSkyGround", env.SkyGround);
+		w.SetFloat("uEnvIntensity", env.Intensity);
+		w.SetVec3("uSunDir", glm::normalize(scene.Sun.Direction));
+		w.SetVec3("uSunColor", scene.Sun.Color * scene.Sun.Intensity);
+		w.SetVec3("uFogColor", env.FogColor);
+		w.SetFloat("uFogDensity", env.FogDensity);
+		w.SetFloat("uFogHeight", env.FogHeightFalloff);
+		w.SetFloat("uSnowCover", env.SnowCover);
+		w.SetFloat("uWetness", env.Wetness);
+		w.SetVec2("uNearFar", { camera.NearPlane, camera.FarPlane });
+		w.SetInt("uOrtho", camera.Orthographic ? 1 : 0);
+		glBindTextureUnit(1, m_SceneDepth->GetDepthTexture());
+		const bool ripples = scene.Ripples && scene.Ripples->IsValid();
+		if (ripples)
+		{
+			w.SetVec4("uRippleRect", scene.Ripples->GetRect());
+			glBindTextureUnit(2, scene.Ripples->GetTexture());
+		}
+		else
+			w.SetVec4("uRippleRect", glm::vec4(0.0f));
+
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		glDisable(GL_CULL_FACE);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		for (const WaterSurface* water : scene.Water)
+		{
+			if (!water)
+				continue;
+			const WaterParams& p = water->Params;
+			const glm::vec2 dir = glm::length(p.Direction) > 1e-4f ? glm::normalize(p.Direction) : glm::vec2(1.0f, 0.0f);
+			w.SetVec3("uOrigin", water->Position);
+			w.SetFloat("uOriginY", water->Position.y);
+			w.SetVec3("uOriginXZ", water->Position);
+			w.SetFloat("uMask", water->Radius);
+			w.SetVec2("uWaveDir", dir);
+			w.SetFloat("uWaveHeight", p.WaveHeight);
+			w.SetFloat("uWaveLength", p.WaveLength);
+			w.SetFloat("uSteep", p.Steepness);
+			w.SetFloat("uChop", p.Choppiness);
+			w.SetVec3("uShallow", p.ShallowColor);
+			w.SetVec3("uDeep", p.DeepColor);
+			w.SetFloat("uClarity", p.Clarity);
+			w.SetFloat("uRoughness", p.Roughness);
+			w.SetFloat("uFoam", p.Foam);
+			w.SetFloat("uFoamWidth", p.FoamWidth);
+			w.SetFloat("uRippleStrength", p.RippleStrength);
+			water->GetMesh().Draw();
+		}
+		glDepthMask(GL_TRUE);
+		glDisable(GL_BLEND);
 	}
 
 	void Renderer::DrawBatch(const ParticleBatch& batch)

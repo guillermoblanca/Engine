@@ -4,6 +4,8 @@
 #include "Mesh.h"
 #include "Particles.h"
 #include "GB/World/Grass.h"
+#include "GB/World/Water.h"
+#include "GB/World/WaterRipples.h"
 #include "GB/World/GroundInteraction.h"
 #include "Shader.h"
 #include "Texture.h"
@@ -125,6 +127,8 @@ namespace GB
 		std::vector<ParticleBatch> ParticleBatches;     // extra ready-made batches (lightning...), drawn after Particles
 		const GroundInteraction* Ground = nullptr;      // marks left on the ground (footprints, trails); not owned
 		std::vector<const GrassField*> Grass;           // drawn after the opaque geometry, not owned
+		std::vector<const WaterSurface*> Water;         // translucent water, drawn after the grass; not owned
+		const WaterRipples* Ripples = nullptr;          // ripple heights shared by the water surfaces; not owned
 		Environment Env;
 	};
 
@@ -152,13 +156,14 @@ namespace GB
 		void ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
 		void DrawBatch(const ParticleBatch& batch);
 		void GrassPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows);
+		void WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
 		void BloomPass(const Environment& env);
 		void CompositePass(const Environment& env, const Framebuffer* target);
 
 		uint32_t m_Width, m_Height, m_Samples, m_ShadowSize;
 		bool m_Valid = false;
 
-		std::unique_ptr<Shader> m_ShadowShader, m_PBRShader, m_SkyShader, m_BloomDown, m_BloomUp, m_Composite, m_ParticleShader, m_GrassShader;
+		std::unique_ptr<Shader> m_ShadowShader, m_PBRShader, m_SkyShader, m_BloomDown, m_BloomUp, m_Composite, m_ParticleShader, m_GrassShader, m_WaterShader;
 		std::unique_ptr<Framebuffer> m_ShadowMap, m_SceneMSAA, m_SceneResolved, m_SceneDepth;
 		std::vector<std::unique_ptr<Framebuffer>> m_BloomChain;
 		uint32_t m_EmptyVAO = 0;

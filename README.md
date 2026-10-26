@@ -164,6 +164,27 @@ for (auto& plant : steps.Update(feetWorldPositions, terrain->MakeGroundFunction(
 - Sandbox: `--scene=desert --walker=cesium|fox [--style=snow --weather=snow]` camina en círculo dejando huellas y una nubecilla de polvo en cada paso (`--walker-speed`, `--walker-yaw`, `--distance`, `--pitch`, `--yaw`).
 - Modelos de ejemplo `CesiumMan.glb` y `Fox.glb` en `assets/models` (atribuciones en su README).
 
+## Vegetación y agua (Fase 7D)
+
+```cpp
+GB::GrassField grass(grassParams);  scene.Grass.push_back(&grass);   // hierba instanciada: viento, aplastada por los pasos
+GB::TreeFactory trees;  auto oak = trees.Create({ GB::TreeSpecies::Broadleaf, /*Height*/ 8.0f });
+oak->AddToScene(scene, position, yaw, scale);                       // Broadleaf, Conifer, Palm, Bare (todo procedural)
+GB::WaterSurface lake(60.0f);  lake.Position = { x, level, z };    scene.Water.push_back(&lake);
+GB::WaterRipples ripples;  scene.Ripples = &ripples;
+ripples.Impulse(hit, 0.17f, 0.02f);  ripples.Update(dt, player.Position);   // gotas de lluvia, pasos, nadadores
+```
+
+- **Hierba**: hojas instanciadas generadas en CPU por chunks (con *frustum culling* por distancia), alpha-to-coverage, viento (`Environment::Wind`, lo fija `Weather`) y **se aplasta** donde `GroundInteraction` tiene marcas; la nieve acumulada la tapa. `GrassParams::DensityFn/HeightFn/NormalFn` la excluyen de agua, arena o pendientes.
+- **Árboles procedurales** (`TreeFactory`, `ScatterTrees`): corteza, hojas, agujas y frondas con texturas propias, copas con normales «de copa», balanceo con el viento en el shader (`Material::WindSway/WindHeight/WindFlutter`) y colocación con reglas (altura, pendiente, separación).
+- **Agua** (`WaterSurface`): cuatro olas de Gerstner (mismas en CPU, `HeightAt`, y en GPU), color y transparencia por **profundidad** (se lee el depth de la escena), reflejo del cielo con Fresnel y brillo del sol, **espuma** en la orilla y en las crestas, detalle de normales y anillos de `WaterRipples`.
+- `WaterRipples`: ecuación de ondas 2D (RG16F, ping-pong, pasos fijos estables) en una ventana toroidal que sigue al jugador; la lluvia y los pasos en el agua generan ondas que se propagan, rebotan poco y se apagan.
+- `Terrain::CreateHills` admite un **lago** (`HillParams::LakeRadius/LakeCenter/LakeDepth/WaterLevel`): excava la cuenca y eleva las orillas; `MakeGroundFunction(true)` hace que la lluvia salpique sobre el agua.
+- Sandbox: `--scene=desert --terrain=hills [--lake=R --lake-x= --lake-z= --lake-view --waves=m --trees=N --gallery --grass=none --weather=rain] [--walker=cesium --walker-center=lake --walker-radius=m]`.
+
+![Lago](docs/lake.jpg)
+![Vadeando](docs/lake_wading.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔

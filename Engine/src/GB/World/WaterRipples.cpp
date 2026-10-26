@@ -29,6 +29,7 @@ uniform float uC2;            // (wave speed / texel size)^2
 uniform float uDamping;
 uniform vec2 uTexel;          // 1 / resolution
 uniform float uEdge;          // extra damping near the window border
+uniform vec2 uCenterUV;       // window center in texture space
 void main()
 {
 	vec2 s = texture(uState, vUV).rg;
@@ -38,7 +39,7 @@ void main()
 	float u = texture(uState, vUV + vec2(0.0, uTexel.y)).r;
 	float lap = l + r + d + u - 4.0 * s.r;
 	// The window is a torus around its center: absorb waves where they would wrap, near the borders.
-	vec2 fromCenter = abs(fract(vUV - uTexel * 0.0) - 0.5) * 2.0;   // 0 center .. 1 border (window-relative, see CPU note)
+	vec2 fromCenter = abs(fract(vUV - uCenterUV + 0.5) - 0.5) * 2.0;   // 0 center .. 1 border
 	float edge = smoothstep(0.78, 1.0, max(fromCenter.x, fromCenter.y));
 	float v = (s.g + uC2 * lap * uDt) * (1.0 - (uDamping + uEdge * edge) * uDt);
 	float h = s.r + v * uDt;
@@ -171,6 +172,7 @@ void main()
 		m_StepShader->SetFloat("uDamping", Desc.Damping);
 		m_StepShader->SetVec2("uTexel", { 1.0f / n, 1.0f / n });
 		m_StepShader->SetFloat("uEdge", 8.0f);
+		m_StepShader->SetVec2("uCenterUV", { m_Center.x / Desc.Size - std::floor(m_Center.x / Desc.Size), m_Center.y / Desc.Size - std::floor(m_Center.y / Desc.Size) });
 		glBindVertexArray(m_EmptyVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		m_Current = next;

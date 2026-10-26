@@ -55,3 +55,8 @@ add_executable(GBGrassTests grass_test.cpp)
 target_link_libraries(GBGrassTests PRIVATE GB::GB)
 add_test(NAME grass COMMAND GBGrassTests)
 set_tests_properties(grass PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBWaterTests water_test.cpp)
+target_link_libraries(GBWaterTests PRIVATE GB::GB)
+add_test(NAME water COMMAND GBWaterTests)
+set_tests_properties(water PROPERTIES SKIP_RETURN_CODE 77)
