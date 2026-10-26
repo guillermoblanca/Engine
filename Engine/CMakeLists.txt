@@ -7,12 +7,16 @@ add_library(GB STATIC
     src/GB/Log.cpp
     src/GB/Window.cpp
     src/GB/Renderer/Framebuffer.cpp
+    src/GB/Renderer/Mesh.cpp
+    src/GB/Renderer/Renderer.cpp
     src/GB/Renderer/Shader.cpp)
 add_library(GB::GB ALIAS GB)
 
 target_include_directories(GB PUBLIC src)
 target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw)
 target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR})
+# glm is header-only; added as SYSTEM so its headers do not trip our warning flags.
+target_include_directories(GB SYSTEM PUBLIC ${glm_SOURCE_DIR})
 
 if(MSVC)
     target_compile_options(GB PRIVATE /W4 /permissive-)
