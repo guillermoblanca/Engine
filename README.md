@@ -49,11 +49,23 @@ Notas sobre los atlas de `assets/textures/` (512×384, teselas de 128 px):
 Pendiente de esta fase: IBL real con HDRI, texturas (llegan con glTF), SSAO, CSM y luces con sombras.
 Sandbox: flechas/WASD o stick derecho orbitan, Q/E zoom.
 
+## Importación glTF (Fase 3)
+
+`GB::Model::Load("modelo.glb")` carga glTF 2.0 (`.glb`/`.gltf`, exportado de Blender: *File > Export > glTF 2.0*) y `model->AddToScene(scene)` lo añade al renderer.
+
+Soportado: mallas (normales/tangentes generadas si faltan), jerarquía de nodos, materiales metálico-rugosidad con texturas (color base, metal/rugosidad, normal, oclusión, emisivo), modos alfa (opaco, máscara, mezcla ordenada), doble cara, `KHR_materials_emissive_strength`, texturas embebidas o externas.
+Pendiente: esqueletos y animaciones (siguiente fase), morph targets, cámaras y luces del archivo, UV distintas de UV0, `KHR_texture_transform`.
+
+`Sandbox --scene=model --model=ruta.glb [--yaw=GRADOS] [--nofloor]` (por defecto el casco de `assets/models`, CC BY 4.0).
+Validado con el casco y modelos de prueba de Khronos (BoomBox, AlphaBlendModeTest, NormalTangentMirrorTest) y con un `.glb` generado por `tools/make_test_gltf.py` para el test automático.
+
+![glTF](docs/gltf_models.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
 1. Ventana (GLFW), OpenGL 4.5, input teclado/mando, capturas PNG  ✔
 2. Render PBR, luces, sombras, HDR/bloom  ✔ (primera pasada, ver abajo)
-3. Importación glTF 2.0 (Blender)
+3. Importación glTF 2.0 (Blender)  ✔ (sin animación todavía)
 4. Cámaras, animación esquelética, partículas, audio
 5. Editor (ImGui) y API para agentes (headless, capturas PNG, escenas en texto)
