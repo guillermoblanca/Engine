@@ -1,4 +1,5 @@
 #include "Application.h"
+#include "Input.h"
 #include "Log.h"
 #include "Renderer/Framebuffer.h"
 #include <GLFW/glfw3.h>
@@ -70,7 +71,9 @@ namespace GB
 			float dt = 0.0f;
 			if (m_Window)
 			{
+				Input::NewFrame();
 				m_Window->PollEvents();
+				Input::PostPoll();
 				const double now = glfwGetTime();
 				dt = static_cast<float>(now - last);
 				last = now;

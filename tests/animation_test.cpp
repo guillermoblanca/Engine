@@ -43,7 +43,7 @@ int main()
 	if (!model)
 		return 1;
 
-	Check(model->GetClips().size() == 5 && model->GetSkins().size() == 1, "5 clips, 1 skin");
+	Check(model->GetClips().size() == 6 && model->GetSkins().size() == 1, "6 clips, 1 skin");
 	Check(model->FindClip("Cubic") == 3 && model->FindClip("nope") == -1, "clip lookup by name");
 	Check(Near(model->GetClips()[0].Duration, 2.0f), "clip duration = last key time");
 
@@ -102,7 +102,25 @@ int main()
 	Check(Near(glm::vec3(bent[1] * glm::vec4(0, 2, 0, 1)), { -1, 1, 0 }), "tip joint rotated 90 deg moves the top vertex to (-1,1,0)");
 	Check(Near(glm::vec3(bent[0] * glm::vec4(0, 0, 0, 1)), { 0, 0, 0 }), "root joint keeps the bottom vertex");
 
+	// --- glTF cameras: perspective + orthographic, animated with the scene
+	const auto& cams = model->GetCameras();
+	Check(cams.size() == 2 && cams[0].Name == "Main" && cams[1].Name == "Top", "two cameras imported");
+	if (cams.size() == 2)
+	{
+		inst.Stop();
+		GB::Camera main, top;
+		Check(inst.GetCamera(0, main) && inst.GetCamera(1, top) && !inst.GetCamera(2, main), "GetCamera validates the index");
+		Check(!main.Orthographic && Near(main.FovYDegrees, 0.5f * 180.0f / 3.14159265f, 1e-3f) && Near(main.NearPlane, 0.25f) && Near(main.FarPlane, 80.0f), "perspective camera lens");
+		Check(Near(main.Position, { 0, 1, 5 }) && Near(main.GetForward(), { 0, 0, -1 }), "camera looks down the node's -Z");
+		Check(top.Orthographic && Near(top.OrthoHalfHeight, 3.0f) && Near(top.NearPlane, 1.0f) && Near(top.FarPlane, 90.0f), "orthographic camera lens");
+		inst.Play("Dolly", false, 0.0f);
+		inst.SetTime(0.5f);
+		inst.GetCamera(0, main, glm::translate(glm::mat4(1.0f), glm::vec3(10, 0, 0)));
+		Check(Near(main.Position, { 10, 1, 4 }), "animated camera node + root transform");
+	}
+
 	// --- GPU skinning: render the bar straight (t=0) and bent (t=1) and compare covered pixels.
+	inst.Play("Bend", false, 0.0f);
 	constexpr uint32_t N = 128;
 	GB::Renderer renderer(N, N, 1, 1024);
 	Check(renderer.IsValid(), "renderer initializes");

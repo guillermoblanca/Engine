@@ -15,6 +15,15 @@ namespace GB
 		static bool IsKeyDown(Key key);
 		static bool IsMouseDown(MouseButton button);
 		static std::pair<double, double> GetMousePosition();
+		// Movement since the previous frame (pixels) and wheel notches this frame. Valid after Application
+		// calls NewFrame()/PostPoll(); always zero without a window.
+		static std::pair<double, double> GetMouseDelta();
+		static float GetScrollDelta();
+
+		// Frame bookkeeping, called by Application around PollEvents.
+		static void NewFrame();    // before polling events: clears the scroll accumulator
+		static void PostPoll();    // after polling events: computes the mouse delta
+		static void AddScroll(float amount);
 
 		static bool IsGamepadConnected(int pad = 0);
 		static bool IsGamepadButtonDown(GamepadButton button, int pad = 0);

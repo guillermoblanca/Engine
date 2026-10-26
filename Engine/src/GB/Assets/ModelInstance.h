@@ -36,6 +36,9 @@ namespace GB
 		void AddToScene(Scene& scene, const glm::mat4& root = glm::mat4(1.0f)) const;
 
 		const Model& GetModel() const { return m_Model; }
+		// Camera `index` of Model::GetCameras() in its current (possibly animated) pose, transformed by `root`.
+		// glTF cameras look down their local -Z axis. Returns false for an invalid index.
+		bool GetCamera(int index, Camera& out, const glm::mat4& root = glm::mat4(1.0f)) const;
 		// World matrix of a node in model space (current pose).
 		const glm::mat4& GetNodeWorld(int node) const { return m_World[node]; }
 		// Joint palette for the skin used by `node` (joint world * inverse bind), model space.

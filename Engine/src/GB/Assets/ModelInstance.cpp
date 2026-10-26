@@ -214,6 +214,24 @@ namespace GB
 		}
 	}
 
+	bool ModelInstance::GetCamera(int index, Camera& out, const glm::mat4& root) const
+	{
+		const auto& cameras = m_Model.GetCameras();
+		if (index < 0 || static_cast<size_t>(index) >= cameras.size())
+			return false;
+		const ModelCamera& src = cameras[index];
+		const glm::mat4 world = root * m_World[src.Node];
+		out.Position = glm::vec3(world[3]);
+		out.Target = out.Position + glm::normalize(glm::vec3(world * glm::vec4(0, 0, -1, 0)));
+		out.Up = glm::normalize(glm::vec3(world * glm::vec4(0, 1, 0, 0)));
+		out.Orthographic = src.Orthographic;
+		out.FovYDegrees = src.FovYDegrees;
+		out.OrthoHalfHeight = src.OrthoHalfHeight;
+		out.NearPlane = src.NearPlane;
+		out.FarPlane = src.FarPlane;
+		return true;
+	}
+
 	void ModelInstance::AddToScene(Scene& scene, const glm::mat4& root) const
 	{
 		const auto& nodes = m_Model.GetNodes();

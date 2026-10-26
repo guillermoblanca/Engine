@@ -8,6 +8,7 @@ add_library(GB STATIC
     src/GB/Assets/Model.cpp
     src/GB/Assets/ModelInstance.cpp
     src/GB/Window.cpp
+    src/GB/Renderer/CameraController.cpp
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/Image.cpp
     src/GB/Renderer/Mesh.cpp

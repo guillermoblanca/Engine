@@ -54,7 +54,7 @@ Sandbox: flechas/WASD o stick derecho orbitan, Q/E zoom.
 `GB::Model::Load("modelo.glb")` carga glTF 2.0 (`.glb`/`.gltf`, exportado de Blender: *File > Export > glTF 2.0*) y `model->AddToScene(scene)` lo añade al renderer.
 
 Soportado: mallas (normales/tangentes generadas si faltan), jerarquía de nodos, materiales metálico-rugosidad con texturas (color base, metal/rugosidad, normal, oclusión, emisivo), modos alfa (opaco, máscara, mezcla ordenada), doble cara, `KHR_materials_emissive_strength`, texturas embebidas o externas.
-Pendiente: morph targets, cámaras y luces del archivo, UV distintas de UV0, `KHR_texture_transform`.
+Pendiente: morph targets, luces del archivo, UV distintas de UV0, `KHR_texture_transform`.
 
 `Sandbox --scene=model --model=ruta.glb [--yaw=GRADOS] [--nofloor]` (por defecto el casco de `assets/models`, CC BY 4.0).
 Validado con el casco y modelos de prueba de Khronos (BoomBox, AlphaBlendModeTest, NormalTangentMirrorTest) y con un `.glb` generado por `tools/make_test_gltf.py` para el test automático.
@@ -87,11 +87,22 @@ ffmpeg -framerate 24 -i frames/frame_%05d.png -c:v libx264 -pix_fmt yuv420p clip
 
 ![Animación](docs/animation.jpg)
 
+## Cámaras (Fase 5)
+
+`GB::Camera`: perspectiva u ortográfica, `Camera::Blend(a, b, t)` para transiciones. Controladores (usables por código o por entrada):
+- `OrbitController`: órbita alrededor de un punto (ratón: izq. rota, der./centro desplaza, rueda zoom; flechas/WASD, Q/E, stick derecho).
+- `FlyController`: vuelo libre (WASD + Q/E, Shift acelera, botón derecho mira, rueda cambia la velocidad, sticks del mando).
+- `FollowController`: cámara de seguimiento en tercera persona con suavizado independiente de los fps.
+- Cámaras del glTF (p. ej. las de Blender, perspectiva u ortográficas, **animadas con el archivo**): `model->GetCameras()` y `instance.GetCamera(i, camera)`.
+
+Sandbox: `C` (o botón Y del mando) recorre órbita / vuelo / cámaras del archivo con transición suave; `--camera=orbit|fly|N`.
+`tools/add_camera_rig.py in.glb out.glb` añade a un modelo una plataforma de cámaras de demostración (giro 360°, travelling, cenital ortográfica).
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
 1. Ventana (GLFW), OpenGL 4.5, input teclado/mando, capturas PNG  ✔
 2. Render PBR, luces, sombras, HDR/bloom  ✔ (primera pasada, ver abajo)
 3. Importación glTF 2.0 (Blender)  ✔
-4. Animación esquelética  ✔ · cámaras · partículas · audio
+4. Animación esquelética  ✔ · cámaras  ✔ · partículas · audio
 5. Editor (ImGui) y API para agentes (headless, capturas PNG, escenas en texto)

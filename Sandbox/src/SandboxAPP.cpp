@@ -12,7 +12,11 @@
 //   model    loads a glTF/GLB (e.g. exported from Blender): --model=path.glb (default: DamagedHelmet),
 //            --nofloor, --yaw=DEG initial camera yaw, --anim=NAME|INDEX, --time=SECONDS (freeze there),
 //            --speed=X, --noanim, --playlist=A,B,C --switch=SECONDS (cycle clips with cross-fade),
-//            --orbit=DEG_PER_SEC (camera turns by itself).  All scenes: --size=WxH.  Keys: 1-9 switch animation (cross-fade), Space pause/resume
+//            --orbit=DEG_PER_SEC (camera turns by itself).
+//   Cameras (all scenes): C cycles orbit / free fly / the glTF file's cameras with a smooth transition;
+//            --camera=orbit|fly|N (N = glTF camera index), --size=WxH.
+//            Orbit: mouse left-drag rotates, right-drag pans, wheel zooms, arrows/WASD, Q/E, right stick.
+//            Fly: WASD + Q/E, Shift = fast, right mouse look, wheel = speed, sticks.  Keys: 1-9 switch animation (cross-fade), Space pause/resume
 //   pbr      roughness sweep of metal and dielectric spheres under sun, sky and point lights.
 //   textures 4x3 material gallery on subdivided quads with normal mapping + height displacement.
 //            Extra options: --tile=N (0-11, single large tile) --grid=N (subdivisions)
@@ -33,6 +37,12 @@ public:
 			return;
 		}
 		const GB::LaunchOptions& options = GB::GetLaunchOptions();
+		// Defaults for the PBR showcase; the other scenes override them.
+		m_Orbit.Target = { 0.0f, 1.3f, 0.0f };
+		m_Orbit.Pitch = 0.22f;
+		m_Orbit.Distance = 13.0f;
+		m_Orbit.MinDistance = 3.0f;
+		m_Orbit.MaxDistance = 30.0f;
 		const std::string sceneName = options.GetValue("scene", "pbr");
 		if (sceneName == "textures")
 			BuildTextureScene(options);
@@ -40,26 +50,36 @@ public:
 			BuildModelScene(options);
 		else
 			BuildScene();
+
+		m_LastCamera = BuildCamera(0);
+		const std::string cameraArg = options.GetValue("camera", "orbit");
+		if (cameraArg == "fly")
+			SwitchCamera(1, false);
+		else if (cameraArg != "orbit")
+		{
+			const int mode = 2 + std::atoi(cameraArg.c_str());
+			if (mode < CameraModeCount())
+				SwitchCamera(mode, false);
+			else
+				GB_CLIENT_WARN("Unknown camera '{}'", cameraArg);
+		}
 	}
 
 protected:
 	void OnUpdate(float dt) override
 	{
 		using GB::Key;
-		float yaw = 0.0f, pitch = 0.0f, zoom = 0.0f;
-		if (GB::Input::IsKeyDown(Key::Left) || GB::Input::IsKeyDown(Key::A))  yaw -= 1.0f;
-		if (GB::Input::IsKeyDown(Key::Right) || GB::Input::IsKeyDown(Key::D)) yaw += 1.0f;
-		if (GB::Input::IsKeyDown(Key::Up) || GB::Input::IsKeyDown(Key::W))    pitch += 1.0f;
-		if (GB::Input::IsKeyDown(Key::Down) || GB::Input::IsKeyDown(Key::S))  pitch -= 1.0f;
-		if (GB::Input::IsKeyDown(Key::Q)) zoom -= 1.0f;
-		if (GB::Input::IsKeyDown(Key::E)) zoom += 1.0f;
+		const bool cameraKey = GB::Input::IsKeyDown(Key::C) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::Y);
+		if (cameraKey && !m_CameraKeyWasDown)
+			SwitchCamera((m_CameraMode + 1) % CameraModeCount(), true);
+		m_CameraKeyWasDown = cameraKey;
 
-		yaw += GB::Input::GetGamepadAxis(GB::GamepadAxis::RightX);
-		pitch -= GB::Input::GetGamepadAxis(GB::GamepadAxis::RightY);
-
-		m_Yaw += yaw * 1.5f * dt;
-		m_Pitch = std::clamp(m_Pitch + pitch * 1.0f * dt, 0.05f, 1.4f);
-		m_Distance = std::clamp(m_Distance + zoom * 0.5f * m_Distance * dt, m_ZoomMin, m_ZoomMax);
+		if (m_CameraMode == 0)
+			m_Orbit.Update(dt);
+		else if (m_CameraMode == 1)
+			m_Fly.Update(dt);
+		if (m_BlendT < 1.0f)
+			m_BlendT = std::min(1.0f, m_BlendT + dt / 0.6f);
 
 		if (m_Instance)
 		{
@@ -82,7 +102,8 @@ protected:
 			}
 			m_Instance->Update(dt);
 		}
-		m_Yaw += m_OrbitSpeed * dt;
+		if (m_CameraMode == 0)
+			m_Orbit.Yaw += m_OrbitSpeed * dt;
 
 		if (GB::Input::IsKeyDown(Key::Escape) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::Back))
 			Close();
@@ -90,13 +111,13 @@ protected:
 
 	void OnRender() override
 	{
-		GB::Camera camera;
-		camera.Target = m_CameraTarget;
-		camera.Position = camera.Target + m_Distance * glm::vec3(
-			std::sin(m_Yaw) * std::cos(m_Pitch), std::sin(m_Pitch), std::cos(m_Yaw) * std::cos(m_Pitch));
-		// Scale the clip planes with the viewing distance so tiny and huge models both fit.
-		camera.NearPlane = m_Distance * 0.01f;
-		camera.FarPlane = m_Distance * 500.0f;
+		GB::Camera camera = BuildCamera(m_CameraMode);
+		if (m_BlendT < 1.0f)
+		{
+			const float t = m_BlendT * m_BlendT * (3.0f - 2.0f * m_BlendT);   // smoothstep
+			camera = GB::Camera::Blend(m_BlendFrom, camera, t);
+		}
+		m_LastCamera = camera;
 		m_Renderer->Resize(GetWindow()->GetWidth(), GetWindow()->GetHeight());
 		if (m_Instance)
 		{
@@ -107,6 +128,44 @@ protected:
 	}
 
 private:
+	// Camera modes: 0 = orbit, 1 = free fly, 2.. = cameras defined in the glTF file (animated with it).
+	int CameraModeCount() const { return 2 + (m_Instance ? static_cast<int>(m_Model->GetCameras().size()) : 0); }
+
+	GB::Camera BuildCamera(int mode) const
+	{
+		GB::Camera camera;
+		if (mode >= 2 && m_Instance && m_Instance->GetCamera(mode - 2, camera))
+			return camera;   // the file's own lens and clip planes
+		if (mode == 1)
+			m_Fly.Apply(camera);
+		else
+			m_Orbit.Apply(camera);
+		// Scale the clip planes with the viewing distance so tiny and huge models both fit.
+		camera.NearPlane = m_Orbit.Distance * 0.01f;
+		camera.FarPlane = m_Orbit.Distance * 500.0f;
+		return camera;
+	}
+
+	void SwitchCamera(int mode, bool blend)
+	{
+		if (mode == m_CameraMode)
+			return;
+		if (blend)
+		{
+			m_BlendFrom = m_LastCamera;
+			m_BlendT = 0.0f;
+		}
+		if (mode == 1)   // continue from wherever the view currently is
+		{
+			m_Fly.Position = m_LastCamera.Position;
+			m_Fly.LookAt(m_LastCamera.Target);
+			m_Fly.Speed = std::max(m_Orbit.Distance * 0.5f, 0.1f);
+		}
+		m_CameraMode = mode;
+		GB_CLIENT_INFO("Camera: {}", mode == 0 ? "orbit" : mode == 1 ? "free fly"
+			: "glTF '" + m_Model->GetCameras()[mode - 2].Name + "'");
+	}
+
 	static GB::ApplicationConfig MakeConfig()
 	{
 		GB::ApplicationConfig config;
@@ -199,9 +258,9 @@ private:
 		m_Scene.Env.BloomIntensity = 0.15f;
 		m_Scene.Env.ShadowCenter = { 0.0f, 0.0f, 0.0f };
 		m_Scene.Env.ShadowRadius = single >= 0 ? 4.0f : 8.0f;
-		m_CameraTarget = { 0.0f, 0.0f, 0.0f };
-		m_Pitch = 0.0f;
-		m_Distance = single >= 0 ? 6.0f : 10.5f;
+		m_Orbit.Target = { 0.0f, 0.0f, 0.0f };
+		m_Orbit.Pitch = 0.0f;
+		m_Orbit.Distance = single >= 0 ? 6.0f : 10.5f;
 	}
 
 	void BuildModelScene(const GB::LaunchOptions& options)
@@ -277,12 +336,12 @@ private:
 		m_Scene.Env.BloomThreshold = 1.5f;
 		m_Scene.Env.ShadowCenter = center;
 		m_Scene.Env.ShadowRadius = radius * 3.0f;
-		m_CameraTarget = center;
-		m_Pitch = 0.18f;
-		m_Yaw = glm::radians(static_cast<float>(std::atof(options.GetValue("yaw", "0").c_str())));
-		m_Distance = radius / std::sin(glm::radians(22.5f)) * 1.15f;
-		m_ZoomMin = radius * 0.5f;
-		m_ZoomMax = radius * 20.0f;
+		m_Orbit.Target = center;
+		m_Orbit.Pitch = 0.18f;
+		m_Orbit.Yaw = glm::radians(static_cast<float>(std::atof(options.GetValue("yaw", "0").c_str())));
+		m_Orbit.Distance = radius / std::sin(glm::radians(22.5f)) * 1.15f;
+		m_Orbit.MinDistance = radius * 0.5f;
+		m_Orbit.MaxDistance = radius * 20.0f;
 	}
 
 	void BuildScene()
@@ -354,10 +413,13 @@ private:
 	std::unique_ptr<GB::Renderer> m_Renderer;
 	std::unique_ptr<GB::Mesh> m_Sphere, m_Plane, m_Cube;
 	std::vector<std::unique_ptr<GB::Texture2D>> m_Textures;
-	glm::vec3 m_CameraTarget{ 0.0f, 1.3f, 0.0f };
 	GB::Scene m_Scene;
-	float m_Yaw = 0.0f, m_Pitch = 0.22f, m_Distance = 13.0f;
-	float m_ZoomMin = 3.0f, m_ZoomMax = 30.0f;
+	mutable GB::OrbitController m_Orbit;
+	mutable GB::FlyController m_Fly;
+	int m_CameraMode = 0;
+	bool m_CameraKeyWasDown = false;
+	GB::Camera m_LastCamera, m_BlendFrom;
+	float m_BlendT = 1.0f;
 	std::unique_ptr<GB::Model> m_Model;
 	std::unique_ptr<GB::ModelInstance> m_Instance;
 	size_t m_StaticObjects = 0;

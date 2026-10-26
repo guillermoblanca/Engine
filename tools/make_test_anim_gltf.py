@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Generates tests/data/test_anim.glb, used by tests/animation_test.cpp.
 
+Nodes 4/5 are cameras (perspective "Main", orthographic "Top"); clip "Dolly" moves camera node 4.
 Nodes: 0 "Mover" (animated by clips Move/Spin/Steps/Cubic), 1 "Root" -> 2 "Tip" (two joints, Tip is at
 y=1 above Root), 3 "Bar" (skinned mesh, deliberately translated by (100,0,0) because glTF says the
 transform of a skinned mesh node must be ignored). Clip "Bend" rotates Tip 90 degrees about Z.
@@ -55,6 +56,7 @@ clips = [
     # per key: in-tangent, value, out-tangent; zero tangents: Hermite reduces to smoothstep 3t^2 - 2t^3 between (0,0,0) and (10,0,0)
     ("Cubic", [sampler([0, 1], [0, 0, 0,  0, 0, 0,  0, 0, 0,   0, 0, 0,  10, 0, 0,  0, 0, 0], "CUBICSPLINE")], [("translation", 0)]),
     ("Bend", [sampler([0, 1], [0, 0, 0, 1, 0, 0, s45, s45], "LINEAR", 4)], [("rotation", 2)]),
+    ("Dolly", [sampler([0, 1], [0, 1, 5, 0, 1, 3])], [("translation", 4)]),
 ]
 animations = []
 for name, samplers, targets in clips:
@@ -63,16 +65,21 @@ for name, samplers, targets in clips:
 
 gltf = {
     "asset": {"version": "2.0", "generator": "tools/make_test_anim_gltf.py"},
-    "scene": 0, "scenes": [{"nodes": [0, 1, 3]}],
+    "scene": 0, "scenes": [{"nodes": [0, 1, 3, 4, 5]}],
     "nodes": [
         {"name": "Mover"},
         {"name": "Root", "children": [2]},
         {"name": "Tip", "translation": [0, 1, 0]},
-        {"name": "Bar", "mesh": 0, "skin": 0, "translation": [100, 0, 0]}],
+        {"name": "Bar", "mesh": 0, "skin": 0, "translation": [100, 0, 0]},
+        {"name": "CamNode", "camera": 0, "translation": [0, 1, 5]},
+        {"name": "OrthoNode", "camera": 1, "translation": [0, 1, 20]}],
     "meshes": [{"primitives": [{"attributes": {"POSITION": a_pos, "JOINTS_0": a_joint, "WEIGHTS_0": a_weight},
                                 "indices": a_idx, "material": 0}]}],
     "materials": [{"doubleSided": True, "pbrMetallicRoughness": {"baseColorFactor": [1, 0, 0, 1], "metallicFactor": 0, "roughnessFactor": 0.8}}],
     "skins": [{"joints": [1, 2], "inverseBindMatrices": a_ibm}],
+    "cameras": [
+        {"name": "Main", "type": "perspective", "perspective": {"yfov": 0.5, "znear": 0.25, "zfar": 80}},
+        {"name": "Top", "type": "orthographic", "orthographic": {"xmag": 6, "ymag": 3, "znear": 1, "zfar": 90}}],
     "animations": animations,
     "bufferViews": views, "accessors": accessors, "buffers": [{"byteLength": len(blob)}],
 }

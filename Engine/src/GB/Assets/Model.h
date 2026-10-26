@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Mesh.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/Texture.h"
@@ -29,6 +30,18 @@ namespace GB
 		std::vector<glm::mat4> InverseBind;      // one per joint
 	};
 
+	// A camera defined in the glTF file (e.g. a Blender camera), attached to a node.
+	struct ModelCamera
+	{
+		std::string Name;
+		int Node = -1;
+		bool Orthographic = false;
+		float FovYDegrees = 45.0f;
+		float OrthoHalfHeight = 5.0f;
+		float NearPlane = 0.1f;
+		float FarPlane = 1000.0f;
+	};
+
 	enum class AnimationTarget { Translation, Rotation, Scale };
 	enum class AnimationInterpolation { Step, Linear, CubicSpline };
 
@@ -56,7 +69,7 @@ namespace GB
 	// skins, node/skeletal animations (step, linear, cubic spline), metallic-roughness materials with
 	// base color / metallic-roughness / normal / occlusion / emissive textures, alpha modes (opaque,
 	// mask, blend), double-sided, KHR_materials_emissive_strength.
-	// Not yet: morph targets, cameras, lights, UV sets > 0, KHR_texture_transform.
+	// Not yet: morph targets, lights, UV sets > 0, KHR_texture_transform.
 	//
 	// The Model is immutable and shareable: play animations with a ModelInstance. It owns the meshes
 	// and textures; keep it alive while Scenes built from it are rendered.
@@ -88,6 +101,8 @@ namespace GB
 		// Parents before children, scene order: the order in which nodes are emitted to a Scene.
 		const std::vector<int>& GetNodeOrder() const { return m_Order; }
 		const std::vector<ModelSkin>& GetSkins() const { return m_Skins; }
+		// One entry per node that carries a camera. Use ModelInstance::GetCamera for its current pose.
+		const std::vector<ModelCamera>& GetCameras() const { return m_Cameras; }
 		const std::vector<AnimationClip>& GetClips() const { return m_Clips; }
 		// Index of the clip with this name, or -1.
 		int FindClip(const std::string& name) const;
@@ -110,6 +125,7 @@ namespace GB
 		std::vector<int> m_RootNodes;
 		std::vector<int> m_Order;
 		std::vector<ModelSkin> m_Skins;
+		std::vector<ModelCamera> m_Cameras;
 		std::vector<AnimationClip> m_Clips;
 		std::vector<Material> m_Materials;
 		std::vector<std::unique_ptr<Texture2D>> m_Textures;
