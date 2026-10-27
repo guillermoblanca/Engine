@@ -207,3 +207,8 @@ add_executable(GBRetargetTests retarget_test.cpp)
 target_link_libraries(GBRetargetTests PRIVATE GB::GB)
 target_compile_definitions(GBRetargetTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME retarget COMMAND GBRetargetTests)
+
+add_executable(GBAnimGraphTests anim_graph_test.cpp)
+target_link_libraries(GBAnimGraphTests PRIVATE GB::GB)
+target_compile_definitions(GBAnimGraphTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME anim_graph COMMAND GBAnimGraphTests)

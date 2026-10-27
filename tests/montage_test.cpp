@@ -145,6 +145,51 @@ int main()
 	Check(feetDiff < 1e-3f, "the legs stay with the locomotion");
 	Check(upperWeight > 0.5f && fullWeight == 0.0f, "slots report their own weight");
 
+	// ---- sections, scrubbing, editing and files (what the timeline editor works with)
+	{
+		MontageDesc act;
+		act.Name = "act"; act.Clip = "test_clip"; act.BlendIn = 0.05f; act.BlendOut = 0.05f;
+		act.Notifies = { { 0.2f, "early" }, { 0.8f, "late" } };
+		act.Sections = { { 0.0f, "start" }, { 0.6f, "end" } };
+		Check(m.Add(act) && m.Get("act") && m.Get("act")->Sections.size() == 2 && m.Get("nothing") == nullptr, "a montage's description can be read back");
+		Check(!m.Play("act", "nowhere"), "an unknown section is refused");
+		Check(m.Play("act", "end"), "a montage can start at a section");
+		Check(std::fabs(m.Time("act") - 0.6f * 0.5f) < 1e-4f, "at that section's time");
+		runBoth(3);
+		Check(m.JumpToSection("act", "start") && std::fabs(m.Time("act") - 0.0f) < 0.06f, "and a playing one can jump to another");
+		// scrubbing: paused, the montage stays where it is put, with its full weight, and nothing ends
+		m.SetPaused(true);
+		Check(m.Seek("act", 0.25f) && std::fabs(m.Time("act") - 0.25f) < 1e-4f, "seeking moves the playing montage");
+		runBoth(30);
+		Check(m.Paused() && std::fabs(m.Time("act") - 0.25f) < 1e-4f && m.FullBodyWeight() > 0.99f && m.Events().empty(), "a paused preview stays put at full weight");
+		m.SetPaused(false);
+		bool sawLate = false;
+		for (int i = 0; i < 60; ++i) { runBoth(1); for (const MontageEvent& e : m.Events()) sawLate = sawLate || (e.What == MontageEvent::Kind::Notify && e.Name == "late"); }
+		Check(sawLate && !m.Busy(), "released, it plays on from there (its later notify fires and it finishes)");
+		Check(!m.Seek("act", 0.1f) && m.Time("act") < 0.0f, "seeking a montage that is not playing does nothing");
+
+		// editing the description of a playing montage takes effect at once, and removing one stops it
+		m.Play("act");
+		runBoth(2);
+		MontageDesc edited = *m.Get("act");
+		edited.Notifies.push_back({ 0.4f, "added" });
+		Check(m.Add(edited) && m.Get("act")->Notifies.size() == 3 && m.IsPlaying("act"), "an edited montage replaces the old one without stopping it");
+		Check(m.Remove("act") && !m.Has("act") && !m.IsPlaying("act") && !m.Remove("act"), "a montage can be removed");
+		runBoth(5);
+
+		// files
+		std::vector<MontageDesc> loaded;
+		std::string error;
+		const std::string json = MontagesToJson({ act, wave });
+		Check(MontagesFromJson(json, loaded, &error) && loaded.size() == 2, "montages round-trip through JSON");
+		Check(loaded[0].Name == "act" && loaded[0].Clip == "test_clip" && loaded[0].Notifies.size() == 2 && loaded[0].Notifies[1].Name == "late" && std::fabs(loaded[0].Notifies[1].Time - 0.8f) < 1e-5f
+			&& loaded[0].Sections.size() == 2 && loaded[0].Sections[1].Name == "end" && std::fabs(loaded[0].BlendIn - 0.05f) < 1e-6f && loaded[0].StripTravel && !loaded[0].Loop, "with their notifies, sections and blends");
+		Check(!MontagesFromJson("not json", loaded, &error) && !error.empty(), "bad text is refused");
+		Check(!MontagesFromJson("{\"version\":1,\"montages\":[{\"name\":\"x\"}]}", loaded, &error) && error.find("clip") != std::string::npos, "a montage without a clip is refused");
+		Check(loaded.size() == 2, "and a failed load leaves the output alone");
+		Check(m.Descs().size() == 2, "all the descriptions can be listed for saving (wave and upper are left)");
+	}
+
 	// ---- the real packs
 	const char* mixamo = std::getenv("GB_MIXAMO_DIR");
 	const char* farming = std::getenv("GB_FARMING_DIR");

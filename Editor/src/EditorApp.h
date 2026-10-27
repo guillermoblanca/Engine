@@ -83,6 +83,8 @@ namespace GB::Editor
 		void DrawAssets();
 		void DrawModelPanel();
 		void DrawAnimationPanel();
+		void DrawTimelinePanel();
+		void DrawGraphPanel();
 		void DrawTestsPanel();
 		void BuildDefaultLayout(unsigned int dockspaceId, float width, float height);
 
@@ -136,7 +138,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Tests = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		bool m_LayoutBuilt = false;
@@ -151,6 +153,15 @@ namespace GB::Editor
 		float m_FrameDt = 1.0f / 60.0f;
 		int m_WorldTypeIndex = 0;
 		std::string m_AssetRoot;
+		std::string m_TimelineMontage, m_TimelineFile = "montages.json";
+		int m_TimelineNotify = -1;
+		bool m_TimelineDrag = false;
+		std::string m_GraphState, m_GraphDragging, m_GraphFile = "animgraph.json";
+		int m_GraphTransition = -1;
+		float m_GraphPanX = 10.0f, m_GraphPanY = 10.0f;
+		int m_GraphFocus = 0;
+		int m_TimelineFocus = 0;   // frames left to ask for focus (a docked tab needs a couple)
+		std::vector<std::string> m_TimelineLog;   // the latest notifies and endings
 		std::string m_AnimTabRequest;   // the Animation panel selects this tab on the next frame
 	};
 }

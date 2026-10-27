@@ -30,6 +30,7 @@ add_library(GB STATIC
     src/GB/Animation/Socket.cpp
     src/GB/Animation/Ragdoll.cpp
     src/GB/Animation/Retarget.cpp
+    src/GB/Animation/AnimGraph.cpp
     src/GB/Animation/FootIK.cpp
     src/GB/Animation/LookAt.cpp
     src/GB/Game/SceneIO.cpp

@@ -13,6 +13,14 @@ namespace GB
 		std::string Name;
 	};
 
+	// A named part of a montage that it can start from or jump to (a "start", a "loop" and an "end" of an action): from `Time` (a fraction of
+	// the clip) to the next section.
+	struct MontageSection
+	{
+		float Time = 0.0f;
+		std::string Name;
+	};
+
 	// A one-shot action (pick a fruit, milk a cow, dig) played over the locomotion pose in a slot. A slot is a part of the
 	// body (the whole body, or everything below a bone such as the spine): a montage only replaces the bones of its slot.
 	struct MontageDesc
@@ -25,6 +33,7 @@ namespace GB
 		bool Loop = false;                // plays until Stop
 		bool StripTravel = true;          // the controller owns the position: take the clip's own horizontal travel out of the root
 		std::vector<MontageNotify> Notifies;
+		std::vector<MontageSection> Sections;
 	};
 
 	struct MontageEvent
@@ -51,9 +60,22 @@ namespace GB
 		bool Add(const MontageDesc& desc);
 		bool Has(const std::string& name) const { return Find(name) >= 0; }
 		std::vector<std::string> Names() const;
+		std::vector<std::string> SlotNames() const;
 		float Duration(const std::string& name) const;   // seconds at the montage's play rate, 0 if unknown
 
-		bool Play(const std::string& name);
+		const MontageDesc* Get(const std::string& name) const;      // null when unknown
+		std::vector<MontageDesc> Descs() const;                      // every montage, for saving
+		bool Remove(const std::string& name);                        // stops it too
+
+		// `section`: start from that section of the montage ("" = the start).
+		bool Play(const std::string& name, const std::string& section = "");
+		// Moves the playing montage to a section (false when it is not playing or has no such section).
+		bool JumpToSection(const std::string& name, const std::string& section);
+		// Editing aids: freeze every montage (a paused preview keeps its weight) and move the one that is playing to `seconds` into its clip.
+		void SetPaused(bool paused) { m_Paused = paused; }
+		bool Paused() const { return m_Paused; }
+		bool Seek(const std::string& name, float seconds);
+		float Time(const std::string& name) const;                   // seconds into the clip of the playing montage, -1 when not playing
 		void Stop(const std::string& name, float blendOut = -1.0f);   // < 0: the montage's own BlendOut
 		void StopSlot(const std::string& slot, float blendOut = -1.0f);
 		bool IsPlaying(const std::string& name) const;
@@ -89,7 +111,12 @@ namespace GB
 		std::vector<Active> m_Active;
 		std::vector<MontageEvent> m_Events, m_Pending;   // pending: raised by Play / Stop between two updates
 		Pose m_Scratch;
+		bool m_Paused = false;
 	};
+
+	// Montages as JSON text (names, clips, slots, blends, rate, loop, notifies and sections): what the timeline editor saves and loads.
+	std::string MontagesToJson(const std::vector<MontageDesc>& montages);
+	bool MontagesFromJson(const std::string& text, std::vector<MontageDesc>& out, std::string* error = nullptr);
 
 	// The farming pack's one-shot actions as montages (the ones whose clips the model has), and the "UpperBody" slot to add.
 	std::vector<MontageDesc> MixamoMontages();
