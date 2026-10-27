@@ -52,7 +52,7 @@ namespace GB::Editor
 		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animator && m_Animator->Anim().SetOverlay(name, fadeSeconds); }
 		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
 		// One-shot actions over the locomotion (pick_fruit, water, milk_cow...): the FBX player's MontagePlayer. False for an unknown one.
-		bool PlayMontage(const std::string& name) { return m_Animator && m_Animator->Anim().Montages().Play(name); }
+		bool PlayMontage(const std::string& name, const std::string& section = "") { return m_Animator && m_Animator->Anim().Montages().Play(name, section); }
 		void StopMontage() { if (m_Animator) m_Animator->Anim().Montages().StopSlot("FullBody"), m_Animator->Anim().Montages().StopSlot("UpperBody"); }
 		std::vector<std::string> MontageNames() const { return m_Animator ? m_Animator->Anim().Montages().Names() : std::vector<std::string>(); }
 		std::string MontageStatus() const;

@@ -60,6 +60,7 @@ namespace GB
 		bool Add(const MontageDesc& desc);
 		bool Has(const std::string& name) const { return Find(name) >= 0; }
 		std::vector<std::string> Names() const;
+		std::vector<std::string> SlotNames() const;
 		float Duration(const std::string& name) const;   // seconds at the montage's play rate, 0 if unknown
 
 		const MontageDesc* Get(const std::string& name) const;      // null when unknown

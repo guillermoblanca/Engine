@@ -60,6 +60,13 @@ namespace GB
 		return names;
 	}
 
+	std::vector<std::string> MontagePlayer::SlotNames() const
+	{
+		std::vector<std::string> names;
+		for (const Slot& s : m_Slots) names.push_back(s.Name);
+		return names;
+	}
+
 	float MontagePlayer::Duration(const std::string& name) const
 	{
 		const int i = Find(name);

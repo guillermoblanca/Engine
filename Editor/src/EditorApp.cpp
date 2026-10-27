@@ -173,6 +173,7 @@ namespace GB::Editor
 		if (name == "Assets") return m_Panels.Assets;
 		if (name == "Model") return m_Panels.Model;
 		if (name == "Animation") return m_Panels.Animation;
+		if (name == "Timeline") return m_Panels.Timeline;
 		if (name == "Tests") return m_Panels.Tests;
 		return false;
 	}
@@ -528,7 +529,7 @@ namespace GB::Editor
 			const float fade = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 0.3f;
 			return m_Player.SetOverlay(a[0], fade) ? CommandResult{ true, "set " + a[0] } : CommandResult{ false, "no such set '" + a[0] + "'" };
 		});
-		c.Register("player_montage", "player_montage [name|stop]: plays a one-shot action (pick_fruit, water, milk_cow...) over the FBX player; no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("player_montage", "player_montage [name [section]|stop]: plays a one-shot action (pick_fruit, water, milk_cow...) over the FBX player; no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
 			if (a.empty())
@@ -538,7 +539,7 @@ namespace GB::Editor
 				return { true, names.empty() ? "this character has no montages (put the farming animation FBX files next to it)" : "montages: " + names };
 			}
 			if (a[0] == "stop") { m_Player.StopMontage(); return { true, "stopped" }; }
-			return m_Player.PlayMontage(a[0]) ? CommandResult{ true, "playing " + a[0] } : CommandResult{ false, "no such montage '" + a[0] + "'" };
+			return m_Player.PlayMontage(a[0], a.size() > 1 ? a[1] : "") ? CommandResult{ true, "playing " + a[0] + (a.size() > 1 ? " from " + a[1] : "") } : CommandResult{ false, "no such montage '" + a[0] + "'" };
 		});
 		c.Register("player_attach", "player_attach [box|bag|tool|off]: the FBX player carries a prop (box in both hands with IK, a bag on the back, a tool in the hand); off lets go; no argument lists what is carried", [this](const std::vector<std::string>& a) -> CommandResult
 		{
@@ -638,9 +639,9 @@ namespace GB::Editor
 			if (n == "Viewport") flag = &m_Panels.Viewport; else if (n == "Hierarchy") flag = &m_Panels.Hierarchy; else if (n == "Inspector") flag = &m_Panels.Inspector;
 			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
-			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Tests") flag = &m_Panels.Tests;
+			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Tests") flag = &m_Panels.Tests;
 			if (!flag) return { false, "no such panel '" + n + "'" };
-			if (a.size() > 2 && a[1] == "tab") { m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
+			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = true; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
 			return { true, n + (*flag ? " shown" : " hidden") };
 		});
@@ -670,6 +671,123 @@ namespace GB::Editor
 			if (a.size() < 3) return { false, "usage: player_hit <x> <y> <z>" };
 			m_Player.HitRagdoll({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) });
 			return { true, "hit" };
+		});
+		c.Register("montage_info", "montage_info [montage]: describes a montage (clip, slot, blends, rate, notifies, sections); no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			MontagePlayer& mp = anim->Montages();
+			if (a.empty())
+			{
+				std::string names;
+				for (const std::string& n : mp.Names()) names += (names.empty() ? "" : ", ") + n;
+				return { true, "montages: " + names };
+			}
+			const MontageDesc* d = mp.Get(a[0]);
+			if (!d) return { false, "no such montage '" + a[0] + "'" };
+			const float clip = mp.Duration(a[0]) * std::max(d->PlayRate, 0.01f);
+			char head[200];
+			std::snprintf(head, sizeof head, "%s: clip \"%s\" (%.2f s) in %s, blend %.2f / %.2f s, rate x%.2f%s%s", d->Name.c_str(), d->Clip.c_str(), static_cast<double>(clip), d->Slot.c_str(),
+				static_cast<double>(d->BlendIn), static_cast<double>(d->BlendOut), static_cast<double>(d->PlayRate), d->Loop ? ", loop" : "", d->StripTravel ? ", strip travel" : "");
+			std::string text = head;
+			for (const MontageNotify& n : d->Notifies) { char b[96]; std::snprintf(b, sizeof b, "\n  notify %s at %.2f (%.2f s)", n.Name.c_str(), static_cast<double>(n.Time), static_cast<double>(n.Time * clip)); text += b; }
+			for (const MontageSection& s : d->Sections) { char b[96]; std::snprintf(b, sizeof b, "\n  section %s from %.2f (%.2f s)", s.Name.c_str(), static_cast<double>(s.Time), static_cast<double>(s.Time * clip)); text += b; }
+			return { true, text };
+		});
+		c.Register("montage_notify", "montage_notify <montage> add <time 0..1> <name> | remove <name> | move <name> <time 0..1>: edits a montage's notifies (time as a fraction of its clip)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.size() < 3) return { false, "usage: montage_notify <montage> add <time> <name> | remove <name> | move <name> <time>" };
+			const MontageDesc* found = anim->Montages().Get(a[0]);
+			if (!found) return { false, "no such montage '" + a[0] + "'" };
+			MontageDesc d = *found;
+			auto find = [&](const std::string& n) { for (size_t i = 0; i < d.Notifies.size(); ++i) if (d.Notifies[i].Name == n) return static_cast<int>(i); return -1; };
+			if (a[1] == "add" && a.size() >= 4) d.Notifies.push_back({ std::clamp(static_cast<float>(std::atof(a[2].c_str())), 0.0f, 1.0f), a[3] });
+			else if (a[1] == "remove") { const int i = find(a[2]); if (i < 0) return { false, "no notify '" + a[2] + "'" }; d.Notifies.erase(d.Notifies.begin() + i); }
+			else if (a[1] == "move" && a.size() >= 4) { const int i = find(a[2]); if (i < 0) return { false, "no notify '" + a[2] + "'" }; d.Notifies[static_cast<size_t>(i)].Time = std::clamp(static_cast<float>(std::atof(a[3].c_str())), 0.0f, 1.0f); }
+			else return { false, "usage: montage_notify <montage> add <time> <name> | remove <name> | move <name> <time>" };
+			anim->Montages().Add(d);
+			return { true, std::to_string(d.Notifies.size()) + " notify(ies) on " + d.Name };
+		});
+		c.Register("montage_section", "montage_section <montage> add <time 0..1> <name> | remove <name>: edits a montage's sections", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.size() < 3) return { false, "usage: montage_section <montage> add <time> <name> | remove <name>" };
+			const MontageDesc* found = anim->Montages().Get(a[0]);
+			if (!found) return { false, "no such montage '" + a[0] + "'" };
+			MontageDesc d = *found;
+			if (a[1] == "add" && a.size() >= 4) d.Sections.push_back({ std::clamp(static_cast<float>(std::atof(a[2].c_str())), 0.0f, 1.0f), a[3] });
+			else if (a[1] == "remove")
+			{
+				const size_t before = d.Sections.size();
+				d.Sections.erase(std::remove_if(d.Sections.begin(), d.Sections.end(), [&](const MontageSection& s) { return s.Name == a[2]; }), d.Sections.end());
+				if (d.Sections.size() == before) return { false, "no section '" + a[2] + "'" };
+			}
+			else return { false, "usage: montage_section <montage> add <time> <name> | remove <name>" };
+			anim->Montages().Add(d);
+			return { true, std::to_string(d.Sections.size()) + " section(s) on " + d.Name };
+		});
+		c.Register("montage_set", "montage_set <montage> blendin|blendout|rate|loop|striptravel|slot <value>: edits a montage's settings", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.size() < 3) return { false, "usage: montage_set <montage> blendin|blendout|rate|loop|striptravel|slot <value>" };
+			const MontageDesc* found = anim->Montages().Get(a[0]);
+			if (!found) return { false, "no such montage '" + a[0] + "'" };
+			MontageDesc d = *found;
+			const float v = static_cast<float>(std::atof(a[2].c_str()));
+			const bool on = a[2] != "off" && a[2] != "0" && a[2] != "false";
+			if (a[1] == "blendin") d.BlendIn = std::max(v, 0.0f);
+			else if (a[1] == "blendout") d.BlendOut = std::max(v, 0.0f);
+			else if (a[1] == "rate") d.PlayRate = std::max(v, 0.1f);
+			else if (a[1] == "loop") d.Loop = on;
+			else if (a[1] == "striptravel") d.StripTravel = on;
+			else if (a[1] == "slot") d.Slot = a[2];
+			else return { false, "unknown setting '" + a[1] + "'" };
+			if (!anim->Montages().Add(d)) return { false, "that value is not valid (does the slot exist?)" };
+			return { true, d.Name + " updated" };
+		});
+		c.Register("montage_seek", "montage_seek <montage> <seconds>|off: previews a montage paused at that moment of its clip; off releases it", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { false, "usage: montage_seek <montage> <seconds>|off" };
+			MontagePlayer& mp = anim->Montages();
+			if (!mp.Has(a[0])) return { false, "no such montage '" + a[0] + "'" };
+			if (a.size() > 1 && a[1] == "off") { mp.SetPaused(false); m_Player.StopMontage(); return { true, "released" }; }
+			if (a.size() < 2) return { false, "usage: montage_seek <montage> <seconds>|off" };
+			if (!mp.IsPlaying(a[0])) m_Player.PlayMontage(a[0]);
+			mp.SetPaused(true);
+			mp.Seek(a[0], static_cast<float>(std::atof(a[1].c_str())));
+			return { true, "paused at " + a[1] + " s" };
+		});
+		c.Register("montage_save", "montage_save <file.json>: writes every montage of the player (notifies and sections included)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { false, "usage: montage_save <file.json>" };
+			std::ofstream out(a[0]);
+			if (!out) return { false, "could not write " + a[0] };
+			out << MontagesToJson(anim->Montages().Descs());
+			return { true, "saved " + a[0] };
+		});
+		c.Register("montage_load", "montage_load <file.json>: adds (or replaces, by name) the montages of a file that the character has clips for", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { false, "usage: montage_load <file.json>" };
+			std::ifstream in(a[0]);
+			if (!in) return { false, "could not read " + a[0] };
+			std::stringstream text;
+			text << in.rdbuf();
+			std::vector<MontageDesc> loaded;
+			std::string error;
+			if (!MontagesFromJson(text.str(), loaded, &error)) return { false, error };
+			int added = 0;
+			for (const MontageDesc& m : loaded) added += anim->Montages().Add(m) ? 1 : 0;
+			return { true, std::to_string(added) + " of " + std::to_string(loaded.size()) + " montage(s) loaded (the others need clips this character lacks)" };
 		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
@@ -931,6 +1049,7 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
+		ImGui::DockBuilderDockWindow("Timeline", bottom);
 		ImGui::DockBuilderDockWindow("Viewport", center);
 		ImGui::DockBuilderFinish(dockspaceId);
 	}
@@ -954,6 +1073,7 @@ namespace GB::Editor
 		if (m_Panels.Stats) DrawStats();
 		if (m_Panels.Model) DrawModelPanel();
 		if (m_Panels.Animation) DrawAnimationPanel();
+		if (m_Panels.Timeline) DrawTimelinePanel();
 		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
@@ -1036,6 +1156,7 @@ namespace GB::Editor
 			ImGui::MenuItem("Stats", nullptr, &m_Panels.Stats);
 			ImGui::MenuItem("Model", nullptr, &m_Panels.Model);
 			ImGui::MenuItem("Animation", nullptr, &m_Panels.Animation);
+			ImGui::MenuItem("Timeline", nullptr, &m_Panels.Timeline);
 			ImGui::MenuItem("Console", nullptr, &m_Panels.Console);
 			ImGui::MenuItem("Assets", nullptr, &m_Panels.Assets);
 			ImGui::Separator();
@@ -1535,6 +1656,194 @@ namespace GB::Editor
 				ImGui::EndTabBar();
 				m_AnimTabRequest.clear();
 			}
+		}
+		ImGui::End();
+	}
+
+	void EditorApp::DrawTimelinePanel()
+	{
+		if (m_TimelineFocus) { ImGui::SetNextWindowFocus(); m_TimelineFocus = false; }   // `panel Timeline tab x` brings it to the front of its dock
+		if (ImGui::Begin("Timeline", &m_Panels.Timeline))
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim)
+			{
+				ImGui::TextWrapped("No animated character. Start one with: player <character.fbx>. The montages of its clips can then be edited here (or with the montage_* commands).");
+				ImGui::End();
+				return;
+			}
+			MontagePlayer& mp = anim->Montages();
+			const std::vector<std::string> names = mp.Names();
+			if (names.empty()) { ImGui::TextWrapped("This character has no montages."); ImGui::End(); return; }
+			if (!mp.Has(m_TimelineMontage)) { m_TimelineMontage = names.front(); m_TimelineNotify = -1; }
+			ImGui::SetNextItemWidth(220.0f);
+			if (ImGui::BeginCombo("Montage", m_TimelineMontage.c_str()))
+			{
+				for (const std::string& n : names)
+					if (ImGui::Selectable(n.c_str(), n == m_TimelineMontage)) { m_TimelineMontage = n; m_TimelineNotify = -1; }
+				ImGui::EndCombo();
+			}
+			MontageDesc d = *mp.Get(m_TimelineMontage);
+			bool changed = false;
+			const float rate = std::max(d.PlayRate, 0.01f);
+			const float clipSeconds = mp.Duration(d.Name) * rate;   // the clip's own length
+			const bool playing = mp.IsPlaying(d.Name);
+			ImGui::SameLine();
+			if (ImGui::Button(playing ? "Restart" : "Play")) { mp.SetPaused(false); m_Player.PlayMontage(d.Name); }
+			ImGui::SameLine();
+			if (ImGui::Button(mp.Paused() ? "Resume" : "Pause")) mp.SetPaused(!mp.Paused());
+			ImGui::SameLine();
+			if (ImGui::Button("Stop")) { mp.SetPaused(false); m_Player.StopMontage(); }
+			ImGui::SameLine();
+			ImGui::Text("%.2f s clip, %.2f s at x%.2f", static_cast<double>(clipSeconds), static_cast<double>(mp.Duration(d.Name)), static_cast<double>(d.PlayRate));
+
+			ImGui::SetNextItemWidth(90.0f); changed |= ImGui::DragFloat("blend in", &d.BlendIn, 0.01f, 0.0f, 3.0f, "%.2f s");
+			ImGui::SameLine(); ImGui::SetNextItemWidth(90.0f); changed |= ImGui::DragFloat("blend out", &d.BlendOut, 0.01f, 0.0f, 3.0f, "%.2f s");
+			ImGui::SameLine(); ImGui::SetNextItemWidth(90.0f); changed |= ImGui::DragFloat("rate", &d.PlayRate, 0.01f, 0.1f, 4.0f, "x%.2f");
+			ImGui::SameLine(); changed |= ImGui::Checkbox("loop", &d.Loop);
+			ImGui::SameLine(); changed |= ImGui::Checkbox("strip travel", &d.StripTravel);
+			ImGui::SameLine(); ImGui::SetNextItemWidth(110.0f);
+			if (ImGui::BeginCombo("slot", d.Slot.c_str()))
+			{
+				for (const std::string& s : mp.SlotNames())
+					if (ImGui::Selectable(s.c_str(), s == d.Slot)) { d.Slot = s; changed = true; }
+				ImGui::EndCombo();
+			}
+
+			// the timeline
+			const float width = std::max(ImGui::GetContentRegionAvail().x, 200.0f), height = 96.0f;
+			const ImVec2 origin = ImGui::GetCursorScreenPos();
+			ImGui::InvisibleButton("##timeline", ImVec2(width, height));
+			const bool hovered = ImGui::IsItemHovered(), active = ImGui::IsItemActive();
+			ImDrawList* draw = ImGui::GetWindowDrawList();
+			const float x0 = origin.x + 10.0f, x1 = origin.x + width - 10.0f;
+			auto xOf = [&](float seconds) { return x0 + (clipSeconds > 1e-4f ? seconds / clipSeconds : 0.0f) * (x1 - x0); };
+			auto timeOf = [&](float x) { return std::clamp((x - x0) / std::max(x1 - x0, 1.0f), 0.0f, 1.0f) * clipSeconds; };
+			draw->AddRectFilled(origin, ImVec2(origin.x + width, origin.y + height), IM_COL32(24, 26, 32, 255));
+			const float rulerY = origin.y + 22.0f, laneY = origin.y + 62.0f;
+			draw->AddLine(ImVec2(x0, rulerY), ImVec2(x1, rulerY), IM_COL32(120, 125, 140, 255));
+			const float step = clipSeconds > 12.0f ? 2.0f : clipSeconds > 4.0f ? 1.0f : 0.5f;
+			for (float t = 0.0f; t <= clipSeconds + 1e-3f; t += step)
+			{
+				draw->AddLine(ImVec2(xOf(t), rulerY - 4.0f), ImVec2(xOf(t), rulerY), IM_COL32(150, 155, 170, 255));
+				char label[16];
+				std::snprintf(label, sizeof label, "%.1f", static_cast<double>(t));
+				draw->AddText(ImVec2(xOf(t) + 2.0f, origin.y + 2.0f), IM_COL32(150, 155, 170, 255), label);
+			}
+			// the blends
+			const float inEnd = std::min(d.BlendIn * rate, clipSeconds), outStart = std::max(clipSeconds - d.BlendOut * rate, 0.0f);
+			draw->AddTriangleFilled(ImVec2(x0, rulerY + 4.0f), ImVec2(xOf(inEnd), rulerY + 4.0f), ImVec2(xOf(inEnd), rulerY + 18.0f), IM_COL32(80, 150, 220, 110));
+			draw->AddTriangleFilled(ImVec2(x1, rulerY + 4.0f), ImVec2(xOf(outStart), rulerY + 4.0f), ImVec2(xOf(outStart), rulerY + 18.0f), IM_COL32(220, 150, 80, 110));
+			// the sections
+			std::vector<MontageSection> sections = d.Sections;
+			std::sort(sections.begin(), sections.end(), [](const MontageSection& a, const MontageSection& b) { return a.Time < b.Time; });
+			for (size_t i = 0; i < sections.size(); ++i)
+			{
+				const float a = xOf(sections[i].Time * clipSeconds), b = i + 1 < sections.size() ? xOf(sections[i + 1].Time * clipSeconds) : x1;
+				draw->AddRectFilled(ImVec2(a, rulerY + 22.0f), ImVec2(b - 1.0f, rulerY + 32.0f), IM_COL32(70 + 40 * static_cast<int>(i % 3), 110, 90, 200));
+				draw->AddText(ImVec2(a + 3.0f, rulerY + 19.0f), IM_COL32(235, 240, 235, 255), sections[i].Name.c_str());
+			}
+			// the notifies
+			for (size_t i = 0; i < d.Notifies.size(); ++i)
+			{
+				const float x = xOf(d.Notifies[i].Time * clipSeconds);
+				const bool selected = static_cast<int>(i) == m_TimelineNotify;
+				const ImU32 color = selected ? IM_COL32(255, 210, 60, 255) : IM_COL32(230, 150, 60, 255);
+				draw->AddLine(ImVec2(x, laneY - 14.0f), ImVec2(x, laneY + 10.0f), color);
+				draw->AddQuadFilled(ImVec2(x, laneY - 8.0f), ImVec2(x + 6.0f, laneY - 2.0f), ImVec2(x, laneY + 4.0f), ImVec2(x - 6.0f, laneY - 2.0f), color);
+				draw->AddText(ImVec2(x + 8.0f, laneY - 6.0f), IM_COL32(235, 235, 235, 255), d.Notifies[i].Name.c_str());
+			}
+			// the playhead
+			const float head = mp.Time(d.Name);
+			if (head >= 0.0f) draw->AddLine(ImVec2(xOf(head), origin.y + 14.0f), ImVec2(xOf(head), origin.y + height), IM_COL32(255, 70, 70, 255), 2.0f);
+
+			// the mouse: the ruler scrubs, a marker is selected and dragged, a double click adds a notify, a right click deletes one
+			const ImVec2 mouse = ImGui::GetIO().MousePos;
+			auto notifyAt = [&](float x) { int best = -1; float bestD = 9.0f; for (size_t i = 0; i < d.Notifies.size(); ++i) { const float dx = std::fabs(xOf(d.Notifies[i].Time * clipSeconds) - x); if (dx < bestD) { bestD = dx; best = static_cast<int>(i); } } return best; };
+			if (hovered || active)
+			{
+				if (ImGui::IsMouseClicked(0))
+				{
+					const int hit = mouse.y > rulerY + 8.0f ? notifyAt(mouse.x) : -1;
+					m_TimelineNotify = hit;
+					m_TimelineDrag = hit >= 0;
+					if (hit < 0 && mouse.y <= rulerY + 8.0f) m_TimelineDrag = false;
+				}
+				if (ImGui::IsMouseDoubleClicked(0) && mouse.y > rulerY + 8.0f && notifyAt(mouse.x) < 0)
+				{
+					d.Notifies.push_back({ timeOf(mouse.x) / std::max(clipSeconds, 1e-4f), "notify" });
+					m_TimelineNotify = static_cast<int>(d.Notifies.size()) - 1;
+					changed = true;
+				}
+				if (ImGui::IsMouseClicked(1) && mouse.y > rulerY + 8.0f)
+				{
+					const int hit = notifyAt(mouse.x);
+					if (hit >= 0) { d.Notifies.erase(d.Notifies.begin() + hit); m_TimelineNotify = -1; changed = true; }
+				}
+			}
+			if (active && ImGui::IsMouseDown(0))
+			{
+				if (m_TimelineDrag && m_TimelineNotify >= 0 && m_TimelineNotify < static_cast<int>(d.Notifies.size()))
+				{
+					d.Notifies[static_cast<size_t>(m_TimelineNotify)].Time = timeOf(mouse.x) / std::max(clipSeconds, 1e-4f);
+					changed = true;
+				}
+				else if (mouse.y <= rulerY + 8.0f)
+				{
+					if (!mp.IsPlaying(d.Name)) m_Player.PlayMontage(d.Name);   // scrubbing shows the pose of that moment, paused
+					mp.SetPaused(true);
+					mp.Seek(d.Name, timeOf(mouse.x));
+				}
+			}
+			if (!ImGui::IsMouseDown(0)) m_TimelineDrag = false;
+
+			// the selected notify, and the sections
+			if (m_TimelineNotify >= 0 && m_TimelineNotify < static_cast<int>(d.Notifies.size()))
+			{
+				MontageNotify& n = d.Notifies[static_cast<size_t>(m_TimelineNotify)];
+				char buf[64];
+				std::snprintf(buf, sizeof buf, "%s", n.Name.c_str());
+				ImGui::SetNextItemWidth(160.0f);
+				if (ImGui::InputText("notify", buf, sizeof buf)) { n.Name = buf; changed = true; }
+				ImGui::SameLine(); ImGui::SetNextItemWidth(100.0f);
+				float seconds = n.Time * clipSeconds;
+				if (ImGui::DragFloat("at", &seconds, 0.01f, 0.0f, clipSeconds, "%.2f s")) { n.Time = seconds / std::max(clipSeconds, 1e-4f); changed = true; }
+				ImGui::SameLine();
+				if (ImGui::Button("Delete notify")) { d.Notifies.erase(d.Notifies.begin() + m_TimelineNotify); m_TimelineNotify = -1; changed = true; }
+			}
+			else
+				ImGui::TextDisabled("double-click the lane to add a notify, drag a marker to move it, right-click to delete it; click the ruler to scrub");
+			if (ImGui::Button("Add section here"))
+			{
+				const float at = head >= 0.0f ? head : 0.0f;
+				d.Sections.push_back({ at / std::max(clipSeconds, 1e-4f), "section" + std::to_string(d.Sections.size() + 1) });
+				changed = true;
+			}
+			for (size_t i = 0; i < d.Sections.size(); ++i)
+			{
+				ImGui::SameLine();
+				ImGui::PushID(static_cast<int>(i));
+				if (ImGui::SmallButton((d.Sections[i].Name + " x").c_str())) { d.Sections.erase(d.Sections.begin() + static_cast<std::ptrdiff_t>(i)); changed = true; ImGui::PopID(); break; }
+				ImGui::PopID();
+			}
+			// the file and the log
+			char file[160];
+			std::snprintf(file, sizeof file, "%s", m_TimelineFile.c_str());
+			ImGui::SetNextItemWidth(220.0f);
+			if (ImGui::InputText("##montagefile", file, sizeof file)) m_TimelineFile = file;
+			ImGui::SameLine();
+			if (ImGui::Button("Save all")) Execute("montage_save " + m_TimelineFile);
+			ImGui::SameLine();
+			if (ImGui::Button("Load")) Execute("montage_load " + m_TimelineFile);
+			for (const MontageEvent& e : mp.Events())
+			{
+				m_TimelineLog.push_back(e.What == MontageEvent::Kind::Notify ? "notify " + e.Name + " (" + e.Montage + ")" : e.What == MontageEvent::Kind::Finished ? e.Montage + " finished" : e.Montage + " interrupted");
+				if (m_TimelineLog.size() > 6) m_TimelineLog.erase(m_TimelineLog.begin());
+			}
+			std::string log;
+			for (const std::string& l : m_TimelineLog) log += (log.empty() ? "" : "  |  ") + l;
+			ImGui::TextDisabled("%s", log.empty() ? "events appear here" : log.c_str());
+			if (changed) mp.Add(d);
 		}
 		ImGui::End();
 	}
