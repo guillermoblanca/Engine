@@ -27,6 +27,11 @@ add_library(GB STATIC
     src/GB/Gameplay/Interactives.cpp
     src/GB/Gameplay/Ecology.cpp
     src/GB/Game/Tribe.cpp
+    src/GB/AI/Perception.cpp
+    src/GB/AI/Memory.cpp
+    src/GB/AI/Needs.cpp
+    src/GB/AI/Utility.cpp
+    src/GB/AI/Mind.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp

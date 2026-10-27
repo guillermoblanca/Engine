@@ -1,6 +1,7 @@
 // The editor's side of the Gameplay Ability System: the `garden` and `ability` commands and the Abilities panel.
 #include "EditorApp.h"
 #include "GB/Log.h"
+#include <algorithm>
 #include <cstdio>
 #include <iomanip>
 #include <sstream>
@@ -102,6 +103,14 @@ namespace GB::Editor
 			const CommandResult built = ResourcesCommand({ "build", std::to_string(origin.x), std::to_string(origin.z) });
 			if (!built.Ok) return built;
 			const glm::vec2 camp(origin.x, origin.z - 8.0f);
+			{
+				// a well near the camp (the members get thirsty); the fire pit and the gate of the interactives are not wanted here
+				EntityWorld& world = m_SceneEditor.World();
+				const glm::vec3 wellOrigin(camp.x + 4.0f, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x + 4.0f, camp.y - 6.0f) : 0.0f, camp.y - 6.0f);
+				BuildInteractives(world, wellOrigin);
+				for (const char* extra : { "Fire Pit", "Gate" }) if (const EntityId id = world.FindByName(extra); id != NullEntity) world.Destroy(id);
+				SyncGameplay();
+			}
 			for (int i = 0; i < workers; ++i)
 			{
 				const CommandResult r = Execute(std::string("actor spawn ") + names[i] + " \"" + model + "\" " + std::to_string(camp.x + (i - (workers - 1) * 0.5f) * 1.5f) + " " + std::to_string(camp.y) + " ai");
@@ -455,6 +464,216 @@ namespace GB::Editor
 		}
 	}
 
+	// ------------------------------------------------------------------ the brain of the members
+	void EditorApp::RestoreTribe(const std::string& json)
+	{
+		m_Tribe.Clear();
+		m_TribeBodies.clear();
+		m_Tribe.Bind(m_SceneEditor.World(), m_Gameplay, m_Items, m_Recipes, m_NodeDefs);
+		for (const auto& [name, role] : Tribe::SavedMembers(json))
+		{
+			Actor* actor = m_Actors.Find(name);
+			if (!actor) { GB_CLIENT_WARN("the saved tribe has {} but there is no such actor", name); continue; }
+			m_TribeBodies.push_back(std::make_unique<ActorBody>(actor));
+			m_Tribe.AddMember(name, role, m_TribeBodies.back().get());
+		}
+		if (!m_Tribe.FromJson(json, true)) GB_CLIENT_WARN("the saved tribe could not be read: it starts again");
+		m_Panels.Tribe = true;
+	}
+
+	CommandResult EditorApp::AiCommand(const std::vector<std::string>& a)
+	{
+		const std::string sub = a.empty() ? "status" : a[0];
+		if (sub == "debug")
+		{
+			if (a.size() > 1) m_AiDebug = a[1] == "on" || a[1] == "1" || a[1] == "true";
+			else m_AiDebug = !m_AiDebug;
+			return { true, std::string("ai debug ") + (m_AiDebug ? "on: view cones, obstacles and the memory of the selected member are drawn" : "off") };
+		}
+		if (m_Tribe.Members().empty()) return { false, "no tribe (tribe build [model.fbx])" };
+		const std::string who = a.size() > 1 ? a[1] : m_AbilityActor;
+		const TribeMember* member = nullptr;
+		for (const TribeMember& m : m_Tribe.Members()) if (m.Name == who) member = &m;
+		if (sub == "status" && a.size() < 2)
+		{
+			std::string s = "season " + std::string(SeasonClock::Name(m_Tribe.CurrentSeason())) + ", hour " + std::to_string(static_cast<int>(m_Tribe.Hour())) + " | ";
+			for (const TribeMember& m : m_Tribe.Members()) s += m.Name + ": " + m_Tribe.Because(m) + " | ";
+			return { true, s };
+		}
+		if (!member) return { false, "no member called '" + who + "' (select one in the Tribe panel or give the name)" };
+		SelectActor(member->Name, false);   // the Tribe panel then shows its mind
+		if (sub == "scream")
+		{
+			const Actor* actor = m_Actors.Find(member->Name);
+			if (!actor) return { false, "no actor " + who };
+			m_Tribe.Shout(member->Name, { actor->GetPosition().x, actor->GetPosition().z });
+			return { true, member->Name + " screams: whoever is within 30 m hears it and feels less safe" };
+		}
+		if (sub == "memory")
+		{
+			std::string s = member->Name + " knows " + std::to_string(member->Mind.Memory.Size()) + " things: ";
+			for (const auto& [name, e] : member->Mind.Memory.All())
+			{
+				char b[160];
+				std::snprintf(b, sizeof b, "%s (%s at %.0f,%.0f, %s, seen %.0f s ago%s) | ", name.c_str(), e.Kind.c_str(), static_cast<double>(e.Pos.x), static_cast<double>(e.Pos.y),
+					e.Amount < 0 ? "?" : (std::to_string(e.Amount) + " left").c_str(), m_Tribe.Time() - e.Seen, e.Heard ? ", by ear" : "");
+				s += b;
+			}
+			return { true, s };
+		}
+		if (sub == "status")
+		{
+			std::string s = member->Name + " (" + member->Role + "): " + m_Tribe.Because(*member) + " | needs:";
+			for (const auto& [need, value] : m_Tribe.NeedLevels(*member)) s += " " + need + " " + std::to_string(static_cast<int>(value));
+			s += " | options:";
+			for (const UtilityOption& o : member->Mind.Options)
+			{
+				char b[96];
+				std::snprintf(b, sizeof b, " %s%s%s=%.2f", o.Kind.c_str(), o.Target.empty() ? "" : " ", o.Target.c_str(), static_cast<double>(o.Score));
+				s += b;
+			}
+			return { true, s };
+		}
+		return { false, "ai debug [on|off] | status [name] | memory <name> | scream <name>" };
+	}
+
+	namespace
+	{
+		ImVec4 NeedColor(float level)
+		{
+			return level < 25.0f ? ImVec4(0.9f, 0.3f, 0.25f, 1.0f) : level < 50.0f ? ImVec4(0.95f, 0.7f, 0.25f, 1.0f) : ImVec4(0.35f, 0.75f, 0.4f, 1.0f);
+		}
+	}
+
+	// A member's mind: its needs, what it decided and why, the options it weighed with the factors of each score, what it senses and what it remembers.
+	void EditorApp::DrawNpcInspector(const TribeMember& m)
+	{
+		if (m.Dead) ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.25f, 1.0f), "Dead of %s", m.Cause.c_str());
+		ImGui::TextWrapped("Decision: %s", m_Tribe.Because(m).c_str());
+		const std::map<std::string, float> needs = m_Tribe.NeedLevels(m);
+		if (!needs.empty() && ImGui::CollapsingHeader("Needs", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			for (const char* need : { NeedName::Hunger, NeedName::Thirst, NeedName::Rest, NeedName::Warmth, NeedName::Safety, NeedName::Company, NeedName::Health })
+			{
+				const auto it = needs.find(need);
+				if (it == needs.end()) continue;
+				char label[48];
+				std::snprintf(label, sizeof label, "%s %.0f", need, static_cast<double>(it->second));
+				ImGui::PushStyleColor(ImGuiCol_PlotHistogram, NeedColor(it->second));
+				ImGui::ProgressBar(it->second / 100.0f, ImVec2(-1.0f, 0.0f), label);
+				ImGui::PopStyleColor();
+			}
+			const auto vigor = needs.find(NeedName::Vigor);
+			if (vigor != needs.end()) ImGui::TextDisabled("Vigor x%.2f (low needs slow it down)", static_cast<double>(vigor->second));
+			ImGui::TextDisabled("%s, %02d:00, %s", SeasonClock::Name(m_Tribe.CurrentSeason()), static_cast<int>(m_Tribe.Hour()), IsNight(m_Tribe.Config.Needs, m_Tribe.Hour()) ? "night" : "day");
+		}
+		if (ImGui::CollapsingHeader("Why (options and scores)", ImGuiTreeNodeFlags_DefaultOpen))
+		{
+			if (m.Mind.Options.empty()) ImGui::TextDisabled("it has not decided yet");
+			else
+			{
+				std::vector<size_t> order(m.Mind.Options.size());
+				for (size_t i = 0; i < order.size(); ++i) order[i] = i;
+				std::stable_sort(order.begin(), order.end(), [&](size_t x, size_t y) { return m.Mind.Options[x].Score > m.Mind.Options[y].Score; });
+				for (const size_t i : order)
+				{
+					const UtilityOption& o = m.Mind.Options[i];
+					const bool chosen = static_cast<int>(i) == m.Mind.Chosen;
+					ImGui::TextColored(chosen ? ImVec4(0.45f, 0.9f, 0.5f, 1.0f) : ImVec4(0.8f, 0.8f, 0.8f, 1.0f), "%s%s%s%s  %.2f", chosen ? "> " : "  ", o.Kind.c_str(), o.Target.empty() ? "" : " ", o.Target.c_str(), static_cast<double>(o.Score));
+					std::string why = o.Note;
+					for (const ScoreFactor& f : o.Factors)
+					{
+						char b[64];
+						std::snprintf(b, sizeof b, "%s%s %.2f", why.empty() ? "" : "; ", f.Name.c_str(), static_cast<double>(f.Value));
+						why += b;
+					}
+					ImGui::PushTextWrapPos(0.0f);
+					ImGui::TextDisabled("    %s", why.c_str());
+					ImGui::PopTextWrapPos();
+				}
+			}
+		}
+		if (ImGui::CollapsingHeader("Senses and memory"))
+		{
+			std::string seen, heard;
+			for (const std::string& v : m.Mind.Visible) seen += (seen.empty() ? "" : ", ") + v;
+			for (const std::string& v : m.Mind.Heard) heard += (heard.empty() ? "" : ", ") + v;
+			ImGui::TextWrapped("Sees: %s", seen.empty() ? "nothing" : seen.c_str());
+			ImGui::TextWrapped("Hears: %s", heard.empty() ? "nothing" : heard.c_str());
+			ImGui::Text("Knows %zu places (the clan %zu):", m.Mind.Memory.Size(), m_Tribe.ClanMemory().Size());
+			ImGui::BeginChild("memory", ImVec2(0.0f, 110.0f), true);
+			for (const auto& [name, e] : m.Mind.Memory.All())
+				ImGui::Text("%s  %s  (%.0f, %.0f)  %s  seen %.0f s ago%s", name.c_str(), e.Kind.c_str(), static_cast<double>(e.Pos.x), static_cast<double>(e.Pos.y),
+					e.Amount < 0 ? "?" : (std::to_string(e.Amount) + " left").c_str(), m_Tribe.Time() - e.Seen, e.Heard ? ", by ear" : "");
+			ImGui::EndChild();
+			ImGui::Checkbox("Draw view cones and memory in the viewport (ai debug)", &m_AiDebug);
+		}
+	}
+
+	// The view cone of every member, the obstacles that hide things from them, and the memory of the selected one (a circle for each place it knows,
+	// fainter the older the news; a dashed ring for what it only heard).
+	void EditorApp::DrawAiDebug(ImDrawList* dl, const glm::mat4& viewProj, const glm::vec2& size, float ox, float oy)
+	{
+		if (m_Tribe.Members().empty()) return;
+		const VisionParams& vision = m_Tribe.Config.Vision;
+		auto ground = [&](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) + 0.15f : 0.15f; };
+		auto point = [&](const glm::vec2& p, glm::vec2& out) { return ProjectToScreen(viewProj, glm::vec3(p.x, ground(p.x, p.y), p.y), size, out); };
+		auto line = [&](const glm::vec2& a, const glm::vec2& b, ImU32 color, float width)
+		{
+			glm::vec2 sa, sb;
+			if (point(a, sa) && point(b, sb)) dl->AddLine(ImVec2(ox + sa.x, oy + sa.y), ImVec2(ox + sb.x, oy + sb.y), color, width);
+		};
+		auto ring = [&](const glm::vec2& c, float radius, ImU32 color, int segments, bool dashed)
+		{
+			for (int i = 0; i < segments; ++i)
+			{
+				if (dashed && i % 2) continue;
+				const float a0 = static_cast<float>(i) / static_cast<float>(segments) * 6.2831853f, a1 = static_cast<float>(i + 1) / static_cast<float>(segments) * 6.2831853f;
+				line(c + glm::vec2(std::cos(a0), std::sin(a0)) * radius, c + glm::vec2(std::cos(a1), std::sin(a1)) * radius, color, 1.5f);
+			}
+		};
+
+		for (const Occluder& o : m_Tribe.Occluders()) ring(o.Center, o.Radius, IM_COL32(200, 80, 80, 150), 10, false);
+
+		for (const TribeMember& m : m_Tribe.Members())
+		{
+			const Actor* actor = m_Actors.Find(m.Name);
+			if (!actor || m.Dead) continue;
+			const glm::vec2 eye(actor->GetPosition().x, actor->GetPosition().z);
+			const bool selected = m.Name == m_AbilityActor;
+			const ImU32 cone = selected ? IM_COL32(255, 230, 90, 230) : IM_COL32(120, 200, 255, 130);
+			const float facing = std::atan2(m.Mind.Facing.y, m.Mind.Facing.x);
+			const int arc = 14;
+			glm::vec2 previous = eye + glm::vec2(std::cos(facing - vision.HalfFov), std::sin(facing - vision.HalfFov)) * vision.Range;
+			line(eye, previous, cone, selected ? 2.0f : 1.0f);
+			for (int i = 1; i <= arc; ++i)
+			{
+				const float t = facing - vision.HalfFov + 2.0f * vision.HalfFov * static_cast<float>(i) / static_cast<float>(arc);
+				const glm::vec2 next = eye + glm::vec2(std::cos(t), std::sin(t)) * vision.Range;
+				line(previous, next, cone, selected ? 2.0f : 1.0f);
+				previous = next;
+			}
+			line(eye, previous, cone, selected ? 2.0f : 1.0f);
+			ring(eye, vision.NearRange, cone, 16, false);
+			if (!selected) continue;
+
+			const double now = m_Tribe.Time();
+			for (const auto& [name, e] : m.Mind.Memory.All())
+			{
+				const float conf = SpatialMemory::Confidence(e, now, m_Tribe.Config.Memory);
+				const int alpha = 70 + static_cast<int>(conf * 185.0f);
+				const ImU32 color = e.Kind == "berry_bush" ? IM_COL32(230, 90, 160, alpha) : e.Kind == "tree" ? IM_COL32(80, 220, 90, alpha) : e.Kind == "rock" ? IM_COL32(190, 190, 200, alpha)
+					: e.Kind == "fiber_grass" ? IM_COL32(210, 220, 90, alpha) : e.Kind == "well" ? IM_COL32(90, 150, 255, alpha) : IM_COL32(255, 160, 80, alpha);
+				ring(e.Pos, 0.8f, color, 10, e.Heard);
+				glm::vec2 s;
+				if (point(e.Pos, s)) dl->AddText(ImVec2(ox + s.x + 6.0f, oy + s.y - 6.0f), color, (name + (e.Amount >= 0 ? " " + std::to_string(e.Amount) : "")).c_str());
+			}
+			// what it is going to
+			const auto& orders = m.Mind.Orders;
+			if (!orders.empty()) { glm::vec2 s; if (point(eye, s)) dl->AddText(ImVec2(ox + s.x + 8.0f, oy + s.y - 22.0f), IM_COL32(255, 255, 255, 230), m_Tribe.Because(m).c_str()); }
+		}
+	}
+
 	void EditorApp::DrawTribePanel()
 	{
 		if (m_FocusTribe > 0) { ImGui::SetNextWindowFocus(); --m_FocusTribe; }
@@ -499,7 +718,8 @@ namespace GB::Editor
 							SelectActor(m.Name, ImGui::IsMouseDoubleClicked(0));
 						ImGui::TableNextColumn(); ImGui::TextUnformatted(m.Role.c_str());
 						ImGui::TableNextColumn();
-						if (m.Job.empty()) ImGui::TextDisabled("deciding");
+						if (m.Dead) ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.25f, 1.0f), "dead (%s)", m.Cause.c_str());
+						else if (m.Job.empty()) ImGui::TextDisabled("deciding");
 						else if (m.Job == "rest") ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "resting");
 						else ImGui::Text("%s %s", m.Job.c_str(), m.Detail.c_str());
 						if (m.Hungry) { ImGui::SameLine(); ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.3f, 1.0f), "(hungry)"); }
@@ -519,6 +739,7 @@ namespace GB::Editor
 					ImGui::Text("%s, %d carried to the store, %d made, %d meals%s", m.Role.c_str(), m.Deposited, m.Made, m.Meals, m.Hungry ? ", hungry" : "");
 					if (!m.Why.empty()) ImGui::TextWrapped("Resting because: %s", m.Why.c_str());
 					if (Actor* actor = m_Actors.Find(m.Name)) ImGui::TextWrapped("Orders: %s", actor->TaskStatus().c_str());
+					DrawNpcInspector(m);
 					DrawBag(m.Name);
 				}
 

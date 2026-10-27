@@ -21,6 +21,7 @@ namespace GB::Editor
 	{
 		constexpr double kSimDt = 1.0 / 60.0;
 		constexpr const char* kUserSection = "user-entities";
+		constexpr const char* kTribeSection = "ai";
 
 		WorldParams ParamsOf(const WorldDesc& d, bool generated)
 		{
@@ -216,14 +217,19 @@ namespace GB::Editor
 
 	std::vector<SectionBlob> EditorSaveHost::Sections() const
 	{
+		std::vector<SectionBlob> out;
 		const WorldParams p = World();
 		EntityWorld baseline;
 		std::string error;
-		if (!p.Generated || !BuildBaseline(p, baseline, error)) return {};
-		EntityWorld env, user;
-		Split(baseline, env, user);
-		m_App.m_Gameplay.Store(user);   // the characters and plots keep their live state in their components
-		return { { kUserSection, 1, SaveSceneToString(user) } };
+		if (p.Generated && BuildBaseline(p, baseline, error))
+		{
+			EntityWorld env, user;
+			Split(baseline, env, user);
+			m_App.m_Gameplay.Store(user);   // the characters and plots keep their live state in their components
+			out.push_back({ kUserSection, 1, SaveSceneToString(user) });
+		}
+		if (!m_App.m_Tribe.Members().empty()) out.push_back({ kTribeSection, 1, m_App.m_Tribe.ToJson() });   // store, fire, memory and decisions (the needs are attributes)
+		return out;
 	}
 
 	std::string EditorSaveHost::Assemble(const LoadedGame& game, EntityWorld& out) const
@@ -281,6 +287,10 @@ namespace GB::Editor
 		app.m_Props.Set("tod.hours", std::to_string(game.Clock.Hours));
 		if (app.m_Props.Set("weather.preset", game.Weather.Preset).Ok) app.m_Weather->Snap();
 		if (m_Actors) m_Actors->RestoreActors(game.Actors, false);
+		app.m_Tribe.Clear();
+		app.m_TribeBodies.clear();
+		for (const SectionBlob& s : game.Sections)
+			if (s.Name == kTribeSection) app.RestoreTribe(s.Json);
 		app.StepResources();
 	}
 
@@ -291,6 +301,7 @@ namespace GB::Editor
 		m_App.StepResources();
 		m_App.StepWorld(static_cast<double>(m_App.m_SimTick) / 60.0);
 		m_App.m_Interactives.Update(static_cast<float>(kSimDt), &m_App.m_SceneEditor.World());
+		m_App.m_Tribe.SetWorldClock(static_cast<double>(m_App.m_SimTick) / 60.0);
 		m_App.m_Tribe.Update(static_cast<float>(kSimDt));
 		++m_App.m_SimTick;
 	}

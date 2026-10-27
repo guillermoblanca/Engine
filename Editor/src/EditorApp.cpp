@@ -830,6 +830,7 @@ namespace GB::Editor
 		});
 		c.Register("interactives", "interactives build [x z] | status: puts a campfire (Stoke with wood), a well (DrawWater) and a gate (OpenDoor, CloseDoor) in the scene; their state is saved with the game", [this](const std::vector<std::string>& a) { return InteractivesCommand(a); });
 		c.Register("ecology", "ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]: rabbits that wander, eat berry bushes and fibre tufts, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)", [this](const std::vector<std::string>& a) { return EcologyCommand(a); });
+		c.Register("ai", "ai debug [on|off] | status [name] | memory <name> | scream <name>: the brain of the tribe members: needs, what they decide and why, what they know; `debug` draws their view cones, the obstacles and their memory in the viewport", [this](const std::vector<std::string>& a) { return AiCommand(a); });
 		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
@@ -1704,6 +1705,8 @@ namespace GB::Editor
 				dl->AddCircleFilled(ImVec2(ox + b.x, oy + b.y), active ? 6.0f : 4.5f, active ? IM_COL32(255, 235, 90, 255) : colors[i]);
 			}
 		}
+
+		if (m_AiDebug) DrawAiDebug(dl, viewProj, size, ox, oy);
 
 		if (m_ViewportHovered && ImGui::IsMouseClicked(0))
 		{
