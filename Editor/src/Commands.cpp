@@ -4,6 +4,15 @@
 
 namespace GB::Editor
 {
+	namespace
+	{
+		// A comment is '#' followed by a space or the end of the line, so colors like #ff8800 stay values.
+		bool StartsComment(const std::string& text, size_t i)
+		{
+			return text[i] == '#' && (i + 1 == text.size() || std::isspace(static_cast<unsigned char>(text[i + 1])));
+		}
+	}
+
 	void CommandRunner::Register(const std::string& name, const std::string& help, Handler handler)
 	{
 		m_Commands[name] = { help, std::move(handler) };
@@ -14,10 +23,11 @@ namespace GB::Editor
 		std::vector<std::string> out;
 		std::string cur;
 		bool quoted = false, any = false;
-		for (char c : line)
+		for (size_t i = 0; i < line.size(); ++i)
 		{
+			const char c = line[i];
 			if (c == '"') { quoted = !quoted; any = true; continue; }
-			if (!quoted && c == '#') break;
+			if (!quoted && StartsComment(line, i)) break;
 			if (!quoted && std::isspace(static_cast<unsigned char>(c)))
 			{
 				if (any) { out.push_back(cur); cur.clear(); any = false; }
@@ -41,11 +51,12 @@ namespace GB::Editor
 			cur.clear();
 		};
 		bool comment = false;
-		for (char c : text)
+		for (size_t i = 0; i < text.size(); ++i)
 		{
+			const char c = text[i];
 			if (c == '"') quoted = !quoted;
 			if (c == '\n' || c == '\r') { quoted = false; comment = false; flush(); continue; }
-			if (!quoted && c == '#') comment = true;
+			if (!quoted && StartsComment(text, i)) comment = true;
 			if (!quoted && !comment && c == ';') { flush(); continue; }
 			cur += c;
 		}

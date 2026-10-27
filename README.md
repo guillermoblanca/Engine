@@ -370,6 +370,18 @@ Editor Dear ImGui (`GB_BUILD_EDITOR=ON` por defecto, ejecutable `Editor`): docks
 - `GB/Game/EntityRender.h`: `EntityRenderer::Build(world, scene)` añade objetos y luces puntuales a la `Scene` (requiere GL).
 - Tests `entity` (CPU) y `entity_render` (GL).
 
+## Edición de escenas en el editor (Fase 10B-2)
+
+Paneles **Hierarchy** (árbol, arrastrar para cambiar de padre, menú contextual) e **Inspector** (nombre, transform y componentes), menú **Edit/Entity**, selección con clic en el viewport (rayo contra la forma de cada entidad), gizmo de mover por ejes (arrastrar una flecha) y deshacer/rehacer (`Ctrl+Z`/`Ctrl+Y`, instantáneas JSON de la escena; un arrastre es un solo paso). Las entidades nuevas aparecen en el punto que mira la cámara; la seleccionada brilla levemente. En Assets, clic derecho sobre un `.glb` → "Add to scene as an entity".
+
+Todo es accesible por comandos (`SceneEditor`, sin GL ni ImGui):
+
+- `entity create <empty|cube|sphere|plane|light> [nombre] [padre]`, `entity delete|duplicate|select|info [entidad]`, `entity rename <entidad> <nombre>`, `entity parent <entidad> <padre|none>`, `entity add|remove <mesh|light|body>`, `entity model <ruta.glb>`, `entity set <entidad> <propiedad> <valor...>` y `entity list`.
+- La selección se expone como propiedades `sel.*` (`set sel.position 0 2 0`, `set sel.mesh.albedo #e04030`).
+- `scene new|save <archivo>|load <archivo>`, `undo`, `redo`, `select <nombre|id|none>`.
+- En scripts, un comentario es `#` seguido de espacio; `#rrggbb` es un color.
+- Test `editor` ampliado: comandos, deshacer/rehacer, ficheros de escena y selección por rayo.
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -377,7 +389,7 @@ Editor Dear ImGui (`GB_BUILD_EDITOR=ON` por defecto, ejecutable `Editor`): docks
 2. Render PBR, luces, sombras, HDR/bloom  ✔ (primera pasada, ver abajo)
 3. Importación glTF 2.0 (Blender)  ✔
 4. Animación esquelética  ✔ · cámaras  ✔ · partículas  ✔ · audio
-5. Editor (ImGui) ✔ (10A: paneles, propiedades, consola/scripts) · jerarquía/selección y guardado de escenas (10B) · API para agentes
+5. Editor (ImGui) ✔ (10A: paneles, propiedades, consola/scripts) · entidades y escenas JSON (10B-1) · jerarquía, inspector, selección y gizmo (10B-2) · API para agentes
 
 ### Siguientes pasos de calidad gráfica y mundo (pedidos)
 

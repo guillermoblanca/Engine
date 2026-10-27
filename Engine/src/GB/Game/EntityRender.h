@@ -18,7 +18,8 @@ namespace GB
 		explicit EntityRenderer(std::string assetDir = "") : m_AssetDir(std::move(assetDir)) {}
 
 		// Appends the objects and lights of every active entity to `scene`. Returns how many entities were drawn.
-		size_t Build(const EntityWorld& world, Scene& scene);
+		// `highlight` gets a faint glow (editor selection).
+		size_t Build(const EntityWorld& world, Scene& scene, EntityId highlight = NullEntity);
 		// Advances the animation of the models in the world.
 		void Update(float deltaTime);
 
