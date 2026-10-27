@@ -291,6 +291,29 @@ tree.AddToScene(scene, pos, yaw, scale, /*maxDistance*/ 340.0f);   // los bosque
 ![Mundo templado](docs/world_temperate.jpg)
 ![Erosión antes/después](docs/erosion_before_after.jpg)
 
+## Efectos de destrucción (Fase 8F)
+
+```cpp
+GB::DestructionSystem destruction(world);                  // sobre un PhysicsWorld
+GB::DestructibleDesc crate; crate.Toughness = 450.0f;      // impulso (N·s) que lo rompe
+crate.Split = { 2, 2, 2 };                                 // cajas: fragmentos por eje; esferas: 4 esferas menores
+destruction.Add(bodyId, crate);
+destruction.OnFragment = [&](int newBody, int from, const glm::vec3& size) { /* crear el visual del fragmento */ };
+
+world.Step(dt);
+destruction.Update(dt, world.TakeContacts());              // impactos duros rompen; los pequeños se acumulan
+destruction.Explode(center, 9.0f, 22.0f);                  // onda expansiva: empuja y rompe
+for (auto& b : destruction.TakeBreaks()) ...               // posición, tamaño, impulso → polvo, chispas, sonido
+```
+
+- **`PhysicsWorld::Explode`**: impulso radial con caída cuadrática, sesgo hacia arriba, menos efecto en cuerpos pesados y giro por el punto de aplicación.
+- **`DestructionSystem`**: un cuerpo se rompe por un golpe duro, por daño acumulado o por una explosión. Las cajas se trocean en rejilla (`Split`), las esferas en cuatro; los fragmentos **heredan velocidad y giro** más un empujón hacia fuera, conservan la masa (densidad) y desaparecen tras `DebrisLifetime` (encogiendo el último segundo: `GetVisualScale`). `FragmentsBreakAgain` permite romper varias veces.
+- **Solver de física mejorado** (necesario para muros): impulsos **acumulados** con rozamiento acotado por la carga real, cuerpos dormidos como apoyos inmóviles, **islas** que se duermen juntas, y corrección de penetración más suave. Un muro de ladrillos de 8 hileras se mantiene en pie y se duerme; una bala pesada o una explosión lo derriban. Los eventos de contacto ya solo informan de impactos reales (no de la carga de un cuerpo en reposo) y para **ambos** cuerpos.
+- Sandbox: `--scene=desert --terrain=hills --destruction [--physics=N --wall-rows=N --shoot=T --explode=T]` (T en segundos de simulación, contando el calentamiento de `--simulate`); teclas **X** (explosión en el objetivo) y **F** (disparar una bola desde la cámara). Las explosiones lanzan fuego/humo, el polvo de los ladrillos rotos y dejan **un cráter chamuscado** en el suelo. Con `--weather=tornado` los escombros se rompen al caer.
+- Test `destruction` (CPU): explosión (alcance, caída, masa), rotura por explosión y por golpe, acumulación, fragmentos (8 de la mitad de tamaño, masa conservada, velocidad, vida útil), esferas, rotura al caer, re-rotura, muro estable, muro derribado por bola y por explosión.
+
+![Muro derribado](docs/destruction_sequence.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -306,5 +329,5 @@ tree.AddToScene(scene, pos, yaw, scale, /*maxDistance*/ 340.0f);   // los bosque
 - 8C ✔ Colisiones y física (cuerpos rígidos, flotabilidad, vórtices) y escombros en el tornado.
 - 8D ✔ Ríos con corriente (flujo, espuma y arrastre) y rocas procedurales con musgo, arena y mojado.
 - 8E ✔ Erosión por lluvia, mundos procedurales con biomas y bosques densos (culling).
-- 8F Efectos de destrucción.
+- 8F ✔ Efectos de destrucción (rotura, explosiones, escombros, muro de ladrillos).
 - 8G Pase de calidad de toda la escena en una demo completa (AAA: SSAO, DOF, tonemap, LUT).

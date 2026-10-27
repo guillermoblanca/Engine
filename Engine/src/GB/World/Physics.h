@@ -79,7 +79,8 @@ namespace GB
 		glm::vec3 Position{ 0.0f };
 		glm::vec3 Normal{ 0, 1, 0 };
 		float Impulse = 0.0f;                      // N s along the normal
-		int Body = -1;
+		int Body = -1;                             // the body this event is about (a hit between two bodies is reported for both)
+		int Other = -1;                            // the other body of a body-body hit, else -1
 	};
 
 	struct SplashEvent
@@ -135,6 +136,11 @@ namespace GB
 
 		RayHit Raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance) const;
 		float GroundHeight(float x, float z) const { return m_GroundHeight ? m_GroundHeight(x, z) : 0.0f; }
+
+		struct ExplosionHit { int Body = -1; float Falloff = 0.0f; float Impulse = 0.0f; };
+		// A blast: pushes every body within `radius` away from `center` (with an upward bias), quadratically weaker with
+		// distance and weaker for heavy bodies. `speedAtCenter` is the speed given to an 80 kg body at the center.
+		std::vector<ExplosionHit> Explode(const glm::vec3& center, float radius, float speedAtCenter);
 
 		// Events since the last call (hard impacts, bodies entering/leaving water).
 		std::vector<ContactEvent> TakeContacts() { return std::move(m_ContactEvents); }

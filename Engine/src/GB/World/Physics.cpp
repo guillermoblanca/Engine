@@ -8,7 +8,7 @@ namespace GB
 	namespace
 	{
 		constexpr float kPi = 3.14159265358979f;
-		constexpr float kSlop = 0.005f;
+		constexpr float kSlop = 0.01f;
 
 		struct Shape
 		{
@@ -146,7 +146,7 @@ namespace GB
 			auto test = [&](glm::vec3 L, int id, bool edge) -> bool
 			{
 				const float len = glm::length(L);
-				if (len < 1e-5f) return true;
+				if (len < (edge ? 0.03f : 1e-5f)) return true;   // nearly parallel edges give no usable axis
 				L /= len;
 				float ra = 0.0f, rb = 0.0f;
 				for (int i = 0; i < 3; ++i) { ra += a.HE[i] * std::fabs(glm::dot(Ra[i], L)); rb += b.HE[i] * std::fabs(glm::dot(Rb[i], L)); }
@@ -534,78 +534,113 @@ namespace GB
 	void PhysicsWorld::Solve(float dt)
 	{
 		(void)dt;
-		std::vector<float> total(m_Contacts.size(), 0.0f);
-		auto invWorld = [&](const RigidBody& b) { return InvInertiaWorld(b, b.m_InvInertia); };
-		for (int iter = 0; iter < 24; ++iter)
+		// Sequential impulses with accumulated, clamped impulses (so friction is limited by the real normal load).
+		struct Row
 		{
-			for (size_t ci = 0; ci < m_Contacts.size(); ++ci)
+			RigidBody* A; RigidBody* B;
+			glm::mat3 IA, IB;
+			glm::vec3 ra, rb, n, t1, t2;
+			float invA = 0.0f, invB = 0.0f, vn0 = 0.0f;
+			float kn, k1, k2, bias, mu, accN = 0.0f, acc1 = 0.0f, acc2 = 0.0f;
+		};
+		std::vector<Row> rows(m_Contacts.size());
+		std::vector<bool> active(m_Contacts.size(), false);
+		for (size_t ci = 0; ci < m_Contacts.size(); ++ci)
+		{
+			const Contact& c = m_Contacts[ci];
+			Row& r = rows[ci];
+			r.A = m_Bodies[static_cast<size_t>(c.A)].get();
+			r.B = c.B >= 0 ? m_Bodies[static_cast<size_t>(c.B)].get() : nullptr;
+			// A sleeping body is woken by a moving neighbour; otherwise it acts as an immovable support.
+			if (r.B)
 			{
-				const Contact& c = m_Contacts[ci];
-				RigidBody& A = *m_Bodies[static_cast<size_t>(c.A)];
-				RigidBody* B = c.B >= 0 ? m_Bodies[static_cast<size_t>(c.B)].get() : nullptr;
-				// Two sleeping bodies do not interact; a sleeper under a moving body is woken by the speed check below.
-				if (A.Sleeping && (!B || B->Sleeping)) continue;
-				const glm::mat3 IA = invWorld(A);
-				const glm::mat3 IB = B ? invWorld(*B) : glm::mat3(0.0f);
-				const glm::vec3 ra = c.Point - A.Position, rb = B ? c.Point - B->Position : glm::vec3(0.0f);
-				const glm::vec3 va = A.Velocity + glm::cross(A.AngularVelocity, ra);
-				const glm::vec3 vb = B ? B->Velocity + glm::cross(B->AngularVelocity, rb) : glm::vec3(0.0f);
-				const glm::vec3 rel = va - vb;
-				const float vn = glm::dot(rel, c.Normal);
-				if (vn >= 0.0f) continue;
-				if (B && (A.Sleeping || B->Sleeping) && -vn > 0.4f) { A.Wake(); B->Wake(); }
-
-				auto effMass = [&](const glm::vec3& dir)
+				if (r.A->Sleeping && !r.B->Sleeping && glm::length(r.B->Velocity) > SleepSpeed) r.A->Wake();
+				if (r.B->Sleeping && !r.A->Sleeping && glm::length(r.A->Velocity) > SleepSpeed) r.B->Wake();
+			}
+			if (r.A->Sleeping && (!r.B || r.B->Sleeping)) continue;
+			active[ci] = true;
+			r.IA = r.A->Sleeping ? glm::mat3(0.0f) : InvInertiaWorld(*r.A, r.A->m_InvInertia);
+			r.IB = r.B && !r.B->Sleeping ? InvInertiaWorld(*r.B, r.B->m_InvInertia) : glm::mat3(0.0f);
+			r.invA = r.A->Sleeping ? 0.0f : r.A->m_InvMass;
+			r.invB = r.B && !r.B->Sleeping ? r.B->m_InvMass : 0.0f;
+			r.ra = c.Point - r.A->Position;
+			r.rb = r.B ? c.Point - r.B->Position : glm::vec3(0.0f);
+			r.n = c.Normal;
+			glm::vec3 helper = std::fabs(r.n.x) < 0.9f ? glm::vec3(1, 0, 0) : glm::vec3(0, 1, 0);
+			r.t1 = glm::normalize(glm::cross(r.n, helper));
+			r.t2 = glm::cross(r.n, r.t1);
+			auto eff = [&](const glm::vec3& d)
+			{
+				float k = r.invA + glm::dot(d, glm::cross(r.IA * glm::cross(r.ra, d), r.ra));
+				if (r.B) k += r.invB + glm::dot(d, glm::cross(r.IB * glm::cross(r.rb, d), r.rb));
+				return std::max(k, 1e-9f);
+			};
+			r.kn = eff(r.n); r.k1 = eff(r.t1); r.k2 = eff(r.t2);
+			r.mu = r.B ? std::sqrt(r.A->Desc.Friction * r.B->Desc.Friction) : r.A->Desc.Friction;
+			const glm::vec3 va = r.A->Velocity + glm::cross(r.A->AngularVelocity, r.ra);
+			const glm::vec3 vb = r.B ? r.B->Velocity + glm::cross(r.B->AngularVelocity, r.rb) : glm::vec3(0.0f);
+			r.vn0 = glm::dot(va - vb, r.n);
+			const float vn0 = r.vn0;
+			const float e = r.B ? std::min(r.A->Desc.Restitution, r.B->Desc.Restitution) : r.A->Desc.Restitution;
+			r.bias = (vn0 < -1.5f) ? -e * vn0 : 0.0f;   // bounce only on real impacts
+		}
+		auto apply = [&](Row& r, const glm::vec3& P)
+		{
+			r.A->Velocity += P * r.invA;
+			r.A->AngularVelocity += r.IA * glm::cross(r.ra, P);
+			if (r.B)
+			{
+				r.B->Velocity -= P * r.invB;
+				r.B->AngularVelocity -= r.IB * glm::cross(r.rb, P);
+			}
+		};
+		auto relVel = [&](const Row& r)
+		{
+			const glm::vec3 va = r.A->Velocity + glm::cross(r.A->AngularVelocity, r.ra);
+			const glm::vec3 vb = r.B ? r.B->Velocity + glm::cross(r.B->AngularVelocity, r.rb) : glm::vec3(0.0f);
+			return va - vb;
+		};
+		for (int iter = 0; iter < 30; ++iter)
+		{
+			for (size_t ci = 0; ci < rows.size(); ++ci)
+			{
+				if (!active[ci]) continue;
+				Row& r = rows[ci];
+				// friction first (bounded by the load from the previous iteration), then the normal
+				for (int k = 0; k < 2; ++k)
 				{
-					float k = A.m_InvMass + glm::dot(dir, glm::cross(IA * glm::cross(ra, dir), ra));
-					if (B) k += B->m_InvMass + glm::dot(dir, glm::cross(IB * glm::cross(rb, dir), rb));
-					return k;
-				};
-				const float e = (-vn > 1.5f) ? (B ? std::min(A.Desc.Restitution, B->Desc.Restitution) : A.Desc.Restitution) : 0.0f;
-				const float j = -(1.0f + e) * vn / effMass(c.Normal);
-				const glm::vec3 P = c.Normal * j;
-				A.Velocity += P * A.m_InvMass;
-				A.AngularVelocity += IA * glm::cross(ra, P);
-				if (B)
-				{
-					B->Velocity -= P * B->m_InvMass;
-					B->AngularVelocity -= IB * glm::cross(rb, P);
+					const glm::vec3& t = k == 0 ? r.t1 : r.t2;
+					float& acc = k == 0 ? r.acc1 : r.acc2;
+					const float lambda = -glm::dot(relVel(r), t) / (k == 0 ? r.k1 : r.k2);
+					const float limit = r.mu * r.accN;
+					const float next = std::clamp(acc + lambda, -limit, limit);
+					apply(r, t * (next - acc));
+					acc = next;
 				}
-				total[ci] += j;
-
-				// Coulomb friction along the sliding direction.
-				const glm::vec3 vt = rel - c.Normal * vn;
-				const float vtl = glm::length(vt);
-				if (vtl > 1e-4f)
-				{
-					const glm::vec3 t = vt / vtl;
-					const float mu = B ? std::sqrt(A.Desc.Friction * B->Desc.Friction) : A.Desc.Friction;
-					const float jt = std::min(vtl / effMass(t), mu * j);
-					const glm::vec3 F = -t * jt;
-					A.Velocity += F * A.m_InvMass;
-					A.AngularVelocity += IA * glm::cross(ra, F);
-					if (B)
-					{
-						B->Velocity -= F * B->m_InvMass;
-						B->AngularVelocity -= IB * glm::cross(rb, F);
-					}
-				}
+				const float lambda = (-glm::dot(relVel(r), r.n) + r.bias) / r.kn;
+				const float next = std::max(r.accN + lambda, 0.0f);
+				apply(r, r.n * (next - r.accN));
+				r.accN = next;
 			}
 		}
+		std::vector<float> total(m_Contacts.size(), 0.0f);
+		for (size_t ci = 0; ci < rows.size(); ++ci) total[ci] = -rows[ci].vn0 > 0.8f ? rows[ci].accN : 0.0f;   // only real impacts, not the load of a resting body
 		// Push bodies out of what they overlap.
 		for (const Contact& c : m_Contacts)
 		{
-			const float corr = std::max(c.Penetration - kSlop, 0.0f) * 0.4f;
+			const float corr = std::max(c.Penetration - kSlop, 0.0f) * 0.2f;
 			if (corr <= 0.0f) continue;
 			RigidBody& A = *m_Bodies[static_cast<size_t>(c.A)];
 			if (c.B >= 0)
 			{
 				RigidBody& B = *m_Bodies[static_cast<size_t>(c.B)];
-				const float s = A.m_InvMass + B.m_InvMass;
-				A.Position += c.Normal * corr * (A.m_InvMass / s);
-				B.Position -= c.Normal * corr * (B.m_InvMass / s);
+				const float ia = A.Sleeping ? 0.0f : A.m_InvMass, ib = B.Sleeping ? 0.0f : B.m_InvMass;
+				const float s = ia + ib;
+				if (s <= 0.0f) continue;
+				A.Position += c.Normal * corr * (ia / s);
+				B.Position -= c.Normal * corr * (ib / s);
 			}
-			else
+			else if (!A.Sleeping)
 				A.Position += c.Normal * corr;
 		}
 		for (size_t ci = 0; ci < m_Contacts.size(); ++ci)
@@ -617,7 +652,15 @@ namespace GB
 			e.Normal = m_Contacts[ci].Normal;
 			e.Impulse = total[ci];
 			e.Body = m_Contacts[ci].A;
+			e.Other = m_Contacts[ci].B;
 			m_ContactEvents.push_back(e);
+			if (m_Contacts[ci].B >= 0)   // the other body felt the same hit
+			{
+				e.Body = m_Contacts[ci].B;
+				e.Other = m_Contacts[ci].A;
+				e.Normal = -e.Normal;
+				m_ContactEvents.push_back(e);
+			}
 		}
 	}
 
@@ -631,17 +674,24 @@ namespace GB
 		}
 		GenerateContacts();
 		Solve(dt);
-		for (auto& up : m_Bodies)
+		// A body may only fall asleep when everything touching it is nearly still as well (so stacks sleep together).
+		std::vector<char> disturbed(m_Bodies.size(), 0);
+		auto moving = [&](const RigidBody& b) { return glm::length(b.Velocity) >= SleepSpeed || glm::length(b.AngularVelocity) >= 0.3f; };
+		for (const Contact& c : m_Contacts)
+			if (c.B >= 0 && (moving(*m_Bodies[static_cast<size_t>(c.A)]) || moving(*m_Bodies[static_cast<size_t>(c.B)])))
+				disturbed[static_cast<size_t>(c.A)] = disturbed[static_cast<size_t>(c.B)] = 1;
+		for (size_t bi = 0; bi < m_Bodies.size(); ++bi)
 		{
-			RigidBody* b = up.get();
+			RigidBody* b = m_Bodies[bi].get();
 			if (!b || b->Sleeping) continue;
+			if (disturbed[bi]) b->m_Still = 0.0f;
 			b->Position += b->Velocity * dt;
 			const float w = glm::length(b->AngularVelocity);
 			if (w > 1e-6f)
 				b->Rotation = glm::normalize(glm::angleAxis(w * dt, b->AngularVelocity / w) * b->Rotation);
 			if (b->Velocity.y == b->Velocity.y)   // NaN guard: a NaN body would poison its neighbours
 			{
-				if (glm::length(b->Velocity) < SleepSpeed && w < 0.3f && b->Submersion == 0.0f)
+				if (glm::length(b->Velocity) < SleepSpeed && w < 0.3f && b->Submersion == 0.0f && !disturbed[bi])
 				{
 					b->m_Still += dt;
 					if (b->m_Still > SleepTime) { b->Sleeping = true; b->Velocity = glm::vec3(0.0f); b->AngularVelocity = glm::vec3(0.0f); }
@@ -663,6 +713,29 @@ namespace GB
 			++steps;
 		}
 		if (steps == 20) m_Accumulator = 0.0f;
+	}
+
+	std::vector<PhysicsWorld::ExplosionHit> PhysicsWorld::Explode(const glm::vec3& center, float radius, float speedAtCenter)
+	{
+		std::vector<ExplosionHit> hits;
+		for (size_t i = 0; i < m_Bodies.size(); ++i)
+		{
+			RigidBody* b = m_Bodies[i].get();
+			if (!b) continue;
+			glm::vec3 d = b->Position - center;
+			const float dist = glm::length(d);
+			const float reach = radius + b->GetBoundingRadius();
+			if (dist >= reach) continue;
+			const float t = 1.0f - dist / reach;
+			const float falloff = t * t;
+			d = dist > 1e-4f ? d / dist : glm::vec3(0, 1, 0);
+			const glm::vec3 dir = glm::normalize(d + glm::vec3(0.0f, 0.35f, 0.0f));
+			const float dv = speedAtCenter * falloff * glm::clamp(std::sqrt(80.0f / b->Mass), 0.15f, 2.0f);
+			const glm::vec3 impulse = dir * dv * b->Mass;
+			b->AddImpulse(impulse, b->Position - d * (0.3f * b->GetBoundingRadius()));   // off-center: the body spins
+			hits.push_back({ static_cast<int>(i), falloff, dv * b->Mass });
+		}
+		return hits;
 	}
 
 	RayHit PhysicsWorld::Raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance) const
