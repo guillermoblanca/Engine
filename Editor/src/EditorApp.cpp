@@ -538,6 +538,18 @@ namespace GB::Editor
 			if (a[0] == "stop") { m_Player.StopMontage(); return { true, "stopped" }; }
 			return m_Player.PlayMontage(a[0]) ? CommandResult{ true, "playing " + a[0] } : CommandResult{ false, "no such montage '" + a[0] + "'" };
 		});
+		c.Register("player_attach", "player_attach [box|bag|tool|off]: the FBX player carries a prop (box in both hands with IK, a bag on the back, a tool in the hand); off lets go; no argument lists what is carried", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty())
+			{
+				std::string names;
+				for (const std::string& n : m_Player.PropNames()) names += (names.empty() ? "" : ", ") + n;
+				return { true, names.empty() ? "carrying nothing (props: box, bag, tool)" : "carrying: " + names };
+			}
+			if (a[0] == "off") { m_Player.DetachProp(a.size() > 1 ? a[1] : ""); return { true, "let go" }; }
+			return m_Player.AttachProp(a[0]) ? CommandResult{ true, "carrying " + a[0] } : CommandResult{ false, "cannot attach '" + a[0] + "' (box, bag, tool; the character needs the humanoid rig)" };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{

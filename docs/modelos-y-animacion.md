@@ -115,5 +115,16 @@ Decisión: manda `AnimInstance` para los personajes con el conjunto de clips (FB
 - Editor: `player_montage` lista las acciones, `player_montage <nombre>` la juega y `player_montage stop` la detiene.
 - Test `montage` (CPU): el rig generado (registro, fundidos, notificaciones, interrupción, el slot de la parte superior no toca las piernas) y, con `GB_MIXAMO_DIR` y `GB_FARMING_DIR`, las acciones y el salto reales. Test `character_layer`: salto, aterrizaje y caída desde un borde.
 
-Pendiente: parámetros y transiciones por condiciones (giro en sitio, agacharse), sockets y objetos en la mano (11C).
+Pendiente: parámetros y transiciones por condiciones (giro en sitio, agacharse).
+
+### Sockets, objetos con agarres e IK de manos (Fase 11C-1)
+
+- **`HumanoidRig`** (`GB/Animation/Rig.h`): los huesos de un humanoide (cadera, columna, cabeza, brazos con la base del dedo corazón, piernas) buscados por nombre (`mixamorig:` por defecto); lo que falta queda en -1 y todo lo que lo usa lo salta.
+- **`SocketSet` / `StandardSockets`** (`Socket.h`): un socket es un sitio con nombre del esqueleto (hueso + desplazamiento en el espacio del hueso). Se crean desde la pose de reposo, con los ejes del personaje (+Z delante, +X su izquierda), así que valen para cualquier personaje con ese esqueleto: `hand_l`/`hand_r` (centro de la palma), `head`, `back`, `carry` (delante del pecho), `hip_l`/`hip_r`, `foot_l`/`foot_r`.
+- **`SolveTwoBoneIK`** (`IK.h`): IK analítico de dos huesos sobre una `Pose` (ley de cosenos): el codo/rodilla se dobla hacia un polo, las longitudes se conservan, un objetivo fuera de alcance deja la cadena estirada hacia él, `weight` mezcla con la pose y se puede pedir la orientación final del extremo (la mano con la del agarre).
+- **`Prop` y `GripPoint`** (`AnimInstance.h`): un objeto sigue un socket del cuerpo (`Offset` lo coloca en el marco del socket) y cada agarre lleva una mano a su sitio con IK, después de los clips y montajes y antes de que la pose llegue a la instancia. Las manos lo alcanzan (y lo sueltan) con un fundido; `Attach`, `Detach`, `PropMatrix`, `PropWeight`. `SnapGrips` toma los agarres de donde las palmas están en pantalla (herramienta de autoría: la caja se sujeta exactamente donde los clips ponen las manos). Una caja entre las dos manos se mantiene con los clips de caja, y con otro personaje o una altura distinta el IK corrige el agarre.
+- Editor: `player_attach box|bag|tool|off`: la caja pasa al set `box`, mide los agarres y se lleva con las dos manos; la mochila va a la espalda y la herramienta en la mano derecha.
+- Tests: `props` (CPU) con un humanoide generado (`tools/make_test_fbx.py` → `tests/data/test_humanoid.fbx`): rig, sockets, IK (alcance, longitudes, polo, estirado, peso, orientación), caja con agarres, `SnapGrips`; con `GB_MIXAMO_DIR`/`GB_FARMING_DIR`, la caja con los clips reales (palmas a menos de 1,5 cm de los agarres caminando). Observación del pack: el clip `box walk arc` tiene un salto propio de unos 18 cm en la mano una vez por ciclo.
+
+Pendiente (11C-2): IK de pies al terreno, pelvis, mirada (look-at) y manos/rodillas al suelo.
 
