@@ -400,8 +400,8 @@ namespace GB
 		const float wetTarget = std::max(m_Level.Rain, m_Level.Snow * 0.3f);
 		m_Wetness = Approach(m_Wetness, wetTarget, dt * (wetTarget > m_Wetness ? 0.25f : 0.03f));
 
-		// Snow piles up while it snows and melts away very slowly.
-		m_SnowCover = Approach(m_SnowCover, m_Level.Snow > 0.05f ? 1.0f : 0.0f, dt * (m_Level.Snow > 0.05f ? 0.04f * m_Level.Snow : 0.004f));
+		// Snow piles up while it snows and melts in about fifteen seconds once it stops (it used to take minutes, which looked like a bug).
+		m_SnowCover = Approach(m_SnowCover, m_Level.Snow > 0.05f ? 1.0f : 0.0f, dt * (m_Level.Snow > 0.05f ? 0.04f * m_Level.Snow : 0.07f));
 
 		Retune(camera);
 		for (auto* s : { m_Rain.get(), m_Splash.get(), m_Mist.get(), m_SnowFlakes.get(), m_Motes.get(), m_Haze.get(),

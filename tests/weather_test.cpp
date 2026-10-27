@@ -351,6 +351,10 @@ int main()
 		snow.Apply(snowScene);
 		Check(snow.GetSnowCover() > 0.1f && snowScene.Env.SnowCover > 0.1f, "snow cover builds up while it snows");
 		Check(snow.GetSnowSystem().GetAliveCount() > 3000, "thousands of flakes");
+		// Switching to clear weather melts the snow cover in well under half a minute.
+		snow.SetPreset(GB::WeatherPreset::Clear);
+		step(snow, 30.0f);
+		Check(snow.GetSnowCover() < 0.05f, "snow cover melts away within 30 s of clear weather");
 
 		// --- Sandstorm: tan fog, dense.
 		GB::Weather sand(3);
