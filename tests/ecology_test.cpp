@@ -2,6 +2,7 @@
 // starve when there is nothing to eat. Their whole state is attributes of entities, so the run is the same twice. CPU only.
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/Resources.h"
+#include <algorithm>
 #include <cstdio>
 
 namespace
