@@ -28,17 +28,19 @@ namespace GB
 
 	int CharacterAnimator::AddMixamoActions()
 	{
-		m_Anim.Montages().AddSlot("UpperBody", "mixamorig:Spine");
-		m_Anim.Air().SetClip("jump");
+		// the slots, turn clips, air clip and montages come from the manifest (MixamoManifest() when no file gives another)
+		const AnimManifest manifest = MixamoManifest();
+		for (const ManifestSlot& slot : manifest.Slots)
+			if (!slot.Name.empty()) m_Anim.Montages().AddSlot(slot.Name, slot.RootBone);
+		m_Anim.Air().SetClip(manifest.AirClip);
 		// turning on the spot: the clip's side is read from its own rotation, so a pair can be given in any order
-		for (const char* clip : { "left turn 90", "right turn 90" }) m_Anim.Turn().AddClip("", clip);
-		for (const char* clip : { "box turn", "box turn (2)" }) m_Anim.Turn().AddClip("box", clip);
-		for (const char* clip : { "holding turn left", "holding turn right" }) m_Anim.Turn().AddClip("holding", clip);
-		for (const char* clip : { "injured turn left", "injured turn right" }) m_Anim.Turn().AddClip("injured", clip);
+		for (const std::string& clip : manifest.Free.Turns) m_Anim.Turn().AddClip("", clip);
+		for (const ManifestSet& set : manifest.Sets)
+			for (const std::string& clip : set.Turns) m_Anim.Turn().AddClip(set.Name, clip);
 		int added = 0;
-		for (const MontageDesc& m : MixamoMontages())
+		for (const MontageDesc& m : manifest.Montages)
 			added += m_Anim.Montages().Add(m) ? 1 : 0;
-		for (const MontageDesc& m : UniversalMontages())
+		for (const MontageDesc& m : UniversalMontages())   // the Universal Animation Library's actions, for a character retargeted onto
 			added += m_Anim.Montages().Add(m) ? 1 : 0;
 		return added;
 	}
