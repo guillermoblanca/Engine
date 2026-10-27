@@ -220,6 +220,30 @@ scene.ScreenSpaceReflections = true;         // el agua refleja objetos cercanos
 
 ![Destellos](docs/lake_night_glints.jpg)
 
+## Colisiones y física (Fase 8C)
+
+```cpp
+GB::PhysicsWorld world;
+world.SetTerrain(&terrain->GetHeightmap());              // o SetGround(altura, normal)
+world.SetWater([&](float x, float z) { return lakeLevel; });   // flotabilidad
+GB::BodyDesc crate; crate.HalfExtents = glm::vec3(0.45f); crate.Density = 380.0f;   // kg/m³: <1000 flota
+int id = world.AddBody(crate, position);
+world.AddStatic(trunkCapsule);                           // árboles (cápsula), rocas (esfera), muros (caja orientada)
+world.Vortices = { vortex };                             // el tornado (cada frame)
+world.Step(dt);                                          // pasos fijos de 1/120 s, determinista
+for (auto& hit : world.TakeContacts()) ...               // impactos (impulso, normal) → polvo, sonido, rotura
+for (auto& splash : world.TakeSplashes()) ...            // entradas en el agua → ondas, salpicaduras
+auto ray = world.Raycast(origin, dir, 100.0f);           // terreno, estáticos y cuerpos
+```
+
+- `PhysicsWorld`: cuerpos rígidos **esfera y caja** con inercia, rozamiento de Coulomb, restitución y **sueño**; solver de impulsos secuenciales (24 iteraciones) con corrección de penetración. Caja-caja con **SAT + recorte de caras** (apilables, tres cajas estables) y aristas; esfera/caja contra **cápsulas verticales** (troncos), esferas y cajas estáticas; el terreno se prueba con la esfera o las 8 esquinas.
+- **Flotabilidad y agua**: `Density` < 1000 flota (madera) y > 1000 se hunde (piedra); arrastre en el agua y eventos de salpicadura que el Sandbox convierte en **ondas** de `WaterRipples`.
+- **Viento y tornados**: cada cuerpo recibe arrastre aerodinámico hacia el viento; un `Vortex` (perfil de Rankine: rotación sólida en el núcleo, 1/r fuera, succión hacia el eje y corriente ascendente) **levanta y lanza** cajas ligeras mientras las rocas pesadas resisten.
+- Todo corre **sin ventana** (test `physics`: rebote, reposo, pendiente y fricción, conservación del momento, pilas, estáticos, agua, vórtice, raycasts y determinismo).
+- Sandbox: `--scene=desert --terrain=hills --physics[=N] [--physics-spread=m --physics-x= --physics-z=] --weather=tornado` suelta cajas, barriles, bolas y tablones; los árboles y las rocas del mapa son colisionadores; en el lago flotan.
+
+![Tornado y escombros](docs/tornado_debris.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -232,7 +256,7 @@ scene.ScreenSpaceReflections = true;         // el agua refleja objetos cercanos
 ### Siguientes pasos de calidad gráfica y mundo (pedidos)
 
 - 8B ✔ Skybox/IBL HDRI, reflejos SSR en el agua y destellos de luces.
-- 8C Colisiones y física básica; más efectos en la demo del tornado.
+- 8C ✔ Colisiones y física (cuerpos rígidos, flotabilidad, vórtices) y escombros en el tornado.
 - 8D Ríos con corriente (flujo en el agua, espuma y arrastre) y rocas procedurales con musgo, arena y mojado.
 - 8E Erosión por lluvia; entornos para mapas procedurales (bosques densos, biomas).
 - 8F Efectos de destrucción.
