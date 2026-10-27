@@ -511,6 +511,8 @@ private:
 			GB::HillParams hp;
 			hp.Seed = seed;
 			hp.Height = static_cast<float>(std::atof(options.GetValue("height", "16").c_str()));
+			hp.LakeRadius = static_cast<float>(std::atof(options.GetValue("lake", "0").c_str()));
+			hp.LakeCenter = { static_cast<float>(std::atof(options.GetValue("lake-x", "0").c_str())), static_cast<float>(std::atof(options.GetValue("lake-z", "-34").c_str())) };
 			m_Terrain = GB::Terrain::CreateHills(hp, 360.0f, 641, style);
 		}
 		else
@@ -551,18 +553,41 @@ private:
 		for (int i = 0; i < 3; ++i)   // a ruined obelisk group
 			place(m_Cube.get(), 14.0f + 2.5f * static_cast<float>(i), -22.0f + 1.5f * static_cast<float>(i), { 1.2f, 6.0f - 1.6f * static_cast<float>(i), 1.2f }, 12.0f * static_cast<float>(i), 1.0f);
 
+		if (kind == "hills" && style == GB::TerrainStyle::Meadow && options.GetValue("grass", "on") != "none")
+		{
+			GB::GrassParams gp;
+			gp.Seed = seed;
+			gp.Size = 190.0f;
+			gp.HeightFn = m_Terrain->MakeGroundFunction();
+			const GB::Heightmap* hm = &m_Terrain->GetHeightmap();
+			gp.NormalFn = [hm](float x, float z) { return hm->GetNormal(x, z); };
+			gp.Density = static_cast<float>(std::atof(options.GetValue("grass-density", "45").c_str()));
+			if (m_Terrain->HasLake())   // no grass under water, thinning out along the bank
+			{
+				const float level = m_Terrain->GetWaterLevel();
+				const GB::Terrain* terrain = m_Terrain.get();
+				gp.DensityFn = [terrain, level](float x, float z) { return glm::smoothstep(level + 0.05f, level + 0.6f, terrain->GetHeight(x, z)); };
+			}
+			m_Grass = std::make_unique<GB::GrassField>(gp);
+			m_Scene.Grass.push_back(m_Grass.get());
+			GB_CLIENT_INFO("Grass: {} blades in {} chunks", m_Grass->GetBladeCount(), m_Grass->GetChunks().size());
+		}
+
 		m_SandSpray = std::make_unique<GB::SandSpray>(*m_Terrain, 4);
 		if (!options.HasFlag("nospray") && kind == "dunes" && style == GB::TerrainStyle::Desert)
 			m_SandSpray->AddToScene(m_Scene);
 		else
 			m_SandSpray.reset();
 
-		GB::ParticleEmitterDesc devil = GB::ParticlePresets::DustDevil();
-		devil.CollideGround = true;
-		devil.GroundHeightFn = m_Terrain->MakeGroundFunction();
-		m_Particles.push_back(std::make_unique<GB::ParticleSystem>(devil));
-		m_Scene.Particles.push_back(m_Particles.back().get());
-		m_DustDevilIndex = 0;
+		if (kind == "dunes")
+		{
+			GB::ParticleEmitterDesc devil = GB::ParticlePresets::DustDevil();
+			devil.CollideGround = true;
+			devil.GroundHeightFn = m_Terrain->MakeGroundFunction();
+			m_Particles.push_back(std::make_unique<GB::ParticleSystem>(devil));
+			m_Scene.Particles.push_back(m_Particles.back().get());
+			m_DustDevilIndex = 0;
+		}
 
 		// Warm low sun, hazy sky.
 		// Raking sun along the wind: windward slopes lit, lee faces in long shadows.
@@ -593,6 +618,48 @@ private:
 		m_Orbit.MaxDistance = 200.0f;
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 
+		// Trees: species depend on the style (oaks and pines in meadows, pines and bare trees in snow, palms in the desert).
+		{
+			const int defaultTrees = style == GB::TerrainStyle::Meadow ? 38 : style == GB::TerrainStyle::Snow ? 26 : 0;
+			const int treeCount = std::atoi(options.GetValue("trees", std::to_string(defaultTrees)).c_str());
+			if (treeCount > 0)
+			{
+				m_TreeFactory = std::make_unique<GB::TreeFactory>();
+				std::vector<GB::TreeParams> recipes;
+				auto add = [&](GB::TreeSpecies sp, float h, uint32_t sd, glm::vec3 tint = glm::vec3(1.0f)) { GB::TreeParams tp; tp.Species = sp; tp.Height = h; tp.Seed = sd; tp.LeafTint = tint; recipes.push_back(tp); };
+				if (style == GB::TerrainStyle::Meadow)
+				{
+					add(GB::TreeSpecies::Broadleaf, 8.0f, 1); add(GB::TreeSpecies::Broadleaf, 10.0f, 2); add(GB::TreeSpecies::Broadleaf, 7.0f, 3, { 1.15f, 1.0f, 0.7f });
+					add(GB::TreeSpecies::Conifer, 11.0f, 4); add(GB::TreeSpecies::Conifer, 9.0f, 5);
+				}
+				else if (style == GB::TerrainStyle::Snow)
+				{
+					add(GB::TreeSpecies::Conifer, 10.0f, 1); add(GB::TreeSpecies::Conifer, 12.0f, 2); add(GB::TreeSpecies::Conifer, 8.0f, 3);
+					add(GB::TreeSpecies::Bare, 8.0f, 4); add(GB::TreeSpecies::Bare, 6.5f, 5);
+				}
+				else
+				{
+					add(GB::TreeSpecies::Palm, 7.5f, 1); add(GB::TreeSpecies::Palm, 9.0f, 2); add(GB::TreeSpecies::Palm, 6.0f, 3);
+				}
+				for (const GB::TreeParams& tp : recipes)
+					m_TreeVariants.push_back(m_TreeFactory->Create(tp));
+				const float snowLine = 1e9f;
+				const auto placements = GB::ScatterTrees(*m_Terrain, treeCount, static_cast<int>(m_TreeVariants.size()), 7.0f, seed + 11,
+					m_Terrain->HasLake() ? m_Terrain->GetWaterLevel() + 0.7f : -1e9f, snowLine, 24.0f, [](float x, float z) { return std::hypot(x, z) > 16.0f; });   // keep the middle clear for the walker
+				for (const GB::TreePlacement& pl : placements)
+					m_TreeVariants[static_cast<size_t>(pl.Variant)]->AddToScene(m_Scene, pl.Position, pl.Yaw, pl.Scale);
+				if (options.HasFlag("gallery"))   // every variant in a row, for a close look
+				{
+					for (size_t i = 0; i < m_TreeVariants.size(); ++i)
+					{
+						const float x = (static_cast<float>(i) - 0.5f * static_cast<float>(m_TreeVariants.size() - 1)) * 11.0f, z = -24.0f;
+						m_TreeVariants[i]->AddToScene(m_Scene, { x, m_Terrain->GetHeight(x, z), z }, 0.0f, 1.0f);
+					}
+				}
+				GB_CLIENT_INFO("Trees: {} placed ({} variants)", placements.size(), m_TreeVariants.size());
+			}
+		}
+
 		m_StaticObjects = m_Scene.Objects.size();
 		const std::string walker = options.GetValue("walker", "none");
 		if (walker != "none")
@@ -606,7 +673,9 @@ private:
 			m_Orbit.Yaw = glm::radians(static_cast<float>(std::atof(options.GetValue("yaw").c_str())));
 
 		m_Weather = std::make_unique<GB::Weather>(5);
-		m_Weather->SetGroundFunction(m_Terrain->MakeGroundFunction());
+		m_Weather->SetGroundFunction(m_Terrain->MakeGroundFunction(true));
+		if (m_Terrain->HasLake())
+			BuildWater(options);
 		const float windAngle = m_Terrain->GetWindAngle();
 		m_DesertWind = { std::cos(windAngle) * 9.0f, 0.0f, std::sin(windAngle) * 9.0f };
 		m_Weather->SetBase(m_Scene);
@@ -629,6 +698,7 @@ private:
 		std::vector<float> FootBase;           // model-space height of each foot joint when planted
 		GB::FootstepTracker Tracker{ 2 };
 		float Scale = 1.0f, Speed = 1.4f, Radius = 12.0f, Phase = 0.0f, YawOffset = 0.0f;
+		glm::vec2 Center{ 0.0f };
 		float FootLength = 0.28f, FootWidth = 0.11f;
 		glm::vec3 Position{ 0.0f }, Heading{ 0.0f, 0.0f, 1.0f };
 		glm::mat4 Root{ 1.0f };
@@ -663,6 +733,9 @@ private:
 		const int clipIndex = clip.empty() ? 0 : w.Model->FindClip(clip);
 		w.Instance->Play(clipIndex < 0 ? 0 : clipIndex, true, 0.0f);
 		w.Speed = static_cast<float>(std::atof(options.GetValue("walker-speed", std::to_string(w.Speed)).c_str()));
+		w.Radius = static_cast<float>(std::atof(options.GetValue("walker-radius", std::to_string(w.Radius)).c_str()));
+		if (options.GetValue("walker-center") == "lake" && m_Terrain->HasLake())
+			w.Center = m_Terrain->GetLakeCenter();   // wades through the lake
 		w.YawOffset = glm::radians(static_cast<float>(std::atof(options.GetValue("walker-yaw", "0").c_str())));
 		const float modelHeight = w.Model->GetBoundsMax().y - w.Model->GetBoundsMin().y;
 		w.Scale = modelHeight > 1e-3f ? height / modelHeight : 1.0f;
@@ -708,11 +781,61 @@ private:
 		GB_CLIENT_INFO("Walker '{}': scale {:.3f}, {} feet, speed {:.1f} m/s", kind, w.Scale, w.FootNodes.size(), w.Speed);
 	}
 
+	void BuildWater(const GB::LaunchOptions& options)
+	{
+		const float r = m_Terrain->GetLakeRadius();
+		m_Water = std::make_unique<GB::WaterSurface>(r * 2.6f, 220);
+		const glm::vec2 c = m_Terrain->GetLakeCenter();
+		m_Water->Position = { c.x, m_Terrain->GetWaterLevel(), c.y };
+		m_Water->Radius = r * 1.2f;
+		m_BaseWaveHeight = static_cast<float>(std::atof(options.GetValue("waves", "0.10").c_str()));
+		m_Water->Params.WaveHeight = m_BaseWaveHeight;
+		m_Scene.Water.push_back(m_Water.get());
+		GB::WaterRipplesDesc rd;
+		rd.Size = 64.0f;
+		rd.Resolution = 512;
+		m_Ripples = std::make_unique<GB::WaterRipples>(rd);
+		m_Scene.Ripples = m_Ripples.get();
+		if (options.HasFlag("lake-view"))
+			m_Orbit.Target = m_Water->Position;
+		GB_CLIENT_INFO("Lake: radius {:.0f} m at ({:.0f}, {:.0f}), level {:.2f} m", r, c.x, c.y, m_Terrain->GetWaterLevel());
+	}
+
+	// Raindrops, wind gusts and wading feet disturb the lake.
+	void UpdateWater(float dt)
+	{
+		if (!m_Water || !m_Ripples)
+			return;
+		m_Water->Params.Direction = { m_Weather->GetWind().x + 0.01f, m_Weather->GetWind().z };
+		m_Water->Params.WaveHeight = glm::mix(m_BaseWaveHeight, m_BaseWaveHeight * 3.0f, glm::clamp(glm::length(m_Weather->GetWind()) / 12.0f, 0.0f, 1.0f));
+		const float rain = m_Weather->GetRain();
+		if (rain > 0.02f)
+		{
+			// Drops near the camera target (where the ripple window is), a few hundred per second in heavy rain.
+			const float rate = 260.0f * rain;
+			m_RainDropBudget += rate * dt;
+			const glm::vec2 c = m_Terrain->GetLakeCenter();
+			const float r = m_Terrain->GetLakeRadius();
+			for (; m_RainDropBudget >= 1.0f; m_RainDropBudget -= 1.0f)
+			{
+				m_RainRng = m_RainRng * 1664525u + 1013904223u;
+				const float a = static_cast<float>(m_RainRng >> 8) / 16777216.0f * 6.2831853f;
+				m_RainRng = m_RainRng * 1664525u + 1013904223u;
+				const float d = std::sqrt(static_cast<float>(m_RainRng >> 8) / 16777216.0f) * r * 0.95f;
+				m_RainRng = m_RainRng * 1664525u + 1013904223u;
+				const float s = 0.6f + 0.8f * static_cast<float>(m_RainRng >> 8) / 16777216.0f;
+				m_Ripples->Impulse({ c.x + std::cos(a) * d, m_Water->Position.y, c.y + std::sin(a) * d }, 0.17f * s, 0.02f * s);
+			}
+		}
+		const glm::vec3 focus = m_Walker ? m_Walker->Position : m_Water->Position;
+		m_Ripples->Update(dt, focus);
+	}
+
 	void UpdateWalker(float dt)
 	{
 		Walker& w = *m_Walker;
 		w.Phase += w.Speed / w.Radius * dt;
-		const glm::vec2 c(0.0f, 0.0f);
+		const glm::vec2 c = w.Center;
 		const glm::vec2 p(c.x + w.Radius * std::cos(w.Phase), c.y + w.Radius * std::sin(w.Phase));
 		const glm::vec2 h(-std::sin(w.Phase), std::cos(w.Phase));
 		w.Position = { p.x, m_Terrain->GetHeight(p.x, p.y), p.y };
@@ -732,8 +855,13 @@ private:
 		const auto ground = m_Terrain->MakeGroundFunction();
 		for (const GB::FootPlant& plant : w.Tracker.Update(feet, ground, w.Heading, dt))
 		{
-			m_Ground->StampFootprint(plant.Position, plant.Heading, w.FootLength, w.FootWidth, 1.0f);
-			m_FootDust->EmitAt(plant.Position + glm::vec3(0.0f, 0.04f, 0.0f), 3 + static_cast<uint32_t>(w.Scale > 1.0f));   // a small puff per step
+			if (m_Water && m_Terrain->GetHeight(plant.Position.x, plant.Position.z) < m_Water->Position.y)
+				m_Ripples->Impulse({ plant.Position.x, m_Water->Position.y, plant.Position.z }, 0.28f * w.Scale, -0.05f * w.Scale);   // a step splashes
+			else
+			{
+				m_Ground->StampFootprint(plant.Position, plant.Heading, w.FootLength, w.FootWidth, 1.0f);
+				m_FootDust->EmitAt(plant.Position + glm::vec3(0.0f, 0.04f, 0.0f), 3 + static_cast<uint32_t>(w.Scale > 1.0f));   // a small puff per step
+			}
 		}
 		m_Ground->Update(dt, w.Position);
 		m_FootDust->Update(dt);
@@ -766,6 +894,7 @@ private:
 		for (const GB::ThunderEvent& t : m_Weather->GetLightning().TakeThunder())
 			GB_CLIENT_INFO("Thunder: {:.0f} m away, loudness {:.2f}", t.Distance, t.Loudness);
 		m_Weather->Apply(m_Scene);
+		UpdateWater(dt);
 	}
 
 	void ApplyWeatherPreset(const std::string& name, bool snap)
@@ -984,8 +1113,15 @@ private:
 	std::unique_ptr<GB::Weather> m_Weather;
 	std::unique_ptr<GB::Terrain> m_Terrain;
 	std::unique_ptr<GB::SandSpray> m_SandSpray;
+	std::unique_ptr<GB::GrassField> m_Grass;
+	std::unique_ptr<GB::TreeFactory> m_TreeFactory;
+	std::vector<std::unique_ptr<GB::Tree>> m_TreeVariants;
 	std::unique_ptr<Walker> m_Walker;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
+	std::unique_ptr<GB::WaterSurface> m_Water;
+	std::unique_ptr<GB::WaterRipples> m_Ripples;
+	float m_BaseWaveHeight = 0.10f, m_RainDropBudget = 0.0f;
+	uint32_t m_RainRng = 77u;
 	std::unique_ptr<GB::ParticleSystem> m_FootDust;
 	bool m_Follow = false;
 	glm::vec3 m_DesertWind{ 9.0f, 0.0f, 3.0f };

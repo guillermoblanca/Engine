@@ -464,6 +464,7 @@ namespace GB
 		env.Wetness = std::max(env.Wetness, m_Wetness * (1.0f - m_SnowCover));
 		env.SnowCover = std::max(env.SnowCover, m_SnowCover);
 		env.Time = m_Time;
+		env.Wind = Horizontal(m_Wind);   // grass and trees sway with the weather wind
 
 		// Lightning: brighten the sky for the flash.
 		env.Intensity += m_Lightning.GetFlash() * m_Lightning.Desc.SkyBoost;

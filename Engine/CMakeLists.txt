@@ -7,8 +7,12 @@ add_library(GB STATIC
     src/GB/Log.cpp
     src/GB/Assets/Model.cpp
     src/GB/World/Footsteps.cpp
+    src/GB/World/Grass.cpp
     src/GB/World/GroundInteraction.cpp
     src/GB/World/Terrain.cpp
+    src/GB/World/Trees.cpp
+    src/GB/World/WaterRipples.cpp
+    src/GB/World/Water.cpp
     src/GB/Effects/Lightning.cpp
     src/GB/Effects/SandSpray.cpp
     src/GB/Effects/Weather.cpp

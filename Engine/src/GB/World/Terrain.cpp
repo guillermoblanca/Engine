@@ -174,8 +174,25 @@ namespace GB
 				float n = Fbm(pos.x / p.Scale, pos.y / p.Scale, p.Octaves, p.Seed);
 				n = glm::clamp((n - 0.25f) / 0.6f, 0.0f, 1.0f);
 				n = glm::mix(n, n * n * (3.0f - 2.0f * n), p.Flatten + 0.35f);   // rounded hilltops, flatter valleys
-				hm.At(i, j) = n * p.Height;
+				float h = n * p.Height;
+				if (p.LakeRadius > 0.0f)
+				{
+					const float d = glm::length(pos - p.LakeCenter);
+					// Banks: lift the ground near the lake above the water, then dig the basin.
+					const float bank = glm::smoothstep(p.LakeRadius * 2.8f, p.LakeRadius * 1.5f, d);
+					h = glm::mix(h, glm::max(h, p.WaterLevel + 0.45f), bank);
+					const float basin = glm::smoothstep(p.LakeRadius * 1.15f, p.LakeRadius * 0.15f, d);
+					h = glm::mix(h, p.WaterLevel - p.LakeDepth, basin);
+				}
+				hm.At(i, j) = h;
 			}
+		}
+		if (p.LakeRadius > 0.0f)
+		{
+			t->m_HasLake = true;
+			t->m_WaterLevel = p.WaterLevel;
+			t->m_LakeCenter = p.LakeCenter;
+			t->m_LakeRadius = p.LakeRadius;
 		}
 		t->Finish(style, 8.0f);
 		return t;
@@ -321,9 +338,14 @@ namespace GB
 		(void)wavelengthMeters;
 	}
 
-	std::function<float(float, float)> Terrain::MakeGroundFunction() const
+	std::function<float(float, float)> Terrain::MakeGroundFunction(bool waterIsGround) const
 	{
 		const Heightmap* hm = &m_Heightmap;
+		if (waterIsGround && m_HasLake)
+		{
+			const float level = m_WaterLevel;
+			return [hm, level](float x, float z) { return std::max(hm->GetHeight(x, z), level); };
+		}
 		return [hm](float x, float z) { return hm->GetHeight(x, z); };
 	}
 
