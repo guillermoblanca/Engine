@@ -3,6 +3,44 @@
 
 namespace GB
 {
+	namespace
+	{
+		// The built-in layers behind the common interface (their own classes keep the signatures their tests use).
+		class AirAdapter final : public IAnimLayer
+		{
+		public:
+			explicit AirAdapter(AirLayer& l) : m_L(l) {}
+			void Update(const MotionState& state, float dt, const std::string&) override { m_L.Update(state, dt); }
+			bool Active() const override { return m_L.Active(); }
+			void Apply(Pose& pose) override { m_L.Apply(pose); }
+			float LegsWeight() const override { return m_L.Weight(); }
+		private:
+			AirLayer& m_L;
+		};
+		class TurnAdapter final : public IAnimLayer
+		{
+		public:
+			explicit TurnAdapter(TurnLayer& l) : m_L(l) {}
+			void Update(const MotionState& state, float dt, const std::string& set) override { m_L.Update(state, dt, set); }
+			bool Active() const override { return m_L.Active(); }
+			void Apply(Pose& pose) override { m_L.Apply(pose); }
+			float LegsWeight() const override { return m_L.Weight(); }
+		private:
+			TurnLayer& m_L;
+		};
+		class MontageAdapter final : public IAnimLayer
+		{
+		public:
+			explicit MontageAdapter(MontagePlayer& l) : m_L(l) {}
+			void Update(const MotionState&, float dt, const std::string&) override { m_L.Update(dt); }
+			bool Active() const override { return m_L.Busy(); }
+			void Apply(Pose& pose) override { m_L.Apply(pose); }
+			float LegsWeight() const override { return m_L.FullBodyWeight(); }
+		private:
+			MontagePlayer& m_L;
+		};
+	}
+
 	AnimInstance::AnimInstance(const Model& model, ModelInstance& instance, const LocomotionOptions& options)
 		: m_Model(model), m_Instance(instance), m_Options(options),
 		  m_LeftFoot(model.FindNode(options.Analysis.LeftFoot)), m_RightFoot(model.FindNode(options.Analysis.RightFoot)),
@@ -20,6 +58,9 @@ namespace GB
 		m_Look = std::make_unique<LookAt>(model, m_Rig);
 		m_Sets.push_back({ kDefaultSet, std::make_unique<LocomotionBlender>(model, options) });
 		m_Pose = RestPose(model);
+		m_Layers.push_back(std::make_unique<AirAdapter>(m_Air));
+		m_Layers.push_back(std::make_unique<TurnAdapter>(m_Turn));
+		m_Layers.push_back(std::make_unique<MontageAdapter>(m_Montages));
 	}
 
 	int AnimInstance::Find(const std::string& name) const
@@ -112,23 +153,12 @@ namespace GB
 			m_Pose = active.GetPose();
 			m_Events = active.Events();
 		}
-		m_Air.Update(state, dt);
-		if (m_Air.Active())
+		for (const std::unique_ptr<IAnimLayer>& layer : m_Layers)
 		{
-			m_Air.Apply(m_Pose);
-			if (m_Air.Weight() > 0.5f) m_Events.clear();
-		}
-		m_Turn.Update(state, dt, Overlay());
-		if (m_Turn.Active())
-		{
-			m_Turn.Apply(m_Pose);
-			if (m_Turn.Weight() > 0.5f) m_Events.clear();   // the feet shuffle on the spot: no footsteps
-		}
-		m_Montages.Update(dt);
-		if (m_Montages.Busy())
-		{
-			m_Montages.Apply(m_Pose);
-			if (m_Montages.FullBodyWeight() > 0.5f) m_Events.clear();   // the legs are not walking: no footsteps
+			layer->Update(state, dt, Overlay());
+			if (!layer->Active()) continue;
+			layer->Apply(m_Pose);
+			if (layer->LegsWeight() > 0.5f) m_Events.clear();   // the legs are not walking (a jump, a turn on the spot, a full-body action): no footsteps
 		}
 		{
 			// the procedural layers fade out while an action or a jump has the whole body
@@ -299,5 +329,12 @@ namespace GB
 			{ "wheelbarrow", { "wheelbarrow idle", "wheelbarrow walk" } },
 			{ "injured", { "injured idle", "injured walk", "injured run", "injured walk backwards", "injured run backwards" } },
 		};
+	}
+
+	AnimInstance::~AnimInstance() = default;
+
+	void AnimInstance::AddLayer(std::unique_ptr<IAnimLayer> layer)
+	{
+		if (layer) m_Layers.push_back(std::move(layer));
 	}
 }
