@@ -27,25 +27,36 @@ namespace GB
 			return std::atan2(m[2].x, m[2].z);
 		}
 
-		// Times (0..1) at which a foot lands: low, and nearly still over the ground.
+		// Times (0..1) at which a foot lands: low, and nearly still over the ground. Circular: the last sample is the
+		// first one again, so a foot that is down at the loop point lands where its stance really begins.
 		std::vector<float> Plants(const std::vector<glm::vec3>& foot, float ground, const ClipAnalysisConfig& cfg, float duration)
 		{
 			const int samples = static_cast<int>(foot.size());
-			auto planted = [&](int i)
+			const int cycle = samples - 1;   // distinct samples around the loop
+			auto planted = [&](int index)
 			{
-				const int a = std::max(i - 1, 0), b = std::min(i + 1, samples - 1);
-				const float dt = duration * static_cast<float>(b - a) / static_cast<float>(samples - 1);
+				const int i = ((index % cycle) + cycle) % cycle;
+				const int a = (i - 1 + cycle) % cycle, b = (i + 1) % cycle;
+				const float dt = 2.0f * duration / static_cast<float>(cycle);
 				const glm::vec3 d = foot[static_cast<size_t>(b)] - foot[static_cast<size_t>(a)];
-				return foot[static_cast<size_t>(i)].y < ground + cfg.PlantHeight && std::hypot(d.x, d.z) / std::max(dt, 1e-4f) < cfg.PlantSpeed;
+				// across the loop point the root motion makes the positions jump, so measure speed on the clip's own side
+				const bool wrapped = std::abs(b - a) > 2;
+				const float speed = wrapped ? 0.0f : std::hypot(d.x, d.z) / std::max(dt, 1e-4f);
+				return foot[static_cast<size_t>(i)].y < ground + cfg.PlantHeight && speed < cfg.PlantSpeed;
 			};
 			std::vector<float> out;
-			bool prev = planted(0);
-			for (int i = 1; i < samples; ++i)
+			int start = -1;
+			for (int i = 0; i < cycle; ++i) if (!planted(i)) { start = i; break; }
+			if (start < 0) return out;   // always down: no landings
+			bool prev = false;
+			for (int k = 1; k <= cycle; ++k)
 			{
+				const int i = (start + k) % cycle;
 				const bool on = planted(i);
-				if (on && !prev) out.push_back(static_cast<float>(i) / static_cast<float>(samples - 1));
+				if (on && !prev) out.push_back(static_cast<float>(i) / static_cast<float>(cycle));
 				prev = on;
 			}
+			std::sort(out.begin(), out.end());
 			return out;
 		}
 	}
@@ -76,6 +87,7 @@ namespace GB
 			if (right >= 0) rightFoot[static_cast<size_t>(i)] = Position(inst, right);
 		}
 
+		s.RootStart = rootPos.front();
 		s.RootDelta = rootPos.back() - rootPos.front();
 		s.RootSpeed = std::hypot(s.RootDelta.x, s.RootDelta.z) / c.Duration;
 		float turn = 0.0f;

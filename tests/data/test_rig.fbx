@@ -123,11 +123,11 @@ Objects:  {
 	AnimationCurve: 1013, "AnimCurve::", "" {
 		Default: 0
 		KeyVer: 4008
-		KeyTime: *3 {
-			a: 0,23093079000,46186158000
+		KeyTime: *4 {
+			a: 0,11546539500,34639618500,46186158000
 		}
-		KeyValueFloat: *3 {
-			a: -90.0,-80.0,-90.0
+		KeyValueFloat: *4 {
+			a: -75.0,-90.0,-90.0,-75.0
 		}
 		KeyAttrFlags: *1 {
 			a: 24836
@@ -136,7 +136,71 @@ Objects:  {
 			a: 0,0,218434821,0
 		}
 		KeyAttrRefCount: *1 {
-			a: 3
+			a: 4
+		}
+	}
+	AnimationCurve: 1014, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *4 {
+			a: 0,11546539500,34639618500,46186158000
+		}
+		KeyValueFloat: *4 {
+			a: -30.0,0.0,-60.0,-30.0
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 4
+		}
+	}
+	AnimationCurveNode: 1015, "AnimCurveNode::T", "" {
+		Properties70:  {
+			P: "d|X", "Number", "", "A",0
+			P: "d|Y", "Number", "", "A",-90
+			P: "d|Z", "Number", "", "A",0
+		}
+	}
+	AnimationCurve: 1016, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *5 {
+			a: 0,11546539500,23093079000,34639618500,46186158000
+		}
+		KeyValueFloat: *5 {
+			a: -90.0,-90.0,-75.0,-90.0,-90.0
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 5
+		}
+	}
+	AnimationCurve: 1017, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *5 {
+			a: 0,11546539500,23093079000,34639618500,46186158000
+		}
+		KeyValueFloat: *5 {
+			a: -30.0,-60.0,-30.0,0.0,-30.0
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 5
 		}
 	}
 }
@@ -155,4 +219,9 @@ Connections:  {
 	C: "OO",1012,1009
 	C: "OP",1012,1005, "Lcl Translation"
 	C: "OP",1013,1012, "d|Y"
+	C: "OP",1014,1012, "d|Z"
+	C: "OO",1015,1009
+	C: "OP",1015,1007, "Lcl Translation"
+	C: "OP",1016,1015, "d|Y"
+	C: "OP",1017,1015, "d|Z"
 }
