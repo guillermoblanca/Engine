@@ -88,6 +88,9 @@ namespace GB
 			TerrainStyle style = TerrainStyle::Meadow);
 
 		const Heightmap& GetHeightmap() const { return m_Heightmap; }
+		Heightmap& GetEditableHeightmap() { return m_Heightmap; }   // call RefreshMesh after editing
+		// Re-uploads the vertices of the texels [i0, i1] x [j0, j1] (heights and normals; one extra texel is updated around the box for the normals).
+		void RefreshMesh(int i0 = 0, int j0 = 0, int i1 = 1 << 30, int j1 = 1 << 30);
 		float GetHeight(float x, float z) const { return m_Heightmap.GetHeight(x, z); }
 		const Material& GetMaterial() const { return m_Material; }
 		Material& GetMaterial() { return m_Material; }
@@ -122,6 +125,7 @@ namespace GB
 		Heightmap m_Heightmap;
 		TerrainStyle m_Style = TerrainStyle::Desert;
 		float m_WindAngle = 0.0f;
+		std::vector<Vertex> m_Vertices;
 		RiverData m_River;
 		bool m_HasLake = false;
 		float m_WaterLevel = 0.0f, m_LakeRadius = 0.0f;

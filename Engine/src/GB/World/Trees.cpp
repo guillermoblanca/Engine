@@ -423,10 +423,13 @@ namespace GB
 		return tree;
 	}
 
-	void Tree::AddToScene(Scene& scene, const glm::vec3& position, float yaw, float scale) const
+	void Tree::AddToScene(Scene& scene, const glm::vec3& position, float yaw, float scale, float maxDistance) const
 	{
 		const glm::mat4 transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), yaw, glm::vec3(0, 1, 0)), glm::vec3(scale));
+		const glm::vec3 boundsCenter(0.0f, Height * 0.5f, 0.0f);
+		const float boundsRadius = 1.1f * glm::length(glm::vec2(Height * 0.5f, CrownRadius + 0.5f));
 		RenderObject t;
+		t.BoundingCenter = boundsCenter; t.BoundingRadius = boundsRadius; t.MaxDistance = maxDistance;
 		t.MeshPtr = Trunk.get();
 		t.Mat = TrunkMaterial;
 		t.Transform = transform;
@@ -434,6 +437,7 @@ namespace GB
 		if (Foliage)
 		{
 			RenderObject f;
+			f.BoundingCenter = boundsCenter; f.BoundingRadius = boundsRadius; f.MaxDistance = maxDistance;
 			f.MeshPtr = Foliage.get();
 			f.Mat = FoliageMaterial;
 			f.Transform = transform;

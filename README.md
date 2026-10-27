@@ -268,6 +268,29 @@ rock->AddToScene(scene, position, yaw, scale, /*sink*/ 0.1f, /*waterLine*/ river
 
 ![Río y rocas](docs/river_rocks.jpg)
 
+## Erosión, mundos procedurales y bosques (Fase 8E)
+
+```cpp
+GB::ErosionParams ep; ep.Droplets = 60000; ep.Seed = 3;
+auto stats = GB::HydraulicErosion::Run(terrain->GetEditableHeightmap(), ep);   // gotas que ruedan, arrancan y depositan
+terrain->RefreshMesh(stats.MinI, stats.MinJ, stats.MaxI, stats.MaxJ);          // sube solo la zona cambiada
+
+GB::WorldDesc wd; wd.Type = GB::WorldType::Temperate; wd.Seed = 5; wd.TreeBudget = 420;
+GB::GeneratedWorld world = GB::WorldGenerator::Generate(wd);   // terreno + lago + río + biomas + árboles + rocas
+world.BiomeAt(x, z); world.GrassDensityAt(x, z); world.Trees; world.Rocks;
+tree.AddToScene(scene, pos, yaw, scale, /*maxDistance*/ 340.0f);   // los bosques se recortan por vista y distancia
+```
+
+- **Erosión hidráulica** (`HydraulicErosion`): gotas con inercia que siguen la pendiente, cargan sedimento según velocidad, agua y desnivel, lo depositan donde la pendiente cede y erosionan con un pincel suave (barrancos y abanicos). Determinista, acotada (nunca excava más que el desnivel de su paso) y localizable en un círculo. `Terrain::RefreshMesh` actualiza solo la región tocada (`Mesh::UpdateVertices`).
+- **Lluvia que erosiona**: en el Sandbox, `--erosion=GOTAS_POR_S` (300-3000 = lento; 30000 = time-lapse) hace que, con lluvia, las gotas cerca de la cámara remodelen el terreno en vivo (`--erosion-strength`).
+- **Mundos procedurales** (`WorldGenerator`): `Temperate`, `Alpine` (picos, nieve, coníferas) y `Desert` (dunas y palmeras). Busca la cuenca más baja para el **lago**, traza un **río** que baja de lo alto (con meandros) hasta el lago, clasifica **biomas** (agua, orilla, prado, bosque, roca, nieve, dunas) por altura, pendiente, humedad (ruido) y cercanía al agua, y reparte árboles (bosques densos, árboles sueltos en prados, especies según altitud) y rocas (en roca y orillas) respetando el presupuesto. Todo determinista por semilla.
+- **Bosques**: `RenderObject::BoundingCenter/BoundingRadius/MaxDistance`; el renderer descarta por **frustum** (también en el mapa de sombras) y por **distancia** (`Renderer::GetStats`). Árboles y rocas ya traen sus esferas.
+- Sandbox: `--scene=desert --terrain=hills --world=temperate|alpine|desert [--seed=N --trees=N --rocks=N --forest=0..1 --river=off --lake=off]`.
+- Test `world`: erosión (determinismo, conservación aproximada de masa, cumbre rebajada y pie con sedimento, fuerza 0, localidad, estabilidad con fuerza alta), culling, refresco de malla y generador (lago y río, árboles en suelo seco, bosque mucho más denso que prado, biomas, nieve alpina, palmeras).
+
+![Mundo templado](docs/world_temperate.jpg)
+![Erosión antes/después](docs/erosion_before_after.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -282,6 +305,6 @@ rock->AddToScene(scene, position, yaw, scale, /*sink*/ 0.1f, /*waterLine*/ river
 - 8B ✔ Skybox/IBL HDRI, reflejos SSR en el agua y destellos de luces.
 - 8C ✔ Colisiones y física (cuerpos rígidos, flotabilidad, vórtices) y escombros en el tornado.
 - 8D ✔ Ríos con corriente (flujo, espuma y arrastre) y rocas procedurales con musgo, arena y mojado.
-- 8E Erosión por lluvia; entornos para mapas procedurales (bosques densos, biomas).
+- 8E ✔ Erosión por lluvia, mundos procedurales con biomas y bosques densos (culling).
 - 8F Efectos de destrucción.
 - 8G Pase de calidad de toda la escena en una demo completa (AAA: SSAO, DOF, tonemap, LUT).

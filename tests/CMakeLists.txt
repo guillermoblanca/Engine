@@ -75,3 +75,8 @@ add_executable(GBRiverTests river_test.cpp)
 target_link_libraries(GBRiverTests PRIVATE GB::GB)
 add_test(NAME river COMMAND GBRiverTests)
 set_tests_properties(river PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBWorldTests world_test.cpp)
+target_link_libraries(GBWorldTests PRIVATE GB::GB)
+add_test(NAME world COMMAND GBWorldTests)
+set_tests_properties(world PROPERTIES SKIP_RETURN_CODE 77)

@@ -143,6 +143,8 @@ namespace GB
 		o.Mat = Mat;
 		o.Mat.BaseY = position.y - sink;
 		o.Mat.WaterLine = waterLine;
+		o.BoundingCenter = { 0.0f, Height * 0.5f, 0.0f };
+		o.BoundingRadius = 1.05f * glm::length(glm::vec2(Radius, Height * 0.5f));
 		o.Transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position - glm::vec3(0.0f, sink, 0.0f)), yaw, glm::vec3(0, 1, 0)), glm::vec3(scale));
 		scene.Objects.push_back(o);
 	}

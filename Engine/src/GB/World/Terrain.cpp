@@ -337,6 +337,25 @@ namespace GB
 		return glm::normalize(dir) * speed * (1.0f - 0.65f * edge * edge);
 	}
 
+	void Terrain::RefreshMesh(int i0, int j0, int i1, int j1)
+	{
+		const int n = static_cast<int>(m_Heightmap.GetResolution());
+		i0 = std::clamp(i0 - 2, 0, n - 1); j0 = std::clamp(j0 - 2, 0, n - 1);
+		i1 = std::clamp(i1 + 2, 0, n - 1); j1 = std::clamp(j1 + 2, 0, n - 1);
+		if (m_Vertices.size() != static_cast<size_t>(n) * static_cast<size_t>(n) || i1 < i0 || j1 < j0) return;
+		for (int j = j0; j <= j1; ++j)
+		{
+			for (int i = i0; i <= i1; ++i)
+			{
+				const glm::vec2 pos = m_Heightmap.SamplePosition(static_cast<uint32_t>(i), static_cast<uint32_t>(j));
+				Vertex& v = m_Vertices[static_cast<size_t>(j) * static_cast<size_t>(n) + static_cast<size_t>(i)];
+				v.Position.y = m_Heightmap.At(static_cast<uint32_t>(i), static_cast<uint32_t>(j));
+				v.Normal = m_Heightmap.GetNormal(pos.x, pos.y);
+			}
+			m_Mesh->UpdateVertices(static_cast<uint32_t>(j * n + i0), &m_Vertices[static_cast<size_t>(j) * static_cast<size_t>(n) + static_cast<size_t>(i0)], static_cast<uint32_t>(i1 - i0 + 1));
+		}
+	}
+
 	// ------------------------------------------------------------------ mesh + material
 	void Terrain::Finish(TerrainStyle style, float wavelengthMeters)
 	{
@@ -369,6 +388,7 @@ namespace GB
 			}
 		}
 		m_Mesh = std::make_unique<Mesh>(vertices, indices);
+		m_Vertices = std::move(vertices);
 
 		// ---- palette
 		glm::vec3 sunlit, shade, crest;

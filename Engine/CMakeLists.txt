@@ -16,6 +16,8 @@ add_library(GB STATIC
     src/GB/Effects/Sky.cpp
     src/GB/World/Physics.cpp
     src/GB/World/Rocks.cpp
+    src/GB/World/Erosion.cpp
+    src/GB/World/WorldGen.cpp
     src/GB/Renderer/EnvironmentMap.cpp
     src/GB/Effects/Lightning.cpp
     src/GB/Effects/SandSpray.cpp

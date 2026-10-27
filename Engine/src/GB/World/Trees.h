@@ -40,7 +40,7 @@ namespace GB
 		size_t LeafCardCount = 0;
 
 		// Adds the tree at a position (on the ground) with a yaw and uniform scale.
-		void AddToScene(Scene& scene, const glm::vec3& position, float yawRadians = 0.0f, float scale = 1.0f) const;
+		void AddToScene(Scene& scene, const glm::vec3& position, float yawRadians = 0.0f, float scale = 1.0f, float maxDistance = 0.0f) const;   // maxDistance > 0: culled beyond it
 	};
 
 	// Generates trees. Owns the procedural bark / leaf / needle / frond textures.

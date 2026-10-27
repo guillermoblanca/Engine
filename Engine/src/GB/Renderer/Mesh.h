@@ -34,6 +34,8 @@ namespace GB
 		Mesh& operator=(Mesh&& other) noexcept;
 
 		void Draw() const;
+		// Overwrites `count` vertices starting at `first` (e.g. terrain that erodes). The mesh keeps its topology.
+		void UpdateVertices(uint32_t first, const Vertex* vertices, uint32_t count);
 		uint32_t GetIndexCount() const { return m_IndexCount; }
 		bool HasSkin() const { return m_SkinVBO != 0; }
 

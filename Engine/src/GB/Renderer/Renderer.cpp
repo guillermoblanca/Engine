@@ -206,6 +206,38 @@ namespace GB
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_JointBuffer);
 	}
 
+namespace
+	{
+		struct Frustum { glm::vec4 Planes[6]; };
+
+		Frustum MakeFrustum(const glm::mat4& m)
+		{
+			Frustum f;
+			const glm::vec4 r0(m[0][0], m[1][0], m[2][0], m[3][0]), r1(m[0][1], m[1][1], m[2][1], m[3][1]),
+				r2(m[0][2], m[1][2], m[2][2], m[3][2]), r3(m[0][3], m[1][3], m[2][3], m[3][3]);
+			f.Planes[0] = r3 + r0; f.Planes[1] = r3 - r0; f.Planes[2] = r3 + r1; f.Planes[3] = r3 - r1; f.Planes[4] = r3 + r2; f.Planes[5] = r3 - r2;
+			for (auto& p : f.Planes) p /= glm::length(glm::vec3(p));
+			return f;
+		}
+
+		// World-space bounding sphere of an object (center, radius); radius 0 = no bounds given.
+		bool BoundsOf(const RenderObject& o, glm::vec3& center, float& radius)
+		{
+			if (o.BoundingRadius <= 0.0f) return false;
+			center = glm::vec3(o.Transform * glm::vec4(o.BoundingCenter, 1.0f));
+			const float scale = std::max({ glm::length(glm::vec3(o.Transform[0])), glm::length(glm::vec3(o.Transform[1])), glm::length(glm::vec3(o.Transform[2])) });
+			radius = o.BoundingRadius * scale;
+			return true;
+		}
+
+		bool InFrustum(const Frustum& f, const glm::vec3& c, float r)
+		{
+			for (const glm::vec4& p : f.Planes)
+				if (glm::dot(glm::vec3(p), c) + p.w < -r) return false;
+			return true;
+		}
+	}
+
 	void Renderer::ShadowPass(const Scene& scene, const glm::mat4& lightVP)
 	{
 		m_ShadowShader->SetFloat("uTime", scene.Env.Time);
@@ -219,10 +251,14 @@ namespace GB
 
 		m_ShadowShader->Bind();
 		m_ShadowShader->SetMat4("uLightVP", lightVP);
+		const Frustum lightFrustum = MakeFrustum(lightVP);
 		for (const RenderObject& obj : scene.Objects)
 		{
 			if (!obj.MeshPtr || obj.Mat.Alpha == AlphaMode::Blend)
 				continue;
+			glm::vec3 bc; float br;
+			if (BoundsOf(obj, bc, br) && !InFrustum(lightFrustum, bc, br))
+				continue;   // outside the light's box: casts nothing into the shadow map
 			m_ShadowShader->SetMat4("uModel", obj.Transform);
 			m_ShadowShader->SetFloat("uWindStrength", obj.Mat.WindSway);
 			m_ShadowShader->SetFloat("uWindHeight", obj.Mat.WindHeight);
@@ -391,10 +427,23 @@ namespace GB
 
 		// Opaque and alpha-masked first, then translucent objects back to front without depth writes.
 		std::vector<const RenderObject*> translucent;
+		m_Stats = {};
+		const Frustum frustum = MakeFrustum(viewProj);
 		for (const RenderObject& obj : scene.Objects)
 		{
 			if (!obj.MeshPtr)
 				continue;
+			glm::vec3 bc; float br;
+			if (BoundsOf(obj, bc, br))
+			{
+				const bool tooFar = obj.MaxDistance > 0.0f && glm::distance(bc, camera.Position) - br > obj.MaxDistance;
+				if (tooFar || !InFrustum(frustum, bc, br))
+				{
+					++m_Stats.ObjectsCulled;
+					continue;
+				}
+			}
+			++m_Stats.ObjectsDrawn;
 			if (obj.Mat.Alpha == AlphaMode::Blend)
 				translucent.push_back(&obj);
 			else

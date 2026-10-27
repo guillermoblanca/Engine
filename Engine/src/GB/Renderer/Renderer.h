@@ -102,6 +102,17 @@ namespace GB
 		glm::mat4 Transform{ 1.0f };
 		// Skinned meshes: joint palette (joint world * inverse bind), uploaded when drawing. Not owned.
 		const std::vector<glm::mat4>* JointMatrices = nullptr;
+		// Culling (forests, props): with BoundingRadius > 0 the object is skipped when its bounding sphere is outside
+		// the view (and outside the shadow volume for shadows) or farther than MaxDistance (> 0) from the camera.
+		glm::vec3 BoundingCenter{ 0.0f };      // in the object's local space
+		float BoundingRadius = 0.0f;           // local units (scaled by the transform)
+		float MaxDistance = 0.0f;
+	};
+
+	struct RenderStats
+	{
+		uint32_t ObjectsDrawn = 0;
+		uint32_t ObjectsCulled = 0;            // by frustum or distance (main pass)
 	};
 
 	struct Environment
@@ -162,6 +173,7 @@ namespace GB
 
 		bool IsValid() const { return m_Valid; }
 		void Resize(uint32_t width, uint32_t height);
+		const RenderStats& GetStats() const { return m_Stats; }   // of the last Render
 
 		// Renders into `target`, or the default framebuffer when null.
 		void Render(const Scene& scene, const Camera& camera, const Framebuffer* target = nullptr);
@@ -178,6 +190,7 @@ namespace GB
 		void BloomPass(const Environment& env);
 		void CompositePass(const Environment& env, const Framebuffer* target);
 
+		RenderStats m_Stats;
 		uint32_t m_Width, m_Height, m_Samples, m_ShadowSize;
 		bool m_Valid = false;
 
