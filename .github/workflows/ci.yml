@@ -27,3 +27,10 @@ jobs:
       - name: Test (Windows; GL tests skip without OpenGL 4.5)
         if: runner.os == 'Windows'
         run: ctest --test-dir build -C Release --output-on-failure
+      - name: Upload QA artifacts (failed golden comparisons)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-artifacts-${{ matrix.os }}
+          path: build/**/qa_artifacts
+          if-no-files-found: ignore

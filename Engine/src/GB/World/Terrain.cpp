@@ -235,6 +235,16 @@ namespace GB
 			const float smooth = sum / static_cast<float>(cnt) - p.RiverDepth * 0.3f;
 			level[static_cast<size_t>(i)] = i == 0 ? smooth : std::min(smooth, level[static_cast<size_t>(i) - 1] - 0.0045f * 1.5f);
 		}
+		if (p.LakeRadius > 0.0f)
+		{
+			// Near the lake the river comes down to the lake level (at most ~0.35 m of drop per meter), cutting a channel through the bank.
+			for (int i = 0; i < n; ++i)
+			{
+				const float dist = glm::length(pts[static_cast<size_t>(i)] - p.LakeCenter);
+				level[static_cast<size_t>(i)] = std::min(level[static_cast<size_t>(i)], p.WaterLevel + 0.12f + std::max(dist - p.LakeRadius, 0.0f) * 0.35f);
+				if (i > 0) level[static_cast<size_t>(i)] = std::min(level[static_cast<size_t>(i)], level[static_cast<size_t>(i) - 1] - 0.0045f * 1.5f);
+			}
+		}
 		m_River.HalfWidth = p.RiverWidth * 0.5f;
 		m_River.Depth = p.RiverDepth;
 		for (int i = 0; i < n; ++i)
