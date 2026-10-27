@@ -38,6 +38,8 @@ namespace GB
 		bool AddClip(const std::string& name);
 		bool AddClip(int clip);
 		size_t ClipCount() const { return m_Space.Size(); }
+		// The speed of the fastest clip (m/s): a set with only a walk cannot show anything faster, so a character in it should not be asked to.
+		float MaxSpeed() const;
 
 		// Commanded velocity in the character's frame: x toward its left, y forward (m/s).
 		void SetVelocity(glm::vec2 velocity) { m_Target = velocity; }
@@ -67,5 +69,8 @@ namespace GB
 		std::vector<BlendSpace::Weight> m_Weights;
 		Pose m_Pose, m_Scratch;
 		std::vector<FootEvent> m_Events;
+		// A clip that does not close its loop (the walk with a box is an arc: the hips turn ~30 degrees by the last frame) would snap
+		// back every cycle. For those, the rotation each bone has gained by the end of the clip, taken out in proportion to the time.
+		std::vector<std::vector<glm::quat>> m_LoopFix;   // by blend space index; empty for a clip that loops by itself
 	};
 }

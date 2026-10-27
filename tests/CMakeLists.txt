@@ -184,3 +184,7 @@ target_link_libraries(GBCharacterProfileTests PRIVATE GB::GB)
 target_include_directories(GBCharacterProfileTests SYSTEM PRIVATE ${json_SOURCE_DIR}/include)
 target_compile_definitions(GBCharacterProfileTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME character_profile COMMAND GBCharacterProfileTests)
+
+add_executable(GBBoxClearanceTests box_clearance_test.cpp)
+target_link_libraries(GBBoxClearanceTests PRIVATE GB::GB)
+add_test(NAME box_clearance COMMAND GBBoxClearanceTests)

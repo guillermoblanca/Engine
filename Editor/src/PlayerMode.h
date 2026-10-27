@@ -97,6 +97,7 @@ namespace GB::Editor
 		TaskRunner m_Tasks;
 		const SceneEditor* m_Edit = nullptr;
 		std::string m_PendingProp;   // waits for the box overlay to finish before measuring the grips
+		float m_BaseWalk = 0.0f, m_BaseRun = 0.0f;   // the controller's own speeds, before a set with no run clip caps them
 
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
