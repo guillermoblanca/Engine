@@ -24,12 +24,16 @@ almacén cuando su mochila llega a 4 unidades, y deja de recoger un recurso cuan
 herramienta y el almacén puede pagarla (la hoguera no se come la piedra que aún necesita el pico). Solo recogen lo que **recuerdan**: al principio miran a su alrededor (parados giran
 la cabeza) y, si no conocen lo que su oficio pide, salen a explorar.
 
+**Sumideros.** Lo que sobra se gasta: el campamento usa una unidad de fibra por miembro cada 60 s (solo la que pasa de 12) y una baya de más de 20 se estropea cada 100 s, además de la madera de la hoguera y las bayas que se comen. Así
+el almacén no se llena para siempre. **Quien no tiene nada que hacer** descansa mirando alrededor, o explora si no conoce lo que su oficio pide, y el panel dice por qué (`every tree is empty: it waits for them to regrow or looks for more`...).
+
 ## En el editor
 
 ```
 tribe build [modelo.fbx|fox] [x z] [trabajadores 2-6]   crea el parche de recursos, el campamento y los trabajadores
 tribe status                                            almacén y qué hace cada uno
-tribe log [n]                                           las últimas n líneas de lo que ha pasado
+tribe log [n]                                           las últimas n líneas de lo que ha pasado (el registro guarda las últimas 800)
+tribe remove <nombre>                                   saca a un miembro de la tribu (el actor sigue)
 ai debug|status|memory|scream                           el cerebro de los miembros (ver IA.md)
 timescale <1-20>                                        acelera la simulación (el día de la tribu en un minuto)
 ```

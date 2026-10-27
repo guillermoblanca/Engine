@@ -38,6 +38,48 @@ namespace GB
 		return true;
 	}
 
+	void OccluderGrid::Build(const std::vector<Occluder>& list, float cell)
+	{
+		m_Cell = std::max(cell, 1.0f);
+		m_List = list;
+		m_Cells.clear();
+		for (size_t i = 0; i < m_List.size(); ++i)
+		{
+			const Occluder& o = m_List[i];
+			const int x0 = static_cast<int>(std::floor((o.Center.x - o.Radius) / m_Cell)), x1 = static_cast<int>(std::floor((o.Center.x + o.Radius) / m_Cell));
+			const int z0 = static_cast<int>(std::floor((o.Center.y - o.Radius) / m_Cell)), z1 = static_cast<int>(std::floor((o.Center.y + o.Radius) / m_Cell));
+			for (int x = x0; x <= x1; ++x)
+				for (int z = z0; z <= z1; ++z) m_Cells[Key(x, z)].push_back(static_cast<int>(i));
+		}
+	}
+
+	bool OccluderGrid::Blocks(const glm::vec2& eye, const glm::vec2& target, const std::string& ignoreId) const
+	{
+		if (m_List.empty()) return false;
+		const int x0 = static_cast<int>(std::floor(std::min(eye.x, target.x) / m_Cell)), x1 = static_cast<int>(std::floor(std::max(eye.x, target.x) / m_Cell));
+		const int z0 = static_cast<int>(std::floor(std::min(eye.y, target.y) / m_Cell)), z1 = static_cast<int>(std::floor(std::max(eye.y, target.y) / m_Cell));
+		for (int x = x0; x <= x1; ++x)
+			for (int z = z0; z <= z1; ++z)
+			{
+				const auto cell = m_Cells.find(Key(x, z));
+				if (cell == m_Cells.end()) continue;
+				for (const int index : cell->second)
+				{
+					const Occluder& o = m_List[static_cast<size_t>(index)];
+					if (!ignoreId.empty() && o.Id == ignoreId) continue;
+					if (glm::distance(o.Center, eye) < o.Radius + 0.3f) continue;
+					if (glm::distance(o.Center, target) < o.Radius + 0.3f) continue;
+					if (SegmentHitsCircle(eye, target, o.Center, o.Radius)) return true;
+				}
+			}
+		return false;
+	}
+
+	bool CanSeeIn(const VisionParams& vision, const glm::vec2& eye, const glm::vec2& facing, const glm::vec2& target, const OccluderGrid& occluders, const std::string& ignoreId)
+	{
+		return InCone(vision, eye, facing, target) && !occluders.Blocks(eye, target, ignoreId);
+	}
+
 	uint64_t SoundBus::Emit(const std::string& kind, const std::string& source, const std::string& subject, const glm::vec2& pos, float radius, double now)
 	{
 		SoundEvent e;

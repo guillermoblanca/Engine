@@ -14,6 +14,7 @@ namespace GB
 		constexpr float kPi = 3.14159265f;
 		constexpr float kNearCamp = 5.0f;        // within this of the camp the members trade what they know
 		constexpr float kNearFire = 4.5f;        // within this of a lit fire it warms
+		constexpr float kSightCell = 16.0f;      // the cells the sights are filed in
 		constexpr float kCompany = 6.0f;         // within this of another member it is not alone
 
 		std::string Underscored(std::string s)
@@ -133,6 +134,14 @@ namespace GB
 		m_SightIndex.clear();
 		m_Occluders.clear();
 		m_PosCache.clear();
+		m_ByKind.clear();
+		m_Runtimes.clear();
+		m_Cursor = 0;
+		m_UpkeepTimer = m_SpoilTimer = 0.0f;
+		m_SightsTime = -1e9;
+		m_LodTimer = 0.0f;
+		m_OccBuilt.clear();
+		m_OccGrid.Clear();
 	}
 
 	size_t Tribe::IndexOf(const TribeMember& m) const
@@ -172,29 +181,44 @@ namespace GB
 		if (def != m_Defs.end() && m_Store.Count(def->second.Item) >= Config.StockCap)
 			return "the store has enough " + def->second.Item + " (" + std::to_string(m_Store.Count(def->second.Item)) + "/" + std::to_string(Config.StockCap) + ")";
 		int total = 0, empty = 0;
-		for (const std::string& name : m_Gameplay->Names())
-		{
-			const AbilitySystemComponent* node = m_Gameplay->Find(name);
-			if (!node || !node->HasTag("Resource.Node." + kind)) continue;
-			++total;
-			if (ResourceSystem::Amount(*node) <= 0) ++empty;
-		}
+		if (const auto it = m_ByKind.find(kind); it != m_ByKind.end())
+			for (const size_t index : it->second)
+			{
+				++total;
+				if (m_Sights[index].Amount <= 0) ++empty;
+			}
 		if (total == 0) return "there are no " + kind + " nodes";
-		if (empty == total) return "every " + kind + " is empty (regrowing or gone)";
+		if (empty == total) return "every " + kind + " is empty: it waits for them to regrow or looks for more";
 		return "the " + kind + " nodes left are taken by others";
 	}
 
 	// Each worker has its own place around the camp, so they do not wait on each other for the same spot.
 	glm::vec2 Tribe::CampSpot(const TribeMember& m) const
 	{
-		const float angle = static_cast<float>(IndexOf(m)) * 2.0f * kPi / static_cast<float>(std::max<size_t>(1, m_Members.size()));
-		return Config.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * 1.8f;
+		if (m.HasSpot) return m.Spot;   // chosen once (a path search) and kept until a trip to it fails
+		const float angle = static_cast<float>(IndexOf(m)) * 2.0f * kPi / static_cast<float>(std::max<size_t>(1, m_Members.size())) + static_cast<float>(m.SpotTries) * 0.9f;
+		m.Spot = StandingSpot(m, Config.Camp, angle, 1.8f + 0.6f * static_cast<float>(m.SpotTries % 4));
+		m.HasSpot = true;
+		return m.Spot;
+	}
+
+	// A place around `centre` the body can be sent to: its own angle first, then turning and moving out until one is not a wall (a tree, deep water).
+	glm::vec2 Tribe::StandingSpot(const TribeMember& m, const glm::vec2& centre, float angle, float radius, bool path) const
+	{
+		for (int ring = 0; ring < 4; ++ring)
+			for (int k = 0; k < 12; ++k)
+			{
+				const float a = angle + static_cast<float>(k) * 0.5236f;
+				const glm::vec2 p = centre + glm::vec2(std::cos(a), std::sin(a)) * (radius + 1.2f * static_cast<float>(ring));
+				if (!m.Body || (path ? m.Body->CanReach(p) : m.Body->CanStandAt(p))) return p;
+			}
+		return centre + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
 	}
 
 	glm::vec2 Tribe::FireSpot(const TribeMember& m) const
 	{
 		const float angle = static_cast<float>(IndexOf(m)) * 2.0f * kPi / static_cast<float>(std::max<size_t>(1, m_Members.size()));
-		return FirePos() + glm::vec2(std::cos(angle), std::sin(angle)) * 1.3f;
+		return StandingSpot(m, FirePos(), angle, 1.3f, false);
 	}
 
 	void Tribe::Say(const TribeMember& m, const std::string& text)
@@ -202,6 +226,8 @@ namespace GB
 		char t[32];
 		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
 		m_Log.push_back(t + m.Name + " (" + m.Role + ") " + text);
+		if (static_cast<int>(m_Log.size()) > Config.LogLines + Config.LogLines / 4)   // a ring: the oldest quarter goes at once
+			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.LogLines)));
 	}
 
 	void Tribe::Shout(const std::string& who, const glm::vec2& pos, float radius)
@@ -232,12 +258,127 @@ namespace GB
 		return s;
 	}
 
+	// ------------------------------------------------------------------ full or abstract
+	bool Tribe::IsBusy(const TribeMember& m) const { return m.Abstract ? m.Agent.Busy() : m.Body->Busy(); }
+	bool Tribe::HasFailed(const TribeMember& m) const { return m.Abstract ? m.Agent.Failed() : m.Body->Failed(); }
+	std::string Tribe::WhyFailed(const TribeMember& m) const { return m.Abstract ? m.Agent.Error() : m.Body->Error(); }
+	glm::vec2 Tribe::Where(const TribeMember& m) const { return m.Abstract ? m.Agent.Position() : m.Body->Position(); }
+
+	bool Tribe::Run(TribeMember& m, const std::string& orders, std::string& error)
+	{
+		return m.Abstract ? m.Agent.Do(orders, error) : m.Body->Do(orders, error);
+	}
+
+	// Full -> abstract: the agent takes over where the body stands, with the same orders; abstract -> full: the body is put where the agent is and
+	// given the orders again (from the start of the current job). The decision is the same either way; only who walks is different.
+	void Tribe::SetDetail(TribeMember& m, bool full)
+	{
+		if (m.Abstract == !full) return;
+		AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
+		std::string error;
+		if (!full)
+		{
+			m.Agent.Place(m.Body->Position());
+			m.Body->SetSuspended(true);
+			if (asc) { m_Runtimes[m.Name] = asc->Runtime(); asc->SetRuntime(nullptr); asc->CancelAll(); }
+			m.Abstract = true;
+			if (!m.Mind.Orders.empty() && !m.Job.empty() && m.Job != "dead") m.Agent.Do(m.Mind.Orders, error);
+		}
+		else
+		{
+			const glm::vec2 at = m.Agent.Position();
+			m.Abstract = false;
+			if (asc) { asc->CancelAll(); if (const auto r = m_Runtimes.find(m.Name); r != m_Runtimes.end()) asc->SetRuntime(r->second); }
+			m.Body->Teleport(at);
+			m.Body->SetSuspended(false);
+			if (!m.Mind.Orders.empty() && !m.Job.empty() && m.Job != "dead" && !m.Body->Do(m.Mind.Orders, error)) m.Job.clear();
+		}
+	}
+
+	// Moves the abstract members: each walks its orders with the speed its vigor allows.
+	void Tribe::StepAbstract(float dt)
+	{
+		for (TribeMember& m : m_Members)
+		{
+			if (!m.Abstract || m.Dead) continue;
+			AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
+			const float vigor = asc && asc->Attributes().Has(NeedName::Vigor) ? asc->Attribute(NeedName::Vigor) : 1.0f;
+			if (asc) ResourceSystem::SyncTools(*asc, m.Body->Bag(), *m_Items);
+			m.Agent.Update(dt, asc, *m_Gameplay, [this](const std::string& entity, glm::vec2& pos)
+			{
+				const auto it = m_PosCache.find(entity);
+				if (it == m_PosCache.end()) return false;
+				pos = it->second;
+				return true;
+			}, 3.0f * std::max(0.3f, vigor));
+		}
+	}
+
+	bool Tribe::RemoveMember(const std::string& name)
+	{
+		for (size_t i = 0; i < m_Members.size(); ++i)
+		{
+			if (m_Members[i].Name != name) continue;
+			if (m_Members[i].Abstract) SetDetail(m_Members[i], true);
+			for (auto it = m_Claims.begin(); it != m_Claims.end();) it = it->second == name ? m_Claims.erase(it) : std::next(it);
+			m_Members.erase(m_Members.begin() + static_cast<std::ptrdiff_t>(i));
+			if (m_Cursor > i) --m_Cursor;
+			return true;
+		}
+		return false;
+	}
+
+	// The agenda of the day: the night is for sleeping, the dusk for coming home, being together and keeping warm, and the work is for the day. Dusk and night
+	// come earlier in autumn and winter. Needs outweigh it (an agenda factor only scales an option; eating and drinking are not touched).
+	float Tribe::AgendaFactor(const std::string& kind, float hour, Season season) const
+	{
+		const float shift = season == Season::Winter ? Config.DuskShift : season == Season::Autumn ? Config.DuskShift * 0.5f : 0.0f;
+		const float dusk = Config.Needs.NightFrom - 3.0f - shift, night = Config.Needs.NightFrom - shift;
+		const bool inNight = hour >= night || hour < Config.Needs.NightTo;
+		const bool inDusk = !inNight && hour >= dusk;
+		const bool work = kind == "gather" || kind == "explore" || kind == "tool" || kind == "fire";
+		if (inNight)
+		{
+			if (kind == "sleep") return 1.6f;
+			if (work) return 0.4f;
+		}
+		else if (inDusk)
+		{
+			if (kind == "socialize") return 2.5f;
+			if (kind == "warm") return 1.5f;
+			if (kind == "deposit") return 1.3f;
+			if (kind == "explore") return 0.3f;
+		}
+		return 1.0f;
+	}
+
+	// What the camp uses up: thatch and rope (fibre) and the berries that spoil. Without sinks the stores fill and everyone rests for good.
+	void Tribe::Upkeep(float dt)
+	{
+		int alive = 0;
+		for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
+		m_UpkeepTimer += dt;
+		if (m_UpkeepTimer >= Config.UpkeepSeconds)
+		{
+			m_UpkeepTimer -= Config.UpkeepSeconds;
+			m_Store.Remove("fiber", std::min(alive, std::max(0, m_Store.Count("fiber") - 12)));   // only the surplus: the tools still need their share
+		}
+		m_SpoilTimer += dt;
+		if (m_SpoilTimer >= Config.SpoilSeconds)
+		{
+			m_SpoilTimer -= Config.SpoilSeconds;
+			if (m_Store.Count("berry") > 20) m_Store.Remove("berry", 1);
+		}
+	}
+
 	// ------------------------------------------------------------------ the senses
 	void Tribe::RefreshSights()
 	{
 		m_Sights.clear();
 		m_SightIndex.clear();
+		m_ByKind.clear();
 		m_Occluders.clear();
+		m_SightsTime = m_Time;
 		if (m_Entities->Count() != m_CacheEntities) { m_PosCache.clear(); m_CacheEntities = m_Entities->Count(); }
 		for (const std::string& name : m_Gameplay->Names())
 		{
@@ -265,26 +406,33 @@ namespace GB
 			s.Pos = cached->second;
 			s.Amount = kind == "well" ? static_cast<int>(asc->Attribute("Water")) : ResourceSystem::Amount(*asc);
 			m_SightIndex[name] = m_Sights.size();
+			m_ByKind[kind].push_back(m_Sights.size());
 			m_Sights.push_back(s);
 			if ((kind == "tree" || kind == "rock") && s.Amount > 0) m_Occluders.push_back({ name, s.Pos, kind == "tree" ? 0.6f : 0.9f });
 		}
+		bool same = m_Occluders.size() == m_OccBuilt.size();
+		for (size_t i = 0; same && i < m_Occluders.size(); ++i) same = m_Occluders[i].Id == m_OccBuilt[i].Id;
+		if (!same) { m_OccGrid.Build(m_Occluders); m_OccBuilt = m_Occluders; }   // trees and rocks stay where they are: only felled ones change the set
 		for (const TribeMember& m : m_Members)
 		{
 			if (m.Dead || !m.Body) continue;
 			Sight s;
 			s.Name = m.Name;
 			s.Kind = "agent";
-			s.Pos = m.Body->Position();
+			s.Pos = Where(m);
 			m_SightIndex[m.Name] = m_Sights.size();
 			m_Sights.push_back(s);
 		}
+		m_SightCells.clear();
+		for (size_t i = 0; i < m_Sights.size(); ++i)
+			m_SightCells[(static_cast<long long>(static_cast<int>(std::floor(m_Sights[i].Pos.x / kSightCell))) << 32) ^ static_cast<long long>(static_cast<unsigned>(static_cast<int>(std::floor(m_Sights[i].Pos.y / kSightCell))))].push_back(i);
 	}
 
 	// Turns the head (it follows the way it walks, and scans all round when it stands still) and sees what is in view.
 	void Tribe::Look(TribeMember& m)
 	{
 		AgentMind& mind = m.Mind;
-		const glm::vec2 pos = m.Body->Position();
+		const glm::vec2 pos = Where(m);
 		if (!mind.HasLast)
 		{
 			mind.LastPos = pos;
@@ -306,26 +454,36 @@ namespace GB
 		mind.LastPos = pos;
 
 		mind.Visible.clear();
-		for (const Sight& s : m_Sights)
+		const float reach = std::max(Config.Vision.Range, Config.Vision.NearRange);
+		const int cx0 = static_cast<int>(std::floor((pos.x - reach) / kSightCell)), cx1 = static_cast<int>(std::floor((pos.x + reach) / kSightCell));
+		const int cz0 = static_cast<int>(std::floor((pos.y - reach) / kSightCell)), cz1 = static_cast<int>(std::floor((pos.y + reach) / kSightCell));
+		for (int cx = cx0; cx <= cx1; ++cx)
+			for (int cz = cz0; cz <= cz1; ++cz)
 		{
+			const auto cell = m_SightCells.find((static_cast<long long>(cx) << 32) ^ static_cast<long long>(static_cast<unsigned>(cz)));
+			if (cell == m_SightCells.end()) continue;
+			for (const size_t index : cell->second)
+		{
+			const Sight& s = m_Sights[index];
 			if (s.Kind == "agent" && s.Name == m.Name) continue;
-			if (!CanSee(Config.Vision, pos, mind.Facing, s.Pos, m_Occluders, s.Name)) continue;
-			mind.Memory.Observe({ s.Name, s.Kind, s.Pos, s.Amount, m_Time, false });
+			if (!CanSeeIn(Config.Vision, pos, mind.Facing, s.Pos, m_OccGrid, s.Name)) continue;
+			if (!mind.Memory.Refresh(s.Name, s.Pos, s.Amount, m_Time)) mind.Memory.Observe({ s.Name, s.Kind, s.Pos, s.Amount, m_Time, false });
 			if (mind.Visible.size() < 12) mind.Visible.push_back(s.Name);
+		}
 		}
 		// what it remembers here and is no longer there (felled, taken)
 		std::vector<std::string> gone;
 		for (const auto& [name, e] : mind.Memory.All())
-			if (e.Kind != "agent" && m_SightIndex.find(name) == m_SightIndex.end() && InCone(Config.Vision, pos, mind.Facing, e.Pos)) gone.push_back(name);
+			if (e.Kind != "agent" && InCone(Config.Vision, pos, mind.Facing, e.Pos) && m_SightIndex.find(name) == m_SightIndex.end()) gone.push_back(name);
 		for (const std::string& name : gone) mind.Memory.Forget(name);
-		mind.Memory.Expire(m_Time, Config.Memory);
+		if (m_Time - mind.ExpiredAt >= 10.0) { mind.Memory.Expire(m_Time, Config.Memory); mind.ExpiredAt = m_Time; }
 	}
 
 	void Tribe::Listen(TribeMember& m)
 	{
 		AgentMind& mind = m.Mind;
 		if (mind.HeardSeq > m_Sounds.LastSeq()) mind.HeardSeq = m_Sounds.LastSeq();   // the bus started over (a loaded game)
-		const std::vector<SoundEvent> heard = m_Sounds.Heard(m.Name, m.Body->Position(), Config.Hearing, mind.HeardSeq);
+		const std::vector<SoundEvent> heard = m_Sounds.Heard(m.Name, Where(m), Config.Hearing, mind.HeardSeq);
 		mind.Heard.clear();
 		AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
 		for (const SoundEvent& e : heard)
@@ -341,7 +499,8 @@ namespace GB
 	// At the camp the members tell the clan what they know and learn what the others told.
 	void Tribe::Share(TribeMember& m)
 	{
-		if (glm::distance(m.Body->Position(), Config.Camp) > kNearCamp) return;
+		if (glm::distance(Where(m), Config.Camp) > kNearCamp || m_Time - m.Mind.SharedAt < static_cast<double>(Config.ShareSeconds)) return;   // (merging whole memories is not cheap: not on every visit)
+		m.Mind.SharedAt = m_Time;
 		m_Clan.Merge(m.Mind.Memory);
 		m.Mind.Memory.Merge(m_Clan);
 	}
@@ -350,8 +509,8 @@ namespace GB
 	void Tribe::StepNeeds(TribeMember& m, float dt)
 	{
 		AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
-		if (!asc || m.Dead) return;
-		const glm::vec2 pos = m.Body->Position();
+		if (!asc || m.Dead || !m.Body) return;
+		const glm::vec2 pos = Where(m);
 		NeedContext ctx;
 		ctx.Time = CurrentSeason();
 		ctx.Hour = Hour();
@@ -359,7 +518,7 @@ namespace GB
 		ctx.NearFire = FireBurning() && glm::distance(pos, FirePos()) < kNearFire;
 		ctx.Sheltered = glm::distance(pos, Config.Camp) < kNearCamp;
 		for (const TribeMember& o : m_Members)
-			if (&o != &m && !o.Dead && o.Body && glm::distance(pos, o.Body->Position()) < kCompany) ctx.WithOthers = true;
+			if (&o != &m && !o.Dead && o.Body && glm::distance(pos, Where(o)) < kCompany) ctx.WithOthers = true;
 		UpdateNeeds(*asc, Config.Needs, ctx, dt);
 		m.Hungry = asc->Attribute(NeedName::Hunger) < 35.0f;
 		if (IsDead(*asc)) Die(m);
@@ -374,7 +533,7 @@ namespace GB
 		m.Job = "dead";
 		m.Detail.clear();
 		std::string error;
-		m.Body->Do("wait 1000000", error);
+		Run(m, "wait 1000000", error);
 		Say(m, "dies of " + m.Cause);
 	}
 
@@ -384,6 +543,7 @@ namespace GB
 		if (!m_Entities || !m_Gameplay || !m_Items || !m_Recipes) return;
 		m_Time += static_cast<double>(dt);
 		Burn(dt);
+		Upkeep(dt);
 		m_NeedTimer += dt;
 		if (m_NeedTimer >= Config.NeedSeconds)
 		{
@@ -391,47 +551,81 @@ namespace GB
 			m_NeedTimer = 0.0f;
 			for (TribeMember& m : m_Members) StepNeeds(m, step);
 		}
-		m_Think -= dt;
-		if (m_Think > 0.0f) return;
-		m_Think = Config.ThinkSeconds;
-
-		RefreshSights();
-		m_Sounds.Prune(m_Time);
-		for (TribeMember& m : m_Members)   // look, and make the noises of the work
+		StepAbstract(dt);
+		m_LodTimer += dt;
+		if (m_LodTimer >= Config.ThinkSeconds)   // the level of detail follows the viewer
 		{
+			m_LodTimer = 0.0f;
+			for (TribeMember& m : m_Members)
+			{
+				if (m.Dead || !m.Body) continue;
+				if (m_HasViewer && Config.DetailRadius > 0.0f)
+				{
+					const float d = glm::distance(m_Viewer, Where(m));
+					if (!m.Abstract && d > Config.DetailRadius) SetDetail(m, false);
+					else if (m.Abstract && d < Config.DetailRadius - Config.DetailMargin) SetDetail(m, true);
+				}
+				else if (m.Abstract) SetDetail(m, true);
+			}
+		}
+
+		// Each member has its own turn every ThinkSeconds; the turns of one call are limited, so with many members the work is spread over frames.
+		const size_t n = m_Members.size();
+		if (n == 0) return;
+		const int needed = static_cast<int>(std::ceil(static_cast<float>(n) * dt / std::max(Config.ThinkSeconds, 0.01f))) + 1;
+		int budget = std::max(Config.ThinkPerFrame, needed);
+		bool refreshed = false;
+		size_t last = m_Cursor % n;
+		for (size_t k = 0; k < n && budget > 0; ++k)
+		{
+			const size_t i = (m_Cursor + k) % n;
+			TribeMember& m = m_Members[i];
 			if (m.Dead || !m.Body) continue;
-			const glm::vec2 before = m.Mind.HasLast ? m.Mind.LastPos : m.Body->Position();
+			if (m_Time < m.Mind.NextThink && !(!m.Job.empty() && !IsBusy(m))) continue;   // its turn, or its orders just ended
+			if (!refreshed && m_Time - m_SightsTime >= static_cast<double>(Config.ThinkSeconds) * 0.9)
+			{
+				RefreshSights();
+			}
+			if (!refreshed) { m_Sounds.Prune(m_Time); refreshed = true; }
+			--budget;
+			last = (i + 1) % n;
+
+			const glm::vec2 before = m.Mind.HasLast ? m.Mind.LastPos : Where(m);
 			Look(m);
-			const glm::vec2 pos = m.Body->Position();
-			if (glm::distance(pos, before) > 0.2f) m_Sounds.Emit("steps", m.Name, "", pos, 8.0f, m_Time);
+			const glm::vec2 pos = Where(m);
+			if (glm::distance(pos, before) > 0.2f) m_Sounds.Emit("steps", m.Name, "", pos, 8.0f, m_Time);   // the noises of the work
 			if (m.Job == "gather")
 				if (const MemoryEntry* node = m.Mind.Memory.Find(m.Detail); node && node->Kind == "tree" && glm::distance(pos, node->Pos) < 3.5f)
 					m_Sounds.Emit("chop", m.Name, node->Name, node->Pos, 28.0f, m_Time);
+			Listen(m);
+			if (!IsBusy(m))
+			{
+				if (!m.Job.empty()) Finish(m);
+				if (m.Job.empty()) Decide(m);
+			}
+			m.Mind.NextThink = m_Time + static_cast<double>(IsBusy(m) ? Config.BusyThinkSeconds * (m.Abstract ? 4.0f : 1.0f) : m.Job == "rest" ? Config.IdleThinkSeconds : Config.ThinkSeconds);
 		}
-		for (TribeMember& m : m_Members)
-			if (!m.Dead && m.Body) Listen(m);
-		for (TribeMember& m : m_Members)
-		{
-			if (m.Dead || !m.Body || m.Body->Busy()) continue;
-			if (!m.Job.empty()) Finish(m);
-			if (m.Job.empty()) Decide(m);
-		}
+		m_Cursor = last;
 	}
 
-	std::string Tribe::NearestKnown(const TribeMember& m, const std::string& kind, float* distance) const
+	// What the member remembers, in one pass: for each kind the nearest place worth going to (trusted, not claimed by another) and whether it knows any at all.
+	std::map<std::string, Tribe::Nearest> Tribe::ScanMemory(const TribeMember& m) const
 	{
-		std::string best;
-		float bestDistance = 1e30f;
-		const glm::vec2 from = m.Body->Position();
-		for (const MemoryEntry* e : m.Mind.Memory.OfKind(kind))   // in name order: ties keep the first
+		std::map<std::string, Nearest> out;
+		const glm::vec2 from = Where(m);
+		for (const auto& [name, e] : m.Mind.Memory.All())   // in name order: ties keep the first
 		{
-			if (SpatialMemory::Confidence(*e, m_Time, Config.Memory) <= 0.0f) continue;
-			if (auto claim = m_Claims.find(e->Name); claim != m_Claims.end() && claim->second != m.Name) continue;
-			const float d = glm::distance(from, e->Pos);
-			if (d < bestDistance) { bestDistance = d; best = e->Name; }
+			if (e.Kind == "agent") continue;
+			Nearest& n = out[e.Kind];
+			n.Any = true;
+			const float d = glm::distance(from, e.Pos);
+			if (d >= n.Distance) continue;
+			if (SpatialMemory::Confidence(e, m_Time, Config.Memory) <= 0.0f) continue;
+			if (auto claim = m_Claims.find(name); claim != m_Claims.end() && claim->second != m.Name) continue;
+			n.Distance = d;
+			n.Name = name;
 		}
-		if (distance) *distance = bestDistance;
-		return best;
+		return out;
 	}
 
 	// Every worker has the tool of its trade: the campfire must not eat the stone a pickaxe still needs.
@@ -441,7 +635,7 @@ namespace GB
 		{
 			std::string tool, tag;
 			ToolFor(w.Role, tool, tag);
-			if (!tag.empty() && !w.Dead && w.Body->Bag().CountTagged(*m_Items, tag) == 0) return false;
+			if (!tag.empty() && !w.Dead && w.Body && w.Body->Bag().CountTagged(*m_Items, tag) == 0) return false;
 		}
 		return true;
 	}
@@ -471,12 +665,20 @@ namespace GB
 		auto level = [&](const char* need) { return asc && asc->Attributes().Has(need) ? asc->Attribute(need) : 100.0f; };
 		const float hunger = level(NeedName::Hunger), thirst = level(NeedName::Thirst), rest = level(NeedName::Rest);
 		const float warmth = level(NeedName::Warmth), safety = level(NeedName::Safety), company = level(NeedName::Company);
-		const glm::vec2 pos = m.Body->Position();
+		const glm::vec2 pos = Where(m);
 		const double now = m_Time;
 		const bool night = IsNight(Config.Needs, Hour());
 		auto weight = [&](const std::string& kind) { return RoleWeight(m, kind); };
 		char buffer[160];
 		std::vector<UtilityOption> opts;
+		const std::map<std::string, Nearest> known = ScanMemory(m);
+		auto nearest = [&](const std::string& kind, float* distance) -> std::string
+		{
+			const auto it = known.find(kind);
+			if (it == known.end()) return {};
+			if (distance) *distance = it->second.Distance;
+			return it->second.Name;
+		};
 
 		std::string tool, toolTag;
 		ToolFor(m.Role, tool, toolTag);
@@ -509,7 +711,7 @@ namespace GB
 			const int water = bag.Count("water");
 			std::string well;
 			float wellDistance = 0.0f;
-			if (water == 0) well = NearestKnown(m, "well", &wellDistance);
+			if (water == 0) well = nearest("well", &wellDistance);
 			if (water > 0 || !well.empty())
 			{
 				UtilityOption o;
@@ -623,7 +825,7 @@ namespace GB
 			if (m_Store.Count(def.Item) >= Config.StockCap) continue;   // enough of that for now
 			if (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0) continue;
 			float distance = 0.0f;
-			const std::string node = NearestKnown(m, kind, &distance);
+			const std::string node = nearest(kind, &distance);
 			if (node.empty()) continue;
 			const MemoryEntry* e = mind.Memory.Find(node);
 			const float conf = SpatialMemory::Confidence(*e, now, Config.Memory);
@@ -701,10 +903,10 @@ namespace GB
 			{
 				if (m_Store.Count(def.Item) >= Config.StockCap) continue;
 				if (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0) continue;
-				if (!NearestKnown(m, kind, nullptr).empty()) continue;
+				if (!nearest(kind, nullptr).empty()) continue;
 				float u = 0.8f * weight(kind);
 				if (u < 0.5f) continue;
-				if (!mind.Memory.OfKind(kind).empty()) u *= 0.1f;   // it knows where they are, they are only empty for now: it waits (resting is worth 0.1)
+				if (const auto it = known.find(kind); it != known.end() && it->second.Any) u *= 0.2f;   // it knows where they are, they are only empty for now: it only goes looking for more when it has nothing better
 				if (u > want) { want = u; what = kind; }
 				if (def.Item == "berry" && lacksFood)
 				{
@@ -720,6 +922,8 @@ namespace GB
 				const float angle = (static_cast<float>(mind.ExploreCount) * 2.3999632f + Hash01(m.Name, 7) * 2.0f * kPi);
 				const float radius = Config.ExploreRadius + 8.0f * static_cast<float>(mind.ExploreCount % 4);
 				o.Where = Config.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
+				for (int k = 1; k < 8 && !m.Body->CanReach(o.Where); ++k)   // not into a lake or a cliff: try the next angle
+					o.Where = Config.Camp + glm::vec2(std::cos(angle + 0.7f * static_cast<float>(k)), std::sin(angle + 0.7f * static_cast<float>(k))) * radius;
 				o.Score = want;
 				Factor(o, "unknown", want);
 				o.Note = "knows no " + what;
@@ -735,6 +939,16 @@ namespace GB
 			o.Score = 0.1f;
 			o.Note = "nothing to do";
 			opts.push_back(o);
+		}
+
+		// the agenda of the day (and of the season) scales what it would do
+		const float hourNow = Hour();
+		for (UtilityOption& o : opts)
+		{
+			const float f = AgendaFactor(o.Kind, hourNow, CurrentSeason());
+			if (f == 1.0f) continue;
+			o.Score *= f;
+			Factor(o, "agenda", f);
 		}
 
 		// choose, and fall back on the next best when the orders cannot be given
@@ -761,7 +975,7 @@ namespace GB
 	bool Tribe::Order(TribeMember& m, const std::string& orders)
 	{
 		std::string error;
-		if (!m.Body->Do(orders, error)) { Say(m, "cannot: " + error); return false; }
+		if (!Run(m, orders, error)) { Say(m, "cannot: " + error); return false; }
 		m.Mind.Orders = orders;
 		return true;
 	}
@@ -830,7 +1044,7 @@ namespace GB
 			if (!e) return false;
 			const std::string kind = e->Kind;
 			const auto def = m_Defs.find(kind);
-			const glm::vec2 pos = m.Body->Position();
+			const glm::vec2 pos = Where(m);
 			const bool fresh = m_Time - e->Seen <= static_cast<double>(Config.FreshSeconds) && e->Amount != 0 && !e->Heard;
 			const float gap = glm::distance(pos, e->Pos);
 			if (!fresh && gap > 3.5f)
@@ -929,10 +1143,23 @@ namespace GB
 		m.Job.clear();
 		m.Why.clear();
 		m.Mind.Orders.clear();
-		if (job != "rest" && m.Body->Failed())   // (a rest has no orders: an old failure would count again every half second)
+		const std::string reason = job != "rest" && HasFailed(m) ? WhyFailed(m) : std::string();
+		if (!reason.empty() && job == "gather" && reason.find("Depleted") != std::string::npos)   // someone (or the rabbits) emptied it on the way: not a fault
+		{
+			if (const MemoryEntry* e = m.Mind.Memory.Find(m.Detail)) m.Mind.Memory.Observe({ e->Name, e->Kind, e->Pos, 0, m_Time, false });
+			Say(m, "finds " + m.Detail + " empty");
+		}
+		else if (!reason.empty() && job == "approach")   // cannot get next to it (trees and bushes in the way): treat it as empty for a while instead of trying again at once
+		{
+			if (const MemoryEntry* e = m.Mind.Memory.Find(m.Detail)) m.Mind.Memory.Observe({ e->Name, e->Kind, e->Pos, 0, m_Time, false });
+			Say(m, "cannot get next to " + m.Detail + ": " + reason);
+		}
+		else if (!reason.empty() && job == "explore") Say(m, "cannot get to " + m.Detail + " ground: " + reason);   // a lake or a cliff in the way: it tries another way next time
+		else if (job != "rest" && HasFailed(m))   // (a rest has no orders: an old failure would count again every half second)
 		{
 			++m.Failures;
-			Say(m, "could not finish " + job + (m.Detail.empty() ? "" : " " + m.Detail));
+			if (job != "gather") { m.HasSpot = false; ++m.SpotTries; }   // the place it was sent to cannot be reached: choose another next time
+			Say(m, "could not finish " + job + (m.Detail.empty() ? "" : " " + m.Detail) + (WhyFailed(m).empty() ? "" : " (" + WhyFailed(m) + ")"));
 		}
 		if (job == "gather")
 		{
@@ -1051,6 +1278,10 @@ namespace GB
 		j["clock"] = m_Clock;
 		j["clockSet"] = m_ClockSet ? 1 : 0;
 		j["think"] = m_Think;
+		j["upkeep"] = m_UpkeepTimer;
+		j["spoil"] = m_SpoilTimer;
+		j["cursor"] = m_Cursor;
+		j["sights"] = m_SightsTime;
 		j["needTimer"] = m_NeedTimer;
 		j["fire"] = m_Fire ? 1 : 0;
 		j["burning"] = m_Burning ? 1 : 0;
@@ -1110,6 +1341,10 @@ namespace GB
 		m_Clock = j.value("clock", 0.0);
 		m_ClockSet = j.value("clockSet", 0) != 0;
 		m_Think = j.value("think", 0.0f);
+		m_UpkeepTimer = j.value("upkeep", 0.0f);
+		m_SpoilTimer = j.value("spoil", 0.0f);
+		m_Cursor = j.value("cursor", static_cast<size_t>(0));
+		m_SightsTime = j.value("sights", -1e9);
 		m_NeedTimer = j.value("needTimer", 0.0f);
 		m_Fire = j.value("fire", 0) != 0;
 		m_Burning = j.value("burning", 0) != 0;
@@ -1147,7 +1382,7 @@ namespace GB
 				if (reissue && !m.Dead && m.Body && !m.Job.empty() && m.Job != "rest")
 				{
 					std::string error;
-					if (m.Mind.Orders.empty() || !m.Body->Do(m.Mind.Orders, error)) { m_Claims.erase(m.Detail); m.Job.clear(); m.Mind.Orders.clear(); }
+					if (m.Mind.Orders.empty() || !Run(m, m.Mind.Orders, error)) { m_Claims.erase(m.Detail); m.Job.clear(); m.Mind.Orders.clear(); }
 				}
 			}
 		return true;

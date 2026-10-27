@@ -75,6 +75,35 @@ planear desde una cantidad vieja.
 **Contra el comportamiento oscilante** (`ChooseOption`): lo que ya está haciendo conserva una bonificación (0,05), un rival debe superarlo por un margen (0,15), se mantiene al
 menos 8 s (40 s el sueño) y solo una emergencia (puntuación ≥ 1,6) lo interrumpe antes. El test cuenta los cambios de trabajo: menos de 400 al día.
 
+## Agenda diaria
+
+Un factor por tipo de opción según la hora (`Tribe::AgendaFactor`; se anota como factor `agenda` en el inspector): de noche (desde las 21 h; en otoño una hora antes y en invierno dos, `DuskShift`)
+el sueño vale x1,6 y el trabajo (recoger, explorar, fabricar, encender) x0,4; al atardecer (tres horas antes de la noche) vuelve a casa (`deposit` x1,3), se calienta (`warm` x1,5) y busca compañía
+(`socialize` x2,5) y no explora (x0,3). Comer y beber no se tocan, y las necesidades mandan: un factor solo escala la opción.
+
+## Nivel de detalle de simulación
+
+Lejos de la cámara un miembro es un **agente abstracto** (`GB/AI/Abstract.h`): ejecuta las mismas órdenes (texto de tareas: `goto`, `wait`, `ability`) sin cuerpo, en línea recta a la velocidad del actor (con su
+`Vigor`) y con las habilidades corriendo por temporizadores sobre su sistema de habilidades, así que la decisión es **la misma** y los recursos, el hambre y el inventario siguen igual. `Tribe::SetViewer`
+(el editor le pasa la cámara en cada paso) y `TribeConfig::DetailRadius` (60 m, con 10 m de histéresis) deciden quién es abstracto; sin visor todos son completos. Al pasar a abstracto el actor se **suspende**
+(`ActorWorld::SetSuspended`: sin animación, sin dibujo, sin obstáculo para los demás) y el agente empieza donde está; al volver, el cuerpo se coloca donde está el agente (`Teleport`) y se le dan otra vez las
+órdenes del trabajo en curso (sin saltos de posición; el trabajo reinicia desde su primera orden). El panel Tribe dice cuántos son abstractos y marca `(abstract)` a cada uno. Medido en `ai_test`: ver Coste.
+
+## Coste y reparto del trabajo
+
+- Cada miembro tiene su propio turno (`Mind.NextThink`): mira y oye cada 0,5 s si está libre, cada 1,5 s si no tiene nada que hacer (`IdleThinkSeconds`) y cada 2 s con órdenes en curso (`BusyThinkSeconds`, x4 si es abstracto); decide en el
+  instante en que acaban sus órdenes. Los turnos de una llamada a `Update` están limitados (`ThinkPerFrame`, y los que hagan falta para que nadie se retrase): con muchos miembros el trabajo se reparte entre fotogramas y no hay un pico cada 0,5 s.
+- Los obstáculos de la vista y la lista de lo percibible están en rejillas de celdas (`OccluderGrid`, `m_SightCells`): una mirada solo visita lo cercano. El índice de nodos por tipo (`m_ByKind`) responde al "por qué descansa". Contar lo que sabe se hace en una pasada (`ScanMemory`).
+  Contar lo que sabe al clan se limita a una vez cada 20 s por miembro.
+- **Medido** (`ai_test`, Release, una hebra, 100 miembros de una tribu con un parche escalado, fotogramas de 0,2 s): 7,5 ms de `Tribe::Update` por segundo simulado el primer día y unos 11 ms de media en 10 días (0,2 ms por fotograma a 60 fps, 4 ms a x20), peor fotograma 8 ms; con
+  nivel de detalle casi igual (el coste está en mirar y decidir, no en el cuerpo, que el test no tiene). Un día simulado de 100 miembros cuesta unos 10 s de CPU. Los 100 miembros **viven los 10 días** (con 10 pozos: con uno solo morían de sed); el test de CI corre 2 días con nivel de detalle (10 con `GB_AI_CROWD_DAYS=10`, unos 3 minutos).
+- La percepción sigue siendo miembros × cosas cercanas; el siguiente paso sería que los agentes lejanos del campamento miren aún menos a menudo.
+
+## Registro, miembros y cuerpos nulos
+
+`Tribe::Log` es un **anillo** (`LogLines`, 800: al pasar un cuarto de más se tiran las más viejas). `Tribe::RemoveMember` quita un miembro y sus reservas (`tribe remove <nombre>`). Un miembro con cuerpo nulo no
+se mueve, no decide ni hace caer nada (todo el código lo comprueba). Los fallos de viaje se anotan con su motivo (`(failed: could not reach (x, z))`, `State.Depleted`...).
+
 ## En el editor
 
 ```
@@ -89,7 +118,11 @@ ai scream <nombre>           ese miembro grita (los que estén a 30 m lo oyen y 
   con `>`), lo que ve y oye, y su memoria.
 - **Depuración visual** (`ai debug on` o la casilla del inspector): el cono de cada miembro (amarillo el seleccionado), un círculo a 3 m, los obstáculos que tapan la vista (rojo) y, del
   seleccionado, un círculo por cada sitio que recuerda con su nombre y lo que quedaba (más tenue cuanto más vieja la noticia; discontinuo si solo lo oyó).
-- `tribe build` ahora también pone un **pozo** cerca del campamento (los miembros tienen sed).
+- `tribe build` ahora también pone un **pozo** cerca del campamento (los miembros tienen sed), **escala el parche de recursos con los trabajadores** (`resources build x z <trabajadores>`; `ScaledResources`:
+  2+2n árboles, 3+2n rocas, 2+n arbustos y 2+n matas) y el almacén inicial (2+2n de madera, 3n de piedra), y **selecciona al primer miembro** para que el panel enseñe su mente.
+- El panel **Tribe** lleva las casillas `ai debug` y `nav debug`, un resumen (cuántos descansan, mueren o son abstractos) y, por miembro, qué hace, **por qué** (la decisión o el motivo del reposo) y su necesidad más baja.
+- Los puntos a los que se manda a un miembro (sitios del campamento, puntos de exploración) se comprueban contra la navegación (`ITribeBody::CanReach`): no se manda a nadie a un tronco ni a un lago. Si un viaje al campamento
+  falla, elige otro sitio la próxima vez; un nodo al que no puede acercarse se da por vacío un rato; que un nodo se vacíe por el camino ya no cuenta como fallo.
 
 ## Guardado
 
@@ -102,6 +135,7 @@ ai scream <nombre>           ese miembro grita (los que estén a 30 m lo oyen y 
 
 ## Tests
 
+- `ai` además: nivel de detalle (abstracto lejos, cuerpo colocado donde está el agente al volver, vive 10 días abstracto), anillo del registro, `RemoveMember`, cuerpo nulo, y **100 miembros** de una tribu (parche escalado) vivos tras 2 días con coste medido.
 - `perception`: cono y oclusión, oído (alcance, secuencia, poda), memoria (caducidad, confianza, mezcla, JSON de ida y vuelta), necesidades (estaciones, fuego, muerte), selector (histéresis).
 - `ai`: un agente solo en un mundo con recursos y un pozo vive **10 días simulados** (12 000 s: invierno incluidos) sin que ninguna necesidad se acerque a vaciarse, y seis agentes cada uno
   en su mundo también; en un mundo sin comida muere de hambre antes del segundo día tras explorar cada vez más lejos; la partida cargada continúa igual; dos ejecuciones acaban idénticas;
@@ -111,9 +145,9 @@ ai scream <nombre>           ese miembro grita (los que estén a 30 m lo oyen y 
 
 - **Sin navegación**: se mueven en línea recta con `goto`; los obstáculos solo tapan la vista. Cuando llegue la navegación (H5, otra parte) los `goto` serán caminos.
 - El cuerpo de un actor puede quedarse atascado contra un árbol u otro actor y fallar el viaje (se cuenta en `Failures` y decide de nuevo).
-- La percepción es O(miembros × cosas): hace falta una rejilla espacial antes de unos cientos de agentes. Nada de nivel de detalle todavía (actor completo cerca de la cámara y
-  agente abstracto lejos: queda para el resto de H6).
-- La **agenda diaria** es implícita (la noche sube el sueño y baja el abrigo); no hay horarios. Faltan decisiones colectivas y roles que cambian (H7, H9 a H12).
+- El nivel de detalle no dibuja ni anima a los lejanos y su movimiento es una línea recta sin navegación (el agente no esquiva nada); al volver a ser completo reinicia la orden en curso. Con unos cientos de miembros haría falta además agrupar a los lejanos.
+- La agenda es un factor por hora y estación, no un horario por rol. Faltan decisiones colectivas y roles que cambian (H7, H9 a H12).
+- Los sumideros (la fibra que sobra de 12 se gasta en el campamento, una baya de más de 20 se estropea cada 100 s) son una regla simple, no una economía; el mapa real tiene cientos de árboles que no son nodos de recurso y los miembros no los conocen.
 - Las herramientas siguen ligadas al rol por código (`stone_axe` del leñador, `stone_pickaxe` del minero); los pesos solo mandan en el resto.
 - Un recurso que no se regenera (las rocas) deja al minero esperando en el campamento; si no conoce ninguna roca sale a explorar. No hay noción de "lugares seguros" ni depredadores
   (la seguridad solo baja con gritos).
