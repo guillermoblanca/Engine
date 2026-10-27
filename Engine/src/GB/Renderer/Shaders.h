@@ -320,6 +320,8 @@ layout(binding = 5) uniform sampler2D uOcclusionMap;
 layout(binding = 6) uniform sampler2D uEmissiveMap;
 layout(binding = 7) uniform sampler2D uMacroMap;
 uniform int uHasMacroMap;
+layout(binding = 10) uniform sampler2D uTerrainNormals;   // world normals over the macro rect (terrain)
+uniform int uHasTerrainNormals;
 uniform float uGrain;
 uniform float uGrainScale;
 uniform float uMoss;
@@ -474,6 +476,8 @@ void main()
 	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCamPos - vPos);
 	if (!gl_FrontFacing && uNoNormalFlip == 0) N = -N;   // back faces of double-sided materials
+	if (uHasTerrainNormals != 0)   // per-pixel smooth ground normal instead of the interpolated (faceted) vertex normal
+		N = normalize(texture(uTerrainNormals, clamp((vPos.xz - uMacroRect.xy) / uMacroRect.zw, vec2(0.0004), vec2(0.9996))).xyz * 2.0 - 1.0);
 	float trailT = 0.0;
 	if (uTrailDepth > 0.0)
 	{
@@ -1067,6 +1071,7 @@ vec3 Waves(vec2 p, float fade, out vec2 slope)
 
 	inline constexpr const char* WaterVS = R"GLSL(#version 450 core
 layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec3 aNormal;    // rivers: x = opacity (fades out where the river runs into a lake)
 layout(location = 3) in vec4 aTangent;   // rivers: xy = flow direction, z = speed
 uniform mat4 uViewProj;
 uniform vec3 uOrigin;
@@ -1074,6 +1079,7 @@ uniform vec3 uCamPos;
 uniform int uRiver;
 out vec3 vPos;
 out vec2 vFlow;
+out float vBlend;
 )GLSL";
 
 	inline constexpr const char* WaterVSMain = R"GLSL(
@@ -1086,6 +1092,7 @@ void main()
 	world += vec3(w.x, w.y, w.z);
 	vPos = world;
 	vFlow = uRiver != 0 ? aTangent.xy * aTangent.z : vec2(0.0);
+	vBlend = uRiver != 0 ? aNormal.x : 1.0;
 	gl_Position = uViewProj * vec4(world, 1.0);
 }
 )GLSL";
@@ -1093,6 +1100,7 @@ void main()
 	inline constexpr const char* WaterFS = R"GLSL(#version 450 core
 in vec3 vPos;
 in vec2 vFlow;
+in float vBlend;
 out vec4 outColor;
 layout(binding = 1) uniform sampler2D uSceneDepth;
 layout(binding = 2) uniform sampler2D uRipples;
@@ -1206,16 +1214,16 @@ void main()
 	vec2 q = vPos.xz;
 	float t = uTime;
 	float speed = length(vFlow);
-	vec2 detail;
-	if (speed > 0.02)
+	// The two are cross-faded by the current's speed (no seam where a river slows down into the still water of a lake).
+	float flowing = smoothstep(0.0, 0.35, speed);
+	vec2 detail = Detail(q, t) * uChop * fade * (1.0 - flowing);
+	if (flowing > 0.0)
 	{
 		float p0 = fract(t * 0.55), p1 = fract(t * 0.55 + 0.5);
 		float wgt = abs(2.0 * p0 - 1.0);
 		vec2 da = Detail(q - vFlow * p0 * 1.8, 0.0), db = Detail(q - vFlow * p1 * 1.8, 0.0);
-		detail = mix(da, db, wgt) * (1.0 + speed * 0.5) * 2.2 * uChop * fade;
+		detail += mix(da, db, wgt) * (1.0 + speed * 0.5) * 2.2 * uChop * fade * flowing;
 	}
-	else
-		detail = Detail(q, t) * uChop * fade;
 	N = normalize(N + vec3(detail.x, 0.0, detail.y));
 
 	// Ripples from rain, feet and swimmers.
@@ -1313,6 +1321,7 @@ void main()
 	color = mix(color, foamColor, foam);
 	float alpha = smoothstep(0.0, 0.05, thick);   // no hard edge where the water meets the shore
 	alpha = max(alpha, foam * smoothstep(0.0, 0.01, thick));
+	alpha *= vBlend;   // a river dissolves into the lake it flows into
 
 	if (uFogDensity > 0.0)
 	{

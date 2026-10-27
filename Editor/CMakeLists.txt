@@ -16,6 +16,7 @@ add_library(GBEditor STATIC
     src/Commands.cpp
     src/LogBuffer.cpp
     src/ImGuiLayer.cpp
+    src/PlayerMode.cpp
     src/WorldInstance.cpp
     src/SceneEditor.cpp
     src/TestScenarios.cpp

@@ -137,6 +137,7 @@ namespace GB::Editor
 
 	void EditorApp::BuildWorld(const WorldDesc& desc)
 	{
+		m_Player.Stop();   // it points into the old terrain
 		m_WorldDesc = desc;
 		m_Instance.reset();
 		m_Edit.RemoveEnvironment();   // the old trees and rocks go with the old world; what the user added stays
@@ -152,6 +153,7 @@ namespace GB::Editor
 
 	void EditorApp::ResetWorld()
 	{
+		m_Player.Stop();
 		m_Instance.reset();
 		m_Model.reset();
 		m_Props.RemovePrefix("model.");
@@ -441,6 +443,19 @@ namespace GB::Editor
 			if (a.size() >= 6) m_Orbit.Target = { static_cast<float>(std::atof(a[3].c_str())), static_cast<float>(std::atof(a[4].c_str())), static_cast<float>(std::atof(a[5].c_str())) };
 			return { true, "camera placed" };
 		});
+		c.Register("player", "player [fox|cesium|off] [keys]: walk the world in third person (WASD, Shift runs, drag the mouse to look). keys = a script like \"W:2,RW:3,:1\" for headless runs", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!a.empty() && (a[0] == "off" || a[0] == "stop"))
+			{
+				m_Player.Stop();
+				return { true, "player mode off" };
+			}
+			if (a.empty() && m_Player.IsActive()) return { true, m_Player.Describe() };
+			std::string error;
+			if (!m_Player.Start(a.empty() ? "fox" : a[0], m_World, m_Edit, m_AssetRoot, m_Orbit.Target, error)) return { false, error };
+			if (a.size() > 1) m_Player.SetScript(a[1]);
+			return { true, m_Player.Describe() };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
@@ -543,8 +558,17 @@ namespace GB::Editor
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
-		if (m_ViewportHovered && !io.WantTextInput) m_Orbit.Update(dt);
-		m_Orbit.Apply(m_Camera);
+		if (m_Player.IsActive())
+		{
+			m_Player.Update(dt, m_ViewportHovered && !io.WantTextInput);
+			m_Player.ApplyCamera(m_Camera);
+			m_Orbit.Target = m_Player.GetPosition();   // the shadows and the weather follow the player
+		}
+		else
+		{
+			if (m_ViewportHovered && !io.WantTextInput) m_Orbit.Update(dt);
+			m_Orbit.Apply(m_Camera);
+		}
 		ApplyTimeOfDay();
 		m_Weather->Update(dt, m_Camera);
 		m_Weather->Apply(m_Scene);
@@ -570,6 +594,7 @@ namespace GB::Editor
 		m_Entities.Build(m_Edit.World(), m_Scene);
 		if (m_Instance)
 			m_Instance->AddToScene(m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
+		m_Player.AddToScene(m_Scene);
 		m_Renderer->Render(m_Scene, m_Camera, m_ViewportFb.get());
 		m_Scene.PointLights.resize(baseLights);   // the entities' lights are rebuilt every frame
 
@@ -682,6 +707,7 @@ namespace GB::Editor
 		}
 		if (ImGui::BeginMenu("View"))
 		{
+			if (ImGui::MenuItem("Play as fox (WASD)", nullptr, m_Player.IsActive())) Execute(m_Player.IsActive() ? "player off" : "player fox");
 			ImGui::Separator();
 			ImGui::MenuItem("Objects", nullptr, &m_Panels.Objects);
 			ImGui::MenuItem("Tests", nullptr, &m_Panels.Tests);

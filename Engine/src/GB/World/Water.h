@@ -31,10 +31,16 @@ namespace GB
 		explicit WaterSurface(float size = 64.0f, uint32_t subdivisions = 192);
 		// A ribbon of flowing water along a river (see HillParams::RiverPath): the surface follows the water level,
 		// the shader advects the surface detail along the current and adds foam in the rapids.
+		// The ribbon is resampled to RiverStep meters along and RiverColumns across (waves need far more vertices than the carve path has).
+		// A river that ends in a lake (RiverData::MouthLength > 0) is extended a few meters into it, flares open and fades out, so the
+		// two surfaces overlap instead of meeting in a hard edge.
 		explicit WaterSurface(const RiverData& river, float widthScale = 1.5f);
+		static constexpr int RiverColumns = 25;
+		static constexpr float RiverStep = 0.75f;
 
 		bool IsRiver() const { return !m_RiverVertices.empty(); }
 		size_t GetRiverVertexCount() const { return m_RiverVertices.size(); }
+		const std::vector<Vertex>& GetRiverVertices() const { return m_RiverVertices; }   // CPU copy of the ribbon (for tests)
 
 		WaterParams Params;
 		glm::vec3 Position{ 0.0f };

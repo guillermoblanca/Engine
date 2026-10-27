@@ -4,6 +4,7 @@
 #include "SceneEditor.h"
 #include "TestScenarios.h"
 #include "LogBuffer.h"
+#include "PlayerMode.h"
 #include "Properties.h"
 #include "WorldInstance.h"
 #include "GB/Application.h"
@@ -91,6 +92,7 @@ namespace GB::Editor
 		std::unique_ptr<EnvironmentMap> m_EnvMap;
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
+		PlayerMode m_Player;                                     // `player` command / View > Play: walk the world in third person
 		size_t m_StaticObjects = 0;
 		SceneEditor m_Edit;                                      // the entities: environment trees/rocks and whatever the user adds
 		EntityRenderer m_Entities;

@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Renderer/Mesh.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/Image.h"
 #include "GB/Renderer/Texture.h"
 #include <cstdint>
 #include <functional>
@@ -71,6 +72,10 @@ namespace GB
 		float LakeRadius = 0.0f;          // meters of the water edge
 		float LakeDepth = 2.5f;           // meters below WaterLevel at the center
 		float WaterLevel = 1.0f;
+		// Steepest rise of the ground away from the shore (meters per meter, 0 = unlimited). Hills next to the basin are cut down to this
+		// cone, so the lake gets a gentle bank instead of a cliff with a jagged edge.
+		float LakeBankSlope = 0.3f;
+		bool SurfaceMaps = true;          // build the normal and macro color maps (off for a throw-away terrain used only for its heights)
 		// A river carved along these control points (xz, smoothed with a Catmull-Rom spline); it always flows
 		// downhill: the water level only descends along the path. Empty = none.
 		std::vector<glm::vec2> RiverPath;
@@ -112,6 +117,10 @@ namespace GB
 		float GetWaterLevel() const { return m_WaterLevel; }
 		glm::vec2 GetLakeCenter() const { return m_LakeCenter; }
 		float GetLakeRadius() const { return m_LakeRadius; }
+		// Smooth ground normal (Catmull-Rom surface through the heightmap, like the refined shore and the normal map).
+		glm::vec3 GetSmoothNormal(float x, float z) const;
+		float GetSmoothHeight(float x, float z) const { return SmoothHeight(x, z); }
+		const Texture2D* GetNormalMap() const { return m_NormalMap.get(); }   // high-resolution surface normals (null for none)
 		float GetWindAngle() const { return m_WindAngle; }   // radians, dune terrains only
 
 		// A function usable as ParticleEmitterDesc::GroundHeightFn. The Terrain must outlive it.
@@ -132,8 +141,11 @@ namespace GB
 		float SmoothHeight(float x, float z) const;          // Catmull-Rom surface through the heightmap, never beyond the cell's corner heights
 		float FineHeight(int fi, int fj) const;              // height of a vertex of the refined lattice (fi, fj in units of spacing / N)
 		bool IsCellRefined(int ci, int cj) const;
+		void BuildSurfaceMaps(TerrainStyle style, const glm::vec3& sunlit, const glm::vec3& shade, const glm::vec3& crest);
+		void WriteNormalTexels(int x0, int y0, int x1, int y1);   // recomputes the normal map texels in [x0, x1] x [y0, y1] (and uploads them)
 		Vertex MakeFineVertex(int fi, int fj) const;
 
+		bool m_SurfaceMaps = true;
 		int m_ShoreSubdivision = 1, m_ShoreMargin = 2;
 		uint32_t m_FineFirst = 0;                            // index of the first refined vertex (= grid vertex count)
 		std::vector<uint8_t> m_RefinedCells;                 // (n-1)^2 flags
@@ -148,7 +160,9 @@ namespace GB
 		float m_WaterLevel = 0.0f, m_LakeRadius = 0.0f;
 		glm::vec2 m_LakeCenter{ 0.0f };
 		std::unique_ptr<Mesh> m_Mesh;
-		std::unique_ptr<Texture2D> m_Grain, m_Ripples, m_Macro;
+		std::unique_ptr<Texture2D> m_Grain, m_Ripples, m_Macro, m_NormalMap;
+		Image m_NormalImage;                                 // CPU copy of the normal map, for partial updates
+		uint32_t m_NormalRes = 0;
 		Material m_Material;
 		std::vector<glm::vec3> m_Crests;
 	};

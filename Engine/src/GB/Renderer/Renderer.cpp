@@ -417,6 +417,8 @@ namespace
 			pbr.SetFloat("uWindFlutter", m.WindFlutter);
 			pbr.SetInt("uNoNormalFlip", m.FoliageNormals ? 1 : 0);
 			pbr.SetInt("uHasMacroMap", m.MacroMap ? 1 : 0);
+			pbr.SetInt("uHasTerrainNormals", m.SurfaceNormalMap && m.MacroMap ? 1 : 0);
+			if (m.SurfaceNormalMap && m.MacroMap) m.SurfaceNormalMap->Bind(10);
 			pbr.SetFloat("uGrain", m.Grain);
 			pbr.SetFloat("uGrainScale", m.GrainScale);
 			pbr.SetFloat("uMoss", m.Moss);

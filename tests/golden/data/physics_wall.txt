@@ -3,6 +3,6 @@ wall.bricks = 45
 wall.asleep = 45
 wall.drift = 0.021142005920410156
 hit.bricksMoved = 17
-hit.meanHeight = 0.62015202475918663
+hit.meanHeight = 0.62035515838199196
 blast.cratesBroken = 4
 blast.debris = 32

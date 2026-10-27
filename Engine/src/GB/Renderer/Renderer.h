@@ -48,6 +48,9 @@ namespace GB
 		// and multiplied into the albedo. Terrain uses it for slope/altitude coloring.
 		const Texture2D* MacroMap = nullptr;
 		glm::vec4 MacroRect{ 0.0f, 0.0f, 1.0f, 1.0f };
+		// World-space normal map over the same rect (RGB = normal * 0.5 + 0.5): replaces the interpolated vertex normal with a
+		// finer per-pixel one. Needs MacroMap's rect.
+		const Texture2D* SurfaceNormalMap = nullptr;
 
 		// Ground marks (needs Scene::Ground): the surface is pressed down by `TrailDepth` meters where the
 		// interaction map is 1, darkened toward `TrailTint`, and its normal follows the dent's edges.

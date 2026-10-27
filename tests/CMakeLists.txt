@@ -33,6 +33,10 @@ add_executable(GBCameraTests camera_test.cpp)
 target_link_libraries(GBCameraTests PRIVATE GB::GB)
 add_test(NAME camera COMMAND GBCameraTests)
 
+add_executable(GBCharacterTests character_test.cpp)
+target_link_libraries(GBCharacterTests PRIVATE GB::GB)
+add_test(NAME character COMMAND GBCharacterTests)
+
 add_executable(GBParticleTests particles_test.cpp)
 target_link_libraries(GBParticleTests PRIVATE GB::GB)
 add_test(NAME particles COMMAND GBParticleTests)
