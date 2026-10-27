@@ -113,6 +113,8 @@ namespace GB
 		// model, matching bones by node name. Returns how many clips were added. Bones the file animates that this
 		// model does not have are skipped; `report` (optional) says how many.
 		int AppendAnimations(const std::string& path, std::string* report = nullptr);
+		// Adds (or, with the same name, replaces) a clip made in code, such as a retargeted one. Its channels refer to this model's nodes.
+		int AddClip(AnimationClip clip);
 
 		struct Primitive
 		{
