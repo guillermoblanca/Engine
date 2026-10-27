@@ -199,6 +199,7 @@ namespace GB
 		items.Add({ "berry",     "Berry",       "food",     0.1f, 20, { "Item.Food" },           "Eat", "" });
 		items.Add({ "stone_axe",     "Stone axe",     "tool", 2.5f, 1, { "Item.Tool.Axe" },     "Chop", "RightHand" });
 		items.Add({ "stone_pickaxe", "Stone pickaxe", "tool", 3.0f, 1, { "Item.Tool.Pickaxe" }, "Mine", "RightHand" });
+		items.Add({ "water",     "Water",       "food",     1.0f,  5, { "Item.Food.Water" },     "Drink", "" });
 		items.Add({ "campfire",  "Campfire kit", "structure", 6.0f, 1, { "Item.Structure.Fire" }, "Place", "" });
 
 		recipes.Add({ "stone_axe",     "workbench", "",                  { { "wood", 2 }, { "stone", 2 }, { "fiber", 3 } }, "stone_axe",     1, "Craft" });

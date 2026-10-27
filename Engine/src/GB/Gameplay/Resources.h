@@ -37,7 +37,7 @@ namespace GB
 		void Bind(GameplayWorld& gameplay, const std::map<std::string, ResourceNodeDef>& nodes, Yield onYield);
 		// Marks nodes as depleted or not and shows each as its state says (what is gathered from it disappears). Only writes changes.
 		void SyncVisuals(GameplayWorld& gameplay, EntityWorld& entities) const;
-		// Gives an ability system the tool tags ("Item.Tool.Axe") of what an inventory holds, and takes away those that left it.
+		// Gives an ability system the item tags ("Item.Tool.Axe", "Item.Resource.Wood") of what an inventory holds, and takes away those that left it.
 		static void SyncTools(AbilitySystemComponent& who, const Inventory& bag, const ItemLibrary& items);
 		static int Amount(const AbilitySystemComponent& node);
 	private:

@@ -182,7 +182,7 @@ namespace GB
 			const ItemDef* def = items.Find(id);
 			for (const std::string& tag : def->Tags)
 			{
-				if (tag.rfind("Item.Tool", 0) != 0) continue;
+				if (tag.rfind("Item.", 0) != 0) continue;   // tools and materials: what a bag holds is what an ability may ask for
 				const bool has = bag.Count(id) > 0;
 				if (has && !who.Tags().HasExact(tag)) who.Tags().Add(tag);
 				if (!has && who.Tags().HasExact(tag)) who.Tags().RemoveAll(tag);

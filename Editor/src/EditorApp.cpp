@@ -125,6 +125,7 @@ namespace GB::Editor
 		RegisterGardenContent(m_Gameplay.Library);
 		RegisterEraOneItems(m_Items, m_Recipes, m_NodeDefs);
 		RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
+		RegisterInteractiveContent(m_Gameplay.Library);
 		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
 		m_Player.Attach(&m_Actors);
 		m_Actors.Bind(&m_SceneEditor.World(), &m_Gameplay);
@@ -801,6 +802,7 @@ namespace GB::Editor
 			m_TimeScale = std::max(1, std::min(20, std::atoi(a[0].c_str())));
 			return { true, "timescale " + std::to_string(m_TimeScale) };
 		});
+		c.Register("interactives", "interactives build [x z] | status: puts a campfire (Stoke with wood), a well (DrawWater) and a gate (OpenDoor, CloseDoor) in the scene; their state is saved with the game", [this](const std::vector<std::string>& a) { return InteractivesCommand(a); });
 		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });

@@ -112,6 +112,25 @@ int main()
 		Check(f.Amount("rock 1") == 0, "a rock never regrows");
 	}
 
+	// A forest that regrows (H3): every tree felled, then ten minutes of accelerated simulation; the amounts never leave their bounds.
+	{
+		Field f;
+		f.Bag.Add(f.Items, "stone_axe", 1);
+		f.Frames(2);
+		for (const char* tree : { "tree 1", "tree 2", "tree 3" })
+			for (int i = 0; i < 5; ++i) { Check(f.Do("Chop", tree), "fell a tree"); f.Frames(30); }
+		Check(f.Bag.Count("wood") == 15 && f.Amount("tree 3") <= 1, "the three trees are felled (a regrown piece at most: 30 s have passed)");
+		bool inBounds = true;
+		for (int minute = 0; minute < 10; ++minute)
+		{
+			f.Frames(60 * 60);
+			for (const char* tree : { "tree 1", "tree 2", "tree 3" }) inBounds = inBounds && f.Amount(tree) >= 0 && f.Amount(tree) <= 5;
+		}
+		Check(inBounds, "amounts stay between zero and capacity");
+		Check(f.Amount("tree 1") == 5 && f.Amount("tree 2") == 5 && f.Amount("tree 3") == 5, "ten minutes regrow every tree (1 wood per 30 s)");
+		Check(!f.Gameplay.Find("tree 2")->HasTag("State.Depleted"), "regrown trees are no longer depleted");
+	}
+
 	// The whole loop, twice.
 	{
 		bool ok1 = true, ok2 = true;
