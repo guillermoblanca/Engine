@@ -18,6 +18,39 @@ namespace
 	const float kDt = 1.0f / 60.0f;
 }
 
+
+namespace
+{
+	// A graph target that records what the graph asks of it: no model, no animation.
+	class FakeTarget final : public GB::IGraphTarget
+	{
+	public:
+		std::vector<std::string> SetNames() const override { return { "default", "box" }; }
+		bool HasSet(const std::string& n) const override { return n == "default" || n == "box"; }
+		std::string DefaultSetName() const override { return "default"; }
+		bool SetOverlay(const std::string& set, float) override { Sets.push_back(set); return true; }
+		bool HasMontage(const std::string& n) const override { return n == "wave"; }
+		bool PlayMontage(const std::string& n) override { Played = n; Playing = true; return true; }
+		bool MontagePlaying(const std::string& n) const override { return Playing && n == Played; }
+		std::vector<std::string> Sets;
+		std::string Played;
+		bool Playing = false;
+	};
+
+	// A layer of the game's own: it takes the root bone's translation to a fixed place while it is active.
+	class MarkerLayer final : public GB::IAnimLayer
+	{
+	public:
+		explicit MarkerLayer(int* updates) : m_Updates(updates) {}
+		void Update(const GB::MotionState&, float, const std::string&) override { ++*m_Updates; }
+		bool Active() const override { return true; }
+		void Apply(GB::Pose& pose) override { pose[0].T = glm::vec3(7.0f, 8.0f, 9.0f); }
+		float LegsWeight() const override { return 0.0f; }
+	private:
+		int* m_Updates;
+	};
+}
+
 int main()
 {
 	using namespace GB;
@@ -192,6 +225,46 @@ int main()
 		anim->Graph().Enabled = true;
 		run(*anim, still, 0.2f);
 		Check(anim->Graph().Current() == "act", "and picks up where the parameters are when it is turned on");
+	}
+
+
+	// ---- the graph drives anything that offers sets and montages (IGraphTarget), and the instance runs the layers it is given (IAnimLayer)
+	{
+		FakeTarget fake;
+		AnimGraph g = MakeDefaultGraph(fake);
+		Check(g.States.size() == 2 && g.States[0].Name == "free" && g.Validate(&fake).empty(), "a default graph is made from any target's sets");
+		GraphState wave;
+		wave.Name = "wave";
+		wave.What = GraphState::Kind::Montage;
+		wave.Target = "wave";
+		g.States.push_back(wave);
+		GraphTransition t;
+		t.From = "*";
+		t.To = "wave";
+		t.Conditions.push_back({ "Wave", GraphCondition::Op::Equal, 1.0f });
+		g.Transitions.push_back(t);
+		g.Params.push_back({ "Wave", GraphParam::Kind::Trigger, 0.0f });
+		GraphRunner runner;
+		runner.SetGraph(g);
+		MotionState idle;
+		runner.Update(idle, 0.1f, fake);
+		Check(!fake.Sets.empty() && fake.Sets.back() == "default", "it starts in the default set of the target");
+		runner.Trigger("Wave");
+		runner.Update(idle, 0.1f, fake);
+		Check(fake.Played == "wave" && runner.Current() == "wave", "a trigger plays the montage on the target");
+	}
+	{
+		ModelInstance inst(*model);
+		auto anim = std::make_unique<AnimInstance>(*model, inst);
+		anim->Default().AddClip("test_humanoid");
+		int updates = 0;
+		anim->AddLayer(std::make_unique<MarkerLayer>(&updates));
+		MotionState still;
+		anim->Update(still, 1.0f / 60.0f, glm::mat4(1.0f));
+		anim->Update(still, 1.0f / 60.0f, glm::mat4(1.0f));
+		Check(updates == 2, "a layer the game added is updated every frame");
+		const glm::vec3 root = glm::vec3(inst.GetNodeWorld(0)[3]);
+		Check(std::fabs(root.x - 7.0f) < 1e-3f && std::fabs(root.y - 8.0f) < 1e-3f, "and it changes the pose while it is active");
 	}
 
 	if (failures) return 1;
