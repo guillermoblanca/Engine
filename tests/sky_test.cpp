@@ -5,6 +5,7 @@
 #include "GB/Window.h"
 #include <cmath>
 #include <cstdio>
+#include <vector>
 
 namespace
 {
@@ -99,6 +100,68 @@ int main()
 	cloudy.Env = noon.Env; cloudy.Sun = noon.Sun;
 	cloudy.Env.CloudCover = 0.9f;
 	Check(sum(cloudy) != dayLum, "clouds change the sky");
+
+	// HDRI environment: the background and the ambient light come from the map, and it can be rotated.
+	{
+		const uint32_t W = 64, H = 32;
+		std::vector<float> px(static_cast<size_t>(W) * H * 3);
+		for (uint32_t y = 0; y < H; ++y)
+			for (uint32_t x = 0; x < W; ++x)
+			{
+				const bool red = x >= W / 4 && x < 3 * W / 4;   // the half around +x (u 0.25..0.75)
+				float* p = &px[(static_cast<size_t>(y) * W + x) * 3];
+				p[0] = red ? 2.0f : 0.02f; p[1] = 0.05f; p[2] = red ? 0.02f : 2.0f;
+			}
+		auto map = GB::EnvironmentMap::FromPixels(W, H, px);
+		Check(map && map->IsValid() && map->GetMipCount() == 7, "an environment map is created from float pixels");
+		Check(!GB::EnvironmentMap::Load("/nonexistent/file.hdr"), "a missing HDRI returns null");
+		auto sunset = GB::EnvironmentMap::Load(std::string(GB_ASSET_DIR) + "/hdri/sunset_sky.hdr");
+		Check(sunset && sunset->GetWidth() == 512 && sunset->GetHeight() == 256, "the sample HDRI loads (512x256)");
+		GB::Scene sc;
+		sc.Sun.CastShadows = false;
+		sc.Sun.Intensity = 0.0f;
+		sc.Env.EnvMap = map.get();
+		sc.Env.BloomIntensity = 0.0f;
+		auto look = [&](glm::vec3 dir)
+		{
+			GB::Camera c;
+			c.Position = { 0.0f, 0.0f, 0.0f };
+			c.Target = dir;
+			GB::Framebuffer t(32, 18);
+			renderer.Render(sc, c, &t);
+			const auto v = t.ReadPixels();
+			const uint8_t* q = &v[(static_cast<size_t>(9) * 32 + 16) * 4];
+			return glm::ivec3(q[0], q[1], q[2]);
+		};
+		const glm::ivec3 east = look({ 1, 0, 0 }), west = look({ -1, 0, 0 });
+		std::fprintf(stderr, "info: HDRI east %d %d %d, west %d %d %d\n", east.x, east.y, east.z, west.x, west.y, west.z);
+		Check(east.x > east.z * 3 && west.z > west.x * 3, "the sky background shows the HDRI (red east, blue west)");
+		map->Rotation = 3.14159265f;
+		const glm::ivec3 turned = look({ 1, 0, 0 });
+		Check(turned.z > turned.x * 3, "rotating the HDRI turns the sky");
+		map->Rotation = 0.0f;
+		// A sphere is lit by the map: the side facing the red half is redder than the other.
+		GB::Mesh ball = GB::Mesh::CreateSphere(1.0f, 32, 16);
+		GB::RenderObject o;
+		o.MeshPtr = &ball;
+		o.Mat.Albedo = glm::vec3(0.8f);
+		o.Mat.Roughness = 0.9f;
+		sc.Objects.push_back(o);
+		auto ballAt = [&](glm::vec3 camPos)
+		{
+			GB::Camera c;
+			c.Position = camPos;
+			c.Target = { 0, 0, 0 };
+			GB::Framebuffer t(32, 18);
+			renderer.Render(sc, c, &t);
+			const auto v = t.ReadPixels();
+			const uint8_t* q = &v[(static_cast<size_t>(9) * 32 + 16) * 4];
+			return glm::ivec3(q[0], q[1], q[2]);
+		};
+		const glm::ivec3 fromEast = ballAt({ 4, 0, 0 }), fromWest = ballAt({ -4, 0, 0 });
+		std::fprintf(stderr, "info: ball from east %d %d %d, from west %d %d %d\n", fromEast.x, fromEast.y, fromEast.z, fromWest.x, fromWest.y, fromWest.z);
+		Check(fromEast.x > fromEast.z && fromWest.z > fromWest.x, "the HDRI lights objects from its bright side");
+	}
 
 	// Point lights with a radius fade to nothing at it.
 	{

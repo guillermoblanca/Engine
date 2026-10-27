@@ -161,23 +161,40 @@ uniform float uFogHeight;
 uniform float uWetness;
 uniform float uSnowCover;
 
+layout(binding = 9) uniform sampler2D uEnvMap;
+uniform int uHasEnvMap;
+uniform float uEnvMaxLod;
+uniform float uEnvRotation;
+uniform float uEnvExposure;
+
+vec2 EnvUV(vec3 d)
+{
+	return vec2(atan(d.z, d.x) / 6.2831853 + 0.5 + uEnvRotation, acos(clamp(d.y, -1.0, 1.0)) / 3.1415927);
+}
+
 vec3 SkyColor(vec3 d)
 {
+	if (uHasEnvMap != 0)
+		return textureLod(uEnvMap, EnvUV(d), 0.0).rgb * uEnvExposure;
 	float t = clamp(d.y, -1.0, 1.0);
 	vec3 up = mix(uSkyHorizon, uSkyTop, pow(max(t, 0.0), 0.45));
 	vec3 down = mix(uSkyHorizon, uSkyGround, pow(max(-t, 0.0), 0.35));
 	return t >= 0.0 ? up : down;
 }
 
-// Cheap prefiltered reflection: rough surfaces see a blurred, averaged sky.
+// Cheap prefiltered reflection: rough surfaces see a blurred, averaged sky (a blurrier mip of the HDRI).
 vec3 SkyPrefiltered(vec3 d, float roughness)
 {
+	if (uHasEnvMap != 0)
+		return min(textureLod(uEnvMap, EnvUV(d), roughness * (0.35 + 0.65 * roughness) * uEnvMaxLod * 0.8).rgb, vec3(64.0)) * uEnvExposure;
 	vec3 avg = (uSkyTop + uSkyHorizon * 2.0 + uSkyGround) * 0.25;
 	return mix(SkyColor(d), avg, roughness * roughness);
 }
 
 vec3 SkyIrradiance(vec3 n)
 {
+	if (uHasEnvMap != 0)
+		return min(textureLod(uEnvMap, EnvUV(n), max(uEnvMaxLod - 3.0, 0.0)).rgb, vec3(8.0)) * uEnvExposure;
 	float h = smoothstep(-0.6, 0.6, n.y);
 	vec3 skyHemisphere = mix(uSkyHorizon, uSkyTop, smoothstep(0.0, 1.0, n.y) * 0.8);
 	return mix(uSkyGround, skyHemisphere, h);
@@ -794,6 +811,12 @@ uniform float uFoam;
 uniform float uFoamWidth;
 uniform float uRippleStrength;
 uniform vec4 uRippleRect;     // window center x, z, size, texel size (size 0 = off)
+uniform mat4 uViewProj;
+uniform int uPointCount;
+uniform vec3 uPointPos[32];
+uniform vec3 uPointColor[32];
+uniform float uPointRadius[32];
+uniform float uSSR;           // 0 = sky only, 1 = screen-space reflections
 uniform float uOriginY;
 uniform vec3 uOriginXZ;     // water center
 uniform float uMask;          // > 0: discard beyond this radius
@@ -805,6 +828,45 @@ float LinearDepth(float d)
 	if (uOrtho != 0) return uNearFar.x + d * (uNearFar.y - uNearFar.x);
 	float z = d * 2.0 - 1.0;
 	return 2.0 * uNearFar.x * uNearFar.y / (uNearFar.y + uNearFar.x - z * (uNearFar.y - uNearFar.x));
+}
+
+// Screen-space reflection: march the reflected ray through the depth buffer. Returns rgb + confidence.
+vec4 TraceReflection(vec3 origin, vec3 dir, float jitter)
+{
+	float stepLen = 0.35 + 0.002 * length(origin - uCamPos);
+	vec3 p = origin + dir * stepLen * jitter;
+	for (int i = 0; i < 40; ++i)
+	{
+		p += dir * stepLen;
+		stepLen *= 1.12;
+		vec4 clip = uViewProj * vec4(p, 1.0);
+		if (clip.w <= 0.0) break;
+		vec3 ndc = clip.xyz / clip.w;
+		vec2 uv = ndc.xy * 0.5 + 0.5;
+		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
+		float sceneZ = LinearDepth(texture(uSceneDepth, uv).r);
+		float rayZ = LinearDepth(ndc.z * 0.5 + 0.5);
+		float diff = rayZ - sceneZ;
+		if (diff > 0.0 && diff < stepLen * 2.5 + 0.3)
+		{
+			// refine between the last two samples
+			vec3 a = p - dir * stepLen / 1.12, b = p;
+			for (int k = 0; k < 5; ++k)
+			{
+				vec3 m = (a + b) * 0.5;
+				vec4 cm = uViewProj * vec4(m, 1.0);
+				vec2 uvm = cm.xy / cm.w * 0.5 + 0.5;
+				float z = LinearDepth(texture(uSceneDepth, uvm).r);
+				if (LinearDepth(cm.z / cm.w * 0.5 + 0.5) > z) b = m; else a = m;
+			}
+			vec4 ch = uViewProj * vec4(b, 1.0);
+			vec2 uvh = ch.xy / ch.w * 0.5 + 0.5;
+			if (LinearDepth(texture(uSceneDepth, uvh).r) > uNearFar.y * 0.95) return vec4(0.0);   // that is the sky: use the environment instead
+			float edge = smoothstep(0.0, 0.08, min(min(uvh.x, 1.0 - uvh.x), min(uvh.y, 1.0 - uvh.y)));
+			return vec4(texture(uSceneColor, uvh).rgb, edge * (1.0 - float(i) / 40.0));
+		}
+	}
+	return vec4(0.0);
 }
 
 float Hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
@@ -886,11 +948,28 @@ void main()
 	vec3 R = reflect(-V, N);
 	R.y = abs(R.y);
 	vec3 refl = SkyPrefiltered(R, uRoughness * 3.0) * uEnvIntensity;
+	if (uSSR > 0.0)
+	{
+		vec4 hit = TraceReflection(vPos + N * 0.02, R, Hash(gl_FragCoord.xy));
+		refl = mix(refl, hit.rgb, hit.a * uSSR);
+	}
 	vec3 H = normalize(L + V);
 	float a2 = max(uRoughness * uRoughness, 1e-3);
 	float nh = max(dot(N, H), 0.0);
 	float spec = min(pow(nh, 2.0 / a2 - 1.0) * (2.0 / a2) * 0.05, 60.0);
 	vec3 glint = uSunColor * spec * step(0.0, L.y) * F;
+	// Lamps and torches glitter on the surface too.
+	for (int i = 0; i < uPointCount; ++i)
+	{
+		vec3 toLight = uPointPos[i] - vPos;
+		float d2 = dot(toLight, toLight);
+		vec3 Lp = toLight * inversesqrt(d2);
+		float w = 1.0;
+		if (uPointRadius[i] > 0.0) { float r = d2 / (uPointRadius[i] * uPointRadius[i]); w = clamp(1.0 - r * r, 0.0, 1.0); w *= w; }
+		float nhp = max(dot(N, normalize(Lp + V)), 0.0);
+		float sp = min(pow(nhp, 2.0 / a2 - 1.0) * (2.0 / a2) * 0.05, 40.0);
+		glint += uPointColor[i] * (sp * w / (d2 + 0.01)) * F * step(0.0, Lp.y);
+	}
 
 	// Foam at the shore, on crests and where ripples are strong.
 	float foam = 0.0;

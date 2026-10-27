@@ -7,6 +7,7 @@
 #include "GB/World/WaterRipples.h"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace
@@ -133,6 +134,47 @@ int main()
 		const glm::ivec3 shallow = center(scene);
 		std::fprintf(stderr, "info: 0.3 m of water %d %d %d\n", shallow.x, shallow.y, shallow.z);
 		Check(shallow.x > wet.x + 15, "shallow water shows the bottom (warmer than deep water)");
+
+		// Screen-space reflections: a red block standing on the shore is mirrored in the water.
+		{
+			GB::WaterSurface calm(40.0f, 64);
+			calm.Params.WaveHeight = 0.0f;
+			calm.Params.Choppiness = 0.0f;
+			calm.Params.Foam = 0.0f;
+			GB::Mesh blockMesh = GB::Mesh::CreateCube(1.0f);
+			GB::Scene sc2;
+			sc2.Sun.CastShadows = false;
+			GB::RenderObject ground = scene.Objects[0];
+			ground.Transform = glm::translate(glm::mat4(1.0f), { 0.0f, -3.0f, 0.0f });
+			sc2.Objects.push_back(ground);
+			GB::RenderObject block;
+			block.MeshPtr = &blockMesh;
+			block.Mat.Albedo = { 0.9f, 0.05f, 0.05f };
+			block.Mat.Emissive = { 4.0f, 0.0f, 0.0f };
+			block.Transform = glm::scale(glm::translate(glm::mat4(1.0f), { 0.0f, 1.5f, -7.0f }), { 3.0f, 3.0f, 3.0f });
+			sc2.Objects.push_back(block);
+			sc2.Water.push_back(&calm);
+			GB::Camera low;
+			low.Position = { 0.0f, 2.5f, 8.0f };
+			low.Target = { 0.0f, 0.0f, -4.0f };
+			auto redAtMirror = [&]()
+			{
+				GB::Framebuffer t(160, 90);
+				renderer.Render(sc2, low, &t);
+				if (std::getenv("GB_TEST_DUMP")) t.SavePNG(sc2.ScreenSpaceReflections ? "/tmp/ssr_on.png" : "/tmp/ssr_off.png");
+				const auto v = t.ReadPixels();
+				const glm::vec4 clip = low.GetProjection(160.0f / 90.0f) * low.GetView() * glm::vec4(0.0f, -0.4f, -7.0f, 1.0f);   // the image of the block just below its base
+				const int x = static_cast<int>((clip.x / clip.w * 0.5f + 0.5f) * 160.0f), y = static_cast<int>((1.0f - (clip.y / clip.w * 0.5f + 0.5f)) * 90.0f);
+				const uint8_t* p = &v[(static_cast<size_t>(y) * 160 + x) * 4];
+				return glm::ivec3(p[0], p[1], p[2]);
+			};
+			sc2.ScreenSpaceReflections = true;
+			const glm::ivec3 withSSR = redAtMirror();
+			sc2.ScreenSpaceReflections = false;
+			const glm::ivec3 without = redAtMirror();
+			std::fprintf(stderr, "info: mirror of the block: SSR %d %d %d, sky only %d %d %d\n", withSSR.x, withSSR.y, withSSR.z, without.x, without.y, without.z);
+			Check((withSSR.x - withSSR.y) > (without.x - without.y) + 15, "screen-space reflections show the red block in the water");
+		}
 
 		// Ripples and the radius mask render without breaking anything.
 		GB::WaterRipples ripples;

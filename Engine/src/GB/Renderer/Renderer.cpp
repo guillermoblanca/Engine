@@ -269,6 +269,7 @@ namespace GB
 			s.SetFloat("uFogHeight", env.FogHeightFalloff);
 			s.SetFloat("uWetness", env.Wetness);
 			s.SetFloat("uSnowCover", env.SnowCover);
+			BindEnvironment(s, env);
 		};
 
 		// Background sky
@@ -433,6 +434,7 @@ namespace GB
 		g.SetVec3("uWind", env.Wind);
 		g.SetFloat("uSnowCover", env.SnowCover);
 		g.SetFloat("uWetness", env.Wetness);
+		BindEnvironment(g, env);
 		g.SetVec3("uSkyTop", env.SkyTop);
 		g.SetVec3("uSkyHorizon", env.SkyHorizon);
 		g.SetVec3("uSkyGround", env.SkyGround);
@@ -484,6 +486,18 @@ namespace GB
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 	}
 
+	void Renderer::BindEnvironment(Shader& shader, const Environment& env) const
+	{
+		const bool has = env.EnvMap && env.EnvMap->IsValid();
+		shader.SetInt("uHasEnvMap", has ? 1 : 0);
+		if (!has)
+			return;
+		shader.SetFloat("uEnvMaxLod", static_cast<float>(env.EnvMap->GetMipCount() - 1));
+		shader.SetFloat("uEnvRotation", env.EnvMap->Rotation / 6.2831853f);
+		shader.SetFloat("uEnvExposure", env.EnvMap->Exposure);
+		glBindTextureUnit(9, env.EnvMap->GetID());
+	}
+
 	void Renderer::WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj)
 	{
 		if (scene.Water.empty())
@@ -496,8 +510,29 @@ namespace GB
 
 		Shader& w = *m_WaterShader;
 		w.Bind();
+		const bool ssr = scene.ScreenSpaceReflections;
 		w.SetMat4("uViewProj", viewProj);
 		w.SetVec3("uCamPos", camera.Position);
+		w.SetMat4("uViewProj", viewProj);
+		w.SetFloat("uSSR", ssr ? 1.0f : 0.0f);
+		{
+			const int pointCount = static_cast<int>(std::min<size_t>(scene.PointLights.size(), MaxPointLights));
+			glm::vec3 positions[MaxPointLights] = {}, colors[MaxPointLights] = {};
+			float radii[MaxPointLights] = {};
+			for (int i = 0; i < pointCount; ++i)
+			{
+				positions[i] = scene.PointLights[i].Position;
+				colors[i] = scene.PointLights[i].Color * scene.PointLights[i].Intensity;
+				radii[i] = scene.PointLights[i].Radius;
+			}
+			w.SetInt("uPointCount", pointCount);
+			if (pointCount > 0)
+			{
+				w.SetVec3Array("uPointPos", positions, pointCount);
+				w.SetVec3Array("uPointColor", colors, pointCount);
+				w.SetFloatArray("uPointRadius", radii, pointCount);
+			}
+		}
 		w.SetFloat("uTime", env.Time);
 		w.SetVec3("uSkyTop", env.SkyTop);
 		w.SetVec3("uSkyHorizon", env.SkyHorizon);
@@ -510,6 +545,7 @@ namespace GB
 		w.SetFloat("uFogHeight", env.FogHeightFalloff);
 		w.SetFloat("uSnowCover", env.SnowCover);
 		w.SetFloat("uWetness", env.Wetness);
+		BindEnvironment(w, env);
 		w.SetVec2("uNearFar", { camera.NearPlane, camera.FarPlane });
 		w.SetInt("uOrtho", camera.Orthographic ? 1 : 0);
 		glBindTextureUnit(1, m_SceneDepth->GetDepthTexture());
