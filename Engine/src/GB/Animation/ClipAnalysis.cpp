@@ -119,17 +119,17 @@ namespace GB
 				s.CycleLength = std::hypot(s.RootDelta.x, s.RootDelta.z) / static_cast<float>(s.LeftPlants.size());
 				s.StepsPerSecond = static_cast<float>(s.LeftPlants.size() + s.RightPlants.size()) / c.Duration;
 			}
-			int first = -1, last = -1;
+			int airFirst = -1, airLast = -1;
 			for (int i = 0; i < n; ++i)
 				if (leftFoot[static_cast<size_t>(i)].y > ground + config.AirHeight && rightFoot[static_cast<size_t>(i)].y > ground + config.AirHeight)
 				{
-					if (first < 0) first = i;
-					last = i;
+					if (airFirst < 0) airFirst = i;
+					airLast = i;
 				}
-			if (first >= 0)
+			if (airFirst >= 0)
 			{
-				s.AirStart = static_cast<float>(first) / static_cast<float>(n - 1);
-				s.AirEnd = static_cast<float>(last) / static_cast<float>(n - 1);
+				s.AirStart = static_cast<float>(airFirst) / static_cast<float>(n - 1);
+				s.AirEnd = static_cast<float>(airLast) / static_cast<float>(n - 1);
 			}
 		}
 		s.Valid = true;
