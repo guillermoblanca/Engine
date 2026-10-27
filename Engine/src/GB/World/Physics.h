@@ -136,6 +136,10 @@ namespace GB
 
 		RayHit Raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance) const;
 		float GroundHeight(float x, float z) const { return m_GroundHeight ? m_GroundHeight(x, z) : 0.0f; }
+		glm::vec3 GroundNormalAt(float x, float z) const { return m_GroundNormal ? m_GroundNormal(x, z) : glm::vec3(0, 1, 0); }
+		// Water surface height at (x, z), or a very low value where there is none.
+		float WaterHeightAt(float x, float z) const { return m_Water ? m_Water(x, z) : -1e9f; }
+		const std::vector<StaticCollider>& GetStatics() const { return m_Statics; }
 
 		struct ExplosionHit { int Body = -1; float Falloff = 0.0f; float Impulse = 0.0f; };
 		// A blast: pushes every body within `radius` away from `center` (with an upward bias), quadratically weaker with
