@@ -81,6 +81,7 @@ namespace GB
 
 	void AnimInstance::Update(const MotionState& state, float dt, const glm::mat4& characterToWorld)
 	{
+		m_GraphRunner.Update(state, dt, *this);   // the state graph picks the set or montage before the animation reads it
 		LocomotionBlender& active = Active();
 		active.SetVelocity(state.LocalVelocity);
 		active.Update(dt);

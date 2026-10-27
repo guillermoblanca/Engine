@@ -20,7 +20,17 @@ namespace GB
 			if (notifies.empty()) continue;
 			for (const std::string& montage : ability.Montages)
 				for (MontageDesc& d : base)
-					if (d.Name == montage) d.Notifies = notifies;
+				{
+					if (d.Name != montage) continue;
+					// the montage owns its notifies (the Timeline panel edits them, the JSON files keep them): the times of the ability's events are
+					// only the default for a notify the montage does not have yet, never an overwrite of one it already has
+					for (const MontageNotify& n : notifies)
+					{
+						bool has = false;
+						for (const MontageNotify& own : d.Notifies) has = has || own.Name == n.Name;
+						if (!has) d.Notifies.push_back(n);
+					}
+				}
 		}
 		return base;
 	}

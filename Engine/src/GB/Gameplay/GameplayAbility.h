@@ -68,7 +68,8 @@ namespace GB
 		std::map<std::string, AbilityDef> m_Abilities;
 	};
 
-	// The montages `base` (usually MixamoMontages()) with the notifies the abilities of the library raise: every montage an ability plays gets
-	// the notify times of its events. Montages no ability uses are kept as they are.
+	// The montages `base` (usually the ones of the animation manifest, or MixamoMontages()) with the notifies the abilities of the library raise:
+	// a montage an ability plays gets the notify of each of its events that it does not have yet, at the event's time. A notify the montage already
+	// has (edited in the Timeline panel, or loaded from its JSON) keeps its own time. Montages no ability uses are kept as they are.
 	std::vector<MontageDesc> AbilityMontages(const GameplayLibrary& library, std::vector<MontageDesc> base);
 }

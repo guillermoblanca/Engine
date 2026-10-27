@@ -475,6 +475,41 @@ int main()
 		}
 		Check(player.A.Anim.Montages().Has("dig_plant") && npc.A.Anim.Montages().Has("pick_fruit_3"), "the test characters have the garden's montages");
 
+		// the montage owns its notifies: an ability only adds the ones the montage lacks, it never moves one the montage already has
+		{
+			std::vector<MontageDesc> base;
+			for (const char* m : { "dig_plant", "plant", "water", "pick_fruit", "pick_fruit_2", "pick_fruit_3", "milk_cow", "pull_plant", "pull_plant_2", "plant_tree", "wheelbarrow_dump" })
+			{
+				MontageDesc d;
+				d.Name = m;
+				d.Clip = "test_humanoid";
+				base.push_back(d);
+			}
+			std::vector<MontageDesc> edited = base;
+			const AbilityDef* dig = g.Gameplay.Library.Ability("Dig");
+			Check(dig && !dig->Montages.empty() && !dig->Events.empty() && !dig->Events[0].Notify.empty(), "Dig has a montage and a notify event");
+			if (dig && !dig->Montages.empty() && !dig->Events.empty() && !dig->Events[0].Notify.empty())
+			{
+				const std::string notify = dig->Events[0].Notify;
+				for (MontageDesc& d : edited)
+					if (d.Name == dig->Montages[0]) { d.Notifies.clear(); d.Notifies.push_back({ 0.9f, notify }); }
+				const std::vector<MontageDesc> merged = AbilityMontages(g.Gameplay.Library, edited);
+				int count = 0;
+				float time = 0.0f;
+				for (const MontageDesc& d : merged)
+					if (d.Name == dig->Montages[0])
+						for (const MontageNotify& n : d.Notifies)
+							if (n.Name == notify) { ++count; time = n.Time; }
+				Check(count == 1 && time > 0.89f && time < 0.91f, "a notify the montage already has keeps the time it was edited to");
+				const std::vector<MontageDesc> fresh = AbilityMontages(g.Gameplay.Library, base);
+				bool added = false;
+				for (const MontageDesc& d : fresh)
+					if (d.Name == dig->Montages[0])
+						for (const MontageNotify& n : d.Notifies) added = added || n.Name == notify;
+				Check(added, "and one it lacks is added at the ability's time");
+			}
+		}
+
 		AbilitySystemComponent* pa = g.Gameplay.Find("Gardener");
 		AbilitySystemComponent* na = g.Gameplay.Find("Farmhand");
 		std::vector<Task> list;
