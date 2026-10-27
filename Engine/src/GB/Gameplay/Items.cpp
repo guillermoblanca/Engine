@@ -2,6 +2,7 @@
 #include "GB/Gameplay/GameplayTag.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 #include <fstream>
 #include <sstream>
 #include <nlohmann/json.hpp>
@@ -23,6 +24,60 @@ namespace GB
 		return out;
 	}
 
+	namespace
+	{
+		// Does the item carry `tag` or a descendant of it?
+		bool Carries(const ItemDef& def, const std::string& tag)
+		{
+			for (const std::string& t : def.Tags)
+				if (GameplayTag::TagMatches(tag, t)) return true;
+			return false;
+		}
+	}
+
+	std::string ToolFamily(const std::string& tag)
+	{
+		size_t end = 0;
+		for (int dots = 0; end < tag.size(); ++end)
+			if (tag[end] == '.' && ++dots == 3) break;
+		return tag.substr(0, end);
+	}
+
+	const ItemDef* Inventory::BestContainer(const ItemLibrary& lib) const
+	{
+		const ItemDef* best = nullptr;
+		for (const ItemSlot& s : m_Stacks)
+		{
+			const ItemDef* def = lib.Find(s.Id);
+			if (!def || s.Count < 1 || !Carries(*def, "Item.Container")) continue;
+			const bool better = !best || def->BagSlots > best->BagSlots || (def->BagSlots == best->BagSlots && (def->BagWeight > best->BagWeight
+				|| (def->BagWeight == best->BagWeight && def->Id < best->Id)));
+			if (better) best = def;
+		}
+		return best;
+	}
+
+	void Inventory::SyncCapacity(const ItemLibrary& lib)
+	{
+		const ItemDef* c = BestContainer(lib);
+		SetBonus(c ? c->BagSlots : 0, c ? c->BagWeight : 0.0f);
+	}
+
+	const ItemDef* Inventory::BestTool(const ItemLibrary& lib, const std::string& tag) const
+	{
+		const ItemDef* best = nullptr;
+		for (const ItemSlot& s : m_Stacks)
+		{
+			const ItemDef* def = lib.Find(s.Id);
+			if (!def || s.Count < 1) continue;
+			if (!Carries(*def, tag)) continue;
+			const bool better = !best || def->Power > best->Power || (def->Power == best->Power && (def->Speed > best->Speed
+				|| (def->Speed == best->Speed && def->Id < best->Id)));
+			if (better) best = def;
+		}
+		return best;
+	}
+
 	int Inventory::Add(const ItemLibrary& lib, const std::string& id, int count)
 	{
 		const ItemDef* def = lib.Find(id);
@@ -30,9 +85,9 @@ namespace GB
 		const int maxStack = std::max(1, def->MaxStack);
 
 		// The weight limit caps how many units can come in at all.
-		if (m_MaxWeight > 0.0f && def->Weight > 0.0f)
+		if (MaxWeight() > 0.0f && def->Weight > 0.0f)
 		{
-			const float room = m_MaxWeight - Weight(lib);
+			const float room = MaxWeight() - Weight(lib);
 			const int byWeight = room <= 0.0f ? 0 : static_cast<int>(room / def->Weight + 1e-4f);
 			count = std::min(count, byWeight);
 		}
@@ -45,7 +100,7 @@ namespace GB
 			const int n = std::min(count, maxStack - s.Count);
 			s.Count += n; count -= n; added += n;
 		}
-		while (count > 0 && UsedSlots() < m_Slots)
+		while (count > 0 && UsedSlots() < Slots())
 		{
 			const int n = std::min(count, maxStack);
 			m_Stacks.push_back({ id, n });
@@ -81,9 +136,7 @@ namespace GB
 		for (const ItemSlot& s : m_Stacks)
 		{
 			const ItemDef* def = lib.Find(s.Id);
-			if (!def) continue;
-			for (const std::string& t : def->Tags)
-				if (GameplayTag::TagMatches(tag, t)) { n += s.Count; break; }
+			if (def && Carries(*def, tag)) n += s.Count;
 		}
 		return n;
 	}
@@ -112,6 +165,8 @@ namespace GB
 		Json items = Json::array();
 		for (const ItemSlot& s : m_Stacks) items.push_back(Json::array({ s.Id, s.Count }));
 		j["items"] = items;
+		if (m_BonusSlots > 0) j["bonusSlots"] = m_BonusSlots;
+		if (m_BonusWeight > 0.0f) j["bonusWeight"] = m_BonusWeight;
 		return j.dump();
 	}
 
@@ -126,22 +181,60 @@ namespace GB
 			if (!e.is_array() || e.size() != 2 || !e[0].is_string() || !e[1].is_number_integer() || e[1].get<long long>() < 1 || e[1].get<long long>() > 1000000) return false;
 			stacks.push_back({ e[0].get<std::string>(), e[1].get<int>() });
 		}
-		int slots = m_Slots;
-		float maxWeight = m_MaxWeight;
+		int slots = m_Slots, bonusSlots = 0;
+		float maxWeight = m_MaxWeight, bonusWeight = 0.0f;
 		try
 		{
 			slots = j.value("slots", m_Slots);   // (throws when the value is not a number: a damaged file must not take the program down)
 			maxWeight = j.value("maxWeight", m_MaxWeight);
+			bonusSlots = j.value("bonusSlots", 0);
+			bonusWeight = j.value("bonusWeight", 0.0f);
 		}
 		catch (const Json::exception&)
 		{
 			return false;
 		}
-		if (slots < 0 || !(maxWeight >= 0.0f)) return false;
+		if (slots < 0 || !(maxWeight >= 0.0f) || bonusSlots < 0 || !(bonusWeight >= 0.0f)) return false;
 		m_Slots = slots;
 		m_MaxWeight = maxWeight;
+		m_BonusSlots = bonusSlots;
+		m_BonusWeight = bonusWeight;
 		m_Stacks = std::move(stacks);
 		return true;
+	}
+
+	namespace
+	{
+		std::string Num(float v, const char* format)
+		{
+			char b[48];
+			std::snprintf(b, sizeof b, format, static_cast<double>(v));
+			return b;
+		}
+	}
+
+	std::string CapacityText(const ItemLibrary& lib, const Inventory& bag)
+	{
+		std::string out = std::to_string(bag.UsedSlots()) + " / " + std::to_string(bag.Slots()) + " slots";
+		if (const ItemDef* c = bag.BestContainer(lib); c && bag.BonusSlots() > 0) out += " (" + std::to_string(bag.BaseSlots()) + " + " + std::to_string(bag.BonusSlots()) + " from " + c->Name + ")";
+		out += ", " + Num(bag.Weight(lib), "%.1f");
+		if (bag.MaxWeight() > 0.0f) out += " / " + Num(bag.MaxWeight(), "%.1f") + " kg";
+		else out += " kg (no weight limit)";
+		return out;
+	}
+
+	std::vector<std::string> ActiveTools(const ItemLibrary& lib, const Inventory& bag)
+	{
+		std::vector<std::string> families, out;
+		for (const ItemSlot& s : bag.Stacks())
+			if (const ItemDef* def = lib.Find(s.Id))
+				for (const std::string& t : def->Tags)
+					if (t.rfind("Item.Tool.", 0) == 0 && std::find(families.begin(), families.end(), ToolFamily(t)) == families.end()) families.push_back(ToolFamily(t));
+		std::sort(families.begin(), families.end());
+		for (const std::string& family : families)
+			if (const ItemDef* best = bag.BestTool(lib, family))
+				out.push_back(family + ": " + best->Name + " (power +" + std::to_string(best->Power) + ", speed x" + Num(best->Speed, "%.2f") + ")");
+		return out;
 	}
 
 	int ResourceNode::Gather()
@@ -239,6 +332,12 @@ namespace GB
 					if (auto t = o.find("tags"); t != o.end()) for (const Json& x : *t) { if (!GameplayTag::IsValidTagName(x.get<std::string>())) return "item '" + d.Id + "': bad tag " + x.get<std::string>(); d.Tags.push_back(x.get<std::string>()); }
 					str(o, "ability", d.Ability);
 					str(o, "socket", d.Socket);
+					d.Power = o.value("power", 0);
+					d.Speed = o.value("speed", 1.0f);
+					d.BagSlots = o.value("bagSlots", 0);
+					d.BagWeight = o.value("bagWeight", 0.0f);
+					if (d.Power < 0 || d.BagSlots < 0 || d.BagWeight < 0.0f) return "item '" + d.Id + "': power, bagSlots and bagWeight cannot be negative";
+					if (!(d.Speed >= 0.1f && d.Speed <= 10.0f)) return "item '" + d.Id + "': speed must be between 0.1 and 10";
 					newItems.push_back(d);
 				}
 			if (auto it = j.find("recipes"); it != j.end())
@@ -318,6 +417,10 @@ namespace GB
 			Json o = { { "id", d.Id }, { "name", d.Name }, { "category", d.Category }, { "weight", Round3(d.Weight) }, { "stack", d.MaxStack }, { "tags", d.Tags } };
 			if (!d.Ability.empty()) o["ability"] = d.Ability;
 			if (!d.Socket.empty()) o["socket"] = d.Socket;
+			if (d.Power != 0) o["power"] = d.Power;
+			if (d.Speed != 1.0f) o["speed"] = Round3(d.Speed);
+			if (d.BagSlots != 0) o["bagSlots"] = d.BagSlots;
+			if (d.BagWeight != 0.0f) o["bagWeight"] = Round3(d.BagWeight);
 			ji.push_back(o);
 		}
 		j["items"] = ji;
@@ -346,19 +449,54 @@ namespace GB
 		return j.dump(2);
 	}
 
+	namespace
+	{
+		ItemDef Def(const char* id, const char* name, const char* category, float weight, int stack, std::vector<std::string> tags, const char* ability, const char* socket)
+		{
+			ItemDef d;
+			d.Id = id; d.Name = name; d.Category = category; d.Weight = weight; d.MaxStack = stack; d.Tags = std::move(tags); d.Ability = ability; d.Socket = socket;
+			return d;
+		}
+
+		ItemDef Tool(ItemDef d, int power, float speed)
+		{
+			d.Power = power;
+			d.Speed = speed;
+			return d;
+		}
+	}
+
 	void RegisterEraOneItems(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes)
 	{
-		items.Add({ "wood",      "Wood",        "resource", 2.0f, 10, { "Item.Resource.Wood" },  "", "" });
-		items.Add({ "stone",     "Stone",       "resource", 3.0f, 10, { "Item.Resource.Stone" }, "", "" });
-		items.Add({ "fiber",     "Plant fiber", "resource", 0.2f, 20, { "Item.Resource.Fiber" }, "", "" });
-		items.Add({ "berry",     "Berry",       "food",     0.1f, 20, { "Item.Food" },           "Eat", "" });
-		items.Add({ "stone_axe",     "Stone axe",     "tool", 2.5f, 1, { "Item.Tool.Axe" },     "Chop", "RightHand" });
-		items.Add({ "stone_pickaxe", "Stone pickaxe", "tool", 3.0f, 1, { "Item.Tool.Pickaxe" }, "Mine", "RightHand" });
-		items.Add({ "water",     "Water",       "food",     1.0f,  5, { "Item.Food.Water" },     "Drink", "" });
-		items.Add({ "campfire",  "Campfire kit", "structure", 6.0f, 1, { "Item.Structure.Fire" }, "Place", "" });
+		items.Add(Def("wood",      "Wood",        "resource", 2.0f, 10, { "Item.Resource.Wood" },  "", ""));
+		items.Add(Def("stone",     "Stone",       "resource", 3.0f, 10, { "Item.Resource.Stone" }, "", ""));
+		items.Add(Def("fiber",     "Plant fiber", "resource", 0.2f, 20, { "Item.Resource.Fiber" }, "", ""));
+		items.Add(Def("berry",     "Berry",       "food",     0.1f, 20, { "Item.Food" },           "Eat", ""));
+		items.Add(Def("stone_axe",     "Stone axe",     "tool", 2.5f, 1, { "Item.Tool.Axe" },     "Chop", "RightHand"));
+		items.Add(Def("stone_pickaxe", "Stone pickaxe", "tool", 3.0f, 1, { "Item.Tool.Pickaxe" }, "Mine", "RightHand"));
+		items.Add(Def("water",     "Water",       "food",     1.0f,  5, { "Item.Food.Water" },     "Drink", ""));
+		items.Add(Def("campfire",  "Campfire kit", "structure", 6.0f, 1, { "Item.Structure.Fire" }, "Place", ""));
+
+		// Flint (E2): sharper than stone, so a flint tool gives one more unit per swing and swings a little faster. Branches, flint and reed
+		// come from nodes that the extended content (era1_ampliado.json) defines; until a node places them, `actor bag <name> add` supplies them.
+		items.Add(Def("branch",  "Branch",  "resource", 0.6f, 20, { "Item.Resource.Wood.Branch" }, "", ""));
+		items.Add(Def("flint",   "Flint",   "resource", 1.0f, 10, { "Item.Resource.Stone.Flint" }, "", ""));
+		items.Add(Def("reed",    "Reed",    "resource", 0.2f, 20, { "Item.Resource.Fiber.Reed" }, "", ""));
+		items.Add(Def("cordage", "Cordage", "resource", 0.3f, 20, { "Item.Resource.Cordage" }, "", ""));
+		items.Add(Tool(Def("flint_axe",     "Flint axe",     "tool", 2.2f, 1, { "Item.Tool.Axe.Flint" },     "Chop", "RightHand"), 1, 1.15f));
+		items.Add(Tool(Def("flint_pickaxe", "Flint pickaxe", "tool", 2.6f, 1, { "Item.Tool.Pickaxe.Flint" }, "Mine", "RightHand"), 1, 1.15f));
+		// A wicker basket in the bag adds six slots (the best container counts, they do not add up); the weight bonus is for bags that have a limit.
+		ItemDef basket = Def("basket_wicker", "Wicker basket", "container", 1.5f, 1, { "Item.Container.Basket" }, "", "");
+		basket.BagSlots = 6;
+		basket.BagWeight = 8.0f;
+		items.Add(basket);
 
 		recipes.Add({ "stone_axe",     "workbench", "",                  { { "wood", 2 }, { "stone", 2 }, { "fiber", 3 } }, "stone_axe",     1, "Craft" });
 		recipes.Add({ "stone_pickaxe", "workbench", "",                  { { "wood", 2 }, { "stone", 3 }, { "fiber", 3 } }, "stone_pickaxe", 1, "Craft" });
+		recipes.Add({ "cordage",       "",          "",                  { { "fiber", 3 } },                                "cordage",       1, "Craft" });
+		recipes.Add({ "flint_axe",     "workbench", "",                  { { "flint", 2 }, { "branch", 2 }, { "cordage", 1 } }, "flint_axe",     1, "Craft" });
+		recipes.Add({ "flint_pickaxe", "workbench", "",                  { { "flint", 3 }, { "branch", 2 }, { "cordage", 1 } }, "flint_pickaxe", 1, "Craft" });
+		recipes.Add({ "basket_wicker", "",          "",                  { { "reed", 5 }, { "branch", 2 } },                "basket_wicker", 1, "Craft" });
 		recipes.Add({ "campfire",      "",          "Item.Tool.Axe",     { { "wood", 4 }, { "stone", 3 } },                 "campfire",      1, "Craft" });
 
 		nodes["tree"]       = { "tree",       "wood",  5, 1, 30.0f, 1, "Item.Tool.Axe",     "Chop" };

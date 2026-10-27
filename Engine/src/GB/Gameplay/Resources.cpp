@@ -162,7 +162,11 @@ namespace GB
 					if (node->HasTag("Resource.Node." + id)) { def = &d; break; }
 				if (!def) return;
 				const int have = Amount(*node);
-				const int take = std::min(have, std::max(1, def->PerGather));
+				// The tool in the gatherer's hands: its family's power is the attribute SyncTools keeps on whoever carries it.
+				int bonus = 0;
+				if (e.Instigator && !def->RequiresTag.empty())
+					bonus = std::max(0, static_cast<int>(std::lround(e.Instigator->Attributes().Current(PowerAttribute(def->RequiresTag)))));
+				const int take = std::min(have, std::max(1, def->PerGather) + bonus);
 				if (take <= 0) return;
 				node->Attributes().SetBase("Amount", static_cast<float>(have - take));
 				if (m_Yield && e.Instigator) m_Yield(e.Instigator->Name(), def->Item, take);
@@ -221,8 +225,32 @@ namespace GB
 		}
 	}
 
+	std::string ResourceSystem::PowerAttribute(const std::string& toolTag) { return "Power:" + ToolFamily(toolTag); }
+	std::string ResourceSystem::SpeedAttribute(const std::string& toolTag) { return "Speed:" + ToolFamily(toolTag); }
+
 	void ResourceSystem::SyncTools(AbilitySystemComponent& who, const Inventory& bag, const ItemLibrary& items)
 	{
+		// Power and speed of the best tool of each family held ("Item.Tool.Axe" finds a stone axe and a flint axe alike; the flint one wins).
+		// Attributes only appear for a family that was ever held, and go back to the defaults (0 and 1) when the last tool leaves.
+		std::vector<std::string> families;
+		for (const std::string& id : items.Ids())
+			for (const std::string& tag : items.Find(id)->Tags)
+				if (tag.rfind("Item.Tool.", 0) == 0 && std::find(families.begin(), families.end(), ToolFamily(tag)) == families.end()) families.push_back(ToolFamily(tag));
+		for (const std::string& family : families)
+		{
+			const ItemDef* best = bag.BestTool(items, family);
+			const float power = best ? static_cast<float>(best->Power) : 0.0f, speed = best ? best->Speed : 1.0f;
+			AttributeSet& at = who.Attributes();
+			if (!at.Has(PowerAttribute(family)))
+			{
+				if (!best) continue;
+				at.Define(PowerAttribute(family), 0.0f, 0.0f, 1000.0f);
+				at.Define(SpeedAttribute(family), 1.0f, 0.1f, 10.0f);
+			}
+			if (at.Base(PowerAttribute(family)) != power) at.SetBase(PowerAttribute(family), power);
+			if (at.Base(SpeedAttribute(family)) != speed) at.SetBase(SpeedAttribute(family), speed);
+		}
+
 		for (const std::string& id : items.Ids())
 		{
 			const ItemDef* def = items.Find(id);

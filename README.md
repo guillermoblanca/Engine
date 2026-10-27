@@ -80,6 +80,7 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | Navegación: cuadrícula con costes, caminos y evitación (`nav`) | [docs/NAVEGACION.md](docs/NAVEGACION.md) |
 | Interactivos con estado: fogata, pozo, puerta (`interactives build`) | [docs/INTERACTIVOS.md](docs/INTERACTIVOS.md) |
 | Estaciones y ecología: conejos que comen, crían y se mueren de hambre (`ecology`) | [docs/ECOLOGIA.md](docs/ECOLOGIA.md) |
+| Propuesta de habilidades y economía: herramientas, materiales, oficios, agricultura, conservación y edificios | [docs/PROPUESTA_HABILIDADES_Y_ECONOMIA.md](docs/PROPUESTA_HABILIDADES_Y_ECONOMIA.md) |
 | Partículas y clima | [docs/efectos.md](docs/efectos.md) |
 | Terreno, agua, vegetación, erosión y mundos procedurales | [docs/mundo.md](docs/mundo.md) |
 | Física y destrucción | [docs/fisica.md](docs/fisica.md) |

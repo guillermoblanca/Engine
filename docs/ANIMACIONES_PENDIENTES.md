@@ -18,3 +18,13 @@ Cuando llegue el clip basta con añadirlo a `MixamoMontages()` (`Engine/src/GB/A
 | **Talar con hacha en bucle** | `Chop` (nodos de recurso, [OBJETOS.md](OBJETOS.md)) | dos tajos `sword_slash_1` y `sword_slash_3` con la herramienta (`tool`) en la mano | Golpes seguidos de hacha sobre el tronco y el final al caer |
 | **Picar roca con el pico** | `Mine` | golpe `sword_attack_4` con la herramienta en la mano | Golpes de pico sobre la roca |
 | **Agacharse a recolectar** (bayas, fibra) | `Gather` (bayas), `PullFiber` (fibra) | `pick_fruit_2` (brazo a la altura de un arbusto; `pick_fruit` alcanzaba hacia arriba y parecía invertido) y `pull_plant` (agachado) | Recoger de plantas bajas |
+| **Segar con hoz** | `Harvest` (propuesta, [PROPUESTA_HABILIDADES_Y_ECONOMIA.md](PROPUESTA_HABILIDADES_Y_ECONOMIA.md)) | Interino: `pull_plant` | Cosechar grano y cortar junco |
+| **Tejer sentado** (cestería) | `Craft` de cestas y cuerda | Interino: `kneel_idle` | Fabricar cestas y esteras |
+| **Tallar piedra** (percutor sobre pedernal) | `Craft` de herramientas de piedra | Interino: `kneel_idle` / `idle_variant_2` | Fabricar hachas de pedernal |
+| **Colgar a secar** | `Craft` en el secadero | Interino: `pick_fruit` (alzar los brazos) | Secar bayas y carne |
+| **Martillear, levantar viga, cargar tablón** | `Build` | Interino: `dig_plant` | Obras por fases (H8) |
+| **Moler con piedra** | `Craft` de harina | Ninguno | Procesar grano |
+| **Demostrar y observar** (maestro y aprendiz) | `Teach`, `Study` | Interino: `gesture_acknowledge`, `gesture_thoughtful` | Difusión del conocimiento (H11) |
+| **Recoger arcilla** (agachado) | `Gather` en `clay_bank` | Interino: `dig_plant` | Cavar arcilla |
+
+Las animaciones de recolección actuales (tajos con la herramienta en la mano para talar y picar, `pick_fruit_2` para las bayas y `pull_plant` para la fibra) ya se aplicaron y se comprobaron en el editor; los interinos de abajo son los que propone la economía y están sin probar en el visor.

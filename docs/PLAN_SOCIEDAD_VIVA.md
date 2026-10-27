@@ -53,11 +53,25 @@ Orden de dependencias; tamaños relativos (**S** una sesión de trabajo, **M** u
 |---|---|---|
 | H0 Contrato de actor | Hecho | `Actor`, `ActorWorld`; ~45 µs por actor y fotograma ([COSTE_ACTOR.md](COSTE_ACTOR.md)) |
 | H1 Habilidades (GAS) | Hecho | `GB/Gameplay`, [habilidades.md](habilidades.md) |
-| H2 Objetos, inventario y recursos | Hecho salvo lo listado en [OBJETOS.md](OBJETOS.md) | `Items`, `Resources`, `assets/data/era1.json` |
+| H2 Objetos, inventario y recursos | Hecho salvo lo listado en [OBJETOS.md](OBJETOS.md). E2 (herramientas con nivel: potencia y velocidad; contenedores que amplían la mochila) hecho | `Items`, `Resources`, `assets/data/era1.json` |
 | H3 Mundo interactivo y ecología | Parcial: huerto, interactivos, estaciones, conejos y panel World state; falta la colisión de la puerta, fauna con más especies y que la hoguera de la tribu sea un interactivo | [INTERACTIVOS.md](INTERACTIVOS.md), [ECOLOGIA.md](ECOLOGIA.md) |
 | H4 Persistencia v1 | Hecho (v1) con huecos: no guarda el estado de la tribu, los temporizadores de los interactivos ni el destino de los conejos | [GUARDADO.md](GUARDADO.md) |
 | H5 Navegación y percepción | En curso (sesiones propias de navegación y de percepción e IA) | `GB/Navigation`, `GB/AI` |
-| H6 a H20 | Sin empezar; la primera tribu (`Tribe`, [TRIBU.md](TRIBU.md)) es un adelanto de H6/H7 con reglas fijas | |
+| H6 · Necesidades y cerebro de NPC | **Parcial**: necesidades (hambre, sed, descanso, abrigo, seguridad, compañía), motor de decisión por utilidad con histéresis, inspector de NPC y estado guardado ([IA.md](IA.md)). Falta el nivel de detalle de simulación (actor completo cerca, agente abstracto lejos) y la agenda diaria explícita |
+| H7 · Roles y trabajo del clan | **Adelanto**: los roles de la tribu son pesos de utilidad ([TRIBU.md](TRIBU.md)); no hay tablón de trabajos ni aprendizaje de oficio (propuesta E3 y E8) |
+| H8 · Construcción y asentamientos | Sin empezar (propuesta E9 y E10) |
+| H9 · Demografía y herencia | Sin empezar |
+| H10 · Relaciones, personalidad y cultura | Sin empezar |
+| H11 · Conocimiento y tecnología | Sin empezar (propuesta E4 y E5 como adelanto) |
+| H12 · Exploración, migración y recursos | Sin empezar (la memoria espacial de H5 es la base) |
+| H13 · Clanes y diplomacia | Sin empezar |
+| H14 · Conflicto, combate y violencia | Sin empezar |
+| H15 · El jugador dentro de la sociedad | Sin empezar (el jugador ya es un actor más: H0) |
+| H16 · Escala, rendimiento y mundo grande | **Transversal, medido a ratos**: costes de actor, tribu y ecología en [INFORME_CALIDAD.md](INFORME_CALIDAD.md) y [COSTE_ACTOR.md](COSTE_ACTOR.md); la tribu cuesta 2,6 ms en el peor fotograma con 60 miembros |
+| H17 · Eras como paquetes de datos | Arranca: contenido en `assets/data/era1.json` y `content load` (propuesta E0: `era1_ampliado.json`) |
+| H18 · Economía y producción compleja | Sin empezar (propuesta E6, E7 y E11) |
+| H19 · Cámaras y calidad gráfica | Trabajo gráfico previo (hierba, agua, nieve, árboles, referencias de imagen); sin cámaras de juego |
+| H20 · Herramientas, depuración y QA de simulación | **Transversal**: paneles Tribe y World state, `nav debug`, `ai debug`, `timescale`, informe de calidad; falta el panel de QA de simulación y los barridos de semillas del plan |
 
 ### Base de juego
 
@@ -348,7 +362,70 @@ Y los **modelos**: herramientas, semillas y plantas, regadera, pala, cestas, obj
 | H2 · Objetos, inventario y recursos | **En curso** (núcleo hecho, [docs/OBJETOS.md](OBJETOS.md)): objetos, inventario con peso y apilado, nodos con regeneración, recetas, mochila por actor guardada con la partida y `actor bag`. Nodos de recurso como entidades con `Chop`, `Mine` y `Gather` y `resources build`. Falta: montajes propios de recolección, agarre visible, estaciones en la escena y datos en fichero |
 | H3 · Mundo interactivo y ecología | **Casi cerrado**: huerto, nodos de recurso que se regeneran, la primera tribu ([TRIBU.md](TRIBU.md)), interactivos con estado persistente ([INTERACTIVOS.md](INTERACTIVOS.md)), estaciones y conejos con ecología básica ([ECOLOGIA.md](ECOLOGIA.md)) y el panel *World state*. Falta: colisión de la puerta, estaciones sobre el aspecto del mundo y la regeneración de nodos, más especies |
 | H4 · Persistencia v1 | **Hecho** (`GB/Save`, [docs/GUARDADO.md](GUARDADO.md)): formato `.gbsave` versionado con migraciones y partidas antiguas en `tests/golden/saves/`, guardado diferencial sobre la semilla, escritura atómica con copia, autoguardado, repetición determinista y comandos del editor. Queda para otros hitos: inventarios (H2), enganchar el `Actor` (H0) y la edición de terreno |
-| H5 · Navegación y percepción | **En curso**. Navegación hecha ([NAVEGACION.md](NAVEGACION.md)): cuadrícula con costes, A\* con grafo de regiones, seguimiento con evitación local que sustituye la línea recta del `AIDriver`, actualización por regiones y depuración en el editor (`nav`). Falta la percepción (vista, oído, memoria) |
-| H6 a H20 | Sin empezar |
+| H5 · Navegación y percepción | **Hecho (v1)**. Navegación ([NAVEGACION.md](NAVEGACION.md)): cuadrícula con costes, A\* con grafo de regiones, seguimiento con evitación local, actualización por regiones y depuración (`nav`). Percepción ([IA.md](IA.md)): vista con oclusión, oído, memoria por agente y por clan, depuración (`ai debug`). Huecos: la percepción es O(miembros × cosas) y no escala aún a 100 NPC |
+| H6 · Necesidades y cerebro de NPC | **Parcial**: necesidades (hambre, sed, descanso, abrigo, seguridad, compañía), motor de decisión por utilidad con histéresis, inspector de NPC y estado guardado ([IA.md](IA.md)). Falta el nivel de detalle de simulación (actor completo cerca, agente abstracto lejos) y la agenda diaria explícita |
+| H7 · Roles y trabajo del clan | **Adelanto**: los roles de la tribu son pesos de utilidad ([TRIBU.md](TRIBU.md)); no hay tablón de trabajos ni aprendizaje de oficio (propuesta E3 y E8) |
+| H8 · Construcción y asentamientos | Sin empezar (propuesta E9 y E10) |
+| H9 · Demografía y herencia | Sin empezar |
+| H10 · Relaciones, personalidad y cultura | Sin empezar |
+| H11 · Conocimiento y tecnología | Sin empezar (propuesta E4 y E5 como adelanto) |
+| H12 · Exploración, migración y recursos | Sin empezar (la memoria espacial de H5 es la base) |
+| H13 · Clanes y diplomacia | Sin empezar |
+| H14 · Conflicto, combate y violencia | Sin empezar |
+| H15 · El jugador dentro de la sociedad | Sin empezar (el jugador ya es un actor más: H0) |
+| H16 · Escala, rendimiento y mundo grande | **Transversal, medido a ratos**: costes de actor, tribu y ecología en [INFORME_CALIDAD.md](INFORME_CALIDAD.md) y [COSTE_ACTOR.md](COSTE_ACTOR.md); la tribu cuesta 2,6 ms en el peor fotograma con 60 miembros |
+| H17 · Eras como paquetes de datos | Arranca: contenido en `assets/data/era1.json` y `content load` (propuesta E0: `era1_ampliado.json`) |
+| H18 · Economía y producción compleja | Sin empezar (propuesta E6, E7 y E11) |
+| H19 · Cámaras y calidad gráfica | Trabajo gráfico previo (hierba, agua, nieve, árboles, referencias de imagen); sin cámaras de juego |
+| H20 · Herramientas, depuración y QA de simulación | **Transversal**: paneles Tribe y World state, `nav debug`, `ai debug`, `timescale`, informe de calidad; falta el panel de QA de simulación y los barridos de semillas del plan |
 
 > Este documento se actualiza al cerrar cada hito: estado, decisiones tomadas y lo que se haya movido de sitio.
+
+
+### 10.1 Prioridades (de lo siguiente a lo último)
+
+Orden recomendado para avanzar, con el estado de cada hito existente y lo que falta para darlo por cerrado. Las **E** son los hitos de contenido de la
+[propuesta de habilidades y economía](PROPUESTA_HABILIDADES_Y_ECONOMIA.md), que se reparten entre los hitos H como se ve en 10.2.
+
+| Prioridad | Hito (estado) | Qué hacer ahora | Tamaño |
+|---|---|---|---|
+| **P0** · deuda que bloquea | **H4** (hecho con huecos) | Arreglar la repetición del editor con mundo generado (aceptación de H4); guardar el estado de la tribu, los temporizadores de interactivos y el destino de los conejos | S–M |
+| **P0** | **H2 / H3** (casi cerrados) | Colisión de la puerta, que la hoguera de la tribu sea el interactivo `Fire Pit`, anillo de registro de la tribu, `RemoveMember`; datos de nodos colocables | S |
+| **P1** · contenido visible | **H2** + E0, E2, E1 | Catálogo ampliado (`content load`), herramientas con nivel y cesta que amplía la mochila, nodos por tamaño (árbol joven y viejo, arcilla, junco) | M |
+| **P1** | **H6** (parcial) | Nivel de detalle de simulación y agenda diaria; repartir las decisiones de la tribu entre fotogramas e índice de nodos por tipo | M–L |
+| **P2** · sociedad que trabaja | **H7** (adelanto) + E3, E8 | Aptitudes por práctica y oficios derivados, tablón de trabajos del clan; los pesos de rol pasan a salir de las aptitudes | M–L |
+| **P2** | **H11** (sin empezar) + E4, E5 | Conocimiento por agente y por clan, recetas desbloqueables, descubrimiento de herramientas por observación y experimentación | M–L |
+| **P3** · supervivencia y base | **H3 / H18** + E6, E7 | Caducidad y conservación (toca el guardado: con migración de H4), agricultura (semillas, campo, ciclo con estaciones) | M–L |
+| **P3** | **H8** + E9, E10 | Edificios por datos y por fases (refugio, almacén, secadero; luego corral, taller, horno), elección de sitio, territorio | L |
+| **P4** · escala | **H16** + E11 | 50 a 100 NPC: actores abstractos lejos, varios almacenes, capacidad de carga del clan | M–L |
+| **P4** | **H12** | Exploración y migración sobre la memoria espacial de H5 | M |
+| **P5** · sociedad viva | **H9, H10** | Demografía y herencia (también de aptitudes), relaciones, personalidad y cultura | L |
+| **P6** · otros clanes | **H13, H14** | Diplomacia, comercio, conflicto y combate | L–XL |
+| **P6** | **H15** | El jugador dentro de la sociedad: unirse a un clan, misiones, interfaz | L |
+| **P7** · eras y pulido | **H17, H18** completos | Paquetes de era 2 en adelante (cobre tras la forja de E10), producción compleja | XL |
+| **Transversal** | **H19, H20, E12** | Cámaras y gráficos; QA de simulación y barridos de semillas; terreno suave y bases con malla procedural (E12, puede adelantarse el aplanado para cimientos) | continuo |
+
+Reglas de la ordenación: primero se paga lo que impide dar por cerrado un hito ya hecho (P0); después lo que más se ve y menos riesgo tiene (P1); la sociedad
+(P2) llega cuando existe contenido que repartir; lo que toca el formato de guardado (caducidad, conocimiento) se hace con su migración y avisando.
+
+### 10.2 Hitos de economía dentro del plan
+
+| Hito E | Qué es | Tamaño | Se apoya en | Hito del plan al que cuenta |
+|---|---|---|---|---|
+| E0 | Catálogo ampliado de materiales, herramientas y recetas (solo datos, `era1_ampliado.json`) | S, hecho | nada | H2, H17 |
+| E1 | Nodos más finos: tamaños, etiqueta de tipo desde datos, colocación guiada por datos | M | E0 | H2, H3 |
+| E2 | Herramientas con nivel (potencia, velocidad) y contenedores que amplían la mochila | S–M | E0 | H2 |
+| E3 | Aptitudes por práctica y oficios derivados | M | E2, H7 | H7 |
+| E4 | Conocimiento por agente y por clan; recetas desbloqueables | M–L | E0, H11 | H11 |
+| E5 | Descubrimiento de herramientas nuevas (observación y experimentación) | M | E4 | H11 |
+| E6 | Caducidad y conservación (secado, almacén, sal, ahumado) | M–L | E0 | H3, H18 |
+| E7 | Agricultura: semillas, campo, ciclo y estaciones | M–L | E1, E2, E6 | H3, H18 |
+| E8 | Tablón de trabajos del clan | M | E3, H7 | H7 |
+| E9 | Edificios por datos: refugio, almacén, secadero | L | E1, E6, H8 | H8 |
+| E10 | Edificios avanzados: corral, taller, horno | M–L | E9 | H8, H17 |
+| E11 | Escala de clanes: capacidad de carga, logística, varios almacenes | M | E8, E9 | H16, H18 |
+| E12 | Terreno suave y bases con malla procedural | L | E9 | H8, H19 |
+
+El orden de implementación de las E es E0, E2, E1, E3, E4 con E5, E6, E7, E8, E9 con E10, E11 y E12; E4/E5 y E6 pueden ir en paralelo por carriles distintos (simulación social frente
+a gameplay). Las decisiones que condicionan las E (árbol grande con nodos hermanos o varias salidas por nodo, si la rama alimenta la hoguera, si la caducidad entra desde el principio,
+aptitudes por agente o por oficio, conocimiento por agente y por clan) están al final de la propuesta y esperan respuesta del usuario.
