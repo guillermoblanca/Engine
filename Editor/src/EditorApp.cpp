@@ -1,4 +1,5 @@
 #include "EditorApp.h"
+#include "GB/AI/Needs.h"
 #include "GB/Animation/Character.h"
 #include "GB/Animation/ClipAnalysis.h"
 #include "GB/Log.h"
@@ -131,6 +132,7 @@ namespace GB::Editor
 		}
 		RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 		RegisterInteractiveContent(m_Gameplay.Library);
+		RegisterNeedContent(m_Gameplay.Library);   // a saved agent may carry Need.* effects: the library must know them before any load
 		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
 		m_Player.Attach(&m_Actors);
 		m_Actors.Bind(&m_SceneEditor.World(), &m_Gameplay);
