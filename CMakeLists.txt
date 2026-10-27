@@ -41,6 +41,12 @@ FetchContent_Declare(cgltf
     GIT_REPOSITORY https://github.com/jkuhlmann/cgltf.git
     GIT_TAG v1.14)
 
+# nlohmann/json (pinned, header-only): scene files.
+FetchContent_Declare(json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+    GIT_SHALLOW TRUE)
+
 # Dear ImGui (docking branch, pinned): only the sources are used, the Editor builds them itself.
 FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -53,6 +59,10 @@ if(GB_BUILD_EDITOR)
     if(NOT imgui_POPULATED)
         FetchContent_Populate(imgui)
     endif()
+endif()
+FetchContent_GetProperties(json)
+if(NOT json_POPULATED)
+    FetchContent_Populate(json)
 endif()
 FetchContent_GetProperties(cgltf)
 if(NOT cgltf_POPULATED)

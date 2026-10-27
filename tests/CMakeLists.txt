@@ -110,3 +110,12 @@ add_executable(GBSweepTests sweep_test.cpp)
 target_link_libraries(GBSweepTests PRIVATE GB::GB)
 add_test(NAME sweep COMMAND GBSweepTests)
 set_tests_properties(sweep PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBEntityTests entity_test.cpp)
+target_link_libraries(GBEntityTests PRIVATE GB::GB)
+add_test(NAME entity COMMAND GBEntityTests)
+
+add_executable(GBEntityRenderTests entity_render_test.cpp)
+target_link_libraries(GBEntityRenderTests PRIVATE GB::GB)
+add_test(NAME entity_render COMMAND GBEntityRenderTests)
+set_tests_properties(entity_render PROPERTIES SKIP_RETURN_CODE 77)
