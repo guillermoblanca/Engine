@@ -173,3 +173,8 @@ add_executable(GBProceduralTests procedural_test.cpp)
 target_link_libraries(GBProceduralTests PRIVATE GB::GB)
 target_compile_definitions(GBProceduralTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME procedural COMMAND GBProceduralTests)
+
+add_executable(GBInteractionTests interaction_test.cpp)
+target_link_libraries(GBInteractionTests PRIVATE GB::GB)
+target_compile_definitions(GBInteractionTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME interaction COMMAND GBInteractionTests)

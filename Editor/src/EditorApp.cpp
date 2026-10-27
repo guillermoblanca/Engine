@@ -566,6 +566,28 @@ namespace GB::Editor
 			m_Player.SetFootIK(a[0] != "off" && a[0] != "0");
 			return { true, m_Player.FootIKOn() ? "foot IK on" : "foot IK off" };
 		});
+		c.Register("interact", "interact <entity> [point]: the player goes to an interaction point of an entity and uses it (underscores in names stand for spaces); no argument lists the points of the scene", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty())
+			{
+				std::string names;
+				for (const std::string& n : ListInteractions(m_SceneEditor.World())) names += (names.empty() ? "" : ", ") + n;
+				return { true, names.empty() ? "no entity has interaction points (entity interact <entity> <point> <montage> <x> <y> <z> <yaw>)" : "interactions: " + names };
+			}
+			if (!m_Player.IsActive()) return { false, "start the player first (player <character.fbx>)" };
+			std::string error;
+			return m_Player.Interact(a[0], a.size() > 1 ? a[1] : "", error) ? CommandResult{ true, "going to " + a[0] } : CommandResult{ false, error };
+		});
+		c.Register("player_tasks", "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop], separated by '|' or new lines)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive()) return { false, "start the player first (player <character.fbx>)" };
+			if (a.empty()) return { true, m_Player.TaskStatus() };
+			if (a.size() == 1 && a[0] == "stop") { m_Player.StopTasks(); return { true, "stopped" }; }
+			std::string text;
+			for (size_t i = 0; i < a.size(); ++i) text += (i ? " " : "") + a[i];
+			std::string error;
+			return m_Player.RunTasks(text, error) ? CommandResult{ true, "running: " + m_Player.TaskStatus() } : CommandResult{ false, error };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{

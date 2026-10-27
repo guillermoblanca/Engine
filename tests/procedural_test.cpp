@@ -168,7 +168,7 @@ int main()
 	{
 		ModelInstance inst(*model);
 		AnimInstance anim(*model, inst);
-		anim.Default().AddClip("idle");
+		anim.Default().AddClip("test_humanoid");
 		MotionState still;
 		for (int i = 0; i < 10; ++i) anim.Update(still, dt, identity);
 		const float before = inst.GetNodeWorld(rig.LeftLeg.Foot)[3].y;

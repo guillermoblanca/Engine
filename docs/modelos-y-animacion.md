@@ -137,3 +137,16 @@ Capas procedurales de `AnimInstance`, después de los clips, los montajes y la p
 
 Pendiente: manos y rodillas al suelo en posturas arrodilladas o sentadas, y bloqueo del apoyo (sin patinaje) de los pies.
 
+### Interacciones, motion warping y tareas de NPC (Fase 11D-1)
+
+El mismo flujo para el jugador y para un NPC: ir al punto → alinearse con motion warping → reproducir el montaje → eventos → fin.
+
+- **`InteractableComponent`** (`Entity.h`): lista de puntos de interacción de una entidad: dónde se coloca el personaje (en el espacio de la entidad), hacia dónde mira, el montaje, qué prop debe llevar (`Requires`) y cuál lleva después (`Gives`). Se guardan en los ficheros de escena y se copian al duplicar. Editor: `entity interact <entidad> <punto> <montaje|-> <x> <y> <z> <yaw> [requiere] [da]` (y `entity interact <entidad> clear`), con deshacer; `interact` sin argumentos los lista.
+- **`MotionWarp`** (`GB/Game/MotionWarp.h`): lleva al personaje a la posición y orientación exactas en un tiempo corto (suavizado, el giro por el camino corto). Los clips de estación no mueven la raíz, así que el personaje se asienta en el punto mientras el montaje se funde.
+- **`InteractionRunner`** (`Interaction.h`): `Approach` (el `AIDriver` produce el mismo `CharacterInput` que las teclas) → `Align` (warp mientras empieza el montaje) → `Act` (se mantiene en su sitio; las notificaciones del montaje salen como `notify:<nombre>`) → `Done` (`gives:<prop>`, `done`). Falla con el motivo si falta el prop requerido, el personaje no tiene el montaje, no llega al punto o la acción se interrumpe. Sin animación o sin montaje, el punto es solo una visita.
+- **`TaskRunner` / `ParseTasks`** (`TaskList.h`): lista de tareas de un NPC en texto (`goto x z [run]`, `interact <entidad> [punto]`, `wait s`, `attach prop`, `detach [prop]`, separadas por `;`, `|` o líneas, `#` comenta). Da el input al controlador como lo haría el jugador; qué significa "prop" lo decide el anfitrión (`PropHandler`). Una tarea imposible detiene la lista con el motivo.
+- Editor: `interact <entidad> [punto]` y `player_tasks <lista>|stop` (el jugador hace lo que haría un NPC).
+- Test `interaction` (CPU): puntos en espacio de mundo, escena y duplicado, warp (exacto, camino corto), el runner (fases, notificación una sola vez, posición y orientación exactas sin teletransporte), **dos personajes** (jugador y NPC con prisa, desde sitios distintos) que acaban en el mismo sitio y orientación, requisitos y fallos, y las listas de tareas (análisis y ejecución).
+
+Pendiente: sistema de conducta más allá de listas lineales (prioridades, necesidades), reservas de puntos de interacción (dos personajes en el mismo punto) y 11D-2 (articulaciones físicas y ragdoll).
+

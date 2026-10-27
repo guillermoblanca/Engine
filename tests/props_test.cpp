@@ -130,7 +130,7 @@ int main()
 	// ---- a box carried in both hands
 	ModelInstance inst(*model);
 	AnimInstance anim(*model, inst);
-	anim.Default().AddClip("idle");
+	anim.Default().AddClip("test_humanoid");
 	const glm::mat4 place = glm::translate(glm::mat4(1.0f), glm::vec3(3.0f, 0.0f, -2.0f)) * glm::rotate(glm::mat4(1.0f), 0.7f, glm::vec3(0, 1, 0));
 	MotionState still;
 	const float dt = 1.0f / 60.0f;
@@ -176,17 +176,19 @@ int main()
 		// SnapGrips: the hands stay exactly where the clips put them
 		ModelInstance inst2(*model);
 		AnimInstance snap(*model, inst2);
-		snap.Default().AddClip("idle");
+		snap.Default().AddClip("test_humanoid");
 		for (int i = 0; i < 10; ++i) snap.Update(still, dt, place);
 		Prop held;
 		held.Name = "held";
 		held.Socket = "carry";
 		snap.SnapGrips(held);
 		Check(held.Grips.size() == 2, "snapping gives a grip for each hand");
-		const glm::vec3 leftBefore = Pos(inst2.GetNodeWorld(rig.Left.Hand)), rightBefore = Pos(inst2.GetNodeWorld(rig.Right.Hand));
+		// relative to the carry socket (the clip breathes: the chest moves, the hands go with it)
+		const auto inCarry = [&](const char* hand) { return Pos(glm::inverse(snap.Sockets().Matrix(inst2, "carry")) * snap.Sockets().Matrix(inst2, hand)); };
+		const glm::vec3 leftBefore = inCarry("hand_l"), rightBefore = inCarry("hand_r");
 		snap.Attach(held);
 		for (int i = 0; i < 40; ++i) snap.Update(still, dt, place);
-		Check(glm::distance(Pos(inst2.GetNodeWorld(rig.Left.Hand)), leftBefore) < 1e-3f && glm::distance(Pos(inst2.GetNodeWorld(rig.Right.Hand)), rightBefore) < 1e-3f, "grips taken from the pose leave the hands where they are");
+		Check(glm::distance(inCarry("hand_l"), leftBefore) < 1e-3f && glm::distance(inCarry("hand_r"), rightBefore) < 1e-3f, "grips taken from the pose leave the hands where they are");
 	}
 	anim.Detach("box");
 	for (int i = 0; i < 40; ++i) anim.Update(still, dt, place);
