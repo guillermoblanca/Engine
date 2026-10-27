@@ -174,6 +174,7 @@ namespace GB::Editor
 		if (name == "Model") return m_Panels.Model;
 		if (name == "Animation") return m_Panels.Animation;
 		if (name == "Timeline") return m_Panels.Timeline;
+		if (name == "Graph") return m_Panels.Graph;
 		if (name == "Tests") return m_Panels.Tests;
 		return false;
 	}
@@ -639,9 +640,9 @@ namespace GB::Editor
 			if (n == "Viewport") flag = &m_Panels.Viewport; else if (n == "Hierarchy") flag = &m_Panels.Hierarchy; else if (n == "Inspector") flag = &m_Panels.Inspector;
 			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
-			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Tests") flag = &m_Panels.Tests;
+			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Tests") flag = &m_Panels.Tests;
 			if (!flag) return { false, "no such panel '" + n + "'" };
-			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
+			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else if (n == "Graph") m_GraphFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
 			return { true, n + (*flag ? " shown" : " hidden") };
 		});
@@ -793,6 +794,206 @@ namespace GB::Editor
 			int added = 0;
 			for (const MontageDesc& m : loaded) added += anim->Montages().Add(m) ? 1 : 0;
 			return { true, std::to_string(added) + " of " + std::to_string(loaded.size()) + " montage(s) loaded (the others need clips this character lacks)" };
+		});
+		// --- animation state graph ---
+		auto editGraph = [this](const std::function<CommandResult(AnimGraph&)>& fn) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			AnimGraph g = anim->Graph().Graph();
+			const CommandResult r = fn(g);
+			if (r.Ok) anim->Graph().SetGraph(g);
+			return r;
+		};
+		c.Register("graph", "graph: lists the states, transitions and parameters of the animation graph and where it is now", [this](const std::vector<std::string>&) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			const GraphRunner& r = anim->Graph();
+			const AnimGraph& g = r.Graph();
+			std::string s = std::string(r.Enabled ? "running" : "OFF") + ", now in '" + r.Current() + "', start '" + g.Start + "'\n";
+			for (const GraphState& st : g.States) s += "state " + st.Name + " (" + (st.What == GraphState::Kind::Montage ? "montage " : "locomotion ") + st.Target + ")\n";
+			for (size_t i = 0; i < g.Transitions.size(); ++i)
+			{
+				const GraphTransition& t = g.Transitions[i];
+				s += "[" + std::to_string(i) + "] " + t.From + " -> " + t.To;
+				for (const GraphCondition& cd : t.Conditions) s += "  " + DescribeCondition(cd);
+				if (t.OnFinish) s += "  finish";
+				s += "\n";
+			}
+			for (const GraphParam& p : g.Params) s += std::string("param ") + p.Name + (p.What == GraphParam::Kind::Trigger ? " (trigger)" : p.What == GraphParam::Kind::Bool ? " (bool)" : "") + "\n";
+			return { true, s };
+		});
+		c.Register("graph_default", "graph_default: replaces the graph with one state per locomotion set of the character", [this, editGraph](const std::vector<std::string>&) -> CommandResult
+		{
+			return editGraph([this](AnimGraph& g) -> CommandResult { g = MakeDefaultGraph(*m_Player.Anim()); return { true, std::to_string(g.States.size()) + " state(s)" }; });
+		});
+		c.Register("graph_state", "graph_state <name> locomotion|montage <target> [x y]: adds a state, or changes it when the name exists", [editGraph](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.size() < 3) return { false, "usage: graph_state <name> locomotion|montage <set-or-montage> [x y]" };
+			if (a[1] != "locomotion" && a[1] != "montage") return { false, "the kind is locomotion or montage" };
+			return editGraph([&](AnimGraph& g) -> CommandResult
+			{
+				int i = g.FindState(a[0]);
+				if (i < 0)
+				{
+					GraphState st;
+					st.Name = a[0];
+					st.Position = glm::vec2(30.0f + 190.0f * static_cast<float>(g.States.size() % 4), 30.0f + 110.0f * static_cast<float>(g.States.size() / 4));
+					g.States.push_back(st);
+					i = static_cast<int>(g.States.size()) - 1;
+				}
+				GraphState& st = g.States[static_cast<size_t>(i)];
+				st.What = a[1] == "montage" ? GraphState::Kind::Montage : GraphState::Kind::Locomotion;
+				st.Target = a[2];
+				if (a.size() >= 5) st.Position = glm::vec2(static_cast<float>(std::atof(a[3].c_str())), static_cast<float>(std::atof(a[4].c_str())));
+				return { true, "state " + st.Name };
+			});
+		});
+		c.Register("graph_state_remove", "graph_state_remove <name>: removes a state and the transitions that touch it", [editGraph](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: graph_state_remove <name>" };
+			return editGraph([&](AnimGraph& g) -> CommandResult
+			{
+				const int i = g.FindState(a[0]);
+				if (i < 0) return { false, "no such state '" + a[0] + "'" };
+				g.States.erase(g.States.begin() + i);
+				g.Transitions.erase(std::remove_if(g.Transitions.begin(), g.Transitions.end(), [&](const GraphTransition& t) { return t.From == a[0] || t.To == a[0]; }), g.Transitions.end());
+				if (g.Start == a[0]) g.Start.clear();
+				return { true, "removed " + a[0] };
+			});
+		});
+		c.Register("graph_start", "graph_start <state>: the state the graph begins in", [editGraph](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: graph_start <state>" };
+			return editGraph([&](AnimGraph& g) -> CommandResult
+			{
+				if (g.FindState(a[0]) < 0) return { false, "no such state '" + a[0] + "'" };
+				g.Start = a[0];
+				return { true, "start = " + a[0] };
+			});
+		});
+		c.Register("graph_transition", "graph_transition <from|*> <to> [Speed>2 ...] [blend=0.3] [priority=1] [min=0.5] [finish]: adds a transition; every condition must hold", [editGraph](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.size() < 2) return { false, "usage: graph_transition <from|*> <to> [conditions...] [blend=..] [priority=..] [min=..] [finish]" };
+			return editGraph([&](AnimGraph& g) -> CommandResult
+			{
+				GraphTransition t;
+				t.From = a[0];
+				t.To = a[1];
+				if (t.From != "*" && g.FindState(t.From) < 0) return { false, "no such state '" + t.From + "'" };
+				if (g.FindState(t.To) < 0) return { false, "no such state '" + t.To + "'" };
+				for (size_t i = 2; i < a.size(); ++i)
+				{
+					const std::string& w = a[i];
+					if (w == "finish") t.OnFinish = true;
+					else if (w.rfind("blend=", 0) == 0) t.Blend = static_cast<float>(std::atof(w.c_str() + 6));
+					else if (w.rfind("priority=", 0) == 0) t.Priority = std::atoi(w.c_str() + 9);
+					else if (w.rfind("min=", 0) == 0) t.MinStateTime = static_cast<float>(std::atof(w.c_str() + 4));
+					else
+					{
+						GraphCondition cd;
+						if (!ParseCondition(w, cd)) return { false, "cannot read the condition '" + w + "' (try Speed>2, Grounded==1, Pick or !Pick)" };
+						t.Conditions.push_back(cd);
+						if (g.FindParam(cd.Param) < 0)
+						{
+							// an automatic parameter (Speed, Grounded...) needs no declaration; anything else is declared as a trigger
+							static const char* autos[] = { "Speed", "Forward", "Strafe", "YawRate", "Grounded", "Airborne", "Wading", "WadeDepth", "Blocked", "Landed", "LandingSpeed", "Finished" };
+							bool isAuto = false;
+							for (const char* n : autos) isAuto = isAuto || cd.Param == n;
+							if (!isAuto) { GraphParam p; p.Name = cd.Param; p.What = GraphParam::Kind::Trigger; g.Params.push_back(p); }
+						}
+					}
+				}
+				g.Transitions.push_back(t);
+				return { true, "transition [" + std::to_string(g.Transitions.size() - 1) + "] " + t.From + " -> " + t.To };
+			});
+		});
+		c.Register("graph_transition_remove", "graph_transition_remove <index>: removes a transition (the numbers are listed by graph)", [editGraph](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: graph_transition_remove <index>" };
+			return editGraph([&](AnimGraph& g) -> CommandResult
+			{
+				const int i = std::atoi(a[0].c_str());
+				if (i < 0 || i >= static_cast<int>(g.Transitions.size())) return { false, "no such transition" };
+				g.Transitions.erase(g.Transitions.begin() + i);
+				return { true, "removed" };
+			});
+		});
+		c.Register("graph_declare", "graph_declare <name> float|bool|trigger: declares a parameter of the graph", [editGraph](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.size() < 2) return { false, "usage: graph_declare <name> float|bool|trigger" };
+			return editGraph([&](AnimGraph& g) -> CommandResult
+			{
+				if (a[1] != "float" && a[1] != "bool" && a[1] != "trigger") return { false, "the kind is float, bool or trigger" };
+				const int i = g.FindParam(a[0]);
+				GraphParam p;
+				if (i >= 0) p = g.Params[static_cast<size_t>(i)];
+				p.Name = a[0];
+				p.What = a[1] == "trigger" ? GraphParam::Kind::Trigger : a[1] == "bool" ? GraphParam::Kind::Bool : GraphParam::Kind::Float;
+				if (i >= 0) g.Params[static_cast<size_t>(i)] = p; else g.Params.push_back(p);
+				return { true, "param " + a[0] };
+			});
+		});
+		c.Register("graph_param", "graph_param <name> <value>: sets a parameter the conditions read", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.size() < 2) return { false, "usage: graph_param <name> <value>" };
+			anim->Graph().SetParam(a[0], static_cast<float>(std::atof(a[1].c_str())));
+			return { true, a[0] + " = " + a[1] };
+		});
+		c.Register("graph_trigger", "graph_trigger <name>: fires a trigger parameter", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { false, "usage: graph_trigger <name>" };
+			anim->Graph().Trigger(a[0]);
+			return { true, "fired " + a[0] };
+		});
+		c.Register("graph_enable", "graph_enable on|off: lets the graph drive the animation, or not", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { false, "usage: graph_enable on|off" };
+			anim->Graph().Enabled = a[0] == "on" || a[0] == "1" || a[0] == "true";
+			if (anim->Graph().Enabled) anim->Graph().Restart();
+			return { true, anim->Graph().Enabled ? "on" : "off" };
+		});
+		c.Register("graph_validate", "graph_validate: lists what would stop the graph from working (unknown states, sets, montages, parameters)", [this](const std::vector<std::string>&) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			const auto problems = anim->Graph().Graph().Validate(anim);
+			if (problems.empty()) return { true, "the graph is fine" };
+			std::string s;
+			for (const std::string& p : problems) s += p + "\n";
+			return { false, s };
+		});
+		c.Register("graph_save", "graph_save <file.json>: writes the animation graph", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { false, "usage: graph_save <file.json>" };
+			std::ofstream out(a[0]);
+			if (!out) return { false, "could not write " + a[0] };
+			out << AnimGraphToJson(anim->Graph().Graph());
+			return { true, "saved " + a[0] };
+		});
+		c.Register("graph_load", "graph_load <file.json>: replaces the animation graph with the one in a file", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { false, "usage: graph_load <file.json>" };
+			std::ifstream in(a[0]);
+			if (!in) return { false, "could not read " + a[0] };
+			std::stringstream text;
+			text << in.rdbuf();
+			AnimGraph g;
+			std::string error;
+			if (!AnimGraphFromJson(text.str(), g, &error)) return { false, error };
+			anim->Graph().SetGraph(g);
+			return { true, "loaded " + std::to_string(g.States.size()) + " state(s)" };
 		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
@@ -1055,6 +1256,7 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
 		ImGui::DockBuilderDockWindow("Timeline", bottom);
+		ImGui::DockBuilderDockWindow("Graph", bottom);
 		ImGui::DockBuilderDockWindow("Viewport", center);
 		ImGui::DockBuilderFinish(dockspaceId);
 	}
@@ -1079,6 +1281,7 @@ namespace GB::Editor
 		if (m_Panels.Model) DrawModelPanel();
 		if (m_Panels.Animation) DrawAnimationPanel();
 		if (m_Panels.Timeline) DrawTimelinePanel();
+		if (m_Panels.Graph) DrawGraphPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
@@ -1162,6 +1365,7 @@ namespace GB::Editor
 			ImGui::MenuItem("Model", nullptr, &m_Panels.Model);
 			ImGui::MenuItem("Animation", nullptr, &m_Panels.Animation);
 			ImGui::MenuItem("Timeline", nullptr, &m_Panels.Timeline);
+			ImGui::MenuItem("Animation graph", nullptr, &m_Panels.Graph);
 			ImGui::MenuItem("Console", nullptr, &m_Panels.Console);
 			ImGui::MenuItem("Assets", nullptr, &m_Panels.Assets);
 			ImGui::Separator();
@@ -1849,6 +2053,297 @@ namespace GB::Editor
 			for (const std::string& l : m_TimelineLog) log += (log.empty() ? "" : "  |  ") + l;
 			ImGui::TextDisabled("%s", log.empty() ? "events appear here" : log.c_str());
 			if (changed) mp.Add(d);
+		}
+		ImGui::End();
+	}
+
+	void EditorApp::DrawGraphPanel()
+	{
+		if (m_GraphFocus > 0) { ImGui::SetNextWindowFocus(); --m_GraphFocus; }
+		if (ImGui::Begin("Graph", &m_Panels.Graph))
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim)
+			{
+				ImGui::TextWrapped("No animated character. Start one with: player <character.fbx>. Its animation state graph can then be edited here (or with the graph_* commands).");
+				ImGui::End();
+				return;
+			}
+			GraphRunner& runner = anim->Graph();
+			AnimGraph& g = runner.Graph();
+			if (!runner.HasGraph())
+			{
+				ImGui::TextWrapped("This character has no state graph: it is driven by player_overlay and the montages directly.");
+				if (ImGui::Button("Make one from its locomotion sets")) runner.SetGraph(MakeDefaultGraph(*anim));
+				ImGui::SameLine();
+				char file[160];
+				std::snprintf(file, sizeof file, "%s", m_GraphFile.c_str());
+				ImGui::SetNextItemWidth(200.0f);
+				if (ImGui::InputText("##graphfile0", file, sizeof file)) m_GraphFile = file;
+				ImGui::SameLine();
+				if (ImGui::Button("Load")) Execute("graph_load " + m_GraphFile);
+				ImGui::End();
+				return;
+			}
+			const float inspectorWidth = 330.0f;
+			ImGui::BeginChild("##graphcanvas", ImVec2(-inspectorWidth - 8.0f, 0.0f), true, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+			{
+				ImDrawList* draw = ImGui::GetWindowDrawList();
+				const ImVec2 area = ImGui::GetWindowPos();
+				const ImVec2 size = ImGui::GetWindowSize();
+				ImGui::InvisibleButton("##canvasbg", size, ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_MouseButtonMiddle);
+				const bool bgHovered = ImGui::IsItemHovered();
+				const ImVec2 origin(area.x + m_GraphPanX, area.y + m_GraphPanY + 22.0f);
+				const ImVec2 nodeSize(132.0f, 40.0f);
+				auto center = [&](const GraphState& st) { return ImVec2(origin.x + st.Position.x + nodeSize.x * 0.5f, origin.y + st.Position.y + nodeSize.y * 0.5f); };
+				auto edgePoint = [&](const GraphState& st, const ImVec2& toward)
+				{
+					const ImVec2 c = center(st);
+					const float dx = toward.x - c.x, dy = toward.y - c.y;
+					const float sx = std::fabs(dx) > 1e-3f ? (nodeSize.x * 0.5f) / std::fabs(dx) : 1e9f, sy = std::fabs(dy) > 1e-3f ? (nodeSize.y * 0.5f) / std::fabs(dy) : 1e9f;
+					const float k = std::min(sx, sy);
+					return ImVec2(c.x + dx * k, c.y + dy * k);
+				};
+				// the edges
+				ImVec2 clickedLabel(-1.0f, -1.0f);
+				int hitTransition = -1;
+				const ImVec2 mouse = ImGui::GetIO().MousePos;
+				for (size_t i = 0; i < g.Transitions.size(); ++i)
+				{
+					const GraphTransition& t = g.Transitions[i];
+					const int to = g.FindState(t.To), from = g.FindState(t.From);
+					if (to < 0) continue;
+					const GraphState& dst = g.States[static_cast<size_t>(to)];
+					ImVec2 a, b;
+					if (from >= 0)
+					{
+						const GraphState& src = g.States[static_cast<size_t>(from)];
+						// two states joined both ways: the arrows are bent apart so they do not lie on top of each other
+						const ImVec2 cs = center(src), cd = center(dst);
+						const ImVec2 normal(-(cd.y - cs.y), cd.x - cs.x);
+						const float len = std::max(std::sqrt(normal.x * normal.x + normal.y * normal.y), 1.0f);
+						const ImVec2 shift(normal.x / len * 8.0f, normal.y / len * 8.0f);
+						a = edgePoint(src, ImVec2(cd.x + shift.x, cd.y + shift.y)); a.x += shift.x; a.y += shift.y;
+						b = edgePoint(dst, ImVec2(cs.x + shift.x, cs.y + shift.y)); b.x += shift.x; b.y += shift.y;
+					}
+					else   // from any state: a short arrow coming down into the node
+					{
+						const ImVec2 c = center(dst);
+						a = ImVec2(c.x - 30.0f, c.y - nodeSize.y * 0.5f - 26.0f);
+						b = ImVec2(c.x - 30.0f, c.y - nodeSize.y * 0.5f);
+					}
+					const bool selected = static_cast<int>(i) == m_GraphTransition;
+					const bool fired = runner.LastTransition() == (t.From == "*" || t.From.empty() ? runner.LastTransition() : t.From + " -> " + t.To) && !runner.LastTransition().empty() && runner.LastTransition().find("-> " + t.To) != std::string::npos && (t.From == "*" || runner.LastTransition().rfind(t.From, 0) == 0);
+					const ImU32 color = selected ? IM_COL32(255, 210, 60, 255) : fired ? IM_COL32(110, 200, 120, 255) : IM_COL32(150, 155, 170, 255);
+					draw->AddLine(a, b, color, selected ? 2.5f : 1.5f);
+					const ImVec2 dir(b.x - a.x, b.y - a.y);
+					const float dl = std::max(std::sqrt(dir.x * dir.x + dir.y * dir.y), 1.0f);
+					const ImVec2 u(dir.x / dl, dir.y / dl), nrm(-u.y, u.x);
+					draw->AddTriangleFilled(b, ImVec2(b.x - u.x * 9.0f + nrm.x * 4.5f, b.y - u.y * 9.0f + nrm.y * 4.5f), ImVec2(b.x - u.x * 9.0f - nrm.x * 4.5f, b.y - u.y * 9.0f - nrm.y * 4.5f), color);
+					std::string label;
+					for (const GraphCondition& c : t.Conditions) label += (label.empty() ? "" : " & ") + DescribeCondition(c);
+					if (t.OnFinish) label += (label.empty() ? "" : " & ") + std::string("finished");
+					if (label.empty()) label = "always";
+					const ImVec2 mid((a.x + b.x) * 0.5f, (a.y + b.y) * 0.5f);
+					const ImVec2 textSize = ImGui::CalcTextSize(label.c_str());
+					draw->AddRectFilled(ImVec2(mid.x - 2.0f, mid.y - 1.0f), ImVec2(mid.x + textSize.x + 2.0f, mid.y + textSize.y + 1.0f), IM_COL32(20, 22, 28, 210));
+					draw->AddText(mid, selected ? IM_COL32(255, 220, 90, 255) : IM_COL32(190, 195, 205, 255), label.c_str());
+					if (bgHovered && mouse.x >= mid.x - 2.0f && mouse.x <= mid.x + textSize.x + 2.0f && mouse.y >= mid.y - 1.0f && mouse.y <= mid.y + textSize.y + 1.0f) hitTransition = static_cast<int>(i);
+				}
+				(void)clickedLabel;
+				// the nodes
+				std::string hitState;
+				for (GraphState& st : g.States)
+				{
+					const ImVec2 p0(origin.x + st.Position.x, origin.y + st.Position.y), p1(p0.x + nodeSize.x, p0.y + nodeSize.y);
+					const bool current = st.Name == runner.Current(), selected = st.Name == m_GraphState;
+					const bool isMontage = st.What == GraphState::Kind::Montage;
+					draw->AddRectFilled(p0, p1, isMontage ? IM_COL32(70, 52, 86, 255) : IM_COL32(44, 62, 84, 255), 6.0f);
+					draw->AddRect(p0, p1, current ? IM_COL32(110, 220, 120, 255) : selected ? IM_COL32(255, 210, 60, 255) : IM_COL32(120, 125, 140, 255), 6.0f, 0, current || selected ? 2.5f : 1.0f);
+					draw->AddText(ImVec2(p0.x + 8.0f, p0.y + 5.0f), IM_COL32(240, 240, 245, 255), (st.Name + (g.Start == st.Name || (g.Start.empty() && &st == &g.States[0]) ? "  (start)" : "")).c_str());
+					draw->AddText(ImVec2(p0.x + 8.0f, p0.y + 21.0f), IM_COL32(160, 170, 190, 255), ((isMontage ? "montage " : "set ") + (st.Target.empty() ? std::string("default") : st.Target)).c_str());
+					if (bgHovered && mouse.x >= p0.x && mouse.x <= p1.x && mouse.y >= p0.y && mouse.y <= p1.y) hitState = st.Name;
+				}
+				// the mouse: select, drag a node, pan with the middle or right button
+				if (bgHovered && ImGui::IsMouseClicked(0))
+				{
+					m_GraphDragging.clear();
+					if (!hitState.empty()) { m_GraphState = hitState; m_GraphTransition = -1; m_GraphDragging = hitState; }
+					else if (hitTransition >= 0) { m_GraphTransition = hitTransition; }
+					else { m_GraphState.clear(); m_GraphTransition = -1; }
+				}
+				if (!m_GraphDragging.empty() && ImGui::IsMouseDown(0))
+				{
+					const int i = g.FindState(m_GraphDragging);
+					if (i >= 0) { g.States[static_cast<size_t>(i)].Position.x += ImGui::GetIO().MouseDelta.x; g.States[static_cast<size_t>(i)].Position.y += ImGui::GetIO().MouseDelta.y; }
+				}
+				if (!ImGui::IsMouseDown(0)) m_GraphDragging.clear();
+				if (bgHovered && (ImGui::IsMouseDragging(1) || ImGui::IsMouseDragging(2)))
+				{
+					m_GraphPanX += ImGui::GetIO().MouseDelta.x;
+					m_GraphPanY += ImGui::GetIO().MouseDelta.y;
+				}
+				char status[160];
+				std::snprintf(status, sizeof status, "%s   state: %s (%.1f s)   last: %s", runner.Enabled ? "running" : "OFF", runner.Current().c_str(), static_cast<double>(runner.StateTime()), runner.LastTransition().empty() ? "-" : runner.LastTransition().c_str());
+				draw->AddText(ImVec2(area.x + 8.0f, area.y + 4.0f), IM_COL32(170, 200, 170, 255), status);
+			}
+			ImGui::EndChild();
+			ImGui::SameLine();
+			ImGui::BeginChild("##graphinspector", ImVec2(0.0f, 0.0f), true);
+			{
+				bool restart = false;
+				ImGui::Checkbox("Run", &runner.Enabled);
+				ImGui::SameLine();
+				if (ImGui::SmallButton("Restart")) runner.Restart();
+				ImGui::SameLine();
+				if (ImGui::SmallButton("Validate")) { const auto problems = g.Validate(anim); Execute("graph_validate"); (void)problems; }
+				// the parameters
+				if (ImGui::CollapsingHeader("Parameters", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					for (GraphParam& p : g.Params)
+					{
+						ImGui::PushID(p.Name.c_str());
+						if (p.What == GraphParam::Kind::Trigger) { if (ImGui::SmallButton("fire")) p.Value = 1.0f; ImGui::SameLine(); ImGui::Text("%s%s", p.Name.c_str(), p.Value != 0.0f ? "  (set)" : ""); }
+						else if (p.What == GraphParam::Kind::Bool) { bool b = p.Value != 0.0f; if (ImGui::Checkbox(p.Name.c_str(), &b)) p.Value = b ? 1.0f : 0.0f; }
+						else { ImGui::SetNextItemWidth(120.0f); ImGui::DragFloat(p.Name.c_str(), &p.Value, 0.05f); }
+						ImGui::PopID();
+					}
+					std::string autoText;
+					for (const GraphParam& p : runner.AutoParams()) { char b[48]; std::snprintf(b, sizeof b, "%s%s=%.2f", autoText.empty() ? "" : "  ", p.Name.c_str(), static_cast<double>(p.Value)); autoText += b; }
+					ImGui::TextDisabled("from the motion: %s", autoText.c_str());
+				}
+				// a state
+				const int si = g.FindState(m_GraphState);
+				if (si >= 0 && ImGui::CollapsingHeader("State", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					GraphState& st = g.States[static_cast<size_t>(si)];
+					char name[64];
+					std::snprintf(name, sizeof name, "%s", st.Name.c_str());
+					ImGui::SetNextItemWidth(150.0f);
+					if (ImGui::InputText("name", name, sizeof name, ImGuiInputTextFlags_EnterReturnsTrue) && name[0] && g.FindState(name) < 0)
+					{
+						const std::string old = st.Name;
+						st.Name = name;
+						for (GraphTransition& t : g.Transitions) { if (t.From == old) t.From = name; if (t.To == old) t.To = name; }
+						if (g.Start == old) g.Start = name;
+						m_GraphState = name;
+						restart = true;
+					}
+					int kind = st.What == GraphState::Kind::Montage ? 1 : 0;
+					ImGui::SetNextItemWidth(150.0f);
+					if (ImGui::Combo("kind", &kind, "locomotion set\0montage\0")) { st.What = kind == 1 ? GraphState::Kind::Montage : GraphState::Kind::Locomotion; st.Target.clear(); }
+					ImGui::SetNextItemWidth(150.0f);
+					if (ImGui::BeginCombo("target", st.Target.empty() ? "(default)" : st.Target.c_str()))
+					{
+						const std::vector<std::string> options = st.What == GraphState::Kind::Montage ? anim->Montages().Names() : anim->SetNames();
+						for (const std::string& o : options) if (ImGui::Selectable(o.c_str(), o == st.Target)) st.Target = o;
+						ImGui::EndCombo();
+					}
+					bool isStart = g.Start == st.Name || (g.Start.empty() && si == 0);
+					if (ImGui::Checkbox("start state", &isStart) && isStart) g.Start = st.Name;
+					if (ImGui::Button("Delete state"))
+					{
+						const std::string old = st.Name;
+						g.Transitions.erase(std::remove_if(g.Transitions.begin(), g.Transitions.end(), [&](const GraphTransition& t) { return t.From == old || t.To == old; }), g.Transitions.end());
+						if (g.Start == old) g.Start.clear();
+						g.States.erase(g.States.begin() + si);
+						m_GraphState.clear();
+						m_GraphTransition = -1;
+						restart = true;
+					}
+				}
+				// a transition
+				if (m_GraphTransition >= 0 && m_GraphTransition < static_cast<int>(g.Transitions.size()) && ImGui::CollapsingHeader("Transition", ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					GraphTransition& t = g.Transitions[static_cast<size_t>(m_GraphTransition)];
+					auto stateCombo = [&](const char* label, std::string& value, bool allowAny)
+					{
+						ImGui::SetNextItemWidth(150.0f);
+						if (ImGui::BeginCombo(label, value.empty() ? "*" : value.c_str()))
+						{
+							if (allowAny && ImGui::Selectable("*", value == "*")) value = "*";
+							for (const GraphState& s : g.States) if (ImGui::Selectable(s.Name.c_str(), s.Name == value)) value = s.Name;
+							ImGui::EndCombo();
+						}
+					};
+					stateCombo("from", t.From, true);
+					stateCombo("to", t.To, false);
+					ImGui::SetNextItemWidth(100.0f); ImGui::DragInt("priority", &t.Priority, 0.2f, -10, 10);
+					ImGui::SetNextItemWidth(100.0f); ImGui::DragFloat("blend", &t.Blend, 0.01f, 0.0f, 3.0f, "%.2f s");
+					ImGui::SetNextItemWidth(100.0f); ImGui::DragFloat("min time", &t.MinStateTime, 0.01f, 0.0f, 10.0f, "%.2f s");
+					ImGui::Checkbox("only when the montage ended", &t.OnFinish);
+					std::vector<std::string> paramNames;
+					for (const GraphParam& p : runner.AutoParams()) paramNames.push_back(p.Name);
+					for (const GraphParam& p : g.Params) paramNames.push_back(p.Name);
+					static const char* opNames = ">\0<\0>=\0<=\0==\0!=\0";
+					for (size_t ci = 0; ci < t.Conditions.size(); ++ci)
+					{
+						GraphCondition& c = t.Conditions[ci];
+						ImGui::PushID(static_cast<int>(ci));
+						ImGui::SetNextItemWidth(110.0f);
+						if (ImGui::BeginCombo("##param", c.Param.c_str()))
+						{
+							for (const std::string& n : paramNames) if (ImGui::Selectable(n.c_str(), n == c.Param)) c.Param = n;
+							ImGui::EndCombo();
+						}
+						ImGui::SameLine(); ImGui::SetNextItemWidth(50.0f);
+						int op = static_cast<int>(c.What);
+						if (ImGui::Combo("##op", &op, opNames)) c.What = static_cast<GraphCondition::Op>(op);
+						ImGui::SameLine(); ImGui::SetNextItemWidth(60.0f);
+						ImGui::DragFloat("##value", &c.Value, 0.05f);
+						ImGui::SameLine();
+						if (ImGui::SmallButton("x")) { t.Conditions.erase(t.Conditions.begin() + static_cast<std::ptrdiff_t>(ci)); ImGui::PopID(); break; }
+						ImGui::PopID();
+					}
+					if (ImGui::SmallButton("+ condition")) t.Conditions.push_back({ paramNames.empty() ? "Speed" : paramNames.front(), GraphCondition::Op::Greater, 0.0f });
+					ImGui::SameLine();
+					if (ImGui::SmallButton("Delete transition")) { g.Transitions.erase(g.Transitions.begin() + m_GraphTransition); m_GraphTransition = -1; }
+				}
+				// new things, files
+				ImGui::Separator();
+				if (ImGui::SmallButton("+ locomotion state"))
+				{
+					GraphState s;
+					s.Name = "state" + std::to_string(g.States.size() + 1);
+					s.Position = { 30.0f + 20.0f * static_cast<float>(g.States.size()), 150.0f };
+					g.States.push_back(s);
+					m_GraphState = s.Name;
+				}
+				ImGui::SameLine();
+				if (ImGui::SmallButton("+ montage state"))
+				{
+					GraphState s;
+					s.Name = "action" + std::to_string(g.States.size() + 1);
+					s.What = GraphState::Kind::Montage;
+					const auto montages = anim->Montages().Names();
+					if (!montages.empty()) s.Target = montages.front();
+					s.Position = { 30.0f + 20.0f * static_cast<float>(g.States.size()), 150.0f };
+					g.States.push_back(s);
+					m_GraphState = s.Name;
+				}
+				ImGui::SameLine();
+				if (ImGui::SmallButton("+ transition from selected") && !m_GraphState.empty())
+				{
+					GraphTransition t;
+					t.From = m_GraphState;
+					t.To = g.States.size() > 1 ? g.States[(static_cast<size_t>(std::max(g.FindState(m_GraphState), 0)) + 1) % g.States.size()].Name : m_GraphState;
+					g.Transitions.push_back(t);
+					m_GraphTransition = static_cast<int>(g.Transitions.size()) - 1;
+				}
+				if (ImGui::SmallButton("+ trigger")) { g.Params.push_back({ "Trigger" + std::to_string(g.Params.size() + 1), GraphParam::Kind::Trigger, 0.0f }); }
+				ImGui::SameLine();
+				if (ImGui::SmallButton("+ number")) { g.Params.push_back({ "Value" + std::to_string(g.Params.size() + 1), GraphParam::Kind::Float, 0.0f }); }
+				char file[160];
+				std::snprintf(file, sizeof file, "%s", m_GraphFile.c_str());
+				ImGui::SetNextItemWidth(170.0f);
+				if (ImGui::InputText("##graphfile", file, sizeof file)) m_GraphFile = file;
+				ImGui::SameLine();
+				if (ImGui::SmallButton("Save")) Execute("graph_save " + m_GraphFile);
+				ImGui::SameLine();
+				if (ImGui::SmallButton("Load")) Execute("graph_load " + m_GraphFile);
+				if (restart) runner.Restart();
+			}
+			ImGui::EndChild();
 		}
 		ImGui::End();
 	}

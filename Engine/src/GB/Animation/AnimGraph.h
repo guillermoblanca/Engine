@@ -92,6 +92,7 @@ namespace GB
 		// state it enters (a locomotion set with a cross-fade, or a montage).
 		void Update(const MotionState& state, float dt, AnimInstance& anim);
 
+		const std::vector<GraphParam>& AutoParams() const { return m_Auto; }   // what the motion gave this frame
 		const std::string& Current() const { return m_Current; }
 		float StateTime() const { return m_Time; }
 		const std::string& LastTransition() const { return m_Last; }   // "From -> To" of the latest one
