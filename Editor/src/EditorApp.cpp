@@ -882,7 +882,7 @@ namespace GB::Editor
 		ImGuiID center = dockspaceId, left, leftTop, right, bottom;
 		left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.25f, nullptr, &center);
 		leftTop = ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.45f, nullptr, &left);
-		right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.22f, nullptr, &center);
+		right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.27f, nullptr, &center);
 		bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.27f, nullptr, &center);
 		ImGui::DockBuilderDockWindow("Properties", left);
 		ImGui::DockBuilderDockWindow("Hierarchy", leftTop);
@@ -1364,6 +1364,7 @@ namespace GB::Editor
 
 	void EditorApp::DrawAnimationPanel()
 	{
+		if (!m_AnimTabRequest.empty()) ImGui::SetNextWindowFocus();   // `panel Animation tab ...` brings it to the front of its dock
 		if (ImGui::Begin("Animation", &m_Panels.Animation))
 		{
 			AnimInstance* anim = m_Player.Anim();
