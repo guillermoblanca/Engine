@@ -13,6 +13,13 @@ add_library(GB STATIC
     src/GB/Game/MotionWarp.cpp
     src/GB/Game/Interaction.cpp
     src/GB/Game/TaskList.cpp
+    src/GB/Gameplay/GameplayTag.cpp
+    src/GB/Gameplay/AttributeSet.cpp
+    src/GB/Gameplay/GameplayEffect.cpp
+    src/GB/Gameplay/AbilitySystemComponent.cpp
+    src/GB/Gameplay/AbilityTasks.cpp
+    src/GB/Gameplay/GameplayWorld.cpp
+    src/GB/Gameplay/Garden.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp

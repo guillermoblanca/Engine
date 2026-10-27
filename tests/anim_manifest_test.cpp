@@ -6,6 +6,8 @@
 #include "GB/Animation/AnimManifest.h"
 #include "GB/Animation/CharacterAnimator.h"
 #include "GB/Assets/Model.h"
+#include "GB/Gameplay/AbilitySystemComponent.h"
+#include "GB/Gameplay/Garden.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>

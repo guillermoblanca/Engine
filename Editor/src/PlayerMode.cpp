@@ -148,6 +148,7 @@ namespace GB::Editor
 			return false;
 		}
 		m_ManifestReport = animator->LoadManifest(m_Manifest);   // the sets, turns, jump and montages the folder has clips for
+		if (m_Gameplay) RegisterAbilityMontages(m_Gameplay->Library, animator->Anim(), m_Manifest.Montages);   // the same montages plus the notifies the abilities need
 		animator->SetFootsteps(m_Steps);
 		if (animator->Anim().Turn().HasClips("")) m_Controller.Config.TurnInPlaceAngle = 70.0f;   // the character has a turn on the spot to show
 		m_Animator = std::move(animator);
@@ -285,6 +286,7 @@ namespace GB::Editor
 	bool PlayerMode::StartRagdoll(const glm::vec3& extraVelocity)
 	{
 		if (!m_Animator || Ragdolled()) return false;
+		if (AbilitySystemComponent* a = Abilities()) a->CancelAll();
 		BuildPhysics();
 		m_Tasks.Clear();
 		m_Script.clear();
@@ -340,8 +342,79 @@ namespace GB::Editor
 		return m_Animator->Anim().Recovering() ? "getting up" : "";
 	}
 
+	void PlayerMode::SetAbilities(GameplayWorld* gameplay, const std::string& actor)
+	{
+		if (AbilitySystemComponent* old = Abilities()) { old->CancelAll(); old->SetRuntime(nullptr); }
+		m_Gameplay = gameplay;
+		m_Actor = actor;
+		if (m_Gameplay && m_Animator) RegisterAbilityMontages(m_Gameplay->Library, m_Animator->Anim(), m_Manifest.Montages);
+	}
+
+	void PlayerMode::PrepareAbilities()
+	{
+		AbilitySystemComponent* asc = Abilities();
+		if (!asc) return;
+		if (!m_Instance || !m_Animator || Ragdolled() || !m_Edit)
+		{
+			if (asc->Runtime()) { asc->CancelAll(); asc->SetRuntime(nullptr); }
+			return;
+		}
+		m_AbilityRt.Anim = &m_Animator->Anim();
+		m_AbilityRt.Controller = &m_Controller;
+		m_AbilityRt.World = &m_World;
+		m_AbilityRt.Resolve = [this](const std::string& entity, const std::string& point, InteractionTarget& out, std::string* err)
+		{
+			return m_Edit && FindInteraction(m_Edit->World(), entity, point, out, err);
+		};
+		m_AbilityRt.Equip = [this](const std::string& prop, bool on) { return EquipProp(prop, on); };
+		asc->SetRuntime(&m_AbilityRt);
+	}
+
+	bool PlayerMode::UseAbility(const std::string& ability, const std::string& entity, std::string& error)
+	{
+		AbilitySystemComponent* asc = Abilities();
+		if (!asc) { error = "no ability system for '" + m_Actor + "' (garden build)"; return false; }
+		PrepareAbilities();   // the character is lent to the abilities before this one starts, even in the frame the player appeared
+		m_Tasks.Clear();
+		m_Script.clear();
+		m_UseAI = false;
+		return asc->Activate(ability, entity.empty() ? nullptr : m_Gameplay->Find(entity), &error, entity);
+	}
+
+	TaskRunner::AbilityHandler PlayerMode::AbilityHandler()
+	{
+		TaskRunner::AbilityHandler h;
+		h.Start = [this](const std::string& ability, const std::string& entity, std::string& error)
+		{
+			AbilitySystemComponent* asc = Abilities();
+			if (!asc) { error = "no ability system for '" + m_Actor + "' (garden build)"; return false; }
+			PrepareAbilities();
+			return asc->Activate(ability, entity.empty() ? nullptr : m_Gameplay->Find(entity), &error, entity);
+		};
+		h.Poll = [this](std::string& error)
+		{
+			AbilitySystemComponent* asc = Abilities();
+			if (!asc) { error = "the ability system is gone"; return -1; }
+			if (asc->AnyActive()) return 0;
+			error = asc->LastError();
+			return error.empty() ? 1 : -1;
+		};
+		return h;
+	}
+
+	bool PlayerMode::EquipProp(const std::string& name, bool on)
+	{
+		if (!m_Animator) return false;
+		AnimInstance& anim = m_Animator->Anim();
+		if (on) return name == "wheelbarrow" ? anim.SetOverlay("wheelbarrow", 0.3f) : AttachProp(name);
+		DetachProp(name);
+		if (name == "box" || name == "wheelbarrow") anim.SetOverlay(anim.HasSet("free") ? "free" : AnimInstance::kDefaultSet, 0.3f);
+		return true;
+	}
+
 	void PlayerMode::Stop()
 	{
+		if (AbilitySystemComponent* a = Abilities()) { a->CancelAll(); a->SetRuntime(nullptr); }
 		m_Animator.reset();   // the ragdoll first, then the world it lives in
 		m_Physics.reset();
 		m_PropLooks.clear();
@@ -434,7 +507,7 @@ namespace GB::Editor
 				DetachProp(prop);
 				return true;
 			};
-			in = m_Tasks.Update(m_Controller, m_World, m_Animator ? &m_Animator->Anim() : nullptr, dt, resolver, props);
+			in = m_Tasks.Update(m_Controller, m_World, m_Animator ? &m_Animator->Anim() : nullptr, dt, resolver, props, AbilityHandler());
 		}
 		else if (m_UseAI && !m_AI.Arrived() && !m_AI.Stuck())
 		{
@@ -446,6 +519,7 @@ namespace GB::Editor
 			m_Camera.ReadInput(dt);
 			in = ReadCharacterInput(m_Camera.Yaw);
 		}
+		if (AbilitySystemComponent* asc = Abilities(); asc && asc->Controlling()) in = asc->Input();   // an ability is walking or animating the character
 		if (m_Animator && m_BaseRun > 0.0f)
 		{
 			// carrying a box or pushing a barrow the set has a walk and no run: never go faster than its fastest clip shows
@@ -541,6 +615,27 @@ namespace GB::Editor
 			prop.Socket = "back";
 			look.Size = { 0.34f, 0.46f, 0.2f };
 			look.Color = { 0.35f, 0.22f, 0.12f };
+		}
+		else if (name == "can")
+		{
+			if (!sockets.Find("hand_r")) return false;
+			prop.Socket = "hand_r";
+			look.Size = { 0.2f, 0.26f, 0.24f };
+			look.Color = { 0.2f, 0.4f, 0.65f };
+		}
+		else if (name == "shovel")
+		{
+			if (!sockets.Find("hand_r")) return false;
+			prop.Socket = "hand_r";
+			look.Size = { 0.05f, 0.05f, 1.0f };
+			look.Color = { 0.5f, 0.38f, 0.22f };
+		}
+		else if (name == "seeds")
+		{
+			if (!sockets.Find("hand_r")) return false;
+			prop.Socket = "hand_r";
+			look.Size = { 0.18f, 0.08f, 0.12f };
+			look.Color = { 0.75f, 0.65f, 0.3f };
 		}
 		else if (name == "tool")
 		{

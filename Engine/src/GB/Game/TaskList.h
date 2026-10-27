@@ -12,9 +12,10 @@ namespace GB
 	//   interact <entity> [point] go to an entity's interaction point and use it
 	//   wait <seconds>
 	//   attach <prop> / detach [prop]   pick a prop up or let go (what the props are is up to the host)
+	//   ability <name> [entity]  use an ability (see GB/Gameplay) on an entity; it goes there, plays the action and the list goes on when it ends
 	struct Task
 	{
-		enum class Kind { GoTo, Wait, Interact, Attach, Detach };
+		enum class Kind { GoTo, Wait, Interact, Attach, Detach, Ability };
 		Kind What = Kind::Wait;
 		glm::vec2 Position{ 0.0f };
 		bool Run = false;
@@ -36,6 +37,13 @@ namespace GB
 		using Resolver = std::function<bool(const std::string& entity, const std::string& point, InteractionTarget& out, std::string* error)>;
 		// Attaches (true) or lets go of (false) a prop by name; an empty name on detach means everything. False = it could not.
 		using PropHandler = std::function<bool(const std::string& prop, bool attach)>;
+		// Abilities are the host's: Start activates one (false and `error` when it cannot); Poll says how it goes (0 running, 1 ended well, -1 failed).
+		// While one runs the ability moves the character, so the input the runner gives is empty.
+		struct AbilityHandler
+		{
+			std::function<bool(const std::string& ability, const std::string& entity, std::string& error)> Start;
+			std::function<int(std::string& error)> Poll;
+		};
 
 		void Set(std::vector<Task> tasks);
 		void Clear();
@@ -49,7 +57,7 @@ namespace GB
 
 		// Once per frame before the controller's step. Returns the input to step it with.
 		CharacterInput Update(CharacterController& controller, const CharacterWorld& world, AnimInstance* anim, float dt,
-			const Resolver& resolver, const PropHandler& props);
+			const Resolver& resolver, const PropHandler& props, const AbilityHandler& abilities = AbilityHandler());
 
 	private:
 		void Fail(const std::string& why);

@@ -20,6 +20,7 @@ add_library(GBEditor STATIC
     src/SceneEditor.cpp
     src/WorldInstance.cpp
     src/TestScenarios.cpp
+    src/EditorGameplay.cpp
     src/EditorApp.cpp)
 target_include_directories(GBEditor PUBLIC src)
 target_link_libraries(GBEditor PUBLIC GB::GB imgui)
