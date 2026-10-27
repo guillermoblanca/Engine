@@ -18,7 +18,32 @@ namespace GB
 		const GaitInfo info = MakeGaitInfo(m_Model, clip, m_Options.Analysis);
 		if (info.Clip < 0) return false;
 		m_Space.Add(info, info.Velocity);
+
+		// does the clip close its loop? when a bone ends more than a few degrees from where it began, keep how far
+		std::vector<glm::quat> fix;
+		Pose first, last;
+		SampleClip(m_Model, info.Clip, 0.0f, first);
+		SampleClip(m_Model, info.Clip, m_Model.GetClips()[static_cast<size_t>(info.Clip)].Duration, last);
+		float worst = 0.0f;
+		for (size_t b = 0; b < first.size(); ++b)
+		{
+			glm::quat d = last[b].R * glm::conjugate(first[b].R);
+			if (d.w < 0.0f) d = -d;
+			worst = std::max(worst, glm::degrees(2.0f * std::acos(std::min(d.w, 1.0f))));
+			fix.push_back(d);
+		}
+		if (worst <= 4.0f) fix.clear();
+		m_LoopFix.resize(m_Space.Size());
+		m_LoopFix[m_Space.Size() - 1] = std::move(fix);
 		return true;
+	}
+
+	float LocomotionBlender::MaxSpeed() const
+	{
+		float best = 0.0f;
+		for (size_t i = 0; i < m_Space.Size(); ++i)
+			best = std::max(best, glm::length(m_Space.Info(i).Velocity));
+		return best;
 	}
 
 	std::vector<LocomotionBlender::Contribution> LocomotionBlender::Contributions() const
@@ -93,6 +118,12 @@ namespace GB
 			float p = m_Phase + offset;
 			p -= std::floor(p);
 			SampleClip(m_Model, g.Clip, p * g.Duration, m_Scratch);
+			if (w.Index < m_LoopFix.size() && !m_LoopFix[w.Index].empty())
+			{
+				const std::vector<glm::quat>& fix = m_LoopFix[w.Index];
+				for (size_t b = 0; b < fix.size() && b < m_Scratch.size(); ++b)
+					m_Scratch[b].R = glm::normalize(glm::conjugate(glm::slerp(glm::quat(1.0f, 0.0f, 0.0f, 0.0f), fix[b], p)) * m_Scratch[b].R);
+			}
 			if (m_Options.StripRootMotion && m_Root >= 0)
 			{
 				// the clip's forward travel is the controller's job: keep only the sway around the straight line

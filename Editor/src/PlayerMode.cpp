@@ -87,6 +87,8 @@ namespace GB::Editor
 		m_Obstacles = m_World.Obstacles.size();
 		m_Controller.Config.Radius = std::max(0.2f * height, 0.25f);
 		m_Controller.Config.MaxWadeDepth = 0.55f * height;
+		m_BaseWalk = m_Controller.Config.WalkSpeed;
+		m_BaseRun = m_Controller.Config.RunSpeed;
 		const glm::vec2 start = FindFreeSpot(m_World, { near.x, near.z }, 2.5f);
 		m_Controller.SetPosition(m_World, start.x, start.y, 0.0f);
 
@@ -328,6 +330,15 @@ namespace GB::Editor
 			m_Camera.ReadInput(dt);
 			in = ReadCharacterInput(m_Camera.Yaw);
 		}
+		if (m_Animator && m_BaseRun > 0.0f)
+		{
+			// carrying a box or pushing a barrow the set has a walk and no run: never go faster than its fastest clip shows
+			const float fastest = m_Animator->Anim().Active().MaxSpeed();
+			const bool setApplies = m_Animator->Anim().Overlay() != AnimInstance::kDefaultSet && fastest > 0.3f;
+			const float limit = setApplies ? fastest * 1.1f : 1e9f;
+			m_Controller.Config.WalkSpeed = std::min(m_BaseWalk, limit);
+			m_Controller.Config.RunSpeed = std::min(m_BaseRun, limit);
+		}
 		m_Controller.Step(in, m_World, dt);
 		m_Motion = m_Tracker.Update(m_Controller, dt);
 		if (m_Animator && RagdollLandingSpeed > 0.0f && m_Motion.Landed && m_Motion.LandingSpeed > RagdollLandingSpeed)
@@ -402,8 +413,10 @@ namespace GB::Editor
 			glm::vec3 z = glm::cross(x, glm::vec3(0, 1, 0));
 			z = glm::length(z) > 1e-4f ? glm::normalize(z) : glm::vec3(0, 0, 1);
 			const glm::vec3 y = glm::cross(z, x);
-			prop.Offset = glm::mat4(glm::vec4(x, 0), glm::vec4(y, 0), glm::vec4(z, 0), glm::vec4((l + r) * 0.5f, 1));
-			look.Size = { width + 0.04f, 0.32f, 0.36f };
+			// a shallow box, held by the near edge: the thighs swing forward under a carried box and a deep one goes through them
+			// (tests/box_clearance_test.cpp measures it)
+			prop.Offset = glm::mat4(glm::vec4(x, 0), glm::vec4(y, 0), glm::vec4(z, 0), glm::vec4((l + r) * 0.5f + z * 0.11f, 1));
+			look.Size = { width + 0.04f, 0.32f, 0.26f };
 			look.Color = { 0.62f, 0.44f, 0.26f };
 		}
 		else if (name == "bag")
