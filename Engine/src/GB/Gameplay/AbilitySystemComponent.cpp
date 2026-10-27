@@ -429,4 +429,40 @@ namespace GB
 		for (const std::string& a : c.Abilities) Grant(a);
 		for (const std::string& e : c.Effects) ApplyEffect(e);
 	}
+	AbilityRuntimeState AbilitySystemComponent::RuntimeState() const
+	{
+		AbilityRuntimeState s;
+		for (const ActiveEffect& e : m_Effects) s.Effects.push_back({ e.Def.Name, e.Remaining, e.PeriodTimer });
+		s.Uses = m_Uses;
+		s.Completed = m_Completed;
+		return s;
+	}
+
+	bool AbilitySystemComponent::RestoreRuntimeState(const AbilityRuntimeState& state, std::string* error)
+	{
+		const std::string cooldown = "Cooldown.";
+		for (const EffectRuntime& r : state.Effects)
+		{
+			ActiveEffect* active = nullptr;
+			for (ActiveEffect& e : m_Effects)
+				if (e.Def.Name == r.Name) active = &e;
+			if (!active)
+			{
+				if (r.Name.compare(0, cooldown.size(), cooldown) == 0) ApplyEffect(MakeCooldownEffect(r.Name.substr(cooldown.size()), std::max(r.Remaining, kEps)));
+				else if (!ApplyEffect(r.Name))
+				{
+					if (error) *error = "unknown effect '" + r.Name + "' on " + m_Name;
+					return false;
+				}
+				for (ActiveEffect& e : m_Effects)
+					if (e.Def.Name == r.Name) active = &e;
+			}
+			if (!active) continue;   // an instant effect leaves nothing running
+			active->Remaining = r.Remaining;
+			active->PeriodTimer = r.PeriodTimer;
+		}
+		m_Uses = state.Uses;
+		m_Completed = state.Completed;
+		return true;
+	}
 }

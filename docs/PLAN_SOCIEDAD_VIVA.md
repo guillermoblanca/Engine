@@ -334,7 +334,7 @@ Y los **modelos**: herramientas, semillas y plantas, regadera, pala, cestas, obj
 | H1 · Núcleo de habilidades (GAS) | En curso (`feature/huerto-gas`) |
 | H2 · Objetos, inventario y recursos | Sin empezar |
 | H3 · Mundo interactivo y ecología | En curso (huerto) |
-| H4 · Persistencia v1 | Sin empezar (hay escenas JSON de entidades) |
+| H4 · Persistencia v1 | **Hecho** (`GB/Save`, [docs/GUARDADO.md](GUARDADO.md)): formato `.gbsave` versionado con migraciones y partidas antiguas en `tests/golden/saves/`, guardado diferencial sobre la semilla, escritura atómica con copia, autoguardado, repetición determinista y comandos del editor. Queda para otros hitos: inventarios (H2), enganchar el `Actor` (H0) y la edición de terreno |
 | H5 a H20 | Sin empezar |
 
 > Este documento se actualiza al cerrar cada hito: estado, decisiones tomadas y lo que se haya movido de sitio.

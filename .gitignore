@@ -23,3 +23,6 @@ CMakeUserPresets.json
 *.dll
 *.lib
 *.exe
+/saves/
+/replays/
+*.gbsave.bak

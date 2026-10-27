@@ -72,6 +72,9 @@ namespace GB::Editor
 		// Called by NewScene so the application can drop the generated world too (an empty scene: camera and sun only).
 		std::function<void()> OnNewScene;
 
+		// Puts another scene in place (a loaded game): selection and undo history start afresh.
+		void ReplaceWorld(EntityWorld&& world);
+
 		CommandResult NewScene();
 		CommandResult Save(const std::string& path);
 		CommandResult Load(const std::string& path);
