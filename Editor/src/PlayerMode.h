@@ -9,6 +9,7 @@
 #include "GB/Game/TaskList.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/World/Physics.h"
 #include "GB/Renderer/Mesh.h"
 #include <map>
 #include <memory>
@@ -76,6 +77,16 @@ namespace GB::Editor
 		const ModelInstance* Instance() const { return m_Instance.get(); }
 		AnimInstance* Anim() { return m_Animator ? &m_Animator->Anim() : nullptr; }
 		const CharacterProfile* Profile() const { return m_Animator ? &m_Profile : nullptr; }
+		// Ragdoll: the character as bodies and joints in a physics world made of the same ground, water, trees and rocks it walks on. It falls from where it
+		// stands (carrying its speed), lies where it lands and gets up after a pause (or on `player_getup`). A hard landing (RagdollLandingSpeed) starts one too.
+		bool StartRagdoll(const glm::vec3& extraVelocity = glm::vec3(0.0f));
+		void GetUp();
+		bool Ragdolled() const { return m_Animator && m_Animator->Anim().Ragdolled(); }
+		bool Blast(const glm::vec2& xz, float radius, float speed);   // an explosion on the ground there: affects the ragdoll like anything in the world
+		void HitRagdoll(const glm::vec3& impulse);
+		std::string RagdollStatus() const;
+		float RagdollLandingSpeed = 9.0f;   // m/s of a landing that knocks the character down (0 = never)
+		bool AutoGetUp = true;
 		const MotionState& GetMotion() const { return m_Motion; }
 		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
 		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
@@ -93,6 +104,9 @@ namespace GB::Editor
 		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
 		std::map<std::string, PropLook> m_PropLooks;
 		mutable std::unique_ptr<Mesh> m_PropMesh;
+		void BuildPhysics();
+		std::unique_ptr<PhysicsWorld> m_Physics;   // declared before the animator: the ragdoll lives in it and must go first
+		float m_RestTime = 0.0f;
 		CharacterProfile m_Profile;
 		TaskRunner m_Tasks;
 		const SceneEditor* m_Edit = nullptr;

@@ -5,6 +5,7 @@
 #include "GB/Animation/IK.h"
 #include "GB/Animation/LookAt.h"
 #include "GB/Animation/Montage.h"
+#include "GB/Animation/Ragdoll.h"
 #include "GB/Animation/Socket.h"
 #include "GB/Audio/FootstepSounds.h"
 #include "GB/Game/MotionState.h"
@@ -80,6 +81,17 @@ namespace GB
 		FootIK& Feet() { return *m_Feet; }
 		LookAt& Look() { return *m_Look; }
 
+		// Physics: the character as a ragdoll in `world` (see Ragdoll): its bodies start from the pose on screen, moving with `velocity`, and while
+		// it lasts the skeleton follows them (the world's terrain, statics, water, wind and explosions act on it). `characterToWorld` is where the
+		// character is drawn; the host keeps it on the pelvis (PelvisPosition) so the pose stays near its root. The world must outlive the ragdoll
+		// (call EndRagdoll or destroy this AnimInstance first).
+		bool StartRagdoll(PhysicsWorld& world, const glm::mat4& characterToWorld, const glm::vec3& velocity);
+		bool Ragdolled() const { return m_Ragdoll && m_Ragdoll->Active(); }
+		Ragdoll* GetRagdoll() { return m_Ragdoll.get(); }
+		// Lets the ragdoll go: the character stands up at `placement` (position and facing) and the pose blends from the one it lay in to the animation.
+		void EndRagdoll(const glm::mat4& placement, float blendSeconds = 0.8f);
+		bool Recovering() const { return m_RagBlend < 1.0f; }
+
 		// Sockets and props. A prop follows its socket and, through its grips, pulls the hands onto itself with IK (after the clips and
 		// montages, before the pose reaches the instance). `Detach` lets go over the prop's fade time.
 		SocketSet& Sockets() { return m_Sockets; }
@@ -135,6 +147,9 @@ namespace GB
 		void ApplyGrips(const glm::mat4& characterToWorld);
 
 		HumanoidRig m_Rig;
+		std::unique_ptr<Ragdoll> m_Ragdoll;
+		Pose m_RagSnapshot;
+		float m_RagBlend = 1.0f, m_RagBlendSeconds = 0.8f;
 		std::unique_ptr<FootIK> m_Feet;
 		std::unique_ptr<LookAt> m_Look;
 		SocketSet m_Sockets;

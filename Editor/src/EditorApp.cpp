@@ -634,6 +634,33 @@ namespace GB::Editor
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
 			return { true, n + (*flag ? " shown" : " hidden") };
 		});
+		c.Register("player_ragdoll", "player_ragdoll [vx vy vz]: the FBX player collapses into a ragdoll (bodies and joints in a physics world made of the same ground, water, trees and rocks), keeping its speed plus the given one; it gets up by itself after a pause", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			glm::vec3 v(0.0f);
+			if (a.size() >= 3) v = { static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) };
+			return m_Player.StartRagdoll(v) ? CommandResult{ true, "ragdoll" } : CommandResult{ false, "this character cannot be a ragdoll (it needs the humanoid rig), or it already is" };
+		});
+		c.Register("player_getup", "player_getup: the ragdoll stands up where it lies (facing the way its head points) and blends back to the animation", [this](const std::vector<std::string>&) -> CommandResult
+		{
+			if (!m_Player.Ragdolled()) return { false, "the player is not a ragdoll" };
+			m_Player.GetUp();
+			return { true, "getting up" };
+		});
+		c.Register("player_blast", "player_blast <x> <z> [radius] [speed]: an explosion on the ground there; within its radius the player is thrown as a ragdoll", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.size() < 2) return { false, "usage: player_blast <x> <z> [radius] [speed]" };
+			const float radius = a.size() > 2 ? static_cast<float>(std::atof(a[2].c_str())) : 7.0f, speed = a.size() > 3 ? static_cast<float>(std::atof(a[3].c_str())) : 14.0f;
+			return m_Player.Blast({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())) }, radius, speed) ? CommandResult{ true, "boom" } : CommandResult{ false, "nothing to blast" };
+		});
+		c.Register("player_hit", "player_hit <x> <y> <z>: an impulse (N s) on the ragdoll's pelvis (a blow)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.Ragdolled()) return { false, "the player is not a ragdoll (player_ragdoll first)" };
+			if (a.size() < 3) return { false, "usage: player_hit <x> <y> <z>" };
+			m_Player.HitRagdoll({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) });
+			return { true, "hit" };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
@@ -1445,6 +1472,28 @@ namespace GB::Editor
 					{
 						const glm::vec3 pos = glm::vec3(anim->Sockets().Matrix(*m_Player.Instance(), n)[3]);
 						ImGui::BulletText("%s  (%.2f, %.2f, %.2f)", n.c_str(), static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z));
+					}
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Ragdoll", nullptr, m_AnimTabRequest == "Ragdoll" ? ImGuiTabItemFlags_SetSelected : 0))
+				{
+					const bool rag = m_Player.Ragdolled();
+					ImGui::TextWrapped("The character as bodies and joints in a physics world made of the ground, water, trees and rocks it walks on.");
+					if (!rag && ImGui::Button("Ragdoll")) m_Player.StartRagdoll();
+					if (rag && ImGui::Button("Get up")) m_Player.GetUp();
+					ImGui::SameLine();
+					ImGui::Checkbox("Get up by itself", &m_Player.AutoGetUp);
+					ImGui::SliderFloat("Falls this hard knock it down (m/s)", &m_Player.RagdollLandingSpeed, 0.0f, 20.0f);
+					ImGui::TextDisabled("%s", m_Player.RagdollStatus().empty() ? "standing" : m_Player.RagdollStatus().c_str());
+					if (rag)
+					{
+						if (ImGui::Button("Hit forward")) m_Player.HitRagdoll({ 0.0f, 60.0f, 220.0f });
+						ImGui::SameLine();
+						if (ImGui::Button("Blast beside it"))
+						{
+							const glm::vec3 p = m_Player.GetPosition();
+							m_Player.Blast({ p.x - 1.5f, p.z }, 7.0f, 14.0f);
+						}
 					}
 					ImGui::EndTabItem();
 				}
