@@ -109,6 +109,14 @@ int main()
 	Check(props.Find(oakCopy)->Prop && props.Find(oakCopy)->Prop->Variant == 3, "prop duplicated");
 	Check(!LoadSceneFromString(propsLoaded, R"({"version":1,"entities":[{"id":1,"prop":{"kind":"bush"}}]})").Ok, "unknown prop kind rejected");
 
+	// a gameplay component with nothing in it (a character with no abilities yet) is still a component after a save and a load
+	EntityWorld bare;
+	const EntityId walker = bare.Create("walker");
+	bare.Find(walker)->Gameplay.emplace();
+	EntityWorld bareLoaded;
+	Check(LoadSceneFromString(bareLoaded, SaveSceneToString(bare)).Ok, "a scene with an empty gameplay component loads");
+	Check(bareLoaded.Find(bareLoaded.FindByName("walker")) && bareLoaded.Find(bareLoaded.FindByName("walker"))->Gameplay.has_value(), "an empty gameplay component survives a save and a load");
+
 	if (failures) return 1;
 	std::puts("entity tests passed");
 	return 0;

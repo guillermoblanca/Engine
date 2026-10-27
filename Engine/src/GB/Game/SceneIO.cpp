@@ -145,7 +145,7 @@ namespace GB
 			}
 			if (e.Gameplay)
 			{
-				Json g;
+				Json g = Json::object();   // (an empty component is still a component: a null would read back as none)
 				if (!e.Gameplay->Tags.empty()) g["tags"] = e.Gameplay->Tags;
 				if (!e.Gameplay->Abilities.empty()) g["abilities"] = e.Gameplay->Abilities;
 				if (!e.Gameplay->Effects.empty()) g["effects"] = e.Gameplay->Effects;
