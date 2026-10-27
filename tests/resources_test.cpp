@@ -34,6 +34,7 @@ struct Field
 		{
 			ResourceSystem::SyncTools(*Gameplay.Find("Worker"), Bag, Items);
 			Gameplay.Update(dt);
+			Rules.Update(Gameplay, dt);
 			Rules.SyncVisuals(Gameplay, Entities);
 		}
 	}
@@ -129,6 +130,18 @@ int main()
 		Check(inBounds, "amounts stay between zero and capacity");
 		Check(f.Amount("tree 1") == 5 && f.Amount("tree 2") == 5 && f.Amount("tree 3") == 5, "ten minutes regrow every tree (1 wood per 30 s)");
 		Check(!f.Gameplay.Find("tree 2")->HasTag("State.Depleted"), "regrown trees are no longer depleted");
+	}
+
+	// Nothing regrows in deep winter (rate 0), and the timer is part of the node (an attribute), so it is saved with it.
+	{
+		Field f;
+		f.Gameplay.Find("berry bush 1")->Attributes().SetBase("Amount", 0.0f);
+		for (int i = 0; i < 60 * 60; ++i) f.Rules.Update(f.Gameplay, dt, 0.0f);
+		Check(f.Amount("berry bush 1") == 0, "a bush does not regrow in winter");
+		for (int i = 0; i < 60 * 10; ++i) f.Rules.Update(f.Gameplay, dt, 1.0f);
+		Check(f.Gameplay.Find("berry bush 1")->Attributes().Current("Regrow") > 9.0f, "the regrowth timer advances as an attribute");
+		for (int i = 0; i < 60 * 11; ++i) f.Rules.Update(f.Gameplay, dt, 1.0f);
+		Check(f.Amount("berry bush 1") == 2, "and the bush gives its pieces back in spring");
 	}
 
 	// The whole loop, twice.

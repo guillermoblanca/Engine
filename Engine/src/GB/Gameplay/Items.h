@@ -131,6 +131,16 @@ namespace GB
 		std::map<std::string, Recipe> m_Recipes;
 	};
 
+	// Content as data: items, recipes and resource nodes in one JSON document, so the game's things can be added and changed without a build.
+	//   { "items":   [ { "id", "name", "category", "weight", "stack", "tags": [], "ability", "socket" } ],
+	//     "recipes": [ { "id", "station", "tool", "inputs": { "wood": 2 }, "output", "count", "ability" } ],
+	//     "nodes":   [ { "id", "item", "capacity", "perGather", "regenSeconds", "regen", "requires", "ability" } ] }
+	// Entries replace those of the same id; anything else already loaded stays. Returns "" or what is wrong (and changes nothing).
+	std::string LoadContent(const std::string& json, ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes);
+	std::string LoadContentFile(const std::string& path, ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes);
+	// The same document for what is loaded now (pretty-printed): the starting point of a content file.
+	std::string ContentToJson(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes);
+
 	// The era-1 content: wood, stone, fiber, berries, a stone axe and pickaxe, a campfire and the resource nodes and recipes that go with them.
 	void RegisterEraOneItems(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes);
 }

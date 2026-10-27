@@ -130,6 +130,7 @@ struct Village
 		for (int i = 0; i < frames; ++i)
 		{
 			Gameplay.Update(dt);
+			Resources.Update(Gameplay, dt);
 			for (auto& b : bodies) b->Update(dt);
 			Resources.SyncVisuals(Gameplay, Entities);
 			Tribe_.Update(dt);

@@ -12,7 +12,7 @@ encienden una hoguera. Es la sociedad más sencilla posible: reglas sobre las mi
 | `woodcutter` (leñador) | Talar árboles; necesita un hacha |
 | `miner` (minero) | Picar rocas; necesita un pico |
 
-Cada trabajador come una baya del almacén cada 40 s y la hoguera quema un trozo de madera cada 30 s (si no hay madera se apaga y vuelve a arder cuando la haya):
+Cada trabajador come una baya cada 40 s (primero la que lleva en la mochila, luego la del almacén) y la hoguera quema un trozo de madera cada 30 s (si no hay madera se apaga y vuelve a arder cuando la haya):
 así hay siempre algo que reponer y nadie se queda sin trabajo para siempre. Cada uno espera en su propio sitio alrededor del campamento.
 
 Un trabajador sin su herramienta va al campamento a hacerla si el almacén tiene los materiales; si no, ayuda recogiendo lo que falta. Lleva lo que recoge al

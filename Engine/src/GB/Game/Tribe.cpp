@@ -87,7 +87,7 @@ namespace GB
 			m_EatTimer -= Config.EatSeconds;
 			for (TribeMember& m : m_Members)
 			{
-				const bool ate = m_Store.Remove("berry", 1) == 1;
+				const bool ate = m.Body->Bag().Remove("berry", 1) == 1 || m_Store.Remove("berry", 1) == 1;   // what it carries first
 				if (ate) ++m.Meals;
 				if (!ate && !m.Hungry) Say(m, "is hungry: there is nothing to eat in the store");
 				if (ate && m.Hungry) Say(m, "eats again");
