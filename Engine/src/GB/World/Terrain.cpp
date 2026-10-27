@@ -165,6 +165,8 @@ namespace GB
 	std::unique_ptr<Terrain> Terrain::CreateHills(const HillParams& p, float size, uint32_t resolution, TerrainStyle style)
 	{
 		std::unique_ptr<Terrain> t(new Terrain(resolution, size));
+		t->m_ShoreSubdivision = std::clamp(p.ShoreSubdivision, 1, 8);
+		t->m_ShoreMargin = std::max(p.ShoreMarginCells, 0);
 		Heightmap& hm = t->m_Heightmap;
 		for (uint32_t j = 0; j < hm.GetResolution(); ++j)
 		{
@@ -347,12 +349,212 @@ namespace GB
 		return glm::normalize(dir) * speed * (1.0f - 0.65f * edge * edge);
 	}
 
+	// ------------------------------------------------------------------ shore refinement
+	// The grid is uniform, so where the water meets the ground (lake shore, river banks) the waterline follows its
+	// ~0.5 m cells and looks stepped. Cells there are split N x N and the new vertices sit on a smooth cubic surface
+	// through the heightmap. Vertices on the border of the refined area keep the straight coarse edge, so it stays
+	// watertight against the plain grid without any stitching.
+	float Terrain::SmoothHeight(float x, float z) const
+	{
+		const Heightmap& hm = m_Heightmap;
+		const int n = static_cast<int>(hm.GetResolution());
+		const glm::vec2 lo = hm.GetMin();
+		const float s = hm.GetSpacing(), maxIndex = static_cast<float>(n - 1);
+		const float fx = glm::clamp((x - lo.x) / s, 0.0f, maxIndex), fz = glm::clamp((z - lo.y) / s, 0.0f, maxIndex);
+		const int i0 = std::min(static_cast<int>(fx), n - 2), j0 = std::min(static_cast<int>(fz), n - 2);
+		const float tx = fx - static_cast<float>(i0), tz = fz - static_cast<float>(j0);
+		auto H = [&](int i, int j) { return hm.At(static_cast<uint32_t>(std::clamp(i, 0, n - 1)), static_cast<uint32_t>(std::clamp(j, 0, n - 1))); };
+		auto cubic = [](float p0, float p1, float p2, float p3, float t)
+		{
+			return p1 + 0.5f * t * (p2 - p0 + t * (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3 + t * (3.0f * (p1 - p2) + p3 - p0)));
+		};
+		float rows[4];
+		for (int k = 0; k < 4; ++k)
+			rows[k] = cubic(H(i0 - 1, j0 - 1 + k), H(i0, j0 - 1 + k), H(i0 + 1, j0 - 1 + k), H(i0 + 2, j0 - 1 + k), tx);
+		const float h = cubic(rows[0], rows[1], rows[2], rows[3], tz);
+		const float a = H(i0, j0), b = H(i0 + 1, j0), c = H(i0, j0 + 1), d = H(i0 + 1, j0 + 1);
+		return glm::clamp(h, std::min(std::min(a, b), std::min(c, d)), std::max(std::max(a, b), std::max(c, d)));   // no ringing at sharp banks
+	}
+
+	bool Terrain::IsCellRefined(int ci, int cj) const
+	{
+		const int cells = static_cast<int>(m_Heightmap.GetResolution()) - 1;
+		return ci >= 0 && cj >= 0 && ci < cells && cj < cells && !m_RefinedCells.empty() && m_RefinedCells[static_cast<size_t>(cj) * static_cast<size_t>(cells) + static_cast<size_t>(ci)] != 0;
+	}
+
+	float Terrain::FineHeight(int fi, int fj) const
+	{
+		const int N = m_ShoreSubdivision;
+		const int ci = fi / N, cj = fj / N, a = fi % N, b = fj % N;
+		const Heightmap& hm = m_Heightmap;
+		auto at = [&](int i, int j) { return hm.At(static_cast<uint32_t>(i), static_cast<uint32_t>(j)); };
+		if (a == 0 && b != 0 && (!IsCellRefined(ci - 1, cj) || !IsCellRefined(ci, cj)))   // edge shared with the plain grid
+			return glm::mix(at(ci, cj), at(ci, cj + 1), static_cast<float>(b) / static_cast<float>(N));
+		if (b == 0 && a != 0 && (!IsCellRefined(ci, cj - 1) || !IsCellRefined(ci, cj)))
+			return glm::mix(at(ci, cj), at(ci + 1, cj), static_cast<float>(a) / static_cast<float>(N));
+		const glm::vec2 pos = hm.GetMin() + glm::vec2(static_cast<float>(fi), static_cast<float>(fj)) * (hm.GetSpacing() / static_cast<float>(N));
+		return SmoothHeight(pos.x, pos.y);
+	}
+
+	Vertex Terrain::MakeFineVertex(int fi, int fj) const
+	{
+		const Heightmap& hm = m_Heightmap;
+		const float step = hm.GetSpacing() / static_cast<float>(m_ShoreSubdivision);
+		const glm::vec2 pos = hm.GetMin() + glm::vec2(static_cast<float>(fi), static_cast<float>(fj)) * step;
+		const float e = hm.GetSpacing() * 0.5f;
+		Vertex v;
+		v.Position = { pos.x, FineHeight(fi, fj), pos.y };
+		const float dx = SmoothHeight(pos.x + e, pos.y) - SmoothHeight(pos.x - e, pos.y);
+		const float dz = SmoothHeight(pos.x, pos.y + e) - SmoothHeight(pos.x, pos.y - e);
+		v.Normal = glm::normalize(glm::vec3(-dx, 2.0f * e, -dz));
+		v.UV = { pos.x / 4.0f, pos.y / 4.0f };   // same detail tiling as the grid (tileMeters in Finish)
+		v.Tangent = { 1.0f, 0.0f, 0.0f, 1.0f };
+		return v;
+	}
+
+	std::vector<uint8_t> Terrain::FlagShoreCells(int marginCells) const
+	{
+		const Heightmap& hm = m_Heightmap;
+		const int cells = static_cast<int>(hm.GetResolution()) - 1;
+		const glm::vec2 lo = hm.GetMin();
+		const float s = hm.GetSpacing();
+		std::vector<uint8_t> flags(static_cast<size_t>(cells) * static_cast<size_t>(cells), 0);
+		auto cellAt = [&](int ci, int cj) -> uint8_t& { return flags[static_cast<size_t>(cj) * static_cast<size_t>(cells) + static_cast<size_t>(ci)]; };
+		auto center = [&](int ci, int cj) { return lo + (glm::vec2(static_cast<float>(ci), static_cast<float>(cj)) + 0.5f) * s; };
+
+		if (m_HasLake)   // cells whose heights straddle the lake level, near the lake
+		{
+			const float reach = m_LakeRadius * 1.8f + s;
+			const int c0 = std::max(0, static_cast<int>((m_LakeCenter.x - reach - lo.x) / s)), c1 = std::min(cells - 1, static_cast<int>((m_LakeCenter.x + reach - lo.x) / s));
+			const int r0 = std::max(0, static_cast<int>((m_LakeCenter.y - reach - lo.y) / s)), r1 = std::min(cells - 1, static_cast<int>((m_LakeCenter.y + reach - lo.y) / s));
+			for (int cj = r0; cj <= r1; ++cj)
+				for (int ci = c0; ci <= c1; ++ci)
+				{
+					if (glm::length(center(ci, cj) - m_LakeCenter) > reach) continue;
+					const float a = hm.At(ci, cj), b = hm.At(ci + 1, cj), c = hm.At(ci, cj + 1), d = hm.At(ci + 1, cj + 1);
+					const float lowest = std::min(std::min(a, b), std::min(c, d)), highest = std::max(std::max(a, b), std::max(c, d));
+					if (lowest <= m_WaterLevel + 0.6f && highest >= m_WaterLevel - 0.6f)
+						cellAt(ci, cj) = 1;
+				}
+		}
+		if (!m_River.Points.empty())   // the bank zone on both sides of the river axis
+		{
+			const float inner = m_River.HalfWidth * 0.5f, outer = m_River.HalfWidth * 1.8f + s;
+			const auto& P = m_River.Points;
+			for (size_t k = 0; k + 1 < P.size(); ++k)
+			{
+				const glm::vec2 a(P[k].x, P[k].z), b(P[k + 1].x, P[k + 1].z), ab = b - a;
+				const glm::vec2 bmin = glm::min(a, b) - outer, bmax = glm::max(a, b) + outer;
+				const int c0 = std::max(0, static_cast<int>((bmin.x - lo.x) / s)), c1 = std::min(cells - 1, static_cast<int>((bmax.x - lo.x) / s));
+				const int r0 = std::max(0, static_cast<int>((bmin.y - lo.y) / s)), r1 = std::min(cells - 1, static_cast<int>((bmax.y - lo.y) / s));
+				for (int cj = r0; cj <= r1; ++cj)
+					for (int ci = c0; ci <= c1; ++ci)
+					{
+						const glm::vec2 q = center(ci, cj);
+						const float tt = glm::clamp(glm::dot(q - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+						const float d = glm::length(q - (a + ab * tt));
+						if (d >= inner && d <= outer)
+							cellAt(ci, cj) = 1;
+					}
+			}
+		}
+		// Grow the area so the refinement has a margin to fade out into.
+		for (int pass = 0; pass < marginCells; ++pass)
+		{
+			std::vector<uint8_t> grown = flags;
+			for (int cj = 0; cj < cells; ++cj)
+				for (int ci = 0; ci < cells; ++ci)
+					if (flags[static_cast<size_t>(cj) * static_cast<size_t>(cells) + static_cast<size_t>(ci)])
+						for (int dj = -1; dj <= 1; ++dj)
+							for (int di = -1; di <= 1; ++di)
+							{
+								const int x = ci + di, y = cj + dj;
+								if (x >= 0 && y >= 0 && x < cells && y < cells) grown[static_cast<size_t>(y) * static_cast<size_t>(cells) + static_cast<size_t>(x)] = 1;
+							}
+			flags.swap(grown);
+		}
+		return flags;
+	}
+
+	void Terrain::BuildShoreRefinement(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+	{
+		m_FineIndex.clear();
+		m_RefinedCells.clear();
+		const int N = m_ShoreSubdivision;
+		if (N < 2 || (!m_HasLake && m_River.Points.empty())) return;
+		std::vector<uint8_t> flags = FlagShoreCells(m_ShoreMargin);
+		size_t flagged = 0;
+		for (uint8_t f : flags) flagged += f;
+		if (flagged == 0) return;
+		m_RefinedCells = std::move(flags);
+
+		const int n = static_cast<int>(m_Heightmap.GetResolution()), cells = n - 1;
+		m_FineFirst = static_cast<uint32_t>(vertices.size());
+		auto vertexAt = [&](int fi, int fj) -> uint32_t
+		{
+			if (fi % N == 0 && fj % N == 0)
+				return static_cast<uint32_t>((fj / N) * n + fi / N);   // a grid vertex
+			const uint64_t key = (static_cast<uint64_t>(static_cast<uint32_t>(fj)) << 32) | static_cast<uint32_t>(fi);
+			const auto it = m_FineIndex.find(key);
+			if (it != m_FineIndex.end()) return it->second;
+			const uint32_t index = static_cast<uint32_t>(vertices.size());
+			vertices.push_back(MakeFineVertex(fi, fj));
+			m_FineIndex.emplace(key, index);
+			return index;
+		};
+
+		std::vector<uint32_t> out;
+		out.reserve(indices.size() + flagged * static_cast<size_t>(N) * static_cast<size_t>(N) * 6);
+		for (int cj = 0; cj < cells; ++cj)
+		{
+			for (int ci = 0; ci < cells; ++ci)
+			{
+				const size_t cell = static_cast<size_t>(cj) * static_cast<size_t>(cells) + static_cast<size_t>(ci);
+				if (!m_RefinedCells[cell])
+				{
+					out.insert(out.end(), indices.begin() + static_cast<std::ptrdiff_t>(cell * 6), indices.begin() + static_cast<std::ptrdiff_t>(cell * 6 + 6));
+					continue;
+				}
+				for (int b = 0; b < N; ++b)
+					for (int a = 0; a < N; ++a)
+					{
+						const int fi = ci * N + a, fj = cj * N + b;
+						const uint32_t i0 = vertexAt(fi, fj), i1 = vertexAt(fi + 1, fj), i2 = vertexAt(fi, fj + 1), i3 = vertexAt(fi + 1, fj + 1);
+						out.insert(out.end(), { i0, i2, i1, i1, i2, i3 });   // same winding and diagonal as the grid cells
+					}
+			}
+		}
+		indices.swap(out);
+		GB_CORE_INFO("Terrain shore refinement: {} cells split {}x{} (+{} vertices)", flagged, N, N, vertices.size() - m_FineFirst);
+	}
+
 	void Terrain::RefreshMesh(int i0, int j0, int i1, int j1)
 	{
 		const int n = static_cast<int>(m_Heightmap.GetResolution());
 		i0 = std::clamp(i0 - 2, 0, n - 1); j0 = std::clamp(j0 - 2, 0, n - 1);
 		i1 = std::clamp(i1 + 2, 0, n - 1); j1 = std::clamp(j1 + 2, 0, n - 1);
-		if (m_Vertices.size() != static_cast<size_t>(n) * static_cast<size_t>(n) || i1 < i0 || j1 < j0) return;
+		if (m_Vertices.size() < static_cast<size_t>(n) * static_cast<size_t>(n) || i1 < i0 || j1 < j0) return;
+		if (!m_FineIndex.empty())   // refined shore vertices that sit over the edited texels
+		{
+			const int N = m_ShoreSubdivision;
+			uint32_t lowest = ~0u, highest = 0;
+			for (int cj = std::max(j0 - 1, 0); cj <= std::min(j1, n - 2); ++cj)
+				for (int ci = std::max(i0 - 1, 0); ci <= std::min(i1, n - 2); ++ci)
+				{
+					if (!IsCellRefined(ci, cj)) continue;
+					for (int b = 0; b <= N; ++b)
+						for (int a = 0; a <= N; ++a)
+						{
+							const int fi = ci * N + a, fj = cj * N + b;
+							const auto it = m_FineIndex.find((static_cast<uint64_t>(static_cast<uint32_t>(fj)) << 32) | static_cast<uint32_t>(fi));
+							if (it == m_FineIndex.end()) continue;
+							m_Vertices[it->second] = MakeFineVertex(fi, fj);
+							lowest = std::min(lowest, it->second); highest = std::max(highest, it->second);
+						}
+				}
+			if (lowest <= highest)
+				m_Mesh->UpdateVertices(lowest, &m_Vertices[lowest], highest - lowest + 1);
+		}
 		for (int j = j0; j <= j1; ++j)
 		{
 			for (int i = i0; i <= i1; ++i)
@@ -397,6 +599,7 @@ namespace GB
 				indices.insert(indices.end(), { i0, i2, i1, i1, i2, i3 });   // counter-clockwise seen from above (+Y)
 			}
 		}
+		BuildShoreRefinement(vertices, indices);
 		m_Mesh = std::make_unique<Mesh>(vertices, indices);
 		m_Vertices = std::move(vertices);
 

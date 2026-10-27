@@ -86,6 +86,18 @@ int main()
 		auto terrain = GB::Terrain::CreateHills(hp, 256.0f, 257, GB::TerrainStyle::Meadow);
 		const GB::RiverData* river = terrain->GetRiver();
 		Check(river && river->Points.size() > 50, "a river is carved along the path");
+		{
+			// Shore refinement: more triangles along the banks, the plain grid when switched off, and the refined surface stays on the heightmap.
+			GB::HillParams plain = hp;
+			plain.ShoreSubdivision = 1;
+			auto flat = GB::Terrain::CreateHills(plain, 256.0f, 257, GB::TerrainStyle::Meadow);
+			Check(flat->GetMesh().GetIndexCount() == 256u * 256u * 6u, "without shore refinement the mesh is two triangles per cell");
+			Check(terrain->GetMesh().GetIndexCount() > flat->GetMesh().GetIndexCount() + 6000u, "the river banks are refined into many more triangles");
+			float worst = 0.0f;
+			for (const glm::vec3& pt : terrain->GetRiver()->Points)
+				worst = std::max(worst, std::fabs(terrain->GetHeight(pt.x, pt.z) - flat->GetHeight(pt.x, pt.z)));
+			Check(worst < 1e-4f, "refinement does not change the heightmap queries (physics, grass, trees)");
+		}
 		if (!river) return 1;
 		bool monotonic = true;
 		for (size_t i = 1; i < river->Points.size(); ++i)

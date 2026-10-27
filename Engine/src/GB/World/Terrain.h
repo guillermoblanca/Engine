@@ -7,6 +7,7 @@
 #include <glm/glm.hpp>
 #include "GB/World/RiverData.h"
 #include <memory>
+#include <unordered_map>
 #include <vector>
 
 namespace GB
@@ -75,6 +76,10 @@ namespace GB
 		std::vector<glm::vec2> RiverPath;
 		float RiverWidth = 5.0f;          // meters of water
 		float RiverDepth = 1.3f;          // meters below the water level
+		// Mesh refinement where the ground meets the water: cells along the lake shore and the river banks are split
+		// ShoreSubdivision x ShoreSubdivision times (smooth cubic surface, 0/1 = off) so the waterline stops looking stepped.
+		int ShoreSubdivision = 4;
+		int ShoreMarginCells = 2;         // extra ring of refined cells around the shore, so the detail has room to fade out
 	};
 
 
@@ -121,6 +126,18 @@ namespace GB
 		Terrain(uint32_t resolution, float size) : m_Heightmap(resolution, size) {}
 		void Finish(TerrainStyle style, float wavelengthMeters);
 		void CarveRiver(const HillParams& params);
+		// Shore refinement (see HillParams::ShoreSubdivision): extra vertices appended after the grid ones.
+		std::vector<uint8_t> FlagShoreCells(int marginCells) const;
+		void BuildShoreRefinement(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+		float SmoothHeight(float x, float z) const;          // Catmull-Rom surface through the heightmap, never beyond the cell's corner heights
+		float FineHeight(int fi, int fj) const;              // height of a vertex of the refined lattice (fi, fj in units of spacing / N)
+		bool IsCellRefined(int ci, int cj) const;
+		Vertex MakeFineVertex(int fi, int fj) const;
+
+		int m_ShoreSubdivision = 1, m_ShoreMargin = 2;
+		uint32_t m_FineFirst = 0;                            // index of the first refined vertex (= grid vertex count)
+		std::vector<uint8_t> m_RefinedCells;                 // (n-1)^2 flags
+		std::unordered_map<uint64_t, uint32_t> m_FineIndex;  // refined lattice coordinate -> vertex index
 
 		Heightmap m_Heightmap;
 		TerrainStyle m_Style = TerrainStyle::Desert;
