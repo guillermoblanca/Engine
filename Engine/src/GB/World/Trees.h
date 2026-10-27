@@ -24,6 +24,10 @@ namespace GB
 		float TrunkRadius = 0.0f;       // 0 = derive from the height
 		glm::vec3 LeafTint{ 1.0f };     // multiplies the leaf texture (autumn colors, etc.)
 		float LeafDensity = 1.0f;       // 1 = full crown
+		int Style = -1;                 // habit within the species (broadleaf: spreading / ovate / columnar; conifer: spruce / pine;
+		                                // palm: coconut / date); -1 = derived from the seed
+		float Fruit = 0.35f;            // palms: amount of coconuts / dates under the crown (0 = none)
+		int Detail = 1;                 // 0 = low (about half the foliage; far trees), 1 = normal, 2 = high
 	};
 
 	// One generated tree: a bark mesh and (except for Bare trees) a foliage mesh, ready to be placed in a
@@ -35,7 +39,8 @@ namespace GB
 		Material TrunkMaterial;
 		Material FoliageMaterial;
 		float Height = 0.0f;
-		float CrownRadius = 0.0f;
+		float CrownRadius = 0.0f;          // largest horizontal distance of any vertex from the trunk base
+		float BoundsHeight = 0.0f;         // highest vertex
 		size_t TriangleCount = 0;
 		size_t LeafCardCount = 0;
 
@@ -52,7 +57,7 @@ namespace GB
 		std::unique_ptr<Tree> Create(const TreeParams& params) const;
 
 	private:
-		std::unique_ptr<Texture2D> m_Bark, m_Leaf, m_Needle, m_Frond, m_BarkPalm;
+		std::unique_ptr<Texture2D> m_Bark, m_Leaf, m_LeafRound, m_LeafMaple, m_Needle, m_Frond, m_BarkPalm;
 	};
 
 	struct TreePlacement

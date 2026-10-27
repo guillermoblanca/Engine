@@ -62,17 +62,55 @@ namespace GB
 			tris.swap(next);
 		}
 
-		// Displace: lumpy fbm plus a ridged term for cut edges, then stretch and flatten the bottom.
+		// Shape: a lumpy base (domain-warped fbm) cut by a handful of random planes, which gives flat faces and sharp
+		// edges instead of a balloon; then bedding grooves (strata), cracks, and fine erosion pits. Each seed also jitters the proportions.
 		const float freq = p.Frequency;
 		const glm::vec3 offset(static_cast<float>(p.Seed) * 7.31f, static_cast<float>(p.Seed) * 3.17f, static_cast<float>(p.Seed) * 5.53f);
+		auto rnd = [&](uint32_t k) { return Hash3(glm::ivec3(static_cast<int>(k), 7, 3), p.Seed + 977u); };
+		const glm::vec3 jitter(1.0f + 0.3f * (rnd(1) - 0.5f), 1.0f + 0.3f * (rnd(2) - 0.5f), 1.0f + 0.3f * (rnd(3) - 0.5f));
+		struct Plane { glm::vec3 N; float D; };
+		std::vector<Plane> planes;
+		const int planeCount = 8 + static_cast<int>(rnd(4) * 5.0f);
+		for (int k = 0; k < planeCount; ++k)
+		{
+			const uint32_t b = 10u + static_cast<uint32_t>(k) * 5u;
+			glm::vec3 n(rnd(b) * 2.0f - 1.0f, rnd(b + 1) * 1.4f - 0.5f, rnd(b + 2) * 2.0f - 1.0f);   // a few more faces on top than below
+			if (k == 0) n = glm::vec3(0.1f * (rnd(b) - 0.5f), 1.0f, 0.1f * (rnd(b + 1) - 0.5f));       // a top face
+			if (glm::length(n) < 0.2f) n = glm::vec3(0, 1, 0);
+			planes.push_back({ glm::normalize(n), glm::mix(0.70f, 0.92f, rnd(b + 3)) });
+		}
+		const float soft = 0.008f + 0.07f * (1.0f - glm::clamp(p.Facets, 0.0f, 1.0f));
+		const float layers = 5.0f + std::floor(rnd(5) * 5.0f);
+		const float tilt = (rnd(6) - 0.5f) * 0.8f;
 		float minY = 1e9f;
 		for (auto& v : pos)
 		{
 			const glm::vec3 d = v;
-			const float n = Fbm3(d * freq + offset, p.Seed) - 0.5f;
+			const glm::vec3 warp = glm::vec3(Noise3(d * 1.3f + offset + 11.0f, p.Seed + 3u), Noise3(d * 1.3f + offset + 23.0f, p.Seed + 5u), Noise3(d * 1.3f + offset + 37.0f, p.Seed + 7u)) - 0.5f;
+			const glm::vec3 dw = d + warp * 0.5f;
+			float r = 1.0f + p.Roughness * (Fbm3(dw * freq + offset, p.Seed) - 0.5f) * 1.2f;
+			for (const Plane& pl : planes)
+			{
+				const float c = glm::dot(d, pl.N);
+				if (c > 0.05f)
+				{
+					const float lim = pl.D / c;   // smooth minimum with the plane
+					const float h = glm::clamp(0.5f + 0.5f * (lim - r) / soft, 0.0f, 1.0f);
+					r = glm::mix(lim, r, h) - soft * h * (1.0f - h);
+				}
+			}
 			const float ridge = 1.0f - std::fabs(Noise3(d * freq * 2.3f + offset * 1.7f, p.Seed + 91u) * 2.0f - 1.0f);
-			const float r = 1.0f + p.Roughness * (n * 1.6f + (ridge - 0.5f) * 0.5f * p.Facets);
-			v = d * r * p.Size * p.Stretch;
+			r += p.Roughness * (ridge - 0.5f) * 0.25f * p.Facets;
+			// strata: horizontal bedding grooves, slightly tilted
+			const float s = (d.y * 0.5f + d.x * tilt) * layers * 2.0f;
+			const float g = std::fabs(s - std::floor(s) - 0.5f) * 2.0f;
+			r -= p.Strata * 0.045f * glm::smoothstep(0.82f, 1.0f, g) * (0.5f + Noise3(d * 3.0f + offset, p.Seed + 61u));
+			// cracks: narrow valleys where a noise field crosses its midline
+			const float cr = std::fabs(Noise3(dw * freq * 1.7f + offset * 2.1f, p.Seed + 131u) - 0.5f);
+			r -= p.Cracks * 0.10f * (1.0f - glm::smoothstep(0.0f, 0.03f, cr));
+			// erosion: fine pitting, a little more on the upper half
+			r += p.Erosion * 0.03f * (Noise3(d * 7.0f + offset, p.Seed + 151u) - 0.5f) * (0.7f + 0.6f * glm::clamp(d.y, 0.0f, 1.0f));
+			v = d * std::max(r, 0.35f) * p.Size * p.Stretch * jitter;
 			minY = std::min(minY, v.y);
 		}
 		// Flat base: squash everything below a fraction of the height.

@@ -3,6 +3,8 @@
 #include "Properties.h"
 #include "GB/Game/Entity.h"
 #include "GB/Renderer/Camera.h"
+#include "GB/World/WorldGen.h"
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -53,6 +55,23 @@ namespace GB::Editor
 		void Bind(PropertyRegistry& props);
 		void Register(CommandRunner& commands);
 
+		// The editor's asset folder: model paths are stored relative to it.
+		void SetAssetRoot(std::string root) { m_AssetRoot = std::move(root); }
+		// `add <cube|sphere|plane|light|file.glb> [x y z]`: a primitive, a light or a glTF model (validated), selected afterwards.
+		CommandResult Add(const std::vector<std::string>& args);
+
+		// The generated world's trees and rocks live in the scene as entities (PropComponent), so they can be picked,
+		// moved and deleted like anything else. Returns how many were created; the undo history starts afresh.
+		size_t PopulateEnvironment(const std::vector<TreePlacement>& trees, const std::vector<RockPlacement>& rocks);
+		void RemoveEnvironment();                              // entities tagged "world" (what the user added stays)
+		void ResetHistory();
+		// Local bounding sphere of a prop (trees and rocks have no mesh): lets the ray pick them.
+		using PropBoundsFn = std::function<bool(const PropComponent&, glm::vec3& center, float& radius)>;
+		void SetPropBounds(PropBoundsFn fn) { m_PropBounds = std::move(fn); }
+
+		// Called by NewScene so the application can drop the generated world too (an empty scene: camera and sun only).
+		std::function<void()> OnNewScene;
+
 		CommandResult NewScene();
 		CommandResult Save(const std::string& path);
 		CommandResult Load(const std::string& path);
@@ -63,6 +82,10 @@ namespace GB::Editor
 		void Rebind();
 		void Restore(const std::string& snapshot);
 
+		EntityId Group(const std::string& name);
+
+		std::string m_AssetRoot;
+		PropBoundsFn m_PropBounds;
 		EntityWorld m_World;
 		EntityId m_Selected = NullEntity;
 		PropertyRegistry* m_Props = nullptr;

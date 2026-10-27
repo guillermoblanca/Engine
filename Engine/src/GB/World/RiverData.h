@@ -11,5 +11,6 @@ namespace GB
 		std::vector<float> Speed;
 		float HalfWidth = 2.5f;
 		float Depth = 1.3f;
+		float MouthLength = 0.0f;   // > 0: the river ends in a lake; over this length (m) the current fades to zero and the surface blends into the lake
 	};
 }

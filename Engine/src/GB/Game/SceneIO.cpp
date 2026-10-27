@@ -128,6 +128,7 @@ namespace GB
 				j["light"] = l;
 			}
 			if (e.Body) j["body"] = BodyToJson(*e.Body);
+			if (e.Prop) j["prop"] = Json{ { "kind", e.Prop->Kind == PropKind::Rock ? "rock" : "tree" }, { "variant", e.Prop->Variant } };
 			list.push_back(std::move(j));
 		}
 		root["entities"] = std::move(list);
@@ -170,6 +171,15 @@ namespace GB
 					ReadValue(*it, "intensity", e->Light->Intensity);
 					ReadValue(*it, "radius", e->Light->Radius);
 					if (!ReadVec3(*it, "color", e->Light->Color)) return fail("bad light color on '" + e->Name + "'");
+				}
+				if (auto it = j.find("prop"); it != j.end())
+				{
+					e->Prop.emplace();
+					const std::string kind = it->value("kind", "tree");
+					if (kind == "tree") e->Prop->Kind = PropKind::Tree;
+					else if (kind == "rock") e->Prop->Kind = PropKind::Rock;
+					else return fail("unknown prop kind '" + kind + "' on '" + e->Name + "'");
+					ReadValue(*it, "variant", e->Prop->Variant);
 				}
 				if (auto it = j.find("body"); it != j.end())
 				{

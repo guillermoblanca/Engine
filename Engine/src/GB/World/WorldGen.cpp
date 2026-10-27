@@ -128,6 +128,7 @@ namespace GB
 			const TerrainStyle style = desc.Type == WorldType::Alpine ? TerrainStyle::Snow : TerrainStyle::Meadow;
 
 			// Pass 1: the bare terrain, to find the basin for the lake and the way down for the river.
+			hp.SurfaceMaps = false;
 			auto bare = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style);
 			const Coarse coarse = MakeCoarse(bare->GetHeightmap(), 65);
 			// lowest point away from the borders
@@ -202,6 +203,7 @@ namespace GB
 				if (path.size() >= 3) hp.RiverPath = path;
 				hp.RiverWidth = desc.Type == WorldType::Alpine ? 5.0f : 6.5f;
 			}
+			hp.SurfaceMaps = true;
 			w.Hills = hp;
 			w.TerrainPtr = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style);
 			if (desc.Type == WorldType::Alpine)

@@ -7,6 +7,7 @@ target_include_directories(ufbx SYSTEM PUBLIC ${ufbx_SOURCE_DIR})
 
 add_library(GB STATIC
     src/GB/Application.cpp
+    src/GB/Game/CharacterController.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp

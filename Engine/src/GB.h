@@ -6,6 +6,7 @@
 #include "GB/KeyCodes.h"
 #include "GB/Log.h"
 #include "GB/Window.h"
+#include "GB/Game/CharacterController.h"
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
 #include "GB/World/Footsteps.h"

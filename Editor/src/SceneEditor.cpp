@@ -5,6 +5,8 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace GB::Editor
 {
@@ -114,7 +116,16 @@ namespace GB::Editor
 		for (const auto& [id, e] : m_World.All())
 		{
 			float t;
-			if (RayHitEntity(m_World, id, ray, t) && t < bestT) { bestT = t; best = id; }
+			if (e.Prop && m_PropBounds)   // trees and rocks: a sphere around the prop
+			{
+				glm::vec3 center(0.0f);
+				float radius = 1.0f;
+				if (!m_World.IsActive(id) || !m_PropBounds(*e.Prop, center, radius)) continue;
+				const glm::mat4 m = m_World.WorldMatrix(id);
+				const float scale = std::max({ glm::length(glm::vec3(m[0])), glm::length(glm::vec3(m[1])), glm::length(glm::vec3(m[2])) });
+				if (HitSphere(ray.Origin - glm::vec3(m * glm::vec4(center, 1.0f)), ray.Dir, radius * scale, t) && t < bestT) { bestT = t; best = id; }
+			}
+			else if (RayHitEntity(m_World, id, ray, t) && t < bestT) { bestT = t; best = id; }
 		}
 		return best;
 	}
@@ -223,9 +234,121 @@ namespace GB::Editor
 	{
 		m_World.Clear();
 		m_Selected = NullEntity;
-		Commit();
+		if (OnNewScene)
+		{
+			OnNewScene();
+			ResetHistory();   // the generated world cannot be brought back by undo
+		}
+		else Commit();
 		Rebind();
 		return { true, "new scene" };
+	}
+
+	void SceneEditor::ResetHistory()
+	{
+		m_Undo.clear();
+		m_Redo.clear();
+		m_Dirty = false;
+		m_Current = SaveSceneToString(m_World);
+	}
+
+	EntityId SceneEditor::Group(const std::string& name)
+	{
+		const EntityId g = m_World.Create(name);
+		m_World.Find(g)->Tags.push_back("world");
+		return g;
+	}
+
+	void SceneEditor::RemoveEnvironment()
+	{
+		for (EntityId id : m_World.FindByTag("world"))
+			m_World.Destroy(id);   // a group takes its children along
+		if (!m_World.Find(m_Selected)) m_Selected = NullEntity;
+	}
+
+	size_t SceneEditor::PopulateEnvironment(const std::vector<TreePlacement>& trees, const std::vector<RockPlacement>& rocks)
+	{
+		RemoveEnvironment();
+		// Names are numbered explicitly: letting EntityWorld disambiguate thousands of equal names is quadratic.
+		auto fill = [&](const char* groupName, const char* prefix, PropKind kind, const auto& placements)
+		{
+			if (placements.empty()) return;
+			const EntityId group = Group(groupName);
+			size_t n = 0;
+			for (const auto& pl : placements)
+			{
+				const EntityId id = m_World.Create(std::string(prefix) + " " + std::to_string(++n), group);
+				GB::Entity* e = m_World.Find(id);
+				e->Transform.Position = pl.Position;
+				e->Transform.Rotation.y = glm::degrees(pl.Yaw);
+				e->Transform.Scale = glm::vec3(pl.Scale);
+				e->Prop = PropComponent{ kind, pl.Variant };
+			}
+		};
+		fill("Trees", "Tree", PropKind::Tree, trees);
+		fill("Rocks", "Rock", PropKind::Rock, rocks);
+		Rebind();
+		ResetHistory();
+		return trees.size() + rocks.size();
+	}
+
+	CommandResult SceneEditor::Add(const std::vector<std::string>& a)
+	{
+		namespace fs = std::filesystem;
+		auto fail = [](const std::string& m) { return CommandResult{ false, m }; };
+		auto lower = [](std::string s) { std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); }); return s; };
+		if (a.empty()) return fail("usage: add <cube|sphere|plane|light|model.glb> [x y z]");
+		glm::vec3 p = m_Spawn;
+		if (a.size() > 1)
+		{
+			if (a.size() < 4) return fail("usage: add <what> [x y z]  (a position needs three numbers)");
+			for (size_t i = 0; i < 3; ++i)
+			{
+				char* end = nullptr;
+				p[static_cast<glm::length_t>(i)] = std::strtof(a[i + 1].c_str(), &end);
+				if (end == a[i + 1].c_str() || *end != 0) return fail("not a number: " + a[i + 1]);
+			}
+		}
+		const std::string what = lower(a[0]);
+		EntityId id = NullEntity;
+		if (what == "cube" || what == "sphere" || what == "plane" || what == "light")
+		{
+			id = m_World.Create(std::string(1, static_cast<char>(std::toupper(what[0]))) + what.substr(1));
+			GB::Entity* e = m_World.Find(id);
+			if (what == "light") e->Light.emplace().Radius = 20.0f;
+			else
+			{
+				e->Mesh.emplace().Shape = what == "sphere" ? MeshShape::Sphere : what == "plane" ? MeshShape::Plane : MeshShape::Cube;
+				if (what == "plane") e->Mesh->Size = 10.0f;
+			}
+			e->Transform.Position = p;
+		}
+		else
+		{
+			const std::string ext = lower(fs::path(a[0]).extension().string());
+			if (ext != ".glb" && ext != ".gltf") return fail("not cube, sphere, plane, light or a .glb/.gltf model: " + a[0]);
+			std::error_code ec;
+			fs::path stored = a[0];
+			if (stored.is_absolute())
+			{
+				if (!fs::exists(stored, ec)) return fail("file not found: " + a[0]);
+				if (!m_AssetRoot.empty())
+				{
+					const fs::path rel = fs::relative(stored, m_AssetRoot, ec);
+					if (!ec && !rel.empty() && *rel.begin() != "..") stored = rel;
+				}
+			}
+			else if (!fs::exists(m_AssetRoot.empty() ? stored : fs::path(m_AssetRoot) / stored, ec))
+				return fail("model not found: " + a[0] + (m_AssetRoot.empty() ? "" : " (looked in " + m_AssetRoot + ")"));
+			const std::string model = stored.generic_string();
+			id = m_World.Create(fs::path(model).stem().string());
+			GB::Entity* e = m_World.Find(id);
+			e->Mesh.emplace().Model = model;
+			e->Transform.Position = p;
+		}
+		Commit();
+		Select(id);
+		return { true, "added " + Describe(id) };
 	}
 
 	CommandResult SceneEditor::Save(const std::string& path)
@@ -379,6 +502,8 @@ namespace GB::Editor
 	void SceneEditor::Register(CommandRunner& c)
 	{
 		c.Register("entity", "entity create|delete|duplicate|rename|parent|select|add|remove|set|info|list ...: edits the scene's entities", [this](const std::vector<std::string>& a) { return EntityCommand(a); });
+		c.Register("add", "add <cube|sphere|plane|light|file.glb|file.gltf> [x y z]: adds an object (models are relative to the assets folder)", [this](const std::vector<std::string>& a) { return Add(a); });
+		c.Register("new_scene", "new_scene: an empty scene (camera and sun only, no generated world); same as `scene new`", [this](const std::vector<std::string>&) { return NewScene(); });
 		c.Register("select", "select <name|id|none>: selects an entity", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty() || a[0] == "none") { Select(NullEntity); return { true, "selection cleared" }; }
