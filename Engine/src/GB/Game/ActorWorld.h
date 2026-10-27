@@ -88,5 +88,6 @@ namespace GB
 		std::map<std::string, std::shared_ptr<Model>> m_Models;
 		std::map<std::string, std::unique_ptr<Actor>> m_Actors;
 		NavGrid m_Nav;
+		std::vector<CircleObstacle> m_PushedObstacles;   // the static obstacles the actors have now
 	};
 }

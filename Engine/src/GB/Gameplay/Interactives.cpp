@@ -154,6 +154,23 @@ namespace GB
 		return out;
 	}
 
+	void DoorObstacles(const EntityWorld& world, const GameplayWorld& gameplay, std::vector<CircleObstacle>& out)
+	{
+		for (const std::string& name : gameplay.Names())
+		{
+			const AbilitySystemComponent* a = gameplay.Find(name);
+			if (!a || !a->HasTag("Interactive.Door")) continue;
+			const EntityId id = world.FindByName(name);
+			if (id == NullEntity || !world.IsActive(id)) continue;
+			const glm::mat4 m = world.WorldMatrix(id);
+			const float scale = glm::length(glm::vec3(m[0]));
+			auto at = [&](float x, float radius) { const glm::vec4 p = m * glm::vec4(x, 0.0f, 0.0f, 1.0f); out.push_back({ { p.x, p.z }, radius * scale }); };
+			for (float x = 1.2f; x <= 3.2f; x += 0.5f) { at(-x, 0.15f); at(x, 0.15f); }   // the fence either side of the opening (about 1.1 to 3.3 m from the middle)
+			if (InteractiveSystem::DoorState(*a) == "closed")
+				for (float x : { -0.6f, -0.2f, 0.2f, 0.6f }) at(x, 0.25f);                  // the leaf
+		}
+	}
+
 	void InteractiveSystem::Bind(GameplayWorld& gameplay, Take take, Give give)
 	{
 		m_Gameplay = &gameplay;

@@ -422,6 +422,7 @@ namespace GB
 		if (tasks.empty()) { error = "no tasks"; return false; }
 		m_Script.clear();
 		m_AI.Stop();
+		m_FailLogged = false;
 		m_Tasks.Set(std::move(tasks));
 		m_Source = OrderSource::Tasks;
 		return true;
@@ -511,7 +512,9 @@ namespace GB
 				};
 				const TaskRunner::Resolver none = [](const std::string&, const std::string&, InteractionTarget&, std::string*) { return false; };
 				m_Tasks.Profile = Navigation;
-				return m_Tasks.Update(m_Controller, m_World, m_Animator ? &m_Animator->Anim() : nullptr, dt, m_Interactions ? m_Interactions : none, props, AbilityHandler());
+				const CharacterInput in = m_Tasks.Update(m_Controller, m_World, m_Animator ? &m_Animator->Anim() : nullptr, dt, m_Interactions ? m_Interactions : none, props, AbilityHandler());
+				if (m_Tasks.Failed() && !m_FailLogged) { m_FailLogged = true; GB_CLIENT_WARN("{}: orders failed ({})", m_Name, m_Tasks.Describe()); }
+				return in;
 			}
 			break;
 		case OrderSource::AI:

@@ -27,6 +27,14 @@ namespace GB
 		}
 	}
 
+	size_t NavGrid::MemoryBytes(size_t* regions) const
+	{
+		const size_t graph = m_ChunkCost.capacity() * sizeof(float);
+		if (regions) *regions = graph;
+		return graph + m_Slope.capacity() + m_Depth.capacity() + m_Veg.capacity() + m_Flags.capacity() + m_Obstacles.capacity() * sizeof(CircleObstacle)
+			+ m_Scratch.G.capacity() * sizeof(float) + m_Scratch.Parent.capacity() * sizeof(int) + (m_Scratch.Open.capacity() + m_Scratch.Closed.capacity()) * sizeof(uint32_t);
+	}
+
 	bool NavGrid::CellAt(const glm::vec2& p, int& i, int& j) const
 	{
 		const float fx = std::floor((p.x - m_Min.x) / m_Config.CellSize), fy = std::floor((p.y - m_Min.y) / m_Config.CellSize);

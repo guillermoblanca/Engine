@@ -2,6 +2,7 @@
 #include "SceneEditor.h"
 #include "WorldInstance.h"
 #include "GB/Game/Interaction.h"
+#include "GB/Gameplay/Interactives.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
@@ -16,7 +17,7 @@ namespace GB::Editor
 		return kind.size() > 4 && (kind.substr(kind.size() - 4) == ".fbx" || kind.substr(kind.size() - 4) == ".FBX");
 	}
 
-	ActorHost PlayerMode::MakeHost(WorldInstance& world, const SceneEditor& edit, FootstepSounds* steps)
+	ActorHost PlayerMode::MakeHost(WorldInstance& world, const SceneEditor& edit, FootstepSounds* steps, const GameplayWorld* gameplay)
 	{
 		ActorHost host;
 		host.World = MakeTerrainCharacterWorld(world.GetTerrain());
@@ -44,6 +45,7 @@ namespace GB::Editor
 				host.World.Obstacles.push_back({ { p.x, p.z }, entity.Body->Shape == ColliderShape::Box ? std::max(h.x, h.z) : h.x });
 			}
 		}
+		if (gameplay) DoorObstacles(edit.World(), *gameplay, host.World.Obstacles);   // a shut door is a wall
 		const SceneEditor* scene = &edit;
 		host.Interactions = [scene](const std::string& entity, const std::string& point, InteractionTarget& out, std::string* err)
 		{
@@ -55,7 +57,7 @@ namespace GB::Editor
 	bool PlayerMode::SyncNavigation(WorldInstance& world, const SceneEditor& edit, FootstepSounds* steps, std::string* error)
 	{
 		if (!m_Actors || !world.IsBuilt()) { if (error) *error = "generate a world first (generate temperate 5)"; return false; }
-		m_Actors->SetHost(MakeHost(world, edit, steps));
+		m_Actors->SetHost(MakeHost(world, edit, steps, m_Gameplay));
 		return m_Actors->SyncNavigation(NavConfig(), error);
 	}
 
@@ -72,7 +74,7 @@ namespace GB::Editor
 		const bool isFbx = IsFbx(kind);
 		const bool fox = kind != "cesium" && !isFbx;
 		m_Actors->SetAssetRoot(assetRoot);
-		m_Actors->SetHost(MakeHost(world, edit, steps));
+		m_Actors->SetHost(MakeHost(world, edit, steps, m_Gameplay));
 		m_Actors->SyncNavigation();   // (the actors plan their paths over the terrain; a world without bounds just walks straight)
 		// the manifest the assets ship (the packs' sets, turns and montages as data) replaces the built-in lists when it is there
 		const std::string shipped = assetRoot + "/animation/mixamo.manifest.json";

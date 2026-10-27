@@ -4,6 +4,7 @@
 // around it and the walkers plan again; the hierarchy finds paths as good as the plain search with fewer cells; two runs end the same. The CPU time of
 // each part is printed (docs/NAVEGACION.md has the budget).
 #include "GB/Game/AIDriver.h"
+#include "GB/Gameplay/Interactives.h"
 #include "GB/Navigation/NavGrid.h"
 #include <algorithm>
 #include <chrono>
@@ -382,6 +383,24 @@ int main()
 		Check(same, "two runs end identically (same arrival frames, same final positions)");
 	}
 
+	// ---- scale: 100 walkers
+	{
+		const CrowdResult hundred = RunCrowd(grid, world, 100, 300.0f);
+		const NavStats s = grid.Stats();
+		const double seconds = static_cast<double>(hundred.Frames) * dt;
+		const double frame = hundred.NavSeconds / static_cast<double>(std::max(hundred.Frames, 1L));
+		size_t regions = 0;
+		const size_t bytes = grid.MemoryBytes(&regions);
+		std::printf("scale: 100 walkers: %d arrived, %d stuck in %.0f s; %ld paths, %ld replans (%.2f per second, %.2f per walker per minute); navigation %.3f ms per frame (%.1f us each), %.2f ms in the worst frame; "
+			"grid %.2f MB, of which the graph of regions %.1f KB\n", hundred.Arrived, hundred.Stuck, seconds, s.Paths, s.Replans, static_cast<double>(s.Replans) / seconds,
+			static_cast<double>(s.Replans) / seconds * 0.6, frame * 1000.0, frame / 100.0 * 1e6, hundred.WorstFrame * 1000.0, static_cast<double>(bytes) / 1048576.0, static_cast<double>(regions) / 1024.0);
+		Check(hundred.Arrived >= 98 && hundred.Stuck <= 2, "100 walkers reach their points (at most two give up)");
+		Check(hundred.MaxDepth <= 1.0f + 1e-3f && hundred.WorstOverlap < 0.1f, "... without wading too deep or walking into trunks");
+		Check(frame < kFrameBudget * 8.0, "the navigation of 100 walkers takes less than twice the budget per frame");
+		Check(hundred.WorstFrame < kWorstFrameBudget * 4.0, "... and its costliest frame stays within the budget");
+		Check(static_cast<double>(s.Replans) / seconds < 5.0, "the replans stay under five a second");
+	}
+
 	// ---- the world changes: a gap closes, a tree is felled
 	{
 		const CharacterWorld open = FlatWorld(Wall({ 0.0f, 18.0f }));
@@ -486,6 +505,94 @@ int main()
 		ai.MoveTo({ 6.0f, 0.0f });
 		for (int f = 0; f < 600 && !ai.Arrived(); ++f) c.Step(ai.Update(c, empty, dt), empty, dt);
 		Check(ai.Arrived(), "without a grid it still walks in a straight line");
+	}
+
+	// ---- a door: shut it is a wall, open it is a way through
+	{
+		EntityWorld entities;
+		GameplayWorld gameplay;
+		RegisterInteractiveContent(gameplay.Library);
+		BuildInteractives(entities, glm::vec3(0.0f));   // the gate stands at (-6, 0), its fence along x
+		gameplay.Load(entities);
+		std::vector<CircleObstacle> shut;
+		DoorObstacles(entities, gameplay, shut);
+		Check(shut.size() > 10, "a door has a fence and a leaf");
+		CharacterWorld w = FlatWorld(shut);
+		NavGrid g;
+		Check(g.Build(w), "the grid of the door builds");
+		const glm::vec2 from(-6.0f, -5.0f), to(-6.0f, 5.0f);
+		// walks from `from` to `to`; how far to the side the walker went at most, and whether it arrived
+		auto walk = [&](const CharacterWorld& world, float& widest, bool& arrived)
+		{
+			CharacterController c;
+			c.SetPosition(world, from.x, from.y, 0.0f);
+			AIDriver ai;
+			CharacterWorld wn = world;
+			wn.Nav = &g;
+			ai.MoveTo(to);
+			widest = 0.0f;
+			for (int f = 0; f < 30 * 90 && !ai.Arrived() && !ai.Stuck(); ++f)
+			{
+				c.Step(ai.Update(c, wn, dt), wn, dt);
+				widest = std::max(widest, std::fabs(c.GetPosition().x + 6.0f));
+			}
+			arrived = ai.Arrived();
+		};
+		NavPath closed;
+		Check(g.FindPath(walker, from, to, closed) && closed.Found, "a path past the shut door is found");
+		const float lenShut = PathLength(from, closed.Points);
+		float widest = 0.0f;
+		bool arrived = false;
+		walk(w, widest, arrived);
+		std::printf("door: shut %.1f m (widest %.1f m from the door)", lenShut, widest);
+		Check(arrived && widest > 3.0f && lenShut > 11.5f, "a shut door is walked around, past the end of the fence");
+
+		gameplay.Find("Gate")->Tags().RemoveAll("State.Closed");
+		gameplay.Find("Gate")->Tags().Add("State.Open");
+		std::vector<CircleObstacle> open;
+		DoorObstacles(entities, gameplay, open);
+		Check(open.size() < shut.size(), "an open door has no leaf");
+		const int cells = g.SyncObstacles(open);
+		w.Obstacles = open;
+		NavPath through;
+		Check(cells > 0 && cells < g.Width() * g.Height() / 5, "opening it redoes only the cells around it");
+		Check(g.FindPath(walker, from, to, through) && through.Found, "a path through the open door is found");
+		const float lenOpen = PathLength(from, through.Points);
+		walk(w, widest, arrived);
+		std::printf(", open %.1f m (widest %.1f m)\n", lenOpen, widest);
+		Check(arrived && widest < 1.2f && lenOpen < 11.0f, "an open door is crossed through the opening");
+
+		// and shut again, with the walker already on its way through: it plans again around
+		gameplay.Find("Gate")->Tags().RemoveAll("State.Open");
+		gameplay.Find("Gate")->Tags().Add("State.Closed");
+		std::vector<CircleObstacle> again;
+		DoorObstacles(entities, gameplay, again);
+		g.SyncObstacles(again);
+		NavPath back;
+		Check(g.FindPath(walker, from, to, back) && PathLength(from, back.Points) > 11.5f, "shut again, the way round is back");
+	}
+
+	// ---- long frames (the editor at `timescale 20`, a hitch while a model loads): the walkers must not take them for standing still
+	{
+		const CharacterWorld w = FlatWorld(Wall({ 0.0f }));
+		NavGrid g;
+		Check(g.Build(w), "the grid of the long frames builds");
+		int ok = 0, total = 0;
+		for (float step : { 0.25f, 0.5f, 1.0f, 2.0f })
+		{
+			CharacterController c;
+			c.SetPosition(w, -12.0f, 6.0f, 0.0f);
+			AIDriver ai;
+			CharacterWorld wn = w;
+			wn.Nav = &g;
+			wn.DynamicFrom = w.Obstacles.size();
+			ai.MoveTo({ 12.0f, -6.0f });
+			for (int f = 0; f < static_cast<int>(120.0f / step) && !ai.Arrived() && !ai.Stuck(); ++f) c.Step(ai.Update(c, wn, step), wn, step);
+			++total;
+			ok += !ai.Stuck() && (ai.Arrived() || step > 0.6f) ? 1 : 0;   // (steps of a second or two overshoot a 0.3 m arrival radius: they only must not give up)
+			if (ai.Stuck()) std::fprintf(stderr, "  (frame of %.2f s: %s)\n", static_cast<double>(step), ai.StuckReason().c_str());
+		}
+		Check(ok == total, "a walker does not give up when the frames are 0.25 to 2 s long, and arrives in the shorter ones");
 	}
 
 	// ---- a grid needs bounds

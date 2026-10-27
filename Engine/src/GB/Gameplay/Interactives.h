@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Game/CharacterController.h"
 #include "GB/Game/Entity.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Gameplay/Items.h"
@@ -17,6 +18,11 @@ namespace GB
 	// OpenDoor and CloseDoor.
 
 	void RegisterInteractiveContent(GameplayLibrary& library);
+
+	// The obstacles (circles on the ground plane) the doors of the scene put in the way: the fence on either side of a door always, and the leaf
+	// while the door is closed. Appended to `out`; the host adds them to the static obstacles of its world, so the characters and the navigation
+	// grid see a shut door as a wall and an open one as a way through.
+	void DoorObstacles(const EntityWorld& world, const GameplayWorld& gameplay, std::vector<CircleObstacle>& out);
 
 	struct InteractiveLayout
 	{

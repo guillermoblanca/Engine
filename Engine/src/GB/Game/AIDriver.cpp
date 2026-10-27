@@ -8,6 +8,7 @@ namespace GB
 	{
 		constexpr float kPlannedWaypointRadius = 0.45f;   // a planned path has clearance of about half a metre: its corners are cut less
 		constexpr float kWindowSeconds = 1.0f;            // the time over which progress is judged
+		constexpr float kMaxJudgedStep = 0.1f;            // s of one frame that count towards that judgement
 		constexpr float kMinProgress = 0.3f;              // m moved in that window below which the walker is not getting anywhere
 
 		// Steers `dir` around the characters ahead: each one in the way pushes to the side away from it (always the right one when it is head-on,
@@ -93,7 +94,7 @@ namespace GB
 
 		// pushing against something without getting anywhere: give up instead of pushing forever
 		m_StillTime = c.WasBlocked() && c.GetSpeed() < 0.3f ? m_StillTime + dt : 0.0f;
-		if (m_StillTime > StuckSeconds) { m_Stuck = true; m_Path.clear(); m_Index = 0; return CharacterInput(); }
+		if (m_StillTime > StuckSeconds) { m_Stuck = true; m_Why = "pushed against something"; m_Path.clear(); m_Index = 0; return CharacterInput(); }
 
 		CharacterConfig config = c.Config;
 		config.WalkSpeed = WalkSpeed;
@@ -127,6 +128,7 @@ namespace GB
 			m_Path.clear();
 			m_Index = 0;
 			m_Stuck = !ok;
+			if (m_Stuck) m_Why = "no path to the goal";
 			return false;
 		}
 		m_Path = std::move(path.Points);
@@ -152,7 +154,7 @@ namespace GB
 			Plan(c, nav, world, true);
 			return;
 		}
-		if (m_Replans + 1 > MaxReplans) { m_Stuck = true; m_Path.clear(); m_Index = 0; return; }
+		if (m_Replans + 1 > MaxReplans) { m_Stuck = true; m_Why = "no headway after replanning"; m_Path.clear(); m_Index = 0; return; }
 		const int replans = m_Replans + 1;
 		Plan(c, nav, world, true);
 		m_Replans = replans;
@@ -188,8 +190,10 @@ namespace GB
 		}
 
 		// headway is judged over a window; the old "blocked and barely moving" rule triggers the same remedy
-		m_WindowTime += dt;
-		m_StillTime = c.WasBlocked() && c.GetSpeed() < 0.3f ? m_StillTime + dt : 0.0f;
+		// (a frame that took a long time, a model loading or the simulation sped up, is not a long time of standing still: the judging clock is capped)
+		const float judged = std::min(dt, kMaxJudgedStep);
+		m_WindowTime += judged;
+		m_StillTime = c.WasBlocked() && c.GetSpeed() < 0.3f ? m_StillTime + judged : 0.0f;
 		const bool stalled = m_StillTime > StuckSeconds || (m_WindowTime >= kWindowSeconds && glm::distance(here, m_WindowStart) < kMinProgress);
 		if (stalled)
 		{
@@ -211,7 +215,7 @@ namespace GB
 		const float dist = glm::length(to);
 		if (last && dist < ArriveRadius)
 		{
-			if (m_Partial) m_Stuck = true;   // the nearest it could get to a goal it cannot reach
+			if (m_Partial) { m_Stuck = true; m_Why = "the goal is cut off (nearest point reached)"; }   // the nearest it could get to a goal it cannot reach
 			else m_Arrived = true;
 			m_Path.clear();
 			m_Index = 0;
