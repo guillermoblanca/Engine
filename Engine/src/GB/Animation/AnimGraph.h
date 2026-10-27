@@ -66,6 +66,9 @@ namespace GB
 	// among them: a starting point to edit.
 	AnimGraph MakeDefaultGraph(const AnimInstance& anim);
 
+	// True for the parameters the motion gives by itself (Speed, Grounded...): they need no declaration in the graph.
+	bool IsAutoParam(const std::string& name);
+
 	std::string AnimGraphToJson(const AnimGraph& graph);
 	bool AnimGraphFromJson(const std::string& text, AnimGraph& out, std::string* error = nullptr);
 

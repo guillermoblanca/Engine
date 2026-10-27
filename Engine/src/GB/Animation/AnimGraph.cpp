@@ -12,11 +12,6 @@ namespace GB
 	{
 		const char* const kAutoParams[] = { "Speed", "Forward", "Strafe", "YawRate", "Grounded", "Airborne", "Wading", "WadeDepth", "Blocked", "Landed", "LandingSpeed", "Finished" };
 
-		bool IsAuto(const std::string& name)
-		{
-			for (const char* p : kAutoParams) if (name == p) return true;
-			return false;
-		}
 
 		const char* OpText(GraphCondition::Op op)
 		{
@@ -56,6 +51,12 @@ namespace GB
 		}
 	}
 
+	bool IsAutoParam(const std::string& name)
+	{
+		for (const char* p : kAutoParams) if (name == p) return true;
+		return false;
+	}
+
 	int AnimGraph::FindState(const std::string& name) const
 	{
 		for (size_t i = 0; i < States.size(); ++i) if (States[i].Name == name) return static_cast<int>(i);
@@ -93,7 +94,7 @@ namespace GB
 			if (t.From != "*" && !t.From.empty() && FindState(t.From) < 0) problems.push_back(label + ": no state '" + t.From + "'");
 			if (FindState(t.To) < 0) problems.push_back(label + ": no state '" + t.To + "'");
 			for (const GraphCondition& c : t.Conditions)
-				if (!IsAuto(c.Param) && FindParam(c.Param) < 0) problems.push_back(label + ": no parameter '" + c.Param + "'");
+				if (!IsAutoParam(c.Param) && FindParam(c.Param) < 0) problems.push_back(label + ": no parameter '" + c.Param + "'");
 		}
 		for (size_t i = 0; i < States.size(); ++i)
 		{
