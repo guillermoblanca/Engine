@@ -149,6 +149,11 @@ target_link_libraries(GBLocomotionTests PRIVATE GB::GB)
 target_compile_definitions(GBLocomotionTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME locomotion COMMAND GBLocomotionTests)
 
+add_executable(GBTurnLayerTests turn_layer_test.cpp)
+target_link_libraries(GBTurnLayerTests PRIVATE GB::GB)
+target_compile_definitions(GBTurnLayerTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME turn_layer COMMAND GBTurnLayerTests)
+
 add_executable(GBCharacterLayerTests character_layer_test.cpp)
 target_link_libraries(GBCharacterLayerTests PRIVATE GB::GB)
 target_compile_definitions(GBCharacterLayerTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
