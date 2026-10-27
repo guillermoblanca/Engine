@@ -6,6 +6,7 @@
 #include "GB/Gameplay/AttributeSet.h"
 #include "GB/Gameplay/GameplayAbility.h"
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -33,6 +34,21 @@ namespace GB
 		std::function<bool(const std::string& entity, const std::string& point, InteractionTarget& out, std::string* error)> Resolve;
 		// Puts a prop in the character's hand (true) or takes it away (false): "box", "can", "shovel"...
 		std::function<bool(const std::string& prop, bool on)> Equip;
+	};
+
+	// What a running ability system keeps that its scene component does not: the timed effects still running (cooldowns, regrowth) with their
+	// clocks, and how many times each ability started (it rotates its montages). Abilities in flight are not part of it (they are cancelled).
+	struct EffectRuntime
+	{
+		std::string Name;
+		float Remaining = 0.0f, PeriodTimer = 0.0f;
+	};
+
+	struct AbilityRuntimeState
+	{
+		std::vector<EffectRuntime> Effects;
+		std::map<std::string, int> Uses;
+		int Completed = 0;
 	};
 
 	// One run of an ability: its tasks in order, who it acts on and what it has done.
@@ -118,6 +134,10 @@ namespace GB
 		// ---- scenes: the state as an entity component (see Entity.h) and back
 		GameplayComponent ToComponent() const;
 		void FromComponent(const GameplayComponent& c);
+		// The clocks that go with the component (see AbilityRuntimeState), for saved games. Restore after FromComponent; false and `error` for an
+		// effect the library does not know.
+		AbilityRuntimeState RuntimeState() const;
+		bool RestoreRuntimeState(const AbilityRuntimeState& state, std::string* error = nullptr);
 
 		// Used by the tasks.
 		const GameplayLibrary& Library() const { return *m_Library; }

@@ -127,6 +127,7 @@ namespace GB::Editor
 		RegisterCommands();
 		m_SceneEditor.Bind(m_Props);
 		m_SceneEditor.Register(m_Commands);
+		RegisterSaveCommands();
 		m_EntityRenderer = std::make_unique<EntityRenderer>(m_AssetRoot);
 		m_EntityRenderer->SetPropBuilder([this](const PropComponent& p, const glm::mat4& m, Scene& s) { return m_World.AddProp(p, m, s); });
 		BuildWorld(m_WorldDesc);
@@ -398,6 +399,7 @@ namespace GB::Editor
 	CommandResult EditorApp::Execute(const std::string& line)
 	{
 		m_SceneEditor.SetSpawnPoint(m_Orbit.Target);
+		if (m_Recorder.Active() && !RecordIfSim(line)) return { false, "not while recording a replay (it would not play back the same): replay stop <file> first" };
 		if (const auto words = CommandRunner::Tokenize(line); !words.empty() && (words[0] == "scene_save" || (words[0] == "scene" && words.size() > 1 && words[1] == "save")))
 			m_Gameplay.Store(m_SceneEditor.World());   // the file keeps the live state of the garden and the characters
 		const CommandResult r = m_Commands.Execute(line);
@@ -1036,7 +1038,7 @@ namespace GB::Editor
 			m_PendingUiShot = a[0];
 			return { true, "" };
 		});
-		c.Register("load", "load <model.glb|gltf>: puts a glTF model in the scene (animated clips are listed in the Model panel)", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("load_model", "load_model <model.glb|gltf>, or load <model.glb|gltf>: puts a glTF model in the scene (animated clips are listed in the Model panel)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty()) return { false, "usage: load <path>" };
 			std::string path = a[0];
@@ -1192,8 +1194,7 @@ namespace GB::Editor
 
 		ImGuiIO& io = ImGui::GetIO();
 		m_Player.PrepareAbilities();   // abilities first: what they ask of the character is this frame's input
-		m_Gameplay.Update(dt);
-		m_Garden.Update(dt);
+		StepSimulation(dt);
 		if (m_Player.IsActive())
 		{
 			m_Player.Update(dt, m_ViewportHovered && !io.WantTextInput);
@@ -1343,6 +1344,8 @@ namespace GB::Editor
 			if (ImGui::MenuItem("New scene")) Execute("scene new");
 			if (ImGui::MenuItem("Save scene", "Ctrl+S")) Execute("scene save scene.json");
 			if (ImGui::MenuItem("Load scene")) Execute("scene load scene.json");
+			ImGui::Separator();
+			DrawSaveMenu();
 			ImGui::Separator();
 			if (ImGui::MenuItem("Save viewport screenshot")) Execute("screenshot editor_screenshot.png");
 			ImGui::Separator();
@@ -1515,6 +1518,8 @@ namespace GB::Editor
 		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) Execute("redo");
 		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false) && m_SceneEditor.Selected() != NullEntity) Execute("entity duplicate");
 		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) Execute("scene save scene.json");
+		else if (ImGui::IsKeyPressed(ImGuiKey_F5, false)) Execute("quicksave");
+		else if (ImGui::IsKeyPressed(ImGuiKey_F9, false)) Execute("quickload");
 		else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && m_SceneEditor.Selected() != NullEntity) Execute("entity delete");
 	}
 
