@@ -227,3 +227,8 @@ add_executable(GBAnimManifestTests anim_manifest_test.cpp)
 target_link_libraries(GBAnimManifestTests PRIVATE GB::GB)
 target_compile_definitions(GBAnimManifestTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data" GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME anim_manifest COMMAND GBAnimManifestTests)
+
+add_executable(GBSaveTests save_test.cpp)
+target_link_libraries(GBSaveTests PRIVATE GB::GB)
+target_compile_definitions(GBSaveTests PRIVATE GB_SAVES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden/saves")
+add_test(NAME save COMMAND GBSaveTests)

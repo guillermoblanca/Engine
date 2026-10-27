@@ -44,6 +44,11 @@ add_library(GB STATIC
     src/GB/Animation/FootIK.cpp
     src/GB/Animation/LookAt.cpp
     src/GB/Game/SceneIO.cpp
+    src/GB/Save/SaveGame.cpp
+    src/GB/Save/SaveWorld.cpp
+    src/GB/Save/SaveFiles.cpp
+    src/GB/Save/Replay.cpp
+    src/GB/Save/GameSession.cpp
     src/GB/Game/EntityRender.cpp
     src/GB/Input.cpp
     src/GB/Log.cpp

@@ -244,6 +244,14 @@ namespace GB::Editor
 		return { true, "new scene" };
 	}
 
+	void SceneEditor::ReplaceWorld(EntityWorld&& world)
+	{
+		m_World = std::move(world);
+		m_Selected = NullEntity;
+		ResetHistory();
+		Rebind();
+	}
+
 	void SceneEditor::ResetHistory()
 	{
 		m_Undo.clear();

@@ -73,6 +73,36 @@ namespace GB
 		return raw;
 	}
 
+	std::vector<Save::ActorState> ActorWorld::CaptureActors() const
+	{
+		std::vector<Save::ActorState> out;
+		for (const auto& [name, actor] : m_Actors)
+		{
+			Save::ActorState s;
+			s.Name = name;
+			s.Position = actor->GetPosition();
+			s.Yaw = actor->GetYaw();
+			if (const AnimInstance* anim = actor->Anim()) s.Set = anim->Overlay();
+			s.Props = actor->PropNames();
+			s.Ragdoll = actor->Ragdolled();
+			out.push_back(std::move(s));
+		}
+		return out;
+	}
+
+	std::string ActorWorld::RestoreActors(const std::vector<Save::ActorState>& actors, bool check)
+	{
+		if (check) return {};   // nothing here can make a load fail: an actor that does not exist is skipped
+		for (const Save::ActorState& s : actors)
+		{
+			Actor* actor = Find(s.Name);
+			if (!actor) continue;
+			actor->Teleport(s.Position.x, s.Position.z, s.Yaw);
+			if (!s.Set.empty() && actor->Anim() && actor->Anim()->HasSet(s.Set)) actor->SetOverlay(s.Set, 0.0f);
+		}
+		return {};
+	}
+
 	bool ActorWorld::Remove(const std::string& name)
 	{
 		const auto it = m_Actors.find(name);

@@ -155,6 +155,9 @@ namespace GB
 		// Used by loaders: inserts an entity with a given id (no hierarchy links; call Link afterwards).
 		Entity* Insert(EntityId id, const std::string& name);
 		bool Link(EntityId id, EntityId parent);
+		// The id the next Create will take. Saved games keep it so the ids a session hands out do not depend on what it loaded.
+		EntityId NextId() const { return m_NextId; }
+		void SetNextId(EntityId next) { if (next > m_NextId) m_NextId = next; }
 
 	private:
 		std::string UniqueName(const std::string& wanted, EntityId ignore) const;

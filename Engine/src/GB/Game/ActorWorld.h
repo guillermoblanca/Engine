@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Game/Actor.h"
+#include "GB/Save/SaveWorld.h"
 #include <map>
 #include <memory>
 #include <string>
@@ -21,7 +22,7 @@ namespace GB
 	// The actors of a world: it creates, updates, draws and removes them, shares each loaded model between the actors that use it, keeps
 	// them out of each other's way, and links every one to the entity of the scene with its name and to its ability system. Updating goes
 	// in name order, so a run is the same every time.
-	class ActorWorld
+	class ActorWorld : public Save::IActorStateSource
 	{
 	public:
 		ActorWorld() = default;
@@ -61,6 +62,11 @@ namespace GB
 		void PrepareAbilities();
 		void Update(float dt);
 		void AddToScene(Scene& scene) const;
+
+		// Saving (see GB/Save): where each actor is, which way it faces and which locomotion set it moves with. Loading puts back the actors that exist
+		// now; one the world does not have is left out (its model is not in the save yet: spawn it again with `actor spawn`).
+		std::vector<Save::ActorState> CaptureActors() const override;
+		std::string RestoreActors(const std::vector<Save::ActorState>& actors, bool check) override;
 
 		// Circles of every actor except `except`.
 		std::vector<CircleObstacle> CirclesExcept(const std::string& except) const;

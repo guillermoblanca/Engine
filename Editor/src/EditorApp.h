@@ -1,5 +1,6 @@
 #pragma once
 #include "Commands.h"
+#include "EditorSave.h"
 #include "ImGuiLayer.h"
 #include "LogBuffer.h"
 #include "PlayerMode.h"
@@ -32,6 +33,7 @@ namespace GB::Editor
 	// drive the same thing: `set post.ssao 0.8`, `generate alpine 4`, `time 21.5`, `screenshot out.png`...
 	class EditorApp : public Application
 	{
+		friend class EditorSaveHost;
 	public:
 		EditorApp();
 		~EditorApp() override;
@@ -85,6 +87,14 @@ namespace GB::Editor
 		void DrawModelPanel();
 		void DrawAnimationPanel();
 		void DrawAbilitiesPanel();
+		// saved games and replays (EditorSave.cpp)
+		void RegisterSaveCommands();
+		void StepSimulation(float dt);                           // gameplay and the garden in fixed ticks; also the autosave timer
+		bool RecordIfSim(const std::string& line);               // false: an order a replay cannot keep (scene files), which is refused
+		void DrawSaveMenu();
+		CommandResult SaveSlot(const std::string& name);
+		CommandResult LoadSlot(const std::string& name);
+		CommandResult ReplayCommand(const std::vector<std::string>& a);
 		void SyncGameplay();                                     // ability systems from the scene's entities (after a scene is loaded or the garden built)
 		CommandResult AbilityCommand(const std::vector<std::string>& a);
 		CommandResult GardenCommand(const std::vector<std::string>& a);
@@ -136,6 +146,14 @@ namespace GB::Editor
 		Environment m_TodBaseEnv;
 		DirectionalLight m_TodBaseSun;
 		int m_WeatherPreset = 0;
+
+		// saved games
+		std::unique_ptr<EditorSaveHost> m_SaveHost;
+		Save::AutoSaver m_AutoSaver;
+		Save::ReplayRecorder m_Recorder;
+		uint64_t m_SimTick = 0;                                  // fixed 1/60 s ticks of gameplay since the world began
+		double m_SimAccum = 0.0;
+		std::string m_SaveDir = "saves";                         // GB_SAVE_DIR overrides it
 
 		// automation
 		PropertyRegistry m_Props;
