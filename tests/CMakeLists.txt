@@ -98,6 +98,11 @@ add_executable(GBQaTests qa_test.cpp)
 target_link_libraries(GBQaTests PRIVATE GB::GB)
 add_test(NAME qa COMMAND GBQaTests)
 
+add_executable(GBVegetationTests vegetation_test.cpp)
+target_link_libraries(GBVegetationTests PRIVATE GB::GB)
+add_test(NAME vegetation COMMAND GBVegetationTests)
+set_tests_properties(vegetation PROPERTIES SKIP_RETURN_CODE 77)
+
 add_executable(GBGoldenTests golden_test.cpp)
 target_link_libraries(GBGoldenTests PRIVATE GB::GB)
 target_compile_definitions(GBGoldenTests PRIVATE GB_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden")

@@ -17,6 +17,9 @@ namespace GB
 		float Frequency = 1.6f;                    // noise cycles over the rock: lumpy (1) to craggy (3)
 		float Facets = 0.6f;                       // 0 = smooth pebble, 1 = flat-shaded cut faces
 		float Flatten = 0.35f;                     // 0..1: how flat the base is (so it sits on the ground)
+		float Strata = 0.5f;                       // bedding grooves (layers), 0..1
+		float Cracks = 0.5f;                       // narrow cracks, 0..1
+		float Erosion = 0.5f;                      // fine pitting and rounded edges, 0..1
 		int Detail = 4;                            // icosphere subdivisions (4 = 5120 triangles)
 		glm::vec3 Color{ 0.42f, 0.40f, 0.37f };
 		// Surface layers (see Material): moss on top, sand at the base, wet band at the water line.

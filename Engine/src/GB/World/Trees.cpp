@@ -94,7 +94,52 @@ namespace GB
 				Add(c - r * halfW + u * halfH, normal, { 0, 0 }, tangent);
 				i.insert(i.end(), { base, base + 1, base + 2, base, base + 2, base + 3 });
 			}
+
+			// A card folded along its vertical midline (a V or a roof): the two halves are tilted by `fold` radians toward
+			// `bendDir`, so the card keeps some width seen from any side instead of turning into a sliver.
+			void FoldCard(const glm::vec3& c, const glm::vec3& r, const glm::vec3& u, float halfW, float halfH, float fold, const glm::vec3& bendDir, const glm::vec3& normal)
+			{
+				const uint32_t base = static_cast<uint32_t>(v.size());
+				const glm::vec4 tangent(r, 1.0f);
+				const glm::vec3 w = r * (halfW * std::cos(fold)), b = bendDir * (halfW * std::sin(fold));
+				Add(c - w + b - u * halfH, normal, { 0.0f, 1.0f }, tangent);
+				Add(c - u * halfH, normal, { 0.5f, 1.0f }, tangent);
+				Add(c + w + b - u * halfH, normal, { 1.0f, 1.0f }, tangent);
+				Add(c - w + b + u * halfH, normal, { 0.0f, 0.0f }, tangent);
+				Add(c + u * halfH, normal, { 0.5f, 0.0f }, tangent);
+				Add(c + w + b + u * halfH, normal, { 1.0f, 0.0f }, tangent);
+				i.insert(i.end(), { base, base + 1, base + 4, base, base + 4, base + 3, base + 1, base + 2, base + 5, base + 1, base + 5, base + 4 });
+			}
+
+			// A small low-poly sphere (fruit).
+			void Sphere(const glm::vec3& c, float radius, int seg)
+			{
+				const int rings = std::max(3, seg - 1);
+				const uint32_t base = static_cast<uint32_t>(v.size());
+				for (int y = 0; y <= rings; ++y)
+				{
+					const float phi = static_cast<float>(y) / static_cast<float>(rings) * kPi;
+					for (int x = 0; x <= seg; ++x)
+					{
+						const float th = static_cast<float>(x) / static_cast<float>(seg) * 2.0f * kPi;
+						const glm::vec3 n(std::sin(phi) * std::cos(th), std::cos(phi), std::sin(phi) * std::sin(th));
+						Add(c + n * radius, n, { static_cast<float>(x) / static_cast<float>(seg), static_cast<float>(y) / static_cast<float>(rings) * 0.2f }, glm::vec4(-std::sin(th), 0.0f, std::cos(th), 1.0f));
+					}
+				}
+				for (int y = 0; y < rings; ++y)
+					for (int x = 0; x < seg; ++x)
+					{
+						const uint32_t a = base + static_cast<uint32_t>(y * (seg + 1) + x), b = a + static_cast<uint32_t>(seg + 1);
+						i.insert(i.end(), { a, b, a + 1, a + 1, b, b + 1 });
+					}
+			}
 		};
+
+		glm::vec3 RotateAround(const glm::vec3& v, const glm::vec3& axis, float a)
+		{
+			const float c = std::cos(a), s = std::sin(a);
+			return v * c + glm::cross(axis, v) * s + axis * glm::dot(axis, v) * (1.0f - c);
+		}
 
 		// ------------------------------------------------------------ procedural textures
 		Image MakeBark(bool rings)
@@ -309,18 +354,19 @@ namespace GB
 					best.Hit = true;
 					best.Color = glm::vec3(0.18f, 0.26f, 0.07f);
 				}
-				const int pairs = 26;
+				const int pairs = 44;
 				for (int k = 0; k < pairs; ++k)
 				{
 					const float t = (static_cast<float>(k) + 0.5f) / pairs;            // 0 base .. 1 tip
 					const float y = 0.92f - 1.84f * t;
-					const float len = 0.95f * std::sin(kPi * std::pow(std::clamp(1.0f - 0.9f * t, 0.0f, 1.0f), 0.75f)) * 0.85f + 0.05f;
 					for (int side = -1; side <= 1; side += 2)
 					{
-						const glm::vec2 a(0.0f, y), b(static_cast<float>(side) * len, y - 0.30f * len);
+						const float jitter = 0.88f + 0.24f * Noise(static_cast<float>(k) * 2.3f, static_cast<float>(side + 2), 33, 64);   // leaflets differ in length
+						const float len = (0.95f * std::sin(kPi * std::pow(std::clamp(1.0f - 0.9f * t, 0.0f, 1.0f), 0.75f)) * 0.85f + 0.05f) * jitter;
+						const glm::vec2 a(0.0f, y), b(static_cast<float>(side) * len, y - (0.22f + 0.14f * t) * len);
 						const glm::vec2 ab = b - a;
 						const float s = glm::clamp(glm::dot(p - a, ab) / glm::dot(ab, ab), 0.0f, 1.0f);
-						if (glm::length(p - (a + ab * s)) < 0.030f * (1.0f - 0.65f * s))
+						if (glm::length(p - (a + ab * s)) < 0.024f * (1.0f - 0.6f * s))
 						{
 							best.Hit = true;
 							best.Color = glm::mix(glm::vec3(0.12f, 0.28f, 0.06f), glm::vec3(0.22f, 0.40f, 0.09f), s) * (0.85f + 0.3f * Noise(static_cast<float>(k) * 1.7f, static_cast<float>(side + 2), 31, 64));
@@ -350,183 +396,389 @@ namespace GB
 		auto tree = std::make_unique<Tree>();
 		Rng rng(static_cast<uint64_t>(p.Seed) * 2654435761u + static_cast<uint64_t>(p.Species) * 97u + 13u);
 		MeshBuilder wood, leaves;
-		glm::vec3 crownCenter(0.0f, p.Height * 0.62f, 0.0f);
-		float crownRadius = p.Height * 0.38f;
-		const float trunkR = p.TrunkRadius > 0.0f ? p.TrunkRadius : p.Height * (p.Species == TreeSpecies::Palm ? 0.022f : 0.032f);
+		const float H = p.Height;
+		const int detail = std::clamp(p.Detail, 0, 2);
+		const float lod = detail == 0 ? 0.55f : (detail == 1 ? 1.0f : 1.3f);   // foliage density multiplier per level of detail
+		const int sideCut = detail == 0 ? 2 : 0;                                // fewer sides on the tubes of the low level
+		const float density = std::max(p.LeafDensity, 0.05f) * lod;
+		const float trunkR = p.TrunkRadius > 0.0f ? p.TrunkRadius : H * (p.Species == TreeSpecies::Palm ? 0.022f : 0.032f);
+		const int style = p.Style >= 0 ? p.Style : static_cast<int>(p.Seed % 3u);
+		const glm::vec3 up(0, 1, 0);
+		auto uniformDir = [&]() { return glm::normalize(glm::vec3(rng.range(-1, 1), rng.range(-1, 1), rng.range(-1, 1)) + glm::vec3(1e-4f)); };
 
-		const float leafSize = p.Species == TreeSpecies::Broadleaf ? 1.25f : 0.7f;
-		auto addLeafCluster = [&](const glm::vec3& at, int count, float spread, float size, bool needles)
-		{
-			for (int k = 0; k < count; ++k)
-			{
-				const glm::vec3 c = at + glm::vec3(rng.range(-1, 1), rng.range(-0.7f, 0.9f), rng.range(-1, 1)) * spread;
-				glm::vec3 outward = c - crownCenter;
-				outward = glm::length(outward) > 1e-3f ? glm::normalize(outward) : glm::vec3(0, 1, 0);
-				// Random orientation of the card; the vertex normal points out of the crown (soft, round shading).
-				glm::vec3 cardN = glm::normalize(glm::vec3(rng.range(-1, 1), rng.range(-0.3f, 1.0f), rng.range(-1, 1)));
-				const glm::vec3 r = AnyPerpendicular(cardN), u = glm::cross(cardN, r);
-				const float ang = rng.range(0.0f, 2.0f * kPi);
-				const glm::vec3 rr = r * std::cos(ang) + u * std::sin(ang), uu = -r * std::sin(ang) + u * std::cos(ang);
-				const glm::vec3 shadeN = glm::normalize(glm::mix(outward, glm::vec3(0, 1, 0), needles ? 0.35f : 0.2f));
-				const float s = size * rng.range(0.8f, 1.25f);
-				leaves.Card(c, rr, uu, s * 0.5f, s * 0.5f, shadeN);
-			}
-		};
+		float crownRadius = H * 0.4f;
 
-		// Recursive branch growth.
-		struct Branch { glm::vec3 start, dir; float length, radius; int level; };
-		std::vector<Branch> stack;
-
-		switch (p.Species)
-		{
-		case TreeSpecies::Broadleaf:
-		case TreeSpecies::Bare:
+		// ---------------------------------------------------------------- broadleaf / bare
+		if (p.Species == TreeSpecies::Broadleaf || p.Species == TreeSpecies::Bare)
 		{
 			const bool bare = p.Species == TreeSpecies::Bare;
-			const float trunkLen = p.Height * (bare ? 0.45f : 0.38f);
-			stack.push_back({ glm::vec3(0.0f), glm::vec3(rng.range(-0.05f, 0.05f), 1.0f, rng.range(-0.05f, 0.05f)), trunkLen, trunkR, 0 });
-			const int maxLevel = bare ? 3 : 3;
+			// Habit by style: 0 spreading (oak), 1 ovate (lime, birch), 2 columnar (poplar).
+			struct Habit { float TrunkFrac, AngLo, AngHi, LenLo, LenHi, Up; int EndKids, TrunkKids; };
+			static const Habit habits[3] = {
+				{ 0.34f, 42.0f, 72.0f, 0.60f, 0.85f, 0.05f, 3, 4 },
+				{ 0.42f, 32.0f, 58.0f, 0.50f, 0.75f, 0.12f, 2, 6 },
+				{ 0.30f, 16.0f, 34.0f, 0.45f, 0.70f, 0.22f, 1, 7 } };
+			const Habit hb = habits[style % 3];
+			const float trunkLen = H * (hb.TrunkFrac + (bare ? 0.06f : 0.0f)) * rng.range(0.92f, 1.08f);
+			const int maxLevel = bare ? 4 : 3;
+			const float leafSize = (style == 0 ? 1.45f : 1.25f) * (bare ? 1.0f : 1.0f);
+
+			struct Branch { glm::vec3 start, dir; float length, radius; int level; float az; bool trunkSide; };
+			struct Anchor { glm::vec3 pos, dir; int level; };
+			std::vector<Branch> stack;
+			std::vector<Anchor> anchors;
+						glm::vec3 trunkDir = glm::normalize(glm::vec3(rng.range(-0.06f, 0.06f), 1.0f, rng.range(-0.06f, 0.06f)));
+			stack.push_back({ glm::vec3(0.0f), trunkDir, trunkLen, trunkR, 0, rng.range(0.0f, 2.0f * kPi), false });
+			std::vector<glm::vec3> woodPoints;   // where branches (level >= 1) pass, to hang leaves on
+
 			while (!stack.empty())
 			{
 				Branch b = stack.back();
 				stack.pop_back();
-				const int segments = std::max(3, static_cast<int>(b.length * (b.level == 0 ? 2.0f : 3.0f)));
+				const int segments = b.level >= 2 ? std::max(3, static_cast<int>(b.length * 2.2f)) : std::max(b.level == 0 ? 4 : 3, static_cast<int>(b.length * (b.level == 0 ? 2.5f : 2.2f)));
+				const int sides = std::max(3, (b.level == 0 ? 10 : (b.level == 1 ? 5 : (b.level == 2 ? 4 : 3))) - sideCut);
 				glm::vec3 pos = b.start, dir = glm::normalize(b.dir);
+				glm::vec3 wander = uniformDir();
+				glm::vec3 midPos = b.start, midDir = dir;
 				const float segLen = b.length / static_cast<float>(segments);
-				for (int sIdx = 0; sIdx < segments; ++sIdx)
+				const float taper = b.level == 0 ? 0.6f : 0.78f;
+				auto radiusAt = [&](float t, const glm::vec3& at)
 				{
-					const float t0 = static_cast<float>(sIdx) / segments, t1 = static_cast<float>(sIdx + 1) / segments;
-					const float r0 = b.radius * (1.0f - 0.65f * t0), r1 = b.radius * (1.0f - 0.65f * t1);
-					dir = glm::normalize(dir + glm::vec3(rng.range(-0.12f, 0.12f), rng.range(-0.04f, 0.1f) + (b.level >= 2 ? -0.02f : 0.04f), rng.range(-0.12f, 0.12f)));
+					float r = std::max(b.radius * (1.0f - taper * std::pow(t, b.level == 0 ? 1.3f : 0.9f)), H * 0.0016f);
+					if (b.level == 0)
+						r *= 1.0f + 0.6f * std::exp(-at.y / (trunkR * 3.5f));   // widened base
+					return r;
+				};
+				// Where along the branch the side branches leave (golden-angle azimuths, fewer and later on thin twigs).
+				std::vector<int> kidsAt(static_cast<size_t>(segments), 0);
+				int kidTotal = b.level == 0 ? hb.TrunkKids : (b.level == 1 ? 3 + static_cast<int>(rng.next() * 3.0f) : (b.level == 2 ? 2 + static_cast<int>(rng.next() * 2.0f) : (bare ? 1 : 0)));
+				if (b.trunkSide) kidTotal = (kidTotal + 1) / 2;
+				if (b.level == 0 && !bare && style != 2) kidTotal = std::max(2, kidTotal - 1);
+				const float kidStart = b.level == 0 ? 0.45f : 0.3f;
+				for (int k = 0; k < kidTotal; ++k)
+				{
+					const float tk = glm::mix(kidStart, 0.95f, (static_cast<float>(k) + rng.range(0.1f, 0.9f)) / static_cast<float>(kidTotal));
+					++kidsAt[static_cast<size_t>(std::min(segments - 1, static_cast<int>(tk * static_cast<float>(segments))))];
+				}
+				auto spawn = [&](const glm::vec3& at, const glm::vec3& d, float radiusHere, float tAlong, bool end)
+				{
+					const glm::vec3 side = AnyPerpendicular(d);
+					b.az += 2.399963f + rng.range(-0.35f, 0.35f);
+					const glm::vec3 axis = glm::normalize(side * std::cos(b.az) + glm::cross(d, side) * std::sin(b.az));
+					float angDeg = rng.range(hb.AngLo, hb.AngHi);
+					if (end) angDeg = b.level == 0 ? rng.range(14.0f, 34.0f) * (style == 2 ? 0.4f : 1.0f) : angDeg * 0.55f;
+					const float ang = angDeg * kPi / 180.0f;
+					glm::vec3 cd = glm::normalize(d * std::cos(ang) + axis * std::sin(ang));
+					cd = glm::normalize(cd + up * hb.Up * (b.level == 0 ? 1.0f : 0.5f) + glm::vec3(0.0f, b.level >= 2 ? -0.05f : 0.0f, 0.0f));
+					if (b.level == 0) cd.y = std::max(cd.y, 0.15f);
+					float len;
+					if (end && b.level == 0)
+						len = std::max((H * 0.97f - at.y) / std::max(cd.y, 0.45f), trunkLen * 0.5f) * rng.range(0.75f, 0.92f);   // the limbs finish the crown
+					else
+						len = b.length * rng.range(hb.LenLo, hb.LenHi) * (b.level == 1 ? 1.12f - 0.45f * tAlong : 1.0f) * (end ? 0.8f : 1.0f) * (b.level == 0 ? 0.6f : 1.0f);
+					stack.push_back({ at, cd, len, radiusHere * rng.range(0.58f, 0.74f), b.level + 1, b.az, b.trunkSide || (b.level == 0 && !end) });
+				};
+
+				for (int s = 0; s < segments; ++s)
+				{
+					const float t0 = static_cast<float>(s) / static_cast<float>(segments), t1 = static_cast<float>(s + 1) / static_cast<float>(segments);
+					wander = glm::normalize(wander + uniformDir() * 0.5f);
+					dir = glm::normalize(dir + wander * (b.level == 0 ? 0.05f : 0.10f) + up * (b.level == 0 ? 0.0f : hb.Up * 0.06f) - up * (b.level >= 2 ? 0.035f : 0.0f));
 					const glm::vec3 next = pos + dir * segLen;
-					wood.Tube(pos, next, r0, r1, b.level == 0 ? 9 : (b.level == 1 ? 6 : 4), t0 * b.length * 0.4f, t1 * b.length * 0.4f, b.level == 0 ? 2.0f : 1.0f);
-					// children along the second half of the branch
-					if (b.level < maxLevel && t0 > 0.3f)
-					{
-						const int kids = b.level == 0 ? 2 : (rng.next() < 0.7f ? 1 : 2);
-						for (int k = 0; k < kids; ++k)
-						{
-							if (rng.next() > 0.8f)
-								continue;
-							const float ang = rng.range(35.0f, 65.0f) * kPi / 180.0f;
-							const glm::vec3 side = AnyPerpendicular(dir);
-							const float az = rng.range(0.0f, 2.0f * kPi);
-							const glm::vec3 axis = glm::normalize(side * std::cos(az) + glm::cross(dir, side) * std::sin(az));
-							glm::vec3 cd = glm::normalize(dir * std::cos(ang) + axis * std::sin(ang));
-							if (b.level == 0) cd.y = std::max(cd.y, 0.1f);
-							stack.push_back({ next, cd, b.length * rng.range(0.55f, 0.8f) * (b.level == 0 ? 1.15f : 1.0f), b.radius * 0.5f, b.level + 1 });
-						}
-					}
+					const float r0 = radiusAt(t0, pos), r1 = radiusAt(t1, next);
+					wood.Tube(pos, next, r0, r1, sides, t0 * b.length * 0.4f, t1 * b.length * 0.4f, b.level == 0 ? 2.0f : 1.0f);
+					if (s == segments * 3 / 5) { midPos = next; midDir = dir; }
+					if (b.level >= 1 && !b.trunkSide) woodPoints.push_back(next);
+					if (b.level < (b.trunkSide ? std::min(maxLevel, 2) : maxLevel))
+						for (int k = 0; k < kidsAt[static_cast<size_t>(s)]; ++k)
+							spawn(next, dir, r1, t1, false);
 					pos = next;
 				}
-				// leaf clusters at the tip and along the last part of outer branches
-				if (!bare && b.level >= 2)
+				// the end of the branch: the limbs of the crown (level 0), or the branch just carries on as the leaves' anchor
+				if (b.level == 0)
 				{
-					const int count = static_cast<int>(std::ceil(11.0f * p.LeafDensity));
-					addLeafCluster(pos, count, leafSize * 1.1f, leafSize * 1.3f, false);
-					addLeafCluster(pos - dir * b.length * 0.3f, std::max(2, count / 2), leafSize, leafSize * 1.2f, false);
+					for (int k = 0; k < hb.EndKids; ++k)
+						spawn(pos, dir, radiusAt(1.0f, pos), 1.0f, true);
 				}
-				else if (!bare && b.level == 1 && b.length < p.Height * 0.2f)
-					addLeafCluster(pos, static_cast<int>(std::ceil(8.0f * p.LeafDensity)), leafSize, leafSize * 1.3f, false);
+				else if (b.level < maxLevel && b.level <= 2 && rng.next() < 0.5f)
+					spawn(pos, dir, radiusAt(1.0f, pos), 1.0f, true);
+				if (!bare && b.level >= 1 && b.level <= 2)
+					anchors.push_back({ midPos, midDir, b.trunkSide ? 0 : 1 });   // leaves along the branch, not only at its tip
+				if (!bare && (b.level >= 2 || (b.level == 1 && b.length < H * 0.22f)))
+					anchors.push_back({ pos, dir, b.trunkSide ? 0 : b.level });
 			}
-			crownCenter = { 0.0f, p.Height * 0.66f, 0.0f };
-			crownRadius = p.Height * 0.42f;
-			break;
-		}
-		case TreeSpecies::Conifer:
-		{
-			const float trunkLen = p.Height;
-			const int segs = 10;
-			for (int s = 0; s < segs; ++s)
+
+			// Pruned-branch knots on the trunk and roots spreading from the base.
+			if (!bare || true)
 			{
-				const float t0 = static_cast<float>(s) / segs, t1 = static_cast<float>(s + 1) / segs;
-				wood.Tube({ 0, t0 * trunkLen, 0 }, { 0, t1 * trunkLen, 0 }, trunkR * (1.0f - 0.85f * t0), trunkR * (1.0f - 0.85f * t1), 8, t0 * trunkLen * 0.4f, t1 * trunkLen * 0.4f, 2.0f);
-			}
-			crownCenter = { 0.0f, p.Height * 0.55f, 0.0f };
-			crownRadius = p.Height * 0.3f;
-			const int whorls = static_cast<int>(p.Height * 1.4f);
-			for (int w = 0; w < whorls; ++w)
-			{
-				const float t = 0.18f + 0.82f * static_cast<float>(w) / whorls;
-				const float y = t * trunkLen;
-				const float reach = (1.0f - t) * p.Height * 0.26f + 0.25f;
-				const int arms = 6;
-				const float phase = rng.range(0.0f, 2.0f * kPi);
-				for (int a = 0; a < arms; ++a)
+				const int knots = bare ? 3 : 2 + static_cast<int>(rng.next() * 3.0f);
+				for (int k = 0; k < knots; ++k)
 				{
-					const float ang = phase + static_cast<float>(a) / arms * 2.0f * kPi + rng.range(-0.2f, 0.2f);
-					const glm::vec3 dir(std::cos(ang), -0.22f, std::sin(ang));
-					const glm::vec3 tip = glm::vec3(0, y, 0) + dir * reach;
-					wood.Tube({ 0, y, 0 }, tip, trunkR * 0.18f * (1.0f - t * 0.7f) + 0.01f, 0.006f, 4, 0.0f, reach * 0.4f, 1.0f);
-					const int cards = std::max(2, static_cast<int>(std::ceil(reach * 3.0f * p.LeafDensity)));
-					for (int k = 0; k < cards; ++k)
+					const float y = trunkLen * rng.range(0.12f, 0.8f);
+					const float r = trunkR * (1.0f - 0.6f * y / trunkLen) * 1.0f;
+					const float ang = rng.range(0.0f, 2.0f * kPi);
+					const glm::vec3 out(std::cos(ang), 0.25f, std::sin(ang));
+					const glm::vec3 o = glm::normalize(out);
+					wood.Tube(glm::vec3(0, y, 0) + o * r * 0.6f, glm::vec3(0, y, 0) + o * (r + trunkR * 0.28f), trunkR * 0.26f, trunkR * 0.20f, std::max(3, 5 - sideCut), 0.0f, 0.15f, 1.0f);
+				}
+				const int roots = (style == 2 ? 4 : 5) + static_cast<int>(rng.next() * 3.0f);
+				for (int k = 0; k < roots; ++k)
+				{
+					const float ang = (static_cast<float>(k) + rng.range(-0.3f, 0.3f)) / static_cast<float>(roots) * 2.0f * kPi;
+					const glm::vec3 o(std::cos(ang), 0.0f, std::sin(ang));
+					const float reach = trunkR * rng.range(2.2f, 3.4f);
+					const float r = trunkR * 1.35f;
+					const glm::vec3 a = o * r * 0.55f + glm::vec3(0, trunkR * 1.9f, 0), m = o * (r + reach * 0.45f) + glm::vec3(0, trunkR * 0.55f, 0), e = o * (r + reach) + glm::vec3(0, -trunkR * 0.25f, 0);
+					wood.Tube(a, m, trunkR * 0.62f, trunkR * 0.36f, std::max(3, 6 - sideCut), 0.0f, 0.4f, 1.0f);
+					wood.Tube(m, e, trunkR * 0.36f, trunkR * 0.10f, std::max(3, 5 - sideCut), 0.4f, 0.8f, 1.0f);
+				}
+			}
+
+			// Crown shape from where the leaves are, so the vertex normals shade it like one rounded volume.
+			glm::vec3 centre(0.0f, H * 0.65f, 0.0f), ext(H * 0.35f);
+			if (!anchors.empty())
+			{
+				glm::vec3 lo(1e9f), hi(-1e9f), sum(0.0f);
+				for (const Anchor& a : anchors) { lo = glm::min(lo, a.pos); hi = glm::max(hi, a.pos); sum += a.pos; }
+				centre = sum / static_cast<float>(anchors.size());
+				ext = glm::max((hi - lo) * 0.5f + glm::vec3(leafSize), glm::vec3(1.0f));
+				centre.y = (lo.y + hi.y) * 0.5f;
+			}
+			std::vector<glm::vec3> cardCentres;
+			auto cluster = [&](const glm::vec3& at, const glm::vec3& dir, int level, int count)
+			{
+				const float spread = leafSize * (level >= 2 ? 1.0f : 0.8f);
+				for (int k = 0; k < count; ++k)
+				{
+					glm::vec3 off = uniformDir() * std::cbrt(rng.next()) * spread;
+					off.y *= 0.8f;
+					const glm::vec3 c = at + off - dir * (level >= 2 ? spread * 0.25f : 0.0f);
+					cardCentres.push_back(c);
+					const glm::vec3 d = (c - centre) / (ext * ext);
+					const glm::vec3 g = glm::length(d) > 1e-5f ? glm::normalize(d) : up;
+					const glm::vec3 lobe = glm::length(off) > 1e-4f ? glm::normalize(off) : up;
+					const glm::vec3 shadeN = glm::normalize(glm::mix(glm::normalize(g * 0.75f + lobe * 0.35f), up, 0.18f));
+					const glm::vec3 cardN = glm::normalize(g * 0.6f + uniformDir() * 0.9f);
+					const glm::vec3 r0 = AnyPerpendicular(cardN), u0 = glm::cross(cardN, r0);
+					const float rot = rng.range(0.0f, 2.0f * kPi);
+					const glm::vec3 rr = r0 * std::cos(rot) + u0 * std::sin(rot), uu = -r0 * std::sin(rot) + u0 * std::cos(rot);
+					const float sz = leafSize * rng.range(0.75f, 1.3f);
+					const glm::vec3 fold = glm::cross(rr, uu) * (rng.next() < 0.5f ? 1.0f : -1.0f);
+					if (rng.next() < 0.35f)
+						leaves.Card(c, rr, uu, sz * 0.5f, sz * 0.5f, shadeN);   // some flat cards: cheaper, and it varies the surface
+					else
+						leaves.FoldCard(c, rr, uu, sz * 0.5f, sz * 0.5f, rng.range(0.45f, 0.85f), fold, shadeN);
+				}
+			};
+			for (const Anchor& a : anchors)
+				cluster(a.pos, a.dir, a.level, std::max(2, static_cast<int>(std::ceil((a.level >= 2 ? 9.0f : (a.level == 1 ? 6.0f : 3.0f)) * density))));
+			// fill the holes: best-candidate sampling along the branches, away from the leaves already placed
+			if (!woodPoints.empty() && !cardCentres.empty())
+			{
+				const int fillers = static_cast<int>(static_cast<float>(anchors.size()) * 0.9f * lod);
+				for (int k = 0; k < fillers; ++k)
+				{
+					glm::vec3 best = woodPoints[0];
+					float bestD = -1.0f;
+					for (int c = 0; c < 8; ++c)
 					{
-						const float f = (static_cast<float>(k) + 0.5f) / cards;
-						const glm::vec3 c = glm::mix(glm::vec3(0, y, 0), tip, 0.25f + 0.75f * f) + glm::vec3(rng.range(-0.1f, 0.1f), rng.range(-0.05f, 0.15f), rng.range(-0.1f, 0.1f));
-						const glm::vec3 side = glm::normalize(glm::vec3(-dir.z, 0, dir.x));
-						glm::vec3 outward = c - crownCenter;
-						outward = glm::normalize(glm::mix(outward, glm::vec3(0, 1, 0), 0.4f));
-						const glm::vec3 u = glm::normalize(glm::cross(side, glm::normalize(dir)));
-						const float s = 0.75f * (1.0f - 0.3f * t) + 0.25f;
-						leaves.Card(c, side, glm::normalize(glm::mix(u, glm::vec3(0, 1, 0), 0.35f)), s * 0.5f, s * 0.55f, outward);
+						const glm::vec3& cand = woodPoints[static_cast<size_t>(rng.next() * static_cast<float>(woodPoints.size())) % woodPoints.size()];
+						float nearest = 1e9f;
+						for (const glm::vec3& cc : cardCentres) nearest = std::min(nearest, glm::distance(cc, cand));
+						if (nearest > bestD) { bestD = nearest; best = cand; }
 					}
+					if (bestD < leafSize * 0.5f) break;   // the crown is already covered
+					cluster(best, up, 1, std::max(2, static_cast<int>(std::ceil(4.0f * density))));
 				}
 			}
-			break;
+			crownRadius = std::max(ext.x, ext.z);
 		}
-		case TreeSpecies::Palm:
+		// ---------------------------------------------------------------- conifer
+		else if (p.Species == TreeSpecies::Conifer)
 		{
-			// Slightly curved trunk.
+			const bool pine = (style % 2) == 1;   // pine: bare lower trunk and tiers of upturned arms; spruce: a dense drooping cone
+			const float bareFrac = pine ? rng.range(0.28f, 0.38f) : rng.range(0.10f, 0.18f);
+			const float maxReach = H * (pine ? 0.25f : 0.20f) * rng.range(0.9f, 1.1f);
 			const int segs = 12;
-			const float lean = rng.range(0.6f, 1.6f);
 			glm::vec3 prev(0.0f);
-			glm::vec3 top(0.0f);
+			const float phase = rng.range(0.0f, 2.0f * kPi);
+			auto trunkPoint = [&](float t) { return glm::vec3(H * 0.012f * std::sin(t * 5.0f + phase), t * H, H * 0.012f * std::sin(t * 4.0f + phase * 1.7f)); };
 			for (int s = 1; s <= segs; ++s)
 			{
-				const float t = static_cast<float>(s) / segs;
-				const glm::vec3 pt(lean * t * t, t * p.Height, 0.25f * lean * t * t);
-				wood.Tube(prev, pt, trunkR * (1.0f - 0.35f * (t - 1.0f / segs)), trunkR * (1.0f - 0.35f * t), 8, (t - 1.0f / segs) * p.Height * 0.5f, t * p.Height * 0.5f, 1.0f);
+				const float t0 = static_cast<float>(s - 1) / segs, t1 = static_cast<float>(s) / segs;
+				const glm::vec3 pt = trunkPoint(t1);
+				auto radius = [&](float t) { return trunkR * (1.0f - 0.9f * std::pow(t, 0.85f)) * (1.0f + 0.5f * std::exp(-t * H / (trunkR * 3.0f))); };
+				wood.Tube(prev, pt, radius(t0), radius(t1), std::max(3, 8 - sideCut), t0 * H * 0.4f, t1 * H * 0.4f, 2.0f);
+				prev = pt;
+			}
+			const glm::vec3 centre(0.0f, H * (bareFrac + 1.0f) * 0.5f, 0.0f);
+			const glm::vec3 ext(maxReach, H * (1.0f - bareFrac) * 0.5f, maxReach);
+			const float spacing = H * (pine ? 0.075f : 0.062f);
+			float y = H * bareFrac;
+			while (y < H * 0.97f)
+			{
+				const float u = glm::clamp((y - H * bareFrac) / (H * (0.97f - bareFrac)), 0.0f, 1.0f);   // 0 at the lowest whorl, 1 at the top
+				const float profile = pine ? std::pow(1.0f - u, 0.62f) * (0.7f + 0.5f * Hash(static_cast<int>(y * 13.0f), 5, p.Seed)) : std::pow(1.0f - u, 0.92f);
+				const float reachBase = maxReach * profile + 0.22f;
+				const int arms = std::max(3, static_cast<int>(((pine ? 4 : 5) + static_cast<int>(rng.next() * 3.0f)) * (detail == 0 ? 0.7f : 1.0f)));
+				const float ph = rng.range(0.0f, 2.0f * kPi);
+				const glm::vec3 axis0 = trunkPoint(y / H);
+				for (int a = 0; a < arms; ++a)
+				{
+					if (pine && rng.next() < 0.18f)
+						continue;   // gaps between the tiers
+					const float ang = ph + (static_cast<float>(a) + rng.range(-0.25f, 0.25f)) / arms * 2.0f * kPi;
+					const float reach = reachBase * rng.range(0.78f, 1.12f);
+					const glm::vec3 out(std::cos(ang), 0.0f, std::sin(ang));
+					const float d0 = pine ? rng.range(-0.05f, 0.25f) : rng.range(-0.42f, -0.18f);   // initial slope
+					const float d1 = pine ? rng.range(0.25f, 0.6f) : rng.range(0.0f, 0.35f);        // slope at the tip: tips curl up
+					auto armPoint = [&](float s) { return axis0 + out * (reach * s) + glm::vec3(0.0f, reach * (d0 * s + (d1 - d0) * s * s), 0.0f); };
+					auto armTangent = [&](float s) { return glm::normalize(out + glm::vec3(0.0f, d0 + 2.0f * (d1 - d0) * s, 0.0f)); };
+					const float r0 = trunkR * 0.20f * (1.0f - 0.6f * u) + 0.012f;
+					const int armSegs = detail == 0 ? 2 : 3;
+					for (int k = 0; k < armSegs; ++k)
+					{
+						const float s0 = static_cast<float>(k) / static_cast<float>(armSegs), s1 = static_cast<float>(k + 1) / static_cast<float>(armSegs);
+						wood.Tube(armPoint(s0), armPoint(s1), glm::mix(r0, 0.005f, s0), glm::mix(r0, 0.005f, s1), 4, s0 * reach * 0.4f, s1 * reach * 0.4f, 1.0f);
+					}
+					const float size = (pine ? 1.0f : 0.9f) * (1.0f - 0.42f * u) + 0.32f;
+					const int n = std::max(2, static_cast<int>(std::ceil((reach * 1.45f + 0.5f) * density)));
+					for (int k = 0; k < n; ++k)
+					{
+						const float s = glm::mix(0.12f, 1.0f, (static_cast<float>(k) + rng.range(0.3f, 0.9f)) / static_cast<float>(n));
+						const int copies = (k % 2 == 1 && s > 0.3f) ? 3 : 1;   // every other position also sprays to both sides
+						for (int c = 0; c < copies; ++c)
+						{
+							glm::vec3 tang = armTangent(s);
+							if (c > 0) tang = RotateAround(tang, up, (c == 1 ? 1.0f : -1.0f) * rng.range(0.55f, 0.9f));
+							const glm::vec3 side = glm::normalize(glm::cross(up, tang));
+							const float roll = rng.range(-0.3f, 0.3f);
+							const glm::vec3 rr = RotateAround(side, tang, roll);
+							const float h = size * rng.range(0.85f, 1.2f) * (c > 0 ? 0.85f : 1.0f);
+							const glm::vec3 pc = armPoint(s) + tang * (h * 0.42f);
+							const glm::vec3 g = glm::normalize((pc - centre) / (ext * ext));
+							const glm::vec3 shadeN = glm::normalize(glm::mix(g, up, 0.4f));
+							// the spray lies along the arm; the fold droops its edges, so it is never edge-on like a fence of slats
+							const glm::vec3 fold = glm::cross(rr, tang) * (glm::dot(glm::cross(rr, tang), up) > 0.0f ? -1.0f : 1.0f);
+							leaves.FoldCard(pc, rr, tang, h * 0.46f, h * 0.55f, rng.range(0.5f, 0.8f), fold, shadeN);
+						}
+					}
+				}
+				y += spacing * rng.range(0.85f, 1.2f);
+			}
+			// the leader: a star of vertical sprays
+			for (int k = 0; k < 3; ++k)
+			{
+				const float ang = static_cast<float>(k) / 3.0f * kPi + phase;
+				const glm::vec3 rr(std::cos(ang), 0.0f, std::sin(ang));
+				const glm::vec3 tip = trunkPoint(1.0f);
+				leaves.Card(tip - up * 0.5f * 0.7f * 0.0f + up * 0.45f * lod, rr, up, 0.32f, 0.62f, glm::normalize(rr * 0.2f + up));
+			}
+			crownRadius = maxReach * 1.05f;
+		}
+		// ---------------------------------------------------------------- palm
+		else
+		{
+			const bool date = (style % 2) == 1;   // 0: leaning coconut palm with long drooping fronds; 1: straighter, upright date-like palm
+			const float lean = (date ? rng.range(0.15f, 0.5f) : rng.range(0.7f, 1.7f)) * H / 8.0f;
+			const float bendAz = rng.range(0.0f, 2.0f * kPi);
+			const glm::vec3 bendDir(std::cos(bendAz), 0.0f, std::sin(bendAz));
+			const float wavePh = rng.range(0.0f, 2.0f * kPi);
+			auto trunkPoint = [&](float t)
+			{
+				const float lat = lean * std::pow(t, 1.7f) + 0.05f * H * std::sin(t * 5.0f + wavePh) * t * (1.0f - 0.4f * t);
+				const glm::vec3 side(-bendDir.z, 0.0f, bendDir.x);
+				return bendDir * lat + side * (lean * 0.12f * std::sin(t * 3.0f + wavePh)) * t + glm::vec3(0.0f, t * H * (1.0f - 0.06f * t), 0.0f);
+			};
+			const int rings = std::max(12, static_cast<int>(H * (detail == 0 ? 1.8f : 3.2f)));
+			glm::vec3 prev = trunkPoint(0.0f);
+			glm::vec3 top = prev;
+			for (int s = 1; s <= rings; ++s)
+			{
+				const float t0 = static_cast<float>(s - 1) / rings, t1 = static_cast<float>(s) / rings;
+				auto radius = [&](float t) { return trunkR * (1.0f + 0.75f * std::exp(-t * 16.0f)) * (1.0f - 0.32f * t); };
+				const glm::vec3 pt = trunkPoint(t1);
+				// each ring flares slightly toward its upper edge: the scars of the fallen fronds
+				wood.Tube(prev, pt, radius(t0) * 0.96f, radius(t1) * 1.05f, std::max(5, 8 - sideCut), t0 * H * 0.5f, t1 * H * 0.5f, 1.0f);
 				prev = pt;
 				top = pt;
 			}
-			crownCenter = top;
-			crownRadius = p.Height * 0.4f;
-			const int fronds = static_cast<int>(std::ceil(11.0f * std::max(p.LeafDensity, 0.4f)));
+			// a small bulge where the fronds spring from
+			wood.Tube(top - glm::vec3(0, 0.18f, 0) * H / 8.0f, top + glm::vec3(0, 0.12f, 0) * H / 8.0f, trunkR * 1.25f, trunkR * 0.8f, 6, 0.9f, 1.0f, 1.0f);
+			crownRadius = H * 0.4f;
+
+			const int fronds = std::max(6, static_cast<int>(std::ceil((date ? 20.0f : 17.0f) * std::max(p.LeafDensity, 0.4f) * (detail == 0 ? 0.6f : (detail == 1 ? 1.0f : 1.25f)))));
 			for (int f = 0; f < fronds; ++f)
 			{
-				const float ang = static_cast<float>(f) / fronds * 2.0f * kPi + rng.range(-0.2f, 0.2f);
-				const float len = p.Height * rng.range(0.34f, 0.42f);
-				const float up = rng.range(0.35f, 0.95f);
+				// Fronds on a golden-angle spiral: the oldest hang from the outside, the youngest stand near the middle.
+				const float age = static_cast<float>(f) / static_cast<float>(fronds);   // 0 oldest .. 1 youngest
+				const float ang = static_cast<float>(f) * 2.399963f + rng.range(-0.15f, 0.15f);
+				const float len = H * rng.range(0.36f, 0.46f) * (date ? 0.88f : 1.0f) * (1.0f - 0.25f * age);
+				const float upv = glm::mix(date ? 0.35f : 0.1f, date ? 1.4f : 1.15f, age) + rng.range(-0.1f, 0.1f);
+				const float droop = glm::mix(date ? 0.75f : 1.05f, 0.35f, age);
 				const glm::vec3 horiz(std::cos(ang), 0.0f, std::sin(ang));
-				// Ribbon along an arc that rises then droops.
-				const int rs = 7;
-				const float halfW = len * 0.17f;
-				const glm::vec3 side(-horiz.z, 0.0f, horiz.x);
+				const glm::vec3 side0(-horiz.z, 0.0f, horiz.x);
+				const int rs = detail == 0 ? 5 : (detail == 1 ? 9 : 12);
+				const float halfW = len * 0.19f;
+				const float twist = rng.range(-0.35f, 0.35f);
 				const uint32_t base = static_cast<uint32_t>(leaves.v.size());
+				auto arc = [&](float t) { return top + horiz * (len * t * (1.0f - 0.18f * age)) + glm::vec3(0, len * (upv * t - droop * t * t), 0); };
 				for (int k = 0; k <= rs; ++k)
 				{
 					const float t = static_cast<float>(k) / rs;
-					const glm::vec3 c = top + horiz * (len * t) + glm::vec3(0, len * (up * t - 0.55f * t * t), 0);
-					const glm::vec3 ahead = top + horiz * (len * (t + 0.01f)) + glm::vec3(0, len * (up * (t + 0.01f) - 0.55f * (t + 0.01f) * (t + 0.01f)), 0);
-					const glm::vec3 tang = glm::normalize(ahead - c);
-					const glm::vec3 n = glm::normalize(glm::cross(side, tang));
-					const glm::vec3 shadeN = glm::normalize(glm::mix(n.y < 0 ? -n : n, glm::vec3(0, 1, 0), 0.4f));
-					// v = 1 at the base, -> 0 at the tip (matches the frond texture: tip at the top)
-					leaves.Add(c - side * halfW, shadeN, { 0.0f, 1.0f - t }, glm::vec4(side, 1.0f));
-					leaves.Add(c + side * halfW, shadeN, { 1.0f, 1.0f - t }, glm::vec4(side, 1.0f));
+					const glm::vec3 c = arc(t);
+					const glm::vec3 tang = glm::normalize(arc(std::min(1.0f, t + 0.02f)) - arc(std::max(0.0f, t - 0.02f)));
+					const glm::vec3 side = RotateAround(side0, tang, twist * t);
+					glm::vec3 n = glm::normalize(glm::cross(side, tang));
+					if (n.y < 0.0f) n = -n;
+					const glm::vec3 shadeN = glm::normalize(glm::mix(n, up, 0.35f));
+					// the leaflets hang down on both sides of the rib, more toward the tip
+					const float sag = halfW * (0.25f + 0.35f * t);
+					const float v = 1.0f - t;
+					leaves.Add(c - side * halfW * (1.0f - 0.1f * t) - n * sag, shadeN, { 0.0f, v }, glm::vec4(side, 1.0f));
+					leaves.Add(c, shadeN, { 0.5f, v }, glm::vec4(side, 1.0f));
+					leaves.Add(c + side * halfW * (1.0f - 0.1f * t) - n * sag, shadeN, { 1.0f, v }, glm::vec4(side, 1.0f));
 				}
 				for (int k = 0; k < rs; ++k)
 				{
-					const uint32_t i0 = base + static_cast<uint32_t>(k) * 2;
-					leaves.i.insert(leaves.i.end(), { i0, i0 + 1, i0 + 2, i0 + 1, i0 + 3, i0 + 2 });
+					const uint32_t i0 = base + static_cast<uint32_t>(k) * 3;
+					leaves.i.insert(leaves.i.end(), { i0, i0 + 1, i0 + 4, i0, i0 + 4, i0 + 3, i0 + 1, i0 + 2, i0 + 5, i0 + 1, i0 + 5, i0 + 4 });
 				}
 			}
-			break;
+			// fruit: coconuts / dates hanging in a bunch under the crown
+			if (p.Fruit > 0.0f)
+			{
+				const int count = static_cast<int>(std::ceil(3.0f + 7.0f * glm::clamp(p.Fruit, 0.0f, 1.0f)));
+				const float fr = H * (date ? 0.011f : 0.017f);
+				const glm::vec3 centre = top - up * (H * 0.03f);
+				for (int k = 0; k < count; ++k)
+				{
+					const float a = rng.range(0.0f, 2.0f * kPi), rad = trunkR * rng.range(1.4f, 2.4f);
+					wood.Sphere(centre + glm::vec3(std::cos(a) * rad, -rng.range(0.0f, 0.18f) * H * 0.5f, std::sin(a) * rad), fr * rng.range(0.85f, 1.15f), detail == 0 ? 4 : 6);
+				}
+			}
 		}
+
+		// ---- fit the requested height, measure the real extent
+		{
+			float maxY = 0.0f;
+			for (const Vertex& v : wood.v) maxY = std::max(maxY, v.Position.y);
+			for (const Vertex& v : leaves.v) maxY = std::max(maxY, v.Position.y);
+			const float k = maxY > 1e-3f ? glm::clamp(H / maxY, 0.6f, 1.6f) : 1.0f;
+			float reach = 0.0f, top = 0.0f;
+			for (auto* mb : { &wood, &leaves })
+				for (Vertex& v : mb->v)
+				{
+					v.Position *= k;
+					reach = std::max(reach, glm::length(glm::vec2(v.Position.x, v.Position.z)));
+					top = std::max(top, v.Position.y);
+				}
+			crownRadius = reach;
+			tree->BoundsHeight = std::max(top, H);
 		}
 
 		// ---- GPU meshes and materials
-		tree->Height = p.Height;
+		tree->Height = H;
 		tree->CrownRadius = crownRadius;
 		tree->Trunk = std::make_unique<Mesh>(wood.v, wood.i);
 		tree->TriangleCount = wood.i.size() / 3;
@@ -537,7 +789,7 @@ namespace GB
 		trunk.HeightScale = 0.0f;
 		trunk.CavityStrength = 0.0f;
 		trunk.WindSway = p.Species == TreeSpecies::Palm ? 0.9f : 0.5f;
-		trunk.WindHeight = p.Height;
+		trunk.WindHeight = H;
 		tree->TrunkMaterial = trunk;
 
 		if (!leaves.v.empty())
@@ -557,7 +809,7 @@ namespace GB
 			foliage.HeightScale = 0.0f;
 			foliage.CavityStrength = 0.0f;
 			foliage.WindSway = p.Species == TreeSpecies::Conifer ? 0.45f : (p.Species == TreeSpecies::Palm ? 1.0f : 0.8f);
-			foliage.WindHeight = p.Height;
+			foliage.WindHeight = H;
 			foliage.WindFlutter = p.Species == TreeSpecies::Conifer ? 0.03f : 0.09f;
 			tree->FoliageMaterial = foliage;
 		}
@@ -567,8 +819,9 @@ namespace GB
 	void Tree::AddToScene(Scene& scene, const glm::vec3& position, float yaw, float scale, float maxDistance) const
 	{
 		const glm::mat4 transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), yaw, glm::vec3(0, 1, 0)), glm::vec3(scale));
-		const glm::vec3 boundsCenter(0.0f, Height * 0.5f, 0.0f);
-		const float boundsRadius = 1.1f * glm::length(glm::vec2(Height * 0.5f, CrownRadius + 0.5f));
+		const float top = std::max(Height, BoundsHeight);
+		const glm::vec3 boundsCenter(0.0f, top * 0.5f, 0.0f);
+		const float boundsRadius = 1.1f * glm::length(glm::vec2(top * 0.5f, CrownRadius + 0.5f));
 		RenderObject t;
 		t.BoundingCenter = boundsCenter; t.BoundingRadius = boundsRadius; t.MaxDistance = maxDistance;
 		t.MeshPtr = Trunk.get();
