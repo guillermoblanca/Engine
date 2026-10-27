@@ -89,6 +89,10 @@ namespace GB::Editor
 		void DrawModelPanel();
 		void DrawAnimationPanel();
 		void DrawAbilitiesPanel();
+		void DrawTribePanel();
+		void DrawBag(const std::string& actorName);                // the inventory of a character, as a table
+		std::string PickActor(const struct Ray& ray) const;       // the character under a viewport click ("" = none)
+		void SelectActor(const std::string& name, bool focus);   // the character the Abilities and Tribe panels show
 		// saved games and replays (EditorSave.cpp)
 		void RegisterSaveCommands();
 		void StepSimulation(float dt);                           // gameplay and the garden in fixed ticks; also the autosave timer
@@ -124,6 +128,7 @@ namespace GB::Editor
 		GameplayWorld m_Gameplay;                                // tags, attributes, effects and abilities of the entities and the player (see GB/Gameplay)
 		GardenSystem m_Garden;
 		ResourceSystem m_Resources;
+		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
 		Tribe m_Tribe;                                           // the first tribe (`tribe build`): workers that gather, carry, craft and light a fire alone
 		std::vector<std::unique_ptr<ITribeBody>> m_TribeBodies;
@@ -178,7 +183,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		bool m_LayoutBuilt = false;

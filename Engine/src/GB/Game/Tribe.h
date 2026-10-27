@@ -37,6 +37,9 @@ namespace GB
 		int Deposited = 0;            // units carried to the store
 		int Made = 0;                 // tools and objects made
 		int Failures = 0;
+		std::string Why;              // when resting: why there is nothing to do
+		int Meals = 0;                // berries eaten
+		bool Hungry = false;          // the store had nothing to eat at the last meal
 	};
 
 	struct TribeConfig
@@ -46,6 +49,8 @@ namespace GB
 		float ThinkSeconds = 0.5f;    // how often idle members decide
 		int DepositAt = 4;            // units in the bag that send a worker to the store
 		int Swings = 3;               // gathers per trip to a node
+		float EatSeconds = 40.0f;     // every worker eats a berry from the store this often
+		float FireSeconds = 30.0f;    // the campfire burns a piece of wood from the store this often
 		int StockCap = 40;            // units of one resource in the store after which nobody gathers more of it
 	};
 
@@ -63,6 +68,7 @@ namespace GB
 		const Inventory& Store() const { return m_Store; }
 		const std::vector<TribeMember>& Members() const { return m_Members; }
 		bool HasFire() const { return m_Fire; }
+		bool FireBurning() const { return m_Fire && m_Burning; }
 		double Time() const { return m_Time; }
 		// What happened, one line each, with the time: "12.5 Ana (forager) gathers fiber_grass 1".
 		const std::vector<std::string>& Log() const { return m_Log; }
@@ -78,6 +84,10 @@ namespace GB
 		std::string NearestNode(const TribeMember& m, const std::string& kind) const;
 		void Say(const TribeMember& m, const std::string& text);
 		void BuildFire();
+		glm::vec2 CampSpot(const TribeMember& m) const;
+		void Consume(float dt);
+		void ShowFlame(bool on);
+		std::string WhyNot(const std::string& kind) const;
 
 		EntityWorld* m_Entities = nullptr;
 		GameplayWorld* m_Gameplay = nullptr;
@@ -91,5 +101,7 @@ namespace GB
 		double m_Time = 0.0;
 		float m_Think = 0.0f;
 		bool m_Fire = false;
+		bool m_Burning = false;
+		float m_EatTimer = 0.0f, m_FireTimer = 0.0f;
 	};
 }

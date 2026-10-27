@@ -74,6 +74,73 @@ namespace GB
 		m_Time = 0.0;
 		m_Think = 0.0f;
 		m_Fire = false;
+		m_Burning = false;
+		m_EatTimer = m_FireTimer = 0.0f;
+	}
+
+	// What the tribe uses up: berries to eat and wood for the fire. Without a sink the stores fill and everyone rests for good.
+	void Tribe::Consume(float dt)
+	{
+		m_EatTimer += dt;
+		if (m_EatTimer >= Config.EatSeconds)
+		{
+			m_EatTimer -= Config.EatSeconds;
+			for (TribeMember& m : m_Members)
+			{
+				const bool ate = m_Store.Remove("berry", 1) == 1;
+				if (ate) ++m.Meals;
+				if (!ate && !m.Hungry) Say(m, "is hungry: there is nothing to eat in the store");
+				if (ate && m.Hungry) Say(m, "eats again");
+				m.Hungry = !ate;
+			}
+		}
+		if (!m_Fire) return;
+		m_FireTimer += dt;
+		if (m_FireTimer >= Config.FireSeconds)
+		{
+			m_FireTimer -= Config.FireSeconds;
+			const bool fed = m_Store.Remove("wood", 1) == 1;
+			if (fed != m_Burning)
+			{
+				m_Burning = fed;
+				ShowFlame(fed);
+				if (!m_Members.empty()) Say(m_Members.front(), fed ? "the campfire burns again" : "the campfire has no wood and goes out");
+			}
+		}
+	}
+
+	void Tribe::ShowFlame(bool on)
+	{
+		if (!m_Entities) return;
+		for (const char* part : { "Campfire Flame", "Campfire Light" })
+			if (const EntityId id = m_Entities->FindByName(part); id != NullEntity) m_Entities->Find(id)->Active = on;
+	}
+
+	std::string Tribe::WhyNot(const std::string& kind) const
+	{
+		const auto def = m_Defs.find(kind);
+		if (def != m_Defs.end() && m_Store.Count(def->second.Item) >= Config.StockCap)
+			return "the store has enough " + def->second.Item + " (" + std::to_string(m_Store.Count(def->second.Item)) + "/" + std::to_string(Config.StockCap) + ")";
+		int total = 0, empty = 0;
+		for (const std::string& name : m_Gameplay->Names())
+		{
+			const AbilitySystemComponent* node = m_Gameplay->Find(name);
+			if (!node || !node->HasTag("Resource.Node." + kind)) continue;
+			++total;
+			if (ResourceSystem::Amount(*node) <= 0) ++empty;
+		}
+		if (total == 0) return "there are no " + kind + " nodes";
+		if (empty == total) return "every " + kind + " is empty (regrowing or gone)";
+		return "the " + kind + " nodes left are taken by others";
+	}
+
+	// Each worker has its own place around the camp, so they do not wait on each other for the same spot.
+	glm::vec2 Tribe::CampSpot(const TribeMember& m) const
+	{
+		size_t index = 0;
+		for (size_t i = 0; i < m_Members.size(); ++i) if (&m_Members[i] == &m) index = i;
+		const float angle = static_cast<float>(index) * 6.2831853f / static_cast<float>(std::max<size_t>(1, m_Members.size()));
+		return Config.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * 1.8f;
 	}
 
 	void Tribe::Say(const TribeMember& m, const std::string& text)
@@ -87,6 +154,7 @@ namespace GB
 	{
 		if (!m_Entities || !m_Gameplay || !m_Items || !m_Recipes) return;
 		m_Time += static_cast<double>(dt);
+		Consume(dt);
 		m_Think -= dt;
 		if (m_Think > 0.0f) return;
 		m_Think = Config.ThinkSeconds;
@@ -142,7 +210,8 @@ namespace GB
 	{
 		std::string error;
 		char go[64];
-		std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(Config.Camp.x), static_cast<double>(Config.Camp.y));
+		const glm::vec2 spot = CampSpot(m);
+		std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(spot.x), static_cast<double>(spot.y));
 		if (!m.Body->Do(go, error)) return false;
 		m.Job = "craft";
 		m.Detail = tool;
@@ -181,7 +250,8 @@ namespace GB
 		auto deposit = [&]()
 		{
 			char go[64];
-			std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(Config.Camp.x), static_cast<double>(Config.Camp.y));
+			const glm::vec2 spot = CampSpot(m);
+		std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(spot.x), static_cast<double>(spot.y));
 			if (!m.Body->Do(go, error)) return false;
 			m.Job = "deposit";
 			Say(m, "carries " + std::to_string(carried) + " things to the store");
@@ -194,7 +264,8 @@ namespace GB
 			&& m_Store.Count("wood") >= 4 && m_Store.Count("stone") >= 3)
 		{
 			char go[64];
-			std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(Config.Camp.x), static_cast<double>(Config.Camp.y));
+			const glm::vec2 spot = CampSpot(m);
+		std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(spot.x), static_cast<double>(spot.y));
 			if (m.Body->Do(go, error)) { m.Job = "fire"; Say(m, "goes to light the campfire"); return; }
 		}
 
@@ -202,12 +273,15 @@ namespace GB
 		bool started = false;
 		if (m.Role == "woodcutter") started = StartGather(m, "tree");
 		else if (m.Role == "miner") started = StartGather(m, "rock");
+		else if (m_Store.Count("berry") < static_cast<int>(m_Members.size()) * 2) started = StartGather(m, "berry_bush") || StartGather(m, "fiber_grass");   // food first
 		else started = (m_Store.Count("fiber") < 12 && StartGather(m, "fiber_grass")) || StartGather(m, "berry_bush") || StartGather(m, "fiber_grass");
 		if (started) return;
 		if (m.Role != "forager" && (StartGather(m, "fiber_grass") || StartGather(m, "berry_bush"))) return;   // nothing of its own left: it helps
 
 		if (carried > 0 && deposit()) return;
-		if (m.Detail != "nothing to do") Say(m, "has nothing to do and rests");
+		const std::string reason = m.Role == "woodcutter" ? WhyNot("tree") : m.Role == "miner" ? WhyNot("rock") : WhyNot("berry_bush") + "; " + WhyNot("fiber_grass");
+		if (m.Detail != "nothing to do") Say(m, "has nothing to do and rests: " + reason);
+		m.Why = reason;
 		m.Job = "rest";
 		m.Detail = "nothing to do";
 	}
@@ -217,7 +291,8 @@ namespace GB
 		Inventory& bag = m.Body->Bag();
 		const std::string job = m.Job;
 		m.Job.clear();
-		if (m.Body->Failed())
+		m.Why.clear();
+		if (job != "rest" && m.Body->Failed())   // (a rest has no orders: an old failure would count again every half second)
 		{
 			++m.Failures;
 			Say(m, "could not finish " + job + (m.Detail.empty() ? "" : " " + m.Detail));
@@ -269,6 +344,8 @@ namespace GB
 	void Tribe::BuildFire()
 	{
 		m_Fire = true;
+		m_Burning = true;
+		m_FireTimer = 0.0f;
 		if (!m_Entities) return;
 		if (const EntityId old = m_Entities->FindByName("Campfire"); old != NullEntity) m_Entities->Destroy(old);
 		const EntityId fire = m_Entities->Create("Campfire");
@@ -299,7 +376,7 @@ namespace GB
 		for (const TribeMember& m : m_Members)
 		{
 			s += m.Name + " (" + m.Role + "): " + (m.Job.empty() ? "idle" : m.Job + (m.Detail.empty() ? "" : " " + m.Detail))
-				+ ", carried " + std::to_string(m.Deposited) + " to the store, made " + std::to_string(m.Made);
+				+ ", carried " + std::to_string(m.Deposited) + " to the store, made " + std::to_string(m.Made) + ", ate " + std::to_string(m.Meals) + (m.Hungry ? " (hungry)" : "") + (m.Why.empty() ? "" : " [" + m.Why + "]");
 			if (m.Failures) s += ", " + std::to_string(m.Failures) + " failed trips";
 			s += "\n";
 		}

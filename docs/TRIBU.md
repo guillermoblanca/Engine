@@ -12,6 +12,9 @@ encienden una hoguera. Es la sociedad más sencilla posible: reglas sobre las mi
 | `woodcutter` (leñador) | Talar árboles; necesita un hacha |
 | `miner` (minero) | Picar rocas; necesita un pico |
 
+Cada trabajador come una baya del almacén cada 40 s y la hoguera quema un trozo de madera cada 30 s (si no hay madera se apaga y vuelve a arder cuando la haya):
+así hay siempre algo que reponer y nadie se queda sin trabajo para siempre. Cada uno espera en su propio sitio alrededor del campamento.
+
 Un trabajador sin su herramienta va al campamento a hacerla si el almacén tiene los materiales; si no, ayuda recogiendo lo que falta. Lleva lo que recoge al
 almacén cuando su mochila llega a 4 unidades, y deja de recoger un recurso cuando el almacén tiene 40. El leñador enciende la hoguera cuando todos tienen su
 herramienta y el almacén puede pagarla (la hoguera no se come la piedra que aún necesita el pico).
@@ -26,6 +29,15 @@ timescale <1-20>                                        acelera la simulación (
 ```
 
 Los trabajadores son actores normales (`actor list`, `actor bag <nombre>`): se guardan con la partida. El estado de la tribu (almacén, trabajos en curso) aún no.
+
+## Panel Tribe y selección
+
+- Panel **Tribe** (se pone al frente al hacer `tribe build`; View > Tribe): tiempo, estado de la hoguera, almacén con barras, tabla de miembros (qué hacen y qué llevan), el
+  miembro seleccionado con su inventario, sus órdenes y **por qué descansa**, y el registro de lo ocurrido. Clic en un nombre lo selecciona; doble clic va hasta él.
+- **Clic en un personaje en el viewport** lo selecciona: el panel *Abilities* muestra el nombre del personaje, su rol y su inventario. Clic en una parcela, un árbol o un
+  arbusto muestra sus habilidades y atributos.
+- Por qué se paran: cuando el almacén llega a 40 de un recurso nadie recoge más de él (`StockCap`), y si no queda ningún nodo de lo que toca (las rocas no se regeneran)
+  descansan. El panel y `tribe status` dicen cuál es el motivo.
 
 ## Test
 

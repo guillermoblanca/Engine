@@ -181,6 +181,7 @@ namespace GB::Editor
 		if (name == "Model") return m_Panels.Model;
 		if (name == "Animation") return m_Panels.Animation;
 		if (name == "Abilities") return m_Panels.Abilities;
+		if (name == "Tribe") return m_Panels.Tribe;
 		if (name == "Timeline") return m_Panels.Timeline;
 		if (name == "Graph") return m_Panels.Graph;
 		if (name == "Tests") return m_Panels.Tests;
@@ -760,7 +761,7 @@ namespace GB::Editor
 			if (n == "Viewport") flag = &m_Panels.Viewport; else if (n == "Hierarchy") flag = &m_Panels.Hierarchy; else if (n == "Inspector") flag = &m_Panels.Inspector;
 			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
-			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tests") flag = &m_Panels.Tests;
+			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tribe") flag = &m_Panels.Tribe; else if (n == "Tests") flag = &m_Panels.Tests;
 			if (!flag) return { false, "no such panel '" + n + "'" };
 			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else if (n == "Graph") m_GraphFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
@@ -1380,7 +1381,7 @@ namespace GB::Editor
 		ImGuiID center = dockspaceId, left, leftTop, right, bottom;
 		left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.25f, nullptr, &center);
 		leftTop = ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.45f, nullptr, &left);
-		right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.27f, nullptr, &center);
+		right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.34f, nullptr, &center);
 		bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.27f, nullptr, &center);
 		ImGui::DockBuilderDockWindow("Properties", left);
 		ImGui::DockBuilderDockWindow("Hierarchy", leftTop);
@@ -1390,6 +1391,7 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("Model", right);
 		ImGui::DockBuilderDockWindow("Animation", right);
 		ImGui::DockBuilderDockWindow("Abilities", right);
+		ImGui::DockBuilderDockWindow("Tribe", right);
 		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
@@ -1419,6 +1421,7 @@ namespace GB::Editor
 		if (m_Panels.Model) DrawModelPanel();
 		if (m_Panels.Animation) DrawAnimationPanel();
 		if (m_Panels.Abilities) DrawAbilitiesPanel();
+		if (m_Panels.Tribe) DrawTribePanel();
 		if (m_Panels.Timeline) DrawTimelinePanel();
 		if (m_Panels.Graph) DrawGraphPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
@@ -1506,6 +1509,7 @@ namespace GB::Editor
 			ImGui::MenuItem("Model", nullptr, &m_Panels.Model);
 			ImGui::MenuItem("Animation", nullptr, &m_Panels.Animation);
 			ImGui::MenuItem("Abilities", nullptr, &m_Panels.Abilities);
+			ImGui::MenuItem("Tribe", nullptr, &m_Panels.Tribe);
 			ImGui::MenuItem("Timeline", nullptr, &m_Panels.Timeline);
 			ImGui::MenuItem("Animation graph", nullptr, &m_Panels.Graph);
 			ImGui::MenuItem("Console", nullptr, &m_Panels.Console);
@@ -1697,7 +1701,16 @@ namespace GB::Editor
 		{
 			m_PressedInViewport = false;
 			if (glm::distance(mouse, m_PressPos) < 4.0f && m_ViewportHovered)
-				m_SceneEditor.Select(m_SceneEditor.Pick(ScreenRay(m_Camera, mouse / size, aspect)));
+			{
+				const Ray ray = ScreenRay(m_Camera, mouse / size, aspect);
+				const std::string actor = PickActor(ray);   // a character under the cursor wins over the scene behind it
+				if (!actor.empty()) SelectActor(actor, false);
+				else
+				{
+					m_SceneEditor.Select(m_SceneEditor.Pick(ray));
+					if (const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.Selected()); e && m_Gameplay.Find(e->Name)) m_AbilityActor = e->Name;   // a plot, a tree or a bush shows its abilities too
+				}
+			}
 		}
 	}
 
