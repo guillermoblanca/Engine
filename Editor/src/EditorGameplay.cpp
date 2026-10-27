@@ -474,6 +474,17 @@ namespace GB::Editor
 		{
 			Actor* actor = m_Actors.Find(name);
 			if (!actor) { GB_CLIENT_WARN("the saved tribe has {} but there is no such actor", name); continue; }
+			// A save taken in the middle of an ability keeps the tags that ability held (State.Busy...) but not the ability: without this the member could never act again.
+			if (AbilitySystemComponent* asc = m_Gameplay.Find(name))
+			{
+				asc->Tags().RemoveAll("State.Busy");
+				for (const std::string& granted : asc->Granted())
+					if (const AbilityDef* def = m_Gameplay.Library.Ability(granted))
+					{
+						if (!def->Tag.empty()) asc->Tags().RemoveAll(def->Tag);
+						for (const std::string& tag : def->ActiveTags) asc->Tags().RemoveAll(tag);
+					}
+			}
 			m_TribeBodies.push_back(std::make_unique<ActorBody>(actor));
 			m_Tribe.AddMember(name, role, m_TribeBodies.back().get());
 		}
