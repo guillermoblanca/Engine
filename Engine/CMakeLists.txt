@@ -11,6 +11,7 @@ add_library(GB STATIC
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp
+    src/GB/Audio/FootstepSounds.cpp
     src/GB/Audio/AudioMixer.cpp
     src/GB/Game/Entity.cpp
     src/GB/Game/SceneIO.cpp
@@ -20,6 +21,9 @@ add_library(GB STATIC
     src/GB/Assets/Model.cpp
     src/GB/Assets/ModelFbx.cpp
     src/GB/Animation/ClipAnalysis.cpp
+    src/GB/Animation/Pose.cpp
+    src/GB/Animation/BlendSpace.cpp
+    src/GB/Animation/Locomotion.cpp
     src/GB/World/Footsteps.cpp
     src/GB/World/Grass.cpp
     src/GB/World/GroundInteraction.cpp

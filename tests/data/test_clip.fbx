@@ -123,12 +123,102 @@ Objects:  {
 	}
 	AnimationCurveNode: 1013, "AnimCurveNode::T", "" {
 		Properties70:  {
+			P: "d|X", "Number", "", "A",0
+			P: "d|Y", "Number", "", "A",-90
+			P: "d|Z", "Number", "", "A",0
+		}
+	}
+	AnimationCurve: 1014, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *4 {
+			a: 0,5773269750,17319809250,23093079000
+		}
+		KeyValueFloat: *4 {
+			a: -75.0,-90.0,-90.0,-75.0
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 4
+		}
+	}
+	AnimationCurve: 1015, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *4 {
+			a: 0,5773269750,17319809250,23093079000
+		}
+		KeyValueFloat: *4 {
+			a: -37.5,0.0,-75.0,-37.5
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 4
+		}
+	}
+	AnimationCurveNode: 1016, "AnimCurveNode::T", "" {
+		Properties70:  {
+			P: "d|X", "Number", "", "A",0
+			P: "d|Y", "Number", "", "A",-90
+			P: "d|Z", "Number", "", "A",0
+		}
+	}
+	AnimationCurve: 1017, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *5 {
+			a: 0,5773269750,11546539500,17319809250,23093079000
+		}
+		KeyValueFloat: *5 {
+			a: -90.0,-90.0,-75.0,-90.0,-90.0
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 5
+		}
+	}
+	AnimationCurve: 1018, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *5 {
+			a: 0,5773269750,11546539500,17319809250,23093079000
+		}
+		KeyValueFloat: *5 {
+			a: -37.5,-75.0,-37.5,0.0,-37.5
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 5
+		}
+	}
+	AnimationCurveNode: 1019, "AnimCurveNode::T", "" {
+		Properties70:  {
 			P: "d|X", "Number", "", "A",5
 			P: "d|Y", "Number", "", "A",0
 			P: "d|Z", "Number", "", "A",0
 		}
 	}
-	AnimationCurve: 1014, "AnimCurve::", "" {
+	AnimationCurve: 1020, "AnimCurve::", "" {
 		Default: 0
 		KeyVer: 4008
 		KeyTime: *2 {
@@ -162,6 +252,14 @@ Connections:  {
 	C: "OP",1011,1001, "Lcl Translation"
 	C: "OP",1012,1011, "d|Z"
 	C: "OO",1013,1010
-	C: "OP",1013,1008, "Lcl Translation"
-	C: "OP",1014,1013, "d|X"
+	C: "OP",1013,1005, "Lcl Translation"
+	C: "OP",1014,1013, "d|Y"
+	C: "OP",1015,1013, "d|Z"
+	C: "OO",1016,1010
+	C: "OP",1016,1007, "Lcl Translation"
+	C: "OP",1017,1016, "d|Y"
+	C: "OP",1018,1016, "d|Z"
+	C: "OO",1019,1010
+	C: "OP",1019,1008, "Lcl Translation"
+	C: "OP",1020,1019, "d|X"
 }

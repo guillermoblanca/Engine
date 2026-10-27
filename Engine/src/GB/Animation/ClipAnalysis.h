@@ -25,12 +25,15 @@ namespace GB
 	{
 		std::string Name;
 		float Duration = 0.0f;
+		glm::vec3 RootStart{ 0.0f };        // root position at the first frame (model space, meters)
 		glm::vec3 RootDelta{ 0.0f };        // root displacement over the clip (model space, meters)
 		float RootSpeed = 0.0f;             // horizontal m/s over the clip
 		float RootYawDegrees = 0.0f;        // net turn of the root around Y over the clip
 		float RootHeightMin = 0.0f, RootHeightMax = 0.0f;
 		float LoopError = 0.0f;             // degrees per bone between the first and the last pose (0 = seamless loop)
-		std::vector<float> LeftPlants;      // normalized times (0..1) at which the left foot lands
+		// Normalized times (0..1) at which a foot lands, looking at the clip as a cycle (a foot already down at the first
+		// frame still lands where it started to come down).
+		std::vector<float> LeftPlants;
 		std::vector<float> RightPlants;
 		float CycleLength = 0.0f;           // meters travelled per gait cycle (one left plant), 0 when there are no steps
 		float StepsPerSecond = 0.0f;
