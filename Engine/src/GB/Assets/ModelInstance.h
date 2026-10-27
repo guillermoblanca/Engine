@@ -1,5 +1,6 @@
 #pragma once
 #include "Model.h"
+#include "GB/Animation/Pose.h"
 #include <string>
 #include <vector>
 
@@ -28,6 +29,12 @@ namespace GB
 		int GetCurrentClip() const { return m_Current.Clip; }
 		bool IsFinished() const;   // a non-looping clip reached its end
 
+		// Drives the instance from outside (an animator or a blend tree): sets the local pose of every node and
+		// updates the world matrices and joint palettes. Clip playback stops until Play() or Stop() is called.
+		void SetPose(const Pose& pose);
+		const Pose& GetPose() const { return m_PoseA; }
+		const Pose& GetRestPose() const { return m_Rest; }
+
 		// Advances the animation and recomputes the pose.
 		void Update(float deltaTime);
 
@@ -45,12 +52,6 @@ namespace GB
 		const std::vector<glm::mat4>& GetJointMatrices(int node) const { return m_Palettes[node]; }
 
 	private:
-		struct Pose
-		{
-			glm::vec3 T{ 0.0f };
-			glm::quat R{ 1.0f, 0.0f, 0.0f, 0.0f };
-			glm::vec3 S{ 1.0f };
-		};
 		struct Playhead
 		{
 			int Clip = -1;
@@ -59,8 +60,9 @@ namespace GB
 		};
 
 		void Advance(Playhead& head, float dt) const;
-		void Sample(const Playhead& head, std::vector<Pose>& pose) const;
-		void Evaluate();
+		void Sample(const Playhead& head, Pose& pose) const;
+		void Evaluate();          // samples the clips, then UpdateMatrices
+		void UpdateMatrices();    // world matrices and joint palettes from m_PoseA
 
 		const Model& m_Model;
 		Playhead m_Current, m_Previous;
@@ -68,7 +70,8 @@ namespace GB
 		float m_Speed = 1.0f;
 		bool m_Paused = false;
 
-		std::vector<Pose> m_Rest, m_PoseA, m_PoseB;
+		Pose m_Rest, m_PoseA, m_PoseB;
+		bool m_External = false;   // posed from outside (SetPose): clips do not play
 		std::vector<glm::mat4> m_World;
 		std::vector<std::vector<glm::mat4>> m_Palettes;   // indexed by node (empty if the node has no skin)
 	};

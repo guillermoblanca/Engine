@@ -134,3 +134,8 @@ add_executable(GBFbxTests fbx_test.cpp)
 target_link_libraries(GBFbxTests PRIVATE GB::GB)
 target_compile_definitions(GBFbxTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME fbx COMMAND GBFbxTests)
+
+add_executable(GBLocomotionTests locomotion_test.cpp)
+target_link_libraries(GBLocomotionTests PRIVATE GB::GB)
+target_compile_definitions(GBLocomotionTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME locomotion COMMAND GBLocomotionTests)
