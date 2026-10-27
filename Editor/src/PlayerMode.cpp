@@ -97,6 +97,7 @@ namespace GB::Editor
 		m_Model = std::move(model);
 		m_Instance = std::make_unique<ModelInstance>(*m_Model);
 		m_Animator.reset();
+		m_Physics.reset();
 		m_Tracker.Reset();
 		m_UseAI = false;
 		if (isFbx)
@@ -143,8 +144,89 @@ namespace GB::Editor
 		m_Animator->Anim().Feet().SetGround(m_FeetOn ? m_World.GroundHeight : std::function<float(float, float)>());
 	}
 
+	void PlayerMode::BuildPhysics()
+	{
+		m_Physics = std::make_unique<PhysicsWorld>();
+		const auto ground = m_World.GroundHeight ? m_World.GroundHeight : std::function<float(float, float)>([](float, float) { return 0.0f; });
+		m_Physics->SetGround(ground, [ground](float x, float z)
+		{
+			const float e = 0.3f;
+			return glm::normalize(glm::vec3(ground(x - e, z) - ground(x + e, z), 2.0f * e, ground(x, z - e) - ground(x, z + e)));
+		});
+		if (m_World.WaterLevel) m_Physics->SetWater(m_World.WaterLevel);
+		for (const CircleObstacle& o : m_World.Obstacles)   // trees, rocks and the bodies the user added: vertical columns
+		{
+			StaticCollider c;
+			c.Shape = ShapeType::Capsule;
+			c.Center = { o.Center.x, ground(o.Center.x, o.Center.y) + 1.5f, o.Center.y };
+			c.Radius = o.Radius;
+			c.HalfHeight = 1.5f;
+			m_Physics->AddStatic(c);
+		}
+	}
+
+	bool PlayerMode::StartRagdoll(const glm::vec3& extraVelocity)
+	{
+		if (!m_Animator || Ragdolled()) return false;
+		BuildPhysics();
+		m_Tasks.Clear();
+		m_Script.clear();
+		m_UseAI = false;
+		glm::vec3 v = m_Motion.Velocity + glm::vec3(0.0f, m_Motion.VerticalSpeed, 0.0f) + extraVelocity;
+		m_RestTime = 0.0f;
+		if (!m_Animator->Anim().StartRagdoll(*m_Physics, RootMatrix(), v))
+		{
+			m_Physics.reset();
+			return false;
+		}
+		return true;
+	}
+
+	void PlayerMode::GetUp()
+	{
+		if (!Ragdolled()) return;
+		Ragdoll* rag = m_Animator->Anim().GetRagdoll();
+		const glm::vec3 pelvis = rag->PelvisPosition();
+		m_Controller.SetPosition(m_World, pelvis.x, pelvis.z, rag->GetUpYaw());
+		m_Animator->Anim().EndRagdoll(RootMatrix(), 0.9f);
+		m_RestTime = 0.0f;
+	}
+
+	bool PlayerMode::Blast(const glm::vec2& xz, float radius, float speed)
+	{
+		if (!m_Animator) return false;
+		const glm::vec3 p = m_Controller.GetPosition();
+		if (!Ragdolled() && glm::distance(glm::vec2(p.x, p.z), xz) < radius) StartRagdoll();
+		if (!m_Physics) return false;
+		const float y = m_World.GroundHeight ? m_World.GroundHeight(xz.x, xz.y) : 0.0f;
+		m_Physics->Explode({ xz.x, y, xz.y }, radius, speed);
+		return true;
+	}
+
+	void PlayerMode::HitRagdoll(const glm::vec3& impulse)
+	{
+		if (!Ragdolled()) return;
+		Ragdoll* rag = m_Animator->Anim().GetRagdoll();
+		rag->Hit(rag->PelvisPosition() + glm::vec3(0.0f, 0.3f, 0.0f), impulse);
+	}
+
+	std::string PlayerMode::RagdollStatus() const
+	{
+		if (!m_Animator) return "";
+		if (Ragdolled())
+		{
+			const Ragdoll* rag = const_cast<PlayerMode*>(this)->m_Animator->Anim().GetRagdoll();
+			char b[120];
+			std::snprintf(b, sizeof b, "ragdoll (%.2f m/s, %s%s)", static_cast<double>(rag->Speed()), rag->LyingDown() ? "lying" : "on its feet", rag->AtRest() ? ", at rest" : "");
+			return b;
+		}
+		return m_Animator->Anim().Recovering() ? "getting up" : "";
+	}
+
 	void PlayerMode::Stop()
 	{
+		m_Animator.reset();   // the ragdoll first, then the world it lives in
+		m_Physics.reset();
 		m_PropLooks.clear();
 		m_PendingProp.clear();
 		m_Animator.reset();
@@ -193,6 +275,21 @@ namespace GB::Editor
 	{
 		if (!m_Instance)
 			return;
+		if (Ragdolled() && m_Physics)
+		{
+			// the character is a ragdoll: the physics world moves it, the controller follows the pelvis (so the camera and the pose's root do too)
+			m_Physics->Step(dt);
+			m_Camera.ReadInput(dt);
+			Ragdoll* rag = m_Animator->Anim().GetRagdoll();
+			const glm::vec3 pelvis = rag->PelvisPosition();
+			m_Controller.SetPosition(m_World, pelvis.x, pelvis.z, m_Controller.GetYaw());
+			m_Motion = m_Tracker.Update(m_Controller, dt);
+			m_Animator->Update(m_Motion, dt, RootMatrix());
+			m_RestTime = rag->AtRest() ? m_RestTime + dt : 0.0f;
+			if (AutoGetUp && m_RestTime > 1.5f) GetUp();
+			m_Camera.Update(dt, pelvis);
+			return;
+		}
 		CharacterInput in;
 		in.CameraYaw = m_Camera.Yaw;
 		if (!m_Script.empty())
@@ -243,6 +340,13 @@ namespace GB::Editor
 		}
 		m_Controller.Step(in, m_World, dt);
 		m_Motion = m_Tracker.Update(m_Controller, dt);
+		if (m_Animator && RagdollLandingSpeed > 0.0f && m_Motion.Landed && m_Motion.LandingSpeed > RagdollLandingSpeed)
+		{
+			m_Animator->Update(m_Motion, dt, RootMatrix());   // the last animated frame: the ragdoll starts from this pose
+			StartRagdoll(glm::vec3(0.0f, -0.6f * m_Motion.LandingSpeed, 0.0f));
+			m_Camera.Update(dt, m_Controller.GetPosition());
+			return;
+		}
 		if (m_Animator)
 			m_Animator->Update(m_Motion, dt, RootMatrix());   // blend + footsteps, whoever produced the input
 		else

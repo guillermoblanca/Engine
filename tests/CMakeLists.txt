@@ -188,3 +188,12 @@ add_test(NAME character_profile COMMAND GBCharacterProfileTests)
 add_executable(GBBoxClearanceTests box_clearance_test.cpp)
 target_link_libraries(GBBoxClearanceTests PRIVATE GB::GB)
 add_test(NAME box_clearance COMMAND GBBoxClearanceTests)
+
+add_executable(GBPhysicsJointTests physics_joint_test.cpp)
+target_link_libraries(GBPhysicsJointTests PRIVATE GB::GB)
+add_test(NAME physics_joint COMMAND GBPhysicsJointTests)
+
+add_executable(GBRagdollTests ragdoll_test.cpp)
+target_link_libraries(GBRagdollTests PRIVATE GB::GB)
+target_compile_definitions(GBRagdollTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME ragdoll COMMAND GBRagdollTests)
