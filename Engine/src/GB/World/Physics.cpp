@@ -469,7 +469,9 @@ namespace GB
 					const float up = -Gravity.y * (1000.0f / b.Desc.Density) * b.Submersion;
 					b.Velocity.y += up * dt;
 					const float drag = std::min(1.0f, 2.2f * b.Submersion * dt);
-					b.Velocity -= b.Velocity * drag * (1.0f + 0.2f * glm::length(b.Velocity));
+					const glm::vec3 current = m_Current ? m_Current(b.Position.x, b.Position.z) : glm::vec3(0.0f);
+					const glm::vec3 relative = b.Velocity - current;
+					b.Velocity -= relative * std::min(1.0f, drag * (1.0f + 0.2f * glm::length(relative)));   // the water carries the body along
 					b.AngularVelocity -= b.AngularVelocity * std::min(1.0f, 2.0f * b.Submersion * dt);
 				}
 			}

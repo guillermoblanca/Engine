@@ -1,7 +1,9 @@
 #pragma once
 #include "GB/Renderer/Mesh.h"
+#include "GB/World/RiverData.h"
 #include <glm/glm.hpp>
 #include <memory>
+#include <vector>
 
 namespace GB
 {
@@ -27,6 +29,12 @@ namespace GB
 	{
 	public:
 		explicit WaterSurface(float size = 64.0f, uint32_t subdivisions = 192);
+		// A ribbon of flowing water along a river (see HillParams::RiverPath): the surface follows the water level,
+		// the shader advects the surface detail along the current and adds foam in the rapids.
+		explicit WaterSurface(const RiverData& river, float widthScale = 1.5f);
+
+		bool IsRiver() const { return !m_RiverVertices.empty(); }
+		size_t GetRiverVertexCount() const { return m_RiverVertices.size(); }
 
 		WaterParams Params;
 		glm::vec3 Position{ 0.0f };
@@ -41,7 +49,9 @@ namespace GB
 
 	private:
 		float m_Size;
-		uint32_t m_Subdivisions;
+		uint32_t m_Subdivisions = 0;
+		std::vector<Vertex> m_RiverVertices;
+		std::vector<uint32_t> m_RiverIndices;
 		mutable std::unique_ptr<Mesh> m_Mesh;
 	};
 

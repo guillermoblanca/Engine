@@ -514,6 +514,11 @@ private:
 			GB::HillParams hp;
 			hp.Seed = seed;
 			hp.Height = static_cast<float>(std::atof(options.GetValue("height", "16").c_str()));
+			if (options.HasFlag("river"))   // a meandering river across the map, flowing downhill
+			{
+				hp.RiverPath = { { -175, 40 }, { -120, 12 }, { -70, -12 }, { -25, -38 }, { 20, -28 }, { 60, -52 }, { 105, -46 }, { 150, -78 }, { 178, -110 } };
+				hp.RiverWidth = static_cast<float>(std::atof(options.GetValue("river-width", "6").c_str()));
+			}
 			hp.LakeRadius = static_cast<float>(std::atof(options.GetValue("lake", "0").c_str()));
 			hp.LakeCenter = { static_cast<float>(std::atof(options.GetValue("lake-x", "0").c_str())), static_cast<float>(std::atof(options.GetValue("lake-z", "-34").c_str())) };
 			m_Terrain = GB::Terrain::CreateHills(hp, 360.0f, 641, style);
@@ -561,7 +566,8 @@ private:
 		};
 		uint32_t rng = 12345u + seed;
 		auto rnd = [&]() { rng = rng * 1664525u + 1013904223u; return static_cast<float>(rng >> 8) / 16777216.0f; };
-		for (int i = 0; i < 26; ++i)
+		const int rockCount = std::atoi(options.GetValue("rocks", kind == "hills" ? "46" : "0").c_str());
+		for (int i = 0; i < (rockCount > 0 ? 0 : 26); ++i)
 		{
 			const float s = 0.6f + 2.0f * rnd();
 			place(m_Sphere.get(), (rnd() - 0.5f) * 220.0f, (rnd() - 0.5f) * 220.0f, { s * 1.7f, s * 1.1f, s * 1.3f }, rnd() * 360.0f, s * 0.12f);
@@ -578,11 +584,22 @@ private:
 			const GB::Heightmap* hm = &m_Terrain->GetHeightmap();
 			gp.NormalFn = [hm](float x, float z) { return hm->GetNormal(x, z); };
 			gp.Density = static_cast<float>(std::atof(options.GetValue("grass-density", "45").c_str()));
-			if (m_Terrain->HasLake())   // no grass under water, thinning out along the bank
+			if (m_Terrain->HasLake() || m_Terrain->GetRiver())   // no grass under water, thinning out along the bank
 			{
-				const float level = m_Terrain->GetWaterLevel();
+				const float level = m_Terrain->HasLake() ? m_Terrain->GetWaterLevel() : -1e9f;
 				const GB::Terrain* terrain = m_Terrain.get();
-				gp.DensityFn = [terrain, level](float x, float z) { return glm::smoothstep(level + 0.05f, level + 0.6f, terrain->GetHeight(x, z)); };
+				gp.DensityFn = [terrain, level](float x, float z)
+				{
+					const float h = terrain->GetHeight(x, z);
+					float d = glm::smoothstep(level + 0.05f, level + 0.6f, h);
+					if (terrain->GetRiver())
+					{
+						const float riverTop = terrain->GetRiverLevelAt(x, z);
+						if (riverTop > -1e8f) d = 0.0f;
+						d *= glm::smoothstep(terrain->GetRiver()->HalfWidth * 0.9f, terrain->GetRiver()->HalfWidth * 1.7f, terrain->DistanceToRiver(x, z));
+					}
+					return d;
+				};
 			}
 			m_Grass = std::make_unique<GB::GrassField>(gp);
 			m_Scene.Grass.push_back(m_Grass.get());
@@ -661,7 +678,7 @@ private:
 					m_TreeVariants.push_back(m_TreeFactory->Create(tp));
 				const float snowLine = 1e9f;
 				const auto placements = GB::ScatterTrees(*m_Terrain, treeCount, static_cast<int>(m_TreeVariants.size()), 7.0f, seed + 11,
-					m_Terrain->HasLake() ? m_Terrain->GetWaterLevel() + 0.7f : -1e9f, snowLine, 24.0f, [](float x, float z) { return std::hypot(x, z) > 16.0f; });   // keep the middle clear for the walker
+					m_Terrain->HasLake() ? m_Terrain->GetWaterLevel() + 0.7f : -1e9f, snowLine, 24.0f, [this](float x, float z) { return std::hypot(x, z) > 16.0f && (!m_Terrain->GetRiver() || m_Terrain->DistanceToRiver(x, z) > m_Terrain->GetRiver()->HalfWidth * 2.4f); });   // keep the middle clear for the walker and the river banks free
 				for (const GB::TreePlacement& pl : placements)
 				{
 					const GB::Tree& tree = *m_TreeVariants[static_cast<size_t>(pl.Variant)];
@@ -688,6 +705,8 @@ private:
 			}
 		}
 
+		if (rockCount > 0)
+			BuildRocks(rockCount, style, seed);
 		m_StaticObjects = m_Scene.Objects.size();
 		if (m_Physics)
 			BuildPhysicsBodies(options);
@@ -711,6 +730,8 @@ private:
 		m_Weather->SetGroundFunction(m_Terrain->MakeGroundFunction(true));
 		if (m_Terrain->HasLake())
 			BuildWater(options);
+		if (m_Terrain->GetRiver())
+			BuildRiver(options);
 		const float windAngle = m_Terrain->GetWindAngle();
 		m_DesertWind = { std::cos(windAngle) * 9.0f, 0.0f, std::sin(windAngle) * 9.0f };
 		if (!options.GetValue("time").empty())   // time of day: sun or moon, sky, stars, clouds
@@ -847,11 +868,17 @@ private:
 	void BuildPhysicsBodies(const GB::LaunchOptions& options)
 	{
 		const int count = std::max(std::atoi(options.GetValue("physics", "40").c_str()), 0) > 0 ? std::atoi(options.GetValue("physics", "40").c_str()) : 40;
-		if (m_Terrain->HasLake())
+		if (m_Terrain->HasLake() || m_Terrain->GetRiver())
 		{
 			const GB::Terrain* terrain = m_Terrain.get();
-			const float level = terrain->GetWaterLevel();
-			m_Physics->SetWater([terrain, level](float x, float z) { return terrain->GetHeight(x, z) < level ? level : -1e9f; });
+			const float level = terrain->HasLake() ? terrain->GetWaterLevel() : -1e9f;
+			m_Physics->SetWater([terrain, level](float x, float z)
+			{
+				const float lake = terrain->GetHeight(x, z) < level ? level : -1e9f;
+				return std::max(lake, terrain->GetRiverLevelAt(x, z));
+			});
+			if (terrain->GetRiver())
+				m_Physics->SetCurrent([terrain](float x, float z) { const glm::vec2 f = terrain->GetRiverFlow(x, z); return glm::vec3(f.x, 0.0f, f.y); });
 		}
 		glm::vec2 center(0.0f, -10.0f);
 		if (options.GetValue("weather") == "tornado")
@@ -954,6 +981,93 @@ private:
 		GB_CLIENT_INFO("Lanterns: {}", count);
 	}
 
+	// Procedural rocks scattered over the map and along the river banks; moss in meadows, sand in deserts,
+	// wet where the water reaches them.
+	void BuildRocks(int count, GB::TerrainStyle style, uint32_t seed)
+	{
+		struct Recipe { float Size; glm::vec3 Stretch; float Rough, Facets; };
+		const Recipe recipes[] = { { 0.55f, { 1.0f, 0.8f, 1.1f }, 0.30f, 0.6f }, { 0.9f, { 1.2f, 0.7f, 1.0f }, 0.38f, 0.7f }, { 1.3f, { 1.0f, 0.9f, 1.3f }, 0.34f, 0.5f },
+			{ 1.8f, { 1.4f, 0.65f, 1.0f }, 0.42f, 0.8f }, { 2.5f, { 1.0f, 1.2f, 0.9f }, 0.36f, 0.9f }, { 0.4f, { 1.3f, 0.6f, 1.0f }, 0.25f, 0.3f } };
+		for (uint32_t i = 0; i < 6; ++i)
+		{
+			GB::RockParams rp;
+			rp.Seed = seed * 31u + i + 1u;
+			rp.Size = recipes[i].Size;
+			rp.Stretch = recipes[i].Stretch;
+			rp.Roughness = recipes[i].Rough;
+			rp.Facets = recipes[i].Facets;
+			if (style == GB::TerrainStyle::Meadow) { rp.Moss = 0.75f; rp.Color = { 0.40f, 0.39f, 0.36f }; }
+			else if (style == GB::TerrainStyle::Snow) { rp.Moss = 0.15f; rp.Color = { 0.36f, 0.37f, 0.40f }; }
+			else { rp.Sand = 0.8f; rp.Color = { 0.55f, 0.40f, 0.28f }; }
+			m_RockVariants.push_back(GB::RockFactory::Create(rp));
+		}
+		const GB::Terrain* terrain = m_Terrain.get();
+		auto waterNear = [&](float x, float z)
+		{
+			float level = -1e9f;
+			if (terrain->HasLake() && glm::distance(glm::vec2(x, z), terrain->GetLakeCenter()) < terrain->GetLakeRadius() * 1.5f) level = terrain->GetWaterLevel();
+			if (terrain->GetRiver() && terrain->DistanceToRiver(x, z) < terrain->GetRiver()->HalfWidth * 3.0f) level = std::max(level, terrain->GetRiverSurfaceLevel(x, z));
+			return level;
+		};
+		uint32_t rng = 4242u + seed;
+		auto rnd = [&]() { rng = rng * 1664525u + 1013904223u; return static_cast<float>(rng >> 8) / 16777216.0f; };
+		auto place = [&](float x, float z, int variant)
+		{
+			const GB::Rock& rock = *m_RockVariants[static_cast<size_t>(variant)];
+			const float sc = 0.7f + 0.8f * rnd();
+			const float y = terrain->GetHeight(x, z);
+			rock.AddToScene(m_Scene, { x, y, z }, rnd() * 6.28f, sc, 0.12f * sc, waterNear(x, z));
+			if (m_Physics)
+			{
+				GB::StaticCollider c;
+				c.Shape = GB::ShapeType::Sphere;
+				c.Radius = rock.Radius * sc * 0.75f;
+				c.Center = { x, y + rock.Height * sc * 0.4f, z };
+				m_Physics->AddStatic(c);
+			}
+		};
+		const auto spots = GB::ScatterTrees(*terrain, count, 6, 5.0f, seed + 21, -1e9f, 1e9f, 40.0f,
+			[&](float x, float z) { return !terrain->GetRiver() || terrain->DistanceToRiver(x, z) > terrain->GetRiver()->HalfWidth * 1.1f; });
+		for (const GB::TreePlacement& pl : spots) place(pl.Position.x, pl.Position.z, pl.Variant);
+		if (terrain->GetRiver())   // rocks in and along the river
+		{
+			const auto& P = terrain->GetRiver()->Points;
+			for (int i = 0; i < count; ++i)
+			{
+				const size_t k = static_cast<size_t>(rnd() * static_cast<float>(P.size() - 2)) + 1;
+				const glm::vec2 dir = glm::normalize(glm::vec2(P[k + 1].x - P[k - 1].x, P[k + 1].z - P[k - 1].z));
+				const float off = (rnd() < 0.5f ? -1.0f : 1.0f) * terrain->GetRiver()->HalfWidth * (0.3f + 1.9f * rnd());
+				place(P[k].x - dir.y * off, P[k].z + dir.x * off, static_cast<int>(rnd() * 3.99f));
+			}
+		}
+		GB_CLIENT_INFO("Rocks: {} scattered ({} triangles each variant ~{})", spots.size(), 6, m_RockVariants[0]->TriangleCount);
+	}
+
+	void BuildRiver(const GB::LaunchOptions& options)
+	{
+		m_RiverWater = std::make_unique<GB::WaterSurface>(*m_Terrain->GetRiver());
+		m_RiverWater->Params.WaveHeight = 0.015f;
+		m_RiverWater->Params.Choppiness = 1.4f;
+		m_RiverWater->Params.Clarity = 1.6f;
+		m_RiverWater->Params.Foam = 0.4f;
+		m_Scene.Water.push_back(m_RiverWater.get());
+		if (!m_Ripples)
+		{
+			GB::WaterRipplesDesc rd;
+			rd.Size = 64.0f;
+			rd.Resolution = 512;
+			m_Ripples = std::make_unique<GB::WaterRipples>(rd);
+			m_Scene.Ripples = m_Ripples.get();
+		}
+		if (options.HasFlag("river-view"))
+		{
+			const glm::vec3 p = m_Terrain->GetRiver()->Points[m_Terrain->GetRiver()->Points.size() / 2];
+			m_Orbit.Target = { p.x, p.y, p.z };
+		}
+		GB_CLIENT_INFO("River: {} points, {:.1f} m wide, flow {:.1f}..{:.1f} m/s", m_Terrain->GetRiver()->Points.size(), m_Terrain->GetRiver()->HalfWidth * 2.0f,
+			*std::min_element(m_Terrain->GetRiver()->Speed.begin(), m_Terrain->GetRiver()->Speed.end()), *std::max_element(m_Terrain->GetRiver()->Speed.begin(), m_Terrain->GetRiver()->Speed.end()));
+	}
+
 	void BuildWater(const GB::LaunchOptions& options)
 	{
 		const float r = m_Terrain->GetLakeRadius();
@@ -977,8 +1091,13 @@ private:
 	// Raindrops, wind gusts and wading feet disturb the lake.
 	void UpdateWater(float dt)
 	{
-		if (!m_Water || !m_Ripples)
+		if (!m_Ripples || (!m_Water && !m_RiverWater))
 			return;
+		if (!m_Water)
+		{
+			m_Ripples->Update(dt, m_Walker ? m_Walker->Position : m_Orbit.Target);
+			return;
+		}
 		m_Water->Params.Direction = { m_Weather->GetWind().x + 0.01f, m_Weather->GetWind().z };
 		m_Water->Params.WaveHeight = glm::mix(m_BaseWaveHeight, m_BaseWaveHeight * 3.0f, glm::clamp(glm::length(m_Weather->GetWind()) / 12.0f, 0.0f, 1.0f));
 		const float rain = m_Weather->GetRain();
@@ -1294,10 +1413,11 @@ private:
 	std::unique_ptr<Walker> m_Walker;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
 	std::unique_ptr<GB::EnvironmentMap> m_EnvMap;
+	std::vector<std::unique_ptr<GB::Rock>> m_RockVariants;
 	struct PhysItem { int Body = -1; bool Sphere = false; glm::vec3 Scale{ 1.0f }, Color{ 1.0f }; };
 	std::unique_ptr<GB::PhysicsWorld> m_Physics;
 	std::vector<PhysItem> m_PhysItems;
-	std::unique_ptr<GB::WaterSurface> m_Water;
+	std::unique_ptr<GB::WaterSurface> m_Water, m_RiverWater;
 	std::unique_ptr<GB::Mesh> m_LanternPost;
 	float m_NightFactor = 0.0f;
 	std::unique_ptr<GB::WaterRipples> m_Ripples;

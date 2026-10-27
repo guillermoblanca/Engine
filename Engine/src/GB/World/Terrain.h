@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
+#include "GB/World/RiverData.h"
 #include <memory>
 #include <vector>
 
@@ -69,7 +70,13 @@ namespace GB
 		float LakeRadius = 0.0f;          // meters of the water edge
 		float LakeDepth = 2.5f;           // meters below WaterLevel at the center
 		float WaterLevel = 1.0f;
+		// A river carved along these control points (xz, smoothed with a Catmull-Rom spline); it always flows
+		// downhill: the water level only descends along the path. Empty = none.
+		std::vector<glm::vec2> RiverPath;
+		float RiverWidth = 5.0f;          // meters of water
+		float RiverDepth = 1.3f;          // meters below the water level
 	};
+
 
 	// A drawable heightfield with a matching material (grain, wind ripples, slope-based coloring).
 	class Terrain
@@ -86,6 +93,13 @@ namespace GB
 		Material& GetMaterial() { return m_Material; }
 		const Mesh& GetMesh() const { return *m_Mesh; }
 		TerrainStyle GetStyle() const { return m_Style; }
+		const RiverData* GetRiver() const { return m_River.Points.empty() ? nullptr : &m_River; }
+		// Water velocity (m/s, xz) of the river at a point; zero away from it. Usable as PhysicsWorld::SetCurrent.
+		glm::vec2 GetRiverFlow(float x, float z) const;
+		// True where the surface of the river is above the ground (inside the water).
+		float GetRiverLevelAt(float x, float z) const;   // water level, or -1e9 outside the water
+		float GetRiverSurfaceLevel(float x, float z) const;   // water level at the nearest river point (even on land); -1e9 without a river
+		float DistanceToRiver(float x, float z) const;   // meters to the river axis; 1e9 when there is none
 		bool HasLake() const { return m_HasLake; }
 		float GetWaterLevel() const { return m_WaterLevel; }
 		glm::vec2 GetLakeCenter() const { return m_LakeCenter; }
@@ -103,10 +117,12 @@ namespace GB
 	private:
 		Terrain(uint32_t resolution, float size) : m_Heightmap(resolution, size) {}
 		void Finish(TerrainStyle style, float wavelengthMeters);
+		void CarveRiver(const HillParams& params);
 
 		Heightmap m_Heightmap;
 		TerrainStyle m_Style = TerrainStyle::Desert;
 		float m_WindAngle = 0.0f;
+		RiverData m_River;
 		bool m_HasLake = false;
 		float m_WaterLevel = 0.0f, m_LakeRadius = 0.0f;
 		glm::vec2 m_LakeCenter{ 0.0f };

@@ -119,6 +119,8 @@ namespace GB
 		void SetGround(std::function<float(float, float)> height, std::function<glm::vec3(float, float)> normal);
 		// Water: surface height at (x, z), or -infinity where there is none. Enables buoyancy.
 		void SetWater(std::function<float(float, float)> surfaceHeight) { m_Water = std::move(surfaceHeight); }
+		// Water velocity (m/s) at (x, z): submerged bodies are dragged along with it (rivers).
+		void SetCurrent(std::function<glm::vec3(float, float)> current) { m_Current = std::move(current); }
 
 		int AddBody(const BodyDesc& desc, const glm::vec3& position, const glm::quat& rotation = glm::quat(1, 0, 0, 0));
 		RigidBody& GetBody(int index) { return *m_Bodies[static_cast<size_t>(index)]; }
@@ -157,6 +159,7 @@ namespace GB
 		std::function<float(float, float)> m_GroundHeight;
 		std::function<glm::vec3(float, float)> m_GroundNormal;
 		std::function<float(float, float)> m_Water;
+		std::function<glm::vec3(float, float)> m_Current;
 		std::vector<Contact> m_Contacts;
 		std::vector<ContactEvent> m_ContactEvents;
 		std::vector<SplashEvent> m_Splashes;

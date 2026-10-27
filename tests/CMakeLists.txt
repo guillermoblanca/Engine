@@ -70,3 +70,8 @@ set_tests_properties(sky PROPERTIES SKIP_RETURN_CODE 77)
 add_executable(GBPhysicsTests physics_test.cpp)
 target_link_libraries(GBPhysicsTests PRIVATE GB::GB)
 add_test(NAME physics COMMAND GBPhysicsTests)
+
+add_executable(GBRiverTests river_test.cpp)
+target_link_libraries(GBRiverTests PRIVATE GB::GB)
+add_test(NAME river COMMAND GBRiverTests)
+set_tests_properties(river PROPERTIES SKIP_RETURN_CODE 77)
