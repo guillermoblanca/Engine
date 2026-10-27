@@ -1448,7 +1448,7 @@ void main()
 	N = normalize(mix(vec3(0.0, 1.0, 0.0), N, 0.55));   // fields shade like a soft carpet
 
 	float variation = 0.78 + 0.44 * fract(vSeed * 13.7);
-	vec3 col = mix(uBase, uTip, pow(vT, 0.8)) * variation;
+	vec3 col = mix(uBase, uTip, pow(max(vT, 0.0), 0.8)) * variation;   // vT can interpolate to a hair below 0: pow(<0) is NaN, which bloom/DOF smear over the screen
 	float dry = step(1.0 - uDryAmount, fract(vSeed * 7.31));
 	col = mix(col, uDry * (0.55 + 0.45 * vT), dry * 0.85);
 	col = mix(col, vec3(0.9, 0.93, 0.96), uSnowCover * 0.85 * smoothstep(0.05, 0.8, vT));
