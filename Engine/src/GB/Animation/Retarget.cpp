@@ -42,6 +42,25 @@ namespace GB
 		arm(s.Left, t.Left); arm(s.Right, t.Right);
 		leg(s.LeftLeg, t.LeftLeg); leg(s.RightLeg, t.RightLeg);
 		for (int v : targetToSource) map.Humanoid += v >= 0 ? 1 : 0;
+		auto chain = [&](int sb, int sc, int tb, int tc)
+		{
+			if (sb >= 0 && sc >= 0 && tb >= 0 && tc >= 0) map.Chains.push_back({ tb, tc, sb, sc });
+		};
+		auto armChain = [&](const HumanoidRig::Arm& a, const HumanoidRig::Arm& b)
+		{
+			chain(a.Shoulder, a.UpperArm, b.Shoulder, b.UpperArm); chain(a.UpperArm, a.ForeArm, b.UpperArm, b.ForeArm);
+			chain(a.ForeArm, a.Hand, b.ForeArm, b.Hand); chain(a.Hand, a.Middle, b.Hand, b.Middle);
+		};
+		auto legChain = [&](const HumanoidRig::Leg& a, const HumanoidRig::Leg& b)
+		{
+			chain(a.UpLeg, a.Knee, b.UpLeg, b.Knee); chain(a.Knee, a.Foot, b.Knee, b.Foot); chain(a.Foot, a.Toe, b.Foot, b.Toe);
+		};
+		chain(s.Hips, s.Spine, t.Hips, t.Spine);
+		chain(s.Spine, s.Spine2 != s.Spine ? s.Spine2 : s.Neck, t.Spine, t.Spine2 != t.Spine ? t.Spine2 : t.Neck);
+		if (s.Spine2 != s.Spine && t.Spine2 != t.Spine) chain(s.Spine2, s.Neck, t.Spine2, t.Neck);
+		chain(s.Neck, s.Head, t.Neck, t.Head);
+		armChain(s.Left, t.Left); armChain(s.Right, t.Right);
+		legChain(s.LeftLeg, t.LeftLeg); legChain(s.RightLeg, t.RightLeg);
 
 		// the other bones: the same name in both skeletons
 		for (size_t n = 0; n < target.GetNodes().size(); ++n)
@@ -93,6 +112,24 @@ namespace GB
 		PoseToWorld(target, m_TargetRest, tw);
 		for (const glm::mat4& m : sw) m_SourceRestRotation.push_back(WorldRotation(m));
 		for (const glm::mat4& m : tw) m_TargetRestRotation.push_back(WorldRotation(m));
+		// the target's rest pose with its limbs pointing where the source's do
+		const glm::quat yawRest = glm::angleAxis(map.YawCorrection, glm::vec3(0.0f, 1.0f, 0.0f));
+		for (const RetargetMap::Chain& c : map.Chains)
+		{
+			const glm::vec3 dt = glm::vec3(tw[static_cast<size_t>(c.TargetChild)][3]) - glm::vec3(tw[static_cast<size_t>(c.TargetBone)][3]);
+			const glm::vec3 ds = yawRest * (glm::vec3(sw[static_cast<size_t>(c.SourceChild)][3]) - glm::vec3(sw[static_cast<size_t>(c.SourceBone)][3]));
+			if (glm::length(dt) < 1e-5f || glm::length(ds) < 1e-5f) continue;
+			const glm::vec3 a = glm::normalize(dt), b = glm::normalize(ds);
+			const float d = glm::clamp(glm::dot(a, b), -1.0f, 1.0f);
+			glm::quat turn(1.0f, 0.0f, 0.0f, 0.0f);
+			if (d < 0.9999f)
+			{
+				glm::vec3 axis = glm::cross(a, b);
+				axis = glm::length(axis) > 1e-6f ? glm::normalize(axis) : glm::vec3(0.0f, 1.0f, 0.0f);
+				turn = glm::angleAxis(std::acos(d), axis);
+			}
+			m_TargetRestRotation[static_cast<size_t>(c.TargetBone)] = glm::normalize(turn * m_TargetRestRotation[static_cast<size_t>(c.TargetBone)]);
+		}
 		for (const RetargetMap::Pair& p : map.Bones) m_SourceOf[static_cast<size_t>(p.Target)] = p.Source;
 		if (map.SourceHips >= 0) m_SourceHipsRest = glm::vec3(sw[static_cast<size_t>(map.SourceHips)][3]);
 		if (map.TargetHips >= 0) m_TargetHipsRest = glm::vec3(tw[static_cast<size_t>(map.TargetHips)][3]);

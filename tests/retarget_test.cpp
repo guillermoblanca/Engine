@@ -6,6 +6,7 @@
 #include "GB/Log.h"
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <glm/gtc/quaternion.hpp>
 
 namespace
@@ -59,24 +60,35 @@ int main()
 	};
 	auto delta = [&](const std::vector<glm::mat4>& w, int bone) { return Angle(Rotation(w[static_cast<size_t>(bone)]) * glm::inverse(Rotation(rest[static_cast<size_t>(bone)]))); };
 	sample(1.0f, now);
-	// the movement is the same: every paired bone has turned from its own rest pose by as much as the source's bone has from its own
+	// the limbs point where the source's do, at rest and all through the clip (the target keeps its own proportions, the rest pose is aligned)
 	{
-		std::vector<glm::mat4> srcRest, srcNow;
-		PoseToWorld(*source, RestPose(*source), srcRest);
-		Pose sp;
-		SampleClip(*source, 0, 1.0f, sp);
-		PoseToWorld(*source, sp, srcNow);
+		const HumanoidRig srcRig = FindHumanoidRigAuto(*source);
+		const struct { int sa, sb, ta, tb; const char* name; } limbs[] = {
+			{ srcRig.Right.UpperArm, srcRig.Right.ForeArm, tr.Right.UpperArm, tr.Right.ForeArm, "right upper arm" },
+			{ srcRig.Right.ForeArm, srcRig.Right.Hand, tr.Right.ForeArm, tr.Right.Hand, "right forearm" },
+			{ srcRig.Left.UpperArm, srcRig.Left.ForeArm, tr.Left.UpperArm, tr.Left.ForeArm, "left upper arm" },
+			{ srcRig.LeftLeg.UpLeg, srcRig.LeftLeg.Knee, tr.LeftLeg.UpLeg, tr.LeftLeg.Knee, "left thigh" },
+			{ srcRig.RightLeg.Knee, srcRig.RightLeg.Foot, tr.RightLeg.Knee, tr.RightLeg.Foot, "right calf" },
+		};
 		float worst = 0.0f;
-		for (const RetargetMap::Pair& pair : map.Bones)
+		for (float t : { 0.0f, 0.5f, 1.0f })
 		{
-			const float s = Angle(Rotation(srcNow[static_cast<size_t>(pair.Source)]) * glm::inverse(Rotation(srcRest[static_cast<size_t>(pair.Source)])));
-			worst = std::max(worst, std::fabs(glm::degrees(s - delta(now, pair.Target))));
+			Pose sp;
+			SampleClip(*source, 0, t, sp);
+			std::vector<glm::mat4> sw, tw;
+			PoseToWorld(*source, sp, sw);
+			sample(t, tw);
+			for (const auto& l : limbs)
+			{
+				const glm::vec3 ds = glm::normalize(glm::vec3(sw[static_cast<size_t>(l.sb)][3]) - glm::vec3(sw[static_cast<size_t>(l.sa)][3]));
+				const glm::vec3 dt = glm::normalize(glm::vec3(tw[static_cast<size_t>(l.tb)][3]) - glm::vec3(tw[static_cast<size_t>(l.ta)][3]));
+				worst = std::max(worst, glm::degrees(std::acos(glm::clamp(glm::dot(ds, dt), -1.0f, 1.0f))));
+			}
 		}
-		Check(worst < 0.5f, "every paired bone has turned from its own rest pose as much as the source's bone did");
+		Check(worst < 1.5f, "arms and legs point where the source's do (within 1.5 degrees), at rest and while it moves");
 	}
-	Check(glm::degrees(delta(now, tr.Left.UpperArm)) > 28.0f && glm::degrees(delta(now, tr.Left.UpperArm)) < 32.0f, "the left arm only follows the trunk (30 degrees)");
-	Check(std::fabs(glm::degrees(delta(now, tr.Spine)) - 30.0f) < 1.0f && std::fabs(glm::degrees(delta(now, tr.Head)) - 30.0f) < 1.5f, "the trunk turns 30 degrees and takes the head along");
-	Check(glm::degrees(delta(now, tr.Right.UpperArm)) > 100.0f, "the right arm swings 90 degrees on top of that");
+	Check(map.Chains.size() >= 16, "the chains used to align the rest pose are found");
+	Check(std::fabs(glm::degrees(delta(now, tr.Spine)) - 30.0f) < 4.0f && std::fabs(glm::degrees(delta(now, tr.Head)) - 30.0f) < 5.0f, "the trunk turns about 30 degrees and takes the head along");
 	// the arm swings forward (+Z) whatever the source's splayed rest pose looked like
 	const glm::vec3 shoulder(now[static_cast<size_t>(tr.Right.UpperArm)][3]), hand(now[static_cast<size_t>(tr.Right.Hand)][3]);
 	Check(hand.z > shoulder.z + 0.2f, "the right hand ends up in front of the shoulder");
@@ -138,6 +150,32 @@ int main()
 			for (size_t n = 0; n < wa.size(); ++n) worst = std::max(worst, glm::distance(glm::vec3(wa[n][3]), glm::vec3(wb[n][3])));
 		}
 		Check(worst < 2e-3f, "every bone is where it was (within 2 mm)");
+	}
+
+	// ---- the real Mixamo pack onto itself (optional): the same skeleton, so a clip must come out as it went in
+	if (const char* mixamo = std::getenv("GB_MIXAMO_DIR"))
+	{
+		auto a = Model::Load(std::string(mixamo) + "/walking.fbx");
+		auto b = Model::Load(std::string(mixamo) + "/walking.fbx");
+		if (a && b)
+		{
+			const RetargetMap m = BuildRetargetMap(*a, *b);
+			Check(m.Valid() && m.SourceConvention == "mixamo" && m.Humanoid >= 21 && std::fabs(m.Scale - 1.0f) < 1e-4f && m.YawCorrection == 0.0f, "Mixamo onto Mixamo: all the humanoid bones, same size, same facing");
+			const int c = RetargetClip(*a, 0, *b, m);
+			float worst = 0.0f;
+			for (float t : { 0.2f, 0.6f, 1.0f })
+			{
+				Pose pa, pb;
+				SampleClip(*a, 0, t, pa);
+				SampleClip(*b, c, t, pb);
+				std::vector<glm::mat4> wa, wb;
+				PoseToWorld(*a, pa, wa);
+				PoseToWorld(*b, pb, wb);
+				for (const RetargetMap::Pair& pair : m.Bones)
+					worst = std::max(worst, glm::distance(glm::vec3(wa[static_cast<size_t>(pair.Source)][3]), glm::vec3(wb[static_cast<size_t>(pair.Target)][3])));
+			}
+			Check(worst < 0.01f, "the real walking clip retargeted onto its own skeleton keeps every paired bone within 1 cm");
+		}
 	}
 
 	(void)sr;

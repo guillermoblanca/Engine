@@ -13,6 +13,10 @@ namespace GB
 	{
 		struct Pair { int Source = -1, Target = -1; };
 		std::vector<Pair> Bones;
+		// Humanoid bones with a next joint in the chain (upper arm -> forearm...): in the rest pose the target's bone is turned to point where the
+		// source's does, so a character in a T-pose can take the animations of one in an A-pose (and the other way round).
+		struct Chain { int TargetBone = -1, TargetChild = -1, SourceBone = -1, SourceChild = -1; };
+		std::vector<Chain> Chains;
 		std::vector<std::string> UnmatchedTarget;   // target bones with no source bone: they keep their rest pose
 		int Humanoid = 0;                           // how many of the pairs are humanoid bones
 		int SourceHips = -1, TargetHips = -1;
@@ -25,9 +29,9 @@ namespace GB
 	RetargetMap BuildRetargetMap(const Model& source, const Model& target);
 	std::string DescribeRetargetMap(const Model& source, const Model& target, const RetargetMap& map);
 
-	// Applies source poses to the target skeleton: every mapped bone takes the world-space rotation it has moved from its own rest pose by in the
-	// source (the movement is kept, the proportions and the rest pose are the target's), the hips' travel is scaled to the target's size, and the
-	// bones nobody drives keep their rest pose.
+	// Applies source poses to the target skeleton: every mapped bone takes the world-space rotation it has moved from the source's rest pose by,
+	// applied to the target's rest pose after its limbs were turned to point where the source's do (the movement is kept, the proportions are
+	// the target's), the hips' travel is scaled to the target's size, and the bones nobody drives keep their rest pose.
 	class Retargeter
 	{
 	public:
@@ -40,7 +44,7 @@ namespace GB
 		const Model& m_Target;
 		RetargetMap m_Map;
 		Pose m_SourceRest, m_TargetRest;
-		std::vector<glm::quat> m_SourceRestRotation, m_TargetRestRotation;
+		std::vector<glm::quat> m_SourceRestRotation, m_TargetRestRotation;   // the target's one is the aligned one (see RetargetMap::Chains)
 		glm::vec3 m_SourceHipsRest{ 0.0f }, m_TargetHipsRest{ 0.0f };
 		std::vector<int> m_SourceOf;   // per target node: the source node that drives it, -1 for none
 	};
