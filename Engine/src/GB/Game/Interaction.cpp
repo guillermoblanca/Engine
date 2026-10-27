@@ -83,6 +83,7 @@ namespace GB
 		if (!Active()) return none;
 		m_AI.WalkSpeed = controller.Config.WalkSpeed;
 		m_AI.RunSpeed = controller.Config.RunSpeed;
+		m_AI.Profile = Profile;
 
 		if (m_Phase == Phase::Approach)
 		{
@@ -103,7 +104,7 @@ namespace GB
 				return none;
 			}
 			else
-				return m_AI.Update(controller, dt);
+				return m_AI.Update(controller, world, dt);
 		}
 
 		if (m_Phase == Phase::Align || m_Phase == Phase::Act)

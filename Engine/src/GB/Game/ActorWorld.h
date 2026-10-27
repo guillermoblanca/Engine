@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Game/Actor.h"
+#include "GB/Navigation/NavGrid.h"
 #include "GB/Save/SaveWorld.h"
 #include <map>
 #include <memory>
@@ -68,6 +69,13 @@ namespace GB
 		std::vector<Save::ActorState> CaptureActors() const override;
 		std::string RestoreActors(const std::vector<Save::ActorState>& actors, bool check) override;
 
+		// Navigation (H5): the grid the actors plan their paths over, built from the host's world (its ground, water and static obstacles). The first call
+		// builds it; later ones only redo the cells around obstacles that appeared or went (a tree felled) and build again when the ground is not the same.
+		// Every actor, those that exist and those spawned later, plans with it. False (and `error`) when the world has no bounds to cover.
+		bool SyncNavigation(const NavConfig& config = NavConfig(), std::string* error = nullptr);
+		NavGrid& Navigation() { return m_Nav; }
+		const NavGrid& Navigation() const { return m_Nav; }
+
 		// Circles of every actor except `except`.
 		std::vector<CircleObstacle> CirclesExcept(const std::string& except) const;
 
@@ -79,5 +87,6 @@ namespace GB
 		GameplayWorld* m_Gameplay = nullptr;
 		std::map<std::string, std::shared_ptr<Model>> m_Models;
 		std::map<std::string, std::unique_ptr<Actor>> m_Actors;
+		NavGrid m_Nav;
 	};
 }

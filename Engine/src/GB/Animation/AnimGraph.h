@@ -6,7 +6,20 @@
 
 namespace GB
 {
-	class AnimInstance;
+	// What the graph needs from the animation it drives: the locomotion sets to switch between and the montages to play. AnimInstance is
+	// the real one; a test can give a few lines of its own instead of loading a character.
+	class IGraphTarget
+	{
+	public:
+		virtual ~IGraphTarget() = default;
+		virtual std::vector<std::string> SetNames() const = 0;
+		virtual bool HasSet(const std::string& name) const = 0;
+		virtual std::string DefaultSetName() const = 0;                         // the set a state with no target uses
+		virtual bool SetOverlay(const std::string& set, float fadeSeconds) = 0;
+		virtual bool HasMontage(const std::string& name) const = 0;
+		virtual bool PlayMontage(const std::string& name) = 0;
+		virtual bool MontagePlaying(const std::string& name) const = 0;
+	};
 
 	// A value the graph's conditions read. The motion gives some by itself (Speed, Forward, Strafe, YawRate, Grounded, Airborne, Wading, WadeDepth,
 	// Blocked, Landed, LandingSpeed, and Finished while a montage state's action has ended); the game sets the rest.
@@ -57,14 +70,14 @@ namespace GB
 
 		int FindState(const std::string& name) const;
 		int FindParam(const std::string& name) const;
-		// Problems that would stop it from working (an unknown state, set, montage or parameter, a state nothing leads to). `anim` is optional:
+		// Problems that would stop it from working (an unknown state, set, montage or parameter, a state nothing leads to). `target` is optional:
 		// with it the sets and montages are checked as well.
-		std::vector<std::string> Validate(const AnimInstance* anim = nullptr) const;
+		std::vector<std::string> Validate(const IGraphTarget* target = nullptr) const;
 	};
 
 	// A graph with a state for each locomotion set of the character, and the `Set` parameter (0 = the default set, 1 = the next one...) choosing
 	// among them: a starting point to edit.
-	AnimGraph MakeDefaultGraph(const AnimInstance& anim);
+	AnimGraph MakeDefaultGraph(const IGraphTarget& target);
 
 	// True for the parameters the motion gives by itself (Speed, Grounded...): they need no declaration in the graph.
 	bool IsAutoParam(const std::string& name);
@@ -93,7 +106,7 @@ namespace GB
 
 		// Once per frame, before the animation updates: reads the motion, follows the first transition whose conditions hold and applies the
 		// state it enters (a locomotion set with a cross-fade, or a montage).
-		void Update(const MotionState& state, float dt, AnimInstance& anim);
+		void Update(const MotionState& state, float dt, IGraphTarget& target);
 
 		const std::vector<GraphParam>& AutoParams() const { return m_Auto; }   // what the motion gave this frame
 		const std::string& Current() const { return m_Current; }
@@ -102,7 +115,7 @@ namespace GB
 		int TransitionCount() const { return m_Count; }
 
 	private:
-		void Enter(const std::string& state, float blend, AnimInstance& anim);
+		void Enter(const std::string& state, float blend, IGraphTarget& target);
 		float Read(const std::string& name) const;
 		void Consume(const GraphTransition& t);
 

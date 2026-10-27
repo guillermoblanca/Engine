@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Animation/AirLayer.h"
+#include "GB/Animation/AnimLayer.h"
 #include "GB/Animation/AnimGraph.h"
 #include "GB/Animation/Locomotion.h"
 #include "GB/Animation/FootIK.h"
@@ -50,10 +51,14 @@ namespace GB
 	// The per-character animation state: several locomotion sets (free, carrying a box, pushing a wheelbarrow...) of
 	// which one is active. Changing the set (the "overlay") cross-fades the poses; the new set takes over at the same
 	// gait phase and velocity, so feet stay in step through the change. It reads only the MotionState.
-	class AnimInstance
+	class AnimInstance : public IGraphTarget
 	{
 	public:
 		AnimInstance(const Model& model, ModelInstance& instance, const LocomotionOptions& options = {});
+		~AnimInstance() override;
+		// The layers keep references to this object's own members: it stays where it is.
+		AnimInstance(const AnimInstance&) = delete;
+		AnimInstance& operator=(const AnimInstance&) = delete;
 
 		static constexpr const char* kDefaultSet = "default";
 
@@ -61,11 +66,11 @@ namespace GB
 		bool AddSet(const LocomotionSetDesc& desc);
 		// The set called "default" always exists (it starts empty and is the active one): clips can be added to it directly.
 		LocomotionBlender& Default() { return *m_Sets[0].Blender; }
-		std::vector<std::string> SetNames() const;
-		bool HasSet(const std::string& name) const { return Find(name) >= 0; }
+		std::vector<std::string> SetNames() const override;
+		bool HasSet(const std::string& name) const override { return Find(name) >= 0; }
 
 		// Makes `name` the active set, cross-fading over `fadeSeconds`. False for an unknown set (nothing changes).
-		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f);
+		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) override;
 		const std::string& Overlay() const { return m_Sets[static_cast<size_t>(m_Active)].Name; }
 		bool Transitioning() const { return m_From != -1; }
 		float TransitionProgress() const { return m_From != -1 ? m_Progress : 1.0f; }
@@ -126,6 +131,16 @@ namespace GB
 		// Turning on the spot (MotionState::YawRate while standing still): a turn clip per locomotion set, see TurnLayer.
 		TurnLayer& Turn() { return m_Turn; }
 
+		// IGraphTarget: what the state graph switches and plays.
+		std::string DefaultSetName() const override { return kDefaultSet; }
+		bool HasMontage(const std::string& name) const override { return m_Montages.Has(name); }
+		bool PlayMontage(const std::string& name) override { return m_Montages.Play(name); }
+		bool MontagePlaying(const std::string& name) const override { return m_Montages.IsPlaying(name); }
+
+		// Adds a layer of the game's own after the jump, turn and montage layers (and before the procedural ones): it is updated every frame
+		// and, while it is active, changes the pose. The instance owns it.
+		void AddLayer(std::unique_ptr<IAnimLayer> layer);
+
 		// Poses the instance for this frame's motion; `characterToWorld` puts the footsteps where the feet are.
 		void Update(const MotionState& state, float dt, const glm::mat4& characterToWorld);
 
@@ -169,6 +184,7 @@ namespace GB
 		AirLayer m_Air;
 		TurnLayer m_Turn;
 		MontagePlayer m_Montages;
+		std::vector<std::unique_ptr<IAnimLayer>> m_Layers;   // the jump, turn and montage layers first, then the game's
 		Pose m_Pose;
 		std::vector<FootEvent> m_Events;
 		std::vector<FootPlant> m_Plants;

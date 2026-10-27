@@ -52,6 +52,13 @@ namespace GB::Editor
 		return host;
 	}
 
+	bool PlayerMode::SyncNavigation(WorldInstance& world, const SceneEditor& edit, FootstepSounds* steps, std::string* error)
+	{
+		if (!m_Actors || !world.IsBuilt()) { if (error) *error = "generate a world first (generate temperate 5)"; return false; }
+		m_Actors->SetHost(MakeHost(world, edit, steps));
+		return m_Actors->SyncNavigation(NavConfig(), error);
+	}
+
 	Actor* PlayerMode::Spawn(const std::string& name, const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
 		const glm::vec3& near, FootstepSounds* steps, std::string& error, bool createEntity)
 	{
@@ -66,6 +73,7 @@ namespace GB::Editor
 		const bool fox = kind != "cesium" && !isFbx;
 		m_Actors->SetAssetRoot(assetRoot);
 		m_Actors->SetHost(MakeHost(world, edit, steps));
+		m_Actors->SyncNavigation();   // (the actors plan their paths over the terrain; a world without bounds just walks straight)
 		// the manifest the assets ship (the packs' sets, turns and montages as data) replaces the built-in lists when it is there
 		const std::string shipped = assetRoot + "/animation/mixamo.manifest.json";
 		if (isFbx && fs::exists(shipped))

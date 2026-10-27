@@ -257,3 +257,7 @@ add_test(NAME ecology COMMAND GBEcologyTests)
 add_executable(GBScaleTests scale_test.cpp)
 target_link_libraries(GBScaleTests PRIVATE GB::GB)
 add_test(NAME scale COMMAND GBScaleTests)
+
+add_executable(GBNavigationTests navigation_test.cpp)
+target_link_libraries(GBNavigationTests PRIVATE GB::GB)
+add_test(NAME navigation COMMAND GBNavigationTests)
