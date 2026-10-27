@@ -138,6 +138,7 @@ namespace GB::Editor
 		const Season season = SeasonClock().At(clock);
 		m_Garden.GrowthRate = SeasonClock::GrowthRate(season);
 		m_Ecology.Update(clock, static_cast<float>(1.0 / 60.0));
+		m_Resources.Update(m_Gameplay, static_cast<float>(1.0 / 60.0), SeasonClock::GrowthRate(season));   // plants and trees regrow with the season
 		// rain waters the plots (every five seconds of simulation, so the effect does not depend on the frame rate)
 		const std::string weather = m_Props.Get("weather.preset");
 		if ((weather == "rain" || weather == "lightrain" || weather == "storm") && m_SimTick % 300 == 0)

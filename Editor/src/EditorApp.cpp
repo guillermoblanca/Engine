@@ -124,6 +124,11 @@ namespace GB::Editor
 		}
 		RegisterGardenContent(m_Gameplay.Library);
 		RegisterEraOneItems(m_Items, m_Recipes, m_NodeDefs);
+		if (const std::string file = m_AssetRoot + "/data/era1.json"; std::filesystem::exists(file))
+		{
+			const std::string error = LoadContentFile(file, m_Items, m_Recipes, m_NodeDefs);   // the content file may add to or change what the code defines
+			if (!error.empty()) GB_CLIENT_WARN("content not loaded: {}", error);
+		}
 		RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 		RegisterInteractiveContent(m_Gameplay.Library);
 		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
@@ -802,6 +807,26 @@ namespace GB::Editor
 			if (a.empty()) return { true, "timescale " + std::to_string(m_TimeScale) };
 			m_TimeScale = std::max(1, std::min(20, std::atoi(a[0].c_str())));
 			return { true, "timescale " + std::to_string(m_TimeScale) };
+		});
+		c.Register("content", "content status | export <file.json> | load <file.json>: the items, recipes and resource nodes as data (assets/data/era1.json is read at start); load adds to or replaces by id", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			const std::string sub = a.empty() ? "status" : a[0];
+			if (sub == "export" && a.size() > 1)
+			{
+				std::filesystem::create_directories(std::filesystem::path(a[1]).parent_path());
+				std::ofstream out(a[1], std::ios::binary);
+				if (!out) return { false, "cannot write " + a[1] };
+				out << ContentToJson(m_Items, m_Recipes, m_NodeDefs);
+				return { true, "content written to " + a[1] };
+			}
+			if (sub == "load" && a.size() > 1)
+			{
+				const std::string error = LoadContentFile(a[1], m_Items, m_Recipes, m_NodeDefs);
+				if (!error.empty()) return { false, error };
+				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
+				return { true, "content loaded from " + a[1] + ": " + std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes" };
+			}
+			return { true, std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes" };
 		});
 		c.Register("interactives", "interactives build [x z] | status: puts a campfire (Stoke with wood), a well (DrawWater) and a gate (OpenDoor, CloseDoor) in the scene; their state is saved with the game", [this](const std::vector<std::string>& a) { return InteractivesCommand(a); });
 		c.Register("ecology", "ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]: rabbits that wander, eat berry bushes and fibre tufts, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)", [this](const std::vector<std::string>& a) { return EcologyCommand(a); });

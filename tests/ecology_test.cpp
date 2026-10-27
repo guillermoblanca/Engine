@@ -26,6 +26,7 @@ struct Meadow
 		RegisterResourceContent(Gameplay.Library, Defs);
 		BuildResources(Entities, glm::vec3(0.0f), Defs, 0, 0, plants ? 6 : 0, plants ? 6 : 0);
 		Gameplay.Load(Entities);
+		Plants.Bind(Gameplay, Defs, {});
 		Eco.Bind(Entities, Gameplay);
 		Eco.Spawn({ 0.0f, 0.0f, 4.0f }, 4);
 	}
@@ -36,6 +37,7 @@ struct Meadow
 		for (int i = 0; i < steps; ++i)
 		{
 			Gameplay.Update(dt);
+			Plants.Update(Gameplay, dt, SeasonClock::GrowthRate(SeasonClock().At(Clock)));   // plants regrow with the season
 			Eco.Update(Clock, dt);
 			Clock += dt;
 			const int n = Eco.Count();
@@ -54,6 +56,7 @@ struct Meadow
 	std::map<std::string, ResourceNodeDef> Defs;
 	EntityWorld Entities;
 	GameplayWorld Gameplay;
+	ResourceSystem Plants;
 	EcologySystem Eco;
 	double Clock = 0.0;
 	int peak = 0;

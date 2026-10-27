@@ -13,7 +13,7 @@
 | Otoño | x0,6 | x1,1 |
 | Invierno | x0 (nada crece, no se cría) | x1,5 |
 
-El huerto (`GardenSystem::GrowthRate`) usa ese factor: en invierno las plantas no avanzan. La lluvia (`weather rain|lightrain|storm`) riega las parcelas cada 5 s de simulación.
+El huerto (`GardenSystem::GrowthRate`) usa ese factor: en invierno las plantas no avanzan. La regeneración de los nodos de recurso (árboles, bayas, fibra) usa el mismo factor: en invierno no rebrota nada. La lluvia (`weather rain|lightrain|storm`) riega las parcelas cada 5 s de simulación.
 
 ## Conejos
 
@@ -44,4 +44,3 @@ cada conejo en el mismo sitio.
 
 - Solo hay un animal (conejo) y ningún depredador; la comida de los conejos y la de la tribu es la misma, y con pocos arbustos se la quitan.
 - Las estaciones no cambian aún el aspecto del terreno ni de los árboles, ni el clima de forma automática.
-- La regeneración de los nodos de recurso no depende de la estación.

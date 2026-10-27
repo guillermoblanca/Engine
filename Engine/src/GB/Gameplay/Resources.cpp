@@ -60,6 +60,7 @@ namespace GB
 			e.Modifiers.push_back({ "Amount", ModOp::Add, static_cast<float>(std::max(1, def.Regen)) });
 			lib.AddEffect(e);
 		}
+		// (Older scenes carry these regrowth effects; new nodes regrow through ResourceSystem::Update, which a season can slow down.)
 		// Stand-in montages until the packs have chopping, mining and gathering clips (docs/ANIMACIONES_PENDIENTES.md).
 		AbilityDef chop = GatherAbility("Chop", "dig_plant", "chop", "Resource.Wood", "Item.Tool.Axe");
 		chop.Note = "chops a tree (needs an axe)";
@@ -102,7 +103,7 @@ namespace GB
 				e.Gameplay.emplace();
 				e.Gameplay->Tags = { "Resource.Node", std::string("Resource.Node.") + row.id, KindTag(def) };
 				e.Gameplay->Attributes = { { "Amount", static_cast<float>(def.Capacity), 0.0f, static_cast<float>(def.Capacity) } };
-				if (def.RegenSeconds > 0.0f) e.Gameplay->Effects = { "Regrow." + std::string(row.id) };
+				if (def.RegenSeconds > 0.0f) e.Gameplay->Attributes.push_back({ "Regrow", 0.0f, 0.0f, 1e6f });   // the regrowth timer: ResourceSystem::Update
 				const std::string kind = row.id;
 				if (kind == "tree")
 				{
@@ -144,6 +145,29 @@ namespace GB
 				node->Attributes().SetBase("Amount", static_cast<float>(have - take));
 				if (m_Yield && e.Instigator) m_Yield(e.Instigator->Name(), def->Item, take);
 			});
+		}
+	}
+
+	void ResourceSystem::Update(GameplayWorld& gameplay, float dt, float rate) const
+	{
+		if (rate <= 0.0f) return;
+		for (const std::string& name : gameplay.Names())
+		{
+			AbilitySystemComponent* node = gameplay.Find(name);
+			if (!node || !node->HasTag("Resource.Node") || !node->Attributes().Has("Regrow")) continue;
+			const ResourceNodeDef* def = nullptr;
+			for (const auto& [id, d] : m_Defs)
+				if (node->HasTag("Resource.Node." + id)) { def = &d; break; }
+			if (!def || def->RegenSeconds <= 0.0f) continue;
+			AttributeSet& at = node->Attributes();
+			const int amount = Amount(*node);
+			if (amount >= def->Capacity) { if (at.Current("Regrow") != 0.0f) at.SetBase("Regrow", 0.0f); continue; }
+			at.AddBase("Regrow", dt * rate);
+			if (at.Current("Regrow") >= def->RegenSeconds)
+			{
+				at.AddBase("Regrow", -def->RegenSeconds);
+				at.SetBase("Amount", static_cast<float>(std::min(def->Capacity, amount + std::max(1, def->Regen))));
+			}
 		}
 	}
 
