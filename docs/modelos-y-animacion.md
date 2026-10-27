@@ -117,3 +117,10 @@ Decisión: manda `AnimInstance` para los personajes con el conjunto de clips (FB
 
 Pendiente: parámetros y transiciones por condiciones (giro en sitio, agacharse), sockets y objetos en la mano (11C).
 
+### Set `injured` y giros en sitio
+
+- `MixamoSets()` añade el set `injured` (pack *Male Injured*): idle, andar, correr y andar y correr hacia atrás; la mezcla de locomoción los coloca por su velocidad de raíz medida, así que los gestos hacia atrás se activan con velocidad negativa. `player_overlay injured` lo activa.
+- `TurnLayer` (`GB/Animation/TurnLayer.h`, expuesta como `AnimInstance::Turn()`): con el personaje casi parado (< 0,4 m/s) y girando (`MotionState::YawRate`), reproduce un clip de giro encima de la locomoción. Del clip se quitan el giro de la cadera y su desplazamiento (el controlador ya gira y mueve al personaje), así que se ven los pies pisando y la torsión de la columna. Qué clip es el izquierdo y cuál el derecho se lee del propio clip (el signo de su giro de raíz). Cada set tiene su pareja: libre (`left/right turn 90`), `box` (`box turn`, `box turn (2)`), `holding` e `injured`.
+- `CharacterConfig::TurnInPlaceAngle` (0 = desactivado): desde parado, si la dirección pedida está a más de ese ángulo, el personaje gira primero sobre sí mismo a `TurnInPlaceRate` rad/s y luego echa a andar. `PlayerMode` lo activa (70°) para los personajes con clips de giro.
+- Test `turn_layer` (CPU; con `GB_MIXAMO_DIR` y opcionalmente `GB_INJURED_DIR` y `GB_FARMING_DIR` usa los packs reales) y ampliación de `character`.
+

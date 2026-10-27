@@ -79,6 +79,8 @@ namespace GB
 		float Gravity = 12.0f;         // m/s^2
 		float AirControl = 0.3f;       // fraction of the ground acceleration available in the air
 		float FallDrop = 0.6f;         // ground this far below the feet: the character falls instead of easing down
+		float TurnInPlaceAngle = 0.0f; // degrees; > 0: from a standstill the character first turns on the spot when the wanted direction is further than this (0 = off)
+		float TurnInPlaceRate = 3.0f;  // rad/s of that turn (a turn clip plays at about this speed)
 	};
 
 	class CharacterController

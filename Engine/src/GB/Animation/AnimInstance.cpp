@@ -6,7 +6,7 @@ namespace GB
 	AnimInstance::AnimInstance(const Model& model, ModelInstance& instance, const LocomotionOptions& options)
 		: m_Model(model), m_Instance(instance), m_Options(options),
 		  m_LeftFoot(model.FindNode(options.Analysis.LeftFoot)), m_RightFoot(model.FindNode(options.Analysis.RightFoot)),
-		  m_Air(model, options.Analysis), m_Montages(model, options.Analysis)
+		  m_Air(model, options.Analysis), m_Turn(model, options.Analysis), m_Montages(model, options.Analysis)
 	{
 		m_Sets.push_back({ kDefaultSet, std::make_unique<LocomotionBlender>(model, options) });
 		m_Pose = RestPose(model);
@@ -107,6 +107,12 @@ namespace GB
 			m_Air.Apply(m_Pose);
 			if (m_Air.Weight() > 0.5f) m_Events.clear();
 		}
+		m_Turn.Update(state, dt, Overlay());
+		if (m_Turn.Active())
+		{
+			m_Turn.Apply(m_Pose);
+			if (m_Turn.Weight() > 0.5f) m_Events.clear();   // the feet shuffle on the spot: no footsteps
+		}
 		m_Montages.Update(dt);
 		if (m_Montages.Busy())
 		{
@@ -150,6 +156,7 @@ namespace GB
 			{ "box", { "box idle", "box walk arc" } },
 			{ "holding", { "holding idle", "holding walk" } },
 			{ "wheelbarrow", { "wheelbarrow idle", "wheelbarrow walk" } },
+			{ "injured", { "injured idle", "injured walk", "injured run", "injured walk backwards", "injured run backwards" } },
 		};
 	}
 }

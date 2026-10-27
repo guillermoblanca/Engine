@@ -2,6 +2,7 @@
 #include "GB/Animation/AirLayer.h"
 #include "GB/Animation/Locomotion.h"
 #include "GB/Animation/Montage.h"
+#include "GB/Animation/TurnLayer.h"
 #include "GB/Audio/FootstepSounds.h"
 #include "GB/Game/MotionState.h"
 #include "GB/World/Footsteps.h"
@@ -58,6 +59,9 @@ namespace GB
 		// The jump / fall pose, driven by MotionState::Grounded (see AirLayer). Set its clip ("jump") to use it.
 		AirLayer& Air() { return m_Air; }
 
+		// Turning on the spot (MotionState::YawRate while standing still): a turn clip per locomotion set, see TurnLayer.
+		TurnLayer& Turn() { return m_Turn; }
+
 		// Poses the instance for this frame's motion; `characterToWorld` puts the footsteps where the feet are.
 		void Update(const MotionState& state, float dt, const glm::mat4& characterToWorld);
 
@@ -79,6 +83,7 @@ namespace GB
 		FootstepSounds* m_Steps = nullptr;
 		int m_LeftFoot = -1, m_RightFoot = -1;
 		AirLayer m_Air;
+		TurnLayer m_Turn;
 		MontagePlayer m_Montages;
 		Pose m_Pose;
 		std::vector<FootEvent> m_Events;

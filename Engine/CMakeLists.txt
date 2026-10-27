@@ -20,6 +20,7 @@ add_library(GB STATIC
     src/GB/Animation/AnimInstance.cpp
     src/GB/Animation/Montage.cpp
     src/GB/Animation/AirLayer.cpp
+    src/GB/Animation/TurnLayer.cpp
     src/GB/Game/SceneIO.cpp
     src/GB/Game/EntityRender.cpp
     src/GB/Input.cpp
