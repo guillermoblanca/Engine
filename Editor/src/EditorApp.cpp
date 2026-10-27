@@ -541,6 +541,21 @@ namespace GB::Editor
 			const float fade = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 0.3f;
 			return m_Player.SetOverlay(a[0], fade) ? CommandResult{ true, "set " + a[0] } : CommandResult{ false, "no such set '" + a[0] + "'" };
 		});
+		c.Register("manifest_info", "manifest_info: the animation manifest (sets, montages, packs) and what the FBX player has clips for", [this](const std::vector<std::string>&) -> CommandResult { return { true, m_Player.ManifestInfo() }; });
+		c.Register("manifest_load", "manifest_load <file.json>: replaces the animation manifest (rebuilds the FBX player's sets, turns, jump and montages)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: manifest_load <file.json>" };
+			std::string report;
+			const bool ok = m_Player.LoadManifestFile(a[0], report);
+			return { ok, report };
+		});
+		c.Register("manifest_save", "manifest_save <file.json>: writes the animation manifest in use", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: manifest_save <file.json>" };
+			std::string report;
+			const bool ok = m_Player.SaveManifestFile(a[0], report);
+			return { ok, report };
+		});
 		c.Register("player_montage", "player_montage [name [section]|stop]: plays a one-shot action (pick_fruit, water, milk_cow...) over the FBX player; no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };

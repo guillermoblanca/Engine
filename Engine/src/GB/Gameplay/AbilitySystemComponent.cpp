@@ -38,12 +38,17 @@ namespace GB
 	AbilityInstance::AbilityInstance() = default;
 	AbilityInstance::~AbilityInstance() = default;
 
-	int RegisterAbilityMontages(const GameplayLibrary& library, AnimInstance& anim)
+	int RegisterAbilityMontages(const GameplayLibrary& library, AnimInstance& anim, const std::vector<MontageDesc>& base)
 	{
 		int added = 0;
-		for (const MontageDesc& d : AbilityMontages(library, MixamoMontages()))
+		for (const MontageDesc& d : AbilityMontages(library, base))
 			added += anim.Montages().Add(d) ? 1 : 0;
 		return added;
+	}
+
+	int RegisterAbilityMontages(const GameplayLibrary& library, AnimInstance& anim)
+	{
+		return RegisterAbilityMontages(library, anim, MixamoMontages());
 	}
 
 	AbilitySystemComponent::~AbilitySystemComponent() { CancelAll(); }
