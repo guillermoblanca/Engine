@@ -18,6 +18,7 @@ namespace GB
 	{
 		glm::vec2 Move{ 0.0f };   // x = right, y = forward, relative to the camera; any length (clamped to 1)
 		bool Run = false;
+		bool Jump = false;        // held; the jump starts on the press (edge) while standing on the ground
 		float CameraYaw = 0.0f;   // yaw of the OrbitController convention: the camera sits at (sin yaw, cos yaw) from the target
 	};
 
@@ -25,12 +26,13 @@ namespace GB
 	CharacterInput ReadCharacterInput(float cameraYaw);
 
 	// A timeline of input for headless runs and tests: "WD:1.5,RW:2,:0.5" = hold W+D for 1.5 s, then R(un)+W for 2 s,
-	// then nothing for 0.5 s. W A S D move, R runs, Q / E turn the camera left / right; the keys come before the colon.
+	// then nothing for 0.5 s. W A S D move, R runs, J jumps, Q / E turn the camera left / right; the keys come before the colon.
 	struct CharacterScriptStep
 	{
 		float Seconds = 1.0f;
 		glm::vec2 Move{ 0.0f };
 		bool Run = false;
+		bool Jump = false;
 		float CameraTurn = 0.0f;   // -1..1: fraction of the camera's rotate speed
 	};
 	std::vector<CharacterScriptStep> ParseCharacterScript(const std::string& text);
@@ -73,6 +75,10 @@ namespace GB
 		float WadeSpeedFactor = 0.55f; // speed multiplier at full wading depth
 		float MaxSlope = 0.85f;        // max rise over run of the ground the character walks onto (~40 degrees)
 		float GroundSharpness = 22.0f; // smoothing of the height (hides terrain facets); never below the ground
+		float JumpSpeed = 4.2f;        // m/s upward at take-off (with Gravity 12: 0.73 m high, 0.7 s in the air)
+		float Gravity = 12.0f;         // m/s^2
+		float AirControl = 0.3f;       // fraction of the ground acceleration available in the air
+		float FallDrop = 0.6f;         // ground this far below the feet: the character falls instead of easing down
 	};
 
 	class CharacterController
@@ -90,6 +96,10 @@ namespace GB
 		glm::vec3 GetHeading() const { return { std::sin(m_Yaw), 0.0f, std::cos(m_Yaw) }; }
 		float GetWadeDepth() const { return m_WadeDepth; }
 		bool WasBlocked() const { return m_Blocked; }                 // the last step pushed against something
+		bool IsAirborne() const { return m_Airborne; }                // jumping or falling
+		float GetVerticalSpeed() const { return m_VerticalSpeed; }    // m/s, positive up
+		bool JustLanded() const { return m_Landed; }                  // touched the ground in the last step
+		float GetLandingSpeed() const { return m_LandingSpeed; }      // downward m/s of that landing
 
 	private:
 		glm::vec3 m_Position{ 0.0f };
@@ -97,6 +107,8 @@ namespace GB
 		float m_Yaw = 0.0f;
 		float m_WadeDepth = 0.0f;
 		bool m_Blocked = false;
+		bool m_Airborne = false, m_Landed = false, m_JumpHeld = false;
+		float m_VerticalSpeed = 0.0f, m_LandingSpeed = 0.0f;
 	};
 
 	// Locomotion state with hysteresis, so the animation does not flicker around a threshold.

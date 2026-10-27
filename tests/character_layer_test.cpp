@@ -25,6 +25,63 @@ int main()
 	Log::Init();
 	const CharacterWorld world;   // flat ground at 0, no water, no obstacles
 
+	// ---- jump and fall
+	{
+		CharacterController c;
+		c.SetPosition(world, 0, 0, 0.0f);
+		MotionTracker tracker;
+		const float dt = 1.0f / 60.0f;
+		CharacterInput idle, jump;
+		jump.Jump = true;
+		float apex = 0.0f;
+		int landings = 0, airFrames = 0;
+		float landingSpeed = 0.0f;
+		MotionState s;
+		for (int i = 0; i < 120; ++i)
+		{
+			c.Step(i < 90 ? jump : idle, world, dt);   // the button is held for a long time: one jump only
+			s = tracker.Update(c, dt);
+			apex = std::max(apex, s.Position.y);
+			airFrames += s.Grounded ? 0 : 1;
+			if (s.Landed) { ++landings; landingSpeed = s.LandingSpeed; }
+		}
+		Check(Near(apex, 4.2f * 4.2f / 24.0f, 0.05f), "a jump rises v^2 / 2g");
+		Check(landings == 1 && s.Grounded && Near(s.Position.y, 0.0f, 1e-4f), "one landing, back on the ground");
+		Check(Near(landingSpeed, 4.2f, 0.4f), "it lands at about the take-off speed");
+		Check(airFrames > 35 && airFrames < 50, "about 0.7 s in the air");
+
+		// a jump is not available in mid-air; the horizontal speed barely changes with the air control
+		c.SetPosition(world, 0, 0, 0.0f);
+		CharacterInput run; run.Move = { 0, 1 }; run.Run = true; run.CameraYaw = 3.14159265f;
+		for (int i = 0; i < 90; ++i) c.Step(run, world, dt);
+		const float groundSpeed = c.GetSpeed();
+		CharacterInput runJump = run; runJump.Jump = true;
+		c.Step(runJump, world, dt);
+		Check(c.IsAirborne(), "jumping while running");
+		runJump.Jump = false; c.Step(runJump, world, dt); runJump.Jump = true;
+		const float vy = c.GetVerticalSpeed();
+		c.Step(runJump, world, dt);
+		Check(c.GetVerticalSpeed() < vy && c.GetSpeed() > groundSpeed - 0.5f, "no second jump in the air; speed is kept");
+	}
+	{
+		// walking off a ledge: the character falls instead of easing down
+		CharacterWorld ledge;
+		ledge.GroundHeight = [](float, float z) { return z < 1.0f ? 2.0f : 0.0f; };
+		CharacterController c;
+		c.SetPosition(ledge, 0, 0, 0.0f);
+		MotionTracker tracker;
+		CharacterInput walk; walk.Move = { 0, 1 }; walk.CameraYaw = 3.14159265f;
+		bool fell = false, landed = false;
+		for (int i = 0; i < 240; ++i)
+		{
+			c.Step(walk, ledge, 1.0f / 60.0f);
+			const MotionState s = tracker.Update(c, 1.0f / 60.0f);
+			fell = fell || !s.Grounded;
+			landed = landed || (s.Landed && s.LandingSpeed > 3.0f);
+		}
+		Check(fell && landed && !c.IsAirborne() && Near(c.GetPosition().y, 0.0f, 1e-3f), "a 2 m drop is a fall with a hard landing");
+	}
+
 	// ---- the motion state of a controller
 	{
 		CharacterController c;

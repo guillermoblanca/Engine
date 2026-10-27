@@ -5,7 +5,8 @@ namespace GB
 {
 	AnimInstance::AnimInstance(const Model& model, ModelInstance& instance, const LocomotionOptions& options)
 		: m_Model(model), m_Instance(instance), m_Options(options),
-		  m_LeftFoot(model.FindNode(options.Analysis.LeftFoot)), m_RightFoot(model.FindNode(options.Analysis.RightFoot))
+		  m_LeftFoot(model.FindNode(options.Analysis.LeftFoot)), m_RightFoot(model.FindNode(options.Analysis.RightFoot)),
+		  m_Air(model, options.Analysis), m_Montages(model, options.Analysis)
 	{
 		m_Sets.push_back({ kDefaultSet, std::make_unique<LocomotionBlender>(model, options) });
 		m_Pose = RestPose(model);
@@ -99,6 +100,18 @@ namespace GB
 		{
 			m_Pose = active.GetPose();
 			m_Events = active.Events();
+		}
+		m_Air.Update(state, dt);
+		if (m_Air.Active())
+		{
+			m_Air.Apply(m_Pose);
+			if (m_Air.Weight() > 0.5f) m_Events.clear();
+		}
+		m_Montages.Update(dt);
+		if (m_Montages.Busy())
+		{
+			m_Montages.Apply(m_Pose);
+			if (m_Montages.FullBodyWeight() > 0.5f) m_Events.clear();   // the legs are not walking: no footsteps
 		}
 		m_Instance.SetPose(m_Pose);
 

@@ -40,6 +40,7 @@ namespace GB
 		if (Input::IsKeyDown(Key::A)) in.Move.x -= 1.0f;
 		const glm::vec2 stick(Input::GetGamepadAxis(GamepadAxis::LeftX), -Input::GetGamepadAxis(GamepadAxis::LeftY));
 		in.Move += stick;
+		in.Jump = Input::IsKeyDown(Key::Space) || Input::IsGamepadButtonDown(GamepadButton::A);
 		in.Run = Input::IsKeyDown(Key::LeftShift) || Input::IsGamepadButtonDown(GamepadButton::LeftStick) || glm::length(stick) > 0.9f;
 		return in;
 	}
@@ -69,6 +70,7 @@ namespace GB
 				case 'D': case 'd': step.Move.x += 1.0f; break;
 				case 'A': case 'a': step.Move.x -= 1.0f; break;
 				case 'R': case 'r': step.Run = true; break;
+				case 'J': case 'j': step.Jump = true; break;
 				case 'Q': case 'q': step.CameraTurn -= 1.0f; break;
 				case 'E': case 'e': step.CameraTurn += 1.0f; break;
 				default: break;
@@ -138,6 +140,8 @@ namespace GB
 		m_Yaw = WrapAngle(yawRadians);
 		m_WadeDepth = Depth(world, x, z);
 		m_Blocked = false;
+		m_Airborne = m_Landed = m_JumpHeld = false;
+		m_VerticalSpeed = m_LandingSpeed = 0.0f;
 	}
 
 	void CharacterController::Step(const CharacterInput& input, const CharacterWorld& world, float dt)
@@ -169,7 +173,7 @@ namespace GB
 		glm::vec2 v(m_Velocity.x, m_Velocity.z);
 		const glm::vec2 delta = wishDir * speedCap - v;
 		const float deltaLength = glm::length(delta);
-		const float maxChange = (hasInput ? c.Acceleration : c.Deceleration) * dt;
+		const float maxChange = (hasInput ? c.Acceleration : c.Deceleration) * dt * (m_Airborne ? c.AirControl : 1.0f);
 		v = deltaLength <= maxChange ? wishDir * speedCap : v + delta * (maxChange / deltaLength);
 
 		// Heading: turn toward the direction of travel by the shortest way, with a rate cap.
@@ -191,6 +195,8 @@ namespace GB
 				return true;
 			if (Depth(world, to.x, to.y) > std::max(c.MaxWadeDepth, fromDepth))
 				return false;
+			if (m_Airborne)   // in the air only what is higher than the feet is in the way
+				return Ground(world, to.x, to.y) <= m_Position.y + 0.3f;
 			return (Ground(world, to.x, to.y) - fromGround) / dist <= c.MaxSlope;
 		};
 		const glm::vec2 step = v * dt;
@@ -231,10 +237,44 @@ namespace GB
 			v = glm::normalize(v) * std::max(cap, glm::length(step) / dt);   // a shove out of an overlap is not speed
 		m_Velocity = { v.x, 0.0f, v.y };
 
-		// Ground following: climbs snap (never inside the terrain), descents ease.
+		// Vertical: standing on the ground (climbs snap, descents ease), or a jump / fall under gravity.
 		const float g = Ground(world, to.x, to.y);
-		const float y = m_Position.y + (g - m_Position.y) * Damp(c.GroundSharpness, dt);
-		m_Position = { to.x, std::max(y, g), to.y };
+		m_Landed = false;
+		const bool jumpPressed = input.Jump && !m_JumpHeld;
+		m_JumpHeld = input.Jump;
+		if (!m_Airborne)
+		{
+			if (jumpPressed && c.JumpSpeed > 0.0f)
+			{
+				m_Airborne = true;
+				m_VerticalSpeed = c.JumpSpeed;
+			}
+			else if (m_Position.y - g > c.FallDrop)   // walked off an edge
+			{
+				m_Airborne = true;
+				m_VerticalSpeed = 0.0f;
+			}
+		}
+		if (m_Airborne)
+		{
+			m_VerticalSpeed -= c.Gravity * dt;
+			const float y = m_Position.y + m_VerticalSpeed * dt;
+			if (m_VerticalSpeed <= 0.0f && y <= g)
+			{
+				m_Airborne = false;
+				m_Landed = true;
+				m_LandingSpeed = -m_VerticalSpeed;
+				m_VerticalSpeed = 0.0f;
+				m_Position = { to.x, g, to.y };
+			}
+			else
+				m_Position = { to.x, std::max(y, g), to.y };
+		}
+		else
+		{
+			const float y = m_Position.y + (g - m_Position.y) * Damp(c.GroundSharpness, dt);
+			m_Position = { to.x, std::max(y, g), to.y };
+		}
 		m_WadeDepth = Depth(world, to.x, to.y);
 	}
 

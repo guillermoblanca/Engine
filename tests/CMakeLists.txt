@@ -158,3 +158,8 @@ add_executable(GBAnimInstanceTests anim_instance_test.cpp)
 target_link_libraries(GBAnimInstanceTests PRIVATE GB::GB)
 target_compile_definitions(GBAnimInstanceTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME anim_instance COMMAND GBAnimInstanceTests)
+
+add_executable(GBMontageTests montage_test.cpp)
+target_link_libraries(GBMontageTests PRIVATE GB::GB)
+target_compile_definitions(GBMontageTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME montage COMMAND GBMontageTests)

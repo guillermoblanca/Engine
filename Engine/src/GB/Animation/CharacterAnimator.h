@@ -18,6 +18,10 @@ namespace GB
 		// Registers the other Mixamo sets (box, holding, wheelbarrow...) the model has clips for; returns their names.
 		std::vector<std::string> AddMixamoSets();
 
+		// Registers what the Mixamo packs give besides locomotion: the "UpperBody" slot, the farming actions as montages and the
+		// jump clip for the air layer. Returns how many montages the model has clips for.
+		int AddMixamoActions();
+
 		AnimInstance& Anim() { return m_Anim; }
 		LocomotionBlender& Locomotion() { return m_Anim.Active(); }
 		void SetFootsteps(FootstepSounds* steps) { m_Anim.SetFootsteps(steps); }
