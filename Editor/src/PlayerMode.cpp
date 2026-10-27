@@ -101,6 +101,7 @@ namespace GB::Editor
 			animator->AddMixamoActions();   // farming montages and the jump clip
 			animator->SetFootsteps(m_Steps);
 			m_Animator = std::move(animator);
+			ApplyFeet();
 		}
 		else
 		{
@@ -119,6 +120,12 @@ namespace GB::Editor
 		m_ScriptTime = 0.0f;
 		GB_CLIENT_INFO("Player mode: {} at ({:.1f}, {:.1f}), {} obstacles{}", isFbx ? kind : fox ? "fox" : "cesium", start.x, start.y, m_Obstacles, m_Animator ? ", locomotion blend" : "");
 		return true;
+	}
+
+	void PlayerMode::ApplyFeet()
+	{
+		if (!m_Animator) return;
+		m_Animator->Anim().Feet().SetGround(m_FeetOn ? m_World.GroundHeight : std::function<float(float, float)>());
 	}
 
 	void PlayerMode::Stop()
@@ -186,6 +193,12 @@ namespace GB::Editor
 		{
 			m_Animation.Update(*m_Instance, m_Controller.GetSpeed());
 			m_Instance->Update(dt);
+		}
+		if (m_LookCamera && m_Animator)
+		{
+			Camera cam;
+			m_Camera.Apply(cam);
+			m_Animator->Anim().Look().SetTarget(cam.Position);
 		}
 		if (!m_PendingProp.empty() && m_Animator && !m_Animator->Anim().Transitioning())
 		{

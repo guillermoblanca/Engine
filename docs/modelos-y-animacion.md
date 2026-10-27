@@ -126,5 +126,14 @@ Pendiente: parámetros y transiciones por condiciones (giro en sitio, agacharse)
 - Editor: `player_attach box|bag|tool|off`: la caja pasa al set `box`, mide los agarres y se lleva con las dos manos; la mochila va a la espalda y la herramienta en la mano derecha.
 - Tests: `props` (CPU) con un humanoide generado (`tools/make_test_fbx.py` → `tests/data/test_humanoid.fbx`): rig, sockets, IK (alcance, longitudes, polo, estirado, peso, orientación), caja con agarres, `SnapGrips`; con `GB_MIXAMO_DIR`/`GB_FARMING_DIR`, la caja con los clips reales (palmas a menos de 1,5 cm de los agarres caminando). Observación del pack: el clip `box walk arc` tiene un salto propio de unos 18 cm en la mano una vez por ciclo.
 
-Pendiente (11C-2): IK de pies al terreno, pelvis, mirada (look-at) y manos/rodillas al suelo.
+### IK de pies y mirada (Fase 11C-2)
+
+Capas procedurales de `AnimInstance`, después de los clips, los montajes y la pose de salto (y antes de los agarres de las manos). Se atenúan solas mientras hay una acción de cuerpo completo o un salto en pantalla.
+
+- **`FootIK`** (`FootIK.h`): con una función de altura del terreno (`Feet().SetGround(f)`), cada pie se mueve la diferencia entre la altura del suelo bajo él y la del suelo bajo el personaje; la pelvis baja hasta el pie más bajo (nunca sube) para que las piernas lleguen; cada pierna se resuelve con IK de dos huesos y la suela se inclina hacia la pendiente (con tope). Los desplazamientos se suavizan (un escalón repentino se asienta en unas décimas de segundo, sin saltos). Los clips siguen decidiendo dónde van los pies sobre el plano.
+- **`LookAt`** (`LookAt.h`): gira la cabeza (y un poco el cuello y el pecho) hacia un punto del mundo con límites de giro y cabeceo (70°/40°), suavizado y fundido de entrada y salida; se aplica como corrección de la pose del clip, no la sustituye. Un objetivo a la espalda gira la cabeza solo hasta el límite.
+- Editor: el jugador FBX lleva el IK de pies al terreno activado (`player_feet on|off`) y `player_look <x> <y> <z>|camera|off` gira la cabeza.
+- Test `procedural` (CPU, humanoide generado): suelo plano sin cambios, escalón arriba y abajo, pendiente (la suela la sigue), personaje colocado, girado y escalado, pesos, escalón repentino, mirada (alcance, cabeceo, límites, volver a mirar al frente, reparto entre pecho, cuello y cabeza) y las dos capas dentro de un `AnimInstance`.
+
+Pendiente: manos y rodillas al suelo en posturas arrodilladas o sentadas, y bloqueo del apoyo (sin patinaje) de los pies.
 

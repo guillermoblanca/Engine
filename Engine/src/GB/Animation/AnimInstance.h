@@ -1,7 +1,9 @@
 #pragma once
 #include "GB/Animation/AirLayer.h"
 #include "GB/Animation/Locomotion.h"
+#include "GB/Animation/FootIK.h"
 #include "GB/Animation/IK.h"
+#include "GB/Animation/LookAt.h"
 #include "GB/Animation/Montage.h"
 #include "GB/Animation/Socket.h"
 #include "GB/Audio/FootstepSounds.h"
@@ -72,6 +74,12 @@ namespace GB
 		// splashes are fed the same way whichever animation system moves the character. Empty while airborne.
 		const std::vector<FootPlant>& Plants() const { return m_Plants; }
 
+		// Procedural layers, after the clips, montages and the air pose: the feet on the terrain (give it a ground height with
+		// Feet().SetGround) and the head turned toward a point (Look().SetTarget). Both fade out by themselves while a full-body action or
+		// a jump is on screen.
+		FootIK& Feet() { return *m_Feet; }
+		LookAt& Look() { return *m_Look; }
+
 		// Sockets and props. A prop follows its socket and, through its grips, pulls the hands onto itself with IK (after the clips and
 		// montages, before the pose reaches the instance). `Detach` lets go over the prop's fade time.
 		SocketSet& Sockets() { return m_Sockets; }
@@ -127,6 +135,8 @@ namespace GB
 		void ApplyGrips(const glm::mat4& characterToWorld);
 
 		HumanoidRig m_Rig;
+		std::unique_ptr<FootIK> m_Feet;
+		std::unique_ptr<LookAt> m_Look;
 		SocketSet m_Sockets;
 		std::vector<Attached> m_Props;
 		std::vector<glm::mat4> m_WorldScratch;

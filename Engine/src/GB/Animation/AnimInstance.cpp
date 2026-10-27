@@ -11,6 +11,8 @@ namespace GB
 		const std::string& root = options.Analysis.RootBone;   // "mixamorig:Hips": the rig's bones share its prefix
 		m_Rig = FindHumanoidRig(model, root.size() > 4 && root.compare(root.size() - 4, 4, "Hips") == 0 ? root.substr(0, root.size() - 4) : std::string());
 		m_Sockets = StandardSockets(model, m_Rig);
+		m_Feet = std::make_unique<FootIK>(model, m_Rig);
+		m_Look = std::make_unique<LookAt>(model, m_Rig);
 		m_Sets.push_back({ kDefaultSet, std::make_unique<LocomotionBlender>(model, options) });
 		m_Pose = RestPose(model);
 	}
@@ -115,6 +117,12 @@ namespace GB
 		{
 			m_Montages.Apply(m_Pose);
 			if (m_Montages.FullBodyWeight() > 0.5f) m_Events.clear();   // the legs are not walking: no footsteps
+		}
+		{
+			// the procedural layers fade out while an action or a jump has the whole body
+			const float free = (1.0f - std::min(m_Montages.FullBodyWeight(), 1.0f)) * (1.0f - std::min(m_Air.Weight(), 1.0f));
+			m_Feet->Update(m_Pose, characterToWorld, free, dt);
+			m_Look->Update(m_Pose, characterToWorld, 1.0f - std::min(m_Montages.FullBodyWeight(), 1.0f), dt);
 		}
 		for (Attached& a : m_Props)   // the hands reach for the prop (or let go of it)
 			a.Weight = a.Leaving ? std::max(a.Weight - dt / std::max(a.P.FadeSeconds, 1e-3f), 0.0f) : std::min(a.Weight + dt / std::max(a.P.FadeSeconds, 1e-3f), 1.0f);

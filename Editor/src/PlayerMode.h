@@ -54,6 +54,12 @@ namespace GB::Editor
 		bool AttachProp(const std::string& name);
 		void DetachProp(const std::string& name = "");   // empty: all of them
 		std::vector<std::string> PropNames() const { return m_Animator ? m_Animator->Anim().PropNames() : std::vector<std::string>(); }
+		// Procedural layers of the FBX player: feet on the terrain (on by default) and the head turned toward a world point.
+		void SetFootIK(bool on) { m_FeetOn = on; ApplyFeet(); }
+		bool FootIKOn() const { return m_FeetOn; }
+		void LookAtPoint(const glm::vec3& p) { m_LookCamera = false; if (m_Animator) m_Animator->Anim().Look().SetTarget(p); }
+		void LookAtCamera(bool on) { m_LookCamera = on; if (!on && m_Animator) m_Animator->Anim().Look().ClearTarget(); }
+		void ClearLook() { LookAtCamera(false); }
 		const MotionState& GetMotion() const { return m_Motion; }
 		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
 		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
@@ -66,6 +72,8 @@ namespace GB::Editor
 
 	private:
 		glm::mat4 RootMatrix() const;
+		void ApplyFeet();
+		bool m_FeetOn = true, m_LookCamera = false;
 		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
 		std::map<std::string, PropLook> m_PropLooks;
 		mutable std::unique_ptr<Mesh> m_PropMesh;
