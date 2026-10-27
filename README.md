@@ -77,6 +77,7 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | Objetos, inventario, recursos y recetas | [docs/OBJETOS.md](docs/OBJETOS.md) |
 | La primera tribu: trabajadores autónomos (`tribe build`) | [docs/TRIBU.md](docs/TRIBU.md) |
 | Percepción, necesidades y cerebro de utilidad de los agentes (`ai`) | [docs/IA.md](docs/IA.md) |
+| Navegación: cuadrícula con costes, caminos y evitación (`nav`) | [docs/NAVEGACION.md](docs/NAVEGACION.md) |
 | Interactivos con estado: fogata, pozo, puerta (`interactives build`) | [docs/INTERACTIVOS.md](docs/INTERACTIVOS.md) |
 | Estaciones y ecología: conejos que comen, crían y se mueren de hambre (`ecology`) | [docs/ECOLOGIA.md](docs/ECOLOGIA.md) |
 | Partículas y clima | [docs/efectos.md](docs/efectos.md) |

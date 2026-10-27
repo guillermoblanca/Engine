@@ -120,6 +120,8 @@ namespace GB::Editor
 		CommandResult ResourcesCommand(const std::vector<std::string>& a);
 		CommandResult TribeCommand(const std::vector<std::string>& a);
 		CommandResult AiCommand(const std::vector<std::string>& a);
+		CommandResult NavCommand(const std::vector<std::string>& a);
+		void DrawNavDebug(float ox, float oy, float w, float h);   // blocked and costly cells and the paths walked, over the viewport
 		CommandResult InteractivesCommand(const std::vector<std::string>& a);
 		void SyncGameplay();                                     // ability systems from the scene's entities (after a scene is loaded or the garden built)
 		CommandResult AbilityCommand(const std::vector<std::string>& a);
@@ -148,6 +150,8 @@ namespace GB::Editor
 		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		bool m_AiDebug = false;                                  // `ai debug on`: cones, obstacles and memory drawn in the viewport
+		bool m_NavDebug = false;                                 // `nav debug on`
+		float m_NavSyncTimer = 0.0f;                             // real seconds to the next look at whether trees went or appeared
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
 		Tribe m_Tribe;                                           // the first tribe (`tribe build`): workers that gather, carry, craft and light a fire alone
 		std::vector<std::unique_ptr<ITribeBody>> m_TribeBodies;

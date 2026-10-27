@@ -9,6 +9,7 @@ add_library(GB STATIC
     src/GB/Application.cpp
     src/GB/Game/CharacterController.cpp
     src/GB/Game/MotionState.cpp
+    src/GB/Navigation/NavGrid.cpp
     src/GB/Game/AIDriver.cpp
     src/GB/Game/MotionWarp.cpp
     src/GB/Game/Interaction.cpp

@@ -98,6 +98,8 @@ namespace GB
 		float ViewYaw() const { return m_ViewYaw; }             // what "forward" is relative to for Direct and Script input; scripts turn it
 		void SetViewYaw(float yaw) { m_ViewYaw = yaw; }
 		void MoveTo(const glm::vec2& xz, bool run);
+		void SetNavigation(const NavGrid* nav) { m_World.Nav = nav; }   // null: straight lines
+		NavProfile Navigation;   // how this actor values the terrain when it plans a path (role, load); see GB/Navigation/NavGrid.h
 		bool AIArrived() const { return m_Source == OrderSource::AI && m_AI.Arrived(); }
 		bool AIStuck() const { return m_Source == OrderSource::AI && m_AI.Stuck(); }
 		// Tasks (see GB/Game/TaskList.h): the actor does them like any NPC. False (and `error`) when the text is not a task list.
