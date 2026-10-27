@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 option(GB_BUILD_SANDBOX "Build the Sandbox application" ON)
 option(GB_BUILD_TESTS "Build the tests" ON)
+option(GB_BUILD_EDITOR "Build the Editor (Dear ImGui)" ON)
 option(GB_WARNINGS_AS_ERRORS "Treat warnings as errors" OFF)
 
 include(FetchContent)
@@ -40,7 +41,29 @@ FetchContent_Declare(cgltf
     GIT_REPOSITORY https://github.com/jkuhlmann/cgltf.git
     GIT_TAG v1.14)
 
+# nlohmann/json (pinned, header-only): scene files.
+FetchContent_Declare(json
+    GIT_REPOSITORY https://github.com/nlohmann/json.git
+    GIT_TAG v3.11.3
+    GIT_SHALLOW TRUE)
+
+# Dear ImGui (docking branch, pinned): only the sources are used, the Editor builds them itself.
+FetchContent_Declare(imgui
+    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+    GIT_TAG v1.91.9b-docking
+    GIT_SHALLOW TRUE)
+
 FetchContent_MakeAvailable(spdlog glfw glm)
+if(GB_BUILD_EDITOR)
+    FetchContent_GetProperties(imgui)
+    if(NOT imgui_POPULATED)
+        FetchContent_Populate(imgui)
+    endif()
+endif()
+FetchContent_GetProperties(json)
+if(NOT json_POPULATED)
+    FetchContent_Populate(json)
+endif()
 FetchContent_GetProperties(cgltf)
 if(NOT cgltf_POPULATED)
     FetchContent_Populate(cgltf)
@@ -54,6 +77,10 @@ add_subdirectory(Engine)
 
 if(GB_BUILD_SANDBOX)
     add_subdirectory(Sandbox)
+endif()
+
+if(GB_BUILD_EDITOR)
+    add_subdirectory(Editor)
 endif()
 
 if(GB_BUILD_TESTS)

@@ -1,0 +1,104 @@
+// Entity world and scene files: hierarchy, transforms, names, duplication, JSON round trips and errors. CPU only.
+#include "GB/Game/Entity.h"
+#include "GB/Game/SceneIO.h"
+#include <cmath>
+#include <cstdio>
+
+namespace
+{
+	int failures = 0;
+	void Check(bool ok, const char* what)
+	{
+		if (!ok) { std::fprintf(stderr, "FAIL: %s\n", what); ++failures; }
+	}
+	bool Near(const glm::mat4& a, const glm::mat4& b, float eps = 1e-4f)
+	{
+		for (int c = 0; c < 4; ++c)
+			for (int r = 0; r < 4; ++r)
+				if (std::fabs(a[c][r] - b[c][r]) > eps) return false;
+		return true;
+	}
+}
+
+int main()
+{
+	using namespace GB;
+
+	EntityWorld w;
+	const EntityId a = w.Create("Crate");
+	const EntityId b = w.Create("Crate");
+	Check(w.Find(a)->Name == "Crate" && w.Find(b)->Name == "Crate 2", "names are made unique");
+	Check(w.FindByName("Crate 2") == b, "find by name");
+	Check(w.Rename(b, "Crate") && w.Find(b)->Name == "Crate 2", "rename keeps names unique");
+	Check(w.Create("x", 999) == NullEntity, "unknown parent rejected");
+
+	// Hierarchy and world matrices.
+	w.Find(a)->Transform.Position = { 10, 0, 0 };
+	w.Find(a)->Transform.Rotation = { 0, 90, 0 };
+	const EntityId child = w.Create("Child", a);
+	w.Find(child)->Transform.Position = { 0, 0, 2 };
+	const glm::vec3 p = glm::vec3(w.WorldMatrix(child)[3]);
+	Check(std::fabs(p.x - 12.0f) < 1e-4f && std::fabs(p.z) < 1e-4f, "child follows the rotated parent");
+
+	// Reparenting keeps the world transform; cycles are rejected.
+	const glm::mat4 before = w.WorldMatrix(child);
+	Check(w.SetParent(child, b, true), "reparent");
+	Check(Near(w.WorldMatrix(child), before), "reparent keeps world transform");
+	Check(w.Find(a)->Children.empty() && w.Find(b)->Children.size() == 1, "children lists updated");
+	Check(!w.SetParent(b, child), "cycle rejected");
+	Check(!w.SetParent(b, b), "self parent rejected");
+
+	// Activation inherits.
+	w.Find(b)->Active = false;
+	Check(!w.IsActive(child) && w.IsActive(a), "inactive parent deactivates children");
+	w.Find(b)->Active = true;
+
+	// Components and tags.
+	w.Find(a)->Mesh.emplace().Shape = MeshShape::Sphere;
+	w.Find(a)->Mesh->Albedo = { 0.1f, 0.2f, 0.3f };
+	w.Find(a)->Light.emplace().Intensity = 12.5f;
+	w.Find(child)->Body.emplace().Mass = 3.0f;
+	w.Find(child)->Tags = { "loot", "wood" };
+	Check(w.FindByTag("wood").size() == 1, "find by tag");
+
+	// Duplicate and destroy.
+	const size_t count = w.Count();
+	const EntityId copy = w.Duplicate(b);
+	Check(copy != NullEntity && w.Count() == count + 2, "duplicate copies descendants");
+	Check(w.Find(copy)->Children.size() == 1 && w.Find(w.Find(copy)->Children[0])->Body.has_value(), "copy keeps components");
+	Check(w.Destroy(copy) && w.Count() == count, "destroy removes the subtree");
+	Check(!w.Destroy(copy), "destroy twice fails");
+
+	// JSON round trip: second save is identical (stable, diff-friendly text).
+	const std::string text = SaveSceneToString(w);
+	EntityWorld loaded;
+	const SceneIOResult r = LoadSceneFromString(loaded, text);
+	Check(r.Ok, "load succeeds");
+	Check(SaveSceneToString(loaded) == text, "save/load/save is identical");
+	Check(loaded.Count() == w.Count(), "entity count preserved");
+	Check(loaded.Find(child) && loaded.Find(child)->Parent == b, "ids and parents preserved");
+	Check(loaded.Find(a)->Mesh && loaded.Find(a)->Mesh->Shape == MeshShape::Sphere, "mesh preserved");
+	Check(loaded.Find(child)->Body && loaded.Find(child)->Body->Mass == 3.0f, "body preserved");
+	Check(Near(loaded.WorldMatrix(child), w.WorldMatrix(child)), "transforms preserved");
+	Check(loaded.Create("New") > child, "ids keep counting after a load");
+
+	// Errors leave the target untouched.
+	EntityWorld untouched;
+	untouched.Create("Keep");
+	Check(!LoadSceneFromString(untouched, "not json").Ok, "bad json rejected");
+	Check(!LoadSceneFromString(untouched, R"({"version":2,"entities":[]})").Ok, "bad version rejected");
+	Check(!LoadSceneFromString(untouched, R"({"version":1,"entities":[{"id":1},{"id":1}]})").Ok, "duplicate id rejected");
+	Check(!LoadSceneFromString(untouched, R"({"version":1,"entities":[{"id":1,"parent":7}]})").Ok, "dangling parent rejected");
+	Check(!LoadSceneFromString(untouched, R"({"version":1,"entities":[{"id":1,"mesh":{"shape":"torus"}}]})").Ok, "unknown shape rejected");
+	Check(!LoadSceneFromString(untouched, R"({"version":1,"entities":[{"id":1,"position":[1,2]}]})").Ok, "bad vector rejected");
+	Check(untouched.Count() == 1 && untouched.FindByName("Keep") != NullEntity, "failed load keeps the world");
+
+	// Hand-written files need only the interesting fields.
+	EntityWorld hand;
+	Check(LoadSceneFromString(hand, R"({"version":1,"entities":[{"id":5,"name":"Lamp","position":[0,3,0],"light":{"intensity":40}}]})").Ok, "minimal file loads");
+	Check(hand.Find(5) && hand.Find(5)->Light && hand.Find(5)->Light->Intensity == 40.0f, "minimal file values");
+
+	if (failures) return 1;
+	std::puts("entity tests passed");
+	return 0;
+}

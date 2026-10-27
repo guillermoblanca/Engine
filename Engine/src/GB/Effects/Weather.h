@@ -91,6 +91,9 @@ namespace GB
 		DirectionalLight m_BaseSun;
 		size_t m_BaseParticles = 0, m_BaseBatches = 0, m_BaseLights = 0;
 		bool m_HasBase = false;
+	public:
+		bool HasBase() const { return m_HasBase; }
+	private:
 		std::function<float(float, float)> m_GroundFn;
 		float GroundAt(float x, float z) const { return m_GroundFn ? m_GroundFn(x, z) : GroundY; }
 	};
