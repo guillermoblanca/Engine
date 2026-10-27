@@ -243,6 +243,7 @@ namespace GB
 	void Actor::SetOthers(const std::vector<CircleObstacle>& others)
 	{
 		m_World.Obstacles.resize(m_StaticObstacles);
+		m_World.DynamicFrom = m_StaticObstacles;
 		m_World.Obstacles.insert(m_World.Obstacles.end(), others.begin(), others.end());
 	}
 
@@ -509,11 +510,12 @@ namespace GB
 					return true;
 				};
 				const TaskRunner::Resolver none = [](const std::string&, const std::string&, InteractionTarget&, std::string*) { return false; };
+				m_Tasks.Profile = Navigation;
 				return m_Tasks.Update(m_Controller, m_World, m_Animator ? &m_Animator->Anim() : nullptr, dt, m_Interactions ? m_Interactions : none, props, AbilityHandler());
 			}
 			break;
 		case OrderSource::AI:
-			if (!m_AI.Arrived() && !m_AI.Stuck()) return m_AI.Update(m_Controller, dt);
+			if (!m_AI.Arrived() && !m_AI.Stuck()) { m_AI.Profile = Navigation; return m_AI.Update(m_Controller, m_World, dt); }
 			break;
 		case OrderSource::Replay:
 			if (m_ReplayIndex < m_Replay.size()) return m_Replay[m_ReplayIndex++];

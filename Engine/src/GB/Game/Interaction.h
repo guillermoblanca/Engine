@@ -33,6 +33,7 @@ namespace GB
 		enum class Phase { Idle, Approach, Align, Act, Done, Failed };
 
 		float ActSeconds = 1.0f;   // how long "acting" lasts with no animation or no montage to wait for
+		NavProfile Profile;        // how the walker values the terrain while it approaches
 
 		// False (and Failed) when the character lacks the prop the point requires. `run`: hurry there.
 		bool Start(const InteractionTarget& target, AnimInstance* anim, bool run = false);
