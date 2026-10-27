@@ -1,4 +1,6 @@
 #include "GB/Gameplay/AbilityTasks.h"
+#include "GB/Gameplay/Items.h"
+#include <algorithm>
 
 namespace GB
 {
@@ -29,10 +31,15 @@ namespace GB
 		m_Montage = c.Ability.Montage;
 		m_Time = 0.0f;
 		m_Real = false;
+		// A better tool swings faster: the carrier's "Speed:<family>" attribute (kept by ResourceSystem::SyncTools) for the tool the ability requires.
+		m_Rate = 1.0f;
+		for (const std::string& tag : c.Ability.Def->RequiredTags)
+			if (tag.rfind("Item.Tool.", 0) == 0)
+				if (const std::string attr = "Speed:" + ToolFamily(tag); c.Owner.Attributes().Has(attr)) m_Rate = c.Owner.Attributes().Current(attr);
 		AnimInstance* anim = c.Runtime ? c.Runtime->Anim : nullptr;
 		if (anim && !m_Montage.empty() && anim->Montages().Has(m_Montage))
 		{
-			if (!anim->Montages().Play(m_Montage)) { Fail("could not play '" + m_Montage + "'"); return; }
+			if (!anim->Montages().Play(m_Montage, "", m_Rate)) { Fail("could not play '" + m_Montage + "'"); return; }
 			m_Real = true;
 		}
 	}
@@ -54,7 +61,7 @@ namespace GB
 			return;
 		}
 		m_Time += dt;
-		const float total = def.Duration;
+		const float total = def.Duration / std::max(m_Rate, 0.1f);
 		for (const AbilityEventDef& e : def.Events)
 			if (!e.Notify.empty() && e.Time * total <= m_Time + 1e-5f) c.Owner.FireNotify(c.Ability, e.Notify);
 		if (m_Time + 1e-5f >= total)

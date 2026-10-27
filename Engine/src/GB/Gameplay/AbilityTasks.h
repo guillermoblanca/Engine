@@ -65,6 +65,7 @@ namespace GB
 	private:
 		bool m_Real = false;
 		float m_Time = 0.0f;
+		float m_Rate = 1.0f;   // playback speed of this use (the tool's)
 		std::string m_Montage;
 	};
 

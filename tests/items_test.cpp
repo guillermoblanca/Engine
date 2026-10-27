@@ -235,6 +235,65 @@ int main()
 		Check(er.Craft(ei, mats, "cordage", "") && er.Craft(ei, mats, "flint_axe", "workbench") && mats.Count("flint_axe") == 1, "cordage and a flint axe can be crafted");
 	}
 
+	// Tool levels and containers (E2).
+	{
+		const ItemDef* flint = w.Items.Find("flint_axe");
+		const ItemDef* stone = w.Items.Find("stone_axe");
+		Check(flint && stone && flint->Power > stone->Power && flint->Speed > stone->Speed, "a flint axe is stronger and faster than a stone one");
+		Inventory tools(8);
+		tools.Add(w.Items, "stone_axe", 1);
+		tools.Add(w.Items, "flint_axe", 1);
+		Check(tools.BestTool(w.Items, "Item.Tool.Axe") == flint && tools.BestTool(w.Items, "Item.Tool.Pickaxe") == nullptr, "the best tool of a family is found through the tag hierarchy");
+		Check(ToolFamily("Item.Tool.Axe.Flint") == "Item.Tool.Axe" && ToolFamily("Item.Tool.Axe") == "Item.Tool.Axe", "a tool family is three tag segments");
+		Inventory flintOnly(4);
+		flintOnly.Add(w.Items, "flint_axe", 1);
+		flintOnly.Add(w.Items, "wood", 4);
+		flintOnly.Add(w.Items, "stone", 3);
+		Check(w.Recipes.Craft(w.Items, flintOnly, "campfire", "") && flintOnly.Count("campfire") == 1, "a recipe that asks for an axe accepts a flint axe");
+
+		// The basket: bigger bag; only the best container counts; the bonus goes when the basket does.
+		Inventory bag(4, 10.0f);
+		Check(bag.Slots() == 4 && bag.MaxWeight() == 10.0f, "a plain bag");
+		bag.Add(w.Items, "basket_wicker", 1);
+		bag.SyncCapacity(w.Items);
+		Check(bag.Slots() == 10 && bag.MaxWeight() == 18.0f && bag.BestContainer(w.Items)->Id == "basket_wicker", "a basket adds six slots and 8 kg");
+		Check(bag.Add(w.Items, "stone", 5) == 5 && bag.UsedSlots() == 2, "and the room can be used");
+		ItemDef big = *w.Items.Find("basket_wicker");
+		big.Id = "big_basket"; big.BagSlots = 2; big.BagWeight = 1.0f;
+		ItemLibrary lib2 = w.Items;
+		lib2.Add(big);
+		bag.Add(lib2, "big_basket", 1);
+		bag.SyncCapacity(lib2);
+		Check(bag.Slots() == 10, "two containers do not add up: the better one counts");
+		// capacity survives a save: stacks are what is stored, the bonus is derived again after loading
+		Inventory loaded(4, 10.0f);
+		loaded.SetStacks(bag.Stacks());
+		Check(loaded.Slots() == 4, "before syncing, a loaded bag has only its own capacity");
+		loaded.SyncCapacity(lib2);
+		Check(loaded.Slots() == bag.Slots() && loaded.MaxWeight() == bag.MaxWeight(), "after a load the basket gives its room back");
+		// the JSON keeps the bonus too, and an older text without it still loads
+		Inventory fromJson(4, 10.0f);
+		Check(fromJson.FromJson(bag.ToJson()) && fromJson.Slots() == bag.Slots() && fromJson.MaxWeight() == bag.MaxWeight(), "a bag with a basket round-trips as JSON");
+		Check(fromJson.FromJson(R"({"slots":5,"maxWeight":0,"items":[["wood",1]]})") && fromJson.Slots() == 5 && fromJson.BonusSlots() == 0, "an older inventory text loads without a bonus");
+		Check(!fromJson.FromJson(R"({"items":[],"bonusSlots":-1})"), "a negative bonus is refused");
+		// dropping the basket: contents stay, nothing new goes in
+		bag.Remove("basket_wicker", 1);
+		bag.Remove("big_basket", 1);
+		bag.SyncCapacity(w.Items);
+		Check(bag.Slots() == 4 && bag.Count("stone") == 5, "without the basket the bag shrinks and keeps what it held");
+		// an unlimited bag stays unlimited
+		Inventory unlimited(4, 0.0f);
+		unlimited.Add(w.Items, "basket_wicker", 1);
+		unlimited.SyncCapacity(w.Items);
+		Check(unlimited.Slots() == 10 && unlimited.MaxWeight() == 0.0f, "a bag without a weight limit keeps having none");
+		Check(CapacityText(w.Items, unlimited).find("4 + 6 from Wicker basket") != std::string::npos && ActiveTools(w.Items, tools).size() == 1, "the editor texts describe the bag and the tool");
+
+		// the data file: loading rejects nonsense in the new fields
+		ItemLibrary li; RecipeBook lr; std::map<std::string, ResourceNodeDef> ln;
+		Check(!LoadContent(R"({"items":[{"id":"x","power":-1}]})", li, lr, ln).empty() && !LoadContent(R"({"items":[{"id":"x","speed":0}]})", li, lr, ln).empty()
+			&& !LoadContent(R"({"items":[{"id":"x","bagSlots":-2}]})", li, lr, ln).empty(), "negative power, zero speed and negative bag slots are refused");
+	}
+
 	// The whole loop, twice.
 	{
 		bool ok1 = true, ok2 = true;

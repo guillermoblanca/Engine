@@ -67,8 +67,8 @@ namespace GB
 		std::vector<MontageDesc> Descs() const;                      // every montage, for saving
 		bool Remove(const std::string& name);                        // stops it too
 
-		// `section`: start from that section of the montage ("" = the start).
-		bool Play(const std::string& name, const std::string& section = "");
+		// `section`: start from that section of the montage ("" = the start). `rateScale` multiplies the montage's own play rate for this run only.
+		bool Play(const std::string& name, const std::string& section = "", float rateScale = 1.0f);
 		// Moves the playing montage to a section (false when it is not playing or has no such section).
 		bool JumpToSection(const std::string& name, const std::string& section);
 		// Editing aids: freeze every montage (a paused preview keeps its weight) and move the one that is playing to `seconds` into its clip.
@@ -95,6 +95,7 @@ namespace GB
 		{
 			int Entry = 0;
 			float Time = 0.0f;       // seconds into the clip
+			float RateScale = 1.0f;  // multiplies the montage's PlayRate (a faster swing with a better tool)
 			float Weight = 0.0f;
 			bool Leaving = false;    // blending out (stopped, replaced or at its end)
 			float LeaveBlend = 0.25f;

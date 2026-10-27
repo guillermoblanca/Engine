@@ -41,6 +41,10 @@ namespace GB
 		void SyncVisuals(GameplayWorld& gameplay, EntityWorld& entities) const;
 		// Gives an ability system the item tags ("Item.Tool.Axe", "Item.Resource.Wood") of what an inventory holds, and takes away those that left it.
 		static void SyncTools(AbilitySystemComponent& who, const Inventory& bag, const ItemLibrary& items);
+		// SyncTools also keeps, per tool family, the attributes "Power:Item.Tool.Axe" and "Speed:Item.Tool.Axe" of the best tool carried (E2): a
+		// node gives its PerGather plus the power of the tool its RequiresTag asks for, and the ability swings that much faster.
+		static std::string PowerAttribute(const std::string& toolTag);
+		static std::string SpeedAttribute(const std::string& toolTag);
 		static int Amount(const AbilitySystemComponent& node);
 	private:
 		std::map<std::string, ResourceNodeDef> m_Defs;

@@ -8,9 +8,28 @@ Lógica pura en `GB/Gameplay/Items.h`, sin escena ni renderer y determinista (co
 | `Inventory` | Contenedor con número de casillas y límite de peso opcional: `Add`, `Remove`, `Count`, `CountTagged`, `Transfer`, `ToJson`/`FromJson` |
 | `ResourceNodeDef` / `ResourceNode` | Nodo de recurso (árbol, roca, baya, hierba): cantidad, recogida por golpe, regeneración (`RegenSeconds`) o agotamiento, herramienta requerida por etiqueta |
 | `Recipe` / `RecipeBook` | Materia prima → producto, con estación y herramienta (necesaria, no se gasta). `WhyNot` explica por qué no se puede fabricar |
-| `RegisterEraOneItems` | Contenido de la era 1: madera, piedra, fibra, baya, hacha y pico de piedra, hoguera |
+| `RegisterEraOneItems` | Contenido de la era 1: madera, piedra, fibra, baya, hacha y pico de piedra y de pedernal, cesta de mimbre, hoguera |
 
 Cada `Actor` lleva una mochila de 12 casillas (`Actor::Bag()`), que se guarda y se carga con la partida (`ActorState::Inventory`).
+
+## Herramientas con nivel y contenedores (E2)
+
+Una variante de herramienta lleva una etiqueta hija (`Item.Tool.Axe.Flint`) y por la jerarquía de etiquetas sirve donde se pida `Item.Tool.Axe`: las habilidades `Chop`/`Mine`, los nodos (`requires`) y las recetas (`tool`) la aceptan sin cambios.
+
+Campos opcionales de `ItemDef` (en el JSON: `power`, `speed`, `bagSlots`, `bagWeight`; si faltan valen 0, 1, 0 y 0, así que los ficheros antiguos siguen cargando; `ContentToJson` solo los escribe si no son los valores por defecto):
+
+| Campo | Qué hace |
+|---|---|
+| `power` | Unidades extra por golpe sobre el `perGather` del nodo (el último golpe da lo que quede). Hacha de pedernal: +1, tala un árbol de 5 en 3 golpes en vez de 5 |
+| `speed` | Multiplicador de la velocidad del montaje y del reloj del golpe (1,15 = un 15 % más rápido) |
+| `bagSlots`, `bagWeight` | Casillas y límite de peso extra mientras el objeto va en la mochila |
+
+- `ResourceSystem::SyncTools` guarda, por familia de herramienta (`ToolFamily`: tres segmentos, `Item.Tool.Axe`), los atributos `Power:<familia>` y `Speed:<familia>` de la **mejor** herramienta que lleva el actor (más potencia, luego más velocidad, luego el id menor); sin herramienta vuelven a 0 y 1. El nodo lee `Power:<su requires>` al sacar unidades y `PlayMontageAndWaitTask` lee `Speed:<familia que pide la habilidad>` (`MontagePlayer::Play` admite ahora un `rateScale`). Los NPC de la tribu lo reciben igual, porque usan las mismas habilidades.
+- Contenedores: objetos con la etiqueta `Item.Container` (cesta de mimbre: +6 casillas, +8 kg). Regla: cuenta **solo el mejor** que lleve el actor (más casillas, luego más peso); no se suman. `Inventory::SyncCapacity` aplica el bono; `Slots()` y `MaxWeight()` devuelven capacidad propia más bono. El bono se deriva del contenido, así que **no se guarda**: `ActorState::Inventory` sigue guardando solo las pilas y el editor llama a `SyncCapacity` en cada paso (`StepResources`, también tras cargar). El formato del guardado no cambia. `Inventory::ToJson` añade `bonusSlots`/`bonusWeight` solo cuando hay bono, y un texto antiguo sin ellos carga igual.
+- Si se pierde la cesta, el contenido se queda aunque exceda la capacidad; no entra nada más hasta que haya sitio. El bono de peso solo afecta a mochilas con límite (la del actor es ilimitada hoy).
+- Contenido en `era1.json`: `branch`, `flint`, `reed`, `cordage`, `flint_axe` y `flint_pickaxe` (potencia 1, velocidad 1,15), `basket_wicker` y las recetas `cordage`, `flint_axe`, `flint_pickaxe`, `basket_wicker`. Aún no hay nodos de rama, pedernal ni junco en el mundo (`era1_ampliado.json` los define, pero `resources build` no los coloca): hasta entonces, `actor bag <nombre> add flint 3`.
+- Editor: `actor bag <nombre>` y el panel de inventario muestran casillas usadas/totales (con el origen del bono), peso y, por familia, la herramienta activa con su potencia y velocidad.
+- Pendiente: durabilidad (la propuesta no la pide), niveles duros (`Item.Tool.Pickaxe.Hard`, parte de E1) y que el nodo compruebe la herramienta en la habilidad.
 
 ## Editor
 

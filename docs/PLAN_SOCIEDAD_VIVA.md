@@ -53,7 +53,7 @@ Orden de dependencias; tamaños relativos (**S** una sesión de trabajo, **M** u
 |---|---|---|
 | H0 Contrato de actor | Hecho | `Actor`, `ActorWorld`; ~45 µs por actor y fotograma ([COSTE_ACTOR.md](COSTE_ACTOR.md)) |
 | H1 Habilidades (GAS) | Hecho | `GB/Gameplay`, [habilidades.md](habilidades.md) |
-| H2 Objetos, inventario y recursos | Hecho salvo lo listado en [OBJETOS.md](OBJETOS.md) | `Items`, `Resources`, `assets/data/era1.json` |
+| H2 Objetos, inventario y recursos | Hecho salvo lo listado en [OBJETOS.md](OBJETOS.md). E2 (herramientas con nivel: potencia y velocidad; contenedores que amplían la mochila) hecho | `Items`, `Resources`, `assets/data/era1.json` |
 | H3 Mundo interactivo y ecología | Parcial: huerto, interactivos, estaciones, conejos y panel World state; falta la colisión de la puerta, fauna con más especies y que la hoguera de la tribu sea un interactivo | [INTERACTIVOS.md](INTERACTIVOS.md), [ECOLOGIA.md](ECOLOGIA.md) |
 | H4 Persistencia v1 | Hecho (v1) con huecos: no guarda el estado de la tribu, los temporizadores de los interactivos ni el destino de los conejos | [GUARDADO.md](GUARDADO.md) |
 | H5 Navegación y percepción | En curso (sesiones propias de navegación y de percepción e IA) | `GB/Navigation`, `GB/AI` |

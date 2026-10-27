@@ -1,15 +1,11 @@
 {
   "items": [
-    { "id": "branch", "name": "Branch", "category": "resource", "weight": 0.6, "stack": 20, "tags": ["Item.Resource.Wood.Branch"] },
     { "id": "log", "name": "Log", "category": "resource", "weight": 6.0, "stack": 4, "tags": ["Item.Resource.Wood.Log"] },
     { "id": "plank", "name": "Plank", "category": "resource", "weight": 2.0, "stack": 10, "tags": ["Item.Resource.Wood.Plank"] },
     { "id": "resin", "name": "Resin", "category": "resource", "weight": 0.3, "stack": 20, "tags": ["Item.Resource.Resin"] },
-    { "id": "flint", "name": "Flint", "category": "resource", "weight": 1.0, "stack": 10, "tags": ["Item.Resource.Stone.Flint"] },
     { "id": "granite", "name": "Granite block", "category": "resource", "weight": 5.0, "stack": 6, "tags": ["Item.Resource.Stone.Granite"] },
     { "id": "clay", "name": "Clay", "category": "resource", "weight": 2.5, "stack": 10, "tags": ["Item.Resource.Clay"] },
     { "id": "mud_brick", "name": "Mud brick", "category": "resource", "weight": 3.0, "stack": 8, "tags": ["Item.Resource.Brick"] },
-    { "id": "reed", "name": "Reed", "category": "resource", "weight": 0.2, "stack": 20, "tags": ["Item.Resource.Fiber.Reed"] },
-    { "id": "cordage", "name": "Cordage", "category": "resource", "weight": 0.3, "stack": 20, "tags": ["Item.Resource.Cordage"] },
     { "id": "bone", "name": "Bone", "category": "resource", "weight": 0.5, "stack": 20, "tags": ["Item.Resource.Bone"] },
     { "id": "salt", "name": "Salt", "category": "resource", "weight": 0.5, "stack": 20, "tags": ["Item.Resource.Salt"] },
     { "id": "copper_nugget", "name": "Native copper", "category": "resource", "weight": 2.0, "stack": 10, "tags": ["Item.Resource.Ore.Copper"] },
@@ -17,10 +13,8 @@
     { "id": "acorn", "name": "Acorn", "category": "seed", "weight": 0.05, "stack": 20, "tags": ["Item.Seed.Tree"] },
     { "id": "grain", "name": "Grain", "category": "food", "weight": 0.1, "stack": 30, "tags": ["Item.Food", "Item.Food.Grain"], "ability": "Eat" },
     { "id": "dried_berry", "name": "Dried berry", "category": "food", "weight": 0.05, "stack": 30, "tags": ["Item.Food", "Item.Food.Preserved"], "ability": "Eat" },
-    { "id": "basket_wicker", "name": "Wicker basket", "category": "container", "weight": 1.5, "stack": 1, "tags": ["Item.Container.Basket"] },
-    { "id": "flint_axe", "name": "Flint axe", "category": "tool", "weight": 2.2, "stack": 1, "tags": ["Item.Tool.Axe.Flint"], "ability": "Chop", "socket": "RightHand" },
-    { "id": "copper_axe", "name": "Copper axe", "category": "tool", "weight": 2.4, "stack": 1, "tags": ["Item.Tool.Axe.Copper"], "ability": "Chop", "socket": "RightHand" },
-    { "id": "bone_pickaxe", "name": "Bone pickaxe", "category": "tool", "weight": 2.0, "stack": 1, "tags": ["Item.Tool.Pickaxe.Bone"], "ability": "Mine", "socket": "RightHand" },
+    { "id": "copper_axe", "name": "Copper axe", "category": "tool", "weight": 2.4, "stack": 1, "tags": ["Item.Tool.Axe.Copper"], "ability": "Chop", "socket": "RightHand", "power": 2, "speed": 1.25 },
+    { "id": "bone_pickaxe", "name": "Bone pickaxe", "category": "tool", "weight": 2.0, "stack": 1, "tags": ["Item.Tool.Pickaxe.Bone"], "ability": "Mine", "socket": "RightHand", "power": 1, "speed": 1.1 },
     { "id": "stone_hoe", "name": "Stone hoe", "category": "tool", "weight": 2.0, "stack": 1, "tags": ["Item.Tool.Hoe"], "ability": "Dig", "socket": "RightHand" },
     { "id": "flint_sickle", "name": "Flint sickle", "category": "tool", "weight": 0.8, "stack": 1, "tags": ["Item.Tool.Sickle"], "ability": "Gather", "socket": "RightHand" }
   ],
@@ -39,10 +33,7 @@
     { "id": "old_bones", "item": "bone", "capacity": 3, "perGather": 1, "ability": "Gather" }
   ],
   "recipes": [
-    { "id": "cordage", "inputs": { "fiber": 3 }, "output": "cordage", "count": 1, "ability": "Craft" },
     { "id": "plank", "inputs": { "log": 1 }, "output": "plank", "count": 2, "tool": "Item.Tool.Axe", "station": "workbench", "ability": "Craft" },
-    { "id": "basket_wicker", "inputs": { "reed": 5, "branch": 2 }, "output": "basket_wicker", "count": 1, "ability": "Craft" },
-    { "id": "flint_axe", "inputs": { "flint": 2, "branch": 2, "cordage": 1 }, "output": "flint_axe", "count": 1, "station": "workbench", "ability": "Craft" },
     { "id": "bone_pickaxe", "inputs": { "bone": 3, "branch": 2, "cordage": 1 }, "output": "bone_pickaxe", "count": 1, "station": "workbench", "ability": "Craft" },
     { "id": "stone_hoe", "inputs": { "stone": 2, "branch": 2, "cordage": 1 }, "output": "stone_hoe", "count": 1, "station": "workbench", "ability": "Craft" },
     { "id": "flint_sickle", "inputs": { "flint": 1, "branch": 1, "cordage": 1 }, "output": "flint_sickle", "count": 1, "station": "workbench", "ability": "Craft" },
