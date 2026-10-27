@@ -1,0 +1,93 @@
+; FBX 7.4.0 project file
+FBXHeaderExtension:  {
+	FBXHeaderVersion: 1003
+	FBXVersion: 7400
+	Creator: "GB Engine test generator"
+}
+GlobalSettings:  {
+	Version: 1000
+	Properties70:  {
+		P: "UpAxis", "int", "Integer", "",1
+		P: "UpAxisSign", "int", "Integer", "",1
+		P: "FrontAxis", "int", "Integer", "",2
+		P: "FrontAxisSign", "int", "Integer", "",1
+		P: "CoordAxis", "int", "Integer", "",0
+		P: "CoordAxisSign", "int", "Integer", "",1
+		P: "OriginalUpAxis", "int", "Integer", "",1
+		P: "OriginalUpAxisSign", "int", "Integer", "",1
+		P: "UnitScaleFactor", "double", "Number", "",1
+		P: "OriginalUnitScaleFactor", "double", "Number", "",1
+		P: "TimeMode", "enum", "", "",6
+	}
+}
+Objects:  {
+	Model: 1001, "Model::a", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,100,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1002, "Model::b", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,10,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1003, "Model::c", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,10,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	AnimationStack: 1004, "AnimStack::idle", "" {
+		Properties70:  {
+			P: "LocalStart", "KTime", "Time", "",0
+			P: "LocalStop", "KTime", "Time", "",46186158000
+			P: "ReferenceStart", "KTime", "Time", "",0
+			P: "ReferenceStop", "KTime", "Time", "",46186158000
+		}
+	}
+	AnimationLayer: 1005, "AnimLayer::BaseLayer", "" {
+	}
+	AnimationCurveNode: 1006, "AnimCurveNode::T", "" {
+		Properties70:  {
+			P: "d|X", "Number", "", "A",0
+			P: "d|Y", "Number", "", "A",100
+			P: "d|Z", "Number", "", "A",0
+		}
+	}
+	AnimationCurve: 1007, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *2 {
+			a: 0,46186158000
+		}
+		KeyValueFloat: *2 {
+			a: 10.0,10.0
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 2
+		}
+	}
+}
+Connections:  {
+	C: "OO",1001,0
+	C: "OO",1002,1001
+	C: "OO",1003,1002
+	C: "OO",1005,1004
+	C: "OO",1006,1005
+	C: "OP",1006,1001, "Lcl Translation"
+	C: "OP",1007,1006, "d|Y"
+}

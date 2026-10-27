@@ -10,6 +10,27 @@
 
 namespace GB::Editor
 {
+	std::shared_ptr<Model> PlayerMode::LoadCharacter(const std::string& pathIn, const std::string& assetRoot, std::string& error)
+	{
+		namespace fs = std::filesystem;
+		std::string path = pathIn;
+		if (!fs::exists(path) && fs::exists(assetRoot + "/" + path)) path = assetRoot + "/" + path;
+		std::shared_ptr<Model> model = Model::Load(path);
+		if (!model)
+		{
+			error = "could not load the character from " + path;
+			return nullptr;
+		}
+		// the other FBX files of the folder are its animations (Mixamo ships each clip as its own file)
+		std::vector<std::string> files;
+		std::error_code ec;
+		for (const auto& e : fs::directory_iterator(fs::path(path).parent_path().empty() ? fs::path(".") : fs::path(path).parent_path(), ec))
+			if (e.is_regular_file() && e.path().extension() == ".fbx" && fs::path(path).filename() != e.path().filename()) files.push_back(e.path().generic_string());
+		std::sort(files.begin(), files.end());
+		for (const std::string& f : files) model->AppendAnimations(f);
+		return model;
+	}
+
 	bool PlayerMode::Start(const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
 		const glm::vec3& near, std::string& error)
 	{
@@ -25,21 +46,8 @@ namespace GB::Editor
 		std::shared_ptr<Model> model;
 		if (isFbx)
 		{
-			std::string path = kind;
-			if (!fs::exists(path) && fs::exists(assetRoot + "/" + path)) path = assetRoot + "/" + path;
-			model = Model::Load(path);
-			if (!model)
-			{
-				error = "could not load the character from " + path;
-				return false;
-			}
-			// the other FBX files of the folder are its animations (Mixamo ships each clip as its own file)
-			std::vector<std::string> files;
-			std::error_code ec;
-			for (const auto& e : fs::directory_iterator(fs::path(path).parent_path().empty() ? fs::path(".") : fs::path(path).parent_path(), ec))
-				if (e.is_regular_file() && e.path().extension() == ".fbx" && fs::path(path).filename() != e.path().filename()) files.push_back(e.path().generic_string());
-			std::sort(files.begin(), files.end());
-			for (const std::string& f : files) model->AppendAnimations(f);
+			model = LoadCharacter(kind, assetRoot, error);
+			if (!model) return false;
 		}
 		else
 			model = Model::Load(assetRoot + (fox ? "/models/Fox.glb" : "/models/CesiumMan.glb"));
@@ -91,10 +99,13 @@ namespace GB::Editor
 		m_UseAI = false;
 		if (isFbx)
 		{
-			auto animator = std::make_unique<CharacterAnimator>(*m_Model, *m_Instance);
-			if (animator->AddDefaultLocomotionClips() < 2)
+			m_Profile = AnalyzeCharacter(*m_Model);
+			LocomotionOptions options;
+			if (m_Profile.Humanoid()) options.Analysis = m_Profile.Analysis;   // this skeleton's own bone names
+			auto animator = std::make_unique<CharacterAnimator>(*m_Model, *m_Instance, options);
+			if (animator->AddDefaultLocomotionClips() < 2 && animator->AddRoleClips(m_Profile) < 2)
 			{
-				error = "the character has no locomotion clips (idle, walking, standard run...): put the animation FBX files next to it";
+				error = "the character has no locomotion clips (idle, walk, run...): put the animation FBX files next to it (see character_check)";
 				m_Instance.reset();
 				m_Model.reset();
 				return false;

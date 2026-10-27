@@ -18,6 +18,10 @@ namespace GB
 		bool HasLegs() const { return LeftLeg.UpLeg >= 0 && LeftLeg.Knee >= 0 && LeftLeg.Foot >= 0 && RightLeg.UpLeg >= 0 && RightLeg.Knee >= 0 && RightLeg.Foot >= 0; }
 	};
 
+	// Finds the humanoid bones whatever the skeleton's naming convention is (Mixamo, Unreal's mannequin, Unity / VRM humanoids,
+	// 3ds Max Biped): the convention with the most bones matched wins. `convention` (optional) gets its name, "" when none matched.
+	HumanoidRig FindHumanoidRigAuto(const Model& model, std::string* convention = nullptr);
+
 	// `prefix` goes before every bone name ("mixamorig:" for Mixamo).
 	HumanoidRig FindHumanoidRig(const Model& model, const std::string& prefix = "mixamorig:");
 }

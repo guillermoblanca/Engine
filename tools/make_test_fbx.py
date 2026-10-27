@@ -5,6 +5,9 @@
                             120 cm along +Z (a 1.2 m stride) and the feet step, planted while the body passes over them.
   tests/data/test_clip.fbx  the same skeleton with a half-second "run" (150 cm stride, 3 m/s) plus a bone the rig does not have.
   tests/data/test_idle.fbx  the same skeleton standing still for two seconds (a slight breathing motion).
+  tests/data/test_walk.fbx / test_run.fbx  gaits for the humanoid (named so a character check finds the walk and the run roles).
+  tests/data/test_unreal.fbx  the humanoid with Unreal-mannequin bone names, its toes pointing to -Z (a facing warning).
+  tests/data/test_blob.fbx  a skeleton that is not a humanoid (bones a, b, c).
   tests/data/test_humanoid.fbx  a full humanoid (spine chain, neck, both arms down to the middle finger, legs with knees and toes)
                             with a standing "idle": what sockets, hand grips and IK need (arms 0.28 m + 0.27 m, a slight elbow bend).
 
@@ -123,6 +126,29 @@ HUMANOID = [
 ] + side("Left", 1) + side("Right", -1)
 
 
+UNREAL_NAMES = {"Hips": "pelvis", "Spine": "spine_01", "Spine1": "spine_02", "Spine2": "spine_03", "Neck": "neck_01", "Head": "head"}
+UNREAL_PARTS = {"Shoulder": "clavicle", "Arm": "upperarm", "ForeArm": "lowerarm", "Hand": "hand", "HandMiddle1": "middle_01",
+                "UpLeg": "thigh", "Leg": "calf", "Foot": "foot", "ToeBase": "ball"}
+
+
+def unreal(name):
+    short = name.replace("mixamorig:", "")
+    if short in UNREAL_NAMES:
+        return UNREAL_NAMES[short]
+    for side, suffix in (("Left", "_l"), ("Right", "_r")):
+        if short.startswith(side):
+            return UNREAL_PARTS[short[len(side):]] + suffix
+    raise KeyError(name)
+
+
+def unreal_bones():
+    out = []
+    for name, parent, t in HUMANOID:
+        t = (t[0], t[1], -abs(t[2])) if name.endswith("ToeBase") else t   # the toes point backwards: a facing warning
+        out.append((unreal(name), unreal(parent) if parent else None, t))
+    return out
+
+
 def gait(seconds, stride_cm, lift_cm=15.0):
     """A walk/run cycle in place of a real capture: the hips travel one stride, each foot is planted for half the
     cycle (still in the world while the body passes over it) and swings forward with a lift for the other half.
@@ -149,6 +175,15 @@ def main():
 
     with open(os.path.join(out, "test_humanoid.fbx"), "w", newline="\n") as f:
         f.write(build(HUMANOID, [("idle", 2.0, [("mixamorig:Spine", {"Y": [(0.0, 10.0), (1.0, 10.5), (2.0, 10.0)]})])]))
+    def write_humanoid(name, takes, bones=HUMANOID):
+        with open(os.path.join(out, name), "w", newline="\n") as f:
+            f.write(build(bones, takes))
+
+    write_humanoid("test_walk.fbx", [("walk", 1.0, gait(1.0, 120.0))])
+    write_humanoid("test_run.fbx", [("run", 0.5, gait(0.5, 150.0))])
+    write_humanoid("test_unreal.fbx", [("idle", 1.0, [("pelvis", {"Y": [(0.0, 100.0), (1.0, 100.0)]})])], unreal_bones())
+    write_humanoid("test_blob.fbx", [("idle", 1.0, [("a", {"Y": [(0.0, 10.0), (1.0, 10.0)]})])],
+                   [("a", None, (0, 100, 0)), ("b", "a", (0, 10, 0)), ("c", "b", (0, 10, 0))])
     write("test_rig.fbx", [("walk", 1.0, gait(1.0, 120.0))])
     sword = ("Prop:Sword", "mixamorig:Hips", (5, 0, 0))   # a bone the rig does not have
     run = gait(0.5, 150.0) + [("Prop:Sword", {"X": [(0.0, 5.0), (0.5, 9.0)]})]

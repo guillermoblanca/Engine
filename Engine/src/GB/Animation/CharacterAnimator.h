@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Animation/AnimInstance.h"
+#include "GB/Animation/Character.h"
 #include "GB/Game/MotionState.h"
 
 namespace GB
@@ -15,6 +16,8 @@ namespace GB
 
 		// Adds the usual Mixamo free-movement set to the default set when the model has it. Returns how many clips were found.
 		int AddDefaultLocomotionClips();
+		// Fills the default set from the clips a character check found for the idle, walk, run and strafe roles (any skeleton and clip naming).
+		int AddRoleClips(const CharacterProfile& profile);
 		// Registers the other Mixamo sets (box, holding, wheelbarrow...) the model has clips for; returns their names.
 		std::vector<std::string> AddMixamoSets();
 

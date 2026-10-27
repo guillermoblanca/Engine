@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Animation/Character.h"
 #include "GB/Animation/CharacterAnimator.h"
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
@@ -29,6 +30,9 @@ namespace GB::Editor
 		// `kind`: "fox" (idle / walk / run clips), "cesium", or the path of an FBX character (relative to the assets, or absolute): the
 		// other FBX files in its folder are loaded as its animation clips, and it walks with the locomotion blend (walk/run/strafe mixed
 		// by speed, feet in step, footsteps on every landing) instead of the plain idle/walk/run switch. `near` is where to start (moved off water and trees).
+		// Loads an FBX character (relative to the assets, or absolute) together with the animation FBX files of its folder. Null (and `error`) on failure.
+		static std::shared_ptr<Model> LoadCharacter(const std::string& path, const std::string& assetRoot, std::string& error);
+
 		bool Start(const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
 			const glm::vec3& near, std::string& error);
 		void Stop();
@@ -68,6 +72,10 @@ namespace GB::Editor
 		void StopTasks() { m_Tasks.Clear(); }
 		bool TasksRunning() const { return m_Tasks.Running(); }
 		std::string TaskStatus() const { return m_Tasks.Describe(); }
+		// For the animation panel: the locomotion / montage / socket state of the FBX player and the character check made when it was loaded.
+		const ModelInstance* Instance() const { return m_Instance.get(); }
+		AnimInstance* Anim() { return m_Animator ? &m_Animator->Anim() : nullptr; }
+		const CharacterProfile* Profile() const { return m_Animator ? &m_Profile : nullptr; }
 		const MotionState& GetMotion() const { return m_Motion; }
 		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
 		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
@@ -85,6 +93,7 @@ namespace GB::Editor
 		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
 		std::map<std::string, PropLook> m_PropLooks;
 		mutable std::unique_ptr<Mesh> m_PropMesh;
+		CharacterProfile m_Profile;
 		TaskRunner m_Tasks;
 		const SceneEditor* m_Edit = nullptr;
 		std::string m_PendingProp;   // waits for the box overlay to finish before measuring the grips

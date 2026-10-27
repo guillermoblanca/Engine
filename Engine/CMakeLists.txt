@@ -24,6 +24,7 @@ add_library(GB STATIC
     src/GB/Animation/Montage.cpp
     src/GB/Animation/AirLayer.cpp
     src/GB/Animation/Rig.cpp
+    src/GB/Animation/Character.cpp
     src/GB/Animation/IK.cpp
     src/GB/Animation/Socket.cpp
     src/GB/Animation/FootIK.cpp

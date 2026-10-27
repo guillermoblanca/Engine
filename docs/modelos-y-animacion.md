@@ -150,3 +150,13 @@ El mismo flujo para el jugador y para un NPC: ir al punto → alinearse con moti
 
 Pendiente: sistema de conducta más allá de listas lineales (prioridades, necesidades), reservas de puntos de interacción (dos personajes en el mismo punto) y 11D-2 (articulaciones físicas y ragdoll).
 
+### Alta automática de personajes y panel de animación (Fase 11E-1)
+
+- **`FindHumanoidRigAuto`** (`Rig.h`): encuentra los huesos de un humanoide sea cual sea su convención de nombres: Mixamo, el maniquí de Unreal, los humanoides de Unity / VRM y 3ds Max Biped; gana la convención con más huesos emparejados. Con eso `AnimInstance` (sockets, IK de manos y pies, mirada) funciona también con esqueletos que no son de Mixamo.
+- **`AnalyzeCharacter`** (`Character.h`): la comprobación al importar un personaje. Informa de la convención del esqueleto, los huesos que faltan, el tamaño (desde el esqueleto o la malla; avisa si no está entre 0,5 y 3 m: ¿está en centímetros?), hacia dónde mira (+Z) y si su izquierda está en +X, los sockets que se pueden crear, qué clip hace cada papel (idle, walk, run, strafes, jump, giros; por nombre, sin contar las variantes con caja o carretilla), qué sets de locomoción y montajes de granja permiten sus clips y los avisos. `FormatCharacterProfile` da el informe de texto y `CharacterProfileToJson` el JSON para agentes y diffs. `CharacterProfile::Analysis` lleva los nombres de hueso de ese esqueleto para el análisis de clips y la locomoción; `CharacterAnimator::AddRoleClips` rellena el set libre con los clips de cada papel.
+- Editor: `character_check [personaje.fbx]` (sin argumento, el del jugador), `character_export <fichero.json> [personaje.fbx]`, `panel <nombre> [on|off|tab <pestaña>]`.
+- **Panel Animation** (View → Animation; pestañas): *Character* (el informe), *Animator* (estado de movimiento, selector de set de locomoción con su fundido, fase, escala de velocidad y peso de cada clip), *Montages* (lista con Play y Stop, estado de los slots), *Sockets* (props y sockets con su posición), *IK* (pies al terreno con sus parámetros, mirada a la cámara con sus límites).
+- Test `character_profile` (CPU): Mixamo (completo, con y sin clips), maniquí de Unreal (nombres propios y aviso de que mira a -Z), esqueleto que no es humanoide, esqueleto sin extremidades, informe y JSON; con los packs reales, el X Bot queda «ready» con 3 sets y 11 montajes. Los esqueletos de prueba los genera `tools/make_test_fbx.py`.
+
+Pendiente de la 11E: retargeting (animaciones de otro esqueleto sobre este: mapa de huesos y corrección de reposo), editor de grafo de estados y línea de tiempo de montajes con notificaciones editables.
+

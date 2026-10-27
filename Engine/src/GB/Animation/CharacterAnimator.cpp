@@ -10,6 +10,14 @@ namespace GB
 		return added;
 	}
 
+	int CharacterAnimator::AddRoleClips(const CharacterProfile& profile)
+	{
+		int added = 0;
+		for (const char* role : { "idle", "walk", "run", "strafe_left", "strafe_right" })
+			if (const std::string* clip = profile.RoleClip(role)) added += m_Anim.Default().AddClip(*clip) ? 1 : 0;
+		return added;
+	}
+
 	std::vector<std::string> CharacterAnimator::AddMixamoSets()
 	{
 		std::vector<std::string> added;
