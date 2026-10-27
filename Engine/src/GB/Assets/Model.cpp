@@ -632,4 +632,16 @@ namespace GB
 		for (size_t i = first; i < scene.Objects.size(); ++i)
 			scene.Objects[i].JointMatrices = nullptr;
 	}
+
+	int Model::AddClip(AnimationClip clip)
+	{
+		const int existing = FindClip(clip.Name);
+		if (existing >= 0)
+		{
+			m_Clips[static_cast<size_t>(existing)] = std::move(clip);
+			return existing;
+		}
+		m_Clips.push_back(std::move(clip));
+		return static_cast<int>(m_Clips.size()) - 1;
+	}
 }
