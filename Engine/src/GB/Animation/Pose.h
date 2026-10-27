@@ -26,6 +26,8 @@ namespace GB
 	void BlendPoses(const Pose& a, const Pose& b, float t, Pose& out);
 	// Like BlendPoses with a per-bone weight in [0, 1] that scales t (an upper-body mask, for example).
 	void BlendPosesMasked(const Pose& a, const Pose& b, float t, const std::vector<float>& mask, Pose& out);
+	// Model-space world matrix of every node for `pose` (what ModelInstance computes after SetPose, without needing an instance).
+	void PoseToWorld(const Model& model, const Pose& pose, std::vector<glm::mat4>& world);
 	// 1 for `rootBone` and everything below it, 0 elsewhere. Empty when the bone does not exist.
 	std::vector<float> MakeBoneMask(const Model& model, const std::string& rootBone);
 }
