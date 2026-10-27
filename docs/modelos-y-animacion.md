@@ -165,7 +165,6 @@ Pendiente: sistema de conducta más allá de listas lineales (prioridades, neces
 - **Panel Animation** (View → Animation; pestañas): *Character* (el informe), *Animator* (estado de movimiento, selector de set de locomoción con su fundido, fase, escala de velocidad y peso de cada clip), *Montages* (lista con Play y Stop, estado de los slots), *Sockets* (props y sockets con su posición), *IK* (pies al terreno con sus parámetros, mirada a la cámara con sus límites).
 - Test `character_profile` (CPU): Mixamo (completo, con y sin clips), maniquí de Unreal (nombres propios y aviso de que mira a -Z), esqueleto que no es humanoide, esqueleto sin extremidades, informe y JSON; con los packs reales, el X Bot queda «ready» con 3 sets y 11 montajes. Los esqueletos de prueba los genera `tools/make_test_fbx.py`.
 
-Pendiente de la 11E: editor de grafo de estados y línea de tiempo de montajes con notificaciones editables.
 
 ### Ragdoll integrado en la física del mundo (Fase 11D-2)
 
@@ -189,3 +188,17 @@ Animaciones hechas para **otro esqueleto** (otros nombres de hueso, otras propor
 
 Limitaciones: solo se transfieren rotaciones y el desplazamiento de la cadera (las animaciones que mueven otros huesos por traslación, como los clips de prueba de marcha con pies trasladados, no pasan), no se corrigen la longitud de zancada ni el deslizamiento de pies, y el mapa de huesos no es editable todavía.
 
+### Línea de tiempo de montajes y grafo de estados (Fase 11E-3)
+
+**Montajes editables** (`GB/Animation/Montage.h`): cada `MontageDesc` lleva `Notifies` (tiempo 0..1 y nombre) y ahora `Sections` (nombres de momentos del clip). `MontagePlayer` puede `Play(nombre, sección)`, `JumpToSection`, pausar y `Seek` (previsualizar un instante), `Remove` y editar en sitio con `Add`. `MontagesToJson` / `MontagesFromJson` (versión 1: name, clip, slot, blendIn, blendOut, playRate, loop, stripTravel, notifies, sections) guardan y cargan los montajes.
+
+Panel **Timeline** (View > Timeline): regla en segundos, rampas de mezcla, secciones como bandas, notificaciones como rombos y cabezal. Clic en la regla = pasear (queda pausado en ese instante), doble clic en el carril = añadir notificación, arrastrar = moverla, clic derecho = borrarla; Play/Pause/Stop, ajustes (blend, velocidad, bucle, quitar desplazamiento, slot), Guardar/Cargar. Comandos: `montage_info`, `montage_notify <m> add <t> <nombre>|remove <nombre>|move <nombre> <t>`, `montage_section <m> add <t> <nombre>|remove <nombre>`, `montage_set <m> blendin|blendout|rate|loop|striptravel|slot <v>`, `montage_seek <m> <s>|off`, `montage_save|montage_load <fichero>`, `player_montage <nombre> [sección]`. Test `montage`.
+
+**Grafo de estados** (`GB/Animation/AnimGraph.h`): datos puros (`AnimGraph`: parámetros, estados, transiciones) y `GraphRunner`, que `AnimInstance::Update` ejecuta antes que el resto de capas.
+- Estado `Locomotion` (un set: libre, caja, herido...) o `Montage` (una acción); la transición puede salir de `*` (cualquier estado), llevar condiciones (`Speed>2`, `Grounded==1`, `Pick`, `!Pick`; todas deben cumplirse), `Blend`, `Priority`, `MinStateTime` y `OnFinish` (solo cuando termina el montaje del estado que deja).
+- Parámetros automáticos del movimiento: `Speed`, `Forward`, `Strafe`, `YawRate`, `Grounded`, `Airborne`, `Wading`, `WadeDepth`, `Blocked`, `Landed`, `LandingSpeed`, `Finished`. El juego añade los suyos (float, bool o trigger; un trigger sigue activo hasta que dispara una transición que lo lee).
+- `MakeDefaultGraph` crea un estado por set y el parámetro `Set` para elegirlos. JSON: `AnimGraphToJson` / `AnimGraphFromJson`; `Validate(anim)` avisa de estados, sets, montajes o parámetros desconocidos y de estados a los que no llega nada.
+- Panel **Graph** (View > Animation graph): nodos arrastrables (borde verde = estado actual, amarillo = seleccionado), flechas con sus condiciones, paneo con botón derecho/central, inspector de parámetros, estados y transiciones, Validate, Guardar/Cargar.
+- Comandos: `graph`, `graph_default`, `graph_state <n> locomotion|montage <destino> [x y]`, `graph_state_remove`, `graph_start`, `graph_transition <de|*> <a> [condiciones] [blend=] [priority=] [min=] [finish]`, `graph_transition_remove <i>`, `graph_declare <n> float|bool|trigger`, `graph_param`, `graph_trigger`, `graph_enable on|off`, `graph_validate`, `graph_save|graph_load <fichero>`. Test `anim_graph`.
+
+Ejemplo (recoger fruta y volver): `graph_default; graph_state pick montage pick_fruit; graph_transition * pick Pick priority=5; graph_transition pick free finish; graph_trigger Pick`.
