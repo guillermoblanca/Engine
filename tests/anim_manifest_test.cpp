@@ -105,6 +105,34 @@ int main()
 				unused += used ? 0 : 1;
 			}
 		std::fprintf(stderr, "info: %d clip(s) of the packs are not used by anything in the shipped manifest\n", unused);
+
+		// the garden's abilities play montages the manifest has, and the manifest keeps the notifies it already carries
+		GameplayLibrary library;
+		RegisterGardenContent(library);
+		int abilities = 0, missingMontage = 0;
+		for (const auto& [name, ability] : library.Abilities())
+			for (const std::string& montage : ability.Montages)
+			{
+				++abilities;
+				bool found = false;
+				for (const MontageDesc& d : shipped.Montages) found = found || d.Name == montage;
+				if (!found) { std::fprintf(stderr, "ability %s: no montage %s in the manifest\n", name.c_str(), montage.c_str()); ++missingMontage; }
+			}
+		Check(abilities > 0 && missingMontage == 0, "every montage the garden's abilities play is in the shipped manifest");
+		std::vector<MontageDesc> edited = shipped.Montages;
+		std::string notify;
+		for (const auto& [name, ability] : library.Abilities())
+			if (notify.empty() && !ability.Montages.empty() && !ability.Events.empty() && !ability.Events[0].Notify.empty())
+			{
+				notify = ability.Events[0].Notify;
+				for (MontageDesc& d : edited)
+					if (d.Name == ability.Montages[0]) { d.Notifies.clear(); d.Notifies.push_back({ 0.77f, notify }); }
+			}
+		float kept = 0.0f;
+		for (const MontageDesc& d : AbilityMontages(library, edited))
+			for (const MontageNotify& n : d.Notifies)
+				if (n.Name == notify && n.Time > 0.76f && n.Time < 0.78f) kept = n.Time;
+		Check(!notify.empty() && kept > 0.0f, "a notify edited in the manifest's montage keeps its time under the abilities");
 	}
 
 	// ---- loading into a character: the generated rig has no Mixamo clips, so nothing but the report comes out
