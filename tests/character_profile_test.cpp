@@ -107,6 +107,24 @@ int main()
 		}
 	}
 
+	// ---- a library with variants of every action (the Universal Animation Library's names): the plain clip plays each role
+	{
+		auto model = Model::Load(std::string(GB_TEST_DATA_DIR) + "/test_humanoid.fbx");
+		if (!model) { std::fprintf(stderr, "FAIL: test skeleton\n"); return 1; }
+		for (const char* n : { "Crouch_Idle_Loop", "Idle_Talking_Loop", "Idle_Loop", "Walk_Formal_Loop", "Walk_Loop", "Sprint_Loop", "Jog_Fwd_Loop", "Jump_Land", "Jump_Start", "Jump_Loop", "Interact", "Roll" })
+		{
+			AnimationClip c;
+			c.Name = n;
+			c.Duration = 1.0f;
+			model->AddClip(c);
+		}
+		const CharacterProfile p = AnalyzeCharacter(*model);
+		auto role = [&](const char* r) { const std::string* c = p.RoleClip(r); return c ? *c : std::string(); };
+		Check(role("idle") == "Idle_Loop" && role("walk") == "Walk_Loop", "the plain idle and walk clips win over the crouching, talking and formal variants");
+		Check(role("run") == "Jog_Fwd_Loop" && role("jump") == "Jump_Loop", "run accepts jog and sprint, and the jump is not its landing");
+		Check(std::find(p.Montages.begin(), p.Montages.end(), "interact") != p.Montages.end() && std::find(p.Montages.begin(), p.Montages.end(), "roll") != p.Montages.end(), "the library's actions are offered as montages");
+	}
+
 	if (failures) return 1;
 	std::puts("character profile tests passed");
 	return 0;

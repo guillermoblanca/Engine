@@ -72,6 +72,14 @@ motor, y una forma de describir un esqueleto de piezas rígidas.
 - **Datos dorados**: hay tests de lógica y capturas puntuales, pero no una captura/curva dorada por clip retargeteado (riesgo de regresión en el retargeting).
 - **Sin motion matching** (11F, opcional).
 
+## 2.4 Hecho tras la auditoría (esta rama)
+
+- Los nombres de toma ya no llevan el ámbito del exportador (`Armature|Walk_Loop` → `Walk_Loop`).
+- Los roles de clip puntúan: gana el nombre más corto que no sea una variante (agachado, sentado, formal, antorcha, hablando, pistola…); `run` acepta `jog` y `sprint`; `jump` no es el aterrizaje. Con UAL sale `idle=Idle_Loop walk=Walk_Loop run=Jog_Fwd_Loop jump=Jump_Loop`.
+- `BuildRetargetMap` empareja los huesos intermedios de la columna en proporción y los **dedos** por lado, dedo y articulación: UAL → Mixamo pasa de 21 a **62 huesos emparejados**; solo quedan sin pareja los nodos de malla y los extremos (`HeadTop_End`, `Toe_End`).
+- `UniversalMontages()`: interact, pick_up, fix_kneeling, roll, hit_chest/head, death, sit_enter/exit, sword_attack, punch_cross/jab, pistol_shoot/reload, spell_enter/shoot/exit, dance; se añaden al personaje cuando sus clips están (tras `retarget`, 11 → 29 montajes). Las notificaciones (momento del golpe, del disparo) se ponen en el panel Timeline.
+- Pendiente de la parte A: GLB como fuente de `retarget`, mapa de huesos editable y `GB_UAL_DIR` con test saltable; de la B: catálogo de montajes leído de JSON y asignarlos a `AbilityDef::Montages` (recoger, agacharse, carretilla) — requiere decidir cuál sustituye a cuál en el huerto.
+
 ## 3. Plan recomendado (por orden de valor/coste)
 
 **A. Arreglos baratos del retargeting y del análisis (sesión corta)**

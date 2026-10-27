@@ -38,6 +38,8 @@ namespace GB
 		int added = 0;
 		for (const MontageDesc& m : MixamoMontages())
 			added += m_Anim.Montages().Add(m) ? 1 : 0;
+		for (const MontageDesc& m : UniversalMontages())
+			added += m_Anim.Montages().Add(m) ? 1 : 0;
 		return added;
 	}
 }
