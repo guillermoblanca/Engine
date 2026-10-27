@@ -54,6 +54,79 @@ namespace GB::Editor
 		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
 	}
 
+	namespace
+	{
+		// A real actor as a member of the tribe.
+		class ActorBody : public ITribeBody
+		{
+		public:
+			explicit ActorBody(Actor* actor) : m_Actor(actor) {}
+			bool Busy() const override { return m_Actor->TasksRunning(); }
+			bool Failed() const override { return m_Actor->TasksFailed(); }
+			glm::vec2 Position() const override { const glm::vec3 p = m_Actor->GetPosition(); return { p.x, p.z }; }
+			bool Do(const std::string& tasks, std::string& error) override { return m_Actor->RunTasks(tasks, error); }
+			Inventory& Bag() override { return m_Actor->Bag(); }
+		private:
+			Actor* m_Actor;
+		};
+	}
+
+	CommandResult EditorApp::TribeCommand(const std::vector<std::string>& a)
+	{
+		const std::string sub = a.empty() ? "status" : a[0];
+		if (sub == "build")
+		{
+			std::string model = "fox";
+			std::vector<float> numbers;
+			for (size_t i = 1; i < a.size(); ++i)
+			{
+				if (PlayerMode::IsFbx(a[i]) || a[i] == "fox" || a[i] == "cesium") model = a[i];
+				else numbers.push_back(static_cast<float>(std::atof(a[i].c_str())));
+			}
+			glm::vec3 origin = m_Orbit.Target;
+			int workers = 4;
+			if (numbers.size() >= 2) { origin.x = numbers[0]; origin.z = numbers[1]; }
+			if (numbers.size() >= 3) workers = std::max(2, std::min(6, static_cast<int>(numbers[2])));
+			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+
+			m_Tribe.Clear();
+			m_TribeBodies.clear();
+			static const char* const names[] = { "Ana", "Biel", "Cleo", "Dan", "Eli", "Fran" };
+			static const char* const roles[] = { "forager", "woodcutter", "miner", "forager", "woodcutter", "forager" };
+			for (int i = 0; i < 6; ++i) if (m_Actors.Find(names[i])) m_Actors.Remove(names[i]);
+
+			const CommandResult built = ResourcesCommand({ "build", std::to_string(origin.x), std::to_string(origin.z) });
+			if (!built.Ok) return built;
+			const glm::vec2 camp(origin.x, origin.z - 8.0f);
+			for (int i = 0; i < workers; ++i)
+			{
+				const CommandResult r = Execute(std::string("actor spawn ") + names[i] + " \"" + model + "\" " + std::to_string(camp.x + (i - (workers - 1) * 0.5f) * 1.5f) + " " + std::to_string(camp.y) + " ai");
+				if (!r.Ok) return r;
+				m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors.Find(names[i])));
+			}
+			m_Tribe.Bind(m_SceneEditor.World(), m_Gameplay, m_Items, m_Recipes, m_NodeDefs);
+			m_Tribe.Config.Camp = camp;
+			m_Tribe.Config.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
+			m_Tribe.Store().Add(m_Items, "wood", 4);    // what they found lying around on the first day
+			m_Tribe.Store().Add(m_Items, "stone", 5);
+			for (int i = 0; i < workers; ++i) m_Tribe.AddMember(names[i], roles[i], m_TribeBodies[static_cast<size_t>(i)].get());
+			return { true, std::to_string(workers) + " workers at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + ") with 9 resource nodes around; they act on their own: tribe status | tribe log" };
+		}
+		if (sub == "clear") { m_Tribe.Clear(); m_TribeBodies.clear(); return { true, "tribe cleared (the actors stay: actor remove <name>)" }; }
+		if (m_Tribe.Members().empty()) return { false, "no tribe (tribe build [model.fbx])" };
+		if (sub == "log")
+		{
+			const int n = a.size() > 1 ? std::max(1, std::atoi(a[1].c_str())) : 12;
+			const auto& log = m_Tribe.Log();
+			std::string s;
+			for (size_t i = log.size() > static_cast<size_t>(n) ? log.size() - static_cast<size_t>(n) : 0; i < log.size(); ++i) s += log[i] + " | ";
+			return { true, s.empty() ? "nothing has happened yet" : s };
+		}
+		std::string s = m_Tribe.Report();
+		for (char& c : s) if (c == '\n') c = '|';   // one line: the console shows the first line of a message
+		return { true, s };
+	}
+
 	CommandResult EditorApp::ResourcesCommand(const std::vector<std::string>& a)
 	{
 		const std::string sub = a.empty() ? "status" : a[0];
@@ -67,7 +140,7 @@ namespace GB::Editor
 			SyncGameplay();
 			m_SceneEditor.Commit();
 			return { true, std::to_string(layout.Nodes.size()) + " resource nodes built at (" + std::to_string(static_cast<int>(origin.x)) + ", " + std::to_string(static_cast<int>(origin.z))
-				+ "). Gather with: ability activate Gather \"berry_bush 1\" (Chop needs an axe, Mine a pickaxe: actor bag <name> craft stone_axe workbench)" };
+				+ "). Gather with: ability activate Gather \"berry bush 1\" (Chop needs an axe, Mine a pickaxe: actor bag <name> craft stone_axe workbench)" };
 		}
 		std::string s;
 		for (const std::string& n : m_Gameplay.Names())

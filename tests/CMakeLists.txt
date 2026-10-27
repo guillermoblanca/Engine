@@ -240,3 +240,7 @@ add_test(NAME items COMMAND GBItemsTests)
 add_executable(GBResourcesTests resources_test.cpp)
 target_link_libraries(GBResourcesTests PRIVATE GB::GB)
 add_test(NAME resources COMMAND GBResourcesTests)
+
+add_executable(GBTribeTests tribe_test.cpp)
+target_link_libraries(GBTribeTests PRIVATE GB::GB)
+add_test(NAME tribe COMMAND GBTribeTests)

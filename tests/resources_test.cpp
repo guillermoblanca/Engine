@@ -63,9 +63,9 @@ static std::string Loop(bool& ok)
 	auto step = [&](bool good, const char* what) { if (!good) std::fprintf(stderr, "  (loop step failed: %s)\n", what); ok = ok && good; };
 
 	step(!f.Do("Chop", "tree 1"), "no axe, no chopping");
-	step(f.Do("Gather", "fiber_grass 1") && f.Do("Gather", "fiber_grass 1") && f.Do("Gather", "fiber_grass 1"), "gather fibre by hand");
+	step(f.Do("Gather", "fiber grass 1") && f.Do("Gather", "fiber grass 1") && f.Do("Gather", "fiber grass 1"), "gather fibre by hand");
 	step(f.Bag.Count("fiber") == 6, "6 fibre");
-	step(f.Do("Gather", "berry_bush 1") && f.Bag.Count("berry") == 2, "berries");
+	step(f.Do("Gather", "berry bush 1") && f.Bag.Count("berry") == 2, "berries");
 
 	f.Bag.Add(f.Items, "wood", 4);
 	f.Bag.Add(f.Items, "stone", 5);
@@ -76,7 +76,7 @@ static std::string Loop(bool& ok)
 
 	for (int i = 0; i < 5; ++i) { step(f.Do("Chop", "tree 1"), "chop"); f.Frames(60); }
 	step(f.Amount("tree 1") == 0 && f.Bag.Count("wood") == 7, "five chops fell the tree (2 wood left after the axe + 5)");
-	return f.Bag.ToJson() + "|" + std::to_string(f.Amount("tree 1")) + "|" + std::to_string(f.Amount("fiber_grass 1"));
+	return f.Bag.ToJson() + "|" + std::to_string(f.Amount("tree 1")) + "|" + std::to_string(f.Amount("fiber grass 1"));
 }
 
 int main()
@@ -90,18 +90,18 @@ int main()
 
 		// Empty a bush by hand: 6 berries, 2 per gather.
 		const int cooldown = 60;
-		for (int i = 0; i < 3; ++i) { Check(f.Do("Gather", "berry_bush 2"), "gather a berry bush"); f.Frames(cooldown); }
-		Check(f.Bag.Count("berry") == 6 && f.Amount("berry_bush 2") == 0, "three gathers empty a bush");
+		for (int i = 0; i < 3; ++i) { Check(f.Do("Gather", "berry bush 2"), "gather a berry bush"); f.Frames(cooldown); }
+		Check(f.Bag.Count("berry") == 6 && f.Amount("berry bush 2") == 0, "three gathers empty a bush");
 		f.Frames(2);
-		Check(f.Gameplay.Find("berry_bush 2")->HasTag("State.Depleted"), "an empty bush is depleted");
-		Check(!f.Do("Gather", "berry_bush 2"), "nothing to gather from a depleted bush");
-		const EntityId berries = f.Entities.FindByName("berry_bush 2 Berries");
+		Check(f.Gameplay.Find("berry bush 2")->HasTag("State.Depleted"), "an empty bush is depleted");
+		Check(!f.Do("Gather", "berry bush 2"), "nothing to gather from a depleted bush");
+		const EntityId berries = f.Entities.FindByName("berry bush 2 Berries");
 		Check(berries != NullEntity && !f.Entities.Find(berries)->Active, "its berries disappear");
 
 		// It grows back: +2 every 20 s.
 		f.Frames(60 * 21);
-		Check(f.Amount("berry_bush 2") >= 2, "the bush regrows");
-		Check(!f.Gameplay.Find("berry_bush 2")->HasTag("State.Depleted") && f.Entities.Find(berries)->Active, "and its berries come back");
+		Check(f.Amount("berry bush 2") >= 2, "the bush regrows");
+		Check(!f.Gameplay.Find("berry bush 2")->HasTag("State.Depleted") && f.Entities.Find(berries)->Active, "and its berries come back");
 
 		// A rock does not.
 		f.Bag.Add(f.Items, "stone_pickaxe", 1);

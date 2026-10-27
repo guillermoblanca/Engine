@@ -16,6 +16,7 @@
 #include "GB/Effects/Weather.h"
 #include "GB/Game/EntityRender.h"
 #include "GB/Gameplay/Garden.h"
+#include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
@@ -99,6 +100,7 @@ namespace GB::Editor
 		void BindResources();                                    // resource nodes of the scene: what is gathered goes to the actor's bag
 		void StepResources();                                    // tools as tags and depleted nodes, once per simulation step
 		CommandResult ResourcesCommand(const std::vector<std::string>& a);
+		CommandResult TribeCommand(const std::vector<std::string>& a);
 		void SyncGameplay();                                     // ability systems from the scene's entities (after a scene is loaded or the garden built)
 		CommandResult AbilityCommand(const std::vector<std::string>& a);
 		CommandResult GardenCommand(const std::vector<std::string>& a);
@@ -122,6 +124,9 @@ namespace GB::Editor
 		GameplayWorld m_Gameplay;                                // tags, attributes, effects and abilities of the entities and the player (see GB/Gameplay)
 		GardenSystem m_Garden;
 		ResourceSystem m_Resources;
+		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
+		Tribe m_Tribe;                                           // the first tribe (`tribe build`): workers that gather, carry, craft and light a fire alone
+		std::vector<std::unique_ptr<ITribeBody>> m_TribeBodies;
 		std::string m_AbilityActor = "Gardener";                 // whose abilities the Abilities panel shows
 		ActorWorld m_Actors;                                     // every character of the world: the player's and the NPCs' (`actor` command)
 		ItemLibrary m_Items;                                      // era-1 items and recipes, filled on first use of `actor bag`
