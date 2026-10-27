@@ -92,3 +92,5 @@ El importador FBX de la fase 11A-1 y `AnalyzeClip` confirmaron las cifras de la 
 
 - FBX nativo con ufbx (dependencia fijada), en lugar de convertir a glTF fuera del motor.
 - **El controlador manda** el movimiento; las animaciones se reproducen a `velocidad real / velocidad de referencia` y se mezclan con sincronización de pies (no root motion por defecto).
+
+La arquitectura completa (controlador de personaje, capas y slots, sockets, IK, ragdoll, interacciones) y el plan por fases están en `docs/ANIMACION_SISTEMA_COMPLETO.md`.
