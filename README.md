@@ -71,6 +71,8 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | glTF, FBX, animación y cámaras | [docs/modelos-y-animacion.md](docs/modelos-y-animacion.md) |
 | Locomoción: estudio del pack Mixamo | [docs/ANIMACION_LOCOMOCION.md](docs/ANIMACION_LOCOMOCION.md) |
 | Arquitectura del sistema de animación completo (investigación) | [docs/ANIMACION_SISTEMA_COMPLETO.md](docs/ANIMACION_SISTEMA_COMPLETO.md) |
+| Habilidades de juego tipo GAS y escenario del huerto (`garden build`, `ability ...`) | [docs/habilidades.md](docs/habilidades.md) |
+| Animaciones que faltan en los packs y qué se usa mientras tanto | [docs/ANIMACIONES_PENDIENTES.md](docs/ANIMACIONES_PENDIENTES.md) |
 | Partículas y clima | [docs/efectos.md](docs/efectos.md) |
 | Terreno, agua, vegetación, erosión y mundos procedurales | [docs/mundo.md](docs/mundo.md) |
 | Física y destrucción | [docs/fisica.md](docs/fisica.md) |

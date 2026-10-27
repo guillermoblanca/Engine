@@ -143,6 +143,18 @@ namespace GB
 				}
 				j["interact"] = std::move(points);
 			}
+			if (e.Gameplay)
+			{
+				Json g;
+				if (!e.Gameplay->Tags.empty()) g["tags"] = e.Gameplay->Tags;
+				if (!e.Gameplay->Abilities.empty()) g["abilities"] = e.Gameplay->Abilities;
+				if (!e.Gameplay->Effects.empty()) g["effects"] = e.Gameplay->Effects;
+				Json attrs = Json::array();
+				for (const GameplayAttribute& a : e.Gameplay->Attributes)
+					attrs.push_back(Json{ { "name", a.Name }, { "value", Round(a.Value) }, { "min", Round(a.Min) }, { "max", Round(a.Max) } });
+				if (!attrs.empty()) g["attributes"] = std::move(attrs);
+				j["gameplay"] = std::move(g);
+			}
 			list.push_back(std::move(j));
 		}
 		root["entities"] = std::move(list);
@@ -210,6 +222,24 @@ namespace GB
 						ReadValue(jp, "warp", p.WarpSeconds);
 						e->Interact->Points.push_back(std::move(p));
 					}
+				}
+				if (auto it = j.find("gameplay"); it != j.end() && it->is_object())
+				{
+					e->Gameplay.emplace();
+					ReadValue(*it, "tags", e->Gameplay->Tags);
+					ReadValue(*it, "abilities", e->Gameplay->Abilities);
+					ReadValue(*it, "effects", e->Gameplay->Effects);
+					if (auto at = it->find("attributes"); at != it->end() && at->is_array())
+						for (const Json& ja : *at)
+						{
+							GameplayAttribute a;
+							a.Name = ja.value("name", "");
+							ReadValue(ja, "value", a.Value);
+							ReadValue(ja, "min", a.Min);
+							ReadValue(ja, "max", a.Max);
+							if (a.Name.empty()) return fail("gameplay attribute without a name on '" + e->Name + "'");
+							e->Gameplay->Attributes.push_back(std::move(a));
+						}
 				}
 				if (auto it = j.find("body"); it != j.end())
 				{

@@ -7,6 +7,8 @@
 #include "GB/Log.h"
 #include "GB/Window.h"
 #include "GB/Game/CharacterController.h"
+#include "GB/Gameplay/AbilitySystemComponent.h"
+#include "GB/Gameplay/Garden.h"
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
 #include "GB/World/Footsteps.h"
