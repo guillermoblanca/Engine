@@ -24,7 +24,7 @@ namespace GB
 
 		const char* AbilityFor(const std::string& kind)
 		{
-			return kind == "tree" ? "Chop" : kind == "rock" ? "Mine" : "Gather";
+			return kind == "tree" ? "Chop" : kind == "rock" ? "Mine" : kind == "fiber_grass" ? "PullFiber" : "Gather";
 		}
 
 		bool IsTool(const ItemLibrary& items, const std::string& id)

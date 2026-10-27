@@ -61,16 +61,25 @@ namespace GB
 			lib.AddEffect(e);
 		}
 		// (Older scenes carry these regrowth effects; new nodes regrow through ResourceSystem::Update, which a season can slow down.)
-		// Stand-in montages until the packs have chopping, mining and gathering clips (docs/ANIMACIONES_PENDIENTES.md).
-		AbilityDef chop = GatherAbility("Chop", "dig_plant", "chop", "Resource.Wood", "Item.Tool.Axe");
+		// Montages (checked frame by frame in the editor): a tool swing for the tree and the rock (the "tool" prop in the hand), the arm at the
+		// height of a bush for berries and a bend down for the tufts. They are stand-ins until the artist makes chopping, mining and gathering
+		// clips of their own (docs/ANIMACIONES_PENDIENTES.md).
+		AbilityDef chop = GatherAbility("Chop", "sword_slash_1", "chop", "Resource.Wood", "Item.Tool.Axe");
+		chop.Montages = { "sword_slash_1", "sword_slash_3" };   // two swings in turn
+		chop.EquipProp = "tool";
 		chop.Note = "chops a tree (needs an axe)";
 		lib.AddAbility(chop);
-		AbilityDef mine = GatherAbility("Mine", "dig_plant", "mine", "Resource.Stone", "Item.Tool.Pickaxe");
+		AbilityDef mine = GatherAbility("Mine", "sword_attack_4", "mine", "Resource.Stone", "Item.Tool.Pickaxe");
+		mine.EquipProp = "tool";
 		mine.Note = "mines a rock (needs a pickaxe)";
 		lib.AddAbility(mine);
-		AbilityDef pick = GatherAbility("Gather", "pick_fruit", "gather", "Resource.Plant", "");
-		pick.Note = "gathers berries or fibre by hand";
+		AbilityDef pick = GatherAbility("Gather", "pick_fruit_2", "gather", "Resource.Plant", "");
+		pick.TargetBlockedTags = { "State.Depleted", "Resource.Node.fiber_grass" };
+		pick.Note = "picks berries by hand";
 		lib.AddAbility(pick);
+		AbilityDef pull = GatherAbility("PullFiber", "pull_plant", "pull", "Resource.Node.fiber_grass", "");
+		pull.Note = "pulls fibre from a tuft of grass";
+		lib.AddAbility(pull);
 	}
 
 	ResourceLayout BuildResources(EntityWorld& w, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes, int trees, int rocks, int bushes, int grass)
