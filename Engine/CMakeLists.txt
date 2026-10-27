@@ -25,6 +25,7 @@ add_library(GB STATIC
     src/GB/Gameplay/Items.cpp
     src/GB/Gameplay/Resources.cpp
     src/GB/Gameplay/Interactives.cpp
+    src/GB/Gameplay/Ecology.cpp
     src/GB/Game/Tribe.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp

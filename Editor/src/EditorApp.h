@@ -17,6 +17,7 @@
 #include "GB/Game/EntityRender.h"
 #include "GB/Gameplay/Garden.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Renderer/Camera.h"
@@ -91,6 +92,9 @@ namespace GB::Editor
 		void DrawAnimationPanel();
 		void DrawAbilitiesPanel();
 		void DrawTribePanel();
+		void DrawWorldStatePanel();
+		CommandResult EcologyCommand(const std::vector<std::string>& a);
+		void StepWorld(double clock);                            // seasons, rain on the plots and the animals, once per simulation step
 		void DrawBag(const std::string& actorName);                // the inventory of a character, as a table
 		std::string PickActor(const struct Ray& ray) const;       // the character under a viewport click ("" = none)
 		void SelectActor(const std::string& name, bool focus);   // the character the Abilities and Tribe panels show
@@ -130,6 +134,7 @@ namespace GB::Editor
 		GameplayWorld m_Gameplay;                                // tags, attributes, effects and abilities of the entities and the player (see GB/Gameplay)
 		GardenSystem m_Garden;
 		ResourceSystem m_Resources;
+		EcologySystem m_Ecology;                                 // rabbits that eat, breed and starve (`ecology spawn`)
 		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
@@ -186,7 +191,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, WorldState = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		bool m_LayoutBuilt = false;

@@ -183,6 +183,7 @@ namespace GB::Editor
 		if (name == "Animation") return m_Panels.Animation;
 		if (name == "Abilities") return m_Panels.Abilities;
 		if (name == "Tribe") return m_Panels.Tribe;
+		if (name == "World state") return m_Panels.WorldState;
 		if (name == "Timeline") return m_Panels.Timeline;
 		if (name == "Graph") return m_Panels.Graph;
 		if (name == "Tests") return m_Panels.Tests;
@@ -762,7 +763,7 @@ namespace GB::Editor
 			if (n == "Viewport") flag = &m_Panels.Viewport; else if (n == "Hierarchy") flag = &m_Panels.Hierarchy; else if (n == "Inspector") flag = &m_Panels.Inspector;
 			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
-			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tribe") flag = &m_Panels.Tribe; else if (n == "Tests") flag = &m_Panels.Tests;
+			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tribe") flag = &m_Panels.Tribe; else if (n == "WorldState") flag = &m_Panels.WorldState; else if (n == "Tests") flag = &m_Panels.Tests;
 			if (!flag) return { false, "no such panel '" + n + "'" };
 			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else if (n == "Graph") m_GraphFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
@@ -803,6 +804,7 @@ namespace GB::Editor
 			return { true, "timescale " + std::to_string(m_TimeScale) };
 		});
 		c.Register("interactives", "interactives build [x z] | status: puts a campfire (Stoke with wood), a well (DrawWater) and a gate (OpenDoor, CloseDoor) in the scene; their state is saved with the game", [this](const std::vector<std::string>& a) { return InteractivesCommand(a); });
+		c.Register("ecology", "ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]: rabbits that wander, eat berry bushes and fibre tufts, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)", [this](const std::vector<std::string>& a) { return EcologyCommand(a); });
 		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
@@ -1394,6 +1396,7 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("Animation", right);
 		ImGui::DockBuilderDockWindow("Abilities", right);
 		ImGui::DockBuilderDockWindow("Tribe", right);
+		ImGui::DockBuilderDockWindow("World state", right);
 		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
@@ -1424,6 +1427,7 @@ namespace GB::Editor
 		if (m_Panels.Animation) DrawAnimationPanel();
 		if (m_Panels.Abilities) DrawAbilitiesPanel();
 		if (m_Panels.Tribe) DrawTribePanel();
+		if (m_Panels.WorldState) DrawWorldStatePanel();
 		if (m_Panels.Timeline) DrawTimelinePanel();
 		if (m_Panels.Graph) DrawGraphPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
@@ -1512,6 +1516,7 @@ namespace GB::Editor
 			ImGui::MenuItem("Animation", nullptr, &m_Panels.Animation);
 			ImGui::MenuItem("Abilities", nullptr, &m_Panels.Abilities);
 			ImGui::MenuItem("Tribe", nullptr, &m_Panels.Tribe);
+			ImGui::MenuItem("World state", nullptr, &m_Panels.WorldState);
 			ImGui::MenuItem("Timeline", nullptr, &m_Panels.Timeline);
 			ImGui::MenuItem("Animation graph", nullptr, &m_Panels.Graph);
 			ImGui::MenuItem("Console", nullptr, &m_Panels.Console);

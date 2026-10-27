@@ -77,6 +77,7 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | Objetos, inventario, recursos y recetas | [docs/OBJETOS.md](docs/OBJETOS.md) |
 | La primera tribu: trabajadores autónomos (`tribe build`) | [docs/TRIBU.md](docs/TRIBU.md) |
 | Interactivos con estado: fogata, pozo, puerta (`interactives build`) | [docs/INTERACTIVOS.md](docs/INTERACTIVOS.md) |
+| Estaciones y ecología: conejos que comen, crían y se mueren de hambre (`ecology`) | [docs/ECOLOGIA.md](docs/ECOLOGIA.md) |
 | Partículas y clima | [docs/efectos.md](docs/efectos.md) |
 | Terreno, agua, vegetación, erosión y mundos procedurales | [docs/mundo.md](docs/mundo.md) |
 | Física y destrucción | [docs/fisica.md](docs/fisica.md) |

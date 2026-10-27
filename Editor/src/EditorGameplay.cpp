@@ -44,6 +44,7 @@ namespace GB::Editor
 			if (Actor* actor = m_Actors.Find(who)) actor->Bag().Add(m_Items, item, count);
 		});
 		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
+		m_Ecology.Bind(m_SceneEditor.World(), m_Gameplay, [this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });
 		m_Interactives.Bind(m_Gameplay,
 			[this](const std::string& who, const std::string& item, int n) { Actor* a = m_Actors.Find(who); return a ? a->Bag().Remove(item, n) : 0; },
 			[this](const std::string& who, const std::string& item, int n) { Actor* a = m_Actors.Find(who); return a ? a->Bag().Add(m_Items, item, n) : 0; });
@@ -130,6 +131,110 @@ namespace GB::Editor
 		std::string s = m_Tribe.Report();
 		for (char& c : s) if (c == '\n') c = '|';   // one line: the console shows the first line of a message
 		return { true, s };
+	}
+
+	void EditorApp::StepWorld(double clock)
+	{
+		const Season season = SeasonClock().At(clock);
+		m_Garden.GrowthRate = SeasonClock::GrowthRate(season);
+		m_Ecology.Update(clock, static_cast<float>(1.0 / 60.0));
+		// rain waters the plots (every five seconds of simulation, so the effect does not depend on the frame rate)
+		const std::string weather = m_Props.Get("weather.preset");
+		if ((weather == "rain" || weather == "lightrain" || weather == "storm") && m_SimTick % 300 == 0)
+			for (const std::string& n : m_Gameplay.Names())
+				if (AbilitySystemComponent* plot = m_Gameplay.Find(n); plot && plot->HasTag("Garden.Plot")) plot->ApplyEffect("Soak");
+	}
+
+	CommandResult EditorApp::EcologyCommand(const std::vector<std::string>& a)
+	{
+		const std::string sub = a.empty() ? "status" : a[0];
+		if (sub == "spawn")
+		{
+			glm::vec3 at = m_Orbit.Target;
+			int count = a.size() > 1 ? std::max(1, std::atoi(a[1].c_str())) : 4;
+			if (a.size() > 3) { at.x = static_cast<float>(std::atof(a[2].c_str())); at.z = static_cast<float>(std::atof(a[3].c_str())); }
+			const int made = m_Ecology.Spawn(at, count);
+			m_SceneEditor.Commit();
+			return { made > 0, std::to_string(made) + " rabbits at (" + std::to_string(static_cast<int>(at.x)) + ", " + std::to_string(static_cast<int>(at.z)) + "); " + m_Ecology.Describe() };
+		}
+		if (sub == "season")
+		{
+			if (a.size() > 1)
+			{
+				int index = -1;
+				for (int i = 0; i < 4; ++i) if (a[1] == SeasonClock::Name(static_cast<Season>(i))) index = i;
+				if (index < 0) return { false, "usage: ecology season spring|summer|autumn|winter" };
+				m_SimTick = static_cast<uint64_t>(static_cast<double>(index) * static_cast<double>(SeasonClock().SeasonSeconds) * 60.0);
+			}
+			const double clock = static_cast<double>(m_SimTick) / 60.0;
+			const Season now = SeasonClock().At(clock);
+			char rate[16];
+			std::snprintf(rate, sizeof rate, "%.1f", static_cast<double>(SeasonClock::GrowthRate(now)));
+			return { true, std::string(SeasonClock::Name(now)) + " (" + std::to_string(static_cast<int>(SeasonClock().Progress(clock) * 100.0f)) + "% through it, plants grow x" + rate + ")" };
+		}
+		const double clock = static_cast<double>(m_SimTick) / 60.0;
+		return { true, std::string(SeasonClock::Name(SeasonClock().At(clock))) + "; " + m_Ecology.Describe() };
+	}
+
+	void EditorApp::DrawWorldStatePanel()
+	{
+		if (ImGui::Begin("World state", &m_Panels.WorldState))
+		{
+			const double clock = static_cast<double>(m_SimTick) / 60.0;
+			const Season season = SeasonClock().At(clock);
+			ImGui::Text("Season: %s", SeasonClock::Name(season));
+			ImGui::ProgressBar(SeasonClock().Progress(clock), ImVec2(-1.0f, 0.0f));
+			ImGui::Text("Plants grow x%.1f   weather: %s   time %.0f s", static_cast<double>(SeasonClock::GrowthRate(season)), m_Props.Get("weather.preset").c_str(), clock);
+			if (ImGui::CollapsingHeader("Animals", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				ImGui::TextWrapped("%s", m_Ecology.Describe().c_str());
+				if (ImGui::SmallButton("Add 4 rabbits")) m_UiCommands.push_back("ecology spawn 4");
+				for (const std::string& n : m_Gameplay.Names())
+				{
+					const AbilitySystemComponent* a = m_Gameplay.Find(n);
+					if (!a || !a->HasTag("Animal.Rabbit")) continue;
+					const float food = a->Attributes().Current("Food");
+					char label[96];
+					std::snprintf(label, sizeof label, "%s  food %.0f  age %.0f s%s", n.c_str(), static_cast<double>(food), static_cast<double>(a->Attributes().Current("Age")), food < 55.0f ? "  (hungry)" : "");
+					ImGui::ProgressBar(food / 100.0f, ImVec2(-1.0f, 0.0f), label);
+				}
+			}
+			if (ImGui::CollapsingHeader("Interactives", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				bool any = false;
+				for (const std::string& n : m_Gameplay.Names())
+				{
+					const AbilitySystemComponent* a = m_Gameplay.Find(n);
+					if (!a) continue;
+					if (a->HasTag("Interactive.Campfire")) { any = true; ImGui::Text("%s: %s, fuel %.0f", n.c_str(), InteractiveSystem::CampfireState(*a).c_str(), static_cast<double>(a->Attributes().Current("Fuel"))); }
+					else if (a->HasTag("Interactive.Well")) { any = true; ImGui::Text("%s: water %.0f / 6", n.c_str(), static_cast<double>(a->Attributes().Current("Water"))); }
+					else if (a->HasTag("Interactive.Door")) { any = true; ImGui::Text("%s: %s", n.c_str(), InteractiveSystem::DoorState(*a).c_str()); }
+				}
+				if (!any) ImGui::TextDisabled("none (interactives build)");
+			}
+			if (ImGui::CollapsingHeader("Resource nodes", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				std::map<std::string, std::pair<int, int>> kinds;   // kind -> (units, nodes)
+				for (const std::string& n : m_Gameplay.Names())
+				{
+					const AbilitySystemComponent* a = m_Gameplay.Find(n);
+					if (!a || !a->HasTag("Resource.Node")) continue;
+					const std::string kind = n.substr(0, n.rfind(' '));
+					kinds[kind].first += ResourceSystem::Amount(*a);
+					++kinds[kind].second;
+				}
+				for (const auto& [kind, v] : kinds) ImGui::Text("%s: %d units in %d nodes", kind.c_str(), v.first, v.second);
+				if (kinds.empty()) ImGui::TextDisabled("none (resources build)");
+			}
+			if (ImGui::CollapsingHeader("Garden", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				bool any = false;
+				for (const std::string& n : m_Gameplay.Names())
+					if (const AbilitySystemComponent* a = m_Gameplay.Find(n); a && a->HasTag("Garden.Plot")) { any = true; ImGui::Text("%s: %s", n.c_str(), GardenSystem::SoilState(*a).c_str()); }
+				if (!any) ImGui::TextDisabled("none (garden build)");
+			}
+		}
+		ImGui::End();
 	}
 
 	CommandResult EditorApp::InteractivesCommand(const std::vector<std::string>& a)

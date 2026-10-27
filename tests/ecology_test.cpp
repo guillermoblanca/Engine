@@ -1,0 +1,115 @@
+// Seasons and basic ecology (H3): the season follows the clock, winter stops growth, and rabbits wander, eat the plants, breed when fed within a limit and
+// starve when there is nothing to eat. Their whole state is attributes of entities, so the run is the same twice. CPU only.
+#include "GB/Gameplay/Ecology.h"
+#include "GB/Gameplay/Resources.h"
+#include <algorithm>
+#include <cstdio>
+
+namespace
+{
+	int failures = 0;
+	void Check(bool ok, const char* what)
+	{
+		if (!ok) { std::fprintf(stderr, "FAIL: %s\n", what); ++failures; }
+	}
+	constexpr float dt = 0.1f;
+}
+
+using namespace GB;
+
+struct Meadow
+{
+	explicit Meadow(bool plants)
+	{
+		RecipeBook recipes;
+		RegisterEraOneItems(Items, recipes, Defs);
+		RegisterResourceContent(Gameplay.Library, Defs);
+		BuildResources(Entities, glm::vec3(0.0f), Defs, 0, 0, plants ? 6 : 0, plants ? 6 : 0);
+		Gameplay.Load(Entities);
+		Eco.Bind(Entities, Gameplay);
+		Eco.Spawn({ 0.0f, 0.0f, 4.0f }, 4);
+	}
+	// Runs `seconds` more; keeps the population in view.
+	void Run(double seconds)
+	{
+		const int steps = static_cast<int>(seconds / dt);
+		for (int i = 0; i < steps; ++i)
+		{
+			Gameplay.Update(dt);
+			Eco.Update(Clock, dt);
+			Clock += dt;
+			const int n = Eco.Count();
+			if (n > Eco.Config.MaxAnimals || n < 0) bad = true;
+			peak = std::max(peak, n);
+			for (const std::string& name : Gameplay.Names())
+			{
+				const AbilitySystemComponent* a = Gameplay.Find(name);
+				if (a->HasTag("Animal.Rabbit") && (a->Attributes().Current("Food") < 0.0f || a->Attributes().Current("Food") > Eco.Config.FoodMax)) bad = true;
+				if (a->HasTag("Resource.Node") && ResourceSystem::Amount(*a) < 0) bad = true;
+			}
+		}
+	}
+	std::string Fingerprint() const { return Eco.Describe() + std::to_string(Clock); }
+	ItemLibrary Items;
+	std::map<std::string, ResourceNodeDef> Defs;
+	EntityWorld Entities;
+	GameplayWorld Gameplay;
+	EcologySystem Eco;
+	double Clock = 0.0;
+	int peak = 0;
+	bool bad = false;
+};
+
+int main()
+{
+	// Seasons.
+	{
+		const SeasonClock s;
+		Check(s.At(0.0) == Season::Spring && s.At(250.0) == Season::Summer && s.At(500.0) == Season::Autumn && s.At(750.0) == Season::Winter && s.At(960.0) == Season::Spring, "the seasons follow the clock and the year repeats");
+		Check(SeasonClock::GrowthRate(Season::Winter) == 0.0f && SeasonClock::GrowthRate(Season::Spring) > SeasonClock::GrowthRate(Season::Autumn), "winter stops growth, spring favours it");
+		Check(SeasonClock::HungerRate(Season::Winter) > SeasonClock::HungerRate(Season::Summer), "winter is hungrier");
+		Check(s.Progress(120.0) > 0.49f && s.Progress(120.0) < 0.51f, "progress through a season");
+	}
+
+	// With food: they spread out, eat, breed (within the limit) and the plants are used.
+	{
+		Meadow m(true);
+		m.Run(240.0);   // spring
+		Check(!m.bad, "no count out of bounds");
+		Check(m.Eco.Count() >= 4, "a fed spring keeps the rabbits alive");
+		Check(m.Eco.Eaten() > 0, "they eat the plants");
+		m.Run(1200.0);
+		Check(!m.bad, "no count out of bounds over five seasons");
+		Check(m.Eco.Born() > 0, "they breed when well fed");
+		Check(m.peak <= m.Eco.Config.MaxAnimals, "the population never passes the limit");
+		std::fprintf(stderr, "  %s, peak %d\n", m.Eco.Describe().c_str(), m.peak);
+	}
+
+	// Without plants: they starve.
+	{
+		Meadow m(false);
+		m.Run(900.0);
+		Check(!m.bad, "no count out of bounds");
+		Check(m.Eco.Count() == 0 && m.Eco.Starved() == 4, "with nothing to eat all four starve");
+	}
+
+	// Twice the same.
+	{
+		Meadow a(true), b(true);
+		a.Run(1000.0);
+		b.Run(1000.0);
+		Check(a.Fingerprint() == b.Fingerprint(), "two runs end the same");
+		bool same = true;
+		for (const std::string& n : a.Gameplay.Names())
+			if (const AbilitySystemComponent* x = a.Gameplay.Find(n); x && x->HasTag("Animal.Rabbit"))
+			{
+				const EntityId ia = a.Entities.FindByName(n), ib = b.Entities.FindByName(n);
+				same = same && ib != NullEntity && a.Entities.Find(ia)->Transform.Position == b.Entities.Find(ib)->Transform.Position;
+			}
+		Check(same, "and every rabbit is in the same place");
+	}
+
+	if (failures) { std::fprintf(stderr, "%d failure(s)\n", failures); return 1; }
+	std::puts("ecology: ok");
+	return 0;
+}
