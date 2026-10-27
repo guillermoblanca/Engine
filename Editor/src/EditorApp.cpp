@@ -710,7 +710,10 @@ namespace GB::Editor
 				}
 				std::string text;
 				for (const ItemSlot& s : bag.Stacks()) text += (text.empty() ? "" : ", ") + s.Id + " x" + std::to_string(s.Count);
-				return { true, text.empty() ? a[1] + " carries nothing" : a[1] + " carries " + text };
+				std::string report = text.empty() ? a[1] + " carries nothing" : a[1] + " carries " + text;
+				report += "\n  bag: " + CapacityText(m_Items, bag);
+				for (const std::string& tool : ActiveTools(m_Items, bag)) report += "\n  tool " + tool;
+				return { true, report };
 			}
 			return { false, "usage: actor spawn|list|control|tasks|remove|sync|bag <name> [add|remove|craft <item|recipe> [n|station]]" };
 		});

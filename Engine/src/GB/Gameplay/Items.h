@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <map>
 #include <string>
 #include <vector>
@@ -19,7 +20,17 @@ namespace GB
 		std::vector<std::string> Tags;      // "Item.Tool.Axe": what a requirement can ask for
 		std::string Ability;                // ability the item enables or triggers ("" = none)
 		std::string Socket;                 // hand/hip socket it is shown in when carried ("" = not shown)
+		// Tools (E2): a variant ("Item.Tool.Axe.Flint") is still an axe through the tag hierarchy; these say how much better it is.
+		int Power = 0;                      // extra units a node gives per swing, on top of its own PerGather
+		float Speed = 1.0f;                 // multiplier of the swing's playback rate (1.25 = a quarter faster)
+		// Containers (E2): carried in the bag, they make it bigger. Only the best one counts (Inventory::SyncCapacity).
+		int BagSlots = 0;                   // extra slots while carried
+		float BagWeight = 0.0f;             // extra weight limit while carried (only for a bag that has a limit)
 	};
+
+	// The tool family of a tool tag: the first three segments, "Item.Tool.Axe.Flint" -> "Item.Tool.Axe" (anything else is returned as is).
+	// Power and speed of the best tool of a family are the attributes "Power:<family>" and "Speed:<family>" of whoever carries it.
+	std::string ToolFamily(const std::string& tag);
 
 	class ItemLibrary
 	{
@@ -44,6 +55,23 @@ namespace GB
 		Inventory() = default;
 		Inventory(int slots, float maxWeight = 0.0f) : m_Slots(slots), m_MaxWeight(maxWeight) {}
 
+		// Capacity = the bag's own plus the bonus of the best container it holds (SyncCapacity). Contents over the capacity (a container
+		// that was dropped) stay where they are; nothing more goes in until there is room.
+		int Slots() const { return m_Slots + m_BonusSlots; }
+		float MaxWeight() const { return m_MaxWeight > 0.0f ? m_MaxWeight + m_BonusWeight : 0.0f; }
+		int BaseSlots() const { return m_Slots; }
+		float BaseMaxWeight() const { return m_MaxWeight; }
+		int BonusSlots() const { return m_BonusSlots; }
+		float BonusWeight() const { return m_BonusWeight; }
+		void SetBonus(int slots, float weight) { m_BonusSlots = std::max(0, slots); m_BonusWeight = std::max(0.0f, weight); }
+		// The best container held: the one tagged "Item.Container" (or below) with the most slots, then the most weight, then the lowest id. Null if none.
+		const ItemDef* BestContainer(const ItemLibrary& lib) const;
+		// Applies the bonus of BestContainer. Only one counts, so carrying two baskets does not stack. Call it whenever the contents change
+		// and after a load: the bonus is derived from the contents, so a save does not store it.
+		void SyncCapacity(const ItemLibrary& lib);
+		// The strongest tool of a family held (most power, then speed, then lowest id): "Item.Tool.Axe" finds every kind of axe. Null if none.
+		const ItemDef* BestTool(const ItemLibrary& lib, const std::string& tag) const;
+
 		// Puts up to `count` units in, filling stacks first and then empty slots, within the weight limit. Returns how many fit.
 		int Add(const ItemLibrary& lib, const std::string& id, int count);
 		// Takes up to `count` units out (from the last stacks first). Returns how many were taken.
@@ -55,22 +83,28 @@ namespace GB
 		// Moves up to `count` units into another container; returns how many moved.
 		int Transfer(const ItemLibrary& lib, Inventory& to, const std::string& id, int count);
 
-		int Slots() const { return m_Slots; }
 		int UsedSlots() const { return static_cast<int>(m_Stacks.size()); }
-		float MaxWeight() const { return m_MaxWeight; }
 		const std::vector<ItemSlot>& Stacks() const { return m_Stacks; }
 		// Replaces the contents as they were saved (no checks against a library: a save is trusted to hold what it held).
 		void SetStacks(std::vector<ItemSlot> stacks) { m_Stacks = std::move(stacks); }
 
-		// Compact JSON, e.g. {"slots":8,"maxWeight":20,"items":[["wood",3]]}. Load returns false (and changes nothing) on malformed text.
+		// Compact JSON, e.g. {"slots":8,"maxWeight":20,"items":[["wood",3]]} ("slots" and "maxWeight" are the bag's own; "bonusSlots" and
+		// "bonusWeight" are written only when a container gives some, and an older text without them loads as before). Load returns false (and changes nothing) on malformed text.
 		std::string ToJson() const;
 		bool FromJson(const std::string& json);
 
 	private:
 		int m_Slots = 0;
 		float m_MaxWeight = 0.0f;
+		int m_BonusSlots = 0;
+		float m_BonusWeight = 0.0f;
 		std::vector<ItemSlot> m_Stacks;
 	};
+
+	// For the editor: "8 / 18 slots (12 + 6 from Wicker basket), 3.2 / 28 kg" and one line per tool family held, the best of each:
+	// "Item.Tool.Axe: Flint axe (power +1, speed x1.15)".
+	std::string CapacityText(const ItemLibrary& lib, const Inventory& bag);
+	std::vector<std::string> ActiveTools(const ItemLibrary& lib, const Inventory& bag);
 
 	// A gatherable thing in the world: a tree, a rock, a berry bush, a deposit. It holds a quantity, gives it out in pieces, and either
 	// grows back (Regen units every RegenSeconds) or stays depleted.
@@ -132,7 +166,7 @@ namespace GB
 	};
 
 	// Content as data: items, recipes and resource nodes in one JSON document, so the game's things can be added and changed without a build.
-	//   { "items":   [ { "id", "name", "category", "weight", "stack", "tags": [], "ability", "socket" } ],
+	//   { "items":   [ { "id", "name", "category", "weight", "stack", "tags": [], "ability", "socket", "power", "speed", "bagSlots", "bagWeight" } ],
 	//     "recipes": [ { "id", "station", "tool", "inputs": { "wood": 2 }, "output", "count", "ability" } ],
 	//     "nodes":   [ { "id", "item", "capacity", "perGather", "regenSeconds", "regen", "requires", "ability" } ] }
 	// Entries replace those of the same id; anything else already loaded stays. Returns "" or what is wrong (and changes nothing).
@@ -141,6 +175,8 @@ namespace GB
 	// The same document for what is loaded now (pretty-printed): the starting point of a content file.
 	std::string ContentToJson(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes);
 
-	// The era-1 content: wood, stone, fiber, berries, a stone axe and pickaxe, a campfire and the resource nodes and recipes that go with them.
+	// (The last four item fields are optional: power 0, speed 1, bagSlots 0 and bagWeight 0 when missing.)
+
+	// The era-1 content: wood, stone, fiber, berries, stone and flint tools, a wicker basket, a campfire and the resource nodes and recipes that go with them.
 	void RegisterEraOneItems(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes);
 }

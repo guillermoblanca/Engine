@@ -54,8 +54,12 @@ namespace GB::Editor
 	void EditorApp::StepResources()
 	{
 		for (const std::string& name : m_Actors.Names())
+		{
+			Actor* actor = m_Actors.Find(name);
+			actor->Bag().SyncCapacity(m_Items);   // a carried basket makes the bag bigger (also after a load: the bonus is not saved)
 			if (AbilitySystemComponent* asc = m_Gameplay.Find(name))
-				ResourceSystem::SyncTools(*asc, m_Actors.Find(name)->Bag(), m_Items);
+				ResourceSystem::SyncTools(*asc, actor->Bag(), m_Items);
+		}
 		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
 	}
 

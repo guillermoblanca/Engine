@@ -46,6 +46,15 @@ struct Field
 		for (int i = 0; i < 60 * 20 && a->AnyActive(); ++i) Frames(1);
 		return !a->AnyActive() && a->LastError().empty();
 	}
+	// Frames an ability takes from activation to the end (-1 if it fails): the tool's speed shows here.
+	int DoFrames(const char* ability, const std::string& target)
+	{
+		AbilitySystemComponent* a = Gameplay.Find("Worker");
+		if (!a->Activate(ability, Gameplay.Find(target), nullptr)) return -1;
+		int n = 0;
+		for (; n < 60 * 20 && a->AnyActive(); ++n) Frames(1);
+		return a->AnyActive() || !a->LastError().empty() ? -1 : n;
+	}
 	int Amount(const std::string& node) { return ResourceSystem::Amount(*Gameplay.Find(node)); }
 
 	ItemLibrary Items;
@@ -143,6 +152,37 @@ int main()
 		Check(f.Gameplay.Find("berry bush 1")->Attributes().Current("Regrow") > 9.0f, "the regrowth timer advances as an attribute");
 		for (int i = 0; i < 60 * 11; ++i) f.Rules.Update(f.Gameplay, dt, 1.0f);
 		Check(f.Amount("berry bush 1") == 2, "and the bush gives its pieces back in spring");
+	}
+
+	// Tools with a level (E2): a flint axe is an axe (tag hierarchy) but gives more per swing and swings faster than a stone one.
+	{
+		Field stone, flint;
+		stone.Bag.Add(stone.Items, "stone_axe", 1);
+		flint.Bag.Add(flint.Items, "flint_axe", 1);
+		stone.Frames(2); flint.Frames(2);
+		Check(flint.Gameplay.Find("Worker")->HasTag("Item.Tool.Axe"), "a flint axe satisfies the generic axe tag");
+		Check(flint.Gameplay.Find("Worker")->Attributes().Current("Power:Item.Tool.Axe") == 1.0f && stone.Gameplay.Find("Worker")->Attributes().Current("Power:Item.Tool.Axe") == 0.0f, "the best axe sets the power");
+		const int slow = stone.DoFrames("Chop", "tree 1"), fast = flint.DoFrames("Chop", "tree 1");
+		Check(slow > 0 && fast > 0 && fast < slow, "a flint swing is quicker than a stone one");
+		Check(stone.Bag.Count("wood") == 1 && flint.Bag.Count("wood") == 2, "and brings one more wood");
+		stone.Frames(60); flint.Frames(60);
+		stone.DoFrames("Chop", "tree 1"); flint.DoFrames("Chop", "tree 1");
+		stone.Frames(60); flint.Frames(60);
+		flint.DoFrames("Chop", "tree 1");
+		Check(flint.Amount("tree 1") == 0 && flint.Bag.Count("wood") == 5, "three flint swings fell a tree (the last takes what is left)");
+		Check(stone.Amount("tree 1") == 3, "while the stone axe needs five");
+		// both axes: the better one counts; without any, the power is gone
+		flint.Bag.Add(flint.Items, "stone_axe", 1);
+		flint.Frames(2);
+		Check(flint.Gameplay.Find("Worker")->Attributes().Current("Power:Item.Tool.Axe") == 1.0f, "with two axes the flint one counts");
+		flint.Bag.Remove("flint_axe", 1); flint.Bag.Remove("stone_axe", 1);
+		flint.Frames(2);
+		Check(flint.Gameplay.Find("Worker")->Attributes().Current("Power:Item.Tool.Axe") == 0.0f && flint.Gameplay.Find("Worker")->Attributes().Current("Speed:Item.Tool.Axe") == 1.0f, "no axe, no bonus");
+
+		Field pick;
+		pick.Bag.Add(pick.Items, "flint_pickaxe", 1);
+		pick.Frames(2);
+		Check(pick.Do("Mine", "rock 1") && pick.Bag.Count("stone") == 2, "a flint pickaxe mines two stones a swing");
 	}
 
 	// The whole loop, twice.
