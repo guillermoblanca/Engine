@@ -1,6 +1,7 @@
 #include "GB/Animation/Montage.h"
 #include <algorithm>
 #include <cmath>
+#include <nlohmann/json.hpp>
 
 namespace GB
 {
@@ -77,16 +78,83 @@ namespace GB
 			m_Pending.push_back({ MontageEvent::Kind::Interrupted, m_Entries[static_cast<size_t>(a.Entry)].Desc.Name, {} });   // delivered by the next Update
 	}
 
-	bool MontagePlayer::Play(const std::string& name)
+	const MontageDesc* MontagePlayer::Get(const std::string& name) const
+	{
+		const int i = Find(name);
+		return i < 0 ? nullptr : &m_Entries[static_cast<size_t>(i)].Desc;
+	}
+
+	std::vector<MontageDesc> MontagePlayer::Descs() const
+	{
+		std::vector<MontageDesc> out;
+		for (const Entry& e : m_Entries) out.push_back(e.Desc);
+		return out;
+	}
+
+	bool MontagePlayer::Remove(const std::string& name)
 	{
 		const int i = Find(name);
 		if (i < 0) return false;
+		for (size_t k = m_Active.size(); k-- > 0;)
+		{
+			if (m_Active[k].Entry == i) m_Active.erase(m_Active.begin() + static_cast<std::ptrdiff_t>(k));
+			else if (m_Active[k].Entry > i) --m_Active[k].Entry;
+		}
+		m_Entries.erase(m_Entries.begin() + i);
+		return true;
+	}
+
+	bool MontagePlayer::Play(const std::string& name, const std::string& section)
+	{
+		const int i = Find(name);
+		if (i < 0) return false;
+		float start = 0.0f;
+		if (!section.empty())
+		{
+			bool found = false;
+			for (const MontageSection& s : m_Entries[static_cast<size_t>(i)].Desc.Sections)
+				if (s.Name == section) { start = s.Time * m_Entries[static_cast<size_t>(i)].Stats.Duration; found = true; }
+			if (!found) return false;
+		}
 		for (Active& a : m_Active)
 			if (m_Entries[static_cast<size_t>(a.Entry)].Slot == m_Entries[static_cast<size_t>(i)].Slot) Leave(a, -1.0f, true);
 		Active a;
 		a.Entry = i;
+		a.Time = start;
 		m_Active.push_back(a);
 		return true;
+	}
+
+	bool MontagePlayer::JumpToSection(const std::string& name, const std::string& section)
+	{
+		for (Active& a : m_Active)
+		{
+			const Entry& e = m_Entries[static_cast<size_t>(a.Entry)];
+			if (a.Leaving || e.Desc.Name != name) continue;
+			for (const MontageSection& s : e.Desc.Sections)
+				if (s.Name == section) { a.Time = s.Time * e.Stats.Duration; return true; }
+		}
+		return false;
+	}
+
+	bool MontagePlayer::Seek(const std::string& name, float seconds)
+	{
+		for (Active& a : m_Active)
+		{
+			const Entry& e = m_Entries[static_cast<size_t>(a.Entry)];
+			if (a.Leaving || e.Desc.Name != name) continue;
+			a.Time = std::clamp(seconds, 0.0f, e.Stats.Duration);
+			a.Weight = 1.0f;   // a scrubbed pose is shown in full
+			return true;
+		}
+		return false;
+	}
+
+	float MontagePlayer::Time(const std::string& name) const
+	{
+		for (const Active& a : m_Active)
+			if (!a.Leaving && m_Entries[static_cast<size_t>(a.Entry)].Desc.Name == name) return a.Time;
+		return -1.0f;
 	}
 
 	void MontagePlayer::Stop(const std::string& name, float blendOut)
@@ -122,6 +190,7 @@ namespace GB
 	{
 		m_Events.clear();
 		m_Events.swap(m_Pending);
+		if (m_Paused) return;   // a frozen preview: nothing advances, nothing ends
 		for (Active& a : m_Active)
 		{
 			const Entry& e = m_Entries[static_cast<size_t>(a.Entry)];
@@ -178,6 +247,74 @@ namespace GB
 			if (mask.empty()) BlendPoses(pose, m_Scratch, s, pose);
 			else BlendPosesMasked(pose, m_Scratch, s, mask, pose);
 		}
+	}
+
+	std::string MontagesToJson(const std::vector<MontageDesc>& montages)
+	{
+		using Json = nlohmann::json;
+		Json list = Json::array();
+		for (const MontageDesc& m : montages)
+		{
+			Json j;
+			j["name"] = m.Name;
+			j["clip"] = m.Clip;
+			j["slot"] = m.Slot;
+			j["blendIn"] = m.BlendIn;
+			j["blendOut"] = m.BlendOut;
+			j["playRate"] = m.PlayRate;
+			j["loop"] = m.Loop;
+			j["stripTravel"] = m.StripTravel;
+			Json notifies = Json::array();
+			for (const MontageNotify& n : m.Notifies) notifies.push_back({ { "time", n.Time }, { "name", n.Name } });
+			j["notifies"] = notifies;
+			Json sections = Json::array();
+			for (const MontageSection& s : m.Sections) sections.push_back({ { "time", s.Time }, { "name", s.Name } });
+			j["sections"] = sections;
+			list.push_back(std::move(j));
+		}
+		Json root;
+		root["version"] = 1;
+		root["montages"] = std::move(list);
+		return root.dump(2) + "\n";
+	}
+
+	bool MontagesFromJson(const std::string& text, std::vector<MontageDesc>& out, std::string* error)
+	{
+		using Json = nlohmann::json;
+		auto fail = [&](const std::string& why) { if (error) *error = why; return false; };
+		const Json root = Json::parse(text, nullptr, false);
+		if (root.is_discarded() || !root.is_object()) return fail("invalid JSON");
+		if (root.value("version", 0) != 1) return fail("unsupported montage file version");
+		const auto it = root.find("montages");
+		if (it == root.end() || !it->is_array()) return fail("missing 'montages'");
+		std::vector<MontageDesc> result;
+		try
+		{
+			for (const Json& j : *it)
+			{
+				MontageDesc m;
+				m.Name = j.value("name", "");
+				m.Clip = j.value("clip", "");
+				if (m.Name.empty() || m.Clip.empty()) return fail("a montage needs a name and a clip");
+				m.Slot = j.value("slot", "FullBody");
+				m.BlendIn = j.value("blendIn", 0.25f);
+				m.BlendOut = j.value("blendOut", 0.25f);
+				m.PlayRate = j.value("playRate", 1.0f);
+				m.Loop = j.value("loop", false);
+				m.StripTravel = j.value("stripTravel", true);
+				if (j.contains("notifies"))
+					for (const Json& n : j["notifies"]) m.Notifies.push_back({ n.value("time", 0.0f), n.value("name", "") });
+				if (j.contains("sections"))
+					for (const Json& s : j["sections"]) m.Sections.push_back({ s.value("time", 0.0f), s.value("name", "") });
+				result.push_back(std::move(m));
+			}
+		}
+		catch (const Json::exception& ex)
+		{
+			return fail(std::string("bad value: ") + ex.what());
+		}
+		out = std::move(result);
+		return true;
 	}
 
 	std::vector<MontageDesc> MixamoMontages()
