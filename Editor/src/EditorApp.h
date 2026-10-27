@@ -32,6 +32,9 @@
 
 namespace GB::Editor
 {
+	// What the animation commands answer when there is no animated character to act on.
+	inline constexpr const char* kNeedsFbxPlayer = "start the player with an FBX character first (player <character.fbx>)";
+
 	// The editor: a dockable ImGui interface around a viewport that renders a scene with the engine's renderer.
 	// Everything it shows is also reachable by text commands (EditorApp::Execute), so people, scripts and agents
 	// drive the same thing: `set post.ssao 0.8`, `generate alpine 4`, `time 21.5`, `screenshot out.png`...
@@ -100,6 +103,7 @@ namespace GB::Editor
 		void SelectActor(const std::string& name, bool focus);   // the character the Abilities and Tribe panels show
 		// saved games and replays (EditorSave.cpp)
 		void RegisterSaveCommands();
+		void RegisterAnimationCommands();
 		void StepSimulation(float dt);                           // gameplay and the garden in fixed ticks; also the autosave timer
 		bool RecordIfSim(const std::string& line);               // false: an order a replay cannot keep (scene files), which is refused
 		void DrawSaveMenu();
