@@ -80,6 +80,7 @@ namespace GB
 		glm::vec3 Position{ 0.0f };
 		glm::vec3 Color{ 1.0f };
 		float Intensity = 20.0f;   // radiant intensity; falls off with 1/d^2
+		float Radius = 0.0f;       // > 0: the light fades smoothly to zero at this distance (lamps, torches)
 	};
 
 	struct RenderObject
@@ -104,6 +105,8 @@ namespace GB
 		float FogHeightFalloff = 0.0f;     // 0 = uniform; larger = fog hugs the ground
 		float Wetness = 0.0f;              // 0..1: darker, glossier non-metal surfaces (rain)
 		float SnowCover = 0.0f;            // 0..1: upward-facing surfaces turn white (accumulated snow)
+		float Stars = 0.0f;                // 0..1: stars and moon in the sky background (night)
+		float CloudCover = 0.0f;           // 0..1: procedural clouds in the sky background
 		float Time = 0.0f;                 // seconds; drives wind, waves and other animated shaders
 		glm::vec3 Wind{ 2.0f, 0.0f, 0.8f };   // horizontal m/s; grass and trees sway with it
 
@@ -136,7 +139,7 @@ namespace GB
 	class Renderer
 	{
 	public:
-		static constexpr uint32_t MaxPointLights = 8;
+		static constexpr uint32_t MaxPointLights = 32;
 
 		Renderer(uint32_t width, uint32_t height, uint32_t msaaSamples = 4, uint32_t shadowMapSize = 2048);
 		~Renderer();

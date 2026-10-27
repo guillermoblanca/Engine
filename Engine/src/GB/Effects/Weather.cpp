@@ -463,6 +463,8 @@ namespace GB
 		env.FogDensity = fogDensity;
 		env.Wetness = std::max(env.Wetness, m_Wetness * (1.0f - m_SnowCover));
 		env.SnowCover = std::max(env.SnowCover, m_SnowCover);
+		env.CloudCover = std::max(env.CloudCover, overcast);
+		env.Stars *= 1.0f - 0.9f * overcast;
 		env.Time = m_Time;
 		env.Wind = Horizontal(m_Wind);   // grass and trees sway with the weather wind
 

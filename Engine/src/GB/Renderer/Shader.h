@@ -26,6 +26,7 @@ namespace GB
 		void SetVec3(const std::string& name, const glm::vec3& value);
 		void SetVec4(const std::string& name, const glm::vec4& value);
 		void SetVec3Array(const std::string& name, const glm::vec3* values, int count);
+		void SetFloatArray(const std::string& name, const float* values, int count);
 		void SetMat4(const std::string& name, const glm::mat4& value);
 
 	private:

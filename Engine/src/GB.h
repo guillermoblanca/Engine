@@ -12,6 +12,7 @@
 #include "GB/World/Grass.h"
 #include "GB/World/WaterRipples.h"
 #include "GB/World/Water.h"
+#include "GB/Effects/Sky.h"
 #include "GB/World/GroundInteraction.h"
 #include "GB/World/Terrain.h"
 #include "GB/World/Trees.h"
