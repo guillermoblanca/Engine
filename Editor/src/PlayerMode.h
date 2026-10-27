@@ -39,6 +39,9 @@ namespace GB::Editor
 		bool AIArrived() const { return m_UseAI && m_AI.Arrived(); }
 		void SetFootsteps(FootstepSounds* steps) { m_Steps = steps; if (m_Animator) m_Animator->SetFootsteps(steps); }
 		bool UsesLocomotionBlend() const { return m_Animator != nullptr; }
+		// Switches the locomotion set (free, box, holding, wheelbarrow...) with a cross-fade; false when the character has no such set.
+		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animator && m_Animator->Anim().SetOverlay(name, fadeSeconds); }
+		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
 		const MotionState& GetMotion() const { return m_Motion; }
 		void ApplyCamera(Camera& camera) const { m_Camera.Apply(camera); }
 		void AddToScene(Scene& scene) const;

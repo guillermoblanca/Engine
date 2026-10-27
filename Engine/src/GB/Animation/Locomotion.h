@@ -2,6 +2,7 @@
 #include "GB/Animation/BlendSpace.h"
 #include "GB/Animation/Pose.h"
 #include "GB/Assets/ModelInstance.h"
+#include <cmath>
 #include <string>
 #include <vector>
 
@@ -40,6 +41,9 @@ namespace GB
 
 		// Commanded velocity in the character's frame: x toward its left, y forward (m/s).
 		void SetVelocity(glm::vec2 velocity) { m_Target = velocity; }
+		// For taking over from another blender mid-stride: continue at its cycle phase and velocity.
+		void SetPhase(float phase) { m_Phase = phase - std::floor(phase); }
+		void SnapVelocity(glm::vec2 velocity) { m_Target = m_Velocity = velocity; }
 		// Advances the cycle and computes the pose; foot events since the previous call are in Events().
 		void Update(float dt);
 		void Apply(ModelInstance& instance) const { instance.SetPose(m_Pose); }

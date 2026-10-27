@@ -97,6 +97,7 @@ namespace GB::Editor
 				m_Model.reset();
 				return false;
 			}
+			animator->AddMixamoSets();   // box, holding, wheelbarrow... when the folder has those clips
 			animator->SetFootsteps(m_Steps);
 			m_Animator = std::move(animator);
 		}
@@ -204,8 +205,8 @@ namespace GB::Editor
 		if (m_Animator)
 		{
 			char head[200];
-			std::snprintf(head, sizeof head, "player at (%.1f, %.1f, %.1f), %.2f m/s, locomotion blend (phase %.2f, speed x%.2f, steps %d):", static_cast<double>(p.x), static_cast<double>(p.y), static_cast<double>(p.z),
-				static_cast<double>(m_Controller.GetSpeed()), static_cast<double>(m_Animator->Locomotion().Phase()), static_cast<double>(m_Animator->Locomotion().SpeedScale()), m_Steps ? m_Steps->Count() : 0);
+			std::snprintf(head, sizeof head, "player at (%.1f, %.1f, %.1f), %.2f m/s, locomotion blend [%s] (phase %.2f, speed x%.2f, steps %d):", static_cast<double>(p.x), static_cast<double>(p.y), static_cast<double>(p.z),
+				static_cast<double>(m_Controller.GetSpeed()), m_Animator->Anim().Overlay().c_str(), static_cast<double>(m_Animator->Locomotion().Phase()), static_cast<double>(m_Animator->Locomotion().SpeedScale()), m_Steps ? m_Steps->Count() : 0);
 			std::string out = head;
 			for (const auto& c : m_Animator->Locomotion().Contributions()) { char b[96]; std::snprintf(b, sizeof b, " %s=%.2f", c.Clip.c_str(), static_cast<double>(c.Weight)); out += b; }
 			return out + (m_UseAI ? (m_AI.Arrived() ? " [AI arrived]" : m_AI.Stuck() ? " [AI stuck]" : " [AI walking]") : "");

@@ -514,6 +514,18 @@ namespace GB::Editor
 			m_Player.MoveTo({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())) }, a.size() > 2 && a[2] == "run");
 			return { true, "going to (" + a[0] + ", " + a[1] + ")" };
 		});
+		c.Register("player_overlay", "player_overlay [name] [fade seconds]: switches the locomotion set of the FBX player (box, holding, wheelbarrow, free); no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty())
+			{
+				std::string names;
+				for (const std::string& n : m_Player.OverlayNames()) names += (names.empty() ? "" : ", ") + n;
+				return { true, "sets: " + names + " (default = free movement)" };
+			}
+			const float fade = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 0.3f;
+			return m_Player.SetOverlay(a[0], fade) ? CommandResult{ true, "set " + a[0] } : CommandResult{ false, "no such set '" + a[0] + "'" };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
