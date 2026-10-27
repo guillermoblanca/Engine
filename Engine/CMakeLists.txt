@@ -13,6 +13,8 @@ add_library(GB STATIC
     src/GB/Game/MotionWarp.cpp
     src/GB/Game/Interaction.cpp
     src/GB/Game/TaskList.cpp
+    src/GB/Game/Actor.cpp
+    src/GB/Game/ActorWorld.cpp
     src/GB/Gameplay/GameplayTag.cpp
     src/GB/Gameplay/AttributeSet.cpp
     src/GB/Gameplay/GameplayEffect.cpp

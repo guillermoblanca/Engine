@@ -124,6 +124,8 @@ namespace GB::Editor
 		}
 		RegisterGardenContent(m_Gameplay.Library);
 		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
+		m_Player.Attach(&m_Actors);
+		m_Actors.Bind(&m_SceneEditor.World(), &m_Gameplay);
 		RegisterCommands();
 		m_SceneEditor.Bind(m_Props);
 		m_SceneEditor.Register(m_Commands);
@@ -198,7 +200,8 @@ namespace GB::Editor
 
 	void EditorApp::BuildWorld(const WorldDesc& desc)
 	{
-		m_Player.Stop();   // it points into the old terrain
+		m_Actors.Clear();   // they point into the old terrain
+		m_Player.Stop();
 		m_WorldDesc = desc;
 		m_Instance.reset();
 		m_SceneEditor.RemoveEnvironment();   // the old trees and rocks go with the old world; what the user added stays
@@ -215,6 +218,7 @@ namespace GB::Editor
 
 	void EditorApp::ResetWorld()
 	{
+		m_Actors.Clear();
 		m_Player.Stop();
 		m_Instance.reset();
 		m_Model.reset();
@@ -608,6 +612,62 @@ namespace GB::Editor
 			std::string error;
 			return m_Player.Interact(a[0], a.size() > 1 ? a[1] : "", error) ? CommandResult{ true, "going to " + a[0] } : CommandResult{ false, error };
 		});
+		c.Register("actor", "actor spawn <name> [model.fbx|fox|cesium] [x z] [player|ai] | list | control <name> | tasks <name> <task list>|stop | remove <name> | sync: the characters of the world (the player is one of them; NPCs use the same controller, animation and abilities). player_* commands act on the controlled one", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			const std::string sub = a.empty() ? "list" : a[0];
+			if (sub == "list")
+			{
+				if (m_Actors.Count() == 0) return { true, "no actors (actor spawn <name> [model.fbx] [x z] [player|ai])" };
+				std::string s;
+				for (const std::string& n : m_Actors.Names()) s += (n == m_Player.ControlledName() ? "* " : "  ") + m_Actors.Find(n)->Describe() + "\n";
+				return { true, s };
+			}
+			if (sub == "sync") return { true, std::to_string(m_Actors.SyncEntities()) + " actor(s) written into their entities" };
+			if (sub == "spawn")
+			{
+				if (a.size() < 2) return { false, "usage: actor spawn <name> [model.fbx|fox|cesium] [x z] [player|ai]" };
+				std::string kind = "fox", mode;
+				std::vector<float> numbers;
+				for (size_t i = 2; i < a.size(); ++i)
+				{
+					const std::string l = Lower(a[i]);
+					if (l == "player" || l == "ai") mode = l;
+					else if (l == "fox" || l == "cesium" || PlayerMode::IsFbx(a[i])) kind = a[i];
+					else numbers.push_back(static_cast<float>(std::atof(a[i].c_str())));
+				}
+				glm::vec3 where = m_Orbit.Target;
+				if (numbers.size() >= 2) where = { numbers[0], 0.0f, numbers[1] };
+				else if (m_Actors.Count() > 0) where.x += 1.5f * static_cast<float>(m_Actors.Count());   // a step aside of the others
+				std::string error;
+				if (m_Actors.Find(a[1])) return { false, "there is already an actor called '" + a[1] + "'" };
+				Actor* actor = m_Player.Spawn(a[1], kind, m_World, m_SceneEditor, m_AssetRoot, where, m_Steps.get(), error, true);
+				if (!actor) return { false, error };
+				SyncGameplay();
+				m_SceneEditor.Commit();
+				if (mode == "player" || (mode.empty() && !m_Player.IsActive())) m_Player.Control(a[1]);
+				return { true, actor->Describe() + (m_Player.ControlledName() == a[1] ? " [player]" : " [ai]") };
+			}
+			if (a.size() < 2) return { false, "usage: actor " + sub + " <name>" };
+			Actor* actor = m_Actors.Find(a[1]);
+			if (!actor) return { false, "no actor called '" + a[1] + "' (actor list)" };
+			if (sub == "control") return m_Player.Control(a[1]) ? CommandResult{ true, "you control " + a[1] } : CommandResult{ false, "cannot control " + a[1] };
+			if (sub == "remove")
+			{
+				if (m_Player.ControlledName() == a[1]) m_Player.Stop();
+				m_Actors.Remove(a[1]);
+				return { true, "removed " + a[1] };
+			}
+			if (sub == "tasks")
+			{
+				if (a.size() == 2) return { true, actor->TaskStatus() };
+				if (a.size() == 3 && a[2] == "stop") { actor->StopTasks(); return { true, "stopped" }; }
+				std::string text;
+				for (size_t i = 2; i < a.size(); ++i) text += (i > 2 ? " " : "") + a[i];
+				std::string error;
+				return actor->RunTasks(text, error) ? CommandResult{ true, a[1] + " is running: " + actor->TaskStatus() } : CommandResult{ false, error };
+			}
+			return { false, "usage: actor spawn|list|control|tasks|remove|sync" };
+		});
 		c.Register("player_tasks", "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop] | ability <name> [entity], separated by '|' or new lines)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!m_Player.IsActive()) return { false, "start the player first (player <character.fbx>)" };
@@ -636,7 +696,7 @@ namespace GB::Editor
 				return { true, FormatCharacterProfile(*m_Player.Profile()) };
 			}
 			std::string error;
-			const auto model = PlayerMode::LoadCharacter(a[0], m_AssetRoot, error);
+			const auto model = Actor::LoadCharacter(a[0], m_AssetRoot, error);
 			if (!model) return { false, error };
 			return { true, FormatCharacterProfile(AnalyzeCharacter(*model)) };
 		});
@@ -647,7 +707,7 @@ namespace GB::Editor
 			if (a.size() > 1)
 			{
 				std::string error;
-				const auto model = PlayerMode::LoadCharacter(a[1], m_AssetRoot, error);
+				const auto model = Actor::LoadCharacter(a[1], m_AssetRoot, error);
 				if (!model) return { false, error };
 				profile = AnalyzeCharacter(*model);
 			}
@@ -1191,12 +1251,14 @@ namespace GB::Editor
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
-		m_Player.PrepareAbilities();   // abilities first: what they ask of the character is this frame's input
+		m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
 		m_Gameplay.Update(dt);
 		m_Garden.Update(dt);
+		if (m_Player.IsActive()) m_Player.BeginFrame(dt, m_ViewportHovered && !io.WantTextInput);
+		m_Actors.Update(dt);
 		if (m_Player.IsActive())
 		{
-			m_Player.Update(dt, m_ViewportHovered && !io.WantTextInput);
+			m_Player.EndFrame(dt);
 			m_Player.ApplyCamera(m_Camera);
 			m_Orbit.Target = m_Player.GetPosition();   // the shadows and the weather follow the player
 		}
@@ -1246,7 +1308,7 @@ namespace GB::Editor
 		m_EntityRenderer->Build(m_SceneEditor.World(), m_Scene, m_SceneEditor.Selected());
 		if (m_Instance)
 			m_Instance->AddToScene(m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
-		m_Player.AddToScene(m_Scene);
+		m_Actors.AddToScene(m_Scene);
 		m_Renderer->Render(m_Scene, m_Camera, m_ViewportFb.get());
 
 		// the interface
@@ -1863,8 +1925,8 @@ namespace GB::Editor
 					if (!rag && ImGui::Button("Ragdoll")) m_Player.StartRagdoll();
 					if (rag && ImGui::Button("Get up")) m_Player.GetUp();
 					ImGui::SameLine();
-					ImGui::Checkbox("Get up by itself", &m_Player.AutoGetUp);
-					ImGui::SliderFloat("Falls this hard knock it down (m/s)", &m_Player.RagdollLandingSpeed, 0.0f, 20.0f);
+					if (Actor* who = m_Player.Controlled()) ImGui::Checkbox("Get up by itself", &who->AutoGetUp);
+					if (Actor* who = m_Player.Controlled()) ImGui::SliderFloat("Falls this hard knock it down (m/s)", &who->RagdollLandingSpeed, 0.0f, 20.0f);
 					ImGui::TextDisabled("%s", m_Player.RagdollStatus().empty() ? "standing" : m_Player.RagdollStatus().c_str());
 					if (rag)
 					{

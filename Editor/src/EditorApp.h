@@ -108,6 +108,7 @@ namespace GB::Editor
 		GameplayWorld m_Gameplay;                                // tags, attributes, effects and abilities of the entities and the player (see GB/Gameplay)
 		GardenSystem m_Garden;
 		std::string m_AbilityActor = "Gardener";                 // whose abilities the Abilities panel shows
+		ActorWorld m_Actors;                                     // every character of the world: the player's and the NPCs' (`actor` command)
 		PlayerMode m_Player;                                     // `player` command / View > Play: walk the world in third person
 		size_t m_StaticObjects = 0;
 		std::unique_ptr<AudioEngine> m_Audio;

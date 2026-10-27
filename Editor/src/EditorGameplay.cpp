@@ -33,7 +33,7 @@ namespace GB::Editor
 		m_Gameplay.Load(m_SceneEditor.World());
 		m_Garden.Bind(m_Gameplay, &m_SceneEditor.World());
 		m_Garden.SyncVisuals();
-		m_Player.PrepareAbilities();   // the new systems get the player's character at once (a script can activate in this same frame)
+		m_Actors.PrepareAbilities();   // the new systems get the player's character at once (a script can activate in this same frame)
 	}
 
 	CommandResult EditorApp::GardenCommand(const std::vector<std::string>& a)
@@ -136,7 +136,7 @@ namespace GB::Editor
 			if (!e) return { false, error };
 			if (!target.empty() && !m_Gameplay.Find(target)) return { false, "no target called '" + target + "'" };
 			std::string why;
-			const bool ok = actor == m_Player.AbilityActor() ? m_Player.UseAbility(a[1], target, why) : e->Activate(a[1], target.empty() ? nullptr : m_Gameplay.Find(target), &why, target);
+			const bool ok = m_Actors.Find(actor) ? m_Actors.Find(actor)->UseAbility(a[1], target, why) : e->Activate(a[1], target.empty() ? nullptr : m_Gameplay.Find(target), &why, target);
 			return ok ? CommandResult{ true, actor + ": " + a[1] + (target.empty() ? "" : " on " + target) + (e->Runtime() ? "" : " (no character: runs on timers)") } : CommandResult{ false, actor + " cannot " + a[1] + ": " + why };
 		}
 		if (sub == "cancel")
