@@ -3,6 +3,7 @@ target_include_directories(glad SYSTEM PUBLIC vendor/glad/include)
 
 add_library(GB STATIC
     src/GB/Application.cpp
+    src/GB/Game/CharacterController.cpp
     src/GB/Game/Entity.cpp
     src/GB/Game/SceneIO.cpp
     src/GB/Game/EntityRender.cpp

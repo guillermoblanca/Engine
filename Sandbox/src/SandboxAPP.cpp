@@ -16,6 +16,11 @@
 //            on top: --weather=clear|sandstorm|storm|snow|... .  Options: --terrain=dunes|hills --style=desert|snow|meadow
 //            --seed=N --wind-angle=DEG --wavelength=M --height=M --nospray --simulate=S.
 //            --walker=cesium|fox walks a circle and leaves footprints (--walker-speed=M/S --walker-yaw=DEG).
+//            --player[=fox|cesium] a character you control in third person: WASD / left stick move (Shift = run),
+//            mouse drag / arrows / Q,E / right stick orbit the camera, wheel zooms; it will not walk through trees,
+//            rocks or deep water.  Headless: --player-demo (canned route) or --player-keys="W:2,RW:3,:1,A:1.5" (keys
+//            W A S D, R = run, Q/E = turn the camera, then :seconds) with --hidden --record=DIR.
+//            Also --player-x= --player-z= --player-yaw=DEG (start).
 //   weather  a small town square under changing weather. --weather=clear|lightrain|rain|storm|snow|blizzard|
 //            dust|sandstorm|tornado (default storm), --simulate=SECONDS warm-up (default 8), --strike (a
 //            lightning bolt at the start), --nosnap (ease in instead of starting at full intensity).
@@ -158,7 +163,9 @@ protected:
 			m_BoomKeyWasDown = boom;
 		}
 
-		if (m_CameraMode == 0)
+		if (m_CameraMode == 0 && m_Player)
+			m_PlayerCam.ReadInput(dt);   // (the orbit camera would also turn on WASD)
+		else if (m_CameraMode == 0)
 			m_Orbit.Update(dt);
 		else if (m_CameraMode == 1)
 			m_Fly.Update(dt);
@@ -230,6 +237,11 @@ private:
 		GB::Camera camera;
 		if (mode >= 2 && m_Instance && m_Instance->GetCamera(mode - 2, camera))
 			return camera;   // the file's own lens and clip planes
+		if (mode == 0 && m_Player)
+		{
+			m_PlayerCam.Apply(camera);
+			return camera;
+		}
 		if (mode == 1)
 			m_Fly.Apply(camera);
 		else
@@ -777,7 +789,9 @@ private:
 			BuildPhysicsBodies(options);
 		if (m_Physics && options.HasFlag("destruction"))
 			BuildDestruction(options);
-		const std::string walker = options.GetValue("walker", "none");
+		const bool wantPlayer = options.HasFlag("player") || !options.GetValue("player").empty();
+		const std::string playerKind = options.GetValue("player").empty() || options.GetValue("player") == "on" ? "fox" : options.GetValue("player");
+		const std::string walker = wantPlayer ? playerKind : options.GetValue("walker", "none");
 		if (walker != "none")
 			BuildWalker(walker, options, style);
 
@@ -799,6 +813,8 @@ private:
 			BuildWater(options);
 		if (m_Terrain->GetRiver())
 			BuildRiver(options);
+		if (wantPlayer && m_Walker)
+			BuildPlayer(options);
 		const float windAngle = m_Terrain->GetWindAngle();
 		m_DesertWind = { std::cos(windAngle) * 9.0f, 0.0f, std::sin(windAngle) * 9.0f };
 		if (!options.GetValue("time").empty())   // time of day: sun or moon, sky, stars, clouds
@@ -837,6 +853,7 @@ private:
 		const float warmup = static_cast<float>(std::atof(options.GetValue("simulate", "6").c_str()));
 		for (float t = 0.0f; t < warmup; t += 1.0f / 60.0f)
 			UpdateDesert(1.0f / 60.0f);
+		m_PlayerLive = true;   // the scripted route starts after the warm-up
 	}
 
 	// An animated character that walks a circle over the terrain and stamps a footprint wherever a foot lands.
@@ -853,6 +870,7 @@ private:
 		glm::vec3 Position{ 0.0f }, Heading{ 0.0f, 0.0f, 1.0f };
 		glm::mat4 Root{ 1.0f };
 		glm::vec3 DustColor{ 0.78f, 0.62f, 0.42f };
+		GB::CharacterAnimation Anim;   // player mode: idle / walk / run
 	};
 
 	void BuildWalker(const std::string& kind, const GB::LaunchOptions& options, GB::TerrainStyle style)
@@ -880,6 +898,7 @@ private:
 			return;
 		}
 		w.Instance = std::make_unique<GB::ModelInstance>(*w.Model);
+		w.Anim = GB::CharacterAnimation::ForModel(*w.Model);
 		const int clipIndex = clip.empty() ? 0 : w.Model->FindClip(clip);
 		w.Instance->Play(clipIndex < 0 ? 0 : clipIndex, true, 0.0f);
 		w.Speed = static_cast<float>(std::atof(options.GetValue("walker-speed", std::to_string(w.Speed)).c_str()));
@@ -1369,6 +1388,7 @@ private:
 		{
 			const GB::Tree& tree = *m_TreeVariants[static_cast<size_t>(pl.Variant)];
 			tree.AddToScene(m_Scene, pl.Position, pl.Yaw, pl.Scale, 340.0f);
+			m_Obstacles.push_back({ { pl.Position.x, pl.Position.z }, 0.28f * pl.Scale * (tree.Height > 9.0f ? 1.3f : 1.0f) });
 			if (m_Physics)
 			{
 				GB::StaticCollider c;
@@ -1385,6 +1405,8 @@ private:
 		{
 			const GB::Rock& rock = *m_RockVariants[static_cast<size_t>(rk.Variant)];
 			rock.AddToScene(m_Scene, rk.Position, rk.Yaw, rk.Scale, 0.12f * rk.Scale, WaterNear(rk.Position.x, rk.Position.z));
+			if (rock.Height * rk.Scale > 0.4f)   // lower ones are stepped over
+				m_Obstacles.push_back({ { rk.Position.x, rk.Position.z }, rock.Radius * rk.Scale * 0.75f });
 			if (m_Physics)
 			{
 				GB::StaticCollider c;
@@ -1436,6 +1458,8 @@ private:
 			const float sc = 0.7f + 0.8f * rnd();
 			const float y = terrain->GetHeight(x, z);
 			rock.AddToScene(m_Scene, { x, y, z }, rnd() * 6.28f, sc, 0.12f * sc, waterNear(x, z));
+			if (rock.Height * sc > 0.4f)
+				m_Obstacles.push_back({ { x, z }, rock.Radius * sc * 0.75f });
 			if (m_Physics)
 			{
 				GB::StaticCollider c;
@@ -1545,14 +1569,19 @@ private:
 	void UpdateWalker(float dt)
 	{
 		Walker& w = *m_Walker;
-		w.Phase += w.Speed / w.Radius * dt;
-		const glm::vec2 c = w.Center;
-		const glm::vec2 p(c.x + w.Radius * std::cos(w.Phase), c.y + w.Radius * std::sin(w.Phase));
-		const glm::vec2 h(-std::sin(w.Phase), std::cos(w.Phase));
-		w.Position = { p.x, m_Terrain->GetHeight(p.x, p.y), p.y };
-		w.Heading = { h.x, 0.0f, h.y };
-		const float yaw = std::atan2(h.x, h.y) + w.YawOffset;
-		w.Root = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), w.Position), yaw, glm::vec3(0, 1, 0)), glm::vec3(w.Scale));
+		if (m_Player)
+			UpdatePlayer(dt);
+		else
+		{
+			w.Phase += w.Speed / w.Radius * dt;
+			const glm::vec2 c = w.Center;
+			const glm::vec2 p(c.x + w.Radius * std::cos(w.Phase), c.y + w.Radius * std::sin(w.Phase));
+			const glm::vec2 h(-std::sin(w.Phase), std::cos(w.Phase));
+			w.Position = { p.x, m_Terrain->GetHeight(p.x, p.y), p.y };
+			w.Heading = { h.x, 0.0f, h.y };
+			const float yaw = std::atan2(h.x, h.y) + w.YawOffset;
+			w.Root = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), w.Position), yaw, glm::vec3(0, 1, 0)), glm::vec3(w.Scale));
+		}
 		w.Instance->Update(dt);
 
 		// Foot positions in the world; the planted height is subtracted so "on the ground" means height ~ 0.
@@ -1578,6 +1607,88 @@ private:
 		m_FootDust->Update(dt);
 		if (m_Follow)
 			m_Orbit.Target = glm::mix(m_Orbit.Target, w.Position + glm::vec3(0.0f, 0.9f, 0.0f), glm::clamp(dt * 3.0f, 0.0f, 1.0f));
+	}
+
+	// ---- Player: the walker driven by a CharacterController instead of a circle.
+	void BuildPlayer(const GB::LaunchOptions& options)
+	{
+		Walker& w = *m_Walker;
+		const float height = (w.Model->GetBoundsMax().y - w.Model->GetBoundsMin().y) * w.Scale;
+		const GB::Terrain* terrain = m_Terrain.get();
+		m_PlayerWorld = GB::MakeTerrainCharacterWorld(*terrain);
+		m_PlayerWorld.Obstacles = m_Obstacles;
+		m_PlayerCtl.Config.Radius = std::max(0.2f * height, 0.25f);
+		m_PlayerCtl.Config.MaxWadeDepth = 0.55f * height;
+
+		// Start on dry, free ground near the world's spawn (or the middle of the map).
+		glm::vec2 start = m_World ? m_World->Spawn : w.Center;
+		if (!options.GetValue("player-x").empty() || !options.GetValue("player-z").empty())
+			start = { static_cast<float>(std::atof(options.GetValue("player-x", "0").c_str())), static_cast<float>(std::atof(options.GetValue("player-z", "0").c_str())) };
+		else
+			start = GB::FindFreeSpot(m_PlayerWorld, start, 2.5f);
+		const float yaw = glm::radians(static_cast<float>(std::atof(options.GetValue("player-yaw", "0").c_str())));
+		m_PlayerCtl.SetPosition(m_PlayerWorld, start.x, start.y, yaw);
+
+		m_PlayerCam.GroundHeight = m_PlayerWorld.GroundHeight;
+		m_PlayerCam.Distance = options.GetValue("distance").empty() ? 3.4f + 1.4f * height : m_Orbit.Distance;
+		m_PlayerCam.MinDistance = 1.2f;
+		m_PlayerCam.Pitch = options.GetValue("pitch").empty() ? 0.28f : m_Orbit.Pitch;
+		m_PlayerCam.Yaw = options.GetValue("yaw").empty() ? yaw + 3.14159265f : m_Orbit.Yaw;   // behind the character
+		m_PlayerCam.TargetHeight = 0.75f * height;
+
+		w.Position = m_PlayerCtl.GetPosition();
+		w.Heading = m_PlayerCtl.GetHeading();
+		w.Root = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), w.Position), m_PlayerCtl.GetYaw() + w.YawOffset, glm::vec3(0, 1, 0)), glm::vec3(w.Scale));
+		m_PlayerCam.Snap(w.Position);
+		w.Anim.Start(*w.Instance);
+		m_Orbit.Target = w.Position + glm::vec3(0.0f, 0.9f, 0.0f);
+
+		if (options.HasFlag("player-demo"))
+			m_PlayerScript = GB::ParseCharacterScript("W:2.5,RW:3,RWD:1.4,RW:2.5,:0.8,S:1,A:1.2,RWQ:2.5,RW:3,RWE:2,RW:3,:1");
+		else if (!options.GetValue("player-keys").empty())
+			m_PlayerScript = GB::ParseCharacterScript(options.GetValue("player-keys"));
+		m_Player = true;
+		GB_CLIENT_INFO("Player at ({:.1f}, {:.1f}), {} obstacles, {} scripted steps", start.x, start.y, m_Obstacles.size(), m_PlayerScript.size());
+	}
+
+	void UpdatePlayer(float dt)
+	{
+		Walker& w = *m_Walker;
+		GB::CharacterInput in;
+		in.CameraYaw = m_PlayerCam.Yaw;
+		if (m_PlayerLive)
+		{
+			if (!m_PlayerScript.empty())
+			{
+				if (const GB::CharacterScriptStep* step = GB::SampleCharacterScript(m_PlayerScript, m_PlayerClock))
+				{
+					in.Move = step->Move;
+					in.Run = step->Run;
+					m_PlayerCam.Rotate(step->CameraTurn * m_PlayerCam.RotateSpeed * dt, 0.0f);
+					in.CameraYaw = m_PlayerCam.Yaw;
+				}
+				m_PlayerClock += dt;
+			}
+			else if (m_CameraMode == 0)
+				in = GB::ReadCharacterInput(m_PlayerCam.Yaw);
+		}
+		m_PlayerCtl.Step(in, m_PlayerWorld, dt);
+		w.Position = m_PlayerCtl.GetPosition();
+		w.Heading = m_PlayerCtl.GetHeading();
+		w.Root = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), w.Position), m_PlayerCtl.GetYaw() + w.YawOffset, glm::vec3(0, 1, 0)), glm::vec3(w.Scale));
+
+		const float speed = m_PlayerCtl.GetSpeed();
+		w.Anim.Update(*w.Instance, speed);
+		m_PlayerCam.Update(dt, w.Position);
+
+		m_PlayerLog += dt;
+		if (m_PlayerLive && m_PlayerLog >= 1.0f)
+		{
+			m_PlayerLog = 0.0f;
+			GB_CLIENT_INFO("Player: ({:.2f}, {:.2f}, {:.2f}) speed {:.2f} m/s yaw {:.0f} deg {}{}", w.Position.x, w.Position.y, w.Position.z, speed,
+				glm::degrees(m_PlayerCtl.GetYaw()), w.Anim.State == GB::Locomotion::Idle ? "idle" : w.Anim.State == GB::Locomotion::Walk ? "walk" : "run",
+				m_PlayerCtl.WasBlocked() ? " (blocked)" : m_PlayerCtl.GetWadeDepth() > 0.05f ? " (wading)" : "");
+		}
 	}
 
 	void UpdateDesert(float dt)
@@ -1834,6 +1945,13 @@ private:
 	std::unique_ptr<GB::TreeFactory> m_TreeFactory;
 	std::vector<std::unique_ptr<GB::Tree>> m_TreeVariants;
 	std::unique_ptr<Walker> m_Walker;
+	GB::CharacterController m_PlayerCtl;
+	GB::CharacterWorld m_PlayerWorld;
+	GB::ThirdPersonCamera m_PlayerCam;
+	std::vector<GB::CircleObstacle> m_Obstacles;   // trees and rocks the player cannot walk through
+	std::vector<GB::CharacterScriptStep> m_PlayerScript;
+	float m_PlayerClock = 0.0f, m_PlayerLog = 0.0f;
+	bool m_Player = false, m_PlayerLive = false;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
 	std::unique_ptr<GB::EnvironmentMap> m_EnvMap;
 	bool m_Showcase = false;
