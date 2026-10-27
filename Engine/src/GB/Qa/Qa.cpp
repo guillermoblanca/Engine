@@ -15,6 +15,23 @@ namespace GB::Qa
 	{
 		int g_UpdateOverride = -1;
 		std::string g_OutOverride;
+
+		// getenv without MSVC's deprecation warning (the library builds with warnings as errors).
+		std::string Env(const char* name)
+		{
+#if defined(_WIN32)
+			char* value = nullptr;
+			size_t size = 0;
+			std::string result;
+			if (_dupenv_s(&value, &size, name) == 0 && value)
+				result = value;
+			std::free(value);
+			return result;
+#else
+			const char* v = std::getenv(name);
+			return v ? v : "";
+#endif
+		}
 		namespace fs = std::filesystem;
 
 		std::string Join(const std::string& dir, const std::string& file) { return (fs::path(dir) / file).string(); }
@@ -24,15 +41,15 @@ namespace GB::Qa
 	bool Config::UpdateMode()
 	{
 		if (g_UpdateOverride >= 0) return g_UpdateOverride != 0;
-		const char* v = std::getenv("GB_UPDATE_GOLDEN");
-		return v && *v && std::string(v) != "0";
+		const std::string v = Env("GB_UPDATE_GOLDEN");
+		return !v.empty() && v != "0";
 	}
 	void Config::SetUpdateMode(int mode) { g_UpdateOverride = mode; }
 	std::string Config::OutputDir()
 	{
 		if (!g_OutOverride.empty()) return g_OutOverride;
-		const char* v = std::getenv("GB_QA_OUT");
-		return v && *v ? v : "qa_artifacts";
+		const std::string v = Env("GB_QA_OUT");
+		return v.empty() ? "qa_artifacts" : v;
 	}
 	void Config::SetOutputDir(const std::string& dir) { g_OutOverride = dir; }
 	std::string Config::Platform()
