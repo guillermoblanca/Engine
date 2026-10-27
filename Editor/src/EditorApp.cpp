@@ -1,4 +1,5 @@
 #include "EditorApp.h"
+#include "GB/Animation/Character.h"
 #include "GB/Animation/ClipAnalysis.h"
 #include "GB/Log.h"
 #include <algorithm>
@@ -171,6 +172,7 @@ namespace GB::Editor
 		if (name == "Console") return m_Panels.Console;
 		if (name == "Assets") return m_Panels.Assets;
 		if (name == "Model") return m_Panels.Model;
+		if (name == "Animation") return m_Panels.Animation;
 		if (name == "Tests") return m_Panels.Tests;
 		return false;
 	}
@@ -588,6 +590,50 @@ namespace GB::Editor
 			std::string error;
 			return m_Player.RunTasks(text, error) ? CommandResult{ true, "running: " + m_Player.TaskStatus() } : CommandResult{ false, error };
 		});
+		c.Register("character_check", "character_check [character.fbx]: checks a character (the player's when no file is given): skeleton convention, bones, size and facing, clip roles, sets, montages and what is wrong", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty())
+			{
+				if (!m_Player.Profile()) return { false, "start the player with an FBX character first, or give a file: character_check <character.fbx>" };
+				return { true, FormatCharacterProfile(*m_Player.Profile()) };
+			}
+			std::string error;
+			const auto model = PlayerMode::LoadCharacter(a[0], m_AssetRoot, error);
+			if (!model) return { false, error };
+			return { true, FormatCharacterProfile(AnalyzeCharacter(*model)) };
+		});
+		c.Register("character_export", "character_export <file.json> [character.fbx]: writes the character check as JSON (the player's when no character is given)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: character_export <file.json> [character.fbx]" };
+			CharacterProfile profile;
+			if (a.size() > 1)
+			{
+				std::string error;
+				const auto model = PlayerMode::LoadCharacter(a[1], m_AssetRoot, error);
+				if (!model) return { false, error };
+				profile = AnalyzeCharacter(*model);
+			}
+			else if (m_Player.Profile()) profile = *m_Player.Profile();
+			else return { false, "start the player with an FBX character first, or give a file" };
+			std::ofstream out(a[0]);
+			if (!out) return { false, "could not write " + a[0] };
+			out << CharacterProfileToJson(profile);
+			return { true, "saved " + a[0] };
+		});
+		c.Register("panel", "panel <name> [on|off]: shows or hides a panel (Animation, Model, Stats, ...); panel Animation tab <Character|Animator|Montages|Sockets|IK> picks its tab", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: panel <name> [on|off]" };
+			bool* flag = nullptr;
+			const std::string n = a[0];
+			if (n == "Viewport") flag = &m_Panels.Viewport; else if (n == "Hierarchy") flag = &m_Panels.Hierarchy; else if (n == "Inspector") flag = &m_Panels.Inspector;
+			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
+			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
+			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Tests") flag = &m_Panels.Tests;
+			if (!flag) return { false, "no such panel '" + n + "'" };
+			if (a.size() > 2 && a[1] == "tab") { m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
+			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
+			return { true, n + (*flag ? " shown" : " hidden") };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
@@ -844,6 +890,7 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("World", right);
 		ImGui::DockBuilderDockWindow("Stats", right);
 		ImGui::DockBuilderDockWindow("Model", right);
+		ImGui::DockBuilderDockWindow("Animation", right);
 		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
@@ -869,6 +916,7 @@ namespace GB::Editor
 		if (m_Panels.World) DrawWorldPanel();
 		if (m_Panels.Stats) DrawStats();
 		if (m_Panels.Model) DrawModelPanel();
+		if (m_Panels.Animation) DrawAnimationPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
@@ -950,6 +998,7 @@ namespace GB::Editor
 			ImGui::MenuItem("World", nullptr, &m_Panels.World);
 			ImGui::MenuItem("Stats", nullptr, &m_Panels.Stats);
 			ImGui::MenuItem("Model", nullptr, &m_Panels.Model);
+			ImGui::MenuItem("Animation", nullptr, &m_Panels.Animation);
 			ImGui::MenuItem("Console", nullptr, &m_Panels.Console);
 			ImGui::MenuItem("Assets", nullptr, &m_Panels.Assets);
 			ImGui::Separator();
@@ -1308,6 +1357,116 @@ namespace GB::Editor
 				bool paused = m_Instance->IsPaused();
 				if (ImGui::Checkbox("paused", &paused)) m_Instance->SetPaused(paused);
 				if (ImGui::Button("Remove model")) { m_Instance.reset(); m_Model.reset(); m_Props.RemovePrefix("model."); }
+			}
+		}
+		ImGui::End();
+	}
+
+	void EditorApp::DrawAnimationPanel()
+	{
+		if (ImGui::Begin("Animation", &m_Panels.Animation))
+		{
+			AnimInstance* anim = m_Player.Anim();
+			if (!anim)
+			{
+				ImGui::TextWrapped("No animated character. Start one with: player <character.fbx> (the animation FBX files go in the same folder). Check any character with: character_check <file.fbx>");
+				ImGui::End();
+				return;
+			}
+			if (ImGui::BeginTabBar("##animtabs"))
+			{
+				if (ImGui::BeginTabItem("Character", nullptr, m_AnimTabRequest == "Character" ? ImGuiTabItemFlags_SetSelected : 0))
+				{
+					const CharacterProfile& p = *m_Player.Profile();
+					ImGui::Text("Skeleton: %s", p.Convention.empty() ? "not recognised" : p.Convention.c_str());
+					ImGui::Text("Size %.2f m, faces %s", static_cast<double>(p.Height), p.FacesForward ? "+Z" : "-Z");
+					ImGui::Text("%d clips, %zu sockets", p.ClipCount, p.Sockets.size());
+					ImGui::SeparatorText("Clip roles");
+					for (const CharacterProfile::Role& r : p.Roles) ImGui::BulletText("%s: %s", r.Name.c_str(), r.Clip.c_str());
+					ImGui::SeparatorText("Sets and montages");
+					std::string sets;
+					for (const std::string& n : p.Sets) sets += (sets.empty() ? "" : ", ") + n;
+					ImGui::TextWrapped("Sets: %s", sets.empty() ? "none" : sets.c_str());
+					ImGui::Text("Montages: %zu", p.Montages.size());
+					ImGui::SeparatorText("Check");
+					if (p.Warnings.empty()) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "Ready");
+					for (const std::string& w : p.Warnings) ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "%s", w.c_str());
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Animator", nullptr, m_AnimTabRequest == "Animator" ? ImGuiTabItemFlags_SetSelected : 0))
+				{
+					const MotionState& m = m_Player.GetMotion();
+					ImGui::Text("Speed %.2f m/s  local (%.2f, %.2f)", static_cast<double>(m.Speed), static_cast<double>(m.LocalVelocity.x), static_cast<double>(m.LocalVelocity.y));
+					ImGui::Text("%s%s", m.Grounded ? "grounded" : "in the air", m.Blocked ? ", blocked" : "");
+					ImGui::SeparatorText("Locomotion set");
+					for (const std::string& name : anim->SetNames())
+					{
+						const bool active = anim->Overlay() == name;
+						if (ImGui::RadioButton(name == AnimInstance::kDefaultSet ? "free" : name.c_str(), active)) m_Player.SetOverlay(name);
+						ImGui::SameLine();
+					}
+					ImGui::NewLine();
+					if (anim->Transitioning()) ImGui::ProgressBar(anim->TransitionProgress(), ImVec2(-1, 0), "changing set");
+					ImGui::SeparatorText("Blend");
+					const LocomotionBlender& loco = anim->Active();
+					ImGui::Text("phase %.2f   speed x%.2f", static_cast<double>(loco.Phase()), static_cast<double>(loco.SpeedScale()));
+					for (const auto& c : loco.Contributions()) ImGui::ProgressBar(c.Weight, ImVec2(-1, 0), c.Clip.c_str());
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Montages", nullptr, m_AnimTabRequest == "Montages" ? ImGuiTabItemFlags_SetSelected : 0))
+				{
+					MontagePlayer& montages = anim->Montages();
+					if (ImGui::Button("Stop")) m_Player.StopMontage();
+					ImGui::SameLine();
+					ImGui::TextDisabled("%s", m_Player.MontageStatus().c_str());
+					ImGui::Text("Slots: FullBody %.0f%%, UpperBody %.0f%%", static_cast<double>(montages.FullBodyWeight() * 100.0f), static_cast<double>(montages.SlotWeight("UpperBody") * 100.0f));
+					for (const std::string& name : montages.Names())
+					{
+						if (ImGui::Button(("Play##" + name).c_str())) m_Player.PlayMontage(name);
+						ImGui::SameLine();
+						ImGui::Text("%s  (%.1f s)", name.c_str(), static_cast<double>(montages.Duration(name)));
+					}
+					if (montages.Names().empty()) ImGui::TextWrapped("No montages: put the farming animation FBX files next to the character.");
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("Sockets", nullptr, m_AnimTabRequest == "Sockets" ? ImGuiTabItemFlags_SetSelected : 0))
+				{
+					ImGui::SeparatorText("Props");
+					for (const char* prop : { "box", "bag", "tool" })
+					{
+						if (ImGui::Button(prop)) m_Player.AttachProp(prop);
+						ImGui::SameLine();
+					}
+					if (ImGui::Button("let go")) m_Player.DetachProp();
+					for (const std::string& n : anim->PropNames()) ImGui::BulletText("%s  (hands %.0f%%)", n.c_str(), static_cast<double>(anim->PropWeight(n) * 100.0f));
+					ImGui::SeparatorText("Sockets");
+					for (const std::string& n : anim->Sockets().Names())
+					{
+						const glm::vec3 pos = glm::vec3(anim->Sockets().Matrix(*m_Player.Instance(), n)[3]);
+						ImGui::BulletText("%s  (%.2f, %.2f, %.2f)", n.c_str(), static_cast<double>(pos.x), static_cast<double>(pos.y), static_cast<double>(pos.z));
+					}
+					ImGui::EndTabItem();
+				}
+				if (ImGui::BeginTabItem("IK", nullptr, m_AnimTabRequest == "IK" ? ImGuiTabItemFlags_SetSelected : 0))
+				{
+					bool feet = m_Player.FootIKOn();
+					if (ImGui::Checkbox("Feet on the terrain", &feet)) m_Player.SetFootIK(feet);
+					FootIK& f = anim->Feet();
+					ImGui::Text("pelvis %.2f m   left foot %.2f   right foot %.2f", static_cast<double>(f.PelvisOffset()), static_cast<double>(f.FootOffset(true)), static_cast<double>(f.FootOffset(false)));
+					ImGui::SliderFloat("follow sharpness", &f.Config.Sharpness, 2.0f, 30.0f);
+					ImGui::SliderFloat("max offset", &f.Config.MaxOffset, 0.05f, 0.8f);
+					ImGui::SliderFloat("sole tilt", &f.Config.TiltWeight, 0.0f, 1.0f);
+					ImGui::SeparatorText("Look at");
+					LookAt& look = anim->Look();
+					bool camera = look.HasTarget();
+					if (ImGui::Checkbox("Look at the camera", &camera)) { if (camera) m_Player.LookAtCamera(true); else m_Player.ClearLook(); }
+					ImGui::Text("yaw %.0f deg  pitch %.0f deg", static_cast<double>(glm::degrees(look.Yaw())), static_cast<double>(glm::degrees(look.Pitch())));
+					ImGui::SliderFloat("max yaw", &look.Config.MaxYaw, 0.2f, 1.6f);
+					ImGui::SliderFloat("max pitch", &look.Config.MaxPitch, 0.1f, 1.2f);
+					ImGui::EndTabItem();
+				}
+				ImGui::EndTabBar();
+				m_AnimTabRequest.clear();
 			}
 		}
 		ImGui::End();
