@@ -105,6 +105,8 @@ namespace GB::Editor
 				m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors.Find(names[i])));
 			}
 			m_Tribe.Bind(m_SceneEditor.World(), m_Gameplay, m_Items, m_Recipes, m_NodeDefs);
+			m_Panels.Tribe = true;
+			m_FocusTribe = 20;
 			m_Tribe.Config.Camp = camp;
 			m_Tribe.Config.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
 			m_Tribe.Store().Add(m_Items, "wood", 4);    // what they found lying around on the first day
@@ -264,6 +266,139 @@ namespace GB::Editor
 		return { false, "usage: ability list|status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store" };
 	}
 
+
+	std::string EditorApp::PickActor(const Ray& ray) const
+	{
+		std::string best;
+		float bestT = 1e30f;
+		for (const std::string& name : m_Actors.Names())
+		{
+			const Actor* actor = m_Actors.Find(name);
+			if (!actor) continue;
+			// the body as a vertical segment (feet to head): the closest point of the ray to it
+			const glm::vec3 a = actor->GetPosition(), b = a + glm::vec3(0.0f, 1.7f, 0.0f);
+			const glm::vec3 d = glm::normalize(ray.Dir), e = b - a, w = ray.Origin - a;
+			const float dd = glm::dot(d, d), de = glm::dot(d, e), ee = glm::dot(e, e), dw = glm::dot(d, w), ew = glm::dot(e, w);
+			const float denom = dd * ee - de * de;
+			float s = denom > 1e-6f ? glm::clamp((de * ew - ee * dw) / denom, 0.0f, 1e6f) : 0.0f;   // along the ray
+			float t = glm::clamp((ew + s * de) / ee, 0.0f, 1.0f);                                   // along the segment
+			s = glm::max(0.0f, glm::dot(a + e * t - ray.Origin, d));
+			const float distance = glm::length(ray.Origin + d * s - (a + e * t));
+			if (distance < glm::max(actor->Radius(), 0.35f) + 0.2f && s < bestT) { bestT = s; best = name; }
+		}
+		return best;
+	}
+
+	void EditorApp::SelectActor(const std::string& name, bool focus)
+	{
+		m_AbilityActor = name;
+		if (const EntityId id = m_SceneEditor.World().FindByName(name); id != NullEntity) m_SceneEditor.Select(id);
+		if (focus)
+			if (const Actor* actor = m_Actors.Find(name)) m_Orbit.Target = actor->GetPosition();
+	}
+
+	void EditorApp::DrawBag(const std::string& actorName)
+	{
+		Actor* actor = m_Actors.Find(actorName);
+		if (!actor) { ImGui::TextDisabled("(not a character: no inventory)"); return; }
+		const Inventory& bag = actor->Bag();
+		ImGui::Text("%d / %d slots, %.1f kg%s", bag.UsedSlots(), bag.Slots(), static_cast<double>(bag.Weight(m_Items)), bag.MaxWeight() > 0.0f ? "" : " (no weight limit)");
+		if (bag.Stacks().empty()) { ImGui::TextDisabled("empty"); return; }
+		if (ImGui::BeginTable("bag", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg))
+		{
+			ImGui::TableSetupColumn("Item"); ImGui::TableSetupColumn("Count"); ImGui::TableSetupColumn("Kind");
+			ImGui::TableHeadersRow();
+			for (const ItemSlot& s : bag.Stacks())
+			{
+				const ItemDef* def = m_Items.Find(s.Id);
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn(); ImGui::TextUnformatted(def ? def->Name.c_str() : s.Id.c_str());
+				ImGui::TableNextColumn(); ImGui::Text("%d", s.Count);
+				ImGui::TableNextColumn(); ImGui::TextDisabled("%s", def ? def->Category.c_str() : "?");
+			}
+			ImGui::EndTable();
+		}
+	}
+
+	void EditorApp::DrawTribePanel()
+	{
+		if (m_FocusTribe > 0) { ImGui::SetNextWindowFocus(); --m_FocusTribe; }
+		if (ImGui::Begin("Tribe", &m_Panels.Tribe))
+		{
+			if (m_Tribe.Members().empty())
+			{
+				ImGui::TextWrapped("No tribe. Build one with: tribe build \"<model.fbx>\" 0 0 4");
+				ImGui::End();
+				return;
+			}
+			ImGui::Text("Time %.0f s   %s", m_Tribe.Time(), !m_Tribe.HasFire() ? "no campfire yet" : m_Tribe.FireBurning() ? "campfire lit" : "campfire out (no wood)");
+			ImGui::SameLine();
+			ImGui::TextDisabled("  speed x%d", m_TimeScale);
+
+			if (ImGui::CollapsingHeader("Store", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				const Inventory& store = m_Tribe.Store();
+				for (const std::string& id : m_Items.Ids())
+				{
+					const int n = store.Count(id);
+					if (n == 0) continue;
+					const ItemDef* def = m_Items.Find(id);
+					char label[64];
+					std::snprintf(label, sizeof label, "%s %d / %d", def ? def->Name.c_str() : id.c_str(), n, m_Tribe.Config.StockCap);
+					ImGui::ProgressBar(std::min(1.0f, static_cast<float>(n) / static_cast<float>(m_Tribe.Config.StockCap)), ImVec2(-1.0f, 0.0f), label);
+				}
+				if (store.Stacks().empty()) ImGui::TextDisabled("empty");
+			}
+
+			if (ImGui::CollapsingHeader("Members", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				if (ImGui::BeginTable("members", 4, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg))
+				{
+					ImGui::TableSetupColumn("Name"); ImGui::TableSetupColumn("Role"); ImGui::TableSetupColumn("Doing"); ImGui::TableSetupColumn("Carries");
+					ImGui::TableHeadersRow();
+					for (const TribeMember& m : m_Tribe.Members())
+					{
+						ImGui::TableNextRow();
+						ImGui::TableNextColumn();
+						if (ImGui::Selectable(m.Name.c_str(), m.Name == m_AbilityActor, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
+							SelectActor(m.Name, ImGui::IsMouseDoubleClicked(0));
+						ImGui::TableNextColumn(); ImGui::TextUnformatted(m.Role.c_str());
+						ImGui::TableNextColumn();
+						if (m.Job.empty()) ImGui::TextDisabled("deciding");
+						else if (m.Job == "rest") ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "resting");
+						else ImGui::Text("%s %s", m.Job.c_str(), m.Detail.c_str());
+						if (m.Hungry) { ImGui::SameLine(); ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.3f, 1.0f), "(hungry)"); }
+						ImGui::TableNextColumn();
+						std::string carried;
+						for (const ItemSlot& s : m.Body->Bag().Stacks()) carried += (carried.empty() ? "" : ", ") + s.Id + " x" + std::to_string(s.Count);
+						ImGui::TextUnformatted(carried.empty() ? "-" : carried.c_str());
+					}
+					ImGui::EndTable();
+				}
+				ImGui::TextDisabled("Click a name to select it (double click: go to it). You can also click a character in the viewport.");
+			}
+
+			for (const TribeMember& m : m_Tribe.Members())
+				if (m.Name == m_AbilityActor && ImGui::CollapsingHeader(("Selected: " + m.Name).c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+				{
+					ImGui::Text("%s, %d carried to the store, %d made, %d meals%s", m.Role.c_str(), m.Deposited, m.Made, m.Meals, m.Hungry ? ", hungry" : "");
+					if (!m.Why.empty()) ImGui::TextWrapped("Resting because: %s", m.Why.c_str());
+					if (Actor* actor = m_Actors.Find(m.Name)) ImGui::TextWrapped("Orders: %s", actor->TaskStatus().c_str());
+					DrawBag(m.Name);
+				}
+
+			if (ImGui::CollapsingHeader("Log", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				const auto& log = m_Tribe.Log();
+				ImGui::BeginChild("tribelog", ImVec2(0.0f, 160.0f), true);
+				for (size_t i = log.size() > 80 ? log.size() - 80 : 0; i < log.size(); ++i) ImGui::TextUnformatted(log[i].c_str());
+				if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 4.0f) ImGui::SetScrollHereY(1.0f);
+				ImGui::EndChild();
+			}
+		}
+		ImGui::End();
+	}
+
 	void EditorApp::DrawAbilitiesPanel()
 	{
 		if (ImGui::Begin("Abilities", &m_Panels.Abilities))
@@ -284,7 +419,15 @@ namespace GB::Editor
 			}
 			AbilitySystemComponent* asc = m_Gameplay.Find(m_AbilityActor);
 			if (!asc) { ImGui::TextUnformatted("(gone)"); ImGui::End(); return; }
-			ImGui::TextDisabled("%s", asc->Runtime() ? "driving the player's character" : "no character: abilities run on timers");
+			ImGui::TextDisabled("%s", asc->Runtime() ? "driving a character" : "no character: abilities run on timers");
+			if (Actor* actor = m_Actors.Find(m_AbilityActor))
+			{
+				std::string role;
+				for (const TribeMember& m : m_Tribe.Members()) if (m.Name == m_AbilityActor) role = "  [" + m.Role + ": " + (m.Job.empty() ? "deciding" : m.Job + " " + m.Detail) + "]";
+				ImGui::TextColored(ImVec4(0.55f, 0.85f, 1.0f, 1.0f), "Character: %s%s", m_AbilityActor.c_str(), role.c_str());
+				if (ImGui::CollapsingHeader("Inventory", ImGuiTreeNodeFlags_DefaultOpen)) DrawBag(m_AbilityActor);
+				(void)actor;
+			}
 
 			static char target[96] = "Plot 1";
 			ImGui::InputText("Target", target, sizeof target);
