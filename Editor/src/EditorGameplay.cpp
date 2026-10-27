@@ -2,6 +2,8 @@
 #include "EditorApp.h"
 #include "GB/Log.h"
 #include <cstdio>
+#include <iomanip>
+#include <sstream>
 #include <cstdlib>
 #include <imgui.h>
 
@@ -46,10 +48,11 @@ namespace GB::Editor
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
 			m_SceneEditor.Commit();
-			char b[200];
-			std::snprintf(b, sizeof b, "garden built at (%.1f, %.1f, %.1f): %zu plots, a tree spot, a fruit tree, a cow, %zu boxes, a wheelbarrow, the %s and the %s. Start the player (player <character.fbx>) after it to walk around the props, then: ability activate Dig \"Plot 1\"",
-				static_cast<double>(origin.x), static_cast<double>(origin.y), static_cast<double>(origin.z), layout.Plots.size(), layout.Boxes.size(), layout.Player.c_str(), layout.Npc.c_str());
-			return { true, b };
+			std::ostringstream message;   // (a fixed buffer with names of any length: gcc rejects it as a possible truncation)
+			message << std::fixed << std::setprecision(1) << "garden built at (" << origin.x << ", " << origin.y << ", " << origin.z << "): " << layout.Plots.size()
+				<< " plots, a tree spot, a fruit tree, a cow, " << layout.Boxes.size() << " boxes, a wheelbarrow, the " << layout.Player << " and the " << layout.Npc
+				<< ". Start the player (player <character.fbx>) after it to walk around the props, then: ability activate Dig \"Plot 1\"";
+			return { true, message.str() };
 		}
 		if (sub == "status")
 		{
