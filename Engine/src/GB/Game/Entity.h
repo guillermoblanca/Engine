@@ -56,6 +56,16 @@ namespace GB
 		float Restitution = 0.1f;
 	};
 
+	// A piece of generated world (tree or rock) the host draws itself: `Variant` indexes the host's recipes.
+	// Lets the editor move, rotate, scale and delete the environment like any other entity.
+	enum class PropKind { Tree, Rock };
+
+	struct PropComponent
+	{
+		PropKind Kind = PropKind::Tree;
+		int Variant = 0;
+	};
+
 	struct Entity
 	{
 		EntityId Id = NullEntity;
@@ -68,6 +78,7 @@ namespace GB
 		std::optional<MeshComponent> Mesh;
 		std::optional<LightComponent> Light;
 		std::optional<BodyComponent> Body;
+		std::optional<PropComponent> Prop;
 
 		bool HasTag(const std::string& tag) const;
 	};

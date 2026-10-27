@@ -98,6 +98,17 @@ int main()
 	Check(LoadSceneFromString(hand, R"({"version":1,"entities":[{"id":5,"name":"Lamp","position":[0,3,0],"light":{"intensity":40}}]})").Ok, "minimal file loads");
 	Check(hand.Find(5) && hand.Find(5)->Light && hand.Find(5)->Light->Intensity == 40.0f, "minimal file values");
 
+	// Props (generated trees and rocks) survive a round trip and a duplicate.
+	EntityWorld props;
+	const EntityId oak = props.Create("Oak");
+	props.Find(oak)->Prop = PropComponent{ PropKind::Rock, 3 };
+	EntityWorld propsLoaded;
+	Check(LoadSceneFromString(propsLoaded, SaveSceneToString(props)).Ok, "prop scene loads");
+	Check(propsLoaded.Find(oak)->Prop && propsLoaded.Find(oak)->Prop->Kind == PropKind::Rock && propsLoaded.Find(oak)->Prop->Variant == 3, "prop preserved");
+	const EntityId oakCopy = props.Duplicate(oak);
+	Check(props.Find(oakCopy)->Prop && props.Find(oakCopy)->Prop->Variant == 3, "prop duplicated");
+	Check(!LoadSceneFromString(propsLoaded, R"({"version":1,"entities":[{"id":1,"prop":{"kind":"bush"}}]})").Ok, "unknown prop kind rejected");
+
 	if (failures) return 1;
 	std::puts("entity tests passed");
 	return 0;

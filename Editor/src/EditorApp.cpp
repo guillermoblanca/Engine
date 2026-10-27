@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <glad/gl.h>
@@ -59,6 +60,14 @@ namespace GB::Editor
 		}
 		m_ViewportFb = std::make_unique<Framebuffer>(m_ViewportW, m_ViewportH);
 		m_AssetRoot = GB_ASSET_DIR;
+		m_Edit = SceneEditor(m_AssetRoot);
+		m_Entities = EntityRenderer(m_AssetRoot);
+		m_Entities.SetPropBuilder([this](const PropComponent& p, const glm::mat4& m, Scene& s) { return m_World.AddProp(p, m, s); });
+		m_Edit.SetBoundsProvider([this](EntityId id, const Entity& e, glm::vec3& center, float& radius)
+		{
+			if (e.Prop) return m_World.PropBounds(*e.Prop, center, radius);
+			return m_Entities.ModelBounds(id, center, radius);
+		});
 		m_Weather = std::make_unique<Weather>(5);
 		m_Orbit.Pitch = 0.3f; m_Orbit.Yaw = 0.6f; m_Orbit.Distance = 60.0f; m_Orbit.MinDistance = 1.0f; m_Orbit.MaxDistance = 600.0f;
 		m_Camera.FarPlane = 1500.0f;
@@ -107,6 +116,8 @@ namespace GB::Editor
 		if (name == "Console") return m_Panels.Console;
 		if (name == "Assets") return m_Panels.Assets;
 		if (name == "Model") return m_Panels.Model;
+		if (name == "Objects") return m_Panels.Objects;
+		if (name == "Tests") return m_Panels.Tests;
 		return false;
 	}
 
@@ -128,13 +139,56 @@ namespace GB::Editor
 	{
 		m_WorldDesc = desc;
 		m_Instance.reset();
+		m_Edit.RemoveEnvironment();   // the old trees and rocks go with the old world; what the user added stays
 		m_World.Build(desc, m_Scene);
-		m_StaticObjects = m_Scene.Objects.size();
+		m_StaticObjects = m_Scene.Objects.size();   // the terrain; entities are appended every frame
+		m_Edit.PopulateEnvironment(m_World.World().Trees, m_World.World().Rocks);
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 		RebaseWeather();
 		FrameWorld();
 		if (m_Props.All().size() > 0)
 			RegisterWaterProperties();
+	}
+
+	void EditorApp::ResetWorld()
+	{
+		m_Instance.reset();
+		m_Model.reset();
+		m_Props.RemovePrefix("model.");
+		m_Props.Set("tod.enabled", "false");
+		m_Props.Set("weather.preset", "clear");
+		m_Weather->Snap();
+		m_World.Clear(m_Scene);
+		m_StaticObjects = 0;
+		m_EnvMap.reset();
+		// The weather owns the sky: write the defaults into its base (the property registry points there), then rebase.
+		m_Weather->BaseEnvironment() = Environment{};
+		m_Weather->BaseEnvironment().ShadowRadius = 30.0f;
+		m_Weather->BaseSun() = DirectionalLight{};
+		RebaseWeather();
+		RegisterWaterProperties();
+		m_Orbit.Target = { 0.0f, 1.0f, 0.0f };
+		m_Orbit.Distance = 12.0f;
+		m_Orbit.Pitch = 0.3f;
+		m_Orbit.Yaw = 0.6f;
+	}
+
+	CommandResult EditorApp::LaunchSandbox(const std::string& scene)
+	{
+#ifdef GB_SANDBOX_EXE
+		const fs::path exe = GB_SANDBOX_EXE;
+		if (!fs::exists(exe)) return { false, "Sandbox not built: " + exe.string() };
+#ifdef _WIN32
+		const std::string command = "cd /d \"" + exe.parent_path().string() + "\" && start \"\" \"" + exe.string() + "\" --scene=" + scene;
+#else
+		const std::string command = "(cd \"" + exe.parent_path().string() + "\" && \"" + exe.string() + "\" --scene=" + scene + " &)";
+#endif
+		if (std::system(command.c_str()) != 0) return { false, "could not start the Sandbox" };
+		return { true, "opened the Sandbox scene '" + scene + "' in its own window" };
+#else
+		(void)scene;
+		return { false, "this editor was built without the Sandbox" };
+#endif
 	}
 
 	void EditorApp::FrameWorld()
@@ -294,9 +348,23 @@ namespace GB::Editor
 			m_Script.push_back(line);
 	}
 
+	void EditorApp::RunScriptFirst(const std::string& text)
+	{
+		const std::vector<std::string> lines = CommandRunner::SplitScript(text);
+		m_Script.insert(m_Script.begin(), lines.begin(), lines.end());
+	}
+
 	void EditorApp::RegisterCommands()
 	{
 		CommandRunner& c = m_Commands;
+		SceneHooks hooks;
+		hooks.ClearWorld = [this]() { ResetWorld(); };
+		hooks.SceneReplaced = [this]() { m_Entities.Reset(); };
+		hooks.SpawnPoint = [this]() { return m_Orbit.Target; };
+		hooks.Ground = [this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; };
+		hooks.RunScript = [this](const std::string& text) { RunScriptFirst(text); };
+		hooks.RunExternal = [this](const std::string& scene) { return LaunchSandbox(scene); };
+		RegisterSceneCommands(m_Commands, m_Edit, hooks);
 		c.Register("help", "help [command]: lists the commands, or explains one", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!a.empty())
@@ -483,6 +551,7 @@ namespace GB::Editor
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 		m_Scene.Post.DeltaTime = dt > 0.0f ? dt : 1.0f / 60.0f;
 		if (m_Instance) m_Instance->Update(dt);
+		m_Entities.Update(dt);
 	}
 
 	void EditorApp::OnRender()
@@ -497,9 +566,12 @@ namespace GB::Editor
 			m_Renderer->Resize(m_ViewportW, m_ViewportH);
 		}
 		m_Scene.Objects.resize(m_StaticObjects);
+		const size_t baseLights = m_Scene.PointLights.size();
+		m_Entities.Build(m_Edit.World(), m_Scene);
 		if (m_Instance)
 			m_Instance->AddToScene(m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
 		m_Renderer->Render(m_Scene, m_Camera, m_ViewportFb.get());
+		m_Scene.PointLights.resize(baseLights);   // the entities' lights are rebuilt every frame
 
 		// the interface
 		Framebuffer::BindDefault(ww, wh);
@@ -531,6 +603,8 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("World", right);
 		ImGui::DockBuilderDockWindow("Stats", right);
 		ImGui::DockBuilderDockWindow("Model", right);
+		ImGui::DockBuilderDockWindow("Objects", left);
+		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
 		ImGui::DockBuilderDockWindow("Viewport", center);
@@ -553,6 +627,8 @@ namespace GB::Editor
 		if (m_Panels.World) DrawWorldPanel();
 		if (m_Panels.Stats) DrawStats();
 		if (m_Panels.Model) DrawModelPanel();
+		if (m_Panels.Objects) DrawObjectsPanel();
+		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
 		if (m_Panels.Demo) ImGui::ShowDemoWindow(&m_Panels.Demo);
@@ -563,6 +639,10 @@ namespace GB::Editor
 		if (!ImGui::BeginMainMenuBar()) return;
 		if (ImGui::BeginMenu("File"))
 		{
+			if (ImGui::MenuItem("New Scene", "empty: camera and sun only")) Execute("new_scene");
+			if (ImGui::MenuItem("Open scene (scene.json)")) Execute("scene_load scene.json");
+			if (ImGui::MenuItem("Save scene (scene.json)")) Execute("scene_save scene.json");
+			ImGui::Separator();
 			if (ImGui::BeginMenu("New world"))
 			{
 				if (ImGui::MenuItem("Temperate")) Execute("generate temperate");
@@ -575,8 +655,36 @@ namespace GB::Editor
 			if (ImGui::MenuItem("Exit")) Close();
 			ImGui::EndMenu();
 		}
+		if (ImGui::BeginMenu("Add"))
+		{
+			for (const char* what : { "cube", "sphere", "plane", "light" })
+				if (ImGui::MenuItem(what)) Execute(std::string("add ") + what);
+			if (ImGui::BeginMenu("Model"))
+			{
+				std::error_code ec;
+				for (auto it = fs::recursive_directory_iterator(m_AssetRoot, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+				{
+					const std::string ext = Lower(it->path().extension().string());
+					if ((ext == ".glb" || ext == ".gltf") && ImGui::MenuItem(fs::relative(it->path(), m_AssetRoot, ec).generic_string().c_str()))
+						Execute("add \"" + it->path().generic_string() + "\"");
+				}
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Tests"))
+		{
+			for (const TestScenario& s : TestScenarios())
+				if (ImGui::MenuItem(s.Name.c_str(), s.Approximate ? "approx." : nullptr)) Execute("test " + s.Name);
+			ImGui::Separator();
+			ImGui::MenuItem("Tests panel", nullptr, &m_Panels.Tests);
+			ImGui::EndMenu();
+		}
 		if (ImGui::BeginMenu("View"))
 		{
+			ImGui::Separator();
+			ImGui::MenuItem("Objects", nullptr, &m_Panels.Objects);
+			ImGui::MenuItem("Tests", nullptr, &m_Panels.Tests);
 			ImGui::MenuItem("Viewport", nullptr, &m_Panels.Viewport);
 			ImGui::MenuItem("Properties", nullptr, &m_Panels.Properties);
 			ImGui::MenuItem("World", nullptr, &m_Panels.World);
@@ -618,12 +726,45 @@ namespace GB::Editor
 			ImGui::Image(static_cast<ImTextureID>(static_cast<intptr_t>(m_ViewportFb->GetColorTexture())), ImVec2(static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight())),
 				ImVec2(0, 1), ImVec2(1, 0));
 			m_ViewportHovered = ImGui::IsItemHovered();
+			const ImGuiIO& vio = ImGui::GetIO();
+			if (m_ViewportHovered && ImGui::IsMouseReleased(0))   // a click (not a camera drag) selects
+			{
+				const ImVec2 drag = ImGui::GetMouseDragDelta(0, 0.0f);
+				if (drag.x * drag.x + drag.y * drag.y < 16.0f)
+					PickAt(vio.MousePos.x - origin.x, vio.MousePos.y - origin.y, static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight()));
+			}
+			if (m_ViewportHovered && !vio.WantTextInput && m_Edit.Selected() != NullEntity && ImGui::IsKeyPressed(ImGuiKey_Delete))
+				Execute("delete");
+			SceneEditor::Sphere sel;
+			if (m_Edit.WorldBounds(m_Edit.Selected(), sel))   // circle around the selection
+			{
+				const float vw = static_cast<float>(m_ViewportFb->GetWidth()), vh = static_cast<float>(m_ViewportFb->GetHeight());
+				const glm::vec4 clip = m_Camera.GetProjection(vw / vh) * m_Camera.GetView() * glm::vec4(sel.Center, 1.0f);
+				if (clip.w > 0.01f)
+				{
+					const float px = std::clamp(sel.Radius / (clip.w * std::tan(glm::radians(m_Camera.FovYDegrees) * 0.5f)) * vh * 0.5f, 6.0f, 2000.0f);
+					const ImVec2 c(origin.x + (clip.x / clip.w * 0.5f + 0.5f) * vw, origin.y + (1.0f - (clip.y / clip.w * 0.5f + 0.5f)) * vh);
+					ImGui::GetWindowDrawList()->AddCircle(c, px, IM_COL32(255, 200, 40, 230), 48, 2.0f);
+				}
+			}
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);
 			ImGui::GetWindowDrawList()->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(255, 255, 255, 200), info);
 		}
 		ImGui::End();
 		ImGui::PopStyleVar();
+	}
+
+	void EditorApp::PickAt(float mouseX, float mouseY, float width, float height)
+	{
+		if (width < 1.0f || height < 1.0f) return;
+		const glm::mat4 inv = glm::inverse(m_Camera.GetProjection(width / height) * m_Camera.GetView());
+		const float nx = mouseX / width * 2.0f - 1.0f, ny = 1.0f - mouseY / height * 2.0f;
+		glm::vec4 a = inv * glm::vec4(nx, ny, -1.0f, 1.0f), b = inv * glm::vec4(nx, ny, 1.0f, 1.0f);
+		a /= a.w; b /= b.w;
+		const EntityId hit = m_Edit.Pick(m_Camera.Position, glm::vec3(b) - glm::vec3(a));
+		m_Edit.Select(hit);
+		m_ScrollToSelected = hit != NullEntity;
 	}
 
 	void EditorApp::DrawProperties()
@@ -753,6 +894,120 @@ namespace GB::Editor
 		ImGui::End();
 	}
 
+	void EditorApp::DrawObjectsPanel()
+	{
+		if (ImGui::Begin("Objects", &m_Panels.Objects))
+		{
+			for (const char* what : { "Cube", "Sphere", "Plane", "Light" })
+			{
+				if (ImGui::SmallButton((std::string("+ ") + what).c_str())) Execute("add " + Lower(what));
+				ImGui::SameLine();
+			}
+			ImGui::NewLine();
+			char filter[64];
+			std::snprintf(filter, sizeof filter, "%s", m_ObjectFilter.c_str());
+			ImGui::SetNextItemWidth(-1);
+			if (ImGui::InputTextWithHint("##objfilter", "search objects...", filter, sizeof filter)) m_ObjectFilter = filter;
+			ImGui::Text("%zu objects (trees, rocks and what you add). Click in the viewport to pick.", m_Edit.World().Count());
+
+			const std::vector<EntityId> ids = m_Edit.Find(m_ObjectFilter);
+			const float inspectorHeight = m_Edit.Selected() != NullEntity ? ImGui::GetContentRegionAvail().y * 0.55f : 0.0f;
+			ImGui::BeginChild("##objlist", ImVec2(0, -inspectorHeight), true);
+			const float rowH = ImGui::GetTextLineHeightWithSpacing();
+			ImGuiListClipper clipper;
+			clipper.Begin(static_cast<int>(ids.size()), rowH);
+			while (clipper.Step())
+			{
+				for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
+				{
+					const EntityId id = ids[static_cast<size_t>(row)];
+					const Entity* e = m_Edit.World().Find(id);
+					int depth = 0;
+					for (const Entity* p = m_Edit.World().Find(e->Parent); p; p = m_Edit.World().Find(p->Parent)) ++depth;
+					ImGui::PushID(static_cast<int>(id));
+					const std::string label = std::string(static_cast<size_t>(depth) * 2, ' ') + e->Name;
+					if (ImGui::Selectable(label.c_str(), id == m_Edit.Selected())) m_Edit.Select(id);
+					ImGui::PopID();
+				}
+			}
+			if (m_ScrollToSelected)
+			{
+				m_ScrollToSelected = false;
+				for (size_t i = 0; i < ids.size(); ++i)
+					if (ids[i] == m_Edit.Selected()) { ImGui::SetScrollY(std::max(0.0f, static_cast<float>(i) * rowH - 80.0f)); break; }
+			}
+			ImGui::EndChild();
+
+			Entity* e = m_Edit.World().Find(m_Edit.Selected());
+			if (e)
+			{
+				ImGui::BeginChild("##inspector", ImVec2(0, 0), true);
+				char name[96];
+				std::snprintf(name, sizeof name, "%s", e->Name.c_str());
+				if (ImGui::InputText("name", name, sizeof name, ImGuiInputTextFlags_EnterReturnsTrue)) m_Edit.World().Rename(e->Id, name);
+				ImGui::Checkbox("active", &e->Active);
+				ImGui::DragFloat3("position", &e->Transform.Position.x, 0.05f);
+				ImGui::DragFloat3("rotation", &e->Transform.Rotation.x, 0.5f);
+				ImGui::DragFloat3("scale", &e->Transform.Scale.x, 0.01f, 0.001f, 1000.0f);
+				if (e->Prop) ImGui::TextDisabled("%s (variant %d): drawn with yaw and uniform scale", e->Prop->Kind == PropKind::Tree ? "tree" : "rock", e->Prop->Variant);
+				if (e->Mesh)
+				{
+					if (e->Mesh->Model.empty())
+					{
+						int shape = static_cast<int>(e->Mesh->Shape);
+						if (ImGui::Combo("shape", &shape, "cube sphere plane ")) e->Mesh->Shape = static_cast<MeshShape>(shape);
+						ImGui::DragFloat("size", &e->Mesh->Size, 0.05f, 0.01f, 1000.0f);
+					}
+					else ImGui::TextWrapped("model: %s", e->Mesh->Model.c_str());
+					ImGui::ColorEdit3("albedo", &e->Mesh->Albedo.x, ImGuiColorEditFlags_Float);
+					ImGui::SliderFloat("metallic", &e->Mesh->Metallic, 0.0f, 1.0f);
+					ImGui::SliderFloat("roughness", &e->Mesh->Roughness, 0.0f, 1.0f);
+					ImGui::ColorEdit3("emissive", &e->Mesh->Emissive.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
+					if (ModelInstance* inst = m_Entities.FindInstance(e->Id))
+					{
+						const auto& clips = inst->GetModel().GetClips();
+						for (size_t i = 0; i < clips.size(); ++i)
+							if (ImGui::Selectable(clips[i].Name.empty() ? ("clip " + std::to_string(i)).c_str() : clips[i].Name.c_str(), inst->GetCurrentClip() == static_cast<int>(i)))
+								inst->Play(static_cast<int>(i), true, 0.25f);
+					}
+				}
+				if (e->Light)
+				{
+					ImGui::ColorEdit3("light color", &e->Light->Color.x, ImGuiColorEditFlags_Float);
+					ImGui::DragFloat("intensity", &e->Light->Intensity, 0.2f, 0.0f, 500.0f);
+					ImGui::DragFloat("radius", &e->Light->Radius, 0.1f, 0.0f, 500.0f);
+				}
+				if (ImGui::Button("Delete")) Execute("delete");
+				ImGui::SameLine(); if (ImGui::Button("Duplicate")) Execute("duplicate");
+				ImGui::SameLine(); if (ImGui::Button("Drop to ground")) Execute("drop");
+				ImGui::SameLine(); if (ImGui::Button("Focus")) m_Orbit.Target = glm::vec3(m_Edit.World().WorldMatrix(e->Id)[3]);
+				ImGui::EndChild();
+			}
+		}
+		ImGui::End();
+	}
+
+	void EditorApp::DrawTestsPanel()
+	{
+		if (ImGui::Begin("Tests", &m_Panels.Tests))
+		{
+			ImGui::TextWrapped("The Sandbox test scenes. Run builds them in the viewport (you can then select, move and delete their objects); Sandbox opens the original in its own window.");
+			ImGui::Separator();
+			for (const TestScenario& s : TestScenarios())
+			{
+				ImGui::PushID(s.Name.c_str());
+				if (ImGui::Button("Run")) Execute("test " + s.Name);
+				ImGui::SameLine();
+				if (ImGui::Button("Sandbox")) Execute("test " + s.Name + " sandbox");
+				ImGui::SameLine();
+				ImGui::Text("%s%s", s.Title.c_str(), s.Approximate ? "  (approximation)" : "");
+				ImGui::TextDisabled("--scene=%s: %s", s.Name.c_str(), s.Description.c_str());
+				ImGui::PopID();
+			}
+		}
+		ImGui::End();
+	}
+
 	void EditorApp::DrawConsole()
 	{
 		if (ImGui::Begin("Console", &m_Panels.Console))
@@ -829,7 +1084,7 @@ namespace GB::Editor
 				if (it->is_regular_file(ec)) files.push_back(it->path());
 			std::sort(files.begin(), files.end());
 			ImGui::TextDisabled("%s", m_AssetRoot.c_str());
-			ImGui::TextDisabled("double-click a model (.glb/.gltf) to load it, an .hdr to use it as the environment");
+			ImGui::TextDisabled("double-click a model (.glb/.gltf) to add it to the scene (right-click: animation viewer), an .hdr to use it as the environment");
 			ImGui::BeginChild("##assets");
 			for (const fs::path& f : files)
 			{
@@ -840,8 +1095,14 @@ namespace GB::Editor
 				const char* kind = ext == ".glb" || ext == ".gltf" ? "[model]" : ext == ".hdr" ? "[hdri]" : ext == ".jpg" || ext == ".png" ? "[image]" : "";
 				if (ImGui::Selectable((std::string(kind) + " " + rel).c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(0))
 				{
-					if (ext == ".glb" || ext == ".gltf") Execute("load \"" + f.generic_string() + "\"");
+					if (ext == ".glb" || ext == ".gltf") Execute("add \"" + f.generic_string() + "\"");
 					else if (ext == ".hdr") Execute("hdri \"" + f.generic_string() + "\"");
+				}
+				if ((ext == ".glb" || ext == ".gltf") && ImGui::BeginPopupContextItem("##assetctx"))
+				{
+					if (ImGui::MenuItem("Add to scene")) Execute("add \"" + f.generic_string() + "\"");
+					if (ImGui::MenuItem("Open in the Model viewer")) Execute("load \"" + f.generic_string() + "\"");
+					ImGui::EndPopup();
 				}
 				ImGui::PopID();
 			}

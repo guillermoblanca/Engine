@@ -17,10 +17,16 @@ add_library(GBEditor STATIC
     src/LogBuffer.cpp
     src/ImGuiLayer.cpp
     src/WorldInstance.cpp
+    src/SceneEditor.cpp
+    src/TestScenarios.cpp
     src/EditorApp.cpp)
 target_include_directories(GBEditor PUBLIC src)
 target_link_libraries(GBEditor PUBLIC GB::GB imgui)
 target_compile_definitions(GBEditor PUBLIC GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
+# The Tests panel can open the original Sandbox scene in its own window.
+if(TARGET Sandbox)
+    target_compile_definitions(GBEditor PRIVATE GB_SANDBOX_EXE="$<TARGET_FILE:Sandbox>")
+endif()
 if(MSVC)
     target_compile_options(GBEditor PRIVATE /W4 /permissive-)
     if(GB_WARNINGS_AS_ERRORS)

@@ -1,6 +1,8 @@
 #pragma once
 #include "Commands.h"
 #include "ImGuiLayer.h"
+#include "SceneEditor.h"
+#include "TestScenarios.h"
 #include "LogBuffer.h"
 #include "Properties.h"
 #include "WorldInstance.h"
@@ -8,6 +10,7 @@
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Effects/Sky.h"
+#include "GB/Game/EntityRender.h"
 #include "GB/Effects/Weather.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
@@ -31,10 +34,12 @@ namespace GB::Editor
 
 		CommandResult Execute(const std::string& line);
 		void RunScript(const std::string& text);                 // queued: runs a line per frame, `wait N` pauses
+		void RunScriptFirst(const std::string& text);            // same, but before what is already queued
 		size_t PendingScriptLines() const { return m_Script.size(); }
 
 		PropertyRegistry& Properties() { return m_Props; }
 		CommandRunner& Commands() { return m_Commands; }
+		SceneEditor& Edit() { return m_Edit; }
 		Scene& GetScene() { return m_Scene; }
 		WorldInstance& World() { return m_World; }
 		Weather& GetWeather() { return *m_Weather; }
@@ -57,6 +62,9 @@ namespace GB::Editor
 		void ApplyTimeOfDay();
 		void SetQuality(const std::string& name);
 		void FrameWorld();
+		void ResetWorld();                                       // File > New Scene: nothing generated, default sky
+		CommandResult LaunchSandbox(const std::string& scene);
+		void PickAt(float mouseX, float mouseY, float width, float height);
 
 		void DrawUI();
 		void DrawMenu();
@@ -67,6 +75,8 @@ namespace GB::Editor
 		void DrawConsole();
 		void DrawAssets();
 		void DrawModelPanel();
+		void DrawObjectsPanel();
+		void DrawTestsPanel();
 		void BuildDefaultLayout(unsigned int dockspaceId, float width, float height);
 
 		// scene
@@ -82,6 +92,10 @@ namespace GB::Editor
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
 		size_t m_StaticObjects = 0;
+		SceneEditor m_Edit;                                      // the entities: environment trees/rocks and whatever the user adds
+		EntityRenderer m_Entities;
+		std::string m_ObjectFilter;
+		bool m_ScrollToSelected = false;
 		glm::vec3 m_ModelPosition{ 0.0f };
 		float m_ModelYaw = 0.0f, m_ModelScale = 1.0f, m_ModelSpeed = 1.0f;
 
@@ -101,7 +115,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Objects = true, Tests = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		bool m_LayoutBuilt = false;

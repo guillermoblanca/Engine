@@ -4,6 +4,7 @@
 #include "GB/Game/Entity.h"
 #include "GB/Renderer/Mesh.h"
 #include "GB/Renderer/Renderer.h"
+#include <functional>
 #include <map>
 #include <memory>
 #include <string>
@@ -22,11 +23,24 @@ namespace GB
 		// Advances the animation of the models in the world.
 		void Update(float deltaTime);
 
+		// Draws the entities that carry a PropComponent (the host knows its trees and rocks). Returns false when
+		// it could not draw it. `world` is the entity's world matrix.
+		using PropBuilder = std::function<bool(const PropComponent& prop, const glm::mat4& world, Scene& scene)>;
+		void SetPropBuilder(PropBuilder builder) { m_PropBuilder = std::move(builder); }
+
+		// The playing model of an entity (null when it has none or it failed to load), for animation control.
+		ModelInstance* FindInstance(EntityId id);
+		// Local bounding sphere (center, radius) of the entity's model; false when not loaded.
+		bool ModelBounds(EntityId id, glm::vec3& center, float& radius);
+		// Forgets cached instances (ids were reused, e.g. after EntityWorld::Clear()).
+		void Reset() { m_Instances.clear(); }
+
 	private:
 		const Mesh* PrimitiveMesh(MeshShape shape, float size);
 		ModelInstance* InstanceFor(EntityId id, const std::string& path);
 
 		std::string m_AssetDir;
+		PropBuilder m_PropBuilder;
 		std::map<std::pair<int, float>, std::unique_ptr<Mesh>> m_Primitives;
 		std::map<std::string, std::unique_ptr<Model>> m_Models;   // null entry: failed to load (not retried)
 		std::map<EntityId, std::pair<std::string, std::unique_ptr<ModelInstance>>> m_Instances;

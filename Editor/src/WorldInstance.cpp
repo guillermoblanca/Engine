@@ -17,6 +17,51 @@ namespace GB::Editor
 		m_World.reset();
 	}
 
+	float WorldInstance::WaterLevelAt(float x, float z) const
+	{
+		const Terrain* terrain = m_Terrain.get();
+		float level = -1e9f;
+		if (terrain->HasLake() && glm::distance(glm::vec2(x, z), terrain->GetLakeCenter()) < terrain->GetLakeRadius() * 1.5f) level = terrain->GetWaterLevel();
+		if (terrain->GetRiver() && terrain->DistanceToRiver(x, z) < terrain->GetRiver()->HalfWidth * 3.0f) level = std::max(level, terrain->GetRiverSurfaceLevel(x, z));
+		return level;
+	}
+
+	bool WorldInstance::AddProp(const PropComponent& prop, const glm::mat4& world, Scene& scene) const
+	{
+		if (!m_World) return false;
+		TransformComponent t;
+		t.FromMatrix(world);
+		const float yaw = glm::radians(t.Rotation.y);
+		const float scale = (t.Scale.x + t.Scale.y + t.Scale.z) / 3.0f;   // the factories place uniformly scaled copies
+		const size_t variant = static_cast<size_t>(std::max(prop.Variant, 0));
+		if (prop.Kind == PropKind::Tree)
+		{
+			if (variant >= m_TreeVariants.size()) return false;
+			m_TreeVariants[variant]->AddToScene(scene, t.Position, yaw, scale, 340.0f);
+			return true;
+		}
+		if (variant >= m_RockVariants.size()) return false;
+		m_RockVariants[variant]->AddToScene(scene, t.Position, yaw, scale, 0.12f * scale, WaterLevelAt(t.Position.x, t.Position.z));
+		return true;
+	}
+
+	bool WorldInstance::PropBounds(const PropComponent& prop, glm::vec3& center, float& radius) const
+	{
+		const size_t variant = static_cast<size_t>(std::max(prop.Variant, 0));
+		if (prop.Kind == PropKind::Tree)
+		{
+			if (variant >= m_TreeVariants.size()) return false;
+			const Tree& tree = *m_TreeVariants[variant];
+			center = { 0.0f, tree.Height * 0.5f, 0.0f };
+			radius = std::max(tree.Height * 0.5f, tree.CrownRadius);
+			return true;
+		}
+		if (variant >= m_RockVariants.size()) return false;
+		center = { 0.0f, m_RockVariants[variant]->Height * 0.5f, 0.0f };
+		radius = m_RockVariants[variant]->Radius;
+		return true;
+	}
+
 	void WorldInstance::Build(const WorldDesc& desc, Scene& scene)
 	{
 		Clear(scene);
@@ -43,20 +88,8 @@ namespace GB::Editor
 		m_TreeFactory = std::make_unique<TreeFactory>();
 		for (const TreeParams& tp : world->TreeRecipes)
 			m_TreeVariants.push_back(m_TreeFactory->Create(tp));
-		for (const TreePlacement& pl : world->Trees)
-			m_TreeVariants[static_cast<size_t>(pl.Variant)]->AddToScene(scene, pl.Position, pl.Yaw, pl.Scale, 340.0f);
-
-		auto waterNear = [terrain](float x, float z)
-		{
-			float level = -1e9f;
-			if (terrain->HasLake() && glm::distance(glm::vec2(x, z), terrain->GetLakeCenter()) < terrain->GetLakeRadius() * 1.5f) level = terrain->GetWaterLevel();
-			if (terrain->GetRiver() && terrain->DistanceToRiver(x, z) < terrain->GetRiver()->HalfWidth * 3.0f) level = std::max(level, terrain->GetRiverSurfaceLevel(x, z));
-			return level;
-		};
 		for (const RockParams& rp : world->RockRecipes)
 			m_RockVariants.push_back(RockFactory::Create(rp));
-		for (const RockPlacement& rk : world->Rocks)
-			m_RockVariants[static_cast<size_t>(rk.Variant)]->AddToScene(scene, rk.Position, rk.Yaw, rk.Scale, 0.12f * rk.Scale, waterNear(rk.Position.x, rk.Position.z));
 
 		if (terrain->HasLake())
 		{
