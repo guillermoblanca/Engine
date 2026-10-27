@@ -109,6 +109,11 @@ namespace GB
 		// Index of the node with this exact name, or -1 (e.g. a foot bone).
 		int FindNode(const std::string& name) const;
 
+		// Adds the animation clips of another file (typically an animation-only FBX such as a Mixamo clip) to this
+		// model, matching bones by node name. Returns how many clips were added. Bones the file animates that this
+		// model does not have are skipped; `report` (optional) says how many.
+		int AppendAnimations(const std::string& path, std::string* report = nullptr);
+
 		struct Primitive
 		{
 			std::unique_ptr<Mesh> MeshData;
@@ -121,6 +126,17 @@ namespace GB
 	private:
 		Model() = default;
 		friend struct ModelLoader;
+		friend struct FbxModelLoader;
+
+		// Vertex data kept on the CPU while loading, for the bounds.
+		struct PrimitiveCPU
+		{
+			std::vector<glm::vec3> Positions;
+			std::vector<SkinVertex> Skin;   // empty if not skinned
+		};
+		// Bounds in the rest pose: rigid vertices by their node's world, skinned ones through the rest palette.
+		void ComputeBounds(const std::vector<std::vector<PrimitiveCPU>>& cpu);
+		static std::unique_ptr<Model> LoadFbx(const std::string& path);
 
 		std::vector<std::vector<Primitive>> m_Meshes;   // glTF meshes -> primitives
 		std::vector<ModelNode> m_Nodes;

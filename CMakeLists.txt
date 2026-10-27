@@ -47,6 +47,12 @@ FetchContent_Declare(json
     GIT_TAG v3.11.3
     GIT_SHALLOW TRUE)
 
+# ufbx (pinned, MIT, one .c/.h): FBX import (Mixamo characters and animations).
+FetchContent_Declare(ufbx
+    GIT_REPOSITORY https://github.com/ufbx/ufbx.git
+    GIT_TAG v0.9.0
+    GIT_SHALLOW TRUE)
+
 # miniaudio (pinned, single header): audio output and file decoding.
 FetchContent_Declare(miniaudio
     GIT_REPOSITORY https://github.com/mackron/miniaudio.git
@@ -65,6 +71,10 @@ if(GB_BUILD_EDITOR)
     if(NOT imgui_POPULATED)
         FetchContent_Populate(imgui)
     endif()
+endif()
+FetchContent_GetProperties(ufbx)
+if(NOT ufbx_POPULATED)
+    FetchContent_Populate(ufbx)
 endif()
 FetchContent_GetProperties(miniaudio)
 if(NOT miniaudio_POPULATED)
