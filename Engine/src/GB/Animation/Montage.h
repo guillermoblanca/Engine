@@ -120,4 +120,8 @@ namespace GB
 
 	// The farming pack's one-shot actions as montages (the ones whose clips the model has), and the "UpperBody" slot to add.
 	std::vector<MontageDesc> MixamoMontages();
+
+	// The Universal Animation Library's actions (interact, pick up, roll, hits, death, sitting, sword, punches, pistol, spells, dance), as they are
+	// named once retargeted onto a character; the ones whose clips the model has are added with the farming ones.
+	std::vector<MontageDesc> UniversalMontages();
 }

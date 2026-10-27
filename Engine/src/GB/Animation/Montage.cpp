@@ -350,4 +350,37 @@ namespace GB
 			make("wheelbarrow_dump", "wheelbarrow dump"),
 		};
 	}
+
+	std::vector<MontageDesc> UniversalMontages()
+	{
+		auto make = [](const char* name, const char* clip, const char* slot = "FullBody", bool loop = false)
+		{
+			MontageDesc d;
+			d.Name = name;
+			d.Clip = clip;
+			d.Slot = slot;
+			d.Loop = loop;
+			return d;
+		};
+		return {
+			make("interact", "Interact"),
+			make("pick_up", "PickUp_Table"),
+			make("fix_kneeling", "Fixing_Kneeling"),
+			make("roll", "Roll"),
+			make("hit_chest", "Hit_Chest"),
+			make("hit_head", "Hit_Head"),
+			make("death", "Death01"),
+			make("sit_enter", "Sitting_Enter"),
+			make("sit_exit", "Sitting_Exit"),
+			make("sword_attack", "Sword_Attack"),
+			make("punch_cross", "Punch_Cross"),
+			make("punch_jab", "Punch_Jab"),
+			make("pistol_shoot", "Pistol_Shoot", "UpperBody"),
+			make("pistol_reload", "Pistol_Reload", "UpperBody"),
+			make("spell_enter", "Spell_Simple_Enter", "UpperBody"),
+			make("spell_shoot", "Spell_Simple_Shoot", "UpperBody"),
+			make("spell_exit", "Spell_Simple_Exit", "UpperBody"),
+			make("dance", "Dance_Loop", "FullBody", true),
+		};
+	}
 }

@@ -20,17 +20,28 @@ namespace GB
 		}
 		bool Has(const std::string& s, const char* word) { return s.find(word) != std::string::npos; }
 
-		// The clip that plays a role: the first whose name says so and none of the words that mark a variant (carrying, pushing...).
+		// The clip that plays a role: among the ones whose name says so and none of the words that mark a variant (carrying, crouching, sitting,
+		// pushing...), the one with the shortest name ("Idle_Loop" before "Idle_Talking_Loop").
 		std::string FindClip(const Model& model, std::initializer_list<const char*> all, std::initializer_list<const char*> none = {})
 		{
+			std::string best;
 			for (const AnimationClip& c : model.GetClips())
 			{
 				const std::string n = Lower(c.Name);
 				bool ok = true;
 				for (const char* w : all) ok = ok && Has(n, w);
 				for (const char* w : none) ok = ok && !Has(n, w);
-				for (const char* w : { "box", "holding", "wheelbarrow", "arc", "kneel", "sitting" }) ok = ok && !Has(n, w);
-				if (ok) return c.Name;
+				for (const char* w : { "box", "holding", "wheelbarrow", "arc", "kneel", "sitting", "crouch", "formal", "torch", "talking", "pistol", "sword", "spell", "swim", "driving", "dance", "death", "hit_" }) ok = ok && !Has(n, w);
+				if (ok && (best.empty() || c.Name.size() < best.size())) best = c.Name;
+			}
+			return best;
+		}
+		std::string FindClipAny(const Model& model, std::initializer_list<std::initializer_list<const char*>> options, std::initializer_list<const char*> none = {})
+		{
+			for (const auto& all : options)
+			{
+				const std::string c = FindClip(model, all, none);
+				if (!c.empty()) return c;
 			}
 			return "";
 		}
@@ -114,10 +125,10 @@ namespace GB
 		auto role = [&](const char* name, const std::string& clip) { if (!clip.empty()) p.Roles.push_back({ name, clip }); };
 		role("idle", FindClip(model, { "idle" }));
 		role("walk", FindClip(model, { "walk" }, { "strafe", "turn" }));
-		role("run", FindClip(model, { "run" }, { "strafe", "turn" }));
+		role("run", FindClipAny(model, { { "run" }, { "jog" }, { "sprint" } }, { "strafe", "turn" }));
 		role("strafe_left", FindClip(model, { "left", "strafe" }));
 		role("strafe_right", FindClip(model, { "right", "strafe" }));
-		role("jump", FindClip(model, { "jump" }));
+		role("jump", FindClipAny(model, { { "jump" } }, { "land" }));
 		role("turn_left", FindClip(model, { "left", "turn" }));
 		role("turn_right", FindClip(model, { "right", "turn" }));
 		if (p.ClipCount == 0) p.Warnings.push_back("no animation clips: put the animation files next to the character");
@@ -132,6 +143,8 @@ namespace GB
 			if (found >= 2) p.Sets.push_back(d.Name);
 		}
 		for (const MontageDesc& m : MixamoMontages())
+			if (model.FindClip(m.Clip) >= 0) p.Montages.push_back(m.Name);
+		for (const MontageDesc& m : UniversalMontages())
 			if (model.FindClip(m.Clip) >= 0) p.Montages.push_back(m.Name);
 		return p;
 	}
