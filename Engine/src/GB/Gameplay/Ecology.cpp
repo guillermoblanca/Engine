@@ -45,6 +45,51 @@ namespace GB
 		return s == Season::Winter ? 1.5f : s == Season::Autumn ? 1.1f : 1.0f;
 	}
 
+	float SeasonClock::SnowCover(Season s, float progress)
+	{
+		const float p = std::max(0.0f, std::min(1.0f, progress));
+		switch (s)
+		{
+		case Season::Winter: return 0.95f * std::min(1.0f, p / 0.15f);
+		case Season::Spring: return 0.95f * std::max(0.0f, 1.0f - p / 0.25f);
+		case Season::Autumn: return p > 0.9f ? (p - 0.9f) / 0.1f * 0.3f : 0.0f;   // a first dusting just before winter
+		default: return 0.0f;
+		}
+	}
+
+	namespace
+	{
+		glm::vec3 FoliageBase(Season s)
+		{
+			switch (s)
+			{
+			case Season::Spring: return { 0.36f, 0.64f, 0.24f };
+			case Season::Summer: return { 0.2f, 0.45f, 0.16f };
+			case Season::Autumn: return { 0.78f, 0.42f, 0.1f };
+			default: return { 0.7f, 0.74f, 0.78f };   // frosted
+			}
+		}
+	}
+
+	glm::vec3 SeasonClock::Foliage(Season s, float progress)
+	{
+		const float p = std::max(0.0f, std::min(1.0f, progress));
+		const float t = std::max(0.0f, std::min(1.0f, (p - 0.7f) / 0.3f));   // the last 30% turns into the next season
+		const float k = t * t * (3.0f - 2.0f * t);
+		return FoliageBase(s) * (1.0f - k) + FoliageBase(static_cast<Season>((static_cast<int>(s) + 1) % 4)) * k;
+	}
+
+	const char* SeasonClock::Weather(Season s, float progress)
+	{
+		switch (s)
+		{
+		case Season::Spring: return progress < 0.2f ? "lightrain" : "clear";
+		case Season::Summer: return progress > 0.45f && progress < 0.55f ? "storm" : "clear";
+		case Season::Autumn: return progress > 0.65f ? "rain" : "clear";
+		default: return progress < 0.9f ? "snow" : "clear";
+		}
+	}
+
 	namespace
 	{
 		EntityId Part(EntityWorld& w, EntityId parent, const std::string& name, MeshShape shape, const glm::vec3& pos, const glm::vec3& scale, const glm::vec3& color)

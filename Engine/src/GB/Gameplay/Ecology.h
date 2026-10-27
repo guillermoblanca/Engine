@@ -21,6 +21,10 @@ namespace GB
 		static float GrowthRate(Season s);
 		// How much faster animals get hungry (food is scarce in winter).
 		static float HungerRate(Season s);
+		// What the season looks like. All of it a function of the season and how far through it we are, so there is nothing to save.
+		static float SnowCover(Season s, float progress);        // 0..1 on the ground: it falls early in winter and melts in early spring
+		static glm::vec3 Foliage(Season s, float progress);      // colour of crowns and bushes, blending into the next season's near the end
+		static const char* Weather(Season s, float progress);    // "clear", "lightrain", "rain", "storm" or "snow": the weather the season brings
 	};
 
 	// Basic ecology (H3): rabbits that wander, eat the plants the tribe also gathers (berry bushes, fibre tufts), breed when well fed and starve
