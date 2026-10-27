@@ -85,6 +85,7 @@ namespace GB
 			if (const AnimInstance* anim = actor->Anim()) s.Set = anim->Overlay();
 			s.Props = actor->PropNames();
 			s.Ragdoll = actor->Ragdolled();
+			for (const ItemSlot& slot : actor->Bag().Stacks()) s.Inventory.push_back({ slot.Id, slot.Count });
 			out.push_back(std::move(s));
 		}
 		return out;
@@ -98,6 +99,9 @@ namespace GB
 			Actor* actor = Find(s.Name);
 			if (!actor) continue;
 			actor->Teleport(s.Position.x, s.Position.z, s.Yaw);
+			std::vector<ItemSlot> bag;
+			for (const Save::ItemStack& it : s.Inventory) bag.push_back({ it.Item, it.Count });
+			actor->Bag().SetStacks(std::move(bag));
 			if (!s.Set.empty() && actor->Anim() && actor->Anim()->HasSet(s.Set)) actor->SetOverlay(s.Set, 0.0f);
 		}
 		return {};
