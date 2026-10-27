@@ -171,13 +171,22 @@ namespace GB
 		// Velocity: constant acceleration toward the target (braking is stronger than starting), so the
 		// speed ramps linearly, reversals pass through a brief slide, and the result does not depend on dt.
 		glm::vec2 v(m_Velocity.x, m_Velocity.z);
-		const glm::vec2 delta = wishDir * speedCap - v;
+		// Opt-in: standing still and asked to go somewhere well behind or beside, turn first (the animation steps through the turn).
+		const float wantedYaw = hasInput ? std::atan2(wishDir.x, wishDir.y) : m_Yaw;
+		const bool turnFirst = hasInput && c.TurnInPlaceAngle > 0.0f && !m_Airborne && glm::length(v) < 0.4f
+			&& std::fabs(WrapAngle(wantedYaw - m_Yaw)) > glm::radians(c.TurnInPlaceAngle);
+		const glm::vec2 delta = (turnFirst ? glm::vec2(0.0f) : wishDir * speedCap) - v;
 		const float deltaLength = glm::length(delta);
 		const float maxChange = (hasInput ? c.Acceleration : c.Deceleration) * dt * (m_Airborne ? c.AirControl : 1.0f);
-		v = deltaLength <= maxChange ? wishDir * speedCap : v + delta * (maxChange / deltaLength);
+		v = deltaLength <= maxChange ? (turnFirst ? glm::vec2(0.0f) : wishDir * speedCap) : v + delta * (maxChange / deltaLength);
 
 		// Heading: turn toward the direction of travel by the shortest way, with a rate cap.
-		if (hasInput)
+		if (turnFirst)
+		{
+			const float maxStep = c.TurnInPlaceRate * dt;
+			m_Yaw = WrapAngle(m_Yaw + glm::clamp(WrapAngle(wantedYaw - m_Yaw), -maxStep, maxStep));
+		}
+		else if (hasInput)
 		{
 			const float diff = WrapAngle(std::atan2(wishDir.x, wishDir.y) - m_Yaw);
 			const float maxStep = c.MaxTurnRate * dt;

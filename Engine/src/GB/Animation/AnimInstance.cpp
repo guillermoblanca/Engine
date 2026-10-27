@@ -6,7 +6,7 @@ namespace GB
 	AnimInstance::AnimInstance(const Model& model, ModelInstance& instance, const LocomotionOptions& options)
 		: m_Model(model), m_Instance(instance), m_Options(options),
 		  m_LeftFoot(model.FindNode(options.Analysis.LeftFoot)), m_RightFoot(model.FindNode(options.Analysis.RightFoot)),
-		  m_Air(model, options.Analysis), m_Montages(model, options.Analysis)
+		  m_Air(model, options.Analysis), m_Turn(model, options.Analysis), m_Montages(model, options.Analysis)
 	{
 		const std::string& root = options.Analysis.RootBone;   // "mixamorig:Hips": the rig's bones share its prefix
 		m_Rig = FindHumanoidRig(model, root.size() > 4 && root.compare(root.size() - 4, 4, "Hips") == 0 ? root.substr(0, root.size() - 4) : std::string());
@@ -116,6 +116,12 @@ namespace GB
 		{
 			m_Air.Apply(m_Pose);
 			if (m_Air.Weight() > 0.5f) m_Events.clear();
+		}
+		m_Turn.Update(state, dt, Overlay());
+		if (m_Turn.Active())
+		{
+			m_Turn.Apply(m_Pose);
+			if (m_Turn.Weight() > 0.5f) m_Events.clear();   // the feet shuffle on the spot: no footsteps
 		}
 		m_Montages.Update(dt);
 		if (m_Montages.Busy())
@@ -290,6 +296,7 @@ namespace GB
 			{ "box", { "box idle", "box walk arc" } },
 			{ "holding", { "holding idle", "holding walk" } },
 			{ "wheelbarrow", { "wheelbarrow idle", "wheelbarrow walk" } },
+			{ "injured", { "injured idle", "injured walk", "injured run", "injured walk backwards", "injured run backwards" } },
 		};
 	}
 }
