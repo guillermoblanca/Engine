@@ -120,6 +120,7 @@ En curso o previsto:
 - Calidad del agua y del terreno cerca de la cámara; árboles, palmeras y rocas procedurales.
 - Medición de rendimiento del refinado de orillas y del follaje con alpha.
 - API para agentes sobre el editor.
+- **Mundo vivo de clanes**: sociedades de NPC que construyen, descubren tecnología, tienen hijos, comercian y guerrean, con el jugador como un miembro más y con avance por eras hasta la espacial. El plan completo, por hitos, con criterios de aceptación y matriz de cobertura, está en [docs/PLAN_SOCIEDAD_VIVA.md](docs/PLAN_SOCIEDAD_VIVA.md).
 
 ## Licencia
 
