@@ -17,7 +17,8 @@ namespace GB
 		float YawRate = 0.0f;            // degrees per second (positive = turning left)
 		float WadeDepth = 0.0f;          // meters of water at the feet
 		bool Blocked = false;            // pushing against something
-		bool Grounded = true;            // the prototype controller always walks on the ground; jumps will clear this
+		bool Grounded = true;            // false while jumping or falling
+		float VerticalSpeed = 0.0f;      // m/s, positive up
 		bool Landed = false;             // touched the ground this step (a heavy step)
 		float LandingSpeed = 0.0f;       // downward m/s of that landing
 	};

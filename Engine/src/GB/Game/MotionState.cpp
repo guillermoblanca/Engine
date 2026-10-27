@@ -12,6 +12,10 @@ namespace GB
 		s.Speed = glm::length(glm::vec2(s.Velocity.x, s.Velocity.z));
 		s.WadeDepth = c.GetWadeDepth();
 		s.Blocked = c.WasBlocked();
+		s.Grounded = !c.IsAirborne();
+		s.VerticalSpeed = c.GetVerticalSpeed();
+		s.Landed = c.JustLanded();
+		s.LandingSpeed = c.GetLandingSpeed();
 		const glm::vec3 forward(std::sin(s.Yaw), 0.0f, std::cos(s.Yaw)), left(std::cos(s.Yaw), 0.0f, -std::sin(s.Yaw));
 		s.LocalVelocity = { glm::dot(s.Velocity, left), glm::dot(s.Velocity, forward) };
 		if (m_Started && dt > 1e-5f)

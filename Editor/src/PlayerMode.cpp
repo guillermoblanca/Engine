@@ -97,7 +97,8 @@ namespace GB::Editor
 				m_Model.reset();
 				return false;
 			}
-			animator->AddMixamoSets();   // box, holding, wheelbarrow... when the folder has those clips
+			animator->AddMixamoSets();      // box, holding, wheelbarrow... when the folder has those clips
+			animator->AddMixamoActions();   // farming montages and the jump clip
 			animator->SetFootsteps(m_Steps);
 			m_Animator = std::move(animator);
 		}
@@ -159,6 +160,7 @@ namespace GB::Editor
 			{
 				in.Move = step->Move;
 				in.Run = step->Run;
+				in.Jump = step->Jump;
 				m_Camera.Rotate(step->CameraTurn * m_Camera.RotateSpeed * dt, 0.0f);
 				in.CameraYaw = m_Camera.Yaw;
 			}
@@ -186,6 +188,16 @@ namespace GB::Editor
 		m_Camera.Update(dt, m_Controller.GetPosition());
 	}
 
+	std::string PlayerMode::MontageStatus() const
+	{
+		if (!m_Animator) return "";
+		const MontagePlayer& m = m_Animator->Anim().Montages();
+		std::string playing;
+		for (const std::string& n : m.Names())
+			if (m.IsPlaying(n)) playing += (playing.empty() ? "" : ", ") + n;
+		return playing.empty() ? "no montage" : "montage: " + playing;
+	}
+
 	glm::mat4 PlayerMode::RootMatrix() const
 	{
 		return glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_Controller.GetPosition()), m_Controller.GetYaw(), glm::vec3(0, 1, 0)), glm::vec3(m_Scale));
@@ -209,6 +221,7 @@ namespace GB::Editor
 				static_cast<double>(m_Controller.GetSpeed()), m_Animator->Anim().Overlay().c_str(), static_cast<double>(m_Animator->Locomotion().Phase()), static_cast<double>(m_Animator->Locomotion().SpeedScale()), m_Steps ? m_Steps->Count() : 0);
 			std::string out = head;
 			for (const auto& c : m_Animator->Locomotion().Contributions()) { char b[96]; std::snprintf(b, sizeof b, " %s=%.2f", c.Clip.c_str(), static_cast<double>(c.Weight)); out += b; }
+			out += " | " + MontageStatus() + (m_Controller.IsAirborne() ? ", airborne" : "");
 			return out + (m_UseAI ? (m_AI.Arrived() ? " [AI arrived]" : m_AI.Stuck() ? " [AI stuck]" : " [AI walking]") : "");
 		}
 		char buf[200];

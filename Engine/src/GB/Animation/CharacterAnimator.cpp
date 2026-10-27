@@ -17,4 +17,14 @@ namespace GB
 			if (m_Anim.AddSet(set)) added.push_back(set.Name);
 		return added;
 	}
+
+	int CharacterAnimator::AddMixamoActions()
+	{
+		m_Anim.Montages().AddSlot("UpperBody", "mixamorig:Spine");
+		m_Anim.Air().SetClip("jump");
+		int added = 0;
+		for (const MontageDesc& m : MixamoMontages())
+			added += m_Anim.Montages().Add(m) ? 1 : 0;
+		return added;
+	}
 }

@@ -1664,6 +1664,7 @@ private:
 				{
 					in.Move = step->Move;
 					in.Run = step->Run;
+					in.Jump = step->Jump;
 					m_PlayerCam.Rotate(step->CameraTurn * m_PlayerCam.RotateSpeed * dt, 0.0f);
 					in.CameraYaw = m_PlayerCam.Yaw;
 				}

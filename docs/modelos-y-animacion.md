@@ -93,7 +93,6 @@ El controlador de tercera persona del prototipo (`CharacterController`, `ThirdPe
 - Editor: `player_overlay` lista los sets y `player_overlay <set> [fundido]` cambia de uno a otro.
 - Test `anim_instance` (CPU): registro, cambio andando sin saltos de hueso, interrupción, cambio instantáneo y, con `GB_MIXAMO_DIR` y `GB_FARMING_DIR`, los sets reales.
 
-Pendiente (11B-2): montajes y slots (acciones de una vez con máscara de huesos y notificaciones), parámetros y transiciones por condiciones (salto, giro en sitio, agacharse), salto y caída en el controlador.
 
 ### Los dos sistemas de animación: qué se conserva de cada uno
 
@@ -106,4 +105,15 @@ Pendiente (11B-2): montajes y slots (acciones de una vez con máscara de huesos 
 | Pasos | `FootstepTracker`: apoyos detectados por la altura del pie (sirve con cualquier clip) | `FootEvent` de la fase del ciclo (exactos y baratos) |
 
 Decisión: manda `AnimInstance` para los personajes con el conjunto de clips (FBX/Mixamo). `CharacterAnimation` se queda **solo** como respaldo para modelos glTF con uno a tres clips sin análisis posible (zorro, CesiumMan), porque ahí la mezcla continua no tiene qué mezclar. Lo mejor del prototipo que se ha llevado al sistema nuevo: el tipo `FootPlant` (posición, rumbo y velocidad del pie al apoyar). `AnimInstance::Plants()` entrega los eventos de paso con ese mismo tipo, así que huellas, polvo y salpicaduras se alimentan igual con cualquiera de los dos orígenes (`FootstepTracker` o fase del ciclo), sin código duplicado en cada consumidor. `PlayerMode::Plants()` lo expone al editor.
+
+### Salto, montajes y slots (Fase 11B-2)
+
+- **Salto y caída en el controlador** (`CharacterController`): `CharacterInput::Jump` (la pulsación inicia el salto, mantener la tecla no repite), `JumpSpeed`/`Gravity`/`AirControl` en `CharacterConfig`, y caída libre al pisar un borde más de `FallDrop` por encima del suelo. `MotionState` lleva `Grounded`, `VerticalSpeed`, `Landed` y `LandingSpeed` (el aterrizaje suena como paso fuerte). En el editor: Espacio / botón A, o `J` en los guiones de `player` (`player J:0.2,:3`).
+- **`AirLayer`**: la pose de salto/caída sigue al vuelo real del controlador, no a un temporizador. Al despegar reproduce el clip hasta su fase de vuelo (`ClipStats::AirStart/AirEnd`) y la mantiene mientras dure el aire; al aterrizar reproduce el resto del clip (amortiguar) mientras se desvanece. Se quita la subida de cadera del clip (ya la pone el controlador) y se conservan las flexiones.
+- **`MontagePlayer`** (`GB/Animation/Montage.h`): acciones de una vez sobre la locomoción. Un **slot** es una parte del cuerpo (`FullBody`, o todo lo que cuelga de un hueso, p. ej. `UpperBody` = `mixamorig:Spine`); un montaje solo sustituye los huesos de su slot, así que una acción de brazos puede jugarse mientras las piernas siguen andando. `MontageDesc`: clip, slot, fundidos de entrada/salida, velocidad, bucle, notificaciones por fracción del clip. Un montaje nuevo en el mismo slot fundide al anterior (sin saltos, incluso a mitad de un fundido); `MontageEvent` (`Notify`, `Finished`, `Interrupted`) por fotograma. El desplazamiento horizontal del clip se quita de la raíz (manda el controlador). Con un montaje de cuerpo completo en pantalla se silencian los pasos de la locomoción.
+- `AnimInstance::Montages()` / `Air()`; `CharacterAnimator::AddMixamoActions()` registra el slot `UpperBody`, el clip `jump` y las once acciones de granja (`milk_cow`, `dig_plant`, `plant`, `plant_tree`, `pick_fruit` (+2, +3), `pull_plant` (+2), `water`, `wheelbarrow_dump`).
+- Editor: `player_montage` lista las acciones, `player_montage <nombre>` la juega y `player_montage stop` la detiene.
+- Test `montage` (CPU): el rig generado (registro, fundidos, notificaciones, interrupción, el slot de la parte superior no toca las piernas) y, con `GB_MIXAMO_DIR` y `GB_FARMING_DIR`, las acciones y el salto reales. Test `character_layer`: salto, aterrizaje y caída desde un borde.
+
+Pendiente: parámetros y transiciones por condiciones (giro en sitio, agacharse), sockets y objetos en la mano (11C).
 

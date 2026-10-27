@@ -42,6 +42,11 @@ namespace GB::Editor
 		// Switches the locomotion set (free, box, holding, wheelbarrow...) with a cross-fade; false when the character has no such set.
 		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animator && m_Animator->Anim().SetOverlay(name, fadeSeconds); }
 		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
+		// One-shot actions over the locomotion (pick_fruit, water, milk_cow...): the FBX player's MontagePlayer. False for an unknown one.
+		bool PlayMontage(const std::string& name) { return m_Animator && m_Animator->Anim().Montages().Play(name); }
+		void StopMontage() { if (m_Animator) m_Animator->Anim().Montages().StopSlot("FullBody"), m_Animator->Anim().Montages().StopSlot("UpperBody"); }
+		std::vector<std::string> MontageNames() const { return m_Animator ? m_Animator->Anim().Montages().Names() : std::vector<std::string>(); }
+		std::string MontageStatus() const;
 		const MotionState& GetMotion() const { return m_Motion; }
 		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
 		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }

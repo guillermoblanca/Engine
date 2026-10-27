@@ -1,5 +1,7 @@
 #pragma once
+#include "GB/Animation/AirLayer.h"
 #include "GB/Animation/Locomotion.h"
+#include "GB/Animation/Montage.h"
 #include "GB/Audio/FootstepSounds.h"
 #include "GB/Game/MotionState.h"
 #include "GB/World/Footsteps.h"
@@ -48,6 +50,14 @@ namespace GB
 		// splashes are fed the same way whichever animation system moves the character. Empty while airborne.
 		const std::vector<FootPlant>& Plants() const { return m_Plants; }
 
+		// One-shot actions over the locomotion (see MontagePlayer): `Montages().Play("pick_fruit")`. While a full-body montage is
+		// on screen the locomotion's footsteps are muted.
+		MontagePlayer& Montages() { return m_Montages; }
+		const MontagePlayer& Montages() const { return m_Montages; }
+
+		// The jump / fall pose, driven by MotionState::Grounded (see AirLayer). Set its clip ("jump") to use it.
+		AirLayer& Air() { return m_Air; }
+
 		// Poses the instance for this frame's motion; `characterToWorld` puts the footsteps where the feet are.
 		void Update(const MotionState& state, float dt, const glm::mat4& characterToWorld);
 
@@ -68,6 +78,8 @@ namespace GB
 		float m_Progress = 1.0f, m_FadeSeconds = 0.3f;
 		FootstepSounds* m_Steps = nullptr;
 		int m_LeftFoot = -1, m_RightFoot = -1;
+		AirLayer m_Air;
+		MontagePlayer m_Montages;
 		Pose m_Pose;
 		std::vector<FootEvent> m_Events;
 		std::vector<FootPlant> m_Plants;

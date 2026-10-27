@@ -526,6 +526,18 @@ namespace GB::Editor
 			const float fade = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 0.3f;
 			return m_Player.SetOverlay(a[0], fade) ? CommandResult{ true, "set " + a[0] } : CommandResult{ false, "no such set '" + a[0] + "'" };
 		});
+		c.Register("player_montage", "player_montage [name|stop]: plays a one-shot action (pick_fruit, water, milk_cow...) over the FBX player; no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty())
+			{
+				std::string names;
+				for (const std::string& n : m_Player.MontageNames()) names += (names.empty() ? "" : ", ") + n;
+				return { true, names.empty() ? "this character has no montages (put the farming animation FBX files next to it)" : "montages: " + names };
+			}
+			if (a[0] == "stop") { m_Player.StopMontage(); return { true, "stopped" }; }
+			return m_Player.PlayMontage(a[0]) ? CommandResult{ true, "playing " + a[0] } : CommandResult{ false, "no such montage '" + a[0] + "'" };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
