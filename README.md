@@ -362,6 +362,14 @@ Editor Dear ImGui (`GB_BUILD_EDITOR=ON` por defecto, ejecutable `Editor`): docks
 - Headless: `xvfb-run -a Editor --hidden --quality=low "--exec=generate temperate 5; time 18; wait 4; shot_ui ui.png; quit"`.
 - Test `editor` (CPU): propiedades, parseo/recorte, comandos y buffer de log.
 
+## Entidades y escenas (Fase 10B-1)
+
+`GB/Game/Entity.h`: `EntityWorld` con entidades con nombre único, jerarquía (`SetParent` conserva la transformación mundial y rechaza ciclos), etiquetas, activación heredada y componentes opcionales `Mesh` (primitiva o modelo glTF), `Light` y `Body` (datos de física). Es solo datos: funciona headless.
+
+- `GB/Game/SceneIO.h`: escenas en JSON (`"version": 1`), legibles y editables a mano o por agentes; guardar-cargar-guardar es idéntico y un fallo de carga no toca el mundo.
+- `GB/Game/EntityRender.h`: `EntityRenderer::Build(world, scene)` añade objetos y luces puntuales a la `Scene` (requiere GL).
+- Tests `entity` (CPU) y `entity_render` (GL).
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
