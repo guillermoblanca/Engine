@@ -20,6 +20,8 @@ namespace GB
 		float ScanAngle = 0.0f;             // standing still it turns its head: radians
 		uint64_t HeardSeq = 0;              // last sound it has heard
 		int ExploreCount = 0;               // trips to unknown ground so far
+		double NextThink = 0.0;             // when this agent next looks around and decides (the tribe spreads the work over frames)
+		double SharedAt = -1e9, ExpiredAt = -1e9;   // when it last traded what it knows at the camp / forgot what had faded
 		std::string Orders;                 // the task text it is carrying out (to give again after a load)
 
 		// For the inspector and the debug view; not saved.

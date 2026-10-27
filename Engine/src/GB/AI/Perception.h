@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace GB
@@ -33,6 +34,22 @@ namespace GB
 	// (the agent stands next to a trunk) does not block either.
 	bool CanSee(const VisionParams& vision, const glm::vec2& eye, const glm::vec2& facing, const glm::vec2& target,
 		const std::vector<Occluder>& occluders, const std::string& ignoreId = "");
+
+	// The obstacles in a grid of cells, so a sight line only looks at the few that are near it (a forest of hundreds of trunks costs the same as a few).
+	class OccluderGrid
+	{
+	public:
+		void Build(const std::vector<Occluder>& list, float cell = 8.0f);
+		bool Blocks(const glm::vec2& eye, const glm::vec2& target, const std::string& ignoreId = "") const;
+		void Clear() { m_List.clear(); m_Cells.clear(); }
+	private:
+		long long Key(int x, int z) const { return (static_cast<long long>(x) << 32) ^ static_cast<long long>(static_cast<unsigned>(z)); }
+		float m_Cell = 8.0f;
+		std::vector<Occluder> m_List;
+		std::unordered_map<long long, std::vector<int>> m_Cells;
+	};
+	// CanSee with the obstacles in a grid.
+	bool CanSeeIn(const VisionParams& vision, const glm::vec2& eye, const glm::vec2& facing, const glm::vec2& target, const OccluderGrid& occluders, const std::string& ignoreId = "");
 
 	// Something that made a noise.
 	struct SoundEvent

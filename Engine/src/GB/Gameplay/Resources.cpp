@@ -82,6 +82,17 @@ namespace GB
 		lib.AddAbility(pull);
 	}
 
+	ResourceCounts ScaledResources(int workers)
+	{
+		const int w = std::max(1, workers);
+		ResourceCounts c;
+		c.Trees = 2 + 2 * w;
+		c.Rocks = 3 + 2 * w;
+		c.Bushes = 2 + w;
+		c.Grass = 2 + w;
+		return c;
+	}
+
 	ResourceLayout BuildResources(EntityWorld& w, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes, int trees, int rocks, int bushes, int grass)
 	{
 		if (const EntityId old = w.FindByName("Resources"); old != NullEntity) w.Destroy(old);
@@ -96,14 +107,16 @@ namespace GB
 			auto it = nodes.find(row.id);
 			if (it == nodes.end()) continue;
 			const ResourceNodeDef& def = it->second;
+			constexpr int kPerRow = 8;   // a big patch wraps into more rows
 			for (int i = 0; i < row.count; ++i)
 			{
+				const int line = i / kPerRow, inLine = i % kPerRow, lineCount = std::min(kPerRow, row.count - line * kPerRow);
 				std::string label = row.id;   // entity names use spaces ("berry bush 1") so a task list can write them with underscores
 				std::replace(label.begin(), label.end(), '_', ' ');
 				const std::string name = label + " " + std::to_string(i + 1);
 				const EntityId id = w.Create(name, root);
 				Entity& e = *w.Find(id);
-				e.Transform.Position = { (static_cast<float>(i) - (row.count - 1) * 0.5f) * 4.0f, 0.0f, row.z };
+				e.Transform.Position = { (static_cast<float>(inLine) - (lineCount - 1) * 0.5f) * 4.0f, 0.0f, row.z + 16.0f * static_cast<float>(line) };
 				InteractionPoint p;
 				p.Name = "work";
 				p.Position = { 0.0f, 0.0f, -1.6f };

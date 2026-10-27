@@ -1,7 +1,7 @@
 // The brain of an agent (H5 + H6), end to end: one agent alone in a world, with a stand-in body that runs the same task text a real actor runs.
 // Checked: with food and water within reach it lives through ten simulated days (seasons, nights, winters) and keeps itself fed, watered and rested; with
 // no food it starves; a game saved in the middle and loaded into a fresh world goes on exactly as the one that never stopped; two runs end identically;
-// it does not dither between jobs; a shout is heard, remembered and makes it feel unsafe; what one learns the clan learns at the camp. CPU only.
+// it does not dither between jobs; a hundred of them live two days (ten with GB_AI_CROWD_DAYS=10) with their decisions spread over frames and far ones simulated abstractly, at a measured cost; a shout is heard, remembered and makes it feel unsafe; what one learns the clan learns at the camp. CPU only.
 #include "GB/AI/Needs.h"
 #include "GB/Game/SceneIO.h"
 #include "GB/Game/Tribe.h"
@@ -10,6 +10,7 @@
 #include "GB/Save/SaveWorld.h"
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstdio>
 #include <memory>
 #include <sstream>
@@ -48,6 +49,9 @@ public:
 	bool Failed() const override { return m_S.Failed; }
 	glm::vec2 Position() const override { return m_S.Pos; }
 	Inventory& Bag() override { return m_Bag; }
+	void Teleport(const glm::vec2& p) override { m_S.Pos = p; m_S.Steps.clear(); m_S.Started = false; }
+	void SetSuspended(bool on) override { m_Suspended = on; }
+	bool Suspended() const { return m_Suspended; }
 	bool Do(const std::string& tasks, std::string& error) override
 	{
 		m_S.Steps.clear();
@@ -70,6 +74,7 @@ public:
 	}
 	void Update(float step)
 	{
+		if (m_Suspended) return;   // the tribe moves it as an abstract agent
 		AbilitySystemComponent* me = m_Gameplay.Find(m_Name);
 		ResourceSystem::SyncTools(*me, m_Bag, *m_Items);
 		if (m_S.Steps.empty()) return;
@@ -115,6 +120,7 @@ private:
 	EntityWorld& m_Entities;
 	Inventory m_Bag{ 12, 0.0f };
 	State m_S;
+	bool m_Suspended = false;
 };
 
 struct Settings
@@ -238,6 +244,88 @@ private:
 	float m_MinHunger = 100.0f;
 };
 
+// A hundred members of one tribe with their own stand-in bodies and a patch of resources scaled to them.
+class Crowd
+{
+public:
+	Crowd(int n, bool lod)
+	{
+		RegisterEraOneItems(Items, Recipes, Defs);
+		RegisterResourceContent(Gameplay.Library, Defs);
+		RegisterInteractiveContent(Gameplay.Library);
+		const ResourceCounts counts = ScaledResources(n);
+		BuildResources(Entities, glm::vec3(0.0f), Defs, counts.Trees, counts.Rocks, counts.Bushes, counts.Grass);
+		BuildInteractives(Entities, glm::vec3(0.0f));
+		for (int i = 1; i <= n / 10; ++i)   // one well gives water to a few: a crowd needs more of them
+		{
+			const EntityId copy = Entities.Duplicate(Entities.FindByName("Well"));
+			Entities.Find(copy)->Transform.Position = { 6.0f + 3.0f * static_cast<float>(i), 0.0f, static_cast<float>(i % 3) * 4.0f - 4.0f };
+		}
+		for (int i = 0; i < n; ++i)
+		{
+			Entity& e = *Entities.Find(Entities.Create("Npc " + std::to_string(i)));
+			e.Gameplay.emplace();
+			e.Gameplay->Abilities = { "Chop", "Mine", "Gather", "DrawWater" };
+		}
+		Gameplay.Load(Entities);
+		const glm::vec2 camp(0.0f, -8.0f);
+		static const char* const roles[] = { "forager", "woodcutter", "miner", "forager" };
+		Brain.Bind(Entities, Gameplay, Items, Recipes, Defs);
+		Brain.Config.Camp = camp;
+		Brain.Config.DetailRadius = 25.0f;
+		Brain.Config.StockCap = 400;
+		Brain.Store().Add(Items, "wood", 2 + 2 * n);
+		Brain.Store().Add(Items, "stone", 3 * n);
+		for (int i = 0; i < n; ++i)
+		{
+			const std::string name = "Npc " + std::to_string(i);
+			Bodies.push_back(std::make_unique<FakeBody>(name, Gameplay, Entities, camp + glm::vec2(static_cast<float>(i % 10) * 0.7f, static_cast<float>(i / 10) * 0.7f)));
+			Bodies.back()->m_Items = &Items;
+			Index[name] = static_cast<size_t>(i);
+		}
+		Resources.Bind(Gameplay, Defs, [this](const std::string& who, const std::string& item, int count) { Bodies[Index[who]]->Bag().Add(Items, item, count); });
+		Rules.Bind(Gameplay,
+			[this](const std::string& who, const std::string& item, int count) { return Bodies[Index[who]]->Bag().Remove(item, count); },
+			[this](const std::string& who, const std::string& item, int count) { return Bodies[Index[who]]->Bag().Add(Items, item, count); });
+		for (int i = 0; i < n; ++i) Brain.AddMember("Npc " + std::to_string(i), roles[i % 4], Bodies[static_cast<size_t>(i)].get());
+		if (lod) Brain.SetViewer(camp);
+		Brain.Config.Seasons = SeasonClock();
+	}
+	void Run(double seconds)
+	{
+		const float step = 0.2f;
+		const int frames = static_cast<int>(seconds / static_cast<double>(step));
+		for (int i = 0; i < frames; ++i)
+		{
+			Clock += static_cast<double>(step);
+			Gameplay.Update(step);
+			Resources.Update(Gameplay, step, SeasonClock::GrowthRate(Brain.Config.Seasons.At(Clock)));
+			Rules.Update(step, &Entities);
+			for (auto& b : Bodies) b->Update(step);
+			Resources.SyncVisuals(Gameplay, Entities);
+			Brain.SetWorldClock(Clock);
+			const auto t0 = std::chrono::steady_clock::now();
+			Brain.Update(step);
+			const double ms = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+			BrainSeconds += ms;
+			WorstMs = std::max(WorstMs, ms * 1000.0);
+			++Frames;
+		}
+	}
+	ItemLibrary Items;
+	RecipeBook Recipes;
+	std::map<std::string, ResourceNodeDef> Defs;
+	EntityWorld Entities;
+	GameplayWorld Gameplay;
+	ResourceSystem Resources;
+	InteractiveSystem Rules;
+	Tribe Brain;
+	std::vector<std::unique_ptr<FakeBody>> Bodies;
+	std::map<std::string, size_t> Index;
+	double Clock = 0.0, BrainSeconds = 0.0, WorstMs = 0.0;
+	int Frames = 0;
+};
+
 int main()
 {
 	const auto started = std::chrono::steady_clock::now();
@@ -344,17 +432,73 @@ int main()
 		w.Run(30.0);
 		const float safe = w.Hero().Attribute(NeedName::Safety);
 		w.Brain.Shout("Stranger", w.Body->Position() + glm::vec2(5.0f, 0.0f), 30.0f);
-		w.Run(1.0);
+		w.Run(3.0);
 		Check(w.Hero().Attribute(NeedName::Safety) < safe - 20.0f, "it hears a shout and feels less safe");
 		Check(w.Member().Mind.Memory.Find("Stranger") != nullptr && w.Member().Mind.Memory.Find("Stranger")->Heard, "it remembers where it came from, by ear");
 		w.Brain.Shout("Far", { 500.0f, 500.0f }, 30.0f);
 		const size_t known = w.Member().Mind.Memory.Size();
-		w.Run(1.0);
+		w.Run(3.0);
 		Check(w.Member().Mind.Memory.Size() == known, "a shout out of earshot is not heard");
 		w.Run(20.0);
 		bool wondered = false;
 		for (const UtilityOption& o : w.Member().Mind.Options) if (o.Kind == "regroup") wondered = true;
 		Check(wondered, "its options include going back to the camp");
+	}
+
+	// ---- level of detail: far from the viewer an agent is abstract and decides the same; coming back, the body is put where the agent is
+	{
+		Settings s;
+		World w(s);
+		w.Brain.SetViewer({ 1000.0f, 1000.0f });
+		w.Run(200.0);
+		Check(w.Member().Abstract && w.Body->Suspended() && w.Brain.AbstractCount() == 1, "far from the viewer the member is an abstract agent and its body is suspended");
+		Check(glm::distance(w.Member().Agent.Position(), s.Camp) > 0.1f || w.Member().Meals > 0 || !w.Member().Job.empty(), "and it keeps working");
+		const glm::vec2 there = w.Member().Agent.Position();
+		w.Brain.SetViewer(s.Camp);
+		w.Run(3.0);
+		Check(!w.Member().Abstract && !w.Body->Suspended(), "when the viewer comes near it is full again");
+		Check(glm::distance(w.Body->Position(), there) < 4.0f, "and its body stands where the agent was: no jump");
+		World alone(s);
+		alone.Brain.SetViewer({ 1000.0f, 1000.0f });
+		alone.Run(tenDays);
+		Check(!alone.Member().Dead && alone.Member().Abstract, "an agent simulated abstractly for ten days lives as well");
+	}
+
+	// ---- the log is a ring, members can be removed, a member with no body does not crash anything
+	{
+		Settings s;
+		World w(s);
+		w.Brain.Config.LogLines = 40;
+		w.Brain.AddMember("Ghost", "forager", nullptr);
+		w.Run(1500.0);
+		Check(w.Brain.Log().size() <= 52, "the log keeps only its last lines");
+		Check(w.Brain.RemoveMember("Ghost") && !w.Brain.RemoveMember("Ghost") && w.Brain.Members().size() == 1, "a member can be removed once");
+		w.Run(50.0);
+		Check(!w.Member().Dead, "and the rest goes on");
+	}
+
+	// ---- a hundred agents, one tribe with a patch scaled to it: ten days, decisions spread over frames, the far ones abstract
+	{
+		const int crowd = 100;
+		const double crowdDays = std::getenv("GB_AI_CROWD_DAYS") ? std::atof(std::getenv("GB_AI_CROWD_DAYS")) : 2.0;   // ten days take two minutes: GB_AI_CROWD_DAYS=10
+		std::fprintf(stderr, "  crowd of %d:", crowd);
+		for (const bool lod : { false, true })
+		{
+			Crowd c(crowd, lod);
+			const auto t0 = std::chrono::steady_clock::now();
+			c.Run(1200.0 * (lod ? crowdDays : 1.0));
+			const double brainMs = c.BrainSeconds * 1000.0;
+			int alive = 0;
+			std::string causes;
+			for (const TribeMember& m : c.Brain.Members()) { if (!m.Dead) ++alive; else causes += m.Cause.substr(0, 1); }
+			if (!causes.empty()) std::fprintf(stderr, " (dead of %s)", causes.c_str());
+			std::fprintf(stderr, " [%s] %d alive, tribe update %.2f ms per simulated second on average (%.2f ms worst frame), %d abstract at the end, took %.1f s;", lod ? "with level of detail" : "all full", alive,
+				brainMs / c.Clock, c.WorstMs, c.Brain.AbstractCount(), std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count());
+			Check(alive == crowd, "a hundred agents live through the days of the run");
+			Check(brainMs / c.Clock < 20.0, "the tribe update costs under 20 ms per simulated second (about 0.3 ms a frame at 60 fps) with a hundred members");
+			if (lod) Check(c.Brain.AbstractCount() > 0, "some were abstract");
+		}
+		std::fprintf(stderr, "\n");
 	}
 
 	// ---- why: the inspector has something to say

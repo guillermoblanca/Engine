@@ -28,6 +28,11 @@ namespace GB
 	ResourceLayout BuildResources(EntityWorld& world, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes,
 		int trees = 3, int rocks = 2, int bushes = 2, int grass = 2);
 
+	// How many nodes of each kind a patch needs for `workers` members of a tribe (the default patch of 3, 2, 2 and 2 feeds one or two). Rocks never
+	// grow back, so they get a few more.
+	struct ResourceCounts { int Trees = 3, Rocks = 2, Bushes = 2, Grass = 2; };
+	ResourceCounts ScaledResources(int workers);
+
 	class ResourceSystem
 	{
 	public:

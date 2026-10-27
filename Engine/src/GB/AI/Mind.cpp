@@ -22,6 +22,9 @@ namespace GB
 		j["heard"] = HeardSeq;
 		j["explore"] = ExploreCount;
 		j["orders"] = Orders;
+		j["next"] = NextThink;
+		j["shared"] = SharedAt;
+		j["expired"] = ExpiredAt;
 		return j.dump();
 	}
 
@@ -42,6 +45,9 @@ namespace GB
 		m.HeardSeq = j.value("heard", static_cast<uint64_t>(0));
 		m.ExploreCount = j.value("explore", 0);
 		m.Orders = j.value("orders", std::string());
+		m.NextThink = j.value("next", 0.0);
+		m.SharedAt = j.value("shared", -1e9);
+		m.ExpiredAt = j.value("expired", -1e9);
 		*this = std::move(m);
 		return true;
 	}

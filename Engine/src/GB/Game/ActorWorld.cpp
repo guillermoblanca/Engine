@@ -125,8 +125,15 @@ namespace GB
 		return {};
 	}
 
+	void ActorWorld::SetSuspended(const std::string& name, bool suspended)
+	{
+		if (suspended) m_Suspended.insert(name);
+		else m_Suspended.erase(name);
+	}
+
 	bool ActorWorld::Remove(const std::string& name)
 	{
+		m_Suspended.erase(name);
 		const auto it = m_Actors.find(name);
 		if (it == m_Actors.end()) return false;
 		m_Actors.erase(it);   // the actor lets go of its ability system and its ragdoll
@@ -135,6 +142,7 @@ namespace GB
 
 	void ActorWorld::Clear()
 	{
+		m_Suspended.clear();
 		m_Actors.clear();
 		m_Models.clear();
 	}
@@ -186,7 +194,7 @@ namespace GB
 
 	void ActorWorld::PrepareAbilities()
 	{
-		for (auto& [name, actor] : m_Actors) actor->PrepareAbilities();
+		for (auto& [name, actor] : m_Actors) if (!m_Suspended.count(name)) actor->PrepareAbilities();
 	}
 
 	void ActorWorld::Update(float dt)
@@ -197,12 +205,14 @@ namespace GB
 		start.reserve(m_Actors.size());
 		for (const auto& [name, actor] : m_Actors)
 		{
+			if (m_Suspended.count(name)) continue;
 			const glm::vec3 p = actor->GetPosition();
 			start.push_back({ name, { { p.x, p.z }, actor->Radius() } });
 		}
 		std::vector<CircleObstacle> others;
 		for (auto& [name, actor] : m_Actors)
 		{
+			if (m_Suspended.count(name)) continue;
 			others.clear();
 			for (const Snapshot& s : start)
 				if (s.Name != name) others.push_back(s.Circle);
@@ -213,6 +223,6 @@ namespace GB
 
 	void ActorWorld::AddToScene(Scene& scene) const
 	{
-		for (const auto& [name, actor] : m_Actors) actor->AddToScene(scene);
+		for (const auto& [name, actor] : m_Actors) if (!m_Suspended.count(name)) actor->AddToScene(scene);
 	}
 }
