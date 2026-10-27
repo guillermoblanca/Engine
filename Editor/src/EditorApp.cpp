@@ -122,6 +122,8 @@ namespace GB::Editor
 				}
 			});
 		}
+		RegisterGardenContent(m_Gameplay.Library);
+		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
 		RegisterCommands();
 		m_SceneEditor.Bind(m_Props);
 		m_SceneEditor.Register(m_Commands);
@@ -173,6 +175,7 @@ namespace GB::Editor
 		if (name == "Assets") return m_Panels.Assets;
 		if (name == "Model") return m_Panels.Model;
 		if (name == "Animation") return m_Panels.Animation;
+		if (name == "Abilities") return m_Panels.Abilities;
 		if (name == "Timeline") return m_Panels.Timeline;
 		if (name == "Graph") return m_Panels.Graph;
 		if (name == "Tests") return m_Panels.Tests;
@@ -395,8 +398,16 @@ namespace GB::Editor
 	CommandResult EditorApp::Execute(const std::string& line)
 	{
 		m_SceneEditor.SetSpawnPoint(m_Orbit.Target);
+		if (const auto words = CommandRunner::Tokenize(line); !words.empty() && (words[0] == "scene_save" || (words[0] == "scene" && words.size() > 1 && words[1] == "save")))
+			m_Gameplay.Store(m_SceneEditor.World());   // the file keeps the live state of the garden and the characters
 		const CommandResult r = m_Commands.Execute(line);
 		m_SceneEditor.Tick(m_GizmoAxis >= 0);   // an edit made by `set sel.*` is its own undo step
+		if (const auto words = CommandRunner::Tokenize(line); !words.empty() && r.Ok)
+		{
+			const std::string& w = words[0];
+			if (w == "scene_load" || w == "new_scene" || (w == "scene" && words.size() > 1 && (words[1] == "load" || words[1] == "new")))
+				SyncGameplay();   // the entities are not the ones the ability systems came from
+		}
 		if (!line.empty() && !r.Message.empty())
 		{
 			if (r.Ok) GB_CLIENT_INFO("{}", r.Message);
@@ -582,7 +593,7 @@ namespace GB::Editor
 			std::string error;
 			return m_Player.Interact(a[0], a.size() > 1 ? a[1] : "", error) ? CommandResult{ true, "going to " + a[0] } : CommandResult{ false, error };
 		});
-		c.Register("player_tasks", "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop], separated by '|' or new lines)", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("player_tasks", "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop] | ability <name> [entity], separated by '|' or new lines)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!m_Player.IsActive()) return { false, "start the player first (player <character.fbx>)" };
 			if (a.empty()) return { true, m_Player.TaskStatus() };
@@ -640,7 +651,7 @@ namespace GB::Editor
 			if (n == "Viewport") flag = &m_Panels.Viewport; else if (n == "Hierarchy") flag = &m_Panels.Hierarchy; else if (n == "Inspector") flag = &m_Panels.Inspector;
 			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
-			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Tests") flag = &m_Panels.Tests;
+			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tests") flag = &m_Panels.Tests;
 			if (!flag) return { false, "no such panel '" + n + "'" };
 			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else if (n == "Graph") m_GraphFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
@@ -673,6 +684,8 @@ namespace GB::Editor
 			m_Player.HitRagdoll({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) });
 			return { true, "hit" };
 		});
+		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
+		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
 		c.Register("montage_info", "montage_info [montage]: describes a montage (clip, slot, blends, rate, notifies, sections); no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			AnimInstance* anim = m_Player.Anim();
@@ -1163,6 +1176,9 @@ namespace GB::Editor
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
+		m_Player.PrepareAbilities();   // abilities first: what they ask of the character is this frame's input
+		m_Gameplay.Update(dt);
+		m_Garden.Update(dt);
 		if (m_Player.IsActive())
 		{
 			m_Player.Update(dt, m_ViewportHovered && !io.WantTextInput);
@@ -1252,6 +1268,7 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("Stats", right);
 		ImGui::DockBuilderDockWindow("Model", right);
 		ImGui::DockBuilderDockWindow("Animation", right);
+		ImGui::DockBuilderDockWindow("Abilities", right);
 		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
@@ -1280,6 +1297,7 @@ namespace GB::Editor
 		if (m_Panels.Stats) DrawStats();
 		if (m_Panels.Model) DrawModelPanel();
 		if (m_Panels.Animation) DrawAnimationPanel();
+		if (m_Panels.Abilities) DrawAbilitiesPanel();
 		if (m_Panels.Timeline) DrawTimelinePanel();
 		if (m_Panels.Graph) DrawGraphPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
@@ -1364,6 +1382,7 @@ namespace GB::Editor
 			ImGui::MenuItem("Stats", nullptr, &m_Panels.Stats);
 			ImGui::MenuItem("Model", nullptr, &m_Panels.Model);
 			ImGui::MenuItem("Animation", nullptr, &m_Panels.Animation);
+			ImGui::MenuItem("Abilities", nullptr, &m_Panels.Abilities);
 			ImGui::MenuItem("Timeline", nullptr, &m_Panels.Timeline);
 			ImGui::MenuItem("Animation graph", nullptr, &m_Panels.Graph);
 			ImGui::MenuItem("Console", nullptr, &m_Panels.Console);

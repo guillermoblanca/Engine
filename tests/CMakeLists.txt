@@ -203,6 +203,11 @@ target_link_libraries(GBRagdollTests PRIVATE GB::GB)
 target_compile_definitions(GBRagdollTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME ragdoll COMMAND GBRagdollTests)
 
+add_executable(GBGameplayTests gameplay_test.cpp)
+target_link_libraries(GBGameplayTests PRIVATE GB::GB)
+target_compile_definitions(GBGameplayTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME gameplay COMMAND GBGameplayTests)
+
 add_executable(GBRetargetTests retarget_test.cpp)
 target_link_libraries(GBRetargetTests PRIVATE GB::GB)
 target_compile_definitions(GBRetargetTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")

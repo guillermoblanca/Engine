@@ -141,6 +141,7 @@ namespace GB
 		e->Body = original.Body;
 		e->Prop = original.Prop;
 		e->Interact = original.Interact;
+		e->Gameplay = original.Gameplay;
 		for (EntityId c : original.Children) CopyTree(c, id);
 		return id;
 	}

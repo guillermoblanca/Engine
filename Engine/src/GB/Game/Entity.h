@@ -85,6 +85,23 @@ namespace GB
 		std::vector<InteractionPoint> Points;
 	};
 
+	// A number of the entity's ability system (see GB/Gameplay): its value now and its range.
+	struct GameplayAttribute
+	{
+		std::string Name;
+		float Value = 0.0f, Min = 0.0f, Max = 1e9f;
+	};
+
+	// The state of an entity's ability system, as scene data: the tags it holds, its attributes, the abilities it can use and the endless
+	// effects running on it (regrowing fruit, regaining energy). Creatures, plots of soil and trees use the same component.
+	struct GameplayComponent
+	{
+		std::vector<std::string> Tags;
+		std::vector<GameplayAttribute> Attributes;
+		std::vector<std::string> Abilities;
+		std::vector<std::string> Effects;
+	};
+
 	struct Entity
 	{
 		EntityId Id = NullEntity;
@@ -99,6 +116,7 @@ namespace GB
 		std::optional<BodyComponent> Body;
 		std::optional<PropComponent> Prop;
 		std::optional<InteractableComponent> Interact;
+		std::optional<GameplayComponent> Gameplay;
 
 		bool HasTag(const std::string& tag) const;
 	};

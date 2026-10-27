@@ -8,6 +8,7 @@
 #include "GB/Game/CharacterController.h"
 #include "GB/Game/MotionState.h"
 #include "GB/Game/TaskList.h"
+#include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/World/Physics.h"
@@ -72,6 +73,17 @@ namespace GB::Editor
 		bool RunTasks(const std::string& text, std::string& error);
 		bool Interact(const std::string& entity, const std::string& point, std::string& error);
 		void StopTasks() { m_Tasks.Clear(); }
+		// Abilities (see GB/Gameplay): this character is the ability system called `actor` of `gameplay` (which must outlive it or be unset with
+		// nullptr). Its abilities walk it to their targets, play their montages on it and take props in its hands; they run in the order
+		// PrepareAbilities, GameplayWorld::Update, Update, so the ability's input is the frame's input. Task lists can use them (`ability dig Plot_1`).
+		void SetAbilities(GameplayWorld* gameplay, const std::string& actor = "Gardener");
+		void PrepareAbilities();
+		AbilitySystemComponent* Abilities() { return m_Gameplay ? m_Gameplay->Find(m_Actor) : nullptr; }
+		const std::string& AbilityActor() const { return m_Actor; }
+		// Starts an ability on an entity of the scene ("" = no target) for the player, walking there if it must.
+		bool UseAbility(const std::string& ability, const std::string& entity, std::string& error);
+		// Puts a prop in the hands (box, wheelbarrow, can, shovel, seeds, bag, tool) or takes it away; the box and the wheelbarrow change the walk.
+		bool EquipProp(const std::string& name, bool on);
 		bool TasksRunning() const { return m_Tasks.Running(); }
 		std::string TaskStatus() const { return m_Tasks.Describe(); }
 		// For the animation panel: the locomotion / montage / socket state of the FBX player and the character check made when it was loaded.
@@ -106,6 +118,10 @@ namespace GB::Editor
 	private:
 		glm::mat4 RootMatrix() const;
 		void ApplyFeet();
+		TaskRunner::AbilityHandler AbilityHandler();
+		GameplayWorld* m_Gameplay = nullptr;
+		std::string m_Actor = "Gardener";
+		AbilityRuntime m_AbilityRt;
 		bool m_FeetOn = true, m_LookCamera = false;
 		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
 		std::map<std::string, PropLook> m_PropLooks;

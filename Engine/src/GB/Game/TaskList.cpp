@@ -73,8 +73,16 @@ namespace GB
 				t.What = Task::Kind::Detach;
 				t.Prop = w.size() > 1 ? w[1] : "";
 			}
+			else if (w[0] == "ability")
+			{
+				if (w.size() < 2) return fail("ability <name> [entity]   (entity names with spaces: use '_' instead)");
+				t.What = Task::Kind::Ability;
+				t.Prop = w[1];
+				t.Entity = w.size() > 2 ? w[2] : "";
+				for (char& c : t.Entity) if (c == '_') c = ' ';
+			}
 			else
-				return fail("unknown task '" + w[0] + "' (goto, interact, wait, attach, detach)");
+				return fail("unknown task '" + w[0] + "' (goto, interact, wait, attach, detach, ability)");
 			out.push_back(std::move(t));
 		}
 		return true;
@@ -90,6 +98,7 @@ namespace GB
 		case Task::Kind::Interact: return "interact " + t.Entity + (t.Point.empty() ? "" : "/" + t.Point);
 		case Task::Kind::Attach: return "attach " + t.Prop;
 		case Task::Kind::Detach: return "detach" + (t.Prop.empty() ? "" : " " + t.Prop);
+		case Task::Kind::Ability: return "ability " + t.Prop + (t.Entity.empty() ? "" : " " + t.Entity);
 		}
 		return "";
 	}
@@ -132,7 +141,7 @@ namespace GB
 	}
 
 	CharacterInput TaskRunner::Update(CharacterController& controller, const CharacterWorld& world, AnimInstance* anim, float dt,
-		const Resolver& resolver, const PropHandler& props)
+		const Resolver& resolver, const PropHandler& props, const AbilityHandler& abilities)
 	{
 		CharacterInput none;
 		// instantaneous tasks run back to back in the same frame
@@ -185,6 +194,19 @@ namespace GB
 			if (m_Interaction.GetPhase() == InteractionRunner::Phase::Done) Next();
 			else if (m_Interaction.GetPhase() == InteractionRunner::Phase::Failed) Fail(m_Interaction.Error());
 			return in;
+		}
+		case Task::Kind::Ability:
+		{
+			std::string error;
+			if (!m_Started)
+			{
+				m_Started = true;
+				if (!abilities.Start || !abilities.Start(t.Prop, t.Entity, error)) { Fail(error.empty() ? "no abilities here" : error); return none; }
+			}
+			const int state = abilities.Poll ? abilities.Poll(error) : 1;
+			if (state < 0) Fail(error.empty() ? "the ability failed" : error);
+			else if (state > 0) Next();
+			return none;   // the ability moves the character
 		}
 		default:
 			Next();

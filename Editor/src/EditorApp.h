@@ -14,6 +14,7 @@
 #include "GB/Effects/Sky.h"
 #include "GB/Effects/Weather.h"
 #include "GB/Game/EntityRender.h"
+#include "GB/Gameplay/Garden.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
 #include "GB/Renderer/Framebuffer.h"
@@ -83,6 +84,10 @@ namespace GB::Editor
 		void DrawAssets();
 		void DrawModelPanel();
 		void DrawAnimationPanel();
+		void DrawAbilitiesPanel();
+		void SyncGameplay();                                     // ability systems from the scene's entities (after a scene is loaded or the garden built)
+		CommandResult AbilityCommand(const std::vector<std::string>& a);
+		CommandResult GardenCommand(const std::vector<std::string>& a);
 		void DrawTimelinePanel();
 		void DrawGraphPanel();
 		void DrawTestsPanel();
@@ -100,6 +105,9 @@ namespace GB::Editor
 		std::unique_ptr<EnvironmentMap> m_EnvMap;
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
+		GameplayWorld m_Gameplay;                                // tags, attributes, effects and abilities of the entities and the player (see GB/Gameplay)
+		GardenSystem m_Garden;
+		std::string m_AbilityActor = "Gardener";                 // whose abilities the Abilities panel shows
 		PlayerMode m_Player;                                     // `player` command / View > Play: walk the world in third person
 		size_t m_StaticObjects = 0;
 		std::unique_ptr<AudioEngine> m_Audio;
@@ -138,7 +146,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		bool m_LayoutBuilt = false;
