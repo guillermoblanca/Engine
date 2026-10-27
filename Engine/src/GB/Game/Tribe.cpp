@@ -14,12 +14,6 @@ namespace GB
 			return s;
 		}
 
-		std::string Kind(const std::string& node)   // "tree 2" -> "tree"
-		{
-			const size_t sp = node.rfind(' ');
-			return sp == std::string::npos ? node : node.substr(0, sp);
-		}
-
 		const char* AbilityFor(const std::string& kind)
 		{
 			return kind == "tree" ? "Chop" : kind == "rock" ? "Mine" : "Gather";
