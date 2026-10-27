@@ -652,6 +652,7 @@ namespace GB::Editor
 				else if (m_Actors.Count() > 0) where.x += 1.5f * static_cast<float>(m_Actors.Count());   // a step aside of the others
 				std::string error;
 				if (m_Actors.Find(a[1])) return { false, "there is already an actor called '" + a[1] + "'" };
+				m_Gameplay.Store(m_SceneEditor.World());   // (the systems are rebuilt from their components just below: keep what is running)
 				Actor* actor = m_Player.Spawn(a[1], kind, m_World, m_SceneEditor, m_AssetRoot, where, m_Steps.get(), error, true);
 				if (!actor) return { false, error };
 				SyncGameplay();

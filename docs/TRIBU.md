@@ -31,7 +31,7 @@ timescale <1-20>                                        acelera la simulación (
 Los trabajadores son actores normales (`actor list`, `actor bag <nombre>`): su posición y su mochila se guardan con la partida. El estado de la tribu (almacén, hoguera, trabajos en curso, reloj) aún no:
 **tras `load` el almacén conserva lo que tenía justo antes de cargar** y no el de la partida guardada, mientras que el mundo y las mochilas sí vuelven atrás.
 Una partida guardada con un trabajador a medias de una habilidad vuelve con la habilidad cancelada y sin `State.Busy` (antes se quedaba con esa etiqueta y la tribu entera dejaba de poder hacer nada).
-Si se borra un trabajador con `actor remove`, la tribu lo sigue listando y queda parado (no bloquea a los demás); `tribe build` lo reconstruye todo.
+Si se borra un trabajador con `actor remove`, la tribu lo sigue listando y queda parado para siempre: conserva la reserva de su nodo (nadie más puede ir a él) y sigue comiendo del almacén. Falta un `RemoveMember`; `tribe build` lo reconstruye todo.
 
 ## Panel Tribe y selección
 

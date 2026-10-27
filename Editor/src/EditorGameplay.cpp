@@ -257,6 +257,7 @@ namespace GB::Editor
 			glm::vec3 origin = m_Orbit.Target;
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+			m_Gameplay.Store(m_SceneEditor.World());   // (what the systems hold now goes into their components first: SyncGameplay rebuilds every system from them, and the nodes, rabbits and plots already running would start over)
 			BuildInteractives(m_SceneEditor.World(), origin);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
@@ -284,6 +285,7 @@ namespace GB::Editor
 			glm::vec3 origin = m_Orbit.Target;
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
 			const ResourceLayout layout = BuildResources(m_SceneEditor.World(), origin, m_NodeDefs);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
@@ -308,6 +310,7 @@ namespace GB::Editor
 			glm::vec3 origin = m_Orbit.Target;
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
 			const GardenLayout layout = BuildGarden(m_SceneEditor.World(), origin);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();

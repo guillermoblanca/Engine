@@ -11,6 +11,7 @@ editor sin ventana (`Editor.exe --hidden --quality=low --script=...`).
 | # | Hallazgo | Gravedad | Estado |
 |---|---|---|---|
 | 1 | Tras `load`, toda la tribu (y cualquier actor guardado con una habilidad en curso) queda bloqueada con `State.Busy` | Alta | **Corregido** (+ test) |
+| 1b | Las órdenes `build` y `actor spawn` reiniciaban nodos, conejos y parcelas ya en marcha | Alta | **Corregido** |
 | 2 | `replay play` falla en cualquier mundo generado del editor, ya a 0 tics (`REPLAY DIFFERS in entities`) | Alta | Abierto (viene de H4) |
 | 3 | Buscar una entidad por nombre recorre toda la escena: 120 conejos costaban 5,7 ms por fotograma | Alta | **Corregido** (+ test) |
 | 4 | `actor remove` de un miembro de la tribu dejaba un puntero colgante en la tribu (comportamiento indefinido) | Alta | **Corregido** (en el editor) |
@@ -31,7 +32,7 @@ editor sin ventana (`Editor.exe --hidden --quality=low --script=...`).
   estaba en el componente y nadie la quitaba: toda habilidad con `BlockedTags = { "State.Busy" }` (Chop, Mine, Gather, Dig, Stoke...) queda bloqueada para siempre. El aviso "was in the middle of an ability: it is saved without it" prometía lo contrario.
   Con la tribu es inevitable (siempre hay alguien a mitad de un trabajo), y `GUARDADO.md` solo pedía "guardar con el personaje quieto".
 - **Corrección.** `ToComponent` quita la etiqueta y las `ActiveTags` de las habilidades en curso (`Engine/src/GB/Gameplay/AbilitySystemComponent.cpp`). Test en `tests/gameplay_test.cpp` ("el componente de un personaje a mitad de una habilidad no lleva las etiquetas...").
-  Comprobado con el mismo guion: sin viajes fallidos tras cargar.
+  Comprobado con el mismo guion: sin viajes fallidos tras cargar. Las partidas guardadas **antes** de la corrección conservan `State.Busy` en el archivo y siguen cargándose bloqueadas (hay que volver a guardar con el arreglo o quitar la etiqueta a mano).
 
 ## 2. La repetición no funciona en el editor con un mundo generado (abierto)
 
@@ -50,7 +51,7 @@ nombre en cada tic. Medido con `tests/scale_test.cpp` (`GB_SCALE_BENCH=1`; 3.300
 
 | Sistema | Antes | Después |
 |---|---:|---:|
-| `FindByName` entre 1.001 entidades | 6,1 µs | 0,16 µs |
+| `FindByName` entre 1.001 entidades (acierto de caché con un nombre repetido; un nombre que no existe sigue recorriendo la escena) | 6,1 µs | 0,16 µs |
 | Ecología, 8 conejos | 0,35 ms/fotograma | 0,026 ms |
 | Ecología, 40 conejos | 1,8 ms | 0,055 ms |
 | Ecología, 120 conejos | 5,7 ms | 0,12 ms |
@@ -66,11 +67,16 @@ sistemas, ~2 ms por fotograma a `timescale 20`. No es el cuello de botella hoy; 
 ## 4. Puntero colgante al quitar un trabajador (corregido)
 
 `ActorBody` (editor) guardaba un `Actor*` obtenido en `tribe build`. `actor remove Biel` destruye el actor y la tribu seguía llamándolo (`Busy()`, `Bag()`...) → comportamiento indefinido. Ahora `ActorBody` busca el actor por nombre en
-cada llamada; un trabajador borrado queda "ocupado" para siempre (el resto sigue; `tribe build` lo rehace). Probado con el guion `actor remove Biel` en mitad de la simulación. Falta un test automático del editor para esto.
+cada llamada; un trabajador borrado queda "ocupado" para siempre: el resto sigue, pero conserva la reserva de su nodo y sigue comiendo del almacén (falta `Tribe::RemoveMember`; `tribe build` lo rehace). Probado con el guion `actor remove Biel` en mitad de la simulación. Falta un test automático del editor para esto.
 
 Otros punteros revisados sin fallo: los oyentes de eventos (`ResourceSystem::Bind`, `InteractiveSystem::Bind`) capturan el puntero del propio sistema de habilidades que los guarda; `Load` los destruye junto con él y `Bind` se vuelve a llamar
 siempre justo después (`SyncGameplay`, `Commit`), así que no hay oyentes duplicados. `EcologySystem::Update` trabaja sobre una copia de los nombres y borra/crea conejos dentro del bucle: los sistemas viven en `std::map` (los punteros
 no se invalidan al insertar) y el conejo borrado no se vuelve a usar. `GameplayWorld::Create` con un nombre existente **destruye** el sistema anterior (un actor que lo apuntara quedaría colgando): hoy solo se llama tras `Load`.
+
+## 4b. Las órdenes `build` borraban el estado vivo (corregido)
+
+`resources build`, `interactives build`, `garden build` y `actor spawn` reconstruyen todos los sistemas de habilidades (`SyncGameplay` → `Load`) desde los **componentes**, que solo se actualizan al guardar. Reproducción: `tribe build`, `ecology spawn`, `timescale 20`, `wait 400`,
+`interactives build -8 -4`: los arbustos pasaban de 2 a 6 de cantidad, los árboles se rellenaban y `Rabbit 1` volvía de Food 74 / Age 255 / Cooldown 85 a 70 / 120 / 0. Ahora cada una de esas órdenes escribe el estado vivo en los componentes antes de construir. Los enfriamientos y las habilidades en curso siguen sin sobrevivir a una reconstrucción.
 
 ## 5. Lo que no se guarda (abierto)
 
