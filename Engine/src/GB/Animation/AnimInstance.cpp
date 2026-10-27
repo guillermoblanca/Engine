@@ -10,6 +10,11 @@ namespace GB
 	{
 		const std::string& root = options.Analysis.RootBone;   // "mixamorig:Hips": the rig's bones share its prefix
 		m_Rig = FindHumanoidRig(model, root.size() > 4 && root.compare(root.size() - 4, 4, "Hips") == 0 ? root.substr(0, root.size() - 4) : std::string());
+		if (!m_Rig.HasLegs())   // not Mixamo-prefixed: try the other naming conventions
+		{
+			const HumanoidRig other = FindHumanoidRigAuto(model);
+			if (other.HasLegs()) m_Rig = other;
+		}
 		m_Sockets = StandardSockets(model, m_Rig);
 		m_Feet = std::make_unique<FootIK>(model, m_Rig);
 		m_Look = std::make_unique<LookAt>(model, m_Rig);
