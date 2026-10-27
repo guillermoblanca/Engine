@@ -353,6 +353,15 @@ d.Check(GB_GOLDEN_DIR "/data", "world_temperate_5");
 - Primer fruto: los datos de referencia delataron que el río del mundo templado acababa 3,7 m **por debajo** del lago (el trazado chocaba con el borde del mapa); ahora el camino se calcula con Dijkstra hasta el lago y el nivel del agua baja hasta el del lago, y los barridos lo vigilan.
 - Test `qa` (CPU): métricas, tolerancias, referencias de imagen y de datos, sobrescritura por plataforma, huellas.
 
+## Editor (Fase 10A)
+
+Editor Dear ImGui (`GB_BUILD_EDITOR=ON` por defecto, ejecutable `Editor`): dockspace con Viewport (el render va a un framebuffer mostrado como imagen), Propiedades, Mundo, Estadísticas, Modelo, Consola y Assets.
+
+- Todo valor editable es una propiedad con ruta (`sun.intensity`, `post.ssao`, `tod.hours`, `water.lake.level`...) registrada en `PropertyRegistry`: los paneles y la consola cambian exactamente lo mismo (`list`, `get`, `set`).
+- Consola y scripts (`--script=archivo`, `--exec="a;b"`, comandos `run`, `wait N`): `generate`, `time`, `weather`, `quality`, `camera`, `frame`, `load`, `hdri`, `screenshot` (solo viewport), `shot_ui` (ventana completa), `stats`, `quit`.
+- Headless: `xvfb-run -a Editor --hidden --quality=low "--exec=generate temperate 5; time 18; wait 4; shot_ui ui.png; quit"`.
+- Test `editor` (CPU): propiedades, parseo/recorte, comandos y buffer de log.
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -360,7 +369,7 @@ d.Check(GB_GOLDEN_DIR "/data", "world_temperate_5");
 2. Render PBR, luces, sombras, HDR/bloom  ✔ (primera pasada, ver abajo)
 3. Importación glTF 2.0 (Blender)  ✔
 4. Animación esquelética  ✔ · cámaras  ✔ · partículas  ✔ · audio
-5. Editor (ImGui) y API para agentes (headless, capturas PNG, escenas en texto)
+5. Editor (ImGui) ✔ (10A: paneles, propiedades, consola/scripts) · jerarquía/selección y guardado de escenas (10B) · API para agentes
 
 ### Siguientes pasos de calidad gráfica y mundo (pedidos)
 
