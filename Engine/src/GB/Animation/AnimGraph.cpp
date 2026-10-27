@@ -1,5 +1,4 @@
 #include "GB/Animation/AnimGraph.h"
-#include "GB/Animation/AnimInstance.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -69,7 +68,7 @@ namespace GB
 		return -1;
 	}
 
-	std::vector<std::string> AnimGraph::Validate(const AnimInstance* anim) const
+	std::vector<std::string> AnimGraph::Validate(const IGraphTarget* target) const
 	{
 		std::vector<std::string> problems;
 		if (States.empty()) problems.push_back("the graph has no states");
@@ -79,10 +78,10 @@ namespace GB
 			if (s.Name.empty()) problems.push_back("a state has no name");
 			for (size_t j = 0; j < i; ++j)
 				if (States[j].Name == s.Name) problems.push_back("two states are called '" + s.Name + "'");
-			if (anim)
+			if (target)
 			{
-				if (s.What == GraphState::Kind::Locomotion && !anim->HasSet(s.Target.empty() ? std::string(AnimInstance::kDefaultSet) : s.Target)) problems.push_back("state '" + s.Name + "': the character has no locomotion set '" + s.Target + "'");
-				if (s.What == GraphState::Kind::Montage && !anim->Montages().Has(s.Target)) problems.push_back("state '" + s.Name + "': the character has no montage '" + s.Target + "'");
+				if (s.What == GraphState::Kind::Locomotion && !target->HasSet(s.Target.empty() ? target->DefaultSetName() : s.Target)) problems.push_back("state '" + s.Name + "': the character has no locomotion set '" + s.Target + "'");
+				if (s.What == GraphState::Kind::Montage && !target->HasMontage(s.Target)) problems.push_back("state '" + s.Name + "': the character has no montage '" + s.Target + "'");
 			}
 			else if (s.What == GraphState::Kind::Montage && s.Target.empty()) problems.push_back("state '" + s.Name + "' plays no montage");
 		}
@@ -106,15 +105,15 @@ namespace GB
 		return problems;
 	}
 
-	AnimGraph MakeDefaultGraph(const AnimInstance& anim)
+	AnimGraph MakeDefaultGraph(const IGraphTarget& target)
 	{
 		AnimGraph g;
 		g.Params.push_back({ "Set", GraphParam::Kind::Float, 0.0f });
-		const std::vector<std::string> sets = anim.SetNames();
+		const std::vector<std::string> sets = target.SetNames();
 		for (size_t i = 0; i < sets.size(); ++i)
 		{
 			GraphState s;
-			s.Name = sets[i] == AnimInstance::kDefaultSet ? "free" : sets[i];
+			s.Name = sets[i] == target.DefaultSetName() ? "free" : sets[i];
 			s.Target = sets[i];
 			s.Position = { 40.0f + 170.0f * static_cast<float>(i % 3), 40.0f + 90.0f * static_cast<float>(i / 3) };
 			g.States.push_back(s);
@@ -304,28 +303,28 @@ namespace GB
 		}
 	}
 
-	void GraphRunner::Enter(const std::string& name, float blend, AnimInstance& anim)
+	void GraphRunner::Enter(const std::string& name, float blend, IGraphTarget& target)
 	{
 		const int i = m_Graph.FindState(name);
 		if (i < 0) return;
 		const GraphState& s = m_Graph.States[static_cast<size_t>(i)];
 		m_Current = s.Name;
 		m_Time = 0.0f;
-		if (s.What == GraphState::Kind::Locomotion) anim.SetOverlay(s.Target.empty() ? std::string(AnimInstance::kDefaultSet) : s.Target, blend);
-		else anim.Montages().Play(s.Target);
+		if (s.What == GraphState::Kind::Locomotion) target.SetOverlay(s.Target.empty() ? target.DefaultSetName() : s.Target, blend);
+		else target.PlayMontage(s.Target);
 	}
 
-	void GraphRunner::Update(const MotionState& state, float dt, AnimInstance& anim)
+	void GraphRunner::Update(const MotionState& state, float dt, IGraphTarget& target)
 	{
 		if (!Enabled || !HasGraph()) return;
 		if (!m_Started)
 		{
 			m_Started = true;
-			Enter(m_Graph.Start.empty() ? m_Graph.States[0].Name : m_Graph.Start, 0.0f, anim);
+			Enter(m_Graph.Start.empty() ? m_Graph.States[0].Name : m_Graph.Start, 0.0f, target);
 		}
 		m_Time += dt;
 		const int cur = m_Graph.FindState(m_Current);
-		const bool finished = cur >= 0 && m_Graph.States[static_cast<size_t>(cur)].What == GraphState::Kind::Montage && m_Time > 0.05f && !anim.Montages().IsPlaying(m_Graph.States[static_cast<size_t>(cur)].Target);
+		const bool finished = cur >= 0 && m_Graph.States[static_cast<size_t>(cur)].What == GraphState::Kind::Montage && m_Time > 0.05f && !target.MontagePlaying(m_Graph.States[static_cast<size_t>(cur)].Target);
 		m_Auto.clear();
 		const auto put = [&](const char* name, float v) { m_Auto.push_back({ name, GraphParam::Kind::Float, v }); };
 		put("Speed", state.Speed);
@@ -358,7 +357,7 @@ namespace GB
 			Consume(t);
 			m_Last = m_Current + " -> " + t.To;
 			++m_Count;
-			Enter(t.To, t.Blend, anim);
+			Enter(t.To, t.Blend, target);
 			break;
 		}
 	}
