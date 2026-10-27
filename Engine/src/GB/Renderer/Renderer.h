@@ -145,8 +145,37 @@ namespace GB
 		float ShadowRadius = 12.0f;
 	};
 
+	enum class Tonemap { ACES, Neutral, Filmic };
+
+	// Post-processing and grading, applied after the HDR scene and the bloom.
+	struct PostSettings
+	{
+		Tonemap Mapper = Tonemap::ACES;
+		// Screen-space ambient occlusion: contact shadowing in creases and under objects.
+		float SSAO = 0.0f;                 // 0 = off, 1 = full strength
+		float SSAORadius = 0.7f;           // meters
+		float SSAOBias = 0.04f;
+		// Depth of field: blur grows with the distance from the focus plane. 0 = off.
+		float DepthOfField = 0.0f;         // maximum blur radius in percent of the screen height (1-3 natural, 5+ strong)
+		float FocusDistance = 12.0f;       // meters
+		float FocusRange = 8.0f;           // meters around the focus that stay sharp
+		// Eye adaptation: exposure follows the average luminance of the frame (Environment::Exposure acts as compensation).
+		bool AutoExposure = false;
+		float AdaptSpeed = 1.2f;           // 1/s
+		float ExposureKey = 0.18f;         // the grey the average luminance is brought to
+		float MinExposure = 0.25f, MaxExposure = 6.0f;
+		float DeltaTime = 1.0f / 60.0f;    // seconds since the last frame (drives adaptation and grain)
+		// Grading (after tone mapping).
+		float Saturation = 1.0f;
+		float Contrast = 1.0f;
+		glm::vec3 Tint{ 1.0f };
+		float ChromaticAberration = 0.0f;  // 0..1: colour fringes toward the screen corners
+		float Grain = 0.0f;                // 0..1: film grain
+	};
+
 	struct Scene
 	{
+		PostSettings Post;
 		std::vector<RenderObject> Objects;
 		DirectionalLight Sun;
 		std::vector<PointLight> PointLights;   // at most MaxPointLights are used
@@ -188,15 +217,21 @@ namespace GB
 		void BindEnvironment(Shader& shader, const Environment& env) const;
 		void WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
 		void BloomPass(const Environment& env);
-		void CompositePass(const Environment& env, const Framebuffer* target);
+		void AmbientOcclusionPass(const PostSettings& post, const Camera& camera);
+		void AdaptationPass(const PostSettings& post);
+		void CompositePass(const Environment& env, const PostSettings& post, const Camera& camera, const Framebuffer* target);
 
 		RenderStats m_Stats;
 		uint32_t m_Width, m_Height, m_Samples, m_ShadowSize;
 		bool m_Valid = false;
 
-		std::unique_ptr<Shader> m_ShadowShader, m_PBRShader, m_SkyShader, m_BloomDown, m_BloomUp, m_Composite, m_ParticleShader, m_GrassShader, m_WaterShader;
+		std::unique_ptr<Shader> m_AOShader, m_AOBlurShader, m_LumShader, m_AdaptShader, m_ShadowShader, m_PBRShader, m_SkyShader, m_BloomDown, m_BloomUp, m_Composite, m_ParticleShader, m_GrassShader, m_WaterShader;
 		std::unique_ptr<Framebuffer> m_ShadowMap, m_SceneMSAA, m_SceneResolved, m_SceneDepth;
 		std::vector<std::unique_ptr<Framebuffer>> m_BloomChain;
+		std::unique_ptr<Framebuffer> m_AO, m_AOBlur, m_LumSmall, m_Adapt[2];
+		int m_AdaptCurrent = 0;
+		bool m_AdaptValid = false;
+		float m_TimeAccum = 0.0f;
 		uint32_t m_EmptyVAO = 0;
 		uint32_t m_ParticleVAO = 0, m_ParticleVBO = 0, m_GrassVAO = 0;
 		size_t m_ParticleVBOCapacity = 0;

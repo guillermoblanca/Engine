@@ -4,6 +4,8 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstdio>
 #include <cstdlib>
+#include <array>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <vector>
@@ -41,14 +43,15 @@ public:
 		if (!IsValid())
 			return;
 
-		m_Renderer = std::make_unique<GB::Renderer>(GetWindow()->GetWidth(), GetWindow()->GetHeight());
+		const GB::LaunchOptions& options = GB::GetLaunchOptions();
+		ParseQuality(options);
+		m_Renderer = std::make_unique<GB::Renderer>(GetWindow()->GetWidth(), GetWindow()->GetHeight(), m_MsaaSamples, m_ShadowSize);
 		if (!m_Renderer->IsValid())
 		{
 			GB_CLIENT_ERROR("Renderer could not be created");
 			Close();
 			return;
 		}
-		const GB::LaunchOptions& options = GB::GetLaunchOptions();
 		// Defaults for the PBR showcase; the other scenes override them.
 		m_Orbit.Target = { 0.0f, 1.3f, 0.0f };
 		m_Orbit.Pitch = 0.22f;
@@ -66,6 +69,8 @@ public:
 			BuildWeatherScene(options);
 		else if (sceneName == "desert")
 			BuildDesertScene(options);
+		else if (sceneName == "showcase")
+			BuildShowcaseScene();
 		else
 			BuildScene();
 
@@ -83,10 +88,43 @@ public:
 		}
 	}
 
+	// --quality=low|medium|high|ultra picks MSAA, shadow resolution and the post effects; every post option can be
+	// overridden: --ssao=0..1 --dof=% --focus=m --focus-range=m --autoexposure --tonemap=aces|neutral|filmic
+	// --saturation= --contrast= --grain= --ca=
+	void ParseQuality(const GB::LaunchOptions& options)
+	{
+		const std::string q = options.GetValue("quality", options.GetValue("scene") == "showcase" ? "ultra" : "medium");
+		m_Post = {};
+		if (q == "low") { m_MsaaSamples = 2; m_ShadowSize = 1024; }
+		else if (q == "high") { m_MsaaSamples = 4; m_ShadowSize = 4096; m_Post.SSAO = 0.55f; m_Post.Grain = 0.15f; }
+		else if (q == "ultra")
+		{
+			m_MsaaSamples = 4; m_ShadowSize = 4096;
+			m_Post.SSAO = 0.75f; m_Post.AutoExposure = true; m_Post.Grain = 0.25f; m_Post.ChromaticAberration = 0.2f;
+			m_Post.Saturation = 1.08f; m_Post.Contrast = 1.06f; m_Post.Mapper = GB::Tonemap::ACES;
+		}
+		auto number = [&](const char* key, float fallback) { const std::string v = options.GetValue(key); return v.empty() ? fallback : static_cast<float>(std::atof(v.c_str())); };
+		m_Post.SSAO = number("ssao", m_Post.SSAO);
+		m_Post.DepthOfField = number("dof", m_Post.DepthOfField);
+		m_Post.FocusDistance = number("focus", m_Post.FocusDistance);
+		m_Post.FocusRange = number("focus-range", m_Post.FocusRange);
+		m_Post.Saturation = number("saturation", m_Post.Saturation);
+		m_Post.Contrast = number("contrast", m_Post.Contrast);
+		m_Post.Grain = number("grain", m_Post.Grain);
+		m_Post.ChromaticAberration = number("ca", m_Post.ChromaticAberration);
+		if (options.HasFlag("autoexposure")) m_Post.AutoExposure = true;
+		const std::string tm = options.GetValue("tonemap");
+		if (tm == "neutral") m_Post.Mapper = GB::Tonemap::Neutral;
+		else if (tm == "filmic") m_Post.Mapper = GB::Tonemap::Filmic;
+		else if (tm == "aces") m_Post.Mapper = GB::Tonemap::ACES;
+		GB_CLIENT_INFO("Quality '{}': MSAA x{}, shadows {}, SSAO {:.2f}, DOF {:.2f}, auto exposure {}", q, m_MsaaSamples, m_ShadowSize, m_Post.SSAO, m_Post.DepthOfField, m_Post.AutoExposure ? "on" : "off");
+	}
+
 protected:
 	void OnUpdate(float dt) override
 	{
 		using GB::Key;
+		m_FrameDt = dt;
 		const bool cameraKey = GB::Input::IsKeyDown(Key::C) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::Y);
 		if (cameraKey && !m_CameraKeyWasDown)
 			SwitchCamera((m_CameraMode + 1) % CameraModeCount(), true);
@@ -178,6 +216,8 @@ protected:
 			if (m_Physics)
 				AddPhysicsObjects();
 		}
+		m_Scene.Post = m_Post;
+		m_Scene.Post.DeltaTime = m_FrameDt > 0.0f ? m_FrameDt : 1.0f / 60.0f;
 		m_Renderer->Render(m_Scene, camera);
 	}
 
@@ -774,7 +814,7 @@ private:
 			m_NightFactor = st.NightFactor;
 			GB_CLIENT_INFO("Sky: {:.1f} h, night {:.2f}", sky.Hours, st.NightFactor);
 		}
-		if (!options.GetValue("hdri").empty())   // --hdri=sunset or a path to a Radiance .hdr
+		if (!options.GetValue("hdri").empty() && options.GetValue("hdri") != "off")   // --hdri=sunset or a path to a Radiance .hdr
 		{
 			const std::string h = options.GetValue("hdri");
 			m_EnvMap = GB::EnvironmentMap::Load(h == "sunset" || h == "on" ? std::string(GB_ASSET_DIR) + "/hdri/sunset_sky.hdr" : h);
@@ -994,6 +1034,136 @@ private:
 		}
 	}
 
+	// ------------------------------------------------------------------ showcase
+	// The complete demo: a generated world (lake, river, forest, rocks), a character walking the shore, floating
+	// props, a day that goes from morning to night and back with its weather (clear, rain, storm with lightning),
+	// lanterns that light up at dusk, and a camera that moves between shots. Everything loops every 100 s.
+	void BuildShowcaseScene()
+	{
+		GB::LaunchOptions& options = GB::GetLaunchOptions();
+		auto fallback = [&](const char* arg)
+		{
+			const std::string a(arg);
+			const std::string key = a.substr(2, a.find('=') - 2);
+			if (options.GetValue(key).empty() && !options.HasFlag(key))
+				options.Extra.emplace_back(a);
+		};
+		fallback("--terrain=hills"); fallback("--world=temperate"); fallback("--seed=7"); fallback("--trees=260"); fallback("--rocks=50");
+		fallback("--walker=cesium"); fallback("--walker-center=lake"); fallback("--walker-radius=33"); fallback("--walker-speed=1.5");
+		fallback("--lanterns=12"); fallback("--physics=26"); fallback("--physics-spread=14"); fallback("--simulate=2"); fallback("--hdri=off");
+		fallback("--grass-density=30");
+		BuildDesertScene(options);
+		m_Showcase = true;
+		m_Follow = false;
+		m_SkyBaseEnv = m_Weather->BaseEnvironment();
+		m_SkyBaseSun = m_Weather->BaseSun();
+		if (m_Terrain->HasLake())
+			m_ShowLake = { m_Terrain->GetLakeCenter().x, m_Terrain->GetWaterLevel(), m_Terrain->GetLakeCenter().y };
+		else if (m_World)
+			m_ShowLake = { m_World->Spawn.x, m_Terrain->GetHeight(m_World->Spawn.x, m_World->Spawn.y), m_World->Spawn.y };
+		m_Post.DepthOfField = options.GetValue("dof").empty() ? 1.0f : m_Post.DepthOfField;
+		m_Post.Saturation = 1.1f;
+		m_Time = static_cast<float>(std::atof(options.GetValue("start", "0").c_str()));   // --start=SECONDS jumps into the script
+		GB_CLIENT_INFO("Showcase: 100 s loop (morning, midday, rain, storm, dusk, night). Quality '{}'.", options.GetValue("quality", "ultra"));
+	}
+
+	static float Keyframe(const std::vector<std::pair<float, float>>& k, float t)
+	{
+		for (size_t i = 0; i + 1 < k.size(); ++i)
+			if (t >= k[i].first && t <= k[i + 1].first)
+				return glm::mix(k[i].second, k[i + 1].second, (t - k[i].first) / (k[i + 1].first - k[i].first));
+		return k.back().second;
+	}
+
+	void UpdateShowcase(float dt)
+	{
+		const float t = std::fmod(m_Time, 100.0f);
+		// hour of the day
+		static const std::vector<std::pair<float, float>> hours = { { 0, 8.0f }, { 18, 10.5f }, { 36, 15.0f }, { 52, 17.2f }, { 64, 18.6f }, { 80, 21.5f }, { 94, 30.0f }, { 100, 32.0f } };
+		GB::SkyDesc sky;
+		sky.Hours = std::fmod(Keyframe(hours, t), 24.0f);
+		sky.SunAzimuthDegrees = 200.0f;
+		sky.CloudCover = 0.3f;
+		const GB::SkyState st = GB::Sky::Compute(sky, m_SkyBaseEnv, m_SkyBaseSun);
+		GB::Environment env = st.Env;
+		env.ShadowCenter = m_Weather->BaseEnvironment().ShadowCenter;
+		m_Weather->BaseEnvironment() = env;
+		m_Weather->BaseSun() = st.Sun;
+		// weather script
+		struct Event { float At; const char* Preset; };
+		static const Event script[] = { { 0.0f, "clear" }, { 36.0f, "lightrain" }, { 44.0f, "rain" }, { 52.0f, "storm" }, { 64.0f, "clear" } };
+		if (m_ShowcaseLast < 0.0f)   // starting inside the script: jump straight to the weather of that moment
+		{
+			const Event* now = &script[0];
+			for (const Event& e : script) if (t >= e.At) now = &e;
+			ApplyWeatherPreset(now->Preset, true);
+		}
+		else
+			for (const Event& e : script)
+				if (m_ShowcaseLast < e.At && t >= e.At)
+					ApplyWeatherPreset(e.Preset, false);
+		if (t < m_ShowcaseLast)   // the loop restarted
+			ApplyWeatherPreset("clear", false);
+		m_ShowcaseLast = t;
+		// lanterns follow the night
+		const float lampOn = glm::smoothstep(0.2f, 0.8f, st.NightFactor + 0.25f * m_Weather->GetStorm());
+		for (size_t i = 0; i < m_Scene.PointLights.size(); ++i)
+		{
+			const float flicker = 1.0f + 0.07f * std::sin(m_Time * 11.0f + static_cast<float>(i) * 2.1f) + 0.05f * std::sin(m_Time * 23.0f + static_cast<float>(i));
+			m_Scene.PointLights[i].Intensity = 22.0f * lampOn * flicker;
+		}
+		for (size_t idx : m_LampObjects)
+			m_Scene.Objects[idx].Mat.Emissive = glm::vec3(9.0f, 5.2f, 2.2f) * lampOn;
+		ShowcaseCamera(t);
+		(void)dt;
+	}
+
+	void ShowcaseCamera(float t)
+	{
+		struct Shot { float T0, T1; glm::vec3 Target; float D0, D1, P0, P1, Y0, Y1; };
+		const glm::vec3 L = m_ShowLake;
+		const glm::vec3 walker = m_Walker ? m_Walker->Position + glm::vec3(0.0f, 1.0f, 0.0f) : L;
+		const glm::vec3 spawn = m_World ? glm::vec3(m_World->Spawn.x, m_Terrain->GetHeight(m_World->Spawn.x, m_World->Spawn.y) + 2.0f, m_World->Spawn.y) : L;
+		const Shot shots[] = {
+			{ 0, 18, L + glm::vec3(0, 3, 0), 80, 48, 0.55f, 0.32f, 0.2f, 1.4f },        // morning: aerial over the lake
+			{ 18, 36, walker, 8.0f, 5.0f, 0.2f, 0.26f, 2.4f, 4.0f },                      // midday: with the walker
+			{ 36, 52, spawn, 26.0f, 16.0f, 0.2f, 0.12f, 0.6f, 1.6f },                     // rain: among the trees
+			{ 52, 64, L + glm::vec3(0, 1, 0), 58.0f, 40.0f, 0.1f, 0.14f, 3.0f, 4.2f },    // storm over the lake
+			{ 64, 82, L + glm::vec3(0, 1, 0), 30.0f, 42.0f, 0.13f, 0.2f, 1.2f, 2.6f },    // dusk and lanterns
+			{ 82, 100, L + glm::vec3(0, 3, 0), 55.0f, 85.0f, 0.3f, 0.5f, 4.0f, 5.6f },    // night to dawn: high orbit
+		};
+		auto sample = [&](const Shot& s, float tt)
+		{
+			const float u = glm::clamp((tt - s.T0) / (s.T1 - s.T0), 0.0f, 1.0f), e = u * u * (3.0f - 2.0f * u);
+			return std::array<float, 4>{ glm::mix(s.D0, s.D1, u), glm::mix(s.P0, s.P1, e), glm::mix(s.Y0, s.Y1, u), 0.0f };
+		};
+		size_t i = 0;
+		while (i + 1 < std::size(shots) && t >= shots[i].T1) ++i;
+		const Shot& a = shots[i];
+		auto va = sample(a, t);
+		glm::vec3 target = a.Target;
+		// ease between shots over 2.5 s
+		if (i + 1 < std::size(shots) && t > a.T1 - 2.5f)
+		{
+			const Shot& b = shots[i + 1];
+			const float k = glm::smoothstep(a.T1 - 2.5f, a.T1, t);
+			const auto vb = sample(b, t);
+			va = { glm::mix(va[0], vb[0], k), glm::mix(va[1], vb[1], k), glm::mix(va[2], vb[2], k), 0.0f };
+			target = glm::mix(target, b.Target, k);
+		}
+		if (i == 1)
+			target = walker;
+		m_Orbit.Target = glm::mix(m_Orbit.Target, target, glm::clamp(m_FrameDt * 4.0f, 0.0f, 1.0f));
+		m_Orbit.Distance = va[0];
+		m_Orbit.Pitch = va[1];
+		m_Orbit.Yaw = va[2];
+		// rack focus on whatever the camera orbits
+		m_Post.FocusDistance = va[0];
+		m_Post.FocusRange = std::max(va[0] * 0.8f, 6.0f);
+		m_Weather->BaseEnvironment().ShadowCenter = m_Orbit.Target;
+		if (std::getenv("GB_SHOW_DEBUG")) GB_CLIENT_INFO("shot {} t {:.1f} distance {:.1f} pitch {:.2f} yaw {:.2f} target {:.0f} {:.0f} {:.0f}", i, t, m_Orbit.Distance, m_Orbit.Pitch, m_Orbit.Yaw, m_Orbit.Target.x, m_Orbit.Target.y, m_Orbit.Target.z);
+	}
+
 	// A brick wall and a trigger for blasts and cannon balls; breakage throws dust, blasts leave a scorched crater.
 	void BuildDestruction(const GB::LaunchOptions& options)
 	{
@@ -1169,11 +1339,12 @@ private:
 			lamp.Mat.Emissive = { 9.0f, 5.2f, 2.2f };
 			lamp.Transform = glm::scale(glm::translate(glm::mat4(1.0f), { x, y + 2.75f, z }), { 0.32f, 0.38f, 0.32f });
 			m_Scene.Objects.push_back(lamp);
+			m_LampObjects.push_back(m_Scene.Objects.size() - 1);
 			GB::PointLight light;
 			light.Position = { x, y + 2.7f, z };
 			light.Color = { 1.0f, 0.68f, 0.38f };
-			light.Intensity = 34.0f;
-			light.Radius = 16.0f;
+			light.Intensity = 22.0f;
+			light.Radius = 14.0f;
 			m_Scene.PointLights.push_back(light);
 		}
 		GB_CLIENT_INFO("Lanterns: {}", count);
@@ -1414,6 +1585,8 @@ private:
 		m_Time += dt;
 		if (m_Walker)
 			UpdateWalker(dt);
+		if (m_Showcase)
+			UpdateShowcase(dt);
 		if (m_Physics)
 			UpdatePhysics(dt);
 		if (m_ErosionRate > 0.0f)
@@ -1663,6 +1836,15 @@ private:
 	std::unique_ptr<Walker> m_Walker;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
 	std::unique_ptr<GB::EnvironmentMap> m_EnvMap;
+	bool m_Showcase = false;
+	GB::Environment m_SkyBaseEnv;
+	GB::DirectionalLight m_SkyBaseSun;
+	glm::vec3 m_ShowLake{ 0.0f };
+	float m_ShowcaseLast = -1.0f;
+	std::vector<size_t> m_LampObjects;
+	GB::PostSettings m_Post;
+	uint32_t m_MsaaSamples = 4, m_ShadowSize = 2048;
+	float m_FrameDt = 1.0f / 60.0f;
 	float m_ErosionRate = 0.0f, m_ErosionStrength = 1.0f, m_ErosionBudget = 0.0f;
 	uint32_t m_ErosionSeed = 0;
 	int m_ErosionDirty[4] = { 1 << 30, 1 << 30, -1, -1 };

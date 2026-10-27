@@ -84,3 +84,8 @@ set_tests_properties(world PROPERTIES SKIP_RETURN_CODE 77)
 add_executable(GBDestructionTests destruction_test.cpp)
 target_link_libraries(GBDestructionTests PRIVATE GB::GB)
 add_test(NAME destruction COMMAND GBDestructionTests)
+
+add_executable(GBPostTests post_test.cpp)
+target_link_libraries(GBPostTests PRIVATE GB::GB)
+add_test(NAME post COMMAND GBPostTests)
+set_tests_properties(post PROPERTIES SKIP_RETURN_CODE 77)

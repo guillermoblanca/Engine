@@ -314,6 +314,27 @@ for (auto& b : destruction.TakeBreaks()) ...               // posición, tamaño
 
 ![Muro derribado](docs/destruction_sequence.jpg)
 
+## Calidad final y demo completa (Fase 8G)
+
+```cpp
+scene.Post.SSAO = 0.7f;                         // oclusión ambiental en pantalla (medio res + desenfoque que respeta bordes)
+scene.Post.DepthOfField = 2.0f;                 // desenfoque en % de la altura de pantalla; FocusDistance / FocusRange en metros
+scene.Post.AutoExposure = true;                 // adaptación del ojo: exposición según la luminancia media (sin lectura a CPU)
+scene.Post.Mapper = GB::Tonemap::Neutral;       // ACES, Neutral (Khronos PBR Neutral) o Filmic (Hable)
+scene.Post.Saturation = 1.1f; scene.Post.Contrast = 1.06f; scene.Post.Tint = {1.0f, 0.98f, 0.95f};
+scene.Post.ChromaticAberration = 0.2f; scene.Post.Grain = 0.2f;
+```
+
+- **SSAO**: 14 muestras en el hemisferio de la normal reconstruida desde el depth, rotadas por píxel (ruido de gradiente entrelazado), con rango y sesgo dependientes de la distancia; blur de 4×4 que no cruza bordes de profundidad.
+- **Profundidad de campo**: círculo de confusión por distancia al plano de enfoque, 20 muestras en espiral áurea y los píxeles nítidos no contaminan a los desenfocados.
+- **Auto-exposición**: la escena se reduce a 32×18, se promedia el logaritmo de la luminancia en un destino 1×1 y la exposición se acerca al objetivo con `1 − exp(−dt·velocidad)` (el primer frame se ajusta al instante; un cambio brusco de luz deslumbra y se adapta).
+- **Tonemap y gradación**: ACES, Neutral y Filmic; saturación, contraste, tinte, aberración cromática hacia las esquinas y grano de película.
+- **Calidad**: `--quality=low|medium|high|ultra` en el Sandbox (MSAA 2/4, sombras 1024-4096, SSAO, auto-exposición, grano...) y cada efecto se puede ajustar: `--ssao= --dof= --focus= --focus-range= --autoexposure --tonemap= --saturation= --contrast= --grain= --ca=`.
+- **Demo completa** `--scene=showcase`: mundo procedural (lago, río, bosque, rocas), personaje caminando por la orilla, objetos que flotan, un **día de 100 s** (mañana, mediodía, lluvia, tormenta con relámpagos, atardecer y noche con farolas que se encienden y parpadean) y una cámara con seis planos que cambia el enfoque según lo que mira. Se repite en bucle. `--start=SEGUNDOS` salta a un punto del guion, `--record=carpeta --fps=30 --frames=N` graba, `--quality=` ajusta.
+- Test `post`: AO (oscurece el pie de la caja, no el suelo abierto), DOF (franjas lejanas borrosas, nítidas al enfocarlas; lo enfocado se mantiene), auto-exposición (oscuro se aclara, primer frame deslumbrante y luego baja, escena muy brillante termina más oscura), tonemappers distintos y válidos, saturación 0 = gris, tinte, contraste, grano y aberración.
+
+![Demo completa](docs/showcase.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -330,4 +351,4 @@ for (auto& b : destruction.TakeBreaks()) ...               // posición, tamaño
 - 8D ✔ Ríos con corriente (flujo, espuma y arrastre) y rocas procedurales con musgo, arena y mojado.
 - 8E ✔ Erosión por lluvia, mundos procedurales con biomas y bosques densos (culling).
 - 8F ✔ Efectos de destrucción (rotura, explosiones, escombros, muro de ladrillos).
-- 8G Pase de calidad de toda la escena en una demo completa (AAA: SSAO, DOF, tonemap, LUT).
+- 8G ✔ Pase de calidad (SSAO, DOF, auto-exposición, tonemaps, grading) y demo completa `--scene=showcase`.
