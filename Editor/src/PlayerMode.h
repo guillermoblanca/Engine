@@ -1,7 +1,10 @@
 #pragma once
+#include "GB/Animation/CharacterAnimator.h"
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
+#include "GB/Game/AIDriver.h"
 #include "GB/Game/CharacterController.h"
+#include "GB/Game/MotionState.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Renderer.h"
 #include <memory>
@@ -20,7 +23,9 @@ namespace GB::Editor
 	class PlayerMode
 	{
 	public:
-		// `kind`: "fox" (idle / walk / run clips) or "cesium". `near` is where to start (moved off water and trees).
+		// `kind`: "fox" (idle / walk / run clips), "cesium", or the path of an FBX character (relative to the assets, or absolute): the
+		// other FBX files in its folder are loaded as its animation clips, and it walks with the locomotion blend (walk/run/strafe mixed
+		// by speed, feet in step, footsteps on every landing) instead of the plain idle/walk/run switch. `near` is where to start (moved off water and trees).
 		bool Start(const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
 			const glm::vec3& near, std::string& error);
 		void Stop();
@@ -29,6 +34,17 @@ namespace GB::Editor
 		// `acceptInput`: false while the user types in a text box. `script` (if any) replaces the keyboard.
 		void Update(float dt, bool acceptInput);
 		void SetScript(const std::string& text);   // see GB::ParseCharacterScript; time starts now
+		// An AI leads the character to a point of the world (xz) instead of the keyboard: same controller, animation and footsteps.
+		void MoveTo(const glm::vec2& xz, bool run);
+		bool AIArrived() const { return m_UseAI && m_AI.Arrived(); }
+		void SetFootsteps(FootstepSounds* steps) { m_Steps = steps; if (m_Animator) m_Animator->SetFootsteps(steps); }
+		bool UsesLocomotionBlend() const { return m_Animator != nullptr; }
+		// Switches the locomotion set (free, box, holding, wheelbarrow...) with a cross-fade; false when the character has no such set.
+		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animator && m_Animator->Anim().SetOverlay(name, fadeSeconds); }
+		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
+		const MotionState& GetMotion() const { return m_Motion; }
+		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
+		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
 		void ApplyCamera(Camera& camera) const { m_Camera.Apply(camera); }
 		void AddToScene(Scene& scene) const;
 
@@ -41,7 +57,13 @@ namespace GB::Editor
 
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
-		CharacterAnimation m_Animation;
+		CharacterAnimation m_Animation;                          // the plain idle/walk/run switch, for models without a locomotion set
+		std::unique_ptr<CharacterAnimator> m_Animator;           // the locomotion blend (set when the model has the clips)
+		MotionTracker m_Tracker;
+		MotionState m_Motion;
+		AIDriver m_AI;
+		bool m_UseAI = false;
+		FootstepSounds* m_Steps = nullptr;
 		CharacterController m_Controller;
 		CharacterWorld m_World;
 		mutable ThirdPersonCamera m_Camera;

@@ -148,3 +148,13 @@ add_executable(GBLocomotionTests locomotion_test.cpp)
 target_link_libraries(GBLocomotionTests PRIVATE GB::GB)
 target_compile_definitions(GBLocomotionTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME locomotion COMMAND GBLocomotionTests)
+
+add_executable(GBCharacterLayerTests character_layer_test.cpp)
+target_link_libraries(GBCharacterLayerTests PRIVATE GB::GB)
+target_compile_definitions(GBCharacterLayerTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME character_layer COMMAND GBCharacterLayerTests)
+
+add_executable(GBAnimInstanceTests anim_instance_test.cpp)
+target_link_libraries(GBAnimInstanceTests PRIVATE GB::GB)
+target_compile_definitions(GBAnimInstanceTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME anim_instance COMMAND GBAnimInstanceTests)

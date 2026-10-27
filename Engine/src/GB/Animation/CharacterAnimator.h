@@ -1,0 +1,31 @@
+#pragma once
+#include "GB/Animation/AnimInstance.h"
+#include "GB/Game/MotionState.h"
+
+namespace GB
+{
+	// The animation side of a character: it reads only the MotionState, so it neither knows nor cares whether the
+	// motion came from a player, an AI or a script. A thin wrapper over an AnimInstance (locomotion sets with
+	// cross-faded overlays) that also plays footsteps and a landing thud.
+	class CharacterAnimator
+	{
+	public:
+		CharacterAnimator(const Model& model, ModelInstance& instance, const LocomotionOptions& options = {})
+			: m_Anim(model, instance, options) {}
+
+		// Adds the usual Mixamo free-movement set to the default set when the model has it. Returns how many clips were found.
+		int AddDefaultLocomotionClips();
+		// Registers the other Mixamo sets (box, holding, wheelbarrow...) the model has clips for; returns their names.
+		std::vector<std::string> AddMixamoSets();
+
+		AnimInstance& Anim() { return m_Anim; }
+		LocomotionBlender& Locomotion() { return m_Anim.Active(); }
+		void SetFootsteps(FootstepSounds* steps) { m_Anim.SetFootsteps(steps); }
+
+		// `characterToWorld`: the character's placement (position and yaw), to put the footsteps where the feet are.
+		void Update(const MotionState& state, float dt, const glm::mat4& characterToWorld) { m_Anim.Update(state, dt, characterToWorld); }
+
+	private:
+		AnimInstance m_Anim;
+	};
+}

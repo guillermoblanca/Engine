@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <filesystem>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace GB::Editor
@@ -18,14 +19,36 @@ namespace GB::Editor
 			error = "generate a world first (generate temperate 5)";
 			return false;
 		}
-		const bool fox = kind != "cesium";
-		std::shared_ptr<Model> model = Model::Load(assetRoot + (fox ? "/models/Fox.glb" : "/models/CesiumMan.glb"));
+		namespace fs = std::filesystem;
+		const bool isFbx = kind.size() > 4 && (kind.substr(kind.size() - 4) == ".fbx" || kind.substr(kind.size() - 4) == ".FBX");
+		const bool fox = kind != "cesium" && !isFbx;
+		std::shared_ptr<Model> model;
+		if (isFbx)
+		{
+			std::string path = kind;
+			if (!fs::exists(path) && fs::exists(assetRoot + "/" + path)) path = assetRoot + "/" + path;
+			model = Model::Load(path);
+			if (!model)
+			{
+				error = "could not load the character from " + path;
+				return false;
+			}
+			// the other FBX files of the folder are its animations (Mixamo ships each clip as its own file)
+			std::vector<std::string> files;
+			std::error_code ec;
+			for (const auto& e : fs::directory_iterator(fs::path(path).parent_path().empty() ? fs::path(".") : fs::path(path).parent_path(), ec))
+				if (e.is_regular_file() && e.path().extension() == ".fbx" && fs::path(path).filename() != e.path().filename()) files.push_back(e.path().generic_string());
+			std::sort(files.begin(), files.end());
+			for (const std::string& f : files) model->AppendAnimations(f);
+		}
+		else
+			model = Model::Load(assetRoot + (fox ? "/models/Fox.glb" : "/models/CesiumMan.glb"));
 		if (!model)
 		{
 			error = "could not load the character model from " + assetRoot + "/models";
 			return false;
 		}
-		const float height = fox ? 0.75f : 1.75f;
+		const float height = isFbx ? 1.75f : fox ? 0.75f : 1.75f;
 		const float modelHeight = model->GetBoundsMax().y - model->GetBoundsMin().y;
 		m_Scale = modelHeight > 1e-3f ? height / modelHeight : 1.0f;
 
@@ -61,8 +84,28 @@ namespace GB::Editor
 
 		m_Model = std::move(model);
 		m_Instance = std::make_unique<ModelInstance>(*m_Model);
-		m_Animation = CharacterAnimation::ForModel(*m_Model);
-		m_Animation.Start(*m_Instance);
+		m_Animator.reset();
+		m_Tracker.Reset();
+		m_UseAI = false;
+		if (isFbx)
+		{
+			auto animator = std::make_unique<CharacterAnimator>(*m_Model, *m_Instance);
+			if (animator->AddDefaultLocomotionClips() < 2)
+			{
+				error = "the character has no locomotion clips (idle, walking, standard run...): put the animation FBX files next to it";
+				m_Instance.reset();
+				m_Model.reset();
+				return false;
+			}
+			animator->AddMixamoSets();   // box, holding, wheelbarrow... when the folder has those clips
+			animator->SetFootsteps(m_Steps);
+			m_Animator = std::move(animator);
+		}
+		else
+		{
+			m_Animation = CharacterAnimation::ForModel(*m_Model);
+			m_Animation.Start(*m_Instance);
+		}
 
 		m_Camera = ThirdPersonCamera();
 		m_Camera.GroundHeight = m_World.GroundHeight;
@@ -73,12 +116,14 @@ namespace GB::Editor
 		m_Camera.Snap(m_Controller.GetPosition());
 		m_Script.clear();
 		m_ScriptTime = 0.0f;
-		GB_CLIENT_INFO("Player mode: {} at ({:.1f}, {:.1f}), {} obstacles", fox ? "fox" : "cesium", start.x, start.y, m_Obstacles);
+		GB_CLIENT_INFO("Player mode: {} at ({:.1f}, {:.1f}), {} obstacles{}", isFbx ? kind : fox ? "fox" : "cesium", start.x, start.y, m_Obstacles, m_Animator ? ", locomotion blend" : "");
 		return true;
 	}
 
 	void PlayerMode::Stop()
 	{
+		m_Animator.reset();
+		m_UseAI = false;
 		m_Instance.reset();
 		m_Model.reset();
 		m_World = CharacterWorld();
@@ -90,6 +135,16 @@ namespace GB::Editor
 	{
 		m_Script = ParseCharacterScript(text);
 		m_ScriptTime = 0.0f;
+	}
+
+	void PlayerMode::MoveTo(const glm::vec2& xz, bool run)
+	{
+		m_UseAI = true;
+		m_Script.clear();
+		m_AI.WalkSpeed = m_Controller.Config.WalkSpeed;
+		m_AI.RunSpeed = m_Controller.Config.RunSpeed;
+		m_AI.Run = run;
+		m_AI.MoveTo(xz);
 	}
 
 	void PlayerMode::Update(float dt, bool acceptInput)
@@ -109,14 +164,25 @@ namespace GB::Editor
 			}
 			m_ScriptTime += dt;
 		}
+		else if (m_UseAI && !m_AI.Arrived() && !m_AI.Stuck())
+		{
+			m_Camera.ReadInput(dt);   // the player can still look around while the AI walks the character
+			in = m_AI.Update(m_Controller, dt);
+		}
 		else if (acceptInput)
 		{
 			m_Camera.ReadInput(dt);
 			in = ReadCharacterInput(m_Camera.Yaw);
 		}
 		m_Controller.Step(in, m_World, dt);
-		m_Animation.Update(*m_Instance, m_Controller.GetSpeed());
-		m_Instance->Update(dt);
+		m_Motion = m_Tracker.Update(m_Controller, dt);
+		if (m_Animator)
+			m_Animator->Update(m_Motion, dt, RootMatrix());   // blend + footsteps, whoever produced the input
+		else
+		{
+			m_Animation.Update(*m_Instance, m_Controller.GetSpeed());
+			m_Instance->Update(dt);
+		}
 		m_Camera.Update(dt, m_Controller.GetPosition());
 	}
 
@@ -136,6 +202,15 @@ namespace GB::Editor
 		if (!m_Instance)
 			return "player mode is off";
 		const glm::vec3 p = m_Controller.GetPosition();
+		if (m_Animator)
+		{
+			char head[200];
+			std::snprintf(head, sizeof head, "player at (%.1f, %.1f, %.1f), %.2f m/s, locomotion blend [%s] (phase %.2f, speed x%.2f, steps %d):", static_cast<double>(p.x), static_cast<double>(p.y), static_cast<double>(p.z),
+				static_cast<double>(m_Controller.GetSpeed()), m_Animator->Anim().Overlay().c_str(), static_cast<double>(m_Animator->Locomotion().Phase()), static_cast<double>(m_Animator->Locomotion().SpeedScale()), m_Steps ? m_Steps->Count() : 0);
+			std::string out = head;
+			for (const auto& c : m_Animator->Locomotion().Contributions()) { char b[96]; std::snprintf(b, sizeof b, " %s=%.2f", c.Clip.c_str(), static_cast<double>(c.Weight)); out += b; }
+			return out + (m_UseAI ? (m_AI.Arrived() ? " [AI arrived]" : m_AI.Stuck() ? " [AI stuck]" : " [AI walking]") : "");
+		}
 		char buf[200];
 		std::snprintf(buf, sizeof buf, "player at (%.1f, %.1f, %.1f), %.2f m/s, %s, %zu obstacles", static_cast<double>(p.x), static_cast<double>(p.y), static_cast<double>(p.z),
 			static_cast<double>(m_Controller.GetSpeed()), m_Animation.State == Locomotion::Idle ? "idle" : m_Animation.State == Locomotion::Walk ? "walking" : "running", m_Obstacles);

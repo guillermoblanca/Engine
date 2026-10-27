@@ -192,7 +192,6 @@ namespace GB::Editor
 	void EditorApp::BuildWorld(const WorldDesc& desc)
 	{
 		m_Player.Stop();   // it points into the old terrain
-		m_LocoGround = nullptr;
 		m_WorldDesc = desc;
 		m_Instance.reset();
 		m_SceneEditor.RemoveEnvironment();   // the old trees and rocks go with the old world; what the user added stays
@@ -494,7 +493,7 @@ namespace GB::Editor
 			if (a.size() >= 6) m_Orbit.Target = { static_cast<float>(std::atof(a[3].c_str())), static_cast<float>(std::atof(a[4].c_str())), static_cast<float>(std::atof(a[5].c_str())) };
 			return { true, "camera placed" };
 		});
-		c.Register("player", "player [fox|cesium|off] [keys]: walk the world in third person (WASD, Shift runs, drag the mouse to look). keys = a script like \"W:2,RW:3,:1\" for headless runs", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("player", "player [fox|cesium|<character.fbx>|off] [keys]: walk the world in third person (WASD, Shift runs, drag the mouse to look). An FBX character loads its folder's animations and walks with the locomotion blend. keys = a script like \"W:2,RW:3,:1\" for headless runs", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!a.empty() && (a[0] == "off" || a[0] == "stop"))
 			{
@@ -503,9 +502,29 @@ namespace GB::Editor
 			}
 			if (a.empty() && m_Player.IsActive()) return { true, m_Player.Describe() };
 			std::string error;
+			m_Player.SetFootsteps(m_Steps.get());
 			if (!m_Player.Start(a.empty() ? "fox" : a[0], m_World, m_SceneEditor, m_AssetRoot, m_Orbit.Target, error)) return { false, error };
 			if (a.size() > 1) m_Player.SetScript(a[1]);
 			return { true, m_Player.Describe() };
+		});
+		c.Register("player_goto", "player_goto <x> <z> [run]: an AI leads the player character to that point (same controller, animation and footsteps as the keyboard)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.size() < 2) return { false, "usage: player_goto <x> <z> [run]" };
+			if (!m_Player.IsActive()) return { false, "start the player first (player <fox|cesium|character.fbx>)" };
+			m_Player.MoveTo({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())) }, a.size() > 2 && a[2] == "run");
+			return { true, "going to (" + a[0] + ", " + a[1] + ")" };
+		});
+		c.Register("player_overlay", "player_overlay [name] [fade seconds]: switches the locomotion set of the FBX player (box, holding, wheelbarrow, free); no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty())
+			{
+				std::string names;
+				for (const std::string& n : m_Player.OverlayNames()) names += (names.empty() ? "" : ", ") + n;
+				return { true, "sets: " + names + " (default = free movement)" };
+			}
+			const float fade = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 0.3f;
+			return m_Player.SetOverlay(a[0], fade) ? CommandResult{ true, "set " + a[0] } : CommandResult{ false, "no such set '" + a[0] + "'" };
 		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
@@ -581,37 +600,6 @@ namespace GB::Editor
 				out += (out.empty() ? "" : "\n") + FormatClipStats(AnalyzeClip(*m_Model, static_cast<int>(i)));
 			}
 			return { !out.empty(), out.empty() ? "no such clip" : out };
-		});
-		c.Register("locomotion", "locomotion on|off: drives the loaded character with a walk/run/strafe blend (set loco.speed, loco.strafe, loco.turn; footsteps play)", [this](const std::vector<std::string>& a) -> CommandResult
-		{
-			if (a.empty()) return { false, "usage: locomotion on|off" };
-			if (a[0] == "off") { m_Loco.reset(); m_Props.RemovePrefix("loco."); if (m_Instance) m_Instance->Stop(); return { true, "locomotion off" }; }
-			if (!m_Model || !m_Instance) return { false, "load a character first (load <x.fbx>, anims <folder>)" };
-			auto loco = std::make_unique<LocomotionBlender>(*m_Model);
-			std::string added;
-			for (const char* name : { "idle", "walking", "standard run", "left strafe walking", "right strafe walking", "left strafe", "right strafe" })
-				if (loco->AddClip(name)) added += std::string(added.empty() ? "" : ", ") + name;
-			if (loco->ClipCount() == 0) return { false, "the model has none of the locomotion clips (idle, walking, standard run, left/right strafe [walking])" };
-			m_Loco = std::move(loco);
-			m_LocoLeftFoot = m_Model->FindNode("mixamorig:LeftFoot");
-			m_LocoRightFoot = m_Model->FindNode("mixamorig:RightFoot");
-			m_Props.RemovePrefix("loco.");
-			m_Props.Float("loco.speed", m_LocoSpeed, 0.0f, 6.0f, "Locomotion", "forward speed in m/s (walk ~1.7, run ~4.4)");
-			m_Props.Float("loco.strafe", m_LocoStrafe, -5.0f, 5.0f, "Locomotion", "sideways speed in m/s (positive = left)");
-			m_Props.Float("loco.turn", m_LocoTurn, -180.0f, 180.0f, "Locomotion", "turn rate in degrees per second");
-			m_Props.Bool("loco.follow", m_LocoFollow, "Locomotion", "the camera follows the character");
-			return { true, "locomotion on with " + std::to_string(m_Loco->ClipCount()) + " clips: " + added };
-		});
-		c.Register("loco_info", "loco_info: blend weights, phase and speed scale of the locomotion blend", [this](const std::vector<std::string>&) -> CommandResult
-		{
-			if (!m_Loco) return { false, "locomotion is off" };
-			char head[200];
-			std::snprintf(head, sizeof head, "velocity (%.2f left, %.2f fwd) m/s, phase %.2f, speed scale %.2f, gait %.2f, steps played %d, weights:",
-				static_cast<double>(m_Loco->Velocity().x), static_cast<double>(m_Loco->Velocity().y), static_cast<double>(m_Loco->Phase()), static_cast<double>(m_Loco->SpeedScale()),
-				static_cast<double>(m_Loco->GaitWeight()), m_Steps->Count());
-			std::string out = head;
-			for (const auto& c2 : m_Loco->Contributions()) { char b[96]; std::snprintf(b, sizeof b, " %s=%.2f", c2.Clip.c_str(), static_cast<double>(c2.Weight)); out += b; }
-			return { true, out };
 		});
 		c.Register("audio_record", "audio_record <file.wav>: records what the engine mixes (headless runs mix in step with the simulation) until audio_stop", [this](const std::vector<std::string>& a) -> CommandResult
 		{
@@ -724,8 +712,13 @@ namespace GB::Editor
 		m_SceneEditor.Tick(m_GizmoAxis >= 0 || ImGui::IsAnyItemActive());
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 		m_Scene.Post.DeltaTime = dt > 0.0f ? dt : 1.0f / 60.0f;
-		if (m_Loco) UpdateLocomotion(dt);
-		else if (m_Instance) m_Instance->Update(dt);
+		if (m_Instance && !m_Player.IsActive()) m_Instance->Update(dt);
+		{
+			Listener listener;   // the listener hears from the camera
+			listener.Position = m_Camera.Position;
+			listener.Forward = m_Camera.GetForward();
+			m_Audio->Mixer().SetListener(listener);
+		}
 		if (!m_Audio->HasDevice())
 		{
 			// no output device (headless): mix the time that passed, so sounds finish and can be recorded
@@ -734,38 +727,6 @@ namespace GB::Editor
 			m_Audio->Mixer().Render(block.data(), frames);
 			if (m_Recording) m_AudioRecord.insert(m_AudioRecord.end(), block.begin(), block.end());
 		}
-	}
-
-	void EditorApp::UpdateLocomotion(float dt)
-	{
-		// the controller: moves the character; the blend only poses it
-		const float yaw = m_ModelYaw + glm::radians(m_LocoTurn) * dt;
-		m_ModelYaw = yaw;
-		const glm::vec3 forward(std::sin(yaw), 0.0f, std::cos(yaw)), left(std::cos(yaw), 0.0f, -std::sin(yaw));
-		m_ModelPosition += (forward * m_LocoSpeed + left * m_LocoStrafe) * dt;
-		if (!m_LocoGround && m_World.IsBuilt()) m_LocoGround = m_World.GroundFunction();
-		if (m_LocoGround) m_ModelPosition.y = m_LocoGround(m_ModelPosition.x, m_ModelPosition.z);
-		if (m_LocoFollow) m_Orbit.Target = m_ModelPosition + glm::vec3(0.0f, 1.0f, 0.0f);
-
-		m_Loco->SetVelocity({ m_LocoStrafe, m_LocoSpeed });
-		m_Loco->Update(dt);
-		m_Loco->Apply(*m_Instance);
-
-		const glm::mat4 root = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale));
-		const float speed = glm::length(m_Loco->Velocity());
-		for (const FootEvent& e : m_Loco->Events())
-		{
-			const int bone = e.Left ? m_LocoLeftFoot : m_LocoRightFoot;
-			if (bone < 0) continue;
-			glm::vec3 foot = glm::vec3(root * m_Instance->GetNodeWorld(bone)[3]);
-			foot.y = m_ModelPosition.y;
-			m_Steps->Step(foot, speed, e.Weight);
-		}
-		// the listener hears from the camera
-		Listener l;
-		l.Position = m_Camera.Position;
-		l.Forward = m_Camera.GetForward();
-		m_Audio->Mixer().SetListener(l);
 	}
 
 	void EditorApp::OnRender()
