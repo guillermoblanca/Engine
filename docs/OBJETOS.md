@@ -26,7 +26,7 @@ actor bag <actor> craft <receta> [estación]
 `GB/Gameplay/Resources.h`: árboles, rocas, arbustos de bayas y matas de fibra son entidades con sistema de habilidades (como las parcelas del huerto).
 Llevan el atributo `Amount` y las etiquetas `Resource.Node`, `Resource.Node.<id>` y `Resource.Wood|Stone|Plant`; vacíos, `State.Depleted`.
 
-- Habilidades `Chop` (necesita `Item.Tool.Axe`), `Mine` (`Item.Tool.Pickaxe`) y `Gather` (a mano). Todo actor las tiene. El montaje es provisional (`dig_plant`, `pick_fruit`), ver `ANIMACIONES_PENDIENTES.md`.
+- Habilidades `Chop` (necesita `Item.Tool.Axe`), `Mine` (`Item.Tool.Pickaxe`), `Gather` (bayas, a mano) y `PullFiber` (matas de fibra). Todo actor las tiene. Cada tipo de nodo dice la suya (`ability` en `assets/data/era1.json`). Los montajes son provisionales (tajos de espada con la herramienta en la mano para talar y picar, brazo a media altura para las bayas y agacharse para la fibra), ver `ANIMACIONES_PENDIENTES.md`.
 - `ResourceSystem` saca las unidades del nodo y las entrega a la mochila de quien lo recoge; las herramientas de la mochila pasan a ser etiquetas del actor (`SyncTools`); un nodo agotado pierde lo que se recoge de él (copa, bayas, mata, roca) y lo recupera al regenerarse.
 - La regeneración es un efecto periódico del sistema de habilidades (`Regrow.<id>`), así que se guarda con la partida; las rocas no regeneran.
 - Editor: `resources build [x z]` coloca un parche de nodos, `resources status` los lista. Los nombres con espacio se pasan con guion bajo en las listas de tareas: `actor tasks worker ability Chop tree_2`.
@@ -34,7 +34,7 @@ Llevan el atributo `Amount` y las etiquetas `Resource.Node`, `Resource.Node.<id>
 ## Contenido como datos
 
 Objetos, recetas y nodos de recurso viven en un documento JSON (`assets/data/era1.json`, que el editor lee al arrancar encima de lo que define el código): añadir un objeto, una
-receta o un tipo de nodo no necesita compilar. Las entradas con el mismo `id` sustituyen a las anteriores; un documento con un error se rechaza entero y dice cuál.
+receta o la definición de un tipo de nodo no necesita compilar. **Colocar** nodos sí está limitado: `resources build` (`BuildResources`) solo sabe poner los cuatro tipos de la era 1 (`tree`, `rock`, `berry_bush`, `fiber_grass`), así que un tipo nuevo definido en JSON no aparece en el mundo hasta que haya un colocador por datos (mallas y posición por tipo). Las entradas con el mismo `id` sustituyen a las anteriores; un documento con un error se rechaza entero y dice cuál.
 
 ```
 content status                       cuántos hay
@@ -42,7 +42,8 @@ content export <fichero.json>        escribe lo que hay cargado (punto de partid
 content load <fichero.json>          añade o sustituye por id (por ejemplo una era nueva)
 ```
 
-Se comprueba que las recetas fabriquen y pidan objetos que existen, que los nodos den objetos que existen, que las etiquetas sean válidas y que apilado, peso y cantidades tengan sentido.
+Se comprueba que las recetas fabriquen y pidan objetos que existen, que los nodos den objetos que existen, que las etiquetas de los objetos sean válidas (y vengan en una lista) y que apilado, peso y cantidades tengan sentido; un valor del tipo equivocado (un texto donde va un número) se rechaza con un mensaje, nunca con una excepción. No se comprueba que la etiqueta `requires` de un nodo ni la habilidad que nombra un objeto existan.
+`Inventory::FromJson` rechaza enteros dañados: cuentas menores que 1, casillas o peso negativos, valores que no son números.
 El test `items` comprueba que el fichero del juego define lo mismo que `RegisterEraOneItems`.
 
 ## Regeneración y estaciones

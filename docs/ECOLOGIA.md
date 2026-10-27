@@ -15,6 +15,20 @@
 
 El huerto (`GardenSystem::GrowthRate`) usa ese factor: en invierno las plantas no avanzan. La regeneración de los nodos de recurso (árboles, bayas, fibra) usa el mismo factor: en invierno no rebrota nada. La lluvia (`weather rain|lightrain|storm`) riega las parcelas cada 5 s de simulación.
 
+## Cómo se ven
+
+Con `tribe build`, `ecology spawn` o `ecology season` la estación pasa a mandar sobre el aspecto del mundo (`ecology visuals on|off` lo activa o lo apaga; no cambia nada si no hay animales ni tribu):
+
+| Estación | Clima | Nieve en el suelo | Copas y arbustos de los nodos |
+|---|---|---|---|
+| Primavera | lluvia ligera el primer 20 % | 95 % que se derrite en el primer cuarto | verde claro |
+| Verano | despejado (tormenta a mitad de estación) | 0 | verde |
+| Otoño | lluvia el último tercio | un primer copo al final | naranja |
+| Invierno | nevada hasta el 90 % | cae durante el primer 15 % y se queda | escarchados |
+
+Todo sale de la estación y de cuánto lleva (`SeasonClock::Weather`, `SnowCover`, `Foliage`), sin guardar nada. Los colores se mezclan con los de la estación siguiente en el último 30 %, y el
+editor solo escribe las propiedades (`weather.preset`, `ground.snow`) cuando cambian.
+
 ## Conejos
 
 Un conejo es una entidad con sistema de habilidades cuyos atributos son todo su estado (`Food`, `Age`, `Cooldown`, `Starving`): se guardan y se cargan como todo lo demás. El sistema
@@ -35,12 +49,20 @@ ecology season [spring|summer|autumn|winter]  muestra o cambia la estación (mue
 
 El panel **World state** muestra la estación, los animales con su comida, los interactivos, los nodos de recurso y las parcelas del huerto.
 
+**Qué se guarda.** Los atributos (comida, edad, enfriamiento, hambre) y la posición, sí. **Hacia dónde iba** el conejo (su centro de paseo, la planta elegida y lo que lleva comiéndola) no: tras
+cargar, cada conejo toma como centro el sitio donde está y elige de nuevo, así que la partida cargada no sigue paso a paso igual que la original aunque tenga los mismos números.
+
+## Coste
+
+Cada conejo cuesta unos 5 a 25 µs por fotograma con la escena de un mundo generado (3.000 entidades): 8 conejos, 0,03 ms; 40, 0,06 ms; 120, 0,12 ms (`tests/scale_test.cpp`, `GB_SCALE_BENCH=1`).
+Antes de guardar el id de la entidad y listar las plantas una vez por fotograma era 0,35 / 1,8 / 5,7 ms: la búsqueda de una entidad por nombre recorre toda la escena.
+
 ## Test
 
-`tests/ecology_test.cpp`: las estaciones siguen el reloj, con comida los conejos comen, crían y no pasan del máximo, sin plantas los cuatro mueren, y dos ejecuciones dejan a
-cada conejo en el mismo sitio.
+`tests/ecology_test.cpp`: las estaciones siguen el reloj (y no se rompen con una estación de duración 0), con comida los conejos comen, crían y no pasan del máximo, sin plantas los cuatro mueren, dos ejecuciones dejan a
+cada conejo en el mismo sitio y una pradera guardada y cargada a mitad conserva a los mismos conejos y plantas con los mismos números y sigue funcionando.
 
 ## Límites conocidos
 
 - Solo hay un animal (conejo) y ningún depredador; la comida de los conejos y la de la tribu es la misma, y con pocos arbustos se la quitan.
-- Las estaciones no cambian aún el aspecto del terreno ni de los árboles, ni el clima de forma automática.
+- El color de estación solo llega a los nodos de recurso (los árboles del mundo generado conservan el suyo); el terreno y la hierba no cambian de color, solo la nieve.

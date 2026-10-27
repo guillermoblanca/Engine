@@ -284,6 +284,16 @@ int main()
 		Check(me.Attribute("Energy") == 15.0f, "the cost is paid when it commits");
 		Check(me.IsActive("Chop") && me.HasTag("Ability.Chop") && me.HasTag("State.Busy"), "running: its tag and the busy tag");
 		Check(!me.CanActivate("Chop", &tree, &why), "it cannot start twice");
+		{
+			// a running ability is not saved (it comes back cancelled), so its tags must not be either: State.Busy would block the character for good
+			const GameplayComponent saved = me.ToComponent();
+			bool held = false;
+			for (const std::string& t : saved.Tags) held = held || t == "State.Busy" || t == "Ability.Chop";
+			Check(!held, "the component of a character in the middle of an ability does not carry the tags of that ability");
+			AbilitySystemComponent reloaded("Me", lib);
+			reloaded.FromComponent(saved);
+			Check(!reloaded.HasTag("State.Busy") && reloaded.AnyActive() == false, "and a system rebuilt from it is not busy");
+		}
 		Run(me, 0.4f);
 		Check(me.Attribute("Wood") == 0.0f && tree.Attribute("Health") == 3.0f, "nothing happens before the notify");
 		Run(me, 0.2f);

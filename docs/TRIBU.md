@@ -35,7 +35,7 @@ timescale <1-20>                                        acelera la simulación (
 ```
 
 Los trabajadores son actores normales (`actor list`, `actor bag <nombre>`): se guardan con la partida, y el estado de la tribu (almacén, hoguera, memoria y decisión de cada uno, sus
-necesidades) va en la sección `ai` del guardado: al cargar siguen donde estaban. `tribe build` pone también un pozo cerca del campamento.
+necesidades) va en la sección `ai` del guardado: al cargar siguen donde estaban. `tribe build` pone también un pozo cerca del campamento. Una partida guardada con un trabajador a medias de una habilidad vuelve con la habilidad cancelada y sin `State.Busy` (antes la tribu entera quedaba bloqueada tras cargar).
 
 ## Panel Tribe y selección
 

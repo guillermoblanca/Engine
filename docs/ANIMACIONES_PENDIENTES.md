@@ -15,9 +15,9 @@ Cuando llegue el clip basta con añadirlo a `MixamoMontages()` (`Engine/src/GB/A
 | **Empuñar / guardar la herramienta** (sacar la pala, la regadera, el semillero) | `Dig`, `Sow`, `Water`, `PlantTree` | El objeto aparece en la mano al activar la habilidad y desaparece al acabar | Un gesto corto de coger y guardar para que no aparezca de golpe |
 | **Empujar y soltar la carretilla** | `PushWheelbarrow`, `ReleaseWheelbarrow` | El set `wheelbarrow` (manos en las varas) sin transición | Agarrar las varas y soltarlas; además falta el **modelo** de la carretilla en la mano (hoy solo se dibuja la del escenario) |
 | **Regar un arbolito** | `Water` sobre `Tree Spot` | El mismo `watering` de pie | Regar agachado a un sapling a la altura del suelo |
-| **Talar con hacha en bucle** | `Chop` (nodos de recurso, [OBJETOS.md](OBJETOS.md)) | `dig_plant` como sustituto | Golpes seguidos de hacha sobre el tronco y el final al caer |
-| **Picar roca con el pico** | `Mine` | `dig_plant` como sustituto | Golpes de pico sobre la roca |
-| **Agacharse a recolectar** (bayas, fibra) | `Gather` | `pick_fruit` (de pie) | Recoger de plantas bajas |
+| **Talar con hacha en bucle** | `Chop` (nodos de recurso, [OBJETOS.md](OBJETOS.md)) | dos tajos `sword_slash_1` y `sword_slash_3` con la herramienta (`tool`) en la mano | Golpes seguidos de hacha sobre el tronco y el final al caer |
+| **Picar roca con el pico** | `Mine` | golpe `sword_attack_4` con la herramienta en la mano | Golpes de pico sobre la roca |
+| **Agacharse a recolectar** (bayas, fibra) | `Gather` (bayas), `PullFiber` (fibra) | `pick_fruit_2` (brazo a la altura de un arbusto; `pick_fruit` alcanzaba hacia arriba y parecía invertido) y `pull_plant` (agachado) | Recoger de plantas bajas |
 | **Segar con hoz** | `Harvest` (propuesta, [PROPUESTA_HABILIDADES_Y_ECONOMIA.md](PROPUESTA_HABILIDADES_Y_ECONOMIA.md)) | Interino: `pull_plant` | Cosechar grano y cortar junco |
 | **Tejer sentado** (cestería) | `Craft` de cestas y cuerda | Interino: `kneel_idle` | Fabricar cestas y esteras |
 | **Tallar piedra** (percutor sobre pedernal) | `Craft` de herramientas de piedra | Interino: `kneel_idle` / `idle_variant_2` | Fabricar hachas de pedernal |
@@ -27,4 +27,4 @@ Cuando llegue el clip basta con añadirlo a `MixamoMontages()` (`Engine/src/GB/A
 | **Demostrar y observar** (maestro y aprendiz) | `Teach`, `Study` | Interino: `gesture_acknowledge`, `gesture_thoughtful` | Difusión del conocimiento (H11) |
 | **Recoger arcilla** (agachado) | `Gather` en `clay_bank` | Interino: `dig_plant` | Cavar arcilla |
 
-Sugerencia de la propuesta de economía: para bayas bajas y fibra probar `pull_plant` / `plant` en lugar de `pick_fruit` (alcanza hacia arriba y se ve invertido), y para talar probar `sword_slash_2` a `playRate` 0,7 antes que `dig_plant`; ver el apartado 13 de la propuesta.
+Las animaciones de recolección actuales (tajos con la herramienta en la mano para talar y picar, `pick_fruit_2` para las bayas y `pull_plant` para la fibra) ya se aplicaron y se comprobaron en el editor; los interinos de abajo son los que propone la economía y están sin probar en el visor.

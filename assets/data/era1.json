@@ -99,7 +99,7 @@
       "regenSeconds": 20.0
     },
     {
-      "ability": "Gather",
+      "ability": "PullFiber",
       "capacity": 8,
       "id": "fiber_grass",
       "item": "fiber",

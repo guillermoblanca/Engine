@@ -24,7 +24,7 @@ struct Field
 		Layout = BuildResources(Entities, glm::vec3(0.0f), Defs);
 		const EntityId w = Entities.Create("Worker");
 		Entities.Find(w)->Gameplay.emplace();
-		Entities.Find(w)->Gameplay->Abilities = { "Chop", "Mine", "Gather" };
+		Entities.Find(w)->Gameplay->Abilities = { "Chop", "Mine", "Gather", "PullFiber" };
 		Gameplay.Load(Entities);
 		Rules.Bind(Gameplay, Defs, [this](const std::string& who, const std::string& item, int n) { if (who == "Worker") Bag.Add(Items, item, n); });
 	}
@@ -64,7 +64,8 @@ static std::string Loop(bool& ok)
 	auto step = [&](bool good, const char* what) { if (!good) std::fprintf(stderr, "  (loop step failed: %s)\n", what); ok = ok && good; };
 
 	step(!f.Do("Chop", "tree 1"), "no axe, no chopping");
-	step(f.Do("Gather", "fiber grass 1") && f.Do("Gather", "fiber grass 1") && f.Do("Gather", "fiber grass 1"), "gather fibre by hand");
+	step(f.Do("PullFiber", "fiber grass 1") && f.Do("PullFiber", "fiber grass 1") && f.Do("PullFiber", "fiber grass 1"), "pull fibre by hand");
+	step(!f.Do("Gather", "fiber grass 2"), "berry picking does not work on a tuft of grass");
 	step(f.Bag.Count("fiber") == 6, "6 fibre");
 	step(f.Do("Gather", "berry bush 1") && f.Bag.Count("berry") == 2, "berries");
 
