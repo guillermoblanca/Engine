@@ -123,6 +123,8 @@ namespace GB::Editor
 			});
 		}
 		RegisterGardenContent(m_Gameplay.Library);
+		RegisterEraOneItems(m_Items, m_Recipes, m_NodeDefs);
+		RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
 		m_Player.Attach(&m_Actors);
 		m_Actors.Bind(&m_SceneEditor.World(), &m_Gameplay);
@@ -670,22 +672,28 @@ namespace GB::Editor
 			}
 			if (sub == "bag")
 			{
-				if (m_Items.Ids().empty()) RegisterEraOneItems(m_Items, m_Recipes, m_NodeDefs);
 				Inventory& bag = actor->Bag();
 				const std::string verb = a.size() > 2 ? a[2] : "list";
 				const int n = a.size() > 4 ? std::max(1, std::atoi(a[4].c_str())) : 1;
 				if (verb == "add" && a.size() > 3)
 				{
 					const int got = bag.Add(m_Items, a[3], n);
+					StepResources();   // tools are tags of the ability system: the next ability sees them at once
 					return { got > 0, got > 0 ? "added " + std::to_string(got) + " " + a[3] : "cannot add " + a[3] + " (unknown item or no room)" };
 				}
-				if (verb == "remove" && a.size() > 3) return { true, "removed " + std::to_string(bag.Remove(a[3], n)) + " " + a[3] };
+				if (verb == "remove" && a.size() > 3)
+				{
+					const int took = bag.Remove(a[3], n);
+					StepResources();
+					return { true, "removed " + std::to_string(took) + " " + a[3] };
+				}
 				if (verb == "craft" && a.size() > 3)
 				{
 					const std::string station = a.size() > 4 ? a[4] : "";
 					const std::string why = m_Recipes.WhyNot(m_Items, bag, a[3], station);
 					if (!why.empty()) return { false, why };
 					m_Recipes.Craft(m_Items, bag, a[3], station);
+					StepResources();
 					return { true, "made " + a[3] };
 				}
 				std::string text;
@@ -785,6 +793,7 @@ namespace GB::Editor
 			m_Player.HitRagdoll({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) });
 			return { true, "hit" };
 		});
+		c.Register("resources", "resources build [x z] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)", [this](const std::vector<std::string>& a) { return ResourcesCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
 		c.Register("montage_info", "montage_info [montage]: describes a montage (clip, slot, blends, rate, notifies, sections); no name lists them", [this](const std::vector<std::string>& a) -> CommandResult

@@ -33,7 +33,48 @@ namespace GB::Editor
 		m_Gameplay.Load(m_SceneEditor.World());
 		m_Garden.Bind(m_Gameplay, &m_SceneEditor.World());
 		m_Garden.SyncVisuals();
+		BindResources();
 		m_Actors.PrepareAbilities();   // the new systems get the player's character at once (a script can activate in this same frame)
+	}
+
+	void EditorApp::BindResources()
+	{
+		m_Resources.Bind(m_Gameplay, m_NodeDefs, [this](const std::string& who, const std::string& item, int count)
+		{
+			if (Actor* actor = m_Actors.Find(who)) actor->Bag().Add(m_Items, item, count);
+		});
+		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
+	}
+
+	void EditorApp::StepResources()
+	{
+		for (const std::string& name : m_Actors.Names())
+			if (AbilitySystemComponent* asc = m_Gameplay.Find(name))
+				ResourceSystem::SyncTools(*asc, m_Actors.Find(name)->Bag(), m_Items);
+		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
+	}
+
+	CommandResult EditorApp::ResourcesCommand(const std::vector<std::string>& a)
+	{
+		const std::string sub = a.empty() ? "status" : a[0];
+		if (sub == "build")
+		{
+			glm::vec3 origin = m_Orbit.Target;
+			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
+			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+			const ResourceLayout layout = BuildResources(m_SceneEditor.World(), origin, m_NodeDefs);
+			m_SceneEditor.Select(NullEntity);
+			SyncGameplay();
+			m_SceneEditor.Commit();
+			return { true, std::to_string(layout.Nodes.size()) + " resource nodes built at (" + std::to_string(static_cast<int>(origin.x)) + ", " + std::to_string(static_cast<int>(origin.z))
+				+ "). Gather with: ability activate Gather \"berry_bush 1\" (Chop needs an axe, Mine a pickaxe: actor bag <name> craft stone_axe workbench)" };
+		}
+		std::string s;
+		for (const std::string& n : m_Gameplay.Names())
+			if (const AbilitySystemComponent* node = m_Gameplay.Find(n); node && node->HasTag("Resource.Node"))
+				s += n + ": " + std::to_string(ResourceSystem::Amount(*node)) + (node->HasTag("State.Depleted") ? " (depleted)" : "") + "; ";
+		if (s.empty()) return { false, "no resource nodes in the scene (resources build)" };
+		return { true, s };
 	}
 
 	CommandResult EditorApp::GardenCommand(const std::vector<std::string>& a)

@@ -66,7 +66,7 @@ namespace GB::Editor
 		// Orders that change the simulation: the ones a replay records.
 		bool IsSimCommand(const std::string& word)
 		{
-			static const std::set<std::string> names = { "garden", "ability", "add", "delete", "duplicate", "move", "rotate", "scale", "color", "emissive",
+			static const std::set<std::string> names = { "garden", "resources", "ability", "add", "delete", "duplicate", "move", "rotate", "scale", "color", "emissive",
 				"light", "drop", "set", "time", "weather", "entity", "select", "generate" };
 			return names.count(word) != 0;
 		}
@@ -273,6 +273,7 @@ namespace GB::Editor
 		RestoreGameplay(app.m_Gameplay, app.m_SceneEditor.World(), game.Gameplay);
 		app.m_Garden.Bind(app.m_Gameplay, &app.m_SceneEditor.World());
 		app.m_Garden.SyncVisuals();
+		app.BindResources();
 		app.m_Player.PrepareAbilities();
 		app.m_SimTick = game.Clock.Tick;
 		app.m_SimAccum = 0.0;
@@ -280,12 +281,14 @@ namespace GB::Editor
 		app.m_Props.Set("tod.hours", std::to_string(game.Clock.Hours));
 		if (app.m_Props.Set("weather.preset", game.Weather.Preset).Ok) app.m_Weather->Snap();
 		if (m_Actors) m_Actors->RestoreActors(game.Actors, false);
+		app.StepResources();
 	}
 
 	void EditorSaveHost::Step()
 	{
 		m_App.m_Gameplay.Update(static_cast<float>(kSimDt));
 		m_App.m_Garden.Update(static_cast<float>(kSimDt));
+		m_App.StepResources();
 		++m_App.m_SimTick;
 	}
 
