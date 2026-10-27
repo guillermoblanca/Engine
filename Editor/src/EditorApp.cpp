@@ -641,7 +641,7 @@ namespace GB::Editor
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
 			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Tests") flag = &m_Panels.Tests;
 			if (!flag) return { false, "no such panel '" + n + "'" };
-			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = true; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
+			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
 			return { true, n + (*flag ? " shown" : " hidden") };
 		});
@@ -1662,7 +1662,7 @@ namespace GB::Editor
 
 	void EditorApp::DrawTimelinePanel()
 	{
-		if (m_TimelineFocus) { ImGui::SetNextWindowFocus(); m_TimelineFocus = false; }   // `panel Timeline tab x` brings it to the front of its dock
+		if (m_TimelineFocus > 0) { ImGui::SetNextWindowFocus(); --m_TimelineFocus; }   // `panel Timeline tab x` brings it to the front of its dock
 		if (ImGui::Begin("Timeline", &m_Panels.Timeline))
 		{
 			AnimInstance* anim = m_Player.Anim();

@@ -154,7 +154,8 @@ namespace GB::Editor
 		std::string m_AssetRoot;
 		std::string m_TimelineMontage, m_TimelineFile = "montages.json";
 		int m_TimelineNotify = -1;
-		bool m_TimelineDrag = false, m_TimelineFocus = false;
+		bool m_TimelineDrag = false;
+		int m_TimelineFocus = 0;   // frames left to ask for focus (a docked tab needs a couple)
 		std::vector<std::string> m_TimelineLog;   // the latest notifies and endings
 		std::string m_AnimTabRequest;   // the Animation panel selects this tab on the next frame
 	};
