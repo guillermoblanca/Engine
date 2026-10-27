@@ -468,13 +468,13 @@ namespace GB
 			at.AddBase("Moisture", -dt / Config.MoistureSeconds);
 			if (plot && a->HasTag("State.Soil.Planted"))
 			{
-				at.AddBase("Growth", dt / Config.StageSeconds);
+				at.AddBase("Growth", dt * GrowthRate / Config.StageSeconds);
 				if (at.Current("Growth") >= 2.0f - 1e-5f) SetSoil(*a, "State.Soil.Planted.Grown");
 				else if (at.Current("Growth") >= 1.0f - 1e-5f && a->HasTag("State.Soil.Planted.Sown")) SetSoil(*a, "State.Soil.Planted.Sprout");
 			}
 			else if (tree && a->HasTag("State.Tree.Sapling"))
 			{
-				at.AddBase("Growth", dt / Config.TreeSeconds);
+				at.AddBase("Growth", dt * GrowthRate / Config.TreeSeconds);
 				if (at.Current("Growth") >= 1.0f - 1e-5f)
 				{
 					SetTree(*a, "State.Tree.Grown");

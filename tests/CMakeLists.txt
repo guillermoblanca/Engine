@@ -248,3 +248,7 @@ add_test(NAME tribe COMMAND GBTribeTests)
 add_executable(GBInteractivesTests interactives_test.cpp)
 target_link_libraries(GBInteractivesTests PRIVATE GB::GB)
 add_test(NAME interactives COMMAND GBInteractivesTests)
+
+add_executable(GBEcologyTests ecology_test.cpp)
+target_link_libraries(GBEcologyTests PRIVATE GB::GB)
+add_test(NAME ecology COMMAND GBEcologyTests)

@@ -41,6 +41,7 @@ namespace GB
 	{
 	public:
 		GardenConfig Config;
+		float GrowthRate = 1.0f;   // 1 = as configured; the season scales it (SeasonClock::GrowthRate): nothing grows in deep winter
 		void Bind(GameplayWorld& gameplay, EntityWorld* entities = nullptr);
 		void Update(float dt);
 		// Shows each plot and tree as its state says (sprout, plant, fruit) by switching its child entities. Cheap, and only writes changes.
