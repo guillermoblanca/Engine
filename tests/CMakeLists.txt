@@ -80,3 +80,7 @@ add_executable(GBWorldTests world_test.cpp)
 target_link_libraries(GBWorldTests PRIVATE GB::GB)
 add_test(NAME world COMMAND GBWorldTests)
 set_tests_properties(world PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBDestructionTests destruction_test.cpp)
+target_link_libraries(GBDestructionTests PRIVATE GB::GB)
+add_test(NAME destruction COMMAND GBDestructionTests)

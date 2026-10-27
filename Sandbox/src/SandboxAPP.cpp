@@ -550,7 +550,7 @@ private:
 			m_Terrain = GB::Terrain::CreateDunes(dp, 360.0f, 641, style);
 		}
 		m_Terrain->AddToScene(m_Scene);
-		if (options.HasFlag("physics") || !options.GetValue("physics").empty())
+		if (options.HasFlag("physics") || !options.GetValue("physics").empty() || options.HasFlag("destruction"))
 		{
 			m_Physics = std::make_unique<GB::PhysicsWorld>();
 			m_Physics->SetTerrain(&m_Terrain->GetHeightmap());
@@ -735,6 +735,8 @@ private:
 		m_StaticObjects = m_Scene.Objects.size();
 		if (m_Physics)
 			BuildPhysicsBodies(options);
+		if (m_Physics && options.HasFlag("destruction"))
+			BuildDestruction(options);
 		const std::string walker = options.GetValue("walker", "none");
 		if (walker != "none")
 			BuildWalker(walker, options, style);
@@ -892,7 +894,8 @@ private:
 	// Crates, barrels, balls and planks dropped over the terrain; the tornado, the wind and the lake act on them.
 	void BuildPhysicsBodies(const GB::LaunchOptions& options)
 	{
-		const int count = std::max(std::atoi(options.GetValue("physics", "40").c_str()), 0) > 0 ? std::atoi(options.GetValue("physics", "40").c_str()) : 40;
+		const std::string physicsValue = options.GetValue("physics");
+		const int count = physicsValue.empty() ? 40 : std::max(std::atoi(physicsValue.c_str()), 0);
 		if (m_Terrain->HasLake() || m_Terrain->GetRiver())
 		{
 			const GB::Terrain* terrain = m_Terrain.get();
@@ -930,6 +933,14 @@ private:
 			item.Sphere = d.Shape == GB::ShapeType::Sphere;
 			item.Scale = item.Sphere ? glm::vec3(d.Radius * 2.0f) : d.HalfExtents * 2.0f;
 			m_PhysItems.push_back(item);
+			if (options.HasFlag("destruction"))
+			{
+				if (!m_Destruction) m_Destruction = std::make_unique<GB::DestructionSystem>(*m_Physics);
+				GB::DestructibleDesc dd;
+				dd.Toughness = kind == 0 ? 450.0f : kind == 1 ? 300.0f : kind == 2 ? 500.0f : 150.0f;
+				dd.Split = kind == 0 ? glm::ivec3(2, 2, 2) : kind == 1 ? glm::ivec3(1, 2, 1) : kind == 3 ? glm::ivec3(3, 1, 1) : glm::ivec3(2, 2, 2);
+				m_Destruction->Add(item.Body, dd);
+			}
 		}
 		GB_CLIENT_INFO("Physics: {} bodies, {} static colliders", m_PhysItems.size(), m_Physics->GetStaticCount());
 	}
@@ -938,13 +949,15 @@ private:
 	{
 		for (const PhysItem& item : m_PhysItems)
 		{
+			if (!m_Physics->IsAlive(item.Body)) continue;
 			GB::RenderObject o;
 			o.MeshPtr = item.Sphere ? m_Sphere.get() : m_Cube.get();
 			o.Mat.Albedo = item.Color;
 			o.Mat.Roughness = 0.75f;
 			o.Mat.HeightScale = 0.0f;
 			o.Mat.CavityStrength = 0.0f;
-			o.Transform = glm::scale(m_Physics->GetBody(item.Body).GetTransform(), item.Scale);
+			const float vis = m_Destruction ? m_Destruction->GetVisualScale(item.Body) : 1.0f;
+			o.Transform = glm::scale(m_Physics->GetBody(item.Body).GetTransform(), item.Scale * vis);
 			m_Scene.Objects.push_back(o);
 		}
 	}
@@ -981,6 +994,123 @@ private:
 		}
 	}
 
+	// A brick wall and a trigger for blasts and cannon balls; breakage throws dust, blasts leave a scorched crater.
+	void BuildDestruction(const GB::LaunchOptions& options)
+	{
+		if (!m_Destruction)
+			m_Destruction = std::make_unique<GB::DestructionSystem>(*m_Physics);
+		m_Destruction->OnFragment = [this](int body, int from, const glm::vec3& size)
+		{
+			PhysItem item;
+			for (const PhysItem& p : m_PhysItems) if (p.Body == from) { item = p; break; }
+			item.Body = body;
+			item.Sphere = m_Physics->GetBody(body).Desc.Shape == GB::ShapeType::Sphere;
+			item.Scale = size;
+			m_PhysItems.push_back(item);
+		};
+		// the flattest spot near the middle for the wall
+		float best = 1e9f;
+		for (int k = 0; k < 300; ++k)
+		{
+			const float x = -30.0f + 60.0f * static_cast<float>((k * 7919) % 1000) / 1000.0f, z = -30.0f + 60.0f * static_cast<float>((k * 104729) % 1000) / 1000.0f;
+			const float slope = 1.0f - m_Terrain->GetHeightmap().GetNormal(x, z).y;
+			const float wet = m_Terrain->GetRiverLevelAt(x, z) > -1e8f || (m_Terrain->HasLake() && m_Terrain->GetHeight(x, z) < m_Terrain->GetWaterLevel() + 0.6f) ? 10.0f : 0.0f;
+			if (slope + wet < best) { best = slope + wet; m_WallPos = { x, 0.0f, z }; }
+		}
+		GB::BodyDesc brick; brick.HalfExtents = { 0.4f, 0.15f, 0.2f }; brick.Density = 1800.0f; brick.Friction = 0.7f; brick.Restitution = 0.1f;
+		GB::BodyDesc halfBrick = brick; halfBrick.HalfExtents.x = 0.2f;
+		GB::DestructibleDesc dd; dd.Toughness = 900.0f; dd.Split = { 2, 1, 1 }; dd.DebrisLifetime = 12.0f; dd.BlastSpeed = 3.0f;
+		const float baseY = m_Terrain->GetHeight(m_WallPos.x, m_WallPos.z);
+		const int rows = std::atoi(options.GetValue("wall-rows", "8").c_str());
+		uint32_t rng = 31u;
+		auto rnd = [&]() { rng = rng * 1664525u + 1013904223u; return static_cast<float>(rng >> 8) / 16777216.0f; };
+		auto add = [&](const GB::BodyDesc& d, float x, int row)
+		{
+			PhysItem item;
+			item.Body = m_Physics->AddBody(d, { m_WallPos.x + x, baseY + 0.15f + 0.3002f * static_cast<float>(row), m_WallPos.z });
+			item.Sphere = false;
+			item.Scale = d.HalfExtents * 2.0f;
+			const float t = 0.8f + 0.4f * rnd();
+			item.Color = glm::vec3(0.55f, 0.24f, 0.16f) * t;
+			m_PhysItems.push_back(item);
+			m_Destruction->Add(item.Body, dd);
+		};
+		for (int row = 0; row < rows; ++row)
+		{
+			if (row % 2 == 0)
+				for (int col = 0; col < 7; ++col) add(brick, (static_cast<float>(col) - 3.0f) * 0.82f, row);
+			else
+			{
+				for (int col = 0; col < 6; ++col) add(brick, (static_cast<float>(col) - 2.5f) * 0.82f, row);
+				add(halfBrick, -2.65f, row); add(halfBrick, 2.65f, row);
+			}
+		}
+		m_BlastFx = std::make_unique<GB::ParticleSystem>(GB::ParticlePresets::Explosion());
+		m_Scene.Particles.push_back(m_BlastFx.get());
+		m_BreakDust = std::make_unique<GB::ParticleSystem>(GB::ParticlePresets::FootDust({ 0.60f, 0.52f, 0.42f }));
+		m_Scene.Particles.push_back(m_BreakDust.get());
+		if (!m_Ground)
+		{
+			GB::GroundInteractionDesc gd;
+			gd.Size = 64.0f; gd.Resolution = 1024; gd.RecoveryPerSecond = 0.004f;
+			m_Ground = std::make_unique<GB::GroundInteraction>(gd);
+			m_Scene.Ground = m_Ground.get();
+		}
+		m_ShootAt = static_cast<float>(std::atof(options.GetValue("shoot", "-1").c_str()));
+		m_ExplodeAt = static_cast<float>(std::atof(options.GetValue("explode", "-1").c_str()));
+		m_Orbit.Target = { m_WallPos.x, baseY + 1.5f, m_WallPos.z };
+		m_Orbit.Distance = 12.0f;
+		m_Orbit.Pitch = 0.2f;
+		m_Orbit.Yaw = 0.5f;
+		GB_CLIENT_INFO("Destruction: wall of {} bricks at ({:.0f}, {:.0f}); X = blast at the target, F = fire a ball", m_PhysItems.size(), m_WallPos.x, m_WallPos.z);
+	}
+
+	void Blast(const glm::vec3& at, float radius, float speed)
+	{
+		m_Destruction->Explode(at, radius, speed);
+		if (m_BlastFx)
+		{
+			m_BlastFx->SetPosition(at);
+			m_BlastFx->Burst(110);
+		}
+		if (m_Ground)
+			m_Ground->StampCircle(at, radius * 0.35f, 1.0f);   // scorched, dented ground
+	}
+
+	void FireBall(const glm::vec3& from, const glm::vec3& velocity)
+	{
+		GB::BodyDesc d; d.Shape = GB::ShapeType::Sphere; d.Radius = 0.35f; d.Density = 6000.0f; d.Restitution = 0.2f;
+		PhysItem item;
+		item.Body = m_Physics->AddBody(d, from);
+		m_Physics->GetBody(item.Body).Velocity = velocity;
+		item.Sphere = true;
+		item.Scale = glm::vec3(0.7f);
+		item.Color = { 0.12f, 0.12f, 0.14f };
+		m_PhysItems.push_back(item);
+	}
+
+	void UpdateDestructionTriggers(float)
+	{
+		using GB::Key;
+		const bool x = GB::Input::IsKeyDown(Key::X), f = GB::Input::IsKeyDown(Key::F);
+		if (x && !m_BlastKeyWasDown)
+			Blast(m_Orbit.Target + glm::vec3(0.0f, -1.0f, 0.0f), 9.0f, 22.0f);
+		if (f && !m_FireKeyWasDown)
+			FireBall(m_LastCamera.Position, m_LastCamera.GetForward() * 34.0f);
+		m_BlastKeyWasDown = x; m_FireKeyWasDown = f;
+		if (m_ShootAt >= 0.0f && m_Time >= m_ShootAt)
+		{
+			m_ShootAt = -1.0f;
+			const float y = m_Terrain->GetHeight(m_WallPos.x, m_WallPos.z) + 1.4f;
+			FireBall({ m_WallPos.x + 0.3f, y + 0.6f, m_WallPos.z + 18.0f }, { 0.0f, 3.0f, -30.0f });
+		}
+		if (m_ExplodeAt >= 0.0f && m_Time >= m_ExplodeAt)
+		{
+			m_ExplodeAt = -1.0f;
+			Blast({ m_WallPos.x, m_Terrain->GetHeight(m_WallPos.x, m_WallPos.z) + 0.3f, m_WallPos.z + 1.5f }, 8.0f, 20.0f);
+		}
+	}
+
 	void UpdatePhysics(float dt)
 	{
 		m_Physics->Wind = m_Weather->GetWind();
@@ -998,10 +1128,21 @@ private:
 			m_Physics->Vortices.push_back(v);
 		}
 		m_Physics->Step(dt);
+		if (m_Destruction)
+		{
+			UpdateDestructionTriggers(dt);
+			m_Destruction->Update(dt, m_Physics->TakeContacts());
+			for (const GB::BreakEvent& b : m_Destruction->TakeBreaks())
+				if (m_BreakDust) m_BreakDust->EmitAt(b.Position, 5 + static_cast<uint32_t>(b.Fragments));
+			m_PhysItems.erase(std::remove_if(m_PhysItems.begin(), m_PhysItems.end(), [this](const PhysItem& p) { return !m_Physics->IsAlive(p.Body); }), m_PhysItems.end());
+			if (m_BlastFx) m_BlastFx->Update(dt);
+			if (m_BreakDust) m_BreakDust->Update(dt);
+			if (m_Ground && !m_Walker) m_Ground->Update(dt, m_Orbit.Target);
+		}
 		for (const GB::SplashEvent& s : m_Physics->TakeSplashes())
 			if (m_Ripples)
 				m_Ripples->Impulse(s.Position, 0.15f + 0.4f * s.Radius, -std::min(0.12f, 0.015f * std::fabs(s.Speed)) * (0.5f + s.Radius));
-		m_Physics->TakeContacts();
+		if (!m_Destruction) m_Physics->TakeContacts();
 	}
 
 	// Lamp posts around the lake (or the middle of the map): warm point lights with a glowing lantern.
@@ -1530,6 +1671,11 @@ private:
 	std::vector<std::unique_ptr<GB::Rock>> m_RockVariants;
 	struct PhysItem { int Body = -1; bool Sphere = false; glm::vec3 Scale{ 1.0f }, Color{ 1.0f }; };
 	std::unique_ptr<GB::PhysicsWorld> m_Physics;
+	std::unique_ptr<GB::DestructionSystem> m_Destruction;
+	std::unique_ptr<GB::ParticleSystem> m_BlastFx, m_BreakDust;
+	glm::vec3 m_WallPos{ 0.0f };
+	float m_ShootAt = -1.0f, m_ExplodeAt = -1.0f;
+	bool m_BlastKeyWasDown = false, m_FireKeyWasDown = false;
 	std::vector<PhysItem> m_PhysItems;
 	std::unique_ptr<GB::WaterSurface> m_Water, m_RiverWater;
 	std::unique_ptr<GB::Mesh> m_LanternPost;

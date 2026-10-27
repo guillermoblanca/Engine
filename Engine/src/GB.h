@@ -16,6 +16,7 @@
 #include "GB/World/Physics.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Erosion.h"
+#include "GB/World/Destruction.h"
 #include "GB/World/WorldGen.h"
 #include "GB/Renderer/EnvironmentMap.h"
 #include "GB/World/GroundInteraction.h"
