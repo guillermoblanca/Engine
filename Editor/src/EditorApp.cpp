@@ -396,12 +396,14 @@ namespace GB::Editor
 	CommandResult EditorApp::Execute(const std::string& line)
 	{
 		m_SceneEditor.SetSpawnPoint(m_Orbit.Target);
+		if (const auto words = CommandRunner::Tokenize(line); !words.empty() && (words[0] == "scene_save" || (words[0] == "scene" && words.size() > 1 && words[1] == "save")))
+			m_Gameplay.Store(m_SceneEditor.World());   // the file keeps the live state of the garden and the characters
 		const CommandResult r = m_Commands.Execute(line);
 		m_SceneEditor.Tick(m_GizmoAxis >= 0);   // an edit made by `set sel.*` is its own undo step
 		if (const auto words = CommandRunner::Tokenize(line); !words.empty() && r.Ok)
 		{
 			const std::string& w = words[0];
-			if (w == "scene_load" || w == "new_scene" || w == "undo" || w == "redo" || (w == "scene" && words.size() > 1 && (words[1] == "load" || words[1] == "new" || words[1] == "undo" || words[1] == "redo")))
+			if (w == "scene_load" || w == "new_scene" || (w == "scene" && words.size() > 1 && (words[1] == "load" || words[1] == "new")))
 				SyncGameplay();   // the entities are not the ones the ability systems came from
 		}
 		if (!line.empty() && !r.Message.empty())
@@ -589,7 +591,7 @@ namespace GB::Editor
 			std::string error;
 			return m_Player.Interact(a[0], a.size() > 1 ? a[1] : "", error) ? CommandResult{ true, "going to " + a[0] } : CommandResult{ false, error };
 		});
-		c.Register("player_tasks", "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop], separated by '|' or new lines)", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("player_tasks", "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop] | ability <name> [entity], separated by '|' or new lines)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!m_Player.IsActive()) return { false, "start the player first (player <character.fbx>)" };
 			if (a.empty()) return { true, m_Player.TaskStatus() };

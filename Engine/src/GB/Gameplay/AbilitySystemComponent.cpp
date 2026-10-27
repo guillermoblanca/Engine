@@ -148,6 +148,7 @@ namespace GB
 		if (IsActive(ability)) return no("'" + ability + "' is already running");
 		for (const std::string& t : d->RequiredTags)
 			if (!m_Tags.Has(t)) return no("needs " + t);
+		if (!d->RequiredProp.empty() && !m_Tags.Has("State.Carrying." + d->RequiredProp)) return no("needs to carry the " + d->RequiredProp);
 		for (const std::string& t : d->BlockedTags)
 			if (m_Tags.Has(t)) return no("blocked by " + t);
 		if (m_Tags.Has("Cooldown.Ability." + ability)) return no("cooling down (" + std::to_string(CooldownRemaining(ability)).substr(0, 4) + " s)");

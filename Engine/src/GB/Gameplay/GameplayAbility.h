@@ -27,6 +27,7 @@ namespace GB
 		std::string Name;
 		std::string Tag;                                  // "Ability.Dig": held by the owner while it runs
 		std::vector<std::string> RequiredTags, BlockedTags;               // on the one who acts
+		std::string RequiredProp;                                         // it must be carrying this prop (tag "State.Carrying.<prop>")
 		std::vector<std::string> TargetRequiredTags, TargetBlockedTags;   // on the target (all of the first, none of the second)
 		std::vector<std::string> TargetRequiredAnyTags;                   // on the target: at least one of them
 		std::vector<std::pair<std::string, float>> TargetMinAttributes;   // attribute of the target >= value

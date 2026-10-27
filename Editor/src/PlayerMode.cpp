@@ -258,6 +258,7 @@ namespace GB::Editor
 	{
 		AbilitySystemComponent* asc = Abilities();
 		if (!asc) { error = "no ability system for '" + m_Actor + "' (garden build)"; return false; }
+		PrepareAbilities();   // the character is lent to the abilities before this one starts, even in the frame the player appeared
 		m_Tasks.Clear();
 		m_Script.clear();
 		m_UseAI = false;
@@ -271,6 +272,7 @@ namespace GB::Editor
 		{
 			AbilitySystemComponent* asc = Abilities();
 			if (!asc) { error = "no ability system for '" + m_Actor + "' (garden build)"; return false; }
+			PrepareAbilities();
 			return asc->Activate(ability, entity.empty() ? nullptr : m_Gameplay->Find(entity), &error, entity);
 		};
 		h.Poll = [this](std::string& error)

@@ -31,6 +31,7 @@ namespace GB::Editor
 		m_Gameplay.Load(m_SceneEditor.World());
 		m_Garden.Bind(m_Gameplay, &m_SceneEditor.World());
 		m_Garden.SyncVisuals();
+		m_Player.PrepareAbilities();   // the new systems get the player's character at once (a script can activate in this same frame)
 	}
 
 	CommandResult EditorApp::GardenCommand(const std::vector<std::string>& a)

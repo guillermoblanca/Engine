@@ -11,7 +11,7 @@ determinista y se ejecuta sin ventana; sus tests están en `tests/gameplay_test.
 | `GameplayTag`, `GameplayTagContainer` | `GameplayTag.h` | Etiquetas jerárquicas con puntos (`Ability.Plant`, `State.Carrying.Box`). Preguntar por `State.Carrying` es cierto si se tiene `State.Carrying.Box` (coincidencia por prefijo, cortada en el punto). El contenedor cuenta cuántos efectos conceden cada etiqueta |
 | `AttributeSet` | `AttributeSet.h` | Números con base, mínimo y máximo (energía, agua, semillas, fruta...). Los efectos instantáneos cambian la base; los que duran añaden modificadores (`Add`, `Multiply`, `Override`) que se quitan al acabar |
 | `GameplayEffectDef` | `GameplayEffect.h` | `Instant`, `Duration` o `Infinite`; con `Period` aplica sus modificadores cada periodo (fruta que rebrota, energía que se recupera). Modifica atributos y concede o quita etiquetas. El **coste** de una habilidad es un efecto instantáneo y el **enfriamiento** uno con duración que concede `Cooldown.Ability.<nombre>` |
-| `AbilityDef` | `GameplayAbility.h` | Datos de la habilidad: etiquetas requeridas y bloqueantes (del que actúa y del objetivo), atributos mínimos del objetivo, coste, enfriamiento, montajes, eventos ligados a las notificaciones del montaje, props que empuña |
+| `AbilityDef` | `GameplayAbility.h` | Datos de la habilidad: etiquetas requeridas y bloqueantes (del que actúa y del objetivo), prop que debe llevar (`RequiredProp` = la etiqueta `State.Carrying.<prop>`), atributos mínimos del objetivo, coste, enfriamiento, montajes, eventos ligados a las notificaciones del montaje, props que empuña |
 | `GameplayLibrary` | `GameplayAbility.h` | Efectos y habilidades por nombre; las entidades se refieren a ellos por nombre y la escena queda pequeña |
 | `AbilitySystemComponent` | `AbilitySystemComponent.h` | Etiquetas, atributos, efectos y habilidades de **una** entidad (jugador, NPC, parcela, árbol...): `Grant`, `CanActivate`, `Activate`, `Cancel`, `ApplyEffect`, `Update`, eventos y `ToComponent`/`FromComponent` |
 | Tareas | `AbilityTasks.h` | `MoveToTargetTask` (usa `InteractionRunner` y `MotionWarp`), `PlayMontageAndWaitTask`, `WaitGameplayEventTask` |
@@ -42,7 +42,7 @@ Quien maneja al personaje (teclado, IA o lista de tareas) no importa: `AbilitySy
 
 Cada entidad puede llevar un `GameplayComponent` (etiquetas, atributos con rango, habilidades concedidas y efectos infinitos) que `SceneIO`
 guarda en la sección `"gameplay"`. `GameplayWorld::Load(escena)` crea los sistemas y `Store(escena)` escribe el estado vivo. No se guardan los
-temporizadores de los efectos con duración.
+temporizadores de los efectos con duración. En el editor, `scene_save` / `scene save` llama antes a `Store`, así que el archivo lleva el estado vivo del huerto.
 
 ## El huerto
 

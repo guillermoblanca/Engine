@@ -420,7 +420,7 @@ int main()
 		Check(!me->CanActivate("Dig", g.Gameplay.Find("Plot 2"), &why), "carrying a box blocks working");
 		Check(!me->CanActivate("PushWheelbarrow", nullptr, &why), "and taking the wheelbarrow");
 		Check(g.Do("Gardener", "DropBox", "") && !me->HasTag("State.Carrying"), "dropping it frees the hands");
-		Check(!me->CanActivate("DumpWheelbarrow", g.Gameplay.Find("Compost"), &why), "dumping needs the wheelbarrow");
+		Check(!me->CanActivate("DumpWheelbarrow", g.Gameplay.Find("Compost"), &why) && why.find("Wheelbarrow") != std::string::npos, "dumping needs the wheelbarrow (a required prop)");
 		me->Attributes().SetBase("Crops", 1.0f);
 		g.Do("Gardener", "PushWheelbarrow", "");
 		Check(g.Do("Gardener", "DumpWheelbarrow", "Compost") && g.Gameplay.Find("Compost")->Attribute("Compost") == 1.0f, "with the wheelbarrow, dumping the crop adds compost");

@@ -166,7 +166,7 @@ namespace GB
 
 		AbilityDef dump = Work("DumpWheelbarrow", "wheelbarrow_dump", "dump", 0.6f, "Event.Compost.Dump", 3.0f);
 		dump.BlockedTags = { "State.Busy" };
-		dump.RequiredTags = { "State.Carrying.Wheelbarrow" };
+		dump.RequiredProp = "Wheelbarrow";
 		dump.TargetRequiredTags = { "Garden.Compost" };
 		dump.Events[0].TargetEffects = { "Gain.Compost" };
 		dump.Cost = "Cost.Dump";
@@ -277,7 +277,7 @@ namespace GB
 		out.Center = origin;
 
 		// the plots: 3 x 2, a gap between rows to stand in
-		const glm::vec3 grass(0.26f, 0.5f, 0.2f);
+		const glm::vec3 grass(0.18f, 0.38f, 0.12f);
 		int n = 0;
 		for (int r = 0; r < 2; ++r)
 			for (int c = 0; c < 3; ++c)
@@ -286,15 +286,15 @@ namespace GB
 				const EntityId id = w.Create(name, root);
 				Entity& e = *w.Find(id);
 				e.Transform.Position = { (c - 1) * 2.4f, 0.0f, r * 3.2f };
-				Part(w, id, name + " Soil", MeshShape::Cube, { 0.0f, 0.06f, 0.0f }, { 1.8f, 0.12f, 1.8f }, grass);
+				Part(w, id, name + " Soil", MeshShape::Cube, { 0.0f, 0.22f, 0.0f }, { 1.8f, 0.44f, 1.8f }, grass);   // a raised bed: the grass of the terrain does not hide it
 				Stand(e, "work", { 0.0f, 0.0f, -1.5f }, 0.0f);
 				e.Tags = { "plot" };
 				e.Gameplay.emplace();
 				e.Gameplay->Tags = { "Garden.Plot", "State.Soil.Grass" };
 				e.Gameplay->Attributes = { { "Moisture", 0.0f, 0.0f, 1.0f }, { "Growth", 0.0f, 0.0f, 2.0f } };
-				Part(w, id, name + " Sprout", MeshShape::Sphere, { 0.0f, 0.2f, 0.0f }, { 0.25f, 0.2f, 0.25f }, { 0.4f, 0.7f, 0.2f });
-				Part(w, id, name + " Stem", MeshShape::Cube, { 0.0f, 0.4f, 0.0f }, { 0.07f, 0.6f, 0.07f }, { 0.25f, 0.5f, 0.15f });
-				Part(w, id, name + " Leaves", MeshShape::Sphere, { 0.0f, 0.75f, 0.0f }, { 0.9f, 0.5f, 0.9f }, { 0.2f, 0.55f, 0.15f });
+				Part(w, id, name + " Sprout", MeshShape::Sphere, { 0.0f, 0.6f, 0.0f }, { 0.25f, 0.2f, 0.25f }, { 0.4f, 0.7f, 0.2f });
+				Part(w, id, name + " Stem", MeshShape::Cube, { 0.0f, 0.85f, 0.0f }, { 0.07f, 0.6f, 0.07f }, { 0.25f, 0.5f, 0.15f });
+				Part(w, id, name + " Leaves", MeshShape::Sphere, { 0.0f, 1.2f, 0.0f }, { 0.9f, 0.5f, 0.9f }, { 0.2f, 0.55f, 0.15f });
 				out.Plots.push_back(e.Name);
 			}
 
@@ -506,7 +506,7 @@ namespace GB
 				if (e && e->Mesh)
 				{
 					const bool wet = a->HasTag("State.Wet");
-					glm::vec3 c = soil == "grass" ? glm::vec3(0.26f, 0.5f, 0.2f) : wet ? glm::vec3(0.16f, 0.1f, 0.05f) : glm::vec3(0.3f, 0.19f, 0.1f);
+					glm::vec3 c = soil == "grass" ? glm::vec3(0.18f, 0.38f, 0.12f) : wet ? glm::vec3(0.16f, 0.1f, 0.05f) : glm::vec3(0.3f, 0.19f, 0.1f);
 					if (e->Mesh->Albedo != c) e->Mesh->Albedo = c;
 				}
 			}
