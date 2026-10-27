@@ -28,7 +28,10 @@ tribe log [n]                                           las últimas n líneas d
 timescale <1-20>                                        acelera la simulación (el día de la tribu en un minuto)
 ```
 
-Los trabajadores son actores normales (`actor list`, `actor bag <nombre>`): se guardan con la partida. El estado de la tribu (almacén, trabajos en curso) aún no.
+Los trabajadores son actores normales (`actor list`, `actor bag <nombre>`): su posición y su mochila se guardan con la partida. El estado de la tribu (almacén, hoguera, trabajos en curso, reloj) aún no:
+**tras `load` el almacén conserva lo que tenía justo antes de cargar** y no el de la partida guardada, mientras que el mundo y las mochilas sí vuelven atrás.
+Una partida guardada con un trabajador a medias de una habilidad vuelve con la habilidad cancelada y sin `State.Busy` (antes se quedaba con esa etiqueta y la tribu entera dejaba de poder hacer nada).
+Si se borra un trabajador con `actor remove`, la tribu lo sigue listando y queda parado (no bloquea a los demás); `tribe build` lo reconstruye todo.
 
 ## Panel Tribe y selección
 
@@ -42,10 +45,15 @@ Los trabajadores son actores normales (`actor list`, `actor bag <nombre>`): se g
 ## Test
 
 `tests/tribe_test.cpp` ejecuta cuatro trabajadores con cuerpos de prueba que interpretan el mismo texto de tareas que un actor real durante 10 minutos de
-simulación: se hacen las dos herramientas y la hoguera, ningún contador baja de cero y dos ejecuciones acaban idénticas.
+simulación: se hacen las dos herramientas y la hoguera, ningún contador baja de cero, nadie va a un nodo al que ya va otro y dos ejecuciones acaban idénticas. También cubre los límites: una
+tribu sin construir, sin miembros, y un trabajador sin nada que recoger (pasa hambre, descansa, dice por qué y no llena el registro). `tests/scale_test.cpp` mide el coste de decidir con 60 miembros
+(`GB_SCALE_BENCH=1`).
 
 ## Límites conocidos
 
 - Con los recursos agotados (las rocas no se regeneran) la tribu se queda sin nada que hacer y descansa. Faltan comida, hambre y necesidades (H5).
 - No hay decisiones colectivas ni roles que cambien: el reparto es fijo (H9 a H12).
-- El estado de la tribu no se guarda todavía.
+- El estado de la tribu no se guarda todavía (propuesta en [INFORME_CALIDAD.md](INFORME_CALIDAD.md)).
+- Los límites del almacén (`StockCap` = 40) se pueden pasar en unas pocas unidades: quien lleva carga al almacén la deja entera, aunque lo supere (43 de madera en el test).
+- El registro (`Log()`) no tiene límite: unas 0,5 líneas por trabajador y segundo de simulación.
+- Con muchos trabajadores todos deciden a la vez (cada 0,5 s) y esa tanda cuesta unos milisegundos de golpe; ver el informe.

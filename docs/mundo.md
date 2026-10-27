@@ -117,3 +117,14 @@ El terreno es una malla regular, así que donde el agua toca el suelo la línea 
 - Los vértices del borde de la zona refinada conservan la arista gruesa, de modo que la malla es estanca frente a la cuadrícula normal sin costuras.
 - `Terrain::RefreshMesh` mantiene sincronizados los vértices nuevos con la erosión y los cráteres.
 - Las consultas de altura (física, hierba, árboles) no cambian: usan el mapa de alturas original.
+
+**Coste medido** (mundo de 256 m con lago y río, Release, Intel i7-11700K; tiempo de `Terrain::CreateHills`, mejor de 3):
+
+| Subdivisión | Rejilla 257: ms / triángulos | Rejilla 513: ms / triángulos |
+|---:|---:|---:|
+| 1 (apagado) | 153 / 131 k | 256 / 524 k |
+| 2 | 165 / 181 k | 298 / 686 k |
+| 4 (por defecto) | 227 / 381 k | 505 / 1,33 M |
+| 8 | 464 / 1,18 M | 1307 / 3,9 M |
+
+El valor por defecto triplica los triángulos del terreno con lago y río (+74 ms de generación en la rejilla de 257) y añade ~126 k vértices; con 8 la malla pasa del millón de triángulos incluso en la rejilla pequeña. En una escena con 735 k hojas de hierba y 420 árboles el fotograma del editor (790x617, RTX 3070, sin vsync) dura ~5 ms con cualquier preset de `quality`, así que el alfa a cobertura (activo con MSAA) no se distingue del ruido a esa resolución.

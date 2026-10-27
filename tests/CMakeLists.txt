@@ -253,3 +253,7 @@ add_test(NAME interactives COMMAND GBInteractivesTests)
 add_executable(GBEcologyTests ecology_test.cpp)
 target_link_libraries(GBEcologyTests PRIVATE GB::GB)
 add_test(NAME ecology COMMAND GBEcologyTests)
+
+add_executable(GBScaleTests scale_test.cpp)
+target_link_libraries(GBScaleTests PRIVATE GB::GB)
+add_test(NAME scale COMMAND GBScaleTests)

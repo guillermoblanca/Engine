@@ -1098,7 +1098,7 @@ private:
 	{
 		const float t = std::fmod(m_Time, 100.0f);
 		// hour of the day
-		static const std::vector<std::pair<float, float>> hours = { { 0, 8.0f }, { 18, 10.5f }, { 36, 15.0f }, { 52, 17.2f }, { 64, 18.6f }, { 80, 21.5f }, { 94, 30.0f }, { 100, 32.0f } };
+		static const std::vector<std::pair<float, float>> hours = { { 0.0f, 8.0f }, { 18.0f, 10.5f }, { 36.0f, 15.0f }, { 52.0f, 17.2f }, { 64.0f, 18.6f }, { 80.0f, 21.5f }, { 94.0f, 30.0f }, { 100.0f, 32.0f } };
 		GB::SkyDesc sky;
 		sky.Hours = std::fmod(Keyframe(hours, t), 24.0f);
 		sky.SunAzimuthDegrees = 200.0f;

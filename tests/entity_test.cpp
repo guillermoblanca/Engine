@@ -32,6 +32,24 @@ int main()
 	Check(w.Rename(b, "Crate") && w.Find(b)->Name == "Crate 2", "rename keeps names unique");
 	Check(w.Create("x", 999) == NullEntity, "unknown parent rejected");
 
+	// the lookup by name remembers its answers; it must never return an entity that was deleted, renamed or replaced
+	{
+		EntityWorld n;
+		const EntityId first = n.Create("Rabbit 1");
+		Check(n.FindByName("Rabbit 1") == first && n.FindByName("Rabbit 1") == first, "a name is found twice in a row");
+		n.Rename(first, "Hare");
+		Check(n.FindByName("Rabbit 1") == NullEntity && n.FindByName("Hare") == first, "after a rename the old name is gone and the new one is found");
+		n.Destroy(first);
+		Check(n.FindByName("Hare") == NullEntity, "after a delete the name is gone");
+		const EntityId second = n.Create("Hare");
+		Check(n.FindByName("Hare") == second && second != first, "a new entity with the same name is found, not the old one");
+		EntityWorld copy = n;
+		copy.Destroy(second);
+		const EntityId third = copy.Create("Other");
+		Check(copy.FindByName("Hare") == NullEntity && copy.FindByName("Other") == third && n.FindByName("Hare") == second, "copies of a world do not share answers");
+		Check(n.FindByName("") == NullEntity && n.FindByName("nothing here") == NullEntity, "unknown names are not found");
+	}
+
 	// Hierarchy and world matrices.
 	w.Find(a)->Transform.Position = { 10, 0, 0 };
 	w.Find(a)->Transform.Rotation = { 0, 90, 0 };

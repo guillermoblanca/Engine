@@ -119,13 +119,16 @@ Hecho:
 - Editor con jerarquía, inspector, selección, gizmo y deshacer; escenas JSON.
 - QA automatizado con referencias de imagen y de datos.
 - Prototipo de personaje controlable en tercera persona (`--player`).
+- Sistema de habilidades tipo GAS y huerto jugable, objetos, inventario y recursos del mundo (datos en `assets/data/era1.json`), interactivos con estado, estaciones y ecología básica.
+- Partidas guardadas con migraciones, guardado diferencial y repeticiones deterministas.
+- La primera tribu: trabajadores autónomos con paneles de estado en el editor.
+- Pase de calidad con cifras de rendimiento: [docs/INFORME_CALIDAD.md](docs/INFORME_CALIDAD.md).
 
 En curso o previsto:
 
-- Máquina de estados de animación (idle, locomoción, salto, giro en sitio), controlador de personaje y cámara de seguimiento (fase 11A-3); el prototipo de personaje actual usa umbrales de velocidad y se sustituirá por la mezcla de poses y la locomoción ya integradas.
 - Audio ligado a entidades y ambiente en el editor.
 - Calidad del agua y del terreno cerca de la cámara; árboles, palmeras y rocas procedurales.
-- Medición de rendimiento del refinado de orillas y del follaje con alpha.
+- Medición en GPU del alfa a cobertura del follaje (el refinado de orillas ya está medido: [docs/mundo.md](docs/mundo.md)).
 - API para agentes sobre el editor.
 - **Mundo vivo de clanes**: sociedades de NPC que construyen, descubren tecnología, tienen hijos, comercian y guerrean, con el jugador como un miembro más y con avance por eras hasta la espacial. El plan completo, por hitos, con criterios de aceptación y matriz de cobertura, está en [docs/PLAN_SOCIEDAD_VIVA.md](docs/PLAN_SOCIEDAD_VIVA.md).
 

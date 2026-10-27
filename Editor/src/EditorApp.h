@@ -136,6 +136,7 @@ namespace GB::Editor
 		ResourceSystem m_Resources;
 		EcologySystem m_Ecology;                                 // rabbits that eat, breed and starve (`ecology spawn`)
 		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
+		int m_FocusWorldState = 0, m_FocusAbilities = 0;         // the same for the World state and Abilities panels (panel <name> on)
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
 		Tribe m_Tribe;                                           // the first tribe (`tribe build`): workers that gather, carry, craft and light a fire alone

@@ -8,12 +8,14 @@ namespace GB
 {
 	Season SeasonClock::At(double seconds) const
 	{
+		if (!(SeasonSeconds > 0.0f)) return Season::Spring;   // (a season of no length would divide by zero)
 		const double s = seconds < 0.0 ? 0.0 : seconds;
-		return static_cast<Season>(static_cast<int>(s / static_cast<double>(SeasonSeconds)) % 4);
+		return static_cast<Season>(static_cast<long long>(s / static_cast<double>(SeasonSeconds)) % 4);
 	}
 
 	float SeasonClock::Progress(double seconds) const
 	{
+		if (!(SeasonSeconds > 0.0f)) return 0.0f;
 		const double s = seconds < 0.0 ? 0.0 : seconds;
 		return static_cast<float>(std::fmod(s, static_cast<double>(SeasonSeconds)) / static_cast<double>(SeasonSeconds));
 	}
@@ -118,7 +120,8 @@ namespace GB
 	{
 		if (!m_Entities || !m_Gameplay) return 0;
 		int made = 0;
-		for (int i = 0; i < count && Count() < Config.MaxAnimals; ++i, ++made)
+		const int present = Count();
+		for (int i = 0; i < count && present + made < Config.MaxAnimals; ++i, ++made)
 		{
 			const float angle = static_cast<float>(i) * 2.399963f;   // the golden angle: they do not pile up
 			const float r = 0.6f * std::sqrt(static_cast<float>(i) + 1.0f);
@@ -161,14 +164,36 @@ namespace GB
 			if (const AbilitySystemComponent* a = m_Gameplay->Find(name); a && a->HasTag("Animal.Rabbit")) names.push_back(name);
 		int population = static_cast<int>(names.size());
 
+		// The plants and where they stand, listed once per update the first time a rabbit looks for food (the search by name is linear in the
+		// entities of the scene, and plants do not move). Whether a plant still has something is asked again at the moment of choosing.
+		struct Plant { std::string Name; glm::vec2 At; };
+		std::vector<Plant> plants;
+		bool plantsListed = false;
+		auto listPlants = [&]()
+		{
+			plantsListed = true;
+			for (const std::string& n : m_Gameplay->Names())
+			{
+				const AbilitySystemComponent* plant = m_Gameplay->Find(n);
+				if (!plant || !plant->HasTag("Resource.Plant")) continue;
+				const EntityId pid = m_Entities->FindByName(n);
+				if (pid == NullEntity) continue;
+				const glm::vec4 pp = m_Entities->WorldMatrix(pid)[3];
+				plants.push_back({ n, { pp.x, pp.z } });
+			}
+		};
+
 		for (const std::string& name : names)
 		{
 			AbilitySystemComponent* a = m_Gameplay->Find(name);
-			const EntityId id = m_Entities->FindByName(name);
+			Walk& w = m_Walks[name];
+			// The id is kept between frames (the search by name is linear in the entities of the scene); the name is checked in case the scene was replaced.
+			const Entity* known = w.Id != NullEntity ? m_Entities->Find(w.Id) : nullptr;
+			const EntityId id = known && known->Name == name ? w.Id : m_Entities->FindByName(name);
 			if (!a || id == NullEntity) continue;
+			w.Id = id;
 			Entity& e = *m_Entities->Find(id);
 			AttributeSet& at = a->Attributes();
-			Walk& w = m_Walks[name];
 			if (!w.Has) { w.Has = true; w.Home = { e.Transform.Position.x, e.Transform.Position.z }; w.Target = w.Home; }
 
 			at.AddBase("Food", -hunger * dt);
@@ -190,16 +215,14 @@ namespace GB
 			// a plant to eat when hungry
 			if (w.Plant.empty() && at.Current("Food") < Config.HungryBelow)
 			{
+				if (!plantsListed) listPlants();
 				float best = 20.0f;
-				for (const std::string& n : m_Gameplay->Names())
+				for (const Plant& p : plants)
 				{
-					const AbilitySystemComponent* plant = m_Gameplay->Find(n);
-					if (!plant || !plant->HasTag("Resource.Plant") || ResourceSystem::Amount(*plant) <= 0) continue;
-					const EntityId pid = m_Entities->FindByName(n);
-					if (pid == NullEntity) continue;
-					const glm::vec4 pp = m_Entities->WorldMatrix(pid)[3];
-					const float d = glm::distance(pos, glm::vec2(pp.x, pp.z));
-					if (d < best) { best = d; w.Plant = n; w.Target = { pp.x, pp.z }; }
+					const AbilitySystemComponent* plant = m_Gameplay->Find(p.Name);
+					if (!plant || ResourceSystem::Amount(*plant) <= 0) continue;
+					const float d = glm::distance(pos, p.At);
+					if (d < best) { best = d; w.Plant = p.Name; w.Target = p.At; }
 				}
 			}
 

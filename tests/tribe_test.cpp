@@ -145,6 +145,8 @@ struct Village
 			if (a->HasTag("Resource.Node") && ResourceSystem::Amount(*a) < 0) bad = true;
 		}
 		for (const ItemSlot& s : Tribe_.Store().Stacks()) if (s.Count <= 0) bad = true;
+		std::map<std::string, int> goingTo;   // nobody goes to a node another one is already walking to
+		for (const TribeMember& m : Tribe_.Members()) if (m.Job == "gather" && ++goingTo[m.Detail] > 1) bad = true;
 		for (auto& b : bodies) for (const ItemSlot& s : b->Bag().Stacks()) if (s.Count <= 0) bad = true;
 	}
 	std::string Fingerprint() const
@@ -167,6 +169,39 @@ struct Village
 
 int main()
 {
+	// Limits: a tribe nobody built, a tribe with no one in it, and a tribe in a land with nothing to gather (everyone goes hungry and says why).
+	{
+		Tribe unbound;
+		unbound.Update(1.0f);
+		Check(unbound.Time() == 0.0 && unbound.Log().empty(), "an unbound tribe does nothing (and does not crash)");
+
+		ItemLibrary items;
+		RecipeBook recipes;
+		std::map<std::string, ResourceNodeDef> defs;
+		RegisterEraOneItems(items, recipes, defs);
+		EntityWorld entities;
+		GameplayWorld gameplay;
+		Tribe none;
+		none.Bind(entities, gameplay, items, recipes, defs);
+		for (int i = 0; i < 600; ++i) none.Update(dt);
+		Check(none.Members().empty() && none.Log().empty() && none.Time() > 9.9, "an empty tribe lets time pass and does nothing else");
+		Check(none.Report().find("store: empty") == 0, "and reports an empty store");
+
+		Tribe bare;
+		bare.Bind(entities, gameplay, items, recipes, defs);
+		FakeBody body("Lone", gameplay, entities, glm::vec2(0.0f));
+		bare.AddMember("Lone", "woodcutter", &body);
+		for (int i = 0; i < 60 * 100; ++i) bare.Update(dt);
+		Check(bare.Members()[0].Hungry && bare.Members()[0].Meals == 0, "with no berry anywhere the worker goes hungry and eats nothing");
+		Check(bare.Members()[0].Job == "rest" && bare.Members()[0].Why.find("no tree nodes") != std::string::npos, "it rests and says there are no trees");
+		bool said = false;
+		for (const std::string& line : bare.Log()) said = said || line.find("is hungry") != std::string::npos;
+		Check(said && bare.Report().find("(hungry)") != std::string::npos, "the log and the report say it is hungry");
+		const size_t lines = bare.Log().size();
+		for (int i = 0; i < 60 * 100; ++i) bare.Update(dt);
+		Check(bare.Log().size() < lines + 4, "a worker with nothing to do does not fill the log with the same line");
+	}
+
 	Village v;
 	v.Run(600.0);
 	const Tribe& t = v.Tribe_;

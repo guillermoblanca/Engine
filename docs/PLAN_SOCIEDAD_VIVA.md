@@ -1,7 +1,7 @@
 # Plan: un mundo vivo de clanes, de la recolección a la era espacial
 
 > Documento de planificación. Recoge la visión del juego, lo que el motor ya tiene, los principios de diseño, los hitos en orden de dependencia (con entregables, criterios de aceptación y riesgos), la matriz que comprueba que cada requisito está cubierto, los carriles de trabajo en paralelo y los primeros pasos.
-> Estado de partida: `master` con locomoción mezclada, montajes, sockets e IK, interacciones, ragdoll, retargeting, editor y QA automatizado. En curso: huerto con sistema de habilidades tipo GAS (rama `feature/huerto-gas`) y árboles de animación (otro agente).
+> Estado de partida: `master` con locomoción mezclada, montajes, sockets e IK, interacciones, ragdoll, retargeting, editor y QA automatizado. Desde entonces se han fusionado H0, H1, H2, H3 (parte) y H4 (ver la tabla de estado al principio del apartado 4); el pase de calidad de ese trabajo está en [INFORME_CALIDAD.md](INFORME_CALIDAD.md).
 
 [← Volver al README](../README.md)
 
@@ -47,6 +47,18 @@ El volumen de animaciones que ya tenemos (locomoción, granja, heridos, magia, e
 
 Orden de dependencias; tamaños relativos (**S** una sesión de trabajo, **M** unas pocas, **L** varias, **XL** una serie). Cada hito lista su objetivo, sus entregables, el criterio de aceptación y los riesgos. Los hitos H0 a H4 se llaman la **base**; H5 a H8, los **agentes**; H9 a H12, la **sociedad**; H13 y H14, la **diplomacia y el conflicto**; H15 y H16, el **jugador y la escala**; H17 y H18, las **eras y la economía**; H19 y H20, la **calidad y las herramientas**.
 
+**Estado de los hitos** (según el código de `master`; el detalle y los fallos conocidos, en [INFORME_CALIDAD.md](INFORME_CALIDAD.md)):
+
+| Hito | Estado | Dónde está |
+|---|---|---|
+| H0 Contrato de actor | Hecho | `Actor`, `ActorWorld`; ~45 µs por actor y fotograma ([COSTE_ACTOR.md](COSTE_ACTOR.md)) |
+| H1 Habilidades (GAS) | Hecho | `GB/Gameplay`, [habilidades.md](habilidades.md) |
+| H2 Objetos, inventario y recursos | Hecho salvo lo listado en [OBJETOS.md](OBJETOS.md) | `Items`, `Resources`, `assets/data/era1.json` |
+| H3 Mundo interactivo y ecología | Parcial: huerto, interactivos, estaciones, conejos y panel World state; falta la colisión de la puerta, fauna con más especies y que la hoguera de la tribu sea un interactivo | [INTERACTIVOS.md](INTERACTIVOS.md), [ECOLOGIA.md](ECOLOGIA.md) |
+| H4 Persistencia v1 | Hecho (v1) con huecos: no guarda el estado de la tribu, los temporizadores de los interactivos ni el destino de los conejos | [GUARDADO.md](GUARDADO.md) |
+| H5 Navegación y percepción | En curso (sesiones propias de navegación y de percepción e IA) | `GB/Navigation`, `GB/AI` |
+| H6 a H20 | Sin empezar; la primera tribu (`Tribe`, [TRIBU.md](TRIBU.md)) es un adelanto de H6/H7 con reglas fijas | |
+
 ### Base de juego
 
 #### H0 · Consolidación y contrato de actor · S–M
@@ -62,7 +74,7 @@ Orden de dependencias; tamaños relativos (**S** una sesión de trabajo, **M** u
 
 #### H1 · Núcleo de habilidades (GAS) · M
 **Objetivo.** Habilidades y efectos como la capa que decide qué puede hacer un actor, igual para jugador y NPC.
-**Entregables.** Etiquetas jerárquicas, atributos con modificadores, efectos (instantáneos, con duración y periódicos), habilidades con requisitos, coste y enfriamiento, tareas de habilidad (reproducir montaje, esperar evento, ir a un objetivo), componente de habilidades por entidad, guardado y carga. Los efectos de un montaje se aplican con sus notificaciones. **En curso** en `feature/huerto-gas`.
+**Entregables.** Etiquetas jerárquicas, atributos con modificadores, efectos (instantáneos, con duración y periódicos), habilidades con requisitos, coste y enfriamiento, tareas de habilidad (reproducir montaje, esperar evento, ir a un objetivo), componente de habilidades por entidad, guardado y carga. Los efectos de un montaje se aplican con sus notificaciones. **Hecho** ([habilidades.md](habilidades.md)).
 **Aceptación.** Tests deterministas de etiquetas, atributos, efectos, coste y enfriamiento; un actor activa la misma habilidad desde teclado y desde IA con el mismo resultado.
 **Riesgos.** Hacer un clon completo de GAS: se mantiene lo mínimo útil y se amplía por necesidad.
 

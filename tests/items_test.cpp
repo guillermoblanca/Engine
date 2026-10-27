@@ -166,6 +166,45 @@ int main()
 		Check(LoadContent(R"({ "items": [ { "id": "ok1" }, { "id": "bad", "stack": -1 } ] })", items, recipes, nodes).size() > 0 && items.Find("ok1") == nullptr, "a document with a mistake changes nothing at all");
 		Check(ContentToJson(items, recipes, nodes) == before, "nothing changed after the refusals");
 
+		// hostile or sloppy documents: an error message, never an exception, and nothing changes
+		const char* bad[] = {
+			R"({ "items": 5 })", R"({ "items": [ 5 ] })", R"({ "items": [ { "id": 7 } ] })", R"({ "items": [ { "id": "w", "weight": "heavy" } ] })",
+			R"({ "items": [ { "id": "w", "tags": [ 1 ] } ] })", R"({ "items": [ { "id": "w", "tags": "Item.X" } ] })", R"({ "items": [ { "id": "w", "weight": -2 } ] })",
+			R"({ "recipes": [ { "id": "r", "output": "wood", "inputs": { "wood": "two" } } ] })", R"({ "recipes": [ { "id": "r", "output": "wood", "inputs": { "wood": 0 } } ] })",
+			R"({ "recipes": [ { "id": "r", "output": "wood", "count": 0 } ] })", R"({ "recipes": [ { "id": "r", "inputs": { "wood": 1 } } ] })",
+			R"({ "nodes": [ { "id": "n", "item": "wood", "capacity": "big" } ] })", R"({ "nodes": [ { "id": "n", "item": "wood", "capacity": 0 } ] })",
+			R"({ "nodes": [ { "id": "n", "item": "wood", "regenSeconds": -1 } ] })", R"({ "nodes": [ { "item": "wood" } ] })", R"([])", R"(null)", ""
+		};
+		for (const char* text : bad)
+		{
+			std::string answer;
+			bool threw = false;
+			try { answer = LoadContent(text, items, recipes, nodes); }
+			catch (...) { threw = true; }
+			if (threw || answer.empty()) std::fprintf(stderr, "  (accepted or crashed on: %s)\n", text);
+			Check(!threw && !answer.empty(), "a malformed content document is refused with a message");
+		}
+		Check(ContentToJson(items, recipes, nodes) == before, "and none of them changed anything");
+
+		// an inventory file that is damaged is refused whole (and never throws)
+		Inventory keep(5, 0.0f);
+		keep.Add(w.Items, "wood", 3);
+		const std::string bagBefore = keep.ToJson();
+		const char* badBags[] = {
+			R"({ "items": [ [ "wood", 0 ] ] })", R"({ "items": [ [ "wood", -4 ] ] })", R"({ "items": [ [ "wood", 1.5 ] ] })", R"({ "items": [ [ "wood" ] ] })",
+			R"({ "items": [ [ 3, 3 ] ] })", R"({ "items": [], "slots": "many" })", R"({ "items": [], "maxWeight": "heavy" })", R"({ "items": [], "slots": -1 })",
+			R"({ "items": [], "maxWeight": -5 })", R"({ "items": {} })", "[]", "{", ""
+		};
+		for (const char* text : badBags)
+		{
+			bool threw = false, accepted = false;
+			try { accepted = keep.FromJson(text); }
+			catch (...) { threw = true; }
+			if (threw || accepted) std::fprintf(stderr, "  (accepted or crashed on: %s)\n", text);
+			Check(!threw && !accepted, "a damaged inventory is refused");
+		}
+		Check(keep.ToJson() == bagBefore, "and the inventory it was loaded into is unchanged");
+
 		// the content file of the game says the same as the code
 		ItemLibrary fileItems;
 		RecipeBook fileRecipes;

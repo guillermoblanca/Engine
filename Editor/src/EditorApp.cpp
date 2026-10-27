@@ -769,9 +769,10 @@ namespace GB::Editor
 			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
 			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tribe") flag = &m_Panels.Tribe; else if (n == "WorldState") flag = &m_Panels.WorldState; else if (n == "Tests") flag = &m_Panels.Tests;
-			if (!flag) return { false, "no such panel '" + n + "'" };
+			if (!flag) return { false, "no such panel '" + n + "' (Viewport, Hierarchy, Inspector, Properties, World, Stats, Console, Assets, Model, Animation, Timeline, Graph, Abilities, Tribe, WorldState, Tests)" };
 			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else if (n == "Graph") m_GraphFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
+			if (*flag) { if (n == "Tribe") m_FocusTribe = 20; else if (n == "WorldState") m_FocusWorldState = 20; else if (n == "Abilities") m_FocusAbilities = 20; }   // to the front of its dock
 			return { true, n + (*flag ? " shown" : " hidden") };
 		});
 		c.Register("player_ragdoll", "player_ragdoll [vx vy vz]: the FBX player collapses into a ragdoll (bodies and joints in a physics world made of the same ground, water, trees and rocks), keeping its speed plus the given one; it gets up by itself after a pause", [this](const std::vector<std::string>& a) -> CommandResult

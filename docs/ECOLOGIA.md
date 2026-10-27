@@ -35,10 +35,18 @@ ecology season [spring|summer|autumn|winter]  muestra o cambia la estación (mue
 
 El panel **World state** muestra la estación, los animales con su comida, los interactivos, los nodos de recurso y las parcelas del huerto.
 
+**Qué se guarda.** Los atributos (comida, edad, enfriamiento, hambre) y la posición, sí. **Hacia dónde iba** el conejo (su centro de paseo, la planta elegida y lo que lleva comiéndola) no: tras
+cargar, cada conejo toma como centro el sitio donde está y elige de nuevo, así que la partida cargada no sigue paso a paso igual que la original aunque tenga los mismos números.
+
+## Coste
+
+Cada conejo cuesta unos 5 a 25 µs por fotograma con la escena de un mundo generado (3.000 entidades): 8 conejos, 0,03 ms; 40, 0,06 ms; 120, 0,12 ms (`tests/scale_test.cpp`, `GB_SCALE_BENCH=1`).
+Antes de guardar el id de la entidad y listar las plantas una vez por fotograma era 0,35 / 1,8 / 5,7 ms: la búsqueda de una entidad por nombre recorre toda la escena.
+
 ## Test
 
-`tests/ecology_test.cpp`: las estaciones siguen el reloj, con comida los conejos comen, crían y no pasan del máximo, sin plantas los cuatro mueren, y dos ejecuciones dejan a
-cada conejo en el mismo sitio.
+`tests/ecology_test.cpp`: las estaciones siguen el reloj (y no se rompen con una estación de duración 0), con comida los conejos comen, crían y no pasan del máximo, sin plantas los cuatro mueren, dos ejecuciones dejan a
+cada conejo en el mismo sitio y una pradera guardada y cargada a mitad conserva a los mismos conejos y plantas con los mismos números y sigue funcionando.
 
 ## Límites conocidos
 

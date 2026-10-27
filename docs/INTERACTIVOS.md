@@ -23,9 +23,18 @@ mochila (`Item.Resource.Wood`, `Item.Tool.Axe`) pasan a ser etiquetas del actor,
 Test `interactives`: un trabajador enciende la fogata, la deja apagarse, saca agua hasta vaciar el pozo y esperar a que se llene, y abre y cierra la puerta; los valores
 no salen de sus límites y dos ejecuciones acaban igual. El test `resources` añade un bosque talado que se regenera en diez minutos de simulación acelerada.
 
-## Pendiente de H3
+Test `interactives` también: una partida guardada a medias (fogata encendida, puerta abierta) vuelve igual, y la fogata cargada se apaga a su hora.
 
-- Estaciones del año y clima sobre el crecimiento de las plantas (`Weather`).
-- Animales con ecología básica (se mueven, comen, se reproducen).
-- La colisión de la puerta, y que la hoguera de la tribu sea un interactivo de este tipo.
-- Panel de estados en el editor (hoy `interactives status` y el panel Abilities).
+## Qué se guarda y qué no
+
+El estado (etiquetas `State.*`) y las cantidades (`Fuel`, `Water`) van en el componente de la entidad y se guardan. **No se guarda** el segundo parcial que lleva ardiendo o llenándose el pozo
+(los temporizadores del sistema): tras cargar, ese tramo empieza de nuevo (como mucho 6 s más de fuego o 20 s más de espera del pozo).
+
+## Hecho y pendiente de H3
+
+Hecho (en otros documentos): estaciones y crecimiento ([ECOLOGIA.md](ECOLOGIA.md)), animales con ecología básica (conejos) y el panel **World state** del editor, que lista fogatas, pozos y puertas con su estado.
+
+Pendiente:
+- La colisión de la puerta.
+- Que la hoguera de la tribu sea un interactivo de este tipo: hoy son dos cosas distintas (la hoguera que construye la tribu se llama `Campfire` y es solo visual; el interactivo `Fire Pit` no está ligado a la tribu ni se puede avivar desde ella).
+- Colocar interactivos desde el panel (hoy `interactives build`, que coloca siempre los tres).

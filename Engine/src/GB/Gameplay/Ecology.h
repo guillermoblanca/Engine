@@ -64,7 +64,7 @@ namespace GB
 		std::string Describe() const;
 
 	private:
-		struct Walk { glm::vec2 Home{ 0.0f }, Target{ 0.0f }; std::string Plant; float Eating = 0.0f; bool Has = false; };
+		struct Walk { glm::vec2 Home{ 0.0f }, Target{ 0.0f }; std::string Plant; float Eating = 0.0f; bool Has = false; EntityId Id = NullEntity; };
 
 		EntityId Make(const glm::vec3& at, float food, float age);
 		void Think(const std::string& name, AbilitySystemComponent& a, Entity& e, Walk& w);
