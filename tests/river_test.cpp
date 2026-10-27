@@ -86,6 +86,18 @@ int main()
 		auto terrain = GB::Terrain::CreateHills(hp, 256.0f, 257, GB::TerrainStyle::Meadow);
 		const GB::RiverData* river = terrain->GetRiver();
 		Check(river && river->Points.size() > 50, "a river is carved along the path");
+		{
+			// Shore refinement: more triangles along the banks, the plain grid when switched off, and the refined surface stays on the heightmap.
+			GB::HillParams plain = hp;
+			plain.ShoreSubdivision = 1;
+			auto flat = GB::Terrain::CreateHills(plain, 256.0f, 257, GB::TerrainStyle::Meadow);
+			Check(flat->GetMesh().GetIndexCount() == 256u * 256u * 6u, "without shore refinement the mesh is two triangles per cell");
+			Check(terrain->GetMesh().GetIndexCount() > flat->GetMesh().GetIndexCount() + 6000u, "the river banks are refined into many more triangles");
+			float worst = 0.0f;
+			for (const glm::vec3& pt : terrain->GetRiver()->Points)
+				worst = std::max(worst, std::fabs(terrain->GetHeight(pt.x, pt.z) - flat->GetHeight(pt.x, pt.z)));
+			Check(worst < 1e-4f, "refinement does not change the heightmap queries (physics, grass, trees)");
+		}
 		if (!river) return 1;
 		bool monotonic = true;
 		for (size_t i = 1; i < river->Points.size(); ++i)
@@ -124,8 +136,100 @@ int main()
 
 		// ribbon mesh data (CPU)
 		GB::WaterSurface ribbon(*river);
-		Check(ribbon.IsRiver() && ribbon.GetRiverVertexCount() == river->Points.size() * 9, "the water ribbon has 9 vertices across per river point");
+		{
+			const size_t cols = static_cast<size_t>(GB::WaterSurface::RiverColumns);
+			Check(ribbon.IsRiver() && ribbon.GetRiverVertexCount() % cols == 0, "the water ribbon is a whole number of rows of RiverColumns vertices");
+			Check(ribbon.GetRiverVertexCount() / cols >= river->Points.size() * 18 / 10, "the ribbon is resampled finer than the carve path (waves need the vertices)");
+			Check(cols >= 17, "many columns across the river");
+		}
 		Check(!GB::WaterSurface(64.0f, 8).IsRiver(), "a lake surface is not a river");
+
+		// ---- a river that ends in a lake: level, current and surface blend into the still water
+		{
+			GB::HillParams lp = hp;
+			lp.LakeCenter = { 115.0f, -45.0f };
+			lp.LakeRadius = 20.0f;
+			lp.WaterLevel = 1.0f;
+			auto lake = GB::Terrain::CreateHills(lp, 256.0f, 257, GB::TerrainStyle::Meadow);
+			const GB::RiverData* lr = lake->GetRiver();
+			Check(lr && lr->MouthLength > 0.0f, "a river that meets a lake knows it has a mouth");
+			if (lr)
+			{
+				bool aboveLake = true, descending = true;
+				for (size_t i = 0; i < lr->Points.size(); ++i)
+				{
+					if (lr->Points[i].y < lp.WaterLevel - 1e-4f) aboveLake = false;
+					if (i > 0 && lr->Points[i].y > lr->Points[i - 1].y + 1e-5f) descending = false;
+				}
+				Check(aboveLake && descending, "the river never drops below the lake and only descends");
+				Check(std::fabs(lr->Points.back().y - lp.WaterLevel) < 1e-4f, "it reaches the lake at exactly the lake level (no step between the surfaces)");
+				Check(lr->Speed.back() < 0.05f && lr->Speed.front() > 0.5f, "the current dies down at the lake");
+				bool calming = true;
+				for (size_t i = lr->Points.size() - 8; i + 1 < lr->Points.size(); ++i)
+					if (lr->Speed[i + 1] > lr->Speed[i] + 1e-4f) calming = false;
+				Check(calming, "and does so smoothly, without speeding up again");
+
+				GB::WaterSurface mouth(*lr);
+				const size_t cols = static_cast<size_t>(GB::WaterSurface::RiverColumns), rows = mouth.GetRiverVertexCount() / cols;
+				const auto& verts = mouth.GetRiverVertices();
+				const size_t mid = cols / 2;
+				Check(verts[mid].Normal.x > 0.999f && verts[(rows - 1) * cols + mid].Normal.x < 0.001f, "the ribbon is opaque upstream and fully faded at the end of its extension");
+				Check(verts[(rows - 1) * cols + mid].Tangent.z < 1e-4f, "and still there");
+				bool fades = true;
+				for (size_t r = 1; r < rows; ++r)
+					if (verts[r * cols + mid].Normal.x > verts[(r - 1) * cols + mid].Normal.x + 1e-5f) fades = false;
+				Check(fades, "the opacity only decreases toward the lake (no seam)");
+				const glm::vec3 last = glm::vec3(lr->Points.back().x, lr->Points.back().y, lr->Points.back().z);
+				Check(glm::distance(glm::vec2(verts[(rows - 1) * cols + mid].Position.x, verts[(rows - 1) * cols + mid].Position.z), glm::vec2(last.x, last.z)) > 2.0f
+					&& std::fabs(verts[(rows - 1) * cols + mid].Position.y - lp.WaterLevel) < 1e-3f, "the ribbon continues into the lake at the lake level");
+			}
+
+			// The shore has a bank, not a cliff: the steepest slope within 3 radii of the lake drops with LakeBankSlope.
+			GB::HillParams cliff = lp;
+			cliff.LakeBankSlope = 0.0f;
+			auto old = GB::Terrain::CreateHills(cliff, 256.0f, 257, GB::TerrainStyle::Meadow);
+			auto steepest = [&](const GB::Terrain& t)
+			{
+				float worst = 0.0f;
+				for (int a = 0; a < 48; ++a)
+				{
+					const float ang = static_cast<float>(a) / 48.0f * 6.2831853f;
+					const glm::vec2 d(std::cos(ang), std::sin(ang));
+					bool nearRiver = false;
+					float prev = 0.0f, local = 0.0f;
+					for (float r = lp.LakeRadius * 0.9f; r < lp.LakeRadius * 3.0f; r += 1.0f)
+					{
+						const glm::vec2 q = lp.LakeCenter + d * r;
+						if (t.DistanceToRiver(q.x, q.y) < 18.0f) nearRiver = true;
+						const float h = t.GetHeight(q.x, q.y);
+						if (r > lp.LakeRadius * 0.9f) local = std::max(local, std::fabs(h - prev));
+						prev = h;
+					}
+					if (!nearRiver) worst = std::max(worst, local);
+				}
+				return worst;
+			};
+			const float withCone = steepest(*lake), without = steepest(*old);
+			std::printf("shore slope: %.2f with the bank cone, %.2f without\n", withCone, without);
+			Check(withCone <= 0.7f, "the lake bank is gentle");
+			Check(withCone <= without + 1e-3f, "and never steeper than without the cone");
+		}
+
+		// smooth surface normals: the Catmull-Rom normals agree with the heightmap ones on average and are unit length
+		{
+			Check(terrain->GetNormalMap() != nullptr, "the terrain has a high-resolution normal map");
+			const GB::Heightmap& hm = terrain->GetHeightmap();
+			double dot = 0.0; int count = 0; bool unit = true;
+			for (uint32_t j = 8; j + 8 < hm.GetResolution(); j += 5)
+				for (uint32_t i = 8; i + 8 < hm.GetResolution(); i += 5)
+				{
+					const glm::vec2 q = hm.SamplePosition(i, j);
+					const glm::vec3 n = terrain->GetSmoothNormal(q.x, q.y);
+					if (std::fabs(glm::length(n) - 1.0f) > 1e-4f) unit = false;
+					dot += glm::dot(n, hm.GetNormal(q.x, q.y)); ++count;
+				}
+			Check(unit && dot / count > 0.98, "smooth normals are unit length and follow the heightmap");
+		}
 
 		// a floating crate is carried downstream
 		GB::PhysicsWorld w;

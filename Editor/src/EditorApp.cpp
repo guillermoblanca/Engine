@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <glad/gl.h>
@@ -93,6 +94,9 @@ namespace GB::Editor
 		}
 		m_ViewportFb = std::make_unique<Framebuffer>(m_ViewportW, m_ViewportH);
 		m_AssetRoot = GB_ASSET_DIR;
+		m_SceneEditor.SetAssetRoot(m_AssetRoot);
+		m_SceneEditor.OnNewScene = [this]() { ResetWorld(); };   // File > New Scene also drops the generated world
+		m_SceneEditor.SetPropBounds([this](const PropComponent& p, glm::vec3& center, float& radius) { return m_World.PropBounds(p, center, radius); });
 		m_Weather = std::make_unique<Weather>(5);
 		m_Orbit.Pitch = 0.3f; m_Orbit.Yaw = 0.6f; m_Orbit.Distance = 60.0f; m_Orbit.MinDistance = 1.0f; m_Orbit.MaxDistance = 600.0f;
 		m_Camera.FarPlane = 1500.0f;
@@ -121,6 +125,7 @@ namespace GB::Editor
 		m_SceneEditor.Bind(m_Props);
 		m_SceneEditor.Register(m_Commands);
 		m_EntityRenderer = std::make_unique<EntityRenderer>(m_AssetRoot);
+		m_EntityRenderer->SetPropBuilder([this](const PropComponent& p, const glm::mat4& m, Scene& s) { return m_World.AddProp(p, m, s); });
 		BuildWorld(m_WorldDesc);
 		RegisterProperties();
 
@@ -166,6 +171,7 @@ namespace GB::Editor
 		if (name == "Console") return m_Panels.Console;
 		if (name == "Assets") return m_Panels.Assets;
 		if (name == "Model") return m_Panels.Model;
+		if (name == "Tests") return m_Panels.Tests;
 		return false;
 	}
 
@@ -186,16 +192,61 @@ namespace GB::Editor
 	void EditorApp::BuildWorld(const WorldDesc& desc)
 	{
 		m_LocoGround = nullptr;
+		m_Player.Stop();   // it points into the old terrain
 		m_WorldDesc = desc;
 		m_Instance.reset();
+		m_SceneEditor.RemoveEnvironment();   // the old trees and rocks go with the old world; what the user added stays
 		m_World.Build(desc, m_Scene);
-		m_StaticObjects = m_Scene.Objects.size();
+		m_StaticObjects = m_Scene.Objects.size();   // the terrain; entities are appended every frame
+		m_SceneEditor.PopulateEnvironment(m_World.World().Trees, m_World.World().Rocks);
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 		m_SceneEditor.SetSpawnPoint(m_Orbit.Target);
 		RebaseWeather();
 		FrameWorld();
 		if (m_Props.All().size() > 0)
 			RegisterWaterProperties();
+	}
+
+	void EditorApp::ResetWorld()
+	{
+		m_Player.Stop();
+		m_Instance.reset();
+		m_Model.reset();
+		m_Props.RemovePrefix("model.");
+		m_Props.Set("tod.enabled", "false");
+		m_Props.Set("weather.preset", "clear");
+		m_Weather->Snap();
+		m_World.Clear(m_Scene);
+		m_StaticObjects = 0;
+		m_EnvMap.reset();
+		// The weather owns the sky: write the defaults into its base (the property registry points there), then rebase.
+		m_Weather->BaseEnvironment() = Environment{};
+		m_Weather->BaseEnvironment().ShadowRadius = 30.0f;
+		m_Weather->BaseSun() = DirectionalLight{};
+		RebaseWeather();
+		RegisterWaterProperties();
+		m_Orbit.Target = { 0.0f, 1.0f, 0.0f };
+		m_Orbit.Distance = 12.0f;
+		m_Orbit.Pitch = 0.3f;
+		m_Orbit.Yaw = 0.6f;
+	}
+
+	CommandResult EditorApp::LaunchSandbox(const std::string& scene)
+	{
+#ifdef GB_SANDBOX_EXE
+		const fs::path exe = GB_SANDBOX_EXE;
+		if (!fs::exists(exe)) return { false, "Sandbox not built: " + exe.string() };
+#ifdef _WIN32
+		const std::string command = "cd /d \"" + exe.parent_path().string() + "\" && start \"\" \"" + exe.string() + "\" --scene=" + scene;
+#else
+		const std::string command = "(cd \"" + exe.parent_path().string() + "\" && \"" + exe.string() + "\" --scene=" + scene + " &)";
+#endif
+		if (std::system(command.c_str()) != 0) return { false, "could not start the Sandbox" };
+		return { true, "opened the Sandbox scene '" + scene + "' in its own window" };
+#else
+		(void)scene;
+		return { false, "this editor was built without the Sandbox" };
+#endif
 	}
 
 	void EditorApp::FrameWorld()
@@ -357,9 +408,16 @@ namespace GB::Editor
 			m_Script.push_back(line);
 	}
 
+	void EditorApp::RunScriptFirst(const std::string& text)
+	{
+		const std::vector<std::string> lines = CommandRunner::SplitScript(text);
+		m_Script.insert(m_Script.begin(), lines.begin(), lines.end());
+	}
+
 	void EditorApp::RegisterCommands()
 	{
 		CommandRunner& c = m_Commands;
+		RegisterTestCommands(m_Commands, [this](const std::string& text) { RunScriptFirst(text); }, [this](const std::string& scene) { return LaunchSandbox(scene); });
 		c.Register("help", "help [command]: lists the commands, or explains one", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!a.empty())
@@ -435,6 +493,19 @@ namespace GB::Editor
 			m_Orbit.Distance = static_cast<float>(std::atof(a[2].c_str()));
 			if (a.size() >= 6) m_Orbit.Target = { static_cast<float>(std::atof(a[3].c_str())), static_cast<float>(std::atof(a[4].c_str())), static_cast<float>(std::atof(a[5].c_str())) };
 			return { true, "camera placed" };
+		});
+		c.Register("player", "player [fox|cesium|off] [keys]: walk the world in third person (WASD, Shift runs, drag the mouse to look). keys = a script like \"W:2,RW:3,:1\" for headless runs", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!a.empty() && (a[0] == "off" || a[0] == "stop"))
+			{
+				m_Player.Stop();
+				return { true, "player mode off" };
+			}
+			if (a.empty() && m_Player.IsActive()) return { true, m_Player.Describe() };
+			std::string error;
+			if (!m_Player.Start(a.empty() ? "fox" : a[0], m_World, m_SceneEditor, m_AssetRoot, m_Orbit.Target, error)) return { false, error };
+			if (a.size() > 1) m_Player.SetScript(a[1]);
+			return { true, m_Player.Describe() };
 		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
@@ -635,8 +706,17 @@ namespace GB::Editor
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
-		if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt);
-		m_Orbit.Apply(m_Camera);
+		if (m_Player.IsActive())
+		{
+			m_Player.Update(dt, m_ViewportHovered && !io.WantTextInput);
+			m_Player.ApplyCamera(m_Camera);
+			m_Orbit.Target = m_Player.GetPosition();   // the shadows and the weather follow the player
+		}
+		else
+		{
+			if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt);
+			m_Orbit.Apply(m_Camera);
+		}
 		ApplyTimeOfDay();
 		m_Weather->Update(dt, m_Camera);
 		m_Weather->Apply(m_Scene);
@@ -705,6 +785,7 @@ namespace GB::Editor
 		m_EntityRenderer->Build(m_SceneEditor.World(), m_Scene, m_SceneEditor.Selected());
 		if (m_Instance)
 			m_Instance->AddToScene(m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
+		m_Player.AddToScene(m_Scene);
 		m_Renderer->Render(m_Scene, m_Camera, m_ViewportFb.get());
 
 		// the interface
@@ -740,6 +821,7 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("World", right);
 		ImGui::DockBuilderDockWindow("Stats", right);
 		ImGui::DockBuilderDockWindow("Model", right);
+		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
 		ImGui::DockBuilderDockWindow("Viewport", center);
@@ -764,6 +846,7 @@ namespace GB::Editor
 		if (m_Panels.World) DrawWorldPanel();
 		if (m_Panels.Stats) DrawStats();
 		if (m_Panels.Model) DrawModelPanel();
+		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
 		if (m_Panels.Demo) ImGui::ShowDemoWindow(&m_Panels.Demo);
@@ -777,6 +860,10 @@ namespace GB::Editor
 		if (!ImGui::BeginMainMenuBar()) return;
 		if (ImGui::BeginMenu("File"))
 		{
+			if (ImGui::MenuItem("New Scene", "empty: camera and sun only")) Execute("new_scene");
+			if (ImGui::MenuItem("Open scene (scene.json)")) Execute("scene_load scene.json");
+			if (ImGui::MenuItem("Save scene (scene.json)")) Execute("scene_save scene.json");
+			ImGui::Separator();
 			if (ImGui::BeginMenu("New world"))
 			{
 				if (ImGui::MenuItem("Temperate")) Execute("generate temperate");
@@ -807,12 +894,34 @@ namespace GB::Editor
 		{
 			for (const char* kind : { "empty", "cube", "sphere", "plane", "light" })
 				if (ImGui::MenuItem(kind)) Execute(std::string("entity create ") + kind);
+			if (ImGui::BeginMenu("glTF model"))
+			{
+				std::error_code ec;
+				for (auto it = fs::recursive_directory_iterator(m_AssetRoot, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
+				{
+					const std::string ext = Lower(it->path().extension().string());
+					if ((ext == ".glb" || ext == ".gltf") && ImGui::MenuItem(fs::relative(it->path(), m_AssetRoot, ec).generic_string().c_str()))
+						Execute("add \"" + it->path().generic_string() + "\"");
+				}
+				ImGui::EndMenu();
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Tests"))
+		{
+			for (const TestScenario& s : TestScenarios())
+				if (ImGui::MenuItem(s.Name.c_str(), s.Approximate ? "approx." : nullptr)) Execute("test " + s.Name);
+			ImGui::Separator();
+			ImGui::MenuItem("Tests panel", nullptr, &m_Panels.Tests);
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("View"))
 		{
+			if (ImGui::MenuItem("Play as fox (WASD)", nullptr, m_Player.IsActive())) Execute(m_Player.IsActive() ? "player off" : "player fox");
+			ImGui::Separator();
 			ImGui::MenuItem("Hierarchy", nullptr, &m_Panels.Hierarchy);
 			ImGui::MenuItem("Inspector", nullptr, &m_Panels.Inspector);
+			ImGui::MenuItem("Tests", nullptr, &m_Panels.Tests);
 			ImGui::MenuItem("Viewport", nullptr, &m_Panels.Viewport);
 			ImGui::MenuItem("Properties", nullptr, &m_Panels.Properties);
 			ImGui::MenuItem("World", nullptr, &m_Panels.World);
@@ -1181,6 +1290,27 @@ namespace GB::Editor
 		ImGui::End();
 	}
 
+	void EditorApp::DrawTestsPanel()
+	{
+		if (ImGui::Begin("Tests", &m_Panels.Tests))
+		{
+			ImGui::TextWrapped("The Sandbox test scenes. Run builds them in the viewport (you can then select, move and delete their objects); Sandbox opens the original in its own window.");
+			ImGui::Separator();
+			for (const TestScenario& s : TestScenarios())
+			{
+				ImGui::PushID(s.Name.c_str());
+				if (ImGui::Button("Run")) Execute("test " + s.Name);
+				ImGui::SameLine();
+				if (ImGui::Button("Sandbox")) Execute("test " + s.Name + " sandbox");
+				ImGui::SameLine();
+				ImGui::Text("%s%s", s.Title.c_str(), s.Approximate ? "  (approximation)" : "");
+				ImGui::TextDisabled("--scene=%s: %s", s.Name.c_str(), s.Description.c_str());
+				ImGui::PopID();
+			}
+		}
+		ImGui::End();
+	}
+
 	void EditorApp::DrawConsole()
 	{
 		if (ImGui::Begin("Console", &m_Panels.Console))
@@ -1257,7 +1387,7 @@ namespace GB::Editor
 				if (it->is_regular_file(ec)) files.push_back(it->path());
 			std::sort(files.begin(), files.end());
 			ImGui::TextDisabled("%s", m_AssetRoot.c_str());
-			ImGui::TextDisabled("double-click a model (.glb/.gltf) to load it, an .hdr to use it as the environment");
+			ImGui::TextDisabled("double-click a model (.glb/.gltf) to add it to the scene (right-click: animation viewer), an .hdr to use it as the environment");
 			ImGui::BeginChild("##assets");
 			for (const fs::path& f : files)
 			{
@@ -1268,7 +1398,7 @@ namespace GB::Editor
 				const char* kind = ext == ".glb" || ext == ".gltf" ? "[model]" : ext == ".hdr" ? "[hdri]" : ext == ".jpg" || ext == ".png" ? "[image]" : "";
 				if (ImGui::Selectable((std::string(kind) + " " + rel).c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(0))
 				{
-					if (ext == ".glb" || ext == ".gltf") Execute("load \"" + f.generic_string() + "\"");
+					if (ext == ".glb" || ext == ".gltf") Execute("add \"" + f.generic_string() + "\"");
 					else if (ext == ".hdr") Execute("hdri \"" + f.generic_string() + "\"");
 				}
 				if ((ext == ".glb" || ext == ".gltf") && ImGui::BeginPopupContextItem())

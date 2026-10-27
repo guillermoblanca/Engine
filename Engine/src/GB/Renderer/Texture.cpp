@@ -42,6 +42,13 @@ namespace GB
 		glDeleteTextures(1, &m_Texture);
 	}
 
+	void Texture2D::Update(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t* rgba)
+	{
+		if (!m_Texture || x + w > m_Width || y + h > m_Height) return;
+		glTextureSubImage2D(m_Texture, 0, static_cast<GLint>(x), static_cast<GLint>(y), static_cast<GLsizei>(w), static_cast<GLsizei>(h), GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+		glGenerateTextureMipmap(m_Texture);
+	}
+
 	void Texture2D::Bind(uint32_t unit) const
 	{
 		glBindTextureUnit(unit, m_Texture);

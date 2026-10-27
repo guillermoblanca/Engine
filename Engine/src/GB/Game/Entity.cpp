@@ -139,6 +139,7 @@ namespace GB
 		e->Mesh = original.Mesh;
 		e->Light = original.Light;
 		e->Body = original.Body;
+		e->Prop = original.Prop;
 		for (EntityId c : original.Children) CopyTree(c, id);
 		return id;
 	}

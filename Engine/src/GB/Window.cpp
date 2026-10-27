@@ -74,7 +74,19 @@ namespace GB
 			glfwTerminate();
 	}
 
-	void Window::PollEvents() { glfwPollEvents(); }
+	void Window::PollEvents()
+	{
+		glfwPollEvents();
+		// Follow the real size of the framebuffer (the user resizing the window). A minimised or hidden window may
+		// report 0: keep the last good size then.
+		int w = 0, h = 0;
+		glfwGetFramebufferSize(m_Handle, &w, &h);
+		if (w > 0 && h > 0)
+		{
+			m_Width = static_cast<uint32_t>(w);
+			m_Height = static_cast<uint32_t>(h);
+		}
+	}
 	void Window::SwapBuffers() { glfwSwapBuffers(m_Handle); }
 	bool Window::ShouldClose() const { return glfwWindowShouldClose(m_Handle) != 0; }
 	void Window::RequestClose() { glfwSetWindowShouldClose(m_Handle, GLFW_TRUE); }

@@ -2,8 +2,10 @@
 #include "Commands.h"
 #include "ImGuiLayer.h"
 #include "LogBuffer.h"
+#include "PlayerMode.h"
 #include "Properties.h"
 #include "SceneEditor.h"
+#include "TestScenarios.h"
 #include "WorldInstance.h"
 #include "GB/Animation/Locomotion.h"
 #include "GB/Application.h"
@@ -36,6 +38,7 @@ namespace GB::Editor
 
 		CommandResult Execute(const std::string& line);
 		void RunScript(const std::string& text);                 // queued: runs a line per frame, `wait N` pauses
+		void RunScriptFirst(const std::string& text);            // same, but before what is already queued
 		size_t PendingScriptLines() const { return m_Script.size(); }
 
 		PropertyRegistry& Properties() { return m_Props; }
@@ -63,6 +66,8 @@ namespace GB::Editor
 		void ApplyTimeOfDay();
 		void SetQuality(const std::string& name);
 		void FrameWorld();
+		void ResetWorld();                                       // File > New Scene: nothing generated, default sky
+		CommandResult LaunchSandbox(const std::string& scene);
 
 		void DrawUI();
 		void DrawMenu();
@@ -78,6 +83,7 @@ namespace GB::Editor
 		void DrawConsole();
 		void DrawAssets();
 		void DrawModelPanel();
+		void DrawTestsPanel();
 		void BuildDefaultLayout(unsigned int dockspaceId, float width, float height);
 
 		// scene
@@ -92,6 +98,7 @@ namespace GB::Editor
 		std::unique_ptr<EnvironmentMap> m_EnvMap;
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
+		PlayerMode m_Player;                                     // `player` command / View > Play: walk the world in third person
 		size_t m_StaticObjects = 0;
 		// locomotion demo: a character driven by speed, strafe and turn commands (blend space + footsteps)
 		std::unique_ptr<AudioEngine> m_Audio;
@@ -136,7 +143,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Tests = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		bool m_LayoutBuilt = false;

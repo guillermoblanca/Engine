@@ -285,6 +285,15 @@ namespace
 			m_ShadowShader->SetFloat("uWindHeight", obj.Mat.WindHeight);
 			m_ShadowShader->SetFloat("uWindFlutter", obj.Mat.WindFlutter);
 			BindSkin(*m_ShadowShader, obj);
+			const bool masked = obj.Mat.Alpha == AlphaMode::Mask && obj.Mat.AlbedoMap;
+			m_ShadowShader->SetInt("uAlphaMode", masked ? 1 : 0);
+			m_ShadowShader->SetFloat("uUVScale", obj.Mat.UVScale);
+			if (masked)
+			{
+				m_ShadowShader->SetFloat("uAlphaCutoff", obj.Mat.AlphaCutoff);
+				m_ShadowShader->SetFloat("uOpacity", obj.Mat.Opacity);
+				obj.Mat.AlbedoMap->Bind(1);
+			}
 			const bool displaced = obj.Mat.HeightMap && obj.Mat.HeightScale != 0.0f;
 			m_ShadowShader->SetInt("uHasHeight", displaced ? 1 : 0);
 			if (displaced)
@@ -408,6 +417,8 @@ namespace
 			pbr.SetFloat("uWindFlutter", m.WindFlutter);
 			pbr.SetInt("uNoNormalFlip", m.FoliageNormals ? 1 : 0);
 			pbr.SetInt("uHasMacroMap", m.MacroMap ? 1 : 0);
+			pbr.SetInt("uHasTerrainNormals", m.SurfaceNormalMap && m.MacroMap ? 1 : 0);
+			if (m.SurfaceNormalMap && m.MacroMap) m.SurfaceNormalMap->Bind(10);
 			pbr.SetFloat("uGrain", m.Grain);
 			pbr.SetFloat("uGrainScale", m.GrainScale);
 			pbr.SetFloat("uMoss", m.Moss);
@@ -435,6 +446,9 @@ namespace
 			pbr.SetFloat("uCavityStrength", m.CavityStrength);
 			pbr.SetFloat("uOcclusionStrength", m.OcclusionStrength);
 			pbr.SetInt("uAlphaMode", static_cast<int>(m.Alpha));
+			const bool coverage = m.Alpha == AlphaMode::Mask && m_Samples > 1;   // leaf edges antialiased by the MSAA target
+			pbr.SetInt("uAlphaToCoverage", coverage ? 1 : 0);
+			if (coverage) glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE); else glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 			pbr.SetFloat("uAlphaCutoff", m.AlphaCutoff);
 			pbr.SetFloat("uOpacity", m.Opacity);
 			if (m.AlbedoMap) m.AlbedoMap->Bind(1);
@@ -470,6 +484,7 @@ namespace
 			else
 				drawObject(obj);
 		}
+		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 
 		GrassPass(scene, camera, viewProj, lightVP, shadows);
 		WaterPass(scene, camera, viewProj);

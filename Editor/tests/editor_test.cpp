@@ -1,8 +1,10 @@
 // Editor logic without a window: property registry, command runner and the log buffer. CPU only.
 #include "Commands.h"
 #include "LogBuffer.h"
-#include "SceneEditor.h"
 #include "Properties.h"
+#include "SceneEditor.h"
+#include "TestScenarios.h"
+#include "GB/Game/SceneIO.h"
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
@@ -123,6 +125,95 @@ int main()
 		Check(ed.Pick(center) == ed.Resolve("Near"), "screen ray through the center");
 		const glm::vec3 axis(1, 0, 0);
 		Check(std::fabs(RayAxisParam({ { 3, 4, 0 }, { 0, -1, 0 } }, { 0, 0, 0 }, axis) - 3.0f) < 1e-4f, "axis parameter of a ray");
+	}
+
+	// Adding objects, the generated environment as entities, New Scene (all CPU).
+	{
+		SceneEditor ed;
+		ed.SetAssetRoot(GB_ASSET_DIR);
+		PropertyRegistry props;
+		CommandRunner sc;
+		int worldCleared = 0;
+		ed.Bind(props);
+		ed.Register(sc);
+		ed.OnNewScene = [&] { ++worldCleared; };
+		ed.SetSpawnPoint({ 1, 2, 3 });
+
+		Check(sc.Execute("add cube").Ok && ed.World().Count() == 1, "add cube");
+		Check(ed.World().Find(ed.Selected())->Transform.Position == glm::vec3(1, 2, 3), "new objects appear at the spawn point");
+		Check(sc.Execute("add sphere 4 0 -2").Ok && ed.World().Find(ed.Selected())->Transform.Position == glm::vec3(4, 0, -2), "add at a position");
+		Check(!sc.Execute("add sphere 4 0").Ok && !sc.Execute("add sphere a b c").Ok, "bad positions rejected");
+		Check(!sc.Execute("add nothing").Ok, "unknown thing rejected");
+		Check(sc.Execute("add light 0 3 0").Ok && ed.World().Find(ed.Selected())->Light, "add light");
+		Check(sc.Execute("add models/DamagedHelmet.glb 0 1 0").Ok, "add a glTF by asset path");
+		Check(ed.World().Find(ed.Selected())->Mesh->Model == "models/DamagedHelmet.glb", "model path stored relative");
+		Check(sc.Execute(std::string("add \"") + GB_ASSET_DIR + "/models/Fox.glb\"").Ok && ed.World().Find(ed.Selected())->Mesh->Model == "models/Fox.glb", "absolute model path becomes relative");
+		Check(!sc.Execute("add models/missing.glb").Ok && !sc.Execute("add readme.txt").Ok, "missing / non-model files rejected");
+		Check(ed.UndoDepth() >= 5 && sc.Execute("undo").Ok && ed.World().FindByName("Fox") == NullEntity, "adding is undoable");
+
+		Check(sc.Execute("new_scene").Ok && ed.World().Count() == 0 && worldCleared == 1, "new_scene empties the entities and the generated world");
+		Check(sc.Execute("scene new").Ok && worldCleared == 2 && ed.UndoDepth() == 0, "scene new does the same and starts a fresh history");
+
+		// the generated environment: trees and rocks are ordinary entities
+		std::vector<TreePlacement> trees(3);
+		std::vector<RockPlacement> rocks(2);
+		for (size_t i = 0; i < trees.size(); ++i) { trees[i].Position = { static_cast<float>(i) * 10.0f, 0, 0 }; trees[i].Variant = static_cast<int>(i); trees[i].Yaw = 1.0f; trees[i].Scale = 1.5f; }
+		rocks[1].Position = { 0, 0, 20 };
+		ed.SetPropBounds([](const PropComponent&, glm::vec3& center, float& radius) { center = { 0, 2, 0 }; radius = 2.0f; return true; });
+		sc.Execute("add cube 50 0 50");
+		Check(ed.PopulateEnvironment(trees, rocks) == 5 && ed.World().FindByTag("world").size() == 2 && ed.UndoDepth() == 0, "environment entities, grouped, history restarted");
+		const EntityId tree2 = ed.World().FindByName("Tree 2");
+		Check(tree2 != NullEntity && ed.World().Find(tree2)->Prop && ed.World().Find(tree2)->Prop->Variant == 1, "tree entity with its variant");
+		Check(std::abs(ed.World().Find(tree2)->Transform.Scale.x - 1.5f) < 1e-5f, "tree scale");
+		Check(ed.Pick(Ray{ { 10, 3, 30 }, { 0, 0, -1 } }) == tree2, "a ray picks a tree");
+		Check(ed.Pick(Ray{ { 50, 5, 50 }, { 0, -1, 0 } }) == ed.World().FindByName("Cube"), "a ray picks a user object");
+		Check(ed.Pick(Ray{ { 100, 100, 100 }, { 0, 1, 0 } }) == NullEntity, "a ray into the sky picks nothing");
+		Check(sc.Execute("entity set \"Tree 2\" position 11 0 1").Ok && ed.World().Find(tree2)->Transform.Position == glm::vec3(11, 0, 1), "a tree can be moved");
+		Check(sc.Execute("entity delete \"Tree 2\"").Ok && ed.World().FindByName("Tree 2") == NullEntity, "a tree can be deleted");
+		Check(sc.Execute("undo").Ok && ed.World().FindByName("Tree 2") != NullEntity, "and the deletion undone");
+		ed.PopulateEnvironment(trees, rocks);   // regenerating replaces the environment but keeps the user's cube
+		Check(ed.World().FindByName("Cube") != NullEntity && ed.World().FindByName("Tree 2") != NullEntity && ed.World().Count() == 1 + 2 + 5, "regenerate keeps user objects");
+		std::string saved = SaveSceneToString(ed.World());
+		EntityWorld again;
+		Check(LoadSceneFromString(again, saved).Ok && again.Count() == ed.World().Count(), "the environment survives a save and load");
+	}
+
+	// ---- test scenarios: every Sandbox scene is a script of editor commands
+	{
+		for (const char* name : { "pbr", "textures", "model", "particles", "weather", "desert", "showcase" })
+			Check(FindTestScenario(name) != nullptr, name);
+		Check(FindTestScenario("nope") == nullptr, "unknown scenario");
+
+		SceneEditor ed;
+		ed.SetAssetRoot(GB_ASSET_DIR);
+		PropertyRegistry props;
+		CommandRunner sc;
+		ed.Bind(props);
+		ed.Register(sc);
+		std::vector<std::string> queued;
+		RegisterTestCommands(sc, [&](const std::string& text) { for (auto& l : CommandRunner::SplitScript(text)) queued.push_back(l); }, nullptr);
+		for (const char* app : { "set", "weather", "quality", "camera", "time", "generate" })   // provided by the application
+			sc.Register(app, "", [](const std::vector<std::string>&) { return CommandResult{}; });
+
+		for (const TestScenario& s : TestScenarios())
+			for (const std::string& line : CommandRunner::SplitScript(s.Script))
+			{
+				const CommandResult r = sc.Execute(line);
+				if (!r.Ok) std::fprintf(stderr, "scenario %s: '%s' -> %s\n", s.Name.c_str(), line.c_str(), r.Message.c_str());
+				Check(r.Ok, "scenario line runs");
+			}
+		Check(sc.Execute("test pbr").Ok && !queued.empty() && queued.front() == "new_scene", "`test` queues the scenario script");
+		Check(!sc.Execute("test bogus").Ok && !sc.Execute("test pbr sandbox").Ok, "unknown scene / no sandbox hook");
+		Check(sc.Execute("tests").Message.find("showcase") != std::string::npos, "`tests` lists them");
+
+		sc.Execute("new_scene");
+		for (const std::string& line : CommandRunner::SplitScript(FindTestScenario("pbr")->Script)) sc.Execute(line);
+		Check(ed.World().Count() == 19, "pbr: floor, 14 spheres, cube, orb and two lights");
+		const EntityId plane = ed.World().FindByName("Plane");
+		Check(plane != NullEntity && ed.World().Find(plane)->Mesh->Size == 60.0f, "pbr floor is configured through entity set");
+		sc.Execute("new_scene");
+		for (const std::string& line : CommandRunner::SplitScript(FindTestScenario("model")->Script)) sc.Execute(line);
+		Check(ed.World().FindByName("DamagedHelmet") != NullEntity, "model scene has the helmet");
 	}
 
 	if (failures) return 1;

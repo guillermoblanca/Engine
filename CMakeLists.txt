@@ -99,11 +99,14 @@ if(GB_BUILD_SANDBOX)
     add_subdirectory(Sandbox)
 endif()
 
+if(GB_BUILD_TESTS)
+    enable_testing()   # before the Editor, whose tests would otherwise not be registered
+endif()
+
 if(GB_BUILD_EDITOR)
     add_subdirectory(Editor)
 endif()
 
 if(GB_BUILD_TESTS)
-    enable_testing()
     add_subdirectory(tests)
 endif()

@@ -24,6 +24,8 @@ namespace GB
 		uint32_t GetWidth() const { return m_Width; }
 		uint32_t GetHeight() const { return m_Height; }
 		void Bind(uint32_t unit) const;
+		// Overwrites a w x h block (tightly packed RGBA8) at (x, y) of the base level and refreshes the mipmaps.
+		void Update(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t* rgba);
 
 	private:
 		uint32_t m_Texture = 0;

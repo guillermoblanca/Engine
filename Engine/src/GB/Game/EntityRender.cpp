@@ -1,5 +1,6 @@
 #include "GB/Game/EntityRender.h"
 #include "GB/Log.h"
+#include <filesystem>
 
 namespace GB
 {
@@ -26,7 +27,8 @@ namespace GB
 		auto model = m_Models.find(path);
 		if (model == m_Models.end())
 		{
-			const std::string full = m_AssetDir.empty() ? path : m_AssetDir + "/" + path;
+			const bool absolute = std::filesystem::path(path).is_absolute();
+			const std::string full = m_AssetDir.empty() || absolute ? path : m_AssetDir + "/" + path;
 			auto loaded = Model::Load(full);
 			if (!loaded) GB_CORE_WARN("Entity model '{}' could not be loaded", full);
 			model = m_Models.emplace(path, std::move(loaded)).first;
@@ -38,15 +40,33 @@ namespace GB
 		return slot.second.get();
 	}
 
+	ModelInstance* EntityRenderer::FindInstance(EntityId id)
+	{
+		auto it = m_Instances.find(id);
+		return it == m_Instances.end() ? nullptr : it->second.second.get();
+	}
+
+	bool EntityRenderer::ModelBounds(EntityId id, glm::vec3& center, float& radius)
+	{
+		auto inst = m_Instances.find(id);
+		if (inst == m_Instances.end()) return false;
+		auto model = m_Models.find(inst->second.first);
+		if (model == m_Models.end() || !model->second) return false;
+		center = model->second->GetBoundsCenter();
+		radius = model->second->GetBoundsRadius();
+		return true;
+	}
+
 	size_t EntityRenderer::Build(const EntityWorld& world, Scene& scene, EntityId highlight)
 	{
 		size_t drawn = 0;
 		for (const auto& [id, e] : world.All())
 		{
-			if (!e.Mesh && !e.Light) continue;
+			if (!e.Mesh && !e.Light && !e.Prop) continue;
 			if (!world.IsActive(id)) continue;
 			const glm::mat4 m = world.WorldMatrix(id);
 			const size_t firstObject = scene.Objects.size();
+			if (e.Prop && m_PropBuilder && m_PropBuilder(*e.Prop, m, scene)) ++drawn;
 			if (e.Mesh)
 			{
 				const MeshComponent& mc = *e.Mesh;
