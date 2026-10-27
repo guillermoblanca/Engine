@@ -190,6 +190,10 @@ target_include_directories(GBCharacterProfileTests SYSTEM PRIVATE ${json_SOURCE_
 target_compile_definitions(GBCharacterProfileTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME character_profile COMMAND GBCharacterProfileTests)
 
+add_executable(GBBoxClearanceTests box_clearance_test.cpp)
+target_link_libraries(GBBoxClearanceTests PRIVATE GB::GB)
+add_test(NAME box_clearance COMMAND GBBoxClearanceTests)
+
 add_executable(GBPhysicsJointTests physics_joint_test.cpp)
 target_link_libraries(GBPhysicsJointTests PRIVATE GB::GB)
 add_test(NAME physics_joint COMMAND GBPhysicsJointTests)
@@ -199,11 +203,12 @@ target_link_libraries(GBRagdollTests PRIVATE GB::GB)
 target_compile_definitions(GBRagdollTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME ragdoll COMMAND GBRagdollTests)
 
-add_executable(GBBoxClearanceTests box_clearance_test.cpp)
-target_link_libraries(GBBoxClearanceTests PRIVATE GB::GB)
-add_test(NAME box_clearance COMMAND GBBoxClearanceTests)
-
 add_executable(GBGameplayTests gameplay_test.cpp)
 target_link_libraries(GBGameplayTests PRIVATE GB::GB)
 target_compile_definitions(GBGameplayTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME gameplay COMMAND GBGameplayTests)
+
+add_executable(GBRetargetTests retarget_test.cpp)
+target_link_libraries(GBRetargetTests PRIVATE GB::GB)
+target_compile_definitions(GBRetargetTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME retarget COMMAND GBRetargetTests)

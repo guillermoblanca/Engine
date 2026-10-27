@@ -1,0 +1,282 @@
+; FBX 7.4.0 project file
+FBXHeaderExtension:  {
+	FBXHeaderVersion: 1003
+	FBXVersion: 7400
+	Creator: "GB Engine test generator"
+}
+GlobalSettings:  {
+	Version: 1000
+	Properties70:  {
+		P: "UpAxis", "int", "Integer", "",1
+		P: "UpAxisSign", "int", "Integer", "",1
+		P: "FrontAxis", "int", "Integer", "",2
+		P: "FrontAxisSign", "int", "Integer", "",1
+		P: "CoordAxis", "int", "Integer", "",0
+		P: "CoordAxisSign", "int", "Integer", "",1
+		P: "OriginalUpAxis", "int", "Integer", "",1
+		P: "OriginalUpAxisSign", "int", "Integer", "",1
+		P: "UnitScaleFactor", "double", "Number", "",1
+		P: "OriginalUnitScaleFactor", "double", "Number", "",1
+		P: "TimeMode", "enum", "", "",6
+	}
+}
+Objects:  {
+	Model: 1001, "Model::pelvis", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,100,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1002, "Model::spine_01", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,10,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1003, "Model::spine_02", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,15,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1004, "Model::spine_03", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,15,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1005, "Model::neck_01", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,15,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1006, "Model::head", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,10,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1007, "Model::clavicle_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",8,12,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1008, "Model::upperarm_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",10,0,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1009, "Model::lowerarm_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",2,-28,4
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1010, "Model::hand_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-25,-2
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1011, "Model::middle_01_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-9,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1012, "Model::thigh_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",10,-5,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1013, "Model::calf_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-45,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1014, "Model::foot_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-45,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1015, "Model::ball_l", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-5,-10
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1016, "Model::clavicle_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",-8,12,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1017, "Model::upperarm_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",-10,0,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1018, "Model::lowerarm_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",-2,-28,4
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1019, "Model::hand_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-25,-2
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1020, "Model::middle_01_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-9,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1021, "Model::thigh_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",-10,-5,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1022, "Model::calf_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-45,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1023, "Model::foot_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-45,0
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	Model: 1024, "Model::ball_r", "LimbNode" {
+		Version: 232
+		Properties70:  {
+			P: "Lcl Translation", "Lcl Translation", "", "A",0,-5,-10
+		}
+		Shading: Y
+		Culling: "CullingOff"
+	}
+	AnimationStack: 1025, "AnimStack::walk", "" {
+		Properties70:  {
+			P: "LocalStart", "KTime", "Time", "",0
+			P: "LocalStop", "KTime", "Time", "",46186158000
+			P: "ReferenceStart", "KTime", "Time", "",0
+			P: "ReferenceStop", "KTime", "Time", "",46186158000
+		}
+	}
+	AnimationLayer: 1026, "AnimLayer::BaseLayer", "" {
+	}
+	AnimationCurveNode: 1027, "AnimCurveNode::T", "" {
+		Properties70:  {
+			P: "d|X", "Number", "", "A",0
+			P: "d|Y", "Number", "", "A",100
+			P: "d|Z", "Number", "", "A",0
+		}
+	}
+	AnimationCurve: 1028, "AnimCurve::", "" {
+		Default: 0
+		KeyVer: 4008
+		KeyTime: *2 {
+			a: 0,46186158000
+		}
+		KeyValueFloat: *2 {
+			a: 0.0,-120.0
+		}
+		KeyAttrFlags: *1 {
+			a: 24836
+		}
+		KeyAttrDataFloat: *4 {
+			a: 0,0,218434821,0
+		}
+		KeyAttrRefCount: *1 {
+			a: 2
+		}
+	}
+}
+Connections:  {
+	C: "OO",1001,0
+	C: "OO",1002,1001
+	C: "OO",1003,1002
+	C: "OO",1004,1003
+	C: "OO",1005,1004
+	C: "OO",1006,1005
+	C: "OO",1007,1004
+	C: "OO",1008,1007
+	C: "OO",1009,1008
+	C: "OO",1010,1009
+	C: "OO",1011,1010
+	C: "OO",1012,1001
+	C: "OO",1013,1012
+	C: "OO",1014,1013
+	C: "OO",1015,1014
+	C: "OO",1016,1004
+	C: "OO",1017,1016
+	C: "OO",1018,1017
+	C: "OO",1019,1018
+	C: "OO",1020,1019
+	C: "OO",1021,1001
+	C: "OO",1022,1021
+	C: "OO",1023,1022
+	C: "OO",1024,1023
+	C: "OO",1026,1025
+	C: "OO",1027,1026
+	C: "OP",1027,1001, "Lcl Translation"
+	C: "OP",1028,1027, "d|Z"
+}

@@ -102,24 +102,12 @@ namespace GB::Editor
 		m_UseAI = false;
 		if (isFbx)
 		{
-			m_Profile = AnalyzeCharacter(*m_Model);
-			LocomotionOptions options;
-			if (m_Profile.Humanoid()) options.Analysis = m_Profile.Analysis;   // this skeleton's own bone names
-			auto animator = std::make_unique<CharacterAnimator>(*m_Model, *m_Instance, options);
-			if (animator->AddDefaultLocomotionClips() < 2 && animator->AddRoleClips(m_Profile) < 2)
+			if (!BuildAnimator(error))
 			{
-				error = "the character has no locomotion clips (idle, walk, run...): put the animation FBX files next to it (see character_check)";
 				m_Instance.reset();
 				m_Model.reset();
 				return false;
 			}
-			animator->AddMixamoSets();      // box, holding, wheelbarrow... when the folder has those clips
-			animator->AddMixamoActions();   // farming montages and the jump clip
-			if (m_Gameplay) RegisterAbilityMontages(m_Gameplay->Library, animator->Anim());   // the same montages with the notifies the abilities use
-			animator->SetFootsteps(m_Steps);
-			if (animator->Anim().Turn().HasClips("")) m_Controller.Config.TurnInPlaceAngle = 70.0f;   // the character has a turn on the spot to show
-			m_Animator = std::move(animator);
-			ApplyFeet();
 		}
 		else
 		{
@@ -137,6 +125,77 @@ namespace GB::Editor
 		m_Script.clear();
 		m_ScriptTime = 0.0f;
 		GB_CLIENT_INFO("Player mode: {} at ({:.1f}, {:.1f}), {} obstacles{}", isFbx ? kind : fox ? "fox" : "cesium", start.x, start.y, m_Obstacles, m_Animator ? ", locomotion blend" : "");
+		return true;
+	}
+
+	bool PlayerMode::BuildAnimator(std::string& error)
+	{
+		m_Profile = AnalyzeCharacter(*m_Model);
+		LocomotionOptions options;
+		if (m_Profile.Humanoid()) options.Analysis = m_Profile.Analysis;   // this skeleton's own bone names
+		auto animator = std::make_unique<CharacterAnimator>(*m_Model, *m_Instance, options);
+		if (animator->AddDefaultLocomotionClips() < 2 && animator->AddRoleClips(m_Profile) < 2)
+		{
+			error = "the character has no locomotion clips (idle, walk, run...): put the animation FBX files next to it (see character_check)";
+			return false;
+		}
+		animator->AddMixamoSets();      // box, holding, wheelbarrow... when the folder has those clips
+		animator->AddMixamoActions();   // farming montages and the jump clip
+		if (m_Gameplay) RegisterAbilityMontages(m_Gameplay->Library, animator->Anim());   // the same montages with the notifies the abilities use
+		animator->SetFootsteps(m_Steps);
+		if (animator->Anim().Turn().HasClips("")) m_Controller.Config.TurnInPlaceAngle = 70.0f;   // the character has a turn on the spot to show
+		m_Animator = std::move(animator);
+		ApplyFeet();
+		return true;
+	}
+
+	bool PlayerMode::Retarget(const std::string& pathIn, const std::string& assetRoot, std::string& report)
+	{
+		namespace fs = std::filesystem;
+		if (!m_Model || !m_Instance || !m_Animator) { report = "start the player with an FBX character first (player <character.fbx>)"; return false; }
+		std::string path = pathIn;
+		if (!fs::exists(path) && fs::exists(assetRoot + "/" + path)) path = assetRoot + "/" + path;
+		std::vector<std::string> files;
+		std::error_code ec;
+		if (fs::is_directory(path, ec))
+		{
+			for (const auto& e : fs::directory_iterator(path, ec))
+				if (e.is_regular_file() && (e.path().extension() == ".fbx" || e.path().extension() == ".FBX")) files.push_back(e.path().generic_string());
+			std::sort(files.begin(), files.end());
+		}
+		else if (fs::exists(path)) files.push_back(path);
+		if (files.empty()) { report = "no FBX files at " + path; return false; }
+
+		int added = 0, skipped = 0;
+		std::vector<std::string> names;
+		report.clear();
+		bool first = true;
+		for (const std::string& file : files)
+		{
+			auto source = Model::Load(file);
+			if (!source || source->GetClips().empty()) { ++skipped; continue; }
+			const RetargetMap map = BuildRetargetMap(*source, *m_Model);
+			if (first) report += DescribeRetargetMap(*source, *m_Model, map);
+			first = false;
+			if (!map.Valid()) { ++skipped; continue; }
+			added += RetargetAnimations(*source, *m_Model, map, &names);
+		}
+		report += std::to_string(added) + " clip(s) retargeted" + (skipped ? ", " + std::to_string(skipped) + " file(s) skipped (no clips, or a skeleton that cannot be paired)" : "") + "\n";
+		m_RetargetReport = report;
+		if (added == 0) return false;
+		// the new clips take part in the character check and the locomotion
+		m_Animator.reset();
+		m_Physics.reset();
+		std::string error;
+		if (!BuildAnimator(error)) { report += error + "\n"; return false; }
+		// every retargeted clip is playable as an action (player_montage <clip>)
+		for (const std::string& name : names)
+		{
+			MontageDesc d;
+			d.Name = name;
+			d.Clip = name;
+			m_Animator->Anim().Montages().Add(d);
+		}
 		return true;
 	}
 

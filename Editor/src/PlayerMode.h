@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Animation/Character.h"
 #include "GB/Animation/CharacterAnimator.h"
+#include "GB/Animation/Retarget.h"
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Game/AIDriver.h"
@@ -99,6 +100,11 @@ namespace GB::Editor
 		std::string RagdollStatus() const;
 		float RagdollLandingSpeed = 9.0f;   // m/s of a landing that knocks the character down (0 = never)
 		bool AutoGetUp = true;
+		// Animations made for another skeleton (other bone names, proportions or rest pose): `path` is an FBX file or a folder of them. Each clip is
+		// retargeted onto this character (see GB/Animation/Retarget.h), the character check is made again and the animator rebuilt with the new clips.
+		// `report` says what was paired and what was not. False when nothing could be retargeted.
+		bool Retarget(const std::string& path, const std::string& assetRoot, std::string& report);
+		const std::string& RetargetReport() const { return m_RetargetReport; }
 		const MotionState& GetMotion() const { return m_Motion; }
 		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
 		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
@@ -120,6 +126,8 @@ namespace GB::Editor
 		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
 		std::map<std::string, PropLook> m_PropLooks;
 		mutable std::unique_ptr<Mesh> m_PropMesh;
+		bool BuildAnimator(std::string& error);   // the animator from the profile and the clips the model has now
+		std::string m_RetargetReport;
 		void BuildPhysics();
 		std::unique_ptr<PhysicsWorld> m_Physics;   // declared before the animator: the ragdoll lives in it and must go first
 		float m_RestTime = 0.0f;
