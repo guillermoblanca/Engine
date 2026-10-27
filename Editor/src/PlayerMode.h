@@ -5,6 +5,7 @@
 #include "GB/Game/AIDriver.h"
 #include "GB/Game/CharacterController.h"
 #include "GB/Game/MotionState.h"
+#include "GB/Game/TaskList.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/Mesh.h"
@@ -60,6 +61,13 @@ namespace GB::Editor
 		void LookAtPoint(const glm::vec3& p) { m_LookCamera = false; if (m_Animator) m_Animator->Anim().Look().SetTarget(p); }
 		void LookAtCamera(bool on) { m_LookCamera = on; if (!on && m_Animator) m_Animator->Anim().Look().ClearTarget(); }
 		void ClearLook() { LookAtCamera(false); }
+		// Tasks (see GB/Game/TaskList.h): the character does them like an NPC would, with the same controller and animation. `interact` uses the
+		// interaction points of the scene's entities. False (and `error`) when the text is not a task list.
+		bool RunTasks(const std::string& text, std::string& error);
+		bool Interact(const std::string& entity, const std::string& point, std::string& error);
+		void StopTasks() { m_Tasks.Clear(); }
+		bool TasksRunning() const { return m_Tasks.Running(); }
+		std::string TaskStatus() const { return m_Tasks.Describe(); }
 		const MotionState& GetMotion() const { return m_Motion; }
 		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
 		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
@@ -77,6 +85,8 @@ namespace GB::Editor
 		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
 		std::map<std::string, PropLook> m_PropLooks;
 		mutable std::unique_ptr<Mesh> m_PropMesh;
+		TaskRunner m_Tasks;
+		const SceneEditor* m_Edit = nullptr;
 		std::string m_PendingProp;   // waits for the box overlay to finish before measuring the grips
 
 		std::shared_ptr<Model> m_Model;

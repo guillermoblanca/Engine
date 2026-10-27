@@ -140,6 +140,7 @@ namespace GB
 		e->Light = original.Light;
 		e->Body = original.Body;
 		e->Prop = original.Prop;
+		e->Interact = original.Interact;
 		for (EntityId c : original.Children) CopyTree(c, id);
 		return id;
 	}

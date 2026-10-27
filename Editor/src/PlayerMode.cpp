@@ -82,6 +82,8 @@ namespace GB::Editor
 		const glm::vec2 start = FindFreeSpot(m_World, { near.x, near.z }, 2.5f);
 		m_Controller.SetPosition(m_World, start.x, start.y, 0.0f);
 
+		m_Edit = &edit;
+		m_Tasks.Clear();
 		m_Model = std::move(model);
 		m_Instance = std::make_unique<ModelInstance>(*m_Model);
 		m_Animator.reset();
@@ -139,6 +141,23 @@ namespace GB::Editor
 		m_World = CharacterWorld();
 		m_Script.clear();
 		m_Obstacles = 0;
+	}
+
+	bool PlayerMode::RunTasks(const std::string& text, std::string& error)
+	{
+		if (!m_Instance) { error = "start the player first"; return false; }
+		std::vector<Task> tasks;
+		if (!ParseTasks(text, tasks, &error)) return false;
+		if (tasks.empty()) { error = "no tasks"; return false; }
+		m_UseAI = false;
+		m_Script.clear();
+		m_Tasks.Set(std::move(tasks));
+		return true;
+	}
+
+	bool PlayerMode::Interact(const std::string& entity, const std::string& point, std::string& error)
+	{
+		return RunTasks("interact " + entity + (point.empty() ? "" : " " + point), error);
 	}
 
 	void PlayerMode::SetScript(const std::string& text)
@@ -321,6 +340,7 @@ namespace GB::Editor
 			std::string out = head;
 			for (const auto& c : m_Animator->Locomotion().Contributions()) { char b[96]; std::snprintf(b, sizeof b, " %s=%.2f", c.Clip.c_str(), static_cast<double>(c.Weight)); out += b; }
 			out += " | " + MontageStatus() + (m_Controller.IsAirborne() ? ", airborne" : "");
+			if (m_Tasks.Count() > 0) out += " | tasks: " + m_Tasks.Describe();
 			return out + (m_UseAI ? (m_AI.Arrived() ? " [AI arrived]" : m_AI.Stuck() ? " [AI stuck]" : " [AI walking]") : "");
 		}
 		char buf[200];

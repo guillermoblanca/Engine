@@ -10,6 +10,9 @@ add_library(GB STATIC
     src/GB/Game/CharacterController.cpp
     src/GB/Game/MotionState.cpp
     src/GB/Game/AIDriver.cpp
+    src/GB/Game/MotionWarp.cpp
+    src/GB/Game/Interaction.cpp
+    src/GB/Game/TaskList.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp

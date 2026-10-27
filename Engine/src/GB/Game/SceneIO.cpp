@@ -129,6 +129,20 @@ namespace GB
 			}
 			if (e.Body) j["body"] = BodyToJson(*e.Body);
 			if (e.Prop) j["prop"] = Json{ { "kind", e.Prop->Kind == PropKind::Rock ? "rock" : "tree" }, { "variant", e.Prop->Variant } };
+			if (e.Interact)
+			{
+				Json points = Json::array();
+				for (const InteractionPoint& p : e.Interact->Points)
+				{
+					Json jp{ { "name", p.Name }, { "position", ToJson(p.Position) }, { "yaw", Round(p.Yaw) } };
+					if (!p.Montage.empty()) jp["montage"] = p.Montage;
+					if (!p.Requires.empty()) jp["requires"] = p.Requires;
+					if (!p.Gives.empty()) jp["gives"] = p.Gives;
+					if (p.WarpSeconds != 0.4f) jp["warp"] = Round(p.WarpSeconds);
+					points.push_back(std::move(jp));
+				}
+				j["interact"] = std::move(points);
+			}
 			list.push_back(std::move(j));
 		}
 		root["entities"] = std::move(list);
@@ -180,6 +194,22 @@ namespace GB
 					else if (kind == "rock") e->Prop->Kind = PropKind::Rock;
 					else return fail("unknown prop kind '" + kind + "' on '" + e->Name + "'");
 					ReadValue(*it, "variant", e->Prop->Variant);
+				}
+				if (auto it = j.find("interact"); it != j.end() && it->is_array())
+				{
+					e->Interact.emplace();
+					for (const Json& jp : *it)
+					{
+						InteractionPoint p;
+						p.Name = jp.value("name", "use");
+						if (!ReadVec3(jp, "position", p.Position)) return fail("bad interaction point position on '" + e->Name + "'");
+						ReadValue(jp, "yaw", p.Yaw);
+						p.Montage = jp.value("montage", "");
+						p.Requires = jp.value("requires", "");
+						p.Gives = jp.value("gives", "");
+						ReadValue(jp, "warp", p.WarpSeconds);
+						e->Interact->Points.push_back(std::move(p));
+					}
 				}
 				if (auto it = j.find("body"); it != j.end())
 				{
