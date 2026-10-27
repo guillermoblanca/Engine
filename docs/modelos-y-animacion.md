@@ -158,7 +158,7 @@ Pendiente: sistema de conducta más allá de listas lineales (prioridades, neces
 - **Panel Animation** (View → Animation; pestañas): *Character* (el informe), *Animator* (estado de movimiento, selector de set de locomoción con su fundido, fase, escala de velocidad y peso de cada clip), *Montages* (lista con Play y Stop, estado de los slots), *Sockets* (props y sockets con su posición), *IK* (pies al terreno con sus parámetros, mirada a la cámara con sus límites).
 - Test `character_profile` (CPU): Mixamo (completo, con y sin clips), maniquí de Unreal (nombres propios y aviso de que mira a -Z), esqueleto que no es humanoide, esqueleto sin extremidades, informe y JSON; con los packs reales, el X Bot queda «ready» con 3 sets y 11 montajes. Los esqueletos de prueba los genera `tools/make_test_fbx.py`.
 
-Pendiente de la 11E: retargeting (animaciones de otro esqueleto sobre este: mapa de huesos y corrección de reposo), editor de grafo de estados y línea de tiempo de montajes con notificaciones editables.
+Pendiente de la 11E: editor de grafo de estados y línea de tiempo de montajes con notificaciones editables.
 
 ### Ragdoll integrado en la física del mundo (Fase 11D-2)
 
@@ -170,4 +170,15 @@ El personaje pasa a ser cuerpos y articulaciones **del mismo `PhysicsWorld`** qu
 - Test `ragdoll` (CPU, humanoide generado): 13 cuerpos y 12 articulaciones cerradas al empezar; cae, las articulaciones siguen juntas (< 8 cm), llega al reposo tumbado en el suelo sin hundirse; la pose que devuelve es válida y conserva proporciones; codos y rodillas no se doblan hacia atrás; conserva la velocidad que llevaba, un muro lo detiene, una explosión lo lanza sin romperlo, flota en el agua, un golpe mueve más el miembro golpeado y el resultado es determinista.
 
 Pendiente: ragdoll parcial (solo un brazo o la cabeza reaccionando a un golpe) y mezcla pose ↔ física con motores (ragdoll activo), animaciones de levantarse (el paquete no las trae: ahora es un fundido), colisión de cápsulas dinámicas (los miembros son cajas).
+
+### Retargeting (Fase 11E-2)
+
+Animaciones hechas para **otro esqueleto** (otros nombres de hueso, otras proporciones, otra pose de reposo, otra orientación) aplicadas a un personaje (`GB/Animation/Retarget.h`).
+
+- **`BuildRetargetMap(origen, destino)`**: empareja los huesos humanoides con `FindHumanoidRigAuto` en los dos esqueletos (un personaje de Mixamo puede tomar animaciones de Unreal y al revés, y los huesos intermedios de la columna que el otro no tiene se compensan solos) y el resto (dedos, accesorios) por nombre idéntico. Calcula la escala (altura de la cadera del destino sobre la del origen) y si hay que girar 180° (el origen mira a -Z y el destino a +Z). Lista los huesos del destino sin pareja, que conservan su pose de reposo.
+- **`Retargeter` / `RetargetClip` / `RetargetAnimations`**: cada hueso emparejado toma **la rotación que su hueso de origen ha girado desde su propio reposo, en el mundo**, aplicada a su propio reposo (así valen esqueletos con ejes de hueso distintos y con otra pose de reposo, por ejemplo una A-pose frente a la T-pose); las longitudes de hueso son las del destino; el desplazamiento de la cadera se escala al tamaño del destino y se gira si hace falta. El clip se hornea a 30 fps en el modelo destino (`Model::AddClip`), con el mismo nombre; repetirlo lo sustituye.
+- Editor: `retarget <fichero.fbx|carpeta>` (cada clip queda como acción reproducible con `player_montage <clip>`, el chequeo del personaje se rehace y el animador se reconstruye), y en la pestaña *Character* del panel Animation el campo y el botón *Retarget* con el informe.
+- Test `retarget` (CPU): mapa Unreal → Mixamo (21 huesos humanoides, escala 0,8, los dedos y la columna intermedia sin pareja), cada hueso gira desde su reposo lo mismo que el del origen, el brazo se mueve hacia delante con independencia de la A-pose del origen, las longitudes de hueso son las del destino, los huesos sin pareja siguen a su padre, la cadera recorre 1,2 m (1,5 m × 0,8), un origen que mira a -Z camina hacia +Z, los esqueletos no humanoides y los clips inexistentes se rechazan, y un esqueleto retargeteado sobre sí mismo queda igual (a menos de 2 mm).
+
+Limitaciones: solo se transfieren rotaciones y el desplazamiento de la cadera (las animaciones que mueven otros huesos por traslación, como los clips de prueba de marcha con pies trasladados, no pasan), no se corrigen la longitud de zancada ni el deslizamiento de pies, y el mapa de huesos no es editable todavía.
 

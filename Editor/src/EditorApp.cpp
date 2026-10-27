@@ -590,6 +590,16 @@ namespace GB::Editor
 			std::string error;
 			return m_Player.RunTasks(text, error) ? CommandResult{ true, "running: " + m_Player.TaskStatus() } : CommandResult{ false, error };
 		});
+		c.Register("retarget", "retarget <animations.fbx|folder>: applies the animations of another skeleton (any naming, proportions or rest pose) to the FBX player; the clips are added to it and its animator rebuilt", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { true, m_Player.RetargetReport().empty() ? "usage: retarget <animations.fbx|folder>" : m_Player.RetargetReport() };
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			std::string text;
+			for (size_t i = 0; i < a.size(); ++i) text += (i ? " " : "") + a[i];
+			std::string report;
+			const bool ok = m_Player.Retarget(text, m_AssetRoot, report);
+			return { ok, report };
+		});
 		c.Register("character_check", "character_check [character.fbx]: checks a character (the player's when no file is given): skeleton convention, bones, size and facing, clip roles, sets, montages and what is wrong", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty())
@@ -1416,6 +1426,13 @@ namespace GB::Editor
 					for (const std::string& n : p.Sets) sets += (sets.empty() ? "" : ", ") + n;
 					ImGui::TextWrapped("Sets: %s", sets.empty() ? "none" : sets.c_str());
 					ImGui::Text("Montages: %zu", p.Montages.size());
+					ImGui::SeparatorText("Retargeting");
+					static char retargetPath[256] = "";
+					ImGui::SetNextItemWidth(-90.0f);
+					ImGui::InputTextWithHint("##retarget", "animations.fbx or a folder", retargetPath, sizeof retargetPath);
+					ImGui::SameLine();
+					if (ImGui::Button("Retarget") && retargetPath[0]) Execute(std::string("retarget ") + retargetPath);
+					if (!m_Player.RetargetReport().empty()) ImGui::TextWrapped("%s", m_Player.RetargetReport().c_str());
 					ImGui::SeparatorText("Check");
 					if (p.Warnings.empty()) ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), "Ready");
 					for (const std::string& w : p.Warnings) ImGui::TextColored(ImVec4(1.0f, 0.75f, 0.3f, 1.0f), "%s", w.c_str());
