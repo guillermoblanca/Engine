@@ -154,7 +154,7 @@ namespace GB
 				const glm::vec2 lo = bare->GetHeightmap().GetMin() + 6.0f, hi = bare->GetHeightmap().GetMax() - 6.0f;
 				for (int s = 0; s < 70; ++s)
 				{
-					if (desc.Lake && glm::distance(p, basin) < hp.LakeRadius * 1.0f) break;
+					if (desc.Lake && glm::distance(p, basin) < hp.LakeRadius * 1.7f) break;
 					// steepest descent among 16 directions, biased toward the lake
 					float bestScore = 1e9f; glm::vec2 bestDir(1.0f, 0.0f);
 					for (int k = 0; k < 16; ++k)
@@ -174,7 +174,14 @@ namespace GB
 					if (p.x < lo.x || p.y < lo.y || p.x > hi.x || p.y > hi.y) { p = glm::clamp(p, lo, hi); path.push_back(p); break; }
 					path.push_back(p);
 				}
-				if (desc.Lake) path.push_back(basin);
+				if (desc.Lake)   // the river ends at the shore of the lake, not in the middle of it
+				{
+					const glm::vec2 last = path.back();
+					glm::vec2 toLake = basin - last;
+					const float len = glm::length(toLake);
+					if (len > hp.LakeRadius * 1.2f) path.push_back(basin - toLake / len * hp.LakeRadius * 1.1f);   // stops at the bank
+					else path.back() = basin - (len > 1e-3f ? toLake / len : glm::vec2(1.0f, 0.0f)) * hp.LakeRadius * 1.1f;
+				}
 				if (path.size() >= 3) hp.RiverPath = path;
 				hp.RiverWidth = desc.Type == WorldType::Alpine ? 5.0f : 6.5f;
 			}
