@@ -1,6 +1,9 @@
 #include "GB/Animation/Retarget.h"
 #include <algorithm>
+#include <cctype>
 #include <cmath>
+#include <cstring>
+#include <map>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace GB
@@ -10,6 +13,50 @@ namespace GB
 		glm::quat WorldRotation(const glm::mat4& m)
 		{
 			return glm::normalize(glm::quat_cast(glm::mat3(glm::normalize(glm::vec3(m[0])), glm::normalize(glm::vec3(m[1])), glm::normalize(glm::vec3(m[2])))));
+		}
+
+
+		// the bones from `top` down to `bottom` (following the parents), top first; empty when bottom is not below top
+		std::vector<int> ChainBetween(const Model& m, int top, int bottom)
+		{
+			std::vector<int> c;
+			if (top < 0 || bottom < 0) return c;
+			const auto& nodes = m.GetNodes();
+			for (int b = bottom; b >= 0 && c.size() < 16; b = nodes[static_cast<size_t>(b)].Parent)
+			{
+				c.push_back(b);
+				if (b == top) { std::reverse(c.begin(), c.end()); return c; }
+			}
+			c.clear();
+			return c;
+		}
+
+		// "L/index/2" for a finger bone whatever the naming ("mixamorig:LeftHandIndex2", "index_02_l"); "" for any other bone
+		std::string FingerKey(const std::string& full)
+		{
+			std::string n;
+			const size_t cut = full.find_last_of(":|");
+			for (size_t i = cut == std::string::npos ? 0 : cut + 1; i < full.size(); ++i) n += static_cast<char>(std::tolower(static_cast<unsigned char>(full[i])));
+			const char* fingers[] = { "thumb", "index", "middle", "ring", "pinky" };
+			for (const char* f : fingers)
+			{
+				const size_t at = n.find(f);
+				if (at == std::string::npos) continue;
+				char side = 0;
+				if (n.find("left") != std::string::npos) side = 'L';
+				else if (n.find("right") != std::string::npos) side = 'R';
+				else if (n.size() > 2 && (n.compare(n.size() - 2, 2, "_l") == 0 || n.compare(n.size() - 2, 2, ".l") == 0)) side = 'L';
+				else if (n.size() > 2 && (n.compare(n.size() - 2, 2, "_r") == 0 || n.compare(n.size() - 2, 2, ".r") == 0)) side = 'R';
+				if (!side) continue;
+				size_t d = at + std::strlen(f);
+				while (d < n.size() && !std::isdigit(static_cast<unsigned char>(n[d]))) ++d;
+				if (d >= n.size()) continue;
+				int joint = 0;
+				while (d < n.size() && std::isdigit(static_cast<unsigned char>(n[d]))) joint = joint * 10 + (n[d++] - '0');
+				if (joint < 1 || joint > 4) continue;
+				return std::string(1, side) + "/" + f + "/" + std::to_string(joint);
+			}
+			return "";
 		}
 
 		void AddPair(std::vector<int>& targetToSource, int source, int target)
@@ -41,6 +88,27 @@ namespace GB
 		AddPair(targetToSource, s.Head, t.Head);
 		arm(s.Left, t.Left); arm(s.Right, t.Right);
 		leg(s.LeftLeg, t.LeftLeg); leg(s.RightLeg, t.RightLeg);
+		// a spine with more bones than the target's: the ones between the ends are paired in proportion (spine_01..03 -> Spine..Spine2)
+		{
+			const std::vector<int> sc = ChainBetween(source, s.Spine, s.Spine2), tc = ChainBetween(target, t.Spine, t.Spine2);
+			if (tc.size() > 2 && sc.size() >= tc.size())
+				for (size_t i = 1; i + 1 < tc.size(); ++i)
+					AddPair(targetToSource, sc[i * (sc.size() - 1) / (tc.size() - 1)], tc[i]);
+		}
+		// the fingers, by side, finger and joint
+		{
+			std::map<std::string, int> sourceFingers;
+			for (size_t n = 0; n < source.GetNodes().size(); ++n)
+			{
+				const std::string k = FingerKey(source.GetNodes()[n].Name);
+				if (!k.empty()) sourceFingers.emplace(k, static_cast<int>(n));
+			}
+			for (size_t n = 0; n < target.GetNodes().size(); ++n)
+			{
+				const auto it = sourceFingers.find(FingerKey(target.GetNodes()[n].Name));
+				if (it != sourceFingers.end()) AddPair(targetToSource, it->second, static_cast<int>(n));
+			}
+		}
 		for (int v : targetToSource) map.Humanoid += v >= 0 ? 1 : 0;
 		auto chain = [&](int sb, int sc, int tb, int tc)
 		{

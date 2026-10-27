@@ -186,6 +186,8 @@ Animaciones hechas para **otro esqueleto** (otros nombres de hueso, otras propor
 - Editor: `retarget <fichero.fbx|carpeta>` (cada clip queda como acción reproducible con `player_montage <clip>`, el chequeo del personaje se rehace y el animador se reconstruye), y en la pestaña *Character* del panel Animation el campo y el botón *Retarget* con el informe.
 - Test `retarget` (CPU): mapa Unreal → Mixamo (21 huesos humanoides, escala 0,8, los dedos y la columna intermedia sin pareja), cada hueso gira desde su reposo lo mismo que el del origen, el brazo se mueve hacia delante con independencia de la A-pose del origen, las longitudes de hueso son las del destino, los huesos sin pareja siguen a su padre, la cadera recorre 1,2 m (1,5 m × 0,8), un origen que mira a -Z camina hacia +Z, los esqueletos no humanoides y los clips inexistentes se rechazan, y un esqueleto retargeteado sobre sí mismo queda igual (a menos de 2 mm).
 
+Se emparejan también los huesos intermedios de la columna (en proporción) y los dedos (lado, dedo y articulación); los nombres de toma pierden el ámbito del exportador (`Armature|`). `UniversalMontages()` da nombre a las acciones de la Universal Animation Library una vez retargeteadas (ver `AUDITORIA_ANIMACION.md`).
+
 Limitaciones: solo se transfieren rotaciones y el desplazamiento de la cadera (las animaciones que mueven otros huesos por traslación, como los clips de prueba de marcha con pies trasladados, no pasan), no se corrigen la longitud de zancada ni el deslizamiento de pies, y el mapa de huesos no es editable todavía.
 
 ### Línea de tiempo de montajes y grafo de estados (Fase 11E-3)

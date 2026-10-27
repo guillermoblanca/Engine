@@ -42,7 +42,8 @@ int main()
 		fingerUnmatched = fingerUnmatched || n == "mixamorig:LeftHandMiddle1";
 		spine1Unmatched = spine1Unmatched || n == "mixamorig:Spine1";
 	}
-	Check(fingerUnmatched && spine1Unmatched, "bones the source has no counterpart for are listed (they keep their rest pose)");
+	Check(!fingerUnmatched && !spine1Unmatched, "the middle spine bone (spine_02) and the fingers (middle_01) are paired by position and by name");
+	Check(map.UnmatchedTarget.size() < 5, "only bones without a counterpart (the mesh nodes) are left to keep their rest pose");
 	Check(DescribeRetargetMap(*source, *target, map).find("unreal -> mixamo") != std::string::npos, "the report names both conventions");
 
 	// ---- the clip

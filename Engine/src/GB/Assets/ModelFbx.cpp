@@ -15,6 +15,14 @@ namespace GB
 {
 	namespace
 	{
+		// the take's name without the exporter's scope ("Armature|Walk_Loop" -> "Walk_Loop")
+		std::string TakeName(const char* name)
+		{
+			const std::string n = name;
+			const size_t bar = n.find_last_of('|');
+			return bar != std::string::npos && bar + 1 < n.size() ? n.substr(bar + 1) : n;
+		}
+
 		glm::vec3 ToVec3(const ufbx_vec3& v) { return { static_cast<float>(v.x), static_cast<float>(v.y), static_cast<float>(v.z) }; }
 		glm::quat ToQuat(const ufbx_quat& q) { return glm::quat(static_cast<float>(q.w), static_cast<float>(q.x), static_cast<float>(q.y), static_cast<float>(q.z)); }
 		glm::mat4 ToMat4(const ufbx_matrix& m)
@@ -87,7 +95,7 @@ namespace GB
 
 				AnimationClip clip;
 				// a file with a single take is named after the file ("walking.fbx" -> "walking"), whatever the exporter called the take
-				clip.Name = usable == 1 ? fileStem : (stack->name.length ? std::string(stack->name.data) : fileStem + " " + std::to_string(s));
+				clip.Name = usable == 1 ? fileStem : (stack->name.length ? TakeName(stack->name.data) : fileStem + " " + std::to_string(s));
 				clip.Duration = static_cast<float>(duration);
 				for (size_t b = 0; b < baked->nodes.count; ++b)
 				{
