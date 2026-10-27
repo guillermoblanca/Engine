@@ -794,6 +794,13 @@ namespace GB::Editor
 			return { true, "hit" };
 		});
 		c.Register("resources", "resources build [x z] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)", [this](const std::vector<std::string>& a) { return ResourcesCommand(a); });
+		c.Register("timescale", "timescale <1-20>: runs the simulation (gameplay, actors, tribe) that many times per frame; 1 is real time", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { true, "timescale " + std::to_string(m_TimeScale) };
+			m_TimeScale = std::max(1, std::min(20, std::atoi(a[0].c_str())));
+			return { true, "timescale " + std::to_string(m_TimeScale) };
+		});
+		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
 		c.Register("montage_info", "montage_info [montage]: describes a montage (clip, slot, blends, rate, notifies, sections); no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
@@ -1286,10 +1293,13 @@ namespace GB::Editor
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
-		m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
-		StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
-		if (m_Player.IsActive()) m_Player.BeginFrame(dt, m_ViewportHovered && !io.WantTextInput);
-		m_Actors.Update(dt);
+		for (int step = 0; step < m_TimeScale; ++step)   // `timescale n` runs the simulation n times per frame (the tribe's day in a minute)
+		{
+			m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
+			StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
+			if (m_Player.IsActive()) m_Player.BeginFrame(dt, m_ViewportHovered && !io.WantTextInput);
+			m_Actors.Update(dt);
+		}
 		if (m_Player.IsActive())
 		{
 			m_Player.EndFrame(dt);

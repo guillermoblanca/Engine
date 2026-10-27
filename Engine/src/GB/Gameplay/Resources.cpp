@@ -88,7 +88,9 @@ namespace GB
 			const ResourceNodeDef& def = it->second;
 			for (int i = 0; i < row.count; ++i)
 			{
-				const std::string name = std::string(row.id) + " " + std::to_string(i + 1);
+				std::string label = row.id;   // entity names use spaces ("berry bush 1") so a task list can write them with underscores
+				std::replace(label.begin(), label.end(), '_', ' ');
+				const std::string name = label + " " + std::to_string(i + 1);
 				const EntityId id = w.Create(name, root);
 				Entity& e = *w.Find(id);
 				e.Transform.Position = { (static_cast<float>(i) - (row.count - 1) * 0.5f) * 4.0f, 0.0f, row.z };
