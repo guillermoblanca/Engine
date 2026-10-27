@@ -382,13 +382,23 @@ Todo es accesible por comandos (`SceneEditor`, sin GL ni ImGui):
 - En scripts, un comentario es `#` seguido de espacio; `#rrggbb` es un color.
 - Test `editor` ampliado: comandos, deshacer/rehacer, ficheros de escena y selección por rayo.
 
+## Audio (Fase 10C-1)
+
+`GB/Audio/`: sonido sin archivos ni tarjeta de sonido.
+
+- `AudioClip`: datos mono en float; sintetizadores deterministas (misma semilla, mismas muestras): `Tone`, `Noise` (blanco/rosa/marrón), `Wind`, `Rain`, `River`, `Thunder`, `Birds`, `Crickets`, `Footstep` (hierba, tierra, piedra, arena, madera, nieve, agua) y `Boom`; los ambientes son bucles sin clic. También carga wav/flac/mp3 (`LoadFile`) y escribe wav (`SaveWav`).
+- `AudioMixer`: mezclador por software (hasta 64 voces) con volumen, tono, bucle, fundidos, sonido 3D (atenuación por distancia y panorámica según el oyente), buses `sfx/ambient/music/ui`, volumen maestro, limitador suave y medidores de nivel. `Render()` es CPU puro y determinista: lo llama el dispositivo, un test o una exportación offline.
+- `AudioDevice`: salida por miniaudio (v0.11.22 fijada, una cabecera); sin tarjeta de sonido (CI, contenedores) usa el backend silencioso, así que todo el camino se ejecuta igual.
+- `AudioEngine`: mezclador + biblioteca de clips por nombre (`wind`, `rain_heavy`, `step_stone:3`, `tone:440` o una ruta de archivo) + dispositivo opcional; `RenderToWav` vuelca lo que suena a un wav.
+- Tests `audio` (CPU: sintetizadores, panorámica, distancia, tono, bucles, buses, limitador, huella de la mezcla y estadísticas doradas de los presets) y `audio_device`.
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
 1. Ventana (GLFW), OpenGL 4.5, input teclado/mando, capturas PNG  ✔
 2. Render PBR, luces, sombras, HDR/bloom  ✔ (primera pasada, ver abajo)
 3. Importación glTF 2.0 (Blender)  ✔
-4. Animación esquelética  ✔ · cámaras  ✔ · partículas  ✔ · audio
+4. Animación esquelética  ✔ · cámaras  ✔ · partículas  ✔ · audio ✔ (10C-1: mezclador y sintetizadores; 10C-2: entidades y ambiente)
 5. Editor (ImGui) ✔ (10A: paneles, propiedades, consola/scripts) · entidades y escenas JSON (10B-1) · jerarquía, inspector, selección y gizmo (10B-2) · API para agentes
 
 ### Siguientes pasos de calidad gráfica y mundo (pedidos)

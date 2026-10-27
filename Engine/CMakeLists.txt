@@ -3,6 +3,10 @@ target_include_directories(glad SYSTEM PUBLIC vendor/glad/include)
 
 add_library(GB STATIC
     src/GB/Application.cpp
+    src/GB/Audio/AudioClip.cpp
+    src/GB/Audio/AudioDevice.cpp
+    src/GB/Audio/AudioEngine.cpp
+    src/GB/Audio/AudioMixer.cpp
     src/GB/Game/Entity.cpp
     src/GB/Game/SceneIO.cpp
     src/GB/Game/EntityRender.cpp
@@ -40,8 +44,9 @@ add_library(GB STATIC
 add_library(GB::GB ALIAS GB)
 
 target_include_directories(GB PUBLIC src)
-target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw)
-target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include)
+find_package(Threads REQUIRED)
+target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw Threads::Threads ${CMAKE_DL_LIBS})
+target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include ${miniaudio_SOURCE_DIR})
 # glm is header-only; added as SYSTEM so its headers do not trip our warning flags.
 target_include_directories(GB SYSTEM PUBLIC ${glm_SOURCE_DIR})
 

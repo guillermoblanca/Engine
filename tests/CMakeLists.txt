@@ -119,3 +119,13 @@ add_executable(GBEntityRenderTests entity_render_test.cpp)
 target_link_libraries(GBEntityRenderTests PRIVATE GB::GB)
 add_test(NAME entity_render COMMAND GBEntityRenderTests)
 set_tests_properties(entity_render PROPERTIES SKIP_RETURN_CODE 77)
+
+add_executable(GBAudioTests audio_test.cpp)
+target_link_libraries(GBAudioTests PRIVATE GB::GB)
+target_compile_definitions(GBAudioTests PRIVATE GB_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden")
+add_test(NAME audio COMMAND GBAudioTests)
+
+add_executable(GBAudioDeviceTests audio_device_test.cpp)
+target_link_libraries(GBAudioDeviceTests PRIVATE GB::GB)
+add_test(NAME audio_device COMMAND GBAudioDeviceTests)
+set_tests_properties(audio_device PROPERTIES SKIP_RETURN_CODE 77)
