@@ -84,6 +84,13 @@ int main()
 		Check(runner.Execute("entity create light Lamp Crate").Ok && ed.World().Find(ed.Resolve("Lamp"))->Parent == ed.Resolve("Crate"), "child entity");
 		Check(runner.Execute("entity set Crate position 1 2 3").Ok && ed.World().Find(ed.Resolve("Crate"))->Transform.Position == glm::vec3(1, 2, 3), "entity set by name");
 		Check(!runner.Execute("entity set Crate nonsense 1").Ok, "bad property rejected");
+		Check(runner.Execute("entity interact Crate pick work 0 0 -1.5 180 bucket fruit").Ok && ed.World().Find(ed.Resolve("Crate"))->Interact
+			&& ed.World().Find(ed.Resolve("Crate"))->Interact->Points.size() == 1 && ed.World().Find(ed.Resolve("Crate"))->Interact->Points[0].Gives == "fruit", "an interaction point is added to an entity");
+		Check(runner.Execute("entity interact Crate pick - 0 0 -2 90").Ok && ed.World().Find(ed.Resolve("Crate"))->Interact->Points.size() == 1 && ed.World().Find(ed.Resolve("Crate"))->Interact->Points[0].Montage.empty(), "the same name updates the point");
+		Check(!runner.Execute("entity interact Crate pick").Ok, "an incomplete interaction command is refused");
+		Check(runner.Execute("undo").Ok && ed.World().Find(ed.Resolve("Crate"))->Interact->Points[0].Gives == "fruit", "undo restores the previous point");
+		Check(runner.Execute("entity interact Crate clear").Ok && !ed.World().Find(ed.Resolve("Crate"))->Interact, "the points can be cleared");
+		Check(runner.Execute("undo").Ok, "undo brings the points back");
 		Check(runner.Execute("entity add body").Ok && props.Find("sel.body.mass"), "add component rebinds");
 		Check(!runner.Execute("entity parent Crate Lamp").Ok, "cycle rejected through the command");
 		Check(runner.Execute("entity duplicate Crate").Ok && ed.World().Count() == 4, "duplicate copies the subtree");

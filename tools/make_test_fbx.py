@@ -5,6 +5,8 @@
                             120 cm along +Z (a 1.2 m stride) and the feet step, planted while the body passes over them.
   tests/data/test_clip.fbx  the same skeleton with a half-second "run" (150 cm stride, 3 m/s) plus a bone the rig does not have.
   tests/data/test_idle.fbx  the same skeleton standing still for two seconds (a slight breathing motion).
+  tests/data/test_humanoid.fbx  a full humanoid (spine chain, neck, both arms down to the middle finger, legs with knees and toes)
+                            with a standing "idle": what sockets, hand grips and IK need (arms 0.28 m + 0.27 m, a slight elbow bend).
 
 Run from the repository root:  python3 tools/make_test_fbx.py
 """
@@ -95,6 +97,31 @@ def build(bones, takes, extra_bones=()):
 
     return header() + "Objects:  {\n" + "\n".join(objects) + "\n}\nConnections:  {\n" + "\n".join(connections) + "\n}\n"
 
+def side(prefix, sign):
+    """One arm and one leg; `sign` is +1 for the left side (+X when the character faces +Z)."""
+    p = "mixamorig:" + prefix
+    return [
+        (p + "Shoulder", "mixamorig:Spine2", (sign * 8, 12, 0)),
+        (p + "Arm", p + "Shoulder", (sign * 10, 0, 0)),
+        (p + "ForeArm", p + "Arm", (sign * 2, -28, 4)),
+        (p + "Hand", p + "ForeArm", (0, -25, -2)),
+        (p + "HandMiddle1", p + "Hand", (0, -9, 0)),
+        (p + "UpLeg", "mixamorig:Hips", (sign * 10, -5, 0)),
+        (p + "Leg", p + "UpLeg", (0, -45, 0)),
+        (p + "Foot", p + "Leg", (0, -45, 0)),
+        (p + "ToeBase", p + "Foot", (0, -5, 10)),
+    ]
+
+
+HUMANOID = [
+    ("mixamorig:Hips", None, (0, 100, 0)),
+    ("mixamorig:Spine", "mixamorig:Hips", (0, 10, 0)),
+    ("mixamorig:Spine1", "mixamorig:Spine", (0, 15, 0)),
+    ("mixamorig:Spine2", "mixamorig:Spine1", (0, 15, 0)),
+    ("mixamorig:Neck", "mixamorig:Spine2", (0, 15, 0)),
+    ("mixamorig:Head", "mixamorig:Neck", (0, 10, 0)),
+] + side("Left", 1) + side("Right", -1)
+
 
 def gait(seconds, stride_cm, lift_cm=15.0):
     """A walk/run cycle in place of a real capture: the hips travel one stride, each foot is planted for half the
@@ -120,6 +147,8 @@ def main():
         with open(os.path.join(out, name), "w", newline="\n") as f:
             f.write(build(BONES, takes, extra_bones))
 
+    with open(os.path.join(out, "test_humanoid.fbx"), "w", newline="\n") as f:
+        f.write(build(HUMANOID, [("idle", 2.0, [("mixamorig:Spine", {"Y": [(0.0, 10.0), (1.0, 10.5), (2.0, 10.0)]})])]))
     write("test_rig.fbx", [("walk", 1.0, gait(1.0, 120.0))])
     sword = ("Prop:Sword", "mixamorig:Hips", (5, 0, 0))   # a bone the rig does not have
     run = gait(0.5, 150.0) + [("Prop:Sword", {"X": [(0.0, 5.0), (0.5, 9.0)]})]

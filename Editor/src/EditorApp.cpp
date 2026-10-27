@@ -538,6 +538,56 @@ namespace GB::Editor
 			if (a[0] == "stop") { m_Player.StopMontage(); return { true, "stopped" }; }
 			return m_Player.PlayMontage(a[0]) ? CommandResult{ true, "playing " + a[0] } : CommandResult{ false, "no such montage '" + a[0] + "'" };
 		});
+		c.Register("player_attach", "player_attach [box|bag|tool|off]: the FBX player carries a prop (box in both hands with IK, a bag on the back, a tool in the hand); off lets go; no argument lists what is carried", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty())
+			{
+				std::string names;
+				for (const std::string& n : m_Player.PropNames()) names += (names.empty() ? "" : ", ") + n;
+				return { true, names.empty() ? "carrying nothing (props: box, bag, tool)" : "carrying: " + names };
+			}
+			if (a[0] == "off") { m_Player.DetachProp(a.size() > 1 ? a[1] : ""); return { true, "let go" }; }
+			return m_Player.AttachProp(a[0]) ? CommandResult{ true, "carrying " + a[0] } : CommandResult{ false, "cannot attach '" + a[0] + "' (box, bag, tool; the character needs the humanoid rig)" };
+		});
+		c.Register("player_look", "player_look <x> <y> <z> | camera | off: the FBX player turns its head toward a world point, the camera, or forward again", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.size() == 1 && a[0] == "off") { m_Player.ClearLook(); return { true, "looking forward" }; }
+			if (a.size() == 1 && a[0] == "camera") { m_Player.LookAtCamera(true); return { true, "looking at the camera" }; }
+			if (a.size() < 3) return { false, "usage: player_look <x> <y> <z> | camera | off" };
+			m_Player.LookAtPoint({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) });
+			return { true, "looking at (" + a[0] + ", " + a[1] + ", " + a[2] + ")" };
+		});
+		c.Register("player_feet", "player_feet on|off: the FBX player's feet follow the terrain with IK (on by default)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { true, m_Player.FootIKOn() ? "foot IK is on" : "foot IK is off" };
+			m_Player.SetFootIK(a[0] != "off" && a[0] != "0");
+			return { true, m_Player.FootIKOn() ? "foot IK on" : "foot IK off" };
+		});
+		c.Register("interact", "interact <entity> [point]: the player goes to an interaction point of an entity and uses it (underscores in names stand for spaces); no argument lists the points of the scene", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty())
+			{
+				std::string names;
+				for (const std::string& n : ListInteractions(m_SceneEditor.World())) names += (names.empty() ? "" : ", ") + n;
+				return { true, names.empty() ? "no entity has interaction points (entity interact <entity> <point> <montage> <x> <y> <z> <yaw>)" : "interactions: " + names };
+			}
+			if (!m_Player.IsActive()) return { false, "start the player first (player <character.fbx>)" };
+			std::string error;
+			return m_Player.Interact(a[0], a.size() > 1 ? a[1] : "", error) ? CommandResult{ true, "going to " + a[0] } : CommandResult{ false, error };
+		});
+		c.Register("player_tasks", "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop], separated by '|' or new lines)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive()) return { false, "start the player first (player <character.fbx>)" };
+			if (a.empty()) return { true, m_Player.TaskStatus() };
+			if (a.size() == 1 && a[0] == "stop") { m_Player.StopTasks(); return { true, "stopped" }; }
+			std::string text;
+			for (size_t i = 0; i < a.size(); ++i) text += (i ? " " : "") + a[i];
+			std::string error;
+			return m_Player.RunTasks(text, error) ? CommandResult{ true, "running: " + m_Player.TaskStatus() } : CommandResult{ false, error };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{

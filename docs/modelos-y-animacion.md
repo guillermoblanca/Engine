@@ -115,7 +115,40 @@ Decisión: manda `AnimInstance` para los personajes con el conjunto de clips (FB
 - Editor: `player_montage` lista las acciones, `player_montage <nombre>` la juega y `player_montage stop` la detiene.
 - Test `montage` (CPU): el rig generado (registro, fundidos, notificaciones, interrupción, el slot de la parte superior no toca las piernas) y, con `GB_MIXAMO_DIR` y `GB_FARMING_DIR`, las acciones y el salto reales. Test `character_layer`: salto, aterrizaje y caída desde un borde.
 
-Pendiente: parámetros y transiciones por condiciones (giro en sitio, agacharse), sockets y objetos en la mano (11C).
+Pendiente: parámetros y transiciones por condiciones (giro en sitio, agacharse).
+
+### Sockets, objetos con agarres e IK de manos (Fase 11C-1)
+
+- **`HumanoidRig`** (`GB/Animation/Rig.h`): los huesos de un humanoide (cadera, columna, cabeza, brazos con la base del dedo corazón, piernas) buscados por nombre (`mixamorig:` por defecto); lo que falta queda en -1 y todo lo que lo usa lo salta.
+- **`SocketSet` / `StandardSockets`** (`Socket.h`): un socket es un sitio con nombre del esqueleto (hueso + desplazamiento en el espacio del hueso). Se crean desde la pose de reposo, con los ejes del personaje (+Z delante, +X su izquierda), así que valen para cualquier personaje con ese esqueleto: `hand_l`/`hand_r` (centro de la palma), `head`, `back`, `carry` (delante del pecho), `hip_l`/`hip_r`, `foot_l`/`foot_r`.
+- **`SolveTwoBoneIK`** (`IK.h`): IK analítico de dos huesos sobre una `Pose` (ley de cosenos): el codo/rodilla se dobla hacia un polo, las longitudes se conservan, un objetivo fuera de alcance deja la cadena estirada hacia él, `weight` mezcla con la pose y se puede pedir la orientación final del extremo (la mano con la del agarre).
+- **`Prop` y `GripPoint`** (`AnimInstance.h`): un objeto sigue un socket del cuerpo (`Offset` lo coloca en el marco del socket) y cada agarre lleva una mano a su sitio con IK, después de los clips y montajes y antes de que la pose llegue a la instancia. Las manos lo alcanzan (y lo sueltan) con un fundido; `Attach`, `Detach`, `PropMatrix`, `PropWeight`. `SnapGrips` toma los agarres de donde las palmas están en pantalla (herramienta de autoría: la caja se sujeta exactamente donde los clips ponen las manos). Una caja entre las dos manos se mantiene con los clips de caja, y con otro personaje o una altura distinta el IK corrige el agarre.
+- Editor: `player_attach box|bag|tool|off`: la caja pasa al set `box`, mide los agarres y se lleva con las dos manos; la mochila va a la espalda y la herramienta en la mano derecha.
+- Tests: `props` (CPU) con un humanoide generado (`tools/make_test_fbx.py` → `tests/data/test_humanoid.fbx`): rig, sockets, IK (alcance, longitudes, polo, estirado, peso, orientación), caja con agarres, `SnapGrips`; con `GB_MIXAMO_DIR`/`GB_FARMING_DIR`, la caja con los clips reales (palmas a menos de 1,5 cm de los agarres caminando). Observación del pack: el clip `box walk arc` tiene un salto propio de unos 18 cm en la mano una vez por ciclo.
+
+### IK de pies y mirada (Fase 11C-2)
+
+Capas procedurales de `AnimInstance`, después de los clips, los montajes y la pose de salto (y antes de los agarres de las manos). Se atenúan solas mientras hay una acción de cuerpo completo o un salto en pantalla.
+
+- **`FootIK`** (`FootIK.h`): con una función de altura del terreno (`Feet().SetGround(f)`), cada pie se mueve la diferencia entre la altura del suelo bajo él y la del suelo bajo el personaje; la pelvis baja hasta el pie más bajo (nunca sube) para que las piernas lleguen; cada pierna se resuelve con IK de dos huesos y la suela se inclina hacia la pendiente (con tope). Los desplazamientos se suavizan (un escalón repentino se asienta en unas décimas de segundo, sin saltos). Los clips siguen decidiendo dónde van los pies sobre el plano.
+- **`LookAt`** (`LookAt.h`): gira la cabeza (y un poco el cuello y el pecho) hacia un punto del mundo con límites de giro y cabeceo (70°/40°), suavizado y fundido de entrada y salida; se aplica como corrección de la pose del clip, no la sustituye. Un objetivo a la espalda gira la cabeza solo hasta el límite.
+- Editor: el jugador FBX lleva el IK de pies al terreno activado (`player_feet on|off`) y `player_look <x> <y> <z>|camera|off` gira la cabeza.
+- Test `procedural` (CPU, humanoide generado): suelo plano sin cambios, escalón arriba y abajo, pendiente (la suela la sigue), personaje colocado, girado y escalado, pesos, escalón repentino, mirada (alcance, cabeceo, límites, volver a mirar al frente, reparto entre pecho, cuello y cabeza) y las dos capas dentro de un `AnimInstance`.
+
+Pendiente: manos y rodillas al suelo en posturas arrodilladas o sentadas, y bloqueo del apoyo (sin patinaje) de los pies.
+
+### Interacciones, motion warping y tareas de NPC (Fase 11D-1)
+
+El mismo flujo para el jugador y para un NPC: ir al punto → alinearse con motion warping → reproducir el montaje → eventos → fin.
+
+- **`InteractableComponent`** (`Entity.h`): lista de puntos de interacción de una entidad: dónde se coloca el personaje (en el espacio de la entidad), hacia dónde mira, el montaje, qué prop debe llevar (`Requires`) y cuál lleva después (`Gives`). Se guardan en los ficheros de escena y se copian al duplicar. Editor: `entity interact <entidad> <punto> <montaje|-> <x> <y> <z> <yaw> [requiere] [da]` (y `entity interact <entidad> clear`), con deshacer; `interact` sin argumentos los lista.
+- **`MotionWarp`** (`GB/Game/MotionWarp.h`): lleva al personaje a la posición y orientación exactas en un tiempo corto (suavizado, el giro por el camino corto). Los clips de estación no mueven la raíz, así que el personaje se asienta en el punto mientras el montaje se funde.
+- **`InteractionRunner`** (`Interaction.h`): `Approach` (el `AIDriver` produce el mismo `CharacterInput` que las teclas) → `Align` (warp mientras empieza el montaje) → `Act` (se mantiene en su sitio; las notificaciones del montaje salen como `notify:<nombre>`) → `Done` (`gives:<prop>`, `done`). Falla con el motivo si falta el prop requerido, el personaje no tiene el montaje, no llega al punto o la acción se interrumpe. Sin animación o sin montaje, el punto es solo una visita.
+- **`TaskRunner` / `ParseTasks`** (`TaskList.h`): lista de tareas de un NPC en texto (`goto x z [run]`, `interact <entidad> [punto]`, `wait s`, `attach prop`, `detach [prop]`, separadas por `;`, `|` o líneas, `#` comenta). Da el input al controlador como lo haría el jugador; qué significa "prop" lo decide el anfitrión (`PropHandler`). Una tarea imposible detiene la lista con el motivo.
+- Editor: `interact <entidad> [punto]` y `player_tasks <lista>|stop` (el jugador hace lo que haría un NPC).
+- Test `interaction` (CPU): puntos en espacio de mundo, escena y duplicado, warp (exacto, camino corto), el runner (fases, notificación una sola vez, posición y orientación exactas sin teletransporte), **dos personajes** (jugador y NPC con prisa, desde sitios distintos) que acaban en el mismo sitio y orientación, requisitos y fallos, y las listas de tareas (análisis y ejecución).
+
+Pendiente: sistema de conducta más allá de listas lineales (prioridades, necesidades), reservas de puntos de interacción (dos personajes en el mismo punto) y 11D-2 (articulaciones físicas y ragdoll).
 
 ### Set `injured` y giros en sitio
 

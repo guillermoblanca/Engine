@@ -1,6 +1,7 @@
 #include "GB/Animation/Pose.h"
 #include <algorithm>
 #include <cmath>
+#include <glm/gtc/matrix_transform.hpp>
 
 namespace GB
 {
@@ -135,5 +136,18 @@ namespace GB
 			else if (model.GetNodes()[static_cast<size_t>(n)].Parent >= 0) mask[static_cast<size_t>(n)] = mask[static_cast<size_t>(model.GetNodes()[static_cast<size_t>(n)].Parent)];
 		}
 		return mask;
+	}
+
+	void PoseToWorld(const Model& model, const Pose& pose, std::vector<glm::mat4>& world)
+	{
+		const auto& nodes = model.GetNodes();
+		world.resize(nodes.size());
+		for (int n : model.GetNodeOrder())   // parents come before their children
+		{
+			const BonePose& p = pose[static_cast<size_t>(n)];
+			const glm::mat4 local = glm::translate(glm::mat4(1.0f), p.T) * glm::mat4_cast(glm::normalize(p.R)) * glm::scale(glm::mat4(1.0f), p.S);
+			const int parent = nodes[static_cast<size_t>(n)].Parent;
+			world[static_cast<size_t>(n)] = parent >= 0 ? world[static_cast<size_t>(parent)] * local : local;
+		}
 	}
 }

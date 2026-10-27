@@ -10,6 +10,9 @@ add_library(GB STATIC
     src/GB/Game/CharacterController.cpp
     src/GB/Game/MotionState.cpp
     src/GB/Game/AIDriver.cpp
+    src/GB/Game/MotionWarp.cpp
+    src/GB/Game/Interaction.cpp
+    src/GB/Game/TaskList.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp
@@ -21,6 +24,11 @@ add_library(GB STATIC
     src/GB/Animation/Montage.cpp
     src/GB/Animation/AirLayer.cpp
     src/GB/Animation/TurnLayer.cpp
+    src/GB/Animation/Rig.cpp
+    src/GB/Animation/IK.cpp
+    src/GB/Animation/Socket.cpp
+    src/GB/Animation/FootIK.cpp
+    src/GB/Animation/LookAt.cpp
     src/GB/Game/SceneIO.cpp
     src/GB/Game/EntityRender.cpp
     src/GB/Input.cpp

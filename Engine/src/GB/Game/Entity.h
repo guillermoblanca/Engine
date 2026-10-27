@@ -66,6 +66,25 @@ namespace GB
 		int Variant = 0;
 	};
 
+	// Where and how a character uses something in the world (a fruit tree, a cow, a flower bed): the spot it has to stand on (in the
+	// entity's space), the direction it faces, the montage it plays there, and what it must carry / carries afterwards. Players and NPCs
+	// use the same points (see Interaction.h).
+	struct InteractionPoint
+	{
+		std::string Name = "use";
+		glm::vec3 Position{ 0.0f };   // where the character stands, in the entity's space
+		float Yaw = 0.0f;             // degrees: the direction it faces, in the entity's space (0 = the entity's +Z)
+		std::string Montage;          // the action to play ("" = just go there)
+		std::string Requires;         // a prop the character has to be carrying ("" = none)
+		std::string Gives;            // a prop it carries afterwards ("" = unchanged)
+		float WarpSeconds = 0.4f;     // the time it takes to settle exactly on the spot while the action starts
+	};
+
+	struct InteractableComponent
+	{
+		std::vector<InteractionPoint> Points;
+	};
+
 	struct Entity
 	{
 		EntityId Id = NullEntity;
@@ -79,6 +98,7 @@ namespace GB
 		std::optional<LightComponent> Light;
 		std::optional<BodyComponent> Body;
 		std::optional<PropComponent> Prop;
+		std::optional<InteractableComponent> Interact;
 
 		bool HasTag(const std::string& tag) const;
 	};

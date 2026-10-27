@@ -82,6 +82,8 @@ namespace GB::Editor
 		const glm::vec2 start = FindFreeSpot(m_World, { near.x, near.z }, 2.5f);
 		m_Controller.SetPosition(m_World, start.x, start.y, 0.0f);
 
+		m_Edit = &edit;
+		m_Tasks.Clear();
 		m_Model = std::move(model);
 		m_Instance = std::make_unique<ModelInstance>(*m_Model);
 		m_Animator.reset();
@@ -102,6 +104,7 @@ namespace GB::Editor
 			animator->SetFootsteps(m_Steps);
 			if (animator->Anim().Turn().HasClips("")) m_Controller.Config.TurnInPlaceAngle = 70.0f;   // the character has a turn on the spot to show
 			m_Animator = std::move(animator);
+			ApplyFeet();
 		}
 		else
 		{
@@ -122,8 +125,16 @@ namespace GB::Editor
 		return true;
 	}
 
+	void PlayerMode::ApplyFeet()
+	{
+		if (!m_Animator) return;
+		m_Animator->Anim().Feet().SetGround(m_FeetOn ? m_World.GroundHeight : std::function<float(float, float)>());
+	}
+
 	void PlayerMode::Stop()
 	{
+		m_PropLooks.clear();
+		m_PendingProp.clear();
 		m_Animator.reset();
 		m_UseAI = false;
 		m_Instance.reset();
@@ -131,6 +142,23 @@ namespace GB::Editor
 		m_World = CharacterWorld();
 		m_Script.clear();
 		m_Obstacles = 0;
+	}
+
+	bool PlayerMode::RunTasks(const std::string& text, std::string& error)
+	{
+		if (!m_Instance) { error = "start the player first"; return false; }
+		std::vector<Task> tasks;
+		if (!ParseTasks(text, tasks, &error)) return false;
+		if (tasks.empty()) { error = "no tasks"; return false; }
+		m_UseAI = false;
+		m_Script.clear();
+		m_Tasks.Set(std::move(tasks));
+		return true;
+	}
+
+	bool PlayerMode::Interact(const std::string& entity, const std::string& point, std::string& error)
+	{
+		return RunTasks("interact " + entity + (point.empty() ? "" : " " + point), error);
 	}
 
 	void PlayerMode::SetScript(const std::string& text)
@@ -167,6 +195,21 @@ namespace GB::Editor
 			}
 			m_ScriptTime += dt;
 		}
+		else if (m_Tasks.Running())
+		{
+			m_Camera.ReadInput(dt);
+			const TaskRunner::Resolver resolver = [this](const std::string& entity, const std::string& point, InteractionTarget& out, std::string* err)
+			{
+				return m_Edit && FindInteraction(m_Edit->World(), entity, point, out, err);
+			};
+			const TaskRunner::PropHandler props = [this](const std::string& prop, bool attach)
+			{
+				if (attach) return AttachProp(prop);
+				DetachProp(prop);
+				return true;
+			};
+			in = m_Tasks.Update(m_Controller, m_World, m_Animator ? &m_Animator->Anim() : nullptr, dt, resolver, props);
+		}
 		else if (m_UseAI && !m_AI.Arrived() && !m_AI.Stuck())
 		{
 			m_Camera.ReadInput(dt);   // the player can still look around while the AI walks the character
@@ -186,6 +229,18 @@ namespace GB::Editor
 			m_Animation.Update(*m_Instance, m_Controller.GetSpeed());
 			m_Instance->Update(dt);
 		}
+		if (m_LookCamera && m_Animator)
+		{
+			Camera cam;
+			m_Camera.Apply(cam);
+			m_Animator->Anim().Look().SetTarget(cam.Position);
+		}
+		if (!m_PendingProp.empty() && m_Animator && !m_Animator->Anim().Transitioning())
+		{
+			const std::string name = m_PendingProp;
+			m_PendingProp.clear();
+			AttachProp(name);
+		}
 		m_Camera.Update(dt, m_Controller.GetPosition());
 	}
 
@@ -204,10 +259,88 @@ namespace GB::Editor
 		return glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_Controller.GetPosition()), m_Controller.GetYaw(), glm::vec3(0, 1, 0)), glm::vec3(m_Scale));
 	}
 
+	bool PlayerMode::AttachProp(const std::string& name)
+	{
+		if (!m_Animator) return false;
+		AnimInstance& anim = m_Animator->Anim();
+		const SocketSet& sockets = anim.Sockets();
+		Prop prop;
+		prop.Name = name;
+		PropLook look;
+		if (name == "box")
+		{
+			if (!sockets.Find("carry") || !sockets.Find("hand_l") || !sockets.Find("hand_r")) return false;
+			// the grips are measured from the clips that hold a box, so those must be on screen: switch first, attach once the change is done
+			if (anim.Overlay() != "box" || anim.Transitioning())
+			{
+				if (!anim.SetOverlay("box", 0.3f)) return false;
+				m_PendingProp = name;
+				return true;
+			}
+			prop.Socket = "carry";
+			const glm::mat4 carry = sockets.Matrix(*m_Instance, "carry");
+			const glm::vec3 l = glm::vec3(glm::inverse(carry) * sockets.Matrix(*m_Instance, "hand_l")[3]), r = glm::vec3(glm::inverse(carry) * sockets.Matrix(*m_Instance, "hand_r")[3]);
+			// the box sits between the palms, its width along the line joining them
+			glm::vec3 x = l - r;
+			const float width = glm::length(x);
+			x = width > 1e-4f ? x / width : glm::vec3(1, 0, 0);
+			glm::vec3 z = glm::cross(x, glm::vec3(0, 1, 0));
+			z = glm::length(z) > 1e-4f ? glm::normalize(z) : glm::vec3(0, 0, 1);
+			const glm::vec3 y = glm::cross(z, x);
+			prop.Offset = glm::mat4(glm::vec4(x, 0), glm::vec4(y, 0), glm::vec4(z, 0), glm::vec4((l + r) * 0.5f, 1));
+			look.Size = { width + 0.04f, 0.32f, 0.36f };
+			look.Color = { 0.62f, 0.44f, 0.26f };
+		}
+		else if (name == "bag")
+		{
+			if (!sockets.Find("back")) return false;
+			prop.Socket = "back";
+			look.Size = { 0.34f, 0.46f, 0.2f };
+			look.Color = { 0.35f, 0.22f, 0.12f };
+		}
+		else if (name == "tool")
+		{
+			if (!sockets.Find("hand_r")) return false;
+			prop.Socket = "hand_r";
+			look.Size = { 0.04f, 0.04f, 0.9f };
+			look.Color = { 0.5f, 0.5f, 0.55f };
+		}
+		else
+			return false;
+		anim.SnapGrips(prop);
+		if (name != "box") prop.Grips.clear();   // a bag and a tool are held where the clip puts the hand: no IK
+		if (!anim.Attach(prop)) return false;
+		m_PropLooks[name] = look;
+		return true;
+	}
+
+	void PlayerMode::DetachProp(const std::string& name)
+	{
+		if (!m_Animator) return;
+		if (name.empty() || name == m_PendingProp) m_PendingProp.clear();
+		for (const std::string& n : m_Animator->Anim().PropNames())
+			if (name.empty() || n == name) m_Animator->Anim().Detach(n);
+	}
+
 	void PlayerMode::AddToScene(Scene& scene) const
 	{
-		if (m_Instance)
-			m_Instance->AddToScene(scene, RootMatrix());
+		if (!m_Instance)
+			return;
+		m_Instance->AddToScene(scene, RootMatrix());
+		if (!m_Animator) return;
+		for (const std::string& n : m_Animator->Anim().PropNames())
+		{
+			glm::mat4 world;
+			const auto look = m_PropLooks.find(n);
+			if (look == m_PropLooks.end() || !m_Animator->Anim().PropMatrix(n, world)) continue;
+			if (!m_PropMesh) m_PropMesh = std::make_unique<Mesh>(Mesh::CreateCube(1.0f));
+			RenderObject obj;
+			obj.MeshPtr = m_PropMesh.get();
+			obj.Mat.Albedo = look->second.Color;
+			obj.Mat.Roughness = 0.7f;
+			obj.Transform = glm::scale(world, look->second.Size);
+			scene.Objects.push_back(std::move(obj));
+		}
 	}
 
 	std::string PlayerMode::Describe() const
@@ -223,6 +356,7 @@ namespace GB::Editor
 			std::string out = head;
 			for (const auto& c : m_Animator->Locomotion().Contributions()) { char b[96]; std::snprintf(b, sizeof b, " %s=%.2f", c.Clip.c_str(), static_cast<double>(c.Weight)); out += b; }
 			out += " | " + MontageStatus() + (m_Controller.IsAirborne() ? ", airborne" : "");
+			if (m_Tasks.Count() > 0) out += " | tasks: " + m_Tasks.Describe();
 			return out + (m_UseAI ? (m_AI.Arrived() ? " [AI arrived]" : m_AI.Stuck() ? " [AI stuck]" : " [AI walking]") : "");
 		}
 		char buf[200];

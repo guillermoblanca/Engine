@@ -8,6 +8,11 @@ namespace GB
 		  m_LeftFoot(model.FindNode(options.Analysis.LeftFoot)), m_RightFoot(model.FindNode(options.Analysis.RightFoot)),
 		  m_Air(model, options.Analysis), m_Turn(model, options.Analysis), m_Montages(model, options.Analysis)
 	{
+		const std::string& root = options.Analysis.RootBone;   // "mixamorig:Hips": the rig's bones share its prefix
+		m_Rig = FindHumanoidRig(model, root.size() > 4 && root.compare(root.size() - 4, 4, "Hips") == 0 ? root.substr(0, root.size() - 4) : std::string());
+		m_Sockets = StandardSockets(model, m_Rig);
+		m_Feet = std::make_unique<FootIK>(model, m_Rig);
+		m_Look = std::make_unique<LookAt>(model, m_Rig);
 		m_Sets.push_back({ kDefaultSet, std::make_unique<LocomotionBlender>(model, options) });
 		m_Pose = RestPose(model);
 	}
@@ -119,7 +124,20 @@ namespace GB
 			m_Montages.Apply(m_Pose);
 			if (m_Montages.FullBodyWeight() > 0.5f) m_Events.clear();   // the legs are not walking: no footsteps
 		}
+		{
+			// the procedural layers fade out while an action or a jump has the whole body
+			const float free = (1.0f - std::min(m_Montages.FullBodyWeight(), 1.0f)) * (1.0f - std::min(m_Air.Weight(), 1.0f));
+			m_Feet->Update(m_Pose, characterToWorld, free, dt);
+			m_Look->Update(m_Pose, characterToWorld, 1.0f - std::min(m_Montages.FullBodyWeight(), 1.0f), dt);
+		}
+		for (Attached& a : m_Props)   // the hands reach for the prop (or let go of it)
+			a.Weight = a.Leaving ? std::max(a.Weight - dt / std::max(a.P.FadeSeconds, 1e-3f), 0.0f) : std::min(a.Weight + dt / std::max(a.P.FadeSeconds, 1e-3f), 1.0f);
+		if (!m_Props.empty())
+			ApplyGrips(characterToWorld);
 		m_Instance.SetPose(m_Pose);
+		for (Attached& a : m_Props)
+			a.World = characterToWorld * m_Sockets.Matrix(m_Instance, a.P.Socket) * a.P.Offset;
+		m_Props.erase(std::remove_if(m_Props.begin(), m_Props.end(), [](const Attached& a) { return a.Leaving && a.Weight <= 0.0f; }), m_Props.end());
 
 		if (state.Grounded)
 		{
@@ -146,6 +164,88 @@ namespace GB
 		{
 			if ((m_Events[i].Left ? m_LeftFoot : m_RightFoot) < 0) continue;
 			m_Steps->Step(m_Plants[p++].Position, state.Speed, m_Events[i].Weight);   // the sound is played where the plant is
+		}
+	}
+
+	bool AnimInstance::Attach(const Prop& prop)
+	{
+		if (prop.Name.empty() || !m_Sockets.Find(prop.Socket)) return false;
+		for (const GripPoint& g : prop.Grips)
+			if (!m_Sockets.Find(g.Socket)) return false;
+		for (Attached& a : m_Props)
+			if (a.P.Name == prop.Name) { a.P = prop; a.Leaving = false; return true; }
+		Attached a;
+		a.P = prop;
+		m_Props.push_back(a);
+		return true;
+	}
+
+	void AnimInstance::SnapGrips(Prop& prop) const
+	{
+		prop.Grips.clear();
+		if (!m_Sockets.Find(prop.Socket)) return;
+		const glm::mat4 inverseProp = glm::inverse(m_Sockets.Matrix(m_Instance, prop.Socket) * prop.Offset);
+		for (const char* hand : { "hand_l", "hand_r" })
+			if (m_Sockets.Find(hand))
+				prop.Grips.push_back({ hand, inverseProp * m_Sockets.Matrix(m_Instance, hand) });
+	}
+
+	void AnimInstance::Detach(const std::string& name)
+	{
+		for (Attached& a : m_Props)
+			if (a.P.Name == name) a.Leaving = true;
+	}
+
+	const AnimInstance::Attached* AnimInstance::FindProp(const std::string& name) const
+	{
+		for (const Attached& a : m_Props)
+			if (a.P.Name == name) return &a;
+		return nullptr;
+	}
+
+	bool AnimInstance::HasProp(const std::string& name) const { return FindProp(name) != nullptr; }
+
+	std::vector<std::string> AnimInstance::PropNames() const
+	{
+		std::vector<std::string> names;
+		for (const Attached& a : m_Props) names.push_back(a.P.Name);
+		return names;
+	}
+
+	bool AnimInstance::PropMatrix(const std::string& name, glm::mat4& world) const
+	{
+		const Attached* a = FindProp(name);
+		if (!a) return false;
+		world = a->World;
+		return true;
+	}
+
+	float AnimInstance::PropWeight(const std::string& name) const
+	{
+		const Attached* a = FindProp(name);
+		return a ? a->Weight : 0.0f;
+	}
+
+	void AnimInstance::ApplyGrips(const glm::mat4& characterToWorld)
+	{
+		(void)characterToWorld;
+		PoseToWorld(m_Model, m_Pose, m_WorldScratch);
+		for (const Attached& a : m_Props)
+		{
+			if (a.Weight <= 0.0f) continue;
+			const glm::mat4 prop = m_Sockets.Matrix(m_WorldScratch, a.P.Socket) * a.P.Offset;
+			for (const GripPoint& g : a.P.Grips)
+			{
+				const bool left = g.Socket == "hand_l";
+				const HumanoidRig::Arm& arm = left ? m_Rig.Left : m_Rig.Right;
+				const Socket* hand = m_Sockets.Find(g.Socket);
+				if (!hand || arm.UpperArm < 0 || arm.ForeArm < 0 || arm.Hand < 0 || hand->Bone != arm.Hand) continue;
+				const glm::mat4 boneTarget = prop * g.Local * glm::inverse(hand->Offset);   // where the hand bone must be for the palm to land on the grip
+				const glm::quat rotation = glm::quat_cast(glm::mat3(glm::normalize(glm::vec3(boneTarget[0])), glm::normalize(glm::vec3(boneTarget[1])), glm::normalize(glm::vec3(boneTarget[2]))));
+				const glm::vec3 elbow(m_WorldScratch[static_cast<size_t>(arm.ForeArm)][3]);
+				SolveTwoBoneIK(m_Model, m_Pose, { arm.UpperArm, arm.ForeArm, arm.Hand }, glm::vec3(boneTarget[3]), elbow, a.Weight * g.Weight, &rotation);
+				PoseToWorld(m_Model, m_Pose, m_WorldScratch);   // the other hand starts from this one's result
+			}
 		}
 	}
 

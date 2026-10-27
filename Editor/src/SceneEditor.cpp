@@ -496,12 +496,38 @@ namespace GB::Editor
 			Commit();
 			return { true, Describe(id) };
 		}
+		if (sub == "interact")
+		{
+			// entity interact <entity> <point> <montage|-> <x> <y> <z> <yaw degrees> [requires] [gives]   |   entity interact <entity> clear
+			Entity* e = m_World.Find(id);
+			if (a.size() >= 3 && a[2] == "clear")
+			{
+				e->Interact.reset();
+				Commit();
+				return { true, "interaction points removed" };
+			}
+			if (a.size() < 8) return fail("entity interact <entity> <point> <montage|-> <x> <y> <z> <yaw> [requires] [gives]   |   entity interact <entity> clear");
+			InteractionPoint p;
+			p.Name = a[2];
+			p.Montage = a[3] == "-" ? "" : a[3];
+			p.Position = { static_cast<float>(std::atof(a[4].c_str())), static_cast<float>(std::atof(a[5].c_str())), static_cast<float>(std::atof(a[6].c_str())) };
+			p.Yaw = static_cast<float>(std::atof(a[7].c_str()));
+			if (a.size() > 8 && a[8] != "-") p.Requires = a[8];
+			if (a.size() > 9 && a[9] != "-") p.Gives = a[9];
+			if (!e->Interact) e->Interact.emplace();
+			bool replaced = false;
+			for (InteractionPoint& old : e->Interact->Points)
+				if (old.Name == p.Name) { old = p; replaced = true; }
+			if (!replaced) e->Interact->Points.push_back(p);
+			Commit();
+			return { true, std::string(replaced ? "updated" : "added") + " interaction point '" + p.Name + "' on " + e->Name };
+		}
 		return fail("unknown entity command '" + sub + "'");
 	}
 
 	void SceneEditor::Register(CommandRunner& c)
 	{
-		c.Register("entity", "entity create|delete|duplicate|rename|parent|select|add|remove|set|info|list ...: edits the scene's entities", [this](const std::vector<std::string>& a) { return EntityCommand(a); });
+		c.Register("entity", "entity create|delete|duplicate|rename|parent|select|add|remove|set|interact|info|list ...: edits the scene's entities", [this](const std::vector<std::string>& a) { return EntityCommand(a); });
 		c.Register("add", "add <cube|sphere|plane|light|file.glb|file.gltf> [x y z]: adds an object (models are relative to the assets folder)", [this](const std::vector<std::string>& a) { return Add(a); });
 		c.Register("new_scene", "new_scene: an empty scene (camera and sun only, no generated world); same as `scene new`", [this](const std::vector<std::string>&) { return NewScene(); });
 		c.Register("select", "select <name|id|none>: selects an entity", [this](const std::vector<std::string>& a) -> CommandResult

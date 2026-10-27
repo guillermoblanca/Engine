@@ -1,7 +1,11 @@
 #pragma once
 #include "GB/Animation/AirLayer.h"
 #include "GB/Animation/Locomotion.h"
+#include "GB/Animation/FootIK.h"
+#include "GB/Animation/IK.h"
+#include "GB/Animation/LookAt.h"
 #include "GB/Animation/Montage.h"
+#include "GB/Animation/Socket.h"
 #include "GB/Animation/TurnLayer.h"
 #include "GB/Audio/FootstepSounds.h"
 #include "GB/Game/MotionState.h"
@@ -19,6 +23,26 @@ namespace GB
 	{
 		std::string Name;
 		std::vector<std::string> Clips;   // clip names in the model
+	};
+
+	// Where a hand should hold a prop: `Socket` is "hand_l" or "hand_r" and `Local` the palm's frame in the prop's own space. The arm
+	// reaches it with IK, so a box is held by both sides whatever the clip did and whatever the character's height is.
+	struct GripPoint
+	{
+		std::string Socket;
+		glm::mat4 Local{ 1.0f };
+		float Weight = 1.0f;
+	};
+
+	// Something the character carries: it follows a socket of the body (`Offset` places the prop in the socket's frame), and
+	// each grip pulls a hand onto it.
+	struct Prop
+	{
+		std::string Name;
+		std::string Socket = "hand_r";
+		glm::mat4 Offset{ 1.0f };
+		std::vector<GripPoint> Grips;
+		float FadeSeconds = 0.25f;   // the hands reach for it (or let go) over this long
 	};
 
 	// The per-character animation state: several locomotion sets (free, carrying a box, pushing a wheelbarrow...) of
@@ -51,6 +75,28 @@ namespace GB
 		// splashes are fed the same way whichever animation system moves the character. Empty while airborne.
 		const std::vector<FootPlant>& Plants() const { return m_Plants; }
 
+		// Procedural layers, after the clips, montages and the air pose: the feet on the terrain (give it a ground height with
+		// Feet().SetGround) and the head turned toward a point (Look().SetTarget). Both fade out by themselves while a full-body action or
+		// a jump is on screen.
+		FootIK& Feet() { return *m_Feet; }
+		LookAt& Look() { return *m_Look; }
+
+		// Sockets and props. A prop follows its socket and, through its grips, pulls the hands onto itself with IK (after the clips and
+		// montages, before the pose reaches the instance). `Detach` lets go over the prop's fade time.
+		SocketSet& Sockets() { return m_Sockets; }
+		const SocketSet& Sockets() const { return m_Sockets; }
+		const HumanoidRig& Rig() const { return m_Rig; }
+		bool Attach(const Prop& prop);   // false for an unknown socket; the same name replaces the prop
+		void Detach(const std::string& name);
+		bool HasProp(const std::string& name) const;
+		std::vector<std::string> PropNames() const;
+		// Authoring shortcut: sets the hand grips of `prop` to where the palms are on screen now, relative to the prop (socket * Offset), so
+		// the hands keep exactly the pose the current clips give them. Adds a grip for each hand the rig has.
+		void SnapGrips(Prop& prop) const;
+		// The prop's world matrix after the last Update (false when it is not attached).
+		bool PropMatrix(const std::string& name, glm::mat4& world) const;
+		float PropWeight(const std::string& name) const;   // 0..1: how much the hands are on it
+
 		// One-shot actions over the locomotion (see MontagePlayer): `Montages().Play("pick_fruit")`. While a full-body montage is
 		// on screen the locomotion's footsteps are muted.
 		MontagePlayer& Montages() { return m_Montages; }
@@ -82,6 +128,22 @@ namespace GB
 		float m_Progress = 1.0f, m_FadeSeconds = 0.3f;
 		FootstepSounds* m_Steps = nullptr;
 		int m_LeftFoot = -1, m_RightFoot = -1;
+		struct Attached
+		{
+			Prop P;
+			float Weight = 0.0f;
+			bool Leaving = false;
+			glm::mat4 World{ 1.0f };
+		};
+		const Attached* FindProp(const std::string& name) const;
+		void ApplyGrips(const glm::mat4& characterToWorld);
+
+		HumanoidRig m_Rig;
+		std::unique_ptr<FootIK> m_Feet;
+		std::unique_ptr<LookAt> m_Look;
+		SocketSet m_Sockets;
+		std::vector<Attached> m_Props;
+		std::vector<glm::mat4> m_WorldScratch;
 		AirLayer m_Air;
 		TurnLayer m_Turn;
 		MontagePlayer m_Montages;

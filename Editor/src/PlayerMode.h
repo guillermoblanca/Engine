@@ -5,8 +5,11 @@
 #include "GB/Game/AIDriver.h"
 #include "GB/Game/CharacterController.h"
 #include "GB/Game/MotionState.h"
+#include "GB/Game/TaskList.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/Mesh.h"
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -47,6 +50,24 @@ namespace GB::Editor
 		void StopMontage() { if (m_Animator) m_Animator->Anim().Montages().StopSlot("FullBody"), m_Animator->Anim().Montages().StopSlot("UpperBody"); }
 		std::vector<std::string> MontageNames() const { return m_Animator ? m_Animator->Anim().Montages().Names() : std::vector<std::string>(); }
 		std::string MontageStatus() const;
+		// Props the FBX player carries: "box" (both hands, with the box walk set), "bag" (on the back), "tool" (one hand). The hands reach the
+		// grips with IK and the prop follows its socket. Returns false for an unknown prop or a character without a rig.
+		bool AttachProp(const std::string& name);
+		void DetachProp(const std::string& name = "");   // empty: all of them
+		std::vector<std::string> PropNames() const { return m_Animator ? m_Animator->Anim().PropNames() : std::vector<std::string>(); }
+		// Procedural layers of the FBX player: feet on the terrain (on by default) and the head turned toward a world point.
+		void SetFootIK(bool on) { m_FeetOn = on; ApplyFeet(); }
+		bool FootIKOn() const { return m_FeetOn; }
+		void LookAtPoint(const glm::vec3& p) { m_LookCamera = false; if (m_Animator) m_Animator->Anim().Look().SetTarget(p); }
+		void LookAtCamera(bool on) { m_LookCamera = on; if (!on && m_Animator) m_Animator->Anim().Look().ClearTarget(); }
+		void ClearLook() { LookAtCamera(false); }
+		// Tasks (see GB/Game/TaskList.h): the character does them like an NPC would, with the same controller and animation. `interact` uses the
+		// interaction points of the scene's entities. False (and `error`) when the text is not a task list.
+		bool RunTasks(const std::string& text, std::string& error);
+		bool Interact(const std::string& entity, const std::string& point, std::string& error);
+		void StopTasks() { m_Tasks.Clear(); }
+		bool TasksRunning() const { return m_Tasks.Running(); }
+		std::string TaskStatus() const { return m_Tasks.Describe(); }
 		const MotionState& GetMotion() const { return m_Motion; }
 		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
 		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
@@ -59,6 +80,14 @@ namespace GB::Editor
 
 	private:
 		glm::mat4 RootMatrix() const;
+		void ApplyFeet();
+		bool m_FeetOn = true, m_LookCamera = false;
+		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
+		std::map<std::string, PropLook> m_PropLooks;
+		mutable std::unique_ptr<Mesh> m_PropMesh;
+		TaskRunner m_Tasks;
+		const SceneEditor* m_Edit = nullptr;
+		std::string m_PendingProp;   // waits for the box overlay to finish before measuring the grips
 
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
