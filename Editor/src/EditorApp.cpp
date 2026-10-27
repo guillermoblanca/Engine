@@ -1,4 +1,5 @@
 #include "EditorApp.h"
+#include "GB/Animation/ClipAnalysis.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
@@ -445,6 +446,56 @@ namespace GB::Editor
 			m_Props.Float("model.scale", m_ModelScale, 0.01f, 50.0f, "Model");
 			m_Props.Float("model.speed", m_ModelSpeed, 0.0f, 4.0f, "Model").OnChange = [this]() { if (m_Instance) m_Instance->SetSpeed(m_ModelSpeed); };
 			return { true, "loaded " + path + " (" + std::to_string(m_Model->GetClips().size()) + " animations)" };
+		});
+		c.Register("anims", "anims <file.fbx|folder>: adds the animation clips of an FBX file (or every FBX in a folder) to the loaded model, matching bones by name", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: anims <file.fbx|folder>" };
+			if (!m_Model) return { false, "load a model first" };
+			std::vector<std::string> files;
+			std::error_code ec;
+			if (fs::is_directory(a[0], ec))
+			{
+				for (const auto& e : fs::directory_iterator(a[0], ec))
+					if (e.is_regular_file() && Lower(e.path().extension().string()) == ".fbx") files.push_back(e.path().generic_string());
+				std::sort(files.begin(), files.end());
+			}
+			else files.push_back(a[0]);
+			int added = 0;
+			for (const std::string& f : files) { std::string report; added += m_Model->AppendAnimations(f, &report); }
+			if (m_Instance && m_Instance->GetCurrentClip() < 0 && !m_Model->GetClips().empty()) m_Instance->Play(0, true, 0.0f);
+			return { true, std::to_string(added) + " clip(s) added; the model now has " + std::to_string(m_Model->GetClips().size()) };
+		});
+		c.Register("clips", "clips: lists the animation clips of the loaded model", [this](const std::vector<std::string>&) -> CommandResult
+		{
+			if (!m_Model) return { false, "no model loaded" };
+			std::string out;
+			const auto& clips = m_Model->GetClips();
+			for (size_t i = 0; i < clips.size(); ++i)
+			{
+				char buf[160];
+				std::snprintf(buf, sizeof buf, "%s%zu  %s  %.2f s  %zu channels", i ? "\n" : "", i, clips[i].Name.c_str(), static_cast<double>(clips[i].Duration), clips[i].Channels.size());
+				out += buf;
+			}
+			return { true, out.empty() ? "(no clips)" : out };
+		});
+		c.Register("anim_stats", "anim_stats [clip|all]: root motion, loop quality and foot plants measured from the clips of the loaded model", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Model) return { false, "no model loaded" };
+			std::string out;
+			const auto& clips = m_Model->GetClips();
+			for (size_t i = 0; i < clips.size(); ++i)
+			{
+				if (!a.empty() && a[0] != "all" && a[0] != clips[i].Name && a[0] != std::to_string(i)) continue;
+				out += (out.empty() ? "" : "\n") + FormatClipStats(AnalyzeClip(*m_Model, static_cast<int>(i)));
+			}
+			return { !out.empty(), out.empty() ? "no such clip" : out };
+		});
+		c.Register("play", "play <clip name|index> [fade seconds]: plays a clip of the loaded model", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty() || !m_Instance) return { false, "usage: play <clip> [fade] (with a model loaded)" };
+			const float fade = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 0.25f;
+			const bool ok = std::isdigit(static_cast<unsigned char>(a[0][0])) ? m_Instance->Play(std::atoi(a[0].c_str()), true, fade) : m_Instance->Play(a[0], true, fade);
+			return ok ? CommandResult{ true, "playing " + a[0] } : CommandResult{ false, "no clip '" + a[0] + "'" };
 		});
 		c.Register("hdri", "hdri <file.hdr|off>: uses an HDR environment for the sky and reflections", [this](const std::vector<std::string>& a) -> CommandResult
 		{
