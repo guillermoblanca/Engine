@@ -61,18 +61,26 @@ namespace GB::Editor
 
 	namespace
 	{
-		// A real actor as a member of the tribe.
+		// A real actor as a member of the tribe. It looks the actor up by name on every call: `actor remove` (or a rebuilt scene) may delete the
+		// actor while the tribe still lists it, and a pointer kept from `tribe build` would dangle. A member whose actor is gone is busy for good.
 		class ActorBody : public ITribeBody
 		{
 		public:
-			explicit ActorBody(Actor* actor) : m_Actor(actor) {}
-			bool Busy() const override { return m_Actor->TasksRunning(); }
-			bool Failed() const override { return m_Actor->TasksFailed(); }
-			glm::vec2 Position() const override { const glm::vec3 p = m_Actor->GetPosition(); return { p.x, p.z }; }
-			bool Do(const std::string& tasks, std::string& error) override { return m_Actor->RunTasks(tasks, error); }
-			Inventory& Bag() override { return m_Actor->Bag(); }
+			ActorBody(ActorWorld& actors, std::string name) : m_Actors(actors), m_Name(std::move(name)), m_Gone(1, 0.0f) {}
+			bool Busy() const override { const Actor* a = m_Actors.Find(m_Name); return !a || a->TasksRunning(); }
+			bool Failed() const override { const Actor* a = m_Actors.Find(m_Name); return a && a->TasksFailed(); }
+			glm::vec2 Position() const override { const Actor* a = m_Actors.Find(m_Name); const glm::vec3 p = a ? a->GetPosition() : glm::vec3(0.0f); return { p.x, p.z }; }
+			bool Do(const std::string& tasks, std::string& error) override
+			{
+				Actor* a = m_Actors.Find(m_Name);
+				if (!a) { error = "the actor " + m_Name + " was removed"; return false; }
+				return a->RunTasks(tasks, error);
+			}
+			Inventory& Bag() override { Actor* a = m_Actors.Find(m_Name); return a ? a->Bag() : m_Gone; }
 		private:
-			Actor* m_Actor;
+			ActorWorld& m_Actors;
+			std::string m_Name;
+			Inventory m_Gone;   // what a removed actor "carries": nothing
 		};
 	}
 
@@ -210,7 +218,7 @@ namespace GB::Editor
 			{
 				const CommandResult r = Execute(std::string("actor spawn ") + names[i] + " \"" + model + "\" " + std::to_string(camp.x + (i - (workers - 1) * 0.5f) * 1.5f) + " " + std::to_string(camp.y) + " ai");
 				if (!r.Ok) return r;
-				m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors.Find(names[i])));
+				m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors, names[i]));
 			}
 			m_Tribe.Bind(m_SceneEditor.World(), m_Gameplay, m_Items, m_Recipes, m_NodeDefs);
 			m_Panels.Tribe = true;
@@ -223,6 +231,7 @@ namespace GB::Editor
 			return { true, std::to_string(workers) + " workers at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + ") with 9 resource nodes around; they act on their own: tribe status | tribe log" };
 		}
 		if (sub == "clear") { m_Tribe.Clear(); m_TribeBodies.clear(); return { true, "tribe cleared (the actors stay: actor remove <name>)" }; }
+		if (sub != "log" && sub != "status") return { false, "usage: tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear" };
 		if (m_Tribe.Members().empty()) return { false, "no tribe (tribe build [model.fbx])" };
 		if (sub == "log")
 		{
@@ -277,12 +286,14 @@ namespace GB::Editor
 			std::snprintf(rate, sizeof rate, "%.1f", static_cast<double>(SeasonClock::GrowthRate(now)));
 			return { true, std::string(SeasonClock::Name(now)) + " (" + std::to_string(static_cast<int>(SeasonClock().Progress(clock) * 100.0f)) + "% through it, plants grow x" + rate + ")" };
 		}
+		if (sub != "status") return { false, "usage: ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]" };
 		const double clock = static_cast<double>(m_SimTick) / 60.0;
 		return { true, std::string(SeasonClock::Name(SeasonClock().At(clock))) + "; " + m_Ecology.Describe() };
 	}
 
 	void EditorApp::DrawWorldStatePanel()
 	{
+		if (m_FocusWorldState > 0) { ImGui::SetNextWindowFocus(); --m_FocusWorldState; }
 		if (ImGui::Begin("World state", &m_Panels.WorldState))
 		{
 			const double clock = static_cast<double>(m_SimTick) / 60.0;
@@ -350,12 +361,14 @@ namespace GB::Editor
 			glm::vec3 origin = m_Orbit.Target;
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+			m_Gameplay.Store(m_SceneEditor.World());   // (what the systems hold now goes into their components first: SyncGameplay rebuilds every system from them, and the nodes, rabbits and plots already running would start over)
 			BuildInteractives(m_SceneEditor.World(), origin);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
 			m_SceneEditor.Commit();
 			return { true, "a campfire (\"Fire Pit\"), a well and a gate built; try: actor bag <name> add wood 2, ability activate Stoke \"Fire Pit\" <name>, ability activate DrawWater Well <name>, ability activate OpenDoor Gate <name>" };
 		}
+		if (sub != "status") return { false, "usage: interactives build [x z] | status" };
 		std::string s;
 		for (const std::string& n : m_Gameplay.Names())
 		{
@@ -376,6 +389,7 @@ namespace GB::Editor
 			glm::vec3 origin = m_Orbit.Target;
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
 			const ResourceLayout layout = BuildResources(m_SceneEditor.World(), origin, m_NodeDefs);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
@@ -383,6 +397,7 @@ namespace GB::Editor
 			return { true, std::to_string(layout.Nodes.size()) + " resource nodes built at (" + std::to_string(static_cast<int>(origin.x)) + ", " + std::to_string(static_cast<int>(origin.z))
 				+ "). Gather with: ability activate Gather \"berry bush 1\" (Chop needs an axe, Mine a pickaxe: actor bag <name> craft stone_axe workbench)" };
 		}
+		if (sub != "status") return { false, "usage: resources build [x z] | status" };
 		std::string s;
 		for (const std::string& n : m_Gameplay.Names())
 			if (const AbilitySystemComponent* node = m_Gameplay.Find(n); node && node->HasTag("Resource.Node"))
@@ -399,6 +414,7 @@ namespace GB::Editor
 			glm::vec3 origin = m_Orbit.Target;
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
 			const GardenLayout layout = BuildGarden(m_SceneEditor.World(), origin);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
@@ -580,7 +596,7 @@ namespace GB::Editor
 						for (const std::string& tag : def->ActiveTags) asc->Tags().RemoveAll(tag);
 					}
 			}
-			m_TribeBodies.push_back(std::make_unique<ActorBody>(actor));
+			m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors, name));
 			m_Tribe.AddMember(name, role, m_TribeBodies.back().get());
 		}
 		if (!m_Tribe.FromJson(json, true)) GB_CLIENT_WARN("the saved tribe could not be read: it starts again");
@@ -814,7 +830,7 @@ namespace GB::Editor
 			{
 				if (ImGui::BeginTable("members", 4, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg))
 				{
-					ImGui::TableSetupColumn("Name"); ImGui::TableSetupColumn("Role"); ImGui::TableSetupColumn("Doing"); ImGui::TableSetupColumn("Carries");
+					ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, 44.0f); ImGui::TableSetupColumn("Role", ImGuiTableColumnFlags_WidthFixed, 74.0f); ImGui::TableSetupColumn("Doing"); ImGui::TableSetupColumn("Carries");   // (long texts wrap in the stretch columns instead of running over the next one)
 					ImGui::TableHeadersRow();
 					for (const TribeMember& m : m_Tribe.Members())
 					{
@@ -827,12 +843,12 @@ namespace GB::Editor
 						if (m.Dead) ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.25f, 1.0f), "dead (%s)", m.Cause.c_str());
 						else if (m.Job.empty()) ImGui::TextDisabled("deciding");
 						else if (m.Job == "rest") ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "resting");
-						else ImGui::Text("%s %s", m.Job.c_str(), m.Detail.c_str());
-						if (m.Hungry) { ImGui::SameLine(); ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.3f, 1.0f), "(hungry)"); }
+						else ImGui::TextWrapped("%s %s", m.Job.c_str(), m.Detail.c_str());
+						if (m.Hungry) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.3f, 1.0f), "(hungry)");
 						ImGui::TableNextColumn();
 						std::string carried;
 						for (const ItemSlot& s : m.Body->Bag().Stacks()) carried += (carried.empty() ? "" : ", ") + s.Id + " x" + std::to_string(s.Count);
-						ImGui::TextUnformatted(carried.empty() ? "-" : carried.c_str());
+						ImGui::TextWrapped("%s", carried.empty() ? "-" : carried.c_str());
 					}
 					ImGui::EndTable();
 				}
@@ -853,7 +869,7 @@ namespace GB::Editor
 			{
 				const auto& log = m_Tribe.Log();
 				ImGui::BeginChild("tribelog", ImVec2(0.0f, 160.0f), true);
-				for (size_t i = log.size() > 80 ? log.size() - 80 : 0; i < log.size(); ++i) ImGui::TextUnformatted(log[i].c_str());
+				for (size_t i = log.size() > 80 ? log.size() - 80 : 0; i < log.size(); ++i) ImGui::TextWrapped("%s", log[i].c_str());
 				if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 4.0f) ImGui::SetScrollHereY(1.0f);
 				ImGui::EndChild();
 			}
@@ -863,6 +879,7 @@ namespace GB::Editor
 
 	void EditorApp::DrawAbilitiesPanel()
 	{
+		if (m_FocusAbilities > 0) { ImGui::SetNextWindowFocus(); --m_FocusAbilities; }
 		if (ImGui::Begin("Abilities", &m_Panels.Abilities))
 		{
 			const std::vector<std::string> names = m_Gameplay.Names();

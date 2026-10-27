@@ -23,6 +23,9 @@ Máquina: Intel Core i7-11700K (3,6 GHz), Windows 11, MSVC, Release, un solo hil
 - **Un actor caído (ragdoll):** unos 114 µs por fotograma (paso de física de 13 cuerpos y 12 uniones más la pose); solo mientras está en el suelo.
 - **Obstáculos:** ver la última tabla de la salida del test (32 actores entre 3000 árboles y rocas). Cada actor lleva **su copia** de la lista de obstáculos estáticos (≈ 12 B por obstáculo) y comprueba todos; hay que sustituirlo por una rejilla espacial compartida cuando haya cientos de actores o decenas de miles de obstáculos (H16).
 
+**Remedición (pase de calidad, otra compilación y otro día, misma máquina):** 16 µs por actor con 1 actor, 18 con 8, 21 con 32 y 22 con 128 (2,8 ms los 128); ragdoll 88 µs. Las cifras de arriba siguen siendo el techo prudente para presupuestar; la diferencia (más del doble) conviene
+repetirla con la compilación de CI antes de fiarse de la cifra baja. Datos de tribu, ecología y búsqueda por nombre en [INFORME_CALIDAD.md](INFORME_CALIDAD.md).
+
 ## Presupuestos que se derivan
 
 - A 60 Hz hay 16,7 ms por fotograma. Con un presupuesto de animación y movimiento de **2 ms** caben unos **40 actores animados completos por hilo** (45 µs c/u); **128 actores cuestan 5,9 ms**, así que más allá de unas decenas de personajes en pantalla hace falta **nivel de detalle**: lejos, sin IK ni mezcla completa (solo un clip y su fase) o sin animación (posición y pose congeladas), y fuera de pantalla solo el controlador (≈ 1 µs).

@@ -408,6 +408,14 @@ namespace GB
 		GameplayTagContainer loose = m_Tags;   // the tags the active effects grant come back with the effects
 		for (const ActiveEffect& e : m_Effects)
 			for (const std::string& t : e.Def.GrantedTags) loose.Remove(t);
+		// A running ability is not saved (it comes back cancelled), so neither are the tags it holds (State.Busy...): kept, they would block
+		// every ability of the character for good after a load.
+		for (const auto& r : m_Running)
+		{
+			if (r->Done) continue;
+			loose.Remove(r->Def->Tag);
+			for (const std::string& t : r->Def->ActiveTags) loose.Remove(t);
+		}
 		for (const auto& [name, count] : loose.All())
 			for (int i = 0; i < count; ++i) c.Tags.push_back(name);
 		for (const AttributeSet::Attribute& a : m_Attributes.All()) c.Attributes.push_back({ a.Name, a.Base, a.Min, a.Max });

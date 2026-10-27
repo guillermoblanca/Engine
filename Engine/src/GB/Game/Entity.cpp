@@ -103,8 +103,20 @@ namespace GB
 
 	EntityId EntityWorld::FindByName(const std::string& name) const
 	{
+		// Systems look entities up by name every frame; the scan is linear in the scene (thousands of trees), so the last answer is kept and
+		// verified (the entity must still exist and still carry the name).
+		if (const auto hit = m_NameCache.find(name); hit != m_NameCache.end())
+		{
+			const auto e = m_Entities.find(hit->second);
+			if (e != m_Entities.end() && e->second.Name == name) return hit->second;
+		}
 		for (const auto& [id, e] : m_Entities)
-			if (e.Name == name) return id;
+			if (e.Name == name)
+			{
+				if (m_NameCache.size() > 2 * m_Entities.size() + 64) m_NameCache.clear();
+				m_NameCache[name] = id;
+				return id;
+			}
 		return NullEntity;
 	}
 

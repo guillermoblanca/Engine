@@ -4,6 +4,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace GB
@@ -165,6 +166,7 @@ namespace GB
 		EntityId CopyTree(EntityId src, EntityId parent);
 
 		std::map<EntityId, Entity> m_Entities;
+		mutable std::unordered_map<std::string, EntityId> m_NameCache;   // FindByName: checked on every use, so a rename or a delete cannot make it lie
 		EntityId m_NextId = 1;
 	};
 }

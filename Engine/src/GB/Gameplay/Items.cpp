@@ -122,11 +122,24 @@ namespace GB
 		std::vector<ItemSlot> stacks;
 		for (const Json& e : j["items"])
 		{
-			if (!e.is_array() || e.size() != 2 || !e[0].is_string() || !e[1].is_number_integer()) return false;
+			// (a stack of nothing or of a negative count would break every sum made over the stacks)
+			if (!e.is_array() || e.size() != 2 || !e[0].is_string() || !e[1].is_number_integer() || e[1].get<long long>() < 1 || e[1].get<long long>() > 1000000) return false;
 			stacks.push_back({ e[0].get<std::string>(), e[1].get<int>() });
 		}
-		m_Slots = j.value("slots", m_Slots);
-		m_MaxWeight = j.value("maxWeight", m_MaxWeight);
+		int slots = m_Slots;
+		float maxWeight = m_MaxWeight;
+		try
+		{
+			slots = j.value("slots", m_Slots);   // (throws when the value is not a number: a damaged file must not take the program down)
+			maxWeight = j.value("maxWeight", m_MaxWeight);
+		}
+		catch (const Json::exception&)
+		{
+			return false;
+		}
+		if (slots < 0 || !(maxWeight >= 0.0f)) return false;
+		m_Slots = slots;
+		m_MaxWeight = maxWeight;
 		m_Stacks = std::move(stacks);
 		return true;
 	}
@@ -222,6 +235,7 @@ namespace GB
 					d.MaxStack = o.value("stack", 1);
 					if (d.MaxStack < 1) return "item '" + d.Id + "': stack must be at least 1";
 					if (d.Weight < 0.0f) return "item '" + d.Id + "': negative weight";
+					if (auto t = o.find("tags"); t != o.end() && !t->is_array()) return "item '" + d.Id + "': tags must be a list";
 					if (auto t = o.find("tags"); t != o.end()) for (const Json& x : *t) { if (!GameplayTag::IsValidTagName(x.get<std::string>())) return "item '" + d.Id + "': bad tag " + x.get<std::string>(); d.Tags.push_back(x.get<std::string>()); }
 					str(o, "ability", d.Ability);
 					str(o, "socket", d.Socket);

@@ -2,6 +2,8 @@
 // them through abilities with wood and water in its bag; the states are tags, the amounts stay in bounds, and two runs end the same. CPU only.
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
+#include "GB/Save/SaveWorld.h"
+#include <cmath>
 #include <cstdio>
 
 namespace
@@ -116,6 +118,33 @@ int main()
 	const std::string a = Day(ok1), b = Day(ok2);
 	Check(ok1 && ok2, "the day goes as planned");
 	Check(a == b, "two runs end the same");
+	// A save in the middle of the day: the states are tags and the amounts attributes, so they come back with the entity; what is not saved is the
+	// partial second of burning (the timer of the system), which starts again.
+	{
+		Camp c;
+		c.Bag.Add(c.Items, "wood", 2);
+		c.Frames(2);
+		Check(c.Do("Stoke", "Fire Pit") && c.Do("OpenDoor", "Gate"), "a fire and an open door to save");
+		c.Frames(60 * 3);
+		c.Gameplay.Store(c.Entities);
+		const std::vector<Save::GameplayRuntime> runtime = Save::CaptureGameplay(c.Gameplay);
+		EntityWorld entities = c.Entities;
+		GameplayWorld loaded;
+		RegisterInteractiveContent(loaded.Library);
+		std::string error;
+		Check(Save::RestoreGameplay(loaded, entities, runtime, &error), "the interactives come back from a save");
+		InteractiveSystem rules;
+		rules.Bind(loaded, [](const std::string&, const std::string&, int) { return 0; }, [](const std::string&, const std::string&, int) { return 0; });
+		Check(InteractiveSystem::CampfireState(*loaded.Find("Fire Pit")) == "lit" && InteractiveSystem::DoorState(*loaded.Find("Gate")) == "open", "a lit fire and an open door stay so");
+		Check(std::fabs(loaded.Find("Fire Pit")->Attributes().Current("Fuel") - c.Gameplay.Find("Fire Pit")->Attributes().Current("Fuel")) < 1e-3f, "with the same fuel");
+		entities.Find(entities.FindByName("Gate Hinge"))->Transform.Rotation.y = 0.0f;   // (the panel of the saved copy was already open: start it shut)
+		for (int i = 0; i < 60 * 40; ++i) { loaded.Update(dt); rules.Update(dt, &entities); }
+		Check(InteractiveSystem::CampfireState(*loaded.Find("Fire Pit")) == "out", "the loaded fire burns out as it would have");
+		const EntityId flame = entities.FindByName("Fire Pit Flame");
+		Check(flame != NullEntity && !entities.Find(flame)->Active, "and its flame goes");
+		Check(entities.Find(entities.FindByName("Gate Hinge"))->Transform.Rotation.y > 90.0f, "a door loaded open turns its panel open");
+	}
+
 	if (failures) { std::fprintf(stderr, "%d failure(s)\n", failures); return 1; }
 	std::puts("interactives: ok");
 	return 0;

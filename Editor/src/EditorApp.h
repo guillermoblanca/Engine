@@ -148,6 +148,7 @@ namespace GB::Editor
 		ResourceSystem m_Resources;
 		EcologySystem m_Ecology;                                 // rabbits that eat, breed and starve (`ecology spawn`)
 		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
+		int m_FocusWorldState = 0, m_FocusAbilities = 0;         // the same for the World state and Abilities panels (panel <name> on)
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		bool m_AiDebug = false;                                  // `ai debug on`: cones, obstacles and memory drawn in the viewport
 		bool m_NavDebug = false;                                 // `nav debug on`
