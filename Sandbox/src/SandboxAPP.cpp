@@ -505,11 +505,28 @@ private:
 		m_Sphere = std::make_unique<GB::Mesh>(GB::Mesh::CreateSphere(0.5f, 20, 10));
 		m_Cube = std::make_unique<GB::Mesh>(GB::Mesh::CreateCube(1.0f));
 
-		const std::string kind = options.GetValue("terrain", "dunes");
-		const std::string styleName = options.GetValue("style", kind == "dunes" ? "desert" : "meadow");
+		const std::string worldName = options.GetValue("world");
+		const std::string kind = !worldName.empty() ? (worldName == "desert" ? "dunes" : "hills") : options.GetValue("terrain", "dunes");
+		const std::string styleName = !worldName.empty() ? (worldName == "alpine" ? "snow" : worldName == "desert" ? "desert" : "meadow")
+			: options.GetValue("style", kind == "dunes" ? "desert" : "meadow");
 		const GB::TerrainStyle style = styleName == "snow" ? GB::TerrainStyle::Snow : styleName == "meadow" ? GB::TerrainStyle::Meadow : GB::TerrainStyle::Desert;
 		const uint32_t seed = static_cast<uint32_t>(std::atoi(options.GetValue("seed", "1").c_str()));
-		if (kind == "hills")
+		m_ErosionRate = static_cast<float>(std::atof(options.GetValue("erosion", "0").c_str()));   // droplets per second at full rain (try 20000)
+		m_ErosionStrength = static_cast<float>(std::atof(options.GetValue("erosion-strength", "1").c_str()));
+		if (!worldName.empty())   // a whole generated map: terrain, lake, river, biomes, trees and rocks
+		{
+			GB::WorldDesc wd;
+			wd.Type = worldName == "alpine" ? GB::WorldType::Alpine : worldName == "desert" ? GB::WorldType::Desert : GB::WorldType::Temperate;
+			wd.Seed = seed;
+			wd.TreeBudget = std::atoi(options.GetValue("trees", "420").c_str());
+			wd.RockBudget = std::atoi(options.GetValue("rocks", "70").c_str());
+			wd.ForestAmount = static_cast<float>(std::atof(options.GetValue("forest", "0.55").c_str()));
+			wd.River = options.GetValue("river") != "off";
+			wd.Lake = options.GetValue("lake") != "off";
+			m_World = std::make_unique<GB::GeneratedWorld>(GB::WorldGenerator::Generate(wd));
+			m_Terrain = std::move(m_World->TerrainPtr);
+		}
+		else if (kind == "hills")
 		{
 			GB::HillParams hp;
 			hp.Seed = seed;
@@ -566,8 +583,8 @@ private:
 		};
 		uint32_t rng = 12345u + seed;
 		auto rnd = [&]() { rng = rng * 1664525u + 1013904223u; return static_cast<float>(rng >> 8) / 16777216.0f; };
-		const int rockCount = std::atoi(options.GetValue("rocks", kind == "hills" ? "46" : "0").c_str());
-		for (int i = 0; i < (rockCount > 0 ? 0 : 26); ++i)
+		const int rockCount = m_World ? 0 : std::atoi(options.GetValue("rocks", kind == "hills" ? "46" : "0").c_str());
+		for (int i = 0; i < (rockCount > 0 || m_World ? 0 : 26); ++i)
 		{
 			const float s = 0.6f + 2.0f * rnd();
 			place(m_Sphere.get(), (rnd() - 0.5f) * 220.0f, (rnd() - 0.5f) * 220.0f, { s * 1.7f, s * 1.1f, s * 1.3f }, rnd() * 360.0f, s * 0.12f);
@@ -584,7 +601,12 @@ private:
 			const GB::Heightmap* hm = &m_Terrain->GetHeightmap();
 			gp.NormalFn = [hm](float x, float z) { return hm->GetNormal(x, z); };
 			gp.Density = static_cast<float>(std::atof(options.GetValue("grass-density", "45").c_str()));
-			if (m_Terrain->HasLake() || m_Terrain->GetRiver())   // no grass under water, thinning out along the bank
+			if (m_World)
+			{
+				const GB::GeneratedWorld* world = m_World.get();
+				gp.DensityFn = [world](float x, float z) { return world->GrassDensityAt(x, z); };
+			}
+			else if (m_Terrain->HasLake() || m_Terrain->GetRiver())   // no grass under water, thinning out along the bank
 			{
 				const float level = m_Terrain->HasLake() ? m_Terrain->GetWaterLevel() : -1e9f;
 				const GB::Terrain* terrain = m_Terrain.get();
@@ -652,6 +674,7 @@ private:
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 
 		// Trees: species depend on the style (oaks and pines in meadows, pines and bare trees in snow, palms in the desert).
+		if (!m_World)
 		{
 			const int defaultTrees = style == GB::TerrainStyle::Meadow ? 38 : style == GB::TerrainStyle::Snow ? 26 : 0;
 			const int treeCount = std::atoi(options.GetValue("trees", std::to_string(defaultTrees)).c_str());
@@ -707,6 +730,8 @@ private:
 
 		if (rockCount > 0)
 			BuildRocks(rockCount, style, seed);
+		if (m_World)
+			BuildWorldVegetation();
 		m_StaticObjects = m_Scene.Objects.size();
 		if (m_Physics)
 			BuildPhysicsBodies(options);
@@ -924,6 +949,38 @@ private:
 		}
 	}
 
+	// Rain runs off the ground and carries soil away: droplets near the camera target reshape the terrain.
+	void UpdateErosion(float dt)
+	{
+		const float rain = m_Weather->GetRain();
+		if (rain < 0.05f)
+			return;
+		m_ErosionBudget += m_ErosionRate * rain * dt;
+		const int droplets = static_cast<int>(m_ErosionBudget);
+		if (droplets < 200)
+			return;
+		m_ErosionBudget -= static_cast<float>(droplets);
+		GB::ErosionParams ep;
+		ep.Droplets = droplets;
+		ep.Seed = ++m_ErosionSeed;
+		ep.Center = { m_Orbit.Target.x, m_Orbit.Target.z };
+		ep.Radius = 45.0f;
+		ep.Strength = m_ErosionStrength;
+		const GB::ErosionStats st = GB::HydraulicErosion::Run(m_Terrain->GetEditableHeightmap(), ep);
+		if (st.MaxI >= 0)
+		{
+			m_ErosionDirty[0] = std::min(m_ErosionDirty[0], st.MinI); m_ErosionDirty[1] = std::min(m_ErosionDirty[1], st.MinJ);
+			m_ErosionDirty[2] = std::max(m_ErosionDirty[2], st.MaxI); m_ErosionDirty[3] = std::max(m_ErosionDirty[3], st.MaxJ);
+		}
+		m_ErosionRefreshTimer += dt;
+		if (m_ErosionRefreshTimer > 0.25f && m_ErosionDirty[2] >= 0)   // upload the changed area a few times per second
+		{
+			m_Terrain->RefreshMesh(m_ErosionDirty[0], m_ErosionDirty[1], m_ErosionDirty[2], m_ErosionDirty[3]);
+			m_ErosionDirty[0] = m_ErosionDirty[1] = 1 << 30; m_ErosionDirty[2] = m_ErosionDirty[3] = -1;
+			m_ErosionRefreshTimer = 0.0f;
+		}
+	}
+
 	void UpdatePhysics(float dt)
 	{
 		m_Physics->Wind = m_Weather->GetWind();
@@ -979,6 +1036,56 @@ private:
 			m_Scene.PointLights.push_back(light);
 		}
 		GB_CLIENT_INFO("Lanterns: {}", count);
+	}
+
+	float WaterNear(float x, float z) const
+	{
+		const GB::Terrain* terrain = m_Terrain.get();
+		float level = -1e9f;
+		if (terrain->HasLake() && glm::distance(glm::vec2(x, z), terrain->GetLakeCenter()) < terrain->GetLakeRadius() * 1.5f) level = terrain->GetWaterLevel();
+		if (terrain->GetRiver() && terrain->DistanceToRiver(x, z) < terrain->GetRiver()->HalfWidth * 3.0f) level = std::max(level, terrain->GetRiverSurfaceLevel(x, z));
+		return level;
+	}
+
+	// The trees and rocks of a generated world (forests are culled by distance and view).
+	void BuildWorldVegetation()
+	{
+		m_TreeFactory = std::make_unique<GB::TreeFactory>();
+		for (const GB::TreeParams& tp : m_World->TreeRecipes)
+			m_TreeVariants.push_back(m_TreeFactory->Create(tp));
+		for (const GB::TreePlacement& pl : m_World->Trees)
+		{
+			const GB::Tree& tree = *m_TreeVariants[static_cast<size_t>(pl.Variant)];
+			tree.AddToScene(m_Scene, pl.Position, pl.Yaw, pl.Scale, 340.0f);
+			if (m_Physics)
+			{
+				GB::StaticCollider c;
+				c.Shape = GB::ShapeType::Capsule;
+				c.Radius = 0.22f * pl.Scale * (tree.Height > 9.0f ? 1.3f : 1.0f);
+				c.HalfHeight = tree.Height * pl.Scale * 0.3f;
+				c.Center = pl.Position + glm::vec3(0.0f, c.HalfHeight + c.Radius, 0.0f);
+				m_Physics->AddStatic(c);
+			}
+		}
+		for (const GB::RockParams& rp : m_World->RockRecipes)
+			m_RockVariants.push_back(GB::RockFactory::Create(rp));
+		for (const GB::RockPlacement& rk : m_World->Rocks)
+		{
+			const GB::Rock& rock = *m_RockVariants[static_cast<size_t>(rk.Variant)];
+			rock.AddToScene(m_Scene, rk.Position, rk.Yaw, rk.Scale, 0.12f * rk.Scale, WaterNear(rk.Position.x, rk.Position.z));
+			if (m_Physics)
+			{
+				GB::StaticCollider c;
+				c.Shape = GB::ShapeType::Sphere;
+				c.Radius = rock.Radius * rk.Scale * 0.75f;
+				c.Center = rk.Position + glm::vec3(0.0f, rock.Height * rk.Scale * 0.4f, 0.0f);
+				m_Physics->AddStatic(c);
+			}
+		}
+		const std::vector<float> shares = m_World->BiomeShares();
+		GB_CLIENT_INFO("World: {} trees ({} recipes), {} rocks; biomes water {:.0f}% shore {:.0f}% meadow {:.0f}% forest {:.0f}% rock {:.0f}% snow {:.0f}% dunes {:.0f}%",
+			m_World->Trees.size(), m_TreeVariants.size(), m_World->Rocks.size(), shares[0] * 100.0f, shares[1] * 100.0f, shares[2] * 100.0f, shares[3] * 100.0f, shares[4] * 100.0f, shares[5] * 100.0f, shares[6] * 100.0f);
+		m_Orbit.Target = { m_World->Spawn.x, m_Terrain->GetHeight(m_World->Spawn.x, m_World->Spawn.y) + 2.5f, m_World->Spawn.y };
 	}
 
 	// Procedural rocks scattered over the map and along the river banks; moss in meadows, sand in deserts,
@@ -1168,6 +1275,8 @@ private:
 			UpdateWalker(dt);
 		if (m_Physics)
 			UpdatePhysics(dt);
+		if (m_ErosionRate > 0.0f)
+			UpdateErosion(dt);
 		// The shadow map follows what the camera looks at.
 		m_Weather->BaseEnvironment().ShadowCenter = m_Orbit.Target;
 		if (m_SandSpray)
@@ -1413,6 +1522,11 @@ private:
 	std::unique_ptr<Walker> m_Walker;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
 	std::unique_ptr<GB::EnvironmentMap> m_EnvMap;
+	float m_ErosionRate = 0.0f, m_ErosionStrength = 1.0f, m_ErosionBudget = 0.0f;
+	uint32_t m_ErosionSeed = 0;
+	int m_ErosionDirty[4] = { 1 << 30, 1 << 30, -1, -1 };
+	float m_ErosionRefreshTimer = 0.0f;
+	std::unique_ptr<GB::GeneratedWorld> m_World;
 	std::vector<std::unique_ptr<GB::Rock>> m_RockVariants;
 	struct PhysItem { int Body = -1; bool Sphere = false; glm::vec3 Scale{ 1.0f }, Color{ 1.0f }; };
 	std::unique_ptr<GB::PhysicsWorld> m_Physics;

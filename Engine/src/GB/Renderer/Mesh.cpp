@@ -11,7 +11,7 @@ namespace GB
 		: m_IndexCount(static_cast<uint32_t>(indices.size()))
 	{
 		glCreateBuffers(1, &m_VBO);
-		glNamedBufferStorage(m_VBO, static_cast<GLsizeiptr>(vertices.size() * sizeof(Vertex)), vertices.data(), 0);
+		glNamedBufferStorage(m_VBO, static_cast<GLsizeiptr>(vertices.size() * sizeof(Vertex)), vertices.data(), GL_DYNAMIC_STORAGE_BIT);
 		glCreateBuffers(1, &m_IBO);
 		glNamedBufferStorage(m_IBO, static_cast<GLsizeiptr>(indices.size() * sizeof(uint32_t)), indices.data(), 0);
 
@@ -44,6 +44,12 @@ namespace GB
 			glVertexArrayAttribFormat(m_VAO, 5, 4, GL_FLOAT, GL_FALSE, offsetof(SkinVertex, Weights));
 			glVertexArrayAttribBinding(m_VAO, 5, 1);
 		}
+	}
+
+	void Mesh::UpdateVertices(uint32_t first, const Vertex* vertices, uint32_t count)
+	{
+		if (count == 0) return;
+		glNamedBufferSubData(m_VBO, static_cast<GLintptr>(first) * static_cast<GLintptr>(sizeof(Vertex)), static_cast<GLsizeiptr>(count) * static_cast<GLsizeiptr>(sizeof(Vertex)), vertices);
 	}
 
 	Mesh::~Mesh()
