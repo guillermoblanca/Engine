@@ -596,7 +596,7 @@ namespace GB::Editor
 						for (const std::string& tag : def->ActiveTags) asc->Tags().RemoveAll(tag);
 					}
 			}
-			m_TribeBodies.push_back(std::make_unique<ActorBody>(actor));
+			m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors, name));
 			m_Tribe.AddMember(name, role, m_TribeBodies.back().get());
 		}
 		if (!m_Tribe.FromJson(json, true)) GB_CLIENT_WARN("the saved tribe could not be read: it starts again");

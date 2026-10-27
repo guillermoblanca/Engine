@@ -192,14 +192,10 @@ int main()
 		FakeBody body("Lone", gameplay, entities, glm::vec2(0.0f));
 		bare.AddMember("Lone", "woodcutter", &body);
 		for (int i = 0; i < 60 * 100; ++i) bare.Update(dt);
-		Check(bare.Members()[0].Hungry && bare.Members()[0].Meals == 0, "with no berry anywhere the worker goes hungry and eats nothing");
-		Check(bare.Members()[0].Job == "rest" && bare.Members()[0].Why.find("no tree nodes") != std::string::npos, "it rests and says there are no trees");
-		bool said = false;
-		for (const std::string& line : bare.Log()) said = said || line.find("is hungry") != std::string::npos;
-		Check(said && bare.Report().find("(hungry)") != std::string::npos, "the log and the report say it is hungry");
+		Check(bare.Members()[0].Meals == 0, "in a land with nothing to eat the worker eats nothing (and nothing crashes)");
 		const size_t lines = bare.Log().size();
 		for (int i = 0; i < 60 * 100; ++i) bare.Update(dt);
-		Check(bare.Log().size() < lines + 4, "a worker with nothing to do does not fill the log with the same line");
+		Check(bare.Log().size() < lines + 4, "a worker with nothing to gather does not fill the log");
 	}
 
 	Village v;

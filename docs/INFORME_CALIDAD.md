@@ -78,7 +78,9 @@ no se invalidan al insertar) y el conejo borrado no se vuelve a usar. `GameplayW
 `resources build`, `interactives build`, `garden build` y `actor spawn` reconstruyen todos los sistemas de habilidades (`SyncGameplay` → `Load`) desde los **componentes**, que solo se actualizan al guardar. Reproducción: `tribe build`, `ecology spawn`, `timescale 20`, `wait 400`,
 `interactives build -8 -4`: los arbustos pasaban de 2 a 6 de cantidad, los árboles se rellenaban y `Rabbit 1` volvía de Food 74 / Age 255 / Cooldown 85 a 70 / 120 / 0. Ahora cada una de esas órdenes escribe el estado vivo en los componentes antes de construir. Los enfriamientos y las habilidades en curso siguen sin sobrevivir a una reconstrucción.
 
-## 5. Lo que no se guarda (abierto)
+## 5. Lo que no se guarda (abierto; la parte de la tribu ya la resolvió #55)
+
+> Escrito antes de #55: la tribu (almacén, hoguera, memoria y necesidades de cada miembro) ahora va en la sección `ai` del guardado y sigue donde estaba al cargar. Siguen sin guardarse los temporizadores de los interactivos y el destino de cada conejo.
 
 Se guarda: atributos y etiquetas de interactivos, nodos y conejos; posición y mochila de los actores; efectos con tiempo. **No se guarda**:
 
@@ -93,6 +95,9 @@ Se guarda: atributos y etiquetas de interactivos, nodos y conejos; posición y m
 La tribu es de la sesión de percepción e IA: se le deja la nota en la carpeta compartida.
 
 ## 6. Notas sobre `Tribe.cpp` (de otra sesión; no se tocó)
+
+> **Actualización tras #55 (cerebro de utilidad).** Estas notas se escribieron sobre el código de #52. Reverificado con el nuevo: la tanda de decisiones con 60 miembros mide 1,6 ms de media y 2,6 ms el peor fotograma (antes 3 a 4,5 ms); el registro sigue sin tope en memoria (al guardar solo
+> van las últimas 200 líneas); los cuerpos nulos ya se comprueban (`!m.Body`); sigue sin haber `RemoveMember`, de modo que lo del trabajador borrado (hallazgo 4) vale; el resto (`StockCap`, nombres con `_`, las dos hogueras) no se ha vuelto a medir. El estado de la tribu **sí se guarda ya** (sección `ai`): ver la nota del hallazgo 5.
 
 - **Decisiones sincronizadas.** Todos los miembros deciden en el mismo fotograma cada 0,5 s. Con 60 miembros, 120 nodos y 3.300 entidades, el peor fotograma de decisiones costó **2,9 a 4,7 ms** (`scale_test`: 4 miembros 0,4 ms, 16 miembros 1,0 ms, 60 miembros 3 a 4,5 ms);
   el coste es miembros × nodos por tipo × (copia de `Names()` + concatenar `"Resource.Node." + kind`). Para 50 a 100 NPC: repartir la decisión entre fotogramas (un miembro cada N) y un índice de nodos por tipo.
