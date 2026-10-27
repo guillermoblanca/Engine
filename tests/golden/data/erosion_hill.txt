@@ -1,0 +1,6 @@
+# golden data 'erosion_hill' (generated; tolerances are in the test code)
+eroded = 180640.50680224312
+deposited = 180640.50563737354
+height.max = 26.380508422851562
+height.mean = 7.8943476281904923
+height.std = 5.066849594937298

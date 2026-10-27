@@ -1,5 +1,7 @@
 #include "WorldGen.h"
 #include <algorithm>
+#include <functional>
+#include <queue>
 #include <cmath>
 #include <glm/gtc/constants.hpp>
 
@@ -143,44 +145,59 @@ namespace GB
 			}
 			if (desc.River)
 			{
-				// start on the highest border point, walk downhill with a little meander toward the lake (or the far side)
-				glm::vec2 start(0.0f); float top = -1e9f;
-				for (int k = 0; k < coarse.N; ++k)
-					for (const glm::ivec2 e : { glm::ivec2(k, 4), glm::ivec2(k, coarse.N - 5), glm::ivec2(4, k), glm::ivec2(coarse.N - 5, k) })
-						if (coarse.At(e.x, e.y) > top && glm::distance(coarse.Pos(e.x, e.y), basin) > desc.Size * 0.3f) { top = coarse.At(e.x, e.y); start = coarse.Pos(e.x, e.y); }
-				std::vector<glm::vec2> path = { start };
-				glm::vec2 p = start, dir(0.0f);
-				const float step = 14.0f;
-				const glm::vec2 lo = bare->GetHeightmap().GetMin() + 6.0f, hi = bare->GetHeightmap().GetMax() - 6.0f;
-				for (int s = 0; s < 70; ++s)
-				{
-					if (desc.Lake && glm::distance(p, basin) < hp.LakeRadius * 1.7f) break;
-					// steepest descent among 16 directions, biased toward the lake
-					float bestScore = 1e9f; glm::vec2 bestDir(1.0f, 0.0f);
-					for (int k = 0; k < 16; ++k)
+				// A cheapest path (Dijkstra) on the coarse grid from the highest border point to the lake basin (or, without
+				// a lake, to the lowest border point): going uphill is expensive, so the river follows the valleys and always arrives.
+				const int N = coarse.N;
+				glm::ivec2 startCell(4, 4); float top = -1e9f;
+				glm::ivec2 goalCell(bi, bj); float bottom = 1e9f;
+				for (int k = 4; k < N - 4; ++k)
+					for (const glm::ivec2 e : { glm::ivec2(k, 3), glm::ivec2(k, N - 4), glm::ivec2(3, k), glm::ivec2(N - 4, k) })
 					{
-						const float a = glm::two_pi<float>() * static_cast<float>(k) / 16.0f;
-						const glm::vec2 d(std::cos(a), std::sin(a));
-						const glm::vec2 q = p + d * step;
-						if (q.x < lo.x || q.y < lo.y || q.x > hi.x || q.y > hi.y) continue;
-						float score = bare->GetHeight(q.x, q.y) - bare->GetHeight(p.x, p.y);
-						if (desc.Lake) score += 0.012f * glm::distance(q, basin);
-						score += glm::dot(d, dir) > 0.0f ? -0.8f * glm::dot(d, dir) : 2.0f * -glm::dot(d, dir);   // keep going, do not turn back
-						score += (Noise2(q.x / 25.0f, q.y / 25.0f, desc.Seed + 99u) - 0.5f) * 2.4f;                 // meander
-						if (score < bestScore) { bestScore = score; bestDir = d; }
+						if (coarse.At(e.x, e.y) > top && (!desc.Lake || glm::distance(coarse.Pos(e.x, e.y), basin) > desc.Size * 0.3f)) { top = coarse.At(e.x, e.y); startCell = e; }
+						if (!desc.Lake && coarse.At(e.x, e.y) < bottom && glm::distance(coarse.Pos(e.x, e.y), coarse.Pos(startCell.x, startCell.y)) > desc.Size * 0.4f) { bottom = coarse.At(e.x, e.y); goalCell = e; }
 					}
-					dir = glm::normalize(glm::mix(dir, bestDir, dir == glm::vec2(0.0f) ? 1.0f : 0.6f));
-					p += dir * step;
-					if (p.x < lo.x || p.y < lo.y || p.x > hi.x || p.y > hi.y) { p = glm::clamp(p, lo, hi); path.push_back(p); break; }
-					path.push_back(p);
-				}
-				if (desc.Lake)   // the river ends at the shore of the lake, not in the middle of it
+				std::vector<float> cost(static_cast<size_t>(N) * static_cast<size_t>(N), 1e30f);
+				std::vector<int> from(cost.size(), -1);
+				using Item = std::pair<float, int>;
+				std::priority_queue<Item, std::vector<Item>, std::greater<Item>> open;
+				auto idx = [&](int i, int j) { return j * N + i; };
+				cost[static_cast<size_t>(idx(startCell.x, startCell.y))] = 0.0f;
+				open.push({ 0.0f, idx(startCell.x, startCell.y) });
+				while (!open.empty())
 				{
-					const glm::vec2 last = path.back();
-					glm::vec2 toLake = basin - last;
+					const auto [c, cur] = open.top();
+					open.pop();
+					if (c > cost[static_cast<size_t>(cur)]) continue;
+					const int ci = cur % N, cj = cur / N;
+					if (ci == goalCell.x && cj == goalCell.y) break;
+					for (int dj = -1; dj <= 1; ++dj)
+						for (int di = -1; di <= 1; ++di)
+						{
+							const int ni = ci + di, nj = cj + dj;
+							if ((di == 0 && dj == 0) || ni < 2 || nj < 2 || ni >= N - 2 || nj >= N - 2) continue;
+							const float len = (di != 0 && dj != 0 ? 1.4142f : 1.0f) * coarse.Step;
+							const float rise = coarse.At(ni, nj) - coarse.At(ci, cj);
+							const glm::vec2 q = coarse.Pos(ni, nj);
+							const float meander = 1.0f + 0.6f * Noise2(q.x / 30.0f, q.y / 30.0f, desc.Seed + 99u);
+							const float next = c + len * meander + 14.0f * std::max(rise, 0.0f) + 2.0f * std::max(-rise, 0.0f) * 0.0f;
+							if (next < cost[static_cast<size_t>(idx(ni, nj))]) { cost[static_cast<size_t>(idx(ni, nj))] = next; from[static_cast<size_t>(idx(ni, nj))] = cur; open.push({ next, idx(ni, nj) }); }
+						}
+				}
+				std::vector<glm::vec2> path;
+				for (int cur = idx(goalCell.x, goalCell.y); cur >= 0; cur = from[static_cast<size_t>(cur)])
+					path.push_back(coarse.Pos(cur % N, cur / N));
+				std::reverse(path.begin(), path.end());
+				// every third node is plenty for the spline; the first and last stay
+				std::vector<glm::vec2> thinned;
+				for (size_t i = 0; i < path.size(); ++i)
+					if (i % 3 == 0 || i + 1 == path.size()) thinned.push_back(path[i]);
+				path.swap(thinned);
+				if (desc.Lake)   // the river ends at the bank of the lake, not in the middle of it
+				{
+					while (path.size() > 2 && glm::distance(path.back(), basin) < hp.LakeRadius * 1.7f) path.pop_back();
+					const glm::vec2 toLake = basin - path.back();
 					const float len = glm::length(toLake);
-					if (len > hp.LakeRadius * 1.2f) path.push_back(basin - toLake / len * hp.LakeRadius * 1.1f);   // stops at the bank
-					else path.back() = basin - (len > 1e-3f ? toLake / len : glm::vec2(1.0f, 0.0f)) * hp.LakeRadius * 1.1f;
+					path.push_back(basin - (len > 1e-3f ? toLake / len : glm::vec2(1.0f, 0.0f)) * hp.LakeRadius * 0.95f);
 				}
 				if (path.size() >= 3) hp.RiverPath = path;
 				hp.RiverWidth = desc.Type == WorldType::Alpine ? 5.0f : 6.5f;
