@@ -43,6 +43,8 @@ namespace GB::Editor
 		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animator && m_Animator->Anim().SetOverlay(name, fadeSeconds); }
 		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
 		const MotionState& GetMotion() const { return m_Motion; }
+		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
+		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
 		void ApplyCamera(Camera& camera) const { m_Camera.Apply(camera); }
 		void AddToScene(Scene& scene) const;
 

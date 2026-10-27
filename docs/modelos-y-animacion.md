@@ -94,3 +94,16 @@ El controlador de tercera persona del prototipo (`CharacterController`, `ThirdPe
 - Test `anim_instance` (CPU): registro, cambio andando sin saltos de hueso, interrupción, cambio instantáneo y, con `GB_MIXAMO_DIR` y `GB_FARMING_DIR`, los sets reales.
 
 Pendiente (11B-2): montajes y slots (acciones de una vez con máscara de huesos y notificaciones), parámetros y transiciones por condiciones (salto, giro en sitio, agacharse), salto y caída en el controlador.
+
+### Los dos sistemas de animación: qué se conserva de cada uno
+
+| | `CharacterAnimation` (prototipo) | `AnimInstance` / `LocomotionBlender` |
+|---|---|---|
+| Entrada | velocidad en el suelo (un número) | `MotionState` (velocidad en ejes del personaje, giro, aire) |
+| Clips | por nombre (`Survey`/`Walk`/`Run`), valen modelos con 1 clip (CesiumMan) | por velocidad medida, cualquier cantidad, strafes, sets |
+| Transición | histéresis idle/walk/run + fundido de 0,25 s | mezcla continua; sin saltos de estado |
+| Pies | velocidad de reproducción limitada | fase compartida alineada con el apoyo; escala 0,6–1,5x |
+| Pasos | `FootstepTracker`: apoyos detectados por la altura del pie (sirve con cualquier clip) | `FootEvent` de la fase del ciclo (exactos y baratos) |
+
+Decisión: manda `AnimInstance` para los personajes con el conjunto de clips (FBX/Mixamo). `CharacterAnimation` se queda **solo** como respaldo para modelos glTF con uno a tres clips sin análisis posible (zorro, CesiumMan), porque ahí la mezcla continua no tiene qué mezclar. Lo mejor del prototipo que se ha llevado al sistema nuevo: el tipo `FootPlant` (posición, rumbo y velocidad del pie al apoyar). `AnimInstance::Plants()` entrega los eventos de paso con ese mismo tipo, así que huellas, polvo y salpicaduras se alimentan igual con cualquiera de los dos orígenes (`FootstepTracker` o fase del ciclo), sin código duplicado en cada consumidor. `PlayerMode::Plants()` lo expone al editor.
+

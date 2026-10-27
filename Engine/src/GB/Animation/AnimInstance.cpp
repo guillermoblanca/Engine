@@ -74,6 +74,7 @@ namespace GB
 		active.SetVelocity(state.LocalVelocity);
 		active.Update(dt);
 		m_Events.clear();
+		m_Plants.clear();
 
 		const bool fading = m_From != -1;
 		if (fading)
@@ -101,17 +102,31 @@ namespace GB
 		}
 		m_Instance.SetPose(m_Pose);
 
+		if (state.Grounded)
+		{
+			const glm::vec3 heading = glm::normalize(glm::vec3(characterToWorld * glm::vec4(0.0f, 0.0f, 1.0f, 0.0f)));
+			for (const FootEvent& e : m_Events)
+			{
+				const int bone = e.Left ? m_LeftFoot : m_RightFoot;
+				if (bone < 0) continue;
+				FootPlant plant;
+				plant.Foot = e.Left ? 0 : 1;
+				plant.Position = glm::vec3(characterToWorld * m_Instance.GetNodeWorld(bone)[3]);
+				plant.Position.y = state.Position.y;
+				plant.Heading = heading;
+				plant.Speed = state.Speed;
+				m_Plants.push_back(plant);
+			}
+		}
+
 		if (!m_Steps) return;
 		if (state.Landed)
 			m_Steps->Step(glm::vec3(characterToWorld[3]), 3.0f + state.LandingSpeed, 1.0f);   // a landing is a heavy step
 		if (!state.Grounded) return;
-		for (const FootEvent& e : m_Events)
+		for (size_t i = 0, p = 0; i < m_Events.size(); ++i)
 		{
-			const int bone = e.Left ? m_LeftFoot : m_RightFoot;
-			if (bone < 0) continue;
-			glm::vec3 foot = glm::vec3(characterToWorld * m_Instance.GetNodeWorld(bone)[3]);
-			foot.y = state.Position.y;
-			m_Steps->Step(foot, state.Speed, e.Weight);
+			if ((m_Events[i].Left ? m_LeftFoot : m_RightFoot) < 0) continue;
+			m_Steps->Step(m_Plants[p++].Position, state.Speed, m_Events[i].Weight);   // the sound is played where the plant is
 		}
 	}
 

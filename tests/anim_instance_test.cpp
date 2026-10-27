@@ -75,6 +75,22 @@ int main()
 	const float dt = 1.0f / 60.0f;
 	const MotionState walk = Walking(1.2f);
 	for (int i = 0; i < 120; ++i) anim.Update(walk, dt, glm::mat4(1.0f));
+	{
+		// the landings are also given as FootPlants: alternate feet, at the character's height, facing where it faces
+		bool plantsOk = true;
+		int total = 0, lastFoot = -1;
+		for (int i = 0; i < 180; ++i)
+		{
+			anim.Update(walk, dt, glm::mat4(1.0f));
+			for (const FootPlant& p : anim.Plants())
+			{
+				plantsOk = plantsOk && p.Foot != lastFoot && std::abs(p.Position.y - walk.Position.y) < 1e-4f && p.Heading.z > 0.99f && Near(p.Speed, 1.2f, 0.01f);
+				lastFoot = p.Foot;
+				++total;
+			}
+		}
+		Check(total >= 2 && plantsOk, "footsteps are also given as foot plants (alternating feet)");
+	}
 	const int stepsBefore = steps.Count();
 	Check(stepsBefore >= 3, "walking plays footsteps");
 	const float phaseBefore = anim.Active().Phase();

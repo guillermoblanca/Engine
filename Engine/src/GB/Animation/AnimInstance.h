@@ -2,6 +2,7 @@
 #include "GB/Animation/Locomotion.h"
 #include "GB/Audio/FootstepSounds.h"
 #include "GB/Game/MotionState.h"
+#include "GB/World/Footsteps.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -43,6 +44,9 @@ namespace GB
 		void SetFootsteps(FootstepSounds* steps) { m_Steps = steps; }
 		LocomotionBlender& Active() { return *m_Sets[static_cast<size_t>(m_Active)].Blender; }
 		const std::vector<FootEvent>& Events() const { return m_Events; }
+		// The same landings as world-space FootPlants (the type FootstepTracker gives for any animated model), so footprints, dust and
+		// splashes are fed the same way whichever animation system moves the character. Empty while airborne.
+		const std::vector<FootPlant>& Plants() const { return m_Plants; }
 
 		// Poses the instance for this frame's motion; `characterToWorld` puts the footsteps where the feet are.
 		void Update(const MotionState& state, float dt, const glm::mat4& characterToWorld);
@@ -66,6 +70,7 @@ namespace GB
 		int m_LeftFoot = -1, m_RightFoot = -1;
 		Pose m_Pose;
 		std::vector<FootEvent> m_Events;
+		std::vector<FootPlant> m_Plants;
 	};
 
 	// The sets the Mixamo locomotion and farming packs make (when the model has the clips): "free", "box", "holding",
