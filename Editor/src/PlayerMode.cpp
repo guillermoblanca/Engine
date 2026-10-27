@@ -194,6 +194,21 @@ namespace GB::Editor
 			}
 			m_ScriptTime += dt;
 		}
+		else if (m_Tasks.Running())
+		{
+			m_Camera.ReadInput(dt);
+			const TaskRunner::Resolver resolver = [this](const std::string& entity, const std::string& point, InteractionTarget& out, std::string* err)
+			{
+				return m_Edit && FindInteraction(m_Edit->World(), entity, point, out, err);
+			};
+			const TaskRunner::PropHandler props = [this](const std::string& prop, bool attach)
+			{
+				if (attach) return AttachProp(prop);
+				DetachProp(prop);
+				return true;
+			};
+			in = m_Tasks.Update(m_Controller, m_World, m_Animator ? &m_Animator->Anim() : nullptr, dt, resolver, props);
+		}
 		else if (m_UseAI && !m_AI.Arrived() && !m_AI.Stuck())
 		{
 			m_Camera.ReadInput(dt);   // the player can still look around while the AI walks the character
