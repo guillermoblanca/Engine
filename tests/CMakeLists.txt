@@ -63,5 +63,6 @@ set_tests_properties(water PROPERTIES SKIP_RETURN_CODE 77)
 
 add_executable(GBSkyTests sky_test.cpp)
 target_link_libraries(GBSkyTests PRIVATE GB::GB)
+target_compile_definitions(GBSkyTests PRIVATE GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME sky COMMAND GBSkyTests)
 set_tests_properties(sky PROPERTIES SKIP_RETURN_CODE 77)

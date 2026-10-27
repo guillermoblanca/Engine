@@ -691,6 +691,17 @@ private:
 			m_NightFactor = st.NightFactor;
 			GB_CLIENT_INFO("Sky: {:.1f} h, night {:.2f}", sky.Hours, st.NightFactor);
 		}
+		if (!options.GetValue("hdri").empty())   // --hdri=sunset or a path to a Radiance .hdr
+		{
+			const std::string h = options.GetValue("hdri");
+			m_EnvMap = GB::EnvironmentMap::Load(h == "sunset" || h == "on" ? std::string(GB_ASSET_DIR) + "/hdri/sunset_sky.hdr" : h);
+			if (m_EnvMap)
+			{
+				m_EnvMap->Rotation = glm::radians(static_cast<float>(std::atof(options.GetValue("hdri-rotation", "0").c_str())));
+				m_Scene.Env.EnvMap = m_EnvMap.get();
+			}
+		}
+		m_Scene.ScreenSpaceReflections = options.GetValue("ssr", "on") != "off";
 		const int lanterns = std::atoi(options.GetValue("lanterns", m_NightFactor > 0.4f ? "10" : "0").c_str());
 		if (lanterns > 0)
 			BuildLanterns(lanterns);
@@ -838,7 +849,7 @@ private:
 		const glm::vec2 c = m_Terrain->GetLakeCenter();
 		m_Water->Position = { c.x, m_Terrain->GetWaterLevel(), c.y };
 		m_Water->Radius = r * 1.2f;
-		m_BaseWaveHeight = static_cast<float>(std::atof(options.GetValue("waves", "0.10").c_str()));
+		m_BaseWaveHeight = static_cast<float>(std::atof(options.GetValue("waves", "0.05").c_str()));
 		m_Water->Params.WaveHeight = m_BaseWaveHeight;
 		m_Scene.Water.push_back(m_Water.get());
 		GB::WaterRipplesDesc rd;
@@ -1168,11 +1179,12 @@ private:
 	std::vector<std::unique_ptr<GB::Tree>> m_TreeVariants;
 	std::unique_ptr<Walker> m_Walker;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
+	std::unique_ptr<GB::EnvironmentMap> m_EnvMap;
 	std::unique_ptr<GB::WaterSurface> m_Water;
 	std::unique_ptr<GB::Mesh> m_LanternPost;
 	float m_NightFactor = 0.0f;
 	std::unique_ptr<GB::WaterRipples> m_Ripples;
-	float m_BaseWaveHeight = 0.10f, m_RainDropBudget = 0.0f;
+	float m_BaseWaveHeight = 0.05f, m_RainDropBudget = 0.0f;
 	uint32_t m_RainRng = 77u;
 	std::unique_ptr<GB::ParticleSystem> m_FootDust;
 	bool m_Follow = false;

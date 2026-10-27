@@ -3,6 +3,7 @@
 #include "Framebuffer.h"
 #include "Mesh.h"
 #include "Particles.h"
+#include "GB/Renderer/EnvironmentMap.h"
 #include "GB/World/Grass.h"
 #include "GB/World/Water.h"
 #include "GB/World/WaterRipples.h"
@@ -105,6 +106,7 @@ namespace GB
 		float FogHeightFalloff = 0.0f;     // 0 = uniform; larger = fog hugs the ground
 		float Wetness = 0.0f;              // 0..1: darker, glossier non-metal surfaces (rain)
 		float SnowCover = 0.0f;            // 0..1: upward-facing surfaces turn white (accumulated snow)
+		const EnvironmentMap* EnvMap = nullptr;   // HDRI for the sky, ambient light and reflections (null = procedural sky); not owned
 		float Stars = 0.0f;                // 0..1: stars and moon in the sky background (night)
 		float CloudCover = 0.0f;           // 0..1: procedural clouds in the sky background
 		float Time = 0.0f;                 // seconds; drives wind, waves and other animated shaders
@@ -132,6 +134,7 @@ namespace GB
 		std::vector<const GrassField*> Grass;           // drawn after the opaque geometry, not owned
 		std::vector<const WaterSurface*> Water;         // translucent water, drawn after the grass; not owned
 		const WaterRipples* Ripples = nullptr;          // ripple heights shared by the water surfaces; not owned
+		bool ScreenSpaceReflections = true;             // water reflects the objects around it (screen space); off = sky only
 		Environment Env;
 	};
 
@@ -159,6 +162,7 @@ namespace GB
 		void ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
 		void DrawBatch(const ParticleBatch& batch);
 		void GrassPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows);
+		void BindEnvironment(Shader& shader, const Environment& env) const;
 		void WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
 		void BloomPass(const Environment& env);
 		void CompositePass(const Environment& env, const Framebuffer* target);

@@ -204,6 +204,22 @@ GB::PointLight lamp; lamp.Intensity = 34.0f; lamp.Radius = 16.0f;   // hasta 32 
 ![Noche con farolas](docs/night_lanterns.jpg)
 ![Charcos](docs/puddles.jpg)
 
+## Reflejos y entorno HDRI (Fase 8B)
+
+```cpp
+auto sky = GB::EnvironmentMap::Load("assets/hdri/sunset_sky.hdr");   // Radiance .hdr equirectangular
+scene.Env.EnvMap = sky.get();                // fondo + luz ambiente + reflejos (null = cielo procedural)
+scene.ScreenSpaceReflections = true;         // el agua refleja objetos cercanos (árboles, rocas, farolas)
+```
+
+- **`EnvironmentMap`**: HDRI equirectangular en RGB16F con cadena de mips. Las superficies rugosas y la luz ambiente leen mips más borrosos (prefiltrado barato); `Rotation` y `Exposure` ajustables. Lo usan el fondo, el PBR, la hierba y el agua. `tools/make_hdri.py` genera un cielo de ejemplo (`assets/hdri/sunset_sky.hdr`, con disco solar por encima de 1.0).
+- **Reflejos en espacio de pantalla (SSR)** en el agua: rayo reflejado marchado contra el depth, con refinado binario, desvanecido en los bordes de pantalla; si el rayo sale a cielo se usa el entorno.
+- **Destellos de farolas** sobre el agua (especular de cada luz puntual con su radio).
+- Sandbox: `--hdri=sunset|ruta.hdr [--hdri-rotation=GRADOS] --ssr=on|off`.
+- Límite: los charcos reflejan el entorno y las luces (no objetos); el reflejo de objetos en charcos requeriría un buffer de reflexión propio.
+
+![Destellos](docs/lake_night_glints.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -215,7 +231,7 @@ GB::PointLight lamp; lamp.Intensity = 34.0f; lamp.Radius = 16.0f;   // hasta 32 
 
 ### Siguientes pasos de calidad gráfica y mundo (pedidos)
 
-- 8B Skybox/IBL real: cubemap de entorno filtrado y reflejos de pantalla (SSR) para charcos y agua; luces de la lámpara reflejadas en el agua.
+- 8B ✔ Skybox/IBL HDRI, reflejos SSR en el agua y destellos de luces.
 - 8C Colisiones y física básica; más efectos en la demo del tornado.
 - 8D Ríos con corriente (flujo en el agua, espuma y arrastre) y rocas procedurales con musgo, arena y mojado.
 - 8E Erosión por lluvia; entornos para mapas procedurales (bosques densos, biomas).
