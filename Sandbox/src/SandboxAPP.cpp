@@ -170,10 +170,13 @@ protected:
 			m_Scene.Objects.resize(m_StaticObjects);
 			m_Instance->AddToScene(m_Scene);
 		}
-		else if (m_Walker)
+		else if (m_Walker || m_Physics)
 		{
 			m_Scene.Objects.resize(m_StaticObjects);
-			m_Walker->Instance->AddToScene(m_Scene, m_Walker->Root);
+			if (m_Walker)
+				m_Walker->Instance->AddToScene(m_Scene, m_Walker->Root);
+			if (m_Physics)
+				AddPhysicsObjects();
 		}
 		m_Renderer->Render(m_Scene, camera);
 	}
@@ -525,6 +528,11 @@ private:
 			m_Terrain = GB::Terrain::CreateDunes(dp, 360.0f, 641, style);
 		}
 		m_Terrain->AddToScene(m_Scene);
+		if (options.HasFlag("physics") || !options.GetValue("physics").empty())
+		{
+			m_Physics = std::make_unique<GB::PhysicsWorld>();
+			m_Physics->SetTerrain(&m_Terrain->GetHeightmap());
+		}
 		GB_CLIENT_INFO("Terrain: {} ({}), height range {:.1f} .. {:.1f} m, {} crest points", kind, styleName,
 			m_Terrain->GetHeightmap().GetMinHeight(), m_Terrain->GetHeightmap().GetMaxHeight(), m_Terrain->GetCrestPoints().size());
 
@@ -540,6 +548,14 @@ private:
 			o.MeshPtr = mesh;
 			o.Mat = rock;
 			const float y = m_Terrain->GetHeight(x, z) - sink;
+			if (m_Physics && mesh == m_Sphere.get())   // boulders block bodies
+			{
+				GB::StaticCollider c;
+				c.Shape = GB::ShapeType::Sphere;
+				c.Center = { x, y, z };
+				c.Radius = 0.5f * std::min(scale.x, scale.z) * 0.95f;
+				m_Physics->AddStatic(c);
+			}
 			o.Transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), { x, y, z }), glm::radians(yawDeg), glm::vec3(0, 1, 0)), scale);
 			m_Scene.Objects.push_back(o);
 		};
@@ -647,7 +663,19 @@ private:
 				const auto placements = GB::ScatterTrees(*m_Terrain, treeCount, static_cast<int>(m_TreeVariants.size()), 7.0f, seed + 11,
 					m_Terrain->HasLake() ? m_Terrain->GetWaterLevel() + 0.7f : -1e9f, snowLine, 24.0f, [](float x, float z) { return std::hypot(x, z) > 16.0f; });   // keep the middle clear for the walker
 				for (const GB::TreePlacement& pl : placements)
-					m_TreeVariants[static_cast<size_t>(pl.Variant)]->AddToScene(m_Scene, pl.Position, pl.Yaw, pl.Scale);
+				{
+					const GB::Tree& tree = *m_TreeVariants[static_cast<size_t>(pl.Variant)];
+					tree.AddToScene(m_Scene, pl.Position, pl.Yaw, pl.Scale);
+					if (m_Physics)   // the trunk is a vertical capsule
+					{
+						GB::StaticCollider c;
+						c.Shape = GB::ShapeType::Capsule;
+						c.Radius = 0.22f * pl.Scale * (tree.Height > 9.0f ? 1.3f : 1.0f);
+						c.HalfHeight = tree.Height * pl.Scale * 0.3f;
+						c.Center = pl.Position + glm::vec3(0.0f, c.HalfHeight + c.Radius, 0.0f);
+						m_Physics->AddStatic(c);
+					}
+				}
 				if (options.HasFlag("gallery"))   // every variant in a row, for a close look
 				{
 					for (size_t i = 0; i < m_TreeVariants.size(); ++i)
@@ -661,10 +689,17 @@ private:
 		}
 
 		m_StaticObjects = m_Scene.Objects.size();
+		if (m_Physics)
+			BuildPhysicsBodies(options);
 		const std::string walker = options.GetValue("walker", "none");
 		if (walker != "none")
 			BuildWalker(walker, options, style);
 
+		if (!options.GetValue("target-x").empty())
+		{
+			const float tx = static_cast<float>(std::atof(options.GetValue("target-x").c_str())), tz = static_cast<float>(std::atof(options.GetValue("target-z", "0").c_str()));
+			m_Orbit.Target = { tx, m_Terrain->GetHeight(tx, tz) + 6.0f, tz };
+		}
 		if (!options.GetValue("distance").empty())
 			m_Orbit.Distance = static_cast<float>(std::atof(options.GetValue("distance").c_str()));
 		if (!options.GetValue("pitch").empty())
@@ -808,6 +843,83 @@ private:
 		GB_CLIENT_INFO("Walker '{}': scale {:.3f}, {} feet, speed {:.1f} m/s", kind, w.Scale, w.FootNodes.size(), w.Speed);
 	}
 
+	// Crates, barrels, balls and planks dropped over the terrain; the tornado, the wind and the lake act on them.
+	void BuildPhysicsBodies(const GB::LaunchOptions& options)
+	{
+		const int count = std::max(std::atoi(options.GetValue("physics", "40").c_str()), 0) > 0 ? std::atoi(options.GetValue("physics", "40").c_str()) : 40;
+		if (m_Terrain->HasLake())
+		{
+			const GB::Terrain* terrain = m_Terrain.get();
+			const float level = terrain->GetWaterLevel();
+			m_Physics->SetWater([terrain, level](float x, float z) { return terrain->GetHeight(x, z) < level ? level : -1e9f; });
+		}
+		glm::vec2 center(0.0f, -10.0f);
+		if (options.GetValue("weather") == "tornado")
+			center = { 60.0f, -70.0f };
+		if (!options.GetValue("physics-x").empty())
+			center = { static_cast<float>(std::atof(options.GetValue("physics-x").c_str())), static_cast<float>(std::atof(options.GetValue("physics-z", "0").c_str())) };
+		const float spread = static_cast<float>(std::atof(options.GetValue("physics-spread", "24").c_str()));
+		uint32_t rng = 987u;
+		auto rnd = [&]() { rng = rng * 1664525u + 1013904223u; return static_cast<float>(rng >> 8) / 16777216.0f; };
+		for (int i = 0; i < count; ++i)
+		{
+			GB::BodyDesc d;
+			PhysItem item;
+			const int kind = i % 4;
+			if (kind == 0) { d.HalfExtents = glm::vec3(0.45f); d.Density = 380.0f; item.Color = { 0.55f, 0.36f, 0.18f }; }           // crate
+			else if (kind == 1) { d.HalfExtents = { 0.32f, 0.5f, 0.32f }; d.Density = 260.0f; item.Color = { 0.18f, 0.32f, 0.55f }; }   // barrel
+			else if (kind == 2) { d.Shape = GB::ShapeType::Sphere; d.Radius = 0.3f + 0.25f * rnd(); d.Density = 450.0f; d.Restitution = 0.55f; item.Color = { 0.75f, 0.2f, 0.15f }; }
+			else { d.HalfExtents = { 1.1f, 0.1f, 0.22f }; d.Density = 420.0f; item.Color = { 0.45f, 0.30f, 0.16f }; }             // plank
+			const float a = rnd() * 6.2831853f, r = std::sqrt(rnd()) * spread;
+			const float x = center.x + std::cos(a) * r, z = center.y + std::sin(a) * r;
+			const glm::vec3 pos(x, m_Terrain->GetHeight(x, z) + 1.5f + 3.0f * rnd(), z);
+			const glm::quat rot = glm::angleAxis(rnd() * 6.28f, glm::normalize(glm::vec3(rnd() + 0.1f, rnd() + 0.1f, rnd() + 0.1f)));
+			item.Body = m_Physics->AddBody(d, pos, rot);
+			item.Sphere = d.Shape == GB::ShapeType::Sphere;
+			item.Scale = item.Sphere ? glm::vec3(d.Radius * 2.0f) : d.HalfExtents * 2.0f;
+			m_PhysItems.push_back(item);
+		}
+		GB_CLIENT_INFO("Physics: {} bodies, {} static colliders", m_PhysItems.size(), m_Physics->GetStaticCount());
+	}
+
+	void AddPhysicsObjects()
+	{
+		for (const PhysItem& item : m_PhysItems)
+		{
+			GB::RenderObject o;
+			o.MeshPtr = item.Sphere ? m_Sphere.get() : m_Cube.get();
+			o.Mat.Albedo = item.Color;
+			o.Mat.Roughness = 0.75f;
+			o.Mat.HeightScale = 0.0f;
+			o.Mat.CavityStrength = 0.0f;
+			o.Transform = glm::scale(m_Physics->GetBody(item.Body).GetTransform(), item.Scale);
+			m_Scene.Objects.push_back(o);
+		}
+	}
+
+	void UpdatePhysics(float dt)
+	{
+		m_Physics->Wind = m_Weather->GetWind();
+		m_Physics->Vortices.clear();
+		const float tornado = m_Weather->GetTornado();
+		if (tornado > 0.15f)
+		{
+			GB::Vortex v;
+			v.Position = m_Weather->GetTornadoPosition();
+			v.Position.y = m_Terrain->GetHeight(v.Position.x, v.Position.z);
+			v.Radius = 9.0f;
+			v.TangentialSpeed = 38.0f * tornado;
+			v.InwardSpeed = 14.0f * tornado;
+			v.UpdraftSpeed = 26.0f * tornado;
+			m_Physics->Vortices.push_back(v);
+		}
+		m_Physics->Step(dt);
+		for (const GB::SplashEvent& s : m_Physics->TakeSplashes())
+			if (m_Ripples)
+				m_Ripples->Impulse(s.Position, 0.15f + 0.4f * s.Radius, -std::min(0.12f, 0.015f * std::fabs(s.Speed)) * (0.5f + s.Radius));
+		m_Physics->TakeContacts();
+	}
+
 	// Lamp posts around the lake (or the middle of the map): warm point lights with a glowing lantern.
 	void BuildLanterns(int count)
 	{
@@ -935,6 +1047,8 @@ private:
 		m_Time += dt;
 		if (m_Walker)
 			UpdateWalker(dt);
+		if (m_Physics)
+			UpdatePhysics(dt);
 		// The shadow map follows what the camera looks at.
 		m_Weather->BaseEnvironment().ShadowCenter = m_Orbit.Target;
 		if (m_SandSpray)
@@ -1180,6 +1294,9 @@ private:
 	std::unique_ptr<Walker> m_Walker;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
 	std::unique_ptr<GB::EnvironmentMap> m_EnvMap;
+	struct PhysItem { int Body = -1; bool Sphere = false; glm::vec3 Scale{ 1.0f }, Color{ 1.0f }; };
+	std::unique_ptr<GB::PhysicsWorld> m_Physics;
+	std::vector<PhysItem> m_PhysItems;
 	std::unique_ptr<GB::WaterSurface> m_Water;
 	std::unique_ptr<GB::Mesh> m_LanternPost;
 	float m_NightFactor = 0.0f;
