@@ -2,7 +2,7 @@
 #include "GB/Audio/AudioDevice.h"
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
+#include <fstream>
 
 namespace GB
 {
@@ -386,20 +386,20 @@ namespace GB
 
 	bool SaveWav(const std::string& path, const std::vector<float>& samples, int sampleRate, int channels)
 	{
-		FILE* f = std::fopen(path.c_str(), "wb");
+		std::ofstream f(path, std::ios::binary);
 		if (!f) return false;
 		const uint32_t dataBytes = static_cast<uint32_t>(samples.size() * 2);
-		auto u32 = [&](uint32_t v) { std::fwrite(&v, 4, 1, f); };
-		auto u16 = [&](uint16_t v) { std::fwrite(&v, 2, 1, f); };
-		std::fwrite("RIFF", 1, 4, f); u32(36 + dataBytes);
-		std::fwrite("WAVEfmt ", 1, 8, f); u32(16); u16(1); u16(static_cast<uint16_t>(channels));
+		auto u32 = [&](uint32_t v) { f.write(reinterpret_cast<const char*>(&v), 4); };
+		auto u16 = [&](uint16_t v) { f.write(reinterpret_cast<const char*>(&v), 2); };
+		f.write("RIFF", 4); u32(36 + dataBytes);
+		f.write("WAVEfmt ", 8); u32(16); u16(1); u16(static_cast<uint16_t>(channels));
 		u32(static_cast<uint32_t>(sampleRate)); u32(static_cast<uint32_t>(sampleRate * channels * 2)); u16(static_cast<uint16_t>(channels * 2)); u16(16);
-		std::fwrite("data", 1, 4, f); u32(dataBytes);
+		f.write("data", 4); u32(dataBytes);
 		for (float v : samples)
 		{
 			const int16_t q = static_cast<int16_t>(std::lround(std::clamp(v, -1.0f, 1.0f) * 32767.0f));
-			std::fwrite(&q, 2, 1, f);
+			f.write(reinterpret_cast<const char*>(&q), 2);
 		}
-		return std::fclose(f) == 0;
+		return f.good();
 	}
 }
