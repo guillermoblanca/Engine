@@ -52,7 +52,7 @@ namespace GB
 		std::unique_ptr<Tree> Create(const TreeParams& params) const;
 
 	private:
-		std::unique_ptr<Texture2D> m_Bark, m_Leaf, m_Needle, m_Frond, m_BarkPalm;
+		std::unique_ptr<Texture2D> m_Bark, m_Leaf, m_LeafRound, m_LeafMaple, m_Needle, m_Frond, m_BarkPalm;
 	};
 
 	struct TreePlacement

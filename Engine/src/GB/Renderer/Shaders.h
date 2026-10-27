@@ -32,6 +32,7 @@ uniform int uHasHeight;
 uniform float uHeightScale;
 uniform float uUVScale;
 layout(binding = 3) uniform sampler2D uHeightMap;
+out vec2 vUV;
 // Tree / foliage sway: bend grows with height, a travelling gust wave, and high-frequency flutter.
 uniform float uWindStrength;      // 0 = rigid; meters of sway at the top of the object per unit of wind
 uniform float uWindHeight;        // object-space height at which the sway is full
@@ -61,12 +62,23 @@ void main()
 	vec4 world = uModel * vec4(pos, 1.0);
 	if (uWindStrength > 0.0)
 		world.xyz += WindOffset(aPos, world.xyz, uModel[3].xyz);
+	vUV = aUV * uUVScale;
 	gl_Position = uLightVP * world;
 }
 )GLSL";
 
+	// Alpha-masked casters (leaf cards) cut their silhouette out of the depth map, so a crown casts leafy shadows, not slabs.
 	inline constexpr const char* ShadowFS = R"GLSL(#version 450 core
-void main() {}
+in vec2 vUV;
+uniform int uAlphaMode;
+uniform float uAlphaCutoff;
+uniform float uOpacity;
+layout(binding = 1) uniform sampler2D uAlbedoMap;
+void main()
+{
+	if (uAlphaMode == 1 && texture(uAlbedoMap, vUV).a * uOpacity < uAlphaCutoff)
+		discard;
+}
 )GLSL";
 
 	inline constexpr const char* PBRVS = R"GLSL(#version 450 core
@@ -334,6 +346,7 @@ uniform int uHasEmissiveMap;
 uniform float uOcclusionStrength;
 uniform int uAlphaMode;          // 0 opaque, 1 mask, 2 blend
 uniform float uAlphaCutoff;
+uniform int uAlphaToCoverage;     // 1: masked alpha leaves the shader as coverage (MSAA target)
 uniform float uOpacity;
 uniform int uNoNormalFlip;       // foliage: cards use crown normals on both faces
 uniform vec3 uAlbedo;
@@ -493,7 +506,12 @@ void main()
 	if (uHasMacroMap != 0)
 		albedo *= texture(uMacroMap, (vPos.xz - uMacroRect.xy) / uMacroRect.zw).rgb;
 	albedo *= mix(vec3(1.0), uTrailTint, clamp(trailT * 1.3, 0.0, 1.0));   // compacted / wetter ground
-	if (uAlphaMode == 1 && alpha < uAlphaCutoff) discard;
+	if (uAlphaMode == 1)
+	{
+		// Mip levels blur the mask: rescale around the cutoff by the screen-space change of alpha (soft, sharp edge).
+		alpha = clamp((alpha - uAlphaCutoff) / max(fwidth(alpha), 1e-3) + 0.5, 0.0, 1.0);
+		if (alpha < (uAlphaToCoverage != 0 ? 0.02 : 0.5)) discard;
+	}
 	// Procedural surface layers: grain, moss on top, sand at the base, a wet band at the water line.
 	float mossMask = 0.0, sandMask = 0.0, bandWet = 0.0;
 	if (uGrain > 0.0 || uMoss > 0.0 || uSand > 0.0 || uWaterLine > -1e8)
@@ -615,7 +633,7 @@ void main()
 		float density = uFogDensity * exp(-uFogHeight * max(vPos.y, 0.0));
 		color = mix(uFogColor * uEnvIntensity, color, exp(-density * density * dist * dist));
 	}
-	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), uAlphaMode == 2 ? alpha : 1.0);
+	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), (uAlphaMode == 2 || (uAlphaMode == 1 && uAlphaToCoverage != 0)) ? alpha : 1.0);
 }
 )GLSL";
 

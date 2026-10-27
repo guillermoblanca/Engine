@@ -120,77 +120,215 @@ namespace GB
 			return img;
 		}
 
-		// Alpha-masked cards. kind 0: a few broad leaves, 1: needle tuft, 2: palm frond (long feather).
-		Image MakeFoliage(int kind)
+		// Alpha-masked cards, drawn at 3x3 samples per texel so the leaf edges carry real partial coverage (the renderer
+		// turns that into alpha-to-coverage, and the shadow pass cuts the same shapes out of the depth map of the sun).
+		// kind 0: oak leaves (pointed, serrated), 1: needle tuft on a twig, 2: palm frond, 3: round leaves (birch, lime),
+		// 4: five-lobed maple leaves. Card space: u, v in -1..1, v = -1 at the top.
+		struct FoliageSample
 		{
-			const uint32_t W = kind == 2 ? 64 : 128, H = kind == 2 ? 256 : 128;
+			bool Hit = false;
+			glm::vec3 Color{ 0.0f };
+		};
+
+		template <typename Fn>
+		Image RasterFoliage(uint32_t W, uint32_t H, Fn&& sample)
+		{
 			Image img = Image::Solid(W, H, 60, 110, 30, 0);
-			auto put = [&](uint32_t x, uint32_t y, glm::vec3 c, float a)
-			{
-				uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * W + x) * 4];
-				p[0] = static_cast<uint8_t>(glm::clamp(c.r, 0.0f, 1.0f) * 255.0f);
-				p[1] = static_cast<uint8_t>(glm::clamp(c.g, 0.0f, 1.0f) * 255.0f);
-				p[2] = static_cast<uint8_t>(glm::clamp(c.b, 0.0f, 1.0f) * 255.0f);
-				p[3] = static_cast<uint8_t>(glm::clamp(a, 0.0f, 1.0f) * 255.0f);
-			};
+			const glm::vec3 bleed(0.14f, 0.30f, 0.07f);   // colour of the fully transparent texels, so filtering never fringes dark
+			constexpr int kSub = 3;
 			for (uint32_t y = 0; y < H; ++y)
 				for (uint32_t x = 0; x < W; ++x)
 				{
-					const float u = (static_cast<float>(x) + 0.5f) / W * 2.0f - 1.0f;      // -1..1
-					const float v = (static_cast<float>(y) + 0.5f) / H * 2.0f - 1.0f;
-					float a = 0.0f;
-					float shade = 0.5f + 0.5f * Noise((u + 1.0f) * 3.0f, (v + 1.0f) * 3.0f, 21, 6);
-					glm::vec3 c(0.12f, 0.28f, 0.07f);
-					if (kind == 0)
-					{
-						// five leaves arranged around the center: ellipses with a pointed tip and a central vein
-						for (int k = 0; k < 5; ++k)
+					int hits = 0;
+					glm::vec3 sum(0.0f);
+					for (int sy = 0; sy < kSub; ++sy)
+						for (int sx = 0; sx < kSub; ++sx)
 						{
-							const float ang = (static_cast<float>(k) / 5.0f) * 2.0f * kPi + 0.4f;
-							const glm::vec2 dir(std::cos(ang), std::sin(ang));
-							const glm::vec2 p(u * 0.95f, v * 0.95f);
-							const float along = glm::dot(p, dir), across = glm::dot(p, glm::vec2(-dir.y, dir.x));
-							if (along > 0.02f && along < 0.95f)
-							{
-								const float width = 0.34f * std::sin(kPi * std::pow(along / 0.95f, 0.8f));
-								if (std::fabs(across) < width)
-								{
-									a = 1.0f;
-									const float vein = std::fabs(across) < 0.012f ? 0.55f : 1.0f;
-									shade = vein * (0.7f + 0.5f * shade);
-								}
-							}
+							const float u = (static_cast<float>(x) + (static_cast<float>(sx) + 0.5f) / kSub) / static_cast<float>(W) * 2.0f - 1.0f;
+							const float v = (static_cast<float>(y) + (static_cast<float>(sy) + 0.5f) / kSub) / static_cast<float>(H) * 2.0f - 1.0f;
+							const FoliageSample s = sample(u, v);
+							if (s.Hit) { ++hits; sum += s.Color; }
 						}
-					}
-					else if (kind == 1)
-					{
-						// a fan of needles from the bottom center
-						const float cx = u, up = 1.0f - v;                // v = +1 is the bottom of the card; the fan starts there
-						const float ang = std::atan2(cx, up);
-						const float r = std::sqrt(cx * cx + up * up);
-						const float needles = std::fabs(std::sin(ang * 20.0f));
-						if (r < 1.95f && r > 0.04f && std::fabs(ang) < 1.2f && needles > 0.35f)
-							a = 1.0f;
-						c = glm::vec3(0.06f, 0.20f, 0.08f);
-						shade = 0.6f + 0.6f * shade;
-					}
-					else
-					{
-						// feather: central rib and leaflets tapering to the tip (v=-1 is the tip)
-						const float t = (v + 1.0f) * 0.5f;           // 0 tip .. 1 base
-						const float halfW = 0.9f * std::sin(kPi * std::pow(std::clamp(1.0f - t, 0.0f, 1.0f), 0.7f)) * 0.9f + 0.06f;
-						const float leaflet = 0.5f + 0.5f * std::sin(v * 2.0f * kPi * 14.0f + std::fabs(u) * 6.0f);
-						if (std::fabs(u) < 0.03f)
-							a = 1.0f;
-						else if (std::fabs(u) < halfW && leaflet > 0.28f && t < 0.97f)
-							a = 1.0f;
-						c = glm::vec3(0.16f, 0.34f, 0.08f);
-						shade = 0.7f + 0.5f * shade;
-					}
-					if (a > 0.0f)
-						put(x, y, c * shade * 1.7f, a);
+					const glm::vec3 c = hits > 0 ? sum / static_cast<float>(hits) * 1.7f : bleed;
+					uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * W + x) * 4];
+					p[0] = static_cast<uint8_t>(glm::clamp(c.r, 0.0f, 1.0f) * 255.0f + 0.5f);
+					p[1] = static_cast<uint8_t>(glm::clamp(c.g, 0.0f, 1.0f) * 255.0f + 0.5f);
+					p[2] = static_cast<uint8_t>(glm::clamp(c.b, 0.0f, 1.0f) * 255.0f + 0.5f);
+					p[3] = static_cast<uint8_t>(static_cast<float>(hits) / (kSub * kSub) * 255.0f + 0.5f);
 				}
 			return img;
+		}
+
+		// A leaf lying along `Dir` from `Base`: `along` 0..1 from the stem to the tip, `across` in leaf lengths from the midrib.
+		struct LeafPlacement
+		{
+			glm::vec2 Base{ 0.0f };
+			glm::vec2 Dir{ 0.0f, -1.0f };
+			float Length = 1.0f;
+			float Tone = 0.5f;   // per-leaf colour variation, 0..1
+		};
+
+		FoliageSample LeafSample(const LeafPlacement& l, const glm::vec2& p, bool round, float noise)
+		{
+			FoliageSample out;
+			const glm::vec2 d = p - l.Base;
+			const float along = glm::dot(d, l.Dir) / l.Length;
+			const float across = glm::dot(d, glm::vec2(-l.Dir.y, l.Dir.x)) / l.Length;
+			if (along <= 0.0f || along >= 1.0f)
+				return out;
+			float half;
+			if (round)   // egg shape, blunt, with a short drawn-out tip
+				half = 0.36f * std::pow(std::sin(kPi * std::pow(along, 0.72f)), 0.85f) * (1.0f - 0.25f * std::pow(along, 6.0f));
+			else         // lance shape with a serrated margin
+				half = 0.27f * std::sin(kPi * std::pow(along, 0.8f)) * (1.0f + 0.07f * std::sin(along * 64.0f + l.Tone * 9.0f));
+			const float a = std::fabs(across);
+			if (a >= half)
+				return out;
+			out.Hit = true;
+			const float rim = glm::clamp((half - a) / std::max(half, 1e-3f), 0.0f, 1.0f);   // 0 at the margin, 1 at the midrib
+			const bool midrib = a < 0.010f + 0.012f * (1.0f - along);
+			const float lateral = std::fabs(std::fmod(along * 8.0f - a * 2.4f + 4.0f, 1.0f) - 0.5f);
+			const bool vein = lateral < 0.045f && a < half * 0.92f;
+			glm::vec3 c = glm::mix(glm::vec3(0.08f, 0.22f, 0.05f), glm::vec3(0.20f, 0.40f, 0.08f), l.Tone);
+			c *= 0.75f + 0.45f * noise;
+			c *= 0.72f + 0.38f * rim;                 // darker toward the margin
+			c = glm::mix(c, c * 1.25f + glm::vec3(0.03f, 0.05f, 0.0f), glm::smoothstep(0.4f, 1.0f, along));   // lighter young tip
+			if (midrib) c = c * 1.5f + glm::vec3(0.05f, 0.06f, 0.01f);
+			else if (vein) c *= 1.2f;
+			out.Color = c;
+			return out;
+		}
+
+		Image MakeFoliage(int kind)
+		{
+			const uint32_t W = kind == 2 ? 128 : 256, H = kind == 2 ? 512 : 256;
+			auto grain = [](float u, float v) { return 0.5f + 0.5f * Noise((u + 1.0f) * 3.0f, (v + 1.0f) * 3.0f, 21, 6); };
+
+			if (kind == 0 || kind == 3)
+			{
+				// Leaves arranged around the card center, each with its own angle, length and tone.
+				const int count = kind == 0 ? 5 : 6;
+				std::vector<LeafPlacement> leaves;
+				Rng rng(kind == 0 ? 41 : 43);
+				for (int k = 0; k < count; ++k)
+				{
+					const float ang = (static_cast<float>(k) + rng.range(-0.15f, 0.15f)) / static_cast<float>(count) * 2.0f * kPi + 0.4f;
+					LeafPlacement l;
+					l.Dir = { std::cos(ang), std::sin(ang) };
+					l.Length = (kind == 0 ? 0.92f : 0.80f) * rng.range(0.85f, 1.0f);
+					l.Base = -l.Dir * 0.04f + glm::vec2(rng.range(-0.04f, 0.04f), rng.range(-0.04f, 0.04f));
+					l.Tone = rng.next();
+					leaves.push_back(l);
+				}
+				return RasterFoliage(W, H, [&](float u, float v)
+				{
+					FoliageSample best;
+					const float g = grain(u, v);
+					for (const LeafPlacement& l : leaves)
+					{
+						const FoliageSample s = LeafSample(l, { u, v }, kind == 3, g);
+						if (s.Hit) best = s;   // later leaves lie on top
+					}
+					return best;
+				});
+			}
+			if (kind == 4)
+			{
+				// Three five-lobed leaves: radius as a function of the angle around the leaf center, veins along the lobes.
+				struct Maple { glm::vec2 Center; float Radius, Turn, Tone; };
+				const Maple maples[] = { { { -0.30f, 0.20f }, 0.52f, 0.5f, 0.2f }, { { 0.36f, 0.12f }, 0.48f, -0.4f, 0.6f }, { { 0.0f, -0.42f }, 0.46f, 0.1f, 0.9f } };
+				return RasterFoliage(W, H, [&](float u, float v)
+				{
+					FoliageSample best;
+					const float g = grain(u, v);
+					for (const Maple& m : maples)
+					{
+						const glm::vec2 d = glm::vec2(u, v) - m.Center;
+						const float r = glm::length(d);
+						if (r > m.Radius) continue;
+						const float theta = std::atan2(d.y, d.x) - m.Turn;
+						const float lobe = std::fabs(std::cos(2.5f * theta));
+						const float edge = m.Radius * (0.30f + 0.70f * std::pow(lobe, 1.7f));
+						const bool stem = std::fabs(std::sin(theta - kPi)) * r < 0.012f && std::cos(theta - kPi) > 0.0f;
+						if (r > edge && !stem) continue;
+						glm::vec3 c = glm::mix(glm::vec3(0.12f, 0.26f, 0.05f), glm::vec3(0.24f, 0.40f, 0.07f), m.Tone) * (0.75f + 0.45f * g);
+						c *= 0.7f + 0.4f * glm::clamp(1.0f - r / std::max(edge, 1e-3f), 0.0f, 1.0f);
+						if (std::fabs(std::sin(2.5f * theta)) * r < 0.014f || stem) c = c * 1.5f + glm::vec3(0.04f, 0.05f, 0.0f);
+						best.Hit = true;
+						best.Color = c;
+					}
+					return best;
+				});
+			}
+			if (kind == 1)
+			{
+				// A twig with needles fanning from it; each needle is a tapered segment (distance test), dark at the base.
+				struct Needle { glm::vec2 A, B; float Tone; };
+				std::vector<Needle> needles;
+				Rng rng(47);
+				const int count = 96;
+				for (int k = 0; k < count; ++k)
+				{
+					const float t = static_cast<float>(k) / static_cast<float>(count - 1);
+					const glm::vec2 from(0.0f, 0.95f - 1.55f * t);   // along the twig, bottom to top
+					const float side = (k & 1) ? 1.0f : -1.0f;
+					const float ang = side * rng.range(0.55f, 1.15f);
+					const float len = rng.range(0.55f, 0.85f) * (1.0f - 0.3f * t);
+					needles.push_back({ from, from + glm::vec2(std::sin(ang), -std::cos(ang)) * len + glm::vec2(0.0f, -0.12f), rng.next() });
+				}
+				return RasterFoliage(W, H, [&](float u, float v)
+				{
+					FoliageSample best;
+					const glm::vec2 p(u, v);
+					if (std::fabs(u) < 0.03f && v > -0.75f && v < 0.98f)
+					{
+						best.Hit = true;
+						best.Color = glm::vec3(0.16f, 0.10f, 0.06f);
+					}
+					for (const Needle& n : needles)
+					{
+						const glm::vec2 ab = n.B - n.A;
+						const float t = glm::clamp(glm::dot(p - n.A, ab) / glm::dot(ab, ab), 0.0f, 1.0f);
+						const float dist = glm::length(p - (n.A + ab * t));
+						if (dist < 0.052f * (1.0f - 0.55f * t))
+						{
+							best.Hit = true;
+							best.Color = glm::mix(glm::vec3(0.07f, 0.20f, 0.08f), glm::vec3(0.17f, 0.38f, 0.15f), t) * (0.8f + 0.4f * n.Tone);
+						}
+					}
+					return best;
+				});
+			}
+			// kind 2: palm frond. Central rib with narrow leaflets angled toward the tip, shorter near the tip (v = -1) and the base.
+			return RasterFoliage(W, H, [&](float u, float v)
+			{
+				FoliageSample best;
+				const glm::vec2 p(u, v);
+				if (std::fabs(u) < 0.03f && v > -0.98f)
+				{
+					best.Hit = true;
+					best.Color = glm::vec3(0.18f, 0.26f, 0.07f);
+				}
+				const int pairs = 26;
+				for (int k = 0; k < pairs; ++k)
+				{
+					const float t = (static_cast<float>(k) + 0.5f) / pairs;            // 0 base .. 1 tip
+					const float y = 0.92f - 1.84f * t;
+					const float len = 0.95f * std::sin(kPi * std::pow(std::clamp(1.0f - 0.9f * t, 0.0f, 1.0f), 0.75f)) * 0.85f + 0.05f;
+					for (int side = -1; side <= 1; side += 2)
+					{
+						const glm::vec2 a(0.0f, y), b(static_cast<float>(side) * len, y - 0.30f * len);
+						const glm::vec2 ab = b - a;
+						const float s = glm::clamp(glm::dot(p - a, ab) / glm::dot(ab, ab), 0.0f, 1.0f);
+						if (glm::length(p - (a + ab * s)) < 0.030f * (1.0f - 0.65f * s))
+						{
+							best.Hit = true;
+							best.Color = glm::mix(glm::vec3(0.12f, 0.28f, 0.06f), glm::vec3(0.22f, 0.40f, 0.09f), s) * (0.85f + 0.3f * Noise(static_cast<float>(k) * 1.7f, static_cast<float>(side + 2), 31, 64));
+						}
+					}
+				}
+				return best;
+			});
 		}
 	}
 
@@ -199,6 +337,8 @@ namespace GB
 		m_Bark = std::make_unique<Texture2D>(MakeBark(false), TextureEncoding::SRGB);
 		m_BarkPalm = std::make_unique<Texture2D>(MakeBark(true), TextureEncoding::SRGB);
 		m_Leaf = std::make_unique<Texture2D>(MakeFoliage(0), TextureEncoding::SRGB);
+		m_LeafRound = std::make_unique<Texture2D>(MakeFoliage(3), TextureEncoding::SRGB);
+		m_LeafMaple = std::make_unique<Texture2D>(MakeFoliage(4), TextureEncoding::SRGB);
 		m_Needle = std::make_unique<Texture2D>(MakeFoliage(1), TextureEncoding::SRGB);
 		m_Frond = std::make_unique<Texture2D>(MakeFoliage(2), TextureEncoding::SRGB);
 	}
@@ -407,7 +547,8 @@ namespace GB
 			tree->LeafCardCount = leaves.i.size() / 6;
 			Material foliage;
 			foliage.Albedo = p.LeafTint;
-			foliage.AlbedoMap = p.Species == TreeSpecies::Conifer ? m_Needle.get() : p.Species == TreeSpecies::Palm ? m_Frond.get() : m_Leaf.get();
+			const Texture2D* broadleaf[] = { m_Leaf.get(), m_LeafRound.get(), m_LeafMaple.get() };   // the leaf shape varies with the seed
+			foliage.AlbedoMap = p.Species == TreeSpecies::Conifer ? m_Needle.get() : p.Species == TreeSpecies::Palm ? m_Frond.get() : broadleaf[p.Seed % 3];
 			foliage.Roughness = 0.7f;
 			foliage.Alpha = AlphaMode::Mask;
 			foliage.AlphaCutoff = 0.4f;
