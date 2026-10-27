@@ -678,6 +678,22 @@ private:
 			BuildWater(options);
 		const float windAngle = m_Terrain->GetWindAngle();
 		m_DesertWind = { std::cos(windAngle) * 9.0f, 0.0f, std::sin(windAngle) * 9.0f };
+		if (!options.GetValue("time").empty())   // time of day: sun or moon, sky, stars, clouds
+		{
+			GB::SkyDesc sky;
+			sky.Hours = static_cast<float>(std::atof(options.GetValue("time").c_str()));
+			sky.SunAzimuthDegrees = glm::degrees(windAngle) + 40.0f;
+			sky.CloudCover = static_cast<float>(std::atof(options.GetValue("clouds", "0.3").c_str()));
+			const GB::SkyState st = GB::Sky::Compute(sky, m_Scene.Env, m_Scene.Sun);
+			m_Scene.Env = st.Env;
+			m_Scene.Sun = st.Sun;
+			m_Scene.Env.ShadowCenter = m_Orbit.Target;
+			m_NightFactor = st.NightFactor;
+			GB_CLIENT_INFO("Sky: {:.1f} h, night {:.2f}", sky.Hours, st.NightFactor);
+		}
+		const int lanterns = std::atoi(options.GetValue("lanterns", m_NightFactor > 0.4f ? "10" : "0").c_str());
+		if (lanterns > 0)
+			BuildLanterns(lanterns);
 		m_Weather->SetBase(m_Scene);
 		ApplyWeatherPreset(options.GetValue("weather", "clear"), true);
 		m_Weather->SetWind(m_DesertWind * (m_Weather->GetSandstorm() > 0.5f ? 1.8f : 1.0f));
@@ -779,6 +795,40 @@ private:
 		m_Orbit.Yaw = 2.4f;   // looking back along the trail
 		m_Orbit.MinDistance = 1.5f;
 		GB_CLIENT_INFO("Walker '{}': scale {:.3f}, {} feet, speed {:.1f} m/s", kind, w.Scale, w.FootNodes.size(), w.Speed);
+	}
+
+	// Lamp posts around the lake (or the middle of the map): warm point lights with a glowing lantern.
+	void BuildLanterns(int count)
+	{
+		m_LanternPost = std::make_unique<GB::Mesh>(GB::Mesh::CreateCube(1.0f));
+		const glm::vec2 c = m_Terrain->HasLake() ? m_Terrain->GetLakeCenter() : glm::vec2(0.0f);
+		const float r = m_Terrain->HasLake() ? m_Terrain->GetLakeRadius() * 1.45f : 14.0f;
+		for (int i = 0; i < count; ++i)
+		{
+			const float a = 6.2831853f * (static_cast<float>(i) + 0.5f) / static_cast<float>(count);
+			const float x = c.x + r * std::cos(a), z = c.y + r * std::sin(a);
+			const float y = m_Terrain->GetHeight(x, z);
+			GB::RenderObject post;
+			post.MeshPtr = m_LanternPost.get();
+			post.Mat.Albedo = { 0.12f, 0.09f, 0.07f };
+			post.Mat.Roughness = 0.8f;
+			post.Mat.HeightScale = 0.0f;
+			post.Mat.CavityStrength = 0.0f;
+			post.Transform = glm::scale(glm::translate(glm::mat4(1.0f), { x, y + 1.3f, z }), { 0.1f, 2.6f, 0.1f });
+			m_Scene.Objects.push_back(post);
+			GB::RenderObject lamp = post;
+			lamp.Mat.Albedo = { 1.0f, 0.75f, 0.4f };
+			lamp.Mat.Emissive = { 9.0f, 5.2f, 2.2f };
+			lamp.Transform = glm::scale(glm::translate(glm::mat4(1.0f), { x, y + 2.75f, z }), { 0.32f, 0.38f, 0.32f });
+			m_Scene.Objects.push_back(lamp);
+			GB::PointLight light;
+			light.Position = { x, y + 2.7f, z };
+			light.Color = { 1.0f, 0.68f, 0.38f };
+			light.Intensity = 34.0f;
+			light.Radius = 16.0f;
+			m_Scene.PointLights.push_back(light);
+		}
+		GB_CLIENT_INFO("Lanterns: {}", count);
 	}
 
 	void BuildWater(const GB::LaunchOptions& options)
@@ -1119,6 +1169,8 @@ private:
 	std::unique_ptr<Walker> m_Walker;
 	std::unique_ptr<GB::GroundInteraction> m_Ground;
 	std::unique_ptr<GB::WaterSurface> m_Water;
+	std::unique_ptr<GB::Mesh> m_LanternPost;
+	float m_NightFactor = 0.0f;
 	std::unique_ptr<GB::WaterRipples> m_Ripples;
 	float m_BaseWaveHeight = 0.10f, m_RainDropBudget = 0.0f;
 	uint32_t m_RainRng = 77u;

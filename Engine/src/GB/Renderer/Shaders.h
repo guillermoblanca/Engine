@@ -192,18 +192,79 @@ uniform vec3 uCamPos;
 uniform vec3 uSunDir;     // direction the light travels
 uniform vec3 uSunColor;   // color * intensity
 uniform float uEnvIntensity;
+uniform float uStars;
+uniform float uCloudCover;
+uniform float uTime;
+uniform vec3 uWind;
 )GLSL";
 
 	inline constexpr const char* SkyMain = R"GLSL(
+
+float SHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float SHash3(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+float SNoise(vec2 p)
+{
+	vec2 i = floor(p), f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(SHash(i), SHash(i + vec2(1, 0)), f.x), mix(SHash(i + vec2(0, 1)), SHash(i + vec2(1, 1)), f.x), f.y);
+}
+float Fbm(vec2 p)
+{
+	float v = 0.0, a = 0.5;
+	for (int i = 0; i < 5; ++i) { v += a * SNoise(p); p = p * 2.03 + 11.7; a *= 0.5; }
+	return v;
+}
+// Cloud density along a direction (plane projection, drifting with the wind).
+float Clouds(vec3 d, out float lit)
+{
+	lit = 1.0;
+	if (d.y < 0.02) return 0.0;
+	vec2 p = d.xz / (d.y + 0.15) * 1.6 + uWind.xz * uTime * 0.004;
+	float n = Fbm(p);
+	float cover = clamp(uCloudCover, 0.0, 1.0);
+	float dens = smoothstep(1.0 - cover * 0.9 - 0.12, 1.0 - cover * 0.9 + 0.22, n * 1.25);
+	// brighter on the sun side: shift the sample toward the sun and compare
+	vec2 toSun = normalize(-uSunDir.xz + 1e-4);
+	float n2 = Fbm(p + toSun * 0.12);
+	lit = clamp(0.55 + (n - n2) * 5.0, 0.15, 1.0);
+	return dens * smoothstep(0.02, 0.2, d.y);
+}
 void main()
 {
 	vec4 w = uInvViewProj * vec4(vUV * 2.0 - 1.0, 1.0, 1.0);
 	vec3 d = normalize(w.xyz / w.w - uCamPos);
 	vec3 col = SkyColor(d) * uEnvIntensity;
+	// Stars (and a moon) where it is dark.
+	if (uStars > 0.0 && d.y > -0.05)
+	{
+		vec3 cell = floor(d * 190.0);
+		float h = SHash3(cell);
+		vec3 local = fract(d * 190.0) - (0.25 + 0.5 * vec3(SHash3(cell + 3.1), SHash3(cell + 5.7), SHash3(cell + 9.3)));
+		float star = step(0.985, h) * smoothstep(0.22, 0.0, length(local)) * smoothstep(0.0, 0.25, d.y + 0.05);
+		float tw = 0.7 + 0.3 * sin(uTime * (2.0 + h * 5.0) + h * 40.0);
+		col += vec3(0.85, 0.9, 1.0) * star * tw * (0.5 + 3.0 * SHash3(cell + 7.0)) * uStars;
+		float band = exp(-pow(dot(d, normalize(vec3(0.3, 0.9, 0.35))) * 3.0, 2.0)) * (0.5 + 0.5 * SNoise(d.xz * 9.0 / (d.y + 0.4)));
+		col += vec3(0.05, 0.06, 0.09) * band * uStars;
+	}
+	float sd = max(dot(d, -uSunDir), 0.0);
+	if (uStars > 0.0)
+	{
+		float moon = smoothstep(0.99955, 0.99975, sd);
+		vec3 moonCol = vec3(0.85, 0.9, 1.0) * (0.6 + 0.4 * SNoise(d.xz * 400.0 / (abs(d.y) + 0.2)));
+		col += moonCol * moon * 3.0 * uStars + vec3(0.25, 0.3, 0.45) * pow(sd, 90.0) * 0.25 * uStars;
+	}
+	float cl = 0.0, lit = 1.0;
+	if (uCloudCover > 0.0)
+	{
+		cl = Clouds(d, lit);
+		vec3 cloudCol = (SkyIrradiance(vec3(0, 1, 0)) * 0.9 + uSunColor * 0.045 * lit + uSkyHorizon * 0.3) * uEnvIntensity;
+		cloudCol = mix(cloudCol, cloudCol * 0.45, clamp(uCloudCover - 0.6, 0.0, 0.4) * 2.0);
+		col = mix(col, cloudCol, cl * 0.92);
+	}
 	float fogAmount = clamp(uFogDensity * 30.0, 0.0, 1.0);
 	col = mix(col, uFogColor, fogAmount * (1.0 - smoothstep(0.0, 0.6, d.y)));
-	float s = max(dot(d, -uSunDir), 0.0);
-	col += uSunColor * (pow(s, 1500.0) * 40.0 + pow(s, 24.0) * 0.06) * (1.0 - fogAmount * 0.85);
+	float s = sd;
+	col += uSunColor * (pow(s, 1500.0) * 40.0 + pow(s, 24.0) * 0.06) * (1.0 - fogAmount * 0.85) * (1.0 - cl * 0.85);
 	outColor = vec4(col, 1.0);
 }
 )GLSL";
@@ -259,8 +320,9 @@ uniform vec3 uEmissive;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
 uniform int uPointCount;
-uniform vec3 uPointPos[8];
-uniform vec3 uPointColor[8];
+uniform vec3 uPointPos[32];
+uniform vec3 uPointColor[32];
+uniform float uPointRadius[32];
 
 uniform int uShadowsOn;
 uniform mat4 uLightVP;
@@ -330,6 +392,35 @@ float Shadow(vec3 worldPos, vec3 N, vec3 L)
 	return sum / 25.0;
 }
 
+uniform float uTime;
+float PHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+float PNoise(vec2 p)
+{
+	vec2 i = floor(p), f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(PHash(i), PHash(i + vec2(1, 0)), f.x), mix(PHash(i + vec2(0, 1)), PHash(i + vec2(1, 1)), f.x), f.y);
+}
+// Rain rings on a puddle: one expanding ring per random cell, two layers.
+vec2 PuddleRings(vec2 p)
+{
+	vec2 push = vec2(0.0);
+	for (int layer = 0; layer < 2; ++layer)
+	{
+		float size = layer == 0 ? 0.55 : 0.37;
+		vec2 q = p / size + float(layer) * 11.3;
+		vec2 cell = floor(q);
+		float r1 = PHash(cell), r2 = PHash(cell + 17.0);
+		vec2 center = cell + 0.2 + 0.6 * vec2(r1, r2);
+		float phase = fract(uTime * (0.7 + 0.5 * r2) + r1 * 9.0);
+		vec2 d = q - center;
+		float dist = length(d) * size;
+		float ringR = phase * size * 0.45;
+		float ring = exp(-pow((dist - ringR) / 0.012, 2.0)) * (1.0 - phase) * (1.0 - phase);
+		push += d / max(length(d), 1e-4) * ring;
+	}
+	return push;
+}
+
 void main()
 {
 	vec3 N = normalize(vNormal);
@@ -378,6 +469,18 @@ void main()
 		snow = smoothstep(0.55, 0.85, upFacing + grain - (1.0 - uSnowCover) * 0.35) * uSnowCover;
 		albedo = mix(albedo, vec3(0.92, 0.94, 0.97), snow);
 	}
+	// Puddles: where the ground is flat and low-frequency noise says so, rain collects into mirror-like patches.
+	float puddle = 0.0;
+	if (uWetness > 0.3)
+	{
+		float flatness = smoothstep(0.9, 0.98, normalize(vNormal).y);
+		float pn = PNoise(vPos.xz * 0.22) * 0.65 + PNoise(vPos.xz * 0.95 + 7.0) * 0.35;
+		float cover = smoothstep(0.3, 1.0, uWetness) * 0.5;
+		puddle = smoothstep(1.0 - cover - 0.05, 1.0 - cover + 0.02, pn) * flatness * (1.0 - snow);
+		N = normalize(mix(N, normalize(vNormal), puddle * 0.9));
+		N = normalize(N + vec3(PuddleRings(vPos.xz).x, 0.0, PuddleRings(vPos.xz).y) * 0.6 * puddle * smoothstep(0.4, 0.9, uWetness));
+		albedo *= mix(1.0, 0.55, puddle);
+	}
 	float ao = uAO;
 	if (uHasOcclusionMap != 0)
 		ao *= mix(1.0, texture(uOcclusionMap, vUV).r, uOcclusionStrength);
@@ -398,7 +501,8 @@ void main()
 	metallic *= 1.0 - snow;
 	roughness = mix(roughness, roughness * 0.25, uWetness * (1.0 - metallic) * (1.0 - snow));   // ...and glossier
 	roughness = mix(roughness, 0.85, snow);
-	roughness = clamp(roughness, 0.045, 1.0);
+	roughness = mix(roughness, 0.03, puddle);
+	roughness = clamp(roughness, 0.03, 1.0);
 	float a = roughness * roughness;
 	vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
@@ -412,7 +516,14 @@ void main()
 		vec3 toLight = uPointPos[i] - vPos;
 		float d2 = dot(toLight, toLight);
 		vec3 L = toLight * inversesqrt(d2);
-		Lo += Shade(N, V, L, uPointColor[i] / (d2 + 0.01), albedo, F0, a, metallic);
+		float window = 1.0;
+		if (uPointRadius[i] > 0.0)
+		{
+			float r = d2 / (uPointRadius[i] * uPointRadius[i]);
+			window = clamp(1.0 - r * r, 0.0, 1.0);
+			window *= window;
+		}
+		Lo += Shade(N, V, L, uPointColor[i] * (window / (d2 + 0.01)), albedo, F0, a, metallic);
 	}
 
 	float NoV = max(dot(N, V), 1e-4);
@@ -668,6 +779,7 @@ in vec3 vPos;
 out vec4 outColor;
 layout(binding = 1) uniform sampler2D uSceneDepth;
 layout(binding = 2) uniform sampler2D uRipples;
+layout(binding = 3) uniform sampler2D uSceneColor;   // opaque scene so far (refraction)
 uniform vec3 uCamPos;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
@@ -756,6 +868,17 @@ void main()
 	vec3 amb = SkyIrradiance(vec3(0, 1, 0)) * uEnvIntensity * 0.55;
 	body *= amb + uSunColor * max(dot(vec3(0, 1, 0), L), 0.0) * 0.06;
 
+	// Refraction: look through the surface along a bent ray. Only take samples that lie behind the water
+	// (objects in front of the surface must not smear into it); the bend grows with the water depth.
+	vec2 bend = N.xz * clamp(vdepth, 0.0, 1.5) * 0.12 / max(surfZ, 1.0) * 6.0;
+	vec2 uvR = uv + bend;
+	float zR = LinearDepth(texture(uSceneDepth, uvR).r);
+	if (zR < surfZ) uvR = uv;
+	vec3 seen = texture(uSceneColor, uvR).rgb;
+	// Beer-Lambert: red goes first, then green, blue survives longest; what is lost is replaced by scattered body color.
+	vec3 T = exp(-vec3(0.9, 0.25, 0.12) * vdepth / max(uClarity, 0.05));
+	vec3 transmitted = seen * T + body * (1.0 - dot(T, vec3(0.3333)));
+
 	// Fresnel sky reflection with a sharp sun glint.
 	float cosT = clamp(dot(N, V), 0.0, 1.0);
 	float F = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
@@ -783,11 +906,10 @@ void main()
 	}
 	vec3 foamColor = (amb + uSunColor * max(L.y, 0.0) * 0.1) * vec3(1.6);
 
-	vec3 color = mix(body, refl, F) + glint;
+	vec3 color = mix(transmitted, refl, F) + glint;
 	color += (uSkyHorizon * uEnvIntensity * 0.8 + 0.06) * ringLight * 0.8;   // rings catch the light of the sky
 	color = mix(color, foamColor, foam);
-	float alpha = clamp(mix(0.35, 1.0, absorb) + F * 0.6 + foam, 0.0, 1.0);
-	alpha *= smoothstep(0.0, 0.05, thick);   // no hard edge where the water meets the shore
+	float alpha = smoothstep(0.0, 0.05, thick);   // no hard edge where the water meets the shore
 	alpha = max(alpha, foam * smoothstep(0.0, 0.01, thick));
 
 	if (uFogDensity > 0.0)

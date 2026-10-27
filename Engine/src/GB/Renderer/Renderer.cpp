@@ -278,6 +278,10 @@ namespace GB
 		setSky(*m_SkyShader);
 		m_SkyShader->SetMat4("uInvViewProj", glm::inverse(viewProj));
 		m_SkyShader->SetVec3("uCamPos", camera.Position);
+		m_SkyShader->SetFloat("uStars", env.Stars);
+		m_SkyShader->SetFloat("uCloudCover", env.CloudCover);
+		m_SkyShader->SetFloat("uTime", env.Time);
+		m_SkyShader->SetVec3("uWind", env.Wind);
 		glBindVertexArray(m_EmptyVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 
@@ -306,16 +310,19 @@ namespace GB
 
 		const int pointCount = static_cast<int>(std::min<size_t>(scene.PointLights.size(), MaxPointLights));
 		glm::vec3 positions[MaxPointLights] = {}, colors[MaxPointLights] = {};
+		float radii[MaxPointLights] = {};
 		for (int i = 0; i < pointCount; ++i)
 		{
 			positions[i] = scene.PointLights[i].Position;
 			colors[i] = scene.PointLights[i].Color * scene.PointLights[i].Intensity;
+			radii[i] = scene.PointLights[i].Radius;
 		}
 		pbr.SetInt("uPointCount", pointCount);
 		if (pointCount > 0)
 		{
 			pbr.SetVec3Array("uPointPos", positions, pointCount);
 			pbr.SetVec3Array("uPointColor", colors, pointCount);
+			pbr.SetFloatArray("uPointRadius", radii, pointCount);
 		}
 
 		auto drawObject = [&](const RenderObject& obj)
@@ -484,6 +491,7 @@ namespace GB
 		const Environment& env = scene.Env;
 		// The water reads the depth of everything opaque to measure how deep it is.
 		Framebuffer::BlitDepth(*m_SceneMSAA, *m_SceneDepth);
+		Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);   // what the water refracts
 		m_SceneMSAA->Bind();
 
 		Shader& w = *m_WaterShader;
@@ -505,6 +513,7 @@ namespace GB
 		w.SetVec2("uNearFar", { camera.NearPlane, camera.FarPlane });
 		w.SetInt("uOrtho", camera.Orthographic ? 1 : 0);
 		glBindTextureUnit(1, m_SceneDepth->GetDepthTexture());
+		glBindTextureUnit(3, m_SceneResolved->GetColorTexture());
 		const bool ripples = scene.Ripples && scene.Ripples->IsValid();
 		if (ripples)
 		{

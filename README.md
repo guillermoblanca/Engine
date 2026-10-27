@@ -185,6 +185,25 @@ ripples.Impulse(hit, 0.17f, 0.02f);  ripples.Update(dt, player.Position);   // g
 ![Lago](docs/lake.jpg)
 ![Vadeando](docs/lake_wading.jpg)
 
+## Luz, cielo y refracción (Fase 8A)
+
+```cpp
+GB::SkyDesc sky; sky.Hours = 22.0f; sky.CloudCover = 0.4f;
+auto st = GB::Sky::Compute(sky, scene.Env, scene.Sun);   // sol/luna, colores, estrellas, nubes, exposición
+scene.Env = st.Env;  scene.Sun = st.Sun;                  // st.NightFactor: enciende las farolas
+GB::PointLight lamp; lamp.Intensity = 34.0f; lamp.Radius = 16.0f;   // hasta 32 luces puntuales con caída suave
+```
+
+- **Ciclo día/noche** (`Sky`): la hora fija la posición del sol (amanecer 6 h, atardecer 18 h), su color (cálido cerca del horizonte), el cielo (azul → naranja de crepúsculo → noche), la niebla, el **brillo ambiental** y la exposición (el «ojo» se adapta a la oscuridad). De noche la luz direccional pasa a ser la **luna**, fría y débil.
+- **Cielo de fondo**: estrellas redondas con parpadeo, banda de la Vía Láctea, disco lunar con halo y **nubes procedurales** (fbm) que derivan con el viento y se oscurecen con las tormentas (`Environment::Stars/CloudCover`, el clima los ajusta).
+- **Luces puntuales**: hasta 32, con `Radius` opcional (ventana suave: la luz llega exactamente a 0 en el radio, para farolas y antorchas).
+- **Refracción del agua**: el agua lee el color de la escena opaca y lo desvía según la normal y la profundidad (solo toma muestras que están detrás de la superficie), con absorción **Beer-Lambert** (el rojo desaparece primero) y color de dispersión.
+- **Charcos**: con lluvia (`Wetness` alto) las zonas planas y bajas se llenan de charcos de rugosidad 0.03: reflejan cielo y luces, oscurecen el albedo y muestran **anillos de gotas**.
+- Sandbox: `--scene=desert --terrain=hills --lake=22 --time=22 [--clouds=0.4 --lanterns=10 --weather=rain]`.
+
+![Noche con farolas](docs/night_lanterns.jpg)
+![Charcos](docs/puddles.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -193,3 +212,12 @@ ripples.Impulse(hit, 0.17f, 0.02f);  ripples.Update(dt, player.Position);   // g
 3. Importación glTF 2.0 (Blender)  ✔
 4. Animación esquelética  ✔ · cámaras  ✔ · partículas  ✔ · audio
 5. Editor (ImGui) y API para agentes (headless, capturas PNG, escenas en texto)
+
+### Siguientes pasos de calidad gráfica y mundo (pedidos)
+
+- 8B Skybox/IBL real: cubemap de entorno filtrado y reflejos de pantalla (SSR) para charcos y agua; luces de la lámpara reflejadas en el agua.
+- 8C Colisiones y física básica; más efectos en la demo del tornado.
+- 8D Ríos con corriente (flujo en el agua, espuma y arrastre) y rocas procedurales con musgo, arena y mojado.
+- 8E Erosión por lluvia; entornos para mapas procedurales (bosques densos, biomas).
+- 8F Efectos de destrucción.
+- 8G Pase de calidad de toda la escena en una demo completa (AAA: SSAO, DOF, tonemap, LUT).
