@@ -1,7 +1,7 @@
 #pragma once
 #include "GB/Animation/Locomotion.h"
 #include "GB/Audio/FootstepSounds.h"
-#include "GB/Game/CharacterMotor.h"
+#include "GB/Game/MotionState.h"
 
 namespace GB
 {

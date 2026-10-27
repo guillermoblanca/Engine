@@ -7,7 +7,6 @@
 #include "SceneEditor.h"
 #include "TestScenarios.h"
 #include "WorldInstance.h"
-#include "GB/Animation/Locomotion.h"
 #include "GB/Application.h"
 #include "GB/Audio/FootstepSounds.h"
 #include "GB/Assets/Model.h"
@@ -100,18 +99,11 @@ namespace GB::Editor
 		std::unique_ptr<ModelInstance> m_Instance;
 		PlayerMode m_Player;                                     // `player` command / View > Play: walk the world in third person
 		size_t m_StaticObjects = 0;
-		// locomotion demo: a character driven by speed, strafe and turn commands (blend space + footsteps)
 		std::unique_ptr<AudioEngine> m_Audio;
 		std::unique_ptr<FootstepSounds> m_Steps;
-		std::unique_ptr<LocomotionBlender> m_Loco;
 		std::vector<float> m_AudioRecord;
 		std::string m_AudioRecordPath;
 		bool m_Recording = false;
-		bool m_LocoFollow = true;
-		float m_LocoSpeed = 0.0f, m_LocoStrafe = 0.0f, m_LocoTurn = 0.0f;   // m/s forward, m/s to the left, degrees/s
-		int m_LocoLeftFoot = -1, m_LocoRightFoot = -1;
-		std::function<float(float, float)> m_LocoGround;   // the terrain height under the character (reset when the world changes)
-		void UpdateLocomotion(float dt);
 		size_t m_WeatherLights = 0;
 		SceneEditor m_SceneEditor;
 		std::unique_ptr<EntityRenderer> m_EntityRenderer;

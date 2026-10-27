@@ -8,15 +8,14 @@ target_include_directories(ufbx SYSTEM PUBLIC ${ufbx_SOURCE_DIR})
 add_library(GB STATIC
     src/GB/Application.cpp
     src/GB/Game/CharacterController.cpp
+    src/GB/Game/MotionState.cpp
+    src/GB/Game/AIDriver.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp
     src/GB/Audio/FootstepSounds.cpp
     src/GB/Audio/AudioMixer.cpp
     src/GB/Game/Entity.cpp
-    src/GB/Game/CharacterMotor.cpp
-    src/GB/Game/CharacterControllers.cpp
-    src/GB/Game/FollowCamera.cpp
     src/GB/Animation/CharacterAnimator.cpp
     src/GB/Game/SceneIO.cpp
     src/GB/Game/EntityRender.cpp
