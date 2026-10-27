@@ -397,6 +397,7 @@ namespace GB
 			b->m_InvInertia = { 1.0f / (m / 3.0f * (he.y * he.y + he.z * he.z)), 1.0f / (m / 3.0f * (he.x * he.x + he.z * he.z)),
 				1.0f / (m / 3.0f * (he.x * he.x + he.y * he.y)) };
 		}
+		b->m_InvInertia /= std::max(desc.InertiaScale, 0.01f);
 		b->m_InvMass = 1.0f / b->Mass;
 		m_Bodies.push_back(std::move(b));
 		return static_cast<int>(m_Bodies.size()) - 1;

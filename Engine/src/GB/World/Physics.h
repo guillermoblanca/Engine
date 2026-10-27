@@ -21,6 +21,7 @@ namespace GB
 		float Friction = 0.6f;
 		float LinearDamping = 0.02f;               // 1/s
 		float AngularDamping = 0.08f;
+		float InertiaScale = 1.0f;                 // multiplies the moment of inertia: slender limbs spin less wildly (ragdolls use ~4)
 		int Group = 0;                             // bodies with the same non-zero group do not collide with each other (the limbs of one ragdoll)
 		void* UserData = nullptr;
 	};
