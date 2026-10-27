@@ -28,6 +28,21 @@ auto ray = world.Raycast(origin, dir, 100.0f);           // terreno, estáticos 
 
 ![Tornado y escombros](tornado_debris.jpg)
 
+## Articulaciones y grupos de colisión
+
+```cpp
+GB::JointDesc j = world.MakeJoint(a, b, worldPoint, worldAxis, worldRef);   // anclas y ejes en el espacio de cada cuerpo, desde la pose actual
+j.SwingLimit = glm::radians(50.0f);                       // cono: ángulo máximo entre los ejes (hombros, caderas, cuello)
+j.Hinge = true; j.TwistMin = 0.0f; j.TwistMax = 2.4f;     // bisagra: los ejes siguen paralelos; la torsión (giro sobre el eje) tiene límites
+int id = world.AddJoint(j);                               // b = -1 ancla el cuerpo a un punto del mundo (péndulos, cuerdas)
+world.GetJointError(id); world.GetJointSwing(id); world.GetJointTwist(id);
+GB::BodyDesc d; d.Group = 7; d.InertiaScale = 4.0f;       // mismo grupo: no chocan entre sí; más inercia: los cuerpos delgados no giran como peonzas
+```
+
+- **`JointDesc`**: ancla (los puntos se mantienen juntos), límite de cono (`SwingLimit`), bisagra (`Hinge`: los ejes siguen paralelos y solo gira sobre ese eje) y límites de torsión relativos a la pose en la que se creó la articulación. Se resuelven en el mismo bucle de impulsos secuenciales que los contactos (con corrección de posición tipo Baumgarte). Un grupo unido por articulaciones **se duerme junto**, y quitar un cuerpo quita sus articulaciones.
+- **`BodyDesc::Group`**: los cuerpos del mismo grupo no colisionan entre sí (las extremidades de un ragdoll), pero sí con todo lo demás del mundo.
+- Test `physics_joint` (CPU): péndulo (longitud, energía, cruce), bisagra (el empujón fuera del plano lo absorbe), cadena de seis eslabones, límite de cono bajo un empujón fuerte, límite de torsión en los dos sentidos, grupos, un par unido que se duerme y una explosión que lo lanza sin separarlo.
+
 ## Efectos de destrucción
 
 ```cpp

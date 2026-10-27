@@ -133,6 +133,18 @@ namespace GB
 			a.Weight = a.Leaving ? std::max(a.Weight - dt / std::max(a.P.FadeSeconds, 1e-3f), 0.0f) : std::min(a.Weight + dt / std::max(a.P.FadeSeconds, 1e-3f), 1.0f);
 		if (!m_Props.empty())
 			ApplyGrips(characterToWorld);
+		if (m_Ragdoll && m_Ragdoll->Active())
+		{
+			m_Ragdoll->ReadPose(m_Pose, characterToWorld);   // the skeleton follows the bodies
+			m_Events.clear();
+			m_Plants.clear();
+		}
+		else if (m_RagBlend < 1.0f)
+		{
+			m_RagBlend = std::min(m_RagBlend + dt / std::max(m_RagBlendSeconds, 1e-3f), 1.0f);
+			const float t = m_RagBlend * m_RagBlend * (3.0f - 2.0f * m_RagBlend);
+			BlendPoses(m_RagSnapshot, m_Pose, t, m_Pose);   // from the pose it lay in to the animation
+		}
 		m_Instance.SetPose(m_Pose);
 		for (Attached& a : m_Props)
 			a.World = characterToWorld * m_Sockets.Matrix(m_Instance, a.P.Socket) * a.P.Offset;
@@ -164,6 +176,29 @@ namespace GB
 			if ((m_Events[i].Left ? m_LeftFoot : m_RightFoot) < 0) continue;
 			m_Steps->Step(m_Plants[p++].Position, state.Speed, m_Events[i].Weight);   // the sound is played where the plant is
 		}
+	}
+
+	bool AnimInstance::StartRagdoll(PhysicsWorld& world, const glm::mat4& characterToWorld, const glm::vec3& velocity)
+	{
+		m_Ragdoll.reset();
+		m_Ragdoll = std::make_unique<Ragdoll>(m_Model, m_Rig, world);
+		m_RagBlend = 1.0f;
+		if (!m_Ragdoll->Valid() || !m_Ragdoll->Activate(m_Pose, characterToWorld, velocity))
+		{
+			m_Ragdoll.reset();
+			return false;
+		}
+		return true;
+	}
+
+	void AnimInstance::EndRagdoll(const glm::mat4& placement, float blendSeconds)
+	{
+		if (!m_Ragdoll || !m_Ragdoll->Active()) return;
+		m_RagSnapshot = m_Pose;
+		m_Ragdoll->ReadPose(m_RagSnapshot, placement);
+		m_Ragdoll->Deactivate();
+		m_RagBlend = 0.0f;
+		m_RagBlendSeconds = blendSeconds;
 	}
 
 	bool AnimInstance::Attach(const Prop& prop)

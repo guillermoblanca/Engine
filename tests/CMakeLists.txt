@@ -184,3 +184,12 @@ target_link_libraries(GBCharacterProfileTests PRIVATE GB::GB)
 target_include_directories(GBCharacterProfileTests SYSTEM PRIVATE ${json_SOURCE_DIR}/include)
 target_compile_definitions(GBCharacterProfileTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME character_profile COMMAND GBCharacterProfileTests)
+
+add_executable(GBPhysicsJointTests physics_joint_test.cpp)
+target_link_libraries(GBPhysicsJointTests PRIVATE GB::GB)
+add_test(NAME physics_joint COMMAND GBPhysicsJointTests)
+
+add_executable(GBRagdollTests ragdoll_test.cpp)
+target_link_libraries(GBRagdollTests PRIVATE GB::GB)
+target_compile_definitions(GBRagdollTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME ragdoll COMMAND GBRagdollTests)
