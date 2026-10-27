@@ -397,6 +397,7 @@ namespace GB::Editor
 	void EditorApp::RegisterSaveCommands()
 	{
 		m_SaveHost = std::make_unique<EditorSaveHost>(*this);
+		m_SaveHost->SetActorSource(&m_Actors);   // the actors of the world are the ones that are saved and put back
 		{
 			// getenv without MSVC's deprecation warning
 #if defined(_WIN32)

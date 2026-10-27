@@ -56,6 +56,7 @@ Orden de dependencias; tamaños relativos (**S** una sesión de trabajo, **M** u
 - **Manifiesto de sets y montajes** (datos): para cada pack, qué clips cumplen qué papel (idle, andar, correr, strafes, giros, saltos, agachado, ataques, bloqueos, reacciones, muertes, gestos). Sustituye las listas escritas en C++ (`MixamoSets`, nombres de clips en `CharacterAnimator`).
 - **Contrato de actor** (`Actor`): lo mínimo que comparten jugador y NPC: identidad, habilidades concedidas, atributos, inventario, modelo animado, controlador y fuente de órdenes (teclado, IA, guion).
 - Registrar los packs nuevos como sets: `crouch`, `sword_shield`, `bow_aim`, `magic`, y los montajes de gestos y reacciones.
+**Estado (cerrado).** El contrato de actor es `GB::Actor` (`Engine/src/GB/Game/Actor.h`): identidad (nombre y entidad de la escena), habilidades (el sistema de la entidad del mismo nombre), modelo animado, controlador y **fuente de órdenes intercambiable** (`OrderSource`: entrada directa de teclado o mando, IA, lista de tareas, guion, repetición). `ActorWorld` crea, actualiza, dibuja y elimina muchos actores, comparte el `Model` entre los que lo usan y hace que cada actor trate a los demás como obstáculos. El Editor lo usa con `actor spawn|list|control|tasks|remove` y `PlayerMode` es solo un actor controlado más la cámara y el teclado. Los atributos van en el sistema de habilidades (H1) y el inventario llegará con H2. Decisiones: cada actor lleva su copia de los obstáculos estáticos y su `PhysicsWorld` de ragdoll bajo demanda (se compartirán en H16); un actor cuesta ~45 µs por fotograma, ver `docs/COSTE_ACTOR.md`.
 **Aceptación.** `character_check` marca `ready` con los siete packs; los tests de sets y montajes pasan sin listas de nombres en C++; el mismo actor se maneja con teclado, con `player_tasks` y con un guion.
 **Riesgos.** Solaparse con el trabajo de árboles de animación: se coordina el formato del manifiesto antes de escribirlo.
 
@@ -330,7 +331,7 @@ Y los **modelos**: herramientas, semillas y plantas, regadera, pala, cestas, obj
 
 | Hito | Estado |
 |---|---|
-| H0 · Consolidación y contrato de actor | Parcial: sets, interacciones, grafo de estados y línea de tiempo fusionados; **manifiesto de datos con los siete packs hecho** (`AnimManifest`); falta el contrato de actor |
+| H0 · Consolidación y contrato de actor | **Hecho** (rama `feature/actor-h0`): sets, interacciones, grafo de estados y línea de tiempo fusionados; manifiesto de datos con los siete packs (`AnimManifest`); **contrato de actor** (`Actor`, `ActorWorld`, `OrderSource`) con tests y coste medido (`docs/COSTE_ACTOR.md`) |
 | H1 · Núcleo de habilidades (GAS) | En curso (`feature/huerto-gas`) |
 | H2 · Objetos, inventario y recursos | Sin empezar |
 | H3 · Mundo interactivo y ecología | En curso (huerto) |

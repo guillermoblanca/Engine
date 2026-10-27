@@ -1,19 +1,7 @@
 #pragma once
-#include "GB/Animation/Character.h"
-#include "GB/Animation/CharacterAnimator.h"
-#include "GB/Animation/Retarget.h"
-#include "GB/Assets/Model.h"
-#include "GB/Assets/ModelInstance.h"
-#include "GB/Game/AIDriver.h"
-#include "GB/Game/CharacterController.h"
-#include "GB/Game/MotionState.h"
-#include "GB/Game/TaskList.h"
-#include "GB/Gameplay/GameplayWorld.h"
+#include "GB/Game/Actor.h"
+#include "GB/Game/ActorWorld.h"
 #include "GB/Renderer/Camera.h"
-#include "GB/Renderer/Renderer.h"
-#include "GB/World/Physics.h"
-#include "GB/Renderer/Mesh.h"
-#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -23,143 +11,118 @@ namespace GB::Editor
 	class SceneEditor;
 	class WorldInstance;
 
-	// "Play" in the viewport: a character you walk around the generated world in third person (WASD / left stick,
-	// Shift = run, drag the mouse or use the arrows / right stick to look). Trees, rocks and the bodies the user
-	// added are obstacles; deep water is a wall. The logic is GB::CharacterController; this class only gathers the
-	// obstacles from the entities, owns the model and builds the camera.
+	// "Play" in the viewport: one actor of the ActorWorld is the player's. This class is the camera that follows it and the reading of the
+	// keyboard or pad; everything about the character (model, controller, animation, abilities, orders, ragdoll) is GB::Actor, which an NPC is
+	// too. The commands that said "player" keep working: they go to the controlled actor, which can be changed with Control().
 	class PlayerMode
 	{
 	public:
-		// `kind`: "fox" (idle / walk / run clips), "cesium", or the path of an FBX character (relative to the assets, or absolute): the
-		// other FBX files in its folder are loaded as its animation clips, and it walks with the locomotion blend (walk/run/strafe mixed
-		// by speed, feet in step, footsteps on every landing) instead of the plain idle/walk/run switch. `near` is where to start (moved off water and trees).
-		// Loads an FBX character (relative to the assets, or absolute) together with the animation FBX files of its folder. Null (and `error`) on failure.
-		static std::shared_ptr<Model> LoadCharacter(const std::string& path, const std::string& assetRoot, std::string& error);
+		// The actors of the editor. Must be set before Start and outlive this object.
+		void Attach(ActorWorld* actors) { m_Actors = actors; }
 
+		// What a new actor gets from the generated world: its ground and water, and as obstacles the trees (trunks), the rocks and the bodies
+		// the user gave to entities. `scene` is where interaction points are looked up.
+		static ActorHost MakeHost(WorldInstance& world, const SceneEditor& scene, FootstepSounds* steps);
+		// Kinds: "fox", "cesium" or the path of an FBX character (relative to the assets, or absolute).
+		static bool IsFbx(const std::string& kind);
+
+		// Creates the actor `name` for `kind` near `near` and, with `control`, hands it to the player. Null and `error` on failure.
+		Actor* Spawn(const std::string& name, const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
+			const glm::vec3& near, FootstepSounds* steps, std::string& error, bool createEntity = false);
+
+		// `kind` as Spawn, with the actor called AbilityActor (the player of the garden) taking over the one of that name, if any.
 		bool Start(const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
 			const glm::vec3& near, std::string& error);
+		// Releases the control; the actor Start made is removed, one that was spawned by hand stays in the world.
 		void Stop();
-		bool IsActive() const { return m_Instance != nullptr; }
+		bool IsActive() const { return Controlled() != nullptr; }
 
-		// `acceptInput`: false while the user types in a text box. `script` (if any) replaces the keyboard.
+		// Which actor the player handles (the camera snaps to it). False when there is none of that name.
+		bool Control(const std::string& name);
+		const std::string& ControlledName() const { return m_Controlled; }
+		Actor* Controlled() const { return m_Actors && !m_Controlled.empty() ? m_Actors->Find(m_Controlled) : nullptr; }
+
+		// The frame: BeginFrame feeds the controlled actor the keyboard (`acceptInput`: false while the user types in a text box) and turns the
+		// camera; ActorWorld::Update steps everyone; EndFrame moves the camera after the actor.
+		void BeginFrame(float dt, bool acceptInput);
+		void EndFrame(float dt);
+		// BeginFrame, ActorWorld::Update, EndFrame.
 		void Update(float dt, bool acceptInput);
+
 		void SetScript(const std::string& text);   // see GB::ParseCharacterScript; time starts now
-		// An AI leads the character to a point of the world (xz) instead of the keyboard: same controller, animation and footsteps.
-		void MoveTo(const glm::vec2& xz, bool run);
-		bool AIArrived() const { return m_UseAI && m_AI.Arrived(); }
-		void SetFootsteps(FootstepSounds* steps) { m_Steps = steps; if (m_Animator) m_Animator->SetFootsteps(steps); }
-		bool UsesLocomotionBlend() const { return m_Animator != nullptr; }
-		// Switches the locomotion set (free, box, holding, wheelbarrow...) with a cross-fade; false when the character has no such set.
-		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animator && m_Animator->Anim().SetOverlay(name, fadeSeconds); }
-		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
-		// One-shot actions over the locomotion (pick_fruit, water, milk_cow...): the FBX player's MontagePlayer. False for an unknown one.
-		// The animation manifest the character is built from (see AnimManifest.h): the built-in Mixamo lists until a file replaces them. Loading
-		// a file rebuilds the animator of an active player; `report` says what the character has clips for and what it lacks.
-		const AnimManifest& Manifest() const { return m_Manifest; }
+		void MoveTo(const glm::vec2& xz, bool run) { if (Actor* a = Controlled()) a->MoveTo(xz, run); }
+		bool AIArrived() const { const Actor* a = Controlled(); return a && a->AIArrived(); }
+		void SetFootsteps(FootstepSounds* steps) { m_Steps = steps; if (Actor* a = Controlled()) a->SetFootsteps(steps); }
+		FootstepSounds* Footsteps() const { return m_Steps; }
+		bool UsesLocomotionBlend() const { const Actor* a = Controlled(); return a && a->UsesLocomotionBlend(); }
+		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { Actor* a = Controlled(); return a && a->SetOverlay(name, fadeSeconds); }
+		std::vector<std::string> OverlayNames() const { const Actor* a = Controlled(); return a ? a->OverlayNames() : std::vector<std::string>(); }
+		const AnimManifest& Manifest() const { return Controlled() ? Controlled()->Manifest() : m_NoManifest; }
 		bool LoadManifestFile(const std::string& path, std::string& report);
 		bool SaveManifestFile(const std::string& path, std::string& report) const;
 		std::string ManifestInfo() const;
-		bool PlayMontage(const std::string& name, const std::string& section = "") { return m_Animator && m_Animator->Anim().Montages().Play(name, section); }
-		void StopMontage() { if (m_Animator) m_Animator->Anim().Montages().StopSlot("FullBody"), m_Animator->Anim().Montages().StopSlot("UpperBody"); }
-		std::vector<std::string> MontageNames() const { return m_Animator ? m_Animator->Anim().Montages().Names() : std::vector<std::string>(); }
-		std::string MontageStatus() const;
-		// Props the FBX player carries: "box" (both hands, with the box walk set), "bag" (on the back), "tool" (one hand). The hands reach the
-		// grips with IK and the prop follows its socket. Returns false for an unknown prop or a character without a rig.
-		bool AttachProp(const std::string& name);
-		void DetachProp(const std::string& name = "");   // empty: all of them
-		std::vector<std::string> PropNames() const { return m_Animator ? m_Animator->Anim().PropNames() : std::vector<std::string>(); }
-		// Procedural layers of the FBX player: feet on the terrain (on by default) and the head turned toward a world point.
-		void SetFootIK(bool on) { m_FeetOn = on; ApplyFeet(); }
-		bool FootIKOn() const { return m_FeetOn; }
-		void LookAtPoint(const glm::vec3& p) { m_LookCamera = false; if (m_Animator) m_Animator->Anim().Look().SetTarget(p); }
-		void LookAtCamera(bool on) { m_LookCamera = on; if (!on && m_Animator) m_Animator->Anim().Look().ClearTarget(); }
+		bool PlayMontage(const std::string& name, const std::string& section = "") { Actor* a = Controlled(); return a && a->PlayMontage(name, section); }
+		void StopMontage() { if (Actor* a = Controlled()) a->StopMontage(); }
+		std::vector<std::string> MontageNames() const { const Actor* a = Controlled(); return a ? a->MontageNames() : std::vector<std::string>(); }
+		std::string MontageStatus() const { const Actor* a = Controlled(); return a ? a->MontageStatus() : ""; }
+		bool AttachProp(const std::string& name) { Actor* a = Controlled(); return a && a->AttachProp(name); }
+		void DetachProp(const std::string& name = "") { if (Actor* a = Controlled()) a->DetachProp(name); }
+		std::vector<std::string> PropNames() const { const Actor* a = Controlled(); return a ? a->PropNames() : std::vector<std::string>(); }
+		void SetFootIK(bool on) { if (Actor* a = Controlled()) a->SetFootIK(on); }
+		bool FootIKOn() const { const Actor* a = Controlled(); return a && a->FootIKOn(); }
+		void LookAtPoint(const glm::vec3& p) { m_LookCamera = false; if (Actor* a = Controlled()) a->LookAtPoint(p); }
+		void LookAtCamera(bool on) { m_LookCamera = on; if (!on) ClearLookOnly(); }
 		void ClearLook() { LookAtCamera(false); }
-		// Tasks (see GB/Game/TaskList.h): the character does them like an NPC would, with the same controller and animation. `interact` uses the
-		// interaction points of the scene's entities. False (and `error`) when the text is not a task list.
 		bool RunTasks(const std::string& text, std::string& error);
 		bool Interact(const std::string& entity, const std::string& point, std::string& error);
-		void StopTasks() { m_Tasks.Clear(); }
-		// Abilities (see GB/Gameplay): this character is the ability system called `actor` of `gameplay` (which must outlive it or be unset with
-		// nullptr). Its abilities walk it to their targets, play their montages on it and take props in its hands; they run in the order
-		// PrepareAbilities, GameplayWorld::Update, Update, so the ability's input is the frame's input. Task lists can use them (`ability dig Plot_1`).
-		void SetAbilities(GameplayWorld* gameplay, const std::string& actor = "Gardener");
-		void PrepareAbilities();
-		AbilitySystemComponent* Abilities() { return m_Gameplay ? m_Gameplay->Find(m_Actor) : nullptr; }
-		const std::string& AbilityActor() const { return m_Actor; }
-		// Starts an ability on an entity of the scene ("" = no target) for the player, walking there if it must.
-		bool UseAbility(const std::string& ability, const std::string& entity, std::string& error);
-		// Puts a prop in the hands (box, wheelbarrow, can, shovel, seeds, bag, tool) or takes it away; the box and the wheelbarrow change the walk.
-		bool EquipProp(const std::string& name, bool on);
-		bool TasksRunning() const { return m_Tasks.Running(); }
-		std::string TaskStatus() const { return m_Tasks.Describe(); }
-		// For the animation panel: the locomotion / montage / socket state of the FBX player and the character check made when it was loaded.
-		const ModelInstance* Instance() const { return m_Instance.get(); }
-		AnimInstance* Anim() { return m_Animator ? &m_Animator->Anim() : nullptr; }
-		const CharacterProfile* Profile() const { return m_Animator ? &m_Profile : nullptr; }
-		// Ragdoll: the character as bodies and joints in a physics world made of the same ground, water, trees and rocks it walks on. It falls from where it
-		// stands (carrying its speed), lies where it lands and gets up after a pause (or on `player_getup`). A hard landing (RagdollLandingSpeed) starts one too.
-		bool StartRagdoll(const glm::vec3& extraVelocity = glm::vec3(0.0f));
-		void GetUp();
-		bool Ragdolled() const { return m_Animator && m_Animator->Anim().Ragdolled(); }
-		bool Blast(const glm::vec2& xz, float radius, float speed);   // an explosion on the ground there: affects the ragdoll like anything in the world
-		void HitRagdoll(const glm::vec3& impulse);
-		std::string RagdollStatus() const;
-		float RagdollLandingSpeed = 9.0f;   // m/s of a landing that knocks the character down (0 = never)
-		bool AutoGetUp = true;
-		// Animations made for another skeleton (other bone names, proportions or rest pose): `path` is an FBX file or a folder of them. Each clip is
-		// retargeted onto this character (see GB/Animation/Retarget.h), the character check is made again and the animator rebuilt with the new clips.
-		// `report` says what was paired and what was not. False when nothing could be retargeted.
-		bool Retarget(const std::string& path, const std::string& assetRoot, std::string& report);
-		const std::string& RetargetReport() const { return m_RetargetReport; }
-		const MotionState& GetMotion() const { return m_Motion; }
-		// This frame's foot landings (world space): the input for footprints, dust and splashes. Same FootPlant type as FootstepTracker.
-		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
-		void ApplyCamera(Camera& camera) const { m_Camera.Apply(camera); }
-		void AddToScene(Scene& scene) const;
+		void StopTasks() { if (Actor* a = Controlled()) a->StopTasks(); }
+		bool TasksRunning() const { const Actor* a = Controlled(); return a && a->TasksRunning(); }
+		std::string TaskStatus() const { const Actor* a = Controlled(); return a ? a->TaskStatus() : ""; }
+		const ModelInstance* Instance() const { const Actor* a = Controlled(); return a ? a->Instance() : nullptr; }
+		AnimInstance* Anim() { Actor* a = Controlled(); return a ? a->Anim() : nullptr; }
+		const CharacterProfile* Profile() const { const Actor* a = Controlled(); return a ? a->Profile() : nullptr; }
 
-		glm::vec3 GetPosition() const { return m_Controller.GetPosition(); }
-		float GetSpeed() const { return m_Controller.GetSpeed(); }
+		// Abilities: the controlled actor is the ability system called AbilityActor() of the gameplay world (when there is one).
+		void SetAbilities(GameplayWorld* gameplay, const std::string& actor = "Gardener") { m_Gameplay = gameplay; m_AbilityActor = actor; }
+		void PrepareAbilities() { if (m_Actors) m_Actors->PrepareAbilities(); }
+		const std::string& AbilityActor() const { return m_AbilityActor; }
+		bool UseAbility(const std::string& ability, const std::string& entity, std::string& error);
+		bool EquipProp(const std::string& name, bool on) { Actor* a = Controlled(); return a && a->EquipProp(name, on); }
+
+		bool StartRagdoll(const glm::vec3& extraVelocity = glm::vec3(0.0f)) { Actor* a = Controlled(); return a && a->StartRagdoll(extraVelocity); }
+		void GetUp() { if (Actor* a = Controlled()) a->GetUp(); }
+		bool Ragdolled() const { const Actor* a = Controlled(); return a && a->Ragdolled(); }
+		bool Blast(const glm::vec2& xz, float radius, float speed) { Actor* a = Controlled(); return a && a->Blast(xz, radius, speed); }
+		void HitRagdoll(const glm::vec3& impulse) { if (Actor* a = Controlled()) a->HitRagdoll(impulse); }
+		std::string RagdollStatus() const { const Actor* a = Controlled(); return a ? a->RagdollStatus() : ""; }
+		bool Retarget(const std::string& path, const std::string& assetRoot, std::string& report);
+		const std::string& RetargetReport() const { const Actor* a = Controlled(); return a ? a->RetargetReport() : m_NoText; }
+		const MotionState& GetMotion() const { const Actor* a = Controlled(); return a ? a->GetMotion() : m_NoMotion; }
+
+		void ApplyCamera(Camera& camera) const { m_Camera.Apply(camera); }
+		void AddToScene(Scene& scene) const { if (m_Actors) m_Actors->AddToScene(scene); }
+
+		glm::vec3 GetPosition() const { const Actor* a = Controlled(); return a ? a->GetPosition() : glm::vec3(0.0f); }
+		float GetSpeed() const { const Actor* a = Controlled(); return a ? a->GetSpeed() : 0.0f; }
 		std::string Describe() const;
 
 	private:
-		glm::mat4 RootMatrix() const;
-		void ApplyFeet();
-		TaskRunner::AbilityHandler AbilityHandler();
-		GameplayWorld* m_Gameplay = nullptr;
-		std::string m_Actor = "Gardener";
-		AbilityRuntime m_AbilityRt;
-		bool m_FeetOn = true, m_LookCamera = false;
-		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
-		std::map<std::string, PropLook> m_PropLooks;
-		mutable std::unique_ptr<Mesh> m_PropMesh;
-		bool BuildAnimator(std::string& error);   // the animator from the profile and the clips the model has now
-		std::string m_RetargetReport;
-		void BuildPhysics();
-		std::unique_ptr<PhysicsWorld> m_Physics;   // declared before the animator: the ragdoll lives in it and must go first
-		float m_RestTime = 0.0f;
-		CharacterProfile m_Profile;
-		TaskRunner m_Tasks;
-		const SceneEditor* m_Edit = nullptr;
-		std::string m_PendingProp;   // waits for the box overlay to finish before measuring the grips
-		float m_BaseWalk = 0.0f, m_BaseRun = 0.0f;   // the controller's own speeds, before a set with no run clip caps them
+		void ClearLookOnly() { if (Actor* a = Controlled()) a->ClearLook(); }
+		void SnapCamera(const Actor& actor);
 
-		AnimManifest m_Manifest = MixamoManifest();
-		ManifestReport m_ManifestReport;                         // of the last time it was applied to the character
-		std::shared_ptr<Model> m_Model;
-		std::unique_ptr<ModelInstance> m_Instance;
-		CharacterAnimation m_Animation;                          // the plain idle/walk/run switch, for models without a locomotion set
-		std::unique_ptr<CharacterAnimator> m_Animator;           // the locomotion blend (set when the model has the clips)
-		MotionTracker m_Tracker;
-		MotionState m_Motion;
-		AIDriver m_AI;
-		bool m_UseAI = false;
+		ActorWorld* m_Actors = nullptr;
+		std::string m_Controlled;
+		std::string m_Owned;              // the actor Start made (removed by Stop)
+		GameplayWorld* m_Gameplay = nullptr;
+		std::string m_AbilityActor = "Gardener";
 		FootstepSounds* m_Steps = nullptr;
-		CharacterController m_Controller;
-		CharacterWorld m_World;
-		mutable ThirdPersonCamera m_Camera;
-		std::vector<CharacterScriptStep> m_Script;
-		float m_ScriptTime = 0.0f;
-		float m_Scale = 1.0f;
-		size_t m_Obstacles = 0;
+		bool m_LookCamera = false;
+		AnimManifest m_Shipped;           // the manifest the assets ship, read once per asset folder
+		std::string m_ShippedRoot;
+		bool m_HasShipped = false;
+		ThirdPersonCamera m_Camera;
+		AnimManifest m_NoManifest;
+		MotionState m_NoMotion;
+		std::string m_NoText;
 	};
 }
