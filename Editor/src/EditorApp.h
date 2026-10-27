@@ -17,6 +17,7 @@
 #include "GB/Game/EntityRender.h"
 #include "GB/Gameplay/Garden.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
@@ -105,6 +106,7 @@ namespace GB::Editor
 		void StepResources();                                    // tools as tags and depleted nodes, once per simulation step
 		CommandResult ResourcesCommand(const std::vector<std::string>& a);
 		CommandResult TribeCommand(const std::vector<std::string>& a);
+		CommandResult InteractivesCommand(const std::vector<std::string>& a);
 		void SyncGameplay();                                     // ability systems from the scene's entities (after a scene is loaded or the garden built)
 		CommandResult AbilityCommand(const std::vector<std::string>& a);
 		CommandResult GardenCommand(const std::vector<std::string>& a);
@@ -128,6 +130,7 @@ namespace GB::Editor
 		GameplayWorld m_Gameplay;                                // tags, attributes, effects and abilities of the entities and the player (see GB/Gameplay)
 		GardenSystem m_Garden;
 		ResourceSystem m_Resources;
+		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
 		Tribe m_Tribe;                                           // the first tribe (`tribe build`): workers that gather, carry, craft and light a fire alone

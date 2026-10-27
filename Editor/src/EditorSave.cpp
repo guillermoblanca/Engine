@@ -289,6 +289,7 @@ namespace GB::Editor
 		m_App.m_Gameplay.Update(static_cast<float>(kSimDt));
 		m_App.m_Garden.Update(static_cast<float>(kSimDt));
 		m_App.StepResources();
+		m_App.m_Interactives.Update(static_cast<float>(kSimDt), &m_App.m_SceneEditor.World());
 		m_App.m_Tribe.Update(static_cast<float>(kSimDt));
 		++m_App.m_SimTick;
 	}

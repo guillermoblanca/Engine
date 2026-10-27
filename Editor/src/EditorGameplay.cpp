@@ -44,6 +44,9 @@ namespace GB::Editor
 			if (Actor* actor = m_Actors.Find(who)) actor->Bag().Add(m_Items, item, count);
 		});
 		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
+		m_Interactives.Bind(m_Gameplay,
+			[this](const std::string& who, const std::string& item, int n) { Actor* a = m_Actors.Find(who); return a ? a->Bag().Remove(item, n) : 0; },
+			[this](const std::string& who, const std::string& item, int n) { Actor* a = m_Actors.Find(who); return a ? a->Bag().Add(m_Items, item, n) : 0; });
 	}
 
 	void EditorApp::StepResources()
@@ -127,6 +130,32 @@ namespace GB::Editor
 		std::string s = m_Tribe.Report();
 		for (char& c : s) if (c == '\n') c = '|';   // one line: the console shows the first line of a message
 		return { true, s };
+	}
+
+	CommandResult EditorApp::InteractivesCommand(const std::vector<std::string>& a)
+	{
+		const std::string sub = a.empty() ? "status" : a[0];
+		if (sub == "build")
+		{
+			glm::vec3 origin = m_Orbit.Target;
+			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
+			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
+			BuildInteractives(m_SceneEditor.World(), origin);
+			m_SceneEditor.Select(NullEntity);
+			SyncGameplay();
+			m_SceneEditor.Commit();
+			return { true, "a campfire (\"Fire Pit\"), a well and a gate built; try: actor bag <name> add wood 2, ability activate Stoke \"Fire Pit\" <name>, ability activate DrawWater Well <name>, ability activate OpenDoor Gate <name>" };
+		}
+		std::string s;
+		for (const std::string& n : m_Gameplay.Names())
+		{
+			const AbilitySystemComponent* x = m_Gameplay.Find(n);
+			if (!x) continue;
+			if (x->HasTag("Interactive.Campfire")) s += n + ": " + InteractiveSystem::CampfireState(*x) + ", fuel " + std::to_string(static_cast<int>(x->Attributes().Current("Fuel"))) + "; ";
+			else if (x->HasTag("Interactive.Well")) s += n + ": water " + std::to_string(static_cast<int>(x->Attributes().Current("Water"))) + "; ";
+			else if (x->HasTag("Interactive.Door")) s += n + ": " + InteractiveSystem::DoorState(*x) + "; ";
+		}
+		return s.empty() ? CommandResult{ false, "no interactives in the scene (interactives build)" } : CommandResult{ true, s };
 	}
 
 	CommandResult EditorApp::ResourcesCommand(const std::vector<std::string>& a)
