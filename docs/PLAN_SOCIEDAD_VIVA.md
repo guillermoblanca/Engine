@@ -330,7 +330,7 @@ Y los **modelos**: herramientas, semillas y plantas, regadera, pala, cestas, obj
 
 | Hito | Estado |
 |---|---|
-| H0 · Consolidación y contrato de actor | Parcial: sets e interacciones fusionados; falta el manifiesto de datos y los sets nuevos |
+| H0 · Consolidación y contrato de actor | Parcial: sets, interacciones, grafo de estados y línea de tiempo fusionados; **manifiesto de datos con los siete packs hecho** (`AnimManifest`); falta el contrato de actor |
 | H1 · Núcleo de habilidades (GAS) | En curso (`feature/huerto-gas`) |
 | H2 · Objetos, inventario y recursos | Sin empezar |
 | H3 · Mundo interactivo y ecología | En curso (huerto) |

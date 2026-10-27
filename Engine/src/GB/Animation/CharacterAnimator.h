@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Animation/AnimInstance.h"
+#include "GB/Animation/AnimManifest.h"
 #include "GB/Animation/Character.h"
 #include "GB/Game/MotionState.h"
 
@@ -12,7 +13,7 @@ namespace GB
 	{
 	public:
 		CharacterAnimator(const Model& model, ModelInstance& instance, const LocomotionOptions& options = {})
-			: m_Anim(model, instance, options) {}
+			: m_Model(model), m_Anim(model, instance, options) {}
 
 		// Adds the usual Mixamo free-movement set to the default set when the model has it. Returns how many clips were found.
 		int AddDefaultLocomotionClips();
@@ -25,6 +26,10 @@ namespace GB
 		// jump clip for the air layer. Returns how many montages the model has clips for.
 		int AddMixamoActions();
 
+		// Registers what a manifest describes (sets, turns, air clip, slots, montages) for the clips this model has; the report lists what it lacked.
+		// The same thing AddMixamoSets and AddMixamoActions do with the built-in lists (MixamoManifest()).
+		ManifestReport LoadManifest(const AnimManifest& manifest) { return ApplyManifest(manifest, m_Model, m_Anim); }
+
 		AnimInstance& Anim() { return m_Anim; }
 		LocomotionBlender& Locomotion() { return m_Anim.Active(); }
 		void SetFootsteps(FootstepSounds* steps) { m_Anim.SetFootsteps(steps); }
@@ -33,6 +38,7 @@ namespace GB
 		void Update(const MotionState& state, float dt, const glm::mat4& characterToWorld) { m_Anim.Update(state, dt, characterToWorld); }
 
 	private:
+		const Model& m_Model;
 		AnimInstance m_Anim;
 	};
 }

@@ -148,6 +148,8 @@ namespace GB
 	};
 
 	// Adds to the character's montage player the montages the abilities of the library play, with the notifies that raise their events
-	// (MixamoMontages() plus AbilityMontages). Returns how many the character has clips for.
+	// (AbilityMontages of `base`). `base` is where the montages come from: the animation manifest's, which owns their notifies. Without it, the
+	// built-in MixamoMontages(). Returns how many the character has clips for.
+	int RegisterAbilityMontages(const GameplayLibrary& library, AnimInstance& anim, const std::vector<MontageDesc>& base);
 	int RegisterAbilityMontages(const GameplayLibrary& library, AnimInstance& anim);
 }
