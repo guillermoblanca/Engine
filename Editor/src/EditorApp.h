@@ -30,6 +30,8 @@
 #include <string>
 #include <vector>
 
+struct ImDrawList;
+
 namespace GB::Editor
 {
 	// What the animation commands answer when there is no animated character to act on.
@@ -95,6 +97,9 @@ namespace GB::Editor
 		void DrawAnimationPanel();
 		void DrawAbilitiesPanel();
 		void DrawTribePanel();
+		void DrawNpcInspector(const TribeMember& m);
+		void DrawAiDebug(ImDrawList* dl, const glm::mat4& viewProj, const glm::vec2& size, float originX, float originY);
+		void RestoreTribe(const std::string& json);   // after a load: the members of a saved tribe, with their actors
 		void DrawWorldStatePanel();
 		CommandResult EcologyCommand(const std::vector<std::string>& a);
 		void StepWorld(double clock);                            // seasons, rain on the plots and the animals, once per simulation step
@@ -114,6 +119,7 @@ namespace GB::Editor
 		void StepResources();                                    // tools as tags and depleted nodes, once per simulation step
 		CommandResult ResourcesCommand(const std::vector<std::string>& a);
 		CommandResult TribeCommand(const std::vector<std::string>& a);
+		CommandResult AiCommand(const std::vector<std::string>& a);
 		CommandResult NavCommand(const std::vector<std::string>& a);
 		void DrawNavDebug(float ox, float oy, float w, float h);   // blocked and costly cells and the paths walked, over the viewport
 		CommandResult InteractivesCommand(const std::vector<std::string>& a);
@@ -143,6 +149,7 @@ namespace GB::Editor
 		EcologySystem m_Ecology;                                 // rabbits that eat, breed and starve (`ecology spawn`)
 		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
+		bool m_AiDebug = false;                                  // `ai debug on`: cones, obstacles and memory drawn in the viewport
 		bool m_NavDebug = false;                                 // `nav debug on`
 		float m_NavSyncTimer = 0.0f;                             // real seconds to the next look at whether trees went or appeared
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)

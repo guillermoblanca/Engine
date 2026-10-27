@@ -246,6 +246,14 @@ add_executable(GBTribeTests tribe_test.cpp)
 target_link_libraries(GBTribeTests PRIVATE GB::GB)
 add_test(NAME tribe COMMAND GBTribeTests)
 
+add_executable(GBPerceptionTests perception_test.cpp)
+target_link_libraries(GBPerceptionTests PRIVATE GB::GB)
+add_test(NAME perception COMMAND GBPerceptionTests)
+
+add_executable(GBAiTests ai_test.cpp)
+target_link_libraries(GBAiTests PRIVATE GB::GB)
+add_test(NAME ai COMMAND GBAiTests)
+
 add_executable(GBInteractivesTests interactives_test.cpp)
 target_link_libraries(GBInteractivesTests PRIVATE GB::GB)
 add_test(NAME interactives COMMAND GBInteractivesTests)
