@@ -1,8 +1,11 @@
 // Editor logic without a window: property registry, command runner and the log buffer. CPU only.
 #include "Commands.h"
 #include "LogBuffer.h"
+#include "SceneEditor.h"
 #include "Properties.h"
+#include <cmath>
 #include <cstdio>
+#include <filesystem>
 
 namespace
 {
@@ -16,6 +19,7 @@ namespace
 
 int main()
 {
+	using namespace GB;
 	using namespace GB::Editor;
 
 	float f = 0.5f; int i = 3; bool b = false; glm::vec3 v(1.0f), c(0.0f); Mode m = Mode::A;
@@ -60,6 +64,66 @@ int main()
 	Check(buf.Snapshot().size() == 1, "log buffer");
 	buf.Clear();
 	Check(buf.Snapshot().empty(), "log clear");
+
+	// Scene editing: commands, selection, undo/redo, picking.
+	{
+		SceneEditor ed;
+		PropertyRegistry props;
+		CommandRunner runner;
+		ed.Bind(props);
+		ed.Register(runner);
+		ed.SetSpawnPoint({ 0.0f, 0.0f, 0.0f });
+
+		Check(runner.Execute("entity create cube Crate").Ok && ed.Selected() != NullEntity, "create selects the entity");
+		Check(props.Find("sel.position") && props.Find("sel.mesh.albedo") && !props.Find("sel.light.color"), "selection properties follow the components");
+		Check(props.Set("sel.position", "0 2 -5").Ok, "set through the selection property");
+		ed.Tick(false);
+		Check(ed.World().Find(ed.Selected())->Transform.Position == glm::vec3(0, 2, -5), "property writes the entity");
+		Check(runner.Execute("entity create light Lamp Crate").Ok && ed.World().Find(ed.Resolve("Lamp"))->Parent == ed.Resolve("Crate"), "child entity");
+		Check(runner.Execute("entity set Crate position 1 2 3").Ok && ed.World().Find(ed.Resolve("Crate"))->Transform.Position == glm::vec3(1, 2, 3), "entity set by name");
+		Check(!runner.Execute("entity set Crate nonsense 1").Ok, "bad property rejected");
+		Check(runner.Execute("entity add body").Ok && props.Find("sel.body.mass"), "add component rebinds");
+		Check(!runner.Execute("entity parent Crate Lamp").Ok, "cycle rejected through the command");
+		Check(runner.Execute("entity duplicate Crate").Ok && ed.World().Count() == 4, "duplicate copies the subtree");
+		Check(runner.Execute("entity delete").Ok && ed.World().Count() == 2, "delete the selection");
+
+		// undo / redo walk back through the steps
+		Check(runner.Execute("undo").Ok && ed.World().Count() == 4, "undo delete");
+		Check(runner.Execute("redo").Ok && ed.World().Count() == 2, "redo delete");
+		while (ed.UndoDepth() > 0) ed.Undo();
+		Check(ed.World().Count() == 0 && ed.Selected() == NullEntity, "undo all leaves an empty scene");
+		Check(!runner.Execute("undo").Ok, "nothing left to undo");
+
+		// scene files
+		runner.Execute("entity create sphere Ball");
+		const std::string path = (std::filesystem::temp_directory_path() / "gb_editor_scene_test.json").string();
+		Check(runner.Execute("scene save \"" + path + "\"").Ok, "scene save");
+		runner.Execute("scene new");
+		Check(ed.World().Count() == 0, "scene new");
+		Check(runner.Execute("scene load \"" + path + "\"").Ok && ed.World().FindByName("Ball") != NullEntity, "scene load");
+		Check(!runner.Execute("scene load /no/such/file.json").Ok, "missing file reported");
+		std::filesystem::remove(path);
+
+		// picking: nearest of two overlapping boxes along the ray, misses elsewhere
+		runner.Execute("scene new");
+		runner.Execute("entity create cube Near");
+		props.Set("sel.position", "0 0 -2");
+		ed.Tick(false);
+		runner.Execute("entity create cube Far");
+		props.Set("sel.position", "0 0 -6");
+		ed.Tick(false);
+		Ray ray{ { 0, 0, 5 }, { 0, 0, -1 } };
+		Check(ed.Pick(ray) == ed.Resolve("Near"), "pick the nearest");
+		Ray off{ { 5, 0, 5 }, { 0, 0, -1 } };
+		Check(ed.Pick(off) == NullEntity, "pick misses");
+		Camera cam;
+		cam.Position = { 0, 0, 5 };
+		cam.Target = { 0, 0, 0 };
+		const Ray center = ScreenRay(cam, { 0.5f, 0.5f }, 16.0f / 9.0f);
+		Check(ed.Pick(center) == ed.Resolve("Near"), "screen ray through the center");
+		const glm::vec3 axis(1, 0, 0);
+		Check(std::fabs(RayAxisParam({ { 3, 4, 0 }, { 0, -1, 0 } }, { 0, 0, 0 }, axis) - 3.0f) < 1e-4f, "axis parameter of a ray");
+	}
 
 	if (failures) return 1;
 	std::puts("editor tests passed");

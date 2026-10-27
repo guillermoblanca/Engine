@@ -30,6 +30,39 @@ namespace GB::Editor
 			c.CreateWindow = true;
 			return c;
 		}
+		// Draws the editing widget of one property; true when the user changed it.
+		bool DrawPropertyWidget(Property& p, const char* label)
+		{
+			bool changed = false;
+			ImGui::SetNextItemWidth(-ImGui::GetContentRegionAvail().x * 0.42f);
+			switch (p.Type)
+			{
+			case PropType::Float:
+			{
+				float& v = *static_cast<float*>(p.Ptr);
+				changed = p.Max - p.Min <= 1000.0f ? ImGui::SliderFloat(label, &v, p.Min, p.Max, "%.3g") : ImGui::DragFloat(label, &v, 0.5f, p.Min, p.Max);
+				break;
+			}
+			case PropType::Int: changed = ImGui::SliderInt(label, static_cast<int*>(p.Ptr), static_cast<int>(p.Min), static_cast<int>(p.Max)); break;
+			case PropType::Bool: changed = ImGui::Checkbox(label, static_cast<bool*>(p.Ptr)); break;
+			case PropType::Vec3: changed = ImGui::DragFloat3(label, &static_cast<glm::vec3*>(p.Ptr)->x, std::min((p.Max - p.Min) * 0.002f, 0.05f), p.Min, p.Max, "%.3g"); break;
+			case PropType::Color: changed = ImGui::ColorEdit3(label, &static_cast<glm::vec3*>(p.Ptr)->x, ImGuiColorEditFlags_Float); break;
+			case PropType::Enum:
+			{
+				int& i = *static_cast<int*>(p.Ptr);
+				if (ImGui::BeginCombo(label, i >= 0 && static_cast<size_t>(i) < p.Names.size() ? p.Names[static_cast<size_t>(i)].c_str() : "?"))
+				{
+					for (size_t k = 0; k < p.Names.size(); ++k)
+						if (ImGui::Selectable(p.Names[k].c_str(), static_cast<int>(k) == i)) { i = static_cast<int>(k); changed = true; }
+					ImGui::EndCombo();
+				}
+				break;
+			}
+			}
+			if (!p.Tooltip.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", p.Tooltip.c_str());
+			return changed;
+		}
+
 		std::string Lower(std::string s)
 		{
 			std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -64,6 +97,9 @@ namespace GB::Editor
 		m_Camera.FarPlane = 1500.0f;
 
 		RegisterCommands();
+		m_SceneEditor.Bind(m_Props);
+		m_SceneEditor.Register(m_Commands);
+		m_EntityRenderer = std::make_unique<EntityRenderer>(m_AssetRoot);
 		BuildWorld(m_WorldDesc);
 		RegisterProperties();
 
@@ -101,6 +137,8 @@ namespace GB::Editor
 	bool EditorApp::IsPanelOpen(const std::string& name) const
 	{
 		if (name == "Viewport") return m_Panels.Viewport;
+		if (name == "Hierarchy") return m_Panels.Hierarchy;
+		if (name == "Inspector") return m_Panels.Inspector;
 		if (name == "Properties") return m_Panels.Properties;
 		if (name == "World") return m_Panels.World;
 		if (name == "Stats") return m_Panels.Stats;
@@ -131,6 +169,7 @@ namespace GB::Editor
 		m_World.Build(desc, m_Scene);
 		m_StaticObjects = m_Scene.Objects.size();
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
+		m_SceneEditor.SetSpawnPoint(m_Orbit.Target);
 		RebaseWeather();
 		FrameWorld();
 		if (m_Props.All().size() > 0)
@@ -279,7 +318,9 @@ namespace GB::Editor
 	// ------------------------------------------------------------------ commands
 	CommandResult EditorApp::Execute(const std::string& line)
 	{
+		m_SceneEditor.SetSpawnPoint(m_Orbit.Target);
 		const CommandResult r = m_Commands.Execute(line);
+		m_SceneEditor.Tick(m_GizmoAxis >= 0);   // an edit made by `set sel.*` is its own undo step
 		if (!line.empty() && !r.Message.empty())
 		{
 			if (r.Ok) GB_CLIENT_INFO("{}", r.Message);
@@ -475,11 +516,13 @@ namespace GB::Editor
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
-		if (m_ViewportHovered && !io.WantTextInput) m_Orbit.Update(dt);
+		if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt);
 		m_Orbit.Apply(m_Camera);
 		ApplyTimeOfDay();
 		m_Weather->Update(dt, m_Camera);
 		m_Weather->Apply(m_Scene);
+		m_WeatherLights = m_Scene.PointLights.size();
+		m_SceneEditor.Tick(m_GizmoAxis >= 0 || ImGui::IsAnyItemActive());
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 		m_Scene.Post.DeltaTime = dt > 0.0f ? dt : 1.0f / 60.0f;
 		if (m_Instance) m_Instance->Update(dt);
@@ -497,6 +540,9 @@ namespace GB::Editor
 			m_Renderer->Resize(m_ViewportW, m_ViewportH);
 		}
 		m_Scene.Objects.resize(m_StaticObjects);
+		m_Scene.PointLights.resize(m_WeatherLights);
+		m_EntityRenderer->Update(m_FrameDt);
+		m_EntityRenderer->Build(m_SceneEditor.World(), m_Scene, m_SceneEditor.Selected());
 		if (m_Instance)
 			m_Instance->AddToScene(m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
 		m_Renderer->Render(m_Scene, m_Camera, m_ViewportFb.get());
@@ -523,11 +569,14 @@ namespace GB::Editor
 		ImGui::DockBuilderRemoveNode(dockspaceId);
 		ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
 		ImGui::DockBuilderSetNodeSize(dockspaceId, ImVec2(width, height));
-		ImGuiID center = dockspaceId, left, right, bottom;
+		ImGuiID center = dockspaceId, left, leftTop, right, bottom;
 		left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.25f, nullptr, &center);
+		leftTop = ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.45f, nullptr, &left);
 		right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.22f, nullptr, &center);
 		bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.27f, nullptr, &center);
 		ImGui::DockBuilderDockWindow("Properties", left);
+		ImGui::DockBuilderDockWindow("Hierarchy", leftTop);
+		ImGui::DockBuilderDockWindow("Inspector", right);
 		ImGui::DockBuilderDockWindow("World", right);
 		ImGui::DockBuilderDockWindow("Stats", right);
 		ImGui::DockBuilderDockWindow("Model", right);
@@ -549,6 +598,8 @@ namespace GB::Editor
 				BuildDefaultLayout(dock, vp->Size.x, vp->Size.y);
 		}
 		if (m_Panels.Viewport) DrawViewport();
+		if (m_Panels.Hierarchy) DrawHierarchy();
+		if (m_Panels.Inspector) DrawInspector();
 		if (m_Panels.Properties) DrawProperties();
 		if (m_Panels.World) DrawWorldPanel();
 		if (m_Panels.Stats) DrawStats();
@@ -556,6 +607,9 @@ namespace GB::Editor
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
 		if (m_Panels.Demo) ImGui::ShowDemoWindow(&m_Panels.Demo);
+		HandleSceneShortcuts();
+		for (const std::string& line : m_UiCommands) Execute(line);
+		m_UiCommands.clear();
 	}
 
 	void EditorApp::DrawMenu()
@@ -570,13 +624,35 @@ namespace GB::Editor
 				if (ImGui::MenuItem("Desert")) Execute("generate desert");
 				ImGui::EndMenu();
 			}
+			if (ImGui::MenuItem("New scene")) Execute("scene new");
+			if (ImGui::MenuItem("Save scene", "Ctrl+S")) Execute("scene save scene.json");
+			if (ImGui::MenuItem("Load scene")) Execute("scene load scene.json");
+			ImGui::Separator();
 			if (ImGui::MenuItem("Save viewport screenshot")) Execute("screenshot editor_screenshot.png");
 			ImGui::Separator();
 			if (ImGui::MenuItem("Exit")) Close();
 			ImGui::EndMenu();
 		}
+		if (ImGui::BeginMenu("Edit"))
+		{
+			if (ImGui::MenuItem("Undo", "Ctrl+Z", false, m_SceneEditor.UndoDepth() > 0)) Execute("undo");
+			if (ImGui::MenuItem("Redo", "Ctrl+Y", false, m_SceneEditor.RedoDepth() > 0)) Execute("redo");
+			ImGui::Separator();
+			const bool has = m_SceneEditor.Selected() != NullEntity;
+			if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, has)) Execute("entity duplicate");
+			if (ImGui::MenuItem("Delete", "Del", false, has)) Execute("entity delete");
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Entity"))
+		{
+			for (const char* kind : { "empty", "cube", "sphere", "plane", "light" })
+				if (ImGui::MenuItem(kind)) Execute(std::string("entity create ") + kind);
+			ImGui::EndMenu();
+		}
 		if (ImGui::BeginMenu("View"))
 		{
+			ImGui::MenuItem("Hierarchy", nullptr, &m_Panels.Hierarchy);
+			ImGui::MenuItem("Inspector", nullptr, &m_Panels.Inspector);
 			ImGui::MenuItem("Viewport", nullptr, &m_Panels.Viewport);
 			ImGui::MenuItem("Properties", nullptr, &m_Panels.Properties);
 			ImGui::MenuItem("World", nullptr, &m_Panels.World);
@@ -618,6 +694,7 @@ namespace GB::Editor
 			ImGui::Image(static_cast<ImTextureID>(static_cast<intptr_t>(m_ViewportFb->GetColorTexture())), ImVec2(static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight())),
 				ImVec2(0, 1), ImVec2(1, 0));
 			m_ViewportHovered = ImGui::IsItemHovered();
+			DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight()));
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);
 			ImGui::GetWindowDrawList()->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(255, 255, 255, 200), info);
@@ -636,7 +713,7 @@ namespace GB::Editor
 			ImGui::Separator();
 			std::vector<std::string> groups;
 			for (const Property& p : m_Props.All())
-				if (std::find(groups.begin(), groups.end(), p.Group) == groups.end()) groups.push_back(p.Group);
+				if (p.Path.rfind("sel.", 0) != 0 && std::find(groups.begin(), groups.end(), p.Group) == groups.end()) groups.push_back(p.Group);
 			const std::string needle = Lower(m_PropFilter);
 			for (const std::string& group : groups)
 			{
@@ -647,37 +724,9 @@ namespace GB::Editor
 				if (!ImGui::CollapsingHeader(group.c_str(), needle.empty() ? 0 : ImGuiTreeNodeFlags_DefaultOpen)) continue;
 				for (Property& p : m_Props.All())
 				{
-					if (p.Group != group || (!needle.empty() && Lower(p.Path).find(needle) == std::string::npos)) continue;
+					if (p.Path.rfind("sel.", 0) == 0 || p.Group != group || (!needle.empty() && Lower(p.Path).find(needle) == std::string::npos)) continue;
 					ImGui::PushID(p.Path.c_str());
-					bool changed = false;
-					const char* label = p.Path.c_str();
-					ImGui::SetNextItemWidth(-ImGui::GetContentRegionAvail().x * 0.42f);
-					switch (p.Type)
-					{
-					case PropType::Float:
-					{
-						float& v = *static_cast<float*>(p.Ptr);
-						changed = p.Max - p.Min <= 1000.0f ? ImGui::SliderFloat(label, &v, p.Min, p.Max, "%.3g") : ImGui::DragFloat(label, &v, 0.5f, p.Min, p.Max);
-						break;
-					}
-					case PropType::Int: changed = ImGui::SliderInt(label, static_cast<int*>(p.Ptr), static_cast<int>(p.Min), static_cast<int>(p.Max)); break;
-					case PropType::Bool: changed = ImGui::Checkbox(label, static_cast<bool*>(p.Ptr)); break;
-					case PropType::Vec3: changed = ImGui::DragFloat3(label, &static_cast<glm::vec3*>(p.Ptr)->x, (p.Max - p.Min) * 0.002f, p.Min, p.Max, "%.3g"); break;
-					case PropType::Color: changed = ImGui::ColorEdit3(label, &static_cast<glm::vec3*>(p.Ptr)->x, ImGuiColorEditFlags_Float); break;
-					case PropType::Enum:
-					{
-						int& i = *static_cast<int*>(p.Ptr);
-						if (ImGui::BeginCombo(label, i >= 0 && static_cast<size_t>(i) < p.Names.size() ? p.Names[static_cast<size_t>(i)].c_str() : "?"))
-						{
-							for (size_t k = 0; k < p.Names.size(); ++k)
-								if (ImGui::Selectable(p.Names[k].c_str(), static_cast<int>(k) == i)) { i = static_cast<int>(k); changed = true; }
-							ImGui::EndCombo();
-						}
-						break;
-					}
-					}
-					if (!p.Tooltip.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", p.Tooltip.c_str());
-					if (changed) PropertyRegistry::Notify(p);
+					if (DrawPropertyWidget(p, p.Path.c_str())) PropertyRegistry::Notify(p);
 					ImGui::PopID();
 				}
 			}
@@ -710,6 +759,225 @@ namespace GB::Editor
 				ImGui::Text("trees %zu   rocks %zu   grass %zu", m_World.TreeCount(), m_World.RockCount(), m_World.GrassBlades());
 				for (size_t i = 0; i < shares.size(); ++i)
 					if (shares[i] > 0.001f) { char t[32]; std::snprintf(t, sizeof t, "%.0f%%", static_cast<double>(shares[i]) * 100.0); ImGui::ProgressBar(shares[i], ImVec2(-1, 0), t); ImGui::SameLine(0.0f, 6.0f); ImGui::TextUnformatted(names[i]); }
+			}
+		}
+		ImGui::End();
+	}
+
+	// ------------------------------------------------------------------ scene editing
+	void EditorApp::HandleSceneShortcuts()
+	{
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantTextInput) return;
+		if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) Execute(io.KeyShift ? "redo" : "undo");
+		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) Execute("redo");
+		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false) && m_SceneEditor.Selected() != NullEntity) Execute("entity duplicate");
+		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) Execute("scene save scene.json");
+		else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && m_SceneEditor.Selected() != NullEntity) Execute("entity delete");
+	}
+
+	void EditorApp::DrawGizmo(float ox, float oy, float w, float h)
+	{
+		ImGuiIO& io = ImGui::GetIO();
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		EntityWorld& world = m_SceneEditor.World();
+		const glm::vec2 size(w, h), mouse(io.MousePos.x - ox, io.MousePos.y - oy);
+		const float aspect = w / h;
+		const glm::mat4 viewProj = m_Camera.GetProjection(aspect) * m_Camera.GetView();
+		const glm::vec3 axes[3] = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
+		const ImU32 colors[3] = { IM_COL32(235, 70, 70, 255), IM_COL32(90, 220, 90, 255), IM_COL32(80, 130, 245, 255) };
+
+		const EntityId sel = m_SceneEditor.Selected();
+		glm::vec3 origin(0.0f);
+		float len = 0.0f;
+		int hover = -1;
+		if (sel != NullEntity)
+		{
+			origin = glm::vec3(world.WorldMatrix(sel)[3]);
+			len = glm::distance(m_Camera.Position, origin) * 0.16f;
+			float best = 9.0f;   // pixels
+			glm::vec2 a;
+			if (ProjectToScreen(viewProj, origin, size, a))
+				for (int i = 0; i < 3; ++i)
+				{
+					glm::vec2 b;
+					if (!ProjectToScreen(viewProj, origin + axes[i] * len, size, b)) continue;
+					const glm::vec2 ab = b - a;
+					const float t = glm::clamp(glm::dot(mouse - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+					const float d = glm::distance(mouse, a + ab * t);
+					if (d < best && m_ViewportHovered) { best = d; hover = i; }
+				}
+			for (int i = 0; i < 3; ++i)
+			{
+				glm::vec2 b;
+				if (!ProjectToScreen(viewProj, origin + axes[i] * len, size, b) || !ProjectToScreen(viewProj, origin, size, a)) continue;
+				const bool active = i == hover || i == m_GizmoAxis;
+				dl->AddLine(ImVec2(ox + a.x, oy + a.y), ImVec2(ox + b.x, oy + b.y), active ? IM_COL32(255, 235, 90, 255) : colors[i], active ? 4.0f : 2.5f);
+				dl->AddCircleFilled(ImVec2(ox + b.x, oy + b.y), active ? 6.0f : 4.5f, active ? IM_COL32(255, 235, 90, 255) : colors[i]);
+			}
+		}
+
+		if (m_ViewportHovered && ImGui::IsMouseClicked(0))
+		{
+			m_PressPos = mouse;
+			m_PressedInViewport = true;
+			if (hover >= 0)
+			{
+				m_GizmoAxis = hover;
+				m_GizmoOrigin = origin;
+				m_GizmoStart = RayAxisParam(ScreenRay(m_Camera, mouse / size, aspect), origin, axes[hover]);
+				m_PressedInViewport = false;
+			}
+		}
+		if (m_GizmoAxis >= 0)
+		{
+			GB::Entity* e = world.Find(sel);
+			if (e && ImGui::IsMouseDown(0))
+			{
+				const float t = RayAxisParam(ScreenRay(m_Camera, mouse / size, aspect), m_GizmoOrigin, axes[m_GizmoAxis]);
+				const glm::vec3 target = m_GizmoOrigin + axes[m_GizmoAxis] * (t - m_GizmoStart);
+				e->Transform.Position = glm::vec3(glm::inverse(world.WorldMatrix(e->Parent)) * glm::vec4(target, 1.0f));
+				m_SceneEditor.MarkDirty();
+			}
+			else m_GizmoAxis = -1;   // released: Tick commits the move as one undo step
+		}
+		else if (m_PressedInViewport && ImGui::IsMouseReleased(0))
+		{
+			m_PressedInViewport = false;
+			if (glm::distance(mouse, m_PressPos) < 4.0f && m_ViewportHovered)
+				m_SceneEditor.Select(m_SceneEditor.Pick(ScreenRay(m_Camera, mouse / size, aspect)));
+		}
+	}
+
+	void EditorApp::DrawHierarchyNode(EntityId id)
+	{
+		const GB::Entity* e = m_SceneEditor.World().Find(id);
+		if (!e) return;
+		ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
+		if (e->Children.empty()) flags |= ImGuiTreeNodeFlags_Leaf;
+		if (id == m_SceneEditor.Selected()) flags |= ImGuiTreeNodeFlags_Selected;
+		ImGui::PushID(static_cast<int>(id));
+		const char* tag = e->Light ? "[light] " : e->Mesh ? (e->Mesh->Model.empty() ? "[mesh] " : "[model] ") : e->Body ? "[body] " : "";
+		const bool open = ImGui::TreeNodeEx("##node", flags, "%s%s", tag, e->Name.c_str());
+		if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) m_SceneEditor.Select(id);
+		if (ImGui::BeginDragDropSource())
+		{
+			ImGui::SetDragDropPayload("GB_ENTITY", &id, sizeof id);
+			ImGui::TextUnformatted(e->Name.c_str());
+			ImGui::EndDragDropSource();
+		}
+		if (ImGui::BeginDragDropTarget())
+		{
+			if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("GB_ENTITY"))
+				m_UiCommands.push_back("entity parent " + std::to_string(*static_cast<const EntityId*>(pl->Data)) + " " + std::to_string(id));
+			ImGui::EndDragDropTarget();
+		}
+		if (ImGui::BeginPopupContextItem())
+		{
+			m_SceneEditor.Select(id);
+			if (ImGui::MenuItem("Duplicate")) m_UiCommands.push_back("entity duplicate " + std::to_string(id));
+			if (ImGui::MenuItem("Delete")) m_UiCommands.push_back("entity delete " + std::to_string(id));
+			if (ImGui::MenuItem("Add child (empty)")) m_UiCommands.push_back("entity create empty Entity " + std::to_string(id));
+			if (ImGui::MenuItem("Add child (cube)")) m_UiCommands.push_back("entity create cube Cube " + std::to_string(id));
+			if (e->Parent != NullEntity && ImGui::MenuItem("Unparent")) m_UiCommands.push_back("entity parent " + std::to_string(id) + " none");
+			ImGui::EndPopup();
+		}
+		if (open)
+		{
+			const std::vector<EntityId> children = e->Children;   // the list can change through m_UiCommands only after drawing
+			for (EntityId c : children) DrawHierarchyNode(c);
+			ImGui::TreePop();
+		}
+		ImGui::PopID();
+	}
+
+	void EditorApp::DrawHierarchy()
+	{
+		if (ImGui::Begin("Hierarchy", &m_Panels.Hierarchy))
+		{
+			if (ImGui::Button("+ Add")) ImGui::OpenPopup("##add");
+			if (ImGui::BeginPopup("##add"))
+			{
+				for (const char* kind : { "empty", "cube", "sphere", "plane", "light" })
+					if (ImGui::MenuItem(kind)) m_UiCommands.push_back(std::string("entity create ") + kind);
+				ImGui::EndPopup();
+			}
+			ImGui::SameLine();
+			ImGui::TextDisabled("%zu entities", m_SceneEditor.World().Count());
+			ImGui::Separator();
+			for (EntityId root : m_SceneEditor.World().Roots()) DrawHierarchyNode(root);
+			// the empty area: click to deselect, drop an entity to unparent it
+			const ImVec2 rest = ImGui::GetContentRegionAvail();
+			ImGui::InvisibleButton("##empty", ImVec2(-1, std::max(rest.y, 24.0f)));
+			if (ImGui::IsItemClicked()) m_SceneEditor.Select(NullEntity);
+			if (ImGui::BeginDragDropTarget())
+			{
+				if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("GB_ENTITY"))
+					m_UiCommands.push_back("entity parent " + std::to_string(*static_cast<const EntityId*>(pl->Data)) + " none");
+				ImGui::EndDragDropTarget();
+			}
+		}
+		ImGui::End();
+	}
+
+	void EditorApp::DrawInspector()
+	{
+		if (ImGui::Begin("Inspector", &m_Panels.Inspector))
+		{
+			const EntityId id = m_SceneEditor.Selected();
+			GB::Entity* e = m_SceneEditor.World().Find(id);
+			if (!e)
+			{
+				ImGui::TextDisabled("Nothing selected. Click an object in the viewport or the hierarchy.");
+				ImGui::End();
+				return;
+			}
+			if (m_NameFor != id)
+			{
+				m_NameFor = id;
+				std::snprintf(m_NameBuffer, sizeof m_NameBuffer, "%s", e->Name.c_str());
+			}
+			ImGui::Text("#%u", id);
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(-1.0f);
+			if (ImGui::InputText("##name", m_NameBuffer, sizeof m_NameBuffer, ImGuiInputTextFlags_EnterReturnsTrue))
+			{
+				m_UiCommands.push_back("entity rename " + std::to_string(id) + " \"" + m_NameBuffer + "\"");
+				m_NameFor = NullEntity;
+			}
+			ImGui::Separator();
+
+			const char* groups[] = { "Transform", "Mesh", "Light", "Body" };
+			for (const char* group : groups)
+			{
+				const std::string g = group;
+				if ((g == "Mesh" && !e->Mesh) || (g == "Light" && !e->Light) || (g == "Body" && !e->Body)) continue;
+				const bool removable = g != "Transform";
+				bool visible = true;
+				if (!(removable ? ImGui::CollapsingHeader(group, &visible, ImGuiTreeNodeFlags_DefaultOpen) : ImGui::CollapsingHeader(group, ImGuiTreeNodeFlags_DefaultOpen)))
+				{
+					if (!visible) m_UiCommands.push_back(std::string("entity remove ") + Lower(group));
+					continue;
+				}
+				if (!visible) { m_UiCommands.push_back(std::string("entity remove ") + Lower(group)); continue; }
+				for (Property& p : m_Props.All())
+				{
+					if (p.Group != group || p.Path.rfind("sel.", 0) != 0) continue;
+					ImGui::PushID(p.Path.c_str());
+					if (DrawPropertyWidget(p, p.Path.c_str() + 4)) PropertyRegistry::Notify(p);
+					ImGui::PopID();
+				}
+				if (std::string(group) == "Mesh" && !e->Mesh->Model.empty())
+					ImGui::TextDisabled("model: %s", e->Mesh->Model.c_str());
+			}
+			ImGui::Separator();
+			if (ImGui::Button("Add component", ImVec2(-1, 0))) ImGui::OpenPopup("##component");
+			if (ImGui::BeginPopup("##component"))
+			{
+				if (!e->Mesh && ImGui::MenuItem("Mesh")) m_UiCommands.push_back("entity add mesh");
+				if (!e->Light && ImGui::MenuItem("Light")) m_UiCommands.push_back("entity add light");
+				if (!e->Body && ImGui::MenuItem("Body")) m_UiCommands.push_back("entity add body");
+				ImGui::EndPopup();
 			}
 		}
 		ImGui::End();
@@ -842,6 +1110,16 @@ namespace GB::Editor
 				{
 					if (ext == ".glb" || ext == ".gltf") Execute("load \"" + f.generic_string() + "\"");
 					else if (ext == ".hdr") Execute("hdri \"" + f.generic_string() + "\"");
+				}
+				if ((ext == ".glb" || ext == ".gltf") && ImGui::BeginPopupContextItem())
+				{
+					if (ImGui::MenuItem("Add to scene as an entity"))
+					{
+						const std::string name = f.stem().string();
+						m_UiCommands.push_back("entity create empty \"" + name + "\"");
+						m_UiCommands.push_back("entity model \"" + rel + "\"");
+					}
+					ImGui::EndPopup();
 				}
 				ImGui::PopID();
 			}

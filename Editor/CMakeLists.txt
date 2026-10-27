@@ -16,6 +16,7 @@ add_library(GBEditor STATIC
     src/Commands.cpp
     src/LogBuffer.cpp
     src/ImGuiLayer.cpp
+    src/SceneEditor.cpp
     src/WorldInstance.cpp
     src/EditorApp.cpp)
 target_include_directories(GBEditor PUBLIC src)

@@ -38,7 +38,7 @@ namespace GB
 		return slot.second.get();
 	}
 
-	size_t EntityRenderer::Build(const EntityWorld& world, Scene& scene)
+	size_t EntityRenderer::Build(const EntityWorld& world, Scene& scene, EntityId highlight)
 	{
 		size_t drawn = 0;
 		for (const auto& [id, e] : world.All())
@@ -46,6 +46,7 @@ namespace GB
 			if (!e.Mesh && !e.Light) continue;
 			if (!world.IsActive(id)) continue;
 			const glm::mat4 m = world.WorldMatrix(id);
+			const size_t firstObject = scene.Objects.size();
 			if (e.Mesh)
 			{
 				const MeshComponent& mc = *e.Mesh;
@@ -70,6 +71,9 @@ namespace GB
 					++drawn;
 				}
 			}
+			if (id == highlight)
+				for (size_t i = firstObject; i < scene.Objects.size(); ++i)
+					scene.Objects[i].Mat.Emissive += glm::vec3(0.35f, 0.18f, 0.02f);
 			if (e.Light)
 			{
 				PointLight l;
