@@ -21,6 +21,7 @@ namespace GB
 		float Friction = 0.6f;
 		float LinearDamping = 0.02f;               // 1/s
 		float AngularDamping = 0.08f;
+		int Group = 0;                             // bodies with the same non-zero group do not collide with each other (the limbs of one ragdoll)
 		void* UserData = nullptr;
 	};
 
@@ -48,6 +49,20 @@ namespace GB
 		glm::vec3 m_InvInertia{ 1.0f };            // body space
 		float m_InvMass = 1.0f;
 		bool m_WasWet = false;
+	};
+
+	// A constraint between two bodies (or a body and a point of the world): the anchors are kept together (a ball joint), the angle
+	// between the two axes can be limited (a cone: shoulders, hips, neck) or forced to zero (a hinge: knees, elbows, doors), and the
+	// twist of one body about the axis relative to the other can be limited. Everything is in body space, so it follows the bodies.
+	struct JointDesc
+	{
+		int A = -1, B = -1;                        // dynamic body indices; B = -1 pins A's anchor to the world point AnchorB
+		glm::vec3 AnchorA{ 0.0f }, AnchorB{ 0.0f };
+		glm::vec3 AxisA{ 0, 1, 0 }, AxisB{ 0, 1, 0 };   // the angle between them is the swing
+		glm::vec3 RefA{ 1, 0, 0 }, RefB{ 1, 0, 0 };     // perpendicular to the axes: the twist is the angle from RefA to RefB about the axis
+		float SwingLimit = 3.14159265f;            // radians; pi = free
+		bool Hinge = false;                        // the axes stay parallel: the twist is the one free rotation
+		float TwistMin = -3.14159265f, TwistMax = 3.14159265f;   // radians, 0 = the relative pose when the joint was made
 	};
 
 	struct StaticCollider
@@ -129,6 +144,16 @@ namespace GB
 		size_t GetBodyCount() const { return m_Bodies.size(); }
 		void RemoveBody(int index);                // leaves a hole (the index stays valid for the others); see IsAlive
 		bool IsAlive(int index) const { return index >= 0 && static_cast<size_t>(index) < m_Bodies.size() && m_Bodies[static_cast<size_t>(index)]; }
+		// Joints. MakeJoint fills the body-space anchor, axes and reference from a world point, axis and reference direction at the bodies'
+		// current pose (the joint's rest state: swing 0, twist 0); set the limits on the result and add it. B = -1: the world.
+		JointDesc MakeJoint(int a, int b, const glm::vec3& worldPoint, const glm::vec3& worldAxis, const glm::vec3& worldRef) const;
+		int AddJoint(const JointDesc& desc);
+		void RemoveJoint(int index);
+		bool IsJointAlive(int index) const { return index >= 0 && static_cast<size_t>(index) < m_Joints.size() && m_Joints[static_cast<size_t>(index)].Alive; }
+		size_t GetJointCount() const { return m_Joints.size(); }
+		float GetJointSwing(int index) const;      // radians between the axes
+		float GetJointTwist(int index) const;      // radians, signed
+		float GetJointError(int index) const;      // meters between the two anchors
 		void AddStatic(const StaticCollider& collider) { m_Statics.push_back(collider); }
 		size_t GetStaticCount() const { return m_Statics.size(); }
 
@@ -160,7 +185,13 @@ namespace GB
 		void GenerateContacts();
 		void Solve(float dt);
 
+		struct Joint
+		{
+			JointDesc D;
+			bool Alive = true;
+		};
 		std::vector<std::unique_ptr<RigidBody>> m_Bodies;
+		std::vector<Joint> m_Joints;
 		std::vector<StaticCollider> m_Statics;
 		std::function<float(float, float)> m_GroundHeight;
 		std::function<glm::vec3(float, float)> m_GroundNormal;

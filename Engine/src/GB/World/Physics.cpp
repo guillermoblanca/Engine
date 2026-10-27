@@ -263,6 +263,21 @@ namespace GB
 			return R * glm::mat3(glm::vec3(invBody.x, 0, 0), glm::vec3(0, invBody.y, 0), glm::vec3(0, 0, invBody.z)) * glm::transpose(R);
 		}
 
+		glm::mat3 Skew(const glm::vec3& v)
+		{
+			return glm::mat3(glm::vec3(0.0f, v.z, -v.y), glm::vec3(-v.z, 0.0f, v.x), glm::vec3(v.y, -v.x, 0.0f));   // Skew(v) * u = v x u
+		}
+
+		// The twist of axis `a` between references rA and rB (world space), signed about `a`.
+		float TwistAngle(const glm::vec3& a, const glm::vec3& rA, const glm::vec3& rB)
+		{
+			glm::vec3 pa = rA - a * glm::dot(a, rA), pb = rB - a * glm::dot(a, rB);
+			if (glm::length(pa) < 1e-6f || glm::length(pb) < 1e-6f) return 0.0f;
+			pa = glm::normalize(pa);
+			pb = glm::normalize(pb);
+			return std::atan2(glm::dot(a, glm::cross(pa, pb)), glm::dot(pa, pb));
+		}
+
 		bool RaySphere(const glm::vec3& o, const glm::vec3& d, const glm::vec3& c, float r, float& t)
 		{
 			const glm::vec3 m = o - c;
@@ -389,8 +404,94 @@ namespace GB
 
 	void PhysicsWorld::RemoveBody(int index)
 	{
-		if (IsAlive(index))
-			m_Bodies[static_cast<size_t>(index)].reset();
+		if (!IsAlive(index)) return;
+		m_Bodies[static_cast<size_t>(index)].reset();
+		for (Joint& j : m_Joints)
+			if (j.Alive && (j.D.A == index || j.D.B == index)) j.Alive = false;   // a joint needs both its bodies
+	}
+
+	JointDesc PhysicsWorld::MakeJoint(int a, int b, const glm::vec3& worldPoint, const glm::vec3& worldAxis, const glm::vec3& worldRef) const
+	{
+		JointDesc d;
+		d.A = a;
+		d.B = b;
+		const RigidBody& A = GetBody(a);
+		const glm::quat ia = glm::inverse(A.Rotation);
+		const glm::vec3 axis = glm::normalize(worldAxis);
+		glm::vec3 ref = worldRef - axis * glm::dot(axis, worldRef);
+		ref = glm::length(ref) > 1e-5f ? glm::normalize(ref) : glm::normalize(glm::cross(axis, std::fabs(axis.y) < 0.9f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0)));
+		d.AnchorA = ia * (worldPoint - A.Position);
+		d.AxisA = ia * axis;
+		d.RefA = ia * ref;
+		if (b >= 0)
+		{
+			const RigidBody& B = GetBody(b);
+			const glm::quat ib = glm::inverse(B.Rotation);
+			d.AnchorB = ib * (worldPoint - B.Position);
+			d.AxisB = ib * axis;
+			d.RefB = ib * ref;
+		}
+		else
+		{
+			d.AnchorB = worldPoint;
+			d.AxisB = axis;
+			d.RefB = ref;
+		}
+		return d;
+	}
+
+	int PhysicsWorld::AddJoint(const JointDesc& desc)
+	{
+		if (!IsAlive(desc.A) || (desc.B >= 0 && !IsAlive(desc.B))) return -1;
+		Joint j;
+		j.D = desc;
+		m_Joints.push_back(j);
+		return static_cast<int>(m_Joints.size()) - 1;
+	}
+
+	void PhysicsWorld::RemoveJoint(int index)
+	{
+		if (index >= 0 && static_cast<size_t>(index) < m_Joints.size()) m_Joints[static_cast<size_t>(index)].Alive = false;
+	}
+
+	namespace
+	{
+		struct JointFrame { glm::vec3 PA, PB, WA, WB, RA, RB; };
+	}
+
+	static bool FrameOf(const std::vector<std::unique_ptr<RigidBody>>& bodies, const JointDesc& d, JointFrame& f)
+	{
+		const RigidBody* A = bodies[static_cast<size_t>(d.A)].get();
+		const RigidBody* B = d.B >= 0 ? bodies[static_cast<size_t>(d.B)].get() : nullptr;
+		if (!A || (d.B >= 0 && !B)) return false;
+		f.PA = A->Position + A->Rotation * d.AnchorA;
+		f.WA = A->Rotation * d.AxisA;
+		f.RA = A->Rotation * d.RefA;
+		f.PB = B ? B->Position + B->Rotation * d.AnchorB : d.AnchorB;
+		f.WB = B ? B->Rotation * d.AxisB : d.AxisB;
+		f.RB = B ? B->Rotation * d.RefB : d.RefB;
+		return true;
+	}
+
+	float PhysicsWorld::GetJointSwing(int index) const
+	{
+		JointFrame f;
+		if (!IsJointAlive(index) || !FrameOf(m_Bodies, m_Joints[static_cast<size_t>(index)].D, f)) return 0.0f;
+		return std::acos(std::clamp(glm::dot(f.WA, f.WB), -1.0f, 1.0f));
+	}
+
+	float PhysicsWorld::GetJointTwist(int index) const
+	{
+		JointFrame f;
+		if (!IsJointAlive(index) || !FrameOf(m_Bodies, m_Joints[static_cast<size_t>(index)].D, f)) return 0.0f;
+		return TwistAngle(f.WA, f.RA, f.RB);
+	}
+
+	float PhysicsWorld::GetJointError(int index) const
+	{
+		JointFrame f;
+		if (!IsJointAlive(index) || !FrameOf(m_Bodies, m_Joints[static_cast<size_t>(index)].D, f)) return 0.0f;
+		return glm::distance(f.PA, f.PB);
 	}
 
 	void PhysicsWorld::ApplyForces(RigidBody& b, int index, float dt)
@@ -523,6 +624,7 @@ namespace GB
 			{
 				const RigidBody* o = m_Bodies[j].get();
 				if (!o) continue;
+				if (b->Desc.Group != 0 && b->Desc.Group == o->Desc.Group) continue;   // the limbs of one ragdoll do not collide with each other
 				if (glm::distance(b->Position, o->Position) > b->GetBoundingRadius() + o->GetBoundingRadius()) continue;
 				hits.clear();
 				Collide(sa, ShapeOf(*o), hits);
@@ -533,7 +635,6 @@ namespace GB
 
 	void PhysicsWorld::Solve(float dt)
 	{
-		(void)dt;
 		// Sequential impulses with accumulated, clamped impulses (so friction is limited by the real normal load).
 		struct Row
 		{
@@ -584,6 +685,81 @@ namespace GB
 			const float e = r.B ? std::min(r.A->Desc.Restitution, r.B->Desc.Restitution) : r.A->Desc.Restitution;
 			r.bias = (vn0 < -1.5f) ? -e * vn0 : 0.0f;   // bounce only on real impacts
 		}
+		// Joint rows: the anchors together (3 equations), the swing and the twist (limits, or a hinge's two perpendicular equations).
+		struct JRow
+		{
+			const JointDesc* D = nullptr;
+			RigidBody* A = nullptr; RigidBody* B = nullptr;
+			glm::mat3 IA{ 0.0f }, IB{ 0.0f };
+			float invA = 0.0f, invB = 0.0f;
+			glm::vec3 ra{ 0.0f }, rb{ 0.0f }, biasP{ 0.0f };
+			glm::mat3 Kinv{ 0.0f };
+			glm::vec3 wA{ 0, 1, 0 }, wB{ 0, 1, 0 };
+			// angular constraints: direction, bias velocity, sign of the allowed impulse (0 = equality), accumulated impulse
+			glm::vec3 dir[3]; float bias[3]; int kind[3]; float acc[3] = { 0.0f, 0.0f, 0.0f }; float k[3]; int count = 0;
+		};
+		std::vector<JRow> jrows;
+		const float beta = 0.2f / std::max(dt, 1e-4f);
+		for (const Joint& j : m_Joints)
+		{
+			if (!j.Alive) continue;
+			JointFrame f;
+			if (!FrameOf(m_Bodies, j.D, f)) continue;
+			JRow r;
+			r.D = &j.D;
+			r.A = m_Bodies[static_cast<size_t>(j.D.A)].get();
+			r.B = j.D.B >= 0 ? m_Bodies[static_cast<size_t>(j.D.B)].get() : nullptr;
+			if (r.B)
+			{
+				if (r.A->Sleeping && !r.B->Sleeping && glm::length(r.B->Velocity) > SleepSpeed) r.A->Wake();
+				if (r.B->Sleeping && !r.A->Sleeping && glm::length(r.A->Velocity) > SleepSpeed) r.B->Wake();
+			}
+			if (r.A->Sleeping && (!r.B || r.B->Sleeping)) continue;
+			r.IA = r.A->Sleeping ? glm::mat3(0.0f) : InvInertiaWorld(*r.A, r.A->m_InvInertia);
+			r.IB = r.B && !r.B->Sleeping ? InvInertiaWorld(*r.B, r.B->m_InvInertia) : glm::mat3(0.0f);
+			r.invA = r.A->Sleeping ? 0.0f : r.A->m_InvMass;
+			r.invB = r.B && !r.B->Sleeping ? r.B->m_InvMass : 0.0f;
+			r.ra = f.PA - r.A->Position;
+			r.rb = r.B ? f.PB - r.B->Position : glm::vec3(0.0f);
+			const glm::mat3 sa = Skew(r.ra), sb = Skew(r.rb);
+			glm::mat3 K = (r.invA + r.invB) * glm::mat3(1.0f) - sa * r.IA * sa - sb * r.IB * sb;
+			r.Kinv = glm::inverse(K);
+			r.biasP = beta * (f.PA - f.PB);
+			r.wA = f.WA; r.wB = f.WB;
+			auto addRow = [&](const glm::vec3& dir, float bias, int kind)
+			{
+				if (r.count >= 3) return;
+				r.dir[r.count] = dir; r.bias[r.count] = bias; r.kind[r.count] = kind;
+				r.k[r.count] = std::max(glm::dot(dir, (r.IA + r.IB) * dir), 1e-9f);
+				++r.count;
+			};
+			const float swing = std::acos(std::clamp(glm::dot(f.WA, f.WB), -1.0f, 1.0f));
+			const glm::vec3 e = glm::cross(f.WA, f.WB);
+			if (j.D.Hinge)
+			{
+				// the axes stay parallel: no relative rotation except about the axis (two equations perpendicular to it)
+				const glm::vec3 helper = std::fabs(f.WA.y) < 0.9f ? glm::vec3(0, 1, 0) : glm::vec3(1, 0, 0);
+				const glm::vec3 t1 = glm::normalize(glm::cross(f.WA, helper)), t2 = glm::cross(f.WA, t1);
+				addRow(t1, -beta * glm::dot(e, t1), 0);
+				addRow(t2, -beta * glm::dot(e, t2), 0);
+			}
+			else if (j.D.SwingLimit < 3.1f && swing > j.D.SwingLimit && glm::length(e) > 1e-6f)
+				addRow(glm::normalize(e), -beta * (swing - j.D.SwingLimit), -1);
+			jrows.push_back(r);
+			JRow& back = jrows.back();
+			// the twist limits (a separate pass: up to three rows in all, the hinge uses two for its axis and one for the twist)
+			const float twist = TwistAngle(f.WA, f.RA, f.RB);
+			auto addTwist = [&](const glm::vec3& dir, float bias, int kind)
+			{
+				if (back.count >= 3) return;
+				back.dir[back.count] = dir; back.bias[back.count] = bias; back.kind[back.count] = kind;
+				back.k[back.count] = std::max(glm::dot(dir, (back.IA + back.IB) * dir), 1e-9f);
+				++back.count;
+			};
+			if (twist > j.D.TwistMax) addTwist(f.WA, -beta * (twist - j.D.TwistMax), -1);
+			else if (twist < j.D.TwistMin) addTwist(f.WA, beta * (j.D.TwistMin - twist), 1);
+		}
+
 		auto apply = [&](Row& r, const glm::vec3& P)
 		{
 			r.A->Velocity += P * r.invA;
@@ -602,6 +778,34 @@ namespace GB
 		};
 		for (int iter = 0; iter < 30; ++iter)
 		{
+			for (JRow& r : jrows)
+			{
+				// the anchors
+				const glm::vec3 va = r.A->Velocity + glm::cross(r.A->AngularVelocity, r.ra);
+				const glm::vec3 vb = r.B ? r.B->Velocity + glm::cross(r.B->AngularVelocity, r.rb) : glm::vec3(0.0f);
+				const glm::vec3 P = r.Kinv * (-(va - vb) - r.biasP);
+				r.A->Velocity += P * r.invA;
+				r.A->AngularVelocity += r.IA * glm::cross(r.ra, P);
+				if (r.B)
+				{
+					r.B->Velocity -= P * r.invB;
+					r.B->AngularVelocity -= r.IB * glm::cross(r.rb, P);
+				}
+				// the angles
+				for (int q = 0; q < r.count; ++q)
+				{
+					const glm::vec3 rel = (r.B ? r.B->AngularVelocity : glm::vec3(0.0f)) - r.A->AngularVelocity;
+					const float cdot = glm::dot(rel, r.dir[q]);
+					const float lambda = (r.bias[q] - cdot) / r.k[q];
+					float next = r.acc[q] + lambda;
+					if (r.kind[q] < 0) next = std::min(next, 0.0f);
+					else if (r.kind[q] > 0) next = std::max(next, 0.0f);
+					const float delta = next - r.acc[q];
+					r.acc[q] = r.kind[q] == 0 ? 0.0f : next;   // equations are re-solved from scratch, limits accumulate
+					r.A->AngularVelocity -= r.IA * (r.dir[q] * delta);
+					if (r.B) r.B->AngularVelocity += r.IB * (r.dir[q] * delta);
+				}
+			}
 			for (size_t ci = 0; ci < rows.size(); ++ci)
 			{
 				if (!active[ci]) continue;
@@ -680,6 +884,13 @@ namespace GB
 		for (const Contact& c : m_Contacts)
 			if (c.B >= 0 && (moving(*m_Bodies[static_cast<size_t>(c.A)]) || moving(*m_Bodies[static_cast<size_t>(c.B)])))
 				disturbed[static_cast<size_t>(c.A)] = disturbed[static_cast<size_t>(c.B)] = 1;
+		for (const Joint& j : m_Joints)
+		{
+			if (!j.Alive || j.D.B < 0) continue;
+			const RigidBody* a = m_Bodies[static_cast<size_t>(j.D.A)].get();
+			const RigidBody* b = m_Bodies[static_cast<size_t>(j.D.B)].get();
+			if (a && b && (moving(*a) || moving(*b))) disturbed[static_cast<size_t>(j.D.A)] = disturbed[static_cast<size_t>(j.D.B)] = 1;   // a joined group sleeps together
+		}
 		for (size_t bi = 0; bi < m_Bodies.size(); ++bi)
 		{
 			RigidBody* b = m_Bodies[bi].get();
