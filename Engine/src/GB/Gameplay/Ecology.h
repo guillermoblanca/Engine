@@ -48,6 +48,18 @@ namespace GB
 		float StarveSeconds = 40.0f;     // at zero food this long before dying
 	};
 
+	// What the editor remembers of the look the season gave the world (the weather, the snow on the ground and the colour of the leaves it last wrote), so a
+	// loaded game does not write them again from nothing. Plain text for a save section.
+	struct SeasonLook
+	{
+		bool Enabled = false;
+		std::string Weather;
+		float Snow = -1.0f;
+		glm::vec3 Leaf{ -1.0f };
+		std::string ToJson() const;
+		bool FromJson(const std::string& text);
+	};
+
 	class EcologySystem
 	{
 	public:
@@ -66,6 +78,11 @@ namespace GB
 		int Starved() const { return m_Starved; }
 		int Eaten() const { return m_Eaten; }
 		std::string Describe() const;
+
+		// What the animals' attributes do not keep: where each one was heading (its centre of wandering, the plant it chose, how long it has been eating) and
+		// the counters. FromJson goes after Bind; "" (a save from before this existed) leaves every animal choosing again from where it stands.
+		std::string ToJson() const;
+		bool FromJson(const std::string& text);
 
 	private:
 		struct Walk { glm::vec2 Home{ 0.0f }, Target{ 0.0f }; std::string Plant; float Eating = 0.0f; bool Has = false; EntityId Id = NullEntity; };

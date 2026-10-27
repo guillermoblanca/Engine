@@ -1,0 +1,11 @@
+# A replay on a generated world with actors and abilities (H4 acceptance): record, stop, play, and the end state must be the same.
+generate temperate 5
+garden build 0 0
+actor spawn Ana fox 3 3 ai
+replay record
+actor spawn Biel fox -3 3 ai
+actor tasks Ana ability Dig Plot_1 | wait 1 | ability Dig Plot_2
+wait 240
+replay stop replay_world
+replay play replay_world
+quit

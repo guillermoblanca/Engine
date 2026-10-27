@@ -27,8 +27,7 @@ Test `interactives` también: una partida guardada a medias (fogata encendida, p
 
 ## Qué se guarda y qué no
 
-El estado (etiquetas `State.*`) y las cantidades (`Fuel`, `Water`) van en el componente de la entidad y se guardan. **No se guarda** el segundo parcial que lleva ardiendo o llenándose el pozo
-(los temporizadores del sistema): tras cargar, ese tramo empieza de nuevo (como mucho 6 s más de fuego o 20 s más de espera del pozo).
+El estado (etiquetas `State.*`) y las cantidades (`Fuel`, `Water`) van en el componente de la entidad; los temporizadores del sistema (la fracción de segundo que lleva ardiendo la fogata, el tiempo hasta la próxima gota del pozo) van en la sección `interactives`. Una fogata cargada se apaga en el mismo tic que la original (test `interactives`).
 
 ## Hecho y pendiente de H3
 

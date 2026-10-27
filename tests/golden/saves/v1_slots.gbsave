@@ -1,0 +1,3033 @@
+{
+  "format": 1,
+  "engine": "0.1.0",
+  "world": {
+    "generated": true,
+    "type": "temperate",
+    "seed": 11,
+    "size": 360.0,
+    "resolution": 641,
+    "river": true,
+    "lake": true,
+    "forest": 0.55,
+    "trees": 300,
+    "rocks": 40
+  },
+  "baseline": {
+    "entities": 342,
+    "hash": "747e12a2f5a283eb"
+  },
+  "clock": {
+    "tick": 60,
+    "dt": 0.016666666666666666,
+    "hours": 12.020027,
+    "dayLength": 1200.0,
+    "timeOfDay": false,
+    "day": 0
+  },
+  "weather": {
+    "preset": "clear"
+  },
+  "entities": {
+    "nextId": 422,
+    "removed": [],
+    "changed": [],
+    "added": [
+      {
+        "id": 343,
+        "name": "Garden",
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "id": 344,
+        "name": "Plot 1",
+        "parent": 343,
+        "tags": [
+          "plot"
+        ],
+        "position": [
+          -2.4,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.5
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Plot",
+            "State.Soil.Grass"
+          ],
+          "attributes": [
+            {
+              "name": "Moisture",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Growth",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 2.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 345,
+        "name": "Plot 1 Soil",
+        "parent": 344,
+        "position": [
+          0.0,
+          0.22,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.8,
+          0.44,
+          1.8
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.18,
+            0.38,
+            0.12
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 346,
+        "name": "Plot 1 Sprout",
+        "parent": 344,
+        "active": false,
+        "position": [
+          0.0,
+          0.6,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.25,
+          0.2,
+          0.25
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.4,
+            0.7,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 347,
+        "name": "Plot 1 Stem",
+        "parent": 344,
+        "active": false,
+        "position": [
+          0.0,
+          0.85,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.07,
+          0.6,
+          0.07
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.25,
+            0.5,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 348,
+        "name": "Plot 1 Leaves",
+        "parent": 344,
+        "active": false,
+        "position": [
+          0.0,
+          1.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.9,
+          0.5,
+          0.9
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.55,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 349,
+        "name": "Plot 2",
+        "parent": 343,
+        "tags": [
+          "plot"
+        ],
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.5
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Plot",
+            "State.Soil.Grass"
+          ],
+          "attributes": [
+            {
+              "name": "Moisture",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Growth",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 2.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 350,
+        "name": "Plot 2 Soil",
+        "parent": 349,
+        "position": [
+          0.0,
+          0.22,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.8,
+          0.44,
+          1.8
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.18,
+            0.38,
+            0.12
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 351,
+        "name": "Plot 2 Sprout",
+        "parent": 349,
+        "active": false,
+        "position": [
+          0.0,
+          0.6,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.25,
+          0.2,
+          0.25
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.4,
+            0.7,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 352,
+        "name": "Plot 2 Stem",
+        "parent": 349,
+        "active": false,
+        "position": [
+          0.0,
+          0.85,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.07,
+          0.6,
+          0.07
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.25,
+            0.5,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 353,
+        "name": "Plot 2 Leaves",
+        "parent": 349,
+        "active": false,
+        "position": [
+          0.0,
+          1.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.9,
+          0.5,
+          0.9
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.55,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 354,
+        "name": "Plot 3",
+        "parent": 343,
+        "tags": [
+          "plot"
+        ],
+        "position": [
+          2.4,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.5
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Plot",
+            "State.Soil.Grass"
+          ],
+          "attributes": [
+            {
+              "name": "Moisture",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Growth",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 2.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 355,
+        "name": "Plot 3 Soil",
+        "parent": 354,
+        "position": [
+          0.0,
+          0.22,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.8,
+          0.44,
+          1.8
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.18,
+            0.38,
+            0.12
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 356,
+        "name": "Plot 3 Sprout",
+        "parent": 354,
+        "active": false,
+        "position": [
+          0.0,
+          0.6,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.25,
+          0.2,
+          0.25
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.4,
+            0.7,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 357,
+        "name": "Plot 3 Stem",
+        "parent": 354,
+        "active": false,
+        "position": [
+          0.0,
+          0.85,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.07,
+          0.6,
+          0.07
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.25,
+            0.5,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 358,
+        "name": "Plot 3 Leaves",
+        "parent": 354,
+        "active": false,
+        "position": [
+          0.0,
+          1.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.9,
+          0.5,
+          0.9
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.55,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 359,
+        "name": "Plot 4",
+        "parent": 343,
+        "tags": [
+          "plot"
+        ],
+        "position": [
+          -2.4,
+          0.0,
+          3.2
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.5
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Plot",
+            "State.Soil.Grass"
+          ],
+          "attributes": [
+            {
+              "name": "Moisture",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Growth",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 2.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 360,
+        "name": "Plot 4 Soil",
+        "parent": 359,
+        "position": [
+          0.0,
+          0.22,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.8,
+          0.44,
+          1.8
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.18,
+            0.38,
+            0.12
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 361,
+        "name": "Plot 4 Sprout",
+        "parent": 359,
+        "active": false,
+        "position": [
+          0.0,
+          0.6,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.25,
+          0.2,
+          0.25
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.4,
+            0.7,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 362,
+        "name": "Plot 4 Stem",
+        "parent": 359,
+        "active": false,
+        "position": [
+          0.0,
+          0.85,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.07,
+          0.6,
+          0.07
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.25,
+            0.5,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 363,
+        "name": "Plot 4 Leaves",
+        "parent": 359,
+        "active": false,
+        "position": [
+          0.0,
+          1.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.9,
+          0.5,
+          0.9
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.55,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 364,
+        "name": "Plot 5",
+        "parent": 343,
+        "tags": [
+          "plot"
+        ],
+        "position": [
+          0.0,
+          0.0,
+          3.2
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.5
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Plot",
+            "State.Soil.Grass"
+          ],
+          "attributes": [
+            {
+              "name": "Moisture",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Growth",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 2.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 365,
+        "name": "Plot 5 Soil",
+        "parent": 364,
+        "position": [
+          0.0,
+          0.22,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.8,
+          0.44,
+          1.8
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.18,
+            0.38,
+            0.12
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 366,
+        "name": "Plot 5 Sprout",
+        "parent": 364,
+        "active": false,
+        "position": [
+          0.0,
+          0.6,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.25,
+          0.2,
+          0.25
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.4,
+            0.7,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 367,
+        "name": "Plot 5 Stem",
+        "parent": 364,
+        "active": false,
+        "position": [
+          0.0,
+          0.85,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.07,
+          0.6,
+          0.07
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.25,
+            0.5,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 368,
+        "name": "Plot 5 Leaves",
+        "parent": 364,
+        "active": false,
+        "position": [
+          0.0,
+          1.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.9,
+          0.5,
+          0.9
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.55,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 369,
+        "name": "Plot 6",
+        "parent": 343,
+        "tags": [
+          "plot"
+        ],
+        "position": [
+          2.4,
+          0.0,
+          3.2
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.5
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Plot",
+            "State.Soil.Grass"
+          ],
+          "attributes": [
+            {
+              "name": "Moisture",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Growth",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 2.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 370,
+        "name": "Plot 6 Soil",
+        "parent": 369,
+        "position": [
+          0.0,
+          0.22,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.8,
+          0.44,
+          1.8
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.18,
+            0.38,
+            0.12
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 371,
+        "name": "Plot 6 Sprout",
+        "parent": 369,
+        "active": false,
+        "position": [
+          0.0,
+          0.6,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.25,
+          0.2,
+          0.25
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.4,
+            0.7,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 372,
+        "name": "Plot 6 Stem",
+        "parent": 369,
+        "active": false,
+        "position": [
+          0.0,
+          0.85,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.07,
+          0.6,
+          0.07
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.25,
+            0.5,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 373,
+        "name": "Plot 6 Leaves",
+        "parent": 369,
+        "active": false,
+        "position": [
+          0.0,
+          1.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.9,
+          0.5,
+          0.9
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.55,
+            0.15
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 374,
+        "name": "Tree Spot",
+        "parent": 343,
+        "position": [
+          -5.0,
+          0.0,
+          1.6
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.6
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Tree",
+            "State.Tree.Empty"
+          ],
+          "attributes": [
+            {
+              "name": "Moisture",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Growth",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Fruit",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 3.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 375,
+        "name": "Tree Spot Mound",
+        "parent": 374,
+        "position": [
+          0.0,
+          0.04,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.4,
+          0.08,
+          1.4
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.3,
+            0.2,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 376,
+        "name": "Tree Spot Sapling",
+        "parent": 374,
+        "active": false,
+        "position": [
+          0.0,
+          0.35,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.06,
+          0.7,
+          0.06
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.36,
+            0.24,
+            0.13
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 377,
+        "name": "Tree Spot Trunk",
+        "parent": 374,
+        "active": false,
+        "position": [
+          0.0,
+          1.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.35,
+          2.4,
+          0.35
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.36,
+            0.24,
+            0.13
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 378,
+        "name": "Tree Spot Crown",
+        "parent": 374,
+        "active": false,
+        "position": [
+          0.0,
+          3.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.6,
+          2.2,
+          2.6
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.45,
+            0.16
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 379,
+        "name": "Tree Spot Fruit 1",
+        "parent": 374,
+        "active": false,
+        "position": [
+          0.9,
+          2.7,
+          0.5
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.22,
+          0.22,
+          0.22
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.85,
+            0.15,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4,
+          "emissive": [
+            0.05,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": 380,
+        "name": "Tree Spot Fruit 2",
+        "parent": 374,
+        "active": false,
+        "position": [
+          -0.7,
+          3.0,
+          0.9
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.22,
+          0.22,
+          0.22
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.85,
+            0.15,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4,
+          "emissive": [
+            0.05,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": 381,
+        "name": "Tree Spot Fruit 3",
+        "parent": 374,
+        "active": false,
+        "position": [
+          0.2,
+          2.4,
+          -1.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.22,
+          0.22,
+          0.22
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.85,
+            0.15,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4,
+          "emissive": [
+            0.05,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": 382,
+        "name": "Fruit Tree",
+        "parent": 343,
+        "position": [
+          5.5,
+          0.0,
+          1.6
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "body": {
+          "type": "static",
+          "shape": "box",
+          "halfExtents": [
+            0.4,
+            1.0,
+            0.4
+          ],
+          "mass": 1.0,
+          "friction": 0.5,
+          "restitution": 0.1
+        },
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.8
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Tree",
+            "State.Tree.Grown"
+          ],
+          "effects": [
+            "FruitRegrow"
+          ],
+          "attributes": [
+            {
+              "name": "Moisture",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Growth",
+              "value": 1.0,
+              "min": 0.0,
+              "max": 1.0
+            },
+            {
+              "name": "Fruit",
+              "value": 2.0,
+              "min": 0.0,
+              "max": 3.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 383,
+        "name": "Fruit Tree Mound",
+        "parent": 382,
+        "position": [
+          0.0,
+          0.04,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.4,
+          0.08,
+          1.4
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.3,
+            0.2,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 384,
+        "name": "Fruit Tree Sapling",
+        "parent": 382,
+        "active": false,
+        "position": [
+          0.0,
+          0.35,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.06,
+          0.7,
+          0.06
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.36,
+            0.24,
+            0.13
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 385,
+        "name": "Fruit Tree Trunk",
+        "parent": 382,
+        "position": [
+          0.0,
+          1.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.35,
+          2.4,
+          0.35
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.36,
+            0.24,
+            0.13
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 386,
+        "name": "Fruit Tree Crown",
+        "parent": 382,
+        "position": [
+          0.0,
+          3.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          2.6,
+          2.2,
+          2.6
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.45,
+            0.16
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 387,
+        "name": "Fruit Tree Fruit 1",
+        "parent": 382,
+        "position": [
+          0.9,
+          2.7,
+          0.5
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.22,
+          0.22,
+          0.22
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.85,
+            0.15,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4,
+          "emissive": [
+            0.05,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": 388,
+        "name": "Fruit Tree Fruit 2",
+        "parent": 382,
+        "position": [
+          -0.7,
+          3.0,
+          0.9
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.22,
+          0.22,
+          0.22
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.85,
+            0.15,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4,
+          "emissive": [
+            0.05,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": 389,
+        "name": "Fruit Tree Fruit 3",
+        "parent": 382,
+        "active": false,
+        "position": [
+          0.2,
+          2.4,
+          -1.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.22,
+          0.22,
+          0.22
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.85,
+            0.15,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4,
+          "emissive": [
+            0.05,
+            0.0,
+            0.0
+          ]
+        }
+      },
+      {
+        "id": 390,
+        "name": "Cow",
+        "parent": 343,
+        "position": [
+          -3.5,
+          0.0,
+          7.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "body": {
+          "type": "static",
+          "shape": "box",
+          "halfExtents": [
+            0.5,
+            0.6,
+            0.9
+          ],
+          "mass": 1.0,
+          "friction": 0.5,
+          "restitution": 0.1
+        },
+        "interact": [
+          {
+            "name": "milk",
+            "position": [
+              -1.5,
+              0.0,
+              0.0
+            ],
+            "yaw": 90.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Cow",
+            "State.Cow"
+          ],
+          "effects": [
+            "MilkRegrow"
+          ],
+          "attributes": [
+            {
+              "name": "Milk",
+              "value": 2.0,
+              "min": 0.0,
+              "max": 3.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 391,
+        "name": "Cow Body",
+        "parent": 390,
+        "position": [
+          0.0,
+          0.95,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          0.65,
+          1.5
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.92,
+            0.9,
+            0.86
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 392,
+        "name": "Cow Patch",
+        "parent": 390,
+        "position": [
+          0.0,
+          1.0,
+          0.2
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.72,
+          0.5,
+          0.5
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.12,
+            0.1,
+            0.1
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 393,
+        "name": "Cow Head",
+        "parent": 390,
+        "position": [
+          0.0,
+          1.25,
+          0.95
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.4,
+          0.4,
+          0.45
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.92,
+            0.9,
+            0.86
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 394,
+        "name": "Cow Leg 1",
+        "parent": 390,
+        "position": [
+          -0.25,
+          0.3,
+          0.55
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.14,
+          0.6,
+          0.14
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.92,
+            0.9,
+            0.86
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 395,
+        "name": "Cow Leg 2",
+        "parent": 390,
+        "position": [
+          0.25,
+          0.3,
+          0.55
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.14,
+          0.6,
+          0.14
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.92,
+            0.9,
+            0.86
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 396,
+        "name": "Cow Leg 3",
+        "parent": 390,
+        "position": [
+          -0.25,
+          0.3,
+          -0.55
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.14,
+          0.6,
+          0.14
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.92,
+            0.9,
+            0.86
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 397,
+        "name": "Cow Leg 4",
+        "parent": 390,
+        "position": [
+          0.25,
+          0.3,
+          -0.55
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.14,
+          0.6,
+          0.14
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.92,
+            0.9,
+            0.86
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 398,
+        "name": "Compost",
+        "parent": 343,
+        "position": [
+          4.5,
+          0.0,
+          7.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "interact": [
+          {
+            "name": "work",
+            "position": [
+              0.0,
+              0.0,
+              -1.7
+            ],
+            "yaw": 0.0
+          }
+        ],
+        "gameplay": {
+          "tags": [
+            "Garden.Compost"
+          ],
+          "attributes": [
+            {
+              "name": "Compost",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 99.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 399,
+        "name": "Compost Heap",
+        "parent": 398,
+        "position": [
+          0.0,
+          0.2,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.6,
+          0.7,
+          1.6
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.22,
+            0.15,
+            0.08
+          ],
+          "metallic": 0.0,
+          "roughness": 1.0
+        }
+      },
+      {
+        "id": 400,
+        "name": "Wheelbarrow",
+        "parent": 343,
+        "position": [
+          2.0,
+          0.0,
+          -4.0
+        ],
+        "rotation": [
+          0.0,
+          20.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "body": {
+          "type": "static",
+          "shape": "box",
+          "halfExtents": [
+            0.4,
+            0.4,
+            0.8
+          ],
+          "mass": 1.0,
+          "friction": 0.5,
+          "restitution": 0.1
+        }
+      },
+      {
+        "id": 401,
+        "name": "Wheelbarrow Tray",
+        "parent": 400,
+        "position": [
+          0.0,
+          0.55,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.7,
+          0.3,
+          0.9
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.15,
+            0.4,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 402,
+        "name": "Wheelbarrow Wheel",
+        "parent": 400,
+        "position": [
+          0.0,
+          0.25,
+          0.6
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.12,
+          0.5,
+          0.5
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.08,
+            0.08,
+            0.08
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 403,
+        "name": "Wheelbarrow Handle",
+        "parent": 400,
+        "position": [
+          0.3,
+          0.6,
+          -0.9
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.05,
+          0.05,
+          0.9
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.5,
+            0.35,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 404,
+        "name": "Wheelbarrow Handle 2",
+        "parent": 400,
+        "position": [
+          -0.3,
+          0.6,
+          -0.9
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.05,
+          0.05,
+          0.9
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.5,
+            0.35,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 405,
+        "name": "Box 1",
+        "parent": 343,
+        "tags": [
+          "box"
+        ],
+        "position": [
+          -5.0,
+          0.2,
+          -4.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.45,
+          0.4,
+          0.4
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.62,
+            0.44,
+            0.26
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        },
+        "body": {
+          "type": "static",
+          "shape": "box",
+          "halfExtents": [
+            0.23,
+            0.2,
+            0.2
+          ],
+          "mass": 1.0,
+          "friction": 0.5,
+          "restitution": 0.1
+        }
+      },
+      {
+        "id": 406,
+        "name": "Box 2",
+        "parent": 343,
+        "tags": [
+          "box"
+        ],
+        "position": [
+          -4.1,
+          0.2,
+          -4.3
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.45,
+          0.4,
+          0.4
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.62,
+            0.44,
+            0.26
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        },
+        "body": {
+          "type": "static",
+          "shape": "box",
+          "halfExtents": [
+            0.23,
+            0.2,
+            0.2
+          ],
+          "mass": 1.0,
+          "friction": 0.5,
+          "restitution": 0.1
+        }
+      },
+      {
+        "id": 407,
+        "name": "Box 3",
+        "parent": 343,
+        "tags": [
+          "box"
+        ],
+        "position": [
+          -3.2,
+          0.2,
+          -4.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.45,
+          0.4,
+          0.4
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.62,
+            0.44,
+            0.26
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        },
+        "body": {
+          "type": "static",
+          "shape": "box",
+          "halfExtents": [
+            0.23,
+            0.2,
+            0.2
+          ],
+          "mass": 1.0,
+          "friction": 0.5,
+          "restitution": 0.1
+        }
+      },
+      {
+        "id": 408,
+        "name": "Seed Tray",
+        "parent": 343,
+        "position": [
+          0.6,
+          0.0,
+          -3.8
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "id": 409,
+        "name": "Seed Tray Base",
+        "parent": 408,
+        "position": [
+          0.0,
+          0.05,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.5,
+          0.1,
+          0.3
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.4,
+            0.3,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 410,
+        "name": "Seed Tray Seed 1",
+        "parent": 408,
+        "position": [
+          -0.18,
+          0.12,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.06,
+          0.05,
+          0.08
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.75,
+            0.65,
+            0.3
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 411,
+        "name": "Seed Tray Seed 2",
+        "parent": 408,
+        "position": [
+          -0.06000001,
+          0.12,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.06,
+          0.05,
+          0.08
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.75,
+            0.65,
+            0.3
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 412,
+        "name": "Seed Tray Seed 3",
+        "parent": 408,
+        "position": [
+          0.059999987,
+          0.12,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.06,
+          0.05,
+          0.08
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.75,
+            0.65,
+            0.3
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 413,
+        "name": "Seed Tray Seed 4",
+        "parent": 408,
+        "position": [
+          0.17999998,
+          0.12,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.06,
+          0.05,
+          0.08
+        ],
+        "mesh": {
+          "shape": "sphere",
+          "size": 1.0,
+          "albedo": [
+            0.75,
+            0.65,
+            0.3
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 414,
+        "name": "Watering Can",
+        "parent": 343,
+        "position": [
+          1.2,
+          0.0,
+          -3.6
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "id": 415,
+        "name": "Watering Can Body",
+        "parent": 414,
+        "position": [
+          0.0,
+          0.18,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.25,
+          0.3,
+          0.25
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.4,
+            0.65
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4
+        }
+      },
+      {
+        "id": 416,
+        "name": "Watering Can Spout",
+        "parent": 414,
+        "position": [
+          0.0,
+          0.3,
+          0.25
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.05,
+          0.05,
+          0.3
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.2,
+            0.4,
+            0.65
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4
+        }
+      },
+      {
+        "id": 417,
+        "name": "Shovel",
+        "parent": 343,
+        "position": [
+          -0.5,
+          0.0,
+          -3.7
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      {
+        "id": 418,
+        "name": "Shovel Handle",
+        "parent": 417,
+        "position": [
+          0.0,
+          0.04,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.05,
+          0.05,
+          0.9
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.5,
+            0.35,
+            0.2
+          ],
+          "metallic": 0.0,
+          "roughness": 0.85
+        }
+      },
+      {
+        "id": 419,
+        "name": "Shovel Blade",
+        "parent": 417,
+        "position": [
+          0.0,
+          0.04,
+          0.55
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          0.18,
+          0.03,
+          0.25
+        ],
+        "mesh": {
+          "shape": "cube",
+          "size": 1.0,
+          "albedo": [
+            0.55,
+            0.57,
+            0.6
+          ],
+          "metallic": 0.0,
+          "roughness": 0.4
+        }
+      },
+      {
+        "id": 420,
+        "name": "Gardener",
+        "parent": 343,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "gameplay": {
+          "abilities": [
+            "Dig",
+            "Sow",
+            "Water",
+            "PlantTree",
+            "PickFruit",
+            "Pull",
+            "Milk",
+            "CarryBox",
+            "DropBox",
+            "PushWheelbarrow",
+            "ReleaseWheelbarrow",
+            "DumpWheelbarrow"
+          ],
+          "effects": [
+            "EnergyRegen"
+          ],
+          "attributes": [
+            {
+              "name": "Energy",
+              "value": 96.0,
+              "min": 0.0,
+              "max": 100.0
+            },
+            {
+              "name": "Water",
+              "value": 10.0,
+              "min": 0.0,
+              "max": 10.0
+            },
+            {
+              "name": "Seeds",
+              "value": 6.0,
+              "min": 0.0,
+              "max": 99.0
+            },
+            {
+              "name": "Saplings",
+              "value": 2.0,
+              "min": 0.0,
+              "max": 9.0
+            },
+            {
+              "name": "Fruit",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 99.0
+            },
+            {
+              "name": "Crops",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 99.0
+            },
+            {
+              "name": "Milk",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 99.0
+            }
+          ]
+        }
+      },
+      {
+        "id": 421,
+        "name": "Farmhand",
+        "parent": 343,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "gameplay": {
+          "abilities": [
+            "Dig",
+            "Sow",
+            "Water",
+            "PlantTree",
+            "PickFruit",
+            "Pull",
+            "Milk",
+            "CarryBox",
+            "DropBox",
+            "PushWheelbarrow",
+            "ReleaseWheelbarrow",
+            "DumpWheelbarrow"
+          ],
+          "effects": [
+            "EnergyRegen"
+          ],
+          "attributes": [
+            {
+              "name": "Energy",
+              "value": 100.0,
+              "min": 0.0,
+              "max": 100.0
+            },
+            {
+              "name": "Water",
+              "value": 10.0,
+              "min": 0.0,
+              "max": 10.0
+            },
+            {
+              "name": "Seeds",
+              "value": 6.0,
+              "min": 0.0,
+              "max": 99.0
+            },
+            {
+              "name": "Saplings",
+              "value": 2.0,
+              "min": 0.0,
+              "max": 9.0
+            },
+            {
+              "name": "Fruit",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 99.0
+            },
+            {
+              "name": "Crops",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 99.0
+            },
+            {
+              "name": "Milk",
+              "value": 0.0,
+              "min": 0.0,
+              "max": 99.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "gameplay": [
+    {
+      "entity": "Compost",
+      "completed": 0,
+      "effects": [],
+      "uses": {}
+    },
+    {
+      "entity": "Cow",
+      "completed": 0,
+      "effects": [
+        {
+          "name": "MilkRegrow",
+          "remaining": 0.0,
+          "period": 0.9999997
+        }
+      ],
+      "uses": {}
+    },
+    {
+      "entity": "Farmhand",
+      "completed": 0,
+      "effects": [
+        {
+          "name": "EnergyRegen",
+          "remaining": 0.0,
+          "period": -2.9802322e-07
+        }
+      ],
+      "uses": {}
+    },
+    {
+      "entity": "Fruit Tree",
+      "completed": 0,
+      "effects": [
+        {
+          "name": "FruitRegrow",
+          "remaining": 0.0,
+          "period": 0.9999997
+        }
+      ],
+      "uses": {}
+    },
+    {
+      "entity": "Gardener",
+      "completed": 0,
+      "effects": [
+        {
+          "name": "EnergyRegen",
+          "remaining": 0.0,
+          "period": -2.9802322e-07
+        }
+      ],
+      "uses": {
+        "Dig": 1
+      }
+    },
+    {
+      "entity": "Plot 1",
+      "completed": 0,
+      "effects": [],
+      "uses": {}
+    },
+    {
+      "entity": "Plot 2",
+      "completed": 0,
+      "effects": [],
+      "uses": {}
+    },
+    {
+      "entity": "Plot 3",
+      "completed": 0,
+      "effects": [],
+      "uses": {}
+    },
+    {
+      "entity": "Plot 4",
+      "completed": 0,
+      "effects": [],
+      "uses": {}
+    },
+    {
+      "entity": "Plot 5",
+      "completed": 0,
+      "effects": [],
+      "uses": {}
+    },
+    {
+      "entity": "Plot 6",
+      "completed": 0,
+      "effects": [],
+      "uses": {}
+    },
+    {
+      "entity": "Tree Spot",
+      "completed": 0,
+      "effects": [],
+      "uses": {}
+    }
+  ],
+  "actors": [
+    {
+      "name": "Ana",
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "yaw": 0.0,
+      "kind": "fox",
+      "knowledge": [
+        "recipe.stone_axe",
+        "place.camp"
+      ],
+      "inventory": [
+        {
+          "item": "berry",
+          "count": 3,
+          "age": 1250.5
+        },
+        {
+          "item": "wood",
+          "count": 2
+        }
+      ]
+    }
+  ],
+  "sections": {
+    "knowledge-clan": {
+      "version": 1,
+      "data": {
+        "known": [
+          "recipe.stone_axe"
+        ]
+      }
+    }
+  },
+  "checksum": "1a97a20cbe7ab45a"
+}

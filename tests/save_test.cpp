@@ -494,6 +494,45 @@ static void TestActorSection()
 	Check(!ApplyGame(c, back).Ok, "an actor source that refuses stops the load");
 }
 
+// Slots the format keeps ready for later (docs/GUARDADO.md, "Huecos reservados"): how long a stack has existed (goods that spoil), what an agent knows, what an
+// actor was made from. They are optional: written only when set, so every save made without them is the same bytes as before, and a golden save with them loads.
+static void TestReservedSlots()
+{
+	GameSession s({ Seed(11) });
+	Play(s, 60);
+	SaveGame plain = CaptureGame(s).Game;
+	plain.Actors.clear();
+	ActorState bare;
+	bare.Name = "Ana";
+	bare.Inventory.push_back({ "berry", 3 });
+	plain.Actors.push_back(bare);
+	const std::string without = SaveGameToString(plain);
+	Check(without.find("\"age\"") == std::string::npos && without.find("\"knowledge\"") == std::string::npos && without.find("\"kind\"") == std::string::npos,
+		"a save that sets none of the reserved slots does not mention them");
+
+	SaveGame full = plain;
+	full.Actors[0].Kind = "fox";
+	full.Actors[0].Knowledge = { "recipe.stone_axe", "place.camp" };
+	full.Actors[0].Inventory = { { "berry", 3, 1250.5f }, { "wood", 2, 0.0f } };
+	full.Sections.push_back({ "knowledge-clan", 1, "{\"known\":[\"recipe.stone_axe\"]}" });
+	const std::string with = SaveGameToString(full);
+	SaveGame back;
+	CheckR(ParseSaveGame(with, back), "a save with the reserved slots loads");
+	Check(back.Actors.size() == 1 && back.Actors[0].Kind == "fox" && back.Actors[0].Knowledge == full.Actors[0].Knowledge, "the kind and the knowledge come back");
+	Check(back.Actors[0].Inventory.size() == 2 && back.Actors[0].Inventory[0].Age == 1250.5f && back.Actors[0].Inventory[1].Age == 0.0f, "the age of a stack comes back, and a stack without one stays at 0");
+	Check(SaveGameToString(back) == with, "and written again it is the same file");
+	Check(back.Sections.size() == full.Sections.size() && back.Sections.back().Name == "knowledge-clan", "a section nobody reads yet is kept");
+
+	// the golden: a past version wrote it and this one must keep loading it
+	const std::string path = std::string(GB_SAVES_DIR) + "/v1_slots.gbsave";
+	if (Qa::Config::UpdateMode() && !fs::exists(path)) CheckR(SaveGameToFile(full, path), "writing the golden save with the reserved slots");
+	SaveGame g;
+	const std::string text = Slurp(path);
+	CheckR(ParseSaveGame(text, g), "the golden save with the reserved slots loads");
+	Check(g.Format == 1 && g.Actors.size() == 1 && g.Actors[0].Kind == "fox" && g.Actors[0].Inventory[0].Age == 1250.5f, "with what it was written with");
+	if (kFormatVersion == 1) Check(SaveGameToString(g) == text, "and this version writes it back exactly");
+}
+
 int main()
 try
 {
@@ -507,6 +546,7 @@ try
 	TestAutosave();
 	TestReplay();
 	TestActorSection();
+	TestReservedSlots();
 	if (failures) { std::fprintf(stderr, "%d check(s) failed\n", failures); return 1; }
 	std::puts("save tests passed");
 	return 0;

@@ -22,6 +22,9 @@ namespace GB::Editor
 		constexpr double kSimDt = 1.0 / 60.0;
 		constexpr const char* kUserSection = "user-entities";
 		constexpr const char* kTribeSection = "ai";
+		constexpr const char* kEcologySection = "ecology";          // where each rabbit was heading and the counters
+		constexpr const char* kInteractivesSection = "interactives";   // the timers of the fires and the wells
+		constexpr const char* kSeasonSection = "season-look";          // the weather, snow and leaf colour the season wrote
 
 		WorldParams ParamsOf(const WorldDesc& d, bool generated)
 		{
@@ -68,7 +71,7 @@ namespace GB::Editor
 		bool IsSimCommand(const std::string& word)
 		{
 			static const std::set<std::string> names = { "garden", "resources", "ability", "add", "delete", "duplicate", "move", "rotate", "scale", "color", "emissive",
-				"light", "drop", "set", "time", "weather", "entity", "select", "generate" };
+				"light", "drop", "set", "time", "weather", "entity", "select", "generate", "actor", "ecology", "interactives", "tribe", "content" };
 			return names.count(word) != 0;
 		}
 
@@ -228,6 +231,17 @@ namespace GB::Editor
 			m_App.m_Gameplay.Store(user);   // the characters and plots keep their live state in their components
 			out.push_back({ kUserSection, 1, SaveSceneToString(user) });
 		}
+		if (m_App.m_Ecology.Count() > 0 || m_App.m_Ecology.Born() > 0 || m_App.m_Ecology.Starved() > 0) out.push_back({ kEcologySection, 1, m_App.m_Ecology.ToJson() });
+		if (const std::string timers = m_App.m_Interactives.ToJson(); timers != m_App.m_NoInteractiveTimers) out.push_back({ kInteractivesSection, 1, timers });
+		if (m_App.m_SeasonVisuals)
+		{
+			SeasonLook look;
+			look.Enabled = true;
+			look.Weather = m_App.m_AutoWeather;
+			look.Snow = m_App.m_AutoSnow;
+			look.Leaf = m_App.m_AutoLeaf;
+			out.push_back({ kSeasonSection, 1, look.ToJson() });
+		}
 		if (!m_App.m_Tribe.Members().empty()) out.push_back({ kTribeSection, 1, m_App.m_Tribe.ToJson() });   // store, fire, memory and decisions (the needs are attributes)
 		return out;
 	}
@@ -286,16 +300,50 @@ namespace GB::Editor
 		app.m_Props.Set("tod.enabled", game.Clock.TimeOfDay ? "true" : "false");
 		app.m_Props.Set("tod.hours", std::to_string(game.Clock.Hours));
 		if (app.m_Props.Set("weather.preset", game.Weather.Preset).Ok) app.m_Weather->Snap();
-		if (m_Actors) m_Actors->RestoreActors(game.Actors, false);
+		if (m_Actors)
+		{
+			// a game loaded into a world that does not have its characters (a new world, a replay after something else) makes them again from what they were
+			for (const ActorState& a : game.Actors)
+			{
+				if (a.Kind.empty() || app.m_Actors.Find(a.Name)) continue;
+				std::string error;
+				if (!app.m_Player.Spawn(a.Name, a.Kind, app.m_World, app.m_SceneEditor, app.m_AssetRoot, a.Position, app.m_Steps.get(), error, false))
+					GB_CLIENT_WARN("the actor {} of the save cannot be made again: {}", a.Name, error);
+			}
+			m_Actors->RestoreActors(game.Actors, false);
+		}
 		app.m_Tribe.Clear();
 		app.m_TribeBodies.clear();
 		for (const SectionBlob& s : game.Sections)
 			if (s.Name == kTribeSection) app.RestoreTribe(s.Json);
+		// what the systems keep apart from the components (a save from before these sections leaves them at their start)
+		std::string ecology = "{\"born\":0,\"starved\":0,\"eaten\":0,\"walks\":[]}", interactives = app.m_NoInteractiveTimers;
+		SeasonLook look;
+		for (const SectionBlob& s : game.Sections)
+		{
+			if (s.Name == kEcologySection) ecology = s.Json;
+			else if (s.Name == kInteractivesSection) interactives = s.Json;
+			else if (s.Name == kSeasonSection && !look.FromJson(s.Json)) GB_CLIENT_WARN("the season look of the save could not be read: it starts again");
+		}
+		if (!app.m_Ecology.FromJson(ecology)) GB_CLIENT_WARN("the animals' state of the save could not be read: they choose again");
+		if (!app.m_Interactives.FromJson(interactives)) GB_CLIENT_WARN("the timers of the interactives could not be read: they start again");
+		app.m_SeasonVisuals = look.Enabled;
+		app.m_AutoWeather = look.Weather;
+		app.m_AutoSnow = look.Snow;
+		app.m_AutoLeaf = look.Leaf;
+		if (look.Enabled && look.Snow >= 0.0f) app.m_Props.Set("ground.snow", std::to_string(look.Snow));
 		app.StepResources();
 	}
 
 	void EditorSaveHost::Step()
 	{
+		// The characters move in the fixed tick (not with the frame time) so a replay, a loaded game and a run at another frame rate go the same way. With a player
+		// driving one they follow the frame, which reads the keyboard (EditorApp::OnUpdate).
+		if (!m_App.m_Player.IsActive())
+		{
+			m_App.m_Actors.PrepareAbilities();
+			m_App.m_Actors.Update(static_cast<float>(kSimDt));
+		}
 		m_App.m_Gameplay.Update(static_cast<float>(kSimDt));
 		m_App.m_Garden.Update(static_cast<float>(kSimDt));
 		m_App.StepResources();

@@ -1,0 +1,13 @@
+# A replay of the whole small society (H4 acceptance, H3 and H6 state): a tribe of five, the interactives and rabbits are built, a replay is recorded from there
+# (everybody standing still: a game saved in the middle of an ability resumes, but not step for step), the world is thrown away for another one, and playing
+# the replay must rebuild it all (actors, tribe, memory, rabbits, fires) and end in the same state.
+generate temperate 5
+tribe build fox 0 0 5
+interactives build -8 -4
+ecology spawn 4 3 6
+replay record
+wait 600
+replay stop replay_society
+generate temperate 9
+replay play replay_society
+quit

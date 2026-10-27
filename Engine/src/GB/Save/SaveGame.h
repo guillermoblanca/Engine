@@ -67,6 +67,9 @@ namespace GB::Save
 	{
 		std::string Item;
 		int Count = 1;
+		// Reserved (docs/GUARDADO.md, "Huecos reservados"): seconds the stack has existed, for goods that spoil. Written only when not 0 and read back when
+		// there; nothing sets it yet, so every save made today has none.
+		float Age = 0.0f;
 	};
 
 	// One body of a ragdoll (or any simulated body) at the moment of saving.
@@ -84,6 +87,9 @@ namespace GB::Save
 	struct ActorState
 	{
 		std::string Name;
+		std::string Kind;                // what it was made from ("fox", "cesium" or a character file): with it a game loaded into an empty world makes the actor again; "" = unknown
+		// Reserved (docs/GUARDADO.md): what this agent knows (recipes, places, techniques) as names; written only when not empty, nothing fills it yet.
+		std::vector<std::string> Knowledge;
 		glm::vec3 Position{ 0.0f };
 		float Yaw = 0.0f;                // radians, 0 = +Z
 		std::string Set;                 // animation set (locomotion) in use

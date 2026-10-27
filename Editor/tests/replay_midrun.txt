@@ -1,0 +1,17 @@
+# A replay recorded in the middle of a run (rabbits wandering and eating, a fire burning, the clock in the second season): what the components do not keep
+# (where each rabbit was heading, the burn timers, the look of the season) travels in sections, so the replay, started in a different world, ends the same.
+generate temperate 5
+interactives build -8 -4
+resources build 0 0
+ecology spawn 4 3 6
+ecology season summer
+actor spawn Ana fox -8 -6 ai
+actor bag Ana add wood 4
+actor tasks Ana ability Stoke Fire_Pit | wait 1 | ability Stoke Fire_Pit | wait 1 | ability OpenDoor Gate
+wait 900
+replay record
+wait 900
+replay stop replay_midrun
+generate temperate 9
+replay play replay_midrun
+quit

@@ -135,6 +135,27 @@ int main()
 	Check(LoadSceneFromString(bareLoaded, SaveSceneToString(bare)).Ok, "a scene with an empty gameplay component loads");
 	Check(bareLoaded.Find(bareLoaded.FindByName("walker")) && bareLoaded.Find(bareLoaded.FindByName("walker"))->Gameplay.has_value(), "an empty gameplay component survives a save and a load");
 
+	// A scene comes back bit for bit (7 digits moved a coordinate such as -155.165 across a rounding boundary and a replay's fingerprint with it)
+	{
+		EntityWorld exact;
+		const EntityId id = exact.Create("Tree 270");
+		const float awkward[] = { -155.16499f, 134.02432f, 0.1f, 1e-7f, 16777216.0f, -0.0f, 3.4028235e38f, 0.33333334f };
+		for (const float v : awkward)
+		{
+			exact.Find(id)->Transform.Position = { v, -v, v * 0.5f };
+			EntityWorld back;
+			Check(LoadSceneFromString(back, SaveSceneToString(exact)).Ok, "an awkward scene loads");
+			const glm::vec3 p = back.Find(back.FindByName("Tree 270"))->Transform.Position;
+			Check(p == exact.Find(id)->Transform.Position, "a position comes back exactly");
+		}
+		exact.Find(id)->Transform.Position = { 0.1f, 0.2f, 0.3f };
+		Check(SaveSceneToString(exact).find("0.10000000") == std::string::npos, "a short number is still written short (0.1, not 0.10000000149)");
+		exact.Find(id)->Transform.Position = { 134.02432f, 0.0f, 0.0f };
+		const std::string seven = SaveSceneToString(exact, SceneFloats::Short7), whole = SaveSceneToString(exact);
+		Check(seven.find("134.0243,") != std::string::npos && whole.find("134.02432") != std::string::npos && seven.find("134.02432") == std::string::npos,
+			"the 7-digit form of the old files is still there for the identity of a generated world");
+	}
+
 	if (failures) return 1;
 	std::puts("entity tests passed");
 	return 0;

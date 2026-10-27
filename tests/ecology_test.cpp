@@ -161,12 +161,38 @@ int main()
 		plants.Bind(loaded, a.Defs, {});
 		EcologySystem eco;
 		eco.Bind(entities, loaded);
-		Check(eco.Count() == a.Eco.Count(), "the same rabbits");
-		// and the world goes on: the loaded one still feeds and keeps its limit (it need not be step for step the same: where a rabbit was heading is
-		// not saved, so it picks a new target from where it stands)
+		const std::string walks = a.Eco.ToJson();
+		Check(eco.FromJson(walks), "where each rabbit was heading and the counters come back");
+		Check(eco.ToJson() == walks, "and read back they are what was written");
+		Check(eco.Count() == a.Eco.Count() && eco.Describe() == a.Eco.Describe(), "the same rabbits and the same counters");
+		Check(!eco.FromJson("{") && !eco.FromJson("[]") && !eco.FromJson("{\"born\": \"many\"}"), "a damaged text is refused");
+		Check(eco.ToJson() == walks, "and a refusal changes nothing");
+
+		// and the world goes on exactly as the original does (with the counters and the headings saved there is nothing left to choose again)
+		a.Run(300.0);
 		double clock = 300.0;
-		for (int i = 0; i < 3000; ++i) { loaded.Update(dt); plants.Update(loaded, dt, SeasonClock::GrowthRate(SeasonClock().At(clock))); eco.Update(clock, dt); clock += dt; }
-		Check(eco.Count() >= 1 && eco.Count() <= eco.Config.MaxAnimals, "a loaded meadow keeps going within its limit");
+		for (int i = 0, steps = static_cast<int>(300.0 / dt); i < steps; ++i) { loaded.Update(dt); plants.Update(loaded, dt, SeasonClock::GrowthRate(SeasonClock().At(clock))); eco.Update(clock, dt); clock += dt; }
+		Check(eco.Describe() == a.Eco.Describe(), "after five more minutes the loaded meadow has the same births, deaths and meals");
+		bool together = true;
+		for (const std::string& n : a.Gameplay.Names())
+			if (const AbilitySystemComponent* x = a.Gameplay.Find(n); x && x->HasTag("Animal.Rabbit"))
+			{
+				const EntityId ia = a.Entities.FindByName(n), ib = entities.FindByName(n);
+				together = together && ib != NullEntity && a.Entities.Find(ia)->Transform.Position == entities.Find(ib)->Transform.Position;
+			}
+		Check(together, "and every rabbit stands where its original stands");
+	}
+
+	// The look the season wrote, as a save section.
+	{
+		SeasonLook look;
+		look.Enabled = true;
+		look.Weather = "lightrain";
+		look.Snow = 0.35f;
+		look.Leaf = { 0.8f, 0.45f, 0.1f };
+		SeasonLook back;
+		Check(back.FromJson(look.ToJson()) && back.Enabled && back.Weather == "lightrain" && back.Snow == 0.35f && back.Leaf == look.Leaf, "the look of the season survives a round trip exactly");
+		Check(!back.FromJson("{}") && !back.FromJson("nope") && back.Weather == "lightrain", "a damaged look is refused and changes nothing");
 	}
 
 	if (failures) { std::fprintf(stderr, "%d failure(s)\n", failures); return 1; }

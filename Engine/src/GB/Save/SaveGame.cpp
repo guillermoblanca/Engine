@@ -1,5 +1,6 @@
 #include "GB/Save/SaveGame.h"
 #include "GB/Game/SceneIO.h"
+#include <charconv>
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -19,7 +20,14 @@ namespace GB::Save
 			std::snprintf(buf, sizeof(buf), "%.7g", v);
 			return std::strtod(buf, nullptr);
 		}
-		double Round(float v) { return Round(static_cast<double>(v)); }
+		// A float prints as the shortest text that reads back as the same float (see SceneIO.cpp).
+		double Round(float v)
+		{
+			char buf[40];
+			const std::to_chars_result r = std::to_chars(buf, buf + sizeof(buf) - 1, v);
+			*r.ptr = '\0';
+			return std::strtod(buf, nullptr);
+		}
 
 		Json Vec3(const glm::vec3& v) { return Json::array({ Round(v.x), Round(v.y), Round(v.z) }); }
 
@@ -38,7 +46,7 @@ namespace GB::Save
 			if (it != j.end()) out = it->get<T>();
 		}
 
-		std::string EmptyBaselineHash() { return HashText(SaveSceneToString(EntityWorld())); }
+		std::string EmptyBaselineHash() { return HashText(SaveSceneToString(EntityWorld(), SceneFloats::Short7)); }
 
 		Json ToJson(const SaveGame& g, bool withChecksum)
 		{
@@ -86,12 +94,19 @@ namespace GB::Save
 			for (const ActorState& a : g.Actors)
 			{
 				Json j{ { "name", a.Name }, { "position", Vec3(a.Position) }, { "yaw", Round(a.Yaw) } };
+				if (!a.Kind.empty()) j["kind"] = a.Kind;
+				if (!a.Knowledge.empty()) j["knowledge"] = a.Knowledge;
 				if (!a.Set.empty()) j["set"] = a.Set;
 				if (!a.Props.empty()) j["props"] = a.Props;
 				if (!a.Inventory.empty())
 				{
 					Json inv = Json::array();
-					for (const ItemStack& s : a.Inventory) inv.push_back(Json{ { "item", s.Item }, { "count", s.Count } });
+					for (const ItemStack& s : a.Inventory)
+					{
+						Json stack{ { "item", s.Item }, { "count", s.Count } };
+						if (s.Age != 0.0f) stack["age"] = Round(s.Age);
+						inv.push_back(std::move(stack));
+					}
 					j["inventory"] = std::move(inv);
 				}
 				if (a.Move != glm::vec2(0.0f) || a.Run) j["input"] = Json{ { "move", Json::array({ Round(a.Move.x), Round(a.Move.y) }) }, { "run", a.Run } };
@@ -198,10 +213,12 @@ namespace GB::Save
 					a.Name = j.at("name").get<std::string>();
 					a.Position = ReadVec3(j, "position");
 					Read(j, "yaw", a.Yaw);
+					Read(j, "kind", a.Kind);
+					Read(j, "knowledge", a.Knowledge);
 					Read(j, "set", a.Set);
 					Read(j, "props", a.Props);
 					if (auto inv = j.find("inventory"); inv != j.end())
-						for (const Json& s : *inv) a.Inventory.push_back({ s.at("item").get<std::string>(), s.value("count", 1) });
+						for (const Json& s : *inv) a.Inventory.push_back({ s.at("item").get<std::string>(), s.value("count", 1), s.value("age", 0.0f) });
 					if (auto in = j.find("input"); in != j.end())
 					{
 						if (auto m = in->find("move"); m != in->end() && m->is_array() && m->size() == 2) a.Move = { (*m)[0].get<float>(), (*m)[1].get<float>() };

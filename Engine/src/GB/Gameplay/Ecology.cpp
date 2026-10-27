@@ -2,6 +2,7 @@
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
 #include <cmath>
+#include <nlohmann/json.hpp>
 #include <vector>
 
 namespace GB
@@ -318,6 +319,76 @@ namespace GB
 				++m_Born;
 			}
 		}
+	}
+
+	std::string SeasonLook::ToJson() const
+	{
+		using Json = nlohmann::json;
+		return Json{ { "enabled", Enabled }, { "weather", Weather }, { "snow", Snow }, { "leaf", Json::array({ Leaf.x, Leaf.y, Leaf.z }) } }.dump();
+	}
+
+	bool SeasonLook::FromJson(const std::string& text)
+	{
+		using Json = nlohmann::json;
+		Json j = Json::parse(text, nullptr, false);
+		if (j.is_discarded() || !j.is_object()) return false;
+		try
+		{
+			SeasonLook look;
+			look.Enabled = j.at("enabled").get<bool>();
+			look.Weather = j.at("weather").get<std::string>();
+			look.Snow = j.at("snow").get<float>();
+			look.Leaf = { j.at("leaf").at(0).get<float>(), j.at("leaf").at(1).get<float>(), j.at("leaf").at(2).get<float>() };
+			*this = look;
+		}
+		catch (const Json::exception&)
+		{
+			return false;
+		}
+		return true;
+	}
+
+	std::string EcologySystem::ToJson() const
+	{
+		using Json = nlohmann::json;
+		Json walks = Json::array();
+		for (const auto& [name, w] : m_Walks)
+		{
+			if (!w.Has) continue;
+			walks.push_back(Json{ { "name", name }, { "home", Json::array({ w.Home.x, w.Home.y }) }, { "target", Json::array({ w.Target.x, w.Target.y }) }, { "plant", w.Plant }, { "eating", w.Eating } });
+		}
+		return Json{ { "born", m_Born }, { "starved", m_Starved }, { "eaten", m_Eaten }, { "walks", walks } }.dump();
+	}
+
+	bool EcologySystem::FromJson(const std::string& text)
+	{
+		using Json = nlohmann::json;
+		Json j = Json::parse(text, nullptr, false);
+		if (j.is_discarded() || !j.is_object()) return false;
+		try
+		{
+			std::map<std::string, Walk> walks;
+			for (const Json& o : j.at("walks"))
+			{
+				Walk w;
+				w.Has = true;
+				w.Home = { o.at("home").at(0).get<float>(), o.at("home").at(1).get<float>() };
+				w.Target = { o.at("target").at(0).get<float>(), o.at("target").at(1).get<float>() };
+				w.Plant = o.at("plant").get<std::string>();
+				w.Eating = o.at("eating").get<float>();
+				walks[o.at("name").get<std::string>()] = w;
+			}
+			m_Born = j.at("born").get<int>();
+			m_Starved = j.at("starved").get<int>();
+			m_Eaten = j.at("eaten").get<int>();
+			for (auto& [name, w] : walks)
+				if (const auto it = m_Walks.find(name); it != m_Walks.end()) it->second = w;   // (an animal the scene does not have is dropped)
+		}
+		catch (const Json::exception&)
+		{
+			return false;
+		}
+		return true;
 	}
 
 	std::string EcologySystem::Describe() const
