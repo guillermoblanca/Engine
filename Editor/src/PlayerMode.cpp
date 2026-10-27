@@ -6,6 +6,8 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace GB::Editor
@@ -102,6 +104,12 @@ namespace GB::Editor
 		m_UseAI = false;
 		if (isFbx)
 		{
+			// the manifest the assets ship (the packs' sets, turns and montages as data) replaces the built-in lists when it is there
+			if (const std::string shipped = assetRoot + "/animation/mixamo.manifest.json"; fs::exists(shipped))
+			{
+				std::string report;
+				if (!LoadManifestFile(shipped, report)) GB_CLIENT_WARN("Animation manifest: {}", report);
+			}
 			if (!BuildAnimator(error))
 			{
 				m_Instance.reset();
@@ -139,13 +147,62 @@ namespace GB::Editor
 			error = "the character has no locomotion clips (idle, walk, run...): put the animation FBX files next to it (see character_check)";
 			return false;
 		}
-		animator->AddMixamoSets();      // box, holding, wheelbarrow... when the folder has those clips
-		animator->AddMixamoActions();   // farming montages and the jump clip
+		m_ManifestReport = animator->LoadManifest(m_Manifest);   // the sets, turns, jump and montages the folder has clips for
 		animator->SetFootsteps(m_Steps);
 		if (animator->Anim().Turn().HasClips("")) m_Controller.Config.TurnInPlaceAngle = 70.0f;   // the character has a turn on the spot to show
 		m_Animator = std::move(animator);
 		ApplyFeet();
 		return true;
+	}
+
+	bool PlayerMode::LoadManifestFile(const std::string& path, std::string& report)
+	{
+		std::ifstream in(path);
+		if (!in) { report = "could not read " + path; return false; }
+		std::stringstream text;
+		text << in.rdbuf();
+		AnimManifest manifest;
+		std::string error;
+		if (!AnimManifestFromJson(text.str(), manifest, &error)) { report = error; return false; }
+		const std::vector<std::string> problems = ValidateManifest(manifest);
+		if (!problems.empty())
+		{
+			report = "the manifest has problems:";
+			for (const std::string& p : problems) report += "\n  " + p;
+			return false;
+		}
+		m_Manifest = std::move(manifest);
+		report = "loaded " + std::to_string(m_Manifest.Sets.size() + 1) + " set(s) and " + std::to_string(m_Manifest.Montages.size()) + " montage(s) from " + path;
+		if (m_Model && m_Instance && m_Animator)
+		{
+			std::string error2;
+			if (!BuildAnimator(error2)) { report += "\n" + error2; return false; }
+			report += "\n" + ManifestInfo();
+		}
+		return true;
+	}
+
+	bool PlayerMode::SaveManifestFile(const std::string& path, std::string& report) const
+	{
+		std::ofstream out(path);
+		if (!out) { report = "could not write " + path; return false; }
+		out << AnimManifestToJson(m_Manifest);
+		report = "saved " + path;
+		return out.good();
+	}
+
+	std::string PlayerMode::ManifestInfo() const
+	{
+		std::string out = "manifest: " + std::to_string(m_Manifest.Sets.size() + 1) + " set(s), " + std::to_string(m_Manifest.Montages.size()) + " montage(s), "
+			+ std::to_string(m_Manifest.Packs.size()) + " pack(s)";
+		if (!m_Animator) return out + " (no FBX character to apply it to)";
+		out += "\nthis character: sets";
+		for (const std::string& s : m_ManifestReport.Sets) out += " " + s;
+		out += "; " + std::to_string(m_ManifestReport.Montages) + " montage(s), " + std::to_string(m_ManifestReport.TurnClips) + " turn clip(s), jump " + (m_ManifestReport.Air ? "yes" : "no");
+		out += "\nmissing clips: " + std::to_string(m_ManifestReport.Missing.size()) + ", clips nothing uses: " + std::to_string(m_ManifestReport.Unused.size());
+		for (size_t i = 0; i < m_ManifestReport.Missing.size() && i < 8; ++i) out += "\n  missing " + m_ManifestReport.Missing[i];
+		for (size_t i = 0; i < m_ManifestReport.Unused.size() && i < 8; ++i) out += "\n  unused " + m_ManifestReport.Unused[i];
+		return out;
 	}
 
 	bool PlayerMode::Retarget(const std::string& pathIn, const std::string& assetRoot, std::string& report)

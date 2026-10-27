@@ -52,6 +52,12 @@ namespace GB::Editor
 		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animator && m_Animator->Anim().SetOverlay(name, fadeSeconds); }
 		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
 		// One-shot actions over the locomotion (pick_fruit, water, milk_cow...): the FBX player's MontagePlayer. False for an unknown one.
+		// The animation manifest the character is built from (see AnimManifest.h): the built-in Mixamo lists until a file replaces them. Loading
+		// a file rebuilds the animator of an active player; `report` says what the character has clips for and what it lacks.
+		const AnimManifest& Manifest() const { return m_Manifest; }
+		bool LoadManifestFile(const std::string& path, std::string& report);
+		bool SaveManifestFile(const std::string& path, std::string& report) const;
+		std::string ManifestInfo() const;
 		bool PlayMontage(const std::string& name, const std::string& section = "") { return m_Animator && m_Animator->Anim().Montages().Play(name, section); }
 		void StopMontage() { if (m_Animator) m_Animator->Anim().Montages().StopSlot("FullBody"), m_Animator->Anim().Montages().StopSlot("UpperBody"); }
 		std::vector<std::string> MontageNames() const { return m_Animator ? m_Animator->Anim().Montages().Names() : std::vector<std::string>(); }
@@ -121,6 +127,8 @@ namespace GB::Editor
 		std::string m_PendingProp;   // waits for the box overlay to finish before measuring the grips
 		float m_BaseWalk = 0.0f, m_BaseRun = 0.0f;   // the controller's own speeds, before a set with no run clip caps them
 
+		AnimManifest m_Manifest = MixamoManifest();
+		ManifestReport m_ManifestReport;                         // of the last time it was applied to the character
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
 		CharacterAnimation m_Animation;                          // the plain idle/walk/run switch, for models without a locomotion set
