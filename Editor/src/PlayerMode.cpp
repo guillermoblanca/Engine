@@ -114,6 +114,7 @@ namespace GB::Editor
 			animator->AddMixamoSets();      // box, holding, wheelbarrow... when the folder has those clips
 			animator->AddMixamoActions();   // farming montages and the jump clip
 			animator->SetFootsteps(m_Steps);
+			if (animator->Anim().Turn().HasClips("")) m_Controller.Config.TurnInPlaceAngle = 70.0f;   // the character has a turn on the spot to show
 			m_Animator = std::move(animator);
 			ApplyFeet();
 		}

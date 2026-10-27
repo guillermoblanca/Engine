@@ -280,5 +280,28 @@ int main()
 
 	if (failures == 0)
 		std::printf("character tests passed\n");
+	// ---- Turning on the spot (opt-in): asked to go the opposite way from a standstill, the character turns first.
+	{
+		GB::CharacterController plain;
+		plain.SetPosition(flat, 0.0f, 0.0f, 0.0f);   // faces +Z; "forward" with camera yaw 0 is -Z: straight behind it
+		Run(plain, flat, Forward(), 0.4f, 1.0f / 60.0f);
+		Check(plain.GetSpeed() > 1.0f, "by default the character sets off at once while it turns");
+
+		GB::CharacterController turner;
+		turner.Config.TurnInPlaceAngle = 70.0f;
+		turner.SetPosition(flat, 0.0f, 0.0f, 0.0f);
+		Run(turner, flat, Forward(), 0.4f, 1.0f / 60.0f);
+		Check(turner.GetSpeed() < 0.05f, "with turn-in-place the character stays where it is while it turns");
+		Check(std::fabs(turner.GetYaw()) > 0.8f && std::fabs(turner.GetYaw()) < 2.5f, "and its heading swings round at the turn rate");
+		Run(turner, flat, Forward(), 1.6f, 1.0f / 60.0f);
+		Check(turner.GetSpeed() > 1.0f && turner.GetPosition().z < -0.3f, "then it walks off the right way");
+
+		GB::CharacterController small;   // a small change of direction does not stop the character
+		small.Config.TurnInPlaceAngle = 70.0f;
+		small.SetPosition(flat, 0.0f, 0.0f, 3.14159265f);   // already facing -Z
+		Run(small, flat, Forward(), 0.4f, 1.0f / 60.0f);
+		Check(small.GetSpeed() > 1.0f, "no turn first when the character already faces the way it goes");
+	}
+
 	return failures == 0 ? 0 : 1;
 }
