@@ -9,6 +9,7 @@
 #include "GB/Game/MotionState.h"
 #include "GB/Game/TaskList.h"
 #include "GB/Gameplay/GameplayWorld.h"
+#include "GB/Gameplay/Items.h"
 #include "GB/Renderer/Mesh.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/World/Physics.h"
@@ -131,6 +132,9 @@ namespace GB
 		bool EquipProp(const std::string& name, bool on);   // also changes the walk for the box and the wheelbarrow
 		void SetFootIK(bool on) { m_FeetOn = on; ApplyFeet(); }
 		bool FootIKOn() const { return m_FeetOn; }
+		// What the actor carries (H2): a backpack of 12 slots. Saved with the actor.
+		Inventory& Bag() { return m_Bag; }
+		const Inventory& Bag() const { return m_Bag; }
 		void LookAtPoint(const glm::vec3& p) { if (m_Animator) m_Animator->Anim().Look().SetTarget(p); }
 		void ClearLook() { if (m_Animator) m_Animator->Anim().Look().ClearTarget(); }
 		void SetFootsteps(FootstepSounds* steps) { m_Steps = steps; if (m_Animator) m_Animator->SetFootsteps(steps); }
@@ -193,6 +197,7 @@ namespace GB
 		AbilityRuntime m_AbilityRt;
 		TaskRunner::Resolver m_Interactions;
 		bool m_FeetOn = true;
+		Inventory m_Bag{ 12, 0.0f };
 		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
 		std::map<std::string, PropLook> m_PropLooks;
 		mutable std::unique_ptr<Mesh> m_PropMesh;

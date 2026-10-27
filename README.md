@@ -74,6 +74,7 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | Habilidades de juego tipo GAS y escenario del huerto (`garden build`, `ability ...`) | [docs/habilidades.md](docs/habilidades.md) |
 | Animaciones que faltan en los packs y qué se usa mientras tanto | [docs/ANIMACIONES_PENDIENTES.md](docs/ANIMACIONES_PENDIENTES.md) |
 | Partidas guardadas, migraciones, guardado diferencial y repeticiones (`save`, `load`, `replay`) | [docs/GUARDADO.md](docs/GUARDADO.md) |
+| Objetos, inventario, recursos y recetas | [docs/OBJETOS.md](docs/OBJETOS.md) |
 | Partículas y clima | [docs/efectos.md](docs/efectos.md) |
 | Terreno, agua, vegetación, erosión y mundos procedurales | [docs/mundo.md](docs/mundo.md) |
 | Física y destrucción | [docs/fisica.md](docs/fisica.md) |

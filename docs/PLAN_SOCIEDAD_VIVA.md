@@ -333,7 +333,7 @@ Y los **modelos**: herramientas, semillas y plantas, regadera, pala, cestas, obj
 |---|---|
 | H0 · Consolidación y contrato de actor | **Hecho** (rama `feature/actor-h0`): sets, interacciones, grafo de estados y línea de tiempo fusionados; manifiesto de datos con los siete packs (`AnimManifest`); **contrato de actor** (`Actor`, `ActorWorld`, `OrderSource`) con tests y coste medido (`docs/COSTE_ACTOR.md`) |
 | H1 · Núcleo de habilidades (GAS) | En curso (`feature/huerto-gas`) |
-| H2 · Objetos, inventario y recursos | Sin empezar |
+| H2 · Objetos, inventario y recursos | **En curso** (núcleo hecho, [docs/OBJETOS.md](OBJETOS.md)): objetos, inventario con peso y apilado, nodos con regeneración, recetas, mochila por actor guardada con la partida y `actor bag`. Falta: nodos como entidades, habilidades y montajes de recolección, agarre visible |
 | H3 · Mundo interactivo y ecología | En curso (huerto) |
 | H4 · Persistencia v1 | **Hecho** (`GB/Save`, [docs/GUARDADO.md](GUARDADO.md)): formato `.gbsave` versionado con migraciones y partidas antiguas en `tests/golden/saves/`, guardado diferencial sobre la semilla, escritura atómica con copia, autoguardado, repetición determinista y comandos del editor. Queda para otros hitos: inventarios (H2), enganchar el `Actor` (H0) y la edición de terreno |
 | H5 a H20 | Sin empezar |

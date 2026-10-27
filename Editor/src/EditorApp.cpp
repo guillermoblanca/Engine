@@ -668,7 +668,31 @@ namespace GB::Editor
 				std::string error;
 				return actor->RunTasks(text, error) ? CommandResult{ true, a[1] + " is running: " + actor->TaskStatus() } : CommandResult{ false, error };
 			}
-			return { false, "usage: actor spawn|list|control|tasks|remove|sync" };
+			if (sub == "bag")
+			{
+				if (m_Items.Ids().empty()) RegisterEraOneItems(m_Items, m_Recipes, m_NodeDefs);
+				Inventory& bag = actor->Bag();
+				const std::string verb = a.size() > 2 ? a[2] : "list";
+				const int n = a.size() > 4 ? std::max(1, std::atoi(a[4].c_str())) : 1;
+				if (verb == "add" && a.size() > 3)
+				{
+					const int got = bag.Add(m_Items, a[3], n);
+					return { got > 0, got > 0 ? "added " + std::to_string(got) + " " + a[3] : "cannot add " + a[3] + " (unknown item or no room)" };
+				}
+				if (verb == "remove" && a.size() > 3) return { true, "removed " + std::to_string(bag.Remove(a[3], n)) + " " + a[3] };
+				if (verb == "craft" && a.size() > 3)
+				{
+					const std::string station = a.size() > 4 ? a[4] : "";
+					const std::string why = m_Recipes.WhyNot(m_Items, bag, a[3], station);
+					if (!why.empty()) return { false, why };
+					m_Recipes.Craft(m_Items, bag, a[3], station);
+					return { true, "made " + a[3] };
+				}
+				std::string text;
+				for (const ItemSlot& s : bag.Stacks()) text += (text.empty() ? "" : ", ") + s.Id + " x" + std::to_string(s.Count);
+				return { true, text.empty() ? a[1] + " carries nothing" : a[1] + " carries " + text };
+			}
+			return { false, "usage: actor spawn|list|control|tasks|remove|sync|bag <name> [add|remove|craft <item|recipe> [n|station]]" };
 		});
 		c.Register("player_tasks", "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop] | ability <name> [entity], separated by '|' or new lines)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
