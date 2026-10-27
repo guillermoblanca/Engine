@@ -23,6 +23,7 @@ add_library(GB STATIC
     src/GB/Gameplay/GameplayWorld.cpp
     src/GB/Gameplay/Garden.cpp
     src/GB/Gameplay/Items.cpp
+    src/GB/Gameplay/Resources.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp

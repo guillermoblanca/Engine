@@ -236,3 +236,7 @@ add_test(NAME save COMMAND GBSaveTests)
 add_executable(GBItemsTests items_test.cpp)
 target_link_libraries(GBItemsTests PRIVATE GB::GB)
 add_test(NAME items COMMAND GBItemsTests)
+
+add_executable(GBResourcesTests resources_test.cpp)
+target_link_libraries(GBResourcesTests PRIVATE GB::GB)
+add_test(NAME resources COMMAND GBResourcesTests)
