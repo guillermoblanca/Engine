@@ -797,7 +797,7 @@ namespace GB::Editor
 						const size_t sp = text.find(' ');
 						const auto options = self->m_Props.List(text.substr(sp + 1));
 						if (!options.empty() && (text.rfind("set", 0) == 0 || text.rfind("get", 0) == 0 || text.rfind("list", 0) == 0))
-						{ d->DeleteChars(sp + 1, d->BufTextLen - static_cast<int>(sp) - 1); d->InsertChars(d->CursorPos, options[0].c_str()); }
+						{ d->DeleteChars(static_cast<int>(sp) + 1, d->BufTextLen - static_cast<int>(sp) - 1); d->InsertChars(d->CursorPos, options[0].c_str()); }
 					}
 				}
 				return 0;
