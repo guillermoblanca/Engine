@@ -15,6 +15,20 @@
 
 El huerto (`GardenSystem::GrowthRate`) usa ese factor: en invierno las plantas no avanzan. La regeneración de los nodos de recurso (árboles, bayas, fibra) usa el mismo factor: en invierno no rebrota nada. La lluvia (`weather rain|lightrain|storm`) riega las parcelas cada 5 s de simulación.
 
+## Cómo se ven
+
+Con `tribe build`, `ecology spawn` o `ecology season` la estación pasa a mandar sobre el aspecto del mundo (`ecology visuals on|off` lo activa o lo apaga; no cambia nada si no hay animales ni tribu):
+
+| Estación | Clima | Nieve en el suelo | Copas y arbustos de los nodos |
+|---|---|---|---|
+| Primavera | lluvia ligera el primer 20 % | 95 % que se derrite en el primer cuarto | verde claro |
+| Verano | despejado (tormenta a mitad de estación) | 0 | verde |
+| Otoño | lluvia el último tercio | un primer copo al final | naranja |
+| Invierno | nevada hasta el 90 % | cae durante el primer 15 % y se queda | escarchados |
+
+Todo sale de la estación y de cuánto lleva (`SeasonClock::Weather`, `SnowCover`, `Foliage`), sin guardar nada. Los colores se mezclan con los de la estación siguiente en el último 30 %, y el
+editor solo escribe las propiedades (`weather.preset`, `ground.snow`) cuando cambian.
+
 ## Conejos
 
 Un conejo es una entidad con sistema de habilidades cuyos atributos son todo su estado (`Food`, `Age`, `Cooldown`, `Starving`): se guardan y se cargan como todo lo demás. El sistema
@@ -51,4 +65,4 @@ cada conejo en el mismo sitio y una pradera guardada y cargada a mitad conserva 
 ## Límites conocidos
 
 - Solo hay un animal (conejo) y ningún depredador; la comida de los conejos y la de la tribu es la misma, y con pocos arbustos se la quitan.
-- Las estaciones no cambian aún el aspecto del terreno ni de los árboles, ni el clima de forma automática.
+- El color de estación solo llega a los nodos de recurso (los árboles del mundo generado conservan el suyo); el terreno y la hierba no cambian de color, solo la nieve.

@@ -148,7 +148,7 @@ public:
 			if (settings.Well) BuildInteractives(Entities, settings.Origin);
 			Entity& e = *Entities.Find(Entities.Create("Hero"));
 			e.Gameplay.emplace();
-			e.Gameplay->Abilities = { "Chop", "Mine", "Gather", "DrawWater" };
+			e.Gameplay->Abilities = { "Chop", "Mine", "Gather", "PullFiber", "DrawWater" };
 			Gameplay.Load(Entities);
 		}
 		else

@@ -102,7 +102,8 @@ namespace GB::Editor
 		void RestoreTribe(const std::string& json);   // after a load: the members of a saved tribe, with their actors
 		void DrawWorldStatePanel();
 		CommandResult EcologyCommand(const std::vector<std::string>& a);
-		void StepWorld(double clock);                            // seasons, rain on the plots and the animals, once per simulation step
+		void StepWorld(double clock);
+		void ApplySeasonLook(double clock);                      // weather, snow and foliage colour of the season                            // seasons, rain on the plots and the animals, once per simulation step
 		void DrawBag(const std::string& actorName);                // the inventory of a character, as a table
 		std::string PickActor(const struct Ray& ray) const;       // the character under a viewport click ("" = none)
 		void SelectActor(const std::string& name, bool focus);   // the character the Abilities and Tribe panels show
@@ -146,6 +147,10 @@ namespace GB::Editor
 		GameplayWorld m_Gameplay;                                // tags, attributes, effects and abilities of the entities and the player (see GB/Gameplay)
 		GardenSystem m_Garden;
 		ResourceSystem m_Resources;
+		bool m_SeasonVisuals = false;                            // the season drives weather, snow and foliage (`ecology visuals`)
+		std::string m_AutoWeather;
+		float m_AutoSnow = -1.0f;
+		glm::vec3 m_AutoLeaf{ -1.0f };
 		EcologySystem m_Ecology;                                 // rabbits that eat, breed and starve (`ecology spawn`)
 		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
 		int m_FocusWorldState = 0, m_FocusAbilities = 0;         // the same for the World state and Abilities panels (panel <name> on)

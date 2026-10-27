@@ -343,7 +343,7 @@ namespace GB
 	{
 		AbilitySystemComponent* asc = Abilities();
 		if (!asc) return;
-		for (const char* work : { "Chop", "Mine", "Gather", "Stoke", "DrawWater", "OpenDoor", "CloseDoor" }) asc->Grant(work);   // every actor can work resource nodes and interactives (H2, H3); a library without them ignores this
+		for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Stoke", "DrawWater", "OpenDoor", "CloseDoor" }) asc->Grant(work);   // every actor can work resource nodes and interactives (H2, H3); a library without them ignores this
 		if (!m_Instance || !m_Animator || Ragdolled())
 		{
 			if (asc->Runtime()) { asc->CancelAll(); asc->SetRuntime(nullptr); }

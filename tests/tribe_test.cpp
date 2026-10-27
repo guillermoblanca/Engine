@@ -104,7 +104,7 @@ struct Village
 		{
 			Entity& e = *Entities.Find(Entities.Create(n));
 			e.Gameplay.emplace();
-			e.Gameplay->Abilities = { "Chop", "Mine", "Gather" };
+			e.Gameplay->Abilities = { "Chop", "Mine", "Gather", "PullFiber" };
 		}
 		Gameplay.Load(Entities);
 		const glm::vec2 camp(0.0f, -8.0f);

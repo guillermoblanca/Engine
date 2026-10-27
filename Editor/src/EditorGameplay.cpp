@@ -220,6 +220,7 @@ namespace GB::Editor
 				if (!r.Ok) return r;
 				m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors, names[i]));
 			}
+			m_SeasonVisuals = true;
 			m_Tribe.Bind(m_SceneEditor.World(), m_Gameplay, m_Items, m_Recipes, m_NodeDefs);
 			m_Panels.Tribe = true;
 			m_FocusTribe = 20;
@@ -246,9 +247,40 @@ namespace GB::Editor
 		return { true, s };
 	}
 
+	// The look of the season: the weather it brings, snow on the ground, and the colour of the crowns and bushes of the resource nodes.
+	// Only the properties that changed are written, and only when a scene with seasons in it asked for it (`ecology visuals`).
+	void EditorApp::ApplySeasonLook(double clock)
+	{
+		const SeasonClock seasons;
+		const Season season = seasons.At(clock);
+		const float progress = seasons.Progress(clock);
+
+		const std::string weather = SeasonClock::Weather(season, progress);
+		if (weather != m_AutoWeather) { m_AutoWeather = weather; m_Props.Set("weather.preset", weather); }
+
+		const float snow = SeasonClock::SnowCover(season, progress);
+		if (std::fabs(snow - m_AutoSnow) > 0.01f) { m_AutoSnow = snow; m_Props.Set("ground.snow", std::to_string(snow)); }
+
+		const glm::vec3 leaf = SeasonClock::Foliage(season, progress);
+		if (glm::distance(leaf, m_AutoLeaf) > 0.01f)
+		{
+			m_AutoLeaf = leaf;
+			EntityWorld& w = m_SceneEditor.World();
+			for (const std::string& n : m_Gameplay.Names())
+			{
+				const AbilitySystemComponent* a = m_Gameplay.Find(n);
+				if (!a || !a->HasTag("Resource.Node")) continue;
+				for (const char* part : { " Crown", " Bush" })
+					if (const EntityId id = w.FindByName(n + part); id != NullEntity)
+						if (Entity* e = w.Find(id); e && e->Mesh) e->Mesh->Albedo = leaf;
+			}
+		}
+	}
+
 	void EditorApp::StepWorld(double clock)
 	{
 		const Season season = SeasonClock().At(clock);
+		if (m_SeasonVisuals && m_SimTick % 30 == 0) ApplySeasonLook(clock);
 		m_Garden.GrowthRate = SeasonClock::GrowthRate(season);
 		m_Ecology.Update(clock, static_cast<float>(1.0 / 60.0));
 		m_Resources.Update(m_Gameplay, static_cast<float>(1.0 / 60.0), SeasonClock::GrowthRate(season));   // plants and trees regrow with the season
@@ -267,12 +299,19 @@ namespace GB::Editor
 			glm::vec3 at = m_Orbit.Target;
 			int count = a.size() > 1 ? std::max(1, std::atoi(a[1].c_str())) : 4;
 			if (a.size() > 3) { at.x = static_cast<float>(std::atof(a[2].c_str())); at.z = static_cast<float>(std::atof(a[3].c_str())); }
+			m_SeasonVisuals = true;   // a world with animals has seasons you can see
 			const int made = m_Ecology.Spawn(at, count);
 			m_SceneEditor.Commit();
 			return { made > 0, std::to_string(made) + " rabbits at (" + std::to_string(static_cast<int>(at.x)) + ", " + std::to_string(static_cast<int>(at.z)) + "); " + m_Ecology.Describe() };
 		}
+		if (sub == "visuals")
+		{
+			if (a.size() > 1) { m_SeasonVisuals = a[1] != "off" && a[1] != "0"; m_AutoWeather.clear(); m_AutoSnow = -1.0f; m_AutoLeaf = glm::vec3(-1.0f); }
+			return { true, std::string("seasonal visuals ") + (m_SeasonVisuals ? "on: weather, snow and foliage follow the season" : "off") };
+		}
 		if (sub == "season")
 		{
+			m_SeasonVisuals = true;
 			if (a.size() > 1)
 			{
 				int index = -1;

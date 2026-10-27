@@ -15,6 +15,6 @@ Cuando llegue el clip basta con añadirlo a `MixamoMontages()` (`Engine/src/GB/A
 | **Empuñar / guardar la herramienta** (sacar la pala, la regadera, el semillero) | `Dig`, `Sow`, `Water`, `PlantTree` | El objeto aparece en la mano al activar la habilidad y desaparece al acabar | Un gesto corto de coger y guardar para que no aparezca de golpe |
 | **Empujar y soltar la carretilla** | `PushWheelbarrow`, `ReleaseWheelbarrow` | El set `wheelbarrow` (manos en las varas) sin transición | Agarrar las varas y soltarlas; además falta el **modelo** de la carretilla en la mano (hoy solo se dibuja la del escenario) |
 | **Regar un arbolito** | `Water` sobre `Tree Spot` | El mismo `watering` de pie | Regar agachado a un sapling a la altura del suelo |
-| **Talar con hacha en bucle** | `Chop` (nodos de recurso, [OBJETOS.md](OBJETOS.md)) | `dig_plant` como sustituto | Golpes seguidos de hacha sobre el tronco y el final al caer |
-| **Picar roca con el pico** | `Mine` | `dig_plant` como sustituto | Golpes de pico sobre la roca |
-| **Agacharse a recolectar** (bayas, fibra) | `Gather` | `pick_fruit` (de pie) | Recoger de plantas bajas |
+| **Talar con hacha en bucle** | `Chop` (nodos de recurso, [OBJETOS.md](OBJETOS.md)) | dos tajos `sword_slash_1` y `sword_slash_3` con la herramienta (`tool`) en la mano | Golpes seguidos de hacha sobre el tronco y el final al caer |
+| **Picar roca con el pico** | `Mine` | golpe `sword_attack_4` con la herramienta en la mano | Golpes de pico sobre la roca |
+| **Agacharse a recolectar** (bayas, fibra) | `Gather` (bayas), `PullFiber` (fibra) | `pick_fruit_2` (brazo a la altura de un arbusto; `pick_fruit` alcanzaba hacia arriba y parecía invertido) y `pull_plant` (agachado) | Recoger de plantas bajas |

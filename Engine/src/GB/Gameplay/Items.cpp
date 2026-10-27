@@ -364,6 +364,6 @@ namespace GB
 		nodes["tree"]       = { "tree",       "wood",  5, 1, 30.0f, 1, "Item.Tool.Axe",     "Chop" };
 		nodes["rock"]       = { "rock",       "stone", 4, 1,  0.0f, 1, "Item.Tool.Pickaxe", "Mine" };
 		nodes["berry_bush"] = { "berry_bush", "berry", 6, 2, 20.0f, 2, "",                  "Gather" };
-		nodes["fiber_grass"]= { "fiber_grass","fiber", 8, 2, 15.0f, 2, "",                  "Gather" };
+		nodes["fiber_grass"]= { "fiber_grass","fiber", 8, 2, 15.0f, 2, "",                  "PullFiber" };
 	}
 }
