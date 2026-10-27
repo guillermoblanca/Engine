@@ -18,3 +18,13 @@ Cuando llegue el clip basta con añadirlo a `MixamoMontages()` (`Engine/src/GB/A
 | **Talar con hacha en bucle** | `Chop` (nodos de recurso, [OBJETOS.md](OBJETOS.md)) | `dig_plant` como sustituto | Golpes seguidos de hacha sobre el tronco y el final al caer |
 | **Picar roca con el pico** | `Mine` | `dig_plant` como sustituto | Golpes de pico sobre la roca |
 | **Agacharse a recolectar** (bayas, fibra) | `Gather` | `pick_fruit` (de pie) | Recoger de plantas bajas |
+| **Segar con hoz** | `Harvest` (propuesta, [PROPUESTA_HABILIDADES_Y_ECONOMIA.md](PROPUESTA_HABILIDADES_Y_ECONOMIA.md)) | Interino: `pull_plant` | Cosechar grano y cortar junco |
+| **Tejer sentado** (cestería) | `Craft` de cestas y cuerda | Interino: `kneel_idle` | Fabricar cestas y esteras |
+| **Tallar piedra** (percutor sobre pedernal) | `Craft` de herramientas de piedra | Interino: `kneel_idle` / `idle_variant_2` | Fabricar hachas de pedernal |
+| **Colgar a secar** | `Craft` en el secadero | Interino: `pick_fruit` (alzar los brazos) | Secar bayas y carne |
+| **Martillear, levantar viga, cargar tablón** | `Build` | Interino: `dig_plant` | Obras por fases (H8) |
+| **Moler con piedra** | `Craft` de harina | Ninguno | Procesar grano |
+| **Demostrar y observar** (maestro y aprendiz) | `Teach`, `Study` | Interino: `gesture_acknowledge`, `gesture_thoughtful` | Difusión del conocimiento (H11) |
+| **Recoger arcilla** (agachado) | `Gather` en `clay_bank` | Interino: `dig_plant` | Cavar arcilla |
+
+Sugerencia de la propuesta de economía: para bayas bajas y fibra probar `pull_plant` / `plant` en lugar de `pick_fruit` (alcanza hacia arriba y se ve invertido), y para talar probar `sword_slash_2` a `playRate` 0,7 antes que `dig_plant`; ver el apartado 13 de la propuesta.

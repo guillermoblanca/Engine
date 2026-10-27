@@ -175,6 +175,27 @@ int main()
 		Check(ContentToJson(fileItems, fileRecipes, fileNodes) == text, "and defines what RegisterEraOneItems defines");
 	}
 
+	// The extended era-1 proposal (not loaded by default) loads cleanly on top of the base content and leaves it untouched.
+	{
+		ItemLibrary ei;
+		RecipeBook er;
+		std::map<std::string, ResourceNodeDef> en;
+		RegisterEraOneItems(ei, er, en);
+		const size_t baseItems = ei.Ids().size(), baseNodes = en.size();
+		const std::string error = LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/era1_ampliado.json", ei, er, en);
+		Check(error.empty(), "assets/data/era1_ampliado.json loads on top of the base content");
+		Check(ei.Ids().size() > baseItems && en.size() > baseNodes, "the extended content adds items and nodes");
+		Check(ei.Find("stone_axe") && ei.Find("stone_axe")->Tags.size() == 1 && en["tree"].Capacity == 5, "and does not change the base definitions");
+		// a tool variant still satisfies the generic tool requirement (tags are hierarchical)
+		Inventory bag(8);
+		bag.Add(ei, "flint_axe", 1);
+		Check(bag.CountTagged(ei, "Item.Tool.Axe") == 1, "a flint axe counts as an axe");
+		// the tool chain is reachable from nodes: branch + flint + fibre -> cordage -> flint axe at the workbench
+		Inventory mats(12);
+		mats.Add(ei, "fiber", 3); mats.Add(ei, "flint", 2); mats.Add(ei, "branch", 2);
+		Check(er.Craft(ei, mats, "cordage", "") && er.Craft(ei, mats, "flint_axe", "workbench") && mats.Count("flint_axe") == 1, "cordage and a flint axe can be crafted");
+	}
+
 	// The whole loop, twice.
 	{
 		bool ok1 = true, ok2 = true;
