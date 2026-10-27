@@ -428,4 +428,4 @@ Reglas de la ordenación: primero se paga lo que impide dar por cerrado un hito 
 
 El orden de implementación de las E es E0, E2, E1, E3, E4 con E5, E6, E7, E8, E9 con E10, E11 y E12; E4/E5 y E6 pueden ir en paralelo por carriles distintos (simulación social frente
 a gameplay). Las decisiones que condicionan las E (árbol grande con nodos hermanos o varias salidas por nodo, si la rama alimenta la hoguera, si la caducidad entra desde el principio,
-aptitudes por agente o por oficio, conocimiento por agente y por clan) están al final de la propuesta y esperan respuesta del usuario.
+aptitudes por agente o por oficio, conocimiento por agente y por clan) están **respondidas** en la sección 15 de la propuesta: nodos hermanos ahora y `Yields` después, la rama sí alimenta la hoguera pero rinde menos, caducidad solo para la comida al principio, aptitudes por agente con el oficio como potenciador, conocimiento por agente y por clan, descubrimiento con azar sembrado, cultivos de grano, bayas y raíces con cosechas que las estaciones pueden arruinar, el clan decide los edificios y el jugador propone, y el cobre entra en el JSON desde ya.
