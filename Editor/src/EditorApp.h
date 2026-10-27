@@ -1,18 +1,18 @@
 #pragma once
 #include "Commands.h"
 #include "ImGuiLayer.h"
-#include "SceneEditor.h"
-#include "TestScenarios.h"
 #include "LogBuffer.h"
 #include "PlayerMode.h"
 #include "Properties.h"
+#include "SceneEditor.h"
+#include "TestScenarios.h"
 #include "WorldInstance.h"
 #include "GB/Application.h"
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Effects/Sky.h"
-#include "GB/Game/EntityRender.h"
 #include "GB/Effects/Weather.h"
+#include "GB/Game/EntityRender.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
 #include "GB/Renderer/Framebuffer.h"
@@ -40,9 +40,9 @@ namespace GB::Editor
 
 		PropertyRegistry& Properties() { return m_Props; }
 		CommandRunner& Commands() { return m_Commands; }
-		SceneEditor& Edit() { return m_Edit; }
 		Scene& GetScene() { return m_Scene; }
 		WorldInstance& World() { return m_World; }
+		SceneEditor& Scenes() { return m_SceneEditor; }
 		Weather& GetWeather() { return *m_Weather; }
 		Framebuffer* Viewport() { return m_ViewportFb.get(); }
 		LogBuffer& Log() { return *m_Log; }
@@ -65,18 +65,21 @@ namespace GB::Editor
 		void FrameWorld();
 		void ResetWorld();                                       // File > New Scene: nothing generated, default sky
 		CommandResult LaunchSandbox(const std::string& scene);
-		void PickAt(float mouseX, float mouseY, float width, float height);
 
 		void DrawUI();
 		void DrawMenu();
 		void DrawViewport();
 		void DrawProperties();
 		void DrawWorldPanel();
+		void DrawHierarchy();
+		void DrawHierarchyNode(EntityId id);
+		void DrawInspector();
+		void DrawGizmo(float originX, float originY, float width, float height);
+		void HandleSceneShortcuts();
 		void DrawStats();
 		void DrawConsole();
 		void DrawAssets();
 		void DrawModelPanel();
-		void DrawObjectsPanel();
 		void DrawTestsPanel();
 		void BuildDefaultLayout(unsigned int dockspaceId, float width, float height);
 
@@ -94,10 +97,18 @@ namespace GB::Editor
 		std::unique_ptr<ModelInstance> m_Instance;
 		PlayerMode m_Player;                                     // `player` command / View > Play: walk the world in third person
 		size_t m_StaticObjects = 0;
-		SceneEditor m_Edit;                                      // the entities: environment trees/rocks and whatever the user adds
-		EntityRenderer m_Entities;
-		std::string m_ObjectFilter;
-		bool m_ScrollToSelected = false;
+		size_t m_WeatherLights = 0;
+		SceneEditor m_SceneEditor;
+		std::unique_ptr<EntityRenderer> m_EntityRenderer;
+		// viewport interaction: click to pick, drag a gizmo axis to move
+		int m_GizmoAxis = -1;                 // -1 none, 0..2 = x, y, z while dragging
+		float m_GizmoStart = 0.0f;
+		glm::vec3 m_GizmoOrigin{ 0.0f };
+		glm::vec2 m_PressPos{ 0.0f };
+		bool m_PressedInViewport = false;
+		std::vector<std::string> m_UiCommands;   // commands issued while drawing, run once the frame is built
+		char m_NameBuffer[128] = {};
+		EntityId m_NameFor = NullEntity;
 		glm::vec3 m_ModelPosition{ 0.0f };
 		float m_ModelYaw = 0.0f, m_ModelScale = 1.0f, m_ModelSpeed = 1.0f;
 
@@ -117,7 +128,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Objects = true, Tests = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Tests = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		bool m_LayoutBuilt = false;

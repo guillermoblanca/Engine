@@ -1,6 +1,5 @@
 #include "SceneEditor.h"
 #include "GB/Game/SceneIO.h"
-#include "TestScenarios.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -11,135 +10,246 @@
 
 namespace GB::Editor
 {
+	// ------------------------------------------------------------------ geometry
+	Ray ScreenRay(const Camera& camera, glm::vec2 mouse, float aspect)
+	{
+		const glm::mat4 inv = glm::inverse(camera.GetProjection(aspect) * camera.GetView());
+		const glm::vec2 ndc(mouse.x * 2.0f - 1.0f, 1.0f - mouse.y * 2.0f);
+		glm::vec4 n = inv * glm::vec4(ndc, -1.0f, 1.0f);
+		glm::vec4 f = inv * glm::vec4(ndc, 1.0f, 1.0f);
+		const glm::vec3 a = glm::vec3(n) / n.w, b = glm::vec3(f) / f.w;
+		return { a, glm::normalize(b - a) };
+	}
+
 	namespace
 	{
-		namespace fs = std::filesystem;
-
-		std::string Lower(std::string s)
+		bool HitBox(const glm::vec3& o, const glm::vec3& d, const glm::vec3& half, float& t)
 		{
-			std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-			return s;
-		}
-
-		bool ParseFloat(const std::string& s, float& out)
-		{
-			if (s.empty()) return false;
-			char* end = nullptr;
-			const float v = std::strtof(s.c_str(), &end);
-			if (end != s.c_str() + s.size() || !std::isfinite(v)) return false;
-			out = v;
-			return true;
-		}
-
-		// Reads `count` numbers starting at args[first]; false if any is missing or not a number.
-		bool ParseFloats(const std::vector<std::string>& args, size_t first, size_t count, float* out)
-		{
-			if (args.size() < first + count) return false;
-			for (size_t i = 0; i < count; ++i)
-				if (!ParseFloat(args[first + i], out[i])) return false;
-			return true;
-		}
-
-		// Optional trailing numbers: reads up to `count` values after `first` (as many as there are).
-		bool ParseOptionalFloats(const std::vector<std::string>& args, size_t first, size_t count, float* out)
-		{
-			if (args.size() <= first) return true;
-			return ParseFloats(args, first, std::min(count, args.size() - first), out);
-		}
-
-		std::string Join(const std::vector<std::string>& args, size_t first)
-		{
-			std::string s;
-			for (size_t i = first; i < args.size(); ++i) s += (i > first ? " " : "") + args[i];
-			return s;
-		}
-
-		bool IsModelPath(const std::string& p)
-		{
-			const std::string ext = Lower(fs::path(p).extension().string());
-			return ext == ".glb" || ext == ".gltf";
-		}
-
-		const char* ShapeName(MeshShape s) { return s == MeshShape::Sphere ? "sphere" : s == MeshShape::Plane ? "plane" : "cube"; }
-	}
-
-	// ------------------------------------------------------------------ scene content
-	EntityId SceneEditor::AddPrimitive(MeshShape shape, const glm::vec3& position)
-	{
-		const char* name = shape == MeshShape::Sphere ? "Sphere" : shape == MeshShape::Plane ? "Plane" : "Cube";
-		const EntityId id = m_World.Create(name);
-		Entity* e = m_World.Find(id);
-		e->Transform.Position = position;
-		e->Mesh.emplace().Shape = shape;
-		m_Selected = id;
-		return id;
-	}
-
-	EntityId SceneEditor::AddLight(const glm::vec3& position)
-	{
-		const EntityId id = m_World.Create("Light");
-		Entity* e = m_World.Find(id);
-		e->Transform.Position = position;
-		e->Light.emplace().Radius = 20.0f;
-		m_Selected = id;
-		return id;
-	}
-
-	EntityId SceneEditor::AddModel(const std::string& path, const glm::vec3& position, std::string* error)
-	{
-		auto fail = [&](const std::string& msg) { if (error) *error = msg; return NullEntity; };
-		if (!IsModelPath(path)) return fail("'" + path + "' is not a .glb/.gltf file");
-		std::error_code ec;
-		fs::path stored = path;
-		if (stored.is_absolute())
-		{
-			if (!fs::exists(stored, ec)) return fail("file not found: " + path);
-			if (!m_AssetRoot.empty())
+			float t0 = 0.0f, t1 = 1e30f;
+			for (int i = 0; i < 3; ++i)
 			{
-				const fs::path rel = fs::relative(stored, m_AssetRoot, ec);
-				if (!ec && !rel.empty() && *rel.begin() != "..") stored = rel;
+				if (std::fabs(d[i]) < 1e-9f)
+				{
+					if (o[i] < -half[i] || o[i] > half[i]) return false;
+					continue;
+				}
+				float a = (-half[i] - o[i]) / d[i], b = (half[i] - o[i]) / d[i];
+				if (a > b) std::swap(a, b);
+				t0 = std::max(t0, a);
+				t1 = std::min(t1, b);
+				if (t0 > t1) return false;
 			}
+			t = t0;
+			return true;
 		}
-		else
+
+		bool HitSphere(const glm::vec3& o, const glm::vec3& d, float r, float& t)
 		{
-			const fs::path full = m_AssetRoot.empty() ? stored : fs::path(m_AssetRoot) / stored;
-			if (!fs::exists(full, ec)) return fail("model not found: " + path + (m_AssetRoot.empty() ? "" : " (looked in " + m_AssetRoot + ")"));
+			const float a = glm::dot(d, d), b = 2.0f * glm::dot(o, d), c = glm::dot(o, o) - r * r;
+			const float disc = b * b - 4.0f * a * c;
+			if (disc < 0.0f) return false;
+			const float s = std::sqrt(disc);
+			float t0 = (-b - s) / (2.0f * a);
+			if (t0 < 0.0f) t0 = (-b + s) / (2.0f * a);
+			if (t0 < 0.0f) return false;
+			t = t0;
+			return true;
 		}
-		const std::string model = stored.generic_string();
-		const std::string name = fs::path(model).stem().string();
-		const EntityId id = m_World.Create(name.empty() ? "Model" : name);
-		Entity* e = m_World.Find(id);
-		e->Transform.Position = position;
-		e->Mesh.emplace().Model = model;
-		m_Selected = id;
-		return id;
 	}
 
-	EntityId SceneEditor::Duplicate(EntityId id)
+	bool RayHitEntity(const EntityWorld& world, EntityId id, const Ray& ray, float& t)
 	{
-		const EntityId copy = m_World.Duplicate(id);
-		if (copy != NullEntity) m_Selected = copy;
-		return copy;
+		const Entity* e = world.Find(id);
+		if (!e || !world.IsActive(id) || (!e->Mesh && !e->Light)) return false;
+		const glm::mat4 m = world.WorldMatrix(id);
+		if (!e->Mesh || !e->Mesh->Model.empty())
+		{
+			// lights and models: a sphere around the origin (world scale for lights)
+			const float r = e->Mesh ? glm::max(glm::length(glm::vec3(m[0])), glm::max(glm::length(glm::vec3(m[1])), glm::length(glm::vec3(m[2])))) : 0.3f;
+			return HitSphere(ray.Origin - glm::vec3(m[3]), ray.Dir, r, t);
+		}
+		// the ray in the entity's local space; keeping Dir unnormalized keeps `t` the same in both spaces
+		const glm::mat4 inv = glm::inverse(m);
+		const glm::vec3 o = glm::vec3(inv * glm::vec4(ray.Origin, 1.0f));
+		const glm::vec3 d = glm::vec3(inv * glm::vec4(ray.Dir, 0.0f));
+		const float h = e->Mesh->Size * 0.5f;
+		switch (e->Mesh->Shape)
+		{
+		case MeshShape::Sphere: return HitSphere(o, d, h, t);
+		case MeshShape::Plane: return HitBox(o, d, { h, 0.02f, h }, t);
+		case MeshShape::Cube: return HitBox(o, d, glm::vec3(h), t);
+		}
+		return false;
 	}
 
-	bool SceneEditor::Delete(EntityId id)
+	float RayAxisParam(const Ray& ray, const glm::vec3& axisOrigin, const glm::vec3& axisDir)
 	{
-		// the selection survives only if it is not inside the deleted subtree
-		for (const Entity* e = m_World.Find(m_Selected); e; e = m_World.Find(e->Parent))
-			if (e->Id == id) { m_Selected = NullEntity; break; }
-		return m_World.Destroy(id);
+		const glm::vec3 w0 = ray.Origin - axisOrigin;
+		const float a = glm::dot(ray.Dir, ray.Dir), b = glm::dot(ray.Dir, axisDir), c = glm::dot(axisDir, axisDir);
+		const float d = glm::dot(ray.Dir, w0), e = glm::dot(axisDir, w0);
+		const float denom = a * c - b * b;
+		if (std::fabs(denom) < 1e-8f) return 0.0f;
+		return (a * e - b * d) / denom;
 	}
 
-	void SceneEditor::Clear()
+	bool ProjectToScreen(const glm::mat4& viewProj, const glm::vec3& p, glm::vec2 size, glm::vec2& out)
+	{
+		const glm::vec4 c = viewProj * glm::vec4(p, 1.0f);
+		if (c.w <= 1e-5f) return false;
+		out = { (c.x / c.w * 0.5f + 0.5f) * size.x, (1.0f - (c.y / c.w * 0.5f + 0.5f)) * size.y };
+		return true;
+	}
+
+	// ------------------------------------------------------------------ selection and undo
+	SceneEditor::SceneEditor() { m_Current = SaveSceneToString(m_World); }
+
+	void SceneEditor::Select(EntityId id)
+	{
+		m_Selected = m_World.Find(id) ? id : NullEntity;
+		Rebind();
+	}
+
+	EntityId SceneEditor::Pick(const Ray& ray) const
+	{
+		EntityId best = NullEntity;
+		float bestT = 1e30f;
+		for (const auto& [id, e] : m_World.All())
+		{
+			float t;
+			if (e.Prop && m_PropBounds)   // trees and rocks: a sphere around the prop
+			{
+				glm::vec3 center(0.0f);
+				float radius = 1.0f;
+				if (!m_World.IsActive(id) || !m_PropBounds(*e.Prop, center, radius)) continue;
+				const glm::mat4 m = m_World.WorldMatrix(id);
+				const float scale = std::max({ glm::length(glm::vec3(m[0])), glm::length(glm::vec3(m[1])), glm::length(glm::vec3(m[2])) });
+				if (HitSphere(ray.Origin - glm::vec3(m * glm::vec4(center, 1.0f)), ray.Dir, radius * scale, t) && t < bestT) { bestT = t; best = id; }
+			}
+			else if (RayHitEntity(m_World, id, ray, t) && t < bestT) { bestT = t; best = id; }
+		}
+		return best;
+	}
+
+	EntityId SceneEditor::Resolve(const std::string& token) const
+	{
+		if (token == "sel") return m_Selected;
+		if (!token.empty() && std::all_of(token.begin(), token.end(), [](unsigned char c) { return std::isdigit(c) != 0; }))
+		{
+			const EntityId id = static_cast<EntityId>(std::strtoul(token.c_str(), nullptr, 10));
+			if (m_World.Find(id)) return id;
+		}
+		return m_World.FindByName(token);
+	}
+
+	void SceneEditor::Commit()
+	{
+		std::string now = SaveSceneToString(m_World);
+		if (now == m_Current) return;
+		m_Undo.push_back(std::move(m_Current));
+		if (m_Undo.size() > 100) m_Undo.erase(m_Undo.begin());
+		m_Current = std::move(now);
+		m_Redo.clear();
+	}
+
+	void SceneEditor::Restore(const std::string& snapshot)
+	{
+		LoadSceneFromString(m_World, snapshot);
+		m_Current = snapshot;
+		if (!m_World.Find(m_Selected)) m_Selected = NullEntity;
+		m_Dirty = false;
+		Rebind();
+	}
+
+	bool SceneEditor::Undo()
+	{
+		Commit();   // pending edits become their own step first
+		if (m_Undo.empty()) return false;
+		m_Redo.push_back(m_Current);
+		const std::string prev = std::move(m_Undo.back());
+		m_Undo.pop_back();
+		Restore(prev);
+		return true;
+	}
+
+	bool SceneEditor::Redo()
+	{
+		if (m_Redo.empty()) return false;
+		m_Undo.push_back(m_Current);
+		const std::string next = std::move(m_Redo.back());
+		m_Redo.pop_back();
+		Restore(next);
+		return true;
+	}
+
+	// ------------------------------------------------------------------ properties
+	void SceneEditor::Bind(PropertyRegistry& props)
+	{
+		m_Props = &props;
+		Rebind();
+	}
+
+	void SceneEditor::Rebind()
+	{
+		if (!m_Props) return;
+		m_Props->RemovePrefix("sel.");
+		GB::Entity* e = m_World.Find(m_Selected);
+		if (!e) return;
+		auto dirty = [this](Property& p) { p.OnChange = [this] { MarkDirty(); }; };
+		PropertyRegistry& r = *m_Props;
+		dirty(r.Vec3("sel.position", e->Transform.Position, -1000.0f, 1000.0f, "Transform", "local position"));
+		dirty(r.Vec3("sel.rotation", e->Transform.Rotation, -180.0f, 180.0f, "Transform", "local rotation in degrees (pitch, yaw, roll)"));
+		dirty(r.Vec3("sel.scale", e->Transform.Scale, 0.001f, 100.0f, "Transform", "local scale"));
+		dirty(r.Bool("sel.active", e->Active, "Transform", "inactive entities and their children are not drawn"));
+		if (e->Mesh)
+		{
+			MeshComponent& m = *e->Mesh;
+			dirty(r.Enum("sel.mesh.shape", m.Shape, { "cube", "sphere", "plane" }, "Mesh"));
+			dirty(r.Float("sel.mesh.size", m.Size, 0.01f, 100.0f, "Mesh"));
+			dirty(r.Color("sel.mesh.albedo", m.Albedo, "Mesh"));
+			dirty(r.Float("sel.mesh.metallic", m.Metallic, 0.0f, 1.0f, "Mesh"));
+			dirty(r.Float("sel.mesh.roughness", m.Roughness, 0.0f, 1.0f, "Mesh"));
+			dirty(r.Color("sel.mesh.emissive", m.Emissive, "Mesh"));
+		}
+		if (e->Light)
+		{
+			LightComponent& l = *e->Light;
+			dirty(r.Color("sel.light.color", l.Color, "Light"));
+			dirty(r.Float("sel.light.intensity", l.Intensity, 0.0f, 500.0f, "Light"));
+			dirty(r.Float("sel.light.radius", l.Radius, 0.0f, 100.0f, "Light", "0 = no limit"));
+		}
+		if (e->Body)
+		{
+			BodyComponent& b = *e->Body;
+			dirty(r.Enum("sel.body.type", b.Type, { "static", "dynamic" }, "Body"));
+			dirty(r.Enum("sel.body.shape", b.Shape, { "box", "sphere", "capsule" }, "Body"));
+			dirty(r.Vec3("sel.body.halfExtents", b.HalfExtents, 0.01f, 50.0f, "Body"));
+			dirty(r.Float("sel.body.mass", b.Mass, 0.01f, 10000.0f, "Body"));
+			dirty(r.Float("sel.body.friction", b.Friction, 0.0f, 2.0f, "Body"));
+			dirty(r.Float("sel.body.restitution", b.Restitution, 0.0f, 1.0f, "Body"));
+		}
+	}
+
+	// ------------------------------------------------------------------ files
+	CommandResult SceneEditor::NewScene()
 	{
 		m_World.Clear();
 		m_Selected = NullEntity;
+		if (OnNewScene)
+		{
+			OnNewScene();
+			ResetHistory();   // the generated world cannot be brought back by undo
+		}
+		else Commit();
+		Rebind();
+		return { true, "new scene" };
 	}
 
-	void SceneEditor::RemoveEnvironment()
+	void SceneEditor::ResetHistory()
 	{
-		for (EntityId id : m_World.FindByTag("world"))
-			if (m_World.Find(id)) Delete(id);   // a group takes its children along
+		m_Undo.clear();
+		m_Redo.clear();
+		m_Dirty = false;
+		m_Current = SaveSceneToString(m_World);
 	}
 
 	EntityId SceneEditor::Group(const std::string& name)
@@ -147,6 +257,13 @@ namespace GB::Editor
 		const EntityId g = m_World.Create(name);
 		m_World.Find(g)->Tags.push_back("world");
 		return g;
+	}
+
+	void SceneEditor::RemoveEnvironment()
+	{
+		for (EntityId id : m_World.FindByTag("world"))
+			m_World.Destroy(id);   // a group takes its children along
+		if (!m_World.Find(m_Selected)) m_Selected = NullEntity;
 	}
 
 	size_t SceneEditor::PopulateEnvironment(const std::vector<TreePlacement>& trees, const std::vector<RockPlacement>& rocks)
@@ -161,7 +278,7 @@ namespace GB::Editor
 			for (const auto& pl : placements)
 			{
 				const EntityId id = m_World.Create(std::string(prefix) + " " + std::to_string(++n), group);
-				Entity* e = m_World.Find(id);
+				GB::Entity* e = m_World.Find(id);
 				e->Transform.Position = pl.Position;
 				e->Transform.Rotation.y = glm::degrees(pl.Yaw);
 				e->Transform.Scale = glm::vec3(pl.Scale);
@@ -170,277 +287,239 @@ namespace GB::Editor
 		};
 		fill("Trees", "Tree", PropKind::Tree, trees);
 		fill("Rocks", "Rock", PropKind::Rock, rocks);
+		Rebind();
+		ResetHistory();
 		return trees.size() + rocks.size();
 	}
 
-	EntityId SceneEditor::Resolve(const std::string& token) const
+	CommandResult SceneEditor::Add(const std::vector<std::string>& a)
 	{
-		if (token.empty()) return m_Selected;
-		if (std::all_of(token.begin(), token.end(), [](unsigned char c) { return std::isdigit(c) != 0; }))
+		namespace fs = std::filesystem;
+		auto fail = [](const std::string& m) { return CommandResult{ false, m }; };
+		auto lower = [](std::string s) { std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); }); return s; };
+		if (a.empty()) return fail("usage: add <cube|sphere|plane|light|model.glb> [x y z]");
+		glm::vec3 p = m_Spawn;
+		if (a.size() > 1)
 		{
-			const EntityId id = static_cast<EntityId>(std::strtoul(token.c_str(), nullptr, 10));
-			if (m_World.Find(id)) return id;
+			if (a.size() < 4) return fail("usage: add <what> [x y z]  (a position needs three numbers)");
+			for (size_t i = 0; i < 3; ++i)
+			{
+				char* end = nullptr;
+				p[static_cast<glm::length_t>(i)] = std::strtof(a[i + 1].c_str(), &end);
+				if (end == a[i + 1].c_str() || *end != 0) return fail("not a number: " + a[i + 1]);
+			}
 		}
-		return m_World.FindByName(token);
+		const std::string what = lower(a[0]);
+		EntityId id = NullEntity;
+		if (what == "cube" || what == "sphere" || what == "plane" || what == "light")
+		{
+			id = m_World.Create(std::string(1, static_cast<char>(std::toupper(what[0]))) + what.substr(1));
+			GB::Entity* e = m_World.Find(id);
+			if (what == "light") e->Light.emplace().Radius = 20.0f;
+			else
+			{
+				e->Mesh.emplace().Shape = what == "sphere" ? MeshShape::Sphere : what == "plane" ? MeshShape::Plane : MeshShape::Cube;
+				if (what == "plane") e->Mesh->Size = 10.0f;
+			}
+			e->Transform.Position = p;
+		}
+		else
+		{
+			const std::string ext = lower(fs::path(a[0]).extension().string());
+			if (ext != ".glb" && ext != ".gltf") return fail("not cube, sphere, plane, light or a .glb/.gltf model: " + a[0]);
+			std::error_code ec;
+			fs::path stored = a[0];
+			if (stored.is_absolute())
+			{
+				if (!fs::exists(stored, ec)) return fail("file not found: " + a[0]);
+				if (!m_AssetRoot.empty())
+				{
+					const fs::path rel = fs::relative(stored, m_AssetRoot, ec);
+					if (!ec && !rel.empty() && *rel.begin() != "..") stored = rel;
+				}
+			}
+			else if (!fs::exists(m_AssetRoot.empty() ? stored : fs::path(m_AssetRoot) / stored, ec))
+				return fail("model not found: " + a[0] + (m_AssetRoot.empty() ? "" : " (looked in " + m_AssetRoot + ")"));
+			const std::string model = stored.generic_string();
+			id = m_World.Create(fs::path(model).stem().string());
+			GB::Entity* e = m_World.Find(id);
+			e->Mesh.emplace().Model = model;
+			e->Transform.Position = p;
+		}
+		Commit();
+		Select(id);
+		return { true, "added " + Describe(id) };
 	}
 
-	std::vector<EntityId> SceneEditor::Find(const std::string& filter) const
+	CommandResult SceneEditor::Save(const std::string& path)
 	{
-		std::vector<EntityId> out;
-		const std::string needle = Lower(filter);
-		for (const auto& [id, e] : m_World.All())
-			if (needle.empty() || Lower(e.Name).find(needle) != std::string::npos) out.push_back(id);
-		return out;
+		const SceneIOResult r = SaveSceneToFile(m_World, path);
+		return { r.Ok, r.Ok ? "saved " + path + " (" + std::to_string(m_World.Count()) + " entities)" : r.Error };
 	}
 
-	// ------------------------------------------------------------------ picking
-	bool SceneEditor::WorldBounds(EntityId id, Sphere& out) const
+	CommandResult SceneEditor::Load(const std::string& path)
 	{
-		const Entity* e = m_World.Find(id);
-		if (!e) return false;
-		glm::vec3 center(0.0f);
-		float radius = 0.0f;
-		if (e->Mesh && e->Mesh->Model.empty())
-		{
-			const float size = e->Mesh->Size;
-			radius = e->Mesh->Shape == MeshShape::Sphere ? size * 0.5f : e->Mesh->Shape == MeshShape::Plane ? size * 0.7071f : size * 0.866f;
-		}
-		else if (e->Mesh || e->Prop)
-		{
-			radius = 1.0f;
-			if (m_Bounds && !m_Bounds(id, *e, center, radius)) { center = glm::vec3(0.0f); radius = 1.0f; }
-		}
-		else if (e->Light) radius = 0.4f;
-		else return false;   // groups have nothing to pick
-
-		const glm::mat4 m = m_World.WorldMatrix(id);
-		const float scale = std::max({ glm::length(glm::vec3(m[0])), glm::length(glm::vec3(m[1])), glm::length(glm::vec3(m[2])) });
-		out.Center = glm::vec3(m * glm::vec4(center, 1.0f));
-		out.Radius = std::max(radius * scale, 0.05f);
-		return true;
+		const SceneIOResult r = LoadSceneFromFile(m_World, path);
+		if (!r.Ok) return { false, r.Error };
+		if (!m_World.Find(m_Selected)) m_Selected = NullEntity;
+		Commit();
+		Rebind();
+		return { true, "loaded " + path + " (" + std::to_string(m_World.Count()) + " entities)" };
 	}
 
-	EntityId SceneEditor::Pick(const glm::vec3& origin, const glm::vec3& direction) const
+	std::string SceneEditor::Describe(EntityId id) const
 	{
-		const float len = glm::length(direction);
-		if (len < 1e-8f) return NullEntity;
-		const glm::vec3 d = direction / len;
-		EntityId best = NullEntity;
-		float bestT = 1e30f;
-		for (const auto& [id, e] : m_World.All())
-		{
-			Sphere s;
-			if (!m_World.IsActive(id) || !WorldBounds(id, s)) continue;
-			const glm::vec3 oc = origin - s.Center;
-			const float b = glm::dot(oc, d), c = glm::dot(oc, oc) - s.Radius * s.Radius;
-			const float disc = b * b - c;
-			if (disc < 0.0f) continue;
-			float t = -b - std::sqrt(disc);
-			if (t < 0.0f) t = -b + std::sqrt(disc);
-			if (t < 0.0f) continue;
-			// A floor's bounding sphere covers everything on it: it only wins when nothing else was hit.
-			if (e.Mesh && e.Mesh->Model.empty() && e.Mesh->Shape == MeshShape::Plane) t += 1000.0f;
-			if (t < bestT) { bestT = t; best = id; }
-		}
-		return best;
-	}
-
-	std::string SceneEditor::Describe(const Entity& e)
-	{
-		char buf[192];
-		std::snprintf(buf, sizeof buf, "[%u] %s at %.2f %.2f %.2f", e.Id, e.Name.c_str(), static_cast<double>(e.Transform.Position.x),
-			static_cast<double>(e.Transform.Position.y), static_cast<double>(e.Transform.Position.z));
-		std::string s = buf;
-		if (e.Mesh) s += e.Mesh->Model.empty() ? std::string(" ") + ShapeName(e.Mesh->Shape) : " model " + e.Mesh->Model;
-		if (e.Light) s += " light";
-		if (e.Prop) s += e.Prop->Kind == PropKind::Tree ? " tree" : " rock";
-		if (!e.Active) s += " (inactive)";
-		return s;
+		const GB::Entity* e = m_World.Find(id);
+		if (!e) return "";
+		char buf[256];
+		std::snprintf(buf, sizeof buf, "#%u %s%s pos(%.3g %.3g %.3g) rot(%.3g %.3g %.3g) scale(%.3g %.3g %.3g)%s%s%s", e->Id, e->Name.c_str(), e->Active ? "" : " [inactive]",
+			static_cast<double>(e->Transform.Position.x), static_cast<double>(e->Transform.Position.y), static_cast<double>(e->Transform.Position.z),
+			static_cast<double>(e->Transform.Rotation.x), static_cast<double>(e->Transform.Rotation.y), static_cast<double>(e->Transform.Rotation.z),
+			static_cast<double>(e->Transform.Scale.x), static_cast<double>(e->Transform.Scale.y), static_cast<double>(e->Transform.Scale.z),
+			e->Mesh ? " mesh" : "", e->Light ? " light" : "", e->Body ? " body" : "");
+		return buf;
 	}
 
 	// ------------------------------------------------------------------ commands
-	void RegisterSceneCommands(CommandRunner& cmd, SceneEditor& ed, SceneHooks hooks)
+	CommandResult SceneEditor::EntityCommand(const std::vector<std::string>& a)
 	{
-		// Position for `add`: three numbers after the thing being added, or the spawn point.
-		auto where = [hooks](const std::vector<std::string>& a, size_t first, glm::vec3& p) -> bool
-		{
-			p = hooks.SpawnPoint ? hooks.SpawnPoint() : glm::vec3(0.0f);
-			if (a.size() <= first) return true;
-			float v[3];
-			if (!ParseFloats(a, first, 3, v)) return false;
-			p = { v[0], v[1], v[2] };
-			return true;
-		};
-		auto noTarget = [](const std::string& t) { return CommandResult{ false, t.empty() ? "nothing is selected (select <name|id>)" : "no entity '" + t + "'" }; };
+		auto fail = [](const std::string& m) { return CommandResult{ false, m }; };
+		if (a.empty()) return fail("entity create|delete|duplicate|rename|parent|select|add|remove|model|set|info|list ...");
+		const std::string& sub = a[0];
+		auto target = [&](size_t index) { return index < a.size() ? Resolve(a[index]) : m_Selected; };
 
-		cmd.Register("new_scene", "new_scene: an empty scene (camera and sun only, no generated world)", [&ed, hooks](const std::vector<std::string>&) -> CommandResult
+		if (sub == "create")
 		{
-			ed.Clear();
-			if (hooks.ClearWorld) hooks.ClearWorld();
-			if (hooks.SceneReplaced) hooks.SceneReplaced();
-			return { true, "new empty scene" };
-		});
-		cmd.Register("add", "add <cube|sphere|plane|light|file.glb|file.gltf> [x y z]: adds an object (models are relative to the assets folder)",
-			[&ed, where](const std::vector<std::string>& a) -> CommandResult
-		{
-			if (a.empty()) return { false, "usage: add <cube|sphere|plane|light|model.glb> [x y z]" };
-			glm::vec3 p;
-			if (!where(a, 1, p)) return { false, "usage: add <what> [x y z]  (position needs three numbers)" };
-			const std::string what = Lower(a[0]);
-			EntityId id = NullEntity;
-			if (what == "cube") id = ed.AddPrimitive(MeshShape::Cube, p);
-			else if (what == "sphere") id = ed.AddPrimitive(MeshShape::Sphere, p);
-			else if (what == "plane") id = ed.AddPrimitive(MeshShape::Plane, p);
-			else if (what == "light") id = ed.AddLight(p);
-			else
+			// entity create [empty|cube|sphere|plane|light] [name] [parent]
+			const std::string kind = a.size() > 1 ? a[1] : "empty";
+			const std::string name = a.size() > 2 ? a[2] : (kind == "empty" ? "Entity" : kind == "light" ? "Light" : std::string(1, static_cast<char>(std::toupper(kind[0]))) + kind.substr(1));
+			const EntityId parent = a.size() > 3 ? Resolve(a[3]) : NullEntity;
+			if (a.size() > 3 && parent == NullEntity) return fail("unknown parent '" + a[3] + "'");
+			if (kind != "empty" && kind != "cube" && kind != "sphere" && kind != "plane" && kind != "light") return fail("unknown kind '" + kind + "' (empty, cube, sphere, plane, light)");
+			const EntityId id = m_World.Create(name, parent);
+			GB::Entity* e = m_World.Find(id);
+			if (parent == NullEntity) e->Transform.Position = m_Spawn;
+			if (kind == "light") { e->Light.emplace(); e->Transform.Position += glm::vec3(0.0f, 3.0f, 0.0f); }
+			else if (kind != "empty")
 			{
-				std::string err;
-				id = ed.AddModel(a[0], p, &err);
-				if (id == NullEntity) return { false, err };
+				e->Mesh.emplace().Shape = kind == "sphere" ? MeshShape::Sphere : kind == "plane" ? MeshShape::Plane : MeshShape::Cube;
+				if (kind == "plane") e->Mesh->Size = 10.0f;
 			}
-			return { true, "added " + SceneEditor::Describe(*ed.World().Find(id)) };
-		});
-		cmd.Register("objects", "objects [filter]: lists the entities (name contains filter)", [&ed](const std::vector<std::string>& a) -> CommandResult
+			Commit();
+			Select(id);
+			return { true, "created " + Describe(id) };
+		}
+		if (sub == "list")
 		{
-			const std::vector<EntityId> ids = ed.Find(a.empty() ? "" : a[0]);
-			std::string out = std::to_string(ids.size()) + " entities";
-			constexpr size_t kMax = 40;
-			for (size_t i = 0; i < ids.size() && i < kMax; ++i)
-				out += std::string("\n") + (ids[i] == ed.Selected() ? "* " : "  ") + SceneEditor::Describe(*ed.World().Find(ids[i]));
-			if (ids.size() > kMax) out += "\n  ... " + std::to_string(ids.size() - kMax) + " more (use a filter)";
-			return { true, out };
-		});
-		cmd.Register("select", "select <name|id|none>: picks the entity the other commands act on", [&ed, noTarget](const std::vector<std::string>& a) -> CommandResult
-		{
-			if (a.empty()) return { false, "usage: select <name|id|none>" };
-			const std::string t = Join(a, 0);
-			if (t == "none") { ed.Select(NullEntity); return { true, "selection cleared" }; }
-			const EntityId id = ed.Resolve(t);
-			if (id == NullEntity) return noTarget(t);
-			ed.Select(id);
-			return { true, "selected " + SceneEditor::Describe(*ed.World().Find(id)) };
-		});
-		cmd.Register("delete", "delete [name|id]: removes an entity (default: the selection) and its children", [&ed, noTarget](const std::vector<std::string>& a) -> CommandResult
-		{
-			const std::string t = Join(a, 0);
-			const EntityId id = ed.Resolve(t);
-			if (id == NullEntity) return noTarget(t);
-			const std::string name = ed.World().Find(id)->Name;
-			ed.Delete(id);
-			return { true, "deleted " + name };
-		});
-		cmd.Register("duplicate", "duplicate [name|id]: copies an entity (default: the selection) and selects the copy", [&ed, noTarget](const std::vector<std::string>& a) -> CommandResult
-		{
-			const std::string t = Join(a, 0);
-			const EntityId id = ed.Resolve(t);
-			if (id == NullEntity) return noTarget(t);
-			const EntityId copy = ed.Duplicate(id);
-			return { true, "duplicated as " + SceneEditor::Describe(*ed.World().Find(copy)) };
-		});
+			std::string out;
+			for (const auto& [id, e] : m_World.All()) out += (id == m_Selected ? "* " : "  ") + Describe(id) + (e.Parent != NullEntity ? " parent=#" + std::to_string(e.Parent) : "") + "\n";
+			return { true, out.empty() ? "(no entities)" : out.substr(0, out.size() - 1) };
+		}
 
-		// move / rotate / scale: numbers first, then an optional target (default: the selection).
-		auto transformCommand = [&cmd, &ed, noTarget](const char* name, const char* help, size_t minNumbers, size_t maxNumbers, auto apply)
+		if (sub == "add" || sub == "remove")
 		{
-			cmd.Register(name, help, [&ed, noTarget, minNumbers, maxNumbers, apply](const std::vector<std::string>& a) -> CommandResult
-			{
-				float v[3] = {};
-				size_t n = 0;
-				while (n < maxNumbers && n < a.size() && ParseFloat(a[n], v[n])) ++n;
-				if (n < minNumbers || (n != minNumbers && n != maxNumbers)) return { false, "wrong number of values (see help)" };
-				const std::string t = Join(a, n);
-				const EntityId id = ed.Resolve(t);
-				if (id == NullEntity) return noTarget(t);
-				Entity* e = ed.World().Find(id);
-				apply(*e, v, n);
-				return { true, SceneEditor::Describe(*e) };
-			});
-		};
-		transformCommand("move", "move <x> <y> <z> [name|id]: puts the entity at a position (relative to its parent)", 3, 3,
-			[](Entity& e, const float* v, size_t) { e.Transform.Position = { v[0], v[1], v[2] }; });
-		transformCommand("rotate", "rotate <pitch> <yaw> <roll> [name|id]: Euler angles in degrees", 3, 3,
-			[](Entity& e, const float* v, size_t) { e.Transform.Rotation = { v[0], v[1], v[2] }; });
-		transformCommand("scale", "scale <s> | <sx> <sy> <sz> [name|id]: uniform or per-axis scale", 1, 3,
-			[](Entity& e, const float* v, size_t n) { e.Transform.Scale = n == 1 ? glm::vec3(v[0]) : glm::vec3(v[0], v[1], v[2]); });
+			// entity add <mesh|light|body> [entity]
+			if (a.size() < 2) return fail("entity " + sub + " <mesh|light|body> [entity]");
+			const EntityId t = a.size() > 2 ? Resolve(a[2]) : m_Selected;
+			GB::Entity* e = m_World.Find(t);
+			if (!e) return fail("no such entity");
+			const bool add = sub == "add";
+			if (a[1] == "mesh") { if (add) e->Mesh.emplace(); else e->Mesh.reset(); }
+			else if (a[1] == "light") { if (add) e->Light.emplace(); else e->Light.reset(); }
+			else if (a[1] == "body") { if (add) e->Body.emplace(); else e->Body.reset(); }
+			else return fail("unknown component '" + a[1] + "' (mesh, light, body)");
+			Commit();
+			Rebind();
+			return { true, Describe(t) };
+		}
+		if (sub == "model")
+		{
+			// entity model <path relative to the assets> [entity]: draws a glTF model instead of a primitive
+			if (a.size() < 2) return fail("entity model <path> [entity]");
+			GB::Entity* e = m_World.Find(a.size() > 2 ? Resolve(a[2]) : m_Selected);
+			if (!e) return fail("no such entity");
+			if (!e->Mesh) e->Mesh.emplace();
+			e->Mesh->Model = a[1];
+			Commit();
+			Rebind();
+			return { true, Describe(e->Id) };
+		}
+		const EntityId id = target(1);
+		if (sub == "info") return id ? CommandResult{ true, Describe(id) } : fail("no such entity");
+		if (!id) return fail("no such entity (give a name or id, or select one)");
 
-		cmd.Register("color", "color <r> <g> <b> [metallic roughness]: material of the selected object", [&ed](const std::vector<std::string>& a) -> CommandResult
+		if (sub == "delete")
 		{
-			Entity* e = ed.World().Find(ed.Selected());
-			if (!e || !e->Mesh) return { false, "select an object with a mesh first" };
-			float v[5] = { 0, 0, 0, e->Mesh->Metallic, e->Mesh->Roughness };
-			if (!ParseFloats(a, 0, 3, v) || !ParseOptionalFloats(a, 3, 2, v + 3))
-				return { false, "usage: color <r> <g> <b> [metallic roughness]" };
-			e->Mesh->Albedo = { v[0], v[1], v[2] };
-			e->Mesh->Metallic = std::clamp(v[3], 0.0f, 1.0f);
-			e->Mesh->Roughness = std::clamp(v[4], 0.0f, 1.0f);
-			return { true, e->Name + " material updated" };
-		});
-		cmd.Register("emissive", "emissive <r> <g> <b>: glow of the selected object (values above 1 bloom)", [&ed](const std::vector<std::string>& a) -> CommandResult
+			m_World.Destroy(id);
+			if (!m_World.Find(m_Selected)) m_Selected = NullEntity;
+			Commit();
+			Rebind();
+			return { true, "deleted" };
+		}
+		if (sub == "duplicate")
 		{
-			Entity* e = ed.World().Find(ed.Selected());
-			float v[3];
-			if (!e || !e->Mesh) return { false, "select an object with a mesh first" };
-			if (!ParseFloats(a, 0, 3, v)) return { false, "usage: emissive <r> <g> <b>" };
-			e->Mesh->Emissive = { v[0], v[1], v[2] };
-			return { true, e->Name + " emissive updated" };
-		});
-		cmd.Register("light", "light <r> <g> <b> [intensity [radius]]: color of the selected light", [&ed](const std::vector<std::string>& a) -> CommandResult
+			const EntityId copy = m_World.Duplicate(id);
+			Commit();
+			Select(copy);
+			return { true, "duplicated as " + Describe(copy) };
+		}
+		if (sub == "rename")
 		{
-			Entity* e = ed.World().Find(ed.Selected());
-			if (!e || !e->Light) return { false, "select a light first (add light)" };
-			float v[5] = {};
-			if (!ParseFloats(a, 0, 3, v) || !ParseOptionalFloats(a, 3, 2, v + 3))
-				return { false, "usage: light <r> <g> <b> [intensity [radius]]" };
-			e->Light->Color = { v[0], v[1], v[2] };
-			if (a.size() > 3) e->Light->Intensity = v[3];
-			if (a.size() > 4) e->Light->Radius = v[4];
-			return { true, e->Name + " light updated" };
-		});
-		cmd.Register("drop", "drop [name|id]: sets the entity on the terrain surface", [&ed, hooks, noTarget](const std::vector<std::string>& a) -> CommandResult
+			if (a.size() < 3) return fail("entity rename <entity> <new name>");
+			m_World.Rename(id, a[2]);
+			Commit();
+			return { true, Describe(id) };
+		}
+		if (sub == "parent")
 		{
-			if (!hooks.Ground) return { false, "there is no terrain (generate a world first)" };
-			const std::string t = Join(a, 0);
-			const EntityId id = ed.Resolve(t);
-			if (id == NullEntity) return noTarget(t);
-			Entity* e = ed.World().Find(id);
-			const glm::vec3 w = glm::vec3(ed.World().WorldMatrix(id)[3]);
-			e->Transform.Position.y += hooks.Ground(w.x, w.z) - w.y;   // the difference in world height (parents may transform)
-			return { true, SceneEditor::Describe(*e) };
-		});
+			if (a.size() < 3) return fail("entity parent <entity> <parent|none>");
+			const EntityId p = a[2] == "none" ? NullEntity : Resolve(a[2]);
+			if (a[2] != "none" && p == NullEntity) return fail("unknown parent '" + a[2] + "'");
+			if (!m_World.SetParent(id, p)) return fail("cannot parent an entity under itself or its descendants");
+			Commit();
+			return { true, Describe(id) };
+		}
+		if (sub == "select")
+		{
+			Select(id);
+			return { true, Describe(id) };
+		}
+		if (sub == "set")
+		{
+			// entity set <entity> <property without 'sel.'> <value...>
+			if (a.size() < 4 || !m_Props) return fail("entity set <entity> <property> <value...>   e.g. entity set Cube position 0 2 0");
+			Select(id);
+			std::string value;
+			for (size_t i = 3; i < a.size(); ++i) value += (i > 3 ? " " : "") + a[i];
+			const SetResult r = m_Props->Set("sel." + a[2], value);
+			if (!r.Ok) return fail(r.Message);
+			Commit();
+			return { true, Describe(id) };
+		}
+		return fail("unknown entity command '" + sub + "'");
+	}
 
-		cmd.Register("scene_save", "scene_save <file.json>: saves the entities (generated trees and rocks included)", [&ed](const std::vector<std::string>& a) -> CommandResult
+	void SceneEditor::Register(CommandRunner& c)
+	{
+		c.Register("entity", "entity create|delete|duplicate|rename|parent|select|add|remove|set|info|list ...: edits the scene's entities", [this](const std::vector<std::string>& a) { return EntityCommand(a); });
+		c.Register("add", "add <cube|sphere|plane|light|file.glb|file.gltf> [x y z]: adds an object (models are relative to the assets folder)", [this](const std::vector<std::string>& a) { return Add(a); });
+		c.Register("new_scene", "new_scene: an empty scene (camera and sun only, no generated world); same as `scene new`", [this](const std::vector<std::string>&) { return NewScene(); });
+		c.Register("select", "select <name|id|none>: selects an entity", [this](const std::vector<std::string>& a) -> CommandResult
 		{
-			if (a.empty()) return { false, "usage: scene_save <file.json>" };
-			const SceneIOResult r = SaveSceneToFile(ed.World(), a[0]);
-			return { r.Ok, r.Ok ? "saved " + std::to_string(ed.World().Count()) + " entities to " + a[0] : r.Error };
+			if (a.empty() || a[0] == "none") { Select(NullEntity); return { true, "selection cleared" }; }
+			const EntityId id = Resolve(a[0]);
+			if (!id) return { false, "no such entity '" + a[0] + "'" };
+			Select(id);
+			return { true, Describe(id) };
 		});
-		cmd.Register("scene_load", "scene_load <file.json>: replaces the entities with a saved scene", [&ed, hooks](const std::vector<std::string>& a) -> CommandResult
+		c.Register("scene", "scene new|save <file>|load <file>: scene files (JSON)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
-			if (a.empty()) return { false, "usage: scene_load <file.json>" };
-			const SceneIOResult r = LoadSceneFromFile(ed.World(), a[0]);
-			ed.Select(NullEntity);
-			if (r.Ok && hooks.SceneReplaced) hooks.SceneReplaced();
-			return { r.Ok, r.Ok ? "loaded " + std::to_string(ed.World().Count()) + " entities from " + a[0] : r.Error };
+			if (!a.empty() && a[0] == "new") return NewScene();
+			if (a.size() >= 2 && a[0] == "save") return Save(a[1]);
+			if (a.size() >= 2 && a[0] == "load") return Load(a[1]);
+			return { false, "scene new | scene save <file> | scene load <file>" };
 		});
-
-		cmd.Register("tests", "tests: lists the Sandbox test scenes you can run with `test <name>`", [](const std::vector<std::string>&) -> CommandResult
-		{
-			std::string out = "test scenes:";
-			for (const TestScenario& s : TestScenarios())
-				out += "\n  " + s.Name + (s.Approximate ? " (approximation)" : "") + ": " + s.Description;
-			out += "\n`test <name>` builds it in the viewport; `test <name> sandbox` opens the original in its own window";
-			return { true, out };
-		});
-		cmd.Register("test", "test <name> [sandbox]: builds a Sandbox test scene in the viewport (sandbox = run the original in its own window)",
-			[hooks](const std::vector<std::string>& a) -> CommandResult
-		{
-			if (a.empty()) return { false, "usage: test <name> [sandbox]  (see tests)" };
-			const TestScenario* s = FindTestScenario(Lower(a[0]));
-			if (!s) return { false, "unknown test scene '" + a[0] + "' (see tests)" };
-			if (a.size() > 1 && Lower(a[1]) == "sandbox")
-				return hooks.RunExternal ? hooks.RunExternal(s->Name) : CommandResult{ false, "the Sandbox executable is not available" };
-			if (!hooks.RunScript) return { false, "cannot run scripts here" };
-			hooks.RunScript(s->Script);
-			return { true, "test scene '" + s->Name + "': " + s->Title };
-		});
+		c.Register("undo", "undo: reverts the last scene edit", [this](const std::vector<std::string>&) -> CommandResult { return Undo() ? CommandResult{ true, "undone" } : CommandResult{ false, "nothing to undo" }; });
+		c.Register("redo", "redo: re-applies an undone scene edit", [this](const std::vector<std::string>&) -> CommandResult { return Redo() ? CommandResult{ true, "redone" } : CommandResult{ false, "nothing to redo" }; });
 	}
 }

@@ -1,5 +1,6 @@
 #include "Model.h"
 #include "ModelInstance.h"
+#include "ModelUtil.h"
 #include "GB/Log.h"
 #include "GB/Renderer/Image.h"
 #include <algorithm>
@@ -60,6 +61,10 @@ namespace GB
 			return r;
 		}
 
+	}
+
+	namespace detail
+	{
 		// Per-vertex normals from face normals (area weighted) for meshes without NORMAL.
 		void GenerateNormals(std::vector<Vertex>& v, const std::vector<uint32_t>& idx)
 		{
@@ -115,6 +120,9 @@ namespace GB
 			}
 		}
 	}
+
+	using detail::GenerateNormals;
+	using detail::GenerateTangents;
 
 	// Defined here (and befriended) so the cgltf details stay out of the header.
 	struct ModelLoader
@@ -212,13 +220,8 @@ namespace GB
 		}
 
 		// CPU copies kept until the bounds are computed.
-		struct PrimitiveCPU
-		{
-			std::vector<glm::vec3> Positions;
-			std::vector<SkinVertex> Skin;   // empty if not skinned
-		};
 
-		std::unique_ptr<Mesh> ConvertPrimitive(const cgltf_primitive& prim, PrimitiveCPU& cpu)
+		std::unique_ptr<Mesh> ConvertPrimitive(const cgltf_primitive& prim, Model::PrimitiveCPU& cpu)
 		{
 			if (prim.type != cgltf_primitive_type_triangles)
 			{
@@ -470,6 +473,12 @@ namespace GB
 
 	std::unique_ptr<Model> Model::Load(const std::string& path)
 	{
+		{
+			std::string ext = path.size() >= 4 ? path.substr(path.size() - 4) : "";
+			for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+			if (ext == ".fbx")
+				return LoadFbx(path);
+		}
 		cgltf_options options = {};
 		cgltf_data* data = nullptr;
 		cgltf_result result = cgltf_parse_file(&options, path.c_str(), &data);
@@ -500,14 +509,14 @@ namespace GB
 		loader.ConvertAnimations();
 
 		model->m_Meshes.resize(data->meshes_count);
-		std::vector<std::vector<ModelLoader::PrimitiveCPU>> cpu(data->meshes_count);
+		std::vector<std::vector<Model::PrimitiveCPU>> cpu(data->meshes_count);
 		for (cgltf_size m = 0; m < data->meshes_count; ++m)
 		{
 			const cgltf_mesh& mesh = data->meshes[m];
 			for (cgltf_size p = 0; p < mesh.primitives_count; ++p)
 			{
 				const cgltf_primitive& prim = mesh.primitives[p];
-				ModelLoader::PrimitiveCPU primitiveCPU;
+				Model::PrimitiveCPU primitiveCPU;
 				std::unique_ptr<Mesh> gpu = loader.ConvertPrimitive(prim, primitiveCPU);
 				if (!gpu)
 					continue;
@@ -519,35 +528,46 @@ namespace GB
 			}
 		}
 
+		model->ComputeBounds(cpu);
+
+		cgltf_free(data);
+		GB_CORE_INFO("Loaded glTF '{}': {} meshes, {} nodes, {} materials, {} textures, {} triangles, {} skins, {} animations, {} cameras",
+			path, model->m_Meshes.size(), model->m_Nodes.size(), model->m_Materials.size(),
+			model->m_Textures.size(), model->m_TriangleCount, model->m_Skins.size(), model->m_Clips.size(), model->m_Cameras.size());
+		return model;
+	}
+
+	void Model::ComputeBounds(const std::vector<std::vector<PrimitiveCPU>>& cpu)
+	{
 		// Bounds in the rest pose: rigid vertices by their node's world, skinned ones through the rest palette.
-		const size_t nodeCount = model->m_Nodes.size();
+		const size_t nodeCount = m_Nodes.size();
 		std::vector<glm::mat4> world(nodeCount, glm::mat4(1.0f));
 		{
 			std::function<void(int, const glm::mat4&)> visit = [&](int n, const glm::mat4& parent)
 			{
-				const ModelNode& node = model->m_Nodes[n];
+				const ModelNode& node = m_Nodes[n];
 				world[n] = parent * glm::translate(glm::mat4(1.0f), node.Translation) * glm::mat4_cast(node.Rotation)
 					* glm::scale(glm::mat4(1.0f), node.Scale);
 				for (int child : node.Children)
 					visit(child, world[n]);
 			};
-			for (int root : model->m_RootNodes)
+			for (int root : m_RootNodes)
 				visit(root, glm::mat4(1.0f));
 		}
 		glm::vec3 lo(std::numeric_limits<float>::max()), hi(std::numeric_limits<float>::lowest());
 		for (size_t n = 0; n < nodeCount; ++n)
 		{
-			const ModelNode& node = model->m_Nodes[n];
+			const ModelNode& node = m_Nodes[n];
 			if (node.MeshIndex < 0)
 				continue;
 			std::vector<glm::mat4> palette;
 			if (node.SkinIndex >= 0)
 			{
-				const ModelSkin& skin = model->m_Skins[node.SkinIndex];
+				const ModelSkin& skin = m_Skins[node.SkinIndex];
 				for (size_t j = 0; j < skin.Joints.size(); ++j)
 					palette.push_back(world[skin.Joints[j]] * skin.InverseBind[j]);
 			}
-			for (const ModelLoader::PrimitiveCPU& prim : cpu[node.MeshIndex])
+			for (const Model::PrimitiveCPU& prim : cpu[node.MeshIndex])
 			{
 				for (size_t v = 0; v < prim.Positions.size(); ++v)
 				{
@@ -570,15 +590,9 @@ namespace GB
 		}
 		if (lo.x <= hi.x)
 		{
-			model->m_BoundsMin = lo;
-			model->m_BoundsMax = hi;
+			m_BoundsMin = lo;
+			m_BoundsMax = hi;
 		}
-
-		cgltf_free(data);
-		GB_CORE_INFO("Loaded glTF '{}': {} meshes, {} nodes, {} materials, {} textures, {} triangles, {} skins, {} animations, {} cameras",
-			path, model->m_Meshes.size(), model->m_Nodes.size(), model->m_Materials.size(),
-			model->m_Textures.size(), model->m_TriangleCount, model->m_Skins.size(), model->m_Clips.size(), model->m_Cameras.size());
-		return model;
 	}
 
 	int Model::FindClip(const std::string& name) const

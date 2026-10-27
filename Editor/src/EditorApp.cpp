@@ -1,4 +1,5 @@
 #include "EditorApp.h"
+#include "GB/Animation/ClipAnalysis.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
@@ -31,6 +32,39 @@ namespace GB::Editor
 			c.CreateWindow = true;
 			return c;
 		}
+		// Draws the editing widget of one property; true when the user changed it.
+		bool DrawPropertyWidget(Property& p, const char* label)
+		{
+			bool changed = false;
+			ImGui::SetNextItemWidth(-ImGui::GetContentRegionAvail().x * 0.42f);
+			switch (p.Type)
+			{
+			case PropType::Float:
+			{
+				float& v = *static_cast<float*>(p.Ptr);
+				changed = p.Max - p.Min <= 1000.0f ? ImGui::SliderFloat(label, &v, p.Min, p.Max, "%.3g") : ImGui::DragFloat(label, &v, 0.5f, p.Min, p.Max);
+				break;
+			}
+			case PropType::Int: changed = ImGui::SliderInt(label, static_cast<int*>(p.Ptr), static_cast<int>(p.Min), static_cast<int>(p.Max)); break;
+			case PropType::Bool: changed = ImGui::Checkbox(label, static_cast<bool*>(p.Ptr)); break;
+			case PropType::Vec3: changed = ImGui::DragFloat3(label, &static_cast<glm::vec3*>(p.Ptr)->x, std::min((p.Max - p.Min) * 0.002f, 0.05f), p.Min, p.Max, "%.3g"); break;
+			case PropType::Color: changed = ImGui::ColorEdit3(label, &static_cast<glm::vec3*>(p.Ptr)->x, ImGuiColorEditFlags_Float); break;
+			case PropType::Enum:
+			{
+				int& i = *static_cast<int*>(p.Ptr);
+				if (ImGui::BeginCombo(label, i >= 0 && static_cast<size_t>(i) < p.Names.size() ? p.Names[static_cast<size_t>(i)].c_str() : "?"))
+				{
+					for (size_t k = 0; k < p.Names.size(); ++k)
+						if (ImGui::Selectable(p.Names[k].c_str(), static_cast<int>(k) == i)) { i = static_cast<int>(k); changed = true; }
+					ImGui::EndCombo();
+				}
+				break;
+			}
+			}
+			if (!p.Tooltip.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", p.Tooltip.c_str());
+			return changed;
+		}
+
 		std::string Lower(std::string s)
 		{
 			std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
@@ -60,19 +94,18 @@ namespace GB::Editor
 		}
 		m_ViewportFb = std::make_unique<Framebuffer>(m_ViewportW, m_ViewportH);
 		m_AssetRoot = GB_ASSET_DIR;
-		m_Edit = SceneEditor(m_AssetRoot);
-		m_Entities = EntityRenderer(m_AssetRoot);
-		m_Entities.SetPropBuilder([this](const PropComponent& p, const glm::mat4& m, Scene& s) { return m_World.AddProp(p, m, s); });
-		m_Edit.SetBoundsProvider([this](EntityId id, const Entity& e, glm::vec3& center, float& radius)
-		{
-			if (e.Prop) return m_World.PropBounds(*e.Prop, center, radius);
-			return m_Entities.ModelBounds(id, center, radius);
-		});
+		m_SceneEditor.SetAssetRoot(m_AssetRoot);
+		m_SceneEditor.OnNewScene = [this]() { ResetWorld(); };   // File > New Scene also drops the generated world
+		m_SceneEditor.SetPropBounds([this](const PropComponent& p, glm::vec3& center, float& radius) { return m_World.PropBounds(p, center, radius); });
 		m_Weather = std::make_unique<Weather>(5);
 		m_Orbit.Pitch = 0.3f; m_Orbit.Yaw = 0.6f; m_Orbit.Distance = 60.0f; m_Orbit.MinDistance = 1.0f; m_Orbit.MaxDistance = 600.0f;
 		m_Camera.FarPlane = 1500.0f;
 
 		RegisterCommands();
+		m_SceneEditor.Bind(m_Props);
+		m_SceneEditor.Register(m_Commands);
+		m_EntityRenderer = std::make_unique<EntityRenderer>(m_AssetRoot);
+		m_EntityRenderer->SetPropBuilder([this](const PropComponent& p, const glm::mat4& m, Scene& s) { return m_World.AddProp(p, m, s); });
 		BuildWorld(m_WorldDesc);
 		RegisterProperties();
 
@@ -110,13 +143,14 @@ namespace GB::Editor
 	bool EditorApp::IsPanelOpen(const std::string& name) const
 	{
 		if (name == "Viewport") return m_Panels.Viewport;
+		if (name == "Hierarchy") return m_Panels.Hierarchy;
+		if (name == "Inspector") return m_Panels.Inspector;
 		if (name == "Properties") return m_Panels.Properties;
 		if (name == "World") return m_Panels.World;
 		if (name == "Stats") return m_Panels.Stats;
 		if (name == "Console") return m_Panels.Console;
 		if (name == "Assets") return m_Panels.Assets;
 		if (name == "Model") return m_Panels.Model;
-		if (name == "Objects") return m_Panels.Objects;
 		if (name == "Tests") return m_Panels.Tests;
 		return false;
 	}
@@ -140,11 +174,12 @@ namespace GB::Editor
 		m_Player.Stop();   // it points into the old terrain
 		m_WorldDesc = desc;
 		m_Instance.reset();
-		m_Edit.RemoveEnvironment();   // the old trees and rocks go with the old world; what the user added stays
+		m_SceneEditor.RemoveEnvironment();   // the old trees and rocks go with the old world; what the user added stays
 		m_World.Build(desc, m_Scene);
 		m_StaticObjects = m_Scene.Objects.size();   // the terrain; entities are appended every frame
-		m_Edit.PopulateEnvironment(m_World.World().Trees, m_World.World().Rocks);
+		m_SceneEditor.PopulateEnvironment(m_World.World().Trees, m_World.World().Rocks);
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
+		m_SceneEditor.SetSpawnPoint(m_Orbit.Target);
 		RebaseWeather();
 		FrameWorld();
 		if (m_Props.All().size() > 0)
@@ -335,7 +370,9 @@ namespace GB::Editor
 	// ------------------------------------------------------------------ commands
 	CommandResult EditorApp::Execute(const std::string& line)
 	{
+		m_SceneEditor.SetSpawnPoint(m_Orbit.Target);
 		const CommandResult r = m_Commands.Execute(line);
+		m_SceneEditor.Tick(m_GizmoAxis >= 0);   // an edit made by `set sel.*` is its own undo step
 		if (!line.empty() && !r.Message.empty())
 		{
 			if (r.Ok) GB_CLIENT_INFO("{}", r.Message);
@@ -359,14 +396,7 @@ namespace GB::Editor
 	void EditorApp::RegisterCommands()
 	{
 		CommandRunner& c = m_Commands;
-		SceneHooks hooks;
-		hooks.ClearWorld = [this]() { ResetWorld(); };
-		hooks.SceneReplaced = [this]() { m_Entities.Reset(); };
-		hooks.SpawnPoint = [this]() { return m_Orbit.Target; };
-		hooks.Ground = [this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; };
-		hooks.RunScript = [this](const std::string& text) { RunScriptFirst(text); };
-		hooks.RunExternal = [this](const std::string& scene) { return LaunchSandbox(scene); };
-		RegisterSceneCommands(m_Commands, m_Edit, hooks);
+		RegisterTestCommands(m_Commands, [this](const std::string& text) { RunScriptFirst(text); }, [this](const std::string& scene) { return LaunchSandbox(scene); });
 		c.Register("help", "help [command]: lists the commands, or explains one", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!a.empty())
@@ -452,7 +482,7 @@ namespace GB::Editor
 			}
 			if (a.empty() && m_Player.IsActive()) return { true, m_Player.Describe() };
 			std::string error;
-			if (!m_Player.Start(a.empty() ? "fox" : a[0], m_World, m_Edit, m_AssetRoot, m_Orbit.Target, error)) return { false, error };
+			if (!m_Player.Start(a.empty() ? "fox" : a[0], m_World, m_SceneEditor, m_AssetRoot, m_Orbit.Target, error)) return { false, error };
 			if (a.size() > 1) m_Player.SetScript(a[1]);
 			return { true, m_Player.Describe() };
 		});
@@ -487,6 +517,56 @@ namespace GB::Editor
 			m_Props.Float("model.scale", m_ModelScale, 0.01f, 50.0f, "Model");
 			m_Props.Float("model.speed", m_ModelSpeed, 0.0f, 4.0f, "Model").OnChange = [this]() { if (m_Instance) m_Instance->SetSpeed(m_ModelSpeed); };
 			return { true, "loaded " + path + " (" + std::to_string(m_Model->GetClips().size()) + " animations)" };
+		});
+		c.Register("anims", "anims <file.fbx|folder>: adds the animation clips of an FBX file (or every FBX in a folder) to the loaded model, matching bones by name", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: anims <file.fbx|folder>" };
+			if (!m_Model) return { false, "load a model first" };
+			std::vector<std::string> files;
+			std::error_code ec;
+			if (fs::is_directory(a[0], ec))
+			{
+				for (const auto& e : fs::directory_iterator(a[0], ec))
+					if (e.is_regular_file() && Lower(e.path().extension().string()) == ".fbx") files.push_back(e.path().generic_string());
+				std::sort(files.begin(), files.end());
+			}
+			else files.push_back(a[0]);
+			int added = 0;
+			for (const std::string& f : files) { std::string report; added += m_Model->AppendAnimations(f, &report); }
+			if (m_Instance && m_Instance->GetCurrentClip() < 0 && !m_Model->GetClips().empty()) m_Instance->Play(0, true, 0.0f);
+			return { true, std::to_string(added) + " clip(s) added; the model now has " + std::to_string(m_Model->GetClips().size()) };
+		});
+		c.Register("clips", "clips: lists the animation clips of the loaded model", [this](const std::vector<std::string>&) -> CommandResult
+		{
+			if (!m_Model) return { false, "no model loaded" };
+			std::string out;
+			const auto& clips = m_Model->GetClips();
+			for (size_t i = 0; i < clips.size(); ++i)
+			{
+				char buf[160];
+				std::snprintf(buf, sizeof buf, "%s%zu  %s  %.2f s  %zu channels", i ? "\n" : "", i, clips[i].Name.c_str(), static_cast<double>(clips[i].Duration), clips[i].Channels.size());
+				out += buf;
+			}
+			return { true, out.empty() ? "(no clips)" : out };
+		});
+		c.Register("anim_stats", "anim_stats [clip|all]: root motion, loop quality and foot plants measured from the clips of the loaded model", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Model) return { false, "no model loaded" };
+			std::string out;
+			const auto& clips = m_Model->GetClips();
+			for (size_t i = 0; i < clips.size(); ++i)
+			{
+				if (!a.empty() && a[0] != "all" && a[0] != clips[i].Name && a[0] != std::to_string(i)) continue;
+				out += (out.empty() ? "" : "\n") + FormatClipStats(AnalyzeClip(*m_Model, static_cast<int>(i)));
+			}
+			return { !out.empty(), out.empty() ? "no such clip" : out };
+		});
+		c.Register("play", "play <clip name|index> [fade seconds]: plays a clip of the loaded model", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty() || !m_Instance) return { false, "usage: play <clip> [fade] (with a model loaded)" };
+			const float fade = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 0.25f;
+			const bool ok = std::isdigit(static_cast<unsigned char>(a[0][0])) ? m_Instance->Play(std::atoi(a[0].c_str()), true, fade) : m_Instance->Play(a[0], true, fade);
+			return ok ? CommandResult{ true, "playing " + a[0] } : CommandResult{ false, "no clip '" + a[0] + "'" };
 		});
 		c.Register("hdri", "hdri <file.hdr|off>: uses an HDR environment for the sky and reflections", [this](const std::vector<std::string>& a) -> CommandResult
 		{
@@ -566,16 +646,17 @@ namespace GB::Editor
 		}
 		else
 		{
-			if (m_ViewportHovered && !io.WantTextInput) m_Orbit.Update(dt);
+			if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt);
 			m_Orbit.Apply(m_Camera);
 		}
 		ApplyTimeOfDay();
 		m_Weather->Update(dt, m_Camera);
 		m_Weather->Apply(m_Scene);
+		m_WeatherLights = m_Scene.PointLights.size();
+		m_SceneEditor.Tick(m_GizmoAxis >= 0 || ImGui::IsAnyItemActive());
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
 		m_Scene.Post.DeltaTime = dt > 0.0f ? dt : 1.0f / 60.0f;
 		if (m_Instance) m_Instance->Update(dt);
-		m_Entities.Update(dt);
 	}
 
 	void EditorApp::OnRender()
@@ -590,13 +671,13 @@ namespace GB::Editor
 			m_Renderer->Resize(m_ViewportW, m_ViewportH);
 		}
 		m_Scene.Objects.resize(m_StaticObjects);
-		const size_t baseLights = m_Scene.PointLights.size();
-		m_Entities.Build(m_Edit.World(), m_Scene);
+		m_Scene.PointLights.resize(m_WeatherLights);
+		m_EntityRenderer->Update(m_FrameDt);
+		m_EntityRenderer->Build(m_SceneEditor.World(), m_Scene, m_SceneEditor.Selected());
 		if (m_Instance)
 			m_Instance->AddToScene(m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
 		m_Player.AddToScene(m_Scene);
 		m_Renderer->Render(m_Scene, m_Camera, m_ViewportFb.get());
-		m_Scene.PointLights.resize(baseLights);   // the entities' lights are rebuilt every frame
 
 		// the interface
 		Framebuffer::BindDefault(ww, wh);
@@ -620,15 +701,17 @@ namespace GB::Editor
 		ImGui::DockBuilderRemoveNode(dockspaceId);
 		ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace);
 		ImGui::DockBuilderSetNodeSize(dockspaceId, ImVec2(width, height));
-		ImGuiID center = dockspaceId, left, right, bottom;
+		ImGuiID center = dockspaceId, left, leftTop, right, bottom;
 		left = ImGui::DockBuilderSplitNode(center, ImGuiDir_Left, 0.25f, nullptr, &center);
+		leftTop = ImGui::DockBuilderSplitNode(left, ImGuiDir_Up, 0.45f, nullptr, &left);
 		right = ImGui::DockBuilderSplitNode(center, ImGuiDir_Right, 0.22f, nullptr, &center);
 		bottom = ImGui::DockBuilderSplitNode(center, ImGuiDir_Down, 0.27f, nullptr, &center);
 		ImGui::DockBuilderDockWindow("Properties", left);
+		ImGui::DockBuilderDockWindow("Hierarchy", leftTop);
+		ImGui::DockBuilderDockWindow("Inspector", right);
 		ImGui::DockBuilderDockWindow("World", right);
 		ImGui::DockBuilderDockWindow("Stats", right);
 		ImGui::DockBuilderDockWindow("Model", right);
-		ImGui::DockBuilderDockWindow("Objects", left);
 		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
@@ -648,15 +731,19 @@ namespace GB::Editor
 				BuildDefaultLayout(dock, vp->Size.x, vp->Size.y);
 		}
 		if (m_Panels.Viewport) DrawViewport();
+		if (m_Panels.Hierarchy) DrawHierarchy();
+		if (m_Panels.Inspector) DrawInspector();
 		if (m_Panels.Properties) DrawProperties();
 		if (m_Panels.World) DrawWorldPanel();
 		if (m_Panels.Stats) DrawStats();
 		if (m_Panels.Model) DrawModelPanel();
-		if (m_Panels.Objects) DrawObjectsPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
 		if (m_Panels.Demo) ImGui::ShowDemoWindow(&m_Panels.Demo);
+		HandleSceneShortcuts();
+		for (const std::string& line : m_UiCommands) Execute(line);
+		m_UiCommands.clear();
 	}
 
 	void EditorApp::DrawMenu()
@@ -675,16 +762,30 @@ namespace GB::Editor
 				if (ImGui::MenuItem("Desert")) Execute("generate desert");
 				ImGui::EndMenu();
 			}
+			if (ImGui::MenuItem("New scene")) Execute("scene new");
+			if (ImGui::MenuItem("Save scene", "Ctrl+S")) Execute("scene save scene.json");
+			if (ImGui::MenuItem("Load scene")) Execute("scene load scene.json");
+			ImGui::Separator();
 			if (ImGui::MenuItem("Save viewport screenshot")) Execute("screenshot editor_screenshot.png");
 			ImGui::Separator();
 			if (ImGui::MenuItem("Exit")) Close();
 			ImGui::EndMenu();
 		}
-		if (ImGui::BeginMenu("Add"))
+		if (ImGui::BeginMenu("Edit"))
 		{
-			for (const char* what : { "cube", "sphere", "plane", "light" })
-				if (ImGui::MenuItem(what)) Execute(std::string("add ") + what);
-			if (ImGui::BeginMenu("Model"))
+			if (ImGui::MenuItem("Undo", "Ctrl+Z", false, m_SceneEditor.UndoDepth() > 0)) Execute("undo");
+			if (ImGui::MenuItem("Redo", "Ctrl+Y", false, m_SceneEditor.RedoDepth() > 0)) Execute("redo");
+			ImGui::Separator();
+			const bool has = m_SceneEditor.Selected() != NullEntity;
+			if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, has)) Execute("entity duplicate");
+			if (ImGui::MenuItem("Delete", "Del", false, has)) Execute("entity delete");
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Entity"))
+		{
+			for (const char* kind : { "empty", "cube", "sphere", "plane", "light" })
+				if (ImGui::MenuItem(kind)) Execute(std::string("entity create ") + kind);
+			if (ImGui::BeginMenu("glTF model"))
 			{
 				std::error_code ec;
 				for (auto it = fs::recursive_directory_iterator(m_AssetRoot, ec); !ec && it != fs::recursive_directory_iterator(); it.increment(ec))
@@ -709,7 +810,8 @@ namespace GB::Editor
 		{
 			if (ImGui::MenuItem("Play as fox (WASD)", nullptr, m_Player.IsActive())) Execute(m_Player.IsActive() ? "player off" : "player fox");
 			ImGui::Separator();
-			ImGui::MenuItem("Objects", nullptr, &m_Panels.Objects);
+			ImGui::MenuItem("Hierarchy", nullptr, &m_Panels.Hierarchy);
+			ImGui::MenuItem("Inspector", nullptr, &m_Panels.Inspector);
 			ImGui::MenuItem("Tests", nullptr, &m_Panels.Tests);
 			ImGui::MenuItem("Viewport", nullptr, &m_Panels.Viewport);
 			ImGui::MenuItem("Properties", nullptr, &m_Panels.Properties);
@@ -752,45 +854,13 @@ namespace GB::Editor
 			ImGui::Image(static_cast<ImTextureID>(static_cast<intptr_t>(m_ViewportFb->GetColorTexture())), ImVec2(static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight())),
 				ImVec2(0, 1), ImVec2(1, 0));
 			m_ViewportHovered = ImGui::IsItemHovered();
-			const ImGuiIO& vio = ImGui::GetIO();
-			if (m_ViewportHovered && ImGui::IsMouseReleased(0))   // a click (not a camera drag) selects
-			{
-				const ImVec2 drag = ImGui::GetMouseDragDelta(0, 0.0f);
-				if (drag.x * drag.x + drag.y * drag.y < 16.0f)
-					PickAt(vio.MousePos.x - origin.x, vio.MousePos.y - origin.y, static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight()));
-			}
-			if (m_ViewportHovered && !vio.WantTextInput && m_Edit.Selected() != NullEntity && ImGui::IsKeyPressed(ImGuiKey_Delete))
-				Execute("delete");
-			SceneEditor::Sphere sel;
-			if (m_Edit.WorldBounds(m_Edit.Selected(), sel))   // circle around the selection
-			{
-				const float vw = static_cast<float>(m_ViewportFb->GetWidth()), vh = static_cast<float>(m_ViewportFb->GetHeight());
-				const glm::vec4 clip = m_Camera.GetProjection(vw / vh) * m_Camera.GetView() * glm::vec4(sel.Center, 1.0f);
-				if (clip.w > 0.01f)
-				{
-					const float px = std::clamp(sel.Radius / (clip.w * std::tan(glm::radians(m_Camera.FovYDegrees) * 0.5f)) * vh * 0.5f, 6.0f, 2000.0f);
-					const ImVec2 c(origin.x + (clip.x / clip.w * 0.5f + 0.5f) * vw, origin.y + (1.0f - (clip.y / clip.w * 0.5f + 0.5f)) * vh);
-					ImGui::GetWindowDrawList()->AddCircle(c, px, IM_COL32(255, 200, 40, 230), 48, 2.0f);
-				}
-			}
+			DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight()));
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);
 			ImGui::GetWindowDrawList()->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(255, 255, 255, 200), info);
 		}
 		ImGui::End();
 		ImGui::PopStyleVar();
-	}
-
-	void EditorApp::PickAt(float mouseX, float mouseY, float width, float height)
-	{
-		if (width < 1.0f || height < 1.0f) return;
-		const glm::mat4 inv = glm::inverse(m_Camera.GetProjection(width / height) * m_Camera.GetView());
-		const float nx = mouseX / width * 2.0f - 1.0f, ny = 1.0f - mouseY / height * 2.0f;
-		glm::vec4 a = inv * glm::vec4(nx, ny, -1.0f, 1.0f), b = inv * glm::vec4(nx, ny, 1.0f, 1.0f);
-		a /= a.w; b /= b.w;
-		const EntityId hit = m_Edit.Pick(m_Camera.Position, glm::vec3(b) - glm::vec3(a));
-		m_Edit.Select(hit);
-		m_ScrollToSelected = hit != NullEntity;
 	}
 
 	void EditorApp::DrawProperties()
@@ -803,7 +873,7 @@ namespace GB::Editor
 			ImGui::Separator();
 			std::vector<std::string> groups;
 			for (const Property& p : m_Props.All())
-				if (std::find(groups.begin(), groups.end(), p.Group) == groups.end()) groups.push_back(p.Group);
+				if (p.Path.rfind("sel.", 0) != 0 && std::find(groups.begin(), groups.end(), p.Group) == groups.end()) groups.push_back(p.Group);
 			const std::string needle = Lower(m_PropFilter);
 			for (const std::string& group : groups)
 			{
@@ -814,37 +884,9 @@ namespace GB::Editor
 				if (!ImGui::CollapsingHeader(group.c_str(), needle.empty() ? 0 : ImGuiTreeNodeFlags_DefaultOpen)) continue;
 				for (Property& p : m_Props.All())
 				{
-					if (p.Group != group || (!needle.empty() && Lower(p.Path).find(needle) == std::string::npos)) continue;
+					if (p.Path.rfind("sel.", 0) == 0 || p.Group != group || (!needle.empty() && Lower(p.Path).find(needle) == std::string::npos)) continue;
 					ImGui::PushID(p.Path.c_str());
-					bool changed = false;
-					const char* label = p.Path.c_str();
-					ImGui::SetNextItemWidth(-ImGui::GetContentRegionAvail().x * 0.42f);
-					switch (p.Type)
-					{
-					case PropType::Float:
-					{
-						float& v = *static_cast<float*>(p.Ptr);
-						changed = p.Max - p.Min <= 1000.0f ? ImGui::SliderFloat(label, &v, p.Min, p.Max, "%.3g") : ImGui::DragFloat(label, &v, 0.5f, p.Min, p.Max);
-						break;
-					}
-					case PropType::Int: changed = ImGui::SliderInt(label, static_cast<int*>(p.Ptr), static_cast<int>(p.Min), static_cast<int>(p.Max)); break;
-					case PropType::Bool: changed = ImGui::Checkbox(label, static_cast<bool*>(p.Ptr)); break;
-					case PropType::Vec3: changed = ImGui::DragFloat3(label, &static_cast<glm::vec3*>(p.Ptr)->x, (p.Max - p.Min) * 0.002f, p.Min, p.Max, "%.3g"); break;
-					case PropType::Color: changed = ImGui::ColorEdit3(label, &static_cast<glm::vec3*>(p.Ptr)->x, ImGuiColorEditFlags_Float); break;
-					case PropType::Enum:
-					{
-						int& i = *static_cast<int*>(p.Ptr);
-						if (ImGui::BeginCombo(label, i >= 0 && static_cast<size_t>(i) < p.Names.size() ? p.Names[static_cast<size_t>(i)].c_str() : "?"))
-						{
-							for (size_t k = 0; k < p.Names.size(); ++k)
-								if (ImGui::Selectable(p.Names[k].c_str(), static_cast<int>(k) == i)) { i = static_cast<int>(k); changed = true; }
-							ImGui::EndCombo();
-						}
-						break;
-					}
-					}
-					if (!p.Tooltip.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", p.Tooltip.c_str());
-					if (changed) PropertyRegistry::Notify(p);
+					if (DrawPropertyWidget(p, p.Path.c_str())) PropertyRegistry::Notify(p);
 					ImGui::PopID();
 				}
 			}
@@ -877,6 +919,225 @@ namespace GB::Editor
 				ImGui::Text("trees %zu   rocks %zu   grass %zu", m_World.TreeCount(), m_World.RockCount(), m_World.GrassBlades());
 				for (size_t i = 0; i < shares.size(); ++i)
 					if (shares[i] > 0.001f) { char t[32]; std::snprintf(t, sizeof t, "%.0f%%", static_cast<double>(shares[i]) * 100.0); ImGui::ProgressBar(shares[i], ImVec2(-1, 0), t); ImGui::SameLine(0.0f, 6.0f); ImGui::TextUnformatted(names[i]); }
+			}
+		}
+		ImGui::End();
+	}
+
+	// ------------------------------------------------------------------ scene editing
+	void EditorApp::HandleSceneShortcuts()
+	{
+		ImGuiIO& io = ImGui::GetIO();
+		if (io.WantTextInput) return;
+		if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) Execute(io.KeyShift ? "redo" : "undo");
+		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) Execute("redo");
+		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false) && m_SceneEditor.Selected() != NullEntity) Execute("entity duplicate");
+		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_S, false)) Execute("scene save scene.json");
+		else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && m_SceneEditor.Selected() != NullEntity) Execute("entity delete");
+	}
+
+	void EditorApp::DrawGizmo(float ox, float oy, float w, float h)
+	{
+		ImGuiIO& io = ImGui::GetIO();
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		EntityWorld& world = m_SceneEditor.World();
+		const glm::vec2 size(w, h), mouse(io.MousePos.x - ox, io.MousePos.y - oy);
+		const float aspect = w / h;
+		const glm::mat4 viewProj = m_Camera.GetProjection(aspect) * m_Camera.GetView();
+		const glm::vec3 axes[3] = { { 1, 0, 0 }, { 0, 1, 0 }, { 0, 0, 1 } };
+		const ImU32 colors[3] = { IM_COL32(235, 70, 70, 255), IM_COL32(90, 220, 90, 255), IM_COL32(80, 130, 245, 255) };
+
+		const EntityId sel = m_SceneEditor.Selected();
+		glm::vec3 origin(0.0f);
+		float len = 0.0f;
+		int hover = -1;
+		if (sel != NullEntity)
+		{
+			origin = glm::vec3(world.WorldMatrix(sel)[3]);
+			len = glm::distance(m_Camera.Position, origin) * 0.16f;
+			float best = 9.0f;   // pixels
+			glm::vec2 a;
+			if (ProjectToScreen(viewProj, origin, size, a))
+				for (int i = 0; i < 3; ++i)
+				{
+					glm::vec2 b;
+					if (!ProjectToScreen(viewProj, origin + axes[i] * len, size, b)) continue;
+					const glm::vec2 ab = b - a;
+					const float t = glm::clamp(glm::dot(mouse - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+					const float d = glm::distance(mouse, a + ab * t);
+					if (d < best && m_ViewportHovered) { best = d; hover = i; }
+				}
+			for (int i = 0; i < 3; ++i)
+			{
+				glm::vec2 b;
+				if (!ProjectToScreen(viewProj, origin + axes[i] * len, size, b) || !ProjectToScreen(viewProj, origin, size, a)) continue;
+				const bool active = i == hover || i == m_GizmoAxis;
+				dl->AddLine(ImVec2(ox + a.x, oy + a.y), ImVec2(ox + b.x, oy + b.y), active ? IM_COL32(255, 235, 90, 255) : colors[i], active ? 4.0f : 2.5f);
+				dl->AddCircleFilled(ImVec2(ox + b.x, oy + b.y), active ? 6.0f : 4.5f, active ? IM_COL32(255, 235, 90, 255) : colors[i]);
+			}
+		}
+
+		if (m_ViewportHovered && ImGui::IsMouseClicked(0))
+		{
+			m_PressPos = mouse;
+			m_PressedInViewport = true;
+			if (hover >= 0)
+			{
+				m_GizmoAxis = hover;
+				m_GizmoOrigin = origin;
+				m_GizmoStart = RayAxisParam(ScreenRay(m_Camera, mouse / size, aspect), origin, axes[hover]);
+				m_PressedInViewport = false;
+			}
+		}
+		if (m_GizmoAxis >= 0)
+		{
+			GB::Entity* e = world.Find(sel);
+			if (e && ImGui::IsMouseDown(0))
+			{
+				const float t = RayAxisParam(ScreenRay(m_Camera, mouse / size, aspect), m_GizmoOrigin, axes[m_GizmoAxis]);
+				const glm::vec3 target = m_GizmoOrigin + axes[m_GizmoAxis] * (t - m_GizmoStart);
+				e->Transform.Position = glm::vec3(glm::inverse(world.WorldMatrix(e->Parent)) * glm::vec4(target, 1.0f));
+				m_SceneEditor.MarkDirty();
+			}
+			else m_GizmoAxis = -1;   // released: Tick commits the move as one undo step
+		}
+		else if (m_PressedInViewport && ImGui::IsMouseReleased(0))
+		{
+			m_PressedInViewport = false;
+			if (glm::distance(mouse, m_PressPos) < 4.0f && m_ViewportHovered)
+				m_SceneEditor.Select(m_SceneEditor.Pick(ScreenRay(m_Camera, mouse / size, aspect)));
+		}
+	}
+
+	void EditorApp::DrawHierarchyNode(EntityId id)
+	{
+		const GB::Entity* e = m_SceneEditor.World().Find(id);
+		if (!e) return;
+		ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_DefaultOpen;
+		if (e->Children.empty()) flags |= ImGuiTreeNodeFlags_Leaf;
+		if (id == m_SceneEditor.Selected()) flags |= ImGuiTreeNodeFlags_Selected;
+		ImGui::PushID(static_cast<int>(id));
+		const char* tag = e->Light ? "[light] " : e->Mesh ? (e->Mesh->Model.empty() ? "[mesh] " : "[model] ") : e->Body ? "[body] " : "";
+		const bool open = ImGui::TreeNodeEx("##node", flags, "%s%s", tag, e->Name.c_str());
+		if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen()) m_SceneEditor.Select(id);
+		if (ImGui::BeginDragDropSource())
+		{
+			ImGui::SetDragDropPayload("GB_ENTITY", &id, sizeof id);
+			ImGui::TextUnformatted(e->Name.c_str());
+			ImGui::EndDragDropSource();
+		}
+		if (ImGui::BeginDragDropTarget())
+		{
+			if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("GB_ENTITY"))
+				m_UiCommands.push_back("entity parent " + std::to_string(*static_cast<const EntityId*>(pl->Data)) + " " + std::to_string(id));
+			ImGui::EndDragDropTarget();
+		}
+		if (ImGui::BeginPopupContextItem())
+		{
+			m_SceneEditor.Select(id);
+			if (ImGui::MenuItem("Duplicate")) m_UiCommands.push_back("entity duplicate " + std::to_string(id));
+			if (ImGui::MenuItem("Delete")) m_UiCommands.push_back("entity delete " + std::to_string(id));
+			if (ImGui::MenuItem("Add child (empty)")) m_UiCommands.push_back("entity create empty Entity " + std::to_string(id));
+			if (ImGui::MenuItem("Add child (cube)")) m_UiCommands.push_back("entity create cube Cube " + std::to_string(id));
+			if (e->Parent != NullEntity && ImGui::MenuItem("Unparent")) m_UiCommands.push_back("entity parent " + std::to_string(id) + " none");
+			ImGui::EndPopup();
+		}
+		if (open)
+		{
+			const std::vector<EntityId> children = e->Children;   // the list can change through m_UiCommands only after drawing
+			for (EntityId c : children) DrawHierarchyNode(c);
+			ImGui::TreePop();
+		}
+		ImGui::PopID();
+	}
+
+	void EditorApp::DrawHierarchy()
+	{
+		if (ImGui::Begin("Hierarchy", &m_Panels.Hierarchy))
+		{
+			if (ImGui::Button("+ Add")) ImGui::OpenPopup("##add");
+			if (ImGui::BeginPopup("##add"))
+			{
+				for (const char* kind : { "empty", "cube", "sphere", "plane", "light" })
+					if (ImGui::MenuItem(kind)) m_UiCommands.push_back(std::string("entity create ") + kind);
+				ImGui::EndPopup();
+			}
+			ImGui::SameLine();
+			ImGui::TextDisabled("%zu entities", m_SceneEditor.World().Count());
+			ImGui::Separator();
+			for (EntityId root : m_SceneEditor.World().Roots()) DrawHierarchyNode(root);
+			// the empty area: click to deselect, drop an entity to unparent it
+			const ImVec2 rest = ImGui::GetContentRegionAvail();
+			ImGui::InvisibleButton("##empty", ImVec2(-1, std::max(rest.y, 24.0f)));
+			if (ImGui::IsItemClicked()) m_SceneEditor.Select(NullEntity);
+			if (ImGui::BeginDragDropTarget())
+			{
+				if (const ImGuiPayload* pl = ImGui::AcceptDragDropPayload("GB_ENTITY"))
+					m_UiCommands.push_back("entity parent " + std::to_string(*static_cast<const EntityId*>(pl->Data)) + " none");
+				ImGui::EndDragDropTarget();
+			}
+		}
+		ImGui::End();
+	}
+
+	void EditorApp::DrawInspector()
+	{
+		if (ImGui::Begin("Inspector", &m_Panels.Inspector))
+		{
+			const EntityId id = m_SceneEditor.Selected();
+			GB::Entity* e = m_SceneEditor.World().Find(id);
+			if (!e)
+			{
+				ImGui::TextDisabled("Nothing selected. Click an object in the viewport or the hierarchy.");
+				ImGui::End();
+				return;
+			}
+			if (m_NameFor != id)
+			{
+				m_NameFor = id;
+				std::snprintf(m_NameBuffer, sizeof m_NameBuffer, "%s", e->Name.c_str());
+			}
+			ImGui::Text("#%u", id);
+			ImGui::SameLine();
+			ImGui::SetNextItemWidth(-1.0f);
+			if (ImGui::InputText("##name", m_NameBuffer, sizeof m_NameBuffer, ImGuiInputTextFlags_EnterReturnsTrue))
+			{
+				m_UiCommands.push_back("entity rename " + std::to_string(id) + " \"" + m_NameBuffer + "\"");
+				m_NameFor = NullEntity;
+			}
+			ImGui::Separator();
+
+			const char* groups[] = { "Transform", "Mesh", "Light", "Body" };
+			for (const char* group : groups)
+			{
+				const std::string g = group;
+				if ((g == "Mesh" && !e->Mesh) || (g == "Light" && !e->Light) || (g == "Body" && !e->Body)) continue;
+				const bool removable = g != "Transform";
+				bool visible = true;
+				if (!(removable ? ImGui::CollapsingHeader(group, &visible, ImGuiTreeNodeFlags_DefaultOpen) : ImGui::CollapsingHeader(group, ImGuiTreeNodeFlags_DefaultOpen)))
+				{
+					if (!visible) m_UiCommands.push_back(std::string("entity remove ") + Lower(group));
+					continue;
+				}
+				if (!visible) { m_UiCommands.push_back(std::string("entity remove ") + Lower(group)); continue; }
+				for (Property& p : m_Props.All())
+				{
+					if (p.Group != group || p.Path.rfind("sel.", 0) != 0) continue;
+					ImGui::PushID(p.Path.c_str());
+					if (DrawPropertyWidget(p, p.Path.c_str() + 4)) PropertyRegistry::Notify(p);
+					ImGui::PopID();
+				}
+				if (std::string(group) == "Mesh" && !e->Mesh->Model.empty())
+					ImGui::TextDisabled("model: %s", e->Mesh->Model.c_str());
+			}
+			ImGui::Separator();
+			if (ImGui::Button("Add component", ImVec2(-1, 0))) ImGui::OpenPopup("##component");
+			if (ImGui::BeginPopup("##component"))
+			{
+				if (!e->Mesh && ImGui::MenuItem("Mesh")) m_UiCommands.push_back("entity add mesh");
+				if (!e->Light && ImGui::MenuItem("Light")) m_UiCommands.push_back("entity add light");
+				if (!e->Body && ImGui::MenuItem("Body")) m_UiCommands.push_back("entity add body");
+				ImGui::EndPopup();
 			}
 		}
 		ImGui::End();
@@ -915,99 +1176,6 @@ namespace GB::Editor
 				bool paused = m_Instance->IsPaused();
 				if (ImGui::Checkbox("paused", &paused)) m_Instance->SetPaused(paused);
 				if (ImGui::Button("Remove model")) { m_Instance.reset(); m_Model.reset(); m_Props.RemovePrefix("model."); }
-			}
-		}
-		ImGui::End();
-	}
-
-	void EditorApp::DrawObjectsPanel()
-	{
-		if (ImGui::Begin("Objects", &m_Panels.Objects))
-		{
-			for (const char* what : { "Cube", "Sphere", "Plane", "Light" })
-			{
-				if (ImGui::SmallButton((std::string("+ ") + what).c_str())) Execute("add " + Lower(what));
-				ImGui::SameLine();
-			}
-			ImGui::NewLine();
-			char filter[64];
-			std::snprintf(filter, sizeof filter, "%s", m_ObjectFilter.c_str());
-			ImGui::SetNextItemWidth(-1);
-			if (ImGui::InputTextWithHint("##objfilter", "search objects...", filter, sizeof filter)) m_ObjectFilter = filter;
-			ImGui::Text("%zu objects (trees, rocks and what you add). Click in the viewport to pick.", m_Edit.World().Count());
-
-			const std::vector<EntityId> ids = m_Edit.Find(m_ObjectFilter);
-			const float inspectorHeight = m_Edit.Selected() != NullEntity ? ImGui::GetContentRegionAvail().y * 0.55f : 0.0f;
-			ImGui::BeginChild("##objlist", ImVec2(0, -inspectorHeight), true);
-			const float rowH = ImGui::GetTextLineHeightWithSpacing();
-			ImGuiListClipper clipper;
-			clipper.Begin(static_cast<int>(ids.size()), rowH);
-			while (clipper.Step())
-			{
-				for (int row = clipper.DisplayStart; row < clipper.DisplayEnd; ++row)
-				{
-					const EntityId id = ids[static_cast<size_t>(row)];
-					const Entity* e = m_Edit.World().Find(id);
-					int depth = 0;
-					for (const Entity* p = m_Edit.World().Find(e->Parent); p; p = m_Edit.World().Find(p->Parent)) ++depth;
-					ImGui::PushID(static_cast<int>(id));
-					const std::string label = std::string(static_cast<size_t>(depth) * 2, ' ') + e->Name;
-					if (ImGui::Selectable(label.c_str(), id == m_Edit.Selected())) m_Edit.Select(id);
-					ImGui::PopID();
-				}
-			}
-			if (m_ScrollToSelected)
-			{
-				m_ScrollToSelected = false;
-				for (size_t i = 0; i < ids.size(); ++i)
-					if (ids[i] == m_Edit.Selected()) { ImGui::SetScrollY(std::max(0.0f, static_cast<float>(i) * rowH - 80.0f)); break; }
-			}
-			ImGui::EndChild();
-
-			Entity* e = m_Edit.World().Find(m_Edit.Selected());
-			if (e)
-			{
-				ImGui::BeginChild("##inspector", ImVec2(0, 0), true);
-				char name[96];
-				std::snprintf(name, sizeof name, "%s", e->Name.c_str());
-				if (ImGui::InputText("name", name, sizeof name, ImGuiInputTextFlags_EnterReturnsTrue)) m_Edit.World().Rename(e->Id, name);
-				ImGui::Checkbox("active", &e->Active);
-				ImGui::DragFloat3("position", &e->Transform.Position.x, 0.05f);
-				ImGui::DragFloat3("rotation", &e->Transform.Rotation.x, 0.5f);
-				ImGui::DragFloat3("scale", &e->Transform.Scale.x, 0.01f, 0.001f, 1000.0f);
-				if (e->Prop) ImGui::TextDisabled("%s (variant %d): drawn with yaw and uniform scale", e->Prop->Kind == PropKind::Tree ? "tree" : "rock", e->Prop->Variant);
-				if (e->Mesh)
-				{
-					if (e->Mesh->Model.empty())
-					{
-						int shape = static_cast<int>(e->Mesh->Shape);
-						if (ImGui::Combo("shape", &shape, "cube sphere plane ")) e->Mesh->Shape = static_cast<MeshShape>(shape);
-						ImGui::DragFloat("size", &e->Mesh->Size, 0.05f, 0.01f, 1000.0f);
-					}
-					else ImGui::TextWrapped("model: %s", e->Mesh->Model.c_str());
-					ImGui::ColorEdit3("albedo", &e->Mesh->Albedo.x, ImGuiColorEditFlags_Float);
-					ImGui::SliderFloat("metallic", &e->Mesh->Metallic, 0.0f, 1.0f);
-					ImGui::SliderFloat("roughness", &e->Mesh->Roughness, 0.0f, 1.0f);
-					ImGui::ColorEdit3("emissive", &e->Mesh->Emissive.x, ImGuiColorEditFlags_Float | ImGuiColorEditFlags_HDR);
-					if (ModelInstance* inst = m_Entities.FindInstance(e->Id))
-					{
-						const auto& clips = inst->GetModel().GetClips();
-						for (size_t i = 0; i < clips.size(); ++i)
-							if (ImGui::Selectable(clips[i].Name.empty() ? ("clip " + std::to_string(i)).c_str() : clips[i].Name.c_str(), inst->GetCurrentClip() == static_cast<int>(i)))
-								inst->Play(static_cast<int>(i), true, 0.25f);
-					}
-				}
-				if (e->Light)
-				{
-					ImGui::ColorEdit3("light color", &e->Light->Color.x, ImGuiColorEditFlags_Float);
-					ImGui::DragFloat("intensity", &e->Light->Intensity, 0.2f, 0.0f, 500.0f);
-					ImGui::DragFloat("radius", &e->Light->Radius, 0.1f, 0.0f, 500.0f);
-				}
-				if (ImGui::Button("Delete")) Execute("delete");
-				ImGui::SameLine(); if (ImGui::Button("Duplicate")) Execute("duplicate");
-				ImGui::SameLine(); if (ImGui::Button("Drop to ground")) Execute("drop");
-				ImGui::SameLine(); if (ImGui::Button("Focus")) m_Orbit.Target = glm::vec3(m_Edit.World().WorldMatrix(e->Id)[3]);
-				ImGui::EndChild();
 			}
 		}
 		ImGui::End();
@@ -1124,10 +1292,14 @@ namespace GB::Editor
 					if (ext == ".glb" || ext == ".gltf") Execute("add \"" + f.generic_string() + "\"");
 					else if (ext == ".hdr") Execute("hdri \"" + f.generic_string() + "\"");
 				}
-				if ((ext == ".glb" || ext == ".gltf") && ImGui::BeginPopupContextItem("##assetctx"))
+				if ((ext == ".glb" || ext == ".gltf") && ImGui::BeginPopupContextItem())
 				{
-					if (ImGui::MenuItem("Add to scene")) Execute("add \"" + f.generic_string() + "\"");
-					if (ImGui::MenuItem("Open in the Model viewer")) Execute("load \"" + f.generic_string() + "\"");
+					if (ImGui::MenuItem("Add to scene as an entity"))
+					{
+						const std::string name = f.stem().string();
+						m_UiCommands.push_back("entity create empty \"" + name + "\"");
+						m_UiCommands.push_back("entity model \"" + rel + "\"");
+					}
 					ImGui::EndPopup();
 				}
 				ImGui::PopID();

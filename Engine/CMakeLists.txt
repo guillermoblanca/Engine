@@ -1,15 +1,25 @@
 add_library(glad STATIC vendor/glad/src/gl.c)
 target_include_directories(glad SYSTEM PUBLIC vendor/glad/include)
 
+# ufbx is third-party C code: its own target, so the engine's warning flags do not apply to it.
+add_library(ufbx STATIC ${ufbx_SOURCE_DIR}/ufbx.c)
+target_include_directories(ufbx SYSTEM PUBLIC ${ufbx_SOURCE_DIR})
+
 add_library(GB STATIC
     src/GB/Application.cpp
     src/GB/Game/CharacterController.cpp
+    src/GB/Audio/AudioClip.cpp
+    src/GB/Audio/AudioDevice.cpp
+    src/GB/Audio/AudioEngine.cpp
+    src/GB/Audio/AudioMixer.cpp
     src/GB/Game/Entity.cpp
     src/GB/Game/SceneIO.cpp
     src/GB/Game/EntityRender.cpp
     src/GB/Input.cpp
     src/GB/Log.cpp
     src/GB/Assets/Model.cpp
+    src/GB/Assets/ModelFbx.cpp
+    src/GB/Animation/ClipAnalysis.cpp
     src/GB/World/Footsteps.cpp
     src/GB/World/Grass.cpp
     src/GB/World/GroundInteraction.cpp
@@ -41,8 +51,10 @@ add_library(GB STATIC
 add_library(GB::GB ALIAS GB)
 
 target_include_directories(GB PUBLIC src)
-target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw)
-target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include)
+find_package(Threads REQUIRED)
+target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw Threads::Threads ${CMAKE_DL_LIBS})
+target_link_libraries(GB PRIVATE ufbx)
+target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include ${miniaudio_SOURCE_DIR})
 # glm is header-only; added as SYSTEM so its headers do not trip our warning flags.
 target_include_directories(GB SYSTEM PUBLIC ${glm_SOURCE_DIR})
 

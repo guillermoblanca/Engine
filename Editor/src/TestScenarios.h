@@ -1,4 +1,6 @@
 #pragma once
+#include "Commands.h"
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -19,4 +21,8 @@ namespace GB::Editor
 
 	const std::vector<TestScenario>& TestScenarios();
 	const TestScenario* FindTestScenario(const std::string& name);
+
+	// `tests` lists the scenes, `test <name>` runs one (the script goes through `runScript`, which should run it before
+	// whatever else is queued), `test <name> sandbox` opens the original in its own window through `runExternal`.
+	void RegisterTestCommands(CommandRunner& commands, std::function<void(const std::string&)> runScript, std::function<CommandResult(const std::string&)> runExternal);
 }

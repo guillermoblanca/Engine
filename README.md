@@ -374,14 +374,47 @@ Editor Dear ImGui (`GB_BUILD_EDITOR=ON` por defecto, ejecutable `Editor`): docks
 - `GB/Game/EntityRender.h`: `EntityRenderer::Build(world, scene)` añade objetos y luces puntuales a la `Scene` (requiere GL).
 - Tests `entity` (CPU) y `entity_render` (GL).
 
+## Edición de escenas en el editor (Fase 10B-2)
+
+Paneles **Hierarchy** (árbol, arrastrar para cambiar de padre, menú contextual) e **Inspector** (nombre, transform y componentes), menú **Edit/Entity**, selección con clic en el viewport (rayo contra la forma de cada entidad), gizmo de mover por ejes (arrastrar una flecha) y deshacer/rehacer (`Ctrl+Z`/`Ctrl+Y`, instantáneas JSON de la escena; un arrastre es un solo paso). Las entidades nuevas aparecen en el punto que mira la cámara; la seleccionada brilla levemente. En Assets, clic derecho sobre un `.glb` → "Add to scene as an entity".
+
+Todo es accesible por comandos (`SceneEditor`, sin GL ni ImGui):
+
+- `entity create <empty|cube|sphere|plane|light> [nombre] [padre]`, `entity delete|duplicate|select|info [entidad]`, `entity rename <entidad> <nombre>`, `entity parent <entidad> <padre|none>`, `entity add|remove <mesh|light|body>`, `entity model <ruta.glb>`, `entity set <entidad> <propiedad> <valor...>` y `entity list`.
+- La selección se expone como propiedades `sel.*` (`set sel.position 0 2 0`, `set sel.mesh.albedo #e04030`).
+- `scene new|save <archivo>|load <archivo>`, `undo`, `redo`, `select <nombre|id|none>`.
+- En scripts, un comentario es `#` seguido de espacio; `#rrggbb` es un color.
+- Test `editor` ampliado: comandos, deshacer/rehacer, ficheros de escena y selección por rayo.
+
+## Audio (Fase 10C-1)
+
+`GB/Audio/`: sonido sin archivos ni tarjeta de sonido.
+
+- `AudioClip`: datos mono en float; sintetizadores deterministas (misma semilla, mismas muestras): `Tone`, `Noise` (blanco/rosa/marrón), `Wind`, `Rain`, `River`, `Thunder`, `Birds`, `Crickets`, `Footstep` (hierba, tierra, piedra, arena, madera, nieve, agua) y `Boom`; los ambientes son bucles sin clic. También carga wav/flac/mp3 (`LoadFile`) y escribe wav (`SaveWav`).
+- `AudioMixer`: mezclador por software (hasta 64 voces) con volumen, tono, bucle, fundidos, sonido 3D (atenuación por distancia y panorámica según el oyente), buses `sfx/ambient/music/ui`, volumen maestro, limitador suave y medidores de nivel. `Render()` es CPU puro y determinista: lo llama el dispositivo, un test o una exportación offline.
+- `AudioDevice`: salida por miniaudio (v0.11.22 fijada, una cabecera); sin tarjeta de sonido (CI, contenedores) usa el backend silencioso, así que todo el camino se ejecuta igual.
+- `AudioEngine`: mezclador + biblioteca de clips por nombre (`wind`, `rain_heavy`, `step_stone:3`, `tone:440` o una ruta de archivo) + dispositivo opcional; `RenderToWav` vuelca lo que suena a un wav.
+- Tests `audio` (CPU: sintetizadores, panorámica, distancia, tono, bucles, buses, limitador, huella de la mezcla y estadísticas doradas de los presets) y `audio_device`.
+
+## FBX y análisis de clips (Fase 11A-1)
+
+`Model::Load` abre también `.fbx` (ufbx v0.9.0 fijada por FetchContent): malla, esqueleto, skin (4 influencias por vértice), materiales y animaciones, convertidos a **metros, Y arriba, mano derecha** (un FBX en centímetros como los de Mixamo se importa a escala real). Las animaciones se hornean a 30 fps por hueso; un archivo con una sola toma da su nombre al clip (`walking.fbx` → clip `walking`) y las tomas de un fotograma (la T-pose de Mixamo) se descartan.
+
+- `Model::AppendAnimations(archivo.fbx)`: añade los clips de otro FBX (p. ej. un clip de Mixamo sin malla) emparejando los huesos por nombre; informa de los huesos que el modelo no tiene.
+- `AnalyzeClip(model, clip)` (`GB/Animation/ClipAnalysis.h`): mide el movimiento de la raíz (desplazamiento, velocidad m/s, giro), la altura de la cadera, la calidad del bucle (grados por hueso entre la primera y la última pose), los apoyos de cada pie (tiempos normalizados), la longitud del ciclo de paso y la fase de vuelo de los saltos. Son los datos que necesitan los blend trees, el root motion y el audio de pasos.
+- Editor: `load <modelo.fbx>`, `anims <archivo.fbx|carpeta>`, `clips`, `play <clip> [fundido]` y `anim_stats [clip|all]`.
+- Test `fbx` (CPU, sin GL) con ficheros ASCII pequeños generados por `tools/make_test_fbx.py`; con `GB_MIXAMO_DIR=<carpeta del pack>` comprueba además el pack real (no está en el repositorio).
+
+Medido en el pack Mixamo *Male Locomotion*: caminar 1,03 s a 1,67 m/s (ciclo de 1,72 m), correr 0,73 s a 4,42 m/s (3,24 m), strafes andando 1,73 m/s y corriendo 4,3–4,5 m/s, giros de 90° en sitio (≈0,93 s), salto de 2,17 s con 21 % de vuelo, idle de 8,33 s en bucle. Los clips llevan el movimiento en el hueso `Hips` (root motion), así que mezclar caminar y correr exige escalar la reproducción y sincronizar los pies. El estudio completo y el plan de locomoción están en `docs/ANIMACION_LOCOMOCION.md`.
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
 1. Ventana (GLFW), OpenGL 4.5, input teclado/mando, capturas PNG  ✔
 2. Render PBR, luces, sombras, HDR/bloom  ✔ (primera pasada, ver abajo)
 3. Importación glTF 2.0 (Blender)  ✔
-4. Animación esquelética  ✔ · cámaras  ✔ · partículas  ✔ · audio
-5. Editor (ImGui) ✔ (10A: paneles, propiedades, consola/scripts) · jerarquía/selección y guardado de escenas (10B) · API para agentes
+4. Animación esquelética  ✔ · cámaras  ✔ · partículas  ✔ · audio ✔ (10C-1: mezclador y sintetizadores; 10C-2: entidades y ambiente)
+5. Editor (ImGui) ✔ (10A: paneles, propiedades, consola/scripts) · entidades y escenas JSON (10B-1) · jerarquía, inspector, selección y gizmo (10B-2) · API para agentes
 
 ### Siguientes pasos de calidad gráfica y mundo (pedidos)
 
