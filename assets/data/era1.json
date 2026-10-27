@@ -1,0 +1,168 @@
+{
+  "items": [
+    {
+      "ability": "Eat",
+      "category": "food",
+      "id": "berry",
+      "name": "Berry",
+      "stack": 20,
+      "tags": [
+        "Item.Food"
+      ],
+      "weight": 0.1
+    },
+    {
+      "ability": "Place",
+      "category": "structure",
+      "id": "campfire",
+      "name": "Campfire kit",
+      "stack": 1,
+      "tags": [
+        "Item.Structure.Fire"
+      ],
+      "weight": 6.0
+    },
+    {
+      "category": "resource",
+      "id": "fiber",
+      "name": "Plant fiber",
+      "stack": 20,
+      "tags": [
+        "Item.Resource.Fiber"
+      ],
+      "weight": 0.2
+    },
+    {
+      "category": "resource",
+      "id": "stone",
+      "name": "Stone",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Stone"
+      ],
+      "weight": 3.0
+    },
+    {
+      "ability": "Chop",
+      "category": "tool",
+      "id": "stone_axe",
+      "name": "Stone axe",
+      "socket": "RightHand",
+      "stack": 1,
+      "tags": [
+        "Item.Tool.Axe"
+      ],
+      "weight": 2.5
+    },
+    {
+      "ability": "Mine",
+      "category": "tool",
+      "id": "stone_pickaxe",
+      "name": "Stone pickaxe",
+      "socket": "RightHand",
+      "stack": 1,
+      "tags": [
+        "Item.Tool.Pickaxe"
+      ],
+      "weight": 3.0
+    },
+    {
+      "ability": "Drink",
+      "category": "food",
+      "id": "water",
+      "name": "Water",
+      "stack": 5,
+      "tags": [
+        "Item.Food.Water"
+      ],
+      "weight": 1.0
+    },
+    {
+      "category": "resource",
+      "id": "wood",
+      "name": "Wood",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Wood"
+      ],
+      "weight": 2.0
+    }
+  ],
+  "nodes": [
+    {
+      "ability": "Gather",
+      "capacity": 6,
+      "id": "berry_bush",
+      "item": "berry",
+      "perGather": 2,
+      "regen": 2,
+      "regenSeconds": 20.0
+    },
+    {
+      "ability": "Gather",
+      "capacity": 8,
+      "id": "fiber_grass",
+      "item": "fiber",
+      "perGather": 2,
+      "regen": 2,
+      "regenSeconds": 15.0
+    },
+    {
+      "ability": "Mine",
+      "capacity": 4,
+      "id": "rock",
+      "item": "stone",
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "requires": "Item.Tool.Pickaxe"
+    },
+    {
+      "ability": "Chop",
+      "capacity": 5,
+      "id": "tree",
+      "item": "wood",
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 30.0,
+      "requires": "Item.Tool.Axe"
+    }
+  ],
+  "recipes": [
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "campfire",
+      "inputs": {
+        "stone": 3,
+        "wood": 4
+      },
+      "output": "campfire",
+      "tool": "Item.Tool.Axe"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "stone_axe",
+      "inputs": {
+        "fiber": 3,
+        "stone": 2,
+        "wood": 2
+      },
+      "output": "stone_axe",
+      "station": "workbench"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "stone_pickaxe",
+      "inputs": {
+        "fiber": 3,
+        "stone": 3,
+        "wood": 2
+      },
+      "output": "stone_pickaxe",
+      "station": "workbench"
+    }
+  ]
+}

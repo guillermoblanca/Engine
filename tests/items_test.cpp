@@ -136,6 +136,45 @@ int main()
 		Check(full.Count("stone") == 0, "a one-slot bag is full");
 	}
 
+	// Content as data: export what the code defines, read it back, and the same things come out; mistakes are named and change nothing.
+	{
+		const std::string text = ContentToJson(w.Items, w.Recipes, w.Defs);
+		ItemLibrary items;
+		RecipeBook recipes;
+		std::map<std::string, ResourceNodeDef> nodes;
+		Check(LoadContent(text, items, recipes, nodes).empty(), "the exported content loads");
+		Check(ContentToJson(items, recipes, nodes) == text, "and exports the same again");
+		Check(items.Ids().size() == w.Items.Ids().size() && recipes.Ids().size() == w.Recipes.Ids().size() && nodes.size() == w.Defs.size(), "with all its items, recipes and nodes");
+
+		// a new thing is data only: a flint knife made from stone and fibre, and a flint outcrop that gives stone
+		const std::string extra = R"({ "items": [ { "id": "flint", "name": "Flint", "category": "resource", "weight": 0.5, "stack": 20, "tags": ["Item.Resource.Stone"] },
+			{ "id": "knife", "name": "Flint knife", "category": "tool", "stack": 1, "tags": ["Item.Tool.Knife"] } ],
+			"recipes": [ { "id": "knife", "station": "workbench", "inputs": { "flint": 2, "fiber": 1 }, "output": "knife" } ],
+			"nodes": [ { "id": "flint_outcrop", "item": "flint", "capacity": 3, "perGather": 1 } ] })";
+		Check(LoadContent(extra, items, recipes, nodes).empty(), "new items, recipes and nodes load on top of the others");
+		Inventory bag(6);
+		bag.Add(items, "flint", 2);
+		bag.Add(items, "fiber", 1);
+		Check(recipes.Craft(items, bag, "knife", "workbench") && bag.Count("knife") == 1, "and the new recipe works");
+		Check(items.Find("wood") != nullptr && nodes.count("flint_outcrop") == 1, "what was there stays");
+
+		const std::string before = ContentToJson(items, recipes, nodes);
+		Check(LoadContent("{nope", items, recipes, nodes).find("JSON") != std::string::npos, "text that is not JSON is refused");
+		Check(LoadContent(R"({ "items": [ { "id": "x", "stack": 0 } ] })", items, recipes, nodes).find("stack") != std::string::npos, "a stack of zero is refused");
+		Check(LoadContent(R"({ "recipes": [ { "id": "r", "inputs": { "ghost": 1 }, "output": "wood" } ] })", items, recipes, nodes).find("ghost") != std::string::npos, "a recipe that needs an unknown item is refused");
+		Check(LoadContent(R"({ "nodes": [ { "id": "n", "item": "ghost" } ] })", items, recipes, nodes).find("ghost") != std::string::npos, "a node that gives an unknown item is refused");
+		Check(LoadContent(R"({ "items": [ { "id": "ok1" }, { "id": "bad", "stack": -1 } ] })", items, recipes, nodes).size() > 0 && items.Find("ok1") == nullptr, "a document with a mistake changes nothing at all");
+		Check(ContentToJson(items, recipes, nodes) == before, "nothing changed after the refusals");
+
+		// the content file of the game says the same as the code
+		ItemLibrary fileItems;
+		RecipeBook fileRecipes;
+		std::map<std::string, ResourceNodeDef> fileNodes;
+		const std::string error = LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", fileItems, fileRecipes, fileNodes);
+		Check(error.empty(), "assets/data/era1.json loads");
+		Check(ContentToJson(fileItems, fileRecipes, fileNodes) == text, "and defines what RegisterEraOneItems defines");
+	}
+
 	// The whole loop, twice.
 	{
 		bool ok1 = true, ok2 = true;

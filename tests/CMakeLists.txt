@@ -235,6 +235,7 @@ add_test(NAME save COMMAND GBSaveTests)
 
 add_executable(GBItemsTests items_test.cpp)
 target_link_libraries(GBItemsTests PRIVATE GB::GB)
+target_compile_definitions(GBItemsTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME items COMMAND GBItemsTests)
 
 add_executable(GBResourcesTests resources_test.cpp)

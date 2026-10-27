@@ -35,6 +35,8 @@ namespace GB
 		using Yield = std::function<void(const std::string& actor, const std::string& item, int count)>;
 
 		void Bind(GameplayWorld& gameplay, const std::map<std::string, ResourceNodeDef>& nodes, Yield onYield);
+		// Regrows the nodes: each holds a timer (the attribute "Regrow", saved with it) that runs at `rate` times real time (0 in deep winter).
+		void Update(GameplayWorld& gameplay, float dt, float rate = 1.0f) const;
 		// Marks nodes as depleted or not and shows each as its state says (what is gathered from it disappears). Only writes changes.
 		void SyncVisuals(GameplayWorld& gameplay, EntityWorld& entities) const;
 		// Gives an ability system the item tags ("Item.Tool.Axe", "Item.Resource.Wood") of what an inventory holds, and takes away those that left it.
