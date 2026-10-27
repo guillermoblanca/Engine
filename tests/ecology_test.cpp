@@ -74,6 +74,19 @@ int main()
 		Check(s.Progress(120.0) > 0.49f && s.Progress(120.0) < 0.51f, "progress through a season");
 	}
 
+	// What a season looks like: snow falls in winter and melts in spring, the foliage changes colour and blends into the next season's, the weather fits.
+	{
+		const SeasonClock s;
+		Check(SeasonClock::SnowCover(Season::Summer, 0.5f) == 0.0f && SeasonClock::SnowCover(Season::Winter, 0.5f) > 0.9f, "no snow in summer, snow in winter");
+		Check(SeasonClock::SnowCover(Season::Winter, 0.0f) < 0.05f && SeasonClock::SnowCover(Season::Winter, 0.15f) > 0.9f, "it falls over the first part of winter");
+		Check(SeasonClock::SnowCover(Season::Spring, 0.0f) > 0.9f && SeasonClock::SnowCover(Season::Spring, 0.3f) == 0.0f, "and melts in early spring");
+		Check(std::fabs(SeasonClock::SnowCover(Season::Autumn, 1.0f) - 0.3f) < 0.01f && SeasonClock::SnowCover(Season::Winter, 0.0f) < 0.05f, "(a dusting at the end of autumn, a jump of less than a third)");
+		Check(glm::distance(SeasonClock::Foliage(Season::Summer, 0.3f), SeasonClock::Foliage(Season::Autumn, 0.3f)) > 0.3f, "leaves are another colour in autumn");
+		Check(glm::distance(SeasonClock::Foliage(Season::Autumn, 1.0f), SeasonClock::Foliage(Season::Winter, 0.0f)) < 0.01f, "the foliage has no jump at a season's end");
+		Check(std::string(SeasonClock::Weather(Season::Winter, 0.5f)) == "snow" && std::string(SeasonClock::Weather(Season::Summer, 0.1f)) == "clear" && std::string(SeasonClock::Weather(Season::Spring, 0.1f)) == "lightrain", "the weather fits the season");
+		Check(std::string(SeasonClock::Weather(s.At(0.0), s.Progress(0.0))) == "lightrain", "a new world starts with a spring shower");
+	}
+
 	// With food: they spread out, eat, breed (within the limit) and the plants are used.
 	{
 		Meadow m(true);
