@@ -23,6 +23,9 @@ namespace GB::Editor
 		// What a new actor gets from the generated world: its ground and water, and as obstacles the trees (trunks), the rocks and the bodies
 		// the user gave to entities. `scene` is where interaction points are looked up.
 		static ActorHost MakeHost(WorldInstance& world, const SceneEditor& scene, FootstepSounds* steps);
+		// The navigation grid of the actors (GB/Navigation): built from the generated world on the first call, then only the cells around trees that went
+		// or appeared are redone. False (and `error`) when there is no world.
+		bool SyncNavigation(WorldInstance& world, const SceneEditor& scene, FootstepSounds* steps, std::string* error = nullptr);
 		// Kinds: "fox", "cesium" or the path of an FBX character (relative to the assets, or absolute).
 		static bool IsFbx(const std::string& kind);
 

@@ -40,6 +40,22 @@ namespace GB
 		return out;
 	}
 
+	bool ActorWorld::SyncNavigation(const NavConfig& config, std::string* error)
+	{
+		const CharacterWorld& world = m_Host.World;
+		if (!m_Nav.Ready() || !m_Nav.Matches(world))
+		{
+			if (!m_Nav.Build(world, config, error))
+			{
+				for (auto& [name, actor] : m_Actors) actor->SetNavigation(nullptr);
+				return false;
+			}
+		}
+		else m_Nav.SyncObstacles(world.Obstacles);
+		for (auto& [name, actor] : m_Actors) actor->SetNavigation(&m_Nav);
+		return true;
+	}
+
 	Actor* ActorWorld::Spawn(const std::string& name, const ActorSpawn& spawn, std::string& error)
 	{
 		if (name.empty()) { error = "an actor needs a name"; return nullptr; }
@@ -60,7 +76,9 @@ namespace GB
 		spec.StartYaw = spawn.Yaw;
 		spec.Others = CirclesExcept("");
 		auto actor = std::make_unique<Actor>();
-		if (!actor->Init(model, m_Host, spec, error)) return nullptr;
+		ActorHost host = m_Host;
+		if (m_Nav.Ready()) host.World.Nav = &m_Nav;
+		if (!actor->Init(model, host, spec, error)) return nullptr;
 		if (spawn.CreateEntity && m_Scene && m_Scene->FindByName(name) == NullEntity)
 		{
 			m_Scene->Find(m_Scene->Create(name))->Gameplay.emplace();
@@ -173,6 +191,7 @@ namespace GB
 
 	void ActorWorld::Update(float dt)
 	{
+		m_Nav.NewFrame();
 		struct Snapshot { std::string Name; CircleObstacle Circle; };
 		std::vector<Snapshot> start;
 		start.reserve(m_Actors.size());

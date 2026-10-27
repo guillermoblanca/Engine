@@ -2,6 +2,7 @@
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Renderer/Camera.h"
 #include <cmath>
+#include <cstddef>
 #include <functional>
 #include <string>
 #include <glm/glm.hpp>
@@ -45,6 +46,8 @@ namespace GB
 		float Radius = 0.5f;
 	};
 
+	class NavGrid;   // GB/Navigation/NavGrid.h
+
 	// What the character can stand on and bump into. Every callback is optional.
 	struct CharacterWorld
 	{
@@ -52,6 +55,8 @@ namespace GB
 		std::function<float(float, float)> WaterLevel;     // surface height, or <= -1e8 where there is no water
 		std::vector<CircleObstacle> Obstacles;
 		glm::vec2 BoundsMin{ -1e9f }, BoundsMax{ 1e9f };    // the character stays inside (xz)
+		const NavGrid* Nav = nullptr;                       // where an AIDriver finds paths (null: it walks in a straight line); must outlive the world
+		size_t DynamicFrom = static_cast<size_t>(-1);       // Obstacles from this index on are other characters (moving): the AIDriver steers around them
 	};
 
 	class Terrain;

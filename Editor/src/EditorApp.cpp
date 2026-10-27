@@ -831,6 +831,7 @@ namespace GB::Editor
 		});
 		c.Register("interactives", "interactives build [x z] | status: puts a campfire (Stoke with wood), a well (DrawWater) and a gate (OpenDoor, CloseDoor) in the scene; their state is saved with the game", [this](const std::vector<std::string>& a) { return InteractivesCommand(a); });
 		c.Register("ecology", "ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]: rabbits that wander, eat berry bushes and fibre tufts, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)", [this](const std::vector<std::string>& a) { return EcologyCommand(a); });
+		c.Register("nav", "nav status | debug on|off | rebuild | sync | path <x1 z1 x2 z2> [load 0-1]: navigation over the terrain: the grid the characters plan their paths on (trunks, rocks, deep water and cliffs are walls; wading and slopes cost), the paths they follow and what the planning has cost", [this](const std::vector<std::string>& a) { return NavCommand(a); });
 		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
@@ -1008,6 +1009,12 @@ namespace GB::Editor
 			StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
 			if (m_Player.IsActive()) m_Player.BeginFrame(dt, m_ViewportHovered && !io.WantTextInput);
 			m_Actors.Update(dt);
+		}
+		m_NavSyncTimer -= dt;
+		if (m_NavSyncTimer <= 0.0f)   // trees felled or planted, a building: the grid redoes only the cells around them
+		{
+			m_NavSyncTimer = 1.0f;
+			if (m_Actors.Navigation().Ready() && m_World.IsBuilt()) m_Player.SyncNavigation(m_World, m_SceneEditor, m_Steps.get());
 		}
 		if (m_Player.IsActive())
 		{
@@ -1260,6 +1267,7 @@ namespace GB::Editor
 				ImVec2(0, 1), ImVec2(1, 0));
 			m_ViewportHovered = ImGui::IsItemHovered();
 			DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight()));
+			if (m_NavDebug) DrawNavDebug(origin.x, origin.y, static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight()));
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);
 			ImGui::GetWindowDrawList()->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(255, 255, 255, 200), info);

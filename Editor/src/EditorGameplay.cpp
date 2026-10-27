@@ -75,6 +75,101 @@ namespace GB::Editor
 		};
 	}
 
+	CommandResult EditorApp::NavCommand(const std::vector<std::string>& a)
+	{
+		const std::string sub = a.empty() ? "status" : a[0];
+		NavGrid& nav = m_Actors.Navigation();
+		if (sub == "debug")
+		{
+			if (a.size() < 2 || (a[1] != "on" && a[1] != "off")) return { false, "nav debug on|off" };
+			if (a[1] == "on" && !nav.Ready())
+			{
+				std::string error;
+				if (!m_Player.SyncNavigation(m_World, m_SceneEditor, m_Steps.get(), &error)) return { false, error };
+			}
+			m_NavDebug = a[1] == "on";
+			nav.SetRecording(m_NavDebug);
+			return { true, m_NavDebug ? "navigation debug on: red = wall, yellow = costly, blue = water, green lines = the paths found (the last 64)" : "navigation debug off" };
+		}
+		if (sub == "rebuild" || sub == "sync")
+		{
+			std::string error;
+			if (sub == "rebuild") nav.Clear();
+			if (!m_Player.SyncNavigation(m_World, m_SceneEditor, m_Steps.get(), &error)) return { false, error };
+			const NavStats& s = nav.Stats();
+			char text[200];
+			std::snprintf(text, sizeof text, "navigation %s: %dx%d cells of %.2f m, %zu obstacles; revision %u, %ld builds (%.0f ms), %ld updates (%ld cells)", sub == "rebuild" ? "rebuilt" : "synced",
+				nav.Width(), nav.Height(), static_cast<double>(nav.CellSize()), nav.Obstacles(), nav.Revision(), s.Builds, s.BuildSeconds * 1000.0, s.Updates, s.CellsUpdated);
+			return { true, text };
+		}
+		if (!nav.Ready()) return { false, "no navigation yet: spawn an actor or `nav debug on` once the world is generated" };
+		if (sub == "path")
+		{
+			if (a.size() < 5) return { false, "nav path <x1 z1 x2 z2> [load 0-1]" };
+			NavProfile profile = NavProfile::Carrying(a.size() > 5 ? static_cast<float>(std::atof(a[5].c_str())) : 0.0f);
+			const glm::vec2 from(static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())));
+			const glm::vec2 to(static_cast<float>(std::atof(a[3].c_str())), static_cast<float>(std::atof(a[4].c_str())));
+			NavPath path;
+			const bool ok = nav.FindPath(profile, from, to, path);
+			float length = 0.0f;
+			glm::vec2 p = from;
+			for (const glm::vec2& q : path.Points) { length += glm::distance(p, q); p = q; }
+			char text[200];
+			std::snprintf(text, sizeof text, "%s: %zu waypoints, %.1f m (straight %.1f m), cost %.1f, %d cells opened", ok ? "path found" : (path.Partial ? "goal unreachable; nearest" : "no path"), path.Points.size(),
+				static_cast<double>(length), static_cast<double>(glm::distance(from, to)), static_cast<double>(path.Cost), path.Expanded);
+			return { ok || path.Partial, text };
+		}
+		long blocked, costly, wet;
+		nav.Count(blocked, costly, wet);
+		const NavStats& s = nav.Stats();
+		char text[360];
+		std::snprintf(text, sizeof text, "navigation: %dx%d cells of %.2f m (%ld blocked, %ld costly, %ld wet), %zu obstacles, revision %u | %ld paths (%ld failed, %ld replans), %.2f ms each, %ld cells opened | %ld updates, %ld cells redone | debug %s",
+			nav.Width(), nav.Height(), static_cast<double>(nav.CellSize()), blocked, costly, wet, nav.Obstacles(), nav.Revision(), s.Paths, s.Failed, s.Replans,
+			s.Paths ? s.PathSeconds / static_cast<double>(s.Paths) * 1000.0 : 0.0, s.Expanded, s.Updates, s.CellsUpdated, m_NavDebug ? "on" : "off");
+		return { true, text };
+	}
+
+	void EditorApp::DrawNavDebug(float ox, float oy, float w, float h)
+	{
+		const NavGrid& nav = m_Actors.Navigation();
+		if (!nav.Ready()) return;
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		const glm::vec2 size(w, h);
+		const glm::mat4 viewProj = m_Camera.GetProjection(w / h) * m_Camera.GetView();
+		const glm::vec2 clipMin(ox, oy), clipMax(ox + w, oy + h);
+		dl->PushClipRect(ImVec2(clipMin.x, clipMin.y), ImVec2(clipMax.x, clipMax.y), true);
+		auto lift = [&](const glm::vec2& p) { return glm::vec3(p.x, (m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(p.x, p.y) : 0.0f) + 0.12f, p.y); };
+		const NavProfile profile;
+		// cells in a window around the focus (the player, or what the orbit camera looks at), one in two so that the cost stays small
+		const glm::vec3 focus = m_Player.IsActive() ? m_Player.GetPosition() : m_Orbit.Target;
+		const float cs = nav.CellSize();
+		const int radius = static_cast<int>(36.0f / cs);
+		int ci, cj;
+		if (nav.CellAt({ focus.x, focus.z }, ci, cj))
+			for (int j = std::max(0, cj - radius); j < std::min(nav.Height(), cj + radius); j += 2)
+				for (int i = std::max(0, ci - radius); i < std::min(nav.Width(), ci + radius); i += 2)
+				{
+					const float cost = nav.CellCost(i, j, profile);
+					const bool wet = nav.Depth(i, j) > 0.05f;
+					if (cost >= 0.0f && cost < 1.5f && !wet) continue;
+					const ImU32 color = cost < 0.0f ? IM_COL32(230, 60, 50, 110) : (wet ? IM_COL32(60, 120, 240, 110) : IM_COL32(240, 200, 50, 90));
+					const glm::vec2 c = nav.CellCenter(i, j);
+					glm::vec2 q[4];
+					const glm::vec2 corner[4] = { { -cs, -cs }, { cs, -cs }, { cs, cs }, { -cs, cs } };
+					bool ok = true;
+					for (int k = 0; k < 4 && ok; ++k) ok = ProjectToScreen(viewProj, lift(c + corner[k]), size, q[k]);
+					if (ok) dl->AddQuadFilled(ImVec2(ox + q[0].x, oy + q[0].y), ImVec2(ox + q[1].x, oy + q[1].y), ImVec2(ox + q[2].x, oy + q[2].y), ImVec2(ox + q[3].x, oy + q[3].y), color);
+				}
+		for (const std::vector<glm::vec2>& trace : nav.Traces())
+			for (size_t k = 1; k < trace.size(); ++k)
+			{
+				glm::vec2 a, b;
+				if (ProjectToScreen(viewProj, lift(trace[k - 1]), size, a) && ProjectToScreen(viewProj, lift(trace[k]), size, b))
+					dl->AddLine(ImVec2(ox + a.x, oy + a.y), ImVec2(ox + b.x, oy + b.y), IM_COL32(90, 235, 110, 230), 2.0f);
+			}
+		dl->PopClipRect();
+	}
+
 	CommandResult EditorApp::TribeCommand(const std::vector<std::string>& a)
 	{
 		const std::string sub = a.empty() ? "status" : a[0];

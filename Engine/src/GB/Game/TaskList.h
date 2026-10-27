@@ -33,6 +33,8 @@ namespace GB
 	class TaskRunner
 	{
 	public:
+		NavProfile Profile;   // how the walker values the terrain when it plans a path (role, load)
+
 		// Finds an interaction point by entity and point name.
 		using Resolver = std::function<bool(const std::string& entity, const std::string& point, InteractionTarget& out, std::string* error)>;
 		// Attaches (true) or lets go of (false) a prop by name; an empty name on detach means everything. False = it could not.

@@ -177,7 +177,8 @@ namespace GB
 			m_AI.RunSpeed = controller.Config.RunSpeed;
 			if (m_AI.Arrived()) { Next(); return none; }
 			if (m_AI.Stuck()) { Fail("could not reach (" + std::to_string(t.Position.x) + ", " + std::to_string(t.Position.y) + ")"); return none; }
-			return m_AI.Update(controller, dt);
+			m_AI.Profile = Profile;
+			return m_AI.Update(controller, world, dt);
 		case Task::Kind::Interact:
 		{
 			if (!m_Started)
@@ -188,6 +189,7 @@ namespace GB
 				if (!resolver || !resolver(t.Entity, t.Point, target, &error)) { Fail(error.empty() ? "no way to find interaction points" : error); return none; }
 				if (!m_Interaction.Start(target, anim, false)) { Fail(m_Interaction.Error()); return none; }
 			}
+			m_Interaction.Profile = Profile;
 			const CharacterInput in = m_Interaction.Update(controller, world, anim, dt);
 			for (const std::string& e : m_Interaction.Events())
 				if (e.rfind("gives:", 0) == 0 && props) props(e.substr(6), true);
