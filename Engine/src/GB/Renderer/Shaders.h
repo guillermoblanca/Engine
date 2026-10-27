@@ -308,6 +308,14 @@ layout(binding = 5) uniform sampler2D uOcclusionMap;
 layout(binding = 6) uniform sampler2D uEmissiveMap;
 layout(binding = 7) uniform sampler2D uMacroMap;
 uniform int uHasMacroMap;
+uniform float uGrain;
+uniform float uGrainScale;
+uniform float uMoss;
+uniform vec3 uMossColor;
+uniform float uSand;
+uniform vec3 uSandColor;
+uniform float uBaseY;
+uniform float uWaterLine;
 uniform vec4 uMacroRect;
 layout(binding = 8) uniform sampler2D uTrailMap;
 uniform vec4 uTrailRect;       // window center x, z, size (m), texel size (m)
@@ -417,6 +425,16 @@ float PNoise(vec2 p)
 	f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(PHash(i), PHash(i + vec2(1, 0)), f.x), mix(PHash(i + vec2(0, 1)), PHash(i + vec2(1, 1)), f.x), f.y);
 }
+float PHash3(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+float PNoise3(vec3 p)
+{
+	vec3 i = floor(p), f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(mix(PHash3(i), PHash3(i + vec3(1, 0, 0)), f.x), mix(PHash3(i + vec3(0, 1, 0)), PHash3(i + vec3(1, 1, 0)), f.x), f.y),
+	           mix(mix(PHash3(i + vec3(0, 0, 1)), PHash3(i + vec3(1, 0, 1)), f.x), mix(PHash3(i + vec3(0, 1, 1)), PHash3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
+}
+float FBM3(vec3 p) { return PNoise3(p) * 0.55 + PNoise3(p * 2.07 + 3.1) * 0.3 + PNoise3(p * 4.3 + 7.7) * 0.15; }
+
 // Rain rings on a puddle: one expanding ring per random cell, two layers.
 vec2 PuddleRings(vec2 p)
 {
@@ -476,6 +494,38 @@ void main()
 		albedo *= texture(uMacroMap, (vPos.xz - uMacroRect.xy) / uMacroRect.zw).rgb;
 	albedo *= mix(vec3(1.0), uTrailTint, clamp(trailT * 1.3, 0.0, 1.0));   // compacted / wetter ground
 	if (uAlphaMode == 1 && alpha < uAlphaCutoff) discard;
+	// Procedural surface layers: grain, moss on top, sand at the base, a wet band at the water line.
+	float mossMask = 0.0, sandMask = 0.0, bandWet = 0.0;
+	if (uGrain > 0.0 || uMoss > 0.0 || uSand > 0.0 || uWaterLine > -1e8)
+	{
+		vec3 gp = vPos * uGrainScale;
+		float g1 = FBM3(gp), g2 = FBM3(vPos * 11.0 + 5.0);
+		albedo *= mix(1.0, 0.55 + 0.9 * g1, uGrain);
+		if (uGrain > 0.0)
+		{
+			float e = 0.05;
+			vec3 grad = vec3(FBM3(gp + vec3(e, 0, 0)) - g1, FBM3(gp + vec3(0, e, 0)) - g1, FBM3(gp + vec3(0, 0, e)) - g1) / e;
+			N = normalize(N - (grad - N * dot(grad, N)) * 0.06 * uGrain);
+		}
+		float up = clamp(normalize(vNormal).y, 0.0, 1.0);
+		if (uMoss > 0.0)
+		{
+			float v = up * 0.55 + FBM3(vPos * 1.9 + 3.0) * 0.7 + (uMoss - 0.5) * 0.9 - 0.45;
+			mossMask = smoothstep(0.3, 0.55, v) * smoothstep(0.0, 0.12, uMoss);
+			albedo = mix(albedo, uMossColor * (0.55 + 0.9 * g2), mossMask);
+		}
+		if (uSand > 0.0)
+		{
+			float h = vPos.y - uBaseY;
+			sandMask = (1.0 - smoothstep(0.0, 0.5, h + (g2 - 0.5) * 0.3)) * uSand * (0.55 + 0.45 * up);
+			albedo = mix(albedo, uSandColor * (0.85 + 0.3 * g2), sandMask);
+		}
+		if (uWaterLine > -1e8)
+		{
+			bandWet = 1.0 - smoothstep(uWaterLine, uWaterLine + 0.3, vPos.y + (g2 - 0.5) * 0.1);
+			albedo *= mix(1.0, 0.5, bandWet);
+		}
+	}
 	albedo *= mix(1.0, 0.55, uWetness);   // wet surfaces are darker...
 	// Snow settles on surfaces that face up (with a little noise so the edge is not a clean line).
 	float snow = 0.0;
@@ -518,6 +568,8 @@ void main()
 	metallic *= 1.0 - snow;
 	roughness = mix(roughness, roughness * 0.25, uWetness * (1.0 - metallic) * (1.0 - snow));   // ...and glossier
 	roughness = mix(roughness, 0.85, snow);
+	roughness = mix(roughness, 0.9, max(mossMask, sandMask));
+	roughness = mix(roughness, 0.12, bandWet);
 	roughness = mix(roughness, 0.03, puddle);
 	roughness = clamp(roughness, 0.03, 1.0);
 	float a = roughness * roughness;
@@ -772,10 +824,13 @@ vec3 Waves(vec2 p, float fade, out vec2 slope)
 
 	inline constexpr const char* WaterVS = R"GLSL(#version 450 core
 layout(location = 0) in vec3 aPos;
+layout(location = 3) in vec4 aTangent;   // rivers: xy = flow direction, z = speed
 uniform mat4 uViewProj;
 uniform vec3 uOrigin;
 uniform vec3 uCamPos;
+uniform int uRiver;
 out vec3 vPos;
+out vec2 vFlow;
 )GLSL";
 
 	inline constexpr const char* WaterVSMain = R"GLSL(
@@ -787,12 +842,14 @@ void main()
 	vec3 w = Waves(world.xz, fade, slope);
 	world += vec3(w.x, w.y, w.z);
 	vPos = world;
+	vFlow = uRiver != 0 ? aTangent.xy * aTangent.z : vec2(0.0);
 	gl_Position = uViewProj * vec4(world, 1.0);
 }
 )GLSL";
 
 	inline constexpr const char* WaterFS = R"GLSL(#version 450 core
 in vec3 vPos;
+in vec2 vFlow;
 out vec4 outColor;
 layout(binding = 1) uniform sampler2D uSceneDepth;
 layout(binding = 2) uniform sampler2D uRipples;
@@ -877,6 +934,13 @@ float Noise(vec2 p)
 	return mix(mix(Hash(i), Hash(i + vec2(1, 0)), f.x), mix(Hash(i + vec2(0, 1)), Hash(i + vec2(1, 1)), f.x), f.y);
 }
 
+vec2 Detail(vec2 q, float t)
+{
+	vec2 n1 = vec2(Noise(q * 1.7 + vec2(t * 0.35, t * 0.2)), Noise(q * 1.7 + 17.0 + vec2(-t * 0.25, t * 0.3))) - 0.5;
+	vec2 n2 = vec2(Noise(q * 4.3 + vec2(-t * 0.5, t * 0.4)), Noise(q * 4.3 + 31.0 + vec2(t * 0.45, -t * 0.35))) - 0.5;
+	return n1 * 0.14 + n2 * 0.07;
+}
+
 float RippleAt(vec2 xz)
 {
 	float edge = max(abs(xz.x - uRippleRect.x), abs(xz.y - uRippleRect.y)) / uRippleRect.z;
@@ -894,12 +958,21 @@ void main()
 	Waves(vPos.xz - vec2(0.0), fade, slope);   // slope of the wave sum (position offsets are tiny for shading)
 	vec3 N = normalize(vec3(-slope.x, 1.0, -slope.y));
 
-	// Fine detail: two scrolling noise layers, fading with distance.
+	// Fine detail: two noise layers, fading with distance. Still water scrolls them slowly; a current advects
+	// them along the flow (two phases cross-faded so the pattern never visibly resets).
 	vec2 q = vPos.xz;
 	float t = uTime;
-	vec2 n1 = vec2(Noise(q * 1.7 + vec2(t * 0.35, t * 0.2)), Noise(q * 1.7 + 17.0 + vec2(-t * 0.25, t * 0.3))) - 0.5;
-	vec2 n2 = vec2(Noise(q * 4.3 + vec2(-t * 0.5, t * 0.4)), Noise(q * 4.3 + 31.0 + vec2(t * 0.45, -t * 0.35))) - 0.5;
-	vec2 detail = (n1 * 0.14 + n2 * 0.07) * uChop * fade;
+	float speed = length(vFlow);
+	vec2 detail;
+	if (speed > 0.02)
+	{
+		float p0 = fract(t * 0.55), p1 = fract(t * 0.55 + 0.5);
+		float wgt = abs(2.0 * p0 - 1.0);
+		vec2 da = Detail(q - vFlow * p0 * 1.8, 0.0), db = Detail(q - vFlow * p1 * 1.8, 0.0);
+		detail = mix(da, db, wgt) * (1.0 + speed * 0.5) * 2.2 * uChop * fade;
+	}
+	else
+		detail = Detail(q, t) * uChop * fade;
 	N = normalize(N + vec3(detail.x, 0.0, detail.y));
 
 	// Ripples from rain, feet and swimmers.
@@ -981,6 +1054,13 @@ void main()
 		shore *= mix(0.55, 1.0, wave);
 		float crest = smoothstep(0.8, 1.0, (vPos.y - uOriginY) / max(uWaveHeight * 2.2, 1e-3)) * smoothstep(0.45, 0.9, nz);
 		float rip = smoothstep(0.015, 0.06, abs(ripple)) * 0.5;
+		if (speed > 0.02)
+		{
+			float p0 = fract(t * 0.55), p1 = fract(t * 0.55 + 0.5);
+			float fa = Noise((q - vFlow * p0 * 1.8) * vec2(2.2, 2.2)), fb = Noise((q - vFlow * p1 * 1.8) * 2.2);
+			float streak = mix(fa, fb, abs(2.0 * p0 - 1.0));
+			rip += smoothstep(1.7, 3.6, speed) * smoothstep(0.55, 0.85, streak) * 0.9;   // white water in the rapids
+		}
 		foam = clamp((shore + crest * 0.6 + rip) * uFoam, 0.0, 1.0) * smoothstep(0.35, 0.65, nz + shore * 0.5);
 	}
 	vec3 foamColor = (amb + uSunColor * max(L.y, 0.0) * 0.1) * vec3(1.6);

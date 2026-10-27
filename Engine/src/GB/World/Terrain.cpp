@@ -187,6 +187,8 @@ namespace GB
 				hm.At(i, j) = h;
 			}
 		}
+		if (!p.RiverPath.empty() && p.RiverPath.size() >= 2)
+			t->CarveRiver(p);
 		if (p.LakeRadius > 0.0f)
 		{
 			t->m_HasLake = true;
@@ -196,6 +198,143 @@ namespace GB
 		}
 		t->Finish(style, 8.0f);
 		return t;
+	}
+
+	// ------------------------------------------------------------------ river
+	namespace
+	{
+		glm::vec2 CatmullRom(const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2, const glm::vec2& p3, float t)
+		{
+			const float t2 = t * t, t3 = t2 * t;
+			return 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
+		}
+	}
+
+	void Terrain::CarveRiver(const HillParams& p)
+	{
+		Heightmap& hm = m_Heightmap;
+		// Dense polyline, about 1.5 m apart.
+		std::vector<glm::vec2> pts;
+		const auto& c = p.RiverPath;
+		for (size_t i = 0; i + 1 < c.size(); ++i)
+		{
+			const glm::vec2 p0 = c[i == 0 ? 0 : i - 1], p1 = c[i], p2 = c[i + 1], p3 = c[std::min(i + 2, c.size() - 1)];
+			const int n = std::max(2, static_cast<int>(glm::length(p2 - p1) / 1.5f));
+			for (int k = 0; k < n; ++k) pts.push_back(CatmullRom(p0, p1, p2, p3, static_cast<float>(k) / static_cast<float>(n)));
+		}
+		pts.push_back(c.back());
+		const int n = static_cast<int>(pts.size());
+
+		// Water level: follows the (smoothed) ground but only ever goes down.
+		std::vector<float> base(static_cast<size_t>(n)), level(static_cast<size_t>(n));
+		for (int i = 0; i < n; ++i) base[static_cast<size_t>(i)] = hm.GetHeight(pts[static_cast<size_t>(i)].x, pts[static_cast<size_t>(i)].y);
+		for (int i = 0; i < n; ++i)
+		{
+			float sum = 0.0f; int cnt = 0;
+			for (int k = std::max(0, i - 12); k <= std::min(n - 1, i + 12); ++k) { sum += base[static_cast<size_t>(k)]; ++cnt; }
+			const float smooth = sum / static_cast<float>(cnt) - p.RiverDepth * 0.3f;
+			level[static_cast<size_t>(i)] = i == 0 ? smooth : std::min(smooth, level[static_cast<size_t>(i) - 1] - 0.0045f * 1.5f);
+		}
+		m_River.HalfWidth = p.RiverWidth * 0.5f;
+		m_River.Depth = p.RiverDepth;
+		for (int i = 0; i < n; ++i)
+		{
+			m_River.Points.push_back({ pts[static_cast<size_t>(i)].x, level[static_cast<size_t>(i)], pts[static_cast<size_t>(i)].y });
+			const int a = std::max(0, i - 6), b = std::min(n - 1, i + 6);
+			const float run = std::max(glm::length(pts[static_cast<size_t>(b)] - pts[static_cast<size_t>(a)]), 1e-3f);
+			const float slope = (level[static_cast<size_t>(a)] - level[static_cast<size_t>(b)]) / run;
+			m_River.Speed.push_back(glm::clamp(0.9f + 18.0f * slope, 0.9f, 4.5f));
+		}
+
+		// Carve the valley: V-shaped slopes down to a flat bed, banks kept above the water.
+		const float w = m_River.HalfWidth, reach = w * 6.0f;
+		glm::vec2 lo(1e9f), hi(-1e9f);
+		for (const glm::vec2& q : pts) { lo = glm::min(lo, q); hi = glm::max(hi, q); }
+		for (uint32_t j = 0; j < hm.GetResolution(); ++j)
+		{
+			for (uint32_t i = 0; i < hm.GetResolution(); ++i)
+			{
+				const glm::vec2 pos = hm.SamplePosition(i, j);
+				if (pos.x < lo.x - reach || pos.x > hi.x + reach || pos.y < lo.y - reach || pos.y > hi.y + reach) continue;
+				float bestD = 1e9f, bestLevel = 0.0f;
+				for (int k = 0; k + 1 < n; ++k)
+				{
+					const glm::vec2 a = pts[static_cast<size_t>(k)], ab = pts[static_cast<size_t>(k) + 1] - a;
+					const float tt = glm::clamp(glm::dot(pos - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+					const float d = glm::length(pos - (a + ab * tt));
+					if (d < bestD) { bestD = d; bestLevel = glm::mix(level[static_cast<size_t>(k)], level[static_cast<size_t>(k) + 1], tt); }
+				}
+				if (bestD > reach) continue;
+				const float bed = bestLevel - p.RiverDepth;
+				const float cap = bed + std::max(bestD - w * 0.55f, 0.0f) * 0.6f;                              // valley wall
+				const float bank = bestLevel + 0.4f * glm::smoothstep(w * 0.7f, w * 1.4f, bestD);            // never below the water on land
+				float h = hm.At(i, j);
+				h = std::min(h, cap);
+				if (bestD > w * 0.7f) h = std::max(h, bank);
+				hm.At(i, j) = h;
+			}
+		}
+	}
+
+	float Terrain::GetRiverLevelAt(float x, float z) const
+	{
+		if (m_River.Points.empty()) return -1e9f;
+		float bestD = 1e9f, bestLevel = -1e9f;
+		const auto& P = m_River.Points;
+		for (size_t k = 0; k + 1 < P.size(); ++k)
+		{
+			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
+			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+			const float d = glm::length(glm::vec2(x, z) - (a + ab * tt));
+			if (d < bestD) { bestD = d; bestLevel = glm::mix(P[k].y, P[k + 1].y, tt); }
+		}
+		return bestD <= m_River.HalfWidth * 1.2f && m_Heightmap.GetHeight(x, z) < bestLevel ? bestLevel : -1e9f;
+	}
+
+	float Terrain::GetRiverSurfaceLevel(float x, float z) const
+	{
+		float bestD = 1e9f, lvl = -1e9f;
+		const auto& P = m_River.Points;
+		for (size_t k = 0; k + 1 < P.size(); ++k)
+		{
+			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
+			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+			const float d = glm::length(glm::vec2(x, z) - (a + ab * tt));
+			if (d < bestD) { bestD = d; lvl = glm::mix(P[k].y, P[k + 1].y, tt); }
+		}
+		return lvl;
+	}
+
+	float Terrain::DistanceToRiver(float x, float z) const
+	{
+		float best = 1e9f;
+		const auto& P = m_River.Points;
+		for (size_t k = 0; k + 1 < P.size(); ++k)
+		{
+			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
+			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+			best = std::min(best, glm::length(glm::vec2(x, z) - (a + ab * tt)));
+		}
+		return best;
+	}
+
+	glm::vec2 Terrain::GetRiverFlow(float x, float z) const
+	{
+		if (m_River.Points.empty()) return glm::vec2(0.0f);
+		float bestD = 1e9f;
+		glm::vec2 dir(0.0f);
+		float speed = 0.0f;
+		const auto& P = m_River.Points;
+		for (size_t k = 0; k + 1 < P.size(); ++k)
+		{
+			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
+			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+			const float d = glm::length(glm::vec2(x, z) - (a + ab * tt));
+			if (d < bestD) { bestD = d; dir = ab; speed = glm::mix(m_River.Speed[k], m_River.Speed[k + 1], tt); }
+		}
+		if (bestD > m_River.HalfWidth * 1.1f || glm::length(dir) < 1e-6f) return glm::vec2(0.0f);
+		const float edge = glm::clamp(bestD / m_River.HalfWidth, 0.0f, 1.0f);
+		return glm::normalize(dir) * speed * (1.0f - 0.65f * edge * edge);
 	}
 
 	// ------------------------------------------------------------------ mesh + material

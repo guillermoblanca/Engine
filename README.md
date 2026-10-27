@@ -244,6 +244,30 @@ auto ray = world.Raycast(origin, dir, 100.0f);           // terreno, estáticos 
 
 ![Tornado y escombros](docs/tornado_debris.jpg)
 
+## Ríos y rocas procedurales (Fase 8D)
+
+```cpp
+GB::HillParams hp; hp.RiverPath = { {-175,40}, {-70,-12}, {20,-28}, {178,-110} };   // puntos de control (spline Catmull-Rom)
+hp.RiverWidth = 6.0f; hp.RiverDepth = 1.4f;
+auto terrain = GB::Terrain::CreateHills(hp, 360.0f, 641);      // excava el valle; el agua solo desciende
+GB::WaterSurface river(*terrain->GetRiver());                   // cinta de agua con corriente
+scene.Water.push_back(&river);
+world.SetCurrent([&](float x, float z) { auto f = terrain->GetRiverFlow(x, z); return glm::vec3(f.x, 0, f.y); });   // arrastra cuerpos
+
+GB::RockParams rp; rp.Seed = 7; rp.Size = 1.3f; rp.Moss = 0.7f;
+auto rock = GB::RockFactory::Create(rp);
+rock->AddToScene(scene, position, yaw, scale, /*sink*/ 0.1f, /*waterLine*/ riverLevel);
+```
+
+- **Río**: el cauce siempre **baja** (el nivel solo desciende a lo largo del camino), valle en V con lecho plano y orillas que contienen el agua. `Terrain::GetRiverFlow` da la velocidad (más rápida en el centro y con más pendiente), `DistanceToRiver`, `GetRiverLevelAt`.
+- **Corriente en el shader**: el detalle de la superficie se **advecta** a lo largo del flujo con dos fases mezcladas (sin saltos visibles) y aparece **espuma** en los tramos rápidos. Los objetos flotantes son arrastrados (`PhysicsWorld::SetCurrent`).
+- **Rocas** (`RockFactory`): icosfera desplazada con ruido fbm + términos de arista, estiramiento por eje (losas, pilares), base plana, normales suaves o facetadas; determinista por semilla. `ScatterTrees` coloca rocas igual que árboles; en el Sandbox también a lo largo de las orillas.
+- **Capas de superficie** en `Material` (`Grain`, `Moss`, `Sand`, `WaterLine`): grano y relieve por ruido 3D, **musgo** en las caras que miran arriba y en la humedad, **arena** acumulada en la base, y **banda mojada** (oscura y brillante) bajo la línea del agua.
+- Sandbox: `--scene=desert --terrain=hills --river [--river-view --river-width=m] [--rocks=N] [--physics --physics-x= --physics-z=]`; las rocas se adaptan al estilo (musgo en prado, arena en desierto).
+- Test `river`: nivel descendente, valle, orillas sin fugas, campo de corriente, cinta de agua, arrastre de una caja, geometría de rocas (determinismo, base plana, tamaño) y capas (musgo, arena, mojado).
+
+![Río y rocas](docs/river_rocks.jpg)
+
 ## Hoja de ruta
 
 0. Base CMake, log, bucle headless, CI  ✔
@@ -257,7 +281,7 @@ auto ray = world.Raycast(origin, dir, 100.0f);           // terreno, estáticos 
 
 - 8B ✔ Skybox/IBL HDRI, reflejos SSR en el agua y destellos de luces.
 - 8C ✔ Colisiones y física (cuerpos rígidos, flotabilidad, vórtices) y escombros en el tornado.
-- 8D Ríos con corriente (flujo en el agua, espuma y arrastre) y rocas procedurales con musgo, arena y mojado.
+- 8D ✔ Ríos con corriente (flujo, espuma y arrastre) y rocas procedurales con musgo, arena y mojado.
 - 8E Erosión por lluvia; entornos para mapas procedurales (bosques densos, biomas).
 - 8F Efectos de destrucción.
 - 8G Pase de calidad de toda la escena en una demo completa (AAA: SSAO, DOF, tonemap, LUT).

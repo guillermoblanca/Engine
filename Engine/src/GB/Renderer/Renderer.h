@@ -62,6 +62,17 @@ namespace GB
 		float WindFlutter = 0.0f;
 		bool FoliageNormals = false;   // cards carry crown normals: light both faces the same way
 
+		// Procedural surface layers (rocks, walls, ruins): noise grain and bump, moss on upward faces, sand drifted
+		// at the base, and a wet band below the water line. All off by default.
+		float Grain = 0.0f;            // 0..1: albedo variation + bump from 3D noise
+		float GrainScale = 3.0f;       // noise cycles per meter
+		float Moss = 0.0f;             // 0..1: moss coverage on upward-facing surfaces
+		glm::vec3 MossColor{ 0.20f, 0.36f, 0.10f };
+		float Sand = 0.0f;             // 0..1: sand around the base
+		glm::vec3 SandColor{ 0.76f, 0.66f, 0.45f };
+		float BaseY = 0.0f;            // world height of the base (where sand is thickest)
+		float WaterLine = -1e9f;       // world height of the water: wet and glossy below it
+
 		AlphaMode Alpha = AlphaMode::Opaque;       // Mask: cutout at AlphaCutoff, Blend: sorted translucency
 		float AlphaCutoff = 0.5f;
 		float Opacity = 1.0f;                      // multiplies the albedo map alpha

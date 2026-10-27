@@ -351,6 +351,14 @@ namespace GB
 			pbr.SetFloat("uWindFlutter", m.WindFlutter);
 			pbr.SetInt("uNoNormalFlip", m.FoliageNormals ? 1 : 0);
 			pbr.SetInt("uHasMacroMap", m.MacroMap ? 1 : 0);
+			pbr.SetFloat("uGrain", m.Grain);
+			pbr.SetFloat("uGrainScale", m.GrainScale);
+			pbr.SetFloat("uMoss", m.Moss);
+			pbr.SetVec3("uMossColor", m.MossColor);
+			pbr.SetFloat("uSand", m.Sand);
+			pbr.SetVec3("uSandColor", m.SandColor);
+			pbr.SetFloat("uBaseY", m.BaseY);
+			pbr.SetFloat("uWaterLine", m.WaterLine);
 			const bool trail = scene.Ground && scene.Ground->IsValid() && m.TrailDepth > 0.0f;
 			pbr.SetFloat("uTrailDepth", trail ? m.TrailDepth : 0.0f);
 			if (trail)
@@ -571,6 +579,7 @@ namespace GB
 			const WaterParams& p = water->Params;
 			const glm::vec2 dir = glm::length(p.Direction) > 1e-4f ? glm::normalize(p.Direction) : glm::vec2(1.0f, 0.0f);
 			w.SetVec3("uOrigin", water->Position);
+			w.SetInt("uRiver", water->IsRiver() ? 1 : 0);
 			w.SetFloat("uOriginY", water->Position.y);
 			w.SetVec3("uOriginXZ", water->Position);
 			w.SetFloat("uMask", water->Radius);
