@@ -685,6 +685,7 @@ namespace GB::Editor
 			}
 			const MontageDesc* d = mp.Get(a[0]);
 			if (!d) return { false, "no such montage '" + a[0] + "'" };
+			m_TimelineMontage = a[0];
 			const float clip = mp.Duration(a[0]) * std::max(d->PlayRate, 0.01f);
 			char head[200];
 			std::snprintf(head, sizeof head, "%s: clip \"%s\" (%.2f s) in %s, blend %.2f / %.2f s, rate x%.2f%s%s", d->Name.c_str(), d->Clip.c_str(), static_cast<double>(clip), d->Slot.c_str(),
@@ -701,6 +702,7 @@ namespace GB::Editor
 			if (a.size() < 3) return { false, "usage: montage_notify <montage> add <time> <name> | remove <name> | move <name> <time>" };
 			const MontageDesc* found = anim->Montages().Get(a[0]);
 			if (!found) return { false, "no such montage '" + a[0] + "'" };
+			m_TimelineMontage = a[0];   // the Timeline panel follows the montage the commands work on
 			MontageDesc d = *found;
 			auto find = [&](const std::string& n) { for (size_t i = 0; i < d.Notifies.size(); ++i) if (d.Notifies[i].Name == n) return static_cast<int>(i); return -1; };
 			if (a[1] == "add" && a.size() >= 4) d.Notifies.push_back({ std::clamp(static_cast<float>(std::atof(a[2].c_str())), 0.0f, 1.0f), a[3] });
@@ -717,6 +719,7 @@ namespace GB::Editor
 			if (a.size() < 3) return { false, "usage: montage_section <montage> add <time> <name> | remove <name>" };
 			const MontageDesc* found = anim->Montages().Get(a[0]);
 			if (!found) return { false, "no such montage '" + a[0] + "'" };
+			m_TimelineMontage = a[0];   // the Timeline panel follows the montage the commands work on
 			MontageDesc d = *found;
 			if (a[1] == "add" && a.size() >= 4) d.Sections.push_back({ std::clamp(static_cast<float>(std::atof(a[2].c_str())), 0.0f, 1.0f), a[3] });
 			else if (a[1] == "remove")
@@ -736,6 +739,7 @@ namespace GB::Editor
 			if (a.size() < 3) return { false, "usage: montage_set <montage> blendin|blendout|rate|loop|striptravel|slot <value>" };
 			const MontageDesc* found = anim->Montages().Get(a[0]);
 			if (!found) return { false, "no such montage '" + a[0] + "'" };
+			m_TimelineMontage = a[0];   // the Timeline panel follows the montage the commands work on
 			MontageDesc d = *found;
 			const float v = static_cast<float>(std::atof(a[2].c_str()));
 			const bool on = a[2] != "off" && a[2] != "0" && a[2] != "false";
@@ -756,6 +760,7 @@ namespace GB::Editor
 			if (a.empty()) return { false, "usage: montage_seek <montage> <seconds>|off" };
 			MontagePlayer& mp = anim->Montages();
 			if (!mp.Has(a[0])) return { false, "no such montage '" + a[0] + "'" };
+			m_TimelineMontage = a[0];
 			if (a.size() > 1 && a[1] == "off") { mp.SetPaused(false); m_Player.StopMontage(); return { true, "released" }; }
 			if (a.size() < 2) return { false, "usage: montage_seek <montage> <seconds>|off" };
 			if (!mp.IsPlaying(a[0])) m_Player.PlayMontage(a[0]);

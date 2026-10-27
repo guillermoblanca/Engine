@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Animation/AirLayer.h"
+#include "GB/Animation/AnimGraph.h"
 #include "GB/Animation/Locomotion.h"
 #include "GB/Animation/FootIK.h"
 #include "GB/Animation/IK.h"
@@ -93,6 +94,11 @@ namespace GB
 		void EndRagdoll(const glm::mat4& placement, float blendSeconds = 0.8f);
 		bool Recovering() const { return m_RagBlend < 1.0f; }
 
+		// The state graph: states (a locomotion set or a montage) and transitions by conditions on parameters (the motion's and the game's), run
+		// before the animation each frame. Empty by default: the character is then driven by SetOverlay and the montages directly.
+		GraphRunner& Graph() { return m_GraphRunner; }
+		const GraphRunner& Graph() const { return m_GraphRunner; }
+
 		// Sockets and props. A prop follows its socket and, through its grips, pulls the hands onto itself with IK (after the clips and
 		// montages, before the pose reaches the instance). `Detach` lets go over the prop's fade time.
 		SocketSet& Sockets() { return m_Sockets; }
@@ -151,6 +157,7 @@ namespace GB
 		void ApplyGrips(const glm::mat4& characterToWorld);
 
 		HumanoidRig m_Rig;
+		GraphRunner m_GraphRunner;
 		std::unique_ptr<Ragdoll> m_Ragdoll;
 		Pose m_RagSnapshot;
 		float m_RagBlend = 1.0f, m_RagBlendSeconds = 0.8f;
