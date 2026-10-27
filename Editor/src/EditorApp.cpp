@@ -550,6 +550,22 @@ namespace GB::Editor
 			if (a[0] == "off") { m_Player.DetachProp(a.size() > 1 ? a[1] : ""); return { true, "let go" }; }
 			return m_Player.AttachProp(a[0]) ? CommandResult{ true, "carrying " + a[0] } : CommandResult{ false, "cannot attach '" + a[0] + "' (box, bag, tool; the character needs the humanoid rig)" };
 		});
+		c.Register("player_look", "player_look <x> <y> <z> | camera | off: the FBX player turns its head toward a world point, the camera, or forward again", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.size() == 1 && a[0] == "off") { m_Player.ClearLook(); return { true, "looking forward" }; }
+			if (a.size() == 1 && a[0] == "camera") { m_Player.LookAtCamera(true); return { true, "looking at the camera" }; }
+			if (a.size() < 3) return { false, "usage: player_look <x> <y> <z> | camera | off" };
+			m_Player.LookAtPoint({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) });
+			return { true, "looking at (" + a[0] + ", " + a[1] + ", " + a[2] + ")" };
+		});
+		c.Register("player_feet", "player_feet on|off: the FBX player's feet follow the terrain with IK (on by default)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (!m_Player.IsActive() || !m_Player.UsesLocomotionBlend()) return { false, "start the player with an FBX character first (player <character.fbx>)" };
+			if (a.empty()) return { true, m_Player.FootIKOn() ? "foot IK is on" : "foot IK is off" };
+			m_Player.SetFootIK(a[0] != "off" && a[0] != "0");
+			return { true, m_Player.FootIKOn() ? "foot IK on" : "foot IK off" };
+		});
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
 		c.Register("screenshot", "screenshot <file.png>: saves the viewport (the 3D view without the interface)", [this](const std::vector<std::string>& a) -> CommandResult
 		{

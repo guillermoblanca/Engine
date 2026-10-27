@@ -23,6 +23,8 @@ add_library(GB STATIC
     src/GB/Animation/Rig.cpp
     src/GB/Animation/IK.cpp
     src/GB/Animation/Socket.cpp
+    src/GB/Animation/FootIK.cpp
+    src/GB/Animation/LookAt.cpp
     src/GB/Game/SceneIO.cpp
     src/GB/Game/EntityRender.cpp
     src/GB/Input.cpp
