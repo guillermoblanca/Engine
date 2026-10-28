@@ -4,6 +4,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <vector>
 
 namespace GB
 {
@@ -27,10 +28,13 @@ namespace GB
 		static const char* Weather(Season s, float progress);    // "clear", "lightrain", "rain", "storm" or "snow": the weather the season brings
 	};
 
-	// Basic ecology (H3): rabbits that wander, eat the plants the tribe also gathers (berry bushes, fibre tufts), breed when well fed and starve
-	// when there is nothing to eat. An animal is an entity with an ability system whose attributes are its whole state (Food, Age, Cooldown, Starving),
-	// so animals are saved and loaded like everything else; the system only moves and decides. Deterministic: wandering is a hash of the name and
-	// the number of legs walked, never a random generator.
+	// Basic ecology (H3): animals that wander, eat, breed when well fed and starve when there is nothing to eat. An animal is an entity with an
+	// ability system whose attributes are its whole state (Food, Age, Cooldown, Starving), so animals are saved and loaded like everything else; the
+	// system only moves and decides. Deterministic: wandering is a hash of the name and the number of legs walked, never a random generator.
+	//
+	// The species are data (SpeciesDef, the "species" section of a content file: assets/data/world.json). A species grazes plants (rabbits eat the
+	// berry bushes and fibre tufts the tribe also gathers, one unit of the node a meal) or hunts other animals (the fox catches rabbits: the prey dies).
+	// The numbers of one species' life:
 	struct EcologyConfig
 	{
 		int MaxAnimals = 8;
@@ -46,7 +50,38 @@ namespace GB
 		float AdultSeconds = 120.0f;
 		float BreedCooldown = 150.0f;
 		float StarveSeconds = 40.0f;     // at zero food this long before dying
+		bool operator==(const EcologyConfig&) const = default;
 	};
+
+	struct SpeciesDef
+	{
+		std::string Id;                  // "rabbit"
+		std::string Name = "Rabbit";     // the entities are "<Name> <n>"
+		std::string Plural = "rabbits";
+		std::string Tag = "Animal.Rabbit";
+		std::string Body = "rabbit";     // the look (code): "rabbit" (round, long ears) or "quadruped" (four legs and a snout: a fox, a deer)
+		glm::vec3 Color{ 0.62f, 0.52f, 0.4f };
+		float Size = 1.0f;
+		// What it eats: tags of plants (Resource.Plant: it grazes resource nodes) or of animals (Animal.Rabbit: it hunts them). Not both kinds.
+		std::vector<std::string> Eats{ "Resource.Plant" };
+		float Sight = 20.0f;             // how far it looks for food
+		float BreedCost = 15.0f;         // food a birth costs the parent ...
+		float NewbornFood = 60.0f;       // ... and the food the young starts with
+		float SpawnFood = 0.7f;          // food of one put in the world (Spawn), as a part of FoodMax; it comes adult
+		float LegSeconds = 5.0f;         // a new leg of its wander every this many seconds of age
+		EcologyConfig Life;
+		bool Hunts() const { return !Eats.empty() && Eats.front().rfind("Animal.", 0) == 0; }
+		bool operator==(const SpeciesDef&) const = default;
+	};
+
+	// The built-in species: "rabbit" (the rabbits as they always were) and "fox" (hunts rabbits); assets/data/world.json says the same.
+	std::map<std::string, SpeciesDef> DefaultSpecies();
+	// Reads the "species" section of a content file: { "species": { "<id>": { "name": ..., "tag": ..., "eats": [...], "maxAnimals": n, "speed": s, ... } } }.
+	// A species is added or replaced whole. A file without the section changes nothing; on a mistake it returns why and changes nothing.
+	std::string LoadSpecies(const std::string& json, std::map<std::string, SpeciesDef>& species);
+	std::string LoadSpeciesFile(const std::string& path, std::map<std::string, SpeciesDef>& species);
+	// The species as the section reads them back (one JSON object: id -> species).
+	std::string SpeciesToJson(const std::map<std::string, SpeciesDef>& species);
 
 	// What the editor remembers of the look the season gave the world (the weather, the snow on the ground and the colour of the leaves it last wrote), so a
 	// loaded game does not write them again from nothing. Plain text for a save section.
@@ -63,20 +98,25 @@ namespace GB
 	class EcologySystem
 	{
 	public:
-		EcologyConfig Config;
+		// What lives here (see SpeciesDef). The editor reads assets/data/world.json into it at start and with `content load`.
+		std::map<std::string, SpeciesDef> Species = DefaultSpecies();
 
 		// Height of the ground at x, z (a flat world when empty).
 		using Ground = std::function<float(float x, float z)>;
 
 		void Bind(EntityWorld& entities, GameplayWorld& gameplay, Ground ground = {});
-		// Puts `count` rabbits around a point (up to the maximum).
-		int Spawn(const glm::vec3& at, int count);
+		// Puts `count` animals of a species around a point (up to its maximum). 0 for an unknown species.
+		int Spawn(const glm::vec3& at, int count, const std::string& species = "rabbit");
 		void Update(double clock, float dt);
 
-		int Count() const;
-		int Born() const { return m_Born; }
-		int Starved() const { return m_Starved; }
-		int Eaten() const { return m_Eaten; }
+		int Count() const;                                // every animal
+		int Count(const std::string& species) const;
+		// Totals over the species: births, deaths of hunger, meals (plants grazed and prey caught) and animals caught by a hunter.
+		int Born() const;
+		int Starved() const;
+		int Eaten() const;
+		int Killed() const;
+		// "4 rabbits (born 2, starved 0, plants eaten 9)", and "; 1 foxes (born 0, starved 0, caught 3)" for each other species in the world.
 		std::string Describe() const;
 
 		// What the animals' attributes do not keep: where each one was heading (its centre of wandering, the plant it chose, how long it has been eating) and
@@ -85,10 +125,13 @@ namespace GB
 		bool FromJson(const std::string& text);
 
 	private:
+		// Plant: the plant it is going to eat, or the prey it chases.
 		struct Walk { glm::vec2 Home{ 0.0f }, Target{ 0.0f }; std::string Plant; float Eating = 0.0f; bool Has = false; EntityId Id = NullEntity; };
+		struct Counts { int Born = 0, Starved = 0, Eaten = 0, Killed = 0; };
 
-		EntityId Make(const glm::vec3& at, float food, float age);
-		void Think(const std::string& name, AbilitySystemComponent& a, Entity& e, Walk& w);
+		EntityId Make(const SpeciesDef& species, const glm::vec3& at, float food, float age);
+		const SpeciesDef* SpeciesOf(const AbilitySystemComponent& a) const;
+		void Kill(const std::string& name);
 		float Hash01(const std::string& name, int n, int salt) const;
 		float GroundAt(float x, float z) const { return m_Ground ? m_Ground(x, z) : 0.0f; }
 
@@ -96,6 +139,7 @@ namespace GB
 		GameplayWorld* m_Gameplay = nullptr;
 		Ground m_Ground;
 		std::map<std::string, Walk> m_Walks;
-		int m_Serial = 0, m_Born = 0, m_Starved = 0, m_Eaten = 0;
+		std::map<std::string, int> m_Serials;     // species -> the last number given to one
+		std::map<std::string, Counts> m_Counts;   // species -> what happened to them
 	};
 }

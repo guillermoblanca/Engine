@@ -115,7 +115,7 @@ namespace GB
 	float Heightmap::GetMaxHeight() const { return *std::max_element(m_Heights.begin(), m_Heights.end()); }
 
 	// ------------------------------------------------------------------ generators
-	std::unique_ptr<Terrain> Terrain::CreateDunes(const DuneParams& p, float size, uint32_t resolution, TerrainStyle style)
+	std::unique_ptr<Terrain> Terrain::CreateDunes(const DuneParams& p, float size, uint32_t resolution, TerrainStyle style, bool gpu)
 	{
 		std::unique_ptr<Terrain> t(new Terrain(resolution, size));
 		t->m_WindAngle = glm::radians(p.WindAngleDegrees);
@@ -158,11 +158,11 @@ namespace GB
 					t->m_Crests.push_back({ pos.x, h, pos.y });
 			}
 		}
-		t->Finish(style, p.Wavelength);
+		t->Finish(style, gpu);
 		return t;
 	}
 
-	std::unique_ptr<Terrain> Terrain::CreateHills(const HillParams& p, float size, uint32_t resolution, TerrainStyle style)
+	std::unique_ptr<Terrain> Terrain::CreateHills(const HillParams& p, float size, uint32_t resolution, TerrainStyle style, bool gpu)
 	{
 		std::unique_ptr<Terrain> t(new Terrain(resolution, size));
 		t->m_SurfaceMaps = p.SurfaceMaps;
@@ -208,7 +208,7 @@ namespace GB
 			t->m_LakeCenter = p.LakeCenter;
 			t->m_LakeRadius = p.LakeRadius;
 		}
-		t->Finish(style, 8.0f);
+		t->Finish(style, gpu);
 		return t;
 	}
 
@@ -562,7 +562,7 @@ namespace GB
 		const int n = static_cast<int>(m_Heightmap.GetResolution());
 		i0 = std::clamp(i0 - 2, 0, n - 1); j0 = std::clamp(j0 - 2, 0, n - 1);
 		i1 = std::clamp(i1 + 2, 0, n - 1); j1 = std::clamp(j1 + 2, 0, n - 1);
-		if (m_Vertices.size() < static_cast<size_t>(n) * static_cast<size_t>(n) || i1 < i0 || j1 < j0) return;
+		if (!m_Mesh || m_Vertices.size() < static_cast<size_t>(n) * static_cast<size_t>(n) || i1 < i0 || j1 < j0) return;   // no mesh yet: BuildGpu reads the heights as they are
 		if (!m_FineIndex.empty())   // refined shore vertices that sit over the edited texels
 		{
 			const int N = m_ShoreSubdivision;
@@ -605,9 +605,16 @@ namespace GB
 	}
 
 	// ------------------------------------------------------------------ mesh + material
-	void Terrain::Finish(TerrainStyle style, float wavelengthMeters)
+	void Terrain::Finish(TerrainStyle style, bool gpu)
 	{
 		m_Style = style;
+		if (gpu) BuildGpu();
+	}
+
+	void Terrain::BuildGpu()
+	{
+		if (m_Mesh) return;
+		const TerrainStyle style = m_Style;
 		const Heightmap& hm = m_Heightmap;
 		const uint32_t n = hm.GetResolution();
 		const float tileMeters = 4.0f;   // one detail texture tile
@@ -721,7 +728,6 @@ namespace GB
 		m_Material.MacroMap = m_Macro.get();
 		m_Material.SurfaceNormalMap = m_NormalMap.get();
 		m_Material.MacroRect = { hm.GetMin().x, hm.GetMin().y, hm.GetSize(), hm.GetSize() };
-		(void)wavelengthMeters;
 	}
 
 	// A normal map and a macro color map over the whole terrain, both at a texel of ~0.2 m (much finer than the 0.5 m heightmap grid):
@@ -825,6 +831,7 @@ namespace GB
 
 	void Terrain::AddToScene(Scene& scene, const glm::mat4& root) const
 	{
+		if (!m_Mesh) return;   // a CPU-only terrain (BuildGpu not called) draws nothing
 		RenderObject obj;
 		obj.MeshPtr = m_Mesh.get();
 		obj.Mat = m_Material;

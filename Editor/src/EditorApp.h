@@ -4,6 +4,7 @@
 #include "ImGuiLayer.h"
 #include "LogBuffer.h"
 #include "PlayerMode.h"
+#include "GameView.h"
 #include "Properties.h"
 #include "SceneEditor.h"
 #include "TestScenarios.h"
@@ -17,6 +18,7 @@
 #include "GB/Game/EntityRender.h"
 #include "GB/Gameplay/Garden.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/GameContent.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
@@ -120,7 +122,11 @@ namespace GB::Editor
 		void StepResources();                                    // tools as tags and depleted nodes, once per simulation step
 		CommandResult ResourcesCommand(const std::vector<std::string>& a);
 		CommandResult TribeCommand(const std::vector<std::string>& a);
+		// H12 (EditorExplore.cpp): the regions of the generated world, kept in step with it and handed to the tribe; `region list|info`.
+		void SyncRegions();
+		CommandResult RegionCommand(const std::vector<std::string>& a);
 		CommandResult AiCommand(const std::vector<std::string>& a);
+		CommandResult KnowledgeCommand(const std::vector<std::string>& a);   // `knowledge status [name|clan]`, `knowledge grant <name|clan> <tech>` (H11)
 		CommandResult NavCommand(const std::vector<std::string>& a);
 		void DrawNavDebug(float ox, float oy, float w, float h);   // blocked and costly cells and the paths walked, over the viewport
 		CommandResult InteractivesCommand(const std::vector<std::string>& a);
@@ -141,6 +147,7 @@ namespace GB::Editor
 		std::unique_ptr<Weather> m_Weather;
 		WorldInstance m_World;
 		WorldDesc m_WorldDesc;
+		float m_WildResources = 0.0f;   // density of the last `resources world` on this world (0 = none): saved in WorldParams, the nodes go in the baseline
 		std::unique_ptr<EnvironmentMap> m_EnvMap;
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
@@ -161,14 +168,22 @@ namespace GB::Editor
 		bool m_NavDebug = false;                                 // `nav debug on`
 		float m_NavSyncTimer = 0.0f;                             // real seconds to the next look at whether trees went or appeared
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
+		RegionMap m_Regions;                                     // H12: the regions of the world (derived from the seed and the wild density, never saved)
+		std::string m_RegionsKey;                                // what they were built from ("" = not built)
+		int m_RegionTicks = 0;                                   // simulation steps to the next count of the predators
 		Tribe m_Tribe;                                           // the first tribe (`tribe build`): workers that gather, carry, craft and light a fire alone
 		std::vector<std::unique_ptr<ITribeBody>> m_TribeBodies;
+		std::string m_TribeModel = "fox";                        // what the members were made from: the children of the tribe are spawned from it (H9)
+		void SetTribeSpawner();                                  // gives the tribe the way to give a newborn an actor
 		std::string m_AbilityActor = "Gardener";                 // whose abilities the Abilities panel shows
 		ActorWorld m_Actors;                                     // every character of the world: the player's and the NPCs' (`actor` command)
 		ItemLibrary m_Items;                                      // era-1 items and recipes, filled on first use of `actor bag`
 		RecipeBook m_Recipes;
 		std::map<std::string, ResourceNodeDef> m_NodeDefs;
+		TechTree m_Techs = DefaultTechs();                        // the technologies (H11, "techs" of the packs): what the tribe knows, finds and teaches (`knowledge`)
+		ContentPacks m_Packs;                                    // the eras as data packs (`pack load`): sections over m_Items, m_Recipes, m_NodeDefs and m_Tribe.Config.Roles
 		PlayerMode m_Player;                                     // `player` command / View > Play: walk the world in third person
+		GameView m_GameView;                                     // `camera game ...`: follow, overview and cinematic cameras (H19)
 		size_t m_StaticObjects = 0;
 		std::unique_ptr<AudioEngine> m_Audio;
 		std::unique_ptr<FootstepSounds> m_Steps;
@@ -217,6 +232,8 @@ namespace GB::Editor
 		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, WorldState = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
+		float m_RenderScale = 1.0f;          // the 3D view is rendered at this fraction of the viewport (`quality minimum`)
+		bool m_MinimumQuality = false;       // the renderer was made without MSAA and with a small shadow map
 		bool m_LayoutBuilt = false;
 		std::string m_PropFilter;
 		char m_ConsoleInput[256] = {};

@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -123,6 +124,20 @@ namespace GB
 		int CountFor(int workers) const { return std::max(0, Count + PerWorker * std::max(1, workers)); }
 	};
 
+	// Where a type of node grows over a generated world (PlanWorldResources): on which biomes, how thick, how far apart, and whether it keeps to the
+	// water or comes in groves and veins. PerHectare 0 or no biomes = the type is not spread over the world (it can still be in a patch).
+	struct ResourceSpawnDef
+	{
+		std::vector<std::string> Biomes;    // "Meadow", "Forest", "Shore", "Rock", "Snow", "Dunes" (GB::Biome names)
+		float PerHectare = 0.0f;            // nodes per 10 000 m² of matching ground, before the spacing and the clumping thin them out
+		float Spacing = 6.0f;               // metres to any other node
+		float MaxSlope = 35.0f;             // degrees
+		float WaterWithin = 0.0f;           // > 0: only this close (metres) to the lake or the river
+		float Clump = 0.0f;                 // 0..0.99: share of the ground a noise field leaves out, so the nodes gather in groves and veins
+		int Max = 0;                        // most nodes over the whole map (0 = no limit)
+		bool Placed() const { return PerHectare > 0.0f && !Biomes.empty(); }
+	};
+
 	struct ResourceNodeDef
 	{
 		std::string Id;                     // "tree", "rock", "berry_bush"
@@ -139,6 +154,7 @@ namespace GB
 		std::string Kind;
 		std::string Model;                  // the primitives it is drawn with ("" = the node's id; an unknown model is a plain grey blob)
 		ResourcePatchDef Patch;
+		ResourceSpawnDef Spawn;
 	};
 
 	class ResourceNode
@@ -182,6 +198,12 @@ namespace GB
 		std::string WhyNot(const ItemLibrary& lib, const Inventory& inv, const std::string& id, const std::string& station) const;
 		// Makes it: takes the inputs, adds the output. False (nothing changes) when WhyNot is not empty.
 		bool Craft(const ItemLibrary& lib, Inventory& inv, const std::string& id, const std::string& station) const;
+		// The same for a crafter that only knows some recipes (H11): `known` is the set of recipe ids it knows how to make (see ClanKnowledge::KnownRecipes);
+		// a recipe outside it gives "does not know how to make '<id>'" before anything else. nullptr = it knows them all, as the overloads above.
+		std::string WhyNot(const ItemLibrary& lib, const Inventory& inv, const std::string& id, const std::string& station, const std::set<std::string>* known) const;
+		bool Craft(const ItemLibrary& lib, Inventory& inv, const std::string& id, const std::string& station, const std::set<std::string>* known) const;
+		// The recipe ids a crafter knows: all of them with nullptr, else those of `known` that are recipes here.
+		std::vector<std::string> Known(const std::set<std::string>* known) const;
 	private:
 		std::map<std::string, Recipe> m_Recipes;
 	};

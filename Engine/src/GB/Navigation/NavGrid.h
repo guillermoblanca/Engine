@@ -41,6 +41,7 @@ namespace GB
 		float LoadFactor = 1.5f;       // ... by (1 + Load * LoadFactor)
 
 		static NavProfile Carrying(float load) { NavProfile p; p.Load = load; return p; }
+		bool operator==(const NavProfile&) const = default;   // (a role's profile is data: see TribeRole)
 	};
 
 	struct NavPath

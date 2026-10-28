@@ -42,13 +42,13 @@ struct Meadow
 			Plants.Update(Gameplay, dt, SeasonClock::GrowthRate(SeasonClock().At(Clock)));   // plants regrow with the season
 			Eco.Update(Clock, dt);
 			Clock += dt;
-			const int n = Eco.Count();
-			if (n > Eco.Config.MaxAnimals || n < 0) bad = true;
+			const int n = Eco.Count("rabbit");   // (each species has its own limit)
+			if (n > Eco.Species["rabbit"].Life.MaxAnimals || n < 0) bad = true;
 			peak = std::max(peak, n);
 			for (const std::string& name : Gameplay.Names())
 			{
 				const AbilitySystemComponent* a = Gameplay.Find(name);
-				if (a->HasTag("Animal.Rabbit") && (a->Attributes().Current("Food") < 0.0f || a->Attributes().Current("Food") > Eco.Config.FoodMax)) bad = true;
+				if (a->HasTag("Animal.Rabbit") && (a->Attributes().Current("Food") < 0.0f || a->Attributes().Current("Food") > Eco.Species["rabbit"].Life.FoodMax)) bad = true;
 				if (a->HasTag("Resource.Node") && ResourceSystem::Amount(*a) < 0) bad = true;
 			}
 		}
@@ -106,7 +106,7 @@ int main()
 		m.Run(1200.0);
 		Check(!m.bad, "no count out of bounds over five seasons");
 		Check(m.Eco.Born() > 0, "they breed when well fed");
-		Check(m.peak <= m.Eco.Config.MaxAnimals, "the population never passes the limit");
+		Check(m.peak <= m.Eco.Species["rabbit"].Life.MaxAnimals, "the population never passes the limit");
 		std::fprintf(stderr, "  %s, peak %d\n", m.Eco.Describe().c_str(), m.peak);
 	}
 
@@ -116,6 +116,76 @@ int main()
 		m.Run(900.0);
 		Check(!m.bad, "no count out of bounds");
 		Check(m.Eco.Count() == 0 && m.Eco.Starved() == 4, "with nothing to eat all four starve");
+	}
+
+	// Species are data (assets/data/world.json, "species"): the file says what the code says, a damaged document changes nothing.
+	{
+		std::map<std::string, SpeciesDef> file;
+		const std::string loaded = LoadSpeciesFile(std::string(GB_ASSETS_DIR) + "/data/world.json", file);
+		Check(loaded.empty(), "the species of assets/data/world.json load");
+		if (!loaded.empty()) std::fprintf(stderr, "  %s\n", loaded.c_str());
+		Check(file == DefaultSpecies(), "and say what DefaultSpecies says");
+		if (file != DefaultSpecies()) std::fprintf(stderr, "  expected:\n{ \"species\": %s }\n", SpeciesToJson(DefaultSpecies()).c_str());
+		std::map<std::string, SpeciesDef> back;
+		Check(LoadSpecies("{ \"species\": " + SpeciesToJson(DefaultSpecies()) + " }", back).empty() && back == DefaultSpecies(), "the species round-trip");
+		Check(DefaultSpecies().at("rabbit").Life == EcologyConfig{} && !DefaultSpecies().at("rabbit").Hunts() && DefaultSpecies().at("fox").Hunts(), "the rabbit has the numbers it always had; the fox hunts");
+		std::map<std::string, SpeciesDef> keep = DefaultSpecies();
+		const char* bad[] = {
+			R"({ "species": { "deer": { "name": "Deer", "plural": "deer", "tag": "Deer" } } })",                                        // not an Animal tag
+			R"({ "species": { "deer": { "name": "Deer", "plural": "deer", "tag": "Animal.Deer", "speed": 0 } } })",                     // it cannot move
+			R"({ "species": { "deer": { "name": "Deer", "plural": "deer", "tag": "Animal.Deer", "eats": ["Resource.Plant", "Animal.Rabbit"] } } })",   // both
+			R"({ "species": { "wolf": { "name": "Wolf", "plural": "wolves", "tag": "Animal.Wolf", "eats": ["Animal.Wolf"] } } })",       // its own kind
+			R"({ "species": { "hare": { "name": "Hare", "plural": "hares", "tag": "Animal.Rabbit" } } })",                              // the rabbits' tag
+			R"({ "species": { "deer": { "name": "Deer", "plural": "deer", "tag": "Animal.Deer", "body": "dragon" } } })",
+			R"({ "species": [] })",
+			"nope",
+		};
+		bool refused = true;
+		for (const char* text : bad) refused = refused && !LoadSpecies(text, keep).empty();
+		Check(refused && keep == DefaultSpecies(), "a damaged species is refused and nothing changes");
+		Check(LoadSpecies(R"({ "items": [] })", keep).empty() && keep == DefaultSpecies(), "a file without species changes nothing");
+		Check(LoadSpecies(R"({ "species": { "deer": { "name": "Deer", "plural": "deer", "tag": "Animal.Deer", "body": "quadruped", "size": 1.6, "speed": 1.8, "maxAnimals": 4 } } })", keep).empty()
+			&& keep.size() == 3 && keep.at("deer").Eats == std::vector<std::string>{ "Resource.Plant" }, "a grazing deer is a few lines of data");
+	}
+
+	// A second species: foxes hunt the rabbits. The rabbits caught are counted apart from the starved, nobody is eaten twice, the foxes live on them,
+	// and with no foxes in the world the rabbits are left as they were.
+	{
+		Meadow m(true);
+		m.Eco.Spawn({ 8.0f, 0.0f, 8.0f }, 1, "fox");
+		Check(m.Eco.Count("fox") == 1 && m.Eco.Count("rabbit") == 4 && m.Eco.Count() == 5, "one fox among four rabbits");
+		Check(m.Eco.Spawn({ 8.0f, 0.0f, 8.0f }, 5, "fox") == 1 && m.Eco.Count("fox") == 2, "foxes stay few (their own limit)");
+		Check(m.Eco.Spawn({ 0.0f, 0.0f, 0.0f }, 3, "unicorn") == 0, "an unknown species spawns nothing");
+		AbilitySystemComponent* fox = m.Gameplay.Find("Fox 1");
+		Check(fox && fox->HasTag("Animal.Fox"), "the fox is an animal with its own tag");
+		fox->Attributes().SetBase("Food", 30.0f);   // a hungry fox
+		m.Gameplay.Find("Fox 2")->Attributes().SetBase("Food", 30.0f);
+		m.Run(240.0);
+		Check(!m.bad, "no count out of bounds with a hunter about");
+		Check(m.Eco.Killed() > 0, "the foxes catch rabbits");
+		const float foxFood = m.Gameplay.Find("Fox 1")->Attributes().Current("Food") + m.Gameplay.Find("Fox 2")->Attributes().Current("Food");
+		Check(m.Eco.Count("fox") == 2 && foxFood > 2.0f * (30.0f - 0.12f * 240.0f) + 20.0f, "and live on them");
+		const std::string described = m.Eco.Describe();
+		Check(described.find(" rabbits (") != std::string::npos && described.find(" foxes (") != std::string::npos && described.find("caught by hunters") != std::string::npos, "the description tells both species");
+		std::fprintf(stderr, "  %s\n", described.c_str());
+		bool missing = false;   // what was caught is gone from the scene and the systems
+		for (const auto& [id, e] : m.Entities.All())
+			if (e.Name.rfind("Rabbit ", 0) == 0 && e.Name.find(' ', 7) == std::string::npos && !m.Gameplay.Find(e.Name)) missing = true;
+		Check(!missing, "no rabbit is left half-removed");
+
+		// the counters of each species survive a save
+		EcologySystem eco;
+		eco.Bind(m.Entities, m.Gameplay);
+		const std::string text = m.Eco.ToJson();
+		Check(eco.FromJson(text) && eco.ToJson() == text && eco.Killed() == m.Eco.Killed() && eco.Describe() == described, "both species' counters come back from a save");
+		Check(eco.FromJson(R"({"born": 2, "starved": 1, "eaten": 5, "walks": []})") && eco.Born() == 2 && eco.Eaten() == 5 && eco.Killed() == 0, "an old save's counters are the rabbits'");
+	}
+	{
+		Meadow a(true), b(true);
+		b.Eco.Species.erase("fox");   // no hunter defined at all
+		a.Run(600.0);
+		b.Run(600.0);
+		Check(a.Fingerprint() == b.Fingerprint(), "a fox the world does not have changes nothing for the rabbits");
 	}
 
 	// Twice the same.

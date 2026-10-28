@@ -8,6 +8,7 @@ target_include_directories(ufbx SYSTEM PUBLIC ${ufbx_SOURCE_DIR})
 add_library(GB STATIC
     src/GB/Application.cpp
     src/GB/Game/CharacterController.cpp
+    src/GB/Game/GameCamera.cpp
     src/GB/Game/MotionState.cpp
     src/GB/Navigation/NavGrid.cpp
     src/GB/Game/AIDriver.cpp
@@ -24,11 +25,24 @@ add_library(GB STATIC
     src/GB/Gameplay/GameplayWorld.cpp
     src/GB/Gameplay/Garden.cpp
     src/GB/Gameplay/Items.cpp
+    src/GB/Gameplay/Techs.cpp
+    src/GB/Gameplay/ContentPack.cpp
     src/GB/Gameplay/Resources.cpp
+    src/GB/Gameplay/WorldResources.cpp
     src/GB/Gameplay/Interactives.cpp
     src/GB/Gameplay/Ecology.cpp
     src/GB/Gameplay/DocsExport.cpp
     src/GB/Game/Tribe.cpp
+    src/GB/Game/TribeWork.cpp
+    src/GB/Game/TribeExplore.cpp
+    src/GB/Game/Exploration.cpp
+    src/GB/Game/Skills.cpp
+    src/GB/Game/JobBoard.cpp
+    src/GB/Game/Knowledge.cpp
+    src/GB/Game/Society.cpp
+    src/GB/Game/SocietyRules.cpp
+    src/GB/Game/TribeSociety.cpp
+    src/GB/Game/GameContent.cpp
     src/GB/AI/Perception.cpp
     src/GB/AI/Memory.cpp
     src/GB/AI/Needs.cpp
@@ -72,6 +86,7 @@ add_library(GB STATIC
     src/GB/Animation/BlendSpace.cpp
     src/GB/Animation/Locomotion.cpp
     src/GB/World/Footsteps.cpp
+    src/GB/World/Regions.cpp
     src/GB/World/Grass.cpp
     src/GB/World/GroundInteraction.cpp
     src/GB/World/Terrain.cpp

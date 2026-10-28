@@ -1,7 +1,7 @@
 # Plan: un mundo vivo de clanes, de la recolección a la era espacial
 
 > Documento de planificación. Recoge la visión del juego, lo que el motor ya tiene, los principios de diseño, los hitos en orden de dependencia (con entregables, criterios de aceptación y riesgos), la matriz que comprueba que cada requisito está cubierto, los carriles de trabajo en paralelo y los primeros pasos.
-> Estado de partida: `master` con locomoción mezclada, montajes, sockets e IK, interacciones, ragdoll, retargeting, editor y QA automatizado. Desde entonces se han fusionado H0, H1, H2, H3 (parte) y H4 (ver la tabla de estado al principio del apartado 4); el pase de calidad de ese trabajo está en [INFORME_CALIDAD.md](INFORME_CALIDAD.md).
+> Estado de partida: `master` con locomoción mezclada, montajes, sockets e IK, interacciones, ragdoll, retargeting, editor y QA automatizado. Desde entonces se han fusionado H0, H1, H2, H4 y H5, y H3 y H6 están casi cerrados (ver la tabla de estado al principio del apartado 4); el pase de calidad de ese trabajo está en [INFORME_CALIDAD.md](INFORME_CALIDAD.md).
 
 [← Volver al README](../README.md)
 
@@ -47,31 +47,31 @@ El volumen de animaciones que ya tenemos (locomoción, granja, heridos, magia, e
 
 Orden de dependencias; tamaños relativos (**S** una sesión de trabajo, **M** unas pocas, **L** varias, **XL** una serie). Cada hito lista su objetivo, sus entregables, el criterio de aceptación y los riesgos. Los hitos H0 a H4 se llaman la **base**; H5 a H8, los **agentes**; H9 a H12, la **sociedad**; H13 y H14, la **diplomacia y el conflicto**; H15 y H16, el **jugador y la escala**; H17 y H18, las **eras y la economía**; H19 y H20, la **calidad y las herramientas**.
 
-**Estado de los hitos** (según el código de `master`; el detalle y los fallos conocidos, en [INFORME_CALIDAD.md](INFORME_CALIDAD.md)):
+**Estado de los hitos** (comprobado contra el código el 28-10-2026; es la única tabla de estado: el apartado 10 remite aquí. El detalle y los fallos conocidos, en [INFORME_CALIDAD.md](INFORME_CALIDAD.md)):
 
 | Hito | Estado | Dónde está |
 |---|---|---|
-| H0 Contrato de actor | Hecho | `Actor`, `ActorWorld`; ~45 µs por actor y fotograma ([COSTE_ACTOR.md](COSTE_ACTOR.md)) |
-| H1 Habilidades (GAS) | Hecho | `GB/Gameplay`, [habilidades.md](habilidades.md) |
-| H2 Objetos, inventario y recursos | Hecho salvo lo listado en [OBJETOS.md](OBJETOS.md). E2 (herramientas con nivel: potencia y velocidad; contenedores que amplían la mochila) hecho. E1 hecho: tipo de nodo desde datos (`kind`), nodos por tamaño (`young_tree`, `old_tree`, `clay_bank`, `reed_bed`, `flint_outcrop`, `copper_vein`), colocación por datos (`patch`, escalada por trabajadores), combustible por objeto (`fuel`: madera 2, rama 1) y cobre | `Items`, `Resources`, `assets/data/era1.json` |
-| H3 Mundo interactivo y ecología | Parcial: huerto, interactivos, estaciones, conejos y panel World state; falta la colisión de la puerta, fauna con más especies y que la hoguera de la tribu sea un interactivo | [INTERACTIVOS.md](INTERACTIVOS.md), [ECOLOGIA.md](ECOLOGIA.md) |
-| H4 Persistencia v1 | Hecho (v1) con huecos: no guarda el estado de la tribu, los temporizadores de los interactivos ni el destino de los conejos | [GUARDADO.md](GUARDADO.md) |
-| H5 Navegación y percepción | En curso (sesiones propias de navegación y de percepción e IA) | `GB/Navigation`, `GB/AI` |
-| H6 · Necesidades y cerebro de NPC | **Parcial**: necesidades (hambre, sed, descanso, abrigo, seguridad, compañía), motor de decisión por utilidad con histéresis, inspector de NPC y estado guardado ([IA.md](IA.md)). Falta el nivel de detalle de simulación (actor completo cerca, agente abstracto lejos) y la agenda diaria explícita |
-| H7 · Roles y trabajo del clan | **Adelanto**: los roles de la tribu son pesos de utilidad ([TRIBU.md](TRIBU.md)); no hay tablón de trabajos ni aprendizaje de oficio (propuesta E3 y E8) |
-| H8 · Construcción y asentamientos | Sin empezar (propuesta E9 y E10) |
-| H9 · Demografía y herencia | Sin empezar |
-| H10 · Relaciones, personalidad y cultura | Sin empezar |
-| H11 · Conocimiento y tecnología | Sin empezar (propuesta E4 y E5 como adelanto) |
-| H12 · Exploración, migración y recursos | Sin empezar (la memoria espacial de H5 es la base) |
-| H13 · Clanes y diplomacia | Sin empezar |
-| H14 · Conflicto, combate y violencia | Sin empezar |
-| H15 · El jugador dentro de la sociedad | Sin empezar (el jugador ya es un actor más: H0) |
-| H16 · Escala, rendimiento y mundo grande | **Transversal, medido a ratos**: costes de actor, tribu y ecología en [INFORME_CALIDAD.md](INFORME_CALIDAD.md) y [COSTE_ACTOR.md](COSTE_ACTOR.md); la tribu cuesta 2,6 ms en el peor fotograma con 60 miembros |
-| H17 · Eras como paquetes de datos | Arranca: contenido en `assets/data/era1.json` y `content load` (propuesta E0: `era1_ampliado.json`) |
-| H18 · Economía y producción compleja | Sin empezar (propuesta E6, E7 y E11) |
-| H19 · Cámaras y calidad gráfica | Trabajo gráfico previo (hierba, agua, nieve, árboles, referencias de imagen); sin cámaras de juego |
-| H20 · Herramientas, depuración y QA de simulación | **Transversal**: paneles Tribe y World state, `nav debug`, `ai debug`, `timescale`, informe de calidad; falta el panel de QA de simulación y los barridos de semillas del plan |
+| H0 Contrato de actor | **Hecho** | `Actor`, `ActorWorld`; ~45 µs por actor y fotograma ([COSTE_ACTOR.md](COSTE_ACTOR.md)) |
+| H1 Habilidades (GAS) | **Hecho** | `GB/Gameplay`, [habilidades.md](habilidades.md) |
+| H2 Objetos, inventario y recursos | **Hecho** el núcleo, E1 y E2. Los roles de la tribu y sus herramientas son datos (`roles` en `era1.json`, pesos por tipo de nodo) y la hoguera quema por `fuel`. Falta: agarre visible, fabricar en una estación de la escena y `Yields` ([OBJETOS.md](OBJETOS.md)) | `Items`, `Resources`, `Tribe`, `assets/data/era1.json` |
+| H3 Mundo interactivo y ecología | **Hecho**: huerto, interactivos en datos (`assets/data/world.json`, con la colisión de la puerta), la hoguera de la tribu es el interactivo `Fire Pit` y se aviva con `Stoke`, estaciones, especies en datos (conejos y zorros que los cazan) y panel World state. Queda (menor): colocar interactivos desde el panel, que los conejos huyan | [INTERACTIVOS.md](INTERACTIVOS.md), [ECOLOGIA.md](ECOLOGIA.md), [TRIBU.md](TRIBU.md) |
+| H4 Persistencia v1 | **Hecho**: guarda tribu (`ai`), ecología, interactivos y aspecto de la estación; repetición del editor con tests; formato 2 con la versión del generador en `WorldParams` (migración v1→v2) y los nodos `wild` en la línea base de la semilla | [GUARDADO.md](GUARDADO.md) |
+| H5 Navegación y percepción | **Hecho**: rejillas de percepción, perfil de navegación por rol y por carga (datos, `nav` del rol), agentes abstractos por la ruta de su cuerpo y coste de vegetación por bioma en el editor. Falta: mapa de biomas horneado para la vegetación (H16) | [NAVEGACION.md](NAVEGACION.md), [IA.md](IA.md) |
+| H6 Necesidades y cerebro de NPC | **Hecho**: necesidades, utilidad con histéresis, inspector, nivel de detalle, agenda diaria y por rol, comida y existencias en datos (sección `tribe` de `era1.json`). El test `ai` no mide tiempos (`GB_AI_BENCH=1`); la aceptación de 100 NPC aislados 10 días, con `GB_AI_ISOLATED=100` | [IA.md](IA.md) |
+| H7 Roles y trabajo del clan | **Hecho (v1)**: aptitudes por práctica por agente (suben con rendimientos decrecientes, bajan despacio, el oficio las potencia; más golpes y más rápido), oficios derivados (pesos = rol + aptitud; reparto por las necesidades en `tribe build`, sin tope de 6 y con nombres de datos; revisión de oficios con inercia), tablón de trabajos (recoger, herramienta, encender y avivar la hoguera, mantenimiento) reclamado por utilidad como factor del cerebro, en el panel y en `tribe jobs`; todo en la sección `work` y en el guardado. Falta: obras (E9), propuestas del jugador, fatiga, herencia de aptitudes (H9) y la aceptación de 20 durante días | `TribeWork`, `Skills`, `JobBoard`, [TRIBU.md](TRIBU.md) |
+| H8 Construcción y asentamientos | Sin empezar (E9, E10). Primer paso: elegir el sitio del campamento por los recursos cercanos | – |
+| H9 Demografía y herencia | **Hecho (v1)**: edad y etapas (niño, adulto, mayor) con efectos en el cerebro, el aprendizaje y la enseñanza, parejas por afinidad, nacimientos con excedente de comida y hoguera (cuerpo nuevo por `spawner`: actor del editor a escala de niño), muerte por vejez y por necesidades, genes con recombinación y mutación deterministas (sesgan gustos, ritmo y velocidad de aprendizaje, no las aptitudes), los padres enseñan primero; sección `society`, guardado en `ai`, `tribe family`. Aceptación de 200 años probada con la demografía sola. Falta: modelos y animaciones de niños y mayores, embarazo, enfermedad, retirar a los muertos | [SOCIEDAD.md](SOCIEDAD.md), `Society`, `TribeSociety` |
+| H10 Relaciones, personalidad y cultura | **Hecho (v1)**: personalidad (sociabilidad, diligencia, curiosidad, audacia) de gen y crianza como factores del cerebro, grafo disperso de vínculos por eventos (trabajo, comida, campamento, lecciones, disputas, rescate, robo) con parentesco, que decide pareja, compañía y maestros; normas del clan que derivan y escalan las opciones, tradiciones con nombre nacidas de eventos repetidos; `tribe relations/culture/relate`, panel. Falta: liderazgo y sucesión, ánimo y emociones, deudas, conversación con gestos, el barrido de clanes agresivos y pacíficos (con H13/H14) | [SOCIEDAD.md](SOCIEDAD.md), `Society`, `TribeSociety` |
+| H11 Conocimiento y tecnología | **Hecho (v1)**, E4 y E5: tecnologías en datos (`techs`: requisitos, recetas y nodos que desbloquean, cómo se descubren), conocimiento por agente y por clan, recetas con puerta, descubrimiento determinista por experimentación, observación y enseñanza en el campamento, olvido cuando muere el último que sabe, guardado en `knowledge` y `knowledge-clan`, validador con tecnologías, `knowledge status/grant`. Falta: difusión entre clanes, accidente, edificios, barrido de ritmo | [CONOCIMIENTO.md](CONOCIMIENTO.md), `Knowledge`, `Techs` |
+| H12 Exploración, migración y recursos | **Hecho (v1)**: regiones del mundo generado en CPU (`RegionMap`: biomas en baldosas, con nombre, área, agua, nodos salvajes y peligro; derivadas de la semilla, no se guardan), atlas del clan (parte explorada, nodos vistos y última visita por región, contado en el campamento), expediciones por escasez en el tablón (`expedition <objeto>`: 2–3 miembros por aptitud, región por probabilidad × viaje × peligro, vuelven e informan) y migración por hogar agotado o sin agua (elector de sitios intercambiable para H8); reglas en la sección `exploration`, estado en `ai`; `region list/info/explore`. Falta: fundar un asentamiento con parte del clan y mantener el contacto (H13, E11), riesgos en ruta, capa de depuración | [EXPLORACION.md](EXPLORACION.md), `Regions`, `TribeExplore` |
+| H13 Clanes y diplomacia | Sin empezar | – |
+| H14 Conflicto, combate y violencia | Sin empezar | – |
+| H15 El jugador dentro de la sociedad | Sin empezar (el jugador ya es un actor más: H0) | – |
+| H16 Escala, rendimiento y mundo grande | **Transversal, medido a ratos**; la tribu cuesta 2,6 ms en el peor fotograma con 60 miembros. Hecho: el mundo se genera sin GL (`WorldGenerator::GenerateData`, test `worldgen`) con mapa de biomas y distancia al agua horneados (1 m). Regiones en CPU (H12, `GB/World/Regions.h`). Falta: streaming por regiones | [INFORME_CALIDAD.md](INFORME_CALIDAD.md), [COSTE_ACTOR.md](COSTE_ACTOR.md) |
+| H17 Eras como paquetes de datos | **Formato hecho**: manifiesto `<id>.pack.json` con dependencias, carga atómica por secciones registrables (objetos, recetas, nodos, roles), validador de alcanzabilidad (estricto en el test), `pack load/list/check`; `era1` y `era1_ampliado` son paquetes. Falta: versión de paquetes en el guardado, tecnologías y edificios como secciones, era 2 | [PAQUETES.md](PAQUETES.md), `ContentPack` |
+| H18 Economía y producción compleja | Sin empezar (E6, E7, E11) | – |
+| H19 Cámaras y calidad gráfica | **Cámaras de juego hechas (v1)**: seguir (tercera persona sin meterse en el terreno), panorámica del clan (RTS, recortada al mapa) y observador cinemático, con transiciones suaves y parámetros en datos (sección `cameras`, `cameras.json`); `camera game ...` en el editor; preset `quality minimum` para GPU lentas. Falta: escenas de diplomacia, colisión con árboles y edificios, LOD e instanciado de personajes y vegetación, metas de fotogramas por escena | [CAMARAS.md](CAMARAS.md), `GameCamera`, `tests/golden` |
+| H20 Herramientas, depuración y QA de simulación | **Transversal**: paneles, `nav debug`, `ai debug`, `timescale`. Falta: barrido de semillas de la simulación (no solo del generador) | `tests/sweep_test.cpp` |
 
 ### Base de juego
 
@@ -192,6 +192,7 @@ Orden de dependencias; tamaños relativos (**S** una sesión de trabajo, **M** u
 **Entregables.** Mapa de conocimiento por clan, **expediciones** (explorar una región, buscar un recurso, fundar un nuevo asentamiento), migración por escasez, riesgos del camino (animales, clima, otros clanes), puntos de interés descubiertos y compartidos.
 **Aceptación.** Un clan sin cierto recurso envía una expedición que lo encuentra y lo incorpora; un grupo funda un asentamiento nuevo y mantiene el contacto con el original.
 **Riesgos.** Mundo grande y lejanía (ver H16).
+**Estado (v1).** Regiones del mundo generado (`GB/World/Regions.h`), atlas del clan, expediciones por escasez como trabajo del tablón y migración por hogar agotado, con reglas en la sección `exploration` y test `exploration` sobre mundos generados ([EXPLORACION.md](EXPLORACION.md)). La primera parte de la aceptación (un clan sin un recurso envía una expedición que lo encuentra y lo incorpora) se cumple; la segunda (un grupo funda un asentamiento nuevo y mantiene el contacto) espera a varios almacenes (E11) y a la entidad clan (H13): hoy se muda el clan entero. El elector de sitios de la mudanza es intercambiable (`Tribe::SetSiteChooser`) para usar el de H8.
 
 ### Diplomacia y conflicto
 
@@ -355,29 +356,7 @@ Y los **modelos**: herramientas, semillas y plantas, regadera, pala, cestas, obj
 
 ## 10. Estado de los hitos
 
-| Hito | Estado |
-|---|---|
-| H0 · Consolidación y contrato de actor | **Hecho** (rama `feature/actor-h0`): sets, interacciones, grafo de estados y línea de tiempo fusionados; manifiesto de datos con los siete packs (`AnimManifest`); **contrato de actor** (`Actor`, `ActorWorld`, `OrderSource`) con tests y coste medido (`docs/COSTE_ACTOR.md`) |
-| H1 · Núcleo de habilidades (GAS) | En curso (`feature/huerto-gas`) |
-| H2 · Objetos, inventario y recursos | **En curso** (núcleo hecho, [docs/OBJETOS.md](OBJETOS.md)): objetos, inventario con peso y apilado, nodos con regeneración, recetas, mochila por actor guardada con la partida y `actor bag`. Nodos de recurso como entidades con `Chop`, `Mine` y `Gather` y `resources build`. E1 (nodos más finos, combustible por objeto y cobre) hecho. Falta: montajes propios de recolección, agarre visible y estaciones en la escena |
-| H3 · Mundo interactivo y ecología | **Casi cerrado**: huerto, nodos de recurso que se regeneran, la primera tribu ([TRIBU.md](TRIBU.md)), interactivos con estado persistente ([INTERACTIVOS.md](INTERACTIVOS.md)), estaciones y conejos con ecología básica ([ECOLOGIA.md](ECOLOGIA.md)) y el panel *World state*. Falta: colisión de la puerta, estaciones sobre el aspecto del mundo y la regeneración de nodos, más especies |
-| H4 · Persistencia v1 | **Hecho** (`GB/Save`, [docs/GUARDADO.md](GUARDADO.md)): formato `.gbsave` versionado con migraciones y partidas antiguas en `tests/golden/saves/`, guardado diferencial sobre la semilla, escritura atómica con copia, autoguardado, repetición determinista y comandos del editor. Queda para otros hitos: inventarios (H2), enganchar el `Actor` (H0) y la edición de terreno |
-| H5 · Navegación y percepción | **Hecho (v1)**. Navegación ([NAVEGACION.md](NAVEGACION.md)): cuadrícula con costes, A\* con grafo de regiones, seguimiento con evitación local, actualización por regiones y depuración (`nav`). Percepción ([IA.md](IA.md)): vista con oclusión, oído, memoria por agente y por clan, depuración (`ai debug`). Huecos: la percepción es O(miembros × cosas) y no escala aún a 100 NPC |
-| H6 · Necesidades y cerebro de NPC | **Parcial**: necesidades (hambre, sed, descanso, abrigo, seguridad, compañía), motor de decisión por utilidad con histéresis, inspector de NPC y estado guardado ([IA.md](IA.md)). Falta el nivel de detalle de simulación (actor completo cerca, agente abstracto lejos) y la agenda diaria explícita |
-| H7 · Roles y trabajo del clan | **Adelanto**: los roles de la tribu son pesos de utilidad ([TRIBU.md](TRIBU.md)); no hay tablón de trabajos ni aprendizaje de oficio (propuesta E3 y E8) |
-| H8 · Construcción y asentamientos | Sin empezar (propuesta E9 y E10) |
-| H9 · Demografía y herencia | Sin empezar |
-| H10 · Relaciones, personalidad y cultura | Sin empezar |
-| H11 · Conocimiento y tecnología | Sin empezar (propuesta E4 y E5 como adelanto) |
-| H12 · Exploración, migración y recursos | Sin empezar (la memoria espacial de H5 es la base) |
-| H13 · Clanes y diplomacia | Sin empezar |
-| H14 · Conflicto, combate y violencia | Sin empezar |
-| H15 · El jugador dentro de la sociedad | Sin empezar (el jugador ya es un actor más: H0) |
-| H16 · Escala, rendimiento y mundo grande | **Transversal, medido a ratos**: costes de actor, tribu y ecología en [INFORME_CALIDAD.md](INFORME_CALIDAD.md) y [COSTE_ACTOR.md](COSTE_ACTOR.md); la tribu cuesta 2,6 ms en el peor fotograma con 60 miembros |
-| H17 · Eras como paquetes de datos | Arranca: contenido en `assets/data/era1.json` y `content load` (propuesta E0: `era1_ampliado.json`) |
-| H18 · Economía y producción compleja | Sin empezar (propuesta E6, E7 y E11) |
-| H19 · Cámaras y calidad gráfica | Trabajo gráfico previo (hierba, agua, nieve, árboles, referencias de imagen); sin cámaras de juego |
-| H20 · Herramientas, depuración y QA de simulación | **Transversal**: paneles Tribe y World state, `nav debug`, `ai debug`, `timescale`, informe de calidad; falta el panel de QA de simulación y los barridos de semillas del plan |
+La tabla de estado está al principio del [apartado 4](#4-hitos): una sola, para que no se contradigan.
 
 > Este documento se actualiza al cerrar cada hito: estado, decisiones tomadas y lo que se haya movido de sitio.
 
@@ -389,17 +368,17 @@ Orden recomendado para avanzar, con el estado de cada hito existente y lo que fa
 
 | Prioridad | Hito (estado) | Qué hacer ahora | Tamaño |
 |---|---|---|---|
-| **P0** · deuda que bloquea | **H4** (hecho con huecos) | Arreglar la repetición del editor con mundo generado (aceptación de H4); guardar el estado de la tribu, los temporizadores de interactivos y el destino de los conejos | S–M |
-| **P0** | **H2 / H3** (casi cerrados) | Colisión de la puerta, que la hoguera de la tribu sea el interactivo `Fire Pit`, anillo de registro de la tribu, `RemoveMember`; datos de nodos colocables | S |
-| **P1** · contenido visible | **H2** + E0, E2, E1 | Catálogo ampliado (`content load`), herramientas con nivel y cesta que amplía la mochila, nodos por tamaño (árbol joven y viejo, arcilla, junco) | M |
-| **P1** | **H6** (parcial) | Nivel de detalle de simulación y agenda diaria; repartir las decisiones de la tribu entre fotogramas e índice de nodos por tipo | M–L |
-| **P2** · sociedad que trabaja | **H7** (adelanto) + E3, E8 | Aptitudes por práctica y oficios derivados, tablón de trabajos del clan; los pesos de rol pasan a salir de las aptitudes | M–L |
-| **P2** | **H11** (sin empezar) + E4, E5 | Conocimiento por agente y por clan, recetas desbloqueables, descubrimiento de herramientas por observación y experimentación | M–L |
+| **P0** · deuda que bloquea | **H4** (hecho) | Versión de generador (`GeneratorVersion` en `WorldDesc` y `WorldParams`, con migración) antes de tocar `WorldGen`; después, los nodos `wild` en la línea base | M |
+| **P0** | **H3** (hecho) | Hecho: la hoguera de la tribu es el interactivo `Fire Pit`, interactivos y especies en datos (zorro). Queda: colocar interactivos desde el panel | S |
+| **P1** · contenido visible | **H2** + E0 | E1, E2, roles en datos y catálogo ampliado como paquete (`pack load era1_ampliado`) hechos. Queda: agarre visible y fabricar en estaciones de la escena | M |
+| **P1** | **H6** (hecho) + H16 | Generar el mundo sin GL (alturas, biomas y colocación en CPU), mapa de biomas y distancia al agua horneados | L |
+| **P2** · sociedad que trabaja | **H7** (hecho v1) + E3, E8 | Hecho: aptitudes, oficios derivados y tablón. Queda: obras en el tablón con E9, barrido de semillas para equilibrar las curvas, clan de 20 varios días | M–L |
+| **P2** | **H11** (hecho v1) + E4, E5 | Hecho: conocimiento por agente y por clan, recetas desbloqueables, descubrimiento por observación, experimentación y enseñanza. Queda: difusión entre clanes (H13), barrido de semillas del ritmo | M–L |
 | **P3** · supervivencia y base | **H3 / H18** + E6, E7 | Caducidad y conservación (toca el guardado: con migración de H4), agricultura (semillas, campo, ciclo con estaciones) | M–L |
 | **P3** | **H8** + E9, E10 | Edificios por datos y por fases (refugio, almacén, secadero; luego corral, taller, horno), elección de sitio, territorio | L |
 | **P4** · escala | **H16** + E11 | 50 a 100 NPC: actores abstractos lejos, varios almacenes, capacidad de carga del clan | M–L |
 | **P4** | **H12** | Exploración y migración sobre la memoria espacial de H5 | M |
-| **P5** · sociedad viva | **H9, H10** | Demografía y herencia (también de aptitudes), relaciones, personalidad y cultura | L |
+| **P5** · sociedad viva | **H9, H10** (hechos v1) | Hecho: ciclo de vida, herencia (velocidad de aprendizaje, no aptitudes), personalidad, vínculos, normas y tradiciones ([SOCIEDAD.md](SOCIEDAD.md)). Queda: modelos de niños y mayores, liderazgo, ánimo, barrido de clanes con H20 | L |
 | **P6** · otros clanes | **H13, H14** | Diplomacia, comercio, conflicto y combate | L–XL |
 | **P6** | **H15** | El jugador dentro de la sociedad: unirse a un clan, misiones, interfaz | L |
 | **P7** · eras y pulido | **H17, H18** completos | Paquetes de era 2 en adelante (cobre tras la forja de E10), producción compleja | XL |
@@ -415,12 +394,12 @@ Reglas de la ordenación: primero se paga lo que impide dar por cerrado un hito 
 | E0 | Catálogo ampliado de materiales, herramientas y recetas (solo datos, `era1_ampliado.json`) | S, hecho | nada | H2, H17 |
 | E1 | Nodos más finos: tamaños, etiqueta de tipo desde datos, colocación guiada por datos | M, hecho | E0 | H2, H3 |
 | E2 | Herramientas con nivel (potencia, velocidad) y contenedores que amplían la mochila | S–M | E0 | H2 |
-| E3 | Aptitudes por práctica y oficios derivados | M | E2, H7 | H7 |
+| E3 | Aptitudes por práctica y oficios derivados | M, hecho | E2, H7 | H7 |
 | E4 | Conocimiento por agente y por clan; recetas desbloqueables | M–L | E0, H11 | H11 |
 | E5 | Descubrimiento de herramientas nuevas (observación y experimentación) | M | E4 | H11 |
 | E6 | Caducidad y conservación (secado, almacén, sal, ahumado) | M–L | E0 | H3, H18 |
 | E7 | Agricultura: semillas, campo, ciclo y estaciones | M–L | E1, E2, E6 | H3, H18 |
-| E8 | Tablón de trabajos del clan | M | E3, H7 | H7 |
+| E8 | Tablón de trabajos del clan | M, hecho (sin obras) | E3, H7 | H7 |
 | E9 | Edificios por datos: refugio, almacén, secadero | L | E1, E6, H8 | H8 |
 | E10 | Edificios avanzados: corral, taller, horno | M–L | E9 | H8, H17 |
 | E11 | Escala de clanes: capacidad de carga, logística, varios almacenes | M | E8, E9 | H16, H18 |

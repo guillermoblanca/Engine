@@ -1,9 +1,11 @@
 // Seed and parameter sweeps (like Houdini PDG "wedges"): generate many worlds and check invariants that must hold
-// for every one of them, reporting the seeds that break them. Needs OpenGL 4.5 (the terrain builds its mesh).
+// for every one of them, reporting the seeds that break them. CPU only (WorldGenerator::GenerateData), with the newest generator.
 #include "GB/Log.h"
-#include "GB/Window.h"
 #include "GB/World/WorldGen.h"
+#include "GB/Gameplay/WorldResources.h"
+#include <algorithm>
 #include <cmath>
+#include <map>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -66,29 +68,58 @@ namespace
 		if (w.BiomeAt(w.Spawn.x, w.Spawn.y) == GB::Biome::Water) bad.push_back("the spawn point is in the water");
 		return bad;
 	}
+
+	// The resource nodes the era-1 data spreads over the same world (PlanWorldResources): on the ground, out of the water, clear of the world's trees and
+	// rocks, and a green world always has wood, stone and food somewhere.
+	std::vector<std::string> AuditResources(const GB::GeneratedWorld& w, const std::map<std::string, GB::ResourceNodeDef>& defs)
+	{
+		std::vector<std::string> bad;
+		const GB::ResourceGround ground = GB::ResourceGroundOf(w);
+		const std::vector<GB::ResourceSpot> spots = GB::PlanWorldResources(ground, defs, w.Desc.Seed);
+		int wet = 0, floating = 0, blocked = 0, wrongBiome = 0;
+		for (const GB::ResourceSpot& s : spots)
+		{
+			const GB::Biome b = w.BiomeAt(s.Position.x, s.Position.z);
+			if (b == GB::Biome::Water) ++wet;
+			if (std::fabs(s.Position.y - w.TerrainRef->GetHeight(s.Position.x, s.Position.z)) > 1e-3f) ++floating;
+			for (const auto& k : ground.Blockers) if (glm::distance(k.At, glm::vec2(s.Position.x, s.Position.z)) < k.Radius) { ++blocked; break; }
+			const auto& biomes = defs.at(s.Node).Spawn.Biomes;
+			if (std::find(biomes.begin(), biomes.end(), ground.Biome(s.Position.x, s.Position.z)) == biomes.end()) ++wrongBiome;
+		}
+		if (wet) bad.push_back(std::to_string(wet) + " resource nodes in the water");
+		if (floating) bad.push_back(std::to_string(floating) + " resource nodes off the ground");
+		if (blocked) bad.push_back(std::to_string(blocked) + " resource nodes inside a tree or rock of the world");
+		if (wrongBiome) bad.push_back(std::to_string(wrongBiome) + " resource nodes on a biome their type does not grow on");
+		if (w.Desc.Type != GB::WorldType::Desert)
+		{
+			const auto counts = GB::CountSpots(spots);
+			auto has = [&](std::initializer_list<const char*> ids) { for (const char* id : ids) if (counts.count(id)) return true; return false; };
+			if (!has({ "tree", "old_tree" })) bad.push_back("no wood on the whole map");
+			if (!has({ "rock", "flint_outcrop" })) bad.push_back("no stone on the whole map");
+			if (!has({ "berry_bush" })) bad.push_back("no berries on the whole map");
+		}
+		return bad;
+	}
 }
 
 int main()
 {
 	GB::Log::Init();
-	GB::WindowProps props;
-	props.Visible = false;
-	props.VSync = false;
-	auto window = GB::Window::Create(props);
-	if (!window)
-	{
-		std::fprintf(stderr, "SKIP: no OpenGL 4.5 context\n");
-		return 77;
-	}
 	int worlds = 0;
+	GB::ItemLibrary items;
+	GB::RecipeBook recipes;
+	std::map<std::string, GB::ResourceNodeDef> defs;
+	GB::RegisterEraOneItems(items, recipes, defs);
 	auto sweep = [&](const char* label, GB::WorldDesc desc, uint32_t firstSeed, uint32_t count)
 	{
 		for (uint32_t s = firstSeed; s < firstSeed + count; ++s)
 		{
 			desc.Seed = s;
-			const GB::GeneratedWorld w = GB::WorldGenerator::Generate(desc);
+			const GB::GeneratedWorld w = GB::WorldGenerator::GenerateData(desc);   // the audit needs no mesh: CPU only
 			++worlds;
-			for (const std::string& problem : Audit(w))
+			std::vector<std::string> problems = Audit(w);
+			for (const std::string& r : AuditResources(w, defs)) problems.push_back(r);
+			for (const std::string& problem : problems)
 			{
 				std::fprintf(stderr, "FAIL: %s seed %u: %s\n", label, s, problem.c_str());
 				++failures;

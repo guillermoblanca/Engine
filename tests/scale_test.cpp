@@ -96,7 +96,7 @@ int main()
 		crowd(entities, 3000);
 		gameplay.Load(entities);
 		EcologySystem eco;
-		eco.Config.MaxAnimals = rabbits;
+		eco.Species["rabbit"].Life.MaxAnimals = rabbits;
 		eco.Bind(entities, gameplay);
 		eco.Spawn({ 0.0f, 0.0f, 4.0f }, rabbits);
 		double clock = 0.0;

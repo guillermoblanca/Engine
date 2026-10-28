@@ -147,6 +147,60 @@
         "State.Busy",
         "State.Carrying"
       ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Recursos",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Resource.Gather",
+          "notify": "collect",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pull_plant"
+      ],
+      "moveToTarget": true,
+      "name": "Collect",
+      "needsTarget": true,
+      "note": "collects clay or reeds by hand",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Collect",
+      "targetBlockedTags": [
+        "State.Depleted"
+      ],
+      "targetMinAttributes": [
+        {
+          "attribute": "Amount",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Resource.Node",
+        "Resource.Loose"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
       "cooldownSeconds": 0.5,
       "cost": "Cost.Dig",
       "domain": "Huerto",
@@ -883,7 +937,7 @@
       "moveToTarget": true,
       "name": "Stoke",
       "needsTarget": true,
-      "note": "puts a piece of wood in a campfire (needs wood in the bag)",
+      "note": "puts a piece of wood or a branch in a campfire (needs one in the bag)",
       "point": "",
       "removeEffects": [],
       "requiredProp": "",
@@ -1435,6 +1489,22 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.clay_bank",
+      "periodSeconds": 60.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.fiber_grass",
       "periodSeconds": 15.0,
       "policy": "infinite",
@@ -1451,8 +1521,56 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.old_tree",
+      "periodSeconds": 120.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.reed_bed",
+      "periodSeconds": 20.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.tree",
       "periodSeconds": 30.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.young_tree",
+      "periodSeconds": 40.0,
       "policy": "infinite",
       "removedTags": [],
       "unique": true
@@ -1479,6 +1597,7 @@
       "abilities": [
         "Chop",
         "CloseDoor",
+        "Collect",
         "DrawWater",
         "Gather",
         "Mine",
@@ -1627,17 +1746,28 @@
           "name": "Regrow"
         }
       ],
-      "count": 39,
+      "count": 65,
       "example": "berry bush 1",
       "kind": "Nodo de recurso",
       "tags": [
+        "Resource.Loose.Clay",
+        "Resource.Loose.Reed",
         "Resource.Node",
         "Resource.Node.berry_bush",
+        "Resource.Node.clay_bank",
+        "Resource.Node.copper_vein",
         "Resource.Node.fiber_grass",
+        "Resource.Node.flint_outcrop",
+        "Resource.Node.old_tree",
+        "Resource.Node.reed_bed",
         "Resource.Node.rock",
         "Resource.Node.tree",
+        "Resource.Node.young_tree",
         "Resource.Plant",
+        "Resource.Plant.Branch",
         "Resource.Stone",
+        "Resource.Stone.Copper",
+        "Resource.Stone.Flint",
         "Resource.Wood"
       ]
     },
@@ -1815,6 +1945,129 @@
   "interactives": {
     "burnSeconds": 6.0,
     "fuelPerWood": 2,
+    "list": {
+      "fire_pit": {
+        "abilities": [
+          {
+            "event": "Event.Fuel.Add",
+            "montage": "plant",
+            "name": "Stoke",
+            "note": "puts a piece of wood or a branch in a campfire (needs one in the bag)",
+            "notify": "stoke",
+            "requires": [
+              "Item.Resource.Wood"
+            ]
+          }
+        ],
+        "at": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "attributes": {
+          "Fuel": {
+            "max": 10.0,
+            "min": 0.0,
+            "value": 0.0
+          }
+        },
+        "burnSeconds": 6.0,
+        "fuelPerWood": 2,
+        "kind": "campfire",
+        "name": "Fire Pit",
+        "stand": [
+          0.0,
+          0.0,
+          -1.6
+        ],
+        "tags": [
+          "Interactive.Campfire",
+          "State.Unlit"
+        ]
+      },
+      "gate": {
+        "abilities": [
+          {
+            "event": "Event.Door.Open",
+            "montage": "pick_fruit",
+            "name": "OpenDoor",
+            "note": "opens a door",
+            "notify": "open",
+            "targetBlocked": [
+              "State.Open"
+            ]
+          },
+          {
+            "event": "Event.Door.Close",
+            "montage": "pick_fruit",
+            "name": "CloseDoor",
+            "note": "closes a door",
+            "notify": "close",
+            "targetRequires": [
+              "State.Open"
+            ]
+          }
+        ],
+        "at": [
+          -6.0,
+          0.0,
+          0.0
+        ],
+        "kind": "door",
+        "name": "Gate",
+        "stand": [
+          0.0,
+          0.0,
+          -1.3
+        ],
+        "swingDegrees": 100.0,
+        "swingSpeed": 240.0,
+        "tags": [
+          "Interactive.Door",
+          "State.Closed"
+        ]
+      },
+      "well": {
+        "abilities": [
+          {
+            "event": "Event.Water.Draw",
+            "montage": "pick_fruit",
+            "name": "DrawWater",
+            "note": "fills the bag with water from a well",
+            "notify": "draw",
+            "targetMin": {
+              "Water": 1.0
+            }
+          }
+        ],
+        "at": [
+          6.0,
+          0.0,
+          0.0
+        ],
+        "attributes": {
+          "Water": {
+            "max": 6.0,
+            "min": 0.0,
+            "value": 6.0
+          }
+        },
+        "kind": "well",
+        "name": "Well",
+        "refillAmount": 1,
+        "refillSeconds": 20.0,
+        "stand": [
+          0.0,
+          0.0,
+          -1.7
+        ],
+        "tags": [
+          "Interactive.Well"
+        ],
+        "waterPerDraw": 2
+      }
+    },
+    "refillSeconds": 20.0,
     "waterPerDraw": 2
   },
   "needs": {
@@ -1851,25 +2104,31 @@
   },
   "roles": {
     "forager": {
-      "berry_bush": 1.0,
+      "Resource.Loose": 0.6,
+      "Resource.Plant": 1.0,
+      "Resource.Plant.Branch": 0.5,
+      "Resource.Stone": 0.2,
+      "Resource.Wood": 0.25,
+      "default": 0.3,
       "fiber_grass": 0.9,
-      "fire": 0.0,
-      "rock": 0.2,
-      "tree": 0.25
+      "fire": 0.0
     },
     "miner": {
-      "berry_bush": 0.35,
-      "fiber_grass": 0.35,
-      "fire": 0.0,
-      "rock": 1.0,
-      "tree": 0.25
+      "Resource.Loose": 0.5,
+      "Resource.Plant": 0.35,
+      "Resource.Stone": 1.0,
+      "Resource.Wood": 0.25,
+      "default": 0.3,
+      "fire": 0.0
     },
     "woodcutter": {
-      "berry_bush": 0.35,
-      "fiber_grass": 0.35,
-      "fire": 1.0,
-      "rock": 0.25,
-      "tree": 1.0
+      "Resource.Loose": 0.35,
+      "Resource.Plant": 0.35,
+      "Resource.Plant.Branch": 0.6,
+      "Resource.Stone": 0.25,
+      "Resource.Wood": 1.0,
+      "default": 0.3,
+      "fire": 1.0
     }
   },
   "seasons": {
@@ -1950,6 +2209,74 @@
       "halfFovDegrees": 60.0,
       "nearRangeMeters": 3.0,
       "rangeMeters": 28.0
+    }
+  },
+  "species": {
+    "fox": {
+      "adultSeconds": 200.0,
+      "body": "quadruped",
+      "breedAbove": 90.0,
+      "breedCooldown": 300.0,
+      "breedCost": 30.0,
+      "color": [
+        0.78,
+        0.38,
+        0.12
+      ],
+      "eatReach": 0.8,
+      "eatSeconds": 4.0,
+      "eats": [
+        "Animal.Rabbit"
+      ],
+      "foodMax": 100.0,
+      "foodPerMeal": 55.0,
+      "hungerPerSecond": 0.12,
+      "hungryBelow": 50.0,
+      "legSeconds": 6.0,
+      "maxAnimals": 2,
+      "name": "Fox",
+      "newbornFood": 70.0,
+      "plural": "foxes",
+      "sight": 18.0,
+      "size": 1.0,
+      "spawnFood": 0.8,
+      "speed": 2.4,
+      "starveSeconds": 120.0,
+      "tag": "Animal.Fox",
+      "wanderRadius": 18.0
+    },
+    "rabbit": {
+      "adultSeconds": 120.0,
+      "body": "rabbit",
+      "breedAbove": 80.0,
+      "breedCooldown": 150.0,
+      "breedCost": 15.0,
+      "color": [
+        0.62,
+        0.52,
+        0.4
+      ],
+      "eatReach": 1.0,
+      "eatSeconds": 3.0,
+      "eats": [
+        "Resource.Plant"
+      ],
+      "foodMax": 100.0,
+      "foodPerMeal": 25.0,
+      "hungerPerSecond": 0.2,
+      "hungryBelow": 55.0,
+      "legSeconds": 5.0,
+      "maxAnimals": 8,
+      "name": "Rabbit",
+      "newbornFood": 60.0,
+      "plural": "rabbits",
+      "sight": 20.0,
+      "size": 1.0,
+      "spawnFood": 0.7,
+      "speed": 1.3,
+      "starveSeconds": 40.0,
+      "tag": "Animal.Rabbit",
+      "wanderRadius": 12.0
     }
   }
 }

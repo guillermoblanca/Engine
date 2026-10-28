@@ -15,8 +15,8 @@ editor sin ventana (`Editor.exe --hidden --quality=low --script=...`).
 | 2 | `replay play` falla en cualquier mundo generado del editor, ya a 0 tics (`REPLAY DIFFERS in entities`) | Alta | **Corregido** después (ver el seguimiento al final) |
 | 3 | Buscar una entidad por nombre recorre toda la escena: 120 conejos costaban 5,7 ms por fotograma | Alta | **Corregido** (+ test) |
 | 4 | `actor remove` de un miembro de la tribu dejaba un puntero colgante en la tribu (comportamiento indefinido) | Alta | **Corregido** (en el editor) |
-| 5 | El estado de la tribu no se guarda: tras `load` el almacén es el "del futuro" | Media-alta | Abierto (propuesta) |
-| 6 | `Tribe.cpp`: decisiones sincronizadas con pico de milisegundos, registro sin tope, sin quitar miembros, almacén que pasa del tope | Media | Abierto (no es mío: otra sesión) |
+| 5 | El estado de la tribu no se guarda: tras `load` el almacén es el "del futuro" | Media-alta | **Corregido** después (sección `ai` del guardado, #65) |
+| 6 | `Tribe.cpp`: decisiones sincronizadas con pico de milisegundos, registro sin tope, sin quitar miembros, almacén que pasa del tope | Media | **Corregido** después (`ThinkPerFrame`, `LogLines`, `RemoveMember`) |
 | 7 | `Inventory::FromJson` y `LoadContent` aceptaban o lanzaban con JSON dañado | Media | **Corregido** (+ test) |
 | 8 | `SeasonClock` dividía por cero con una estación de duración 0 | Baja | **Corregido** (+ test) |
 | 9 | Tests débiles o ausentes (guardar/cargar, límites, reclamos) | Media | Parcialmente corregido |

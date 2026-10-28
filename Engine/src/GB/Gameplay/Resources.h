@@ -15,6 +15,10 @@ namespace GB
 	// Gather (Resource.Plant), PullFiber (fibre tufts) and Collect (Resource.Loose: clay, reeds) raise "Event.Resource.Gather" on the node, the first two
 	// needing a tool the actor holds; the ResourceSystem takes the units out of the node and hands them to whoever carries them away (the actor's bag).
 
+	// The tag that says what kind of node it is (E1): "Resource." + its kind ("Resource.Stone.Flint"); a definition without a kind (an older content
+	// file) is worked out from its item: wood -> Resource.Wood, stone -> Resource.Stone, anything else -> Resource.Plant.
+	std::string ResourceKindTag(const ResourceNodeDef& def);
+
 	// Effects and abilities (Chop, Mine, Gather, PullFiber, Collect) and one regrowth effect per node kind of `nodes` that regrows.
 	void RegisterResourceContent(GameplayLibrary& library, const std::map<std::string, ResourceNodeDef>& nodes);
 

@@ -92,10 +92,16 @@ namespace GB
 	class Terrain
 	{
 	public:
+		// `gpu` = false builds only the heights and the queries (pure CPU, no OpenGL): BuildGpu adds the mesh, material and textures later.
 		static std::unique_ptr<Terrain> CreateDunes(const DuneParams& dunes = {}, float size = 256.0f, uint32_t resolution = 513,
-			TerrainStyle style = TerrainStyle::Desert);
+			TerrainStyle style = TerrainStyle::Desert, bool gpu = true);
 		static std::unique_ptr<Terrain> CreateHills(const HillParams& hills = {}, float size = 256.0f, uint32_t resolution = 513,
-			TerrainStyle style = TerrainStyle::Meadow);
+			TerrainStyle style = TerrainStyle::Meadow, bool gpu = true);
+
+		// Builds the mesh, the material and its textures from the heights (needs an OpenGL context); nothing when they are already built. The result
+		// is the same as building them at creation.
+		void BuildGpu();
+		bool HasGpu() const { return m_Mesh != nullptr; }
 
 		const Heightmap& GetHeightmap() const { return m_Heightmap; }
 		Heightmap& GetEditableHeightmap() { return m_Heightmap; }   // call RefreshMesh after editing
@@ -104,7 +110,7 @@ namespace GB
 		float GetHeight(float x, float z) const { return m_Heightmap.GetHeight(x, z); }
 		const Material& GetMaterial() const { return m_Material; }
 		Material& GetMaterial() { return m_Material; }
-		const Mesh& GetMesh() const { return *m_Mesh; }
+		const Mesh& GetMesh() const { return *m_Mesh; }   // only after BuildGpu
 		TerrainStyle GetStyle() const { return m_Style; }
 		const RiverData* GetRiver() const { return m_River.Points.empty() ? nullptr : &m_River; }
 		// Water velocity (m/s, xz) of the river at a point; zero away from it. Usable as PhysicsWorld::SetCurrent.
@@ -133,7 +139,7 @@ namespace GB
 
 	private:
 		Terrain(uint32_t resolution, float size) : m_Heightmap(resolution, size) {}
-		void Finish(TerrainStyle style, float wavelengthMeters);
+		void Finish(TerrainStyle style, bool gpu);
 		void CarveRiver(const HillParams& params);
 		// Shore refinement (see HillParams::ShoreSubdivision): extra vertices appended after the grid ones.
 		std::vector<uint8_t> FlagShoreCells(int marginCells) const;

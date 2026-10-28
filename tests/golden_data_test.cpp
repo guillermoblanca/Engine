@@ -2,7 +2,6 @@
 // values, each with its own tolerance (like geodiff for geometry). Update: GB_UPDATE_GOLDEN=1 ctest -R golden_data
 #include "GB/Log.h"
 #include "GB/Qa/Qa.h"
-#include "GB/Window.h"
 #include "GB/World/Destruction.h"
 #include "GB/World/Erosion.h"
 #include "GB/World/WorldGen.h"
@@ -124,22 +123,15 @@ int main()
 		Report(d.Check(dir, "physics_wall"));
 	}
 
-	// ---- generated worlds (the terrain builds a mesh, so these need OpenGL)
-	GB::WindowProps props;
-	props.Visible = false;
-	props.VSync = false;
-	auto window = GB::Window::Create(props);
-	if (!window)
-	{
-		std::fprintf(stderr, "SKIP (worlds): no OpenGL 4.5 context\n");
-		return failures ? failures : 77;
-	}
-	struct Case { const char* Name; GB::WorldType Type; uint32_t Seed; };
-	for (const Case& c : { Case{ "world_temperate_5", GB::WorldType::Temperate, 5 }, Case{ "world_alpine_2", GB::WorldType::Alpine, 2 }, Case{ "world_desert_3", GB::WorldType::Desert, 3 } })
+	// ---- generated worlds, on the CPU (WorldGenerator::GenerateData needs no OpenGL). The first three were recorded with generator 1 and keep it;
+	// the last one is the same seed with generator 2 (other trees and rocks, the same terrain).
+	struct Case { const char* Name; GB::WorldType Type; uint32_t Seed; uint32_t Version; };
+	for (const Case& c : { Case{ "world_temperate_5", GB::WorldType::Temperate, 5, 1 }, Case{ "world_alpine_2", GB::WorldType::Alpine, 2, 1 }, Case{ "world_desert_3", GB::WorldType::Desert, 3, 1 },
+		Case{ "world_temperate_5_v2", GB::WorldType::Temperate, 5, 2 } })
 	{
 		GB::WorldDesc wd;
-		wd.Type = c.Type; wd.Seed = c.Seed; wd.Size = 192.0f; wd.Resolution = 161; wd.TreeBudget = 150; wd.RockBudget = 40;
-		const GB::GeneratedWorld w = GB::WorldGenerator::Generate(wd);
+		wd.Type = c.Type; wd.Seed = c.Seed; wd.GeneratorVersion = c.Version; wd.Size = 192.0f; wd.Resolution = 161; wd.TreeBudget = 150; wd.RockBudget = 40;
+		const GB::GeneratedWorld w = GB::WorldGenerator::GenerateData(wd);
 		GB::Qa::GoldenData d;
 		AddWorld(d, w);
 		Report(d.Check(dir, c.Name));

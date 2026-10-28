@@ -1,0 +1,14 @@
+{
+  "id": "era1_ampliado",
+  "name": "Era 1 · Catálogo ampliado (E0)",
+  "era": 1,
+  "version": "1.0",
+  "depends": [ "era1" ],
+  "files": [ "era1_ampliado.json" ],
+  "deferred": {
+    "grain": "grain is harvested from fields, which arrive with farming (E7)",
+    "dried_berry": "drying needs the drying rack, which arrives with the buildings (E9)",
+    "mud_brick": "drying needs the drying rack, which arrives with the buildings (E9)",
+    "copper_axe": "needs copper ingots, and smelting needs the forge (E10)"
+  }
+}

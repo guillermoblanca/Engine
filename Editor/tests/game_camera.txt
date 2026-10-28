@@ -1,0 +1,25 @@
+# The game cameras (H19) in the real editor: follow an NPC, the clan overview, the cinematic view of everyone, back to the editor camera,
+# and the minimum quality preset. A failed line fails the test (--strict=1).
+generate temperate 5
+actor spawn Ana fox 3 3 ai
+actor spawn Biel fox -3 6 ai
+actor tasks Ana goto 20 10
+camera game follow Ana
+wait 60
+camera game
+camera game overview
+wait 60
+camera game overview 40 -30 120
+wait 30
+camera game observe all
+wait 60
+camera game observe Ana Biel
+wait 30
+camera game
+quality minimum
+wait 30
+stats
+quality low
+camera 30 25 40
+camera game
+quit

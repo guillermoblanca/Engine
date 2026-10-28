@@ -10,6 +10,7 @@ Editor Dear ImGui (`GB_BUILD_EDITOR=ON` por defecto, ejecutable `Editor`): docks
 
 - Todo valor editable es una propiedad con ruta (`sun.intensity`, `post.ssao`, `tod.hours`, `water.lake.level`...) registrada en `PropertyRegistry`: los paneles y la consola cambian exactamente lo mismo (`list`, `get`, `set`).
 - Consola y scripts (`--script=archivo`, `--exec="a;b"`, comandos `run`, `wait N`): `generate`, `time`, `weather`, `quality`, `camera`, `frame`, `load`, `hdri`, `screenshot` (solo viewport), `shot_ui` (ventana completa), `stats`, `quit`.
+- Cámaras de juego (H19): `camera game follow [actor] | overview [x z [distancia]] | observe [actor...|all] | off`, y `quality minimum` para GPU lentas (ver [CAMARAS.md](CAMARAS.md)).
 - Headless: `xvfb-run -a Editor --hidden --quality=low "--exec=generate temperate 5; time 18; wait 4; shot_ui ui.png; quit"`.
 - Test `editor` (CPU): propiedades, parseo/recorte, comandos y buffer de log.
 

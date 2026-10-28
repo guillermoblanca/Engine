@@ -66,6 +66,15 @@ namespace GB
 		return model;
 	}
 
+	void Actor::SetHeight(float height)
+	{
+		if (height <= 0.01f || m_Height <= 0.0f || std::fabs(height - m_Height) < 1e-4f) return;
+		m_Scale *= height / m_Height;
+		m_Height = height;
+		m_Controller.Config.Radius = std::max(0.2f * m_Height, 0.25f);
+		m_Controller.Config.MaxWadeDepth = 0.55f * m_Height;
+	}
+
 	bool Actor::Init(std::shared_ptr<Model> model, const ActorHost& host, const ActorSpec& spec, std::string& error)
 	{
 		if (!model) { error = "no model"; return false; }

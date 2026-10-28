@@ -10,7 +10,7 @@ Un archivo `<nombre>.gbsave` (JSON) con:
 | Sección | Contenido |
 |---|---|
 | `format`, `engine` | versión del formato (entero) y del motor |
-| `world` | semilla y parámetros de generación (`type`, `seed`, `size`, `resolution`, `river`, `lake`, `forest`, `trees`, `rocks`); `generated: false` si no hay mundo generado |
+| `world` | semilla y parámetros de generación (`type`, `seed`, `generator`, `size`, `resolution`, `river`, `lake`, `forest`, `trees`, `rocks` y, si hay nodos de recurso repartidos, `wild`); `generated: false` si no hay mundo generado |
 | `baseline` | identidad del mundo que genera la semilla (nº de objetos y hash), para detectar que el generador ya no produce lo mismo |
 | `clock` | tic de simulación (pasos fijos de `dt`), hora del día, duración del día, días, si el cielo sigue la hora |
 | `weather` | preset del clima |
@@ -33,9 +33,18 @@ Si el generador cambió a propósito, `LoadOptions::AllowBaselineDrift` aplica l
 En el editor los árboles y rocas son entidades cuyos ids dependen de lo hecho antes, así que `EditorSaveHost` las renumera como las numera
 la semilla (el resto de la escena va en la sección `user-entities`, numerada desde 1). Un árbol talado es un id en `removed`.
 
+**Los nodos de recurso repartidos** (`resources world <densidad>`, ver [RECURSOS_MUNDO.md](RECURSOS_MUNDO.md)) también salen de la semilla: la densidad va
+en `world.wild` y `BuildBaseline` los vuelve a planificar con `PlanWorldResources` sobre el mundo generado y los datos de nodos cargados. Así la partida
+solo lleva los nodos que cambiaron (recogidos, agotados, movidos) y no unos cientos. Su raíz `World resources` lleva la etiqueta `world`, como los
+grupos de árboles y rocas: `generate` la quita con el mundo viejo. Cargar otro contenido (`content load`) olvida la línea base en caché; si los datos
+nuevos planifican otros sitios, la partida se ve como un generador que cambió (deriva de la línea base, ver arriba).
+
+**La línea base se genera sin GL** (`WorldGenerator::GenerateData`: alturas, río, lago, mapa de biomas y colocación en CPU), así que una partida con
+mundo generado se valida y se aplica también sin ventana.
+
 ## Versiones y migraciones
 
-`kFormatVersion` es el formato que escribe esta versión del motor (hoy **1**). Política:
+`kFormatVersion` es el formato que escribe esta versión del motor (hoy **2**). Política:
 
 - Cada cambio de la disposición del archivo sube `kFormatVersion` y añade **un paso** a `BuiltinMigrations()` (`From = N`, convierte el texto
   JSON de la versión N en el de N+1 y pone `format`). Las migraciones se encadenan v0→v1→v2... y nunca se borran.
@@ -46,6 +55,10 @@ la semilla (el resto de la escena va en la sección `user-entities`, numerada de
   suba la versión: no regenerar la anterior, añadir la nueva con `GB_UPDATE_GOLDEN=1` y retocar el test que compara byte a byte la actual.
 - v0 es un archivo de escena de `SceneIO` (sin `format`): `scene.json` se importa como una partida sin mundo generado
   (`tests/golden/saves/v0_scene.json`).
+- v1 → v2: el mundo guarda la **versión del generador** (`world.generator`, ver `GB/World/WorldGenVersion.h`). Toda partida v1 se hizo con el
+  generador 1, así que la migración pone `generator: 1`; ese generador se conserva bit a bit y la semilla sigue dando los mismos árboles y rocas
+  (`tests/golden/saves/v1_*.gbsave`). Un mundo nuevo usa el generador más reciente; uno cargado conserva el suyo. Un `generator` que el motor no
+  conoce se rechaza. v2 añade también `world.wild` (opcional, solo si no es 0). Partida de referencia: `tests/golden/saves/v2_world.gbsave`.
 
 ## Escritura atómica, copia y recuperación
 
@@ -106,8 +119,9 @@ existen y no están en la partida se quitan (la partida es toda la verdad sobre 
 
 ## Repetición del editor (aceptación de H4)
 
-Probado de extremo a extremo con el editor real sin ventana (`ctest`: `editor_replay`, `editor_replay_society`, `editor_replay_midrun`; los guiones están en `Editor/tests/`, `--strict=1` hace que una línea que falla dé código de salida 1):
+Probado de extremo a extremo con el editor real sin ventana (`ctest`: `editor_replay`, `editor_replay_society`, `editor_replay_midrun`, `editor_replay_wild`; los guiones están en `Editor/tests/`, `--strict=1` hace que una línea que falla dé código de salida 1):
 un mundo generado con huerto y actores con habilidades; la pequeña sociedad (tribu de cinco, interactivos y conejos); y una grabación a mitad de la marcha (conejos paseando, una fogata ardiendo, otra estación) que se reproduce **en otro mundo** y termina con la misma huella.
+`editor_replay_wild` graba sobre un mundo con nodos de recurso repartidos (`resources world`) y la reproduce en otro mundo: los nodos vuelven desde la línea base de la semilla.
 
 ## Huecos reservados (sin activar)
 
@@ -116,10 +130,10 @@ Para las decisiones aún sin responder de `PROPUESTA_HABILIDADES_Y_ECONOMIA.md` 
 | Hueco | Dónde | Para qué |
 |---|---|---|
 | `inventory[].age` (`ItemStack::Age`) | cada montón de la mochila de un actor | segundos que lleva existiendo, para lo que caduca |
-| `actors[].knowledge` (`ActorState::Knowledge`) | cada actor | lo que sabe ese agente (recetas, lugares, técnicas) como nombres |
-| sección `knowledge-clan` | `sections` | lo que sabe el clan; la reserva el nombre, sin lector |
+| `actors[].knowledge` (`ActorState::Knowledge`) | cada actor | lo que sabe ese agente como nombres; **en uso desde H11**: `tech.<id>` por tecnología ([CONOCIMIENTO.md](CONOCIMIENTO.md)) |
+| sección `knowledge-clan` | `sections` | lo que sabe el clan, lo medio aprendido, los intentos y el reloj de lecciones; **en uso desde H11** (el editor la escribe si hay tribu) |
 
-Activarlos es: poner `ItemSlot::Age` y rellenarlo desde `ActorWorld::CaptureActors`, y leer la sección en `Commit`. Si una decisión cambia la disposición (por ejemplo, caducidad por casilla en vez de por montón), sube `kFormatVersion` con su migración como siempre.
+H11 activó los dos de conocimiento: el editor rellena `knowledge` de los miembros de la tribu en `EditorSaveHost::Actors` y lee ambos en `Commit` tras `RestoreTribe`; una partida sin ellos carga con las tecnologías del principio. Activar el que queda es: poner `ItemSlot::Age` y rellenarlo desde `ActorWorld::CaptureActors`, y leer la sección en `Commit`. Si una decisión cambia la disposición (por ejemplo, caducidad por casilla en vez de por montón), sube `kFormatVersion` con su migración como siempre.
 `tests/golden/saves/v1_slots.gbsave` es un guardado con los tres huecos usados: debe seguir cargándose y reescribiéndose idéntico.
 
 ## Números en los archivos
@@ -133,4 +147,6 @@ sigue calculándose con el formato de 7 cifras de siempre (`SceneFloats::Short7`
 - `CharacterController` no expone su velocidad: un personaje que camina se restaura con su entrada pero sin inercia.
 - La edición de terreno todavía no existe como dato: irá como sección cuando haya un registro de ediciones.
 - Los cuerpos del ragdoll se guardan y se cargan en `ActorState`, pero lo que los lee y los aplica es el sistema de actores.
-- El mundo generado debe ser reproducible: si cambia el generador, las partidas viejas se rechazan (o se cargan con aviso) hasta decidir.
+- El mundo generado debe ser reproducible: **cada cambio de lo que sale de una semilla va tras una versión nueva del generador** (`kWorldGeneratorLatest`),
+  y las anteriores conservan su camino de código. Un cambio sin versión nueva lo detecta la identidad de la línea base (la carga se rechaza o, con
+  `AllowBaselineDrift`, se aplica con aviso).

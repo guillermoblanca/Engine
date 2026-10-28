@@ -7,7 +7,7 @@ Lógica pura en `GB/Gameplay/Items.h`, sin escena ni renderer y determinista (co
 | `ItemDef` / `ItemLibrary` | Objeto en datos: id, nombre, categoría, peso, apilado máximo, etiquetas (`Item.Tool.Axe`), habilidad que lo usa, socket donde se muestra y combustible (`fuel`) |
 | `Inventory` | Contenedor con número de casillas y límite de peso opcional: `Add`, `Remove`, `Count`, `CountTagged`, `Transfer`, `ToJson`/`FromJson` |
 | `ResourceNodeDef` / `ResourceNode` | Nodo de recurso (árbol, roca, baya, hierba): cantidad, recogida por golpe, regeneración (`RegenSeconds`) o agotamiento, herramienta requerida por etiqueta |
-| `Recipe` / `RecipeBook` | Materia prima → producto, con estación y herramienta (necesaria, no se gasta). `WhyNot` explica por qué no se puede fabricar |
+| `Recipe` / `RecipeBook` | Materia prima → producto, con estación y herramienta (necesaria, no se gasta). `WhyNot` explica por qué no se puede fabricar. Con un conjunto de recetas conocidas (`WhyNot`/`Craft(..., known)`, H11) solo se fabrica lo que se sabe hacer: «does not know how to make 'x'»; sin él (`nullptr`), todo |
 | `RegisterEraOneItems` | Contenido de la era 1: madera, piedra, fibra, baya, hacha y pico de piedra y de pedernal, cesta de mimbre, hoguera |
 
 Cada `Actor` lleva una mochila de 12 casillas (`Actor::Bag()`), que se guarda y se carga con la partida (`ActorState::Inventory`).
@@ -49,7 +49,7 @@ Campos opcionales de `ItemDef` (en el JSON: `power`, `speed`, `bagSlots`, `bagWe
 
 **Colocación por datos.** Cada nodo puede llevar un `patch`: `count`, `perWorker`, `spacing`, `shape` (`row` en filas de ocho, `ring`, `cluster`: dispersión de ángulo áureo, siempre igual) y `near` (otro tipo junto al que se coloca, para los hermanos). `BuildResourcePatch(world, origen, nodos, trabajadores)` pone `count + perWorker × trabajadores` de cada tipo que tenga parche, cada tipo en su zona del parche, sin solaparse; los cuatro tipos antiguos llevan los mismos números que `ScaledResources` (2+2w, 3+2w, 2+w, 2+w). `model` (opcional, por defecto el id) elige las primitivas con que se dibuja: árbol joven pequeño y claro, viejo grande y oscuro, arcilla marrón, junco verde alto y fino, pedernal gris oscuro, cobre verdoso; un modelo desconocido es una masa gris. Un nodo vacío oculta las partes que se recogen (`Crown`, `Berries`, `Tuft`, `Rock`, `Mound`, `Reeds`, `Flint`, `Ore`). `BuildResources` con recuentos sigue existiendo (los cuatro tipos de siempre) para los tests y escenas que lo usan.
 
-**Combustible por objeto.** `ItemDef::Fuel` (JSON `fuel`): calor que da el objeto en `Stoke`. Madera 2, rama 1 (hace falta el doble de ramas para el mismo fuego), tronco `log` 4 en el contenido ampliado. Todo objeto con etiqueta `Item.Resource.Wood` (o hija) puede ir al fuego; se echa primero el de más calor y luego el de id menor. `InteractiveSystem::Items` apunta a la biblioteca (el editor la pone); sin ella `Stoke` echa `wood` por `Config::FuelPerWood`, como antes, y ese valor es también el calor de un objeto de madera que no declare `fuel`. El fuego de la tribu (`Tribe::Burn`) sigue quemando solo `wood` del almacén: no se ha tocado `Tribe.*`.
+**Combustible por objeto.** `ItemDef::Fuel` (JSON `fuel`): calor que da el objeto en `Stoke`. Madera 2, rama 1 (hace falta el doble de ramas para el mismo fuego), tronco `log` 4 en el contenido ampliado. Todo objeto con etiqueta `Item.Resource.Wood` (o hija) puede ir al fuego; se echa primero el de más calor y luego el de id menor. `InteractiveSystem::Items` apunta a la biblioteca (el editor la pone); sin ella `Stoke` echa `wood` por `Config::FuelPerWood`, como antes, y ese valor es también el calor de un objeto de madera que no declare `fuel`. El fuego de la tribu (`Tribe::Burn`) sigue la misma regla con lo que hay en el almacén: cada 30 s necesita `FireHeat` (2) de calor, una madera o dos ramas.
 
 **Cobre.** Objetos `copper_ore` (mena), `copper_ingot` (lingote) y `clay`, nodo `copper_vein` y la receta `copper_ingot` (2 de mena, estación `forge`). La forja llega con E10, así que no se puede fabricar aún: `WhyNot` dice «needs the station 'forge'». En el contenido ampliado el hacha de cobre pide lingotes.
 
@@ -74,7 +74,7 @@ Llevan el atributo `Amount` y las etiquetas `Resource.Node`, `Resource.Node.<id>
 - Habilidades `Chop` (necesita `Item.Tool.Axe`), `Mine` (`Item.Tool.Pickaxe`), `Gather` (bayas, a mano) y `PullFiber` (matas de fibra). Todo actor las tiene. Cada tipo de nodo dice la suya (`ability` en `assets/data/era1.json`). Los montajes son provisionales (tajos de espada con la herramienta en la mano para talar y picar, brazo a media altura para las bayas y agacharse para la fibra), ver `ANIMACIONES_PENDIENTES.md`.
 - `ResourceSystem` saca las unidades del nodo y las entrega a la mochila de quien lo recoge; las herramientas de la mochila pasan a ser etiquetas del actor (`SyncTools`); un nodo agotado pierde lo que se recoge de él (copa, bayas, mata, roca) y lo recupera al regenerarse.
 - La regeneración es un efecto periódico del sistema de habilidades (`Regrow.<id>`), así que se guarda con la partida; las rocas no regeneran.
-- Editor: `resources build [x z [trabajadores]]` coloca el parche por datos, `resources status` los lista agrupados por tipo. Los nombres con espacio se pasan con guion bajo en las listas de tareas: `actor tasks worker ability Chop tree_2`.
+- Editor: `resources build [x z [trabajadores]]` coloca el parche por datos (cada nodo asentado sobre el terreno, `SnapToGround`), `resources world [densidad]` reparte los nodos por todo el mundo generado según el bioma ([RECURSOS_MUNDO.md](RECURSOS_MUNDO.md)), `resources status` los lista agrupados por tipo. Los nombres con espacio se pasan con guion bajo en las listas de tareas: `actor tasks worker ability Chop tree_2`.
 
 ## Contenido como datos
 
@@ -91,10 +91,22 @@ Se comprueba que las recetas fabriquen y pidan objetos que existen, que los nodo
 `Inventory::FromJson` rechaza enteros dañados: cuentas menores que 1, casillas o peso negativos, valores que no son números.
 El test `items` comprueba que el fichero del juego define lo mismo que `RegisterEraOneItems`.
 
+**Paquetes (H17).** `era1.json` es el fichero del paquete `era1` (`assets/data/era1.pack.json`), que el editor carga al arrancar; `era1_ampliado.json` es el paquete opcional
+`era1_ampliado`, que depende de él (`pack load era1_ampliado`). Al cargar se comprueba además que **todo se pueda conseguir**: que cada objeto salga de un nodo, de una
+receta alcanzable o de lo que el paquete declara dado (`given`), que las herramientas que piden nodos y recetas se puedan fabricar, que las estaciones existan y que no haya
+ciclos de recetas sin entrada. Ver [PAQUETES.md](PAQUETES.md).
+
 ## Regeneración y estaciones
 
 Los nodos regeneran en `ResourceSystem::Update(gameplay, dt, rate)`, con el temporizador en el atributo `Regrow` del nodo (se guarda con la partida). El editor pasa como `rate` el
 factor de la estación ([ECOLOGIA.md](ECOLOGIA.md)): en invierno no crece ni una baya.
+
+## Recetas que hay que saber (H11)
+
+Las tecnologías (sección `techs`, [CONOCIMIENTO.md](CONOCIMIENTO.md)) bloquean recetas y nodos: las herramientas de sílex detrás del tallado de sílex, la cesta detrás
+de la cestería y el lingote detrás de la fundición. Lo que ninguna tecnología nombra sigue siendo de todos. La tribu solo fabrica (herramienta del oficio, hoguera) y solo
+recoge lo que sabe cada miembro; las tecnologías del principio (piedra, fuego, cordel) hacen que todo lo de antes siga igual. `actor bag <actor> craft` no tiene puerta
+(el jugador lo sabe todo por ahora).
 
 ## Pendiente de H2
 

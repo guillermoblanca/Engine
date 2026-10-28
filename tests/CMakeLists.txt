@@ -33,6 +33,11 @@ add_executable(GBCameraTests camera_test.cpp)
 target_link_libraries(GBCameraTests PRIVATE GB::GB)
 add_test(NAME camera COMMAND GBCameraTests)
 
+add_executable(GBGameCameraTests game_camera_test.cpp)
+target_link_libraries(GBGameCameraTests PRIVATE GB::GB)
+target_compile_definitions(GBGameCameraTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME game_camera COMMAND GBGameCameraTests)
+
 add_executable(GBParticleTests particles_test.cpp)
 target_link_libraries(GBParticleTests PRIVATE GB::GB)
 add_test(NAME particles COMMAND GBParticleTests)
@@ -79,6 +84,11 @@ set_tests_properties(river PROPERTIES SKIP_RETURN_CODE 77)
 add_executable(GBWorldTests world_test.cpp)
 target_link_libraries(GBWorldTests PRIVATE GB::GB)
 add_test(NAME world COMMAND GBWorldTests)
+
+# The world generator without a window (WorldGenerator::GenerateData): determinism, generator versions, the baked biome map and distance to the water.
+add_executable(GBWorldGenTests worldgen_test.cpp)
+target_link_libraries(GBWorldGenTests PRIVATE GB::GB)
+add_test(NAME worldgen COMMAND GBWorldGenTests)
 set_tests_properties(world PROPERTIES SKIP_RETURN_CODE 77)
 
 add_executable(GBDestructionTests destruction_test.cpp)
@@ -238,13 +248,40 @@ target_link_libraries(GBItemsTests PRIVATE GB::GB)
 target_compile_definitions(GBItemsTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME items COMMAND GBItemsTests)
 
+add_executable(GBPacksTests packs_test.cpp)
+target_link_libraries(GBPacksTests PRIVATE GB::GB)
+target_compile_definitions(GBPacksTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME packs COMMAND GBPacksTests)
+
 add_executable(GBResourcesTests resources_test.cpp)
 target_link_libraries(GBResourcesTests PRIVATE GB::GB)
 add_test(NAME resources COMMAND GBResourcesTests)
 
+add_executable(GBWorldResourcesTests world_resources_test.cpp)
+target_link_libraries(GBWorldResourcesTests PRIVATE GB::GB)
+add_test(NAME world_resources COMMAND GBWorldResourcesTests)
+
 add_executable(GBTribeTests tribe_test.cpp)
 target_link_libraries(GBTribeTests PRIVATE GB::GB)
+target_compile_definitions(GBTribeTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME tribe COMMAND GBTribeTests)
+
+# H7: aptitudes by practice, the job board and the trades of the clan (TribeWork, Skills, JobBoard)
+add_executable(GBWorkTests work_test.cpp)
+target_link_libraries(GBWorkTests PRIVATE GB::GB)
+target_compile_definitions(GBWorkTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME work COMMAND GBWorkTests)
+
+add_executable(GBKnowledgeTests knowledge_test.cpp)
+target_link_libraries(GBKnowledgeTests PRIVATE GB::GB)
+target_compile_definitions(GBKnowledgeTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME knowledge COMMAND GBKnowledgeTests)
+
+# H9 + H10: demography, inheritance, relations, personality and culture (Society, TribeSociety)
+add_executable(GBSocietyTests society_test.cpp)
+target_link_libraries(GBSocietyTests PRIVATE GB::GB)
+target_compile_definitions(GBSocietyTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME society COMMAND GBSocietyTests)
 
 add_executable(GBPerceptionTests perception_test.cpp)
 target_link_libraries(GBPerceptionTests PRIVATE GB::GB)
@@ -256,10 +293,12 @@ add_test(NAME ai COMMAND GBAiTests)
 
 add_executable(GBInteractivesTests interactives_test.cpp)
 target_link_libraries(GBInteractivesTests PRIVATE GB::GB)
+target_compile_definitions(GBInteractivesTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME interactives COMMAND GBInteractivesTests)
 
 add_executable(GBEcologyTests ecology_test.cpp)
 target_link_libraries(GBEcologyTests PRIVATE GB::GB)
+target_compile_definitions(GBEcologyTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME ecology COMMAND GBEcologyTests)
 
 add_executable(GBScaleTests scale_test.cpp)
@@ -269,3 +308,10 @@ add_test(NAME scale COMMAND GBScaleTests)
 add_executable(GBNavigationTests navigation_test.cpp)
 target_link_libraries(GBNavigationTests PRIVATE GB::GB)
 add_test(NAME navigation COMMAND GBNavigationTests)
+
+# H12: regions of the generated world, the clan's map, expeditions and migration (Regions, Exploration, TribeExplore)
+add_executable(GBExplorationTests exploration_test.cpp)
+target_link_libraries(GBExplorationTests PRIVATE GB::GB)
+target_include_directories(GBExplorationTests SYSTEM PRIVATE ${json_SOURCE_DIR}/include)
+target_compile_definitions(GBExplorationTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME exploration COMMAND GBExplorationTests)

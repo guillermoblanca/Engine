@@ -272,9 +272,49 @@ static void TestMigrations()
 		Check(s.World().Seed == 7 && s.Tick() == 500 && s.Entities().FindByName("Tree 3") == NullEntity && s.Entities().FindByName("Crate") != NullEntity,
 			"the v1 save has its world, clock and edits");
 		Check(GardenSystem::SoilState(*s.MutableGameplay().Find("Plot 1")) != "" && s.Character("Gardener") != nullptr, "the v1 garden and walker are alive");
+		Check(g.World.GeneratorVersion == kWorldGeneratorV1 && g.World.WildResources == 0.0f, "a save from before generator versions is a world of generator 1, without wild nodes");
 		if (kFormatVersion == 1) Check(SaveGameToString(g) == text, "the v1 golden is exactly what this version writes");
 		for (int i = 0; i < 120; ++i) s.Step();   // and it keeps simulating
 		Check(s.Tick() == 620, "the v1 game runs on");
+	}
+	// v2: the world records the version of its generator and the density of its wild resource nodes
+	{
+		const std::string path = dir + "/v2_world.gbsave";
+		if (Qa::Config::UpdateMode() && !fs::exists(path))
+		{
+			WorldParams w = Seed(13);
+			w.GeneratorVersion = 2;
+			w.WildResources = 1.5f;
+			GameSession s({ w });
+			Play(s, 300);
+			CheckR(SaveGameToFile(CaptureGame(s).Game, path), "writing the golden v2 save");
+		}
+		SaveGame g;
+		const std::string text = Slurp(path);
+		Check(DetectFormat(text) == 2, "the v2 golden is format 2");
+		CheckR(ParseSaveGame(text, g), "the v2 save loads");
+		Check(g.World.GeneratorVersion == 2 && g.World.WildResources == 1.5f && g.World.Seed == 13, "with its generator version and wild resources");
+		GameSession s({ Seed(3) });
+		CheckR(ApplyGame(s, g), "the v2 save applies");
+		Check(s.World() == g.World && s.Tick() == 300, "the world parameters and the clock come back");
+		if (kFormatVersion == 2) Check(SaveGameToString(g) == text, "the v2 golden is exactly what this version writes");
+	}
+	// the generator version and the wild density are part of the world: a save of another version does not match this world
+	{
+		WorldParams a = Seed(5), b = Seed(5);
+		b.GeneratorVersion = 1;
+		Check(a != b, "worlds of two generator versions differ");
+		b = a;
+		b.WildResources = 1.0f;
+		Check(a != b, "and so do worlds with and without wild nodes");
+		SaveGame g;
+		g.World = a;
+		g.World.WildResources = 0.75f;
+		SaveGame back;
+		CheckR(ParseSaveGame(SaveGameToString(g), back), "a world with wild nodes round trips");
+		Check(back.World == g.World, "with its version and density");
+		g.World.WildResources = 0.0f;
+		Check(SaveGameToString(g).find("\"wild\"") == std::string::npos, "and a world without them does not mention them");
 	}
 }
 
@@ -302,8 +342,9 @@ static void TestDamagedFiles()
 		Check(!r.Ok && r.Error.find("checksum") != std::string::npos, "an edited file fails its checksum");
 	}
 	std::string newer = text;
-	const size_t f = newer.find("\"format\": 1");
-	if (f != std::string::npos) newer.replace(f, 11, "\"format\": 99");
+	const std::string current = "\"format\": " + std::to_string(kFormatVersion);
+	const size_t f = newer.find(current);
+	if (f != std::string::npos) newer.replace(f, current.size(), "\"format\": 99");
 	const Result rn = ParseSaveGame(newer, out);
 	Check(!rn.Ok && rn.Error.find("newer") != std::string::npos, "a save from the future says so");
 	std::string noSum = text;
@@ -529,7 +570,7 @@ static void TestReservedSlots()
 	SaveGame g;
 	const std::string text = Slurp(path);
 	CheckR(ParseSaveGame(text, g), "the golden save with the reserved slots loads");
-	Check(g.Format == 1 && g.Actors.size() == 1 && g.Actors[0].Kind == "fox" && g.Actors[0].Inventory[0].Age == 1250.5f, "with what it was written with");
+	Check(DetectFormat(text) == 1 && g.Format == kFormatVersion && g.Actors.size() == 1 && g.Actors[0].Kind == "fox" && g.Actors[0].Inventory[0].Age == 1250.5f, "with what it was written with");
 	if (kFormatVersion == 1) Check(SaveGameToString(g) == text, "and this version writes it back exactly");
 }
 

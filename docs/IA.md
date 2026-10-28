@@ -69,7 +69,9 @@ Cada vez que un miembro queda libre, la tribu lista lo que podría hacer **ahora
 | `rest` | siempre | 0,1: espera mirando alrededor |
 
 **Los roles son pesos** (`TribeConfig::Roles`, `DefaultRoles()`): `forager` quiere bayas y fibra, `woodcutter` árboles y la hoguera, `miner` rocas; todos ayudan con lo que falta, con
-un peso bajo. Nadie planea con el mundo entero: `gather` solo considera lo que hay en su memoria, y si lo recuerda de hace más de 6 s va primero a mirarlo (`approach`) en vez de
+un peso bajo. Desde H7 el peso que usa el cerebro es el del rol **más la aptitud** del miembro en la familia de la opción (`Tribe::MemberWeight`: 0,6 × nivel/100), y el trabajo que
+haya reclamado del **tablón del clan** multiplica por 1,6 las opciones que lo hacen (factor `job`); el oficio de cada uno se revisa con las necesidades del clan
+([TRIBU.md](TRIBU.md), «Aptitudes, oficios y tablón»). Sigue siendo una sola elección por utilidad con la misma histéresis. Nadie planea con el mundo entero: `gather` solo considera lo que hay en su memoria, y si lo recuerda de hace más de 6 s va primero a mirarlo (`approach`) en vez de
 planear desde una cantidad vieja.
 
 **Contra el comportamiento oscilante** (`ChooseOption`): lo que ya está haciendo conserva una bonificación (0,05), un rival debe superarlo por un margen (0,15), se mantiene al
@@ -81,9 +83,24 @@ Un factor por tipo de opción según la hora (`Tribe::AgendaFactor`; se anota co
 el sueño vale x1,6 y el trabajo (recoger, explorar, fabricar, encender) x0,4; al atardecer (tres horas antes de la noche) vuelve a casa (`deposit` x1,3), se calienta (`warm` x1,5) y busca compañía
 (`socialize` x2,5) y no explora (x0,3). Comer y beber no se tocan, y las necesidades mandan: un factor solo escala la opción.
 
+**La agenda es dato.** La de la tribu está en la sección `tribe` de `assets/data/era1.json` (`TribeAgenda`, `LoadTribeRules`; `content load` también la lee): `duskHours` y un factor por
+parte del día (`night`, `dusk`, `day`) y tipo de opción. Cada rol puede tener **su agenda** (`TribeRole::Agenda`, clave `agenda` del rol): sus factores sustituyen a los de la tribu
+opción por opción (lo que no nombra es lo de la tribu) y `nightShift` corre todo su día esas horas (una guardia nocturna con `nightShift: 8` trabaja mientras el clan duerme). Por
+defecto ningún rol tiene agenda propia, así que el comportamiento es el de antes.
+
+```json
+"tribe": { "agenda": { "duskHours": 3, "night": { "sleep": 1.6, "gather": 0.4 }, "dusk": { "socialize": 2.5 } }, "food": "Item.Food", "drink": "Item.Food.Water",
+           "stock": { "default": 12, "berry": { "min": 6, "perMember": 3 }, "wood": 10, "stone": 8 } }
+```
+
+**Comida y existencias también son dato** (`TribeEconomy`): es comida todo objeto con la etiqueta `food` (o debajo) que no tenga la de `drink` (el agua es `Item.Food.Water`: se bebe);
+se come primero la de menor id (primero la de la mochila), se estropea la que más hay y la opción de recoger por hambre vale para cualquier nodo cuyo objeto sea comida (el grano de
+`era1_ampliado.json` ya cuenta). `stock` dice cuánto quiere el almacén de cada objeto: el mayor de `min` y `perMember` por miembro (las bayas, 6 o 3 por miembro; madera 10; piedra 8; el resto 12).
+
 ## Nivel de detalle de simulación
 
-Lejos de la cámara un miembro es un **agente abstracto** (`GB/AI/Abstract.h`): ejecuta las mismas órdenes (texto de tareas: `goto`, `wait`, `ability`) sin cuerpo, en línea recta a la velocidad del actor (con su
+Lejos de la cámara un miembro es un **agente abstracto** (`GB/AI/Abstract.h`): ejecuta las mismas órdenes (texto de tareas: `goto`, `wait`, `ability`) sin cuerpo, por la **ruta que le da su cuerpo**
+(`ITribeBody::Route`: en el editor, el camino de la navegación con el perfil del miembro; sin navegación, la línea recta) a la velocidad del actor (con su
 `Vigor`) y con las habilidades corriendo por temporizadores sobre su sistema de habilidades, así que la decisión es **la misma** y los recursos, el hambre y el inventario siguen igual. `Tribe::SetViewer`
 (el editor le pasa la cámara en cada paso) y `TribeConfig::DetailRadius` (60 m, con 10 m de histéresis) deciden quién es abstracto; sin visor todos son completos. Al pasar a abstracto el actor se **suspende**
 (`ActorWorld::SetSuspended`: sin animación, sin dibujo, sin obstáculo para los demás) y el agente empieza donde está; al volver, el cuerpo se coloca donde está el agente (`Teleport`) y se le dan otra vez las
@@ -97,6 +114,8 @@ Lejos de la cámara un miembro es un **agente abstracto** (`GB/AI/Abstract.h`): 
   Contar lo que sabe al clan se limita a una vez cada 20 s por miembro.
 - **Medido** (`ai_test`, Release, una hebra, 100 miembros de una tribu con un parche escalado, fotogramas de 0,2 s): 7,5 ms de `Tribe::Update` por segundo simulado el primer día y unos 11 ms de media en 10 días (0,2 ms por fotograma a 60 fps, 4 ms a x20), peor fotograma 8 ms; con
   nivel de detalle casi igual (el coste está en mirar y decidir, no en el cuerpo, que el test no tiene). Un día simulado de 100 miembros cuesta unos 10 s de CPU. Los 100 miembros **viven los 10 días** (con 10 pozos: con uno solo morían de sed); el test de CI corre 2 días con nivel de detalle (10 con `GB_AI_CROWD_DAYS=10`, unos 3 minutos).
+- **El test `ai` no mide tiempos**: solo comprueba comportamiento, así que pasa igual con la máquina cargada (`ctest -j 6`). El presupuesto de 20 ms por segundo simulado se comprueba con
+  `GB_AI_BENCH=1`. La aceptación completa de H6 (100 NPC aislados, 10 días) se corre con `GB_AI_ISOLATED=100` (en CI, 6).
 - La percepción sigue siendo miembros × cosas cercanas; el siguiente paso sería que los agentes lejanos del campamento miren aún menos a menudo.
 
 ## Registro, miembros y cuerpos nulos
@@ -143,11 +162,13 @@ ai scream <nombre>           ese miembro grita (los que estén a 30 m lo oyen y 
 
 ## Límites conocidos
 
-- **Sin navegación**: se mueven en línea recta con `goto`; los obstáculos solo tapan la vista. Cuando llegue la navegación (H5, otra parte) los `goto` serán caminos.
+- En el editor los `goto` de un actor y los del agente abstracto son caminos de la navegación ([NAVEGACION.md](NAVEGACION.md)); en los tests de CPU con cuerpos de prueba siguen siendo líneas rectas
+  (salvo el del agente abstracto sobre una rejilla con un lago en `tribe_test`).
 - El cuerpo de un actor puede quedarse atascado contra un árbol u otro actor y fallar el viaje (se cuenta en `Failures` y decide de nuevo).
-- El nivel de detalle no dibuja ni anima a los lejanos y su movimiento es una línea recta sin navegación (el agente no esquiva nada); al volver a ser completo reinicia la orden en curso. Con unos cientos de miembros haría falta además agrupar a los lejanos.
-- La agenda es un factor por hora y estación, no un horario por rol. Faltan decisiones colectivas y roles que cambian (H7, H9 a H12).
-- Los sumideros (la fibra que sobra de 12 se gasta en el campamento, una baya de más de 20 se estropea cada 100 s) son una regla simple, no una economía; el mapa real tiene cientos de árboles que no son nodos de recurso y los miembros no los conocen.
+- El nivel de detalle no dibuja ni anima a los lejanos; siguen la ruta de la navegación (rodean el agua y los muros, y una meta inalcanzable falla como la del actor) pero no esquivan a los demás; al volver a ser
+  completo el cuerpo aparece en un punto pisable (si el mundo cambió, en el último punto de la ruta) y reinicia la orden en curso. Con unos cientos de miembros haría falta además agrupar a los lejanos.
+- La agenda es un factor por parte del día, estación y rol (datos), no un horario con citas. Los oficios ya cambian y hay tablón (H7); faltan decisiones colectivas de verdad (H9 a H12).
+- Los sumideros (la fibra que sobra de 12 se gasta en el campamento, una unidad de comida de más de 20 se estropea cada 100 s) son una regla simple, no una economía; el mapa real tiene cientos de árboles que no son nodos de recurso y los miembros no los conocen.
 - Las herramientas siguen ligadas al rol por código (`stone_axe` del leñador, `stone_pickaxe` del minero); los pesos solo mandan en el resto.
 - Un recurso que no se regenera (las rocas) deja al minero esperando en el campamento; si no conoce ninguna roca sale a explorar. No hay noción de "lugares seguros" ni depredadores
   (la seguridad solo baja con gritos).

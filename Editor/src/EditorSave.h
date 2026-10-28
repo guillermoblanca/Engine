@@ -17,6 +17,8 @@ namespace GB::Editor
 		explicit EditorSaveHost(EditorApp& app) : m_App(app) {}
 		// A system with characters (the player, NPCs) lends its state through this; without one, no actors are saved.
 		void SetActorSource(Save::IActorStateSource* source) { m_Actors = source; }
+		// The baseline is cached by its WorldParams; the resource node data it plans the wild nodes with is not in them, so a change of data forgets it.
+		void ForgetBaseline() { m_HaveBaseline = false; }
 
 		// ISaveHost
 		const EntityWorld& Entities() const override;
