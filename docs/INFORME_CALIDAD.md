@@ -12,7 +12,7 @@ editor sin ventana (`Editor.exe --hidden --quality=low --script=...`).
 |---|---|---|---|
 | 1 | Tras `load`, toda la tribu (y cualquier actor guardado con una habilidad en curso) queda bloqueada con `State.Busy` | Alta | **Corregido** (+ test) |
 | 1b | Las órdenes `build` y `actor spawn` reiniciaban nodos, conejos y parcelas ya en marcha | Alta | **Corregido** |
-| 2 | `replay play` falla en cualquier mundo generado del editor, ya a 0 tics (`REPLAY DIFFERS in entities`) | Alta | Abierto (viene de H4) |
+| 2 | `replay play` falla en cualquier mundo generado del editor, ya a 0 tics (`REPLAY DIFFERS in entities`) | Alta | **Corregido** después (ver el seguimiento al final) |
 | 3 | Buscar una entidad por nombre recorre toda la escena: 120 conejos costaban 5,7 ms por fotograma | Alta | **Corregido** (+ test) |
 | 4 | `actor remove` de un miembro de la tribu dejaba un puntero colgante en la tribu (comportamiento indefinido) | Alta | **Corregido** (en el editor) |
 | 5 | El estado de la tribu no se guarda: tras `load` el almacén es el "del futuro" | Media-alta | Abierto (propuesta) |
@@ -181,10 +181,20 @@ Corregido: `README.md` (hoja de ruta con lo hecho y sin lo que ya no está en cu
 panel; lo que se guarda), `OBJETOS.md` (colocar nodos nuevos desde JSON no es posible: `BuildResources` solo conoce cuatro tipos), `TRIBU.md` (qué pasa tras `load` y `actor remove`, tests, límites nuevos), `ECOLOGIA.md` (coste, qué se guarda), `mundo.md` (coste del refinado de orillas) y `COSTE_ACTOR.md`
 (nota con la remedición). Comprobado que dicen la verdad: las tablas de roles, estaciones y habilidades, y los valores (`EatSeconds` 40, `FireSeconds` 30, 240 s por estación).
 
+## Seguimiento: repetición y guardado completos (PR posterior)
+
+Causas encontradas al arreglar el hallazgo 2, todas ya corregidas con test (`ctest`: `editor_replay`, `editor_replay_society`, `editor_replay_midrun` y los tests de CPU de `save`, `ecology`, `interactives` y `entity`):
+1. **Redondeo a 7 cifras.** Los archivos escribían los `float` con 7 cifras y una coordenada como -155,165 cambiaba de cubeta de la huella al volver a leerse (`Tree 270` de las 492 entidades del mundo de prueba). Ahora se escriben exactos (el texto más corto que lee el mismo `float`); la identidad del mundo generado sigue con 7 cifras para que las partidas viejas casen.
+2. **Los actores se movían con el tiempo del fotograma**, fuera del tic fijo: ninguna repetición con actores podía salir igual. Ahora se mueven en `EditorSaveHost::Step` (salvo con un jugador manejando uno).
+3. **Cargar no quitaba ni creaba actores**: una repetición cuyas órdenes crean un actor fallaba ("there is already an actor"), y un guardado cargado en un mundo nuevo perdía la tribu. Los actores guardan de qué estaban hechos (`kind`), se recrean al cargar y se quitan los que la partida no tiene.
+4. Faltaba guardar los temporizadores de las fogatas, el destino de los conejos y el aspecto de la estación (secciones `interactives`, `ecology` y `season-look`).
+5. Las órdenes `ecology`, `interactives`, `tribe`, `actor` y `content` no se grababan en las repeticiones.
+
+Sigue sin ser idéntica paso a paso una partida guardada **a mitad de una habilidad** (se restaura cancelada; ver GUARDADO.md): hay que guardar o grabar con los personajes quietos.
+
 ## Tareas abiertas, por prioridad
 
-1. **Repetición del editor** (hallazgo 2): una sesión; bloquea el criterio de aceptación de H4.
-2. **Guardar el estado de la tribu, la ecología y los temporizadores** (5): una sesión tras la de percepción e IA.
+1. ~~Repetición del editor y estado guardado~~ (hecho: ver el seguimiento). Queda guardar habilidades en curso para que un guardado a mitad de trabajo sea idéntico.
 3. **Tribu a 50 o 100 miembros** (6, 11): repartir decisiones, índice de nodos, registro acotado, `RemoveMember`.
 4. **Avisos en Sandbox y tests** (10).
 5. **Nivel de detalle de actores** (11): ya previsto en H16.

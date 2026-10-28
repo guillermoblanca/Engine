@@ -18,6 +18,7 @@ namespace GB
 		float Height = 1.75f;
 		glm::vec2 Position{ 0.0f };        // xz, moved to free dry ground (clear of the other actors too)
 		float Yaw = 0.0f;
+		std::string Kind;                  // what the caller asked for ("fox", a file...): saved with the actor so a loaded game can make it again
 		bool CreateEntity = false;         // make the scene entity (with a gameplay component and its ability system) when there is none of that name
 	};
 
@@ -92,6 +93,7 @@ namespace GB
 		GameplayWorld* m_Gameplay = nullptr;
 		std::map<std::string, std::shared_ptr<Model>> m_Models;
 		std::map<std::string, std::unique_ptr<Actor>> m_Actors;
+		std::map<std::string, std::string> m_Kinds;   // actor -> ActorSpawn::Kind
 		NavGrid m_Nav;
 		std::vector<CircleObstacle> m_PushedObstacles;   // the static obstacles the actors have now
 		std::set<std::string> m_Suspended;

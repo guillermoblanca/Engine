@@ -41,6 +41,9 @@ namespace GB
 		// Runs until Close(), the window is closed or the frame limit is reached.
 		void Run();
 		void Close() { m_Running = false; }
+		// What main returns: 0, or what a run (a scripted test) set with SetExitCode.
+		void SetExitCode(int code) { m_ExitCode = code; }
+		int ExitCode() const { return m_ExitCode; }
 
 		// 0 = unlimited. Lets agents and tests run the engine headless for N frames.
 		void SetMaxFrames(uint64_t frames) { m_MaxFrames = frames; }
@@ -60,6 +63,7 @@ namespace GB
 		std::string m_Screenshot;
 		bool m_Valid = true;
 		bool m_Running = true;
+		int m_ExitCode = 0;
 		uint64_t m_FrameCount = 0;
 		uint64_t m_MaxFrames = 0;
 	};

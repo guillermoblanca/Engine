@@ -107,6 +107,7 @@ namespace GB::Editor
 		spawn.Height = isFbx ? 1.75f : fox ? 0.75f : 1.75f;
 		spawn.Position = { near.x, near.z };
 		spawn.Yaw = 0.0f;
+		spawn.Kind = kind;
 		spawn.CreateEntity = createEntity;
 		Actor* actor = m_Actors->Spawn(name, spawn, error);
 		if (actor) GB_CLIENT_INFO("Actor {}: {} at ({:.1f}, {:.1f}){}", name, isFbx ? kind : fox ? "fox" : "cesium", actor->GetPosition().x, actor->GetPosition().z, actor->UsesLocomotionBlend() ? ", locomotion blend" : "");

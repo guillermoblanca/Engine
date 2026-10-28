@@ -51,6 +51,11 @@ namespace GB
 		// Burns fuel, refills wells and keeps the state tags and the visuals in step. `entities` may be null (headless logic).
 		void Update(float dt, EntityWorld* entities);
 
+		// The timers of the system (the part of a second a fire has burnt, the time to the next drop of the well): what the tags and attributes do not keep.
+		// FromJson goes after Bind; "" or a damaged text gives false and leaves the timers at zero.
+		std::string ToJson() const;
+		bool FromJson(const std::string& text);
+
 		static std::string CampfireState(const AbilitySystemComponent& a);   // "unlit", "lit", "out" ("" = not a campfire)
 		static std::string DoorState(const AbilitySystemComponent& a);       // "open", "closed" ("" = not a door)
 

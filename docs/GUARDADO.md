@@ -87,9 +87,49 @@ La simulación del editor avanza en tics fijos de 1/60 s (`StepSimulation`); el 
 - **Un sistema nuevo** (inventarios, terreno editado, clanes): un `SectionBlob` con nombre y versión desde `ISaveHost::Sections()`; recibirlo en
   `LoadedGame::Sections` en `Commit` y validarlo en `Validate`.
 
+## Secciones del editor
+
+El editor registra estas secciones (cada una con su versión propia, hoy 1; no cambian `kFormatVersion`: un archivo sin ellas se carga con los valores de arranque):
+
+| Sección | Contenido | Quién |
+|---|---|---|
+| `user-entities` | lo que no genera la semilla: huerto, actores, nodos, interactivos, conejos, hoguera | `EditorSaveHost` |
+| `ai` | la tribu: almacén, hoguera, reloj, memoria y decisión de cada miembro (las necesidades son atributos) | `Tribe::ToJson` |
+| `ecology` | hacia dónde iba cada conejo (centro de paseo, planta elegida, tiempo comiendo) y los contadores de nacidos, muertos y comida | `EcologySystem::ToJson` |
+| `interactives` | los temporizadores de las fogatas y los pozos (la fracción de segundo que lleva ardiendo) | `InteractiveSystem::ToJson` |
+| `season-look` | el clima, la nieve y el color de las hojas que escribió la estación, y si las estaciones visibles están activas | `SeasonLook` |
+
+La estación sale del reloj (el tic se guarda), así que no necesita sección. El temporizador `Regrow` de cada nodo es un atributo y viaja con la entidad.
+
+**Los actores** guardan además de lo anterior de qué estaban hechos (`kind`: `fox`, `cesium` o el archivo del personaje): al cargar en un mundo que no los tiene (un mundo nuevo, o una repetición que viene de otra cosa) el editor los vuelve a crear, y los que
+existen y no están en la partida se quitan (la partida es toda la verdad sobre quién está). Los actores se mueven en el tic fijo (`EditorSaveHost::Step`), no con el tiempo del fotograma, cuando no hay un jugador manejando uno; por eso una repetición, una partida cargada y una ejecución a otra velocidad de fotogramas van igual.
+
+## Repetición del editor (aceptación de H4)
+
+Probado de extremo a extremo con el editor real sin ventana (`ctest`: `editor_replay`, `editor_replay_society`, `editor_replay_midrun`; los guiones están en `Editor/tests/`, `--strict=1` hace que una línea que falla dé código de salida 1):
+un mundo generado con huerto y actores con habilidades; la pequeña sociedad (tribu de cinco, interactivos y conejos); y una grabación a mitad de la marcha (conejos paseando, una fogata ardiendo, otra estación) que se reproduce **en otro mundo** y termina con la misma huella.
+
+## Huecos reservados (sin activar)
+
+Para las decisiones aún sin responder de `PROPUESTA_HABILIDADES_Y_ECONOMIA.md` (3: caducidad; 5: conocimiento por agente y por clan), el formato deja sitio sin cambiar de versión; todos son opcionales, se escriben solo cuando tienen valor, nada los rellena hoy y los guardados de ahora son los mismos bytes que antes:
+
+| Hueco | Dónde | Para qué |
+|---|---|---|
+| `inventory[].age` (`ItemStack::Age`) | cada montón de la mochila de un actor | segundos que lleva existiendo, para lo que caduca |
+| `actors[].knowledge` (`ActorState::Knowledge`) | cada actor | lo que sabe ese agente (recetas, lugares, técnicas) como nombres |
+| sección `knowledge-clan` | `sections` | lo que sabe el clan; la reserva el nombre, sin lector |
+
+Activarlos es: poner `ItemSlot::Age` y rellenarlo desde `ActorWorld::CaptureActors`, y leer la sección en `Commit`. Si una decisión cambia la disposición (por ejemplo, caducidad por casilla en vez de por montón), sube `kFormatVersion` con su migración como siempre.
+`tests/golden/saves/v1_slots.gbsave` es un guardado con los tres huecos usados: debe seguir cargándose y reescribiéndose idéntico.
+
+## Números en los archivos
+
+Un `float` se escribe como el texto más corto que vuelve a leerse como el mismo número (`0.1`, `134.02432`): una escena guardada y cargada vuelve **idéntica bit a bit** (con 7 cifras, una coordenada cerca de un límite de redondeo cambiaba de cubeta en la huella de una repetición y la repetición fallaba). La identidad del mundo generado (`baseline`)
+sigue calculándose con el formato de 7 cifras de siempre (`SceneFloats::Short7`) para que las partidas viejas sigan coincidiendo.
+
 ## Límites conocidos de la v1
 
-- Las habilidades **en curso** no se guardan (se avisa); se restauran canceladas. Guardar con el personaje quieto.
+- Las habilidades **en curso** no se guardan (se avisa); se restauran canceladas, sin la etiqueta `State.Busy` que ponían. Una partida guardada a mitad de un trabajo sigue **sin ser idéntica paso a paso**: quien estaba haciendo algo lo vuelve a decidir. Guardar (y grabar una repetición) con los personajes quietos da resultados idénticos.
 - `CharacterController` no expone su velocidad: un personaje que camina se restaura con su entrada pero sin inercia.
 - La edición de terreno todavía no existe como dato: irá como sección cuando haya un registro de ediciones.
 - Los cuerpos del ragdoll se guardan y se cargan en `ActorState`, pero lo que los lee y los aplica es el sistema de actores.

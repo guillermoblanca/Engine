@@ -58,7 +58,7 @@ namespace GB::Save
 
 	BaselineId BaselineIdOf(const EntityWorld& baseline)
 	{
-		return { static_cast<uint32_t>(baseline.Count()), HashText(SaveSceneToString(baseline)) };
+		return { static_cast<uint32_t>(baseline.Count()), HashText(SaveSceneToString(baseline, SceneFloats::Short7)) };
 	}
 
 	EntityDiff DiffEntities(const EntityWorld& baseline, const EntityWorld& current)
@@ -252,8 +252,10 @@ namespace GB::Save
 				AddVec(f, a.Position, 1e-2f);
 				f.Add(a.Yaw, 1e-2f);
 				AddText(f, a.Set);
+				if (!a.Kind.empty()) AddText(f, a.Kind);
+				for (const std::string& k : a.Knowledge) AddText(f, k);
 				for (const std::string& p : a.Props) AddText(f, p);
-				for (const ItemStack& s : a.Inventory) { AddText(f, s.Item); f.Add(static_cast<int64_t>(s.Count)); }
+				for (const ItemStack& s : a.Inventory) { AddText(f, s.Item); f.Add(static_cast<int64_t>(s.Count)); if (s.Age != 0.0f) f.Add(s.Age, 1e-2f); }
 				f.Add(a.Move.x, 1e-2f);
 				f.Add(a.Move.y, 1e-2f);
 				f.Add(static_cast<int64_t>(a.Run));

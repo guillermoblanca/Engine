@@ -1,3 +1,4 @@
+#include <set>
 #include "GB/Game/ActorWorld.h"
 #include "GB/Log.h"
 #include <cctype>
@@ -96,6 +97,7 @@ namespace GB
 		actor->SetAbilities(m_Gameplay, name);   // the ability system of that name, if the scene has one
 		Actor* raw = actor.get();
 		m_Actors[name] = std::move(actor);
+		m_Kinds[name] = spawn.Kind;
 		raw->PrepareAbilities();
 		return raw;
 	}
@@ -107,6 +109,7 @@ namespace GB
 		{
 			Save::ActorState s;
 			s.Name = name;
+			if (const auto kind = m_Kinds.find(name); kind != m_Kinds.end()) s.Kind = kind->second;
 			s.Position = actor->GetPosition();
 			s.Yaw = actor->GetYaw();
 			if (const AnimInstance* anim = actor->Anim()) s.Set = anim->Overlay();
@@ -121,6 +124,11 @@ namespace GB
 	std::string ActorWorld::RestoreActors(const std::vector<Save::ActorState>& actors, bool check)
 	{
 		if (check) return {};   // nothing here can make a load fail: an actor that does not exist is skipped
+		// The saved game is the whole truth about who is there: an actor made after it was taken goes (a replay starts from a save, and its orders spawn that actor again).
+		std::set<std::string> saved;
+		for (const Save::ActorState& s : actors) saved.insert(s.Name);
+		for (const std::string& name : Names())
+			if (!saved.count(name)) Remove(name);
 		for (const Save::ActorState& s : actors)
 		{
 			Actor* actor = Find(s.Name);
@@ -145,7 +153,8 @@ namespace GB
 		m_Suspended.erase(name);
 		const auto it = m_Actors.find(name);
 		if (it == m_Actors.end()) return false;
-		m_Actors.erase(it);   // the actor lets go of its ability system and its ragdoll
+		m_Actors.erase(it);
+		m_Kinds.erase(name);   // the actor lets go of its ability system and its ragdoll
 		return true;
 	}
 
@@ -153,6 +162,7 @@ namespace GB
 	{
 		m_Suspended.clear();
 		m_Actors.clear();
+		m_Kinds.clear();
 		m_Models.clear();
 	}
 

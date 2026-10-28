@@ -153,6 +153,8 @@ namespace GB::Editor
 		glm::vec3 m_AutoLeaf{ -1.0f };
 		EcologySystem m_Ecology;                                 // rabbits that eat, breed and starve (`ecology spawn`)
 		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
+		std::string m_NoInteractiveTimers = "{\"timers\":[]}";   // what InteractiveSystem::ToJson says when nothing is burning or filling
+		bool m_StrictScript = false;                             // --strict=1: scripted lines that fail make the editor exit with 1
 		int m_FocusWorldState = 0, m_FocusAbilities = 0;         // the same for the World state and Abilities panels (panel <name> on)
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		bool m_AiDebug = false;                                  // `ai debug on`: cones, obstacles and memory drawn in the viewport

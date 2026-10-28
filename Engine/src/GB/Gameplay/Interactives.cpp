@@ -1,6 +1,7 @@
 #include "GB/Gameplay/Interactives.h"
 #include <algorithm>
 #include <cmath>
+#include <nlohmann/json.hpp>
 
 namespace GB
 {
@@ -258,6 +259,32 @@ namespace GB
 				}
 			}
 		}
+	}
+
+	std::string InteractiveSystem::ToJson() const
+	{
+		using Json = nlohmann::json;
+		Json timers = Json::array();
+		for (const auto& [name, t] : m_Burn) timers.push_back(Json::array({ name, t }));
+		return Json{ { "timers", timers } }.dump();
+	}
+
+	bool InteractiveSystem::FromJson(const std::string& text)
+	{
+		using Json = nlohmann::json;
+		Json j = Json::parse(text, nullptr, false);
+		if (j.is_discarded() || !j.is_object()) return false;
+		std::vector<std::pair<std::string, float>> timers;
+		try
+		{
+			for (const Json& t : j.at("timers")) timers.push_back({ t.at(0).get<std::string>(), t.at(1).get<float>() });
+		}
+		catch (const Json::exception&)
+		{
+			return false;
+		}
+		m_Burn = std::move(timers);
+		return true;
 	}
 
 	std::string InteractiveSystem::CampfireState(const AbilitySystemComponent& a)

@@ -49,8 +49,7 @@ ecology season [spring|summer|autumn|winter]  muestra o cambia la estación (mue
 
 El panel **World state** muestra la estación, los animales con su comida, los interactivos, los nodos de recurso y las parcelas del huerto.
 
-**Qué se guarda.** Los atributos (comida, edad, enfriamiento, hambre) y la posición, sí. **Hacia dónde iba** el conejo (su centro de paseo, la planta elegida y lo que lleva comiéndola) no: tras
-cargar, cada conejo toma como centro el sitio donde está y elige de nuevo, así que la partida cargada no sigue paso a paso igual que la original aunque tenga los mismos números.
+**Qué se guarda.** Los atributos (comida, edad, enfriamiento, hambre) y la posición van con la entidad; **hacia dónde iba** el conejo (su centro de paseo, la planta elegida, lo que lleva comiéndola) y los contadores van en la sección `ecology` ([GUARDADO.md](GUARDADO.md)): una partida cargada sigue paso a paso igual que la original (test `ecology`).
 
 ## Coste
 

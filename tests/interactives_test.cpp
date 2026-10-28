@@ -137,8 +137,19 @@ int main()
 		rules.Bind(loaded, [](const std::string&, const std::string&, int) { return 0; }, [](const std::string&, const std::string&, int) { return 0; });
 		Check(InteractiveSystem::CampfireState(*loaded.Find("Fire Pit")) == "lit" && InteractiveSystem::DoorState(*loaded.Find("Gate")) == "open", "a lit fire and an open door stay so");
 		Check(std::fabs(loaded.Find("Fire Pit")->Attributes().Current("Fuel") - c.Gameplay.Find("Fire Pit")->Attributes().Current("Fuel")) < 1e-3f, "with the same fuel");
+		const std::string timers = c.Rules.ToJson();
+		Check(rules.FromJson(timers) && rules.ToJson() == timers, "the burn timer comes back as it was written");
+		Check(!rules.FromJson("{") && !rules.FromJson("{\"timers\": 3}") && rules.ToJson() == timers, "a damaged timer text is refused and changes nothing");
 		entities.Find(entities.FindByName("Gate Hinge"))->Transform.Rotation.y = 0.0f;   // (the panel of the saved copy was already open: start it shut)
-		for (int i = 0; i < 60 * 40; ++i) { loaded.Update(dt); rules.Update(dt, &entities); }
+		int outAt = -1, originalOutAt = -1;
+		for (int i = 0; i < 60 * 40; ++i)
+		{
+			loaded.Update(dt); rules.Update(dt, &entities);
+			c.Gameplay.Update(dt); c.Rules.Update(dt, &c.Entities);
+			if (outAt < 0 && InteractiveSystem::CampfireState(*loaded.Find("Fire Pit")) == "out") outAt = i;
+			if (originalOutAt < 0 && InteractiveSystem::CampfireState(*c.Gameplay.Find("Fire Pit")) == "out") originalOutAt = i;
+		}
+		Check(outAt >= 0 && outAt == originalOutAt, "the loaded fire goes out on the very tick the original does (the burn timer was saved)");
 		Check(InteractiveSystem::CampfireState(*loaded.Find("Fire Pit")) == "out", "the loaded fire burns out as it would have");
 		const EntityId flame = entities.FindByName("Fire Pit Flame");
 		Check(flame != NullEntity && !entities.Find(flame)->Active, "and its flame goes");

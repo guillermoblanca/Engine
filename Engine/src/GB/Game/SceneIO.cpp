@@ -1,4 +1,5 @@
 #include "GB/Game/SceneIO.h"
+#include <charconv>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -11,11 +12,20 @@ namespace GB
 	{
 		using Json = nlohmann::ordered_json;
 
-		// Floats print with 7 significant digits so files stay readable (0.1, not 0.10000000149).
+		// A float prints as the shortest text that reads back as the same float (0.1, not 0.10000000149; 134.02432, not 134.0243): a scene that is saved
+		// and loaded comes back exactly, which the fingerprints of a replay depend on (7 digits moved a value across a rounding boundary now and then).
+		thread_local bool t_short7 = false;   // set while SaveSceneToString writes with SceneFloats::Short7
+
 		double Round(float v)
 		{
-			char buf[32];
-			std::snprintf(buf, sizeof(buf), "%.7g", static_cast<double>(v));
+			char buf[40];
+			if (t_short7)
+			{
+				std::snprintf(buf, sizeof(buf), "%.7g", static_cast<double>(v));
+				return std::strtod(buf, nullptr);
+			}
+			const std::to_chars_result r = std::to_chars(buf, buf + sizeof(buf) - 1, v);
+			*r.ptr = '\0';
 			return std::strtod(buf, nullptr);
 		}
 
@@ -102,8 +112,9 @@ namespace GB
 		}
 	}
 
-	std::string SaveSceneToString(const EntityWorld& world)
+	std::string SaveSceneToString(const EntityWorld& world, SceneFloats floats)
 	{
+		struct Mode { bool was; explicit Mode(bool on) : was(t_short7) { t_short7 = on; } ~Mode() { t_short7 = was; } } mode(floats == SceneFloats::Short7);
 		Json root;
 		root["version"] = 1;
 		Json list = Json::array();

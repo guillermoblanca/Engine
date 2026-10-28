@@ -146,6 +146,7 @@ namespace GB::Editor
 		BuildWorld(m_WorldDesc);
 		RegisterProperties();
 
+		m_StrictScript = !options.GetValue("strict").empty();
 		const std::string quality = options.GetValue("quality");
 		if (!quality.empty()) SetQuality(quality);
 		const std::string exec = options.GetValue("exec");
@@ -1005,7 +1006,7 @@ namespace GB::Editor
 				m_Script.pop_front();
 				GB_CLIENT_INFO("> {}", line);
 				const CommandResult r = Execute(line);
-				if (!r.Ok) GB_CLIENT_WARN("script line failed, continuing");
+				if (!r.Ok) { GB_CLIENT_WARN("script line failed, continuing"); if (m_StrictScript) SetExitCode(1); }   // --strict=1: a failed line makes the exit code 1 (a test)
 				if (Lower(line).rfind("shot_ui", 0) == 0 || Lower(line).rfind("screenshot", 0) == 0) break;   // render before the next line
 			}
 		}
@@ -1016,7 +1017,7 @@ namespace GB::Editor
 			m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
 			StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
 			if (m_Player.IsActive()) m_Player.BeginFrame(dt, m_ViewportHovered && !io.WantTextInput);
-			m_Actors.Update(dt);
+			if (m_Player.IsActive()) m_Actors.Update(dt);   // (with no player the actors move in the fixed tick: EditorSaveHost::Step)
 		}
 		m_NavSyncTimer -= dt;
 		if (m_NavSyncTimer <= 0.0f)   // trees felled or planted, a building: the grid redoes only the cells around them
