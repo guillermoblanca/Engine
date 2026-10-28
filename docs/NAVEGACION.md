@@ -30,7 +30,7 @@ Todo es CPU, sin ventana, y determinista (los empates se rompen por índice de c
 - **El mundo cambia** (`SyncObstacles`, `UpdateRegion`): al talar un árbol o poner un edificio solo se rehacen las celdas alrededor del círculo que cambió (y
   su región del grafo grueso). Cada cambio sube `Revision()` y queda en un registro de 64 entradas; un caminante solo replanifica si el cambio cae dentro de la
   caja de su camino (`ChangedSince`). El editor mira cada segundo si los árboles cambiaron y sincroniza.
-- **Reparto del trabajo**: `NavGrid::NewFrame` + `AllowPlan` limitan las búsquedas a 4 por fotograma (`MaxPlansPerFrame`); el resto espera al siguiente. `ActorWorld::Update`
+- **Reparto del trabajo**: `NavGrid::NewFrame` + `AllowPlan` limitan las búsquedas a 2 por fotograma (`MaxPlansPerFrame`); el resto espera al siguiente. `ActorWorld::Update`
   lo llama. Una tribu entera que sale a la vez no cuesta 50 búsquedas en un fotograma.
 
 ## En el editor
@@ -54,8 +54,10 @@ umbral para no fallar en máquinas lentas; las cifras son de una ejecución en e
 |---|---|---|
 | Construir la cuadrícula (316 x 316 celdas) | 250 ms | 8 ms |
 | Una búsqueda de camino, media (distancias largas) | 2 ms | 1,4 ms (5.500 celdas abiertas por búsqueda) |
-| Navegación de 50 caminantes, media por fotograma | 0,5 ms | 0,036 ms (0,7 µs por caminante) |
-| Fotograma más caro (la tribu sale a la vez, 4 búsquedas) | 10 ms | 7 ms |
+| Navegación de 50 caminantes, media por fotograma | 0,5 ms | 0,03 ms (0,5 µs por caminante) |
+| Fotograma más caro con 50 (la tribu sale a la vez, 2 búsquedas) | 10 ms | 5 ms |
+| Navegación de 100 caminantes, media por fotograma | 1 ms | 0,08 ms (0,8 µs por caminante) |
+| Fotograma más caro con 100 | 10 ms | 6,5 ms |
 | Rehacer la cuadrícula al cambiar un obstáculo | 5 ms | 0,02 ms (288 celdas, el 0,3 % de la cuadrícula) |
 | Memoria | — | 316 x 316 x 4 bytes de datos + 16 bytes por celda de búsqueda (≈ 2 MB) |
 
@@ -65,14 +67,41 @@ de los pasos, ninguno vadea por encima de 0,77 m ni se mete en un tronco o una r
 posiciones. En el mismo mundo, un estanque de 16 m de ancho se rodea (34,8 m de camino frente a 28 m en recta) y quien no teme al agua lo vadea (28,6 m).
 
 Para el mundo de 512 m del editor (1.024 x 1.024 celdas) la construcción se mide en `nav rebuild`; el coste por búsqueda sube con la distancia, no con el tamaño del mapa.
-Con 500 caminantes la media por fotograma sería de unos 0,4 ms sin contar las búsquedas, que se reparten a 4 por fotograma (6 ms como máximo en un fotograma).
+### Escala: 100 caminantes
+
+El mismo mundo con 100 caminantes que salen a la vez del campamento hacia 100 puntos: llegan los 100 en 118 s simulados, ninguno se rinde, 161 búsquedas en total y
+**51 replanificaciones, 0,43 por segundo para todo el grupo (0,26 por caminante y minuto)**. Memoria de la cuadrícula: 1,9 MB en total (datos de celdas y memoria de
+trabajo de la búsqueda), de los que el **grafo de regiones ocupa 1,6 KB** (un `float` por región de 16 x 16 celdas: 20 x 20 regiones). La media por fotograma crece
+linealmente con los caminantes (0,8 µs cada uno); lo que se vigila es el fotograma más caro, que depende de cuántas búsquedas largas caen juntas, y por eso
+`MaxPlansPerFrame` vale 2. Con 100 el pico medido es de 6,5 ms. Si molestara, el paso siguiente sería un presupuesto de celdas abiertas por fotograma en vez de por número de búsquedas.
+
+## Puertas y obstáculos que cambian
+
+`DoorObstacles` (`GB/Gameplay/Interactives.h`) da los círculos que una puerta pone en el camino: la valla a cada lado siempre, y la hoja mientras está **cerrada**. El
+editor los añade a los obstáculos estáticos del mundo (`PlayerMode::MakeHost`) y, cada segundo (o con `nav sync`), `ActorWorld::SyncNavigation` hace dos cosas:
+rehace en la cuadrícula solo las celdas alrededor de lo que cambió y **da a todos los actores los obstáculos nuevos** (`Actor::SetStaticObstacles`; antes cada
+actor se quedaba con los que tenía al nacer, así que un árbol talado seguía bloqueando y una puerta no habría bloqueado nunca). Cerrada, el caminante rodea la valla
+(13 m en vez de 10 m en el test); abierta, la cruza por el hueco.
+
+## Viajes fallidos de la tribu (arreglado)
+
+Con `tribe build ... 5` a `timescale 20`, `nav status` decía "0 failed paths" y `tribe status` contaba 2 a 4 viajes fallidos por miembro. Causa: el juicio de atasco del
+`AIDriver` (menos de 30 cm en un segundo) usaba el `dt` del fotograma tal cual, y con la simulación acelerada, o en un fotograma largo (se carga el modelo del
+personaje), un solo paso de 1 s o más lo daba por atascado: tras 3 "replanificaciones" seguidas en el mismo fotograma se rendía ("no headway after replanning"), y
+la tarea `goto` fallaba. Ahora el reloj con el que se juzga el avance se limita a 0,1 s por fotograma (`kMaxJudgedStep`), y el test `navigation_test` lo reproduce
+(pasos de 0,25 a 2 s; sin el límite falla con "no headway after replanning"). Tras el arreglo, 1.500 fotogramas a `timescale 20` con 5 trabajadores: 0 viajes fallidos.
+Otros dos atascos que salieron en las pruebas largas con 5 trabajadores, ya corregidos: dos personajes en contacto que se empujaban y se quedaban en un punto muerto (ahora el que
+toca se aparta de lado además de hacia atrás, y ignora a quien tiene detrás), y la planificación que no trataba como pared al vecino parado a menos de 1,25 m. Y si otro personaje
+está de pie justo en la meta, llegar a su lado cuenta como llegar. Con estos cambios: 4 ejecuciones de 2.500 fotogramas a `timescale 20`, 0 viajes fallidos.
+Además, cuando las órdenes de un actor fallan queda en el registro (`<actor>: orders failed (failed: could not reach (x, z): <motivo>)`), con el motivo del
+`AIDriver` (`StuckReason`).
 
 ## Límites conocidos y siguiente
 
 - Los obstáculos son círculos, como los del `CharacterController`: un edificio rectangular se aproxima con varios (H8 traerá su propia huella).
-- El `ActorWorld` toma los obstáculos de `ActorHost` al construirlo; las puertas (`gate`) y la vegetación como coste aún no alimentan la cuadrícula (la vegetación
-  es una función opcional de `NavConfig`, sin conectar en el editor).
+- La vegetación como coste es una función opcional de `NavConfig`, sin conectar en el editor.
 - Las habilidades con `MoveToTarget` usan el perfil por defecto del `InteractionRunner` de la tarea, no `Actor::Navigation`.
 - La evitación mira posiciones, no velocidades: dos grupos que se cruzan de frente se esquivan, pero un pasillo muy estrecho con tráfico en los dos sentidos
   se resuelve esperando (`CrowdPatience`).
+- Con pasos de 1 s o más (simulación muy acelerada) el controlador puede pasarse de la meta; la navegación ya no se rinde por ello, pero conviene limitar el paso del editor.
 - Falta la otra mitad de H5 (percepción) y que la memoria espacial de cada agente y del clan alimente las metas (otro carril).

@@ -176,7 +176,7 @@ namespace GB
 			m_AI.WalkSpeed = controller.Config.WalkSpeed;
 			m_AI.RunSpeed = controller.Config.RunSpeed;
 			if (m_AI.Arrived()) { Next(); return none; }
-			if (m_AI.Stuck()) { Fail("could not reach (" + std::to_string(t.Position.x) + ", " + std::to_string(t.Position.y) + ")"); return none; }
+			if (m_AI.Stuck()) { Fail("could not reach (" + std::to_string(t.Position.x) + ", " + std::to_string(t.Position.y) + "): " + m_AI.StuckReason()); return none; }
 			m_AI.Profile = Profile;
 			return m_AI.Update(controller, world, dt);
 		case Task::Kind::Interact:

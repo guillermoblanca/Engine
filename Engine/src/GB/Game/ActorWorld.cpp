@@ -43,6 +43,15 @@ namespace GB
 	bool ActorWorld::SyncNavigation(const NavConfig& config, std::string* error)
 	{
 		const CharacterWorld& world = m_Host.World;
+		// the actors collide with what the host says is there now (a tree felled, a door shut), not with what there was when they were made
+		bool same = m_PushedObstacles.size() == world.Obstacles.size();
+		for (size_t i = 0; same && i < world.Obstacles.size(); ++i)
+			same = m_PushedObstacles[i].Center == world.Obstacles[i].Center && m_PushedObstacles[i].Radius == world.Obstacles[i].Radius;
+		if (!same)
+		{
+			m_PushedObstacles = world.Obstacles;
+			for (auto& [name, actor] : m_Actors) actor->SetStaticObstacles(world.Obstacles);
+		}
 		if (!m_Nav.Ready() || !m_Nav.Matches(world))
 		{
 			if (!m_Nav.Build(world, config, error))

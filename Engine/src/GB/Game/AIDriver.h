@@ -2,6 +2,7 @@
 #include "GB/Game/CharacterController.h"
 #include "GB/Navigation/NavGrid.h"
 #include <glm/glm.hpp>
+#include <string>
 #include <vector>
 
 namespace GB
@@ -31,6 +32,7 @@ namespace GB
 		void Stop() { m_Path.clear(); m_Index = 0; m_Arrived = m_Stuck = m_Routed = m_NeedPlan = false; }
 		bool Arrived() const { return m_Arrived; }
 		bool Stuck() const { return m_Stuck; }
+		const std::string& StuckReason() const { return m_Why; }
 		bool HasTarget() const { return m_Index < m_Path.size() || m_NeedPlan; }
 		int Replans() const { return m_Replans; }                       // plans made in a row without headway for the current target
 		const std::vector<glm::vec2>& Path() const { return m_Path; }   // the waypoints it is following (for drawing)
@@ -51,6 +53,7 @@ namespace GB
 		std::vector<glm::vec2> m_Path;
 		size_t m_Index = 0;
 		bool m_Arrived = false, m_Stuck = false;
+		std::string m_Why;
 		float m_StillTime = 0.0f;
 		// planned walking
 		glm::vec2 m_Goal{ 0.0f };

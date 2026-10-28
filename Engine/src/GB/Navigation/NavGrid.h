@@ -25,7 +25,7 @@ namespace GB
 		glm::vec2 AreaMin{ 1e30f }, AreaMax{ -1e30f };   // the part of the world to cover; unset: the bounds of the world
 		std::function<float(float, float)> Vegetation;   // 0..1 density of undergrowth at x,z (optional)
 		int MaxExpansions = 120000;    // cells a single search may open before it gives up
-		int MaxPlansPerFrame = 4;      // searches AllowPlan lets through between two NewFrame calls: the rest wait for the next frame (a crowd that all sets off at once)
+		int MaxPlansPerFrame = 2;      // searches AllowPlan lets through between two NewFrame calls: the rest wait for the next frame (a crowd that all sets off at once)
 		int CoarseFrom = 48;           // searches longer than this many cells (in a straight line) go through the coarse graph first
 	};
 
@@ -79,6 +79,8 @@ namespace GB
 		glm::vec2 CellCenter(int i, int j) const { return m_Min + (glm::vec2(static_cast<float>(i), static_cast<float>(j)) + 0.5f) * m_Config.CellSize; }
 		bool CellAt(const glm::vec2& p, int& i, int& j) const;
 		size_t Obstacles() const { return m_Obstacles.size(); }
+		// Bytes the grid holds: the cells (`regions`: the part of it that is the coarse graph of regions) and the scratch memory of the search.
+		size_t MemoryBytes(size_t* regions = nullptr) const;
 
 		// ---- what a cell is
 		// The cost of walking onto the cell (i, j) with `profile`, or < 0 when it is a wall for that walker.

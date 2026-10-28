@@ -98,6 +98,8 @@ namespace GB
 		float ViewYaw() const { return m_ViewYaw; }             // what "forward" is relative to for Direct and Script input; scripts turn it
 		void SetViewYaw(float yaw) { m_ViewYaw = yaw; }
 		void MoveTo(const glm::vec2& xz, bool run);
+		// Replaces the static obstacles (trees felled or planted, a door that closed): until now they were the ones the actor was built with.
+		void SetStaticObstacles(const std::vector<CircleObstacle>& obstacles) { m_World.Obstacles = obstacles; m_StaticObstacles = obstacles.size(); m_World.DynamicFrom = m_StaticObstacles; }
 		void SetNavigation(const NavGrid* nav) { m_World.Nav = nav; }   // null: straight lines
 		NavProfile Navigation;   // how this actor values the terrain when it plans a path (role, load); see GB/Navigation/NavGrid.h
 		bool AIArrived() const { return m_Source == OrderSource::AI && m_AI.Arrived(); }
@@ -220,6 +222,7 @@ namespace GB
 		MotionTracker m_Tracker;
 		MotionState m_Motion;
 		AIDriver m_AI;
+		bool m_FailLogged = false;   // the failure of the current orders has been logged
 		OrderSource m_Source = OrderSource::Direct;
 		FootstepSounds* m_Steps = nullptr;
 		CharacterController m_Controller;

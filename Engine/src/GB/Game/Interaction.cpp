@@ -100,7 +100,7 @@ namespace GB
 			}
 			else if (m_AI.Stuck())
 			{
-				Fail("could not reach the interaction point");
+				Fail("could not reach the interaction point: " + m_AI.StuckReason());
 				return none;
 			}
 			else
