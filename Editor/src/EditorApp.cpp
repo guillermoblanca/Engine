@@ -832,6 +832,7 @@ namespace GB::Editor
 			in.Ecology = m_Ecology.Config;
 			in.Interactives = m_Interactives.Settings;
 			in.Garden = m_Garden.Config;
+			for (const std::string& name : m_Commands.Names()) in.Commands.push_back({ name, m_Commands.Help(name) });
 			const std::string text = ExportDocsJson(in);
 			const std::filesystem::path path(a[1]);
 			if (path.has_parent_path()) std::filesystem::create_directories(path.parent_path());

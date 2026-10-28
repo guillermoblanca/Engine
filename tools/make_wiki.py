@@ -135,6 +135,7 @@ def section_home(rules, content, docs_status):
            '<ol><li>En el editor, con las demos construidas: <code>docs export docs/wiki/data/rules.json</code> (o <code>tools/make_wiki.cmd</code>, que lo hace sin ventana).</li>'
            '<li><code>python tools/make_wiki.py</code> reconstruye <code>docs/wiki/index.html</code>.</li></ol>',
            '<h2>Mapa</h2><ul>'
+           '<li><a href="#empezar"><b>Empezar</b></a>: compilar, abrir el editor con la tribu y los comandos exactos (también sin ventana, para agentes de otro equipo); <a href="#comandos">lista completa de comandos</a>.</li>'
            '<li><a href="#habilidades">Habilidades</a>: el árbol de lo que un personaje puede hacer, con requisitos, costes, enfriamientos y animaciones.</li>'
            '<li><a href="#efectos">Efectos</a> y <a href="#etiquetas">etiquetas</a>: cómo cambian los atributos y el estado.</li>'
            '<li><a href="#atributos">Atributos</a> por tipo de entidad y <a href="#necesidades">necesidades</a> de los personajes.</li>'
@@ -438,6 +439,90 @@ def section_tags(rules, content):
             'Aquí están todas las que usan hoy las habilidades, los efectos, las entidades y los objetos, y quién las usa.</p>' + walk(tree, ''))
 
 
+
+def section_start():
+    return """<h1>Empezar: lanzar el editor y la tribu</h1>
+<p class="lead">Guía para quien trabaja en otro equipo: compilar, abrir el editor con una tribu en marcha y qué comandos usar. Todo se puede hacer también <b>sin ventana</b> (<code>--hidden</code>), que es lo que usan los agentes y la CI.</p>
+
+<h2>1. Compilar</h2>
+<pre><code>git clone https://github.com/guillermoblanca/Engine.git
+cd Engine
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --config Release -j 8
+ctest --test-dir build -C Release --output-on-failure</code></pre>
+<p>En Windows el editor queda en <code>build\\Editor\\Release\\Editor.exe</code>; en Linux, <code>build/Editor/Editor</code> (hace falta <code>sudo apt install xorg-dev libgl1-mesa-dev</code>). Antes de commitear: configurar con <code>-DGB_WARNINGS_AS_ERRORS=ON</code>. Cierra los editores abiertos antes de recompilar: el .exe bloqueado impide enlazar.</p>
+
+<h2>2. Abrir el editor con la tribu (lo más corto)</h2>
+<p>Crea un fichero <code>tribu.txt</code> con estas líneas (un comando por línea) y pásalo con <code>--script</code>:</p>
+<pre><code>generate temperate 5
+time 11
+weather clear
+tribe build fox 0 0 5
+interactives build -8 -4
+ecology spawn 4 4 8
+camera 35 28 22 0 14 -2
+timescale 3
+panel WorldState on</code></pre>
+<pre><code>build/Editor/Release/Editor.exe --script=tribu.txt</code></pre>
+<p><b>Modelo del personaje.</b> <code>fox</code> y <code>cesium</code> vienen con el repositorio. Para el humanoide con animaciones (X Bot y los packs de Mixamo, que <b>no</b> están en el repositorio) pasa la ruta del .fbx en el equipo: <code>tribe build "D:/GameEngine/packs/full/X Bot.fbx" 0 0 5</code>. Sin los packs, algunos tests y montajes se saltan, pero la tribu funciona.</p>
+
+<h2>3. Los comandos de la tribu, uno a uno</h2>
+<table class="grid"><tr><th>Para</th><th>Comando</th></tr>
+<tr><td>Crear el mundo</td><td><code>generate temperate 5</code> (bioma y semilla)</td></tr>
+<tr><td>Crear la tribu</td><td><code>tribe build [modelo.fbx|fox] [x z] [trabajadores 2-6]</code>: coloca los recursos (escalados con los trabajadores), el campamento con almacén, pozo y hoguera, y los trabajadores con rol (forager, woodcutter, miner)</td></tr>
+<tr><td>Ver qué pasa</td><td><code>tribe status</code> · <code>tribe log 20</code> (últimas 20 líneas) · panel <b>Tribe</b></td></tr>
+<tr><td>Quitar la tribu</td><td><code>tribe clear</code> (los actores quedan: <code>actor remove &lt;nombre&gt;</code>)</td></tr>
+<tr><td>Interactivos</td><td><code>interactives build [x z]</code> · <code>interactives status</code></td></tr>
+<tr><td>Recursos sueltos</td><td><code>resources build [x z] [trabajadores]</code> · <code>resources status</code></td></tr>
+<tr><td>Animales</td><td><code>ecology spawn [n] [x z]</code> · <code>ecology status</code></td></tr>
+<tr><td>Estación</td><td><code>ecology season spring|summer|autumn|winter</code> (salta el reloj) · <code>ecology visuals on|off</code> (clima, nieve y color)</td></tr>
+<tr><td>Acelerar</td><td><code>timescale 1..20</code></td></tr>
+<tr><td>Cámara</td><td><code>camera &lt;yaw&gt; &lt;pitch&gt; &lt;distancia&gt; [x y z]</code> (pitch positivo mira hacia abajo)</td></tr>
+<tr><td>Depurar la mente</td><td><code>ai debug on</code> (conos de visión y memoria) · <code>ai status</code> · <code>ai memory &lt;nombre&gt;</code> · <code>ai scream</code> · <code>nav debug on</code> · <code>nav status</code></td></tr>
+<tr><td>Un personaje</td><td><code>actor list</code> · <code>actor bag &lt;nombre&gt;</code> (inventario) · <code>actor bag &lt;nombre&gt; add wood 4</code> · <code>actor tasks &lt;nombre&gt; goto 3 4 | ability Chop tree_1</code> (los espacios de un nombre van con _)</td></tr>
+<tr><td>Habilidades</td><td><code>ability list &lt;nombre&gt;</code> · <code>ability activate Chop "tree 1" &lt;actor&gt;</code></td></tr>
+<tr><td>Guardar y cargar</td><td><code>save s1</code> · <code>load s1</code> · <code>quicksave</code> · <code>quickload</code> · <code>replay</code></td></tr>
+<tr><td>Contenido en datos</td><td><code>content status</code> · <code>content export f.json</code> · <code>content load f.json</code></td></tr>
+<tr><td>Esta wiki</td><td><code>docs export docs/wiki/data/rules.json</code> y <code>python tools/make_wiki.py</code> (o <code>tools\\make_wiki.cmd</code>)</td></tr>
+<tr><td>Capturas</td><td><code>shot_ui fichero.png</code></td></tr>
+<tr><td>Salir</td><td><code>quit</code></td></tr></table>
+<p>La lista completa y su ayuda está en la sección <a href="#comandos">Comandos</a>. En la consola del editor, <code>help</code> la enseña también.</p>
+
+<h2>4. Sin ventana (para agentes y CI)</h2>
+<pre><code>build/Editor/Release/Editor.exe --hidden --quality=low --script=tribu.txt</code></pre>
+<p>Añade <code>wait 600</code> (frames; a 60 por segundo) y <code>tribe status</code> al guion para esperar y leer el resultado en el registro, y termina siempre con <code>quit</code>. <code>timescale 20</code> hace pasar los días rápido. Con <code>--hidden</code> también funciona <code>shot_ui</code>. El registro sale por la salida estándar: filtra las líneas que empiezan por <code>APP:</code>.</p>
+<pre><code>generate temperate 5
+tribe build fox 0 0 5
+timescale 20
+wait 3000
+tribe status
+ai status
+quit</code></pre>
+
+<h2>5. Para ver qué hace cada uno</h2>
+<ol><li>Abre el panel <b>Tribe</b> (pestaña de la derecha, View &gt; Tribe).</li>
+<li>Haz clic en un trabajador en el viewport, o en su nombre en la tabla: aparecen sus <b>necesidades</b>, su decisión actual y <b>por qué</b> (las opciones con su puntuación).</li>
+<li>Activa <code>ai debug on</code> y <code>nav debug on</code> (o las casillas del panel) para ver conos de visión, memoria y rutas.</li></ol>
+
+<h2>6. Reglas de trabajo en el repositorio</h2>
+<ul><li>Una rama por tarea, PR a <code>master</code>, CI en verde (Windows y Ubuntu con GCC <code>-Werror</code>) y fusión con squash. No hagas push forzado.</li>
+<li>No subas binarios ni carpetas de build. Los packs de animación no están en el repositorio.</li>
+<li>Todo código nuevo debe poder ejecutarse sin ventana y llevar su test. Documentación en español, comentarios de código en inglés.</li>
+<li>El plan y las prioridades están en <a href="#doc-plan-sociedad-viva-md">PLAN_SOCIEDAD_VIVA.md</a> (sección 10.1).</li></ul>"""
+
+
+def section_commands(rules):
+    cmds = rules.get('commands', [])
+    out = ['<h1>Comandos del editor</h1>',
+           f'<p class="lead">Los {len(cmds)} comandos registrados en el editor, con su ayuda (salen del propio editor). Se escriben en la consola, en un guion (<code>--script=fichero.txt</code>, una línea por comando) o con <code>--exec="cmd1; cmd2"</code>. '
+           'Los nombres con espacios se escriben entre comillas o con guion bajo.</p>',
+           '<table class="grid"><tr><th>Comando</th><th>Qué hace</th></tr>']
+    for c in cmds:
+        out.append(f'<tr data-search="{e(c["name"].lower())} {e(c["help"].lower())}"><td><code>{e(c["name"])}</code></td><td>{e(c["help"])}</td></tr>')
+    out.append('</table>')
+    return '\\n'.join(out)
+
+
 def section_docs(rendered):
     groups = {}
     for name, group, body in rendered:
@@ -535,6 +620,8 @@ def main():
 
     sections = [
         ('home', 'Inicio', None, section_home(rules, content, status)),
+        ('empezar', 'Empezar: lanzar la tribu', 'Guía', section_start()),
+        ('comandos', 'Comandos del editor', 'Guía', section_commands(rules)),
         ('habilidades', 'Habilidades', 'Reglas', section_abilities(rules)),
         ('efectos', 'Efectos', 'Reglas', section_effects(rules)),
         ('etiquetas', 'Árbol de etiquetas', 'Reglas', section_tags(rules, content)),
