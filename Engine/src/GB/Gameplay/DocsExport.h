@@ -9,6 +9,8 @@
 #include "GB/Gameplay/Interactives.h"
 #include <map>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace GB
 {
@@ -28,6 +30,7 @@ namespace GB
 		EcologyConfig Ecology;
 		InteractiveSystem::Config Interactives;
 		GardenConfig Garden;
+		std::vector<std::pair<std::string, std::string>> Commands;   // the editor's commands and their help text
 	};
 
 	std::string ExportDocsJson(const DocsInputs& in);

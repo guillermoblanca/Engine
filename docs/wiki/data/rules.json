@@ -147,6 +147,60 @@
         "State.Busy",
         "State.Carrying"
       ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Recursos",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Resource.Gather",
+          "notify": "collect",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pull_plant"
+      ],
+      "moveToTarget": true,
+      "name": "Collect",
+      "needsTarget": true,
+      "note": "collects clay or reeds by hand",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Collect",
+      "targetBlockedTags": [
+        "State.Depleted"
+      ],
+      "targetMinAttributes": [
+        {
+          "attribute": "Amount",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Resource.Node",
+        "Resource.Loose"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
       "cooldownSeconds": 0.5,
       "cost": "Cost.Dig",
       "domain": "Huerto",
@@ -883,7 +937,7 @@
       "moveToTarget": true,
       "name": "Stoke",
       "needsTarget": true,
-      "note": "puts a piece of wood in a campfire (needs wood in the bag)",
+      "note": "puts a piece of wood or a branch in a campfire (needs one in the bag)",
       "point": "",
       "removeEffects": [],
       "requiredProp": "",
@@ -948,6 +1002,388 @@
       "targetRequiredTags": [],
       "unequipProp": "",
       "waitEvent": ""
+    }
+  ],
+  "commands": [
+    {
+      "help": "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)",
+      "name": "ability"
+    },
+    {
+      "help": "actor spawn <name> [model.fbx|fox|cesium] [x z] [player|ai] | list | control <name> | tasks <name> <task list>|stop | remove <name> | sync: the characters of the world (the player is one of them; NPCs use the same controller, animation and abilities). player_* commands act on the controlled one",
+      "name": "actor"
+    },
+    {
+      "help": "add <cube|sphere|plane|light|file.glb|file.gltf> [x y z]: adds an object (models are relative to the assets folder)",
+      "name": "add"
+    },
+    {
+      "help": "ai debug [on|off] | status [name] | memory <name> | scream <name>: the brain of the tribe members: needs, what they decide and why, what they know; `debug` draws their view cones, the obstacles and their memory in the viewport",
+      "name": "ai"
+    },
+    {
+      "help": "anim_stats [clip|all]: root motion, loop quality and foot plants measured from the clips of the loaded model",
+      "name": "anim_stats"
+    },
+    {
+      "help": "anims <file.fbx|folder>: adds the animation clips of an FBX file (or every FBX in a folder) to the loaded model, matching bones by name",
+      "name": "anims"
+    },
+    {
+      "help": "audio_record <file.wav>: records what the engine mixes (headless runs mix in step with the simulation) until audio_stop",
+      "name": "audio_record"
+    },
+    {
+      "help": "audio_stop: writes the recorded audio",
+      "name": "audio_stop"
+    },
+    {
+      "help": "autosave [on|off] [seconds]: saves to the 'autosave' slot on a timer (default every 300 s); without arguments, the state",
+      "name": "autosave"
+    },
+    {
+      "help": "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees)",
+      "name": "camera"
+    },
+    {
+      "help": "character_check [character.fbx]: checks a character (the player's when no file is given): skeleton convention, bones, size and facing, clip roles, sets, montages and what is wrong",
+      "name": "character_check"
+    },
+    {
+      "help": "character_export <file.json> [character.fbx]: writes the character check as JSON (the player's when no character is given)",
+      "name": "character_export"
+    },
+    {
+      "help": "clear: empties the console",
+      "name": "clear"
+    },
+    {
+      "help": "clips: lists the animation clips of the loaded model",
+      "name": "clips"
+    },
+    {
+      "help": "content status | export <file.json> | load <file.json>: the items, recipes and resource nodes as data (assets/data/era1.json is read at start); load adds to or replaces by id",
+      "name": "content"
+    },
+    {
+      "help": "docs export <file.json>: writes what the rules say about themselves (abilities, effects, attributes and tags by kind of entity, needs, senses, roles, seasons, ecology settings) as one JSON; tools/make_wiki.py builds the wiki from it",
+      "name": "docs"
+    },
+    {
+      "help": "echo <text>: prints text (for scripts)",
+      "name": "echo"
+    },
+    {
+      "help": "ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]: rabbits that wander, eat berry bushes and fibre tufts, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)",
+      "name": "ecology"
+    },
+    {
+      "help": "entity create|delete|duplicate|rename|parent|select|add|remove|set|interact|info|list ...: edits the scene's entities",
+      "name": "entity"
+    },
+    {
+      "help": "frame: looks at the middle of the world again",
+      "name": "frame"
+    },
+    {
+      "help": "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)",
+      "name": "garden"
+    },
+    {
+      "help": "generate <temperate|alpine|desert> [seed] [trees] [rocks]: builds a new world",
+      "name": "generate"
+    },
+    {
+      "help": "get <property>: prints a value",
+      "name": "get"
+    },
+    {
+      "help": "graph: lists the states, transitions and parameters of the animation graph and where it is now",
+      "name": "graph"
+    },
+    {
+      "help": "graph_declare <name> float|bool|trigger: declares a parameter of the graph",
+      "name": "graph_declare"
+    },
+    {
+      "help": "graph_default: replaces the graph with one state per locomotion set of the character",
+      "name": "graph_default"
+    },
+    {
+      "help": "graph_enable on|off: lets the graph drive the animation, or not",
+      "name": "graph_enable"
+    },
+    {
+      "help": "graph_load <file.json>: replaces the animation graph with the one in a file",
+      "name": "graph_load"
+    },
+    {
+      "help": "graph_param <name> <value>: sets a parameter the conditions read",
+      "name": "graph_param"
+    },
+    {
+      "help": "graph_save <file.json>: writes the animation graph",
+      "name": "graph_save"
+    },
+    {
+      "help": "graph_start <state>: the state the graph begins in",
+      "name": "graph_start"
+    },
+    {
+      "help": "graph_state <name> locomotion|montage <target> [x y]: adds a state, or changes it when the name exists",
+      "name": "graph_state"
+    },
+    {
+      "help": "graph_state_remove <name>: removes a state and the transitions that touch it",
+      "name": "graph_state_remove"
+    },
+    {
+      "help": "graph_transition <from|*> <to> [Speed>2 ...] [blend=0.3] [priority=1] [min=0.5] [finish]: adds a transition; every condition must hold",
+      "name": "graph_transition"
+    },
+    {
+      "help": "graph_transition_remove <index>: removes a transition (the numbers are listed by graph)",
+      "name": "graph_transition_remove"
+    },
+    {
+      "help": "graph_trigger <name>: fires a trigger parameter",
+      "name": "graph_trigger"
+    },
+    {
+      "help": "graph_validate: lists what would stop the graph from working (unknown states, sets, montages, parameters)",
+      "name": "graph_validate"
+    },
+    {
+      "help": "hdri <file.hdr|off>: uses an HDR environment for the sky and reflections",
+      "name": "hdri"
+    },
+    {
+      "help": "help [command]: lists the commands, or explains one",
+      "name": "help"
+    },
+    {
+      "help": "interact <entity> [point]: the player goes to an interaction point of an entity and uses it (underscores in names stand for spaces); no argument lists the points of the scene",
+      "name": "interact"
+    },
+    {
+      "help": "interactives build [x z] | status: puts a campfire (Stoke with wood), a well (DrawWater) and a gate (OpenDoor, CloseDoor) in the scene; their state is saved with the game",
+      "name": "interactives"
+    },
+    {
+      "help": "list [prefix]: the properties you can get/set",
+      "name": "list"
+    },
+    {
+      "help": "load <name>: loads a saved game; a damaged or incompatible one is refused and nothing changes",
+      "name": "load"
+    },
+    {
+      "help": "load_model <model.glb|gltf>, or load <model.glb|gltf>: puts a glTF model in the scene (animated clips are listed in the Model panel)",
+      "name": "load_model"
+    },
+    {
+      "help": "manifest_info: the animation manifest (sets, montages, packs) and what the FBX player has clips for",
+      "name": "manifest_info"
+    },
+    {
+      "help": "manifest_load <file.json>: replaces the animation manifest (rebuilds the FBX player's sets, turns, jump and montages)",
+      "name": "manifest_load"
+    },
+    {
+      "help": "manifest_save <file.json>: writes the animation manifest in use",
+      "name": "manifest_save"
+    },
+    {
+      "help": "montage_info [montage]: describes a montage (clip, slot, blends, rate, notifies, sections); no name lists them",
+      "name": "montage_info"
+    },
+    {
+      "help": "montage_load <file.json>: adds (or replaces, by name) the montages of a file that the character has clips for",
+      "name": "montage_load"
+    },
+    {
+      "help": "montage_notify <montage> add <time 0..1> <name> | remove <name> | move <name> <time 0..1>: edits a montage's notifies (time as a fraction of its clip)",
+      "name": "montage_notify"
+    },
+    {
+      "help": "montage_save <file.json>: writes every montage of the player (notifies and sections included)",
+      "name": "montage_save"
+    },
+    {
+      "help": "montage_section <montage> add <time 0..1> <name> | remove <name>: edits a montage's sections",
+      "name": "montage_section"
+    },
+    {
+      "help": "montage_seek <montage> <seconds>|off: previews a montage paused at that moment of its clip; off releases it",
+      "name": "montage_seek"
+    },
+    {
+      "help": "montage_set <montage> blendin|blendout|rate|loop|striptravel|slot <value>: edits a montage's settings",
+      "name": "montage_set"
+    },
+    {
+      "help": "nav status | debug on|off | rebuild | sync | path <x1 z1 x2 z2> [load 0-1]: navigation over the terrain: the grid the characters plan their paths on (trunks, rocks, deep water and cliffs are walls; wading and slopes cost), the paths they follow and what the planning has cost",
+      "name": "nav"
+    },
+    {
+      "help": "new_scene: an empty scene (camera and sun only, no generated world); same as `scene new`",
+      "name": "new_scene"
+    },
+    {
+      "help": "panel <name> [on|off]: shows or hides a panel (Animation, Model, Stats, ...); panel Animation tab <Character|Animator|Montages|Sockets|IK> picks its tab",
+      "name": "panel"
+    },
+    {
+      "help": "play <clip name|index> [fade seconds]: plays a clip of the loaded model",
+      "name": "play"
+    },
+    {
+      "help": "player [fox|cesium|<character.fbx>|off] [keys]: walk the world in third person (WASD, Shift runs, drag the mouse to look). An FBX character loads its folder's animations and walks with the locomotion blend. keys = a script like \"W:2,RW:3,:1\" for headless runs",
+      "name": "player"
+    },
+    {
+      "help": "player_attach [box|bag|tool|off]: the FBX player carries a prop (box in both hands with IK, a bag on the back, a tool in the hand); off lets go; no argument lists what is carried",
+      "name": "player_attach"
+    },
+    {
+      "help": "player_blast <x> <z> [radius] [speed]: an explosion on the ground there; within its radius the player is thrown as a ragdoll",
+      "name": "player_blast"
+    },
+    {
+      "help": "player_feet on|off: the FBX player's feet follow the terrain with IK (on by default)",
+      "name": "player_feet"
+    },
+    {
+      "help": "player_getup: the ragdoll stands up where it lies (facing the way its head points) and blends back to the animation",
+      "name": "player_getup"
+    },
+    {
+      "help": "player_goto <x> <z> [run]: an AI leads the player character to that point (same controller, animation and footsteps as the keyboard)",
+      "name": "player_goto"
+    },
+    {
+      "help": "player_hit <x> <y> <z>: an impulse (N s) on the ragdoll's pelvis (a blow)",
+      "name": "player_hit"
+    },
+    {
+      "help": "player_look <x> <y> <z> | camera | off: the FBX player turns its head toward a world point, the camera, or forward again",
+      "name": "player_look"
+    },
+    {
+      "help": "player_montage [name [section]|stop]: plays a one-shot action (pick_fruit, water, milk_cow...) over the FBX player; no name lists them",
+      "name": "player_montage"
+    },
+    {
+      "help": "player_overlay [name] [fade seconds]: switches the locomotion set of the FBX player (box, holding, wheelbarrow, free); no name lists them",
+      "name": "player_overlay"
+    },
+    {
+      "help": "player_ragdoll [vx vy vz]: the FBX player collapses into a ragdoll (bodies and joints in a physics world made of the same ground, water, trees and rocks), keeping its speed plus the given one; it gets up by itself after a pause",
+      "name": "player_ragdoll"
+    },
+    {
+      "help": "player_tasks <task list>|stop: the player does a list of tasks like an NPC (goto x z [run] | interact <entity> [point] | wait s | attach prop | detach [prop] | ability <name> [entity], separated by '|' or new lines)",
+      "name": "player_tasks"
+    },
+    {
+      "help": "quality <low|medium|high|ultra>: post-processing preset",
+      "name": "quality"
+    },
+    {
+      "help": "quickload: loads the 'quicksave' slot (F9)",
+      "name": "quickload"
+    },
+    {
+      "help": "quicksave: saves to the 'quicksave' slot (F5)",
+      "name": "quicksave"
+    },
+    {
+      "help": "quit: closes the editor",
+      "name": "quit"
+    },
+    {
+      "help": "redo: re-applies an undone scene edit",
+      "name": "redo"
+    },
+    {
+      "help": "replay record | replay stop [file] | replay play <file>: records the orders of a session and plays them again from the same start to check the end state",
+      "name": "replay"
+    },
+    {
+      "help": "resources build [x z [workers]] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)",
+      "name": "resources"
+    },
+    {
+      "help": "retarget <animations.fbx|folder>: applies the animations of another skeleton (any naming, proportions or rest pose) to the FBX player; the clips are added to it and its animator rebuilt",
+      "name": "retarget"
+    },
+    {
+      "help": "run <script.txt>: runs the commands in a file",
+      "name": "run"
+    },
+    {
+      "help": "save <name>: saves the game (world seed, edits, garden, clock, weather) in saves/<name>.gbsave",
+      "name": "save"
+    },
+    {
+      "help": "saves: lists the saved games with their date and version",
+      "name": "saves"
+    },
+    {
+      "help": "scene new|save <file>|load <file>: scene files (JSON)",
+      "name": "scene"
+    },
+    {
+      "help": "screenshot <file.png>: saves the viewport (the 3D view without the interface)",
+      "name": "screenshot"
+    },
+    {
+      "help": "select <name|id|none>: selects an entity",
+      "name": "select"
+    },
+    {
+      "help": "set <property> <value...>: changes a value (numbers, true/false, enum names, 'r g b' or #rrggbb)",
+      "name": "set"
+    },
+    {
+      "help": "shot_ui <file.png>: saves the whole window, panels included, at the end of this frame",
+      "name": "shot_ui"
+    },
+    {
+      "help": "stats: frame time, objects drawn/culled and world counts",
+      "name": "stats"
+    },
+    {
+      "help": "test <name> [sandbox]: builds a Sandbox test scene in the viewport (sandbox = run the original in its own window)",
+      "name": "test"
+    },
+    {
+      "help": "tests: lists the Sandbox test scenes you can run with `test <name>`",
+      "name": "tests"
+    },
+    {
+      "help": "time <hours>: sets the hour of the day (0-24) and turns time of day on",
+      "name": "time"
+    },
+    {
+      "help": "timescale <1-20>: runs the simulation (gameplay, actors, tribe) that many times per frame; 1 is real time",
+      "name": "timescale"
+    },
+    {
+      "help": "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | remove <name> | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves",
+      "name": "tribe"
+    },
+    {
+      "help": "undo: reverts the last scene edit",
+      "name": "undo"
+    },
+    {
+      "help": "wait <frames>: in a script, pauses for that many frames",
+      "name": "wait"
+    },
+    {
+      "help": "weather <clear|lightrain|rain|storm|snow|blizzard|dust|sandstorm|tornado> [snap]",
+      "name": "weather"
     }
   ],
   "decision": {
@@ -1435,6 +1871,22 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.clay_bank",
+      "periodSeconds": 60.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.fiber_grass",
       "periodSeconds": 15.0,
       "policy": "infinite",
@@ -1451,8 +1903,56 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.old_tree",
+      "periodSeconds": 120.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.reed_bed",
+      "periodSeconds": 20.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.tree",
       "periodSeconds": 30.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.young_tree",
+      "periodSeconds": 40.0,
       "policy": "infinite",
       "removedTags": [],
       "unique": true
@@ -1479,6 +1979,7 @@
       "abilities": [
         "Chop",
         "CloseDoor",
+        "Collect",
         "DrawWater",
         "Gather",
         "Mine",
@@ -1627,17 +2128,28 @@
           "name": "Regrow"
         }
       ],
-      "count": 39,
+      "count": 65,
       "example": "berry bush 1",
       "kind": "Nodo de recurso",
       "tags": [
+        "Resource.Loose.Clay",
+        "Resource.Loose.Reed",
         "Resource.Node",
         "Resource.Node.berry_bush",
+        "Resource.Node.clay_bank",
+        "Resource.Node.copper_vein",
         "Resource.Node.fiber_grass",
+        "Resource.Node.flint_outcrop",
+        "Resource.Node.old_tree",
+        "Resource.Node.reed_bed",
         "Resource.Node.rock",
         "Resource.Node.tree",
+        "Resource.Node.young_tree",
         "Resource.Plant",
+        "Resource.Plant.Branch",
         "Resource.Stone",
+        "Resource.Stone.Copper",
+        "Resource.Stone.Flint",
         "Resource.Wood"
       ]
     },

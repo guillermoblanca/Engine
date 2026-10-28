@@ -199,6 +199,9 @@ namespace GB
 			{ "adultSeconds", Round(e.AdultSeconds) }, { "breedCooldown", Round(e.BreedCooldown) }, { "starveSeconds", Round(e.StarveSeconds) } };
 		root["interactives"] = { { "burnSeconds", Round(in.Interactives.BurnSeconds) }, { "fuelPerWood", in.Interactives.FuelPerWood }, { "waterPerDraw", in.Interactives.WaterPerDraw } };
 		root["garden"] = { { "stageSeconds", Round(in.Garden.StageSeconds) }, { "moistureSeconds", Round(in.Garden.MoistureSeconds) }, { "treeSeconds", Round(in.Garden.TreeSeconds) } };
+		Json commands = Json::array();
+		for (const auto& c : in.Commands) commands.push_back({ { "name", c.first }, { "help", c.second } });
+		root["commands"] = commands;
 		return root.dump(2);
 	}
 }
