@@ -54,10 +54,10 @@ umbral para no fallar en máquinas lentas; las cifras son de una ejecución en e
 |---|---|---|
 | Construir la cuadrícula (316 x 316 celdas) | 250 ms | 8 ms |
 | Una búsqueda de camino, media (distancias largas) | 2 ms | 1,4 ms (5.500 celdas abiertas por búsqueda) |
-| Navegación de 50 caminantes, media por fotograma | 0,5 ms | 0,05 ms (1 µs por caminante) |
-| Fotograma más caro con 50 (la tribu sale a la vez, 2 búsquedas) | 10 ms | 7 ms |
-| Navegación de 100 caminantes, media por fotograma | 1 ms | 0,12 ms (1,2 µs por caminante) |
-| Fotograma más caro con 100 | 10 ms | 11 ms (búsquedas que fallan con vecinos como muros y se repiten sin ellos) |
+| Navegación de 50 caminantes, media por fotograma | 0,5 ms | 0,03 ms (0,5 µs por caminante) |
+| Fotograma más caro con 50 (la tribu sale a la vez, 2 búsquedas) | 10 ms | 5 ms |
+| Navegación de 100 caminantes, media por fotograma | 1 ms | 0,08 ms (0,8 µs por caminante) |
+| Fotograma más caro con 100 | 10 ms | 6,5 ms |
 | Rehacer la cuadrícula al cambiar un obstáculo | 5 ms | 0,02 ms (288 celdas, el 0,3 % de la cuadrícula) |
 | Memoria | — | 316 x 316 x 4 bytes de datos + 16 bytes por celda de búsqueda (≈ 2 MB) |
 
@@ -69,12 +69,11 @@ posiciones. En el mismo mundo, un estanque de 16 m de ancho se rodea (34,8 m de 
 Para el mundo de 512 m del editor (1.024 x 1.024 celdas) la construcción se mide en `nav rebuild`; el coste por búsqueda sube con la distancia, no con el tamaño del mapa.
 ### Escala: 100 caminantes
 
-El mismo mundo con 100 caminantes que salen a la vez del campamento hacia 100 puntos: llegan los 100 en 124 s simulados, ninguno se rinde, 247 búsquedas en total y
-**142 replanificaciones, 1,1 por segundo para todo el grupo (0,7 por caminante y minuto)**. Memoria de la cuadrícula: 1,9 MB en total (datos de celdas y memoria de
+El mismo mundo con 100 caminantes que salen a la vez del campamento hacia 100 puntos: llegan los 100 en 118 s simulados, ninguno se rinde, 161 búsquedas en total y
+**51 replanificaciones, 0,43 por segundo para todo el grupo (0,26 por caminante y minuto)**. Memoria de la cuadrícula: 1,9 MB en total (datos de celdas y memoria de
 trabajo de la búsqueda), de los que el **grafo de regiones ocupa 1,6 KB** (un `float` por región de 16 x 16 celdas: 20 x 20 regiones). La media por fotograma crece
-linealmente con los caminantes (1,2 µs cada uno); lo que se vigila es el fotograma más caro, que depende de cuántas búsquedas largas caen juntas, y por eso
-`MaxPlansPerFrame` vale 2. Con 100 el pico medido (11 ms) supera por poco el presupuesto de 10 ms: es una búsqueda que falla con los vecinos como muros y se repite
-sin ellos. Siguiente paso si molesta: presupuesto de celdas abiertas por fotograma en vez de por número de búsquedas.
+linealmente con los caminantes (0,8 µs cada uno); lo que se vigila es el fotograma más caro, que depende de cuántas búsquedas largas caen juntas, y por eso
+`MaxPlansPerFrame` vale 2. Con 100 el pico medido es de 6,5 ms. Si molestara, el paso siguiente sería un presupuesto de celdas abiertas por fotograma en vez de por número de búsquedas.
 
 ## Puertas y obstáculos que cambian
 
@@ -91,6 +90,9 @@ Con `tribe build ... 5` a `timescale 20`, `nav status` decía "0 failed paths" y
 personaje), un solo paso de 1 s o más lo daba por atascado: tras 3 "replanificaciones" seguidas en el mismo fotograma se rendía ("no headway after replanning"), y
 la tarea `goto` fallaba. Ahora el reloj con el que se juzga el avance se limita a 0,1 s por fotograma (`kMaxJudgedStep`), y el test `navigation_test` lo reproduce
 (pasos de 0,25 a 2 s; sin el límite falla con "no headway after replanning"). Tras el arreglo, 1.500 fotogramas a `timescale 20` con 5 trabajadores: 0 viajes fallidos.
+Otros dos atascos que salieron en las pruebas largas con 5 trabajadores, ya corregidos: dos personajes en contacto que se empujaban y se quedaban en un punto muerto (ahora el que
+toca se aparta de lado además de hacia atrás, y ignora a quien tiene detrás), y la planificación que no trataba como pared al vecino parado a menos de 1,25 m. Y si otro personaje
+está de pie justo en la meta, llegar a su lado cuenta como llegar. Con estos cambios: 4 ejecuciones de 2.500 fotogramas a `timescale 20`, 0 viajes fallidos.
 Además, cuando las órdenes de un actor fallan queda en el registro (`<actor>: orders failed (failed: could not reach (x, z): <motivo>)`), con el motivo del
 `AIDriver` (`StuckReason`).
 

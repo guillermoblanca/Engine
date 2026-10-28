@@ -195,6 +195,7 @@ static CrowdResult RunCrowd(NavGrid& grid, const CharacterWorld& base, int walke
 		const Walker& w = ws[static_cast<size_t>(i)];
 		r.Arrived += w.AI.Arrived() ? 1 : 0;
 		r.Stuck += w.AI.Stuck() ? 1 : 0;
+		if (w.AI.Stuck()) std::fprintf(stderr, "  walker %d gave up: %s (goal %.1f, %.1f)\n", i, w.AI.StuckReason().c_str(), static_cast<double>(targets[static_cast<size_t>(i)].x), static_cast<double>(targets[static_cast<size_t>(i)].y));
 		r.Final.push_back({ w.C.GetPosition().x, w.C.GetPosition().z });
 	}
 	return r;

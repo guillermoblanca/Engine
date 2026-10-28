@@ -1,6 +1,7 @@
 #include "GB/Game/AIDriver.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdio>
 
 namespace GB
 {
@@ -24,14 +25,16 @@ namespace GB
 				const float dist = glm::length(rel);
 				const float reach = others[k].Radius + radius + 0.2f;
 				if (dist < 1e-4f || dist > lookAhead + reach) continue;
-				if (dist < reach + 0.15f)   // touching: step away
+				const float ahead = glm::dot(rel, dir);
+				if (ahead < -0.2f) continue;   // behind: it is the one who has to get out of the way
+				if (dist < reach + 0.15f)   // touching: step back a little and round it (only stepping back, with the path through it, is a standoff)
 				{
-					steer -= rel / dist * 2.0f;
-					speedScale = std::min(speedScale, 0.5f);
+					const float lat = dir.x * rel.y - dir.y * rel.x;
+					steer -= rel / dist * 0.8f;
+					steer += left * (lat > 0.05f ? -1.0f : (lat < -0.05f ? 1.0f : -1.0f)) * 1.5f;
+					speedScale = std::min(speedScale, 0.6f);
 					continue;
 				}
-				const float ahead = glm::dot(rel, dir);
-				if (ahead < -0.2f) continue;
 				const float lateral = dir.x * rel.y - dir.y * rel.x;   // > 0: it is on the left
 				if (std::fabs(lateral) > reach + 0.3f) continue;
 				const float side = lateral > 0.05f ? -1.0f : (lateral < -0.05f ? 1.0f : -1.0f);
@@ -113,7 +116,7 @@ namespace GB
 			for (size_t k = world.DynamicFrom; k < world.Obstacles.size(); ++k)
 			{
 				const float d = glm::distance(world.Obstacles[k].Center, here);
-				if (d < 6.0f && d > world.Obstacles[k].Radius + 0.9f) near.push_back(world.Obstacles[k]);   // (not one it stands against: it would be a wall around itself)
+				if (d < 6.0f && d > world.Obstacles[k].Radius + 0.5f) near.push_back(world.Obstacles[k]);   // (not one it stands against: it would be a wall around itself)
 			}
 		NavPath path;
 		bool ok = nav.FindPath(profile, here, m_Goal, path, near.empty() ? nullptr : &near);
@@ -154,7 +157,10 @@ namespace GB
 			Plan(c, nav, world, true);
 			return;
 		}
-		if (m_Replans + 1 > MaxReplans) { m_Stuck = true; m_Why = "no headway after replanning"; m_Path.clear(); m_Index = 0; return; }
+		float nearestOther = 1e9f;
+		if (world.DynamicFrom < world.Obstacles.size())
+			for (size_t k = world.DynamicFrom; k < world.Obstacles.size(); ++k) nearestOther = std::min(nearestOther, glm::distance(world.Obstacles[k].Center, here));
+		if (m_Replans + 1 > MaxReplans) { m_Stuck = true; { char b[160]; std::snprintf(b, sizeof b, "no headway after replanning, at (%.2f, %.2f), %.2f m from the goal, speed %.2f, blocked %d, waypoint %zu/%zu, nearest character %.2f m, crowd waited %.0f s", static_cast<double>(here.x), static_cast<double>(here.y), static_cast<double>(glm::distance(here, m_Goal)), static_cast<double>(c.GetSpeed()), c.WasBlocked() ? 1 : 0, m_Index, m_Path.size(), static_cast<double>(nearestOther), static_cast<double>(m_CrowdSeconds)); m_Why = b; } m_Path.clear(); m_Index = 0; return; }
 		const int replans = m_Replans + 1;
 		Plan(c, nav, world, true);
 		m_Replans = replans;
@@ -167,7 +173,12 @@ namespace GB
 		if (m_Arrived || m_Stuck) return CharacterInput();
 
 		const glm::vec2 here(c.GetPosition().x, c.GetPosition().z);
-		if (glm::distance(here, m_Goal) < ArriveRadius) { m_Arrived = true; m_Path.clear(); m_Index = 0; m_NeedPlan = false; return CharacterInput(); }
+		// someone else stands on the goal (a camp spot, a node): next to them is as near as it gets
+		bool occupied = false;
+		if (glm::distance(here, m_Goal) < 1.6f && world.DynamicFrom < world.Obstacles.size())
+			for (size_t k = world.DynamicFrom; k < world.Obstacles.size() && !occupied; ++k)
+				occupied = glm::distance(world.Obstacles[k].Center, m_Goal) < world.Obstacles[k].Radius + c.Config.Radius + 0.1f;
+		if (glm::distance(here, m_Goal) < ArriveRadius || (occupied && c.GetSpeed() < 0.5f && glm::distance(here, m_Goal) < 1.3f)) { m_Arrived = true; m_Path.clear(); m_Index = 0; m_NeedPlan = false; return CharacterInput(); }
 		if (m_NeedPlan)
 		{
 			if (!nav->AllowPlan()) return CharacterInput();   // (a crowd sets off over a few frames)
