@@ -17,5 +17,6 @@ echo quit
 ) > docs\wiki\data\export.txt
 "%BUILD%\Editor\Release\Editor.exe" --hidden --quality=low --script=docs/wiki/data/export.txt
 python tools\make_wiki.py
+del docs\wiki\data\export.txt
 echo.
 echo Abre docs\wiki\index.html en el navegador.

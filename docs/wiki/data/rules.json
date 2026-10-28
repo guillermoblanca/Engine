@@ -147,6 +147,60 @@
         "State.Busy",
         "State.Carrying"
       ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Recursos",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Resource.Gather",
+          "notify": "collect",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pull_plant"
+      ],
+      "moveToTarget": true,
+      "name": "Collect",
+      "needsTarget": true,
+      "note": "collects clay or reeds by hand",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Collect",
+      "targetBlockedTags": [
+        "State.Depleted"
+      ],
+      "targetMinAttributes": [
+        {
+          "attribute": "Amount",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Resource.Node",
+        "Resource.Loose"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
       "cooldownSeconds": 0.5,
       "cost": "Cost.Dig",
       "domain": "Huerto",
@@ -883,7 +937,7 @@
       "moveToTarget": true,
       "name": "Stoke",
       "needsTarget": true,
-      "note": "puts a piece of wood in a campfire (needs wood in the bag)",
+      "note": "puts a piece of wood or a branch in a campfire (needs one in the bag)",
       "point": "",
       "removeEffects": [],
       "requiredProp": "",
@@ -1435,6 +1489,22 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.clay_bank",
+      "periodSeconds": 60.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.fiber_grass",
       "periodSeconds": 15.0,
       "policy": "infinite",
@@ -1451,8 +1521,56 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.old_tree",
+      "periodSeconds": 120.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.reed_bed",
+      "periodSeconds": 20.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.tree",
       "periodSeconds": 30.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.young_tree",
+      "periodSeconds": 40.0,
       "policy": "infinite",
       "removedTags": [],
       "unique": true
@@ -1479,6 +1597,7 @@
       "abilities": [
         "Chop",
         "CloseDoor",
+        "Collect",
         "DrawWater",
         "Gather",
         "Mine",
@@ -1627,17 +1746,28 @@
           "name": "Regrow"
         }
       ],
-      "count": 39,
+      "count": 65,
       "example": "berry bush 1",
       "kind": "Nodo de recurso",
       "tags": [
+        "Resource.Loose.Clay",
+        "Resource.Loose.Reed",
         "Resource.Node",
         "Resource.Node.berry_bush",
+        "Resource.Node.clay_bank",
+        "Resource.Node.copper_vein",
         "Resource.Node.fiber_grass",
+        "Resource.Node.flint_outcrop",
+        "Resource.Node.old_tree",
+        "Resource.Node.reed_bed",
         "Resource.Node.rock",
         "Resource.Node.tree",
+        "Resource.Node.young_tree",
         "Resource.Plant",
+        "Resource.Plant.Branch",
         "Resource.Stone",
+        "Resource.Stone.Copper",
+        "Resource.Stone.Flint",
         "Resource.Wood"
       ]
     },
