@@ -1,0 +1,1955 @@
+{
+  "abilities": [
+    {
+      "activationEffects": [
+        "Carrying.Box"
+      ],
+      "activeTags": [],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "",
+      "domain": "Transporte",
+      "durationSeconds": 1.0,
+      "endEffects": [],
+      "equipProp": "box",
+      "events": [],
+      "keepProp": true,
+      "montages": [],
+      "moveToTarget": true,
+      "name": "CarryBox",
+      "needsTarget": false,
+      "note": "",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.CarryBox",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Recursos",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "tool",
+      "events": [
+        {
+          "eventTag": "Event.Resource.Gather",
+          "notify": "chop",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "sword_slash_1",
+        "sword_slash_3"
+      ],
+      "moveToTarget": true,
+      "name": "Chop",
+      "needsTarget": true,
+      "note": "chops a tree (needs an axe)",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [
+        "Item.Tool.Axe"
+      ],
+      "tag": "Ability.Chop",
+      "targetBlockedTags": [
+        "State.Depleted"
+      ],
+      "targetMinAttributes": [
+        {
+          "attribute": "Amount",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Resource.Node",
+        "Resource.Wood"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Interactivos",
+      "durationSeconds": 1.5,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Door.Close",
+          "notify": "close",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pick_fruit"
+      ],
+      "moveToTarget": true,
+      "name": "CloseDoor",
+      "needsTarget": true,
+      "note": "closes a door",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.CloseDoor",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Interactive.Door",
+        "State.Open"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.5,
+      "cost": "Cost.Dig",
+      "domain": "Huerto",
+      "durationSeconds": 2.5,
+      "endEffects": [],
+      "equipProp": "shovel",
+      "events": [
+        {
+          "eventTag": "Event.Soil.Dig",
+          "notify": "dig",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "dig_plant"
+      ],
+      "moveToTarget": true,
+      "name": "Dig",
+      "needsTarget": true,
+      "note": "digs a plot of grass",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Dig",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "State.Soil.Grass"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Interactivos",
+      "durationSeconds": 1.5,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Water.Draw",
+          "notify": "draw",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pick_fruit"
+      ],
+      "moveToTarget": true,
+      "name": "DrawWater",
+      "needsTarget": true,
+      "note": "fills the bag with water from a well",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.DrawWater",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [
+        {
+          "attribute": "Water",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Interactive.Well"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [],
+      "blockedTags": [
+        "State.Busy"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "",
+      "domain": "Transporte",
+      "durationSeconds": 1.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [],
+      "keepProp": false,
+      "montages": [],
+      "moveToTarget": true,
+      "name": "DropBox",
+      "needsTarget": false,
+      "note": "",
+      "point": "",
+      "removeEffects": [
+        "Carrying.Box"
+      ],
+      "requiredProp": "",
+      "requiredTags": [
+        "State.Carrying.Box"
+      ],
+      "tag": "Ability.DropBox",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "box",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy"
+      ],
+      "cooldownSeconds": 0.5,
+      "cost": "Cost.Dump",
+      "domain": "Huerto",
+      "durationSeconds": 3.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Compost.Dump",
+          "notify": "dump",
+          "selfEffects": [],
+          "targetEffects": [
+            "Gain.Compost"
+          ],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "wheelbarrow_dump"
+      ],
+      "moveToTarget": true,
+      "name": "DumpWheelbarrow",
+      "needsTarget": true,
+      "note": "tips a crop out of the wheelbarrow onto the compost",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "Wheelbarrow",
+      "requiredTags": [],
+      "tag": "Ability.DumpWheelbarrow",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Garden.Compost"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Recursos",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Resource.Gather",
+          "notify": "gather",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pick_fruit_2"
+      ],
+      "moveToTarget": true,
+      "name": "Gather",
+      "needsTarget": true,
+      "note": "picks berries by hand",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Gather",
+      "targetBlockedTags": [
+        "State.Depleted",
+        "Resource.Node.fiber_grass"
+      ],
+      "targetMinAttributes": [
+        {
+          "attribute": "Amount",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Resource.Node",
+        "Resource.Plant"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.5,
+      "cost": "Cost.Milk",
+      "domain": "Huerto",
+      "durationSeconds": 3.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Cow.Milk",
+          "notify": "milk",
+          "selfEffects": [
+            "Gain.Milk"
+          ],
+          "targetEffects": [
+            "Lose.Milk"
+          ],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "milk_cow"
+      ],
+      "moveToTarget": true,
+      "name": "Milk",
+      "needsTarget": true,
+      "note": "milks the cow",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Milk",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [
+        {
+          "attribute": "Milk",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "State.Cow"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Recursos",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "tool",
+      "events": [
+        {
+          "eventTag": "Event.Resource.Gather",
+          "notify": "mine",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "sword_attack_4"
+      ],
+      "moveToTarget": true,
+      "name": "Mine",
+      "needsTarget": true,
+      "note": "mines a rock (needs a pickaxe)",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [
+        "Item.Tool.Pickaxe"
+      ],
+      "tag": "Ability.Mine",
+      "targetBlockedTags": [
+        "State.Depleted"
+      ],
+      "targetMinAttributes": [
+        {
+          "attribute": "Amount",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Resource.Node",
+        "Resource.Stone"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Interactivos",
+      "durationSeconds": 1.5,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Door.Open",
+          "notify": "open",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pick_fruit"
+      ],
+      "moveToTarget": true,
+      "name": "OpenDoor",
+      "needsTarget": true,
+      "note": "opens a door",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.OpenDoor",
+      "targetBlockedTags": [
+        "State.Open"
+      ],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Interactive.Door"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.5,
+      "cost": "Cost.Pick",
+      "domain": "Huerto",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Fruit.Pick",
+          "notify": "pick",
+          "selfEffects": [
+            "Gain.Fruit"
+          ],
+          "targetEffects": [
+            "Lose.Fruit"
+          ],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pick_fruit",
+        "pick_fruit_2",
+        "pick_fruit_3"
+      ],
+      "moveToTarget": true,
+      "name": "PickFruit",
+      "needsTarget": true,
+      "note": "picks a fruit (three animations in turn)",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.PickFruit",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [
+        {
+          "attribute": "Fruit",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "State.Tree.Grown"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.5,
+      "cost": "Cost.PlantTree",
+      "domain": "Huerto",
+      "durationSeconds": 3.0,
+      "endEffects": [],
+      "equipProp": "shovel",
+      "events": [
+        {
+          "eventTag": "Event.Tree.Plant",
+          "notify": "plant",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "plant_tree"
+      ],
+      "moveToTarget": true,
+      "name": "PlantTree",
+      "needsTarget": true,
+      "note": "plants a sapling in the tree spot",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.PlantTree",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "State.Tree.Empty"
+      ],
+      "unequipProp": "",
+      "waitEvent": "Event.Tree.Rooted"
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.5,
+      "cost": "Cost.Pull",
+      "domain": "Huerto",
+      "durationSeconds": 2.5,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Soil.Harvest",
+          "notify": "pull",
+          "selfEffects": [
+            "Gain.Crop"
+          ],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pull_plant",
+        "pull_plant_2"
+      ],
+      "moveToTarget": true,
+      "name": "Pull",
+      "needsTarget": true,
+      "note": "pulls a grown plant out of its plot",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Pull",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "State.Soil.Planted.Grown"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Recursos",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Resource.Gather",
+          "notify": "pull",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "pull_plant"
+      ],
+      "moveToTarget": true,
+      "name": "PullFiber",
+      "needsTarget": true,
+      "note": "pulls fibre from a tuft of grass",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.PullFiber",
+      "targetBlockedTags": [
+        "State.Depleted"
+      ],
+      "targetMinAttributes": [
+        {
+          "attribute": "Amount",
+          "value": 1.0
+        }
+      ],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Resource.Node",
+        "Resource.Node.fiber_grass"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [
+        "Carrying.Wheelbarrow"
+      ],
+      "activeTags": [],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "",
+      "domain": "Transporte",
+      "durationSeconds": 1.0,
+      "endEffects": [],
+      "equipProp": "wheelbarrow",
+      "events": [],
+      "keepProp": true,
+      "montages": [],
+      "moveToTarget": true,
+      "name": "PushWheelbarrow",
+      "needsTarget": false,
+      "note": "",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.PushWheelbarrow",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [],
+      "blockedTags": [
+        "State.Busy"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "",
+      "domain": "Transporte",
+      "durationSeconds": 1.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [],
+      "keepProp": false,
+      "montages": [],
+      "moveToTarget": true,
+      "name": "ReleaseWheelbarrow",
+      "needsTarget": false,
+      "note": "",
+      "point": "",
+      "removeEffects": [
+        "Carrying.Wheelbarrow"
+      ],
+      "requiredProp": "",
+      "requiredTags": [
+        "State.Carrying.Wheelbarrow"
+      ],
+      "tag": "Ability.ReleaseWheelbarrow",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "wheelbarrow",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.5,
+      "cost": "Cost.Sow",
+      "domain": "Huerto",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "seeds",
+      "events": [
+        {
+          "eventTag": "Event.Soil.Sow",
+          "notify": "sow",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "plant"
+      ],
+      "moveToTarget": true,
+      "name": "Sow",
+      "needsTarget": true,
+      "note": "sows seeds in a dug plot",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Sow",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "State.Soil.Dug"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.3,
+      "cost": "",
+      "domain": "Interactivos",
+      "durationSeconds": 1.5,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Fuel.Add",
+          "notify": "stoke",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "plant"
+      ],
+      "moveToTarget": true,
+      "name": "Stoke",
+      "needsTarget": true,
+      "note": "puts a piece of wood in a campfire (needs wood in the bag)",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [
+        "Item.Resource.Wood"
+      ],
+      "tag": "Ability.Stoke",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Interactive.Campfire"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.5,
+      "cost": "Cost.Water",
+      "domain": "Huerto",
+      "durationSeconds": 2.5,
+      "endEffects": [],
+      "equipProp": "can",
+      "events": [
+        {
+          "eventTag": "Event.Plant.Water",
+          "notify": "pour",
+          "selfEffects": [],
+          "targetEffects": [
+            "Soak"
+          ],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "water"
+      ],
+      "moveToTarget": true,
+      "name": "Water",
+      "needsTarget": true,
+      "note": "waters a sown plot or a sapling",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Water",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [
+        "State.Soil.Planted",
+        "State.Tree.Sapling"
+      ],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    }
+  ],
+  "decision": {
+    "criticalScore": 1.6,
+    "margin": 0.15,
+    "minCommitSeconds": 8.0,
+    "stickBonus": 0.05
+  },
+  "ecology": {
+    "adultSeconds": 120.0,
+    "breedAbove": 80.0,
+    "breedCooldown": 150.0,
+    "eatReach": 1.0,
+    "eatSeconds": 3.0,
+    "foodMax": 100.0,
+    "foodPerPlant": 25.0,
+    "hungerPerSecond": 0.2,
+    "hungryBelow": 55.0,
+    "maxAnimals": 8,
+    "speed": 1.3,
+    "starveSeconds": 40.0,
+    "wanderRadius": 12.0
+  },
+  "effects": [
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "State.Carrying.Box"
+      ],
+      "modifiers": [],
+      "name": "Carrying.Box",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "State.Carrying.Wheelbarrow"
+      ],
+      "modifiers": [],
+      "name": "Carrying.Wheelbarrow",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Energy",
+          "magnitude": -5.0,
+          "op": "add"
+        }
+      ],
+      "name": "Cost.Dig",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Crops",
+          "magnitude": -1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Cost.Dump",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Energy",
+          "magnitude": -3.0,
+          "op": "add"
+        }
+      ],
+      "name": "Cost.Milk",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Energy",
+          "magnitude": -2.0,
+          "op": "add"
+        }
+      ],
+      "name": "Cost.Pick",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Energy",
+          "magnitude": -8.0,
+          "op": "add"
+        },
+        {
+          "attribute": "Saplings",
+          "magnitude": -1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Cost.PlantTree",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Energy",
+          "magnitude": -4.0,
+          "op": "add"
+        }
+      ],
+      "name": "Cost.Pull",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Energy",
+          "magnitude": -2.0,
+          "op": "add"
+        },
+        {
+          "attribute": "Seeds",
+          "magnitude": -1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Cost.Sow",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Energy",
+          "magnitude": -1.0,
+          "op": "add"
+        },
+        {
+          "attribute": "Water",
+          "magnitude": -1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Cost.Water",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Energy",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "EnergyRegen",
+      "periodSeconds": 1.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Fruit",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "FruitRegrow",
+      "periodSeconds": 8.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Compost",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Gain.Compost",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Crops",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Gain.Crop",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Fruit",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Gain.Fruit",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Milk",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Gain.Milk",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Fruit",
+          "magnitude": -1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Lose.Fruit",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Milk",
+          "magnitude": -1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Lose.Milk",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Milk",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "MilkRegrow",
+      "periodSeconds": 10.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "Need.Afraid"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.85,
+          "op": "multiply"
+        }
+      ],
+      "name": "Need.Afraid",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "Need.Cold"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.85,
+          "op": "multiply"
+        }
+      ],
+      "name": "Need.Cold",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "Need.Hungry"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.8,
+          "op": "multiply"
+        }
+      ],
+      "name": "Need.Hungry",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "Need.Lonely"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.9,
+          "op": "multiply"
+        }
+      ],
+      "name": "Need.Lonely",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "Need.Starving"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.6,
+          "op": "multiply"
+        }
+      ],
+      "name": "Need.Starving",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "Need.Thirsty"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.8,
+          "op": "multiply"
+        }
+      ],
+      "name": "Need.Thirsty",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "Need.Tired"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.7,
+          "op": "multiply"
+        }
+      ],
+      "name": "Need.Tired",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.berry_bush",
+      "periodSeconds": 20.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.fiber_grass",
+      "periodSeconds": 15.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.tree",
+      "periodSeconds": 30.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Moisture",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Soak",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    }
+  ],
+  "entityKinds": [
+    {
+      "abilities": [
+        "Chop",
+        "CloseDoor",
+        "DrawWater",
+        "Gather",
+        "Mine",
+        "OpenDoor",
+        "PullFiber",
+        "Stoke"
+      ],
+      "attributes": [
+        {
+          "base": 100.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Company"
+        },
+        {
+          "base": 100.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Health"
+        },
+        {
+          "base": 100.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Hunger"
+        },
+        {
+          "base": 100.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Rest"
+        },
+        {
+          "base": 100.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Safety"
+        },
+        {
+          "base": 100.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Thirst"
+        },
+        {
+          "base": 1.0,
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Vigor"
+        },
+        {
+          "base": 100.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Warmth"
+        }
+      ],
+      "count": 5,
+      "example": "Ana",
+      "kind": "Agente (personaje con necesidades)",
+      "tags": []
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 0.0,
+          "max": 99.0,
+          "min": 0.0,
+          "name": "Compost"
+        }
+      ],
+      "count": 1,
+      "example": "Compost",
+      "kind": "Compostador",
+      "tags": [
+        "Garden.Compost"
+      ]
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 120.0,
+          "max": null,
+          "min": 0.0,
+          "name": "Age"
+        },
+        {
+          "base": 0.0,
+          "max": 1000000.0,
+          "min": 0.0,
+          "name": "Cooldown"
+        },
+        {
+          "base": 70.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Food"
+        },
+        {
+          "base": 0.0,
+          "max": 1000000.0,
+          "min": 0.0,
+          "name": "Starving"
+        }
+      ],
+      "count": 4,
+      "example": "Rabbit 1",
+      "kind": "Conejo",
+      "tags": [
+        "Animal.Rabbit"
+      ]
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 0.0,
+          "max": 10.0,
+          "min": 0.0,
+          "name": "Fuel"
+        }
+      ],
+      "count": 1,
+      "example": "Fire Pit",
+      "kind": "Fogata",
+      "tags": [
+        "Interactive.Campfire",
+        "State.Unlit"
+      ]
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 6.0,
+          "max": 6.0,
+          "min": 0.0,
+          "name": "Amount"
+        },
+        {
+          "base": 0.0,
+          "max": 1000000.0,
+          "min": 0.0,
+          "name": "Regrow"
+        }
+      ],
+      "count": 39,
+      "example": "berry bush 1",
+      "kind": "Nodo de recurso",
+      "tags": [
+        "Resource.Node",
+        "Resource.Node.berry_bush",
+        "Resource.Node.fiber_grass",
+        "Resource.Node.rock",
+        "Resource.Node.tree",
+        "Resource.Plant",
+        "Resource.Stone",
+        "Resource.Wood"
+      ]
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 0.0,
+          "max": 2.0,
+          "min": 0.0,
+          "name": "Growth"
+        },
+        {
+          "base": 0.0,
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Moisture"
+        }
+      ],
+      "count": 6,
+      "example": "Plot 1",
+      "kind": "Parcela del huerto",
+      "tags": [
+        "Garden.Plot",
+        "State.Soil.Grass"
+      ]
+    },
+    {
+      "abilities": [
+        "CarryBox",
+        "Dig",
+        "DropBox",
+        "DumpWheelbarrow",
+        "Milk",
+        "PickFruit",
+        "PlantTree",
+        "Pull",
+        "PushWheelbarrow",
+        "ReleaseWheelbarrow",
+        "Sow",
+        "Water"
+      ],
+      "attributes": [
+        {
+          "base": 0.0,
+          "max": 99.0,
+          "min": 0.0,
+          "name": "Crops"
+        },
+        {
+          "base": 100.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Energy"
+        },
+        {
+          "base": 0.0,
+          "max": 99.0,
+          "min": 0.0,
+          "name": "Fruit"
+        },
+        {
+          "base": 0.0,
+          "max": 99.0,
+          "min": 0.0,
+          "name": "Milk"
+        },
+        {
+          "base": 2.0,
+          "max": 9.0,
+          "min": 0.0,
+          "name": "Saplings"
+        },
+        {
+          "base": 6.0,
+          "max": 99.0,
+          "min": 0.0,
+          "name": "Seeds"
+        },
+        {
+          "base": 10.0,
+          "max": 10.0,
+          "min": 0.0,
+          "name": "Water"
+        }
+      ],
+      "count": 2,
+      "example": "Farmhand",
+      "kind": "Personaje del huerto (jugador o ayudante)",
+      "tags": []
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 6.0,
+          "max": 6.0,
+          "min": 0.0,
+          "name": "Water"
+        }
+      ],
+      "count": 1,
+      "example": "Well",
+      "kind": "Pozo",
+      "tags": [
+        "Interactive.Well"
+      ]
+    },
+    {
+      "abilities": [],
+      "attributes": [],
+      "count": 1,
+      "example": "Gate",
+      "kind": "Puerta",
+      "tags": [
+        "Interactive.Door",
+        "State.Closed"
+      ]
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 2.0,
+          "max": 3.0,
+          "min": 0.0,
+          "name": "Milk"
+        }
+      ],
+      "count": 1,
+      "example": "Cow",
+      "kind": "Vaca",
+      "tags": [
+        "Garden.Cow",
+        "State.Cow"
+      ]
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 2.0,
+          "max": 3.0,
+          "min": 0.0,
+          "name": "Fruit"
+        },
+        {
+          "base": 1.0,
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Growth"
+        },
+        {
+          "base": 0.0,
+          "max": 1.0,
+          "min": 0.0,
+          "name": "Moisture"
+        }
+      ],
+      "count": 2,
+      "example": "Fruit Tree",
+      "kind": "Árbol del huerto",
+      "tags": [
+        "Garden.Tree",
+        "State.Tree.Empty",
+        "State.Tree.Grown"
+      ]
+    }
+  ],
+  "garden": {
+    "moistureSeconds": 10.0,
+    "stageSeconds": 4.0,
+    "treeSeconds": 6.0
+  },
+  "interactives": {
+    "burnSeconds": 6.0,
+    "fuelPerWood": 2,
+    "waterPerDraw": 2
+  },
+  "needs": {
+    "config": {
+      "coldDamage": 0.04,
+      "daySeconds": 1200.0,
+      "foodHunger": 25,
+      "foodThirst": 6,
+      "healPerSecond": 0.08,
+      "hungerSeconds": 900.0,
+      "nightFrom": 21.0,
+      "nightTo": 6.0,
+      "restSeconds": 1000.0,
+      "sleepGain": 0.4,
+      "startHour": 8.0,
+      "starveDamage": 0.33,
+      "thirstDamage": 0.45,
+      "thirstSeconds": 1500.0,
+      "warmGain": 0.5,
+      "waterThirst": 35
+    },
+    "derived": [
+      "Health",
+      "Vigor"
+    ],
+    "list": [
+      "Hunger",
+      "Thirst",
+      "Rest",
+      "Warmth",
+      "Safety",
+      "Company"
+    ]
+  },
+  "roles": {
+    "forager": {
+      "berry_bush": 1.0,
+      "fiber_grass": 0.9,
+      "fire": 0.0,
+      "rock": 0.2,
+      "tree": 0.25
+    },
+    "miner": {
+      "berry_bush": 0.35,
+      "fiber_grass": 0.35,
+      "fire": 0.0,
+      "rock": 1.0,
+      "tree": 0.25
+    },
+    "woodcutter": {
+      "berry_bush": 0.35,
+      "fiber_grass": 0.35,
+      "fire": 1.0,
+      "rock": 0.25,
+      "tree": 1.0
+    }
+  },
+  "seasons": {
+    "list": [
+      {
+        "foliage": [
+          0.36,
+          0.64,
+          0.24
+        ],
+        "growthRate": 1.2,
+        "hungerRate": 1.0,
+        "name": "spring",
+        "snowAtEnd": 0.0,
+        "snowAtMiddle": 0.0,
+        "snowAtStart": 0.95,
+        "weatherAtEnd": "clear",
+        "weatherAtMiddle": "clear",
+        "weatherAtStart": "lightrain"
+      },
+      {
+        "foliage": [
+          0.2,
+          0.45,
+          0.16
+        ],
+        "growthRate": 1.0,
+        "hungerRate": 1.0,
+        "name": "summer",
+        "snowAtEnd": 0.0,
+        "snowAtMiddle": 0.0,
+        "snowAtStart": 0.0,
+        "weatherAtEnd": "clear",
+        "weatherAtMiddle": "storm",
+        "weatherAtStart": "clear"
+      },
+      {
+        "foliage": [
+          0.78,
+          0.42,
+          0.1
+        ],
+        "growthRate": 0.6,
+        "hungerRate": 1.1,
+        "name": "autumn",
+        "snowAtEnd": 0.3,
+        "snowAtMiddle": 0.0,
+        "snowAtStart": 0.0,
+        "weatherAtEnd": "rain",
+        "weatherAtMiddle": "clear",
+        "weatherAtStart": "clear"
+      },
+      {
+        "foliage": [
+          0.7,
+          0.74,
+          0.78
+        ],
+        "growthRate": 0.0,
+        "hungerRate": 1.5,
+        "name": "winter",
+        "snowAtEnd": 0.95,
+        "snowAtMiddle": 0.95,
+        "snowAtStart": 0.0,
+        "weatherAtEnd": "clear",
+        "weatherAtMiddle": "snow",
+        "weatherAtStart": "snow"
+      }
+    ],
+    "seasonSeconds": 240.0
+  },
+  "senses": {
+    "memory": {
+      "lifetimeSeconds": 2400.0,
+      "recheckSeconds": 90.0
+    },
+    "vision": {
+      "halfFovDegrees": 60.0,
+      "nearRangeMeters": 3.0,
+      "rangeMeters": 28.0
+    }
+  }
+}
