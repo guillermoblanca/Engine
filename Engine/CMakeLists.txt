@@ -27,6 +27,7 @@ add_library(GB STATIC
     src/GB/Gameplay/Resources.cpp
     src/GB/Gameplay/Interactives.cpp
     src/GB/Gameplay/Ecology.cpp
+    src/GB/Gameplay/DocsExport.cpp
     src/GB/Game/Tribe.cpp
     src/GB/AI/Perception.cpp
     src/GB/AI/Memory.cpp

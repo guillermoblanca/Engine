@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include "GB/Gameplay/DocsExport.h"
 #include <filesystem>
 #include <fstream>
 #include <glad/gl.h>
@@ -815,6 +816,28 @@ namespace GB::Editor
 			if (a.empty()) return { true, "timescale " + std::to_string(m_TimeScale) };
 			m_TimeScale = std::max(1, std::min(20, std::atoi(a[0].c_str())));
 			return { true, "timescale " + std::to_string(m_TimeScale) };
+		});
+		c.Register("docs", "docs export <file.json>: writes what the rules say about themselves (abilities, effects, attributes and tags by kind of entity, needs, senses, roles, seasons, ecology settings) as one JSON; tools/make_wiki.py builds the wiki from it", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.size() < 2 || a[0] != "export") return { false, "usage: docs export <file.json>" };
+			DocsInputs in;
+			in.Library = &m_Gameplay.Library;
+			in.World = &m_Gameplay;
+			in.Needs = m_Tribe.Config.Needs;
+			in.Vision = m_Tribe.Config.Vision;
+			in.Memory = m_Tribe.Config.Memory;
+			in.Chooser = m_Tribe.Config.Chooser;
+			in.Roles = m_Tribe.Config.Roles;
+			in.Ecology = m_Ecology.Config;
+			in.Interactives = m_Interactives.Settings;
+			in.Garden = m_Garden.Config;
+			const std::string text = ExportDocsJson(in);
+			const std::filesystem::path path(a[1]);
+			if (path.has_parent_path()) std::filesystem::create_directories(path.parent_path());
+			std::ofstream out(a[1], std::ios::binary);
+			if (!out) return { false, "cannot write " + a[1] };
+			out << text;
+			return { true, "rules written to " + a[1] + " (" + std::to_string(m_Gameplay.Library.Abilities().size()) + " abilities, " + std::to_string(m_Gameplay.Library.Effects().size()) + " effects, " + std::to_string(m_Gameplay.Count()) + " entities read)" };
 		});
 		c.Register("content", "content status | export <file.json> | load <file.json>: the items, recipes and resource nodes as data (assets/data/era1.json is read at start); load adds to or replaces by id", [this](const std::vector<std::string>& a) -> CommandResult
 		{
