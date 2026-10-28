@@ -58,7 +58,22 @@ namespace GB::Editor
 	{
 		if (!m_Actors || !world.IsBuilt()) { if (error) *error = "generate a world first (generate temperate 5)"; return false; }
 		m_Actors->SetHost(MakeHost(world, edit, steps, m_Gameplay));
-		return m_Actors->SyncNavigation(NavConfig(), error);
+		// Undergrowth by biome (NavProfile::VegetationWeight): the forest floor is slow, the reeds of the shore a little, a meadow hardly. Read once per cell
+		// when the grid is built or a region is redone (BiomeAt reads the biome map baked with the world: one grid cell, H16).
+		NavConfig config;
+		WorldInstance* w = &world;
+		config.Vegetation = [w](float x, float z)
+		{
+			if (!w->IsBuilt()) return 0.0f;
+			switch (w->World().BiomeAt(x, z))
+			{
+			case Biome::Forest: return 1.0f;
+			case Biome::Shore: return 0.3f;
+			case Biome::Meadow: return 0.15f;
+			default: return 0.0f;
+			}
+		};
+		return m_Actors->SyncNavigation(config, error);
 	}
 
 	Actor* PlayerMode::Spawn(const std::string& name, const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,

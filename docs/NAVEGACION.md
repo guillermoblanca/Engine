@@ -14,6 +14,12 @@ Todo es CPU, sin ventana, y determinista (los empates se rompen por índice de c
   pendientes y agua por `1 + Load * LoadFactor`). Son muro la pendiente por encima de `MaxSlope` y el agua por encima de `MaxWadeDepth`; el `AIDriver` los toma del
   `CharacterController`, así que lo que el personaje no puede pisar tampoco se planifica. El rol y la carga se ponen en `Actor::Navigation` (o en
   `TaskRunner::Profile` / `InteractionRunner::Profile`).
+- **Perfil por rol y por carga en la tribu**: cada rol trae su perfil en datos (clave `nav` del rol en `era1.json`: `maxSlope`, `maxWadeDepth`, `slopeWeight`, `waterWeight`,
+  `vegetationWeight`, `loadFactor`; el leñador `loadFactor` 2,5, el minero 3, el recolector `vegetationWeight` 0,8). Antes de cada orden la tribu calcula la carga (lo que lleva sin
+  contar herramientas, sobre `TribeConfig::FullLoad` = 8 unidades o sobre el peso máximo de la mochila si lo tiene) y se lo da al cuerpo (`ITribeBody::SetNavigation`; en el editor
+  `Actor::Navigation`): con la mochila llena el minero rodea la cuesta que sube vacío. `CanReach` y `Route` usan ese mismo perfil.
+- **Agentes abstractos** (nivel de detalle de la tribu): siguen el camino que planificaría su cuerpo (`ITribeBody::Route`, con el pasillo de regiones para lo largo); una meta sin
+  camino falla igual que la del actor, así que un miembro lejano no cruza el lago ni atraviesa un muro, y al volver a ser completo está en un punto pisable.
 - **Camino** (`NavGrid::FindPath`): A\* de 8 vecinos sin cortar esquinas, con heurística octil. Si la línea recta es libre y casi llana no busca. Para distancias
   largas (más de 48 celdas) busca primero en un **grafo grueso de regiones** de 16x16 celdas y la búsqueda fina se queda en ese pasillo (si falla, se repite sin
   pasillo). El resultado se **suaviza** uniendo cada punto con el más lejano que ve, siempre que la recta no cueste más que el trozo que sustituye (así no se
@@ -99,7 +105,7 @@ Además, cuando las órdenes de un actor fallan queda en el registro (`<actor>: 
 ## Límites conocidos y siguiente
 
 - Los obstáculos son círculos, como los del `CharacterController`: un edificio rectangular se aproxima con varios (H8 traerá su propia huella).
-- La vegetación como coste es una función opcional de `NavConfig`, sin conectar en el editor.
+- La vegetación del editor sale del bioma (`PlayerMode::SyncNavigation`: bosque 1, orilla 0,3, pradera 0,15); `BiomeAt` es caro y se evalúa por celda al construir: un mapa de biomas horneado (H16) lo abarataría.
 - Las habilidades con `MoveToTarget` usan el perfil por defecto del `InteractionRunner` de la tarea, no `Actor::Navigation`.
 - La evitación mira posiciones, no velocidades: dos grupos que se cruzan de frente se esquivan, pero un pasillo muy estrecho con tráfico en los dos sentidos
   se resuelve esperando (`CrowdPatience`).

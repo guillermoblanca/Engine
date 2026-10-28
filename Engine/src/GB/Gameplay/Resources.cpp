@@ -1,21 +1,22 @@
 #include "GB/Gameplay/Resources.h"
+#include "GB/Gameplay/WorldResources.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
 
 namespace GB
 {
+	std::string ResourceKindTag(const ResourceNodeDef& d)
+	{
+		if (!d.Kind.empty()) return "Resource." + d.Kind;
+		if (d.Item == "wood") return "Resource.Wood";
+		if (d.Item == "stone") return "Resource.Stone";
+		return "Resource.Plant";
+	}
+
 	namespace
 	{
-		// The tag that says what kind of node it is (E1): it comes from the node's data ("Wood", "Stone.Flint", "Loose.Clay"...). A definition without a kind
-		// (an older content file) is worked out from its item as before.
-		std::string KindTag(const ResourceNodeDef& d)
-		{
-			if (!d.Kind.empty()) return "Resource." + d.Kind;
-			if (d.Item == "wood") return "Resource.Wood";
-			if (d.Item == "stone") return "Resource.Stone";
-			return "Resource.Plant";
-		}
+		std::string KindTag(const ResourceNodeDef& d) { return ResourceKindTag(d); }
 
 		AbilityDef GatherAbility(const char* name, const char* montage, const char* notify, const char* kind, const char* tool)
 		{
@@ -163,9 +164,9 @@ namespace GB
 				Part(w, id, name + " Rock", MeshShape::Sphere, { 0.0f, 0.4f, 0.0f }, { 1.0f, 0.8f, 1.0f }, { 0.5f, 0.5f, 0.5f });
 		}
 
-		EntityId MakeNode(EntityWorld& w, EntityId root, const ResourceNodeDef& def, int index, const glm::vec3& pos, ResourceLayout& out)
+		EntityId MakeNode(EntityWorld& w, EntityId root, const ResourceNodeDef& def, int index, const glm::vec3& pos, ResourceLayout& out, const std::string& prefix = "")
 		{
-			std::string label = def.Id;   // entity names use spaces ("berry bush 1") so a task list can write them with underscores
+			std::string label = prefix + def.Id;   // entity names use spaces ("berry bush 1") so a task list can write them with underscores
 			std::replace(label.begin(), label.end(), '_', ' ');
 			const std::string name = label + " " + std::to_string(index);
 			const EntityId id = w.Create(name, root);
@@ -185,10 +186,10 @@ namespace GB
 			return id;
 		}
 
-		EntityId MakeRoot(EntityWorld& w, const glm::vec3& origin, ResourceLayout& out)
+		EntityId MakeRoot(EntityWorld& w, const glm::vec3& origin, ResourceLayout& out, const std::string& rootName = "Resources")
 		{
-			if (const EntityId old = w.FindByName("Resources"); old != NullEntity) w.Destroy(old);
-			const EntityId root = w.Create("Resources");
+			if (const EntityId old = w.FindByName(rootName); old != NullEntity) w.Destroy(old);
+			const EntityId root = w.Create(rootName);
 			w.Find(root)->Transform.Position = origin;
 			out.Root = w.Find(root)->Name;
 			return root;
@@ -288,6 +289,39 @@ namespace GB
 				placed[id] = spots;
 			}
 		return out;
+	}
+
+	ResourceLayout BuildWorldResources(EntityWorld& w, const std::vector<ResourceSpot>& spots, const std::map<std::string, ResourceNodeDef>& nodes)
+	{
+		ResourceLayout out;
+		const EntityId root = MakeRoot(w, glm::vec3(0.0f), out, "World resources");
+		w.Find(root)->Tags.push_back("world");   // generated from the seed, like the groups of trees and rocks: part of the save's baseline, gone with the world
+		std::map<std::string, int> next;
+		for (const ResourceSpot& s : spots)
+		{
+			auto it = nodes.find(s.Node);
+			if (it == nodes.end()) continue;
+			const EntityId id = MakeNode(w, root, it->second, ++next[s.Node], s.Position, out, "wild ");
+			w.Find(id)->Transform.Rotation.y = s.Yaw;
+		}
+		return out;
+	}
+
+	void SnapToGround(EntityWorld& w, const ResourceLayout& layout, const std::function<float(float, float)>& height)
+	{
+		const Entity* root = w.Find(w.FindByName(layout.Root));
+		if (!root || !height) return;
+		const glm::vec3 origin = root->Transform.Position;
+		for (const std::string& name : layout.Nodes)
+		{
+			Entity* e = w.Find(w.FindByName(name));
+			if (!e) continue;
+			const float x = origin.x + e->Transform.Position.x, z = origin.z + e->Transform.Position.z;
+			// the lowest of the centre and four points around it: on a slope the base sinks a little instead of hanging in the air
+			float h = height(x, z);
+			for (const glm::vec2 d : { glm::vec2(0.8f, 0.0f), glm::vec2(-0.8f, 0.0f), glm::vec2(0.0f, 0.8f), glm::vec2(0.0f, -0.8f) }) h = std::min(h, height(x + d.x, z + d.y));
+			e->Transform.Position.y = h - origin.y;
+		}
 	}
 
 	void ResourceSystem::Bind(GameplayWorld& gameplay, const std::map<std::string, ResourceNodeDef>& nodes, Yield onYield)

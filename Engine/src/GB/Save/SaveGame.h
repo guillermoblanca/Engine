@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Game/Entity.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
+#include "GB/World/WorldGenVersion.h"
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -13,7 +14,8 @@
 namespace GB::Save
 {
 	// The format written today. Every change of the layout bumps it and adds a migration (see BuiltinMigrations).
-	constexpr int kFormatVersion = 1;
+	// 2: the world records the version of its generator (`generator`) and the density of its wild resource nodes (`wild`).
+	constexpr int kFormatVersion = 2;
 	constexpr const char* kEngineVersion = "0.1.0";
 	constexpr const char* kFileExtension = ".gbsave";
 
@@ -33,15 +35,21 @@ namespace GB::Save
 		bool Generated = false;
 		std::string Type = "temperate";   // temperate | alpine | desert
 		uint32_t Seed = 1;
+		// The version of the generator that made the world (WorldGenVersion.h). A save from before format 2 has none: it is migrated as 1, the
+		// generator of those days, which still makes the very same world from the seed.
+		uint32_t GeneratorVersion = kWorldGeneratorLatest;
 		float Size = 360.0f;
 		uint32_t Resolution = 641;
 		bool River = true, Lake = true;
 		float ForestAmount = 0.55f;
 		int TreeBudget = 420, RockBudget = 70;
+		// Density of the resource nodes the data spreads over the world (PlanWorldResources, the editor's `resources world`), 0 = none. They come
+		// from the seed too, so they are part of the baseline and the save keeps only the ones that changed. Written only when not 0.
+		float WildResources = 0.0f;
 		bool operator==(const WorldParams& o) const
 		{
-			return Generated == o.Generated && Type == o.Type && Seed == o.Seed && Size == o.Size && Resolution == o.Resolution && River == o.River &&
-				Lake == o.Lake && ForestAmount == o.ForestAmount && TreeBudget == o.TreeBudget && RockBudget == o.RockBudget;
+			return Generated == o.Generated && Type == o.Type && Seed == o.Seed && GeneratorVersion == o.GeneratorVersion && Size == o.Size && Resolution == o.Resolution &&
+				River == o.River && Lake == o.Lake && ForestAmount == o.ForestAmount && TreeBudget == o.TreeBudget && RockBudget == o.RockBudget && WildResources == o.WildResources;
 		}
 		bool operator!=(const WorldParams& o) const { return !(*this == o); }
 	};

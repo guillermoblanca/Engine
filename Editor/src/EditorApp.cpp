@@ -126,13 +126,24 @@ namespace GB::Editor
 		}
 		RegisterGardenContent(m_Gameplay.Library);
 		RegisterEraOneItems(m_Items, m_Recipes, m_NodeDefs);
-		if (const std::string file = m_AssetRoot + "/data/era1.json"; std::filesystem::exists(file))
+		// The base era pack (assets/data/era1.pack.json -> era1.json) may add to or change what the code defines; its sections go through the
+		// registered loaders (items, recipes and nodes; roles), all or nothing. The check is only reported: a gap must not stop the editor.
+		AddGameContentSections(m_Packs, m_Items, m_Recipes, m_NodeDefs, m_Tribe.Config.Roles, &m_Tribe.Config.Agenda, &m_Tribe.Config.Economy,
+			&m_Tribe.Config.Work, &m_Techs);   // (and "tribe": agenda, food, stock; "work": names, aptitudes, job board; "techs" inside "items")
+		AddExplorationContentSection(m_Packs, m_Tribe.Config.Explore);   // H12: regions, expeditions and migration
+		AddWorldContentSections(m_Packs, m_Interactives.Defs, m_Ecology.Species);   // the interactives and the species (H3): what they are is data, the code keeps how they behave
+		AddCameraContentSections(m_Packs, m_GameView.Params);   // the game cameras (H19): assets/data/cameras.json
+		AddSocietyContentSections(m_Packs, m_Tribe.Config.Society);   // the society of the tribe (H9 + H10): life, births, genes, personality, relations, culture
+		if (std::filesystem::exists(m_AssetRoot + "/data/era1.pack.json"))
 		{
-			const std::string error = LoadContentFile(file, m_Items, m_Recipes, m_NodeDefs);   // the content file may add to or change what the code defines
-			if (!error.empty()) GB_CLIENT_WARN("content not loaded: {}", error);
+			ContentReport report;
+			if (const std::string error = m_Packs.Load("era1", m_AssetRoot + "/data", &report); !error.empty()) GB_CLIENT_WARN("content not loaded: {}", error);
+			for (const std::string& p : report.Problems) GB_CLIENT_WARN("content check: {}", p);
 		}
+		m_Tribe.SetInteractives(&m_Interactives.Defs);   // the tribe's campfire is the fire pit of the data
+		m_Tribe.SetTechs(&m_Techs);   // H11: the members know the technologies of the start and find, watch and teach the rest
 		RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
-		RegisterInteractiveContent(m_Gameplay.Library);
+		RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 		RegisterNeedContent(m_Gameplay.Library);   // a saved agent may carry Need.* effects: the library must know them before any load
 		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
 		m_Player.Attach(&m_Actors);
@@ -219,8 +230,9 @@ namespace GB::Editor
 		m_Actors.Clear();   // they point into the old terrain
 		m_Player.Stop();
 		m_WorldDesc = desc;
+		m_WildResources = 0.0f;
 		m_Instance.reset();
-		m_SceneEditor.RemoveEnvironment();   // the old trees and rocks go with the old world; what the user added stays
+		m_SceneEditor.RemoveEnvironment();   // the old trees, rocks and wild resource nodes go with the old world; what the user added stays
 		m_World.Build(desc, m_Scene);
 		m_StaticObjects = m_Scene.Objects.size();   // the terrain; entities are appended every frame
 		m_SceneEditor.PopulateEnvironment(m_World.World().Trees, m_World.World().Rocks);
@@ -234,6 +246,7 @@ namespace GB::Editor
 
 	void EditorApp::ResetWorld()
 	{
+		m_WildResources = 0.0f;
 		m_Actors.Clear();
 		m_Player.Stop();
 		m_Instance.reset();
@@ -304,12 +317,24 @@ namespace GB::Editor
 	{
 		PostSettings& p = m_Scene.Post;
 		const PostSettings fresh;
+		const bool minimum = name == "minimum";
+		if (!minimum && name != "low" && name != "medium" && name != "high" && name != "ultra") { GB_CLIENT_WARN("Unknown quality '{}' (minimum, low, medium, high, ultra)", name); return; }
 		p = fresh;
-		if (name == "low") {}
+		// `minimum` (H19) is for slow GPUs: `low` (no post) plus a smaller render target scaled up to the viewport, no MSAA, a smaller shadow
+		// map, no water reflections, and trees, rocks and grass drawn less far. Leaving it puts those back; the other presets only touch the post.
+		if (minimum) { m_Scene.ScreenSpaceReflections = false; m_Scene.DrawDistance = 110.0f; m_Scene.GrassDistanceScale = 0.5f; m_RenderScale = 0.6f; }
+		else if (m_MinimumQuality) { m_Scene.ScreenSpaceReflections = true; m_Scene.DrawDistance = 0.0f; m_Scene.GrassDistanceScale = 1.0f; m_RenderScale = 1.0f; }
+		if (minimum != m_MinimumQuality)
+		{
+			// MSAA and the shadow map size are fixed when the renderer is made: make it again (the targets are resized on the next frame).
+			m_Renderer = std::make_unique<Renderer>(m_ViewportW, m_ViewportH, minimum ? 1u : 4u, minimum ? 1024u : 2048u);
+			m_ViewportFb = std::make_unique<Framebuffer>(1u, 1u);   // forces OnRender to size both to the scaled viewport
+			m_MinimumQuality = minimum;
+		}
+		if (name == "low" || minimum) {}
 		else if (name == "medium") { p.SSAO = 0.4f; }
 		else if (name == "high") { p.SSAO = 0.55f; p.Grain = 0.15f; }
 		else if (name == "ultra") { p.SSAO = 0.75f; p.AutoExposure = true; p.Grain = 0.25f; p.ChromaticAberration = 0.2f; p.Saturation = 1.08f; p.Contrast = 1.06f; }
-		else { GB_CLIENT_WARN("Unknown quality '{}' (low, medium, high, ultra)", name); return; }
 		GB_CLIENT_INFO("Quality '{}'", name);
 	}
 
@@ -487,6 +512,7 @@ namespace GB::Editor
 		c.Register("generate", "generate <temperate|alpine|desert> [seed] [trees] [rocks]: builds a new world", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			WorldDesc d = m_WorldDesc;
+			d.GeneratorVersion = kWorldGeneratorLatest;   // a new world uses the newest generator (a loaded game keeps the version it was made with)
 			if (!a.empty())
 			{
 				const std::string t = Lower(a[0]);
@@ -514,15 +540,18 @@ namespace GB::Editor
 			if (r.Ok && a.size() > 1 && a[1] == "snap") m_Weather->Snap();
 			return { r.Ok, r.Message };
 		});
-		c.Register("quality", "quality <low|medium|high|ultra>: post-processing preset", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("quality", "quality <minimum|low|medium|high|ultra>: post-processing preset (minimum also renders at 60% resolution without MSAA and draws less far, for slow GPUs)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
-			if (a.empty()) return { false, "usage: quality <low|medium|high|ultra>" };
+			if (a.empty()) return { false, "usage: quality <minimum|low|medium|high|ultra>" };
 			SetQuality(a[0]);
 			return { true, "" };
 		});
-		c.Register("camera", "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees)", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("camera", "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
-			if (a.size() < 3) return { false, "usage: camera <yaw> <pitch> <distance> [x y z]" };
+			if (!a.empty() && a[0] == "game")
+				return m_GameView.Command(std::vector<std::string>(a.begin() + 1, a.end()), m_Actors, m_Player, m_World, m_Camera);
+			if (a.size() < 3) return { false, "usage: camera <yaw> <pitch> <distance> [x y z] | camera game ..." };
+			if (m_GameView.Active()) m_GameView.Command({ "off" }, m_Actors, m_Player, m_World, m_Camera);   // placing the editor camera takes the view back
 			m_Orbit.Yaw = glm::radians(static_cast<float>(std::atof(a[0].c_str())));
 			m_Orbit.Pitch = glm::radians(static_cast<float>(std::atof(a[1].c_str())));
 			m_Orbit.Distance = static_cast<float>(std::atof(a[2].c_str()));
@@ -811,7 +840,7 @@ namespace GB::Editor
 			m_Player.HitRagdoll({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) });
 			return { true, "hit" };
 		});
-		c.Register("resources", "resources build [x z [workers]] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)", [this](const std::vector<std::string>& a) { return ResourcesCommand(a); });
+		c.Register("resources", "resources build [x z [workers]] | world [density] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (build: a patch around a point; world: spread over the generated map by biome) (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)", [this](const std::vector<std::string>& a) { return ResourcesCommand(a); });
 		c.Register("timescale", "timescale <1-20>: runs the simulation (gameplay, actors, tribe) that many times per frame; 1 is real time", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty()) return { true, "timescale " + std::to_string(m_TimeScale) };
@@ -828,9 +857,13 @@ namespace GB::Editor
 			in.Vision = m_Tribe.Config.Vision;
 			in.Memory = m_Tribe.Config.Memory;
 			in.Chooser = m_Tribe.Config.Chooser;
-			in.Roles = m_Tribe.Config.Roles;
-			in.Ecology = m_Ecology.Config;
-			in.Interactives = m_Interactives.Settings;
+			for (const auto& [name, role] : m_Tribe.Config.Roles)
+			{
+				in.Roles[name] = role.Weights;
+				in.Roles[name]["default"] = role.Default;
+			}
+			in.Ecology = m_Ecology.Species;
+			in.Interactives = m_Interactives.Defs;
 			in.Garden = m_Garden.Config;
 			for (const std::string& name : m_Commands.Names()) in.Commands.push_back({ name, m_Commands.Help(name) });
 			const std::string text = ExportDocsJson(in);
@@ -841,7 +874,7 @@ namespace GB::Editor
 			out << text;
 			return { true, "rules written to " + a[1] + " (" + std::to_string(m_Gameplay.Library.Abilities().size()) + " abilities, " + std::to_string(m_Gameplay.Library.Effects().size()) + " effects, " + std::to_string(m_Gameplay.Count()) + " entities read)" };
 		});
-		c.Register("content", "content status | export <file.json> | load <file.json>: the items, recipes and resource nodes as data (assets/data/era1.json is read at start); load adds to or replaces by id", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("content", "content status | export <file.json> | load <file.json>: the items, recipes, resource nodes and tribe roles, the interactives and the animal species as data (the pack era1, assets/data/era1.json and world.json, is read at start: see `pack`); load adds to or replaces by id, all sections or none", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			const std::string sub = a.empty() ? "status" : a[0];
 			if (sub == "export" && a.size() > 1)
@@ -854,18 +887,58 @@ namespace GB::Editor
 			}
 			if (sub == "load" && a.size() > 1)
 			{
-				const std::string error = LoadContentFile(a[1], m_Items, m_Recipes, m_NodeDefs);
-				if (!error.empty()) return { false, error };
+				// every registered section (items, roles, interactives, species...) reads the file, all or nothing: a file whose roles are wrong changes nothing at all
+				ContentReport report;
+				if (const std::string error = m_Packs.LoadFile(a[1], &report); !error.empty()) return { false, error };
 				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
-				return { true, "content loaded from " + a[1] + ": " + std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes" };
+				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
+				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // the wild nodes of the baseline are planned with this data
+				return { true, "content loaded from " + a[1] + ": " + std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes"
+					+ (report.Problems.empty() ? std::string() : "\n" + report.Text()) };
 			}
-			return { true, std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes" };
+			return { true, std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes, "
+				+ std::to_string(m_Interactives.Defs.size()) + " interactives, " + std::to_string(m_Ecology.Species.size()) + " species" };
+		});
+		c.Register("pack", "pack list | load <id|manifest.json> [strict] | check: the eras as data packs (assets/data/<id>.pack.json: its content files, the packs it depends on, what is given, the stations, the known gaps). load loads the missing dependencies first, all or nothing, and checks that every item and recipe can be had (strict: a problem refuses the load); era1 is loaded at start", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			const std::string sub = a.empty() ? "list" : a[0];
+			const std::string dir = m_AssetRoot + "/data";
+			if (sub == "list")
+			{
+				std::string out;
+				for (const PackManifest& m : ContentPacks::Available(dir))
+					out += (m_Packs.IsLoaded(m.Id) ? "* " : "  ") + m.Id + " (era " + std::to_string(m.Era) + ", v" + m.Version + "): " + m.Name
+						+ (m.Depends.empty() ? std::string() : ", needs " + [&] { std::string d; for (const std::string& x : m.Depends) d += (d.empty() ? "" : " ") + x; return d; }()) + "\n";
+				for (const PackManifest& m : m_Packs.Loaded())
+					if (std::filesystem::path(m.Path).parent_path() != std::filesystem::path(dir)) out += "* " + m.Id + " (" + m.Path + ")\n";
+				return { true, out.empty() ? "no packs in " + dir : out + "(* = loaded)" };
+			}
+			if (sub == "load" && a.size() > 1)
+			{
+				ContentPacks::Options options;
+				options.Strict = a.size() > 2 && a[2] == "strict";
+				ContentReport report;
+				if (const std::string error = m_Packs.Load(a[1], dir, &report, options); !error.empty()) return { false, error + (report.Problems.empty() ? std::string() : "\n" + report.Text()) };
+				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
+				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
+				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // (see content load)
+				return { true, "pack " + a[1] + " loaded: " + std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size())
+					+ " resource nodes, " + std::to_string(report.Problems.size()) + " problem(s)\n" + report.Text() };
+			}
+			if (sub == "check")
+			{
+				const ContentReport report = m_Packs.Check();
+				return { true, std::to_string(report.Problems.size()) + " problem(s), " + std::to_string(report.Notes.size()) + " note(s)\n" + report.Text() };
+			}
+			return { false, "pack list | load <id|manifest.json> [strict] | check" };
 		});
 		c.Register("interactives", "interactives build [x z] | status: puts a campfire (Stoke with wood), a well (DrawWater) and a gate (OpenDoor, CloseDoor) in the scene; their state is saved with the game", [this](const std::vector<std::string>& a) { return InteractivesCommand(a); });
-		c.Register("ecology", "ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]: rabbits that wander, eat berry bushes and fibre tufts, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)", [this](const std::vector<std::string>& a) { return EcologyCommand(a); });
+		c.Register("ecology", "ecology spawn [n] [x z] [species] | status | season [spring|summer|autumn|winter]: animals of the species of assets/data/world.json (rabbits eat berry bushes and fibre tufts, foxes hunt rabbits) wander, eat, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)", [this](const std::vector<std::string>& a) { return EcologyCommand(a); });
 		c.Register("ai", "ai debug [on|off] | status [name] | memory <name> | scream <name>: the brain of the tribe members: needs, what they decide and why, what they know; `debug` draws their view cones, the obstacles and their memory in the viewport", [this](const std::vector<std::string>& a) { return AiCommand(a); });
+		c.Register("knowledge", "knowledge status [name|clan] | grant <name|clan> <tech> | techs: what each tribe member and the clan know of the technologies (H11), what they are learning and trying; grant teaches one at once", [this](const std::vector<std::string>& a) { return KnowledgeCommand(a); });
 		c.Register("nav", "nav status | debug on|off | rebuild | sync | path <x1 z1 x2 z2> [load 0-1]: navigation over the terrain: the grid the characters plan their paths on (trunks, rocks, deep water and cliffs are walls; wading and slopes cost), the paths they follow and what the planning has cost", [this](const std::vector<std::string>& a) { return NavCommand(a); });
-		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | remove <name> | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
+		c.Register("region", "region list | info <id|name> | explore: the regions of the generated world (H12): area, biome, water, wild resources and danger; what the clan knows of each, its expedition and its moves", [this](const std::vector<std::string>& a) { return RegionCommand(a); });
+		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | remove <name> | clear: the first tribe: workers (named from the data, their trades shared out by the clan's needs) gather, carry to a store, make tools and light a campfire by themselves; they get better at what they practise and take jobs from the clan's board", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
@@ -1001,9 +1074,9 @@ namespace GB::Editor
 		c.Register("stats", "stats: frame time, objects drawn/culled and world counts", [this](const std::vector<std::string>&) -> CommandResult
 		{
 			const RenderStats& s = m_Renderer->GetStats();
-			char buf[256];
-			std::snprintf(buf, sizeof buf, "frame %.1f ms (%.0f fps), viewport %ux%u, objects drawn %u culled %u, trees %zu rocks %zu grass blades %zu",
-				static_cast<double>(m_FrameMsSmooth), 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH, s.ObjectsDrawn, s.ObjectsCulled,
+			char buf[320];
+			std::snprintf(buf, sizeof buf, "frame %.1f ms (%.0f fps), viewport %ux%u (rendered %ux%u), objects drawn %u culled %u, trees %zu rocks %zu grass blades %zu",
+				static_cast<double>(m_FrameMsSmooth), 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH, m_ViewportFb->GetWidth(), m_ViewportFb->GetHeight(), s.ObjectsDrawn, s.ObjectsCulled,
 				m_World.TreeCount(), m_World.RockCount(), m_World.GrassBlades());
 			return { true, buf };
 		});
@@ -1040,7 +1113,7 @@ namespace GB::Editor
 		{
 			m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
 			StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
-			if (m_Player.IsActive()) m_Player.BeginFrame(dt, m_ViewportHovered && !io.WantTextInput);
+			if (m_Player.IsActive()) m_Player.BeginFrame(dt, m_ViewportHovered && !io.WantTextInput && m_GameView.CharacterKeys());
 			if (m_Player.IsActive()) m_Actors.Update(dt);   // (with no player the actors move in the fixed tick: EditorSaveHost::Step)
 		}
 		m_NavSyncTimer -= dt;
@@ -1055,10 +1128,15 @@ namespace GB::Editor
 			m_Player.ApplyCamera(m_Camera);
 			m_Orbit.Target = m_Player.GetPosition();   // the shadows and the weather follow the player
 		}
-		else
+		else if (!m_GameView.Active())
 		{
 			if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt);
 			m_Orbit.Apply(m_Camera);
+		}
+		if (m_GameView.Active())   // a game camera (camera game ...) owns the view; shadows and weather centre on what it looks at
+		{
+			m_GameView.Update(dt, m_ViewportHovered && !io.WantTextInput, m_Actors, m_Player, m_World, m_Camera);
+			if (!m_Player.IsActive()) m_Orbit.Target = m_GameView.Focus();
 		}
 		ApplyTimeOfDay();
 		m_Weather->Update(dt, m_Camera);
@@ -1090,10 +1168,12 @@ namespace GB::Editor
 		const uint32_t ww = window.GetWidth(), wh = window.GetHeight();
 
 		// the 3D view
-		if (m_ViewportFb->GetWidth() != m_ViewportW || m_ViewportFb->GetHeight() != m_ViewportH)
+		const uint32_t rw = std::max(1u, static_cast<uint32_t>(static_cast<float>(m_ViewportW) * m_RenderScale + 0.5f));   // `quality minimum` renders smaller
+		const uint32_t rh = std::max(1u, static_cast<uint32_t>(static_cast<float>(m_ViewportH) * m_RenderScale + 0.5f));
+		if (m_ViewportFb->GetWidth() != rw || m_ViewportFb->GetHeight() != rh)
 		{
-			m_ViewportFb = std::make_unique<Framebuffer>(m_ViewportW, m_ViewportH);
-			m_Renderer->Resize(m_ViewportW, m_ViewportH);
+			m_ViewportFb = std::make_unique<Framebuffer>(rw, rh);
+			m_Renderer->Resize(rw, rh);
 		}
 		m_Scene.Objects.resize(m_StaticObjects);
 		m_Scene.PointLights.resize(m_WeatherLights);
@@ -1271,7 +1351,7 @@ namespace GB::Editor
 		}
 		if (ImGui::BeginMenu("Quality"))
 		{
-			for (const char* q : { "low", "medium", "high", "ultra" })
+			for (const char* q : { "minimum", "low", "medium", "high", "ultra" })
 				if (ImGui::MenuItem(q)) SetQuality(q);
 			ImGui::EndMenu();
 		}
@@ -1296,11 +1376,11 @@ namespace GB::Editor
 				m_ViewportH = h;
 			}
 			const ImVec2 origin = ImGui::GetCursorScreenPos();
-			ImGui::Image(static_cast<ImTextureID>(static_cast<intptr_t>(m_ViewportFb->GetColorTexture())), ImVec2(static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight())),
+			ImGui::Image(static_cast<ImTextureID>(static_cast<intptr_t>(m_ViewportFb->GetColorTexture())), ImVec2(static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH)),   // scaled up when rendered smaller
 				ImVec2(0, 1), ImVec2(1, 0));
 			m_ViewportHovered = ImGui::IsItemHovered();
-			DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight()));
-			if (m_NavDebug) DrawNavDebug(origin.x, origin.y, static_cast<float>(m_ViewportFb->GetWidth()), static_cast<float>(m_ViewportFb->GetHeight()));
+			DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
+			if (m_NavDebug) DrawNavDebug(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);
 			ImGui::GetWindowDrawList()->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(255, 255, 255, 200), info);

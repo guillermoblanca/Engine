@@ -291,6 +291,25 @@ namespace GB
 		return {};
 	}
 
+	std::string RecipeBook::WhyNot(const ItemLibrary& lib, const Inventory& inv, const std::string& id, const std::string& station, const std::set<std::string>* known) const
+	{
+		if (known && Find(id) && !known->count(id)) return "does not know how to make '" + id + "'";
+		return WhyNot(lib, inv, id, station);
+	}
+
+	bool RecipeBook::Craft(const ItemLibrary& lib, Inventory& inv, const std::string& id, const std::string& station, const std::set<std::string>* known) const
+	{
+		if (known && !known->count(id)) return false;
+		return Craft(lib, inv, id, station);
+	}
+
+	std::vector<std::string> RecipeBook::Known(const std::set<std::string>* known) const
+	{
+		std::vector<std::string> out;
+		for (const auto& kv : m_Recipes) if (!known || known->count(kv.first)) out.push_back(kv.first);
+		return out;
+	}
+
 	bool RecipeBook::Craft(const ItemLibrary& lib, Inventory& inv, const std::string& id, const std::string& station) const
 	{
 		if (!WhyNot(lib, inv, id, station).empty()) return false;
@@ -391,6 +410,28 @@ namespace GB
 						if (!(d.Patch.Spacing >= 0.5f && d.Patch.Spacing <= 100.0f)) return "node '" + d.Id + "': the patch spacing must be between 0.5 and 100";
 						if (d.Patch.Shape != "row" && d.Patch.Shape != "ring" && d.Patch.Shape != "cluster") return "node '" + d.Id + "': the patch shape must be row, ring or cluster";
 					}
+					if (auto sp = o.find("spawn"); sp != o.end())
+					{
+						if (!sp->is_object()) return "node '" + d.Id + "': spawn must be an object";
+						static const char* const kBiomes[] = { "Meadow", "Forest", "Shore", "Rock", "Snow", "Dunes" };
+						if (auto bs = sp->find("biomes"); bs != sp->end())
+							for (const Json& b : *bs)
+							{
+								const std::string name = b.get<std::string>();
+								if (std::find(std::begin(kBiomes), std::end(kBiomes), name) == std::end(kBiomes)) return "node '" + d.Id + "': unknown spawn biome '" + name + "'";
+								d.Spawn.Biomes.push_back(name);
+							}
+						d.Spawn.PerHectare = sp->value("perHectare", 0.0f);
+						d.Spawn.Spacing = sp->value("spacing", 6.0f);
+						d.Spawn.MaxSlope = sp->value("maxSlope", 35.0f);
+						d.Spawn.WaterWithin = sp->value("waterWithin", 0.0f);
+						d.Spawn.Clump = sp->value("clump", 0.0f);
+						d.Spawn.Max = sp->value("max", 0);
+						if (!(d.Spawn.PerHectare >= 0.0f && d.Spawn.PerHectare <= 500.0f)) return "node '" + d.Id + "': spawn perHectare must be between 0 and 500";
+						if (!(d.Spawn.Spacing >= 1.0f && d.Spawn.Spacing <= 100.0f)) return "node '" + d.Id + "': the spawn spacing must be between 1 and 100";
+						if (!(d.Spawn.MaxSlope >= 0.0f && d.Spawn.MaxSlope <= 90.0f)) return "node '" + d.Id + "': spawn maxSlope must be between 0 and 90";
+						if (!(d.Spawn.WaterWithin >= 0.0f) || !(d.Spawn.Clump >= 0.0f && d.Spawn.Clump <= 0.99f) || d.Spawn.Max < 0) return "node '" + d.Id + "': spawn waterWithin, clump (0..0.99) or max out of range";
+					}
 					newNodes.push_back(d);
 				}
 		}
@@ -468,6 +509,14 @@ namespace GB
 				Json pt = { { "count", d.Patch.Count }, { "perWorker", d.Patch.PerWorker }, { "spacing", Round3(d.Patch.Spacing) }, { "shape", d.Patch.Shape } };
 				if (!d.Patch.Near.empty()) pt["near"] = d.Patch.Near;
 				o["patch"] = pt;
+			}
+			if (!d.Spawn.Biomes.empty() || d.Spawn.PerHectare > 0.0f)   // a half-filled spawn is written too, so nothing is lost
+			{
+				Json sp = { { "biomes", d.Spawn.Biomes }, { "perHectare", Round3(d.Spawn.PerHectare) }, { "spacing", Round3(d.Spawn.Spacing) }, { "maxSlope", Round3(d.Spawn.MaxSlope) } };
+				if (d.Spawn.WaterWithin > 0.0f) sp["waterWithin"] = Round3(d.Spawn.WaterWithin);
+				if (d.Spawn.Clump > 0.0f) sp["clump"] = Round3(d.Spawn.Clump);
+				if (d.Spawn.Max > 0) sp["max"] = d.Spawn.Max;
+				o["spawn"] = sp;
 			}
 			jn.push_back(o);
 		}
@@ -559,5 +608,23 @@ namespace GB
 		nodes["reed_bed"]      = Node("reed_bed",      "reed",       8, 2,  20.0f, 2, "",                  "Collect",   "Loose.Reed",   1, 1, "cluster", 3.0f);
 		nodes["flint_outcrop"] = Node("flint_outcrop", "flint",      5, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Flint",  1, 1, "cluster", 3.5f);
 		nodes["copper_vein"]   = Node("copper_vein",   "copper_ore", 4, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Copper", 1, 0, "row", 4.0f);
+
+		// Where each grows over a generated world (PlanWorldResources): wood in the forest, berries and fibre in the meadow, clay and reeds by the water,
+		// stone, flint and copper on rocky ground (copper rare and in veins). PerHectare is the average over the matching ground; a map of 360 m gets a few hundred nodes.
+		auto spawn = [&](const char* id, std::vector<std::string> biomes, float perHectare, float spacing, float maxSlope, float waterWithin = 0.0f, float clump = 0.0f, int most = 0)
+		{
+			ResourceSpawnDef& s = nodes[id].Spawn;
+			s.Biomes = std::move(biomes); s.PerHectare = perHectare; s.Spacing = spacing; s.MaxSlope = maxSlope; s.WaterWithin = waterWithin; s.Clump = clump; s.Max = most;
+		};
+		spawn("tree",          { "Forest", "Meadow" },          6.0f, 8.0f, 30.0f, 0.0f, 0.3f);
+		spawn("old_tree",      { "Forest" },                    8.0f, 9.0f, 28.0f, 0.0f, 0.2f);
+		spawn("young_tree",    { "Forest", "Meadow" },          8.0f, 5.0f, 30.0f, 0.0f, 0.35f);
+		spawn("berry_bush",    { "Meadow", "Forest" },          6.0f, 5.0f, 25.0f, 0.0f, 0.5f);
+		spawn("fiber_grass",   { "Meadow", "Shore" },           8.0f, 5.0f, 25.0f, 0.0f, 0.3f);
+		spawn("rock",          { "Rock", "Meadow", "Shore", "Dunes" }, 4.0f, 7.0f, 45.0f);
+		spawn("flint_outcrop", { "Rock", "Shore", "Dunes" },    4.0f, 6.0f, 45.0f, 0.0f, 0.55f, 16);
+		spawn("copper_vein",   { "Rock", "Snow" },              2.0f, 8.0f, 50.0f, 0.0f, 0.7f, 5);
+		spawn("clay_bank",     { "Shore", "Meadow" },          15.0f, 6.0f, 15.0f, 9.0f, 0.4f, 12);
+		spawn("reed_bed",      { "Shore", "Meadow" },         25.0f, 4.0f, 15.0f, 6.0f, 0.2f, 24);
 	}
 }

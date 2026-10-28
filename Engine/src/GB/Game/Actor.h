@@ -181,6 +181,8 @@ namespace GB
 		float GetSpeed() const { return m_Controller.GetSpeed(); }
 		float Radius() const { return m_Controller.Config.Radius; }
 		float Height() const { return m_Height; }
+		// Grows or shrinks it to `height` metres (a child of the tribe, H9): the model's scale, the capsule's radius and how deep it wades follow.
+		void SetHeight(float height);
 		void Teleport(float x, float z, float yaw);
 		const CharacterWorld& World() const { return m_World; }
 		std::string Describe() const;

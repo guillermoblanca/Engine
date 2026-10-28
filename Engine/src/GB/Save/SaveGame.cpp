@@ -47,8 +47,9 @@ namespace GB::Save
 			root["format"] = g.Format;
 			root["engine"] = g.Engine;
 			const WorldParams& w = g.World;
-			root["world"] = Json{ { "generated", w.Generated }, { "type", w.Type }, { "seed", w.Seed }, { "size", Round(w.Size) }, { "resolution", w.Resolution },
-				{ "river", w.River }, { "lake", w.Lake }, { "forest", Round(w.ForestAmount) }, { "trees", w.TreeBudget }, { "rocks", w.RockBudget } };
+			root["world"] = Json{ { "generated", w.Generated }, { "type", w.Type }, { "seed", w.Seed }, { "generator", w.GeneratorVersion }, { "size", Round(w.Size) },
+				{ "resolution", w.Resolution }, { "river", w.River }, { "lake", w.Lake }, { "forest", Round(w.ForestAmount) }, { "trees", w.TreeBudget }, { "rocks", w.RockBudget } };
+			if (w.WildResources != 0.0f) root["world"]["wild"] = Round(w.WildResources);
 			root["baseline"] = Json{ { "entities", g.Baseline.Entities }, { "hash", g.Baseline.Hash } };
 			const ClockState& c = g.Clock;
 			root["clock"] = Json{ { "tick", c.Tick }, { "dt", c.Dt }, { "hours", Round(c.Hours) }, { "dayLength", Round(c.DayLengthSeconds) },
@@ -140,6 +141,8 @@ namespace GB::Save
 				Read(*it, "generated", w.Generated);
 				Read(*it, "type", w.Type);
 				Read(*it, "seed", w.Seed);
+				Read(*it, "generator", w.GeneratorVersion);
+				Read(*it, "wild", w.WildResources);
 				Read(*it, "size", w.Size);
 				Read(*it, "resolution", w.Resolution);
 				Read(*it, "river", w.River);
@@ -147,6 +150,9 @@ namespace GB::Save
 				Read(*it, "forest", w.ForestAmount);
 				Read(*it, "trees", w.TreeBudget);
 				Read(*it, "rocks", w.RockBudget);
+				if (w.GeneratorVersion < kWorldGeneratorV1 || w.GeneratorVersion > kWorldGeneratorLatest)
+					throw std::runtime_error("world generator " + std::to_string(w.GeneratorVersion) + " is unknown to this engine (it knows 1 to " + std::to_string(kWorldGeneratorLatest) + ")");
+				if (!(w.WildResources >= 0.0f && w.WildResources <= 10.0f)) throw std::runtime_error("bad density of the wild resources");
 			}
 			if (auto it = root.find("baseline"); it != root.end())
 			{
@@ -260,6 +266,18 @@ namespace GB::Save
 			text = root.dump();
 			return true;
 		}
+
+		// ---- v1 -> v2: the world gains the version of its generator. Every v1 save was made by generator 1 (the only one there was), and it
+		// still makes the same world from the seed, so the save keeps loading onto the same trees and rocks.
+		bool MigrateV1(std::string& text, std::string& error)
+		{
+			Json root = Json::parse(text, nullptr, false);
+			if (root.is_discarded() || !root.is_object()) { error = "not a saved game"; return false; }
+			if (auto it = root.find("world"); it != root.end() && it->is_object()) (*it)["generator"] = kWorldGeneratorV1;
+			root["format"] = 2;
+			text = root.dump();
+			return true;
+		}
 	}
 
 	std::string HashText(const std::string& text)
@@ -280,6 +298,7 @@ namespace GB::Save
 	{
 		static const std::vector<Migration> chain = {
 			{ 0, "a bare scene file becomes a saved game without a generated world", MigrateV0 },
+			{ 1, "the world records its generator version (1 for every save made before)", MigrateV1 },
 		};
 		return chain;
 	}

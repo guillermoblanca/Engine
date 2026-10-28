@@ -17,10 +17,12 @@ add_library(GBEditor STATIC
     src/LogBuffer.cpp
     src/ImGuiLayer.cpp
     src/PlayerMode.cpp
+    src/GameView.cpp
     src/SceneEditor.cpp
     src/WorldInstance.cpp
     src/TestScenarios.cpp
     src/EditorGameplay.cpp
+    src/EditorExplore.cpp
     src/EditorSave.cpp
     src/EditorAnimCommands.cpp
     src/EditorAnimPanels.cpp
@@ -63,3 +65,5 @@ endfunction()
 gb_editor_script_test(editor_replay replay_world.txt "replay identical")
 gb_editor_script_test(editor_replay_society replay_society.txt "replay identical")
 gb_editor_script_test(editor_replay_midrun replay_midrun.txt "replay identical")
+gb_editor_script_test(editor_game_camera game_camera.txt "game camera: observe Ana Biel")
+gb_editor_script_test(editor_replay_wild replay_wild.txt "replay identical")

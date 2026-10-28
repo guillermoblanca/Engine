@@ -22,7 +22,8 @@
     { "id": "pine_resin", "item": "resin", "kind": "Plant", "capacity": 3, "perGather": 1, "regen": 1, "regenSeconds": 90.0, "ability": "Gather" },
     { "id": "wild_grain", "item": "grain_seed", "kind": "Plant", "capacity": 6, "perGather": 2, "regen": 2, "regenSeconds": 60.0, "ability": "Gather" },
     { "id": "salt_flat", "item": "salt", "kind": "Loose.Salt", "capacity": 10, "perGather": 2, "ability": "Collect" },
-    { "id": "old_bones", "item": "bone", "kind": "Loose.Bone", "capacity": 3, "perGather": 1, "ability": "Collect" }
+    { "id": "old_bones", "item": "bone", "kind": "Loose.Bone", "capacity": 3, "perGather": 1, "ability": "Collect" },
+    { "id": "fallen_trunk", "item": "log", "kind": "Wood", "capacity": 2, "perGather": 1, "requires": "Item.Tool.Axe", "ability": "Chop" }
   ],
   "recipes": [
     { "id": "plank", "inputs": { "log": 1 }, "output": "plank", "count": 2, "tool": "Item.Tool.Axe", "station": "workbench", "ability": "Craft" },
@@ -32,5 +33,45 @@
     { "id": "dried_berry", "inputs": { "berry": 3 }, "output": "dried_berry", "count": 2, "station": "drying_rack", "ability": "Craft" },
     { "id": "mud_brick", "inputs": { "clay": 2, "fiber": 1 }, "output": "mud_brick", "count": 2, "station": "drying_rack", "ability": "Craft" },
     { "id": "copper_axe", "inputs": { "copper_ingot": 2, "branch": 2, "cordage": 1 }, "output": "copper_axe", "count": 1, "station": "forge", "ability": "Craft" }
+  ],
+  "techs": [
+    {
+      "id": "bone_working",
+      "name": "Bone working",
+      "era": 1,
+      "requires": [
+        "cordage",
+        "stone_tools"
+      ],
+      "recipes": [
+        "bone_pickaxe"
+      ],
+      "discovery": {
+        "experiment": 0.2,
+        "observe": 0.34,
+        "teach": 0.25,
+        "seconds": 20.0,
+        "waste": 0.3
+      }
+    },
+    {
+      "id": "tillage",
+      "name": "Tillage",
+      "era": 1,
+      "requires": [
+        "flint_knapping"
+      ],
+      "recipes": [
+        "stone_hoe",
+        "flint_sickle"
+      ],
+      "discovery": {
+        "experiment": 0.1,
+        "observe": 0.25,
+        "teach": 0.2,
+        "seconds": 30.0,
+        "waste": 0.3
+      }
+    }
   ]
 }

@@ -37,6 +37,11 @@ DOC_LIST = [
     ('INTERACTIVOS.md', 'Sistemas'),
     ('ECOLOGIA.md', 'Sistemas'),
     ('GUARDADO.md', 'Sistemas'),
+    ('PAQUETES.md', 'Sistemas'),
+    ('CONOCIMIENTO.md', 'Sistemas'),
+    ('EXPLORACION.md', 'Sistemas'),
+    ('RECURSOS_MUNDO.md', 'Sistemas'),
+    ('CAMARAS.md', 'Sistemas'),
     ('habilidades.md', 'Sistemas'),
     ('COSTE_ACTOR.md', 'Sistemas'),
     ('ANIMACIONES_PENDIENTES.md', 'Animación'),
@@ -318,8 +323,9 @@ def section_roles(rules):
     roles = rules['roles']
     kinds = sorted({k for w in roles.values() for k in w})
     out = ['<h1>Roles de la tribu</h1>',
-           '<p class="lead">Un rol son solo <b>pesos</b> sobre las opciones de trabajo (1 = le encanta, 0 = no lo hace por gusto). Cualquiera ayuda con lo que falta y come, bebe y duerme cuando debe. '
-           'Los oficios futuros (propuesta E3) se derivarán de aptitudes por agente que el oficio potencia.</p>',
+           '<p class="lead">Un rol son <b>pesos</b> sobre las opciones de trabajo (1 = le encanta, 0 = no lo hace por gusto), por id de nodo o por tipo (<code>Resource.Stone</code> vale para el sílex y el cobre); '
+           '<code>default</code> es lo que da a lo que no nombra. Están en la sección <code>roles</code> de <code>era1.json</code>. Sobre ellos se suman las aptitudes por práctica de cada miembro, '
+           'y el clan reparte los oficios según lo que necesita (ver TRIBU.md). Cualquiera ayuda con lo que falta y come, bebe y duerme cuando debe.</p>',
            '<table class="grid heat"><tr><th>Rol</th>' + ''.join(f'<th>{e(k)}</th>' for k in kinds) + '</tr>']
     for role, w in roles.items():
         cells = ''.join(f'<td style="--w:{w.get(k, 0)}">{num(w.get(k, 0))}</td>' for k in kinds)
@@ -340,7 +346,7 @@ def section_world(rules):
                    f'<td><span class="swatch" style="background:rgb({r},{g},{b})"></span></td></tr>')
     out.append('</table>')
     eco = rules['ecology']
-    out.append('<h2>Ecología: conejos</h2><table class="grid"><tr><th>Ajuste</th><th>Valor</th></tr>'
+    out.append('<h2>Ecología: conejos</h2><p>Las demás especies (el zorro, que caza conejos) están en <a href="#datos">Más datos del juego</a> → especies.</p><table class="grid"><tr><th>Ajuste</th><th>Valor</th></tr>'
                + ''.join(f'<tr><td><code>{e(k)}</code></td><td>{num(v)}</td></tr>' for k, v in eco.items()) + '</table>')
     it = rules['interactives']
     out.append('<h2>Interactivos</h2><ul>'
@@ -396,6 +402,68 @@ def section_content(content, extra):
     out.append(nodes_table(content['nodes'], 'Nodos de recurso (base)'))
     if extra['nodes']:
         out.append(nodes_table(extra['nodes'], 'Nodos de recurso (ampliado)'))
+    return '\n'.join(out)
+
+
+def section_techs(content, extra_techs):
+    out = ['<h1>Tecnologías</h1>',
+           '<p class="lead">Datos de la sección <code>techs</code> de <code>assets/data/era1.json</code> (y del paquete ampliado). Una receta o un nodo que una tecnología desbloquea '
+           'solo se puede usar cuando el agente o el clan la conoce; se descubre experimentando, observando o en las lecciones del campamento (ver CONOCIMIENTO.md).</p>']
+
+    def table(techs, title):
+        rows = ''
+        for t in techs:
+            unlocks = [f'receta <code>{e(r)}</code>' for r in t.get('recipes', [])] + [f'nodo <code>{e(n)}</code>' for n in t.get('nodes', [])] \
+                + [f'edificio <code>{e(b)}</code>' for b in t.get('buildings', [])]
+            d = t.get('discovery', {})
+            how = 'se sabe desde el principio' if t.get('known') else ', '.join(f'{k} {num(v)}' for k, v in d.items()) or '—'
+            rows += (f'<tr data-search="{e(t["id"].lower())} {e(t.get("name", "").lower())}"><td><code>{e(t["id"])}</code></td><td>{e(t.get("name", ""))}</td><td>{t.get("era", 1)}</td>'
+                     f'<td>{tags(t.get("requires", []))}</td><td>{", ".join(unlocks) or "—"}</td><td>{e(how)}</td></tr>')
+        return (f'<h2>{e(title)} <span class="muted">({len(techs)})</span></h2><table class="grid"><tr><th>Id</th><th>Nombre</th><th>Era</th><th>Requiere</th>'
+                f'<th>Desbloquea</th><th>Descubrimiento</th></tr>{rows}</table>')
+    out.append(table(content.get('techs', []), 'Tecnologías (base)'))
+    if extra_techs:
+        out.append(table(extra_techs, 'Tecnologías (ampliado)'))
+    return '\n'.join(out)
+
+
+def section_packs(packs):
+    out = ['<h1>Paquetes de contenido</h1>',
+           '<p class="lead">Cada era es un paquete (<code>assets/data/&lt;id&gt;.pack.json</code>): sus ficheros, de qué paquetes depende, qué objetos vienen de fuera y los huecos conocidos. '
+           'El editor carga <code>era1</code> al arrancar; <code>pack load &lt;id&gt; [strict]</code> carga otro y <code>pack check</code> comprueba que toda receta es alcanzable (ver PAQUETES.md).</p>']
+    for p in packs:
+        given = ''.join(f'<li><code>{e(k)}</code>: {e(v)}</li>' for k, v in p.get('given', {}).items())
+        deferred = ''.join(f'<li><code>{e(k)}</code>: {e(v)}</li>' for k, v in p.get('deferred', {}).items())
+        out.append(f'<h2 data-search="{e(p.get("id", "").lower())}">{e(p.get("name", p.get("id", "")))} <span class="muted">({e(p.get("id", ""))}, era {p.get("era", "?")}, v{e(str(p.get("version", "")))})</span></h2>'
+                   f'<table class="kv"><tr><th>Depende de</th><td>{tags(p.get("depends", [])) or "—"}</td></tr>'
+                   f'<tr><th>Ficheros</th><td>{tags(p.get("files", []))}</td></tr>'
+                   f'<tr><th>Estaciones</th><td>{tags(p.get("stations", [])) or "—"}</td></tr></table>'
+                   + (f'<h3>Vienen de fuera</h3><ul>{given}</ul>' if given else '') + (f'<h3>Huecos conocidos</h3><ul>{deferred}</ul>' if deferred else ''))
+    return '\n'.join(out)
+
+
+# data sections shown as they are written (the systems read them through the content section registry)
+DATA_SECTIONS = [
+    ('era1.json', 'tribe', 'Tribu: agenda del día y economía (comida, existencias objetivo)'),
+    ('era1.json', 'work', 'Trabajo: aptitudes por práctica y tablón de trabajos'),
+    ('era1.json', 'knowledge', 'Conocimiento: reglas del clan (lecciones, observación)'),
+    ('era1.json', 'exploration', 'Exploración: regiones, expediciones y migración'),
+    ('world.json', 'interactives', 'Interactivos: hoguera, pozo, puerta'),
+    ('world.json', 'species', 'Especies de la ecología'),
+    ('cameras.json', 'cameras', 'Cámaras de juego'),
+]
+
+
+def section_data():
+    out = ['<h1>Más datos del juego</h1>',
+           '<p class="lead">El resto de secciones de <code>assets/data</code>, tal como están escritas. Cambiarlas no requiere compilar: se recargan con <code>pack load era1</code>.</p>']
+    for file, key, title in DATA_SECTIONS:
+        doc = load_json(ROOT / 'assets' / 'data' / file, {})
+        if key not in doc:
+            continue
+        text = json.dumps(doc[key], ensure_ascii=False, indent=2)
+        out.append(f'<details data-search="{e(key)} {e(title.lower())}"><summary><b>{e(title)}</b> <span class="muted">{e(file)} → <code>{e(key)}</code></span></summary>'
+                   f'<pre><code>{e(text)}</code></pre></details>')
     return '\n'.join(out)
 
 
@@ -594,6 +662,9 @@ def main():
         sys.exit(f'No rules file at {args.rules}. In the editor (with the demos built): docs export {args.rules}')
     content = load_json(ROOT / 'assets' / 'data' / 'era1.json', {'items': [], 'recipes': [], 'nodes': []})
     extra = load_json(ROOT / 'assets' / 'data' / 'era1_ampliado.json', {})
+    base_techs = {t['id'] for t in content.get('techs', [])}
+    extra_techs = [t for t in extra.get('techs', []) if t['id'] not in base_techs]
+    packs = [load_json(f, {}) for f in sorted((ROOT / 'assets' / 'data').glob('*.pack.json'))]
     extra = {k: extra.get(k, []) for k in ('items', 'recipes', 'nodes')}
     # what the extended file repeats from the base is not shown twice
     for k in ('items', 'recipes', 'nodes'):
@@ -614,7 +685,7 @@ def main():
     plan = DOCS / 'PLAN_SOCIEDAD_VIVA.md'
     if plan.exists():
         text = plan.read_text(encoding='utf-8')
-        m = re.search(r'## 10\. Estado de los hitos\s*(.*?)(?=\n### 10\.1|\Z)', text, re.S)
+        m = re.search(r'(\*\*Estado de los hitos\*\*.*?)(?=\n### |\Z)', text, re.S)   # the one status table, at the top of section 4
         if m:
             status = render_doc_text(m.group(1), known)
 
@@ -631,6 +702,9 @@ def main():
         ('roles', 'Roles', 'Personajes', section_roles(rules)),
         ('mundo', 'Estaciones y ecología', 'Mundo', section_world(rules)),
         ('contenido', 'Objetos, recetas y nodos', 'Mundo', section_content(content, extra)),
+        ('tecnologias', 'Tecnologías', 'Mundo', section_techs(content, extra_techs)),
+        ('paquetes', 'Paquetes', 'Datos', section_packs(packs)),
+        ('datos', 'Más datos del juego', 'Datos', section_data()),
         ('docs', 'Documentos', 'Documentos', section_docs(rendered)),
     ]
     nav, body = [], []

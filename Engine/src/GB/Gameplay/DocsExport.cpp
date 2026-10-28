@@ -109,6 +109,7 @@ namespace GB
 			if (a.HasTag("Garden.Tree")) return "Árbol del huerto";
 			if (a.HasTag("Garden.Cow")) return "Vaca";
 			if (a.HasTag("Animal.Rabbit")) return "Conejo";
+			if (a.HasTag("Animal.Fox")) return "Zorro";
 			if (a.HasTag("Interactive.Campfire")) return "Fogata";
 			if (a.HasTag("Interactive.Well")) return "Pozo";
 			if (a.HasTag("Interactive.Door")) return "Puerta";
@@ -193,11 +194,20 @@ namespace GB
 		root["seasons"] = { { "seasonSeconds", Round(SeasonClock().SeasonSeconds) }, { "list", seasons } };
 
 		// ---- settings of the systems
-		const EcologyConfig& e = in.Ecology;
+		// the rabbits' numbers as the flat "ecology" table the wiki reads, and every species as its data says
+		const auto rabbit = in.Ecology.find("rabbit");
+		const EcologyConfig e = rabbit != in.Ecology.end() ? rabbit->second.Life : EcologyConfig{};
+		root["species"] = Json::parse(SpeciesToJson(in.Ecology));
 		root["ecology"] = { { "maxAnimals", e.MaxAnimals }, { "speed", Round(e.Speed) }, { "wanderRadius", Round(e.WanderRadius) }, { "foodMax", Round(e.FoodMax) }, { "hungerPerSecond", Round(e.HungerPerSecond) },
 			{ "hungryBelow", Round(e.HungryBelow) }, { "eatReach", Round(e.EatReach) }, { "eatSeconds", Round(e.EatSeconds) }, { "foodPerPlant", Round(e.FoodPerPlant) }, { "breedAbove", Round(e.BreedAbove) },
 			{ "adultSeconds", Round(e.AdultSeconds) }, { "breedCooldown", Round(e.BreedCooldown) }, { "starveSeconds", Round(e.StarveSeconds) } };
-		root["interactives"] = { { "burnSeconds", Round(in.Interactives.BurnSeconds) }, { "fuelPerWood", in.Interactives.FuelPerWood }, { "waterPerDraw", in.Interactives.WaterPerDraw } };
+		{
+			// the first campfire and well for the summary line of the wiki, and every interactive as its data says
+			InteractiveDef fire, well;
+			for (const auto& [id, d] : in.Interactives) { if (d.Kind == "campfire" && fire.Id.empty()) fire = d; if (d.Kind == "well" && well.Id.empty()) well = d; }
+			root["interactives"] = { { "burnSeconds", Round(fire.BurnSeconds) }, { "fuelPerWood", fire.FuelPerWood }, { "waterPerDraw", well.WaterPerDraw },
+				{ "refillSeconds", Round(well.RefillSeconds) }, { "list", Json::parse(InteractivesToJson(in.Interactives)) } };
+		}
 		root["garden"] = { { "stageSeconds", Round(in.Garden.StageSeconds) }, { "moistureSeconds", Round(in.Garden.MoistureSeconds) }, { "treeSeconds", Round(in.Garden.TreeSeconds) } };
 		Json commands = Json::array();
 		for (const auto& c : in.Commands) commands.push_back({ { "name", c.first }, { "help", c.second } });

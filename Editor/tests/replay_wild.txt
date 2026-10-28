@@ -1,0 +1,11 @@
+# A replay on a world with the resource nodes the data spreads over it (resources world): the nodes come from the seed, so they are part of the baseline of the
+# saved state and only the ones that changed travel in it. Played in another world, the replay regenerates them from the seed and ends the same.
+generate temperate 5
+resources world 0.5
+actor spawn Ana fox 3 3 ai
+replay record
+wait 300
+replay stop replay_wild
+generate temperate 9
+replay play replay_wild
+quit

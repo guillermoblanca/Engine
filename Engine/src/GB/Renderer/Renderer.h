@@ -189,6 +189,9 @@ namespace GB
 		std::vector<const WaterSurface*> Water;         // translucent water, drawn after the grass; not owned
 		const WaterRipples* Ripples = nullptr;          // ripple heights shared by the water surfaces; not owned
 		bool ScreenSpaceReflections = true;             // water reflects the objects around it (screen space); off = sky only
+		// Quality knobs for slow GPUs (the editor's `quality minimum`): how far things are drawn. The defaults change nothing.
+		float DrawDistance = 0.0f;                      // > 0: objects with bounds (trees, rocks, props) farther than this are skipped, on top of their own MaxDistance
+		float GrassDistanceScale = 1.0f;                // multiplies the draw distance of every grass field
 		Environment Env;
 	};
 

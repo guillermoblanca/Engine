@@ -27,8 +27,8 @@ namespace GB
 		MemoryConfig Memory;
 		ChooserConfig Chooser;
 		std::map<std::string, std::map<std::string, float>> Roles;
-		EcologyConfig Ecology;
-		InteractiveSystem::Config Interactives;
+		std::map<std::string, SpeciesDef> Ecology = DefaultSpecies();
+		std::map<std::string, InteractiveDef> Interactives = DefaultInteractives();
 		GardenConfig Garden;
 		std::vector<std::pair<std::string, std::string>> Commands;   // the editor's commands and their help text
 	};

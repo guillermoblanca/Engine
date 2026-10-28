@@ -2,6 +2,7 @@
 // autosave / replay, the fixed simulation tick they rely on and the File > Save game / Load game menus. The format lives in GB/Save.
 #include "EditorApp.h"
 #include "GB/Game/SceneIO.h"
+#include "GB/Gameplay/WorldResources.h"
 #include "GB/Log.h"
 #include "GB/World/WorldGen.h"
 #include <algorithm>
@@ -25,11 +26,15 @@ namespace GB::Editor
 		constexpr const char* kEcologySection = "ecology";          // where each rabbit was heading and the counters
 		constexpr const char* kInteractivesSection = "interactives";   // the timers of the fires and the wells
 		constexpr const char* kSeasonSection = "season-look";          // the weather, snow and leaf colour the season wrote
+		constexpr const char* kKnowledgeSection = "knowledge-clan";    // H11: what the clan knows, what is half learnt, the tries (each member's own is in its actor)
 
-		WorldParams ParamsOf(const WorldDesc& d, bool generated)
+		// `wild`: the density of the resource nodes spread over the world (`resources world`), 0 when there are none; they are part of the baseline.
+		WorldParams ParamsOf(const WorldDesc& d, bool generated, float wild)
 		{
 			WorldParams p;
 			p.Generated = generated;
+			p.GeneratorVersion = d.GeneratorVersion;
+			p.WildResources = generated ? wild : 0.0f;
 			p.Type = d.Type == WorldType::Alpine ? "alpine" : d.Type == WorldType::Desert ? "desert" : "temperate";
 			p.Seed = d.Seed;
 			p.Size = d.Size;
@@ -47,6 +52,7 @@ namespace GB::Editor
 			WorldDesc d;
 			d.Type = p.Type == "alpine" ? WorldType::Alpine : p.Type == "desert" ? WorldType::Desert : WorldType::Temperate;
 			d.Seed = p.Seed;
+			d.GeneratorVersion = p.GeneratorVersion;
 			d.Size = p.Size;
 			d.Resolution = p.Resolution;
 			d.River = p.River;
@@ -71,7 +77,7 @@ namespace GB::Editor
 		bool IsSimCommand(const std::string& word)
 		{
 			static const std::set<std::string> names = { "garden", "resources", "ability", "add", "delete", "duplicate", "move", "rotate", "scale", "color", "emissive",
-				"light", "drop", "set", "time", "weather", "entity", "select", "generate", "actor", "ecology", "interactives", "tribe", "content" };
+				"light", "drop", "set", "time", "weather", "entity", "select", "generate", "actor", "ecology", "interactives", "tribe", "content", "knowledge" };
 			return names.count(word) != 0;
 		}
 
@@ -89,7 +95,7 @@ namespace GB::Editor
 	}
 
 	// ------------------------------------------------------------------ the host
-	WorldParams EditorSaveHost::World() const { return ParamsOf(m_App.m_WorldDesc, m_App.m_World.IsBuilt()); }
+	WorldParams EditorSaveHost::World() const { return ParamsOf(m_App.m_WorldDesc, m_App.m_World.IsBuilt(), m_App.m_WildResources); }
 
 	ClockState EditorSaveHost::Clock() const
 	{
@@ -112,7 +118,12 @@ namespace GB::Editor
 
 	const GameplayWorld* EditorSaveHost::Gameplay() const { return &m_App.m_Gameplay; }
 
-	std::vector<ActorState> EditorSaveHost::Actors() const { return m_Actors ? m_Actors->CaptureActors() : std::vector<ActorState>(); }
+	std::vector<ActorState> EditorSaveHost::Actors() const
+	{
+		std::vector<ActorState> out = m_Actors ? m_Actors->CaptureActors() : std::vector<ActorState>();
+		for (ActorState& a : out) a.Knowledge = m_App.m_Tribe.Knowledge().Names(a.Name);   // H11: what a tribe member knows ("tech.<id>"); empty for the rest
+		return out;
+	}
 
 	bool EditorSaveHost::BuildBaseline(const WorldParams& world, EntityWorld& out, std::string& error) const
 	{
@@ -124,13 +135,30 @@ namespace GB::Editor
 			return true;
 		}
 		SceneEditor scratch;   // the same code that fills the live scene numbers the generated objects
-		if (m_App.m_World.IsBuilt() && ParamsOf(m_App.m_WorldDesc, true) == world)
-			scratch.PopulateEnvironment(m_App.m_World.World().Trees, m_App.m_World.World().Rocks);
+		// The wild resource nodes (`resources world <density>`) come from the same seed, so they belong to the baseline too: the save then keeps only the
+		// nodes that changed (gathered, depleted, moved), not the few hundred of them. They are planned with the node data loaded now (ForgetBaseline
+		// when it changes); data that plans other spots is a drift of the baseline, reported like any other.
+		auto populate = [&](const GeneratedWorld& generated)
+		{
+			scratch.PopulateEnvironment(generated.Trees, generated.Rocks);
+			if (world.WildResources > 0.0f)
+			{
+				const std::vector<ResourceSpot> spots = PlanWorldResources(ResourceGroundOf(generated), m_App.m_NodeDefs, generated.Desc.Seed, world.WildResources);
+				BuildWorldResources(scratch.World(), spots, m_App.m_NodeDefs);   // its root is tagged "world", like the groups of trees and rocks
+			}
+		};
+		if (m_App.m_World.IsBuilt() && ParamsOf(m_App.m_WorldDesc, true, world.WildResources) == world)
+			populate(m_App.m_World.World());
 		else
 		{
 			if (world.Type != "temperate" && world.Type != "alpine" && world.Type != "desert") { error = "unknown world type '" + world.Type + "'"; return false; }
-			const GeneratedWorld generated = WorldGenerator::Generate(DescOf(world));
-			scratch.PopulateEnvironment(generated.Trees, generated.Rocks);
+			if (world.GeneratorVersion < kWorldGeneratorV1 || world.GeneratorVersion > kWorldGeneratorLatest)
+			{
+				error = "the world was made by generator version " + std::to_string(world.GeneratorVersion) + " (this one knows 1 to " + std::to_string(kWorldGeneratorLatest) + ")";
+				return false;
+			}
+			// No GL here: only the heights, biomes and placements are needed, not the mesh (WorldGenerator::GenerateData).
+			populate(WorldGenerator::GenerateData(DescOf(world)));
 		}
 		m_Baseline = scratch.World();
 		m_BaselineKey = world;
@@ -243,6 +271,7 @@ namespace GB::Editor
 			out.push_back({ kSeasonSection, 1, look.ToJson() });
 		}
 		if (!m_App.m_Tribe.Members().empty()) out.push_back({ kTribeSection, 1, m_App.m_Tribe.ToJson() });   // store, fire, memory and decisions (the needs are attributes)
+		if (!m_App.m_Tribe.Members().empty() && m_App.m_Tribe.Knowledge().Gated()) out.push_back({ kKnowledgeSection, 1, m_App.m_Tribe.Knowledge().ToJson() });
 		return out;
 	}
 
@@ -285,7 +314,8 @@ namespace GB::Editor
 	void EditorSaveHost::Commit(LoadedGame&& game)
 	{
 		EditorApp& app = m_App;
-		if (game.World.Generated && (!app.m_World.IsBuilt() || ParamsOf(app.m_WorldDesc, true) != game.World)) app.BuildWorld(DescOf(game.World));
+		if (game.World.Generated && (!app.m_World.IsBuilt() || ParamsOf(app.m_WorldDesc, true, game.World.WildResources) != game.World)) app.BuildWorld(DescOf(game.World));
+		app.m_WildResources = game.World.Generated ? game.World.WildResources : 0.0f;   // the wild nodes themselves come in with the entities
 		app.m_Player.Stop();
 		EntityWorld scene;
 		Assemble(game, scene);
@@ -316,6 +346,10 @@ namespace GB::Editor
 		app.m_TribeBodies.clear();
 		for (const SectionBlob& s : game.Sections)
 			if (s.Name == kTribeSection) app.RestoreTribe(s.Json);
+		// H11: what each member knows travels with its actor, the rest in its section; a save from before knowledge leaves the technologies of the start
+		for (const ActorState& a : game.Actors) app.m_Tribe.Knowledge().SetNames(a.Name, a.Knowledge);
+		for (const SectionBlob& s : game.Sections)
+			if (s.Name == kKnowledgeSection && !app.m_Tribe.Knowledge().FromJson(s.Json)) GB_CLIENT_WARN("the knowledge of the clan in the save could not be read: it starts again");
 		// what the systems keep apart from the components (a save from before these sections leaves them at their start)
 		std::string ecology = "{\"born\":0,\"starved\":0,\"eaten\":0,\"walks\":[]}", interactives = app.m_NoInteractiveTimers;
 		SeasonLook look;
@@ -351,6 +385,7 @@ namespace GB::Editor
 		m_App.m_Interactives.Update(static_cast<float>(kSimDt), &m_App.m_SceneEditor.World());
 		m_App.m_Tribe.SetViewer({ m_App.m_Camera.Position.x, m_App.m_Camera.Position.z });   // far from the camera the members are abstract agents
 		m_App.m_Tribe.SetWorldClock(static_cast<double>(m_App.m_SimTick) / 60.0);
+		m_App.SyncRegions();   // H12: the tribe knows the world by regions (rebuilt only when the world or its wild nodes change)
 		m_App.m_Tribe.Update(static_cast<float>(kSimDt));
 		++m_App.m_SimTick;
 	}

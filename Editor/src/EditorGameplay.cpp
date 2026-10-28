@@ -1,7 +1,9 @@
 // The editor's side of the Gameplay Ability System: the `garden` and `ability` commands and the Abilities panel.
 #include "EditorApp.h"
 #include "GB/Log.h"
+#include "GB/Gameplay/WorldResources.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <iomanip>
 #include <sstream>
@@ -81,7 +83,7 @@ namespace GB::Editor
 				if (!a) { error = "the actor " + m_Name + " was removed"; return false; }
 				return a->RunTasks(tasks, error);
 			}
-			bool CanStandAt(const glm::vec2& p) const override { const NavGrid& nav = m_Actors.Navigation(); return !nav.Ready() || nav.Walkable(p); }
+			bool CanStandAt(const glm::vec2& p) const override { const NavGrid& nav = m_Actors.Navigation(); return !nav.Ready() || nav.Walkable(p, m_Profile); }
 			bool CanReach(const glm::vec2& p) const override
 			{
 				const Actor* a = m_Actors.Find(m_Name);
@@ -89,16 +91,41 @@ namespace GB::Editor
 				if (!a || !nav.Ready()) return true;
 				const glm::vec3 from = a->GetPosition();
 				NavPath path;
-				return nav.Walkable(p) && nav.FindPath(NavProfile(), { from.x, from.z }, p, path);
+				return nav.Walkable(p, m_Profile) && nav.FindPath(m_Profile, { from.x, from.z }, p, path);
+			}
+			// The tribe hands over the role's profile with the load of the bag: the actor's own paths (Actor::Navigation) and the queries above use it.
+			void SetNavigation(const NavProfile& profile) override { m_Profile = profile; if (Actor* a = m_Actors.Find(m_Name)) a->Navigation = profile; }
+			// What the abstract agent walks while the actor is far away: the same path the actor would plan, or no way at all. A goal inside a wall
+			// (a tree's trunk) is fine when the path ends within reach of it.
+			bool Route(const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points) const override
+			{
+				const NavGrid& nav = m_Actors.Navigation();
+				if (!nav.Ready()) { points.assign(1, to); return true; }
+				NavPath path;
+				const bool found = nav.FindPath(m_Profile, from, to, path);
+				if (path.Points.empty()) return false;
+				if (!found && glm::distance(path.Points.back(), to) > reach + nav.CellSize()) return false;
+				points = std::move(path.Points);
+				return true;
 			}
 			void Teleport(const glm::vec2& p) override { if (Actor* a = m_Actors.Find(m_Name)) a->Teleport(p.x, p.y, 0.0f); }
 			void SetSuspended(bool on) override { m_Actors.SetSuspended(m_Name, on); }
 			std::string Error() const override { const Actor* a = m_Actors.Find(m_Name); return a ? a->TaskStatus() : std::string(); }
 			Inventory& Bag() override { Actor* a = m_Actors.Find(m_Name); return a ? a->Bag() : m_Gone; }
+			// H9: a child grows; the actor was made at an adult's height, so that height divided by how grown it was is what it grows to
+			void SetGrowth(float g) override
+			{
+				Actor* a = m_Actors.Find(m_Name);
+				if (!a || g <= 0.0f || std::fabs(g - m_Growth) < 1e-3f) return;
+				a->SetHeight(a->Height() / m_Growth * g);
+				m_Growth = g;
+			}
 		private:
 			ActorWorld& m_Actors;
 			std::string m_Name;
 			Inventory m_Gone;   // what a removed actor "carries": nothing
+			NavProfile m_Profile;
+			float m_Growth = 1.0f;
 		};
 	}
 
@@ -197,6 +224,26 @@ namespace GB::Editor
 		dl->PopClipRect();
 	}
 
+	// H9: a newborn of the tribe gets an actor of the tribe's model beside its mother, and an ability system from its entity (only its own: the
+	// others keep theirs running, which a whole SyncGameplay in the middle of the tribe's update would not).
+	void EditorApp::SetTribeSpawner()
+	{
+		m_Tribe.SetSpawner([this](const std::string& name, const glm::vec2& at, float growth) -> ITribeBody*
+		{
+			if (m_Actors.Find(name)) return nullptr;
+			std::string error;
+			const glm::vec3 near(at.x + 0.8f, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(at.x + 0.8f, at.y) : 0.0f, at.y);
+			Actor* actor = m_Player.Spawn(name, m_TribeModel, m_World, m_SceneEditor, m_AssetRoot, near, m_Steps.get(), error, true);
+			if (!actor) { GB_CLIENT_WARN("no actor for the newborn {}: {}", name, error); return nullptr; }
+			if (const Entity* e = m_SceneEditor.World().Find(m_SceneEditor.World().FindByName(name)); e && e->Gameplay && !m_Gameplay.Find(name))
+				m_Gameplay.Create(name)->FromComponent(*e->Gameplay);
+			m_Actors.PrepareAbilities();
+			m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors, name));
+			m_TribeBodies.back()->SetGrowth(growth);
+			return m_TribeBodies.back().get();
+		});
+	}
+
 	CommandResult EditorApp::TribeCommand(const std::vector<std::string>& a)
 	{
 		const std::string sub = a.empty() ? "status" : a[0];
@@ -212,14 +259,17 @@ namespace GB::Editor
 			glm::vec3 origin = m_Orbit.Target;
 			int workers = 4;
 			if (numbers.size() >= 2) { origin.x = numbers[0]; origin.z = numbers[1]; }
-			if (numbers.size() >= 3) workers = std::max(2, std::min(6, static_cast<int>(numbers[2])));
+			if (numbers.size() >= 3) workers = std::max(1, std::min(200, static_cast<int>(numbers[2])));   // (no fixed crew: the names and trades come from the data)
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
 
+			// The names come from the data ("work" section: WorkRules::Names, then again with a number) and the trades from the clan's needs (Tribe::PlanRoles):
+			// the stock it wants of what each trade gathers best, and the campfire. The actors of the last tribe and of these names go first.
+			for (const TribeMember& m : m_Tribe.Members()) if (m_Actors.Find(m.Name)) m_Actors.Remove(m.Name);
 			m_Tribe.Clear();
 			m_TribeBodies.clear();
-			static const char* const names[] = { "Ana", "Biel", "Cleo", "Dan", "Eli", "Fran" };
-			static const char* const roles[] = { "forager", "woodcutter", "miner", "forager", "woodcutter", "forager" };
-			for (int i = 0; i < 6; ++i) if (m_Actors.Find(names[i])) m_Actors.Remove(names[i]);
+			std::vector<std::string> names;
+			for (int i = 0; i < workers; ++i) names.push_back(MemberName(m_Tribe.Config.Work, static_cast<size_t>(i)));
+			for (const std::string& n : names) if (m_Actors.Find(n)) m_Actors.Remove(n);
 
 			const CommandResult built = ResourcesCommand({ "build", std::to_string(origin.x), std::to_string(origin.z), std::to_string(workers) });
 			if (!built.Ok) return built;
@@ -228,27 +278,40 @@ namespace GB::Editor
 				// a well near the camp (the members get thirsty); the fire pit and the gate of the interactives are not wanted here
 				EntityWorld& world = m_SceneEditor.World();
 				const glm::vec3 wellOrigin(camp.x + 4.0f, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x + 4.0f, camp.y - 6.0f) : 0.0f, camp.y - 6.0f);
-				BuildInteractives(world, wellOrigin);
+				BuildInteractives(world, wellOrigin, m_Interactives.Defs);
 				for (const char* extra : { "Fire Pit", "Gate" }) if (const EntityId id = world.FindByName(extra); id != NullEntity) world.Destroy(id);
 				SyncGameplay();
 			}
 			for (int i = 0; i < workers; ++i)
 			{
-				const CommandResult r = Execute(std::string("actor spawn ") + names[i] + " \"" + model + "\" " + std::to_string(camp.x + (i - (workers - 1) * 0.5f) * 1.5f) + " " + std::to_string(camp.y) + " ai");
+				// a row of up to 8, rows behind each other: a large clan does not stand in one line across the map
+				const int col = i % 8, row = i / 8, inRow = std::min(8, workers - row * 8);
+				const CommandResult r = Execute("actor spawn " + names[static_cast<size_t>(i)] + " \"" + model + "\" " + std::to_string(camp.x + (static_cast<float>(col) - static_cast<float>(inRow - 1) * 0.5f) * 1.5f) + " " + std::to_string(camp.y + 1.5f * static_cast<float>(row)) + " ai");
 				if (!r.Ok) return r;
-				m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors, names[i]));
+				m_TribeBodies.push_back(std::make_unique<ActorBody>(m_Actors, names[static_cast<size_t>(i)]));
 			}
 			m_SeasonVisuals = true;
 			m_Tribe.Bind(m_SceneEditor.World(), m_Gameplay, m_Items, m_Recipes, m_NodeDefs);
+			m_TribeModel = model;
+			SetTribeSpawner();   // H9: its children get actors of the same model
 			m_Panels.Tribe = true;
 			m_FocusTribe = 20;
-			SelectActor(names[0], false);   // the panel shows its mind at once
+			SelectActor(names.front(), false);   // the panel shows its mind at once
 			m_Tribe.Config.Camp = camp;
 			m_Tribe.Config.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
 			m_Tribe.Store().Add(m_Items, "wood", 2 + 2 * workers);    // what they found lying around on the first day
 			m_Tribe.Store().Add(m_Items, "stone", 3 * workers);
-			for (int i = 0; i < workers; ++i) m_Tribe.AddMember(names[i], roles[i], m_TribeBodies[static_cast<size_t>(i)].get());
-			return { true, std::to_string(workers) + " workers at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + ") with 9 resource nodes around; they act on their own: tribe status | tribe log" };
+			const std::vector<std::string> roles = m_Tribe.PlanRoles(workers);
+			std::map<std::string, int> shares;
+			for (int i = 0; i < workers; ++i)
+			{
+				const std::string role = static_cast<size_t>(i) < roles.size() ? roles[static_cast<size_t>(i)] : std::string("forager");
+				m_Tribe.AddMember(names[static_cast<size_t>(i)], role, m_TribeBodies[static_cast<size_t>(i)].get());
+				++shares[role];
+			}
+			std::string trades;
+			for (const auto& [role, n] : shares) trades += (trades.empty() ? "" : ", ") + std::to_string(n) + " " + role;
+			return { true, std::to_string(workers) + " workers at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + "): " + trades + "; " + built.Message + "; they act on their own: tribe status | tribe jobs | tribe log" };
 		}
 		if (sub == "remove" && a.size() > 1)
 		{
@@ -259,8 +322,29 @@ namespace GB::Editor
 			return { true, a[1] + " left the tribe (the actor stays: actor remove " + a[1] + ")" };
 		}
 		if (sub == "clear") { m_Tribe.Clear(); m_TribeBodies.clear(); return { true, "tribe cleared (the actors stay: actor remove <name>)" }; }
-		if (sub != "log" && sub != "status") return { false, "usage: tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear" };
+		const bool society = sub == "family" || sub == "relations" || sub == "culture" || sub == "relate" || sub == "day";
+		if (sub != "log" && sub != "status" && sub != "jobs" && !society)
+			return { false, "usage: tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | remove <name> | clear | family <name> | relations <name> | culture | relate <a> <b> <event> | day" };
 		if (m_Tribe.Members().empty()) return { false, "no tribe (tribe build [model.fbx])" };
+		// H9 + H10: the family and character of a member, its relations, the culture of the clan; an event between two members; a day of the society now
+		if (society)
+		{
+			auto member = [&](const std::string& n) { return std::any_of(m_Tribe.Members().begin(), m_Tribe.Members().end(), [&](const TribeMember& m) { return m.Name == n; }); };
+			if (sub == "culture") return { true, m_Tribe.CultureReport() };
+			if (sub == "day") { m_Tribe.SocietyDay(); return { true, "a day of the society passed: " + m_Tribe.CultureReport() }; }
+			if (sub == "relate")
+			{
+				if (a.size() < 4) return { false, "usage: tribe relate <a> <b> <event> (work, food, camp, conflict, teach, help, theft, rescue... see the society section)" };
+				if (!member(a[1]) || !member(a[2])) return { false, "both must be members of the tribe" };
+				if (!m_Tribe.Config.Society.Relations.Events.count(a[3])) return { false, "unknown event '" + a[3] + "'" };
+				m_Tribe.Relate(a[1], a[2], a[3]);
+				return { true, m_Tribe.RelationsReport(a[1]) };
+			}
+			if (a.size() < 2 || !member(a[1])) return { false, "usage: tribe " + sub + " <member>" };
+			std::string s = sub == "family" ? m_Tribe.FamilyReport(a[1]) : m_Tribe.RelationsReport(a[1]);
+			for (char& c : s) if (c == '\n') c = '|';
+			return { true, s };
+		}
 		if (sub == "log")
 		{
 			const int n = a.size() > 1 ? std::max(1, std::atoi(a[1].c_str())) : 12;
@@ -269,7 +353,7 @@ namespace GB::Editor
 			for (size_t i = log.size() > static_cast<size_t>(n) ? log.size() - static_cast<size_t>(n) : 0; i < log.size(); ++i) s += log[i] + " | ";
 			return { true, s.empty() ? "nothing has happened yet" : s };
 		}
-		std::string s = m_Tribe.Report();
+		std::string s = sub == "jobs" ? m_Tribe.JobsReport() : m_Tribe.Report();   // jobs: the clan's board (H7) and who holds what
 		for (char& c : s) if (c == '\n') c = '|';   // one line: the console shows the first line of a message
 		return { true, s };
 	}
@@ -324,12 +408,17 @@ namespace GB::Editor
 		if (sub == "spawn")
 		{
 			glm::vec3 at = m_Orbit.Target;
-			int count = a.size() > 1 ? std::max(1, std::atoi(a[1].c_str())) : 4;
-			if (a.size() > 3) { at.x = static_cast<float>(std::atof(a[2].c_str())); at.z = static_cast<float>(std::atof(a[3].c_str())); }
+			std::vector<std::string> args(a.begin() + 1, a.end());
+			std::string species = "rabbit";   // a word among the numbers is the species
+			for (auto it = args.begin(); it != args.end(); ++it)
+				if (m_Ecology.Species.count(*it)) { species = *it; args.erase(it); break; }
+			int count = !args.empty() ? std::max(1, std::atoi(args[0].c_str())) : 4;
+			if (args.size() > 2) { at.x = static_cast<float>(std::atof(args[1].c_str())); at.z = static_cast<float>(std::atof(args[2].c_str())); }
 			m_SeasonVisuals = true;   // a world with animals has seasons you can see
-			const int made = m_Ecology.Spawn(at, count);
+			const int made = m_Ecology.Spawn(at, count, species);
 			m_SceneEditor.Commit();
-			return { made > 0, std::to_string(made) + " rabbits at (" + std::to_string(static_cast<int>(at.x)) + ", " + std::to_string(static_cast<int>(at.z)) + "); " + m_Ecology.Describe() };
+			const auto def = m_Ecology.Species.find(species);
+			return { made > 0, std::to_string(made) + " " + (def != m_Ecology.Species.end() ? def->second.Plural : species) + " at (" + std::to_string(static_cast<int>(at.x)) + ", " + std::to_string(static_cast<int>(at.z)) + "); " + m_Ecology.Describe() };
 		}
 		if (sub == "visuals")
 		{
@@ -352,7 +441,7 @@ namespace GB::Editor
 			std::snprintf(rate, sizeof rate, "%.1f", static_cast<double>(SeasonClock::GrowthRate(now)));
 			return { true, std::string(SeasonClock::Name(now)) + " (" + std::to_string(static_cast<int>(SeasonClock().Progress(clock) * 100.0f)) + "% through it, plants grow x" + rate + ")" };
 		}
-		if (sub != "status") return { false, "usage: ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]" };
+		if (sub != "status") return { false, "usage: ecology spawn [n] [x z] [species] | status | season [spring|summer|autumn|winter]" };
 		const double clock = static_cast<double>(m_SimTick) / 60.0;
 		return { true, std::string(SeasonClock::Name(SeasonClock().At(clock))) + "; " + m_Ecology.Describe() };
 	}
@@ -371,10 +460,11 @@ namespace GB::Editor
 			{
 				ImGui::TextWrapped("%s", m_Ecology.Describe().c_str());
 				if (ImGui::SmallButton("Add 4 rabbits")) m_UiCommands.push_back("ecology spawn 4");
+				if (m_Ecology.Species.count("fox")) { ImGui::SameLine(); if (ImGui::SmallButton("Add a fox")) m_UiCommands.push_back("ecology spawn 1 fox"); }
 				for (const std::string& n : m_Gameplay.Names())
 				{
 					const AbilitySystemComponent* a = m_Gameplay.Find(n);
-					if (!a || !a->HasTag("Animal.Rabbit")) continue;
+					if (!a || !a->HasTag("Animal")) continue;
 					const float food = a->Attributes().Current("Food");
 					char label[96];
 					std::snprintf(label, sizeof label, "%s  food %.0f  age %.0f s%s", n.c_str(), static_cast<double>(food), static_cast<double>(a->Attributes().Current("Age")), food < 55.0f ? "  (hungry)" : "");
@@ -389,7 +479,7 @@ namespace GB::Editor
 					const AbilitySystemComponent* a = m_Gameplay.Find(n);
 					if (!a) continue;
 					if (a->HasTag("Interactive.Campfire")) { any = true; ImGui::Text("%s: %s, fuel %.0f", n.c_str(), InteractiveSystem::CampfireState(*a).c_str(), static_cast<double>(a->Attributes().Current("Fuel"))); }
-					else if (a->HasTag("Interactive.Well")) { any = true; ImGui::Text("%s: water %.0f / 6", n.c_str(), static_cast<double>(a->Attributes().Current("Water"))); }
+					else if (a->HasTag("Interactive.Well")) { any = true; ImGui::Text("%s: water %.0f / %.0f", n.c_str(), static_cast<double>(a->Attributes().Current("Water")), static_cast<double>(a->Attributes().Max("Water"))); }
 					else if (a->HasTag("Interactive.Door")) { any = true; ImGui::Text("%s: %s", n.c_str(), InteractiveSystem::DoorState(*a).c_str()); }
 				}
 				if (!any) ImGui::TextDisabled("none (interactives build)");
@@ -428,7 +518,7 @@ namespace GB::Editor
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
 			m_Gameplay.Store(m_SceneEditor.World());   // (what the systems hold now goes into their components first: SyncGameplay rebuilds every system from them, and the nodes, rabbits and plots already running would start over)
-			BuildInteractives(m_SceneEditor.World(), origin);
+			BuildInteractives(m_SceneEditor.World(), origin, m_Interactives.Defs);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
 			m_SceneEditor.Commit();
@@ -459,6 +549,7 @@ namespace GB::Editor
 			// `resources build x z <workers>`: the patch the node definitions describe (count, spacing and shape per type) for a tribe of that size
 			const int workers = a.size() > 3 ? std::max(1, std::atoi(a[3].c_str())) : 1;
 			const ResourceLayout layout = BuildResourcePatch(m_SceneEditor.World(), origin, m_NodeDefs, workers);
+			if (m_World.IsBuilt()) SnapToGround(m_SceneEditor.World(), layout, [this](float x, float z) { return m_World.GetTerrain().GetHeight(x, z); });
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
 			m_SceneEditor.Commit();
@@ -467,7 +558,24 @@ namespace GB::Editor
 			return { true, std::to_string(layout.Nodes.size()) + " resource nodes built at (" + std::to_string(static_cast<int>(origin.x)) + ", " + std::to_string(static_cast<int>(origin.z))
 				+ ") for " + std::to_string(workers) + " worker(s): " + kinds + ". Gather with: ability activate Gather \"berry bush 1\", Collect \"clay bank 1\" (Chop needs an axe, Mine a pickaxe: actor bag <name> craft stone_axe workbench)" };
 		}
-		if (sub != "status") return { false, "usage: resources build [x z [workers]] | status" };
+		if (sub == "world")
+		{
+			// `resources world [density]`: the nodes the data spreads over the whole generated map, by biome (ResourceNodeDef::Spawn)
+			if (!m_World.IsBuilt()) return { false, "resources world needs a generated world (generate temperate|alpine|desert <seed>)" };
+			const float density = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 1.0f;
+			if (!(density > 0.0f && density <= 10.0f)) return { false, "the density must be above 0 and at most 10" };
+			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
+			const std::vector<ResourceSpot> spots = PlanWorldResources(ResourceGroundOf(m_World.World()), m_NodeDefs, m_World.World().Desc.Seed, density);
+			const ResourceLayout layout = BuildWorldResources(m_SceneEditor.World(), spots, m_NodeDefs);
+			m_WildResources = density;   // the seed makes them again: a save keeps only what changed of them (EditorSaveHost::BuildBaseline)
+			m_SceneEditor.Select(NullEntity);
+			SyncGameplay();
+			m_SceneEditor.Commit();
+			std::string kinds;
+			for (const auto& [id, n] : CountSpots(spots)) kinds += (kinds.empty() ? "" : ", ") + std::to_string(n) + " " + id;
+			return { true, std::to_string(layout.Nodes.size()) + " resource nodes spread over the world (density " + std::to_string(density).substr(0, 4) + "): " + (kinds.empty() ? "none" : kinds) };
+		}
+		if (sub != "status") return { false, "usage: resources build [x z [workers]] | world [density] | status" };
 			// Grouped by type: "tree: 3 nodes, 11 units, 1 depleted [tree 1: 5, tree 2: 0 (depleted), ...]"
 		struct Group { int Nodes = 0, Units = 0, Depleted = 0; std::string Each; };
 		std::map<std::string, Group> groups;
@@ -682,6 +790,7 @@ namespace GB::Editor
 			m_Tribe.AddMember(name, role, m_TribeBodies.back().get());
 		}
 		if (!m_Tribe.FromJson(json, true)) GB_CLIENT_WARN("the saved tribe could not be read: it starts again");
+		SetTribeSpawner();   // H9: children born after the load get actors too (of m_TribeModel)
 		m_Panels.Tribe = true;
 	}
 
@@ -739,6 +848,40 @@ namespace GB::Editor
 			return { true, s };
 		}
 		return { false, "ai debug [on|off] | status [name] | memory <name> | scream <name>" };
+	}
+
+	// H11: what the members and the clan know (GB/Game/Knowledge.h); `grant` teaches a technology at once, for trying things out.
+	CommandResult EditorApp::KnowledgeCommand(const std::vector<std::string>& a)
+	{
+		const std::string sub = a.empty() ? "status" : a[0];
+		ClanKnowledge& k = m_Tribe.Knowledge();
+		if (sub == "techs")
+		{
+			std::string s = std::to_string(m_Techs.Techs.size()) + " technologies:";
+			for (const auto& [id, t] : m_Techs.Techs)
+			{
+				s += " | " + id + " (" + t.Name + ", era " + std::to_string(t.Era) + (t.Known ? ", known from the start" : "") + ")";
+				if (!t.Requires.empty()) { s += " needs"; for (const std::string& q : t.Requires) s += " " + q; }
+				if (!t.Recipes.empty()) { s += " unlocks"; for (const std::string& r : t.Recipes) s += " " + r; }
+			}
+			return { true, s };
+		}
+		if (m_Tribe.Members().empty()) return { false, "no tribe (tribe build [model.fbx])" };
+		if (sub == "status")
+		{
+			if (a.size() > 1 && a[1] == "clan") return { true, k.ClanStatus() };
+			if (a.size() > 1) return { k.Of(a[1]) != nullptr || !k.Gated(), k.Status(a[1]) };
+			std::string s = k.ClanStatus();
+			for (const TribeMember& m : m_Tribe.Members()) s += " | " + k.Status(m.Name);
+			return { true, s };
+		}
+		if (sub == "grant" && a.size() > 2)
+		{
+			const std::string error = a[1] == "clan" ? k.GrantClan(a[2]) : k.Grant(a[1], a[2]);
+			if (!error.empty()) return { false, error };
+			return { true, (a[1] == "clan" ? std::string("the whole clan") : a[1]) + " now knows " + k.Name(a[2]) };
+		}
+		return { false, "knowledge status [name|clan] | grant <name|clan> <tech> | techs" };
 	}
 
 	namespace
@@ -811,6 +954,46 @@ namespace GB::Editor
 					e.Amount < 0 ? "?" : (std::to_string(e.Amount) + " left").c_str(), m_Tribe.Time() - e.Seen, e.Heard ? ", by ear" : "");
 			ImGui::EndChild();
 			ImGui::Checkbox("Draw view cones and memory in the viewport (ai debug)", &m_AiDebug);
+		}
+		// H9 + H10: its life, its family, its genes and personality, and whom it likes
+		if (const Person* p = m_Tribe.People().Find(m.Name); p && ImGui::CollapsingHeader("Life and family"))
+		{
+			const SocietyRules& rules = m_Tribe.Config.Society;
+			ImGui::Text("%s, %.1f years (%s), generation %d", p->Female ? "woman" : "man", static_cast<double>(p->Age), Society::StageName(m_Tribe.People().StageOf(rules, m.Name)), p->Generation);
+			ImGui::Text("Mother %s   father %s   partner %s   children %d", p->Mother.empty() ? "-" : p->Mother.c_str(), p->Father.empty() ? "-" : p->Father.c_str(),
+				p->Partner.empty() ? "-" : p->Partner.c_str(), p->Children);
+			ImGui::TextDisabled("Genes");
+			for (const auto& [id, v] : p->Genes)
+				if (rules.Genes.count(id)) ImGui::ProgressBar(v, ImVec2(-1.0f, 0.0f), (id + " " + std::to_string(static_cast<int>(v * 100.0f))).c_str());
+			ImGui::TextDisabled("Personality (gene and upbringing)");
+			for (const auto& [id, v] : p->Traits) ImGui::ProgressBar(v, ImVec2(-1.0f, 0.0f), (id + " " + std::to_string(static_cast<int>(v * 100.0f))).c_str());
+		}
+		if (m_Tribe.People().Find(m.Name) && ImGui::CollapsingHeader("Relations"))
+		{
+			const SocietyRules& rules = m_Tribe.Config.Society;
+			const auto bonds = m_Tribe.People().BondsOf(m.Name);
+			if (bonds.empty()) ImGui::TextDisabled("no bonds yet (they grow from shared work, food, the camp and lessons)");
+			for (const auto& [other, bond] : bonds)
+			{
+				const std::string kin = m_Tribe.People().Kin(m.Name, other);
+				const float affinity = m_Tribe.People().Affinity(rules, m.Name, other);
+				ImGui::TextColored(affinity >= 0.0f ? ImVec4(0.55f, 0.9f, 0.55f, 1.0f) : ImVec4(0.95f, 0.5f, 0.45f, 1.0f), "%s  %+.2f%s", other.c_str(), static_cast<double>(affinity), kin.empty() ? "" : ("  (" + kin + ")").c_str());
+			}
+		}
+		if (m_Tribe.Knowledge().Gated() && ImGui::CollapsingHeader("Knowledge"))
+		{
+			if (const AgentKnowledge* k = m_Tribe.Knowledge().Of(m.Name))
+			{
+				std::string known;
+				for (const std::string& t : k->Known) known += (known.empty() ? "" : ", ") + m_Tribe.Knowledge().Name(t);
+				ImGui::TextWrapped("Knows: %s", known.empty() ? "nothing" : known.c_str());
+				for (const auto& [t, p] : k->Progress)
+				{
+					const std::string label = m_Tribe.Knowledge().Name(t) + " " + std::to_string(static_cast<int>(p * 100.0f)) + "%";
+					ImGui::ProgressBar(p, ImVec2(-1.0f, 0.0f), label.c_str());
+				}
+				for (const auto& [t, n] : k->Tries) ImGui::TextDisabled("tried %s %d time%s", m_Tribe.Knowledge().Name(t).c_str(), n, n == 1 ? "" : "s");
+			}
 		}
 	}
 
@@ -918,6 +1101,75 @@ namespace GB::Editor
 				if (store.Stacks().empty()) ImGui::TextDisabled("empty");
 			}
 
+			if (ImGui::CollapsingHeader("Jobs (the clan's board)", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				// H7: what the clan needs, from the most pressing, and who holds each job (a claim is a bonus on the member's options, not an order)
+				const std::vector<const Job*> jobs = m_Tribe.Board().Ordered();
+				if (jobs.empty()) ImGui::TextDisabled("the clan needs nothing now");
+				else if (ImGui::BeginTable("jobs", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg))
+				{
+					ImGui::TableSetupColumn("Job", ImGuiTableColumnFlags_WidthFixed, 120.0f); ImGui::TableSetupColumn("Priority", ImGuiTableColumnFlags_WidthFixed, 52.0f); ImGui::TableSetupColumn("Held by and why");
+					ImGui::TableHeadersRow();
+					for (const Job* job : jobs)
+					{
+						ImGui::TableNextRow();
+						ImGui::TableNextColumn(); ImGui::Text("%s x%.0f", job->Id.c_str(), static_cast<double>(job->Amount));
+						ImGui::TableNextColumn(); ImGui::Text("%.2f", static_cast<double>(job->Priority));
+						ImGui::TableNextColumn();
+						std::string who;
+						for (const JobClaim& c : job->Claims) who += (who.empty() ? "" : ", ") + c.Member;
+						if (who.empty()) ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "nobody (0/%d)", job->Slots);
+						else ImGui::TextWrapped("%s (%zu/%d)", who.c_str(), job->Claims.size(), job->Slots);
+						if (!job->Why.empty()) ImGui::TextDisabled("%s", job->Why.c_str());
+					}
+					ImGui::EndTable();
+				}
+			}
+
+			// H11: what the clan knows of the technologies, and what is not known yet (and who is half-way to it)
+			if (m_Tribe.Knowledge().Gated() && ImGui::CollapsingHeader("Knowledge", ImGuiTreeNodeFlags_DefaultOpen))
+			{
+				const ClanKnowledge& k = m_Tribe.Knowledge();
+				for (const auto& [id, t] : m_Techs.Techs)
+				{
+					int knowers = 0;
+					float best = 0.0f;
+					for (const auto& [name, a] : k.Agents())
+					{
+						if (a.Known.count(id)) ++knowers;
+						else if (const auto p = a.Progress.find(id); p != a.Progress.end()) best = std::max(best, p->second);
+					}
+					if (k.Clan().count(id)) ImGui::Text("%s  (era %d): known by the clan, %d member%s", t.Name.c_str(), t.Era, knowers, knowers == 1 ? "" : "s");
+					else if (knowers > 0) ImGui::TextColored(ImVec4(0.95f, 0.8f, 0.35f, 1.0f), "%s: %d know%s it, not shown at the camp yet", t.Name.c_str(), knowers, knowers == 1 ? "s" : "");
+					else if (best > 0.0f)
+					{
+						char label[96];
+						std::snprintf(label, sizeof label, "%s: being learnt %d%%", t.Name.c_str(), static_cast<int>(best * 100.0f));
+						ImGui::ProgressBar(best, ImVec2(-1.0f, 0.0f), label);
+					}
+					else ImGui::TextDisabled("%s: unknown", t.Name.c_str());
+				}
+			}
+
+			// H9 + H10: how many live, are born and die, the norms of the clan and its traditions
+			if (ImGui::CollapsingHeader("Society"))
+			{
+				const Society& people = m_Tribe.People();
+				const SocietyRules& rules = m_Tribe.Config.Society;
+				int children = 0, elders = 0;
+				for (const auto& [name, p] : people.People())
+					if (!p.Dead) { const Society::Stage s = people.StageOf(rules, name); children += s == Society::Stage::Child; elders += s == Society::Stage::Elder; }
+				ImGui::Text("Day %d: %d alive (%d children, %d elders), %d born, %d died, %zu bonds", people.Days(), people.Alive(), children, elders, people.Births(), people.Deaths(), people.BondCount());
+				for (const auto& [id, n] : rules.Culture.Norms)
+				{
+					const float v = people.Norm(rules, id);
+					ImGui::ProgressBar(v, ImVec2(-1.0f, 0.0f), (id + " " + std::to_string(static_cast<int>(v * 100.0f))).c_str());
+				}
+				if (people.Traditions().empty()) ImGui::TextDisabled("no traditions yet");
+				for (const std::string& id : people.Traditions())
+					if (const auto t = rules.Culture.Traditions.find(id); t != rules.Culture.Traditions.end()) ImGui::Text("Tradition: %s (from %s)", t->second.Name.c_str(), t->second.Event.c_str());
+			}
+
 			if (ImGui::CollapsingHeader("Members", ImGuiTreeNodeFlags_DefaultOpen))
 			{
 				if (ImGui::BeginTable("members", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg))
@@ -931,6 +1183,7 @@ namespace GB::Editor
 						if (ImGui::Selectable(m.Name.c_str(), m.Name == m_AbilityActor, ImGuiSelectableFlags_SpanAllColumns | ImGuiSelectableFlags_AllowDoubleClick))
 							SelectActor(m.Name, ImGui::IsMouseDoubleClicked(0));
 						ImGui::TableNextColumn(); ImGui::TextUnformatted(m.Role.c_str());
+						if (const Job* held = m_Tribe.Board().ClaimOf(m.Name)) ImGui::TextDisabled("%s", held->Id.c_str());
 						ImGui::TableNextColumn();
 						if (m.Dead) ImGui::TextColored(ImVec4(0.9f, 0.3f, 0.25f, 1.0f), "dead (%s)", m.Cause.c_str());
 						else if (m.Job.empty()) ImGui::TextDisabled("deciding");
@@ -962,6 +1215,16 @@ namespace GB::Editor
 				{
 					ImGui::Text("%s, %d carried to the store, %d made, %d meals%s", m.Role.c_str(), m.Deposited, m.Made, m.Meals, m.Hungry ? ", hungry" : "");
 					if (!m.Why.empty()) ImGui::TextWrapped("Resting because: %s", m.Why.c_str());
+					if (const Job* held = m_Tribe.Board().ClaimOf(m.Name)) ImGui::TextWrapped("Job: %s (%s)", held->Id.c_str(), held->Why.c_str());
+					if (m.Skills.empty()) ImGui::TextDisabled("No skills yet: they grow with practice");
+					for (const auto& [family, level] : m.Skills)   // H7: its aptitudes (0 to the max of the data), the one of its trade marked
+					{
+						char label[64];
+						const auto role = m_Tribe.Config.Roles.find(m.Role);
+						const bool trade = role != m_Tribe.Config.Roles.end() && role->second.Skill == family;
+						std::snprintf(label, sizeof label, "%s %.0f%s", family.c_str(), static_cast<double>(level), trade ? " (its trade)" : "");
+						ImGui::ProgressBar(std::clamp(level / std::max(m_Tribe.Config.Work.Skills.Max, 1.0f), 0.0f, 1.0f), ImVec2(-1.0f, 0.0f), label);
+					}
 					if (Actor* actor = m_Actors.Find(m.Name)) ImGui::TextWrapped("Orders: %s", actor->TaskStatus().c_str());
 					DrawNpcInspector(m);
 					DrawBag(m.Name);

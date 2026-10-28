@@ -1,0 +1,24 @@
+# golden data 'world_temperate_5_v2' (generated; tolerances are in the test code)
+height.min = 1.9871659278869629
+height.max = 14.673442840576172
+height.mean = 9.3582640151726082
+height.std = 3.0625670994277625
+trees = 150
+rocks = 40
+tree.recipes = 7
+share.water = 0.056857552379369736
+share.shore = 0.075086653232574463
+share.meadow = 0.43186235427856445
+share.forest = 0.4362027645111084
+share.rock = 0
+share.snow = 0
+share.dunes = 0
+lake = 1
+lake.x = 54
+lake.z = -60
+lake.radius = 22
+lake.level = 5.7735176086425781
+river = 1
+river.points = 91
+river.startLevel = 11.517851829528809
+river.endLevel = 5.7735176086425781

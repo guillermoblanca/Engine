@@ -471,7 +471,9 @@ namespace
 			glm::vec3 bc; float br;
 			if (BoundsOf(obj, bc, br))
 			{
-				const bool tooFar = obj.MaxDistance > 0.0f && glm::distance(bc, camera.Position) - br > obj.MaxDistance;
+				float maxDistance = obj.MaxDistance;
+				if (scene.DrawDistance > 0.0f) maxDistance = maxDistance > 0.0f ? std::min(maxDistance, scene.DrawDistance) : scene.DrawDistance;
+				const bool tooFar = maxDistance > 0.0f && glm::distance(bc, camera.Position) - br > maxDistance;
 				if (tooFar || !InFrustum(frustum, bc, br))
 				{
 					++m_Stats.ObjectsCulled;
@@ -561,7 +563,10 @@ namespace
 				continue;
 			const uint32_t buffer = field->GetBuffer();
 			const GrassParams& p = field->Params;
-			g.SetFloat("uDrawDistance", p.DrawDistance);
+			const float drawDistance = p.DrawDistance * std::max(scene.GrassDistanceScale, 0.0f);
+			if (drawDistance <= 0.0f)
+				continue;   // grass off
+			g.SetFloat("uDrawDistance", drawDistance);
 			g.SetFloat("uTrailBend", trails ? p.TrailBend : 0.0f);
 			g.SetVec3("uBase", p.BaseColor);
 			g.SetVec3("uTip", p.TipColor);
@@ -570,7 +575,7 @@ namespace
 			for (const GrassChunk& chunk : field->GetChunks())
 			{
 				const glm::vec3 d = chunk.Center - camera.Position;
-				if (glm::length(d) - chunk.Radius > p.DrawDistance || glm::dot(d, forward) < -chunk.Radius)
+				if (glm::length(d) - chunk.Radius > drawDistance || glm::dot(d, forward) < -chunk.Radius)
 					continue;
 				glVertexArrayVertexBuffer(m_GrassVAO, 0, buffer, static_cast<GLintptr>(chunk.First) * sizeof(GrassBlade), sizeof(GrassBlade));
 				glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 10, static_cast<GLsizei>(chunk.Count));

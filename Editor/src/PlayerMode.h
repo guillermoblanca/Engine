@@ -103,6 +103,9 @@ namespace GB::Editor
 		const MotionState& GetMotion() const { const Actor* a = Controlled(); return a ? a->GetMotion() : m_NoMotion; }
 
 		void ApplyCamera(Camera& camera) const { m_Camera.Apply(camera); }
+		// The angles of the player's camera (OrbitController convention, radians): a game camera following the player takes them (GameView).
+		float CameraYaw() const { return m_Camera.Yaw; }
+		float CameraPitch() const { return m_Camera.Pitch; }
 		void AddToScene(Scene& scene) const { if (m_Actors) m_Actors->AddToScene(scene); }
 
 		glm::vec3 GetPosition() const { const Actor* a = Controlled(); return a ? a->GetPosition() : glm::vec3(0.0f); }

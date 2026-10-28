@@ -75,6 +75,7 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | Animaciones que faltan en los packs y qué se usa mientras tanto | [docs/ANIMACIONES_PENDIENTES.md](docs/ANIMACIONES_PENDIENTES.md) |
 | Partidas guardadas, migraciones, guardado diferencial y repeticiones (`save`, `load`, `replay`) | [docs/GUARDADO.md](docs/GUARDADO.md) |
 | Objetos, inventario, recursos y recetas | [docs/OBJETOS.md](docs/OBJETOS.md) |
+| Recursos repartidos por el mundo generado, por bioma (`resources world`) | [docs/RECURSOS_MUNDO.md](docs/RECURSOS_MUNDO.md) |
 | La primera tribu: trabajadores autónomos (`tribe build`) | [docs/TRIBU.md](docs/TRIBU.md) |
 | Percepción, necesidades y cerebro de utilidad de los agentes (`ai`) | [docs/IA.md](docs/IA.md) |
 | Navegación: cuadrícula con costes, caminos y evitación (`nav`) | [docs/NAVEGACION.md](docs/NAVEGACION.md) |
@@ -123,7 +124,7 @@ Hecho:
 - Editor con jerarquía, inspector, selección, gizmo y deshacer; escenas JSON.
 - QA automatizado con referencias de imagen y de datos.
 - Prototipo de personaje controlable en tercera persona (`--player`).
-- Sistema de habilidades tipo GAS y huerto jugable, objetos, inventario y recursos del mundo (datos en `assets/data/era1.json`), interactivos con estado, estaciones y ecología básica.
+- Sistema de habilidades tipo GAS y huerto jugable, objetos, inventario y recursos del mundo (datos en paquetes de era: `assets/data/era1.pack.json`, ver `docs/PAQUETES.md`), interactivos con estado, estaciones y ecología básica.
 - Partidas guardadas con migraciones, guardado diferencial y repeticiones deterministas.
 - La primera tribu: trabajadores autónomos con paneles de estado en el editor.
 - Pase de calidad con cifras de rendimiento: [docs/INFORME_CALIDAD.md](docs/INFORME_CALIDAD.md).

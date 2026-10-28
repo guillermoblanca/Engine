@@ -115,6 +115,63 @@ static std::string Day(bool& ok)
 
 int main()
 {
+	// Interactives are data (assets/data/world.json, "interactives"): the file says what the code says, a damaged document changes nothing, and a
+	// new interactive of a known kind (a bigger hearth) needs no code.
+	{
+		std::map<std::string, InteractiveDef> fileDefs;
+		const std::string loaded = LoadInteractivesFile(std::string(GB_ASSETS_DIR) + "/data/world.json", fileDefs);
+		Check(loaded.empty(), "the interactives of assets/data/world.json load");
+		if (!loaded.empty()) std::fprintf(stderr, "  %s\n", loaded.c_str());
+		Check(fileDefs == DefaultInteractives(), "and say what DefaultInteractives says");
+		if (fileDefs != DefaultInteractives()) std::fprintf(stderr, "  expected:\n{ \"interactives\": %s }\n", InteractivesToJson(DefaultInteractives()).c_str());
+		std::map<std::string, InteractiveDef> back;
+		Check(LoadInteractives("{ \"interactives\": " + InteractivesToJson(DefaultInteractives()) + " }", back).empty() && back == DefaultInteractives(), "the interactives round-trip");
+
+		std::map<std::string, InteractiveDef> keep = DefaultInteractives();
+		const char* bad[] = {
+			R"({ "interactives": { "a": { "kind": "oven", "name": "Oven", "tags": ["Interactive.Oven"] } } })",                                        // no such behaviour
+			R"({ "interactives": { "a": { "kind": "campfire", "name": "Hearth", "tags": ["Interactive.Campfire"] } } })",                              // a campfire without Fuel
+			R"({ "interactives": { "a": { "kind": "well", "name": "W", "tags": ["State.Full"], "attributes": { "Water": { "value": 1, "max": 2 } } } } })",   // without its kind's tag
+			R"({ "interactives": { "a": { "kind": "well", "name": "W", "tags": ["Interactive.Well"], "attributes": { "Water": { "value": 9, "max": 2 } } } } })",   // more than it holds
+			R"({ "interactives": { "a": { "kind": "door", "name": "D", "tags": ["Interactive.Door"], "abilities": [ { "name": "Knock", "event": "Event.Fuel.Add" } ] } } })",   // an event it does not hear
+			R"({ "interactives": { "fire_pit": { "kind": "campfire", "name": "Fire Pit", "tags": ["Interactive.Campfire"], "attributes": { "Fuel": { "value": 0, "max": 10 } }, "burnSeconds": 0 } } })",
+			R"({ "interactives": [] })",
+			"{",
+		};
+		bool refused = true;
+		for (const char* text : bad) refused = refused && !LoadInteractives(text, keep).empty();
+		Check(refused && keep == DefaultInteractives(), "a damaged interactive is refused and nothing changes");
+		Check(LoadInteractives(R"({ "roles": {} })", keep).empty() && keep == DefaultInteractives(), "a file without interactives changes nothing");
+
+		// a hearth that holds more and burns slower, with an ability of its own: data only
+		Check(LoadInteractives(R"({ "interactives": { "hearth": { "kind": "campfire", "name": "Hearth", "at": [0, 0, 10], "stand": [0, 0, -2],
+			"tags": ["Interactive.Campfire", "State.Unlit"], "attributes": { "Fuel": { "value": 0, "min": 0, "max": 30 } }, "burnSeconds": 20, "fuelPerWood": 3,
+			"abilities": [ { "name": "Feed", "montage": "plant", "notify": "stoke", "event": "Event.Fuel.Add", "requires": ["Item.Resource.Wood"] } ] } } })", keep).empty(), "a new campfire from data");
+		Camp c;
+		c.Rules.Defs = keep;
+		RegisterInteractiveContent(c.Gameplay.Library, keep);
+		BuildInteractives(c.Entities, glm::vec3(0.0f), keep);
+		c.Gameplay.Load(c.Entities);
+		c.Gameplay.Find("Worker")->Grant("Feed");
+		c.Rules.Bind(c.Gameplay, [&c](const std::string&, const std::string& item, int n) { return c.Bag.Remove(item, n); }, [&c](const std::string&, const std::string& item, int n) { return c.Bag.Add(c.Items, item, n); });
+		c.Rules.Items = nullptr;   // plain wood: the hearth's own fuelPerWood
+		c.Bag.Add(c.Items, "wood", 1);
+		c.Frames(2);
+		Check(c.Gameplay.Find("Hearth") && c.Gameplay.Find("Hearth")->Attributes().Max("Fuel") == 30.0f, "it holds what its data says");
+		Check(c.Do("Feed", "Hearth") && c.Gameplay.Find("Hearth")->Attributes().Current("Fuel") == 3.0f, "its own ability feeds it with its own heat per wood");
+		c.Frames(60 * 19);
+		Check(c.Gameplay.Find("Hearth")->Attributes().Current("Fuel") == 3.0f && InteractiveSystem::CampfireState(*c.Gameplay.Find("Hearth")) == "lit", "and it burns at its own pace");
+		c.Frames(60 * 2);
+		Check(c.Gameplay.Find("Hearth")->Attributes().Current("Fuel") == 2.0f, "one unit every 20 s");
+
+		// an interactive made after Bind (the tribe lights its own fire pit) is picked up by the next update
+		const EntityId late = BuildInteractive(c.Entities, DefaultInteractives().at("fire_pit"), "Late Fire", NullEntity, glm::vec3(20.0f, 0.0f, 0.0f));
+		c.Gameplay.Create("Late Fire")->FromComponent(*c.Entities.Find(late)->Gameplay);
+		c.Bag.Add(c.Items, "wood", 1);
+		c.Frames(2);
+		Check(c.Do("Stoke", "Late Fire") && InteractiveSystem::CampfireState(*c.Gameplay.Find("Late Fire")) == "lit", "a fire pit made after Bind takes wood and burns");
+	}
+
 	bool ok1 = true, ok2 = true;
 	const std::string a = Day(ok1), b = Day(ok2);
 	Check(ok1 && ok2, "the day goes as planned");

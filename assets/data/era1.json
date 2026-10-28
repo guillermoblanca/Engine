@@ -215,7 +215,17 @@
       },
       "perGather": 2,
       "regen": 2,
-      "regenSeconds": 20.0
+      "regenSeconds": 20.0,
+      "spawn": {
+        "biomes": [
+          "Meadow",
+          "Forest"
+        ],
+        "clump": 0.5,
+        "maxSlope": 25.0,
+        "perHectare": 6.0,
+        "spacing": 5.0
+      }
     },
     {
       "ability": "Collect",
@@ -231,7 +241,19 @@
       },
       "perGather": 2,
       "regen": 2,
-      "regenSeconds": 60.0
+      "regenSeconds": 60.0,
+      "spawn": {
+        "biomes": [
+          "Shore",
+          "Meadow"
+        ],
+        "clump": 0.4,
+        "max": 12,
+        "maxSlope": 15.0,
+        "perHectare": 15.0,
+        "spacing": 6.0,
+        "waterWithin": 9.0
+      }
     },
     {
       "ability": "Mine",
@@ -248,7 +270,18 @@
       "perGather": 1,
       "regen": 1,
       "regenSeconds": 0.0,
-      "requires": "Item.Tool.Pickaxe"
+      "requires": "Item.Tool.Pickaxe",
+      "spawn": {
+        "biomes": [
+          "Rock",
+          "Snow"
+        ],
+        "clump": 0.7,
+        "max": 5,
+        "maxSlope": 50.0,
+        "perHectare": 2.0,
+        "spacing": 8.0
+      }
     },
     {
       "ability": "PullFiber",
@@ -264,7 +297,17 @@
       },
       "perGather": 2,
       "regen": 2,
-      "regenSeconds": 15.0
+      "regenSeconds": 15.0,
+      "spawn": {
+        "biomes": [
+          "Meadow",
+          "Shore"
+        ],
+        "clump": 0.3,
+        "maxSlope": 25.0,
+        "perHectare": 8.0,
+        "spacing": 5.0
+      }
     },
     {
       "ability": "Mine",
@@ -281,7 +324,19 @@
       "perGather": 1,
       "regen": 1,
       "regenSeconds": 0.0,
-      "requires": "Item.Tool.Pickaxe"
+      "requires": "Item.Tool.Pickaxe",
+      "spawn": {
+        "biomes": [
+          "Rock",
+          "Shore",
+          "Dunes"
+        ],
+        "clump": 0.55,
+        "max": 16,
+        "maxSlope": 45.0,
+        "perHectare": 4.0,
+        "spacing": 6.0
+      }
     },
     {
       "ability": "Chop",
@@ -298,7 +353,16 @@
       "perGather": 1,
       "regen": 1,
       "regenSeconds": 120.0,
-      "requires": "Item.Tool.Axe"
+      "requires": "Item.Tool.Axe",
+      "spawn": {
+        "biomes": [
+          "Forest"
+        ],
+        "clump": 0.2,
+        "maxSlope": 28.0,
+        "perHectare": 8.0,
+        "spacing": 9.0
+      }
     },
     {
       "ability": "Collect",
@@ -314,7 +378,19 @@
       },
       "perGather": 2,
       "regen": 2,
-      "regenSeconds": 20.0
+      "regenSeconds": 20.0,
+      "spawn": {
+        "biomes": [
+          "Shore",
+          "Meadow"
+        ],
+        "clump": 0.2,
+        "max": 24,
+        "maxSlope": 15.0,
+        "perHectare": 25.0,
+        "spacing": 4.0,
+        "waterWithin": 6.0
+      }
     },
     {
       "ability": "Mine",
@@ -331,7 +407,18 @@
       "perGather": 1,
       "regen": 1,
       "regenSeconds": 0.0,
-      "requires": "Item.Tool.Pickaxe"
+      "requires": "Item.Tool.Pickaxe",
+      "spawn": {
+        "biomes": [
+          "Rock",
+          "Meadow",
+          "Shore",
+          "Dunes"
+        ],
+        "maxSlope": 45.0,
+        "perHectare": 4.0,
+        "spacing": 7.0
+      }
     },
     {
       "ability": "Chop",
@@ -348,7 +435,17 @@
       "perGather": 1,
       "regen": 1,
       "regenSeconds": 30.0,
-      "requires": "Item.Tool.Axe"
+      "requires": "Item.Tool.Axe",
+      "spawn": {
+        "biomes": [
+          "Forest",
+          "Meadow"
+        ],
+        "clump": 0.3,
+        "maxSlope": 30.0,
+        "perHectare": 6.0,
+        "spacing": 8.0
+      }
     },
     {
       "ability": "Gather",
@@ -365,7 +462,17 @@
       },
       "perGather": 1,
       "regen": 1,
-      "regenSeconds": 40.0
+      "regenSeconds": 40.0,
+      "spawn": {
+        "biomes": [
+          "Forest",
+          "Meadow"
+        ],
+        "clump": 0.35,
+        "maxSlope": 30.0,
+        "perHectare": 8.0,
+        "spacing": 5.0
+      }
     }
   ],
   "recipes": [
@@ -457,5 +564,315 @@
       "output": "stone_pickaxe",
       "station": "workbench"
     }
-  ]
+  ],
+  "roles": {
+    "forager": {
+      "weights": {
+        "Resource.Loose": 0.6,
+        "Resource.Plant": 1.0,
+        "Resource.Plant.Branch": 0.5,
+        "Resource.Stone": 0.2,
+        "Resource.Wood": 0.25,
+        "fiber_grass": 0.9,
+        "fire": 0.0
+      },
+      "nav": {
+        "vegetationWeight": 0.8
+      },
+      "skill": "foraging"
+    },
+    "miner": {
+      "weights": {
+        "Resource.Loose": 0.5,
+        "Resource.Plant": 0.35,
+        "Resource.Stone": 1.0,
+        "Resource.Wood": 0.25,
+        "fire": 0.0
+      },
+      "nav": {
+        "loadFactor": 3.0
+      },
+      "tool": "stone_pickaxe",
+      "toolTag": "Item.Tool.Pickaxe",
+      "skill": "mining"
+    },
+    "woodcutter": {
+      "weights": {
+        "Resource.Loose": 0.35,
+        "Resource.Plant": 0.35,
+        "Resource.Plant.Branch": 0.6,
+        "Resource.Stone": 0.25,
+        "Resource.Wood": 1.0,
+        "fire": 1.0
+      },
+      "nav": {
+        "loadFactor": 2.5
+      },
+      "tool": "stone_axe",
+      "toolTag": "Item.Tool.Axe",
+      "skill": "woodcutting"
+    }
+  },
+  "tribe": {
+    "agenda": {
+      "duskHours": 3.0,
+      "dusk": {
+        "deposit": 1.3,
+        "explore": 0.3,
+        "socialize": 2.5,
+        "warm": 1.5
+      },
+      "night": {
+        "explore": 0.4,
+        "fire": 0.4,
+        "gather": 0.4,
+        "sleep": 1.6,
+        "tool": 0.4
+      }
+    },
+    "drink": "Item.Food.Water",
+    "food": "Item.Food",
+    "stock": {
+      "berry": {
+        "min": 6.0,
+        "perMember": 3.0
+      },
+      "default": 12.0,
+      "stone": 8.0,
+      "wood": 10.0
+    }
+  },
+  "work": {
+    "names": [ "Ana", "Biel", "Cleo", "Dan", "Eli", "Fran", "Gala", "Hugo", "Iris", "Joel", "Kira", "Leo", "Mara", "Nil", "Olga", "Pau", "Rita", "Saul", "Tea", "Unai" ],
+    "skills": {
+      "families": {
+        "Resource.Plant": "foraging",
+        "Resource.Loose": "foraging",
+        "Resource.Plant.Branch": "woodcutting",
+        "Resource.Wood": "woodcutting",
+        "Resource.Stone": "mining",
+        "craft": "crafting",
+        "fire": "firekeeping",
+        "stoke": "firekeeping"
+      },
+      "practice": { "gather": 1.0, "craft": 4.0, "stoke": 2.0, "fire": 3.0 },
+      "gain": 0.6,
+      "decayPerDay": 4.0,
+      "max": 100.0,
+      "yield": 0.5,
+      "speed": 0.4,
+      "weight": 0.6,
+      "profession": 1.5
+    },
+    "jobs": {
+      "every": 5.0,
+      "bonus": 0.6,
+      "slotUnits": 6.0,
+      "maxSlots": 3,
+      "claimSeconds": 240.0,
+      "ageBoost": 0.5,
+      "ageSeconds": 600.0,
+      "maxAge": 1.0,
+      "minScore": 0.15,
+      "switch": 0.3,
+      "priority": { "gather": 1.0, "craft": 1.4, "stoke": 1.6, "fire": 1.2 },
+      "upkeep": { "fiber": 1.0 },
+      "fireWood": 4.0
+    },
+    "roles": {
+      "review": 900.0,
+      "inertia": 0.3,
+      "skillSwitch": 25.0,
+      "minClan": 3,
+      "fireDemand": 6.0
+    }
+  },
+  "society": {
+    "seed": 1,
+    "mutation": 0.06,
+    "life": {
+      "daySeconds": 0.0,
+      "daysPerYear": 4.0,
+      "childUntil": 14.0,
+      "elderFrom": 52.0,
+      "maxAge": 72.0,
+      "longevity": 8.0,
+      "oldAge": 0.35,
+      "founderMin": 16.0,
+      "founderMax": 40.0,
+      "heavy": [ "woodcutting", "mining", "firekeeping", "tool", "fire", "stoke" ],
+      "childWork": 0.15,
+      "elderWork": 0.6,
+      "childLearn": 1.6,
+      "childTeach": 0.5,
+      "elderTeach": 1.5,
+      "childPace": 0.7,
+      "elderPace": 0.75,
+      "childHeight": 0.55,
+      "childRole": "forager"
+    },
+    "births": {
+      "pairAge": 16.0,
+      "ageGap": 15.0,
+      "pairMin": -0.1,
+      "minAge": 16.0,
+      "maxAge": 42.0,
+      "spacing": 2.0,
+      "chance": 0.12,
+      "foodPerMember": 1.5,
+      "needsFire": true,
+      "maxMembers": 200
+    },
+    "genes": {
+      "strength": { "mean": 0.5, "spread": 0.2, "effects": { "woodcutting": 0.25, "mining": 0.25 }, "pace": { "woodcutting": 0.2, "mining": 0.2 } },
+      "endurance": { "mean": 0.5, "spread": 0.2, "effects": { "sleep": -0.2, "explore": 0.2 } },
+      "perception": { "mean": 0.5, "spread": 0.2, "effects": { "explore": 0.3, "experiment": 0.15 }, "learn": { "foraging": 0.3 } },
+      "dexterity": { "mean": 0.5, "spread": 0.2, "effects": { "crafting": 0.2 }, "learn": { "crafting": 0.4, "foraging": 0.2 }, "pace": { "crafting": 0.2, "foraging": 0.15 } },
+      "longevity": { "mean": 0.5, "spread": 0.2 }
+    },
+    "traits": {
+      "sociability": { "mean": 0.5, "spread": 0.25, "heritability": 0.5, "effects": { "socialize": 0.8, "regroup": 0.2, "warm": 0.1 } },
+      "diligence": { "mean": 0.5, "spread": 0.25, "heritability": 0.5, "effects": { "gather": 0.35, "deposit": 0.2, "tool": 0.2, "rest": -0.7 } },
+      "curiosity": { "mean": 0.5, "spread": 0.25, "heritability": 0.5, "effects": { "experiment": 0.8, "explore": 0.5 } },
+      "boldness": { "mean": 0.5, "spread": 0.25, "heritability": 0.5, "effects": { "explore": 0.4, "regroup": -0.5 } }
+    },
+    "relations": {
+      "events": { "work": 0.02, "food": 0.03, "camp": 0.015, "conflict": -0.12, "teach": 0.04, "pair": 0.3, "birth": 0.4, "help": 0.1, "theft": -0.4, "rescue": 0.4 },
+      "decayPerDay": 0.03,
+      "keep": 0.02,
+      "maxPerMember": 12,
+      "kin": 0.3,
+      "campSeconds": 30.0,
+      "campRadius": 6.0,
+      "campNearest": 2,
+      "workRadius": 10.0
+    },
+    "culture": {
+      "drift": 0.05,
+      "norms": {
+        "sharing": { "start": 0.5, "trait": "sociability", "effects": { "socialize": 0.3, "deposit": 0.2, "warm": 0.1 } },
+        "industry": { "start": 0.5, "trait": "diligence", "effects": { "gather": 0.2, "rest": -0.3, "sleep": -0.1 } },
+        "inquiry": { "start": 0.5, "trait": "curiosity", "effects": { "experiment": 0.4, "explore": 0.2 } },
+        "daring": { "start": 0.5, "trait": "boldness", "effects": { "explore": 0.2, "regroup": -0.2 } }
+      },
+      "traditions": {
+        "fire_vigil": { "name": "Fire vigil", "event": "stoke", "count": 30, "effects": { "warm": 0.15, "socialize": 0.1 } },
+        "naming_feast": { "name": "Naming feast", "event": "birth", "count": 3, "effects": { "socialize": 0.15 } },
+        "mourning": { "name": "Mourning", "event": "death", "count": 3, "effects": { "regroup": 0.15 } },
+        "lore_circle": { "name": "Lore circle", "event": "learn", "count": 5, "effects": { "experiment": 0.2 } },
+        "toolmakers": { "name": "Toolmakers' pride", "event": "craft", "count": 20, "effects": { "tool": 0.2 } }
+      }
+    }
+  },
+  "techs": [
+    {
+      "id": "basketry",
+      "name": "Basketry",
+      "era": 1,
+      "requires": [
+        "cordage"
+      ],
+      "recipes": [
+        "basket_wicker"
+      ],
+      "discovery": {
+        "experiment": 0.2,
+        "observe": 0.34,
+        "teach": 0.25,
+        "seconds": 15.0,
+        "waste": 0.3
+      }
+    },
+    {
+      "id": "cordage",
+      "name": "Cordage",
+      "era": 1,
+      "known": true,
+      "requires": [],
+      "recipes": [
+        "cordage"
+      ]
+    },
+    {
+      "id": "fire_making",
+      "name": "Fire making",
+      "era": 1,
+      "known": true,
+      "requires": [],
+      "recipes": [
+        "campfire"
+      ]
+    },
+    {
+      "id": "flint_knapping",
+      "name": "Flint knapping",
+      "era": 1,
+      "requires": [
+        "cordage",
+        "stone_tools"
+      ],
+      "recipes": [
+        "flint_axe",
+        "flint_pickaxe"
+      ],
+      "discovery": {
+        "experiment": 0.15,
+        "observe": 0.34,
+        "teach": 0.25,
+        "seconds": 20.0,
+        "waste": 0.3
+      }
+    },
+    {
+      "id": "smelting",
+      "name": "Smelting",
+      "era": 2,
+      "requires": [
+        "fire_making",
+        "flint_knapping"
+      ],
+      "recipes": [
+        "copper_ingot"
+      ],
+      "discovery": {
+        "experiment": 0.05,
+        "observe": 0.2,
+        "teach": 0.1,
+        "seconds": 40.0,
+        "waste": 0.5
+      }
+    },
+    {
+      "id": "stone_tools",
+      "name": "Stone tools",
+      "era": 1,
+      "known": true,
+      "requires": [],
+      "recipes": [
+        "stone_axe",
+        "stone_pickaxe"
+      ]
+    }
+  ],
+  "knowledge": {
+    "lessonSeconds": 20.0,
+    "observeRadius": 12.0,
+    "growth": 0.5,
+    "seed": 1
+  },
+  "exploration": {
+    "regions": {
+      "tile": 30.0, "blockTiles": 4, "minTiles": 3, "waterShare": 0.5, "scoutCell": 10.0, "nearWater": 12.0, "predatorDanger": 0.15,
+      "danger": { "Water": 0.2, "Shore": 0.1, "Meadow": 0.05, "Forest": 0.25, "Rock": 0.35, "Snow": 0.5, "Dunes": 0.3 },
+      "names": { "Water": "Lake", "Shore": "Shore", "Meadow": "Meadows", "Forest": "Woods", "Rock": "Crags", "Snow": "Snowfields", "Dunes": "Dunes" }
+    },
+    "expeditions": {
+      "every": 10.0, "scarcity": 180.0, "minParty": 2, "maxParty": 3, "gather": 120.0, "scoutPoints": 3, "travelScale": 150.0, "maxDistance": 400.0,
+      "riskWeight": 1.0, "retry": 900.0, "maxSeconds": 1500.0, "priority": 1.3, "score": 1.4, "food": 2, "seeEvery": 2.0
+    },
+    "migration": {
+      "every": 30.0, "homeRadius": 60.0, "settle": 600.0, "poor": 0.25, "waterLost": 60.0, "after": 3600.0, "recover": 2.0, "minGain": 0.25,
+      "cooldown": 7200.0, "arrive": 8.0, "score": 1.8
+    }
+  }
 }

@@ -1,0 +1,18 @@
+{
+  "id": "era1",
+  "name": "Era 1 · Recolección y caza",
+  "era": 1,
+  "version": "1.0",
+  "depends": [],
+  "files": [ "era1.json", "world.json", "cameras.json" ],
+  "given": {
+    "wood": "the camp starts with the wood found lying around on the first day (tribe build)",
+    "stone": "the camp starts with the stones found lying around on the first day (tribe build)",
+    "water": "the well (interactive, DrawWater)"
+  },
+  "stations": [ "workbench" ],
+  "deferred": {
+    "copper_ingot": "smelting needs the forge, which arrives with E10",
+    "smelting": "the technology is tried at the forge, which arrives with E10 (era 2)"
+  }
+}
