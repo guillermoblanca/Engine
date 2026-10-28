@@ -13,13 +13,6 @@ namespace GB::Save
 	{
 		using Json = nlohmann::ordered_json;
 
-		// 7 significant digits, like the scene files: readable and stable when written again.
-		double Round(double v)
-		{
-			char buf[40];
-			std::snprintf(buf, sizeof(buf), "%.7g", v);
-			return std::strtod(buf, nullptr);
-		}
 		// A float prints as the shortest text that reads back as the same float (see SceneIO.cpp).
 		double Round(float v)
 		{

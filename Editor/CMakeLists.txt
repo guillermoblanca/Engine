@@ -57,7 +57,8 @@ add_test(NAME editor COMMAND GBEditorTests)
 function(gb_editor_script_test name script pass)
     add_test(NAME ${name} COMMAND Editor --hidden --quality=low --strict=1 --script=${CMAKE_CURRENT_SOURCE_DIR}/tests/${script}
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    set_tests_properties(${name} PROPERTIES PASS_REGULAR_EXPRESSION "${pass}" FAIL_REGULAR_EXPRESSION "REPLAY DIFFERS|script line failed|Could not read the script")
+    set_tests_properties(${name} PROPERTIES PASS_REGULAR_EXPRESSION "${pass}" FAIL_REGULAR_EXPRESSION "REPLAY DIFFERS|script line failed|Could not read the script"
+                          SKIP_REGULAR_EXPRESSION "GLFW error|does not appear to support OpenGL|Failed to create|Could not create")   # no OpenGL (a CI runner without a GPU): skipped, like the GL tests
 endfunction()
 gb_editor_script_test(editor_replay replay_world.txt "replay identical")
 gb_editor_script_test(editor_replay_society replay_society.txt "replay identical")
