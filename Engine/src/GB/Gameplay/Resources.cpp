@@ -82,6 +82,17 @@ namespace GB
 		lib.AddAbility(pull);
 	}
 
+	ResourceCounts ScaledResources(int workers)
+	{
+		const int w = std::max(1, workers);
+		ResourceCounts c;
+		c.Trees = 2 + 2 * w;
+		c.Rocks = 3 + 2 * w;
+		c.Bushes = 2 + w;
+		c.Grass = 2 + w;
+		return c;
+	}
+
 	ResourceLayout BuildResources(EntityWorld& w, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes, int trees, int rocks, int bushes, int grass)
 	{
 		if (const EntityId old = w.FindByName("Resources"); old != NullEntity) w.Destroy(old);
@@ -96,14 +107,16 @@ namespace GB
 			auto it = nodes.find(row.id);
 			if (it == nodes.end()) continue;
 			const ResourceNodeDef& def = it->second;
+			constexpr int kPerRow = 8;   // a big patch wraps into more rows
 			for (int i = 0; i < row.count; ++i)
 			{
+				const int line = i / kPerRow, inLine = i % kPerRow, lineCount = std::min(kPerRow, row.count - line * kPerRow);
 				std::string label = row.id;   // entity names use spaces ("berry bush 1") so a task list can write them with underscores
 				std::replace(label.begin(), label.end(), '_', ' ');
 				const std::string name = label + " " + std::to_string(i + 1);
 				const EntityId id = w.Create(name, root);
 				Entity& e = *w.Find(id);
-				e.Transform.Position = { (static_cast<float>(i) - (row.count - 1) * 0.5f) * 4.0f, 0.0f, row.z };
+				e.Transform.Position = { (static_cast<float>(inLine) - (lineCount - 1) * 0.5f) * 4.0f, 0.0f, row.z + 16.0f * static_cast<float>(line) };
 				InteractionPoint p;
 				p.Name = "work";
 				p.Position = { 0.0f, 0.0f, -1.6f };
@@ -149,7 +162,11 @@ namespace GB
 					if (node->HasTag("Resource.Node." + id)) { def = &d; break; }
 				if (!def) return;
 				const int have = Amount(*node);
-				const int take = std::min(have, std::max(1, def->PerGather));
+				// The tool in the gatherer's hands: its family's power is the attribute SyncTools keeps on whoever carries it.
+				int bonus = 0;
+				if (e.Instigator && !def->RequiresTag.empty())
+					bonus = std::max(0, static_cast<int>(std::lround(e.Instigator->Attributes().Current(PowerAttribute(def->RequiresTag)))));
+				const int take = std::min(have, std::max(1, def->PerGather) + bonus);
 				if (take <= 0) return;
 				node->Attributes().SetBase("Amount", static_cast<float>(have - take));
 				if (m_Yield && e.Instigator) m_Yield(e.Instigator->Name(), def->Item, take);
@@ -208,8 +225,32 @@ namespace GB
 		}
 	}
 
+	std::string ResourceSystem::PowerAttribute(const std::string& toolTag) { return "Power:" + ToolFamily(toolTag); }
+	std::string ResourceSystem::SpeedAttribute(const std::string& toolTag) { return "Speed:" + ToolFamily(toolTag); }
+
 	void ResourceSystem::SyncTools(AbilitySystemComponent& who, const Inventory& bag, const ItemLibrary& items)
 	{
+		// Power and speed of the best tool of each family held ("Item.Tool.Axe" finds a stone axe and a flint axe alike; the flint one wins).
+		// Attributes only appear for a family that was ever held, and go back to the defaults (0 and 1) when the last tool leaves.
+		std::vector<std::string> families;
+		for (const std::string& id : items.Ids())
+			for (const std::string& tag : items.Find(id)->Tags)
+				if (tag.rfind("Item.Tool.", 0) == 0 && std::find(families.begin(), families.end(), ToolFamily(tag)) == families.end()) families.push_back(ToolFamily(tag));
+		for (const std::string& family : families)
+		{
+			const ItemDef* best = bag.BestTool(items, family);
+			const float power = best ? static_cast<float>(best->Power) : 0.0f, speed = best ? best->Speed : 1.0f;
+			AttributeSet& at = who.Attributes();
+			if (!at.Has(PowerAttribute(family)))
+			{
+				if (!best) continue;
+				at.Define(PowerAttribute(family), 0.0f, 0.0f, 1000.0f);
+				at.Define(SpeedAttribute(family), 1.0f, 0.1f, 10.0f);
+			}
+			if (at.Base(PowerAttribute(family)) != power) at.SetBase(PowerAttribute(family), power);
+			if (at.Base(SpeedAttribute(family)) != speed) at.SetBase(SpeedAttribute(family), speed);
+		}
+
 		for (const std::string& id : items.Ids())
 		{
 			const ItemDef* def = items.Find(id);

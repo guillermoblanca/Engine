@@ -22,6 +22,18 @@ namespace GB
 		return it == m_Entries.end() ? nullptr : &it->second;
 	}
 
+	bool SpatialMemory::Refresh(const std::string& name, const glm::vec2& pos, int amount, double seen)
+	{
+		const auto it = m_Entries.find(name);
+		if (it == m_Entries.end() || seen < it->second.Seen) return false;
+		MemoryEntry& e = it->second;
+		e.Pos = pos;
+		e.Amount = amount;
+		e.Seen = seen;
+		e.Heard = false;
+		return true;
+	}
+
 	bool SpatialMemory::Forget(const std::string& name) { return m_Entries.erase(name) > 0; }
 
 	int SpatialMemory::Expire(double now, const MemoryConfig& cfg)

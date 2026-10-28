@@ -710,7 +710,10 @@ namespace GB::Editor
 				}
 				std::string text;
 				for (const ItemSlot& s : bag.Stacks()) text += (text.empty() ? "" : ", ") + s.Id + " x" + std::to_string(s.Count);
-				return { true, text.empty() ? a[1] + " carries nothing" : a[1] + " carries " + text };
+				std::string report = text.empty() ? a[1] + " carries nothing" : a[1] + " carries " + text;
+				report += "\n  bag: " + CapacityText(m_Items, bag);
+				for (const std::string& tool : ActiveTools(m_Items, bag)) report += "\n  tool " + tool;
+				return { true, report };
 			}
 			return { false, "usage: actor spawn|list|control|tasks|remove|sync|bag <name> [add|remove|craft <item|recipe> [n|station]]" };
 		});
@@ -806,7 +809,7 @@ namespace GB::Editor
 			m_Player.HitRagdoll({ static_cast<float>(std::atof(a[0].c_str())), static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) });
 			return { true, "hit" };
 		});
-		c.Register("resources", "resources build [x z] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)", [this](const std::vector<std::string>& a) { return ResourcesCommand(a); });
+		c.Register("resources", "resources build [x z [workers]] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)", [this](const std::vector<std::string>& a) { return ResourcesCommand(a); });
 		c.Register("timescale", "timescale <1-20>: runs the simulation (gameplay, actors, tribe) that many times per frame; 1 is real time", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty()) return { true, "timescale " + std::to_string(m_TimeScale) };
@@ -837,7 +840,7 @@ namespace GB::Editor
 		c.Register("ecology", "ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]: rabbits that wander, eat berry bushes and fibre tufts, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)", [this](const std::vector<std::string>& a) { return EcologyCommand(a); });
 		c.Register("ai", "ai debug [on|off] | status [name] | memory <name> | scream <name>: the brain of the tribe members: needs, what they decide and why, what they know; `debug` draws their view cones, the obstacles and their memory in the viewport", [this](const std::vector<std::string>& a) { return AiCommand(a); });
 		c.Register("nav", "nav status | debug on|off | rebuild | sync | path <x1 z1 x2 z2> [load 0-1]: navigation over the terrain: the grid the characters plan their paths on (trunks, rocks, deep water and cliffs are walls; wading and slopes cost), the paths they follow and what the planning has cost", [this](const std::vector<std::string>& a) { return NavCommand(a); });
-		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
+		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | remove <name> | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });

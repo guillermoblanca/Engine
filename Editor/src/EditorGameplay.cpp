@@ -54,8 +54,12 @@ namespace GB::Editor
 	void EditorApp::StepResources()
 	{
 		for (const std::string& name : m_Actors.Names())
+		{
+			Actor* actor = m_Actors.Find(name);
+			actor->Bag().SyncCapacity(m_Items);   // a carried basket makes the bag bigger (also after a load: the bonus is not saved)
 			if (AbilitySystemComponent* asc = m_Gameplay.Find(name))
-				ResourceSystem::SyncTools(*asc, m_Actors.Find(name)->Bag(), m_Items);
+				ResourceSystem::SyncTools(*asc, actor->Bag(), m_Items);
+		}
 		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
 	}
 
@@ -76,6 +80,19 @@ namespace GB::Editor
 				if (!a) { error = "the actor " + m_Name + " was removed"; return false; }
 				return a->RunTasks(tasks, error);
 			}
+			bool CanStandAt(const glm::vec2& p) const override { const NavGrid& nav = m_Actors.Navigation(); return !nav.Ready() || nav.Walkable(p); }
+			bool CanReach(const glm::vec2& p) const override
+			{
+				const Actor* a = m_Actors.Find(m_Name);
+				const NavGrid& nav = m_Actors.Navigation();
+				if (!a || !nav.Ready()) return true;
+				const glm::vec3 from = a->GetPosition();
+				NavPath path;
+				return nav.Walkable(p) && nav.FindPath(NavProfile(), { from.x, from.z }, p, path);
+			}
+			void Teleport(const glm::vec2& p) override { if (Actor* a = m_Actors.Find(m_Name)) a->Teleport(p.x, p.y, 0.0f); }
+			void SetSuspended(bool on) override { m_Actors.SetSuspended(m_Name, on); }
+			std::string Error() const override { const Actor* a = m_Actors.Find(m_Name); return a ? a->TaskStatus() : std::string(); }
 			Inventory& Bag() override { Actor* a = m_Actors.Find(m_Name); return a ? a->Bag() : m_Gone; }
 		private:
 			ActorWorld& m_Actors;
@@ -203,7 +220,7 @@ namespace GB::Editor
 			static const char* const roles[] = { "forager", "woodcutter", "miner", "forager", "woodcutter", "forager" };
 			for (int i = 0; i < 6; ++i) if (m_Actors.Find(names[i])) m_Actors.Remove(names[i]);
 
-			const CommandResult built = ResourcesCommand({ "build", std::to_string(origin.x), std::to_string(origin.z) });
+			const CommandResult built = ResourcesCommand({ "build", std::to_string(origin.x), std::to_string(origin.z), std::to_string(workers) });
 			if (!built.Ok) return built;
 			const glm::vec2 camp(origin.x, origin.z - 8.0f);
 			{
@@ -224,12 +241,21 @@ namespace GB::Editor
 			m_Tribe.Bind(m_SceneEditor.World(), m_Gameplay, m_Items, m_Recipes, m_NodeDefs);
 			m_Panels.Tribe = true;
 			m_FocusTribe = 20;
+			SelectActor(names[0], false);   // the panel shows its mind at once
 			m_Tribe.Config.Camp = camp;
 			m_Tribe.Config.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
-			m_Tribe.Store().Add(m_Items, "wood", 4);    // what they found lying around on the first day
-			m_Tribe.Store().Add(m_Items, "stone", 5);
+			m_Tribe.Store().Add(m_Items, "wood", 2 + 2 * workers);    // what they found lying around on the first day
+			m_Tribe.Store().Add(m_Items, "stone", 3 * workers);
 			for (int i = 0; i < workers; ++i) m_Tribe.AddMember(names[i], roles[i], m_TribeBodies[static_cast<size_t>(i)].get());
 			return { true, std::to_string(workers) + " workers at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + ") with 9 resource nodes around; they act on their own: tribe status | tribe log" };
+		}
+		if (sub == "remove" && a.size() > 1)
+		{
+			const ITribeBody* body = nullptr;
+			for (const TribeMember& m : m_Tribe.Members()) if (m.Name == a[1]) body = m.Body;
+			if (!m_Tribe.RemoveMember(a[1])) return { false, "no member called '" + a[1] + "'" };
+			m_TribeBodies.erase(std::remove_if(m_TribeBodies.begin(), m_TribeBodies.end(), [&](const std::unique_ptr<ITribeBody>& b) { return b.get() == body; }), m_TribeBodies.end());
+			return { true, a[1] + " left the tribe (the actor stays: actor remove " + a[1] + ")" };
 		}
 		if (sub == "clear") { m_Tribe.Clear(); m_TribeBodies.clear(); return { true, "tribe cleared (the actors stay: actor remove <name>)" }; }
 		if (sub != "log" && sub != "status") return { false, "usage: tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | clear" };
@@ -429,7 +455,8 @@ namespace GB::Editor
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
 			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
-			const ResourceLayout layout = BuildResources(m_SceneEditor.World(), origin, m_NodeDefs);
+			const ResourceCounts counts = ScaledResources(a.size() > 3 ? std::max(1, std::atoi(a[3].c_str())) : 1);   // `resources build x z <workers>`: a patch for a tribe of that size
+			const ResourceLayout layout = BuildResources(m_SceneEditor.World(), origin, m_NodeDefs, counts.Trees, counts.Rocks, counts.Bushes, counts.Grass);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
 			m_SceneEditor.Commit();
@@ -849,6 +876,16 @@ namespace GB::Editor
 			ImGui::Text("Time %.0f s   %s", m_Tribe.Time(), !m_Tribe.HasFire() ? "no campfire yet" : m_Tribe.FireBurning() ? "campfire lit" : "campfire out (no wood)");
 			ImGui::SameLine();
 			ImGui::TextDisabled("  speed x%d", m_TimeScale);
+			{
+				int resting = 0, dead = 0;
+				for (const TribeMember& m : m_Tribe.Members()) { if (m.Dead) ++dead; else if (m.Job == "rest") ++resting; }
+				ImGui::PushTextWrapPos(0.0f);
+				ImGui::TextDisabled("%zu members: %d resting, %d dead, %d abstract (far from the camera)", m_Tribe.Members().size(), resting, dead, m_Tribe.AbstractCount());
+				ImGui::PopTextWrapPos();
+			}
+			ImGui::Checkbox("ai debug", &m_AiDebug);
+			ImGui::SameLine();
+			ImGui::Checkbox("nav debug", &m_NavDebug);
 
 			if (ImGui::CollapsingHeader("Store", ImGuiTreeNodeFlags_DefaultOpen))
 			{
@@ -867,9 +904,9 @@ namespace GB::Editor
 
 			if (ImGui::CollapsingHeader("Members", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				if (ImGui::BeginTable("members", 4, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg))
+				if (ImGui::BeginTable("members", 3, ImGuiTableFlags_SizingStretchProp | ImGuiTableFlags_RowBg))
 				{
-					ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, 44.0f); ImGui::TableSetupColumn("Role", ImGuiTableColumnFlags_WidthFixed, 74.0f); ImGui::TableSetupColumn("Doing"); ImGui::TableSetupColumn("Carries");   // (long texts wrap in the stretch columns instead of running over the next one)
+					ImGui::TableSetupColumn("Name", ImGuiTableColumnFlags_WidthFixed, 44.0f); ImGui::TableSetupColumn("Role", ImGuiTableColumnFlags_WidthFixed, 74.0f); ImGui::TableSetupColumn("Doing and why");   // (long texts wrap in the stretch columns instead of running over the next one)
 					ImGui::TableHeadersRow();
 					for (const TribeMember& m : m_Tribe.Members())
 					{
@@ -883,11 +920,21 @@ namespace GB::Editor
 						else if (m.Job.empty()) ImGui::TextDisabled("deciding");
 						else if (m.Job == "rest") ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.3f, 1.0f), "resting");
 						else ImGui::TextWrapped("%s %s", m.Job.c_str(), m.Detail.c_str());
-						if (m.Hungry) ImGui::TextColored(ImVec4(1.0f, 0.4f, 0.3f, 1.0f), "(hungry)");
-						ImGui::TableNextColumn();
-						std::string carried;
-						for (const ItemSlot& s : m.Body->Bag().Stacks()) carried += (carried.empty() ? "" : ", ") + s.Id + " x" + std::to_string(s.Count);
-						ImGui::TextWrapped("%s", carried.empty() ? "-" : carried.c_str());
+						if (m.Abstract) { ImGui::SameLine(); ImGui::TextDisabled("(abstract)"); }
+						if (!m.Dead)
+						{
+							const std::string why = m.Job == "rest" && !m.Why.empty() ? m.Why : m_Tribe.Because(m);
+							ImGui::TextDisabled("%s", why.c_str());
+							const std::map<std::string, float> needs = m_Tribe.NeedLevels(m);
+							const char* lowest = nullptr;
+							float lowestValue = 100.0f;
+							for (const char* need : { NeedName::Hunger, NeedName::Thirst, NeedName::Rest, NeedName::Warmth, NeedName::Safety, NeedName::Company })
+							{
+								const auto it = needs.find(need);
+								if (it != needs.end() && it->second < lowestValue) { lowestValue = it->second; lowest = need; }
+							}
+							if (lowest && lowestValue < 60.0f) ImGui::TextColored(NeedColor(lowestValue), "%s %.0f", lowest, static_cast<double>(lowestValue));
+						}
 					}
 					ImGui::EndTable();
 				}

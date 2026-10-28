@@ -111,7 +111,7 @@ namespace GB
 		return true;
 	}
 
-	bool MontagePlayer::Play(const std::string& name, const std::string& section)
+	bool MontagePlayer::Play(const std::string& name, const std::string& section, float rateScale)
 	{
 		const int i = Find(name);
 		if (i < 0) return false;
@@ -128,6 +128,7 @@ namespace GB
 		Active a;
 		a.Entry = i;
 		a.Time = start;
+		a.RateScale = std::clamp(rateScale, 0.1f, 10.0f);
 		m_Active.push_back(a);
 		return true;
 	}
@@ -203,7 +204,7 @@ namespace GB
 			const Entry& e = m_Entries[static_cast<size_t>(a.Entry)];
 			const float duration = std::max(e.Stats.Duration, 1e-3f);
 			const float before = a.Time / duration;
-			a.Time += dt * e.Desc.PlayRate;
+			a.Time += dt * e.Desc.PlayRate * a.RateScale;
 			bool wrapped = false;
 			if (a.Time >= duration)
 			{
@@ -217,7 +218,7 @@ namespace GB
 					const bool crossed = wrapped ? (n.Time > before || n.Time <= after) : (n.Time > before && n.Time <= after);
 					if (crossed) m_Events.push_back({ MontageEvent::Kind::Notify, e.Desc.Name, n.Name });
 				}
-			if (!a.Leaving && !e.Desc.Loop && a.Time >= duration - e.Desc.BlendOut * e.Desc.PlayRate)
+			if (!a.Leaving && !e.Desc.Loop && a.Time >= duration - e.Desc.BlendOut * e.Desc.PlayRate * a.RateScale)
 				Leave(a, -1.0f, false);   // reaches its end: the blend out starts BlendOut seconds before it
 			const float rate = a.Leaving ? 1.0f / a.LeaveBlend : 1.0f / std::max(e.Desc.BlendIn, 1e-3f);
 			a.Weight = a.Leaving ? std::max(a.Weight - dt * rate, 0.0f) : std::min(a.Weight + dt * rate, 1.0f);

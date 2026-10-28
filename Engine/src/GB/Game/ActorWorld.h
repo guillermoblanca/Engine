@@ -3,6 +3,7 @@
 #include "GB/Navigation/NavGrid.h"
 #include "GB/Save/SaveWorld.h"
 #include <map>
+#include <set>
 #include <memory>
 #include <string>
 #include <vector>
@@ -63,6 +64,10 @@ namespace GB
 		void PrepareAbilities();
 		void Update(float dt);
 		void AddToScene(Scene& scene) const;
+		// Level of detail: a suspended actor is not animated, not drawn, not lent its abilities' runtime and not an obstacle to the others; its owner
+		// (the tribe's abstract agent) moves it by hand and puts it back (Teleport) when it is resumed.
+		void SetSuspended(const std::string& name, bool suspended);
+		bool Suspended(const std::string& name) const { return m_Suspended.count(name) > 0; }
 
 		// Saving (see GB/Save): where each actor is, which way it faces and which locomotion set it moves with. Loading puts back the actors that exist
 		// now; one the world does not have is left out (its model is not in the save yet: spawn it again with `actor spawn`).
@@ -89,5 +94,6 @@ namespace GB
 		std::map<std::string, std::unique_ptr<Actor>> m_Actors;
 		NavGrid m_Nav;
 		std::vector<CircleObstacle> m_PushedObstacles;   // the static obstacles the actors have now
+		std::set<std::string> m_Suspended;
 	};
 }

@@ -33,6 +33,7 @@ add_library(GB STATIC
     src/GB/AI/Needs.cpp
     src/GB/AI/Utility.cpp
     src/GB/AI/Mind.cpp
+    src/GB/AI/Abstract.cpp
     src/GB/Audio/AudioClip.cpp
     src/GB/Audio/AudioDevice.cpp
     src/GB/Audio/AudioEngine.cpp

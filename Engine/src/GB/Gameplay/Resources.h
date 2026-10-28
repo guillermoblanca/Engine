@@ -28,6 +28,11 @@ namespace GB
 	ResourceLayout BuildResources(EntityWorld& world, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes,
 		int trees = 3, int rocks = 2, int bushes = 2, int grass = 2);
 
+	// How many nodes of each kind a patch needs for `workers` members of a tribe (the default patch of 3, 2, 2 and 2 feeds one or two). Rocks never
+	// grow back, so they get a few more.
+	struct ResourceCounts { int Trees = 3, Rocks = 2, Bushes = 2, Grass = 2; };
+	ResourceCounts ScaledResources(int workers);
+
 	class ResourceSystem
 	{
 	public:
@@ -41,6 +46,10 @@ namespace GB
 		void SyncVisuals(GameplayWorld& gameplay, EntityWorld& entities) const;
 		// Gives an ability system the item tags ("Item.Tool.Axe", "Item.Resource.Wood") of what an inventory holds, and takes away those that left it.
 		static void SyncTools(AbilitySystemComponent& who, const Inventory& bag, const ItemLibrary& items);
+		// SyncTools also keeps, per tool family, the attributes "Power:Item.Tool.Axe" and "Speed:Item.Tool.Axe" of the best tool carried (E2): a
+		// node gives its PerGather plus the power of the tool its RequiresTag asks for, and the ability swings that much faster.
+		static std::string PowerAttribute(const std::string& toolTag);
+		static std::string SpeedAttribute(const std::string& toolTag);
 		static int Amount(const AbilitySystemComponent& node);
 	private:
 		std::map<std::string, ResourceNodeDef> m_Defs;
