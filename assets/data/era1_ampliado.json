@@ -1,14 +1,12 @@
 {
   "items": [
-    { "id": "log", "name": "Log", "category": "resource", "weight": 6.0, "stack": 4, "tags": ["Item.Resource.Wood.Log"] },
+    { "id": "log", "name": "Log", "category": "resource", "weight": 6.0, "stack": 4, "tags": ["Item.Resource.Wood.Log"], "fuel": 4 },
     { "id": "plank", "name": "Plank", "category": "resource", "weight": 2.0, "stack": 10, "tags": ["Item.Resource.Wood.Plank"] },
     { "id": "resin", "name": "Resin", "category": "resource", "weight": 0.3, "stack": 20, "tags": ["Item.Resource.Resin"] },
     { "id": "granite", "name": "Granite block", "category": "resource", "weight": 5.0, "stack": 6, "tags": ["Item.Resource.Stone.Granite"] },
-    { "id": "clay", "name": "Clay", "category": "resource", "weight": 2.5, "stack": 10, "tags": ["Item.Resource.Clay"] },
     { "id": "mud_brick", "name": "Mud brick", "category": "resource", "weight": 3.0, "stack": 8, "tags": ["Item.Resource.Brick"] },
     { "id": "bone", "name": "Bone", "category": "resource", "weight": 0.5, "stack": 20, "tags": ["Item.Resource.Bone"] },
     { "id": "salt", "name": "Salt", "category": "resource", "weight": 0.5, "stack": 20, "tags": ["Item.Resource.Salt"] },
-    { "id": "copper_nugget", "name": "Native copper", "category": "resource", "weight": 2.0, "stack": 10, "tags": ["Item.Resource.Ore.Copper"] },
     { "id": "grain_seed", "name": "Grain seed", "category": "seed", "weight": 0.02, "stack": 50, "tags": ["Item.Seed.Grain"] },
     { "id": "acorn", "name": "Acorn", "category": "seed", "weight": 0.05, "stack": 20, "tags": ["Item.Seed.Tree"] },
     { "id": "grain", "name": "Grain", "category": "food", "weight": 0.1, "stack": 30, "tags": ["Item.Food", "Item.Food.Grain"], "ability": "Eat" },
@@ -19,18 +17,12 @@
     { "id": "flint_sickle", "name": "Flint sickle", "category": "tool", "weight": 0.8, "stack": 1, "tags": ["Item.Tool.Sickle"], "ability": "Gather", "socket": "RightHand" }
   ],
   "nodes": [
-    { "id": "young_tree", "item": "branch", "capacity": 3, "perGather": 1, "regen": 1, "regenSeconds": 40.0, "ability": "Gather" },
-    { "id": "old_tree", "item": "log", "capacity": 6, "perGather": 1, "regen": 1, "regenSeconds": 120.0, "requires": "Item.Tool.Axe", "ability": "Chop" },
-    { "id": "oak_acorns", "item": "acorn", "capacity": 4, "perGather": 2, "regen": 2, "regenSeconds": 90.0, "ability": "Gather" },
-    { "id": "flint_outcrop", "item": "flint", "capacity": 5, "perGather": 1, "requires": "Item.Tool.Pickaxe", "ability": "Mine" },
-    { "id": "granite_rock", "item": "granite", "capacity": 8, "perGather": 1, "requires": "Item.Tool.Pickaxe", "ability": "Mine" },
-    { "id": "copper_outcrop", "item": "copper_nugget", "capacity": 4, "perGather": 1, "requires": "Item.Tool.Pickaxe", "ability": "Mine" },
-    { "id": "clay_bank", "item": "clay", "capacity": 8, "perGather": 2, "regen": 2, "regenSeconds": 60.0, "ability": "Gather" },
-    { "id": "reed_bed", "item": "reed", "capacity": 8, "perGather": 2, "regen": 2, "regenSeconds": 20.0, "ability": "Gather" },
-    { "id": "pine_resin", "item": "resin", "capacity": 3, "perGather": 1, "regen": 1, "regenSeconds": 90.0, "ability": "Gather" },
-    { "id": "wild_grain", "item": "grain_seed", "capacity": 6, "perGather": 2, "regen": 2, "regenSeconds": 60.0, "ability": "Gather" },
-    { "id": "salt_flat", "item": "salt", "capacity": 10, "perGather": 2, "ability": "Gather" },
-    { "id": "old_bones", "item": "bone", "capacity": 3, "perGather": 1, "ability": "Gather" }
+    { "id": "oak_acorns", "item": "acorn", "kind": "Plant", "capacity": 4, "perGather": 2, "regen": 2, "regenSeconds": 90.0, "ability": "Gather" },
+    { "id": "granite_rock", "item": "granite", "kind": "Stone.Granite", "capacity": 8, "perGather": 1, "requires": "Item.Tool.Pickaxe", "ability": "Mine" },
+    { "id": "pine_resin", "item": "resin", "kind": "Plant", "capacity": 3, "perGather": 1, "regen": 1, "regenSeconds": 90.0, "ability": "Gather" },
+    { "id": "wild_grain", "item": "grain_seed", "kind": "Plant", "capacity": 6, "perGather": 2, "regen": 2, "regenSeconds": 60.0, "ability": "Gather" },
+    { "id": "salt_flat", "item": "salt", "kind": "Loose.Salt", "capacity": 10, "perGather": 2, "ability": "Collect" },
+    { "id": "old_bones", "item": "bone", "kind": "Loose.Bone", "capacity": 3, "perGather": 1, "ability": "Collect" }
   ],
   "recipes": [
     { "id": "plank", "inputs": { "log": 1 }, "output": "plank", "count": 2, "tool": "Item.Tool.Axe", "station": "workbench", "ability": "Craft" },
@@ -39,6 +31,6 @@
     { "id": "flint_sickle", "inputs": { "flint": 1, "branch": 1, "cordage": 1 }, "output": "flint_sickle", "count": 1, "station": "workbench", "ability": "Craft" },
     { "id": "dried_berry", "inputs": { "berry": 3 }, "output": "dried_berry", "count": 2, "station": "drying_rack", "ability": "Craft" },
     { "id": "mud_brick", "inputs": { "clay": 2, "fiber": 1 }, "output": "mud_brick", "count": 2, "station": "drying_rack", "ability": "Craft" },
-    { "id": "copper_axe", "inputs": { "copper_nugget": 3, "branch": 2, "cordage": 1 }, "output": "copper_axe", "count": 1, "station": "forge", "ability": "Craft" }
+    { "id": "copper_axe", "inputs": { "copper_ingot": 2, "branch": 2, "cordage": 1 }, "output": "copper_axe", "count": 1, "station": "forge", "ability": "Craft" }
   ]
 }

@@ -26,6 +26,9 @@ namespace GB
 		// Containers (E2): carried in the bag, they make it bigger. Only the best one counts (Inventory::SyncCapacity).
 		int BagSlots = 0;                   // extra slots while carried
 		float BagWeight = 0.0f;             // extra weight limit while carried (only for a bag that has a limit)
+		// Fuel (E1): units of heat a campfire gets when this item is put in (Stoke). 0 = the campfire's own default (InteractiveSystem::Config::FuelPerWood).
+		// Only items tagged "Item.Resource.Wood" (or below) can be put in: wood gives 2, a branch 1, so it takes more branches for the same heat.
+		int Fuel = 0;
 	};
 
 	// The tool family of a tool tag: the first three segments, "Item.Tool.Axe.Flint" -> "Item.Tool.Axe" (anything else is returned as is).
@@ -108,6 +111,18 @@ namespace GB
 
 	// A gatherable thing in the world: a tree, a rock, a berry bush, a deposit. It holds a quantity, gives it out in pieces, and either
 	// grows back (Regen units every RegenSeconds) or stays depleted.
+	// Where and how many nodes of a type are put in a patch (E1). Count + PerWorker * workers nodes, so a tribe of any size gets a patch that feeds it.
+	// Count 0 and PerWorker 0 = the type is not part of a patch (it can still be placed by hand).
+	struct ResourcePatchDef
+	{
+		int Count = 0;                      // nodes for nobody (the base of the patch)
+		int PerWorker = 0;                  // more nodes for each worker of the tribe
+		float Spacing = 4.0f;               // metres between neighbours
+		std::string Shape = "row";          // "row" (lines of eight), "ring" or "cluster" (a scatter around a centre)
+		std::string Near;                   // another node type: each node of this one stands beside a node of that one (sibling nodes: a big tree's branches)
+		int CountFor(int workers) const { return std::max(0, Count + PerWorker * std::max(1, workers)); }
+	};
+
 	struct ResourceNodeDef
 	{
 		std::string Id;                     // "tree", "rock", "berry_bush"
@@ -118,6 +133,12 @@ namespace GB
 		int Regen = 1;
 		std::string RequiresTag;            // tool tag needed to gather ("" = bare hands)
 		std::string Ability;                // ability that gathers it (animation montage comes from the ability)
+		// E1: the kind of the node, "Wood", "Stone", "Stone.Flint", "Plant", "Loose.Clay"...: the node carries the tag "Resource.<Kind>" and the abilities
+		// match on it (Chop on Resource.Wood, Mine on Resource.Stone and below, Gather on Resource.Plant, Collect on Resource.Loose). Empty = worked out
+		// from the item as before (wood -> Wood, stone -> Stone, anything else -> Plant), so an older content file still works.
+		std::string Kind;
+		std::string Model;                  // the primitives it is drawn with ("" = the node's id; an unknown model is a plain grey blob)
+		ResourcePatchDef Patch;
 	};
 
 	class ResourceNode
@@ -166,16 +187,18 @@ namespace GB
 	};
 
 	// Content as data: items, recipes and resource nodes in one JSON document, so the game's things can be added and changed without a build.
-	//   { "items":   [ { "id", "name", "category", "weight", "stack", "tags": [], "ability", "socket", "power", "speed", "bagSlots", "bagWeight" } ],
+	//   { "items":   [ { "id", "name", "category", "weight", "stack", "tags": [], "ability", "socket", "power", "speed", "bagSlots", "bagWeight", "fuel" } ],
 	//     "recipes": [ { "id", "station", "tool", "inputs": { "wood": 2 }, "output", "count", "ability" } ],
-	//     "nodes":   [ { "id", "item", "capacity", "perGather", "regenSeconds", "regen", "requires", "ability" } ] }
+	//     "nodes":   [ { "id", "item", "capacity", "perGather", "regenSeconds", "regen", "requires", "ability", "kind", "model",
+	//                    "patch": { "count", "perWorker", "spacing", "shape", "near" } } ] }
 	// Entries replace those of the same id; anything else already loaded stays. Returns "" or what is wrong (and changes nothing).
 	std::string LoadContent(const std::string& json, ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes);
 	std::string LoadContentFile(const std::string& path, ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes);
 	// The same document for what is loaded now (pretty-printed): the starting point of a content file.
 	std::string ContentToJson(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes);
 
-	// (The last four item fields are optional: power 0, speed 1, bagSlots 0 and bagWeight 0 when missing.)
+	// (The last five item fields are optional: power 0, speed 1, bagSlots 0, bagWeight 0 and fuel 0 when missing; "kind", "model" and "patch" of a node
+	// too: an older file without them keeps working.)
 
 	// The era-1 content: wood, stone, fiber, berries, stone and flint tools, a wicker basket, a campfire and the resource nodes and recipes that go with them.
 	void RegisterEraOneItems(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes);

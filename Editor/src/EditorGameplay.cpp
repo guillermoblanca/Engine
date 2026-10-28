@@ -46,6 +46,7 @@ namespace GB::Editor
 		});
 		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
 		m_Ecology.Bind(m_SceneEditor.World(), m_Gameplay, [this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });
+		m_Interactives.Items = &m_Items;   // Stoke burns anything tagged wood, each piece for the heat its item says (branch 1, wood 2)
 		m_Interactives.Bind(m_Gameplay,
 			[this](const std::string& who, const std::string& item, int n) { Actor* a = m_Actors.Find(who); return a ? a->Bag().Remove(item, n) : 0; },
 			[this](const std::string& who, const std::string& item, int n) { Actor* a = m_Actors.Find(who); return a ? a->Bag().Add(m_Items, item, n) : 0; });
@@ -455,20 +456,35 @@ namespace GB::Editor
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
 			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
-			const ResourceCounts counts = ScaledResources(a.size() > 3 ? std::max(1, std::atoi(a[3].c_str())) : 1);   // `resources build x z <workers>`: a patch for a tribe of that size
-			const ResourceLayout layout = BuildResources(m_SceneEditor.World(), origin, m_NodeDefs, counts.Trees, counts.Rocks, counts.Bushes, counts.Grass);
+			// `resources build x z <workers>`: the patch the node definitions describe (count, spacing and shape per type) for a tribe of that size
+			const int workers = a.size() > 3 ? std::max(1, std::atoi(a[3].c_str())) : 1;
+			const ResourceLayout layout = BuildResourcePatch(m_SceneEditor.World(), origin, m_NodeDefs, workers);
 			m_SceneEditor.Select(NullEntity);
 			SyncGameplay();
 			m_SceneEditor.Commit();
+			std::string kinds;
+			for (const auto& [id, n] : PatchCounts(m_NodeDefs, workers)) kinds += (kinds.empty() ? "" : ", ") + std::to_string(n) + " " + id;
 			return { true, std::to_string(layout.Nodes.size()) + " resource nodes built at (" + std::to_string(static_cast<int>(origin.x)) + ", " + std::to_string(static_cast<int>(origin.z))
-				+ "). Gather with: ability activate Gather \"berry bush 1\" (Chop needs an axe, Mine a pickaxe: actor bag <name> craft stone_axe workbench)" };
+				+ ") for " + std::to_string(workers) + " worker(s): " + kinds + ". Gather with: ability activate Gather \"berry bush 1\", Collect \"clay bank 1\" (Chop needs an axe, Mine a pickaxe: actor bag <name> craft stone_axe workbench)" };
 		}
-		if (sub != "status") return { false, "usage: resources build [x z] | status" };
-		std::string s;
+		if (sub != "status") return { false, "usage: resources build [x z [workers]] | status" };
+			// Grouped by type: "tree: 3 nodes, 11 units, 1 depleted [tree 1: 5, tree 2: 0 (depleted), ...]"
+		struct Group { int Nodes = 0, Units = 0, Depleted = 0; std::string Each; };
+		std::map<std::string, Group> groups;
 		for (const std::string& n : m_Gameplay.Names())
 			if (const AbilitySystemComponent* node = m_Gameplay.Find(n); node && node->HasTag("Resource.Node"))
-				s += n + ": " + std::to_string(ResourceSystem::Amount(*node)) + (node->HasTag("State.Depleted") ? " (depleted)" : "") + "; ";
-		if (s.empty()) return { false, "no resource nodes in the scene (resources build)" };
+			{
+				Group& g = groups[n.substr(0, n.rfind(' '))];
+				const bool empty = node->HasTag("State.Depleted");
+				++g.Nodes;
+				g.Units += ResourceSystem::Amount(*node);
+				g.Depleted += empty ? 1 : 0;
+				g.Each += (g.Each.empty() ? "" : ", ") + n.substr(n.rfind(' ') + 1) + ": " + std::to_string(ResourceSystem::Amount(*node)) + (empty ? " (depleted)" : "");
+			}
+		if (groups.empty()) return { false, "no resource nodes in the scene (resources build)" };
+		std::string s;
+		for (const auto& [kind, g] : groups)
+			s += kind + ": " + std::to_string(g.Nodes) + " nodes, " + std::to_string(g.Units) + " units" + (g.Depleted ? ", " + std::to_string(g.Depleted) + " depleted" : "") + " [" + g.Each + "]; ";
 		return { true, s };
 	}
 

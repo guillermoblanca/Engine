@@ -336,6 +336,8 @@ namespace GB
 					d.Speed = o.value("speed", 1.0f);
 					d.BagSlots = o.value("bagSlots", 0);
 					d.BagWeight = o.value("bagWeight", 0.0f);
+					d.Fuel = o.value("fuel", 0);
+					if (d.Fuel < 0) return "item '" + d.Id + "': fuel cannot be negative";
 					if (d.Power < 0 || d.BagSlots < 0 || d.BagWeight < 0.0f) return "item '" + d.Id + "': power, bagSlots and bagWeight cannot be negative";
 					if (!(d.Speed >= 0.1f && d.Speed <= 10.0f)) return "item '" + d.Id + "': speed must be between 0.1 and 10";
 					newItems.push_back(d);
@@ -374,6 +376,21 @@ namespace GB
 					if (d.Capacity < 1 || d.PerGather < 1 || d.Regen < 1 || d.RegenSeconds < 0.0f) return "node '" + d.Id + "': capacity, perGather and regen must be at least 1";
 					str(o, "requires", d.RequiresTag);
 					str(o, "ability", d.Ability);
+					str(o, "kind", d.Kind);
+					str(o, "model", d.Model);
+					if (!d.Kind.empty() && !GameplayTag::IsValidTagName("Resource." + d.Kind)) return "node '" + d.Id + "': bad kind " + d.Kind;
+					if (auto pt = o.find("patch"); pt != o.end())
+					{
+						if (!pt->is_object()) return "node '" + d.Id + "': patch must be an object";
+						d.Patch.Count = pt->value("count", 0);
+						d.Patch.PerWorker = pt->value("perWorker", 0);
+						d.Patch.Spacing = pt->value("spacing", 4.0f);
+						str(*pt, "shape", d.Patch.Shape);
+						str(*pt, "near", d.Patch.Near);
+						if (d.Patch.Count < 0 || d.Patch.PerWorker < 0) return "node '" + d.Id + "': the patch counts cannot be negative";
+						if (!(d.Patch.Spacing >= 0.5f && d.Patch.Spacing <= 100.0f)) return "node '" + d.Id + "': the patch spacing must be between 0.5 and 100";
+						if (d.Patch.Shape != "row" && d.Patch.Shape != "ring" && d.Patch.Shape != "cluster") return "node '" + d.Id + "': the patch shape must be row, ring or cluster";
+					}
 					newNodes.push_back(d);
 				}
 		}
@@ -421,6 +438,7 @@ namespace GB
 			if (d.Speed != 1.0f) o["speed"] = Round3(d.Speed);
 			if (d.BagSlots != 0) o["bagSlots"] = d.BagSlots;
 			if (d.BagWeight != 0.0f) o["bagWeight"] = Round3(d.BagWeight);
+			if (d.Fuel != 0) o["fuel"] = d.Fuel;
 			ji.push_back(o);
 		}
 		j["items"] = ji;
@@ -443,6 +461,14 @@ namespace GB
 			Json o = { { "id", d.Id }, { "item", d.Item }, { "capacity", d.Capacity }, { "perGather", d.PerGather }, { "regenSeconds", Round3(d.RegenSeconds) }, { "regen", d.Regen } };
 			if (!d.RequiresTag.empty()) o["requires"] = d.RequiresTag;
 			if (!d.Ability.empty()) o["ability"] = d.Ability;
+			if (!d.Kind.empty()) o["kind"] = d.Kind;
+			if (!d.Model.empty()) o["model"] = d.Model;
+			if (d.Patch.Count != 0 || d.Patch.PerWorker != 0)
+			{
+				Json pt = { { "count", d.Patch.Count }, { "perWorker", d.Patch.PerWorker }, { "spacing", Round3(d.Patch.Spacing) }, { "shape", d.Patch.Shape } };
+				if (!d.Patch.Near.empty()) pt["near"] = d.Patch.Near;
+				o["patch"] = pt;
+			}
 			jn.push_back(o);
 		}
 		j["nodes"] = jn;
@@ -458,6 +484,22 @@ namespace GB
 			return d;
 		}
 
+		ItemDef Fuel(ItemDef d, int fuel)
+		{
+			d.Fuel = fuel;
+			return d;
+		}
+
+		ResourceNodeDef Node(const char* id, const char* item, int capacity, int perGather, float regenSeconds, int regen, const char* tool, const char* ability,
+			const char* kind, int patchCount, int patchPerWorker, const char* shape = "row", float spacing = 4.0f, const char* beside = "")
+		{
+			ResourceNodeDef d;
+			d.Id = id; d.Item = item; d.Capacity = capacity; d.PerGather = perGather; d.RegenSeconds = regenSeconds; d.Regen = regen; d.RequiresTag = tool; d.Ability = ability;
+			d.Kind = kind;
+			d.Patch.Count = patchCount; d.Patch.PerWorker = patchPerWorker; d.Patch.Shape = shape; d.Patch.Spacing = spacing; d.Patch.Near = beside;
+			return d;
+		}
+
 		ItemDef Tool(ItemDef d, int power, float speed)
 		{
 			d.Power = power;
@@ -468,7 +510,8 @@ namespace GB
 
 	void RegisterEraOneItems(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes)
 	{
-		items.Add(Def("wood",      "Wood",        "resource", 2.0f, 10, { "Item.Resource.Wood" },  "", ""));
+		// Wood burns for 2 units of heat in a campfire, a branch for 1 (E1): it takes two branches for the heat of one piece of wood.
+		items.Add(Fuel(Def("wood",      "Wood",        "resource", 2.0f, 10, { "Item.Resource.Wood" },  "", ""), 2));
 		items.Add(Def("stone",     "Stone",       "resource", 3.0f, 10, { "Item.Resource.Stone" }, "", ""));
 		items.Add(Def("fiber",     "Plant fiber", "resource", 0.2f, 20, { "Item.Resource.Fiber" }, "", ""));
 		items.Add(Def("berry",     "Berry",       "food",     0.1f, 20, { "Item.Food" },           "Eat", ""));
@@ -479,10 +522,14 @@ namespace GB
 
 		// Flint (E2): sharper than stone, so a flint tool gives one more unit per swing and swings a little faster. Branches, flint and reed
 		// come from nodes that the extended content (era1_ampliado.json) defines; until a node places them, `actor bag <name> add` supplies them.
-		items.Add(Def("branch",  "Branch",  "resource", 0.6f, 20, { "Item.Resource.Wood.Branch" }, "", ""));
+		items.Add(Fuel(Def("branch",  "Branch",  "resource", 0.6f, 20, { "Item.Resource.Wood.Branch" }, "", ""), 1));
 		items.Add(Def("flint",   "Flint",   "resource", 1.0f, 10, { "Item.Resource.Stone.Flint" }, "", ""));
 		items.Add(Def("reed",    "Reed",    "resource", 0.2f, 20, { "Item.Resource.Fiber.Reed" }, "", ""));
 		items.Add(Def("cordage", "Cordage", "resource", 0.3f, 20, { "Item.Resource.Cordage" }, "", ""));
+		// E1: clay from a bank, and copper (ore from a vein; the forge that smelts it arrives with E10, so its recipe cannot be made yet: WhyNot says so).
+		items.Add(Def("clay",         "Clay",          "resource", 2.5f, 10, { "Item.Resource.Clay" },         "", ""));
+		items.Add(Def("copper_ore",   "Copper ore",    "resource", 2.0f, 10, { "Item.Resource.Ore.Copper" },   "", ""));
+		items.Add(Def("copper_ingot", "Copper ingot",  "resource", 1.5f, 10, { "Item.Resource.Metal.Copper" }, "", ""));
 		items.Add(Tool(Def("flint_axe",     "Flint axe",     "tool", 2.2f, 1, { "Item.Tool.Axe.Flint" },     "Chop", "RightHand"), 1, 1.15f));
 		items.Add(Tool(Def("flint_pickaxe", "Flint pickaxe", "tool", 2.6f, 1, { "Item.Tool.Pickaxe.Flint" }, "Mine", "RightHand"), 1, 1.15f));
 		// A wicker basket in the bag adds six slots (the best container counts, they do not add up); the weight bonus is for bags that have a limit.
@@ -498,10 +545,19 @@ namespace GB
 		recipes.Add({ "flint_pickaxe", "workbench", "",                  { { "flint", 3 }, { "branch", 2 }, { "cordage", 1 } }, "flint_pickaxe", 1, "Craft" });
 		recipes.Add({ "basket_wicker", "",          "",                  { { "reed", 5 }, { "branch", 2 } },                "basket_wicker", 1, "Craft" });
 		recipes.Add({ "campfire",      "",          "Item.Tool.Axe",     { { "wood", 4 }, { "stone", 3 } },                 "campfire",      1, "Craft" });
+		recipes.Add({ "copper_ingot",  "forge",     "",                  { { "copper_ore", 2 } },                           "copper_ingot",  1, "Craft" });
 
-		nodes["tree"]       = { "tree",       "wood",  5, 1, 30.0f, 1, "Item.Tool.Axe",     "Chop" };
-		nodes["rock"]       = { "rock",       "stone", 4, 1,  0.0f, 1, "Item.Tool.Pickaxe", "Mine" };
-		nodes["berry_bush"] = { "berry_bush", "berry", 6, 2, 20.0f, 2, "",                  "Gather" };
-		nodes["fiber_grass"]= { "fiber_grass","fiber", 8, 2, 15.0f, 2, "",                  "PullFiber" };
+		// The patch fields say how many of each node a patch has (Count + PerWorker * workers; the first four match ScaledResources) and how they are laid out.
+		// young_tree and old_tree are sibling nodes (E1): the young ones stand beside the old ones, branches for the hands and wood for the axe.
+		nodes["tree"]          = Node("tree",          "wood",       5, 1,  30.0f, 1, "Item.Tool.Axe",     "Chop",      "Wood",         2, 2);
+		nodes["rock"]          = Node("rock",          "stone",      4, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone",        3, 2);
+		nodes["berry_bush"]    = Node("berry_bush",    "berry",      6, 2,  20.0f, 2, "",                  "Gather",    "Plant",        2, 1);
+		nodes["fiber_grass"]   = Node("fiber_grass",   "fiber",      8, 2,  15.0f, 2, "",                  "PullFiber", "Plant",        2, 1);
+		nodes["young_tree"]    = Node("young_tree",    "branch",     3, 1,  40.0f, 1, "",                  "Gather",    "Plant.Branch", 1, 1, "row", 4.0f, "old_tree");
+		nodes["old_tree"]      = Node("old_tree",      "wood",       8, 1, 120.0f, 1, "Item.Tool.Axe",     "Chop",      "Wood",         1, 1, "cluster", 7.0f);
+		nodes["clay_bank"]     = Node("clay_bank",     "clay",       8, 2,  60.0f, 2, "",                  "Collect",   "Loose.Clay",   1, 0, "cluster", 3.0f);
+		nodes["reed_bed"]      = Node("reed_bed",      "reed",       8, 2,  20.0f, 2, "",                  "Collect",   "Loose.Reed",   1, 1, "cluster", 3.0f);
+		nodes["flint_outcrop"] = Node("flint_outcrop", "flint",      5, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Flint",  1, 1, "cluster", 3.5f);
+		nodes["copper_vein"]   = Node("copper_vein",   "copper_ore", 4, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Copper", 1, 0, "row", 4.0f);
 	}
 }

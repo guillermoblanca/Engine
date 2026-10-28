@@ -10,11 +10,12 @@
 namespace GB
 {
 	// Resource nodes in the world (H2): trees, rocks, berry bushes and grass tufts as entities with an ability system, like the garden's plots.
-	// A node holds the attribute "Amount" and the tags "Resource.Node", "Resource.Node.<id>", "Resource.<Wood|Stone|Plant>" and, while empty,
-	// "State.Depleted". The abilities Chop, Mine and Gather (the first two need a tool the actor holds) raise "Event.Resource.Gather" on the
-	// node; the ResourceSystem takes the units out of the node and hands them to whoever carries them away (the actor's bag).
+	// A node holds the attribute "Amount" and the tags "Resource.Node", "Resource.Node.<id>", "Resource.<Kind>" (the kind comes from the node's data: Wood,
+	// Stone, Stone.Flint, Plant, Loose.Clay...) and, while empty, "State.Depleted". The abilities Chop (Resource.Wood), Mine (Resource.Stone and below),
+	// Gather (Resource.Plant), PullFiber (fibre tufts) and Collect (Resource.Loose: clay, reeds) raise "Event.Resource.Gather" on the node, the first two
+	// needing a tool the actor holds; the ResourceSystem takes the units out of the node and hands them to whoever carries them away (the actor's bag).
 
-	// Effects and abilities (Chop, Mine, Gather) and one regrowth effect per node kind of `nodes` that regrows.
+	// Effects and abilities (Chop, Mine, Gather, PullFiber, Collect) and one regrowth effect per node kind of `nodes` that regrows.
 	void RegisterResourceContent(GameplayLibrary& library, const std::map<std::string, ResourceNodeDef>& nodes);
 
 	struct ResourceLayout
@@ -28,8 +29,14 @@ namespace GB
 	ResourceLayout BuildResources(EntityWorld& world, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes,
 		int trees = 3, int rocks = 2, int bushes = 2, int grass = 2);
 
+	// The patch by data (E1): every node type whose definition has a patch (ResourceNodeDef::Patch) is put in, Count + PerWorker * workers of each, laid out as
+	// its shape says (row, ring or cluster; types with "near" stand beside another type). The result is the same for the same data and workers.
+	ResourceLayout BuildResourcePatch(EntityWorld& world, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes, int workers);
+	// What BuildResourcePatch puts in for `workers`: node id and count, in id order.
+	std::vector<std::pair<std::string, int>> PatchCounts(const std::map<std::string, ResourceNodeDef>& nodes, int workers);
+
 	// How many nodes of each kind a patch needs for `workers` members of a tribe (the default patch of 3, 2, 2 and 2 feeds one or two). Rocks never
-	// grow back, so they get a few more.
+	// grow back, so they get a few more. The four legacy types only (their patch fields say the same: BuildResourcePatch).
 	struct ResourceCounts { int Trees = 3, Rocks = 2, Bushes = 2, Grass = 2; };
 	ResourceCounts ScaledResources(int workers);
 

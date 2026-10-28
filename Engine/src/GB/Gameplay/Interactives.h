@@ -13,7 +13,7 @@ namespace GB
 	// State.Open / State.Closed) and attributes (Fuel, Water), changed by the effects abilities apply and by the InteractiveSystem over time,
 	// so it is saved and loaded with the rest of the gameplay state and the characters use them with the same abilities as the player.
 	//
-	// Abilities: Stoke (puts a piece of wood in a campfire; needs wood in the bag), DrawWater (fills the bag with water from a well),
+	// Abilities: Stoke (puts a piece of wood or a branch in a campfire; needs one in the bag), DrawWater (fills the bag with water from a well),
 	// OpenDoor and CloseDoor.
 
 	void RegisterInteractiveContent(GameplayLibrary& library);
@@ -32,10 +32,13 @@ namespace GB
 		struct Config
 		{
 			float BurnSeconds = 6.0f;        // one unit of fuel lasts this long
-			int FuelPerWood = 2;
+			int FuelPerWood = 2;             // heat of a wood piece whose item says no fuel of its own (ItemDef::Fuel), and the heat of "wood" without an item library
 			int WaterPerDraw = 2;
 		};
 		Config Settings;
+		// The items (E1): with a library, Stoke puts in whatever the actor carries that is tagged Item.Resource.Wood (a log, a branch...) and the fire gets
+		// that item's Fuel (wood 2, branch 1). Without one it puts in "wood" for Settings.FuelPerWood, as before.
+		const ItemLibrary* Items = nullptr;
 
 		// Takes `n` of an item out of the bag of an actor / gives it one. Return how many were moved.
 		using Take = std::function<int(const std::string& actor, const std::string& item, int n)>;
@@ -49,6 +52,8 @@ namespace GB
 		static std::string DoorState(const AbilitySystemComponent& a);       // "open", "closed" ("" = not a door)
 
 	private:
+		int FuelOf(const std::string& item) const;
+		int TakeFuel(const std::string& actor) const;   // takes one fuel item out of the actor's bag; the heat it gives (0 = none to give)
 		GameplayWorld* m_Gameplay = nullptr;
 		Take m_Take;
 		Give m_Give;

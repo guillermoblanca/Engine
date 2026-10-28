@@ -294,6 +294,51 @@ int main()
 			&& !LoadContent(R"({"items":[{"id":"x","bagSlots":-2}]})", li, lr, ln).empty(), "negative power, zero speed and negative bag slots are refused");
 	}
 
+	// Finer nodes, kinds from data, fuel per item and copper (E1).
+	{
+		Check(w.Items.Find("wood")->Fuel == 2 && w.Items.Find("branch")->Fuel == 1, "wood burns for 2 units of heat, a branch for 1");
+		Check(w.Items.Find("copper_ore") && w.Items.Find("copper_ingot") && w.Items.Find("clay"), "copper ore, copper ingot and clay are items");
+		Inventory ore(6);
+		ore.Add(w.Items, "copper_ore", 2);
+		Check(w.Recipes.WhyNot(w.Items, ore, "copper_ingot", "").find("forge") != std::string::npos, "a copper ingot needs a forge, which nothing builds yet: the recipe says so");
+		Check(w.Recipes.WhyNot(w.Items, ore, "copper_ingot", "forge").empty() && w.Recipes.Craft(w.Items, ore, "copper_ingot", "forge") && ore.Count("copper_ingot") == 1, "and at a forge it can be made");
+
+		struct { const char* id; const char* kind; const char* item; } expect[] = {
+			{ "young_tree", "Plant.Branch", "branch" }, { "old_tree", "Wood", "wood" }, { "clay_bank", "Loose.Clay", "clay" }, { "reed_bed", "Loose.Reed", "reed" },
+			{ "flint_outcrop", "Stone.Flint", "flint" }, { "copper_vein", "Stone.Copper", "copper_ore" } };
+		for (const auto& e : expect)
+		{
+			const auto it = w.Defs.find(e.id);
+			Check(it != w.Defs.end() && it->second.Kind == e.kind && it->second.Item == e.item && it->second.Patch.Count + it->second.Patch.PerWorker > 0, "a finer node type with its kind and a patch");
+		}
+		Check(w.Defs["old_tree"].Capacity > w.Defs["young_tree"].Capacity && w.Defs["old_tree"].RegenSeconds > w.Defs["young_tree"].RegenSeconds, "the old tree holds more and grows back slower than the young one");
+
+		// the fuel and the new node fields travel through the data format; a bad value is refused whole
+		ItemLibrary li; RecipeBook lr; std::map<std::string, ResourceNodeDef> ln;
+		const std::string doc = R"({ "items": [ { "id": "log", "tags": ["Item.Resource.Wood.Log"], "fuel": 4 } ],
+			"nodes": [ { "id": "grove", "item": "log", "kind": "Wood", "model": "old_tree", "patch": { "count": 2, "perWorker": 1, "spacing": 6, "shape": "ring", "near": "tree" } } ] })";
+		Check(LoadContent(doc, li, lr, ln).empty() && li.Find("log")->Fuel == 4, "the fuel of an item loads");
+		Check(ln["grove"].Kind == "Wood" && ln["grove"].Model == "old_tree" && ln["grove"].Patch.CountFor(3) == 5 && ln["grove"].Patch.Shape == "ring" && ln["grove"].Patch.Near == "tree", "and so do a node's kind, model and patch");
+		const std::string out = ContentToJson(li, lr, ln);
+		ItemLibrary li2; RecipeBook lr2; std::map<std::string, ResourceNodeDef> ln2;
+		Check(LoadContent(out, li2, lr2, ln2).empty() && ContentToJson(li2, lr2, ln2) == out, "the new fields round-trip");
+		for (const char* bad : { R"({ "items": [ { "id": "x", "fuel": -1 } ] })", R"({ "nodes": [ { "id": "n", "item": "log", "kind": "Bad Kind" } ] })",
+			R"({ "nodes": [ { "id": "n", "item": "log", "patch": { "shape": "spiral" } } ] })", R"({ "nodes": [ { "id": "n", "item": "log", "patch": { "count": -1 } } ] })",
+			R"({ "nodes": [ { "id": "n", "item": "log", "patch": 3 } ] })", R"({ "nodes": [ { "id": "n", "item": "log", "patch": { "spacing": 0 } } ] })" })
+			Check(!LoadContent(bad, li2, lr2, ln2).empty(), "a bad fuel, kind or patch is refused");
+		Check(ContentToJson(li2, lr2, ln2) == out, "and changes nothing");
+		// an older node without the new fields keeps its defaults
+		Check(LoadContent(R"({ "items": [ { "id": "old" } ], "nodes": [ { "id": "oldnode", "item": "old" } ] })", li2, lr2, ln2).empty()
+			&& ln2["oldnode"].Kind.empty() && ln2["oldnode"].Patch.CountFor(2) == 0 && li2.Find("old")->Fuel == 0, "a content file without the new fields still loads, with defaults");
+
+		// the extended content loads on top and keeps the base definitions of the nodes that moved into the base
+		ItemLibrary ei; RecipeBook er; std::map<std::string, ResourceNodeDef> en;
+		RegisterEraOneItems(ei, er, en);
+		Check(LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/era1_ampliado.json", ei, er, en).empty(), "the extended content still loads");
+		Check(en["young_tree"].Capacity == 3 && en["old_tree"].Kind == "Wood" && en["granite_rock"].Kind == "Stone.Granite" && ei.Find("log")->Fuel == 4, "with its own kinds and fuel");
+		Check(er.Find("copper_axe") && er.Find("copper_axe")->Inputs.count("copper_ingot") == 1, "and the copper axe is made from ingots");
+	}
+
 	// The whole loop, twice.
 	{
 		bool ok1 = true, ok2 = true;

@@ -25,6 +25,7 @@
     },
     {
       "category": "resource",
+      "fuel": 1,
       "id": "branch",
       "name": "Branch",
       "stack": 20,
@@ -43,6 +44,36 @@
         "Item.Structure.Fire"
       ],
       "weight": 6.0
+    },
+    {
+      "category": "resource",
+      "id": "clay",
+      "name": "Clay",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Clay"
+      ],
+      "weight": 2.5
+    },
+    {
+      "category": "resource",
+      "id": "copper_ingot",
+      "name": "Copper ingot",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Metal.Copper"
+      ],
+      "weight": 1.5
+    },
+    {
+      "category": "resource",
+      "id": "copper_ore",
+      "name": "Copper ore",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Ore.Copper"
+      ],
+      "weight": 2.0
     },
     {
       "category": "resource",
@@ -159,6 +190,7 @@
     },
     {
       "category": "resource",
+      "fuel": 2,
       "id": "wood",
       "name": "Wood",
       "stack": 10,
@@ -174,24 +206,128 @@
       "capacity": 6,
       "id": "berry_bush",
       "item": "berry",
+      "kind": "Plant",
+      "patch": {
+        "count": 2,
+        "perWorker": 1,
+        "shape": "row",
+        "spacing": 4.0
+      },
       "perGather": 2,
       "regen": 2,
       "regenSeconds": 20.0
+    },
+    {
+      "ability": "Collect",
+      "capacity": 8,
+      "id": "clay_bank",
+      "item": "clay",
+      "kind": "Loose.Clay",
+      "patch": {
+        "count": 1,
+        "perWorker": 0,
+        "shape": "cluster",
+        "spacing": 3.0
+      },
+      "perGather": 2,
+      "regen": 2,
+      "regenSeconds": 60.0
+    },
+    {
+      "ability": "Mine",
+      "capacity": 4,
+      "id": "copper_vein",
+      "item": "copper_ore",
+      "kind": "Stone.Copper",
+      "patch": {
+        "count": 1,
+        "perWorker": 0,
+        "shape": "row",
+        "spacing": 4.0
+      },
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "requires": "Item.Tool.Pickaxe"
     },
     {
       "ability": "PullFiber",
       "capacity": 8,
       "id": "fiber_grass",
       "item": "fiber",
+      "kind": "Plant",
+      "patch": {
+        "count": 2,
+        "perWorker": 1,
+        "shape": "row",
+        "spacing": 4.0
+      },
       "perGather": 2,
       "regen": 2,
       "regenSeconds": 15.0
     },
     {
       "ability": "Mine",
+      "capacity": 5,
+      "id": "flint_outcrop",
+      "item": "flint",
+      "kind": "Stone.Flint",
+      "patch": {
+        "count": 1,
+        "perWorker": 1,
+        "shape": "cluster",
+        "spacing": 3.5
+      },
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "requires": "Item.Tool.Pickaxe"
+    },
+    {
+      "ability": "Chop",
+      "capacity": 8,
+      "id": "old_tree",
+      "item": "wood",
+      "kind": "Wood",
+      "patch": {
+        "count": 1,
+        "perWorker": 1,
+        "shape": "cluster",
+        "spacing": 7.0
+      },
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 120.0,
+      "requires": "Item.Tool.Axe"
+    },
+    {
+      "ability": "Collect",
+      "capacity": 8,
+      "id": "reed_bed",
+      "item": "reed",
+      "kind": "Loose.Reed",
+      "patch": {
+        "count": 1,
+        "perWorker": 1,
+        "shape": "cluster",
+        "spacing": 3.0
+      },
+      "perGather": 2,
+      "regen": 2,
+      "regenSeconds": 20.0
+    },
+    {
+      "ability": "Mine",
       "capacity": 4,
       "id": "rock",
       "item": "stone",
+      "kind": "Stone",
+      "patch": {
+        "count": 3,
+        "perWorker": 2,
+        "shape": "row",
+        "spacing": 4.0
+      },
       "perGather": 1,
       "regen": 1,
       "regenSeconds": 0.0,
@@ -202,10 +338,34 @@
       "capacity": 5,
       "id": "tree",
       "item": "wood",
+      "kind": "Wood",
+      "patch": {
+        "count": 2,
+        "perWorker": 2,
+        "shape": "row",
+        "spacing": 4.0
+      },
       "perGather": 1,
       "regen": 1,
       "regenSeconds": 30.0,
       "requires": "Item.Tool.Axe"
+    },
+    {
+      "ability": "Gather",
+      "capacity": 3,
+      "id": "young_tree",
+      "item": "branch",
+      "kind": "Plant.Branch",
+      "patch": {
+        "count": 1,
+        "near": "old_tree",
+        "perWorker": 1,
+        "shape": "row",
+        "spacing": 4.0
+      },
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 40.0
     }
   ],
   "recipes": [
@@ -229,6 +389,16 @@
       },
       "output": "campfire",
       "tool": "Item.Tool.Axe"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "copper_ingot",
+      "inputs": {
+        "copper_ore": 2
+      },
+      "output": "copper_ingot",
+      "station": "forge"
     },
     {
       "ability": "Craft",
