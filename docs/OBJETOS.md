@@ -57,6 +57,10 @@ Editor: `resources build [x z [trabajadores]]` coloca el parche por datos y dice
 
 Decisión pendiente: `old_tree` da `wood` (el mismo objeto que `tree`, para que la tribu y las recetas actuales lo usen); la propuesta lo llamaba «tronco» (`log`, 6 kg, de 4 en 4), que queda en el contenido ampliado para tablones.
 
+## Caducidad (E6, H18)
+
+Campos opcionales `shelfLife` (segundos; 0 = no caduca) y `spoilsTo` (en qué se convierte) de `ItemDef`; `ItemSlot::Age` es la edad media del montón (media ponderada al juntar, `Transfer` la lleva, `RemoveOldest` saca lo más viejo) y se guarda. `AgeInventory` (`GB/Gameplay/Spoilage.h`) envejece y estropea. Baya 1800 s, baya seca 14 400 s, grano 7200 s. Ver [ECONOMIA.md](ECONOMIA.md).
+
 ## Editor
 
 ```

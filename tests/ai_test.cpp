@@ -279,6 +279,7 @@ public:
 		Brain.Config.Camp = camp;
 		Brain.Config.DetailRadius = 25.0f;
 		Brain.Config.StockCap = 400;
+		Brain.Config.Econ.Logistics.Stores["main"].Cap = 400;   // (H18: the cap of the main store is the economy rules')
 		Brain.Store().Add(Items, "wood", 2 + 2 * n);
 		Brain.Store().Add(Items, "stone", 3 * n);
 		for (int i = 0; i < n; ++i)

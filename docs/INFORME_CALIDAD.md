@@ -23,6 +23,7 @@ editor sin ventana (`Editor.exe --hidden --quality=low --script=...`).
 | 10 | Sandbox y los tests se compilan sin avisos activados (un `C4244` real en el Sandbox) | Baja | Corregido el aviso; propuesta |
 | 11 | Usabilidad del editor: `panel X on` no trae el panel al frente, subcomandos desconocidos callaban, tabla de la tribu desbordada | Media | **Corregido** |
 | 12 | Documentos que ya no decían la verdad (README, plan, INTERACTIVOS, OBJETOS, TRIBU, ECOLOGIA) | Media | **Corregido** |
+| 14 | QA de la simulación (H20): el barrido de semillas con tribus encontró que los abstractos no avivaban la hoguera, que un caminante en agua no volvía a planear, clanes sin leñador y la talla de sílex inalcanzable | Alta a media | 2 **corregidos**, el resto abierto (ver 14) |
 
 ## 1. Tras cargar, la tribu se queda parada para siempre (corregido)
 
@@ -180,6 +181,24 @@ Capturas con `shot_ui` de una escena con tribu, interactivos y conejos (ver los 
 Corregido: `README.md` (hoja de ruta con lo hecho y sin lo que ya no está en curso), `PLAN_SOCIEDAD_VIVA.md` (cabecera obsoleta, H1 "en curso", y una **tabla de estado** que no existía), `INTERACTIVOS.md` ("pendiente" ya hecho: estaciones, ecología y
 panel; lo que se guarda), `OBJETOS.md` (colocar nodos nuevos desde JSON no es posible: `BuildResources` solo conoce cuatro tipos), `TRIBU.md` (qué pasa tras `load` y `actor remove`, tests, límites nuevos), `ECOLOGIA.md` (coste, qué se guarda), `mundo.md` (coste del refinado de orillas) y `COSTE_ACTOR.md`
 (nota con la remedición). Comprobado que dicen la verdad: las tablas de roles, estaciones y habilidades, y los valores (`EatSeconds` 40, `FireSeconds` 30, 240 s por estación).
+
+## 14. QA de la simulación (H20)
+
+Barrido de semillas de la **simulación** (tribus que viven días sobre mundos generados, sin ventana, con la navegación real), con una tabla de invariantes y métricas compartida por el
+test `sim_sweep`, `qa sim` y el panel QA del editor: ver [QA_SIMULACION.md](QA_SIMULACION.md). Lo que encontró en sus primeras ejecuciones:
+
+| # | Hallazgo | Reproducción | Estado |
+|---|---|---|---|
+| 14a | Los miembros **abstractos** no podían avivar la hoguera: el agente abstracto busca el destino de `ability Stoke Campfire` en la caché de posiciones de la tribu, que solo guarda lo percibible (nodos, pozos); fallaba "the target is gone" cientos de veces (406 fallos en medio día) y la hoguera se apagaba | `sim_sweep`, templado 3, 4 miembros, abstractos | **Corregido** (`Tribe::StepAbstract` busca en la escena lo que no está en la caché); el caso está en el conjunto de CI |
+| 14b | Un caminante en una celda que es muro **para su perfil** (agua algo más honda de lo vadeable en una orilla) no podía volver a planear: `NavGrid::FindPath` solo buscaba la celda libre más cercana si el inicio era un obstáculo. El miembro fallaba cada viaje hasta morir de hambre | full con H7: templado 2, clan de 20, día 4 (`Joel ... in water 1.4 m deep`); alpino 3, 12 miembros (dos miembros en agua de 2,3 m yendo a `wild flint outcrop 1`) | **Corregido** el atasco (el inicio en celda intransitable para el perfil busca la libre más cercana; `navigation` pasa). Queda sin explicar **cómo entra** en esa agua: la profundidad exacta de una orilla empinada difiere de la de la celda de 0,5 m; para el carril de navegación |
+| 14c | **Clanes de 3 sin leñador**: `PlanRoles` o la revisión de oficios dejan a un clan de 3 con 2 recolectores y 1 minero; nadie hace el hacha, no hay madera ni hoguera en 3 días | full: templado 2 y 4, alpino 4 (3, 6 y 12 miembros: hecho 0, hoguera ninguna) | Abierto, para H7 (equilibrio de `PlanRoles` y `RoleRules.MinClan`): un oficio que fabrica la herramienta de la que depende la hoguera no debería quedar vacío |
+| 14d | **La talla de sílex no se descubre nunca**: en ninguna partida se fabrica cuerda (`cordage`) y `flint_knapping` no aparece; solo la cestería se descubre (por experimentar, entre 110 y 870 s) | todas las partidas con H11 (métrica `made` por objeto y `techs found`) | Confirmado con H11. Con H18 la cuerda ya se hace (trabajos `make`: 2-3 en medio día, métrica `intermediates`), y en el clan de 20 de la semilla 2 se descubre la talla de sílex a los 801 s (11 cuerdas, hachas y picos de sílex). En la semilla 1 no (solo cestería). Resuelto por H18 |
+| 14e | **Expediciones que no vuelven a planear**: un miembro de una expedición se queda en agua de 1,1 m fallando 100 viajes en 600 s | full con H12: alpino 3, 3 miembros, desde los 1229 s | Abierto, para H12 (con 14b corregido debería salir; volver a comprobar con `GB_SIM_SWEEP=full`) |
+| 14f | Un miembro falla 8 viajes en 10 min yendo a dormir (su sitio del campamento no se alcanza) | full: alpino 2, 12 miembros, a los 358 s | Menor, abierto |
+| 14g | Desierto: todo el clan muere de hambre en 3 días (no hay comida en el mapa) | full: desierto 1-4 | Del diseño del mundo; los objetivos de equilibrio solo se exigen en mundos verdes |
+| 14h | Equilibrio de oficios en el clan de 20: 15-19 recolectores para 3 leñadores; la fibra se acumula (844 en 5 días) y la aptitud máxima llega a 83 | `GB_SIM_SWEEP=clan` | Para equilibrar en H7 (datos) |
+
+Además, principio 7 del plan: demos con guion, aserciones (`qa expect`, `qa check`) y captura para H2, H3, H5/H6 y H19, registradas en `ctest` (ver QA_SIMULACION.md).
 
 ## Seguimiento: repetición y guardado completos (PR posterior)
 

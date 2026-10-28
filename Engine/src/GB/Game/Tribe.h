@@ -5,12 +5,14 @@
 #include "GB/AI/Needs.h"
 #include "GB/AI/Perception.h"
 #include "GB/AI/Utility.h"
+#include "GB/Game/Economy.h"
 #include "GB/Game/Entity.h"
 #include "GB/Game/Exploration.h"
 #include "GB/Game/JobBoard.h"
 #include "GB/Game/Skills.h"
 #include "GB/Game/Knowledge.h"
 #include "GB/Game/Society.h"
+#include "GB/Game/Production.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Gameplay/Interactives.h"
@@ -152,7 +154,7 @@ namespace GB
 		int DepositAt = 4;            // units in the bag that send a worker to the store
 		int Swings = 3;               // gathers per trip to a node
 		float FireSeconds = 30.0f;    // the campfire burns FireHeat of fuel this often (its BurnSeconds attribute is FireSeconds / FireHeat)
-		int StockCap = 40;            // units of one resource in the store after which nobody gathers more of it
+		int StockCap = 40;            // (before H18: the cap of the store; now the economy rules say it per store, EconomyRules::Logistics, see Tribe::StoreCap)
 		float NeedSeconds = 1.0f;     // how often the needs are moved forward
 		float ExploreRadius = 22.0f;  // how far from the camp an unknown-ground trip goes (grows with each trip)
 		float FreshSeconds = 6.0f;    // a sighting this recent is trusted as it is; older ones are checked on arrival
@@ -164,7 +166,7 @@ namespace GB
 		float DetailRadius = 60.0f;   // members farther than this from the viewer are abstract (0 = always full detail)
 		float DetailMargin = 10.0f;   // ... and become full again within this much less (no flicker at the border)
 		float UpkeepSeconds = 60.0f;  // the camp uses one fibre per member this often (thatch, rope) ...
-		float SpoilSeconds = 100.0f;  // ... and one berry above 20 in the store spoils this often: sinks for what is gathered in excess
+		float SpoilSeconds = 100.0f;  // (before H18 one berry above 20 spoiled this often; now food goes off by its shelf life: EconomyRules::Spoilage)
 		float DuskShift = 2.0f;       // hours earlier that dusk and night come in winter (and half of it in autumn)
 		NeedsConfig Needs;
 		VisionParams Vision;
@@ -186,6 +188,7 @@ namespace GB
 		WorkRules Work;               // H7: names, aptitudes, the job board and the review of the trades (DefaultWorkRules; the "work" section of a content file)
 		ExplorationRules Explore;     // H12: regions, expeditions and migration (DefaultExplorationRules; the "exploration" section of a content file)
 		SocietyRules Society;         // H9 + H10: life, births, genes, personality, relations and culture (DefaultSocietyRules; the "society" section)
+		EconomyRules Econ;            // H18: production chains, spoilage, fields and stores (DefaultEconomyRules; the "economy" section of a content file)
 	};
 
 	// The built-in roles: "forager", "woodcutter", "miner" (assets/data/era1.json says the same in its "roles" section).
@@ -302,6 +305,36 @@ namespace GB
 		// Why it is doing what it does: the decision and its best factors, in a sentence.
 		std::string Because(const TribeMember& m) const;
 
+		// ---- H18: the economy (TribeEconomy.cpp): production chains, spoilage and preservation, fields, stockpiles and hauling.
+		// Who says where a station is: the buildings (H8) give the drying rack, the kiln...; without one only the camp's stations (EconomyRules::
+		// Production.CampStations, the workbench) exist. True and `where` set when the clan has one.
+		using StationFinder = std::function<bool(const std::string& station, glm::vec2& where)>;
+		void SetStations(StationFinder finder) { m_Stations = std::move(finder); }
+		bool StationAt(const std::string& station, glm::vec2* where = nullptr) const;
+		// A want from outside the tribe (a building site's materials, H8; a player's order): `units` of `item` for `source` (0 takes it away).
+		// The production plan makes what it can of it and the gather jobs ask for the rest.
+		void SetDemand(const std::string& source, const std::string& item, int units);
+		// What the clan wants made now and how (refreshed with the job board).
+		const ProductionPlan& Plan() const { return m_Plan; }
+		ProductionPlan PlanNow() const;
+		const EconomyState& Economy() const { return m_Econ; }
+		EconomyState& Economy() { return m_Econ; }
+		// Puts a stockpile of a kind of the rules (EconomyRules::Logistics) at a place: members carry there what it takes when it is nearer than
+		// the camp, and haulers bring what it holds to the main store. Null when the kind is unknown or the name is taken.
+		Stockpile* AddStockpile(const std::string& name, const glm::vec2& pos, const std::string& kind = "stockpile");
+		Stockpile* FindStockpile(const std::string& name);
+		// Marks out a field (the farm rules' plots, columns and spacing) with its first plot at `origin`; with a field store kind, a stockpile beside it.
+		Field& MarkField(const glm::vec2& origin);
+		// Units of one item after which nobody gathers more of it into the main store (EconomyRules::Main().Cap, 40 by default).
+		int StoreCap() const;
+		// Units of an item in the main store and every stockpile.
+		int Stored(const std::string& item) const;
+		// Things a member carries before it goes to a store: DepositAt plus what its best container adds (PerBagSlot per extra slot).
+		int CarryLimit(const TribeMember& m) const;
+		// For people: what is made, spoilt, stored and grown, and the clan's carrying capacity; the fields one by one.
+		std::string EconomyReport() const;
+		std::string FieldReport() const;
+
 		// ---- knowledge and technology (H11, GB/Game/Knowledge.h): what each member knows, what the clan knows, and how it is found. Without
 		// technologies (the default) nothing is gated. The technologies must outlive the tribe (the editor's content).
 		void SetTechs(const TechTree* techs) { m_Knowledge.SetTechs(techs); }
@@ -411,6 +444,22 @@ namespace GB
 		bool CanGatherItem(const TribeMember& m, const std::string& item) const;
 		void RefreshLore();
 		void TellClan(const std::string& text);
+		// H18 (TribeEconomy.cpp): the clock of spoilage and the fields, the plan and the jobs it posts, the options of a member that holds one
+		// of them, carrying them out and their ends, the tools and baskets handed out at the camp, and where a member leaves what it carries.
+		void StepEconomy(float dt);
+		void PlanEconomy();
+		void PostEconomyJobs();
+		float EconomyJobScore(const TribeMember& m, const Job& job) const;
+		void EconomyOptions(TribeMember& m, std::vector<UtilityOption>& options);
+		bool ExecuteEconomy(TribeMember& m, const UtilityOption& option);
+		bool FinishEconomy(TribeMember& m, const std::string& job);
+		void HandOut(TribeMember& m);
+		std::vector<ProductionWant> Wants() const;
+		bool ClanKnows(const Recipe& r) const;
+		bool CanFarm(const TribeMember& m) const;
+		std::string DepositPlace(const TribeMember& m, glm::vec2& where) const;
+		int DepositAt(TribeMember& m, const std::string& place);
+		std::string FoodToEat(const Inventory& inv) const;
 
 		EntityWorld* m_Entities = nullptr;
 		GameplayWorld* m_Gameplay = nullptr;
@@ -457,5 +506,9 @@ namespace GB
 		float m_CampTimer = 0.0f;     // members sitting together at the camp grow closer this often (Relations.CampSeconds)
 		std::string m_FoodBy;         // who last brought food to the store
 		std::map<std::string, std::string> m_LastWorker;   // node -> who last gathered from it
+		EconomyState m_Econ;          // H18: fields, stockpiles and counters (saved under "economy")
+		ProductionPlan m_Plan;
+		StationFinder m_Stations;
+		std::map<std::string, std::map<std::string, int>> m_Demand;   // source -> item -> units
 	};
 }

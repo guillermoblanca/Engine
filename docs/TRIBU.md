@@ -48,7 +48,7 @@ almacén cuando su mochila llega a 4 unidades, y deja de recoger un recurso cuan
 herramienta y el almacén puede pagarla (la hoguera no se come la piedra que aún necesita el pico). Solo recogen lo que **recuerdan**: al principio miran a su alrededor (parados giran
 la cabeza) y, si no conocen lo que su oficio pide, salen a explorar.
 
-**Sumideros.** Lo que sobra se gasta: el campamento usa una unidad de fibra por miembro cada 60 s (solo la que pasa de 12) y una baya de más de 20 se estropea cada 100 s, además de la madera de la hoguera y las bayas que se comen. Así
+**Sumideros.** Lo que sobra se gasta: el campamento usa una unidad de fibra por miembro cada 60 s (solo la que pasa de 12) y la comida se estropea por su vida útil (H18, E6: un montón de bayas que nadie come se pierde entero al día y medio, ver [ECONOMIA.md](ECONOMIA.md)), además de la madera de la hoguera y las bayas que se comen. Así
 el almacén no se llena para siempre. **Quien no tiene nada que hacer** descansa mirando alrededor, o explora si no conoce lo que su oficio pide, y el panel dice por qué (`every tree is empty: it waits for them to regrow or looks for more`...).
 
 ## Aptitudes, oficios y tablón de trabajos (H7: E3 y E8)
@@ -147,6 +147,8 @@ necesidades) va en la sección `ai` del guardado: al cargar siguen donde estaban
 
 ## Test
 
+`tests/sim_sweep_test.cpp` (test `sim_sweep`, H20): la tribu entera vive días sobre mundos generados de varias semillas y biomas, con la navegación real, comprobada en cada paso contra la tabla de invariantes de `GB/Game/SimQA.h` (ver [QA_SIMULACION.md](QA_SIMULACION.md)); en el editor, `qa sim` y el panel QA.
+
 `tests/work_test.cpp` (test `work`, H7): la sección `work` de `era1.json` dice lo mismo que el código, va y vuelve, y un error la deja intacta (también dentro de un paquete); las aptitudes
 suben con rendimientos decrecientes, bajan despacio y el oficio las potencia; el tablón publica, ordena, llena plazas, envejece lo que nadie coge, deja caducar reclamaciones sin avances y
 va y vuelve en JSON; el reparto de oficios es determinista y cubre los tres oficios con 4 y con 20; un clan de cuatro sube sus aptitudes en 10 minutos (alguno es el mejor en su propio
@@ -166,5 +168,9 @@ y dos ejecuciones acaban idénticas; una partida antigua con la hoguera ardiendo
 - El tablón no sabe de obras (no hay edificios hasta E9) ni de propuestas del jugador (H15); la fatiga no frena la práctica. Las aptitudes no se heredan (H9), solo lo rápido que se aprenden.
 - La aceptación completa de H7 (un clan de 20 que se organiza solo durante días y cambia de reparto cuando cambia la necesidad) solo se prueba 15 minutos en CI; un barrido de
   semillas de la simulación (H20) diría si las curvas de práctica y la revisión están bien equilibradas.
-- El almacén es un único inventario del campamento; no hay otros almacenes ni caminos (la navegación es otra parte de H5).
+- Hay almacén principal y almacenes secundarios con acarreo (H18, [ECONOMIA.md](ECONOMIA.md)), pero no caminos (la navegación es otra parte de H5).
+
+## Economía (H18)
+
+Cadenas de producción (`make`), caducidad y conservación, campos (`farm`), almacenes secundarios y acarreo (`haul`), cestas que amplían la carga: código en `GB/Game/TribeEconomy.cpp`, reglas en la sección `economy`. Todo en [ECONOMIA.md](ECONOMIA.md).
 - Más límites de percepción, necesidades y decisión en [IA.md](IA.md).

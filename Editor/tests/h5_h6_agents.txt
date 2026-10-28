@@ -1,0 +1,21 @@
+# H5 + H6 demo (principle 7): navigation and the brain. The tribe walks the navigation grid with its roles' profiles (paths are planned), then the
+# camera goes far away and every member becomes an abstract agent that keeps deciding, walking the grid's routes; the invariants hold for the abstract
+# agents too (nobody in deep water or inside a wall), and the QA panel is captured to the build directory. A failed line fails the test (--strict=1).
+generate temperate 5
+quality minimum
+tribe build fox 0 0 4
+timescale 20
+wait 60
+qa expect "nav status" "[1-9][0-9]* paths"
+qa expect "ai status" "Ana"
+camera 30 25 40 150 0 150
+wait 60
+qa expect "qa status" "abstract [1-9]"
+qa check
+qa expect "qa status" "[1-9][0-9]* live checks, 0 violation"
+camera 30 25 40 0 0 -8
+wait 10
+panel QA on
+wait 3
+shot_ui h5_h6_agents.png
+quit

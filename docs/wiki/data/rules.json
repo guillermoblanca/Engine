@@ -1042,7 +1042,7 @@
       "name": "autosave"
     },
     {
-      "help": "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees)",
+      "help": "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)",
       "name": "camera"
     },
     {
@@ -1062,7 +1062,7 @@
       "name": "clips"
     },
     {
-      "help": "content status | export <file.json> | load <file.json>: the items, recipes and resource nodes as data (assets/data/era1.json is read at start); load adds to or replaces by id",
+      "help": "content status | export <file.json> | load <file.json>: the items, recipes, resource nodes and tribe roles, the interactives and the animal species as data (the pack era1, assets/data/era1.json and world.json, is read at start: see `pack`); load adds to or replaces by id, all sections or none",
       "name": "content"
     },
     {
@@ -1074,12 +1074,20 @@
       "name": "echo"
     },
     {
-      "help": "ecology spawn [n] [x z] | status | season [spring|summer|autumn|winter]: rabbits that wander, eat berry bushes and fibre tufts, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)",
+      "help": "ecology spawn [n] [x z] [species] | status | season [spring|summer|autumn|winter]: animals of the species of assets/data/world.json (rabbits eat berry bushes and fibre tufts, foxes hunt rabbits) wander, eat, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)",
       "name": "ecology"
+    },
+    {
+      "help": "economy status | plan | give <item> [n] | stockpile <name> [x z] [kind] | demand <source> <item> <n>: the clan's economy (H18): what it makes from what (production chains), what spoils, its stores and stockpiles, what it hauls and how much food it brings in; give puts things in the main store",
+      "name": "economy"
     },
     {
       "help": "entity create|delete|duplicate|rename|parent|select|add|remove|set|interact|info|list ...: edits the scene's entities",
       "name": "entity"
+    },
+    {
+      "help": "field status | mark [x z]: the clan's fields (H18, E7): plots grass, tilled, sown, sprouting or ripe, what needs water and what the season allows; mark lays out a field (the clan does it by itself once it knows tillage and has seeds)",
+      "name": "field"
     },
     {
       "help": "frame: looks at the middle of the world again",
@@ -1170,6 +1178,10 @@
       "name": "interactives"
     },
     {
+      "help": "knowledge status [name|clan] | grant <name|clan> <tech> | techs: what each tribe member and the clan know of the technologies (H11), what they are learning and trying; grant teaches one at once",
+      "name": "knowledge"
+    },
+    {
       "help": "list [prefix]: the properties you can get/set",
       "name": "list"
     },
@@ -1230,6 +1242,10 @@
       "name": "new_scene"
     },
     {
+      "help": "pack list | load <id|manifest.json> [strict] | check: the eras as data packs (assets/data/<id>.pack.json: its content files, the packs it depends on, what is given, the stations, the known gaps). load loads the missing dependencies first, all or nothing, and checks that every item and recipe can be had (strict: a problem refuses the load); era1 is loaded at start",
+      "name": "pack"
+    },
+    {
       "help": "panel <name> [on|off]: shows or hides a panel (Animation, Model, Stats, ...); panel Animation tab <Character|Animator|Montages|Sockets|IK> picks its tab",
       "name": "panel"
     },
@@ -1286,7 +1302,7 @@
       "name": "player_tasks"
     },
     {
-      "help": "quality <low|medium|high|ultra>: post-processing preset",
+      "help": "quality <minimum|low|medium|high|ultra>: post-processing preset (minimum also renders at 60% resolution without MSAA and draws less far, for slow GPUs)",
       "name": "quality"
     },
     {
@@ -1306,11 +1322,15 @@
       "name": "redo"
     },
     {
+      "help": "region list | info <id|name> | explore: the regions of the generated world (H12): area, biome, water, wild resources and danger; what the clan knows of each, its expedition and its moves",
+      "name": "region"
+    },
+    {
       "help": "replay record | replay stop [file] | replay play <file>: records the orders of a session and plays them again from the same start to check the end state",
       "name": "replay"
     },
     {
-      "help": "resources build [x z [workers]] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)",
+      "help": "resources build [x z [workers]] | world [density] | status: puts trees, rocks, berry bushes and fibre tufts in the scene to gather from (build: a patch around a point; world: spread over the generated map by biome) (abilities Chop, Mine, Gather; the yield goes to the actor's bag, see actor bag)",
       "name": "resources"
     },
     {
@@ -1370,7 +1390,7 @@
       "name": "timescale"
     },
     {
-      "help": "tribe build [model.fbx|fox] [x z] [workers 2-6] | status | log [n] | remove <name> | clear: the first tribe: workers with a role each (forager, woodcutter, miner) gather, carry to a store, make tools and light a campfire by themselves",
+      "help": "tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | remove <name> | clear: the first tribe: workers (named from the data, their trades shared out by the clan's needs) gather, carry to a store, make tools and light a campfire by themselves; they get better at what they practise and take jobs from the clan's board",
       "name": "tribe"
     },
     {

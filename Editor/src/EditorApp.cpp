@@ -131,6 +131,7 @@ namespace GB::Editor
 		AddGameContentSections(m_Packs, m_Items, m_Recipes, m_NodeDefs, m_Tribe.Config.Roles, &m_Tribe.Config.Agenda, &m_Tribe.Config.Economy,
 			&m_Tribe.Config.Work, &m_Techs);   // (and "tribe": agenda, food, stock; "work": names, aptitudes, job board; "techs" inside "items")
 		AddExplorationContentSection(m_Packs, m_Tribe.Config.Explore);   // H12: regions, expeditions and migration
+		AddEconomyContentSection(m_Packs, m_Tribe.Config.Econ);   // H18: production chains, spoilage, fields and crops, stores and hauling
 		AddWorldContentSections(m_Packs, m_Interactives.Defs, m_Ecology.Species);   // the interactives and the species (H3): what they are is data, the code keeps how they behave
 		AddCameraContentSections(m_Packs, m_GameView.Params);   // the game cameras (H19): assets/data/cameras.json
 		AddSocietyContentSections(m_Packs, m_Tribe.Config.Society);   // the society of the tribe (H9 + H10): life, births, genes, personality, relations, culture
@@ -208,6 +209,7 @@ namespace GB::Editor
 		if (name == "Timeline") return m_Panels.Timeline;
 		if (name == "Graph") return m_Panels.Graph;
 		if (name == "Tests") return m_Panels.Tests;
+		if (name == "QA") return m_Panels.QA;
 		return false;
 	}
 
@@ -806,11 +808,11 @@ namespace GB::Editor
 			if (n == "Viewport") flag = &m_Panels.Viewport; else if (n == "Hierarchy") flag = &m_Panels.Hierarchy; else if (n == "Inspector") flag = &m_Panels.Inspector;
 			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
-			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tribe") flag = &m_Panels.Tribe; else if (n == "WorldState") flag = &m_Panels.WorldState; else if (n == "Tests") flag = &m_Panels.Tests;
-			if (!flag) return { false, "no such panel '" + n + "' (Viewport, Hierarchy, Inspector, Properties, World, Stats, Console, Assets, Model, Animation, Timeline, Graph, Abilities, Tribe, WorldState, Tests)" };
+			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tribe") flag = &m_Panels.Tribe; else if (n == "WorldState") flag = &m_Panels.WorldState; else if (n == "Tests") flag = &m_Panels.Tests; else if (n == "QA") flag = &m_Panels.QA;
+			if (!flag) return { false, "no such panel '" + n + "' (Viewport, Hierarchy, Inspector, Properties, World, Stats, Console, Assets, Model, Animation, Timeline, Graph, Abilities, Tribe, WorldState, Tests, QA)" };
 			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else if (n == "Graph") m_GraphFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
-			if (*flag) { if (n == "Tribe") m_FocusTribe = 20; else if (n == "WorldState") m_FocusWorldState = 20; else if (n == "Abilities") m_FocusAbilities = 20; }   // to the front of its dock
+			if (*flag) { if (n == "Tribe") m_FocusTribe = 20; else if (n == "WorldState") m_FocusWorldState = 20; else if (n == "Abilities") m_FocusAbilities = 20; else if (n == "QA") m_FocusQA = 20; }   // to the front of its dock
 			return { true, n + (*flag ? " shown" : " hidden") };
 		});
 		c.Register("player_ragdoll", "player_ragdoll [vx vy vz]: the FBX player collapses into a ragdoll (bodies and joints in a physics world made of the same ground, water, trees and rocks), keeping its speed plus the given one; it gets up by itself after a pause", [this](const std::vector<std::string>& a) -> CommandResult
@@ -937,8 +939,11 @@ namespace GB::Editor
 		c.Register("ai", "ai debug [on|off] | status [name] | memory <name> | scream <name>: the brain of the tribe members: needs, what they decide and why, what they know; `debug` draws their view cones, the obstacles and their memory in the viewport", [this](const std::vector<std::string>& a) { return AiCommand(a); });
 		c.Register("knowledge", "knowledge status [name|clan] | grant <name|clan> <tech> | techs: what each tribe member and the clan know of the technologies (H11), what they are learning and trying; grant teaches one at once", [this](const std::vector<std::string>& a) { return KnowledgeCommand(a); });
 		c.Register("nav", "nav status | debug on|off | rebuild | sync | path <x1 z1 x2 z2> [load 0-1]: navigation over the terrain: the grid the characters plan their paths on (trunks, rocks, deep water and cliffs are walls; wading and slopes cost), the paths they follow and what the planning has cost", [this](const std::vector<std::string>& a) { return NavCommand(a); });
+		c.Register("economy", "economy status | plan | give <item> [n] | stockpile <name> [x z] [kind] | demand <source> <item> <n>: the clan's economy (H18): what it makes from what (production chains), what spoils, its stores and stockpiles, what it hauls and how much food it brings in; give puts things in the main store", [this](const std::vector<std::string>& a) { return EconomyCommand(a); });
+		c.Register("field", "field status | mark [x z]: the clan's fields (H18, E7): plots grass, tilled, sown, sprouting or ripe, what needs water and what the season allows; mark lays out a field (the clan does it by itself once it knows tillage and has seeds)", [this](const std::vector<std::string>& a) { return FieldCommand(a); });
 		c.Register("region", "region list | info <id|name> | explore: the regions of the generated world (H12): area, biome, water, wild resources and danger; what the clan knows of each, its expedition and its moves", [this](const std::vector<std::string>& a) { return RegionCommand(a); });
 		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | remove <name> | clear: the first tribe: workers (named from the data, their trades shared out by the clan's needs) gather, carry to a store, make tools and light a campfire by themselves; they get better at what they practise and take jobs from the clan's board", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
+		c.Register("qa", "qa sim [days] [members] | check | status | reset | expect \"<command>\" <regex>: simulation QA (H20): `sim` runs the current scene (its tribe, or a new one) headless for days and checks every invariant at every step (counts, claims, stuck members, deaths, store, fire, positions, ground, job board, skills, knowledge, expeditions, migration, society), `check` checks the live scene now, `status` what the live monitor has seen (QA panel), `expect` fails unless a command's answer matches (for scripted demos)", [this](const std::vector<std::string>& a) { return QaCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
 		c.Register("ability", "ability list [entity] | status [entity] | grant <ability> [entity] | activate <ability> [target] [actor] | cancel [ability] [actor] | apply <effect> [entity] | sync | store: gameplay abilities (Gardener = the player, Farmhand = an NPC; names with spaces in quotes)", [this](const std::vector<std::string>& a) { return AbilityCommand(a); });
 		c.Register("frame", "frame: looks at the middle of the world again", [this](const std::vector<std::string>&) -> CommandResult { FrameWorld(); return { true, "framed" }; });
@@ -1221,6 +1226,7 @@ namespace GB::Editor
 		ImGui::DockBuilderDockWindow("Abilities", right);
 		ImGui::DockBuilderDockWindow("Tribe", right);
 		ImGui::DockBuilderDockWindow("World state", right);
+		ImGui::DockBuilderDockWindow("QA", right);
 		ImGui::DockBuilderDockWindow("Tests", bottom);
 		ImGui::DockBuilderDockWindow("Console", bottom);
 		ImGui::DockBuilderDockWindow("Assets", bottom);
@@ -1255,6 +1261,7 @@ namespace GB::Editor
 		if (m_Panels.Timeline) DrawTimelinePanel();
 		if (m_Panels.Graph) DrawGraphPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
+		if (m_Panels.QA) DrawQaPanel();
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
 		if (m_Panels.Demo) ImGui::ShowDemoWindow(&m_Panels.Demo);
@@ -1341,6 +1348,7 @@ namespace GB::Editor
 			ImGui::MenuItem("Abilities", nullptr, &m_Panels.Abilities);
 			ImGui::MenuItem("Tribe", nullptr, &m_Panels.Tribe);
 			ImGui::MenuItem("World state", nullptr, &m_Panels.WorldState);
+			ImGui::MenuItem("QA", nullptr, &m_Panels.QA);
 			ImGui::MenuItem("Timeline", nullptr, &m_Panels.Timeline);
 			ImGui::MenuItem("Animation graph", nullptr, &m_Panels.Graph);
 			ImGui::MenuItem("Console", nullptr, &m_Panels.Console);

@@ -1,0 +1,17 @@
+# H2 demo (principle 7): objects, inventory and resources. A tribe of four on a generated world gathers from the resource nodes, carries to the store
+# and makes its tools there (axe and pickaxe from the store's wood and stone); the invariants of the simulation hold (qa check), a screenshot of the Tribe
+# panel is written to the build directory, and the same tribe is then run headless for a simulated day (qa sim). A failed line fails the test (--strict=1).
+generate temperate 5
+quality minimum
+tribe build fox 0 0 4
+timescale 20
+wait 150
+qa expect "tribe log 800" "makes a stone_(axe|pickaxe)"
+qa expect "tribe log 800" "leaves [1-9][0-9]* in the store"
+qa expect "tribe status" "store: [^|]*(wood|stone|berry|fiber)"
+qa check
+panel Tribe on
+wait 3
+shot_ui h2_gather_craft.png
+qa sim 1
+quit

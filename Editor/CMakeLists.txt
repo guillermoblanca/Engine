@@ -23,7 +23,9 @@ add_library(GBEditor STATIC
     src/TestScenarios.cpp
     src/EditorGameplay.cpp
     src/EditorExplore.cpp
+    src/EditorEconomy.cpp
     src/EditorSave.cpp
+    src/EditorQA.cpp
     src/EditorAnimCommands.cpp
     src/EditorAnimPanels.cpp
     src/EditorApp.cpp)
@@ -67,3 +69,9 @@ gb_editor_script_test(editor_replay_society replay_society.txt "replay identical
 gb_editor_script_test(editor_replay_midrun replay_midrun.txt "replay identical")
 gb_editor_script_test(editor_game_camera game_camera.txt "game camera: observe Ana Biel")
 gb_editor_script_test(editor_replay_wild replay_wild.txt "replay identical")
+# The demos of the milestones (principle 7 of the plan): a scripted run of the real editor per milestone that asserts what the milestone promises with
+# `qa expect` and `qa check` (the invariants of the simulation, GB/Game/SimQA.h) and writes a `shot_ui` capture to the build directory (not versioned).
+gb_editor_script_test(editor_demo_h2 h2_gather_craft.txt "qa sim 1 day.*: 0 violation")
+configure_file(tests/h3_hungry_fox.json ${CMAKE_CURRENT_BINARY_DIR}/h3_hungry_fox.json COPYONLY)   # (read by the script from the working directory)
+gb_editor_script_test(editor_demo_h3 h3_fire_fox.txt "qa expect: 'ecology status' says")
+gb_editor_script_test(editor_demo_h5_h6 h5_h6_agents.txt "says /.*live checks, 0 violation")

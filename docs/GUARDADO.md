@@ -129,11 +129,11 @@ Para las decisiones aún sin responder de `PROPUESTA_HABILIDADES_Y_ECONOMIA.md` 
 
 | Hueco | Dónde | Para qué |
 |---|---|---|
-| `inventory[].age` (`ItemStack::Age`) | cada montón de la mochila de un actor | segundos que lleva existiendo, para lo que caduca |
+| `inventory[].age` (`ItemStack::Age`) | cada montón de la mochila de un actor | edad del montón de lo que caduca; **en uso desde H18** (E6, [ECONOMIA.md](ECONOMIA.md)): `ActorWorld` lo rellena desde `ItemSlot::Age` |
 | `actors[].knowledge` (`ActorState::Knowledge`) | cada actor | lo que sabe ese agente como nombres; **en uso desde H11**: `tech.<id>` por tecnología ([CONOCIMIENTO.md](CONOCIMIENTO.md)) |
 | sección `knowledge-clan` | `sections` | lo que sabe el clan, lo medio aprendido, los intentos y el reloj de lecciones; **en uso desde H11** (el editor la escribe si hay tribu) |
 
-H11 activó los dos de conocimiento: el editor rellena `knowledge` de los miembros de la tribu en `EditorSaveHost::Actors` y lee ambos en `Commit` tras `RestoreTribe`; una partida sin ellos carga con las tecnologías del principio. Activar el que queda es: poner `ItemSlot::Age` y rellenarlo desde `ActorWorld::CaptureActors`, y leer la sección en `Commit`. Si una decisión cambia la disposición (por ejemplo, caducidad por casilla en vez de por montón), sube `kFormatVersion` con su migración como siempre.
+H11 activó los dos de conocimiento: el editor rellena `knowledge` de los miembros de la tribu en `EditorSaveHost::Actors` y lee ambos en `Commit` tras `RestoreTribe`; una partida sin ellos carga con las tecnologías del principio. H18 activó el de la caducidad: `ItemSlot::Age` se guarda en las mochilas (este hueco) y en los inventarios de la tribu (tercer número del montón, dentro de la sección `ai`), y la sección `ai` lleva además `economy` (campos, almacenes secundarios, contadores); todo opcional. Si una decisión cambia la disposición (por ejemplo, caducidad por casilla en vez de por montón), sube `kFormatVersion` con su migración como siempre.
 `tests/golden/saves/v1_slots.gbsave` es un guardado con los tres huecos usados: debe seguir cargándose y reescribiéndose idéntico.
 
 ## Números en los archivos

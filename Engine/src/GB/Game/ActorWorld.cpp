@@ -115,7 +115,7 @@ namespace GB
 			if (const AnimInstance* anim = actor->Anim()) s.Set = anim->Overlay();
 			s.Props = actor->PropNames();
 			s.Ragdoll = actor->Ragdolled();
-			for (const ItemSlot& slot : actor->Bag().Stacks()) s.Inventory.push_back({ slot.Id, slot.Count });
+			for (const ItemSlot& slot : actor->Bag().Stacks()) s.Inventory.push_back({ slot.Id, slot.Count, slot.Age });   // (E6: the age of what spoils; 0 is not written)
 			out.push_back(std::move(s));
 		}
 		return out;
@@ -135,7 +135,7 @@ namespace GB
 			if (!actor) continue;
 			actor->Teleport(s.Position.x, s.Position.z, s.Yaw);
 			std::vector<ItemSlot> bag;
-			for (const Save::ItemStack& it : s.Inventory) bag.push_back({ it.Item, it.Count });
+			for (const Save::ItemStack& it : s.Inventory) bag.push_back({ it.Item, it.Count, it.Age });
 			actor->Bag().SetStacks(std::move(bag));
 			if (!s.Set.empty() && actor->Anim() && actor->Anim()->HasSet(s.Set)) actor->SetOverlay(s.Set, 0.0f);
 		}

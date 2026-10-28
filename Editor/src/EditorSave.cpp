@@ -387,6 +387,7 @@ namespace GB::Editor
 		m_App.m_Tribe.SetWorldClock(static_cast<double>(m_App.m_SimTick) / 60.0);
 		m_App.SyncRegions();   // H12: the tribe knows the world by regions (rebuilt only when the world or its wild nodes change)
 		m_App.m_Tribe.Update(static_cast<float>(kSimDt));
+		m_App.StepQa();   // the invariants of the simulation, every half second (QA panel)
 		++m_App.m_SimTick;
 	}
 

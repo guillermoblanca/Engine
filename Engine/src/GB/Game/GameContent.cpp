@@ -75,6 +75,17 @@ namespace GB
 	}
 
 	void AddSocietyContentSections(ContentPacks& packs, SocietyRules& society) { packs.AddSection(SocietyContentSection(society)); }
+	ContentSection EconomyContentSection(EconomyRules& rules)
+	{
+		return StagedSection("economy", { "economy" },
+			[](const std::string& json, EconomyRules& r) { return LoadEconomyRules(json, r); },
+			nullptr, rules);
+	}
+
+	void AddEconomyContentSection(ContentPacks& packs, EconomyRules& rules)
+	{
+		packs.AddSection(EconomyContentSection(rules));
+	}
 
 	void AddGameContentSections(ContentPacks& packs, ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes,
 		std::map<std::string, TribeRole>& roles, TribeAgenda* agenda, TribeEconomy* economy, WorkRules* work, TechTree* techs)

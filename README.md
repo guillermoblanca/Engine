@@ -89,6 +89,7 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | Audio | [docs/audio.md](docs/audio.md) |
 | Editor, entidades y escenas | [docs/editor.md](docs/editor.md) |
 | QA automatizado y imágenes de referencia | [docs/qa.md](docs/qa.md) |
+| QA de la simulación: barrido de semillas con tribus, invariantes, `qa sim` y demos por hito | [docs/QA_SIMULACION.md](docs/QA_SIMULACION.md) |
 
 ## Pruebas y calidad
 

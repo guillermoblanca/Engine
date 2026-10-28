@@ -22,4 +22,6 @@ stats
 quality low
 camera 30 25 40
 camera game
+shot_ui h19_cameras.png
+wait 2
 quit

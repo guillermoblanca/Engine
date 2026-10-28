@@ -92,5 +92,5 @@ el inspector del miembro, lo suyo. `knowledge` se graba en las repeticiones.
 - Difusión entre clanes (comercio, alianza) y pérdida por catástrofe (H13).
 - Edificios y nodos con tecnología en los datos de verdad (hoy los nodos con puerta solo están en los tests: un nodo cuyo material es el ingrediente de su propia
   tecnología nunca se descubriría).
-- La tribu no fabrica cordel ni cestas por su cuenta (lo hará el tablón de H7): el tallado de sílex solo se prueba si hay cordel en el almacén.
+- Hecho (H18): la tribu fabrica cordel y cestas por su cuenta (cadenas de producción, [ECONOMIA.md](ECONOMIA.md)): quiere las entradas de las recetas que no sabe para poder probarlas, así que el tallado de sílex se descubre jugando.
 - Barrido de semillas para el ritmo (que la era 2 no llegue ni en 10 días ni en 10 000) y que dos clanes con semillas distintas sigan caminos distintos.

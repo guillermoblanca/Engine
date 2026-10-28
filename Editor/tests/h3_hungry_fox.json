@@ -1,0 +1,37 @@
+{
+  "species": {
+    "fox": {
+      "name": "Fox",
+      "plural": "foxes",
+      "tag": "Animal.Fox",
+      "body": "quadruped",
+      "color": [
+        0.78,
+        0.38,
+        0.12
+      ],
+      "size": 1.0,
+      "eats": [
+        "Animal.Rabbit"
+      ],
+      "sight": 18.0,
+      "breedCost": 30.0,
+      "newbornFood": 70.0,
+      "spawnFood": 0.45,
+      "legSeconds": 6.0,
+      "maxAnimals": 2,
+      "speed": 2.4,
+      "wanderRadius": 18.0,
+      "foodMax": 100.0,
+      "hungerPerSecond": 0.12,
+      "hungryBelow": 50.0,
+      "eatReach": 0.8,
+      "eatSeconds": 4.0,
+      "foodPerMeal": 55.0,
+      "breedAbove": 90.0,
+      "adultSeconds": 200.0,
+      "breedCooldown": 300.0,
+      "starveSeconds": 120.0
+    }
+  }
+}

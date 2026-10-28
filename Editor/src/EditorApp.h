@@ -18,6 +18,7 @@
 #include "GB/Game/EntityRender.h"
 #include "GB/Gameplay/Garden.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/SimQA.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/Interactives.h"
@@ -127,6 +128,9 @@ namespace GB::Editor
 		CommandResult RegionCommand(const std::vector<std::string>& a);
 		CommandResult AiCommand(const std::vector<std::string>& a);
 		CommandResult KnowledgeCommand(const std::vector<std::string>& a);   // `knowledge status [name|clan]`, `knowledge grant <name|clan> <tech>` (H11)
+		// H18 (EditorEconomy.cpp): `economy status|plan|give|stockpile|demand` and `field status|mark`: production chains, spoilage, stores and fields.
+		CommandResult EconomyCommand(const std::vector<std::string>& a);
+		CommandResult FieldCommand(const std::vector<std::string>& a);
 		CommandResult NavCommand(const std::vector<std::string>& a);
 		void DrawNavDebug(float ox, float oy, float w, float h);   // blocked and costly cells and the paths walked, over the viewport
 		CommandResult InteractivesCommand(const std::vector<std::string>& a);
@@ -136,6 +140,11 @@ namespace GB::Editor
 		void DrawTimelinePanel();
 		void DrawGraphPanel();
 		void DrawTestsPanel();
+		// simulation QA (EditorQA.cpp): `qa`, the live monitor of the invariants and the QA panel
+		CommandResult QaCommand(const std::vector<std::string>& a);
+		SimView QaView() const;
+		void StepQa();
+		void DrawQaPanel();
 		void BuildDefaultLayout(unsigned int dockspaceId, float width, float height);
 
 		// scene
@@ -175,6 +184,10 @@ namespace GB::Editor
 		std::vector<std::unique_ptr<ITribeBody>> m_TribeBodies;
 		std::string m_TribeModel = "fox";                        // what the members were made from: the children of the tribe are spawned from it (H9)
 		void SetTribeSpawner();                                  // gives the tribe the way to give a newborn an actor
+		SimMonitor m_SimQA;                                      // the invariants of the simulation, checked live (`qa`, QA panel)
+		bool m_QaWarned = false;
+		int m_FocusQA = 0;
+		std::string m_QaLastSim, m_QaLastFindings;               // what the last `qa sim` said
 		std::string m_AbilityActor = "Gardener";                 // whose abilities the Abilities panel shows
 		ActorWorld m_Actors;                                     // every character of the world: the player's and the NPCs' (`actor` command)
 		ItemLibrary m_Items;                                      // era-1 items and recipes, filled on first use of `actor bag`
@@ -229,7 +242,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, WorldState = true, Timeline = false, Graph = false, Tests = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, WorldState = true, Timeline = false, Graph = false, Tests = true, QA = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		float m_RenderScale = 1.0f;          // the 3D view is rendered at this fraction of the viewport (`quality minimum`)

@@ -222,6 +222,7 @@ namespace GB
 			++alive;
 			for (const ItemSlot& s : m.Body->Bag().Stacks()) carried[s.Id] += s.Count;
 		}
+		PlanEconomy();   // H18: the production plan of now (its raw shortages are wanted by the gather jobs below)
 		m_Board.Begin();
 		if (alive > 0)
 		{
@@ -234,12 +235,17 @@ namespace GB
 				if (const ItemDef* d = m_Items->Find(item); d && IsFuel(*d) && (d->Fuel > 0 ? d->Fuel : 2) > heat) { heat = d->Fuel > 0 ? d->Fuel : 2; fuel = item; }
 			for (const auto& [item, kind] : kindOf)
 			{
-				if (m_Store.Count(item) >= Config.StockCap) continue;
+				if (m_Store.Count(item) >= StoreCap()) continue;
 				float wanted = StockFor(item, m_Members.size());
 				std::string extra;
+				if (const auto raw = m_Plan.Raw.find(item); raw != m_Plan.Raw.end() && static_cast<float>(m_Store.Count(item) + raw->second) > wanted)
+				{
+					wanted = static_cast<float>(m_Store.Count(item) + raw->second);   // H18: what the production chains need of it
+					extra = " (with what the clan wants to make)";
+				}
 				if (const auto u = rules.Upkeep.find(item); u != rules.Upkeep.end() && u->second > 0.0f) { wanted += u->second * static_cast<float>(alive); extra = " (with the upkeep of the camp)"; }
 				if (item == fuel && HasFire()) { wanted += rules.FireWood; extra += " (and the campfire)"; }
-				const float have = static_cast<float>(m_Store.Count(item) + carried[item]);
+				const float have = static_cast<float>(Stored(item) + carried[item]);   // (H18: the stockpiles count too)
 				if (have >= wanted) continue;
 				const float need = std::clamp(1.0f - have / wanted, 0.0f, 1.0f);
 				const int slots = std::clamp(static_cast<int>(std::ceil((wanted - have) / rules.SlotUnits)), 1, std::max(1, rules.MaxSlots));
@@ -270,6 +276,7 @@ namespace GB
 				if (fuelAt) m_Board.Post("stoke", Config.FireName, SkillFamilyOf("stoke"), 1.0f, priority("stoke") * (FireBurning() ? 1.0f : 1.3f), 1, why, m_Time, rules);
 			}
 		}
+		if (alive > 0) PostEconomyJobs();   // H18: make, farm and haul (TribeEconomy.cpp)
 		PostExpedition();   // H12: a party forming or out (TribeExplore.cpp)
 		for (const std::string& gone : m_Board.End(m_Time, rules)) (void)gone;   // (met needs and lapsed claims: the member chooses again when it next decides)
 	}
@@ -285,7 +292,7 @@ namespace GB
 		Inventory& bag = m.Body->Bag();
 		if (job.Kind == "gather")
 		{
-			if (m_Store.Count(job.Target) >= Config.StockCap) return 0.0f;
+			if (m_Store.Count(job.Target) >= StoreCap()) return 0.0f;
 			float liking = 0.0f, distance = 1e30f;
 			bool any = false;
 			for (const auto& [kind, def] : m_Defs)
@@ -303,6 +310,7 @@ namespace GB
 			return job.Priority * liking * Falloff(distance, 40.0f) * vigor;
 		}
 		if (job.Kind == "expedition") return ExpeditionJobScore(m, job);   // H12
+		if (job.Kind == "make" || job.Kind == "farm" || job.Kind == "haul") return EconomyJobScore(m, job);   // H18
 		const float home = Falloff(glm::distance(pos, Config.Camp), 100.0f);
 		if (job.Kind == "craft")
 		{

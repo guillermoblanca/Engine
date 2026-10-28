@@ -547,7 +547,10 @@ namespace GB
 		}
 
 		int start = Index(si, sj), goal = Index(gi, gj);
-		if (m_Flags[static_cast<size_t>(start)])   // standing inside a wall of the grid (squeezed against a trunk): start from the nearest free cell
+		// standing inside a wall of the grid (squeezed against a trunk) or on a cell that is a wall for this walker (water a little too deep at the
+		// bank, a load that makes it so): start from the nearest free cell. Without the second case a walker that ended up there could never plan
+		// again and failed every trip until it died (found by the H20 sweep: temperate seed 2, a clan of 20, day 4).
+		if (m_Flags[static_cast<size_t>(start)] || CostAt(start, profile) < 0.0f)
 		{
 			start = NearestWalkable(si, sj, profile, nullptr, 10);
 			if (start < 0) return finish(false);

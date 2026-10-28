@@ -17,6 +17,7 @@
       "category": "food",
       "id": "berry",
       "name": "Berry",
+      "shelfLife": 1800.0,
       "stack": 20,
       "tags": [
         "Item.Food"
@@ -640,6 +641,49 @@
       "default": 12.0,
       "stone": 8.0,
       "wood": 10.0
+    }
+  },
+  "economy": {
+    "production": {
+      "depth": 3,
+      "maxBatches": 3,
+      "seconds": 4.0,
+      "priority": 1.1,
+      "stock": { "cordage": 2 },
+      "campStations": [ "workbench" ],
+      "upgrade": true,
+      "experiment": true,
+      "containersPerMember": 1.0,
+      "preserveAbove": 1.0
+    },
+    "spoilage": {
+      "step": 10.0,
+      "bag": 1.0,
+      "seasons": { "winter": 0.5 }
+    },
+    "farming": {
+      "tech": "tillage",
+      "tool": "Item.Tool.Hoe",
+      "plots": 6,
+      "columns": 3,
+      "spacing": 2.0,
+      "offset": [ 9.0, 4.0 ],
+      "moistureSeconds": 120.0,
+      "workSeconds": 2.0,
+      "plotsPerTrip": 3,
+      "priority": 1.2,
+      "fields": 1
+    },
+    "crops": [],
+    "logistics": {
+      "stores": {
+        "main": { "cap": 40, "slots": 40, "spoilRate": 1.0, "accepts": [], "haul": false },
+        "stockpile": { "cap": 20, "slots": 12, "spoilRate": 1.0, "accepts": [], "haul": true }
+      },
+      "perBagSlot": 1.0,
+      "priority": 0.9,
+      "haulAt": 1,
+      "fieldStore": "stockpile"
     }
   },
   "work": {

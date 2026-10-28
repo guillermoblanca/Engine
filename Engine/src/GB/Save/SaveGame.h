@@ -75,8 +75,8 @@ namespace GB::Save
 	{
 		std::string Item;
 		int Count = 1;
-		// Reserved (docs/GUARDADO.md, "Huecos reservados"): seconds the stack has existed, for goods that spoil. Written only when not 0 and read back when
-		// there; nothing sets it yet, so every save made today has none.
+		// Seconds the stack has been ageing, for goods that spoil (E6, H18: ItemSlot::Age; in use since the economy, see docs/ECONOMIA.md). Written only
+		// when not 0 and read back when there, so a save without it (or of things that do not spoil) is a fresh stack.
 		float Age = 0.0f;
 	};
 

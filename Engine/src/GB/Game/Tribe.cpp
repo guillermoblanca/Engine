@@ -397,13 +397,10 @@ namespace GB
 		return n;
 	}
 
-	// The food eaten first from a bag or the store: the lowest id (deterministic; with one kind of food it is that one).
+	// The food eaten first from a bag or the store: what goes off soonest (E6, TribeEconomy.cpp), then the lowest id.
 	std::string Tribe::FirstFood(const Inventory& inv) const
 	{
-		std::string best;
-		for (const ItemSlot& s : inv.Stacks())
-			if (s.Count > 0 && (best.empty() || s.Id < best) && IsFood(s.Id)) best = s.Id;
-		return best;
+		return FoodToEat(inv);
 	}
 
 	// The role's profile with the load of the bag: the things carried (not the tools) over FullLoad, or their weight over the bag's limit.
@@ -490,6 +487,9 @@ namespace GB
 		m_CampTimer = 0.0f;
 		m_FoodBy.clear();
 		m_LastWorker.clear();
+		m_Econ = EconomyState();
+		m_Plan = ProductionPlan();
+		m_Demand.clear();
 	}
 
 	size_t Tribe::IndexOf(const TribeMember& m) const
@@ -528,8 +528,8 @@ namespace GB
 	std::string Tribe::WhyNot(const std::string& kind) const
 	{
 		const auto def = m_Defs.find(kind);
-		if (def != m_Defs.end() && m_Store.Count(def->second.Item) >= Config.StockCap)
-			return "the store has enough " + def->second.Item + " (" + std::to_string(m_Store.Count(def->second.Item)) + "/" + std::to_string(Config.StockCap) + ")";
+		if (def != m_Defs.end() && m_Store.Count(def->second.Item) >= StoreCap())
+			return "the store has enough " + def->second.Item + " (" + std::to_string(m_Store.Count(def->second.Item)) + "/" + std::to_string(StoreCap()) + ")";
 		int total = 0, empty = 0;
 		if (const auto it = m_ByKind.find(kind); it != m_ByKind.end())
 			for (const size_t index : it->second)
@@ -658,8 +658,16 @@ namespace GB
 			ITribeBody* body = m.Body;
 			m.Agent.Update(dt, asc, *m_Gameplay, [this](const std::string& entity, glm::vec2& pos)
 			{
-				const auto it = m_PosCache.find(entity);
-				if (it == m_PosCache.end()) return false;
+				// The cache holds what the senses list (nodes, wells); the campfire an abstract member goes to Stoke is not among them, so anything else is
+				// looked up in the scene (found by the H20 sweep: abstract members failed "stoke Campfire" over and over, "the target is gone").
+				auto it = m_PosCache.find(entity);
+				if (it == m_PosCache.end())
+				{
+					const EntityId id = m_Entities->FindByName(entity);
+					if (id == NullEntity) return false;
+					const glm::vec4 p = m_Entities->WorldMatrix(id)[3];
+					it = m_PosCache.emplace(entity, glm::vec2(p.x, p.z)).first;
+				}
 				pos = it->second;
 				return true;
 			}, 3.0f * std::max(0.3f, vigor), [body](const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points)
@@ -724,18 +732,7 @@ namespace GB
 			m_UpkeepTimer -= Config.UpkeepSeconds;
 			m_Store.Remove("fiber", std::min(alive, std::max(0, m_Store.Count("fiber") - 12)));   // only the surplus: the tools still need their share
 		}
-		m_SpoilTimer += dt;
-		if (m_SpoilTimer >= Config.SpoilSeconds)
-		{
-			m_SpoilTimer -= Config.SpoilSeconds;
-			if (FoodIn(m_Store) > 20)   // the food there is most of goes off first (ties: the lowest id)
-			{
-				std::string most;
-				for (const ItemSlot& s : m_Store.Stacks())
-					if (IsFood(s.Id) && (most.empty() || m_Store.Count(s.Id) > m_Store.Count(most) || (m_Store.Count(s.Id) == m_Store.Count(most) && s.Id < most))) most = s.Id;
-				m_Store.Remove(most, 1);
-			}
-		}
+		// (the berries that spoiled here every SpoilSeconds now go off by their shelf life: StepEconomy, E6)
 	}
 
 	// ------------------------------------------------------------------ the senses
@@ -919,6 +916,7 @@ namespace GB
 		m_Time += static_cast<double>(dt);
 		WatchFire();
 		Upkeep(dt);
+		StepEconomy(dt);   // H18: spoilage and the fields (TribeEconomy.cpp)
 		m_NeedTimer += dt;
 		if (m_NeedTimer >= Config.NeedSeconds)
 		{
@@ -1263,7 +1261,7 @@ namespace GB
 		bool lacksFood = foodHeld == 0;
 		for (const auto& [kind, def] : m_Defs)
 		{
-			if (m_Store.Count(def.Item) >= Config.StockCap) continue;   // enough of that for now
+			if (m_Store.Count(def.Item) >= StoreCap()) continue;   // enough of that for now
 			if (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0) continue;
 			if (!m_Knowledge.CanGather(m.Name, kind)) continue;   // a node only those who know a technology work (H11)
 			float distance = 0.0f;
@@ -1309,13 +1307,15 @@ namespace GB
 			opts.push_back(o);
 		}
 
-		// carry what it holds to the store
+		// carry what it holds to the store (H18: the nearest store that takes it, and a basket lets it carry more before it goes)
 		if (carried > 0)
 		{
 			UtilityOption o;
 			o.Kind = "deposit";
 			o.Where = CampSpot(m);
-			const float full = carried >= Config.DepositAt ? 1.1f + std::min(0.2f, 0.02f * static_cast<float>(carried - Config.DepositAt)) : 0.25f * Ramp(static_cast<float>(carried), 0.0f, static_cast<float>(Config.DepositAt));
+			o.Target = DepositPlace(m, o.Where);
+			const int limit = CarryLimit(m);
+			const float full = carried >= limit ? 1.1f + std::min(0.2f, 0.02f * static_cast<float>(carried - limit)) : 0.25f * Ramp(static_cast<float>(carried), 0.0f, static_cast<float>(limit));
 			o.Score = full * Falloff(glm::distance(pos, o.Where), 120.0f);
 			Factor(o, "load", full);
 			o.Note = std::to_string(carried) + " things in the bag";
@@ -1361,7 +1361,7 @@ namespace GB
 			std::string what;
 			for (const auto& [kind, def] : m_Defs)
 			{
-				if (m_Store.Count(def.Item) >= Config.StockCap) continue;
+				if (m_Store.Count(def.Item) >= StoreCap()) continue;
 				if (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0) continue;
 				if (!m_Knowledge.CanGather(m.Name, kind)) continue;
 				if (!nearest(kind, nullptr).empty()) continue;
@@ -1433,6 +1433,7 @@ namespace GB
 			o.Score *= f;
 			Factor(o, "agenda", f);
 		}
+		EconomyOptions(m, opts);   // H18: the "make", "farm" or "haul" job it holds
 		ExploreOptions(m, opts);   // H12: going on with an expedition, walking to the new camp
 		JobBonus(m, opts);   // H7: what does the job it claimed is worth more (a factor on the options, not a new chooser)
 		SocietyFactors(m, opts);   // H9 + H10: its genes, personality, stage of life and the clan's culture (and the companion it likes best)
@@ -1472,6 +1473,7 @@ namespace GB
 		char go[96];
 		Inventory& bag = m.Body->Bag();
 		if (o.Kind == "expedition" || o.Kind == "migrate") return ExecuteExplore(m, o);   // H12 (TribeExplore.cpp)
+		if (o.Kind == "make" || o.Kind == "farm" || o.Kind == "haul") return ExecuteEconomy(m, o);   // H18 (TribeEconomy.cpp)
 		if (o.Kind == "eat")
 		{
 			if (o.Target == "bag") { if (!Order(m, "wait 2")) return false; }
@@ -1512,7 +1514,8 @@ namespace GB
 			Wait(go, sizeof go, o.Where, "wait 1");
 			if (!Order(m, go)) return false;
 			m.Job = o.Kind;
-			if (o.Kind == "deposit") Say(m, "carries " + std::to_string(Carried(*m_Items, bag)) + " things to the store");
+			m.Detail = o.Kind == "deposit" ? o.Target : std::string();   // (H18: "" = the main store, else a stockpile)
+			if (o.Kind == "deposit") Say(m, "carries " + std::to_string(Carried(*m_Items, bag)) + " things to " + (o.Target.empty() ? std::string("the store") : o.Target));
 			else Say(m, "goes to light the campfire");
 			return true;
 		}
@@ -1633,7 +1636,7 @@ namespace GB
 	{
 		AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
 		const std::string carried = FirstFood(m.Body->Bag()), stored = carried.empty() ? FirstFood(m_Store) : std::string();
-		const bool ate = (!carried.empty() && m.Body->Bag().Remove(carried, 1) == 1) || (!stored.empty() && m_Store.Remove(stored, 1) == 1);   // what it carries first
+		const bool ate = (!carried.empty() && m.Body->Bag().RemoveOldest(carried, 1) == 1) || (!stored.empty() && m_Store.RemoveOldest(stored, 1) == 1);   // what it carries first, the oldest (E6)
 		if (ate)
 		{
 			++m.Meals;
@@ -1735,21 +1738,14 @@ namespace GB
 		}
 		else if (job == "deposit")
 		{
-			int moved = 0;
-			const Job* held = m_Board.ClaimOf(m.Name);
-			const std::string jobItem = held && held->Kind == "gather" ? held->Target : std::string();
-			for (const ItemSlot& s : std::vector<ItemSlot>(bag.Stacks()))
-				if (!IsTool(*m_Items, s.Id))
-				{
-					const int n = bag.Transfer(*m_Items, m_Store, s.Id, s.Count);
-					moved += n;
-					if (n > 0 && s.Id == jobItem) m_Board.Progress(m.Name, static_cast<float>(n), m_Time);   // delivered: the claim is alive
-					if (n > 0 && IsFood(s.Id)) m_FoodBy = m.Name;   // who feeds the others (H10)
-				}
+			const int moved = DepositAt(m, m.Detail);   // H18: the main store or a stockpile (TribeEconomy.cpp)
 			m.Deposited += moved;
-			Say(m, "leaves " + std::to_string(moved) + " in the store");
+			const bool atCamp = m.Detail.empty() || m.Detail == "hauled";
+			Say(m, "leaves " + std::to_string(moved) + " in " + (atCamp ? std::string("the store") : m.Detail));
+			if (atCamp) HandOut(m);   // at the camp: a better tool or a basket from the store
 			Share(m);
 		}
+		else if (FinishEconomy(m, job)) {}   // H18: "make", "farm", "haul" (TribeEconomy.cpp)
 		else if (job == "craft")
 		{
 			const std::set<std::string> known = m_Knowledge.KnownRecipes(m.Name, *m_Recipes);   // H11: only what it knows how to make
@@ -1896,6 +1892,7 @@ namespace GB
 		Json workers = Json::object();
 		for (const auto& [node, who] : m_LastWorker) workers[node] = who;
 		j["lastWorker"] = workers;
+		j["economy"] = Json::parse(m_Econ.ToJson());   // H18 (an older save has none: no fields, no stockpiles; its stacks are fresh)
 		Json members = Json::array();
 		for (const TribeMember& m : m_Members)
 			members.push_back(Json{ { "name", m.Name }, { "role", m.Role }, { "job", m.Job }, { "detail", m.Detail }, { "deposited", m.Deposited }, { "made", m.Made },
@@ -1928,6 +1925,8 @@ namespace GB
 		if (j.contains("explore") && !explore.FromJson(j["explore"].dump())) return false;
 		Society society = m_Society;   // (an older save keeps the founders AddMember made)
 		if (j.contains("society") && !society.FromJson(j["society"].dump())) return false;
+		EconomyState econ;
+		if (j.contains("economy") && !econ.FromJson(j["economy"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
 		std::vector<bool> found(m_Members.size(), false);
 		for (const Json& jm : j["members"])
@@ -1954,6 +1953,7 @@ namespace GB
 		m_NeedTimer = j.value("needTimer", 0.0f);
 		m_Board = std::move(board);
 		m_Explore = std::move(explore);
+		m_Econ = std::move(econ);
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);
 		m_Society = std::move(society);

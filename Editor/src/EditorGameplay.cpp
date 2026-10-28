@@ -44,7 +44,7 @@ namespace GB::Editor
 	{
 		m_Resources.Bind(m_Gameplay, m_NodeDefs, [this](const std::string& who, const std::string& item, int count)
 		{
-			if (Actor* actor = m_Actors.Find(who)) actor->Bag().Add(m_Items, item, count);
+			if (Actor* actor = m_Actors.Find(who)) m_SimQA.NoteYield(item, actor->Bag().Add(m_Items, item, count));   // (the QA panel's "gathered")
 		});
 		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
 		m_Ecology.Bind(m_SceneEditor.World(), m_Gameplay, [this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });
@@ -267,6 +267,8 @@ namespace GB::Editor
 			for (const TribeMember& m : m_Tribe.Members()) if (m_Actors.Find(m.Name)) m_Actors.Remove(m.Name);
 			m_Tribe.Clear();
 			m_TribeBodies.clear();
+			m_SimQA.Reset();   // a new tribe: the live checks start again
+			m_QaWarned = false;
 			std::vector<std::string> names;
 			for (int i = 0; i < workers; ++i) names.push_back(MemberName(m_Tribe.Config.Work, static_cast<size_t>(i)));
 			for (const std::string& n : names) if (m_Actors.Find(n)) m_Actors.Remove(n);
@@ -1095,8 +1097,8 @@ namespace GB::Editor
 					if (n == 0) continue;
 					const ItemDef* def = m_Items.Find(id);
 					char label[64];
-					std::snprintf(label, sizeof label, "%s %d / %d", def ? def->Name.c_str() : id.c_str(), n, m_Tribe.Config.StockCap);
-					ImGui::ProgressBar(std::min(1.0f, static_cast<float>(n) / static_cast<float>(m_Tribe.Config.StockCap)), ImVec2(-1.0f, 0.0f), label);
+					std::snprintf(label, sizeof label, "%s %d / %d", def ? def->Name.c_str() : id.c_str(), n, m_Tribe.StoreCap());
+					ImGui::ProgressBar(std::min(1.0f, static_cast<float>(n) / static_cast<float>(m_Tribe.StoreCap())), ImVec2(-1.0f, 0.0f), label);
 				}
 				if (store.Stacks().empty()) ImGui::TextDisabled("empty");
 			}
@@ -1168,6 +1170,26 @@ namespace GB::Editor
 				if (people.Traditions().empty()) ImGui::TextDisabled("no traditions yet");
 				for (const std::string& id : people.Traditions())
 					if (const auto t = rules.Culture.Traditions.find(id); t != rules.Culture.Traditions.end()) ImGui::Text("Tradition: %s (from %s)", t->second.Name.c_str(), t->second.Event.c_str());
+			}
+
+			// H18: the economy (production chains, spoilage, stores, hauling) and the fields, one line each (the same text as `economy status`, `field status`)
+			if (ImGui::CollapsingHeader("Economy and fields"))
+			{
+				auto lines = [](const std::string& text)
+				{
+					size_t from = 0;
+					while (from < text.size())
+					{
+						const size_t to = text.find('\n', from);
+						const std::string line = text.substr(from, to == std::string::npos ? std::string::npos : to - from);
+						if (!line.empty()) ImGui::TextWrapped("%s", line.c_str());
+						if (to == std::string::npos) break;
+						from = to + 1;
+					}
+				};
+				lines(m_Tribe.EconomyReport());
+				ImGui::Separator();
+				lines(m_Tribe.FieldReport());
 			}
 
 			if (ImGui::CollapsingHeader("Members", ImGuiTreeNodeFlags_DefaultOpen))

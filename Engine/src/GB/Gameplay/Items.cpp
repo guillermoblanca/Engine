@@ -80,7 +80,13 @@ namespace GB
 
 	int Inventory::Add(const ItemLibrary& lib, const std::string& id, int count)
 	{
+		return Add(lib, id, count, 0.0f);
+	}
+
+	int Inventory::Add(const ItemLibrary& lib, const std::string& id, int count, float age)
+	{
 		const ItemDef* def = lib.Find(id);
+		age = std::max(0.0f, age);
 		if (!def || count <= 0) return 0;
 		const int maxStack = std::max(1, def->MaxStack);
 
@@ -98,12 +104,13 @@ namespace GB
 			if (count <= 0) break;
 			if (s.Id != id || s.Count >= maxStack) continue;
 			const int n = std::min(count, maxStack - s.Count);
+			if (s.Age != age) s.Age = (s.Age * static_cast<float>(s.Count) + age * static_cast<float>(n)) / static_cast<float>(s.Count + n);   // E6: the mean age of its units
 			s.Count += n; count -= n; added += n;
 		}
 		while (count > 0 && UsedSlots() < Slots())
 		{
 			const int n = std::min(count, maxStack);
-			m_Stacks.push_back({ id, n });
+			m_Stacks.push_back({ id, n, age });
 			count -= n; added += n;
 		}
 		return added;
@@ -121,6 +128,30 @@ namespace GB
 			if (s.Count == 0) m_Stacks.erase(m_Stacks.begin() + i);
 		}
 		return taken;
+	}
+
+	int Inventory::RemoveOldest(const std::string& id, int count)
+	{
+		int taken = 0;
+		while (count > 0)
+		{
+			int oldest = -1;
+			for (int i = 0; i < static_cast<int>(m_Stacks.size()); ++i)
+				if (m_Stacks[i].Id == id && (oldest < 0 || m_Stacks[i].Age > m_Stacks[oldest].Age)) oldest = i;   // ties: the first
+			if (oldest < 0) break;
+			ItemSlot& s = m_Stacks[oldest];
+			const int n = std::min(count, s.Count);
+			s.Count -= n; count -= n; taken += n;
+			if (s.Count == 0) m_Stacks.erase(m_Stacks.begin() + oldest);
+		}
+		return taken;
+	}
+
+	float Inventory::OldestAge(const std::string& id) const
+	{
+		float age = 0.0f;
+		for (const ItemSlot& s : m_Stacks) if (s.Id == id) age = std::max(age, s.Age);
+		return age;
 	}
 
 	int Inventory::Count(const std::string& id) const
@@ -151,9 +182,18 @@ namespace GB
 
 	int Inventory::Transfer(const ItemLibrary& lib, Inventory& to, const std::string& id, int count)
 	{
-		count = std::min(count, Count(id));
-		const int moved = to.Add(lib, id, count);
-		Remove(id, moved);
+		// stack by stack from the last (as Remove takes them), each with its age (E6), until the other is full
+		int moved = 0;
+		for (int i = static_cast<int>(m_Stacks.size()) - 1; i >= 0 && count > 0; --i)
+		{
+			ItemSlot& s = m_Stacks[i];
+			if (s.Id != id) continue;
+			const int want = std::min(count, s.Count);
+			const int n = to.Add(lib, id, want, s.Age);
+			s.Count -= n; count -= n; moved += n;
+			if (s.Count == 0) m_Stacks.erase(m_Stacks.begin() + i);
+			if (n < want) break;
+		}
 		return moved;
 	}
 
@@ -163,7 +203,8 @@ namespace GB
 		j["slots"] = m_Slots;
 		j["maxWeight"] = m_MaxWeight;
 		Json items = Json::array();
-		for (const ItemSlot& s : m_Stacks) items.push_back(Json::array({ s.Id, s.Count }));
+		for (const ItemSlot& s : m_Stacks)
+			items.push_back(s.Age != 0.0f ? Json::array({ s.Id, s.Count, std::round(static_cast<double>(s.Age) * 100.0) / 100.0 }) : Json::array({ s.Id, s.Count }));
 		j["items"] = items;
 		if (m_BonusSlots > 0) j["bonusSlots"] = m_BonusSlots;
 		if (m_BonusWeight > 0.0f) j["bonusWeight"] = m_BonusWeight;
@@ -178,8 +219,10 @@ namespace GB
 		for (const Json& e : j["items"])
 		{
 			// (a stack of nothing or of a negative count would break every sum made over the stacks)
-			if (!e.is_array() || e.size() != 2 || !e[0].is_string() || !e[1].is_number_integer() || e[1].get<long long>() < 1 || e[1].get<long long>() > 1000000) return false;
-			stacks.push_back({ e[0].get<std::string>(), e[1].get<int>() });
+			if (!e.is_array() || (e.size() != 2 && e.size() != 3) || !e[0].is_string() || !e[1].is_number_integer() || e[1].get<long long>() < 1 || e[1].get<long long>() > 1000000) return false;
+			// (E6: the age of the stack, when there is one; a text from before has none and the stack is fresh)
+			if (e.size() == 3 && (!e[2].is_number() || !(e[2].get<double>() >= 0.0) || e[2].get<double>() > 1e9)) return false;
+			stacks.push_back({ e[0].get<std::string>(), e[1].get<int>(), e.size() == 3 ? e[2].get<float>() : 0.0f });
 		}
 		int slots = m_Slots, bonusSlots = 0;
 		float maxWeight = m_MaxWeight, bonusWeight = 0.0f;
@@ -357,6 +400,10 @@ namespace GB
 					d.BagWeight = o.value("bagWeight", 0.0f);
 					d.Fuel = o.value("fuel", 0);
 					if (d.Fuel < 0) return "item '" + d.Id + "': fuel cannot be negative";
+					d.ShelfLife = o.value("shelfLife", 0.0f);
+					str(o, "spoilsTo", d.SpoilsTo);
+					if (!(d.ShelfLife >= 0.0f)) return "item '" + d.Id + "': shelfLife cannot be negative";
+					if (d.SpoilsTo == d.Id) return "item '" + d.Id + "': it cannot spoil into itself";
 					if (d.Power < 0 || d.BagSlots < 0 || d.BagWeight < 0.0f) return "item '" + d.Id + "': power, bagSlots and bagWeight cannot be negative";
 					if (!(d.Speed >= 0.1f && d.Speed <= 10.0f)) return "item '" + d.Id + "': speed must be between 0.1 and 10";
 					newItems.push_back(d);
@@ -449,6 +496,8 @@ namespace GB
 		}
 		for (const ResourceNodeDef& d : newNodes)
 			if (!probe.Find(d.Item)) return "node '" + d.Id + "' gives an unknown item '" + d.Item + "'";
+		for (const ItemDef& d : newItems)
+			if (!d.SpoilsTo.empty() && !probe.Find(d.SpoilsTo)) return "item '" + d.Id + "' spoils into an unknown item '" + d.SpoilsTo + "'";
 		for (const ItemDef& d : newItems) items.Add(d);
 		for (const Recipe& r : newRecipes) recipes.Add(r);
 		for (const ResourceNodeDef& d : newNodes) nodes[d.Id] = d;
@@ -480,6 +529,8 @@ namespace GB
 			if (d.BagSlots != 0) o["bagSlots"] = d.BagSlots;
 			if (d.BagWeight != 0.0f) o["bagWeight"] = Round3(d.BagWeight);
 			if (d.Fuel != 0) o["fuel"] = d.Fuel;
+			if (d.ShelfLife != 0.0f) o["shelfLife"] = Round3(d.ShelfLife);
+			if (!d.SpoilsTo.empty()) o["spoilsTo"] = d.SpoilsTo;
 			ji.push_back(o);
 		}
 		j["items"] = ji;
@@ -563,7 +614,13 @@ namespace GB
 		items.Add(Fuel(Def("wood",      "Wood",        "resource", 2.0f, 10, { "Item.Resource.Wood" },  "", ""), 2));
 		items.Add(Def("stone",     "Stone",       "resource", 3.0f, 10, { "Item.Resource.Stone" }, "", ""));
 		items.Add(Def("fiber",     "Plant fiber", "resource", 0.2f, 20, { "Item.Resource.Fiber" }, "", ""));
-		items.Add(Def("berry",     "Berry",       "food",     0.1f, 20, { "Item.Food" },           "Eat", ""));
+		{
+			// E6: a berry keeps a day and a half (1800 s): the stack that is not eaten goes off as a whole, which takes about as much surplus away as
+			// the old sink did (one berry above 20 every 100 s) without touching what the clan eats in time (it eats the oldest first)
+			ItemDef berry = Def("berry", "Berry", "food", 0.1f, 20, { "Item.Food" }, "Eat", "");
+			berry.ShelfLife = 1800.0f;
+			items.Add(berry);
+		}
 		items.Add(Def("stone_axe",     "Stone axe",     "tool", 2.5f, 1, { "Item.Tool.Axe" },     "Chop", "RightHand"));
 		items.Add(Def("stone_pickaxe", "Stone pickaxe", "tool", 3.0f, 1, { "Item.Tool.Pickaxe" }, "Mine", "RightHand"));
 		items.Add(Def("water",     "Water",       "food",     1.0f,  5, { "Item.Food.Water" },     "Drink", ""));

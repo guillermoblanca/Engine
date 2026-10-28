@@ -9,8 +9,8 @@
     { "id": "salt", "name": "Salt", "category": "resource", "weight": 0.5, "stack": 20, "tags": ["Item.Resource.Salt"] },
     { "id": "grain_seed", "name": "Grain seed", "category": "seed", "weight": 0.02, "stack": 50, "tags": ["Item.Seed.Grain"] },
     { "id": "acorn", "name": "Acorn", "category": "seed", "weight": 0.05, "stack": 20, "tags": ["Item.Seed.Tree"] },
-    { "id": "grain", "name": "Grain", "category": "food", "weight": 0.1, "stack": 30, "tags": ["Item.Food", "Item.Food.Grain"], "ability": "Eat" },
-    { "id": "dried_berry", "name": "Dried berry", "category": "food", "weight": 0.05, "stack": 30, "tags": ["Item.Food", "Item.Food.Preserved"], "ability": "Eat" },
+    { "id": "grain", "name": "Grain", "category": "food", "weight": 0.1, "stack": 30, "tags": ["Item.Food", "Item.Food.Grain"], "ability": "Eat", "shelfLife": 7200 },
+    { "id": "dried_berry", "name": "Dried berry", "category": "food", "weight": 0.05, "stack": 30, "tags": ["Item.Food", "Item.Food.Preserved"], "ability": "Eat", "shelfLife": 14400 },
     { "id": "copper_axe", "name": "Copper axe", "category": "tool", "weight": 2.4, "stack": 1, "tags": ["Item.Tool.Axe.Copper"], "ability": "Chop", "socket": "RightHand", "power": 2, "speed": 1.25 },
     { "id": "bone_pickaxe", "name": "Bone pickaxe", "category": "tool", "weight": 2.0, "stack": 1, "tags": ["Item.Tool.Pickaxe.Bone"], "ability": "Mine", "socket": "RightHand", "power": 1, "speed": 1.1 },
     { "id": "stone_hoe", "name": "Stone hoe", "category": "tool", "weight": 2.0, "stack": 1, "tags": ["Item.Tool.Hoe"], "ability": "Dig", "socket": "RightHand" },
@@ -73,5 +73,10 @@
         "waste": 0.3
       }
     }
-  ]
+  ],
+  "economy": {
+    "crops": [
+      { "id": "grain", "seed": "grain_seed", "yield": { "grain": 3, "grain_seed": 2 }, "stageSeconds": 90, "sow": [ "spring", "summer" ] }
+    ]
+  }
 }

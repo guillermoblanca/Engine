@@ -121,6 +121,11 @@ target_link_libraries(GBSweepTests PRIVATE GB::GB)
 add_test(NAME sweep COMMAND GBSweepTests)
 set_tests_properties(sweep PROPERTIES SKIP_RETURN_CODE 77)
 
+# The seed sweep of the simulation (H20): tribes on generated worlds, checked at every step against the invariants of GB/Game/SimQA.h. GB_SIM_SWEEP=full for the big one.
+add_executable(GBSimSweepTests sim_sweep_test.cpp)
+target_link_libraries(GBSimSweepTests PRIVATE GB::GB)
+add_test(NAME sim_sweep COMMAND GBSimSweepTests)
+
 add_executable(GBEntityTests entity_test.cpp)
 target_link_libraries(GBEntityTests PRIVATE GB::GB)
 add_test(NAME entity COMMAND GBEntityTests)
@@ -271,6 +276,12 @@ add_executable(GBWorkTests work_test.cpp)
 target_link_libraries(GBWorkTests PRIVATE GB::GB)
 target_compile_definitions(GBWorkTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME work COMMAND GBWorkTests)
+
+# H18: production chains, spoilage and preservation, fields, stockpiles and hauling (Production, Spoilage, Farming, Economy, TribeEconomy)
+add_executable(GBEconomyTests economy_test.cpp)
+target_link_libraries(GBEconomyTests PRIVATE GB::GB)
+target_compile_definitions(GBEconomyTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME economy COMMAND GBEconomyTests)
 
 add_executable(GBKnowledgeTests knowledge_test.cpp)
 target_link_libraries(GBKnowledgeTests PRIVATE GB::GB)

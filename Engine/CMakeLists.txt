@@ -31,10 +31,15 @@ add_library(GB STATIC
     src/GB/Gameplay/WorldResources.cpp
     src/GB/Gameplay/Interactives.cpp
     src/GB/Gameplay/Ecology.cpp
+    src/GB/Gameplay/Spoilage.cpp
+    src/GB/Gameplay/Farming.cpp
     src/GB/Gameplay/DocsExport.cpp
     src/GB/Game/Tribe.cpp
     src/GB/Game/TribeWork.cpp
     src/GB/Game/TribeExplore.cpp
+    src/GB/Game/TribeEconomy.cpp
+    src/GB/Game/Economy.cpp
+    src/GB/Game/Production.cpp
     src/GB/Game/Exploration.cpp
     src/GB/Game/Skills.cpp
     src/GB/Game/JobBoard.cpp
@@ -42,6 +47,7 @@ add_library(GB STATIC
     src/GB/Game/Society.cpp
     src/GB/Game/SocietyRules.cpp
     src/GB/Game/TribeSociety.cpp
+    src/GB/Game/SimQA.cpp
     src/GB/Game/GameContent.cpp
     src/GB/AI/Perception.cpp
     src/GB/AI/Memory.cpp

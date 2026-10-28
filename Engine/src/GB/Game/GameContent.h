@@ -39,6 +39,11 @@ namespace GB
 	// Apart from AddGameContentSections so that adding it changes no signature; the editor adds it over TribeConfig::Society.
 	ContentSection SocietyContentSection(SocietyRules& society);
 	void AddSocietyContentSections(ContentPacks& packs, SocietyRules& society);
+	// The "economy" section (H18), through LoadEconomyRules: production chains, spoilage, farming and crops, stores and hauling (atomic for one
+	// document). Added on its own (AddEconomyContentSection), like "exploration". The items it names (a crop's seed, what it yields, the
+	// intermediates kept) are not checked here, because the items of the same pack are still staged: CheckEconomy does it after the load.
+	ContentSection EconomyContentSection(EconomyRules& rules);
+	void AddEconomyContentSection(ContentPacks& packs, EconomyRules& rules);
 
 	// The sections over the given live content (the "tribe" one only when an agenda and an economy are given, the "work" one only when its rules are).
 	// With `techs`, the "items" section also reads the technologies ("techs" and "knowledge", H11) and checks that what they lock can be had (see

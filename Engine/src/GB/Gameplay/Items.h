@@ -30,6 +30,12 @@ namespace GB
 		// Fuel (E1): units of heat a campfire gets when this item is put in (Stoke). 0 = the campfire's own default (InteractiveSystem::Config::FuelPerWood).
 		// Only items tagged "Item.Resource.Wood" (or below) can be put in: wood gives 2, a branch 1, so it takes more branches for the same heat.
 		int Fuel = 0;
+		// Spoilage (E6, H18): seconds of simulation the item keeps before it goes off (0 = it keeps for ever) and what it turns into then ("" = nothing:
+		// it is gone). A stack ages as a whole (ItemSlot::Age, see GB/Gameplay/Spoilage.h); preserved food (dried berries) is a different item with a
+		// longer life, made by a recipe at a station (the drying rack).
+		float ShelfLife = 0.0f;
+		std::string SpoilsTo;
+		bool Perishable() const { return ShelfLife > 0.0f; }
 	};
 
 	// The tool family of a tool tag: the first three segments, "Item.Tool.Axe.Flint" -> "Item.Tool.Axe" (anything else is returned as is).
@@ -50,6 +56,9 @@ namespace GB
 	{
 		std::string Id;
 		int Count = 0;
+		// E6: seconds the stack has been ageing (its units' mean age: a fresh unit put on an older stack brings it down, an older one up, as a
+		// weighted average). Only perishable items age (AgeInventory); for the rest it stays 0, so nothing changes for them.
+		float Age = 0.0f;
 	};
 
 	// A container (backpack, crate, store): a fixed number of slots and an optional weight limit (<= 0 = unlimited).
@@ -78,13 +87,19 @@ namespace GB
 
 		// Puts up to `count` units in, filling stacks first and then empty slots, within the weight limit. Returns how many fit.
 		int Add(const ItemLibrary& lib, const std::string& id, int count);
+		// The same with units of a known age (E6: what comes out of another bag keeps its age; the stack it joins takes the weighted mean).
+		int Add(const ItemLibrary& lib, const std::string& id, int count, float age);
 		// Takes up to `count` units out (from the last stacks first). Returns how many were taken.
 		int Remove(const std::string& id, int count);
+		// Takes up to `count` units out from the oldest stacks first (E6: food is eaten before it goes off). Returns how many were taken.
+		int RemoveOldest(const std::string& id, int count);
+		// The age of the oldest stack of `id` (0 when there is none or it does not age).
+		float OldestAge(const std::string& id) const;
 		int Count(const std::string& id) const;
 		// Units of items carrying `tag` (or a descendant of it), e.g. "Item.Tool.Axe".
 		int CountTagged(const ItemLibrary& lib, const std::string& tag) const;
 		float Weight(const ItemLibrary& lib) const;
-		// Moves up to `count` units into another container; returns how many moved.
+		// Moves up to `count` units into another container (each with the age of its stack); returns how many moved.
 		int Transfer(const ItemLibrary& lib, Inventory& to, const std::string& id, int count);
 
 		int UsedSlots() const { return static_cast<int>(m_Stacks.size()); }
@@ -92,8 +107,9 @@ namespace GB
 		// Replaces the contents as they were saved (no checks against a library: a save is trusted to hold what it held).
 		void SetStacks(std::vector<ItemSlot> stacks) { m_Stacks = std::move(stacks); }
 
-		// Compact JSON, e.g. {"slots":8,"maxWeight":20,"items":[["wood",3]]} ("slots" and "maxWeight" are the bag's own; "bonusSlots" and
-		// "bonusWeight" are written only when a container gives some, and an older text without them loads as before). Load returns false (and changes nothing) on malformed text.
+		// Compact JSON, e.g. {"slots":8,"maxWeight":20,"items":[["wood",3],["berry",5,120.5]]} ("slots" and "maxWeight" are the bag's own; "bonusSlots" and
+		// "bonusWeight" are written only when a container gives some, and an older text without them loads as before; a stack's third number is its age
+		// (E6), written only when not 0, so a text without it is a fresh stack). Load returns false (and changes nothing) on malformed text.
 		std::string ToJson() const;
 		bool FromJson(const std::string& json);
 
@@ -209,7 +225,8 @@ namespace GB
 	};
 
 	// Content as data: items, recipes and resource nodes in one JSON document, so the game's things can be added and changed without a build.
-	//   { "items":   [ { "id", "name", "category", "weight", "stack", "tags": [], "ability", "socket", "power", "speed", "bagSlots", "bagWeight", "fuel" } ],
+	//   { "items":   [ { "id", "name", "category", "weight", "stack", "tags": [], "ability", "socket", "power", "speed", "bagSlots", "bagWeight", "fuel",
+	//                   "shelfLife", "spoilsTo" } ],
 	//     "recipes": [ { "id", "station", "tool", "inputs": { "wood": 2 }, "output", "count", "ability" } ],
 	//     "nodes":   [ { "id", "item", "capacity", "perGather", "regenSeconds", "regen", "requires", "ability", "kind", "model",
 	//                    "patch": { "count", "perWorker", "spacing", "shape", "near" } } ] }
@@ -219,7 +236,7 @@ namespace GB
 	// The same document for what is loaded now (pretty-printed): the starting point of a content file.
 	std::string ContentToJson(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes);
 
-	// (The last five item fields are optional: power 0, speed 1, bagSlots 0, bagWeight 0 and fuel 0 when missing; "kind", "model" and "patch" of a node
+	// (The last seven item fields are optional: power 0, speed 1, bagSlots 0, bagWeight 0, fuel 0, shelfLife 0 and spoilsTo "" when missing; "kind", "model" and "patch" of a node
 	// too: an older file without them keeps working.)
 
 	// The era-1 content: wood, stone, fiber, berries, stone and flint tools, a wicker basket, a campfire and the resource nodes and recipes that go with them.
