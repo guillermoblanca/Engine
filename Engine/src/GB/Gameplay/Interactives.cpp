@@ -65,7 +65,7 @@ namespace GB
 	{
 		AbilityDef stoke = Use("Stoke", "plant", "stoke", "Event.Fuel.Add", "Interactive.Campfire");
 		stoke.RequiredTags = { "Item.Resource.Wood" };
-		stoke.Note = "puts a piece of wood in a campfire (needs wood in the bag)";
+		stoke.Note = "puts a piece of wood or a branch in a campfire (needs one in the bag)";
 		lib.AddAbility(stoke);
 		AbilityDef draw = Use("DrawWater", "pick_fruit", "draw", "Event.Water.Draw", "Interactive.Well");
 		draw.TargetMinAttributes = { { "Water", 1.0f } };
@@ -185,7 +185,8 @@ namespace GB
 				a->AddListener("Event.Fuel", [this, a](const GameplayEventData& e)
 				{
 					if (e.Tag != "Event.Fuel.Add" || !e.Instigator || !m_Take) return;
-					if (m_Take(e.Instigator->Name(), "wood", 1) > 0) a->Attributes().AddBase("Fuel", static_cast<float>(Settings.FuelPerWood));
+					const int fuel = TakeFuel(e.Instigator->Name());
+					if (fuel > 0) a->Attributes().AddBase("Fuel", static_cast<float>(fuel));
 				});
 			if (a->HasTag("Interactive.Well"))
 				a->AddListener("Event.Water", [this, a](const GameplayEventData& e)
@@ -204,6 +205,26 @@ namespace GB
 					else if (e.Tag == "Event.Door.Close") SetState(*a, { "State.Open", "State.Closed" }, "State.Closed");
 				});
 		}
+	}
+
+	int InteractiveSystem::FuelOf(const std::string& item) const
+	{
+		const ItemDef* def = Items ? Items->Find(item) : nullptr;
+		return def && def->Fuel > 0 ? def->Fuel : Settings.FuelPerWood;
+	}
+
+	int InteractiveSystem::TakeFuel(const std::string& actor) const
+	{
+		if (!Items) return m_Take(actor, "wood", 1) > 0 ? Settings.FuelPerWood : 0;
+		// Anything tagged Item.Resource.Wood burns (a branch included); the piece with the most heat goes in first, then the lowest id.
+		std::vector<std::pair<int, std::string>> burnable;
+		for (const std::string& id : Items->Ids())
+			for (const std::string& tag : Items->Find(id)->Tags)
+				if (tag == "Item.Resource.Wood" || tag.rfind("Item.Resource.Wood.", 0) == 0) { burnable.push_back({ FuelOf(id), id }); break; }
+		std::sort(burnable.begin(), burnable.end(), [](const auto& l, const auto& r) { return l.first != r.first ? l.first > r.first : l.second < r.second; });
+		for (const auto& [fuel, id] : burnable)
+			if (m_Take(actor, id, 1) > 0) return fuel;
+		return 0;
 	}
 
 	void InteractiveSystem::Update(float dt, EntityWorld* entities)

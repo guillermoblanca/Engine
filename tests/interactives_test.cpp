@@ -31,6 +31,7 @@ struct Camp
 		Entities.Find(w)->Gameplay.emplace();
 		Entities.Find(w)->Gameplay->Abilities = { "Stoke", "DrawWater", "OpenDoor", "CloseDoor" };
 		Gameplay.Load(Entities);
+		Rules.Items = &Items;   // Stoke burns what the items say (E1)
 		Rules.Bind(Gameplay,
 			[this](const std::string&, const std::string& item, int n) { return Bag.Remove(item, n); },
 			[this](const std::string&, const std::string& item, int n) { return Bag.Add(Items, item, n); });
@@ -154,6 +155,41 @@ int main()
 		const EntityId flame = entities.FindByName("Fire Pit Flame");
 		Check(flame != NullEntity && !entities.Find(flame)->Active, "and its flame goes");
 		Check(entities.Find(entities.FindByName("Gate Hinge"))->Transform.Rotation.y > 90.0f, "a door loaded open turns its panel open");
+	}
+
+	// Fuel per item (E1): a branch is wood too (it feeds the fire) but gives half the heat, so it takes more of them for the same fire.
+	{
+		auto fuelAfter = [](const char* item, int pieces, int stokes)
+		{
+			Camp c;
+			c.Bag.Add(c.Items, item, pieces);
+			c.Frames(2);
+			for (int i = 0; i < stokes; ++i) { Check(c.Do("Stoke", "Fire Pit"), "stoke with what is carried"); c.Frames(30); }
+			return c.Gameplay.Find("Fire Pit")->Attributes().Current("Fuel");
+		};
+		const float wood = fuelAfter("wood", 2, 2), branches = fuelAfter("branch", 2, 2), fourBranches = fuelAfter("branch", 4, 4);
+		Check(wood > 3.5f && branches > 1.5f && branches < wood - 1.0f, "two branches give less heat than two pieces of wood");
+		Check(fourBranches > branches + 0.9f && fourBranches <= wood + 0.5f && fourBranches > wood - 1.5f, "it takes twice the branches for about the same heat (a unit burns away meanwhile)");
+
+		Camp c;
+		c.Bag.Add(c.Items, "branch", 1);
+		c.Bag.Add(c.Items, "wood", 1);
+		c.Frames(2);
+		Check(c.Do("Stoke", "Fire Pit") && c.Bag.Count("wood") == 0 && c.Bag.Count("branch") == 1, "the piece with the most heat goes in first");
+		Check(c.Gameplay.Find("Worker")->HasTag("Item.Resource.Wood"), "a branch is tagged as wood too");
+		c.Frames(30);
+		Check(c.Do("Stoke", "Fire Pit") && c.Bag.Count("branch") == 0, "then the branch");
+
+		// without an item library the system behaves as before: "wood", FuelPerWood
+		Camp legacy;
+		legacy.Rules.Items = nullptr;
+		legacy.Bag.Add(legacy.Items, "branch", 3);
+		legacy.Frames(2);
+		legacy.Do("Stoke", "Fire Pit");
+		Check(legacy.Bag.Count("branch") == 3 && legacy.Gameplay.Find("Fire Pit")->Attributes().Current("Fuel") == 0.0f, "without a library only wood goes in");
+		legacy.Bag.Add(legacy.Items, "wood", 1);
+		legacy.Frames(2);
+		Check(legacy.Do("Stoke", "Fire Pit") && legacy.Gameplay.Find("Fire Pit")->Attributes().Current("Fuel") > 1.5f, "and it gives the default heat");
 	}
 
 	if (failures) { std::fprintf(stderr, "%d failure(s)\n", failures); return 1; }

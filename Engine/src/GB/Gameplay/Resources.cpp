@@ -1,13 +1,17 @@
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
 #include <cmath>
+#include <string>
 
 namespace GB
 {
 	namespace
 	{
-		const char* KindTag(const ResourceNodeDef& d)
+		// The tag that says what kind of node it is (E1): it comes from the node's data ("Wood", "Stone.Flint", "Loose.Clay"...). A definition without a kind
+		// (an older content file) is worked out from its item as before.
+		std::string KindTag(const ResourceNodeDef& d)
 		{
+			if (!d.Kind.empty()) return "Resource." + d.Kind;
 			if (d.Item == "wood") return "Resource.Wood";
 			if (d.Item == "stone") return "Resource.Stone";
 			return "Resource.Plant";
@@ -77,6 +81,10 @@ namespace GB
 		pick.TargetBlockedTags = { "State.Depleted", "Resource.Node.fiber_grass" };
 		pick.Note = "picks berries by hand";
 		lib.AddAbility(pick);
+		// Loose things lying on the ground (E1): clay from a bank, reeds from a bed. By hand, bending down like for a tuft of grass.
+		AbilityDef collect = GatherAbility("Collect", "pull_plant", "collect", "Resource.Loose", "");
+		collect.Note = "collects clay or reeds by hand";
+		lib.AddAbility(collect);
 		AbilityDef pull = GatherAbility("PullFiber", "pull_plant", "pull", "Resource.Node.fiber_grass", "");
 		pull.Note = "pulls fibre from a tuft of grass";
 		lib.AddAbility(pull);
@@ -93,57 +101,192 @@ namespace GB
 		return c;
 	}
 
+	namespace
+	{
+		constexpr int kPerRow = 8;   // a long row wraps into more lines
+
+		// The primitives each model is drawn with. Names matter: a node that runs empty hides the parts called Crown, Berries, Tuft, Rock, Mound, Reeds, Flint
+		// or Ore (what is gathered from it) and keeps the rest (ResourceSystem::SyncVisuals).
+		void BuildModel(EntityWorld& w, EntityId id, const std::string& name, const std::string& model)
+		{
+			auto yaw = [&](EntityId part, float degrees) { w.Find(part)->Transform.Rotation.y = degrees; };
+			if (model == "tree")
+			{
+				Part(w, id, name + " Trunk", MeshShape::Cube, { 0.0f, 1.2f, 0.0f }, { 0.35f, 2.4f, 0.35f }, { 0.36f, 0.24f, 0.13f });
+				Part(w, id, name + " Crown", MeshShape::Sphere, { 0.0f, 3.0f, 0.0f }, { 2.4f, 2.0f, 2.4f }, { 0.2f, 0.45f, 0.16f });
+			}
+			else if (model == "young_tree")   // a slim sapling: a thin pale trunk and a small bright crown
+			{
+				Part(w, id, name + " Trunk", MeshShape::Cube, { 0.0f, 0.7f, 0.0f }, { 0.12f, 1.4f, 0.12f }, { 0.45f, 0.33f, 0.19f });
+				Part(w, id, name + " Crown", MeshShape::Sphere, { 0.0f, 1.7f, 0.0f }, { 0.95f, 0.85f, 0.95f }, { 0.38f, 0.64f, 0.22f });
+			}
+			else if (model == "old_tree")   // a big tree: a thick dark trunk and a wide dark crown high up
+			{
+				Part(w, id, name + " Trunk", MeshShape::Cube, { 0.0f, 2.6f, 0.0f }, { 0.85f, 5.2f, 0.85f }, { 0.28f, 0.19f, 0.1f });
+				Part(w, id, name + " Crown", MeshShape::Sphere, { 0.0f, 6.4f, 0.0f }, { 4.4f, 3.4f, 4.4f }, { 0.11f, 0.32f, 0.12f });
+			}
+			else if (model == "rock")
+				Part(w, id, name + " Rock", MeshShape::Sphere, { 0.0f, 0.5f, 0.0f }, { 1.4f, 1.0f, 1.2f }, { 0.45f, 0.45f, 0.47f });
+			else if (model == "berry_bush")
+			{
+				Part(w, id, name + " Bush", MeshShape::Sphere, { 0.0f, 0.5f, 0.0f }, { 1.2f, 0.9f, 1.2f }, { 0.18f, 0.4f, 0.14f });
+				Part(w, id, name + " Berries", MeshShape::Sphere, { 0.3f, 0.7f, 0.5f }, glm::vec3(0.2f), { 0.7f, 0.1f, 0.25f });
+			}
+			else if (model == "fiber_grass")
+				Part(w, id, name + " Tuft", MeshShape::Cube, { 0.0f, 0.3f, 0.0f }, { 0.5f, 0.6f, 0.5f }, { 0.55f, 0.6f, 0.25f });
+			else if (model == "clay_bank")   // two low brown mounds
+			{
+				Part(w, id, name + " Mound 1", MeshShape::Sphere, { 0.0f, 0.2f, 0.0f }, { 2.0f, 0.7f, 1.6f }, { 0.55f, 0.35f, 0.21f });
+				Part(w, id, name + " Mound 2", MeshShape::Sphere, { 0.9f, 0.14f, 0.7f }, { 1.0f, 0.45f, 0.9f }, { 0.62f, 0.4f, 0.25f });
+			}
+			else if (model == "reed_bed")   // a bunch of thin, tall, green stalks
+			{
+				const float spots[][3] = { { 0.0f, 0.0f, 2.1f }, { 0.25f, 0.2f, 2.5f }, { -0.3f, 0.15f, 1.9f }, { 0.1f, -0.3f, 2.3f }, { -0.2f, -0.25f, 2.0f }, { 0.4f, -0.1f, 1.7f } };
+				int n = 0;
+				for (const auto& s : spots)
+					Part(w, id, name + " Reeds " + std::to_string(++n), MeshShape::Cube, { s[0], s[2] * 0.5f, s[1] }, { 0.07f, s[2], 0.07f }, { 0.36f, 0.6f, 0.24f });
+			}
+			else if (model == "flint_outcrop")   // sharp dark grey slabs
+			{
+				yaw(Part(w, id, name + " Flint 1", MeshShape::Cube, { 0.0f, 0.4f, 0.0f }, { 0.8f, 0.8f, 0.5f }, { 0.2f, 0.2f, 0.23f }), 25.0f);
+				yaw(Part(w, id, name + " Flint 2", MeshShape::Cube, { 0.5f, 0.3f, 0.35f }, { 0.5f, 0.6f, 0.4f }, { 0.16f, 0.16f, 0.19f }), -40.0f);
+				yaw(Part(w, id, name + " Flint 3", MeshShape::Cube, { -0.45f, 0.25f, 0.3f }, { 0.4f, 0.5f, 0.35f }, { 0.24f, 0.24f, 0.27f }), 70.0f);
+			}
+			else if (model == "copper_vein")   // a grey rock streaked with greenish ore
+			{
+				Part(w, id, name + " Base", MeshShape::Sphere, { 0.0f, 0.5f, 0.0f }, { 1.5f, 1.1f, 1.3f }, { 0.4f, 0.4f, 0.42f });
+				Part(w, id, name + " Ore 1", MeshShape::Sphere, { 0.45f, 0.75f, 0.5f }, { 0.4f, 0.3f, 0.3f }, { 0.25f, 0.6f, 0.5f });
+				Part(w, id, name + " Ore 2", MeshShape::Sphere, { -0.4f, 0.9f, 0.35f }, { 0.35f, 0.3f, 0.3f }, { 0.3f, 0.55f, 0.42f });
+				Part(w, id, name + " Ore 3", MeshShape::Sphere, { 0.1f, 0.5f, 0.75f }, { 0.3f, 0.25f, 0.2f }, { 0.55f, 0.45f, 0.25f });
+			}
+			else   // a model this build does not know: a plain grey blob, so a node from a newer content file is still there to work
+				Part(w, id, name + " Rock", MeshShape::Sphere, { 0.0f, 0.4f, 0.0f }, { 1.0f, 0.8f, 1.0f }, { 0.5f, 0.5f, 0.5f });
+		}
+
+		EntityId MakeNode(EntityWorld& w, EntityId root, const ResourceNodeDef& def, int index, const glm::vec3& pos, ResourceLayout& out)
+		{
+			std::string label = def.Id;   // entity names use spaces ("berry bush 1") so a task list can write them with underscores
+			std::replace(label.begin(), label.end(), '_', ' ');
+			const std::string name = label + " " + std::to_string(index);
+			const EntityId id = w.Create(name, root);
+			Entity& e = *w.Find(id);
+			e.Transform.Position = pos;
+			InteractionPoint p;
+			p.Name = "work";
+			p.Position = { 0.0f, 0.0f, -1.6f };
+			e.Interact.emplace();
+			e.Interact->Points.push_back(p);
+			e.Gameplay.emplace();
+			e.Gameplay->Tags = { "Resource.Node", std::string("Resource.Node.") + def.Id, KindTag(def) };
+			e.Gameplay->Attributes = { { "Amount", static_cast<float>(def.Capacity), 0.0f, static_cast<float>(def.Capacity) } };
+			if (def.RegenSeconds > 0.0f) e.Gameplay->Attributes.push_back({ "Regrow", 0.0f, 0.0f, 1e6f });   // the regrowth timer: ResourceSystem::Update
+			BuildModel(w, id, name, def.Model.empty() ? def.Id : def.Model);
+			out.Nodes.push_back(e.Name);
+			return id;
+		}
+
+		EntityId MakeRoot(EntityWorld& w, const glm::vec3& origin, ResourceLayout& out)
+		{
+			if (const EntityId old = w.FindByName("Resources"); old != NullEntity) w.Destroy(old);
+			const EntityId root = w.Create("Resources");
+			w.Find(root)->Transform.Position = origin;
+			out.Root = w.Find(root)->Name;
+			return root;
+		}
+	}
+
 	ResourceLayout BuildResources(EntityWorld& w, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes, int trees, int rocks, int bushes, int grass)
 	{
-		if (const EntityId old = w.FindByName("Resources"); old != NullEntity) w.Destroy(old);
 		ResourceLayout out;
-		const EntityId root = w.Create("Resources");
-		w.Find(root)->Transform.Position = origin;
-		out.Root = w.Find(root)->Name;
-
+		const EntityId root = MakeRoot(w, origin, out);
 		const struct { const char* id; int count; float z; } rows[] = { { "tree", trees, 0.0f }, { "rock", rocks, 5.0f }, { "berry_bush", bushes, 9.0f }, { "fiber_grass", grass, 12.0f } };
 		for (const auto& row : rows)
 		{
 			auto it = nodes.find(row.id);
 			if (it == nodes.end()) continue;
-			const ResourceNodeDef& def = it->second;
-			constexpr int kPerRow = 8;   // a big patch wraps into more rows
 			for (int i = 0; i < row.count; ++i)
 			{
 				const int line = i / kPerRow, inLine = i % kPerRow, lineCount = std::min(kPerRow, row.count - line * kPerRow);
-				std::string label = row.id;   // entity names use spaces ("berry bush 1") so a task list can write them with underscores
-				std::replace(label.begin(), label.end(), '_', ' ');
-				const std::string name = label + " " + std::to_string(i + 1);
-				const EntityId id = w.Create(name, root);
-				Entity& e = *w.Find(id);
-				e.Transform.Position = { (static_cast<float>(inLine) - (lineCount - 1) * 0.5f) * 4.0f, 0.0f, row.z + 16.0f * static_cast<float>(line) };
-				InteractionPoint p;
-				p.Name = "work";
-				p.Position = { 0.0f, 0.0f, -1.6f };
-				e.Interact.emplace();
-				e.Interact->Points.push_back(p);
-				e.Gameplay.emplace();
-				e.Gameplay->Tags = { "Resource.Node", std::string("Resource.Node.") + row.id, KindTag(def) };
-				e.Gameplay->Attributes = { { "Amount", static_cast<float>(def.Capacity), 0.0f, static_cast<float>(def.Capacity) } };
-				if (def.RegenSeconds > 0.0f) e.Gameplay->Attributes.push_back({ "Regrow", 0.0f, 0.0f, 1e6f });   // the regrowth timer: ResourceSystem::Update
-				const std::string kind = row.id;
-				if (kind == "tree")
-				{
-					Part(w, id, name + " Trunk", MeshShape::Cube, { 0.0f, 1.2f, 0.0f }, { 0.35f, 2.4f, 0.35f }, { 0.36f, 0.24f, 0.13f });
-					Part(w, id, name + " Crown", MeshShape::Sphere, { 0.0f, 3.0f, 0.0f }, { 2.4f, 2.0f, 2.4f }, { 0.2f, 0.45f, 0.16f });
-				}
-				else if (kind == "rock")
-					Part(w, id, name + " Rock", MeshShape::Sphere, { 0.0f, 0.5f, 0.0f }, { 1.4f, 1.0f, 1.2f }, { 0.45f, 0.45f, 0.47f });
-				else if (kind == "berry_bush")
-				{
-					Part(w, id, name + " Bush", MeshShape::Sphere, { 0.0f, 0.5f, 0.0f }, { 1.2f, 0.9f, 1.2f }, { 0.18f, 0.4f, 0.14f });
-					Part(w, id, name + " Berries", MeshShape::Sphere, { 0.3f, 0.7f, 0.5f }, glm::vec3(0.2f), { 0.7f, 0.1f, 0.25f });
-				}
-				else
-					Part(w, id, name + " Tuft", MeshShape::Cube, { 0.0f, 0.3f, 0.0f }, { 0.5f, 0.6f, 0.5f }, { 0.55f, 0.6f, 0.25f });
-				out.Nodes.push_back(e.Name);
+				MakeNode(w, root, it->second, i + 1, { (static_cast<float>(inLine) - (lineCount - 1) * 0.5f) * 4.0f, 0.0f, row.z + 16.0f * static_cast<float>(line) }, out);
 			}
 		}
+		return out;
+	}
+
+	std::vector<std::pair<std::string, int>> PatchCounts(const std::map<std::string, ResourceNodeDef>& nodes, int workers)
+	{
+		std::vector<std::pair<std::string, int>> counts;
+		for (const auto& [id, def] : nodes)
+			if (const int n = def.Patch.CountFor(workers); n > 0) counts.push_back({ id, n });
+		return counts;
+	}
+
+	ResourceLayout BuildResourcePatch(EntityWorld& w, const glm::vec3& origin, const std::map<std::string, ResourceNodeDef>& nodes, int workers)
+	{
+		ResourceLayout out;
+		const EntityId root = MakeRoot(w, origin, out);
+		const std::vector<std::pair<std::string, int>> counts = PatchCounts(nodes, workers);
+		std::map<std::string, std::vector<glm::vec3>> placed;   // where each type went, for the types that stand beside another
+		float cursor = 0.0f;                                    // the next free depth (z) of the patch
+		for (int pass = 0; pass < 2; ++pass)
+			for (const auto& [id, n] : counts)
+			{
+				const ResourceNodeDef& def = nodes.at(id);
+				const ResourcePatchDef& patch = def.Patch;
+				const bool beside = !patch.Near.empty() && nodes.count(patch.Near) && patch.Near != id;
+				if (beside != (pass == 1)) continue;
+				std::vector<glm::vec3> spots;
+				if (beside)
+				{
+					// Sibling nodes (a big tree and its young shoots): each stands beside a node of the other type, on a growing ring if there are more of them.
+					const std::vector<glm::vec3> anchors = placed[patch.Near];
+					if (anchors.empty()) continue;
+					for (int i = 0; i < n; ++i)
+					{
+						const int turn = i / static_cast<int>(anchors.size());
+						const float angle = 0.9f + 2.4f * static_cast<float>(turn), radius = 2.4f + 1.0f * static_cast<float>(turn);
+						spots.push_back(anchors[static_cast<size_t>(i) % anchors.size()] + glm::vec3(std::cos(angle), 0.0f, std::sin(angle)) * radius);
+					}
+				}
+				else
+				{
+					const float sp = patch.Spacing;
+					float depth = sp;
+					if (patch.Shape == "ring")
+					{
+						const float r = std::max(sp, sp * static_cast<float>(n) / 6.2831853f);
+						for (int i = 0; i < n; ++i)
+						{
+							const float a = 6.2831853f * static_cast<float>(i) / static_cast<float>(n);
+							spots.push_back({ std::cos(a) * r, 0.0f, cursor + r + std::sin(a) * r });
+						}
+						depth = 2.0f * r + sp;
+					}
+					else if (patch.Shape == "cluster")
+					{
+						// A golden-angle scatter: even, no two on top of each other, the same every time.
+						const float reach = sp * 0.8f * std::sqrt(static_cast<float>(n));
+						for (int i = 0; i < n; ++i)
+						{
+							const float a = 2.3999632f * static_cast<float>(i), r = sp * 0.8f * std::sqrt(static_cast<float>(i) + 0.5f);
+							spots.push_back({ std::cos(a) * r, 0.0f, cursor + reach + sp + std::sin(a) * r });
+						}
+						depth = 2.0f * (reach + sp);
+					}
+					else
+					{
+						for (int i = 0; i < n; ++i)
+						{
+							const int line = i / kPerRow, inLine = i % kPerRow, lineCount = std::min(kPerRow, n - line * kPerRow);
+							spots.push_back({ (static_cast<float>(inLine) - (lineCount - 1) * 0.5f) * sp, 0.0f, cursor + sp * static_cast<float>(line) });
+						}
+						depth = sp * static_cast<float>((n + kPerRow - 1) / kPerRow);
+					}
+					cursor += depth + 3.0f;
+				}
+				for (int i = 0; i < n; ++i) MakeNode(w, root, def, i + 1, spots[static_cast<size_t>(i)], out);
+				placed[id] = spots;
+			}
 		return out;
 	}
 
@@ -218,7 +361,8 @@ namespace GB
 				if (Entity* part = entities.Find(c))
 				{
 					const bool gatherable = part->Name.find("Crown") != std::string::npos || part->Name.find("Berries") != std::string::npos
-						|| part->Name.find("Tuft") != std::string::npos || part->Name.find(" Rock") != std::string::npos;
+						|| part->Name.find("Tuft") != std::string::npos || part->Name.find(" Rock") != std::string::npos || part->Name.find(" Mound") != std::string::npos
+							|| part->Name.find(" Reeds") != std::string::npos || part->Name.find(" Flint") != std::string::npos || part->Name.find(" Ore") != std::string::npos;
 					const bool want = !(empty && gatherable);
 					if (part->Active != want) part->Active = want;
 				}

@@ -17,14 +17,15 @@ using namespace GB;
 
 struct Field
 {
-	Field()
+	// patchWorkers 0 = the small default patch; more = the patch the node definitions describe, for that many workers (E1)
+	explicit Field(int patchWorkers = 0)
 	{
 		RegisterEraOneItems(Items, Recipes, Defs);
 		RegisterResourceContent(Gameplay.Library, Defs);
-		Layout = BuildResources(Entities, glm::vec3(0.0f), Defs);
+		Layout = patchWorkers > 0 ? BuildResourcePatch(Entities, glm::vec3(0.0f), Defs, patchWorkers) : BuildResources(Entities, glm::vec3(0.0f), Defs);
 		const EntityId w = Entities.Create("Worker");
 		Entities.Find(w)->Gameplay.emplace();
-		Entities.Find(w)->Gameplay->Abilities = { "Chop", "Mine", "Gather", "PullFiber" };
+		Entities.Find(w)->Gameplay->Abilities = { "Chop", "Mine", "Gather", "PullFiber", "Collect" };
 		Gameplay.Load(Entities);
 		Rules.Bind(Gameplay, Defs, [this](const std::string& who, const std::string& item, int n) { if (who == "Worker") Bag.Add(Items, item, n); });
 	}
@@ -183,6 +184,111 @@ int main()
 		pick.Bag.Add(pick.Items, "flint_pickaxe", 1);
 		pick.Frames(2);
 		Check(pick.Do("Mine", "rock 1") && pick.Bag.Count("stone") == 2, "a flint pickaxe mines two stones a swing");
+	}
+
+	// The patch by data (E1): what the node definitions say is what is placed, scaled by the number of workers.
+	{
+		Field probe;
+		for (int workers : { 1, 2, 5 })
+		{
+			const ResourceCounts legacy = ScaledResources(workers);
+			std::map<std::string, int> counts;
+			for (const auto& [id, n] : PatchCounts(probe.Defs, workers)) counts[id] = n;
+			Check(counts["tree"] == legacy.Trees && counts["rock"] == legacy.Rocks && counts["berry_bush"] == legacy.Bushes && counts["fiber_grass"] == legacy.Grass,
+				"the four old node types keep the scale of ScaledResources");
+			Check(counts["old_tree"] == 1 + workers && counts["young_tree"] == 1 + workers && counts["copper_vein"] == 1 && counts["clay_bank"] == 1, "the new types scale with their own numbers");
+		}
+
+		Field p1(1), p3(3), again(3);
+		size_t expected1 = 0, expected3 = 0;
+		for (const auto& [id, n] : PatchCounts(p1.Defs, 1)) expected1 += static_cast<size_t>(n);
+		for (const auto& [id, n] : PatchCounts(p3.Defs, 3)) expected3 += static_cast<size_t>(n);
+		Check(p1.Layout.Nodes.size() == expected1 && p3.Layout.Nodes.size() == expected3 && expected3 > expected1, "a bigger tribe gets a bigger patch, exactly as the data counts");
+		for (const char* name : { "old tree 1", "young tree 1", "clay bank 1", "reed bed 1", "flint outcrop 1", "copper vein 1", "tree 1", "rock 1", "berry bush 1", "fiber grass 1" })
+			Check(p3.Gameplay.Find(name) != nullptr, "every type of the patch is placed");
+		Check(p3.Gameplay.Find("old tree 4") != nullptr && p3.Gameplay.Find("old tree 5") == nullptr, "1 + 3 old trees for three workers");
+		bool same = p3.Layout.Nodes == again.Layout.Nodes;
+		for (const std::string& n : p3.Layout.Nodes)
+		{
+			const glm::vec3 a = p3.Entities.Find(p3.Entities.FindByName(n))->Transform.Position, b = again.Entities.Find(again.Entities.FindByName(n))->Transform.Position;
+			same = same && a == b;
+		}
+		Check(same, "the same data and workers give the same patch");
+
+		// no two nodes of the patch stand on top of each other
+		bool apart = true;
+		for (size_t i = 0; i < p3.Layout.Nodes.size(); ++i)
+			for (size_t j = i + 1; j < p3.Layout.Nodes.size(); ++j)
+			{
+				const glm::vec3 a = p3.Entities.Find(p3.Entities.FindByName(p3.Layout.Nodes[i]))->Transform.Position, b = p3.Entities.Find(p3.Entities.FindByName(p3.Layout.Nodes[j]))->Transform.Position;
+				if (glm::distance(a, b) < 1.5f) apart = false;
+			}
+		Check(apart, "and none overlaps another");
+		const glm::vec3 oldPos = p3.Entities.Find(p3.Entities.FindByName("old tree 1"))->Transform.Position, youngPos = p3.Entities.Find(p3.Entities.FindByName("young tree 1"))->Transform.Position;
+		Check(glm::distance(oldPos, youngPos) < 4.0f, "a young tree stands beside an old one (sibling nodes)");
+
+		// the kind of a node comes from its data
+		Check(p3.Gameplay.Find("old tree 1")->HasTag("Resource.Wood") && p3.Gameplay.Find("clay bank 1")->HasTag("Resource.Loose.Clay") && p3.Gameplay.Find("clay bank 1")->HasTag("Resource.Loose")
+			&& p3.Gameplay.Find("flint outcrop 1")->HasTag("Resource.Stone") && p3.Gameplay.Find("flint outcrop 1")->HasTag("Resource.Stone.Flint") && !p3.Gameplay.Find("flint outcrop 1")->HasTag("Resource.Loose")
+			&& p3.Gameplay.Find("young tree 1")->HasTag("Resource.Plant") && !p3.Gameplay.Find("young tree 1")->HasTag("Resource.Wood"), "the kind tags come from the definition, not from the item");
+		// a definition without a kind (an older content file) is still typed by its item
+		{
+			std::map<std::string, ResourceNodeDef> old = probe.Defs;
+			for (auto& [id, d] : old) d.Kind.clear();
+			EntityWorld w;
+			BuildResources(w, glm::vec3(0.0f), old);
+			GameplayWorld g;
+			g.Load(w);
+			Check(g.Find("tree 1")->HasTag("Resource.Wood") && g.Find("rock 1")->HasTag("Resource.Stone") && g.Find("berry bush 1")->HasTag("Resource.Plant"), "without a kind the old rule (by item) still applies");
+		}
+
+		// working them: each ability matches by the kind tag
+		Field f(2);
+		f.Bag.Add(f.Items, "stone_axe", 1);
+		f.Bag.Add(f.Items, "stone_pickaxe", 1);
+		f.Frames(2);
+		Check(f.Do("Gather", "young tree 1") && f.Bag.Count("branch") == 1, "branches come off a young tree by hand");
+		Check(!f.Do("Chop", "young tree 1") && !f.Do("Gather", "old tree 1"), "an axe is for the old tree, hands cannot gather it");
+		f.Frames(60);
+		Check(f.Do("Chop", "old tree 1") && f.Bag.Count("wood") == 1 && f.Amount("old tree 1") == 7, "the old tree gives wood to the axe");
+		f.Frames(60);
+		Check(f.Do("Collect", "clay bank 1") && f.Bag.Count("clay") == 2, "clay is collected by hand, two at a time");
+		Check(!f.Do("Gather", "clay bank 1") && !f.Do("Mine", "clay bank 1"), "gathering and mining do not work on clay");
+		f.Frames(60);
+		Check(f.Do("Collect", "reed bed 1") && f.Bag.Count("reed") == 2, "reeds too");
+		f.Frames(60);
+		Check(f.Do("Mine", "flint outcrop 1") && f.Bag.Count("flint") == 1, "flint is mined with a pickaxe");
+		f.Frames(60);
+		for (int i = 0; i < 4; ++i) { Check(f.Do("Mine", "copper vein 1"), "mine copper"); f.Frames(60); }
+		Check(f.Bag.Count("copper_ore") == 4 && f.Amount("copper vein 1") == 0, "four minings empty a copper vein");
+		f.Frames(2);
+		const EntityId ore = f.Entities.FindByName("copper vein 1 Ore 1"), base = f.Entities.FindByName("copper vein 1 Base");
+		Check(ore != NullEntity && !f.Entities.Find(ore)->Active && base != NullEntity && f.Entities.Find(base)->Active, "an emptied vein loses its ore and keeps its rock");
+		f.Frames(60 * 600);
+		Check(f.Amount("copper vein 1") == 0, "copper never grows back");
+		Check(!f.Do("Mine", "old tree 1") && !f.Do("Collect", "tree 1"), "a pickaxe does not fell a tree");
+		// without the tool nothing is mined
+		Field bare(2);
+		Check(!bare.Do("Mine", "flint outcrop 1") && !bare.Do("Mine", "copper vein 1") && !bare.Do("Chop", "old tree 1"), "stone and big trees need their tools");
+
+		// regrowth by season: clay comes back with the seasons' rate, not in winter
+		f.Gameplay.Find("reed bed 1")->Attributes().SetBase("Amount", 0.0f);
+		for (int i = 0; i < 60 * 120; ++i) f.Rules.Update(f.Gameplay, dt, 0.0f);
+		Check(f.Amount("reed bed 1") == 0, "reeds do not regrow in winter");
+		for (int i = 0; i < 60 * 41; ++i) f.Rules.Update(f.Gameplay, dt, 0.5f);
+		Check(f.Amount("reed bed 1") == 2, "and come back at the speed of the season (half speed: 2 every 40 s)");
+		f.Frames(2);
+		Check(!f.Gameplay.Find("reed bed 1")->HasTag("State.Depleted"), "a regrown bed is no longer depleted");
+
+		// each type looks different: size and colour tell them apart
+		auto part = [&](const char* name) -> const Entity* { const EntityId id = f.Entities.FindByName(name); return id == NullEntity ? nullptr : f.Entities.Find(id); };
+		const Entity* youngTrunk = part("young tree 1 Trunk"); const Entity* oldTrunk = part("old tree 1 Trunk");
+		Check(youngTrunk && oldTrunk && oldTrunk->Transform.Scale.y > 2.0f * youngTrunk->Transform.Scale.y, "an old tree is much bigger than a young one");
+		const Entity* clay = part("clay bank 1 Mound 1"); const Entity* reed = part("reed bed 1 Reeds 1"); const Entity* flint = part("flint outcrop 1 Flint 1"); const Entity* ore1 = part("copper vein 1 Ore 1");
+		Check(clay && clay->Mesh->Albedo.r > clay->Mesh->Albedo.g && clay->Mesh->Albedo.g > clay->Mesh->Albedo.b, "clay is brown");
+		Check(reed && reed->Mesh->Albedo.g > reed->Mesh->Albedo.r && reed->Transform.Scale.y > 1.5f && reed->Transform.Scale.x < 0.2f, "reeds are tall, thin and green");
+		Check(flint && flint->Mesh->Albedo.r < 0.3f && flint->Mesh->Albedo.g < 0.3f && flint->Mesh->Albedo.b < 0.3f, "flint is dark grey");
+		Check(ore1 && ore1->Mesh->Albedo.g > ore1->Mesh->Albedo.r, "copper ore is greenish");
 	}
 
 	// The whole loop, twice.

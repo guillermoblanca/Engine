@@ -53,7 +53,7 @@ Orden de dependencias; tamaños relativos (**S** una sesión de trabajo, **M** u
 |---|---|---|
 | H0 Contrato de actor | Hecho | `Actor`, `ActorWorld`; ~45 µs por actor y fotograma ([COSTE_ACTOR.md](COSTE_ACTOR.md)) |
 | H1 Habilidades (GAS) | Hecho | `GB/Gameplay`, [habilidades.md](habilidades.md) |
-| H2 Objetos, inventario y recursos | Hecho salvo lo listado en [OBJETOS.md](OBJETOS.md). E2 (herramientas con nivel: potencia y velocidad; contenedores que amplían la mochila) hecho | `Items`, `Resources`, `assets/data/era1.json` |
+| H2 Objetos, inventario y recursos | Hecho salvo lo listado en [OBJETOS.md](OBJETOS.md). E2 (herramientas con nivel: potencia y velocidad; contenedores que amplían la mochila) hecho. E1 hecho: tipo de nodo desde datos (`kind`), nodos por tamaño (`young_tree`, `old_tree`, `clay_bank`, `reed_bed`, `flint_outcrop`, `copper_vein`), colocación por datos (`patch`, escalada por trabajadores), combustible por objeto (`fuel`: madera 2, rama 1) y cobre | `Items`, `Resources`, `assets/data/era1.json` |
 | H3 Mundo interactivo y ecología | Parcial: huerto, interactivos, estaciones, conejos y panel World state; falta la colisión de la puerta, fauna con más especies y que la hoguera de la tribu sea un interactivo | [INTERACTIVOS.md](INTERACTIVOS.md), [ECOLOGIA.md](ECOLOGIA.md) |
 | H4 Persistencia v1 | Hecho (v1) con huecos: no guarda el estado de la tribu, los temporizadores de los interactivos ni el destino de los conejos | [GUARDADO.md](GUARDADO.md) |
 | H5 Navegación y percepción | En curso (sesiones propias de navegación y de percepción e IA) | `GB/Navigation`, `GB/AI` |
@@ -359,7 +359,7 @@ Y los **modelos**: herramientas, semillas y plantas, regadera, pala, cestas, obj
 |---|---|
 | H0 · Consolidación y contrato de actor | **Hecho** (rama `feature/actor-h0`): sets, interacciones, grafo de estados y línea de tiempo fusionados; manifiesto de datos con los siete packs (`AnimManifest`); **contrato de actor** (`Actor`, `ActorWorld`, `OrderSource`) con tests y coste medido (`docs/COSTE_ACTOR.md`) |
 | H1 · Núcleo de habilidades (GAS) | En curso (`feature/huerto-gas`) |
-| H2 · Objetos, inventario y recursos | **En curso** (núcleo hecho, [docs/OBJETOS.md](OBJETOS.md)): objetos, inventario con peso y apilado, nodos con regeneración, recetas, mochila por actor guardada con la partida y `actor bag`. Nodos de recurso como entidades con `Chop`, `Mine` y `Gather` y `resources build`. Falta: montajes propios de recolección, agarre visible, estaciones en la escena y datos en fichero |
+| H2 · Objetos, inventario y recursos | **En curso** (núcleo hecho, [docs/OBJETOS.md](OBJETOS.md)): objetos, inventario con peso y apilado, nodos con regeneración, recetas, mochila por actor guardada con la partida y `actor bag`. Nodos de recurso como entidades con `Chop`, `Mine` y `Gather` y `resources build`. E1 (nodos más finos, combustible por objeto y cobre) hecho. Falta: montajes propios de recolección, agarre visible y estaciones en la escena |
 | H3 · Mundo interactivo y ecología | **Casi cerrado**: huerto, nodos de recurso que se regeneran, la primera tribu ([TRIBU.md](TRIBU.md)), interactivos con estado persistente ([INTERACTIVOS.md](INTERACTIVOS.md)), estaciones y conejos con ecología básica ([ECOLOGIA.md](ECOLOGIA.md)) y el panel *World state*. Falta: colisión de la puerta, estaciones sobre el aspecto del mundo y la regeneración de nodos, más especies |
 | H4 · Persistencia v1 | **Hecho** (`GB/Save`, [docs/GUARDADO.md](GUARDADO.md)): formato `.gbsave` versionado con migraciones y partidas antiguas en `tests/golden/saves/`, guardado diferencial sobre la semilla, escritura atómica con copia, autoguardado, repetición determinista y comandos del editor. Queda para otros hitos: inventarios (H2), enganchar el `Actor` (H0) y la edición de terreno |
 | H5 · Navegación y percepción | **Hecho (v1)**. Navegación ([NAVEGACION.md](NAVEGACION.md)): cuadrícula con costes, A\* con grafo de regiones, seguimiento con evitación local, actualización por regiones y depuración (`nav`). Percepción ([IA.md](IA.md)): vista con oclusión, oído, memoria por agente y por clan, depuración (`ai debug`). Huecos: la percepción es O(miembros × cosas) y no escala aún a 100 NPC |
@@ -413,7 +413,7 @@ Reglas de la ordenación: primero se paga lo que impide dar por cerrado un hito 
 | Hito E | Qué es | Tamaño | Se apoya en | Hito del plan al que cuenta |
 |---|---|---|---|---|
 | E0 | Catálogo ampliado de materiales, herramientas y recetas (solo datos, `era1_ampliado.json`) | S, hecho | nada | H2, H17 |
-| E1 | Nodos más finos: tamaños, etiqueta de tipo desde datos, colocación guiada por datos | M | E0 | H2, H3 |
+| E1 | Nodos más finos: tamaños, etiqueta de tipo desde datos, colocación guiada por datos | M, hecho | E0 | H2, H3 |
 | E2 | Herramientas con nivel (potencia, velocidad) y contenedores que amplían la mochila | S–M | E0 | H2 |
 | E3 | Aptitudes por práctica y oficios derivados | M | E2, H7 | H7 |
 | E4 | Conocimiento por agente y por clan; recetas desbloqueables | M–L | E0, H11 | H11 |
