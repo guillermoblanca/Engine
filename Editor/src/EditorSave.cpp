@@ -349,6 +349,7 @@ namespace GB::Editor
 		m_App.StepResources();
 		m_App.StepWorld(static_cast<double>(m_App.m_SimTick) / 60.0);
 		m_App.m_Interactives.Update(static_cast<float>(kSimDt), &m_App.m_SceneEditor.World());
+		m_App.m_Tribe.SetViewer({ m_App.m_Camera.Position.x, m_App.m_Camera.Position.z });   // far from the camera the members are abstract agents
 		m_App.m_Tribe.SetWorldClock(static_cast<double>(m_App.m_SimTick) / 60.0);
 		m_App.m_Tribe.Update(static_cast<float>(kSimDt));
 		++m_App.m_SimTick;

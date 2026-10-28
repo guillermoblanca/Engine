@@ -1,6 +1,18 @@
 {
   "items": [
     {
+      "bagSlots": 6,
+      "bagWeight": 8.0,
+      "category": "container",
+      "id": "basket_wicker",
+      "name": "Wicker basket",
+      "stack": 1,
+      "tags": [
+        "Item.Container.Basket"
+      ],
+      "weight": 1.5
+    },
+    {
       "ability": "Eat",
       "category": "food",
       "id": "berry",
@@ -10,6 +22,16 @@
         "Item.Food"
       ],
       "weight": 0.1
+    },
+    {
+      "category": "resource",
+      "id": "branch",
+      "name": "Branch",
+      "stack": 20,
+      "tags": [
+        "Item.Resource.Wood.Branch"
+      ],
+      "weight": 0.6
     },
     {
       "ability": "Place",
@@ -24,11 +46,69 @@
     },
     {
       "category": "resource",
+      "id": "cordage",
+      "name": "Cordage",
+      "stack": 20,
+      "tags": [
+        "Item.Resource.Cordage"
+      ],
+      "weight": 0.3
+    },
+    {
+      "category": "resource",
       "id": "fiber",
       "name": "Plant fiber",
       "stack": 20,
       "tags": [
         "Item.Resource.Fiber"
+      ],
+      "weight": 0.2
+    },
+    {
+      "category": "resource",
+      "id": "flint",
+      "name": "Flint",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Stone.Flint"
+      ],
+      "weight": 1.0
+    },
+    {
+      "ability": "Chop",
+      "category": "tool",
+      "id": "flint_axe",
+      "name": "Flint axe",
+      "power": 1,
+      "socket": "RightHand",
+      "speed": 1.15,
+      "stack": 1,
+      "tags": [
+        "Item.Tool.Axe.Flint"
+      ],
+      "weight": 2.2
+    },
+    {
+      "ability": "Mine",
+      "category": "tool",
+      "id": "flint_pickaxe",
+      "name": "Flint pickaxe",
+      "power": 1,
+      "socket": "RightHand",
+      "speed": 1.15,
+      "stack": 1,
+      "tags": [
+        "Item.Tool.Pickaxe.Flint"
+      ],
+      "weight": 2.6
+    },
+    {
+      "category": "resource",
+      "id": "reed",
+      "name": "Reed",
+      "stack": 20,
+      "tags": [
+        "Item.Resource.Fiber.Reed"
       ],
       "weight": 0.2
     },
@@ -132,6 +212,16 @@
     {
       "ability": "Craft",
       "count": 1,
+      "id": "basket_wicker",
+      "inputs": {
+        "branch": 2,
+        "reed": 5
+      },
+      "output": "basket_wicker"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
       "id": "campfire",
       "inputs": {
         "stone": 3,
@@ -139,6 +229,39 @@
       },
       "output": "campfire",
       "tool": "Item.Tool.Axe"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "cordage",
+      "inputs": {
+        "fiber": 3
+      },
+      "output": "cordage"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "flint_axe",
+      "inputs": {
+        "branch": 2,
+        "cordage": 1,
+        "flint": 2
+      },
+      "output": "flint_axe",
+      "station": "workbench"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "flint_pickaxe",
+      "inputs": {
+        "branch": 2,
+        "cordage": 1,
+        "flint": 3
+      },
+      "output": "flint_pickaxe",
+      "station": "workbench"
     },
     {
       "ability": "Craft",

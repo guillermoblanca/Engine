@@ -326,7 +326,25 @@ Todo lo que dice "pedir al artista" se ha añadido a [ANIMACIONES_PENDIENTES.md]
 
 Los hitos son independientes salvo las flechas de la tabla del apartado 2: E4 a E5 y E6 se pueden hacer en paralelo por carriles distintos (simulación social frente a gameplay).
 
-## 15. Decisiones que debe tomar el usuario
+## 15. Decisiones del usuario
+
+**Respondidas** (todas las de abajo salvo la lectura dudosa de la 7). Las preguntas originales se conservan después de la tabla.
+
+| # | Decisión | Respuesta | Qué implica |
+|---|---|---|---|
+| 1 | Árbol grande: nodos hermanos o `Yields` | **Nodos hermanos ahora, `Yields` como destino** (recomendación aceptada) | E1 coloca `young_tree` y `old_tree` (ramas, troncos) como nodos distintos sin código nuevo de salidas; `Yields` queda para un hito posterior |
+| 2 | ¿La rama alimenta la hoguera? | **Sí, pero dura menos**: hace falta más rama que madera normal para el mismo calor | Campo de datos `fuel` por objeto (combustible que da en `Stoke`): madera 2, rama 1 (o menos); `FuelPerWood` de `InteractiveSystem` pasa a salir del objeto |
+| 3 | Caducidad obligatoria | **Solo la comida de la mochila y del almacén** al principio (recomendación aceptada); los edificios mejoran la vida útil después | E6 empieza por comida en `Inventory` (frescura por casilla); toca el guardado con migración de H4; el hueco ya está previsto en `docs/GUARDADO.md` |
+| 4 | Aptitudes | **Por agente; el oficio las potencia** | E3: atributos de aptitud por agente (se heredan en H9); el oficio multiplica la ganancia y el rendimiento |
+| 5 | Conocimiento | **Ambos** (propuesta aceptada): el clan posee lo que alguien conoce, el agente solo hace lo que sabe, y se puede perder | E4 |
+| 6 | Descubrimiento | **Azar sembrado** (propuesta aceptada): probabilidad derivada del hash del nombre y del reloj, reproducible con la semilla | E5 |
+| 7 | Cultivos de partida | Grano, bayas **y raíces**; **las estaciones pueden arruinar una cosecha** | E7: tres cultivos; helada, sequía y exceso de lluvia estropean la cosecha según el estado de la parcela (leído «raíces» donde la respuesta decía «brauces»: confirmar) |
+| 8 | Quién decide los edificios | **El clan decide solo**; **el jugador puede proponer** si está en el clan | E8/E9: la obra nace del tablón; el jugador publica propuestas en el tablón, sin ser necesario para construir |
+| 9 | Cobre y era 2 | **Añadirlo** al JSON desde ahora | El cobre y sus objetos entran en `assets/data/era1.json` (aunque la forja llegue en E10) |
+| 10 | Animaciones para el artista | **Se guarda el listado** para buscarlas | `docs/ANIMACIONES_PENDIENTES.md` es la lista de encargo |
+| 11 | Mallas procedurales | **Modelos del artista a la larga; ahora se prototipa** y los gráficos se cambian cuando estén las mecánicas | E12 queda como reserva y para cimientos; nada de pulir mallas ahora |
+
+**Preguntas originales.**
 
 1. **Árbol grande: ¿nodos hermanos (ya, sin código) o `Yields` (un nodo, varias salidas)?** Se recomienda hermanos para probar y `Yields` como destino.
 2. **¿La rama cuenta como combustible de la hoguera?** La etiqueta `Item.Resource.Wood.Branch` hereda de `Item.Resource.Wood`; sin más, `Stoke` la aceptaría. Se puede aceptar (más realista) o forzar sólo troncos.

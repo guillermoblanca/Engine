@@ -32,6 +32,8 @@ namespace GB
 		// Newer knowledge replaces older; a sound never replaces a sighting that is not older than it.
 		void Observe(const MemoryEntry& entry);
 		const MemoryEntry* Find(const std::string& name) const;
+		// Looks at a known thing again: updates where, how much and when in place (the fast path of Observe). False when it was not known.
+		bool Refresh(const std::string& name, const glm::vec2& pos, int amount, double seen);
 		bool Forget(const std::string& name);
 		void Clear() { m_Entries.clear(); }
 		// Drops what has not been seen for longer than the lifetime; returns how many.

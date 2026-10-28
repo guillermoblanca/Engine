@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/AI/Abstract.h"
 #include "GB/AI/Memory.h"
 #include "GB/AI/Mind.h"
 #include "GB/AI/Needs.h"
@@ -10,6 +11,7 @@
 #include "GB/Gameplay/Items.h"
 #include <glm/glm.hpp>
 #include <map>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -32,9 +34,15 @@ namespace GB
 		virtual ~ITribeBody() = default;
 		virtual bool Busy() const = 0;                                     // still doing the last orders
 		virtual bool Failed() const = 0;                                   // the last orders failed
+		virtual std::string Error() const { return {}; }                   // why, when it can say
 		virtual glm::vec2 Position() const = 0;                           // x, z
 		virtual bool Do(const std::string& tasks, std::string& error) = 0;   // a task list (see GB/Game/TaskList.h)
 		virtual Inventory& Bag() = 0;
+		// Optional (a body that cannot say answers as if everything were fine):
+		virtual bool CanStandAt(const glm::vec2&) const { return true; }   // can it be sent to this point (not a wall, deep water...)
+		virtual bool CanReach(const glm::vec2& to) const { return CanStandAt(to); }   // ... and is there a way from where it is
+		virtual void Teleport(const glm::vec2&) {}                          // put it there (the abstract agent hands its place back to the body)
+		virtual void SetSuspended(bool) {}                                  // stop animating and drawing it while the tribe simulates it abstractly
 	};
 
 	struct TribeMember
@@ -51,6 +59,11 @@ namespace GB
 		bool Dead = false;
 		std::string Cause;            // what killed it ("Hunger", "Thirst", "Warmth")
 		AgentMind Mind;               // memory, decision and the options it weighed
+		bool Abstract = false;        // simulated without its body (far from the camera): see AbstractAgent
+		AbstractAgent Agent;
+		mutable glm::vec2 Spot{ 0.0f };   // its place at the camp (chosen the first time it is needed)
+		mutable bool HasSpot = false;
+		int SpotTries = 0;
 	};
 
 	struct TribeConfig
@@ -65,6 +78,16 @@ namespace GB
 		float NeedSeconds = 1.0f;     // how often the needs are moved forward
 		float ExploreRadius = 22.0f;  // how far from the camp an unknown-ground trip goes (grows with each trip)
 		float FreshSeconds = 6.0f;    // a sighting this recent is trusted as it is; older ones are checked on arrival
+		int LogLines = 800;           // the log is a ring: the oldest lines go
+		float BusyThinkSeconds = 2.0f;   // a member walking or working with orders in flight looks around this often (and decides the moment its orders end); 4x that when abstract
+		float IdleThinkSeconds = 1.5f;   // a member with nothing to do looks again this often
+		float ShareSeconds = 20.0f;      // the least time between two times a member tells the clan what it knows
+		int ThinkPerFrame = 4;        // members that look around and decide in one call to Update (the rest wait their turn: the work is spread over frames)
+		float DetailRadius = 60.0f;   // members farther than this from the viewer are abstract (0 = always full detail)
+		float DetailMargin = 10.0f;   // ... and become full again within this much less (no flicker at the border)
+		float UpkeepSeconds = 60.0f;  // the camp uses one fibre per member this often (thatch, rope) ...
+		float SpoilSeconds = 100.0f;  // ... and one berry above 20 in the store spoils this often: sinks for what is gathered in excess
+		float DuskShift = 2.0f;       // hours earlier that dusk and night come in winter (and half of it in autumn)
 		NeedsConfig Needs;
 		VisionParams Vision;
 		MemoryConfig Memory;
@@ -90,6 +113,14 @@ namespace GB
 		void Update(float dt);
 		// The clock of the world in seconds (seasons and the hour of the day follow it); without it the tribe uses its own time.
 		void SetWorldClock(double seconds) { m_Clock = seconds; m_ClockSet = true; }
+		// Where the camera is (x, z): members far from it are simulated as abstract agents. Without a viewer everyone is full.
+		void SetViewer(const glm::vec2& pos) { m_Viewer = pos; m_HasViewer = true; }
+		void ClearViewer() { m_HasViewer = false; }
+		int AbstractCount() const { int n = 0; for (const TribeMember& m : m_Members) if (m.Abstract) ++n; return n; }
+		// Takes a member out of the tribe (its claims go too). False when there is none with that name.
+		bool RemoveMember(const std::string& name);
+		// The hours of the day: 1 for a normal hour; what the daily agenda makes of an option now (see IA.md).
+		float AgendaFactor(const std::string& kind, float hour, Season season) const;
 
 		Inventory& Store() { return m_Store; }
 		const Inventory& Store() const { return m_Store; }
@@ -129,6 +160,14 @@ namespace GB
 
 		void RefreshSights();
 		void Look(TribeMember& m);
+		bool IsBusy(const TribeMember& m) const;
+		bool HasFailed(const TribeMember& m) const;
+		glm::vec2 Where(const TribeMember& m) const;
+		bool Run(TribeMember& m, const std::string& orders, std::string& error);
+		std::string WhyFailed(const TribeMember& m) const;
+		void SetDetail(TribeMember& m, bool full);
+		void Upkeep(float dt);
+		void StepAbstract(float dt);
 		void Listen(TribeMember& m);
 		void Share(TribeMember& m);
 		void StepNeeds(TribeMember& m, float dt);
@@ -141,11 +180,13 @@ namespace GB
 		bool ToolsReady() const;
 		bool CanCraftTool(const TribeMember& m) const;
 		float RoleWeight(const TribeMember& m, const std::string& kind) const;
-		std::string NearestKnown(const TribeMember& m, const std::string& kind, float* distance) const;
+		struct Nearest { std::string Name; float Distance = 1e30f; bool Any = false; };
+		std::map<std::string, Nearest> ScanMemory(const TribeMember& m) const;
 		void Say(const TribeMember& m, const std::string& text);
 		void BuildFire();
 		glm::vec2 CampSpot(const TribeMember& m) const;
 		glm::vec2 FireSpot(const TribeMember& m) const;
+		glm::vec2 StandingSpot(const TribeMember& m, const glm::vec2& centre, float angle, float radius, bool path = true) const;
 		glm::vec2 FirePos() const { return Config.Camp + glm::vec2(1.5f, 0.0f); }
 		size_t IndexOf(const TribeMember& m) const;
 		void Burn(float dt);
@@ -164,7 +205,13 @@ namespace GB
 		std::vector<std::string> m_Log;
 		double m_Time = 0.0, m_Clock = 0.0;
 		bool m_ClockSet = false;
-		float m_Think = 0.0f, m_NeedTimer = 0.0f;
+		float m_Think = 0.0f, m_NeedTimer = 0.0f, m_UpkeepTimer = 0.0f, m_SpoilTimer = 0.0f;
+		size_t m_Cursor = 0;                           // the member that gets the next turn at deciding
+		double m_SightsTime = -1e9;
+		glm::vec2 m_Viewer{ 0.0f };
+		bool m_HasViewer = false;
+		std::map<std::string, AbilityRuntime*> m_Runtimes;   // the runtime of each abstract member's ability system, lent back when it is full again
+		std::map<std::string, std::vector<size_t>> m_ByKind;   // the sights by kind of node
 		bool m_Fire = false;
 		bool m_Burning = false;
 		float m_FireTimer = 0.0f;
@@ -174,6 +221,10 @@ namespace GB
 		std::vector<Sight> m_Sights;
 		std::map<std::string, size_t> m_SightIndex;
 		std::vector<Occluder> m_Occluders;
+		OccluderGrid m_OccGrid;
+		std::unordered_map<long long, std::vector<size_t>> m_SightCells;   // the sights filed by place, so a look only visits what is near
+		std::vector<Occluder> m_OccBuilt;   // what the grid was built from
+		float m_LodTimer = 0.0f;
 		std::map<std::string, glm::vec2> m_PosCache;
 		size_t m_CacheEntities = 0;
 	};
