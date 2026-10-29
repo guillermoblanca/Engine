@@ -82,6 +82,13 @@ int main(int argc, char** argv)
 	setup.Clans = clans;
 	setup.Combat = combat;
 	setup.HostileClans = hostile;
+	if (clans > 1)   // the budgets of the scale runs: without them a goal across water makes searches over the whole map (seed 1, 3 clans, did not pass 300 s in a quarter of an hour)
+	{
+		setup.PlanBudget = 4;
+		setup.PlanCells = 20000;
+		setup.PathCache = 128;
+		setup.ThinkPerFrame = 6;
+	}
 	setup.Telemetry = path.empty() ? nullptr : &sink;
 	setup.TelemetryEvery = every;
 	GB::SimRun run(setup);
