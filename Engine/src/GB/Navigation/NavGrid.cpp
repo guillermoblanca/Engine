@@ -122,8 +122,15 @@ namespace GB
 				const float gz = (m_Ground(p.x, p.y + half) - m_Ground(p.x, p.y - half)) / cs;
 				const size_t k = static_cast<size_t>(Index(i, j));
 				m_Slope[k] = Quantize(std::sqrt(gx * gx + gz * gz), 100.0f);
-				const float surface = m_Water(p.x, p.y);
-				m_Depth[k] = surface > -1e8f ? Quantize(surface - m_Ground(p.x, p.y), 100.0f) : 0;
+				// the deepest water of the cell (its centre and the middles of its sides), not only the centre's: on a steep bank the centre could be
+				// wadeable while a walker crossing the cell steps into water deeper than it can wade (found by the H20 sweep: alpine seed 3, 1.1 m)
+				float deepest = -1e9f;
+				for (const glm::vec2 q : { p, glm::vec2(p.x + half, p.y), glm::vec2(p.x - half, p.y), glm::vec2(p.x, p.y + half), glm::vec2(p.x, p.y - half) })
+				{
+					const float surface = m_Water(q.x, q.y);
+					if (surface > -1e8f) deepest = std::max(deepest, surface - m_Ground(q.x, q.y));
+				}
+				m_Depth[k] = deepest > -1e8f ? Quantize(deepest, 100.0f) : 0;
 				m_Veg[k] = m_Config.Vegetation ? Quantize(m_Config.Vegetation(p.x, p.y), 255.0f) : 0;
 				const bool outside = p.x < m_BoundsMin.x || p.y < m_BoundsMin.y || p.x > m_BoundsMax.x || p.y > m_BoundsMax.y;
 				m_Flags[k] = static_cast<uint8_t>((m_Flags[k] & kObstacle) | (outside ? kOutside : 0));
@@ -562,6 +569,10 @@ namespace GB
 		bool exactGoal = true;
 		if (CostWith(goal, profile, extra) < 0.0f)   // the goal is in a wall (an interaction point next to a trunk): go to the nearest free cell, then walk on
 		{
+			// ...but only a wall of things (a trunk, a rock, an extra obstacle): a goal in deep water or up a cliff is not walked on to. The path ends on
+			// the nearest free cell (the H20 sweep found members walking from the bank into a lake 2.4 m deep, to a node that stood in it)
+			const size_t gk = static_cast<size_t>(goal);
+			if (!m_Flags[gk] && CostAt(goal, profile) < 0.0f) exactGoal = false;
 			const int free = NearestWalkable(gi, gj, profile, extra, 4);
 			if (free >= 0) goal = free;
 			else exactGoal = false;   // (a whole block of wall: search for the nearest cell that can be reached, it ends there)

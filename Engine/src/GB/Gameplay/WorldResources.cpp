@@ -161,7 +161,15 @@ namespace GB
 		};
 		// The biome (above) and the distance to the water come from the map baked with the world: a true distance to the water as it lies (the river's
 		// banks, the irregular shore of the lake), and a read of a grid instead of a walk along the whole river per question.
-		g.WaterDistance = [w](float x, float z) { return w->WaterDistanceAt(x, z); };
+		// The map is sampled every few metres: a hollow below the lake's level narrower than a sample (the steep valleys of the alpine world) is
+		// water to the walkers (MakeTerrainCharacterWorld) and not to the map, and a node could stand in it 2 m deep (found by the H20 sweep: alpine
+		// seed 3, a flint outcrop nobody could reach). The point itself is asked as the walkers ask it.
+		g.WaterDistance = [w, t](float x, float z)
+		{
+			const float ground = t->GetHeight(x, z);
+			if ((t->HasLake() && ground < t->GetWaterLevel()) || t->GetRiverLevelAt(x, z) > ground) return 0.0f;
+			return w->WaterDistanceAt(x, z);
+		};
 		for (const TreePlacement& tree : world.Trees) g.Blockers.push_back({ glm::vec2(tree.Position.x, tree.Position.z), 1.2f * tree.Scale });
 		for (const RockPlacement& rock : world.Rocks)
 		{

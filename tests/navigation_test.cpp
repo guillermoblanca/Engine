@@ -313,6 +313,22 @@ int main()
 		}
 		Check(!deep, "no path goes through the deep water");
 		Check(PathLength({ -30.0f, 0.0f }, lake.Points) > 70.0f, "it goes around the lake (60 m across)");
+		// a goal a little inside the deep water (a node on a steep bank): the path ends on the bank, it does not walk on into the lake
+		NavPath bank;
+		grid.FindPath(walker, { 30.0f, 0.0f }, { 13.0f, 0.0f }, bank);
+		float deepest = 0.0f;
+		p = { 30.0f, 0.0f };
+		for (const glm::vec2& q : bank.Points)
+		{
+			for (int s = 0; s <= 40; ++s)
+			{
+				const glm::vec2 x = p + (q - p) * (static_cast<float>(s) / 40.0f);
+				if (Water(x.x, x.y) > -1e8f) deepest = std::max(deepest, Water(x.x, x.y) - Ground(x.x, x.y));
+			}
+			p = q;
+		}
+		Check(!bank.Points.empty() && glm::distance(bank.Points.back(), glm::vec2(13.0f, 0.0f)) < 3.0f && deepest <= walker.MaxWadeDepth + 0.05f,
+			"a goal in the deep water: the path stops on the bank, never deeper than it can wade");
 		// the stream cannot be avoided: it is waded where it has to be
 		NavPath stream;
 		Check(grid.FindPath(walker, { -60.0f, 40.0f }, { -20.0f, 40.0f }, stream) && stream.Found, "a path across the stream is found (waded)");

@@ -70,6 +70,7 @@ Los recién nacidos reciben en el arnés un cuerpo de prueba como los fundadores
 ctest -R sim_sweep                       # el conjunto de CI: 5 partidas de medio día (los tres biomas, 3 a 6 miembros, una con agentes abstractos), una mudanza forzada y la repetición; ~40 s (75 s con la máquina cargada)
 GB_SIM_SWEEP=clan GBSimSweepTests        # solo los dos clanes de 20 durante 5 días (aceptación de H7)
 GB_SIM_SWEEP=full GBSimSweepTests        # el grande: semillas 1-4 × templado/alpino/desierto × 3, 6 y 12 miembros × 3 días, 4 partidas abstractas y un clan de 20 durante 5 días
+GB_SIM_SWEEP="one alpine 3 3 1.5" GBSimSweepTests   # una sola partida (bioma, semilla, miembros, días; "abstract" al final): para reproducir lo que encontró un barrido
 ```
 
 En el editor:
