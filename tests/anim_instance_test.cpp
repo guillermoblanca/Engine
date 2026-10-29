@@ -10,6 +10,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <string>
+#include <vector>
 
 namespace
 {
@@ -151,14 +153,21 @@ int main()
 		auto bot = Model::Load(std::string(mixamo) + "/idle.fbx");
 		if (bot)
 		{
-			for (const std::string& folder : { std::string(mixamo), std::string(farming) })
+			// the packs may be one flat folder (packs/full: every pack together) or one folder per pack; a folder is read once
+			const bool oneFolder = std::filesystem::equivalent(mixamo, farming);
+			std::vector<std::string> folders = { std::string(mixamo) };
+			if (!oneFolder) folders.push_back(farming);
+			for (const std::string& folder : folders)
 				for (const auto& e : std::filesystem::directory_iterator(folder))
 					if (e.path().extension() == ".fbx" && e.path().filename() != "X Bot.fbx" && e.path().filename() != "idle.fbx") bot->AppendAnimations(e.path().generic_string());
 			ModelInstance realInst(*bot);
 			CharacterAnimator real(*bot, realInst);
 			Check(real.AddDefaultLocomotionClips() == 7, "mixamo: the free set has its seven clips");
 			const auto added = real.AddMixamoSets();
-			Check(added.size() == 3, "farming: box, holding and wheelbarrow sets are found");
+			const auto has = [&](const char* n) { return std::find(added.begin(), added.end(), n) != added.end(); };
+			// the farming pack alone gives exactly its three sets; the flat folder also has the other packs' sets (injured, sword...)
+			Check(has("box") && has("holding") && has("wheelbarrow") && (oneFolder ? added.size() >= 3 : added.size() == 3),
+				"farming: box, holding and wheelbarrow sets are found");
 			float worstReal = 0.0f;
 			std::vector<glm::vec3> before = Positions(realInst, *bot);
 			for (const char* set : { "box", "wheelbarrow", "holding", "free" })

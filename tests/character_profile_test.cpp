@@ -2,6 +2,7 @@
 // facing, which clips play which role, which locomotion sets and montages the clips allow, the report text and its JSON. The generated
 // skeletons always; the real packs when GB_MIXAMO_DIR / GB_FARMING_DIR are set. CPU only.
 #include "GB/Animation/Character.h"
+#include "GB/Animation/Montage.h"
 #include "GB/Animation/Rig.h"
 #include "GB/Assets/Model.h"
 #include "GB/Log.h"
@@ -10,6 +11,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <string>
+#include <vector>
 #include <nlohmann/json.hpp>
 
 namespace
@@ -96,13 +99,25 @@ int main()
 		auto bot = Model::Load(std::string(mixamo) + "/idle.fbx");
 		if (bot)
 		{
-			for (const std::string& folder : { std::string(mixamo), std::string(farming) })
+			// the packs may be one flat folder (packs/full: every pack together) or one folder per pack; a folder is read once
+			const bool oneFolder = std::filesystem::equivalent(mixamo, farming);
+			std::vector<std::string> folders = { std::string(mixamo) };
+			if (!oneFolder) folders.push_back(farming);
+			for (const std::string& folder : folders)
 				for (const auto& e : std::filesystem::directory_iterator(folder))
 					if (e.path().extension() == ".fbx" && e.path().filename() != "X Bot.fbx" && e.path().filename() != "idle.fbx") bot->AppendAnimations(e.path().generic_string());
 			const CharacterProfile p = AnalyzeCharacter(*bot);
 			Check(p.Convention == "mixamo" && p.Humanoid() && p.MissingBones.empty(), "the real X Bot: Mixamo, complete");
 			Check(p.CanLocomote() && p.RoleClip("jump") && p.RoleClip("strafe_left") && p.RoleClip("turn_left") && p.RoleClip("turn_right"), "with idle, locomotion, strafes, jump and turns");
-			Check(p.Sets.size() == 3 && p.Montages.size() == 11, "and the farming sets and montages");
+			const auto hasSet = [&](const char* n) { return std::find(p.Sets.begin(), p.Sets.end(), n) != p.Sets.end(); };
+			const bool farmingSets = hasSet("box") && hasSet("holding") && hasSet("wheelbarrow");
+			// the locomotion and farming packs alone: exactly the three farming sets and their 11 montages. The flat folder has every pack, so
+			// it also allows the other packs' sets and montages; then every montage of the manifest whose clip is there must be listed
+			size_t present = 0;
+			for (const MontageDesc& m : MixamoMontages()) present += bot->FindClip(m.Clip) >= 0 ? 1 : 0;
+			for (const MontageDesc& m : UniversalMontages()) present += bot->FindClip(m.Clip) >= 0 ? 1 : 0;
+			Check(farmingSets && (oneFolder ? p.Sets.size() >= 3 && p.Montages.size() == present && present >= 11 : p.Sets.size() == 3 && p.Montages.size() == 11),
+				"and the farming sets and montages");
 			Check(p.Ok(), "ready");
 		}
 	}
