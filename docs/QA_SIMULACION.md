@@ -56,7 +56,7 @@ temperate seed 1 n4 0.5d | 69 nodes | violations 0 | 7.3 s | alive 4/4 | gathere
 
 `gathered`: unidades que salieron de los nodos a las mochilas, por objeto. `idle`: parte de los pasos de los miembros vivos sin nada que hacer (`rest`). `failures`, `meals`,
 `made`, `deposited`: los contadores de la tribu (entre paréntesis, lo fabricado por objeto, leído del registro). `trade changes`: veces que un miembro cambió de oficio (la revisión de H7). `fire`: estado final de la hoguera. De la tabla de
-métricas: lo que sabe el clan, los trabajos del tablón y los que nadie tiene, el reparto final de oficios, la media de la mejor aptitud de cada miembro y la más alta.
+métricas: la fibra guardada (`stored fiber`, almacén y acopios: un excedente que se amontona se ve aquí), lo que sabe el clan, los trabajos del tablón y los que nadie tiene, el reparto final de oficios, la media de la mejor aptitud de cada miembro y la más alta.
 H11: `experiments` (intentos, fallidos y unidades estropeadas por objeto), `techs found` (quién encontró o aprendió primero cada tecnología, cuándo y cómo, y cuántos la saben) y
 `clan learnt` (cuándo la supo el clan). H12: `expeditions` (enviadas y las que encontraron lo que buscaban), `regions known` (regiones del atlas del clan) y `migrations`. H9: `births`, `population` (vivos al final y el máximo), y las muertes por causa (`deaths ... Hunger:3`).
 H18: `spoiled` (unidades que se echaron a perder, por objeto), `intermediates` (lo que hicieron los trabajos `make` de las cadenas de producción), `harvests` (cosechas) y `hauled` (lo acarreado de los acopios).

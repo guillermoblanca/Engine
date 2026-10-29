@@ -1331,8 +1331,18 @@ namespace GB
 			if (node.empty()) continue;
 			const MemoryEntry* e = mind.Memory.Find(node);
 			const float conf = SpatialMemory::Confidence(*e, now, Config.Memory);
-			const float target = StockWanted(def.Item);   // data (TribeEconomy::Stock)
+			float target = StockWanted(def.Item);   // data (TribeEconomy::Stock)
 			const float have = static_cast<float>(m_Store.Count(def.Item) + bag.Count(def.Item));
+			// more than twice what the clan wants (its stock, what its production chains and its sites need, the upkeep of the camp): enough of
+			// that, unless it is food (hunger may still want it). Without this the trade's weight kept a forager pulling fibre forever (844 in a clan of 20)
+			{
+				float wants = target;
+				if (const auto raw = m_Plan.Raw.find(def.Item); raw != m_Plan.Raw.end()) wants = std::max(wants, static_cast<float>(m_Store.Count(def.Item) + raw->second));
+				if (const auto lack = siteDemand.find(def.Item); lack != siteDemand.end()) wants += static_cast<float>(lack->second);
+				if (const auto u = Config.Work.Jobs.Upkeep.find(def.Item); u != Config.Work.Jobs.Upkeep.end()) wants += u->second * static_cast<float>(m_Members.size());
+				if (!IsFood(def.Item) && static_cast<float>(Stored(def.Item) + bag.Count(def.Item)) >= 2.0f * std::max(wants, 1.0f)) continue;   // (H18: the stockpiles count)
+				target = std::max(target, wants);
+			}
 			const float need = std::clamp(1.0f - have / target, 0.1f, 1.0f);
 			const float w = weight(kind);
 			const float reach = Falloff(distance, 30.0f);

@@ -462,6 +462,8 @@ namespace GB
 	{
 		static std::vector<SimMetricDef> table = {
 			{ "berries in store", [](const SimView& v, SimMetrics& m) { if (v.Clan) m.Extra["store berry"] = v.Clan->Store().Count("berry"); } },
+			// what the clan holds of what is not food: a surplus that piles up (fibre while the foragers pull it forever) shows here
+			{ "fibre in store", [](const SimView& v, SimMetrics& m) { if (v.Clan) m.Extra["stored fiber"] = v.Clan->Stored("fiber"); } },
 			{ "known things", [](const SimView& v, SimMetrics& m) { if (v.Clan) m.Extra["clan memory"] = static_cast<double>(v.Clan->ClanMemory().Size()); } },
 			// H7: how far the aptitudes went (the mean of each member's best, and the highest), how the trades are shared out at the end, and the board
 			{ "skills", [](const SimView& v, SimMetrics& m)

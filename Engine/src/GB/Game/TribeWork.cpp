@@ -69,7 +69,8 @@ namespace GB
 
 		// What each role is the best at: every item the nodes give is wanted (its stock target for a clan of this size) and that want goes to the roles
 		// with the highest weight for one of its nodes (split when they tie). With `current`, an item the store already has is wanted less (a quarter
-		// of its target stays: the clan always needs some of everything).
+		// of its target stays: the clan always needs some of everything), and one it has more than enough of less still, down to a tenth of that
+		// quarter at twice its target: a surplus frees hands (a clan of 20 kept 15 foragers while 844 fibre piled up).
 		std::map<std::string, std::vector<std::string>> kindsOf;
 		for (const auto& [kind, def] : m_Defs) kindsOf[def.Item].push_back(kind);
 		std::map<std::string, float> demand;
@@ -80,7 +81,8 @@ namespace GB
 			{
 				float have = static_cast<float>(m_Store.Count(item));
 				for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) have += static_cast<float>(m.Body->Bag().Count(item));
-				want *= 0.25f + 0.75f * std::clamp(1.0f - have / std::max(want, 1e-3f), 0.0f, 1.0f);
+				const float ratio = have / std::max(want, 1e-3f);
+				want *= ratio < 1.0f ? 0.25f + 0.75f * (1.0f - ratio) : 0.25f * std::clamp(2.0f - ratio, 0.1f, 1.0f);
 			}
 			float best = 0.0f;
 			std::vector<std::string> who;
