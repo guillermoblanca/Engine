@@ -444,7 +444,7 @@ int main()
 		Check(scalar("SELECT COUNT(*) FROM tasks WHERE result = 'ok' AND end >= start") != "0", "a row in tasks for every task, with its start, end and result");
 		Check(scalar("SELECT COUNT(*) FROM tasks") == scalar("SELECT COUNT(*) FROM events WHERE kind = 'task_end'"), "as many as task_end events");
 		Check(scalar("SELECT COUNT(*) FROM decisions WHERE options LIKE '[{%'") != "0" && scalar("SELECT COUNT(*) FROM decisions WHERE chosen = ''") == "0", "the decisions carry the options it weighed");
-		Check(scalar("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('relations', 'clan_relations')") == "2" && scalar("SELECT schema_version FROM runs") == "3", "the tables of the bonds and of the clans are there (schema 3)");
+		Check(scalar("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('relations', 'clan_relations')") == "2" && scalar("SELECT schema_version FROM runs") == "4" && scalar("SELECT COUNT(*) FROM sqlite_master WHERE name IN ('clan_days', 'world_nodes')") == "2", "the tables of the bonds, the clans, their days and the world are there (schema 4)");
 		// a full queue loses samples, never events
 		for (const char* ext : { "", "-wal", "-shm" }) std::filesystem::remove(file + ext);
 		TelemetrySink small;

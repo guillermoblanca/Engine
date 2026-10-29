@@ -8,7 +8,7 @@ namespace GB
 {
 	namespace
 	{
-		enum Table { kIndividuals = 0, kSamples, kClanSamples, kEvents, kTasks, kDecisions, kRelations, kClanRelations, kTableCount };
+		enum Table { kIndividuals = 0, kSamples, kClanSamples, kEvents, kTasks, kDecisions, kRelations, kClanRelations, kClanDays, kWorldNodes, kTableCount };
 
 		struct Column { const char* Name; const char* Type; };
 		struct TableSpec { const char* Name; std::vector<Column> Columns; };
@@ -31,6 +31,8 @@ namespace GB
 					{ "clan_relations", { { "clan_a", "INTEGER" }, { "clan_b", "INTEGER" }, { "t", "REAL" }, { "stance", "TEXT" }, { "attitude", "REAL" }, { "hostility", "REAL" }, { "trust", "REAL" },
 						{ "grievance_ab", "REAL" }, { "grievance_ba", "REAL" }, { "encounters", "INTEGER" }, { "trades", "INTEGER" }, { "gifts", "INTEGER" }, { "thefts", "INTEGER" }, { "raids", "INTEGER" },
 						{ "marriages", "INTEGER" }, { "pacts", "INTEGER" } } },
+					{ "clan_days", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "day", "INTEGER" }, { "members", "INTEGER" }, { "buildings", "INTEGER" }, { "techs", "TEXT" }, { "beliefs", "TEXT" }, { "rites", "TEXT" }, { "mood", "REAL" } } },
+					{ "world_nodes", { { "t", "REAL" }, { "kind", "TEXT" }, { "count", "INTEGER" }, { "empty", "INTEGER" }, { "amount", "REAL" } } },
 			};
 			return specs;
 		}
@@ -94,7 +96,7 @@ namespace GB
 		if (sqlite3_exec(db->Handle, schema.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK) return fail("schema");
 		{
 			sqlite3_stmt* s = nullptr;
-			if (sqlite3_prepare_v2(db->Handle, "INSERT INTO runs (schema_version, started, seed, commit_hash, profile, note, closed) VALUES (3, ?, ?, ?, ?, ?, 0)", -1, &s, nullptr) != SQLITE_OK) return fail("run");
+			if (sqlite3_prepare_v2(db->Handle, "INSERT INTO runs (schema_version, started, seed, commit_hash, profile, note, closed) VALUES (4, ?, ?, ?, ?, ?, 0)", -1, &s, nullptr) != SQLITE_OK) return fail("run");
 			const std::string now = Now();
 			sqlite3_bind_text(s, 1, now.c_str(), -1, SQLITE_TRANSIENT);
 			sqlite3_bind_int64(s, 2, info.Seed);
@@ -231,6 +233,18 @@ namespace GB
 		if (!m_Active.load()) return;
 		Push({ kClanRelations, { V(r.A), V(r.B), V(r.Time), V(r.Stance), V(r.Attitude), V(r.Hostility), V(r.Trust), V(r.GrievanceAB), V(r.GrievanceBA), V(r.Encounters), V(r.Trades), V(r.Gifts),
 			V(r.Thefts), V(r.Raids), V(r.Marriages), V(r.Pacts) } }, false);
+	}
+
+	void TelemetrySink::ClanDay(const TelemetryClanDay& r)
+	{
+		if (!m_Active.load()) return;
+		Push({ kClanDays, { V(r.Clan), V(r.Time), V(r.Day), V(r.Members), V(r.Buildings), V(r.Techs), V(r.Beliefs), V(r.Rites), V(r.Mood) } }, false);
+	}
+
+	void TelemetrySink::WorldNodes(const TelemetryWorldNodes& r)
+	{
+		if (!m_Active.load()) return;
+		Push({ kWorldNodes, { V(r.Time), V(r.Kind), V(r.Count), V(r.Empty), V(r.Amount) } }, false);
 	}
 
 	void TelemetrySink::Run()

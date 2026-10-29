@@ -107,6 +107,25 @@ namespace GB
 		int Encounters = 0, Trades = 0, Gifts = 0, Thefts = 0, Raids = 0, Marriages = 0, Pacts = 0;
 	};
 
+	// What a clan has become, once a day: the technologies it knows (JSON list), its beliefs (text of the report), buildings, members and mean mood.
+	struct TelemetryClanDay
+	{
+		int Clan = 0;
+		double Time = 0.0;
+		int Day = 1, Members = 0, Buildings = 0;
+		std::string Techs, Beliefs, Rites;
+		double Mood = 0.0;
+	};
+
+	// The flora and resources of the world by kind (at the start, and then each day): how many nodes, what is left in them and how many are empty.
+	struct TelemetryWorldNodes
+	{
+		double Time = 0.0;
+		std::string Kind;
+		int Count = 0, Empty = 0;
+		double Amount = 0.0;
+	};
+
 	struct TelemetryStats
 	{
 		uint64_t SamplesWritten = 0, SamplesDropped = 0, EventsWritten = 0, Transactions = 0, WriteErrors = 0;
@@ -140,6 +159,8 @@ namespace GB
 		void Event(const TelemetryEvent& row);
 		void Task(const TelemetryTask& row);
 		void Relation(const TelemetryRelation& row);
+		void ClanDay(const TelemetryClanDay& row);
+		void WorldNodes(const TelemetryWorldNodes& row);
 		void ClanRelation(const TelemetryClanRelation& row);
 		void Decision(const TelemetryDecision& row);
 

@@ -150,6 +150,24 @@ namespace GB
 		if (m_Time >= m_TelemetryRelationsNext)   // the bonds that matter (|bond| over 0.05), each pair once
 		{
 			m_TelemetryRelationsNext = m_Time + day;
+			{
+				TelemetryClanDay d;
+				d.Clan = m_TelemetryClan;
+				d.Time = m_Time;
+				d.Day = dayNo;
+				d.Members = clan.Alive;
+				d.Buildings = clan.Buildings;
+				Json techs = Json::array();
+				for (const std::string& t : m_Knowledge.Clan()) techs.push_back(t);
+				d.Techs = techs.dump();
+				d.Beliefs = BeliefReport();
+				d.Rites = RiteReport();
+				double mood = 0.0;
+				int n = 0;
+				for (const TribeMember& m : m_Members) if (!m.Dead) { mood += static_cast<double>(Mood(m.Name)); ++n; }
+				d.Mood = n ? mood / n : 0.0;
+				m_Telemetry->ClanDay(d);
+			}
 			for (const TribeMember& m : m_Members)
 				for (const auto& [other, bond] : m_Society.BondsOf(m.Name))
 				{
