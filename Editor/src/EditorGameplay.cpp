@@ -225,19 +225,21 @@ namespace GB::Editor
 		// cells in a window around the focus (the player, or what the orbit camera looks at), one in two so that the cost stays small
 		const glm::vec3 focus = m_Player.IsActive() ? m_Player.GetPosition() : m_Orbit.Target;
 		const float cs = nav.CellSize();
-		const int radius = static_cast<int>(36.0f / cs);
+		// Every cell of the window, each one a quad on the terrain's own heights at its four corners (so the mesh hugs the hills instead of leaving
+		// holes where the cells were cheap): green = free, yellow = costly (slope), blue = wet, red = wall.
+		const int radius = static_cast<int>(24.0f / cs);
+		const float half = cs * 0.5f;
 		int ci, cj;
 		if (nav.CellAt({ focus.x, focus.z }, ci, cj))
-			for (int j = std::max(0, cj - radius); j < std::min(nav.Height(), cj + radius); j += 2)
-				for (int i = std::max(0, ci - radius); i < std::min(nav.Width(), ci + radius); i += 2)
+			for (int j = std::max(0, cj - radius); j < std::min(nav.Height(), cj + radius); ++j)
+				for (int i = std::max(0, ci - radius); i < std::min(nav.Width(), ci + radius); ++i)
 				{
 					const float cost = nav.CellCost(i, j, profile);
 					const bool wet = nav.Depth(i, j) > 0.05f;
-					if (cost >= 0.0f && cost < 1.5f && !wet) continue;
-					const ImU32 color = cost < 0.0f ? IM_COL32(230, 60, 50, 110) : (wet ? IM_COL32(60, 120, 240, 110) : IM_COL32(240, 200, 50, 90));
+					const ImU32 color = cost < 0.0f ? IM_COL32(230, 60, 50, 120) : wet ? IM_COL32(60, 120, 240, 110) : cost >= 1.5f ? IM_COL32(240, 200, 50, 100) : IM_COL32(70, 220, 110, 55);
 					const glm::vec2 c = nav.CellCenter(i, j);
 					glm::vec2 q[4];
-					const glm::vec2 corner[4] = { { -cs, -cs }, { cs, -cs }, { cs, cs }, { -cs, cs } };
+					const glm::vec2 corner[4] = { { -half, -half }, { half, -half }, { half, half }, { -half, half } };
 					bool ok = true;
 					for (int k = 0; k < 4 && ok; ++k) ok = ProjectToScreen(viewProj, lift(c + corner[k]), size, q[k]);
 					if (ok) dl->AddQuadFilled(ImVec2(ox + q[0].x, oy + q[0].y), ImVec2(ox + q[1].x, oy + q[1].y), ImVec2(ox + q[2].x, oy + q[2].y), ImVec2(ox + q[3].x, oy + q[3].y), color);
