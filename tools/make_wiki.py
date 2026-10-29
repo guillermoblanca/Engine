@@ -31,6 +31,7 @@ DOC_LIST = [
     ('PLAN_SOCIEDAD_VIVA.md', 'Plan'),
     ('PROPUESTA_HABILIDADES_Y_ECONOMIA.md', 'Plan'),
     ('PLAN_IA_ENTRENABLE.md', 'Plan'),
+    ('ESTUDIO_ERA1.md', 'Plan'),
     ('INFORME_CALIDAD.md', 'Plan'),
     ('TRIBU.md', 'Sistemas'),
     ('IA.md', 'Sistemas'),
