@@ -175,9 +175,14 @@ int main()
 		{
 			const float x = -90.0f + static_cast<float>(k % 20) * 9.0f, z = -90.0f + static_cast<float>(k / 20) * 9.0f;
 			++n;
-			if (g.WaterDistance(x, z) == a.WaterDistanceAt(x, z) && g.Biome(x, z) == std::string(GB::BiomeName(a.BiomeAt(x, z)))) ++same;
+			// (a point the walkers find under water, a hollow below the lake's level narrower than the map's samples, is in the water: distance 0)
+			const GB::Terrain& t = *a.TerrainRef;
+			const float ground = t.GetHeight(x, z);
+			const bool wet = (t.HasLake() && ground < t.GetWaterLevel()) || t.GetRiverLevelAt(x, z) > ground;
+			const float distance = wet ? 0.0f : a.WaterDistanceAt(x, z);
+			if (g.WaterDistance(x, z) == distance && g.Biome(x, z) == std::string(GB::BiomeName(a.BiomeAt(x, z)))) ++same;
 		}
-		Check(same == n, "ResourceGroundOf gives the baked biome and distance to the water");
+		Check(same == n, "ResourceGroundOf gives the baked biome and distance to the water (0 where the walkers are in the water)");
 	}
 
 	if (failures) { std::fprintf(stderr, "%d check(s) failed\n", failures); return 1; }
