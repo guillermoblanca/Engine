@@ -114,6 +114,80 @@ int main()
 	f1.Apply(c1);
 	Check(Near(c1.Position.x, 100.0f, 1e-2f), "follow: converges to the target");
 
+	// ---- Orbit camera, walking scheme (the editor)
+	{
+		GB::OrbitController o;
+		o.Keys = GB::OrbitController::KeyScheme::Walk;
+		o.Target = { 0, 0, 0 }; o.Yaw = 0.0f; o.Pitch = 0.3f; o.Distance = 10.0f;
+		o.Walk(0.0f, 1.0f, 1.0f);
+		Check(Near(o.Target, { 0, 0, -7 }, 1e-3f), "walk: forward goes where the camera looks, over the ground (yaw 0 = toward -Z), at 0.7 of the distance per second");
+		o.Target = { 0, 0, 0 };
+		o.Walk(1.0f, 0.0f, 1.0f);
+		Check(Near(o.Target, { 7, 0, 0 }, 1e-3f), "walk: right is the camera's right hand");
+		o.Target = { 0, 0, 0 }; o.Yaw = kPi / 2;
+		o.Walk(0.0f, 1.0f, 1.0f);
+		Check(Near(o.Target, { -7, 0, 0 }, 1e-3f), "walk: it follows the yaw (yaw 90 deg looks toward -X)");
+		o.Target = { 0, 0, 0 }; o.Yaw = 0.0f; o.Distance = 1.0f;
+		o.Walk(0.0f, 1.0f, 1.0f);
+		Check(Near(o.Target, { 0, 0, -4 }, 1e-3f), "walk: close to the target it still moves at least MinWalk metres per second");
+		o.Target = { 0, 0, 0 }; o.Distance = 10.0f;
+		o.Walk(1.0f, 1.0f, 1.0f);
+		Check(std::abs(glm::length(o.Target) - 7.0f) < 1e-3f, "walk: diagonals are not faster");
+		o.Target = { 0, 0, 0 };
+		o.Walk(0.0f, 1.0f, 1.0f, 3.0f);
+		Check(Near(o.Target, { 0, 0, -21 }, 1e-3f), "walk: the speed multiplier (Shift) scales the step");
+
+		o.Target = { 0, 0, 0 }; o.Distance = 10.0f; o.Yaw = 0.0f;
+		o.PanGround(0.1f, 0.1f);
+		Check(Near(o.Target, { 1, 0, -1 }, 1e-3f), "pan on the ground: right and forward, scaled by the distance, never up");
+
+		// Zoom towards a point keeps it where it is on screen: the target slides to it as the distance shrinks.
+		o.Target = { 0, 0, 0 }; o.Distance = 10.0f;
+		o.ZoomToward(std::log(0.5f), { 10, 0, 0 });
+		Check(Near(o.Distance, 5.0f, 1e-3f) && Near(o.Target, { 5, 0, 0 }, 1e-3f), "zoom toward: halving the distance halves the target's distance to the point");
+		o.MinDistance = 1.0f;
+		for (int i = 0; i < 40; ++i) o.ZoomToward(-0.3f, { 10, 0, 0 });
+		Check(Near(o.Distance, 1.0f, 1e-3f) && Near(glm::distance(o.Target, glm::vec3(10, 0, 0)), 1.0f, 1e-2f), "zoom toward: the point's offset from the target shrinks with the distance (it stays put on screen) so a far point can be reached");
+
+		// The ground: the target stays above it and the camera does not go under it.
+		GB::OrbitController g;
+		g.Ground = [](float, float z) { return z < -5.0f ? 30.0f : 2.0f; };
+		g.TargetHeight = 1.0f;
+		g.Target = { 0, 0, 0 }; g.Yaw = 0.0f; g.Pitch = 0.0f; g.Distance = 10.0f;
+		g.KeepAboveGround();
+		Check(Near(g.Target.y, 3.0f, 1e-4f), "ground: the target is TargetHeight above the terrain");
+		g.Target = { 0, 0, -20 };
+		g.KeepAboveGround();
+		Check(Near(g.Target.y, 31.0f, 1e-4f), "ground: walking onto a hill lifts the target with it");
+		g.Target = { 0, 0, 0 }; g.Pitch = -0.5f;
+		g.KeepAboveGround();
+		Check(g.GetPosition().y >= 2.0f + g.CameraClearance - 1e-3f, "ground: the camera is not left under the terrain (the pitch rises)");
+
+		// Following: eases to the goal, the same however the time is cut up.
+		GB::OrbitController f1, f2;
+		f1.Target = f2.Target = { 0, 0, 0 };
+		f1.FollowTo({ 100, 0, 0 }, 0.1f);
+		f2.FollowTo({ 100, 0, 0 }, 0.05f); f2.FollowTo({ 100, 0, 0 }, 0.05f);
+		Check(Near(f1.Target, f2.Target, 1e-2f), "orbit follow: easing does not depend on the frame rate");
+		Check(f1.Target.x > 10.0f && f1.Target.x < 100.0f, "orbit follow: lags behind a fast goal");
+		for (int i = 0; i < 100; ++i) f1.FollowTo({ 100, 0, 0 }, 0.05f);
+		Check(Near(f1.Target, { 100, 0, 0 }, 1e-2f), "orbit follow: converges to the goal");
+		f1.Target = { 100, 0, 0 };
+		f1.Keys = GB::OrbitController::KeyScheme::Walk;
+		f1.Update(0.016f);
+		Check(Near(f1.Target, { 100, 0, 0 }, 1e-4f), "orbit follow: with no input the target stays");
+
+		// Top-down: straight down, the mouse cannot tilt it, and the old pitch comes back.
+		GB::OrbitController t;
+		t.Pitch = 0.3f;
+		t.SetTopDown(true);
+		Check(Near(t.Pitch, 89.0f * kPi / 180.0f, 1e-3f), "top-down: looks straight down (89 deg)");
+		t.Rotate(0.5f, -0.5f);
+		Check(Near(t.Pitch, 89.0f * kPi / 180.0f, 1e-3f) && Near(t.Yaw, 0.5f, 1e-4f), "top-down: yaw turns, pitch is locked");
+		t.SetTopDown(false);
+		Check(Near(t.Pitch, 0.3f, 1e-4f), "top-down: leaving restores the pitch");
+	}
+
 	// ---- Polling with no window must be harmless
 	orbit.Update(0.016f);
 	fly.Update(0.016f);

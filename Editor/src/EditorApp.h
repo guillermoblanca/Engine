@@ -80,6 +80,9 @@ namespace GB::Editor
 		void ApplyTimeOfDay();
 		void SetQuality(const std::string& name);
 		void FrameWorld();
+		enum class CamMode { Free, TopDown, Follow };
+		CommandResult SetCamMode(CamMode mode, const std::string& member = {});   // camera free | top | follow [member]
+		bool GroundUnderCursor(glm::vec3& out);                           // the terrain point under the mouse (the orbit camera zooms towards it)
 		void ResetWorld();                                       // File > New Scene: nothing generated, default sky
 		CommandResult LaunchSandbox(const std::string& scene);
 
@@ -102,6 +105,7 @@ namespace GB::Editor
 		void DrawTribePanel();
 		void DrawNpcInspector(const TribeMember& m);
 		void DrawAiDebug(ImDrawList* dl, const glm::mat4& viewProj, const glm::vec2& size, float originX, float originY);
+		void DrawClanOverlay(ImDrawList* dl, const glm::mat4& viewProj, const glm::vec2& size, float originX, float originY);
 		void RestoreTribe(const std::string& json);   // after a load: the members of a saved tribe, with their actors
 		void DrawWorldStatePanel();
 		CommandResult EcologyCommand(const std::vector<std::string>& a);
@@ -151,6 +155,9 @@ namespace GB::Editor
 		Scene m_Scene;
 		Camera m_Camera;
 		OrbitController m_Orbit;
+		CamMode m_CamMode = CamMode::Free;
+		std::string m_FollowMember;                              // whose tribe member the Follow camera orbits
+		glm::vec2 m_CursorNorm{ 0.5f };                          // the mouse over the viewport, 0..1 (top-left origin), for the ground pick
 		std::unique_ptr<Renderer> m_Renderer;
 		std::unique_ptr<Framebuffer> m_ViewportFb;
 		std::unique_ptr<Weather> m_Weather;
@@ -175,6 +182,7 @@ namespace GB::Editor
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		bool m_AiDebug = false;                                  // `ai debug on`: cones, obstacles and memory drawn in the viewport
 		bool m_NavDebug = false;                                 // `nav debug on`
+		bool m_ClanOverlay = true;                               // `clan overlay on|off`: fields, stockpiles and a label (name, trade, task) over each member
 		float m_NavSyncTimer = 0.0f;                             // real seconds to the next look at whether trees went or appeared
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
 		RegionMap m_Regions;                                     // H12: the regions of the world (derived from the seed and the wild density, never saved)

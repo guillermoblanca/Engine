@@ -1063,6 +1063,84 @@ namespace GB::Editor
 		}
 	}
 
+	// What the clan has in the world, so it can be followed without the console: every field plot painted by state (the inner square grows with the
+	// crop, a blue dot is moist soil), the stockpiles, and over each member its name, trade and what it is doing.
+	void EditorApp::DrawClanOverlay(ImDrawList* dl, const glm::mat4& viewProj, const glm::vec2& size, float ox, float oy)
+	{
+		auto ground = [&](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; };
+		auto screen = [&](const glm::vec3& p, ImVec2& out)
+		{
+			glm::vec2 s;
+			if (!ProjectToScreen(viewProj, p, size, s)) return false;
+			out = ImVec2(ox + s.x, oy + s.y);
+			return true;
+		};
+		auto quad = [&](const glm::vec2& c, float half, ImU32 fill, ImU32 edge)
+		{
+			ImVec2 q[4];
+			const glm::vec2 corner[4] = { { -half, -half }, { half, -half }, { half, half }, { -half, half } };
+			for (int i = 0; i < 4; ++i)
+			{
+				const glm::vec2 p = c + corner[i];
+				if (!screen(glm::vec3(p.x, ground(p.x, p.y) + 0.06f, p.y), q[i])) return;
+			}
+			dl->AddConvexPolyFilled(q, 4, fill);
+			if (edge) dl->AddPolyline(q, 4, edge, ImDrawFlags_Closed, 1.0f);
+		};
+		auto label = [&](const ImVec2& at, const std::string& text, ImU32 color)
+		{
+			const ImVec2 ts = ImGui::CalcTextSize(text.c_str());
+			const ImVec2 a(at.x - ts.x * 0.5f, at.y - ts.y);
+			dl->AddRectFilled(ImVec2(a.x - 3.0f, a.y - 1.0f), ImVec2(a.x + ts.x + 3.0f, a.y + ts.y + 1.0f), IM_COL32(10, 12, 16, 170), 3.0f);
+			dl->AddText(a, color, text.c_str());
+		};
+
+		for (const Field& f : m_Tribe.Economy().Fields)
+		{
+			for (size_t i = 0; i < f.Plots.size(); ++i)
+			{
+				const FieldPlot& p = f.Plots[i];
+				const glm::vec2 c = f.PlotPos(i);
+				const float half = f.Spacing * 0.45f;
+				ImU32 fill = IM_COL32(70, 130, 60, 90), inner = 0;
+				if (p.State == "dug") fill = IM_COL32(120, 84, 50, 190);
+				else if (p.State == "sown") { fill = IM_COL32(120, 84, 50, 200); inner = IM_COL32(200, 170, 90, 230); }
+				else if (p.State == "sprout") { fill = IM_COL32(100, 80, 50, 200); inner = IM_COL32(110, 200, 80, 235); }
+				else if (p.State == "grown") { fill = IM_COL32(150, 120, 50, 215); inner = IM_COL32(240, 205, 70, 245); }
+				quad(c, half, fill, IM_COL32(20, 20, 20, 170));
+				if (inner) quad(c, half * (0.3f + 0.7f * glm::clamp(p.State == "grown" ? 1.0f : p.Growth, 0.0f, 1.0f)), inner, 0);
+				ImVec2 s;
+				if (p.Moisture > 0.0f && screen(glm::vec3(c.x, ground(c.x, c.y) + 0.12f, c.y), s)) dl->AddCircleFilled(s, 3.0f, IM_COL32(90, 170, 255, 230));
+			}
+			ImVec2 s;
+			const glm::vec2 mid = f.Centre();
+			if (screen(glm::vec3(mid.x, ground(mid.x, mid.y) + 1.4f, mid.y), s)) label(s, f.Name + " (" + std::to_string(f.Count("grown")) + " ripe)", IM_COL32(240, 220, 120, 235));
+		}
+		for (const Stockpile& st : m_Tribe.Economy().Stockpiles)
+		{
+			quad(st.Pos, 0.6f, IM_COL32(160, 120, 70, 220), IM_COL32(20, 20, 20, 200));
+			ImVec2 s;
+			if (screen(glm::vec3(st.Pos.x, ground(st.Pos.x, st.Pos.y) + 1.1f, st.Pos.y), s)) label(s, st.Name, IM_COL32(230, 200, 150, 235));
+		}
+
+		for (const TribeMember& m : m_Tribe.Members())
+		{
+			glm::vec2 at;
+			if (const Actor* actor = m_Actors.Find(m.Name)) at = glm::vec2(actor->GetPosition().x, actor->GetPosition().z);
+			else if (m.Body) at = m.Body->Position();
+			else continue;
+			if (glm::distance(m_Camera.Position, glm::vec3(at.x, ground(at.x, at.y), at.y)) > 90.0f) continue;
+			ImVec2 s;
+			if (!screen(glm::vec3(at.x, ground(at.x, at.y) + 2.5f, at.y), s)) continue;
+			const ImU32 color = m.Dead ? IM_COL32(150, 150, 150, 220) : m.Role == "forager" ? IM_COL32(150, 235, 120, 255) : m.Role == "miner" ? IM_COL32(150, 200, 255, 255)
+				: m.Role == "woodcutter" ? IM_COL32(235, 180, 110, 255) : IM_COL32(255, 255, 255, 255);
+			std::string task = m.Dead ? "dead" + (m.Cause.empty() ? std::string() : " of " + m.Cause) : m.Job.empty() ? std::string("idle") : m.Job;
+			if (!m.Dead && !m.Detail.empty()) task += " " + m.Detail;
+			label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), m.Name + " - " + m.Role, color);
+			label(s, task, IM_COL32(235, 235, 235, 235));
+		}
+	}
+
 	void EditorApp::DrawTribePanel()
 	{
 		if (m_FocusTribe > 0) { ImGui::SetNextWindowFocus(); --m_FocusTribe; }
@@ -1084,6 +1162,8 @@ namespace GB::Editor
 				ImGui::TextDisabled("%zu members: %d resting, %d dead, %d abstract (far from the camera)", m_Tribe.Members().size(), resting, dead, m_Tribe.AbstractCount());
 				ImGui::PopTextWrapPos();
 			}
+			ImGui::Checkbox("clan overlay", &m_ClanOverlay);
+			ImGui::SameLine();
 			ImGui::Checkbox("ai debug", &m_AiDebug);
 			ImGui::SameLine();
 			ImGui::Checkbox("nav debug", &m_NavDebug);

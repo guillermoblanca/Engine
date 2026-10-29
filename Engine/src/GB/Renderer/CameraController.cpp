@@ -21,7 +21,69 @@ namespace GB
 	void OrbitController::Rotate(float deltaYaw, float deltaPitch)
 	{
 		Yaw += deltaYaw;
-		Pitch = std::clamp(Pitch + deltaPitch, -kMaxPitch, kMaxPitch);
+		if (!TopDown) Pitch = std::clamp(Pitch + deltaPitch, -kMaxPitch, kMaxPitch);
+	}
+
+	namespace
+	{
+		// The ground directions of an orbit camera at `yaw`: where it looks and its right hand.
+		glm::vec3 GroundForward(float yaw) { return { -std::sin(yaw), 0.0f, -std::cos(yaw) }; }
+		glm::vec3 GroundRight(float yaw) { return { std::cos(yaw), 0.0f, -std::sin(yaw) }; }
+	}
+
+	void OrbitController::Walk(float right, float forward, float seconds, float speedMultiplier)
+	{
+		glm::vec2 input(right, forward);
+		const float length = glm::length(input);
+		if (length > 1.0f) input /= length;   // no faster diagonals
+		const float speed = std::max(Distance * WalkSpeed, MinWalk) * speedMultiplier;
+		Target += (GroundRight(Yaw) * input.x + GroundForward(Yaw) * input.y) * speed * seconds;
+		KeepAboveGround();
+	}
+
+	void OrbitController::PanGround(float deltaRight, float deltaForward)
+	{
+		Target += (GroundRight(Yaw) * deltaRight + GroundForward(Yaw) * deltaForward) * Distance;
+		KeepAboveGround();
+	}
+
+	void OrbitController::ZoomToward(float amount, const glm::vec3& point)
+	{
+		const float before = Distance;
+		Zoom(amount);
+		const float ratio = before > 0.0f ? Distance / before : 1.0f;
+		Target = point + (Target - point) * ratio;   // the point stays where it is on screen
+		KeepAboveGround();
+	}
+
+	void OrbitController::FollowTo(const glm::vec3& goal, float seconds)
+	{
+		Following = true;
+		Target = glm::mix(Target, goal, Damp(FollowSharpness, seconds));
+		KeepAboveGround();
+	}
+
+	void OrbitController::SetTopDown(bool on)
+	{
+		if (on == TopDown) return;
+		if (on) { m_PitchBeforeTop = Pitch; Pitch = kMaxPitch; }
+		else Pitch = m_PitchBeforeTop;
+		TopDown = on;
+	}
+
+	void OrbitController::KeepAboveGround()
+	{
+		if (!Ground) return;
+		if (!Following) Target.y = Ground(Target.x, Target.z) + TargetHeight;
+		if (TopDown) return;
+		for (int i = 0; i < 3; ++i)   // raising the pitch moves the camera too: a few passes settle it
+		{
+			const glm::vec3 position = GetPosition();
+			const float floor = Ground(position.x, position.z) + CameraClearance;
+			if (position.y >= floor) break;
+			Pitch = std::max(Pitch, std::asin(std::clamp((floor - Target.y) / std::max(Distance, 1e-3f), -1.0f, 1.0f)));
+		}
+		Pitch = std::min(Pitch, kMaxPitch);
 	}
 
 	void OrbitController::Zoom(float amount)
@@ -40,6 +102,37 @@ namespace GB
 	void OrbitController::Update(float dt)
 	{
 		using GB::Key;
+		if (Keys == KeyScheme::Walk)
+		{
+			float right = 0.0f, forward = 0.0f, turn = 0.0f;
+			if (Input::IsKeyDown(Key::W) || Input::IsKeyDown(Key::Up))    forward += 1.0f;
+			if (Input::IsKeyDown(Key::S) || Input::IsKeyDown(Key::Down))  forward -= 1.0f;
+			if (Input::IsKeyDown(Key::D) || Input::IsKeyDown(Key::Right)) right += 1.0f;
+			if (Input::IsKeyDown(Key::A) || Input::IsKeyDown(Key::Left))  right -= 1.0f;
+			if (Input::IsKeyDown(Key::E)) turn += 1.0f;
+			if (Input::IsKeyDown(Key::Q)) turn -= 1.0f;
+			right += Input::GetGamepadAxis(GamepadAxis::LeftX);
+			forward -= Input::GetGamepadAxis(GamepadAxis::LeftY);
+			turn += Input::GetGamepadAxis(GamepadAxis::RightX);
+			const bool boost = Input::IsKeyDown(Key::LeftShift) || Input::IsGamepadButtonDown(GamepadButton::LeftStick);
+			if (!Following && (right != 0.0f || forward != 0.0f)) Walk(right, forward, dt, boost ? WalkBoost : 1.0f);
+			Rotate(turn * RotateSpeed * dt, 0.0f);
+
+			const auto [dx, dy] = Input::GetMouseDelta();
+			if (Input::IsMouseDown(MouseButton::Left))
+				Rotate(-static_cast<float>(dx) * MouseSensitivity, static_cast<float>(dy) * MouseSensitivity);
+			if (!Following && (Input::IsMouseDown(MouseButton::Right) || Input::IsMouseDown(MouseButton::Middle)))
+				PanGround(-static_cast<float>(dx) * 0.0015f, static_cast<float>(dy) * 0.0015f);
+			const float scroll = Input::GetScrollDelta();
+			if (scroll != 0.0f)
+			{
+				glm::vec3 point;
+				if (!Following && CursorPoint && CursorPoint(point)) ZoomToward(-scroll * 0.15f, point);
+				else { Zoom(-scroll * 0.15f); KeepAboveGround(); }
+			}
+			KeepAboveGround();
+			return;
+		}
 		float yaw = 0.0f, pitch = 0.0f, zoom = 0.0f;
 		if (Input::IsKeyDown(Key::Left) || Input::IsKeyDown(Key::A))  yaw -= 1.0f;
 		if (Input::IsKeyDown(Key::Right) || Input::IsKeyDown(Key::D)) yaw += 1.0f;

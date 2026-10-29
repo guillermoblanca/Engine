@@ -101,7 +101,10 @@ namespace GB::Editor
 		m_SceneEditor.OnNewScene = [this]() { ResetWorld(); };   // File > New Scene also drops the generated world
 		m_SceneEditor.SetPropBounds([this](const PropComponent& p, glm::vec3& center, float& radius) { return m_World.PropBounds(p, center, radius); });
 		m_Weather = std::make_unique<Weather>(5);
-		m_Orbit.Pitch = 0.3f; m_Orbit.Yaw = 0.6f; m_Orbit.Distance = 60.0f; m_Orbit.MinDistance = 1.0f; m_Orbit.MaxDistance = 600.0f;
+		m_Orbit.Pitch = 0.3f; m_Orbit.Yaw = 0.6f; m_Orbit.Distance = 60.0f; m_Orbit.MinDistance = 0.6f; m_Orbit.MaxDistance = 600.0f;
+		m_Orbit.Keys = OrbitController::KeyScheme::Walk;   // WASD walks over the ground, Q/E turn, the wheel zooms towards the cursor
+		m_Orbit.Ground = [this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; };
+		m_Orbit.CursorPoint = [this](glm::vec3& p) { return GroundUnderCursor(p); };
 		m_Camera.FarPlane = 1500.0f;
 
 		{
@@ -297,6 +300,58 @@ namespace GB::Editor
 		m_Orbit.Target = { s.x, m_World.GetTerrain().GetHeight(s.x, s.y) + 2.0f, s.y };
 		m_Orbit.Distance = 40.0f;
 		m_Orbit.Pitch = 0.3f;
+	}
+
+	// The terrain under the mouse: a march along the view ray (steps grow with the distance) refined by bisection. False when the mouse is off the
+	// viewport or the ray misses the ground (looking at the sky).
+	bool EditorApp::GroundUnderCursor(glm::vec3& out)
+	{
+		if (!m_World.IsBuilt() || !m_ViewportHovered || m_ViewportH == 0) return false;
+		const Terrain& terrain = m_World.GetTerrain();
+		const Ray ray = ScreenRay(m_Camera, m_CursorNorm, static_cast<float>(m_ViewportW) / static_cast<float>(m_ViewportH));
+		auto above = [&](float t) { const glm::vec3 p = ray.Origin + ray.Dir * t; return p.y - terrain.GetHeight(p.x, p.z); };
+		float previous = 0.0f;
+		if (above(previous) < 0.0f) return false;   // the camera is under the ground
+		for (float t = 0.5f; t < 1500.0f; t += std::max(0.5f, t * 0.02f))
+		{
+			if (above(t) < 0.0f)
+			{
+				float lo = previous, hi = t;
+				for (int i = 0; i < 12; ++i) { const float mid = 0.5f * (lo + hi); (above(mid) < 0.0f ? hi : lo) = mid; }
+				out = ray.Origin + ray.Dir * (0.5f * (lo + hi));
+				return true;
+			}
+			previous = t;
+		}
+		return false;
+	}
+
+	// camera free (walk over the ground), top (straight down, WASD still walks) and follow (orbit a tribe member, the wheel zooms, drag turns).
+	CommandResult EditorApp::SetCamMode(CamMode mode, const std::string& member)
+	{
+		if (m_GameView.Active()) m_GameView.Command({ "off" }, m_Actors, m_Player, m_World, m_Camera);   // an editor camera takes the view back
+		if (mode == CamMode::Follow)
+		{
+			std::string name = member;
+			if (name.empty()) name = m_AbilityActor;
+			bool found = false;
+			for (const TribeMember& m : m_Tribe.Members()) if (m.Name == name && !m.Dead) found = true;
+			if (!found)   // the selected actor is not a tribe member: the first one alive
+				for (const TribeMember& m : m_Tribe.Members()) if (!m.Dead) { name = m.Name; found = true; break; }
+			if (!found) return { false, "no tribe member to follow (tribe build [model.fbx])" };
+			m_FollowMember = name;
+			m_Orbit.SetTopDown(false);
+			m_Orbit.Following = true;
+			m_Orbit.Distance = std::min(m_Orbit.Distance, 14.0f);
+			m_Orbit.Pitch = 0.35f;
+			m_CamMode = mode;
+			return { true, "camera follows " + name + " (drag to orbit, wheel to zoom, camera free to leave)" };
+		}
+		m_Orbit.Following = false;
+		m_Orbit.SetTopDown(mode == CamMode::TopDown);
+		if (mode == CamMode::TopDown) m_Orbit.Distance = std::max(m_Orbit.Distance, 40.0f);
+		m_CamMode = mode;
+		return { true, mode == CamMode::TopDown ? "top-down camera (WASD walk, Q/E turn, wheel zoom)" : "free camera (WASD walk, Q/E turn, wheel zoom to the cursor)" };
 	}
 
 	void EditorApp::ApplyTimeOfDay()
@@ -548,10 +603,13 @@ namespace GB::Editor
 			SetQuality(a[0]);
 			return { true, "" };
 		});
-		c.Register("camera", "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("camera", "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera free | top | follow [member]: walk over the ground with WASD (Q/E turn, Shift runs, the wheel zooms to the cursor), look straight down, or orbit a tribe member (keys F and T in the viewport). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!a.empty() && a[0] == "game")
 				return m_GameView.Command(std::vector<std::string>(a.begin() + 1, a.end()), m_Actors, m_Player, m_World, m_Camera);
+			if (!a.empty() && a[0] == "free") return SetCamMode(CamMode::Free);
+			if (!a.empty() && (a[0] == "top" || a[0] == "topdown")) return SetCamMode(CamMode::TopDown);
+			if (!a.empty() && a[0] == "follow") return SetCamMode(CamMode::Follow, a.size() > 1 ? a[1] : std::string());
 			if (a.size() < 3) return { false, "usage: camera <yaw> <pitch> <distance> [x y z] | camera game ..." };
 			if (m_GameView.Active()) m_GameView.Command({ "off" }, m_Actors, m_Player, m_World, m_Camera);   // placing the editor camera takes the view back
 			m_Orbit.Yaw = glm::radians(static_cast<float>(std::atof(a[0].c_str())));
@@ -941,7 +999,14 @@ namespace GB::Editor
 		c.Register("nav", "nav status | debug on|off | rebuild | sync | path <x1 z1 x2 z2> [load 0-1]: navigation over the terrain: the grid the characters plan their paths on (trunks, rocks, deep water and cliffs are walls; wading and slopes cost), the paths they follow and what the planning has cost", [this](const std::vector<std::string>& a) { return NavCommand(a); });
 		c.Register("economy", "economy status | plan | give <item> [n] | stockpile <name> [x z] [kind] | demand <source> <item> <n>: the clan's economy (H18): what it makes from what (production chains), what spoils, its stores and stockpiles, what it hauls and how much food it brings in; give puts things in the main store", [this](const std::vector<std::string>& a) { return EconomyCommand(a); });
 		c.Register("field", "field status | mark [x z]: the clan's fields (H18, E7): plots grass, tilled, sown, sprouting or ripe, what needs water and what the season allows; mark lays out a field (the clan does it by itself once it knows tillage and has seeds)", [this](const std::vector<std::string>& a) { return FieldCommand(a); });
-		c.Register("region", "region list | info <id|name> | explore: the regions of the generated world (H12): area, biome, water, wild resources and danger; what the clan knows of each, its expedition and its moves", [this](const std::vector<std::string>& a) { return RegionCommand(a); });
+		c.Register("clan", "clan overlay [on|off]: draws the clan's fields (one colour per plot state), stockpiles and, over each member, its name, trade and what it is doing", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty() || a[0] != "overlay") return { false, "clan overlay [on|off]" };
+			if (a.size() > 1) m_ClanOverlay = a[1] == "on" || a[1] == "1" || a[1] == "true";
+			else m_ClanOverlay = !m_ClanOverlay;
+			return { true, std::string("clan overlay ") + (m_ClanOverlay ? "on" : "off") };
+		});
+		c.Register("region","region list | info <id|name> | explore: the regions of the generated world (H12): area, biome, water, wild resources and danger; what the clan knows of each, its expedition and its moves", [this](const std::vector<std::string>& a) { return RegionCommand(a); });
 		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | remove <name> | clear: the first tribe: workers (named from the data, their trades shared out by the clan's needs) gather, carry to a store, make tools and light a campfire by themselves; they get better at what they practise and take jobs from the clan's board", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("qa", "qa sim [days] [members] | check | status | reset | expect \"<command>\" <regex>: simulation QA (H20): `sim` runs the current scene (its tribe, or a new one) headless for days and checks every invariant at every step (counts, claims, stuck members, deaths, store, fire, positions, ground, job board, skills, knowledge, expeditions, migration, society), `check` checks the live scene now, `status` what the live monitor has seen (QA panel), `expect` fails unless a command's answer matches (for scripted demos)", [this](const std::vector<std::string>& a) { return QaCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
@@ -1136,6 +1201,14 @@ namespace GB::Editor
 		else if (!m_GameView.Active())
 		{
 			if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt);
+			if (m_CamMode == CamMode::Follow)   // the target eases to the member; dragging still orbits it
+			{
+				const Actor* actor = m_Actors.Find(m_FollowMember);
+				bool alive = false;
+				for (const TribeMember& m : m_Tribe.Members()) if (m.Name == m_FollowMember && !m.Dead) alive = true;
+				if (actor && alive) m_Orbit.FollowTo(actor->GetPosition() + glm::vec3(0.0f, 1.2f, 0.0f), dt);
+				else SetCamMode(CamMode::Free);   // gone or dead: back to the free camera where it stands
+			}
 			m_Orbit.Apply(m_Camera);
 		}
 		if (m_GameView.Active())   // a game camera (camera game ...) owns the view; shadows and weather centre on what it looks at
@@ -1387,6 +1460,26 @@ namespace GB::Editor
 			ImGui::Image(static_cast<ImTextureID>(static_cast<intptr_t>(m_ViewportFb->GetColorTexture())), ImVec2(static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH)),   // scaled up when rendered smaller
 				ImVec2(0, 1), ImVec2(1, 0));
 			m_ViewportHovered = ImGui::IsItemHovered();
+			{
+				const ImVec2 mp = ImGui::GetIO().MousePos;
+				m_CursorNorm = { (mp.x - origin.x) / std::max(static_cast<float>(m_ViewportW), 1.0f), (mp.y - origin.y) / std::max(static_cast<float>(m_ViewportH), 1.0f) };
+			}
+			{   // camera mode buttons over the viewport corner (they take the mouse: no picking or orbiting through them)
+				const char* names[3] = { "Free", "Top", "Follow" };
+				const CamMode modes[3] = { CamMode::Free, CamMode::TopDown, CamMode::Follow };
+				const char* commands[3] = { "camera free", "camera top", "camera follow" };
+				bool overButton = false;
+				for (int i = 0; i < 3; ++i)
+				{
+					ImGui::SetCursorScreenPos(ImVec2(origin.x + 8.0f + 58.0f * static_cast<float>(i), origin.y + 26.0f));
+					const bool on = m_CamMode == modes[i];
+					if (on) ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.20f, 0.45f, 0.80f, 0.85f));
+					if (ImGui::Button(names[i], ImVec2(54.0f, 0.0f))) Execute(commands[i]);
+					if (on) ImGui::PopStyleColor();
+					overButton = overButton || ImGui::IsItemHovered();
+				}
+				if (overButton) m_ViewportHovered = false;
+			}
 			DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
 			if (m_NavDebug) DrawNavDebug(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
 			char info[96];
@@ -1470,6 +1563,8 @@ namespace GB::Editor
 		else if (ImGui::IsKeyPressed(ImGuiKey_F5, false)) Execute("quicksave");
 		else if (ImGui::IsKeyPressed(ImGuiKey_F9, false)) Execute("quickload");
 		else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false) && m_SceneEditor.Selected() != NullEntity) Execute("entity delete");
+		else if (m_ViewportHovered && !io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) Execute(m_CamMode == CamMode::Follow ? "camera free" : "camera follow");
+		else if (m_ViewportHovered && !io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_T, false)) Execute(m_CamMode == CamMode::TopDown ? "camera free" : "camera top");
 	}
 
 	void EditorApp::DrawGizmo(float ox, float oy, float w, float h)
@@ -1513,6 +1608,7 @@ namespace GB::Editor
 			}
 		}
 
+		if (m_ClanOverlay) DrawClanOverlay(dl, viewProj, size, ox, oy);
 		if (m_AiDebug) DrawAiDebug(dl, viewProj, size, ox, oy);
 
 		if (m_ViewportHovered && ImGui::IsMouseClicked(0))
