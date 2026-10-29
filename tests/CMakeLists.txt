@@ -363,6 +363,12 @@ target_link_libraries(GBAnimUsageTests PRIVATE GB::GB)
 target_compile_definitions(GBAnimUsageTests PRIVATE GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME anim_usage COMMAND GBAnimUsageTests)
 
+# Animation bindings (docs/EDITOR_ANIMACIONES.md): JSON, validation, resolution with fallbacks, trim / loop / blend on an animation clock, headless
+add_executable(GBAnimBindingsTests anim_bindings_test.cpp)
+target_link_libraries(GBAnimBindingsTests PRIVATE GB::GB)
+target_compile_definitions(GBAnimBindingsTests PRIVATE GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets" GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
+add_test(NAME anim_bindings COMMAND GBAnimBindingsTests)
+
 # The visual layer as data (GB/Visual): procedural meshes, textures, node looks by Amount, props by bag and job, buildings by phase
 add_executable(GBVisualsTests visuals_test.cpp)
 target_link_libraries(GBVisualsTests PRIVATE GB::GB)

@@ -67,12 +67,95 @@ namespace GB
 		return names;
 	}
 
+	namespace
+	{
+		// The trimmed window of a clip in seconds (an empty or inverted trim plays the whole clip).
+		void Window(const MontageDesc& d, float duration, float& start, float& end)
+		{
+			start = std::clamp(d.TrimStart, 0.0f, 1.0f) * duration;
+			end = std::clamp(d.TrimEnd, 0.0f, 1.0f) * duration;
+			if (end <= start + 1e-4f) { start = 0.0f; end = duration; }
+		}
+	}
+
+	const char* BlendCurveName(BlendCurve curve)
+	{
+		switch (curve)
+		{
+		case BlendCurve::Linear: return "linear";
+		case BlendCurve::EaseIn: return "easeIn";
+		case BlendCurve::EaseOut: return "easeOut";
+		default: return "smooth";
+		}
+	}
+
+	BlendCurve BlendCurveFromName(const std::string& name)
+	{
+		if (name == "linear") return BlendCurve::Linear;
+		if (name == "easeIn") return BlendCurve::EaseIn;
+		if (name == "easeOut") return BlendCurve::EaseOut;
+		return BlendCurve::Smooth;
+	}
+
+	float ShapeBlend(BlendCurve curve, float w)
+	{
+		w = std::clamp(w, 0.0f, 1.0f);
+		switch (curve)
+		{
+		case BlendCurve::Linear: return w;
+		case BlendCurve::EaseIn: return w * w;
+		case BlendCurve::EaseOut: return 1.0f - (1.0f - w) * (1.0f - w);
+		default: return w * w * (3.0f - 2.0f * w);   // ease in and out
+		}
+	}
+
+	ClockStep AdvanceClipClock(float time, float dt, float duration, float trimStart, float trimEnd, bool loop)
+	{
+		MontageDesc d;
+		d.TrimStart = trimStart;
+		d.TrimEnd = trimEnd;
+		float start = 0.0f, end = duration;
+		Window(d, duration, start, end);
+		ClockStep s;
+		s.Time = std::max(time, start) + dt;
+		if (s.Time >= end)
+		{
+			if (loop) { s.Time = start + std::fmod(s.Time - start, end - start); s.Wrapped = true; }
+			else { s.Time = end; s.Ended = true; }
+		}
+		return s;
+	}
+
 	float MontagePlayer::Duration(const std::string& name) const
 	{
 		const int i = Find(name);
 		if (i < 0) return 0.0f;
 		const Entry& e = m_Entries[static_cast<size_t>(i)];
 		return e.Stats.Duration / std::max(e.Desc.PlayRate, 1e-3f);
+	}
+
+	float MontagePlayer::PlayDuration(const std::string& name) const
+	{
+		const int i = Find(name);
+		if (i < 0) return 0.0f;
+		const Entry& e = m_Entries[static_cast<size_t>(i)];
+		float start = 0.0f, end = 0.0f;
+		Window(e.Desc, e.Stats.Duration, start, end);
+		return (end - start) / std::max(e.Desc.PlayRate, 1e-3f);
+	}
+
+	float MontagePlayer::ClipDuration(const std::string& name) const
+	{
+		const int i = Find(name);
+		return i < 0 ? 0.0f : m_Entries[static_cast<size_t>(i)].Stats.Duration;
+	}
+
+	float MontagePlayer::Weight(const std::string& name) const
+	{
+		float w = 0.0f;
+		for (const Active& a : m_Active)
+			if (m_Entries[static_cast<size_t>(a.Entry)].Desc.Name == name) w = std::max(w, a.Weight);
+		return w;
 	}
 
 	void MontagePlayer::Leave(Active& a, float blendOut, bool interrupted)
@@ -123,11 +206,37 @@ namespace GB
 				if (s.Name == section) { start = s.Time * m_Entries[static_cast<size_t>(i)].Stats.Duration; found = true; }
 			if (!found) return false;
 		}
-		for (Active& a : m_Active)
-			if (m_Entries[static_cast<size_t>(a.Entry)].Slot == m_Entries[static_cast<size_t>(i)].Slot) Leave(a, -1.0f, true);
+		{
+			const Entry& next = m_Entries[static_cast<size_t>(i)];
+			float w0 = 0.0f, w1 = 0.0f;
+			Window(next.Desc, next.Stats.Duration, w0, w1);
+			start = std::clamp(start, w0, w1);
+		}
+		const MontageTransition* chosen = nullptr;
+		for (Active& old : m_Active)
+		{
+			const Entry& oe = m_Entries[static_cast<size_t>(old.Entry)];
+			if (oe.Slot != m_Entries[static_cast<size_t>(i)].Slot) continue;
+			float blend = -1.0f;
+			if (!old.Leaving)
+			{
+				const std::string& from = oe.Desc.Name;
+				const MontageTransition* exact = nullptr; const MontageTransition* fromAny = nullptr; const MontageTransition* anyTo = nullptr;
+				for (const MontageTransition& t : m_Transitions)
+				{
+					if (t.From == from && t.To == name) exact = &t;
+					else if (t.From == from && t.To == "*") fromAny = &t;
+					else if (t.From == "*" && t.To == name) anyTo = &t;
+				}
+				const MontageTransition* t = exact ? exact : fromAny ? fromAny : anyTo;
+				if (t) { chosen = t; blend = t->Duration; old.Curve = t->Curve; old.CurveSet = true; }
+			}
+			Leave(old, blend, true);
+		}
 		Active a;
 		a.Entry = i;
 		a.Time = start;
+		if (chosen) { a.BlendInTime = chosen->Duration; a.Curve = chosen->Curve; a.CurveSet = true; }
 		a.RateScale = std::clamp(rateScale, 0.1f, 10.0f);
 		m_Active.push_back(a);
 		return true;
@@ -203,24 +312,28 @@ namespace GB
 		{
 			const Entry& e = m_Entries[static_cast<size_t>(a.Entry)];
 			const float duration = std::max(e.Stats.Duration, 1e-3f);
+			float winStart = 0.0f, winEnd = duration;
+			Window(e.Desc, duration, winStart, winEnd);
 			const float before = a.Time / duration;
-			a.Time += dt * e.Desc.PlayRate * a.RateScale;
 			bool wrapped = false;
-			if (a.Time >= duration)
+			const float advanced = a.Time + dt * e.Desc.PlayRate * a.RateScale;
+			if (advanced >= winEnd)
 			{
-				if (e.Desc.Loop && !a.Leaving) { a.Time = std::fmod(a.Time, duration); wrapped = true; }
-				else a.Time = duration;
+				if (e.Desc.Loop && !a.Leaving) { a.Time = winStart + std::fmod(advanced - winStart, winEnd - winStart); wrapped = true; }
+				else a.Time = winEnd;
 			}
+			else a.Time = advanced;
 			const float after = a.Time / duration;
+			const float fStart = winStart / duration, fEnd = winEnd / duration;
 			if (!a.Leaving)
 				for (const MontageNotify& n : e.Desc.Notifies)
 				{
-					const bool crossed = wrapped ? (n.Time > before || n.Time <= after) : (n.Time > before && n.Time <= after);
+					const bool crossed = wrapped ? ((n.Time > before && n.Time <= fEnd) || (n.Time >= fStart && n.Time <= after)) : (n.Time > before && n.Time <= after);
 					if (crossed) m_Events.push_back({ MontageEvent::Kind::Notify, e.Desc.Name, n.Name });
 				}
-			if (!a.Leaving && !e.Desc.Loop && !e.Desc.HoldEnd && a.Time >= duration - e.Desc.BlendOut * e.Desc.PlayRate * a.RateScale)
+			if (!a.Leaving && !e.Desc.Loop && !e.Desc.HoldEnd && a.Time >= winEnd - e.Desc.BlendOut * e.Desc.PlayRate * a.RateScale)
 				Leave(a, -1.0f, false);   // reaches its end: the blend out starts BlendOut seconds before it
-			const float rate = a.Leaving ? 1.0f / a.LeaveBlend : 1.0f / std::max(e.Desc.BlendIn, 1e-3f);
+			const float rate = a.Leaving ? 1.0f / a.LeaveBlend : 1.0f / std::max(a.BlendInTime >= 0.0f ? a.BlendInTime : e.Desc.BlendIn, 1e-3f);
 			a.Weight = a.Leaving ? std::max(a.Weight - dt * rate, 0.0f) : std::min(a.Weight + dt * rate, 1.0f);
 		}
 		for (size_t i = 0; i < m_Active.size();)
@@ -250,7 +363,7 @@ namespace GB
 				root.T.x -= e.Stats.RootStart.x + (e.Desc.StripTravel ? e.Stats.RootDelta.x * p : 0.0f);
 				root.T.z -= e.Stats.RootStart.z + (e.Desc.StripTravel ? e.Stats.RootDelta.z * p : 0.0f);
 			}
-			const float s = a.Weight * a.Weight * (3.0f - 2.0f * a.Weight);   // ease in and out
+			const float s = ShapeBlend(a.CurveSet ? a.Curve : e.Desc.Curve, a.Weight);   // (Smooth: ease in and out)
 			const std::vector<float>& mask = m_Slots[static_cast<size_t>(e.Slot)].Mask;
 			if (mask.empty()) BlendPoses(pose, m_Scratch, s, pose);
 			else BlendPosesMasked(pose, m_Scratch, s, mask, pose);
@@ -273,6 +386,9 @@ namespace GB
 			j["loop"] = m.Loop;
 			j["stripTravel"] = m.StripTravel;
 			if (m.HoldEnd) j["holdEnd"] = true;   // (only when set: the files of before stay byte for byte)
+			if (m.TrimStart > 0.0f) j["trimStart"] = m.TrimStart;
+			if (m.TrimEnd < 1.0f) j["trimEnd"] = m.TrimEnd;
+			if (m.Curve != BlendCurve::Smooth) j["blendCurve"] = BlendCurveName(m.Curve);
 			Json notifies = Json::array();
 			for (const MontageNotify& n : m.Notifies) notifies.push_back({ { "time", n.Time }, { "name", n.Name } });
 			j["notifies"] = notifies;
@@ -312,6 +428,9 @@ namespace GB
 				m.Loop = j.value("loop", false);
 				m.StripTravel = j.value("stripTravel", true);
 				m.HoldEnd = j.value("holdEnd", false);
+				m.TrimStart = j.value("trimStart", 0.0f);
+				m.TrimEnd = j.value("trimEnd", 1.0f);
+				m.Curve = BlendCurveFromName(j.value("blendCurve", "smooth"));
 				if (j.contains("notifies"))
 					for (const Json& n : j["notifies"]) m.Notifies.push_back({ n.value("time", 0.0f), n.value("name", "") });
 				if (j.contains("sections"))

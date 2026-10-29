@@ -147,6 +147,12 @@ namespace GB
 			for (const ManifestStage& st : manifest.Stages) stages.push_back({ { "name", st.Name }, { "rate", st.Rate } });
 			root["stages"] = stages;
 		}
+		if (!manifest.Transitions.empty())
+		{
+			Json trs = Json::array();
+			for (const MontageTransition& t : manifest.Transitions) trs.push_back({ { "from", t.From }, { "to", t.To }, { "duration", t.Duration }, { "curve", BlendCurveName(t.Curve) } });
+			root["transitions"] = trs;
+		}
 		return root.dump(2) + "\n";
 	}
 
@@ -182,6 +188,9 @@ namespace GB
 		if (const auto it = root.find("stages"); it != root.end() && it->is_array())
 			for (const Json& st : *it)
 				if (st.is_object()) m.Stages.push_back({ st.value("name", ""), st.value("rate", 1.0f) });
+		if (const auto it = root.find("transitions"); it != root.end() && it->is_array())
+			for (const Json& t : *it)
+				if (t.is_object()) m.Transitions.push_back({ t.value("from", ""), t.value("to", ""), t.value("duration", 0.2f), BlendCurveFromName(t.value("curve", "smooth")) });
 		out = std::move(m);
 		return true;
 	}
@@ -242,6 +251,7 @@ namespace GB
 			if (!has(m.Clip)) { note("montage " + m.Name, m.Clip); continue; }
 			report.Montages += anim.Montages().Add(m) ? 1 : 0;
 		}
+		anim.Montages().SetTransitions(manifest.Transitions);
 		for (const AnimationClip& c : model.GetClips())
 			if (!used.count(c.Name)) report.Unused.push_back(c.Name);
 		return report;
@@ -269,6 +279,8 @@ namespace GB
 			if (s.Clips.size() < 2) problems.push_back("set '" + s.Name + "' needs at least two clips (an idle and a gait)");
 			for (const std::string& c : s.Clips) if (c.empty()) problems.push_back("set '" + s.Name + "' has an empty clip name");
 		}
+		for (const MontageDesc& m : manifest.Montages)
+			if (m.TrimStart < 0.0f || m.TrimEnd > 1.0f || m.TrimEnd <= m.TrimStart) problems.push_back("montage '" + m.Name + "' has a trim that is not inside 0..1 or is empty");
 		std::set<std::string> slots;
 		slots.insert(MontagePlayer::kFullBody);
 		for (const ManifestSlot& s : manifest.Slots) slots.insert(s.Name);

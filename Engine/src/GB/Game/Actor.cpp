@@ -154,6 +154,11 @@ namespace GB
 		AnimManifest manifest;
 		std::string error;
 		if (!AnimManifestFromJson(text.str(), manifest, &error)) { report = error; return false; }
+		return SetManifest(std::move(manifest), report, path);
+	}
+
+	bool Actor::SetManifest(AnimManifest manifest, std::string& report, const std::string& source)
+	{
 		const std::vector<std::string> problems = ValidateManifest(manifest);
 		if (!problems.empty())
 		{
@@ -162,7 +167,7 @@ namespace GB
 			return false;
 		}
 		m_Manifest = std::move(manifest);
-		report = "loaded " + std::to_string(m_Manifest.Sets.size() + 1) + " set(s) and " + std::to_string(m_Manifest.Montages.size()) + " montage(s) from " + path;
+		report = "loaded " + std::to_string(m_Manifest.Sets.size() + 1) + " set(s) and " + std::to_string(m_Manifest.Montages.size()) + " montage(s)" + (source.empty() ? "" : " from " + source);
 		if (m_Model && m_Instance && m_Animator)
 		{
 			std::string error2;

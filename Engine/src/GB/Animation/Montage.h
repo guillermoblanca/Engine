@@ -21,6 +21,31 @@ namespace GB
 		std::string Name;
 	};
 
+	// The shape of a blend: how the weight (0..1, linear in time) becomes the share of the montage in the pose.
+	enum class BlendCurve { Smooth, Linear, EaseIn, EaseOut };
+	const char* BlendCurveName(BlendCurve curve);                       // "smooth", "linear", "easeIn", "easeOut"
+	BlendCurve BlendCurveFromName(const std::string& name);              // unknown = Smooth
+	float ShapeBlend(BlendCurve curve, float weight);                    // 0 -> 0 and 1 -> 1 for every curve
+
+	// The animation clock of one montage run, without a window or a model: where the clip is after `dt` seconds of its own time, inside the
+	// trimmed part (fractions of `duration`). A loop wraps from the trim end to the trim start; a one-shot stops at the end.
+	struct ClockStep
+	{
+		float Time = 0.0f;
+		bool Wrapped = false;
+		bool Ended = false;   // reached the trim end (a loop wraps instead)
+	};
+	ClockStep AdvanceClipClock(float time, float dt, float duration, float trimStart, float trimEnd, bool loop);
+
+	// How one montage gives way to another in the same slot (instead of the old one's BlendOut and the new one's BlendIn): `From` and `To` are
+	// montage names, "*" for any.
+	struct MontageTransition
+	{
+		std::string From, To;
+		float Duration = 0.2f;
+		BlendCurve Curve = BlendCurve::Smooth;
+	};
+
 	// A one-shot action (pick a fruit, milk a cow, dig) played over the locomotion pose in a slot. A slot is a part of the
 	// body (the whole body, or everything below a bone such as the spine): a montage only replaces the bones of its slot.
 	struct MontageDesc
@@ -34,6 +59,10 @@ namespace GB
 		// Stays on the clip's last frame until Stop instead of blending out at the end: a pose the action ends in and keeps (lying down to sleep,
 		// sitting down to eat). Ignored with Loop.
 		bool HoldEnd = false;
+		// The part of the clip that plays, as fractions (0..1) of it: the run starts at TrimStart, ends (or loops) at TrimEnd. Notifies and sections
+		// stay fractions of the whole clip.
+		float TrimStart = 0.0f, TrimEnd = 1.0f;
+		BlendCurve Curve = BlendCurve::Smooth;   // shape of its blend in and out
 		bool StripTravel = true;          // the controller owns the position: take the clip's own horizontal travel out of the root
 		std::vector<MontageNotify> Notifies;
 		std::vector<MontageSection> Sections;
@@ -64,7 +93,14 @@ namespace GB
 		bool Has(const std::string& name) const { return Find(name) >= 0; }
 		std::vector<std::string> Names() const;
 		std::vector<std::string> SlotNames() const;
-		float Duration(const std::string& name) const;   // seconds at the montage's play rate, 0 if unknown
+		float Duration(const std::string& name) const;   // seconds the WHOLE clip lasts at the montage's play rate (trim not applied), 0 if unknown
+		float PlayDuration(const std::string& name) const;   // seconds a run lasts: the trimmed part at the play rate
+		float ClipDuration(const std::string& name) const;   // seconds of the whole clip (no trim, no rate), 0 if unknown
+		float Weight(const std::string& name) const;     // 0..1: how much of this montage run is in the slot now (0 when it is not playing)
+		// Blends between pairs of montages (see MontageTransition): Play uses the matching one (exact pair, then From -> "*", then "*" -> To) for the
+		// montage it replaces and for itself.
+		void SetTransitions(std::vector<MontageTransition> transitions) { m_Transitions = std::move(transitions); }
+		const std::vector<MontageTransition>& Transitions() const { return m_Transitions; }
 
 		const MontageDesc* Get(const std::string& name) const;      // null when unknown
 		std::vector<MontageDesc> Descs() const;                      // every montage, for saving
@@ -103,6 +139,9 @@ namespace GB
 			bool Leaving = false;    // blending out (stopped, replaced or at its end)
 			float LeaveBlend = 0.25f;
 			bool Interrupted = false;
+			float BlendInTime = -1.0f;   // >= 0: a transition's duration replaces the montage's BlendIn
+			BlendCurve Curve = BlendCurve::Smooth;
+			bool CurveSet = false;       // a transition's curve replaces the montage's
 		};
 		int Find(const std::string& name) const;
 		int FindSlot(const std::string& name) const;
@@ -116,6 +155,7 @@ namespace GB
 		std::vector<MontageEvent> m_Events, m_Pending;   // pending: raised by Play / Stop between two updates
 		Pose m_Scratch;
 		bool m_Paused = false;
+		std::vector<MontageTransition> m_Transitions;
 	};
 
 	// Montages as JSON text (names, clips, slots, blends, rate, loop, notifies and sections): what the timeline editor saves and loads.
