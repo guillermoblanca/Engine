@@ -798,6 +798,7 @@ namespace GB
 		TelemetrySink* m_Telemetry = nullptr;   // not owned
 		int m_TelemetryClan = 0;
 		double m_TelemetryEvery = 60.0, m_TelemetryNext = 0.0;
+		double m_TelemetryRelationsNext = 0.0;   // the bonds are written about once a day
 		std::map<std::string, std::string> m_TelemetryLast;   // what each member last decided (kind + target): a decision is written when it changes
 		std::set<std::string> m_TelemetryKnown;   // the members whose sheet is written
 		void EmitTelemetry();

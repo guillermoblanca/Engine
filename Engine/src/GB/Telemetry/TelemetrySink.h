@@ -88,6 +88,25 @@ namespace GB
 		std::string Member, Chosen, Target, Previous, Options;
 	};
 
+	// The bond of two members of a clan (a < b by name), written about once a day for the pairs that matter.
+	struct TelemetryRelation
+	{
+		int Clan = 0;
+		double Time = 0.0;
+		std::string A, B, Kin;
+		double Bond = 0.0, Affinity = 0.0;
+	};
+
+	// How two clans stand (a < b): written every day for the pairs that have met.
+	struct TelemetryClanRelation
+	{
+		int A = 0, B = 0;
+		double Time = 0.0;
+		std::string Stance;
+		double Attitude = 0.0, Hostility = 0.0, Trust = 0.0, GrievanceAB = 0.0, GrievanceBA = 0.0;
+		int Encounters = 0, Trades = 0, Gifts = 0, Thefts = 0, Raids = 0, Marriages = 0, Pacts = 0;
+	};
+
 	struct TelemetryStats
 	{
 		uint64_t SamplesWritten = 0, SamplesDropped = 0, EventsWritten = 0, Transactions = 0, WriteErrors = 0;
@@ -120,6 +139,8 @@ namespace GB
 		void ClanSample(const TelemetryClanSample& row);
 		void Event(const TelemetryEvent& row);
 		void Task(const TelemetryTask& row);
+		void Relation(const TelemetryRelation& row);
+		void ClanRelation(const TelemetryClanRelation& row);
 		void Decision(const TelemetryDecision& row);
 
 	private:

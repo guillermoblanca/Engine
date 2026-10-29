@@ -3,6 +3,7 @@
 // carry it out, and to hear of every gather (whose land it was on). The rest it does on its own clocks: encounters, territory, trade, weddings,
 // pacts and the days. Deterministic: clans in id order, pairs (a < b), members and regions in order, maps by key; the only chance is a hash.
 #include "GB/Game/Clans.h"
+#include "GB/Telemetry/TelemetrySink.h"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -346,6 +347,7 @@ namespace GB
 		std::snprintf(t, sizeof t, "%7.1f ", m_Time);
 		m_Log.push_back(t + text);
 		if (m_Log.size() > kLogLines + kLogLines / 4) m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - kLogLines));
+		if (m_Telemetry) { TelemetryEvent te; te.Clan = a; te.Time = m_Time; te.Kind = "clan_" + kind; te.Who = ClanName(a); te.Other = ClanName(b); te.Result = std::to_string(b); te.Text = text; m_Telemetry->Event(te); }
 		DiplomacyEvent e{ kind, a, b, text, m_Time };
 		for (const Listener& l : m_Listeners) l(e);
 	}
@@ -1060,6 +1062,24 @@ namespace GB
 	void ClanWorld::Day()
 	{
 		++m_Days;
+		if (m_Telemetry)
+			for (const auto& [key, r] : m_Relations)
+			{
+				if (r.Encounters == 0 && r.Pacts.empty()) continue;
+				TelemetryClanRelation row;
+				row.A = key.first;
+				row.B = key.second;
+				row.Time = m_Time;
+				row.Stance = Stance(key.first, key.second);
+				row.Attitude = static_cast<double>(Attitude(key.first, key.second));
+				row.Hostility = static_cast<double>(Hostility(key.first, key.second));
+				row.Trust = static_cast<double>(r.Trust);
+				row.GrievanceAB = static_cast<double>(r.Grievance[0]);
+				row.GrievanceBA = static_cast<double>(r.Grievance[1]);
+				row.Encounters = r.Encounters; row.Trades = r.Trades; row.Gifts = r.Gifts; row.Thefts = r.Thefts; row.Raids = r.Raids; row.Marriages = r.Marriages;
+				row.Pacts = static_cast<int>(r.Pacts.size());
+				m_Telemetry->ClanRelation(row);
+			}
 		for (auto& [key, r] : m_Relations)
 		{
 			r.Base *= 1.0f - Rules.Relations.DecayPerDay;

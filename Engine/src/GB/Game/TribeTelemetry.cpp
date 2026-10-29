@@ -26,6 +26,7 @@ namespace GB
 		m_TelemetryEvery = every > 1.0 ? every : 1.0;
 		m_TelemetryKnown.clear();
 		m_TelemetryNext = m_Time;   // the first rows are written at once
+		m_TelemetryRelationsNext = m_Time;
 	}
 
 	void Tribe::EmitEvent(const char* kind, const std::string& who, const std::string& other, const std::string& result, const std::string& text)
@@ -145,6 +146,24 @@ namespace GB
 			if (person) s.Age = static_cast<double>(person->Age);
 			s.Skills = NumbersJson(m.Skills);
 			m_Telemetry->Sample(s);
+		}
+		if (m_Time >= m_TelemetryRelationsNext)   // the bonds that matter (|bond| over 0.05), each pair once
+		{
+			m_TelemetryRelationsNext = m_Time + day;
+			for (const TribeMember& m : m_Members)
+				for (const auto& [other, bond] : m_Society.BondsOf(m.Name))
+				{
+					if (m.Name >= other || std::fabs(bond) < 0.05f) continue;
+					TelemetryRelation r;
+					r.Clan = m_TelemetryClan;
+					r.Time = m_Time;
+					r.A = m.Name;
+					r.B = other;
+					r.Kin = m_Society.Kin(m.Name, other);
+					r.Bond = static_cast<double>(bond);
+					r.Affinity = static_cast<double>(m_Society.Affinity(Config.Society, m.Name, other));
+					m_Telemetry->Relation(r);
+				}
 		}
 		clan.Store = store.dump();
 		m_Telemetry->ClanSample(clan);

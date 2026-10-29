@@ -8,7 +8,7 @@ namespace GB
 {
 	namespace
 	{
-		enum Table { kIndividuals = 0, kSamples, kClanSamples, kEvents, kTasks, kDecisions, kTableCount };
+		enum Table { kIndividuals = 0, kSamples, kClanSamples, kEvents, kTasks, kDecisions, kRelations, kClanRelations, kTableCount };
 
 		struct Column { const char* Name; const char* Type; };
 		struct TableSpec { const char* Name; std::vector<Column> Columns; };
@@ -27,6 +27,10 @@ namespace GB
 				{ "events", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "kind", "TEXT" }, { "who", "TEXT" }, { "other", "TEXT" }, { "result", "TEXT" }, { "text", "TEXT" } } },
 					{ "tasks", { { "clan_id", "INTEGER" }, { "member", "TEXT" }, { "kind", "TEXT" }, { "target", "TEXT" }, { "start", "REAL" }, { "end", "REAL" }, { "result", "TEXT" }, { "reason", "TEXT" } } },
 					{ "decisions", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "member", "TEXT" }, { "chosen", "TEXT" }, { "target", "TEXT" }, { "previous", "TEXT" }, { "options", "TEXT" } } },
+					{ "relations", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "a", "TEXT" }, { "b", "TEXT" }, { "kin", "TEXT" }, { "bond", "REAL" }, { "affinity", "REAL" } } },
+					{ "clan_relations", { { "clan_a", "INTEGER" }, { "clan_b", "INTEGER" }, { "t", "REAL" }, { "stance", "TEXT" }, { "attitude", "REAL" }, { "hostility", "REAL" }, { "trust", "REAL" },
+						{ "grievance_ab", "REAL" }, { "grievance_ba", "REAL" }, { "encounters", "INTEGER" }, { "trades", "INTEGER" }, { "gifts", "INTEGER" }, { "thefts", "INTEGER" }, { "raids", "INTEGER" },
+						{ "marriages", "INTEGER" }, { "pacts", "INTEGER" } } },
 			};
 			return specs;
 		}
@@ -90,7 +94,7 @@ namespace GB
 		if (sqlite3_exec(db->Handle, schema.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK) return fail("schema");
 		{
 			sqlite3_stmt* s = nullptr;
-			if (sqlite3_prepare_v2(db->Handle, "INSERT INTO runs (schema_version, started, seed, commit_hash, profile, note, closed) VALUES (2, ?, ?, ?, ?, ?, 0)", -1, &s, nullptr) != SQLITE_OK) return fail("run");
+			if (sqlite3_prepare_v2(db->Handle, "INSERT INTO runs (schema_version, started, seed, commit_hash, profile, note, closed) VALUES (3, ?, ?, ?, ?, ?, 0)", -1, &s, nullptr) != SQLITE_OK) return fail("run");
 			const std::string now = Now();
 			sqlite3_bind_text(s, 1, now.c_str(), -1, SQLITE_TRANSIENT);
 			sqlite3_bind_int64(s, 2, info.Seed);
@@ -214,6 +218,19 @@ namespace GB
 	{
 		if (!m_Active.load()) return;
 		Push({ kDecisions, { V(r.Clan), V(r.Time), V(r.Member), V(r.Chosen), V(r.Target), V(r.Previous), V(r.Options) } }, true);
+	}
+
+	void TelemetrySink::Relation(const TelemetryRelation& r)
+	{
+		if (!m_Active.load()) return;
+		Push({ kRelations, { V(r.Clan), V(r.Time), V(r.A), V(r.B), V(r.Kin), V(r.Bond), V(r.Affinity) } }, true);
+	}
+
+	void TelemetrySink::ClanRelation(const TelemetryClanRelation& r)
+	{
+		if (!m_Active.load()) return;
+		Push({ kClanRelations, { V(r.A), V(r.B), V(r.Time), V(r.Stance), V(r.Attitude), V(r.Hostility), V(r.Trust), V(r.GrievanceAB), V(r.GrievanceBA), V(r.Encounters), V(r.Trades), V(r.Gifts),
+			V(r.Thefts), V(r.Raids), V(r.Marriages), V(r.Pacts) } }, false);
 	}
 
 	void TelemetrySink::Run()
