@@ -20,9 +20,12 @@ table{border-collapse:collapse;max-width:100%}.grid{width:100%;display:block;ove
 details{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:8px 0;padding:6px 12px}details>summary{cursor:pointer;padding:4px 0}details[open]>summary{margin-bottom:6px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}.card b{display:block;font-size:26px;color:var(--accent)}.card span{color:var(--muted)}
 .heat td[style]{background:color-mix(in srgb,var(--accent) calc(var(--w)*70%),transparent);text-align:center}.swatch{display:inline-block;width:46px;height:18px;border-radius:4px;border:1px solid var(--line)}
+.treewrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px}svg.tree{max-width:none;font:13px system-ui,sans-serif}
+.tnode rect{stroke-width:1.5}.tnode.known rect{fill:color-mix(in srgb,#2f9e5f 22%,var(--card));stroke:#2f9e5f}.tnode.learn rect{fill:color-mix(in srgb,#2f6fb0 18%,var(--card));stroke:#2f6fb0}
+.tnode.era2 rect{fill:var(--code);stroke:var(--muted);stroke-dasharray:4 3}.tnode text{fill:var(--fg)}.tnode .tname{font-weight:600}.tnode .tsub{fill:var(--muted);font-size:11px}a:hover .tnode rect{stroke-width:3}
 section{display:none}section.on{display:block}.hidden{display:none!important}
 @media (max-width:820px){nav{display:none}nav.open{display:block;position:fixed;inset:57px 0 0 0;width:auto;background:var(--bg);z-index:4}main{padding:14px 14px 80px}}
-</style></head><body><header><button id="menu" title="Menú">☰</button><b>GB Engine · wiki</b><input id="q" type="search" placeholder="Buscar habilidad, atributo, etiqueta, objeto…"><button id="theme" title="Tema">◐</button></header><div class="layout"><nav id="nav"><a href="#home">Inicio</a><h4>Guía</h4><a href="#empezar">Empezar: lanzar la tribu</a><a href="#comandos">Comandos del editor</a><h4>Reglas</h4><a href="#habilidades">Habilidades</a><a href="#efectos">Efectos</a><a href="#etiquetas">Árbol de etiquetas</a><a href="#atributos">Atributos por entidad</a><h4>Personajes</h4><a href="#necesidades">Necesidades</a><a href="#mente">Sentidos y decisión</a><a href="#roles">Roles</a><h4>Mundo</h4><a href="#mundo">Estaciones y ecología</a><a href="#contenido">Objetos, recetas y nodos</a><a href="#tecnologias">Tecnologías</a><h4>Datos</h4><a href="#paquetes">Paquetes</a><a href="#datos">Más datos del juego</a><h4>Documentos</h4><a href="#docs">Documentos</a><h4>Doc · Jugar</h4><a href="#doc-jugar-md">JUGAR.md</a><h4>Doc · Plan</h4><a href="#doc-plan-sociedad-viva-md">PLAN_SOCIEDAD_VIVA.md</a><a href="#doc-propuesta-habilidades-y-economia-md">PROPUESTA_HABILIDADES_Y_ECONOMIA.md</a><a href="#doc-informe-calidad-md">INFORME_CALIDAD.md</a><h4>Doc · Sistemas</h4><a href="#doc-tribu-md">TRIBU.md</a><a href="#doc-ia-md">IA.md</a><a href="#doc-navegacion-md">NAVEGACION.md</a><a href="#doc-objetos-md">OBJETOS.md</a><a href="#doc-interactivos-md">INTERACTIVOS.md</a><a href="#doc-ecologia-md">ECOLOGIA.md</a><a href="#doc-guardado-md">GUARDADO.md</a><a href="#doc-paquetes-md">PAQUETES.md</a><a href="#doc-conocimiento-md">CONOCIMIENTO.md</a><a href="#doc-exploracion-md">EXPLORACION.md</a><a href="#doc-recursos-mundo-md">RECURSOS_MUNDO.md</a><a href="#doc-camaras-md">CAMARAS.md</a><a href="#doc-asentamientos-md">ASENTAMIENTOS.md</a><a href="#doc-economia-md">ECONOMIA.md</a><a href="#doc-sociedad-md">SOCIEDAD.md</a><a href="#doc-clanes-md">CLANES.md</a><a href="#doc-conflicto-md">CONFLICTO.md</a><a href="#doc-visuales-md">VISUALES.md</a><a href="#doc-qa-simulacion-md">QA_SIMULACION.md</a><h4>Doc · Animación</h4><a href="#doc-animaciones-uso-md">ANIMACIONES_USO.md</a><h4>Doc · Sistemas</h4><a href="#doc-habilidades-md">habilidades.md</a><a href="#doc-coste-actor-md">COSTE_ACTOR.md</a><h4>Doc · Animación</h4><a href="#doc-animaciones-pendientes-md">ANIMACIONES_PENDIENTES.md</a><a href="#doc-animacion-locomocion-md">ANIMACION_LOCOMOCION.md</a><a href="#doc-animacion-sistema-completo-md">ANIMACION_SISTEMA_COMPLETO.md</a><a href="#doc-auditoria-animacion-md">AUDITORIA_ANIMACION.md</a><a href="#doc-modelos-y-animacion-md">modelos-y-animacion.md</a><h4>Doc · Motor</h4><a href="#doc-editor-md">editor.md</a><a href="#doc-render-md">render.md</a><a href="#doc-mundo-md">mundo.md</a><a href="#doc-efectos-md">efectos.md</a><a href="#doc-fisica-md">fisica.md</a><a href="#doc-audio-md">audio.md</a><a href="#doc-qa-md">qa.md</a></nav><main><section id="home"><h1>GB Engine — wiki del mundo vivo</h1>
+</style></head><body><header><button id="menu" title="Menú">☰</button><b>GB Engine · wiki</b><input id="q" type="search" placeholder="Buscar habilidad, atributo, etiqueta, objeto…"><button id="theme" title="Tema">◐</button></header><div class="layout"><nav id="nav"><a href="#home">Inicio</a><h4>Guía</h4><a href="#empezar">Empezar: lanzar la tribu</a><a href="#comandos">Comandos del editor</a><h4>Reglas</h4><a href="#habilidades">Habilidades</a><a href="#efectos">Efectos</a><a href="#etiquetas">Árbol de etiquetas</a><a href="#atributos">Atributos por entidad</a><h4>Personajes</h4><a href="#necesidades">Necesidades</a><a href="#mente">Sentidos y decisión</a><a href="#roles">Roles</a><h4>Mundo</h4><a href="#mundo">Estaciones y ecología</a><a href="#contenido">Objetos, recetas y nodos</a><a href="#tecnologias">Árbol de tecnologías</a><a href="#edificios">Edificios</a><h4>Datos</h4><a href="#paquetes">Paquetes</a><a href="#datos">Más datos del juego</a><h4>Documentos</h4><a href="#docs">Documentos</a><h4>Doc · Jugar</h4><a href="#doc-jugar-md">JUGAR.md</a><h4>Doc · Plan</h4><a href="#doc-plan-sociedad-viva-md">PLAN_SOCIEDAD_VIVA.md</a><a href="#doc-propuesta-habilidades-y-economia-md">PROPUESTA_HABILIDADES_Y_ECONOMIA.md</a><a href="#doc-plan-ia-entrenable-md">PLAN_IA_ENTRENABLE.md</a><a href="#doc-informe-calidad-md">INFORME_CALIDAD.md</a><h4>Doc · Sistemas</h4><a href="#doc-tribu-md">TRIBU.md</a><a href="#doc-ia-md">IA.md</a><a href="#doc-navegacion-md">NAVEGACION.md</a><a href="#doc-objetos-md">OBJETOS.md</a><a href="#doc-interactivos-md">INTERACTIVOS.md</a><a href="#doc-ecologia-md">ECOLOGIA.md</a><a href="#doc-guardado-md">GUARDADO.md</a><a href="#doc-paquetes-md">PAQUETES.md</a><a href="#doc-conocimiento-md">CONOCIMIENTO.md</a><a href="#doc-exploracion-md">EXPLORACION.md</a><a href="#doc-recursos-mundo-md">RECURSOS_MUNDO.md</a><a href="#doc-camaras-md">CAMARAS.md</a><a href="#doc-asentamientos-md">ASENTAMIENTOS.md</a><a href="#doc-economia-md">ECONOMIA.md</a><a href="#doc-sociedad-md">SOCIEDAD.md</a><a href="#doc-clanes-md">CLANES.md</a><a href="#doc-conflicto-md">CONFLICTO.md</a><a href="#doc-visuales-md">VISUALES.md</a><a href="#doc-qa-simulacion-md">QA_SIMULACION.md</a><h4>Doc · Animación</h4><a href="#doc-animaciones-uso-md">ANIMACIONES_USO.md</a><h4>Doc · Sistemas</h4><a href="#doc-habilidades-md">habilidades.md</a><a href="#doc-coste-actor-md">COSTE_ACTOR.md</a><h4>Doc · Animación</h4><a href="#doc-animaciones-pendientes-md">ANIMACIONES_PENDIENTES.md</a><a href="#doc-animacion-locomocion-md">ANIMACION_LOCOMOCION.md</a><a href="#doc-animacion-sistema-completo-md">ANIMACION_SISTEMA_COMPLETO.md</a><a href="#doc-auditoria-animacion-md">AUDITORIA_ANIMACION.md</a><a href="#doc-modelos-y-animacion-md">modelos-y-animacion.md</a><h4>Doc · Motor</h4><a href="#doc-editor-md">editor.md</a><a href="#doc-render-md">render.md</a><a href="#doc-mundo-md">mundo.md</a><a href="#doc-efectos-md">efectos.md</a><a href="#doc-fisica-md">fisica.md</a><a href="#doc-audio-md">audio.md</a><a href="#doc-qa-md">qa.md</a></nav><main><section id="home"><h1>GB Engine — wiki del mundo vivo</h1>
 <p class="lead">Lo que el motor hace hoy, generado desde las reglas reales (habilidades, efectos, atributos, necesidades, roles, estaciones) y desde los datos de contenido, junto a los documentos del proyecto. Usa el buscador de arriba para encontrar cualquier habilidad, atributo, etiqueta u objeto.</p>
 <div class="cards"><div class="card"><b>30</b><span>Habilidades</span></div><div class="card"><b>44</b><span>Efectos</span></div><div class="card"><b>19</b><span>Objetos</span></div><div class="card"><b>8</b><span>Recetas</span></div><div class="card"><b>10</b><span>Tipos de nodo</span></div><div class="card"><b>11</b><span>Tipos de entidad</span></div></div>
 <h2>Cómo se actualiza</h2>
@@ -325,10 +328,24 @@ quit</code></pre>
 <h2>Recetas (base) <span class="muted">(8)</span></h2><table class="grid"><tr><th>Receta</th><th>Entradas</th><th>Resultado</th><th>Estación</th><th>Herramienta (no se gasta)</th></tr><tr data-search="basket_wicker"><td><code>basket_wicker</code></td><td>2× <code>branch</code>, 5× <code>reed</code></td><td>1× <code>basket_wicker</code></td><td>en cualquier sitio</td><td>—</td></tr><tr data-search="campfire"><td><code>campfire</code></td><td>3× <code>stone</code>, 4× <code>wood</code></td><td>1× <code>campfire</code></td><td>en cualquier sitio</td><td>Item.Tool.Axe</td></tr><tr data-search="copper_ingot"><td><code>copper_ingot</code></td><td>2× <code>copper_ore</code></td><td>1× <code>copper_ingot</code></td><td>forge</td><td>—</td></tr><tr data-search="cordage"><td><code>cordage</code></td><td>3× <code>fiber</code></td><td>1× <code>cordage</code></td><td>en cualquier sitio</td><td>—</td></tr><tr data-search="flint_axe"><td><code>flint_axe</code></td><td>2× <code>branch</code>, 1× <code>cordage</code>, 2× <code>flint</code></td><td>1× <code>flint_axe</code></td><td>workbench</td><td>—</td></tr><tr data-search="flint_pickaxe"><td><code>flint_pickaxe</code></td><td>2× <code>branch</code>, 1× <code>cordage</code>, 3× <code>flint</code></td><td>1× <code>flint_pickaxe</code></td><td>workbench</td><td>—</td></tr><tr data-search="stone_axe"><td><code>stone_axe</code></td><td>3× <code>fiber</code>, 2× <code>stone</code>, 2× <code>wood</code></td><td>1× <code>stone_axe</code></td><td>workbench</td><td>—</td></tr><tr data-search="stone_pickaxe"><td><code>stone_pickaxe</code></td><td>3× <code>fiber</code>, 3× <code>stone</code>, 2× <code>wood</code></td><td>1× <code>stone_pickaxe</code></td><td>workbench</td><td>—</td></tr></table>
 <h2>Recetas (ampliado) <span class="muted">(7)</span></h2><table class="grid"><tr><th>Receta</th><th>Entradas</th><th>Resultado</th><th>Estación</th><th>Herramienta (no se gasta)</th></tr><tr data-search="plank"><td><code>plank</code></td><td>1× <code>log</code></td><td>2× <code>plank</code></td><td>workbench</td><td>Item.Tool.Axe</td></tr><tr data-search="bone_pickaxe"><td><code>bone_pickaxe</code></td><td>3× <code>bone</code>, 2× <code>branch</code>, 1× <code>cordage</code></td><td>1× <code>bone_pickaxe</code></td><td>workbench</td><td>—</td></tr><tr data-search="stone_hoe"><td><code>stone_hoe</code></td><td>2× <code>stone</code>, 2× <code>branch</code>, 1× <code>cordage</code></td><td>1× <code>stone_hoe</code></td><td>workbench</td><td>—</td></tr><tr data-search="flint_sickle"><td><code>flint_sickle</code></td><td>1× <code>flint</code>, 1× <code>branch</code>, 1× <code>cordage</code></td><td>1× <code>flint_sickle</code></td><td>workbench</td><td>—</td></tr><tr data-search="dried_berry"><td><code>dried_berry</code></td><td>3× <code>berry</code></td><td>2× <code>dried_berry</code></td><td>drying_rack</td><td>—</td></tr><tr data-search="mud_brick"><td><code>mud_brick</code></td><td>2× <code>clay</code>, 1× <code>fiber</code></td><td>2× <code>mud_brick</code></td><td>drying_rack</td><td>—</td></tr><tr data-search="copper_axe"><td><code>copper_axe</code></td><td>2× <code>copper_ingot</code>, 2× <code>branch</code>, 1× <code>cordage</code></td><td>1× <code>copper_axe</code></td><td>forge</td><td>—</td></tr></table>
 <h2>Nodos de recurso (base) <span class="muted">(10)</span></h2><table class="grid"><tr><th>Nodo</th><th>Da</th><th>Capacidad</th><th>Por golpe</th><th>Regeneración</th><th>Herramienta</th><th>Habilidad</th><th>Tipo</th><th>Colocación</th></tr><tr data-search="berry_bush"><td><code>berry_bush</code></td><td><code>berry</code></td><td>6</td><td>2</td><td>20 s (+2)</td><td>manos</td><td>Gather</td><td>Plant</td><td>2 + 1/trabajador, row</td></tr><tr data-search="clay_bank"><td><code>clay_bank</code></td><td><code>clay</code></td><td>8</td><td>2</td><td>60 s (+2)</td><td>manos</td><td>Collect</td><td>Loose.Clay</td><td>1 + 0/trabajador, cluster</td></tr><tr data-search="copper_vein"><td><code>copper_vein</code></td><td><code>copper_ore</code></td><td>4</td><td>1</td><td>no regenera</td><td>Item.Tool.Pickaxe</td><td>Mine</td><td>Stone.Copper</td><td>1 + 0/trabajador, row</td></tr><tr data-search="fiber_grass"><td><code>fiber_grass</code></td><td><code>fiber</code></td><td>8</td><td>2</td><td>15 s (+2)</td><td>manos</td><td>PullFiber</td><td>Plant</td><td>2 + 1/trabajador, row</td></tr><tr data-search="flint_outcrop"><td><code>flint_outcrop</code></td><td><code>flint</code></td><td>5</td><td>1</td><td>no regenera</td><td>Item.Tool.Pickaxe</td><td>Mine</td><td>Stone.Flint</td><td>1 + 1/trabajador, cluster</td></tr><tr data-search="old_tree"><td><code>old_tree</code></td><td><code>wood</code></td><td>8</td><td>1</td><td>120 s (+1)</td><td>Item.Tool.Axe</td><td>Chop</td><td>Wood</td><td>1 + 1/trabajador, cluster</td></tr><tr data-search="reed_bed"><td><code>reed_bed</code></td><td><code>reed</code></td><td>8</td><td>2</td><td>20 s (+2)</td><td>manos</td><td>Collect</td><td>Loose.Reed</td><td>1 + 1/trabajador, cluster</td></tr><tr data-search="rock"><td><code>rock</code></td><td><code>stone</code></td><td>4</td><td>1</td><td>no regenera</td><td>Item.Tool.Pickaxe</td><td>Mine</td><td>Stone</td><td>3 + 2/trabajador, row</td></tr><tr data-search="tree"><td><code>tree</code></td><td><code>wood</code></td><td>5</td><td>1</td><td>30 s (+1)</td><td>Item.Tool.Axe</td><td>Chop</td><td>Wood</td><td>2 + 2/trabajador, row</td></tr><tr data-search="young_tree"><td><code>young_tree</code></td><td><code>branch</code></td><td>3</td><td>1</td><td>40 s (+1)</td><td>manos</td><td>Gather</td><td>Plant.Branch</td><td>1 + 1/trabajador, row</td></tr></table>
-<h2>Nodos de recurso (ampliado) <span class="muted">(7)</span></h2><table class="grid"><tr><th>Nodo</th><th>Da</th><th>Capacidad</th><th>Por golpe</th><th>Regeneración</th><th>Herramienta</th><th>Habilidad</th><th>Tipo</th><th>Colocación</th></tr><tr data-search="oak_acorns"><td><code>oak_acorns</code></td><td><code>acorn</code></td><td>4</td><td>2</td><td>90 s (+2)</td><td>manos</td><td>Gather</td><td>Plant</td><td>—</td></tr><tr data-search="granite_rock"><td><code>granite_rock</code></td><td><code>granite</code></td><td>8</td><td>1</td><td>no regenera</td><td>Item.Tool.Pickaxe</td><td>Mine</td><td>Stone.Granite</td><td>—</td></tr><tr data-search="pine_resin"><td><code>pine_resin</code></td><td><code>resin</code></td><td>3</td><td>1</td><td>90 s (+1)</td><td>manos</td><td>Gather</td><td>Plant</td><td>—</td></tr><tr data-search="wild_grain"><td><code>wild_grain</code></td><td><code>grain_seed</code></td><td>6</td><td>2</td><td>60 s (+2)</td><td>manos</td><td>Gather</td><td>Plant</td><td>—</td></tr><tr data-search="salt_flat"><td><code>salt_flat</code></td><td><code>salt</code></td><td>10</td><td>2</td><td>no regenera</td><td>manos</td><td>Collect</td><td>Loose.Salt</td><td>—</td></tr><tr data-search="old_bones"><td><code>old_bones</code></td><td><code>bone</code></td><td>3</td><td>1</td><td>no regenera</td><td>manos</td><td>Collect</td><td>Loose.Bone</td><td>—</td></tr><tr data-search="fallen_trunk"><td><code>fallen_trunk</code></td><td><code>log</code></td><td>2</td><td>1</td><td>no regenera</td><td>Item.Tool.Axe</td><td>Chop</td><td>Wood</td><td>—</td></tr></table></section><section id="tecnologias"><h1>Tecnologías</h1>
-<p class="lead">Datos de la sección <code>techs</code> de <code>assets/data/era1.json</code> (y del paquete ampliado). Una receta o un nodo que una tecnología desbloquea solo se puede usar cuando el agente o el clan la conoce; se descubre experimentando, observando o en las lecciones del campamento (ver CONOCIMIENTO.md).</p>
-<h2>Tecnologías (base) <span class="muted">(6)</span></h2><table class="grid"><tr><th>Id</th><th>Nombre</th><th>Era</th><th>Requiere</th><th>Desbloquea</th><th>Descubrimiento</th></tr><tr data-search="basketry basketry"><td><code>basketry</code></td><td>Basketry</td><td>1</td><td><code class="tag">cordage</code></td><td>receta <code>basket_wicker</code></td><td>experiment 0.2, observe 0.34, teach 0.25, seconds 15, waste 0.3</td></tr><tr data-search="cordage cordage"><td><code>cordage</code></td><td>Cordage</td><td>1</td><td><span class="none">—</span></td><td>receta <code>cordage</code></td><td>se sabe desde el principio</td></tr><tr data-search="fire_making fire making"><td><code>fire_making</code></td><td>Fire making</td><td>1</td><td><span class="none">—</span></td><td>receta <code>campfire</code></td><td>se sabe desde el principio</td></tr><tr data-search="flint_knapping flint knapping"><td><code>flint_knapping</code></td><td>Flint knapping</td><td>1</td><td><code class="tag">cordage</code> <code class="tag">stone_tools</code></td><td>receta <code>flint_axe</code>, receta <code>flint_pickaxe</code></td><td>experiment 0.15, observe 0.34, teach 0.25, seconds 20, waste 0.3</td></tr><tr data-search="smelting smelting"><td><code>smelting</code></td><td>Smelting</td><td>2</td><td><code class="tag">fire_making</code> <code class="tag">flint_knapping</code></td><td>receta <code>copper_ingot</code></td><td>experiment 0.05, observe 0.2, teach 0.1, seconds 40, waste 0.5</td></tr><tr data-search="stone_tools stone tools"><td><code>stone_tools</code></td><td>Stone tools</td><td>1</td><td><span class="none">—</span></td><td>receta <code>stone_axe</code>, receta <code>stone_pickaxe</code></td><td>se sabe desde el principio</td></tr></table>
-<h2>Tecnologías (ampliado) <span class="muted">(2)</span></h2><table class="grid"><tr><th>Id</th><th>Nombre</th><th>Era</th><th>Requiere</th><th>Desbloquea</th><th>Descubrimiento</th></tr><tr data-search="bone_working bone working"><td><code>bone_working</code></td><td>Bone working</td><td>1</td><td><code class="tag">cordage</code> <code class="tag">stone_tools</code></td><td>receta <code>bone_pickaxe</code></td><td>experiment 0.2, observe 0.34, teach 0.25, seconds 20, waste 0.3</td></tr><tr data-search="tillage tillage"><td><code>tillage</code></td><td>Tillage</td><td>1</td><td><code class="tag">flint_knapping</code></td><td>receta <code>stone_hoe</code>, receta <code>flint_sickle</code></td><td>experiment 0.1, observe 0.25, teach 0.2, seconds 30, waste 0.3</td></tr></table></section><section id="paquetes"><h1>Paquetes de contenido</h1>
+<h2>Nodos de recurso (ampliado) <span class="muted">(7)</span></h2><table class="grid"><tr><th>Nodo</th><th>Da</th><th>Capacidad</th><th>Por golpe</th><th>Regeneración</th><th>Herramienta</th><th>Habilidad</th><th>Tipo</th><th>Colocación</th></tr><tr data-search="oak_acorns"><td><code>oak_acorns</code></td><td><code>acorn</code></td><td>4</td><td>2</td><td>90 s (+2)</td><td>manos</td><td>Gather</td><td>Plant</td><td>—</td></tr><tr data-search="granite_rock"><td><code>granite_rock</code></td><td><code>granite</code></td><td>8</td><td>1</td><td>no regenera</td><td>Item.Tool.Pickaxe</td><td>Mine</td><td>Stone.Granite</td><td>—</td></tr><tr data-search="pine_resin"><td><code>pine_resin</code></td><td><code>resin</code></td><td>3</td><td>1</td><td>90 s (+1)</td><td>manos</td><td>Gather</td><td>Plant</td><td>—</td></tr><tr data-search="wild_grain"><td><code>wild_grain</code></td><td><code>grain_seed</code></td><td>6</td><td>2</td><td>60 s (+2)</td><td>manos</td><td>Gather</td><td>Plant</td><td>—</td></tr><tr data-search="salt_flat"><td><code>salt_flat</code></td><td><code>salt</code></td><td>10</td><td>2</td><td>no regenera</td><td>manos</td><td>Collect</td><td>Loose.Salt</td><td>—</td></tr><tr data-search="old_bones"><td><code>old_bones</code></td><td><code>bone</code></td><td>3</td><td>1</td><td>no regenera</td><td>manos</td><td>Collect</td><td>Loose.Bone</td><td>—</td></tr><tr data-search="fallen_trunk"><td><code>fallen_trunk</code></td><td><code>log</code></td><td>2</td><td>1</td><td>no regenera</td><td>Item.Tool.Axe</td><td>Chop</td><td>Wood</td><td>—</td></tr></table></section><section id="tecnologias"><h1>Árbol de tecnologías</h1>
+<p class="lead">Cada flecha va de un requisito a lo que abre. Las verdes se saben desde el principio; las demás se descubren experimentando, observando a quien ya sabe o en las lecciones del campamento (ver CONOCIMIENTO.md). Datos: sección <code>techs</code> de <code>era1.json</code> y del paquete ampliado.</p>
+<div class="treewrap"><svg class="tree" viewBox="0 0 674 198" width="674" role="img" aria-label="Árbol de tecnologías"><defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs><path d="M182,35.0 C217.0,35.0 217.0,35.0 252,35.0" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/><path d="M182,35.0 C217.0,35.0 217.0,163.0 252,163.0" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/><path d="M182,163.0 C217.0,163.0 217.0,163.0 252,163.0" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/><path d="M182,99.0 C217.0,99.0 457.0,99.0 492,99.0" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/><path d="M422,163.0 C457.0,163.0 457.0,99.0 492,99.0" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/><path d="M182,35.0 C217.0,35.0 217.0,99.0 252,99.0" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/><path d="M182,163.0 C217.0,163.0 217.0,99.0 252,99.0" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/><path d="M422,163.0 C457.0,163.0 457.0,35.0 492,35.0" fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/><a href="#tech-basketry"><g class="tnode learn"><rect x="252" y="12" width="170" height="46" rx="8"/><text x="262" y="31" class="tname">Basketry</text><text x="262" y="48" class="tsub">era 1</text></g></a><a href="#tech-cordage"><g class="tnode known"><rect x="12" y="12" width="170" height="46" rx="8"/><text x="22" y="31" class="tname">Cordage</text><text x="22" y="48" class="tsub">se sabe</text></g></a><a href="#tech-fire_making"><g class="tnode known"><rect x="12" y="76" width="170" height="46" rx="8"/><text x="22" y="95" class="tname">Fire making</text><text x="22" y="112" class="tsub">se sabe</text></g></a><a href="#tech-flint_knapping"><g class="tnode learn"><rect x="252" y="140" width="170" height="46" rx="8"/><text x="262" y="159" class="tname">Flint knapping</text><text x="262" y="176" class="tsub">era 1</text></g></a><a href="#tech-smelting"><g class="tnode era2"><rect x="492" y="76" width="170" height="46" rx="8"/><text x="502" y="95" class="tname">Smelting</text><text x="502" y="112" class="tsub">era 2</text></g></a><a href="#tech-stone_tools"><g class="tnode known"><rect x="12" y="140" width="170" height="46" rx="8"/><text x="22" y="159" class="tname">Stone tools</text><text x="22" y="176" class="tsub">se sabe</text></g></a><a href="#tech-bone_working"><g class="tnode learn"><rect x="252" y="76" width="170" height="46" rx="8"/><text x="262" y="95" class="tname">Bone working</text><text x="262" y="112" class="tsub">era 1 · ampliado</text></g></a><a href="#tech-tillage"><g class="tnode learn"><rect x="492" y="12" width="170" height="46" rx="8"/><text x="502" y="31" class="tname">Tillage</text><text x="502" y="48" class="tsub">era 1 · ampliado</text></g></a></svg></div>
+<p class="muted">Verde: se sabe desde el principio · azul: se descubre · gris: era siguiente. Pulsa una caja para ver qué desbloquea.</p>
+<h2>Qué desbloquea cada una</h2>
+<details id="tech-basketry" data-search="basketry basketry"><summary><b>Basketry</b> <span class="muted">(basketry, era 1)</span></summary><p>Requiere: <a href="#tech-cordage">cordage</a>. Descubrimiento: experiment 0.2, observe 0.34, teach 0.25, seconds 15, waste 0.3.</p><ul><li>receta <code>basket_wicker</code>: 2× <code>branch</code>, 5× <code>reed</code> → 1× <code>basket_wicker</code></li></ul></details>
+<details id="tech-cordage" data-search="cordage cordage"><summary><b>Cordage</b> <span class="muted">(cordage, era 1)</span></summary><p>Requiere: nada. Se sabe desde el principio.</p><ul><li>receta <code>cordage</code>: 3× <code>fiber</code> → 1× <code>cordage</code></li></ul></details>
+<details id="tech-fire_making" data-search="fire_making fire making"><summary><b>Fire making</b> <span class="muted">(fire_making, era 1)</span></summary><p>Requiere: nada. Se sabe desde el principio.</p><ul><li>receta <code>campfire</code>: 3× <code>stone</code>, 4× <code>wood</code> → 1× <code>campfire</code></li></ul></details>
+<details id="tech-flint_knapping" data-search="flint_knapping flint knapping"><summary><b>Flint knapping</b> <span class="muted">(flint_knapping, era 1)</span></summary><p>Requiere: <a href="#tech-cordage">cordage</a>, <a href="#tech-stone_tools">stone_tools</a>. Descubrimiento: experiment 0.15, observe 0.34, teach 0.25, seconds 20, waste 0.3.</p><ul><li>receta <code>flint_axe</code>: 2× <code>branch</code>, 1× <code>cordage</code>, 2× <code>flint</code> → 1× <code>flint_axe</code> — en <code>workbench</code> (el campamento cuenta como banco; también el edificio <a href="#bld-workbench">Workbench</a>)</li><li>receta <code>flint_pickaxe</code>: 2× <code>branch</code>, 1× <code>cordage</code>, 3× <code>flint</code> → 1× <code>flint_pickaxe</code> — en <code>workbench</code> (el campamento cuenta como banco; también el edificio <a href="#bld-workbench">Workbench</a>)</li></ul></details>
+<details id="tech-smelting" data-search="smelting smelting"><summary><b>Smelting</b> <span class="muted">(smelting, era 2)</span></summary><p>Requiere: <a href="#tech-fire_making">fire_making</a>, <a href="#tech-flint_knapping">flint_knapping</a>. Descubrimiento: experiment 0.05, observe 0.2, teach 0.1, seconds 40, waste 0.5.</p><ul><li>receta <code>copper_ingot</code>: 2× <code>copper_ore</code> → 1× <code>copper_ingot</code> — en <code>forge</code></li></ul></details>
+<details id="tech-stone_tools" data-search="stone_tools stone tools"><summary><b>Stone tools</b> <span class="muted">(stone_tools, era 1)</span></summary><p>Requiere: nada. Se sabe desde el principio.</p><ul><li>receta <code>stone_axe</code>: 3× <code>fiber</code>, 2× <code>stone</code>, 2× <code>wood</code> → 1× <code>stone_axe</code> — en <code>workbench</code> (el campamento cuenta como banco; también el edificio <a href="#bld-workbench">Workbench</a>)</li><li>receta <code>stone_pickaxe</code>: 3× <code>fiber</code>, 3× <code>stone</code>, 2× <code>wood</code> → 1× <code>stone_pickaxe</code> — en <code>workbench</code> (el campamento cuenta como banco; también el edificio <a href="#bld-workbench">Workbench</a>)</li></ul></details>
+<details id="tech-bone_working" data-search="bone_working bone working"><summary><b>Bone working</b> <span class="muted">(bone_working, era 1, ampliado)</span></summary><p>Requiere: <a href="#tech-cordage">cordage</a>, <a href="#tech-stone_tools">stone_tools</a>. Descubrimiento: experiment 0.2, observe 0.34, teach 0.25, seconds 20, waste 0.3.</p><ul><li>receta <code>bone_pickaxe</code>: 3× <code>bone</code>, 2× <code>branch</code>, 1× <code>cordage</code> → 1× <code>bone_pickaxe</code> — en <code>workbench</code> (el campamento cuenta como banco; también el edificio <a href="#bld-workbench">Workbench</a>)</li></ul></details>
+<details id="tech-tillage" data-search="tillage tillage"><summary><b>Tillage</b> <span class="muted">(tillage, era 1, ampliado)</span></summary><p>Requiere: <a href="#tech-flint_knapping">flint_knapping</a>. Descubrimiento: experiment 0.1, observe 0.25, teach 0.2, seconds 30, waste 0.3.</p><ul><li>receta <code>stone_hoe</code>: 2× <code>stone</code>, 2× <code>branch</code>, 1× <code>cordage</code> → 1× <code>stone_hoe</code> — en <code>workbench</code> (el campamento cuenta como banco; también el edificio <a href="#bld-workbench">Workbench</a>)</li><li>receta <code>flint_sickle</code>: 1× <code>flint</code>, 1× <code>branch</code>, 1× <code>cordage</code> → 1× <code>flint_sickle</code> — en <code>workbench</code> (el campamento cuenta como banco; también el edificio <a href="#bld-workbench">Workbench</a>)</li></ul></details></section><section id="edificios"><h1>Edificios</h1>
+<p class="lead">Sección <code>buildings</code> de <code>era1.json</code>. El clan decide qué le hace falta (camas, almacén lleno, estaciones), los miembros llevan el material (<code>deliver</code>) y trabajan cada fase (<code>build</code>) desde el tablón. Ver ASENTAMIENTOS.md.</p>
+<h2 id="bld-shelter" data-search="shelter shelter">Shelter <span class="muted">(shelter)</span></h2><table class="kv"><tr><th>Da</th><td>3 camas (descanso +0.2, abrigo +0.3); cuenta como abrigo para los nacimientos</td></tr><tr><th>Tecnología necesaria</th><td>ninguna</td></tr><tr><th>Coste total</th><td>3× <code>stone</code>, 6× <code>branch</code>, 4× <code>reed</code>, 3× <code>fiber</code></td></tr><tr><th>Huella</th><td>3 × 3 m</td></tr></table><table class="grid"><tr><th>Fase</th><th>Materiales</th><th>Trabajo</th><th>Pieza</th></tr><tr><td>1. foundation</td><td>3× <code>stone</code></td><td>6 s</td><td>slab</td></tr><tr><td>2. frame</td><td>6× <code>branch</code></td><td>12 s</td><td>posts</td></tr><tr><td>3. roof</td><td>4× <code>reed</code>, 3× <code>fiber</code></td><td>10 s</td><td>roof</td></tr></table>
+<h2 id="bld-storage" data-search="storage storage">Storage <span class="muted">(storage)</span></h2><table class="kv"><tr><th>Da</th><td>almacén secundario <code>stockpile</code></td></tr><tr><th>Tecnología necesaria</th><td>ninguna</td></tr><tr><th>Coste total</th><td>4× <code>stone</code>, 2× <code>wood</code>, 6× <code>branch</code>, 4× <code>reed</code></td></tr><tr><th>Huella</th><td>3 × 2.5 m</td></tr></table><table class="grid"><tr><th>Fase</th><th>Materiales</th><th>Trabajo</th><th>Pieza</th></tr><tr><td>1. floor</td><td>4× <code>stone</code>, 2× <code>wood</code></td><td>8 s</td><td>slab</td></tr><tr><td>2. walls</td><td>6× <code>branch</code></td><td>10 s</td><td>walls</td></tr><tr><td>3. roof</td><td>4× <code>reed</code></td><td>8 s</td><td>roof</td></tr></table>
+<h2 id="bld-workbench" data-search="workbench workbench">Workbench <span class="muted">(workbench)</span></h2><table class="kv"><tr><th>Da</th><td>estación <code>workbench</code> (recetas: <code>flint_axe</code>, <code>flint_pickaxe</code>, <code>stone_axe</code>, <code>stone_pickaxe</code>, <code>plank</code>, <code>bone_pickaxe</code>, <code>stone_hoe</code>, <code>flint_sickle</code>)</td></tr><tr><th>Tecnología necesaria</th><td>ninguna</td></tr><tr><th>Coste total</th><td>3× <code>wood</code>, 2× <code>stone</code></td></tr><tr><th>Huella</th><td>2 × 1.2 m</td></tr></table><table class="grid"><tr><th>Fase</th><th>Materiales</th><th>Trabajo</th><th>Pieza</th></tr><tr><td>1. bench</td><td>3× <code>wood</code>, 2× <code>stone</code></td><td>8 s</td><td>table</td></tr></table>
+<h2 id="bld-drying_rack" data-search="drying_rack drying rack">Drying rack <span class="muted">(drying_rack)</span></h2><table class="kv"><tr><th>Da</th><td>estación <code>drying_rack</code> (recetas: <code>dried_berry</code>, <code>mud_brick</code>)</td></tr><tr><th>Tecnología necesaria</th><td>ninguna</td></tr><tr><th>Coste total</th><td>4× <code>branch</code>, 3× <code>fiber</code></td></tr><tr><th>Huella</th><td>2.5 × 1.5 m</td></tr></table><table class="grid"><tr><th>Fase</th><th>Materiales</th><th>Trabajo</th><th>Pieza</th></tr><tr><td>1. frame</td><td>4× <code>branch</code></td><td>6 s</td><td>posts</td></tr><tr><td>2. rack</td><td>3× <code>fiber</code></td><td>6 s</td><td>rack</td></tr></table></section><section id="paquetes"><h1>Paquetes de contenido</h1>
 <p class="lead">Cada era es un paquete (<code>assets/data/&lt;id&gt;.pack.json</code>): sus ficheros, de qué paquetes depende, qué objetos vienen de fuera y los huecos conocidos. El editor carga <code>era1</code> al arrancar; <code>pack load &lt;id&gt; [strict]</code> carga otro y <code>pack check</code> comprueba que toda receta es alcanzable (ver PAQUETES.md).</p>
 <h2 data-search="era1">Era 1 · Recolección y caza <span class="muted">(era1, era 1, v1.0)</span></h2><table class="kv"><tr><th>Depende de</th><td><span class="none">—</span></td></tr><tr><th>Ficheros</th><td><code class="tag">era1.json</code> <code class="tag">world.json</code> <code class="tag">cameras.json</code> <code class="tag">visuals.json</code> <code class="tag">player.json</code></td></tr><tr><th>Estaciones</th><td><code class="tag">workbench</code></td></tr></table><h3>Vienen de fuera</h3><ul><li><code>wood</code>: the camp starts with the wood found lying around on the first day (tribe build)</li><li><code>stone</code>: the camp starts with the stones found lying around on the first day (tribe build)</li><li><code>water</code>: the well (interactive, DrawWater)</li><li><code>meat</code>: the hunt (H14: the hunts of the combat section)</li></ul><h3>Huecos conocidos</h3><ul><li><code>copper_ingot</code>: smelting needs the forge, which arrives with E10</li><li><code>smelting</code>: the technology is tried at the forge, which arrives with E10 (era 2)</li></ul>
 <h2 data-search="era1_ampliado">Era 1 · Catálogo ampliado (E0) <span class="muted">(era1_ampliado, era 1, v1.0)</span></h2><table class="kv"><tr><th>Depende de</th><td><code class="tag">era1</code></td></tr><tr><th>Ficheros</th><td><code class="tag">era1_ampliado.json</code></td></tr><tr><th>Estaciones</th><td><span class="none">—</span></td></tr></table><h3>Huecos conocidos</h3><ul><li><code>grain</code>: grain is harvested from fields (E7: the economy section&#x27;s crops, sown with grain_seed of wild_grain), which the reachability check does not read yet</li><li><code>dried_berry</code>: drying needs the drying rack, a station that the buildings (H8, E9) give</li><li><code>mud_brick</code>: drying needs the drying rack, which arrives with the buildings (E9)</li><li><code>copper_axe</code>: needs copper ingots, and smelting needs the forge (E10)</li></ul></section><section id="datos"><h1>Más datos del juego</h1>
@@ -1308,7 +1325,9 @@ quit</code></pre>
     &quot;slower&quot;: &quot;Minus&quot;,
     &quot;save&quot;: &quot;F5&quot;,
     &quot;load&quot;: &quot;F9&quot;,
-    &quot;help&quot;: &quot;H&quot;
+    &quot;help&quot;: &quot;H&quot;,
+    &quot;view&quot;: &quot;V&quot;,
+    &quot;quit&quot;: &quot;Escape&quot;
   },
   &quot;hud&quot;: {
     &quot;notifications&quot;: 5,
@@ -6137,7 +6156,7 @@ quit</code></pre>
   }
 }</code></pre></details></section><section id="docs"><h1>Documentos</h1><p class="lead">Los documentos del repositorio (<code>docs/</code>), tal cual.</p>
 <h2>Jugar</h2><ul><li><a href="#doc-jugar-md">JUGAR.md</a></li></ul>
-<h2>Plan</h2><ul><li><a href="#doc-plan-sociedad-viva-md">PLAN_SOCIEDAD_VIVA.md</a></li><li><a href="#doc-propuesta-habilidades-y-economia-md">PROPUESTA_HABILIDADES_Y_ECONOMIA.md</a></li><li><a href="#doc-informe-calidad-md">INFORME_CALIDAD.md</a></li></ul>
+<h2>Plan</h2><ul><li><a href="#doc-plan-sociedad-viva-md">PLAN_SOCIEDAD_VIVA.md</a></li><li><a href="#doc-propuesta-habilidades-y-economia-md">PROPUESTA_HABILIDADES_Y_ECONOMIA.md</a></li><li><a href="#doc-plan-ia-entrenable-md">PLAN_IA_ENTRENABLE.md</a></li><li><a href="#doc-informe-calidad-md">INFORME_CALIDAD.md</a></li></ul>
 <h2>Sistemas</h2><ul><li><a href="#doc-tribu-md">TRIBU.md</a></li><li><a href="#doc-ia-md">IA.md</a></li><li><a href="#doc-navegacion-md">NAVEGACION.md</a></li><li><a href="#doc-objetos-md">OBJETOS.md</a></li><li><a href="#doc-interactivos-md">INTERACTIVOS.md</a></li><li><a href="#doc-ecologia-md">ECOLOGIA.md</a></li><li><a href="#doc-guardado-md">GUARDADO.md</a></li><li><a href="#doc-paquetes-md">PAQUETES.md</a></li><li><a href="#doc-conocimiento-md">CONOCIMIENTO.md</a></li><li><a href="#doc-exploracion-md">EXPLORACION.md</a></li><li><a href="#doc-recursos-mundo-md">RECURSOS_MUNDO.md</a></li><li><a href="#doc-camaras-md">CAMARAS.md</a></li><li><a href="#doc-asentamientos-md">ASENTAMIENTOS.md</a></li><li><a href="#doc-economia-md">ECONOMIA.md</a></li><li><a href="#doc-sociedad-md">SOCIEDAD.md</a></li><li><a href="#doc-clanes-md">CLANES.md</a></li><li><a href="#doc-conflicto-md">CONFLICTO.md</a></li><li><a href="#doc-visuales-md">VISUALES.md</a></li><li><a href="#doc-qa-simulacion-md">QA_SIMULACION.md</a></li><li><a href="#doc-habilidades-md">habilidades.md</a></li><li><a href="#doc-coste-actor-md">COSTE_ACTOR.md</a></li></ul>
 <h2>Animación</h2><ul><li><a href="#doc-animaciones-uso-md">ANIMACIONES_USO.md</a></li><li><a href="#doc-animaciones-pendientes-md">ANIMACIONES_PENDIENTES.md</a></li><li><a href="#doc-animacion-locomocion-md">ANIMACION_LOCOMOCION.md</a></li><li><a href="#doc-animacion-sistema-completo-md">ANIMACION_SISTEMA_COMPLETO.md</a></li><li><a href="#doc-auditoria-animacion-md">AUDITORIA_ANIMACION.md</a></li><li><a href="#doc-modelos-y-animacion-md">modelos-y-animacion.md</a></li></ul>
 <h2>Motor</h2><ul><li><a href="#doc-editor-md">editor.md</a></li><li><a href="#doc-render-md">render.md</a></li><li><a href="#doc-mundo-md">mundo.md</a></li><li><a href="#doc-efectos-md">efectos.md</a></li><li><a href="#doc-fisica-md">fisica.md</a></li><li><a href="#doc-audio-md">audio.md</a></li><li><a href="#doc-qa-md">qa.md</a></li></ul></section><section id="doc-jugar-md" data-search="jugar.md"><p class="muted">docs/JUGAR.md</p><h1>Jugar (H15)</h1>
@@ -6223,12 +6242,23 @@ sigue (H19), activa la <strong>capa visual</strong> (props en las manos, sets y 
 <td><code>game save</code> / <code>game load</code></td>
 </tr>
 <tr>
+<td>V</td>
+<td>Cambia entre la vista tras el jugador y la vista cenital (WASD mueve, Q/E giran, Z/X acercan; E e interactuar no actúan desde arriba)</td>
+<td><code>game view [top\|follow]</code></td>
+</tr>
+<tr>
+<td>Esc</td>
+<td>Cierra el panel o la ayuda abiertos; si no hay ninguno, sale al editor (el cuerpo del jugador se queda en el mundo)</td>
+<td><code>game quit</code> / <code>play off</code></td>
+</tr>
+<tr>
 <td>H</td>
 <td>Ayuda</td>
 <td><code>game help</code></td>
 </tr>
 </tbody>
 </table>
+<p>En el juego <strong>Q/E no giran la cámara</strong> (E es interactuar): giran las flechas ←/→ o el ratón. El overlay del clan (campamento con su almacén, edificios y obras con lo que les falta, campos, y «YOU» sobre el jugador) se ve también en el juego; se apaga en el panel Tribe (<code>overlay off</code>).</p>
 <p>Lo que no tiene tecla se hace desde la consola con <code>game</code>:</p>
 <pre><code>game take &lt;objeto&gt; [n]                 coger del almacén (comida libre; lo demás baja un poco la posición)
 game give &lt;miembro&gt; &lt;objeto&gt; [n]       regalar (sube el vínculo; comida y herramientas valen el doble)
@@ -8138,7 +8168,255 @@ Contenido de ejemplo ya incluido: <code>assets/data/era1_ampliado.json</code> (n
 <td>E12</td>
 </tr>
 </tbody>
-</table></section><section id="doc-informe-calidad-md" data-search="informe_calidad.md"><p class="muted">docs/INFORME_CALIDAD.md</p><h1>Informe del pase de calidad (PR #39 a #52)</h1>
+</table></section><section id="doc-plan-ia-entrenable-md" data-search="plan_ia_entrenable.md"><p class="muted">docs/PLAN_IA_ENTRENABLE.md</p><h1>Plan: simulación medible y IA entrenable</h1>
+<p>Del estado actual (cerebro de utilidad, un clan, mundo que exige GL) a una IA que se pueda medir, comparar por perfiles y, si compensa, sustituir en parte por una red neuronal.
+Redactado el 28-10-2026 a partir de la sesión de revisión de <code>mundo/integracion</code> (71/71 tests) y de una simulación sin ventana de ~12.800 s con 4 fundadores.</p>
+<h2>1. Estado actual (hechos medidos)</h2>
+<ul>
+<li><strong>IA:</strong> cerebro de utilidad. Puntúa opciones (<code>gather</code>, <code>explore</code>, <code>experiment</code>, <code>socialize</code>, <code>rest</code>, <code>sleep</code>, <code>tool</code>…) con pesos y rasgos que están en datos (<code>era1.json</code>, sección <code>society</code>). No es aprendizaje.</li>
+<li><strong>Un solo clan:</strong> el editor guarda una tribu (<code>m_Tribe</code>). Sociedad, exploración, conocimiento y trabajos son por tribu.</li>
+<li><strong>Mundo:</strong> <code>Terrain::CreateHills</code> construye malla y texturas, así que no hay <code>GeneratedWorld</code> sin contexto GL (HANDOFF, punto 4).</li>
+<li><strong>Observabilidad:</strong> el log de la tribu es un anillo de 800 líneas de texto libre (<code>Tribe.cpp:578</code>). No hay series temporales ni puntuaciones de las decisiones.</li>
+<li><strong>Velocidad:</strong> ~8 min reales por 6.400 s simulados con 7 miembros, <code>timescale 20</code>, ventana oculta.</li>
+<li><strong>Tests:</strong> 71 de 71 pasan con <code>-j 2</code>. <code>ai</code> tarda ~104 s y el HANDOFF dice que falla con carga.</li>
+<li><strong>Comportamientos anómalos observados</strong> (base para los primeros escenarios, sin causa verificada):
+  1. Bucle de expedición: 25 de 29 expediciones van a Central Meadows por <code>copper_ore</code> y cada una "encuentra" la misma veta; el almacén sigue con <code>copper_ore x4</code> y quien extrae ha fabricado 1 objeto.
+  2. Búsqueda de juncos a puntos aleatorios con 5 juncales conocidos y 16 juncos en el almacén.
+  3. Casi nadie fabrica (<code>made 0</code> en 5 de 7) con piedra, pedernal, ramas, arcilla y fibra acumuladas; hoguera apagada todo el tiempo.
+  4. Un miembro murió de hambre (comió 12 veces frente a 80–145 del resto) sin reacción del clan.
+  5. Aparece un miembro sin evento de nacimiento o llegada en el log.
+  6. Sueño sincronizado de todo el clan.</li>
+</ul>
+<h2>2. Objetivo y criterios de éxito</h2>
+<p>Objetivo final: poder cambiar la IA (pesos, perfiles o una red) y saber, con datos y sin mirar logs, si mejora o empeora.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Criterio</th>
+<th>Cómo se mide</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>O1</td>
+<td>Mundo y simulación corren sin GL</td>
+<td>un test de CPU genera el mundo y simula 1 h de juego</td>
+</tr>
+<tr>
+<td>O2</td>
+<td>Velocidad suficiente para barridos</td>
+<td>≥ 200× tiempo real con 50 miembros en un núcleo</td>
+</tr>
+<tr>
+<td>O3</td>
+<td>Todo lo que pasa queda registrado</td>
+<td>0 eventos de decisión perdidos en una corrida de 24 h simuladas</td>
+</tr>
+<tr>
+<td>O4</td>
+<td>Comportamiento verificable</td>
+<td>batería de escenarios con aserciones en el CI</td>
+</tr>
+<tr>
+<td>O5</td>
+<td>Perfiles comparables</td>
+<td>informe automático de N semillas × M perfiles</td>
+</tr>
+<tr>
+<td>O6</td>
+<td>Varios clanes</td>
+<td>≥ 3 clanes de ≥ 30 miembros en el mismo mundo</td>
+</tr>
+<tr>
+<td>O7</td>
+<td>Red neuronal opcional</td>
+<td>red que iguala al cerebro actual en los escenarios y se carga desde datos</td>
+</tr>
+</tbody>
+</table>
+<h2>3. Principios</h2>
+<ul>
+<li>Todo lo nuevo se ejecuta sin ventana (CLAUDE.md) y es determinista dada la semilla.</li>
+<li>Cada cambio de generación o de IA va con versión: no se rompen guardados ni repeticiones (#65).</li>
+<li>La telemetría y el puente de entrenamiento están desactivados por defecto y no alteran el resultado de la simulación.</li>
+<li>Lo explicable no se pierde: los límites duros (comer con hambre crítica) siguen en el motor, no en la red.</li>
+<li>El que llega segundo integra: PR pequeños y en orden.</li>
+</ul>
+<h2>4. Hitos</h2>
+<h3>H0 · Integración y base (en curso)</h3>
+<ul>
+<li>Fusionar <code>mundo/integracion</code> en <code>master</code>. </li>
+<li><strong>Hecho cuando:</strong> <code>master</code> compila con <code>-DGB_WARNINGS_AS_ERRORS=ON</code> y pasa <code>ctest -j 2</code>.</li>
+<li>Tests: los 71 existentes.</li>
+</ul>
+<h3>H1 · Corregir los comportamientos anómalos</h3>
+<ul>
+<li>Investigar y corregir los seis puntos de la sección 1 (empezar por el bucle del cobre en <code>TribeExplore.cpp</code> y <code>JobBoard.cpp</code>).</li>
+<li><strong>Hecho cuando:</strong> cada punto tiene un test que fallaba antes del arreglo.</li>
+<li>Tests nuevos (<code>tests/behavior_*</code>): </li>
+<li>tras <code>copper_ore</code> encontrado, la expedición se cierra y se abre un trabajo de extracción; </li>
+<li>con una especie de nodo conocida, el forrajeo no hace expediciones aleatorias; </li>
+<li>en 3 h simuladas la hoguera se enciende y nadie muere de hambre con comida disponible; </li>
+<li>un oficio vacante por muerte lo ocupa otro miembro.</li>
+<li>Necesita: nada nuevo. Es el mejor banco de pruebas del arnés de H4.</li>
+</ul>
+<h3>H2 · Mundo y simulación sin GL</h3>
+<ul>
+<li>Separar alturas, biomas y colocación (CPU) de la malla y texturas (GL) en <code>Terrain</code> y <code>WorldGen</code>.</li>
+<li>Tabla de biomas horneada (rejilla 1–2 m) y distancia real al agua.</li>
+<li><code>WorldDesc::GeneratorVersion</code> (ya hay <code>WorldGenVersion.h</code>) con migración en <code>GB/Save</code>; mezclar <code>desc.Seed</code> en los azares fijos.</li>
+<li>Programa <code>GBSim</code> (sin editor): genera mundo, crea clanes y simula N segundos escribiendo métricas.</li>
+<li><strong>Hecho cuando:</strong> O1 y una medida de O2.</li>
+<li>Tests: </li>
+<li>el mundo de CPU es idéntico al de GL en alturas, biomas y nodos (comparación bit a bit en 28 mundos del <code>sweep</code>); </li>
+<li>un guardado antiguo carga el mismo mundo con su versión; </li>
+<li>1 h simulada es reproducible: mismo hash de estado con la misma semilla en Windows y Linux (cuidar <code>acos</code> frente a <code>cos(MaxSlope)</code> precalculado, ya anotado en el HANDOFF);</li>
+<li><code>golden_images</code> no cambia.</li>
+<li>Riesgo: cambia referencias de imagen y datos. Mitigación: versionar el generador y no tocar la versión 1.</li>
+</ul>
+<h3>H3 · Telemetría en SQLite</h3>
+<ul>
+<li>Dependencia: SQLite (amalgamación con <code>FetchContent</code> y versión fija).</li>
+<li><code>TelemetrySink</code> con hilo de escritura, cola acotada y transacciones de ~1 s (WAL, <code>synchronous=NORMAL</code>).</li>
+<li>Tablas: <code>runs</code> (semilla, versión del generador, commit, perfil), <code>events</code>, <code>samples</code>, <code>clan_samples</code>, <code>decisions</code> (opciones consideradas y puntuaciones).</li>
+<li>Siempre con <code>clan_id</code> y <code>member_id</code>, aunque haya un clan.</li>
+<li>Argumento <code>--telemetry=archivo.db</code>; comando <code>telemetry start|stop</code>.</li>
+<li><strong>Hecho cuando:</strong> O3. Muestras diezmables, eventos nunca.</li>
+<li>Tests: </li>
+<li>con la telemetría activa el hash de estado de la simulación es idéntico al de sin ella; </li>
+<li>los eventos de una corrida cuadran con el log de la tribu; </li>
+<li>cola llena: se pierden muestras, no eventos; </li>
+<li>cierre limpio sin corromper el <code>.db</code>.</li>
+</ul>
+<h3>H4 · Arnés de escenarios y métricas</h3>
+<ul>
+<li>Escenarios en datos (JSON): mundo, semilla, clan, duración, perfil, aserciones.</li>
+<li>Métricas: tiempo por actividad, muertes y causa, producción, fabricación, cobertura de exploración, repeticiones (misma acción al mismo objetivo más de K veces), tiempo sin hoguera.</li>
+<li>Informe automático (HTML o Markdown) y <code>tools/analyze_run.py</code>.</li>
+<li><strong>Hecho cuando:</strong> O4, con ≥ 10 escenarios en el CI.</li>
+<li>Tests: los escenarios son los tests. Además: un escenario que debe fallar (bucle forzado) para comprobar que el arnés detecta el fallo.</li>
+</ul>
+<h3>H5 · Perfiles y barridos</h3>
+<ul>
+<li>Perfiles de personalidad en datos (curioso, cauto, sociable, solitario…) con rasgos y pesos; tarda poco porque ya están en <code>society</code>.</li>
+<li>Barrido N semillas × M perfiles en paralelo con <code>GBSim</code>; DuckDB lee el <code>.db</code> para el análisis.</li>
+<li><strong>Hecho cuando:</strong> O5 y O2 al 100 %.</li>
+<li>Tests: reproducibilidad del barrido (mismo informe con la misma semilla); un perfil extremo produce las métricas esperadas.</li>
+</ul>
+<h3>H6 · Varios clanes</h3>
+<ul>
+<li>Un contenedor de clanes con almacén, atlas, tablón de trabajos y hogar propios.</li>
+<li>Decisiones de diseño previas: cómo comparten recursos, si se ven, relaciones (ignorarse, comerciar, competir).</li>
+<li>Migrar guardado, editor (<code>tribe</code> con id), repetición y telemetría.</li>
+<li><strong>Hecho cuando:</strong> O6 con presupuesto de ms por tick dentro del límite.</li>
+<li>Tests: aislamiento (un clan no lee el almacén de otro), guardado y carga de varios clanes, escala (3 × 30 miembros), <code>ai</code> con presupuesto holgado.</li>
+<li>Riesgo: es el cambio más invasivo; toca <code>Tribe</code>, <code>Society</code>, <code>Exploration</code>, <code>JobBoard</code> y el guardado.</li>
+</ul>
+<h3>H7 · Entorno de aprendizaje (API estado–acción–recompensa)</h3>
+<ul>
+<li>Interfaz de entorno: <code>reset(semilla, escenario)</code>, <code>observe(miembro)</code>, <code>act(miembro, opción)</code>, <code>step(dt)</code>, <code>reward</code>.</li>
+<li>Puente a Python: proceso aparte con tuberías o <code>pybind11</code>; envoltorio estilo Gymnasium en <code>tools/gym/</code>.</li>
+<li>Observación: necesidades, rasgos, entorno cercano, memoria, estado del clan. Acciones: las opciones del cerebro.</li>
+<li><strong>Hecho cuando:</strong> un agente aleatorio y el cerebro de utilidad corren por la API con los mismos resultados que sin ella.</li>
+<li>Tests: determinismo por la API, <code>reset</code> repetido idéntico, la acción forzada se ejecuta o devuelve un motivo.</li>
+</ul>
+<h3>H8 · Clonación de comportamiento</h3>
+<ul>
+<li>Dataset (estado, opción elegida, puntuaciones) desde <code>decisions</code>.</li>
+<li>Entrenar una MLP pequeña en PyTorch que imite al cerebro de utilidad (opción 2 de la propuesta).</li>
+<li>Exportar a ONNX; inferencia en C++ con ONNX Runtime o MLP propia; modelo versionado y guardado con la partida.</li>
+<li><strong>Hecho cuando:</strong> O7 en su primera mitad: la red iguala al cerebro en los escenarios de H4 (tolerancia por métrica) y la inferencia cabe en el presupuesto.</li>
+<li>Tests: la inferencia en C++ da la misma salida que PyTorch (tolerancia 1e-5); simulación con red es reproducible; presupuesto de ms con 100 miembros agrupados en lotes; el límite duro (hambre crítica) sigue mandando.</li>
+</ul>
+<h3>H9 · Refinado por refuerzo y comparación</h3>
+<ul>
+<li>Diseñar la recompensa (supervivencia, producción, diversidad) y auditarla con agentes adversarios.</li>
+<li>Entrenar con la API de H7 y evaluar con el arnés de H4/H5.</li>
+<li><strong>Hecho cuando:</strong> la red supera al cerebro de utilidad en ≥ 2 métricas clave sin empeorar ninguna aserción.</li>
+<li>Tests: batería de regresión de H4 sobre cada modelo candidato; prueba de "trampas" (la red no aprende a quedarse quieta ni a explotar un fallo del motor).</li>
+</ul>
+<h2>5. Dependencias entre hitos</h2>
+<pre><code>H0 → H1 ┐
+H0 → H2 → H3 → H4 → H5
+            ↘     ↘
+             H7 → H8 → H9
+H0 → H6 (necesita H3 para su telemetría; H7 puede prescindir de H6)
+</code></pre>
+<p>H1, H2 y H3 se pueden llevar en paralelo. H4 necesita H3. H8 necesita H7 y datos de H3.</p>
+<h2>6. Necesidades</h2>
+<ul>
+<li><strong>Dependencias nuevas:</strong> SQLite (H3); ONNX Runtime o MLP propia (H8); Python con pandas, DuckDB, PyTorch y Gymnasium (solo herramientas, no entran en el build del motor).</li>
+<li><strong>Máquina:</strong> un equipo con varios núcleos para barridos (H5, H9); GPU opcional para el entrenamiento (H9).</li>
+<li><strong>Decisiones del usuario:</strong> reglas de relación entre clanes (H6); qué se premia en la recompensa (H9); si se acepta cambiar referencias de imagen y datos al versionar el generador (H2).</li>
+<li><strong>Datos:</strong> semillas y escenarios de referencia congelados; el X Bot y los packs de animación ya están en el repo (<code>packs/full</code>).</li>
+<li><strong>Coordinación:</strong> el HANDOFF avisa de tres PR que se pisan en <code>Interactives.*</code>, <code>Actor.*</code> y <code>ActorWorld.*</code>; integrar en orden antes de abrir H6.</li>
+</ul>
+<h2>7. Estrategia de pruebas (resumen)</h2>
+<table>
+<thead>
+<tr>
+<th>Nivel</th>
+<th>Qué cubre</th>
+<th>Dónde</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unitario</td>
+<td>reglas, parseo de datos, tabla de biomas, cola de telemetría</td>
+<td><code>tests/*_test.cpp</code></td>
+</tr>
+<tr>
+<td>Determinismo</td>
+<td>mismo hash de estado con la misma semilla, con y sin telemetría, Windows y Linux</td>
+<td><code>tests/determinism_test.cpp</code></td>
+</tr>
+<tr>
+<td>Escenario</td>
+<td>aserciones de comportamiento por perfil</td>
+<td><code>tests/scenarios/*.json</code> + arnés</td>
+</tr>
+<tr>
+<td>Rendimiento</td>
+<td>ms por tick con 30/100/300 miembros; velocidad de <code>GBSim</code></td>
+<td><code>scale_test</code>, <code>bench</code></td>
+</tr>
+<tr>
+<td>Regresión de IA</td>
+<td>cada modelo o cambio de pesos frente a la referencia</td>
+<td>CI nocturno</td>
+</tr>
+<tr>
+<td>Golden</td>
+<td>imágenes, datos y guardados no cambian salvo versión</td>
+<td><code>golden_*</code></td>
+</tr>
+<tr>
+<td>Fuzz de entorno</td>
+<td>acciones aleatorias por la API sin cuelgues</td>
+<td>H7</td>
+</tr>
+</tbody>
+</table>
+<p>El test <code>ai</code> (104 s) se debe aligerar en H2 o separar en rápido y largo, para que el CI no dependa de la carga de la máquina.</p>
+<h2>8. Riesgos principales</h2>
+<ol>
+<li><strong>Romper guardados y repeticiones</strong> al tocar <code>WorldGen</code>. Mitigación: <code>GeneratorVersion</code> y migración (H2).</li>
+<li><strong>Rendimiento</strong> con muchos clanes: la percepción es O(miembros × cosas) (<code>docs/IA.md</code>). Medir en H2 y H6 antes de seguir.</li>
+<li><strong>Recompensa mal diseñada</strong> en H9. Mitigación: agentes adversarios y empezar solo por clonación (H8).</li>
+<li><strong>Alcance:</strong> H6 y H9 son grandes. Cada uno tiene su punto de decisión: seguir o parar con lo conseguido.</li>
+<li><strong>Determinismo entre plataformas</strong> (coma flotante). Mitigación: el hash de estado se prueba en el CI de Windows y Linux.</li>
+</ol>
+<h2>9. Orden recomendado</h2>
+<ol>
+<li>H0 ya.</li>
+<li>H1 y H2 en paralelo, en ramas separadas.</li>
+<li>H3, después H4.</li>
+<li>Punto de control: ¿el arnés detecta las anomalías de la sección 1? Si sí, seguir con H5 y H7.</li>
+<li>H6 solo cuando haya decisiones de diseño de relación entre clanes.</li>
+<li>H8 y H9 al final, con la red como candidata contra una referencia ya medida.</li>
+</ol></section><section id="doc-informe-calidad-md" data-search="informe_calidad.md"><p class="muted">docs/INFORME_CALIDAD.md</p><h1>Informe del pase de calidad (PR #39 a #52)</h1>
 <p>Revisión crítica de lo fusionado hasta <code>5753b13</code> (plan, actor, guardado v1, objetos, recursos, datos JSON, interactivos, estaciones, ecología y tribu con paneles). Es una revisión, no una función
 nueva: lo pequeño y claro se corrigió con test; lo grande queda descrito con una propuesta. Máquina de las medidas: Intel Core i7-11700K, RTX 3070, Windows 11, MSVC 14.44, Release.</p>
 <p>Cómo se hizo todo: <code>cmake -S . -B build_calidad -DGB_WARNINGS_AS_ERRORS=ON</code>, <code>ctest -C Release</code> con los cuatro packs (<code>GB_PACKS_DIR</code>, <code>GB_MIXAMO_DIR</code>, <code>GB_INJURED_DIR</code>, <code>GB_FARMING_DIR</code>) y los guiones del

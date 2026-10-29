@@ -41,9 +41,9 @@ Están en datos: la sección **`controls`** de `assets/data/player.json` (teclas
 | F5 / F9 | Guardar / cargar (ranura `play`) | `game save` / `game load` |
 | V | Cambia entre la vista tras el jugador y la vista cenital (WASD mueve, Q/E giran, Z/X acercan; E e interactuar no actúan desde arriba) | `game view [top\|follow]` |
 | Esc | Cierra el panel o la ayuda abiertos; si no hay ninguno, sale al editor (el cuerpo del jugador se queda en el mundo) | `game quit` / `play off` |
+| H | Ayuda | `game help` |
 
 En el juego **Q/E no giran la cámara** (E es interactuar): giran las flechas ←/→ o el ratón. El overlay del clan (campamento con su almacén, edificios y obras con lo que les falta, campos, y «YOU» sobre el jugador) se ve también en el juego; se apaga en el panel Tribe (`overlay off`).
-| H | Ayuda | `game help` |
 
 Lo que no tiene tecla se hace desde la consola con `game`:
 
