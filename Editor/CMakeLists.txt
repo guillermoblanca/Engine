@@ -33,6 +33,7 @@ add_library(GBEditor STATIC
     src/EditorQA.cpp
     src/EditorAnimCommands.cpp
     src/EditorAnimPanels.cpp
+    src/EditorAnimBindings.cpp
     src/EditorApp.cpp)
 target_include_directories(GBEditor PUBLIC src)
 target_link_libraries(GBEditor PUBLIC GB::GB imgui)

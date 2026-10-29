@@ -231,6 +231,7 @@ namespace GB::Editor
 		if (name == "Tribe") return m_Panels.Tribe;
 		if (name == "World state") return m_Panels.WorldState;
 		if (name == "Timeline") return m_Panels.Timeline;
+		if (name == "AnimBindings") return m_Panels.AnimBindings;
 		if (name == "Graph") return m_Panels.Graph;
 		if (name == "Tests") return m_Panels.Tests;
 		if (name == "QA") return m_Panels.QA;
@@ -890,8 +891,8 @@ namespace GB::Editor
 			if (n == "Viewport") flag = &m_Panels.Viewport; else if (n == "Hierarchy") flag = &m_Panels.Hierarchy; else if (n == "Inspector") flag = &m_Panels.Inspector;
 			else if (n == "Properties") flag = &m_Panels.Properties; else if (n == "World") flag = &m_Panels.World; else if (n == "Stats") flag = &m_Panels.Stats;
 			else if (n == "Console") flag = &m_Panels.Console; else if (n == "Assets") flag = &m_Panels.Assets; else if (n == "Model") flag = &m_Panels.Model;
-			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tribe") flag = &m_Panels.Tribe; else if (n == "WorldState") flag = &m_Panels.WorldState; else if (n == "Tests") flag = &m_Panels.Tests; else if (n == "QA") flag = &m_Panels.QA;
-			if (!flag) return { false, "no such panel '" + n + "' (Viewport, Hierarchy, Inspector, Properties, World, Stats, Console, Assets, Model, Animation, Timeline, Graph, Abilities, Tribe, WorldState, Tests, QA)" };
+			else if (n == "Animation") flag = &m_Panels.Animation; else if (n == "Timeline") flag = &m_Panels.Timeline; else if (n == "AnimBindings") flag = &m_Panels.AnimBindings; else if (n == "Graph") flag = &m_Panels.Graph; else if (n == "Abilities") flag = &m_Panels.Abilities; else if (n == "Tribe") flag = &m_Panels.Tribe; else if (n == "WorldState") flag = &m_Panels.WorldState; else if (n == "Tests") flag = &m_Panels.Tests; else if (n == "QA") flag = &m_Panels.QA;
+			if (!flag) return { false, "no such panel '" + n + "' (Viewport, Hierarchy, Inspector, Properties, World, Stats, Console, Assets, Model, Animation, Timeline, AnimBindings, Graph, Abilities, Tribe, WorldState, Tests, QA)" };
 			if (a.size() > 2 && a[1] == "tab") { if (n == "Timeline") m_TimelineFocus = 3; else if (n == "Graph") m_GraphFocus = 3; else m_AnimTabRequest = a[2]; *flag = true; return { true, n + ": tab " + a[2] }; }
 			*flag = a.size() > 1 ? (a[1] != "off" && a[1] != "0") : !*flag;
 			if (*flag) { if (n == "Tribe") m_FocusTribe = 20; else if (n == "WorldState") m_FocusWorldState = 20; else if (n == "Abilities") m_FocusAbilities = 20; else if (n == "QA") m_FocusQA = 20; }   // to the front of its dock
@@ -1369,6 +1370,7 @@ namespace GB::Editor
 		if (m_Panels.Tribe) DrawTribePanel();
 		if (m_Panels.WorldState) DrawWorldStatePanel();
 		if (m_Panels.Timeline) DrawTimelinePanel();
+		if (m_Panels.AnimBindings) DrawAnimBindingsPanel();
 		if (m_Panels.Graph) DrawGraphPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.QA) DrawQaPanel();
@@ -1461,6 +1463,7 @@ namespace GB::Editor
 			ImGui::MenuItem("World state", nullptr, &m_Panels.WorldState);
 			ImGui::MenuItem("QA", nullptr, &m_Panels.QA);
 			ImGui::MenuItem("Timeline", nullptr, &m_Panels.Timeline);
+			ImGui::MenuItem("Animation Bindings", nullptr, &m_Panels.AnimBindings);
 			ImGui::MenuItem("Animation graph", nullptr, &m_Panels.Graph);
 			ImGui::MenuItem("Console", nullptr, &m_Panels.Console);
 			ImGui::MenuItem("Assets", nullptr, &m_Panels.Assets);
