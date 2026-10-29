@@ -16,6 +16,7 @@ namespace GB
 		bool NoVSync = false;       // --novsync
 		std::string RecordDir;      // --record=dir   write frame_00001.png... with a fixed time step
 		float RecordFps = 30.0f;    // --fps=N        time step (1/N s) and rate of the recorded frames
+		float StepFps = 0.0f;       // --step=N       every frame advances 1/N s whatever the wall clock says (a scripted test: the same run on a fast or a slow machine)
 		std::vector<std::string> Extra;   // any other argument, for the application itself
 
 		// Value of "--key=value" among the extra arguments, or `fallback`.

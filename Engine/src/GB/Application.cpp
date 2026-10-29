@@ -79,6 +79,8 @@ namespace GB
 				last = now;
 				if (recording)
 					dt = 1.0f / options.RecordFps;   // deterministic, independent of render speed
+				else if (options.StepFps > 0.0f)
+					dt = 1.0f / options.StepFps;     // (--step=N: the same, without writing the frames)
 			}
 
 			OnUpdate(dt);

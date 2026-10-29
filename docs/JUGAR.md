@@ -126,6 +126,9 @@ Sección **`controls`**: `keys`, `hud` (`notifications`, `notifySeconds`, `needs
   con su pertenencia, y pelea (H14): ataque, golpe mortal que lo derriba y lo devuelve al campamento, y jugador mortal que muere.
 - `Editor/tests/play.txt` (test `editor_play`): `play` sin ventana, unos minutos de juego con órdenes `game`, guardar y cargar, el HUD por texto,
   `qa check` sin violaciones y una captura `play_hud.png` en el directorio de compilación.
+  En el juego los personajes siguen el tiempo del fotograma (un jugador maneja uno), así que el test se lanza con `--step=60`: cada fotograma
+  son 1/60 s de juego por lento que vaya la máquina, cada `wait` es el mismo tramo de partida y la calidad automática (que mira lo que tarda el
+  fotograma) no salta. Antes, en una máquina lenta, el almacén aún no tenía bayas al cogerlas y la línea esperada nunca podía salir.
 
 ## Límites conocidos
 
