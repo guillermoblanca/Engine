@@ -62,7 +62,7 @@ intento (crece un 50 % de lo base por cada fallo, `knowledge.growth`), `s` lo qu
 | Comida y almacén | `food_storage` Food storage (idea) | 1 | basketry | edificio `cache_pit` | 0,1 / 0 / 0,25 / 20 |
 | Comida y campo | `tillage` Tillage (ampliado) | 1 | flint_knapping | `stone_hoe`, `flint_sickle` | 0,1 / 0,25 / 0,2 / 30 |
 | Herramientas | `bone_working` Bone working (ampliado) | 1 | cordage, stone_tools | `bone_pickaxe` | 0,2 / 0,34 / 0,25 / 20 |
-| Hierbas | `herb_lore` Herb lore | 1 | — | `poultice`; edificio `healer_hut` | 0,15 / 0,3 / 0,25 / 20 |
+| Hierbas | `herb_lore` Herb lore | 1 | basketry | `poultice`; edificio `healer_hut` | 0,15 / 0,3 / 0,25 / 20 |
 | Rito | `ritual` Rites (idea) | 1 | fire_making | edificio `totem` | 0,06 / 0 / 0,3 / 30 |
 | Era 2 | `pottery` Pottery | 2 | fire_making, wattle_and_daub | `fired_brick`; edificio `kiln` | 0,01 / 0,2 / 0,15 / 60 |
 | Era 2 | `smelting` Smelting | 2 | pottery, flint_knapping | `copper_ingot`; edificio `forge` | 0,01 / 0,2 / 0,1 / 60 |
@@ -82,7 +82,7 @@ cordage ── basketry ─┬─ weaving ────────────�
                      └─ food_storage ─────────── (cache_pit)
 fire_making ─┬─ cooking ── smoking ─────────── (hearth, smoking_rack)
              └─ ritual ─────────────────────── (totem)
-herb_lore ───────────────────────────────────── (healer_hut)
+basketry ── herb_lore ─────────────────────────── (healer_hut)
                                      * era1_ampliado   ² era 2
 ```
 

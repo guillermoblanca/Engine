@@ -85,7 +85,7 @@ namespace GB
 		builds("palisade_building", { "palisade" });
 		add("food_storage", "Food storage", 1, false, { "basketry" }, {}, how(0.1f, 0.0f, 0.25f, 20.0f, 0.0f));
 		builds("food_storage", { "cache_pit" });
-		add("herb_lore", "Herb lore", 1, false, {}, { "poultice" }, how(0.15f, 0.3f, 0.25f, 20.0f, 0.3f));
+		add("herb_lore", "Herb lore", 1, false, { "basketry" }, { "poultice" }, how(0.15f, 0.3f, 0.25f, 20.0f, 0.3f));
 		builds("herb_lore", { "healer_hut" });
 		add("ritual", "Rites", 1, false, { "fire_making" }, {}, how(0.06f, 0.0f, 0.3f, 30.0f, 0.0f));
 		builds("ritual", { "totem" });

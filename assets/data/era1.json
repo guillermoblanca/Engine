@@ -1073,7 +1073,7 @@
       "discovery": { "experiment": 0.08, "observe": 0.3, "teach": 0.2, "seconds": 30.0, "waste": 0.1 } },
     { "id": "food_storage", "name": "Food storage", "era": 1, "requires": [ "basketry" ], "recipes": [], "buildings": [ "cache_pit" ],
       "discovery": { "experiment": 0.1, "observe": 0.0, "teach": 0.25, "seconds": 20.0, "waste": 0.0 } },
-    { "id": "herb_lore", "name": "Herb lore", "era": 1, "requires": [], "recipes": [ "poultice" ], "buildings": [ "healer_hut" ],
+    { "id": "herb_lore", "name": "Herb lore", "era": 1, "requires": [ "basketry" ], "recipes": [ "poultice" ], "buildings": [ "healer_hut" ],
       "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
     { "id": "ritual", "name": "Rites", "era": 1, "requires": [ "fire_making" ], "recipes": [], "buildings": [ "totem" ],
       "discovery": { "experiment": 0.06, "observe": 0.0, "teach": 0.3, "seconds": 30.0, "waste": 0.0 } },
