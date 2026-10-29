@@ -62,16 +62,19 @@ namespace GB
 		return true;
 	}
 
-	void AbstractAgent::Update(float dt, AbilitySystemComponent* who, GameplayWorld& gameplay, const Locate& locate, float speed, const Route& route)
+	void AbstractAgent::Update(float dt, AbilitySystemComponent* who, GameplayWorld& gameplay, const Locate& locate, float speed, const Route& route, const Gate& mayPlan)
 	{
 		if (!Busy()) return;
 		const Task& t = m_Tasks[m_Index];
+		// a route is a search of the grid: it waits its turn in the plan budget (the straight line and a goal where it stands do not)
+		auto turn = [&](const glm::vec2& to, float reach) { return !route || !mayPlan || glm::distance(m_Pos, to) <= reach + 1e-3f || mayPlan(); };
 		switch (t.What)
 		{
 		case Task::Kind::GoTo:
 		{
 			if (m_Phase == Phase::Start)
 			{
+				if (!turn(t.Position, 0.0f)) return;
 				if (!Plan(t.Position, 0.0f, route))
 				{
 					char where[64];
@@ -93,9 +96,10 @@ namespace GB
 		{
 			if (m_Phase == Phase::Start)
 			{
-				m_Phase = Phase::Walk;
 				if (!t.Entity.empty() && !locate(t.Entity, m_Goal)) { Fail("the target '" + t.Entity + "' is gone"); return; }
 				if (t.Entity.empty()) m_Goal = m_Pos;
+				if (!turn(m_Goal, t.Entity.empty() ? 0.0f : kReach)) return;   // (located again next frame: it may have moved)
+				m_Phase = Phase::Walk;
 				if (!Plan(m_Goal, t.Entity.empty() ? 0.0f : kReach, route)) { Fail("cannot get next to '" + t.Entity + "'"); return; }
 			}
 			if (m_Phase == Phase::Walk)

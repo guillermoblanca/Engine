@@ -4,11 +4,13 @@
   "era": 1,
   "version": "1.0",
   "depends": [],
-  "files": [ "era1.json", "world.json", "cameras.json" ],
+  "files": [ "era1.json", "world.json", "cameras.json", "visuals.json", "player.json" ],
   "given": {
     "wood": "the camp starts with the wood found lying around on the first day (tribe build)",
     "stone": "the camp starts with the stones found lying around on the first day (tribe build)",
-    "water": "the well (interactive, DrawWater)"
+    "water": "the well (interactive, DrawWater)",
+    "meat": "the hunt (H14: the hunts of the combat section)"
+
   },
   "stations": [ "workbench" ],
   "deferred": {

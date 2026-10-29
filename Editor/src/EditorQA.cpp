@@ -24,6 +24,7 @@ namespace GB::Editor
 	{
 		SimView v;
 		v.Clan = &m_Tribe;
+		v.Clans = &m_Clans;   // H13
 		v.Gameplay = &m_Gameplay;
 		v.Entities = &m_SceneEditor.World();
 		v.Clock = static_cast<double>(m_SimTick) / 60.0;

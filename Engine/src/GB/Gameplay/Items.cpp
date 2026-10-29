@@ -24,6 +24,19 @@ namespace GB
 		return out;
 	}
 
+	const std::vector<std::string>& ItemLibrary::ToolTags() const
+	{
+		if (!m_ToolTags)
+		{
+			auto tags = std::make_shared<std::vector<std::string>>();
+			for (const auto& [id, def] : m_Items)
+				for (const std::string& tag : def.Tags)
+					if (tag.rfind("Item.Tool.", 0) == 0 && std::find(tags->begin(), tags->end(), tag) == tags->end()) tags->push_back(tag);
+			m_ToolTags = std::move(tags);
+		}
+		return *m_ToolTags;
+	}
+
 	namespace
 	{
 		// Does the item carry `tag` or a descendant of it?
@@ -620,7 +633,13 @@ namespace GB
 			ItemDef berry = Def("berry", "Berry", "food", 0.1f, 20, { "Item.Food" }, "Eat", "");
 			berry.ShelfLife = 1800.0f;
 			items.Add(berry);
+			// H14: meat from the hunt (GB/Gameplay/Combat.h, the "hunts" of the combat rules). It keeps half as long as berries: a clan eats it
+			// first (it eats what goes off soonest) and a surplus spoils in a day.
+			ItemDef meat = Def("meat", "Meat", "food", 0.5f, 10, { "Item.Food.Meat" }, "Eat", "");
+			meat.ShelfLife = 900.0f;
+			items.Add(meat);
 		}
+
 		items.Add(Def("stone_axe",     "Stone axe",     "tool", 2.5f, 1, { "Item.Tool.Axe" },     "Chop", "RightHand"));
 		items.Add(Def("stone_pickaxe", "Stone pickaxe", "tool", 3.0f, 1, { "Item.Tool.Pickaxe" }, "Mine", "RightHand"));
 		items.Add(Def("water",     "Water",       "food",     1.0f,  5, { "Item.Food.Water" },     "Drink", ""));

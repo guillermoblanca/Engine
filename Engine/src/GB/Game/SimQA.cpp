@@ -4,6 +4,7 @@
 #include "GB/World/Terrain.h"
 #include "GB/World/WorldGen.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -106,12 +107,49 @@ namespace GB
 				if (m.Dead)
 				{
 					// a need that ran out (its body agrees), or a death of the society (old age, H9: the society agrees)
-					const bool need = m.Cause == "Hunger" || m.Cause == "Thirst" || m.Cause == "Warmth";
+					const bool need = m.Cause == "Hunger" || m.Cause == "Thirst" || m.Cause == "Warmth" || m.Cause == "Wounds";   // (Wounds: killed in a fight, H14)
 					const Person* p = v.Clan->People().Find(m.Name);
 					if (need) { if (!IsDead(*a) || CauseOfDeath(*a) != m.Cause) r.Add(m.Name, "the tribe says it died of " + m.Cause + ", its body says '" + CauseOfDeath(*a) + "'"); }
 					else if (m.Cause.empty() || m.Cause == "Unknown" || !p || !p->Dead || p->Cause != m.Cause) r.Add(m.Name, "died of '" + m.Cause + "', which neither a need nor the society explains");
 				}
 				else if (IsDead(*a)) r.Add(m.Name, "is dead (" + CauseOfDeath(*a) + ") but the tribe still counts it alive");
+			}
+		}
+
+		// H14: the fights. Health and stamina stay in their ranges and are numbers; the dead never fight, flee or are fought; morale is 0..1 and the
+		// wounds 0..1 each, below the lethal total; and a wound that no longer bleeds never gets worse (they heal: the total of a member only grows
+		// with a new wound).
+		void CheckFights(const SimView& v, SimTrack& t, SimReport& r)
+		{
+			if (!v.Clan || !v.Gameplay || !v.Clan->Combat()) return;
+			const CombatSystem& cs = *v.Clan->Combat();
+			for (const TribeMember& m : v.Clan->Members())
+			{
+				const AbilitySystemComponent* a = v.Gameplay->Find(m.Name);
+				if (a)
+					for (const char* attr : { "Health", "Stamina" })
+					{
+						if (!a->Attributes().Has(attr)) continue;
+						const float x = a->Attribute(attr);
+						if (!std::isfinite(x) || x < a->Attributes().Min(attr) - 0.01f || x > a->Attributes().Max(attr) + 0.01f) r.Add(m.Name, std::string(attr) + " " + Fixed(x) + " is out of its range");
+					}
+				const Combatant* c = cs.Find(m.Name);
+				if (!c) continue;
+				if (m.Dead && (c->Mode == FightMode::Engage || c->Mode == FightMode::Flee)) r.Add(m.Name, "is dead but still " + std::string(FightModeName(c->Mode)));
+				if (m.Dead && !cs.AttackersOf(m.Name).empty()) r.Add(m.Name, "is dead but " + cs.AttackersOf(m.Name).front() + " still fights it");
+				if (!(c->Morale >= 0.0f && c->Morale <= 1.0f)) r.Add(m.Name, "morale " + Fixed(c->Morale, 2) + " is out of 0..1");
+				float total = 0.0f;
+				bool bleeding = false;
+				for (const Wound& w : c->Wounds)
+				{
+					if (!(w.Severity >= 0.0f && w.Severity <= 1.0f)) r.Add(m.Name, "a wound of severity " + Fixed(w.Severity, 2));
+					total += w.Severity;
+					bleeding = bleeding || w.Bleeding > 0.0f;
+				}
+				if (!m.Dead && total >= cs.Rules.Injuries.Lethal) r.Add(m.Name, "lives with wounds of " + Fixed(total, 2) + ", past the lethal " + Fixed(cs.Rules.Injuries.Lethal, 2));
+				auto& last = t.Wounds[m.Name];
+				if (!m.Dead && !bleeding && c->Wounds.size() <= last.first && total > last.second + 1e-4f) r.Add(m.Name, "its wounds got worse with no new blow (" + Fixed(last.second, 2) + " -> " + Fixed(total, 2) + ")");
+				last = { c->Wounds.size(), total };
 			}
 		}
 
@@ -334,6 +372,43 @@ namespace GB
 			}
 		}
 
+		// H8: every construction site and building of the tribe's data is consistent: its phase within its phases, its work within the phase's, nothing
+		// delivered beyond what the phase needs, the tags as the state says (Site/Done, Ready), its progress never going back, and none in deep water.
+		void CheckBuildings(const SimView& v, SimTrack& t, SimReport& r)
+		{
+			if (!v.Clan || !v.Gameplay || !v.Clan->Buildings()) return;
+			for (const std::string& name : v.Gameplay->Names())
+			{
+				const AbilitySystemComponent* a = v.Gameplay->Find(name);
+				if (!a || !a->HasTag("Building")) continue;
+				const BuildingDef* def = BuildingOf(*a, *v.Clan->Buildings());
+				if (!def) { r.Add(name, "a building of a kind the data does not have"); continue; }
+				const int phase = static_cast<int>(std::lround(a->Attributes().Base("Phase")));
+				const int phases = static_cast<int>(def->Phases.size());
+				if (phase < 0 || phase > phases) { r.Add(name, "phase " + std::to_string(phase) + " of " + std::to_string(phases)); continue; }
+				const SiteState st = ReadSite(*a, *def);
+				if (st.Done != a->HasTag("Building.Done") || st.Done == a->HasTag("Building.Site")) r.Add(name, "its Site/Done tags do not match its phase");
+				if (!st.Done)
+				{
+					const BuildingPhase& p = def->Phases[static_cast<size_t>(phase)];
+					if (a->Attributes().Base("Work") > p.Work + 1e-3f) r.Add(name, "more work than its phase needs (" + Fixed(a->Attributes().Base("Work")) + " of " + Fixed(p.Work) + " s)");
+					for (const auto& [item, n] : p.Needs)
+						if (a->Attributes().Base("Delivered." + item) > static_cast<float>(n) + 1e-3f) r.Add(name, "more " + item + " delivered than its phase needs");
+					if (st.Ready != a->HasTag("Building.Ready")) r.Add(name, "its Ready tag does not match what it has been brought");
+				}
+				float& last = t.SiteProgress[name];
+				if (st.Progress + 1e-4f < last) r.Add(name, "its progress went back from " + Fixed(last) + " to " + Fixed(st.Progress));
+				last = std::max(last, st.Progress);
+				if (v.Ground && v.Entities)
+					if (const EntityId id = v.Entities->FindByName(name); id != NullEntity)
+					{
+						const glm::vec4 at = v.Entities->WorldMatrix(id)[3];
+						const std::string wrong = v.Ground({ at.x, at.z });
+						if (wrong.find("water") != std::string::npos) r.Add(name, "it stands " + wrong);
+					}
+			}
+		}
+
 		// Nobody stands in water too deep to wade, inside a trunk or a rock, or off the map.
 		void CheckGround(const SimView& v, SimTrack&, SimReport& r)
 		{
@@ -372,6 +447,13 @@ namespace GB
 			{ "expeditions", "an expedition's party is of the clan, is called home in time, and every member comes home (or died)", CheckExpeditions },
 			{ "migration", "after a move the camp is where it went, the campfire stands by it and every member gets there", CheckMigration },
 			{ "society", "the dead never act again; nobody keeps more than 12 bonds; genes and traits stay in 0..1", CheckSociety },
+			// H13 (the checks are ClanWorld's own, GB/Game/Clans.cpp)
+			{ "clans", "every member is in exactly one clan, and relations and meetings name clans that exist and envoys of their own clan",
+				[](const SimView& v, SimTrack&, SimReport& r) { if (v.Clans) for (const auto& [who, what] : v.Clans->CheckMembers()) r.Add(who, what); } },
+			{ "territory", "claims are finite, on land regions, of clans that exist, and deterministic (the same step twice gives the same map)",
+				[](const SimView& v, SimTrack&, SimReport& r) { if (v.Clans) for (const auto& [who, what] : v.Clans->CheckTerritory()) r.Add(who, what); } },
+			{ "buildings", "every site and building: phase and work within its data, nothing delivered beyond its phase, tags as its state, progress never back, none in water", CheckBuildings },
+			{ "combat", "health and stamina in range; the dead neither fight nor are fought; morale and wounds in range; wounds heal (they only grow with a new blow)", CheckFights },
 		};
 		return table;
 	}
@@ -676,7 +758,8 @@ namespace GB
 			const glm::vec4 p = entities->WorldMatrix(id)[3];
 			pos = { p.x, p.z };
 			return true;
-		}, 3.0f * std::max(0.3f, vigor), [this](const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points) { return Route(from, to, reach, points); });
+		}, 3.0f * std::max(0.3f, vigor), [this](const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points) { return Route(from, to, reach, points); },
+			[this]() { return MayPlan(); });
 	}
 
 	// ---------------------------------------------------------------- SimRun
@@ -690,6 +773,7 @@ namespace GB
 		m_Techs = setup.Techs ? *setup.Techs : DefaultTechs();
 		RegisterResourceContent(m_Gameplay.Library, m_Defs);
 		RegisterInteractiveContent(m_Gameplay.Library);
+		if (setup.Buildings) RegisterBuildingContent(m_Gameplay.Library);   // H8: the ability Build
 
 		// The ground the members walk: the terrain's height and water, the world's trunks and rocks as walls (as the editor's actors see them:
 		// PlayerMode::MakeHost), and the undergrowth of each biome.
@@ -701,6 +785,9 @@ namespace GB
 			m_Ground.Obstacles.push_back({ { rock.Position.x, rock.Position.z }, 0.8f * size * rock.Scale });
 		}
 		NavConfig nav;
+		if (setup.PlanBudget > 0) nav.MaxPlansPerFrame = setup.PlanBudget;
+		nav.PathCache = std::max(setup.PathCache, 0);
+		nav.MaxExpandedPerFrame = std::max(setup.PlanCells, 0);
 		const GeneratedWorld* w = &world;
 		nav.Vegetation = [w](float x, float z)
 		{
@@ -747,7 +834,8 @@ namespace GB
 		if (roster.empty())
 		{
 			// as `tribe build` (H7): the names from the data and the trades from the clan's needs
-			const int n = std::max(1, setup.Members);
+			const int clans = std::max(1, setup.Clans);
+			const int n = std::max(1, setup.Members / clans + setup.Members % clans);   // (H16: with several clans the first takes its share and the remainder)
 			const std::vector<std::string> roles = m_Tribe.PlanRoles(n);
 			for (int i = 0; i < n; ++i)
 				roster.emplace_back(MemberName(m_Tribe.Config.Work, static_cast<size_t>(i)), static_cast<size_t>(i) < roles.size() ? roles[static_cast<size_t>(i)] : std::string("forager"));
@@ -762,7 +850,7 @@ namespace GB
 		m_Gameplay.Load(m_Entities);
 		for (const auto& member : roster)
 			if (AbilitySystemComponent* asc = m_Gameplay.Find(member.first))
-				for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater" }) asc->Grant(work);   // what every actor can do (Actor.cpp)
+				for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);   // what every actor can do (Actor.cpp; Build only with buildings)
 		for (const std::string& n : m_Gameplay.Names())
 			if (const AbilitySystemComponent* a = m_Gameplay.Find(n); a && a->HasTag("Resource.Node")) ++m_NodeCount;
 
@@ -789,6 +877,14 @@ namespace GB
 		m_Tribe.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
 		m_Tribe.SetInteractives(&m_Rules.Defs);
 		m_Tribe.SetTechs(&m_Techs);   // H11: the members know the technologies of the start and find, watch and teach the rest (as the editor's tribe)
+		if (setup.Buildings)
+		{
+			// H8: the clan plans and builds (the sites stand on the terrain; the system adds the work of each Build)
+			m_Builds.Defs = *setup.Buildings;
+			m_Builds.Bind(m_Gameplay);
+			m_Tribe.SetBuildings(&m_Builds.Defs);
+			m_Tribe.SetGround([terrain = world.TerrainRef](float x, float z) { return terrain->GetHeight(x, z); });
+		}
 		// H12: the regions of the world (the editor's, or cut here with the clan's rules and the nodes planned on it), so expeditions and moves can happen
 		if (setup.Config) { m_Tribe.Config.Explore = setup.Config->Explore; m_Tribe.Config.Society = setup.Config->Society; m_Tribe.Config.Econ = setup.Config->Econ; }
 		if (!setup.Regions) m_Regions = RegionMap::Build(world, m_Tribe.Config.Explore.Regions, RegionThingsOf(m_Spots));
@@ -807,12 +903,86 @@ namespace GB
 		m_Tribe.SetSpawner([this](const std::string& name, const glm::vec2& at, float) -> ITribeBody*
 		{
 			AbilitySystemComponent* asc = m_Gameplay.Create(name);
-			for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater" }) asc->Grant(work);
+			for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);
 			m_Bodies.push_back(std::make_unique<SimBody>(name, m_Gameplay, m_Entities, m_Nav, m_Items, at));
 			m_Index[name] = m_Bodies.size() - 1;
 			return m_Bodies.back().get();
 		});
 		if (setup.Abstract) m_Tribe.SetViewer(camp + glm::vec2(1e5f, 1e5f));   // nobody near the viewer: every member is an abstract agent
+		if (setup.ViewerAtCamp) m_Tribe.SetViewer(camp);
+
+		// H16: more clans (the scale tests). The first is the tribe above; each further one settles where the clan world says, with its own well,
+		// store and stand-in bodies, and its members are named on from the first clan's (a name is unique in the world).
+		if (setup.Clans > 1)
+		{
+			m_Clans.SetRegions(setup.Regions ? setup.Regions : &m_Regions);
+			m_Clans.Add("Clan 1", &m_Tribe);
+			if (setup.ThinkPerFrame >= 0) m_Clans.ThinkPerFrame = setup.ThinkPerFrame;
+			size_t named = roster.size();
+			const int each = std::max(1, setup.Members / setup.Clans);
+			const NavGrid* grid = &m_Nav;
+			for (int c = 1; c < setup.Clans; ++c)
+			{
+				CampSite site;
+				if (!m_Clans.ChooseHome(setup.ClanApart, [grid](const glm::vec2& p) { return grid->Walkable(p); }, site))
+				{
+					m_Error = "no home for clan " + std::to_string(c + 1) + " at least " + Fixed(setup.ClanApart, 0) + " m from the others";
+					return;
+				}
+				const std::string name = "Clan " + std::to_string(c + 1);
+				Clan& clan = m_Clans.Add(name, nullptr, -1, &m_Tribe.Config);
+				Tribe& t = *clan.Folk;
+				const glm::vec2 home = FindFreeSpot(m_Ground, site.At, 2.0f);
+				const glm::vec2 well = FindFreeSpot(m_Ground, home + glm::vec2(4.0f, -6.0f), 1.5f);
+				BuildInteractive(m_Entities, m_Rules.Defs.at("well"), "Well " + name, NullEntity, { well.x, terrain->GetHeight(well.x, well.y), well.y });
+				t.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
+				t.SetInteractives(&m_Rules.Defs);
+				t.SetTechs(&m_Techs);
+				if (setup.Buildings) { t.SetBuildings(&m_Builds.Defs); t.SetGround([terrain](float x, float z) { return terrain->GetHeight(x, z); }); }   // (H8, as the first clan)
+				t.SetRegions(setup.Regions ? setup.Regions : &m_Regions, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
+				t.Config.Camp = home;
+				t.Config.CampY = terrain->GetHeight(home.x, home.y);
+				t.Store().Add(m_Items, "wood", 2 + 2 * each);
+				t.Store().Add(m_Items, "stone", 3 * each);
+				const std::vector<std::string> roles = t.PlanRoles(each);
+				for (int i = 0; i < each; ++i)
+				{
+					const std::string who = MemberName(t.Config.Work, named++);
+					AbilitySystemComponent* asc = m_Gameplay.Create(who);
+					for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);
+					const size_t col = static_cast<size_t>(i) % 8, row = static_cast<size_t>(i) / 8;
+					glm::vec2 start = home + glm::vec2((static_cast<float>(col) - 3.5f) * 1.5f, 1.5f * static_cast<float>(row));
+					if (!m_Nav.Walkable(start)) start = FindFreeSpot(m_Ground, start, 0.6f);
+					m_Bodies.push_back(std::make_unique<SimBody>(who, m_Gameplay, m_Entities, m_Nav, m_Items, start));
+					m_Index[who] = m_Bodies.size() - 1;
+					t.AddMember(who, static_cast<size_t>(i) < roles.size() ? roles[static_cast<size_t>(i)] : std::string("forager"), m_Bodies.back().get());
+				}
+				t.SetSpawner([this](const std::string& who, const glm::vec2& at, float) -> ITribeBody*
+				{
+					AbilitySystemComponent* asc = m_Gameplay.Create(who);
+					for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);
+					m_Bodies.push_back(std::make_unique<SimBody>(who, m_Gameplay, m_Entities, m_Nav, m_Items, at));
+					m_Index[who] = m_Bodies.size() - 1;
+					return m_Bodies.back().get();
+				});
+				if (setup.Abstract) t.SetViewer(camp + glm::vec2(1e5f, 1e5f));
+				if (setup.ViewerAtCamp) t.SetViewer(camp);
+			}
+		}
+		// H14: one combat system for every clan of the run (as the editor's StepCombat): threats, fights and raids, with the hostility of the clans
+		if (setup.Combat)
+		{
+			m_Combat.Bind(m_Entities, m_Gameplay);
+			m_Hostility.FromRules(m_Combat.Rules);
+			IHostility* hostility = &m_Hostility;
+			if (m_Clans.Count() > 1) { m_ClanHostility.Bind(&m_Clans, &m_Hostility); hostility = &m_ClanHostility; }
+			const auto& all = m_Clans.All();
+			if (all.empty()) m_Tribe.SetCombat(&m_Combat, hostility);
+			for (const auto& c : all) { c->Folk->SetClanName(c->Name); c->Folk->SetCombat(&m_Combat, hostility); }
+			if (setup.HostileClans)
+				for (size_t a = 0; a < all.size(); ++a)
+					for (size_t b = a + 1; b < all.size(); ++b) { m_Hostility.Set(all[a]->Name, all[b]->Name, 1.0f); m_Clans.Relate(all[a]->Id, all[b]->Id, "raid", 3.0f, "the scale run starts them hostile", all[a]->Id); }
+		}
 	}
 
 	SimRun::~SimRun() = default;
@@ -821,6 +991,7 @@ namespace GB
 	{
 		SimView v;
 		v.Clan = &m_Tribe;
+		if (m_Clans.Count() > 1) v.Clans = &m_Clans;   // (H16: the "clans" and "territory" checks of a run with several)
 		v.Gameplay = &m_Gameplay;
 		v.Entities = &m_Entities;
 		v.Clock = m_Clock;
@@ -832,15 +1003,48 @@ namespace GB
 	// One step, in the order the editor runs its fixed tick (EditorSaveHost::Step): abilities, regrowth, bodies, the interactives, the tribe.
 	void SimRun::Frame()
 	{
+		using Clock = std::chrono::steady_clock;
+		const auto t0 = Clock::now();
 		const float dt = m_Setup.Step;
 		m_Clock += static_cast<double>(dt);
+		if (m_Setup.PlanBudget > 0) m_Nav.NewFrame();   // H16: the searches of this step are shared fairly by every body (as ActorWorld::Update does)
 		m_Gameplay.Update(dt);
 		m_Resources.Update(m_Gameplay, dt, SeasonClock::GrowthRate(m_Tribe.Config.Seasons.At(m_Clock)));
+		const auto t1 = Clock::now();
 		for (auto& b : m_Bodies) b->Update(dt);
+		const auto t2 = Clock::now();
 		m_Resources.SyncVisuals(m_Gameplay, m_Entities);
 		m_Rules.Update(dt, &m_Entities);
-		m_Tribe.SetWorldClock(m_Clock);
-		m_Tribe.Update(dt);
+		if (m_Setup.Buildings) m_Builds.Update(dt, &m_Entities);   // H8
+		if (m_Setup.Combat)   // H14: the fights of every clan, before their brains read them (as the editor)
+		{
+			const auto c0 = Clock::now();
+			m_Combat.Update(dt, m_Tribe.Config.Needs.DaySeconds);
+			m_Cost.CombatMs = std::chrono::duration<double, std::milli>(Clock::now() - c0).count();
+		}
+		if (m_Clans.Count() > 1)
+		{
+			m_Clans.SetWorldClock(m_Clock);
+			m_Clans.Update(dt);
+			m_Cost.TribesMs = m_Clans.LastCost().TribesMs;
+			m_Cost.ThinkMs = m_Clans.LastCost().ThinkMs;
+			m_Cost.DiplomacyMs = m_Clans.LastCost().DiplomacyMs;
+			m_Cost.Thinks = m_Clans.LastCost().Thinks;
+			m_Cost.Due = m_Clans.LastCost().Due;
+		}
+		else
+		{
+			m_Tribe.SetWorldClock(m_Clock);
+			m_Tribe.Update(dt);
+			m_Cost.TribesMs = m_Tribe.LastCost().Ms;
+			m_Cost.ThinkMs = m_Tribe.LastCost().ThinkMs;
+			m_Cost.DiplomacyMs = 0.0;
+			m_Cost.Thinks = m_Tribe.LastCost().Thinks;
+			m_Cost.Due = m_Tribe.LastCost().Due;
+		}
+		m_Cost.BodiesMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
+		m_Cost.Plans = m_Nav.FrameStats();
+		m_Cost.Ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
 		++m_Frames;
 		const SimView v = View();
 		if (m_Frames % std::max(1, m_Setup.CheckEvery) == 0) m_Monitor.Step(v);

@@ -5,6 +5,7 @@
 #include "LogBuffer.h"
 #include "PlayerMode.h"
 #include "GameView.h"
+#include "GameMode.h"
 #include "Properties.h"
 #include "SceneEditor.h"
 #include "TestScenarios.h"
@@ -16,7 +17,11 @@
 #include "GB/Effects/Sky.h"
 #include "GB/Effects/Weather.h"
 #include "GB/Game/EntityRender.h"
+#include "GB/Game/TribeVisuals.h"
+#include "GB/Visual/SceneVisuals.h"
 #include "GB/Gameplay/Garden.h"
+#include "GB/Game/Clans.h"
+#include "GB/Game/ClanHostility.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Game/SimQA.h"
 #include "GB/Game/GameContent.h"
@@ -131,9 +136,32 @@ namespace GB::Editor
 		// H18 (EditorEconomy.cpp): `economy status|plan|give|stockpile|demand` and `field status|mark`: production chains, spoilage, stores and fields.
 		CommandResult EconomyCommand(const std::vector<std::string>& a);
 		CommandResult FieldCommand(const std::vector<std::string>& a);
+		// H14 (EditorConflict.cpp): the fights of the world in the simulation step (a death in the scene is a ragdoll), `combat status|log|hurt|fight`,
+		// `hostile [a b [value]]` and `raid <clan>|status`.
+		void StepCombat();
+		bool RestoreCombat(const std::string& json);             // the "combat" section of a save: {"fights": ..., "hostility": ...}
+		CommandResult CombatCommand(const std::vector<std::string>& a);
+		CommandResult HostileCommand(const std::vector<std::string>& a);
+		CommandResult RaidCommand(const std::vector<std::string>& a);
+		// H15 (GameMode.cpp): `play` makes a game and puts the player in clan 0; `game <action>` is what its keys do; each frame the keys, the
+		// quality, the body and camera of the player, the news; the interface over the viewport and the clan panel.
+		void RegisterGameCommands();
+		CommandResult PlayCommand(const std::vector<std::string>& a);
+		CommandResult GameCommand(const std::vector<std::string>& a);
+		void StepGame(float dt);
+		void GameKeys();
+		void RefreshPrompt();
+		std::vector<std::string> GameHud() const;
+		void DrawGameHud(float ox, float oy, float w, float h);
+		void GameNote(const std::string& text);
+		GameModeState m_Game;
+		ControlRules m_Controls = DefaultControls();             // the "controls" section: keys, interface, how `play` starts
 		CommandResult NavCommand(const std::vector<std::string>& a);
+		std::string AiStatsLine() const;   // H16: `stats ai` (EditorGameplay.cpp)
 		void DrawNavDebug(float ox, float oy, float w, float h);   // blocked and costly cells and the paths walked, over the viewport
 		CommandResult InteractivesCommand(const std::vector<std::string>& a);
+		CommandResult SiteCommand(const std::vector<std::string>& a);         // H8: where a clan would settle
+		CommandResult SettlementCommand(const std::vector<std::string>& a);   // H8: the buildings and sites of the tribe
 		void SyncGameplay();                                     // ability systems from the scene's entities (after a scene is loaded or the garden built)
 		CommandResult AbilityCommand(const std::vector<std::string>& a);
 		CommandResult GardenCommand(const std::vector<std::string>& a);
@@ -168,7 +196,13 @@ namespace GB::Editor
 		float m_AutoSnow = -1.0f;
 		glm::vec3 m_AutoLeaf{ -1.0f };
 		EcologySystem m_Ecology;                                 // rabbits that eat, breed and starve (`ecology spawn`)
+		CombatSystem m_Combat;                                   // H14: the fights of the world (members, animals), wounds and morale (`combat`)
+		HostilityTable m_Hostility;                              // H14: who is hostile to whom until the clans of H13 say it (`hostile`)
+		uint64_t m_CombatSeq = 0;                                // the last combat event the editor looked at (deaths become ragdolls)
+		double m_HostilityDay = 0.0;                             // the day of the needs' clock the grievances last faded on
+
 		InteractiveSystem m_Interactives;                        // campfire, well and door with a state of their own (`interactives build`)
+		BuildingSystem m_Buildings;                              // H8: the construction sites and buildings (their defs are the "buildings" of the content)
 		std::string m_NoInteractiveTimers = "{\"timers\":[]}";   // what InteractiveSystem::ToJson says when nothing is burning or filling
 		bool m_StrictScript = false;                             // --strict=1: scripted lines that fail make the editor exit with 1
 		int m_FocusWorldState = 0, m_FocusAbilities = 0;         // the same for the World state and Abilities panels (panel <name> on)
@@ -188,6 +222,28 @@ namespace GB::Editor
 		bool m_QaWarned = false;
 		int m_FocusQA = 0;
 		std::string m_QaLastSim, m_QaLastFindings;               // what the last `qa sim` said
+		// H13 (EditorClans.cpp): every clan of the world; clan 0 is m_Tribe (the first tribe, saved in the "ai" section as before), the others are
+		// kept by the clan world (`clan new`) and saved in the "clans" section. `clan select` chooses the one the Tribe panel and `tribe` reports show.
+		ClanWorld m_Clans;
+		ClanHostility m_ClanHostility;                           // H14: the hostility of the fights from the clans' diplomacy (the table for the rest)
+		// The visual layer (EditorVisuals.cpp, docs/VISUALES.md): node, building and creature looks from assets/data/visuals.json (the "visuals" section of
+		// the packs) drawn by the EntityRenderer's hook, and the tribe director (props, activity montages, reach, fields and piles) for every clan.
+		SceneVisuals m_Visuals;
+		TribeVisuals m_TribeVisuals;
+		void BindVisuals();
+		void UpdateVisuals(float dt);
+		void AddVisualsToScene();
+		void RegisterVisualCommands();
+		ClanId m_ActiveClan = 0;
+
+		Tribe& ActiveTribe();
+		CommandResult ClanCommand(const std::vector<std::string>& a);
+		void PrepareClanTribe(Tribe& tribe);                     // binds a kept clan's tribe to the scene, the content, the regions and a spawner
+		void ClearKeptClans();                                   // the clans `clan new` made go (their actors stay)
+		void RestoreClans(const std::string& json);              // after a load: the kept clans with their members' actors, then the diplomacy
+		void DrawClansSection();
+		std::unique_ptr<ITribeBody> MakeTribeBody(const std::string& actor);   // a real actor as a member of a tribe (ActorBody)
+		bool IsClanZeroBody(const ITribeBody* body) const;       // a body of a member of the first tribe
 		std::string m_AbilityActor = "Gardener";                 // whose abilities the Abilities panel shows
 		ActorWorld m_Actors;                                     // every character of the world: the player's and the NPCs' (`actor` command)
 		ItemLibrary m_Items;                                      // era-1 items and recipes, filled on first use of `actor bag`

@@ -25,8 +25,13 @@ namespace GB
 		bool River = true;               // a river from the high ground down to the lake (or across the map)
 		bool Lake = true;                // a lake in the lowest basin
 		float ForestAmount = 0.55f;      // 0..1: share of the land covered by forest
-		int TreeBudget = 420;            // most trees placed
-		int RockBudget = 70;
+		int TreeBudget = 420;            // most trees placed (per tile)
+		int RockBudget = 70;             // (per tile)
+		// H16, a bigger world: tiles per side (1..4). The world is then Tiles x Tiles maps of Size metres made by the same generator AS ONE (one
+		// heightmap of (Resolution - 1) x Tiles + 1 samples, the budgets x Tiles^2), so it is seamless at the borders by construction; GPU meshes
+		// and navigation can still be cut by tile (WorldTiles.h). 1, the default, is exactly the world of before. One lake and one river per world.
+		int Tiles = 1;
+		float Extent() const { return Size * static_cast<float>(Tiles < 1 ? 1 : Tiles); }   // metres per side of the whole world
 	};
 
 	struct RockPlacement

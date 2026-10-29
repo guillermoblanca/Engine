@@ -107,6 +107,7 @@ namespace GB
 			crossings(rightPhase, false);
 		}
 		m_Phase = after - std::floor(after);
+		if (!m_Sample && !m_Pose.empty()) return;   // (level of detail: the timing moved on, the pose is the last one)
 
 		// sample every clip at the shared phase (aligned on its own left landing) and blend them
 		bool first = true;

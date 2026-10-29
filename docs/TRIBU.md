@@ -118,10 +118,24 @@ escala de niño). Los genes y la personalidad, la etapa (un niño no hace trabaj
 Los **vínculos** entre pares suben y bajan con el trabajo compartido, la comida que otro trajo, el campamento, las lecciones y las disputas por un nodo, y deciden la pareja,
 el compañero que se busca y quién enseña a quién. Las aptitudes no se heredan, pero sí lo rápido que se aprenden.
 
+## El jugador (H15)
+
+Un miembro puede ser **el jugador** (`TribeMember::Player`, `Tribe::AddPlayer`): el clan lo cuenta como a cualquiera, pero el cerebro no decide por
+él; lo que hace llega por `Tribe::Player*` (`TribePlayer.cpp`) y suma **posición** en el clan, que hace que el clan acepte sus propuestas. Todo en
+[JUGAR.md](JUGAR.md).
+
+## Varios clanes (H13)
+
+Cada clan del mundo es una tribu; la de `tribe build` es el clan 0 y `clan new` hace las demás, con su almacén, su hoguera (`Campfire <clan>`), su pozo y
+sus miembros. Los enganches con el mundo de clanes son una línea cada uno (`TribeOutside`: la opción `envoy` de los enviados y el aviso de cada
+recogida) y el código está en `GB/Game/Clans.cpp` y `TribeClans.cpp`. Todo en [CLANES.md](CLANES.md).
+
 ## En el editor
 
 ```
-tribe build [modelo.fbx|fox] [x z] [trabajadores]       crea el parche de recursos, el campamento y los trabajadores (nombres de los datos, oficios por las necesidades, sin tope de 6)
+tribe build [modelo.fbx|fox] [x z] [trabajadores]       crea el campamento y los trabajadores (nombres de los datos, oficios por las necesidades, sin tope de 6); sin x z, en un mundo
+                                                        generado, en el mejor sitio (`site best`); el parche de recursos solo si no hay 8 nodos `wild` a 40 m
+settlement status | start <edificio> [x z]              obras y edificios del clan (H8, ver ASENTAMIENTOS.md)
 tribe status                                            almacén y qué hace cada uno (con sus aptitudes y su trabajo del tablón)
 tribe jobs                                              el tablón: cada trabajo con su prioridad, plazas y quién lo tiene; y qué tiene cada miembro
 tribe log [n]                                           las últimas n líneas de lo que ha pasado (el registro guarda las últimas 800)
@@ -165,7 +179,7 @@ y dos ejecuciones acaban idénticas; una partida antigua con la hoguera ardiendo
 - Con los recursos agotados (las rocas no se regeneran) el minero espera en el campamento y, si no conoce ninguna roca, sale a explorar; con regiones (H12) el clan manda una
   expedición a buscarlas y, si el hogar entero se agota, se muda ([EXPLORACION.md](EXPLORACION.md)).
 - Los oficios cambian (revisión, H7) pero las decisiones colectivas son simples: no hay líder ni votación, y la herramienta de cada oficio sigue ligada al rol.
-- El tablón no sabe de obras (no hay edificios hasta E9) ni de propuestas del jugador (H15); la fatiga no frena la práctica. Las aptitudes no se heredan (H9), solo lo rápido que se aprenden.
+- El tablón publica las obras (`deliver` y `build`, H8: [ASENTAMIENTOS.md](ASENTAMIENTOS.md)) pero no las propuestas del jugador (H15); la fatiga no frena la práctica. Las aptitudes no se heredan (H9), solo lo rápido que se aprenden.
 - La aceptación completa de H7 (un clan de 20 que se organiza solo durante días y cambia de reparto cuando cambia la necesidad) solo se prueba 15 minutos en CI; un barrido de
   semillas de la simulación (H20) diría si las curvas de práctica y la revisión están bien equilibradas.
 - Hay almacén principal y almacenes secundarios con acarreo (H18, [ECONOMIA.md](ECONOMIA.md)), pero no caminos (la navegación es otra parte de H5).
@@ -174,3 +188,7 @@ y dos ejecuciones acaban idénticas; una partida antigua con la hoguera ardiendo
 
 Cadenas de producción (`make`), caducidad y conservación, campos (`farm`), almacenes secundarios y acarreo (`haul`), cestas que amplían la carga: código en `GB/Game/TribeEconomy.cpp`, reglas en la sección `economy`. Todo en [ECONOMIA.md](ECONOMIA.md).
 - Más límites de percepción, necesidades y decisión en [IA.md](IA.md).
+
+## Conflicto (H14)
+
+Amenazas vistas y oídas, luchar o huir, heridos que descansan y se cuidan, caza (`hunt` en el tablón), incursiones y agravios: código en `GB/Game/TribeConflict.cpp` (los ganchos en `Tribe.cpp` son una línea cada uno), núcleo en `GB/Gameplay/Combat.h`, reglas en la sección `combat`. Todo en [CONFLICTO.md](CONFLICTO.md).

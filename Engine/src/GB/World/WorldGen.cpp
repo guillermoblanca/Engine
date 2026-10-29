@@ -302,6 +302,22 @@ namespace GB
 
 	GeneratedWorld WorldGenerator::GenerateData(const WorldDesc& desc)
 	{
+		if (desc.Tiles > 1)
+		{
+			// H16: several tiles are one bigger map of the same generator (seamless because it is one heightmap). The world keeps the desc it was
+			// asked for (per-tile Size, the Tiles), so a save writes it back as it came.
+			const int t = std::min(desc.Tiles, 4);
+			WorldDesc big = desc;
+			big.Tiles = 1;
+			big.Size = desc.Size * static_cast<float>(t);
+			big.Resolution = (desc.Resolution - 1u) * static_cast<uint32_t>(t) + 1u;
+			big.TreeBudget = desc.TreeBudget * t * t;
+			big.RockBudget = desc.RockBudget * t * t;
+			GeneratedWorld w = GenerateData(big);
+			w.Desc = desc;
+			w.Desc.Tiles = t;
+			return w;
+		}
 		GeneratedWorld w;
 		w.Desc = desc;
 		const bool desert = desc.Type == WorldType::Desert;

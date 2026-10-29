@@ -1,0 +1,17 @@
+# H13: two clans in one world. The first tribe is clan 0; `clan new` places another with the site chooser away from it. They live side by side, the
+# game is saved and loaded with both (the "clans" section), and the second clan comes back with its members.
+generate temperate 5
+resources world 0.5
+tribe build fox 0 0 4
+clan new Blue 4
+clan list
+timescale 10
+wait 300
+clan relations
+clan territory
+save clans_h13
+load clans_h13
+clan select Blue
+tribe status
+clan list
+quit

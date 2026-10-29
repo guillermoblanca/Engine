@@ -48,6 +48,9 @@ namespace GB
 		void SnapVelocity(glm::vec2 velocity) { m_Target = m_Velocity = velocity; }
 		// Advances the cycle and computes the pose; foot events since the previous call are in Events().
 		void Update(float dt);
+		// Level of detail (H16): off, Update still advances the cycle, the blend weights and the foot events (all that timing depends on) but does
+		// not sample the clips: the pose stays the last one computed. What a far character skips on the frames it is not redrawn.
+		void SetSampling(bool on) { m_Sample = on; }
 		void Apply(ModelInstance& instance) const { instance.SetPose(m_Pose); }
 
 		const Pose& GetPose() const { return m_Pose; }
@@ -66,6 +69,7 @@ namespace GB
 		int m_Root = -1;
 		glm::vec2 m_Target{ 0.0f }, m_Velocity{ 0.0f };
 		float m_Phase = 0.0f, m_SpeedScale = 1.0f, m_GaitWeight = 0.0f;
+		bool m_Sample = true;
 		std::vector<BlendSpace::Weight> m_Weights;
 		Pose m_Pose, m_Scratch;
 		std::vector<FootEvent> m_Events;

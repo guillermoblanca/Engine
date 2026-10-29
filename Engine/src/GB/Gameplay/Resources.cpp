@@ -411,9 +411,8 @@ namespace GB
 		// Power and speed of the best tool of each family held ("Item.Tool.Axe" finds a stone axe and a flint axe alike; the flint one wins).
 		// Attributes only appear for a family that was ever held, and go back to the defaults (0 and 1) when the last tool leaves.
 		std::vector<std::string> families;
-		for (const std::string& id : items.Ids())
-			for (const std::string& tag : items.Find(id)->Tags)
-				if (tag.rfind("Item.Tool.", 0) == 0 && std::find(families.begin(), families.end(), ToolFamily(tag)) == families.end()) families.push_back(ToolFamily(tag));
+		for (const std::string& tag : items.ToolTags())   // (H16: kept by the library; walking every item here cost microseconds per member and frame)
+			if (std::find(families.begin(), families.end(), ToolFamily(tag)) == families.end()) families.push_back(ToolFamily(tag));
 		for (const std::string& family : families)
 		{
 			const ItemDef* best = bag.BestTool(items, family);

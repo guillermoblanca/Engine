@@ -137,7 +137,7 @@ namespace GB
 			if (m.Dead || !m.Body) continue;
 			++alive;
 			const auto role = Config.Roles.find(m.Role);
-			if ((role == Config.Roles.end() || !role->second.Fixed) && !IsChild(m)) flexible.push_back(&m);   // (a child keeps its child's trade, H9)
+			if ((role == Config.Roles.end() || !role->second.Fixed) && !IsChild(m) && !m.Player) flexible.push_back(&m);   // (a child keeps its child's trade, H9; a player chooses its own, H15)
 		}
 		if (alive < rules.MinClan || flexible.empty()) return false;
 
@@ -154,7 +154,7 @@ namespace GB
 			const auto r = Config.Roles.find(role);
 			if (r == Config.Roles.end() || r->second.Fixed) return false;
 			const TribeRole& t = r->second;
-			return t.Tool.empty() || m.Body->Bag().CountTagged(*m_Items, t.ToolTag) > 0 || (m_Knowledge.CanMake(m.Name, t.Tool) && m_Recipes->WhyNot(*m_Items, m_Store, t.Tool, "workbench").empty());   // (H11: and it knows how)
+			return t.Tool.empty() || m.Body->Bag().CountTagged(*m_Items, t.ToolTag) > 0 || (m_Knowledge.CanMake(m.Name, t.Tool) && m_Recipes->WhyNot(*m_Items, m_Store, t.Tool, CraftStation(t.Tool)).empty());   // (H11: and it knows how)
 		};
 		auto change = [&](TribeMember& m, const std::string& role, const std::string& why)
 		{
@@ -275,9 +275,11 @@ namespace GB
 				std::snprintf(why, sizeof why, "the campfire has %.1f fuel%s", static_cast<double>(FireFuel()), FireBurning() ? "" : " and is out");
 				if (fuelAt) m_Board.Post("stoke", Config.FireName, SkillFamilyOf("stoke"), 1.0f, priority("stoke") * (FireBurning() ? 1.0f : 1.3f), 1, why, m_Time, rules);
 			}
+			PostSettlementJobs();   // H8: carry materials to the construction sites and work their phases (Settlement.cpp)
 		}
 		if (alive > 0) PostEconomyJobs();   // H18: make, farm and haul (TribeEconomy.cpp)
 		PostExpedition();   // H12: a party forming or out (TribeExplore.cpp)
+		if (alive > 0) PostConflictJobs();   // H14: hunts (TribeConflict.cpp)
 		for (const std::string& gone : m_Board.End(m_Time, rules)) (void)gone;   // (met needs and lapsed claims: the member chooses again when it next decides)
 	}
 
@@ -310,7 +312,10 @@ namespace GB
 			return job.Priority * liking * Falloff(distance, 40.0f) * vigor;
 		}
 		if (job.Kind == "expedition") return ExpeditionJobScore(m, job);   // H12
+		if (job.Kind == "hunt") return ConflictJobScore(m, job);   // H14
+
 		if (job.Kind == "make" || job.Kind == "farm" || job.Kind == "haul") return EconomyJobScore(m, job);   // H18
+		if (job.Kind == "deliver" || job.Kind == "build") return SettlementJobScore(m, job) * vigor;   // H8 (Settlement.cpp)
 		const float home = Falloff(glm::distance(pos, Config.Camp), 100.0f);
 		if (job.Kind == "craft")
 		{
@@ -373,6 +378,7 @@ namespace GB
 						if (const auto def = m_Defs.find(e->Kind); def != m_Defs.end()) match = def->second.Item == held->Target;
 			}
 			else if (held->Kind == "craft") match = o.Kind == "tool" && o.Target == held->Target;
+			else if (held->Kind == "deliver" || held->Kind == "build") match = o.Kind == held->Kind && o.Target == held->Target;   // that site (H8)
 			else match = o.Kind == held->Kind;   // "fire", "stoke"
 			if (!match) continue;
 			o.Score *= factor;
@@ -393,6 +399,6 @@ namespace GB
 			if (!best.empty()) s += ", best at " + best + " " + std::to_string(static_cast<int>(SkillLevel(m.Skills, best)));
 			s += "\n";
 		}
-		return s;
+		return s + ProposalsReport();   // H15: what the players proposed and what the clan said
 	}
 }

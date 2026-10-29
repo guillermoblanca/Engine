@@ -319,6 +319,72 @@ namespace
 			Check(c && d && glm::distance(glm::vec2(c->GetPosition().x, c->GetPosition().z), glm::vec2(d->GetPosition().x, d->GetPosition().z)) >= c->Radius() + d->Radius(), "a new actor starts clear of the others");
 		}
 	}
+
+	// ---- H16: level of detail of the animation. The same actors with and without a viewer (far ones posed every few frames, no IK): positions,
+	// montage events and footsteps must be the same frame by frame (only what is seen changes), and the far ones must skip poses.
+	struct LodRun
+	{
+		std::vector<glm::vec3> Positions;
+		std::vector<std::string> Events;   // "frame actor montage event" for every montage event
+		int Full = 0, Reduced = 0, Far = 0, Posed = 0;
+		double Ms = 0.0;
+	};
+	LodRun RunLod(const std::shared_ptr<GB::Model>& model, bool viewer, int count, int frames, bool record = true, const std::string& quality = "medium")
+	{
+		using namespace GB;
+		LodRun out;
+		ActorWorld w;
+		w.SetHost(FlatHost());
+		if (viewer) { w.SetViewer({ 0.0f, 0.0f, 0.0f }); w.SetAnimLod(AnimLodForQuality(quality)); }
+		std::string error;
+		for (int i = 0; i < count; ++i)
+		{
+			ActorSpawn s;
+			s.Shared = model;
+			// a row going away from the viewer: 8, 20 m (full), 32, 44 m (reduced), farther (far); in rows of 8 for a crowd
+			const float x = 8.0f + 12.0f * static_cast<float>(i % 8), z = 4.0f * static_cast<float>(i / 8);
+			s.Position = { x, z };
+			Actor* a = w.Spawn("lod" + std::to_string(1000 + i), s, error);
+			if (!a) { std::fprintf(stderr, "%s\n", error.c_str()); return out; }
+			a->Anim()->Montages().Add(Work());
+			a->RunTasks("goto " + std::to_string(x + 4.0f) + " " + std::to_string(z + 6.0f) + " run|wait 0.5|goto " + std::to_string(x) + " " + std::to_string(z - 3.0f), error);
+		}
+		const std::vector<std::string> names = w.Names();
+		for (int f = 0; f < frames; ++f)
+		{
+			if (f == 40 || f == 200)
+				for (const std::string& n : names)
+				{
+					MontagePlayer& m = w.Find(n)->Anim()->Montages();   // ("work" on the generated humanoid; the real character has no test_walk clip: its first montage)
+					if (m.Has("work")) m.Play("work");
+					else if (!m.Names().empty()) m.Play(m.Names().front());
+				}
+			w.Update(kDt);
+			const ActorWorld::FrameCost& c = w.LastCost();
+			out.Full += c.Full; out.Reduced += c.Reduced; out.Far += c.Far; out.Posed += c.Posed; out.Ms += c.Ms;
+			if (!record) continue;
+			for (const std::string& n : names)
+			{
+				Actor* a = w.Find(n);
+				out.Positions.push_back(a->GetPosition());
+				for (const MontageEvent& e : a->Anim()->Montages().Events())
+					out.Events.push_back(std::to_string(f) + " " + n + " " + e.Montage + " " + std::to_string(static_cast<int>(e.What)));
+			}
+		}
+		return out;
+	}
+
+	void LodChecks(const std::shared_ptr<GB::Model>& model, const char* label)
+	{
+		const int count = 6, frames = 480;
+		const LodRun full = RunLod(model, false, count, frames), lod = RunLod(model, true, count, frames);
+		const std::string tag = std::string(label) + ": animation LOD: ";
+		Check(!full.Positions.empty() && full.Positions == lod.Positions, (tag + "every actor walks exactly the same path as at full detail").c_str());
+		Check(!full.Events.empty() && full.Events == lod.Events, (tag + "the montage events come on the same frames").c_str());
+		Check(lod.Full > 0 && lod.Reduced > 0 && lod.Far > 0, (tag + "near, middle and far actors").c_str());
+		Check(full.Posed == count * frames && lod.Posed < full.Posed * 3 / 4, (tag + "the far actors are posed on fewer frames").c_str());
+		std::printf("   %s: animation LOD over %d frames: %d full, %d reduced, %d far actor-frames; %d poses instead of %d\n", label, frames, lod.Full, lod.Reduced, lod.Far, lod.Posed, full.Posed);
+	}
 }
 
 int main()
@@ -331,6 +397,7 @@ int main()
 	auto humanoid = TestHumanoid();
 	if (!humanoid) { std::fprintf(stderr, "FAIL: test humanoid\n"); return 1; }
 	Tests(humanoid, "generated humanoid", true);
+	LodChecks(humanoid, "generated humanoid");
 
 	// ---- models are loaded once however many actors use them
 	{
@@ -393,6 +460,7 @@ int main()
 			}
 			std::puts("-- real packs: tests");
 			Tests(bot, "real packs", false);
+			LodChecks(bot, "real packs");
 		}
 	}
 	else
@@ -429,6 +497,25 @@ int main()
 			const double perActorFrame = total / static_cast<double>(frames) / static_cast<double>(count);
 			std::printf("   %3d actors: %.3f ms per world frame, %.1f us per actor-frame (control %.1f us, animation + IK %.1f us)\n", count, total / frames * 1000.0, perActorFrame * 1e6,
 				control / frames / count * 1e6, animation / frames / count * 1e6);
+		}
+		// H16: the animation LOD (a crowd in rows going away from the viewer, 8 to 92 m; the median of 5 runs, the machine may be busy)
+		for (int count : { 32, 128 })
+		{
+			std::printf("   %3d actors in rows from 8 to 92 m:", count);
+			for (const char* quality : { "none", "ultra", "medium", "minimum" })
+			{
+				std::vector<double> ms;
+				int posed = 0;
+				for (int run = 0; run < 5; ++run)
+				{
+					const LodRun r = RunLod(model, std::strcmp(quality, "none") != 0, count, 300, false, quality);
+					ms.push_back(r.Ms / 300.0);
+					posed = r.Posed;
+				}
+				std::sort(ms.begin(), ms.end());
+				std::printf(" %s %.2f ms (%.0f%% posed);", quality, ms[2], 100.0 * posed / (300.0 * count));
+			}
+			std::printf("\n");
 		}
 		// the same with a forest: 3000 obstacles (trees, rocks) that every actor checks and carries a copy of
 		for (int count : { 32 })

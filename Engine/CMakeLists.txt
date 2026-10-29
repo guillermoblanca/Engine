@@ -29,15 +29,22 @@ add_library(GB STATIC
     src/GB/Gameplay/ContentPack.cpp
     src/GB/Gameplay/Resources.cpp
     src/GB/Gameplay/WorldResources.cpp
+    src/GB/Gameplay/Buildings.cpp
+    src/GB/Gameplay/SiteChoice.cpp
     src/GB/Gameplay/Interactives.cpp
     src/GB/Gameplay/Ecology.cpp
     src/GB/Gameplay/Spoilage.cpp
     src/GB/Gameplay/Farming.cpp
     src/GB/Gameplay/DocsExport.cpp
+    src/GB/Gameplay/Combat.cpp
     src/GB/Game/Tribe.cpp
     src/GB/Game/TribeWork.cpp
     src/GB/Game/TribeExplore.cpp
     src/GB/Game/TribeEconomy.cpp
+    src/GB/Game/TribeConflict.cpp
+    src/GB/Game/Conflict.cpp
+    src/GB/Game/ClanHostility.cpp
+
     src/GB/Game/Economy.cpp
     src/GB/Game/Production.cpp
     src/GB/Game/Exploration.cpp
@@ -48,7 +55,15 @@ add_library(GB STATIC
     src/GB/Game/SocietyRules.cpp
     src/GB/Game/TribeSociety.cpp
     src/GB/Game/SimQA.cpp
+    src/GB/Game/Settlement.cpp
     src/GB/Game/GameContent.cpp
+    src/GB/Game/TribeClans.cpp
+    src/GB/Game/Diplomacy.cpp
+    src/GB/Game/Territory.cpp
+    src/GB/Game/Clans.cpp
+    src/GB/Game/ClansPlayer.cpp
+    src/GB/Game/PlayerMember.cpp
+    src/GB/Game/TribePlayer.cpp
     src/GB/AI/Perception.cpp
     src/GB/AI/Memory.cpp
     src/GB/AI/Needs.cpp
@@ -83,6 +98,14 @@ add_library(GB STATIC
     src/GB/Save/Replay.cpp
     src/GB/Save/GameSession.cpp
     src/GB/Game/EntityRender.cpp
+    src/GB/Game/TribeVisuals.cpp
+    src/GB/Animation/ReachLayer.cpp
+    src/GB/Visual/ProcMesh.cpp
+    src/GB/Visual/ProcTexture.cpp
+    src/GB/Visual/VisualDefs.cpp
+    src/GB/Visual/PropVisuals.cpp
+    src/GB/Visual/SceneVisuals.cpp
+    src/GB/Visual/BuildingVisuals.cpp
     src/GB/Input.cpp
     src/GB/Log.cpp
     src/GB/Assets/Model.cpp
@@ -93,6 +116,7 @@ add_library(GB STATIC
     src/GB/Animation/Locomotion.cpp
     src/GB/World/Footsteps.cpp
     src/GB/World/Regions.cpp
+    src/GB/World/WorldTiles.cpp
     src/GB/World/Grass.cpp
     src/GB/World/GroundInteraction.cpp
     src/GB/World/Terrain.cpp

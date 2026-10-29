@@ -127,6 +127,8 @@ namespace GB
 			return false;
 		}
 		m_ManifestReport = animator->LoadManifest(m_Manifest);   // the sets, turns, jump and montages the folder has clips for
+		// which montage each ability plays is the manifest's (its "abilities"), among those this character has clips for
+		if (m_Gameplay) ApplyManifestAbilities(m_Gameplay->Library, m_Manifest, [&](const std::string& m) { return animator->Anim().Montages().Has(m); });
 		if (m_Gameplay) RegisterAbilityMontages(m_Gameplay->Library, animator->Anim(), m_Manifest.Montages);   // the same montages plus the notifies the abilities need
 		animator->SetFootsteps(m_Steps);
 		if (animator->Anim().Turn().HasClips("")) m_Controller.Config.TurnInPlaceAngle = 70.0f;   // the character has a turn on the spot to show
@@ -345,6 +347,7 @@ namespace GB
 		if (AbilitySystemComponent* old = Abilities()) { old->CancelAll(); old->SetRuntime(nullptr); }
 		m_Gameplay = gameplay;
 		m_AbilityName = name;
+		if (m_Gameplay && m_Animator) ApplyManifestAbilities(m_Gameplay->Library, m_Manifest, [this](const std::string& m) { return m_Animator->Anim().Montages().Has(m); });
 		if (m_Gameplay && m_Animator) RegisterAbilityMontages(m_Gameplay->Library, m_Animator->Anim(), m_Manifest.Montages);
 	}
 
@@ -352,7 +355,7 @@ namespace GB
 	{
 		AbilitySystemComponent* asc = Abilities();
 		if (!asc) return;
-		for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "OpenDoor", "CloseDoor" }) asc->Grant(work);   // every actor can work resource nodes and interactives (H2, H3); a library without them ignores this
+		for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "OpenDoor", "CloseDoor", "Build" }) asc->Grant(work);   // every actor can work resource nodes, interactives and construction sites (H2, H3, H8); a library without them ignores this
 		if (!m_Instance || !m_Animator || Ragdolled())
 		{
 			if (asc->Runtime()) { asc->CancelAll(); asc->SetRuntime(nullptr); }
@@ -692,6 +695,40 @@ namespace GB
 		return true;
 	}
 
+	bool Actor::AttachLook(const std::string& name, const std::string& socket, const std::string& lookName, const glm::mat4& offset)
+	{
+		if (!m_Animator) return false;
+		AnimInstance& anim = m_Animator->Anim();
+		const SocketSet& sockets = anim.Sockets();
+		if (!sockets.Find(socket)) return false;
+		Prop prop;
+		prop.Name = name;
+		prop.Socket = socket;
+		prop.Offset = offset;
+		PropLook look;
+		look.Look = lookName;
+		look.Socket = socket;
+		if (socket == "carry")
+		{
+			// held in both arms like the box: between the palms where the clips on screen put them, and the hands kept there with IK
+			if (!sockets.Find("hand_l") || !sockets.Find("hand_r")) return false;
+			const glm::mat4 carry = sockets.Matrix(*m_Instance, "carry");
+			const glm::vec3 l = glm::vec3(glm::inverse(carry) * sockets.Matrix(*m_Instance, "hand_l")[3]), r = glm::vec3(glm::inverse(carry) * sockets.Matrix(*m_Instance, "hand_r")[3]);
+			glm::vec3 x = l - r;
+			const float width = glm::length(x);
+			x = width > 1e-4f ? x / width : glm::vec3(1, 0, 0);
+			glm::vec3 z = glm::cross(x, glm::vec3(0, 1, 0));
+			z = glm::length(z) > 1e-4f ? glm::normalize(z) : glm::vec3(0, 0, 1);
+			const glm::vec3 y = glm::cross(z, x);
+			prop.Offset = glm::mat4(glm::vec4(x, 0), glm::vec4(y, 0), glm::vec4(z, 0), glm::vec4((l + r) * 0.5f + z * 0.11f, 1)) * offset;
+			look.Size = { width, 0.3f, 0.26f };
+			anim.SnapGrips(prop);
+		}
+		if (!anim.Attach(prop)) return false;
+		m_PropLooks[name] = look;
+		return true;
+	}
+
 	void Actor::DetachProp(const std::string& name)
 	{
 		if (!m_Animator) return;
@@ -705,12 +742,13 @@ namespace GB
 		if (!m_Instance)
 			return;
 		m_Instance->AddToScene(scene, RootMatrix());
-		if (!m_Animator) return;
+		if (!m_Animator || !m_DrawProps) return;   // (H16: far away the props are not drawn)
 		for (const std::string& n : m_Animator->Anim().PropNames())
 		{
 			glm::mat4 world;
 			const auto look = m_PropLooks.find(n);
 			if (look == m_PropLooks.end() || !m_Animator->Anim().PropMatrix(n, world)) continue;
+			if (!look->second.Look.empty() && m_PropDrawer && m_PropDrawer(look->second.Look, world, scene)) continue;
 			if (!m_PropMesh) m_PropMesh = std::make_unique<Mesh>(Mesh::CreateCube(1.0f));
 			RenderObject obj;
 			obj.MeshPtr = m_PropMesh.get();

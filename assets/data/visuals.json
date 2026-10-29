@@ -1,0 +1,592 @@
+{
+  "visuals": {
+    "materials": {
+      "bark":        { "color": [0.62, 0.5, 0.4], "texture": "bark", "uvScale": 1.5, "roughness": 0.9 },
+      "bark_dark":   { "color": [0.42, 0.34, 0.28], "texture": "bark", "uvScale": 1.2, "roughness": 0.92 },
+      "bark_pale":   { "color": [0.78, 0.68, 0.55], "texture": "bark", "uvScale": 2.5, "roughness": 0.85 },
+      "wood_cut":    { "color": [0.95, 0.82, 0.62], "texture": "planks", "uvScale": 3.0, "roughness": 0.8 },
+      "planks":      { "color": [0.9, 0.82, 0.7], "texture": "planks", "uvScale": 0.8, "roughness": 0.8 },
+      "handle":      { "color": [0.85, 0.7, 0.5], "texture": "planks", "uvScale": 6.0, "roughness": 0.7 },
+      "leaves":      { "color": [1.05, 1.05, 1.05], "texture": "leaves", "uvScale": 1.2, "roughness": 0.75, "wind": 0.25, "seasonal": true },
+      "leaves_dark": { "color": [0.72, 0.78, 0.72], "texture": "leaves", "uvScale": 0.9, "roughness": 0.8, "wind": 0.2, "seasonal": true },
+      "leaves_young":{ "color": [1.35, 1.4, 1.1], "texture": "leaves", "uvScale": 2.0, "roughness": 0.7, "wind": 0.4, "seasonal": true },
+      "needles":     { "color": [0.45, 0.62, 0.5], "texture": "leaves", "uvScale": 3.0, "roughness": 0.8, "wind": 0.15 },
+      "bush":        { "color": [0.9, 1.0, 0.9], "texture": "leaves", "uvScale": 2.5, "roughness": 0.75, "wind": 0.2, "seasonal": true },
+      "berry":       { "color": [0.62, 0.06, 0.16], "roughness": 0.3 },
+      "acorn":       { "color": [0.55, 0.38, 0.18], "roughness": 0.5 },
+      "stone":       { "color": [0.78, 0.77, 0.74], "texture": "stone", "uvScale": 0.9, "roughness": 0.85, "grain": 0.35 },
+      "stone_dark":  { "color": [0.55, 0.54, 0.52], "texture": "stone", "uvScale": 1.4, "roughness": 0.9, "grain": 0.3 },
+      "granite":     { "color": [0.85, 0.72, 0.68], "texture": "stone", "uvScale": 2.0, "roughness": 0.8, "grain": 0.4 },
+      "flint":       { "color": [1.0, 1.0, 1.0], "texture": "flint", "uvScale": 1.5, "roughness": 0.35, "grain": 0.15 },
+      "copper_ore":  { "color": [1.0, 1.0, 1.0], "texture": "copper_ore", "uvScale": 1.0, "roughness": 0.6, "grain": 0.3 },
+      "copper":      { "color": [0.86, 0.5, 0.3], "roughness": 0.35, "metallic": 0.9 },
+      "clay":        { "color": [1.0, 1.0, 1.0], "texture": "clay", "uvScale": 0.8, "roughness": 0.85 },
+      "mud":         { "color": [0.48, 0.38, 0.3], "texture": "clay", "uvScale": 0.5, "roughness": 0.45 },
+      "soil":        { "color": [1.0, 1.0, 1.0], "texture": "tilled_soil", "uvScale": 0.6, "roughness": 0.95 },
+      "seed":        { "color": [0.8, 0.68, 0.38], "roughness": 0.7 },
+      "sprout":      { "color": [0.36, 0.68, 0.24], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "doubleSided": true },
+      "grain":       { "color": [0.92, 0.76, 0.42], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.35, "doubleSided": true },
+      "grass":       { "color": [0.62, 0.66, 0.32], "texture": "grass", "uvScale": 3.0, "roughness": 0.75, "wind": 0.35, "doubleSided": true },
+      "grass_dry":   { "color": [0.66, 0.6, 0.36], "texture": "grass", "uvScale": 3.0, "roughness": 0.8, "wind": 0.2, "doubleSided": true },
+      "reed":        { "color": [0.42, 0.58, 0.3], "texture": "grass", "uvScale": 2.0, "roughness": 0.7, "wind": 0.45, "doubleSided": true },
+      "reed_head":   { "color": [0.42, 0.3, 0.2], "texture": "fur", "uvScale": 6.0, "roughness": 0.9 },
+      "frost":       { "color": [0.86, 0.92, 1.0], "texture": "stone", "uvScale": 2.0, "roughness": 0.3 },
+      "thatch":      { "color": [1.0, 1.0, 1.0], "texture": "thatch", "uvScale": 0.7, "roughness": 0.9 },
+      "wicker":      { "color": [1.0, 1.0, 1.0], "texture": "wicker", "uvScale": 2.5, "roughness": 0.8 },
+      "rope":        { "color": [1.0, 1.0, 1.0], "texture": "rope", "uvScale": 8.0, "roughness": 0.9 },
+      "hide":        { "color": [1.0, 1.0, 1.0], "texture": "hide", "uvScale": 1.0, "roughness": 0.75 },
+      "fur_rabbit":  { "color": [0.72, 0.62, 0.52], "texture": "fur", "uvScale": 4.0, "roughness": 0.9 },
+      "fur_white":   { "color": [1.0, 1.0, 0.97], "texture": "fur", "uvScale": 6.0, "roughness": 0.9 },
+      "eye":         { "color": [0.03, 0.02, 0.02], "roughness": 0.2 },
+      "bone":        { "color": [0.9, 0.87, 0.78], "roughness": 0.6 },
+      "salt":        { "color": [0.95, 0.95, 0.93], "texture": "stone", "uvScale": 3.0, "roughness": 0.45, "grain": 0.5 },
+      "resin":       { "color": [0.85, 0.5, 0.12], "roughness": 0.15, "emissive": [0.05, 0.02, 0.0] },
+      "meat":        { "color": [0.62, 0.2, 0.17], "texture": "hide", "uvScale": 3.0, "roughness": 0.45 },
+      "embers":      { "color": [0.2, 0.08, 0.04], "roughness": 0.9, "emissive": [1.4, 0.45, 0.1] }
+    },
+
+    "models": {
+      "tree": {
+        "variants": 3, "note": "a standing tree: the crown thins out as it is chopped; a stump and chips when felled",
+        "parts": [
+          { "name": "Trunk", "shape": "cylinder", "size": [0.42, 3.2, 0.22], "material": "bark", "sides": 9, "bend": 0.18, "show": [0, 1] },
+          { "name": "Roots", "shape": "blob", "pos": [0, 0.05, 0], "size": [0.16, 0.12, 0.16], "material": "bark", "count": 4, "radius": 0.2, "detail": 0, "rough": 0.3 },
+          { "name": "Crown", "shape": "blob", "pos": [0.15, 3.25, 0], "size": [1.15, 0.95, 1.15], "material": "leaves", "count": 4, "radius": 0.75, "detail": 2, "rough": 0.38, "jitter": 0.5, "show": [0, 1], "progressive": true },
+          { "name": "Top", "shape": "blob", "pos": [0.18, 4.05, 0], "size": [0.9, 0.8, 0.9], "material": "leaves", "detail": 2, "rough": 0.35, "show": [0.5, 1] },
+          { "name": "Stump", "shape": "cylinder", "size": [0.44, 0.45, 0.38], "material": "bark", "sides": 9, "show": [-1, 0] },
+          { "name": "Cut", "shape": "cylinder", "pos": [0, 0.45, 0], "size": [0.38, 0.02, 0.38], "material": "wood_cut", "sides": 9, "show": [-1, 0] },
+          { "name": "Chips", "shape": "box", "pos": [0, 0.02, 0], "size": [0.08, 0.02, 0.05], "material": "wood_cut", "count": 6, "layout": "scatter", "radius": 0.7, "jitter": 1.0, "show": [-1, 0] }
+        ]
+      },
+      "old_tree": {
+        "variants": 2, "note": "a big old tree: thick dark trunk with roots, a wide dark crown high up",
+        "parts": [
+          { "name": "Trunk", "shape": "cylinder", "size": [0.95, 5.6, 0.5], "material": "bark_dark", "sides": 12, "bend": 0.3, "show": [0, 1] },
+          { "name": "Roots", "shape": "blob", "pos": [0, 0.1, 0], "size": [0.35, 0.22, 0.3], "material": "bark_dark", "count": 5, "radius": 0.45, "detail": 1, "rough": 0.35 },
+          { "name": "Branch", "shape": "cylinder", "pos": [0, 4.2, 0], "rot": [0, 0, -55], "size": [0.22, 1.6, 0.1], "material": "bark_dark", "count": 3, "radius": 0.15, "show": [0, 1] },
+          { "name": "Crown", "shape": "blob", "pos": [0.3, 6.0, 0], "size": [1.9, 1.5, 1.9], "material": "leaves_dark", "count": 6, "radius": 1.6, "detail": 2, "rough": 0.4, "jitter": 0.6, "show": [0, 1], "progressive": true },
+          { "name": "Top", "shape": "blob", "pos": [0.3, 7.2, 0], "size": [1.6, 1.3, 1.6], "material": "leaves_dark", "detail": 2, "rough": 0.38, "show": [0.4, 1] },
+          { "name": "Stump", "shape": "cylinder", "size": [1.0, 0.7, 0.85], "material": "bark_dark", "sides": 12, "show": [-1, 0] },
+          { "name": "Cut", "shape": "cylinder", "pos": [0, 0.7, 0], "size": [0.85, 0.02, 0.85], "material": "wood_cut", "sides": 12, "show": [-1, 0] },
+          { "name": "Chips", "shape": "box", "pos": [0, 0.02, 0], "size": [0.1, 0.02, 0.06], "material": "wood_cut", "count": 10, "layout": "scatter", "radius": 1.2, "jitter": 1.0, "show": [-1, 0] }
+        ]
+      },
+      "young_tree": {
+        "variants": 3, "note": "a sapling: thin pale trunk, small bright crown; branches are taken from it",
+        "parts": [
+          { "name": "Trunk", "shape": "cylinder", "size": [0.12, 1.7, 0.05], "material": "bark_pale", "sides": 6, "bend": 0.1 },
+          { "name": "Twig", "shape": "cylinder", "pos": [0, 0.9, 0], "rot": [0, 0, -50], "size": [0.04, 0.5, 0.015], "material": "bark_pale", "count": 3, "show": [0, 1], "progressive": true },
+          { "name": "Crown", "shape": "blob", "pos": [0.05, 1.75, 0], "size": [0.5, 0.45, 0.5], "material": "leaves_young", "count": 3, "radius": 0.28, "detail": 1, "rough": 0.35, "jitter": 0.5, "show": [0, 1], "progressive": true },
+          { "name": "Bare", "shape": "cylinder", "pos": [0, 1.6, 0], "rot": [0, 0, 20], "size": [0.03, 0.4, 0.01], "material": "bark_pale", "count": 2, "show": [-1, 0] }
+        ]
+      },
+      "rock": {
+        "variants": 3, "note": "a boulder that breaks into smaller stones as it is mined, rubble when gone",
+        "parts": [
+          { "name": "Rock", "shape": "blob", "pos": [0, 0.3, 0], "size": [0.8, 0.6, 0.7], "material": "stone", "detail": 2, "rough": 0.32, "flat": -0.45, "show": [0.5, 1] },
+          { "name": "Rock Chunk", "shape": "blob", "pos": [0.55, 0.15, 0.3], "size": [0.4, 0.3, 0.35], "material": "stone", "count": 2, "layout": "row", "spacing": 0.9, "detail": 1, "rough": 0.35, "flat": -0.4, "show": [0, 1], "progressive": true },
+          { "name": "Rubble", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.1, 0.07, 0.09], "material": "stone_dark", "count": 7, "layout": "scatter", "radius": 0.6, "detail": 0, "rough": 0.4, "jitter": 0.8, "show": [-1, 0] }
+        ]
+      },
+      "granite_rock": {
+        "variants": 2,
+        "parts": [
+          { "name": "Rock", "shape": "blob", "pos": [0, 0.45, 0], "size": [1.1, 0.85, 0.9], "material": "granite", "detail": 2, "rough": 0.28, "flat": -0.5, "show": [0.3, 1] },
+          { "name": "Rock Slab", "shape": "blob", "pos": [0.9, 0.2, -0.2], "size": [0.5, 0.35, 0.45], "material": "granite", "count": 3, "radius": 0.5, "detail": 1, "rough": 0.3, "flat": -0.4, "show": [0, 1], "progressive": true },
+          { "name": "Rubble", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.12, 0.08, 0.1], "material": "granite", "count": 8, "layout": "scatter", "radius": 0.8, "detail": 0, "rough": 0.4, "jitter": 0.8, "show": [-1, 0] }
+        ]
+      },
+      "flint_outcrop": {
+        "variants": 3, "note": "sharp glassy nodules in a pale bed: one goes with every few blows",
+        "parts": [
+          { "name": "Bed", "shape": "blob", "pos": [0, 0.05, 0], "size": [0.9, 0.2, 0.75], "material": "stone", "detail": 1, "rough": 0.25, "flat": -0.1 },
+          { "name": "Flint", "shape": "blob", "pos": [0, 0.22, 0], "size": [0.24, 0.3, 0.2], "material": "flint", "count": 5, "radius": 0.38, "detail": 0, "rough": 0.45, "jitter": 0.9, "show": [0, 1], "progressive": true },
+          { "name": "Flakes", "shape": "box", "pos": [0, 0.15, 0], "size": [0.06, 0.012, 0.05], "material": "flint", "count": 8, "layout": "scatter", "radius": 0.7, "jitter": 1.0 }
+        ]
+      },
+      "copper_vein": {
+        "variants": 2, "note": "a grey rock with green streaks of ore: the streaks go as it is mined",
+        "parts": [
+          { "name": "Base", "shape": "blob", "pos": [0, 0.45, 0], "size": [0.95, 0.75, 0.8], "material": "stone_dark", "detail": 2, "rough": 0.3, "flat": -0.5 },
+          { "name": "Ore", "shape": "blob", "pos": [0, 0.55, 0], "size": [0.32, 0.18, 0.12], "material": "copper_ore", "count": 4, "radius": 0.72, "detail": 1, "rough": 0.35, "jitter": 0.6, "show": [0, 1], "progressive": true },
+          { "name": "Ore Cap", "shape": "blob", "pos": [0.1, 1.05, 0.1], "size": [0.4, 0.15, 0.35], "material": "copper_ore", "detail": 1, "rough": 0.3, "show": [0.5, 1] }
+        ]
+      },
+      "clay_bank": {
+        "variants": 2, "note": "wet mounds of clay on a muddy bank: they shrink as clay is dug",
+        "parts": [
+          { "name": "Mud", "shape": "blob", "pos": [0, 0.0, 0], "size": [1.5, 0.08, 1.2], "material": "mud", "detail": 1, "rough": 0.2, "flat": -0.2 },
+          { "name": "Mound", "shape": "blob", "pos": [0, 0.12, 0], "size": [0.6, 0.32, 0.5], "material": "clay", "count": 4, "radius": 0.55, "detail": 1, "rough": 0.3, "flat": -0.3, "jitter": 0.6, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "reed_bed": {
+        "variants": 2, "note": "tall reeds with brown heads in a patch of mud: cut one by one",
+        "parts": [
+          { "name": "Mud", "shape": "blob", "pos": [0, 0.0, 0], "size": [1.0, 0.06, 0.9], "material": "mud", "detail": 1, "rough": 0.2, "flat": -0.2 },
+          { "name": "Reeds", "shape": "blade", "size": [0.05, 2.1, 0.25], "material": "reed", "count": 16, "layout": "scatter", "radius": 0.7, "jitter": 0.7, "show": [0, 1], "progressive": true },
+          { "name": "Reeds Heads", "shape": "cylinder", "pos": [0.25, 1.9, 0], "size": [0.04, 0.25, 0.04], "material": "reed_head", "sides": 5, "count": 6, "layout": "scatter", "radius": 0.5, "jitter": 0.6, "show": [0, 1], "progressive": true },
+          { "name": "Stubble", "shape": "blade", "size": [0.04, 0.2, 0.02], "material": "reed", "count": 10, "layout": "scatter", "radius": 0.6, "jitter": 0.5, "show": [-1, 0.2] }
+        ]
+      },
+      "fiber_grass": {
+        "variants": 3, "note": "a tuft of tough grass: thinner as fibre is pulled, short stubble when gone",
+        "parts": [
+          { "name": "Tuft", "shape": "blade", "size": [0.07, 0.75, 0.28], "material": "grass", "count": 20, "layout": "scatter", "radius": 0.32, "jitter": 0.8, "show": [0, 1], "progressive": true },
+          { "name": "Stubble", "shape": "blade", "size": [0.05, 0.16, 0.05], "material": "grass_dry", "count": 9, "layout": "scatter", "radius": 0.28, "jitter": 0.6 }
+        ]
+      },
+      "berry_bush": {
+        "variants": 3, "note": "a round bush; the berries go cluster by cluster as they are picked",
+        "parts": [
+          { "name": "Bush", "shape": "blob", "pos": [0, 0.45, 0], "size": [0.6, 0.48, 0.6], "material": "bush", "count": 3, "radius": 0.32, "detail": 2, "rough": 0.35, "jitter": 0.4 },
+          { "name": "Berries", "shape": "blob", "pos": [0, 0.5, 0], "size": [0.05, 0.05, 0.05], "material": "berry", "count": 8, "radius": 0.7, "detail": 1, "rough": 0.05, "jitter": 0.4, "show": [0, 1], "progressive": true },
+          { "name": "Berries Top", "shape": "blob", "pos": [0, 0.88, 0], "size": [0.05, 0.05, 0.05], "material": "berry", "count": 5, "radius": 0.42, "detail": 1, "rough": 0.05, "jitter": 0.4, "show": [0.3, 1], "progressive": true }
+        ]
+      },
+      "fallen_trunk": {
+        "variants": 2, "note": "a dead trunk on the ground, cut in two logs: one half goes at a time",
+        "parts": [
+          { "name": "Log A", "shape": "cylinder", "pos": [0, 0.24, 0], "rot": [0, 0, 90], "size": [0.5, 1.4, 0.46], "material": "bark", "sides": 10, "show": [0, 1] },
+          { "name": "Log B", "shape": "cylinder", "pos": [1.42, 0.22, 0], "rot": [0, 0, 90], "size": [0.46, 1.3, 0.4], "material": "bark", "sides": 10, "show": [0.5, 1] },
+          { "name": "Stub", "shape": "cylinder", "pos": [-0.6, 0.35, 0], "rot": [40, 0, 0], "size": [0.1, 0.45, 0.04], "material": "bark", "sides": 5, "show": [0, 1] },
+          { "name": "Chips", "shape": "box", "pos": [0, 0.02, 0], "size": [0.08, 0.02, 0.05], "material": "wood_cut", "count": 8, "layout": "scatter", "radius": 0.9, "jitter": 1.0 }
+        ]
+      },
+      "oak_acorns": {
+        "variants": 2,
+        "parts": [
+          { "name": "Trunk", "shape": "cylinder", "size": [0.5, 2.4, 0.3], "material": "bark_dark", "sides": 9, "bend": 0.25 },
+          { "name": "Crown", "shape": "blob", "pos": [0.2, 2.8, 0], "size": [1.3, 0.95, 1.3], "material": "leaves", "count": 4, "radius": 0.8, "detail": 2, "rough": 0.4, "jitter": 0.5 },
+          { "name": "Acorns", "shape": "blob", "pos": [0, 0.03, 0], "size": [0.03, 0.04, 0.03], "material": "acorn", "count": 10, "layout": "scatter", "radius": 1.2, "detail": 0, "rough": 0.1, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "pine_resin": {
+        "variants": 2,
+        "parts": [
+          { "name": "Trunk", "shape": "cylinder", "size": [0.4, 4.5, 0.12], "material": "bark", "sides": 8 },
+          { "name": "Needles", "shape": "cylinder", "pos": [0, 1.4, 0], "size": [2.2, 2.0, 0.2], "material": "needles", "sides": 10, "count": 3, "layout": "stack", "columns": 1, "spacing": 1.0 },
+          { "name": "Resin", "shape": "blob", "pos": [0.2, 1.1, 0.05], "size": [0.05, 0.08, 0.04], "material": "resin", "count": 3, "radius": 0.18, "detail": 1, "rough": 0.1, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "wild_grain": {
+        "variants": 3,
+        "parts": [
+          { "name": "Stalks", "shape": "blade", "size": [0.03, 0.85, 0.2], "material": "grain", "count": 18, "layout": "scatter", "radius": 0.4, "jitter": 0.7 },
+          { "name": "Heads", "shape": "blob", "pos": [0.15, 0.85, 0], "size": [0.025, 0.07, 0.025], "material": "seed", "count": 8, "layout": "scatter", "radius": 0.35, "detail": 0, "rough": 0.1, "jitter": 0.5, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "salt_flat": {
+        "variants": 1,
+        "parts": [
+          { "name": "Crust", "shape": "blob", "pos": [0, 0.0, 0], "size": [1.6, 0.06, 1.3], "material": "salt", "detail": 2, "rough": 0.15, "flat": -0.2 },
+          { "name": "Heaps", "shape": "blob", "pos": [0, 0.06, 0], "size": [0.22, 0.12, 0.2], "material": "salt", "count": 5, "layout": "scatter", "radius": 0.9, "detail": 1, "rough": 0.3, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "old_bones": {
+        "variants": 2,
+        "parts": [
+          { "name": "Skull", "shape": "blob", "pos": [0, 0.12, 0], "size": [0.18, 0.13, 0.24], "material": "bone", "detail": 1, "rough": 0.2, "flat": -0.5 },
+          { "name": "Bones", "shape": "cylinder", "pos": [0, 0.03, 0], "rot": [0, 0, 90], "size": [0.05, 0.45, 0.04], "material": "bone", "sides": 6, "count": 4, "layout": "scatter", "radius": 0.5, "jitter": 1.0, "show": [0, 1], "progressive": true }
+        ]
+      },
+
+      "rabbit": {
+        "variants": 3, "note": "the rabbit's procedural body (the fox is Fox.glb)",
+        "parts": [
+          { "name": "Body", "shape": "blob", "pos": [0, 0.15, -0.02], "size": [0.13, 0.12, 0.19], "material": "fur_rabbit", "detail": 2, "rough": 0.08 },
+          { "name": "Haunch", "shape": "blob", "pos": [0.07, 0.1, -0.08], "size": [0.05, 0.08, 0.1], "material": "fur_rabbit", "count": 2, "layout": "row", "spacing": 0.14, "detail": 1, "rough": 0.05 },
+          { "name": "Head", "shape": "blob", "pos": [0, 0.24, 0.15], "size": [0.075, 0.07, 0.085], "material": "fur_rabbit", "detail": 2, "rough": 0.05 },
+          { "name": "Ear", "shape": "blob", "pos": [0, 0.36, 0.11], "rot": [-18, 0, 0], "size": [0.018, 0.075, 0.028], "material": "fur_rabbit", "count": 2, "layout": "row", "spacing": 0.05, "detail": 1, "rough": 0.05 },
+          { "name": "Eye", "shape": "blob", "pos": [0, 0.26, 0.2], "size": [0.012, 0.012, 0.012], "material": "eye", "count": 2, "layout": "row", "spacing": 0.08, "detail": 0, "rough": 0.0 },
+          { "name": "Front Paws", "shape": "blob", "pos": [0, 0.04, 0.1], "size": [0.02, 0.04, 0.03], "material": "fur_rabbit", "count": 2, "layout": "row", "spacing": 0.07, "detail": 0, "rough": 0.05 },
+          { "name": "Tail", "shape": "blob", "pos": [0, 0.17, -0.2], "size": [0.035, 0.035, 0.035], "material": "fur_white", "detail": 1, "rough": 0.2 }
+        ]
+      },
+
+      "axe_stone": {
+        "variants": 1, "note": "a stone head lashed to a wooden handle; the handle along +Z (the hand socket's forward)",
+        "parts": [
+          { "name": "Handle", "shape": "cylinder", "pos": [0, 0, -0.14], "rot": [90, 0, 0], "size": [0.034, 0.66, 0.028], "material": "handle", "sides": 6 },
+          { "name": "Head", "shape": "blob", "pos": [0, 0.05, 0.47], "size": [0.03, 0.1, 0.06], "material": "stone", "detail": 1, "rough": 0.25 },
+          { "name": "Lashing", "shape": "cylinder", "pos": [0, 0, 0.43], "rot": [90, 0, 0], "size": [0.05, 0.08, 0.05], "material": "rope", "sides": 6 }
+        ]
+      },
+      "axe_flint": {
+        "variants": 1,
+        "parts": [
+          { "name": "Handle", "shape": "cylinder", "pos": [0, 0, -0.14], "rot": [90, 0, 0], "size": [0.034, 0.66, 0.028], "material": "handle", "sides": 6 },
+          { "name": "Head", "shape": "blob", "pos": [0, 0.06, 0.47], "size": [0.022, 0.12, 0.06], "material": "flint", "detail": 0, "rough": 0.3 },
+          { "name": "Lashing", "shape": "cylinder", "pos": [0, 0, 0.43], "rot": [90, 0, 0], "size": [0.05, 0.08, 0.05], "material": "rope", "sides": 6 }
+        ]
+      },
+      "axe_copper": {
+        "variants": 1,
+        "parts": [
+          { "name": "Handle", "shape": "cylinder", "pos": [0, 0, -0.14], "rot": [90, 0, 0], "size": [0.034, 0.66, 0.028], "material": "handle", "sides": 6 },
+          { "name": "Head", "shape": "box", "pos": [0, 0.06, 0.48], "size": [0.016, 0.13, 0.07], "material": "copper" }
+        ]
+      },
+      "pick_stone": {
+        "variants": 1, "note": "a pick: a long stone point across the handle's end",
+        "parts": [
+          { "name": "Handle", "shape": "cylinder", "pos": [0, 0, -0.16], "rot": [90, 0, 0], "size": [0.036, 0.72, 0.03], "material": "handle", "sides": 6 },
+          { "name": "Head", "shape": "cylinder", "pos": [0, -0.15, 0.52], "size": [0.06, 0.32, 0.0], "material": "stone_dark", "sides": 6 },
+          { "name": "Back", "shape": "cylinder", "pos": [0, -0.0, 0.52], "rot": [180, 0, 0], "size": [0.06, 0.12, 0.0], "material": "stone_dark", "sides": 6 },
+          { "name": "Lashing", "shape": "cylinder", "pos": [0, 0, 0.48], "rot": [90, 0, 0], "size": [0.055, 0.08, 0.055], "material": "rope", "sides": 6 }
+        ]
+      },
+      "pick_flint": {
+        "variants": 1,
+        "parts": [
+          { "name": "Handle", "shape": "cylinder", "pos": [0, 0, -0.16], "rot": [90, 0, 0], "size": [0.036, 0.72, 0.03], "material": "handle", "sides": 6 },
+          { "name": "Head", "shape": "cylinder", "pos": [0, -0.15, 0.52], "size": [0.05, 0.34, 0.0], "material": "flint", "sides": 5 },
+          { "name": "Back", "shape": "cylinder", "pos": [0, 0.0, 0.52], "rot": [180, 0, 0], "size": [0.05, 0.12, 0.0], "material": "flint", "sides": 5 },
+          { "name": "Lashing", "shape": "cylinder", "pos": [0, 0, 0.48], "rot": [90, 0, 0], "size": [0.055, 0.08, 0.055], "material": "rope", "sides": 6 }
+        ]
+      },
+      "pick_bone": {
+        "variants": 1,
+        "parts": [
+          { "name": "Handle", "shape": "cylinder", "pos": [0, 0, -0.16], "rot": [90, 0, 0], "size": [0.036, 0.72, 0.03], "material": "handle", "sides": 6 },
+          { "name": "Head", "shape": "cylinder", "pos": [0, -0.17, 0.52], "rot": [0, 0, 8], "size": [0.05, 0.36, 0.01], "material": "bone", "sides": 6 },
+          { "name": "Lashing", "shape": "cylinder", "pos": [0, 0, 0.48], "rot": [90, 0, 0], "size": [0.055, 0.08, 0.055], "material": "rope", "sides": 6 }
+        ]
+      },
+      "hoe_stone": {
+        "variants": 1,
+        "parts": [
+          { "name": "Handle", "shape": "cylinder", "pos": [0, 0, -0.35], "rot": [90, 0, 0], "size": [0.034, 1.15, 0.03], "material": "handle", "sides": 6 },
+          { "name": "Blade", "shape": "box", "pos": [0, -0.07, 0.78], "rot": [20, 0, 0], "size": [0.13, 0.16, 0.025], "material": "stone" },
+          { "name": "Lashing", "shape": "cylinder", "pos": [0, 0, 0.74], "rot": [90, 0, 0], "size": [0.05, 0.08, 0.05], "material": "rope", "sides": 6 }
+        ]
+      },
+      "sickle_flint": {
+        "variants": 1,
+        "parts": [
+          { "name": "Handle", "shape": "cylinder", "pos": [0, 0, -0.08], "rot": [90, 0, 0], "size": [0.034, 0.3, 0.03], "material": "handle", "sides": 6 },
+          { "name": "Blade", "shape": "cylinder", "pos": [0, 0, 0.2], "rot": [90, 0, 0], "size": [0.04, 0.3, 0.005], "material": "flint", "sides": 4, "bend": 0.12 }
+        ]
+      },
+      "basket": {
+        "variants": 1, "note": "a wicker basket worn on the back",
+        "parts": [
+          { "name": "Basket", "shape": "cylinder", "size": [0.3, 0.42, 0.38], "material": "wicker", "sides": 12 },
+          { "name": "Rim", "shape": "cylinder", "pos": [0, 0.41, 0], "size": [0.4, 0.03, 0.4], "material": "rope", "sides": 12 },
+          { "name": "Strap", "shape": "box", "pos": [0, 0.25, 0.17], "size": [0.22, 0.4, 0.02], "material": "hide" }
+        ]
+      },
+      "logs_bundle": {
+        "variants": 1, "note": "logs held across the arms",
+        "parts": [
+          { "name": "Log", "shape": "cylinder", "pos": [0, 0, -0.32], "rot": [90, 0, 0], "size": [0.12, 0.7, 0.11], "material": "bark", "sides": 7, "count": 3, "layout": "row", "spacing": 0.13 },
+          { "name": "Log Top", "shape": "cylinder", "pos": [0, 0.11, -0.3], "rot": [90, 0, 0], "size": [0.11, 0.66, 0.1], "material": "bark", "sides": 7, "count": 2, "layout": "row", "spacing": 0.13 }
+        ]
+      },
+      "stone_crate": {
+        "variants": 1, "note": "a hide-lined crate of stones",
+        "parts": [
+          { "name": "Crate", "shape": "box", "pos": [0, -0.05, 0], "size": [0.52, 0.24, 0.3], "material": "planks" },
+          { "name": "Stones", "shape": "blob", "pos": [0, 0.1, 0], "size": [0.09, 0.07, 0.08], "material": "stone", "count": 5, "layout": "scatter", "radius": 0.18, "detail": 1, "rough": 0.3 }
+        ]
+      },
+      "berry_basket": {
+        "variants": 1,
+        "parts": [
+          { "name": "Basket", "shape": "cylinder", "pos": [0, -0.12, 0], "size": [0.38, 0.22, 0.44], "material": "wicker", "sides": 12 },
+          { "name": "Berries", "shape": "blob", "pos": [0, 0.09, 0], "size": [0.04, 0.04, 0.04], "material": "berry", "count": 10, "layout": "scatter", "radius": 0.16, "detail": 1, "rough": 0.05 }
+        ]
+      },
+      "bundle": {
+        "variants": 1, "note": "a tied bundle of fibre, reeds or anything else",
+        "parts": [
+          { "name": "Bundle", "shape": "cylinder", "pos": [0.32, 0, 0], "rot": [0, 0, 90], "size": [0.2, 0.64, 0.2], "material": "grass_dry", "sides": 8 },
+          { "name": "Ties", "shape": "cylinder", "pos": [0.16, 0, 0], "rot": [0, 0, 90], "size": [0.22, 0.04, 0.22], "material": "rope", "sides": 8, "count": 2, "layout": "row", "spacing": 0.3 }
+        ]
+      },
+      "wheelbarrow": {
+        "variants": 1, "note": "a wooden barrow pushed in front: its handles in the hands",
+        "parts": [
+          { "name": "Tray", "shape": "box", "pos": [0, -0.2, 0.75], "size": [0.55, 0.26, 0.75], "material": "planks" },
+          { "name": "Handles", "shape": "cylinder", "pos": [0, -0.25, 0.0], "rot": [80, 0, 0], "size": [0.04, 1.2, 0.04], "material": "handle", "sides": 6, "count": 2, "layout": "row", "spacing": 0.52 },
+          { "name": "Wheel", "shape": "cylinder", "pos": [0.04, -0.62, 1.2], "rot": [0, 0, 90], "size": [0.36, 0.08, 0.36], "material": "planks", "sides": 12 }
+        ]
+      },
+      "meat_bundle": {
+        "variants": 1, "note": "the meat of a hunt (H14), carried in the arms tied in its hide",
+        "parts": [
+          { "name": "Hide", "shape": "blob", "pos": [0, -0.04, 0], "size": [0.26, 0.1, 0.18], "material": "hide", "detail": 1, "rough": 0.3 },
+          { "name": "Meat", "shape": "blob", "pos": [0, 0.06, 0], "size": [0.1, 0.07, 0.08], "material": "meat", "count": 3, "layout": "row", "spacing": 0.14, "detail": 1, "rough": 0.3 },
+          { "name": "Tie", "shape": "cylinder", "pos": [0.22, 0.0, 0], "rot": [0, 0, 90], "size": [0.2, 0.03, 0.2], "material": "rope", "sides": 8 }
+        ]
+      },
+      "pile_meat": {
+        "variants": 1, "note": "meat of the hunts laid on a hide (it spoils fast: the pile shrinks)",
+        "parts": [
+          { "name": "Hide", "shape": "blob", "pos": [0, 0.01, 0], "size": [0.55, 0.02, 0.45], "material": "hide", "detail": 1, "rough": 0.2, "flat": -0.3 },
+          { "name": "Meat", "shape": "blob", "pos": [0, 0.07, 0], "size": [0.12, 0.07, 0.1], "material": "meat", "count": 8, "layout": "scatter", "radius": 0.35, "detail": 1, "rough": 0.3, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "firewood": {
+        "variants": 1,
+        "parts": [
+          { "name": "Sticks", "shape": "cylinder", "pos": [0, 0, -0.12], "rot": [90, 0, 0], "size": [0.07, 0.45, 0.06], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 0.07 }
+        ]
+      },
+      "berries_handful": {
+        "variants": 1,
+        "parts": [
+          { "name": "Berries", "shape": "blob", "pos": [0, 0.02, 0.03], "size": [0.02, 0.02, 0.02], "material": "berry", "count": 5, "layout": "scatter", "radius": 0.035, "detail": 1, "rough": 0.05 }
+        ]
+      },
+
+      "pile_logs": {
+        "variants": 1, "note": "the store's woodpile: one more log for every few units",
+        "parts": [
+          { "name": "Log", "shape": "cylinder", "pos": [0, 0.1, -0.5], "rot": [90, 0, 0], "size": [0.2, 1.0, 0.18], "material": "bark", "sides": 8, "count": 10, "layout": "stack", "columns": 4, "spacing": 0.21, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "pile_stones": {
+        "variants": 1,
+        "parts": [
+          { "name": "Stones", "shape": "blob", "pos": [0, 0.08, 0], "size": [0.14, 0.1, 0.12], "material": "stone", "count": 14, "layout": "scatter", "radius": 0.45, "detail": 1, "rough": 0.35, "jitter": 0.7, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "pile_berries": {
+        "variants": 1, "note": "berry baskets: one more basket for every few units",
+        "parts": [
+          { "name": "Basket", "shape": "cylinder", "size": [0.34, 0.26, 0.4], "material": "wicker", "sides": 12, "count": 4, "layout": "row", "spacing": 0.45, "show": [0, 1], "progressive": true },
+          { "name": "Berries", "shape": "blob", "pos": [0, 0.26, 0], "size": [0.16, 0.06, 0.16], "material": "berry", "count": 4, "layout": "row", "spacing": 0.45, "detail": 1, "rough": 0.4, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "pile_fiber": {
+        "variants": 1,
+        "parts": [
+          { "name": "Bundle", "shape": "cylinder", "pos": [0.4, 0.1, 0], "rot": [0, 0, 90], "size": [0.2, 0.8, 0.2], "material": "grass_dry", "sides": 8, "count": 6, "layout": "stack", "columns": 3, "spacing": 0.21, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "pile_clay": {
+        "variants": 1,
+        "parts": [
+          { "name": "Lumps", "shape": "blob", "pos": [0, 0.1, 0], "size": [0.16, 0.12, 0.15], "material": "clay", "count": 8, "layout": "scatter", "radius": 0.35, "detail": 1, "rough": 0.25, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "pile_flint": {
+        "variants": 1,
+        "parts": [
+          { "name": "Nodules", "shape": "blob", "pos": [0, 0.07, 0], "size": [0.1, 0.08, 0.09], "material": "flint", "count": 10, "layout": "scatter", "radius": 0.35, "detail": 0, "rough": 0.4, "show": [0, 1], "progressive": true }
+        ]
+      },
+      "pile_crates": {
+        "variants": 1, "note": "anything else the store keeps: crates",
+        "parts": [
+          { "name": "Crate", "shape": "box", "pos": [0, 0.17, 0], "size": [0.4, 0.34, 0.4], "material": "planks", "count": 4, "layout": "stack", "columns": 3, "spacing": 0.45, "show": [0, 1], "progressive": true }
+        ]
+      },
+
+      "plot_dug": {
+        "variants": 2,
+        "parts": [
+          { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" }
+        ]
+      },
+      "plot_sown": {
+        "variants": 2,
+        "parts": [
+          { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
+          { "name": "Seeds", "shape": "blob", "pos": [0, 0.075, 0], "size": [0.025, 0.012, 0.02], "material": "seed", "count": 9, "layout": "scatter", "radius": 0.65, "detail": 0, "rough": 0.1 }
+        ]
+      },
+      "plot_sprout": {
+        "variants": 2, "note": "sprouts that rise through the stage",
+        "parts": [
+          { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
+          { "name": "Sprouts", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.05, 0.16, 0.04], "material": "sprout", "count": 12, "layout": "scatter", "radius": 0.68, "jitter": 0.4 },
+          { "name": "Sprouts Tall", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.05, 0.32, 0.08], "material": "sprout", "count": 12, "layout": "scatter", "radius": 0.68, "jitter": 0.4, "show": [0.5, 1] }
+        ]
+      },
+      "plot_grown": {
+        "variants": 2, "note": "a ripe crop (grain): golden stalks with heads",
+        "parts": [
+          { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
+          { "name": "Stalks", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.04, 0.85, 0.12], "material": "grain", "count": 26, "layout": "scatter", "radius": 0.72, "jitter": 0.6 },
+          { "name": "Heads", "shape": "blob", "pos": [0.06, 0.88, 0], "size": [0.025, 0.06, 0.025], "material": "seed", "count": 14, "layout": "scatter", "radius": 0.68, "detail": 0, "rough": 0.1, "jitter": 0.6 }
+        ]
+      },
+      "plot_frost": {
+        "variants": 1, "note": "winter frost over a plot (what is sown, sprouting or ripe is ruined by it)",
+        "parts": [
+          { "name": "Frost", "shape": "box", "pos": [0, 0.085, 0], "size": [1.72, 0.012, 1.72], "material": "frost" }
+        ]
+      }
+    },
+
+    "buildings": {
+      "shelter": {
+        "footprint": [3.4, 3.4], "note": "a round hut: a ring of stakes, poles leaning to the top, wattle walls, a thatched cone",
+        "phases": [
+          { "name": "foundation", "parts": [
+            { "name": "Stake", "shape": "cylinder", "size": [0.09, 0.6, 0.05], "material": "bark", "sides": 6, "count": 10, "radius": 1.5 },
+            { "name": "Floor", "shape": "blob", "size": [1.45, 0.04, 1.45], "material": "mud", "detail": 2, "rough": 0.1, "flat": -0.2 } ] },
+          { "name": "frame", "parts": [
+            { "name": "Pole", "shape": "cylinder", "rot": [0, 0, 36], "size": [0.1, 2.5, 0.06], "material": "bark_pale", "sides": 6, "count": 8, "radius": 1.45 },
+            { "name": "Ring", "shape": "cylinder", "pos": [0, 1.0, 0], "size": [2.4, 0.06, 2.4], "material": "rope", "sides": 16 } ] },
+          { "name": "walls", "parts": [
+            { "name": "Wattle", "shape": "box", "pos": [-0.25, 0.6, 0], "rot": [0, 0, 18], "size": [0.06, 1.2, 1.15], "material": "wicker", "count": 7, "radius": 1.38, "arc": 270 } ] },
+          { "name": "roof", "parts": [
+            { "name": "Thatch", "shape": "cylinder", "pos": [0, 1.05, 0], "size": [3.6, 1.6, 0.25], "material": "thatch", "sides": 14, "count": 1 },
+            { "name": "Cap", "shape": "blob", "pos": [0, 2.65, 0], "size": [0.2, 0.15, 0.2], "material": "rope", "detail": 1, "rough": 0.2 } ] }
+        ]
+      },
+      "storage": {
+        "footprint": [2.6, 2.2], "note": "a raised store: posts, a platform, plank walls, a pitched thatch roof",
+        "phases": [
+          { "name": "foundation", "parts": [
+            { "name": "Post", "shape": "cylinder", "pos": [-1.0, 0, -0.8], "size": [0.16, 0.8, 0.14], "material": "bark", "sides": 7, "count": 2, "layout": "row", "spacing": 2.0 },
+            { "name": "Post Back", "shape": "cylinder", "pos": [-1.0, 0, 0.8], "size": [0.16, 0.8, 0.14], "material": "bark", "sides": 7, "count": 2, "layout": "row", "spacing": 2.0 },
+            { "name": "Stones", "shape": "blob", "pos": [0, 0.05, 0], "size": [0.14, 0.08, 0.12], "material": "stone", "count": 4, "radius": 1.25, "detail": 1, "rough": 0.3 } ] },
+          { "name": "frame", "parts": [
+            { "name": "Platform", "shape": "box", "pos": [0, 0.85, 0], "size": [2.4, 0.1, 2.0], "material": "planks" },
+            { "name": "Corner", "shape": "cylinder", "pos": [-1.1, 0.9, -0.9], "size": [0.1, 1.5, 0.09], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 2.2 },
+            { "name": "Corner Back", "shape": "cylinder", "pos": [-1.1, 0.9, 0.9], "size": [0.1, 1.5, 0.09], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 2.2 } ] },
+          { "name": "walls", "parts": [
+            { "name": "Wall", "shape": "box", "pos": [0, 1.6, -0.95], "size": [2.3, 1.3, 0.06], "material": "planks" },
+            { "name": "Wall Back", "shape": "box", "pos": [0, 1.6, 0.95], "size": [2.3, 1.3, 0.06], "material": "planks" },
+            { "name": "Wall Side", "shape": "box", "pos": [-1.13, 1.6, 0], "size": [0.06, 1.3, 1.9], "material": "planks", "count": 2, "layout": "row", "spacing": 2.26, "face": false } ] },
+          { "name": "roof", "parts": [
+            { "name": "Roof", "shape": "box", "pos": [0, 2.55, -0.62], "rot": [-32, 0, 0], "size": [2.7, 0.12, 1.5], "material": "thatch" },
+            { "name": "Roof Back", "shape": "box", "pos": [0, 2.55, 0.62], "rot": [32, 0, 0], "size": [2.7, 0.12, 1.5], "material": "thatch" } ] }
+        ]
+      },
+      "workbench": {
+        "footprint": [1.6, 0.9], "note": "a split-log bench to work at, with a stone anvil and tools",
+        "phases": [
+          { "name": "legs", "parts": [
+            { "name": "Leg", "shape": "cylinder", "pos": [-0.6, 0, -0.25], "size": [0.1, 0.72, 0.09], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.2 },
+            { "name": "Leg Back", "shape": "cylinder", "pos": [-0.6, 0, 0.25], "size": [0.1, 0.72, 0.09], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.2 } ] },
+          { "name": "top", "parts": [
+            { "name": "Top", "shape": "box", "pos": [0, 0.76, 0], "size": [1.5, 0.08, 0.7], "material": "planks" },
+            { "name": "Anvil", "shape": "blob", "pos": [0.4, 0.86, 0.05], "size": [0.15, 0.08, 0.12], "material": "stone", "detail": 1, "rough": 0.3 },
+            { "name": "Flakes", "shape": "box", "pos": [-0.2, 0.81, 0], "size": [0.05, 0.01, 0.04], "material": "flint", "count": 6, "layout": "scatter", "radius": 0.25, "jitter": 1.0 },
+            { "name": "Cord", "shape": "cylinder", "pos": [-0.5, 0.8, -0.1], "size": [0.12, 0.05, 0.12], "material": "rope", "sides": 10 } ] }
+        ]
+      },
+      "drying_rack": {
+        "footprint": [2.2, 1.0], "note": "two forked posts, crossbars and strips of berries and meat hung to dry",
+        "phases": [
+          { "name": "posts", "parts": [
+            { "name": "Post", "shape": "cylinder", "pos": [-0.95, 0, 0], "size": [0.1, 1.6, 0.08], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.9 } ] },
+          { "name": "bars", "parts": [
+            { "name": "Bar", "shape": "cylinder", "pos": [1.0, 1.15, 0], "rot": [0, 0, 90], "size": [0.06, 2.0, 0.05], "material": "bark_pale", "sides": 6, "count": 2, "layout": "stack", "columns": 1, "spacing": 0.35 } ] },
+          { "name": "hung", "parts": [
+            { "name": "Strip", "shape": "box", "pos": [0, 1.0, 0], "size": [0.12, 0.35, 0.02], "material": "hide", "count": 6, "layout": "row", "spacing": 0.3 },
+            { "name": "Berries", "shape": "blob", "pos": [0, 1.32, 0], "size": [0.05, 0.12, 0.05], "material": "berry", "count": 5, "layout": "row", "spacing": 0.32, "detail": 1, "rough": 0.3 } ] }
+        ]
+      },
+      "kiln": {
+        "footprint": [1.8, 1.8], "note": "a ring of stones, a clay dome over it and a short chimney",
+        "phases": [
+          { "name": "base", "parts": [
+            { "name": "Stone", "shape": "blob", "pos": [0, 0.12, 0], "size": [0.2, 0.15, 0.18], "material": "stone", "count": 12, "radius": 0.75, "detail": 1, "rough": 0.3, "jitter": 0.4 },
+            { "name": "Embers", "shape": "blob", "pos": [0, 0.02, 0], "size": [0.45, 0.05, 0.45], "material": "embers", "detail": 1, "rough": 0.3 } ] },
+          { "name": "dome", "parts": [
+            { "name": "Dome", "shape": "blob", "pos": [0, 0.15, 0], "size": [0.85, 0.9, 0.85], "material": "clay", "detail": 2, "rough": 0.12, "flat": 0.0 },
+            { "name": "Mouth", "shape": "box", "pos": [0, 0.25, 0.8], "size": [0.4, 0.35, 0.12], "material": "embers" } ] },
+          { "name": "chimney", "parts": [
+            { "name": "Chimney", "shape": "cylinder", "pos": [0, 0.9, 0], "size": [0.35, 0.6, 0.25], "material": "clay", "sides": 10 } ] }
+        ]
+      },
+      "palisade": {
+        "footprint": [4.0, 0.6], "note": "a section of wall: sharpened stakes, then the binding rails",
+        "phases": [
+          { "name": "stakes", "parts": [
+            { "name": "Stake", "shape": "cylinder", "size": [0.22, 2.0, 0.2], "material": "bark", "sides": 7, "count": 16, "layout": "row", "spacing": 0.24, "jitter": 0.2 },
+            { "name": "Point", "shape": "cylinder", "pos": [0, 2.0, 0], "size": [0.2, 0.3, 0.0], "material": "wood_cut", "sides": 7, "count": 16, "layout": "row", "spacing": 0.24 } ] },
+          { "name": "rails", "parts": [
+            { "name": "Rail", "shape": "cylinder", "pos": [1.95, 0.6, 0.14], "rot": [0, 0, 90], "size": [0.09, 3.9, 0.08], "material": "bark_pale", "sides": 6, "count": 2, "layout": "stack", "columns": 1, "spacing": 1.0 },
+            { "name": "Lashing", "shape": "cylinder", "pos": [0, 0.56, 0.12], "size": [0.1, 0.08, 0.1], "material": "rope", "sides": 6, "count": 8, "layout": "row", "spacing": 0.48 } ] }
+        ]
+      }
+    },
+
+    "creatures": {
+      "Animal.Fox": { "model": "models/Fox.glb", "length": 1.0, "yaw": 0, "idle": "Survey", "walk": "Walk", "run": "Run", "runSpeed": 1.6 },
+      "Animal.Rabbit": { "procedural": "rabbit", "length": 0.45 }
+    },
+
+    "piles": {
+      "Item.Resource.Wood": { "model": "pile_logs", "full": 30 },
+      "Item.Resource.Stone": { "model": "pile_stones", "full": 28 },
+      "Item.Resource.Stone.Flint": { "model": "pile_flint", "full": 20 },
+      "Item.Resource.Ore": { "model": "pile_stones", "full": 20 },
+      "Item.Resource.Clay": { "model": "pile_clay", "full": 24 },
+      "Item.Resource.Fiber": { "model": "pile_fiber", "full": 24 },
+      "Item.Resource.Cordage": { "model": "pile_fiber", "full": 12 },
+      "Item.Food": { "model": "pile_berries", "full": 24 },
+      "Item.Food.Meat": { "model": "pile_meat", "full": 12 },
+      "Item.Resource": { "model": "pile_crates", "full": 24 }
+    },
+
+    "reach": {
+      "Chop":      { "hand": "left",  "height": 1.05, "toward": 0.35, "from": 0.35, "to": 0.6, "weight": 0.35 },
+      "Mine":      { "hand": "left",  "height": 0.55, "toward": 0.45, "from": 0.35, "to": 0.6, "weight": 0.3 },
+      "Gather":    { "hand": "right", "height": 0.65, "toward": 0.4, "from": 0.25, "to": 0.75, "weight": 0.7 },
+      "PullFiber": { "hand": "right", "height": 0.25, "toward": 0.25, "from": 0.25, "to": 0.75, "weight": 0.6 },
+      "Collect":   { "hand": "both",  "height": 0.15, "toward": 0.4, "from": 0.25, "to": 0.75, "weight": 0.6 },
+      "Stoke":     { "hand": "right", "height": 0.3, "toward": 0.35, "from": 0.3, "to": 0.75, "weight": 0.8 },
+      "DrawWater": { "hand": "both",  "height": 1.1, "toward": 0.15, "from": 0.2, "to": 0.8, "weight": 0.7 },
+      "OpenDoor":  { "hand": "right", "height": 1.0, "toward": 0.2, "from": 0.2, "to": 0.7, "weight": 0.9 },
+      "CloseDoor": { "hand": "right", "height": 1.0, "toward": 0.2, "from": 0.2, "to": 0.7, "weight": 0.9 },
+      "Build":     { "hand": "both",  "height": 0.7, "toward": 0.45, "from": 0.3, "to": 0.6, "weight": 0.4 },
+      "make":      { "hand": "both",  "height": 0.85, "toward": 0.15, "from": 0.0, "to": 1.0, "weight": 0.55 },
+      "craft":     { "hand": "both",  "height": 0.85, "toward": 0.15, "from": 0.0, "to": 1.0, "weight": 0.55 }
+    },
+
+    "props": {
+      "looks": {
+        "axe_stone":      { "model": "axe_stone" },
+        "axe_stone_rest": { "model": "axe_stone", "offset": [0.02, -0.25, 0.06], "rot": [-95, 0, 0] },
+        "axe_flint":      { "model": "axe_flint" },
+        "axe_flint_rest": { "model": "axe_flint", "offset": [0.02, -0.25, 0.06], "rot": [-95, 0, 0] },
+        "axe_copper":     { "model": "axe_copper" },
+        "axe_copper_rest":{ "model": "axe_copper", "offset": [0.02, -0.25, 0.06], "rot": [-95, 0, 0] },
+        "pick_stone":     { "model": "pick_stone" },
+        "pick_stone_rest":{ "model": "pick_stone", "offset": [-0.02, -0.25, 0.06], "rot": [-95, 0, 0] },
+        "pick_flint":     { "model": "pick_flint" },
+        "pick_flint_rest":{ "model": "pick_flint", "offset": [-0.02, -0.25, 0.06], "rot": [-95, 0, 0] },
+        "pick_bone":      { "model": "pick_bone" },
+        "pick_bone_rest": { "model": "pick_bone", "offset": [-0.02, -0.25, 0.06], "rot": [-95, 0, 0] },
+        "hoe_stone":      { "model": "hoe_stone" },
+        "hoe_stone_rest": { "model": "hoe_stone", "offset": [-0.02, -0.4, 0.06], "rot": [-95, 0, 0] },
+        "sickle_flint":   { "model": "sickle_flint" },
+        "basket":         { "model": "basket", "offset": [0, -0.3, -0.2] },
+        "logs_bundle":    { "model": "logs_bundle" },
+        "stone_crate":    { "model": "stone_crate" },
+        "berry_basket":   { "model": "berry_basket" },
+        "bundle":         { "model": "bundle", "offset": [-0.32, 0, 0] },
+        "wheelbarrow":    { "model": "wheelbarrow" },
+        "meat_bundle":    { "model": "meat_bundle" },
+        "firewood":       { "model": "firewood" },
+        "berries_handful":{ "model": "berries_handful" }
+      },
+      "items": {
+        "stone_axe": "axe_stone", "flint_axe": "axe_flint", "copper_axe": "axe_copper",
+        "stone_pickaxe": "pick_stone", "flint_pickaxe": "pick_flint", "bone_pickaxe": "pick_bone",
+        "stone_hoe": "hoe_stone", "flint_sickle": "sickle_flint", "basket_wicker": "basket"
+      },
+      "rest": { "Item.Tool.Axe": "hip_r", "Item.Tool.Pickaxe": "hip_l", "Item.Tool.Hoe": "hip_l", "Item.Tool.Sickle": "hip_r", "Item.Container": "back" },
+      "work": { "Chop": "Item.Tool.Axe", "Mine": "Item.Tool.Pickaxe", "farm.till": "Item.Tool.Hoe", "farm.harvest": "Item.Tool.Sickle",
+                "fight": "Item.Weapon|Item.Tool.Axe|Item.Tool.Pickaxe", "raid": "Item.Weapon|Item.Tool.Axe|Item.Tool.Pickaxe", "hunt": "Item.Weapon|Item.Tool.Axe|Item.Tool.Pickaxe" },
+      "hand": { "stoke": "firewood", "fire": "firewood", "eat": "berries_handful" },
+      "carry": [
+        { "tags": [], "look": "wheelbarrow", "set": "wheelbarrow", "minUnits": 14 },
+        { "tags": [ "Item.Resource.Wood" ], "look": "logs_bundle", "set": "holding", "minUnits": 3 },
+        { "tags": [ "Item.Resource.Stone", "Item.Resource.Ore", "Item.Resource.Clay", "Item.Resource.Salt" ], "look": "stone_crate", "set": "box", "minUnits": 3 },
+        { "tags": [ "Item.Food.Meat" ], "look": "meat_bundle", "set": "holding", "minUnits": 2 },
+        { "tags": [ "Item.Food", "Item.Seed" ], "look": "berry_basket", "set": "box", "minUnits": 3 },
+        { "tags": [], "look": "bundle", "set": "holding", "minUnits": 3 }
+      ],
+      "carryJobs": [ "deposit", "haul", "deliver" ],
+      "maxShown": 4
+    }
+  }
+}

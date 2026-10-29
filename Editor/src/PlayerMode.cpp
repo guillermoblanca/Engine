@@ -61,6 +61,7 @@ namespace GB::Editor
 		// Undergrowth by biome (NavProfile::VegetationWeight): the forest floor is slow, the reeds of the shore a little, a meadow hardly. Read once per cell
 		// when the grid is built or a region is redone (BiomeAt reads the biome map baked with the world: one grid cell, H16).
 		NavConfig config;
+		config.MaxExpandedPerFrame = 30000;   // H16: the searches of a frame open at most this many cells in all (a fight or goals across water: long searches)
 		WorldInstance* w = &world;
 		config.Vegetation = [w](float x, float z)
 		{

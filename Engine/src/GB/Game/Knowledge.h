@@ -70,6 +70,10 @@ namespace GB
 		// An agent joins knowing the technologies of the start (nothing happens if it is there already); Leave forgets it.
 		void Join(const std::string& name);
 		void Leave(const std::string& name);
+		// H13: an agent from another clan joins with what it knew there (and the technologies of the start). It replaces what this clan had of the name.
+		void Admit(const std::string& name, const AgentKnowledge& knows);
+		// H13: someone of another clan shows `learner` a technology (a meeting of envoys): it gains `amount` of understanding when it can learn it.
+		std::vector<KnowledgeEvent> Instruct(const std::string& learner, const std::string& tech, float amount, const std::string& how);
 		const AgentKnowledge* Of(const std::string& name) const;
 		const std::map<std::string, AgentKnowledge>& Agents() const { return m_Agents; }
 		// What the clan knows: what its members told it at the camp, and the technologies of the start.

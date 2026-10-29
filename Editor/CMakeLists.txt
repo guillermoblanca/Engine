@@ -18,12 +18,16 @@ add_library(GBEditor STATIC
     src/ImGuiLayer.cpp
     src/PlayerMode.cpp
     src/GameView.cpp
+    src/GameMode.cpp
     src/SceneEditor.cpp
     src/WorldInstance.cpp
     src/TestScenarios.cpp
     src/EditorGameplay.cpp
     src/EditorExplore.cpp
+    src/EditorClans.cpp
+    src/EditorVisuals.cpp
     src/EditorEconomy.cpp
+    src/EditorConflict.cpp
     src/EditorSave.cpp
     src/EditorQA.cpp
     src/EditorAnimCommands.cpp
@@ -31,6 +35,7 @@ add_library(GBEditor STATIC
     src/EditorApp.cpp)
 target_include_directories(GBEditor PUBLIC src)
 target_link_libraries(GBEditor PUBLIC GB::GB imgui)
+target_include_directories(GBEditor SYSTEM PRIVATE ${json_SOURCE_DIR}/include)   # (H14: EditorConflict.cpp reads the "combat" section of a save)
 target_compile_definitions(GBEditor PUBLIC GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
 # The Tests panel can open the original Sandbox scene in its own window.
 if(TARGET Sandbox)
@@ -75,3 +80,6 @@ gb_editor_script_test(editor_demo_h2 h2_gather_craft.txt "qa sim 1 day.*: 0 viol
 configure_file(tests/h3_hungry_fox.json ${CMAKE_CURRENT_BINARY_DIR}/h3_hungry_fox.json COPYONLY)   # (read by the script from the working directory)
 gb_editor_script_test(editor_demo_h3 h3_fire_fox.txt "qa expect: 'ecology status' says")
 gb_editor_script_test(editor_demo_h5_h6 h5_h6_agents.txt "says /.*live checks, 0 violation")
+gb_editor_script_test(editor_clans clans.txt "the Tribe panel and the tribe reports show the Blue")   # H13: two clans saved and loaded
+gb_editor_script_test(editor_demo_h8 h8_settlement.txt "says /.*live checks, 0 violation")   # H8: site choice, a construction site worked, saved and loaded, the invariants
+gb_editor_script_test(editor_play play.txt "says /\[1-9\]\[0-9\]\* live checks, 0 violation")   # H15: the game mode headless: play, the player's actions, save and load, the HUD

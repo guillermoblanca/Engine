@@ -1,0 +1,32 @@
+# H15: the game mode, headless. `play` makes a world, two clans (the site chooser places them) and the player as a member of clan 0 (the X Bot of
+# packs/full, or the fox without it); some in-game minutes pass with the player acting through `game` commands, as its keys would: it claims a job
+# of the board, takes berries from the store and eats them, proposes work to the clan (a newcomer is turned down) and saves; the game is loaded and
+# the player is still the clan's, with its standing and its proposal; the HUD says so (and a capture of it is left in the build directory,
+# play_hud.png) and the invariants of the simulation hold. A failed line fails the test (--strict=1).
+play temperate 5 3 2
+qa expect "game status" "player: Player \(forager\); standing 10"
+qa expect "game status" "needs: Hunger [0-9]+ Thirst"
+qa expect "game status" "condition: health"
+qa expect "tribe status" "Player"
+timescale 10
+wait 60
+game claim
+game clan
+game take berry 2
+game eat
+qa expect "game status" "carries: berry"
+wait 300
+game propose gather wood 10
+game help
+wait 300
+qa expect "game status" "time: day [0-9]+"
+qa expect "tribe log 400" "Player \(forager\) eats|takes 2 berry"
+shot_ui play_hud.png
+game save h15_play
+game load h15_play
+wait 5
+qa expect "game status" "player: Player \(forager\); standing [0-9]+"
+qa expect "tribe jobs" "proposal #1"
+qa check
+qa expect "qa status" "[1-9][0-9]* live checks, 0 violation"
+quit

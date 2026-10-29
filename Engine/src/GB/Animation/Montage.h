@@ -31,6 +31,9 @@ namespace GB
 		float BlendIn = 0.25f, BlendOut = 0.25f;   // seconds
 		float PlayRate = 1.0f;
 		bool Loop = false;                // plays until Stop
+		// Stays on the clip's last frame until Stop instead of blending out at the end: a pose the action ends in and keeps (lying down to sleep,
+		// sitting down to eat). Ignored with Loop.
+		bool HoldEnd = false;
 		bool StripTravel = true;          // the controller owns the position: take the clip's own horizontal travel out of the root
 		std::vector<MontageNotify> Notifies;
 		std::vector<MontageSection> Sections;

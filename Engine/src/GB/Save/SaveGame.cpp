@@ -50,6 +50,7 @@ namespace GB::Save
 			root["world"] = Json{ { "generated", w.Generated }, { "type", w.Type }, { "seed", w.Seed }, { "generator", w.GeneratorVersion }, { "size", Round(w.Size) },
 				{ "resolution", w.Resolution }, { "river", w.River }, { "lake", w.Lake }, { "forest", Round(w.ForestAmount) }, { "trees", w.TreeBudget }, { "rocks", w.RockBudget } };
 			if (w.WildResources != 0.0f) root["world"]["wild"] = Round(w.WildResources);
+			if (w.Tiles > 1) root["world"]["tiles"] = w.Tiles;
 			root["baseline"] = Json{ { "entities", g.Baseline.Entities }, { "hash", g.Baseline.Hash } };
 			const ClockState& c = g.Clock;
 			root["clock"] = Json{ { "tick", c.Tick }, { "dt", c.Dt }, { "hours", Round(c.Hours) }, { "dayLength", Round(c.DayLengthSeconds) },
@@ -150,6 +151,8 @@ namespace GB::Save
 				Read(*it, "forest", w.ForestAmount);
 				Read(*it, "trees", w.TreeBudget);
 				Read(*it, "rocks", w.RockBudget);
+				Read(*it, "tiles", w.Tiles);
+				if (w.Tiles < 1 || w.Tiles > 4) throw std::runtime_error("bad number of world tiles (1 to 4 per side)");
 				if (w.GeneratorVersion < kWorldGeneratorV1 || w.GeneratorVersion > kWorldGeneratorLatest)
 					throw std::runtime_error("world generator " + std::to_string(w.GeneratorVersion) + " is unknown to this engine (it knows 1 to " + std::to_string(kWorldGeneratorLatest) + ")");
 				if (!(w.WildResources >= 0.0f && w.WildResources <= 10.0f)) throw std::runtime_error("bad density of the wild resources");

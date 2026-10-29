@@ -1,6 +1,7 @@
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <cstdio>
 #include <fstream>
@@ -465,6 +466,10 @@ namespace GB
 		m_NeedTimer = 0.0f;
 		m_Fire = false;
 		m_WasBurning = false;
+		m_PlanTimer = 0.0f;
+		m_Placed.clear();
+		m_PlacedAt = -1.0;
+		m_Announced.clear();
 		m_Sounds.Clear();
 		m_Clan.Clear();
 		m_Sights.clear();
@@ -490,6 +495,9 @@ namespace GB
 		m_Econ = EconomyState();
 		m_Plan = ProductionPlan();
 		m_Demand.clear();
+		m_Conflict = ConflictState();   // (the combat system and the hostility stay: they are the world's)
+		m_Animals.clear();
+		m_Players.Clear();   // H15
 	}
 
 	size_t Tribe::IndexOf(const TribeMember& m) const
@@ -673,7 +681,7 @@ namespace GB
 			}, 3.0f * std::max(0.3f, vigor), [body](const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points)
 			{
 				return body->Route(from, to, reach, points);   // the way the body itself would go (its grid and its profile): round the lake, not through it
-			});
+			}, [body]() { return body->MayPlan(); });   // H16: its search waits its turn in the grid's plan budget, as an actor's does
 		}
 	}
 
@@ -688,7 +696,10 @@ namespace GB
 			m_Members.erase(m_Members.begin() + static_cast<std::ptrdiff_t>(i));
 			m_Knowledge.Leave(name);
 			m_Society.Leave(name);
+			m_Conflict.Members.erase(name);
+			if (m_Combat) m_Combat->Leave(name);
 			if (m_Cursor > i) --m_Cursor;
+
 			return true;
 		}
 		return false;
@@ -889,13 +900,16 @@ namespace GB
 		ctx.Sheltered = glm::distance(pos, Config.Camp) < kNearCamp;
 		for (const TribeMember& o : m_Members)
 			if (&o != &m && !o.Dead && o.Body && glm::distance(pos, Where(o)) < kCompany) ctx.WithOthers = true;
+		if (m.Player) GuardPlayer(m, *asc);   // H15: unless the rules make it mortal, hunger and cold weaken a player but do not kill it
 		UpdateNeeds(*asc, Config.Needs, ctx, dt);
+		ShelterNeeds(m, dt);   // asleep under a roof (H8): more rest and warmth
 		m.Hungry = asc->Attribute(NeedName::Hunger) < 35.0f;
 		if (IsDead(*asc)) Die(m);
 	}
 
 	void Tribe::Die(TribeMember& m, const std::string& cause)
 	{
+		if (m.Player && !Config.Player.Mortal) { KnockOut(m, cause); return; }   // H15: a player falls and wakes at the camp (TribePlayer.cpp)
 		const AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
 		m.Dead = true;
 		m.Cause = !cause.empty() ? cause : asc ? CauseOfDeath(*asc) : "Unknown";
@@ -910,13 +924,38 @@ namespace GB
 	}
 
 	// ------------------------------------------------------------------ the loop
+	int Tribe::ThinksNeeded(float dt) const
+	{
+		const size_t n = m_Members.size();
+		return n == 0 ? 0 : static_cast<int>(std::ceil(static_cast<float>(n) * dt / std::max(Config.ThinkSeconds, 0.01f))) + 1;
+	}
+
 	void Tribe::Update(float dt)
 	{
 		if (!m_Entities || !m_Gameplay || !m_Items || !m_Recipes) return;
+		// H16: the wall time of the whole update and the turns given, for the perf line and the scale tests (never read by the simulation)
+		struct Timer
+		{
+			FrameCost& Cost;
+			std::chrono::steady_clock::time_point Start = std::chrono::steady_clock::now();
+			~Timer() { Cost.Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Start).count(); }
+		} timer{ m_Cost };
+		m_Cost.Thinks = m_Cost.Budget = m_Cost.Due = 0;
+		m_Cost.ThinkMs = 0.0;
 		m_Time += static_cast<double>(dt);
+		// (H16: the milliseconds of each part, for `stats ai` and the scale tests; laps of the wall clock, never read by the simulation)
+		auto mark = std::chrono::steady_clock::now();
+		auto lap = [&mark](double& into)
+		{
+			const auto now = std::chrono::steady_clock::now();
+			into = std::chrono::duration<double, std::milli>(now - mark).count();
+			mark = now;
+		};
 		WatchFire();
 		Upkeep(dt);
 		StepEconomy(dt);   // H18: spoilage and the fields (TribeEconomy.cpp)
+		PlanSettlement(dt);   // what to build next (H8; nothing without buildings)
+		lap(m_Cost.EconomyMs);
 		m_NeedTimer += dt;
 		if (m_NeedTimer >= Config.NeedSeconds)
 		{
@@ -929,13 +968,19 @@ namespace GB
 			}
 		}
 		StepSociety(dt);   // H9 + H10: the days of the society (ages, deaths, pairs, births, culture) and the bonds made at the camp
+		StepPlayers(dt);   // H15: the days of the players' standing and the wants of their proposals (TribePlayer.cpp)
 		// H7: the clan posts what it needs on the job board, and now and then reviews who does which trade
 		m_BoardTimer += dt;
 		if (m_BoardTimer >= Config.Work.Jobs.Every) { m_BoardTimer = 0.0f; PostJobs(); }
 		m_ReviewTimer += dt;
 		if (m_ReviewTimer >= Config.Work.Roles.Review) { m_ReviewTimer = 0.0f; ReviewRoles(); }
+		lap(m_Cost.SocietyMs);
 		StepExploration(dt);   // H12: what the members have in view, the expedition and the home (TribeExplore.cpp)
+		lap(m_Cost.ExploreMs);
+		StepConflict(dt);   // H14: the members in the fights, what happened in them, the animals near and the raid (TribeConflict.cpp)
+		lap(m_Cost.ConflictMs);
 		StepAbstract(dt);
+		lap(m_Cost.AbstractMs);
 		if (m_Knowledge.Tick(dt)) Tell(m_Knowledge.Lesson(KnowledgeView(true)));   // a lesson at the camp, and what the clan forgets (H11)
 		m_LodTimer += dt;
 		if (m_LodTimer >= Config.ThinkSeconds)   // the level of detail follows the viewer
@@ -943,7 +988,7 @@ namespace GB
 			m_LodTimer = 0.0f;
 			for (TribeMember& m : m_Members)
 			{
-				if (m.Dead || !m.Body) continue;
+				if (m.Dead || !m.Body || m.Player) continue;   // (a player is always its full body: H15)
 				if (m_HasViewer && Config.DetailRadius > 0.0f)
 				{
 					const float d = glm::distance(m_Viewer, Where(m));
@@ -954,26 +999,30 @@ namespace GB
 			}
 		}
 
+		const auto thinkStart = std::chrono::steady_clock::now();
 		// Each member has its own turn every ThinkSeconds; the turns of one call are limited, so with many members the work is spread over frames.
 		const size_t n = m_Members.size();
 		if (n == 0) return;
-		const int needed = static_cast<int>(std::ceil(static_cast<float>(n) * dt / std::max(Config.ThinkSeconds, 0.01f))) + 1;
-		int budget = std::max(Config.ThinkPerFrame, needed);
+		// (with a budget given from outside, ClanWorld shares one among all its clans: H16)
+		int budget = m_ThinkBudget >= 0 ? m_ThinkBudget : std::max(Config.ThinkPerFrame, ThinksNeeded(dt));
+		m_Cost.Budget = budget;
 		bool refreshed = false;
 		size_t last = m_Cursor % n;
-		for (size_t k = 0; k < n && budget > 0; ++k)
+		// its turn, or its orders just ended (a player's orders are its own: H15)
+		auto due = [this](const TribeMember& m) { return !m.Dead && m.Body && (m_Time >= m.Mind.NextThink || (!m.Player && !m.Job.empty() && !IsBusy(m))); };
+		// H16 + H15: the player's member never waits for the budget (it does not use a turn of it, nor move the cursor of the others)
+		for (size_t k = 0; k < n; ++k)
 		{
 			const size_t i = (m_Cursor + k) % n;
 			TribeMember& m = m_Members[i];
-			if (m.Dead || !m.Body) continue;
-			if (m_Time < m.Mind.NextThink && !(!m.Job.empty() && !IsBusy(m))) continue;   // its turn, or its orders just ended
+			if (!due(m)) continue;
+			if (!m.Player && budget <= 0) { ++m_Cost.Due; continue; }   // (only counted: it gets one of the first turns of the next frame)
 			if (!refreshed && m_Time - m_SightsTime >= static_cast<double>(Config.ThinkSeconds) * 0.9)
 			{
 				RefreshSights();
 			}
 			if (!refreshed) { m_Sounds.Prune(m_Time); refreshed = true; }
-			--budget;
-			last = (i + 1) % n;
+			if (!m.Player) { --budget; last = (i + 1) % n; }
 
 			const glm::vec2 before = m.Mind.HasLast ? m.Mind.LastPos : Where(m);
 			Look(m);
@@ -983,13 +1032,17 @@ namespace GB
 				if (const MemoryEntry* node = m.Mind.Memory.Find(m.Detail); node && node->Kind == "tree" && glm::distance(pos, node->Pos) < 3.5f)
 					m_Sounds.Emit("chop", m.Name, node->Name, node->Pos, 28.0f, m_Time);
 			Listen(m);
-			if (!IsBusy(m))
+			if (m.Player) StepPlayer(m);   // H15: a person decides for it (fights too); the clan only hears of it
+			else if (ConflictTurn(m)) { m.Mind.NextThink = m_Time + static_cast<double>(Config.ThinkSeconds) * 0.5; continue; }   // H14: a threat, a fight, a flight or a raid steers it
+			else if (!IsBusy(m))
 			{
 				if (!m.Job.empty()) Finish(m);
 				if (m.Job.empty()) Decide(m);
 			}
 			m.Mind.NextThink = m_Time + static_cast<double>(IsBusy(m) ? Config.BusyThinkSeconds * (m.Abstract ? 4.0f : 1.0f) : m.Job == "rest" ? Config.IdleThinkSeconds : Config.ThinkSeconds);
 		}
+		m_Cost.Thinks = m_Cost.Budget - budget;
+		m_Cost.ThinkMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - thinkStart).count();
 		m_Cursor = last;
 	}
 
@@ -1020,7 +1073,7 @@ namespace GB
 		{
 			std::string tool, tag;
 			ToolFor(Config.Roles, w.Role, tool, tag);
-			if (!tag.empty() && !w.Dead && w.Body && w.Body->Bag().CountTagged(*m_Items, tag) == 0) return false;
+			if (!tag.empty() && !w.Dead && w.Body && !w.Player && w.Body->Bag().CountTagged(*m_Items, tag) == 0) return false;   // (a player's tool is its own business: H15)
 		}
 		return true;
 	}
@@ -1029,7 +1082,7 @@ namespace GB
 	{
 		std::string tool, tag;
 		ToolFor(Config.Roles, m.Role, tool, tag);
-		return !tool.empty() && m_Knowledge.CanMake(m.Name, tool) && m_Recipes->WhyNot(*m_Items, m_Store, tool, "workbench").empty();
+		return !tool.empty() && m_Knowledge.CanMake(m.Name, tool) && m_Recipes->WhyNot(*m_Items, m_Store, tool, CraftStation(tool)).empty();   // (H8: at the station there is)
 	}
 
 	// ------------------------------------------------------------------ knowledge (H11): the logic is in GB/Game/Knowledge; these are the hooks
@@ -1175,7 +1228,7 @@ namespace GB
 		{
 			UtilityOption o;
 			o.Kind = "sleep";
-			o.Where = CampSpot(m);
+			o.Where = SleepSpot(m);   // its bed in a shelter, once there is one
 			const float tired = 1.7f * Urgency(rest, 70.0f, 1.2f);
 			const float dark = night ? 1.3f * Ramp(95.0f - rest, 0.0f, 40.0f) : 0.0f;
 			o.Score = (tired + dark) * Falloff(glm::distance(pos, o.Where), 120.0f);
@@ -1249,7 +1302,8 @@ namespace GB
 			UtilityOption o;
 			o.Kind = "tool";
 			o.Target = tool;
-			o.Where = CampSpot(m);
+			const Recipe* recipe = m_Recipes->Find(tool);
+			o.Where = recipe ? StationSpot(m, recipe->Station) : CampSpot(m);   // at the workbench once one stands
 			o.Score = 1.25f * Falloff(glm::distance(pos, o.Where), 100.0f);
 			Factor(o, "no tool", 1.0f);
 			o.Note = "has no " + tool + " and the store can pay for one";
@@ -1258,6 +1312,7 @@ namespace GB
 
 		// gather: one option per resource kind, the nearest it remembers
 		const Recipe* wanted = !hasTool ? m_Recipes->Find(tool) : nullptr;
+		const std::map<std::string, int> siteDemand = SiteDemand();
 		bool lacksFood = foodHeld == 0;
 		for (const auto& [kind, def] : m_Defs)
 		{
@@ -1296,6 +1351,14 @@ namespace GB
 					Factor(o, "helps with the tool", boost);
 					o.Note += "; the " + tool + " lacks it";
 				}
+			}
+			// help with what a construction site lacks (H8)
+			if (const auto lack = siteDemand.find(def.Item); lack != siteDemand.end() && m_Store.Count(def.Item) < lack->second)
+			{
+				const float boost = 0.6f * reach * conf;
+				o.Score += boost;
+				Factor(o, "helps with a building", boost);
+				o.Note += "; a building lacks it";
 			}
 			// food when hungry
 			if (IsFood(def.Item))
@@ -1413,6 +1476,8 @@ namespace GB
 				opts.push_back(o);
 			}
 		}
+		// carry materials to a construction site and build it (H8)
+		SettlementOptions(m, opts);
 
 		// nothing better: stand by (and look around)
 		{
@@ -1434,7 +1499,9 @@ namespace GB
 			Factor(o, "agenda", f);
 		}
 		EconomyOptions(m, opts);   // H18: the "make", "farm" or "haul" job it holds
+		ConflictOptions(m, opts);   // H14: hunting (the job it holds), resting its wounds, caring for a wounded clanmate
 		ExploreOptions(m, opts);   // H12: going on with an expedition, walking to the new camp
+		if (m_Outside.Options) m_Outside.Options(*this, m, opts);   // H13: what the clans around ask of it (an envoy to a meeting; Clans.cpp)
 		JobBonus(m, opts);   // H7: what does the job it claimed is worth more (a factor on the options, not a new chooser)
 		SocietyFactors(m, opts);   // H9 + H10: its genes, personality, stage of life and the clan's culture (and the companion it likes best)
 
@@ -1474,6 +1541,8 @@ namespace GB
 		Inventory& bag = m.Body->Bag();
 		if (o.Kind == "expedition" || o.Kind == "migrate") return ExecuteExplore(m, o);   // H12 (TribeExplore.cpp)
 		if (o.Kind == "make" || o.Kind == "farm" || o.Kind == "haul") return ExecuteEconomy(m, o);   // H18 (TribeEconomy.cpp)
+		if (IsOutside(o.Kind)) return m_Outside.Execute && m_Outside.Execute(*this, m, o);   // H13 (Clans.cpp)
+		if (o.Kind == "hunt" || o.Kind == "recover" || o.Kind == "care") return ExecuteConflict(m, o);   // H14 (TribeConflict.cpp)
 		if (o.Kind == "eat")
 		{
 			if (o.Target == "bag") { if (!Order(m, "wait 2")) return false; }
@@ -1610,6 +1679,7 @@ namespace GB
 			Say(m, "goes to " + o.Target + " (" + ability + ")");
 			return true;
 		}
+		if (const int settled = ExecuteSettlement(m, o); settled >= 0) return settled > 0;
 		// rest
 		{
 			const std::string reason = [&]()
@@ -1685,6 +1755,7 @@ namespace GB
 			Say(m, "cannot get next to " + m.Detail + ": " + reason);
 		}
 		else if (!reason.empty() && job == "explore") Say(m, "cannot get to " + m.Detail + " ground: " + reason);   // a lake or a cliff in the way: it tries another way next time
+		else if (job == "build" && HasFailed(m) && !SiteWorkable(m.Detail)) {}   // the phase ended (or the building stands) under its last Build: not a fault (H8)
 		else if (job != "rest" && HasFailed(m))   // (a rest has no orders: an old failure would count again every half second)
 		{
 			++m.Failures;
@@ -1703,6 +1774,7 @@ namespace GB
 					Practise(m, "gather", m.WorkKind, static_cast<float>(gathered));
 					m_LastWorker[m.Detail] = m.Name;
 					Worked(m);   // side by side with others: closer to them (H10)
+					if (m_Outside.Gathered) m_Outside.Gathered(*this, m, m.Detail, gathered);   // H13: whose land it was on
 					if (const Job* held = m_Board.ClaimOf(m.Name); held && held->Kind == "gather" && held->Target == def->second.Item) m_Board.Progress(m.Name, 0.0f, m_Time);
 				}
 			}
@@ -1746,11 +1818,12 @@ namespace GB
 			Share(m);
 		}
 		else if (FinishEconomy(m, job)) {}   // H18: "make", "farm", "haul" (TribeEconomy.cpp)
+		else if (FinishConflict(m, job)) {}   // H14: "hunt", "recover", "care" (TribeConflict.cpp)
 		else if (job == "craft")
 		{
 			const std::set<std::string> known = m_Knowledge.KnownRecipes(m.Name, *m_Recipes);   // H11: only what it knows how to make
 			const std::set<std::string>* gate = m_Knowledge.Gated() ? &known : nullptr;
-			if (m_Recipes->Craft(*m_Items, m_Store, m.Detail, "workbench", gate))
+			if (m_Recipes->Craft(*m_Items, m_Store, m.Detail, CraftStation(m.Detail), gate))   // (H8: at the station there is: the camp's, or a building's)
 			{
 				Witnessed(m, m.Detail, std::string());
 				m_Store.Transfer(*m_Items, bag, m.Detail, 1);
@@ -1761,7 +1834,7 @@ namespace GB
 				Practise(m, "craft", "craft", 1.0f);
 				if (const Job* held = m_Board.ClaimOf(m.Name); held && held->Kind == "craft") { m_Board.Progress(m.Name, 1.0f, m_Time); m_Board.Release(m.Name); }
 			}
-			else Say(m, "cannot make the " + m.Detail + ": " + m_Recipes->WhyNot(*m_Items, m_Store, m.Detail, "workbench", gate));
+			else Say(m, "cannot make the " + m.Detail + ": " + m_Recipes->WhyNot(*m_Items, m_Store, m.Detail, CraftStation(m.Detail), gate));
 			Share(m);
 		}
 		else if (job == "fire")
@@ -1794,6 +1867,8 @@ namespace GB
 		}
 		else if (job == "drink") Drink(m);
 		else if (job == "expedition" || job == "migrate") FinishExplore(m, job);   // H12 (TribeExplore.cpp)
+		else if (IsOutside(job)) { if (m_Outside.Finish) m_Outside.Finish(*this, m, job); }   // H13 (Clans.cpp)
+		else if (FinishSettlement(m, job)) {}
 		else if (job == "sleep" || job == "warm" || job == "regroup" || job == "socialize" || job == "explore") Share(m);
 		if (job != "rest") m.Detail.clear();
 	}
@@ -1855,6 +1930,7 @@ namespace GB
 			if (const Job* held = m_Board.ClaimOf(m.Name)) s += ", job: " + held->Id;
 			s += "\n";
 		}
+		if (m_Buildings) s += SettlementReport();
 		return s;
 	}
 
@@ -1871,6 +1947,7 @@ namespace GB
 		j["cursor"] = m_Cursor;
 		j["sights"] = m_SightsTime;
 		j["needTimer"] = m_NeedTimer;
+		if (m_PlanTimer != 0.0f) j["plan"] = m_PlanTimer;   // the settlement planner's clock (its sites are entities, saved with the scene)
 		j["fire"] = m_Fire ? 1 : 0;   // its state is the interactive's (tags and attributes, saved with the gameplay)
 		j["camp"] = Json::array({ Config.Camp.x, Config.Camp.y, Config.CampY });
 		j["store"] = Json::parse(m_Store.ToJson());
@@ -1893,12 +1970,15 @@ namespace GB
 		for (const auto& [node, who] : m_LastWorker) workers[node] = who;
 		j["lastWorker"] = workers;
 		j["economy"] = Json::parse(m_Econ.ToJson());   // H18 (an older save has none: no fields, no stockpiles; its stacks are fresh)
+		j["conflict"] = Json::parse(m_Conflict.ToJson());   // H14 (an older save has none: no threats, no raid; the fights themselves are the combat system's)
 		Json members = Json::array();
 		for (const TribeMember& m : m_Members)
 			members.push_back(Json{ { "name", m.Name }, { "role", m.Role }, { "job", m.Job }, { "detail", m.Detail }, { "deposited", m.Deposited }, { "made", m.Made },
 				{ "failures", m.Failures }, { "why", m.Why }, { "meals", m.Meals }, { "hungry", m.Hungry ? 1 : 0 }, { "dead", m.Dead ? 1 : 0 }, { "cause", m.Cause },
 				{ "mind", Json::parse(m.Mind.ToJson()) }, { "skills", Json::parse(SkillsToJson(m.Skills)) }, { "workKind", m.WorkKind }, { "workStart", m.WorkStart } });
+		for (size_t i = 0; i < m_Members.size(); ++i) if (m_Members[i].Player) members[i]["player"] = 1;   // H15 (only a player's says so)
 		j["members"] = members;
+		if (!m_Players.Players.empty() || !m_Players.Proposals.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
 		return j.dump();
 	}
 
@@ -1927,6 +2007,10 @@ namespace GB
 		if (j.contains("society") && !society.FromJson(j["society"].dump())) return false;
 		EconomyState econ;
 		if (j.contains("economy") && !econ.FromJson(j["economy"].dump())) return false;
+		ConflictState conflict;
+		if (j.contains("conflict") && !conflict.FromJson(j["conflict"].dump())) return false;
+		PlayerSociety players;   // H15 (an older save has none)
+		if (j.contains("player") && !players.FromJson(j["player"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
 		std::vector<bool> found(m_Members.size(), false);
 		for (const Json& jm : j["members"])
@@ -1954,6 +2038,8 @@ namespace GB
 		m_Board = std::move(board);
 		m_Explore = std::move(explore);
 		m_Econ = std::move(econ);
+		m_Conflict = std::move(conflict);
+		m_Players = std::move(players);
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);
 		m_Society = std::move(society);
@@ -1962,6 +2048,7 @@ namespace GB
 		m_LastWorker.clear();
 		if (j.contains("lastWorker") && j["lastWorker"].is_object())
 			for (const auto& [node, who] : j["lastWorker"].items()) if (who.is_string()) m_LastWorker[node] = who.get<std::string>();
+		m_PlanTimer = j.value("plan", 0.0f);   // (H8; a save from before has none)
 		m_Fire = j.value("fire", 0) != 0;
 		if (j.contains("camp") && j["camp"].is_array() && j["camp"].size() == 3)
 		{
@@ -2006,8 +2093,9 @@ namespace GB
 				m.Skills = jm.contains("skills") ? SkillsFromJson(jm["skills"].dump()) : SkillSet();
 				m.WorkKind = jm.value("workKind", std::string());
 				m.WorkStart = jm.value("workStart", 0);
+				m.Player = jm.value("player", 0) != 0;   // H15
 				if (m.Body) m.Body->SetGrowth(m_Society.Growth(Config.Society, m.Name));   // a child's actor comes back at its size (H9)
-				if (reissue && !m.Dead && m.Body && !m.Job.empty() && m.Job != "rest")
+				if (reissue && !m.Dead && m.Body && !m.Player && !m.Job.empty() && m.Job != "rest")
 				{
 					std::string error;
 					if (m.Mind.Orders.empty() || !Run(m, m.Mind.Orders, error)) { m_Claims.erase(m.Detail); m.Job.clear(); m.Mind.Orders.clear(); }

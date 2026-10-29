@@ -38,6 +38,16 @@ Todo es CPU, sin ventana, y determinista (los empates se rompen por índice de c
   caja de su camino (`ChangedSince`). El editor mira cada segundo si los árboles cambiaron y sincroniza.
 - **Reparto del trabajo**: `NavGrid::NewFrame` + `AllowPlan` limitan las búsquedas a 2 por fotograma (`MaxPlansPerFrame`); el resto espera al siguiente. `ActorWorld::Update`
   lo llama. Una tribu entera que sale a la vez no cuesta 50 búsquedas en un fotograma.
+- **Presupuesto justo y compartido (H16)**: además de las búsquedas, las **celdas** que abren todas las de un fotograma (`NavConfig::MaxExpandedPerFrame`, 30.000 en el editor; la primera búsqueda del fotograma siempre pasa). El presupuesto lo comparten los actores (`AIDriver`) y los **agentes abstractos** (antes planificaban sin límite: cada `goto`
+  lejano era un A\* en el acto). Quien es rechazado recibe un **turno** (`PlanTicket`) y los turnos más antiguos tienen reservadas las búsquedas del fotograma siguiente,
+  así que nadie se queda sin planificar por su lugar en el orden de llamada (antes, con 50 que pedían a la vez, los últimos por nombre esperaban a que los primeros
+  terminaran). Lo que no está reservado va al primero que pide; una petición sin turno solo recibe lo que sobra. El agente abstracto se queda quieto mientras espera
+  (`AbstractAgent::Gate`, `ITribeBody::MayPlan`). Determinista: las llamadas llegan en un orden fijo. `NavGrid::FrameStats()` dice lo planificado, lo rechazado y la cola
+  de cada fotograma; `NavStats` el pico de la cola y la espera más larga (`stats ai` en el editor). Los turnos **no se guardan** (como los caminos en curso).
+- **Caché de caminos (H16)**: `NavConfig::PathCache` (0, apagada, por defecto) guarda los últimos caminos buscados con A\*, por inicio y meta redondeados a `CacheQuantum`
+  (2 m) y perfil, y también las búsquedas largas que **fallan** (meta inalcanzable: se devuelve el camino parcial guardado hasta que algo cambie a 30 m del viaje). Un acierto se comprueba (nada cambió en su caja según el registro de cambios, el primer tramo y el último hasta la meta exacta siguen libres) y cuesta
+  unas pruebas de línea en vez de una búsqueda: los viajes campamento ↔ nodo se repiten mucho. Está apagada en el editor porque no se guarda y su contenido cambia el
+  camino (un acierto empieza desde la celda de un vecino): una partida cargada no seguiría paso a paso a la que no se detuvo. El arnés de escala la enciende.
 
 ## En el editor
 

@@ -80,5 +80,8 @@ especie zorro la pradera acaba igual.
 
 ## Límites conocidos
 
-- Los conejos no huyen del zorro ni la tribu caza (ni el zorro ataca a la tribu); la comida de los conejos y la de la tribu es la misma, y con pocos arbustos se la quitan.
+- Los conejos no huyen del zorro; la comida de los conejos y la de la tribu es la misma, y con pocos arbustos se la quitan.
+- H14 ([CONFLICTO.md](CONFLICTO.md)): la tribu **caza** conejos cuando le falta comida (carne) y el **zorro ataca** a un niño solo si tiene hambre. Un animal en una pelea
+  lleva `State.Held` (el combate lo mueve, la ecología no) y uno muerto en una pelea (`State.Dead`) se retira y cuenta como cazado.
+
 - El color de estación solo llega a los nodos de recurso (los árboles del mundo generado conservan el suyo); el terreno y la hierba no cambian de color, solo la nieve.

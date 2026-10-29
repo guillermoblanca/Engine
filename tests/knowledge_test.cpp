@@ -290,8 +290,9 @@ static void TestReachability()
 	TribeAgenda agenda;
 	TribeEconomy economy;
 	TechTree techs;
+	std::map<std::string, BuildingDef> buildings;   // H8: the drying rack gives the station of the dried berries and the mud bricks
 	ContentPacks packs;
-	AddGameContentSections(packs, items, recipes, nodes, roles, &agenda, &economy, nullptr, &techs);
+	AddGameContentSections(packs, items, recipes, nodes, roles, &agenda, &economy, nullptr, &techs, &buildings);
 	ContentReport report;
 	ContentPacks::Options strict;
 	strict.Strict = true;

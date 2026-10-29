@@ -12,8 +12,8 @@ namespace GB
 		SkillRules r;
 		// (Resource.Plant.Branch is a branch of a young tree: woodcutting, though the forager can take it too.)
 		r.Families = { { "Resource.Plant", "foraging" }, { "Resource.Loose", "foraging" }, { "Resource.Plant.Branch", "woodcutting" }, { "Resource.Wood", "woodcutting" },
-			{ "Resource.Stone", "mining" }, { "craft", "crafting" }, { "fire", "firekeeping" }, { "stoke", "firekeeping" } };
-		r.Practice = { { "gather", 1.0f }, { "craft", 4.0f }, { "stoke", 2.0f }, { "fire", 3.0f } };
+			{ "Resource.Stone", "mining" }, { "craft", "crafting" }, { "fire", "firekeeping" }, { "stoke", "firekeeping" }, { "build", "building" }, { "deliver", "building" } };   // (H8: carrying to a site and working it)
+		r.Practice = { { "gather", 1.0f }, { "craft", 4.0f }, { "stoke", 2.0f }, { "fire", 3.0f }, { "build", 2.0f }, { "deliver", 0.5f } };
 		return r;
 	}
 

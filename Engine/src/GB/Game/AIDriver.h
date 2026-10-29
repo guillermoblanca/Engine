@@ -60,6 +60,7 @@ namespace GB
 		bool m_Routed = false, m_NeedPlan = false, m_Partial = false;
 		uint32_t m_PlanRevision = 0;
 		int m_Replans = 0;
+		PlanTicket m_Ticket;   // its place in the queue of the plan budget (H16: NavGrid::AllowPlan)
 		float m_CrowdSeconds = 0.0f;
 		float m_WindowTime = 0.0f;
 		glm::vec2 m_WindowStart{ 0.0f };

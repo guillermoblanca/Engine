@@ -126,6 +126,12 @@ add_executable(GBSimSweepTests sim_sweep_test.cpp)
 target_link_libraries(GBSimSweepTests PRIVATE GB::GB)
 add_test(NAME sim_sweep COMMAND GBSimSweepTests)
 
+# Scale and budgets (H16): the fair plan budget, the path cache, the abstract agent waiting its turn, several clans sharing one budget of
+# thinking turns, a world of several tiles. GB_SCALE_BENCH=1 for the 100 and 300 member runs (asserted milliseconds) and the 2x2 and 3x3 worlds.
+add_executable(GBSimScaleTests sim_scale_test.cpp)
+target_link_libraries(GBSimScaleTests PRIVATE GB::GB)
+add_test(NAME sim_scale COMMAND GBSimScaleTests)
+
 add_executable(GBEntityTests entity_test.cpp)
 target_link_libraries(GBEntityTests PRIVATE GB::GB)
 add_test(NAME entity COMMAND GBEntityTests)
@@ -271,6 +277,11 @@ target_link_libraries(GBTribeTests PRIVATE GB::GB)
 target_compile_definitions(GBTribeTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME tribe COMMAND GBTribeTests)
 
+add_executable(GBSettlementTests settlement_test.cpp)
+target_link_libraries(GBSettlementTests PRIVATE GB::GB)
+target_compile_definitions(GBSettlementTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME settlement COMMAND GBSettlementTests)
+
 # H7: aptitudes by practice, the job board and the trades of the clan (TribeWork, Skills, JobBoard)
 add_executable(GBWorkTests work_test.cpp)
 target_link_libraries(GBWorkTests PRIVATE GB::GB)
@@ -282,6 +293,13 @@ add_executable(GBEconomyTests economy_test.cpp)
 target_link_libraries(GBEconomyTests PRIVATE GB::GB)
 target_compile_definitions(GBEconomyTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME economy COMMAND GBEconomyTests)
+
+# H14: conflict, combat and violence (Combat, Conflict, TribeConflict)
+add_executable(GBCombatTests combat_test.cpp)
+target_link_libraries(GBCombatTests PRIVATE GB::GB)
+target_include_directories(GBCombatTests SYSTEM PRIVATE ${json_SOURCE_DIR}/include)
+target_compile_definitions(GBCombatTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME combat COMMAND GBCombatTests)
 
 add_executable(GBKnowledgeTests knowledge_test.cpp)
 target_link_libraries(GBKnowledgeTests PRIVATE GB::GB)
@@ -326,3 +344,27 @@ target_link_libraries(GBExplorationTests PRIVATE GB::GB)
 target_include_directories(GBExplorationTests SYSTEM PRIVATE ${json_SOURCE_DIR}/include)
 target_compile_definitions(GBExplorationTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME exploration COMMAND GBExplorationTests)
+
+# H13: several clans in one world, territory, relations between clans, trade, knowledge exchange, marriages and pacts (Clans, Diplomacy, Territory)
+add_executable(GBClansTests clans_test.cpp)
+target_link_libraries(GBClansTests PRIVATE GB::GB)
+target_include_directories(GBClansTests SYSTEM PRIVATE ${json_SOURCE_DIR}/include)
+target_compile_definitions(GBClansTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME clans COMMAND GBClansTests)
+
+add_executable(GBAnimUsageTests anim_usage_test.cpp)
+target_link_libraries(GBAnimUsageTests PRIVATE GB::GB)
+target_compile_definitions(GBAnimUsageTests PRIVATE GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME anim_usage COMMAND GBAnimUsageTests)
+
+# The visual layer as data (GB/Visual): procedural meshes, textures, node looks by Amount, props by bag and job, buildings by phase
+add_executable(GBVisualsTests visuals_test.cpp)
+target_link_libraries(GBVisualsTests PRIVATE GB::GB)
+target_compile_definitions(GBVisualsTests PRIVATE GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME visuals COMMAND GBVisualsTests)
+
+# H15: the player inside the society (PlayerMember, TribePlayer, ClansPlayer)
+add_executable(GBPlayerTests player_test.cpp)
+target_link_libraries(GBPlayerTests PRIVATE GB::GB)
+target_compile_definitions(GBPlayerTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME player COMMAND GBPlayerTests)

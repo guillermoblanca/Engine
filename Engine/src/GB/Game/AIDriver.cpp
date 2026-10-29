@@ -143,7 +143,7 @@ namespace GB
 	// Not getting anywhere: plan again with the neighbours as walls; after a few times without headway, give up.
 	void AIDriver::Stall(const CharacterController& c, const NavGrid& nav, const CharacterWorld& world)
 	{
-		if (!nav.AllowPlan()) return;
+		if (!nav.AllowPlan(&m_Ticket)) return;
 		nav.NoteReplan();
 		// held up by people (not by the terrain): wait for them to move on, planning around them, and only give up after a long time
 		const glm::vec2 here(c.GetPosition().x, c.GetPosition().z);
@@ -181,7 +181,7 @@ namespace GB
 		if (glm::distance(here, m_Goal) < ArriveRadius || (occupied && c.GetSpeed() < 0.5f && glm::distance(here, m_Goal) < 1.3f)) { m_Arrived = true; m_Path.clear(); m_Index = 0; m_NeedPlan = false; return CharacterInput(); }
 		if (m_NeedPlan)
 		{
-			if (!nav->AllowPlan()) return CharacterInput();   // (a crowd sets off over a few frames)
+			if (!nav->AllowPlan(&m_Ticket)) return CharacterInput();   // (a crowd sets off over a few frames)
 			Plan(c, *nav, world, false);
 			if (m_Stuck) return CharacterInput();
 		}
@@ -190,7 +190,7 @@ namespace GB
 			const glm::vec2 end = m_Path.empty() ? m_Goal : m_Path.back();
 			if (nav->ChangedSince(m_PlanRevision, here, end, 3.0f))
 			{
-				if (!nav->AllowPlan()) return CharacterInput();
+				if (!nav->AllowPlan(&m_Ticket)) return CharacterInput();
 				const int replans = m_Replans;
 				nav->NoteReplan();
 				Plan(c, *nav, world, false);

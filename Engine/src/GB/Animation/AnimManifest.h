@@ -33,6 +33,27 @@ namespace GB
 		std::vector<std::string> Clips;   // every clip of the pack, to know what a pack gives and what nothing uses yet
 	};
 
+	// What a gameplay action plays, as data (ANIMACIONES_USO.md): an ability of the ability system ("Chop", "Stoke", "Dig") or an activity of the
+	// tribe, by the job a member is doing ("eat", "sleep", "craft", "socialize", "farm.till"...). The montages are names of this manifest's montages
+	// (usually aliases of a clip with their own play rate and notifies: "chop_1" is "sword and shield slash" at 0.85 with "chop" at 0.48), played in
+	// turn, one per use. An activity may also change the locomotion set while it lasts (hauling walks with the "box" set) and loop: played again
+	// while the member keeps doing it.
+	struct ManifestUse
+	{
+		std::string Name;
+		std::vector<std::string> Montages;
+		std::string Set;                  // locomotion set while it lasts ("" = unchanged)
+		bool Loop = false;                // activities: played again (the next in turn) while the activity lasts
+		std::string Note;                 // why this clip (and what is still missing: a request for the artist)
+	};
+
+	// A stage of life plays the same clips at its own pace (H9): a child a little faster, an elder slower. Multiplies the montage's rate.
+	struct ManifestStage
+	{
+		std::string Name;                 // "child", "adult", "elder"
+		float Rate = 1.0f;
+	};
+
 	struct AnimManifest
 	{
 		int Version = 1;
@@ -42,7 +63,15 @@ namespace GB
 		std::vector<ManifestSet> Sets;            // the other sets
 		std::vector<MontageDesc> Montages;
 		std::vector<ManifestPack> Packs;
+		std::vector<ManifestUse> Abilities;       // ability name -> montages (see ApplyManifestAbilities)
+		std::vector<ManifestUse> Activities;      // tribe job -> montages, set (see TribeVisuals)
+		std::vector<ManifestStage> Stages;        // stage of life -> rate
 	};
+
+	// The use called `name` of a list (Abilities or Activities), or null.
+	const ManifestUse* FindUse(const std::vector<ManifestUse>& uses, const std::string& name);
+	// The rate of a stage of life (1 when the manifest does not list it).
+	float StageRate(const AnimManifest& manifest, const std::string& stage);
 
 	// What loading a manifest into a character did.
 	struct ManifestReport
@@ -65,7 +94,8 @@ namespace GB
 	// and the montages. Entries whose clips are missing are skipped and listed in the report.
 	ManifestReport ApplyManifest(const AnimManifest& manifest, const Model& model, AnimInstance& anim);
 
-	// Problems of the manifest by itself (repeated names, a set with fewer than two clips, notifies out of 0..1, an empty clip name...).
+	// Problems of the manifest by itself (repeated names, a set with fewer than two clips, notifies out of 0..1, an empty clip name, an ability or
+	// activity that plays a montage the manifest does not have or walks with a set it does not have, a stage rate that is not positive...).
 	std::vector<std::string> ValidateManifest(const AnimManifest& manifest);
 
 	// The clips a model has that nothing in the manifest uses.

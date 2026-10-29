@@ -27,6 +27,15 @@ namespace GB
 		int MaxExpansions = 120000;    // cells a single search may open before it gives up
 		int MaxPlansPerFrame = 2;      // searches AllowPlan lets through between two NewFrame calls: the rest wait for the next frame (a crowd that all sets off at once)
 		int CoarseFrom = 48;           // searches longer than this many cells (in a straight line) go through the coarse graph first
+		// H16: paths kept for repeated trips (camp <-> node): up to this many searched paths are remembered, keyed by the start and the goal rounded to
+		// CacheQuantum metres and the walker's profile. A hit is checked (nothing changed along it, the first and the last legs are still clear) and
+		// costs a few line tests instead of an A*. 0 = off, the default: a cached path starts from a neighbour's cell, so a run with the cache is not
+		// the same, step for step, as one without (the editor and the scale harness turn it on).
+		int PathCache = 0;
+		// H16: cells the searches of one frame may open in all (0: no limit). Past it AllowPlan refuses the rest of the frame (the first search of a
+		// frame always goes): a fight where everyone chases everyone, or goals across water, make long searches, and two of them can cost 20 ms.
+		int MaxExpandedPerFrame = 0;
+		float CacheQuantum = 2.0f;
 	};
 
 	// How one walker values the terrain. Costs are time-like multipliers (1 = walking on level dry ground).
@@ -59,6 +68,28 @@ namespace GB
 		long Expanded = 0;
 		long CellsUpdated = 0;
 		double PathSeconds = 0.0, BuildSeconds = 0.0, UpdateSeconds = 0.0;
+		long CacheHits = 0, CacheMisses = 0;   // FindPath answered from the path cache / searched although the cache is on
+		long Granted = 0, Refused = 0;         // AllowPlan answers once NewFrame is called
+		int QueuePeak = 0;                     // most walkers waiting for a search at the start of a frame
+		long WaitPeak = 0;                     // most frames one walker waited for its search
+	};
+
+	// What the plan budget did in the last frame (H16): the perf line of the editor (`stats ai`) and the scale tests read it.
+	struct NavFrameStats
+	{
+		int Planned = 0;    // searches let through in the frame that just ended
+		int Refused = 0;    // requests turned away in it (each keeps its place in the queue)
+		int Queue = 0;      // walkers waiting at the start of that frame
+	};
+
+	// A walker's place in the queue of the plan budget (H16). Whoever plans keeps one (an AIDriver, a stand-in body, the editor's tribe body) and
+	// hands it to AllowPlan: the first time it is turned away it gets a number, and the oldest numbers have the first searches of the next frames.
+	// A request without a ticket only gets what is left over (the old first-come rule).
+	struct PlanTicket
+	{
+		uint32_t Id = 0;    // 0: not waiting
+		long Since = 0;     // the frame it was first turned away
+		uint32_t Era = 0;   // the queue it waits in (NavGrid::ResetQueue voids older tickets)
 	};
 
 	class NavGrid
@@ -112,9 +143,20 @@ namespace GB
 		void NoteReplan() const { ++m_Stats.Replans; }
 		// Spreads the searches of a crowd over frames: the host calls NewFrame once per frame, and a walker that wants to plan asks AllowPlan first
 		// (false: try again next frame). Hosts that never call NewFrame are never refused.
-		void NewFrame() const { m_PlansThisFrame = 0; m_FrameAware = true; }
-		bool AllowPlan() const { return !m_FrameAware || m_PlansThisFrame++ < m_Config.MaxPlansPerFrame; }
+		// The budget is shared by the actors and the abstract agents and is FAIR (H16): a walker turned away keeps its ticket, and the oldest tickets
+		// have the first searches of the next frame reserved for them, so nobody starves whatever order the callers come in; what is not reserved
+		// goes to whoever asks first. The callers come in a fixed order (actors by name, members in order), so it is the same in every run.
+		void NewFrame() const;
+		bool AllowPlan(PlanTicket* ticket = nullptr) const;
+		// Empties the queue: every ticket handed out so far is void (its walker asks again as a newcomer). The turns are not saved, so a host that
+		// saves calls it when it captures and when it loads: the run that goes on and the one loaded from the save then queue the same way.
+		void ResetQueue() const { m_Waiting.clear(); m_Reserved.clear(); ++m_QueueEra; }
+		const NavFrameStats& FrameStats() const { return m_LastFrame; }
+		int Waiting() const { return static_cast<int>(m_Waiting.size() + m_Reserved.size()); }
 		void ResetStats() { m_Stats = NavStats(); }
+		// The cached paths (NavConfig::PathCache). They are checked against the change log on every hit; this drops them all.
+		void ClearPathCache() const { m_Cache.clear(); }
+		size_t CachedPaths() const { return m_Cache.size(); }
 		// With recording on, every path found is kept (the last 64) so the editor can draw them.
 		void SetRecording(bool on) const { m_Recording = on; if (!on) m_Traces.clear(); }
 		bool Recording() const { return m_Recording; }
@@ -167,6 +209,32 @@ namespace GB
 		mutable bool m_Recording = false;
 		mutable bool m_FrameAware = false;
 		mutable int m_PlansThisFrame = 0;
+		mutable long m_ExpandedThisFrame = 0;
+		// the fair queue of the plan budget (AllowPlan): tickets turned away this frame, and those served first in this one (last frame's oldest)
+		mutable uint32_t m_NextTicket = 0;
+		mutable uint32_t m_QueueEra = 0;
+		mutable long m_FrameNumber = 0;
+		mutable std::vector<uint32_t> m_Waiting, m_Reserved;
+		mutable NavFrameStats m_LastFrame, m_ThisFrame;
+		// the path cache (NavConfig::PathCache), a small list scanned in order; the least recently used goes first
+		struct CachedPath
+		{
+			int64_t KeyFrom = 0, KeyTo = 0;
+			NavProfile Profile;
+			glm::vec2 BoxMin{ 0.0f }, BoxMax{ 0.0f };
+			std::vector<glm::vec2> Points;
+			glm::vec2 Goal{ 0.0f };
+			float Cost = 0.0f;
+			bool ExactGoal = false;
+			bool Found = true;   // false: the goal could not be reached; the partial path is kept so the same failing trip is not searched again
+			uint32_t Revision = 0;
+			long Used = 0;
+		};
+		int64_t CacheKey(const glm::vec2& p) const;
+		int FromCache(const NavProfile& profile, const glm::vec2& from, const glm::vec2& to, NavPath& out) const;   // 0 miss, 1 found, 2 a kept failure
+		void ToCache(const NavProfile& profile, const glm::vec2& from, const glm::vec2& to, const NavPath& path) const;
+		mutable std::vector<CachedPath> m_Cache;
+		mutable long m_CacheClock = 0;
 		mutable std::vector<std::vector<glm::vec2>> m_Traces;
 	};
 }

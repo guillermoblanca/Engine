@@ -123,8 +123,13 @@ namespace GB
 	void AnimInstance::Update(const MotionState& state, float dt, const glm::mat4& characterToWorld)
 	{
 		m_GraphRunner.Update(state, dt, *this);   // the state graph picks the set or montage before the animation reads it
+		// level of detail (SetDetail): the timing below runs every frame; the sampling, the IK and the pose only when they will be seen
+		const bool ragdoll = (m_Ragdoll && m_Ragdoll->Active()) || m_RagBlend < 1.0f;
+		const bool pose = m_DetailPose || ragdoll || m_Pose.empty();
+		const bool ik = pose && (m_DetailIk || ragdoll);
 		LocomotionBlender& active = Active();
 		active.SetVelocity(state.LocalVelocity);
+		active.SetSampling(pose);
 		active.Update(dt);
 		m_Events.clear();
 		m_Plants.clear();
@@ -137,12 +142,13 @@ namespace GB
 			{
 				LocomotionBlender& from = *m_Sets[static_cast<size_t>(m_From)].Blender;
 				from.SetVelocity(state.LocalVelocity);
+				from.SetSampling(pose);
 				from.Update(dt);
 				fromPose = &from.GetPose();
 			}
 			m_Progress = std::min(m_Progress + dt / m_FadeSeconds, 1.0f);
 			const float s = m_Progress * m_Progress * (3.0f - 2.0f * m_Progress);   // ease in and out
-			BlendPoses(*fromPose, active.GetPose(), s, m_Pose);
+			if (pose) BlendPoses(*fromPose, active.GetPose(), s, m_Pose);
 			// footsteps come from whichever set shows more of itself
 			if (m_Progress < 0.5f && m_From >= 0) m_Events = m_Sets[static_cast<size_t>(m_From)].Blender->Events();
 			else m_Events = active.Events();
@@ -150,16 +156,17 @@ namespace GB
 		}
 		else
 		{
-			m_Pose = active.GetPose();
+			if (pose) m_Pose = active.GetPose();
 			m_Events = active.Events();
 		}
 		for (const std::unique_ptr<IAnimLayer>& layer : m_Layers)
 		{
-			layer->Update(state, dt, Overlay());
+			layer->Update(state, dt, Overlay());   // (the montages' clocks and notifies: every frame, whatever the detail)
 			if (!layer->Active()) continue;
-			layer->Apply(m_Pose);
+			if (pose && (ik || !layer->Procedural())) layer->Apply(m_Pose);   // (an IK layer, the hands reaching, only at full detail)
 			if (layer->LegsWeight() > 0.5f) m_Events.clear();   // the legs are not walking (a jump, a turn on the spot, a full-body action): no footsteps
 		}
+		if (ik)
 		{
 			// the procedural layers fade out while an action or a jump has the whole body
 			const float free = (1.0f - std::min(m_Montages.FullBodyWeight(), 1.0f)) * (1.0f - std::min(m_Air.Weight(), 1.0f));
@@ -168,7 +175,7 @@ namespace GB
 		}
 		for (Attached& a : m_Props)   // the hands reach for the prop (or let go of it)
 			a.Weight = a.Leaving ? std::max(a.Weight - dt / std::max(a.P.FadeSeconds, 1e-3f), 0.0f) : std::min(a.Weight + dt / std::max(a.P.FadeSeconds, 1e-3f), 1.0f);
-		if (!m_Props.empty())
+		if (!m_Props.empty() && ik)
 			ApplyGrips(characterToWorld);
 		if (m_Ragdoll && m_Ragdoll->Active())
 		{
@@ -182,7 +189,7 @@ namespace GB
 			const float t = m_RagBlend * m_RagBlend * (3.0f - 2.0f * m_RagBlend);
 			BlendPoses(m_RagSnapshot, m_Pose, t, m_Pose);   // from the pose it lay in to the animation
 		}
-		m_Instance.SetPose(m_Pose);
+		if (pose) m_Instance.SetPose(m_Pose);   // (skipped: the instance keeps the last pose; the props below still follow the character)
 		for (Attached& a : m_Props)
 			a.World = characterToWorld * m_Sockets.Matrix(m_Instance, a.P.Socket) * a.P.Offset;
 		m_Props.erase(std::remove_if(m_Props.begin(), m_Props.end(), [](const Attached& a) { return a.Leaving && a.Weight <= 0.0f; }), m_Props.end());
