@@ -110,10 +110,10 @@ namespace GB::Editor
 		return MakeBindingDefaults(BaseManifest(), m_Gameplay ? &m_Gameplay->Library : nullptr);
 	}
 
-	AnimManifest PlayerMode::EffectiveManifest(const std::string& skeleton) const
+	AnimManifest PlayerMode::EffectiveManifest(const std::string& skeleton, const ClipExists& hasClip) const
 	{
 		AnimManifest manifest = BaseManifest();
-		if (!m_Bindings.Bindings.empty() || !m_Bindings.Transitions.empty()) ApplyBindings(manifest, m_Bindings, Defaults(), skeleton);
+		if (!m_Bindings.Bindings.empty() || !m_Bindings.Transitions.empty()) ApplyBindings(manifest, m_Bindings, Defaults(), skeleton, hasClip);
 		return manifest;
 	}
 
@@ -150,7 +150,10 @@ namespace GB::Editor
 		if (!actor) { report = "no controlled character"; return false; }
 		CapturePristine();
 		if (m_HasPristine && m_Gameplay) RestoreAbilityMontages(m_Gameplay->Library, m_Pristine);   // (a binding taken off must bring the C++ lists back)
-		const AnimManifest effective = EffectiveManifest(SkeletonOfControlled());
+		// the bindings are checked against the clips this character really has: one that is not there is skipped (and logged), the default stays
+		const Model* model = actor->Instance() ? &actor->Instance()->GetModel() : nullptr;
+		const ClipExists hasClip = model ? ClipExists([model](const std::string& c) { return model->FindClip(c) >= 0; }) : ClipExists();
+		const AnimManifest effective = EffectiveManifest(SkeletonOfControlled(), hasClip);
 		return actor->SetManifest(effective, report, "the animation bindings");
 	}
 

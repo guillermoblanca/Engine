@@ -135,7 +135,7 @@ namespace GB::Editor
 		void SnapCamera(const Actor& actor);
 		void LoadShipped(const std::string& assetRoot);
 		void CapturePristine();   // the library's montage lists before any binding touched them (so unbinding can put them back)
-		AnimManifest EffectiveManifest(const std::string& skeleton) const;   // the base manifest with the bindings of that skeleton applied
+		AnimManifest EffectiveManifest(const std::string& skeleton, const ClipExists& hasClip = nullptr) const;   // the base manifest with the bindings of that skeleton applied
 
 		ActorWorld* m_Actors = nullptr;
 		std::string m_Controlled;
