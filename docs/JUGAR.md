@@ -137,3 +137,8 @@ Sección **`controls`**: `keys`, `hud` (`notifications`, `notifySeconds`, `needs
 - Un jugador inmortal no envejece hasta morir (la sociedad lo trata como a cualquiera: a los ~70 años de juego marcaría su muerte).
 - El aviso de E elige lo más cercano; no hay menú radial ni selección con el ratón.
 - Una sola persona: el modo de juego controla al primer jugador del clan 0.
+
+## Ajustar las animaciones
+
+Si una animación o una transición falla (el golpe que no encaja, un bucle que no debería serlo, un fundido brusco), no hace falta tocar código: la ventana **View > Animation Bindings**
+del Editor cambia el clip de cada acción, su recorte, velocidad y mezcla, lo previsualiza y lo guarda en `assets/data/animation_bindings.json`. Ver [EDITOR_ANIMACIONES.md](EDITOR_ANIMACIONES.md).

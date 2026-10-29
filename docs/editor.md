@@ -33,3 +33,9 @@ Todo es accesible por comandos (`SceneEditor`, sin GL ni ImGui):
 - `scene new|save <archivo>|load <archivo>`, `undo`, `redo`, `select <nombre|id|none>`.
 - En scripts, un comentario es `#` seguido de espacio; `#rrggbb` es un color.
 - Test `editor` ampliado: comandos, deshacer/rehacer, ficheros de escena y selección por rayo.
+
+## Animation Bindings (editor de animaciones)
+
+Ventana **View > Animation Bindings** (`panel AnimBindings`): asigna a cada acción del juego (locomoción, recolección, ataques, bloqueo, daño, dormir...) el clip que reproduce y cómo
+(bucle, recorte, velocidad, mezcla, curva, transiciones A→B), con previsualización sobre el personaje y validación. Se guarda en `assets/data/animation_bindings.json` y el juego lo lee
+encima del manifiesto de animación; sin fichero reproduce lo de siempre. Diseño, esquema, pasos y límites en [EDITOR_ANIMACIONES.md](EDITOR_ANIMACIONES.md). Comandos `bindings_*`; test `anim_bindings` (CPU).
