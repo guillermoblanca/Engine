@@ -62,8 +62,9 @@ def loops(db, run):
 
 
 def deaths(db, run):
-    rows = q(db, "select clan_id, t, kind, who, other, text from events where run_id=? and kind in ('death','killed','kill') order by t", run)
-    return [{"clan": r[0], "t": round(r[1]), "kind": r[2], "who": r[3], "other": r[4], "text": r[5]} for r in rows]
+    rows = q(db, "select clan_id, t, who, result, text from events where run_id=? and kind='death' order by t", run)
+    killers = {(c, w, round(t, 1)): text[len("is killed by "):] for c, t, w, text in q(db, "select clan_id, t, who, text from events where run_id=? and kind='say' and text like 'is killed by %'", run)}
+    return [{"clan": r[0], "t": round(r[1]), "kind": r[3], "who": r[2], "other": killers.get((r[0], r[2], round(r[1], 1)), ""), "text": r[4]} for r in rows]
 
 
 def clan_events(db, run):
@@ -79,6 +80,33 @@ def relations(db, run):
     for a, b, t, st, att, hos, gab, gba, th, ra, tr in rows:
         res[f"{a}-{b}"].append({"t": round(t), "stance": st, "attitude": round(att, 3), "hostility": round(hos, 3), "grievance": round(max(gab, gba), 3), "thefts": th, "raids": ra, "trades": tr})
     return dict(res)
+
+
+def people(db, run):
+    """The sheet of everyone (the family tree is mother/father), when they died and what they did most."""
+    died = {(c, w): t for c, w, t in q(db, "select clan_id, who, min(t) from events where run_id=? and kind='death' group by 1,2", run)}
+    last = {(c, m): (t, age, alive) for c, m, t, age, alive in q(db, "select clan_id, member, max(t), age, alive from samples where run_id=? group by 1,2", run)}
+    top = {}
+    for c, m, job, n in q(db, "select clan_id, member, job, count(*) n from samples where run_id=? and alive=1 and job not in ('rest','sleep','') group by 1,2,3 order by n", run):
+        top[(c, m)] = job
+    out = []
+    for c, m, role, joined, female, mother, father, gen, traits in q(db, "select clan_id, member, role, joined, female, mother, father, generation, traits from individuals where run_id=? order by clan_id, joined", run):
+        t, age, alive = last.get((c, m), (None, None, 1))
+        try:
+            tr = {k: round(v, 2) for k, v in json.loads(traits or "{}").items()}
+        except ValueError:
+            tr = {}
+        out.append({"clan": c, "name": m, "role": role, "joined": round(joined), "female": bool(female), "mother": mother or "", "father": father or "", "generation": gen,
+                    "died": round(died[(c, m)]) if (c, m) in died else None, "alive": bool(alive) and (c, m) not in died, "age": None if age is None else round(age, 1), "main_job": top.get((c, m), ""), "traits": tr})
+    return out
+
+
+def society(db, run):
+    """Births, pairs, traditions and norms by clan, with the time of each."""
+    res = defaultdict(lambda: defaultdict(list))
+    for c, t, k, who, other, text in q(db, "select clan_id, t, kind, who, other, text from events where run_id=? and kind in ('birth','pair','tradition','norm','adult','elder') order by t", run):
+        res[c][k].append({"t": round(t), "who": who, "other": other, "text": text[:90]})
+    return {c: dict(v) for c, v in res.items()}
 
 
 def hunger(db, run):
@@ -140,9 +168,60 @@ def load(paths):
             s["file"] = os.path.basename(p)
             s["series"] = clan_series(db, info[0])
             s["relations"] = relations(db, info[0])
+            s["people"] = people(db, info[0])
+            s["society"] = society(db, info[0])
             out.append((p, s))
         db.close()
     return out
+
+
+def datasets(data, out):
+    """Flat row datasets (ds_*.json, an array of objects each) for the dashboard. `game` names a run: the file without extension."""
+    def put(name, rows):
+        with open(os.path.join(out, f"ds_{name}.json"), "w", encoding="utf-8") as f:
+            json.dump(rows, f, separators=(",", ":"))
+    runs_, series, people_, rel, loops_, ev, deaths_, jobs_, soc = [], [], [], [], [], [], [], [], []
+    for _, s in data:
+        g = os.path.splitext(s["file"])[0]
+        days = s["sim_seconds"] / 1200.0
+        for c, f in s["final"].items():
+            ser = s["series"].get(c, [])
+            t = s["tiers"].get(c, {})
+            tot = sum(t.values()) or 1
+            task = s["tasks"].get(c, {})
+            bad = sum(v for k, v in task.items() if not k.endswith(":ok"))
+            allt = sum(task.values()) or 1
+            ppl = [p for p in s["people"] if p["clan"] == c]
+            runs_.append({"game": g, "seed": s["seed"], "clans": s["clans"], "clan": c, "days": round(days, 2), "alive": f["alive"], "dead": f["dead"], "food_days": f["food_days"],
+                          "buildings": f["buildings"], "beds": f["beds"], "peak": max([r["alive"] for r in ser] or [0]), "born": sum(1 for p in ppl if p["generation"] > 0),
+                          "survival_pct": round(100 * t.get("survival", 0) / tot), "growth_pct": round(100 * t.get("growth", 0) / tot),
+                          "failed_pct": round(100 * bad / allt), "tasks": sum(task.values()), "kills": sum(1 for d in s["deaths"] if d["clan"] == c)})
+            for r in ser:
+                series.append({"game": g, "clan": c, "key": f"{g}/{c}", "day": round(r["t"] / 1200.0, 3), "alive": r["alive"], "dead": r["dead"], "food_days": r["food_days"], "tier": r["tier"],
+                               "buildings": r["buildings"], "beds": r["beds"]})
+            for k, v in s["jobs"].get(c, {}).items():
+                jobs_.append({"game": g, "clan": c, "job": k, "samples": v})
+        for p in s["people"]:
+            people_.append({"game": g, "clan": p["clan"], "id": f"{g}/{p['clan']}/{p['name']}", "name": p["name"], "role": p["role"], "female": p["female"], "generation": p["generation"],
+                            "mother": f"{g}/{p['clan']}/{p['mother']}" if p["mother"] else "", "father": f"{g}/{p['clan']}/{p['father']}" if p["father"] else "",
+                            "born_day": round(p["joined"] / 1200.0, 2), "died_day": None if p["died"] is None else round(p["died"] / 1200.0, 2), "alive": p["alive"], "age": p["age"], "main_job": p["main_job"]})
+        for key, rows in s["relations"].items():
+            for r in rows:
+                rel.append({"game": g, "pair": key, "day": round(r["t"] / 1200.0, 3), "stance": r["stance"], "attitude": r["attitude"], "hostility": r["hostility"], "grievance": r["grievance"],
+                            "thefts": r["thefts"], "raids": r["raids"], "trades": r["trades"]})
+        for l in s["loops"]:
+            loops_.append({"game": g, **l})
+        for c, evs in s["clan_events"].items():
+            for k, v in evs.items():
+                ev.append({"game": g, "clan": c, "kind": k, "count": v})
+        for d in s["deaths"]:
+            deaths_.append({"game": g, "clan": d["clan"], "day": round(d["t"] / 1200.0, 2), "kind": d["kind"], "who": d["who"], "other": d["other"], "text": d["text"][:120]})
+        for c, kinds in s["society"].items():
+            for k, rows in kinds.items():
+                for r in rows:
+                    soc.append({"game": g, "clan": c, "kind": k, "day": round(r["t"] / 1200.0, 2), "who": r["who"], "text": r["text"]})
+    for name, rows in [("runs", runs_), ("series", series), ("people", people_), ("relations", rel), ("loops", loops_), ("clan_events", ev), ("deaths", deaths_), ("jobs", jobs_), ("society", soc)]:
+        put(name, rows)
 
 
 def main():
@@ -173,7 +252,8 @@ def main():
             for c, rows in s["series"].items():
                 for r in rows:
                     w.writerow([s["file"], s["run"], s["seed"], c, round(r["t"]), r["day"], r["tier"], r["food_days"], r["alive"], r["dead"], r["beds"], r["buildings"]])
-    print(f"wrote {a.out}/dashboard.json and series.csv ({len(data)} runs)")
+    datasets(data, a.out)
+    print(f"wrote {a.out}/dashboard.json, series.csv and ds_*.json ({len(data)} runs)")
     return 0
 
 

@@ -935,6 +935,7 @@ namespace GB
 		std::string error;
 		Run(m, "wait 1000000", error);
 		Say(m, "dies of " + m.Cause);
+		if (m_Telemetry) EmitEvent("death", m.Name, std::string(), m.Cause, "dies of " + m.Cause);   // (the killer, if any, is the "is killed by" line the fight says)
 		SocialDied(m);   // social life: grief, the clan's mood and a funeral (TribeSocial.cpp)
 		SocietyEvents(m_Society.Died(Config.Society, m.Name, m.Cause));   // its partner is free and the clan mourns (H9, H10)
 	}
