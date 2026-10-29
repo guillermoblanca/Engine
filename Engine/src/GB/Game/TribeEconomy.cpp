@@ -332,6 +332,16 @@ namespace GB
 		q.Experiment = p.Experiment;
 		q.MaxBatches = p.MaxBatches;
 		q.Known = [this](const Recipe& r) { return ClanKnows(r); };
+		q.Learnable = [this](const Recipe& r)
+		{
+			const TechTree* tree = m_Knowledge.Techs();
+			if (!tree) return true;
+			for (const std::string& tech : tree->ForRecipe(r.Id))
+				if (tree->Find(tech)->Discovery.Experiment > 0.0f)
+					for (const TribeMember& m : m_Members)
+						if (!m.Dead && m.Body && m_Knowledge.CanLearn(m.Name, tech)) return true;
+			return false;
+		};
 		q.Station = [this](const std::string& s) { return StationAt(s); };
 		return PlanProduction(Wants(), stock, *m_Recipes, q);
 	}

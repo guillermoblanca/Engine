@@ -809,8 +809,10 @@ namespace GB
 		};
 		if (!m_Nav.Build(m_Ground, nav, &m_Error)) return;
 
-		// The camp: the one given, or the flattest dry place near the middle of the map (the editor's spawn), clear of trunks and rocks.
-		const glm::vec2 camp = setup.HasCamp ? setup.Camp : FindFreeSpot(m_Ground, world.Spawn, 2.0f);
+		// The camp: the one given, or the flattest dry place near the middle of the map (the editor's spawn), clear of trunks and rocks. Clear for 3.5 m:
+		// the campfire stands 1.5 m off the camp (Tribe::FirePos) and who stokes it stands a metre beyond (with 2 m a trunk could be where the stoker
+		// stands; the editor's own choice of a site keeps 4 m clear, SiteWeights::ClearRadius).
+		const glm::vec2 camp = setup.HasCamp ? setup.Camp : FindFreeSpot(m_Ground, world.Spawn, 3.5f);
 		if (setup.Scene)
 		{
 			m_Entities = *setup.Scene;

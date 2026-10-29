@@ -143,7 +143,7 @@ namespace GB
 	std::map<std::string, TribeRole> DefaultRoles()
 	{
 		TribeRole forager;
-		forager.Weights = { { "Resource.Plant", 1.0f }, { "fiber_grass", 0.9f }, { "Resource.Plant.Branch", 0.5f }, { "Resource.Loose", 0.6f },
+		forager.Weights = { { "Resource.Plant", 1.0f }, { "Resource.Plant.Herb", 0.4f }, { "fiber_grass", 0.9f }, { "Resource.Plant.Branch", 0.5f }, { "Resource.Loose", 0.6f },
 			{ "Resource.Wood", 0.25f }, { "Resource.Stone", 0.2f }, { "fire", 0.0f } };
 		forager.Nav.VegetationWeight = 0.8f;   // at home in the undergrowth
 		forager.Skill = "foraging";
@@ -285,6 +285,7 @@ namespace GB
 		e.Stock["berry"] = { 6.0f, 3.0f };
 		e.Stock["wood"] = { 10.0f, 0.0f };
 		e.Stock["stone"] = { 8.0f, 0.0f };
+		e.Stock["herbs"] = { 4.0f, 0.0f };   // a handful for the poultices (docs/PROGRESION.md): the foragers are not to spend their days on them
 		return e;
 	}
 

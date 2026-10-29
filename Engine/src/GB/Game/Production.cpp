@@ -54,7 +54,7 @@ namespace GB
 					{
 						Blocked(item + ": does not know how to make it (" + unknown->Id + ")");
 						// to try it (E5) the clan needs one batch of its inputs at hand
-						if (Query.Experiment && depth < Query.Depth)
+						if (Query.Experiment && depth < Query.Depth && (!Query.Learnable || Query.Learnable(*unknown)))
 							for (const auto& [input, n] : unknown->Inputs) Want(input, n, depth + 1, input + " to try " + unknown->Id);
 					}
 					else Blocked(item + ": no " + station + " to make it at");

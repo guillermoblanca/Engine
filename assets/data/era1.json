@@ -232,7 +232,6 @@
       "id": "herb_patch",
       "item": "herbs",
       "kind": "Plant.Herb",
-      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
       "perGather": 1,
       "regen": 1,
       "regenSeconds": 60.0,
@@ -804,6 +803,7 @@
         "Resource.Loose": 0.6,
         "Resource.Plant": 1.0,
         "Resource.Plant.Branch": 0.5,
+        "Resource.Plant.Herb": 0.4,
         "Resource.Stone": 0.2,
         "Resource.Wood": 0.25,
         "fiber_grass": 0.9,
@@ -872,6 +872,7 @@
         "perMember": 3.0
       },
       "default": 12.0,
+      "herbs": 4.0,
       "stone": 8.0,
       "wood": 10.0
     }

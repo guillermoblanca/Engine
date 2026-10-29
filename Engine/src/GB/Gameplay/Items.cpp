@@ -720,7 +720,8 @@ namespace GB
 		nodes["reed_bed"]      = Node("reed_bed",      "reed",       8, 2,  20.0f, 2, "",                  "Collect",   "Loose.Reed",   1, 1, "cluster", 3.0f);
 		nodes["flint_outcrop"] = Node("flint_outcrop", "flint",      5, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Flint",  1, 1, "cluster", 3.5f);
 		nodes["copper_vein"]   = Node("copper_vein",   "copper_ore", 4, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Copper", 1, 0, "row", 4.0f);
-		nodes["herb_patch"]    = Node("herb_patch",    "herbs",      4, 1,  60.0f, 1, "",                  "Gather",    "Plant.Herb",   1, 0, "cluster", 3.0f);
+		// (herbs grow wild only: no patch of `resources build`, so the patch of a camp stays as it was)
+		nodes["herb_patch"]    = Node("herb_patch",    "herbs",      4, 1,  60.0f, 1, "",                  "Gather",    "Plant.Herb",   0, 0);
 
 		// Where each grows over a generated world (PlanWorldResources): wood in the forest, berries and fibre in the meadow, clay and reeds by the water,
 		// stone, flint and copper on rocky ground (copper rare and in veins). PerHectare is the average over the matching ground; a map of 360 m gets a few hundred nodes.

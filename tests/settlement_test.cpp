@@ -103,12 +103,16 @@ private:
 	bool m_Started = false, m_Failed = false;
 };
 
-// A tribe of four with the patch of resource nodes a `tribe build` makes, a well, the era-1 buildings, the era-1 technologies (which lock the buildings of the
-// Stone-Age progression: without technologies everything would be known, the longhouse too) and the BuildingSystem.
+// A tribe of four with the patch of resource nodes a `tribe build` makes, a well, the era-1 buildings and the BuildingSystem. Plain (as before the
+// progression): no technologies, and only the four buildings no technology locks (without technologies everything would be known, the longhouse too).
+// `stoneAge`: the era-1 technologies and every building of the progression (docs/PROGRESION.md).
 struct Settlement
 {
-	explicit Settlement(bool buildings = true)
+	explicit Settlement(bool buildings = true, bool stoneAge = false)
 	{
+		if (!stoneAge)
+			for (const auto& [id, t] : Techs.Techs)
+				for (const std::string& b : t.Buildings) Builds.Defs.erase(b);
 		RegisterEraOneItems(Items, Recipes, Defs);
 		RegisterResourceContent(Gameplay.Library, Defs);
 		RegisterInteractiveContent(Gameplay.Library);
@@ -138,7 +142,7 @@ struct Settlement
 		Builds.Bind(Gameplay);
 		Tribe_.Bind(Entities, Gameplay, Items, Recipes, Defs);
 		if (buildings) Tribe_.SetBuildings(&Builds.Defs);
-		Tribe_.SetTechs(&Techs);
+		if (stoneAge) Tribe_.SetTechs(&Techs);
 		Tribe_.Config.Camp = camp;
 		Tribe_.Store().Add(Items, "wood", 10);
 		Tribe_.Store().Add(Items, "stone", 12);
@@ -468,7 +472,7 @@ int main()
 			}
 			return a->HasTag("Building.Done") ? name : std::string();
 		};
-		Settlement v;
+		Settlement v(true, true);
 		const glm::vec2 camp = v.Tribe_.Config.Camp;
 		const int cap = v.Tribe_.StoreCap();
 		Check(v.Tribe_.Defense() == 0.0f && v.Tribe_.StoreBonus() == 0 && v.Tribe_.StoreKeep() == 1.0f && v.Tribe_.HealingAt(camp) == 1.0f, "a camp without them: no defense, no bonus, no healer");
@@ -476,7 +480,7 @@ int main()
 		Check(v.Tribe_.StoreCap() == cap + 30 && v.Tribe_.StoreKeep() == 0.5f, "they add to the main store's cap (+10, +20) and the best of them halves its spoilage");
 		// the berries of the store keep twice as long: the same old stack goes off in the plain camp and not in this one
 		{
-			Settlement plain;
+			Settlement plain(true, true);
 			for (Settlement* s : { &v, &plain })
 			{
 				s->Tribe_.Store().Remove("berry", 1000);
@@ -530,7 +534,7 @@ int main()
 		}
 		// company: a totem by the camp keeps the clan in better company than a camp without one
 		{
-			Settlement with, without;
+			Settlement with(true, true), without(true, true);
 			Check(!raise(with, "totem", with.Tribe_.Config.Camp + glm::vec2(9.0f, 0.0f)).empty(), "a totem stands by the camp");
 			const float dt = 1.0f / 30.0f;
 			double sumWith = 0.0, sumWithout = 0.0;
@@ -586,8 +590,9 @@ int main()
 				if (s.State.Done)
 					for (const auto& [id, def] : defs) if (def.Name == s.Building) kinds.insert(id);
 			log = run.Brain().SettlementReport() + run.Brain().Knowledge().ClanStatus();
-			if (run.Monitor().Violations()) log += run.Monitor().Describe();
-			return run.Monitor().Violations() == 0;
+			if (run.Monitor().Violations()) log += "\n" + run.Monitor().Describe();
+			const auto counts = run.Monitor().CountByCheck();
+			return counts.count("buildings") && counts.at("buildings") == 0 && (!counts.count("knowledge") || counts.at("knowledge") == 0);
 		};
 		std::set<std::string> found, kinds, found2, kinds2;
 		int mostOpen = 0, mostOpen2 = 0;
@@ -597,7 +602,7 @@ int main()
 		for (const std::string& t : found) f += " " + t;
 		for (const std::string& b : kinds) k += " " + b;
 		std::fprintf(stderr, "  progression in 6 days: found%s; built%s; at most %d sites at once\n%s\n", f.c_str(), k.c_str(), mostOpen, log.c_str());
-		Check(clean, "six days of the progression break no invariant");
+		Check(clean, "six days of the progression break neither the buildings invariant nor the knowledge one");
 		Check(found.size() >= 3, "the clan finds at least three technologies of the tree by itself in six days");
 		Check(kinds.size() >= 3, "and raises at least three different kinds of building");
 		bool gated = false;

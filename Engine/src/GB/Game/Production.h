@@ -49,6 +49,8 @@ namespace GB
 		bool Experiment = true;                  // also want the inputs of a recipe the clan does not know yet (to try it)
 		int MaxBatches = 3;                      // most batches one step asks for at once (the rest waits for the next plan)
 		std::function<bool(const Recipe&)> Known;        // the clan knows how to make it (nullptr = it knows all)
+		std::function<bool(const Recipe&)> Learnable;    // someone could find it now by trying (its technology's requirements are known; nullptr = yes):
+		                                                 // only then are its inputs wanted to try it (smelting's ore waits for pottery)
 		std::function<bool(const std::string&)> Station; // the clan has that station ("" is always had; nullptr = it has them all)
 	};
 

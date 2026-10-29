@@ -122,7 +122,7 @@ de cría (queda para cuando los haya); mejorar el pozo: no, porque el pozo es un
 
 | Objeto | Qué es | De dónde |
 |---|---|---|
-| `herbs` Healing herbs | `Item.Resource.Herb` | nodo `herb_patch` (a mano, `Gather`; prado y bosque) |
+| `herbs` Healing herbs | `Item.Resource.Herb` | nodo `herb_patch` (a mano, `Gather`; crece en prado y bosque del mundo, sin parche) |
 | `hide` Hide | `Item.Resource.Hide` | la caza: subproducto de los conejos (`combat.hunts.rabbit.byproduct`) |
 | `poultice` Poultice | `Item.Medicine.Poultice` | `poultice`: 2 hierbas + 1 fibra (herb_lore) |
 | `leather` Leather | `Item.Resource.Leather` | `leather`: 2 pieles en la curtiduría (hide_working) |
@@ -190,7 +190,16 @@ Cada una solo para el primer edificio de su tipo. Lo pagable incluye intermedios
 - **Almacén y caducidad (H18):** tope y ritmo de caducidad del almacén principal.
 - **Caza (H14):** `HuntRule::Byproduct` / `ByproductUnits` (la piel).
 
-### 6.6 Visuales
+### 6.6 Economía y ajustes para que juegue
+
+- Las entradas de una receta que el clan no sabe solo se quieren para probarla si alguien puede aprender ya su tecnología (`ProductionQuery::Learnable`):
+  la mena de cobre espera a la alfarería.
+- El contenedor que se pide es el mejor cuyas entradas el clan puede conseguir (la bolsa de cuero espera a la curtiduría; mientras, la cesta).
+- Las hierbas crecen solo en el mundo (`spawn`, sin parche de `resources build`), el almacén quiere 4 (`tribe.stock.herbs`) y el recolector las pesa 0,4
+  (`Resource.Plant.Herb`): un recolector solo no se pasa el día buscándolas.
+- El arnés sin ventana (`SimRun`) deja 3,5 m libres de troncos alrededor del campamento (antes 2 m: quien atizaba la hoguera podía quedar dentro de un tronco).
+
+### 6.7 Visuales
 
 Cada edificio nuevo tiene sus fases en `visuals.json` (sistema procedural de edificios); el horno y la empalizada ya dibujados se usan tal cual.
 Props nuevos: lanza de sílex, bolsa de cuero; montones de pieles y de carne curada.
