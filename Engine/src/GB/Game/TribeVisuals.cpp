@@ -196,7 +196,9 @@ namespace GB
 					glm::vec2 bench;
 					if ((key == "make" || key == "craft") && tribe.StationAt("workbench", &bench))
 					{
-						const glm::vec2 at = tribe.Config.Camp + kBench;
+						// the bench that is drawn: a built workbench (H8) or else the camp's own (see AddToScene)
+						glm::vec2 at = tribe.Config.Camp + kBench;
+						tribe.BuiltStationAt("workbench", &at);
 						point = { at.x, ctx.Ground ? ctx.Ground(at.x, at.y) : tribe.Config.CampY, at.y };
 						have = true;
 					}
@@ -291,7 +293,8 @@ namespace GB
 		piles(tribe.Store(), tribe.Config.Camp + kStore);
 		for (const Stockpile& s : tribe.Economy().Stockpiles) piles(s.Store, s.Pos);
 
-		// the camp's workbench (where "make" and "craft" are done)
-		if (tribe.StationAt("workbench")) cache.AddBuilding("workbench", 1000, 1.0f, at(tribe.Config.Camp + kBench, 0.4f), scene);
+		// the camp's workbench (where "make" and "craft" are done); once the clan has built one (H8) that building is the bench, drawn with the
+		// buildings, and the camp's is not drawn too
+		if (tribe.StationAt("workbench") && !tribe.BuiltStationAt("workbench")) cache.AddBuilding("workbench", 1000, 1.0f, at(tribe.Config.Camp + kBench, 0.4f), scene);
 	}
 }

@@ -419,6 +419,8 @@ namespace GB
 		using StationFinder = std::function<bool(const std::string& station, glm::vec2& where)>;
 		void SetStations(StationFinder finder) { m_Stations = std::move(finder); }
 		bool StationAt(const std::string& station, glm::vec2* where = nullptr) const;
+		// Only a finished building's station (not the camp's own): the visuals draw the camp's workbench just while no building gives one.
+		bool BuiltStationAt(const std::string& station, glm::vec2* where = nullptr) const;
 		// A want from outside the tribe (a building site's materials, H8; a player's order): `units` of `item` for `source` (0 takes it away).
 		// The production plan makes what it can of it and the gather jobs ask for the rest.
 		void SetDemand(const std::string& source, const std::string& item, int units);

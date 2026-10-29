@@ -77,6 +77,14 @@ namespace GB
 		return false;
 	}
 
+	bool Tribe::BuiltStationAt(const std::string& station, glm::vec2* where) const
+	{
+		glm::vec2 at = Config.Camp;
+		if (station.empty() || !m_Stations || !m_Stations(station, at)) return false;
+		if (where) *where = at;
+		return true;
+	}
+
 	void Tribe::SetDemand(const std::string& source, const std::string& item, int units)
 	{
 		if (units > 0) m_Demand[source][item] = units;
