@@ -1,0 +1,3 @@
+# Jugar (H15): Editor --script=play.txt (o Editor --play). Genera el mundo, funda los clanes y te pone en el clan 0; ver docs/JUGAR.md.
+# Cambia la línea de abajo para otro mundo: play [temperate|alpine|desert] [semilla] [miembros por clan] [clanes]
+play temperate 5 4 2
