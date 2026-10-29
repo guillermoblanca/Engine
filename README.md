@@ -18,7 +18,22 @@ Motor gráfico 3D en C++20 sobre OpenGL 4.5, para Windows y Linux. Está pensado
 - **Editor** (Dear ImGui): jerarquía, inspector, selección, gizmo, deshacer/rehacer, escenas JSON, consola y scripts; todo accesible por comandos.
 - **QA automatizado**: imágenes y datos de referencia, barridos de semillas y tests de CPU y de GL.
 
-## Empezar
+## Inicio rápido: instalar, compilar y probar
+
+1. **Instala** CMake 3.20+, Git y un compilador C++20 (Visual Studio 2022 con "Desarrollo para escritorio con C++", o GCC/Clang en Linux).
+2. **Clona y compila** (la primera vez descarga dependencias, tarda unos minutos):
+   ```bash
+   git clone https://github.com/guillermoblanca/Engine.git && cd Engine
+   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+   cmake --build build --config Release
+   ```
+3. **Comprueba** que todo funciona: `ctest --test-dir build -C Release --output-on-failure`.
+4. **Juega**: `build\Editor\Release\Editor.exe --play` (Windows) o `./build/Editor/Editor --play` (Linux). Controles en [Jugar](#jugar).
+5. **Observa simulaciones** sin abrir el juego: abre el laboratorio (`python tools/lab/server.py`, o doble clic en `tools/lab/Laboratorio.bat`) y entra en <http://127.0.0.1:8765>. Ahí lanzas partidas por años o condiciones de parada y lees series temporales, necesidades, edificios, relaciones y un resumen de qué ocurrió. Ver [docs/LABORATORIO.md](docs/LABORATORIO.md).
+
+Si algo falla al compilar, usa `-DGB_WARNINGS_AS_ERRORS=OFF` solo para diagnosticar; el código que se sube a `master` compila con ellos en `ON`.
+
+## Empezar (detalle)
 
 Requisitos: CMake 3.20 o superior y un compilador con C++20 (MSVC 2022, GCC o Clang). En Linux hacen falta las cabeceras de X11 y Mesa:
 
@@ -71,10 +86,19 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | `Engine/` | Biblioteca estática `GB` (render, mundo, física, audio, animación, entidades, QA) |
 | `Editor/` | Editor Dear ImGui y sus tests |
 | `Sandbox/` | Aplicación de ejemplo con las escenas de prueba y la demo |
+| `Sim/` | `GBSim`: simulador sin ventana de tribus y clanes que escribe telemetría (SQLite) |
 | `tests/` | Tests (`ctest`), imágenes y datos de referencia (`tests/golden`) |
 | `assets/` | Modelos, texturas y entornos HDRI de ejemplo |
-| `tools/` | Scripts auxiliares (generadores de modelos de prueba, informe de QA) |
+| `tools/` | Scripts auxiliares: generadores de modelos, informe de QA, `analyze_run.py`, `sweep.py` y el laboratorio web (`tools/lab/`) |
 | `docs/` | Documentación por temas e imágenes |
+
+## Ramas y carpetas: qué es la fuente de verdad
+
+- **`master`** es lo único que se considera estable: compila con avisos como errores y pasa `ctest`. Todo lo demás es trabajo en curso.
+- **`integracion/novedades`** es la rama de trabajo actual: progresión, vida social, telemetría, GBSim y laboratorio. Se fusiona a `master` cuando la suite está en verde.
+- Los documentos de `docs/` describen sistemas; el estado de la planificación vigente está en [docs/PLAN_JUGABILIDAD.md](docs/PLAN_JUGABILIDAD.md). Si un documento y el código discrepan, manda el código y el documento es un fallo a corregir.
+- Las carpetas de `build*`, `lab_runs/`, `anim_check/` y capturas son salidas locales y no se versionan.
+- Una rama o *worktree* no listado aquí es de otra persona o sesión: no lo borres sin preguntar.
 
 ## Documentación
 
