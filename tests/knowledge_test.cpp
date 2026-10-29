@@ -97,7 +97,7 @@ static void TestGating()
 	Check(recipes.Craft(items, copy, "flint_axe", "workbench", nullptr) && copy.Count("flint_axe") == 1, "nullptr knows everything (the old callers)");
 	size_t locked = 0;   // what the technologies not known at the start unlock (the Stone-Age tree, docs/PROGRESION.md)
 	for (const auto& [id, t] : techs.Techs) if (!t.Known) locked += t.Recipes.size();
-	Check(locked == 14 && recipes.Known(&known).size() + locked == recipes.Ids().size(), "fourteen recipes are locked: flint tools and spear, basket, mat, daub, stakes, leather and its bag, cooked and smoked meat, poultice, fired brick and the copper ingot");
+	Check(locked == 16 && recipes.Known(&known).size() + locked == recipes.Ids().size(), "sixteen recipes are locked: flint tools and spear, sword and bow, basket, mat, daub, stakes, leather and its bag, cooked and smoked meat, poultice, fired brick and the copper ingot");
 
 	TechTree gated = techs;   // a node only those who know a technology work
 	gated.Techs["flint_knapping"].Nodes = { "flint_outcrop" };

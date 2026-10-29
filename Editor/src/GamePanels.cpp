@@ -82,9 +82,16 @@ namespace GB::Editor
 				{
 					const Ray ray = ScreenRay(m_Camera, mouse / glm::vec2(w, h), w / h);
 					std::string picked = PickActor(ray);
+					std::string foe;
+					if (picked.empty()) picked = PickNode(ray);
 					if (picked.empty())
 						if (const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.Pick(ray)); e && m_Gameplay.Find(e->Name)) picked = e->Name;
-					m_Game.Selected = picked;   // (a click on nothing clears it)
+					// the left button strikes: a click on someone who is not of the clan (an animal, a stranger) attacks it, and one on empty ground
+					// with a foe in reach too; otherwise it selects (a click on nothing clears the selection)
+					const bool node = !picked.empty() && PickNode(ray) == picked;
+					if (!picked.empty() && !node && picked != m_Game.Player && !m_Tribe.FindMember(picked)) foe = picked;
+					if (m_Game.View != "top" && (!foe.empty() || picked.empty())) run(foe.empty() ? std::string("game attack") : "game attack " + foe);
+					if (foe.empty()) m_Game.Selected = picked;
 				}
 				m_Game.PressX = -1.0f;
 			}

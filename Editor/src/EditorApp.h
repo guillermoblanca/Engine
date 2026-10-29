@@ -118,6 +118,7 @@ namespace GB::Editor
 		void StepWorld(double clock);
 		void ApplySeasonLook(double clock);                      // weather, snow and foliage colour of the season                            // seasons, rain on the plots and the animals, once per simulation step
 		void DrawBag(const std::string& actorName);                // the inventory of a character, as a table
+		std::string PickNode(const struct Ray& ray) const;        // the resource node nearest to a viewport click ("" = none): a generous tolerance, nodes are small and thin
 		std::string PickActor(const struct Ray& ray) const;       // the character under a viewport click ("" = none)
 		void SelectActor(const std::string& name, bool focus);   // the character the Abilities and Tribe panels show
 		// saved games and replays (EditorSave.cpp)

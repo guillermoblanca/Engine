@@ -335,7 +335,7 @@ int main()
 		Check(!LoadCombatRules(R"({ "combat": { "duels": {} } })", keep).empty() && !LoadCombatRules(R"({ "combat": { "morale": { "courage": 1 } } })", keep).empty(), "an unknown part or key is refused");
 		Check(!LoadCombatRules(R"({ "combat": { "predators": { "wolf": { "tag": "Animal.Wolf", "prey": "babies" } } } })", keep).empty(), "an unknown kind of prey is refused");
 		Check(!LoadCombatRules(R"({ "combat": { "predators": { "wolf": { "tag": "Animal.Wolf", "weapon": "claws" } } } })", keep).empty(), "a predator with a weapon that does not exist is refused");
-		Check(!LoadCombatRules(R"({ "combat": { "unarmed": "sword" } })", keep).empty() && keep == DefaultCombatRules(), "an unarmed weapon that does not exist is refused");
+		Check(!LoadCombatRules(R"({ "combat": { "unarmed": "claws" } })", keep).empty() && keep == DefaultCombatRules(), "an unarmed weapon that does not exist is refused");
 		Check(LoadCombatRules(R"({ "items": [] })", keep).empty() && keep == DefaultCombatRules(), "a file without the section changes nothing");
 		CombatRules wolf = DefaultCombatRules();
 		Check(LoadCombatRules(R"({ "combat": { "predators": { "wolf": { "tag": "Animal.Wolf", "prey": "weak", "health": 60 } }, "hostile": [ [ "Clan", "Riverfolk" ] ] } })", wolf).empty()

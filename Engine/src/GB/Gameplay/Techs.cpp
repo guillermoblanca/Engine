@@ -69,7 +69,7 @@ namespace GB
 		add("cordage", "Cordage", 1, true, {}, { "cordage" });
 		add("flint_knapping", "Flint knapping", 1, false, { "cordage", "stone_tools" }, { "flint_axe", "flint_pickaxe" }, how(0.15f, 0.34f, 0.25f, 20.0f, 0.3f));
 		add("basketry", "Basketry", 1, false, { "cordage" }, { "basket_wicker" }, how(0.2f, 0.34f, 0.25f, 15.0f, 0.3f));
-		add("spear_making", "Hafted spears", 1, false, { "flint_knapping" }, { "flint_spear" }, how(0.12f, 0.3f, 0.25f, 20.0f, 0.3f));
+		add("spear_making", "Hafted spears", 1, false, { "flint_knapping" }, { "flint_spear", "flint_sword", "hunting_bow" }, how(0.12f, 0.3f, 0.25f, 20.0f, 0.3f));
 		add("hide_working", "Hide working", 1, false, { "flint_knapping" }, { "leather", "leather_bag" }, how(0.1f, 0.3f, 0.25f, 25.0f, 0.3f));
 		builds("hide_working", { "hide_frame" });
 		add("cooking", "Cooking", 1, false, { "fire_making" }, { "cooked_meat" }, how(0.2f, 0.34f, 0.3f, 15.0f, 0.2f));
