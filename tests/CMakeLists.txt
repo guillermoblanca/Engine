@@ -273,7 +273,7 @@ target_link_libraries(GBWorldResourcesTests PRIVATE GB::GB)
 add_test(NAME world_resources COMMAND GBWorldResourcesTests)
 
 add_executable(GBTribeTests tribe_test.cpp)
-target_link_libraries(GBTribeTests PRIVATE GB::GB)
+target_link_libraries(GBTribeTests PRIVATE GB::GB sqlite3)
 target_compile_definitions(GBTribeTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME tribe COMMAND GBTribeTests)
 

@@ -5,6 +5,13 @@ target_include_directories(glad SYSTEM PUBLIC vendor/glad/include)
 add_library(ufbx STATIC ${ufbx_SOURCE_DIR}/ufbx.c)
 target_include_directories(ufbx SYSTEM PUBLIC ${ufbx_SOURCE_DIR})
 
+# SQLite is third-party C code: its own target, so the engine's warning flags do not apply to it.
+add_library(sqlite3 STATIC ${sqlite3_SOURCE_DIR}/sqlite3.c)
+target_include_directories(sqlite3 SYSTEM PUBLIC ${sqlite3_SOURCE_DIR})
+target_compile_definitions(sqlite3 PRIVATE SQLITE_THREADSAFE=1 SQLITE_OMIT_LOAD_EXTENSION)
+find_package(Threads REQUIRED)
+target_link_libraries(sqlite3 PUBLIC Threads::Threads)
+
 add_library(GB STATIC
     src/GB/Application.cpp
     src/GB/Game/CharacterController.cpp
@@ -56,6 +63,8 @@ add_library(GB STATIC
     src/GB/Game/TribeSociety.cpp
     src/GB/Game/SimQA.cpp
     src/GB/Game/Chronicle.cpp
+    src/GB/Telemetry/TelemetrySink.cpp
+    src/GB/Game/TribeTelemetry.cpp
     src/GB/Game/Settlement.cpp
     src/GB/Game/GameContent.cpp
     src/GB/Game/TribeClans.cpp
@@ -156,7 +165,7 @@ add_library(GB::GB ALIAS GB)
 target_include_directories(GB PUBLIC src)
 find_package(Threads REQUIRED)
 target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw Threads::Threads ${CMAKE_DL_LIBS})
-target_link_libraries(GB PRIVATE ufbx)
+target_link_libraries(GB PRIVATE ufbx sqlite3)
 target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include ${miniaudio_SOURCE_DIR})
 # glm is header-only; added as SYSTEM so its headers do not trip our warning flags.
 target_include_directories(GB SYSTEM PUBLIC ${glm_SOURCE_DIR})

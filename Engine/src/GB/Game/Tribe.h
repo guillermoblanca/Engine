@@ -34,6 +34,7 @@
 
 namespace GB
 {
+	class TelemetrySink;
 	// The first tribe (H2 + H3 put together, now driven by the brain of H5 + H6): a handful of workers with a role each who, with no one steering them,
 	// gather, carry to a shared store, make their tools there and light a campfire. It is the simplest "society": the same abilities, items and resource
 	// nodes the player uses, so what a worker does is what the player could do. Deterministic: ties go to the first option and nothing is random.
@@ -374,6 +375,10 @@ namespace GB
 		// What the clan has lived through, row by row (Chronicle.h): `tribe chronicle`. It records by itself while the tribe is updated.
 		Chronicle& Record() { return m_Chronicle; }
 		const Chronicle& Record() const { return m_Chronicle; }
+		// The telemetry of a run (GB/Telemetry/TelemetrySink.h): a row per member and per clan every `every` simulation seconds, the sheet of each individual when it
+		// is first seen and every event. The sink belongs to the host and nothing reads it back, so the run is the same with it or without it. Null = off.
+		void SetTelemetry(TelemetrySink* sink, int clanId = 0, double every = 60.0);
+		TelemetrySink* Telemetry() const { return m_Telemetry; }
 		// Starts a site of a building at a place (the planner does this by itself); "" or why not. The name is "<Name> <n>".
 		std::string StartSite(const std::string& building, const glm::vec2& at, std::string* name = nullptr);
 
@@ -729,6 +734,12 @@ namespace GB
 		Inventory m_Store{ 40, 0.0f };
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;
+		TelemetrySink* m_Telemetry = nullptr;   // not owned
+		int m_TelemetryClan = 0;
+		double m_TelemetryEvery = 60.0, m_TelemetryNext = 0.0;
+		std::set<std::string> m_TelemetryKnown;   // the members whose sheet is written
+		void EmitTelemetry();
+		void EmitEvent(const char* kind, const std::string& who, const std::string& other, const std::string& result, const std::string& text);
 		double m_Time = 0.0, m_Clock = 0.0;
 		bool m_ClockSet = false;
 		float m_Think = 0.0f, m_NeedTimer = 0.0f, m_UpkeepTimer = 0.0f, m_SpoilTimer = 0.0f;

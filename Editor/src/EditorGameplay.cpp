@@ -1688,4 +1688,38 @@ namespace GB::Editor
 		}
 		ImGui::End();
 	}
+	CommandResult EditorApp::TelemetryCommand(const std::vector<std::string>& a)
+	{
+		const std::string sub = a.empty() ? "status" : a[0];
+		auto status = [&]
+		{
+			if (!m_Telemetry.Active()) return std::string("the telemetry is off (telemetry start <file.db>)");
+			const TelemetryStats s = m_Telemetry.Stats();
+			return "the telemetry writes to " + m_Telemetry.Path() + " (run " + std::to_string(m_Telemetry.RunId()) + "): " + std::to_string(s.SamplesWritten) + " samples, "
+				+ std::to_string(s.EventsWritten) + " events, " + std::to_string(s.SamplesDropped) + " samples dropped, " + std::to_string(s.WriteErrors) + " write errors";
+		};
+		if (sub == "status") return { true, status() };
+		if (sub == "stop")
+		{
+			if (!m_Telemetry.Active()) return { true, status() };
+			m_Clans.SetTelemetry(nullptr);
+			const std::string path = m_Telemetry.Path();
+			m_Telemetry.Stop(m_Clans.Time());
+			return { true, "telemetry stopped: " + path };
+		}
+		if (sub == "start")
+		{
+			if (a.size() < 2) return { false, "telemetry start <file.db> [every seconds]" };
+			double every = 60.0;
+			if (a.size() > 2) try { every = std::stod(a[2]); } catch (...) { return { false, "every wants a number of seconds" }; }
+			TelemetryRunInfo info;
+			info.Seed = static_cast<int64_t>(m_WorldDesc.Seed);
+			info.Note = "editor";
+			const std::string why = m_Telemetry.Start(a[1], info);
+			if (!why.empty()) return { false, why };
+			m_Clans.SetTelemetry(&m_Telemetry, every);
+			return { true, "telemetry started: " + a[1] + ", a row per member and clan every " + std::to_string(static_cast<int>(every)) + " simulation seconds" };
+		}
+		return { false, "telemetry start <file.db> [every seconds] | stop | status" };
+	}
 }

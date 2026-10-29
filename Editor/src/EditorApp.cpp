@@ -180,6 +180,8 @@ namespace GB::Editor
 		m_StrictScript = !options.GetValue("strict").empty();
 		const std::string quality = options.GetValue("quality");
 		if (!quality.empty()) SetQuality(quality);
+		const std::string telemetry = options.GetValue("telemetry");
+		if (!telemetry.empty()) { const CommandResult r = TelemetryCommand({ "start", telemetry }); if (!r.Ok) GB_CLIENT_ERROR("{}", r.Message); }
 		const std::string exec = options.GetValue("exec");
 		if (!exec.empty()) RunScript(exec);
 		const std::string script = options.GetValue("script");
@@ -1034,6 +1036,7 @@ namespace GB::Editor
 		c.Register("combat", "combat status [name] | log [n] | hurt <name> <health> [severity] | fight <a> <b> | flee <a> <b> | stop <name>: the fights of the world (H14): who fights or flees whom, health, stamina, morale, wounds; hurt wounds a character, fight sets one on another (a member's clan then decides)", [this](const std::vector<std::string>& a) { return CombatCommand(a); });
 		c.Register("hostile", "hostile [a b [0-1]]: who is hostile to whom (clans, animal tags such as Animal.Fox), the grievances and the camps; with a pair, sets how hostile they are to each other (0 makes peace)", [this](const std::vector<std::string>& a) { return HostileCommand(a); });
 		c.Register("raid", "raid <clan> | status: sends the tribe to raid a hostile clan's camp (it steals from the store, food first, and comes back), or says how its raid goes; the clan also weighs raids by itself (boldness, hunger, grievance)", [this](const std::vector<std::string>& a) { return RaidCommand(a); });
+		c.Register("telemetry", "telemetry start <file.db> [every seconds] | stop | status: writes what happens to every individual of every clan (needs, place, job, skills, events) to a SQLite file by a thread of its own, for analysis; --telemetry=<file.db> starts it with the editor", [this](const std::vector<std::string>& a) { return TelemetryCommand(a); });
 		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | remove <name> | clear: the first tribe: workers (named from the data, their trades shared out by the clan's needs) gather, carry to a store, make tools and light a campfire by themselves; they get better at what they practise and take jobs from the clan's board", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("qa", "qa sim [days] [members] | check | status | reset | expect \"<command>\" <regex>: simulation QA (H20): `sim` runs the current scene (its tribe, or a new one) headless for days and checks every invariant at every step (counts, claims, stuck members, deaths, store, fire, positions, ground, job board, skills, knowledge, expeditions, migration, society), `check` checks the live scene now, `status` what the live monitor has seen (QA panel), `expect` fails unless a command's answer matches (for scripted demos)", [this](const std::vector<std::string>& a) { return QaCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });

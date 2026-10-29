@@ -4,6 +4,7 @@
 #include "ImGuiLayer.h"
 #include "LogBuffer.h"
 #include "PlayerMode.h"
+#include "GB/Telemetry/TelemetrySink.h"
 #include "GameView.h"
 #include "GameMode.h"
 #include "Properties.h"
@@ -132,6 +133,7 @@ namespace GB::Editor
 		void StepResources();                                    // tools as tags and depleted nodes, once per simulation step
 		CommandResult ResourcesCommand(const std::vector<std::string>& a);
 		CommandResult TribeCommand(const std::vector<std::string>& a);
+		CommandResult TelemetryCommand(const std::vector<std::string>& a);
 		// H12 (EditorExplore.cpp): the regions of the generated world, kept in step with it and handed to the tribe; `region list|info`.
 		void SyncRegions();
 		CommandResult RegionCommand(const std::vector<std::string>& a);
@@ -233,6 +235,7 @@ namespace GB::Editor
 		// H13 (EditorClans.cpp): every clan of the world; clan 0 is m_Tribe (the first tribe, saved in the "ai" section as before), the others are
 		// kept by the clan world (`clan new`) and saved in the "clans" section. `clan select` chooses the one the Tribe panel and `tribe` reports show.
 		ClanWorld m_Clans;
+		TelemetrySink m_Telemetry;                               // the telemetry of the run (`telemetry start <file>`, --telemetry=<file>): see docs/DATOS_INDIVIDUO.md
 		ClanHostility m_ClanHostility;                           // H14: the hostility of the fights from the clans' diplomacy (the table for the rest)
 		// The visual layer (EditorVisuals.cpp, docs/VISUALES.md): node, building and creature looks from assets/data/visuals.json (the "visuals" section of
 		// the packs) drawn by the EntityRenderer's hook, and the tribe director (props, activity montages, reach, fields and piles) for every clan.

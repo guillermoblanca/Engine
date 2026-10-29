@@ -75,6 +75,7 @@ namespace GB
 		};
 		for (const SocietyEvent& e : events)
 		{
+			if (m_Telemetry) EmitEvent(e.Kind.c_str(), e.Who, e.Other, std::string(), e.Text);
 			if (e.Kind == "death")
 			{
 				if (TribeMember* m = member(e.Who); m && !m->Dead) Die(*m, e.Text);   // (Die tells the society, which knows already)

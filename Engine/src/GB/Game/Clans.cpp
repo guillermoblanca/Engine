@@ -108,6 +108,15 @@ namespace GB
 		o.Gathered = [this, id](Tribe& t, const TribeMember& m, const std::string& node, int) { Gathered(id, t, m, node); };
 		c.Folk->SetOutside(std::move(o));
 		c.Folk->SetNameTaken([this](const std::string& n) { return NameTaken(n); });
+		if (m_Telemetry) c.Folk->SetTelemetry(m_Telemetry, id, m_TelemetryEvery);
+	}
+
+	void ClanWorld::SetTelemetry(TelemetrySink* sink, double every)
+	{
+		m_Telemetry = sink;
+		m_TelemetryEvery = every;
+		for (auto& c : m_Clans)
+			if (c->Folk) c->Folk->SetTelemetry(sink, c->Id, every);
 	}
 
 	void ClanWorld::Unhook(Clan& c)
@@ -116,6 +125,7 @@ namespace GB
 		c.Folk->SetOutside(TribeOutside());
 		c.Folk->SetNameTaken(nullptr);
 		c.Folk->SetThinkBudget(-1);   // (a tribe the host keeps thinks by its own rule again)
+		if (m_Telemetry && c.Folk->Telemetry() == m_Telemetry) c.Folk->SetTelemetry(nullptr);
 	}
 
 	bool ClanWorld::Remove(ClanId id)

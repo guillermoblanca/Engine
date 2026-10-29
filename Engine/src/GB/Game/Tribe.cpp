@@ -459,6 +459,8 @@ namespace GB
 		m_Claims.clear();
 		m_Log.clear();
 		m_Chronicle.Clear();
+		m_TelemetryKnown.clear();
+		m_TelemetryNext = 0.0;
 		m_Store = Inventory(40, 0.0f);
 		m_Time = 0.0;
 		m_Clock = 0.0;
@@ -586,6 +588,7 @@ namespace GB
 		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
 		m_Log.push_back(t + m.Name + " (" + m.Role + ") " + text);
 		m_Chronicle.Event(m_Time, m.Name, text);
+		if (m_Telemetry) EmitEvent("say", m.Name, std::string(), std::string(), text);
 		if (static_cast<int>(m_Log.size()) > Config.LogLines + Config.LogLines / 4)   // a ring: the oldest quarter goes at once
 			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.LogLines)));
 	}
@@ -946,6 +949,7 @@ namespace GB
 		m_Cost.ThinkMs = 0.0;
 		m_Time += static_cast<double>(dt);
 		if (m_Chronicle.Due(m_Time)) RecordRow();
+		if (m_Telemetry && m_Time + 1e-6 >= m_TelemetryNext) EmitTelemetry();
 		// (H16: the milliseconds of each part, for `stats ai` and the scale tests; laps of the wall clock, never read by the simulation)
 		auto mark = std::chrono::steady_clock::now();
 		auto lap = [&mark](double& into)
@@ -1747,6 +1751,11 @@ namespace GB
 		m.Why.clear();
 		m.Mind.Orders.clear();
 		const std::string reason = job != "rest" && HasFailed(m) ? WhyFailed(m) : std::string();
+		if (m_Telemetry && !job.empty() && job != "rest")   // how every task ended: the base of the loops and repetitions the analysis looks for (a rest is no task: the samples show who idles)
+		{
+			const char* result = reason.empty() ? (job != "rest" && HasFailed(m) ? "failed" : "ok") : reason.find("Depleted") != std::string::npos ? "empty" : reason.find("cannot get next to") != std::string::npos ? "unreachable" : "failed";
+			EmitEvent("task_end", m.Name, job, result, m.Detail + (reason.empty() ? std::string() : ": " + reason));
+		}
 		if (!reason.empty() && job == "gather" && reason.find("Depleted") != std::string::npos)   // someone (or the rabbits) emptied it on the way: not a fault
 		{
 			if (const MemoryEntry* e = m.Mind.Memory.Find(m.Detail)) m.Mind.Memory.Observe({ e->Name, e->Kind, e->Pos, 0, m_Time, false });

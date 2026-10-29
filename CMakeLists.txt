@@ -59,6 +59,11 @@ FetchContent_Declare(miniaudio
     GIT_TAG 0.11.22
     GIT_SHALLOW TRUE)
 
+# SQLite (amalgamation, pinned by hash): the telemetry of a run is written to one .db file (docs/DATOS_INDIVIDUO.md).
+FetchContent_Declare(sqlite3
+    URL https://www.sqlite.org/2024/sqlite-amalgamation-3450100.zip
+    URL_HASH SHA256=5592243caf28b2cdef41e6ab58d25d653dfc53deded8450eb66072c929f030c4)
+
 # Dear ImGui (docking branch, pinned): only the sources are used, the Editor builds them itself.
 FetchContent_Declare(imgui
     GIT_REPOSITORY https://github.com/ocornut/imgui.git
@@ -71,6 +76,10 @@ if(GB_BUILD_EDITOR)
     if(NOT imgui_POPULATED)
         FetchContent_Populate(imgui)
     endif()
+endif()
+FetchContent_GetProperties(sqlite3)
+if(NOT sqlite3_POPULATED)
+    FetchContent_Populate(sqlite3)
 endif()
 FetchContent_GetProperties(ufbx)
 if(NOT ufbx_POPULATED)

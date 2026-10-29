@@ -66,6 +66,9 @@ namespace GB
 			double TribesMs = 0.0, DiplomacyMs = 0.0, ThinkMs = 0.0;   // (ThinkMs: of TribesMs, the turns at deciding)
 		};
 		const FrameCost& LastCost() const { return m_Cost; }
+		// The telemetry of the run (GB/Telemetry/TelemetrySink.h): every clan, present and future, writes to the sink under its own id. Null = off.
+		void SetTelemetry(TelemetrySink* sink, double every = 60.0);
+		TelemetrySink* Telemetry() const { return m_Telemetry; }
 
 		ClanWorld() = default;
 		ClanWorld(const ClanWorld&) = delete;
@@ -195,6 +198,8 @@ namespace GB
 		static PairKey Key(ClanId a, ClanId b) { return a < b ? PairKey(a, b) : PairKey(b, a); }
 		ClanRelation& RelationRef(ClanId a, ClanId b);
 		void Hook(Clan& clan);
+		TelemetrySink* m_Telemetry = nullptr;   // not owned
+		double m_TelemetryEvery = 60.0;
 		void Unhook(Clan& clan);
 		void Emit(const std::string& kind, ClanId a, ClanId b, const std::string& text);
 		std::string ClanName(ClanId id) const;

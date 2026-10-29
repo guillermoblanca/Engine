@@ -6,10 +6,13 @@
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Navigation/NavGrid.h"
+#include "GB/Telemetry/TelemetrySink.h"
 #include <algorithm>
 #include <cmath>
+#include <filesystem>
 #include <memory>
 #include <cstdio>
+#include <sqlite3.h>
 #include <sstream>
 
 namespace
@@ -394,6 +397,77 @@ int main()
 		t.Update(1.0f);
 		Check(!t.Record().Rows().empty() && t.Record().Rows().front().Members.size() == 3, "the chronicle takes its first row, with the three members");
 		Check(t.Record().Markdown().find("## Members") != std::string::npos && t.Record().Csv().find("member,role,job") != std::string::npos, "and writes the report and the series");
+	}
+
+	// ---- the telemetry: one SQLite file per run (docs/DATOS_INDIVIDUO.md)
+	{
+		const std::filesystem::path dir = std::filesystem::temp_directory_path();
+		const std::string file = (dir / "gb_telemetry_test.db").string();
+		for (const char* ext : { "", "-wal", "-shm" }) std::filesystem::remove(file + ext);
+		auto scalar = [&file](const std::string& sql) -> std::string
+		{
+			sqlite3* h = nullptr;
+			std::string out = "?";
+			if (sqlite3_open_v2(file.c_str(), &h, SQLITE_OPEN_READONLY, nullptr) == SQLITE_OK)
+			{
+				sqlite3_stmt* s = nullptr;
+				if (sqlite3_prepare_v2(h, sql.c_str(), -1, &s, nullptr) == SQLITE_OK && sqlite3_step(s) == SQLITE_ROW)
+					out = reinterpret_cast<const char*>(sqlite3_column_text(s, 0));
+				sqlite3_finalize(s);
+			}
+			sqlite3_close(h);
+			return out;
+		};
+		Village without;
+		without.Run(600.0);
+		Village with;
+		TelemetrySink sink;
+		sink.FlushSeconds = 0.05;
+		TelemetryRunInfo info;
+		info.Seed = 7;
+		info.Profile = "test";
+		Check(sink.Start(file, info).empty() && sink.Active() && sink.RunId() == 1, "the telemetry opens its file and starts run 1");
+		with.Tribe_.SetTelemetry(&sink, 3);
+		with.Run(600.0);
+		Check(without.Fingerprint() == with.Fingerprint() && !with.bad, "a run ends in the same state with the telemetry on or off");
+		const size_t said = with.Tribe_.Log().size();
+		sink.Stop(600.0);
+		Check(!sink.Active() && sink.Stats().WriteErrors == 0, "it stops cleanly, with no write errors");
+		Check(scalar("PRAGMA integrity_check") == "ok", "and the file passes the integrity check");
+		Check(scalar("SELECT closed FROM runs WHERE run_id = 1") == "1" && scalar("SELECT sim_seconds FROM runs WHERE run_id = 1") == "600.0", "the run is closed with its length");
+		Check(scalar("SELECT COUNT(*) FROM individuals WHERE clan_id = 3") == "4", "each member has its sheet, under the clan the host gave");
+		Check(scalar("SELECT COUNT(*) FROM clan_samples") == "10" && scalar("SELECT COUNT(*) FROM samples") == "40", "a clan row and a row per member every 60 s");
+		Check(scalar("SELECT COUNT(*) FROM events WHERE kind = 'say'") == std::to_string(said) && said > 0, "an event of kind say for every line of the log");
+		Check(scalar("SELECT COUNT(*) FROM events WHERE kind = 'task_end'") != "0" && scalar("SELECT COUNT(*) FROM events WHERE kind = 'task_end' AND result = 'ok'") != "0", "and the end of every task, with its result");
+		Check(scalar("SELECT COUNT(*) FROM samples WHERE hunger >= 0 AND x IS NOT NULL AND skills LIKE '{%'") == "40", "the samples carry the needs, the place and the skills");
+
+		// a full queue loses samples, never events
+		for (const char* ext : { "", "-wal", "-shm" }) std::filesystem::remove(file + ext);
+		TelemetrySink small;
+		small.SampleCapacity = 5;
+		small.FlushSeconds = 0.05;
+		Check(small.Start(file).empty(), "a second sink opens a fresh file");
+		small.HoldWriter(true);
+		for (int i = 0; i < 100; ++i)
+		{
+			TelemetrySample s;
+			s.Member = "Ana";
+			s.Time = i;
+			small.Sample(s);
+		}
+		for (int i = 0; i < 10; ++i)
+		{
+			TelemetryEvent e;
+			e.Kind = "say";
+			e.Time = i;
+			small.Event(e);
+		}
+		Check(small.Stats().SamplesDropped == 95, "with the writer behind, the samples past the queue are dropped and counted");
+		small.Stop();
+		Check(scalar("SELECT COUNT(*) FROM samples") == "5" && scalar("SELECT COUNT(*) FROM events") == "10", "and the events all arrive");
+		Check(scalar("SELECT samples_dropped FROM runs") == "95" && scalar("SELECT events_written FROM runs") == "10", "the run says how much was dropped");
+		small.Stop();   // twice is harmless
+		for (const char* ext : { "", "-wal", "-shm" }) std::filesystem::remove(file + ext);
 	}
 
 	AbstractOnTheGrid();
