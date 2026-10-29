@@ -68,6 +68,9 @@ o por experimentación con ingredientes alcanzables y sus requisitos descubrible
 
 ## Lo que ya encontró
 
+- La progresión de la Edad de Piedra ([PROGRESION.md](PROGRESION.md)) completa la cadena del cobre (alfarería → horno → ladrillo cocido → forja → fundición), así que
+  `era1` ya no difiere nada; da `hide` (la piel de la caza) igual que da `meat`. Una tecnología se puede probar con una receta cuya estación da un edificio que ella misma
+  desbloquea (la cocina y su hogar, la fundición y su forja): en el juego el intento solo necesita los materiales.
 - La tribu no puede conseguir su primera madera ni su primera piedra sin herramientas: talar pide hacha y picar pico, y ambos piden madera y piedra. Funciona porque
   `tribe build` deja una reserva inicial; `era1` lo declara en `given`.
 - `era1_ampliado` tenía troncos (`log`) que nada daba, y por tanto tablones imposibles: se añade el nodo `fallen_trunk` (con hacha). Grano, bayas secas, adobe y hacha

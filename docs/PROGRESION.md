@@ -64,8 +64,8 @@ intento (crece un 50 % de lo base por cada fallo, `knowledge.growth`), `s` lo qu
 | Herramientas | `bone_working` Bone working (ampliado) | 1 | cordage, stone_tools | `bone_pickaxe` | 0,2 / 0,34 / 0,25 / 20 |
 | Hierbas | `herb_lore` Herb lore | 1 | — | `poultice`; edificio `healer_hut` | 0,15 / 0,3 / 0,25 / 20 |
 | Rito | `ritual` Rites (idea) | 1 | fire_making | edificio `totem` | 0,06 / 0 / 0,3 / 30 |
-| Era 2 | `pottery` Pottery | 2 | fire_making, wattle_and_daub | `fired_brick`; edificio `kiln` | 0,05 / 0,2 / 0,15 / 40 |
-| Era 2 | `smelting` Smelting | 2 | pottery, flint_knapping | `copper_ingot`; edificio `forge` | 0,05 / 0,2 / 0,1 / 40 |
+| Era 2 | `pottery` Pottery | 2 | fire_making, wattle_and_daub | `fired_brick`; edificio `kiln` | 0,01 / 0,2 / 0,15 / 60 |
+| Era 2 | `smelting` Smelting | 2 | pottery, flint_knapping | `copper_ingot`; edificio `forge` | 0,01 / 0,2 / 0,1 / 60 |
 
 Veinte tecnologías: dieciséis en `era1` (tres conocidas), dos en `era1_ampliado` y dos de la era 2 en `era1`.
 

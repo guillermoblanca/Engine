@@ -1442,7 +1442,7 @@
       "name": "building"
     },
     {
-      "help": "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)",
+      "help": "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera free | top | follow [member]: walk over the ground with WASD (Q/E turn, Shift runs, the wheel zooms to the cursor), look straight down, or orbit a tribe member (keys F and T in the viewport). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)",
       "name": "camera"
     },
     {
@@ -1656,6 +1656,10 @@
     {
       "help": "new_scene: an empty scene (camera and sun only, no generated world); same as `scene new`",
       "name": "new_scene"
+    },
+    {
+      "help": "overlay [on|off]: draws the clan's fields (one colour per plot state), stockpiles and, over each member, its name, trade and what it is doing",
+      "name": "overlay"
     },
     {
       "help": "pack list | load <id|manifest.json> [strict] | check: the eras as data packs (assets/data/<id>.pack.json: its content files, the packs it depends on, what is given, the stations, the known gaps). load loads the missing dependencies first, all or nothing, and checks that every item and recipe can be had (strict: a problem refuses the load); era1 is loaded at start",
@@ -2524,6 +2528,22 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.herb_patch",
+      "periodSeconds": 60.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.old_tree",
       "periodSeconds": 120.0,
       "policy": "infinite",
@@ -2750,7 +2770,7 @@
           "name": "Regrow"
         }
       ],
-      "count": 65,
+      "count": 66,
       "example": "berry bush 1",
       "kind": "Nodo de recurso",
       "tags": [
@@ -2762,6 +2782,7 @@
         "Resource.Node.copper_vein",
         "Resource.Node.fiber_grass",
         "Resource.Node.flint_outcrop",
+        "Resource.Node.herb_patch",
         "Resource.Node.old_tree",
         "Resource.Node.reed_bed",
         "Resource.Node.rock",
@@ -2769,6 +2790,7 @@
         "Resource.Node.young_tree",
         "Resource.Plant",
         "Resource.Plant.Branch",
+        "Resource.Plant.Herb",
         "Resource.Stone",
         "Resource.Stone.Copper",
         "Resource.Stone.Flint",

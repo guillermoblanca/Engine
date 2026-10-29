@@ -26,12 +26,14 @@ global de azar). Tests: `tests/knowledge_test.cpp` (datos, puertas, descubrimien
 
 - `known`: se sabe desde el principio de la era (todo agente que se une al clan la sabe).
 - `requires`: tecnologías que hay que saber antes de poder descubrir o aprender esta.
-- `recipes` / `nodes` / `buildings`: lo que desbloquea. **Una receta o un nodo que ninguna tecnología nombra es saber común**: todos lo hacen, como antes de H11. Si varias nombran la misma receta, basta con saber una. Los edificios son nombres hasta E9.
+- `recipes` / `nodes` / `buildings`: lo que desbloquea. **Una receta o un nodo que ninguna tecnología nombra es saber común**: todos lo hacen, como antes de H11. Si varias nombran la misma receta, basta con saber una. Los edificios son ids de la sección `buildings` (H8).
 - `discovery`: `experiment` (probabilidad de un intento, 0 = no se descubre probando), `observe` (comprensión que da ver a alguien usarla), `teach` (comprensión por lección), `seconds` (lo que dura un intento) y `waste` (probabilidad de que un intento fallido estropee una unidad del primer ingrediente).
 - Reglas del clan: cada cuánto hay lección en el campamento, a qué distancia se ve trabajar a otro, cuánto crece la probabilidad con cada fallo y la semilla.
 
-`era1.json` trae seis: piedra, fuego y cordel (conocidas: la tribu hace lo mismo que antes), tallado de sílex y cestería (se descubren) y fundición (era 2,
-diferida hasta la forja). `era1_ampliado.json` añade `bone_working` y `tillage`. `DefaultTechs()` dice lo mismo que `era1.json` (lo comprueba el test).
+`era1.json` trae el árbol de la Edad de Piedra ([PROGRESION.md](PROGRESION.md)): dieciocho tecnologías, tres conocidas (piedra, fuego y cordel: la tribu hace lo
+mismo que antes), trece de la era 1 por descubrir (sílex, lanzas, pieles, cocina, ahumado, cestería, esteras, barro, entramado, empalizadas, almacén de comida, hierbas
+y ritos) y dos de la era 2 (alfarería y fundición, con su horno y su forja: ya no se difiere nada). `era1_ampliado.json` añade `bone_working` y `tillage`.
+`DefaultTechs()` dice lo mismo que `era1.json` (lo comprueba el test).
 
 La sección se carga **dentro de la sección `items`** del registro de paquetes (`ItemContentSection(items, recipes, nodes, techs)`, o `AddGameContentSections(...,
 &techs)`): el validador necesita a la vez los objetos, las recetas, los nodos y las tecnologías de la misma carga. Es atómica: una tecnología mal escrita
@@ -47,7 +49,8 @@ rechaza el documento entero, objetos incluidos.
 ## Descubrimiento (E5)
 
 1. **Experimentar**: un miembro que tiene en el almacén o en la mochila los ingredientes de una receta de una tecnología que no sabe (y sabe lo que esta
-   requiere) añade la opción `experiment`: va al campamento y trabaja `seconds`. Cada intento acierta con `experiment × (1 + growth × fallos)`; la tirada es un hash
+   requiere) añade la opción `experiment`: va al campamento y trabaja `seconds`. Una **idea** (una tecnología sin recetas: entramado, almacén de comida, ritos) se prueba
+   sin materiales, pero solo cuando no tiene a mano los de ninguna otra, y entre ideas la menos probada: así una idea siempre disponible no tapa al resto. Cada intento acierta con `experiment × (1 + growth × fallos)`; la tirada es un hash
    de la semilla, el nombre, la tecnología y el número de intento. Vale 0,2 (curiosidad, poco más que descansar) o 1,1 si la tecnología le daría la
    herramienta de su oficio que no tiene. Tras un intento espera `seconds` antes del siguiente. Cada intento cuenta como práctica de `crafting` (aptitudes de H7),
    y un miembro solo cambia a un oficio cuya herramienta no lleva si sabe fabricarla (`TribeWork`).
@@ -63,7 +66,7 @@ forgets Basketry: nobody alive knows it any more».
 
 `CheckReachability` con tecnologías: una receta o un nodo bloqueado solo es alcanzable si alguna de sus tecnologías se puede descubrir. Una tecnología se puede
 descubrir si es conocida, o si todo lo que requiere se puede y se puede probar (`experiment` > 0 y alguna de sus recetas tiene ingredientes, herramienta y estación
-alcanzables, o no desbloquea recetas). Observar y enseñar necesitan a alguien que ya la sepa, así que por sí solos no descubren nada. Problemas nuevos: tecnologías
+alcanzables, o no desbloquea recetas; la estación que da un edificio de esa misma tecnología cuenta, porque el intento no la necesita). Observar y enseñar necesitan a alguien que ya la sepa, así que por sí solos no descubren nada. Problemas nuevos: tecnologías
 que requieren o desbloquean ids que no existen y tecnologías que nunca se descubren (por ejemplo, el sílex detrás del tallado de sílex probado con sílex). Lo
 diferido del paquete (`deferred`) sigue siendo nota: `era1` difiere `smelting`.
 
