@@ -37,7 +37,10 @@ La sección `buildings` de `assets/data/era1.json` (la lee la sección `items` d
 
 - `phases`: en orden; cada una pide sus materiales (`needs`), sus segundos de trabajo (`work`) y su aspecto (`part`: `slab`, `posts`, `walls`, `roof`, `table`, `rack`).
 - Lo que da cuando está en pie: `shelter` (camas), `rest` y `warmth` (descanso y abrigo por segundo a quien duerme dentro), `store` (un tipo de almacén secundario de la economía, H18: `stockpile`)
-  y `station` (las recetas con esa estación se pueden hacer allí).
+  y `station` (las recetas con esa estación se pueden hacer allí). Y las **provisiones genéricas** de la progresión ([PROGRESION.md](PROGRESION.md)): `storeCap` (más tope por objeto
+  en el almacén principal), `keep` (factor de caducidad del almacén principal: cuenta el menor), `defense` (incursiones, H14), `healing` (las heridas se curan `1 + healing` veces más
+  rápido a su alcance), `culture` (compañía por segundo a su alcance), `aura` (metros más allá de la huella a los que llegan abrigo sin camas, compañía y curación) y `supersedes`
+  (edificios que el clan deja de levantar para camas cuando puede levantar este).
 - **Tecnologías (H11).** Un edificio está bloqueado por las tecnologías que lo nombran en su lista `buildings` (`TechDef::Buildings`, por id o por nombre) y por su propio
   `tech` (opcional). El clan puede planearlo cuando un miembro vivo conoce una de ellas (`ClanKnowledge`), o si nada lo bloquea. Sin tecnologías cargadas decide
   `Tribe::SetTechCheck` (sin ella, uno bloqueado nunca se planea). El validador, con tecnologías, solo da por construible un edificio cuyo desbloqueo se puede descubrir
@@ -52,8 +55,9 @@ La sección `buildings` de `assets/data/era1.json` (la lee la sección `items` d
 | `workbench` (banco de trabajo) | banco (3 madera y 2 piedra, 8 s) | estación `workbench` |
 | `drying_rack` (secadero) | armazón (4 ramas, 6 s), rejilla (3 fibra, 6 s) | estación `drying_rack` (bayas secas, adobe de `era1_ampliado`) |
 
-Los costes de la propuesta (tablones, ladrillos, cordel) se han cambiado por materiales que la tribu de la era 1 ya recoge sin fabricar nada (piedra, madera, ramas,
-juncos y fibra): la tribu todavía no fabrica productos intermedios. Corral, taller y horno (E10) son unas líneas más de datos cuando haya qué hacer con ellos.
+Esos cuatro son saber común. Los doce de la progresión (cabaña, casa larga, silo, granero, hogar comunal, ahumadero, curtiduría, choza del curandero, tótem, empalizada, y el
+horno y la forja de la era 2) tienen su tecnología, sus fases y lo que dan en [PROGRESION.md](PROGRESION.md) §4. Sus fases piden lo que se recoge o intermedios de recetas que
+la tribu ya sabe (barro, esteras, estacas, pomada, ladrillo cocido). Corral: no hay animales de cría.
 
 ## La obra
 
@@ -68,7 +72,8 @@ Todos los actores tienen `Build` concedida (como `Stoke` o `DrawWater`).
 
 ## Qué construye el clan y cómo
 
-Cada `PlanSeconds` (10 s), con la hoguera hecha y las herramientas listas (como antes), y si hay menos de `MaxSites` (1) obras abiertas, `BuildingNeeds()` puntúa:
+Cada `PlanSeconds` (10 s), con la hoguera hecha y las herramientas listas (como antes), y si hay menos obras abiertas de las que permite `economy.construction` (una por cada
+`membersPerSite` = 4 miembros vivos, como mucho `maxSites` = 3: un clan de cuatro sigue con una), `BuildingNeeds()` puntúa:
 
 | Necesidad | Urgencia |
 |---|---|
@@ -76,8 +81,15 @@ Cada `PlanSeconds` (10 s), con la hoguera hecha y las herramientas listas (como 
 | El almacén principal está lleno de algo (`StoreCap() - 2`, H18) y no hay ya un almacén | 2 |
 | Una receta necesita una estación que no hay (la herramienta de un rol del clan, o una cuyas entradas tiene el almacén) | 1,5 |
 | El campamento solo tiene su banco improvisado | 0,5 |
+| La comida se estropea y hay un edificio con `keep` < 1 | 1,2 |
+| Hay heridos y un edificio con `healing` (sin heridos 0,3) | 1,2 |
+| El clan ha sufrido incursiones y hay un edificio con `defense` (sin ellas 0,35) | 2 |
+| Un lugar de reunión (`culture` con `aura`) | 0,3 + 0,05 por miembro (máx. 0,8) |
+| Abrigo común (`warmth` con `aura`, sin camas) | 0,4 |
 
-Solo cuenta lo que el clan puede pagar (cada material está en el almacén o lo da algún nodo). El sitio: anillos alrededor del campamento (`SiteRadius` 7 m, cada 3 m), cada edificio en su ángulo,
+Las de las provisiones, solo para el primero de su tipo; el almacén lleno también pide un edificio con `storeCap`. Un hogar mejor que el clan ya puede levantar (`supersedes`)
+quita a los que sustituye de la necesidad de camas (con la cabaña ya no se levantan refugios). Solo cuenta lo que el clan puede pagar (cada material está en el almacén, lo da
+algún nodo o lo hace una receta que el clan sabe en una estación que tiene). El sitio: anillos alrededor del campamento (`SiteRadius` 7 m, cada 3 m), cada edificio en su ángulo,
 lejos del centro, de la hoguera, de los demás edificios y de los nodos de recurso, y donde un miembro puede estar (también las esquinas y la entrada). El registro dice
 `the clan starts Shelter 1 at x, z (3 stone, ...): beds for 0 of 4`.
 
@@ -168,7 +180,9 @@ etiquetas según el estado, progreso que nunca retrocede y ninguna obra en agua 
 `settlement` corre dos días en dos mundos generados con edificios y sin ninguna violación. La demo del editor `editor_demo_h8` elige sitio, pone una obra, guarda y carga a
 mitad y pasa `qa check`.
 
-`tests/settlement_test.cpp` (CPU): los datos (`era1.json` = código, ida y vuelta, errores sin cambios), una obra fase a fase con `Build` (rechazado sin materiales, usos exactos,
+`tests/settlement_test.cpp` (CPU) también mide las provisiones (tope y caducidad con silo y granero, el motivo de una incursión y el ánimo con empalizada, la curación junto a la choza
+del curandero, la compañía con tótem) y juega la progresión: un clan de ocho en un mundo generado descubre tres tecnologías o más y levanta tres tipos de edificio o más en seis días,
+alguno detrás de lo descubierto, con dos obras a la vez y dos ejecuciones idénticas. Además, los datos (`era1.json` = código, ida y vuelta, errores sin cambios), una obra fase a fase con `Build` (rechazado sin materiales, usos exactos,
 piezas), la elección del sitio en un terreno sintético (no en el lago, ni en su orilla, ni en la ladera, cerca de lo que el clan quiere) y en mundos generados (templado y
 alpino, tres semillas: determinista, junto al agua, llano y con recursos), una tribu de cuatro que construye su refugio sola (y una segunda ejecución idéntica; sin edificios no
 construye nada), el tablón con `deliver` y `build`, y una obra guardada y cargada a mitad. `packs` comprueba en estricto que `era1` y `era1_ampliado` siguen limpios con los edificios
@@ -178,12 +192,13 @@ queda atrás y el clan quiere otro.
 
 ## Límites y siguientes pasos
 
-- Una obra cada vez (`MaxSites`); sin territorio ni mapa de influencia; los edificios no son obstáculos de la navegación ni se nivela el suelo (E12).
+- Hecho: varias obras a la vez según los miembros (`economy.construction`). Sin territorio ni mapa de influencia; los edificios no son obstáculos de la navegación (las camas están
+  dentro de la huella; la empalizada con puerta espera a que la navegación sepa de puertas) ni se nivela el suelo (E12).
 - La repetición del editor en el mismo mundo (`replay record` y `replay play` sin cambiar de mundo) ya termina idéntica, con obra y miembros abstractos:
   los actores que ya existían seguían con las tareas de la partida anterior (o suspendidos), el reloj del nivel de detalle no se guardaba y los luchadores de la
   partida anterior armaban los sistemas de habilidades nuevos. Lo prueba `editor_replay_same_world`. La demo `editor_demo_h8` sigue guardando y cargando la obra a medias.
 - Al migrar no se llevan materiales ni se desmonta nada; las regiones de H12 no se usan aún como candidatos (la rejilla de 8 m cubre el mapa).
 - El aspecto son primitivas; no hay animaciones de obra (se usa `plant`).
 - El campo de H18 no se coloca con la elección de sitio; el almacén secundario no cambia su conservación por ser un edificio (lo dice su tipo en la economía).
-- E10 (corral, taller, horno, hogar comunal) es solo datos cuando haya animales, forja y brasas.
+- Hecho: horno, forja, hogar comunal y el resto de la progresión ([PROGRESION.md](PROGRESION.md)). Falta el corral (no hay animales de cría).
 - La aceptación de H8 (refugios, almacén y campo en 30 días con cinco semillas) queda pendiente del campo (E7) y de un barrido largo (H20).

@@ -42,6 +42,7 @@ DOC_LIST = [
     ('GUARDADO.md', 'Sistemas'),
     ('PAQUETES.md', 'Sistemas'),
     ('CONOCIMIENTO.md', 'Sistemas'),
+    ('PROGRESION.md', 'Sistemas'),
     ('EXPLORACION.md', 'Sistemas'),
     ('RECURSOS_MUNDO.md', 'Sistemas'),
     ('CAMARAS.md', 'Sistemas'),

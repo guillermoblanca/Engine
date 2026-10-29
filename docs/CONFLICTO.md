@@ -59,7 +59,9 @@ audacia de su personalidad, y la mejor arma de su mochila.
 - **Luchando**, sus órdenes le llevan al alcance de su arma; **huyendo**, a casa si el campamento queda lejos del peligro, si no `fleeDistance` en dirección
   contraria (girando si por ahí no se puede andar), hasta `safeDistance`.
 - **Heridos y cuidados**: con más de `restAbove` de gravedad, la opción `recover` (descansar en el campamento); un adulto sano puede ir a **cuidar** a un
-  herido que nadie atiende (`care`: más si es pariente o amigo): al acabar, el evento de relación `care` y `careSeconds` × 3 de cura más rápida.
+  herido que nadie atiende (`care`: más si es pariente o amigo): al acabar, el evento de relación `care` y `careSeconds` × 3 de cura más rápida. Con una
+  **choza del curandero** en pie (edificio con `healing`, [PROGRESION.md](PROGRESION.md)) el herido se repone delante de ella y, a su alcance, sus heridas se
+  curan `1 + healing` veces más rápido (`Combatant::Heal`).
 
 ## Animales
 
@@ -68,13 +70,14 @@ audacia de su personalidad, y la mejor arma de su mochila.
   `giveUp` metros, huye si su moral se rompe y come `meal` si mata.
 - **Caza** (`hunts`): con poca comida (menos de tres por miembro) y un animal de la regla a menos de `range` del campamento, el tablón publica `hunt <etiqueta>`
   (`hunters` plazas, prioridad `priority`). El cazador persigue al animal (que no se entera hasta tenerlo a `groupRadius`, y entonces huye y se cansa) y al
-  matarlo recibe `units` de `item`: **carne** (`meat`, comida que se estropea en 900 s: la economía la come primero). La ecología se lleva el cuerpo y lo
-  cuenta como cazado.
+  matarlo recibe `units` de `item`: **carne** (`meat`, comida que se estropea en 900 s: la economía la come primero), y `byproductUnits` de `byproduct`: la
+  **piel** (`hide`, la del curtido de la progresión). La ecología se lleva el cuerpo y lo cuenta como cazado.
 
 ## Incursiones y agravios
 
 Cada `raids.every` segundos el clan pesa una incursión contra los campamentos que la hostilidad le deja asaltar: motivo = `bold` × audacia media +
-`hunger` × lo que le falta de comida + `grievance` × agravio + `hostility` × hostilidad. Con `want` o más (y pasado el `cooldown`) sale una partida
+`hunger` × lo que le falta de comida + `grievance` × agravio + `hostility` × hostilidad − `defense` × la defensa del objetivo (sus empalizadas: cada clan la
+dice al asentarse, `RaidTarget::Defense`). Quien defiende su campamento suma `threats.walls` × esa defensa a luchar. Con `want` o más (y pasado el `cooldown`) sale una partida
 (`ChooseRaidParty`: adultos sanos y libres, los más audaces y fuertes primero, de `party` a `maxParty`). Cada asaltante va al almacén, coge `carry` unidades
 (comida primero: `steal`) y vuelve a casa; en casa deja lo robado en el almacén. La primera vez que roban, la víctima recibe un **agravio** (`wrong`).
 Matar a alguien de otro clan deja el doble. La incursión se retira cuando cae o huye `retreat` de la partida, a los `maxSeconds`, o si un **pacto** la
