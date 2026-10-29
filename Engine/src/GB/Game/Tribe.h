@@ -85,6 +85,7 @@ namespace GB
 		// Nodes this member could not get to (name -> until when it does not go there again, how many times it failed): the perception sees them whole every
 		// moment, so marking them empty in the memory is not enough to stop it trying the same one again at once. Not saved: it is a matter of minutes.
 		std::map<std::string, std::pair<double, int>> Unreachable;
+		int HomeTries = 0;   // times it failed to walk home from an expedition (after a few it gives up the report: telemetry showed 25,000 in a row)
 		std::string Why;              // when resting: why there is nothing to do
 		int Meals = 0;                // berries eaten
 		bool Hungry = false;          // the store had nothing to eat at the last meal

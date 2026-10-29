@@ -486,8 +486,19 @@ namespace GB
 			if (leg->second == n) Say(m, "has seen what it could of " + e.RegionName + " and heads home");
 			return;
 		}
+		if (leg->second == n && HasFailed(m) && glm::distance(pos, Config.Camp) > kAtCamp)   // the way home is closed (a search that ran out of its budget, a lake): not for ever
+		{
+			if (++m.HomeTries >= 3)
+			{
+				m.HomeTries = 0;
+				leg->second = n + 1;
+				Say(m, "cannot find the way home from " + e.RegionName + " and gives up telling the clan");
+			}
+			return;
+		}
 		if (leg->second == n && glm::distance(pos, Config.Camp) <= kAtCamp)
 		{
+			m.HomeTries = 0;
 			leg->second = n + 1;
 			m.Mind.SharedAt = -1e9;   // it tells the clan now, whatever it told last
 			Share(m);

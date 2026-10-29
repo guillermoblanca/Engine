@@ -1801,9 +1801,10 @@ namespace GB
 			Say(m, "finds " + m.Detail + " empty");
 			Quarrel(m, m.Detail);   // someone else took it (H10)
 		}
-		else if (!reason.empty() && (job == "approach" || job == "gather"))   // cannot get next to it, or cannot reach it (a gather too: tried again at once it failed on the same step, thousands of times; telemetry showed 540 in a row on one fiber grass) (trees and bushes in the way): treat it as empty for a while instead of trying again at once
+		else if (!reason.empty() && (job == "approach" || job == "gather" || job == "drink"))   // cannot get next to it, or cannot reach it (a gather too: tried again at once it failed on the same step, thousands of times; telemetry showed 540 in a row on one fiber grass) (trees and bushes in the way): treat it as empty for a while instead of trying again at once
 		{
-			if (const MemoryEntry* e = m.Mind.Memory.Find(m.Detail)) m.Mind.Memory.Observe({ e->Name, e->Kind, e->Pos, 0, m_Time, false });
+			if (job != "drink")   // (a well is not emptied: it is just out of reach for now)
+				if (const MemoryEntry* e = m.Mind.Memory.Find(m.Detail)) m.Mind.Memory.Observe({ e->Name, e->Kind, e->Pos, 0, m_Time, false });
 			{
 				auto& away = m.Unreachable[m.Detail];   // not that one again for 2 minutes, doubling each time it fails (up to an hour)
 				away.first = m_Time + 120.0 * static_cast<double>(1 << std::min(away.second, 5));
