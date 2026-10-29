@@ -109,6 +109,9 @@ int main(int argc, char** argv)
 	}
 	std::signal(SIGINT, OnSignal);
 	std::signal(SIGTERM, OnSignal);
+#ifdef SIGBREAK
+	std::signal(SIGBREAK, OnSignal);   // Ctrl+Break: how the laboratory asks a run to stop on Windows
+#endif
 
 	GB::WorldDesc desc;
 	desc.Type = biome == "alpine" ? GB::WorldType::Alpine : biome == "desert" ? GB::WorldType::Desert : GB::WorldType::Temperate;
