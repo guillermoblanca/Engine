@@ -374,3 +374,9 @@ add_executable(GBPlayerTests player_test.cpp)
 target_link_libraries(GBPlayerTests PRIVATE GB::GB)
 target_compile_definitions(GBPlayerTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME player COMMAND GBPlayerTests)
+
+# The priority graph: editable decision priorities per role or character, JSON library, validation, subgraphs, and the tribe unchanged with the builtin graph
+add_executable(GBPriorityGraphTests priority_graph_test.cpp)
+target_link_libraries(GBPriorityGraphTests PRIVATE GB::GB)
+target_compile_definitions(GBPriorityGraphTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME priority_graph COMMAND GBPriorityGraphTests)

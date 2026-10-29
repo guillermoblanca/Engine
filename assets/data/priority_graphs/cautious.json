@@ -1,0 +1,115 @@
+{
+  "author": "GB",
+  "description": "Example: explores less where there is danger and regroups sooner when it feels unsafe (uses the fragment fragment_need_urgency).",
+  "edges": [
+    {
+      "from": "safety",
+      "port": "level",
+      "to": "fear",
+      "weight": 1.0
+    },
+    {
+      "from": "one",
+      "to": "calm",
+      "weight": 1.0
+    },
+    {
+      "from": "danger",
+      "to": "calm",
+      "weight": -0.7
+    },
+    {
+      "from": "calm",
+      "to": "explore",
+      "weight": 1.0
+    },
+    {
+      "from": "one",
+      "to": "jumpy",
+      "weight": 1.0
+    },
+    {
+      "from": "fear",
+      "to": "jumpy",
+      "weight": 0.5
+    },
+    {
+      "from": "jumpy",
+      "to": "regroup",
+      "weight": 1.0
+    }
+  ],
+  "id": "cautious",
+  "kind": "priority_graph",
+  "name": "Cautious",
+  "nodes": [
+    {
+      "id": "danger",
+      "source": "danger",
+      "type": "input",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "id": "safety",
+      "source": "need.safety",
+      "type": "input",
+      "x": 0.0,
+      "y": 120.0
+    },
+    {
+      "id": "one",
+      "params": {
+        "value": 1.0
+      },
+      "type": "const",
+      "x": 0.0,
+      "y": 240.0
+    },
+    {
+      "id": "fear",
+      "source": "fragment_need_urgency",
+      "type": "subgraph",
+      "x": 200.0,
+      "y": 120.0
+    },
+    {
+      "fn": "sum",
+      "id": "calm",
+      "label": "1 - 0.7 danger",
+      "type": "combine",
+      "x": 400.0,
+      "y": 0.0
+    },
+    {
+      "fn": "sum",
+      "id": "jumpy",
+      "label": "1 + 0.5 fear",
+      "type": "combine",
+      "x": 400.0,
+      "y": 120.0
+    },
+    {
+      "fn": "multiply",
+      "id": "explore",
+      "source": "explore",
+      "type": "output",
+      "x": 600.0,
+      "y": 0.0
+    },
+    {
+      "fn": "multiply",
+      "id": "regroup",
+      "source": "regroup",
+      "type": "output",
+      "x": 600.0,
+      "y": 120.0
+    }
+  ],
+  "revision": 1,
+  "tags": [
+    "example"
+  ],
+  "template": false,
+  "version": 1
+}

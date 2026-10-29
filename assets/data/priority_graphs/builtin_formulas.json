@@ -1,0 +1,270 @@
+{
+  "author": "GB",
+  "description": "Template: eat, drink, regroup and gather rebuilt from the factors the options record (weight x need x distance...). Starting point to change a formula; it leaves out boosts, agenda, job and society.",
+  "edges": [
+    {
+      "from": "f_weight",
+      "to": "eat_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_hunger",
+      "to": "eat_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_distance",
+      "to": "eat_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "eat_mul",
+      "to": "eat",
+      "weight": 1.0
+    },
+    {
+      "from": "f_weight",
+      "to": "drink_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_thirst",
+      "to": "drink_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_distance",
+      "to": "drink_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "drink_mul",
+      "to": "drink",
+      "weight": 1.0
+    },
+    {
+      "from": "c_regroup",
+      "to": "regroup_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_fear",
+      "to": "regroup_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "regroup_mul",
+      "to": "regroup",
+      "weight": 1.0
+    },
+    {
+      "from": "c_base",
+      "to": "gather_sum",
+      "weight": 1.0
+    },
+    {
+      "from": "f_need",
+      "to": "gather_sum",
+      "weight": 0.7
+    },
+    {
+      "from": "f_role",
+      "to": "gather_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "gather_sum",
+      "to": "gather_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_distance",
+      "to": "gather_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_memory",
+      "to": "gather_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "gather_mul",
+      "to": "gather",
+      "weight": 1.0
+    },
+    {
+      "from": "any_score",
+      "to": "any",
+      "weight": 1.0
+    }
+  ],
+  "id": "builtin_formulas",
+  "kind": "priority_graph",
+  "name": "Builtin formulas",
+  "nodes": [
+    {
+      "id": "f_weight",
+      "source": "factor.weight",
+      "type": "input",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "id": "f_hunger",
+      "source": "factor.hunger",
+      "type": "input",
+      "x": 0.0,
+      "y": 70.0
+    },
+    {
+      "id": "f_thirst",
+      "source": "factor.thirst",
+      "type": "input",
+      "x": 0.0,
+      "y": 140.0
+    },
+    {
+      "id": "f_distance",
+      "source": "factor.distance",
+      "type": "input",
+      "x": 0.0,
+      "y": 210.0
+    },
+    {
+      "id": "f_fear",
+      "source": "factor.fear",
+      "type": "input",
+      "x": 0.0,
+      "y": 280.0
+    },
+    {
+      "id": "f_role",
+      "source": "factor.role",
+      "type": "input",
+      "x": 0.0,
+      "y": 350.0
+    },
+    {
+      "id": "f_need",
+      "source": "factor.need",
+      "type": "input",
+      "x": 0.0,
+      "y": 420.0
+    },
+    {
+      "id": "f_memory",
+      "source": "factor.memory",
+      "type": "input",
+      "x": 0.0,
+      "y": 490.0
+    },
+    {
+      "id": "c_regroup",
+      "params": {
+        "value": 1.5
+      },
+      "type": "const",
+      "x": 0.0,
+      "y": 560.0
+    },
+    {
+      "id": "c_base",
+      "params": {
+        "value": 0.4
+      },
+      "type": "const",
+      "x": 0.0,
+      "y": 630.0
+    },
+    {
+      "id": "any_score",
+      "source": "option.score",
+      "type": "input",
+      "x": 0.0,
+      "y": 700.0
+    },
+    {
+      "fn": "mul",
+      "id": "eat_mul",
+      "type": "combine",
+      "x": 260.0,
+      "y": 20.0
+    },
+    {
+      "fn": "mul",
+      "id": "drink_mul",
+      "type": "combine",
+      "x": 260.0,
+      "y": 120.0
+    },
+    {
+      "fn": "mul",
+      "id": "regroup_mul",
+      "type": "combine",
+      "x": 260.0,
+      "y": 280.0
+    },
+    {
+      "fn": "sum",
+      "id": "gather_sum",
+      "label": "0.4 + 0.7 need",
+      "type": "combine",
+      "x": 260.0,
+      "y": 400.0
+    },
+    {
+      "fn": "mul",
+      "id": "gather_mul",
+      "type": "combine",
+      "x": 480.0,
+      "y": 440.0
+    },
+    {
+      "fn": "replace",
+      "id": "eat",
+      "source": "eat",
+      "type": "output",
+      "x": 700.0,
+      "y": 20.0
+    },
+    {
+      "fn": "replace",
+      "id": "drink",
+      "source": "drink",
+      "type": "output",
+      "x": 700.0,
+      "y": 120.0
+    },
+    {
+      "fn": "replace",
+      "id": "regroup",
+      "source": "regroup",
+      "type": "output",
+      "x": 700.0,
+      "y": 280.0
+    },
+    {
+      "fn": "replace",
+      "id": "gather",
+      "source": "gather",
+      "type": "output",
+      "x": 700.0,
+      "y": 440.0
+    },
+    {
+      "fn": "replace",
+      "id": "any",
+      "source": "*",
+      "type": "output",
+      "x": 700.0,
+      "y": 700.0
+    }
+  ],
+  "revision": 1,
+  "tags": [
+    "builtin",
+    "template"
+  ],
+  "template": true,
+  "version": 1
+}

@@ -1,4 +1,5 @@
 #include "GB/Game/Tribe.h"
+#include "GB/Game/TribePriorities.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -1537,6 +1538,9 @@ namespace GB
 		JobBonus(m, opts);   // H7: what does the job it claimed is worth more (a factor on the options, not a new chooser)
 		SocietyFactors(m, opts);   // H9 + H10: its genes, personality, stage of life and the clan's culture (and the companion it likes best)
 		MaslowOptions(m, hunger, berries, foodHeld > 0, opts);   // the pyramid: staying alive before anything above it (TribeWork.cpp)
+
+		// PRIORITY-GRAPH HOOK (2/2): the graph of its role or of itself rescores the options (only when a library is set; GB/Game/TribePriorities.cpp)
+		if (Priorities) ApplyPriorityGraphs(*this, m, *Priorities, opts);
 
 		// choose, and fall back on the next best when the orders cannot be given
 		Commitment current = mind.Current;

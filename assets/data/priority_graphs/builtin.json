@@ -1,0 +1,37 @@
+{
+  "author": "GB",
+  "description": "Hands every score on unchanged: the behaviour the tribe has without graphs (the default).",
+  "edges": [
+    {
+      "from": "score",
+      "to": "any",
+      "weight": 1.0
+    }
+  ],
+  "id": "builtin",
+  "kind": "priority_graph",
+  "name": "Builtin",
+  "nodes": [
+    {
+      "id": "score",
+      "source": "option.score",
+      "type": "input",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "fn": "replace",
+      "id": "any",
+      "source": "*",
+      "type": "output",
+      "x": 260.0,
+      "y": 0.0
+    }
+  ],
+  "revision": 1,
+  "tags": [
+    "builtin"
+  ],
+  "template": false,
+  "version": 1
+}

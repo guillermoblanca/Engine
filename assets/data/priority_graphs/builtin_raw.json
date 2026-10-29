@@ -1,0 +1,478 @@
+{
+  "author": "GB",
+  "description": "Template: eat, drink, sleep, warm and regroup computed from the needs and the distance with curves (urgency, falloff, ramp). Same numbers as the tribe's formulas, without agenda, job or society.",
+  "edges": [
+    {
+      "from": "hunger",
+      "to": "u_hunger",
+      "weight": 1.0
+    },
+    {
+      "from": "thirst",
+      "to": "u_thirst",
+      "weight": 1.0
+    },
+    {
+      "from": "rest",
+      "to": "u_rest",
+      "weight": 1.0
+    },
+    {
+      "from": "warmth",
+      "to": "u_warmth",
+      "weight": 1.0
+    },
+    {
+      "from": "safety",
+      "to": "u_safety",
+      "weight": 1.0
+    },
+    {
+      "from": "distance",
+      "to": "f_60",
+      "weight": 1.0
+    },
+    {
+      "from": "distance",
+      "to": "f_80",
+      "weight": 1.0
+    },
+    {
+      "from": "distance",
+      "to": "f_120",
+      "weight": 1.0
+    },
+    {
+      "from": "rest",
+      "to": "tired_inv",
+      "weight": 1.0
+    },
+    {
+      "from": "tired_inv",
+      "to": "dark_ramp",
+      "weight": 1.0
+    },
+    {
+      "from": "night",
+      "to": "dark",
+      "weight": 1.0
+    },
+    {
+      "from": "dark_ramp",
+      "to": "dark",
+      "weight": 1.3
+    },
+    {
+      "from": "u_rest",
+      "to": "tired_dark",
+      "weight": 1.7
+    },
+    {
+      "from": "dark",
+      "to": "tired_dark",
+      "weight": 1.0
+    },
+    {
+      "from": "c_eat",
+      "to": "eat_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "u_hunger",
+      "to": "eat_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_60",
+      "to": "eat_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "eat_mul",
+      "to": "eat",
+      "weight": 1.0
+    },
+    {
+      "from": "c_drink",
+      "to": "drink_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "u_thirst",
+      "to": "drink_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_80",
+      "to": "drink_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "drink_mul",
+      "to": "drink",
+      "weight": 1.0
+    },
+    {
+      "from": "tired_dark",
+      "to": "sleep_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_120",
+      "to": "sleep_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "sleep_mul",
+      "to": "sleep",
+      "weight": 1.0
+    },
+    {
+      "from": "c_warm",
+      "to": "warm_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "u_warmth",
+      "to": "warm_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "f_60",
+      "to": "warm_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "warm_mul",
+      "to": "warm",
+      "weight": 1.0
+    },
+    {
+      "from": "c_regroup",
+      "to": "regroup_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "u_safety",
+      "to": "regroup_mul",
+      "weight": 1.0
+    },
+    {
+      "from": "regroup_mul",
+      "to": "regroup",
+      "weight": 1.0
+    },
+    {
+      "from": "any_score",
+      "to": "any",
+      "weight": 1.0
+    }
+  ],
+  "id": "builtin_raw",
+  "kind": "priority_graph",
+  "name": "Builtin from raw needs",
+  "nodes": [
+    {
+      "id": "hunger",
+      "source": "need.hunger",
+      "type": "input",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "id": "thirst",
+      "source": "need.thirst",
+      "type": "input",
+      "x": 0.0,
+      "y": 80.0
+    },
+    {
+      "id": "rest",
+      "source": "need.rest",
+      "type": "input",
+      "x": 0.0,
+      "y": 160.0
+    },
+    {
+      "id": "warmth",
+      "source": "need.warmth",
+      "type": "input",
+      "x": 0.0,
+      "y": 240.0
+    },
+    {
+      "id": "safety",
+      "source": "need.safety",
+      "type": "input",
+      "x": 0.0,
+      "y": 320.0
+    },
+    {
+      "id": "distance",
+      "source": "option.distance",
+      "type": "input",
+      "x": 0.0,
+      "y": 400.0
+    },
+    {
+      "id": "night",
+      "source": "time.night",
+      "type": "input",
+      "x": 0.0,
+      "y": 480.0
+    },
+    {
+      "id": "any_score",
+      "source": "option.score",
+      "type": "input",
+      "x": 0.0,
+      "y": 560.0
+    },
+    {
+      "fn": "urgency",
+      "id": "u_hunger",
+      "params": {
+        "from": 60.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 0.0
+    },
+    {
+      "fn": "urgency",
+      "id": "u_thirst",
+      "params": {
+        "from": 60.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 80.0
+    },
+    {
+      "fn": "urgency",
+      "id": "u_rest",
+      "params": {
+        "from": 70.0,
+        "power": 1.2
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 160.0
+    },
+    {
+      "fn": "urgency",
+      "id": "u_warmth",
+      "params": {
+        "from": 50.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 240.0
+    },
+    {
+      "fn": "urgency",
+      "id": "u_safety",
+      "params": {
+        "from": 60.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 320.0
+    },
+    {
+      "fn": "falloff",
+      "id": "f_60",
+      "params": {
+        "half": 60.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 400.0
+    },
+    {
+      "fn": "falloff",
+      "id": "f_80",
+      "params": {
+        "half": 80.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 440.0
+    },
+    {
+      "fn": "falloff",
+      "id": "f_120",
+      "params": {
+        "half": 120.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 480.0
+    },
+    {
+      "fn": "linear",
+      "id": "tired_inv",
+      "label": "95 - rest",
+      "params": {
+        "a": -1.0,
+        "b": 95.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 520.0
+    },
+    {
+      "fn": "ramp",
+      "id": "dark_ramp",
+      "params": {
+        "hi": 40.0,
+        "lo": 0.0
+      },
+      "type": "curve",
+      "x": 380.0,
+      "y": 520.0
+    },
+    {
+      "id": "c_eat",
+      "params": {
+        "value": 2.2
+      },
+      "type": "const",
+      "x": 380.0,
+      "y": 0.0
+    },
+    {
+      "id": "c_drink",
+      "params": {
+        "value": 2.0
+      },
+      "type": "const",
+      "x": 380.0,
+      "y": 80.0
+    },
+    {
+      "id": "c_warm",
+      "params": {
+        "value": 1.5
+      },
+      "type": "const",
+      "x": 380.0,
+      "y": 240.0
+    },
+    {
+      "id": "c_regroup",
+      "params": {
+        "value": 1.5
+      },
+      "type": "const",
+      "x": 380.0,
+      "y": 320.0
+    },
+    {
+      "fn": "mul",
+      "id": "dark",
+      "label": "night x ramp",
+      "type": "combine",
+      "x": 560.0,
+      "y": 520.0
+    },
+    {
+      "fn": "sum",
+      "id": "tired_dark",
+      "label": "tired + dark",
+      "type": "combine",
+      "x": 560.0,
+      "y": 160.0
+    },
+    {
+      "fn": "mul",
+      "id": "eat_mul",
+      "type": "combine",
+      "x": 560.0,
+      "y": 0.0
+    },
+    {
+      "fn": "mul",
+      "id": "drink_mul",
+      "type": "combine",
+      "x": 560.0,
+      "y": 80.0
+    },
+    {
+      "fn": "mul",
+      "id": "sleep_mul",
+      "type": "combine",
+      "x": 740.0,
+      "y": 160.0
+    },
+    {
+      "fn": "mul",
+      "id": "warm_mul",
+      "type": "combine",
+      "x": 560.0,
+      "y": 240.0
+    },
+    {
+      "fn": "mul",
+      "id": "regroup_mul",
+      "type": "combine",
+      "x": 560.0,
+      "y": 320.0
+    },
+    {
+      "fn": "replace",
+      "id": "eat",
+      "source": "eat",
+      "type": "output",
+      "x": 920.0,
+      "y": 0.0
+    },
+    {
+      "fn": "replace",
+      "id": "drink",
+      "source": "drink",
+      "type": "output",
+      "x": 920.0,
+      "y": 80.0
+    },
+    {
+      "fn": "replace",
+      "id": "sleep",
+      "source": "sleep",
+      "type": "output",
+      "x": 920.0,
+      "y": 160.0
+    },
+    {
+      "fn": "replace",
+      "id": "warm",
+      "source": "warm",
+      "type": "output",
+      "x": 920.0,
+      "y": 240.0
+    },
+    {
+      "fn": "replace",
+      "id": "regroup",
+      "source": "regroup",
+      "type": "output",
+      "x": 920.0,
+      "y": 320.0
+    },
+    {
+      "fn": "replace",
+      "id": "any",
+      "source": "*",
+      "type": "output",
+      "x": 920.0,
+      "y": 560.0
+    }
+  ],
+  "revision": 1,
+  "tags": [
+    "builtin",
+    "template"
+  ],
+  "template": true,
+  "version": 1
+}
