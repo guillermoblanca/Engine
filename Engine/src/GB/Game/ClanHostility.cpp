@@ -50,14 +50,15 @@ namespace GB
 			t.Clan = c->Name;
 			t.Camp = c->Folk->Config.Camp;
 			t.Store = &c->Folk->Store();
+			t.Defense = c->Folk->Defense();   // its palisades put a raider off (H8)
 			out.push_back(t);
 		}
 		return out;
 	}
 
-	void ClanHostility::Settled(const std::string& clan, const glm::vec2& camp, Inventory* store)
+	void ClanHostility::Settled(const std::string& clan, const glm::vec2& camp, Inventory* store, float defense)
 	{
-		if (Id(clan) < 0 && m_Fallback) m_Fallback->Settled(clan, camp, store);   // (a clan's camp and store are its tribe's: the clan world knows them)
+		if (Id(clan) < 0 && m_Fallback) m_Fallback->Settled(clan, camp, store, defense);   // (a clan's camp and store are its tribe's: the clan world knows them)
 	}
 
 	void ClanHostility::Wronged(const std::string& victim, const std::string& culprit, const std::string& what, float weight)

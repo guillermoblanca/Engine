@@ -353,7 +353,8 @@ int main()
 		ContentPacks packs;
 		ItemLibrary pi; RecipeBook pr; std::map<std::string, ResourceNodeDef> pn; std::map<std::string, TribeRole> roles;
 		CombatRules live;
-		AddGameContentSections(packs, pi, pr, pn, roles);
+		std::map<std::string, BuildingDef> buildings;   // (the stations of era 1's recipes come from its buildings: the hearth, the tannery, the forge...)
+		AddGameContentSections(packs, pi, pr, pn, roles, nullptr, nullptr, nullptr, nullptr, &buildings);
 		AddCombatContentSection(packs, live);
 		ContentReport report;
 		ContentPacks::Options strict;

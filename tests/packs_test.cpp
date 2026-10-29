@@ -218,7 +218,7 @@ int main()
 		const std::string error = g.Packs.Load("era1", data, &report, strict);
 		Check(error.empty(), "the era1 pack loads, strict");
 		if (!error.empty() || !report.Clean()) std::fprintf(stderr, "  %s\n%s", error.c_str(), report.Text().c_str());
-		Check(report.Clean() && Has(report.Notes, "copper_ingot"), "every item of era 1 can be had; the copper ingot waits for the forge");
+		Check(report.Clean() && !Has(report.Notes, "deferred"), "every item of era 1 can be had, the copper ingot too (smelted at the forge of era 2): nothing deferred");
 		Check(g.Roles == DefaultRoles(), "the roles come in through their section and say what the code says");
 		Check(g.Buildings == DefaultBuildings(), "the buildings come in with the items section and say what DefaultBuildings says (H8)");
 		Check(g.Agenda == DefaultAgenda() && g.Economy == DefaultEconomy(), "and the tribe's agenda, food and stock through theirs");

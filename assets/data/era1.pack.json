@@ -9,12 +9,10 @@
     "wood": "the camp starts with the wood found lying around on the first day (tribe build)",
     "stone": "the camp starts with the stones found lying around on the first day (tribe build)",
     "water": "the well (interactive, DrawWater)",
-    "meat": "the hunt (H14: the hunts of the combat section)"
+    "meat": "the hunt (H14: the hunts of the combat section)",
+    "hide": "the hunt (H14: the byproduct of a hunt of the combat section)"
 
   },
   "stations": [ "workbench" ],
-  "deferred": {
-    "copper_ingot": "smelting needs the forge, which arrives with E10",
-    "smelting": "the technology is tried at the forge, which arrives with E10 (era 2)"
-  }
+  "deferred": {}
 }

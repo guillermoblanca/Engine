@@ -115,6 +115,8 @@ namespace GB
 		r.Predators["fox"] = fox;
 		HuntRule rabbit;
 		rabbit.Tag = "Animal.Rabbit";
+		rabbit.Byproduct = "hide";   // the skin of the kill: what hide working is about (docs/PROGRESION.md)
+		rabbit.ByproductUnits = 1;
 		r.Hunts["rabbit"] = rabbit;
 		return r;
 	}
@@ -165,7 +167,7 @@ namespace GB
 			return { Fl("hostile", t.Hostile, 0.0f, 1.0f), Fl("sight", t.Sight, 0.0f, 1000.0f), Fl("safety", t.Safety, 0.0f, 100.0f), Fl("alarm", t.Alarm, 0.0f, 1000.0f),
 				Fl("groupRadius", t.GroupRadius, 0.0f, 1000.0f), Fl("fleeDistance", t.FleeDistance, 1.0f, 1000.0f), Fl("safeDistance", t.SafeDistance, 1.0f, 1000.0f),
 				Fl("forgetSeconds", t.ForgetSeconds, 0.0f, 1e5f), Fl("bold", t.Bold, 0.0f, 100.0f), Fl("health", t.Health, 0.0f, 100.0f), Fl("odds", t.Odds, 0.0f, 100.0f),
-				Fl("kin", t.Kin, 0.0f, 100.0f), Fl("camp", t.Camp, 0.0f, 100.0f), Fl("fear", t.Fear, 0.0f, 100.0f), Fl("timid", t.Timid, 0.0f, 100.0f),
+				Fl("kin", t.Kin, 0.0f, 100.0f), Fl("camp", t.Camp, 0.0f, 100.0f), Fl("walls", t.Walls, 0.0f, 100.0f), Fl("fear", t.Fear, 0.0f, 100.0f), Fl("timid", t.Timid, 0.0f, 100.0f),
 				Bo("childrenFight", t.ChildrenFight) };
 		}
 		std::vector<Field> Fields(PredatorRule& p)
@@ -176,14 +178,14 @@ namespace GB
 		}
 		std::vector<Field> Fields(HuntRule& h)
 		{
-			return { Tx("tag", h.Tag), Tx("item", h.Item), In("units", h.Units, 0, 1000), Fl("health", h.Health, 1.0f, 10000.0f), Fl("speed", h.Speed, 0.1f, 100.0f),
+			return { Tx("tag", h.Tag), Tx("item", h.Item), In("units", h.Units, 0, 1000), Tx("byproduct", h.Byproduct), In("byproductUnits", h.ByproductUnits, 0, 1000), Fl("health", h.Health, 1.0f, 10000.0f), Fl("speed", h.Speed, 0.1f, 100.0f),
 				Tx("weapon", h.Weapon), Bo("fightsBack", h.FightsBack), Tx("toolTag", h.ToolTag), Fl("priority", h.Priority, 0.0f, 100.0f),
 				Fl("range", h.Range, 0.0f, 10000.0f), In("hunters", h.Hunters, 1, 20) };
 		}
 		std::vector<Field> Fields(RaidRules& r)
 		{
 			return { Fl("every", r.Every, 1.0f, 1e6f), Fl("cooldown", r.Cooldown, 0.0f, 1e7f), Fl("want", r.Want, 0.0f, 100.0f), Fl("bold", r.Bold, 0.0f, 100.0f),
-				Fl("hunger", r.Hunger, 0.0f, 100.0f), Fl("grievance", r.Grievance, 0.0f, 100.0f), Fl("hostility", r.Hostility, 0.0f, 100.0f), In("party", r.Party, 1, 50),
+				Fl("hunger", r.Hunger, 0.0f, 100.0f), Fl("grievance", r.Grievance, 0.0f, 100.0f), Fl("hostility", r.Hostility, 0.0f, 100.0f), Fl("defense", r.Defense, 0.0f, 100.0f), In("party", r.Party, 1, 50),
 				In("maxParty", r.MaxParty, 1, 50), Fl("partyHealth", r.PartyHealth, 0.0f, 100.0f), Fl("stealSeconds", r.StealSeconds, 0.0f, 1000.0f), In("carry", r.Carry, 0, 1000),
 				Li("steal", r.Steal), Fl("retreat", r.Retreat, 0.0f, 1.0f), Fl("wrong", r.Wrong, 0.0f, 100.0f), Fl("forget", r.Forget, 0.0f, 100.0f),
 				Fl("reach", r.Reach, 0.5f, 100.0f), Fl("maxSeconds", r.MaxSeconds, 1.0f, 1e7f) };
@@ -386,7 +388,10 @@ namespace GB
 	std::string CheckCombat(const CombatRules& rules, const ItemLibrary& items)
 	{
 		for (const auto& [id, h] : rules.Hunts)
+		{
 			if (!items.Find(h.Item)) return "combat: hunt " + id + " gives " + h.Item + ", which is not an item";
+			if (!h.Byproduct.empty() && !items.Find(h.Byproduct)) return "combat: hunt " + id + " gives " + h.Byproduct + ", which is not an item";
+		}
 		return {};
 	}
 
@@ -522,8 +527,9 @@ namespace GB
 		return out;
 	}
 
-	void HostilityTable::Settled(const std::string& clan, const glm::vec2& camp, Inventory* store)
+	void HostilityTable::Settled(const std::string& clan, const glm::vec2& camp, Inventory* store, float defense)
 	{
+		m_Camps[clan].Defense = defense;
 		RaidTarget& t = m_Camps[clan];
 		t.Clan = clan;
 		t.Camp = camp;
@@ -980,6 +986,7 @@ namespace GB
 		float heal = in.HealPerDay / std::max(1.0f, daySeconds) * dt;
 		if (c.Resting) heal *= in.RestFactor;
 		if (c.Cared) heal *= in.CareFactor;
+		heal *= std::max(0.0f, c.Heal);
 		float bleed = 0.0f;
 		for (Wound& w : c.Wounds)
 		{

@@ -180,10 +180,24 @@ namespace GB
 				{
 					if (found.count(id) || t.Discovery.Experiment <= 0.0f) continue;
 					if (!std::all_of(t.Requires.begin(), t.Requires.end(), [&](const std::string& q) { return found.count(q) > 0; })) continue;
+					// (a station that a building of this very technology gives does not stop it: a try needs only the materials, and once found the
+					// clan can raise the building; that is how cooking and its hearth, or smelting and its forge, are found)
+					auto ownStation = [&](const std::string& s)
+					{
+						if (!buildings || s.empty()) return false;
+						for (const auto& [bid, b] : *buildings)
+						{
+							if (b.Station != s) continue;
+							const bool mine = b.Tech == id || std::find(t.Buildings.begin(), t.Buildings.end(), bid) != t.Buildings.end();
+							const std::map<std::string, int> needs = b.TotalNeeds();
+							if (mine && std::all_of(needs.begin(), needs.end(), [&](const auto& in) { return have.count(in.first) > 0; })) return true;
+						}
+						return false;
+					};
 					const bool tryable = t.Recipes.empty() || std::any_of(t.Recipes.begin(), t.Recipes.end(), [&](const std::string& rid)
 					{
 						const Recipe* r = recipes.Find(rid);
-						return r && stationOk(r->Station) && toolOk(r->ToolTag) && inputsOk(*r);
+						return r && (stationOk(r->Station) || ownStation(r->Station)) && toolOk(r->ToolTag) && inputsOk(*r);
 					});
 					if (!tryable) continue;
 					found.insert(id);
