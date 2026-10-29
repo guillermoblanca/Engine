@@ -53,11 +53,15 @@ namespace GB
 		// Meters from each sample to the nearest water sample (lake or river): 0 in the water, 1e9 on a map without water. A true Euclidean
 		// distance transform of the water, so the banks of a winding river and of an irregular lake shore are measured as they are.
 		std::vector<float> WaterDistance;
+		// Cover of ground plants (0..1) at each sample: the density of the biome blurred over a few metres, so the grass fades from one zone to the next.
+		// Empty on a map without it (the desert).
+		std::vector<float> Grass;
 
 		bool Empty() const { return N == 0; }
 		size_t Nearest(float x, float z) const;          // index of the sample nearest to a point (clamped to the map)
 		glm::vec2 SamplePosition(int i, int j) const { return Min + glm::vec2(static_cast<float>(i), static_cast<float>(j)) * Cell; }
 		float WaterDistanceAt(float x, float z) const;   // bilinear between the samples
+		float GrassAt(float x, float z) const;           // bilinear between the samples (needs Grass)
 	};
 
 	// A whole generated map: terrain with lake and river, biome classification, and the placement of trees and
