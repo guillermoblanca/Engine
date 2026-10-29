@@ -82,6 +82,9 @@ namespace GB
 		int Deposited = 0;            // units carried to the store
 		int Made = 0;                 // tools and objects made
 		int Failures = 0;
+		// Nodes this member could not get to (name -> until when it does not go there again, how many times it failed): the perception sees them whole every
+		// moment, so marking them empty in the memory is not enough to stop it trying the same one again at once. Not saved: it is a matter of minutes.
+		std::map<std::string, std::pair<double, int>> Unreachable;
 		std::string Why;              // when resting: why there is nothing to do
 		int Meals = 0;                // berries eaten
 		bool Hungry = false;          // the store had nothing to eat at the last meal
