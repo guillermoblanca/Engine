@@ -458,6 +458,7 @@ namespace GB
 		m_Members.clear();
 		m_Claims.clear();
 		m_Log.clear();
+		m_Chronicle.Clear();
 		m_Store = Inventory(40, 0.0f);
 		m_Time = 0.0;
 		m_Clock = 0.0;
@@ -584,6 +585,7 @@ namespace GB
 		char t[32];
 		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
 		m_Log.push_back(t + m.Name + " (" + m.Role + ") " + text);
+		m_Chronicle.Event(m_Time, m.Name, text);
 		if (static_cast<int>(m_Log.size()) > Config.LogLines + Config.LogLines / 4)   // a ring: the oldest quarter goes at once
 			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.LogLines)));
 	}
@@ -943,6 +945,7 @@ namespace GB
 		m_Cost.Thinks = m_Cost.Budget = m_Cost.Due = 0;
 		m_Cost.ThinkMs = 0.0;
 		m_Time += static_cast<double>(dt);
+		if (m_Chronicle.Due(m_Time)) RecordRow();
 		// (H16: the milliseconds of each part, for `stats ai` and the scale tests; laps of the wall clock, never read by the simulation)
 		auto mark = std::chrono::steady_clock::now();
 		auto lap = [&mark](double& into)
@@ -1504,6 +1507,7 @@ namespace GB
 		if (m_Outside.Options) m_Outside.Options(*this, m, opts);   // H13: what the clans around ask of it (an envoy to a meeting; Clans.cpp)
 		JobBonus(m, opts);   // H7: what does the job it claimed is worth more (a factor on the options, not a new chooser)
 		SocietyFactors(m, opts);   // H9 + H10: its genes, personality, stage of life and the clan's culture (and the companion it likes best)
+		MaslowOptions(m, hunger, berries, foodHeld > 0, opts);   // the pyramid: staying alive before anything above it (TribeWork.cpp)
 
 		// choose, and fall back on the next best when the orders cannot be given
 		Commitment current = mind.Current;
@@ -1749,7 +1753,7 @@ namespace GB
 			Say(m, "finds " + m.Detail + " empty");
 			Quarrel(m, m.Detail);   // someone else took it (H10)
 		}
-		else if (!reason.empty() && job == "approach")   // cannot get next to it (trees and bushes in the way): treat it as empty for a while instead of trying again at once
+		else if (!reason.empty() && (job == "approach" || (job == "gather" && reason.find("cannot get next to") != std::string::npos)))   // cannot get next to it (a gather too: tried again at once it failed on the same step, thousands of times) (trees and bushes in the way): treat it as empty for a while instead of trying again at once
 		{
 			if (const MemoryEntry* e = m.Mind.Memory.Find(m.Detail)) m.Mind.Memory.Observe({ e->Name, e->Kind, e->Pos, 0, m_Time, false });
 			Say(m, "cannot get next to " + m.Detail + ": " + reason);
@@ -1914,9 +1918,11 @@ namespace GB
 			const std::map<std::string, float> needs = NeedLevels(m);
 			if (!needs.empty())
 			{
+				// a member may lack some of the needs (its ability system is still being filled): a missing one reads 0, never an exception
+				auto level = [&](const char* n) { const auto it = needs.find(n); return static_cast<double>(it == needs.end() ? 0.0f : it->second); };
 				char b[160];
-				std::snprintf(b, sizeof b, ", hunger %.0f thirst %.0f rest %.0f warmth %.0f health %.0f", static_cast<double>(needs.at(NeedName::Hunger)), static_cast<double>(needs.at(NeedName::Thirst)),
-					static_cast<double>(needs.at(NeedName::Rest)), static_cast<double>(needs.at(NeedName::Warmth)), static_cast<double>(needs.at(NeedName::Health)));
+				std::snprintf(b, sizeof b, ", hunger %.0f thirst %.0f rest %.0f warmth %.0f health %.0f", level(NeedName::Hunger), level(NeedName::Thirst), level(NeedName::Rest),
+					level(NeedName::Warmth), level(NeedName::Health));
 				s += b;
 			}
 			if (m.Failures) s += ", " + std::to_string(m.Failures) + " failed trips";

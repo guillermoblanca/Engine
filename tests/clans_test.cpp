@@ -193,6 +193,8 @@ struct Valley
 			Tribe& t = *clan.Folk;
 			t.Bind(Entities, Gameplay, Items, Recipes, Defs);
 			if (techs) t.SetTechs(&Techs);
+			t.Config.Work.Jobs.SurvivalDays = 0.0f;   // (these tests are about diplomacy: a clan short of food would go gathering in its neighbour's land, and the pyramid has its own test)
+			t.Config.Work.Jobs.CriticalHunger = 0.0f;
 			t.Config.Camp = s.Camp;
 			t.Config.CampY = land.Height(s.Camp.x, s.Camp.y);
 			t.SetRegions(&land.Regions, [&land](float x, float z) { return land.Height(x, z); });

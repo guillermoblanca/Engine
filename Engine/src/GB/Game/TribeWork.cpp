@@ -245,13 +245,21 @@ namespace GB
 				}
 				if (const auto u = rules.Upkeep.find(item); u != rules.Upkeep.end() && u->second > 0.0f) { wanted += u->second * static_cast<float>(alive); extra = " (with the upkeep of the camp)"; }
 				if (item == fuel && HasFire()) { wanted += rules.FireWood; extra += " (and the campfire)"; }
+				// the pyramid: a clan wants the days of food it lives on in hand, whatever the stock table says of it
+				if (IsFood(item))
+				{
+					const NeedsConfig& nc = Config.Needs;
+					const float perDay = (nc.DaySeconds / std::max(nc.HungerSeconds, 1.0f)) * (100.0f / static_cast<float>(std::max(nc.FoodHunger, 1)));
+					const float days = std::min(rules.SurvivalDays * perDay * static_cast<float>(alive), static_cast<float>(StoreCap()));
+					if (days > wanted) { wanted = days; extra += " (the days of food the clan lives on)"; }
+				}
 				const float have = static_cast<float>(Stored(item) + carried[item]);   // (H18: the stockpiles count too)
 				if (have >= wanted) continue;
 				const float need = std::clamp(1.0f - have / wanted, 0.0f, 1.0f);
 				const int slots = std::clamp(static_cast<int>(std::ceil((wanted - have) / rules.SlotUnits)), 1, std::max(1, rules.MaxSlots));
 				char why[128];
 				std::snprintf(why, sizeof why, "the store has %d of %.0f %s", m_Store.Count(item), static_cast<double>(wanted), item.c_str());
-				m_Board.Post("gather", item, SkillFamilyOf(kind), wanted - have, priority("gather") * (0.3f + 0.7f * need), slots, why + extra, m_Time, rules);
+				m_Board.Post("gather", item, SkillFamilyOf(kind), wanted - have, priority("gather") * (0.3f + 0.7f * need) * (IsFood(item) ? 1.0f + rules.SurvivalBoost * FoodShortage() : 1.0f), slots, why + extra, m_Time, rules);
 			}
 			// craft: the tool of a trade that a member lacks
 			std::map<std::string, int> lacking;
@@ -344,7 +352,7 @@ namespace GB
 	{
 		const JobRules& rules = Config.Work.Jobs;
 		const Job* held = m_Board.ClaimOf(m.Name);
-		float heldScore = held ? JobScore(m, *held, known) : 0.0f;
+		float heldScore = held ? JobScore(m, *held, known) * SurvivalFactor(*held) : 0.0f;
 		if (held && heldScore <= 0.0f)
 		{
 			m_Board.Release(m.Name);
@@ -355,12 +363,134 @@ namespace GB
 		for (const auto& [id, job] : m_Board.Jobs())
 		{
 			if (&job == held || !m_Board.HasRoom(job)) continue;
-			const float s = JobScore(m, job, known);
+			const float s = JobScore(m, job, known) * SurvivalFactor(job);
 			if (s > bestScore) { bestScore = s; best = &job; }
 		}
 		if (!best || bestScore < rules.MinScore || (held && bestScore <= heldScore + rules.Switch)) return;
 		const std::string id = best->Id;
 		if (m_Board.Claim(id, m.Name, m_Time)) Say(m, "takes the job " + id + " from the board");
+	}
+
+	// ------------------------------------------------------------------ the pyramid of needs (Maslow)
+	// The lowest tier is staying alive: food, water, warmth. While the clan is short of food nothing above it is worth doing, and the food jobs are
+	// worth more; once the clan has the days of food it wants, the pyramid steps aside and the rest of the board (tools, buildings, knowledge) goes on.
+	float Tribe::FoodDays() const
+	{
+		int units = FoodIn(m_Store), alive = 0;
+		for (const TribeMember& m : m_Members)
+		{
+			if (m.Dead) continue;
+			++alive;
+			if (m.Body) units += FoodIn(m.Body->Bag());
+		}
+		if (alive == 0) return 0.0f;
+		const NeedsConfig& n = Config.Needs;
+		// what a member eats in a day: it empties in HungerSeconds, a unit of food gives back FoodHunger of 100
+		const float perDay = (n.DaySeconds / std::max(n.HungerSeconds, 1.0f)) * (100.0f / static_cast<float>(std::max(n.FoodHunger, 1)));
+		return static_cast<float>(units) / (perDay * static_cast<float>(alive));
+	}
+
+	float Tribe::FoodShortage() const
+	{
+		const float wanted = Config.Work.Jobs.SurvivalDays;
+		if (wanted <= 0.0f) return 0.0f;
+		return std::clamp(1.0f - FoodDays() / wanted, 0.0f, 1.0f);
+	}
+
+	std::string Tribe::MaslowTier() const
+	{
+		if (FoodShortage() > 0.25f) return "survival";
+		bool afraid = false;
+		for (const TribeMember& m : m_Members)
+		{
+			if (m.Dead) continue;
+			const std::map<std::string, float> needs = NeedLevels(m);
+			if (const auto it = needs.find(NeedName::Safety); it != needs.end() && it->second < 40.0f) afraid = true;
+		}
+		if (!HasFire() && Beds() == 0) return "warmth";
+		if (afraid) return "safety";
+		return "growth";
+	}
+
+	void Tribe::RecordRow()
+	{
+		ChronicleRow row;
+		row.Time = m_Time;
+		row.Hour = Hour();
+		row.Day = static_cast<int>((m_Time / std::max(1.0, static_cast<double>(Config.Needs.DaySeconds))) + static_cast<double>(Config.Needs.StartHour) / 24.0) + 1;
+		row.Tier = MaslowTier();
+		row.FoodDays = FoodDays();
+		row.Fire = FireBurning();
+		row.Beds = Beds();
+		row.Buildings = BuildingCount();
+		for (const std::string& id : m_Items->Ids())
+			if (const int n = m_Store.Count(id)) row.Store[id] = n;
+		for (const TribeMember& m : m_Members)
+		{
+			ChronicleMember c;
+			c.Name = m.Name;
+			c.Role = m.Role;
+			c.Job = m.Job;
+			c.Detail = m.Detail;
+			c.Dead = m.Dead;
+			(m.Dead ? row.Dead : row.Alive) += 1;
+			const std::map<std::string, float> needs = NeedLevels(m);
+			auto level = [&](const char* n) { const auto it = needs.find(n); return it == needs.end() ? -1.0f : it->second; };
+			c.Hunger = level(NeedName::Hunger);
+			c.Thirst = level(NeedName::Thirst);
+			c.Rest = level(NeedName::Rest);
+			c.Warmth = level(NeedName::Warmth);
+			c.Health = level(NeedName::Health);
+			row.Members.push_back(std::move(c));
+		}
+		m_Chronicle.Add(std::move(row));
+	}
+
+	float Tribe::SurvivalFactor(const Job& job) const
+	{
+		const float shortage = FoodShortage();
+		if (shortage <= 0.0f) return 1.0f;
+		const JobRules& r = Config.Work.Jobs;
+		if ((job.Kind == "gather" || job.Kind == "expedition") && IsFood(job.Target)) return 1.0f + r.SurvivalBoost * shortage;
+		if (job.Kind == "stoke" || job.Kind == "fire" || job.Kind == "farm" || job.Kind == "haul" || job.Kind == "hunt") return 1.0f;   // warmth, fields and meat are staying alive too
+		return 1.0f + (r.SurvivalDamp - 1.0f) * shortage;
+	}
+
+	void Tribe::MaslowOptions(const TribeMember& m, float hunger, int foodInBag, bool foodHeld, std::vector<UtilityOption>& options) const
+	{
+		const JobRules& r = Config.Work.Jobs;
+		float severity = FoodShortage();
+		if (!foodHeld && hunger < r.CriticalHunger)   // its own stomach, whatever the clan's days say
+			severity = std::max(severity, std::clamp(1.0f - hunger / std::max(r.CriticalHunger, 1.0f), 0.0f, 1.0f));
+		if (severity <= 0.0f) return;
+		const float boost = 1.0f + r.SurvivalBoost * severity;
+		const float damp = 1.0f + (r.SurvivalDamp - 1.0f) * severity;
+		for (UtilityOption& o : options)
+		{
+			bool food = false, neutral = false;
+			if (o.Kind == "eat" || o.Kind == "drink") food = true;
+			else if (o.Kind == "gather")
+			{
+				const MemoryEntry* e = m.Mind.Memory.Find(o.Target);
+				const auto def = e ? m_Defs.find(e->Kind) : m_Defs.end();
+				food = def != m_Defs.end() && IsFood(def->second.Item);
+			}
+			else if (o.Kind == "explore")
+			{
+				const auto def = m_Defs.find(o.Target);
+				food = def != m_Defs.end() && IsFood(def->second.Item);
+			}
+			else if (o.Kind == "deposit") food = foodInBag > 0;   // food in the bag goes to the store, where the clan eats it
+			else if (o.Kind == "expedition") { const Job* held = m_Board.ClaimOf(m.Name); food = held && IsFood(held->Target); }
+			else if (IsOutside(o.Kind)) food = true;   // the clans around: a meeting or a trade is how a hungry clan eats too, so it weighs like food
+			else neutral = o.Kind == "sleep" || o.Kind == "warm" || o.Kind == "regroup" || o.Kind == "rest" || o.Kind == "stoke" || o.Kind == "fire" || o.Kind == "farm"
+				|| o.Kind == "haul" || o.Kind == "hunt" || o.Kind == "recover" || o.Kind == "care" || o.Kind == "migrate";
+			if (neutral) continue;
+			// eating and drinking when it can come first of all: the stomach is not a job to weigh against the others
+			const float f = (o.Kind == "eat" || o.Kind == "drink") ? boost * 2.0f : food ? boost : damp;
+			o.Score *= f;
+			o.Factors.push_back({ food ? "survival" : "survival (not now)", f });
+		}
 	}
 
 	void Tribe::JobBonus(const TribeMember& m, std::vector<UtilityOption>& options) const

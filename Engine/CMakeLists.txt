@@ -55,6 +55,7 @@ add_library(GB STATIC
     src/GB/Game/SocietyRules.cpp
     src/GB/Game/TribeSociety.cpp
     src/GB/Game/SimQA.cpp
+    src/GB/Game/Chronicle.cpp
     src/GB/Game/Settlement.cpp
     src/GB/Game/GameContent.cpp
     src/GB/Game/TribeClans.cpp

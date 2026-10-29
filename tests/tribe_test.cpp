@@ -361,6 +361,41 @@ int main()
 		Check(wood && std::abs(t.Navigation(t.Members()[1]).Load - std::min(1.0f, 2.0f * wood->Weight / 10.0f)) < 1e-4f, "a bag with a weight limit is loaded by the weight it carries");
 	}
 
+	// The pyramid of needs (Maslow): short of food, staying alive comes first; with the days of food in hand the rest of the board goes on (and says so).
+	{
+		ItemLibrary items;
+		RecipeBook recipes;
+		std::map<std::string, ResourceNodeDef> defs;
+		RegisterEraOneItems(items, recipes, defs);
+		EntityWorld entities;
+		GameplayWorld gameplay;
+		Tribe t;
+		t.Bind(entities, gameplay, items, recipes, defs);
+		FakeBody a("A", gameplay, entities, glm::vec2(0.0f)), b("B", gameplay, entities, glm::vec2(0.0f)), c("C", gameplay, entities, glm::vec2(0.0f));
+		t.AddMember("A", "forager", &a);
+		t.AddMember("B", "forager", &b);
+		t.AddMember("C", "miner", &c);
+		Job food, craft, fire;
+		food.Kind = "gather"; food.Target = "berry";
+		craft.Kind = "craft"; craft.Target = "stone_axe";
+		fire.Kind = "stoke"; fire.Target = "Campfire";
+		Check(t.FoodDays() == 0.0f && t.FoodShortage() == 1.0f && t.MaslowTier() == "survival", "no food at all: zero days, as short as can be, the tier is survival");
+		Check(t.SurvivalFactor(food) == 1.0f + t.Config.Work.Jobs.SurvivalBoost, "then a food job is worth (1 + boost) times");
+		Check(std::abs(t.SurvivalFactor(craft) - t.Config.Work.Jobs.SurvivalDamp) < 1e-5f && t.SurvivalFactor(fire) == 1.0f, "and a tool waits (damp) while the fire is still staying alive");
+		t.Store().Add(items, "berry", 40);
+		const float days = t.FoodDays();
+		Check(days > t.Config.Work.Jobs.SurvivalDays && t.FoodShortage() == 0.0f, "forty berries are more days than the clan wants for three members");
+		Check(t.MaslowTier() != "survival" && t.SurvivalFactor(food) == 1.0f && t.SurvivalFactor(craft) == 1.0f, "with them the pyramid steps aside: the tier moves up and every job is worth its own");
+		t.Store().Remove("berry", 30);
+		Check(t.FoodShortage() > 0.0f && t.FoodShortage() < 1.0f && t.SurvivalFactor(craft) < 1.0f && t.SurvivalFactor(craft) > t.Config.Work.Jobs.SurvivalDamp, "ten berries: partly short, partly damped (the pressure is continuous)");
+		a.Bag().Add(items, "berry", 5);
+		Check(t.FoodDays() > days * 0.0f && t.FoodDays() > 10.0f / 16.0f, "what the members carry counts as food in hand");
+		t.Record().Every = 10.0;
+		t.Update(1.0f);
+		Check(!t.Record().Rows().empty() && t.Record().Rows().front().Members.size() == 3, "the chronicle takes its first row, with the three members");
+		Check(t.Record().Markdown().find("## Members") != std::string::npos && t.Record().Csv().find("member,role,job") != std::string::npos, "and writes the report and the series");
+	}
+
 	AbstractOnTheGrid();
 
 	// Limits: a tribe nobody built, a tribe with no one in it, and a tribe in a land with nothing to gather (everyone goes hungry and says why).

@@ -4,6 +4,7 @@
 #include "GB/Gameplay/SiteChoice.h"
 #include "GB/Gameplay/WorldResources.h"
 #include <algorithm>
+#include <fstream>
 #include <cmath>
 #include <cstdio>
 #include <iomanip>
@@ -457,9 +458,33 @@ namespace GB::Editor
 			m_Tribe.Clear();
 			return { true, "tribe cleared (the actors stay: actor remove <name>)" };
 		}
+		// the chronicle of the clan (Chronicle.h): what it went through, by itself while it lives; the report is Markdown, the series CSV
+		if (sub == "chronicle")
+		{
+			Chronicle& c = ActiveTribe().Record();
+			const std::string what = a.size() > 1 ? a[1] : "summary";
+			if (what == "summary") return { true, c.Summary() };
+			if (what == "clear") { c.Clear(); return { true, "chronicle cleared" }; }
+			if (what == "every")
+			{
+				if (a.size() < 3) return { true, "one row every " + std::to_string(static_cast<int>(c.Every)) + " simulation seconds" };
+				c.Every = std::max(1.0, std::atof(a[2].c_str()));
+				return { true, "one row every " + std::to_string(static_cast<int>(c.Every)) + " simulation seconds" };
+			}
+			if (what == "report" || what == "csv")
+			{
+				const std::string text = what == "csv" ? c.Csv() : c.Markdown();
+				if (a.size() < 3) return { true, c.Summary() + " (give a file: tribe chronicle " + what + " <path>)" };
+				std::ofstream out(a[2], std::ios::binary);
+				if (!out) return { false, "cannot write " + a[2] };
+				out << text;
+				return { true, what + " written to " + a[2] + " (" + std::to_string(text.size()) + " bytes)" };
+			}
+			return { false, "usage: tribe chronicle [summary | report <file.md> | csv <file.csv> | every <seconds> | clear]" };
+		}
 		const bool society = sub == "family" || sub == "relations" || sub == "culture" || sub == "relate" || sub == "day";
 		if (sub != "log" && sub != "status" && sub != "jobs" && !society)
-			return { false, "usage: tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | remove <name> | clear | family <name> | relations <name> | culture | relate <a> <b> <event> | day" };
+			return { false, "usage: tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | chronicle [report|csv <file>] | remove <name> | clear | family <name> | relations <name> | culture | relate <a> <b> <event> | day" };
 		if (ActiveTribe().Members().empty()) return { false, "no tribe (tribe build [model.fbx])" };
 		// H9 + H10: the family and character of a member, its relations, the culture of the clan; an event between two members; a day of the society now
 		if (society)

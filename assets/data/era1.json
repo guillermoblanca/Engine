@@ -780,7 +780,11 @@
       "switch": 0.3,
       "priority": { "gather": 1.0, "craft": 1.4, "stoke": 1.6, "fire": 1.2, "build": 1.3, "deliver": 1.1 },
       "upkeep": { "fiber": 1.0 },
-      "fireWood": 4.0
+      "fireWood": 4.0,
+      "survivalDays": 1.5,
+      "survivalBoost": 2.0,
+      "survivalDamp": 0.25,
+      "criticalHunger": 55.0
     },
     "roles": {
       "review": 900.0,

@@ -30,6 +30,11 @@ namespace GB
 		std::map<std::string, float> Priority;   // the base priority of each kind of job: "gather", "craft", "stoke", "fire"
 		std::map<std::string, float> Upkeep;     // item -> what the camp uses up per member (fiber 1): added to the stock the board asks for
 		float FireWood = 4.0f;          // wood wanted on top of the stock while there is a campfire to keep
+		// The pyramid of needs (Maslow): while the clan is short of food, staying alive comes first.
+		float SurvivalDays = 1.5f;      // days of food (store and bags) the clan wants in hand before it thinks of anything else
+		float SurvivalBoost = 2.0f;     // food jobs and food options score x (1 + this x how short of food the clan is)
+		float SurvivalDamp = 0.25f;     // what is not about staying alive scores this much (x) when the clan is as short of food as can be
+		float CriticalHunger = 55.0f;   // a member this hungry with no food in hand drops what it was doing for food (the same pressure, its own)
 		bool operator==(const JobRules&) const = default;
 	};
 

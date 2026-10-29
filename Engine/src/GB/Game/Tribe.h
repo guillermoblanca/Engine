@@ -5,6 +5,7 @@
 #include "GB/AI/Needs.h"
 #include "GB/AI/Perception.h"
 #include "GB/AI/Utility.h"
+#include "GB/Game/Chronicle.h"
 #include "GB/Game/Conflict.h"
 #include "GB/Game/Economy.h"
 #include "GB/Game/Entity.h"
@@ -363,6 +364,16 @@ namespace GB
 		// The same as data, for an interface that draws them: where each is, how far it is built and what it gives once done.
 		struct SettlementSite { std::string Name, Building; glm::vec2 Pos{ 0.0f }; SiteState State; int Beds = 0; std::string Station, Store; };
 		std::vector<SettlementSite> SettlementSites() const;
+		// The pyramid of needs as the clan lives it (JobRules::Survival*): days of food in hand (store and bags), how short of it the clan is (0 = it has
+		// the days it wants, 1 = none) and the lowest tier not covered: "survival" (food), "warmth" (no fire and no roof), "safety" (a member afraid) or
+		// "growth" (everything below is covered: tools, buildings, knowledge, company).
+		float FoodDays() const;
+		float FoodShortage() const;
+		std::string MaslowTier() const;
+		float SurvivalFactor(const Job& job) const;   // the pyramid on a job: food jobs worth more while the clan is short of food, the rest worth less
+		// What the clan has lived through, row by row (Chronicle.h): `tribe chronicle`. It records by itself while the tribe is updated.
+		Chronicle& Record() { return m_Chronicle; }
+		const Chronicle& Record() const { return m_Chronicle; }
 		// Starts a site of a building at a place (the planner does this by itself); "" or why not. The name is "<Name> <n>".
 		std::string StartSite(const std::string& building, const glm::vec2& at, std::string* name = nullptr);
 
@@ -598,6 +609,10 @@ namespace GB
 		// H7 (TribeWork.cpp): claims the job worth most to the member; the bonus of its job on the options that do it; what the work taught it.
 		void ClaimJob(TribeMember& m, const std::map<std::string, Nearest>& known);
 		void JobBonus(const TribeMember& m, std::vector<UtilityOption>& options) const;
+		void RecordRow();   // one row of the chronicle: the clan and each member now
+		// The pyramid on a member's options (the last word before it chooses): while the clan or the member itself is short of food, the options
+		// that feed it (eat, drink, gather or look for food, carry food) score more and what is not about staying alive scores less.
+		void MaslowOptions(const TribeMember& m, float hunger, int foodInBag, bool foodHeld, std::vector<UtilityOption>& options) const;
 		void Practise(TribeMember& m, const std::string& activity, const std::string& key, float units);
 		float JobScore(const TribeMember& m, const Job& job, const std::map<std::string, Nearest>& known) const;
 		void Say(const TribeMember& m, const std::string& text);
@@ -713,6 +728,7 @@ namespace GB
 		std::map<std::string, std::string> m_Claims;   // node -> worker that goes there
 		Inventory m_Store{ 40, 0.0f };
 		std::vector<std::string> m_Log;
+		Chronicle m_Chronicle;
 		double m_Time = 0.0, m_Clock = 0.0;
 		bool m_ClockSet = false;
 		float m_Think = 0.0f, m_NeedTimer = 0.0f, m_UpkeepTimer = 0.0f, m_SpoilTimer = 0.0f;
