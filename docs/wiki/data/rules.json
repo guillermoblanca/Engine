@@ -1,6 +1,331 @@
 {
   "abilities": [
     {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Attacking",
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Attacking",
+        "State.Staggered"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "Combat.Cost.axe",
+      "domain": "Otras",
+      "durationSeconds": 1.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Combat.Hit",
+          "notify": "hit",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.45
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "sword_slash_1",
+        "sword_slash_3"
+      ],
+      "moveToTarget": false,
+      "name": "Attack.axe",
+      "needsTarget": true,
+      "note": "a blow with the axe",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Attack.axe",
+      "targetBlockedTags": [
+        "State.Dead"
+      ],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Attacking",
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Attacking",
+        "State.Staggered"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "Combat.Cost.bite",
+      "domain": "Otras",
+      "durationSeconds": 0.84,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Combat.Hit",
+          "notify": "",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.4
+        }
+      ],
+      "keepProp": false,
+      "montages": [],
+      "moveToTarget": false,
+      "name": "Attack.bite",
+      "needsTarget": true,
+      "note": "a blow with the bite",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Attack.bite",
+      "targetBlockedTags": [
+        "State.Dead"
+      ],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Attacking",
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Attacking",
+        "State.Staggered"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "Combat.Cost.fists",
+      "domain": "Otras",
+      "durationSeconds": 0.77,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Combat.Hit",
+          "notify": "hit",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.4
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "sword_attack_1",
+        "sword_attack_3"
+      ],
+      "moveToTarget": false,
+      "name": "Attack.fists",
+      "needsTarget": true,
+      "note": "a blow with the fists",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Attack.fists",
+      "targetBlockedTags": [
+        "State.Dead"
+      ],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Attacking",
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Attacking",
+        "State.Staggered"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "Combat.Cost.pickaxe",
+      "domain": "Otras",
+      "durationSeconds": 1.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Combat.Hit",
+          "notify": "hit",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "sword_attack_4"
+      ],
+      "moveToTarget": false,
+      "name": "Attack.pickaxe",
+      "needsTarget": true,
+      "note": "a blow with the pickaxe",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Attack.pickaxe",
+      "targetBlockedTags": [
+        "State.Dead"
+      ],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Attacking",
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Attacking",
+        "State.Staggered"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "Combat.Cost.spear",
+      "domain": "Otras",
+      "durationSeconds": 1.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Combat.Hit",
+          "notify": "hit",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "sword_attack_2"
+      ],
+      "moveToTarget": false,
+      "name": "Attack.spear",
+      "needsTarget": true,
+      "note": "a blow with the spear",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Attack.spear",
+      "targetBlockedTags": [
+        "State.Dead"
+      ],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Blocking"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Attacking",
+        "State.Blocking"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "Combat.Cost.Block",
+      "domain": "Otras",
+      "durationSeconds": 0.9,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [],
+      "keepProp": false,
+      "montages": [
+        "sword_block_1",
+        "sword_block_2"
+      ],
+      "moveToTarget": true,
+      "name": "Block",
+      "needsTarget": false,
+      "note": "blocks a blow",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Block",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Busy",
+        "State.Carrying"
+      ],
+      "cooldownSeconds": 0.2,
+      "cost": "",
+      "domain": "Otras",
+      "durationSeconds": 2.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Building.Work",
+          "notify": "build",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.5
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "plant"
+      ],
+      "moveToTarget": true,
+      "name": "Build",
+      "needsTarget": true,
+      "note": "works a construction site whose phase has its materials (Building.Ready): its work moves the phase on",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Build",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [
+        "Building.Site",
+        "Building.Ready"
+      ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
       "activationEffects": [
         "Carrying.Box"
       ],
@@ -368,6 +693,39 @@
       "targetRequiredTags": [
         "Garden.Compost"
       ],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [
+        "Combat.Fleeing"
+      ],
+      "activeTags": [],
+      "blockedTags": [
+        "State.Dead"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "",
+      "domain": "Otras",
+      "durationSeconds": 0.1,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [],
+      "keepProp": false,
+      "montages": [],
+      "moveToTarget": true,
+      "name": "Flee",
+      "needsTarget": false,
+      "note": "turns and runs",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Flee",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
       "unequipProp": "",
       "waitEvent": ""
     },
@@ -909,6 +1267,44 @@
     {
       "activationEffects": [],
       "activeTags": [
+        "State.Staggered"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Staggered"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "",
+      "domain": "Otras",
+      "durationSeconds": 0.45,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [],
+      "keepProp": false,
+      "montages": [
+        "sword_impact_1",
+        "react_small_front",
+        "sword_impact_2"
+      ],
+      "moveToTarget": true,
+      "name": "Stagger",
+      "needsTarget": false,
+      "note": "reels from a blow",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Stagger",
+      "targetBlockedTags": [],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
         "State.Busy"
       ],
       "blockedTags": [
@@ -1042,7 +1438,11 @@
       "name": "autosave"
     },
     {
-      "help": "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)",
+      "help": "building <id> [phase] [progress] [x z] [name] | building <id> phases [x z]: a building site as H8 will make it (BuildingVisuals::Build); `phases` lays out every phase of it",
+      "name": "building"
+    },
+    {
+      "help": "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera free | top | follow [member]: walk over the ground with WASD (Q/E turn, Shift runs, the wheel zooms to the cursor), look straight down, or orbit a tribe member (keys F and T in the viewport). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)",
       "name": "camera"
     },
     {
@@ -1054,12 +1454,20 @@
       "name": "character_export"
     },
     {
+      "help": "clan new <name> [x z] [members] [model] | list | select <id|name> | relations | trade <a> <b> [force] | visit <a> <b> | wed <a> <b> | move <member> <clan> | territory | meetings | log [n]: several clans in one world (H13): each a tribe of its own, placed by the site chooser away from the others; they meet, claim land, trade, teach each other, wed and make pacts",
+      "name": "clan"
+    },
+    {
       "help": "clear: empties the console",
       "name": "clear"
     },
     {
       "help": "clips: lists the animation clips of the loaded model",
       "name": "clips"
+    },
+    {
+      "help": "combat status [name] | log [n] | hurt <name> <health> [severity] | fight <a> <b> | flee <a> <b> | stop <name>: the fights of the world (H14): who fights or flees whom, health, stamina, morale, wounds; hurt wounds a character, fight sets one on another (a member's clan then decides)",
+      "name": "combat"
     },
     {
       "help": "content status | export <file.json> | load <file.json>: the items, recipes, resource nodes and tribe roles, the interactives and the animal species as data (the pack era1, assets/data/era1.json and world.json, is read at start: see `pack`); load adds to or replaces by id, all sections or none",
@@ -1092,6 +1500,10 @@
     {
       "help": "frame: looks at the middle of the world again",
       "name": "frame"
+    },
+    {
+      "help": "game <action>: what the keys of the game do (status, interact, eat, drink, deposit, take, sleep, claim, give, talk, teach, learn, marry, propose, craft, attack, block, flee, trade, clan, jobs, pause, faster, slower, save, load, help)",
+      "name": "game"
     },
     {
       "help": "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)",
@@ -1170,6 +1582,10 @@
       "name": "help"
     },
     {
+      "help": "hostile [a b [0-1]]: who is hostile to whom (clans, animal tags such as Animal.Fox), the grievances and the camps; with a pair, sets how hostile they are to each other (0 makes peace)",
+      "name": "hostile"
+    },
+    {
       "help": "interact <entity> [point]: the player goes to an interaction point of an entity and uses it (underscores in names stand for spaces); no argument lists the points of the scene",
       "name": "interact"
     },
@@ -1242,6 +1658,10 @@
       "name": "new_scene"
     },
     {
+      "help": "overlay [on|off]: draws the clan's fields (one colour per plot state), stockpiles and, over each member, its name, trade and what it is doing",
+      "name": "overlay"
+    },
+    {
       "help": "pack list | load <id|manifest.json> [strict] | check: the eras as data packs (assets/data/<id>.pack.json: its content files, the packs it depends on, what is given, the stations, the known gaps). load loads the missing dependencies first, all or nothing, and checks that every item and recipe can be had (strict: a problem refuses the load); era1 is loaded at start",
       "name": "pack"
     },
@@ -1250,7 +1670,7 @@
       "name": "panel"
     },
     {
-      "help": "play <clip name|index> [fade seconds]: plays a clip of the loaded model",
+      "help": "play [temperate|alpine|desert] [seed] [members] [clans] | off | status: H15's game: a world, clans placed by the site chooser, and you as a member of clan 0 (the X Bot of packs/full, or the fox); the keys are in the \"controls\" section (player.json); see docs/JUGAR.md",
       "name": "play"
     },
     {
@@ -1302,6 +1722,10 @@
       "name": "player_tasks"
     },
     {
+      "help": "qa sim [days] [members] | check | status | reset | expect \"<command>\" <regex>: simulation QA (H20): `sim` runs the current scene (its tribe, or a new one) headless for days and checks every invariant at every step (counts, claims, stuck members, deaths, store, fire, positions, ground, job board, skills, knowledge, expeditions, migration, society), `check` checks the live scene now, `status` what the live monitor has seen (QA panel), `expect` fails unless a command's answer matches (for scripted demos)",
+      "name": "qa"
+    },
+    {
       "help": "quality <minimum|low|medium|high|ultra>: post-processing preset (minimum also renders at 60% resolution without MSAA and draws less far, for slow GPUs)",
       "name": "quality"
     },
@@ -1316,6 +1740,10 @@
     {
       "help": "quit: closes the editor",
       "name": "quit"
+    },
+    {
+      "help": "raid <clan> | status: sends the tribe to raid a hostile clan's camp (it steals from the store, food first, and comes back), or says how its raid goes; the clan also weighs raids by itself (boldness, hunger, grievance)",
+      "name": "raid"
     },
     {
       "help": "redo: re-applies an undone scene edit",
@@ -1366,11 +1794,19 @@
       "name": "set"
     },
     {
+      "help": "settlement status | start <building> [x z] | buildings: the buildings and construction sites of the tribe (H8): the clan plans them from its needs (beds, a full store, a station), carries the materials and works each phase with Build",
+      "name": "settlement"
+    },
+    {
       "help": "shot_ui <file.png>: saves the whole window, panels included, at the end of this frame",
       "name": "shot_ui"
     },
     {
-      "help": "stats: frame time, objects drawn/culled and world counts",
+      "help": "site best | score [x z] | list [n]: where a clan would settle (H8): every place of the generated world scored by the water, the resource nodes the clan wants near, flat ground, the biome and shelter; `tribe build` without a place uses the best",
+      "name": "site"
+    },
+    {
+      "help": "stats [ai]: frame time, objects drawn/culled and world counts; `stats ai`: the cost of the AI (H16): thinks, plans and the queue, ms per system, animation LOD",
       "name": "stats"
     },
     {
@@ -1396,6 +1832,10 @@
     {
       "help": "undo: reverts the last scene edit",
       "name": "undo"
+    },
+    {
+      "help": "visuals [on|off|status|props on|off|activities on|off|reach on|off|nodes [x z]]: the procedural looks of nodes, buildings, creatures and the tribe's props (assets/data/visuals.json); `nodes` lays out every node model full, half and empty",
+      "name": "visuals"
     },
     {
       "help": "wait <frames>: in a script, pauses for that many frames",
@@ -1447,6 +1887,171 @@
       ],
       "modifiers": [],
       "name": "Carrying.Wheelbarrow",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Stamina",
+          "magnitude": -6.0,
+          "op": "add"
+        }
+      ],
+      "name": "Combat.Cost.Block",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Stamina",
+          "magnitude": -10.0,
+          "op": "add"
+        }
+      ],
+      "name": "Combat.Cost.axe",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Stamina",
+          "magnitude": -6.0,
+          "op": "add"
+        }
+      ],
+      "name": "Combat.Cost.bite",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Stamina",
+          "magnitude": -5.0,
+          "op": "add"
+        }
+      ],
+      "name": "Combat.Cost.fists",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Stamina",
+          "magnitude": -11.0,
+          "op": "add"
+        }
+      ],
+      "name": "Combat.Cost.pickaxe",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Stamina",
+          "magnitude": -9.0,
+          "op": "add"
+        }
+      ],
+      "name": "Combat.Cost.spear",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 6.0,
+      "grantedTags": [
+        "State.Fleeing"
+      ],
+      "modifiers": [],
+      "name": "Combat.Fleeing",
+      "periodSeconds": 0.0,
+      "policy": "duration",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "State.Wounded",
+        "Combat.Wounded.Grave"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.4,
+          "op": "multiply"
+        }
+      ],
+      "name": "Combat.Wounded.Grave",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "State.Wounded",
+        "Combat.Wounded.Light"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.85,
+          "op": "multiply"
+        }
+      ],
+      "name": "Combat.Wounded.Light",
+      "periodSeconds": 0.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [
+        "State.Wounded",
+        "Combat.Wounded.Serious"
+      ],
+      "modifiers": [
+        {
+          "attribute": "Vigor",
+          "magnitude": 0.64,
+          "op": "multiply"
+        }
+      ],
+      "name": "Combat.Wounded.Serious",
       "periodSeconds": 0.0,
       "policy": "infinite",
       "removedTags": [],
@@ -1997,6 +2602,7 @@
   "entityKinds": [
     {
       "abilities": [
+        "Build",
         "Chop",
         "CloseDoor",
         "Collect",
