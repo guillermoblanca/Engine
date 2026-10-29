@@ -478,8 +478,10 @@ namespace GB
 	{
 		const JobRules& r = Config.Work.Jobs;
 		float severity = FoodShortage();
-		if (!foodHeld && hunger < r.CriticalHunger)   // its own stomach, whatever the clan's days say
-			severity = std::max(severity, std::clamp(1.0f - hunger / std::max(r.CriticalHunger, 1.0f), 0.0f, 1.0f));
+		// its own stomach, whatever the clan's days say: with no food in hand it goes for some from 55; with food in hand it eats it before it goes on (from 33)
+		const float critical = foodHeld ? r.CriticalHunger * 0.6f : r.CriticalHunger;
+		if (hunger < critical)
+			severity = std::max(severity, std::clamp(1.0f - hunger / std::max(critical, 1.0f), 0.0f, 1.0f));
 		if (severity <= 0.0f) return;
 		const float boost = 1.0f + r.SurvivalBoost * severity;
 		const float damp = 1.0f + (r.SurvivalDamp - 1.0f) * severity;
@@ -500,9 +502,10 @@ namespace GB
 			}
 			else if (o.Kind == "deposit") food = foodInBag > 0;   // food in the bag goes to the store, where the clan eats it
 			else if (o.Kind == "expedition") { const Job* held = m_Board.ClaimOf(m.Name); food = held && IsFood(held->Target); }
+			else if (o.Kind == "snare") food = true;   // a snare is food too (social life, TribeSocial.cpp)
 			else if (IsOutside(o.Kind)) food = true;   // the clans around: a meeting or a trade is how a hungry clan eats too, so it weighs like food
 			else neutral = o.Kind == "sleep" || o.Kind == "warm" || o.Kind == "regroup" || o.Kind == "rest" || o.Kind == "stoke" || o.Kind == "fire" || o.Kind == "farm"
-				|| o.Kind == "haul" || o.Kind == "hunt" || o.Kind == "recover" || o.Kind == "care" || o.Kind == "migrate";
+				|| o.Kind == "haul" || o.Kind == "hunt" || o.Kind == "gear" || o.Kind == "recover" || o.Kind == "care" || o.Kind == "migrate";
 			if (neutral) continue;
 			// eating and drinking when it can come first of all: the stomach is not a job to weigh against the others
 			const float f = (o.Kind == "eat" || o.Kind == "drink") ? boost * 2.0f : food ? boost : damp;

@@ -127,7 +127,7 @@ namespace GB
 		struct Field
 		{
 			const char* Key;
-			enum Kind { F, I, S, B, L } Type;
+			enum Kind { F, I, S, B, L, M } Type;
 			void* Ptr;
 			float Lo = 0.0f, Hi = 0.0f;
 		};
@@ -136,6 +136,7 @@ namespace GB
 		Field Tx(const char* k, std::string& v) { return { k, Field::S, &v }; }
 		Field Bo(const char* k, bool& v) { return { k, Field::B, &v }; }
 		Field Li(const char* k, std::vector<std::string>& v) { return { k, Field::L, &v }; }
+		Field Ma(const char* k, std::map<std::string, int>& v) { return { k, Field::M, &v }; }   // id -> whole number (0..1000)
 
 		std::vector<Field> Fields(WeaponDef& w)
 		{
@@ -180,7 +181,7 @@ namespace GB
 		{
 			return { Tx("tag", h.Tag), Tx("item", h.Item), In("units", h.Units, 0, 1000), Tx("byproduct", h.Byproduct), In("byproductUnits", h.ByproductUnits, 0, 1000), Fl("health", h.Health, 1.0f, 10000.0f), Fl("speed", h.Speed, 0.1f, 100.0f),
 				Tx("weapon", h.Weapon), Bo("fightsBack", h.FightsBack), Tx("toolTag", h.ToolTag), Fl("priority", h.Priority, 0.0f, 100.0f),
-				Fl("range", h.Range, 0.0f, 10000.0f), In("hunters", h.Hunters, 1, 20) };
+				Fl("range", h.Range, 0.0f, 10000.0f), In("hunters", h.Hunters, 1, 20), Ma("yields", h.Yields), In("group", h.Group, 1, 20) };
 		}
 		std::vector<Field> Fields(RaidRules& r)
 		{
@@ -229,6 +230,18 @@ namespace GB
 					*static_cast<std::vector<std::string>*>(f->Ptr) = std::move(out);
 					break;
 				}
+				case Field::M:
+				{
+					if (!v.is_object()) return "combat: " + part + " " + key + " must be an object of id -> whole number";
+					std::map<std::string, int> out;
+					for (const auto& [id, n] : v.items())
+					{
+						if (id.empty() || !n.is_number_integer() || n.get<int>() < 0 || n.get<int>() > 1000) return "combat: " + part + " " + key + " must be an object of id -> whole number from 0 to 1000";
+						out[id] = n.get<int>();
+					}
+					*static_cast<std::map<std::string, int>*>(f->Ptr) = std::move(out);
+					break;
+				}
 				}
 			}
 			return {};
@@ -245,6 +258,7 @@ namespace GB
 				case Field::S: o[f.Key] = *static_cast<const std::string*>(f.Ptr); break;
 				case Field::B: o[f.Key] = *static_cast<const bool*>(f.Ptr); break;
 				case Field::L: o[f.Key] = *static_cast<const std::vector<std::string>*>(f.Ptr); break;
+				case Field::M: o[f.Key] = *static_cast<const std::map<std::string, int>*>(f.Ptr); break;
 				}
 			return o;
 		}
@@ -391,6 +405,8 @@ namespace GB
 		{
 			if (!items.Find(h.Item)) return "combat: hunt " + id + " gives " + h.Item + ", which is not an item";
 			if (!h.Byproduct.empty() && !items.Find(h.Byproduct)) return "combat: hunt " + id + " gives " + h.Byproduct + ", which is not an item";
+			for (const auto& [item, n] : h.Yields)
+				if (!items.Find(item)) return "combat: hunt " + id + " yields " + item + ", which is not an item";
 		}
 		return {};
 	}
@@ -903,6 +919,10 @@ namespace GB
 			{
 				o.Mode = FightMode::None;
 				o.Target.clear();
+				// the others' swings in the air at it stop: a dead animal is taken away (the ecology) and a blow landing later would reach a
+				// target that no longer exists (a group hunt: several hunters on one deer)
+				if (n != by && m_Gameplay)
+					if (AbilitySystemComponent* oa = m_Gameplay->Find(n)) oa->CancelAll();
 				// a predator eats what it killed, then goes back to its life
 				if (o.Animal && m_Gameplay)
 					if (AbilitySystemComponent* pa = m_Gameplay->Find(n))

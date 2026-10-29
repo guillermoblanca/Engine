@@ -552,6 +552,7 @@ namespace GB
 		ca.Folk->Note(ma, "greets " + mb.Name + " of " + cb.Name);
 		cb.Folk->Note(mb, "greets " + ma.Name + " of " + ca.Name);
 		Relate(ca.Id, cb.Id, "meet");
+		ShareBeliefs(ca.Id, cb.Id);   // social lane: shared beliefs, trust (ClansBeliefs.cpp)
 		if (first)
 		{
 			Emit("contact", ca.Id, cb.Id, ca.Name + " and " + cb.Name + ": first contact: " + ma.Name + " of " + ca.Name + " meets " + mb.Name + " of " + cb.Name + " at " + Place(ca.Folk->Position(ma)));

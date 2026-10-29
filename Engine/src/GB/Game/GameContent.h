@@ -75,4 +75,9 @@ namespace GB
 	// one document). Apart from the others: the simulation never reads it, only the scene (SceneVisuals::Library).
 	ContentSection VisualContentSection(VisualLibrary& library);
 	void AddVisualContentSection(ContentPacks& packs, VisualLibrary& library);
+
+	// The "social" section (docs/VIDA_SOCIAL.md), through LoadSocialRules: mood, talk, rites, beliefs, the shaman, diet and traps (atomic for one
+	// document; "rites" add or replace by id). On its own, like "combat"; the editor adds it over TribeConfig::Social (assets/data/social.json).
+	ContentSection SocialContentSection(SocialRules& rules);
+	void AddSocialContentSection(ContentPacks& packs, SocialRules& rules);
 }

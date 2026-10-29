@@ -4,13 +4,17 @@
   "era": 1,
   "version": "1.0",
   "depends": [],
-  "files": [ "era1.json", "world.json", "cameras.json", "visuals.json", "player.json" ],
+  "files": [ "era1.json", "world.json", "cameras.json", "visuals.json", "player.json", "social.json" ],
   "given": {
     "wood": "the camp starts with the wood found lying around on the first day (tribe build)",
     "stone": "the camp starts with the stones found lying around on the first day (tribe build)",
     "water": "the well (interactive, DrawWater)",
     "meat": "the hunt (H14: the hunts of the combat section)",
-    "hide": "the hunt (H14: the byproduct of a hunt of the combat section)"
+    "hide": "the hunt (H14: the byproduct of a hunt of the combat section)",
+    "bone": "the butchering of a hunt (social.json: the yields of the deer and the boar)",
+    "sinew": "the butchering of a hunt (social.json: the yields of the deer)",
+    "fat": "the butchering of a hunt (social.json: the yields of the deer and the boar)",
+    "feather": "the butchering of a hunt (social.json: the yields of the grouse)"
 
   },
   "stations": [ "workbench" ],

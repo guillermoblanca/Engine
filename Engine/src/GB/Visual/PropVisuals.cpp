@@ -23,6 +23,11 @@ namespace GB
 			const size_t space = detail.find(' ');
 			return "farm." + detail.substr(0, space);
 		}
+		if (job == "talk" || job == "rite")   // the social lane: "talk.story", "rite.funeral" (docs/VIDA_SOCIAL.md)
+		{
+			const size_t space = detail.find(' ');
+			return job + "." + detail.substr(0, space);
+		}
 		if (job == "socialize" && stage == "elder") return "teach";
 		return job;
 	}

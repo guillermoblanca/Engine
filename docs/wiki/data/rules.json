@@ -1438,6 +1438,10 @@
       "name": "autosave"
     },
     {
+      "help": "belief status | omen <event>: the beliefs of the clan (animism, ancestors, sky), the dominant one, the sacred place, the taboos kept, the omens read and the shaman; omen reads an event as the clan would (storm, eclipse, harvest, big_kill, two_deaths)",
+      "name": "belief"
+    },
+    {
       "help": "building <id> [phase] [progress] [x z] [name] | building <id> phases [x z]: a building site as H8 will make it (BuildingVisuals::Build); `phases` lays out every phase of it",
       "name": "building"
     },
@@ -1584,6 +1588,10 @@
     {
       "help": "hostile [a b [0-1]]: who is hostile to whom (clans, animal tags such as Animal.Fox), the grievances and the camps; with a pair, sets how hostile they are to each other (0 makes peace)",
       "name": "hostile"
+    },
+    {
+      "help": "hunt status | wildlife: what the clan has hunted, the game near its camp, its snares and pit traps and the taboo of the sacred place; wildlife lets loose the game of the rules around the camp",
+      "name": "hunt"
     },
     {
       "help": "interact <entity> [point]: the player goes to an interaction point of an entity and uses it (underscores in names stand for spaces); no argument lists the points of the scene",
@@ -1766,6 +1774,10 @@
       "name": "retarget"
     },
     {
+      "help": "rite list | start <rite> [subject]: the rites of the clan: the one under way, the agenda, the last held and those of the rules; start calls one now (naming, coming_of_age, pairing, funeral, solstice, spring_feast, harvest_feast, first_hunt, healing, tradition, appeasement)",
+      "name": "rite"
+    },
+    {
       "help": "run <script.txt>: runs the commands in a file",
       "name": "run"
     },
@@ -1806,8 +1818,16 @@
       "name": "site"
     },
     {
+      "help": "social status [name]: the social life of the clan (docs/VIDA_SOCIAL.md): moods, grief, talks (chat, story, gossip, teach, console, settle, greet, share, groom, play) and meals; with a name, that member's",
+      "name": "social"
+    },
+    {
       "help": "stats [ai]: frame time, objects drawn/culled and world counts; `stats ai`: the cost of the AI (H16): thinks, plans and the queue, ms per system, animation LOD",
       "name": "stats"
+    },
+    {
+      "help": "telemetry start <file.db> [every seconds] | stop | status: writes what happens to every individual of every clan (needs, place, job, skills, events) to a SQLite file by a thread of its own, for analysis; --telemetry=<file.db> starts it with the editor",
+      "name": "telemetry"
     },
     {
       "help": "test <name> [sandbox]: builds a Sandbox test scene in the viewport (sandbox = run the original in its own window)",
@@ -2476,12 +2496,44 @@
       "modifiers": [
         {
           "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.bee_tree",
+      "periodSeconds": 600.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
           "magnitude": 2.0,
           "op": "add"
         }
       ],
       "name": "Regrow.berry_bush",
       "periodSeconds": 20.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.bird_nest",
+      "periodSeconds": 300.0,
       "policy": "infinite",
       "removedTags": [],
       "unique": true
@@ -2528,8 +2580,56 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.fishing_spot",
+      "periodSeconds": 60.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.herb_patch",
       "periodSeconds": 60.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.mushroom_ring",
+      "periodSeconds": 120.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 2.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.nut_tree",
+      "periodSeconds": 240.0,
       "policy": "infinite",
       "removedTags": [],
       "unique": true
@@ -2576,8 +2676,40 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.root_patch",
+      "periodSeconds": 90.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.tree",
       "periodSeconds": 30.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.wild_greens",
+      "periodSeconds": 45.0,
       "policy": "infinite",
       "removedTags": [],
       "unique": true
@@ -2729,7 +2861,7 @@
           "name": "Starving"
         }
       ],
-      "count": 4,
+      "count": 8,
       "example": "Rabbit 1",
       "kind": "Conejo",
       "tags": [
@@ -2770,11 +2902,13 @@
           "name": "Regrow"
         }
       ],
-      "count": 66,
+      "count": 69,
       "example": "berry bush 1",
       "kind": "Nodo de recurso",
       "tags": [
         "Resource.Loose.Clay",
+        "Resource.Loose.Fungus",
+        "Resource.Loose.Nut",
         "Resource.Loose.Reed",
         "Resource.Node",
         "Resource.Node.berry_bush",
@@ -2782,19 +2916,60 @@
         "Resource.Node.copper_vein",
         "Resource.Node.fiber_grass",
         "Resource.Node.flint_outcrop",
-        "Resource.Node.herb_patch",
+        "Resource.Node.mushroom_ring",
+        "Resource.Node.nut_tree",
         "Resource.Node.old_tree",
         "Resource.Node.reed_bed",
         "Resource.Node.rock",
+        "Resource.Node.root_patch",
         "Resource.Node.tree",
+        "Resource.Node.wild_greens",
         "Resource.Node.young_tree",
         "Resource.Plant",
         "Resource.Plant.Branch",
-        "Resource.Plant.Herb",
+        "Resource.Plant.Green",
+        "Resource.Plant.Root",
         "Resource.Stone",
         "Resource.Stone.Copper",
         "Resource.Stone.Flint",
         "Resource.Wood"
+      ]
+    },
+    {
+      "abilities": [],
+      "attributes": [
+        {
+          "base": 200.0,
+          "max": null,
+          "min": 0.0,
+          "name": "Age"
+        },
+        {
+          "base": 0.0,
+          "max": 1000000.0,
+          "min": 0.0,
+          "name": "Cooldown"
+        },
+        {
+          "base": 80.0,
+          "max": 100.0,
+          "min": 0.0,
+          "name": "Food"
+        },
+        {
+          "base": 0.0,
+          "max": 1000000.0,
+          "min": 0.0,
+          "name": "Starving"
+        }
+      ],
+      "count": 9,
+      "example": "Boar 1",
+      "kind": "Otro",
+      "tags": [
+        "Animal.Boar",
+        "Animal.Deer",
+        "Animal.Grouse"
       ]
     },
     {
@@ -3133,6 +3308,7 @@
       "Resource.Loose": 0.6,
       "Resource.Plant": 1.0,
       "Resource.Plant.Branch": 0.5,
+      "Resource.Plant.Herb": 0.4,
       "Resource.Stone": 0.2,
       "Resource.Wood": 0.25,
       "default": 0.3,
@@ -3238,6 +3414,72 @@
     }
   },
   "species": {
+    "boar": {
+      "adultSeconds": 200.0,
+      "body": "quadruped",
+      "breedAbove": 80.0,
+      "breedCooldown": 300.0,
+      "breedCost": 25.0,
+      "color": [
+        0.25,
+        0.2,
+        0.17
+      ],
+      "eatReach": 1.0,
+      "eatSeconds": 5.0,
+      "eats": [
+        "Resource.Plant"
+      ],
+      "foodMax": 100.0,
+      "foodPerMeal": 30.0,
+      "hungerPerSecond": 0.12,
+      "hungryBelow": 55.0,
+      "legSeconds": 6.0,
+      "maxAnimals": 4,
+      "name": "Boar",
+      "newbornFood": 70.0,
+      "plural": "boars",
+      "sight": 16.0,
+      "size": 1.15,
+      "spawnFood": 0.8,
+      "speed": 1.4,
+      "starveSeconds": 160.0,
+      "tag": "Animal.Boar",
+      "wanderRadius": 16.0
+    },
+    "deer": {
+      "adultSeconds": 240.0,
+      "body": "quadruped",
+      "breedAbove": 80.0,
+      "breedCooldown": 360.0,
+      "breedCost": 30.0,
+      "color": [
+        0.55,
+        0.38,
+        0.22
+      ],
+      "eatReach": 1.2,
+      "eatSeconds": 4.0,
+      "eats": [
+        "Resource.Plant"
+      ],
+      "foodMax": 100.0,
+      "foodPerMeal": 30.0,
+      "hungerPerSecond": 0.1,
+      "hungryBelow": 50.0,
+      "legSeconds": 7.0,
+      "maxAnimals": 6,
+      "name": "Deer",
+      "newbornFood": 70.0,
+      "plural": "deer",
+      "sight": 26.0,
+      "size": 1.6,
+      "spawnFood": 0.8,
+      "speed": 1.6,
+      "starveSeconds": 180.0,
+      "tag": "Animal.Deer",
+      "wanderRadius": 22.0
+    },
     "fox": {
       "adultSeconds": 200.0,
       "body": "quadruped",
@@ -3270,6 +3512,39 @@
       "starveSeconds": 120.0,
       "tag": "Animal.Fox",
       "wanderRadius": 18.0
+    },
+    "grouse": {
+      "adultSeconds": 120.0,
+      "body": "rabbit",
+      "breedAbove": 80.0,
+      "breedCooldown": 160.0,
+      "breedCost": 15.0,
+      "color": [
+        0.45,
+        0.36,
+        0.28
+      ],
+      "eatReach": 1.0,
+      "eatSeconds": 3.0,
+      "eats": [
+        "Resource.Plant"
+      ],
+      "foodMax": 100.0,
+      "foodPerMeal": 25.0,
+      "hungerPerSecond": 0.18,
+      "hungryBelow": 55.0,
+      "legSeconds": 4.0,
+      "maxAnimals": 8,
+      "name": "Grouse",
+      "newbornFood": 60.0,
+      "plural": "grouse",
+      "sight": 14.0,
+      "size": 0.7,
+      "spawnFood": 0.7,
+      "speed": 1.2,
+      "starveSeconds": 60.0,
+      "tag": "Animal.Grouse",
+      "wanderRadius": 10.0
     },
     "rabbit": {
       "adultSeconds": 120.0,

@@ -204,6 +204,23 @@ Cada una solo para el primer edificio de su tipo. Lo pagable incluye intermedios
 Cada edificio nuevo tiene sus fases en `visuals.json` (sistema procedural de edificios); el horno y la empalizada ya dibujados se usan tal cual.
 Props nuevos: lanza de sílex, bolsa de cuero; montones de pieles y de carne curada.
 
+### 6.8 La rama social y espiritual (vida social)
+
+Un bloque aparte de tecnologías en `assets/data/social.json` (sección `techs`, suma por id; ver [VIDA_SOCIAL.md](VIDA_SOCIAL.md)), encima de
+`ritual` (tótem) y `cooking` (hogar):
+
+| Tecnología | Requiere | Desbloquea | Descubrimiento (exp / observar / enseñar / s) |
+|---|---|---|---|
+| `storytelling` Storytelling (idea) | — | la conversación `story` (historias que enseñan) | 0,08 / 0 / 0,3 / 30 |
+| `shamanism` Shamanism (idea) | ritual, herb_lore | el rito `healing` (con chamán) | 0,05 / 0 / 0,25 / 40 |
+| `trapping` Trapping | cordage | `snare` (lazo); trampas de lazo y de foso | 0,15 / 0,3 / 0,25 / 20 |
+| `fishing` Fishing | basketry | `fish_trap` (nasa): pescar en `fishing_spot` | 0,12 / 0,3 / 0,25 / 20 |
+| `butchery` Butchery | flint_knapping | `sinew_cordage` (cordel de tendón) | 0,15 / 0,3 / 0,25 / 20 |
+| `cuisine` Cuisine | cooking | `stew` (guiso), `roast` (asado) en el hogar | 0,12 / 0,3 / 0,3 / 20 |
+
+Los ritos de las estaciones (`solstice`, `spring_feast`, `harvest_feast`) piden `ritual`. El paquete `era1` da `bone`, `sinew`, `fat` y
+`feather` (el despiece de la caza) igual que da `meat` y `hide`.
+
 ## 7. Pendiente
 
 - Los edificios no son obstáculos de navegación (las camas están dentro de la huella; la empalizada con puerta queda para cuando la navegación sepa de

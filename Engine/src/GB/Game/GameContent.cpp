@@ -145,4 +145,13 @@ namespace GB
 	}
 
 	void AddVisualContentSection(ContentPacks& packs, VisualLibrary& library) { packs.AddSection(VisualContentSection(library)); }
+
+	ContentSection SocialContentSection(SocialRules& rules)
+	{
+		return StagedSection("social", { "social" },
+			[](const std::string& json, SocialRules& r) { return LoadSocialRules(json, r); },
+			nullptr, rules);
+	}
+
+	void AddSocialContentSection(ContentPacks& packs, SocialRules& rules) { packs.AddSection(SocialContentSection(rules)); }
 }

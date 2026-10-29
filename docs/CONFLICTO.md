@@ -73,6 +73,19 @@ audacia de su personalidad, y la mejor arma de su mochila.
   matarlo recibe `units` de `item`: **carne** (`meat`, comida que se estropea en 900 s: la economía la come primero), y `byproductUnits` de `byproduct`: la
   **piel** (`hide`, la del curtido de la progresión). La ecología se lleva el cuerpo y lo cuenta como cazado.
 
+## Más caza (vida social)
+
+`social.json` suma cacerías a la sección `combat` (por id): **ciervo** (4 carne, 2 pieles, 2 huesos, 2 tendones, 1 grasa), **jabalí** (se
+revuelve con colmillos: `bite`; 3 carne, 1 piel, 1 hueso, 2 grasa) y **urogallo** (1 carne, 3 plumas). Campos nuevos de `HuntRule`:
+
+- `yields` (objeto → unidades): el **despiece**, además de `item` y `byproduct`. `CheckCombat` comprueba que son objetos.
+- `group`: una **cacería en grupo**: nadie sale tras la presa hasta que haya tantos con el trabajo; el primero **ojea** («drives Deer (a group
+  hunt)») y los demás **esperan con la lanza** («waits for Deer with the spear»); todos van tras el mismo animal.
+
+Las **creencias** del clan pueden prohibir cazar cerca del lugar sagrado (tabú `sacred_hunt`: ni se publica la cacería ni se elige esa
+presa, `Tribe::HuntAllowed`) y la primera pieza de un cazador puede ir entera al almacén (`share_kill`); cada muerte llama a `Tribe::Hunted`
+(primera caza → rito; pieza grande → augurio). Ver [VIDA_SOCIAL.md](VIDA_SOCIAL.md).
+
 ## Incursiones y agravios
 
 Cada `raids.every` segundos el clan pesa una incursión contra los campamentos que la hostilidad le deja asaltar: motivo = `bold` × audacia media +

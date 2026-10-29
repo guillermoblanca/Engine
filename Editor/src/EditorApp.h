@@ -149,6 +149,11 @@ namespace GB::Editor
 		CommandResult CombatCommand(const std::vector<std::string>& a);
 		CommandResult HostileCommand(const std::vector<std::string>& a);
 		CommandResult RaidCommand(const std::vector<std::string>& a);
+		// Social life (EditorSocial.cpp, docs/VIDA_SOCIAL.md): `social status`, `rite list|start`, `belief status|omen`, `hunt status|wildlife`; the
+		// game of the rules let loose around a new camp, and the "Social life" section of the Tribe panel.
+		void RegisterSocialCommands();
+		std::string SpawnWildlife(const Tribe& tribe);
+		void DrawSocialSection();
 		// H15 (GameMode.cpp): `play` makes a game and puts the player in clan 0; `game <action>` is what its keys do; each frame the keys, the
 		// quality, the body and camera of the player, the news; the interface over the viewport and the clan panel.
 		void RegisterGameCommands();

@@ -536,6 +536,12 @@ namespace GB
 		return def == rules.Culture.Norms.end() ? 0.5f : def->second.Start;
 	}
 
+	void Society::NudgeNorm(const SocietyRules& rules, const std::string& norm, float delta)
+	{
+		if (!rules.Culture.Norms.count(norm)) return;
+		m_Norms[norm] = std::clamp(Norm(rules, norm) + delta, 0.0f, 1.0f);
+	}
+
 	std::vector<SocietyEvent> Society::Note(const SocietyRules& rules, const std::string& event)
 	{
 		std::vector<SocietyEvent> out;

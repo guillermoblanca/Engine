@@ -87,6 +87,14 @@ drying_rack to make it at»).
 - **Obras a la vez (H8)**: `economy.construction` (`maxSites` 3, `membersPerSite` 4): una obra abierta por cada cuatro miembros vivos.
 - **Capacidad del clan**: `economy status` dice cuánta comida entró hoy y ayer, para cuántos miembros, y cuánto cargan en total por viaje.
 
+## Comida variada (vida social)
+
+`assets/data/social.json` trae comida nueva con su caducidad (raíces 7200 s, frutos secos 14 400, setas 1200, hierbas silvestres 900, huevos
+2400, miel sin caducidad, pescado 900) y dos platos del hogar (`stew`, guiso: carne, raíces y hierbas → 3, dura 3600 s; `roast`, asado: carne y
+grasa → 2), de la tecnología `cuisine`. Como duran más que la carne, la **conservación** de esta página los elige cuando hay hogar y no hay
+ahumadero. La nasa (`fish_trap`) y los lazos (`snare`) se piden al plan con `SetDemand` desde la vida social cuando el clan sabe pescar o poner
+trampas. Lo que sacia cada comida y la variedad de la dieta (ánimo y salud) son de la sección `social.diet` ([VIDA_SOCIAL.md](VIDA_SOCIAL.md)).
+
 ## Datos
 
 Sección `economy` de `assets/data/era1.json` (`DefaultEconomyRules()` dice lo mismo; el test `economy` lo comprueba):

@@ -15,6 +15,7 @@
 #include "GB/Game/Knowledge.h"
 #include "GB/Game/PlayerMember.h"
 #include "GB/Game/Society.h"
+#include "GB/Game/Social.h"
 #include "GB/Game/Production.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Ecology.h"
@@ -205,6 +206,7 @@ namespace GB
 		ExplorationRules Explore;     // H12: regions, expeditions and migration (DefaultExplorationRules; the "exploration" section of a content file)
 		SocietyRules Society;         // H9 + H10: life, births, genes, personality, relations and culture (DefaultSocietyRules; the "society" section)
 		EconomyRules Econ;            // H18: production chains, spoilage, fields and stores (DefaultEconomyRules; the "economy" section of a content file)
+		SocialRules Social;           // social life: mood, talk, rites, beliefs, diet, traps (DefaultSocialRules; the "social" section, docs/VIDA_SOCIAL.md)
 		// The settlement (H8, see Settlement.cpp and docs/ASENTAMIENTOS.md): only with buildings (Tribe::SetBuildings).
 		float PlanSeconds = 10.0f;    // how often the clan looks at what it should build
 		float SiteRadius = 7.0f;      // the first ring around the camp where buildings go
@@ -588,6 +590,26 @@ namespace GB
 		// Credits a contribution (kind of PlayerRules::Credit, x units) to a player's standing; the clan world calls it for a trade.
 		void Credit(const std::string& player, const std::string& kind, float units);
 
+		// ---- social life (docs/VIDA_SOCIAL.md; TribeSocial.cpp, the state in GB/Game/Social.h): mood and grief, conversations, rites and rites of
+		// passage, beliefs (taboos, omens, the sacred place, the shaman), the variety of the diet and the clan's traps.
+		const SocialState& Social() const { return m_Social; }
+		SocialState& Social() { return m_Social; }
+		float Mood(const std::string& member) const;
+		float Grief(const std::string& member) const;
+		// Calls a rite of the rules now (it goes to the front of the agenda; `subject`: whom it is for). False and why when it cannot be called.
+		bool StartRite(const std::string& rite, const std::string& subject = std::string(), std::string* why = nullptr);
+		// An event of the world the clan reads as an omen ("storm", "eclipse", "harvest", "big_kill", "two_deaths": SocialRules Beliefs.Omens).
+		void Omen(const std::string& event);
+		// Whether the clan's taboos let it hunt an animal at a place (the sacred place's, when its belief holds it).
+		bool HuntAllowed(const glm::vec2& at) const;
+		// A hunter killed an animal of a hunt rule (H14): its first kill (a rite), the shared kill (a taboo), a great kill (an omen).
+		void Hunted(TribeMember& hunter, const HuntRule& rule, const std::string& animal);
+		// For people: moods and talks (or one member's), the agenda and the rite in course, the beliefs, and the hunting (hunts, traps, game near).
+		std::string SocialReport(const std::string& member = std::string()) const;
+		std::string RiteReport() const;
+		std::string BeliefReport() const;
+		std::string HuntReport() const;
+
 		// ---- saving: the store, the fire, the clan and each member's memory and decision (their needs are in their ability systems).
 		std::string ToJson() const;
 		// Members must already be added (AddMember). `reissue`: give the orders again to those who were in the middle of a job (their bodies lost them).
@@ -694,6 +716,29 @@ namespace GB
 		std::string DepositPlace(const TribeMember& m, glm::vec2& where) const;
 		int DepositAt(TribeMember& m, const std::string& place);
 		std::string FoodToEat(const Inventory& inv) const;
+		// social life (TribeSocial.cpp): the clock (omens, seasonal and recurring rites, the rite in course, traps), the talk, rite and snare
+		// options and the mood on every option, carrying them out and their ends, a meal (nutrition and diet), a death, a life event of the society
+		void StepSocial(float dt);
+		void SocialDay();
+		void SocialOptions(TribeMember& m, std::vector<UtilityOption>& options);
+		bool ExecuteSocial(TribeMember& m, const UtilityOption& option);
+		bool FinishSocial(TribeMember& m, const std::string& job);
+		void Ate(TribeMember& m, const std::string& item);
+		void ChooseMeal(const TribeMember& m, std::string& carried, std::string& stored) const;
+		void SocialDied(const TribeMember& m);
+		void SocialHears(const SocietyEvent& e);
+		void CallRites(const std::string& event, const std::string& subject);
+		bool CallRite(const std::string& rite, const std::string& subject, float delay, std::string* why = nullptr);
+		void StepRites();
+		bool BeginRite(PendingRite& p);
+		void EndRite(const std::string& why);
+		void StepTraps();
+		bool ClanKnowsTech(const std::string& tech) const;
+		glm::vec2 RitePlace(const RiteDef& def) const;
+		glm::vec2 CircleSpot(const std::string& member) const;
+		std::string ChooseTalk(const TribeMember& m, const TribeMember& other, std::string& about) const;
+		SocialMember& SocialOf(const std::string& name);
+		void MoveMood(const std::string& name, float delta);
 		// H15 (TribePlayer.cpp): a player member's turn in Update (it tells the clan what it knows at the camp; the days of its standing; the wants
 		// of its proposals), the floor of its health, the members it can reach and the wants a proposal leaves.
 		void StepPlayer(TribeMember& m);
@@ -813,6 +858,7 @@ namespace GB
 		IHostility* m_Hostility = nullptr;
 		std::string m_ClanName = "Clan";
 		ConflictState m_Conflict;     // H14 (saved under "conflict")
+		SocialState m_Social;         // social life (saved under "social")
 		struct Animal { std::string Name, Tag; glm::vec2 Pos{ 0.0f }; bool Predator = false; };
 		std::vector<Animal> m_Animals;   // the animals of the rules near the camp, refreshed with the conflict clock (not saved: the world has them)
 

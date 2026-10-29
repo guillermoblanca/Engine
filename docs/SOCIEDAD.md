@@ -137,6 +137,15 @@ las normas derivan y las tradiciones nacen; una tribu con cuerpos de prueba pier
 pequeño, se guarda y se carga (también sin sociedad), y dos ejecuciones acaban igual; un clan crea vínculos trabajando y en el campamento; y un clan
 diligente lleva más al almacén que uno ocioso.
 
+## Vida social (ánimo, conversaciones, ritos, creencias)
+
+Encima de las relaciones y la cultura, la **vida social** del clan ([VIDA_SOCIAL.md](VIDA_SOCIAL.md), sección `social` de `assets/data/social.json`):
+cada miembro tiene **ánimo** y **duelo**; las **conversaciones** (charla, historia, chisme, enseñanza, consuelo, zanjar una disputa, saludo,
+compartir comida, acicalarse, juego de niños) suben o bajan los vínculos de esta página con `Society::Adjust` y la necesidad `Company`; los
+**ritos de paso** (nombre, mayoría de edad, pareja, funeral) nacen de los mismos eventos de la sociedad (`birth`, `adult`, `pair`, `death`) y
+las **tradiciones** que nacen se vuelven ritos que vuelven cada pocos días. Un rito acerca las normas del clan (`Society::NudgeNorm`) y une a
+quienes están en el círculo. Una tribu sin la sección `social` (la de los tests de esta página) no tiene nada de eso.
+
 ## Límites y pendiente
 
 - **Modelos de niños y mayores**: el niño es el mismo modelo escalado (`Actor::SetHeight`); faltan proporciones, animaciones y retargeting propios (plan,

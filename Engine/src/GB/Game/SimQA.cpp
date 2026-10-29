@@ -119,6 +119,32 @@ namespace GB
 		// H14: the fights. Health and stamina stay in their ranges and are numbers; the dead never fight, flee or are fought; morale is 0..1 and the
 		// wounds 0..1 each, below the lethal total; and a wound that no longer bleeds never gets worse (they heal: the total of a member only grows
 		// with a new wound).
+		// The social life (docs/VIDA_SOCIAL.md): moods and griefs in 0..1, the store never negative, the circle of a rite of living members only,
+		// no rite longer than its gathering and its time (and a margin), and every trap one of the rules.
+		void CheckSocialLife(const SimView& v, SimTrack&, SimReport& r)
+		{
+			if (!v.Clan) return;
+			const SocialState& s = v.Clan->Social();
+			const SocialRules& rules = v.Clan->Config.Social;
+			for (const auto& [name, m] : s.Members)
+				if (!std::isfinite(m.Mood) || m.Mood < 0.0f || m.Mood > 1.0f || !std::isfinite(m.Grief) || m.Grief < 0.0f || m.Grief > 1.0f)
+					r.Add(name, "mood " + Fixed(m.Mood) + " or grief " + Fixed(m.Grief) + " is out of 0..1");
+			for (const ItemSlot& slot : v.Clan->Store().Stacks()) if (slot.Count < 0) r.Add("store", slot.Id + " is negative");
+			if (s.Rite.Active())
+			{
+				const auto d = rules.Rites.find(s.Rite.Rite);
+				if (d == rules.Rites.end()) r.Add("rite", s.Rite.Rite + " is not a rite of the rules");
+				else if (v.Clan->Time() - s.Rite.Start > static_cast<double>(d->second.GatherSeconds + d->second.Seconds) + 15.0) r.Add("rite", s.Rite.Rite + " has gone on for too long");
+				for (const std::string& n : s.Rite.Called)
+				{
+					const TribeMember* m = v.Clan->FindMember(n);
+					if (!m) r.Add("rite", n + " is called and is not a member");
+					else if (m->Dead) r.Add("rite", n + " stands in the circle dead");
+				}
+			}
+			for (const Snare& t : s.Snares) if (!rules.Hunting.Traps.count(t.Trap)) r.Add(t.Name, "is a trap of no rule (" + t.Trap + ")");
+		}
+
 		void CheckFights(const SimView& v, SimTrack& t, SimReport& r)
 		{
 			if (!v.Clan || !v.Gameplay || !v.Clan->Combat()) return;
@@ -460,6 +486,7 @@ namespace GB
 				[](const SimView& v, SimTrack&, SimReport& r) { if (v.Clans) for (const auto& [who, what] : v.Clans->CheckTerritory()) r.Add(who, what); } },
 			{ "buildings", "every site and building: phase and work within its data, nothing delivered beyond its phase, tags as its state, progress never back, none in water; no more sites open than the rules allow", CheckBuildings },
 			{ "combat", "health and stamina in range; the dead neither fight nor are fought; morale and wounds in range; wounds heal (they only grow with a new blow)", CheckFights },
+			{ "social", "moods and griefs in 0..1; no negative stock; a rite's circle of living members and no rite longer than its time; traps of the rules", CheckSocialLife },
 		};
 		return table;
 	}
@@ -838,6 +865,7 @@ namespace GB
 			m_Tribe.Config.Work = setup.Config->Work;
 			m_Tribe.Config.Agenda = setup.Config->Agenda;
 			m_Tribe.Config.Economy = setup.Config->Economy;
+			m_Tribe.Config.Social = setup.Config->Social;   // (social life: on when the clan's content has it, docs/VIDA_SOCIAL.md)
 		}
 		m_Tribe.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);   // (bound again below, once the members' ability systems exist)
 		std::vector<std::pair<std::string, std::string>> roster = setup.Roster;

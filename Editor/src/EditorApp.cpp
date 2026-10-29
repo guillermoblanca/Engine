@@ -139,6 +139,7 @@ namespace GB::Editor
 		AddPlayerContentSections(m_Packs, m_Tribe.Config.Player, m_Controls);   // H15: the player in the society, and the keys and interface of `play`
 		AddWorldContentSections(m_Packs, m_Interactives.Defs, m_Ecology.Species);   // the interactives and the species (H3): what they are is data, the code keeps how they behave
 		AddCameraContentSections(m_Packs, m_GameView.Params);   // the game cameras (H19): assets/data/cameras.json
+		AddSocialContentSection(m_Packs, m_Tribe.Config.Social);   // social life: mood, talk, rites, beliefs, diet, traps (assets/data/social.json, docs/VIDA_SOCIAL.md)
 		AddSocietyContentSections(m_Packs, m_Tribe.Config.Society);   // the society of the tribe (H9 + H10): life, births, genes, personality, relations, culture
 		AddDiplomacyContentSection(m_Packs, m_Clans.Rules);
 		AddVisualContentSection(m_Packs, m_Visuals.Library);   // what nodes, props, piles, creatures and buildings look like (assets/data/visuals.json)   // H13: territory, encounters, relations between clans, trade, exchange, marriages, pacts
@@ -171,6 +172,7 @@ namespace GB::Editor
 		RegisterAnimationCommands();
 		RegisterVisualCommands();
 		RegisterGameCommands();   // H15: `play` and `game` (GameMode.cpp)
+		RegisterSocialCommands();   // social life: `social`, `rite`, `belief`, `hunt` (EditorSocial.cpp)
 		m_EntityRenderer = std::make_unique<EntityRenderer>(m_AssetRoot);
 		m_EntityRenderer->SetPropBuilder([this](const PropComponent& p, const glm::mat4& m, Scene& s) { return m_World.AddProp(p, m, s); });
 		BindVisuals();

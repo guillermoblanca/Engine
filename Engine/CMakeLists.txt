@@ -61,6 +61,10 @@ add_library(GB STATIC
     src/GB/Game/Society.cpp
     src/GB/Game/SocietyRules.cpp
     src/GB/Game/TribeSociety.cpp
+    src/GB/Game/Social.cpp
+    src/GB/Game/SocialRules.cpp
+    src/GB/Game/TribeSocial.cpp
+    src/GB/Game/ClansBeliefs.cpp
     src/GB/Game/SimQA.cpp
     src/GB/Game/Chronicle.cpp
     src/GB/Telemetry/TelemetrySink.cpp

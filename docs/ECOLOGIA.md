@@ -44,6 +44,17 @@ cambia nada. Los valores por defecto del conejo son los de siempre, así que sin
 Un ciervo que pace es unas líneas de JSON (`"tag": "Animal.Deer", "body": "quadruped"`). Los contadores van por especie (nacidos, muertos de hambre, comidas, cazados) y se
 guardan en la sección `ecology`; una partida antigua (solo conejos) carga sus contadores en los conejos.
 
+## Caza mayor y menor (vida social)
+
+`assets/data/social.json` añade tres especies con la misma sección `species`: **ciervo** (`deer`, cuadrúpedo grande y rápido, hasta 6),
+**jabalí** (`boar`, bajo y pesado, se revuelve: `fightsBack` de su cacería) y **urogallo** (`grouse`, ave pequeña con el cuerpo del conejo). Las
+tres pacen las plantas como el conejo. `social.hunting.wildlife` dice cuántas suelta el editor alrededor de un campamento nuevo (`tribe build`,
+`hunt wildlife`). Su aspecto está en la sección `visuals` del mismo fichero (modelos procedurales `deer`, `boar`, `grouse`).
+
+**Sobrecaza.** Cada especie cría con su máximo y su enfriamiento; un clan hambriento que caza (y pone lazos) más deprisa de lo que crían vacía
+los alrededores del campamento: el tablón deja de publicar la cacería porque no ve presa y los animales que quedan, lejos, vuelven a criar
+(test `social`: 4 conejos junto a un clan con comida siguen ahí a los 600 s; junto a uno hambriento, se acaban). Ver [VIDA_SOCIAL.md](VIDA_SOCIAL.md).
+
 ## Conejos
 
 Un conejo es una entidad con sistema de habilidades cuyos atributos son todo su estado (`Food`, `Age`, `Cooldown`, `Starving`): se guardan y se cargan como todo lo demás. El sistema

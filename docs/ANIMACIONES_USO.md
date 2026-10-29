@@ -63,8 +63,15 @@ del golpe (la mano más rápida, si pasa de 5 m/s) o del alcance (la mano más l
 | `recover` (H14) | `act_kneel` en bucle | el herido descansa; falta tumbarse herido, sujetarse la herida |
 | `care` (H14) | `act_kneel`, `gesture_nod_long` | de rodillas junto al herido; falta curar una herida |
 | `injured` | `injured_hurting`, `injured_stumble`, set `injured` | con `Health` bajo (gancho para H14) |
+| `talk.<tipo>` (vida social) | `chat`: happy, nod yes, acknowledging; `story`: thoughtful, lengthy nod; `gossip`: cocky, sarcastic nod, look away; `teach`: hard nod, dismissing; `console`: sigh, lengthy nod; `settle`: head no, annoyed, nod yes; `greet`: `injured_wave` (el único saludo con la mano de los packs), acknowledging; `share`: `act_put_down`, happy; `groom`: `act_kneel`, lengthy nod; `play`: happy, `jump_standing` | `ActivityKey("talk", "<tipo> <otro>")`; los dos que hablan se ponen uno frente al otro; faltan hablar con las manos, abrazar, jugar a correr |
+| `rite.<rito>` (vida social) | `naming`/`pairing`/`harvest_feast`: happy, nod; `coming_of_age`: `magic_cast_2h`, hard nod; `funeral`: `kneel_idle`, sigh; `solstice`: `magic_area_1`, `magic_cast_2h`, happy; `spring_feast`: happy, `jump_standing`; `first_hunt`: `sword_power_up`, happy; `healing`: `magic_cast_1h`, `act_kneel`; `tradition`: lengthy nod, thoughtful; `appeasement`: `kneel_idle`, `magic_cast_2h` | cada uno en su sitio del círculo alrededor del fuego, el tótem o el lugar sagrado; falta bailar en corro |
+| `snare` (vida social) | `act_crouch` | poner un lazo o una trampa de foso, sacar la presa |
 
 `gather` no es actividad: el trabajo son las habilidades de arriba, y mientras camina el director solo pone las herramientas.
+
+Desde la vida social ([VIDA_SOCIAL.md](VIDA_SOCIAL.md)) se usan además `kneel_idle`, `magic_area_1`, `magic_cast_1h`, `magic_cast_2h`,
+`sword_power_up`, `jump_standing`, `injured_wave` y todos los gestos del torso que quedaban (`gesture_head_no`, `gesture_annoyed`,
+`gesture_nod_sarcastic`, `gesture_look_away`, `gesture_dismiss`).
 
 ## Clips que siguen sin usar
 

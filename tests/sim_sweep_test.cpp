@@ -228,6 +228,30 @@ int main()
 		Check(there == 4 && run.Brain().HasFire(), "and the clan lives there, with its fire");
 	}
 
+	// social life (docs/VIDA_SOCIAL.md): a clan with the social rules of the content lives half a day on a generated world (talks, rites, beliefs,
+	// diet, traps) and every invariant holds, the social ones too
+
+	if (!clan && !one)
+	{
+		const GB::GeneratedWorld social = GB::WorldGenerator::GenerateData(Describe(cases.front()));
+		GB::TribeConfig config;
+		config.Social = GB::DefaultSocialRules();
+		GB::SimSetup setup;
+		setup.World = &social;
+		setup.Members = 5;
+		setup.Config = &config;
+		GB::SimRun run(setup);
+		Check(run.Ok(), "the social run starts");
+		run.Run(0.5 * kDay);
+		run.Finish();
+		int talks = 0;
+		for (const auto& [key, n] : run.Brain().Social().Counts) if (key.rfind("talk.", 0) == 0) talks += n;
+		std::fprintf(stderr, "  social: %s | %d talks, %d rites held\n", run.Monitor().Metrics().Line().c_str(), talks, static_cast<int>(run.Brain().Social().History.size()));
+		if (run.Monitor().Violations()) std::fprintf(stderr, "%s\n", run.Monitor().Describe(20).c_str());
+		Check(run.Monitor().Violations() == 0, "a clan with a social life keeps every invariant (the social ones too)");
+		Check(talks > 0 && run.Monitor().Metrics().Alive == 5, "and its members talk and live");
+	}
+
 	// the same run twice: the same end, step for step (the first case again, on a fresh world from the same seed)
 
 	if (!clan && !one)   // (the clans of 20 are the slow ones: not twice)
