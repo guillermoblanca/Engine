@@ -115,13 +115,14 @@ namespace GB
 				if (!c->is_array() || c->size() != 3 || !(*c)[0].is_number() || !(*c)[1].is_number() || !(*c)[2].is_number()) return "color must be [r, g, b]";
 				d.Color = { (*c)[0].get<float>(), (*c)[1].get<float>(), (*c)[2].get<float>() };
 			}
-			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, float*>>{ { "rest", &d.Rest }, { "warmth", &d.Warmth } })
+			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, float*>>{ { "rest", &d.Rest }, { "warmth", &d.Warmth }, { "defense", &d.Defense },
+				{ "healing", &d.Healing }, { "culture", &d.Culture }, { "aura", &d.Aura } })
 				if (const auto v = o.find(key); v != o.end())
 				{
 					if (!v->is_number() || v->get<float>() < 0.0f) return std::string(key) + " must be a number of 0 or more";
 					*field = v->get<float>();
 				}
-			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, int*>>{ { "shelter", &d.Shelter } })
+			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, int*>>{ { "shelter", &d.Shelter }, { "storeCap", &d.StoreCap } })
 				if (const auto v = o.find(key); v != o.end())
 				{
 					if (!v->is_number_integer() || v->get<int>() < 0) return std::string(key) + " must be a whole number of 0 or more";
@@ -133,6 +134,20 @@ namespace GB
 					if (!v->is_string()) return std::string(key) + " must be a string";
 					*field = v->get<std::string>();
 				}
+			if (const auto v = o.find("keep"); v != o.end())
+			{
+				if (!v->is_number() || v->get<float>() <= 0.0f || v->get<float>() > 1.0f) return "keep must be a number more than 0 and at most 1";
+				d.Keep = v->get<float>();
+			}
+			if (const auto v = o.find("supersedes"); v != o.end())
+			{
+				if (!v->is_array()) return "supersedes must be a list of building ids";
+				for (const Json& s : *v)
+				{
+					if (!s.is_string() || s.get<std::string>().empty() || s.get<std::string>() == id) return "supersedes must be a list of other buildings' ids";
+					d.Supersedes.push_back(s.get<std::string>());
+				}
+			}
 			const auto phases = o.find("phases");
 			if (phases == o.end() || !phases->is_array() || phases->empty()) return "phases must be a list of at least one phase";
 			for (const Json& p : *phases)
@@ -224,7 +239,70 @@ namespace GB
 		rack.Station = "drying_rack";
 		rack.Color = { 0.5f, 0.38f, 0.22f };
 
-		return { { shelter.Id, shelter }, { storage.Id, storage }, { bench.Id, bench }, { rack.Id, rack } };
+		std::map<std::string, BuildingDef> out = { { shelter.Id, shelter }, { storage.Id, storage }, { bench.Id, bench }, { rack.Id, rack } };
+		auto make = [&](const char* id, const char* name, glm::vec2 footprint, std::vector<BuildingPhase> phases, glm::vec3 color) -> BuildingDef&
+		{
+			BuildingDef& d = out[id];
+			d.Id = id;
+			d.Name = name;
+			d.Footprint = footprint;
+			d.Phases = std::move(phases);
+			d.Color = color;
+			return d;
+		};
+
+		// The Stone-Age progression (docs/PROGRESION.md); the technology that unlocks each names it (TechDef::Buildings).
+		// Homes: the wattle hut and the longhouse, each better than the one before (and the clan stops raising the older one for beds).
+		{
+			BuildingDef& d = make("hut", "Wattle hut", { 3.6f, 3.6f }, { phase("foundation", 8.0f, { { "stone", 4 } }, "slab"), phase("frame", 12.0f, { { "branch", 6 }, { "wood", 2 } }, "posts"),
+				phase("walls", 14.0f, { { "branch", 6 }, { "daub", 6 } }, "walls"), phase("roof", 10.0f, { { "reed", 8 }, { "fiber", 2 } }, "roof") }, { 0.5f, 0.38f, 0.26f });
+			d.Shelter = 4; d.Rest = 0.3f; d.Warmth = 0.45f; d.Supersedes = { "shelter" };
+		}
+		{
+			BuildingDef& d = make("longhouse", "Longhouse", { 7.0f, 4.0f }, { phase("footings", 10.0f, { { "stone", 8 } }, "slab"), phase("frame", 18.0f, { { "wood", 10 }, { "cordage", 3 } }, "posts"),
+				phase("walls", 18.0f, { { "branch", 10 }, { "daub", 8 } }, "walls"), phase("roof", 14.0f, { { "reed", 10 }, { "reed_mat", 3 } }, "roof") }, { 0.46f, 0.34f, 0.22f });
+			d.Shelter = 8; d.Rest = 0.35f; d.Warmth = 0.55f; d.Supersedes = { "hut", "shelter" };
+		}
+		// Food storage: a lined pit and a granary on stilts hold more and keep it longer.
+		{
+			BuildingDef& d = make("cache_pit", "Cache pit", { 2.0f, 2.0f }, { phase("pit", 12.0f, { { "stone", 2 } }, "slab"), phase("lining", 6.0f, { { "reed", 4 }, { "fiber", 2 } }, "roof") },
+				{ 0.42f, 0.34f, 0.24f });
+			d.StoreCap = 10; d.Keep = 0.75f;
+		}
+		{
+			BuildingDef& d = make("granary", "Raised granary", { 2.6f, 2.6f }, { phase("stilts", 10.0f, { { "wood", 4 }, { "stone", 4 } }, "posts"), phase("floor", 8.0f, { { "wood", 3 }, { "branch", 4 } }, "slab"),
+				phase("walls", 10.0f, { { "branch", 6 }, { "daub", 4 } }, "walls"), phase("roof", 8.0f, { { "reed", 6 } }, "roof") }, { 0.55f, 0.42f, 0.26f });
+			d.StoreCap = 20; d.Keep = 0.5f;
+		}
+		// Fire and food: the communal hearth (cooking, and warmth and company around it) and the smoking rack.
+		{
+			BuildingDef& d = make("hearth", "Communal hearth", { 2.4f, 2.4f }, { phase("ring", 8.0f, { { "stone", 6 } }, "slab"), phase("fire", 6.0f, { { "wood", 3 } }, "rack") }, { 0.45f, 0.4f, 0.36f });
+			d.Station = "hearth"; d.Warmth = 0.4f; d.Culture = 0.15f; d.Aura = 6.0f;
+		}
+		make("smoking_rack", "Smoking rack", { 2.2f, 1.6f }, { phase("frame", 8.0f, { { "branch", 6 } }, "posts"), phase("cover", 8.0f, { { "reed", 4 }, { "fiber", 2 } }, "roof") },
+			{ 0.4f, 0.3f, 0.2f }).Station = "smoking_rack";
+		// Hides: a frame to stretch and scrape them, over a soaking pit.
+		make("hide_frame", "Hide frame", { 2.0f, 1.2f }, { phase("pit", 6.0f, { { "stone", 2 } }, "slab"), phase("frame", 8.0f, { { "branch", 4 }, { "cordage", 2 } }, "rack") },
+			{ 0.52f, 0.4f, 0.28f }).Station = "tannery";
+		// Care and rites: the healer's hut speeds the healing of the wounded near it; the totem is where the clan meets.
+		{
+			BuildingDef& d = make("healer_hut", "Healer's hut", { 2.6f, 2.6f }, { phase("frame", 8.0f, { { "branch", 6 } }, "posts"), phase("walls", 8.0f, { { "reed", 6 }, { "fiber", 2 } }, "walls"),
+				phase("remedies", 4.0f, { { "poultice", 2 } }, "table") }, { 0.4f, 0.42f, 0.28f });
+			d.Healing = 1.0f; d.Aura = 5.0f;
+		}
+		{
+			BuildingDef& d = make("totem", "Totem", { 3.0f, 3.0f }, { phase("circle", 8.0f, { { "stone", 6 } }, "slab"), phase("pole", 12.0f, { { "wood", 2 } }, "posts") }, { 0.5f, 0.32f, 0.2f });
+			d.Culture = 0.25f; d.Aura = 9.0f;
+		}
+		// Defence: a stretch of sharpened stakes.
+		make("palisade", "Palisade", { 6.0f, 0.8f }, { phase("stakes", 14.0f, { { "stake", 12 } }, "posts"), phase("rails", 10.0f, { { "branch", 6 }, { "cordage", 3 } }, "rack") },
+			{ 0.45f, 0.33f, 0.2f }).Defense = 1.0f;
+		// Era 2: the kiln fires bricks; the forge, built of them, smelts copper.
+		make("kiln", "Kiln", { 1.8f, 1.8f }, { phase("base", 8.0f, { { "stone", 6 } }, "slab"), phase("dome", 12.0f, { { "clay", 8 } }, "roof"), phase("chimney", 4.0f, { { "clay", 2 } }, "posts") },
+			{ 0.62f, 0.42f, 0.3f }).Station = "kiln";
+		make("forge", "Forge", { 2.2f, 2.0f }, { phase("hearth", 12.0f, { { "stone", 6 }, { "fired_brick", 6 } }, "slab"), phase("bellows", 8.0f, { { "hide", 2 }, { "wood", 2 } }, "table") },
+			{ 0.5f, 0.3f, 0.24f }).Station = "forge";
+		return out;
 	}
 
 	std::string LoadBuildings(const std::string& json, std::map<std::string, BuildingDef>& defs)
@@ -279,6 +357,13 @@ namespace GB
 			if (!d.Store.empty()) o["store"] = d.Store;
 			if (!d.Station.empty()) o["station"] = d.Station;
 			if (!d.Tech.empty()) o["tech"] = d.Tech;
+			if (d.StoreCap) o["storeCap"] = d.StoreCap;
+			if (d.Keep != 1.0f) o["keep"] = Round(d.Keep);
+			if (d.Defense != 0.0f) o["defense"] = Round(d.Defense);
+			if (d.Healing != 0.0f) o["healing"] = Round(d.Healing);
+			if (d.Culture != 0.0f) o["culture"] = Round(d.Culture);
+			if (d.Aura != 0.0f) o["aura"] = Round(d.Aura);
+			if (!d.Supersedes.empty()) o["supersedes"] = d.Supersedes;
 			if (d.Color != plain.Color) o["color"] = Json::array({ Round(d.Color.r), Round(d.Color.g), Round(d.Color.b) });
 			out[id] = o;
 		}

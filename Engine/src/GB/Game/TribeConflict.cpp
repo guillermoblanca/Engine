@@ -85,6 +85,7 @@ namespace GB
 			if (!c) continue;
 			cs.Place(m.Name, Where(m));
 			c->Resting = m.Job == "sleep" || m.Job == "recover";
+			c->Heal = HealingAt(Where(m));   // a healer's hut near it (H8)
 			const auto mc = m_Conflict.Members.find(m.Name);
 			c->Cared = mc != m_Conflict.Members.end() && mc->second.CareUntil > m_Time;
 			if (!c->Cared)   // someone at its side tending it right now
@@ -109,7 +110,7 @@ namespace GB
 				const glm::vec4 at = m_Entities->WorldMatrix(id)[3];
 				m_Animals.push_back({ name, p ? p->Tag : h->Tag, { at.x, at.z }, p != nullptr });
 			}
-			if (m_Hostility) m_Hostility->Settled(m_ClanName, Config.Camp, &m_Store);
+			if (m_Hostility) m_Hostility->Settled(m_ClanName, Config.Camp, &m_Store, Defense());
 			// strangers of a hostile clan at the store, not fighting: a raid (the clan notes it once, for its grievances and its culture)
 			for (const auto& [name, f] : cs.All())
 			{
@@ -174,8 +175,9 @@ namespace GB
 				if (h && who->Body)
 				{
 					const int got = m_Items->Find(h->Item) ? who->Body->Bag().Add(*m_Items, h->Item, h->Units) : 0;
+					const int also = !h->Byproduct.empty() && m_Items->Find(h->Byproduct) ? who->Body->Bag().Add(*m_Items, h->Byproduct, h->ByproductUnits) : 0;
 					++m_Conflict.Hunted[h->Tag];
-					Say(*who, "kills " + e.Other + ": " + std::to_string(got) + " " + h->Item);
+					Say(*who, "kills " + e.Other + ": " + std::to_string(got) + " " + h->Item + (also > 0 ? " and " + std::to_string(also) + " " + h->Byproduct : std::string()));
 					if (const Job* held = m_Board.ClaimOf(who->Name); held && held->Kind == "hunt") m_Board.Progress(who->Name, static_cast<float>(got), m_Time);
 				}
 				else Say(*who, "kills " + e.Other);
@@ -485,6 +487,7 @@ namespace GB
 		}
 		else for (const Animal& a : m_Animals) if (a.Name == threat) at = a.Pos;
 		view.Camp = glm::distance(at, Config.Camp) < kNearCamp * 2.0f;
+		view.Defense = Defense();
 		view.FightCulture = m_Society.OptionFactor(Config.Society, m.Name, "fight", "").Total();
 		view.FleeCulture = m_Society.OptionFactor(Config.Society, m.Name, "flee", "").Total();
 		const FightChoice choice = FightOrFlight(cs.Rules.Threats, cs.Rules.Morale, view);
@@ -586,7 +589,7 @@ namespace GB
 		{
 			UtilityOption o;
 			o.Kind = "recover";
-			o.Where = CampSpot(m);
+			o.Where = RecoverSpot(m);   // the healer's hut when there is one (H8), the camp otherwise
 			const float u = std::min(1.0f, severity / std::max(0.1f, in.Lethal * 0.5f));
 			o.Score = 1.4f * u + 0.3f;
 			o.Commit = 20.0f;
@@ -650,7 +653,7 @@ namespace GB
 			if (!Order(m, GoTo(o.Where, WaitFor(cs.Rules.Injuries.CareSeconds)))) return false;
 			m.Job = "recover";
 			m.Detail.clear();
-			Say(m, "rests its wounds at the camp");
+			Say(m, HealingAt(o.Where) > 1.0f ? "rests its wounds at the healer's hut" : "rests its wounds at the camp");
 			return true;
 		}
 		// care: beside the wounded one, for a while
@@ -687,7 +690,7 @@ namespace GB
 		if (!m_Combat || !m_Hostility) return fail("the clan has no combat or no hostility (SetCombat)");
 		RaidState& raid = m_Conflict.Raid;
 		if (raid.Active()) return fail("it is raiding " + raid.Target + " already");
-		m_Hostility->Settled(m_ClanName, Config.Camp, &m_Store);
+		m_Hostility->Settled(m_ClanName, Config.Camp, &m_Store, Defense());
 		const RaidTarget* target = nullptr;
 		const std::vector<RaidTarget> targets = m_Hostility->RaidTargets(m_ClanName);
 		for (const RaidTarget& t : targets) if (t.Clan == clan) target = &t;
@@ -799,7 +802,7 @@ namespace GB
 		RaidMotive bestMotive;
 		for (const RaidTarget& t : m_Hostility->RaidTargets(m_ClanName))
 		{
-			const RaidMotive motive = WeighRaid(rules, boldness, hunger, m_Hostility->Grievance(m_ClanName, t.Clan), m_Hostility->Hostility(m_ClanName, t.Clan));
+			const RaidMotive motive = WeighRaid(rules, boldness, hunger, m_Hostility->Grievance(m_ClanName, t.Clan), m_Hostility->Hostility(m_ClanName, t.Clan), t.Defense);
 			if (motive.Score > bestMotive.Score || best.empty()) { best = t.Clan; bestMotive = motive; }
 		}
 		if (best.empty() || bestMotive.Score < rules.Want) return;

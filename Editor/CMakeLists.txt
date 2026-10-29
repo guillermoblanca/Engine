@@ -64,7 +64,7 @@ add_test(NAME editor COMMAND GBEditorTests)
 # Scripted runs of the real editor (hidden window; they need OpenGL like the GL tests). A line that fails makes the exit code 1 (--strict=1), and the pass
 # patterns check that the replay says it is identical (a replay that differs is an order that returns false, so the script line fails).
 function(gb_editor_script_test name script pass)
-    add_test(NAME ${name} COMMAND Editor --hidden --quality=low --strict=1 --script=${CMAKE_CURRENT_SOURCE_DIR}/tests/${script}
+    add_test(NAME ${name} COMMAND Editor --hidden --quality=low --strict=1 ${ARGN} --script=${CMAKE_CURRENT_SOURCE_DIR}/tests/${script}
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
     set_tests_properties(${name} PROPERTIES PASS_REGULAR_EXPRESSION "${pass}" FAIL_REGULAR_EXPRESSION "REPLAY DIFFERS|script line failed|Could not read the script"
                           SKIP_REGULAR_EXPRESSION "GLFW error|does not appear to support OpenGL|Failed to create|Could not create")   # no OpenGL (a CI runner without a GPU): skipped, like the GL tests
@@ -74,6 +74,7 @@ gb_editor_script_test(editor_replay_society replay_society.txt "replay identical
 gb_editor_script_test(editor_replay_midrun replay_midrun.txt "replay identical")
 gb_editor_script_test(editor_game_camera game_camera.txt "game camera: observe Ana Biel")
 gb_editor_script_test(editor_replay_wild replay_wild.txt "replay identical")
+gb_editor_script_test(editor_replay_same_world replay_same_world.txt "replay identical")   # played in the world it was recorded in (H8)
 # The demos of the milestones (principle 7 of the plan): a scripted run of the real editor per milestone that asserts what the milestone promises with
 # `qa expect` and `qa check` (the invariants of the simulation, GB/Game/SimQA.h) and writes a `shot_ui` capture to the build directory (not versioned).
 gb_editor_script_test(editor_demo_h2 h2_gather_craft.txt "qa sim 1 day.*: 0 violation")
@@ -82,4 +83,6 @@ gb_editor_script_test(editor_demo_h3 h3_fire_fox.txt "qa expect: 'ecology status
 gb_editor_script_test(editor_demo_h5_h6 h5_h6_agents.txt "says /.*live checks, 0 violation")
 gb_editor_script_test(editor_clans clans.txt "the Tribe panel and the tribe reports show the Blue")   # H13: two clans saved and loaded
 gb_editor_script_test(editor_demo_h8 h8_settlement.txt "says /.*live checks, 0 violation")   # H8: site choice, a construction site worked, saved and loaded, the invariants
-gb_editor_script_test(editor_play play.txt "says /\[1-9\]\[0-9\]\* live checks, 0 violation")   # H15: the game mode headless: play, the player's actions, save and load, the HUD
+# H15: the game mode headless: play, the player's actions, save and load, the HUD. In the game the characters follow the frame time (a player drives one),
+# so the test fixes it (--step=60, extra arguments go to the editor): the same stretch of game per `wait` on a fast machine and on a slow one.
+gb_editor_script_test(editor_play play.txt "says /.*live checks, 0 violation" --step=60)   # (the line qa expect writes when the live checks held)

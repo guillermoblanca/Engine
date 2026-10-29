@@ -135,6 +135,10 @@ namespace GB
 		{
 			Actor* actor = Find(s.Name);
 			if (!actor) continue;
+			// what it was doing before the load is not in the save: an actor that already existed (a replay played in the world it was recorded in)
+			// would go on with the old run's tasks, or stay suspended as an abstract member, where a new one stands idle; both start like the new one
+			actor->StopTasks();
+			m_Suspended.erase(s.Name);
 			actor->Teleport(s.Position.x, s.Position.z, s.Yaw);
 			std::vector<ItemSlot> bag;
 			for (const Save::ItemStack& it : s.Inventory) bag.push_back({ it.Item, it.Count, it.Age });

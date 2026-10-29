@@ -106,7 +106,12 @@ namespace GB
 			{
 				if (!Walk(speed * dt)) return;   // an actor stands at the work point of the target
 				std::string why;
-				if (!who || !who->Activate(t.Prop, t.Entity.empty() ? nullptr : gameplay.Find(t.Entity), &why, t.Entity)) { Fail(why.empty() ? "the ability could not start" : why); return; }
+				if (!who || !who->Activate(t.Prop, t.Entity.empty() ? nullptr : gameplay.Find(t.Entity), &why, t.Entity))
+				{
+					if (why.rfind("cooling down", 0) == 0) return;   // only its cooldown: it waits there, as the actor's task runner does
+					Fail(why.empty() ? "the ability could not start" : why);
+					return;
+				}
 				m_Phase = Phase::Act;
 				return;
 			}

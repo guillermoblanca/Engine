@@ -31,6 +31,8 @@ Cada vez que se refresca el tablón (`work.jobs.every`, 5 s) el clan calcula lo 
 7. Conservar: la comida perecedera que pasa de `preserveAbove` × su existencia objetivo se transforma en algo que dura más si hay receta conocida y estación
    (bayas → bayas secas en el secadero).
 
+Para conservar, de varias recetas posibles se elige la que da lo que **más dura** (la carne sobrante se ahuma antes que cocinarse).
+
 `PlanProduction` aparta primero lo que ya hay en el almacén (cada unidad cuenta una vez), fabrica el resto con la primera receta (por id) que el clan sabe
 hacer y cuya estación tiene, y cada entrada de esa receta pasa a ser un deseo un nivel más abajo, hasta `production.depth` (3). Lo que ninguna receta hace es
 **escasez bruta**: los trabajos `gather` la suman a lo que piden. Si la receta todavía no se sabe (H11), con `production.experiment` se quieren igualmente
@@ -80,6 +82,9 @@ drying_rack to make it at»).
   claramente más cerca que el campamento).
 - **Acarreo**: un almacén secundario con `haulAt` cosas o más publica `haul <nombre>`; quien lo reclama va con la mochila vacía, carga hasta su
   capacidad y lo lleva al principal.
+- **Edificios de almacén (H8)**: un silo (`cache_pit`) o un granero (`granary`) en pie suman su `storeCap` al tope del almacén principal (`Tribe::StoreCap`) y el menor de
+  sus `keep` multiplica la caducidad del almacén principal (granero: ×0,5). Ver [PROGRESION.md](PROGRESION.md).
+- **Obras a la vez (H8)**: `economy.construction` (`maxSites` 3, `membersPerSite` 4): una obra abierta por cada cuatro miembros vivos.
 - **Capacidad del clan**: `economy status` dice cuánta comida entró hoy y ayer, para cuántos miembros, y cuánto cargan en total por viaje.
 
 ## Datos
@@ -140,5 +145,5 @@ dos almacenes, la cesta amplía la carga, y el guardado (con edades; una partida
 - El validador de alcanzabilidad no lee los cultivos: el grano sigue como nota diferida del paquete.
 - Mercados, precios, moneda e impacto ambiental (el resto de H18) no están.
 - Los campos no se dibujan en la escena ni eligen sitio (lo hará H8 con su elección de lugar); el almacén secundario tampoco tiene modelo.
-- Sal, ahumado y almacenes fríos: basta con datos (otra receta, otro tipo de almacén con `spoilRate` menor), pero no están en el contenido.
+- Hecho: ahumado y carne cocinada (hogar y ahumadero, [PROGRESION.md](PROGRESION.md)) y almacenes que conservan (silo, granero). Faltan la sal y los almacenes fríos.
 - Los nacimientos (H9) cuentan la comida del almacén principal, no la de los secundarios.

@@ -41,9 +41,9 @@ Están en datos: la sección **`controls`** de `assets/data/player.json` (teclas
 | F5 / F9 | Guardar / cargar (ranura `play`) | `game save` / `game load` |
 | V | Cambia entre la vista tras el jugador y la vista cenital (WASD mueve, Q/E giran, Z/X acercan; E e interactuar no actúan desde arriba) | `game view [top\|follow]` |
 | Esc | Cierra el panel o la ayuda abiertos; si no hay ninguno, sale al editor (el cuerpo del jugador se queda en el mundo) | `game quit` / `play off` |
+| H | Ayuda | `game help` |
 
 En el juego **Q/E no giran la cámara** (E es interactuar): giran las flechas ←/→ o el ratón. El overlay del clan (campamento con su almacén, edificios y obras con lo que les falta, campos, y «YOU» sobre el jugador) se ve también en el juego; se apaga en el panel Tribe (`overlay off`).
-| H | Ayuda | `game help` |
 
 Lo que no tiene tecla se hace desde la consola con `game`:
 
@@ -126,6 +126,9 @@ Sección **`controls`**: `keys`, `hud` (`notifications`, `notifySeconds`, `needs
   con su pertenencia, y pelea (H14): ataque, golpe mortal que lo derriba y lo devuelve al campamento, y jugador mortal que muere.
 - `Editor/tests/play.txt` (test `editor_play`): `play` sin ventana, unos minutos de juego con órdenes `game`, guardar y cargar, el HUD por texto,
   `qa check` sin violaciones y una captura `play_hud.png` en el directorio de compilación.
+  En el juego los personajes siguen el tiempo del fotograma (un jugador maneja uno), así que el test se lanza con `--step=60`: cada fotograma
+  son 1/60 s de juego por lento que vaya la máquina, cada `wait` es el mismo tramo de partida y la calidad automática (que mira lo que tarda el
+  fotograma) no salta. Antes, en una máquina lenta, el almacén aún no tenía bayas al cogerlas y la línea esperada nunca podía salir.
 
 ## Límites conocidos
 

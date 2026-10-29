@@ -44,6 +44,14 @@ namespace GB
 		std::string Store;                      // a kind of store of the economy rules (H18, EconomyRules::Logistics: "stockpile"): once done it is a secondary store
 		std::string Station;                    // recipes with this station can be made at it ("workbench", "drying_rack", "kiln")
 		std::string Tech;                       // optional: what must be known first (H11); "" = nothing
+		// Generic provisions (docs/PROGRESION.md): numbers any building may carry, read by the systems that care, never per-building code.
+		int StoreCap = 0;                       // more units of each item the clan's main store takes (H18: Tribe::StoreCap)
+		float Keep = 1.0f;                      // multiplies how fast the main store's food goes off (the lowest of the standing buildings counts)
+		float Defense = 0.0f;                   // a raider weighs it against its motive; defenders at the camp fight harder (H14)
+		float Healing = 0.0f;                   // wounds heal (1 + this) times as fast within its reach (H14)
+		float Culture = 0.0f;                   // company per second to anyone within its reach: a meeting place (H10)
+		float Aura = 0.0f;                      // metres beyond its footprint its warmth (when it has no beds), company and healing reach
+		std::vector<std::string> Supersedes;    // buildings the clan stops planning for beds once it can plan this one (the hut over the shelter)
 		glm::vec3 Color{ 0.45f, 0.32f, 0.18f }; // the colour of its parts
 		bool operator==(const BuildingDef&) const = default;
 
@@ -51,13 +59,17 @@ namespace GB
 		std::map<std::string, int> TotalNeeds() const;
 		float TotalWork() const;
 		float Radius() const { return 0.5f * glm::length(Footprint); }
+		float Reach() const { return Radius() + Aura; }   // how far from its centre its effects on people go
 	};
 
-	// The built-in era-1 buildings: "shelter", "storage", "workbench" and "drying_rack" (assets/data/era1.json says the same in its "buildings" section).
+	// The built-in era-1 buildings (assets/data/era1.json says the same in its "buildings" section): shelter, storage, workbench and drying rack, known
+	// to all; hut, longhouse, cache pit, granary, hearth, smoking rack, hide frame, healer's hut, totem and palisade behind the technologies of era 1;
+	// kiln and forge of era 2 (docs/PROGRESION.md).
 	std::map<std::string, BuildingDef> DefaultBuildings();
 	// Reads the "buildings" section of a content file:
 	//   { "buildings": { "<id>": { "name": ..., "footprint": [x, z], "phases": [ { "name": ..., "work": s, "needs": { "<item>": n }, "part": ... } ],
-	//                              "shelter": n, "rest": r, "warmth": w, "store": ..., "station": ..., "tech": ..., "color": [r, g, b] } } }
+	//                              "shelter": n, "rest": r, "warmth": w, "store": ..., "station": ..., "tech": ..., "color": [r, g, b],
+	//                              "storeCap": n, "keep": k, "defense": d, "healing": h, "culture": c, "aura": m, "supersedes": [ "<id>" ] } } }
 	// A building is added or replaced whole. A file without the section changes nothing; on a mistake it returns why and changes nothing.
 	std::string LoadBuildings(const std::string& json, std::map<std::string, BuildingDef>& defs);
 	std::string LoadBuildingsFile(const std::string& path, std::map<std::string, BuildingDef>& defs);

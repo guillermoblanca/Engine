@@ -129,6 +129,9 @@ namespace GB
 		// of the trades (RoleRules) never gives it to anyone (a guard, a leader set by hand or by data).
 		std::string Skill;
 		bool Fixed = false;
+		// Hands the clan always keeps in this trade (JSON "min"), whatever its stores say: the trade without which something essential stops (the
+		// woodcutter: no axe, no wood, no fire). PlanRoles gives them first, and the review of the trades never takes the last of them away.
+		int Min = 0;
 		bool operator==(const TribeRole&) const = default;
 	};
 
@@ -204,7 +207,6 @@ namespace GB
 		EconomyRules Econ;            // H18: production chains, spoilage, fields and stores (DefaultEconomyRules; the "economy" section of a content file)
 		// The settlement (H8, see Settlement.cpp and docs/ASENTAMIENTOS.md): only with buildings (Tribe::SetBuildings).
 		float PlanSeconds = 10.0f;    // how often the clan looks at what it should build
-		int MaxSites = 1;             // construction sites at the same time
 		float SiteRadius = 7.0f;      // the first ring around the camp where buildings go
 		int Builders = 2;             // members working one site at the same time
 		int HaulAt = 6;               // most units of a material a member carries to a site in one trip
@@ -216,7 +218,7 @@ namespace GB
 	struct BuildingNeed
 	{
 		std::string Building;   // def id
-		float Urgency = 0.0f;   // shelter for everyone 3, a full store 2, a station a recipe needs 1.5, a proper workbench 0.5
+		float Urgency = 0.0f;   // shelter for everyone 3, a full store 2, a station a recipe needs 1.5, food going off 1.2... (see docs/PROGRESION.md)
 		std::string Why;
 	};
 
@@ -356,7 +358,8 @@ namespace GB
 		int Beds() const;
 		// A station is there: the camp's (Config.Econ.Production.CampStations) or a finished building's.
 		bool StationAvailable(const std::string& station) const;
-		// What the clan wants built now, most urgent first (empty without buildings, before the campfire and the tools, or with MaxSites sites open).
+		// What the clan wants built now, most urgent first (empty without buildings, before the campfire and the tools, or with as many sites open as
+		// EconomyRules::Construction allows for its members).
 		std::vector<BuildingNeed> BuildingNeeds() const;
 		// What the open sites still lack: item -> units not yet delivered nor on their way (what the job board would ask to gather or haul).
 		std::map<std::string, int> SiteDemand() const;
@@ -381,6 +384,14 @@ namespace GB
 		TelemetrySink* Telemetry() const { return m_Telemetry; }
 		// Starts a site of a building at a place (the planner does this by itself); "" or why not. The name is "<Name> <n>".
 		std::string StartSite(const std::string& building, const glm::vec2& at, std::string* name = nullptr);
+		// The generic provisions of the finished buildings of the camp (BuildingDef, docs/PROGRESION.md): its defense against raids (H14), how many
+		// times as fast wounds heal at a place (1 = no healer near) and where a wounded member rests (before the healer's hut, or at the camp), and
+		// what they add to the main store (its cap per item, and the factor on how fast its food goes off: the lowest of them, 1 = none).
+		float Defense() const;
+		float HealingAt(const glm::vec2& at) const;
+		glm::vec2 RecoverSpot(const TribeMember& m) const;
+		int StoreBonus() const;
+		float StoreKeep() const;
 
 		// ---- H12: regions, expeditions and migration (TribeExplore.cpp). Without regions none of it runs (the members still explore around the camp).
 		// The regions of the world the tribe lives in (they must outlive it, or be set again) and the height of the ground (for a camp that moves).
@@ -435,6 +446,8 @@ namespace GB
 		using StationFinder = std::function<bool(const std::string& station, glm::vec2& where)>;
 		void SetStations(StationFinder finder) { m_Stations = std::move(finder); }
 		bool StationAt(const std::string& station, glm::vec2* where = nullptr) const;
+		// Only a finished building's station (not the camp's own): the visuals draw the camp's workbench just while no building gives one.
+		bool BuiltStationAt(const std::string& station, glm::vec2* where = nullptr) const;
 		// A want from outside the tribe (a building site's materials, H8; a player's order): `units` of `item` for `source` (0 takes it away).
 		// The production plan makes what it can of it and the gather jobs ask for the rest.
 		void SetDemand(const std::string& source, const std::string& item, int units);

@@ -672,6 +672,42 @@ namespace GB
 		recipes.Add({ "campfire",      "",          "Item.Tool.Axe",     { { "wood", 4 }, { "stone", 3 } },                 "campfire",      1, "Craft" });
 		recipes.Add({ "copper_ingot",  "forge",     "",                  { { "copper_ore", 2 } },                           "copper_ingot",  1, "Craft" });
 
+		// The Stone-Age progression (docs/PROGRESION.md): what the new technologies unlock and the new buildings are made of. Herbs grow wild; the hide
+		// comes from the hunt (the byproduct of a rabbit, H14); the rest is made.
+		items.Add(Def("herbs",    "Healing herbs", "resource", 0.1f, 20, { "Item.Resource.Herb" },     "", ""));
+		items.Add(Def("hide",     "Hide",          "resource", 0.8f, 10, { "Item.Resource.Hide" },     "", ""));
+		items.Add(Def("poultice", "Poultice",      "resource", 0.2f, 10, { "Item.Medicine.Poultice" }, "", ""));
+		items.Add(Def("leather",  "Leather",       "resource", 0.6f, 10, { "Item.Resource.Leather" },  "", ""));
+		items.Add(Def("daub",     "Daub",          "resource", 2.0f, 10, { "Item.Resource.Daub" },     "", ""));
+		items.Add(Def("reed_mat", "Reed mat",      "resource", 1.0f, 10, { "Item.Resource.Mat" },      "", ""));
+		items.Add(Fuel(Def("stake", "Stake",       "resource", 1.5f, 10, { "Item.Resource.Wood.Stake" }, "", ""), 1));
+		items.Add(Def("fired_brick", "Fired brick", "resource", 2.5f, 10, { "Item.Resource.Brick.Fired" }, "", ""));
+		items.Add(Def("flint_spear", "Flint spear", "weapon", 1.8f, 1, { "Item.Weapon.Spear" }, "", "RightHand"));
+		{
+			// a leather bag is a better container than the basket: three more slots
+			ItemDef bag = Def("leather_bag", "Leather bag", "container", 1.0f, 1, { "Item.Container.Bag" }, "", "");
+			bag.BagSlots = 9;
+			bag.BagWeight = 12.0f;
+			items.Add(bag);
+			// cooked meat keeps a little longer than raw (900 s); smoked meat for days
+			ItemDef cooked = Def("cooked_meat", "Cooked meat", "food", 0.4f, 10, { "Item.Food.Meat.Cooked" }, "Eat", "");
+			cooked.ShelfLife = 2400.0f;
+			items.Add(cooked);
+			ItemDef smoked = Def("smoked_meat", "Smoked meat", "food", 0.3f, 20, { "Item.Food.Meat.Smoked" }, "Eat", "");
+			smoked.ShelfLife = 9600.0f;
+			items.Add(smoked);
+		}
+		recipes.Add({ "poultice",    "",             "",              { { "herbs", 2 }, { "fiber", 1 } },                    "poultice",    1, "Craft" });
+		recipes.Add({ "leather",     "tannery",      "",              { { "hide", 2 } },                                     "leather",     1, "Craft" });
+		recipes.Add({ "leather_bag", "workbench",    "",              { { "leather", 2 }, { "cordage", 1 } },                "leather_bag", 1, "Craft" });
+		recipes.Add({ "cooked_meat", "hearth",       "",              { { "meat", 1 } },                                     "cooked_meat", 1, "Craft" });
+		recipes.Add({ "smoked_meat", "smoking_rack", "",              { { "meat", 2 }, { "wood", 1 } },                      "smoked_meat", 2, "Craft" });
+		recipes.Add({ "daub",        "",             "",              { { "clay", 2 }, { "fiber", 1 } },                     "daub",        2, "Craft" });
+		recipes.Add({ "reed_mat",    "",             "",              { { "reed", 4 }, { "cordage", 1 } },                   "reed_mat",    1, "Craft" });
+		recipes.Add({ "stakes",      "",             "Item.Tool.Axe", { { "wood", 1 } },                                     "stake",       2, "Craft" });
+		recipes.Add({ "flint_spear", "workbench",    "",              { { "wood", 1 }, { "flint", 1 }, { "cordage", 1 } },   "flint_spear", 1, "Craft" });
+		recipes.Add({ "fired_brick", "kiln",         "",              { { "clay", 2 }, { "wood", 1 } },                      "fired_brick", 2, "Craft" });
+
 		// The patch fields say how many of each node a patch has (Count + PerWorker * workers; the first four match ScaledResources) and how they are laid out.
 		// young_tree and old_tree are sibling nodes (E1): the young ones stand beside the old ones, branches for the hands and wood for the axe.
 		nodes["tree"]          = Node("tree",          "wood",       5, 1,  30.0f, 1, "Item.Tool.Axe",     "Chop",      "Wood",         2, 2);
@@ -684,6 +720,8 @@ namespace GB
 		nodes["reed_bed"]      = Node("reed_bed",      "reed",       8, 2,  20.0f, 2, "",                  "Collect",   "Loose.Reed",   1, 1, "cluster", 3.0f);
 		nodes["flint_outcrop"] = Node("flint_outcrop", "flint",      5, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Flint",  1, 1, "cluster", 3.5f);
 		nodes["copper_vein"]   = Node("copper_vein",   "copper_ore", 4, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Copper", 1, 0, "row", 4.0f);
+		// (herbs grow wild only: no patch of `resources build`, so the patch of a camp stays as it was)
+		nodes["herb_patch"]    = Node("herb_patch",    "herbs",      4, 1,  60.0f, 1, "",                  "Gather",    "Plant.Herb",   0, 0);
 
 		// Where each grows over a generated world (PlanWorldResources): wood in the forest, berries and fibre in the meadow, clay and reeds by the water,
 		// stone, flint and copper on rocky ground (copper rare and in veins). PerHectare is the average over the matching ground; a map of 360 m gets a few hundred nodes.
@@ -702,5 +740,6 @@ namespace GB
 		spawn("copper_vein",   { "Rock", "Snow" },              2.0f, 8.0f, 50.0f, 0.0f, 0.7f, 5);
 		spawn("clay_bank",     { "Shore", "Meadow" },          15.0f, 6.0f, 15.0f, 9.0f, 0.4f, 12);
 		spawn("reed_bed",      { "Shore", "Meadow" },         25.0f, 4.0f, 15.0f, 6.0f, 0.2f, 24);
+		spawn("herb_patch",    { "Meadow", "Forest" },          2.0f, 7.0f, 25.0f, 0.0f, 0.5f, 20);
 	}
 }

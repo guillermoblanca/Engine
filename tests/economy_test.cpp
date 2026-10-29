@@ -262,7 +262,8 @@ int main()
 		TribeAgenda agenda; TribeEconomy economy; WorkRules work; TechTree techs; EconomyRules econ;
 		RegisterEraOneItems(items, recipes, nodes);
 		ContentPacks packs;
-		AddGameContentSections(packs, items, recipes, nodes, roles, &agenda, &economy, &work, &techs);
+		std::map<std::string, BuildingDef> buildings;   // (the stations of the Stone-Age recipes come from the buildings: the hearth, the tannery, the forge...)
+		AddGameContentSections(packs, items, recipes, nodes, roles, &agenda, &economy, &work, &techs, &buildings);
 		AddEconomyContentSection(packs, econ);
 		ContentPacks::Options strict;
 		strict.Strict = true;
@@ -470,6 +471,9 @@ int main()
 		const Stockpile* p = k.Tribe_.FindStockpile("north pile");
 		Check(k.Posted["haul north pile"], "the board asks to haul it");
 		Check(p->Store.Count("flint") == 0 && k.Tribe_.Store().Count("flint") >= before + 9 - 2 && k.Tribe_.Economy().Hauled >= 9, "and it is carried to the main store (two trips or more)");
+		if (p->Store.Count("flint") != 0 || k.Tribe_.Store().Count("flint") < before + 9 - 2)
+			std::fprintf(stderr, "  flint: before %d, now %d, pile %d, hauled %d\n%s\n%s\n", before, k.Tribe_.Store().Count("flint"), p->Store.Count("flint"), k.Tribe_.Economy().Hauled,
+				k.Tribe_.Report().c_str(), k.Tribe_.EconomyReport().c_str());
 		Check(k.Tribe_.Stored("flint") == k.Tribe_.Store().Count("flint") + p->Store.Count("flint"), "the clan counts both stores");
 		const TribeMember& m = k.Tribe_.Members()[0];
 		const int plain = k.Tribe_.CarryLimit(m);

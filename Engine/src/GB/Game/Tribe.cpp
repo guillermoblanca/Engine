@@ -143,7 +143,7 @@ namespace GB
 	std::map<std::string, TribeRole> DefaultRoles()
 	{
 		TribeRole forager;
-		forager.Weights = { { "Resource.Plant", 1.0f }, { "fiber_grass", 0.9f }, { "Resource.Plant.Branch", 0.5f }, { "Resource.Loose", 0.6f },
+		forager.Weights = { { "Resource.Plant", 1.0f }, { "Resource.Plant.Herb", 0.4f }, { "fiber_grass", 0.9f }, { "Resource.Plant.Branch", 0.5f }, { "Resource.Loose", 0.6f },
 			{ "Resource.Wood", 0.25f }, { "Resource.Stone", 0.2f }, { "fire", 0.0f } };
 		forager.Nav.VegetationWeight = 0.8f;   // at home in the undergrowth
 		forager.Skill = "foraging";
@@ -154,6 +154,7 @@ namespace GB
 		woodcutter.Tool = "stone_axe";
 		woodcutter.ToolTag = "Item.Tool.Axe";
 		woodcutter.Skill = "woodcutting";
+		woodcutter.Min = 1;                    // the fire needs wood: a clan always keeps one
 		TribeRole miner;
 		miner.Weights = { { "Resource.Stone", 1.0f }, { "Resource.Loose", 0.5f }, { "Resource.Plant", 0.35f }, { "Resource.Wood", 0.25f }, { "fire", 0.0f } };
 		miner.Nav.LoadFactor = 3.0f;           // and stone more so
@@ -222,6 +223,11 @@ namespace GB
 				if (!f->is_boolean()) return "role '" + name + "': fixed must be true or false";
 				r.Fixed = f->get<bool>();
 			}
+			if (const auto n = o.find("min"); n != o.end())
+			{
+				if (!n->is_number_integer() || n->get<int>() < 0) return "role '" + name + "': min must be a whole number of 0 or more";
+				r.Min = n->get<int>();
+			}
 			if (r.Tool.empty() != r.ToolTag.empty()) return "role '" + name + "': tool and toolTag go together";
 			if (!r.ToolTag.empty() && !GameplayTag::IsValidTagName(r.ToolTag)) return "role '" + name + "': bad tool tag " + r.ToolTag;
 			read[name] = r;
@@ -259,6 +265,7 @@ namespace GB
 			if (r.NightShift != 0.0f) o["nightShift"] = Rounded(r.NightShift);
 			if (!r.Skill.empty()) o["skill"] = r.Skill;
 			if (r.Fixed) o["fixed"] = true;
+			if (r.Min > 0) o["min"] = r.Min;
 			out[name] = o;
 		}
 		return out.dump(2);
@@ -278,6 +285,7 @@ namespace GB
 		e.Stock["berry"] = { 6.0f, 3.0f };
 		e.Stock["wood"] = { 10.0f, 0.0f };
 		e.Stock["stone"] = { 8.0f, 0.0f };
+		e.Stock["herbs"] = { 4.0f, 0.0f };   // a handful for the poultices (docs/PROGRESION.md): the foragers are not to spend their days on them
 		return e;
 	}
 
@@ -1331,8 +1339,18 @@ namespace GB
 			if (node.empty()) continue;
 			const MemoryEntry* e = mind.Memory.Find(node);
 			const float conf = SpatialMemory::Confidence(*e, now, Config.Memory);
-			const float target = StockWanted(def.Item);   // data (TribeEconomy::Stock)
+			float target = StockWanted(def.Item);   // data (TribeEconomy::Stock)
 			const float have = static_cast<float>(m_Store.Count(def.Item) + bag.Count(def.Item));
+			// more than twice what the clan wants (its stock, what its production chains and its sites need, the upkeep of the camp): enough of
+			// that, unless it is food (hunger may still want it). Without this the trade's weight kept a forager pulling fibre forever (844 in a clan of 20)
+			{
+				float wants = target;
+				if (const auto raw = m_Plan.Raw.find(def.Item); raw != m_Plan.Raw.end()) wants = std::max(wants, static_cast<float>(m_Store.Count(def.Item) + raw->second));
+				if (const auto lack = siteDemand.find(def.Item); lack != siteDemand.end()) wants += static_cast<float>(lack->second);
+				if (const auto u = Config.Work.Jobs.Upkeep.find(def.Item); u != Config.Work.Jobs.Upkeep.end()) wants += u->second * static_cast<float>(m_Members.size());
+				if (!IsFood(def.Item) && static_cast<float>(Stored(def.Item) + bag.Count(def.Item)) >= 2.0f * std::max(wants, 1.0f)) continue;   // (H18: the stockpiles count)
+				target = std::max(target, wants);
+			}
 			const float need = std::clamp(1.0f - have / target, 0.1f, 1.0f);
 			const float w = weight(kind);
 			const float reach = Falloff(distance, 30.0f);
@@ -1962,6 +1980,7 @@ namespace GB
 		j["cursor"] = m_Cursor;
 		j["sights"] = m_SightsTime;
 		j["needTimer"] = m_NeedTimer;
+		if (m_LodTimer != 0.0f) j["lod"] = m_LodTimer;   // the clock of the level of detail: abstract members walk otherwise, so a load must look at the viewer when the run did
 		if (m_PlanTimer != 0.0f) j["plan"] = m_PlanTimer;   // the settlement planner's clock (its sites are entities, saved with the scene)
 		j["fire"] = m_Fire ? 1 : 0;   // its state is the interactive's (tags and attributes, saved with the gameplay)
 		j["camp"] = Json::array({ Config.Camp.x, Config.Camp.y, Config.CampY });
@@ -2050,6 +2069,7 @@ namespace GB
 		m_Cursor = j.value("cursor", static_cast<size_t>(0));
 		m_SightsTime = j.value("sights", -1e9);
 		m_NeedTimer = j.value("needTimer", 0.0f);
+		m_LodTimer = j.value("lod", 0.0f);
 		m_Board = std::move(board);
 		m_Explore = std::move(explore);
 		m_Econ = std::move(econ);

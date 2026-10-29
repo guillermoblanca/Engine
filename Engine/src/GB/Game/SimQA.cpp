@@ -407,6 +407,12 @@ namespace GB
 						if (wrong.find("water") != std::string::npos) r.Add(name, "it stands " + wrong);
 					}
 			}
+			// the progression (docs/PROGRESION.md): never more sites open than the construction rules allow, and the provisions of what stands in range
+			int open = 0;
+			for (const Tribe::SettlementSite& s : v.Clan->SettlementSites()) if (!s.State.Done) ++open;
+			if (open > std::max(1, v.Clan->Config.Econ.Construction.MaxSites)) r.Add("settlement", std::to_string(open) + " sites open, more than the rules allow");
+			const float keep = v.Clan->StoreKeep();
+			if (!(keep > 0.0f && keep <= 1.0f) || v.Clan->StoreBonus() < 0 || v.Clan->Defense() < 0.0f) r.Add("settlement", "the provisions of its buildings are out of range");
 		}
 
 		// Nobody stands in water too deep to wade, inside a trunk or a rock, or off the map.
@@ -452,7 +458,7 @@ namespace GB
 				[](const SimView& v, SimTrack&, SimReport& r) { if (v.Clans) for (const auto& [who, what] : v.Clans->CheckMembers()) r.Add(who, what); } },
 			{ "territory", "claims are finite, on land regions, of clans that exist, and deterministic (the same step twice gives the same map)",
 				[](const SimView& v, SimTrack&, SimReport& r) { if (v.Clans) for (const auto& [who, what] : v.Clans->CheckTerritory()) r.Add(who, what); } },
-			{ "buildings", "every site and building: phase and work within its data, nothing delivered beyond its phase, tags as its state, progress never back, none in water", CheckBuildings },
+			{ "buildings", "every site and building: phase and work within its data, nothing delivered beyond its phase, tags as its state, progress never back, none in water; no more sites open than the rules allow", CheckBuildings },
 			{ "combat", "health and stamina in range; the dead neither fight nor are fought; morale and wounds in range; wounds heal (they only grow with a new blow)", CheckFights },
 		};
 		return table;
@@ -462,6 +468,8 @@ namespace GB
 	{
 		static std::vector<SimMetricDef> table = {
 			{ "berries in store", [](const SimView& v, SimMetrics& m) { if (v.Clan) m.Extra["store berry"] = v.Clan->Store().Count("berry"); } },
+			// what the clan holds of what is not food: a surplus that piles up (fibre while the foragers pull it forever) shows here
+			{ "fibre in store", [](const SimView& v, SimMetrics& m) { if (v.Clan) m.Extra["stored fiber"] = v.Clan->Stored("fiber"); } },
 			{ "known things", [](const SimView& v, SimMetrics& m) { if (v.Clan) m.Extra["clan memory"] = static_cast<double>(v.Clan->ClanMemory().Size()); } },
 			// H7: how far the aptitudes went (the mean of each member's best, and the highest), how the trades are shared out at the end, and the board
 			{ "skills", [](const SimView& v, SimMetrics& m)
@@ -801,8 +809,10 @@ namespace GB
 		};
 		if (!m_Nav.Build(m_Ground, nav, &m_Error)) return;
 
-		// The camp: the one given, or the flattest dry place near the middle of the map (the editor's spawn), clear of trunks and rocks.
-		const glm::vec2 camp = setup.HasCamp ? setup.Camp : FindFreeSpot(m_Ground, world.Spawn, 2.0f);
+		// The camp: the one given, or the flattest dry place near the middle of the map (the editor's spawn), clear of trunks and rocks. Clear for 3.5 m:
+		// the campfire stands 1.5 m off the camp (Tribe::FirePos) and who stokes it stands a metre beyond (with 2 m a trunk could be where the stoker
+		// stands; the editor's own choice of a site keeps 4 m clear, SiteWeights::ClearRadius).
+		const glm::vec2 camp = setup.HasCamp ? setup.Camp : FindFreeSpot(m_Ground, world.Spawn, 3.5f);
 		if (setup.Scene)
 		{
 			m_Entities = *setup.Scene;

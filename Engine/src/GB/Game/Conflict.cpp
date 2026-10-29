@@ -34,6 +34,7 @@ namespace GB
 		add(c.Fight, "fight.odds", t.Odds * std::min(odds / 2.0f, 1.0f));
 		if (v.Kin) add(c.Fight, "fight.kin", t.Kin);
 		if (v.Camp) add(c.Fight, "fight.camp", t.Camp);
+		if (v.Camp && v.Defense > 0.0f) add(c.Fight, "fight.walls", t.Walls * v.Defense);
 		add(c.Flee, "flee.fear", t.Fear * (1.0f - std::clamp(v.Safety / 100.0f, 0.0f, 1.0f)));
 		add(c.Flee, "flee.timid", t.Timid * (1.0f - bold));
 		if (odds < 1.0f) add(c.Flee, "flee.outnumbered", t.Odds * (1.0f - odds) * 1.5f);
@@ -55,23 +56,30 @@ namespace GB
 		return s + b + Parts(Factors, "flee.") + ")";
 	}
 
-	RaidMotive WeighRaid(const RaidRules& r, float meanBoldness, float hunger, float grievance, float hostility)
+	RaidMotive WeighRaid(const RaidRules& r, float meanBoldness, float hunger, float grievance, float hostility, float defense)
 	{
 		RaidMotive m;
 		m.Boldness = r.Bold * std::clamp(meanBoldness, 0.0f, 1.0f);
 		m.Hunger = r.Hunger * std::clamp(hunger, 0.0f, 1.0f);
 		m.Grievance = r.Grievance * std::max(0.0f, grievance);
 		m.Hostility = r.Hostility * std::clamp(hostility, 0.0f, 1.0f);
-		m.Score = m.Boldness + m.Hunger + m.Grievance + m.Hostility;
+		m.Defense = r.Defense * std::max(0.0f, defense);
+		m.Score = m.Boldness + m.Hunger + m.Grievance + m.Hostility - m.Defense;
 		return m;
 	}
 
 	std::string RaidMotive::Why() const
 	{
-		char b[160];
-		std::snprintf(b, sizeof b, "motive %.2f (boldness %.2f, hunger %.2f, grievance %.2f, hostility %.2f)", static_cast<double>(Score), static_cast<double>(Boldness),
+		char b[200];
+		std::snprintf(b, sizeof b, "motive %.2f (boldness %.2f, hunger %.2f, grievance %.2f, hostility %.2f", static_cast<double>(Score), static_cast<double>(Boldness),
 			static_cast<double>(Hunger), static_cast<double>(Grievance), static_cast<double>(Hostility));
-		return b;
+		std::string s = b;
+		if (Defense > 0.0f)
+		{
+			std::snprintf(b, sizeof b, ", walls -%.2f", static_cast<double>(Defense));
+			s += b;
+		}
+		return s + ")";
 	}
 
 	std::vector<std::string> ChooseRaidParty(const RaidRules& rules, std::vector<RaiderCandidate> candidates)

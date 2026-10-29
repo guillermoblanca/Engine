@@ -14,6 +14,7 @@
       "bush":        { "color": [0.9, 1.0, 0.9], "texture": "leaves", "uvScale": 2.5, "roughness": 0.75, "wind": 0.2, "seasonal": true },
       "berry":       { "color": [0.62, 0.06, 0.16], "roughness": 0.3 },
       "acorn":       { "color": [0.55, 0.38, 0.18], "roughness": 0.5 },
+      "herb_flower": { "color": [0.72, 0.6, 0.92], "roughness": 0.5 },
       "stone":       { "color": [0.78, 0.77, 0.74], "texture": "stone", "uvScale": 0.9, "roughness": 0.85, "grain": 0.35 },
       "stone_dark":  { "color": [0.55, 0.54, 0.52], "texture": "stone", "uvScale": 1.4, "roughness": 0.9, "grain": 0.3 },
       "granite":     { "color": [0.85, 0.72, 0.68], "texture": "stone", "uvScale": 2.0, "roughness": 0.8, "grain": 0.4 },
@@ -133,6 +134,14 @@
         "parts": [
           { "name": "Tuft", "shape": "blade", "size": [0.07, 0.75, 0.28], "material": "grass", "count": 20, "layout": "scatter", "radius": 0.32, "jitter": 0.8, "show": [0, 1], "progressive": true },
           { "name": "Stubble", "shape": "blade", "size": [0.05, 0.16, 0.05], "material": "grass_dry", "count": 9, "layout": "scatter", "radius": 0.28, "jitter": 0.6 }
+        ]
+      },
+      "herb_patch": {
+        "variants": 3, "note": "a low clump of healing herbs with pale flowers: leaves go as they are picked",
+        "parts": [
+          { "name": "Leaves", "shape": "blade", "size": [0.06, 0.32, 0.14], "material": "leaves_young", "count": 14, "layout": "scatter", "radius": 0.3, "jitter": 0.7, "show": [0, 1], "progressive": true },
+          { "name": "Flowers", "shape": "blob", "pos": [0, 0.3, 0], "size": [0.035, 0.03, 0.035], "material": "herb_flower", "count": 7, "layout": "scatter", "radius": 0.26, "detail": 1, "rough": 0.1, "show": [0.3, 1], "progressive": true },
+          { "name": "Stems", "shape": "blade", "size": [0.03, 0.1, 0.03], "material": "grass_dry", "count": 6, "layout": "scatter", "radius": 0.25, "jitter": 0.5 }
         ]
       },
       "berry_bush": {
@@ -339,6 +348,28 @@
         ]
       },
 
+      "spear_flint": {
+        "variants": 1, "note": "a long shaft with a knapped flint point lashed on",
+        "parts": [
+          { "name": "Shaft", "shape": "cylinder", "pos": [0, 0, -0.9], "rot": [90, 0, 0], "size": [0.032, 1.8, 0.028], "material": "handle", "sides": 6 },
+          { "name": "Point", "shape": "blob", "pos": [0, 0, 0.98], "size": [0.03, 0.02, 0.1], "material": "flint", "detail": 0, "rough": 0.3 },
+          { "name": "Lashing", "shape": "cylinder", "pos": [0, 0, 0.86], "rot": [90, 0, 0], "size": [0.045, 0.1, 0.045], "material": "rope", "sides": 6 }
+        ]
+      },
+      "leather_bag": {
+        "variants": 1, "note": "a leather bag worn on the back, tied at the top",
+        "parts": [
+          { "name": "Bag", "shape": "blob", "pos": [0, 0.22, 0], "size": [0.22, 0.26, 0.15], "material": "hide", "detail": 1, "rough": 0.2 },
+          { "name": "Tie", "shape": "cylinder", "pos": [0, 0.44, 0], "size": [0.1, 0.04, 0.1], "material": "rope", "sides": 8 },
+          { "name": "Strap", "shape": "box", "pos": [0, 0.25, 0.15], "size": [0.2, 0.4, 0.02], "material": "hide" }
+        ]
+      },
+      "pile_hides": {
+        "variants": 1, "note": "hides, leather and mats piled flat",
+        "parts": [
+          { "name": "Hide", "shape": "box", "pos": [0, 0.02, 0], "size": [0.7, 0.03, 0.5], "material": "hide", "count": 8, "layout": "stack", "columns": 1, "spacing": 0.035, "show": [0, 1], "progressive": true }
+        ]
+      },
       "pile_logs": {
         "variants": 1, "note": "the store's woodpile: one more log for every few units",
         "parts": [
@@ -505,6 +536,153 @@
             { "name": "Rail", "shape": "cylinder", "pos": [1.95, 0.6, 0.14], "rot": [0, 0, 90], "size": [0.09, 3.9, 0.08], "material": "bark_pale", "sides": 6, "count": 2, "layout": "stack", "columns": 1, "spacing": 1.0 },
             { "name": "Lashing", "shape": "cylinder", "pos": [0, 0.56, 0.12], "size": [0.1, 0.08, 0.1], "material": "rope", "sides": 6, "count": 8, "layout": "row", "spacing": 0.48 } ] }
         ]
+      },
+      "hut": {
+        "footprint": [3.8, 3.8], "note": "a round wattle-and-daub hut: stone footing, a ring of posts, plastered walls with a doorway, a thick thatched cone",
+        "phases": [
+          { "name": "foundation", "parts": [
+            { "name": "Footing", "shape": "blob", "pos": [0, 0.08, 0], "size": [0.18, 0.12, 0.15], "material": "stone", "count": 14, "radius": 1.7, "detail": 1, "rough": 0.3, "jitter": 0.3 },
+            { "name": "Floor", "shape": "blob", "size": [1.7, 0.04, 1.7], "material": "mud", "detail": 2, "rough": 0.1, "flat": -0.2 } ] },
+          { "name": "frame", "parts": [
+            { "name": "Post", "shape": "cylinder", "size": [0.12, 1.7, 0.1], "material": "bark", "sides": 6, "count": 10, "radius": 1.62 },
+            { "name": "Ring Beam", "shape": "cylinder", "pos": [0, 1.65, 0], "size": [3.35, 0.08, 3.35], "material": "bark_pale", "sides": 18 } ] },
+          { "name": "walls", "parts": [
+            { "name": "Daub", "shape": "box", "pos": [0, 0.8, 0], "size": [0.12, 1.6, 0.98], "material": "mud", "count": 9, "radius": 1.6, "arc": 300 },
+            { "name": "Lintel", "shape": "box", "pos": [0, 1.55, 1.62], "size": [0.9, 0.12, 0.14], "material": "bark" } ] },
+          { "name": "roof", "parts": [
+            { "name": "Thatch", "shape": "cylinder", "pos": [0, 1.6, 0], "size": [4.2, 1.9, 0.2], "material": "thatch", "sides": 16 },
+            { "name": "Smoke Hole", "shape": "blob", "pos": [0, 3.45, 0], "size": [0.22, 0.12, 0.22], "material": "rope", "detail": 1, "rough": 0.2 } ] }
+        ]
+      },
+      "longhouse": {
+        "footprint": [7.2, 4.2], "note": "a long timber hall: stone footings, two rows of posts and a ridge beam, wattle walls daubed with clay, a pitched roof of reed and mats",
+        "phases": [
+          { "name": "footings", "parts": [
+            { "name": "Footing", "shape": "blob", "pos": [-3.0, 0.08, -1.7], "size": [0.22, 0.14, 0.2], "material": "stone", "count": 6, "layout": "row", "spacing": 1.2, "detail": 1, "rough": 0.3 },
+            { "name": "Footing Back", "shape": "blob", "pos": [-3.0, 0.08, 1.7], "size": [0.22, 0.14, 0.2], "material": "stone", "count": 6, "layout": "row", "spacing": 1.2, "detail": 1, "rough": 0.3 },
+            { "name": "Floor", "shape": "box", "pos": [0, 0.02, 0], "size": [6.8, 0.04, 3.6], "material": "mud" } ] },
+          { "name": "frame", "parts": [
+            { "name": "Post", "shape": "cylinder", "pos": [-3.0, 0, -1.7], "size": [0.16, 2.0, 0.14], "material": "bark", "sides": 7, "count": 6, "layout": "row", "spacing": 1.2 },
+            { "name": "Post Back", "shape": "cylinder", "pos": [-3.0, 0, 1.7], "size": [0.16, 2.0, 0.14], "material": "bark", "sides": 7, "count": 6, "layout": "row", "spacing": 1.2 },
+            { "name": "King Post", "shape": "cylinder", "pos": [-3.0, 0, 0], "size": [0.18, 3.3, 0.16], "material": "bark_dark", "sides": 7, "count": 2, "layout": "row", "spacing": 6.0 },
+            { "name": "Ridge", "shape": "cylinder", "pos": [3.4, 3.25, 0], "rot": [0, 0, 90], "size": [0.14, 6.8, 0.12], "material": "bark_dark", "sides": 7 } ] },
+          { "name": "walls", "parts": [
+            { "name": "Wall", "shape": "box", "pos": [0, 0.95, -1.72], "size": [6.6, 1.9, 0.12], "material": "mud" },
+            { "name": "Wall Back", "shape": "box", "pos": [0, 0.95, 1.72], "size": [6.6, 1.9, 0.12], "material": "mud" },
+            { "name": "Gable", "shape": "box", "pos": [-3.32, 0.95, 0], "size": [0.12, 1.9, 3.3], "material": "wicker", "count": 2, "layout": "row", "spacing": 6.64, "face": false } ] },
+          { "name": "roof", "parts": [
+            { "name": "Roof", "shape": "box", "pos": [0, 2.65, -1.0], "rot": [-38, 0, 0], "size": [7.4, 0.16, 2.6], "material": "thatch" },
+            { "name": "Roof Back", "shape": "box", "pos": [0, 2.65, 1.0], "rot": [38, 0, 0], "size": [7.4, 0.16, 2.6], "material": "thatch" },
+            { "name": "Mat", "shape": "box", "pos": [-2.4, 3.3, 0], "size": [1.2, 0.05, 0.5], "material": "wicker", "count": 3, "layout": "row", "spacing": 2.4 } ] }
+        ]
+      },
+      "cache_pit": {
+        "footprint": [2.0, 2.0], "note": "a pit dug in the ground, ringed with stones, lined and covered with a woven reed lid",
+        "phases": [
+          { "name": "pit", "parts": [
+            { "name": "Spoil", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.3, 0.12, 0.25], "material": "mud", "count": 5, "radius": 0.95, "detail": 1, "rough": 0.3 },
+            { "name": "Hole", "shape": "cylinder", "pos": [0, 0.0, 0], "size": [1.3, 0.03, 1.3], "material": "embers", "sides": 14 },
+            { "name": "Rim", "shape": "blob", "pos": [0, 0.06, 0], "size": [0.14, 0.1, 0.12], "material": "stone", "count": 10, "radius": 0.72, "detail": 1, "rough": 0.3 } ] },
+          { "name": "lining", "parts": [
+            { "name": "Lid", "shape": "cylinder", "pos": [0, 0.04, 0], "size": [1.45, 0.06, 1.45], "material": "wicker", "sides": 14 },
+            { "name": "Bundle", "shape": "cylinder", "pos": [0.55, 0.12, 0], "rot": [0, 0, 90], "size": [0.12, 0.5, 0.12], "material": "grass_dry", "sides": 6, "count": 3, "radius": 0.5 } ] }
+        ]
+      },
+      "granary": {
+        "footprint": [2.8, 2.8], "note": "a granary on stilts with stone caps against the mice, wattle walls and a thatched cone",
+        "phases": [
+          { "name": "stilts", "parts": [
+            { "name": "Stilt", "shape": "cylinder", "size": [0.16, 1.0, 0.14], "material": "bark", "sides": 7, "count": 6, "radius": 1.05 },
+            { "name": "Cap", "shape": "cylinder", "pos": [0, 1.0, 0], "size": [0.4, 0.08, 0.34], "material": "stone_dark", "sides": 10, "count": 6, "radius": 1.05 } ] },
+          { "name": "floor", "parts": [
+            { "name": "Floor", "shape": "cylinder", "pos": [0, 1.08, 0], "size": [2.5, 0.1, 2.5], "material": "planks", "sides": 14 },
+            { "name": "Ladder", "shape": "box", "pos": [0, 0.55, 1.45], "rot": [20, 0, 0], "size": [0.4, 1.2, 0.06], "material": "bark_pale" } ] },
+          { "name": "walls", "parts": [
+            { "name": "Wall", "shape": "cylinder", "pos": [0, 1.18, 0], "size": [2.2, 1.2, 2.3], "material": "wicker", "sides": 14 } ] },
+          { "name": "roof", "parts": [
+            { "name": "Thatch", "shape": "cylinder", "pos": [0, 2.3, 0], "size": [2.9, 1.3, 0.15], "material": "thatch", "sides": 14 } ] }
+        ]
+      },
+      "hearth": {
+        "footprint": [2.4, 2.4], "note": "the communal hearth: a wide ring of stones, logs on the embers, a spit and stones to sit on",
+        "phases": [
+          { "name": "ring", "parts": [
+            { "name": "Ring", "shape": "blob", "pos": [0, 0.1, 0], "size": [0.2, 0.14, 0.17], "material": "stone", "count": 14, "radius": 0.85, "detail": 1, "rough": 0.3, "jitter": 0.3 },
+            { "name": "Seat", "shape": "blob", "pos": [0, 0.15, 0], "size": [0.3, 0.2, 0.26], "material": "stone_dark", "count": 4, "radius": 1.55, "detail": 1, "rough": 0.25 } ] },
+          { "name": "fire", "parts": [
+            { "name": "Embers", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.6, 0.06, 0.6], "material": "embers", "detail": 1, "rough": 0.3 },
+            { "name": "Log", "shape": "cylinder", "pos": [0, 0.08, 0], "rot": [0, 0, 80], "size": [0.12, 0.8, 0.1], "material": "bark", "sides": 6, "count": 4, "radius": 0.12 },
+            { "name": "Spit Post", "shape": "cylinder", "pos": [-0.75, 0, 0], "size": [0.06, 1.0, 0.05], "material": "bark_pale", "sides": 6, "count": 2, "layout": "row", "spacing": 1.5 },
+            { "name": "Spit", "shape": "cylinder", "pos": [0.8, 0.95, 0], "rot": [0, 0, 90], "size": [0.04, 1.6, 0.04], "material": "bark_pale", "sides": 6 } ] }
+        ]
+      },
+      "smoking_rack": {
+        "footprint": [2.2, 1.6], "note": "a frame of poles over a smouldering fire, meat hung on the bars, covered with reeds to keep the smoke in",
+        "phases": [
+          { "name": "frame", "parts": [
+            { "name": "Pole", "shape": "cylinder", "pos": [-0.95, 0, -0.65], "size": [0.09, 1.7, 0.07], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.9 },
+            { "name": "Pole Back", "shape": "cylinder", "pos": [-0.95, 0, 0.65], "size": [0.09, 1.7, 0.07], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.9 },
+            { "name": "Bar", "shape": "cylinder", "pos": [1.0, 1.25, -0.3], "rot": [0, 0, 90], "size": [0.05, 2.0, 0.04], "material": "bark_pale", "sides": 6, "count": 3, "layout": "row", "spacing": 0.3, "face": false },
+            { "name": "Smoulder", "shape": "blob", "pos": [0, 0.03, 0], "size": [0.4, 0.05, 0.3], "material": "embers", "detail": 1, "rough": 0.3 },
+            { "name": "Strip", "shape": "box", "pos": [-0.6, 1.05, 0], "size": [0.1, 0.4, 0.03], "material": "meat", "count": 5, "layout": "row", "spacing": 0.3 } ] },
+          { "name": "cover", "parts": [
+            { "name": "Cover", "shape": "box", "pos": [0, 1.75, -0.45], "rot": [-30, 0, 0], "size": [2.3, 0.08, 1.0], "material": "thatch" },
+            { "name": "Cover Back", "shape": "box", "pos": [0, 1.75, 0.45], "rot": [30, 0, 0], "size": [2.3, 0.08, 1.0], "material": "thatch" } ] }
+        ]
+      },
+      "hide_frame": {
+        "footprint": [2.0, 1.2], "note": "a soaking pit and a frame with a hide stretched on it by cords, a scraper on the ground",
+        "phases": [
+          { "name": "pit", "parts": [
+            { "name": "Pit", "shape": "cylinder", "pos": [0.55, 0.0, 0.3], "size": [0.7, 0.04, 0.6], "material": "mud", "sides": 12 },
+            { "name": "Stone", "shape": "blob", "pos": [0.55, 0.06, 0.3], "size": [0.12, 0.08, 0.1], "material": "stone", "count": 7, "radius": 0.38, "detail": 1, "rough": 0.3 } ] },
+          { "name": "frame", "parts": [
+            { "name": "Upright", "shape": "cylinder", "pos": [-0.75, 0, -0.3], "size": [0.08, 1.7, 0.06], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.5 },
+            { "name": "Rail", "shape": "cylinder", "pos": [0.8, 0.3, -0.3], "rot": [0, 0, 90], "size": [0.06, 1.6, 0.05], "material": "bark_pale", "sides": 6, "count": 2, "layout": "stack", "columns": 1, "spacing": 1.25 },
+            { "name": "Hide", "shape": "box", "pos": [0, 0.95, -0.3], "size": [1.2, 1.0, 0.02], "material": "hide" },
+            { "name": "Cord", "shape": "cylinder", "pos": [-0.66, 0.95, -0.3], "rot": [0, 0, 90], "size": [0.02, 0.12, 0.02], "material": "rope", "sides": 4, "count": 6, "layout": "row", "spacing": 0.26 } ] }
+        ]
+      },
+      "healer_hut": {
+        "footprint": [2.6, 2.6], "note": "a small reed hut with bundles of herbs hung at the door and a bench of remedies",
+        "phases": [
+          { "name": "frame", "parts": [
+            { "name": "Pole", "shape": "cylinder", "rot": [0, 0, 30], "size": [0.08, 2.2, 0.05], "material": "bark_pale", "sides": 6, "count": 7, "radius": 1.1 },
+            { "name": "Floor", "shape": "blob", "size": [1.15, 0.03, 1.15], "material": "mud", "detail": 2, "rough": 0.1, "flat": -0.2 } ] },
+          { "name": "walls", "parts": [
+            { "name": "Reeds", "shape": "cylinder", "pos": [0, 0, 0], "size": [2.4, 2.0, 0.3], "material": "thatch", "sides": 12 },
+            { "name": "Herbs", "shape": "blob", "pos": [0, 1.3, 0], "size": [0.08, 0.16, 0.08], "material": "leaves_young", "count": 5, "radius": 1.25, "arc": 70, "detail": 1, "rough": 0.4 } ] },
+          { "name": "remedies", "parts": [
+            { "name": "Bench", "shape": "box", "pos": [0.9, 0.35, 1.25], "size": [0.9, 0.08, 0.4], "material": "planks" },
+            { "name": "Pot", "shape": "cylinder", "pos": [0.6, 0.39, 1.25], "size": [0.14, 0.14, 0.11], "material": "clay", "sides": 10, "count": 3, "layout": "row", "spacing": 0.28 } ] }
+        ]
+      },
+      "totem": {
+        "footprint": [3.0, 3.0], "note": "the clan's meeting place: a circle of stones round a carved, painted pole",
+        "phases": [
+          { "name": "circle", "parts": [
+            { "name": "Stone", "shape": "blob", "pos": [0, 0.18, 0], "size": [0.24, 0.24, 0.2], "material": "stone", "count": 8, "radius": 1.35, "detail": 1, "rough": 0.3, "jitter": 0.2 },
+            { "name": "Ground", "shape": "blob", "size": [1.4, 0.02, 1.4], "material": "mud", "detail": 2, "rough": 0.1, "flat": -0.2 } ] },
+          { "name": "pole", "parts": [
+            { "name": "Pole", "shape": "cylinder", "size": [0.3, 3.2, 0.24], "material": "bark_dark", "sides": 8 },
+            { "name": "Band", "shape": "cylinder", "pos": [0, 0.6, 0], "size": [0.34, 0.12, 0.34], "material": "berry", "sides": 8, "count": 4, "layout": "stack", "columns": 1, "spacing": 0.6 },
+            { "name": "Face", "shape": "blob", "pos": [0, 2.75, 0.12], "size": [0.2, 0.26, 0.12], "material": "bone", "detail": 1, "rough": 0.2 },
+            { "name": "Wings", "shape": "box", "pos": [0, 3.0, 0], "size": [1.2, 0.12, 0.08], "material": "bark", "count": 1 } ] }
+        ]
+      },
+      "forge": {
+        "footprint": [2.2, 2.0], "note": "a brick furnace with a clay chimney, and a hide bellows pumped by hand beside it",
+        "phases": [
+          { "name": "hearth", "parts": [
+            { "name": "Stone", "shape": "blob", "pos": [0, 0.12, 0], "size": [0.2, 0.15, 0.18], "material": "stone_dark", "count": 10, "radius": 0.7, "detail": 1, "rough": 0.3 },
+            { "name": "Bricks", "shape": "box", "pos": [0, 0.35, 0], "size": [0.3, 0.16, 0.16], "material": "clay", "count": 10, "radius": 0.62 },
+            { "name": "Glow", "shape": "blob", "pos": [0, 0.3, 0], "size": [0.4, 0.15, 0.4], "material": "embers", "detail": 1, "rough": 0.3 },
+            { "name": "Chimney", "shape": "cylinder", "pos": [0, 0.45, 0], "size": [0.9, 0.9, 0.4], "material": "clay", "sides": 12 } ] },
+          { "name": "bellows", "parts": [
+            { "name": "Bag", "shape": "blob", "pos": [0.0, 0.25, 0.95], "size": [0.3, 0.16, 0.24], "material": "hide", "detail": 1, "rough": 0.2 },
+            { "name": "Nozzle", "shape": "cylinder", "pos": [0, 0.22, 0.75], "rot": [90, 0, 0], "size": [0.05, 0.3, 0.04], "material": "clay", "sides": 6 },
+            { "name": "Handle", "shape": "cylinder", "pos": [0, 0.3, 1.15], "rot": [70, 0, 0], "size": [0.04, 0.5, 0.04], "material": "handle", "sides": 6 } ] }
+        ]
       }
     },
 
@@ -523,6 +701,9 @@
       "Item.Resource.Cordage": { "model": "pile_fiber", "full": 12 },
       "Item.Food": { "model": "pile_berries", "full": 24 },
       "Item.Food.Meat": { "model": "pile_meat", "full": 12 },
+      "Item.Resource.Hide": { "model": "pile_hides", "full": 12 },
+      "Item.Resource.Leather": { "model": "pile_hides", "full": 12 },
+      "Item.Resource.Mat": { "model": "pile_hides", "full": 10 },
       "Item.Resource": { "model": "pile_crates", "full": 24 }
     },
 
@@ -558,6 +739,8 @@
         "hoe_stone":      { "model": "hoe_stone" },
         "hoe_stone_rest": { "model": "hoe_stone", "offset": [-0.02, -0.4, 0.06], "rot": [-95, 0, 0] },
         "sickle_flint":   { "model": "sickle_flint" },
+        "spear_flint":    { "model": "spear_flint" },
+        "leather_bag":    { "model": "leather_bag", "offset": [0, -0.3, -0.2] },
         "basket":         { "model": "basket", "offset": [0, -0.3, -0.2] },
         "logs_bundle":    { "model": "logs_bundle" },
         "stone_crate":    { "model": "stone_crate" },
@@ -571,9 +754,10 @@
       "items": {
         "stone_axe": "axe_stone", "flint_axe": "axe_flint", "copper_axe": "axe_copper",
         "stone_pickaxe": "pick_stone", "flint_pickaxe": "pick_flint", "bone_pickaxe": "pick_bone",
-        "stone_hoe": "hoe_stone", "flint_sickle": "sickle_flint", "basket_wicker": "basket"
+        "stone_hoe": "hoe_stone", "flint_sickle": "sickle_flint", "basket_wicker": "basket",
+        "flint_spear": "spear_flint", "leather_bag": "leather_bag"
       },
-      "rest": { "Item.Tool.Axe": "hip_r", "Item.Tool.Pickaxe": "hip_l", "Item.Tool.Hoe": "hip_l", "Item.Tool.Sickle": "hip_r", "Item.Container": "back" },
+      "rest": { "Item.Tool.Axe": "hip_r", "Item.Tool.Pickaxe": "hip_l", "Item.Tool.Hoe": "hip_l", "Item.Tool.Sickle": "hip_r", "Item.Container": "back", "Item.Weapon": "back" },
       "work": { "Chop": "Item.Tool.Axe", "Mine": "Item.Tool.Pickaxe", "farm.till": "Item.Tool.Hoe", "farm.harvest": "Item.Tool.Sickle",
                 "fight": "Item.Weapon|Item.Tool.Axe|Item.Tool.Pickaxe", "raid": "Item.Weapon|Item.Tool.Axe|Item.Tool.Pickaxe", "hunt": "Item.Weapon|Item.Tool.Axe|Item.Tool.Pickaxe" },
       "hand": { "stoke": "firewood", "fire": "firewood", "eat": "berries_handful" },

@@ -27,8 +27,11 @@ DOCS = ROOT / 'docs'
 
 # documents shown in the wiki, in order: (file, group)
 DOC_LIST = [
+    ('JUGAR.md', 'Jugar'),
     ('PLAN_SOCIEDAD_VIVA.md', 'Plan'),
     ('PROPUESTA_HABILIDADES_Y_ECONOMIA.md', 'Plan'),
+    ('PLAN_IA_ENTRENABLE.md', 'Plan'),
+    ('ESTUDIO_ERA1.md', 'Plan'),
     ('INFORME_CALIDAD.md', 'Plan'),
     ('TRIBU.md', 'Sistemas'),
     ('IA.md', 'Sistemas'),
@@ -39,9 +42,18 @@ DOC_LIST = [
     ('GUARDADO.md', 'Sistemas'),
     ('PAQUETES.md', 'Sistemas'),
     ('CONOCIMIENTO.md', 'Sistemas'),
+    ('PROGRESION.md', 'Sistemas'),
     ('EXPLORACION.md', 'Sistemas'),
     ('RECURSOS_MUNDO.md', 'Sistemas'),
     ('CAMARAS.md', 'Sistemas'),
+    ('ASENTAMIENTOS.md', 'Sistemas'),
+    ('ECONOMIA.md', 'Sistemas'),
+    ('SOCIEDAD.md', 'Sistemas'),
+    ('CLANES.md', 'Sistemas'),
+    ('CONFLICTO.md', 'Sistemas'),
+    ('VISUALES.md', 'Sistemas'),
+    ('QA_SIMULACION.md', 'Sistemas'),
+    ('ANIMACIONES_USO.md', 'Animación'),
     ('habilidades.md', 'Sistemas'),
     ('COSTE_ACTOR.md', 'Sistemas'),
     ('ANIMACIONES_PENDIENTES.md', 'Animación'),
@@ -405,25 +417,122 @@ def section_content(content, extra):
     return '\n'.join(out)
 
 
-def section_techs(content, extra_techs):
-    out = ['<h1>Tecnologías</h1>',
-           '<p class="lead">Datos de la sección <code>techs</code> de <code>assets/data/era1.json</code> (y del paquete ampliado). Una receta o un nodo que una tecnología desbloquea '
-           'solo se puede usar cuando el agente o el clan la conoce; se descubre experimentando, observando o en las lecciones del campamento (ver CONOCIMIENTO.md).</p>']
+def tech_tree_svg(techs, extra_ids):
+    # Columns by depth (the longest chain of requirements), one box per technology, an arrow from each requirement.
+    by_id = {t['id']: t for t in techs}
+    depth = {}
 
-    def table(techs, title):
-        rows = ''
-        for t in techs:
-            unlocks = [f'receta <code>{e(r)}</code>' for r in t.get('recipes', [])] + [f'nodo <code>{e(n)}</code>' for n in t.get('nodes', [])] \
-                + [f'edificio <code>{e(b)}</code>' for b in t.get('buildings', [])]
-            d = t.get('discovery', {})
-            how = 'se sabe desde el principio' if t.get('known') else ', '.join(f'{k} {num(v)}' for k, v in d.items()) or '—'
-            rows += (f'<tr data-search="{e(t["id"].lower())} {e(t.get("name", "").lower())}"><td><code>{e(t["id"])}</code></td><td>{e(t.get("name", ""))}</td><td>{t.get("era", 1)}</td>'
-                     f'<td>{tags(t.get("requires", []))}</td><td>{", ".join(unlocks) or "—"}</td><td>{e(how)}</td></tr>')
-        return (f'<h2>{e(title)} <span class="muted">({len(techs)})</span></h2><table class="grid"><tr><th>Id</th><th>Nombre</th><th>Era</th><th>Requiere</th>'
-                f'<th>Desbloquea</th><th>Descubrimiento</th></tr>{rows}</table>')
-    out.append(table(content.get('techs', []), 'Tecnologías (base)'))
-    if extra_techs:
-        out.append(table(extra_techs, 'Tecnologías (ampliado)'))
+    def d(tid, seen=()):
+        if tid in depth:
+            return depth[tid]
+        reqs = [r for r in by_id.get(tid, {}).get('requires', []) if r in by_id and r not in seen]
+        depth[tid] = 0 if not reqs else 1 + max(d(r, seen + (tid,)) for r in reqs)
+        return depth[tid]
+    for t in techs:
+        d(t['id'])
+    cols = {}
+    for t in sorted(techs, key=lambda t: (t.get('era', 1), t['id'])):
+        cols.setdefault(depth[t['id']], []).append(t['id'])
+    bw, bh, gx, gy, pad = 170, 46, 70, 18, 12
+    pos = {}
+    for c, ids in cols.items():
+        for r, tid in enumerate(ids):
+            pos[tid] = (pad + c * (bw + gx), pad + r * (bh + gy))
+    width = pad * 2 + (max(cols) + 1) * (bw + gx) - gx
+    height = pad * 2 + max(len(v) for v in cols.values()) * (bh + gy) - gy
+    out = [f'<svg class="tree" viewBox="0 0 {width} {height}" width="{width}" role="img" aria-label="Árbol de tecnologías">',
+           '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
+           '<path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>']
+    for t in techs:
+        x2, y2 = pos[t['id']]
+        for r in t.get('requires', []):
+            if r in pos:
+                x1, y1 = pos[r]
+                out.append(f'<path d="M{x1 + bw},{y1 + bh / 2} C{x1 + bw + gx / 2},{y1 + bh / 2} {x2 - gx / 2},{y2 + bh / 2} {x2},{y2 + bh / 2}" '
+                           'fill="none" stroke="var(--muted)" stroke-width="1.5" marker-end="url(#arrow)"/>')
+    for t in techs:
+        x, y = pos[t['id']]
+        cls = 'known' if t.get('known') else ('era2' if t.get('era', 1) > 1 else 'learn')
+        tag = 'se sabe' if t.get('known') else f'era {t.get("era", 1)}' + (' · ampliado' if t['id'] in extra_ids else '')
+        out.append(f'<a href="#tech-{e(t["id"])}"><g class="tnode {cls}"><rect x="{x}" y="{y}" width="{bw}" height="{bh}" rx="8"/>'
+                   f'<text x="{x + 10}" y="{y + 19}" class="tname">{e(t.get("name", t["id"]))}</text>'
+                   f'<text x="{x + 10}" y="{y + 36}" class="tsub">{e(tag)}</text></g></a>')
+    out.append('</svg>')
+    return ''.join(out)
+
+
+def station_buildings(buildings):
+    return {b.get('station'): (bid, b.get('name', bid)) for bid, b in buildings.items() if b.get('station')}
+
+
+def section_techs(content, extra_techs, recipes, buildings):
+    techs = content.get('techs', []) + extra_techs
+    extra_ids = {t['id'] for t in extra_techs}
+    by_recipe = {r['id']: r for r in recipes}
+    stations = station_buildings(buildings)
+    out = ['<h1>Árbol de tecnologías</h1>',
+           '<p class="lead">Cada flecha va de un requisito a lo que abre. Las verdes se saben desde el principio; las demás se descubren experimentando, observando a quien '
+           'ya sabe o en las lecciones del campamento (ver CONOCIMIENTO.md). Datos: sección <code>techs</code> de <code>era1.json</code> y del paquete ampliado.</p>',
+           '<div class="treewrap">' + tech_tree_svg(techs, extra_ids) + '</div>',
+           '<p class="muted">Verde: se sabe desde el principio · azul: se descubre · gris: era siguiente. Pulsa una caja para ver qué desbloquea.</p>',
+           '<h2>Qué desbloquea cada una</h2>']
+    for t in techs:
+        d = t.get('discovery', {})
+        how = 'Se sabe desde el principio.' if t.get('known') else 'Descubrimiento: ' + (', '.join(f'{k} {num(v)}' for k, v in d.items()) or '—') + '.'
+        items = []
+        for rid in t.get('recipes', []):
+            r = by_recipe.get(rid)
+            if not r:
+                items.append(f'<li>receta <code>{e(rid)}</code></li>')
+                continue
+            ins = ', '.join(f'{v}× <code>{e(k)}</code>' for k, v in r.get('inputs', {}).items())
+            st = r.get('station', '')
+            where = ''
+            if st:
+                b = stations.get(st)
+                where = f' — en <code>{e(st)}</code>' + (f' (lo da el edificio <a href="#bld-{e(b[0])}">{e(b[1])}</a>)' if b and st != 'workbench' else
+                                                          (' (el campamento cuenta como banco; también el edificio <a href="#bld-workbench">Workbench</a>)' if st == 'workbench' else ''))
+            items.append(f'<li>receta <code>{e(rid)}</code>: {ins} → {r.get("count", 1)}× <code>{e(r["output"])}</code>{where}</li>')
+        items += [f'<li>nodo <code>{e(n)}</code></li>' for n in t.get('nodes', [])]
+        items += [f'<li>edificio <a href="#bld-{e(b)}">{e(b)}</a></li>' for b in t.get('buildings', [])]
+        req = ', '.join(f'<a href="#tech-{e(r)}">{e(r)}</a>' for r in t.get('requires', [])) or 'nada'
+        out.append(f'<details id="tech-{e(t["id"])}" data-search="{e(t["id"].lower())} {e(t.get("name", "").lower())}"><summary><b>{e(t.get("name", t["id"]))}</b> '
+                   f'<span class="muted">({e(t["id"])}, era {t.get("era", 1)}{", ampliado" if t["id"] in extra_ids else ""})</span></summary>'
+                   f'<p>Requiere: {req}. {e(how)}</p><ul>{"".join(items) or "<li>nada todavía</li>"}</ul></details>')
+    return '\n'.join(out)
+
+
+def section_buildings(buildings, techs, recipes):
+    gate = {}
+    for t in techs:
+        for b in t.get('buildings', []):
+            gate.setdefault(b, []).append(t.get('name', t['id']))
+    out = ['<h1>Edificios</h1>',
+           '<p class="lead">Sección <code>buildings</code> de <code>era1.json</code>. El clan decide qué le hace falta (camas, almacén lleno, estaciones), los miembros llevan el '
+           'material (<code>deliver</code>) y trabajan cada fase (<code>build</code>) desde el tablón. Ver ASENTAMIENTOS.md.</p>']
+    for bid, b in buildings.items():
+        gives = []
+        if b.get('shelter'):
+            gives.append(f'{b["shelter"]} camas (descanso +{num(b.get("rest", 0))}, abrigo +{num(b.get("warmth", 0))}); cuenta como abrigo para los nacimientos')
+        if b.get('station'):
+            uses = [r['id'] for r in recipes if r.get('station') == b['station']]
+            gives.append(f'estación <code>{e(b["station"])}</code>' + (f' (recetas: {", ".join(f"<code>{e(u)}</code>" for u in uses)})' if uses else ''))
+        if b.get('store'):
+            gives.append(f'almacén secundario <code>{e(b["store"])}</code>')
+        phases = ''.join(f'<tr><td>{i + 1}. {e(ph["name"])}</td><td>{", ".join(f"{v}× <code>{e(k)}</code>" for k, v in ph.get("needs", {}).items()) or "—"}</td>'
+                         f'<td>{num(ph.get("work", 0))} s</td><td>{e(ph.get("part", ""))}</td></tr>' for i, ph in enumerate(b.get('phases', [])))
+        total = {}
+        for ph in b.get('phases', []):
+            for k, v in ph.get('needs', {}).items():
+                total[k] = total.get(k, 0) + v
+        fp = b.get('footprint', [])
+        need = ', '.join(gate.get(bid, [])) or (b.get('tech') or 'ninguna')
+        out.append(f'<h2 id="bld-{e(bid)}" data-search="{e(bid)} {e(b.get("name", "").lower())}">{e(b.get("name", bid))} <span class="muted">({e(bid)})</span></h2>'
+                   f'<table class="kv"><tr><th>Da</th><td>{"; ".join(gives) or "—"}</td></tr>'
+                   f'<tr><th>Tecnología necesaria</th><td>{e(need)}</td></tr>'
+                   f'<tr><th>Coste total</th><td>{", ".join(f"{v}× <code>{e(k)}</code>" for k, v in total.items())}</td></tr>'
+                   + (f'<tr><th>Huella</th><td>{num(fp[0])} × {num(fp[1])} m</td></tr>' if len(fp) == 2 else '') + '</table>'
+                   f'<table class="grid"><tr><th>Fase</th><th>Materiales</th><th>Trabajo</th><th>Pieza</th></tr>{phases}</table>')
     return '\n'.join(out)
 
 
@@ -448,6 +557,14 @@ DATA_SECTIONS = [
     ('era1.json', 'work', 'Trabajo: aptitudes por práctica y tablón de trabajos'),
     ('era1.json', 'knowledge', 'Conocimiento: reglas del clan (lecciones, observación)'),
     ('era1.json', 'exploration', 'Exploración: regiones, expediciones y migración'),
+    ('era1.json', 'buildings', 'Edificios por fases (asentamientos)'),
+    ('era1.json', 'economy', 'Economía: producción, caducidad, campos y almacenes'),
+    ('era1.json', 'society', 'Sociedad: edad, herencia, personalidad, relaciones y cultura'),
+    ('era1.json', 'diplomacy', 'Diplomacia entre clanes'),
+    ('era1.json', 'combat', 'Combate, caza e incursiones'),
+    ('player.json', 'player', 'Jugador: reglas dentro del clan'),
+    ('player.json', 'controls', 'Controles y HUD del modo de juego'),
+    ('visuals.json', 'visuals', 'Visuales procedurales de nodos, edificios y props'),
     ('world.json', 'interactives', 'Interactivos: hoguera, pozo, puerta'),
     ('world.json', 'species', 'Especies de la ecología'),
     ('cameras.json', 'cameras', 'Cámaras de juego'),
@@ -623,6 +740,9 @@ table{border-collapse:collapse;max-width:100%}.grid{width:100%;display:block;ove
 details{background:var(--card);border:1px solid var(--line);border-radius:10px;margin:8px 0;padding:6px 12px}details>summary{cursor:pointer;padding:4px 0}details[open]>summary{margin-bottom:6px}
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px}.card b{display:block;font-size:26px;color:var(--accent)}.card span{color:var(--muted)}
 .heat td[style]{background:color-mix(in srgb,var(--accent) calc(var(--w)*70%),transparent);text-align:center}.swatch{display:inline-block;width:46px;height:18px;border-radius:4px;border:1px solid var(--line)}
+.treewrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px}svg.tree{max-width:none;font:13px system-ui,sans-serif}
+.tnode rect{stroke-width:1.5}.tnode.known rect{fill:color-mix(in srgb,#2f9e5f 22%,var(--card));stroke:#2f9e5f}.tnode.learn rect{fill:color-mix(in srgb,#2f6fb0 18%,var(--card));stroke:#2f6fb0}
+.tnode.era2 rect{fill:var(--code);stroke:var(--muted);stroke-dasharray:4 3}.tnode text{fill:var(--fg)}.tnode .tname{font-weight:600}.tnode .tsub{fill:var(--muted);font-size:11px}a:hover .tnode rect{stroke-width:3}
 section{display:none}section.on{display:block}.hidden{display:none!important}
 @media (max-width:820px){nav{display:none}nav.open{display:block;position:fixed;inset:57px 0 0 0;width:auto;background:var(--bg);z-index:4}main{padding:14px 14px 80px}}
 '''
@@ -702,7 +822,8 @@ def main():
         ('roles', 'Roles', 'Personajes', section_roles(rules)),
         ('mundo', 'Estaciones y ecología', 'Mundo', section_world(rules)),
         ('contenido', 'Objetos, recetas y nodos', 'Mundo', section_content(content, extra)),
-        ('tecnologias', 'Tecnologías', 'Mundo', section_techs(content, extra_techs)),
+        ('tecnologias', 'Árbol de tecnologías', 'Mundo', section_techs(content, extra_techs, content['recipes'] + extra['recipes'], content.get('buildings', {}))),
+        ('edificios', 'Edificios', 'Mundo', section_buildings(content.get('buildings', {}), content.get('techs', []) + extra_techs, content['recipes'] + extra['recipes'])),
         ('paquetes', 'Paquetes', 'Datos', section_packs(packs)),
         ('datos', 'Más datos del juego', 'Datos', section_data()),
         ('docs', 'Documentos', 'Documentos', section_docs(rendered)),

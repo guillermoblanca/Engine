@@ -77,6 +77,14 @@ namespace GB
 		return false;
 	}
 
+	bool Tribe::BuiltStationAt(const std::string& station, glm::vec2* where) const
+	{
+		glm::vec2 at = Config.Camp;
+		if (station.empty() || !m_Stations || !m_Stations(station, at)) return false;
+		if (where) *where = at;
+		return true;
+	}
+
 	void Tribe::SetDemand(const std::string& source, const std::string& item, int units)
 	{
 		if (units > 0) m_Demand[source][item] = units;
@@ -87,7 +95,7 @@ namespace GB
 		}
 	}
 
-	int Tribe::StoreCap() const { return Config.Econ.Main().Cap; }
+	int Tribe::StoreCap() const { return Config.Econ.Main().Cap + StoreBonus(); }   // (a cache pit or a granary adds to it, H8)
 
 	int Tribe::Stored(const std::string& item) const
 	{
@@ -227,12 +235,22 @@ namespace GB
 			for (const TribeMember& m : m_Members) if (!m.Dead && m.Body && !m.Body->Bag().BestContainer(*m_Items)) ++without;
 			const ItemDef* best = nullptr;
 			const Recipe* recipe = nullptr;
+			// an input the clan can come by: in the store, from a node, or made where it can make it (leather wants a tannery: without one, the basket)
+			auto obtainable = [&](const std::string& item, int pass)
+			{
+				if (m_Store.Count(item) > 0) return true;
+				for (const auto& [kind, node] : m_Defs) if (node.Item == item) return true;
+				for (const std::string& rid : ids)
+					if (const Recipe* q = m_Recipes->Find(rid); q && q->Output == item && StationAt(q->Station) && (pass == 1 || ClanKnows(*q))) return true;
+				return false;
+			};
 			for (int pass = 0; pass < 2 && !best; ++pass)
 				for (const std::string& id : ids)
 				{
 					const Recipe* r = m_Recipes->Find(id);
 					const ItemDef* d = r ? m_Items->Find(r->Output) : nullptr;
 					if (!d || !Tagged(*d, "Item.Container") || !StationAt(r->Station) || (pass == 0 && !ClanKnows(*r))) continue;
+					if (!std::all_of(r->Inputs.begin(), r->Inputs.end(), [&](const auto& in) { return obtainable(in.first, pass); })) continue;
 					if (!best || d->BagSlots > best->BagSlots) { best = d; recipe = r; }
 				}
 			const int units = static_cast<int>(std::ceil(static_cast<float>(without) * p.ContainersPerMember - 1e-4f));
@@ -269,7 +287,7 @@ namespace GB
 			if (n > 0) out.push_back({ item, n, "the store keeps " + std::to_string(n) + " " + item });
 
 		// 7) preserving (E6): perishable food above PreserveAbove x its stock target is turned into something that keeps longer, when a known recipe
-		// and its station allow (berries -> dried berries at the drying rack)
+		// and its station allow (berries -> dried berries at the drying rack); of several, the one whose output keeps longest (meat: smoked before cooked)
 		if (p.PreserveAbove > 0.0f)
 		{
 			std::vector<std::string> foods;
@@ -281,16 +299,22 @@ namespace GB
 				if (!d || !d->Perishable() || !IsFood(food)) continue;
 				const int surplus = m_Store.Count(food) - static_cast<int>(std::ceil(p.PreserveAbove * StockWanted(food)));
 				if (surplus <= 0) continue;
+				const Recipe* best = nullptr;
+				float bestLife = 0.0f;
 				for (const std::string& id : ids)
 				{
 					const Recipe* r = m_Recipes->Find(id);
 					const ItemDef* out_ = r ? m_Items->Find(r->Output) : nullptr;
 					const auto in = r ? r->Inputs.find(food) : std::map<std::string, int>::const_iterator();
 					if (!out_ || in == r->Inputs.end() || (out_->Perishable() && out_->ShelfLife <= d->ShelfLife) || !ClanKnows(*r) || !StationAt(r->Station)) continue;
-					const int batches = surplus / std::max(1, in->second);
+					const float life = out_->Perishable() ? out_->ShelfLife : 1e30f;   // (what never goes off keeps longest)
+					if (!best || life > bestLife) { best = r; bestLife = life; }
+				}
+				if (best)
+				{
+					const int batches = surplus / std::max(1, best->Inputs.at(food));
 					if (batches >= 1)
-						out.push_back({ r->Output, m_Store.Count(r->Output) + batches * std::max(1, r->OutputCount), "keeps " + std::to_string(surplus) + " " + food + " from spoiling" });
-					break;
+						out.push_back({ best->Output, m_Store.Count(best->Output) + batches * std::max(1, best->OutputCount), "keeps " + std::to_string(surplus) + " " + food + " from spoiling" });
 				}
 			}
 		}
@@ -308,6 +332,16 @@ namespace GB
 		q.Experiment = p.Experiment;
 		q.MaxBatches = p.MaxBatches;
 		q.Known = [this](const Recipe& r) { return ClanKnows(r); };
+		q.Learnable = [this](const Recipe& r)
+		{
+			const TechTree* tree = m_Knowledge.Techs();
+			if (!tree) return true;
+			for (const std::string& tech : tree->ForRecipe(r.Id))
+				if (tree->Find(tech)->Discovery.Experiment > 0.0f)
+					for (const TribeMember& m : m_Members)
+						if (!m.Dead && m.Body && m_Knowledge.CanLearn(m.Name, tech)) return true;
+			return false;
+		};
 		q.Station = [this](const std::string& s) { return StationAt(s); };
 		return PlanProduction(Wants(), stock, *m_Recipes, q);
 	}
@@ -713,7 +747,7 @@ namespace GB
 				TellClan("loses " + std::to_string(e.Count) + " " + e.Item + " in " + where + ": they went off" + (e.Into.empty() ? std::string() : " (now " + e.Into + ")"));
 			}
 		};
-		tell(AgeInventory(m_Store, *m_Items, step, econ.Main().SpoilRate * cold), "the store");
+		tell(AgeInventory(m_Store, *m_Items, step, econ.Main().SpoilRate * StoreKeep() * cold), "the store");
 		for (Stockpile& p : m_Econ.Stockpiles)
 		{
 			const auto k = econ.Logistics.Stores.find(p.Kind);

@@ -203,7 +203,15 @@ namespace GB
 			if (!m_Started)
 			{
 				m_Started = true;
-				if (!abilities.Start || !abilities.Start(t.Prop, t.Entity, error)) { Fail(error.empty() ? "no abilities here" : error); return none; }
+				if (!abilities.Start || !abilities.Start(t.Prop, t.Entity, error))
+				{
+					// only its cooldown stands in the way (a new trip that starts with the ability it ended with): it waits, it does not fail. A
+					// failure here made the tribe give the same orders again every frame until the cooldown was over (found by editor_play: a dozen
+					// failed trips in a quarter of a second, and the "stuck" invariant)
+					if (error.rfind("cooling down", 0) == 0) { m_Started = false; return none; }
+					Fail(error.empty() ? "no abilities here" : error);
+					return none;
+				}
 			}
 			const int state = abilities.Poll ? abilities.Poll(error) : 1;
 			if (state < 0) Fail(error.empty() ? "the ability failed" : error);

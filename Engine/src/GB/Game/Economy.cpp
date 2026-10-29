@@ -139,7 +139,7 @@ namespace GB
 		EconomyRules rules = live;
 		std::string e;
 		for (const auto& [key, v] : section->items())
-			if (key != "production" && key != "spoilage" && key != "farming" && key != "crops" && key != "logistics") return "economy: unknown part " + key;
+			if (key != "production" && key != "spoilage" && key != "farming" && key != "crops" && key != "logistics" && key != "construction") return "economy: unknown part " + key;
 		try
 		{
 			if (const auto p = section->find("production"); p != section->end())
@@ -243,6 +243,15 @@ namespace GB
 				if (!x.FieldStore.empty() && !x.Stores.count(x.FieldStore)) return "economy: logistics fieldStore " + x.FieldStore + " is not a kind of store";
 				if (!(e = r.Unknown()).empty()) return e;
 			}
+			if (const auto p = section->find("construction"); p != section->end())
+			{
+				if (!p->is_object()) return "economy: construction must be an object";
+				ConstructionRules& x = rules.Construction;
+				x = ConstructionRules();
+				Reader r{ *p, "construction", {} };
+				if (!(e = r.Int("maxSites", x.MaxSites, 1, 50)).empty() || !(e = r.Int("membersPerSite", x.MembersPerSite, 0, 1000)).empty()) return e;
+				if (!(e = r.Unknown()).empty()) return e;
+			}
 		}
 		catch (const Json::exception& ex)
 		{
@@ -308,7 +317,8 @@ namespace GB
 		l["priority"] = Rounded(r.Logistics.Priority);
 		l["haulAt"] = r.Logistics.HaulAt;
 		l["fieldStore"] = r.Logistics.FieldStore;
-		return Json{ { "production", p }, { "spoilage", s }, { "farming", f }, { "crops", c }, { "logistics", l } }.dump();
+		const Json k = { { "maxSites", r.Construction.MaxSites }, { "membersPerSite", r.Construction.MembersPerSite } };
+		return Json{ { "production", p }, { "spoilage", s }, { "farming", f }, { "crops", c }, { "logistics", l }, { "construction", k } }.dump();
 	}
 
 	std::string CheckEconomy(const EconomyRules& rules, const ItemLibrary& items)

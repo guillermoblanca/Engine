@@ -20,6 +20,24 @@ namespace GB
 
 		void Factor(UtilityOption& o, const char* name, float value) { o.Factors.push_back({ name, value }); }
 
+		// What a building gives, for the log and the reports: "4 beds, station hearth, defense 1"...
+		std::string Provides(const BuildingDef& d)
+		{
+			std::string s;
+			char b[64];
+			auto add = [&](const std::string& part) { s += (s.empty() ? "" : ", ") + part; };
+			if (d.Shelter) add(std::to_string(d.Shelter) + " beds");
+			if (!d.Store.empty()) add("a " + d.Store + " of the economy");
+			if (!d.Station.empty()) add("station " + d.Station);
+			if (d.StoreCap) add("+" + std::to_string(d.StoreCap) + " store cap");
+			if (d.Keep < 1.0f) { std::snprintf(b, sizeof b, "food keeps x%.2f", static_cast<double>(1.0f / d.Keep)); add(b); }
+			if (d.Defense > 0.0f) { std::snprintf(b, sizeof b, "defense %.1f", static_cast<double>(d.Defense)); add(b); }
+			if (d.Healing > 0.0f) { std::snprintf(b, sizeof b, "wounds heal x%.1f", static_cast<double>(1.0f + d.Healing)); add(b); }
+			if (d.Culture > 0.0f) add("a place to meet");
+			if (d.Shelter == 0 && d.Warmth > 0.0f && d.Aura > 0.0f) add("warmth around it");
+			return s.empty() ? std::string("nothing yet") : s;
+		}
+
 		// Where a member stands to work a site: in front of it (the "work" point of BuildSite), a little to the side for each builder.
 		glm::vec2 FrontOf(const glm::vec2& pos, const BuildingDef& def, float side = 0.0f) { return pos + glm::vec2(side, 0.5f * def.Footprint.y + 0.8f); }
 	}
@@ -190,19 +208,71 @@ namespace GB
 		return CampSpot(m);
 	}
 
+	// What the finished buildings give the people in and around them: rest and warmth to who sleeps under a roof (one roof), and within a building's
+	// aura its warmth (a building without beds: the communal hearth) and its company (the hearth, the totem: a meeting place, H10).
 	void Tribe::ShelterNeeds(TribeMember& m, float dt)
 	{
-		if (!m_Buildings || m.Job != "sleep") return;
+		if (!m_Buildings) return;
 		AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
 		if (!asc) return;
 		const glm::vec2 pos = Where(m);
+		bool roof = m.Job != "sleep";
 		for (const Placed& p : Placements())
-			if (p.State.Done && p.Def->Shelter > 0 && glm::distance(pos, p.Pos) < p.Def->Radius() + 0.6f)
+		{
+			if (!p.State.Done) continue;
+			const BuildingDef& d = *p.Def;
+			const float distance = glm::distance(pos, p.Pos);
+			if (!roof && d.Shelter > 0 && distance < d.Radius() + 0.6f)
 			{
-				if (p.Def->Rest > 0.0f) SatisfyNeed(*asc, NeedName::Rest, p.Def->Rest * dt);
-				if (p.Def->Warmth > 0.0f) SatisfyNeed(*asc, NeedName::Warmth, p.Def->Warmth * dt);
-				return;
+				roof = true;
+				if (d.Rest > 0.0f) SatisfyNeed(*asc, NeedName::Rest, d.Rest * dt);
+				if (d.Warmth > 0.0f) SatisfyNeed(*asc, NeedName::Warmth, d.Warmth * dt);
+				continue;
 			}
+			if (d.Aura <= 0.0f || distance > d.Reach()) continue;
+			if (d.Shelter == 0 && d.Warmth > 0.0f) SatisfyNeed(*asc, NeedName::Warmth, d.Warmth * dt);
+			if (d.Culture > 0.0f) SatisfyNeed(*asc, NeedName::Company, d.Culture * dt);
+		}
+	}
+
+	float Tribe::Defense() const
+	{
+		float d = 0.0f;
+		for (const Placed& p : Placements()) if (p.State.Done) d += p.Def->Defense;
+		return d;
+	}
+
+	float Tribe::HealingAt(const glm::vec2& at) const
+	{
+		float h = 1.0f;
+		if (!m_Buildings) return h;
+		for (const Placed& p : Placements())
+			if (p.State.Done && p.Def->Healing > 0.0f && glm::distance(at, p.Pos) <= p.Def->Reach()) h += p.Def->Healing;
+		return h;
+	}
+
+	glm::vec2 Tribe::RecoverSpot(const TribeMember& m) const
+	{
+		if (m_Buildings)
+			for (const Placed& p : Placements())
+				if (p.State.Done && p.Def->Healing > 0.0f) return FrontOf(p.Pos, *p.Def, 0.7f * (static_cast<float>(IndexOf(m) % 3) - 1.0f));
+		return CampSpot(m);
+	}
+
+	int Tribe::StoreBonus() const
+	{
+		int n = 0;
+		if (!m_Buildings) return n;
+		for (const Placed& p : Placements()) if (p.State.Done) n += p.Def->StoreCap;
+		return n;
+	}
+
+	float Tribe::StoreKeep() const
+	{
+		float k = 1.0f;
+		if (!m_Buildings) return k;
+		for (const Placed& p : Placements()) if (p.State.Done) k = std::min(k, p.Def->Keep);
+		return k;
 	}
 
 	int Tribe::InFlight(const std::string& site, const std::string& item) const
@@ -239,39 +309,63 @@ namespace GB
 			beds += p.Def->Shelter;   // a shelter being built already answers the need for beds
 			++count[p.Def->Id];
 		}
-		if (open >= Config.MaxSites) return out;
 		for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
-		if (alive == 0) return out;
+		if (alive == 0 || open >= Config.Econ.Construction.SitesFor(alive)) return out;
+		int wounded = 0;   // H14: members with wounds
+		if (m_Combat)
+			for (const TribeMember& m : m_Members)
+				if (const Combatant* c = m.Dead ? nullptr : m_Combat->Find(m.Name); c && !c->Wounds.empty()) ++wounded;
+		int spoiled = 0;   // H18: food the store lost to spoilage
+		for (const auto& [item, n] : m_Econ.Spoiled) if (IsFood(item)) spoiled += n;
 		const int cap = StoreCap();
 		std::string full;
 		for (const ItemSlot& s : m_Store.Stacks())
 			if (m_Store.Count(s.Id) >= cap - 2 && (full.empty() || s.Id < full)) full = s.Id;
 
 		char why[160];
-		for (const auto& [id, def] : *m_Buildings)
+		// only what the clan can pay: every material is in the store, some node of the land gives it or a recipe the clan knows makes it where it can
+		auto payable = [&](const BuildingDef& def)
 		{
-			if (!ClanKnowsBuilding(def)) continue;   // H11 decides what is known
-			// only what the clan can pay: every material is in the store or some node of the land gives it
-			bool payable = true;
 			for (const auto& [item, n] : def.TotalNeeds())
 			{
 				bool from = m_Store.Count(item) > 0;
 				for (const auto& [kind, node] : m_Defs) from = from || node.Item == item;
-				payable = payable && from;
+				for (const std::string& rid : m_Recipes->Ids())
+				{
+					if (from) break;
+					const Recipe& r = *m_Recipes->Find(rid);
+					from = r.Output == item && ClanKnows(r) && StationAvailable(r.Station);
+				}
+				if (!from) return false;
 			}
-			if (!payable) continue;
+			return true;
+		};
+		// a better home the clan can raise takes the place of the ones it supersedes (the hut over the shelter): those are not raised for beds any more
+		std::set<std::string> superseded;
+		for (const auto& [id, def] : *m_Buildings)
+			if (!def.Supersedes.empty() && ClanKnowsBuilding(def) && payable(def)) superseded.insert(def.Supersedes.begin(), def.Supersedes.end());
+		for (const auto& [id, def] : *m_Buildings)
+		{
+			if (!ClanKnowsBuilding(def) || !payable(def)) continue;   // H11 decides what is known
 			BuildingNeed need;
 			need.Building = id;
-			if (def.Shelter > 0 && beds < alive)
+			auto want = [&](float urgency, const std::string& text) { if (urgency > need.Urgency) { need.Urgency = urgency; need.Why = text; } };
+			if (def.Shelter > 0 && beds < alive && !superseded.count(id))
 			{
 				need.Urgency = std::max(need.Urgency, 3.0f * static_cast<float>(alive - beds) / static_cast<float>(alive));
 				std::snprintf(why, sizeof why, "beds for %d of %d", beds, alive);
 				need.Why = why;
 			}
-			if (!def.Store.empty() && !full.empty() && 2.0f > need.Urgency && count[id] == 0)
+			if ((!def.Store.empty() || def.StoreCap > 0) && !full.empty() && count[id] == 0)
+				want(2.0f, "the store is full of " + full + " (" + std::to_string(m_Store.Count(full)) + "/" + std::to_string(cap) + ")");
+			// the generic provisions (docs/PROGRESION.md), each only for the first of its kind
+			if (count[id] == 0)
 			{
-				need.Urgency = 2.0f;
-				need.Why = "the store is full of " + full + " (" + std::to_string(m_Store.Count(full)) + "/" + std::to_string(cap) + ")";
+				if (def.Keep < 1.0f && spoiled > 0) want(1.2f, std::to_string(spoiled) + " food went off in the store");
+				if (def.Healing > 0.0f) want(wounded > 0 ? 1.2f : 0.3f, wounded > 0 ? std::to_string(wounded) + " wounded to tend" : std::string("a place to tend the wounded"));
+				if (def.Defense > 0.0f) want(m_Conflict.Raided > 0 ? 2.0f : 0.35f, m_Conflict.Raided > 0 ? "raided " + std::to_string(m_Conflict.Raided) + " times" : std::string("walls against raiders"));
+				if (def.Culture > 0.0f && def.Aura > 0.0f) want(std::min(0.8f, 0.3f + 0.05f * static_cast<float>(alive)), "a place for the clan to meet");
+				if (def.Shelter == 0 && def.Warmth > 0.0f && def.Aura > 0.0f) want(0.4f, "a fire to gather round");
 			}
 			if (!def.Station.empty() && count[id] == 0)
 			{
@@ -384,7 +478,7 @@ namespace GB
 			{
 				char t[48];
 				std::snprintf(t, sizeof t, "%6.1f ", m_Time);
-				m_Log.push_back(std::string(t) + p.Name + " stands: " + (p.Def->Shelter ? std::to_string(p.Def->Shelter) + " beds" : !p.Def->Store.empty() ? "a " + p.Def->Store : "station " + p.Def->Station));
+				m_Log.push_back(std::string(t) + p.Name + " stands: " + Provides(*p.Def));
 			}
 		const std::vector<BuildingNeed> needs = BuildingNeeds();
 		if (needs.empty()) return;
@@ -620,11 +714,7 @@ namespace GB
 		{
 			if (p.State.Done)
 			{
-				s += p.Name + " (" + p.Def->Id + ") stands";
-				if (p.Def->Shelter) s += ", " + std::to_string(p.Def->Shelter) + " beds";
-				if (!p.Def->Store.empty()) s += ", a " + p.Def->Store + " of the economy";
-				if (!p.Def->Station.empty()) s += ", station " + p.Def->Station;
-				s += "\n";
+				s += p.Name + " (" + p.Def->Id + ") stands: " + Provides(*p.Def) + "\n";
 				continue;
 			}
 			char line[200];

@@ -126,7 +126,18 @@ namespace GB::Editor
 	{
 		std::vector<ActorState> out = m_Actors ? m_Actors->CaptureActors() : std::vector<ActorState>();
 		for (ActorState& a : out)   // H11: what a tribe member knows ("tech.<id>"), from its own clan (H13); empty for the rest
-			if (const Clan* c = m_App.m_Clans.ClanOf(a.Name)) a.Knowledge = c->Folk->Knowledge().Names(a.Name);
+		{
+			const Clan* c = m_App.m_Clans.ClanOf(a.Name);
+			if (!c) continue;
+			a.Knowledge = c->Folk->Knowledge().Names(a.Name);
+			// an abstract member (far from the camera, H6) walks as its agent while its actor waits where it was left: the save keeps where the member is
+			for (const TribeMember& m : c->Folk->Members())
+				if (m.Name == a.Name && m.Abstract && !m.Dead)
+				{
+					const glm::vec2 p = m.Agent.Position();
+					a.Position = { p.x, m_App.m_World.IsBuilt() ? m_App.m_World.GetTerrain().GetHeight(p.x, p.y) : a.Position.y, p.y };
+				}
+		}
 		return out;
 	}
 
@@ -325,6 +336,9 @@ namespace GB::Editor
 	{
 		EditorApp& app = m_App;
 		app.m_Actors.Navigation().ResetQueue();   // (H16: as at the capture, see Sections)
+		// H14: the fighters of the run that ends go first. Left until after the ability systems are rebuilt, anything that arms them in between gave the
+		// new systems the old run's weapons ("Attack.pickaxe" before "Attack.fists"), and a replay did not end identical
+		app.m_Combat.Clear();
 		if (game.World.Generated && (!app.m_World.IsBuilt() || ParamsOf(app.m_WorldDesc, true, game.World.WildResources) != game.World)) app.BuildWorld(DescOf(game.World));
 		app.m_WildResources = game.World.Generated ? game.World.WildResources : 0.0f;   // the wild nodes themselves come in with the entities
 		app.m_Player.Stop();

@@ -2528,6 +2528,22 @@
           "op": "add"
         }
       ],
+      "name": "Regrow.herb_patch",
+      "periodSeconds": 60.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
       "name": "Regrow.old_tree",
       "periodSeconds": 120.0,
       "policy": "infinite",
@@ -2754,7 +2770,7 @@
           "name": "Regrow"
         }
       ],
-      "count": 65,
+      "count": 66,
       "example": "berry bush 1",
       "kind": "Nodo de recurso",
       "tags": [
@@ -2766,6 +2782,7 @@
         "Resource.Node.copper_vein",
         "Resource.Node.fiber_grass",
         "Resource.Node.flint_outcrop",
+        "Resource.Node.herb_patch",
         "Resource.Node.old_tree",
         "Resource.Node.reed_bed",
         "Resource.Node.rock",
@@ -2773,6 +2790,7 @@
         "Resource.Node.young_tree",
         "Resource.Plant",
         "Resource.Plant.Branch",
+        "Resource.Plant.Herb",
         "Resource.Stone",
         "Resource.Stone.Copper",
         "Resource.Stone.Flint",

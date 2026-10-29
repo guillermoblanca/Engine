@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <set>
 #include <sstream>
 
 namespace
@@ -102,11 +103,16 @@ private:
 	bool m_Started = false, m_Failed = false;
 };
 
-// A tribe of four with the patch of resource nodes a `tribe build` makes, a well, the era-1 buildings and the BuildingSystem.
+// A tribe of four with the patch of resource nodes a `tribe build` makes, a well, the era-1 buildings and the BuildingSystem. Plain (as before the
+// progression): no technologies, and only the four buildings no technology locks (without technologies everything would be known, the longhouse too).
+// `stoneAge`: the era-1 technologies and every building of the progression (docs/PROGRESION.md).
 struct Settlement
 {
-	explicit Settlement(bool buildings = true)
+	explicit Settlement(bool buildings = true, bool stoneAge = false)
 	{
+		if (!stoneAge)
+			for (const auto& [id, t] : Techs.Techs)
+				for (const std::string& b : t.Buildings) Builds.Defs.erase(b);
 		RegisterEraOneItems(Items, Recipes, Defs);
 		RegisterResourceContent(Gameplay.Library, Defs);
 		RegisterInteractiveContent(Gameplay.Library);
@@ -136,6 +142,7 @@ struct Settlement
 		Builds.Bind(Gameplay);
 		Tribe_.Bind(Entities, Gameplay, Items, Recipes, Defs);
 		if (buildings) Tribe_.SetBuildings(&Builds.Defs);
+		if (stoneAge) Tribe_.SetTechs(&Techs);
 		Tribe_.Config.Camp = camp;
 		Tribe_.Store().Add(Items, "wood", 10);
 		Tribe_.Store().Add(Items, "stone", 12);
@@ -161,6 +168,7 @@ struct Settlement
 	ResourceSystem Resources;
 	InteractiveSystem Fires;
 	BuildingSystem Builds;
+	TechTree Techs = DefaultTechs();
 	Tribe Tribe_;
 	std::vector<std::unique_ptr<FakeBody>> bodies;
 };
@@ -188,7 +196,13 @@ int main()
 		std::map<std::string, BuildingDef> file;
 		Check(LoadBuildingsFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty(), "the buildings of assets/data/era1.json load");
 		Check(file == DefaultBuildings(), "and say what DefaultBuildings says");
-		Check(file.size() == 4 && file.count("shelter") && file.count("storage") && file.count("workbench") && file.count("drying_rack"), "shelter, storage, workbench and drying rack");
+		Check(file.size() == 16 && file.count("shelter") && file.count("storage") && file.count("workbench") && file.count("drying_rack") && file.count("hut") && file.count("forge"),
+			"shelter, storage, workbench and drying rack, and the twelve of the Stone-Age progression (docs/PROGRESION.md)");
+		Check(file.at("hut").Supersedes == std::vector<std::string>{ "shelter" } && file.at("granary").Keep == 0.5f && file.at("palisade").Defense == 1.0f && file.at("totem").Aura == 9.0f,
+			"with their provisions");
+		std::map<std::string, BuildingDef> odd = DefaultBuildings();
+		Check(!LoadBuildings(R"({ "buildings": { "pit": { "phases": [ { "name": "x" } ], "keep": 0 } } })", odd).empty() && odd == DefaultBuildings(), "a store that keeps nothing (keep 0) is refused");
+		Check(!LoadBuildings(R"({ "buildings": { "pit": { "phases": [ { "name": "x" } ], "supersedes": [ "pit" ] } } })", odd).empty(), "a building cannot supersede itself");
 		std::map<std::string, BuildingDef> back;
 		Check(LoadBuildings("{ \"buildings\": " + BuildingsToJson(DefaultBuildings()) + " }", back).empty() && back == DefaultBuildings(), "the buildings round-trip");
 		std::map<std::string, BuildingDef> keep = DefaultBuildings();
@@ -200,7 +214,7 @@ int main()
 		Check(!LoadBuildings(R"({ "buildings": { "a": { "phases": [ { "name": "x" }, { "name": "x" } ] } } })", keep).empty(), "two phases of the same name are refused");
 		Check(LoadBuildings(R"({ "items": [] })", keep).empty() && keep == DefaultBuildings(), "a file without buildings changes nothing");
 		Check(LoadBuildings(R"({ "buildings": { "kiln": { "name": "Kiln", "phases": [ { "name": "base", "needs": { "clay": 8 }, "part": "slab" } ], "station": "kiln", "tech": "firing" } } })", keep).empty()
-			&& keep.at("kiln").Tech == "firing" && keep.at("kiln").Station == "kiln" && keep.size() == 5, "a new building (with a tech) is a few lines of data");
+			&& keep.at("kiln").Tech == "firing" && keep.at("kiln").Station == "kiln" && keep.size() == DefaultBuildings().size(), "a building (with a tech) is a few lines of data: the kiln is replaced");
 	}
 
 	// ---- one site, phase by phase, with the ability Build
@@ -349,7 +363,7 @@ int main()
 		const EntityId shelter = v.Entities.FindByName("Shelter 1");
 		const glm::vec4 at = shelter == NullEntity ? glm::vec4(0.0f) : v.Entities.WorldMatrix(shelter)[3];
 		Check(glm::distance(glm::vec2(at.x, at.z), v.Tribe_.Config.Camp) > 4.0f && glm::distance(glm::vec2(at.x, at.z), v.Tribe_.Config.Camp) < 25.0f, "it stands near the camp, off its centre");
-		Check(v.Tribe_.SettlementReport().find("Shelter 1 (shelter) stands, 3 beds") != std::string::npos, "tribe status shows it");
+		Check(v.Tribe_.SettlementReport().find("Shelter 1 (shelter) stands: 3 beds") != std::string::npos, "tribe status shows it");
 		// the night after, the first three sleep in it (their beds are inside its footprint) and the fourth at the camp
 		int inside = 0;
 		bool stands = false;
@@ -439,6 +453,166 @@ int main()
 			if (const size_t at = old.find("\"plan\":"); at != std::string::npos) old.erase(at, old.find(',', at) - at + 1);
 			Check(loaded.Tribe_.FromJson(old, false), "a tribe saved before the buildings loads");
 		}
+	}
+
+	// ---- the provisions of the Stone-Age buildings (docs/PROGRESION.md): the store's cap and spoilage, defense against raids, healing, company,
+	// and several sites for a big clan
+	{
+		// raises a building at once: every phase gets its materials and its work
+		auto raise = [](Settlement& s, const std::string& id, const glm::vec2& at)
+		{
+			std::string name;
+			if (!s.Tribe_.StartSite(id, at, &name).empty()) return std::string();
+			AbilitySystemComponent* a = s.Gameplay.Find(name);
+			const BuildingDef& def = s.Builds.Defs.at(id);
+			for (int guard = 0; guard < 20 && !a->HasTag("Building.Done"); ++guard)
+			{
+				for (const auto& [item, n] : ReadSite(*a, def).Missing) DeliverToSite(*a, def, item, n);
+				WorkOnSite(*a, def, 1000.0f);
+			}
+			return a->HasTag("Building.Done") ? name : std::string();
+		};
+		Settlement v(true, true);
+		const glm::vec2 camp = v.Tribe_.Config.Camp;
+		const int cap = v.Tribe_.StoreCap();
+		Check(v.Tribe_.Defense() == 0.0f && v.Tribe_.StoreBonus() == 0 && v.Tribe_.StoreKeep() == 1.0f && v.Tribe_.HealingAt(camp) == 1.0f, "a camp without them: no defense, no bonus, no healer");
+		Check(!raise(v, "cache_pit", camp + glm::vec2(-10.0f, 0.0f)).empty() && !raise(v, "granary", camp + glm::vec2(-10.0f, 8.0f)).empty(), "a cache pit and a granary stand");
+		Check(v.Tribe_.StoreCap() == cap + 30 && v.Tribe_.StoreKeep() == 0.5f, "they add to the main store's cap (+10, +20) and the best of them halves its spoilage");
+		// the berries of the store keep twice as long: the same old stack goes off in the plain camp and not in this one
+		{
+			Settlement plain(true, true);
+			for (Settlement* s : { &v, &plain })
+			{
+				s->Tribe_.Store().Remove("berry", 1000);
+				s->Tribe_.Store().Add(s->Items, "berry", 30);
+				for (ItemSlot& slot : const_cast<std::vector<ItemSlot>&>(s->Tribe_.Store().Stacks())) if (slot.Id == "berry") slot.Age = 1500.0f;
+			}
+			const float dt = 1.0f / 30.0f;
+			for (int frame = 0; frame < static_cast<int>(400.0f / dt); ++frame) { v.Step(dt); plain.Step(dt); }
+			const int lostHere = v.Tribe_.Economy().Spoiled.count("berry") ? v.Tribe_.Economy().Spoiled.at("berry") : 0;
+			const int lostThere = plain.Tribe_.Economy().Spoiled.count("berry") ? plain.Tribe_.Economy().Spoiled.at("berry") : 0;
+			std::fprintf(stderr, "  berries lost in 400 s: %d with a granary, %d without\n", lostHere, lostThere);
+			Check(lostThere > lostHere, "food keeps longer in a camp with a granary");
+		}
+		// defense: a palisade puts raiders off and makes the defenders bolder at the camp
+		Check(!raise(v, "palisade", camp + glm::vec2(0.0f, 14.0f)).empty() && v.Tribe_.Defense() == 1.0f, "a palisade gives the camp a defense of 1");
+		const CombatRules rules = DefaultCombatRules();
+		const RaidMotive open = WeighRaid(rules.Raids, 0.6f, 0.6f, 0.4f, 0.5f), walled = WeighRaid(rules.Raids, 0.6f, 0.6f, 0.4f, 0.5f, v.Tribe_.Defense());
+		Check(walled.Score < open.Score && open.Score >= rules.Raids.Want && walled.Score < rules.Raids.Want, "a raid worth it on an open camp is not worth it on a walled one");
+		Check(walled.Why().find("walls") != std::string::npos, "and the motive says why");
+		ThreatView view;
+		view.Camp = true;
+		const float bare = FightOrFlight(rules.Threats, rules.Morale, view).Fight;
+		view.Defense = v.Tribe_.Defense();
+		Check(FightOrFlight(rules.Threats, rules.Morale, view).Fight > bare, "defenders behind the palisade are readier to fight at the camp");
+		HostilityTable table;
+		Inventory store(4, 0.0f);
+		table.Set("Raiders", "Clan", 1.0f);
+		table.Settled("Clan", camp, &store, v.Tribe_.Defense());
+		Check(!table.RaidTargets("Raiders").empty() && table.RaidTargets("Raiders").front().Defense == 1.0f, "the clan tells the raiders' side its defense with its camp");
+		// healing: the wounded heal twice as fast by the healer's hut, and rest there
+		const std::string hut = raise(v, "healer_hut", camp + glm::vec2(10.0f, -2.0f));
+		Check(!hut.empty(), "a healer's hut stands");
+		const glm::vec2 spot = v.Tribe_.RecoverSpot(v.Tribe_.Members().front());
+		Check(v.Tribe_.HealingAt(spot) == 2.0f && v.Tribe_.HealingAt(camp + glm::vec2(-30.0f, 0.0f)) == 1.0f && glm::distance(spot, camp + glm::vec2(10.0f, -2.0f)) < 4.0f,
+			"a wounded member rests before it, where wounds heal twice as fast (not far from it)");
+		{
+			CombatSystem cs;
+			cs.Bind(v.Entities, v.Gameplay);
+			cs.Join("Cleo", "Clan");
+			cs.Join("Dan", "Clan");
+			cs.Hurt("Cleo", 5.0f, "cut", 0.5f);
+			cs.Hurt("Dan", 5.0f, "cut", 0.5f);
+			for (int i = 0; i < 300; ++i)
+			{
+				cs.Find("Dan")->Heal = v.Tribe_.HealingAt(spot);
+				cs.Update(1.0f);
+			}
+			const float cleo = cs.Find("Cleo")->Severity(), dan = cs.Find("Dan")->Severity();
+			std::fprintf(stderr, "  wound severity after 300 s: %.3f at the camp, %.3f by the healer\n", static_cast<double>(cleo), static_cast<double>(dan));
+			Check(dan < cleo, "the same wound heals faster by the healer's hut");
+		}
+		// company: a totem by the camp keeps the clan in better company than a camp without one
+		{
+			Settlement with(true, true), without(true, true);
+			Check(!raise(with, "totem", with.Tribe_.Config.Camp + glm::vec2(9.0f, 0.0f)).empty(), "a totem stands by the camp");
+			const float dt = 1.0f / 30.0f;
+			double sumWith = 0.0, sumWithout = 0.0;
+			for (int frame = 0; frame < static_cast<int>(600.0f / dt); ++frame)
+			{
+				with.Step(dt);
+				without.Step(dt);
+				if (frame % 30 != 0) continue;
+				for (const TribeMember& m : with.Tribe_.Members()) sumWith += with.Tribe_.NeedLevels(m)[NeedName::Company];
+				for (const TribeMember& m : without.Tribe_.Members()) sumWithout += without.Tribe_.NeedLevels(m)[NeedName::Company];
+			}
+			std::fprintf(stderr, "  mean company: %.1f with a totem, %.1f without\n", sumWith / 600.0 / 4.0, sumWithout / 600.0 / 4.0);
+			Check(sumWith > sumWithout, "the clan keeps better company with a meeting place");
+		}
+		Check(ConstructionRules().SitesFor(4) == 1 && ConstructionRules().SitesFor(8) == 2 && ConstructionRules().SitesFor(40) == 3 && ConstructionRules{ 2, 0 }.SitesFor(1) == 2,
+			"one site per four members, three at most (four members: one at a time, as before)");
+		Check(v.Tribe_.SettlementReport().find("defense 1") != std::string::npos && v.Tribe_.SettlementReport().find("wounds heal x2") != std::string::npos, "the report says what each gives");
+	}
+
+	// ---- the Stone-Age progression plays (docs/PROGRESION.md): a clan of eight on a generated world, with the technologies and the buildings of
+	// era 1, finds new technologies by itself in a few days and raises buildings of several kinds, some of them behind what it found
+	{
+		const std::map<std::string, BuildingDef> defs = DefaultBuildings();
+		const TechTree techs = DefaultTechs();
+		WorldDesc d;
+		d.Seed = 5;
+		d.Size = 192.0f;
+		d.Resolution = 129;
+		d.TreeBudget = 120;
+		d.RockBudget = 30;
+		const GeneratedWorld world = WorldGenerator::GenerateData(d);
+		auto play = [&](std::set<std::string>& found, std::set<std::string>& kinds, int& mostOpen, std::string& log)
+		{
+			SimSetup setup;
+			setup.World = &world;
+			setup.Members = 8;
+			setup.Buildings = &defs;
+			setup.Techs = &techs;
+			setup.Step = 0.2f;
+			setup.CheckEvery = 10;
+			SimRun run(setup);
+			if (!run.Ok()) return false;
+			for (int part = 0; part < 6 * 24; ++part)
+			{
+				run.Run(50.0);
+				int open = 0;
+				for (const Tribe::SettlementSite& s : run.Brain().SettlementSites()) if (!s.State.Done) ++open;
+				mostOpen = std::max(mostOpen, open);
+			}
+			run.Finish();
+			for (const std::string& t : run.Brain().Knowledge().Clan()) if (!techs.Techs.at(t).Known) found.insert(t);
+			for (const Tribe::SettlementSite& s : run.Brain().SettlementSites())
+				if (s.State.Done)
+					for (const auto& [id, def] : defs) if (def.Name == s.Building) kinds.insert(id);
+			log = run.Brain().SettlementReport() + run.Brain().Knowledge().ClanStatus();
+			if (run.Monitor().Violations()) log += "\n" + run.Monitor().Describe();
+			const auto counts = run.Monitor().CountByCheck();
+			return counts.count("buildings") && counts.at("buildings") == 0 && (!counts.count("knowledge") || counts.at("knowledge") == 0);
+		};
+		std::set<std::string> found, kinds, found2, kinds2;
+		int mostOpen = 0, mostOpen2 = 0;
+		std::string log, log2;
+		const bool clean = play(found, kinds, mostOpen, log);
+		std::string f, k;
+		for (const std::string& t : found) f += " " + t;
+		for (const std::string& b : kinds) k += " " + b;
+		std::fprintf(stderr, "  progression in 6 days: found%s; built%s; at most %d sites at once\n%s\n", f.c_str(), k.c_str(), mostOpen, log.c_str());
+		Check(clean, "six days of the progression break neither the buildings invariant nor the knowledge one");
+		Check(found.size() >= 3, "the clan finds at least three technologies of the tree by itself in six days");
+		Check(kinds.size() >= 3, "and raises at least three different kinds of building");
+		bool gated = false;
+		for (const std::string& b : kinds)
+			for (const auto& [id, t] : techs.Techs)
+				if (!t.Known && std::find(t.Buildings.begin(), t.Buildings.end(), b) != t.Buildings.end()) gated = true;
+		Check(gated, "at least one of them behind a technology it found");
+		Check(mostOpen >= 2, "a clan of eight keeps two sites open at once");
+		play(found2, kinds2, mostOpen2, log2);
+		Check(found2 == found && kinds2 == kinds && log2 == log, "a second run finds and builds the same (deterministic)");
 	}
 
 	// ---- a whole clan with buildings on generated worlds (the QA harness of H20): the invariants hold, the "buildings" one included, and it builds

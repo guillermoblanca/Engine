@@ -61,12 +61,38 @@ namespace GB
 			d.Waste = waste;
 			return d;
 		};
+		auto builds = [&](const char* id, std::vector<std::string> buildings) { tree.Techs[id].Buildings = std::move(buildings); };
+		// The Stone-Age tree (docs/PROGRESION.md): tools, fire and cooking, fibre, hunting and hides, building, food storage, herbs and rites, and a
+		// preview of era 2 (pottery and the kiln, copper and the forge).
 		add("stone_tools", "Stone tools", 1, true, {}, { "stone_axe", "stone_pickaxe" });
 		add("fire_making", "Fire making", 1, true, {}, { "campfire" });
 		add("cordage", "Cordage", 1, true, {}, { "cordage" });
 		add("flint_knapping", "Flint knapping", 1, false, { "cordage", "stone_tools" }, { "flint_axe", "flint_pickaxe" }, how(0.15f, 0.34f, 0.25f, 20.0f, 0.3f));
 		add("basketry", "Basketry", 1, false, { "cordage" }, { "basket_wicker" }, how(0.2f, 0.34f, 0.25f, 15.0f, 0.3f));
-		add("smelting", "Smelting", 2, false, { "fire_making", "flint_knapping" }, { "copper_ingot" }, how(0.05f, 0.2f, 0.1f, 40.0f, 0.5f));
+		add("spear_making", "Hafted spears", 1, false, { "flint_knapping" }, { "flint_spear" }, how(0.12f, 0.3f, 0.25f, 20.0f, 0.3f));
+		add("hide_working", "Hide working", 1, false, { "flint_knapping" }, { "leather", "leather_bag" }, how(0.1f, 0.3f, 0.25f, 25.0f, 0.3f));
+		builds("hide_working", { "hide_frame" });
+		add("cooking", "Cooking", 1, false, { "fire_making" }, { "cooked_meat" }, how(0.2f, 0.34f, 0.3f, 15.0f, 0.2f));
+		builds("cooking", { "hearth" });
+		add("smoking", "Smoking", 1, false, { "cooking" }, { "smoked_meat" }, how(0.1f, 0.3f, 0.25f, 25.0f, 0.3f));
+		builds("smoking", { "smoking_rack" });
+		add("weaving", "Weaving", 1, false, { "basketry" }, { "reed_mat" }, how(0.15f, 0.3f, 0.25f, 20.0f, 0.2f));
+		add("wattle_and_daub", "Wattle and daub", 1, false, { "basketry" }, { "daub" }, how(0.15f, 0.3f, 0.25f, 20.0f, 0.2f));
+		builds("wattle_and_daub", { "hut" });
+		add("timber_framing", "Timber framing", 1, false, { "flint_knapping", "wattle_and_daub", "weaving" }, {}, how(0.04f, 0.0f, 0.2f, 60.0f, 0.0f));
+		builds("timber_framing", { "longhouse", "granary" });
+		add("palisade_building", "Palisades", 1, false, { "flint_knapping" }, { "stakes" }, how(0.08f, 0.3f, 0.2f, 30.0f, 0.1f));
+		builds("palisade_building", { "palisade" });
+		add("food_storage", "Food storage", 1, false, { "basketry" }, {}, how(0.1f, 0.0f, 0.25f, 20.0f, 0.0f));
+		builds("food_storage", { "cache_pit" });
+		add("herb_lore", "Herb lore", 1, false, { "basketry" }, { "poultice" }, how(0.15f, 0.3f, 0.25f, 20.0f, 0.3f));
+		builds("herb_lore", { "healer_hut" });
+		add("ritual", "Rites", 1, false, { "fire_making" }, {}, how(0.06f, 0.0f, 0.3f, 30.0f, 0.0f));
+		builds("ritual", { "totem" });
+		add("pottery", "Pottery", 2, false, { "fire_making", "wattle_and_daub" }, { "fired_brick" }, how(0.01f, 0.2f, 0.15f, 60.0f, 0.4f));
+		builds("pottery", { "kiln" });
+		add("smelting", "Smelting", 2, false, { "pottery", "flint_knapping" }, { "copper_ingot" }, how(0.01f, 0.2f, 0.1f, 60.0f, 0.5f));
+		builds("smelting", { "forge" });
 		return tree;
 	}
 

@@ -5,7 +5,7 @@
 #include <cstring>
 #include <memory>
 
-// Usage: <app> [--frames=N] [--screenshot=out.png] [--record=dir --fps=30] [--hidden] [--novsync] [app specific --key=value]
+// Usage: <app> [--frames=N] [--screenshot=out.png] [--record=dir --fps=30] [--step=60] [--hidden] [--novsync] [app specific --key=value]
 int main(int argc, char** argv)
 {
 	GB::Log::Init();
@@ -22,6 +22,8 @@ int main(int argc, char** argv)
 			options.RecordDir = arg + 9;
 		else if (std::strncmp(arg, "--fps=", 6) == 0)
 			options.RecordFps = static_cast<float>(std::atof(arg + 6));
+		else if (std::strncmp(arg, "--step=", 7) == 0)
+			options.StepFps = static_cast<float>(std::atof(arg + 7));
 		else if (std::strcmp(arg, "--hidden") == 0)
 			options.Hidden = true;
 		else if (std::strcmp(arg, "--novsync") == 0)

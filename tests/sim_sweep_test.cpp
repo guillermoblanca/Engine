@@ -8,6 +8,7 @@
 //   (default)            a small set that fits the CI budget (under a minute on a loaded machine)
 //   GB_SIM_SWEEP=clan    only the two clans of 20 for 5 days (H7's acceptance; some ten minutes)
 //   GB_SIM_SWEEP=full    seeds 1-4 x temperate/alpine/desert x 3, 6 and 12 members x 3 days, abstract runs, and a clan of 20 for 5 days (H7)
+//   GB_SIM_SWEEP="one temperate 2 3 3"   one run (biome, seed, members, days; "abstract" at the end for abstract members): to reproduce a run of the sweep
 //
 // Another lane extends it by adding a function to SimInvariants() or SimMetricTable() (GB/Game/SimQA.h): nothing here changes.
 #include "GB/Game/SimQA.h"
@@ -138,8 +139,20 @@ int main()
 	const char* mode = std::getenv("GB_SIM_SWEEP");
 	const bool full = mode && std::strcmp(mode, "full") == 0;
 	const bool clan = mode && std::strcmp(mode, "clan") == 0;   // only the clans of 20 of the full sweep (H7's acceptance)
+	const bool one = mode && std::strncmp(mode, "one ", 4) == 0;   // one run, to reproduce what a sweep found
 	std::vector<Case> cases;
-	if (full)
+	if (one)
+	{
+		char type[32] = {}, flag[32] = {};
+		Case c;
+		unsigned seed = 1;
+		if (std::sscanf(mode + 4, "%31s %u %d %lf %31s", type, &seed, &c.Members, &c.Days, flag) < 4) { std::fprintf(stderr, "GB_SIM_SWEEP=\"one <biome> <seed> <members> <days> [abstract]\"\n"); return 1; }
+		c.Type = std::strcmp(type, "alpine") == 0 ? GB::WorldType::Alpine : std::strcmp(type, "desert") == 0 ? GB::WorldType::Desert : GB::WorldType::Temperate;
+		c.Seed = seed;
+		c.Abstract = std::strcmp(flag, "abstract") == 0;
+		cases.push_back(c);
+	}
+	else if (full)
 	{
 		for (GB::WorldType type : { GB::WorldType::Temperate, GB::WorldType::Alpine, GB::WorldType::Desert })
 			for (uint32_t seed = 1; seed <= 4; ++seed)
@@ -165,7 +178,7 @@ int main()
 			{ GB::WorldType::Temperate, 3, 4, 0.5, true },
 		};
 	}
-	std::fprintf(stderr, "sim_sweep: %zu runs (%s)\n", cases.size(), full ? "full" : clan ? "the clans of 20" : "CI set; GB_SIM_SWEEP=full for the big one");
+	std::fprintf(stderr, "sim_sweep: %zu runs (%s)\n", cases.size(), one ? "one" : full ? "full" : clan ? "the clans of 20" : "CI set; GB_SIM_SWEEP=full for the big one");
 
 	std::unique_ptr<GB::GeneratedWorld> world;
 	GB::WorldDesc made;
@@ -194,7 +207,7 @@ int main()
 	// H12: a camp that moves (a migration forced at a quarter of a day, to a dry place 40 m away): the invariants of the move hold (the camp, the
 	// campfire and every member at the new place) and the clan lives on there
 
-	if (!clan)
+	if (!clan && !one)
 	{
 		const GB::GeneratedWorld moved = GB::WorldGenerator::GenerateData(Describe(cases.front()));
 		GB::SimSetup setup;
@@ -217,7 +230,7 @@ int main()
 
 	// the same run twice: the same end, step for step (the first case again, on a fresh world from the same seed)
 
-	if (!clan)   // (the clans of 20 are the slow ones: not twice)
+	if (!clan && !one)   // (the clans of 20 are the slow ones: not twice)
 	{
 		const Case& c = cases.front();
 		const GB::GeneratedWorld again = GB::WorldGenerator::GenerateData(Describe(c));

@@ -8,8 +8,11 @@ qa expect "game status" "player: Player \(forager\); standing 10"
 qa expect "game status" "needs: Hunger [0-9]+ Thirst"
 qa expect "game status" "condition: health"
 qa expect "tribe status" "Player"
+# (the test runs with --step=60: a frame is 1/60 s of game, so a wait is the same stretch of game on any machine. The first berries reach the
+# store at about 95 s of game: 330 frames at timescale 20 are 110 s)
+timescale 20
+wait 330
 timescale 10
-wait 60
 game claim
 game clan
 game take berry 2
