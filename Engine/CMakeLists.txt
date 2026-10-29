@@ -139,12 +139,18 @@ add_library(GB STATIC
     src/GB/Window.cpp
     src/GB/Renderer/CameraController.cpp
     src/GB/Renderer/Framebuffer.cpp
+    src/GB/Renderer/GrassRenderer.cpp
     src/GB/Renderer/Image.cpp
     src/GB/Renderer/Mesh.cpp
     src/GB/Renderer/Particles.cpp
+    src/GB/Renderer/ParticleRenderer.cpp
+    src/GB/Renderer/PostProcessor.cpp
     src/GB/Renderer/Renderer.cpp
     src/GB/Renderer/Shader.cpp
-    src/GB/Renderer/Texture.cpp)
+    src/GB/Renderer/ShadowRenderer.cpp
+    src/GB/Renderer/Texture.cpp
+    src/GB/Renderer/WaterRenderer.cpp
+    src/GB/Renderer/Visibility.cpp)
 add_library(GB::GB ALIAS GB)
 
 target_include_directories(GB PUBLIC src)

@@ -1,7 +1,7 @@
 #pragma once
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/Mesh.h"
-#include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/Scene.h"
 #include "GB/Renderer/Texture.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>

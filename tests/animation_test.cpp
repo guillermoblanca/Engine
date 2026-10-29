@@ -4,6 +4,7 @@
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Log.h"
+#include "GB/Renderer/Renderer.h"
 #include "GB/Window.h"
 #include <cmath>
 #include <cstdio>
