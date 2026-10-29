@@ -38,6 +38,9 @@ namespace GB::Editor
 			const glm::vec3& near, std::string& error);
 		// Releases the control; the actor Start made is removed, one that was spawned by hand stays in the world.
 		void Stop();
+		// Hands the view back without removing the character (it stays in the world, nobody steers it); Control(name) takes it again.
+		void Release() { m_Controlled.clear(); m_LookCamera = false; }
+		void SetTurnWithQE(bool on) { m_Camera.TurnWithQE = on; }   // false: E / Q are free for the game's own keys (arrows turn the camera)
 		bool IsActive() const { return Controlled() != nullptr; }
 
 		// Which actor the player handles (the camera snaps to it). False when there is none of that name.

@@ -156,6 +156,7 @@ namespace GB
 		float MinPitch = -0.15f, MaxPitch = 1.3f;
 		float RotateSpeed = 2.0f;          // rad/s for keys and sticks
 		float MouseSensitivity = 0.005f;
+		bool TurnWithQE = true;            // Q / E turn the camera as well as the arrows (a game that uses E to interact turns it off)
 		float TargetHeight = 1.3f;         // the camera looks this high above the character's feet
 		float FollowSharpness = 9.0f;
 		float ClearingSharpness = 14.0f;   // how fast the camera moves in when the ground is in the way

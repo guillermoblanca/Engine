@@ -409,12 +409,21 @@ namespace GB
 		return glm::vec3(0.0f);
 	}
 
-	GameCameraInput ReadGameCameraInput(GameCameraMode mode)
+	GameCameraInput ReadGameCameraInput(GameCameraMode mode, bool qeTurn)
 	{
 		GameCameraInput in;
 		auto down = [](Key k) { return Input::IsKeyDown(k); };
-		if (down(Key::Q)) in.Turn -= 1.0f;
-		if (down(Key::E)) in.Turn += 1.0f;
+		// Q / E turn the camera; a game that gives E another job (interact) turns outside the overview with the arrows (the overview pans with them).
+		if (qeTurn || mode == GameCameraMode::Overview)
+		{
+			if (down(Key::Q)) in.Turn -= 1.0f;
+			if (down(Key::E)) in.Turn += 1.0f;
+		}
+		else
+		{
+			if (down(Key::Left)) in.Turn -= 1.0f;
+			if (down(Key::Right)) in.Turn += 1.0f;
+		}
 		in.Turn += Input::GetGamepadAxis(GamepadAxis::RightX);
 		const auto [dx, dy] = Input::GetMouseDelta();
 		if (Input::IsMouseDown(MouseButton::Right)) in.TurnDelta -= static_cast<float>(dx) * 0.005f;

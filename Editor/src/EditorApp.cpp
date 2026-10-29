@@ -1516,6 +1516,12 @@ namespace GB::Editor
 			}
 			if (!m_Game.Active) DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // (no editing handles in a game: H15)
 			if (m_NavDebug) DrawNavDebug(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
+			if (m_Game.Active && m_ClanOverlay)   // (the editor's DrawGizmo paints the overlay; a game has no gizmo, so it is painted here)
+			{
+				const float aspect = static_cast<float>(m_ViewportW) / std::max(static_cast<float>(m_ViewportH), 1.0f);
+				DrawClanOverlay(ImGui::GetWindowDrawList(), m_Camera.GetProjection(aspect) * m_Camera.GetView(),
+					glm::vec2(static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH)), origin.x, origin.y);
+			}
 			if (m_Game.Active) DrawGameHud(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // H15
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);

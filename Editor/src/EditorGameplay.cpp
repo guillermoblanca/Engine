@@ -1227,7 +1227,66 @@ namespace GB::Editor
 			dl->AddText(a, color, text.c_str());
 		};
 
-		for (const Field& f : m_Tribe.Economy().Fields)
+		std::vector<std::pair<const Tribe*, std::string>> tribes{ { &m_Tribe, std::string() } };
+		for (const auto& c : m_Clans.All())
+			if (c->Folk && c->Folk != &m_Tribe) tribes.emplace_back(c->Folk, c->Name);
+		for (const auto& [tribe, clanName] : tribes)
+		{
+		const Tribe& t = *tribe;
+		const bool mine = tribe == &m_Tribe;
+		const ImU32 tint = mine ? IM_COL32(255, 220, 120, 240) : IM_COL32(150, 200, 255, 240);
+
+		// the camp: where the clan lives, with what it has in store and whether the fire is lit
+		{
+			const glm::vec2 camp = t.Config.Camp;
+			ImVec2 s;
+			if (glm::distance(m_Camera.Position, glm::vec3(camp.x, ground(camp.x, camp.y), camp.y)) < 140.0f && screen(glm::vec3(camp.x, ground(camp.x, camp.y) + 3.2f, camp.y), s))
+			{
+				std::string head = (clanName.empty() ? std::string("Your clan") : "Clan " + clanName) + " camp - " + std::to_string(t.Members().size()) + " people";
+				if (t.HasFire()) head += t.FireBurning() ? ", fire lit" : ", fire OUT";
+				if (const int beds = t.Beds(); beds > 0) head += ", " + std::to_string(beds) + " beds";
+				label(ImVec2(s.x, s.y - 2.0f * ImGui::GetTextLineHeight() - 6.0f), head, tint);
+				std::string store;
+				int shown = 0;
+				for (const std::string& id : m_Items.Ids())
+				{
+					const int n = t.Store().Count(id);
+					if (n <= 0 || shown >= 5) continue;
+					const ItemDef* def = m_Items.Find(id);
+					store += (store.empty() ? "" : ", ") + (def ? def->Name : id) + " " + std::to_string(n);
+					++shown;
+				}
+				label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), "Store: " + (store.empty() ? std::string("empty") : store), IM_COL32(230, 200, 150, 235));
+				label(s, "(the store is the camp's: leave what you gather here)", IM_COL32(180, 180, 180, 200));
+			}
+		}
+		// the buildings: a finished one says what it is for, a site how far it is and what it still lacks
+		for (const Tribe::SettlementSite& b : t.SettlementSites())
+		{
+			ImVec2 s;
+			if (glm::distance(m_Camera.Position, glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y), b.Pos.y)) > 120.0f) continue;
+			const bool done = b.State.Done;
+			quad(b.Pos, 1.4f, done ? IM_COL32(200, 160, 90, 70) : IM_COL32(120, 160, 230, 70), done ? IM_COL32(220, 180, 100, 220) : IM_COL32(130, 170, 240, 220));
+			if (!screen(glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y) + 2.6f, b.Pos.y), s)) continue;
+			std::string text = b.Building;
+			if (done)
+			{
+				if (b.Beds > 0) text += " - " + std::to_string(b.Beds) + " beds";
+				if (!b.Station.empty()) text += " - " + b.Station;
+				if (!b.Store.empty()) text += " - store";
+				label(s, text, IM_COL32(235, 205, 140, 240));
+			}
+			else
+			{
+				text += " - building " + std::to_string(static_cast<int>(b.State.Progress * 100.0f)) + "% (" + b.State.PhaseName + ")";
+				label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), text, IM_COL32(150, 190, 250, 240));
+				std::string lacks;
+				for (const auto& [item, n] : b.State.Missing) lacks += (lacks.empty() ? "" : ", ") + item + " x" + std::to_string(n);
+				label(s, b.State.Ready ? std::string("needs work (press E beside it)") : lacks.empty() ? std::string("waiting") : "needs " + lacks, IM_COL32(235, 235, 235, 230));
+			}
+		}
+
+		for (const Field& f : t.Economy().Fields)
 		{
 			for (size_t i = 0; i < f.Plots.size(); ++i)
 			{
@@ -1248,14 +1307,14 @@ namespace GB::Editor
 			const glm::vec2 mid = f.Centre();
 			if (screen(glm::vec3(mid.x, ground(mid.x, mid.y) + 1.4f, mid.y), s)) label(s, f.Name + " (" + std::to_string(f.Count("grown")) + " ripe)", IM_COL32(240, 220, 120, 235));
 		}
-		for (const Stockpile& st : m_Tribe.Economy().Stockpiles)
+		for (const Stockpile& st : t.Economy().Stockpiles)
 		{
 			quad(st.Pos, 0.6f, IM_COL32(160, 120, 70, 220), IM_COL32(20, 20, 20, 200));
 			ImVec2 s;
 			if (screen(glm::vec3(st.Pos.x, ground(st.Pos.x, st.Pos.y) + 1.1f, st.Pos.y), s)) label(s, st.Name, IM_COL32(230, 200, 150, 235));
 		}
 
-		for (const TribeMember& m : m_Tribe.Members())
+		for (const TribeMember& m : t.Members())
 		{
 			glm::vec2 at;
 			if (const Actor* actor = m_Actors.Find(m.Name)) at = glm::vec2(actor->GetPosition().x, actor->GetPosition().z);
@@ -1264,12 +1323,15 @@ namespace GB::Editor
 			if (glm::distance(m_Camera.Position, glm::vec3(at.x, ground(at.x, at.y), at.y)) > 90.0f) continue;
 			ImVec2 s;
 			if (!screen(glm::vec3(at.x, ground(at.x, at.y) + 2.5f, at.y), s)) continue;
-			const ImU32 color = m.Dead ? IM_COL32(150, 150, 150, 220) : m.Role == "forager" ? IM_COL32(150, 235, 120, 255) : m.Role == "miner" ? IM_COL32(150, 200, 255, 255)
+			const bool you = m_Game.Active && m.Name == m_Game.Player;
+			if (you) dl->AddCircle(s, 14.0f, IM_COL32(255, 235, 90, 255), 20, 2.5f);
+			const ImU32 color = you ? IM_COL32(255, 235, 90, 255) : m.Dead ? IM_COL32(150, 150, 150, 220) : m.Role == "forager" ? IM_COL32(150, 235, 120, 255) : m.Role == "miner" ? IM_COL32(150, 200, 255, 255)
 				: m.Role == "woodcutter" ? IM_COL32(235, 180, 110, 255) : IM_COL32(255, 255, 255, 255);
 			std::string task = m.Dead ? "dead" + (m.Cause.empty() ? std::string() : " of " + m.Cause) : m.Job.empty() ? std::string("idle") : m.Job;
 			if (!m.Dead && !m.Detail.empty()) task += " " + m.Detail;
-			label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), m.Name + " - " + m.Role, color);
+			label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), (you ? "YOU - " : "") + m.Name + " - " + m.Role + (clanName.empty() ? std::string() : " (" + clanName + ")"), color);
 			label(s, task, IM_COL32(235, 235, 235, 235));
+		}
 		}
 	}
 

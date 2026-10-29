@@ -18,6 +18,8 @@ namespace GB::Editor
 		std::string Model;                 // what the characters were made from
 		bool Paused = false;
 		bool ClanPanel = false, Help = false;
+		std::string View = "follow";       // "follow" (behind the player) or "top" (the overview from above, `game view`)
+		float SavedPitchNear = -1.0f, SavedPitchFar = -1.0f;   // the overview's tilt before the top view raised it (restored on leaving)
 		bool Over = false;                 // a mortal player died (PlayerRules::Mortal): the game is over
 		double DownAt = -1.0;              // when its body fell as a ragdoll (it stands up a moment later)
 		// the interact key now: what it would do, the command it runs and how far the thing is

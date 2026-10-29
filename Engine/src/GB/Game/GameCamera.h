@@ -231,5 +231,5 @@ namespace GB
 	// Keyboard, mouse and pad for a game camera (needs a window; the rest of this file does not):
 	//   overview - WASD / arrows / left stick pan, Q/E or right-mouse drag turn, wheel / Z-X / triggers zoom
 	//   follow, observe - Q/E / right stick / right-mouse drag turn, wheel zoom (WASD walk the player, so they are not read)
-	GameCameraInput ReadGameCameraInput(GameCameraMode mode);
+	GameCameraInput ReadGameCameraInput(GameCameraMode mode, bool qeTurn = true);   // qeTurn false: Q / E are free (outside the overview the arrows turn)
 }

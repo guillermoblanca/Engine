@@ -104,6 +104,15 @@ namespace GB::Editor
 				m_Panels.Console = p.Console; m_Panels.Assets = p.Assets; m_Panels.Model = p.Model; m_Panels.Animation = p.Animation; m_Panels.Abilities = p.Abilities;
 				m_Panels.Tribe = p.Tribe; m_Panels.WorldState = p.WorldState; m_Panels.Tests = p.Tests; m_Panels.QA = p.QA;
 			}
+			// the editor gets the keys and the view back: the player's body stays in the world, but nobody steers it and the free camera starts over it
+			const glm::vec3 where = m_Player.IsActive() ? m_Player.GetPosition() : glm::vec3(m_Tribe.Config.Camp.x, 0.0f, m_Tribe.Config.Camp.y);
+			if (m_Game.SavedPitchNear >= 0.0f) { m_GameView.Params.Overview.PitchNearDegrees = m_Game.SavedPitchNear; m_GameView.Params.Overview.PitchFarDegrees = m_Game.SavedPitchFar; }
+			m_GameView.QeTurns = true;
+			m_Player.SetTurnWithQE(true);
+			if (m_GameView.Active()) m_GameView.Command({ "off" }, m_Actors, m_Player, m_World, m_Camera);
+			m_Player.Release();
+			SetCamMode(CamMode::Free);
+			m_Orbit.Target = where;
 			return { true, "back to the editor (the world and the clans stay; `play` starts a new game)" };
 		}
 		if (!a.empty() && (a[0] == "status" || a[0] == "hud")) return GameCommand({ "status" });
@@ -162,7 +171,9 @@ namespace GB::Editor
 
 		m_Game = GameModeState{ true, name, model };
 		m_Game.AutoQuality = setup.Quality == "auto";
-		m_Game.Panels = { m_Panels.Hierarchy, m_Panels.Inspector, m_Panels.Properties, m_Panels.World, m_Panels.Stats, m_Panels.Console, m_Panels.Assets, m_Panels.Model,
+		m_GameView.QeTurns = false;      // E interacts: only the arrows turn the camera
+		m_Player.SetTurnWithQE(false);
+		m_Game.Panels ={ m_Panels.Hierarchy, m_Panels.Inspector, m_Panels.Properties, m_Panels.World, m_Panels.Stats, m_Panels.Console, m_Panels.Assets, m_Panels.Model,
 			m_Panels.Animation, m_Panels.Abilities, m_Panels.Tribe, m_Panels.WorldState, m_Panels.Tests, m_Panels.QA };
 		m_Game.HasPanels = true;
 		m_Panels.Hierarchy = m_Panels.Inspector = m_Panels.Properties = m_Panels.World = m_Panels.Stats = m_Panels.Assets = m_Panels.Model = false;
@@ -260,7 +271,7 @@ namespace GB::Editor
 		if (me->Dead && !m_Game.Over) { m_Game.Over = true; GameNote("You died of " + me->Cause + ". The game is over: load a save or play again."); }
 		// after a load (or anything that took it away) the player gets its body and the camera back
 		if (m_Player.ControlledName() != m_Game.Player) m_Player.Control(m_Game.Player);
-		if (!m_GameView.Active()) m_GameView.Command({ "follow" }, m_Actors, m_Player, m_World, m_Camera);
+		if (!m_GameView.Active() && m_Game.View == "follow") m_GameView.Command({ "follow" }, m_Actors, m_Player, m_World, m_Camera);
 		// knocked down in a fight and alive (it woke at the camp): it stands up after a moment
 		if (actor->Ragdolled() && !me->Dead)
 		{
@@ -300,6 +311,8 @@ namespace GB::Editor
 		for (const auto& [action, key] : m_Controls.Keys)
 		{
 			const ImGuiKey k = KeyNamed(key);
+			// from above the character is not at hand: its keys (E, Z...) do nothing, the camera's and the clock's do
+			if (m_Game.View == "top" && (action == "interact" || action == "eat" || action == "drink" || action == "deposit" || action == "sleep" || action == "claim")) continue;
 			if (k != ImGuiKey_None && ImGui::IsKeyPressed(k, false)) m_UiCommands.push_back("game " + action);
 		}
 	}
@@ -394,6 +407,37 @@ namespace GB::Editor
 			std::string s = sub == "jobs" ? m_Tribe.JobsReport() : m_Tribe.PlayerReport(me) + "\n" + m_Tribe.Report();
 			for (char& c : s) if (c == '\n') c = '|';
 			return { true, s };
+		}
+		// Esc: closes what is open (the clan sheet, the help), else leaves the game for the editor
+		if (sub == "quit")
+		{
+			if (m_Game.ClanPanel || m_Game.Help) { m_Game.ClanPanel = m_Game.Help = false; return { true, "closed" }; }
+			return PlayCommand({ "off" });
+		}
+		// V: the view of the player (behind it) or the overview from above (WASD pans, Q/E turn, Z/X zoom) — `game view [top|follow]`
+		if (sub == "view")
+		{
+			const std::string want = a.size() > 1 ? a[1] : (m_Game.View == "top" ? "follow" : "top");
+			if (want == "top")
+			{
+				if (m_Game.SavedPitchNear < 0.0f) { m_Game.SavedPitchNear = m_GameView.Params.Overview.PitchNearDegrees; m_Game.SavedPitchFar = m_GameView.Params.Overview.PitchFarDegrees; }
+				m_GameView.Params.Overview.PitchNearDegrees = 78.0f;
+				m_GameView.Params.Overview.PitchFarDegrees = 86.0f;
+				const glm::vec3 p = m_Player.GetPosition();
+				const CommandResult r = m_GameView.Command({ "overview", std::to_string(p.x), std::to_string(p.z), "45" }, m_Actors, m_Player, m_World, m_Camera);
+				if (!r.Ok) return r;
+				m_Game.View = "top";
+				return { true, "view from above (WASD pan, Q/E turn, Z/X zoom, V returns to the player)" };
+			}
+			if (want != "follow") return { false, "game view [top|follow]" };
+			if (m_Game.SavedPitchNear >= 0.0f)
+			{
+				m_GameView.Params.Overview.PitchNearDegrees = m_Game.SavedPitchNear;
+				m_GameView.Params.Overview.PitchFarDegrees = m_Game.SavedPitchFar;
+				m_Game.SavedPitchNear = m_Game.SavedPitchFar = -1.0f;
+			}
+			m_Game.View = "follow";
+			return m_GameView.Command({ "follow" }, m_Actors, m_Player, m_World, m_Camera);
 		}
 		if (m_Game.Over) return { false, "the game is over: game load, or play again" };
 		if (sub == "interact")

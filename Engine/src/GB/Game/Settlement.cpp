@@ -109,6 +109,14 @@ namespace GB
 		return out;
 	}
 
+	std::vector<Tribe::SettlementSite> Tribe::SettlementSites() const
+	{
+		std::vector<SettlementSite> out;
+		for (const Placed& p : Placements())
+			out.push_back({ p.Name, p.Def->Name, p.Pos, p.State, p.Def->Shelter, p.Def->Station, p.Def->Store });
+		return out;
+	}
+
 	void Tribe::SetBuildings(const std::map<std::string, BuildingDef>* defs)
 	{
 		m_Buildings = defs;

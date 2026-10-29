@@ -19,6 +19,7 @@ namespace GB::Editor
 	{
 	public:
 		GameCameraParams Params;   // the "cameras" content section reads into this (assets/data/cameras.json through era1)
+		bool QeTurns = true;       // Q / E turn the camera (the game mode of H15 frees them: E interacts)
 
 		bool Active() const { return m_Active; }
 		GameCameraMode Mode() const { return m_Rig.Mode(); }

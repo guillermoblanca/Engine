@@ -108,7 +108,7 @@ namespace GB::Editor
 		GameCameraInput input;
 		if (acceptInput)
 		{
-			input = ReadGameCameraInput(m_Rig.Mode());
+			input = ReadGameCameraInput(m_Rig.Mode(), QeTurns);
 			const bool playerSteers = m_Rig.Mode() == GameCameraMode::Follow && m_Follow.empty();
 			if (playerSteers) input = GameCameraInput{ .ZoomDelta = input.ZoomDelta };   // the player's camera reads the turns itself
 		}

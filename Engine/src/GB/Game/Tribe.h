@@ -360,6 +360,9 @@ namespace GB
 		std::map<std::string, int> SiteDemand() const;
 		// One line per site and building: phase, work and what it lacks.
 		std::string SettlementReport() const;
+		// The same as data, for an interface that draws them: where each is, how far it is built and what it gives once done.
+		struct SettlementSite { std::string Name, Building; glm::vec2 Pos{ 0.0f }; SiteState State; int Beds = 0; std::string Station, Store; };
+		std::vector<SettlementSite> SettlementSites() const;
 		// Starts a site of a building at a place (the planner does this by itself); "" or why not. The name is "<Name> <n>".
 		std::string StartSite(const std::string& building, const glm::vec2& at, std::string* name = nullptr);
 

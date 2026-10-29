@@ -401,8 +401,8 @@ namespace GB
 	void ThirdPersonCamera::ReadInput(float dt)
 	{
 		float yaw = 0.0f, pitch = 0.0f;
-		if (Input::IsKeyDown(Key::Left) || Input::IsKeyDown(Key::Q)) yaw -= 1.0f;
-		if (Input::IsKeyDown(Key::Right) || Input::IsKeyDown(Key::E)) yaw += 1.0f;
+		if (Input::IsKeyDown(Key::Left) || (TurnWithQE && Input::IsKeyDown(Key::Q))) yaw -= 1.0f;
+		if (Input::IsKeyDown(Key::Right) || (TurnWithQE && Input::IsKeyDown(Key::E))) yaw += 1.0f;
 		if (Input::IsKeyDown(Key::Up)) pitch += 1.0f;
 		if (Input::IsKeyDown(Key::Down)) pitch -= 1.0f;
 		yaw += Input::GetGamepadAxis(GamepadAxis::RightX);
