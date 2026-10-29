@@ -261,6 +261,9 @@ namespace GB
 		// H14 in the scale runs: a combat system shared by the clans (threats, fights, raids); `HostileClans`: every pair of clans starts hostile
 		bool Combat = false;
 		bool HostileClans = false;
+		// The telemetry of the run (GB/Telemetry/TelemetrySink.h), already started by the host: every clan writes to it. Null = off.
+		class TelemetrySink* Telemetry = nullptr;
+		double TelemetryEvery = 60.0;
 	};
 
 	// A tribe living on a generated world with no window: the harness of the simulation sweep and of `qa sim`. Deterministic: the same setup gives

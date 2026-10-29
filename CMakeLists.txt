@@ -108,6 +108,8 @@ if(GB_BUILD_SANDBOX)
     add_subdirectory(Sandbox)
 endif()
 
+add_subdirectory(Sim)   # GBSim: the simulation with no window (CPU only)
+
 if(GB_BUILD_TESTS)
     enable_testing()   # before the Editor, whose tests would otherwise not be registered
 endif()

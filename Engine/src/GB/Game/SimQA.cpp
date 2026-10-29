@@ -1021,6 +1021,11 @@ namespace GB
 				for (size_t a = 0; a < all.size(); ++a)
 					for (size_t b = a + 1; b < all.size(); ++b) { m_Hostility.Set(all[a]->Name, all[b]->Name, 1.0f); m_Clans.Relate(all[a]->Id, all[b]->Id, "raid", 3.0f, "the scale run starts them hostile", all[a]->Id); }
 		}
+		if (setup.Telemetry)
+		{
+			if (m_Clans.Count() > 1) m_Clans.SetTelemetry(setup.Telemetry, setup.TelemetryEvery);
+			else m_Tribe.SetTelemetry(setup.Telemetry, 0, setup.TelemetryEvery);
+		}
 	}
 
 	SimRun::~SimRun() = default;
