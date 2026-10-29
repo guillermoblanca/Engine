@@ -58,7 +58,7 @@ int main()
 	const std::string path = std::string(GB_ASSET_DIR) + "/data/visuals.json";
 	const std::string error = LoadVisualsFile(path, lib);
 	Check(error.empty(), "visuals.json loads: " + error);
-	Check(lib.Models.size() >= 30 && lib.Buildings.size() >= 6 && lib.Materials.size() >= 20, "it has the node, prop, pile and plot models, six buildings and the materials");
+	Check(lib.Models.size() >= 30 && lib.Buildings.size() >= 16 && lib.Materials.size() >= 20, "it has the node, prop, pile and plot models, sixteen buildings and the materials");
 	{
 		VisualLibrary back;
 		Check(LoadVisuals(VisualsToJson(lib), back).empty() && back == lib, "write and read back gives the same library");
@@ -300,9 +300,12 @@ int main()
 
 	// ---- buildings: phases, progress and the adapter for H8
 	{
-		const char* const wanted[] = { "shelter", "storage", "workbench", "drying_rack", "kiln", "palisade" };
-		for (const char* id : wanted)
+		// every building of the game (H8's DefaultBuildings: the Stone-Age progression, docs/PROGRESION.md) has its phases drawn
+		std::vector<std::string> wanted = { "kiln", "palisade" };
+		for (const auto& [bid, def] : DefaultBuildings()) wanted.push_back(bid);
+		for (const std::string& name : wanted)
 		{
+			const char* id = name.c_str();
 			const auto it = lib.Buildings.find(id);
 			Check(it != lib.Buildings.end(), std::string("building ") + id + " is described");
 			if (it == lib.Buildings.end()) continue;

@@ -35,7 +35,7 @@ namespace GB
 		std::vector<std::string> Requires;     // technologies the agent must know before it can find or learn this one
 		std::vector<std::string> Recipes;      // recipes it unlocks
 		std::vector<std::string> Nodes;        // resource nodes (ids of their defs) that only those who know it work
-		std::vector<std::string> Buildings;    // buildings it unlocks (names: the buildings are not data yet, E9)
+		std::vector<std::string> Buildings;    // buildings it unlocks (ids of the "buildings" section, H8)
 		TechDiscovery Discovery;
 		bool operator==(const TechDef&) const = default;
 	};
@@ -65,8 +65,8 @@ namespace GB
 	};
 
 	// The built-in technologies of era 1 (assets/data/era1.json says the same in its "techs" and "knowledge" sections): stone tools, fire making and
-	// cordage are known from the start (so the tribe does what it did before technologies existed); flint knapping and basketry are found, and
-	// smelting waits for the forge (E10).
+	// cordage are known from the start (so the tribe does what it did before technologies existed); the rest of the Stone-Age tree is found
+	// (docs/PROGRESION.md), and pottery and smelting are a preview of era 2 (the kiln and the forge).
 	TechTree DefaultTechs();
 
 	// Reads the "techs" and "knowledge" sections of a content file:

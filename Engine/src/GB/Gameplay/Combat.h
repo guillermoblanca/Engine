@@ -119,6 +119,7 @@ namespace GB
 		float Odds = 1.0f;                       // fight: + this x min(odds / 2, 1); flee: + this x (1 - odds) when outnumbered
 		float Kin = 0.8f;                        // fight: + this when the threat attacks one of its kin or a child of the clan
 		float Camp = 0.4f;                       // fight: + this when the threat is at the camp
+		float Walls = 0.5f;                      // fight: + this x the camp's defense (a palisade) when the threat is at the camp
 		float Fear = 1.2f;                       // flee: + this x (1 - safety / 100)
 		float Timid = 0.8f;                      // flee: + this x (1 - boldness)
 		bool ChildrenFight = false;              // children always flee
@@ -149,6 +150,8 @@ namespace GB
 		std::string Tag;                         // "Animal.Rabbit"
 		std::string Item = "meat";               // what a kill gives ...
 		int Units = 2;                           // ... and how much of it
+		std::string Byproduct;                   // what else a kill gives ("hide"; "" = nothing) ...
+		int ByproductUnits = 0;                  // ... and how much of it
 		float Health = 10.0f;
 		float Speed = 2.2f;                      // when it flees (it flees as soon as it is attacked)
 		std::string Weapon = "fists";            // what it fights back with when cornered (nothing for a rabbit: it never fights back)
@@ -170,6 +173,7 @@ namespace GB
 		float Hunger = 0.8f;                     //   + this x how short of food the store is (0..1)
 		float Grievance = 0.5f;                  //   + this x the grievance against the target
 		float Hostility = 0.4f;                  //   + this x the hostility to the target
+		float Defense = 0.5f;                    //   - this x the target's defense (its palisades: BuildingDef::Defense)
 		int Party = 2, MaxParty = 4;             // the least and the most raiders
 		float PartyHealth = 60.0f;               // a raider has at least this health
 		float StealSeconds = 3.0f;               // seconds at the store
@@ -228,6 +232,7 @@ namespace GB
 		std::string Clan;
 		glm::vec2 Camp{ 0.0f };                  // where its store is
 		Inventory* Store = nullptr;
+		float Defense = 0.0f;                    // what its buildings add up to (a palisade 1): it weighs against a raid
 	};
 
 	// Who is hostile to whom. Sides are clan names ("Clan", "Riverfolk"), animal tags ("Animal.Fox") or anything a host gives its fighters.
@@ -241,7 +246,7 @@ namespace GB
 		// The camps `raider` could raid (only of clans it is hostile to).
 		virtual std::vector<RaidTarget> RaidTargets(const std::string& raider) const { (void)raider; return {}; }
 		// A clan says where its camp and store are now (each time it weighs a raid): what RaidTargets hands out.
-		virtual void Settled(const std::string& clan, const glm::vec2& camp, Inventory* store) { (void)clan; (void)camp; (void)store; }
+		virtual void Settled(const std::string& clan, const glm::vec2& camp, Inventory* store, float defense = 0.0f) { (void)clan; (void)camp; (void)store; (void)defense; }
 		// `victim` was wronged by `culprit` ("raid", "theft", "killing"): its grievance grows by `weight`.
 		virtual void Wronged(const std::string& victim, const std::string& culprit, const std::string& what, float weight) { (void)victim; (void)culprit; (void)what; (void)weight; }
 		virtual float Grievance(const std::string& victim, const std::string& culprit) const { (void)victim; (void)culprit; return 0.0f; }
@@ -261,7 +266,7 @@ namespace GB
 		void FromRules(const CombatRules& rules);
 		float Hostility(const std::string& a, const std::string& b) const override;
 		std::vector<RaidTarget> RaidTargets(const std::string& raider) const override;
-		void Settled(const std::string& clan, const glm::vec2& camp, Inventory* store) override;
+		void Settled(const std::string& clan, const glm::vec2& camp, Inventory* store, float defense = 0.0f) override;
 		void Wronged(const std::string& victim, const std::string& culprit, const std::string& what, float weight) override;
 		float Grievance(const std::string& victim, const std::string& culprit) const override;
 		void Forget(float days);
@@ -310,6 +315,7 @@ namespace GB
 		float Morale = 1.0f;
 		float Fled = 0.0f;                       // seconds an Entity fighter has been fleeing (it is released after a while)
 		bool Resting = false, Cared = false;     // (the owner says: the wounds heal faster)
+		float Heal = 1.0f;                       // (the owner says: a healer's place near it multiplies the healing)
 		std::vector<Wound> Wounds;
 		int Rolls = 0;                           // rolls made (the counter of its hash)
 		int Landed = 0, Missed = 0, Blocked = 0, Taken = 0, Kills = 0;

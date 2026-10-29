@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Gameplay/Farming.h"
 #include "GB/Gameplay/Items.h"
+#include <algorithm>
 #include <glm/glm.hpp>
 #include <map>
 #include <string>
@@ -76,6 +77,16 @@ namespace GB
 		bool operator==(const LogisticsRules&) const = default;
 	};
 
+	// Construction (H8): how many building sites the clan keeps open at once. One for every MembersPerSite living members (at least one), at most
+	// MaxSites: a clan of four raises one building at a time, a clan of eight two.
+	struct ConstructionRules
+	{
+		int MaxSites = 3;
+		int MembersPerSite = 4;                  // 0: always MaxSites
+		bool operator==(const ConstructionRules&) const = default;
+		int SitesFor(int alive) const { return MembersPerSite > 0 ? std::clamp(alive / MembersPerSite, 1, std::max(1, MaxSites)) : std::max(1, MaxSites); }
+	};
+
 	struct EconomyRules
 	{
 		ProductionRules Production;
@@ -83,6 +94,7 @@ namespace GB
 		FarmRules Farming;
 		std::map<std::string, CropDef> Crops;    // by id: the crops a field can grow (a later file adds to them)
 		LogisticsRules Logistics;
+		ConstructionRules Construction;
 		bool operator==(const EconomyRules&) const = default;
 		const StoreKind& Main() const;
 	};
@@ -92,7 +104,8 @@ namespace GB
 	//   "experiment", "containersPerMember", "preserveAbove" }, "spoilage": { "step", "bag", "seasons": { "winter": 0.5 } }, "farming": { "tech", "tool",
 	//   "plots", "columns", "spacing", "offset": [ x, z ], "moistureSeconds", "workSeconds", "plotsPerTrip", "priority", "fields" },
 	//   "crops": [ { "id", "seed", "yield": { "grain": 3 }, "stageSeconds", "sow": [ "spring" ] } ],
-	//   "logistics": { "stores": { "main": { "cap", "slots", "spoilRate", "accepts": [], "haul" } }, "perBagSlot", "priority", "haulAt", "fieldStore" } } }.
+	//   "logistics": { "stores": { "main": { "cap", "slots", "spoilRate", "accepts": [], "haul" } }, "perBagSlot", "priority", "haulAt", "fieldStore" },
+	//   "construction": { "maxSites", "membersPerSite" } } }.
 	// Each of "production", "spoilage", "farming" and "logistics" replaces that part whole (what it does not say is the default, and a map or a list it
 	// gives, such as "stock", "seasons" or "stores", replaces the default one); "crops" adds or
 	// replaces crops by id (an era pack adds its own). A file without the section changes nothing; on a mistake it returns why and changes nothing.

@@ -68,7 +68,7 @@ namespace GB
 	// The same aware of technologies (H11): a recipe or a node a technology unlocks is reachable only once one of its technologies can be discovered.
 	// A technology can be discovered when it is known from the start, or when everything it requires can and it can be found by experimenting
 	// (Discovery.Experiment above 0) with one of its recipes whose inputs, tool and station can be had (or it unlocks no recipe: an idea needs no
-	// materials). Watching and being taught need someone who knows it, so on their own they discover nothing. More problems: technologies that require
+	// materials); a station that a building of that very technology gives counts (a try needs only the materials: cooking and its hearth). Watching and being taught need someone who knows it, so on their own they discover nothing. More problems: technologies that require
 	// or unlock ids that do not exist, and technologies that can never be discovered (deferred ids, as always, are notes). nullptr = no technologies.
 	// With buildings (H8, E9): a building can be built once every material of its phases can be had and, when a technology unlocks it (TechDef::Buildings
 	// or its own `tech`), once one of those can be discovered; then its station is there too (a drying rack gives "drying_rack"). A building that can

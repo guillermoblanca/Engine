@@ -1,5 +1,17 @@
 {
   "items": [
+    { "id": "herbs", "name": "Healing herbs", "category": "resource", "weight": 0.1, "stack": 20, "tags": [ "Item.Resource.Herb" ] },
+    { "id": "hide", "name": "Hide", "category": "resource", "weight": 0.8, "stack": 10, "tags": [ "Item.Resource.Hide" ] },
+    { "id": "poultice", "name": "Poultice", "category": "resource", "weight": 0.2, "stack": 10, "tags": [ "Item.Medicine.Poultice" ] },
+    { "id": "leather", "name": "Leather", "category": "resource", "weight": 0.6, "stack": 10, "tags": [ "Item.Resource.Leather" ] },
+    { "id": "leather_bag", "name": "Leather bag", "category": "container", "weight": 1.0, "stack": 1, "tags": [ "Item.Container.Bag" ], "bagSlots": 9, "bagWeight": 12.0 },
+    { "id": "cooked_meat", "name": "Cooked meat", "category": "food", "weight": 0.4, "stack": 10, "tags": [ "Item.Food.Meat.Cooked" ], "ability": "Eat", "shelfLife": 2400.0 },
+    { "id": "smoked_meat", "name": "Smoked meat", "category": "food", "weight": 0.3, "stack": 20, "tags": [ "Item.Food.Meat.Smoked" ], "ability": "Eat", "shelfLife": 9600.0 },
+    { "id": "daub", "name": "Daub", "category": "resource", "weight": 2.0, "stack": 10, "tags": [ "Item.Resource.Daub" ] },
+    { "id": "reed_mat", "name": "Reed mat", "category": "resource", "weight": 1.0, "stack": 10, "tags": [ "Item.Resource.Mat" ] },
+    { "id": "stake", "name": "Stake", "category": "resource", "weight": 1.5, "stack": 10, "tags": [ "Item.Resource.Wood.Stake" ], "fuel": 1 },
+    { "id": "fired_brick", "name": "Fired brick", "category": "resource", "weight": 2.5, "stack": 10, "tags": [ "Item.Resource.Brick.Fired" ] },
+    { "id": "flint_spear", "name": "Flint spear", "category": "weapon", "weight": 1.8, "stack": 1, "tags": [ "Item.Weapon.Spear" ], "socket": "RightHand" },
     {
       "bagSlots": 6,
       "bagWeight": 8.0,
@@ -214,6 +226,18 @@
     }
   ],
   "nodes": [
+    {
+      "ability": "Gather",
+      "capacity": 4,
+      "id": "herb_patch",
+      "item": "herbs",
+      "kind": "Plant.Herb",
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 60.0,
+      "spawn": { "biomes": [ "Meadow", "Forest" ], "clump": 0.5, "max": 20, "maxSlope": 25.0, "perHectare": 2.0, "spacing": 7.0 }
+    },
     {
       "ability": "Gather",
       "capacity": 6,
@@ -489,6 +513,16 @@
     }
   ],
   "recipes": [
+    { "id": "poultice", "inputs": { "herbs": 2, "fiber": 1 }, "output": "poultice", "count": 1, "ability": "Craft" },
+    { "id": "leather", "inputs": { "hide": 2 }, "output": "leather", "count": 1, "station": "tannery", "ability": "Craft" },
+    { "id": "leather_bag", "inputs": { "leather": 2, "cordage": 1 }, "output": "leather_bag", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "cooked_meat", "inputs": { "meat": 1 }, "output": "cooked_meat", "count": 1, "station": "hearth", "ability": "Craft" },
+    { "id": "smoked_meat", "inputs": { "meat": 2, "wood": 1 }, "output": "smoked_meat", "count": 2, "station": "smoking_rack", "ability": "Craft" },
+    { "id": "daub", "inputs": { "clay": 2, "fiber": 1 }, "output": "daub", "count": 2, "ability": "Craft" },
+    { "id": "reed_mat", "inputs": { "reed": 4, "cordage": 1 }, "output": "reed_mat", "count": 1, "ability": "Craft" },
+    { "id": "stakes", "inputs": { "wood": 1 }, "output": "stake", "count": 2, "tool": "Item.Tool.Axe", "ability": "Craft" },
+    { "id": "flint_spear", "inputs": { "wood": 1, "flint": 1, "cordage": 1 }, "output": "flint_spear", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "fired_brick", "inputs": { "clay": 2, "wood": 1 }, "output": "fired_brick", "count": 2, "station": "kiln", "ability": "Craft" },
     {
       "ability": "Craft",
       "count": 1,
@@ -621,6 +655,147 @@
       ],
       "station": "drying_rack",
       "color": [ 0.5, 0.38, 0.22 ]
+    },
+    "hut": {
+      "name": "Wattle hut",
+      "footprint": [ 3.6, 3.6 ],
+      "phases": [
+        { "name": "foundation", "work": 8.0, "needs": { "stone": 4 }, "part": "slab" },
+        { "name": "frame", "work": 12.0, "needs": { "branch": 6, "wood": 2 }, "part": "posts" },
+        { "name": "walls", "work": 14.0, "needs": { "branch": 6, "daub": 6 }, "part": "walls" },
+        { "name": "roof", "work": 10.0, "needs": { "reed": 8, "fiber": 2 }, "part": "roof" }
+      ],
+      "shelter": 4,
+      "rest": 0.3,
+      "warmth": 0.45,
+      "supersedes": [ "shelter" ],
+      "color": [ 0.5, 0.38, 0.26 ]
+    },
+    "longhouse": {
+      "name": "Longhouse",
+      "footprint": [ 7.0, 4.0 ],
+      "phases": [
+        { "name": "footings", "work": 10.0, "needs": { "stone": 8 }, "part": "slab" },
+        { "name": "frame", "work": 18.0, "needs": { "wood": 10, "cordage": 3 }, "part": "posts" },
+        { "name": "walls", "work": 18.0, "needs": { "branch": 10, "daub": 8 }, "part": "walls" },
+        { "name": "roof", "work": 14.0, "needs": { "reed": 10, "reed_mat": 3 }, "part": "roof" }
+      ],
+      "shelter": 8,
+      "rest": 0.35,
+      "warmth": 0.55,
+      "supersedes": [ "hut", "shelter" ],
+      "color": [ 0.46, 0.34, 0.22 ]
+    },
+    "cache_pit": {
+      "name": "Cache pit",
+      "footprint": [ 2.0, 2.0 ],
+      "phases": [
+        { "name": "pit", "work": 12.0, "needs": { "stone": 2 }, "part": "slab" },
+        { "name": "lining", "work": 6.0, "needs": { "reed": 4, "fiber": 2 }, "part": "roof" }
+      ],
+      "storeCap": 10,
+      "keep": 0.75,
+      "color": [ 0.42, 0.34, 0.24 ]
+    },
+    "granary": {
+      "name": "Raised granary",
+      "footprint": [ 2.6, 2.6 ],
+      "phases": [
+        { "name": "stilts", "work": 10.0, "needs": { "wood": 4, "stone": 4 }, "part": "posts" },
+        { "name": "floor", "work": 8.0, "needs": { "wood": 3, "branch": 4 }, "part": "slab" },
+        { "name": "walls", "work": 10.0, "needs": { "branch": 6, "daub": 4 }, "part": "walls" },
+        { "name": "roof", "work": 8.0, "needs": { "reed": 6 }, "part": "roof" }
+      ],
+      "storeCap": 20,
+      "keep": 0.5,
+      "color": [ 0.55, 0.42, 0.26 ]
+    },
+    "hearth": {
+      "name": "Communal hearth",
+      "footprint": [ 2.4, 2.4 ],
+      "phases": [
+        { "name": "ring", "work": 8.0, "needs": { "stone": 6 }, "part": "slab" },
+        { "name": "fire", "work": 6.0, "needs": { "wood": 3 }, "part": "rack" }
+      ],
+      "station": "hearth",
+      "warmth": 0.4,
+      "culture": 0.15,
+      "aura": 6.0,
+      "color": [ 0.45, 0.4, 0.36 ]
+    },
+    "smoking_rack": {
+      "name": "Smoking rack",
+      "footprint": [ 2.2, 1.6 ],
+      "phases": [
+        { "name": "frame", "work": 8.0, "needs": { "branch": 6 }, "part": "posts" },
+        { "name": "cover", "work": 8.0, "needs": { "reed": 4, "fiber": 2 }, "part": "roof" }
+      ],
+      "station": "smoking_rack",
+      "color": [ 0.4, 0.3, 0.2 ]
+    },
+    "hide_frame": {
+      "name": "Hide frame",
+      "footprint": [ 2.0, 1.2 ],
+      "phases": [
+        { "name": "pit", "work": 6.0, "needs": { "stone": 2 }, "part": "slab" },
+        { "name": "frame", "work": 8.0, "needs": { "branch": 4, "cordage": 2 }, "part": "rack" }
+      ],
+      "station": "tannery",
+      "color": [ 0.52, 0.4, 0.28 ]
+    },
+    "healer_hut": {
+      "name": "Healer's hut",
+      "footprint": [ 2.6, 2.6 ],
+      "phases": [
+        { "name": "frame", "work": 8.0, "needs": { "branch": 6 }, "part": "posts" },
+        { "name": "walls", "work": 8.0, "needs": { "reed": 6, "fiber": 2 }, "part": "walls" },
+        { "name": "remedies", "work": 4.0, "needs": { "poultice": 2 }, "part": "table" }
+      ],
+      "healing": 1.0,
+      "aura": 5.0,
+      "color": [ 0.4, 0.42, 0.28 ]
+    },
+    "totem": {
+      "name": "Totem",
+      "footprint": [ 3.0, 3.0 ],
+      "phases": [
+        { "name": "circle", "work": 8.0, "needs": { "stone": 6 }, "part": "slab" },
+        { "name": "pole", "work": 12.0, "needs": { "wood": 2 }, "part": "posts" }
+      ],
+      "culture": 0.25,
+      "aura": 9.0,
+      "color": [ 0.5, 0.32, 0.2 ]
+    },
+    "palisade": {
+      "name": "Palisade",
+      "footprint": [ 6.0, 0.8 ],
+      "phases": [
+        { "name": "stakes", "work": 14.0, "needs": { "stake": 12 }, "part": "posts" },
+        { "name": "rails", "work": 10.0, "needs": { "branch": 6, "cordage": 3 }, "part": "rack" }
+      ],
+      "defense": 1.0,
+      "color": [ 0.45, 0.33, 0.2 ]
+    },
+    "kiln": {
+      "name": "Kiln",
+      "footprint": [ 1.8, 1.8 ],
+      "phases": [
+        { "name": "base", "work": 8.0, "needs": { "stone": 6 }, "part": "slab" },
+        { "name": "dome", "work": 12.0, "needs": { "clay": 8 }, "part": "roof" },
+        { "name": "chimney", "work": 4.0, "needs": { "clay": 2 }, "part": "posts" }
+      ],
+      "station": "kiln",
+      "color": [ 0.62, 0.42, 0.3 ]
+    },
+    "forge": {
+      "name": "Forge",
+      "footprint": [ 2.2, 2.0 ],
+      "phases": [
+        { "name": "hearth", "work": 12.0, "needs": { "stone": 6, "fired_brick": 6 }, "part": "slab" },
+        { "name": "bellows", "work": 8.0, "needs": { "hide": 2, "wood": 2 }, "part": "table" }
+      ],
+      "station": "forge",
+      "color": [ 0.5, 0.3, 0.24 ]
     }
   },
   "roles": {
@@ -742,7 +917,8 @@
       "priority": 0.9,
       "haulAt": 1,
       "fieldStore": "stockpile"
-    }
+    },
+    "construction": { "maxSites": 3, "membersPerSite": 4 }
   },
   "work": {
     "names": [ "Ana", "Biel", "Cleo", "Dan", "Eli", "Fran", "Gala", "Hugo", "Iris", "Joel", "Kira", "Leo", "Mara", "Nil", "Olga", "Pau", "Rita", "Saul", "Tea", "Unai" ],
@@ -871,94 +1047,39 @@
     }
   },
   "techs": [
-    {
-      "id": "basketry",
-      "name": "Basketry",
-      "era": 1,
-      "requires": [
-        "cordage"
-      ],
-      "recipes": [
-        "basket_wicker"
-      ],
-      "discovery": {
-        "experiment": 0.2,
-        "observe": 0.34,
-        "teach": 0.25,
-        "seconds": 15.0,
-        "waste": 0.3
-      }
-    },
-    {
-      "id": "cordage",
-      "name": "Cordage",
-      "era": 1,
-      "known": true,
-      "requires": [],
-      "recipes": [
-        "cordage"
-      ]
-    },
-    {
-      "id": "fire_making",
-      "name": "Fire making",
-      "era": 1,
-      "known": true,
-      "requires": [],
-      "recipes": [
-        "campfire"
-      ]
-    },
-    {
-      "id": "flint_knapping",
-      "name": "Flint knapping",
-      "era": 1,
-      "requires": [
-        "cordage",
-        "stone_tools"
-      ],
-      "recipes": [
-        "flint_axe",
-        "flint_pickaxe"
-      ],
-      "discovery": {
-        "experiment": 0.15,
-        "observe": 0.34,
-        "teach": 0.25,
-        "seconds": 20.0,
-        "waste": 0.3
-      }
-    },
-    {
-      "id": "smelting",
-      "name": "Smelting",
-      "era": 2,
-      "requires": [
-        "fire_making",
-        "flint_knapping"
-      ],
-      "recipes": [
-        "copper_ingot"
-      ],
-      "discovery": {
-        "experiment": 0.05,
-        "observe": 0.2,
-        "teach": 0.1,
-        "seconds": 40.0,
-        "waste": 0.5
-      }
-    },
-    {
-      "id": "stone_tools",
-      "name": "Stone tools",
-      "era": 1,
-      "known": true,
-      "requires": [],
-      "recipes": [
-        "stone_axe",
-        "stone_pickaxe"
-      ]
-    }
+    { "id": "stone_tools", "name": "Stone tools", "era": 1, "known": true, "requires": [], "recipes": [ "stone_axe", "stone_pickaxe" ] },
+    { "id": "fire_making", "name": "Fire making", "era": 1, "known": true, "requires": [], "recipes": [ "campfire" ] },
+    { "id": "cordage", "name": "Cordage", "era": 1, "known": true, "requires": [], "recipes": [ "cordage" ] },
+    { "id": "flint_knapping", "name": "Flint knapping", "era": 1, "requires": [ "cordage", "stone_tools" ], "recipes": [ "flint_axe", "flint_pickaxe" ],
+      "discovery": { "experiment": 0.15, "observe": 0.34, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "basketry", "name": "Basketry", "era": 1, "requires": [ "cordage" ], "recipes": [ "basket_wicker" ],
+      "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.25, "seconds": 15.0, "waste": 0.3 } },
+    { "id": "spear_making", "name": "Hafted spears", "era": 1, "requires": [ "flint_knapping" ], "recipes": [ "flint_spear" ],
+      "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "hide_working", "name": "Hide working", "era": 1, "requires": [ "flint_knapping" ], "recipes": [ "leather", "leather_bag" ], "buildings": [ "hide_frame" ],
+      "discovery": { "experiment": 0.1, "observe": 0.3, "teach": 0.25, "seconds": 25.0, "waste": 0.3 } },
+    { "id": "cooking", "name": "Cooking", "era": 1, "requires": [ "fire_making" ], "recipes": [ "cooked_meat" ], "buildings": [ "hearth" ],
+      "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.3, "seconds": 15.0, "waste": 0.2 } },
+    { "id": "smoking", "name": "Smoking", "era": 1, "requires": [ "cooking" ], "recipes": [ "smoked_meat" ], "buildings": [ "smoking_rack" ],
+      "discovery": { "experiment": 0.1, "observe": 0.3, "teach": 0.25, "seconds": 25.0, "waste": 0.3 } },
+    { "id": "weaving", "name": "Weaving", "era": 1, "requires": [ "basketry" ], "recipes": [ "reed_mat" ],
+      "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.2 } },
+    { "id": "wattle_and_daub", "name": "Wattle and daub", "era": 1, "requires": [ "basketry" ], "recipes": [ "daub" ], "buildings": [ "hut" ],
+      "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.2 } },
+    { "id": "timber_framing", "name": "Timber framing", "era": 1, "requires": [ "flint_knapping", "wattle_and_daub", "weaving" ], "recipes": [], "buildings": [ "longhouse", "granary" ],
+      "discovery": { "experiment": 0.04, "observe": 0.0, "teach": 0.2, "seconds": 60.0, "waste": 0.0 } },
+    { "id": "palisade_building", "name": "Palisades", "era": 1, "requires": [ "flint_knapping" ], "recipes": [ "stakes" ], "buildings": [ "palisade" ],
+      "discovery": { "experiment": 0.08, "observe": 0.3, "teach": 0.2, "seconds": 30.0, "waste": 0.1 } },
+    { "id": "food_storage", "name": "Food storage", "era": 1, "requires": [ "basketry" ], "recipes": [], "buildings": [ "cache_pit" ],
+      "discovery": { "experiment": 0.1, "observe": 0.0, "teach": 0.25, "seconds": 20.0, "waste": 0.0 } },
+    { "id": "herb_lore", "name": "Herb lore", "era": 1, "requires": [], "recipes": [ "poultice" ], "buildings": [ "healer_hut" ],
+      "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "ritual", "name": "Rites", "era": 1, "requires": [ "fire_making" ], "recipes": [], "buildings": [ "totem" ],
+      "discovery": { "experiment": 0.06, "observe": 0.0, "teach": 0.3, "seconds": 30.0, "waste": 0.0 } },
+    { "id": "pottery", "name": "Pottery", "era": 2, "requires": [ "fire_making", "wattle_and_daub" ], "recipes": [ "fired_brick" ], "buildings": [ "kiln" ],
+      "discovery": { "experiment": 0.01, "observe": 0.2, "teach": 0.15, "seconds": 60.0, "waste": 0.4 } },
+    { "id": "smelting", "name": "Smelting", "era": 2, "requires": [ "pottery", "flint_knapping" ], "recipes": [ "copper_ingot" ], "buildings": [ "forge" ],
+      "discovery": { "experiment": 0.01, "observe": 0.2, "teach": 0.1, "seconds": 60.0, "waste": 0.5 } }
   ],
   "knowledge": {
     "lessonSeconds": 20.0,
@@ -1021,16 +1142,16 @@
                   "lethal": 1.6, "restAbove": 0.25, "careSeconds": 20.0 },
     "morale": { "start": 0.4, "boldness": 0.6, "hurt": 1.2, "allyDown": 0.2, "fleeBelow": 0.25, "fleeHealth": 25.0, "recover": 0.02 },
     "threats": { "hostile": 0.5, "sight": 24.0, "safety": 30.0, "alarm": 30.0, "groupRadius": 12.0, "fleeDistance": 30.0, "safeDistance": 26.0, "forgetSeconds": 20.0,
-                 "bold": 1.0, "health": 0.8, "odds": 1.0, "kin": 0.8, "camp": 0.4, "fear": 1.2, "timid": 0.8, "childrenFight": false },
+                 "bold": 1.0, "health": 0.8, "odds": 1.0, "kin": 0.8, "camp": 0.4, "walls": 0.5, "fear": 1.2, "timid": 0.8, "childrenFight": false },
     "predators": {
       "fox": { "tag": "Animal.Fox", "prey": "child", "weakHealth": 40.0, "alone": 8.0, "hungry": 50.0, "sight": 14.0, "weapon": "bite", "health": 30.0, "speed": 2.6,
                "boldness": 0.5, "meal": 60.0, "giveUp": 25.0 }
     },
     "hunts": {
-      "rabbit": { "tag": "Animal.Rabbit", "item": "meat", "units": 2, "health": 10.0, "speed": 2.2, "weapon": "fists", "fightsBack": false, "toolTag": "",
+      "rabbit": { "tag": "Animal.Rabbit", "item": "meat", "units": 2, "byproduct": "hide", "byproductUnits": 1, "health": 10.0, "speed": 2.2, "weapon": "fists", "fightsBack": false, "toolTag": "",
                   "priority": 0.9, "range": 50.0, "hunters": 2 }
     },
-    "raids": { "every": 60.0, "cooldown": 1200.0, "want": 1.0, "bold": 0.8, "hunger": 0.8, "grievance": 0.5, "hostility": 0.4, "party": 2, "maxParty": 4,
+    "raids": { "every": 60.0, "cooldown": 1200.0, "want": 1.0, "bold": 0.8, "hunger": 0.8, "grievance": 0.5, "hostility": 0.4, "defense": 0.5, "party": 2, "maxParty": 4,
                "partyHealth": 60.0, "stealSeconds": 3.0, "carry": 4, "steal": [ "Item.Food" ], "retreat": 0.5, "wrong": 1.0, "forget": 0.1, "reach": 4.0,
                "maxSeconds": 600.0 },
     "hostile": []

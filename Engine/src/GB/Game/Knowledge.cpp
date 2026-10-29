@@ -173,6 +173,10 @@ namespace GB
 		if (!m_Techs) return {};
 		const AgentKnowledge* k = Of(name);
 		if (!k || now < k->NextTry) return {};
+		// first what it has the materials of (by id); an idea (nothing to hold) only when there is none of those, the least tried first, so an idea that
+		// is always at hand never stands in front of the others
+		std::string idea;
+		int ideaTries = 0;
 		for (const auto& [id, t] : m_Techs->Techs)
 		{
 			if (t.Discovery.Experiment <= 0.0f || !CanLearn(name, id)) continue;
@@ -185,13 +189,15 @@ namespace GB
 				if (recipe) *recipe = rid;
 				return id;
 			}
-			if (t.Recipes.empty())   // an idea: nothing to hold
+			if (t.Recipes.empty())
 			{
-				if (recipe) recipe->clear();
-				return id;
+				const auto tried = k->Tries.find(id);
+				const int n = tried == k->Tries.end() ? 0 : tried->second;
+				if (idea.empty() || n < ideaTries) { idea = id; ideaTries = n; }
 			}
 		}
-		return {};
+		if (!idea.empty() && recipe) recipe->clear();
+		return idea;
 	}
 
 	std::vector<KnowledgeEvent> ClanKnowledge::Experiment(const std::string& name, double now, Inventory& store, Inventory& bag, const RecipeBook& book)

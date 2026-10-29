@@ -8,7 +8,6 @@
   "deferred": {
     "grain": "grain is harvested from fields (E7: the economy section's crops, sown with grain_seed of wild_grain), which the reachability check does not read yet",
     "dried_berry": "drying needs the drying rack, a station that the buildings (H8, E9) give",
-    "mud_brick": "drying needs the drying rack, which arrives with the buildings (E9)",
-    "copper_axe": "needs copper ingots, and smelting needs the forge (E10)"
+    "mud_brick": "drying needs the drying rack, which arrives with the buildings (E9)"
   }
 }

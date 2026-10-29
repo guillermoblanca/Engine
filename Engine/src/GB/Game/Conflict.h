@@ -24,6 +24,7 @@ namespace GB
 		bool Kin = false;          // the threat attacks one of its kin or a child of the clan
 		bool Camp = false;         // the threat is at the camp
 		bool Child = false;
+		float Defense = 0.0f;      // the camp's defense (its palisades): it counts when the threat is at the camp
 		float FightCulture = 1.0f, FleeCulture = 1.0f;
 	};
 
@@ -41,12 +42,13 @@ namespace GB
 	struct RaidMotive
 	{
 		float Score = 0.0f;
-		float Boldness = 0.0f, Hunger = 0.0f, Grievance = 0.0f, Hostility = 0.0f;
+		float Boldness = 0.0f, Hunger = 0.0f, Grievance = 0.0f, Hostility = 0.0f, Defense = 0.0f;   // (Defense is taken off)
 		std::string Why() const;
 	};
 
-	// Why a clan would raid a target: its adults' boldness, how short of food it is (0..1), its grievance against the target and its hostility.
-	RaidMotive WeighRaid(const RaidRules& rules, float meanBoldness, float hunger, float grievance, float hostility);
+	// Why a clan would raid a target: its adults' boldness, how short of food it is (0..1), its grievance against the target and its hostility, less
+	// what the target's defense (its palisades, RaidTarget::Defense) puts it off.
+	RaidMotive WeighRaid(const RaidRules& rules, float meanBoldness, float hunger, float grievance, float hostility, float defense = 0.0f);
 
 	// A candidate raider: who, how fit (health 0..100), how bold and strong, whether it is a child or busy elsewhere.
 	struct RaiderCandidate

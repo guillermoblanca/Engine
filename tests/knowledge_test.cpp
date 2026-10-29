@@ -61,8 +61,8 @@ static void TestData()
 	Check(!LoadTechs(R"({ "techs": [ { "id": "a", "requires": [ "a" ] } ] })", tree).empty(), "a technology cannot require itself");
 	Check(!LoadTechs(R"({ "techs": [ { "id": "a", "discovery": { "chance": 0.5 } } ] })", tree).empty(), "an unknown discovery field is refused");
 	Check(LoadTechs(R"({ "items": [] })", tree).empty() && tree == defaults, "a document without techs changes nothing");
-	Check(LoadTechs(R"({ "techs": [ { "id": "weaving", "requires": [ "basketry" ], "recipes": [ "cordage" ] } ], "knowledge": { "seed": 7 } })", tree).empty()
-		&& tree.Find("weaving") && tree.Rules.Seed == 7 && tree.Rules.LessonSeconds == 20.0f && tree.Techs.size() == defaults.Techs.size() + 1, "a technology is added by id and the rules replaced");
+	Check(LoadTechs(R"({ "techs": [ { "id": "netting", "requires": [ "basketry" ], "recipes": [ "cordage" ] } ], "knowledge": { "seed": 7 } })", tree).empty()
+		&& tree.Find("netting") && tree.Rules.Seed == 7 && tree.Rules.LessonSeconds == 20.0f && tree.Techs.size() == defaults.Techs.size() + 1, "a technology is added by id and the rules replaced");
 }
 
 static void TestGating()
@@ -95,7 +95,9 @@ static void TestGating()
 	Inventory copy = store;
 	Check(!recipes.Craft(items, copy, "flint_axe", "workbench", &known) && copy.Count("flint") == 4, "and crafting it does nothing");
 	Check(recipes.Craft(items, copy, "flint_axe", "workbench", nullptr) && copy.Count("flint_axe") == 1, "nullptr knows everything (the old callers)");
-	Check(recipes.Known(&known).size() + 4 == recipes.Ids().size(), "four recipes are locked: two flint tools, the basket and the copper ingot");
+	size_t locked = 0;   // what the technologies not known at the start unlock (the Stone-Age tree, docs/PROGRESION.md)
+	for (const auto& [id, t] : techs.Techs) if (!t.Known) locked += t.Recipes.size();
+	Check(locked == 14 && recipes.Known(&known).size() + locked == recipes.Ids().size(), "fourteen recipes are locked: flint tools and spear, basket, mat, daub, stakes, leather and its bag, cooked and smoked meat, poultice, fired brick and the copper ingot");
 
 	TechTree gated = techs;   // a node only those who know a technology work
 	gated.Techs["flint_knapping"].Nodes = { "flint_outcrop" };
@@ -161,7 +163,10 @@ static void TestExperiment()
 	k.SetTechs(&techs);
 	k.Join("Ana");
 	Inventory store(40, 0.0f), bag(12, 0.0f);
-	Check(k.NextExperiment("Ana", 0.0, store, bag, recipes).empty(), "with nothing at hand there is nothing to try");
+	{
+		std::string none = "x";
+		Check(k.NextExperiment("Ana", 0.0, store, bag, recipes, &none) == "ritual" && none.empty(), "with nothing at hand only an idea is tried (rites: nothing to hold)");
+	}
 	bag.Add(items, "branch", 2);
 	store.Add(items, "reed", 5);
 	std::string recipe;
@@ -300,7 +305,9 @@ static void TestReachability()
 	Check(packs.Load("era1_ampliado", dir, &report, strict).empty(), "era1 and era1_ampliado load strict with their technologies");
 	for (const std::string& p : report.Problems) std::fprintf(stderr, "  %s\n", p.c_str());
 	Check(techs.Find("flint_knapping") && techs.Find("tillage") && techs.Find("bone_working"), "both packs' technologies are in");
-	Check(Has(report.Notes, "tech 'smelting' can never be discovered") && Has(report.Notes, "deferred"), "smelting waits for the forge: a note, deferred");
+	for (const std::string& n : report.Notes) std::fprintf(stderr, "  note: %s\n", n.c_str());
+	Check(!Has(report.Notes, "smelting") && !Has(report.Notes, "copper"), "nothing waits for the forge: smelting is found with the forge it unlocks (era 2 preview)");
+	Check(techs.Techs.size() >= 20 && techs.Find("timber_framing") && techs.Find("pottery") && buildings.size() >= 16, "the Stone-Age tree: twenty technologies and sixteen buildings");
 	Check(!Has(report.Notes, "section 'techs' has no loader") && !Has(report.Notes, "section 'knowledge' has no loader"), "nothing of the techs section goes unread");
 
 	// Hand-made content: a recipe behind a technology nobody can find.
