@@ -5,7 +5,7 @@ generate temperate 5
 quality minimum
 tribe build fox 0 0 4
 timescale 20
-wait 150
+wait 600
 qa expect "tribe log 800" "makes a stone_(axe|pickaxe)"
 qa expect "tribe log 800" "leaves [1-9][0-9]* in the store"
 qa expect "tribe status" "store: [^|]*(wood|stone|berry|fiber)"

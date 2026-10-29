@@ -61,7 +61,7 @@ namespace GB
 		float Radius = 12.0f;            // someone this close, free or idle, can be talked to
 		float Score = 0.9f;              // base worth of the option ...
 		float Want = 85.0f;              // ... when its Company is under this (it grows as Company falls; x Evening at the camp in the evening) ...
-		float Evening = 1.5f;
+		float Evening = 3.0f;
 		float Cooldown = 40.0f;          // ... and not again before this many seconds after its last talk
 		float GreetAfter = 600.0f;       // two who have not talked for this long greet
 		float GroomAbove = 0.35f;        // affinity for grooming (kin and close friends)

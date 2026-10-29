@@ -536,7 +536,7 @@ namespace GB
 			if (!nearest) continue;
 			char why[128];
 			std::snprintf(why, sizeof why, "%d food for %d; %s %.0f m from the camp", food, alive, nearest->Name.c_str(), static_cast<double>(best));
-			m_Board.Post("hunt", h.Tag, "hunting", 1.0f, h.Priority * (0.5f + short_), h.Hunters, why, m_Time, rules);
+			m_Board.Post("hunt", h.Tag, "hunting", 1.0f, h.Priority * (0.5f + 2.0f * short_), h.Hunters, why, m_Time, rules);
 		}
 	}
 
@@ -589,7 +589,7 @@ namespace GB
 				o.Target = prey->Name;
 				o.Where = prey->Pos;
 				const float reach = Falloff(best, 60.0f);
-				o.Score = 0.9f * reach;
+				o.Score = 0.9f * reach * std::max(1.0f, held->Priority);   // (the board's priority carries: a clan short of food hunts before it tops up stock)
 				o.Commit = 5.0f;
 				o.Factors.push_back({ "hunt", 0.9f });
 				o.Factors.push_back({ "distance", reach });
@@ -670,7 +670,7 @@ namespace GB
 					const Job* held = m_Board.ClaimOf(x.Name);
 					const AbilitySystemComponent* prey = m_Gameplay->Find(o.Target);
 					if (!held || held->Kind != "hunt" || !prey || !prey->HasTag(held->Target)) continue;
-					if (IsBusy(x) && x.Job != "gather" && !x.Job.empty() && x.Job != "rest") continue;   // (it ends what it cannot drop first)
+					if (IsBusy(x) && x.Job != "gather" && x.Job != "explore" && !x.Job.empty() && x.Job != "rest") continue;   // (a scout after a food node leaves it for the hunt that feeds the clan)   // (it ends what it cannot drop first)
 					if (IsBusy(x)) Order(x, "wait 0.1");
 					x.Mind.NextThink = std::min(x.Mind.NextThink, m_Time);
 				}

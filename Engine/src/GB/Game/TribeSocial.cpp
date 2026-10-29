@@ -39,10 +39,21 @@ namespace GB
 			const size_t to = s.find(' ', from);
 			return s.substr(from, to == std::string::npos ? std::string::npos : to - from);
 		}
+		std::string Tail(const std::string& s, int n)   // from the n-th word to the end (a snare is called "Snare 2": its name has a space)
+		{
+			size_t from = 0;
+			for (int i = 0; i < n; ++i) { from = s.find(' ', from); if (from == std::string::npos) return {}; ++from; }
+			return s.substr(from);
+		}
 		std::string Num(float v) { char b[32]; std::snprintf(b, sizeof b, "%.2f", static_cast<double>(v)); return b; }
 		bool Idle(const TribeMember& m)
 		{
 			return m.Job.empty() || m.Job == "rest" || m.Job == "warm" || m.Job == "socialize" || m.Job == "regroup";
+		}
+		// In the evening the errands of the day can wait: someone gathering or carrying leaves them to talk (otherwise a clan with work on the board talks never)
+		bool EveningFree(const TribeMember& m, bool evening)
+		{
+			return evening && (m.Job == "gather" || m.Job == "deposit" || m.Job == "deliver");
 		}
 		// jobs that keep a member from a rite (it fights, flees, raids, is away on an expedition or moving camp)
 		bool Away(const TribeMember& m)
@@ -633,13 +644,15 @@ namespace GB
 		const TalkRules& T = R.Talk;
 		if (!T.Kinds.empty() && m_Time - me.LastTalk >= static_cast<double>(T.Cooldown))
 		{
+			const float hourNow = Hour();
+			const bool eveningNow = hourNow >= Config.Needs.NightFrom - Config.Agenda.DuskHours || hourNow < Config.Needs.NightTo;
 			const TribeMember* best = nullptr;
 			float bestScore = -1e9f, bestDistance = 0.0f;
 			for (const TribeMember& o : m_Members)
 			{
-				if (&o == &m || o.Dead || !o.Body || o.Player || !Idle(o) || o.Abstract != m.Abstract) continue;
+				if (&o == &m || o.Dead || !o.Body || o.Player || !(Idle(o) || EveningFree(o, eveningNow)) || o.Abstract != m.Abstract) continue;
 				const float d = glm::distance(pos, Where(o));
-				if (d > T.Radius) continue;
+				if (d > T.Radius * (eveningNow ? 3.0f : 1.0f)) continue;   // (in the evening the clan comes together: those further out are called too)
 				const float s = 1.0f + m_Society.Affinity(Config.Society, m.Name, o.Name) + (Grief(o.Name) > T.ConsoleAbove ? 1.0f : 0.0f) - 0.5f * d / T.Radius;
 				if (s > bestScore) { bestScore = s; best = &o; bestDistance = d; }
 			}
@@ -703,14 +716,14 @@ namespace GB
 			for (const Snare& s : m_Social.Snares)
 			{
 				if (s.Caught.empty()) continue;
-				if (std::any_of(m_Members.begin(), m_Members.end(), [&](const TribeMember& x) { return &x != &m && x.Job == "snare" && Word(x.Detail, 1) == s.Name; })) continue;
+				if (std::any_of(m_Members.begin(), m_Members.end(), [&](const TribeMember& x) { return &x != &m && x.Job == "snare" && Tail(x.Detail, 1) == s.Name; })) continue;
 				UtilityOption o;
 				o.Kind = "snare";
 				o.Target = "collect " + s.Name;
 				o.Where = s.Pos;
 				const float reach = std::clamp(1.0f - glm::distance(pos, s.Pos) / 120.0f, 0.1f, 1.0f);
-				o.Score = 1.3f * reach;   // (food waiting in a trap: before the fox finds it)
-				Factor(o, "catch", 1.3f);
+				o.Score = 2.2f * reach;   // (food waiting in a trap: before the fox finds it, and before the stock errands of the board)
+				Factor(o, "catch", 2.2f);
 				o.Note = s.Name + " has caught " + s.Caught;
 				options.push_back(o);
 				break;
@@ -724,7 +737,7 @@ namespace GB
 				if (short_ <= 0.0f || !ClanKnowsTech(t.Tech)) continue;
 				const int out = static_cast<int>(std::count_if(m_Social.Snares.begin(), m_Social.Snares.end(), [&](const Snare& s) { return s.Trap == id && s.Caught.empty(); }));
 				if (out >= t.Max) continue;
-				if (std::any_of(m_Members.begin(), m_Members.end(), [&](const TribeMember& x) { return x.Job == "snare" && Word(x.Detail, 1) == id; })) continue;
+				if (std::any_of(m_Members.begin(), m_Members.end(), [&](const TribeMember& x) { return x.Job == "snare" && Tail(x.Detail, 1) == id; })) continue;
 				bool paid = true;
 				for (const auto& [item, n] : t.Cost) paid = paid && m_Store.Count(item) + m.Body->Bag().Count(item) >= n;
 				if (!paid) continue;
@@ -777,7 +790,7 @@ namespace GB
 		}
 		if (o.Kind == "snare")
 		{
-			const std::string what = Word(o.Target, 0), id = Word(o.Target, 1);
+			const std::string what = Word(o.Target, 0), id = Tail(o.Target, 1);
 			float seconds = 3.0f;
 			if (what == "set") { const auto t = R.Hunting.Traps.find(id); if (t == R.Hunting.Traps.end()) return false; seconds = t->second.Seconds; }
 			if (!Order(m, GoTo(o.Where, WaitFor(seconds)))) return false;
@@ -798,7 +811,7 @@ namespace GB
 		if (!Order(m, GoTo(o.Where - dir * 0.6f, WaitFor(k.Seconds)))) return false;
 		m.Job = "talk";
 		m.Detail = kind + " " + other->Name + (about.empty() ? std::string() : " " + about);
-		if (Idle(*other)) Send(*other, GoTo(o.Where + dir * 0.6f, WaitFor(k.Seconds + 1.5f)), "talk", kind + " " + m.Name + " listening");
+		if (Idle(*other) || EveningFree(*other, Hour() >= Config.Needs.NightFrom - Config.Agenda.DuskHours || Hour() < Config.Needs.NightTo)) Send(*other, GoTo(o.Where + dir * 0.6f, WaitFor(k.Seconds + 1.5f)), "talk", kind + " " + m.Name + " listening");
 		return true;
 	}
 
@@ -818,7 +831,7 @@ namespace GB
 		if (job == "snare")
 		{
 			const std::string detail = m.Detail;
-			const std::string what = Word(detail, 0), id = Word(detail, 1);
+			const std::string what = Word(detail, 0), id = Tail(detail, 1);
 			if (what == "set")
 			{
 				const auto t = R.Hunting.Traps.find(id);

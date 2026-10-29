@@ -627,7 +627,7 @@
       "greetAfter": 600.0,
       "groomAbove": 0.35,
       "hungerBelow": 55.0,
-      "evening": 1.5,
+      "evening": 3.0,
       "kinds": {
         "chat": {
           "company": 20.0,

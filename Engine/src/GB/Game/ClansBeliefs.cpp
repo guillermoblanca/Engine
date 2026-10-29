@@ -21,7 +21,7 @@ namespace GB
 		r.Base = std::clamp(r.Base + w, -1.0f, 1.0f);
 		r.Trust = std::clamp(r.Trust + (w > 0.0f ? Rules.Relations.TrustGain * w : Rules.Relations.TrustLoss * w), 0.0f, 1.0f);
 		// and they spread: each clan's beliefs move towards the other's, more between open clans
-		const float share = std::clamp(rules.Spread * 0.5f * (Openness(a) + Openness(b)), 0.0f, 0.5f);
+		const float share = std::clamp(rules.Spread * 0.5f * (Openness(a) + Openness(b)) * similarity, 0.0f, 0.5f);   // (one hears best who already half agrees: opposed clans do not converge)
 		const std::map<std::string, float> before = sa.Beliefs;
 		for (auto& [id, v] : sa.Beliefs) if (const auto o = sb.Beliefs.find(id); o != sb.Beliefs.end()) v += (o->second - v) * share;
 		for (auto& [id, v] : sb.Beliefs) if (const auto o = before.find(id); o != before.end()) v += (o->second - v) * share;

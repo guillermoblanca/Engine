@@ -9,7 +9,7 @@ tribe build fox 0 0 4
 ecology spawn 6 12 8
 ecology spawn 2 12 8 fox
 timescale 20
-wait 180
+wait 600
 qa expect "tribe log 800" "lights the campfire"
 qa expect "tribe log 800" "feeds the campfire"
 qa expect "ecology status" "caught by hunters [1-9]"

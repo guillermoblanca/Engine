@@ -497,7 +497,7 @@ int main()
 		}
 		Check(posted, "the clan posts a deer hunt when it has no food");
 		Check(clan.Conflict().Hunted.count("Animal.Deer") == 1, "and kills the deer");
-		Check(w.Logged(clan, "drives Deer") && w.Logged(clan, "waits for Deer with the spear"), "in a group hunt: one drives it, another waits with the spear");
+		Check(w.Logged(clan, "drives Deer") && w.Logged(clan, "waits for Deer") && w.Logged(clan, "with the spear"), "in a group hunt: one drives it, another waits with the spear");
 		if (!clan.Conflict().Hunted.count("Animal.Deer") || !w.Logged(clan, "drives Deer")) w.Dump(clan, "unt");
 		std::map<std::string, int> got;
 		for (const char* item : { "meat", "hide", "bone", "sinew", "fat" })

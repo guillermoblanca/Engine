@@ -276,7 +276,7 @@ namespace GB
 	{
 		TribeAgenda a;
 		a.Factors["night"] = { { "sleep", 1.6f }, { "gather", 0.4f }, { "explore", 0.4f }, { "tool", 0.4f }, { "fire", 0.4f } };
-		a.Factors["dusk"] = { { "socialize", 2.5f }, { "warm", 1.5f }, { "deposit", 1.3f }, { "explore", 0.3f } };
+		a.Factors["dusk"] = { { "socialize", 2.5f }, { "warm", 1.5f }, { "deposit", 1.3f }, { "explore", 0.3f } };   // the evening is the clan's time together, not for the errands of the day
 		return a;
 	}
 
