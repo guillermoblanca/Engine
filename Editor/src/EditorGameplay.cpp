@@ -724,10 +724,11 @@ namespace GB::Editor
 		{
 			// `resources world [density]`: the nodes the data spreads over the whole generated map, by biome (ResourceNodeDef::Spawn)
 			if (!m_World.IsBuilt()) return { false, "resources world needs a generated world (generate temperate|alpine|desert <seed>)" };
-			const float density = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 1.0f;
+			// no density = the abundance of assets/data/bosques.json (rich by default: a new game starts with resources to spare)
+			const float density = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : (m_Nature.Abundance > 0.0f ? m_Nature.Abundance : 1.0f);
 			if (!(density > 0.0f && density <= 10.0f)) return { false, "the density must be above 0 and at most 10" };
 			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
-			const std::vector<ResourceSpot> spots = PlanWorldResources(ResourceGroundOf(m_World.World()), m_NodeDefs, m_World.World().Desc.Seed, density);
+			const std::vector<ResourceSpot> spots = PlanWorldNature(ResourceGroundOf(m_World.World()), m_NodeDefs, NatureFor(density), m_World.World().Desc.Seed);
 			const ResourceLayout layout = BuildWorldResources(m_SceneEditor.World(), spots, m_NodeDefs);
 			m_WildResources = density;   // the seed makes them again: a save keeps only what changed of them (EditorSaveHost::BuildBaseline)
 			m_SceneEditor.Select(NullEntity);
@@ -735,7 +736,7 @@ namespace GB::Editor
 			m_SceneEditor.Commit();
 			std::string kinds;
 			for (const auto& [id, n] : CountSpots(spots)) kinds += (kinds.empty() ? "" : ", ") + std::to_string(n) + " " + id;
-			return { true, std::to_string(layout.Nodes.size()) + " resource nodes spread over the world (density " + std::to_string(density).substr(0, 4) + "): " + (kinds.empty() ? "none" : kinds) };
+			return { true, std::to_string(layout.Nodes.size()) + " resource nodes spread over the world (density " + std::to_string(density).substr(0, 4) + ", " + std::to_string(m_Nature.Patches.size()) + " kinds of patch): " + (kinds.empty() ? "none" : kinds) };
 		}
 		if (sub != "status") return { false, "usage: resources build [x z [workers]] | world [density] | status" };
 			// Grouped by type: "tree: 3 nodes, 11 units, 1 depleted [tree 1: 5, tree 2: 0 (depleted), ...]"

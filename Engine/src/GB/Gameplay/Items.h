@@ -156,6 +156,11 @@ namespace GB
 		float WaterWithin = 0.0f;           // > 0: only this close (metres) to the lake or the river
 		float Clump = 0.0f;                 // 0..0.99: share of the ground a noise field leaves out, so the nodes gather in groves and veins
 		int Max = 0;                        // most nodes over the whole map (0 = no limit)
+		// How a placed node looks (docs/BOSQUES.md): "tree" or "rock" = drawn with a procedural model of the generated world (a Prop, chosen by the seed)
+		// instead of primitives; ScaleMin..ScaleMax = the size of that model; Stack = most extra smaller rocks piled on top of a rock.
+		std::string Prop;
+		float ScaleMin = 1.0f, ScaleMax = 1.0f;
+		int Stack = 0;
 		bool Placed() const { return PerHectare > 0.0f && !Biomes.empty(); }
 	};
 
@@ -173,6 +178,7 @@ namespace GB
 		// match on it (Chop on Resource.Wood, Mine on Resource.Stone and below, Gather on Resource.Plant, Collect on Resource.Loose). Empty = worked out
 		// from the item as before (wood -> Wood, stone -> Stone, anything else -> Plant), so an older content file still works.
 		std::string Kind;
+		bool Decor = false;                 // scenery only: no gameplay (no gathering, no tags), just something to look at (flowers)
 		std::string Model;                  // the primitives it is drawn with ("" = the node's id; an unknown model is a plain grey blob)
 		ResourcePatchDef Patch;
 		ResourceSpawnDef Spawn;

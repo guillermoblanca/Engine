@@ -85,7 +85,7 @@ namespace GB
 	{
 		std::string World = "temperate";
 		int Seed = 5;
-		float Resources = 1.0f;                // density of the wild resource nodes
+		float Resources = 2.0f;                // density of the wild resource nodes
 		int Members = 4;                       // NPCs of the player's clan (the player is one more)
 		int Clans = 2;                         // clans in the world, the player's included
 		std::string Model = "packs/full/X Bot.fbx";   // the characters (relative to the working directory or the assets), ...

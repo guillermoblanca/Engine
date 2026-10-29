@@ -457,6 +457,7 @@ namespace GB
 					str(o, "ability", d.Ability);
 					str(o, "kind", d.Kind);
 					str(o, "model", d.Model);
+					d.Decor = o.value("decor", false);
 					if (!d.Kind.empty() && !GameplayTag::IsValidTagName("Resource." + d.Kind)) return "node '" + d.Id + "': bad kind " + d.Kind;
 					if (auto pt = o.find("patch"); pt != o.end())
 					{
@@ -487,6 +488,12 @@ namespace GB
 						d.Spawn.WaterWithin = sp->value("waterWithin", 0.0f);
 						d.Spawn.Clump = sp->value("clump", 0.0f);
 						d.Spawn.Max = sp->value("max", 0);
+						str(*sp, "prop", d.Spawn.Prop);
+						d.Spawn.ScaleMin = sp->value("scaleMin", 1.0f);
+						d.Spawn.ScaleMax = sp->value("scaleMax", d.Spawn.ScaleMin);
+						d.Spawn.Stack = sp->value("stack", 0);
+						if (!d.Spawn.Prop.empty() && d.Spawn.Prop != "tree" && d.Spawn.Prop != "rock") return "node '" + d.Id + "': spawn prop must be tree or rock";
+						if (!(d.Spawn.ScaleMin >= 0.1f && d.Spawn.ScaleMax >= d.Spawn.ScaleMin && d.Spawn.ScaleMax <= 6.0f) || d.Spawn.Stack < 0 || d.Spawn.Stack > 4) return "node '" + d.Id + "': spawn scaleMin/scaleMax (0.1..6) or stack (0..4) out of range";
 						if (!(d.Spawn.PerHectare >= 0.0f && d.Spawn.PerHectare <= 500.0f)) return "node '" + d.Id + "': spawn perHectare must be between 0 and 500";
 						if (!(d.Spawn.Spacing >= 1.0f && d.Spawn.Spacing <= 100.0f)) return "node '" + d.Id + "': the spawn spacing must be between 1 and 100";
 						if (!(d.Spawn.MaxSlope >= 0.0f && d.Spawn.MaxSlope <= 90.0f)) return "node '" + d.Id + "': spawn maxSlope must be between 0 and 90";
@@ -568,18 +575,22 @@ namespace GB
 			if (!d.Ability.empty()) o["ability"] = d.Ability;
 			if (!d.Kind.empty()) o["kind"] = d.Kind;
 			if (!d.Model.empty()) o["model"] = d.Model;
+			if (d.Decor) o["decor"] = true;
 			if (d.Patch.Count != 0 || d.Patch.PerWorker != 0)
 			{
 				Json pt = { { "count", d.Patch.Count }, { "perWorker", d.Patch.PerWorker }, { "spacing", Round3(d.Patch.Spacing) }, { "shape", d.Patch.Shape } };
 				if (!d.Patch.Near.empty()) pt["near"] = d.Patch.Near;
 				o["patch"] = pt;
 			}
-			if (!d.Spawn.Biomes.empty() || d.Spawn.PerHectare > 0.0f)   // a half-filled spawn is written too, so nothing is lost
+			if (!d.Spawn.Biomes.empty() || d.Spawn.PerHectare > 0.0f || !d.Spawn.Prop.empty())   // a half-filled spawn is written too, so nothing is lost
 			{
 				Json sp = { { "biomes", d.Spawn.Biomes }, { "perHectare", Round3(d.Spawn.PerHectare) }, { "spacing", Round3(d.Spawn.Spacing) }, { "maxSlope", Round3(d.Spawn.MaxSlope) } };
 				if (d.Spawn.WaterWithin > 0.0f) sp["waterWithin"] = Round3(d.Spawn.WaterWithin);
 				if (d.Spawn.Clump > 0.0f) sp["clump"] = Round3(d.Spawn.Clump);
 				if (d.Spawn.Max > 0) sp["max"] = d.Spawn.Max;
+				if (!d.Spawn.Prop.empty()) sp["prop"] = d.Spawn.Prop;
+				if (d.Spawn.ScaleMin != 1.0f || d.Spawn.ScaleMax != 1.0f) { sp["scaleMin"] = Round3(d.Spawn.ScaleMin); sp["scaleMax"] = Round3(d.Spawn.ScaleMax); }
+				if (d.Spawn.Stack > 0) sp["stack"] = d.Spawn.Stack;
 				o["spawn"] = sp;
 			}
 			jn.push_back(o);

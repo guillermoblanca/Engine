@@ -29,6 +29,7 @@
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
+#include "GB/Gameplay/WorldResources.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
 #include "GB/Renderer/Framebuffer.h"
@@ -199,6 +200,8 @@ namespace GB::Editor
 		WorldInstance m_World;
 		WorldDesc m_WorldDesc;
 		float m_WildResources = 0.0f;   // density of the last `resources world` on this world (0 = none): saved in WorldParams, the nodes go in the baseline
+		NatureConfig m_Nature;          // the patches (forests, stony ground, flower beds) of assets/data/bosques.json; its abundance is the default density
+		NatureConfig NatureFor(float density) const { NatureConfig c = m_Nature; c.Abundance = density; return c; }
 		std::unique_ptr<EnvironmentMap> m_EnvMap;
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;

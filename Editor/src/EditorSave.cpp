@@ -159,7 +159,7 @@ namespace GB::Editor
 			scratch.PopulateEnvironment(generated.Trees, generated.Rocks);
 			if (world.WildResources > 0.0f)
 			{
-				const std::vector<ResourceSpot> spots = PlanWorldResources(ResourceGroundOf(generated), m_App.m_NodeDefs, generated.Desc.Seed, world.WildResources);
+				const std::vector<ResourceSpot> spots = PlanWorldNature(ResourceGroundOf(generated), m_App.m_NodeDefs, m_App.NatureFor(world.WildResources), generated.Desc.Seed);
 				BuildWorldResources(scratch.World(), spots, m_App.m_NodeDefs);   // its root is tagged "world", like the groups of trees and rocks
 			}
 		};

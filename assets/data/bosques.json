@@ -1,0 +1,175 @@
+{
+  "abundance": 2.0,
+  "maxNodes": 3200,
+  "patches": [
+    {
+      "id": "forest",
+      "biomes": {
+        "Forest": 0.95,
+        "Meadow": 0.3
+      },
+      "cell": 60,
+      "radiusMin": 15,
+      "radiusMax": 38,
+      "spacing": 3.8,
+      "fill": 0.92,
+      "clearings": 0.28,
+      "maxSlope": 30,
+      "max": 2400,
+      "mix": [
+        {
+          "node": "tree",
+          "weight": 5
+        },
+        {
+          "node": "young_tree",
+          "weight": 3
+        },
+        {
+          "node": "old_tree",
+          "weight": 1.6
+        },
+        {
+          "node": "berry_bush",
+          "weight": 0.4
+        },
+        {
+          "node": "hazelnut_bush",
+          "weight": 0.3
+        },
+        {
+          "node": "mushroom_patch",
+          "weight": 0.5
+        },
+        {
+          "node": "herb_patch",
+          "weight": 0.2
+        },
+        {
+          "node": "fallen_branch",
+          "weight": 0.8
+        },
+        {
+          "node": "bird_nest",
+          "weight": 0.08
+        }
+      ]
+    },
+    {
+      "id": "stony",
+      "biomes": {
+        "Rock": 0.8,
+        "Meadow": 0.12,
+        "Shore": 0.2,
+        "Dunes": 0.4
+      },
+      "cell": 70,
+      "radiusMin": 6,
+      "radiusMax": 16,
+      "spacing": 3.0,
+      "fill": 0.7,
+      "clearings": 0.1,
+      "maxSlope": 45,
+      "max": 500,
+      "mix": [
+        {
+          "node": "rock_small",
+          "weight": 4
+        },
+        {
+          "node": "rock",
+          "weight": 3
+        },
+        {
+          "node": "boulder",
+          "weight": 1
+        },
+        {
+          "node": "rock_pile",
+          "weight": 1.5
+        },
+        {
+          "node": "loose_stones",
+          "weight": 2
+        },
+        {
+          "node": "flint_outcrop",
+          "weight": 0.3
+        }
+      ]
+    },
+    {
+      "id": "meadow_forage",
+      "biomes": {
+        "Meadow": 0.35
+      },
+      "cell": 50,
+      "radiusMin": 6,
+      "radiusMax": 14,
+      "spacing": 4.0,
+      "fill": 0.75,
+      "clearings": 0.15,
+      "maxSlope": 20,
+      "max": 300,
+      "mix": [
+        {
+          "node": "wild_roots",
+          "weight": 2
+        },
+        {
+          "node": "berry_bush",
+          "weight": 1
+        },
+        {
+          "node": "fiber_grass",
+          "weight": 2
+        },
+        {
+          "node": "herb_patch",
+          "weight": 0.5
+        },
+        {
+          "node": "fallen_branch",
+          "weight": 0.3
+        }
+      ]
+    },
+    {
+      "id": "flower_beds",
+      "biomes": {
+        "Meadow": 0.55,
+        "Forest": 0.1
+      },
+      "cell": 40,
+      "radiusMin": 5,
+      "radiusMax": 11,
+      "spacing": 1.6,
+      "fill": 0.7,
+      "clearings": 0.1,
+      "maxSlope": 20,
+      "max": 260,
+      "mix": [
+        {
+          "node": "flowers_red",
+          "weight": 1
+        },
+        {
+          "node": "flowers_yellow",
+          "weight": 1.5
+        },
+        {
+          "node": "flowers_white",
+          "weight": 1.5
+        },
+        {
+          "node": "flowers_blue",
+          "weight": 1
+        },
+        {
+          "node": "flowers_purple",
+          "weight": 0.8
+        }
+      ]
+    }
+  ]
+}
