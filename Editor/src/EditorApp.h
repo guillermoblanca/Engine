@@ -49,6 +49,7 @@ namespace GB::Editor
 	// The editor: a dockable ImGui interface around a viewport that renders a scene with the engine's renderer.
 	// Everything it shows is also reachable by text commands (EditorApp::Execute), so people, scripts and agents
 	// drive the same thing: `set post.ssao 0.8`, `generate alpine 4`, `time 21.5`, `screenshot out.png`...
+	struct PriorityGraphUi;   // EditorPriorityGraph.cpp
 	class EditorApp : public Application
 	{
 		friend class EditorSaveHost;
@@ -184,6 +185,10 @@ namespace GB::Editor
 		SimView QaView() const;
 		void StepQa();
 		void DrawQaPanel();
+		// the Priority Graph window (EditorPriorityGraph.cpp): the graph of decision priorities of the characters (docs/GRAFO_PRIORIDADES.md)
+		void DrawPriorityGraphPanel();
+		bool m_ShowPriorityGraph = false;
+		std::shared_ptr<PriorityGraphUi> m_PgUi;
 		void BuildDefaultLayout(unsigned int dockspaceId, float width, float height);
 
 		// scene

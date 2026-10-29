@@ -234,6 +234,7 @@ namespace GB::Editor
 		if (name == "Graph") return m_Panels.Graph;
 		if (name == "Tests") return m_Panels.Tests;
 		if (name == "QA") return m_Panels.QA;
+		if (name == "Priority Graph") return m_ShowPriorityGraph;
 		return false;
 	}
 
@@ -1372,6 +1373,7 @@ namespace GB::Editor
 		if (m_Panels.Graph) DrawGraphPanel();
 		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.QA) DrawQaPanel();
+		if (m_ShowPriorityGraph) DrawPriorityGraphPanel();
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
 		if (m_Panels.Demo) ImGui::ShowDemoWindow(&m_Panels.Demo);
@@ -1450,6 +1452,7 @@ namespace GB::Editor
 			ImGui::MenuItem("Hierarchy", nullptr, &m_Panels.Hierarchy);
 			ImGui::MenuItem("Inspector", nullptr, &m_Panels.Inspector);
 			ImGui::MenuItem("Tests", nullptr, &m_Panels.Tests);
+			ImGui::MenuItem("Priority Graph", nullptr, &m_ShowPriorityGraph);
 			ImGui::MenuItem("Viewport", nullptr, &m_Panels.Viewport);
 			ImGui::MenuItem("Properties", nullptr, &m_Panels.Properties);
 			ImGui::MenuItem("World", nullptr, &m_Panels.World);
