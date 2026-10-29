@@ -1947,6 +1947,7 @@ namespace GB
 		j["cursor"] = m_Cursor;
 		j["sights"] = m_SightsTime;
 		j["needTimer"] = m_NeedTimer;
+		if (m_LodTimer != 0.0f) j["lod"] = m_LodTimer;   // the clock of the level of detail: abstract members walk otherwise, so a load must look at the viewer when the run did
 		if (m_PlanTimer != 0.0f) j["plan"] = m_PlanTimer;   // the settlement planner's clock (its sites are entities, saved with the scene)
 		j["fire"] = m_Fire ? 1 : 0;   // its state is the interactive's (tags and attributes, saved with the gameplay)
 		j["camp"] = Json::array({ Config.Camp.x, Config.Camp.y, Config.CampY });
@@ -2035,6 +2036,7 @@ namespace GB
 		m_Cursor = j.value("cursor", static_cast<size_t>(0));
 		m_SightsTime = j.value("sights", -1e9);
 		m_NeedTimer = j.value("needTimer", 0.0f);
+		m_LodTimer = j.value("lod", 0.0f);
 		m_Board = std::move(board);
 		m_Explore = std::move(explore);
 		m_Econ = std::move(econ);

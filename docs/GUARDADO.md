@@ -123,6 +123,9 @@ existen y no están en la partida se quitan (la partida es toda la verdad sobre 
 Probado de extremo a extremo con el editor real sin ventana (`ctest`: `editor_replay`, `editor_replay_society`, `editor_replay_midrun`, `editor_replay_wild`; los guiones están en `Editor/tests/`, `--strict=1` hace que una línea que falla dé código de salida 1):
 un mundo generado con huerto y actores con habilidades; la pequeña sociedad (tribu de cinco, interactivos y conejos); y una grabación a mitad de la marcha (conejos paseando, una fogata ardiendo, otra estación) que se reproduce **en otro mundo** y termina con la misma huella.
 `editor_replay_wild` graba sobre un mundo con nodos de recurso repartidos (`resources world`) y la reproduce en otro mundo: los nodos vuelven desde la línea base de la semilla.
+`editor_replay_same_world` la reproduce en el **mismo** mundo, con una tribu lejos de la cámara (miembros abstractos) y una obra. Al cargar, los actores que ya
+existían empiezan como uno nuevo (sin las tareas de antes y sin suspender), los luchadores de la partida anterior se quitan antes de rehacer los sistemas de
+habilidades, la tribu guarda el reloj de su nivel de detalle (`lod`) y un miembro abstracto se guarda donde está su agente, no donde quedó su actor.
 
 ## Huecos reservados (sin activar)
 

@@ -74,6 +74,7 @@ gb_editor_script_test(editor_replay_society replay_society.txt "replay identical
 gb_editor_script_test(editor_replay_midrun replay_midrun.txt "replay identical")
 gb_editor_script_test(editor_game_camera game_camera.txt "game camera: observe Ana Biel")
 gb_editor_script_test(editor_replay_wild replay_wild.txt "replay identical")
+gb_editor_script_test(editor_replay_same_world replay_same_world.txt "replay identical")   # played in the world it was recorded in (H8)
 # The demos of the milestones (principle 7 of the plan): a scripted run of the real editor per milestone that asserts what the milestone promises with
 # `qa expect` and `qa check` (the invariants of the simulation, GB/Game/SimQA.h) and writes a `shot_ui` capture to the build directory (not versioned).
 gb_editor_script_test(editor_demo_h2 h2_gather_craft.txt "qa sim 1 day.*: 0 violation")

@@ -1,0 +1,14 @@
+# A replay played in the world it was recorded in (H8 found it did not end the same): a tribe at the chosen site, far from the camera, so its members
+# turn into abstract agents half a second in, with a construction site. The actors that already exist must start the replay as new ones would (no
+# tasks of the run that ended, not suspended), the clock of the level of detail travels with the tribe, and the fighters of the old run go before
+# the ability systems are rebuilt.
+generate temperate 5
+resources world
+site best
+tribe build fox
+settlement start shelter
+replay record
+wait 40
+replay stop replay_same_world
+replay play replay_same_world
+quit

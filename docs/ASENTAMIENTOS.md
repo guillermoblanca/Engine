@@ -179,9 +179,9 @@ queda atrás y el clan quiere otro.
 ## Límites y siguientes pasos
 
 - Una obra cada vez (`MaxSites`); sin territorio ni mapa de influencia; los edificios no son obstáculos de la navegación ni se nivela el suelo (E12).
-- Una repetición del editor (`replay record` y `replay play` en el mismo mundo) de una tribu que trabaja 300 tics no termina idéntica, con o sin obra y en suelo plano o generado
-  (comprobado en esta rama con la tribu sola): no es de H8, pero por eso la demo `editor_demo_h8` guarda y carga la partida con la obra a medias y comprueba los invariantes
-  (`qa check`, con el de edificios) en vez de grabar una repetición.
+- La repetición del editor en el mismo mundo (`replay record` y `replay play` sin cambiar de mundo) ya termina idéntica, con obra y miembros abstractos:
+  los actores que ya existían seguían con las tareas de la partida anterior (o suspendidos), el reloj del nivel de detalle no se guardaba y los luchadores de la
+  partida anterior armaban los sistemas de habilidades nuevos. Lo prueba `editor_replay_same_world`. La demo `editor_demo_h8` sigue guardando y cargando la obra a medias.
 - Al migrar no se llevan materiales ni se desmonta nada; las regiones de H12 no se usan aún como candidatos (la rejilla de 8 m cubre el mapa).
 - El aspecto son primitivas; no hay animaciones de obra (se usa `plant`).
 - El campo de H18 no se coloca con la elección de sitio; el almacén secundario no cambia su conservación por ser un edificio (lo dice su tipo en la economía).
