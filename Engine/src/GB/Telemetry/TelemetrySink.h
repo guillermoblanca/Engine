@@ -72,6 +72,22 @@ namespace GB
 		std::string Who, Other, Result, Text;
 	};
 
+	// One finished task: from the commitment it belonged to until it ended (`Result`: ok, empty, unreachable, failed).
+	struct TelemetryTask
+	{
+		int Clan = 0;
+		std::string Member, Kind, Target, Result, Reason;
+		double Start = 0.0, End = 0.0;
+	};
+
+	// One decision that changed what a member does: what it chose and the best options it weighed (JSON list of {kind, target, score, factors}).
+	struct TelemetryDecision
+	{
+		int Clan = 0;
+		double Time = 0.0;
+		std::string Member, Chosen, Target, Previous, Options;
+	};
+
 	struct TelemetryStats
 	{
 		uint64_t SamplesWritten = 0, SamplesDropped = 0, EventsWritten = 0, Transactions = 0, WriteErrors = 0;
@@ -103,6 +119,8 @@ namespace GB
 		void Sample(const TelemetrySample& row);
 		void ClanSample(const TelemetryClanSample& row);
 		void Event(const TelemetryEvent& row);
+		void Task(const TelemetryTask& row);
+		void Decision(const TelemetryDecision& row);
 
 	private:
 		struct Item

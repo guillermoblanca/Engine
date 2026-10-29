@@ -72,6 +72,7 @@ Hoy una corrida larga necesita el editor (`--hidden --script=...`), que exige GL
 ## Estado
 
 - **Paso 1 hecho** (`GB/Telemetry/TelemetrySink`, `Tribe::SetTelemetry`, `ClanWorld::SetTelemetry`): `runs`, `individuals`, `samples`, `clan_samples` y `events` (`say`, `task_end` con su resultado, y los eventos de la sociedad: nacimiento, muerte, pareja, edad adulta, norma, tradición). Se activa con `telemetry start <fichero.db> [cada s]`, `telemetry stop`, `telemetry status` o `--telemetry=<fichero.db>`; los tests están en `tribe_test.cpp`.
+- **Paso 2 hecho** (esquema versión 2): `tasks` (una fila por tarea terminada: miembro, tipo, objetivo, inicio del compromiso, fin, resultado, motivo) y `decisions` (solo cuando cambia lo que elige un miembro: elegido, objetivo, anterior y las 6 mejores opciones con puntuación y factores en JSON). Las decisiones son muestras: si la cola se llena se descartan, nunca los eventos ni las tareas.
 - Las tareas de tipo `rest` no generan `task_end`: no son una tarea y llenaban la tabla (12.000 filas por miembro en 250 s); quién está parado se ve en `samples.job`.
 - Primera lectura de una corrida con 3 clanes (250 s simulados): `events` muestra una forrajera que falla 1.242 veces con «cannot get next to 'fiber grass N'». El arreglo de los viajes fallidos no la corta del todo.
 

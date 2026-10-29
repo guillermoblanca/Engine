@@ -1,5 +1,6 @@
 #include "GB/Game/Tribe.h"
 #include "GB/Telemetry/TelemetrySink.h"
+#include <algorithm>
 #include <cmath>
 #include <nlohmann/json.hpp>
 
@@ -39,6 +40,35 @@ namespace GB
 		e.Result = result;
 		e.Text = text;
 		m_Telemetry->Event(e);
+	}
+
+	// A decision is written when what a member does changes (another kind or target than the last one it wrote), with the best six options it weighed.
+	void Tribe::EmitDecision(const TribeMember& m, const std::vector<UtilityOption>& options, const UtilityOption& chosen)
+	{
+		const std::string now = chosen.Kind + "|" + chosen.Target;
+		std::string& last = m_TelemetryLast[m.Name];
+		if (last == now) return;
+		TelemetryDecision d;
+		d.Clan = m_TelemetryClan;
+		d.Time = m_Time;
+		d.Member = m.Name;
+		d.Chosen = chosen.Kind;
+		d.Target = chosen.Target;
+		d.Previous = last;
+		last = now;
+		std::vector<const UtilityOption*> best;
+		for (const UtilityOption& o : options) best.push_back(&o);
+		std::sort(best.begin(), best.end(), [](const UtilityOption* a, const UtilityOption* b) { return a->Score > b->Score; });
+		if (best.size() > 6) best.resize(6);
+		Json list = Json::array();
+		for (const UtilityOption* o : best)
+		{
+			Json factors = Json::object();
+			for (const ScoreFactor& f : o->Factors) factors[f.Name] = std::round(static_cast<double>(f.Value) * 1000.0) / 1000.0;
+			list.push_back({ { "kind", o->Kind }, { "target", o->Target }, { "score", std::round(static_cast<double>(o->Score) * 1000.0) / 1000.0 }, { "factors", factors } });
+		}
+		d.Options = list.dump();
+		m_Telemetry->Decision(d);
 	}
 
 	// One row per member (and its sheet the first time it is seen) and one for the clan. Only reads the simulation, never changes it.

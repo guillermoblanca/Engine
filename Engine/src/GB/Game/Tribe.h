@@ -798,8 +798,10 @@ namespace GB
 		TelemetrySink* m_Telemetry = nullptr;   // not owned
 		int m_TelemetryClan = 0;
 		double m_TelemetryEvery = 60.0, m_TelemetryNext = 0.0;
+		std::map<std::string, std::string> m_TelemetryLast;   // what each member last decided (kind + target): a decision is written when it changes
 		std::set<std::string> m_TelemetryKnown;   // the members whose sheet is written
 		void EmitTelemetry();
+		void EmitDecision(const TribeMember& m, const std::vector<UtilityOption>& options, const UtilityOption& chosen);
 		void EmitEvent(const char* kind, const std::string& who, const std::string& other, const std::string& result, const std::string& text);
 		double m_Time = 0.0, m_Clock = 0.0;
 		bool m_ClockSet = false;

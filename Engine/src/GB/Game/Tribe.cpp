@@ -1,4 +1,5 @@
 #include "GB/Game/Tribe.h"
+#include "GB/Telemetry/TelemetrySink.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
 #include <chrono>
@@ -1550,6 +1551,7 @@ namespace GB
 		mind.Options = shown;
 		mind.Chosen = pick;
 		mind.LastDecision = now;
+		if (m_Telemetry && pick >= 0) EmitDecision(m, shown, opts[static_cast<size_t>(pick)]);
 		if (pick >= 0)
 		{
 			const UtilityOption& o = opts[static_cast<size_t>(pick)];
@@ -1781,6 +1783,16 @@ namespace GB
 		{
 			const char* result = reason.empty() ? (job != "rest" && HasFailed(m) ? "failed" : "ok") : reason.find("Depleted") != std::string::npos ? "empty" : reason.find("cannot get next to") != std::string::npos ? "unreachable" : "failed";
 			EmitEvent("task_end", m.Name, job, result, m.Detail + (reason.empty() ? std::string() : ": " + reason));
+			TelemetryTask task;
+			task.Clan = m_TelemetryClan;
+			task.Member = m.Name;
+			task.Kind = job;
+			task.Target = m.Detail;
+			task.Start = m.Mind.Current.Since;   // when the commitment it belongs to began
+			task.End = m_Time;
+			task.Result = result;
+			task.Reason = reason;
+			m_Telemetry->Task(task);
 		}
 		if (!reason.empty() && job == "gather" && reason.find("Depleted") != std::string::npos)   // someone (or the rabbits) emptied it on the way: not a fault
 		{

@@ -8,7 +8,7 @@ namespace GB
 {
 	namespace
 	{
-		enum Table { kIndividuals = 0, kSamples, kClanSamples, kEvents, kTableCount };
+		enum Table { kIndividuals = 0, kSamples, kClanSamples, kEvents, kTasks, kDecisions, kTableCount };
 
 		struct Column { const char* Name; const char* Type; };
 		struct TableSpec { const char* Name; std::vector<Column> Columns; };
@@ -25,6 +25,8 @@ namespace GB
 				{ "clan_samples", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "day", "INTEGER" }, { "hour", "REAL" }, { "tier", "TEXT" }, { "food_days", "REAL" }, { "alive", "INTEGER" },
 					{ "dead", "INTEGER" }, { "beds", "INTEGER" }, { "buildings", "INTEGER" }, { "fire", "INTEGER" }, { "store", "TEXT" } } },
 				{ "events", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "kind", "TEXT" }, { "who", "TEXT" }, { "other", "TEXT" }, { "result", "TEXT" }, { "text", "TEXT" } } },
+					{ "tasks", { { "clan_id", "INTEGER" }, { "member", "TEXT" }, { "kind", "TEXT" }, { "target", "TEXT" }, { "start", "REAL" }, { "end", "REAL" }, { "result", "TEXT" }, { "reason", "TEXT" } } },
+					{ "decisions", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "member", "TEXT" }, { "chosen", "TEXT" }, { "target", "TEXT" }, { "previous", "TEXT" }, { "options", "TEXT" } } },
 			};
 			return specs;
 		}
@@ -88,7 +90,7 @@ namespace GB
 		if (sqlite3_exec(db->Handle, schema.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK) return fail("schema");
 		{
 			sqlite3_stmt* s = nullptr;
-			if (sqlite3_prepare_v2(db->Handle, "INSERT INTO runs (schema_version, started, seed, commit_hash, profile, note, closed) VALUES (1, ?, ?, ?, ?, ?, 0)", -1, &s, nullptr) != SQLITE_OK) return fail("run");
+			if (sqlite3_prepare_v2(db->Handle, "INSERT INTO runs (schema_version, started, seed, commit_hash, profile, note, closed) VALUES (2, ?, ?, ?, ?, ?, 0)", -1, &s, nullptr) != SQLITE_OK) return fail("run");
 			const std::string now = Now();
 			sqlite3_bind_text(s, 1, now.c_str(), -1, SQLITE_TRANSIENT);
 			sqlite3_bind_int64(s, 2, info.Seed);
@@ -200,6 +202,18 @@ namespace GB
 	{
 		if (!m_Active.load()) return;
 		Push({ kEvents, { V(r.Clan), V(r.Time), V(r.Kind), V(r.Who), V(r.Other), V(r.Result), V(r.Text) } }, false);
+	}
+
+	void TelemetrySink::Task(const TelemetryTask& r)
+	{
+		if (!m_Active.load()) return;
+		Push({ kTasks, { V(r.Clan), V(r.Member), V(r.Kind), V(r.Target), V(r.Start), V(r.End), V(r.Result), V(r.Reason) } }, false);
+	}
+
+	void TelemetrySink::Decision(const TelemetryDecision& r)
+	{
+		if (!m_Active.load()) return;
+		Push({ kDecisions, { V(r.Clan), V(r.Time), V(r.Member), V(r.Chosen), V(r.Target), V(r.Previous), V(r.Options) } }, true);
 	}
 
 	void TelemetrySink::Run()
