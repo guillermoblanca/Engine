@@ -4,7 +4,12 @@
 //   GBSim --seed=7 --days=30 --clans=3 --members=6 --biome=temperate --telemetry=run.db [--every=60] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text]
 //
 // Writes one SQLite file with the telemetry of the run. Ctrl+C stops it cleanly: the file is closed and passes the integrity check.
+#include "GB/Game/GameContent.h"
+#include "GB/Gameplay/Buildings.h"
 #include "GB/Game/SimQA.h"
+#include "GB/Game/Tribe.h"
+#include "GB/Gameplay/ContentPack.h"
+#include "GB/Gameplay/Items.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Log.h"
@@ -17,6 +22,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <map>
+#include <memory>
 #include <string>
 
 namespace
@@ -65,6 +71,37 @@ namespace
 		return out;
 	}
 
+	// The content of the era the Editor loads (assets/data/era1.pack.json), so the clans of a run know the buildings and the technologies:
+	// without it they build nothing. The sections go over the same objects the Editor uses (EditorApp.cpp), and the pack must outlive the run.
+	struct EraContent
+	{
+		GB::ItemLibrary Items;
+		GB::RecipeBook Recipes;
+		std::map<std::string, GB::ResourceNodeDef> Nodes;
+		GB::TribeConfig Config;
+		GB::TechTree Techs;
+		std::map<std::string, GB::BuildingDef> Buildings;
+		GB::CombatRules Combat;
+		GB::ControlRules Controls;
+		GB::ContentPacks Packs;
+		std::string Error;
+
+		explicit EraContent(const std::string& assets)
+		{
+			GB::RegisterEraOneItems(Items, Recipes, Nodes);
+			GB::AddGameContentSections(Packs, Items, Recipes, Nodes, Config.Roles, &Config.Agenda, &Config.Economy, &Config.Work, &Techs, &Buildings);
+			GB::AddExplorationContentSection(Packs, Config.Explore);
+			GB::AddEconomyContentSection(Packs, Config.Econ);
+			GB::AddCombatContentSection(Packs, Combat);
+			GB::AddPlayerContentSections(Packs, Config.Player, Controls);
+			GB::AddSocialContentSection(Packs, Config.Social);
+			GB::AddSocietyContentSections(Packs, Config.Society);
+			GB::ContentReport report;
+			Error = Packs.Load("era1", assets + "/data", &report);
+			for (const std::string& problem : report.Problems) std::fprintf(stderr, "content check: %s\n", problem.c_str());
+		}
+	};
+
 	bool Arg(const char* a, const char* name, std::string& out)
 	{
 		const size_t n = std::strlen(name);
@@ -81,7 +118,7 @@ int main(int argc, char** argv)
 	double days = 3.0, every = 60.0, years = 0.0, stagnantDays = 0.0;
 	bool stopClanDead = false, stopExtinct = false;
 	int clans = 1, members = 4;
-	bool combat = false, hostile = false;
+	bool combat = false, hostile = false, content = true;
 	std::string biome = "temperate", path, profile, note;
 	for (int i = 1; i < argc; ++i)
 	{
@@ -104,6 +141,7 @@ int main(int argc, char** argv)
 		else if (Arg(argv[i], "--profile", v)) profile = v;
 		else if (Arg(argv[i], "--note", v)) note = v;
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
+		else if (!std::strcmp(argv[i], "--no-content")) content = false;   // the bare engine: no buildings, no technologies (the old runs)
 		else if (!std::strcmp(argv[i], "--hostile")) hostile = combat = true;
 		else { std::fprintf(stderr, "unknown argument '%s'\nusage: GBSim --seed=N --days=D --clans=N --members=N --biome=temperate|alpine|desert --telemetry=run.db [--every=S] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text]\n", argv[i]); return 2; }
 	}
@@ -133,8 +171,23 @@ int main(int argc, char** argv)
 		if (!error.empty()) { std::fprintf(stderr, "%s\n", error.c_str()); return 1; }
 	}
 
+	std::unique_ptr<EraContent> era;
+	if (content)
+	{
+		era = std::make_unique<EraContent>(GB_ASSETS_DIR);
+		if (!era->Error.empty()) { std::fprintf(stderr, "the content of the era did not load: %s\n", era->Error.c_str()); return 1; }
+	}
 	GB::SimSetup setup;
 	setup.World = &world;
+	if (era)
+	{
+		setup.Items = &era->Items;
+		setup.Recipes = &era->Recipes;
+		setup.Nodes = &era->Nodes;
+		setup.Config = &era->Config;
+		setup.Techs = &era->Techs;
+		setup.Buildings = &era->Buildings;
+	}
 	setup.Members = members * clans;
 	setup.Clans = clans;
 	setup.Combat = combat;
