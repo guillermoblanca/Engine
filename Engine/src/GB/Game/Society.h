@@ -255,6 +255,8 @@ namespace GB
 		// ---- culture
 		const std::map<std::string, float>& Norms() const { return m_Norms; }
 		float Norm(const SocietyRules& rules, const std::string& norm) const;
+		// A rite or an event moves a norm by `delta` (clamped to 0..1; the daily drift goes on from there). Unknown norms are ignored.
+		void NudgeNorm(const SocietyRules& rules, const std::string& norm, float delta);
 		const std::vector<std::string>& Traditions() const { return m_Traditions; }   // in the order they were founded
 		const std::map<std::string, int>& Counts() const { return m_Counts; }
 		// An event of the clan ("stoke", "birth"...): counted, and a tradition is founded when its count is reached.

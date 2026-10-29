@@ -437,9 +437,10 @@ namespace GB::Editor
 				m_Tribe.AddMember(names[static_cast<size_t>(i)], role, bodies[static_cast<size_t>(i)]);
 				++shares[role];
 			}
+			const std::string game = m_Tribe.Config.Social.On ? "; " + SpawnWildlife(m_Tribe) : std::string();   // social life: deer, boar, grouse, rabbits around the camp
 			std::string trades;
 			for (const auto& [role, n] : shares) trades += (trades.empty() ? "" : ", ") + std::to_string(n) + " " + role;
-			return { true, std::to_string(workers) + " workers at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + "): " + trades + "; " + built.Message + chosen + "; they act on their own: tribe status | tribe jobs | tribe log | settlement status" };
+			return { true, std::to_string(workers) + " workers at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + "): " + trades + "; " + built.Message + chosen + game + "; they act on their own: tribe status | tribe jobs | tribe log | settlement status" };
 		}
 		if (sub == "remove" && a.size() > 1)
 		{
@@ -1473,6 +1474,8 @@ namespace GB::Editor
 				ImGui::Separator();
 				lines(ActiveTribe().FieldReport());
 			}
+
+			DrawSocialSection();   // social life: moods, talks, rites, beliefs, hunting (EditorSocial.cpp)
 
 			// H14: threats, fights, the wounded, hunts and the raid (the same text as `combat status` for the clan)
 			if (ImGui::CollapsingHeader("Conflict"))

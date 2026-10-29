@@ -48,6 +48,7 @@ DOC_LIST = [
     ('ASENTAMIENTOS.md', 'Sistemas'),
     ('ECONOMIA.md', 'Sistemas'),
     ('SOCIEDAD.md', 'Sistemas'),
+    ('VIDA_SOCIAL.md', 'Sistemas'),
     ('CLANES.md', 'Sistemas'),
     ('CONFLICTO.md', 'Sistemas'),
     ('VISUALES.md', 'Sistemas'),
@@ -567,6 +568,9 @@ DATA_SECTIONS = [
     ('world.json', 'interactives', 'Interactivos: hoguera, pozo, puerta'),
     ('world.json', 'species', 'Especies de la ecología'),
     ('cameras.json', 'cameras', 'Cámaras de juego'),
+    ('social.json', 'social', 'Vida social: ánimo, conversaciones, ritos, creencias, dieta y trampas'),
+    ('social.json', 'species', 'Especies de caza de la vida social (ciervo, jabalí, urogallo)'),
+    ('social.json', 'combat', 'Cacerías de la vida social (despiece, caza en grupo)'),
 ]
 
 

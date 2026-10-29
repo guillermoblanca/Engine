@@ -227,7 +227,8 @@ int main()
 		// the same content read straight from era1.json, as before the packs
 		ItemLibrary fi; RecipeBook fr; std::map<std::string, ResourceNodeDef> fn;
 		RegisterEraOneItems(fi, fr, fn);
-		Check(LoadContentFile(data + "/era1.json", fi, fr, fn).empty() && ContentToJson(fi, fr, fn) == ContentToJson(g.Items, g.Recipes, g.Nodes), "the pack gives what era1.json gave");
+		Check(LoadContentFile(data + "/era1.json", fi, fr, fn).empty() && LoadContentFile(data + "/social.json", fi, fr, fn).empty()
+			&& ContentToJson(fi, fr, fn) == ContentToJson(g.Items, g.Recipes, g.Nodes), "the pack gives what era1.json (and social.json, docs/VIDA_SOCIAL.md) gave");
 
 		ContentReport more;
 		const std::string error2 = g.Packs.Load("era1_ampliado", data, &more, strict);

@@ -28,6 +28,7 @@ add_library(GBEditor STATIC
     src/EditorVisuals.cpp
     src/EditorEconomy.cpp
     src/EditorConflict.cpp
+    src/EditorSocial.cpp
     src/EditorSave.cpp
     src/EditorQA.cpp
     src/EditorAnimCommands.cpp

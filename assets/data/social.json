@@ -1,0 +1,751 @@
+{
+  "items": [
+    { "id": "roots", "name": "Roots and tubers", "category": "food", "weight": 0.3, "stack": 20, "tags": [ "Item.Food.Root" ], "ability": "Eat", "shelfLife": 7200.0 },
+    { "id": "nuts", "name": "Nuts", "category": "food", "weight": 0.1, "stack": 30, "tags": [ "Item.Food.Nut" ], "ability": "Eat", "shelfLife": 14400.0 },
+    { "id": "mushrooms", "name": "Mushrooms", "category": "food", "weight": 0.1, "stack": 20, "tags": [ "Item.Food.Fungus" ], "ability": "Eat", "shelfLife": 1200.0 },
+    { "id": "greens", "name": "Wild greens", "category": "food", "weight": 0.1, "stack": 20, "tags": [ "Item.Food.Green" ], "ability": "Eat", "shelfLife": 900.0 },
+    { "id": "eggs", "name": "Eggs", "category": "food", "weight": 0.1, "stack": 12, "tags": [ "Item.Food.Egg" ], "ability": "Eat", "shelfLife": 2400.0 },
+    { "id": "honey", "name": "Honey", "category": "food", "weight": 0.3, "stack": 10, "tags": [ "Item.Food.Sweet" ], "ability": "Eat" },
+    { "id": "fish", "name": "Fish", "category": "food", "weight": 0.4, "stack": 10, "tags": [ "Item.Food.Fish" ], "ability": "Eat", "shelfLife": 900.0 },
+    { "id": "stew", "name": "Stew", "category": "food", "weight": 0.5, "stack": 10, "tags": [ "Item.Food.Dish" ], "ability": "Eat", "shelfLife": 3600.0 },
+    { "id": "roast", "name": "Roast", "category": "food", "weight": 0.4, "stack": 10, "tags": [ "Item.Food.Dish" ], "ability": "Eat", "shelfLife": 2400.0 },
+    { "id": "bone", "name": "Bone", "category": "resource", "weight": 0.5, "stack": 20, "tags": [ "Item.Resource.Bone" ] },
+    { "id": "sinew", "name": "Sinew", "category": "resource", "weight": 0.1, "stack": 20, "tags": [ "Item.Resource.Sinew" ] },
+    { "id": "fat", "name": "Fat", "category": "resource", "weight": 0.3, "stack": 20, "tags": [ "Item.Resource.Fat" ], "fuel": 1 },
+    { "id": "feather", "name": "Feathers", "category": "resource", "weight": 0.02, "stack": 40, "tags": [ "Item.Resource.Feather" ] },
+    { "id": "snare", "name": "Snare", "category": "resource", "weight": 0.2, "stack": 10, "tags": [ "Item.Trap.Snare" ] },
+    { "id": "fish_trap", "name": "Fish trap (basket)", "category": "tool", "weight": 1.2, "stack": 1, "tags": [ "Item.Tool.Fishing" ] }
+  ],
+  "recipes": [
+    { "id": "snare", "inputs": { "cordage": 2 }, "output": "snare", "count": 1, "ability": "Craft" },
+    { "id": "fish_trap", "inputs": { "reed": 4, "cordage": 1 }, "output": "fish_trap", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "sinew_cordage", "inputs": { "sinew": 2 }, "output": "cordage", "count": 2, "ability": "Craft" },
+    { "id": "stew", "inputs": { "meat": 1, "roots": 2, "greens": 1 }, "output": "stew", "count": 3, "station": "hearth", "ability": "Craft" },
+    { "id": "roast", "inputs": { "meat": 2, "fat": 1 }, "output": "roast", "count": 2, "station": "hearth", "ability": "Craft" }
+  ],
+  "nodes": [
+    { "id": "root_patch", "item": "roots", "kind": "Plant.Root", "ability": "Gather", "capacity": 4, "perGather": 1, "regen": 1, "regenSeconds": 90.0,
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
+      "spawn": { "biomes": [ "Meadow", "Forest" ], "perHectare": 3.0, "spacing": 7.0, "maxSlope": 25.0, "clump": 0.4, "max": 30 } },
+    { "id": "nut_tree", "item": "nuts", "kind": "Loose.Nut", "ability": "Collect", "capacity": 6, "perGather": 2, "regen": 2, "regenSeconds": 240.0,
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 5.0 },
+      "spawn": { "biomes": [ "Forest" ], "perHectare": 1.5, "spacing": 9.0, "maxSlope": 25.0, "clump": 0.5, "max": 20 } },
+    { "id": "mushroom_ring", "item": "mushrooms", "kind": "Loose.Fungus", "ability": "Collect", "capacity": 3, "perGather": 1, "regen": 1, "regenSeconds": 120.0,
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
+      "spawn": { "biomes": [ "Forest" ], "perHectare": 2.0, "spacing": 8.0, "maxSlope": 30.0, "clump": 0.6, "max": 20 } },
+    { "id": "wild_greens", "item": "greens", "kind": "Plant.Green", "ability": "Gather", "capacity": 4, "perGather": 1, "regen": 1, "regenSeconds": 45.0,
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
+      "spawn": { "biomes": [ "Meadow" ], "perHectare": 3.0, "spacing": 6.0, "maxSlope": 25.0, "clump": 0.4, "max": 30 } },
+    { "id": "bird_nest", "item": "eggs", "kind": "Loose.Egg", "ability": "Collect", "capacity": 2, "perGather": 1, "regen": 1, "regenSeconds": 300.0,
+      "spawn": { "biomes": [ "Forest", "Shore" ], "perHectare": 1.0, "spacing": 12.0, "maxSlope": 30.0, "clump": 0.5, "max": 12 } },
+    { "id": "bee_tree", "item": "honey", "kind": "Loose.Honey", "ability": "Collect", "capacity": 2, "perGather": 1, "regen": 1, "regenSeconds": 600.0,
+      "spawn": { "biomes": [ "Forest" ], "perHectare": 0.3, "spacing": 30.0, "maxSlope": 25.0, "clump": 0.7, "max": 6 } },
+    { "id": "fishing_spot", "item": "fish", "kind": "Loose.Fish", "ability": "Collect", "requires": "Item.Tool.Fishing", "capacity": 4, "perGather": 1, "regen": 1, "regenSeconds": 60.0,
+      "spawn": { "biomes": [ "Shore", "Meadow", "Forest" ], "waterWithin": 4.0, "perHectare": 2.0, "spacing": 10.0, "maxSlope": 20.0, "max": 20 } }
+  ],
+  "techs": [
+    { "id": "storytelling", "name": "Storytelling", "era": 1, "requires": [], "recipes": [],
+      "discovery": { "experiment": 0.08, "observe": 0.0, "teach": 0.3, "seconds": 30.0, "waste": 0.0 } },
+    { "id": "shamanism", "name": "Shamanism", "era": 1, "requires": [ "ritual", "herb_lore" ], "recipes": [],
+      "discovery": { "experiment": 0.05, "observe": 0.0, "teach": 0.25, "seconds": 40.0, "waste": 0.0 } },
+    { "id": "trapping", "name": "Trapping", "era": 1, "requires": [ "cordage" ], "recipes": [ "snare" ],
+      "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "fishing", "name": "Fishing", "era": 1, "requires": [ "basketry" ], "recipes": [ "fish_trap" ],
+      "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "butchery", "name": "Butchery", "era": 1, "requires": [ "flint_knapping" ], "recipes": [ "sinew_cordage" ],
+      "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "cuisine", "name": "Cuisine", "era": 1, "requires": [ "cooking" ], "recipes": [ "stew", "roast" ],
+      "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.3, "seconds": 20.0, "waste": 0.2 } }
+  ],
+  "species": {
+    "deer": {
+      "name": "Deer", "plural": "deer", "tag": "Animal.Deer", "body": "quadruped", "color": [ 0.55, 0.38, 0.22 ], "size": 1.6,
+      "eats": [ "Resource.Plant" ], "sight": 26.0, "breedCost": 30.0, "newbornFood": 70.0, "spawnFood": 0.8, "legSeconds": 7.0,
+      "maxAnimals": 6, "speed": 1.6, "wanderRadius": 22.0, "foodMax": 100.0, "hungerPerSecond": 0.1, "hungryBelow": 50.0, "eatReach": 1.2,
+      "eatSeconds": 4.0, "foodPerMeal": 30.0, "breedAbove": 80.0, "adultSeconds": 240.0, "breedCooldown": 360.0, "starveSeconds": 180.0
+    },
+    "boar": {
+      "name": "Boar", "plural": "boars", "tag": "Animal.Boar", "body": "quadruped", "color": [ 0.25, 0.2, 0.17 ], "size": 1.15,
+      "eats": [ "Resource.Plant" ], "sight": 16.0, "breedCost": 25.0, "newbornFood": 70.0, "spawnFood": 0.8, "legSeconds": 6.0,
+      "maxAnimals": 4, "speed": 1.4, "wanderRadius": 16.0, "foodMax": 100.0, "hungerPerSecond": 0.12, "hungryBelow": 55.0, "eatReach": 1.0,
+      "eatSeconds": 5.0, "foodPerMeal": 30.0, "breedAbove": 80.0, "adultSeconds": 200.0, "breedCooldown": 300.0, "starveSeconds": 160.0
+    },
+    "grouse": {
+      "name": "Grouse", "plural": "grouse", "tag": "Animal.Grouse", "body": "rabbit", "color": [ 0.45, 0.36, 0.28 ], "size": 0.7,
+      "eats": [ "Resource.Plant" ], "sight": 14.0, "breedCost": 15.0, "newbornFood": 60.0, "spawnFood": 0.7, "legSeconds": 4.0,
+      "maxAnimals": 8, "speed": 1.2, "wanderRadius": 10.0, "foodMax": 100.0, "hungerPerSecond": 0.18, "hungryBelow": 55.0, "eatReach": 1.0,
+      "eatSeconds": 3.0, "foodPerMeal": 25.0, "breedAbove": 80.0, "adultSeconds": 120.0, "breedCooldown": 160.0, "starveSeconds": 60.0
+    }
+  },
+  "combat": {
+    "hunts": {
+      "deer": { "tag": "Animal.Deer", "item": "meat", "units": 4, "byproduct": "hide", "byproductUnits": 2, "yields": { "bone": 2, "sinew": 2, "fat": 1 },
+                "health": 40.0, "speed": 2.6, "weapon": "fists", "fightsBack": false, "toolTag": "", "priority": 1.0, "range": 70.0, "hunters": 3, "group": 2 },
+      "boar": { "tag": "Animal.Boar", "item": "meat", "units": 3, "byproduct": "hide", "byproductUnits": 1, "yields": { "bone": 1, "fat": 2 },
+                "health": 30.0, "speed": 2.2, "weapon": "bite", "fightsBack": true, "toolTag": "", "priority": 0.9, "range": 60.0, "hunters": 3, "group": 2 },
+      "grouse": { "tag": "Animal.Grouse", "item": "meat", "units": 1, "byproduct": "", "byproductUnits": 0, "yields": { "feather": 3 },
+                  "health": 4.0, "speed": 2.4, "weapon": "fists", "fightsBack": false, "toolTag": "", "priority": 0.7, "range": 40.0, "hunters": 1, "group": 1 }
+    }
+  },
+  "visuals": {"materials": {"fur_deer": {"color": [0.62, 0.45, 0.3], "texture": "fur", "uvScale": 4.0, "roughness": 0.9}, "fur_boar": {"color": [0.3, 0.24, 0.2], "texture": "fur", "uvScale": 5.0, "roughness": 0.95}, "plumage": {"color": [0.48, 0.38, 0.28], "texture": "fur", "uvScale": 6.0, "roughness": 0.85}, "antler": {"color": [0.82, 0.76, 0.62], "roughness": 0.6}, "tusk": {"color": [0.93, 0.9, 0.82], "roughness": 0.4}, "root_skin": {"color": [0.55, 0.38, 0.24], "roughness": 0.9}, "mushroom_cap": {"color": [0.72, 0.42, 0.24], "roughness": 0.6}, "mushroom_stem": {"color": [0.9, 0.86, 0.76], "roughness": 0.7}, "egg_shell": {"color": [0.9, 0.86, 0.74], "roughness": 0.4}, "honeycomb": {"color": [0.86, 0.6, 0.16], "roughness": 0.3}, "fish_scales": {"color": [0.62, 0.66, 0.66], "roughness": 0.25}, "nut_shell": {"color": [0.52, 0.36, 0.2], "roughness": 0.7}}, "models": {"root_patch": {"variants": 3, "note": "social life: leafy tops over tubers in the soil; the tubers go as they are dug", "parts": [{"name": "Tops", "shape": "blade", "size": [0.05, 0.3, 0.12], "material": "leaves_young", "count": 9, "layout": "scatter", "radius": 0.3, "jitter": 0.6}, {"name": "Tubers", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.07, 0.05, 0.1], "material": "root_skin", "count": 5, "layout": "scatter", "radius": 0.25, "detail": 1, "rough": 0.3, "show": [0, 1], "progressive": true}]}, "nut_tree": {"variants": 2, "note": "a nut tree (hazel): a short trunk, a wide crown and nuts on the ground", "parts": [{"name": "Trunk", "shape": "cylinder", "pos": [0, 0, 0], "size": [0.3, 1.8, 0.18], "material": "bark_dark", "sides": 8, "bend": 0.12}, {"name": "Crown", "shape": "blob", "pos": [0, 2.0, 0], "size": [1.1, 0.8, 1.1], "material": "leaves", "count": 3, "radius": 0.6, "detail": 2, "rough": 0.35}, {"name": "Nuts", "shape": "blob", "pos": [0, 0.03, 0], "size": [0.03, 0.03, 0.03], "material": "nut_shell", "count": 8, "layout": "scatter", "radius": 0.8, "detail": 1, "show": [0, 1], "progressive": true}]}, "mushroom_ring": {"variants": 3, "note": "a ring of mushrooms on the forest floor", "parts": [{"name": "Stems", "shape": "cylinder", "pos": [0, 0, 0], "size": [0.04, 0.1, 0.04], "material": "mushroom_stem", "sides": 6, "count": 6, "layout": "scatter", "radius": 0.3, "show": [0, 1], "progressive": true}, {"name": "Caps", "shape": "blob", "pos": [0, 0.11, 0], "size": [0.08, 0.035, 0.08], "material": "mushroom_cap", "count": 6, "layout": "scatter", "radius": 0.3, "detail": 1, "rough": 0.1, "flat": 0.5, "show": [0, 1], "progressive": true}]}, "wild_greens": {"variants": 3, "note": "wild greens: a low clump of leaves", "parts": [{"name": "Leaves", "shape": "blade", "size": [0.07, 0.22, 0.12], "material": "leaves_young", "count": 16, "layout": "scatter", "radius": 0.35, "jitter": 0.7, "show": [0, 1], "progressive": true}]}, "bird_nest": {"variants": 2, "note": "a nest on the ground with eggs", "parts": [{"name": "Nest", "shape": "blob", "pos": [0, 0.05, 0], "size": [0.22, 0.06, 0.22], "material": "grass_dry", "detail": 1, "rough": 0.4, "flat": 0.3}, {"name": "Eggs", "shape": "blob", "pos": [0, 0.09, 0], "size": [0.035, 0.045, 0.035], "material": "egg_shell", "count": 3, "layout": "scatter", "radius": 0.06, "detail": 1, "show": [0, 1], "progressive": true}]}, "bee_tree": {"variants": 1, "note": "an old trunk with a wild hive", "parts": [{"name": "Trunk", "shape": "cylinder", "pos": [0, 0, 0], "size": [0.4, 2.4, 0.3], "material": "bark", "sides": 9, "bend": 0.1}, {"name": "Hive", "shape": "blob", "pos": [0.12, 1.5, 0], "size": [0.16, 0.24, 0.14], "material": "honeycomb", "detail": 1, "rough": 0.2, "show": [0, 1]}]}, "fishing_spot": {"variants": 2, "note": "a fishing place on the bank: stones and reeds; fish jump while there are any", "parts": [{"name": "Stones", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.18, 0.1, 0.15], "material": "stone", "count": 4, "layout": "scatter", "radius": 0.5, "detail": 1, "rough": 0.3}, {"name": "Reeds", "shape": "blade", "size": [0.04, 0.7, 0.04], "material": "reed", "count": 8, "layout": "scatter", "radius": 0.5, "jitter": 0.5}, {"name": "Fish", "shape": "blob", "pos": [0, 0.06, 0.3], "size": [0.04, 0.03, 0.12], "material": "fish_scales", "count": 2, "layout": "row", "spacing": 0.2, "detail": 1, "show": [0, 1], "progressive": true}]}, "deer": {"variants": 3, "note": "social life: the deer's procedural body (a quadruped of the ecology, Animal.Deer)", "parts": [{"name": "Body", "shape": "blob", "pos": [0, 0.95, 0], "size": [0.32, 0.32, 0.7], "material": "fur_deer", "detail": 2, "rough": 0.06}, {"name": "Neck", "shape": "cylinder", "pos": [0, 1.05, 0.42], "size": [0.14, 0.45, 0.14], "material": "fur_deer", "sides": 8, "rot": [-35, 0, 0]}, {"name": "Head", "shape": "blob", "pos": [0, 1.45, 0.62], "size": [0.12, 0.13, 0.22], "material": "fur_deer", "detail": 2, "rough": 0.05}, {"name": "Antler", "shape": "cylinder", "pos": [0, 1.58, 0.55], "size": [0.025, 0.35, 0.025], "material": "antler", "sides": 5, "count": 2, "layout": "row", "spacing": 0.14, "rot": [0, 0, 18]}, {"name": "Legs", "shape": "cylinder", "pos": [0, 0, 0], "size": [0.07, 0.75, 0.07], "material": "fur_deer", "sides": 6, "count": 4, "layout": "scatter", "radius": 0.3, "jitter": 0.0}, {"name": "Eye", "shape": "blob", "pos": [0, 1.5, 0.76], "size": [0.018, 0.018, 0.018], "material": "eye", "count": 2, "layout": "row", "spacing": 0.11, "detail": 0}]}, "boar": {"variants": 3, "note": "social life: the boar's procedural body (Animal.Boar): heavy, low, tusks", "parts": [{"name": "Body", "shape": "blob", "pos": [0, 0.5, 0], "size": [0.32, 0.34, 0.55], "material": "fur_boar", "detail": 2, "rough": 0.12}, {"name": "Head", "shape": "blob", "pos": [0, 0.48, 0.5], "size": [0.18, 0.17, 0.24], "material": "fur_boar", "detail": 2, "rough": 0.08}, {"name": "Snout", "shape": "blob", "pos": [0, 0.42, 0.72], "size": [0.07, 0.06, 0.06], "material": "fur_boar", "detail": 1}, {"name": "Tusks", "shape": "cylinder", "pos": [0, 0.38, 0.68], "size": [0.02, 0.12, 0.02], "material": "tusk", "sides": 5, "count": 2, "layout": "row", "spacing": 0.12, "rot": [60, 0, 0]}, {"name": "Legs", "shape": "cylinder", "pos": [0, 0, 0], "size": [0.08, 0.3, 0.08], "material": "fur_boar", "sides": 6, "count": 4, "layout": "scatter", "radius": 0.25, "jitter": 0.0}, {"name": "Eye", "shape": "blob", "pos": [0, 0.54, 0.66], "size": [0.015, 0.015, 0.015], "material": "eye", "count": 2, "layout": "row", "spacing": 0.15, "detail": 0}]}, "grouse": {"variants": 3, "note": "social life: the grouse's procedural body (Animal.Grouse)", "parts": [{"name": "Body", "shape": "blob", "pos": [0, 0.16, 0], "size": [0.13, 0.12, 0.18], "material": "plumage", "detail": 2, "rough": 0.08}, {"name": "Head", "shape": "blob", "pos": [0, 0.27, 0.13], "size": [0.06, 0.06, 0.06], "material": "plumage", "detail": 1}, {"name": "Tail", "shape": "blob", "pos": [0, 0.2, -0.17], "size": [0.1, 0.05, 0.08], "material": "plumage", "detail": 1, "flat": 0.4}, {"name": "Eye", "shape": "blob", "pos": [0, 0.29, 0.18], "size": [0.01, 0.01, 0.01], "material": "eye", "count": 2, "layout": "row", "spacing": 0.05, "detail": 0}]}, "pile_roots": {"variants": 1, "note": "roots, nuts and the like heaped on a mat", "parts": [{"name": "Heap", "shape": "blob", "pos": [0, 0.06, 0], "size": [0.08, 0.06, 0.11], "material": "root_skin", "count": 10, "layout": "scatter", "radius": 0.3, "detail": 1, "rough": 0.3, "show": [0, 1], "progressive": true}]}, "pile_fish": {"variants": 1, "note": "fish laid in a row", "parts": [{"name": "Fish", "shape": "blob", "pos": [0, 0.03, 0], "size": [0.05, 0.03, 0.16], "material": "fish_scales", "count": 6, "layout": "row", "spacing": 0.12, "detail": 1, "show": [0, 1], "progressive": true}]}}, "creatures": {"Animal.Deer": {"procedural": "deer", "length": 1.4}, "Animal.Boar": {"procedural": "boar", "length": 1.1}, "Animal.Grouse": {"procedural": "grouse", "length": 0.35}}, "piles": {"Item.Food.Root": {"model": "pile_roots", "full": 20}, "Item.Food.Nut": {"model": "pile_roots", "full": 30}, "Item.Food.Fish": {"model": "pile_fish", "full": 10}, "Item.Food.Dish": {"model": "pile_meat", "full": 10}}},
+  "social": {
+    "beliefs": {
+      "drift": 0.03,
+      "holdAbove": 0.45,
+      "omens": {
+        "big_kill": {
+          "beliefs": {
+            "animism": 0.04
+          },
+          "chance": 0.0,
+          "event": "big_kill",
+          "mood": 0.04,
+          "name": "A great kill",
+          "rite": ""
+        },
+        "eclipse": {
+          "beliefs": {
+            "sky": 0.08
+          },
+          "chance": 0.03,
+          "event": "eclipse",
+          "mood": -0.08,
+          "name": "The sun goes dark",
+          "rite": "appeasement"
+        },
+        "good_harvest": {
+          "beliefs": {
+            "sky": 0.03
+          },
+          "chance": 0.0,
+          "event": "harvest",
+          "mood": 0.05,
+          "name": "A good harvest",
+          "rite": ""
+        },
+        "storm": {
+          "beliefs": {
+            "sky": 0.05
+          },
+          "chance": 0.0,
+          "event": "storm",
+          "mood": -0.04,
+          "name": "A storm",
+          "rite": ""
+        },
+        "two_deaths": {
+          "beliefs": {
+            "ancestors": 0.05
+          },
+          "chance": 0.0,
+          "event": "two_deaths",
+          "mood": -0.08,
+          "name": "Two deaths in a day",
+          "rite": "appeasement"
+        }
+      },
+      "sacredDistance": 24.0,
+      "spread": 0.04,
+      "systems": {
+        "ancestors": {
+          "name": "Ancestor spirits",
+          "spread": 0.25,
+          "start": 0.45
+        },
+        "animism": {
+          "name": "Animism (the spirits of animals and places)",
+          "spread": 0.25,
+          "start": 0.45
+        },
+        "sky": {
+          "name": "The sky and the seasons",
+          "spread": 0.25,
+          "start": 0.4
+        }
+      },
+      "taboos": {
+        "sacred_hunt": {
+          "kind": "sacred_hunt",
+          "name": "No hunting near the sacred place",
+          "radius": 25.0,
+          "system": "animism"
+        },
+        "share_kill": {
+          "kind": "share_kill",
+          "name": "The first kill is shared",
+          "radius": 0.0,
+          "system": "ancestors"
+        }
+      },
+      "trust": 0.04
+    },
+    "diet": {
+      "bonus": 0.03,
+      "foods": {
+        "berry": {
+          "group": "fruit",
+          "nutrition": 25.0
+        },
+        "cooked_meat": {
+          "group": "meat",
+          "nutrition": 45.0
+        },
+        "dried_berry": {
+          "group": "fruit",
+          "nutrition": 22.0
+        },
+        "eggs": {
+          "group": "egg",
+          "nutrition": 25.0
+        },
+        "fish": {
+          "group": "fish",
+          "nutrition": 30.0
+        },
+        "flatbread": {
+          "group": "dish",
+          "nutrition": 40.0
+        },
+        "grain": {
+          "group": "grain",
+          "nutrition": 20.0
+        },
+        "greens": {
+          "group": "green",
+          "nutrition": 15.0
+        },
+        "honey": {
+          "group": "sweet",
+          "nutrition": 20.0
+        },
+        "meat": {
+          "group": "meat",
+          "nutrition": 35.0
+        },
+        "mushrooms": {
+          "group": "fungus",
+          "nutrition": 18.0
+        },
+        "nuts": {
+          "group": "nut",
+          "nutrition": 28.0
+        },
+        "roast": {
+          "group": "dish",
+          "nutrition": 50.0
+        },
+        "roots": {
+          "group": "root",
+          "nutrition": 30.0
+        },
+        "smoked_meat": {
+          "group": "meat",
+          "nutrition": 40.0
+        },
+        "stew": {
+          "group": "dish",
+          "nutrition": 55.0
+        }
+      },
+      "health": 1.0,
+      "monotony": -0.02,
+      "varied": 3,
+      "window": 6
+    },
+    "grief": {
+      "decayPerDay": 0.2,
+      "friend": 0.5,
+      "kin": 0.7,
+      "mood": -0.15
+    },
+    "hunting": {
+      "short": 3.0,
+      "traps": {
+        "pit": {
+          "arm": 120.0,
+          "cost": {
+            "wood": 2
+          },
+          "max": 1,
+          "name": "Pit trap",
+          "priority": 0.5,
+          "radius": 4.0,
+          "seconds": 10.0,
+          "tag": "Animal.Boar",
+          "tech": "trapping",
+          "yields": {
+            "bone": 1,
+            "fat": 2,
+            "hide": 1,
+            "meat": 3
+          }
+        },
+        "snare": {
+          "arm": 60.0,
+          "cost": {
+            "snare": 1
+          },
+          "max": 2,
+          "name": "Snare",
+          "priority": 0.6,
+          "radius": 6.0,
+          "seconds": 4.0,
+          "tag": "Animal.Rabbit",
+          "tech": "trapping",
+          "yields": {
+            "hide": 1,
+            "meat": 2
+          }
+        }
+      },
+      "wildlife": {
+        "boar": 2,
+        "deer": 3,
+        "grouse": 4,
+        "rabbit": 6
+      }
+    },
+    "mood": {
+      "effects": {
+        "experiment": 0.2,
+        "gather": 0.15,
+        "rest": -0.15,
+        "talk": 0.15
+      },
+      "grief": 0.5,
+      "high": 0.75,
+      "low": 0.3,
+      "rest": 0.5,
+      "return": 0.3,
+      "start": 0.5
+    },
+    "on": true,
+    "rites": {
+      "appeasement": {
+        "at": 0.5,
+        "beliefs": {
+          "animism": 0.5,
+          "sky": 1.0
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "omen",
+        "every": 0.0,
+        "gatherSeconds": 45.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.06,
+        "name": "Appeasement",
+        "norms": {},
+        "place": "sacred",
+        "quorum": 0.5,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 25.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "coming_of_age": {
+        "at": 0.5,
+        "beliefs": {
+          "animism": 1.0
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "adult",
+        "every": 0.0,
+        "gatherSeconds": 45.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.05,
+        "name": "Coming of age",
+        "norms": {
+          "daring": 0.01
+        },
+        "place": "totem",
+        "quorum": 0.5,
+        "relation": 0.03,
+        "season": "",
+        "seconds": 25.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "first_hunt": {
+        "at": 0.5,
+        "beliefs": {
+          "animism": 1.5
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "first_kill",
+        "every": 0.0,
+        "gatherSeconds": 40.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.05,
+        "name": "First hunt",
+        "norms": {
+          "daring": 0.01
+        },
+        "place": "fire",
+        "quorum": 0.4,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 20.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "funeral": {
+        "at": 0.5,
+        "beliefs": {
+          "ancestors": 1.5
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "death",
+        "every": 0.0,
+        "gatherSeconds": 60.0,
+        "gesture": "",
+        "grief": -0.3,
+        "heal": 0.0,
+        "mood": 0.03,
+        "name": "Funeral",
+        "norms": {},
+        "place": "sacred",
+        "quorum": 0.5,
+        "relation": 0.04,
+        "season": "",
+        "seconds": 30.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "harvest_feast": {
+        "at": 0.85,
+        "beliefs": {
+          "sky": 1.0
+        },
+        "cost": {
+          "food": 4
+        },
+        "delay": 5.0,
+        "event": "",
+        "every": 0.0,
+        "gatherSeconds": 60.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.1,
+        "name": "Harvest feast",
+        "norms": {
+          "industry": 0.01
+        },
+        "place": "fire",
+        "quorum": 0.6,
+        "relation": 0.03,
+        "season": "autumn",
+        "seconds": 35.0,
+        "shaman": false,
+        "tech": "ritual"
+      },
+      "healing": {
+        "at": 0.5,
+        "beliefs": {
+          "animism": 1.0
+        },
+        "cost": {
+          "herbs": 1
+        },
+        "delay": 5.0,
+        "event": "wounded",
+        "every": 0.0,
+        "gatherSeconds": 20.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 20.0,
+        "mood": 0.03,
+        "name": "Healing",
+        "norms": {},
+        "place": "camp",
+        "quorum": 0.2,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 20.0,
+        "shaman": true,
+        "tech": "shamanism"
+      },
+      "naming": {
+        "at": 0.5,
+        "beliefs": {
+          "ancestors": 1.0
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "birth",
+        "every": 0.0,
+        "gatherSeconds": 40.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.06,
+        "name": "Naming",
+        "norms": {
+          "sharing": 0.01
+        },
+        "place": "fire",
+        "quorum": 0.5,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 20.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "pairing": {
+        "at": 0.5,
+        "beliefs": {
+          "ancestors": 0.5
+        },
+        "cost": {
+          "food": 2
+        },
+        "delay": 5.0,
+        "event": "pair",
+        "every": 0.0,
+        "gatherSeconds": 45.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.08,
+        "name": "Pairing",
+        "norms": {},
+        "place": "fire",
+        "quorum": 0.5,
+        "relation": 0.03,
+        "season": "",
+        "seconds": 25.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "solstice": {
+        "at": 0.5,
+        "beliefs": {
+          "sky": 1.5
+        },
+        "cost": {
+          "wood": 2
+        },
+        "delay": 5.0,
+        "event": "",
+        "every": 0.0,
+        "gatherSeconds": 60.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.1,
+        "name": "Winter solstice",
+        "norms": {
+          "sharing": 0.01
+        },
+        "place": "fire",
+        "quorum": 0.6,
+        "relation": 0.02,
+        "season": "winter",
+        "seconds": 40.0,
+        "shaman": false,
+        "tech": "ritual"
+      },
+      "spring_feast": {
+        "at": 0.3,
+        "beliefs": {
+          "animism": 0.5,
+          "sky": 1.0
+        },
+        "cost": {
+          "food": 3
+        },
+        "delay": 5.0,
+        "event": "",
+        "every": 0.0,
+        "gatherSeconds": 60.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.08,
+        "name": "Spring feast",
+        "norms": {},
+        "place": "totem",
+        "quorum": 0.6,
+        "relation": 0.02,
+        "season": "spring",
+        "seconds": 35.0,
+        "shaman": false,
+        "tech": "ritual"
+      },
+      "tradition": {
+        "at": 0.5,
+        "beliefs": {
+          "ancestors": 0.5
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "tradition",
+        "every": 2.0,
+        "gatherSeconds": 45.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.05,
+        "name": "Kept tradition",
+        "norms": {},
+        "place": "fire",
+        "quorum": 0.5,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 25.0,
+        "shaman": false,
+        "tech": ""
+      }
+    },
+    "seed": 1,
+    "shaman": {
+      "age": 0.01,
+      "bonus": 0.5,
+      "minAge": 20.0,
+      "rites": 0.03,
+      "traits": {
+        "curiosity": 0.6,
+        "sociability": 0.4
+      }
+    },
+    "stepSeconds": 2.0,
+    "talk": {
+      "consoleAbove": 0.15,
+      "cooldown": 40.0,
+      "gossipSociability": 0.55,
+      "greetAfter": 600.0,
+      "groomAbove": 0.35,
+      "hungerBelow": 55.0,
+      "evening": 1.5,
+      "kinds": {
+        "chat": {
+          "company": 20.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.02,
+          "relation": 0.03,
+          "seconds": 8.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "console": {
+          "company": 25.0,
+          "event": "",
+          "grief": -0.25,
+          "mood": 0.04,
+          "relation": 0.08,
+          "seconds": 12.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "gossip": {
+          "company": 20.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.02,
+          "relation": 0.05,
+          "seconds": 10.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": -0.03
+        },
+        "greet": {
+          "company": 10.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.01,
+          "relation": 0.02,
+          "seconds": 3.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "groom": {
+          "company": 35.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.03,
+          "relation": 0.05,
+          "seconds": 10.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "play": {
+          "company": 25.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.06,
+          "relation": 0.04,
+          "seconds": 10.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "settle": {
+          "company": 10.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.02,
+          "relation": 0.15,
+          "seconds": 10.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "share": {
+          "company": 10.0,
+          "event": "food",
+          "grief": 0.0,
+          "mood": 0.02,
+          "relation": 0.04,
+          "seconds": 4.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "story": {
+          "company": 25.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.05,
+          "relation": 0.03,
+          "seconds": 14.0,
+          "teach": 0.08,
+          "tech": "storytelling",
+          "third": 0.0
+        },
+        "teach": {
+          "company": 15.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.01,
+          "relation": 0.04,
+          "seconds": 12.0,
+          "teach": 0.25,
+          "tech": "",
+          "third": 0.0
+        }
+      },
+      "radius": 12.0,
+      "score": 0.9,
+      "settleBelow": -0.05,
+      "storyAge": 45.0,
+      "storySociability": 0.75,
+      "want": 75.0
+    }
+  }
+}

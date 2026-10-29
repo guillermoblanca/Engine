@@ -75,6 +75,7 @@ namespace GB
 		};
 		for (const SocietyEvent& e : events)
 		{
+			if (e.Kind != "birth" && e.Kind != "death") SocialHears(e);   // social life: the rites of passage (TribeSocial.cpp; a birth is told by Born)
 			if (e.Kind == "death")
 			{
 				if (TribeMember* m = member(e.Who); m && !m->Dead) Die(*m, e.Text);   // (Die tells the society, which knows already)
@@ -118,6 +119,7 @@ namespace GB
 		AddMember(child, role, body);
 		m_Members.back().Mind.Memory.Merge(m_Clan);   // what the clan knows of the land, as if its parents had told it
 		Say(voice, "has a child: " + child + " (with " + father + ")");
+		SocialHears({ "birth", child, mother, std::string() });   // social life: the naming
 		ClanEvent("birth");
 	}
 

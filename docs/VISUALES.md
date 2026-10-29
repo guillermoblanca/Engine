@@ -116,7 +116,10 @@ Editor: `building` (lista), `building <id> [fase] [progreso] [x z] [nombre]`, `b
 
 `visuals.creatures` por etiqueta de especie: el zorro es `models/Fox.glb` con sus clips (`Survey`, `Walk`, `Run` según la velocidad medida),
 escalado a su largo; el conejo es un cuerpo procedural (cuerpo, cuartos traseros, cabeza, orejas, ojos, patas y cola blanca). La entidad de
-primitivas de la ecología sigue igual debajo.
+primitivas de la ecología sigue igual debajo. La vida social ([VIDA_SOCIAL.md](VIDA_SOCIAL.md)) añade en `social.json` (sección `visuals`, suma
+por id) el ciervo (cuerpo, cuello, cabeza, astas, patas), el jabalí (cuerpo bajo, hocico, colmillos) y el urogallo, los modelos de sus nodos
+(raíces, avellano, corro de setas, hierbas silvestres, nido con huevos, colmena en un tronco, sitio de pesca) y los montones de raíces, frutos
+secos, pescado y platos del almacén. Los ritos se ven como un círculo: cada asistente en su sitio alrededor del lugar, con el gesto del rito.
 
 ## Editor
 

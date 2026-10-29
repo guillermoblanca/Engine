@@ -176,8 +176,12 @@ namespace GB
 				{
 					const int got = m_Items->Find(h->Item) ? who->Body->Bag().Add(*m_Items, h->Item, h->Units) : 0;
 					const int also = !h->Byproduct.empty() && m_Items->Find(h->Byproduct) ? who->Body->Bag().Add(*m_Items, h->Byproduct, h->ByproductUnits) : 0;
+					std::string yields;   // the butchering (social lane: bone, sinew, fat, feathers...)
+					for (const auto& [item, n] : h->Yields)
+						if (m_Items->Find(item)) if (const int k = who->Body->Bag().Add(*m_Items, item, n); k > 0) yields += ", " + std::to_string(k) + " " + item;
 					++m_Conflict.Hunted[h->Tag];
-					Say(*who, "kills " + e.Other + ": " + std::to_string(got) + " " + h->Item + (also > 0 ? " and " + std::to_string(also) + " " + h->Byproduct : std::string()));
+					Say(*who, "kills " + e.Other + ": " + std::to_string(got) + " " + h->Item + (also > 0 ? " and " + std::to_string(also) + " " + h->Byproduct : std::string()) + yields);
+					Hunted(*who, *h, e.Other);   // social lane: the first kill (a rite), the shared kill (a taboo), a great kill (an omen) (TribeSocial.cpp)
 					if (const Job* held = m_Board.ClaimOf(who->Name); held && held->Kind == "hunt") m_Board.Progress(who->Name, static_cast<float>(got), m_Time);
 				}
 				else Say(*who, "kills " + e.Other);
@@ -528,7 +532,7 @@ namespace GB
 			const Animal* nearest = nullptr;
 			float best = h.Range;
 			for (const Animal& a : m_Animals)
-				if (a.Tag == h.Tag && !a.Predator) { const float d = glm::distance(a.Pos, Config.Camp); if (d < best) { best = d; nearest = &a; } }
+				if (a.Tag == h.Tag && !a.Predator && HuntAllowed(a.Pos)) { const float d = glm::distance(a.Pos, Config.Camp); if (d < best) { best = d; nearest = &a; } }   // (not where a taboo forbids it)
 			if (!nearest) continue;
 			char why[128];
 			std::snprintf(why, sizeof why, "%d food for %d; %s %.0f m from the camp", food, alive, nearest->Name.c_str(), static_cast<double>(best));
@@ -564,10 +568,20 @@ namespace GB
 		// the hunt it holds: the nearest animal of the job's kind
 		if (const Job* held = m_Board.ClaimOf(m.Name); held && held->Kind == "hunt" && ConflictJobScore(m, *held) > 0.0f)
 		{
+			// a group hunt (HuntRule::Group) waits until enough hunters hold the job; the same animal for all of them
+			const HuntRule* rule = nullptr;
+			for (const auto& [id, h] : cs.Rules.Hunts) if (h.Tag == held->Target) rule = &h;
+			const int group = rule ? rule->Group : 1;
+			std::string chased;   // (in a group hunt: the animal the others already chase)
+			for (const TribeMember& o : m_Members)
+				if (group > 1 && &o != &m && o.Job == "hunt" && !o.Dead)
+					if (const AbilitySystemComponent* a = m_Gameplay->Find(o.Detail); a && a->HasTag(held->Target) && !::GB::IsDead(*a)) chased = o.Detail;
+			const bool enough = static_cast<int>(held->Claims.size()) >= group || !chased.empty();
 			const Animal* prey = nullptr;
 			float best = 1e30f;
 			for (const Animal& a : m_Animals)
-				if (a.Tag == held->Target && !cs.InFight(a.Name)) { const float d = glm::distance(pos, a.Pos); if (d < best) { best = d; prey = &a; } }
+				if (enough && a.Tag == held->Target && (!cs.InFight(a.Name) || a.Name == chased) && HuntAllowed(a.Pos) && (chased.empty() || a.Name == chased))
+					{ const float d = glm::distance(pos, a.Pos); if (d < best) { best = d; prey = &a; } }
 			if (prey)
 			{
 				UtilityOption o;
@@ -641,10 +655,25 @@ namespace GB
 		{
 			if (!cs.JoinAnimal(o.Target)) return false;
 			if (!cs.Engage(m.Name, o.Target)) return false;
+			// a group hunt: the first to go drives the animal, the others wait for it with the spear
+			const bool driver = std::none_of(m_Members.begin(), m_Members.end(), [&](const TribeMember& x) { return &x != &m && x.Job == "hunt" && x.Detail == o.Target; });
+			int group = 1;
+			for (const auto& [id, h] : cs.Rules.Hunts) if (const AbilitySystemComponent* a = m_Gameplay->Find(o.Target); a && a->HasTag(h.Tag)) group = h.Group;
 			m.Job = "hunt";
 			m.Detail = o.Target;
 			m_Conflict.Members[m.Name].Ordered = false;
-			Say(m, "goes hunting " + o.Target);
+			Say(m, group > 1 ? (driver ? "drives " + o.Target + " (a group hunt)" : "waits for " + o.Target + " with the spear (a group hunt)") : "goes hunting " + o.Target);
+			if (group > 1 && driver)   // the others who hold the hunt come now (they leave what they were doing)
+				for (TribeMember& x : m_Members)
+				{
+					if (&x == &m || x.Dead || !x.Body || x.Player || x.Job == "hunt" || x.Job == "fight" || x.Job == "flee") continue;
+					const Job* held = m_Board.ClaimOf(x.Name);
+					const AbilitySystemComponent* prey = m_Gameplay->Find(o.Target);
+					if (!held || held->Kind != "hunt" || !prey || !prey->HasTag(held->Target)) continue;
+					if (IsBusy(x) && x.Job != "gather" && !x.Job.empty() && x.Job != "rest") continue;   // (it ends what it cannot drop first)
+					if (IsBusy(x)) Order(x, "wait 0.1");
+					x.Mind.NextThink = std::min(x.Mind.NextThink, m_Time);
+				}
 			SteerFight(m);
 			return true;
 		}

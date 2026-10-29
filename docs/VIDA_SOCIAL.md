@@ -10,8 +10,12 @@ utilidad (H5/H6, [IA.md](IA.md)), relaciones, personalidad y cultura (H9/H10, [S
 [← Volver al README](../README.md) · Plan: [PLAN_SOCIEDAD_VIVA.md](PLAN_SOCIEDAD_VIVA.md) · Árbol: [PROGRESION.md](PROGRESION.md)
 
 Lógica pura de CPU, determinista (cada «dado» es un hash de la semilla, nombres y un contador) y casi todo en datos: la sección **`social`** de
-`assets/data/social.json` (un fichero nuevo del paquete `era1`), más objetos, nodos, recetas, tecnologías, especies y cacerías en el mismo
-fichero (secciones que ya existían y que suman por id).
+`assets/data/social.json` (un fichero nuevo del paquete `era1`), más objetos, nodos, recetas, tecnologías, especies, cacerías y visuales en el
+mismo fichero (secciones que ya existían y que suman por id).
+
+**Encendido por los datos.** Una tribu sin reglas sociales (el `TribeConfig` de siempre, el de los tests de los otros sistemas) no tiene vida
+social: `SocialRules::On` es falso. La sección `social` de un fichero la enciende (salvo `"on": false`) y `DefaultSocialRules()` también. Así
+los tests de antes no cambian y el editor y el modo de juego, que cargan el paquete `era1`, la tienen.
 
 ## 1. Piezas
 
@@ -108,9 +112,13 @@ Objetos nuevos en datos (`social.json`), con su caducidad (H18) y su nodo:
 | `eggs` Huevos | `egg` | nodo `bird_nest` (bosque y orilla) | 2400 |
 | `honey` Miel | `sweet` | nodo `bee_tree` (bosque, pocos) | 0 (no caduca) |
 | `fish` Pescado | `fish` | nodo `fishing_spot` (orilla, junto al agua), con nasa `fish_trap` (`Item.Tool.Fishing`) | 900 |
-| `stew` Guiso | `dish` | `stew`: 1 carne + 2 raíces + 1 agua en el hogar (`cooking`) → 2 | 3600 |
-| `roast` Asado | `dish` | `roast`: 2 carne + 1 hierbas silvestres en el hogar (`cooking`) → 2 | 2400 |
-| `flatbread` Torta | `dish` | `flatbread`: 2 grano + 1 agua en el hogar (solo con `era1_ampliado`) | 7200 |
+| `stew` Guiso | `dish` | `stew`: 1 carne + 2 raíces + 1 hierbas silvestres en el hogar (`cuisine`) → 3 | 3600 |
+| `roast` Asado | `dish` | `roast`: 2 carne + 1 grasa en el hogar (`cuisine`) → 2 | 2400 |
+
+La torta de grano (`flatbread`) queda pendiente: el grano de `era1_ampliado` está diferido (el validador no lee los cultivos) y una receta que lo
+pida haría fallar la carga estricta. Pescar pide la nasa (`Item.Tool.Fishing`): la vida social la pide al plan de producción (`SetDemand`)
+cuando el clan conoce un `fishing_spot` y nadie lleva una, y la opción **`gear`** hace que un miembro la coja del almacén; con ella en la mochila
+el cerebro de siempre considera el nodo (y el hambre también).
 
 **Nutrición** (`social.diet.foods`): lo que sacia cada comida (sustituye al valor fijo de las necesidades para esa comida). **Variedad**: cada
 miembro recuerda los grupos de sus últimas `window` comidas; con `varied` grupos distintos o más, cada comida da `bonus` de ánimo y `health` de
@@ -129,8 +137,8 @@ salud; con uno solo (ventana llena), `monotony` (negativo).
   lo recoge (`check`). Trampas de foso (`pit`) para jabalí y ciervo con la misma mecánica (más coste, más tiempo).
 - **Sobrecaza**: la ecología cría con su máximo y su enfriamiento; cazar más deprisa de lo que crían vacía la especie cerca del campamento y el
   tablón deja de publicar esa cacería (no hay presa a la vista); sin caza, vuelve a crecer.
-- **Oficios**: el hueso (`bone`) y el tendón (`sinew`) alimentan la artesanía (`bone_needle`, aguja de hueso, y `sinew_cord`, cordel de tendón,
-  con `bone_working`/`hide_working`), la grasa (`fat`) la luz del rito (antorcha) y el guiso.
+- **Oficios**: el tendón (`sinew`) da cordel (`sinew_cordage`, `butchery`), la grasa (`fat`) el asado y arde (combustible 1), el hueso
+  (`bone`) es el de `era1_ampliado` (el pico de hueso) y las plumas (`feather`) quedan para las flechas.
 
 ## 8. Árbol: la rama social y espiritual
 
@@ -138,12 +146,12 @@ Encima de `ritual` (tótem) y `cooking` (hogar) de [PROGRESION.md](PROGRESION.md
 
 | Tecnología | Requiere | Da |
 |---|---|---|
-| `storytelling` (idea) | — | ritos con relato: + efecto en `story`, las historias enseñan |
-| `burial` (idea) | `ritual` | `funeral` en el lugar sagrado con efecto doble |
-| `shamanism` (idea) | `ritual`, `herb_lore` | el rito de curación |
-| `trapping` | `cordage` | `snare` (lazo) |
+| `storytelling` (idea) | — | la conversación `story` (las historias enseñan un poco de lo que sabe el que cuenta) |
+| `shamanism` (idea) | `ritual`, `herb_lore` | el rito de curación (`healing`, con chamán) |
+| `trapping` | `cordage` | `snare` (lazo); las trampas de lazo y de foso |
 | `fishing` | `basketry` | `fish_trap` (nasa) |
-| `butchery` | `flint_knapping` | `bone_needle`, `sinew_cord` |
+| `butchery` | `flint_knapping` | `sinew_cordage` (2 tendones → 2 cordel) |
+| `cuisine` | `cooking` | `stew` (guiso) y `roast` (asado) en el hogar |
 
 ## 9. Visuales
 

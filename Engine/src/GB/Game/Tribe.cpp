@@ -503,6 +503,7 @@ namespace GB
 		m_Plan = ProductionPlan();
 		m_Demand.clear();
 		m_Conflict = ConflictState();   // (the combat system and the hostility stay: they are the world's)
+		m_Social.Clear();
 		m_Animals.clear();
 		m_Players.Clear();   // H15
 	}
@@ -927,6 +928,7 @@ namespace GB
 		std::string error;
 		Run(m, "wait 1000000", error);
 		Say(m, "dies of " + m.Cause);
+		SocialDied(m);   // social life: grief, the clan's mood and a funeral (TribeSocial.cpp)
 		SocietyEvents(m_Society.Died(Config.Society, m.Name, m.Cause));   // its partner is free and the clan mourns (H9, H10)
 	}
 
@@ -985,6 +987,7 @@ namespace GB
 		StepExploration(dt);   // H12: what the members have in view, the expedition and the home (TribeExplore.cpp)
 		lap(m_Cost.ExploreMs);
 		StepConflict(dt);   // H14: the members in the fights, what happened in them, the animals near and the raid (TribeConflict.cpp)
+		StepSocial(dt);   // social life: omens, seasonal and recurring rites, the rite in course, traps (TribeSocial.cpp)
 		lap(m_Cost.ConflictMs);
 		StepAbstract(dt);
 		lap(m_Cost.AbstractMs);
@@ -1519,6 +1522,7 @@ namespace GB
 		ConflictOptions(m, opts);   // H14: hunting (the job it holds), resting its wounds, caring for a wounded clanmate
 		ExploreOptions(m, opts);   // H12: going on with an expedition, walking to the new camp
 		if (m_Outside.Options) m_Outside.Options(*this, m, opts);   // H13: what the clans around ask of it (an envoy to a meeting; Clans.cpp)
+		SocialOptions(m, opts);   // social life: the mood on every option, talking, the rite of the clan, traps (TribeSocial.cpp)
 		JobBonus(m, opts);   // H7: what does the job it claimed is worth more (a factor on the options, not a new chooser)
 		SocietyFactors(m, opts);   // H9 + H10: its genes, personality, stage of life and the clan's culture (and the companion it likes best)
 
@@ -1560,6 +1564,7 @@ namespace GB
 		if (o.Kind == "make" || o.Kind == "farm" || o.Kind == "haul") return ExecuteEconomy(m, o);   // H18 (TribeEconomy.cpp)
 		if (IsOutside(o.Kind)) return m_Outside.Execute && m_Outside.Execute(*this, m, o);   // H13 (Clans.cpp)
 		if (o.Kind == "hunt" || o.Kind == "recover" || o.Kind == "care") return ExecuteConflict(m, o);   // H14 (TribeConflict.cpp)
+		if (o.Kind == "talk" || o.Kind == "rite" || o.Kind == "snare" || o.Kind == "gear") return ExecuteSocial(m, o);   // social life (TribeSocial.cpp)
 		if (o.Kind == "eat")
 		{
 			if (o.Target == "bag") { if (!Order(m, "wait 2")) return false; }
@@ -1722,7 +1727,8 @@ namespace GB
 	void Tribe::Eat(TribeMember& m)
 	{
 		AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
-		const std::string carried = FirstFood(m.Body->Bag()), stored = carried.empty() ? FirstFood(m_Store) : std::string();
+		std::string carried = FirstFood(m.Body->Bag()), stored = carried.empty() ? FirstFood(m_Store) : std::string();
+		ChooseMeal(m, carried, stored);   // social life: a varied meal from the store when it can (TribeSocial.cpp)
 		const bool ate = (!carried.empty() && m.Body->Bag().RemoveOldest(carried, 1) == 1) || (!stored.empty() && m_Store.RemoveOldest(stored, 1) == 1);   // what it carries first, the oldest (E6)
 		if (ate)
 		{
@@ -1732,6 +1738,7 @@ namespace GB
 				SatisfyNeed(*asc, NeedName::Hunger, static_cast<float>(Config.Needs.FoodHunger));
 				SatisfyNeed(*asc, NeedName::Thirst, static_cast<float>(Config.Needs.FoodThirst));
 			}
+			Ate(m, carried.empty() ? stored : carried);   // social life: what it sates and the variety of the diet (TribeSocial.cpp)
 			if (m.Hungry) Say(m, "eats again");
 			if (carried.empty()) SharedFood(m);   // what another brought (H10)
 		}
@@ -1836,6 +1843,7 @@ namespace GB
 		}
 		else if (FinishEconomy(m, job)) {}   // H18: "make", "farm", "haul" (TribeEconomy.cpp)
 		else if (FinishConflict(m, job)) {}   // H14: "hunt", "recover", "care" (TribeConflict.cpp)
+		else if (FinishSocial(m, job)) {}   // social life: "talk", "rite", "snare" (TribeSocial.cpp)
 		else if (job == "craft")
 		{
 			const std::set<std::string> known = m_Knowledge.KnownRecipes(m.Name, *m_Recipes);   // H11: only what it knows how to make
@@ -1988,7 +1996,8 @@ namespace GB
 		for (const auto& [node, who] : m_LastWorker) workers[node] = who;
 		j["lastWorker"] = workers;
 		j["economy"] = Json::parse(m_Econ.ToJson());   // H18 (an older save has none: no fields, no stockpiles; its stacks are fresh)
-		j["conflict"] = Json::parse(m_Conflict.ToJson());   // H14 (an older save has none: no threats, no raid; the fights themselves are the combat system's)
+		j["conflict"] = Json::parse(m_Conflict.ToJson());
+		j["social"] = Json::parse(m_Social.ToJson());   // social life (an older save has none: moods at their start, no rites on the agenda)   // H14 (an older save has none: no threats, no raid; the fights themselves are the combat system's)
 		Json members = Json::array();
 		for (const TribeMember& m : m_Members)
 			members.push_back(Json{ { "name", m.Name }, { "role", m.Role }, { "job", m.Job }, { "detail", m.Detail }, { "deposited", m.Deposited }, { "made", m.Made },
@@ -2027,6 +2036,8 @@ namespace GB
 		if (j.contains("economy") && !econ.FromJson(j["economy"].dump())) return false;
 		ConflictState conflict;
 		if (j.contains("conflict") && !conflict.FromJson(j["conflict"].dump())) return false;
+		SocialState social;   // (an older save has none)
+		if (j.contains("social") && !social.FromJson(j["social"].dump())) return false;
 		PlayerSociety players;   // H15 (an older save has none)
 		if (j.contains("player") && !players.FromJson(j["player"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
@@ -2058,6 +2069,7 @@ namespace GB
 		m_Explore = std::move(explore);
 		m_Econ = std::move(econ);
 		m_Conflict = std::move(conflict);
+		m_Social = std::move(social);
 		m_Players = std::move(players);
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);

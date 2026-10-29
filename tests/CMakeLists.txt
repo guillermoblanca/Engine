@@ -301,6 +301,12 @@ target_include_directories(GBCombatTests SYSTEM PRIVATE ${json_SOURCE_DIR}/inclu
 target_compile_definitions(GBCombatTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME combat COMMAND GBCombatTests)
 
+# Social life: conversations, rites, beliefs, diet, more game and traps (Social, TribeSocial, ClansBeliefs; docs/VIDA_SOCIAL.md)
+add_executable(GBSocialTests social_test.cpp)
+target_link_libraries(GBSocialTests PRIVATE GB::GB)
+target_compile_definitions(GBSocialTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME social COMMAND GBSocialTests)
+
 add_executable(GBKnowledgeTests knowledge_test.cpp)
 target_link_libraries(GBKnowledgeTests PRIVATE GB::GB)
 target_compile_definitions(GBKnowledgeTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")

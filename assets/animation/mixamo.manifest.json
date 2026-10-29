@@ -2638,6 +2638,206 @@
         "act_look_around"
       ],
       "note": "looks around on arriving"
+    },
+    {
+      "name": "talk.chat",
+      "montages": [
+        "gesture_happy",
+        "gesture_nod_yes",
+        "gesture_acknowledge"
+      ],
+      "loop": true,
+      "note": "social life: a chat at the camp (docs/VIDA_SOCIAL.md); missing: talking with the hands"
+    },
+    {
+      "name": "talk.story",
+      "montages": [
+        "gesture_thoughtful",
+        "gesture_nod_long",
+        "gesture_happy"
+      ],
+      "loop": true,
+      "note": "telling a story by the fire; missing: sitting and telling"
+    },
+    {
+      "name": "talk.gossip",
+      "montages": [
+        "gesture_cocky",
+        "gesture_nod_sarcastic",
+        "gesture_look_away"
+      ],
+      "loop": true,
+      "note": "gossip about a third"
+    },
+    {
+      "name": "talk.teach",
+      "montages": [
+        "gesture_nod_hard",
+        "gesture_dismiss",
+        "gesture_nod_long"
+      ],
+      "loop": true,
+      "note": "a teaching moment"
+    },
+    {
+      "name": "talk.console",
+      "montages": [
+        "gesture_sigh",
+        "gesture_nod_long"
+      ],
+      "loop": true,
+      "note": "consoling one who grieves; missing: an embrace"
+    },
+    {
+      "name": "talk.settle",
+      "montages": [
+        "gesture_head_no",
+        "gesture_annoyed",
+        "gesture_nod_yes"
+      ],
+      "loop": true,
+      "note": "settling a quarrel"
+    },
+    {
+      "name": "talk.greet",
+      "montages": [
+        "injured_wave",
+        "gesture_acknowledge"
+      ],
+      "note": "a greeting with a wave (the wave of the injured set, the only one in the packs)"
+    },
+    {
+      "name": "talk.share",
+      "montages": [
+        "act_put_down",
+        "gesture_happy"
+      ],
+      "note": "handing over food"
+    },
+    {
+      "name": "talk.groom",
+      "montages": [
+        "act_kneel",
+        "gesture_nod_long"
+      ],
+      "loop": true,
+      "note": "grooming and care; missing: hands on the other"
+    },
+    {
+      "name": "talk.play",
+      "montages": [
+        "gesture_happy",
+        "jump_standing"
+      ],
+      "loop": true,
+      "note": "children at play; missing: running games"
+    },
+    {
+      "name": "rite.naming",
+      "montages": [
+        "gesture_happy",
+        "gesture_nod_long"
+      ],
+      "loop": true,
+      "note": "the naming of a newborn, in the circle at the fire"
+    },
+    {
+      "name": "rite.coming_of_age",
+      "montages": [
+        "magic_cast_2h",
+        "gesture_nod_hard"
+      ],
+      "loop": true,
+      "note": "coming of age at the meeting place: arms raised"
+    },
+    {
+      "name": "rite.pairing",
+      "montages": [
+        "gesture_happy",
+        "gesture_nod_yes"
+      ],
+      "loop": true,
+      "note": "a pairing at the fire"
+    },
+    {
+      "name": "rite.funeral",
+      "montages": [
+        "kneel_idle",
+        "gesture_sigh"
+      ],
+      "loop": true,
+      "note": "a funeral at the sacred place: kneeling"
+    },
+    {
+      "name": "rite.solstice",
+      "montages": [
+        "magic_area_1",
+        "magic_cast_2h",
+        "gesture_happy"
+      ],
+      "loop": true,
+      "note": "the winter solstice: arms to the sky; missing: dancing in a ring"
+    },
+    {
+      "name": "rite.spring_feast",
+      "montages": [
+        "gesture_happy",
+        "jump_standing"
+      ],
+      "loop": true,
+      "note": "the spring feast"
+    },
+    {
+      "name": "rite.harvest_feast",
+      "montages": [
+        "gesture_happy",
+        "gesture_nod_yes"
+      ],
+      "loop": true,
+      "note": "the harvest feast"
+    },
+    {
+      "name": "rite.first_hunt",
+      "montages": [
+        "sword_power_up",
+        "gesture_happy"
+      ],
+      "loop": true,
+      "note": "the first hunt of a member, celebrated at the fire"
+    },
+    {
+      "name": "rite.healing",
+      "montages": [
+        "magic_cast_1h",
+        "act_kneel"
+      ],
+      "loop": true,
+      "note": "a healing rite: the shaman's hands over the wounded"
+    },
+    {
+      "name": "rite.tradition",
+      "montages": [
+        "gesture_nod_long",
+        "gesture_thoughtful"
+      ],
+      "loop": true,
+      "note": "a tradition kept"
+    },
+    {
+      "name": "rite.appeasement",
+      "montages": [
+        "kneel_idle",
+        "magic_cast_2h"
+      ],
+      "loop": true,
+      "note": "appeasing the spirits after a bad omen"
+    },
+    {
+      "name": "snare",
+      "montages": [
+        "act_crouch"
+      ],
+      "note": "setting a snare or a pit trap, or taking the catch out"
     }
   ],
   "stages": [

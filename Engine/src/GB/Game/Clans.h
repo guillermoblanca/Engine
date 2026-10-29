@@ -129,6 +129,10 @@ namespace GB
 		// Something happened between two clans: its weight (Rules.Relations.Events, x `scale`; good events x the openness of both) moves their base
 		// attitude and trust; an event with a grievance weight leaves `victim` (one of the two) a grievance against the other. Unknown events only log.
 		void Relate(ClanId a, ClanId b, const std::string& event, float scale = 1.0f, const std::string& why = {}, ClanId victim = -1);
+		// The social lane (docs/VIDA_SOCIAL.md; ClansBeliefs.cpp): two clans whose members meet bring their beliefs a little closer (Beliefs.Spread
+		// x their openness), and how alike they are moves their attitude and trust (Beliefs.Trust x (2 similarity - 1)): shared beliefs, trust.
+		// Called by every greeting; returns the similarity (0.5 when either has no beliefs yet).
+		float ShareBeliefs(ClanId a, ClanId b);
 
 		// ---- for the conflict work (H14)
 		// How ready `a` is to fight `b`, 0..: its aggression x (how hostile it feels, -attitude, plus its grievance against b); 0 under a pact.

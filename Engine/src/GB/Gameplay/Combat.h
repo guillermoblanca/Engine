@@ -160,6 +160,10 @@ namespace GB
 		float Priority = 0.9f;                   // base priority of a "hunt" job
 		float Range = 50.0f;                     // the clan posts a hunt for an animal seen this close to the camp
 		int Hunters = 2;                         // slots of the job
+		// The social lane (docs/VIDA_SOCIAL.md): the butchering of a kill, beyond Item and Byproduct (item -> units: bone, sinew, fat, feathers...),
+		// and a group hunt: the chase does not start until this many members hold the job (one drives, the others wait with the spear; 1 = alone).
+		std::map<std::string, int> Yields;
+		int Group = 1;
 		bool operator==(const HuntRule&) const = default;
 	};
 

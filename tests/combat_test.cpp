@@ -362,7 +362,8 @@ int main()
 		const std::string loadError = packs.Load("era1", data, &report, strict);
 		Check(loadError.empty() && report.Clean(), "the era1 pack loads strictly with the combat section (the meat is given by the hunt)");
 		if (!loadError.empty() || !report.Clean()) std::fprintf(stderr, "  %s\n  %s\n", loadError.c_str(), report.Text().c_str());
-		Check(live == DefaultCombatRules(), "and the section it read is the default one");
+		CombatRules expected = DefaultCombatRules();   // (social.json, a file of era1, adds the deer, the boar and the grouse: docs/VIDA_SOCIAL.md)
+		Check(LoadCombatRulesFile(data + "/social.json", expected).empty() && live == expected, "and the section it read is the default one, with the hunts of social.json");
 	}
 
 	// ---- the montages of the combat abilities are those of the delivered animation manifest (the X Bot packs, packs/full)
