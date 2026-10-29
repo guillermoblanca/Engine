@@ -707,6 +707,12 @@ namespace GB
 		return 0.0f;
 	}
 
+	bool Tribe::CanBuild(const std::string& building) const
+	{
+		const auto def = m_Buildings ? m_Buildings->find(building) : std::map<std::string, BuildingDef>::const_iterator();
+		return m_Buildings && def != m_Buildings->end() && ClanKnowsBuilding(def->second);
+	}
+
 	std::string Tribe::SettlementReport() const
 	{
 		std::string s;

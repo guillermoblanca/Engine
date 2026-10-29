@@ -1538,6 +1538,15 @@ namespace GB
 		SocietyFactors(m, opts);   // H9 + H10: its genes, personality, stage of life and the clan's culture (and the companion it likes best)
 		MaslowOptions(m, hunger, berries, foodHeld > 0, opts);   // the pyramid: staying alive before anything above it (TribeWork.cpp)
 
+		// what failed a moment ago is not offered again at once (a campfire it cannot reach, a bed it cannot get to: telemetry showed one member failing the same
+		// stoke 3400 times, and envoys dying of thirst on an errand that never opened); the pause doubles with each failure in a row, and "rest" is always left
+		opts.erase(std::remove_if(opts.begin(), opts.end(), [&](const UtilityOption& o)
+		{
+			if (o.Kind == "rest") return false;
+			const auto it = m.Unreachable.find("job:" + o.Kind);
+			return it != m.Unreachable.end() && it->second.first > now;
+		}), opts.end());
+
 		// choose, and fall back on the next best when the orders cannot be given
 		Commitment current = mind.Current;
 		int pick = ChooseOption(opts, current, now, Config.Chooser);
@@ -1817,6 +1826,12 @@ namespace GB
 		else if (job != "rest" && HasFailed(m))   // (a rest has no orders: an old failure would count again every half second)
 		{
 			++m.Failures;
+			{
+				auto& again = m.Unreachable["job:" + job];   // the same job failing again and again waits longer each time (3 s, 6 s... up to 96 s); a long calm forgets it
+				if (m_Time > again.first + 300.0) again.second = 0;
+				again.first = m_Time + 3.0 * static_cast<double>(1 << std::min(again.second, 5));
+				++again.second;
+			}
 			if (job != "gather") { m.HasSpot = false; ++m.SpotTries; }   // the place it was sent to cannot be reached: choose another next time
 			Say(m, "could not finish " + job + (m.Detail.empty() ? "" : " " + m.Detail) + (WhyFailed(m).empty() ? "" : " (" + WhyFailed(m) + ")"));
 		}

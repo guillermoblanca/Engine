@@ -1212,7 +1212,7 @@ namespace GB::Editor
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
-		for (int step = 0; step < (m_Game.Paused ? 0 : m_TimeScale); ++step)   // `timescale n` runs the simulation n times per frame (the tribe's day in a minute); a paused game none
+		for (int step = 0; step < (m_Game.Paused || m_Game.Menu ? 0 : m_TimeScale); ++step)   // `timescale n` runs the simulation n times per frame (the tribe's day in a minute); a paused game none
 		{
 			m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
 			StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
@@ -1528,6 +1528,11 @@ namespace GB::Editor
 					glm::vec2(static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH)), origin.x, origin.y);
 			}
 			if (m_Game.Active) DrawGameHud(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // H15
+			else if (!m_Game.Player.empty() && m_Tribe.FindMember(m_Game.Player))   // a game left with Esc: one click goes back to it (`play resume`)
+			{
+				ImGui::SetCursorScreenPos(ImVec2(origin.x + 12.0f, origin.y + 12.0f));
+				if (ImGui::Button("Back to the game")) m_UiCommands.push_back("play resume");
+			}
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);
 			ImGui::GetWindowDrawList()->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(255, 255, 255, 200), info);

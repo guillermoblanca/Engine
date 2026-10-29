@@ -176,6 +176,7 @@ namespace GB
 		std::map<std::string, int> Give[2];   // what A gives B, what B gives A
 		// Each envoy's leg: 0 fetch the goods at its camp, 1 walk to the point, 2 wait there, 3 go home, 4 home (done).
 		int Leg[2] = { 0, 0 };
+		int Tries[2] = { 0, 0 };           // times each envoy was sent on the leg it is on (not saved): a way that never opens ends the errand, it does not loop
 		double Posted = 0.0, Arrived[2] = { -1.0, -1.0 }, Met = -1.0;
 		std::string Outcome;            // for people, once they met (or gave up)
 		bool operator==(const Meeting& o) const

@@ -1255,6 +1255,15 @@ namespace GB::Editor
 			dl->AddText(a, color, text.c_str());
 		};
 
+		// the dead: a cross where each one fell, with its name and what killed it
+		for (const auto& [name, g] : m_Graves)
+		{
+			ImVec2 s;
+			if (glm::distance(m_Camera.Position, glm::vec3(g.Pos.x, ground(g.Pos.x, g.Pos.y), g.Pos.y)) > 90.0f || !screen(glm::vec3(g.Pos.x, ground(g.Pos.x, g.Pos.y) + 1.4f, g.Pos.y), s)) continue;
+			dl->AddLine(ImVec2(s.x, s.y - 14.0f), ImVec2(s.x, s.y + 6.0f), IM_COL32(235, 235, 225, 235), 3.0f);
+			dl->AddLine(ImVec2(s.x - 7.0f, s.y - 8.0f), ImVec2(s.x + 7.0f, s.y - 8.0f), IM_COL32(235, 235, 225, 235), 3.0f);
+			label(ImVec2(s.x, s.y + 22.0f), name + " (" + g.Cause + ")", IM_COL32(210, 205, 195, 235));
+		}
 		std::vector<std::pair<const Tribe*, std::string>> tribes{ { &m_Tribe, std::string() } };
 		for (const auto& c : m_Clans.All())
 			if (c->Folk && c->Folk != &m_Tribe) tribes.emplace_back(c->Folk, c->Name);

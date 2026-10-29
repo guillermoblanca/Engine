@@ -371,6 +371,7 @@ namespace GB
 		std::map<std::string, int> SiteDemand() const;
 		// One line per site and building: phase, work and what it lacks.
 		std::string SettlementReport() const;
+		bool CanBuild(const std::string& building) const;   // the clan knows how: no technology locks it, or a living member knows one that unlocks it (H11)
 		// The same as data, for an interface that draws them: where each is, how far it is built and what it gives once done.
 		struct SettlementSite { std::string Name, Building; glm::vec2 Pos{ 0.0f }; SiteState State; int Beds = 0; std::string Station, Store; };
 		std::vector<SettlementSite> SettlementSites() const;

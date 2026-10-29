@@ -97,6 +97,7 @@ namespace GB::Editor
 			if (!m_Game.Active) return { true, "not playing" };
 			m_Game.Active = false;
 			m_Game.Paused = false;
+			m_Game.Menu = false;
 			if (m_Game.HasPanels)
 			{
 				const GameModeState::SavedPanels& p = m_Game.Panels;
@@ -113,9 +114,32 @@ namespace GB::Editor
 			m_Player.Release();
 			SetCamMode(CamMode::Free);
 			m_Orbit.Target = where;
-			return { true, "back to the editor (the world and the clans stay; `play` starts a new game)" };
+			return { true, "back to the editor (the world and the clans stay; `play resume` goes back to the game, `play` starts a new one)" };
 		}
 		if (!a.empty() && (a[0] == "status" || a[0] == "hud")) return GameCommand({ "status" });
+		if (!a.empty() && a[0] == "resume")   // back into the game left with Esc or `play off`: the same world, clans and player (nothing is generated)
+		{
+			if (m_Game.Active) return { true, "already playing" };
+			const std::string name = m_Game.Player.empty() ? m_Controls.Game.Name : m_Game.Player;
+			if (!m_Tribe.FindMember(name) || !m_Actors.Find(name)) return { false, "there is no game to go back to: `play` starts one" };
+			const std::string model = m_Game.Model;
+			m_Player.Control(name);
+			Execute("camera game follow");
+			Execute("visuals on");
+			m_Game = GameModeState{ true, name, model };
+			m_Game.AutoQuality = false;
+			m_GameView.QeTurns = false;
+			m_Player.SetTurnWithQE(false);
+			m_Game.Panels = { m_Panels.Hierarchy, m_Panels.Inspector, m_Panels.Properties, m_Panels.World, m_Panels.Stats, m_Panels.Console, m_Panels.Assets, m_Panels.Model,
+				m_Panels.Animation, m_Panels.Abilities, m_Panels.Tribe, m_Panels.WorldState, m_Panels.Tests, m_Panels.QA };
+			m_Game.HasPanels = true;
+			m_Panels.Hierarchy = m_Panels.Inspector = m_Panels.Properties = m_Panels.World = m_Panels.Stats = m_Panels.Assets = m_Panels.Model = false;
+			m_Panels.Animation = m_Panels.Abilities = m_Panels.Tribe = m_Panels.WorldState = m_Panels.Tests = m_Panels.QA = false;
+			m_Panels.Viewport = true;
+			m_Game.LogSeen = m_Tribe.Log().size();
+			GameNote("Back in the game.");
+			return { true, "back in the game" };
+		}
 		GameSetup setup = m_Controls.Game;
 		std::vector<int> numbers;
 		for (const std::string& w : a)
@@ -312,7 +336,7 @@ namespace GB::Editor
 		{
 			const ImGuiKey k = KeyNamed(key);
 			// from above the character is not at hand: its keys (E, Z...) do nothing, the camera's and the clock's do
-			if (m_Game.View == "top" && (action == "interact" || action == "eat" || action == "drink" || action == "deposit" || action == "sleep" || action == "claim")) continue;
+			if (m_Game.View == "top" && (action == "interact" || action == "eat" || action == "drink" || action == "deposit" || action == "sleep" || action == "claim" || action == "attack" || action == "block" || action == "inventory" || action == "people")) continue;
 			if (k != ImGuiKey_None && ImGui::IsKeyPressed(k, false)) m_UiCommands.push_back("game " + action);
 		}
 	}
@@ -411,9 +435,15 @@ namespace GB::Editor
 		// Esc: closes what is open (the clan sheet, the help), else leaves the game for the editor
 		if (sub == "quit")
 		{
-			if (m_Game.ClanPanel || m_Game.Help) { m_Game.ClanPanel = m_Game.Help = false; return { true, "closed" }; }
-			return PlayCommand({ "off" });
+			if (m_Game.ClanPanel || m_Game.Help || m_Game.Inventory || m_Game.People || m_Game.Build) { m_Game.ClanPanel = m_Game.Help = m_Game.Inventory = m_Game.People = m_Game.Build = false; return { true, "closed" }; }
+			m_Game.Menu = !m_Game.Menu;   // (Esc again closes it; the editor is one of its buttons, not a slip of the finger)
+			return { true, m_Game.Menu ? "menu" : "menu closed" };
 		}
+		// I, T, B: the bag, the people around and the buildings the clan can raise (panels over the game; every button of them runs a `game` command)
+		if (sub == "menu") { m_Game.Menu = !m_Game.Menu; return { true, m_Game.Menu ? "menu" : "menu closed" }; }
+		if (sub == "inventory") { m_Game.Inventory = !m_Game.Inventory; return { true, m_Game.Inventory ? "bag open" : "bag closed" }; }
+		if (sub == "people") { m_Game.People = !m_Game.People; return { true, m_Game.People ? "people open" : "people closed" }; }
+		if (sub == "build" && a.size() == 1) { m_Game.Build = !m_Game.Build; return { true, m_Game.Build ? "buildings open" : "buildings closed" }; }
 		// V: the view of the player (behind it) or the overview from above (WASD pans, Q/E turn, Z/X zoom) — `game view [top|follow]`
 		if (sub == "view")
 		{
@@ -640,6 +670,7 @@ namespace GB::Editor
 			}
 			ImGui::End();
 		}
+		DrawGamePanels(ox, oy, w, h);
 		if (m_Game.Help)
 		{
 			ImGui::SetNextWindowPos(ImVec2(ox + w - 20.0f, oy + 30.0f), ImGuiCond_Appearing, ImVec2(1.0f, 0.0f));
@@ -647,6 +678,7 @@ namespace GB::Editor
 			{
 				ImGui::TextUnformatted("WASD walk, Shift runs, drag the mouse to look");
 				for (const auto& [action, key] : m_Controls.Keys) ImGui::Text("%-6s %s", key.c_str(), action.c_str());
+				ImGui::TextUnformatted("I bag - T people - B buildings - X attack - Q block - the buttons at the bottom do the same");
 				ImGui::TextUnformatted("Console: game talk|give|teach|learn|marry|propose|craft|attack|trade ...");
 			}
 			ImGui::End();

@@ -36,6 +36,26 @@ namespace GB::Editor
 			if (e.Kind != "death") continue;
 			if (Actor* actor = m_Actors.Find(e.Other)) actor->StartRagdoll();
 		}
+		// anyone dead of any cause (hunger, thirst, cold, wounds) falls as a ragdoll too, once, and leaves a cross on the map
+		for (const auto& c : m_Clans.All())
+		{
+			if (!c->Folk) continue;
+			for (const TribeMember& m : c->Folk->Members())
+			{
+				if (!m.Dead || m_Graves.count(m.Name)) continue;
+				Actor* actor = m_Actors.Find(m.Name);
+				if (!actor) continue;
+				const glm::vec3 p = actor->GetPosition();
+				m_Graves[m.Name] = { m.Name, m.Cause, { p.x, p.z } };
+				if (!actor->Ragdolled()) actor->StartRagdoll();
+			}
+		}
+		for (auto g = m_Graves.begin(); g != m_Graves.end();)   // (a new world or a loaded game forgets the crosses of the old one)
+		{
+			bool dead = false;
+			for (const auto& c : m_Clans.All()) if (c->Folk) for (const TribeMember& m : c->Folk->Members()) dead = dead || (m.Dead && m.Name == g->first);
+			g = dead ? std::next(g) : m_Graves.erase(g);
+		}
 		// grievances fade, day by day of the needs' clock
 		const double today = std::floor(m_Combat.Time() / std::max(1.0f, day));
 		if (today > m_HostilityDay) { m_Hostility.ForgetPerDay = m_Combat.Rules.Raids.Forget; m_Hostility.Forget(static_cast<float>(today - m_HostilityDay)); m_HostilityDay = today; }
