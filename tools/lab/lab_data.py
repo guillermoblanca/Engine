@@ -48,9 +48,9 @@ def series(db, rid):
 
 
 def needs(db, rid):
-    """Per clan and per day: the share of member samples whose need was covered, and the mean level of each need."""
+    """Per clan and per quarter of a day: the share of member samples whose need was covered, and the mean level of each need."""
     res = defaultdict(lambda: defaultdict(lambda: {"n": 0, **{k: 0.0 for k in NEEDS}, **{k + "_ok": 0 for k in NEEDS}}))
-    for clan, day, h, t, r, w, hp in q(db, "select clan_id, cast(t/1200 as int), hunger, thirst, rest, warmth, health from samples where run_id=? and alive=1", rid):
+    for clan, day, h, t, r, w, hp in q(db, "select clan_id, cast(t/300 as int), hunger, thirst, rest, warmth, health from samples where run_id=? and alive=1", rid):
         b = res[clan][day]
         b["n"] += 1
         for name, v in zip(NEEDS, (h, t, r, w, hp)):
@@ -64,7 +64,7 @@ def needs(db, rid):
         for day in sorted(days):
             b = days[day]
             n = max(1, b["n"])
-            row = {"day": day + 1}
+            row = {"day": (day + 1) * 0.25}
             for name in NEEDS:
                 row[name + "_mean"] = round(b[name] / n, 1)
                 row[name + "_covered"] = round(100.0 * b[name + "_ok"] / n, 1)
