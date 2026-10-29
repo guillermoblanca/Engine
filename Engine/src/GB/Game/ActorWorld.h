@@ -22,6 +22,21 @@ namespace GB
 		bool CreateEntity = false;         // make the scene entity (with a gameplay component and its ability system) when there is none of that name
 	};
 
+	// Level of detail of the animation (H16): how far from the viewer an actor stops getting its full pose. Presentation only (see
+	// AnimInstance::SetDetail): the movement, the abilities, their montages and notifies are the same at every level, so the game does not change.
+	// Farther still the tribe makes a member abstract (TribeConfig::DetailRadius) and the actor is suspended.
+	struct AnimLodConfig
+	{
+		bool Enabled = true;
+		float FullRadius = 25.0f;      // m: closer than this, the full pose every frame (clips, foot IK, look-at, hands on props)
+		float ReducedRadius = 50.0f;   // m: up to here no IK, and the pose every ReducedEvery frames; beyond, every FarEvery frames
+		int ReducedEvery = 2;
+		int FarEvery = 4;
+		bool operator==(const AnimLodConfig&) const = default;
+	};
+	// The distances of each quality preset ("minimum", "low", "medium", "high", "ultra"; unknown: medium). The editor's `quality` sets it.
+	AnimLodConfig AnimLodForQuality(const std::string& preset);
+
 	// The actors of a world: it creates, updates, draws and removes them, shares each loaded model between the actors that use it, keeps
 	// them out of each other's way, and links every one to the entity of the scene with its name and to its ability system. Updating goes
 	// in name order, so a run is the same every time.
@@ -69,6 +84,17 @@ namespace GB
 		// (the tribe's abstract agent) moves it by hand and puts it back (Teleport) when it is resumed.
 		void SetSuspended(const std::string& name, bool suspended);
 		bool Suspended(const std::string& name) const { return m_Suspended.count(name) > 0; }
+		// Level of detail of the animation (H16): from the viewer (the camera) and AnimLodConfig. Without a viewer every actor is at full detail.
+		void SetViewer(const glm::vec3& pos) { m_Viewer = pos; m_HasViewer = true; }
+		void ClearViewer() { m_HasViewer = false; }
+		void SetAnimLod(const AnimLodConfig& lod) { m_Lod = lod; }
+		const AnimLodConfig& AnimLod() const { return m_Lod; }
+		// The level an actor was updated at in the last frame: 0 full, 1 reduced (no IK), 2 far (no IK, no props, posed every few frames), 3 suspended
+		// (abstract) or unknown. TribeVisuals reads it to skip the hands reaching for things beyond full detail.
+		int AnimLevel(const std::string& name) const { if (m_Suspended.count(name)) return 3; const auto it = m_Levels.find(name); return it == m_Levels.end() ? 0 : it->second; }
+		// What the last Update did (the perf line `stats ai`): actors at each level, suspended ones, poses computed and the wall time (measured only).
+		struct FrameCost { int Full = 0, Reduced = 0, Far = 0, Suspended = 0, Posed = 0; double Ms = 0.0; };
+		const FrameCost& LastCost() const { return m_Cost; }
 
 		// Saving (see GB/Save): where each actor is, which way it faces and which locomotion set it moves with. Loading puts back the actors that exist
 		// now; one the world does not have is left out (its model is not in the save yet: spawn it again with `actor spawn`).
@@ -97,5 +123,11 @@ namespace GB
 		NavGrid m_Nav;
 		std::vector<CircleObstacle> m_PushedObstacles;   // the static obstacles the actors have now
 		std::set<std::string> m_Suspended;
+		glm::vec3 m_Viewer{ 0.0f };
+		bool m_HasViewer = false;
+		AnimLodConfig m_Lod;
+		long m_LodFrame = 0;
+		std::map<std::string, int> m_Levels;
+		FrameCost m_Cost;
 	};
 }

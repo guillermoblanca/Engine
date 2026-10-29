@@ -1,0 +1,22 @@
+# H8 demo (principle 7): on a generated world with wild resource nodes the site choice is asked and the clan is founded where it says (no patch: the
+# wild nodes are enough); a construction site is put down, the clan carries the materials and works it, the game is saved and loaded in the middle of
+# the work and the site comes back; the invariants hold (the "buildings" one included). A failed line fails the test (--strict=1).
+generate temperate 5
+quality minimum
+resources world
+site best
+site list 3
+tribe build fox
+qa expect "tribe status" "wild resource nodes|store:"
+settlement buildings
+settlement start shelter
+qa expect "settlement status" "Shelter 1 \(shelter\): building the foundation"
+timescale 20
+wait 120
+save h8_settlement
+load h8_settlement
+qa expect "settlement status" "Shelter 1 \(shelter\)"
+wait 30
+qa check
+qa expect "qa status" "[1-9][0-9]* live checks, 0 violation"
+quit

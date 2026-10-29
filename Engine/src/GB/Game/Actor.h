@@ -134,6 +134,17 @@ namespace GB
 		void DetachProp(const std::string& name = "");   // empty: all of them
 		std::vector<std::string> PropNames() const { return m_Animator ? m_Animator->Anim().PropNames() : std::vector<std::string>(); }
 		bool EquipProp(const std::string& name, bool on);   // also changes the walk for the box and the wheelbarrow
+		// A prop drawn by a look of the visuals (GB/Visual): `look` is handed to the prop drawer, `socket` is where it hangs ("hand_r", "hip_r",
+		// "back"...; "carry" holds it in both arms between the palms, measured from the clips on screen: switch to the carrying set first, see
+		// TribeVisuals) and `offset` places it in the socket's frame. The same name replaces the prop. False when the rig has no such socket.
+		bool AttachLook(const std::string& name, const std::string& socket, const std::string& look, const glm::mat4& offset = glm::mat4(1.0f));
+		std::string PropLookOf(const std::string& name) const { const auto it = m_PropLooks.find(name); return it == m_PropLooks.end() ? std::string() : it->second.Look; }
+		std::string PropSocketOf(const std::string& name) const { const auto it = m_PropLooks.find(name); return it == m_PropLooks.end() ? std::string() : it->second.Socket; }
+		// Draws the looks (without one, a prop is a coloured box): the look, the prop's world matrix and the scene. False = draw the box.
+		using PropDrawer = std::function<bool(const std::string& look, const glm::mat4& world, Scene& scene)>;
+		void SetPropDrawer(PropDrawer drawer) { m_PropDrawer = std::move(drawer); }
+		// Where the model is drawn: its space to the world (position, facing and the scale to its height). Targets of IK layers go through it.
+		glm::mat4 ModelToWorld() const { return RootMatrix(); }
 		void SetFootIK(bool on) { m_FeetOn = on; ApplyFeet(); }
 		bool FootIKOn() const { return m_FeetOn; }
 		// What the actor carries (H2): a backpack of 12 slots. Saved with the actor.
@@ -164,6 +175,10 @@ namespace GB
 		bool StartRagdoll(const glm::vec3& extraVelocity = glm::vec3(0.0f));
 		void GetUp();
 		bool Ragdolled() const { return m_Animator && m_Animator->Anim().Ragdolled(); }
+		// Level of detail of the animation for the next Update (H16, see AnimInstance::SetDetail): presentation only, the movement, the abilities
+		// and their montages go exactly as at full detail. ActorWorld sets it from the distance to the viewer.
+		// `props` false: its props are not drawn (far away they are a few pixels; they stay attached and come back when it is nearer).
+		void SetAnimationDetail(bool pose, bool ik, bool props = true) { if (m_Animator) m_Animator->Anim().SetDetail(pose, ik); m_DrawProps = props; }
 		bool Blast(const glm::vec2& xz, float radius, float speed);
 		void HitRagdoll(const glm::vec3& impulse);
 		std::string RagdollStatus() const;
@@ -204,9 +219,11 @@ namespace GB
 		TaskRunner::Resolver m_Interactions;
 		bool m_FeetOn = true;
 		Inventory m_Bag{ 12, 0.0f };
-		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; };
+		struct PropLook { glm::vec3 Size{ 0.3f }; glm::vec3 Color{ 0.6f, 0.42f, 0.25f }; std::string Look, Socket; };
+		PropDrawer m_PropDrawer;
 		std::map<std::string, PropLook> m_PropLooks;
 		mutable std::unique_ptr<Mesh> m_PropMesh;
+		bool m_DrawProps = true;   // H16: SetAnimationDetail
 		std::string m_RetargetReport;
 		std::unique_ptr<PhysicsWorld> m_Physics;   // declared before the animator: the ragdoll lives in it and must go first
 		float m_RestTime = 0.0f;

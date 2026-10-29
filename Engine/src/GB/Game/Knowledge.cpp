@@ -60,6 +60,23 @@ namespace GB
 
 	void ClanKnowledge::Leave(const std::string& name) { m_Agents.erase(name); }
 
+	void ClanKnowledge::Admit(const std::string& name, const AgentKnowledge& knows)
+	{
+		AgentKnowledge& k = m_Agents[name];
+		k = knows;
+		if (m_Techs)
+			for (const std::string& t : m_Techs->Starting()) k.Known.insert(t);
+	}
+
+	std::vector<KnowledgeEvent> ClanKnowledge::Instruct(const std::string& learner, const std::string& tech, float amount, const std::string& how)
+	{
+		std::vector<KnowledgeEvent> out;
+		const auto it = m_Agents.find(learner);
+		if (!m_Techs || it == m_Agents.end() || amount <= 0.0f || !CanLearn(learner, tech)) return out;
+		Understand(learner, it->second, tech, amount, how, out);
+		return out;
+	}
+
 	const AgentKnowledge* ClanKnowledge::Of(const std::string& name) const
 	{
 		const auto it = m_Agents.find(name);

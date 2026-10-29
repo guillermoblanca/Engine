@@ -28,6 +28,11 @@ namespace GB
 		// it could not draw it. `world` is the entity's world matrix.
 		using PropBuilder = std::function<bool(const PropComponent& prop, const glm::mat4& world, Scene& scene)>;
 		void SetPropBuilder(PropBuilder builder) { m_PropBuilder = std::move(builder); }
+		// Draws an entity by its data look (resource nodes, buildings, creatures: see GB/Visual/SceneVisuals.h). Called for every active entity
+		// first; when it returns true the entity's own mesh and every descendant of it are not drawn (the primitive parts stay in the scene data
+		// as the fallback a build without the visuals shows).
+		using EntityVisual = std::function<bool(const EntityWorld& world, EntityId id, const glm::mat4& matrix, Scene& scene)>;
+		void SetEntityVisual(EntityVisual visual) { m_EntityVisual = std::move(visual); }
 
 		// The playing model of an entity (null when it has none or it failed to load), for animation control.
 		ModelInstance* FindInstance(EntityId id);
@@ -42,6 +47,7 @@ namespace GB
 
 		std::string m_AssetDir;
 		PropBuilder m_PropBuilder;
+		EntityVisual m_EntityVisual;
 		std::map<std::pair<int, float>, std::unique_ptr<Mesh>> m_Primitives;
 		std::map<std::string, std::unique_ptr<Model>> m_Models;   // null entry: failed to load (not retried)
 		std::map<EntityId, std::pair<std::string, std::unique_ptr<ModelInstance>>> m_Instances;

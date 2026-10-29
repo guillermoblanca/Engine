@@ -41,6 +41,19 @@ Ejecutables (en Windows, `build\<Proyecto>\Release\<Nombre>.exe`):
 ./build/Editor/Editor                             # editor
 ```
 
+### Jugar
+
+```bash
+./build/Editor/Editor --play                      # un mundo, dos clanes y tú como miembro del clan 0 (X Bot de packs/full, o el zorro)
+./build/Editor/Editor "--play=alpine 7 5 3"       # mundo, semilla, miembros por clan, clanes
+./build/Editor/Editor --script=play.txt           # lo mismo desde el guion de la raíz
+```
+
+WASD para andar, **E** para lo que indica el aviso (recoger, avivar la hoguera, hablar, dejar en el almacén, comerciar), **F** comer, **G** dejar en el
+almacén, **C** coger un trabajo del tablón, **Tab** el panel del clan, **P** pausa, **=/-** velocidad, **F5/F9** guardar y cargar, **H** ayuda. Lo que aportas
+sube tu posición en el clan; con posición, el clan acepta tus propuestas (`game propose gather wood 10`, `game propose build shelter`). Las teclas y la
+interfaz son datos (`assets/data/player.json`). Todo en [docs/JUGAR.md](docs/JUGAR.md).
+
 ### Sin pantalla (agentes y CI)
 
 ```bash
@@ -73,9 +86,12 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | Arquitectura del sistema de animación completo (investigación) | [docs/ANIMACION_SISTEMA_COMPLETO.md](docs/ANIMACION_SISTEMA_COMPLETO.md) |
 | Habilidades de juego tipo GAS y escenario del huerto (`garden build`, `ability ...`) | [docs/habilidades.md](docs/habilidades.md) |
 | Animaciones que faltan en los packs y qué se usa mientras tanto | [docs/ANIMACIONES_PENDIENTES.md](docs/ANIMACIONES_PENDIENTES.md) |
+| Qué clip hace cada habilidad y cada trabajo de la tribu (datos del manifiesto), clips sin usar y lista para el artista | [docs/ANIMACIONES_USO.md](docs/ANIMACIONES_USO.md) |
+| Capa visual por datos: nodos que cambian con su cantidad, props en las manos, edificios por fases, texturas procedurales, zorro y conejo (`visuals`, `building`) | [docs/VISUALES.md](docs/VISUALES.md) |
 | Partidas guardadas, migraciones, guardado diferencial y repeticiones (`save`, `load`, `replay`) | [docs/GUARDADO.md](docs/GUARDADO.md) |
 | Objetos, inventario, recursos y recetas | [docs/OBJETOS.md](docs/OBJETOS.md) |
 | Recursos repartidos por el mundo generado, por bioma (`resources world`) | [docs/RECURSOS_MUNDO.md](docs/RECURSOS_MUNDO.md) |
+| **Jugar**: el jugador como miembro de un clan, controles, posición, propuestas, modo de juego (`play`, `game`) | [docs/JUGAR.md](docs/JUGAR.md) |
 | La primera tribu: trabajadores autónomos (`tribe build`) | [docs/TRIBU.md](docs/TRIBU.md) |
 | Percepción, necesidades y cerebro de utilidad de los agentes (`ai`) | [docs/IA.md](docs/IA.md) |
 | Navegación: cuadrícula con costes, caminos y evitación (`nav`) | [docs/NAVEGACION.md](docs/NAVEGACION.md) |

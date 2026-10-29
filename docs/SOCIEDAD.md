@@ -91,6 +91,8 @@ Grafo **disperso** de vínculos por pares (−1..1), simétrico: solo pares con 
 | `teach` | una lección, entre aprendiz y maestro |
 | `pair`, `birth` | al emparejarse; entre el recién nacido y sus padres |
 | `help`, `theft`, `rescue` | eventos controlados (editor: `tribe relate`; tests) |
+| `care` | H14: un miembro termina de curar las heridas de otro ([CONFLICTO.md](CONFLICTO.md)) |
+
 
 Cada día un vínculo pierde `decayPerDay` de sí mismo; por debajo de `keep` desaparece, y cada miembro guarda solo sus `maxPerMember` más fuertes. El
 **parentesco** (pareja, padres, hijos, hermanos) suma `kin` a la afinidad. Se usa para elegir pareja, para el compañero que busca quien se siente solo

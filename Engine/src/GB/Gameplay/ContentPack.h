@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Items.h"
 #include "GB/Gameplay/Techs.h"
 #include <cstddef>
@@ -69,8 +70,11 @@ namespace GB
 	// (Discovery.Experiment above 0) with one of its recipes whose inputs, tool and station can be had (or it unlocks no recipe: an idea needs no
 	// materials). Watching and being taught need someone who knows it, so on their own they discover nothing. More problems: technologies that require
 	// or unlock ids that do not exist, and technologies that can never be discovered (deferred ids, as always, are notes). nullptr = no technologies.
+	// With buildings (H8, E9): a building can be built once every material of its phases can be had and, when a technology unlocks it (TechDef::Buildings
+	// or its own `tech`), once one of those can be discovered; then its station is there too (a drying rack gives "drying_rack"). A building that can
+	// never be built is a problem (a note when deferred). Without technologies a building's `tech` is only noted.
 	ContentReport CheckReachability(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes, const PackRules& rules,
-		const TechTree* techs);
+		const TechTree* techs, const std::map<std::string, BuildingDef>* buildings = nullptr);
 
 	// A section loader: the part of the content one system owns ("items" reads items, recipes and nodes; "roles" the tribe roles; later interactives,
 	// buildings, techs...). Items does not know the other systems: each registers its own section with ContentPacks. Loading goes Begin (copy the live
@@ -117,6 +121,9 @@ namespace GB
 	// The same with the technologies (H11): the section also reads "techs" and "knowledge" (LoadTechs) and checks with them. They travel in the items
 	// section, not in one of their own, because the check needs the staged items, recipes, nodes and technologies of the same load at once.
 	ContentSection ItemContentSection(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes, TechTree& techs);
+	// The same with the buildings too (H8, "buildings" through LoadBuildings) and, when `techs` is given, the technologies: what a building needs, the
+	// station it gives and the technology that unlocks it are part of what can be had. Either may be null.
+	ContentSection ItemContentSection(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes, TechTree* techs, std::map<std::string, BuildingDef>* buildings);
 
 	// The packs loaded and the sections that read them.
 	class ContentPacks

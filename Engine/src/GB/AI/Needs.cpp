@@ -95,7 +95,7 @@ namespace GB
 	std::string CauseOfDeath(const AbilitySystemComponent& who)
 	{
 		if (!IsDead(who)) return {};
-		for (const char* n : { NeedName::Hunger, NeedName::Thirst, NeedName::Warmth })
+		for (const char* n : { NeedName::Hunger, NeedName::Thirst, NeedName::Warmth, "Wounds" })   // ("Wounds": killed in a fight, H14)
 			if (who.HasTag(std::string(kDeathPrefix) + n)) return n;
 		return "Unknown";
 	}

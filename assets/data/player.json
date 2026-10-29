@@ -1,0 +1,45 @@
+{
+  "player": {
+    "role": "forager",
+    "mortal": false,
+    "floorHealth": 10.0,
+    "reach": 4.0,
+    "campReach": 7.0,
+    "giftBond": 0.02,
+    "talkBond": 0.01,
+    "talkSeconds": 60.0,
+    "teachAmount": 0.5,
+    "marryBond": 0.3,
+    "visitRadius": 15.0,
+    "standing": {
+      "start": 10.0,
+      "max": 100.0,
+      "leader": 60.0,
+      "decayPerDay": 2.0,
+      "credit": { "deposit": 0.5, "job": 1.0, "gift": 1.0, "teach": 6.0, "craft": 3.0, "stoke": 2.0, "build": 1.5, "trade": 5.0, "proposal": 2.0, "take": -0.3, "hunt": 3.0, "defend": 5.0, "fall": -5.0 }
+    },
+    "proposals": {
+      "base": -0.1,
+      "affinity": 1.0,
+      "standing": 0.6,
+      "leader": 0.4,
+      "culture": { "sharing": 0.3, "industry": 0.1 },
+      "majority": 0.5,
+      "unitCost": 0.005,
+      "buildCost": 0.15,
+      "cooldown": 60.0,
+      "maxUnits": 40
+    }
+  },
+  "controls": {
+    "keys": {
+      "interact": "E", "eat": "F", "drink": "R", "deposit": "G", "sleep": "Z", "clan": "Tab", "jobs": "J", "claim": "C",
+      "pause": "P", "faster": "Equal", "slower": "Minus", "save": "F5", "load": "F9", "help": "H"
+    },
+    "hud": { "notifications": 5, "notifySeconds": 12.0, "needs": [ "Hunger", "Thirst", "Rest", "Warmth", "Health" ], "clock": true, "prompt": true },
+    "game": {
+      "world": "temperate", "seed": 5, "resources": 1.0, "members": 4, "clans": 2,
+      "model": "packs/full/X Bot.fbx", "fallback": "fox", "name": "Player", "quality": "auto", "autoMs": 40.0, "timeScale": 1
+    }
+  }
+}

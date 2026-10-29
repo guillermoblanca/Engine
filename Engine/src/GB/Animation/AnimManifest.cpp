@@ -47,6 +47,55 @@ namespace GB
 			s.Turns = ReadStrings(j, "turns");
 			return s;
 		}
+
+		Json UsesToJson(const std::vector<ManifestUse>& uses)
+		{
+			Json list = Json::array();
+			for (const ManifestUse& u : uses)
+			{
+				Json j;
+				j["name"] = u.Name;
+				j["montages"] = StringList(u.Montages);
+				if (!u.Set.empty()) j["set"] = u.Set;
+				if (u.Loop) j["loop"] = true;
+				if (!u.Note.empty()) j["note"] = u.Note;
+				list.push_back(std::move(j));
+			}
+			return list;
+		}
+
+		std::vector<ManifestUse> UsesFromJson(const Json& root, const char* key)
+		{
+			std::vector<ManifestUse> out;
+			const auto it = root.find(key);
+			if (it == root.end() || !it->is_array()) return out;
+			for (const Json& j : *it)
+			{
+				if (!j.is_object()) continue;
+				ManifestUse u;
+				u.Name = j.value("name", "");
+				u.Montages = ReadStrings(j, "montages");
+				u.Set = j.value("set", "");
+				u.Loop = j.value("loop", false);
+				u.Note = j.value("note", "");
+				out.push_back(std::move(u));
+			}
+			return out;
+		}
+	}
+
+	const ManifestUse* FindUse(const std::vector<ManifestUse>& uses, const std::string& name)
+	{
+		for (const ManifestUse& u : uses)
+			if (u.Name == name) return &u;
+		return nullptr;
+	}
+
+	float StageRate(const AnimManifest& manifest, const std::string& stage)
+	{
+		for (const ManifestStage& s : manifest.Stages)
+			if (s.Name == stage) return s.Rate;
+		return 1.0f;
 	}
 
 	AnimManifest MixamoManifest()
@@ -89,6 +138,15 @@ namespace GB
 		Json packs = Json::array();
 		for (const ManifestPack& p : manifest.Packs) packs.push_back({ { "id", p.Id }, { "description", p.Description }, { "clips", StringList(p.Clips) } });
 		root["packs"] = packs;
+		// (the uses and stages only when there are some: a manifest without them writes the text it always wrote)
+		if (!manifest.Abilities.empty()) root["abilities"] = UsesToJson(manifest.Abilities);
+		if (!manifest.Activities.empty()) root["activities"] = UsesToJson(manifest.Activities);
+		if (!manifest.Stages.empty())
+		{
+			Json stages = Json::array();
+			for (const ManifestStage& st : manifest.Stages) stages.push_back({ { "name", st.Name }, { "rate", st.Rate } });
+			root["stages"] = stages;
+		}
 		return root.dump(2) + "\n";
 	}
 
@@ -119,6 +177,11 @@ namespace GB
 		}
 		if (const auto it = root.find("packs"); it != root.end() && it->is_array())
 			for (const Json& p : *it) m.Packs.push_back({ p.value("id", ""), p.value("description", ""), ReadStrings(p, "clips") });
+		m.Abilities = UsesFromJson(root, "abilities");
+		m.Activities = UsesFromJson(root, "activities");
+		if (const auto it = root.find("stages"); it != root.end() && it->is_array())
+			for (const Json& st : *it)
+				if (st.is_object()) m.Stages.push_back({ st.value("name", ""), st.value("rate", 1.0f) });
 		out = std::move(m);
 		return true;
 	}
@@ -218,6 +281,29 @@ namespace GB
 				if (n.Time < 0.0f || n.Time > 1.0f) problems.push_back("montage '" + m.Name + "': notify '" + n.Name + "' is out of 0..1");
 		}
 		for (const ManifestPack& p : manifest.Packs) unique("pack", p.Id);
+		std::set<std::string> montages, sets;
+		for (const MontageDesc& m : manifest.Montages) montages.insert(m.Name);
+		for (const ManifestSet& s : manifest.Sets) sets.insert(s.Name);
+		sets.insert(AnimInstance::kDefaultSet);
+		sets.insert("free");
+		auto uses = [&](const char* kind, const std::vector<ManifestUse>& list)
+		{
+			for (const ManifestUse& u : list)
+			{
+				unique(kind, u.Name);
+				if (u.Montages.empty() && u.Set.empty()) problems.push_back(std::string(kind) + " '" + u.Name + "' plays nothing (no montage and no set)");
+				for (const std::string& m : u.Montages)
+					if (!montages.count(m)) problems.push_back(std::string(kind) + " '" + u.Name + "' plays the unknown montage '" + m + "'");
+				if (!u.Set.empty() && !sets.count(u.Set)) problems.push_back(std::string(kind) + " '" + u.Name + "' walks with the unknown set '" + u.Set + "'");
+			}
+		};
+		uses("ability", manifest.Abilities);
+		uses("activity", manifest.Activities);
+		for (const ManifestStage& st : manifest.Stages)
+		{
+			unique("stage", st.Name);
+			if (!(st.Rate > 0.0f)) problems.push_back("stage '" + st.Name + "' has a rate that is not positive");
+		}
 		return problems;
 	}
 

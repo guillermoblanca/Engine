@@ -135,6 +135,18 @@
       "weight": 2.6
     },
     {
+      "ability": "Eat",
+      "category": "food",
+      "id": "meat",
+      "name": "Meat",
+      "shelfLife": 900.0,
+      "stack": 10,
+      "tags": [
+        "Item.Food.Meat"
+      ],
+      "weight": 0.5
+    },
+    {
       "category": "resource",
       "id": "reed",
       "name": "Reed",
@@ -566,6 +578,51 @@
       "station": "workbench"
     }
   ],
+  "buildings": {
+    "shelter": {
+      "name": "Shelter",
+      "footprint": [ 3.0, 3.0 ],
+      "phases": [
+        { "name": "foundation", "work": 6.0, "needs": { "stone": 3 }, "part": "slab" },
+        { "name": "frame", "work": 12.0, "needs": { "branch": 6 }, "part": "posts" },
+        { "name": "roof", "work": 10.0, "needs": { "reed": 4, "fiber": 3 }, "part": "roof" }
+      ],
+      "shelter": 3,
+      "rest": 0.2,
+      "warmth": 0.3,
+      "color": [ 0.42, 0.3, 0.17 ]
+    },
+    "storage": {
+      "name": "Storage",
+      "footprint": [ 3.0, 2.5 ],
+      "phases": [
+        { "name": "floor", "work": 8.0, "needs": { "stone": 4, "wood": 2 }, "part": "slab" },
+        { "name": "walls", "work": 10.0, "needs": { "branch": 6 }, "part": "walls" },
+        { "name": "roof", "work": 8.0, "needs": { "reed": 4 }, "part": "roof" }
+      ],
+      "store": "stockpile",
+      "color": [ 0.5, 0.36, 0.2 ]
+    },
+    "workbench": {
+      "name": "Workbench",
+      "footprint": [ 2.0, 1.2 ],
+      "phases": [
+        { "name": "bench", "work": 8.0, "needs": { "wood": 3, "stone": 2 }, "part": "table" }
+      ],
+      "station": "workbench",
+      "color": [ 0.55, 0.4, 0.22 ]
+    },
+    "drying_rack": {
+      "name": "Drying rack",
+      "footprint": [ 2.5, 1.5 ],
+      "phases": [
+        { "name": "frame", "work": 6.0, "needs": { "branch": 4 }, "part": "posts" },
+        { "name": "rack", "work": 6.0, "needs": { "fiber": 3 }, "part": "rack" }
+      ],
+      "station": "drying_rack",
+      "color": [ 0.5, 0.38, 0.22 ]
+    }
+  },
   "roles": {
     "forager": {
       "weights": {
@@ -697,9 +754,11 @@
         "Resource.Stone": "mining",
         "craft": "crafting",
         "fire": "firekeeping",
-        "stoke": "firekeeping"
+        "stoke": "firekeeping",
+        "build": "building",
+        "deliver": "building"
       },
-      "practice": { "gather": 1.0, "craft": 4.0, "stoke": 2.0, "fire": 3.0 },
+      "practice": { "gather": 1.0, "craft": 4.0, "stoke": 2.0, "fire": 3.0, "build": 2.0, "deliver": 0.5 },
       "gain": 0.6,
       "decayPerDay": 4.0,
       "max": 100.0,
@@ -719,7 +778,7 @@
       "maxAge": 1.0,
       "minScore": 0.15,
       "switch": 0.3,
-      "priority": { "gather": 1.0, "craft": 1.4, "stoke": 1.6, "fire": 1.2 },
+      "priority": { "gather": 1.0, "craft": 1.4, "stoke": 1.6, "fire": 1.2, "build": 1.3, "deliver": 1.1 },
       "upkeep": { "fiber": 1.0 },
       "fireWood": 4.0
     },
@@ -781,7 +840,8 @@
       "boldness": { "mean": 0.5, "spread": 0.25, "heritability": 0.5, "effects": { "explore": 0.4, "regroup": -0.5 } }
     },
     "relations": {
-      "events": { "work": 0.02, "food": 0.03, "camp": 0.015, "conflict": -0.12, "teach": 0.04, "pair": 0.3, "birth": 0.4, "help": 0.1, "theft": -0.4, "rescue": 0.4 },
+      "events": { "work": 0.02, "food": 0.03, "camp": 0.015, "conflict": -0.12, "teach": 0.04, "pair": 0.3, "birth": 0.4, "help": 0.1, "theft": -0.4, "rescue": 0.4, "care": 0.15 },
+
       "decayPerDay": 0.03,
       "keep": 0.02,
       "maxPerMember": 12,
@@ -797,7 +857,8 @@
         "sharing": { "start": 0.5, "trait": "sociability", "effects": { "socialize": 0.3, "deposit": 0.2, "warm": 0.1 } },
         "industry": { "start": 0.5, "trait": "diligence", "effects": { "gather": 0.2, "rest": -0.3, "sleep": -0.1 } },
         "inquiry": { "start": 0.5, "trait": "curiosity", "effects": { "experiment": 0.4, "explore": 0.2 } },
-        "daring": { "start": 0.5, "trait": "boldness", "effects": { "explore": 0.2, "regroup": -0.2 } }
+        "daring": { "start": 0.5, "trait": "boldness", "effects": { "explore": 0.2, "regroup": -0.2, "fight": 0.3, "flee": -0.2 } }
+
       },
       "traditions": {
         "fire_vigil": { "name": "Fire vigil", "event": "stoke", "count": 30, "effects": { "warm": 0.15, "socialize": 0.1 } },
@@ -918,5 +979,59 @@
       "every": 30.0, "homeRadius": 60.0, "settle": 600.0, "poor": 0.25, "waterLost": 60.0, "after": 3600.0, "recover": 2.0, "minGain": 0.25,
       "cooldown": 7200.0, "arrive": 8.0, "score": 1.8
     }
+  },
+  "diplomacy": {
+    "seed": 1,
+    "territory": { "every": 30.0, "reach": 160.0, "scale": 60.0, "perMember": 1.0, "perBuilding": 2.0, "grow": 1.0, "min": 1.0 },
+    "encounters": { "every": 2.0, "radius": 10.0, "cooldown": 300.0 },
+    "relations": {
+      "events": { "meet": 0.03, "trade": 0.12, "gift": 0.1, "visit": 0.05, "teach": 0.04, "marriage": 0.15, "pact": 0.05, "overlap": -0.01, "theft": -0.08, "refuse": -0.03, "raid": -0.5 },
+      "grievances": { "theft": 0.25, "raid": 1.0 },
+      "openness": { "sharing": 0.5, "sociability": 0.4, "boldness": -0.2 },
+      "aggression": { "boldness": 0.6, "daring": 0.4, "sharing": -0.3 },
+      "trustGain": 0.5, "trustLoss": 1.0, "decayPerDay": 0.05, "grievanceDecay": 0.1, "memberWeight": 0.5, "memberBond": 0.05, "grievanceWeight": 0.3,
+      "friendly": 0.25, "hostile": -0.3, "grievanceHostile": 1.0
+    },
+    "trade": {
+      "every": 60.0, "minAttitude": -0.1, "cooldown": 600.0, "surplus": 1.25, "maxUnits": 6, "balance": 1.5, "gift": 0.45, "wait": 240.0, "score": 1.6, "meet": 6.0,
+      "values": { "berry": 1.0, "branch": 0.5, "clay": 1.0, "copper_ore": 3.0, "cordage": 2.0, "dried_berry": 2.0, "fiber": 0.5, "flint": 2.0, "grain": 1.5, "reed": 0.5, "stone": 1.0, "wood": 1.0 }
+    },
+    "exchange": { "minAttitude": 0.15, "teach": 0.5, "visitEvery": 900.0 },
+    "marriage": { "every": 600.0, "minAttitude": 0.1, "minBond": 0.04, "chance": 0.5 },
+    "pacts": { "allianceAttitude": 0.45, "allianceTrust": 0.4, "truceGrievance": 0.6, "truceOpenness": 0.9, "days": 8.0, "breakBelow": -0.05 }
+  },
+  "combat": {
+    "seed": 7,
+    "unarmed": "fists",
+    "weapons": {
+      "fists": { "tag": "", "damage": 4.0, "reach": 1.1, "seconds": 1.1, "stamina": 5.0, "wound": 0.05, "woundKind": "bruise", "power": 0.0,
+                 "montages": [ "sword_attack_1", "sword_attack_3" ], "hitAt": 0.4 },
+      "axe": { "tag": "Item.Tool.Axe", "damage": 13.0, "reach": 1.5, "seconds": 1.6, "stamina": 10.0, "wound": 0.45, "woundKind": "cut", "power": 2.0,
+               "montages": [ "sword_slash_1", "sword_slash_3" ], "hitAt": 0.45 },
+      "pickaxe": { "tag": "Item.Tool.Pickaxe", "damage": 11.0, "reach": 1.5, "seconds": 1.8, "stamina": 11.0, "wound": 0.4, "woundKind": "cut", "power": 2.0,
+                   "montages": [ "sword_attack_4" ], "hitAt": 0.5 },
+      "spear": { "tag": "Item.Weapon.Spear", "damage": 12.0, "reach": 2.4, "seconds": 1.5, "stamina": 9.0, "wound": 0.5, "woundKind": "cut", "power": 2.0,
+                 "montages": [ "sword_attack_2" ], "hitAt": 0.5 },
+      "bite": { "tag": "", "damage": 6.0, "reach": 1.0, "seconds": 1.2, "stamina": 6.0, "wound": 0.5, "woundKind": "bite", "power": 0.0, "montages": [], "hitAt": 0.4 }
+    },
+    "hits": { "base": 0.6, "dexterity": 0.35, "stamina": 0.25, "min": 0.1, "max": 0.95, "strength": 0.8, "endurance": 0.6, "blockChance": 0.45, "blockLets": 0.25,
+              "blockStamina": 6.0, "maxStamina": 100.0, "staminaRegen": 8.0, "runStamina": 8.0 },
+    "injuries": { "woundAt": 14.0, "severity": 40.0, "bleedSeconds": 40.0, "bleed": 0.25, "healPerDay": 0.6, "restFactor": 2.0, "careFactor": 1.5, "slow": 0.6,
+                  "lethal": 1.6, "restAbove": 0.25, "careSeconds": 20.0 },
+    "morale": { "start": 0.4, "boldness": 0.6, "hurt": 1.2, "allyDown": 0.2, "fleeBelow": 0.25, "fleeHealth": 25.0, "recover": 0.02 },
+    "threats": { "hostile": 0.5, "sight": 24.0, "safety": 30.0, "alarm": 30.0, "groupRadius": 12.0, "fleeDistance": 30.0, "safeDistance": 26.0, "forgetSeconds": 20.0,
+                 "bold": 1.0, "health": 0.8, "odds": 1.0, "kin": 0.8, "camp": 0.4, "fear": 1.2, "timid": 0.8, "childrenFight": false },
+    "predators": {
+      "fox": { "tag": "Animal.Fox", "prey": "child", "weakHealth": 40.0, "alone": 8.0, "hungry": 50.0, "sight": 14.0, "weapon": "bite", "health": 30.0, "speed": 2.6,
+               "boldness": 0.5, "meal": 60.0, "giveUp": 25.0 }
+    },
+    "hunts": {
+      "rabbit": { "tag": "Animal.Rabbit", "item": "meat", "units": 2, "health": 10.0, "speed": 2.2, "weapon": "fists", "fightsBack": false, "toolTag": "",
+                  "priority": 0.9, "range": 50.0, "hunters": 2 }
+    },
+    "raids": { "every": 60.0, "cooldown": 1200.0, "want": 1.0, "bold": 0.8, "hunger": 0.8, "grievance": 0.5, "hostility": 0.4, "party": 2, "maxParty": 4,
+               "partyHealth": 60.0, "stealSeconds": 3.0, "carry": 4, "steal": [ "Item.Food" ], "retreat": 0.5, "wrong": 1.0, "forget": 0.1, "reach": 4.0,
+               "maxSeconds": 600.0 },
+    "hostile": []
   }
 }

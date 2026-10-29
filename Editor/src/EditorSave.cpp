@@ -24,8 +24,10 @@ namespace GB::Editor
 		constexpr const char* kUserSection = "user-entities";
 		constexpr const char* kTribeSection = "ai";
 		constexpr const char* kEcologySection = "ecology";          // where each rabbit was heading and the counters
+		constexpr const char* kCombatSection = "combat";            // H14: the fights, the wounds and morale, the hostility table and the grievances
 		constexpr const char* kInteractivesSection = "interactives";   // the timers of the fires and the wells
 		constexpr const char* kSeasonSection = "season-look";          // the weather, snow and leaf colour the season wrote
+		constexpr const char* kClansSection = "clans";                 // H13: the clans besides the first (their tribes), relations, territory, meetings
 		constexpr const char* kKnowledgeSection = "knowledge-clan";    // H11: what the clan knows, what is half learnt, the tries (each member's own is in its actor)
 
 		// `wild`: the density of the resource nodes spread over the world (`resources world`), 0 when there are none; they are part of the baseline.
@@ -44,6 +46,7 @@ namespace GB::Editor
 			p.ForestAmount = d.ForestAmount;
 			p.TreeBudget = d.TreeBudget;
 			p.RockBudget = d.RockBudget;
+			p.Tiles = d.Tiles;
 			return p;
 		}
 
@@ -59,6 +62,7 @@ namespace GB::Editor
 			d.Lake = p.Lake;
 			d.ForestAmount = p.ForestAmount;
 			d.TreeBudget = p.TreeBudget;
+			d.Tiles = p.Tiles;
 			d.RockBudget = p.RockBudget;
 			return d;
 		}
@@ -121,7 +125,8 @@ namespace GB::Editor
 	std::vector<ActorState> EditorSaveHost::Actors() const
 	{
 		std::vector<ActorState> out = m_Actors ? m_Actors->CaptureActors() : std::vector<ActorState>();
-		for (ActorState& a : out) a.Knowledge = m_App.m_Tribe.Knowledge().Names(a.Name);   // H11: what a tribe member knows ("tech.<id>"); empty for the rest
+		for (ActorState& a : out)   // H11: what a tribe member knows ("tech.<id>"), from its own clan (H13); empty for the rest
+			if (const Clan* c = m_App.m_Clans.ClanOf(a.Name)) a.Knowledge = c->Folk->Knowledge().Names(a.Name);
 		return out;
 	}
 
@@ -249,6 +254,8 @@ namespace GB::Editor
 	std::vector<SectionBlob> EditorSaveHost::Sections() const
 	{
 		std::vector<SectionBlob> out;
+		// H16: the turns of the plan budget are not saved: the run that goes on forgets them too, so it queues as the one loaded from this save will
+		m_App.m_Actors.Navigation().ResetQueue();
 		const WorldParams p = World();
 		EntityWorld baseline;
 		std::string error;
@@ -260,6 +267,8 @@ namespace GB::Editor
 			out.push_back({ kUserSection, 1, SaveSceneToString(user) });
 		}
 		if (m_App.m_Ecology.Count() > 0 || m_App.m_Ecology.Born() > 0 || m_App.m_Ecology.Starved() > 0) out.push_back({ kEcologySection, 1, m_App.m_Ecology.ToJson() });
+		if (!m_App.m_Combat.All().empty() || !m_App.m_Hostility.Table().empty() || !m_App.m_Hostility.Grievances().empty())
+			out.push_back({ kCombatSection, 1, "{\"fights\":" + m_App.m_Combat.ToJson() + ",\"hostility\":" + m_App.m_Hostility.ToJson() + "}" });
 		if (const std::string timers = m_App.m_Interactives.ToJson(); timers != m_App.m_NoInteractiveTimers) out.push_back({ kInteractivesSection, 1, timers });
 		if (m_App.m_SeasonVisuals)
 		{
@@ -272,6 +281,7 @@ namespace GB::Editor
 		}
 		if (!m_App.m_Tribe.Members().empty()) out.push_back({ kTribeSection, 1, m_App.m_Tribe.ToJson() });   // store, fire, memory and decisions (the needs are attributes)
 		if (!m_App.m_Tribe.Members().empty() && m_App.m_Tribe.Knowledge().Gated()) out.push_back({ kKnowledgeSection, 1, m_App.m_Tribe.Knowledge().ToJson() });
+		if (m_App.m_Clans.Count() > 1) out.push_back({ kClansSection, 1, m_App.m_Clans.ToJson() });   // H13 (a game of one clan writes what it wrote before)
 		return out;
 	}
 
@@ -314,6 +324,7 @@ namespace GB::Editor
 	void EditorSaveHost::Commit(LoadedGame&& game)
 	{
 		EditorApp& app = m_App;
+		app.m_Actors.Navigation().ResetQueue();   // (H16: as at the capture, see Sections)
 		if (game.World.Generated && (!app.m_World.IsBuilt() || ParamsOf(app.m_WorldDesc, true, game.World.WildResources) != game.World)) app.BuildWorld(DescOf(game.World));
 		app.m_WildResources = game.World.Generated ? game.World.WildResources : 0.0f;   // the wild nodes themselves come in with the entities
 		app.m_Player.Stop();
@@ -342,6 +353,7 @@ namespace GB::Editor
 			}
 			m_Actors->RestoreActors(game.Actors, false);
 		}
+		app.ClearKeptClans();   // H13: the clans of `clan new` go; a save with them makes them again below
 		app.m_Tribe.Clear();
 		app.m_TribeBodies.clear();
 		for (const SectionBlob& s : game.Sections)
@@ -350,6 +362,8 @@ namespace GB::Editor
 		for (const ActorState& a : game.Actors) app.m_Tribe.Knowledge().SetNames(a.Name, a.Knowledge);
 		for (const SectionBlob& s : game.Sections)
 			if (s.Name == kKnowledgeSection && !app.m_Tribe.Knowledge().FromJson(s.Json)) GB_CLIENT_WARN("the knowledge of the clan in the save could not be read: it starts again");
+		for (const SectionBlob& s : game.Sections)
+			if (s.Name == kClansSection) app.RestoreClans(s.Json);   // H13 (a save from before has none: its tribe is clan 0, alone)
 		// what the systems keep apart from the components (a save from before these sections leaves them at their start)
 		std::string ecology = "{\"born\":0,\"starved\":0,\"eaten\":0,\"walks\":[]}", interactives = app.m_NoInteractiveTimers;
 		SeasonLook look;
@@ -360,6 +374,13 @@ namespace GB::Editor
 			else if (s.Name == kSeasonSection && !look.FromJson(s.Json)) GB_CLIENT_WARN("the season look of the save could not be read: it starts again");
 		}
 		if (!app.m_Ecology.FromJson(ecology)) GB_CLIENT_WARN("the animals' state of the save could not be read: they choose again");
+		// H14: the fights and the hostility (a save from before has neither: nobody fights, the table is the rules')
+		app.m_Combat.Clear();
+		app.m_Hostility.Clear();
+		app.m_Hostility.FromRules(app.m_Combat.Rules);
+		app.m_CombatSeq = 0;
+		for (const SectionBlob& s : game.Sections)
+			if (s.Name == kCombatSection && !app.RestoreCombat(s.Json)) GB_CLIENT_WARN("the fights of the save could not be read: nobody is fighting");
 		if (!app.m_Interactives.FromJson(interactives)) GB_CLIENT_WARN("the timers of the interactives could not be read: they start again");
 		app.m_SeasonVisuals = look.Enabled;
 		app.m_AutoWeather = look.Weather;
@@ -375,6 +396,7 @@ namespace GB::Editor
 		// driving one they follow the frame, which reads the keyboard (EditorApp::OnUpdate).
 		if (!m_App.m_Player.IsActive())
 		{
+			m_App.m_Actors.SetViewer(m_App.m_Camera.Position);   // H16: far from the camera the animation is cheaper (presentation only)
 			m_App.m_Actors.PrepareAbilities();
 			m_App.m_Actors.Update(static_cast<float>(kSimDt));
 		}
@@ -383,10 +405,13 @@ namespace GB::Editor
 		m_App.StepResources();
 		m_App.StepWorld(static_cast<double>(m_App.m_SimTick) / 60.0);
 		m_App.m_Interactives.Update(static_cast<float>(kSimDt), &m_App.m_SceneEditor.World());
-		m_App.m_Tribe.SetViewer({ m_App.m_Camera.Position.x, m_App.m_Camera.Position.z });   // far from the camera the members are abstract agents
-		m_App.m_Tribe.SetWorldClock(static_cast<double>(m_App.m_SimTick) / 60.0);
-		m_App.SyncRegions();   // H12: the tribe knows the world by regions (rebuilt only when the world or its wild nodes change)
-		m_App.m_Tribe.Update(static_cast<float>(kSimDt));
+		m_App.m_Buildings.Update(static_cast<float>(kSimDt), &m_App.m_SceneEditor.World());   // H8: the sites the tribe (or a load) made are picked up; their parts grow
+		for (const auto& c : m_App.m_Clans.All()) c->Buildings = static_cast<float>(c->Folk->BuildingCount());   // H8: its finished buildings make its claims stronger (H13)
+		m_App.StepCombat();   // H14: blows, wounds, the predators; after the animals moved, before the clans read what happened
+		m_App.m_Clans.SetViewer({ m_App.m_Camera.Position.x, m_App.m_Camera.Position.z });   // far from the camera the members are abstract agents
+		m_App.m_Clans.SetWorldClock(static_cast<double>(m_App.m_SimTick) / 60.0);
+		m_App.SyncRegions();   // H12: the tribes know the world by regions (rebuilt only when the world or its wild nodes change)
+		m_App.m_Clans.Update(static_cast<float>(kSimDt));   // H13: every clan (the first is m_Tribe), then what lies between them
 		m_App.StepQa();   // the invariants of the simulation, every half second (QA panel)
 		++m_App.m_SimTick;
 	}

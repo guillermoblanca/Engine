@@ -163,6 +163,33 @@ Todas las cifras: Release, una sola hebra, `tests/scale_test.cpp` con `GB_SCALE_
 | Refinado de orillas (`ShoreSubdivision`) | Por defecto (4): 227 ms y 381 k triángulos en la rejilla 257 (153 ms y 131 k sin refinar); 505 ms y 1,33 M triángulos en la 513. Tabla completa en `mundo.md` |
 | Alfa a cobertura del follaje | No distinguible a 790x617: ~5 ms por fotograma (RTX 3070, sin vsync, 735 k hojas, 420 árboles) con cualquier preset de `quality` (el comando los describe como presets de postproceso; no se comprobó si cambian el MSAA). Una medida real necesita un modo que fije MSAA y un tamaño de ventana grande |
 
+### Escala de H16 (test `sim_scale`, `GB_SCALE_BENCH=1`, 3 minutos simulados a 60 Hz)
+
+Clanes en el mundo del editor (templado, semilla 3, 360 m) con cuerpos de prueba que caminan la navegación real (`SimRun` con `Clans`), el visor en el primer campamento
+(sus miembros completos, el resto abstractos), presupuesto de búsquedas de 4 por paso y 20.000 celdas, caché de caminos de 128, un presupuesto de pensar compartido
+(`ClanWorld::ThinkPerFrame`). Release, una hebra, **la máquina cargada por otras compilaciones**: las colas (p99, máximo) llevan ese ruido.
+
+| Caso | Tribus p50 / p95 / p99 ms | de ellas pensar p95 | abstractos p95 | combate p95 | paso completo p50 / p95 | búsquedas (media) | x tiempo real |
+|---|---|---|---|---|---|---|---|
+| 100 en 3 clanes | 0,49 / 2,20 / 7,1 | 1,40 | 0,49 | — | 1,6 / 3,4 | 2.022 (1,6 ms) | x8,2 |
+| 300 en 5 clanes | 1,65 / **4,93** / 12,2 | 2,64 | 2,96 | — | 3,3 / 6,9 | 6.701 (1,2 ms) | x4,1 |
+| 100 en 3, hostiles, combate H14 | 0,67 / 2,35 / 4,5 | 1,82 | 0,43 | 0,12 (+0,10 en las tribus) | 1,9 / 3,7 | 10.981 (0,23 ms) | x7,2 |
+| 300 en 5, hostiles, combate H14 | 3,26 / **7,54** / 11,5 | 5,60 | 2,63 | 0,40 (+0,75 en las tribus) | 5,2 / 9,9 | 23.093 (0,25 ms) | x2,8 |
+
+- **El objetivo (p95 de las tribus < 4 ms con 300) no se cumple**: 4,9 ms sin combate y 7,5 ms con él. Con 100 se cumple con holgura. El coste está repartido entre los
+  turnos de pensar (unos 0,25 ms por decisión; con 300 hacen falta ~10 por fotograma a 60 Hz porque las órdenes terminan a ese ritmo, no por el reloj de cada uno) y el paso
+  de los agentes abstractos (sus búsquedas de camino, dentro del presupuesto). El máximo de unos 60 ms es el primer fotograma (todos deciden a la vez) y algún refresco de
+  la vista. Lo siguiente sería abaratar `Decide`/`Look` (lógica de juego, otros carriles) o pensar en paralelo por clan.
+- **Lo que se arregló midiendo**: con combate, cada pelea perseguía metas inalcanzables y las búsquedas costaban **8,5 ms de media** (p95 de los cuerpos 37 ms); el tope de
+  celdas por fotograma (`NavConfig::MaxExpandedPerFrame`) y la caché de fallos lo dejan en 0,23 ms y 0,29 ms. `StepConflict` comprobaba quién cuida a quién con miembros ×
+  miembros cada fotograma (ahora una lista de cuidadores) y `SyncTools` recorría todos los objetos para cada miembro y fotograma (ahora `ItemLibrary::ToolTags`).
+- El combate en sí (`CombatSystem::Update`) cuesta 0,1–0,4 ms con 100–300; las amenazas y peleas dentro de las tribus, 0,1–0,75 ms. En 3 minutos no llegó a salir ninguna incursión.
+- **Mundo de varias baldosas** (mismo test): 2×2 de 360 m se genera en 0,7 s y su rejilla de navegación (1.436², 39 MB) en 3,9 s; 3×3 en 1,4 s y 10 s (2.156², 89 MB). Un
+  viaje de esquina a esquina (962 m y 1.471 m) cuesta 59 y 93 ms y en 3×3 agota `MaxExpansions` (240.000 celdas: camino parcial): los viajes de kilómetros necesitan
+  planificar por el grafo de regiones y la búsqueda fina por tramos (pendiente).
+- Repetición del editor: `editor_replay`, `_wild` y `_midrun` pasan; `editor_replay_society` difiere también con el editor de `master` sin estos cambios (probado con el
+  ejecutable del carril visual: "REPLAY DIFFERS in sections"), y `editor_play` falla igual en la build de H15 en esta máquina (fotogramas lentos → `quality auto`).
+
 **Qué no escala a 50 o 100 NPC**: (1) cada trabajador es un actor completo (~20 µs × 100 = 2 ms por fotograma más el dibujo del skinning, que es de GPU y no se midió), así que hace falta nivel de detalle (ver `COSTE_ACTOR.md`); (2) la tanda de decisiones de la tribu
 (4,5 ms con 60, lineal en miembros y en nodos); (3) `Names()` y las cadenas de etiquetas por nodo; (4) cada actor lleva su copia de obstáculos estáticos. La ecología ya no es un problema.
 

@@ -50,7 +50,7 @@ namespace GB
 		ClanState clan;
 		clan.Food = m_Items ? static_cast<float>(FoodIn(m_Store)) : 0.0f;
 		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) ++clan.Alive;
-		clan.Shelter = HasFire();
+		clan.Shelter = HasFire() || Beds() > 0;   // (H8: a finished shelter near the camp counts as shelter too)
 		SocietyEvents(m_Society.Day(rules, clan));
 		// the children grow (and who came of age stands at its full height)
 		for (TribeMember& m : m_Members)
@@ -99,7 +99,8 @@ namespace GB
 		for (size_t n = m_Members.size(); child.empty(); ++n)
 		{
 			const std::string name = MemberName(Config.Work, n);
-			const bool taken = m_Society.Find(name) || std::any_of(m_Members.begin(), m_Members.end(), [&](const TribeMember& x) { return x.Name == name; });
+			const bool taken = m_Society.Find(name) || std::any_of(m_Members.begin(), m_Members.end(), [&](const TribeMember& x) { return x.Name == name; })
+				|| (m_NameTaken && m_NameTaken(name));   // (H13: nor one another clan uses)
 			if (!taken) child = name;
 		}
 		const glm::vec2 at = mom != m_Members.end() && mom->Body && !mom->Dead ? Where(*mom) : Config.Camp;

@@ -1,6 +1,7 @@
 #pragma once
 #include <algorithm>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
@@ -45,11 +46,15 @@ namespace GB
 	class ItemLibrary
 	{
 	public:
-		void Add(const ItemDef& def) { m_Items[def.Id] = def; }
+		void Add(const ItemDef& def) { m_Items[def.Id] = def; m_ToolTags.reset(); }
 		const ItemDef* Find(const std::string& id) const;
 		std::vector<std::string> Ids() const;
+		// H16: every tag under "Item.Tool." the items carry, once each, in item id order then tag order (ResourceSystem::SyncTools runs every frame for
+		// every member and used to walk every item for them).
+		const std::vector<std::string>& ToolTags() const;
 	private:
 		std::map<std::string, ItemDef> m_Items;
+		mutable std::shared_ptr<const std::vector<std::string>> m_ToolTags;   // ToolTags, made on first use after a change
 	};
 
 	struct ItemSlot

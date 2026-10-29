@@ -25,10 +25,13 @@ namespace GB
 		// The way from `from` to within `reach` of `to`: the waypoints (the last one is `to` itself when it can be stood on, else the nearest place
 		// within reach of it), or false when there is no way. Empty function: the straight line.
 		using Route = std::function<bool(const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points)>;
+		// May it plan a route now (H16: the plan budget of the grid, shared with the actors: NavGrid::AllowPlan)? False: it stands where it is and asks
+		// again next frame. Empty function: always (a host with no budget).
+		using Gate = std::function<bool()>;
 
 		void Place(const glm::vec2& pos) { m_Pos = m_Safe = pos; m_Tasks.clear(); m_Path.clear(); m_Failed = false; m_Error.clear(); m_Started = false; }
 		bool Do(const std::string& text, std::string& error);
-		void Update(float dt, AbilitySystemComponent* who, GameplayWorld& gameplay, const Locate& locate, float speed, const Route& route = Route());
+		void Update(float dt, AbilitySystemComponent* who, GameplayWorld& gameplay, const Locate& locate, float speed, const Route& route = Route(), const Gate& mayPlan = Gate());
 
 		bool Busy() const { return m_Index < m_Tasks.size() && !m_Failed; }
 		bool Failed() const { return m_Failed; }

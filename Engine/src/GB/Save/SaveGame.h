@@ -43,13 +43,16 @@ namespace GB::Save
 		bool River = true, Lake = true;
 		float ForestAmount = 0.55f;
 		int TreeBudget = 420, RockBudget = 70;
+		// H16: tiles per side of the world (1: the single map of Size metres). With more the world is Tiles x Tiles maps of the same generator made as
+		// one (seamless). Written only when above 1, so a save from before H16 is a single tile, as it was.
+		int Tiles = 1;
 		// Density of the resource nodes the data spreads over the world (PlanWorldResources, the editor's `resources world`), 0 = none. They come
 		// from the seed too, so they are part of the baseline and the save keeps only the ones that changed. Written only when not 0.
 		float WildResources = 0.0f;
 		bool operator==(const WorldParams& o) const
 		{
 			return Generated == o.Generated && Type == o.Type && Seed == o.Seed && GeneratorVersion == o.GeneratorVersion && Size == o.Size && Resolution == o.Resolution &&
-				River == o.River && Lake == o.Lake && ForestAmount == o.ForestAmount && TreeBudget == o.TreeBudget && RockBudget == o.RockBudget && WildResources == o.WildResources;
+				River == o.River && Lake == o.Lake && ForestAmount == o.ForestAmount && TreeBudget == o.TreeBudget && RockBudget == o.RockBudget && WildResources == o.WildResources && Tiles == o.Tiles;
 		}
 		bool operator!=(const WorldParams& o) const { return !(*this == o); }
 	};

@@ -68,7 +68,7 @@ namespace GB
 		WorkRules w;
 		w.Names = { "Ana", "Biel", "Cleo", "Dan", "Eli", "Fran", "Gala", "Hugo", "Iris", "Joel", "Kira", "Leo", "Mara", "Nil", "Olga", "Pau", "Rita", "Saul", "Tea", "Unai" };
 		w.Skills = DefaultSkillRules();
-		w.Jobs.Priority = { { "gather", 1.0f }, { "craft", 1.4f }, { "stoke", 1.6f }, { "fire", 1.2f } };
+		w.Jobs.Priority = { { "gather", 1.0f }, { "craft", 1.4f }, { "stoke", 1.6f }, { "fire", 1.2f }, { "build", 1.3f }, { "deliver", 1.1f } };   // (H8: the construction sites)
 		w.Jobs.Upkeep = { { "fiber", 1.0f } };
 		return w;
 	}

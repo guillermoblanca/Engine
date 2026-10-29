@@ -199,6 +199,11 @@ namespace GB
 		void Leave(const std::string& name);
 		// It died (of anything): its partner is free, its bonds go, the clan notes a "death".
 		std::vector<SocietyEvent> Died(const SocietyRules& rules, const std::string& name, const std::string& cause);
+		// H13: a member from another clan joins as it was (age, sex, genes, traits; its bonds stayed behind). Nothing happens when the name is here.
+		void Admit(const std::string& name, const Person& person);
+		// H13: two members of this society become partners (a marriage across clans, once both are here); old partners are free. False when either
+		// is not here, is dead, or they are the same.
+		bool Marry(const SocietyRules& rules, const std::string& a, const std::string& b);
 		const Person* Find(const std::string& name) const;
 		Person* Find(const std::string& name);
 		const std::map<std::string, Person>& People() const { return m_People; }

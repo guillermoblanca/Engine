@@ -19,7 +19,8 @@ Un **paquete** es un manifiesto `assets/data/<id>.pack.json` junto a los fichero
 
 - `depends`: ids de paquetes, que se buscan en la misma carpeta. `files`: rutas relativas al manifiesto, en orden.
 - `given`: objetos que llegan por otra vía (la reserva inicial de `tribe build`, el pozo).
-- `stations`: estaciones en las que se puede fabricar una vez cargado el paquete. Hoy son nombres; cuando los edificios sean datos (E9, E10), saldrán de ellos.
+- `stations`: estaciones en las que se puede fabricar una vez cargado el paquete sin construir nada. `era1` declara `workbench`: el campamento cuenta como banco de trabajo
+  improvisado (`TribeConfig::CampStations`). Las demás estaciones salen de los **edificios** (H8, sección `buildings`, ver [ASENTAMIENTOS.md](ASENTAMIENTOS.md)): el secadero da `drying_rack`.
 - `deferred`: huecos conocidos (objeto, receta o nodo → motivo). El validador los lista como notas, no como problemas. Si un hueco deja de serlo, avisa para quitarlo.
 
 ## Carga
@@ -31,7 +32,8 @@ cualquier paquete, o una dependencia que falta, no cambia nada. El paquete pedid
 **Secciones.** Cada sistema registra la suya con `ContentPacks::AddSection`; Items no conoce a los demás. `StagedSection(nombre, claves, cargar, comprobar, objetos...)` crea una
 sección sobre objetos vivos de cualquier tipo: hace la copia, carga cada documento en ella y la confirma al final. Hoy hay seis (`GB/Game/GameContent.h`): `items` (objetos,
 recetas y nodos, con `LoadContent` y el validador), `roles` (`LoadRoles`), `tribe` (`LoadTribeRules`: agenda, comida y existencias de la tribu), `work` (`LoadWorkRules`: nombres del clan, aptitudes, tablón y revisión de oficios), `interactives` (`LoadInteractives`) y `species` (`LoadSpecies`; las dos últimas con
-`AddWorldContentSections`, que el paquete `era1` lee de `world.json`). Para añadir edificios o tecnologías basta con otra sección:
+`AddWorldContentSections`, que el paquete `era1` lee de `world.json`). Los **edificios** (`buildings`, H8) los lee la propia sección `items` cuando se le dan
+(`AddGameContentSections(..., &buildings)`, `ItemContentSection(items, recipes, nodes, buildings)`), porque el validador los comprueba con los objetos. Para añadir tecnologías basta con otra sección:
 
 ```cpp
 packs.AddSection(StagedSection("interactives", { "interactives" },

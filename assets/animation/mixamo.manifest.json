@@ -1288,6 +1288,599 @@
       "stripTravel": true,
       "notifies": [],
       "sections": []
+    },
+    {
+      "name": "chop_1",
+      "clip": "sword and shield slash",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 0.85,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.4,
+          "name": "chop"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "chop_2",
+      "clip": "sword and shield slash (3)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 0.85,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.49,
+          "name": "chop"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "mine_1",
+      "clip": "sword and shield attack (4)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 0.8,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.43,
+          "name": "mine"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "mine_2",
+      "clip": "sword and shield attack (3)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 0.8,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.43,
+          "name": "mine"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "gather_bush",
+      "clip": "pick fruit (2)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.7,
+          "name": "gather"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "gather_low",
+      "clip": "pick fruit (3)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.61,
+          "name": "gather"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "pull_fiber_1",
+      "clip": "pull plant",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.5,
+          "name": "pull"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "pull_fiber_2",
+      "clip": "pull plant (2)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.73,
+          "name": "pull"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "collect_dig",
+      "clip": "dig and plant seeds",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.1,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.86,
+          "name": "collect"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "collect_pull",
+      "clip": "pull plant (2)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.73,
+          "name": "collect"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "stoke_fire",
+      "clip": "plant a plant",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.15,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.75,
+          "name": "stoke"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "draw_water",
+      "clip": "pick fruit",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.1,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.4,
+          "name": "draw"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "door_open",
+      "clip": "Standing 1H Magic Attack 01",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 0.75,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.35,
+          "name": "open"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "door_close",
+      "clip": "Standing 1H Magic Attack 01",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 0.75,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.35,
+          "name": "close"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_dig",
+      "clip": "dig and plant seeds",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.86,
+          "name": "dig"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_sow",
+      "clip": "plant a plant",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.75,
+          "name": "sow"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_water",
+      "clip": "watering",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.6,
+          "name": "pour"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_plant_tree",
+      "clip": "plant tree",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.42,
+          "name": "plant"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_pick_1",
+      "clip": "pick fruit",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.4,
+          "name": "pick"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_pick_2",
+      "clip": "pick fruit (2)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.7,
+          "name": "pick"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_pick_3",
+      "clip": "pick fruit (3)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.61,
+          "name": "pick"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_pull_1",
+      "clip": "pull plant",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.5,
+          "name": "pull"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_pull_2",
+      "clip": "pull plant (2)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.73,
+          "name": "pull"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_milk",
+      "clip": "cow milking",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.79,
+          "name": "milk"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "garden_dump",
+      "clip": "wheelbarrow dump",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.6,
+          "name": "dump"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "build_hammer",
+      "clip": "sword and shield attack (4)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 0.75,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.43,
+          "name": "build"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "build_place",
+      "clip": "plant tree",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.3,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [
+        {
+          "time": 0.42,
+          "name": "build"
+        }
+      ],
+      "sections": []
+    },
+    {
+      "name": "act_kneel",
+      "clip": "kneeling idle",
+      "slot": "FullBody",
+      "blendIn": 0.5,
+      "blendOut": 0.5,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_crouch",
+      "clip": "Crouch Idle",
+      "slot": "FullBody",
+      "blendIn": 0.5,
+      "blendOut": 0.5,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_knap",
+      "clip": "dig and plant seeds",
+      "slot": "FullBody",
+      "blendIn": 0.4,
+      "blendOut": 0.4,
+      "playRate": 0.8,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_bench",
+      "clip": "Standing 2H Cast Spell 01",
+      "slot": "FullBody",
+      "blendIn": 0.4,
+      "blendOut": 0.4,
+      "playRate": 0.6,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_put_down",
+      "clip": "plant a plant",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.3,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_light_fire",
+      "clip": "dig and plant seeds",
+      "slot": "FullBody",
+      "blendIn": 0.4,
+      "blendOut": 0.4,
+      "playRate": 1.4,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_drink",
+      "clip": "relieved sigh",
+      "slot": "UpperBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_lie_down",
+      "clip": "Standing React Death Backward",
+      "slot": "FullBody",
+      "blendIn": 0.6,
+      "blendOut": 1.0,
+      "playRate": 0.55,
+      "loop": false,
+      "stripTravel": true,
+      "holdEnd": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_die",
+      "clip": "Standing React Death Forward",
+      "slot": "FullBody",
+      "blendIn": 0.3,
+      "blendOut": 1.0,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "holdEnd": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_till",
+      "clip": "sword and shield attack (4)",
+      "slot": "FullBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 0.7,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
+    },
+    {
+      "name": "act_look_around",
+      "clip": "look away gesture",
+      "slot": "UpperBody",
+      "blendIn": 0.25,
+      "blendOut": 0.3,
+      "playRate": 1.0,
+      "loop": false,
+      "stripTravel": true,
+      "notifies": [],
+      "sections": []
     }
   ],
   "packs": [
@@ -1653,5 +2246,412 @@
       "rootBone": "mixamorig:Spine"
     }
   ],
-  "version": 1
+  "version": 1,
+  "abilities": [
+    {
+      "name": "Chop",
+      "montages": [
+        "chop_1",
+        "chop_2"
+      ],
+      "note": "two sword-and-shield slashes, slowed down, as axe blows; missing: a real axe chop loop with a felling end"
+    },
+    {
+      "name": "Mine",
+      "montages": [
+        "mine_1",
+        "mine_2"
+      ],
+      "note": "overhead sword attacks as pick blows; missing: a two-handed pick swing at the ground"
+    },
+    {
+      "name": "Gather",
+      "montages": [
+        "gather_bush",
+        "gather_low"
+      ],
+      "note": "picking at a bush at waist height and down low"
+    },
+    {
+      "name": "PullFiber",
+      "montages": [
+        "pull_fiber_1",
+        "pull_fiber_2"
+      ],
+      "note": "pulling a plant, standing and kneeling"
+    },
+    {
+      "name": "Collect",
+      "montages": [
+        "collect_dig",
+        "collect_pull"
+      ],
+      "note": "digging clay with the hands and pulling reeds; missing: scooping clay into a basket"
+    },
+    {
+      "name": "Stoke",
+      "montages": [
+        "stoke_fire"
+      ],
+      "note": "bends down and puts the wood in; missing: crouch and feed the fire"
+    },
+    {
+      "name": "DrawWater",
+      "montages": [
+        "draw_water"
+      ],
+      "note": "reaching up and pulling down as hauling the rope; missing: a proper rope pull with a bucket"
+    },
+    {
+      "name": "OpenDoor",
+      "montages": [
+        "door_open"
+      ],
+      "note": "a one-handed push forward; missing: a door push/pull"
+    },
+    {
+      "name": "CloseDoor",
+      "montages": [
+        "door_close"
+      ],
+      "note": "the same push; missing: pulling a door shut"
+    },
+    {
+      "name": "Build",
+      "montages": [
+        "build_hammer",
+        "build_place"
+      ],
+      "note": "H8: overhead blows (sword attack) as hammering and setting a post (plant tree); missing: hammer a stake, lift a beam, lay thatch"
+    },
+    {
+      "name": "Dig",
+      "montages": [
+        "garden_dig"
+      ]
+    },
+    {
+      "name": "Sow",
+      "montages": [
+        "garden_sow"
+      ]
+    },
+    {
+      "name": "Water",
+      "montages": [
+        "garden_water"
+      ]
+    },
+    {
+      "name": "PlantTree",
+      "montages": [
+        "garden_plant_tree"
+      ]
+    },
+    {
+      "name": "PickFruit",
+      "montages": [
+        "garden_pick_1",
+        "garden_pick_2",
+        "garden_pick_3"
+      ]
+    },
+    {
+      "name": "Pull",
+      "montages": [
+        "garden_pull_1",
+        "garden_pull_2"
+      ]
+    },
+    {
+      "name": "Milk",
+      "montages": [
+        "garden_milk"
+      ]
+    },
+    {
+      "name": "DumpWheelbarrow",
+      "montages": [
+        "garden_dump"
+      ]
+    },
+    {
+      "name": "CarryBox",
+      "montages": [],
+      "set": "box",
+      "note": "no clip: the set changes; missing: bend down and lift"
+    },
+    {
+      "name": "DropBox",
+      "montages": [],
+      "set": "free",
+      "note": "no clip: back to the free set; missing: bend down and put down"
+    },
+    {
+      "name": "PushWheelbarrow",
+      "montages": [],
+      "set": "wheelbarrow",
+      "note": "no clip: the set changes; missing: grab the handles"
+    },
+    {
+      "name": "ReleaseWheelbarrow",
+      "montages": [],
+      "set": "free",
+      "note": "no clip: back to the free set"
+    },
+    {
+      "name": "ShootBow",
+      "montages": [
+        "bow_draw",
+        "bow_recoil"
+      ],
+      "set": "bow_aim",
+      "note": "future ability of the combat lane (H14): draw, aim walking, release"
+    }
+  ],
+  "activities": [
+    {
+      "name": "eat",
+      "montages": [
+        "act_kneel"
+      ],
+      "loop": true,
+      "note": "kneels to eat; missing: hand to mouth, eating sitting"
+    },
+    {
+      "name": "drink",
+      "montages": [
+        "act_drink"
+      ],
+      "note": "a relieved sigh after drinking from the bag; at the well it is DrawWater; missing: drinking"
+    },
+    {
+      "name": "sleep",
+      "montages": [
+        "act_lie_down"
+      ],
+      "note": "falls back and lies there (a death clip held at its end); missing: lie down, sleep, get up"
+    },
+    {
+      "name": "warm",
+      "montages": [
+        "act_crouch"
+      ],
+      "loop": true,
+      "note": "crouched by the fire; missing: hands to the fire"
+    },
+    {
+      "name": "regroup",
+      "montages": [
+        "idle_variant_2",
+        "idle_variant_3",
+        "idle_variant_4"
+      ],
+      "loop": true,
+      "note": "idle variations while waiting together"
+    },
+    {
+      "name": "socialize",
+      "montages": [
+        "gesture_happy",
+        "gesture_nod_yes",
+        "gesture_acknowledge",
+        "gesture_nod_long",
+        "gesture_cocky",
+        "gesture_sigh"
+      ],
+      "loop": true,
+      "note": "talking: upper-body gestures in turn"
+    },
+    {
+      "name": "teach",
+      "montages": [
+        "gesture_happy",
+        "gesture_nod_hard",
+        "gesture_dismiss",
+        "gesture_nod_long"
+      ],
+      "loop": true,
+      "note": "an elder at the camp: explaining gestures; missing: demonstrate a task"
+    },
+    {
+      "name": "craft",
+      "montages": [
+        "act_knap"
+      ],
+      "loop": true,
+      "note": "kneels and works on the ground (knapping); missing: knapping flint, weaving"
+    },
+    {
+      "name": "make",
+      "montages": [
+        "act_bench"
+      ],
+      "loop": true,
+      "note": "hands working in front at the bench (a slow two-hand cast); missing: work at a bench"
+    },
+    {
+      "name": "deposit",
+      "montages": [
+        "act_put_down"
+      ],
+      "note": "bends down to leave things at the store; missing: put a load down"
+    },
+    {
+      "name": "fire",
+      "montages": [
+        "act_light_fire"
+      ],
+      "loop": true,
+      "note": "kneels and works the fire drill; missing: a fire drill"
+    },
+    {
+      "name": "stoke",
+      "montages": [
+        "act_crouch"
+      ],
+      "note": "crouches by the fire before feeding it"
+    },
+    {
+      "name": "experiment",
+      "montages": [
+        "act_kneel",
+        "gesture_thoughtful"
+      ],
+      "loop": true,
+      "note": "kneels, tries and thinks; missing: examining an object"
+    },
+    {
+      "name": "rest",
+      "montages": [
+        "idle_variant_2",
+        "idle_variant_3",
+        "idle_variant_4"
+      ],
+      "loop": true,
+      "note": "idle variations"
+    },
+    {
+      "name": "haul",
+      "montages": [
+        "act_put_down"
+      ],
+      "note": "picks up from the stockpile; the load in the arms comes from the carry rules (visuals.props)"
+    },
+    {
+      "name": "farm.till",
+      "montages": [
+        "act_till"
+      ],
+      "loop": true,
+      "note": "overhead blows as hoeing; missing: hoeing"
+    },
+    {
+      "name": "farm.sow",
+      "montages": [
+        "plant"
+      ],
+      "loop": true,
+      "note": "planting"
+    },
+    {
+      "name": "farm.tend",
+      "montages": [
+        "water"
+      ],
+      "loop": true,
+      "note": "watering"
+    },
+    {
+      "name": "farm.harvest",
+      "montages": [
+        "pull_plant",
+        "pull_plant_2"
+      ],
+      "loop": true,
+      "note": "pulling the crop; missing: cutting grain with a sickle"
+    },
+    {
+      "name": "build",
+      "montages": [
+        "act_crouch"
+      ],
+      "note": "H8: at the site between blows (the blows are the Build ability)"
+    },
+    {
+      "name": "deliver",
+      "montages": [
+        "act_put_down"
+      ],
+      "note": "H8: leaves the materials at the site; carried there in the arms (carry rules)"
+    },
+    {
+      "name": "dead",
+      "montages": [
+        "act_die"
+      ],
+      "note": "falls and stays down"
+    },
+    {
+      "name": "flee",
+      "montages": [],
+      "set": "standing",
+      "note": "runs with the standing set (sprint); for H14"
+    },
+    {
+      "name": "hunt",
+      "montages": [
+        "act_look_around"
+      ],
+      "note": "H14: the hunter looks for the prey when it stops; the weapon (its axe or pickaxe) is in its hand (visuals.props work) and the blows are the Attack abilities of the combat rules; a bow would add bow_draw/bow_recoil and the bow_aim set"
+    },
+    {
+      "name": "recover",
+      "montages": [
+        "act_kneel"
+      ],
+      "loop": true,
+      "note": "H14: a wounded member rests; missing: lying wounded, holding the wound"
+    },
+    {
+      "name": "care",
+      "montages": [
+        "act_kneel",
+        "gesture_nod_long"
+      ],
+      "loop": true,
+      "note": "H14: kneels by the wounded; missing: tending a wound"
+    },
+    {
+      "name": "injured",
+      "montages": [
+        "injured_hurting",
+        "injured_stumble"
+      ],
+      "set": "injured",
+      "loop": true,
+      "note": "low Health: limps with the injured set (hook for H14)"
+    },
+    {
+      "name": "explore",
+      "montages": [
+        "act_look_around"
+      ],
+      "note": "looks around on arriving"
+    }
+  ],
+  "stages": [
+    {
+      "name": "child",
+      "rate": 1.2
+    },
+    {
+      "name": "adult",
+      "rate": 1.0
+    },
+    {
+      "name": "elder",
+      "rate": 0.8
+    }
+  ]
 }

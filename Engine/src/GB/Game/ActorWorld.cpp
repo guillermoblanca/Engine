@@ -1,7 +1,9 @@
 #include <set>
 #include "GB/Game/ActorWorld.h"
 #include "GB/Log.h"
+#include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <filesystem>
 #include <sstream>
 
@@ -154,6 +156,7 @@ namespace GB
 		const auto it = m_Actors.find(name);
 		if (it == m_Actors.end()) return false;
 		m_Actors.erase(it);
+		m_Levels.erase(name);
 		m_Kinds.erase(name);   // the actor lets go of its ability system and its ragdoll
 		return true;
 	}
@@ -163,6 +166,7 @@ namespace GB
 		m_Suspended.clear();
 		m_Actors.clear();
 		m_Kinds.clear();
+		m_Levels.clear();
 		m_Models.clear();
 	}
 
@@ -229,6 +233,13 @@ namespace GB
 			start.push_back({ name, { { p.x, p.z }, actor->Radius() } });
 		}
 		std::vector<CircleObstacle> others;
+		// H16: the level of detail of the animation, from the distance to the viewer. The far ones are posed every few frames, staggered by their
+		// place in the (name) order so the poses of a crowd spread over the frames instead of all landing on one.
+		const auto t0 = std::chrono::steady_clock::now();
+		m_Cost = FrameCost();
+		m_Cost.Suspended = static_cast<int>(m_Suspended.size());
+		++m_LodFrame;
+		long slot = 0;
 		for (auto& [name, actor] : m_Actors)
 		{
 			if (m_Suspended.count(name)) continue;
@@ -236,8 +247,41 @@ namespace GB
 			for (const Snapshot& s : start)
 				if (s.Name != name) others.push_back(s.Circle);
 			actor->SetOthers(others);
+			bool pose = true, ik = true;
+			int level = 0;
+			if (m_HasViewer && m_Lod.Enabled)
+			{
+				const glm::vec3 p = actor->GetPosition();
+				const float d = glm::distance(glm::vec2(p.x, p.z), glm::vec2(m_Viewer.x, m_Viewer.z));
+				if (d > m_Lod.FullRadius)
+				{
+					const bool far = d > m_Lod.ReducedRadius;
+					const long every = std::max(1, far ? m_Lod.FarEvery : m_Lod.ReducedEvery);
+					pose = (m_LodFrame + slot) % every == 0;
+					ik = false;
+					++(far ? m_Cost.Far : m_Cost.Reduced);
+					level = far ? 2 : 1;
+				}
+				else ++m_Cost.Full;
+			}
+			else ++m_Cost.Full;
+			++slot;
+			m_Cost.Posed += pose ? 1 : 0;
+			actor->SetAnimationDetail(pose, ik, level < 2);   // (the far ones without props)
+			m_Levels[name] = level;
 			actor->Update(dt);
 		}
+		m_Cost.Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+	}
+
+	AnimLodConfig AnimLodForQuality(const std::string& preset)
+	{
+		AnimLodConfig c;   // medium
+		if (preset == "minimum") { c.FullRadius = 12.0f; c.ReducedRadius = 30.0f; c.ReducedEvery = 2; c.FarEvery = 6; }
+		else if (preset == "low") { c.FullRadius = 18.0f; c.ReducedRadius = 40.0f; c.ReducedEvery = 2; c.FarEvery = 4; }
+		else if (preset == "high") { c.FullRadius = 35.0f; c.ReducedRadius = 70.0f; c.ReducedEvery = 1; c.FarEvery = 3; }
+		else if (preset == "ultra") { c.FullRadius = 50.0f; c.ReducedRadius = 100.0f; c.ReducedEvery = 1; c.FarEvery = 2; }
+		return c;
 	}
 
 	void ActorWorld::AddToScene(Scene& scene) const

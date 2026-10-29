@@ -41,11 +41,12 @@ struct Game
 	TribeAgenda Agenda;
 	TribeEconomy Economy;
 	WorkRules Work;   // H7: names, aptitudes, job board
+	std::map<std::string, BuildingDef> Buildings;   // H8: read and checked by the items section (the editor also gives the technologies: knowledge_test checks both)
 	std::vector<std::string> Seen;   // what a third section, one Items knows nothing of, read: proves the order of the files and the plug-in
 	ContentPacks Packs;
 	Game()
 	{
-		AddGameContentSections(Packs, Items, Recipes, Nodes, Roles, &Agenda, &Economy, &Work);
+		AddGameContentSections(Packs, Items, Recipes, Nodes, Roles, &Agenda, &Economy, &Work, nullptr, &Buildings);
 		Packs.AddSection(StagedSection("log", { "log" },
 			[](const std::string& json, std::vector<std::string>& seen) -> std::string
 			{
@@ -219,6 +220,7 @@ int main()
 		if (!error.empty() || !report.Clean()) std::fprintf(stderr, "  %s\n%s", error.c_str(), report.Text().c_str());
 		Check(report.Clean() && Has(report.Notes, "copper_ingot"), "every item of era 1 can be had; the copper ingot waits for the forge");
 		Check(g.Roles == DefaultRoles(), "the roles come in through their section and say what the code says");
+		Check(g.Buildings == DefaultBuildings(), "the buildings come in with the items section and say what DefaultBuildings says (H8)");
 		Check(g.Agenda == DefaultAgenda() && g.Economy == DefaultEconomy(), "and the tribe's agenda, food and stock through theirs");
 		Check(g.Work == DefaultWorkRules(), "and the clan's names, aptitudes and job board through \"work\"");
 
@@ -233,6 +235,42 @@ int main()
 		if (!error2.empty() || !more.Clean()) std::fprintf(stderr, "  %s\n%s", error2.c_str(), more.Text().c_str());
 		Check(g.Packs.Loaded().size() == 2 && g.Packs.Loaded()[1].Id == "era1_ampliado", "after era1, which was already in");
 		Check(g.Items.Find("plank") && !Has(more.Notes, "item 'plank'") && Has(more.Notes, "item 'grain' cannot be had"), "planks come from the fallen trunks; grain waits for the fields");
+		Check(Has(more.Notes, "'dried_berry' is deferred but can be had now") && Has(more.Notes, "'mud_brick' is deferred but can be had now"), "dried berries and mud bricks are made at the drying rack, a building of era 1 (H8): the pack's deferrals are only notes now");
+
+		// Buildings and the check (H8): a station only a building gives is there once the building can be paid; a building nobody can pay is a problem.
+		{
+			ContentReport without = CheckReachability(g.Items, g.Recipes, g.Nodes, g.Packs.Rules());
+			Check(Has(without.Notes, "recipe 'dried_berry' can never be made: needs the station 'drying_rack'"), "without buildings nothing gives the drying rack");
+			std::map<std::string, BuildingDef> b = DefaultBuildings();
+			Check(CheckReachability(g.Items, g.Recipes, g.Nodes, g.Packs.Rules(), nullptr, &b).Clean(), "with them it is clean");
+			b["palace"] = b["shelter"];
+			b["palace"].Id = "palace";
+			b["palace"].Phases[0].Needs["gold"] = 5;
+			const ContentReport bad = CheckReachability(g.Items, g.Recipes, g.Nodes, g.Packs.Rules(), nullptr, &b);
+			Check(Has(bad.Problems, "building 'palace' can never be built: needs gold"), "a building whose materials cannot be had is a problem");
+			b["palace"].Tech = "masonry";
+			b["palace"].Phases[0].Needs.erase("gold");
+			const ContentReport tech = CheckReachability(g.Items, g.Recipes, g.Nodes, g.Packs.Rules(), nullptr, &b);
+			Check(tech.Clean() && Has(tech.Notes, "needs the tech 'masonry'"), "without technologies a building's tech is only noted");
+			// with technologies (H11): a building a technology unlocks can be had only once that technology can be discovered
+			TechTree techs;   // (the packs of this test go without technologies: a tree of one)
+			TechDef masonry;
+			masonry.Id = "masonry";
+			masonry.Name = "Masonry";
+			masonry.Discovery.Experiment = 0.0f;   // nobody can find it
+			techs.Techs["masonry"] = masonry;
+			b["palace"].Tech.clear();
+			techs.Techs["masonry"].Buildings = { "palace" };
+			const ContentReport locked = CheckReachability(g.Items, g.Recipes, g.Nodes, g.Packs.Rules(), &techs, &b);
+			Check(Has(locked.Problems, "building 'palace' can never be built: no technology that unlocks it"), "a building whose technology can never be discovered is a problem");
+			techs.Techs["masonry"].Known = true;
+			Check(CheckReachability(g.Items, g.Recipes, g.Nodes, g.Packs.Rules(), &techs, &b).Clean(), "and once the technology is known it can be built");
+			techs.Techs["masonry"].Buildings = { "pyramid" };
+			Check(Has(CheckReachability(g.Items, g.Recipes, g.Nodes, g.Packs.Rules(), &techs, &b).Problems, "unlocks the building 'pyramid', which does not exist"), "a technology that unlocks a building that does not exist is a problem");
+			std::map<std::string, BuildingDef> keep = g.Buildings;
+			Check(!g.Packs.LoadText(R"({ "items": [ { "id": "x", "name": "X" } ], "buildings": { "hut": { "phases": [] } } })").empty() && keep == g.Buildings && !g.Items.Find("x"),
+				"a broken building refuses the whole document, items too");
+		}
 
 		// era1_ampliado alone pulls era1 in first
 		Game h;

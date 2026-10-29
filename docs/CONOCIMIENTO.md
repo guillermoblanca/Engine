@@ -89,7 +89,8 @@ el inspector del miembro, lo suyo. `knowledge` se graba en las repeticiones.
 ## Pendiente
 
 - Accidente (un golpe contra pedernal da lascas) y estudiar una pieza (`Study`); que el jugador cuente como testigo.
-- Difusión entre clanes (comercio, alianza) y pérdida por catástrofe (H13).
+- Hecho (H13): difusión entre clanes. En una reunión de enviados de clanes amistosos cada uno enseña al otro una tecnología (`ClanKnowledge::Instruct`), que el
+  enviado muestra luego en su campamento ([CLANES.md](CLANES.md)). Falta: pérdida por catástrofe.
 - Edificios y nodos con tecnología en los datos de verdad (hoy los nodos con puerta solo están en los tests: un nodo cuyo material es el ingrediente de su propia
   tecnología nunca se descubriría).
 - Hecho (H18): la tribu fabrica cordel y cestas por su cuenta (cadenas de producción, [ECONOMIA.md](ECONOMIA.md)): quiere las entradas de las recetas que no sabe para poder probarlas, así que el tallado de sílex se descubre jugando.

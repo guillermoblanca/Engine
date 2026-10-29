@@ -1,6 +1,7 @@
 #include "GB/Game/EntityRender.h"
 #include "GB/Log.h"
 #include <filesystem>
+#include <set>
 
 namespace GB
 {
@@ -60,10 +61,36 @@ namespace GB
 	size_t EntityRenderer::Build(const EntityWorld& world, Scene& scene, EntityId highlight)
 	{
 		size_t drawn = 0;
+		// the entities drawn by their data look (and so their descendants are not drawn again)
+		std::set<EntityId> claimed;
+		if (m_EntityVisual)
+			for (const auto& [id, e] : world.All())
+			{
+				if (!e.Gameplay && e.Tags.empty()) continue;   // (looks hang off gameplay tags and entity tags only)
+				if (!world.IsActive(id)) continue;
+				const size_t firstObject = scene.Objects.size();
+				if (!m_EntityVisual(world, id, world.WorldMatrix(id), scene)) continue;
+				claimed.insert(id);
+				++drawn;
+				if (id == highlight)
+					for (size_t i = firstObject; i < scene.Objects.size(); ++i)
+						scene.Objects[i].Mat.Emissive += glm::vec3(0.35f, 0.18f, 0.02f);
+			}
+		auto underClaimed = [&](const Entity& e)
+		{
+			for (EntityId p = e.Parent; p != NullEntity; )
+			{
+				if (claimed.count(p)) return true;
+				const Entity* parent = world.Find(p);
+				p = parent ? parent->Parent : NullEntity;
+			}
+			return false;
+		};
 		for (const auto& [id, e] : world.All())
 		{
 			if (!e.Mesh && !e.Light && !e.Prop) continue;
 			if (!world.IsActive(id)) continue;
+			if (!claimed.empty() && (claimed.count(id) || underClaimed(e))) continue;
 			const glm::mat4 m = world.WorldMatrix(id);
 			const size_t firstObject = scene.Objects.size();
 			if (e.Prop && m_PropBuilder && m_PropBuilder(*e.Prop, m, scene)) ++drawn;

@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 #include "GB/Animation/AnimInstance.h"
 #include "GB/Game/CharacterController.h"
 #include "GB/Game/Entity.h"
@@ -172,4 +173,12 @@ namespace GB
 	// built-in MixamoMontages(). Returns how many the character has clips for.
 	int RegisterAbilityMontages(const GameplayLibrary& library, AnimInstance& anim, const std::vector<MontageDesc>& base);
 	int RegisterAbilityMontages(const GameplayLibrary& library, AnimInstance& anim);
+
+	// Which montages each ability plays is data (ANIMACIONES_USO.md): the "abilities" of the animation manifest (AnimManifest::Abilities). Each
+	// ability of the library the manifest lists plays the manifest's montages (in turn, one per use) instead of the ones its code or content file
+	// gave it, keeping only those `has` says the character can play (null = all of them); when it can play none, the ability keeps its own, so a
+	// character without the packs is not left without an animation. Abilities the manifest does not list are not touched, nor anything but the
+	// montage names (costs, events and their times stay: without a character the ability runs on timers exactly as before). Returns how many
+	// abilities changed.
+	int ApplyManifestAbilities(GameplayLibrary& library, const struct AnimManifest& manifest, const std::function<bool(const std::string&)>& has = nullptr);
 }

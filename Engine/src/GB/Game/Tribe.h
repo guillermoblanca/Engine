@@ -5,23 +5,28 @@
 #include "GB/AI/Needs.h"
 #include "GB/AI/Perception.h"
 #include "GB/AI/Utility.h"
+#include "GB/Game/Conflict.h"
 #include "GB/Game/Economy.h"
 #include "GB/Game/Entity.h"
 #include "GB/Game/Exploration.h"
 #include "GB/Game/JobBoard.h"
 #include "GB/Game/Skills.h"
 #include "GB/Game/Knowledge.h"
+#include "GB/Game/PlayerMember.h"
 #include "GB/Game/Society.h"
 #include "GB/Game/Production.h"
+#include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Gameplay/Interactives.h"
+#include "GB/Gameplay/SiteChoice.h"
 #include "GB/Gameplay/Items.h"
 #include "GB/Navigation/NavGrid.h"
+#include <algorithm>
 #include <functional>
 #include <glm/glm.hpp>
-#include <functional>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <string>
 #include <vector>
@@ -59,6 +64,9 @@ namespace GB
 		// The way the body would walk from `from` to within `reach` of `to` (see AbstractAgent::Route): the abstract agent walks it so it goes
 		// round water and walls as the body would. False: there is no way. The default is the straight line.
 		virtual bool Route(const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points) const { (void)from; (void)reach; points.assign(1, to); return true; }
+		// H16: may the abstract agent plan a Route now? A body on a grid asks the grid's plan budget (NavGrid::AllowPlan with its own ticket), so far
+		// members and actors share the searches of a frame fairly. False: it waits a frame. The default: always.
+		virtual bool MayPlan() { return true; }
 		// H9: how grown it is, 0..1 of an adult's height (a child grows every day; see Society::Growth). A body that cannot change its size ignores it.
 		virtual void SetGrowth(float) {}
 	};
@@ -89,6 +97,9 @@ namespace GB
 		int WorkStart = 0;
 		// H12: the things it saw were gone (felled, taken) since it last told the clan: the clan forgets them too when it is back at the camp.
 		std::vector<std::string> Gone;
+		// H15: a person controls it (GB/Game/PlayerMember.h): the brain never decides for it nor sends its body anywhere, it is never abstract and the
+		// review of the trades leaves it alone; the clan counts it (needs, meals, beds, the board, relations) and hears what it does (TribePlayer.cpp).
+		bool Player = false;
 	};
 
 	// The parts of the day of the agenda (see TribeAgenda): "night", "dusk" (the hours before the night) and "day" (the rest).
@@ -189,6 +200,47 @@ namespace GB
 		ExplorationRules Explore;     // H12: regions, expeditions and migration (DefaultExplorationRules; the "exploration" section of a content file)
 		SocietyRules Society;         // H9 + H10: life, births, genes, personality, relations and culture (DefaultSocietyRules; the "society" section)
 		EconomyRules Econ;            // H18: production chains, spoilage, fields and stores (DefaultEconomyRules; the "economy" section of a content file)
+		// The settlement (H8, see Settlement.cpp and docs/ASENTAMIENTOS.md): only with buildings (Tribe::SetBuildings).
+		float PlanSeconds = 10.0f;    // how often the clan looks at what it should build
+		int MaxSites = 1;             // construction sites at the same time
+		float SiteRadius = 7.0f;      // the first ring around the camp where buildings go
+		int Builders = 2;             // members working one site at the same time
+		int HaulAt = 6;               // most units of a material a member carries to a site in one trip
+		float SettlementRadius = 40.0f;   // the buildings that count as the clan's: within this of the camp (a clan that migrates leaves the others behind)
+		PlayerRules Player = DefaultPlayerRules();   // H15: standing, proposals, gifts... (the "player" section of a content file)
+	};
+
+	// What the clan wants built and why (Tribe::BuildingNeeds): the planner starts the most urgent; H7's job board can publish them.
+	struct BuildingNeed
+	{
+		std::string Building;   // def id
+		float Urgency = 0.0f;   // shelter for everyone 3, a full store 2, a station a recipe needs 1.5, a proper workbench 0.5
+		std::string Why;
+	};
+
+	class Tribe;
+
+	// H13: what the clans around a tribe add to the lives of its members (GB/Game/Clans.h sets it; a tribe alone has none). The options of its own
+	// it adds to a member's decision (an envoy going to a meeting), carrying them out and their end (the tribe hands it the options and jobs of the
+	// kinds it lists), and word of every gather (whose land the node was on). The hooks in the tribe are one line each.
+	struct TribeOutside
+	{
+		std::vector<std::string> Kinds;   // the option kinds (and jobs) it handles ("envoy")
+		std::function<void(Tribe&, TribeMember&, std::vector<UtilityOption>&)> Options;
+		std::function<bool(Tribe&, TribeMember&, const UtilityOption&)> Execute;   // false: the orders could not be given
+		std::function<void(Tribe&, TribeMember&, const std::string& job)> Finish;
+		std::function<void(Tribe&, const TribeMember&, const std::string& node, int units)> Gathered;
+	};
+
+	// A member as it leaves one clan for another (H13: a marriage, a move): the member itself (its body, mind, aptitudes), its person in the society
+	// (age, sex, genes, personality; its bonds stay behind) and what it knows.
+	struct MemberTransfer
+	{
+		TribeMember Member;
+		Person Who;
+		bool HasPerson = false;
+		AgentKnowledge Knows;
+		bool HasKnowledge = false;
 	};
 
 	// The built-in roles: "forager", "woodcutter", "miner" (assets/data/era1.json says the same in its "roles" section).
@@ -214,6 +266,18 @@ namespace GB
 	// The agenda and the economy as the "tribe" section reads them back (one JSON object).
 	std::string TribeRulesToJson(const TribeConfig& config);
 
+	class Tribe;
+	// What a clan of these roles wants near its camp (SiteWeights::Want): for every node type, the mean of its roles' weights for it, and food half again
+	// as much. The tribe must be bound (its node defs and roles). See SiteChoice.h.
+	SiteWeights ClanSiteWeights(const Tribe& tribe, const std::vector<std::string>& roles);
+	// H8's camp-site chooser for a migrating clan (Tribe::SetSiteChooser, H12): the places of the ground scored by ScoreSite (water, flat ground, biome,
+	// shelter) with the resource nodes the CLAN KNOWS (its shared memory) weighed by its members' roles; only places at least a home radius away, near
+	// something the clan knows, that a member can reach and that H12's own measure (Tribe::SiteScore) finds worth the move. The ground must outlive the
+	// tribe's use of the chooser (the editor sets it again with every new world).
+	// With `resources` (a new clan, H13: it knows nothing yet) the nodes it gives are scored instead of the clan's memory, the place is worth its own
+	// score and only H8's measure decides.
+	CampSiteChooser SettlementSiteChooser(const Tribe& tribe, ResourceGround ground, std::function<std::vector<SiteResource>()> resources = {});
+
 	class Tribe
 	{
 	public:
@@ -229,6 +293,22 @@ namespace GB
 		// Where the camera is (x, z): members far from it are simulated as abstract agents. Without a viewer everyone is full.
 		void SetViewer(const glm::vec2& pos) { m_Viewer = pos; m_HasViewer = true; }
 		void ClearViewer() { m_HasViewer = false; }
+		// ---- H16: what the brain costs, and a budget given from outside
+		// The members that may look around and decide in the next calls to Update, set by whoever shares one budget among several tribes (ClanWorld's
+		// ThinkPerFrame); -1: the tribe's own rule (ThinkPerFrame, or the turns needed so nobody falls behind, whichever is more).
+		void SetThinkBudget(int thinks) { m_ThinkBudget = thinks; }
+		// The turns needed in a step of `dt` so that no living member falls behind its ThinkSeconds (what the own rule never goes below).
+		int ThinksNeeded(float dt) const;
+		struct FrameCost
+		{
+			int Thinks = 0;       // members that looked and decided in the last Update
+			int Budget = 0;       // the turns it had
+			int Due = 0;          // members whose turn had come (or whose orders ended) and did not get it: they wait for the next frame
+			double Ms = 0.0;      // wall time of the last Update (measured; the simulation never reads it)
+			double ThinkMs = 0.0; // ... of it, the turns at looking and deciding (the rest is the clocks of the clan: needs, board, economy, conflict, abstract walking)
+			double EconomyMs = 0.0, SocietyMs = 0.0, ExploreMs = 0.0, ConflictMs = 0.0, AbstractMs = 0.0;   // ... and some of the clocks (needs and board in Society)
+		};
+		const FrameCost& LastCost() const { return m_Cost; }
 		int AbstractCount() const { int n = 0; for (const TribeMember& m : m_Members) if (m.Abstract) ++n; return n; }
 		// Takes a member out of the tribe (its claims go too). False when there is none with that name.
 		bool RemoveMember(const std::string& name);
@@ -257,6 +337,31 @@ namespace GB
 		// Refreshes the job board and reviews the trades at once (they also run on their own clocks inside Update).
 		void PostJobs();
 		bool ReviewRoles();
+		const std::map<std::string, ResourceNodeDef>& NodeDefs() const { return m_Defs; }
+
+		// ---- the settlement (H8): buildings by phases, planned from the clan's needs (Settlement.cpp). Without buildings the tribe builds nothing.
+		// The defs must outlive the tribe (the editor's BuildingSystem::Defs); the sites are entities with the tags of GB/Gameplay/Buildings.h.
+		// With buildings the tribe also tells the economy (H18) where the stations of its buildings are (SetStations) and what its sites still need (SetDemand).
+		void SetBuildings(const std::map<std::string, BuildingDef>* defs);
+		const std::map<std::string, BuildingDef>* Buildings() const { return m_Buildings; }
+		// The finished buildings of the camp (what makes a clan's claims stronger, H13).
+		int BuildingCount() const;
+		// The height of the ground (x, z), for the sites; without it the camp's height.
+		void SetGround(std::function<float(float, float)> height) { m_Ground = std::move(height); }
+		// Whether a tech is known, for a tribe without technologies (SetTechs); with them, what the members know decides (ClanKnowledge, H11).
+		void SetTechCheck(std::function<bool(const std::string&)> knows) { m_KnowsTech = std::move(knows); }
+		// Beds in the finished shelters of the camp (the society, H9, counts a roof as shelter for births).
+		int Beds() const;
+		// A station is there: the camp's (Config.Econ.Production.CampStations) or a finished building's.
+		bool StationAvailable(const std::string& station) const;
+		// What the clan wants built now, most urgent first (empty without buildings, before the campfire and the tools, or with MaxSites sites open).
+		std::vector<BuildingNeed> BuildingNeeds() const;
+		// What the open sites still lack: item -> units not yet delivered nor on their way (what the job board would ask to gather or haul).
+		std::map<std::string, int> SiteDemand() const;
+		// One line per site and building: phase, work and what it lacks.
+		std::string SettlementReport() const;
+		// Starts a site of a building at a place (the planner does this by itself); "" or why not. The name is "<Name> <n>".
+		std::string StartSite(const std::string& building, const glm::vec2& at, std::string* name = nullptr);
 
 		// ---- H12: regions, expeditions and migration (TribeExplore.cpp). Without regions none of it runs (the members still explore around the camp).
 		// The regions of the world the tribe lives in (they must outlive it, or be set again) and the height of the ground (for a camp that moves).
@@ -357,6 +462,99 @@ namespace GB
 		std::string FamilyReport(const std::string& name) const;
 		std::string RelationsReport(const std::string& name) const;
 		std::string CultureReport() const { return m_Society.Culture(Config.Society); }
+
+		// ---- H13: the clans around (GB/Game/Clans.h; TribeClans.cpp). What they add to the members' lives, and what they need of the tribe to do it.
+		void SetOutside(TribeOutside outside) { m_Outside = std::move(outside); }
+		// Names other clans already use: a child is not given one (members' names are the actors' and must be unique in the world).
+		void SetNameTaken(std::function<bool(const std::string&)> taken) { m_NameTaken = std::move(taken); }
+		glm::vec2 Position(const TribeMember& m) const { return Where(m); }
+		const ItemLibrary* Items() const { return m_Items; }
+		bool MemberBusy(const TribeMember& m) const { return IsBusy(m); }
+		glm::vec2 CampSpotOf(const TribeMember& m) const { return CampSpot(m); }
+		// Gives a member orders (with its navigation profile) and the job and detail they stand for. False: they could not be given (it says why).
+		bool Send(TribeMember& m, const std::string& orders, const std::string& job, const std::string& detail);
+		// A line in the log, by a member or by the clan.
+		void Note(const TribeMember& m, const std::string& text) { Say(m, text); }
+		void NoteClan(const std::string& text);
+		// A member leaves the tribe with everything that is its own (body, mind, aptitudes, person, knowledge); false when there is none of that name.
+		// Its claims and job go, its bonds stay behind, and its partner (if any) is free.
+		bool Detach(const std::string& name, MemberTransfer& out);
+		// A member from another tribe joins this one as it was (no founder's draw): it walks to this camp when it next decides.
+		void Admit(MemberTransfer&& in);
+
+		// ---- H14: conflict, combat and violence (TribeConflict.cpp; the core is GB/Gameplay/Combat.h, the clan's state GB/Game/Conflict.h).
+		// The fights of the world (shared by every clan and the animals: it must outlive the tribe) and who is hostile to whom (H13 gives its own;
+		// without one, nobody but the predators of the rules is). Without a combat system there is no conflict at all.
+		void SetCombat(CombatSystem* combat, IHostility* hostility = nullptr) { m_Combat = combat; m_Hostility = hostility; }
+		CombatSystem* Combat() const { return m_Combat; }
+		IHostility* Hostility() const { return m_Hostility; }
+		// The clan's name: its side in the fights and in the hostility table ("Clan" by default).
+		void SetClanName(const std::string& name) { m_ClanName = name.empty() ? std::string("Clan") : name; }
+		const std::string& ClanName() const { return m_ClanName; }
+		const ConflictState& Conflict() const { return m_Conflict; }
+		// Sends a raid on a clan's camp now (the clan weighs raids by itself too). False and why when it cannot (no such target, too few fit).
+		bool StartRaid(const std::string& clan, std::string* why = nullptr);
+		// For people: threats, fights, the wounded, hunts and the raid.
+		std::string ConflictReport() const;
+		// ---- H15: the player inside the society (TribePlayer.cpp, GB/Game/PlayerMember.h). The member a person controls joins like any other (its
+		// needs, its knowledge, its person in the society) but the brain never drives it: these calls are what the person does, through keys in the
+		// game mode or orders in a test, and what the clan makes of it (standing, bonds, the board, proposals).
+		struct PlayerAct
+		{
+			bool Ok = false;
+			std::string Text;   // what happened, or why not
+		};
+		// Joins `name` as a player member with `role` ("" = PlayerRules::Role); false when the name is taken. SetPlayer marks an existing member.
+		bool AddPlayer(const std::string& name, ITribeBody* body, const std::string& role = std::string());
+		bool SetPlayer(const std::string& name, bool on);
+		// The first living player member (nullptr: none), and any member by name.
+		const TribeMember* PlayerMember() const;
+		const TribeMember* FindMember(const std::string& name) const;
+		const PlayerSociety& Players() const { return m_Players; }
+		float Standing(const std::string& player) const;
+		bool Leads(const std::string& player) const;
+		// The store, from the camp (within PlayerRules::CampReach): everything the bag holds that is not a tool, or `count` of `item`; and back.
+		PlayerAct PlayerDeposit(const std::string& player, const std::string& item = std::string(), int count = 0);
+		PlayerAct PlayerTake(const std::string& player, const std::string& item, int count = 1);
+		// Eats what it carries or the store's oldest food (from the camp), drinks the water it carries, lies down in its bed (or gets up).
+		PlayerAct PlayerEat(const std::string& player);
+		PlayerAct PlayerDrink(const std::string& player);
+		PlayerAct PlayerSleep(const std::string& player, bool on);
+		// What the player's body is doing now ("gather" a node, "stoke" the campfire, "build" a site, "" when it is done), as an NPC's job and detail:
+		// the visual layer (TribeVisuals: props in the hands, the activity's set and montage, the hands on the work) reads it the same for both.
+		bool SetPlayerActivity(const std::string& player, const std::string& job, const std::string& detail = std::string());
+		// Gives `count` of `item` from its bag to a member within Reach (their bond grows by the worth of the gift).
+		PlayerAct PlayerGive(const std::string& player, const std::string& to, const std::string& item, int count = 1);
+		// The job board: claims a job by id ("gather wood"; "" = the most pressing it can do) or lets it go.
+		PlayerAct PlayerClaim(const std::string& player, const std::string& job = std::string());
+		PlayerAct PlayerRelease(const std::string& player);
+		// The host tells the clan what the player did with its abilities: "gather" (`key` a node id or the item, `units` gathered), "craft" (a recipe),
+		// "stoke", "fire", "build" (a site): its aptitude practises, its claim moves on, its standing grows, whoever watches may learn (H11).
+		PlayerAct PlayerWorked(const std::string& player, const std::string& activity, const std::string& key, float units = 1.0f);
+		// Makes a recipe from its bag (at a station of the camp when the recipe asks for one), as `actor bag craft` would, and counts it.
+		PlayerAct PlayerCraft(const std::string& player, const std::string& recipe);
+		// A proposal to the clan (see ProposalRules): "gather" or "make" an item (`units`), or "build" a building (at `at`, or by the camp when it is 0).
+		PlayerAct Propose(const std::string& player, const std::string& kind, const std::string& target, int units = 0, glm::vec2 at = glm::vec2(0.0f));
+		// What a member is doing and why (from its mind), its trade, its job and how it feels about the player; a talk now and then brings them closer.
+		PlayerAct PlayerTalk(const std::string& player, const std::string& other);
+		// A lesson: the player shows a member a technology it knows, or a member shows the player one ("" = the first it can).
+		PlayerAct PlayerTeach(const std::string& player, const std::string& other, const std::string& tech = std::string());
+		PlayerAct PlayerLearn(const std::string& player, const std::string& other, const std::string& tech = std::string());
+		// Marriage with a member that likes the player enough (Society::Marry).
+		PlayerAct PlayerMarry(const std::string& player, const std::string& other);
+		// H14 for the player: attacks `target` ("" = the nearest foe within reach: a predator, a hunted animal, a stranger of a hostile clan, whoever
+		// attacks it), raises its guard (the ability Block) or runs from whoever fights it (Flee). The swings themselves are the combat system's: the
+		// person walks its character into reach. A hunted animal killed gives its meat (H14's hunts); a raider driven off or killed counts as defence.
+		PlayerAct PlayerAttack(const std::string& player, const std::string& target = std::string());
+		PlayerAct PlayerBlock(const std::string& player);
+		PlayerAct PlayerFlee(const std::string& player);
+		// Health, stamina and wounds of a player for the interface ("" without a combat system).
+		std::string PlayerCondition(const std::string& player) const;
+		// For people: standing, what it has done, its job and bed; the proposals and their votes.
+		std::string PlayerReport(const std::string& player) const;
+		std::string ProposalsReport() const;
+		// Credits a contribution (kind of PlayerRules::Credit, x units) to a player's standing; the clan world calls it for a trade.
+		void Credit(const std::string& player, const std::string& kind, float units);
 
 		// ---- saving: the store, the fire, the clan and each member's memory and decision (their needs are in their ability systems).
 		std::string ToJson() const;
@@ -460,6 +658,48 @@ namespace GB
 		std::string DepositPlace(const TribeMember& m, glm::vec2& where) const;
 		int DepositAt(TribeMember& m, const std::string& place);
 		std::string FoodToEat(const Inventory& inv) const;
+		// H15 (TribePlayer.cpp): a player member's turn in Update (it tells the clan what it knows at the camp; the days of its standing; the wants
+		// of its proposals), the floor of its health, the members it can reach and the wants a proposal leaves.
+		void StepPlayer(TribeMember& m);
+		void StepPlayers(float dt);
+		void GuardPlayer(const TribeMember& m, AbilitySystemComponent& asc) const;
+		void KnockOut(TribeMember& m, const std::string& cause);   // an immortal player who would die: it wakes at the camp, wounds tended
+		TribeMember* MemberNamed(const std::string& name);
+		bool NearCampForPlayer(const TribeMember& m) const;
+		PlayerRecord& RecordOf(const std::string& player);
+		// the settlement (Settlement.cpp)
+		struct Placed { std::string Name; const BuildingDef* Def = nullptr; glm::vec2 Pos{ 0.0f }; SiteState State; };
+		std::vector<Placed> Placements() const;   // every site and building of the scene, by name
+		void PlanSettlement(float dt);
+		void SettlementOptions(TribeMember& m, std::vector<UtilityOption>& opts) const;
+		int ExecuteSettlement(TribeMember& m, const UtilityOption& o);   // -1: not a settlement option; 0: failed; 1: given
+		bool FinishSettlement(TribeMember& m, const std::string& job);   // false: not a settlement job
+		void ShelterNeeds(TribeMember& m, float dt);
+		glm::vec2 SleepSpot(const TribeMember& m) const;                   // its bed in a shelter, else its place at the camp
+		glm::vec2 StationSpot(const TribeMember& m, const std::string& station) const;   // where to craft at a station: its building, else the camp
+		std::string CraftStation(const std::string& recipe) const;        // the station the recipe can be made at now ("" = none there)
+		int InFlight(const std::string& site, const std::string& item) const;
+		void PostSettlementJobs();                                         // "haul <site>" and "build <site>" on the job board (H7)
+		float SettlementJobScore(const TribeMember& m, const Job& job) const;
+		bool SiteWorkable(const std::string& site) const;                 // a site whose current phase can still be worked (Build after it moved on is no fault)
+		bool ClanKnowsBuilding(const BuildingDef& def) const;              // no technology locks it, or a living member knows one that unlocks it (H11)
+		// H14 (TribeConflict.cpp): the clock of conflict (the members' places and stats in the fights, what happened in them, the animals near,
+		// the raid), a member's turn when a threat, a fight, a flight or a raid steers it (true: it does not decide as usual), the options of the
+		// hunt, rest and care, carrying them out and their ends, and the hunt jobs.
+		void StepConflict(float dt);
+		bool ConflictTurn(TribeMember& m);
+		void ConflictOptions(TribeMember& m, std::vector<UtilityOption>& options);
+		bool ExecuteConflict(TribeMember& m, const UtilityOption& option);
+		bool FinishConflict(TribeMember& m, const std::string& job);
+		float ConflictJobScore(const TribeMember& m, const Job& job) const;
+		void PostConflictJobs();
+		void StepRaid(float dt);
+		void ConflictEvents();
+		void JoinFight(TribeMember& m);
+		bool SteerFight(TribeMember& m);
+		std::string SeeThreat(TribeMember& m);
+		void LeaveFight(TribeMember& m, const std::string& why);
+		float Odds(const std::string& member, const std::string& threat) const;
 
 		EntityWorld* m_Entities = nullptr;
 		GameplayWorld* m_Gameplay = nullptr;
@@ -482,6 +722,15 @@ namespace GB
 		bool m_Fire = false;          // the tribe built its campfire (the interactive Config.FireName)
 		bool m_WasBurning = false;    // what the log last said of it (it says when it goes out and when it burns again)
 		const std::map<std::string, InteractiveDef>* m_InteractiveDefs = nullptr;
+		const std::map<std::string, BuildingDef>* m_Buildings = nullptr;
+		std::function<float(float, float)> m_Ground;
+		std::function<bool(const std::string&)> m_KnowsTech;
+		float m_PlanTimer = 0.0f;
+		mutable std::vector<std::pair<std::string, glm::vec2>> m_Placed;   // the sites and buildings of the scene (name, x z), looked up once per tick
+		mutable double m_PlacedAt = -1.0;
+		mutable size_t m_PlacedSystems = 0;
+		std::set<std::string> m_Announced;   // the buildings whose end the log has told
+		std::map<std::string, std::map<std::string, int>> m_SiteDemandSet;   // what the sites asked the economy for (SetDemand), to take back what they no longer need
 
 		SoundBus m_Sounds;
 		SpatialMemory m_Clan;
@@ -492,6 +741,8 @@ namespace GB
 		std::unordered_map<long long, std::vector<size_t>> m_SightCells;   // the sights filed by place, so a look only visits what is near
 		std::vector<Occluder> m_OccBuilt;   // what the grid was built from
 		float m_LodTimer = 0.0f;
+		int m_ThinkBudget = -1;   // H16: set from outside (SetThinkBudget)
+		FrameCost m_Cost;
 		JobBoard m_Board;             // H7: the clan's jobs and who holds them
 		float m_BoardTimer = 0.0f, m_ReviewTimer = 0.0f;
 		std::map<std::string, glm::vec2> m_PosCache;
@@ -510,5 +761,17 @@ namespace GB
 		ProductionPlan m_Plan;
 		StationFinder m_Stations;
 		std::map<std::string, std::map<std::string, int>> m_Demand;   // source -> item -> units
+		TribeOutside m_Outside;       // H13: the clans around (none for a tribe alone)
+		std::function<bool(const std::string&)> m_NameTaken;
+		PlayerSociety m_Players;      // H15: standing and proposals of the players of the clan (saved under "player")
+		bool IsOutside(const std::string& kind) const { return std::find(m_Outside.Kinds.begin(), m_Outside.Kinds.end(), kind) != m_Outside.Kinds.end(); }
+
+		CombatSystem* m_Combat = nullptr;   // H14: the fights of the world (not owned)
+		IHostility* m_Hostility = nullptr;
+		std::string m_ClanName = "Clan";
+		ConflictState m_Conflict;     // H14 (saved under "conflict")
+		struct Animal { std::string Name, Tag; glm::vec2 Pos{ 0.0f }; bool Predator = false; };
+		std::vector<Animal> m_Animals;   // the animals of the rules near the camp, refreshed with the conflict clock (not saved: the world has them)
+
 	};
 }

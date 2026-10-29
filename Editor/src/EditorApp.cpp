@@ -132,12 +132,16 @@ namespace GB::Editor
 		// The base era pack (assets/data/era1.pack.json -> era1.json) may add to or change what the code defines; its sections go through the
 		// registered loaders (items, recipes and nodes; roles), all or nothing. The check is only reported: a gap must not stop the editor.
 		AddGameContentSections(m_Packs, m_Items, m_Recipes, m_NodeDefs, m_Tribe.Config.Roles, &m_Tribe.Config.Agenda, &m_Tribe.Config.Economy,
-			&m_Tribe.Config.Work, &m_Techs);   // (and "tribe": agenda, food, stock; "work": names, aptitudes, job board; "techs" inside "items")
+			&m_Tribe.Config.Work, &m_Techs, &m_Buildings.Defs);   // (and "tribe": agenda, food, stock; "work": names, aptitudes, job board; "techs" and "buildings" inside "items")
 		AddExplorationContentSection(m_Packs, m_Tribe.Config.Explore);   // H12: regions, expeditions and migration
 		AddEconomyContentSection(m_Packs, m_Tribe.Config.Econ);   // H18: production chains, spoilage, fields and crops, stores and hauling
+		AddCombatContentSection(m_Packs, m_Combat.Rules);   // H14: weapons, wounds, morale, threats, predators, hunts and raids
+		AddPlayerContentSections(m_Packs, m_Tribe.Config.Player, m_Controls);   // H15: the player in the society, and the keys and interface of `play`
 		AddWorldContentSections(m_Packs, m_Interactives.Defs, m_Ecology.Species);   // the interactives and the species (H3): what they are is data, the code keeps how they behave
 		AddCameraContentSections(m_Packs, m_GameView.Params);   // the game cameras (H19): assets/data/cameras.json
 		AddSocietyContentSections(m_Packs, m_Tribe.Config.Society);   // the society of the tribe (H9 + H10): life, births, genes, personality, relations, culture
+		AddDiplomacyContentSection(m_Packs, m_Clans.Rules);
+		AddVisualContentSection(m_Packs, m_Visuals.Library);   // what nodes, props, piles, creatures and buildings look like (assets/data/visuals.json)   // H13: territory, encounters, relations between clans, trade, exchange, marriages, pacts
 		if (std::filesystem::exists(m_AssetRoot + "/data/era1.pack.json"))
 		{
 			ContentReport report;
@@ -146,6 +150,14 @@ namespace GB::Editor
 		}
 		m_Tribe.SetInteractives(&m_Interactives.Defs);   // the tribe's campfire is the fire pit of the data
 		m_Tribe.SetTechs(&m_Techs);   // H11: the members know the technologies of the start and find, watch and teach the rest
+		m_Clans.Add("", &m_Tribe);   // H13: the first tribe is clan 0 (the others come with `clan new`)
+		m_Tribe.SetBuildings(&m_Buildings.Defs);         // and it builds what the data says (H8)
+		m_Tribe.SetGround([this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });
+		RegisterBuildingContent(m_Gameplay.Library);     // the ability Build
+		m_Hostility.FromRules(m_Combat.Rules);
+		m_ClanHostility.Bind(&m_Clans, &m_Hostility);   // H14: hostility between clans is the diplomacy's (H13); predators and the table are the rest
+		m_Tribe.SetCombat(&m_Combat, &m_ClanHostility);   // the clan fights, flees, hunts, tends its wounded and raids (every clan: StepCombat)
+
 		RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 		RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 		RegisterNeedContent(m_Gameplay.Library);   // a saved agent may carry Need.* effects: the library must know them before any load
@@ -157,8 +169,11 @@ namespace GB::Editor
 		m_SceneEditor.Register(m_Commands);
 		RegisterSaveCommands();
 		RegisterAnimationCommands();
+		RegisterVisualCommands();
+		RegisterGameCommands();   // H15: `play` and `game` (GameMode.cpp)
 		m_EntityRenderer = std::make_unique<EntityRenderer>(m_AssetRoot);
 		m_EntityRenderer->SetPropBuilder([this](const PropComponent& p, const glm::mat4& m, Scene& s) { return m_World.AddProp(p, m, s); });
+		BindVisuals();
 		BuildWorld(m_WorldDesc);
 		RegisterProperties();
 
@@ -174,6 +189,8 @@ namespace GB::Editor
 			if (!in) GB_CLIENT_ERROR("Could not read the script '{}'", script);
 			else { std::stringstream ss; ss << in.rdbuf(); RunScript(ss.str()); }
 		}
+		// H15: `Editor --play` (or --play="alpine 7 5 3") starts a game before anything else
+		if (options.HasFlag("play") || !options.GetValue("play").empty()) RunScriptFirst("play " + options.GetValue("play"));
 		GB_CLIENT_INFO("GB Editor ready. Type 'help' in the console for the commands.");
 	}
 
@@ -388,10 +405,13 @@ namespace GB::Editor
 			m_ViewportFb = std::make_unique<Framebuffer>(1u, 1u);   // forces OnRender to size both to the scaled viewport
 			m_MinimumQuality = minimum;
 		}
+		m_Visuals.Cache().SetLowRes(minimum);   // the procedural textures at a quarter of the size
 		if (name == "low" || minimum) {}
 		else if (name == "medium") { p.SSAO = 0.4f; }
 		else if (name == "high") { p.SSAO = 0.55f; p.Grain = 0.15f; }
 		else if (name == "ultra") { p.SSAO = 0.75f; p.AutoExposure = true; p.Grain = 0.25f; p.ChromaticAberration = 0.2f; p.Saturation = 1.08f; p.Contrast = 1.06f; }
+		m_Actors.SetAnimLod(AnimLodForQuality(name));   // H16: how far the characters keep their full animation
+		m_Visuals.NodeDrawDistance = minimum ? 90.0f : name == "low" ? 120.0f : name == "medium" ? 170.0f : name == "high" ? 240.0f : 0.0f;   // H16: resource nodes culled by distance
 		GB_CLIENT_INFO("Quality '{}'", name);
 	}
 
@@ -950,6 +970,7 @@ namespace GB::Editor
 				// every registered section (items, roles, interactives, species...) reads the file, all or nothing: a file whose roles are wrong changes nothing at all
 				ContentReport report;
 				if (const std::string error = m_Packs.LoadFile(a[1], &report); !error.empty()) return { false, error };
+				m_Visuals.Cache().Clear();   // (the looks may have changed)
 				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // the wild nodes of the baseline are planned with this data
@@ -979,6 +1000,7 @@ namespace GB::Editor
 				options.Strict = a.size() > 2 && a[2] == "strict";
 				ContentReport report;
 				if (const std::string error = m_Packs.Load(a[1], dir, &report, options); !error.empty()) return { false, error + (report.Problems.empty() ? std::string() : "\n" + report.Text()) };
+				m_Visuals.Cache().Clear();   // (the looks may have changed)
 				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // (see content load)
@@ -992,6 +1014,8 @@ namespace GB::Editor
 			}
 			return { false, "pack list | load <id|manifest.json> [strict] | check" };
 		});
+		c.Register("site", "site best | score [x z] | list [n]: where a clan would settle (H8): every place of the generated world scored by the water, the resource nodes the clan wants near, flat ground, the biome and shelter; `tribe build` without a place uses the best", [this](const std::vector<std::string>& a) { return SiteCommand(a); });
+		c.Register("settlement", "settlement status | start <building> [x z] | buildings: the buildings and construction sites of the tribe (H8): the clan plans them from its needs (beds, a full store, a station), carries the materials and works each phase with Build", [this](const std::vector<std::string>& a) { return SettlementCommand(a); });
 		c.Register("interactives", "interactives build [x z] | status: puts a campfire (Stoke with wood), a well (DrawWater) and a gate (OpenDoor, CloseDoor) in the scene; their state is saved with the game", [this](const std::vector<std::string>& a) { return InteractivesCommand(a); });
 		c.Register("ecology", "ecology spawn [n] [x z] [species] | status | season [spring|summer|autumn|winter]: animals of the species of assets/data/world.json (rabbits eat berry bushes and fibre tufts, foxes hunt rabbits) wander, eat, breed when fed (not in winter) and starve; season shows or sets the season (it follows the simulation clock)", [this](const std::vector<std::string>& a) { return EcologyCommand(a); });
 		c.Register("ai", "ai debug [on|off] | status [name] | memory <name> | scream <name>: the brain of the tribe members: needs, what they decide and why, what they know; `debug` draws their view cones, the obstacles and their memory in the viewport", [this](const std::vector<std::string>& a) { return AiCommand(a); });
@@ -999,14 +1023,17 @@ namespace GB::Editor
 		c.Register("nav", "nav status | debug on|off | rebuild | sync | path <x1 z1 x2 z2> [load 0-1]: navigation over the terrain: the grid the characters plan their paths on (trunks, rocks, deep water and cliffs are walls; wading and slopes cost), the paths they follow and what the planning has cost", [this](const std::vector<std::string>& a) { return NavCommand(a); });
 		c.Register("economy", "economy status | plan | give <item> [n] | stockpile <name> [x z] [kind] | demand <source> <item> <n>: the clan's economy (H18): what it makes from what (production chains), what spoils, its stores and stockpiles, what it hauls and how much food it brings in; give puts things in the main store", [this](const std::vector<std::string>& a) { return EconomyCommand(a); });
 		c.Register("field", "field status | mark [x z]: the clan's fields (H18, E7): plots grass, tilled, sown, sprouting or ripe, what needs water and what the season allows; mark lays out a field (the clan does it by itself once it knows tillage and has seeds)", [this](const std::vector<std::string>& a) { return FieldCommand(a); });
-		c.Register("clan", "clan overlay [on|off]: draws the clan's fields (one colour per plot state), stockpiles and, over each member, its name, trade and what it is doing", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("overlay", "overlay [on|off]: draws the clan's fields (one colour per plot state), stockpiles and, over each member, its name, trade and what it is doing", [this](const std::vector<std::string>& a) -> CommandResult
 		{
-			if (a.empty() || a[0] != "overlay") return { false, "clan overlay [on|off]" };
-			if (a.size() > 1) m_ClanOverlay = a[1] == "on" || a[1] == "1" || a[1] == "true";
+			if (!a.empty()) m_ClanOverlay = a[0] == "on" || a[0] == "1" || a[0] == "true";
 			else m_ClanOverlay = !m_ClanOverlay;
-			return { true, std::string("clan overlay ") + (m_ClanOverlay ? "on" : "off") };
+			return { true, std::string("overlay ") + (m_ClanOverlay ? "on" : "off") };
 		});
-		c.Register("region","region list | info <id|name> | explore: the regions of the generated world (H12): area, biome, water, wild resources and danger; what the clan knows of each, its expedition and its moves", [this](const std::vector<std::string>& a) { return RegionCommand(a); });
+		c.Register("clan", "clan new <name> [x z] [members] [model] | list | select <id|name> | relations | trade <a> <b> [force] | visit <a> <b> | wed <a> <b> | move <member> <clan> | territory | meetings | log [n]: several clans in one world (H13): each a tribe of its own, placed by the site chooser away from the others; they meet, claim land, trade, teach each other, wed and make pacts", [this](const std::vector<std::string>& a) { return ClanCommand(a); });
+		c.Register("region", "region list | info <id|name> | explore: the regions of the generated world (H12): area, biome, water, wild resources and danger; what the clan knows of each, its expedition and its moves", [this](const std::vector<std::string>& a) { return RegionCommand(a); });
+		c.Register("combat", "combat status [name] | log [n] | hurt <name> <health> [severity] | fight <a> <b> | flee <a> <b> | stop <name>: the fights of the world (H14): who fights or flees whom, health, stamina, morale, wounds; hurt wounds a character, fight sets one on another (a member's clan then decides)", [this](const std::vector<std::string>& a) { return CombatCommand(a); });
+		c.Register("hostile", "hostile [a b [0-1]]: who is hostile to whom (clans, animal tags such as Animal.Fox), the grievances and the camps; with a pair, sets how hostile they are to each other (0 makes peace)", [this](const std::vector<std::string>& a) { return HostileCommand(a); });
+		c.Register("raid", "raid <clan> | status: sends the tribe to raid a hostile clan's camp (it steals from the store, food first, and comes back), or says how its raid goes; the clan also weighs raids by itself (boldness, hunger, grievance)", [this](const std::vector<std::string>& a) { return RaidCommand(a); });
 		c.Register("tribe", "tribe build [model.fbx|fox] [x z] [workers] | status | jobs | log [n] | remove <name> | clear: the first tribe: workers (named from the data, their trades shared out by the clan's needs) gather, carry to a store, make tools and light a campfire by themselves; they get better at what they practise and take jobs from the clan's board", [this](const std::vector<std::string>& a) { return TribeCommand(a); });
 		c.Register("qa", "qa sim [days] [members] | check | status | reset | expect \"<command>\" <regex>: simulation QA (H20): `sim` runs the current scene (its tribe, or a new one) headless for days and checks every invariant at every step (counts, claims, stuck members, deaths, store, fire, positions, ground, job board, skills, knowledge, expeditions, migration, society), `check` checks the live scene now, `status` what the live monitor has seen (QA panel), `expect` fails unless a command's answer matches (for scripted demos)", [this](const std::vector<std::string>& a) { return QaCommand(a); });
 		c.Register("garden", "garden build [x z] | status: builds the vegetable garden (plots, tree spot, fruit tree, cow, boxes, wheelbarrow, the Gardener and the Farmhand with their abilities) at a point (default: the middle of the view)", [this](const std::vector<std::string>& a) { return GardenCommand(a); });
@@ -1141,8 +1168,9 @@ namespace GB::Editor
 			for (size_t i = 0; i < a.size(); ++i) s += (i ? " " : "") + a[i];
 			return { true, s };
 		});
-		c.Register("stats", "stats: frame time, objects drawn/culled and world counts", [this](const std::vector<std::string>&) -> CommandResult
+		c.Register("stats", "stats [ai]: frame time, objects drawn/culled and world counts; `stats ai`: the cost of the AI (H16): thinks, plans and the queue, ms per system, animation LOD", [this](const std::vector<std::string>& a) -> CommandResult
 		{
+			if (!a.empty() && a[0] == "ai") return { true, AiStatsLine() };
 			const RenderStats& s = m_Renderer->GetStats();
 			char buf[320];
 			std::snprintf(buf, sizeof buf, "frame %.1f ms (%.0f fps), viewport %ux%u (rendered %ux%u), objects drawn %u culled %u, trees %zu rocks %zu grass blades %zu",
@@ -1179,13 +1207,15 @@ namespace GB::Editor
 		}
 
 		ImGuiIO& io = ImGui::GetIO();
-		for (int step = 0; step < m_TimeScale; ++step)   // `timescale n` runs the simulation n times per frame (the tribe's day in a minute)
+		for (int step = 0; step < (m_Game.Paused ? 0 : m_TimeScale); ++step)   // `timescale n` runs the simulation n times per frame (the tribe's day in a minute); a paused game none
 		{
 			m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
 			StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
-			if (m_Player.IsActive()) m_Player.BeginFrame(dt, m_ViewportHovered && !io.WantTextInput && m_GameView.CharacterKeys());
+			if (m_Player.IsActive()) m_Player.BeginFrame(dt, (m_ViewportHovered || m_Game.Active) && !io.WantTextInput && m_GameView.CharacterKeys());
+			if (m_Player.IsActive()) m_Actors.SetViewer(m_Camera.Position);
 			if (m_Player.IsActive()) m_Actors.Update(dt);   // (with no player the actors move in the fixed tick: EditorSaveHost::Step)
 		}
+		StepGame(dt);   // H15: the player's body, camera, quality and news (nothing when not playing)
 		m_NavSyncTimer -= dt;
 		if (m_NavSyncTimer <= 0.0f)   // trees felled or planted, a building: the grid redoes only the cells around them
 		{
@@ -1256,7 +1286,9 @@ namespace GB::Editor
 		m_Scene.Objects.resize(m_StaticObjects);
 		m_Scene.PointLights.resize(m_WeatherLights);
 		m_EntityRenderer->Update(m_FrameDt);
+		UpdateVisuals(m_FrameDt);
 		m_EntityRenderer->Build(m_SceneEditor.World(), m_Scene, m_SceneEditor.Selected());
+		AddVisualsToScene();
 		if (m_Instance)
 			m_Instance->AddToScene(m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
 		m_Actors.AddToScene(m_Scene);
@@ -1408,6 +1440,7 @@ namespace GB::Editor
 		if (ImGui::BeginMenu("View"))
 		{
 			if (ImGui::MenuItem("Play as fox (WASD)", nullptr, m_Player.IsActive())) Execute(m_Player.IsActive() ? "player off" : "player fox");
+			if (ImGui::MenuItem("Play the game (H15)", nullptr, m_Game.Active)) m_UiCommands.push_back(m_Game.Active ? "play off" : "play");
 			ImGui::Separator();
 			ImGui::MenuItem("Hierarchy", nullptr, &m_Panels.Hierarchy);
 			ImGui::MenuItem("Inspector", nullptr, &m_Panels.Inspector);
@@ -1464,7 +1497,8 @@ namespace GB::Editor
 				const ImVec2 mp = ImGui::GetIO().MousePos;
 				m_CursorNorm = { (mp.x - origin.x) / std::max(static_cast<float>(m_ViewportW), 1.0f), (mp.y - origin.y) / std::max(static_cast<float>(m_ViewportH), 1.0f) };
 			}
-			{   // camera mode buttons over the viewport corner (they take the mouse: no picking or orbiting through them)
+			if (!m_Game.Active)
+			{   // camera mode buttons over the viewport corner (they take the mouse: no picking or orbiting through them; a game has its own camera)
 				const char* names[3] = { "Free", "Top", "Follow" };
 				const CamMode modes[3] = { CamMode::Free, CamMode::TopDown, CamMode::Follow };
 				const char* commands[3] = { "camera free", "camera top", "camera follow" };
@@ -1480,8 +1514,9 @@ namespace GB::Editor
 				}
 				if (overButton) m_ViewportHovered = false;
 			}
-			DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
+			if (!m_Game.Active) DrawGizmo(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // (no editing handles in a game: H15)
 			if (m_NavDebug) DrawNavDebug(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
+			if (m_Game.Active) DrawGameHud(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // H15
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);
 			ImGui::GetWindowDrawList()->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(255, 255, 255, 200), info);
@@ -1555,7 +1590,7 @@ namespace GB::Editor
 	void EditorApp::HandleSceneShortcuts()
 	{
 		ImGuiIO& io = ImGui::GetIO();
-		if (io.WantTextInput) return;
+		if (io.WantTextInput || m_Game.Active) return;   // (in a game the keys are the game's: GameKeys)
 		if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Z, false)) Execute(io.KeyShift ? "redo" : "undo");
 		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) Execute("redo");
 		else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false) && m_SceneEditor.Selected() != NullEntity) Execute("entity duplicate");

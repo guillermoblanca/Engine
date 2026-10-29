@@ -144,6 +144,13 @@ namespace GB
 		// Poses the instance for this frame's motion; `characterToWorld` puts the footsteps where the feet are.
 		void Update(const MotionState& state, float dt, const glm::mat4& characterToWorld);
 
+		// Level of detail (H16), presentation only: everything that keeps TIME (the cycle of the locomotion, cross-fades, the state graph, the
+		// montages and their notifies, which the abilities wait for, the foot events) moves on every frame as at full detail, so the game goes the
+		// same; what is skipped is what is only seen. `pose` false: no clip is sampled and the instance keeps its last pose this frame (a far
+		// character is redrawn every few frames). `ik` false: no foot IK, look-at nor hand grips on props (a character at middle distance).
+		// A ragdoll always gets the full pose.
+		void SetDetail(bool pose, bool ik) { m_DetailPose = pose; m_DetailIk = ik; }
+
 	private:
 		struct Set
 		{
@@ -188,6 +195,7 @@ namespace GB
 		Pose m_Pose;
 		std::vector<FootEvent> m_Events;
 		std::vector<FootPlant> m_Plants;
+		bool m_DetailPose = true, m_DetailIk = true;   // SetDetail
 	};
 
 	// The sets the Mixamo locomotion and farming packs make (when the model has the clips): "free", "box", "holding",

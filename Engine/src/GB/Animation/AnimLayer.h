@@ -17,5 +17,7 @@ namespace GB
 		virtual void Apply(Pose& pose) = 0;
 		// How much of the legs the layer takes over, 0..1: past one half the feet are not walking, so there are no footsteps.
 		virtual float LegsWeight() const = 0;
+		// A procedural correction (IK) rather than a clip: skipped with the IK at a lower level of detail (H16, AnimInstance::SetDetail).
+		virtual bool Procedural() const { return false; }
 	};
 }

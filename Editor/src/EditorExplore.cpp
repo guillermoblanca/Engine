@@ -10,7 +10,9 @@ namespace GB::Editor
 	{
 		if (!m_World.IsBuilt())
 		{
-			if (m_Tribe.Regions()) m_Tribe.SetRegions(nullptr);
+			for (const auto& c : m_Clans.All()) if (c->Folk->Regions()) { c->Folk->SetRegions(nullptr); c->Folk->SetSiteChooser({}); }   // (H8's chooser reads the world that went)
+			m_Clans.SetRegions(nullptr);
+			m_Clans.SetSiteChooser({});
 			m_RegionsKey.clear();
 			m_Regions = RegionMap();
 			return;
@@ -25,9 +27,17 @@ namespace GB::Editor
 			m_Regions = RegionMap::Build(m_World.World(), m_Tribe.Config.Explore.Regions, RegionThingsOf(spots));
 			m_RegionsKey = key;
 			m_RegionTicks = 0;
-			m_Tribe.SetRegions(nullptr);   // (the same address: set it again so the tribe checks its map against the new cut)
+			for (const auto& c : m_Clans.All()) c->Folk->SetRegions(nullptr);   // (the same address: set it again so each tribe checks its map against the new cut)
 		}
-		if (m_Tribe.Regions() != &m_Regions) m_Tribe.SetRegions(&m_Regions, [this](float x, float z) { return m_World.GetTerrain().GetHeight(x, z); });
+		for (const auto& c : m_Clans.All())   // every clan (H13) lives on the same regions, and the clan world claims them
+			if (c->Folk->Regions() != &m_Regions)
+			{
+				c->Folk->SetRegions(&m_Regions, [this](float x, float z) { return m_World.GetTerrain().GetHeight(x, z); });
+				c->Folk->SetSiteChooser(SettlementSiteChooser(*c->Folk, ResourceGroundOf(m_World.World())));   // H8: a migrating clan chooses its new camp with the site scoring of `tribe build`
+			}
+		if (m_Clans.Regions() != &m_Regions)   // H8: and a new clan settles where the same scoring says, with every resource node of the scene
+			m_Clans.SetSiteChooser(SettlementSiteChooser(m_Tribe, ResourceGroundOf(m_World.World()), [this] { return SceneResources(m_SceneEditor.World(), m_Gameplay, m_NodeDefs); }));
+		m_Clans.SetRegions(&m_Regions);
 		if (--m_RegionTicks > 0) return;
 		m_RegionTicks = 600;   // the predators move: their count per region every ten simulated seconds
 		std::vector<glm::vec2> predators;

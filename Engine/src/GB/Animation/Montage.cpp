@@ -218,7 +218,7 @@ namespace GB
 					const bool crossed = wrapped ? (n.Time > before || n.Time <= after) : (n.Time > before && n.Time <= after);
 					if (crossed) m_Events.push_back({ MontageEvent::Kind::Notify, e.Desc.Name, n.Name });
 				}
-			if (!a.Leaving && !e.Desc.Loop && a.Time >= duration - e.Desc.BlendOut * e.Desc.PlayRate * a.RateScale)
+			if (!a.Leaving && !e.Desc.Loop && !e.Desc.HoldEnd && a.Time >= duration - e.Desc.BlendOut * e.Desc.PlayRate * a.RateScale)
 				Leave(a, -1.0f, false);   // reaches its end: the blend out starts BlendOut seconds before it
 			const float rate = a.Leaving ? 1.0f / a.LeaveBlend : 1.0f / std::max(e.Desc.BlendIn, 1e-3f);
 			a.Weight = a.Leaving ? std::max(a.Weight - dt * rate, 0.0f) : std::min(a.Weight + dt * rate, 1.0f);
@@ -272,6 +272,7 @@ namespace GB
 			j["playRate"] = m.PlayRate;
 			j["loop"] = m.Loop;
 			j["stripTravel"] = m.StripTravel;
+			if (m.HoldEnd) j["holdEnd"] = true;   // (only when set: the files of before stay byte for byte)
 			Json notifies = Json::array();
 			for (const MontageNotify& n : m.Notifies) notifies.push_back({ { "time", n.Time }, { "name", n.Name } });
 			j["notifies"] = notifies;
@@ -310,6 +311,7 @@ namespace GB
 				m.PlayRate = j.value("playRate", 1.0f);
 				m.Loop = j.value("loop", false);
 				m.StripTravel = j.value("stripTravel", true);
+				m.HoldEnd = j.value("holdEnd", false);
 				if (j.contains("notifies"))
 					for (const Json& n : j["notifies"]) m.Notifies.push_back({ n.value("time", 0.0f), n.value("name", "") });
 				if (j.contains("sections"))

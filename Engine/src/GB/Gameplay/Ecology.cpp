@@ -476,6 +476,11 @@ namespace GB
 				continue;
 			}
 
+			// H14 (GB/Gameplay/Combat.h): an animal killed in a fight (a hunter's prey, a predator that lost) is taken away and counted as caught
+			// by hunters; one held by a fight (it attacks, or flees from a hunter) is moved by the combat, not here.
+			if (a->HasTag("State.Dead")) { --population[s.Id]; Kill(name); continue; }
+			if (a->HasTag("State.Held")) { w.Plant.clear(); w.Eating = 0.0f; w.Target = { e.Transform.Position.x, e.Transform.Position.z }; continue; }
+
 			glm::vec2 pos(e.Transform.Position.x, e.Transform.Position.z);
 			const bool hunts = s.Hunts();
 

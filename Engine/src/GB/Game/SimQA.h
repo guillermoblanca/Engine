@@ -1,7 +1,10 @@
 #pragma once
 #include "GB/Game/CharacterController.h"
 #include "GB/Game/Entity.h"
+#include "GB/Game/ClanHostility.h"
+#include "GB/Game/Clans.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Gameplay/Combat.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Items.h"
@@ -32,6 +35,7 @@ namespace GB
 	struct SimView
 	{
 		const Tribe* Clan = nullptr;     // (not "Tribe": a member may not share the name of a type it uses)
+		const ClanWorld* Clans = nullptr;   // H13: every clan of the world (the "clans" and "territory" checks; null: one tribe alone)
 		const GameplayWorld* Gameplay = nullptr;
 		const EntityWorld* Entities = nullptr;
 		double Clock = 0.0;   // seconds of simulation
@@ -78,8 +82,10 @@ namespace GB
 		size_t SeenMoves = 0;
 		double LastMoveAt = -1.0;
 		std::map<std::string, double> NotArrived;     // member -> when the last move began, until it stood at the new camp
-		double ReturnGrace = 900.0;                   // seconds a party member may take to come home after its expedition ends
+		std::map<std::string, std::pair<size_t, float>> Wounds;   // H14: member -> its wounds and their total severity at the last check
+		double ReturnGrace = 900.0;                  // seconds a party member may take to come home after its expedition ends
 		double ArriveGrace = 1800.0;                  // seconds a member may take to reach a new camp
+		std::map<std::string, float> SiteProgress;    // H8: how far each construction site was built at the last look (it never goes back)
 		double FailWindow = 600.0;   // seconds over which failed trips are counted ...
 		int FailLimit = 8;           // ... and how many make a member "stuck failing"
 		double StillLimit = 900.0;   // seconds a member may stay on the same spot with the same busy job
@@ -112,7 +118,7 @@ namespace GB
 	};
 
 	// The table of invariants. Built in: counts, claims, stuck, deaths, store, fire, positions, ground, for H7 board and skills, for H11 knowledge
-	// for H12 expeditions and migration, and for H9 + H10 society (see the .cpp and docs/QA_SIMULACION.md).
+	// for H12 expeditions and migration, for H9 + H10 society and for H8 buildings (see the .cpp and docs/QA_SIMULACION.md).
 	// Mutable so another system can add its own at start-up.
 	std::vector<SimInvariant>& SimInvariants();
 
@@ -202,6 +208,7 @@ namespace GB
 		void SetSuspended(bool on) override { m_Suspended = on; }
 		void SetNavigation(const NavProfile& profile) override { m_Profile = profile; }
 		bool Route(const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points) const override;
+		bool MayPlan() override { return m_Nav.AllowPlan(&m_Ticket); }   // H16: the plan budget, when the run has one (SimSetup::PlanBudget)
 		void Update(float dt);
 		bool Suspended() const { return m_Suspended; }
 		const Inventory& Carried() const { return m_Bag; }
@@ -215,6 +222,7 @@ namespace GB
 		Inventory m_Bag{ 12, 0.0f };
 		NavProfile m_Profile;
 		bool m_Suspended = false;
+		PlanTicket m_Ticket;
 	};
 
 	// What a headless run is made of.
@@ -240,6 +248,19 @@ namespace GB
 		const TribeConfig* Config = nullptr;     // roles, work rules (H7), agenda and economy of the clan (null: the built-in ones)
 		const TechTree* Techs = nullptr;         // H11: the technologies (null: the built-in DefaultTechs(), what era1.json says)
 		const RegionMap* Regions = nullptr;      // H12: the regions (null: cut from the world with the clan's rules and the planned nodes); must outlive the run
+		const std::map<std::string, BuildingDef>* Buildings = nullptr;   // H8: with them the clan builds (null: it builds nothing, as before); must outlive the run
+		// H16, scale: several clans on the world (a ClanWorld; the first is the tribe of the run, Brain()). Members are shared out among them and each
+		// further clan settles where ClanWorld::ChooseHome says (at least ClanApart from every camp), with a well of its own.
+		int Clans = 1;
+		float ClanApart = 70.0f;
+		int ThinkPerFrame = -1;                  // the clan world's shared budget of thinking turns (-1: its default; see ClanWorld::ThinkPerFrame)
+		int PlanBudget = 0;                      // searches of the grid per step, shared fairly by every body (0: no budget, as before H16)
+		int PathCache = 0;                       // paths the grid keeps for repeated trips (NavConfig::PathCache; 0: none, as before H16)
+		int PlanCells = 0;                       // cells the searches of a step may open in all (NavConfig::MaxExpandedPerFrame; 0: no limit)
+		bool ViewerAtCamp = false;               // the viewer at the first camp: its members are full, those of camps beyond DetailRadius abstract
+		// H14 in the scale runs: a combat system shared by the clans (threats, fights, raids); `HostileClans`: every pair of clans starts hostile
+		bool Combat = false;
+		bool HostileClans = false;
 	};
 
 	// A tribe living on a generated world with no window: the harness of the simulation sweep and of `qa sim`. Deterministic: the same setup gives
@@ -264,6 +285,17 @@ namespace GB
 		double Clock() const { return m_Clock; }
 		size_t Nodes() const { return m_NodeCount; }
 		glm::vec2 Camp() const { return m_Tribe.Config.Camp; }
+		// H16: the clan world (its clans, when the setup asked for more than one; the first is Brain()) and what the last step cost.
+		const ClanWorld& Clans() const { return m_Clans; }
+		const CombatSystem& Combat() const { return m_Combat; }
+		size_t Bodies() const { return m_Bodies.size(); }
+		struct StepCost
+		{
+			double BodiesMs = 0.0, TribesMs = 0.0, ThinkMs = 0.0, DiplomacyMs = 0.0, CombatMs = 0.0, Ms = 0.0;   // wall time (the simulation never reads it)
+			int Thinks = 0, Due = 0;
+			NavFrameStats Plans;
+		};
+		const StepCost& LastCost() const { return m_Cost; }
 
 	private:
 		void Frame();
@@ -280,6 +312,10 @@ namespace GB
 		GameplayWorld m_Gameplay;
 		ResourceSystem m_Resources;
 		InteractiveSystem m_Rules;
+		BuildingSystem m_Builds;   // H8 (only with SimSetup::Buildings)
+		CombatSystem m_Combat;            // H14 (only with SimSetup::Combat): the fights of every clan of the run
+		HostilityTable m_Hostility;
+		ClanHostility m_ClanHostility;
 		Tribe m_Tribe;
 		CharacterWorld m_Ground;
 		NavGrid m_Nav;
@@ -289,6 +325,8 @@ namespace GB
 		double m_Clock = 0.0;
 		long m_Frames = 0;
 		size_t m_NodeCount = 0;
+		ClanWorld m_Clans;   // (declared after the tribe: destroyed first, so it unhooks m_Tribe while it lives)
+		StepCost m_Cost;
 	};
 
 	// "" when a point of a CharacterWorld can be stood on (dry or wadeable, not inside a static obstacle, on the map), else what is wrong.

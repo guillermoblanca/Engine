@@ -48,7 +48,7 @@ namespace GB
 	{
 		m_Width = m_Height = m_ChunkW = m_ChunkH = 0;
 		m_Slope.clear(); m_Depth.clear(); m_Veg.clear(); m_Flags.clear(); m_ChunkCost.clear();
-		m_Obstacles.clear(); m_Log.clear(); m_Traces.clear();
+		m_Obstacles.clear(); m_Log.clear(); m_Traces.clear(); m_Cache.clear();
 		m_Scratch = Scratch();
 		m_Ground = nullptr;
 		m_Water = nullptr;
@@ -521,6 +521,7 @@ namespace GB
 		{
 			m_Stats.PathSeconds += Since(t0);
 			m_Stats.Expanded += out.Expanded;
+			m_ExpandedThisFrame += out.Expanded;   // (the frame's budget of cells, NavConfig::MaxExpandedPerFrame)
 			if (!ok) ++m_Stats.Failed;
 			if (m_Recording && !out.Points.empty())
 			{
@@ -534,6 +535,9 @@ namespace GB
 		};
 		int si, sj, gi, gj;
 		if (!Ready() || !CellAt(from, si, sj) || !CellAt(to, gi, gj)) return finish(false);
+		const bool caching = m_Config.PathCache > 0 && !extra;
+		if (caching)
+			if (const int hit = FromCache(profile, from, to, out); hit) return finish(hit == 1);
 
 		// open ground: the straight line is the answer and no search is needed
 		float straight = 0.0f;
@@ -583,6 +587,127 @@ namespace GB
 		if (!found && nearest == start) return finish(false);   // not a single step closer
 		if (!found) exactGoal = false;
 		Smooth(profile, cells, costs, from, to, exactGoal, extra, out);
+		if (caching && ((found && exactGoal) || (!found && out.Expanded > 2000))) { ++m_Stats.CacheMisses; ToCache(profile, from, to, out); }   // (a long failing search is kept too)
 		return finish(found);
+	}
+
+	// ------------------------------------------------------------------ the plan budget (H16)
+	void NavGrid::NewFrame() const
+	{
+		if (m_FrameAware) m_LastFrame = m_ThisFrame;
+		m_FrameAware = true;
+		++m_FrameNumber;
+		m_PlansThisFrame = 0;
+		m_ExpandedThisFrame = 0;
+		// The oldest of those turned away last frame have this frame's searches reserved. The rest are not kept here: they ask again, are turned away
+		// again and keep their (old) number, so they come first as soon as the queue ahead of them is served. A reserved walker that does not come back
+		// (it was removed, it stopped wanting to plan) only wastes its slot for one frame.
+		std::sort(m_Waiting.begin(), m_Waiting.end());
+		const size_t budget = static_cast<size_t>(std::max(m_Config.MaxPlansPerFrame, 0));
+		m_Reserved.assign(m_Waiting.begin(), m_Waiting.begin() + static_cast<std::ptrdiff_t>(std::min(budget, m_Waiting.size())));
+		m_ThisFrame = NavFrameStats();
+		m_ThisFrame.Queue = static_cast<int>(m_Waiting.size());
+		m_Stats.QueuePeak = std::max(m_Stats.QueuePeak, m_ThisFrame.Queue);
+		m_Waiting.clear();
+	}
+
+	bool NavGrid::AllowPlan(PlanTicket* ticket) const
+	{
+		if (!m_FrameAware) return true;
+		if (ticket && ticket->Id && ticket->Era != m_QueueEra) ticket->Id = 0;   // a ticket from before ResetQueue: a newcomer again
+		auto grant = [&]()
+		{
+			++m_PlansThisFrame;
+			++m_ThisFrame.Planned;
+			++m_Stats.Granted;
+			if (ticket && ticket->Id) { m_Stats.WaitPeak = std::max(m_Stats.WaitPeak, m_FrameNumber - ticket->Since); ticket->Id = 0; }
+			return true;
+		};
+		// the cells of the frame are spent (NavConfig::MaxExpandedPerFrame): nobody else this frame, the reserved keep their old tickets for the next
+		const bool spent = m_Config.MaxExpandedPerFrame > 0 && m_PlansThisFrame > 0 && m_ExpandedThisFrame >= m_Config.MaxExpandedPerFrame;
+		if (ticket && ticket->Id && !spent)
+		{
+			const auto it = std::find(m_Reserved.begin(), m_Reserved.end(), ticket->Id);
+			if (it != m_Reserved.end()) { m_Reserved.erase(it); return grant(); }
+		}
+		// what is left once the reserved searches are set aside goes to whoever asks first
+		if (!spent && m_PlansThisFrame + static_cast<int>(m_Reserved.size()) < m_Config.MaxPlansPerFrame) return grant();
+		++m_ThisFrame.Refused;
+		++m_Stats.Refused;
+		if (ticket)
+		{
+			if (!ticket->Id) { ticket->Id = ++m_NextTicket; if (!ticket->Id) ticket->Id = ++m_NextTicket; ticket->Since = m_FrameNumber; ticket->Era = m_QueueEra; }
+			if (std::find(m_Waiting.begin(), m_Waiting.end(), ticket->Id) == m_Waiting.end()) m_Waiting.push_back(ticket->Id);
+		}
+		return false;
+	}
+
+	// ------------------------------------------------------------------ the path cache (H16)
+	int64_t NavGrid::CacheKey(const glm::vec2& p) const
+	{
+		const float q = std::max(m_Config.CacheQuantum, m_Config.CellSize);
+		const int64_t x = static_cast<int64_t>(std::floor(p.x / q)), z = static_cast<int64_t>(std::floor(p.y / q));
+		return (x << 32) ^ (z & 0xffffffffll);
+	}
+
+	// A path searched before between the same squares of CacheQuantum metres, with the same profile, is good when nothing changed along it and the
+	// walker can go straight to its first waypoint and from its last waypoint straight to the exact goal (both a little off the ones it was searched for).
+	int NavGrid::FromCache(const NavProfile& profile, const glm::vec2& from, const glm::vec2& to, NavPath& out) const
+	{
+		const int64_t kf = CacheKey(from), kt = CacheKey(to);
+		for (size_t k = 0; k < m_Cache.size(); ++k)
+		{
+			CachedPath& c = m_Cache[k];
+			if (c.KeyFrom != kf || c.KeyTo != kt || !(c.Profile == profile)) continue;
+			if (c.Revision != m_Revision)
+			{
+				if (ChangedSince(c.Revision, c.BoxMin, c.BoxMax, 1.0f)) { m_Cache.erase(m_Cache.begin() + static_cast<std::ptrdiff_t>(k)); return 0; }
+				c.Revision = m_Revision;
+			}
+			if (c.Points.empty()) return 0;
+			std::vector<glm::vec2> points = c.Points;
+			if (c.Found) points.back() = to;   // (a path is kept only when it ended at its exact goal; a failure keeps where it got to)
+			const glm::vec2 before = points.size() >= 2 ? points[points.size() - 2] : from;
+			if (!LineClear(profile, from, points.front()) || (c.Found && !LineClear(profile, before, to))) return 0;
+			out.Points = std::move(points);
+			out.Cost = c.Cost;
+			out.Found = c.Found;
+			out.Partial = !c.Found;
+			c.Used = ++m_CacheClock;
+			++m_Stats.CacheHits;
+			return c.Found ? 1 : 2;
+		}
+		return 0;
+	}
+
+	void NavGrid::ToCache(const NavProfile& profile, const glm::vec2& from, const glm::vec2& to, const NavPath& path) const
+	{
+		if (path.Points.empty() || path.Expanded == 0) return;   // the straight line costs less than a lookup
+		const int64_t kf = CacheKey(from), kt = CacheKey(to);
+		CachedPath* slot = nullptr;
+		for (CachedPath& c : m_Cache)
+			if (c.KeyFrom == kf && c.KeyTo == kt && c.Profile == profile) { slot = &c; break; }
+		if (!slot)
+		{
+			if (m_Cache.size() < static_cast<size_t>(m_Config.PathCache)) slot = &m_Cache.emplace_back();
+			else slot = &*std::min_element(m_Cache.begin(), m_Cache.end(), [](const CachedPath& a, const CachedPath& b) { return a.Used < b.Used; });
+		}
+		slot->KeyFrom = kf;
+		slot->KeyTo = kt;
+		slot->Profile = profile;
+		slot->Points = path.Points;
+		slot->Cost = path.Cost;
+		slot->ExactGoal = path.Found;
+		slot->Found = path.Found;
+		slot->Revision = m_Revision;
+		slot->Used = ++m_CacheClock;
+		slot->BoxMin = slot->BoxMax = from;
+		for (const glm::vec2& p : path.Points) { slot->BoxMin = glm::min(slot->BoxMin, p); slot->BoxMax = glm::max(slot->BoxMax, p); }
+		if (!path.Found)
+		{
+			// a failure is forgotten when anything changes around the trip and what the search went through (a door opens, a tree falls)
+			slot->BoxMin = glm::min(slot->BoxMin, to) - glm::vec2(30.0f);
+			slot->BoxMax = glm::max(slot->BoxMax, to) + glm::vec2(30.0f);
+		}
 	}
 }

@@ -110,6 +110,11 @@ Lejos de la cámara un miembro es un **agente abstracto** (`GB/AI/Abstract.h`): 
 
 - Cada miembro tiene su propio turno (`Mind.NextThink`): mira y oye cada 0,5 s si está libre, cada 1,5 s si no tiene nada que hacer (`IdleThinkSeconds`) y cada 2 s con órdenes en curso (`BusyThinkSeconds`, x4 si es abstracto); decide en el
   instante en que acaban sus órdenes. Los turnos de una llamada a `Update` están limitados (`ThinkPerFrame`, y los que hagan falta para que nadie se retrase): con muchos miembros el trabajo se reparte entre fotogramas y no hay un pico cada 0,5 s.
+- **Varios clanes, un presupuesto (H16)**: `ClanWorld::ThinkPerFrame` (6) reparte un único presupuesto de turnos entre todos los clanes: cada uno recibe los que necesita
+  para que nadie se retrase (`Tribe::ThinksNeeded`) y lo que sobra se reparte por miembros (los mayores restos primero, empates por orden de clan). No tiene estado, así que una
+  partida cargada lo reparte igual; con un solo clan la tribu sigue con su propia regla, exactamente como antes. `Tribe::LastCost()` y `ClanWorld::LastCost()` dan los turnos,
+  los pendientes y los milisegundos del último paso (medidos; la simulación no los lee), y `stats ai` los enseña en el editor.
+- Las búsquedas de camino de los agentes abstractos esperan su turno en el presupuesto de la rejilla, como las de los actores ([NAVEGACION.md](NAVEGACION.md)).
 - Los obstáculos de la vista y la lista de lo percibible están en rejillas de celdas (`OccluderGrid`, `m_SightCells`): una mirada solo visita lo cercano. El índice de nodos por tipo (`m_ByKind`) responde al "por qué descansa". Contar lo que sabe se hace en una pasada (`ScanMemory`).
   Contar lo que sabe al clan se limita a una vez cada 20 s por miembro.
 - **Medido** (`ai_test`, Release, una hebra, 100 miembros de una tribu con un parche escalado, fotogramas de 0,2 s): 7,5 ms de `Tribe::Update` por segundo simulado el primer día y unos 11 ms de media en 10 días (0,2 ms por fotograma a 60 fps, 4 ms a x20), peor fotograma 8 ms; con

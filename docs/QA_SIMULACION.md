@@ -38,6 +38,10 @@ Todo es CPU y determinista: la misma semilla y el mismo arnés dan el mismo fina
 | `knowledge` (H11) | Nadie fabrica una receta que no sabe hacer (se lee en el registro qué se hizo y se pregunta al conocimiento), y lo que estropean los experimentos se contabiliza: como mucho una unidad por intento fallido |
 | `expeditions` (H12) | El grupo de una expedición es del clan y vuelve a tiempo (`MaxSeconds`); al acabar, cada miembro vivo del grupo vuelve al radio del hogar en `ReturnGrace` (900 s) o muere (contabilizado) |
 | `society` (H9 + H10) | Los muertos siguen en la lista pero no vuelven a actuar (su trabajo es `dead`, no corre ninguna habilidad suya, no se mueven, no depositan, fabrican ni comen); nadie guarda más de 12 vínculos (`Relations.MaxPerMember`); genes y rasgos en 0..1 |
+| `clans` (H13) | Con varios clanes (`SimView::Clans`): cada miembro (y cada persona de una sociedad) está en exactamente un clan, los ids no se repiten, las relaciones y reuniones nombran clanes que existen y cada enviado es de su clan (`ClanWorld::CheckMembers`) |
+| `combat` (H14) | Vida y estamina dentro de su rango y números; los muertos ni luchan ni huyen ni son atacados; moral en 0..1 y cada herida en 0..1, nadie vive con heridas letales; y las heridas se curan (su total solo sube con una herida nueva). `deaths` acepta la muerte por `Wounds` ([CONFLICTO.md](CONFLICTO.md)) |
+| `territory` (H13) |
+ Las reclamaciones son finitas y no negativas, sobre regiones de tierra que existen y de clanes que existen, y avanzar dos veces las mismas con los mismos clanes da el mismo mapa (`ClanWorld::CheckTerritory`) |
 | `migration` (H12) | Tras mudarse, el campamento está donde dice la última mudanza, la hoguera está junto a él y cada miembro vivo llega en `ArriveGrace` (1800 s) |
 
 ## Métricas

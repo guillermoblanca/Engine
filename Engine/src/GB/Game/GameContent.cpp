@@ -87,12 +87,62 @@ namespace GB
 		packs.AddSection(EconomyContentSection(rules));
 	}
 
-	void AddGameContentSections(ContentPacks& packs, ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes,
-		std::map<std::string, TribeRole>& roles, TribeAgenda* agenda, TribeEconomy* economy, WorkRules* work, TechTree* techs)
+	ContentSection DiplomacyContentSection(DiplomacyRules& rules)
 	{
-		packs.AddSection(techs ? ItemContentSection(items, recipes, nodes, *techs) : ItemContentSection(items, recipes, nodes));
+		return StagedSection("diplomacy", { "diplomacy" },
+			[](const std::string& json, DiplomacyRules& r) { return LoadDiplomacyRules(json, r); },
+			nullptr, rules);
+	}
+
+	void AddDiplomacyContentSection(ContentPacks& packs, DiplomacyRules& rules) { packs.AddSection(DiplomacyContentSection(rules)); }
+
+	ContentSection CombatContentSection(CombatRules& rules)
+	{
+		return StagedSection("combat", { "combat" },
+			[](const std::string& json, CombatRules& r) { return LoadCombatRules(json, r); },
+			nullptr, rules);
+	}
+
+	void AddCombatContentSection(ContentPacks& packs, CombatRules& rules)
+	{
+		packs.AddSection(CombatContentSection(rules));
+	}
+
+	ContentSection PlayerContentSection(PlayerRules& rules)
+	{
+		return StagedSection("player", { "player" },
+			[](const std::string& json, PlayerRules& r) { return LoadPlayerRules(json, r); },
+			nullptr, rules);
+	}
+
+	ContentSection ControlsContentSection(ControlRules& controls)
+	{
+		return StagedSection("controls", { "controls" },
+			[](const std::string& json, ControlRules& c) { return LoadControls(json, c); },
+			nullptr, controls);
+	}
+
+	void AddPlayerContentSections(ContentPacks& packs, PlayerRules& rules, ControlRules& controls)
+	{
+		packs.AddSection(PlayerContentSection(rules));
+		packs.AddSection(ControlsContentSection(controls));
+	}
+
+	void AddGameContentSections(ContentPacks& packs, ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes,
+		std::map<std::string, TribeRole>& roles, TribeAgenda* agenda, TribeEconomy* economy, WorkRules* work, TechTree* techs, std::map<std::string, BuildingDef>* buildings)
+	{
+		packs.AddSection(ItemContentSection(items, recipes, nodes, techs, buildings));   // (with neither, the plain items section)
 		packs.AddSection(RoleContentSection(roles));
 		if (agenda && economy) packs.AddSection(TribeRulesContentSection(*agenda, *economy));
 		if (work) packs.AddSection(WorkContentSection(*work));
 	}
+
+	ContentSection VisualContentSection(VisualLibrary& library)
+	{
+		return StagedSection("visuals", { "visuals" },
+			[](const std::string& json, VisualLibrary& l) { return LoadVisuals(json, l); },
+			nullptr, library);
+	}
+
+	void AddVisualContentSection(ContentPacks& packs, VisualLibrary& library) { packs.AddSection(VisualContentSection(library)); }
 }

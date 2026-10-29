@@ -103,10 +103,10 @@ namespace GB
 	}
 
 	ContentReport CheckReachability(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes, const PackRules& rules,
-		const TechTree* techs)
+		const TechTree* techs, const std::map<std::string, BuildingDef>* buildings)
 	{
 		ContentReport report;
-		std::set<std::string> have, made, worked, found;   // items had, recipes made, nodes worked, technologies discovered
+		std::set<std::string> have, made, worked, found, built, stations;   // items had, recipes made, nodes worked, technologies discovered, buildings that can be built (H8) and the stations they give
 		for (const auto& [id, why] : rules.Given)
 		{
 			if (items.Find(id)) have.insert(id);
@@ -122,16 +122,20 @@ namespace GB
 						if (GameplayTag::TagMatches(tag, t)) return true;
 			return false;
 		};
-		auto stationOk = [&](const std::string& s) { return s.empty() || rules.Stations.count(s) > 0; };
-		// Technologies (H11): what unlocks a recipe or a node (nothing: common knowledge), and whether one of them is discovered already.
-		std::map<std::string, std::vector<std::string>> lockRecipe, lockNode;
+		auto stationOk = [&](const std::string& s) { return s.empty() || rules.Stations.count(s) > 0 || stations.count(s) > 0; };
+		// Technologies (H11): what unlocks a recipe, a node or a building (nothing: common knowledge), and whether one of them is discovered already.
+		std::map<std::string, std::vector<std::string>> lockRecipe, lockNode, lockBuilding;
 		if (techs)
 			for (const auto& [id, t] : techs->Techs)
 			{
 				for (const std::string& r : t.Recipes) lockRecipe[r].push_back(id);
 				for (const std::string& n : t.Nodes) lockNode[n].push_back(id);
+				for (const std::string& b : t.Buildings) lockBuilding[b].push_back(id);
 				if (t.Known) found.insert(id);
 			}
+		if (techs && buildings)
+			for (const auto& [id, b] : *buildings)
+				if (!b.Tech.empty()) lockBuilding[id].push_back(b.Tech);   // a building's own `tech` locks it too
 		auto unlocked = [&](const std::map<std::string, std::vector<std::string>>& locks, const std::string& id)
 		{
 			const auto it = locks.find(id);
@@ -149,6 +153,16 @@ namespace GB
 				{
 					worked.insert(id);
 					have.insert(n.Item);
+					changed = true;
+				}
+			if (buildings)
+				for (const auto& [id, b] : *buildings)
+				{
+					if (built.count(id) || !unlocked(lockBuilding, id)) continue;
+					const std::map<std::string, int> needs = b.TotalNeeds();
+					if (!std::all_of(needs.begin(), needs.end(), [&](const auto& in) { return have.count(in.first) > 0; })) continue;
+					built.insert(id);
+					if (!b.Station.empty()) stations.insert(b.Station);
 					changed = true;
 				}
 			for (const std::string& id : recipeIds)
@@ -196,7 +210,7 @@ namespace GB
 				for (const std::string& t : lockRecipe.at(id)) why += " '" + t + "'";
 				why += ", none of which can be discovered";
 			}
-			else if (!stationOk(r.Station)) why = "needs the station '" + r.Station + "', which no pack provides";
+			else if (!stationOk(r.Station)) why = "needs the station '" + r.Station + "', which no pack provides" + std::string(buildings ? " and no building gives" : "");
 			else if (!toolOk(r.ToolTag)) why = "needs a tool tagged " + r.ToolTag + " that cannot be had";
 			else
 			{
@@ -223,6 +237,9 @@ namespace GB
 					if (!recipes.Find(r)) report.Problems.push_back("tech '" + id + "' unlocks the recipe '" + r + "', which does not exist");
 				for (const std::string& n : t.Nodes)
 					if (!nodes.count(n)) report.Problems.push_back("tech '" + id + "' unlocks the node '" + n + "', which does not exist");
+				if (buildings)
+					for (const std::string& b : t.Buildings)
+						if (!buildings->count(b)) report.Problems.push_back("tech '" + id + "' unlocks the building '" + b + "', which does not exist");
 				if (found.count(id)) continue;
 				std::string why;
 				for (const std::string& q : t.Requires)
@@ -230,6 +247,17 @@ namespace GB
 				if (why.empty()) why = t.Discovery.Experiment <= 0.0f ? "it cannot be found by experimenting, and nobody knows it to show or teach it"
 					: "none of its recipes can be tried: their materials, tool or station cannot be had";
 				file(deferred(id), id, "tech '" + id + "' can never be discovered: " + why);
+			}
+		// Buildings (H8) whose materials cannot be had, or that no technology that can be discovered unlocks. Without technologies a building's `tech` is only noted.
+		if (buildings)
+			for (const auto& [id, b] : *buildings)
+			{
+				if (!techs && !b.Tech.empty()) report.Notes.push_back("building '" + id + "' needs the tech '" + b.Tech + "' (not checked: no technologies loaded)");
+				if (built.count(id)) continue;
+				std::string missing;
+				for (const auto& [item, n] : b.TotalNeeds())
+					if (!have.count(item)) missing += (missing.empty() ? "" : ", ") + item;
+				file(deferred(id), id, "building '" + id + "' can never be built: " + (missing.empty() ? std::string("no technology that unlocks it can be discovered") : "needs " + missing + ", which cannot be had"));
 			}
 		// Items that cannot be had, and where they would have come from.
 		for (const std::string& id : items.Ids())
@@ -298,9 +326,10 @@ namespace GB
 		// Deferred entries that are no longer gaps, or name nothing.
 		for (const auto& [id, why] : rules.Deferred)
 		{
-			const bool isItem = items.Find(id) != nullptr, isRecipe = recipes.Find(id) != nullptr, isNode = nodes.count(id) > 0, isTech = techs && techs->Find(id);
-			if (!isItem && !isRecipe && !isNode && !isTech) report.Notes.push_back("deferred '" + id + "' names no item, recipe, node or technology loaded");
-			else if ((!isItem || have.count(id)) && (!isRecipe || made.count(id)) && (!isNode || worked.count(id)) && (!isTech || found.count(id)))
+			const bool isItem = items.Find(id) != nullptr, isRecipe = recipes.Find(id) != nullptr, isNode = nodes.count(id) > 0, isTech = techs && techs->Find(id),
+				isBuilding = buildings && buildings->count(id) > 0;
+			if (!isItem && !isRecipe && !isNode && !isTech && !isBuilding) report.Notes.push_back("deferred '" + id + "' names no item, recipe, node, technology or building loaded");
+			else if ((!isItem || have.count(id)) && (!isRecipe || made.count(id)) && (!isNode || worked.count(id)) && (!isTech || found.count(id)) && (!isBuilding || built.count(id)))
 				report.Notes.push_back("'" + id + "' is deferred but can be had now: drop it from the pack");
 		}
 
@@ -337,6 +366,35 @@ namespace GB
 				report.Append(CheckReachability(i, r, n, rules, &t));
 			},
 			items, recipes, nodes, techs);
+	}
+
+	ContentSection ItemContentSection(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes, TechTree* techs, std::map<std::string, BuildingDef>* buildings)
+	{
+		if (!buildings) return techs ? ItemContentSection(items, recipes, nodes, *techs) : ItemContentSection(items, recipes, nodes);
+		// H8: the buildings travel here too (and, when given, the technologies), for the same reason: the check needs all of them from the same load.
+		// Without technologies an empty tree stands in for them (and is not written back: there is no live tree).
+		auto noTechs = std::make_shared<TechTree>();
+		TechTree& tree = techs ? *techs : *noTechs;
+		const bool withTechs = techs != nullptr;
+		std::vector<std::string> keys = { "items", "recipes", "nodes", "buildings" };
+		if (withTechs) { keys.push_back("techs"); keys.push_back("knowledge"); }
+		return StagedSection("items", keys,
+			[withTechs, noTechs](const std::string& json, ItemLibrary& i, RecipeBook& r, std::map<std::string, ResourceNodeDef>& n, TechTree& t, std::map<std::string, BuildingDef>& b) -> std::string
+			{
+				TechTree read = t;
+				if (withTechs)
+					if (std::string error = LoadTechs(json, read); !error.empty()) return error;
+				if (std::string error = LoadContent(json, i, r, n); !error.empty()) return error;
+				if (std::string error = LoadBuildings(json, b); !error.empty()) return error;   // (the whole staging copy is dropped on a mistake: the items above do not stay)
+				t = std::move(read);
+				return std::string();
+			},
+			[withTechs, noTechs](const PackRules& rules, ContentReport& report, const ItemLibrary& i, const RecipeBook& r, const std::map<std::string, ResourceNodeDef>& n, const TechTree& t,
+				const std::map<std::string, BuildingDef>& b)
+			{
+				report.Append(CheckReachability(i, r, n, rules, withTechs ? &t : nullptr, &b));
+			},
+			items, recipes, nodes, tree, *buildings);
 	}
 
 	void ContentPacks::AddSection(ContentSection section)

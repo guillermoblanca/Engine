@@ -137,6 +137,28 @@ namespace GB
 		return out;
 	}
 
+	void Society::Admit(const std::string& name, const Person& person)
+	{
+		if (m_People.count(name)) return;
+		Person p = person;
+		p.Partner.clear();   // (a partner in the clan it left is not one here; Marry gives it one)
+		m_People[name] = std::move(p);
+	}
+
+	bool Society::Marry(const SocietyRules& rules, const std::string& a, const std::string& b)
+	{
+		Person* pa = Find(a);
+		Person* pb = Find(b);
+		if (!pa || !pb || pa == pb || pa->Dead || pb->Dead) return false;
+		for (Person* p : { pa, pb })
+			if (!p->Partner.empty())
+				if (Person* old = Find(p->Partner); old && old->Partner != a && old->Partner != b) old->Partner.clear();
+		pa->Partner = b;
+		pb->Partner = a;
+		Relate(rules, a, b, "pair");
+		return true;
+	}
+
 	void Society::Leave(const std::string& name)
 	{
 		Unlink(name);

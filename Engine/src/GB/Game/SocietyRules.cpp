@@ -99,11 +99,12 @@ namespace GB
 		r.Traits["curiosity"] = { 0.5f, 0.25f, 0.5f, { { "experiment", 0.8f }, { "explore", 0.5f } } };
 		r.Traits["boldness"] = { 0.5f, 0.25f, 0.5f, { { "explore", 0.4f }, { "regroup", -0.5f } } };
 		r.Relations.Events = { { "work", 0.02f }, { "food", 0.03f }, { "camp", 0.015f }, { "conflict", -0.12f }, { "teach", 0.04f }, { "pair", 0.3f },
-			{ "birth", 0.4f }, { "help", 0.1f }, { "theft", -0.4f }, { "rescue", 0.4f } };
+			{ "birth", 0.4f }, { "help", 0.1f }, { "theft", -0.4f }, { "rescue", 0.4f }, { "care", 0.15f } };   // (care: H14, tending a wounded clanmate)
 		r.Culture.Norms["sharing"] = { 0.5f, "sociability", { { "socialize", 0.3f }, { "deposit", 0.2f }, { "warm", 0.1f } } };
 		r.Culture.Norms["industry"] = { 0.5f, "diligence", { { "gather", 0.2f }, { "rest", -0.3f }, { "sleep", -0.1f } } };
 		r.Culture.Norms["inquiry"] = { 0.5f, "curiosity", { { "experiment", 0.4f }, { "explore", 0.2f } } };
-		r.Culture.Norms["daring"] = { 0.5f, "boldness", { { "explore", 0.2f }, { "regroup", -0.2f } } };
+		r.Culture.Norms["daring"] = { 0.5f, "boldness", { { "explore", 0.2f }, { "regroup", -0.2f }, { "fight", 0.3f }, { "flee", -0.2f } } };   // (fight, flee: H14)
+
 		r.Culture.Traditions["fire_vigil"] = { "Fire vigil", "stoke", 30, { { "warm", 0.15f }, { "socialize", 0.1f } } };
 		r.Culture.Traditions["naming_feast"] = { "Naming feast", "birth", 3, { { "socialize", 0.15f } } };
 		r.Culture.Traditions["mourning"] = { "Mourning", "death", 3, { { "regroup", 0.15f } } };

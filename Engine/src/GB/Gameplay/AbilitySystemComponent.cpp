@@ -1,5 +1,6 @@
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/AbilityTasks.h"
+#include "GB/Animation/AnimManifest.h"
 #include <algorithm>
 
 namespace GB
@@ -49,6 +50,25 @@ namespace GB
 	int RegisterAbilityMontages(const GameplayLibrary& library, AnimInstance& anim)
 	{
 		return RegisterAbilityMontages(library, anim, MixamoMontages());
+	}
+
+	int ApplyManifestAbilities(GameplayLibrary& library, const AnimManifest& manifest, const std::function<bool(const std::string&)>& has)
+	{
+		int changed = 0;
+		for (const ManifestUse& use : manifest.Abilities)
+		{
+			const AbilityDef* def = library.Ability(use.Name);
+			if (!def) continue;
+			std::vector<std::string> montages;
+			for (const std::string& m : use.Montages)
+				if (!has || has(m)) montages.push_back(m);
+			if (montages.empty() || montages == def->Montages) continue;
+			AbilityDef copy = *def;
+			copy.Montages = std::move(montages);
+			library.AddAbility(copy);   // (the map node stays where it was: pointers to the definition stay valid)
+			++changed;
+		}
+		return changed;
 	}
 
 	AbilitySystemComponent::~AbilitySystemComponent() { CancelAll(); }

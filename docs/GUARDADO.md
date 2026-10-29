@@ -106,11 +106,12 @@ El editor registra estas secciones (cada una con su versión propia, hoy 1; no c
 
 | Sección | Contenido | Quién |
 |---|---|---|
-| `user-entities` | lo que no genera la semilla: huerto, actores, nodos, interactivos, conejos, hoguera | `EditorSaveHost` |
-| `ai` | la tribu: almacén, hoguera, reloj, memoria y decisión de cada miembro (las necesidades son atributos) | `Tribe::ToJson` |
+| `user-entities` | lo que no genera la semilla: huerto, actores, nodos, interactivos, conejos, hoguera, obras y edificios (H8: fase, trabajo y entregas en su componente de juego, ver ASENTAMIENTOS.md) | `EditorSaveHost` |
+| `ai` | la tribu: almacén, hoguera, reloj, memoria y decisión de cada miembro (las necesidades son atributos) y el reloj del planificador de obras (`plan`, opcional) | `Tribe::ToJson` |
 | `ecology` | hacia dónde iba cada conejo (centro de paseo, planta elegida, tiempo comiendo) y los contadores de nacidos, muertos y comida | `EcologySystem::ToJson` |
 | `interactives` | los temporizadores de las fogatas y los pozos (la fracción de segundo que lleva ardiendo) | `InteractiveSystem::ToJson` |
 | `season-look` | el clima, la nieve y el color de las hojas que escribió la estación, y si las estaciones visibles están activas | `SeasonLook` |
+| `clans` | H13: los clanes además del primero (su tribu y su conocimiento), las relaciones entre clanes, el territorio, las reuniones; solo con más de un clan ([CLANES.md](CLANES.md)) | `ClanWorld::ToJson` |
 
 La estación sale del reloj (el tic se guarda), así que no necesita sección. El temporizador `Regrow` de cada nodo es un atributo y viaja con la entidad.
 
