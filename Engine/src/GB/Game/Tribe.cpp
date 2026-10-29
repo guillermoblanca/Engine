@@ -154,6 +154,7 @@ namespace GB
 		woodcutter.Tool = "stone_axe";
 		woodcutter.ToolTag = "Item.Tool.Axe";
 		woodcutter.Skill = "woodcutting";
+		woodcutter.Min = 1;                    // the fire needs wood: a clan always keeps one
 		TribeRole miner;
 		miner.Weights = { { "Resource.Stone", 1.0f }, { "Resource.Loose", 0.5f }, { "Resource.Plant", 0.35f }, { "Resource.Wood", 0.25f }, { "fire", 0.0f } };
 		miner.Nav.LoadFactor = 3.0f;           // and stone more so
@@ -222,6 +223,11 @@ namespace GB
 				if (!f->is_boolean()) return "role '" + name + "': fixed must be true or false";
 				r.Fixed = f->get<bool>();
 			}
+			if (const auto n = o.find("min"); n != o.end())
+			{
+				if (!n->is_number_integer() || n->get<int>() < 0) return "role '" + name + "': min must be a whole number of 0 or more";
+				r.Min = n->get<int>();
+			}
 			if (r.Tool.empty() != r.ToolTag.empty()) return "role '" + name + "': tool and toolTag go together";
 			if (!r.ToolTag.empty() && !GameplayTag::IsValidTagName(r.ToolTag)) return "role '" + name + "': bad tool tag " + r.ToolTag;
 			read[name] = r;
@@ -259,6 +265,7 @@ namespace GB
 			if (r.NightShift != 0.0f) o["nightShift"] = Rounded(r.NightShift);
 			if (!r.Skill.empty()) o["skill"] = r.Skill;
 			if (r.Fixed) o["fixed"] = true;
+			if (r.Min > 0) o["min"] = r.Min;
 			out[name] = o;
 		}
 		return out.dump(2);

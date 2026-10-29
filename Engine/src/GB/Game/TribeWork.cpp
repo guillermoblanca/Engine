@@ -121,6 +121,20 @@ namespace GB
 			++taken[pick];
 			out.push_back(pick);
 		}
+		// The hands every clan keeps in a trade (TribeRole::Min, by name): a trade short of them takes the last member given to the trade with the
+		// most hands above its own minimum (a clan of three whose stores were full of wood had no woodcutter left: no axe, no wood, no fire)
+		for (const std::string& role : names)
+			while (taken[role] < Config.Roles.at(role).Min)
+			{
+				std::string from;
+				int spare = 0;
+				for (const std::string& other : names)
+					if (other != role && taken[other] - Config.Roles.at(other).Min > spare) { spare = taken[other] - Config.Roles.at(other).Min; from = other; }
+				if (from.empty()) break;   // (fewer members than the minimums ask for)
+				*std::find(out.rbegin(), out.rend(), from) = role;
+				--taken[from];
+				++taken[role];
+			}
 		return out;
 	}
 
@@ -188,8 +202,10 @@ namespace GB
 		TribeMember* who = nullptr;
 		std::string to;
 		float margin = 0.0f;
+		auto minOf = [&](const std::string& role) { const auto r = Config.Roles.find(role); return r == Config.Roles.end() ? 0 : r->second.Min; };
 		for (TribeMember* m : flexible)
 		{
+			if (actual[m->Role] <= minOf(m->Role)) continue;   // the last hands of an essential trade stay in it
 			const float own = skillOf(*m, m->Role);
 			for (const auto& [role, r] : Config.Roles)
 			{

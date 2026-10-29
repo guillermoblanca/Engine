@@ -127,6 +127,9 @@ namespace GB
 		// of the trades (RoleRules) never gives it to anyone (a guard, a leader set by hand or by data).
 		std::string Skill;
 		bool Fixed = false;
+		// Hands the clan always keeps in this trade (JSON "min"), whatever its stores say: the trade without which something essential stops (the
+		// woodcutter: no axe, no wood, no fire). PlanRoles gives them first, and the review of the trades never takes the last of them away.
+		int Min = 0;
 		bool operator==(const TribeRole&) const = default;
 	};
 

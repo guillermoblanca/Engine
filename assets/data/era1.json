@@ -668,7 +668,8 @@
       },
       "tool": "stone_axe",
       "toolTag": "Item.Tool.Axe",
-      "skill": "woodcutting"
+      "skill": "woodcutting",
+      "min": 1
     }
   },
   "tribe": {
