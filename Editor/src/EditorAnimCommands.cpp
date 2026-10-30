@@ -17,6 +17,7 @@ namespace GB::Editor
 {
 	void EditorApp::RegisterAnimationCommands()
 	{
+		RegisterAnimBindingCommands();   // bindings_*: the Animation Bindings window as commands (EditorAnimBindings.cpp)
 		CommandRunner& c = m_Commands;
 		c.Register("montage_info", "montage_info [montage]: describes a montage (clip, slot, blends, rate, notifies, sections); no name lists them", [this](const std::vector<std::string>& a) -> CommandResult
 		{

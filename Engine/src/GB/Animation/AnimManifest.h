@@ -66,6 +66,7 @@ namespace GB
 		std::vector<ManifestUse> Abilities;       // ability name -> montages (see ApplyManifestAbilities)
 		std::vector<ManifestUse> Activities;      // tribe job -> montages, set (see TribeVisuals)
 		std::vector<ManifestStage> Stages;        // stage of life -> rate
+		std::vector<MontageTransition> Transitions;   // blends between montages (animation bindings; see MontagePlayer::SetTransitions)
 	};
 
 	// The use called `name` of a list (Abilities or Activities), or null.

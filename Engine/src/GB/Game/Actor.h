@@ -124,6 +124,8 @@ namespace GB
 		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
 		const AnimManifest& Manifest() const { return m_Manifest; }
 		bool LoadManifestFile(const std::string& path, std::string& report);
+		// The same as loading a manifest file, with the manifest already in memory (the animation bindings apply to one this way).
+		bool SetManifest(AnimManifest manifest, std::string& report, const std::string& source = "");
 		bool SaveManifestFile(const std::string& path, std::string& report) const;
 		std::string ManifestInfo() const;
 		bool PlayMontage(const std::string& name, const std::string& section = "") { return m_Animator && m_Animator->Anim().Montages().Play(name, section); }

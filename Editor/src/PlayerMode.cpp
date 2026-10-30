@@ -77,6 +77,86 @@ namespace GB::Editor
 		return m_Actors->SyncNavigation(config, error);
 	}
 
+	void PlayerMode::LoadShipped(const std::string& assetRoot)
+	{
+		// the manifest the assets ship (the packs' sets, turns and montages as data) replaces the built-in lists when it is there
+		const std::string shipped = assetRoot + "/animation/mixamo.manifest.json";
+		if (m_HasShipped && m_ShippedRoot == assetRoot) return;
+		std::ifstream in(shipped);
+		std::stringstream text;
+		text << in.rdbuf();
+		AnimManifest manifest;
+		std::string why;
+		if (AnimManifestFromJson(text.str(), manifest, &why) && ValidateManifest(manifest).empty())
+		{
+			m_Shipped = std::move(manifest);
+			m_HasShipped = true;
+			m_ShippedRoot = assetRoot;
+		}
+		else
+			GB_CLIENT_WARN("Animation manifest: {}", why.empty() ? "the manifest has problems" : why);
+	}
+
+	void PlayerMode::CapturePristine()
+	{
+		if (m_HasPristine || !m_Gameplay) return;
+		m_Pristine = AbilityMontageLists(m_Gameplay->Library);
+		m_HasPristine = true;
+	}
+
+	BindingDefaults PlayerMode::Defaults() const
+	{
+		if (m_HasPristine) return MakeBindingDefaults(BaseManifest(), m_Pristine);
+		return MakeBindingDefaults(BaseManifest(), m_Gameplay ? &m_Gameplay->Library : nullptr);
+	}
+
+	AnimManifest PlayerMode::EffectiveManifest(const std::string& skeleton, const ClipExists& hasClip) const
+	{
+		AnimManifest manifest = BaseManifest();
+		if (!m_Bindings.Bindings.empty() || !m_Bindings.Transitions.empty()) ApplyBindings(manifest, m_Bindings, Defaults(), skeleton, hasClip);
+		return manifest;
+	}
+
+	bool PlayerMode::LoadBindings(const std::string& assetRoot, std::string& report, const std::string& file)
+	{
+		LoadShipped(assetRoot);
+		CapturePristine();
+		const std::string path = file.empty() ? BindingsFile(assetRoot) : file;
+		AnimBindings loaded;
+		std::string error;
+		bool found = false;
+		if (!LoadAnimBindingsFile(path, loaded, &error, &found))
+		{
+			report = "animation bindings not loaded (" + path + "): " + error;
+			GB_CLIENT_WARN("{}", report);
+			return false;
+		}
+		m_Bindings = std::move(loaded);
+		m_BindingsRoot = assetRoot;
+		report = found ? "loaded " + std::to_string(m_Bindings.Bindings.size()) + " binding(s) and " + std::to_string(m_Bindings.Transitions.size()) + " transition(s) from " + path
+			: "no " + path + ": every action plays its default";
+		return true;
+	}
+
+	std::string PlayerMode::SkeletonOfControlled() const
+	{
+		const auto it = m_KindOf.find(m_Controlled);
+		return it == m_KindOf.end() ? std::string() : SkeletonKey(it->second);
+	}
+
+	bool PlayerMode::ApplyBindingsToCharacter(std::string& report)
+	{
+		Actor* actor = Controlled();
+		if (!actor) { report = "no controlled character"; return false; }
+		CapturePristine();
+		if (m_HasPristine && m_Gameplay) RestoreAbilityMontages(m_Gameplay->Library, m_Pristine);   // (a binding taken off must bring the C++ lists back)
+		// the bindings are checked against the clips this character really has: one that is not there is skipped (and logged), the default stays
+		const Model* model = actor->Instance() ? &actor->Instance()->GetModel() : nullptr;
+		const ClipExists hasClip = model ? ClipExists([model](const std::string& c) { return model->FindClip(c) >= 0; }) : ClipExists();
+		const AnimManifest effective = EffectiveManifest(SkeletonOfControlled(), hasClip);
+		return actor->SetManifest(effective, report, "the animation bindings");
+	}
+
 	Actor* PlayerMode::Spawn(const std::string& name, const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
 		const glm::vec3& near, FootstepSounds* steps, std::string& error, bool createEntity)
 	{
@@ -96,23 +176,14 @@ namespace GB::Editor
 		const std::string shipped = assetRoot + "/animation/mixamo.manifest.json";
 		if (isFbx && fs::exists(shipped))
 		{
-			if (!m_HasShipped || m_ShippedRoot != assetRoot)
+			LoadShipped(assetRoot);
+			if (m_BindingsRoot != assetRoot) { std::string report; LoadBindings(assetRoot, report); }
+			if (m_HasShipped)
 			{
-				std::ifstream in(shipped);
-				std::stringstream text;
-				text << in.rdbuf();
-				AnimManifest manifest;
-				std::string why;
-				if (AnimManifestFromJson(text.str(), manifest, &why) && ValidateManifest(manifest).empty())
-				{
-					m_Shipped = std::move(manifest);
-					m_HasShipped = true;
-					m_ShippedRoot = assetRoot;
-				}
-				else
-					GB_CLIENT_WARN("Animation manifest: {}", why.empty() ? "the manifest has problems" : why);
+				const AnimManifest effective = EffectiveManifest(SkeletonKey(kind));   // (the manifest itself when no binding applies)
+				m_Actors->SetManifest(&effective);
 			}
-			m_Actors->SetManifest(m_HasShipped ? &m_Shipped : nullptr);
+			else m_Actors->SetManifest(nullptr);
 		}
 		else
 			m_Actors->SetManifest(nullptr);
@@ -125,7 +196,9 @@ namespace GB::Editor
 		spawn.Yaw = 0.0f;
 		spawn.Kind = kind;
 		spawn.CreateEntity = createEntity;
+		CapturePristine();
 		Actor* actor = m_Actors->Spawn(name, spawn, error);
+		if (actor) m_KindOf[name] = kind;
 		if (actor) GB_CLIENT_INFO("Actor {}: {} at ({:.1f}, {:.1f}){}", name, isFbx ? kind : fox ? "fox" : "cesium", actor->GetPosition().x, actor->GetPosition().z, actor->UsesLocomotionBlend() ? ", locomotion blend" : "");
 		return actor;
 	}

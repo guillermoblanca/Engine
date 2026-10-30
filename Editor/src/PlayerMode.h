@@ -1,7 +1,9 @@
 #pragma once
+#include "GB/Animation/AnimBindings.h"
 #include "GB/Game/Actor.h"
 #include "GB/Game/ActorWorld.h"
 #include "GB/Renderer/Camera.h"
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -67,6 +69,19 @@ namespace GB::Editor
 		bool LoadManifestFile(const std::string& path, std::string& report);
 		bool SaveManifestFile(const std::string& path, std::string& report) const;
 		std::string ManifestInfo() const;
+
+		// Animation bindings (docs/EDITOR_ANIMACIONES.md): <assets>/data/animation_bindings.json laid over the manifest the assets ship. Read when the first
+		// character is spawned (or by the Animation Bindings window); the characters spawned afterwards are built with them, the controlled one with
+		// ApplyBindingsToCharacter.
+		AnimBindings& Bindings() { return m_Bindings; }
+		const AnimManifest& BaseManifest() const { return m_HasShipped ? m_Shipped : m_Builtin; }   // before the bindings
+		BindingDefaults Defaults() const;                                                           // what each action plays without bindings
+		std::string BindingsFile(const std::string& assetRoot) const { return assetRoot + "/data/animation_bindings.json"; }
+		// Reads the shipped manifest and the bindings file (`file` "" = the default one). False and the reason in `report` when the file is bad; a
+		// missing file is fine (no bindings).
+		bool LoadBindings(const std::string& assetRoot, std::string& report, const std::string& file = "");
+		bool ApplyBindingsToCharacter(std::string& report);
+		std::string SkeletonOfControlled() const;   // SkeletonKey of the model the controlled character was spawned from ("" when none)
 		bool PlayMontage(const std::string& name, const std::string& section = "") { Actor* a = Controlled(); return a && a->PlayMontage(name, section); }
 		void StopMontage() { if (Actor* a = Controlled()) a->StopMontage(); }
 		std::vector<std::string> MontageNames() const { const Actor* a = Controlled(); return a ? a->MontageNames() : std::vector<std::string>(); }
@@ -118,6 +133,9 @@ namespace GB::Editor
 	private:
 		void ClearLookOnly() { if (Actor* a = Controlled()) a->ClearLook(); }
 		void SnapCamera(const Actor& actor);
+		void LoadShipped(const std::string& assetRoot);
+		void CapturePristine();   // the library's montage lists before any binding touched them (so unbinding can put them back)
+		AnimManifest EffectiveManifest(const std::string& skeleton, const ClipExists& hasClip = nullptr) const;   // the base manifest with the bindings of that skeleton applied
 
 		ActorWorld* m_Actors = nullptr;
 		std::string m_Controlled;
@@ -129,6 +147,12 @@ namespace GB::Editor
 		AnimManifest m_Shipped;           // the manifest the assets ship, read once per asset folder
 		std::string m_ShippedRoot;
 		bool m_HasShipped = false;
+		AnimManifest m_Builtin = MixamoManifest();
+		AnimBindings m_Bindings;
+		std::string m_BindingsRoot;       // the asset folder the bindings were read from
+		std::map<std::string, std::string> m_KindOf;   // actor name -> the kind it was spawned from
+		std::map<std::string, std::vector<std::string>> m_Pristine;   // ability -> montages as the library had them (Attack.*, Block... come from C++)
+		bool m_HasPristine = false;
 		ThirdPersonCamera m_Camera;
 		AnimManifest m_NoManifest;
 		MotionState m_NoMotion;

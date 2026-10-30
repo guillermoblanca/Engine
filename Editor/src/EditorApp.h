@@ -1,4 +1,5 @@
 #pragma once
+#include "AnimBindingsUi.h"
 #include "Commands.h"
 #include "EditorSave.h"
 #include "ImGuiLayer.h"
@@ -180,6 +181,8 @@ namespace GB::Editor
 		CommandResult AbilityCommand(const std::vector<std::string>& a);
 		CommandResult GardenCommand(const std::vector<std::string>& a);
 		void DrawTimelinePanel();
+		void DrawAnimBindingsPanel();      // EditorAnimBindings.cpp: which clip each action plays, and how
+		void RegisterAnimBindingCommands();
 		void DrawGraphPanel();
 		void DrawTestsPanel();
 		// simulation QA (EditorQA.cpp): `qa`, the live monitor of the invariants and the QA panel
@@ -321,7 +324,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
-		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, WorldState = true, Timeline = false, Graph = false, Tests = true, QA = true, Demo = false; } m_Panels;
+		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, WorldState = true, Timeline = false, AnimBindings = false, Graph = false, Tests = true, QA = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		float m_RenderScale = 1.0f;          // the 3D view is rendered at this fraction of the viewport (`quality minimum`)
@@ -345,6 +348,7 @@ namespace GB::Editor
 		int m_GraphTransition = -1;
 		float m_GraphPanX = 10.0f, m_GraphPanY = 10.0f;
 		int m_GraphFocus = 0;
+		AnimBindingsUi m_AnimBindingsUi;
 		int m_TimelineFocus = 0;   // frames left to ask for focus (a docked tab needs a couple)
 		std::vector<std::string> m_TimelineLog;   // the latest notifies and endings
 		std::string m_AnimTabRequest;   // the Animation panel selects this tab on the next frame
