@@ -271,8 +271,7 @@ namespace GB
 			const ufbx_skin_deformer* skin = mesh.skin_deformers.count ? mesh.skin_deformers.data[0] : nullptr;
 			// rigid meshes carry their node's geometry offset in the vertices; skinned ones are placed by the joints
 			glm::mat4 rigid(1.0f);
-			if (!skin)
-				for (size_t n = 0; n < mesh.instances.count; ++n) { rigid = ToMat4(mesh.instances.data[n]->geometry_to_node); break; }
+			if (!skin && mesh.instances.count) rigid = ToMat4(mesh.instances.data[0]->geometry_to_node);   // (the first instance)
 			const glm::mat3 normalMat = glm::transpose(glm::inverse(glm::mat3(rigid)));
 
 			const size_t slots = std::max<size_t>(mesh.materials.count, 1);

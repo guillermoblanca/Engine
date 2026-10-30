@@ -79,8 +79,8 @@ namespace
 
 	struct Garden
 	{
+		GB::GameplayWorld Gameplay;   // (before the world: the actors still reach their abilities while they are destroyed)
 		GB::ActorWorld World;
-		GB::GameplayWorld Gameplay;
 		std::shared_ptr<GB::Model> Model = TestHumanoid();
 		GB::AnimManifest Base = BaseManifest();
 
