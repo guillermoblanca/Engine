@@ -293,6 +293,7 @@ namespace GB::Editor
 		const TribeMember* me = m_Tribe.FindMember(m_Game.Player);
 		Actor* actor = m_Actors.Find(m_Game.Player);
 		if (!me || !actor) return;
+		actor->KeysTakeOver = true;   // (a person plays it: a key drops a chase or a trip to a node)
 		if (me->Dead && !m_Game.Over) { m_Game.Over = true; GameNote("You died of " + me->Cause + ". The game is over: load a save or play again."); }
 		// after a load (or anything that took it away) the player gets its body and the camera back
 		if (m_Player.ControlledName() != m_Game.Player) m_Player.Control(m_Game.Player);

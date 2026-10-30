@@ -86,6 +86,7 @@ namespace GB
 		// Once per frame. Pushes of SetInput are used (and forgotten) here.
 		void Update(float dt);
 		void SetInput(const CharacterInput& input) { m_Manual = input; m_HasManual = true; }
+		bool KeysTakeOver = false;   // true: a key pressed drops an AI walk or a task list and the host's input drives (a person playing); false: the orders win
 		// The world circles of the other actors, to push against this frame (the static ones come with the host).
 		void SetOthers(const std::vector<CircleObstacle>& others);
 		void AddToScene(Scene& scene) const;
