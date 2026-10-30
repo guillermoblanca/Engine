@@ -1,4 +1,5 @@
 #include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/Combat.h"
 #include "GB/Gameplay/GameplayAbility.h"
 #include "GB/Log.h"
@@ -69,6 +70,8 @@ namespace GB
 			return nullptr;
 		}
 
+		std::string AliasName(const AnimBinding& b, int i);
+
 		// Resolves clip number `turn` of `binding` against the manifest. `why` tells why it cannot be built (a missing clip).
 		bool BuildFromEntry(const AnimBinding& binding, const AnimManifest& manifest, int turn, const ClipExists& hasClip, ResolvedClip& out, std::string& why)
 		{
@@ -96,6 +99,7 @@ namespace GB
 			r.Found = true;
 			r.FromBinding = true;
 			r.Why = "binding";
+			r.Playable = (!c.HasOverrides() && base) ? base->Name : AliasName(binding, static_cast<int>(static_cast<size_t>(turn) % binding.Clips.size()));
 			r.Set = binding.Set;
 			r.Repeat = binding.Repeat.value_or(false);
 			out = std::move(r);
@@ -122,7 +126,22 @@ namespace GB
 			return nullptr;
 		}
 
-		std::string AliasName(const std::string& action, int i) { return "bind:" + action + "#" + std::to_string(i); }
+		// The montage made for clip `i` of a binding: "bind:ability:Chop#0", and for one that depends on the context "bind:ability:Chop?node=tree&tool=axe#0"
+		std::string AliasName(const AnimBinding& b, int i)
+		{
+			std::string name = "bind:" + b.Action;
+			char sep = '?';
+			for (const auto& [k, v] : b.When) { name += sep; name += k + "=" + v; sep = '&'; }
+			return name + "#" + std::to_string(i);
+		}
+
+		// The binding answers for its own conditions (no other one of the file wins where it would), so its clips are worth making montages of.
+		bool Reachable(const AnimBindings& all, const AnimBinding& b, const std::string& skeleton)
+		{
+			return SkeletonMatches(b.Skeleton, skeleton) && FindBinding(all, b.Action, b.When, skeleton) == &b;
+		}
+
+		bool IsUseAction(const std::string& action) { return StartsWith(action, "ability:") || StartsWith(action, "activity:"); }
 	}
 
 	std::string SkeletonKey(const std::string& modelPath)
@@ -354,6 +373,40 @@ namespace GB
 		return out;
 	}
 
+	// ---- context
+
+	std::map<std::string, std::string> BindingContext(const AbilityDef& ability, const AbilitySystemComponent* owner, const AbilitySystemComponent* target)
+	{
+		std::map<std::string, std::string> c;
+		c["ability"] = ability.Name;
+		if (target)
+		{
+			c["target"] = target->Name();
+			for (const auto& [tag, count] : target->Tags().All())
+			{
+				if (StartsWith(tag, "Resource.Node.")) { if (!c.count("node")) c["node"] = tag.substr(14); }
+				else if (StartsWith(tag, "Resource.") && tag != "Resource.Node" && tag.find('.', 9) == std::string::npos && !c.count("kind")) c["kind"] = Lower(tag.substr(9));
+			}
+		}
+		// the tool the ability asks for, and which of that kind the owner holds (the most specific tag: "Item.Tool.Axe.Flint" is a flint axe)
+		std::string required;
+		for (const std::string& t : ability.RequiredTags)
+			if (StartsWith(t, "Item.Tool.")) { required = t; break; }
+		c["tool"] = "none";
+		if (!required.empty())
+		{
+			const size_t dot = required.find('.', 10);
+			const std::string family = dot == std::string::npos ? required : required.substr(0, dot);   // "Item.Tool.Axe"
+			c["tool"] = Lower(family.substr(10));
+			std::string variant = "basic";
+			if (owner)
+				for (const auto& [tag, count] : owner->Tags().All())
+					if (StartsWith(tag, (family + ".").c_str())) { variant = Lower(tag.substr(family.size() + 1)); break; }
+			c["variant"] = variant;
+		}
+		return c;
+	}
+
 	// ---- resolution
 
 	ResolvedClip FromMontage(const MontageDesc& d)
@@ -437,13 +490,13 @@ namespace GB
 			report.Skipped.push_back(text);
 			GB_CLIENT_WARN("Animation bindings: {}", text);
 		};
-		std::set<std::string> done;
 		for (const AnimBinding& entry : bindings.Bindings)
 		{
-			if (!done.insert(entry.Action).second) continue;
-			const AnimBinding* chosen = FindBinding(bindings, entry.Action, {}, skeleton);
-			if (!chosen) continue;   // (only context- or other-skeleton bindings: nothing for the manifest)
+			if (!Reachable(bindings, entry, skeleton)) continue;   // (another skeleton's, or shadowed by a more specific one)
+			const AnimBinding* chosen = &entry;
 			const std::string& action = chosen->Action;
+			const bool contextual = !chosen->When.empty();
+			if (contextual && !IsUseAction(action)) { skip(action + ": 'when' only works on abilities and activities (ignored)"); continue; }
 
 			if (StartsWith(action, "loco:"))
 			{
@@ -480,13 +533,14 @@ namespace GB
 				if (!BuildFromEntry(*chosen, manifest, static_cast<int>(i), hasClip, r, why)) { skip(action + " #" + std::to_string(i + 1) + ": " + why + " (default kept)"); continue; }
 				if (!chosen->Clips[i].HasOverrides() && !r.Montage.empty()) { names.push_back(r.Montage); continue; }   // the montage as the manifest has it
 				MontageDesc d = ToMontage(r, manifest);
-				d.Name = AliasName(action, static_cast<int>(i));
+				d.Name = AliasName(*chosen, static_cast<int>(i));
 				bool replaced = false;
 				for (MontageDesc& m : manifest.Montages) if (m.Name == d.Name) { m = d; replaced = true; }
 				if (!replaced) manifest.Montages.push_back(d);
 				names.push_back(d.Name);
 			}
 			if (names.empty()) continue;
+			if (contextual) { ++report.Applied; continue; }   // (the montages exist; the game picks among them by context: Actor::PickMontage)
 			std::vector<ManifestUse>& uses = isAbility ? manifest.Abilities : manifest.Activities;
 			const std::string name = After(action, isAbility ? 8 : 9);
 			ManifestUse* use = FindUseMutable(uses, name);

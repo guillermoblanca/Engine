@@ -35,6 +35,10 @@ namespace GB
 		std::function<bool(const std::string& entity, const std::string& point, InteractionTarget& out, std::string* error)> Resolve;
 		// Puts a prop in the character's hand (true) or takes it away (false): "box", "can", "shovel"...
 		std::function<bool(const std::string& prop, bool on)> Equip;
+		// Which montage this use of an ability plays, given where it happens: `context` is BindingContext (node, tool...), `use` the number of times the
+		// ability has run (it rotates its clips). Returns a montage of the character's, or "" to play the ability's own list. The animation bindings
+		// are what answers (Actor::PickMontage); without one the ability plays what its definition says.
+		std::function<std::string(const AbilityDef& ability, int use, const std::map<std::string, std::string>& context)> PickMontage;
 	};
 
 	// What a running ability system keeps that its scene component does not: the timed effects still running (cooldowns, regrowth) with their

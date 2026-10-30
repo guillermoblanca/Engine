@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Animation/AnimBindings.h"
 #include "GB/Animation/Character.h"
 #include "GB/Animation/CharacterAnimator.h"
 #include "GB/Animation/Retarget.h"
@@ -56,6 +57,8 @@ namespace GB
 		float Height = 1.75f;                       // the model is scaled to this
 		bool Rigged = true;                         // true: the locomotion blend, sets, IK; false: the plain idle/walk/run switch (Fox, CesiumMan)
 		const AnimManifest* Manifest = nullptr;     // null: the built-in Mixamo lists
+		std::shared_ptr<const BindingsSetup> Bindings;   // the animation bindings every character shares (null: none)
+		std::string Skeleton;                       // the key of the model the bindings are scoped by (SkeletonKey)
 		glm::vec2 Start{ 0.0f };                    // xz; moved to free dry ground
 		float StartYaw = 0.0f;
 		std::vector<CircleObstacle> Others;         // other actors to keep clear of when choosing the spot
@@ -122,7 +125,18 @@ namespace GB
 		bool UsesLocomotionBlend() const { return m_Animator != nullptr; }
 		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animator && m_Animator->Anim().SetOverlay(name, fadeSeconds); }
 		std::vector<std::string> OverlayNames() const { return m_Animator ? m_Animator->Anim().SetNames() : std::vector<std::string>(); }
-		const AnimManifest& Manifest() const { return m_Manifest; }
+		const AnimManifest& Manifest() const { return m_Manifest; }          // what the character plays: the base manifest with the bindings applied
+		const AnimManifest& BaseManifest() const { return m_BaseManifest; }  // before the bindings
+		// The animation bindings of the character (see BindingsSetup): its manifest is the base one with them applied, and the montage of each use of an
+		// ability is picked from them by context. `skeleton` is the key of its model. False when nothing changed for this character (the animator is
+		// only rebuilt when its manifest is not the one it has).
+		bool SetBindings(std::shared_ptr<const BindingsSetup> setup, const std::string& skeleton);
+		const std::string& Skeleton() const { return m_Skeleton; }
+		const BindingsSetup* Bindings() const { return m_Bindings.get(); }
+		// Puts the manifest's ability montages (and the notifies the abilities need) into the shared library again: the rules registered it anew.
+		void SyncAbilities();
+		// The montage the bindings pick for a use of `ability` (Actor's PickMontage hook of the ability runtime); "" = the ability's own list.
+		std::string PickMontage(const AbilityDef& ability, int use, const std::map<std::string, std::string>& context) const;
 		bool LoadManifestFile(const std::string& path, std::string& report);
 		// The same as loading a manifest file, with the manifest already in memory (the animation bindings apply to one this way).
 		bool SetManifest(AnimManifest manifest, std::string& report, const std::string& source = "");
@@ -210,6 +224,7 @@ namespace GB
 		void ApplyFeet();
 		void BuildPhysics();
 		bool BuildAnimator(std::string& error);
+		AnimManifest EffectiveManifest() const;
 		float ScriptLength() const;
 		CharacterInput ChooseInput(float dt);
 		TaskRunner::AbilityHandler AbilityHandler();
@@ -236,6 +251,9 @@ namespace GB
 		float m_BaseWalk = 0.0f, m_BaseRun = 0.0f;   // the controller's own speeds, before a set with no run clip caps them
 
 		AnimManifest m_Manifest = MixamoManifest();
+		AnimManifest m_BaseManifest = MixamoManifest();
+		std::shared_ptr<const BindingsSetup> m_Bindings;
+		std::string m_Skeleton;
 		ManifestReport m_ManifestReport;
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;

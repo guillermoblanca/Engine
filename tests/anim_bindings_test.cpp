@@ -142,7 +142,7 @@ int main()
 	{
 		AnimManifest m = shipped;
 		BindingsReport rep = ApplyBindings(m, back, defaults, "x bot");
-		Check(rep.Applied == 1 && rep.Transitions == 1, "applied the Chop action (the sleep one needs a context) and one transition");
+		Check(rep.Applied == 2 && rep.Transitions == 1, "applied the Chop action, made the montage of the sleep one (it plays only in its context) and one transition");
 		const ManifestUse* chop = FindUse(m.Abilities, "Chop");
 		Check(chop && chop->Montages.size() == 2 && chop->Montages[0].rfind("bind:ability:Chop#", 0) == 0 && chop->Montages[1] == "chop_2",
 			"Chop plays an alias with overrides, then the plain manifest montage (it had no overrides)");
