@@ -84,6 +84,7 @@ namespace GB
 	struct InteractableComponent
 	{
 		std::vector<InteractionPoint> Points;
+		mutable int Turn = 0;   // a resource node has one point and room around it for many: each use of it takes the next place on the ring (see FindInteraction)
 	};
 
 	// A number of the entity's ability system (see GB/Gameplay): its value now and its range.

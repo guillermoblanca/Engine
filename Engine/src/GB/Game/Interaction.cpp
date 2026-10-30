@@ -1,4 +1,5 @@
 #include "GB/Game/Interaction.h"
+#include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 
@@ -16,8 +17,22 @@ namespace GB
 			if (point.empty() || p.Name == point) { chosen = &p; break; }
 		if (!chosen) return fail("'" + entity + "' has no interaction point '" + point + "'");
 		const glm::mat4 m = world.WorldMatrix(id);
-		const glm::vec3 spot = glm::vec3(m * glm::vec4(chosen->Position, 1.0f));
-		const glm::vec3 facing = glm::normalize(glm::vec3(m * glm::vec4(std::sin(glm::radians(chosen->Yaw)), 0.0f, std::cos(glm::radians(chosen->Yaw)), 0.0f)));
+		// a node (a tree, a rock, a bush) is worked from all round it: the one point is the first place of a ring, and each use of the node takes the next
+		// of kRingPlaces, so a crowd spreads out instead of piling on one spot (the order of the uses is the order of the simulation: the same every run)
+		InteractionPoint place = *chosen;
+		const bool node = e->Gameplay && std::find(e->Gameplay->Tags.begin(), e->Gameplay->Tags.end(), "Resource.Node") != e->Gameplay->Tags.end();
+		if (node && e->Interact->Points.size() == 1 && chosen == &e->Interact->Points.front() && (point.empty() || point == chosen->Name))
+		{
+			constexpr int kRingPlaces = 6;
+			const float radius = std::max(0.5f, std::sqrt(chosen->Position.x * chosen->Position.x + chosen->Position.z * chosen->Position.z));
+			const float base = std::atan2(chosen->Position.x, -chosen->Position.z);
+			const float angle = base + static_cast<float>(e->Interact->Turn % kRingPlaces) * 6.2831853f / static_cast<float>(kRingPlaces);
+			++e->Interact->Turn;
+			place.Position = { std::sin(angle) * radius, chosen->Position.y, -std::cos(angle) * radius };
+			place.Yaw = glm::degrees(std::atan2(-place.Position.x, -place.Position.z));   // facing the middle of the node
+		}
+		const glm::vec3 spot = glm::vec3(m * glm::vec4(place.Position, 1.0f));
+		const glm::vec3 facing = glm::normalize(glm::vec3(m * glm::vec4(std::sin(glm::radians(place.Yaw)), 0.0f, std::cos(glm::radians(place.Yaw)), 0.0f)));
 		out.Entity = entity;
 		out.Point = chosen->Name;
 		out.Position = { spot.x, spot.z };

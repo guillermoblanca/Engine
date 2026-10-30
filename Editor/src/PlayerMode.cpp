@@ -162,9 +162,22 @@ namespace GB::Editor
 		return true;
 	}
 
-	Actor* PlayerMode::Spawn(const std::string& name, const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
+	Actor* PlayerMode::Spawn(const std::string& name, const std::string& kindAsked, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
 		const glm::vec3& near, FootstepSounds* steps, std::string& error, bool createEntity)
 	{
+		// a character file written relative to the repository ("packs/full/X Bot.fbx") is found from wherever the editor was started: if it is not there
+		// from the working directory, it is looked for beside the assets folder (the root of the repository)
+		std::string kind = kindAsked;
+		if (IsFbx(kind))
+		{
+			std::error_code ec;
+			const std::filesystem::path asked(kind);
+			if (asked.is_relative() && !std::filesystem::exists(asked, ec))
+			{
+				const std::filesystem::path beside = std::filesystem::path(assetRoot).parent_path() / asked;
+				if (std::filesystem::exists(beside, ec)) kind = beside.string();
+			}
+		}
 		if (!m_Actors) { error = "no actor world"; return nullptr; }
 		if (!world.IsBuilt())
 		{
