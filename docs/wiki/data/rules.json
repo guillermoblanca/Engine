@@ -107,6 +107,54 @@
         "State.Staggered"
       ],
       "cooldownSeconds": 0.0,
+      "cost": "Combat.Cost.bow",
+      "domain": "Otras",
+      "durationSeconds": 1.0,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Combat.Hit",
+          "notify": "hit",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.6
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "sword_attack_2"
+      ],
+      "moveToTarget": false,
+      "name": "Attack.bow",
+      "needsTarget": true,
+      "note": "a blow with the bow",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Attack.bow",
+      "targetBlockedTags": [
+        "State.Dead"
+      ],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Attacking",
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Attacking",
+        "State.Staggered"
+      ],
+      "cooldownSeconds": 0.0,
       "cost": "Combat.Cost.fists",
       "domain": "Otras",
       "durationSeconds": 0.77,
@@ -231,6 +279,56 @@
       "requiredProp": "",
       "requiredTags": [],
       "tag": "Ability.Attack.spear",
+      "targetBlockedTags": [
+        "State.Dead"
+      ],
+      "targetMinAttributes": [],
+      "targetRequiredAnyTags": [],
+      "targetRequiredTags": [],
+      "unequipProp": "",
+      "waitEvent": ""
+    },
+    {
+      "activationEffects": [],
+      "activeTags": [
+        "State.Attacking",
+        "State.Busy"
+      ],
+      "blockedTags": [
+        "State.Dead",
+        "State.Attacking",
+        "State.Staggered"
+      ],
+      "cooldownSeconds": 0.0,
+      "cost": "Combat.Cost.sword",
+      "domain": "Otras",
+      "durationSeconds": 0.84,
+      "endEffects": [],
+      "equipProp": "",
+      "events": [
+        {
+          "eventTag": "Event.Combat.Hit",
+          "notify": "hit",
+          "selfEffects": [],
+          "targetEffects": [],
+          "time": 0.45
+        }
+      ],
+      "keepProp": false,
+      "montages": [
+        "sword_slash_1",
+        "sword_slash_2",
+        "sword_attack_3"
+      ],
+      "moveToTarget": false,
+      "name": "Attack.sword",
+      "needsTarget": true,
+      "note": "a blow with the sword",
+      "point": "",
+      "removeEffects": [],
+      "requiredProp": "",
+      "requiredTags": [],
+      "tag": "Ability.Attack.sword",
       "targetBlockedTags": [
         "State.Dead"
       ],
@@ -1442,6 +1540,34 @@
       "name": "belief"
     },
     {
+      "help": "bindings_apply: rebuilds the controlled character with the current animation bindings",
+      "name": "bindings_apply"
+    },
+    {
+      "help": "bindings_load [file]: reads the animation bindings (a missing file gives none: everything plays its default)",
+      "name": "bindings_load"
+    },
+    {
+      "help": "bindings_resolve <action> [turn]: what the action plays now (ability:Chop, activity:sleep, loco:default, air): clip, loop, trim, speed, blends",
+      "name": "bindings_resolve"
+    },
+    {
+      "help": "bindings_save [file]: writes the animation bindings (default assets/data/animation_bindings.json)",
+      "name": "bindings_save"
+    },
+    {
+      "help": "bindings_set <action> <source> [loop=0|1] [trim=a,b] [speed=x] [blend=in,out] [curve=name] [root=0|1] [replaces=clip]: binds an action to a montage or clip (replaces the first clip of its binding)",
+      "name": "bindings_set"
+    },
+    {
+      "help": "bindings_transition <from> <to> <seconds> [curve]: adds or edits a transition (from / to: an action, a montage or *)",
+      "name": "bindings_transition"
+    },
+    {
+      "help": "bindings_validate: checks the animation bindings (clips that do not exist, bad trims, loops on single-shot actions, transitions with no way out) and lists the problems",
+      "name": "bindings_validate"
+    },
+    {
       "help": "building <id> [phase] [progress] [x z] [name] | building <id> phases [x z]: a building site as H8 will make it (BuildingVisuals::Build); `phases` lays out every phase of it",
       "name": "building"
     },
@@ -1966,6 +2092,22 @@
       "modifiers": [
         {
           "attribute": "Stamina",
+          "magnitude": -7.0,
+          "op": "add"
+        }
+      ],
+      "name": "Combat.Cost.bow",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Stamina",
           "magnitude": -5.0,
           "op": "add"
         }
@@ -2003,6 +2145,22 @@
         }
       ],
       "name": "Combat.Cost.spear",
+      "periodSeconds": 0.0,
+      "policy": "instant",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Stamina",
+          "magnitude": -8.0,
+          "op": "add"
+        }
+      ],
+      "name": "Combat.Cost.sword",
       "periodSeconds": 0.0,
       "policy": "instant",
       "removedTags": [],
@@ -2560,6 +2718,22 @@
       "modifiers": [
         {
           "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.fallen_branch",
+      "periodSeconds": 300.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
           "magnitude": 2.0,
           "op": "add"
         }
@@ -2598,6 +2772,22 @@
       ],
       "name": "Regrow.herb_patch",
       "periodSeconds": 60.0,
+      "policy": "infinite",
+      "removedTags": [],
+      "unique": true
+    },
+    {
+      "durationSeconds": 0.0,
+      "grantedTags": [],
+      "modifiers": [
+        {
+          "attribute": "Amount",
+          "magnitude": 1.0,
+          "op": "add"
+        }
+      ],
+      "name": "Regrow.loose_stones",
+      "periodSeconds": 600.0,
       "policy": "infinite",
       "removedTags": [],
       "unique": true
