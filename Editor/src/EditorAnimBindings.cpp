@@ -87,7 +87,8 @@ namespace GB::Editor
 	{
 		AnimBindingsUi& ui = m_AnimBindingsUi;
 		if (ui.Focus > 0) { ImGui::SetNextWindowFocus(); --ui.Focus; }
-		ImGui::SetNextWindowSize(ImVec2(980.0f, 640.0f), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(760.0f, 640.0f), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x - 780.0f, 60.0f), ImGuiCond_FirstUseEver);   // (to the right: the character in the Viewport stays in sight)
 		if (!ImGui::Begin("Animation Bindings", &m_Panels.AnimBindings)) { ImGui::End(); return; }
 
 		std::string report;
@@ -127,7 +128,19 @@ namespace GB::Editor
 		ImGui::SameLine();
 		ImGui::Checkbox("new bindings only for this model", &ui.ThisSkeletonOnly);
 		ImGui::SameLine();
-		ImGui::TextDisabled("(%s)", skeleton.empty() ? "no character: start one with `player <fbx>`" : skeleton.c_str());
+		if (skeleton.empty())
+		{
+			// nothing to preview on yet: one click makes a world with nodes and the X Bot (the same as `generate temperate 5`, `resources world`, `player "packs/full/X Bot.fbx"`)
+			if (ImGui::Button("Start a character"))
+			{
+				m_UiCommands.push_back("generate temperate 5");
+				m_UiCommands.push_back("resources world");
+				m_UiCommands.push_back("player \"packs/full/X Bot.fbx\"");
+			}
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Makes a world with resource nodes and puts the X Bot in it, so the clips and the tests on a node have a character to play on.\nThe preview plays on the character in the Viewport: move this window aside to see it.");
+			ImGui::SameLine();
+		}
+		ImGui::TextDisabled("(%s)", skeleton.empty() ? "no character yet" : skeleton.c_str());
 		if (!ui.Status.empty()) ImGui::TextWrapped("%s", ui.Status.c_str());
 
 		// live: an edit that is finished (no slider being dragged) reaches every character
