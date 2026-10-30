@@ -13,7 +13,6 @@ namespace GB
 {
 	namespace
 	{
-		constexpr float kNearCamp = 5.0f;   // (Tribe.cpp's: within this of the camp a member is "at the camp")
 		constexpr float kScan = 0.5f;       // seconds between two refreshes of the stats in the fights and of the animals near
 
 		std::string GoTo(const glm::vec2& at, const std::string& tail)
@@ -110,11 +109,11 @@ namespace GB
 				const glm::vec4 at = m_Entities->WorldMatrix(id)[3];
 				m_Animals.push_back({ name, p ? p->Tag : h->Tag, { at.x, at.z }, p != nullptr });
 			}
-			if (m_Hostility) m_Hostility->Settled(m_ClanName, Config.Camp, &m_Store, Defense());
+			if (m_Hostility) m_Hostility->Settled(m_ClanName, Config.Economy.Camp, &m_Store, Defense());
 			// strangers of a hostile clan at the store, not fighting: a raid (the clan notes it once, for its grievances and its culture)
 			for (const auto& [name, f] : cs.All())
 			{
-				if (f.Animal || f.Side == m_ClanName || f.Mode != FightMode::None || glm::distance(f.Pos, Config.Camp) > cs.Rules.Raids.Reach + 1.0f) continue;
+				if (f.Animal || f.Side == m_ClanName || f.Mode != FightMode::None || glm::distance(f.Pos, Config.Economy.Camp) > cs.Rules.Raids.Reach + 1.0f) continue;
 				if (m_Hostility && m_Hostility->Hostility(m_ClanName, f.Side) <= 0.0f && m_Hostility->Hostility(f.Side, m_ClanName) <= 0.0f) continue;
 				double& seen = m_Conflict.RaidedBy[f.Side];
 				if (seen > 0.0 && m_Time - seen < 300.0) continue;
@@ -265,7 +264,7 @@ namespace GB
 				notice(name, f.Pos);
 				bool must = false;
 				if (engagedOurs) must = d < t.Alarm * 0.5f;   // a clanmate is attacked near it: it answers (to help or to run)
-				else if (!f.Animal && !raiding) must = glm::distance(f.Pos, Config.Camp) < kNearCamp * 2.0f || (hostility >= 0.9f && d < t.GroupRadius);
+				else if (!f.Animal && !raiding) must = glm::distance(f.Pos, Config.Economy.Camp) < Config.Community.NearCampRadius * 2.0f || (hostility >= 0.9f && d < t.GroupRadius);
 				if (must && d < best) { best = d; answer = name; }
 			}
 		// a predator that is not attacking anyone yet: fear, and a child runs from one close by
@@ -366,8 +365,8 @@ namespace GB
 		{
 			// home if the camp is away from the threat, else straight away from it (turning when that way cannot be walked)
 			glm::vec2 goal = CampSpot(m);
-			const bool homeIsSafe = glm::distance(Config.Camp, at) > d + 2.0f && glm::distance(Config.Camp, at) > t.GroupRadius;
-			if (!homeIsSafe || glm::distance(pos, Config.Camp) < kNearCamp)
+			const bool homeIsSafe = glm::distance(Config.Economy.Camp, at) > d + 2.0f && glm::distance(Config.Economy.Camp, at) > t.GroupRadius;
+			if (!homeIsSafe || glm::distance(pos, Config.Economy.Camp) < Config.Community.NearCampRadius)
 			{
 				const glm::vec2 away = d > 1e-3f ? (pos - at) / d : glm::vec2(1.0f, 0.0f);
 				goal = pos + away * t.FleeDistance;
@@ -419,7 +418,7 @@ namespace GB
 			const bool took = raid.Took.count(m.Name) > 0;
 			if (raid.Phase == "retreat" || took)
 			{
-				if (glm::distance(pos, Config.Camp) > kNearCamp)
+				if (glm::distance(pos, Config.Economy.Camp) > Config.Community.NearCampRadius)
 				{
 					if (!mc.Ordered || !IsBusy(m)) { const glm::vec2 home = CampSpot(m); if (Order(m, GoTo(home, "wait 0.5"))) { mc.Goal = home; mc.Ordered = true; } }
 					return true;
@@ -501,7 +500,7 @@ namespace GB
 			}
 		}
 		else for (const Animal& a : m_Animals) if (a.Name == threat) at = a.Pos;
-		view.Camp = glm::distance(at, Config.Camp) < kNearCamp * 2.0f;
+		view.Camp = glm::distance(at, Config.Economy.Camp) < Config.Community.NearCampRadius * 2.0f;
 		view.Defense = Defense();
 		view.FightCulture = m_Society.OptionFactor(Config.Society, m.Name, "fight", "").Total();
 		view.FleeCulture = m_Society.OptionFactor(Config.Society, m.Name, "flee", "").Total();
@@ -543,7 +542,7 @@ namespace GB
 			const Animal* nearest = nullptr;
 			float best = h.Range;
 			for (const Animal& a : m_Animals)
-				if (a.Tag == h.Tag && !a.Predator && HuntAllowed(a.Pos)) { const float d = glm::distance(a.Pos, Config.Camp); if (d < best) { best = d; nearest = &a; } }   // (not where a taboo forbids it)
+				if (a.Tag == h.Tag && !a.Predator && HuntAllowed(a.Pos)) { const float d = glm::distance(a.Pos, Config.Economy.Camp); if (d < best) { best = d; nearest = &a; } }   // (not where a taboo forbids it)
 			if (!nearest) continue;
 			char why[128];
 			std::snprintf(why, sizeof why, "%d food for %d; %s %.0f m from the camp", food, alive, nearest->Name.c_str(), static_cast<double>(best));
@@ -730,7 +729,7 @@ namespace GB
 		if (!m_Combat || !m_Hostility) return fail("the clan has no combat or no hostility (SetCombat)");
 		RaidState& raid = m_Conflict.Raid;
 		if (raid.Active()) return fail("it is raiding " + raid.Target + " already");
-		m_Hostility->Settled(m_ClanName, Config.Camp, &m_Store, Defense());
+		m_Hostility->Settled(m_ClanName, Config.Economy.Camp, &m_Store, Defense());
 		const RaidTarget* target = nullptr;
 		const std::vector<RaidTarget> targets = m_Hostility->RaidTargets(m_ClanName);
 		for (const RaidTarget& t : targets) if (t.Clan == clan) target = &t;

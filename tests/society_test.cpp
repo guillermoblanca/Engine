@@ -138,7 +138,7 @@ struct Clan
 			for (size_t i = 0; i < Names.size(); ++i) if (Names[i] == who) return bodies[i]->Bag().Remove(item, k);
 			return 0;
 		}, [](const std::string&, const std::string&, int) { return 0; });
-		Tribe_.Config.Camp = Camp;
+		Tribe_.Config.Economy.Camp = Camp;
 		Tribe_.Store().Add(Items, "wood", 2 + 2 * n);
 		Tribe_.Store().Add(Items, "stone", 3 * n);
 		for (int i = 0; i < n; ++i) Tribe_.AddMember(Names[static_cast<size_t>(i)], roles[static_cast<size_t>(i)], bodies[static_cast<size_t>(i)].get());

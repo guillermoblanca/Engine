@@ -118,7 +118,7 @@ namespace GB
 		}
 		for (const auto& [name, pos] : m_Placed)
 		{
-			if (glm::distance(pos, Config.Camp) > Config.SettlementRadius) continue;   // left behind by a move of the camp (H12): not the clan's any more
+			if (glm::distance(pos, Config.Economy.Camp) > Config.SettlementRadius) continue;   // left behind by a move of the camp (H12): not the clan's any more
 			const AbilitySystemComponent* a = m_Gameplay->Find(name);
 			const BuildingDef* def = a ? BuildingOf(*a, *m_Buildings) : nullptr;
 			if (!def) continue;
@@ -406,7 +406,7 @@ namespace GB
 			const std::string candidate = def->second.Name + " " + std::to_string(i);
 			if (m_Entities->FindByName(candidate) == NullEntity && !m_Gameplay->Find(candidate)) n = candidate;
 		}
-		const float y = m_Ground ? m_Ground(at.x, at.y) : Config.CampY;
+		const float y = m_Ground ? m_Ground(at.x, at.y) : Config.Economy.CampY;
 		const EntityId id = BuildSite(*m_Entities, def->second, n, { at.x, y, at.y });
 		AbilitySystemComponent* a = m_Gameplay->Create(n);
 		a->FromComponent(*m_Entities->Find(id)->Gameplay);
@@ -494,7 +494,7 @@ namespace GB
 		auto fits = [&](const glm::vec2& p)
 		{
 			const float r = def.Radius();
-			if (glm::distance(p, Config.Camp) < r + 2.5f || glm::distance(p, FirePos()) < r + 2.5f) return false;
+			if (glm::distance(p, Config.Economy.Camp) < r + 2.5f || glm::distance(p, FirePos()) < r + 2.5f) return false;
 			for (const Placed& o : placed) if (glm::distance(p, o.Pos) < r + o.Def->Radius() + 1.5f) return false;
 			for (const Sight& s : m_Sights) if (glm::distance(p, s.Pos) < r + 1.2f) return false;
 			if (!body) return true;
@@ -510,7 +510,7 @@ namespace GB
 			for (int k = 0; k < 12; ++k)
 			{
 				const float a = start + static_cast<float>(k) * 0.5236f;
-				const glm::vec2 p = Config.Camp + glm::vec2(std::cos(a), std::sin(a)) * (Config.SiteRadius + 3.0f * static_cast<float>(ring));
+				const glm::vec2 p = Config.Economy.Camp + glm::vec2(std::cos(a), std::sin(a)) * (Config.SiteRadius + 3.0f * static_cast<float>(ring));
 				if (!fits(p)) continue;
 				StartSite(def.Id, p);
 				m_Log.back() += ": " + needs.front().Why;

@@ -212,7 +212,7 @@ namespace GB::Editor
 
 				if (ImGui::CollapsingHeader("Craft", ImGuiTreeNodeFlags_DefaultOpen))
 				{
-					const bool atCamp = glm::distance(pos, m_Tribe.Config.Camp) <= m_Tribe.Config.Player.CampReach;
+					const bool atCamp = glm::distance(pos, m_Tribe.Config.Economy.Camp) <= m_Tribe.Config.Player.CampReach;
 					for (const std::string& id : m_Recipes.Ids())
 					{
 						const Recipe* r = m_Recipes.Find(id);
@@ -232,7 +232,7 @@ namespace GB::Editor
 				}
 				if (ImGui::CollapsingHeader("Store of the clan"))
 				{
-					if (glm::distance(pos, m_Tribe.Config.Camp) > m_Tribe.Config.Player.CampReach) ImGui::TextDisabled("(you must be at the camp to take from it)");
+					if (glm::distance(pos, m_Tribe.Config.Economy.Camp) > m_Tribe.Config.Player.CampReach) ImGui::TextDisabled("(you must be at the camp to take from it)");
 					for (const ItemSlot& s : m_Tribe.Store().Stacks())
 					{
 						if (s.Count <= 0) continue;
@@ -295,7 +295,7 @@ namespace GB::Editor
 					{
 						if (!c->Folk || c->Folk == &m_Tribe) continue;
 						ImGui::PushID(c->Name.c_str());
-						const bool there = glm::distance(pos, c->Folk->Config.Camp) <= m_Tribe.Config.Player.VisitRadius;
+						const bool there = glm::distance(pos, c->Folk->Config.Economy.Camp) <= m_Tribe.Config.Player.VisitRadius;
 						ImGui::Text("%s", c->Name.c_str());
 						ImGui::SameLine();
 						ImGui::BeginDisabled(!there);

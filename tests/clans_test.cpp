@@ -197,8 +197,8 @@ struct Valley
 			t.Config.Work.Jobs.SurvivalDays = 0.0f;   // (these tests are about diplomacy: a clan short of food would go gathering in its neighbour's land, and the pyramid has its own test)
 			t.Config.Work.Jobs.CriticalHunger = 0.0f;
 			if (s.BerryWant >= 0) t.Config.Economy.Stock["berry"] = { static_cast<float>(s.BerryWant), 0.0f };
-			t.Config.Camp = s.Camp;
-			t.Config.CampY = land.Height(s.Camp.x, s.Camp.y);
+			t.Config.Economy.Camp = s.Camp;
+			t.Config.Economy.CampY = land.Height(s.Camp.x, s.Camp.y);
 			t.SetRegions(&land.Regions, [&land](float x, float z) { return land.Height(x, z); });
 			const int n = s.Members;
 			t.Store().Add(Items, "wood", 2 + 2 * n);

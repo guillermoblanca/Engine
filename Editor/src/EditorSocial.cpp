@@ -67,8 +67,8 @@ namespace GB::Editor
 			if (n <= 0 || !m_Ecology.Species.count(species)) continue;
 			const float angle = 1.3f + 2.3999632f * static_cast<float>(k++);
 			const float radius = 18.0f + 6.0f * static_cast<float>(k % 3);
-			glm::vec3 at(t.Config.Camp.x + std::cos(angle) * radius, 0.0f, t.Config.Camp.y + std::sin(angle) * radius);
-			at.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(at.x, at.z) : t.Config.CampY;
+			glm::vec3 at(t.Config.Economy.Camp.x + std::cos(angle) * radius, 0.0f, t.Config.Economy.Camp.y + std::sin(angle) * radius);
+			at.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(at.x, at.z) : t.Config.Economy.CampY;
 			const int made = m_Ecology.Spawn(at, n, species);
 			if (made > 0) out += (out.empty() ? "" : ", ") + std::to_string(made) + " " + m_Ecology.Species.at(species).Plural;
 		}

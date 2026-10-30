@@ -210,7 +210,7 @@ struct Village
 			return 0;
 		}, [](const std::string&, const std::string&, int) { return 0; });
 		Tribe_.Bind(Entities, Gameplay, Items, Recipes, Defs);
-		Tribe_.Config.Camp = camp;
+		Tribe_.Config.Economy.Camp = camp;
 		Tribe_.Store().Add(Items, "wood", 4);
 		Tribe_.Store().Add(Items, "stone", 5);
 		for (size_t i = 0; i < 4; ++i) Tribe_.AddMember(crew[i].name, crew[i].role, bodies[i].get());
@@ -523,7 +523,7 @@ int main()
 	Check(t.HasFire() && v.Entities.FindByName("Campfire") != NullEntity, "the campfire is lit");
 	const AbilitySystemComponent* fire = v.Gameplay.Find("Campfire");
 	Check(fire && fire->HasTag("Interactive.Campfire") && fire->Attributes().Has("Fuel"), "the campfire is the fire pit interactive (tags and Fuel)");
-	Check(fire && std::fabs(fire->Attributes().Current("BurnSeconds") - t.Config.FireSeconds / t.Config.FireHeat) < 1e-4f, "it burns at the tribe's pace");
+	Check(fire && std::fabs(fire->Attributes().Current("BurnSeconds") - t.Config.Economy.FireSeconds / t.Config.FireHeat) < 1e-4f, "it burns at the tribe's pace");
 	bool fed = false, wentOut = false;
 	for (const std::string& line : t.Log())
 	{

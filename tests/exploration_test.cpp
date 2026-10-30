@@ -176,8 +176,8 @@ struct Clan
 			return 0;
 		}, give);
 		Tribe_.Bind(Entities, Gameplay, Items, Recipes, Defs);
-		Tribe_.Config.Camp = camp;
-		Tribe_.Config.CampY = land.Height(camp.x, camp.y);
+		Tribe_.Config.Economy.Camp = camp;
+		Tribe_.Config.Economy.CampY = land.Height(camp.x, camp.y);
 		Tribe_.Config.Explore = rules;
 		Tribe_.SetRegions(&land.Regions, [&land](float x, float z) { return land.Height(x, z); });
 		Tribe_.Store().Add(Items, "wood", 2 + 2 * n);
@@ -475,7 +475,7 @@ int main()
 		{
 			const MigrationRecord r = clan.Tribe_.Exploration().Moves.back();
 			Check(glm::distance(r.From, camp) < 1.0f && glm::distance(r.To, camp) >= moving.Migration.HomeRadius, "away from the old home, at least a home radius");
-			Check(clan.Tribe_.Config.Camp == r.To, "the camp (and the store with it) is the new one");
+			Check(clan.Tribe_.Config.Economy.Camp == r.To, "the camp (and the store with it) is the new one");
 			if (clan.Tribe_.HasFire())
 			{
 				const EntityId fire = clan.Entities.FindByName(clan.Tribe_.Config.FireName);

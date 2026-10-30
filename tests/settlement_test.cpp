@@ -143,7 +143,7 @@ struct Settlement
 		Tribe_.Bind(Entities, Gameplay, Items, Recipes, Defs);
 		if (buildings) Tribe_.SetBuildings(&Builds.Defs);
 		if (stoneAge) Tribe_.SetTechs(&Techs);
-		Tribe_.Config.Camp = camp;
+		Tribe_.Config.Economy.Camp = camp;
 		Tribe_.Store().Add(Items, "wood", 10);
 		Tribe_.Store().Add(Items, "stone", 12);
 		for (size_t i = 0; i < 4; ++i) Tribe_.AddMember(names[i], roles[i], bodies[i].get());
@@ -362,7 +362,7 @@ int main()
 		Check(started, "the log tells when it starts");
 		const EntityId shelter = v.Entities.FindByName("Shelter 1");
 		const glm::vec4 at = shelter == NullEntity ? glm::vec4(0.0f) : v.Entities.WorldMatrix(shelter)[3];
-		Check(glm::distance(glm::vec2(at.x, at.z), v.Tribe_.Config.Camp) > 4.0f && glm::distance(glm::vec2(at.x, at.z), v.Tribe_.Config.Camp) < 25.0f, "it stands near the camp, off its centre");
+		Check(glm::distance(glm::vec2(at.x, at.z), v.Tribe_.Config.Economy.Camp) > 4.0f && glm::distance(glm::vec2(at.x, at.z), v.Tribe_.Config.Economy.Camp) < 25.0f, "it stands near the camp, off its centre");
 		Check(v.Tribe_.SettlementReport().find("Shelter 1 (shelter) stands: 3 beds") != std::string::npos, "tribe status shows it");
 		// the night after, the first three sleep in it (their beds are inside its footprint) and the fourth at the camp
 		int inside = 0;
@@ -383,7 +383,7 @@ int main()
 
 		// a clan that moves its camp (H12) leaves its buildings behind and builds again where it settles
 		{
-			const glm::vec2 far = v.Tribe_.Config.Camp + glm::vec2(80.0f, 0.0f);
+			const glm::vec2 far = v.Tribe_.Config.Economy.Camp + glm::vec2(80.0f, 0.0f);
 			Check(v.Tribe_.MoveCamp(far, "a test"), "the camp moves");
 			Check(v.ShelterDone() && v.Tribe_.SettlementReport().find("Shelter 1") == std::string::npos, "the shelter stays where it was, and is no longer the clan's");
 			const std::vector<BuildingNeed> needs = v.Tribe_.BuildingNeeds();
@@ -473,7 +473,7 @@ int main()
 			return a->HasTag("Building.Done") ? name : std::string();
 		};
 		Settlement v(true, true);
-		const glm::vec2 camp = v.Tribe_.Config.Camp;
+		const glm::vec2 camp = v.Tribe_.Config.Economy.Camp;
 		const int cap = v.Tribe_.StoreCap();
 		Check(v.Tribe_.Defense() == 0.0f && v.Tribe_.StoreBonus() == 0 && v.Tribe_.StoreKeep() == 1.0f && v.Tribe_.HealingAt(camp) == 1.0f, "a camp without them: no defense, no bonus, no healer");
 		Check(!raise(v, "cache_pit", camp + glm::vec2(-10.0f, 0.0f)).empty() && !raise(v, "granary", camp + glm::vec2(-10.0f, 8.0f)).empty(), "a cache pit and a granary stand");
@@ -535,7 +535,7 @@ int main()
 		// company: a totem by the camp keeps the clan in better company than a camp without one
 		{
 			Settlement with(true, true), without(true, true);
-			Check(!raise(with, "totem", with.Tribe_.Config.Camp + glm::vec2(9.0f, 0.0f)).empty(), "a totem stands by the camp");
+			Check(!raise(with, "totem", with.Tribe_.Config.Economy.Camp + glm::vec2(9.0f, 0.0f)).empty(), "a totem stands by the camp");
 			const float dt = 1.0f / 30.0f;
 			double sumWith = 0.0, sumWithout = 0.0;
 			for (int frame = 0; frame < static_cast<int>(600.0f / dt); ++frame)

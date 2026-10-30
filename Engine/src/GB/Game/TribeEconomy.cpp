@@ -71,15 +71,15 @@ namespace GB
 	bool Tribe::StationAt(const std::string& station, glm::vec2* where) const
 	{
 		const std::vector<std::string>& camp = Config.Econ.Production.CampStations;
-		if (station.empty() || std::find(camp.begin(), camp.end(), station) != camp.end()) { if (where) *where = Config.Camp; return true; }
-		glm::vec2 at = Config.Camp;
+		if (station.empty() || std::find(camp.begin(), camp.end(), station) != camp.end()) { if (where) *where = Config.Economy.Camp; return true; }
+		glm::vec2 at = Config.Economy.Camp;
 		if (m_Stations && m_Stations(station, at)) { if (where) *where = at; return true; }   // the buildings (H8)
 		return false;
 	}
 
 	bool Tribe::BuiltStationAt(const std::string& station, glm::vec2* where) const
 	{
-		glm::vec2 at = Config.Camp;
+		glm::vec2 at = Config.Economy.Camp;
 		if (station.empty() || !m_Stations || !m_Stations(station, at)) return false;
 		if (where) *where = at;
 		return true;
@@ -109,7 +109,7 @@ namespace GB
 		int slots = 0;
 		if (m.Body && m_Items)
 			if (const ItemDef* c = m.Body->Bag().BestContainer(*m_Items)) slots = c->BagSlots;
-		return Config.DepositAt + static_cast<int>(std::floor(Config.Econ.Logistics.PerBagSlot * static_cast<float>(slots) + 1e-4f));
+		return Config.Economy.DepositAt + static_cast<int>(std::floor(Config.Econ.Logistics.PerBagSlot * static_cast<float>(slots) + 1e-4f));
 	}
 
 	Stockpile* Tribe::FindStockpile(const std::string& name)
@@ -370,7 +370,7 @@ namespace GB
 			for (const auto& [id, crop] : econ.Crops) seeds = seeds || Stored(crop.Seed) > 0;
 			for (const TribeMember& m : m_Members) can = can || (!m.Dead && m.Body && CanFarm(m));
 			if (seeds && can)
-				MarkField(Config.Camp + f.Offset + glm::vec2(0.0f, static_cast<float>(m_Econ.Fields.size()) * (static_cast<float>((f.Plots + f.Columns - 1) / f.Columns) + 1.0f) * f.Spacing));
+				MarkField(Config.Economy.Camp + f.Offset + glm::vec2(0.0f, static_cast<float>(m_Econ.Fields.size()) * (static_cast<float>((f.Plots + f.Columns - 1) / f.Columns) + 1.0f) * f.Spacing));
 		}
 		if (!m_Econ.Fields.empty())
 		{
@@ -454,7 +454,7 @@ namespace GB
 		UtilityOption o;
 		o.Kind = held->Kind;
 		o.Target = held->Target;
-		o.Where = Config.Camp;
+		o.Where = Config.Economy.Camp;
 		if (held->Kind == "make") { if (const Recipe* r = m_Recipes->Find(held->Target)) StationAt(r->Station, &o.Where); }
 		else if (held->Kind == "farm") o.Where = m_Econ.Fields.front().Centre();
 		else for (const Stockpile& p : m_Econ.Stockpiles) if (p.Name == held->Target) o.Where = p.Pos;
@@ -476,7 +476,7 @@ namespace GB
 			const Recipe* r = m_Recipes->Find(o.Target);
 			glm::vec2 at;
 			if (!r || !StationAt(r->Station, &at)) return false;
-			const glm::vec2 spot = at == Config.Camp ? CampSpot(m) : at + glm::vec2(1.2f, 0.0f);
+			const glm::vec2 spot = at == Config.Economy.Camp ? CampSpot(m) : at + glm::vec2(1.2f, 0.0f);
 			if (!Order(m, Go(spot, Seconds(econ.Production.Seconds)))) return false;
 			m.Job = "make";
 			m.Detail = r->Id;
@@ -559,7 +559,7 @@ namespace GB
 				Say(m, "makes " + std::to_string(r->OutputCount) + " " + r->Output + " for the store");
 				Practise(m, "craft", "craft", 1.0f);
 				if (const Job* held = m_Board.ClaimOf(m.Name); held && held->Kind == "make") m_Board.Progress(m.Name, 1.0f, m_Time);
-				if (glm::distance(Where(m), Config.Camp) < 6.0f) HandOut(m);
+				if (glm::distance(Where(m), Config.Economy.Camp) < 6.0f) HandOut(m);
 			}
 			else Say(m, "cannot make " + r->Output + ": " + (StationAt(r->Station) ? m_Recipes->WhyNot(*m_Items, m_Store, r->Id, r->Station, gate) : "there is no " + r->Station));
 			Share(m);
@@ -671,7 +671,7 @@ namespace GB
 	{
 		if (!m.Body || !m_Items) return {};
 		const glm::vec2 pos = Where(m);
-		float best = glm::distance(pos, Config.Camp) - 1.0f;   // a stockpile must be clearly nearer than the camp
+		float best = glm::distance(pos, Config.Economy.Camp) - 1.0f;   // a stockpile must be clearly nearer than the camp
 		std::string place;
 		for (const Stockpile& p : m_Econ.Stockpiles)
 		{

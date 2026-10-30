@@ -167,7 +167,7 @@ struct Clan
 			for (size_t i = 0; i < Names.size(); ++i) if (Names[i] == who) return bodies[i]->Bag().Remove(item, k);
 			return 0;
 		}, [](const std::string&, const std::string&, int) { return 0; });
-		Tribe_.Config.Camp = camp;
+		Tribe_.Config.Economy.Camp = camp;
 		Tribe_.Store().Add(Items, "wood", 2 + 2 * n);
 		Tribe_.Store().Add(Items, "stone", 3 * n);
 		for (int i = 0; i < n; ++i) Tribe_.AddMember(Names[static_cast<size_t>(i)], roles[static_cast<size_t>(i)], bodies[static_cast<size_t>(i)].get());
@@ -413,7 +413,7 @@ int main()
 		d.Tribe_.Store().Add(d.Items, "berry", 40);
 		d.Tribe_.PostJobs();
 		Check(!d.Posted["make dried_berry"] && d.Tribe_.Board().Find("make dried_berry") == nullptr, "without a drying rack the clan cannot dry its surplus");
-		d.Tribe_.SetStations([&](const std::string& station, glm::vec2& where) { if (station != "drying_rack") return false; where = d.Tribe_.Config.Camp + glm::vec2(3.0f, 3.0f); return true; });
+		d.Tribe_.SetStations([&](const std::string& station, glm::vec2& where) { if (station != "drying_rack") return false; where = d.Tribe_.Config.Economy.Camp + glm::vec2(3.0f, 3.0f); return true; });
 		d.Run(120.0);
 		Check(d.Posted["make dried_berry"], "with one (the buildings' station) the surplus of berries is posted to be dried");
 		Check(d.Tribe_.Store().Count("dried_berry") > 0 || (d.Tribe_.Economy().Made.count("dried_berry") && d.Tribe_.Economy().Made.at("dried_berry") > 0), "and dried berries are made");
@@ -463,7 +463,7 @@ int main()
 	// ---- logistics: what is left at a stockpile is hauled to the main store; a basket lets a member carry more
 	{
 		Clan k(3);
-		Stockpile* pile = k.Tribe_.AddStockpile("north pile", k.Tribe_.Config.Camp + glm::vec2(12.0f, 0.0f));
+		Stockpile* pile = k.Tribe_.AddStockpile("north pile", k.Tribe_.Config.Economy.Camp + glm::vec2(12.0f, 0.0f));
 		Check(pile && !k.Tribe_.AddStockpile("north pile", glm::vec2(0.0f)) && !k.Tribe_.AddStockpile("x", glm::vec2(0.0f), "barn"), "a stockpile is put once, of a known kind");
 		pile->Store.Add(k.Items, "flint", 9);
 		const int before = k.Tribe_.Store().Count("flint");

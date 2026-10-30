@@ -24,7 +24,7 @@ namespace GB
 
 	// Level of detail of the animation (H16): how far from the viewer an actor stops getting its full pose. Presentation only (see
 	// AnimInstance::SetDetail): the movement, the abilities, their montages and notifies are the same at every level, so the game does not change.
-	// Farther still the tribe makes a member abstract (TribeConfig::DetailRadius) and the actor is suspended.
+	// Farther still the tribe makes a member abstract (TribeConfig::Performance.DetailRadius) and the actor is suspended.
 	struct AnimLodConfig
 	{
 		bool Enabled = true;

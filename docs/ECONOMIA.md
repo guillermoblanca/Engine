@@ -77,7 +77,7 @@ drying_rack to make it at»).
 - **Capacidad de carga**: un miembro lleva `DepositAt` (4) cosas más `logistics.perBagSlot` por casilla que añade su contenedor (una cesta, +6)
   antes de ir a dejarlas. Las cestas se piden en el plan y se reparten en el campamento.
 - **Varios almacenes**: el principal (el del campamento) y los secundarios (`Tribe::AddStockpile`, `economy stockpile`, el del campo). Cada tipo
-  (`logistics.stores`) tiene su tope por objeto (`cap`, el del principal sustituye a `TribeConfig::StockCap`), sus casillas, su `spoilRate`, qué
+  (`logistics.stores`) tiene su tope por objeto (`cap`, el del principal sustituye al antiguo `StockCap`), sus casillas, su `spoilRate`, qué
   acepta (`accepts`: etiquetas) y si se acarrea (`haul`). Un miembro deja lo que lleva en el almacén más cercano que lo acepte (uno secundario debe estar
   claramente más cerca que el campamento).
 - **Acarreo**: un almacén secundario con `haulAt` cosas o más publica `haul <nombre>`; quien lo reclama va con la mochila vacía, carga hasta su

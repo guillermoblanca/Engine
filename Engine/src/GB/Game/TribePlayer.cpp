@@ -122,7 +122,7 @@ namespace GB
 
 	bool Tribe::NearCampForPlayer(const TribeMember& m) const
 	{
-		return m.Body && glm::distance(Where(m), Config.Camp) <= Config.Player.CampReach;
+		return m.Body && glm::distance(Where(m), Config.Economy.Camp) <= Config.Player.CampReach;
 	}
 
 	// ------------------------------------------------------------------ the turn of a player in Update
@@ -206,7 +206,7 @@ namespace GB
 		if (f && f->Side == m_ClanName) return { false, foe + " is of your own clan" };
 		if (!m_Combat->Engage(player, foe)) return { false, "you cannot fight " + foe + " now" };
 		f = m_Combat->Find(foe);
-		const bool raider = f && !f->Animal && glm::distance(f->Pos, Config.Camp) <= Config.Player.CampReach * 2.0f;
+		const bool raider = f && !f->Animal && glm::distance(f->Pos, Config.Economy.Camp) <= Config.Player.CampReach * 2.0f;
 		const std::string weapon = m_Combat->Find(player)->Weapon;
 		Say(*m, (raider ? "stands up to " : "attacks ") + foe + " with " + weapon);
 		if (raider) Credit(player, "defend", 1.0f);
@@ -296,7 +296,7 @@ namespace GB
 	{
 		TribeMember* m = MemberNamed(player);
 		if (!m || !m->Player || m->Dead || !m->Body) return { false, "no player called " + player + " in the clan" };
-		if (!NearCampForPlayer(*m)) return { false, "the store is at the camp (" + Fixed(glm::distance(Where(*m), Config.Camp)) + " m away)" };
+		if (!NearCampForPlayer(*m)) return { false, "the store is at the camp (" + Fixed(glm::distance(Where(*m), Config.Economy.Camp)) + " m away)" };
 		Inventory& bag = m->Body->Bag();
 		const Job* held = m_Board.ClaimOf(player);
 		const std::string jobItem = held && held->Kind == "gather" ? held->Target : std::string();
@@ -553,7 +553,7 @@ namespace GB
 		{
 			if (kind == "build")
 			{
-				p.At = at != glm::vec2(0.0f) ? at : Config.Camp + glm::vec2(-Config.SiteRadius, 2.0f * static_cast<float>(p.Id % 3));
+				p.At = at != glm::vec2(0.0f) ? at : Config.Economy.Camp + glm::vec2(-Config.SiteRadius, 2.0f * static_cast<float>(p.Id % 3));
 				std::string site;
 				if (const std::string error = StartSite(target, p.At, &site); !error.empty()) { p.Status = "dropped"; p.Why += "; but " + error; }
 				else p.Site = site;

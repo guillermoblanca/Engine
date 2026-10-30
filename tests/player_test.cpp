@@ -161,7 +161,7 @@ struct Town
 			for (size_t i = 0; i < Names.size(); ++i) if (Names[i] == who) return bodies[i]->Bag().Remove(item, k);
 			return 0;
 		}, [](const std::string&, const std::string&, int) { return 0; });
-		T.Config.Camp = Camp;
+		T.Config.Economy.Camp = Camp;
 		T.Store().Add(Items, "wood", 2 + 2 * n);
 		T.Store().Add(Items, "stone", 3 * n);
 		T.Store().Add(Items, "berry", 6);

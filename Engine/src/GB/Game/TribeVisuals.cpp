@@ -197,9 +197,9 @@ namespace GB
 					if ((key == "make" || key == "craft") && tribe.StationAt("workbench", &bench))
 					{
 						// the bench that is drawn: a built workbench (H8) or else the camp's own (see AddToScene)
-						glm::vec2 at = tribe.Config.Camp + kBench;
+						glm::vec2 at = tribe.Config.Economy.Camp + kBench;
 						tribe.BuiltStationAt("workbench", &at);
-						point = { at.x, ctx.Ground ? ctx.Ground(at.x, at.y) : tribe.Config.CampY, at.y };
+						point = { at.x, ctx.Ground ? ctx.Ground(at.x, at.y) : tribe.Config.Economy.CampY, at.y };
 						have = true;
 					}
 					else if (ctx.Entities && !m.Detail.empty())
@@ -252,7 +252,7 @@ namespace GB
 		const VisualLibrary& lib = ctx.Visuals->Library;
 		auto at = [&](const glm::vec2& p, float yaw = 0.0f)
 		{
-			const float y = ctx.Ground ? ctx.Ground(p.x, p.y) : tribe.Config.CampY;
+			const float y = ctx.Ground ? ctx.Ground(p.x, p.y) : tribe.Config.Economy.CampY;
 			return glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(p.x, y, p.y)), yaw, glm::vec3(0, 1, 0));
 		};
 
@@ -290,11 +290,11 @@ namespace GB
 				++i;
 			}
 		};
-		piles(tribe.Store(), tribe.Config.Camp + kStore);
+		piles(tribe.Store(), tribe.Config.Economy.Camp + kStore);
 		for (const Stockpile& s : tribe.Economy().Stockpiles) piles(s.Store, s.Pos);
 
 		// the camp's workbench (where "make" and "craft" are done); once the clan has built one (H8) that building is the bench, drawn with the
 		// buildings, and the camp's is not drawn too
-		if (tribe.StationAt("workbench") && !tribe.BuiltStationAt("workbench")) cache.AddBuilding("workbench", 1000, 1.0f, at(tribe.Config.Camp + kBench, 0.4f), scene);
+		if (tribe.StationAt("workbench") && !tribe.BuiltStationAt("workbench")) cache.AddBuilding("workbench", 1000, 1.0f, at(tribe.Config.Economy.Camp + kBench, 0.4f), scene);
 	}
 }

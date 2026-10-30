@@ -35,7 +35,7 @@ namespace GB::Editor
 		}
 		if (sub == "stockpile" && a.size() > 1)
 		{
-			glm::vec2 at = m_Tribe.Config.Camp + glm::vec2(6.0f, -6.0f);
+			glm::vec2 at = m_Tribe.Config.Economy.Camp + glm::vec2(6.0f, -6.0f);
 			std::string kind = "stockpile";
 			if (a.size() > 3) at = { static_cast<float>(std::atof(a[2].c_str())), static_cast<float>(std::atof(a[3].c_str())) };
 			if (a.size() > 4) kind = a[4];
@@ -57,7 +57,7 @@ namespace GB::Editor
 		if (sub == "status") return { true, OneLine(m_Tribe.FieldReport()) };
 		if (sub == "mark")
 		{
-			glm::vec2 at = m_Tribe.Config.Camp + m_Tribe.Config.Econ.Farming.Offset;
+			glm::vec2 at = m_Tribe.Config.Economy.Camp + m_Tribe.Config.Econ.Farming.Offset;
 			if (a.size() > 2) at = { static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())) };
 			return { true, OneLine(m_Tribe.MarkField(at).Report()) };
 		}

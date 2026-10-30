@@ -16,10 +16,7 @@ namespace GB
 	namespace
 	{
 		constexpr float kPi = 3.14159265f;
-		constexpr float kNearCamp = 5.0f;        // within this of the camp the members trade what they know
-		constexpr float kNearFire = 4.5f;        // within this of a lit fire it warms
 		constexpr float kSightCell = 16.0f;      // the cells the sights are filed in
-		constexpr float kCompany = 6.0f;         // within this of another member it is not alone
 
 		std::string Underscored(std::string s)
 		{
@@ -315,7 +312,14 @@ namespace GB
 		TribeEconomy economy = liveEconomy;
 		if (t.contains("food") || t.contains("drink") || t.contains("stock"))
 		{
-			economy = TribeEconomy();
+			{
+				// (what the content file says is replaced whole; the camp, the store and the fire are not in it and stay as they are)
+				const TribeEconomy fresh;
+				economy.FoodTag = fresh.FoodTag;
+				economy.DrinkTag = fresh.DrinkTag;
+				economy.DefaultStock = fresh.DefaultStock;
+				economy.Stock.clear();
+			}
 			for (const auto& [key, field] : { std::pair<const char*, std::string*>{ "food", &economy.FoodTag }, std::pair<const char*, std::string*>{ "drink", &economy.DrinkTag } })
 				if (const auto f = t.find(key); f != t.end())
 				{
@@ -470,7 +474,7 @@ namespace GB
 		m_Chronicle.Clear();
 		m_TelemetryKnown.clear();
 		m_TelemetryNext = 0.0;
-		m_Store = Inventory(40, 0.0f);
+		m_Store = Inventory(Config.Economy.StoreCapacity, 0.0f);
 		m_Time = 0.0;
 		m_Clock = 0.0;
 		m_ClockSet = false;
@@ -568,7 +572,7 @@ namespace GB
 	{
 		if (m.HasSpot) return m.Spot;   // chosen once (a path search) and kept until a trip to it fails
 		const float angle = static_cast<float>(IndexOf(m)) * 2.0f * kPi / static_cast<float>(std::max<size_t>(1, m_Members.size())) + static_cast<float>(m.SpotTries) * 0.9f;
-		m.Spot = StandingSpot(m, Config.Camp, angle, 1.8f + 0.6f * static_cast<float>(m.SpotTries % 4));
+		m.Spot = StandingSpot(m, Config.Economy.Camp, angle, 1.8f + 0.6f * static_cast<float>(m.SpotTries % 4));
 		m.HasSpot = true;
 		return m.Spot;
 	}
@@ -599,8 +603,8 @@ namespace GB
 		m_Log.push_back(t + m.Name + " (" + m.Role + ") " + text);
 		m_Chronicle.Event(m_Time, m.Name, text);
 		if (m_Telemetry) EmitEvent("say", m.Name, std::string(), std::string(), text);
-		if (static_cast<int>(m_Log.size()) > Config.LogLines + Config.LogLines / 4)   // a ring: the oldest quarter goes at once
-			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.LogLines)));
+		if (static_cast<int>(m_Log.size()) > Config.Simulation.LogLines + Config.Simulation.LogLines / 4)   // a ring: the oldest quarter goes at once
+			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.Simulation.LogLines)));
 	}
 
 	void Tribe::Shout(const std::string& who, const glm::vec2& pos, float radius)
@@ -753,9 +757,9 @@ namespace GB
 		int alive = 0;
 		for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
 		m_UpkeepTimer += dt;
-		if (m_UpkeepTimer >= Config.UpkeepSeconds)
+		if (m_UpkeepTimer >= Config.Economy.UpkeepSeconds)
 		{
-			m_UpkeepTimer -= Config.UpkeepSeconds;
+			m_UpkeepTimer -= Config.Economy.UpkeepSeconds;
 			m_Store.Remove("fiber", std::min(alive, std::max(0, m_Store.Count("fiber") - 12)));   // only the surplus: the tools still need their share
 		}
 		// (the berries that spoiled here every SpoilSeconds now go off by their shelf life: StepEconomy, E6)
@@ -874,7 +878,7 @@ namespace GB
 	{
 		AgentMind& mind = m.Mind;
 		if (mind.HeardSeq > m_Sounds.LastSeq()) mind.HeardSeq = m_Sounds.LastSeq();   // the bus started over (a loaded game)
-		const std::vector<SoundEvent> heard = m_Sounds.Heard(m.Name, Where(m), Config.Hearing, mind.HeardSeq);
+		const std::vector<SoundEvent> heard = m_Sounds.Heard(m.Name, Where(m), Config.Community.Hearing, mind.HeardSeq);
 		mind.Heard.clear();
 		AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
 		for (const SoundEvent& e : heard)
@@ -890,9 +894,9 @@ namespace GB
 	// At the camp the members tell the clan what they know and learn what the others told.
 	void Tribe::Share(TribeMember& m)
 	{
-		if (glm::distance(Where(m), Config.Camp) > kNearCamp) return;
+		if (glm::distance(Where(m), Config.Economy.Camp) > Config.Community.NearCampRadius) return;
 		Tell(m_Knowledge.Share(m.Name));   // what it has found out (H11): a few names, cheap on every visit
-		if (m_Time - m.Mind.SharedAt < static_cast<double>(Config.ShareSeconds)) return;   // (merging whole memories is not cheap: not on every visit)
+		if (m_Time - m.Mind.SharedAt < static_cast<double>(Config.Community.ShareSeconds)) return;   // (merging whole memories is not cheap: not on every visit)
 		m.Mind.SharedAt = m_Time;
 		for (const std::string& name : m.Gone) m_Clan.Forget(name);   // what it found gone (an older sighting the clan kept would send others there again)
 		m.Gone.clear();
@@ -911,10 +915,10 @@ namespace GB
 		ctx.Time = CurrentSeason();
 		ctx.Hour = Hour();
 		ctx.Sleeping = m.Job == "sleep";
-		ctx.NearFire = FireBurning() && glm::distance(pos, FirePos()) < kNearFire;
-		ctx.Sheltered = glm::distance(pos, Config.Camp) < kNearCamp;
+		ctx.NearFire = FireBurning() && glm::distance(pos, FirePos()) < Config.Community.NearFireRadius;
+		ctx.Sheltered = glm::distance(pos, Config.Economy.Camp) < Config.Community.NearCampRadius;
 		for (const TribeMember& o : m_Members)
-			if (&o != &m && !o.Dead && o.Body && glm::distance(pos, Where(o)) < kCompany) ctx.WithOthers = true;
+			if (&o != &m && !o.Dead && o.Body && glm::distance(pos, Where(o)) < Config.Community.CompanyRadius) ctx.WithOthers = true;
 		if (m.Player) GuardPlayer(m, *asc);   // H15: unless the rules make it mortal, hunger and cold weaken a player but do not kill it
 		UpdateNeeds(*asc, Config.Needs, ctx, dt);
 		ShelterNeeds(m, dt);   // asleep under a roof (H8): more rest and warmth
@@ -944,7 +948,7 @@ namespace GB
 	int Tribe::ThinksNeeded(float dt) const
 	{
 		const size_t n = m_Members.size();
-		return n == 0 ? 0 : static_cast<int>(std::ceil(static_cast<float>(n) * dt / std::max(Config.ThinkSeconds, 0.01f))) + 1;
+		return n == 0 ? 0 : static_cast<int>(std::ceil(static_cast<float>(n) * dt / std::max(Config.Simulation.DecisionSeconds, 0.01f))) + 1;
 	}
 
 	void Tribe::Update(float dt)
@@ -976,7 +980,7 @@ namespace GB
 		PlanSettlement(dt);   // what to build next (H8; nothing without buildings)
 		lap(m_Cost.EconomyMs);
 		m_NeedTimer += dt;
-		if (m_NeedTimer >= Config.NeedSeconds)
+		if (m_NeedTimer >= Config.Simulation.NeedSeconds)
 		{
 			const float step = m_NeedTimer;
 			m_NeedTimer = 0.0f;
@@ -1003,28 +1007,28 @@ namespace GB
 		lap(m_Cost.AbstractMs);
 		if (m_Knowledge.Tick(dt)) Tell(m_Knowledge.Lesson(KnowledgeView(true)));   // a lesson at the camp, and what the clan forgets (H11)
 		m_LodTimer += dt;
-		if (m_LodTimer >= Config.ThinkSeconds)   // the level of detail follows the viewer
+		if (m_LodTimer >= Config.Simulation.LodUpdateSeconds)   // the level of detail follows the viewer
 		{
 			m_LodTimer = 0.0f;
 			for (TribeMember& m : m_Members)
 			{
 				if (m.Dead || !m.Body || m.Player) continue;   // (a player is always its full body: H15)
-				if (m_HasViewer && Config.DetailRadius > 0.0f)
+				if (m_HasViewer && Config.Performance.DetailRadius > 0.0f)
 				{
 					const float d = glm::distance(m_Viewer, Where(m));
-					if (!m.Abstract && d > Config.DetailRadius) SetDetail(m, false);
-					else if (m.Abstract && d < Config.DetailRadius - Config.DetailMargin) SetDetail(m, true);
+					if (!m.Abstract && d > Config.Performance.DetailRadius) SetDetail(m, false);
+					else if (m.Abstract && d < Config.Performance.DetailRadius - Config.Performance.DetailMargin) SetDetail(m, true);
 				}
 				else if (m.Abstract) SetDetail(m, true);
 			}
 		}
 
 		const auto thinkStart = std::chrono::steady_clock::now();
-		// Each member has its own turn every ThinkSeconds; the turns of one call are limited, so with many members the work is spread over frames.
+		// Each member has its own turn every DecisionSeconds; the turns of one call are limited, so with many members the work is spread over frames.
 		const size_t n = m_Members.size();
 		if (n == 0) return;
 		// (with a budget given from outside, ClanWorld shares one among all its clans: H16)
-		int budget = m_ThinkBudget >= 0 ? m_ThinkBudget : std::max(Config.ThinkPerFrame, ThinksNeeded(dt));
+		int budget = m_ThinkBudget >= 0 ? m_ThinkBudget : std::max(Config.Simulation.ThinkPerFrame, ThinksNeeded(dt));
 		m_Cost.Budget = budget;
 		bool refreshed = false;
 		size_t last = m_Cursor % n;
@@ -1037,7 +1041,7 @@ namespace GB
 			TribeMember& m = m_Members[i];
 			if (!due(m)) continue;
 			if (!m.Player && budget <= 0) { ++m_Cost.Due; continue; }   // (only counted: it gets one of the first turns of the next frame)
-			if (!refreshed && m_Time - m_SightsTime >= static_cast<double>(Config.ThinkSeconds) * 0.9)
+			if (!refreshed && m_Time - m_SightsTime >= static_cast<double>(Config.Simulation.PerceptionSeconds) * 0.9)
 			{
 				RefreshSights();
 			}
@@ -1053,13 +1057,13 @@ namespace GB
 					m_Sounds.Emit("chop", m.Name, node->Name, node->Pos, 28.0f, m_Time);
 			Listen(m);
 			if (m.Player) StepPlayer(m);   // H15: a person decides for it (fights too); the clan only hears of it
-			else if (ConflictTurn(m)) { m.Mind.NextThink = m_Time + static_cast<double>(Config.ThinkSeconds) * 0.5; continue; }   // H14: a threat, a fight, a flight or a raid steers it
+			else if (ConflictTurn(m)) { m.Mind.NextThink = m_Time + static_cast<double>(Config.Simulation.DecisionSeconds) * 0.5; continue; }   // H14: a threat, a fight, a flight or a raid steers it
 			else if (!IsBusy(m))
 			{
 				if (!m.Job.empty()) Finish(m);
 				if (m.Job.empty()) Decide(m);
 			}
-			m.Mind.NextThink = m_Time + static_cast<double>(IsBusy(m) ? Config.BusyThinkSeconds * (m.Abstract ? 4.0f : 1.0f) : m.Job == "rest" ? Config.IdleThinkSeconds : Config.ThinkSeconds);
+			m.Mind.NextThink = m_Time + static_cast<double>(IsBusy(m) ? Config.Simulation.BusyThinkSeconds * (m.Abstract ? 4.0f : 1.0f) : m.Job == "rest" ? Config.Simulation.IdleThinkSeconds : Config.Simulation.DecisionSeconds);
 		}
 		m_Cost.Thinks = m_Cost.Budget - budget;
 		m_Cost.ThinkMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - thinkStart).count();
@@ -1117,7 +1121,7 @@ namespace GB
 			a.Name = m.Name;
 			a.Alive = !m.Dead && m.Body;
 			a.Pos = a.Alive ? Where(m) : glm::vec2(0.0f);
-			a.AtCamp = a.Alive && glm::distance(a.Pos, Config.Camp) <= kNearCamp * 2.0f;
+			a.AtCamp = a.Alive && glm::distance(a.Pos, Config.Economy.Camp) <= Config.Community.NearCampRadius * 2.0f;
 			a.Idle = m.Job.empty() || m.Job == "rest" || m.Job == "warm" || m.Job == "socialize" || m.Job == "regroup" || m.Job == "eat" || m.Job == "experiment";
 			if (lesson && a.Alive && a.AtCamp)   // H9 + H10: a child learns faster, an elder teaches better, and each would rather learn from its parents
 			{
@@ -1301,7 +1305,7 @@ namespace GB
 				const float d = glm::distance(pos, e->Pos);
 				if (friendName.empty() || d < friendDistance) { friendName = e->Name; friendDistance = d; }
 			}
-			if (!friendName.empty() && friendDistance > kCompany * 0.5f)
+			if (!friendName.empty() && friendDistance > Config.Community.CompanyRadius * 0.5f)
 			{
 				UtilityOption o;
 				o.Kind = "socialize";
@@ -1417,7 +1421,7 @@ namespace GB
 		}
 
 		// light the campfire once the store can pay for it
-		if (weight("fire") > 0.0f && !HasFire() && !tool.empty() && hasTool && ToolsReady() && m_Store.Count("wood") >= 4 && m_Store.Count("stone") >= 3)
+		if (weight("fire") > 0.0f && !HasFire() && !tool.empty() && hasTool && ToolsReady() && m_Store.Count("wood") >= Config.Economy.FireWoodRequired && m_Store.Count("stone") >= Config.Economy.FireStoneRequired)
 		{
 			UtilityOption o;
 			o.Kind = "fire";
@@ -1475,10 +1479,10 @@ namespace GB
 				o.Kind = "explore";
 				o.Target = what;
 				const float angle = (static_cast<float>(mind.ExploreCount) * 2.3999632f + Hash01(m.Name, 7) * 2.0f * kPi);
-				const float radius = Config.ExploreRadius + 8.0f * static_cast<float>(mind.ExploreCount % 4);
-				o.Where = Config.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
+				const float radius = Config.Exploration.ExploreRadius + Config.Exploration.RadiusPerTrip * static_cast<float>(mind.ExploreCount % 4);
+				o.Where = Config.Economy.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
 				for (int k = 1; k < 8 && !m.Body->CanReach(o.Where); ++k)   // not into a lake or a cliff: try the next angle
-					o.Where = Config.Camp + glm::vec2(std::cos(angle + 0.7f * static_cast<float>(k)), std::sin(angle + 0.7f * static_cast<float>(k))) * radius;
+					o.Where = Config.Economy.Camp + glm::vec2(std::cos(angle + 0.7f * static_cast<float>(k)), std::sin(angle + 0.7f * static_cast<float>(k))) * radius;
 				o.Score = want;
 				Factor(o, "unknown", want);
 				o.Note = "knows no " + what;
@@ -1677,7 +1681,7 @@ namespace GB
 			const std::string kind = e->Kind;
 			const auto def = m_Defs.find(kind);
 			const glm::vec2 pos = Where(m);
-			const bool fresh = m_Time - e->Seen <= static_cast<double>(Config.FreshSeconds) && e->Amount != 0 && !e->Heard;
+			const bool fresh = m_Time - e->Seen <= static_cast<double>(Config.Exploration.FreshSeconds) && e->Amount != 0 && !e->Heard;
 			const float gap = glm::distance(pos, e->Pos);
 			if (!fresh && gap > 3.5f)
 			{
@@ -1705,7 +1709,7 @@ namespace GB
 			// H7: its aptitude for the family of the node gives more gathers per trip and less time between them (data: SkillRules Yield, Speed)
 			const std::string family = SkillFamilyOf(kind);
 			const float skill = SkillEffect(m.Skills, Config.Work.Skills, family, IsProfession(m, family));
-			const int most = std::max(1, static_cast<int>(std::lround(static_cast<float>(Config.Swings) * vigor * (1.0f + Config.Work.Skills.Yield * skill))));
+			const int most = std::max(1, static_cast<int>(std::lround(static_cast<float>(Config.Economy.Swings) * vigor * (1.0f + Config.Work.Skills.Yield * skill))));
 			const int swings = std::max(1, std::min(most, (amount + per - 1) / per));
 			const std::string ability = def != m_Defs.end() && !def->second.Ability.empty() ? def->second.Ability : AbilityFor(kind);
 			char pause[32] = "wait 1";
@@ -1958,14 +1962,14 @@ namespace GB
 		if (m_InteractiveDefs)
 			if (const auto it = m_InteractiveDefs->find(Config.FireDef); it != m_InteractiveDefs->end() && it->second.Kind == "campfire") def = it->second;
 		if (const EntityId old = m_Entities->FindByName(Config.FireName); old != NullEntity) m_Entities->Destroy(old);
-		const EntityId id = BuildInteractive(*m_Entities, def, Config.FireName, NullEntity, { FirePos().x, Config.CampY, FirePos().y });
+		const EntityId id = BuildInteractive(*m_Entities, def, Config.FireName, NullEntity, { FirePos().x, Config.Economy.CampY, FirePos().y });
 		Entity& e = *m_Entities->Find(id);
 		const bool lit = fuel >= 1.0f;
 		GameplayComponent& g = *e.Gameplay;
 		g.Tags.erase(std::remove_if(g.Tags.begin(), g.Tags.end(), [](const std::string& t) { return t == "State.Unlit" || t == "State.Lit" || t == "State.Out"; }), g.Tags.end());
 		g.Tags.push_back(lit ? "State.Lit" : "State.Out");
 		for (GameplayAttribute& a : g.Attributes) if (a.Name == "Fuel") a.Value = std::min(std::max(fuel, a.Min), a.Max);
-		g.Attributes.push_back({ "BurnSeconds", Config.FireSeconds / std::max(Config.FireHeat, 0.01f), 0.0f, 1e6f });
+		g.Attributes.push_back({ "BurnSeconds", Config.Economy.FireSeconds / std::max(Config.FireHeat, 0.01f), 0.0f, 1e6f });
 		for (const char* part : { " Flame", " Light" })
 			if (const EntityId p = m_Entities->FindByName(e.Name + part); p != NullEntity) m_Entities->Find(p)->Active = lit;
 		AbilitySystemComponent* a = m_Gameplay->Find(e.Name);   // reused when there is one: the interactives keep their listeners on it
@@ -2026,7 +2030,7 @@ namespace GB
 		if (m_LodTimer != 0.0f) j["lod"] = m_LodTimer;   // the clock of the level of detail: abstract members walk otherwise, so a load must look at the viewer when the run did
 		if (m_PlanTimer != 0.0f) j["plan"] = m_PlanTimer;   // the settlement planner's clock (its sites are entities, saved with the scene)
 		j["fire"] = m_Fire ? 1 : 0;   // its state is the interactive's (tags and attributes, saved with the gameplay)
-		j["camp"] = Json::array({ Config.Camp.x, Config.Camp.y, Config.CampY });
+		j["camp"] = Json::array({ Config.Economy.Camp.x, Config.Economy.Camp.y, Config.Economy.CampY });
 		j["store"] = Json::parse(m_Store.ToJson());
 		j["clan"] = Json::parse(m_Clan.ToJson());
 		j["soundSeq"] = m_Sounds.LastSeq();
@@ -2134,8 +2138,8 @@ namespace GB
 		m_Fire = j.value("fire", 0) != 0;
 		if (j.contains("camp") && j["camp"].is_array() && j["camp"].size() == 3)
 		{
-			Config.Camp = { j["camp"][0].get<float>(), j["camp"][1].get<float>() };
-			Config.CampY = j["camp"][2].get<float>();
+			Config.Economy.Camp = { j["camp"][0].get<float>(), j["camp"][1].get<float>() };
+			Config.Economy.CampY = j["camp"][2].get<float>();
 		}
 		m_Claims.clear();
 		if (j.contains("claims") && j["claims"].is_object())
@@ -2151,7 +2155,7 @@ namespace GB
 		{
 			const bool burning = j.value("burning", 0) != 0;
 			const float timer = j.value("fireTimer", 0.0f), heat = j.value("fireHeat", 0.0f);
-			const float left = heat + (burning ? Config.FireHeat * std::max(0.0f, 1.0f - timer / std::max(Config.FireSeconds, 0.01f)) : 0.0f);
+			const float left = heat + (burning ? Config.FireHeat * std::max(0.0f, 1.0f - timer / std::max(Config.Economy.FireSeconds, 0.01f)) : 0.0f);
 			BuildFire(std::ceil(left - 0.001f));
 		}
 		m_WasBurning = FireBurning();
