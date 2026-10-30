@@ -1,4 +1,5 @@
 #include "GB/Game/Tribe.h"
+#include "GB/Game/TribePriorities.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -1546,6 +1547,9 @@ namespace GB
 			const auto it = m.Unreachable.find("job:" + o.Kind);
 			return it != m.Unreachable.end() && it->second.first > now;
 		}), opts.end());
+
+		// PRIORITY-GRAPH HOOK (2/2): the graph of its role or of itself rescores the options (only when a library is set; GB/Game/TribePriorities.cpp)
+		if (Priorities) ApplyPriorityGraphs(*this, m, *Priorities, opts);
 
 		// choose, and fall back on the next best when the orders cannot be given
 		Commitment current = mind.Current;

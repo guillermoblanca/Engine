@@ -1,0 +1,52 @@
+{
+  "author": "GB",
+  "description": "Included graph: how pressing a need is (0 satisfied .. 1 empty) from the parameter 'level' (0..100).",
+  "edges": [
+    {
+      "from": "level",
+      "to": "urgent",
+      "weight": 1.0
+    },
+    {
+      "from": "urgent",
+      "to": "result",
+      "weight": 1.0
+    }
+  ],
+  "id": "fragment_need_urgency",
+  "kind": "priority_graph",
+  "name": "Need urgency (fragment)",
+  "nodes": [
+    {
+      "id": "level",
+      "params": {
+        "default": 100.0
+      },
+      "type": "param",
+      "x": 0.0,
+      "y": 0.0
+    },
+    {
+      "fn": "urgency",
+      "id": "urgent",
+      "params": {
+        "from": 60.0
+      },
+      "type": "curve",
+      "x": 200.0,
+      "y": 0.0
+    },
+    {
+      "id": "result",
+      "type": "return",
+      "x": 400.0,
+      "y": 0.0
+    }
+  ],
+  "revision": 1,
+  "tags": [
+    "fragment"
+  ],
+  "template": false,
+  "version": 1
+}

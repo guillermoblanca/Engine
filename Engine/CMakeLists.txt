@@ -82,6 +82,9 @@ add_library(GB STATIC
     src/GB/AI/Memory.cpp
     src/GB/AI/Needs.cpp
     src/GB/AI/Utility.cpp
+    src/GB/AI/PriorityGraph.cpp
+    src/GB/AI/PriorityLibrary.cpp
+    src/GB/Game/TribePriorities.cpp
     src/GB/AI/Mind.cpp
     src/GB/AI/Abstract.cpp
     src/GB/Audio/AudioClip.cpp

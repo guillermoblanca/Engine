@@ -28,6 +28,7 @@
 #include <functional>
 #include <glm/glm.hpp>
 #include <map>
+#include <memory>
 #include <set>
 #include <unordered_map>
 #include <string>
@@ -229,6 +230,7 @@ namespace GB
 	};
 
 	class Tribe;
+	class PriorityLibrary;   // GB/AI/PriorityLibrary.h
 
 	// H13: what the clans around a tribe add to the lives of its members (GB/Game/Clans.h sets it; a tribe alone has none). The options of its own
 	// it adds to a member's decision (an envoy going to a meeting), carrying them out and their end (the tribe hands it the options and jobs of the
@@ -503,6 +505,8 @@ namespace GB
 		std::string CultureReport() const { return m_Society.Culture(Config.Society); }
 
 		// ---- H13: the clans around (GB/Game/Clans.h; TribeClans.cpp). What they add to the members' lives, and what they need of the tribe to do it.
+		// PRIORITY-GRAPH HOOK (1/2): graphs that rescore the options of Decide, per role or member (GB/AI/PriorityLibrary.h, docs/GRAFO_PRIORIDADES.md). Empty = none.
+		std::shared_ptr<PriorityLibrary> Priorities;
 		void SetOutside(TribeOutside outside) { m_Outside = std::move(outside); }
 		// Names other clans already use: a child is not given one (members' names are the actors' and must be unique in the world).
 		void SetNameTaken(std::function<bool(const std::string&)> taken) { m_NameTaken = std::move(taken); }
