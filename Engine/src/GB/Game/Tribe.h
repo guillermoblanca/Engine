@@ -619,6 +619,8 @@ namespace GB
 		PlayerAct PlayerAttack(const std::string& player, const std::string& target = std::string());
 		PlayerAct PlayerBlock(const std::string& player);
 		PlayerAct PlayerFlee(const std::string& player);
+		PlayerAct PlayerStop(const std::string& player);   // breaks off the fight the player is in (and the chase of its foe): nothing is lost, the foe may come after it
+		bool PlayerFighting(const std::string& player, float* gap = nullptr) const;   // in a fight with a foe still alive; gap = metres beyond its weapon's reach
 		// Health, stamina and wounds of a player for the interface ("" without a combat system).
 		std::string PlayerCondition(const std::string& player) const;
 		// For people: standing, what it has done, its job and bed; the proposals and their votes.

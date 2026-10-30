@@ -494,6 +494,13 @@ namespace GB
 		manual.CameraYaw = m_ViewYaw;
 		if (m_HasManual) manual = m_Manual;
 		m_HasManual = false;
+		// a person at the keys takes the body back from an AI walk or a task list (a chase, a trip to a node): the orders are dropped, the keys count
+		if ((m_Source == OrderSource::AI || m_Source == OrderSource::Tasks) && (glm::length(manual.Move) > 0.1f || manual.Jump))
+		{
+			m_Tasks.Clear();
+			m_AI.Stop();
+			m_Source = OrderSource::Direct;
+		}
 		switch (m_Source)
 		{
 		case OrderSource::Script:

@@ -683,6 +683,8 @@ namespace GB
 		items.Add(Fuel(Def("stake", "Stake",       "resource", 1.5f, 10, { "Item.Resource.Wood.Stake" }, "", ""), 1));
 		items.Add(Def("fired_brick", "Fired brick", "resource", 2.5f, 10, { "Item.Resource.Brick.Fired" }, "", ""));
 		items.Add(Def("flint_spear", "Flint spear", "weapon", 1.8f, 1, { "Item.Weapon.Spear" }, "", "RightHand"));
+		items.Add(Def("flint_sword", "Flint sword", "weapon", 2.0f, 1, { "Item.Weapon.Sword" }, "", "RightHand"));
+		items.Add(Def("hunting_bow", "Hunting bow", "weapon", 1.2f, 1, { "Item.Weapon.Bow" }, "", "LeftHand"));
 		{
 			// a leather bag is a better container than the basket: three more slots
 			ItemDef bag = Def("leather_bag", "Leather bag", "container", 1.0f, 1, { "Item.Container.Bag" }, "", "");
@@ -705,6 +707,8 @@ namespace GB
 		recipes.Add({ "daub",        "",             "",              { { "clay", 2 }, { "fiber", 1 } },                     "daub",        2, "Craft" });
 		recipes.Add({ "reed_mat",    "",             "",              { { "reed", 4 }, { "cordage", 1 } },                   "reed_mat",    1, "Craft" });
 		recipes.Add({ "stakes",      "",             "Item.Tool.Axe", { { "wood", 1 } },                                     "stake",       2, "Craft" });
+		recipes.Add({ "flint_sword", "workbench",    "",              { { "wood", 1 }, { "flint", 2 }, { "cordage", 1 } },   "flint_sword", 1, "Craft" });
+		recipes.Add({ "hunting_bow", "workbench",    "",              { { "wood", 2 }, { "cordage", 2 } },   "hunting_bow", 1, "Craft" });
 		recipes.Add({ "flint_spear", "workbench",    "",              { { "wood", 1 }, { "flint", 1 }, { "cordage", 1 } },   "flint_spear", 1, "Craft" });
 		recipes.Add({ "fired_brick", "kiln",         "",              { { "clay", 2 }, { "wood", 1 } },                      "fired_brick", 2, "Craft" });
 

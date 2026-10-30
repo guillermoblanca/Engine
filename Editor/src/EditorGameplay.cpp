@@ -874,6 +874,27 @@ namespace GB::Editor
 	}
 
 
+	std::string EditorApp::PickNode(const Ray& ray) const
+	{
+		std::string best;
+		float bestT = 1e30f;
+		const glm::vec3 d = glm::normalize(ray.Dir);
+		for (const auto& [id, e] : m_SceneEditor.World().All())
+		{
+			const AbilitySystemComponent* asc = m_Gameplay.Find(e.Name);
+			if (!asc) continue;
+			bool node = false;
+			for (const auto& [kind, def] : m_NodeDefs) node = node || asc->HasTag("Resource.Node." + kind);
+			if (!node) continue;
+			// the node as a vertical segment of a metre and a half: the closest point of the ray to its middle
+			const glm::vec3 centre = e.Transform.Position + glm::vec3(0.0f, 0.75f, 0.0f);
+			const float s = glm::max(0.0f, glm::dot(centre - ray.Origin, d));
+			const float distance = glm::length(ray.Origin + d * s - centre);
+			if (distance < 1.1f && s < bestT) { bestT = s; best = e.Name; }
+		}
+		return best;
+	}
+
 	std::string EditorApp::PickActor(const Ray& ray) const
 	{
 		std::string best;

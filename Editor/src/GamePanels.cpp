@@ -71,22 +71,37 @@ namespace GB::Editor
 			ImGui::End();
 		}
 
-		// ---- a click picks a character or a node (the character wins, as in the editor); the panel below shows what it is
+		// ---- the left button picks a character or a node (the character wins, as in the editor); the panel below shows what it is.
+		// The right button attacks: a click on someone who is not of the clan (an animal, a stranger) goes for it, one on the ground for the nearest foe;
+		// a click on the ground while fighting, Esc, `game stop` or walking away breaks it off. (A right drag turns the camera: only a click counts.)
 		{
 			ImGuiIO& io = ImGui::GetIO();
 			const glm::vec2 mouse(io.MousePos.x - ox, io.MousePos.y - oy);
-			if (m_ViewportHovered && ImGui::IsMouseClicked(0)) { m_Game.PressX = mouse.x; m_Game.PressY = mouse.y; }
-			else if (m_Game.PressX >= 0.0f && ImGui::IsMouseReleased(0))
+			for (int button = 0; button < 2; ++button)
 			{
-				if (m_ViewportHovered && glm::distance(mouse, glm::vec2(m_Game.PressX, m_Game.PressY)) < 4.0f && m_Game.View != "top-none")
+				float& px = button == 0 ? m_Game.PressX : m_Game.PressRX;
+				float& py = button == 0 ? m_Game.PressY : m_Game.PressRY;
+				if (m_ViewportHovered && ImGui::IsMouseClicked(button)) { px = mouse.x; py = mouse.y; }
+				else if (px >= 0.0f && ImGui::IsMouseReleased(button))
 				{
-					const Ray ray = ScreenRay(m_Camera, mouse / glm::vec2(w, h), w / h);
-					std::string picked = PickActor(ray);
-					if (picked.empty())
-						if (const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.Pick(ray)); e && m_Gameplay.Find(e->Name)) picked = e->Name;
-					m_Game.Selected = picked;   // (a click on nothing clears it)
+					if (m_ViewportHovered && glm::distance(mouse, glm::vec2(px, py)) < 4.0f && m_Game.View != "top-none")
+					{
+						const Ray ray = ScreenRay(m_Camera, mouse / glm::vec2(w, h), w / h);
+						std::string picked = PickActor(ray);
+						if (picked.empty()) picked = PickNode(ray);
+						if (picked.empty())
+							if (const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.Pick(ray)); e && m_Gameplay.Find(e->Name)) picked = e->Name;
+						if (button == 0) m_Game.Selected = picked;   // (a click on nothing clears it)
+						else if (m_Game.View != "top")
+						{
+							const bool node = !picked.empty() && PickNode(ray) == picked;
+							const bool foe = !picked.empty() && !node && picked != m_Game.Player && !m_Tribe.FindMember(picked);
+							if (m_Tribe.PlayerFighting(m_Game.Player) && !foe) run("game stop");
+							else run(foe ? "game attack " + picked : std::string("game attack"));
+						}
+					}
+					px = -1.0f;
 				}
-				m_Game.PressX = -1.0f;
 			}
 		}
 

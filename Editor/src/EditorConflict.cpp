@@ -29,6 +29,13 @@ namespace GB::Editor
 			if (c->Folk->ClanName() != c->Name && !c->Name.empty()) c->Folk->SetClanName(c->Name);
 		}
 		m_Combat.Update(static_cast<float>(1.0 / 60.0), day);
+		{
+			// the animals and strangers of the world do not walk through the characters
+			std::vector<std::pair<glm::vec2, float>> bodies;
+			for (const std::string& name : m_Actors.Names())
+				if (const Actor* actor = m_Actors.Find(name); actor && !actor->Ragdolled()) { const glm::vec3 p = actor->GetPosition(); bodies.push_back({ { p.x, p.z }, actor->Radius() }); }
+			m_Combat.Separate(bodies);
+		}
 		// a character of the scene killed in a fight falls as a ragdoll (an animal or a stand-in just has the state)
 		for (const CombatEvent& e : m_Combat.EventsSince(m_CombatSeq))
 		{

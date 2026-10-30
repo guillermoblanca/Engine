@@ -109,6 +109,8 @@ namespace GB
 		r.Weapons["axe"] = weapon("Item.Tool.Axe", 13.0f, 1.5f, 1.6f, 10.0f, 0.45f, "cut", 2.0f, { "sword_slash_1", "sword_slash_3" }, 0.45f);
 		r.Weapons["pickaxe"] = weapon("Item.Tool.Pickaxe", 11.0f, 1.5f, 1.8f, 11.0f, 0.4f, "cut", 2.0f, { "sword_attack_4" }, 0.5f);
 		r.Weapons["spear"] = weapon("Item.Weapon.Spear", 12.0f, 2.4f, 1.5f, 9.0f, 0.5f, "cut", 2.0f, { "sword_attack_2" }, 0.5f);
+		r.Weapons["sword"] = weapon("Item.Weapon.Sword", 16.0f, 1.7f, 1.2f, 8.0f, 0.55f, "cut", 2.5f, { "sword_slash_1", "sword_slash_2", "sword_attack_3" }, 0.45f);
+		r.Weapons["bow"] = weapon("Item.Weapon.Bow", 10.0f, 14.0f, 1.8f, 7.0f, 0.4f, "cut", 1.5f, { "sword_attack_2" }, 0.6f);   // (ranged: a long reach; the shot is the blow, no arrow in flight yet)
 		r.Weapons["bite"] = weapon("", 6.0f, 1.0f, 1.2f, 6.0f, 0.5f, "bite", 0.0f, {}, 0.4f);
 		PredatorRule fox;
 		fox.Tag = "Animal.Fox";
@@ -1088,6 +1090,35 @@ namespace GB
 		e.Transform.Position.x = pos.x;
 		e.Transform.Position.z = pos.y;
 		c.Pos = pos;
+	}
+
+	int CombatSystem::Separate(const std::vector<std::pair<glm::vec2, float>>& circles, float body)
+	{
+		if (!m_Entities) return 0;
+		int moved = 0;
+		for (auto& [name, c] : m_Fighters)
+		{
+			if (!c.Entity || c.Mode == FightMode::Dead) continue;
+			const EntityId id = m_Entities->FindByName(name);
+			if (id == NullEntity) continue;
+			Entity& e = *m_Entities->Find(id);
+			glm::vec2 pos(e.Transform.Position.x, e.Transform.Position.z);
+			bool pushed = false;
+			for (const auto& [centre, radius] : circles)
+			{
+				const glm::vec2 away = pos - centre;
+				const float gap = glm::length(away), least = radius + body;
+				if (gap >= least) continue;
+				pos = centre + (gap > 1e-4f ? away / gap : glm::vec2(1.0f, 0.0f)) * least;
+				pushed = true;
+			}
+			if (!pushed) continue;
+			e.Transform.Position.x = pos.x;
+			e.Transform.Position.z = pos.y;
+			c.Pos = pos;
+			++moved;
+		}
+		return moved;
 	}
 
 	void CombatSystem::Update(float dt, float daySeconds)
