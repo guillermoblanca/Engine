@@ -5,6 +5,7 @@
 // knowledge, other clans). The rules of what the player does are the tribe's (GB/Game/TribePlayer.cpp): this file only reads keys and the scene.
 // See docs/JUGAR.md.
 #include "EditorApp.h"
+#include "GB/Input.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
@@ -314,6 +315,12 @@ namespace GB::Editor
 			m_Game.PendingKind.clear();
 			m_Tribe.SetPlayerActivity(m_Game.Player, std::string());
 		}
+		// walking away from a fight (a key held with the foe out of reach) breaks it off: a chase of something faster never traps the player
+		if (float gap = 0.0f; m_Tribe.PlayerFighting(m_Game.Player, &gap) && gap > 0.5f && !ImGui::GetIO().WantTextInput && (Input::IsKeyDown(Key::W) || Input::IsKeyDown(Key::A) || Input::IsKeyDown(Key::S) || Input::IsKeyDown(Key::D)))
+		{
+			m_Tribe.PlayerStop(m_Game.Player);
+			GameNote("You break off the fight");
+		}
 		if (me->Job == "sleep" && m_Player.GetSpeed() > 0.5f) m_Tribe.PlayerSleep(m_Game.Player, false);
 		// news from the clan's log
 		const std::vector<std::string>& log = m_Tribe.Log();
@@ -435,6 +442,7 @@ namespace GB::Editor
 		// Esc: closes what is open (the clan sheet, the help), else leaves the game for the editor
 		if (sub == "quit")
 		{
+			if (m_Tribe.PlayerFighting(m_Game.Player)) return GameCommand({ "stop" });   // (Esc first breaks off a fight)
 			if (m_Game.ClanPanel || m_Game.Help || m_Game.Inventory || m_Game.People || m_Game.Build) { m_Game.ClanPanel = m_Game.Help = m_Game.Inventory = m_Game.People = m_Game.Build = false; return { true, "closed" }; }
 			m_Game.Menu = !m_Game.Menu;   // (Esc again closes it; the editor is one of its buttons, not a slip of the finger)
 			return { true, m_Game.Menu ? "menu" : "menu closed" };
@@ -557,9 +565,12 @@ namespace GB::Editor
 		if (sub == "attack")
 		{
 			const Tribe::PlayerAct r = m_Tribe.PlayerAttack(me, arg(1));
-			if (r.Ok)
-				if (const Combatant* self = m_Combat.Find(me); self && !self->Target.empty())
-					if (const Combatant* foe = m_Combat.Find(self->Target)) m_Player.MoveTo(foe->Pos, true);   // into reach: the combat swings there
+			return act(r);   // (the player closes on its foe by itself, running: Tribe::StepPlayer; a key or `game stop` breaks it off)
+		}
+		if (sub == "stop")
+		{
+			const Tribe::PlayerAct r = m_Tribe.PlayerStop(me);
+			if (Actor* actor = m_Actors.Find(me); actor && r.Ok) actor->ReleaseOrders();
 			return act(r);
 		}
 		if (sub == "block") return act(m_Tribe.PlayerBlock(me));

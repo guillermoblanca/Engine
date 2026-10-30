@@ -146,9 +146,9 @@ namespace GB
 					else if (glm::distance(at, foe->Pos) > reach * 0.9f && (!mc.Ordered || glm::distance(mc.Goal, foe->Pos) > 1.2f))
 					{
 						const glm::vec2 dir = glm::normalize(foe->Pos - at);
-						const glm::vec2 stop = foe->Pos - dir * reach * 0.6f;
+						const glm::vec2 stop = foe->Pos - dir * std::max(reach * 0.6f, 0.9f);   // (never inside the body of the foe)
 						char go[64];
-						std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 0.1", static_cast<double>(stop.x), static_cast<double>(stop.y));
+						std::snprintf(go, sizeof go, "goto %.2f %.2f run | wait 0.1", static_cast<double>(stop.x), static_cast<double>(stop.y));
 						if (Order(m, go)) { mc.Goal = stop; mc.Ordered = true; }
 					}
 				}
@@ -240,6 +240,29 @@ namespace GB
 		std::string why;
 		if (!asc->Activate("Block", nullptr, &why)) return { false, "you cannot block now" + (why.empty() ? std::string() : ": " + why) };
 		return { true, "you raise your guard" };
+	}
+
+	bool Tribe::PlayerFighting(const std::string& player, float* gap) const
+	{
+		const Combatant* c = m_Combat ? m_Combat->Find(player) : nullptr;
+		if (!c || c->Mode != FightMode::Engage) return false;
+		const Combatant* foe = m_Combat->Find(c->Target);
+		if (!foe || foe->Mode == FightMode::Dead) return false;
+		if (gap) *gap = glm::distance(c->Pos, foe->Pos) - m_Combat->Rules.Weapon(c->Weapon).Reach;
+		return true;
+	}
+
+	Tribe::PlayerAct Tribe::PlayerStop(const std::string& player)
+	{
+		TribeMember* m = MemberNamed(player);
+		if (!m || !m->Player || !m_Combat) return { false, "no player called " + player + " in the clan" };
+		Combatant* c = m_Combat->Find(player);
+		if (!c || c->Mode != FightMode::Engage) return { false, "you are not attacking anyone" };
+		const std::string foe = c->Target;
+		m_Combat->Release(player);
+		m_Conflict.Members[player].Ordered = false;
+		Say(*m, "breaks off from " + foe);
+		return { true, "you stop attacking " + foe };
 	}
 
 	Tribe::PlayerAct Tribe::PlayerFlee(const std::string& player)

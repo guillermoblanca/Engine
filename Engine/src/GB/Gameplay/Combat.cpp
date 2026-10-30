@@ -1092,6 +1092,35 @@ namespace GB
 		c.Pos = pos;
 	}
 
+	int CombatSystem::Separate(const std::vector<std::pair<glm::vec2, float>>& circles, float body)
+	{
+		if (!m_Entities) return 0;
+		int moved = 0;
+		for (auto& [name, c] : m_Fighters)
+		{
+			if (!c.Entity || c.Mode == FightMode::Dead) continue;
+			const EntityId id = m_Entities->FindByName(name);
+			if (id == NullEntity) continue;
+			Entity& e = *m_Entities->Find(id);
+			glm::vec2 pos(e.Transform.Position.x, e.Transform.Position.z);
+			bool pushed = false;
+			for (const auto& [centre, radius] : circles)
+			{
+				const glm::vec2 away = pos - centre;
+				const float gap = glm::length(away), least = radius + body;
+				if (gap >= least) continue;
+				pos = centre + (gap > 1e-4f ? away / gap : glm::vec2(1.0f, 0.0f)) * least;
+				pushed = true;
+			}
+			if (!pushed) continue;
+			e.Transform.Position.x = pos.x;
+			e.Transform.Position.z = pos.y;
+			c.Pos = pos;
+			++moved;
+		}
+		return moved;
+	}
+
 	void CombatSystem::Update(float dt, float daySeconds)
 	{
 		if (!m_Gameplay || !m_Entities) return;

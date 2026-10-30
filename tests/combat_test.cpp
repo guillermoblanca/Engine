@@ -332,6 +332,16 @@ int main()
 		Check(LoadCombatRules("{ \"combat\": " + CombatRulesToJson(DefaultCombatRules()) + " }", back).empty() && back == DefaultCombatRules(), "the combat section round-trips");
 		CombatRules keep = DefaultCombatRules();
 		Check(!LoadCombatRules(R"({ "combat": { "hits": { "base": 0.5 }, "injuries": { "lethal": -1 } } })", keep).empty() && keep == DefaultCombatRules(), "a bad number is refused and nothing changes (not even the part before it)");
+		{
+			// nobody walks through anybody: a fighter of the scene inside the body of a character is put out at the edge of it, one outside is left alone
+			World w;
+			w.Stranger("Arn", "North", { 0.1f, 0.0f }, 1.0f);
+			w.Stranger("Bod", "South", { 5.0f, 0.0f }, 1.0f);
+			const int moved = w.Combat.Separate({ { { 0.0f, 0.0f }, 0.4f } }, 0.35f);
+			const glm::vec2 a = w.Combat.Find("Arn")->Pos, b = w.Combat.Find("Bod")->Pos;
+			Check(moved == 1 && glm::length(a) >= 0.75f - 1e-3f && b == glm::vec2(5.0f, 0.0f), "a fighter inside a character is put out at its edge and one clear of it stays");
+			Check(w.Combat.Separate({ { { 0.0f, 0.0f }, 0.4f } }, 0.35f) == 0, "separating again moves nobody");
+		}
 		Check(!LoadCombatRules(R"({ "combat": { "duels": {} } })", keep).empty() && !LoadCombatRules(R"({ "combat": { "morale": { "courage": 1 } } })", keep).empty(), "an unknown part or key is refused");
 		Check(!LoadCombatRules(R"({ "combat": { "predators": { "wolf": { "tag": "Animal.Wolf", "prey": "babies" } } } })", keep).empty(), "an unknown kind of prey is refused");
 		Check(!LoadCombatRules(R"({ "combat": { "predators": { "wolf": { "tag": "Animal.Wolf", "weapon": "claws" } } } })", keep).empty(), "a predator with a weapon that does not exist is refused");
