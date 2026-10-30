@@ -594,7 +594,7 @@ namespace GB
 		};
 		if (has("teach") && !IsChild(m)) if (std::string tech = teachable(); !tech.empty()) { about = tech; return "teach"; }
 		const float hour = Hour();
-		const bool evening = hour >= Config.Needs.NightFrom - Config.Agenda.DuskHours || hour < Config.Needs.NightTo;
+		const bool evening = IsEvening(Day(), hour);
 		const bool teller = pm && (m_Society.StageOf(S, m.Name) == Society::Stage::Elder || pm->Age >= T.StoryAge || trait(pm, "sociability") >= T.StorySociability);
 		if (has("story") && teller && evening) { about = teachable(); return "story"; }
 		const auto talked = m_Social.Find(m.Name);
@@ -645,7 +645,7 @@ namespace GB
 		if (!T.Kinds.empty() && m_Time - me.LastTalk >= static_cast<double>(T.Cooldown))
 		{
 			const float hourNow = Hour();
-			const bool eveningNow = hourNow >= Config.Needs.NightFrom - Config.Agenda.DuskHours || hourNow < Config.Needs.NightTo;
+			const bool eveningNow = IsEvening(Day(), hourNow);
 			const TribeMember* best = nullptr;
 			float bestScore = -1e9f, bestDistance = 0.0f;
 			for (const TribeMember& o : m_Members)
@@ -671,7 +671,7 @@ namespace GB
 					const float pressing = kind == "console" || kind == "settle" || kind == "share" ? 1.5f : 1.0f;
 					const float agenda = AgendaFactor(m.Role, "socialize", Hour(), CurrentSeason());
 					const float hour = Hour();
-					const bool evening = (hour >= Config.Needs.NightFrom - Config.Agenda.DuskHours || hour < Config.Needs.NightTo) && glm::distance(pos, Config.Economy.Camp) < 15.0f;
+					const bool evening = (IsEvening(Day(), hour)) && glm::distance(pos, Config.Economy.Camp) < 15.0f;
 					const float fire = evening ? T.Evening : 1.0f;   // (the evening at the camp is the time for talk)
 					UtilityOption o;
 					o.Kind = "talk";
@@ -811,7 +811,7 @@ namespace GB
 		if (!Order(m, GoTo(o.Where - dir * 0.6f, WaitFor(k.Seconds)))) return false;
 		m.Job = "talk";
 		m.Detail = kind + " " + other->Name + (about.empty() ? std::string() : " " + about);
-		if (Idle(*other) || EveningFree(*other, Hour() >= Config.Needs.NightFrom - Config.Agenda.DuskHours || Hour() < Config.Needs.NightTo)) Send(*other, GoTo(o.Where + dir * 0.6f, WaitFor(k.Seconds + 1.5f)), "talk", kind + " " + m.Name + " listening");
+		if (Idle(*other) || EveningFree(*other, IsEvening(Day(), Hour()))) Send(*other, GoTo(o.Where + dir * 0.6f, WaitFor(k.Seconds + 1.5f)), "talk", kind + " " + m.Name + " listening");
 		return true;
 	}
 

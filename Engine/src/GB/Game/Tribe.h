@@ -17,6 +17,7 @@
 #include "GB/Game/Society.h"
 #include "GB/Game/Social.h"
 #include "GB/Game/Production.h"
+#include "GB/Game/Schedule.h"
 #include "GB/Game/SettlementPlanner.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Ecology.h"
@@ -111,7 +112,6 @@ namespace GB
 	};
 
 	// The parts of the day of the agenda (see TribeAgenda): "night", "dusk" (the hours before the night) and "day" (the rest).
-	using AgendaFactors = std::map<std::string, std::map<std::string, float>>;   // part of the day -> option kind ("gather", "sleep"...) -> factor
 
 	// A role: how much it likes each option and the tool of its trade. Data, so a new role or a new kind of node needs no code. The weight of gathering
 	// from a node is looked up by the node's id ("fiber_grass"), then by its kind from the most specific up ("Resource.Stone.Flint", then "Resource.Stone"),
@@ -693,6 +693,7 @@ namespace GB
 		glm::vec2 CampSpot(const TribeMember& m) const;
 		glm::vec2 FireSpot(const TribeMember& m) const;
 		glm::vec2 StandingSpot(const TribeMember& m, const glm::vec2& centre, float angle, float radius, bool path = true) const;
+		DayShape Day() const { return { Config.Needs.NightFrom, Config.Needs.NightTo, Config.Agenda.DuskHours, Config.DuskShift }; }   // the shape of the day (Schedule.h)
 		glm::vec2 FirePos() const { return Config.Economy.Camp + glm::vec2(1.5f, 0.0f); }
 		size_t IndexOf(const TribeMember& m) const;
 		std::string WhyNot(const std::string& kind) const;

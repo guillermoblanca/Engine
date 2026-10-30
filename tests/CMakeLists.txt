@@ -287,6 +287,11 @@ add_executable(GBSettlementPlannerTests settlement_planner_test.cpp)
 target_link_libraries(GBSettlementPlannerTests PRIVATE GB::GB)
 add_test(NAME settlement_planner COMMAND GBSettlementPlannerTests)
 
+# The timetable alone (parts of the day, shifts, agenda factors)
+add_executable(GBScheduleTests schedule_test.cpp)
+target_link_libraries(GBScheduleTests PRIVATE GB::GB)
+add_test(NAME schedule COMMAND GBScheduleTests)
+
 # H7: aptitudes by practice, the job board and the trades of the clan (TribeWork, Skills, JobBoard)
 add_executable(GBWorkTests work_test.cpp)
 target_link_libraries(GBWorkTests PRIVATE GB::GB)

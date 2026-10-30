@@ -731,24 +731,7 @@ namespace GB
 	{
 		const auto role = roleName.empty() ? Config.Roles.end() : Config.Roles.find(roleName);
 		const TribeRole* r = role != Config.Roles.end() ? &role->second : nullptr;
-		if (r && r->NightShift != 0.0f) { hour = std::fmod(hour - r->NightShift, 24.0f); if (hour < 0.0f) hour += 24.0f; }
-		const float shift = season == Season::Winter ? Config.DuskShift : season == Season::Autumn ? Config.DuskShift * 0.5f : 0.0f;
-		const float dusk = Config.Needs.NightFrom - Config.Agenda.DuskHours - shift, night = Config.Needs.NightFrom - shift;
-		const bool inNight = hour >= night || hour < Config.Needs.NightTo;
-		const char* part = inNight ? "night" : hour >= dusk ? "dusk" : "day";
-		auto lookup = [&](const AgendaFactors& factors, float& out)
-		{
-			const auto p = factors.find(part);
-			if (p == factors.end()) return false;
-			const auto k = p->second.find(kind);
-			if (k == p->second.end()) return false;
-			out = k->second;
-			return true;
-		};
-		float f = 1.0f;
-		if (r && lookup(r->Agenda, f)) return f;
-		lookup(Config.Agenda.Factors, f);
-		return f;
+		return ScheduleFactor(Day(), Config.Agenda.Factors, r ? &r->Agenda : nullptr, r ? r->NightShift : 0.0f, kind, hour, season);
 	}
 
 	// What the camp uses up: thatch and rope (fibre) and the berries that spoil. Without sinks the stores fill and everyone rests for good.
