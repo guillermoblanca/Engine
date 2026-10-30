@@ -193,10 +193,8 @@ int main(int argc, char** argv)
 	if (forests && era)   // --forest: the forest pack and the patches of bosques.json (docs/BOSQUES.md) on top of the era
 	{
 		GB::ContentReport report;
-		if (const std::string error = era->Packs.Load("era1_bosque", std::string(GB_ASSETS_DIR) + "/data", &report); !error.empty()) { std::fprintf(stderr, "%s
-", error.c_str()); return 1; }
-		if (const std::string error = GB::LoadNatureConfigFile(std::string(GB_ASSETS_DIR) + "/data/bosques.json", era->Nature); !error.empty()) { std::fprintf(stderr, "%s
-", error.c_str()); return 1; }
+		if (const std::string error = era->Packs.Load("era1_bosque", std::string(GB_ASSETS_DIR) + "/data", &report); !error.empty()) { std::fprintf(stderr, "%s\n", error.c_str()); return 1; }
+		if (const std::string error = GB::LoadNatureConfigFile(std::string(GB_ASSETS_DIR) + "/data/bosques.json", era->Nature); !error.empty()) { std::fprintf(stderr, "%s\n", error.c_str()); return 1; }
 		setup.Nature = &era->Nature;
 	}
 	setup.Members = members * clans;
