@@ -179,7 +179,7 @@ public:
 		Rules.Bind(Gameplay,
 			[this](const std::string&, const std::string& item, int n) { return Body->Bag().Remove(item, n); },
 			[this](const std::string&, const std::string& item, int n) { return Body->Bag().Add(Items, item, n); });
-		Brain.Config.Camp = settings.Camp;
+		Brain.Config.Economy.Camp = settings.Camp;
 		Brain.AddMember("Hero", "forager", Body.get());
 		if (from)
 		{
@@ -276,9 +276,8 @@ public:
 		const glm::vec2 camp(0.0f, -8.0f);
 		static const char* const roles[] = { "forager", "woodcutter", "miner", "forager" };
 		Brain.Bind(Entities, Gameplay, Items, Recipes, Defs);
-		Brain.Config.Camp = camp;
-		Brain.Config.DetailRadius = 25.0f;
-		Brain.Config.StockCap = 400;
+		Brain.Config.Economy.Camp = camp;
+		Brain.Config.Performance.DetailRadius = 25.0f;
 		Brain.Config.Econ.Logistics.Stores["main"].Cap = 400;   // (H18: the cap of the main store is the economy rules')
 		Brain.Store().Add(Items, "wood", 2 + 2 * n);
 		Brain.Store().Add(Items, "stone", 3 * n);
@@ -475,7 +474,7 @@ int main()
 	{
 		Settings s;
 		World w(s);
-		w.Brain.Config.LogLines = 40;
+		w.Brain.Config.Simulation.LogLines = 40;
 		w.Brain.AddMember("Ghost", "forager", nullptr);
 		w.Run(1500.0);
 		Check(w.Brain.Log().size() <= 52, "the log keeps only its last lines");

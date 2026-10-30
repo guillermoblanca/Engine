@@ -342,7 +342,7 @@ namespace GB
 
 		if (job.Kind == "make" || job.Kind == "farm" || job.Kind == "haul") return EconomyJobScore(m, job);   // H18
 		if (job.Kind == "deliver" || job.Kind == "build") return SettlementJobScore(m, job) * vigor;   // H8 (Settlement.cpp)
-		const float home = Falloff(glm::distance(pos, Config.Camp), 100.0f);
+		const float home = Falloff(glm::distance(pos, Config.Economy.Camp), 100.0f);
 		if (job.Kind == "craft")
 		{
 			const auto role = Config.Roles.find(m.Role);

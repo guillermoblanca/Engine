@@ -57,7 +57,7 @@ namespace GB
 		// H16: ONE budget of turns at looking around and deciding for all the clans of a frame (time-sliced thinking across clans). Each clan gets
 		// the turns it needs so none of its members falls behind (Tribe::ThinksNeeded) and what is left of ThinkPerFrame is shared by members, the
 		// largest remainders first and ties by clan order: no state, so a loaded game shares it as one that never stopped. With a single clan the
-		// tribe keeps its own rule (TribeConfig::ThinkPerFrame), exactly as before H16. 0 = every clan its own rule (the sum of them: the old way).
+		// tribe keeps its own rule (TribeConfig::Simulation.ThinkPerFrame), exactly as before H16. 0 = every clan its own rule (the sum of them: the old way).
 		int ThinkPerFrame = 6;
 		// What the last Update cost (measured; nothing in the simulation reads it): the perf line `stats ai` and the scale tests.
 		struct FrameCost

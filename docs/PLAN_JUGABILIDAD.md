@@ -55,12 +55,22 @@ Hoy los personajes son intercambiables. Propuesta: una capa de **aspecto por dat
 
 Es una preocupación fundada **(verificado)**: `Tribe` es una clase de ~7.000 líneas repartidas en 10 ficheros (`Tribe.cpp` solo tiene más de 2.100) con un único `Tribe.h` de ~870 líneas. Economía, asentamientos, sociedad, conflicto, telemetría y visuales cuelgan de ella y se tocan entre sí (por eso arreglar una cosa rompe un test social).
 
-No proponemos reescribirla de golpe. Se separa **según se toca**, siempre con los tests verdes:
+No proponemos reescribirla de golpe. Se separa **según se toca**, siempre con los tests verdes y con el mismo resultado de `GBSim --seed=2 --days=2 --clans=3 --members=6 --combat --hostile` (se compara un resumen de las tablas de telemetría antes y después de cada módulo).
 
-1. `SettlementPlanner` (qué construir y dónde) fuera de `Tribe` — se hace en F2.
-2. `Logistics` (transporte y demandas) — F3.
-3. `Household` y `Lifecycle` (familias, partos, etapas) — F4 y sección 2.
-4. `Schedule` (horario) — F5.
+**Hecho (refactor sin cambio de comportamiento):**
+
+- **Configuración agrupada.** `TribeConfig` ya no es una lista plana: `Simulation` (`DecisionSeconds`, `PerceptionSeconds`, `LodUpdateSeconds`, `NeedSeconds`, `BusyThinkSeconds`, `IdleThinkSeconds`, `ThinkPerFrame`, `LogLines`), `Economy` (lo de comida y stock más `Camp`, `CampY`, `StoreCapacity`, `DepositAt`, `Swings`, `FireSeconds`, `UpkeepSeconds`, `FireWoodRequired`, `FireStoneRequired`), `Exploration` (`ExploreRadius`, `RadiusPerTrip`, `FreshSeconds`), `Community` (`ShareSeconds`, `CompanyRadius`, `NearCampRadius`, `NearFireRadius`, `Hearing`; no se llama `Social` porque `Config.Social` son las reglas de vida social) y `Performance` (`DetailRadius`, `DetailMargin`). Los valores por defecto son los de antes.
+- **`SettlementPlanner`** (`GB/Game/SettlementPlanner.h/.cpp`). `PlanBuildingNeeds(const SettlementFacts&)` devuelve la lista de obras que el clan quiere, ordenada por urgencia (empates por id); `PlaceSite(const SitePlacement&)` busca el sitio. `SettlementFacts` es una instantánea (sitios hechos y abiertos, vivos, heridos, comida perdida, almacén lleno, cuántas obras caben a la vez y callbacks `Known`/`Payable`/estaciones) que `Tribe::BuildingNeeds` reúne; `Tribe::BuildingNeeds` y `PlanSettlement` son la fachada. Ya devuelve una lista priorizada y `MaxOpenSites` fija cuántas puede haber abiertas: **F2** consiste en dejar que `PlanSettlement` empiece varias de la lista y en dar a los trabajadores un reparto por prioridad (hoy empieza solo la primera). Test: `settlement_planner`.
+- **`Schedule`** (`GB/Game/Schedule.h/.cpp`). `PartOfDay` (día, anochecer, noche según estación y turno de noche), `IsEvening`, `ScheduleFactor` (lo que la agenda hace de una opción; el rol manda sobre el clan) con la forma del día en `DayShape`. `Tribe::AgendaFactor` y las cuatro comprobaciones de "tarde" de la vida social lo usan. **F5** (bloques de horario, niñez/escuela) crece aquí. Test: `schedule`.
+- **`NodeClaims`** (`GB/Game/Logistics.h`, solo cabecera): quién va a qué nodo (nadie va dos veces al mismo). Es la primera pieza de `Logistics`; el transportista (**F3**) reclamará con ella almacenes y obras.
+
+**Pendiente (no se ha forzado, por lo que cuesta):**
+
+- **`Logistics` completo**: las demandas de material y los depósitos (`PlanEconomy`, `PostEconomyJobs`, `EconomyOptions`, `DepositPlace`/`DepositAt`, `InFlight`) leen a la vez la despensa, el tablón de trabajos, las mochilas y los cuerpos; separarlos exige antes un contexto de trabajos (`JobBoard`) y de inventarios que hoy no existe. Siguiente paso razonable: sacar `Wants()`/`ProductionPlan` a una función pura como se hizo con `BuildingNeeds`.
+- **`Household`/`Lifecycle`**: camas (`SleepSpot`, `Beds`, `ShelterNeeds`), partos (`Born`, `SocietyEvents`) y `IsChild` están repartidos entre `TribeSociety.cpp`, `TribeSocial.cpp` y `Settlement.cpp` y dependen de `Society` y de las construcciones; hacerlo bien es la primera tarea de F4.
+- **`RaidPlanner`** (de `TribeConflict.cpp`) y telemetría/visuales como observadores: sin empezar.
+- Enganches abiertos de otras ramas (`PRIORITY-GRAPH HOOK` en `Tribe::Decide`) no se han tocado: `Decide` sigue en `Tribe.cpp`.
+
 Cada módulo recibe una interfaz estrecha y se prueba solo, sin una `Tribe` entera.
 
 ## 7. Orden de trabajo y prueba de cada paso

@@ -48,7 +48,7 @@ namespace GB
 			if (c->Id == me || !c->Folk || !m_Clans->MayRaid(me, c->Id)) continue;
 			RaidTarget t;
 			t.Clan = c->Name;
-			t.Camp = c->Folk->Config.Camp;
+			t.Camp = c->Folk->Config.Economy.Camp;
 			t.Store = &c->Folk->Store();
 			t.Defense = c->Folk->Defense();   // its palisades put a raider off (H8)
 			out.push_back(t);

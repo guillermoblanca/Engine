@@ -336,7 +336,7 @@ namespace GB::Editor
 		if (ActiveTribe().Members().empty()) return { false, "no tribe (tribe build [model.fbx])" };
 		if (sub == "start" && a.size() > 1)
 		{
-			glm::vec2 at = ActiveTribe().Config.Camp + glm::vec2(ActiveTribe().Config.SiteRadius, 0.0f);
+			glm::vec2 at = ActiveTribe().Config.Economy.Camp + glm::vec2(ActiveTribe().Config.SiteRadius, 0.0f);
 			if (a.size() >= 4) at = { static_cast<float>(std::atof(a[2].c_str())), static_cast<float>(std::atof(a[3].c_str())) };
 			std::string name;
 			if (const std::string error = ActiveTribe().StartSite(a[1], at, &name); !error.empty()) return { false, error };
@@ -428,8 +428,8 @@ namespace GB::Editor
 			m_Panels.Tribe = true;
 			m_FocusTribe = 20;
 			SelectActor(names.front(), false);   // the panel shows its mind at once
-			m_Tribe.Config.Camp = camp;
-			m_Tribe.Config.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
+			m_Tribe.Config.Economy.Camp = camp;
+			m_Tribe.Config.Economy.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
 			m_Tribe.Store().Add(m_Items, "wood", 2 + 2 * workers);    // what they found lying around on the first day
 			m_Tribe.Store().Add(m_Items, "stone", 3 * workers);
 			const std::vector<std::string> roles = m_Tribe.PlanRoles(workers);
@@ -1297,7 +1297,7 @@ namespace GB::Editor
 
 		// the camp: where the clan lives, with what it has in store and whether the fire is lit
 		{
-			const glm::vec2 camp = t.Config.Camp;
+			const glm::vec2 camp = t.Config.Economy.Camp;
 			ImVec2 s;
 			if (glm::distance(m_Camera.Position, glm::vec3(camp.x, ground(camp.x, camp.y), camp.y)) < 140.0f && screen(glm::vec3(camp.x, ground(camp.x, camp.y) + 3.2f, camp.y), s))
 			{

@@ -145,6 +145,7 @@ struct ClanSpec
 	int Members = 4;
 	std::map<std::string, int> Store;   // on top of the usual first day's wood, stone and berries
 	int Berries = -1;                   // berries in the store at the start (-1: the usual 5 a member)
+	int BerryWant = -1;                 // the clan's own target of berries in the store (-1: the economy's); a clan that wants more than it has lacks them whatever it forages
 };
 
 // Several clans in one world: one scene, one set of abilities, the wild nodes of the land and a well by each camp.
@@ -195,8 +196,9 @@ struct Valley
 			if (techs) t.SetTechs(&Techs);
 			t.Config.Work.Jobs.SurvivalDays = 0.0f;   // (these tests are about diplomacy: a clan short of food would go gathering in its neighbour's land, and the pyramid has its own test)
 			t.Config.Work.Jobs.CriticalHunger = 0.0f;
-			t.Config.Camp = s.Camp;
-			t.Config.CampY = land.Height(s.Camp.x, s.Camp.y);
+			if (s.BerryWant >= 0) t.Config.Economy.Stock["berry"] = { static_cast<float>(s.BerryWant), 0.0f };
+			t.Config.Economy.Camp = s.Camp;
+			t.Config.Economy.CampY = land.Height(s.Camp.x, s.Camp.y);
 			t.SetRegions(&land.Regions, [&land](float x, float z) { return land.Height(x, z); });
 			const int n = s.Members;
 			t.Store().Add(Items, "wood", 2 + 2 * n);
@@ -354,7 +356,7 @@ int main()
 
 	// ---- two clans meet and trade the surplus of one for the need of the other
 	const ClanSpec red{ "Red", spawn, 4, { { "berry", 40 } } };
-	const ClanSpec blue{ "Blue", spawn + glm::vec2(40.0f, 10.0f), 4, { { "flint", 30 } }, 0 };
+	const ClanSpec blue{ "Blue", spawn + glm::vec2(40.0f, 10.0f), 4, { { "flint", 30 } }, 0, 40 };   // (Blue wants 40 berries and starts with none: it forages some in its first minute, which used to be all it needed to turn the barter down; with the pause on a failed job members go foraging earlier)
 	std::string savedMid, finalOne;
 	double savedAt = -1.0;
 	{

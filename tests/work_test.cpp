@@ -136,7 +136,7 @@ struct Clan
 			return 0;
 		}, [](const std::string&, const std::string&, int) { return 0; });
 		Tribe_.Bind(Entities, Gameplay, Items, Recipes, Defs);
-		Tribe_.Config.Camp = camp;
+		Tribe_.Config.Economy.Camp = camp;
 		Tribe_.Store().Add(Items, "wood", 2 + 2 * n);
 		Tribe_.Store().Add(Items, "stone", 3 * n);
 		for (int i = 0; i < n; ++i) Tribe_.AddMember(Names[static_cast<size_t>(i)], roles[static_cast<size_t>(i)], bodies[static_cast<size_t>(i)].get());

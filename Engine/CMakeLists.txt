@@ -70,6 +70,8 @@ add_library(GB STATIC
     src/GB/Telemetry/TelemetrySink.cpp
     src/GB/Game/TribeTelemetry.cpp
     src/GB/Game/Settlement.cpp
+    src/GB/Game/SettlementPlanner.cpp
+    src/GB/Game/Schedule.cpp
     src/GB/Game/GameContent.cpp
     src/GB/Game/TribeClans.cpp
     src/GB/Game/Diplomacy.cpp

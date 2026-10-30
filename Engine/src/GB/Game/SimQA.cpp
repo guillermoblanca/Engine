@@ -309,10 +309,10 @@ namespace GB
 				for (auto w = it->second.begin(); w != it->second.end();)
 				{
 					const auto m = members.find(w->first);
-					const bool accounted = m == members.end() || m->second->Dead || glm::distance(SimMemberPosition(*m->second), clan.Config.Camp) < home;
+					const bool accounted = m == members.end() || m->second->Dead || glm::distance(SimMemberPosition(*m->second), clan.Config.Economy.Camp) < home;
 					if (accounted) { w = it->second.erase(w); continue; }
 					if (v.Clock - w->second > t.ReturnGrace)
-						r.Add(w->first, "has not come home " + Fixed(v.Clock - w->second, 0) + " s after expedition " + std::to_string(it->first) + " ended (" + Fixed(glm::distance(SimMemberPosition(*m->second), clan.Config.Camp), 0) + " m from the camp)");
+						r.Add(w->first, "has not come home " + Fixed(v.Clock - w->second, 0) + " s after expedition " + std::to_string(it->first) + " ended (" + Fixed(glm::distance(SimMemberPosition(*m->second), clan.Config.Economy.Camp), 0) + " m from the camp)");
 					++w;
 				}
 				it = it->second.empty() ? t.Away.erase(it) : std::next(it);
@@ -335,13 +335,13 @@ namespace GB
 					t.NotArrived.clear();
 					for (const TribeMember& m : clan.Members()) if (!m.Dead) t.NotArrived[m.Name] = v.Clock;
 				}
-				if (glm::distance(last.To, clan.Config.Camp) > 0.01f)
-					r.Add("camp", "the camp is at (" + Fixed(clan.Config.Camp.x) + ", " + Fixed(clan.Config.Camp.y) + "), the last move went to (" + Fixed(last.To.x) + ", " + Fixed(last.To.y) + ")");
+				if (glm::distance(last.To, clan.Config.Economy.Camp) > 0.01f)
+					r.Add("camp", "the camp is at (" + Fixed(clan.Config.Economy.Camp.x) + ", " + Fixed(clan.Config.Economy.Camp.y) + "), the last move went to (" + Fixed(last.To.x) + ", " + Fixed(last.To.y) + ")");
 				if (clan.HasFire() && v.Entities)
 					if (const EntityId fire = v.Entities->FindByName(clan.Config.FireName); fire != NullEntity)
 					{
 						const glm::vec4 p = v.Entities->WorldMatrix(fire)[3];
-						if (glm::distance(glm::vec2(p.x, p.z), clan.Config.Camp) > 4.0f) r.Add(clan.Config.FireName, "stayed at (" + Fixed(p.x) + ", " + Fixed(p.z) + ") when the camp moved");
+						if (glm::distance(glm::vec2(p.x, p.z), clan.Config.Economy.Camp) > 4.0f) r.Add(clan.Config.FireName, "stayed at (" + Fixed(p.x) + ", " + Fixed(p.z) + ") when the camp moved");
 					}
 			}
 			const float arrive = std::max(clan.Config.Explore.Migration.Arrive, 10.0f);
@@ -349,7 +349,7 @@ namespace GB
 			{
 				const TribeMember* m = nullptr;
 				for (const TribeMember& c : clan.Members()) if (c.Name == it->first) m = &c;
-				if (!m || m->Dead || glm::distance(SimMemberPosition(*m), clan.Config.Camp) < arrive) { it = t.NotArrived.erase(it); continue; }
+				if (!m || m->Dead || glm::distance(SimMemberPosition(*m), clan.Config.Economy.Camp) < arrive) { it = t.NotArrived.erase(it); continue; }
 				if (v.Clock - it->second > t.ArriveGrace) r.Add(it->first, "has not reached the new camp " + Fixed(v.Clock - it->second, 0) + " s after the move");
 				++it;
 			}
@@ -929,8 +929,8 @@ namespace GB
 		if (!setup.Regions) m_Regions = RegionMap::Build(world, m_Tribe.Config.Explore.Regions, RegionThingsOf(m_Spots));
 		const Terrain* terrain = world.TerrainRef;
 		m_Tribe.SetRegions(setup.Regions ? setup.Regions : &m_Regions, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
-		m_Tribe.Config.Camp = camp;
-		m_Tribe.Config.CampY = world.TerrainRef->GetHeight(camp.x, camp.y);
+		m_Tribe.Config.Economy.Camp = camp;
+		m_Tribe.Config.Economy.CampY = world.TerrainRef->GetHeight(camp.x, camp.y);
 		if (setup.Store.empty() || !m_Tribe.Store().FromJson(setup.Store))
 		{
 			const int n = static_cast<int>(roster.size());
@@ -979,8 +979,8 @@ namespace GB
 				t.SetTechs(&m_Techs);
 				if (setup.Buildings) { t.SetBuildings(&m_Builds.Defs); t.SetGround([terrain](float x, float z) { return terrain->GetHeight(x, z); }); }   // (H8, as the first clan)
 				t.SetRegions(setup.Regions ? setup.Regions : &m_Regions, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
-				t.Config.Camp = home;
-				t.Config.CampY = terrain->GetHeight(home.x, home.y);
+				t.Config.Economy.Camp = home;
+				t.Config.Economy.CampY = terrain->GetHeight(home.x, home.y);
 				t.Store().Add(m_Items, "wood", 2 + 2 * each);
 				t.Store().Add(m_Items, "stone", 3 * each);
 				const std::vector<std::string> roles = t.PlanRoles(each);

@@ -158,7 +158,7 @@ struct World
 		Tribe& t = *Clans.back();
 		t.SetClanName(clan);
 		t.Bind(Entities, Gameplay, Items, Recipes, Defs);
-		t.Config.Camp = camp;
+		t.Config.Economy.Camp = camp;
 		t.SetCombat(&Combat, &Hostility);
 		const std::vector<std::string> roles = t.PlanRoles(std::max(1, n));
 		std::vector<std::string> names;

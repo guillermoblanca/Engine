@@ -18,7 +18,7 @@ navegación serán caminos sin que el cerebro cambie.
 
 ## Percepción
 
-- **Vista.** Cada medio segundo (`ThinkSeconds`) cada miembro mira: lo que cae dentro del cono y no está tapado por un obstáculo pasa a su memoria con la hora. Mira hacia donde
+- **Vista.** Cada medio segundo (`Config.Simulation.DecisionSeconds` y `PerceptionSeconds`) cada miembro mira: lo que cae dentro del cono y no está tapado por un obstáculo pasa a su memoria con la hora. Mira hacia donde
   camina; **parado gira la cabeza** (1 rad por mirada) y así descubre lo que hay a su alrededor sin dar un paso. Lo que recuerda en un sitio que ahora ve y ya no está (talado) lo olvida.
 - **Oído.** Un leñador que golpea un árbol hace ruido (`chop`, 28 m): quien lo oye aprende que hay un árbol ahí aunque no lo vea (marcado "por oído": la posición puede fallar un poco
   y la próxima vez que lo vea queda corregido). Quien camina hace `steps` (8 m), y el grito (`Tribe::Shout`, `ai scream <nombre>`) llega a 30 m y baja la **seguridad** de quien lo oye.
@@ -102,7 +102,7 @@ se come primero la de menor id (primero la de la mochila), se estropea la que m�
 Lejos de la cámara un miembro es un **agente abstracto** (`GB/AI/Abstract.h`): ejecuta las mismas órdenes (texto de tareas: `goto`, `wait`, `ability`) sin cuerpo, por la **ruta que le da su cuerpo**
 (`ITribeBody::Route`: en el editor, el camino de la navegación con el perfil del miembro; sin navegación, la línea recta) a la velocidad del actor (con su
 `Vigor`) y con las habilidades corriendo por temporizadores sobre su sistema de habilidades, así que la decisión es **la misma** y los recursos, el hambre y el inventario siguen igual. `Tribe::SetViewer`
-(el editor le pasa la cámara en cada paso) y `TribeConfig::DetailRadius` (60 m, con 10 m de histéresis) deciden quién es abstracto; sin visor todos son completos. Al pasar a abstracto el actor se **suspende**
+(el editor le pasa la cámara en cada paso) y `TribeConfig::Performance.DetailRadius` (60 m, con 10 m de histéresis) deciden quién es abstracto; sin visor todos son completos. Al pasar a abstracto el actor se **suspende**
 (`ActorWorld::SetSuspended`: sin animación, sin dibujo, sin obstáculo para los demás) y el agente empieza donde está; al volver, el cuerpo se coloca donde está el agente (`Teleport`) y se le dan otra vez las
 órdenes del trabajo en curso (sin saltos de posición; el trabajo reinicia desde su primera orden). El panel Tribe dice cuántos son abstractos y marca `(abstract)` a cada uno. Medido en `ai_test`: ver Coste.
 

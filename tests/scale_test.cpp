@@ -70,7 +70,7 @@ int main()
 			tribe.AddMember("Npc" + std::to_string(i), roles[i % 3], bodies.back().get());
 		}
 		// Every member decides on every frame (the worst case; the game decides twice a second).
-		tribe.Config.ThinkSeconds = 0.0f;
+		tribe.Config.Simulation.DecisionSeconds = tribe.Config.Simulation.PerceptionSeconds = tribe.Config.Simulation.LodUpdateSeconds = 0.0f;
 		const int frames = 120;
 		double worst = 0.0;
 		const auto t0 = Clock::now();

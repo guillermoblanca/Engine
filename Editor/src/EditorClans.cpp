@@ -129,8 +129,8 @@ namespace GB::Editor
 				bodies.push_back(m_TribeBodies.back().get());
 			}
 			PrepareClanTribe(t);
-			t.Config.Camp = camp;
-			t.Config.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
+			t.Config.Economy.Camp = camp;
+			t.Config.Economy.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
 			t.Store().Add(m_Items, "wood", 2 + 2 * members);    // what they found lying around on the first day (as `tribe build`)
 			t.Store().Add(m_Items, "stone", 3 * members);
 			const std::vector<std::string> roles = t.PlanRoles(members);

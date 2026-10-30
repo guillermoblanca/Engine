@@ -79,7 +79,7 @@ namespace GB::Editor
 						if (m.Body) setup.Bags[m.Name] = m.Body->Bag().ToJson();   // their tools go with them
 					}
 				setup.HasCamp = true;
-				setup.Camp = m_Tribe.Config.Camp;
+				setup.Camp = m_Tribe.Config.Economy.Camp;
 				setup.Store = m_Tribe.Store().ToJson();
 			}
 			else setup.Members = a.size() > 2 ? std::max(1, std::min(60, std::atoi(a[2].c_str()))) : 4;

@@ -155,7 +155,7 @@ struct World
 		Tribe& t = *Clans.back();
 		t.SetClanName(clan);
 		t.Bind(Entities, Gameplay, Items, Recipes, Defs);
-		t.Config.Camp = camp;
+		t.Config.Economy.Camp = camp;
 		t.Config.Work.Jobs.SurvivalDays = 0.0f;   // (these tests are about talk, rites and the hunt: the pyramid of needs has its own test)
 		t.Config.Work.Jobs.CriticalHunger = 0.0f;
 		if (social) t.Config.Social = DefaultSocialRules();

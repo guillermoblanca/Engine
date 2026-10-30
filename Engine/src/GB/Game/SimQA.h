@@ -288,7 +288,7 @@ namespace GB
 		const CharacterWorld& Ground() const { return m_Ground; }
 		double Clock() const { return m_Clock; }
 		size_t Nodes() const { return m_NodeCount; }
-		glm::vec2 Camp() const { return m_Tribe.Config.Camp; }
+		glm::vec2 Camp() const { return m_Tribe.Config.Economy.Camp; }
 		// H16: the clan world (its clans, when the setup asked for more than one; the first is Brain()) and what the last step cost.
 		const ClanWorld& Clans() const { return m_Clans; }
 		const CombatSystem& Combat() const { return m_Combat; }

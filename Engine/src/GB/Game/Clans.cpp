@@ -230,7 +230,7 @@ namespace GB
 	bool ClanWorld::ChooseHome(float minApart, const std::function<bool(const glm::vec2&)>& usable, CampSite& out) const
 	{
 		std::vector<glm::vec2> camps;
-		for (const auto& c : m_Clans) if (!c->Folk->Members().empty()) camps.push_back(c->Folk->Config.Camp);
+		for (const auto& c : m_Clans) if (!c->Folk->Members().empty()) camps.push_back(c->Folk->Config.Economy.Camp);
 		auto nearest = [&](const glm::vec2& p)
 		{
 			float d = 1e9f;
@@ -571,7 +571,7 @@ namespace GB
 		for (const auto& c : m_Clans)
 		{
 			const int alive = Alive(*c);
-			if (alive > 0) clans.push_back({ c->Id, c->Folk->Config.Camp, alive, c->Buildings });
+			if (alive > 0) clans.push_back({ c->Id, c->Folk->Config.Economy.Camp, alive, c->Buildings });
 		}
 		m_Territory.Step(*m_Regions, clans, Rules.Territory, dt, DaySeconds());
 		// overlapping claims of clans that are not allies cost them a little goodwill a day
@@ -643,7 +643,7 @@ namespace GB
 			float sociable = 0.5f;
 			if (const Person* p = t.People().Find(m.Name))
 				if (const auto it = p->Traits.find("sociability"); it != p->Traits.end()) sociable = it->second;
-			const float score = sociable + 0.5f / (1.0f + glm::distance(t.Position(m), t.Config.Camp) / 50.0f);
+			const float score = sociable + 0.5f / (1.0f + glm::distance(t.Position(m), t.Config.Economy.Camp) / 50.0f);
 			if (score > bestScore) { bestScore = score; best = m.Name; }
 		}
 		return best;
@@ -676,7 +676,7 @@ namespace GB
 		m.Give[1] = deal.Give[1];
 		m.Posted = m_Time;
 		// between the camps, where both envoys can walk to (the middle first, then nearer one camp or the other)
-		const glm::vec2 from = ca->Folk->Config.Camp, to = cb->Folk->Config.Camp;
+		const glm::vec2 from = ca->Folk->Config.Economy.Camp, to = cb->Folk->Config.Economy.Camp;
 		const TribeMember* ea = Member(*ca, m.Envoy[0]);
 		const TribeMember* eb = Member(*cb, m.Envoy[1]);
 		m.Point = (from + to) * 0.5f;
@@ -829,7 +829,7 @@ namespace GB
 			int& leg = mt.Leg[side];
 			if (leg == 0)
 			{
-				if (glm::distance(pos, t.Config.Camp) > kAtCamp) return;   // (did not get there: it chooses again)
+				if (glm::distance(pos, t.Config.Economy.Camp) > kAtCamp) return;   // (did not get there: it chooses again)
 				// the goods leave the store in its pack (the meeting holds them, not its bag: it does not eat them or leave them in the store on the way)
 				std::map<std::string, int> taken;
 				for (const auto& [item, n] : mt.Give[side])
@@ -847,7 +847,7 @@ namespace GB
 			}
 			else if (leg == 3)
 			{
-				if (glm::distance(pos, t.Config.Camp) > kAtCamp) return;
+				if (glm::distance(pos, t.Config.Economy.Camp) > kAtCamp) return;
 				// what it brings home: what it got (they met) or what it took (they did not)
 				const std::map<std::string, int>& goods = mt.Met >= 0.0 ? mt.Give[1 - side] : mt.Give[side];
 				const ItemLibrary* lib = t.Items();
@@ -1185,7 +1185,7 @@ namespace GB
 		}
 		std::vector<ClanFootprint> clans;
 		for (const auto& c : m_Clans)
-			if (const int alive = Alive(*c); alive > 0) clans.push_back({ c->Id, c->Folk->Config.Camp, alive, c->Buildings });
+			if (const int alive = Alive(*c); alive > 0) clans.push_back({ c->Id, c->Folk->Config.Economy.Camp, alive, c->Buildings });
 		TerritoryMap one = m_Territory, two = m_Territory;
 		one.Step(*m_Regions, clans, Rules.Territory, Rules.Territory.Every, DaySeconds());
 		two.Step(*m_Regions, clans, Rules.Territory, Rules.Territory.Every, DaySeconds());
@@ -1202,7 +1202,7 @@ namespace GB
 			const Tribe& t = *c->Folk;
 			int stored = 0;
 			for (const ItemSlot& slot : t.Store().Stacks()) stored += slot.Count;
-			s += std::to_string(c->Id) + " " + c->Name + ": " + std::to_string(Alive(*c)) + " alive of " + std::to_string(t.Members().size()) + ", camp " + Place(t.Config.Camp)
+			s += std::to_string(c->Id) + " " + c->Name + ": " + std::to_string(Alive(*c)) + " alive of " + std::to_string(t.Members().size()) + ", camp " + Place(t.Config.Economy.Camp)
 				+ ", " + std::to_string(stored) + " things in store";
 			if (m_Regions) s += ", holds " + std::to_string(m_Territory.Held(c->Id, Rules.Territory).size()) + " regions";
 			s += ", openness " + Num(Openness(c->Id)) + ", aggression " + Num(Aggression(c->Id));

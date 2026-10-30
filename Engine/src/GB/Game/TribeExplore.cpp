@@ -63,8 +63,8 @@ namespace GB
 		char t[32];
 		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
 		m_Log.push_back(t + std::string("the clan ") + text);
-		if (static_cast<int>(m_Log.size()) > Config.LogLines + Config.LogLines / 4)
-			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.LogLines)));
+		if (static_cast<int>(m_Log.size()) > Config.Simulation.LogLines + Config.Simulation.LogLines / 4)
+			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.Simulation.LogLines)));
 	}
 
 	// ------------------------------------------------------------------ what the clan knows
@@ -186,7 +186,7 @@ namespace GB
 			const float explored = lore != m_Explore.Atlas.Lore.end() ? lore->second.Explored : 0.0f;
 			const float chance = known > 0 ? 1.0f : fit * (1.0f - explored);
 			if (chance <= 0.0f) continue;
-			const float d = glm::distance(Config.Camp, g.Anchor);
+			const float d = glm::distance(Config.Economy.Camp, g.Anchor);
 			if (d > rules.MaxDistance) continue;
 			const float travel = 1.0f / (1.0f + d / rules.TravelScale);
 			const float risk = std::max(0.05f, 1.0f - rules.RiskWeight * g.Danger);
@@ -265,7 +265,7 @@ namespace GB
 				if (far < 1.0f) break;
 				chosen.push_back(candidates[pick]);
 			}
-			glm::vec2 from = Config.Camp;
+			glm::vec2 from = Config.Economy.Camp;
 			while (!chosen.empty())
 			{
 				size_t next = 0;
@@ -422,7 +422,7 @@ namespace GB
 			o.Score = Config.Explore.Migration.Score;
 			o.Commit = 30.0f;
 			o.Factors.push_back({ "the clan moves", o.Score });
-			o.Note = "the clan moves its camp to " + Place(Config.Camp);
+			o.Note = "the clan moves its camp to " + Place(Config.Economy.Camp);
 			options.push_back(o);
 		}
 	}
@@ -461,7 +461,7 @@ namespace GB
 		const glm::vec2 pos = Where(m);
 		if (job == "migrate")
 		{
-			if (glm::distance(pos, Config.Camp) > Config.Explore.Migration.Arrive) return;   // (did not get there: it chooses again)
+			if (glm::distance(pos, Config.Economy.Camp) > Config.Explore.Migration.Arrive) return;   // (did not get there: it chooses again)
 			m_Explore.Arrived.insert(m.Name);
 			Say(m, "is at the new camp");
 			bool all = true;
@@ -470,7 +470,7 @@ namespace GB
 			{
 				m_Explore.Moving = false;
 				m_Explore.Arrived.clear();
-				TellClan("has all its members at its new camp " + Place(Config.Camp));
+				TellClan("has all its members at its new camp " + Place(Config.Economy.Camp));
 			}
 			return;
 		}
@@ -486,7 +486,7 @@ namespace GB
 			if (leg->second == n) Say(m, "has seen what it could of " + e.RegionName + " and heads home");
 			return;
 		}
-		if (leg->second == n && HasFailed(m) && glm::distance(pos, Config.Camp) > kAtCamp)   // the way home is closed (a search that ran out of its budget, a lake): not for ever
+		if (leg->second == n && HasFailed(m) && glm::distance(pos, Config.Economy.Camp) > kAtCamp)   // the way home is closed (a search that ran out of its budget, a lake): not for ever
 		{
 			if (++m.HomeTries >= 3)
 			{
@@ -496,7 +496,7 @@ namespace GB
 			}
 			return;
 		}
-		if (leg->second == n && glm::distance(pos, Config.Camp) <= kAtCamp)
+		if (leg->second == n && glm::distance(pos, Config.Economy.Camp) <= kAtCamp)
 		{
 			m.HomeTries = 0;
 			leg->second = n + 1;
@@ -581,17 +581,17 @@ namespace GB
 			return;
 		}
 		if (m_Time - x.CampSince < static_cast<double>(rules.Settle)) return;
-		const float score = SiteScore(Config.Camp);
+		const float score = SiteScore(Config.Economy.Camp);
 		x.Peak = std::max(x.Peak, score);
 		bool food = false, well = false;
 		for (const auto& [name, e] : m_Clan.All())
 		{
-			if (glm::distance(e.Pos, Config.Camp) > rules.HomeRadius) continue;
+			if (glm::distance(e.Pos, Config.Economy.Camp) > rules.HomeRadius) continue;
 			if (e.Kind == "well") well = true;
 			const auto def = m_Defs.find(e.Kind);
 			if (def != m_Defs.end() && IsFood(def->second.Item) && (e.Amount != 0 || def->second.RegenSeconds > 0.0f)) food = true;
 		}
-		const bool dry = !well && m_Regions->WaterDistanceAt(Config.Camp) > rules.WaterLost;
+		const bool dry = !well && m_Regions->WaterDistanceAt(Config.Economy.Camp) > rules.WaterLost;
 		const bool poor = x.Peak > 0.0f && score < rules.Poor * x.Peak;
 		std::string why;
 		if (!food) why = "nothing to eat is known near the camp";
@@ -604,7 +604,7 @@ namespace GB
 		if (x.Poor < rules.After) return;
 		if (!x.Moves.empty() && m_Time - x.Moves.back().At < static_cast<double>(rules.Cooldown)) return;
 		CampSiteRequest request;
-		request.From = Config.Camp;
+		request.From = Config.Economy.Camp;
 		request.HomeRadius = rules.HomeRadius;
 		request.HomeScore = score;
 		for (const auto& [kind, def] : m_Defs)
@@ -626,13 +626,13 @@ namespace GB
 		if (!alive) return false;
 		ExplorationState& x = m_Explore;
 		MigrationRecord r;
-		r.From = Config.Camp;
+		r.From = Config.Economy.Camp;
 		r.To = to;
 		r.At = m_Time;
 		r.Why = why;
 		if (m_Regions) if (const RegionSummary* g = m_Regions->Find(m_Regions->RegionAt(to))) r.Region = g->Name;
-		Config.Camp = to;
-		if (m_Height) Config.CampY = m_Height(to.x, to.y);
+		Config.Economy.Camp = to;
+		if (m_Height) Config.Economy.CampY = m_Height(to.x, to.y);
 		if (HasFire()) BuildFire(FireFuel());   // the campfire is built again at the new camp with the fuel it had (the store is the camp's: it goes too)
 		for (TribeMember& m : m_Members) { m.HasSpot = false; m.SpotTries = 0; }
 		if (x.Current.Active())
@@ -660,9 +660,9 @@ namespace GB
 		const ExplorationState& x = m_Explore;
 		char buf[256];
 		std::string s;
-		const int home = m_Regions->RegionAt(Config.Camp);
-		std::snprintf(buf, sizeof buf, "camp %s in %s; home worth %.2f (best %.2f)%s\n", Place(Config.Camp).c_str(), m_Regions->Find(home) ? m_Regions->Find(home)->Name.c_str() : "?",
-			static_cast<double>(SiteScore(Config.Camp)), static_cast<double>(x.Peak), x.Moving ? "; the clan is moving" : "");
+		const int home = m_Regions->RegionAt(Config.Economy.Camp);
+		std::snprintf(buf, sizeof buf, "camp %s in %s; home worth %.2f (best %.2f)%s\n", Place(Config.Economy.Camp).c_str(), m_Regions->Find(home) ? m_Regions->Find(home)->Name.c_str() : "?",
+			static_cast<double>(SiteScore(Config.Economy.Camp)), static_cast<double>(x.Peak), x.Moving ? "; the clan is moving" : "");
 		s += buf;
 		if (x.Poor > 0.0f) { std::snprintf(buf, sizeof buf, "  poor for %.0f s of %.0f: %s\n", static_cast<double>(x.Poor), static_cast<double>(Config.Explore.Migration.After), x.PoorWhy.c_str()); s += buf; }
 		const Expedition& e = x.Current;

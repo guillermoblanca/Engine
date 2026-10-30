@@ -123,7 +123,7 @@ namespace GB
 		// the sacred place: its totem (a meeting place) if it has one, else a place it can reach SacredDistance from the camp
 		if (!m_Social.HasSacred)
 		{
-			glm::vec2 at = Config.Camp;
+			glm::vec2 at = Config.Economy.Camp;
 			bool found = false;
 			for (const SettlementSite& s : SettlementSites())
 				if (s.State.Done && m_Buildings)
@@ -133,9 +133,9 @@ namespace GB
 				const float angle = SocialRoll(R.Seed, m_ClanName + "/sacred", 0) * 2.0f * kPi;
 				const TribeMember* walker = nullptr;
 				for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { walker = &m; break; }
-				at = Config.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * R.Beliefs.SacredDistance;
+				at = Config.Economy.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * R.Beliefs.SacredDistance;
 				for (int k = 1; k < 12 && walker && !walker->Body->CanStandAt(at); ++k)
-					at = Config.Camp + glm::vec2(std::cos(angle + 0.5f * static_cast<float>(k)), std::sin(angle + 0.5f * static_cast<float>(k))) * R.Beliefs.SacredDistance;
+					at = Config.Economy.Camp + glm::vec2(std::cos(angle + 0.5f * static_cast<float>(k)), std::sin(angle + 0.5f * static_cast<float>(k))) * R.Beliefs.SacredDistance;
 			}
 			m_Social.Sacred = at;
 			m_Social.HasSacred = true;
@@ -398,7 +398,7 @@ namespace GB
 			}
 			if (def.Place == "totem" && HasFire()) return FirePos();
 		}
-		return Config.Camp;
+		return Config.Economy.Camp;
 	}
 
 	glm::vec2 Tribe::CircleSpot(const std::string& member) const
@@ -594,7 +594,7 @@ namespace GB
 		};
 		if (has("teach") && !IsChild(m)) if (std::string tech = teachable(); !tech.empty()) { about = tech; return "teach"; }
 		const float hour = Hour();
-		const bool evening = hour >= Config.Needs.NightFrom - Config.Agenda.DuskHours || hour < Config.Needs.NightTo;
+		const bool evening = IsEvening(Day(), hour);
 		const bool teller = pm && (m_Society.StageOf(S, m.Name) == Society::Stage::Elder || pm->Age >= T.StoryAge || trait(pm, "sociability") >= T.StorySociability);
 		if (has("story") && teller && evening) { about = teachable(); return "story"; }
 		const auto talked = m_Social.Find(m.Name);
@@ -645,7 +645,7 @@ namespace GB
 		if (!T.Kinds.empty() && m_Time - me.LastTalk >= static_cast<double>(T.Cooldown))
 		{
 			const float hourNow = Hour();
-			const bool eveningNow = hourNow >= Config.Needs.NightFrom - Config.Agenda.DuskHours || hourNow < Config.Needs.NightTo;
+			const bool eveningNow = IsEvening(Day(), hourNow);
 			const TribeMember* best = nullptr;
 			float bestScore = -1e9f, bestDistance = 0.0f;
 			for (const TribeMember& o : m_Members)
@@ -671,7 +671,7 @@ namespace GB
 					const float pressing = kind == "console" || kind == "settle" || kind == "share" ? 1.5f : 1.0f;
 					const float agenda = AgendaFactor(m.Role, "socialize", Hour(), CurrentSeason());
 					const float hour = Hour();
-					const bool evening = (hour >= Config.Needs.NightFrom - Config.Agenda.DuskHours || hour < Config.Needs.NightTo) && glm::distance(pos, Config.Camp) < 15.0f;
+					const bool evening = (IsEvening(Day(), hour)) && glm::distance(pos, Config.Economy.Camp) < 15.0f;
 					const float fire = evening ? T.Evening : 1.0f;   // (the evening at the camp is the time for talk)
 					UtilityOption o;
 					o.Kind = "talk";
@@ -690,7 +690,7 @@ namespace GB
 			}
 		}
 		// gear: the tool a food node it knows asks for (a fish trap for a fishing spot) is in the store and nobody carries one: it takes it
-		if (!IsChild(m) && m_Items && glm::distance(pos, Config.Camp) < 40.0f)
+		if (!IsChild(m) && m_Items && glm::distance(pos, Config.Economy.Camp) < 40.0f)
 			for (const auto& [kind, def] : m_Defs)
 			{
 				if (def.RequiresTag.empty() || !IsFood(def.Item) || m_Clan.OfKind(kind).empty() || m.Body->Bag().CountTagged(*m_Items, def.RequiresTag) > 0) continue;
@@ -752,7 +752,7 @@ namespace GB
 					if (e == NullEntity) continue;
 					const glm::vec4 p = m_Entities->WorldMatrix(e)[3];
 					const glm::vec2 q(p.x, p.z);
-					if (const float d = glm::distance(q, Config.Camp); d < near && HuntAllowed(q)) { near = d; at = q; }
+					if (const float d = glm::distance(q, Config.Economy.Camp); d < near && HuntAllowed(q)) { near = d; at = q; }
 				}
 				if (near >= 60.0f) continue;
 				UtilityOption o;
@@ -811,7 +811,7 @@ namespace GB
 		if (!Order(m, GoTo(o.Where - dir * 0.6f, WaitFor(k.Seconds)))) return false;
 		m.Job = "talk";
 		m.Detail = kind + " " + other->Name + (about.empty() ? std::string() : " " + about);
-		if (Idle(*other) || EveningFree(*other, Hour() >= Config.Needs.NightFrom - Config.Agenda.DuskHours || Hour() < Config.Needs.NightTo)) Send(*other, GoTo(o.Where + dir * 0.6f, WaitFor(k.Seconds + 1.5f)), "talk", kind + " " + m.Name + " listening");
+		if (Idle(*other) || EveningFree(*other, IsEvening(Day(), Hour()))) Send(*other, GoTo(o.Where + dir * 0.6f, WaitFor(k.Seconds + 1.5f)), "talk", kind + " " + m.Name + " listening");
 		return true;
 	}
 
@@ -922,7 +922,7 @@ namespace GB
 		auto group = [&](const std::string& item) { const auto f = D.Foods.find(item); return f != D.Foods.end() && !f->second.Group.empty() ? f->second.Group : item; };
 		const std::string next = !carried.empty() ? carried : stored;
 		if (next.empty() || group(next) != s->Diet.back()) return;
-		if (!carried.empty() && glm::distance(Where(m), Config.Camp) > 8.0f) return;   // (away from the camp it eats what it carries)
+		if (!carried.empty() && glm::distance(Where(m), Config.Economy.Camp) > 8.0f) return;   // (away from the camp it eats what it carries)
 		std::string best;
 		float left = 1e30f;
 		for (const ItemSlot& slot : m_Store.Stacks())
@@ -1075,7 +1075,7 @@ namespace GB
 			const EntityId e = m_Entities->FindByName(name);
 			if (e == NullEntity) continue;
 			const glm::vec4 p = m_Entities->WorldMatrix(e)[3];
-			if (glm::distance(glm::vec2(p.x, p.z), Config.Camp) > 80.0f) continue;
+			if (glm::distance(glm::vec2(p.x, p.z), Config.Economy.Camp) > 80.0f) continue;
 			for (const std::string& tag : a->Tags().Names()) if (tag.rfind("Animal.", 0) == 0) { ++near[tag]; break; }
 		}
 		std::string game;

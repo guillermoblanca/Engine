@@ -30,8 +30,8 @@ namespace GB
 		Tribe& a = *home->Folk;
 		Tribe& b = *host->Folk;
 		const glm::vec2 at = a.Position(*me);
-		if (glm::distance(at, b.Config.Camp) > a.Config.Player.VisitRadius)
-			return "the camp of the " + host->Name + " is " + std::to_string(static_cast<int>(glm::distance(at, b.Config.Camp))) + " m away: go there first";
+		if (glm::distance(at, b.Config.Economy.Camp) > a.Config.Player.VisitRadius)
+			return "the camp of the " + host->Name + " is " + std::to_string(static_cast<int>(glm::distance(at, b.Config.Economy.Camp))) + " m away: go there first";
 		if (Alive(*host) == 0) return "nobody lives at the camp of the " + host->Name;
 		if (Stance(home->Id, to) == "hostile") return "the " + host->Name + " are hostile: they turn you away";
 		// the member who receives the player: the nearest living adult of the host

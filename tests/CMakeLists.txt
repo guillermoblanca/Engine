@@ -288,6 +288,21 @@ target_link_libraries(GBSettlementTests PRIVATE GB::GB)
 target_compile_definitions(GBSettlementTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME settlement COMMAND GBSettlementTests)
 
+# The settlement planner alone (needs and sites from plain facts, no Tribe)
+add_executable(GBSettlementPlannerTests settlement_planner_test.cpp)
+target_link_libraries(GBSettlementPlannerTests PRIVATE GB::GB)
+add_test(NAME settlement_planner COMMAND GBSettlementPlannerTests)
+
+# The timetable alone (parts of the day, shifts, agenda factors)
+add_executable(GBScheduleTests schedule_test.cpp)
+target_link_libraries(GBScheduleTests PRIVATE GB::GB)
+add_test(NAME schedule COMMAND GBScheduleTests)
+
+# The claims on nodes alone (first piece of the logistics)
+add_executable(GBLogisticsTests logistics_test.cpp)
+target_link_libraries(GBLogisticsTests PRIVATE GB::GB)
+add_test(NAME logistics COMMAND GBLogisticsTests)
+
 # H7: aptitudes by practice, the job board and the trades of the clan (TribeWork, Skills, JobBoard)
 add_executable(GBWorkTests work_test.cpp)
 target_link_libraries(GBWorkTests PRIVATE GB::GB)

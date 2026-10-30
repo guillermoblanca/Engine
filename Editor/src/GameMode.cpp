@@ -107,7 +107,7 @@ namespace GB::Editor
 				m_Panels.Tribe = p.Tribe; m_Panels.WorldState = p.WorldState; m_Panels.Tests = p.Tests; m_Panels.QA = p.QA;
 			}
 			// the editor gets the keys and the view back: the player's body stays in the world, but nobody steers it and the free camera starts over it
-			const glm::vec3 where = m_Player.IsActive() ? m_Player.GetPosition() : glm::vec3(m_Tribe.Config.Camp.x, 0.0f, m_Tribe.Config.Camp.y);
+			const glm::vec3 where = m_Player.IsActive() ? m_Player.GetPosition() : glm::vec3(m_Tribe.Config.Economy.Camp.x, 0.0f, m_Tribe.Config.Economy.Camp.y);
 			if (m_Game.SavedPitchNear >= 0.0f) { m_GameView.Params.Overview.PitchNearDegrees = m_Game.SavedPitchNear; m_GameView.Params.Overview.PitchFarDegrees = m_Game.SavedPitchFar; }
 			m_GameView.QeTurns = true;
 			m_Player.SetTurnWithQE(true);
@@ -185,7 +185,7 @@ namespace GB::Editor
 		// the player: an actor beside the camp, a member of clan 0 whom the brain never drives
 		const std::string name = setup.Name;
 		if (m_Actors.Find(name)) Execute("actor remove " + name);
-		const glm::vec2 at = m_Tribe.Config.Camp + glm::vec2(2.5f, 2.5f);
+		const glm::vec2 at = m_Tribe.Config.Economy.Camp + glm::vec2(2.5f, 2.5f);
 		r = Execute("actor spawn " + name + " \"" + model + "\" " + std::to_string(at.x) + " " + std::to_string(at.y) + " player");
 		if (!r.Ok) return r;
 		m_TribeBodies.push_back(MakeTribeBody(name));
@@ -262,7 +262,7 @@ namespace GB::Editor
 			else if (well) offer(d, "Draw water at " + e.Name, "game use " + Underscored(e.Name));
 			else if (site) offer(d, "Build " + e.Name, "game use " + Underscored(e.Name));
 		}
-		if (best.Command.empty() && glm::distance(pos, m_Tribe.Config.Camp) <= rules.CampReach)
+		if (best.Command.empty() && glm::distance(pos, m_Tribe.Config.Economy.Camp) <= rules.CampReach)
 		{
 			int carried = 0;
 			for (const ItemSlot& s : me->Bag().Stacks())
@@ -271,7 +271,7 @@ namespace GB::Editor
 		}
 		if (best.Command.empty())
 			for (const auto& c : m_Clans.All())
-				if (c->Folk && c->Folk != &m_Tribe && glm::distance(pos, c->Folk->Config.Camp) <= rules.VisitRadius)
+				if (c->Folk && c->Folk != &m_Tribe && glm::distance(pos, c->Folk->Config.Economy.Camp) <= rules.VisitRadius)
 					best = { 0.0f, "Trade with the " + c->Name, "game trade " + c->Name };
 		m_Game.Prompt = best.Label;
 		m_Game.PromptCommand = best.Command;
@@ -575,7 +575,7 @@ namespace GB::Editor
 			return act(r);
 		}
 		if (sub == "block") return act(m_Tribe.PlayerBlock(me));
-		if (sub == "flee") { const CommandResult r = act(m_Tribe.PlayerFlee(me)); if (r.Ok) m_Player.MoveTo(m_Tribe.Config.Camp, true); return r; }
+		if (sub == "flee") { const CommandResult r = act(m_Tribe.PlayerFlee(me)); if (r.Ok) m_Player.MoveTo(m_Tribe.Config.Economy.Camp, true); return r; }
 		if ((sub == "trade" || sub == "visit") && a.size() > 1)
 		{
 			const Clan* c = m_Clans.Find(a[1]);

@@ -13,10 +13,13 @@
 #include "GB/Game/JobBoard.h"
 #include "GB/Game/Skills.h"
 #include "GB/Game/Knowledge.h"
+#include "GB/Game/Logistics.h"
 #include "GB/Game/PlayerMember.h"
 #include "GB/Game/Society.h"
 #include "GB/Game/Social.h"
 #include "GB/Game/Production.h"
+#include "GB/Game/Schedule.h"
+#include "GB/Game/SettlementPlanner.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/GameplayWorld.h"
@@ -111,7 +114,6 @@ namespace GB
 	};
 
 	// The parts of the day of the agenda (see TribeAgenda): "night", "dusk" (the hours before the night) and "day" (the rest).
-	using AgendaFactors = std::map<std::string, std::map<std::string, float>>;   // part of the day -> option kind ("gather", "sleep"...) -> factor
 
 	// A role: how much it likes each option and the tool of its trade. Data, so a new role or a new kind of node needs no code. The weight of gathering
 	// from a node is looked up by the node's id ("fiber_grass"), then by its kind from the most specific up ("Resource.Stone.Flint", then "Resource.Stone"),
@@ -165,37 +167,69 @@ namespace GB
 		std::string DrinkTag = "Item.Food.Water";   // ... unless it is tagged this (or below): that is drunk, not eaten
 		StockTarget DefaultStock;                   // the target of anything Stock does not list (12)
 		std::map<std::string, StockTarget> Stock;   // item id -> its target (berry: 6, or 3 per member; wood 10; stone 8)
+		// ---- the camp and its store (not in the content file: set by whoever builds the tribe)
+		glm::vec2 Camp{ 0.0f };       // where the store and the campfire are (x, z)
+		float CampY = 0.0f;           // ground height there
+		int StoreCapacity = 40;       // slots of the main store (the units of one item it takes are the economy rules' StoreCap, see Tribe::StoreCap)
+		int DepositAt = 4;            // units in the bag that send a worker to the store
+		int Swings = 3;               // gathers per trip to a node
+		float FireSeconds = 30.0f;    // the campfire burns FireHeat of fuel this often (its BurnSeconds attribute is FireSeconds / FireHeat)
+		float UpkeepSeconds = 60.0f;  // the camp uses one fibre per member this often (thatch, rope)
+		int FireWoodRequired = 4;     // wood in the store before the clan builds its campfire ...
+		int FireStoneRequired = 3;    // ... and stone
 		bool operator==(const TribeEconomy&) const = default;
+	};
+
+	// How often the members look around, decide and feel their needs, and how the log is kept.
+	struct TribeSimulationConfig
+	{
+		float DecisionSeconds = 0.5f;     // a member with nothing special to do decides this often
+		float PerceptionSeconds = 0.5f;   // the sights of the world are refreshed (and trusted) about this often
+		float LodUpdateSeconds = 0.5f;    // the level of detail follows the viewer this often
+		float NeedSeconds = 1.0f;         // how often the needs are moved forward
+		float BusyThinkSeconds = 2.0f;    // a member walking or working with orders in flight looks around this often (and decides the moment its orders end); 4x that when abstract
+		float IdleThinkSeconds = 1.5f;    // a member with nothing to do looks again this often
+		int ThinkPerFrame = 4;            // members that look around and decide in one call to Update (the rest wait their turn: the work is spread over frames)
+		int LogLines = 800;               // the log is a ring: the oldest lines go
+	};
+
+	// How far an unknown-ground trip goes and how long a sighting is trusted.
+	struct TribeExplorationConfig
+	{
+		float ExploreRadius = 22.0f;   // how far from the camp an unknown-ground trip goes ...
+		float RadiusPerTrip = 8.0f;    // ... and how much farther each of the next three trips goes
+		float FreshSeconds = 6.0f;     // a sighting this recent is trusted as it is; older ones are checked on arrival
+	};
+
+	// Being together: telling what one knows, being near the camp and the fire, hearing.
+	struct TribeCommunityConfig
+	{
+		float ShareSeconds = 20.0f;     // the least time between two times a member tells the clan what it knows
+		float CompanyRadius = 6.0f;     // within this of another member it is not alone
+		float NearCampRadius = 5.0f;    // within this of the camp a member is "at the camp" (and trades what it knows)
+		float NearFireRadius = 4.5f;    // within this of a lit fire it warms
+		float Hearing = 1.0f;           // scales how far sounds reach the members
+	};
+
+	// The level of detail: who is simulated with a body.
+	struct TribePerformanceConfig
+	{
+		float DetailRadius = 60.0f;   // members farther than this from the viewer are abstract (0 = always full detail)
+		float DetailMargin = 10.0f;   // ... and become full again within this much less (no flicker at the border)
 	};
 
 	struct TribeConfig
 	{
-		glm::vec2 Camp{ 0.0f };       // where the store and the campfire are (x, z)
-		float CampY = 0.0f;           // ground height there
-		float ThinkSeconds = 0.5f;    // how often the members look around and idle ones decide
-		int DepositAt = 4;            // units in the bag that send a worker to the store
-		int Swings = 3;               // gathers per trip to a node
-		float FireSeconds = 30.0f;    // the campfire burns FireHeat of fuel this often (its BurnSeconds attribute is FireSeconds / FireHeat)
-		int StockCap = 40;            // (before H18: the cap of the store; now the economy rules say it per store, EconomyRules::Logistics, see Tribe::StoreCap)
-		float NeedSeconds = 1.0f;     // how often the needs are moved forward
-		float ExploreRadius = 22.0f;  // how far from the camp an unknown-ground trip goes (grows with each trip)
-		float FreshSeconds = 6.0f;    // a sighting this recent is trusted as it is; older ones are checked on arrival
-		int LogLines = 800;           // the log is a ring: the oldest lines go
-		float BusyThinkSeconds = 2.0f;   // a member walking or working with orders in flight looks around this often (and decides the moment its orders end); 4x that when abstract
-		float IdleThinkSeconds = 1.5f;   // a member with nothing to do looks again this often
-		float ShareSeconds = 20.0f;      // the least time between two times a member tells the clan what it knows
-		int ThinkPerFrame = 4;        // members that look around and decide in one call to Update (the rest wait their turn: the work is spread over frames)
-		float DetailRadius = 60.0f;   // members farther than this from the viewer are abstract (0 = always full detail)
-		float DetailMargin = 10.0f;   // ... and become full again within this much less (no flicker at the border)
-		float UpkeepSeconds = 60.0f;  // the camp uses one fibre per member this often (thatch, rope) ...
-		float SpoilSeconds = 100.0f;  // (before H18 one berry above 20 spoiled this often; now food goes off by its shelf life: EconomyRules::Spoilage)
+		TribeSimulationConfig Simulation;
+		TribeExplorationConfig Exploration;
+		TribeCommunityConfig Community;
+		TribePerformanceConfig Performance;
 		float DuskShift = 2.0f;       // hours earlier that dusk and night come in winter (and half of it in autumn)
 		NeedsConfig Needs;
 		VisionParams Vision;
 		MemoryConfig Memory;
 		ChooserConfig Chooser;
 		SeasonClock Seasons;
-		float Hearing = 1.0f;         // scales how far sounds reach the members
 		// The roles by name (see TribeRole and DefaultRoles); a content file can change them or add more (LoadRoles).
 		std::map<std::string, TribeRole> Roles;
 		float FireHeat = 2.0f;        // heat the campfire burns every FireSeconds: one wood (fuel 2) or two branches (fuel 1); see ItemDef::Fuel
@@ -219,14 +253,6 @@ namespace GB
 		int HaulAt = 6;               // most units of a material a member carries to a site in one trip
 		float SettlementRadius = 40.0f;   // the buildings that count as the clan's: within this of the camp (a clan that migrates leaves the others behind)
 		PlayerRules Player = DefaultPlayerRules();   // H15: standing, proposals, gifts... (the "player" section of a content file)
-	};
-
-	// What the clan wants built and why (Tribe::BuildingNeeds): the planner starts the most urgent; H7's job board can publish them.
-	struct BuildingNeed
-	{
-		std::string Building;   // def id
-		float Urgency = 0.0f;   // shelter for everyone 3, a full store 2, a station a recipe needs 1.5, food going off 1.2... (see docs/PROGRESION.md)
-		std::string Why;
 	};
 
 	class Tribe;
@@ -309,7 +335,7 @@ namespace GB
 		// The members that may look around and decide in the next calls to Update, set by whoever shares one budget among several tribes (ClanWorld's
 		// ThinkPerFrame); -1: the tribe's own rule (ThinkPerFrame, or the turns needed so nobody falls behind, whichever is more).
 		void SetThinkBudget(int thinks) { m_ThinkBudget = thinks; }
-		// The turns needed in a step of `dt` so that no living member falls behind its ThinkSeconds (what the own rule never goes below).
+		// The turns needed in a step of `dt` so that no living member falls behind its DecisionSeconds (what the own rule never goes below).
 		int ThinksNeeded(float dt) const;
 		struct FrameCost
 		{
@@ -672,7 +698,8 @@ namespace GB
 		glm::vec2 CampSpot(const TribeMember& m) const;
 		glm::vec2 FireSpot(const TribeMember& m) const;
 		glm::vec2 StandingSpot(const TribeMember& m, const glm::vec2& centre, float angle, float radius, bool path = true) const;
-		glm::vec2 FirePos() const { return Config.Camp + glm::vec2(1.5f, 0.0f); }
+		DayShape Day() const { return { Config.Needs.NightFrom, Config.Needs.NightTo, Config.Agenda.DuskHours, Config.DuskShift }; }   // the shape of the day (Schedule.h)
+		glm::vec2 FirePos() const { return Config.Economy.Camp + glm::vec2(1.5f, 0.0f); }
 		size_t IndexOf(const TribeMember& m) const;
 		std::string WhyNot(const std::string& kind) const;
 		int FoodIn(const Inventory& inv) const;
@@ -799,8 +826,8 @@ namespace GB
 		const RecipeBook* m_Recipes = nullptr;
 		std::map<std::string, ResourceNodeDef> m_Defs;
 		std::vector<TribeMember> m_Members;
-		std::map<std::string, std::string> m_Claims;   // node -> worker that goes there
-		Inventory m_Store{ 40, 0.0f };
+		NodeClaims m_Claims;   // node -> worker that goes there (Logistics.h)
+		Inventory m_Store{ Config.Economy.StoreCapacity, 0.0f };
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;
 		TelemetrySink* m_Telemetry = nullptr;   // not owned

@@ -39,7 +39,7 @@ namespace GB
 		}
 
 		// Where a member stands to work a site: in front of it (the "work" point of BuildSite), a little to the side for each builder.
-		glm::vec2 FrontOf(const glm::vec2& pos, const BuildingDef& def, float side = 0.0f) { return pos + glm::vec2(side, 0.5f * def.Footprint.y + 0.8f); }
+		glm::vec2 FrontOf(const glm::vec2& pos, const BuildingDef& def, float side = 0.0f) { return SiteFront(pos, def, side); }
 	}
 
 	SiteWeights ClanSiteWeights(const Tribe& tribe, const std::vector<std::string>& roles)
@@ -118,7 +118,7 @@ namespace GB
 		}
 		for (const auto& [name, pos] : m_Placed)
 		{
-			if (glm::distance(pos, Config.Camp) > Config.SettlementRadius) continue;   // left behind by a move of the camp (H12): not the clan's any more
+			if (glm::distance(pos, Config.Economy.Camp) > Config.SettlementRadius) continue;   // left behind by a move of the camp (H12): not the clan's any more
 			const AbilitySystemComponent* a = m_Gameplay->Find(name);
 			const BuildingDef* def = a ? BuildingOf(*a, *m_Buildings) : nullptr;
 			if (!def) continue;
@@ -297,34 +297,29 @@ namespace GB
 
 	std::vector<BuildingNeed> Tribe::BuildingNeeds() const
 	{
-		std::vector<BuildingNeed> out;
-		if (!m_Buildings || !m_Items || !m_Recipes || m_Members.empty()) return out;
-		if (!HasFire() || !ToolsReady()) return out;   // first the tools and the campfire, as before there were buildings
-		const std::vector<Placed> placed = Placements();
-		int open = 0, beds = 0, alive = 0;
-		std::map<std::string, int> count;   // buildings of each kind, done or not
-		for (const Placed& p : placed)
-		{
-			if (!p.State.Done) ++open;
-			beds += p.Def->Shelter;   // a shelter being built already answers the need for beds
-			++count[p.Def->Id];
-		}
-		for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
-		if (alive == 0 || open >= Config.Econ.Construction.SitesFor(alive)) return out;
-		int wounded = 0;   // H14: members with wounds
+		std::vector<BuildingNeed> none;
+		if (!m_Buildings || !m_Items || !m_Recipes || m_Members.empty()) return none;
+		if (!HasFire() || !ToolsReady()) return none;   // first the tools and the campfire, as before there were buildings
+		SettlementFacts facts;
+		facts.Buildings = m_Buildings;
+		for (const Placed& p : Placements()) facts.Sites.push_back({ p.Def, p.Pos, p.State.Done });
+		int open = 0;
+		for (const PlannerSite& p : facts.Sites) if (!p.Done) ++open;
+		for (const TribeMember& m : m_Members) if (!m.Dead) ++facts.Alive;
+		facts.MaxOpenSites = Config.Econ.Construction.SitesFor(facts.Alive);
+		if (facts.Alive == 0 || open >= facts.MaxOpenSites) return none;
 		if (m_Combat)
-			for (const TribeMember& m : m_Members)
-				if (const Combatant* c = m.Dead ? nullptr : m_Combat->Find(m.Name); c && !c->Wounds.empty()) ++wounded;
-		int spoiled = 0;   // H18: food the store lost to spoilage
-		for (const auto& [item, n] : m_Econ.Spoiled) if (IsFood(item)) spoiled += n;
-		const int cap = StoreCap();
-		std::string full;
+			for (const TribeMember& m : m_Members)   // H14: members with wounds
+				if (const Combatant* c = m.Dead ? nullptr : m_Combat->Find(m.Name); c && !c->Wounds.empty()) ++facts.Wounded;
+		for (const auto& [item, n] : m_Econ.Spoiled) if (IsFood(item)) facts.Spoiled += n;   // H18: food the store lost to spoilage
+		facts.Raided = m_Conflict.Raided;
+		facts.StoreCap = StoreCap();
 		for (const ItemSlot& s : m_Store.Stacks())
-			if (m_Store.Count(s.Id) >= cap - 2 && (full.empty() || s.Id < full)) full = s.Id;
-
-		char why[160];
+			if (m_Store.Count(s.Id) >= facts.StoreCap - 2 && (facts.FullItem.empty() || s.Id < facts.FullItem)) facts.FullItem = s.Id;
+		if (!facts.FullItem.empty()) facts.FullCount = m_Store.Count(facts.FullItem);
+		facts.Known = [this](const BuildingDef& def) { return ClanKnowsBuilding(def); };
 		// only what the clan can pay: every material is in the store, some node of the land gives it or a recipe the clan knows makes it where it can
-		auto payable = [&](const BuildingDef& def)
+		facts.Payable = [this](const BuildingDef& def)
 		{
 			for (const auto& [item, n] : def.TotalNeeds())
 			{
@@ -340,59 +335,28 @@ namespace GB
 			}
 			return true;
 		};
-		// a better home the clan can raise takes the place of the ones it supersedes (the hut over the shelter): those are not raised for beds any more
-		std::set<std::string> superseded;
-		for (const auto& [id, def] : *m_Buildings)
-			if (!def.Supersedes.empty() && ClanKnowsBuilding(def) && payable(def)) superseded.insert(def.Supersedes.begin(), def.Supersedes.end());
-		for (const auto& [id, def] : *m_Buildings)
+		facts.StationThere = [this](const std::string& station) { return StationAvailable(station); };
+		facts.StationIsImprovised = [this](const std::string& station)
 		{
-			if (!ClanKnowsBuilding(def) || !payable(def)) continue;   // H11 decides what is known
-			BuildingNeed need;
-			need.Building = id;
-			auto want = [&](float urgency, const std::string& text) { if (urgency > need.Urgency) { need.Urgency = urgency; need.Why = text; } };
-			if (def.Shelter > 0 && beds < alive && !superseded.count(id))
+			const std::vector<std::string>& camp = Config.Econ.Production.CampStations;
+			return std::find(camp.begin(), camp.end(), station) != camp.end();
+		};
+		facts.RecipeNeeding = [this](const std::string& station)
+		{
+			// a recipe needs the station: the tool of a role here, or one whose inputs the store holds
+			for (const std::string& rid : m_Recipes->Ids())
 			{
-				need.Urgency = std::max(need.Urgency, 3.0f * static_cast<float>(alive - beds) / static_cast<float>(alive));
-				std::snprintf(why, sizeof why, "beds for %d of %d", beds, alive);
-				need.Why = why;
+				const Recipe& r = *m_Recipes->Find(rid);
+				if (r.Station != station) continue;
+				bool tool = false;
+				for (const TribeMember& m : m_Members)
+					if (const auto role = Config.Roles.find(m.Role); role != Config.Roles.end() && role->second.Tool == r.Output) tool = true;
+				const bool inputs = !r.Inputs.empty() && std::all_of(r.Inputs.begin(), r.Inputs.end(), [&](const auto& in) { return m_Store.Count(in.first) >= in.second; });
+				if (tool || inputs) return rid;
 			}
-			if ((!def.Store.empty() || def.StoreCap > 0) && !full.empty() && count[id] == 0)
-				want(2.0f, "the store is full of " + full + " (" + std::to_string(m_Store.Count(full)) + "/" + std::to_string(cap) + ")");
-			// the generic provisions (docs/PROGRESION.md), each only for the first of its kind
-			if (count[id] == 0)
-			{
-				if (def.Keep < 1.0f && spoiled > 0) want(1.2f, std::to_string(spoiled) + " food went off in the store");
-				if (def.Healing > 0.0f) want(wounded > 0 ? 1.2f : 0.3f, wounded > 0 ? std::to_string(wounded) + " wounded to tend" : std::string("a place to tend the wounded"));
-				if (def.Defense > 0.0f) want(m_Conflict.Raided > 0 ? 2.0f : 0.35f, m_Conflict.Raided > 0 ? "raided " + std::to_string(m_Conflict.Raided) + " times" : std::string("walls against raiders"));
-				if (def.Culture > 0.0f && def.Aura > 0.0f) want(std::min(0.8f, 0.3f + 0.05f * static_cast<float>(alive)), "a place for the clan to meet");
-				if (def.Shelter == 0 && def.Warmth > 0.0f && def.Aura > 0.0f) want(0.4f, "a fire to gather round");
-			}
-			if (!def.Station.empty() && count[id] == 0)
-			{
-				const bool there = StationAvailable(def.Station);
-				// a recipe needs the station: the tool of a role here, or one whose inputs the store holds
-				std::string recipe;
-				for (const std::string& rid : m_Recipes->Ids())
-				{
-					const Recipe& r = *m_Recipes->Find(rid);
-					if (r.Station != def.Station) continue;
-					bool tool = false;
-					for (const TribeMember& m : m_Members)
-						if (const auto role = Config.Roles.find(m.Role); role != Config.Roles.end() && role->second.Tool == r.Output) tool = true;
-					const bool inputs = !r.Inputs.empty() && std::all_of(r.Inputs.begin(), r.Inputs.end(), [&](const auto& in) { return m_Store.Count(in.first) >= in.second; });
-					if (tool || inputs) { recipe = rid; break; }
-				}
-				if (!there && !recipe.empty() && 1.5f > need.Urgency) { need.Urgency = 1.5f; need.Why = "the recipe " + recipe + " needs a " + def.Station; }
-				else if (there && 0.5f > need.Urgency && std::find(Config.Econ.Production.CampStations.begin(), Config.Econ.Production.CampStations.end(), def.Station) != Config.Econ.Production.CampStations.end())
-				{
-					need.Urgency = 0.5f;
-					need.Why = "the camp only has an improvised " + def.Station;
-				}
-			}
-			if (need.Urgency > 0.0f) out.push_back(need);
-		}
-		std::sort(out.begin(), out.end(), [](const BuildingNeed& a, const BuildingNeed& b) { return a.Urgency != b.Urgency ? a.Urgency > b.Urgency : a.Building < b.Building; });
-		return out;
+			return std::string();
+		};
+		return PlanBuildingNeeds(facts);
 	}
 
 	std::string Tribe::StartSite(const std::string& building, const glm::vec2& at, std::string* name)
@@ -406,7 +370,7 @@ namespace GB
 			const std::string candidate = def->second.Name + " " + std::to_string(i);
 			if (m_Entities->FindByName(candidate) == NullEntity && !m_Gameplay->Find(candidate)) n = candidate;
 		}
-		const float y = m_Ground ? m_Ground(at.x, at.y) : Config.CampY;
+		const float y = m_Ground ? m_Ground(at.x, at.y) : Config.Economy.CampY;
 		const EntityId id = BuildSite(*m_Entities, def->second, n, { at.x, y, at.y });
 		AbilitySystemComponent* a = m_Gameplay->Create(n);
 		a->FromComponent(*m_Entities->Find(id)->Gameplay);
@@ -485,37 +449,24 @@ namespace GB
 		const BuildingDef& def = m_Buildings->at(needs.front().Building);
 
 		// Where: rings round the camp, each building at its own angle, off the campfire, the other buildings and the resource nodes, on ground a member
-		// can stand on. The same scene gives the same place.
+		// can stand on. The same scene gives the same place (SettlementPlanner.h).
 		const ITribeBody* body = nullptr;
 		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { body = m.Body; break; }
-		const std::vector<Placed> placed = Placements();
+		SitePlacement where;
+		where.Def = &def;
+		where.Camp = Config.Economy.Camp;
+		where.Fire = FirePos();
+		where.SiteRadius = Config.SiteRadius;
+		for (const Placed& p : Placements()) where.Others.push_back({ p.Def, p.Pos, p.State.Done });
 		if (m_Sights.empty()) RefreshSights();
-		const float start = 0.6f + 1.1f * static_cast<float>(placed.size());
-		auto fits = [&](const glm::vec2& p)
+		for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
+		if (body) where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); };
+		if (const std::optional<glm::vec2> spot = PlaceSite(where))
 		{
-			const float r = def.Radius();
-			if (glm::distance(p, Config.Camp) < r + 2.5f || glm::distance(p, FirePos()) < r + 2.5f) return false;
-			for (const Placed& o : placed) if (glm::distance(p, o.Pos) < r + o.Def->Radius() + 1.5f) return false;
-			for (const Sight& s : m_Sights) if (glm::distance(p, s.Pos) < r + 1.2f) return false;
-			if (!body) return true;
-			if (!body->CanStandAt(p)) return false;
-			for (int k = 0; k < 4; ++k)   // the corners too: not half in the lake
-			{
-				const glm::vec2 c = p + glm::vec2((k & 1) ? 0.5f : -0.5f, (k & 2) ? 0.5f : -0.5f) * def.Footprint;
-				if (!body->CanStandAt(c)) return false;
-			}
-			return body->CanStandAt(FrontOf(p, def));
-		};
-		for (int ring = 0; ring < 5; ++ring)
-			for (int k = 0; k < 12; ++k)
-			{
-				const float a = start + static_cast<float>(k) * 0.5236f;
-				const glm::vec2 p = Config.Camp + glm::vec2(std::cos(a), std::sin(a)) * (Config.SiteRadius + 3.0f * static_cast<float>(ring));
-				if (!fits(p)) continue;
-				StartSite(def.Id, p);
-				m_Log.back() += ": " + needs.front().Why;
-				return;
-			}
+			StartSite(def.Id, *spot);
+			m_Log.back() += ": " + needs.front().Why;
+			return;
+		}
 		char t[48];
 		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
 		m_Log.push_back(std::string(t) + "the clan wants a " + def.Name + " (" + needs.front().Why + ") but finds no place for it near the camp");

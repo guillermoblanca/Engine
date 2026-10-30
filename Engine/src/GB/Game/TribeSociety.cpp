@@ -11,7 +11,6 @@ namespace GB
 {
 	namespace
 	{
-		constexpr float kNearCamp = 5.0f;   // (Tribe.cpp's: within this of the camp a member is "at the camp"; twice that for the lessons)
 		void Factor(UtilityOption& o, const char* name, float value) { o.Factors.push_back({ name, value }); }
 	}
 
@@ -26,7 +25,7 @@ namespace GB
 			m_CampTimer = 0.0f;
 			std::vector<std::pair<const TribeMember*, glm::vec2>> here;
 			for (const TribeMember& m : m_Members)
-				if (!m.Dead && m.Body && glm::distance(Where(m), Config.Camp) <= kNearCamp * 2.0f) here.emplace_back(&m, Where(m));
+				if (!m.Dead && m.Body && glm::distance(Where(m), Config.Economy.Camp) <= Config.Community.NearCampRadius * 2.0f) here.emplace_back(&m, Where(m));
 			std::set<std::pair<std::string, std::string>> done;
 			for (const auto& [m, pos] : here)
 			{
@@ -105,7 +104,7 @@ namespace GB
 				|| (m_NameTaken && m_NameTaken(name));   // (H13: nor one another clan uses)
 			if (!taken) child = name;
 		}
-		const glm::vec2 at = mom != m_Members.end() && mom->Body && !mom->Dead ? Where(*mom) : Config.Camp;
+		const glm::vec2 at = mom != m_Members.end() && mom->Body && !mom->Dead ? Where(*mom) : Config.Economy.Camp;
 		ITribeBody* body = m_Spawner(child, at, rules.Life.ChildHeight);
 		if (!body) { Say(voice, "would have a child, but it got no body"); return; }
 		m_Society.Bear(rules, child, mother, father);
