@@ -253,6 +253,33 @@ int main()
 		okay.Transitions.push_back(Tr("ability:Chop", "ability:Block", 0.2f, BlendCurve::Smooth));
 		Check(ValidateBindings(okay, shipped, defaults, hasClip).empty(), "a sound binding set validates clean");
 
+		// locomotion tuning: JSON, scope, merge, apply into the manifest, validation
+		AnimBindings loco;
+		LocomotionTuning general, mine;
+		general.Values.MinSpeedScale = 0.7f; general.Values.VelocitySmoothing = 0.2f; general.Values.Clips.push_back({ "", "Walking", 1.4f });
+		mine.Skeleton = "x bot"; mine.Values.VelocitySmoothing = 0.4f; mine.Values.SetFade = 0.5f; mine.Values.Clips.push_back({ "", "Walking", 1.6f });
+		loco.Locomotion = { general, mine };
+		AnimBindings locoBack;
+		Check(AnimBindingsFromJson(AnimBindingsToJson(loco), locoBack, &error) && locoBack.Locomotion.size() == 2 && locoBack.Locomotion[1].Skeleton == "x bot"
+			&& locoBack.Locomotion[1].Values.SetFade && Near(*locoBack.Locomotion[0].Values.MinSpeedScale, 0.7f) && locoBack.Locomotion[0].Values.Clips.size() == 1, "locomotion tuning round-trips through the file");
+		const ManifestLocomotion forBot = LocomotionFor(loco, "x bot"), forFox = LocomotionFor(loco, "fox");
+		Check(Near(*forBot.VelocitySmoothing, 0.4f) && Near(*forBot.MinSpeedScale, 0.7f) && forBot.Clips.size() == 1 && Near(forBot.Clips[0].Speed, 1.6f), "the model's own values win over the general ones");
+		Check(Near(*forFox.VelocitySmoothing, 0.2f) && !forFox.SetFade && Near(forFox.Clips[0].Speed, 1.4f), "another model gets the general ones");
+		AnimManifest tuned = shipped;
+		const std::string walking = shipped.Free.Clips.size() > 1 ? shipped.Free.Clips[1] : "";
+		loco.Locomotion[0].Values.Clips[0].Clip = walking; loco.Locomotion[1].Values.Clips[0].Clip = walking;
+		BindingsReport tunedReport = ApplyBindings(tuned, loco, defaults, "x bot", hasClip);
+		Check(tunedReport.Locomotion && Near(*tuned.Locomotion.VelocitySmoothing, 0.4f) && tuned.Locomotion.Clips.size() == 1, "ApplyBindings writes the tuning into the manifest");
+		AnimManifest tunedBack;
+		Check(AnimManifestFromJson(AnimManifestToJson(tuned), tunedBack, &error) && tunedBack.Locomotion.Clips.size() == 1 && Near(*tunedBack.Locomotion.SetFade, 0.5f), "and the manifest keeps it in its file");
+		Check(AnimManifestToJson(shipped).find("\"locomotion\": {") == std::string::npos, "a manifest without tuning writes no 'locomotion'");
+		AnimBindings badLoco;
+		LocomotionTuning bad;
+		bad.Values.MinSpeedScale = 0.0f; bad.Values.MaxSpeedScale = 9.0f; bad.Values.VelocitySmoothing = -1.0f; bad.Values.Clips.push_back({ "nosuchset", "x", 2.0f }); bad.Values.Clips.push_back({ "", walking, 0.0f });
+		badLoco.Locomotion.push_back(bad);
+		const std::vector<std::string> badLines = DescribeIssues(ValidateBindings(badLoco, shipped, defaults, hasClip));
+		Check(Has(badLines, "minimum speed factor") && Has(badLines, "maximum speed factor") && Has(badLines, "velocity smoothing") && Has(badLines, "no such locomotion set") && Has(badLines, "reference speed"), "bad locomotion values are errors");
+
 		// the default notifies of an ability (hit, chop...) land inside the part of a trimmed montage that plays, in proportion
 		GameplayLibrary events;
 		AbilityDef swing;

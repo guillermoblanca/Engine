@@ -38,6 +38,22 @@ namespace GB
 		return true;
 	}
 
+	bool LocomotionBlender::SetClipSpeed(const std::string& name, float speed)
+	{
+		const int clip = m_Model.FindClip(name);
+		if (clip < 0 || !(speed > 0.05f)) return false;
+		for (size_t i = 0; i < m_Space.Size(); ++i)
+		{
+			GaitInfo g = m_Space.Info(i);
+			const float length = glm::length(g.Velocity);
+			if (g.Clip != clip || length < 0.05f) continue;
+			g.Velocity *= speed / length;
+			m_Space.Replace(i, g, g.Velocity);
+			return true;
+		}
+		return false;
+	}
+
 	float LocomotionBlender::MaxSpeed() const
 	{
 		float best = 0.0f;

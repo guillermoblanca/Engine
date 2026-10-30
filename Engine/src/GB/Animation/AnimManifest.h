@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Animation/AnimInstance.h"
 #include "GB/Animation/Montage.h"
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -54,6 +55,24 @@ namespace GB
 		float Rate = 1.0f;
 	};
 
+	// How the locomotion is tuned, as data (animation bindings; see AnimInstance::SetOptions): the limits of the factor that speeds a clip up or down to
+	// keep the feet on the ground, how fast the blend follows the velocity (the time of the blend between idle, walk and run), the share of gait a
+	// footstep needs, how long a change of locomotion set fades, and the ground speed (m/s) at which each clip plays at its natural rate (it is also
+	// where it sits on the speed axis: idle < walk < run, and so where the blend passes from one to the next). Unset = what the engine does.
+	struct ManifestClipSpeed
+	{
+		std::string Set;                  // "" = the default set
+		std::string Clip;
+		float Speed = 0.0f;
+	};
+
+	struct ManifestLocomotion
+	{
+		std::optional<float> MinSpeedScale, MaxSpeedScale, VelocitySmoothing, MinGaitWeight, SetFade;
+		std::vector<ManifestClipSpeed> Clips;
+		bool Empty() const { return !MinSpeedScale && !MaxSpeedScale && !VelocitySmoothing && !MinGaitWeight && !SetFade && Clips.empty(); }
+	};
+
 	struct AnimManifest
 	{
 		int Version = 1;
@@ -67,6 +86,7 @@ namespace GB
 		std::vector<ManifestUse> Activities;      // tribe job -> montages, set (see TribeVisuals)
 		std::vector<ManifestStage> Stages;        // stage of life -> rate
 		std::vector<MontageTransition> Transitions;   // blends between montages (animation bindings; see MontagePlayer::SetTransitions)
+		ManifestLocomotion Locomotion;                // tuning of the blend space (animation bindings)
 	};
 
 	// The use called `name` of a list (Abilities or Activities), or null.

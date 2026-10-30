@@ -202,6 +202,26 @@ namespace GB
 			trs.push_back(std::move(j));
 		}
 		root["transitions"] = std::move(trs);
+		if (!b.Locomotion.empty())
+		{
+			Json locos = Json::array();
+			for (const LocomotionTuning& t : b.Locomotion)
+			{
+				Json j = Json::object();
+				if (!t.Skeleton.empty()) j["skeleton"] = t.Skeleton;
+				const ManifestLocomotion& l = t.Values;
+				if (l.MinSpeedScale) j["minSpeedScale"] = *l.MinSpeedScale;
+				if (l.MaxSpeedScale) j["maxSpeedScale"] = *l.MaxSpeedScale;
+				if (l.VelocitySmoothing) j["velocitySmoothing"] = *l.VelocitySmoothing;
+				if (l.MinGaitWeight) j["minGaitWeight"] = *l.MinGaitWeight;
+				if (l.SetFade) j["setFade"] = *l.SetFade;
+				Json clips = Json::array();
+				for (const ManifestClipSpeed& c : l.Clips) clips.push_back({ { "set", c.Set }, { "clip", c.Clip }, { "speed", c.Speed } });
+				if (!l.Clips.empty()) j["clips"] = clips;
+				locos.push_back(std::move(j));
+			}
+			root["locomotion"] = std::move(locos);
+		}
 		return root.dump(2) + "\n";
 	}
 
@@ -263,6 +283,25 @@ namespace GB
 					t.Duration = j.value("duration", 0.2f);
 					t.Curve = BlendCurveFromName(j.value("curve", "smooth"));
 					result.Transitions.push_back(std::move(t));
+				}
+			}
+			if (const auto it = root.find("locomotion"); it != root.end())
+			{
+				if (!it->is_array()) return fail("'locomotion' must be a list");
+				for (const Json& j : *it)
+				{
+					if (!j.is_object()) return fail("a locomotion entry must be an object");
+					LocomotionTuning t;
+					t.Skeleton = j.value("skeleton", "");
+					t.Values.MinSpeedScale = optF(j, "minSpeedScale");
+					t.Values.MaxSpeedScale = optF(j, "maxSpeedScale");
+					t.Values.VelocitySmoothing = optF(j, "velocitySmoothing");
+					t.Values.MinGaitWeight = optF(j, "minGaitWeight");
+					t.Values.SetFade = optF(j, "setFade");
+					if (j.contains("clips") && j["clips"].is_array())
+						for (const Json& c : j["clips"])
+							if (c.is_object()) t.Values.Clips.push_back({ c.value("set", ""), c.value("clip", ""), c.value("speed", 0.0f) });
+					result.Locomotion.push_back(std::move(t));
 				}
 			}
 		}
@@ -490,6 +529,31 @@ namespace GB
 		return r;
 	}
 
+	// ---- locomotion tuning
+
+	ManifestLocomotion LocomotionFor(const AnimBindings& bindings, const std::string& skeleton)
+	{
+		ManifestLocomotion out;
+		for (int pass = 0; pass < 2; ++pass)   // general entries first, then the model's own
+			for (const LocomotionTuning& t : bindings.Locomotion)
+			{
+				if (t.Skeleton.empty() != (pass == 0) || !SkeletonMatches(t.Skeleton, skeleton)) continue;
+				const ManifestLocomotion& v = t.Values;
+				if (v.MinSpeedScale) out.MinSpeedScale = v.MinSpeedScale;
+				if (v.MaxSpeedScale) out.MaxSpeedScale = v.MaxSpeedScale;
+				if (v.VelocitySmoothing) out.VelocitySmoothing = v.VelocitySmoothing;
+				if (v.MinGaitWeight) out.MinGaitWeight = v.MinGaitWeight;
+				if (v.SetFade) out.SetFade = v.SetFade;
+				for (const ManifestClipSpeed& c : v.Clips)
+				{
+					bool replaced = false;
+					for (ManifestClipSpeed& e : out.Clips) if (e.Set == c.Set && e.Clip == c.Clip) { e = c; replaced = true; }
+					if (!replaced) out.Clips.push_back(c);
+				}
+			}
+		return out;
+	}
+
 	// ---- applying
 
 	BindingsReport ApplyBindings(AnimManifest& manifest, const AnimBindings& bindings, const BindingDefaults& defaults, const std::string& skeleton, const ClipExists& hasClip)
@@ -560,6 +624,32 @@ namespace GB
 			if (chosen->Repeat) use->Loop = *chosen->Repeat;
 			if (!chosen->Note.empty()) use->Note = chosen->Note;
 			++report.Applied;
+		}
+
+		// the tuning of the blend space
+		{
+			const ManifestLocomotion tuning = LocomotionFor(bindings, skeleton);
+			const bool sane = (!tuning.MinSpeedScale || *tuning.MinSpeedScale > 0.0f) && (!tuning.MaxSpeedScale || *tuning.MaxSpeedScale > 0.0f)
+				&& (!tuning.VelocitySmoothing || *tuning.VelocitySmoothing >= 0.0f) && (!tuning.SetFade || *tuning.SetFade >= 0.0f);
+			if (!sane) skip("locomotion: a scale must be positive and a time cannot be negative (not applied)");
+			else if (!tuning.Empty())
+			{
+				ManifestLocomotion& out = manifest.Locomotion;
+				if (tuning.MinSpeedScale) out.MinSpeedScale = tuning.MinSpeedScale;
+				if (tuning.MaxSpeedScale) out.MaxSpeedScale = tuning.MaxSpeedScale;
+				if (tuning.VelocitySmoothing) out.VelocitySmoothing = tuning.VelocitySmoothing;
+				if (tuning.MinGaitWeight) out.MinGaitWeight = tuning.MinGaitWeight;
+				if (tuning.SetFade) out.SetFade = tuning.SetFade;
+				for (const ManifestClipSpeed& c : tuning.Clips)
+				{
+					if (!(c.Speed > 0.0f)) { skip("locomotion: the speed of '" + c.Clip + "' must be positive (kept as it was)"); continue; }
+					if (hasClip && !hasClip(c.Clip)) { skip("locomotion: clip '" + c.Clip + "' does not exist"); continue; }
+					bool replaced = false;
+					for (ManifestClipSpeed& e : out.Clips) if (e.Set == c.Set && e.Clip == c.Clip) { e = c; replaced = true; }
+					if (!replaced) out.Clips.push_back(c);
+				}
+				report.Locomotion = true;
+			}
 		}
 
 		// transitions: actions expand to their montages
@@ -649,6 +739,26 @@ namespace GB
 				const bool loop = c.Loop.value_or(base ? base->Loop : false);
 				if (isAbility && loop) warn(at + ": loops, but an ability is a single shot (it would never reach its end)");
 				if (isAbility && base && base->HoldEnd && !c.Loop) warn(at + ": the montage holds its last frame until stopped, on a single-shot ability");
+			}
+		}
+		// locomotion tuning
+		for (const LocomotionTuning& t : bindings.Locomotion)
+		{
+			const std::string at = "locomotion" + (t.Skeleton.empty() ? std::string() : " [" + t.Skeleton + "]");
+			const ManifestLocomotion& l = t.Values;
+			if (l.MinSpeedScale && (*l.MinSpeedScale <= 0.0f || *l.MinSpeedScale > 1.0f)) error(at + ": the minimum speed factor must be in (0, 1]");
+			if (l.MaxSpeedScale && (*l.MaxSpeedScale < 1.0f || *l.MaxSpeedScale > 4.0f)) error(at + ": the maximum speed factor must be between 1 and 4");
+			if (l.VelocitySmoothing && (*l.VelocitySmoothing < 0.0f || *l.VelocitySmoothing > 2.0f)) error(at + ": the velocity smoothing must be between 0 and 2 seconds");
+			if (l.MinGaitWeight && (*l.MinGaitWeight < 0.0f || *l.MinGaitWeight > 1.0f)) error(at + ": the gait share must be between 0 and 1");
+			if (l.SetFade && (*l.SetFade < 0.0f || *l.SetFade > 3.0f)) error(at + ": the set fade must be between 0 and 3 seconds");
+			for (const ManifestClipSpeed& c : l.Clips)
+			{
+				const std::string cat = at + " clip '" + c.Clip + "'";
+				const ManifestSet* s = FindSet(manifest, c.Set.empty() ? std::string("default") : c.Set);
+				if (!s) { error(cat + ": no such locomotion set '" + c.Set + "'"); continue; }
+				if (std::find(s->Clips.begin(), s->Clips.end(), c.Clip) == s->Clips.end()) warn(cat + ": the set does not use that clip");
+				if (hasClip && !hasClip(c.Clip)) error(cat + ": the clip does not exist");
+				if (!(c.Speed > 0.05f) || c.Speed > 20.0f) error(cat + ": the reference speed must be between 0.05 and 20 m/s");
 			}
 		}
 		// transitions

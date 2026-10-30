@@ -143,7 +143,7 @@ namespace GB
 	AnimManifest Actor::EffectiveManifest() const
 	{
 		AnimManifest manifest = m_BaseManifest;
-		if (m_Bindings && m_Bindings->Applies(m_Skeleton) && (!m_Bindings->Bindings.Bindings.empty() || !m_Bindings->Bindings.Transitions.empty()))
+		if (m_Bindings && m_Bindings->Applies(m_Skeleton) && (!m_Bindings->Bindings.Bindings.empty() || !m_Bindings->Bindings.Transitions.empty() || !m_Bindings->Bindings.Locomotion.empty()))
 		{
 			const Model* model = m_Model.get();
 			const ClipExists hasClip = model ? ClipExists([model](const std::string& c) { return model->FindClip(c) >= 0; }) : ClipExists();

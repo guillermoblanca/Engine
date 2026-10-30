@@ -93,8 +93,24 @@ namespace GB
 		return true;
 	}
 
+	void AnimInstance::SetOptions(const LocomotionOptions& options)
+	{
+		m_Options.MinSpeedScale = options.MinSpeedScale;
+		m_Options.MaxSpeedScale = options.MaxSpeedScale;
+		m_Options.VelocitySmoothing = options.VelocitySmoothing;
+		m_Options.MinGaitWeight = options.MinGaitWeight;
+		for (Set& s : m_Sets) s.Blender->SetOptions(m_Options);
+	}
+
+	bool AnimInstance::SetClipSpeed(const std::string& set, const std::string& clip, float speed)
+	{
+		const int i = Find(set.empty() ? std::string(kDefaultSet) : set);
+		return i >= 0 && m_Sets[static_cast<size_t>(i)].Blender->SetClipSpeed(clip, speed);
+	}
+
 	bool AnimInstance::SetOverlay(const std::string& name, float fadeSeconds)
 	{
+		if (m_FadeOverride >= 0.0f && fadeSeconds > 1e-4f) fadeSeconds = std::max(m_FadeOverride, 1e-3f);
 		const int next = Find(name);
 		if (next < 0 || m_Sets[static_cast<size_t>(next)].Blender->ClipCount() == 0) return false;
 		if (next == m_Active && !Transitioning()) return true;

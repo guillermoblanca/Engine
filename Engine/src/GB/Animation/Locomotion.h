@@ -38,6 +38,11 @@ namespace GB
 		bool AddClip(const std::string& name);
 		bool AddClip(int clip);
 		size_t ClipCount() const { return m_Space.Size(); }
+		// Tuning from the animation bindings: the limits of the speed factor, the smoothing and the gait share are replaced (the bone names are kept).
+		void SetOptions(const LocomotionOptions& options) { m_Options.MinSpeedScale = options.MinSpeedScale; m_Options.MaxSpeedScale = options.MaxSpeedScale; m_Options.VelocitySmoothing = options.VelocitySmoothing; m_Options.MinGaitWeight = options.MinGaitWeight; }
+		// Where a clip sits on the speed axis, and so the ground speed (m/s) at which it plays at its natural rate: its measured velocity is scaled to
+		// `speed` (same direction). False when the clip is not in the blend or does not travel (an idle has no speed to set).
+		bool SetClipSpeed(const std::string& clip, float speed);
 		// The speed of the fastest clip (m/s): a set with only a walk cannot show anything faster, so a character in it should not be asked to.
 		float MaxSpeed() const;
 

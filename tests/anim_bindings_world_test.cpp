@@ -2,6 +2,7 @@
 // made later, or only the ones of a model), a binding with a `when` picks its clip from where the ability is used (node, tool), and they survive the
 // rules registering the abilities again (a combat rules reload). Runs on the generated humanoid of tests/data. CPU only.
 #include "GB/Animation/AnimBindings.h"
+#include "GB/Animation/Locomotion.h"
 #include "GB/Game/ActorWorld.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/Combat.h"
@@ -277,6 +278,57 @@ int main()
 		Check(s.Gameplay.Library.Ability("Attack.sword")->Montages.size() == 3, "reloading the combat rules wrote the C++ list");
 		s.Frames(1);
 		Check(s.Gameplay.Library.Ability("Attack.sword")->Montages == std::vector<std::string>{ "swing_c" }, "the bound montage is back after the reload");
+	}
+
+	// ---- the locomotion blend space tuned from the bindings: reference speeds, limits, smoothing, set fade; for every character
+	{
+		Garden s;
+		LocomotionBlender plain(*s.Model);
+		plain.AddClip("test_idle"); plain.AddClip("test_walk"); plain.AddClip("test_run");
+		const float before = plain.MaxSpeed();
+		Check(before > 0.1f && before < 8.0f, "the test run clip travels at a natural speed of its own (" + std::to_string(before) + " m/s)");
+		Check(!plain.SetClipSpeed("test_idle", 3.0f), "an idle has no speed to set");
+		Check(plain.SetClipSpeed("test_run", 8.0f) && std::fabs(plain.MaxSpeed() - 8.0f) < 1e-3f, "a clip's reference speed moves it on the speed axis");
+		LocomotionBlender fast(*s.Model);   // the same character asked for a speed between the old and the new
+		fast.AddClip("test_idle"); fast.AddClip("test_walk"); fast.AddClip("test_run");
+		LocomotionOptions instant; instant.VelocitySmoothing = 0.0f;
+		plain.SetOptions(instant); fast.SetOptions(instant);
+		fast.SnapVelocity({ 0.0f, before }); plain.SnapVelocity({ 0.0f, before });
+		fast.Update(kDt); plain.Update(kDt);
+		auto runWeight = [](const LocomotionBlender& b) { float w = 0.0f; for (const auto& c : b.Contributions()) if (c.Clip == "test_run") w = c.Weight; return w; };
+		Check(runWeight(fast) > 0.99f && runWeight(plain) < 0.9f, "the same ground speed blends the clips differently once the run sits further out on the speed axis");
+
+		Actor* a = s.Spawn("a", "models/x bot.fbx", 0.0f);
+		Actor* b = s.Spawn("b", "models/fox.glb", 5.0f);
+		if (!a || !b) return 1;
+		const float natural = a->Anim()->Default().MaxSpeed();
+		AnimBindings bindings;
+		LocomotionTuning tuning;
+		tuning.Values.Clips.push_back({ "", "test_run", 9.0f });
+		tuning.Values.MinSpeedScale = 0.8f;
+		tuning.Values.VelocitySmoothing = 0.5f;
+		tuning.Values.SetFade = 1.0f;
+		bindings.Locomotion.push_back(tuning);
+		Check(s.World.SetBindings(s.Setup(bindings)) == 2, "locomotion tuning reaches both characters");
+		for (Actor* who : { a, b })
+		{
+			Check(std::fabs(who->Anim()->Default().MaxSpeed() - 9.0f) < 1e-3f && natural != 9.0f, "the run clip sits at 9 m/s in every character");
+			Check(std::fabs(who->Anim()->Options().MinSpeedScale - 0.8f) < 1e-6f && std::fabs(who->Anim()->Options().VelocitySmoothing - 0.5f) < 1e-6f, "the limits and the smoothing are the tuned ones");
+		}
+		a->Anim()->AddSet({ "alt", { "test_idle", "test_walk" } });
+		a->SetOverlay("alt", 0.3f);
+		s.Frames(30);
+		Check(a->Anim()->Transitioning(), "a change of set that asked for 0.3 s still fades after half a second: the tuned fade is 1 s");
+
+		// only one model, and taking it off
+		AnimBindings scoped;
+		LocomotionTuning only = tuning;
+		only.Skeleton = "x bot";
+		scoped.Locomotion.push_back(only);
+		s.World.SetBindings(s.Setup(scoped));
+		Check(std::fabs(a->Anim()->Default().MaxSpeed() - 9.0f) < 1e-3f && std::fabs(b->Anim()->Default().MaxSpeed() - natural) < 1e-3f, "a tuning scoped to a model leaves the other one as it was");
+		s.World.SetBindings(nullptr);
+		Check(std::fabs(a->Anim()->Default().MaxSpeed() - natural) < 1e-3f && std::fabs(a->Anim()->Options().VelocitySmoothing - LocomotionOptions().VelocitySmoothing) < 1e-6f, "without the bindings the engine's own tuning is back");
 	}
 
 	if (failures == 0) std::printf("anim_bindings_world: ok\n");

@@ -60,12 +60,27 @@ namespace GB
 		BlendCurve Curve = BlendCurve::Smooth;
 	};
 
+	// The tuning of the locomotion blend space (see ManifestLocomotion): the limits of the speed factor, the smoothing of the velocity (the time of the
+	// blend between idle, walk and run), the gait share for footsteps, the fade of a change of set, and the reference speed of each clip of a set (the
+	// ground speed at which it plays at its natural rate, which is also its place on the speed axis: where the blend passes from the idle to the walk and
+	// from the walk to the run). Scoped to a model or to all. Which clip goes in each stretch is the `loco:<set>` binding (Replaces).
+	struct LocomotionTuning
+	{
+		std::string Skeleton;                        // "" = every model
+		ManifestLocomotion Values;
+	};
+
 	struct AnimBindings
 	{
 		int Version = kAnimBindingsVersion;
 		std::vector<AnimBinding> Bindings;
 		std::vector<BindingTransition> Transitions;
+		std::vector<LocomotionTuning> Locomotion;
 	};
+
+	// The tuning that holds for a model: the general entries first, then the ones of the model on top (a field it sets wins, a clip speed of the same
+	// set and clip wins).
+	ManifestLocomotion LocomotionFor(const AnimBindings& bindings, const std::string& skeleton);
 
 	// The model key bindings are scoped by: the file name without folder or extension, lower case ("x bot", "fox").
 	std::string SkeletonKey(const std::string& modelPath);
@@ -154,6 +169,7 @@ namespace GB
 	{
 		int Applied = 0;                             // actions rewritten
 		int Transitions = 0;
+		bool Locomotion = false;                     // the blend space was tuned
 		std::vector<std::string> Skipped;            // "ability:Chop #1: clip 'x' does not exist (default kept)"
 	};
 

@@ -30,6 +30,13 @@ namespace GB
 		return m_Entries.size() - 1;
 	}
 
+	void BlendSpace::Replace(size_t i, const GaitInfo& info, glm::vec2 position)
+	{
+		if (i >= m_Entries.size()) return;
+		m_Entries[i] = { info, position };
+		m_TrianglesReady = false;
+	}
+
 	namespace
 	{
 		// Barycentric coordinates of the point of triangle (a, b, c) closest to p (Ericson, Real-Time Collision Detection).

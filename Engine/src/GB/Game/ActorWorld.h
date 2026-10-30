@@ -60,6 +60,8 @@ namespace GB
 		// changed.
 		int SetBindings(std::shared_ptr<const BindingsSetup> setup);
 		const BindingsSetup* Bindings() const { return m_Bindings.get(); }
+		// Every character puts its manifest's ability montages (and the notifies the abilities need) into the shared library again.
+		void SyncAbilities() { for (auto& [name, actor] : m_Actors) actor->SyncAbilities(); if (m_Gameplay) m_AbilityRevision = m_Gameplay->Library.Revision(); }
 
 		// A model loaded once however many actors use it.
 		std::shared_ptr<Model> LoadModel(const std::string& path, std::string& error);
