@@ -216,12 +216,13 @@ namespace GB::Editor
 	// ------------------------------------------------------------------ what the interact key would do
 	namespace
 	{
-		struct Candidate { float Distance = 1e30f; std::string Label, Command; };
+		struct Candidate { float Distance = 1e30f; std::string Label, Command; glm::vec3 At{ 0.0f }; bool HasAt = false; };
 	}
 
 	void EditorApp::RefreshPrompt()
 	{
 		m_Game.Prompt.clear();
+		m_Game.HasPromptPos = false;
 		m_Game.PromptCommand.clear();
 		const Actor* me = m_Actors.Find(m_Game.Player);
 		const TribeMember* member = m_Tribe.FindMember(m_Game.Player);
@@ -230,7 +231,7 @@ namespace GB::Editor
 		const glm::vec2 pos(p3.x, p3.z);
 		const PlayerRules& rules = m_Tribe.Config.Player;
 		Candidate best;
-		auto offer = [&](float d, const std::string& label, const std::string& command) { if (d < best.Distance) best = { d, label, command }; };
+		auto offer = [&](float d, const std::string& label, const std::string& command, const glm::vec3* at = nullptr) { if (d < best.Distance) { best = { d, label, command }; best.HasAt = at != nullptr; if (at) best.At = *at; } };
 		// someone fighting the player first
 		if (const std::vector<std::string> foes = m_Combat.AttackersOf(m_Game.Player); !foes.empty()) { m_Game.Prompt = "Fight back " + foes.front(); m_Game.PromptCommand = "game attack " + foes.front(); return; }
 		// the members of the clan within reach
@@ -251,16 +252,17 @@ namespace GB::Editor
 			const glm::vec4 w = world.WorldMatrix(id)[3];
 			const float d = glm::distance(glm::vec2(w.x, w.z), pos);
 			if (d > rules.Reach + (site ? 2.0f : 1.0f)) continue;
+			const glm::vec3 at3(w.x, w.y, w.z);
 			if (node && ResourceSystem::Amount(*asc) > 0)
 			{
 				std::string ability = "Gather";
 				for (const auto& [kind, def] : m_NodeDefs)
 					if (asc->HasTag("Resource.Node." + kind)) { if (!def.Ability.empty()) ability = def.Ability; break; }
-				offer(d, ability + " " + e.Name, "game use " + Underscored(e.Name));
+				offer(d, ability + " " + e.Name, "game use " + Underscored(e.Name), &at3);
 			}
-			else if (fire) offer(d, "Feed the campfire", "game use " + Underscored(e.Name));
-			else if (well) offer(d, "Draw water at " + e.Name, "game use " + Underscored(e.Name));
-			else if (site) offer(d, "Build " + e.Name, "game use " + Underscored(e.Name));
+			else if (fire) offer(d, "Feed the campfire", "game use " + Underscored(e.Name), &at3);
+			else if (well) offer(d, "Draw water at " + e.Name, "game use " + Underscored(e.Name), &at3);
+			else if (site) offer(d, "Build " + e.Name, "game use " + Underscored(e.Name), &at3);
 		}
 		if (best.Command.empty() && glm::distance(pos, m_Tribe.Config.Economy.Camp) <= rules.CampReach)
 		{
@@ -275,6 +277,8 @@ namespace GB::Editor
 					best = { 0.0f, "Trade with the " + c->Name, "game trade " + c->Name };
 		m_Game.Prompt = best.Label;
 		m_Game.PromptCommand = best.Command;
+		m_Game.PromptPos = best.At;
+		m_Game.HasPromptPos = best.HasAt;
 	}
 
 	// ------------------------------------------------------------------ each frame

@@ -29,6 +29,8 @@ namespace GB::Editor
 		double DownAt = -1.0;              // when its body fell as a ragdoll (it stands up a moment later)
 		// the interact key now: what it would do, the command it runs and how far the thing is
 		std::string Prompt, PromptCommand;
+		glm::vec3 PromptPos{ 0.0f };   // where the thing the prompt is about stands (the label under it in the world)
+		bool HasPromptPos = false;
 		double PromptAt = -1.0;
 		// an ability the player was sent to use (gather, stoke, build...): when its tasks end the clan hears of it
 		std::string PendingKind, PendingKey, PendingItem;

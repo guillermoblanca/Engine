@@ -1391,6 +1391,18 @@ namespace GB::Editor
 			label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), (you ? "YOU - " : "") + m.Name + " - " + m.Role + (clanName.empty() ? std::string() : " (" + clanName + ")"), color);
 			label(s, task, IM_COL32(235, 235, 235, 235));
 		}
+		// the thing the interact key would use: its prompt under it, in the world, with the key
+		if (m_Game.Active && m_Game.HasPromptPos && !m_Game.Prompt.empty())
+		{
+			ImVec2 s;
+			if (screen(m_Game.PromptPos + glm::vec3(0.0f, -0.1f, 0.0f), s))
+			{
+				const std::string key = m_Controls.Keys.count("interact") ? m_Controls.Keys.at("interact") : std::string("E");
+				dl->AddCircle(s, 16.0f, IM_COL32(255, 235, 90, 230), 20, 2.0f);
+				label(ImVec2(s.x, s.y + 20.0f), "Interact [" + key + "]", IM_COL32(255, 235, 90, 255));
+				label(ImVec2(s.x, s.y + 20.0f + ImGui::GetTextLineHeight() + 3.0f), m_Game.Prompt, IM_COL32(235, 235, 235, 235));
+			}
+		}
 		}
 	}
 
