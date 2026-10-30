@@ -505,7 +505,7 @@ namespace GB
 		view.FightCulture = m_Society.OptionFactor(Config.Society, m.Name, "fight", "").Total();
 		view.FleeCulture = m_Society.OptionFactor(Config.Society, m.Name, "flee", "").Total();
 		const FightChoice choice = FightOrFlight(cs.Rules.Threats, cs.Rules.Morale, view);
-		if (m.Job == "gather") m_Claims.erase(m.Detail);   // it drops what it was doing
+		if (m.Job == "gather") m_Claims.Release(m.Detail);   // it drops what it was doing
 		m.Job.clear();
 		mc.Ordered = false;
 		if (choice.Fights() && cs.Find(threat) && cs.Engage(m.Name, threat))
@@ -760,7 +760,7 @@ namespace GB
 		for (TribeMember& m : m_Members)
 		{
 			if (std::find(party.begin(), party.end(), m.Name) == party.end()) continue;
-			if (m.Job == "gather") m_Claims.erase(m.Detail);
+			if (m.Job == "gather") m_Claims.Release(m.Detail);
 			m_Board.Release(m.Name);
 			m.Job = "raid";
 			m.Detail = clan;

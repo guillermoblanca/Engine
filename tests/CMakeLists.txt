@@ -292,6 +292,11 @@ add_executable(GBScheduleTests schedule_test.cpp)
 target_link_libraries(GBScheduleTests PRIVATE GB::GB)
 add_test(NAME schedule COMMAND GBScheduleTests)
 
+# The claims on nodes alone (first piece of the logistics)
+add_executable(GBLogisticsTests logistics_test.cpp)
+target_link_libraries(GBLogisticsTests PRIVATE GB::GB)
+add_test(NAME logistics COMMAND GBLogisticsTests)
+
 # H7: aptitudes by practice, the job board and the trades of the clan (TribeWork, Skills, JobBoard)
 add_executable(GBWorkTests work_test.cpp)
 target_link_libraries(GBWorkTests PRIVATE GB::GB)

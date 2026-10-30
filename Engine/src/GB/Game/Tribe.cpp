@@ -469,7 +469,7 @@ namespace GB
 	void Tribe::Clear()
 	{
 		m_Members.clear();
-		m_Claims.clear();
+		m_Claims.Clear();
 		m_Log.clear();
 		m_Chronicle.Clear();
 		m_TelemetryKnown.clear();
@@ -710,7 +710,7 @@ namespace GB
 		{
 			if (m_Members[i].Name != name) continue;
 			if (m_Members[i].Abstract) SetDetail(m_Members[i], true);
-			for (auto it = m_Claims.begin(); it != m_Claims.end();) it = it->second == name ? m_Claims.erase(it) : std::next(it);
+			m_Claims.ReleaseBy(name);
 			m_Board.Release(name);
 			m_Members.erase(m_Members.begin() + static_cast<std::ptrdiff_t>(i));
 			m_Knowledge.Leave(name);
@@ -915,7 +915,7 @@ namespace GB
 		const AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
 		m.Dead = true;
 		m.Cause = !cause.empty() ? cause : asc ? CauseOfDeath(*asc) : "Unknown";
-		for (auto it = m_Claims.begin(); it != m_Claims.end();) it = it->second == m.Name ? m_Claims.erase(it) : std::next(it);
+		m_Claims.ReleaseBy(m.Name);
 		m_Board.Release(m.Name);
 		m.Job = "dead";
 		m.Detail.clear();
@@ -1066,7 +1066,7 @@ namespace GB
 			const float d = glm::distance(from, e.Pos);
 			if (d >= n.Distance) continue;
 			if (SpatialMemory::Confidence(e, m_Time, Config.Memory) <= 0.0f) continue;
-			if (auto claim = m_Claims.find(name); claim != m_Claims.end() && claim->second != m.Name) continue;
+			if (m_Claims.HeldByOther(name, m.Name)) continue;
 			if (const auto away = m.Unreachable.find(name); away != m.Unreachable.end() && away->second.first > m_Time) continue;   // it failed to get there a moment ago
 			n.Distance = d;
 			n.Name = name;
@@ -1418,9 +1418,8 @@ namespace GB
 		// feed the campfire before it goes out: a piece of wood from the store (or the bag) and Stoke, as the player does
 		if (weight("fire") > 0.0f && HasFire() && FireFuel() <= Config.StokeBelow)
 		{
-			const auto claim = m_Claims.find(Config.FireName);
 			const bool can = asc && std::find(asc->Granted().begin(), asc->Granted().end(), "Stoke") != asc->Granted().end();
-			if (can && (claim == m_Claims.end() || claim->second == m.Name) && (!FuelIn(*m_Items, bag).empty() || !FuelIn(*m_Items, m_Store).empty()))
+			if (can && !m_Claims.HeldByOther(Config.FireName, m.Name) && (!FuelIn(*m_Items, bag).empty() || !FuelIn(*m_Items, m_Store).empty()))
 			{
 				UtilityOption o;
 				o.Kind = "stoke";
@@ -1630,7 +1629,7 @@ namespace GB
 			}
 			Wait(go, sizeof go, o.Where, ("wait 1 | ability Stoke " + Underscored(Config.FireName) + " | wait 1").c_str());
 			if (!Order(m, go)) return false;
-			m_Claims[Config.FireName] = m.Name;
+			m_Claims.Claim(Config.FireName, m.Name);
 			m.Job = "stoke";
 			m.Detail = Config.FireName;
 			Say(m, "takes " + fuel + " to feed the campfire");
@@ -1672,7 +1671,7 @@ namespace GB
 				const glm::vec2 away = glm::normalize(pos - e->Pos);
 				Wait(go, sizeof go, e->Pos + away * 2.0f, "wait 0.1");
 				if (!Order(m, go)) return false;
-				m_Claims[o.Target] = m.Name;
+				m_Claims.Claim(o.Target, m.Name);
 				m.Job = "approach";
 				m.Detail = o.Target;
 				Say(m, "heads for " + o.Target + " to see how it is");
@@ -1704,7 +1703,7 @@ namespace GB
 			if (!Order(m, text)) return false;
 			m.WorkKind = kind;
 			m.WorkStart = def != m_Defs.end() ? bag.Count(def->second.Item) : 0;
-			m_Claims[o.Target] = m.Name;
+			m_Claims.Claim(o.Target, m.Name);
 			m.Job = "gather";
 			m.Detail = o.Target;
 			Say(m, "goes to " + o.Target + " (" + ability + ")");
@@ -1824,7 +1823,7 @@ namespace GB
 		}
 		if (job == "gather")
 		{
-			m_Claims.erase(m.Detail);
+			m_Claims.Release(m.Detail);
 			// what it gathered on this trip is what it practised (H7)
 			if (const auto def = m_Defs.find(m.WorkKind); def != m_Defs.end())
 			{
@@ -1854,7 +1853,7 @@ namespace GB
 		}
 		else if (job == "stoke")
 		{
-			m_Claims.erase(Config.FireName);
+			m_Claims.Release(Config.FireName);
 			if (!HasFailed(m))
 			{
 				Say(m, "feeds the campfire (fuel " + std::to_string(static_cast<int>(std::lround(FireFuel()))) + ")");
@@ -1865,7 +1864,7 @@ namespace GB
 		}
 		else if (job == "approach")
 		{
-			m_Claims.erase(m.Detail);
+			m_Claims.Release(m.Detail);
 			Look(m);   // it is next to the node now: what it sees is what is there
 		}
 		else if (job == "deposit")
@@ -2018,7 +2017,7 @@ namespace GB
 		j["clan"] = Json::parse(m_Clan.ToJson());
 		j["soundSeq"] = m_Sounds.LastSeq();
 		Json claims = Json::object();
-		for (const auto& [node, who] : m_Claims) claims[node] = who;
+		for (const auto& [node, who] : m_Claims.All()) claims[node] = who;
 		j["claims"] = claims;
 		Json log = Json::array();
 		for (size_t i = m_Log.size() > 200 ? m_Log.size() - 200 : 0; i < m_Log.size(); ++i) log.push_back(m_Log[i]);
@@ -2124,9 +2123,9 @@ namespace GB
 			Config.Economy.Camp = { j["camp"][0].get<float>(), j["camp"][1].get<float>() };
 			Config.Economy.CampY = j["camp"][2].get<float>();
 		}
-		m_Claims.clear();
+		m_Claims.Clear();
 		if (j.contains("claims") && j["claims"].is_object())
-			for (const auto& [node, who] : j["claims"].items()) if (who.is_string()) m_Claims[node] = who.get<std::string>();
+			for (const auto& [node, who] : j["claims"].items()) if (who.is_string()) m_Claims.Claim(node, who.get<std::string>());
 		m_Log.clear();
 		if (j.contains("log") && j["log"].is_array())
 			for (const Json& l : j["log"]) if (l.is_string()) m_Log.push_back(l.get<std::string>());
@@ -2167,7 +2166,7 @@ namespace GB
 				if (reissue && !m.Dead && m.Body && !m.Player && !m.Job.empty() && m.Job != "rest")
 				{
 					std::string error;
-					if (m.Mind.Orders.empty() || !Run(m, m.Mind.Orders, error)) { m_Claims.erase(m.Detail); m.Job.clear(); m.Mind.Orders.clear(); }
+					if (m.Mind.Orders.empty() || !Run(m, m.Mind.Orders, error)) { m_Claims.Release(m.Detail); m.Job.clear(); m.Mind.Orders.clear(); }
 				}
 			}
 		return true;

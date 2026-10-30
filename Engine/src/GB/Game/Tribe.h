@@ -13,6 +13,7 @@
 #include "GB/Game/JobBoard.h"
 #include "GB/Game/Skills.h"
 #include "GB/Game/Knowledge.h"
+#include "GB/Game/Logistics.h"
 #include "GB/Game/PlayerMember.h"
 #include "GB/Game/Society.h"
 #include "GB/Game/Social.h"
@@ -821,7 +822,7 @@ namespace GB
 		const RecipeBook* m_Recipes = nullptr;
 		std::map<std::string, ResourceNodeDef> m_Defs;
 		std::vector<TribeMember> m_Members;
-		std::map<std::string, std::string> m_Claims;   // node -> worker that goes there
+		NodeClaims m_Claims;   // node -> worker that goes there (Logistics.h)
 		Inventory m_Store{ Config.Economy.StoreCapacity, 0.0f };
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;

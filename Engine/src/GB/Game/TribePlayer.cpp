@@ -79,7 +79,7 @@ namespace GB
 		if (on)
 		{
 			if (m->Abstract) SetDetail(*m, true);
-			for (auto it = m_Claims.begin(); it != m_Claims.end();) it = it->second == name ? m_Claims.erase(it) : std::next(it);
+			m_Claims.ReleaseBy(name);
 			m_Board.Release(name);
 			m->Job.clear();
 			m->Detail.clear();
