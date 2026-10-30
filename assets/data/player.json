@@ -43,7 +43,7 @@
     },
     "hud": { "notifications": 5, "notifySeconds": 12.0, "needs": [ "Hunger", "Thirst", "Rest", "Warmth", "Health" ], "clock": true, "prompt": true },
     "game": {
-      "world": "temperate", "seed": 5, "resources": 1.0, "members": 4, "clans": 2,
+      "world": "temperate", "seed": 5, "resources": 2.0, "members": 4, "clans": 2,
       "model": "packs/full/X Bot.fbx", "fallback": "fox", "name": "Player", "quality": "auto", "autoMs": 40.0, "timeScale": 1
     }
   }

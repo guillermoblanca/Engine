@@ -1,0 +1,264 @@
+{
+  "items": [],
+  "nodes": [
+    {
+      "id": "tree",
+      "item": "wood",
+      "capacity": 5,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 30.0,
+      "kind": "Wood",
+      "ability": "Chop",
+      "requires": "Item.Tool.Axe",
+      "patch": {
+        "count": 2,
+        "perWorker": 2,
+        "shape": "row",
+        "spacing": 4.0
+      },
+      "spawn": {
+        "biomes": [
+          "Forest",
+          "Meadow"
+        ],
+        "clump": 0.3,
+        "maxSlope": 30.0,
+        "perHectare": 6.0,
+        "spacing": 8.0,
+        "prop": "tree",
+        "scaleMin": 0.8,
+        "scaleMax": 1.25
+      }
+    },
+    {
+      "id": "old_tree",
+      "item": "wood",
+      "capacity": 8,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 120.0,
+      "kind": "Wood",
+      "ability": "Chop",
+      "requires": "Item.Tool.Axe",
+      "patch": {
+        "count": 1,
+        "perWorker": 1,
+        "shape": "cluster",
+        "spacing": 7.0
+      },
+      "spawn": {
+        "biomes": [
+          "Forest"
+        ],
+        "clump": 0.2,
+        "maxSlope": 28.0,
+        "perHectare": 8.0,
+        "spacing": 9.0,
+        "prop": "tree",
+        "scaleMin": 1.2,
+        "scaleMax": 1.6
+      }
+    },
+    {
+      "id": "young_tree",
+      "item": "branch",
+      "capacity": 3,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 40.0,
+      "kind": "Plant.Branch",
+      "ability": "Gather",
+      "patch": {
+        "count": 1,
+        "near": "old_tree",
+        "perWorker": 1,
+        "shape": "row",
+        "spacing": 4.0
+      },
+      "spawn": {
+        "biomes": [
+          "Forest",
+          "Meadow"
+        ],
+        "clump": 0.35,
+        "maxSlope": 30.0,
+        "perHectare": 8.0,
+        "spacing": 5.0,
+        "prop": "tree",
+        "scaleMin": 0.35,
+        "scaleMax": 0.6
+      }
+    },
+    {
+      "id": "rock",
+      "item": "stone",
+      "capacity": 4,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Stone",
+      "ability": "Mine",
+      "requires": "Item.Tool.Pickaxe",
+      "patch": {
+        "count": 3,
+        "perWorker": 2,
+        "shape": "row",
+        "spacing": 4.0
+      },
+      "spawn": {
+        "biomes": [
+          "Rock",
+          "Meadow",
+          "Shore",
+          "Dunes"
+        ],
+        "maxSlope": 45.0,
+        "perHectare": 4.0,
+        "spacing": 7.0,
+        "prop": "rock",
+        "scaleMin": 0.7,
+        "scaleMax": 1.4
+      }
+    },
+    {
+      "id": "rock_small",
+      "item": "stone",
+      "capacity": 2,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Stone",
+      "ability": "Mine",
+      "requires": "Item.Tool.Pickaxe",
+      "model": "rock",
+      "spawn": {
+        "prop": "rock",
+        "scaleMin": 0.35,
+        "scaleMax": 0.6
+      }
+    },
+    {
+      "id": "boulder",
+      "item": "stone",
+      "capacity": 12,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Stone",
+      "ability": "Mine",
+      "requires": "Item.Tool.Pickaxe",
+      "model": "rock",
+      "spawn": {
+        "prop": "rock",
+        "scaleMin": 2.0,
+        "scaleMax": 3.0
+      }
+    },
+    {
+      "id": "rock_pile",
+      "item": "stone",
+      "capacity": 8,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Stone",
+      "ability": "Mine",
+      "requires": "Item.Tool.Pickaxe",
+      "model": "rock",
+      "spawn": {
+        "prop": "rock",
+        "scaleMin": 0.9,
+        "scaleMax": 1.4,
+        "stack": 3
+      }
+    },
+    {
+      "id": "loose_stones",
+      "item": "stone",
+      "capacity": 3,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 600.0,
+      "kind": "Loose.Stone",
+      "ability": "Collect",
+      "model": "rock",
+      "spawn": {
+        "prop": "rock",
+        "scaleMin": 0.22,
+        "scaleMax": 0.38
+      }
+    },
+    {
+      "id": "fallen_branch",
+      "item": "branch",
+      "capacity": 3,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 300.0,
+      "kind": "Loose.Branch",
+      "ability": "Collect",
+      "model": "fallen_branch"
+    },
+    {
+      "id": "flowers_red",
+      "item": "fiber",
+      "capacity": 1,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Plant",
+      "ability": "Gather",
+      "model": "flowers_red",
+      "decor": true
+    },
+    {
+      "id": "flowers_yellow",
+      "item": "fiber",
+      "capacity": 1,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Plant",
+      "ability": "Gather",
+      "model": "flowers_yellow",
+      "decor": true
+    },
+    {
+      "id": "flowers_white",
+      "item": "fiber",
+      "capacity": 1,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Plant",
+      "ability": "Gather",
+      "model": "flowers_white",
+      "decor": true
+    },
+    {
+      "id": "flowers_blue",
+      "item": "fiber",
+      "capacity": 1,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Plant",
+      "ability": "Gather",
+      "model": "flowers_blue",
+      "decor": true
+    },
+    {
+      "id": "flowers_purple",
+      "item": "fiber",
+      "capacity": 1,
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 0.0,
+      "kind": "Plant",
+      "ability": "Gather",
+      "model": "flowers_purple",
+      "decor": true
+    }
+  ]
+}

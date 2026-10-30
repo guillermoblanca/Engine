@@ -272,6 +272,12 @@ add_executable(GBWorldResourcesTests world_resources_test.cpp)
 target_link_libraries(GBWorldResourcesTests PRIVATE GB::GB)
 add_test(NAME world_resources COMMAND GBWorldResourcesTests)
 
+# Forests, stony ground, flowers and wild food over a generated world (WorldResources patches, bosques.json), and the soft grass between zones
+add_executable(GBForestTests forest_test.cpp)
+target_link_libraries(GBForestTests PRIVATE GB::GB)
+target_compile_definitions(GBForestTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME forest COMMAND GBForestTests)
+
 add_executable(GBTribeTests tribe_test.cpp)
 target_link_libraries(GBTribeTests PRIVATE GB::GB sqlite3)
 target_compile_definitions(GBTribeTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")

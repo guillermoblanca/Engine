@@ -149,6 +149,15 @@ namespace GB::Editor
 			if (const std::string error = m_Packs.Load("era1", m_AssetRoot + "/data", &report); !error.empty()) GB_CLIENT_WARN("content not loaded: {}", error);
 			for (const std::string& p : report.Problems) GB_CLIENT_WARN("content check: {}", p);
 		}
+		// The forests (docs/BOSQUES.md): the pack of the wild nodes with procedural models (trees, rocks, flowers, wild food) and the patches that group them.
+		if (std::filesystem::exists(m_AssetRoot + "/data/era1_bosque.pack.json"))
+		{
+			ContentReport report;
+			if (const std::string error = m_Packs.Load("era1_bosque", m_AssetRoot + "/data", &report); !error.empty()) GB_CLIENT_WARN("forest content not loaded: {}", error);
+			for (const std::string& p : report.Problems) GB_CLIENT_WARN("content check: {}", p);
+		}
+		if (std::filesystem::exists(m_AssetRoot + "/data/bosques.json"))
+			if (const std::string error = LoadNatureConfigFile(m_AssetRoot + "/data/bosques.json", m_Nature); !error.empty()) GB_CLIENT_WARN("forest config not loaded: {}", error);
 		m_Tribe.SetInteractives(&m_Interactives.Defs);   // the tribe's campfire is the fire pit of the data
 		m_Tribe.SetTechs(&m_Techs);   // H11: the members know the technologies of the start and find, watch and teach the rest
 		m_Clans.Add("", &m_Tribe);   // H13: the first tribe is clan 0 (the others come with `clan new`)

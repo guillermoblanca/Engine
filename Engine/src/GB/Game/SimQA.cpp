@@ -847,7 +847,8 @@ namespace GB
 		}
 		else
 		{
-			m_Spots = PlanWorldResources(ResourceGroundOf(world), m_Defs, world.Desc.Seed, setup.ResourceDensity);
+			m_Spots = setup.Nature ? PlanWorldNature(ResourceGroundOf(world), m_Defs, *setup.Nature, world.Desc.Seed)
+				: PlanWorldResources(ResourceGroundOf(world), m_Defs, world.Desc.Seed, setup.ResourceDensity);
 			BuildWorldResources(m_Entities, m_Spots, m_Defs);
 		}
 		if (m_Entities.FindByName("Well") == NullEntity)   // a well near the camp (the members get thirsty), as `tribe build` puts one

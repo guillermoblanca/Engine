@@ -23,7 +23,7 @@ namespace GB::Editor
 		if (key != m_RegionsKey)
 		{
 			std::vector<ResourceSpot> spots;
-			if (m_WildResources > 0.0f) spots = PlanWorldResources(ResourceGroundOf(m_World.World()), m_NodeDefs, d.Seed, m_WildResources);
+			if (m_WildResources > 0.0f) spots = PlanWorldNature(ResourceGroundOf(m_World.World()), m_NodeDefs, NatureFor(m_WildResources), d.Seed);
 			m_Regions = RegionMap::Build(m_World.World(), m_Tribe.Config.Explore.Regions, RegionThingsOf(spots));
 			m_RegionsKey = key;
 			m_RegionTicks = 0;

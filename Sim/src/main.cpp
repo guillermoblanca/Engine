@@ -84,6 +84,7 @@ namespace
 		GB::CombatRules Combat;
 		GB::ControlRules Controls;
 		GB::ContentPacks Packs;
+		GB::NatureConfig Nature;
 		std::string Error;
 
 		explicit EraContent(const std::string& assets)
@@ -118,7 +119,7 @@ int main(int argc, char** argv)
 	double days = 3.0, every = 60.0, years = 0.0, stagnantDays = 0.0;
 	bool stopClanDead = false, stopExtinct = false;
 	int clans = 1, members = 4;
-	bool combat = false, hostile = false, content = true;
+	bool combat = false, hostile = false, content = true, forests = false;
 	std::string biome = "temperate", path, profile, note;
 	for (int i = 1; i < argc; ++i)
 	{
@@ -140,6 +141,7 @@ int main(int argc, char** argv)
 		else if (Arg(argv[i], "--every", v)) every = std::atof(v.c_str());
 		else if (Arg(argv[i], "--profile", v)) profile = v;
 		else if (Arg(argv[i], "--note", v)) note = v;
+		else if (!std::strcmp(argv[i], "--forest")) forests = true;
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
 		else if (!std::strcmp(argv[i], "--no-content")) content = false;   // the bare engine: no buildings, no technologies (the old runs)
 		else if (!std::strcmp(argv[i], "--hostile")) hostile = combat = true;
@@ -187,6 +189,15 @@ int main(int argc, char** argv)
 		setup.Config = &era->Config;
 		setup.Techs = &era->Techs;
 		setup.Buildings = &era->Buildings;
+	}
+	if (forests && era)   // --forest: the forest pack and the patches of bosques.json (docs/BOSQUES.md) on top of the era
+	{
+		GB::ContentReport report;
+		if (const std::string error = era->Packs.Load("era1_bosque", std::string(GB_ASSETS_DIR) + "/data", &report); !error.empty()) { std::fprintf(stderr, "%s
+", error.c_str()); return 1; }
+		if (const std::string error = GB::LoadNatureConfigFile(std::string(GB_ASSETS_DIR) + "/data/bosques.json", era->Nature); !error.empty()) { std::fprintf(stderr, "%s
+", error.c_str()); return 1; }
+		setup.Nature = &era->Nature;
 	}
 	setup.Members = members * clans;
 	setup.Clans = clans;

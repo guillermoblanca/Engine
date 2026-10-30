@@ -147,6 +147,45 @@ namespace GB
 				for (const auto& s : spots)
 					Part(w, id, name + " Reeds " + std::to_string(++n), MeshShape::Cube, { s[0], s[2] * 0.5f, s[1] }, { 0.07f, s[2], 0.07f }, { 0.36f, 0.6f, 0.24f });
 			}
+			else if (model == "fallen_branch")   // two dead branches on the ground (the Mound parts disappear when they are picked up)
+			{
+				yaw(Part(w, id, name + " Mound 1", MeshShape::Cube, { 0.0f, 0.06f, 0.0f }, { 1.3f, 0.1f, 0.12f }, { 0.33f, 0.22f, 0.12f }), 15.0f);
+				yaw(Part(w, id, name + " Mound 2", MeshShape::Cube, { 0.2f, 0.12f, 0.1f }, { 0.8f, 0.09f, 0.1f }, { 0.4f, 0.28f, 0.16f }), -50.0f);
+			}
+			else if (model == "mushroom_ring")   // three pale stalks with brown caps
+			{
+				const float spots[][3] = { { 0.0f, 0.0f, 0.3f }, { 0.25f, 0.15f, 0.22f }, { -0.2f, 0.2f, 0.26f } };
+				int n = 0;
+				for (const auto& s : spots)
+				{
+					++n;
+					Part(w, id, name + " Tuft " + std::to_string(n), MeshShape::Cube, { s[0], s[2] * 0.5f, s[1] }, { 0.06f, s[2], 0.06f }, { 0.88f, 0.84f, 0.74f });
+					Part(w, id, name + " Tuft cap " + std::to_string(n), MeshShape::Sphere, { s[0], s[2], s[1] }, { 0.22f, 0.12f, 0.22f }, { 0.52f, 0.3f, 0.16f });
+				}
+			}
+			else if (model == "root_patch" || model == "wild_greens")   // a low rosette of leaves
+				Part(w, id, name + " Tuft", MeshShape::Sphere, { 0.0f, 0.12f, 0.0f }, { 0.7f, 0.25f, 0.7f }, { 0.3f, 0.5f, 0.2f });
+			else if (model == "nut_tree")   // a round bush with pale nuts
+			{
+				Part(w, id, name + " Bush", MeshShape::Sphere, { 0.0f, 0.6f, 0.0f }, { 1.4f, 1.1f, 1.4f }, { 0.22f, 0.42f, 0.15f });
+				Part(w, id, name + " Berries", MeshShape::Sphere, { 0.4f, 0.8f, 0.5f }, glm::vec3(0.16f), { 0.62f, 0.45f, 0.22f });
+			}
+			else if (model == "bird_nest")   // a ring of twigs with pale eggs
+			{
+				Part(w, id, name + " Bush", MeshShape::Sphere, { 0.0f, 0.1f, 0.0f }, { 0.6f, 0.2f, 0.6f }, { 0.36f, 0.26f, 0.14f });
+				Part(w, id, name + " Berries", MeshShape::Sphere, { 0.0f, 0.22f, 0.0f }, { 0.22f, 0.16f, 0.22f }, { 0.9f, 0.88f, 0.8f });
+			}
+			else if (model.rfind("flowers_", 0) == 0)   // a small bunch of flowers: a green tuft and five bright heads on thin stems (scenery)
+			{
+				const std::string colour = model.substr(8);
+				const glm::vec3 head = colour == "red" ? glm::vec3(0.85f, 0.12f, 0.15f) : colour == "yellow" ? glm::vec3(0.95f, 0.8f, 0.1f)
+					: colour == "blue" ? glm::vec3(0.25f, 0.35f, 0.9f) : colour == "purple" ? glm::vec3(0.6f, 0.25f, 0.75f) : glm::vec3(0.95f, 0.95f, 0.9f);
+				Part(w, id, name + " Leaves", MeshShape::Sphere, { 0.0f, 0.08f, 0.0f }, { 0.45f, 0.16f, 0.45f }, { 0.2f, 0.42f, 0.14f });
+				const float spots[][3] = { { 0.0f, 0.0f, 0.34f }, { 0.17f, 0.1f, 0.28f }, { -0.15f, 0.11f, 0.3f } };   // (few parts: each one is a draw call)
+				int n = 0;
+				for (const auto& s : spots)
+					Part(w, id, name + " Bloom " + std::to_string(++n), MeshShape::Sphere, { s[0], s[2], s[1] }, glm::vec3(0.14f), head);
+			}
 			else if (model == "flint_outcrop")   // sharp dark grey slabs
 			{
 				yaw(Part(w, id, name + " Flint 1", MeshShape::Cube, { 0.0f, 0.4f, 0.0f }, { 0.8f, 0.8f, 0.5f }, { 0.2f, 0.2f, 0.23f }), 25.0f);
@@ -164,7 +203,8 @@ namespace GB
 				Part(w, id, name + " Rock", MeshShape::Sphere, { 0.0f, 0.4f, 0.0f }, { 1.0f, 0.8f, 1.0f }, { 0.5f, 0.5f, 0.5f });
 		}
 
-		EntityId MakeNode(EntityWorld& w, EntityId root, const ResourceNodeDef& def, int index, const glm::vec3& pos, ResourceLayout& out, const std::string& prefix = "")
+		EntityId MakeNode(EntityWorld& w, EntityId root, const ResourceNodeDef& def, int index, const glm::vec3& pos, ResourceLayout& out, const std::string& prefix = "",
+			bool primitives = true)
 		{
 			std::string label = prefix + def.Id;   // entity names use spaces ("berry bush 1") so a task list can write them with underscores
 			std::replace(label.begin(), label.end(), '_', ' ');
@@ -172,16 +212,19 @@ namespace GB
 			const EntityId id = w.Create(name, root);
 			Entity& e = *w.Find(id);
 			e.Transform.Position = pos;
-			InteractionPoint p;
-			p.Name = "work";
-			p.Position = { 0.0f, 0.0f, -1.6f };
-			e.Interact.emplace();
-			e.Interact->Points.push_back(p);
-			e.Gameplay.emplace();
-			e.Gameplay->Tags = { "Resource.Node", std::string("Resource.Node.") + def.Id, KindTag(def) };
-			e.Gameplay->Attributes = { { "Amount", static_cast<float>(def.Capacity), 0.0f, static_cast<float>(def.Capacity) } };
-			if (def.RegenSeconds > 0.0f) e.Gameplay->Attributes.push_back({ "Regrow", 0.0f, 0.0f, 1e6f });   // the regrowth timer: ResourceSystem::Update
-			BuildModel(w, id, name, def.Model.empty() ? def.Id : def.Model);
+			if (!def.Decor)   // scenery (flowers) has nothing to gather: no interaction point, no abilities, no tags
+			{
+				InteractionPoint p;
+				p.Name = "work";
+				p.Position = { 0.0f, 0.0f, -1.6f };
+				e.Interact.emplace();
+				e.Interact->Points.push_back(p);
+				e.Gameplay.emplace();
+				e.Gameplay->Tags = { "Resource.Node", std::string("Resource.Node.") + def.Id, KindTag(def) };
+				e.Gameplay->Attributes = { { "Amount", static_cast<float>(def.Capacity), 0.0f, static_cast<float>(def.Capacity) } };
+				if (def.RegenSeconds > 0.0f) e.Gameplay->Attributes.push_back({ "Regrow", 0.0f, 0.0f, 1e6f });   // the regrowth timer: ResourceSystem::Update
+			}
+			if (primitives) BuildModel(w, id, name, def.Model.empty() ? def.Id : def.Model);
 			out.Nodes.push_back(e.Name);
 			return id;
 		}
@@ -301,8 +344,37 @@ namespace GB
 		{
 			auto it = nodes.find(s.Node);
 			if (it == nodes.end()) continue;
-			const EntityId id = MakeNode(w, root, it->second, ++next[s.Node], s.Position, out, "wild ");
+			const ResourceNodeDef& def = it->second;
+			// a node with a model of the world (a procedural tree or rock) is drawn with it; without one (no world recipes, an old plan) with primitives
+			const bool prop = !def.Spawn.Prop.empty() && s.Variant >= 0;
+			const EntityId id = MakeNode(w, root, def, ++next[s.Node], s.Position, out, "wild ", !prop);
 			w.Find(id)->Transform.Rotation.y = s.Yaw;
+			if (!prop) continue;
+			const std::string name = w.Find(id)->Name;
+			const float k = s.Scale;
+			auto addProp = [&](const std::string& partName, PropKind kind, int variant, const glm::vec3& at, float scale)
+			{
+				const EntityId part = w.Create(partName, id);
+				Entity* p = w.Find(part);
+				p->Transform.Position = at;
+				p->Transform.Scale = glm::vec3(scale);
+				p->Prop = PropComponent{ kind, variant };
+			};
+			if (def.Spawn.Prop == "tree")
+			{
+				// what is left when it is felled: a stump (the crown, the model, is hidden while the node is empty)
+				Part(w, id, name + " Trunk", MeshShape::Cube, { 0.0f, 0.25f * k, 0.0f }, { 0.28f * k, 0.5f * k, 0.28f * k }, { 0.3f, 0.2f, 0.11f });
+				addProp(name + " Crown", PropKind::Tree, s.Variant, glm::vec3(0.0f), k);
+			}
+			else
+			{
+				addProp(name + " Rock", PropKind::Rock, s.Variant, glm::vec3(0.0f), k);
+				for (int i = 1; i <= s.Stack; ++i)   // the rocks piled on top: smaller each, a little to one side so they sit on the ones below
+				{
+					const float a = 2.4f * static_cast<float>(i), f = std::pow(0.62f, static_cast<float>(i));
+					addProp(name + " Rock " + std::to_string(i + 1), PropKind::Rock, s.Variant, glm::vec3(std::cos(a) * 0.35f * k, 0.55f * k * static_cast<float>(i), std::sin(a) * 0.35f * k), k * f);
+				}
+			}
 		}
 		return out;
 	}

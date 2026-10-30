@@ -135,6 +135,20 @@ namespace GB
 			for (int q = 0; q < n; ++q) f[static_cast<size_t>(q)] = d[static_cast<size_t>(q)];
 		}
 
+		constexpr float kGrassBlend = 14.0f;   // metres over which the grass cover changes from one biome's to the next
+
+		float BiomeGrass(Biome b)
+		{
+			switch (b)
+			{
+			case Biome::Meadow: return 1.0f;
+			case Biome::Forest: return 0.55f;
+			case Biome::Shore: return 0.25f;
+			case Biome::Rock: return 0.12f;
+			default: return 0.0f;
+			}
+		}
+
 		// Bakes the biome of every sample and the distance from it to the water.
 		BiomeMap BakeBiomes(const GeneratedWorld& w)
 		{
@@ -202,6 +216,39 @@ namespace GB
 					m.WaterDistance[static_cast<size_t>(j) * static_cast<size_t>(n) + static_cast<size_t>(i)] = sq >= 1e19f ? 1e9f : std::sqrt(sq) * m.Cell;
 				}
 			}
+			// The grass cover: the density of each biome, blurred over kGrassBlend metres (two box passes = a soft ramp), so the grass thins out across the
+			// border between a meadow and a forest, a shore or bare rock instead of stopping at a line.
+			{
+				m.Grass.resize(count);
+				for (size_t o = 0; o < count; ++o) m.Grass[o] = BiomeGrass(static_cast<Biome>(m.Biomes[o]));
+				const int r = std::max(1, static_cast<int>(std::lround(kGrassBlend * 0.5f / m.Cell)));
+				std::vector<float> tmp(count);
+				for (int pass = 0; pass < 2; ++pass)
+				{
+					for (int j = 0; j < n; ++j)   // along x
+					{
+						float sum = 0.0f;
+						const size_t row = static_cast<size_t>(j) * static_cast<size_t>(n);
+						for (int i = -r; i <= r; ++i) sum += m.Grass[row + static_cast<size_t>(std::clamp(i, 0, n - 1))];
+						for (int i = 0; i < n; ++i)
+						{
+							tmp[row + static_cast<size_t>(i)] = sum / static_cast<float>(2 * r + 1);
+							sum += m.Grass[row + static_cast<size_t>(std::clamp(i + r + 1, 0, n - 1))] - m.Grass[row + static_cast<size_t>(std::clamp(i - r, 0, n - 1))];
+						}
+					}
+					for (int i = 0; i < n; ++i)   // along z
+					{
+						float sum = 0.0f;
+						for (int j = -r; j <= r; ++j) sum += tmp[static_cast<size_t>(std::clamp(j, 0, n - 1)) * static_cast<size_t>(n) + static_cast<size_t>(i)];
+						for (int j = 0; j < n; ++j)
+						{
+							m.Grass[static_cast<size_t>(j) * static_cast<size_t>(n) + static_cast<size_t>(i)] = sum / static_cast<float>(2 * r + 1);
+							sum += tmp[static_cast<size_t>(std::clamp(j + r + 1, 0, n - 1)) * static_cast<size_t>(n) + static_cast<size_t>(i)]
+								- tmp[static_cast<size_t>(std::clamp(j - r, 0, n - 1)) * static_cast<size_t>(n) + static_cast<size_t>(i)];
+						}
+					}
+				}
+			}
 			return m;
 		}
 	}
@@ -262,16 +309,21 @@ namespace GB
 
 	float GeneratedWorld::WaterDistanceAt(float x, float z) const { return Maps.WaterDistanceAt(x, z); }
 
+	float BiomeMap::GrassAt(float x, float z) const
+	{
+		const float maxIndex = static_cast<float>(N - 1);
+		const float fx = glm::clamp((x - Min.x) / Cell, 0.0f, maxIndex), fz = glm::clamp((z - Min.y) / Cell, 0.0f, maxIndex);
+		const int i0 = std::min(static_cast<int>(fx), N - 2), j0 = std::min(static_cast<int>(fz), N - 2);
+		const float tx = fx - static_cast<float>(i0), tz = fz - static_cast<float>(j0);
+		auto G = [&](int i, int j) { return Grass[static_cast<size_t>(j) * static_cast<size_t>(N) + static_cast<size_t>(i)]; };
+		return glm::mix(glm::mix(G(i0, j0), G(i0 + 1, j0), tx), glm::mix(G(i0, j0 + 1), G(i0 + 1, j0 + 1), tx), tz);
+	}
+
 	float GeneratedWorld::GrassDensityAt(float x, float z) const
 	{
-		switch (BiomeAt(x, z))
-		{
-		case Biome::Meadow: return 1.0f;
-		case Biome::Forest: return 0.55f;
-		case Biome::Shore: return 0.25f;
-		case Biome::Rock: return 0.12f;
-		default: return 0.0f;
-		}
+		// the baked cover is a soft blend of the biomes around the point (water stays bare: the blend of water and meadow fades out toward the bank)
+		if (!Maps.Empty() && !Maps.Grass.empty() && BiomeAt(x, z) != Biome::Water) return Maps.GrassAt(x, z);
+		return BiomeGrass(BiomeAt(x, z));
 	}
 
 	std::vector<float> GeneratedWorld::BiomeShares(int samples) const

@@ -1,0 +1,13 @@
+{
+  "id": "era1_bosque",
+  "name": "Era 1 - Bosques, rocas, flores y comida silvestre",
+  "era": 1,
+  "version": "1.0",
+  "depends": [
+    "era1"
+  ],
+  "files": [
+    "era1_bosque.json"
+  ],
+  "deferred": {}
+}

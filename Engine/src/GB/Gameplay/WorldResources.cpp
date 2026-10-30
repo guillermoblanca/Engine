@@ -2,6 +2,9 @@
 #include "GB/World/WorldGen.h"
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <nlohmann/json.hpp>
+#include <sstream>
 #include <unordered_map>
 
 namespace GB
@@ -77,24 +80,41 @@ namespace GB
 			std::unordered_map<int64_t, std::vector<glm::vec3>> m_Buckets;
 		};
 
-	}
 
-	std::vector<ResourceSpot> PlanWorldResources(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, uint32_t seed, float density)
-	{
-		std::vector<ResourceSpot> spots;
-		if (!ground.Height || !ground.Biome || density <= 0.0f) return spots;
+		// The model of a node: which procedural tree or rock of the world draws it, how big, how many rocks are piled on it, how much room it takes.
+		ResourceSpot MakeSpot(const ResourceGround& ground, const ResourceNodeDef& def, const glm::vec2& p, uint32_t h, float spacing)
+		{
+			ResourceSpot s;
+			s.Node = def.Id;
+			s.Position = glm::vec3(p.x, ground.Height(p.x, p.y), p.y);
+			s.Yaw = 360.0f * Unit(Mix(h ^ 3u));
+			s.Radius = spacing;
+			const ResourceSpawnDef& sp = def.Spawn;
+			if (!sp.Prop.empty())
+			{
+				const int count = sp.Prop == "tree" ? ground.TreeVariants : ground.RockVariants;
+				if (count > 0)
+				{
+					s.Variant = static_cast<int>(Mix(h ^ 4u) % static_cast<uint32_t>(count));
+					s.Scale = sp.ScaleMin + (sp.ScaleMax - sp.ScaleMin) * Unit(Mix(h ^ 5u));
+					if (sp.Stack > 0) s.Stack = static_cast<int>(Mix(h ^ 6u) % static_cast<uint32_t>(sp.Stack + 1));
+				}
+			}
+			return s;
+		}
+
+		void PlanBase(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, uint32_t seed, float density, Occupancy& taken, Occupancy& blockers,
+			std::vector<ResourceSpot>& spots)
+		{
 		std::vector<const ResourceNodeDef*> order;
 		for (const auto& [id, def] : nodes)
 			if (def.Spawn.Placed()) order.push_back(&def);
 		// rarest first (then by id, so the order never depends on anything but the data)
 		std::stable_sort(order.begin(), order.end(), [](const ResourceNodeDef* a, const ResourceNodeDef* b) { return a->Spawn.PerHectare < b->Spawn.PerHectare; });
 
-		Occupancy taken(8.0f);
-		Occupancy blockers(8.0f);
-		for (const ResourceGround::Blocker& b : ground.Blockers) blockers.Add(b.At, b.Radius);
 		const float margin = 2.0f;   // never right at the edge of the map
 		const glm::vec2 lo = ground.Min + glm::vec2(margin), hi = ground.Max - glm::vec2(margin);
-		if (hi.x <= lo.x || hi.y <= lo.y) return spots;
+		if (hi.x <= lo.x || hi.y <= lo.y) return;
 
 		for (const ResourceNodeDef* def : order)
 		{
@@ -130,11 +150,197 @@ namespace GB
 					if (!ground.Blockers.empty() && !blockers.Free(p, 1.0f)) continue;            // a node's own footprint against each tree or rock's radius
 					if (!taken.Free(p, sp.Spacing)) continue;
 					taken.Add(p, sp.Spacing);
-					spots.push_back({ def->Id, glm::vec3(p.x, ground.Height(p.x, p.y), p.y), 360.0f * Unit(Mix(h ^ 3u)) });
+					spots.push_back(MakeSpot(ground, *def, p, h, sp.Spacing));
 					++placed;
 				}
 		}
+		}
+
+		// ---- patches
+		float Lerp(float a, float b, float t) { return a + (b - a) * t; }
+
+		void PlanPatches(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, const NatureConfig& cfg, uint32_t seed, Occupancy& taken,
+			Occupancy& blockers, std::vector<ResourceSpot>& spots)
+		{
+			const float margin = 2.0f;
+			const glm::vec2 lo = ground.Min + glm::vec2(margin), hi = ground.Max - glm::vec2(margin);
+			if (hi.x <= lo.x || hi.y <= lo.y) return;
+			int budget = cfg.MaxNodes;
+			for (const NaturePatchDef& pd : cfg.Patches)
+			{
+				std::vector<std::pair<const ResourceNodeDef*, float>> mix;
+				float total = 0.0f;
+				for (const NaturePatchMix& m : pd.Mix)
+					if (const auto it = nodes.find(m.Node); it != nodes.end() && m.Weight > 0.0f) { mix.push_back({ &it->second, m.Weight }); total += m.Weight; }
+				if (mix.empty() || total <= 0.0f || pd.Cell < 8.0f) continue;
+				const uint32_t salt = Mix(seed * 0x27D4EB2Fu ^ HashName("patch:" + pd.Id));
+				const int ni = static_cast<int>(std::floor((hi.x - lo.x) / pd.Cell)) + 1, nj = static_cast<int>(std::floor((hi.y - lo.y) / pd.Cell)) + 1;
+				struct Cell { uint32_t H; int I, J; };
+				std::vector<Cell> cells;
+				for (int j = 0; j < nj; ++j)
+					for (int i = 0; i < ni; ++i) cells.push_back({ Hash(i, j, salt), i, j });
+				std::sort(cells.begin(), cells.end(), [](const Cell& a, const Cell& b) { return a.H != b.H ? a.H < b.H : a.J != b.J ? a.J < b.J : a.I < b.I; });
+				int placedOfKind = 0;
+				for (const Cell& c : cells)
+				{
+					if (budget <= 0 || (pd.Max > 0 && placedOfKind >= pd.Max)) break;
+					const uint32_t h = c.H;
+					const glm::vec2 centre = lo + (glm::vec2(static_cast<float>(c.I), static_cast<float>(c.J)) + glm::vec2(0.1f + 0.8f * Unit(Mix(h ^ 1u)), 0.1f + 0.8f * Unit(Mix(h ^ 2u)))) * pd.Cell;
+					if (centre.x < lo.x || centre.y < lo.y || centre.x > hi.x || centre.y > hi.y) continue;
+					const auto chance = pd.Biomes.find(ground.Biome(centre.x, centre.y));
+					if (chance == pd.Biomes.end()) continue;
+					if (Unit(Mix(h ^ 7u)) >= std::min(1.0f, chance->second * cfg.Abundance)) continue;
+					const float u = Unit(Mix(h ^ 8u));
+					const float radius = Lerp(pd.RadiusMin, pd.RadiusMax, u * u) * std::sqrt(std::max(0.25f, cfg.Abundance * 0.5f + 0.5f));   // many small patches, a few big ones
+					const uint32_t pSalt = Mix(h ^ 0x51u);
+					const int steps = static_cast<int>(std::ceil(1.35f * radius / pd.Spacing));
+					for (int gj = -steps; gj <= steps; ++gj)
+						for (int gi = -steps; gi <= steps; ++gi)
+						{
+							if (budget <= 0 || (pd.Max > 0 && placedOfKind >= pd.Max)) break;
+							const uint32_t ph = Hash(gi, gj, pSalt);
+							const glm::vec2 p = centre + (glm::vec2(static_cast<float>(gi), static_cast<float>(gj)) + glm::vec2(0.5f * Unit(Mix(ph ^ 1u)) - 0.25f, 0.5f * Unit(Mix(ph ^ 2u)) - 0.25f)) * pd.Spacing;
+							if (p.x < lo.x || p.y < lo.y || p.x > hi.x || p.y > hi.y) continue;
+							// a ragged edge: the distance to the centre, pushed in and out by a noise field
+							const float edge = glm::length(p - centre) / radius + 0.7f * (Clumps(p.x, p.y, 11.0f, salt ^ 0xE1u) - 0.5f);
+							if (edge > 1.0f) continue;
+							if (Clumps(p.x, p.y, 17.0f, pSalt ^ 0xC7u) < pd.Clearings) continue;   // a glade
+							if (Unit(Mix(ph ^ 3u)) >= pd.Fill * (1.0f - 0.5f * edge * edge)) continue;
+							if (pd.Biomes.find(ground.Biome(p.x, p.y)) == pd.Biomes.end()) continue;
+							if (ground.SlopeDegrees && ground.SlopeDegrees(p.x, p.y) > pd.MaxSlope) continue;
+							if (ground.WaterDistance && ground.WaterDistance(p.x, p.y) < 1.5f) continue;
+							float pick = Unit(Mix(ph ^ 4u)) * total;
+							const ResourceNodeDef* def = mix.back().first;
+							for (const auto& [d, w] : mix) { if (pick < w) { def = d; break; } pick -= w; }
+							ResourceSpot probe = MakeSpot(ground, *def, p, ph, pd.Spacing);
+							probe.Radius = pd.Spacing * std::sqrt(probe.Scale);   // a big tree wants more room than a sapling
+							if (!ground.Blockers.empty() && !blockers.Free(p, 1.0f)) continue;
+							if (!taken.Free(p, probe.Radius)) continue;
+							taken.Add(p, probe.Radius);
+							spots.push_back(std::move(probe));
+							++placedOfKind;
+							--budget;
+						}
+				}
+			}
+		}
+	}
+
+	std::vector<ResourceSpot> PlanWorldResources(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, uint32_t seed, float density)
+	{
+		std::vector<ResourceSpot> spots;
+		if (!ground.Height || !ground.Biome || density <= 0.0f) return spots;
+		Occupancy taken(8.0f), blockers(8.0f);
+		for (const ResourceGround::Blocker& b : ground.Blockers) blockers.Add(b.At, b.Radius);
+		PlanBase(ground, nodes, seed, density, taken, blockers, spots);
 		return spots;
+	}
+
+	std::vector<ResourceSpot> PlanWorldNature(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, const NatureConfig& config, uint32_t seed)
+	{
+		std::vector<ResourceSpot> spots;
+		if (!ground.Height || !ground.Biome || config.Abundance <= 0.0f) return spots;
+		Occupancy taken(8.0f), blockers(8.0f);
+		for (const ResourceGround::Blocker& b : ground.Blockers) blockers.Add(b.At, b.Radius);
+		PlanBase(ground, nodes, seed, config.Abundance, taken, blockers, spots);
+		PlanPatches(ground, nodes, config, seed, taken, blockers, spots);
+		return spots;
+	}
+
+	bool NatureConfig::operator==(const NatureConfig& o) const { return NatureConfigToJson(*this) == NatureConfigToJson(o); }
+
+	std::string ParseNatureConfig(const std::string& text, NatureConfig& out)
+	{
+		using Json = nlohmann::json;
+		static const char* const kBiomes[] = { "Water", "Shore", "Meadow", "Forest", "Rock", "Snow", "Dunes" };
+		try
+		{
+			const Json j = Json::parse(text);
+			if (!j.is_object()) return "the nature config must be an object";
+			NatureConfig c;
+			c.Abundance = j.value("abundance", 1.0f);
+			c.MaxNodes = j.value("maxNodes", 3000);
+			if (!(c.Abundance > 0.0f && c.Abundance <= 10.0f)) return "abundance must be above 0 and at most 10";
+			if (c.MaxNodes < 0 || c.MaxNodes > 100000) return "maxNodes must be between 0 and 100000";
+			if (auto it = j.find("patches"); it != j.end())
+			{
+				if (!it->is_array()) return "patches must be a list";
+				for (const Json& o : *it)
+				{
+					NaturePatchDef p;
+					p.Id = o.value("id", std::string());
+					if (p.Id.empty()) return "a patch has no id";
+					for (const NaturePatchDef& q : c.Patches) if (q.Id == p.Id) return "two patches called '" + p.Id + "'";
+					p.Cell = o.value("cell", 64.0f);
+					p.RadiusMin = o.value("radiusMin", 12.0f);
+					p.RadiusMax = o.value("radiusMax", 30.0f);
+					p.Spacing = o.value("spacing", 3.6f);
+					p.Fill = o.value("fill", 0.9f);
+					p.Clearings = o.value("clearings", 0.25f);
+					p.MaxSlope = o.value("maxSlope", 30.0f);
+					p.Max = o.value("max", 0);
+					if (!(p.Cell >= 8.0f && p.Cell <= 400.0f) || !(p.RadiusMin >= 2.0f && p.RadiusMax >= p.RadiusMin && p.RadiusMax <= 200.0f)) return "patch '" + p.Id + "': cell (8..400) or radius out of range";
+					if (!(p.Spacing >= 1.0f && p.Spacing <= 30.0f) || !(p.Fill > 0.0f && p.Fill <= 1.0f) || !(p.Clearings >= 0.0f && p.Clearings <= 0.6f)) return "patch '" + p.Id + "': spacing (1..30), fill (0..1) or clearings (0..0.6) out of range";
+					if (!(p.MaxSlope >= 0.0f && p.MaxSlope <= 90.0f) || p.Max < 0) return "patch '" + p.Id + "': maxSlope or max out of range";
+					if (auto bs = o.find("biomes"); bs != o.end() && bs->is_object())
+						for (auto kv = bs->begin(); kv != bs->end(); ++kv)
+						{
+							if (std::find(std::begin(kBiomes), std::end(kBiomes), kv.key()) == std::end(kBiomes)) return "patch '" + p.Id + "': unknown biome '" + kv.key() + "'";
+							const float chance = kv.value().get<float>();
+							if (!(chance >= 0.0f && chance <= 1.0f)) return "patch '" + p.Id + "': a biome chance must be between 0 and 1";
+							p.Biomes[kv.key()] = chance;
+						}
+					if (p.Biomes.empty()) return "patch '" + p.Id + "' has no biomes";
+					if (auto mx = o.find("mix"); mx != o.end() && mx->is_array())
+						for (const Json& m : *mx)
+						{
+							NaturePatchMix e;
+							e.Node = m.value("node", std::string());
+							e.Weight = m.value("weight", 1.0f);
+							if (e.Node.empty() || !(e.Weight > 0.0f)) return "patch '" + p.Id + "': a mix entry needs a node and a weight above 0";
+							p.Mix.push_back(e);
+						}
+					if (p.Mix.empty()) return "patch '" + p.Id + "' has an empty mix";
+					c.Patches.push_back(std::move(p));
+				}
+			}
+			out = std::move(c);
+			return {};
+		}
+		catch (const std::exception& e)
+		{
+			return std::string("the nature config is not valid (") + e.what() + ")";
+		}
+	}
+
+	std::string LoadNatureConfigFile(const std::string& path, NatureConfig& out)
+	{
+		std::ifstream in(path, std::ios::binary);
+		if (!in) return "cannot open " + path;
+		std::stringstream ss;
+		ss << in.rdbuf();
+		const std::string error = ParseNatureConfig(ss.str(), out);
+		return error.empty() ? error : path + ": " + error;
+	}
+
+	std::string NatureConfigToJson(const NatureConfig& cfg)
+	{
+		using Json = nlohmann::json;
+		auto round = [](float v) { return std::round(v * 1000.0f) / 1000.0f; };
+		Json j = { { "abundance", round(cfg.Abundance) }, { "maxNodes", cfg.MaxNodes } };
+		Json patches = Json::array();
+		for (const NaturePatchDef& p : cfg.Patches)
+		{
+			Json biomes = Json::object(), mix = Json::array();
+			for (const auto& [b, c] : p.Biomes) biomes[b] = round(c);
+			for (const NaturePatchMix& m : p.Mix) mix.push_back({ { "node", m.Node }, { "weight", round(m.Weight) } });
+			Json o = { { "id", p.Id }, { "biomes", biomes }, { "cell", round(p.Cell) }, { "radiusMin", round(p.RadiusMin) }, { "radiusMax", round(p.RadiusMax) }, { "spacing", round(p.Spacing) },
+				{ "fill", round(p.Fill) }, { "clearings", round(p.Clearings) }, { "maxSlope", round(p.MaxSlope) }, { "mix", mix } };
+			if (p.Max > 0) o["max"] = p.Max;
+			patches.push_back(o);
+		}
+		j["patches"] = patches;
+		return j.dump(2);
 	}
 
 	std::map<std::string, int> CountSpots(const std::vector<ResourceSpot>& spots)
@@ -152,6 +358,8 @@ namespace GB
 		const Heightmap& hm = t->GetHeightmap();
 		g.Min = hm.GetMin();
 		g.Max = hm.GetMax();
+		g.TreeVariants = static_cast<int>(world.TreeRecipes.size());
+		g.RockVariants = static_cast<int>(world.RockRecipes.size());
 		g.Height = [t](float x, float z) { return t->GetHeight(x, z); };
 		g.Biome = [w](float x, float z) { return std::string(BiomeName(w->BiomeAt(x, z))); };
 		g.SlopeDegrees = [t](float x, float z)
