@@ -17,6 +17,7 @@
 #include "GB/Game/Society.h"
 #include "GB/Game/Social.h"
 #include "GB/Game/Production.h"
+#include "GB/Game/SettlementPlanner.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/GameplayWorld.h"
@@ -250,14 +251,6 @@ namespace GB
 		int HaulAt = 6;               // most units of a material a member carries to a site in one trip
 		float SettlementRadius = 40.0f;   // the buildings that count as the clan's: within this of the camp (a clan that migrates leaves the others behind)
 		PlayerRules Player = DefaultPlayerRules();   // H15: standing, proposals, gifts... (the "player" section of a content file)
-	};
-
-	// What the clan wants built and why (Tribe::BuildingNeeds): the planner starts the most urgent; H7's job board can publish them.
-	struct BuildingNeed
-	{
-		std::string Building;   // def id
-		float Urgency = 0.0f;   // shelter for everyone 3, a full store 2, a station a recipe needs 1.5, food going off 1.2... (see docs/PROGRESION.md)
-		std::string Why;
 	};
 
 	class Tribe;

@@ -282,6 +282,11 @@ target_link_libraries(GBSettlementTests PRIVATE GB::GB)
 target_compile_definitions(GBSettlementTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME settlement COMMAND GBSettlementTests)
 
+# The settlement planner alone (needs and sites from plain facts, no Tribe)
+add_executable(GBSettlementPlannerTests settlement_planner_test.cpp)
+target_link_libraries(GBSettlementPlannerTests PRIVATE GB::GB)
+add_test(NAME settlement_planner COMMAND GBSettlementPlannerTests)
+
 # H7: aptitudes by practice, the job board and the trades of the clan (TribeWork, Skills, JobBoard)
 add_executable(GBWorkTests work_test.cpp)
 target_link_libraries(GBWorkTests PRIVATE GB::GB)
