@@ -401,6 +401,17 @@ namespace GB
 			// a raid it is on
 			RaidState& raid = m_Conflict.Raid;
 			if (!raid.Active() || std::find(raid.Party.begin(), raid.Party.end(), m.Name) == raid.Party.end() || raid.Home[m.Name]) return false;
+			// one dying of thirst, hunger or tiredness leaves the raid: it must see to itself
+			if (const AbilitySystemComponent* need = m_Gameplay->Find(m.Name))
+				if (need->Attribute(NeedName::Hunger) < 25.0f || need->Attribute(NeedName::Thirst) < 25.0f || need->Attribute(NeedName::Rest) < 20.0f)
+				{
+					raid.Home[m.Name] = true;
+					mc.Ordered = false;
+					m.Job.clear();
+					m.Detail.clear();
+					Say(m, "abandons the raid on " + raid.Target + ": in need");
+					return false;
+				}
 			const glm::vec2 pos = Where(m);
 			const RaidRules& rules = cs.Rules.Raids;
 			m.Job = "raid";

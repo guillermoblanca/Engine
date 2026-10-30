@@ -12,6 +12,8 @@
     { "id": "stake", "name": "Stake", "category": "resource", "weight": 1.5, "stack": 10, "tags": [ "Item.Resource.Wood.Stake" ], "fuel": 1 },
     { "id": "fired_brick", "name": "Fired brick", "category": "resource", "weight": 2.5, "stack": 10, "tags": [ "Item.Resource.Brick.Fired" ] },
     { "id": "flint_spear", "name": "Flint spear", "category": "weapon", "weight": 1.8, "stack": 1, "tags": [ "Item.Weapon.Spear" ], "socket": "RightHand" },
+    { "id": "flint_sword", "name": "Flint sword", "category": "weapon", "weight": 2.0, "stack": 1, "tags": [ "Item.Weapon.Sword" ], "socket": "RightHand" },
+    { "id": "hunting_bow", "name": "Hunting bow", "category": "weapon", "weight": 1.2, "stack": 1, "tags": [ "Item.Weapon.Bow" ], "socket": "LeftHand" },
     {
       "bagSlots": 6,
       "bagWeight": 8.0,
@@ -521,6 +523,8 @@
     { "id": "reed_mat", "inputs": { "reed": 4, "cordage": 1 }, "output": "reed_mat", "count": 1, "ability": "Craft" },
     { "id": "stakes", "inputs": { "wood": 1 }, "output": "stake", "count": 2, "tool": "Item.Tool.Axe", "ability": "Craft" },
     { "id": "flint_spear", "inputs": { "wood": 1, "flint": 1, "cordage": 1 }, "output": "flint_spear", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "flint_sword", "inputs": { "wood": 1, "flint": 2, "cordage": 1 }, "output": "flint_sword", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "hunting_bow", "inputs": { "wood": 2, "cordage": 2 }, "output": "hunting_bow", "count": 1, "station": "workbench", "ability": "Craft" },
     { "id": "fired_brick", "inputs": { "clay": 2, "wood": 1 }, "output": "fired_brick", "count": 2, "station": "kiln", "ability": "Craft" },
     {
       "ability": "Craft",
@@ -1059,7 +1063,7 @@
       "discovery": { "experiment": 0.15, "observe": 0.34, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
     { "id": "basketry", "name": "Basketry", "era": 1, "requires": [ "cordage" ], "recipes": [ "basket_wicker" ],
       "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.25, "seconds": 15.0, "waste": 0.3 } },
-    { "id": "spear_making", "name": "Hafted spears", "era": 1, "requires": [ "flint_knapping" ], "recipes": [ "flint_spear" ],
+    { "id": "spear_making", "name": "Hafted spears", "era": 1, "requires": [ "flint_knapping" ], "recipes": [ "flint_spear", "flint_sword", "hunting_bow" ],
       "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
     { "id": "hide_working", "name": "Hide working", "era": 1, "requires": [ "flint_knapping" ], "recipes": [ "leather", "leather_bag" ], "buildings": [ "hide_frame" ],
       "discovery": { "experiment": 0.1, "observe": 0.3, "teach": 0.25, "seconds": 25.0, "waste": 0.3 } },
@@ -1139,6 +1143,10 @@
                    "montages": [ "sword_attack_4" ], "hitAt": 0.5 },
       "spear": { "tag": "Item.Weapon.Spear", "damage": 12.0, "reach": 2.4, "seconds": 1.5, "stamina": 9.0, "wound": 0.5, "woundKind": "cut", "power": 2.0,
                  "montages": [ "sword_attack_2" ], "hitAt": 0.5 },
+      "sword": { "tag": "Item.Weapon.Sword", "damage": 16.0, "reach": 1.7, "seconds": 1.2, "stamina": 8.0, "wound": 0.55, "woundKind": "cut", "power": 2.5,
+                 "montages": [ "sword_slash_1", "sword_slash_2", "sword_attack_3" ], "hitAt": 0.45 },
+      "bow": { "tag": "Item.Weapon.Bow", "damage": 10.0, "reach": 14.0, "seconds": 1.8, "stamina": 7.0, "wound": 0.4, "woundKind": "cut", "power": 1.5,
+               "montages": [ "sword_attack_2" ], "hitAt": 0.6 },
       "bite": { "tag": "", "damage": 6.0, "reach": 1.0, "seconds": 1.2, "stamina": 6.0, "wound": 0.5, "woundKind": "bite", "power": 0.0, "montages": [], "hitAt": 0.4 }
     },
     "hits": { "base": 0.6, "dexterity": 0.35, "stamina": 0.25, "min": 0.1, "max": 0.95, "strength": 0.8, "endurance": 0.6, "blockChance": 0.45, "blockLets": 0.25,

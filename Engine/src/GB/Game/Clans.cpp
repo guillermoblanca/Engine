@@ -768,6 +768,12 @@ namespace GB
 		{
 			const int side = mt.A == clan && mt.Envoy[0] == m.Name ? 0 : mt.B == clan && mt.Envoy[1] == m.Name ? 1 : -1;
 			if (side < 0 || mt.Leg[side] >= 4) continue;
+			// an errand never comes before staying alive: a thirsty, hungry or exhausted envoy sees to itself first
+			const std::map<std::string, float> needs = t.NeedLevels(m);
+			bool desperate = false;
+			for (const char* n : { NeedName::Hunger, NeedName::Thirst, NeedName::Rest })
+				if (const auto it = needs.find(n); it != needs.end() && it->second < 35.0f) desperate = true;
+			if (desperate) return;
 			const int leg = mt.Leg[side];
 			const std::string other = ClanName(side == 0 ? mt.B : mt.A);
 			UtilityOption o;
@@ -800,6 +806,12 @@ namespace GB
 				mt.Leg[side] = 3;
 				return false;
 			}
+			if (++mt.Tries[side] > 8)   // the way never opens (seen: "no way to" every tenth of a second until the envoy died of thirst): the errand ends
+			{
+				t.Note(m, "gives up the errand to the " + o.Target + ": it cannot get where it is going");
+				mt.Leg[side] = 4;
+				return false;
+			}
 			Go(go, sizeof go, o.Where, leg == 2 ? "wait 3" : "wait 1");
 			return t.Send(m, go, "envoy", o.Target);
 		}
@@ -824,12 +836,12 @@ namespace GB
 					if (const int k = t.Store().Remove(item, std::min(n, t.Store().Count(item))); k > 0) taken[item] = k;
 				mt.Give[side] = taken;
 				if (!taken.empty()) t.Note(m, "packs " + Goods(taken) + " for the " + other);
-				leg = 1;
+				leg = 1; mt.Tries[side] = 0;
 			}
 			else if (leg == 1)
 			{
 				if (glm::distance(pos, mt.Point) > Rules.Trade.Meet) return;
-				leg = 2;
+				leg = 2; mt.Tries[side] = 0;
 				mt.Arrived[side] = m_Time;
 				t.Note(m, "is at the meeting point " + Place(mt.Point) + " and waits for the envoy of the " + other);
 			}
@@ -842,7 +854,7 @@ namespace GB
 				int put = 0;
 				if (lib) for (const auto& [item, n] : goods) put += t.Store().Add(*lib, item, n);
 				if (put > 0) t.Note(m, "puts " + Goods(goods) + " in the store" + (mt.Met >= 0.0 ? " (from the " + other + ")" : " again"));
-				leg = 4;
+				leg = 4; mt.Tries[side] = 0;
 			}
 			return;
 		}

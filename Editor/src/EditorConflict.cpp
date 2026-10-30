@@ -29,12 +29,39 @@ namespace GB::Editor
 			if (c->Folk->ClanName() != c->Name && !c->Name.empty()) c->Folk->SetClanName(c->Name);
 		}
 		m_Combat.Update(static_cast<float>(1.0 / 60.0), day);
+		{
+			// the animals and strangers of the world do not walk through the characters
+			std::vector<std::pair<glm::vec2, float>> bodies;
+			for (const std::string& name : m_Actors.Names())
+				if (const Actor* actor = m_Actors.Find(name); actor && !actor->Ragdolled()) { const glm::vec3 p = actor->GetPosition(); bodies.push_back({ { p.x, p.z }, actor->Radius() }); }
+			m_Combat.Separate(bodies);
+		}
 		// a character of the scene killed in a fight falls as a ragdoll (an animal or a stand-in just has the state)
 		for (const CombatEvent& e : m_Combat.EventsSince(m_CombatSeq))
 		{
 			m_CombatSeq = e.Seq;
 			if (e.Kind != "death") continue;
 			if (Actor* actor = m_Actors.Find(e.Other)) actor->StartRagdoll();
+		}
+		// anyone dead of any cause (hunger, thirst, cold, wounds) falls as a ragdoll too, once, and leaves a cross on the map
+		for (const auto& c : m_Clans.All())
+		{
+			if (!c->Folk) continue;
+			for (const TribeMember& m : c->Folk->Members())
+			{
+				if (!m.Dead || m_Graves.count(m.Name)) continue;
+				Actor* actor = m_Actors.Find(m.Name);
+				if (!actor) continue;
+				const glm::vec3 p = actor->GetPosition();
+				m_Graves[m.Name] = { m.Name, m.Cause, { p.x, p.z } };
+				if (!actor->Ragdolled()) actor->StartRagdoll();
+			}
+		}
+		for (auto g = m_Graves.begin(); g != m_Graves.end();)   // (a new world or a loaded game forgets the crosses of the old one)
+		{
+			bool dead = false;
+			for (const auto& c : m_Clans.All()) if (c->Folk) for (const TribeMember& m : c->Folk->Members()) dead = dead || (m.Dead && m.Name == g->first);
+			g = dead ? std::next(g) : m_Graves.erase(g);
 		}
 		// grievances fade, day by day of the needs' clock
 		const double today = std::floor(m_Combat.Time() / std::max(1.0f, day));

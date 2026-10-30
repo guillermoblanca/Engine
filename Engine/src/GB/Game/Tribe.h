@@ -371,6 +371,7 @@ namespace GB
 		std::map<std::string, int> SiteDemand() const;
 		// One line per site and building: phase, work and what it lacks.
 		std::string SettlementReport() const;
+		bool CanBuild(const std::string& building) const;   // the clan knows how: no technology locks it, or a living member knows one that unlocks it (H11)
 		// The same as data, for an interface that draws them: where each is, how far it is built and what it gives once done.
 		struct SettlementSite { std::string Name, Building; glm::vec2 Pos{ 0.0f }; SiteState State; int Beds = 0; std::string Station, Store; };
 		std::vector<SettlementSite> SettlementSites() const;
@@ -586,6 +587,8 @@ namespace GB
 		PlayerAct PlayerAttack(const std::string& player, const std::string& target = std::string());
 		PlayerAct PlayerBlock(const std::string& player);
 		PlayerAct PlayerFlee(const std::string& player);
+		PlayerAct PlayerStop(const std::string& player);   // breaks off the fight the player is in (and the chase of its foe): nothing is lost, the foe may come after it
+		bool PlayerFighting(const std::string& player, float* gap = nullptr) const;   // in a fight with a foe still alive; gap = metres beyond its weapon's reach
 		// Health, stamina and wounds of a player for the interface ("" without a combat system).
 		std::string PlayerCondition(const std::string& player) const;
 		// For people: standing, what it has done, its job and bed; the proposals and their votes.

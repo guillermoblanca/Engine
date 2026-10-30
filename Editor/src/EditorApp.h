@@ -119,6 +119,7 @@ namespace GB::Editor
 		void StepWorld(double clock);
 		void ApplySeasonLook(double clock);                      // weather, snow and foliage colour of the season                            // seasons, rain on the plots and the animals, once per simulation step
 		void DrawBag(const std::string& actorName);                // the inventory of a character, as a table
+		std::string PickNode(const struct Ray& ray) const;        // the resource node nearest to a viewport click ("" = none): a generous tolerance, nodes are small and thin
 		std::string PickActor(const struct Ray& ray) const;       // the character under a viewport click ("" = none)
 		void SelectActor(const std::string& name, bool focus);   // the character the Abilities and Tribe panels show
 		// saved games and replays (EditorSave.cpp)
@@ -165,6 +166,7 @@ namespace GB::Editor
 		void RefreshPrompt();
 		std::vector<std::string> GameHud() const;
 		void DrawGameHud(float ox, float oy, float w, float h);
+		void DrawGamePanels(float ox, float oy, float w, float h);   // the action bar and the panels of the bag, the people and the buildings (GamePanels.cpp)
 		void GameNote(const std::string& text);
 		GameModeState m_Game;
 		ControlRules m_Controls = DefaultControls();             // the "controls" section: keys, interface, how `play` starts
@@ -215,6 +217,8 @@ namespace GB::Editor
 		EcologySystem m_Ecology;                                 // rabbits that eat, breed and starve (`ecology spawn`)
 		CombatSystem m_Combat;                                   // H14: the fights of the world (members, animals), wounds and morale (`combat`)
 		HostilityTable m_Hostility;                              // H14: who is hostile to whom until the clans of H13 say it (`hostile`)
+		struct Grave { std::string Name, Cause; glm::vec2 Pos{ 0.0f }; };
+		std::map<std::string, Grave> m_Graves;                   // who died of any cause (hunger and thirst too): the body falls as a ragdoll and a cross marks the place
 		uint64_t m_CombatSeq = 0;                                // the last combat event the editor looked at (deaths become ragdolls)
 		double m_HostilityDay = 0.0;                             // the day of the needs' clock the grievances last faded on
 

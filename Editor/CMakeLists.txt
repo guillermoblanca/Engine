@@ -19,6 +19,7 @@ add_library(GBEditor STATIC
     src/PlayerMode.cpp
     src/GameView.cpp
     src/GameMode.cpp
+    src/GamePanels.cpp
     src/SceneEditor.cpp
     src/WorldInstance.cpp
     src/TestScenarios.cpp

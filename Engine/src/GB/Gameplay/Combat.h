@@ -402,6 +402,10 @@ namespace GB
 		std::string ToJson() const;
 		bool FromJson(const std::string& json);
 
+		// Bodies in the way: an Entity fighter (an animal, a stranger) that overlaps one of these circles (x, z, radius: the actors of the scene) is moved
+		// out to the edge of it, so nobody walks through anybody. Returns how many were moved. `body` is the fighter's own radius.
+		int Separate(const std::vector<std::pair<glm::vec2, float>>& circles, float body = 0.35f);
+
 	private:
 		void Resolve(const std::string& attacker, const std::string& defender);
 		void Answer(const std::string& b, const std::string& a);   // an Entity fighter `b` answers `a`: prey flees, the rest fights back

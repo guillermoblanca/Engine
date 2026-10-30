@@ -18,6 +18,11 @@ namespace GB::Editor
 		std::string Model;                 // what the characters were made from
 		bool Paused = false;
 		bool ClanPanel = false, Help = false;
+		std::string Selected;              // what a click picked: a character or a node (the Selection panel shows its stats)
+		float PressX = -1.0f, PressY = -1.0f;
+		float PressRX = -1.0f, PressRY = -1.0f;   // where the right button went down (-1 = not down)   // where the mouse went down in the viewport (a click is a press and a release near it)
+		bool Menu = false;                 // Esc with nothing open: the pause menu (resume, save, load, keys, back to the editor)
+		bool Inventory = false, People = false, Build = false;   // the panels of the bag, of the people around and of the buildings (I, T, B)
 		std::string View = "follow";       // "follow" (behind the player) or "top" (the overview from above, `game view`)
 		float SavedPitchNear = -1.0f, SavedPitchFar = -1.0f;   // the overview's tilt before the top view raised it (restored on leaving)
 		bool Over = false;                 // a mortal player died (PlayerRules::Mortal): the game is over

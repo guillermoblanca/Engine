@@ -875,6 +875,27 @@ namespace GB::Editor
 	}
 
 
+	std::string EditorApp::PickNode(const Ray& ray) const
+	{
+		std::string best;
+		float bestT = 1e30f;
+		const glm::vec3 d = glm::normalize(ray.Dir);
+		for (const auto& [id, e] : m_SceneEditor.World().All())
+		{
+			const AbilitySystemComponent* asc = m_Gameplay.Find(e.Name);
+			if (!asc) continue;
+			bool node = false;
+			for (const auto& [kind, def] : m_NodeDefs) node = node || asc->HasTag("Resource.Node." + kind);
+			if (!node) continue;
+			// the node as a vertical segment of a metre and a half: the closest point of the ray to its middle
+			const glm::vec3 centre = e.Transform.Position + glm::vec3(0.0f, 0.75f, 0.0f);
+			const float s = glm::max(0.0f, glm::dot(centre - ray.Origin, d));
+			const float distance = glm::length(ray.Origin + d * s - centre);
+			if (distance < 1.1f && s < bestT) { bestT = s; best = e.Name; }
+		}
+		return best;
+	}
+
 	std::string EditorApp::PickActor(const Ray& ray) const
 	{
 		std::string best;
@@ -1256,6 +1277,15 @@ namespace GB::Editor
 			dl->AddText(a, color, text.c_str());
 		};
 
+		// the dead: a cross where each one fell, with its name and what killed it
+		for (const auto& [name, g] : m_Graves)
+		{
+			ImVec2 s;
+			if (glm::distance(m_Camera.Position, glm::vec3(g.Pos.x, ground(g.Pos.x, g.Pos.y), g.Pos.y)) > 90.0f || !screen(glm::vec3(g.Pos.x, ground(g.Pos.x, g.Pos.y) + 1.4f, g.Pos.y), s)) continue;
+			dl->AddLine(ImVec2(s.x, s.y - 14.0f), ImVec2(s.x, s.y + 6.0f), IM_COL32(235, 235, 225, 235), 3.0f);
+			dl->AddLine(ImVec2(s.x - 7.0f, s.y - 8.0f), ImVec2(s.x + 7.0f, s.y - 8.0f), IM_COL32(235, 235, 225, 235), 3.0f);
+			label(ImVec2(s.x, s.y + 22.0f), name + " (" + g.Cause + ")", IM_COL32(210, 205, 195, 235));
+		}
 		std::vector<std::pair<const Tribe*, std::string>> tribes{ { &m_Tribe, std::string() } };
 		for (const auto& c : m_Clans.All())
 			if (c->Folk && c->Folk != &m_Tribe) tribes.emplace_back(c->Folk, c->Name);

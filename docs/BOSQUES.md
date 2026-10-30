@@ -56,7 +56,7 @@ Editor --play                       # play.txt: temperate 5; resources world 2.0
 Editor --script=play.txt
 Editor --hidden --frames=8 --exec="generate temperate 5; resources world; camera 30 38 210 0 0 0; wait 3; screenshot forest.png"
 Editor --exec="generate temperate 5; resources world 0.5"     # un mundo pobre; sin número: la abundancia de bosques.json
-GBSim --seed=5 --days=2 --members=4 --forest=assets/data     # la simulación sin ventana con los bosques
+GBSim --seed=5 --days=2 --members=4 --forest                     # la simulación sin ventana con los bosques
 GBForestTests                                                 # ctest -R forest
 ```
 

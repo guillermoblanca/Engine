@@ -35,6 +35,10 @@ Están en datos: la sección **`controls`** de `assets/data/player.json` (teclas
 | G | Dejar en el almacén todo lo que no es herramienta | `game deposit` |
 | Z | Dormir (en tu cama de un refugio, si hay) / levantarse (andar también despierta) | `game sleep` |
 | C | Coger el trabajo más urgente del tablón que puedes hacer | `game claim` |
+| I | **Mochila**: lo que llevas (con «eat» en la comida), las recetas que puedes fabricar (Mayús muestra las que aún no) y el almacén del clan (botón «take 1») | `game inventory` |
+| T | **Gente**: los miembros por distancia con qué hacen y qué sienten por ti; botones hablar, regalar, enseñar, aprender y casarse (hay que estar al lado); los otros clanes, con comerciar y visitar | `game people` |
+| B | **Edificios**: los que el clan sabe levantar (y los que aún no), lo que dan, lo que cuestan, y «Propose here» para proponerlo donde estás; debajo, las obras del clan | `game build` |
+| X / Q | Atacar al más cercano (o al que te ataca) / bloquear | `game attack` / `game block` |
 | Tab / J | Panel del clan: miembros (qué hacen y qué piensan de ti), tablón (con botón «take»), almacén, conocimiento, propuestas, otros clanes | `game clan` / `game jobs` |
 | P | Pausa | `game pause` |
 | = / - | Más rápido / más lento (×1, 2, 4, 8, 16, 20) | `game faster` / `game slower` |
@@ -44,6 +48,8 @@ Están en datos: la sección **`controls`** de `assets/data/player.json` (teclas
 | H | Ayuda | `game help` |
 
 En el juego **Q/E no giran la cámara** (E es interactuar): giran las flechas ←/→ o el ratón. El overlay del clan (campamento con su almacén, edificios y obras con lo que les falta, campos, y «YOU» sobre el jugador) se ve también en el juego; se apaga en el panel Tribe (`overlay off`).
+
+Abajo a la izquierda hay una **barra de acciones** con un botón por cada acción (con su tecla entre corchetes): hacen lo mismo que las teclas.
 
 Lo que no tiene tecla se hace desde la consola con `game`:
 

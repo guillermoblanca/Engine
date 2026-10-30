@@ -116,7 +116,8 @@ namespace GB
 	{
 		ControlRules c;
 		c.Keys = { { "interact", "E" }, { "eat", "F" }, { "drink", "R" }, { "deposit", "G" }, { "sleep", "Z" }, { "clan", "Tab" }, { "jobs", "J" }, { "claim", "C" },
-			{ "pause", "P" }, { "faster", "Equal" }, { "slower", "Minus" }, { "save", "F5" }, { "load", "F9" }, { "help", "H" }, { "view", "V" }, { "quit", "Escape" } };
+			{ "pause", "P" }, { "faster", "Equal" }, { "slower", "Minus" }, { "save", "F5" }, { "load", "F9" }, { "help", "H" }, { "view", "V" }, { "quit", "Escape" },
+			{ "inventory", "I" }, { "people", "T" }, { "build", "B" }, { "attack", "X" }, { "block", "Q" } };
 		return c;
 	}
 
