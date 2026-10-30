@@ -46,7 +46,7 @@ namespace GB::Editor
 				{ "Bag", "inventory", "game inventory", "Your bag, the recipes and the store" },
 				{ "People", "people", "game people", "Talk, give, teach or marry the people near you" },
 				{ "Build", "build", "game build", "The buildings your clan can raise" },
-				{ "Attack", "attack", "game attack", "Attack the nearest foe (or the one that attacks you)" },
+				{ "Attack", "attack", "game attack", "Attack the nearest foe (right mouse on an animal or foe does it too); Esc, right mouse on the ground or walking away breaks it off" },
 				{ "Block", "block", "game block", "Raise your guard" },
 				{ "Camera", "view", "game view", "Behind you / from above" },
 				{ "Clan", "clan", "game clan", "Members, job board, store, knowledge and the other clans" },

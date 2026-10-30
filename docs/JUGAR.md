@@ -38,7 +38,7 @@ Están en datos: la sección **`controls`** de `assets/data/player.json` (teclas
 | I | **Mochila**: lo que llevas (con «eat» en la comida), las recetas que puedes fabricar (Mayús muestra las que aún no) y el almacén del clan (botón «take 1») | `game inventory` |
 | T | **Gente**: los miembros por distancia con qué hacen y qué sienten por ti; botones hablar, regalar, enseñar, aprender y casarse (hay que estar al lado); los otros clanes, con comerciar y visitar | `game people` |
 | B | **Edificios**: los que el clan sabe levantar (y los que aún no), lo que dan, lo que cuestan, y «Propose here» para proponerlo donde estás; debajo, las obras del clan | `game build` |
-| X / Q | Atacar al más cercano (o al que te ataca) / bloquear | `game attack` / `game block` |
+| X / Q / botón derecho | Atacar al más cercano (o al que te ataca; con el botón derecho, al que señales) / bloquear. Persigues corriendo. Esc, otro clic derecho en el suelo, `game stop` o alejarte caminando lo cancelan | `game attack` / `game block` / `game stop` |
 | Tab / J | Panel del clan: miembros (qué hacen y qué piensan de ti), tablón (con botón «take»), almacén, conocimiento, propuestas, otros clanes | `game clan` / `game jobs` |
 | P | Pausa | `game pause` |
 | = / - | Más rápido / más lento (×1, 2, 4, 8, 16, 20) | `game faster` / `game slower` |
