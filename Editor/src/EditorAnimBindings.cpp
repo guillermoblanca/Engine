@@ -127,7 +127,6 @@ namespace GB::Editor
 		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Apply only to the characters of the controlled one's model (the others play their defaults)");
 		ImGui::SameLine();
 		ImGui::Checkbox("new bindings only for this model", &ui.ThisSkeletonOnly);
-		ImGui::SameLine();
 		if (skeleton.empty())
 		{
 			// nothing to preview on yet: one click makes a world with nodes and the X Bot (the same as `generate temperate 5`, `resources world`, `player "packs/full/X Bot.fbx"`)
