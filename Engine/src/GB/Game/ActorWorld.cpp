@@ -1,5 +1,6 @@
 #include <set>
 #include "GB/Game/ActorWorld.h"
+#include "GB/Assets/AssetPath.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cctype>
@@ -12,8 +13,7 @@ namespace GB
 	std::shared_ptr<Model> ActorWorld::LoadModel(const std::string& path, std::string& error)
 	{
 		namespace fs = std::filesystem;
-		std::string resolved = path;
-		if (!fs::exists(resolved) && fs::exists(m_AssetRoot + "/" + path)) resolved = m_AssetRoot + "/" + path;
+		const std::string resolved = ResolveAssetPath(path, m_AssetRoot);
 		const auto found = m_Models.find(resolved);
 		if (found != m_Models.end()) return found->second;
 		std::string ext = fs::path(resolved).extension().string();
@@ -73,7 +73,7 @@ namespace GB
 		if (name.empty()) { error = "an actor needs a name"; return nullptr; }
 		if (m_Actors.count(name)) { error = "there is already an actor called '" + name + "'"; return nullptr; }
 		std::shared_ptr<Model> model = spawn.Shared;
-		if (!model)
+		if (!model && !spawn.NoModel)
 		{
 			if (spawn.Path.empty()) { error = "no model for the actor"; return nullptr; }
 			model = LoadModel(spawn.Path, error);
@@ -99,9 +99,15 @@ namespace GB
 			if (m_Gameplay && !m_Gameplay->Find(name)) m_Gameplay->Create(name);
 		}
 		actor->SetAbilities(m_Gameplay, name);   // the ability system of that name, if the scene has one
+		actor->SetKind(spawn.Kind);
 		Actor* raw = actor.get();
-		m_Actors[name] = std::move(actor);
-		m_Kinds[name] = spawn.Kind;
+		GBObjectContext context;
+		context.World = this;
+		raw->OnSpawnStart(context);
+		raw->OnSpawnEnd();
+		raw->SetHandle(++m_NextHandle);
+		m_Actors[name] = std::move(actor);   // published
+		raw->BeginPlay();
 		raw->PrepareAbilities();
 		if (m_Gameplay) m_AbilityRevision = m_Gameplay->Library.Revision();
 		return raw;
@@ -122,14 +128,7 @@ namespace GB
 		for (const auto& [name, actor] : m_Actors)
 		{
 			Save::ActorState s;
-			s.Name = name;
-			if (const auto kind = m_Kinds.find(name); kind != m_Kinds.end()) s.Kind = kind->second;
-			s.Position = actor->GetPosition();
-			s.Yaw = actor->GetYaw();
-			if (const AnimInstance* anim = actor->Anim()) s.Set = anim->Overlay();
-			s.Props = actor->PropNames();
-			s.Ragdoll = actor->Ragdolled();
-			for (const ItemSlot& slot : actor->Bag().Stacks()) s.Inventory.push_back({ slot.Id, slot.Count, slot.Age });   // (E6: the age of what spoils; 0 is not written)
+			actor->CaptureState(s);
 			out.push_back(std::move(s));
 		}
 		return out;
@@ -147,42 +146,32 @@ namespace GB
 		{
 			Actor* actor = Find(s.Name);
 			if (!actor) continue;
-			// what it was doing before the load is not in the save: an actor that already existed (a replay played in the world it was recorded in)
-			// would go on with the old run's tasks, or stay suspended as an abstract member, where a new one stands idle; both start like the new one
-			actor->StopTasks();
-			m_Suspended.erase(s.Name);
-			actor->Teleport(s.Position.x, s.Position.z, s.Yaw);
-			std::vector<ItemSlot> bag;
-			for (const Save::ItemStack& it : s.Inventory) bag.push_back({ it.Item, it.Count, it.Age });
-			actor->Bag().SetStacks(std::move(bag));
-			if (!s.Set.empty() && actor->Anim() && actor->Anim()->HasSet(s.Set)) actor->SetOverlay(s.Set, 0.0f);
+			actor->RestoreState(s);
 		}
 		return {};
 	}
 
 	void ActorWorld::SetSuspended(const std::string& name, bool suspended)
 	{
-		if (suspended) m_Suspended.insert(name);
-		else m_Suspended.erase(name);
+		Actor* actor = Find(name);
+		if (!actor) return;
+		if (suspended) actor->OnPause(); else actor->OnResume();
 	}
 
 	bool ActorWorld::Remove(const std::string& name)
 	{
-		m_Suspended.erase(name);
 		const auto it = m_Actors.find(name);
 		if (it == m_Actors.end()) return false;
-		m_Actors.erase(it);
-		m_Levels.erase(name);
-		m_Kinds.erase(name);   // the actor lets go of its ability system and its ragdoll
+		it->second->EndPlay();
+		it->second->OnDestroy();
+		m_Actors.erase(it);   // the actor lets go of its ability system and its ragdoll
 		return true;
 	}
 
 	void ActorWorld::Clear()
 	{
-		m_Suspended.clear();
+		for (auto& [name, actor] : m_Actors) { actor->EndPlay(); actor->OnDestroy(); }
 		m_Actors.clear();
-		m_Kinds.clear();
-		m_Levels.clear();
 		m_Models.clear();
 	}
 
@@ -239,7 +228,7 @@ namespace GB
 			for (auto& [name, actor] : m_Actors) actor->SyncAbilities();
 			m_AbilityRevision = m_Gameplay->Library.Revision();
 		}
-		for (auto& [name, actor] : m_Actors) if (!m_Suspended.count(name)) actor->PrepareAbilities();
+		for (auto& [name, actor] : m_Actors) if (!actor->Paused()) actor->PrepareAbilities();
 	}
 
 	void ActorWorld::Update(float dt)
@@ -250,7 +239,7 @@ namespace GB
 		start.reserve(m_Actors.size());
 		for (const auto& [name, actor] : m_Actors)
 		{
-			if (m_Suspended.count(name)) continue;
+			if (actor->Paused()) continue;
 			const glm::vec3 p = actor->GetPosition();
 			start.push_back({ name, { { p.x, p.z }, actor->Radius() } });
 		}
@@ -259,12 +248,11 @@ namespace GB
 		// place in the (name) order so the poses of a crowd spread over the frames instead of all landing on one.
 		const auto t0 = std::chrono::steady_clock::now();
 		m_Cost = FrameCost();
-		m_Cost.Suspended = static_cast<int>(m_Suspended.size());
 		++m_LodFrame;
 		long slot = 0;
 		for (auto& [name, actor] : m_Actors)
 		{
-			if (m_Suspended.count(name)) continue;
+			if (actor->Paused()) { ++m_Cost.Suspended; continue; }
 			others.clear();
 			for (const Snapshot& s : start)
 				if (s.Name != name) others.push_back(s.Circle);
@@ -290,7 +278,7 @@ namespace GB
 			++slot;
 			m_Cost.Posed += pose ? 1 : 0;
 			actor->SetAnimationDetail(pose, ik, level < 2);   // (the far ones without props)
-			m_Levels[name] = level;
+			actor->SetAnimLevel(level);
 			actor->Update(dt);
 		}
 		m_Cost.Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
@@ -308,6 +296,6 @@ namespace GB
 
 	void ActorWorld::AddToScene(Scene& scene) const
 	{
-		for (const auto& [name, actor] : m_Actors) if (!m_Suspended.count(name)) actor->AddToScene(scene);
+		for (const auto& [name, actor] : m_Actors) if (!actor->Paused()) actor->AddToScene(scene);
 	}
 }

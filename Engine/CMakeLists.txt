@@ -22,6 +22,14 @@ add_library(GB STATIC
     src/GB/Game/MotionWarp.cpp
     src/GB/Game/Interaction.cpp
     src/GB/Game/TaskList.cpp
+    src/GB/Game/GBObject.cpp
+    src/GB/Game/Components/Gameplay/MovementComponent.cpp
+    src/GB/Game/Components/Gameplay/OrdersComponent.cpp
+    src/GB/Game/Components/Gameplay/AbilityComponent.cpp
+    src/GB/Game/Components/Presentation/GeometryComponent.cpp
+    src/GB/Game/Components/Physics/RagdollComponent.cpp
+    src/GB/Game/Components/Presentation/AnimationComponent.cpp
+    src/GB/Game/Components/Presentation/PropsComponent.cpp
     src/GB/Game/Actor.cpp
     src/GB/Game/ActorWorld.cpp
     src/GB/Gameplay/GameplayTag.cpp

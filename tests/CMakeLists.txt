@@ -411,3 +411,7 @@ add_executable(GBAnimBindingsWorldTests anim_bindings_world_test.cpp)
 target_link_libraries(GBAnimBindingsWorldTests PRIVATE GB::GB)
 target_compile_definitions(GBAnimBindingsWorldTests PRIVATE GB_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 add_test(NAME anim_bindings_world COMMAND GBAnimBindingsWorldTests)
+
+add_executable(GBObjectTests gbobject_test.cpp)
+target_link_libraries(GBObjectTests PRIVATE GB::GB)
+add_test(NAME gbobject COMMAND GBObjectTests)

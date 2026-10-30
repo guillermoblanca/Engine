@@ -411,6 +411,43 @@ int main()
 		Actor* b = w.Spawn("two", s, error);
 		Check(a && b && a->GetModel() == b->GetModel() && w.CachedModels() == 1, "two actors from one file share the Model");
 		if (a && b) Check(a->Instance() != b->Instance(), "and have their own ModelInstance");
+		Check(a && a->Find<GeometryComponent>() && a->Find<RagdollComponent>() && a->Find<AnimationComponent>() && a->Find<PropsComponent>(), "an actor with a model has the geometry, ragdoll, animation and props components");
+	}
+
+	// ---- an actor needs no model: the same life cycle, orders, state and save, with nothing to draw
+	{
+		ActorWorld w;
+		w.SetHost(FlatHost());
+		std::string error;
+		ActorSpawn s;
+		s.Kind = "tribe-member";
+		s.Position = { 2.0f, 2.0f };
+		Check(w.Spawn("forgot", s, error) == nullptr && !error.empty(), "a spawn with no model and no path is an error unless it says so");
+		s.NoModel = true;
+		Actor* a = w.Spawn("abstract", s, error);
+		Check(a != nullptr && a->Valid() && !a->HasPresentation(), "an actor spawned NoModel has no presentation");
+		Check(a && a->Handle() != 0, "and the world gave it a handle");
+		if (a)
+		{
+			Check(a->State() == ObjectState::Active && a->Kind() == "tribe-member" && a->Name() == "abstract", "it goes through the life cycle as any object");
+			Check(a->Find<MovementComponent>() && a->Find<OrdersComponent>() && a->Find<AbilityComponent>() && a->Find<InventoryComponent>(), "it is made of the logic components");
+			Check(!a->Find<GeometryComponent>() && !a->Find<AnimationComponent>() && !a->Find<PropsComponent>() && !a->Find<RagdollComponent>(), "and has none of the model's");
+			const glm::vec3 from = a->GetPosition();
+			a->MoveTo({ 8.0f, 2.0f }, true);
+			for (int i = 0; i < 240; ++i) w.Update(kDt);
+			Check(glm::distance(a->GetPosition(), from) > 2.0f, "its orders move it with nothing to animate");
+			Check(a->Transform.Position == a->GetPosition(), "and its object transform follows the body");
+			Check(a->Anim() == nullptr && a->Instance() == nullptr && !a->UsesLocomotionBlend() && a->PropNames().empty(), "the presentation queries answer empty");
+			Check(!a->AttachProp("box") && !a->StartRagdoll(), "and the presentation actions do nothing");
+			w.AddToScene(*std::make_unique<Scene>());   // nothing to draw: no crash
+			w.SetSuspended("abstract", true);
+			Check(a->State() == ObjectState::Paused && w.Suspended("abstract") && w.AnimLevel("abstract") == 3, "suspending pauses the object");
+			w.SetSuspended("abstract", false);
+			Check(a->State() == ObjectState::Active && !w.Suspended("abstract"), "and resuming activates it again");
+			const auto saved = w.CaptureActors();
+			Check(saved.size() == 1 && saved[0].Kind == "tribe-member", "it is saved with its kind");
+		}
+		Check(w.Remove("abstract") && w.Count() == 0, "and removed");
 	}
 
 	// ---- the real packs

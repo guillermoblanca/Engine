@@ -19,6 +19,7 @@ namespace GB
 		glm::vec2 Position{ 0.0f };        // xz, moved to free dry ground (clear of the other actors too)
 		float Yaw = 0.0f;
 		std::string Kind;                  // what the caller asked for ("fox", a file...): saved with the actor so a loaded game can make it again
+		bool NoModel = false;              // no path and no model on purpose: a logic-only actor (it moves, works and is saved; it is not drawn). Without it a missing model is an error
 		bool CreateEntity = false;         // make the scene entity (with a gameplay component and its ability system) when there is none of that name
 	};
 
@@ -90,7 +91,7 @@ namespace GB
 		// Level of detail: a suspended actor is not animated, not drawn, not lent its abilities' runtime and not an obstacle to the others; its owner
 		// (the tribe's abstract agent) moves it by hand and puts it back (Teleport) when it is resumed.
 		void SetSuspended(const std::string& name, bool suspended);
-		bool Suspended(const std::string& name) const { return m_Suspended.count(name) > 0; }
+		bool Suspended(const std::string& name) const { const Actor* a = Find(name); return a && a->Paused(); }
 		// Level of detail of the animation (H16): from the viewer (the camera) and AnimLodConfig. Without a viewer every actor is at full detail.
 		void SetViewer(const glm::vec3& pos) { m_Viewer = pos; m_HasViewer = true; }
 		void ClearViewer() { m_HasViewer = false; }
@@ -98,7 +99,7 @@ namespace GB
 		const AnimLodConfig& AnimLod() const { return m_Lod; }
 		// The level an actor was updated at in the last frame: 0 full, 1 reduced (no IK), 2 far (no IK, no props, posed every few frames), 3 suspended
 		// (abstract) or unknown. TribeVisuals reads it to skip the hands reaching for things beyond full detail.
-		int AnimLevel(const std::string& name) const { if (m_Suspended.count(name)) return 3; const auto it = m_Levels.find(name); return it == m_Levels.end() ? 0 : it->second; }
+		int AnimLevel(const std::string& name) const { const Actor* a = Find(name); return !a ? 0 : a->Paused() ? 3 : a->AnimLevel(); }
 		// What the last Update did (the perf line `stats ai`): actors at each level, suspended ones, poses computed and the wall time (measured only).
 		struct FrameCost { int Full = 0, Reduced = 0, Far = 0, Suspended = 0, Posed = 0; double Ms = 0.0; };
 		const FrameCost& LastCost() const { return m_Cost; }
@@ -128,15 +129,13 @@ namespace GB
 		GameplayWorld* m_Gameplay = nullptr;
 		std::map<std::string, std::shared_ptr<Model>> m_Models;
 		std::map<std::string, std::unique_ptr<Actor>> m_Actors;
-		std::map<std::string, std::string> m_Kinds;   // actor -> ActorSpawn::Kind
+		uint32_t m_NextHandle = 0;   // GBObject::Handle of the next actor: never reused by this world
 		NavGrid m_Nav;
 		std::vector<CircleObstacle> m_PushedObstacles;   // the static obstacles the actors have now
-		std::set<std::string> m_Suspended;
 		glm::vec3 m_Viewer{ 0.0f };
 		bool m_HasViewer = false;
 		AnimLodConfig m_Lod;
 		long m_LodFrame = 0;
-		std::map<std::string, int> m_Levels;
 		FrameCost m_Cost;
 	};
 }
