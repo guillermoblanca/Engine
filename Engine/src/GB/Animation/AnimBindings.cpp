@@ -431,6 +431,7 @@ namespace GB
 		MontageDesc d;
 		if (const MontageDesc* base = FindMontage(manifest, r.Montage)) d = *base;   // slot, notifies, sections and hold-end of the base
 		d.Name.clear();
+		const float baseStart = d.TrimStart, baseEnd = d.TrimEnd;
 		d.Clip = r.Clip;
 		d.Loop = r.Loop;
 		d.TrimStart = r.TrimStart;
@@ -440,6 +441,15 @@ namespace GB
 		d.BlendOut = r.BlendOut;
 		d.Curve = r.Curve;
 		d.StripTravel = !r.KeepRootMotion;
+		// the notifies that the new trim leaves outside would never fire: they are put inside it, in proportion to where they were in the trim of the
+		// base (an ability's hit stays at the same point of the swing whatever part of the clip plays)
+		const float from = std::clamp(baseStart, 0.0f, 1.0f), to = std::clamp(baseEnd, 0.0f, 1.0f);
+		for (MontageNotify& n : d.Notifies)
+			if (n.Time < r.TrimStart - 1e-4f || n.Time > r.TrimEnd + 1e-4f)
+			{
+				const float along = to > from + 1e-4f ? std::clamp((n.Time - from) / (to - from), 0.0f, 1.0f) : 0.5f;
+				n.Time = r.TrimStart + along * (r.TrimEnd - r.TrimStart);
+			}
 		return d;
 	}
 
@@ -635,7 +645,7 @@ namespace GB
 				if ((c.BlendIn && *c.BlendIn < 0.0f) || (c.BlendOut && *c.BlendOut < 0.0f)) error(at + ": a blend cannot be negative");
 				if (base && t1 > t0 && t0 >= 0.0f && t1 <= 1.0f)
 					for (const MontageNotify& n : base->Notifies)
-						if (n.Time < t0 || n.Time > t1) warn(at + ": notify '" + n.Name + "' of montage '" + base->Name + "' falls outside the trim: the action's event would never fire");
+						if (n.Time < t0 || n.Time > t1) warn(at + ": notify '" + n.Name + "' of montage '" + base->Name + "' falls outside the trim: it is moved inside it, in proportion (the timing changes)");
 				const bool loop = c.Loop.value_or(base ? base->Loop : false);
 				if (isAbility && loop) warn(at + ": loops, but an ability is a single shot (it would never reach its end)");
 				if (isAbility && base && base->HoldEnd && !c.Loop) warn(at + ": the montage holds its last frame until stopped, on a single-shot ability");

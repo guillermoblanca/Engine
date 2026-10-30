@@ -234,6 +234,11 @@ int main()
 			AnimManifest mm = shipped;
 			BindingsReport rr = ApplyBindings(mm, cut, defaults);
 			Check(rr.Applied == 1, "(a trim that cuts a notify is still applied: it is only a warning)");
+			const MontageDesc* cutAlias = nullptr;
+			for (const MontageDesc& d : mm.Montages) if (d.Name == "bind:ability:Chop#0") cutAlias = &d;
+			bool inside = cutAlias && !cutAlias->Notifies.empty();
+			if (cutAlias) for (const MontageNotify& n : cutAlias->Notifies) inside = inside && n.Time >= 0.8f - 1e-4f && n.Time <= 0.95f + 1e-4f;
+			Check(inside, "the notifies a trim leaves outside are moved inside it (the ability still gets its event)");
 			cut.Bindings[0].Clips[0].TrimEnd = 0.1f;   // inverted: refused, the default is kept
 			AnimManifest m6 = shipped;
 			BindingsReport r6 = ApplyBindings(m6, cut, defaults);
@@ -247,6 +252,22 @@ int main()
 		okay.Bindings.push_back(good);
 		okay.Transitions.push_back(Tr("ability:Chop", "ability:Block", 0.2f, BlendCurve::Smooth));
 		Check(ValidateBindings(okay, shipped, defaults, hasClip).empty(), "a sound binding set validates clean");
+
+		// the default notifies of an ability (hit, chop...) land inside the part of a trimmed montage that plays, in proportion
+		GameplayLibrary events;
+		AbilityDef swing;
+		swing.Name = "Swing";
+		swing.Montages = { "cut", "plain" };
+		swing.Events = { { "hit", 0.5f, "", {}, {} } };
+		events.AddAbility(swing);
+		MontageDesc cut, plain;
+		cut.Name = "cut"; cut.Clip = "x"; cut.TrimStart = 0.5f; cut.TrimEnd = 1.0f;
+		plain.Name = "plain"; plain.Clip = "x";
+		MontageDesc aliasOf = cut;
+		aliasOf.Name = "bind:ability:Swing?node=tree#0";
+		const std::vector<MontageDesc> made = AbilityMontages(events, { cut, plain, aliasOf });
+		Check(made.size() == 3 && Near(made[0].Notifies.at(0).Time, 0.75f) && Near(made[1].Notifies.at(0).Time, 0.5f), "the ability's 'hit' at 0.5 of the swing is at 0.75 of the clip when the trim is 0.5..1, and unchanged without a trim");
+		Check(Near(made[2].Notifies.at(0).Time, 0.75f), "the montages the bindings make for the ability (by context) get its events too");
 	}
 
 	// ---- the animation clock: trim, loop, speed (no window, no model)
@@ -317,6 +338,18 @@ int main()
 		mp.Add(mid);
 		run("mid", false, early, late, fin, first);
 		Check(early == 1 && late == 0, "a trim that keeps the early notify and drops the late one");
+
+		// the clock props and reach windows read: the fraction of the part that plays
+		mp.Play("trim");
+		Check(Near(mp.RunFraction("trim"), 0.0f, 0.05f), "a trimmed run starts at 0 of its own clock");
+		for (int i = 0; i < static_cast<int>(whole * 0.25f / dt); ++i) mp.Update(dt);
+		Check(Near(mp.RunFraction("trim"), 0.5f, 0.1f), "halfway through the trim is 0.5 on the run clock (not 0.5 + the trim start of the whole clip)");
+		mp.Stop("trim", 0.0f);
+		Check(mp.RunFraction("trim") < 0.0f, "it is -1 when it is not playing");
+		mp.Play("full");
+		for (int i = 0; i < static_cast<int>(whole * 0.5f / dt); ++i) mp.Update(dt);
+		Check(Near(mp.RunFraction("full"), 0.5f, 0.1f), "an untrimmed run: the clock is the clip's, as it was");
+		mp.Stop("full", 0.0f);
 
 		// a looping trimmed montage never ends and stays inside the window
 		MontageDesc loop = trimmed;
