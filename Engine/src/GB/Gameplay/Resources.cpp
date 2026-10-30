@@ -152,7 +152,7 @@ namespace GB
 				yaw(Part(w, id, name + " Mound 1", MeshShape::Cube, { 0.0f, 0.06f, 0.0f }, { 1.3f, 0.1f, 0.12f }, { 0.33f, 0.22f, 0.12f }), 15.0f);
 				yaw(Part(w, id, name + " Mound 2", MeshShape::Cube, { 0.2f, 0.12f, 0.1f }, { 0.8f, 0.09f, 0.1f }, { 0.4f, 0.28f, 0.16f }), -50.0f);
 			}
-			else if (model == "mushroom_patch")   // three pale stalks with brown caps
+			else if (model == "mushroom_ring")   // three pale stalks with brown caps
 			{
 				const float spots[][3] = { { 0.0f, 0.0f, 0.3f }, { 0.25f, 0.15f, 0.22f }, { -0.2f, 0.2f, 0.26f } };
 				int n = 0;
@@ -163,9 +163,9 @@ namespace GB
 					Part(w, id, name + " Tuft cap " + std::to_string(n), MeshShape::Sphere, { s[0], s[2], s[1] }, { 0.22f, 0.12f, 0.22f }, { 0.52f, 0.3f, 0.16f });
 				}
 			}
-			else if (model == "wild_roots")   // a low rosette of leaves
+			else if (model == "root_patch" || model == "wild_greens")   // a low rosette of leaves
 				Part(w, id, name + " Tuft", MeshShape::Sphere, { 0.0f, 0.12f, 0.0f }, { 0.7f, 0.25f, 0.7f }, { 0.3f, 0.5f, 0.2f });
-			else if (model == "hazelnut_bush")   // a round bush with pale nuts
+			else if (model == "nut_tree")   // a round bush with pale nuts
 			{
 				Part(w, id, name + " Bush", MeshShape::Sphere, { 0.0f, 0.6f, 0.0f }, { 1.4f, 1.1f, 1.4f }, { 0.22f, 0.42f, 0.15f });
 				Part(w, id, name + " Berries", MeshShape::Sphere, { 0.4f, 0.8f, 0.5f }, glm::vec3(0.16f), { 0.62f, 0.45f, 0.22f });
@@ -181,10 +181,10 @@ namespace GB
 				const glm::vec3 head = colour == "red" ? glm::vec3(0.85f, 0.12f, 0.15f) : colour == "yellow" ? glm::vec3(0.95f, 0.8f, 0.1f)
 					: colour == "blue" ? glm::vec3(0.25f, 0.35f, 0.9f) : colour == "purple" ? glm::vec3(0.6f, 0.25f, 0.75f) : glm::vec3(0.95f, 0.95f, 0.9f);
 				Part(w, id, name + " Leaves", MeshShape::Sphere, { 0.0f, 0.08f, 0.0f }, { 0.45f, 0.16f, 0.45f }, { 0.2f, 0.42f, 0.14f });
-				const float spots[][3] = { { 0.0f, 0.0f, 0.34f }, { 0.16f, 0.1f, 0.28f }, { -0.14f, 0.12f, 0.3f }, { 0.08f, -0.15f, 0.26f }, { -0.1f, -0.1f, 0.32f } };
+				const float spots[][3] = { { 0.0f, 0.0f, 0.34f }, { 0.17f, 0.1f, 0.28f }, { -0.15f, 0.11f, 0.3f } };   // (few parts: each one is a draw call)
 				int n = 0;
 				for (const auto& s : spots)
-					Part(w, id, name + " Bloom " + std::to_string(++n), MeshShape::Sphere, { s[0], s[2], s[1] }, glm::vec3(0.1f), head);
+					Part(w, id, name + " Bloom " + std::to_string(++n), MeshShape::Sphere, { s[0], s[2], s[1] }, glm::vec3(0.14f), head);
 			}
 			else if (model == "flint_outcrop")   // sharp dark grey slabs
 			{

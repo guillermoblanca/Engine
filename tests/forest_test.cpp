@@ -63,11 +63,12 @@ int main()
 	std::map<std::string, ResourceNodeDef> defs;
 	RegisterEraOneItems(items, recipes, defs);
 	Check(LoadContentFile(data + "/era1.json", items, recipes, defs).empty(), "era1.json loads");
+	Check(LoadContentFile(data + "/social.json", items, recipes, defs).empty(), "social.json loads (the wild foods of the social life)");
 	const std::string contentError = LoadContentFile(data + "/era1_bosque.json", items, recipes, defs);
 	if (!contentError.empty()) std::fprintf(stderr, "%s\n", contentError.c_str());
 	Check(contentError.empty(), "era1_bosque.json loads as content");
-	for (const char* id : { "tree", "old_tree", "young_tree", "rock", "rock_small", "boulder", "rock_pile", "loose_stones", "fallen_branch", "mushroom_patch", "wild_roots",
-		"hazelnut_bush", "bird_nest", "flowers_red", "flowers_white" })
+	for (const char* id : { "tree", "old_tree", "young_tree", "rock", "rock_small", "boulder", "rock_pile", "loose_stones", "fallen_branch", "mushroom_ring", "root_patch",
+		"nut_tree", "bird_nest", "wild_greens", "flowers_red", "flowers_white" })
 		Check(defs.count(id) == 1, id);
 	Check(defs["tree"].Spawn.Prop == "tree" && defs["rock"].Spawn.Prop == "rock", "trees and rocks are drawn with the procedural models");
 	Check(defs["boulder"].Spawn.ScaleMin > defs["rock"].Spawn.ScaleMax && defs["rock_small"].Spawn.ScaleMax < defs["rock"].Spawn.ScaleMin, "rocks come in several sizes");
@@ -81,11 +82,12 @@ int main()
 			"and keeps the prop, the scale, the stack and the decor");
 	}
 	// without a tool: slower and poorer than with one (the yield of a hand is the base; a tool adds its power)
-	for (const char* id : { "loose_stones", "fallen_branch", "mushroom_patch", "wild_roots", "hazelnut_bush", "bird_nest" })
-		Check(defs[id].RequiresTag.empty() && defs[id].RegenSeconds >= 200.0f && defs[id].Capacity <= 6, id);
+	for (const char* id : { "loose_stones", "fallen_branch", "mushroom_ring", "root_patch", "nut_tree", "bird_nest", "wild_greens" })
+		Check(defs[id].RequiresTag.empty() && defs[id].Capacity <= 6, id);
+	Check(defs["loose_stones"].RegenSeconds >= 200.0f && defs["fallen_branch"].RegenSeconds >= 200.0f, "what lies on the ground without a tool grows back slowly");
 	Check(defs["loose_stones"].PerGather <= defs["rock"].PerGather && defs["loose_stones"].Capacity < defs["rock"].Capacity && defs["loose_stones"].Item == "stone",
 		"loose stones give stone by hand, fewer and slower than a rock with a pickaxe");
-	Check(items.Find("mushroom") && items.Find("root") && items.Find("nut") && items.Find("egg"), "the wild foods exist");
+	Check(items.Find("mushrooms") && items.Find("roots") && items.Find("nuts") && items.Find("eggs") && items.Find("greens"), "the wild foods exist");
 
 	// ---- the config
 	NatureConfig cfg;
@@ -141,9 +143,10 @@ int main()
 	Check(flowers > 0 && small > 0 && big > 0 && piles > 0, "flowers, small rocks, boulders and piles of rocks are there");
 	{
 		NatureConfig poor = cfg; poor.Abundance = 0.5f;
-		NatureConfig rich = cfg; rich.Abundance = 4.0f;
-		const size_t few = PlanWorldNature(ground, defs, poor, 7).size(), many = PlanWorldNature(ground, defs, rich, 7).size();
-		Check(few < spots.size() && spots.size() < many, "the abundance scales the number of nodes");
+		NatureConfig mid = cfg; mid.Abundance = 1.0f;
+		const size_t few = PlanWorldNature(ground, defs, poor, 7).size(), some = PlanWorldNature(ground, defs, mid, 7).size();
+		std::fprintf(stderr, "info: abundance 0.5 / 1 / 2: %zu / %zu / %zu nodes (the ground is full by 2)\n", few, some, spots.size());
+		Check(few < some && some < spots.size(), "the abundance scales the number of nodes");
 		NatureConfig none = cfg; none.Patches.clear();
 		Check(SameSpots(PlanWorldNature(ground, defs, none, 7), PlanWorldResources(ground, defs, 7, cfg.Abundance)), "without patches it is the old plan at that density");
 		NatureConfig capped = cfg; capped.MaxNodes = 100;

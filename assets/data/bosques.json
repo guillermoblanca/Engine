@@ -6,7 +6,7 @@
       "id": "forest",
       "biomes": {
         "Forest": 0.95,
-        "Meadow": 0.3
+        "Meadow": 0.45
       },
       "cell": 60,
       "radiusMin": 15,
@@ -34,11 +34,11 @@
           "weight": 0.4
         },
         {
-          "node": "hazelnut_bush",
+          "node": "nut_tree",
           "weight": 0.3
         },
         {
-          "node": "mushroom_patch",
+          "node": "mushroom_ring",
           "weight": 0.5
         },
         {
@@ -52,6 +52,10 @@
         {
           "node": "bird_nest",
           "weight": 0.08
+        },
+        {
+          "node": "bee_tree",
+          "weight": 0.02
         }
       ]
     },
@@ -113,8 +117,12 @@
       "max": 300,
       "mix": [
         {
-          "node": "wild_roots",
+          "node": "root_patch",
           "weight": 2
+        },
+        {
+          "node": "wild_greens",
+          "weight": 1.5
         },
         {
           "node": "berry_bush",
@@ -147,7 +155,7 @@
       "fill": 0.7,
       "clearings": 0.1,
       "maxSlope": 20,
-      "max": 260,
+      "max": 180,
       "mix": [
         {
           "node": "flowers_red",

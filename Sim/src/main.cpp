@@ -82,7 +82,7 @@ int main(int argc, char** argv)
 	bool stopClanDead = false, stopExtinct = false;
 	int clans = 1, members = 4;
 	bool combat = false, hostile = false;
-	std::string biome = "temperate", path, profile, note;
+	std::string biome = "temperate", path, profile, note, forest;
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string v;
@@ -103,6 +103,7 @@ int main(int argc, char** argv)
 		else if (Arg(argv[i], "--every", v)) every = std::atof(v.c_str());
 		else if (Arg(argv[i], "--profile", v)) profile = v;
 		else if (Arg(argv[i], "--note", v)) note = v;
+		else if (Arg(argv[i], "--forest", v)) forest = v;
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
 		else if (!std::strcmp(argv[i], "--hostile")) hostile = combat = true;
 		else { std::fprintf(stderr, "unknown argument '%s'\nusage: GBSim --seed=N --days=D --clans=N --members=N --biome=temperate|alpine|desert --telemetry=run.db [--every=S] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text]\n", argv[i]); return 2; }
@@ -135,6 +136,23 @@ int main(int argc, char** argv)
 
 	GB::SimSetup setup;
 	setup.World = &world;
+	// --forest=<assets/data>: the content of era 1 with the forest pack (era1_bosque.json: trees and rocks of several sizes, flowers, loose stones) and the patches of
+	// bosques.json (docs/BOSQUES.md), instead of the built-in era 1 alone
+	GB::ItemLibrary forestItems;
+	GB::RecipeBook forestRecipes;
+	std::map<std::string, GB::ResourceNodeDef> forestNodes;
+	GB::NatureConfig forestConfig;
+	if (!forest.empty())
+	{
+		GB::RegisterEraOneItems(forestItems, forestRecipes, forestNodes);
+		for (const char* file : { "/era1.json", "/social.json", "/era1_bosque.json" })
+			if (const std::string error = GB::LoadContentFile(forest + file, forestItems, forestRecipes, forestNodes); !error.empty()) { std::fprintf(stderr, "%s\n", error.c_str()); return 1; }
+		if (const std::string error = GB::LoadNatureConfigFile(forest + "/bosques.json", forestConfig); !error.empty()) { std::fprintf(stderr, "%s\n", error.c_str()); return 1; }
+		setup.Items = &forestItems;
+		setup.Recipes = &forestRecipes;
+		setup.Nodes = &forestNodes;
+		setup.Nature = &forestConfig;
+	}
 	setup.Members = members * clans;
 	setup.Clans = clans;
 	setup.Combat = combat;
