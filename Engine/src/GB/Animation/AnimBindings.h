@@ -10,6 +10,8 @@
 namespace GB
 {
 	class GameplayLibrary;
+	class AbilitySystemComponent;
+	struct AbilityDef;
 
 	// Animation bindings: which clip each game action plays and how, as data the user edits (docs/EDITOR_ANIMACIONES.md). They are an overlay on
 	// the manifest (AnimManifest): without a file, or for an action the file does not mention, the manifest and the C++ defaults (the Attack.*
@@ -58,12 +60,27 @@ namespace GB
 		BlendCurve Curve = BlendCurve::Smooth;
 	};
 
+	// The tuning of the locomotion blend space (see ManifestLocomotion): the limits of the speed factor, the smoothing of the velocity (the time of the
+	// blend between idle, walk and run), the gait share for footsteps, the fade of a change of set, and the reference speed of each clip of a set (the
+	// ground speed at which it plays at its natural rate, which is also its place on the speed axis: where the blend passes from the idle to the walk and
+	// from the walk to the run). Scoped to a model or to all. Which clip goes in each stretch is the `loco:<set>` binding (Replaces).
+	struct LocomotionTuning
+	{
+		std::string Skeleton;                        // "" = every model
+		ManifestLocomotion Values;
+	};
+
 	struct AnimBindings
 	{
 		int Version = kAnimBindingsVersion;
 		std::vector<AnimBinding> Bindings;
 		std::vector<BindingTransition> Transitions;
+		std::vector<LocomotionTuning> Locomotion;
 	};
+
+	// The tuning that holds for a model: the general entries first, then the ones of the model on top (a field it sets wins, a clip speed of the same
+	// set and clip wins).
+	ManifestLocomotion LocomotionFor(const AnimBindings& bindings, const std::string& skeleton);
 
 	// The model key bindings are scoped by: the file name without folder or extension, lower case ("x bot", "fox").
 	std::string SkeletonKey(const std::string& modelPath);
@@ -106,6 +123,7 @@ namespace GB
 		bool FromBinding = false;                    // false: the default (manifest or C++) answered
 		std::string Why;                             // "binding", "default", or why a binding was skipped
 		std::string Montage;                         // the manifest montage the base came from ("" when the source is a bare clip)
+		std::string Playable;                        // the montage that plays it once ApplyBindings has run: the base itself, or the alias made for it ("" = no binding)
 		std::string Clip;
 		bool Loop = false;
 		float TrimStart = 0.0f, TrimEnd = 1.0f;
@@ -130,10 +148,28 @@ namespace GB
 	// The resolved clip of a montage description (the other direction, to show defaults and to preview).
 	ResolvedClip FromMontage(const MontageDesc& d);
 
+	// What a game keeps of the bindings so every character can use them: the bindings, the defaults they replace, and the model they are limited to.
+	// Shared by all the actors of an ActorWorld (ActorWorld::SetBindings); each actor works out its own manifest and picks its clips (Actor::PickMontage)
+	// from it, so two models with different bindings do not fight over the shared ability library.
+	struct BindingsSetup
+	{
+		AnimBindings Bindings;
+		BindingDefaults Defaults;
+		std::string Only;                            // "" = every character; else only the model with this SkeletonKey (the others play their defaults)
+		bool Applies(const std::string& skeleton) const { return Only.empty() || Only == skeleton; }
+	};
+
+	// The context a use of an ability happens in, for the `When` of a binding: "ability" (its name), "target" (the entity worked on), "node" (the
+	// resource node type: tree, rock, berry_bush...), "kind" (its resource kind: wood, stone, plant...), "tool" (the family of the tool the ability
+	// asks for: axe, pickaxe, "none" when it asks for none) and "variant" (that tool as the owner holds it: basic, flint...). Keys with nothing to say
+	// are left out.
+	std::map<std::string, std::string> BindingContext(const AbilityDef& ability, const AbilitySystemComponent* owner, const AbilitySystemComponent* target);
+
 	struct BindingsReport
 	{
 		int Applied = 0;                             // actions rewritten
 		int Transitions = 0;
+		bool Locomotion = false;                     // the blend space was tuned
 		std::vector<std::string> Skipped;            // "ability:Chop #1: clip 'x' does not exist (default kept)"
 	};
 

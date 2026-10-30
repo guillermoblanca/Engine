@@ -147,6 +147,20 @@ namespace GB
 			for (const ManifestStage& st : manifest.Stages) stages.push_back({ { "name", st.Name }, { "rate", st.Rate } });
 			root["stages"] = stages;
 		}
+		if (!manifest.Locomotion.Empty())
+		{
+			const ManifestLocomotion& l = manifest.Locomotion;
+			Json loco = Json::object();
+			if (l.MinSpeedScale) loco["minSpeedScale"] = *l.MinSpeedScale;
+			if (l.MaxSpeedScale) loco["maxSpeedScale"] = *l.MaxSpeedScale;
+			if (l.VelocitySmoothing) loco["velocitySmoothing"] = *l.VelocitySmoothing;
+			if (l.MinGaitWeight) loco["minGaitWeight"] = *l.MinGaitWeight;
+			if (l.SetFade) loco["setFade"] = *l.SetFade;
+			Json clips = Json::array();
+			for (const ManifestClipSpeed& c : l.Clips) clips.push_back({ { "set", c.Set }, { "clip", c.Clip }, { "speed", c.Speed } });
+			if (!l.Clips.empty()) loco["clips"] = clips;
+			root["locomotion"] = loco;
+		}
 		if (!manifest.Transitions.empty())
 		{
 			Json trs = Json::array();
@@ -188,6 +202,18 @@ namespace GB
 		if (const auto it = root.find("stages"); it != root.end() && it->is_array())
 			for (const Json& st : *it)
 				if (st.is_object()) m.Stages.push_back({ st.value("name", ""), st.value("rate", 1.0f) });
+		if (const auto it = root.find("locomotion"); it != root.end() && it->is_object())
+		{
+			auto opt = [&](const char* key) { std::optional<float> v; if (it->contains(key) && (*it)[key].is_number()) v = (*it)[key].get<float>(); return v; };
+			m.Locomotion.MinSpeedScale = opt("minSpeedScale");
+			m.Locomotion.MaxSpeedScale = opt("maxSpeedScale");
+			m.Locomotion.VelocitySmoothing = opt("velocitySmoothing");
+			m.Locomotion.MinGaitWeight = opt("minGaitWeight");
+			m.Locomotion.SetFade = opt("setFade");
+			if (it->contains("clips") && (*it)["clips"].is_array())
+				for (const Json& c : (*it)["clips"])
+					if (c.is_object()) m.Locomotion.Clips.push_back({ c.value("set", ""), c.value("clip", ""), c.value("speed", 0.0f) });
+		}
 		if (const auto it = root.find("transitions"); it != root.end() && it->is_array())
 			for (const Json& t : *it)
 				if (t.is_object()) m.Transitions.push_back({ t.value("from", ""), t.value("to", ""), t.value("duration", 0.2f), BlendCurveFromName(t.value("curve", "smooth")) });
@@ -252,6 +278,19 @@ namespace GB
 			report.Montages += anim.Montages().Add(m) ? 1 : 0;
 		}
 		anim.Montages().SetTransitions(manifest.Transitions);
+		// the tuning of the blend space (animation bindings): the limits and smoothing for every set, then where each named clip sits on the speed axis
+		{
+			const ManifestLocomotion& l = manifest.Locomotion;
+			LocomotionOptions o = anim.Options();
+			if (l.MinSpeedScale) o.MinSpeedScale = *l.MinSpeedScale;
+			if (l.MaxSpeedScale) o.MaxSpeedScale = *l.MaxSpeedScale;
+			if (l.VelocitySmoothing) o.VelocitySmoothing = *l.VelocitySmoothing;
+			if (l.MinGaitWeight) o.MinGaitWeight = *l.MinGaitWeight;
+			if (l.MinSpeedScale || l.MaxSpeedScale || l.VelocitySmoothing || l.MinGaitWeight) anim.SetOptions(o);
+			if (l.SetFade) anim.SetFadeOverride(*l.SetFade);
+			for (const ManifestClipSpeed& c : l.Clips)
+				if (!anim.SetClipSpeed(c.Set, c.Clip, c.Speed)) note("locomotion speed of set " + (c.Set.empty() ? std::string("default") : c.Set), c.Clip);
+		}
 		for (const AnimationClip& c : model.GetClips())
 			if (!used.count(c.Name)) report.Unused.push_back(c.Name);
 		return report;

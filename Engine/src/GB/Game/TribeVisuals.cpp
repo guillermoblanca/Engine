@@ -213,14 +213,18 @@ namespace GB
 					{
 						const AbilityDef* def = ctx.Gameplay ? ctx.Gameplay->Library.Ability(st.Ability) : nullptr;
 						if (def)
-							for (const std::string& name : def->Montages)
+						{
+							// the montages the ability plays: its list, and those the animation bindings made for it (by context)
+							const std::string alias = "bind:ability:" + st.Ability;
+							for (const std::string& name : anim.Montages().Names())
 							{
 								if (!anim.Montages().IsPlaying(name)) continue;
-								const MontageDesc* d = anim.Montages().Get(name);
-								const float clip = anim.Montages().Duration(name) * (d ? d->PlayRate : 1.0f);
-								const float f = clip > 0.0f ? anim.Montages().Time(name) / clip : 0.0f;
+								if (std::find(def->Montages.begin(), def->Montages.end(), name) == def->Montages.end() && name.rfind(alias, 0) != 0) continue;
+								// the fraction of the part that plays (the trim): the reach window follows what is seen, not the whole clip
+								const float f = anim.Montages().RunFraction(name);
 								if (f >= r.From && f <= r.To) weight = r.Weight;
 							}
+						}
 					}
 					else if (!st.Montage.empty() && anim.Montages().IsPlaying(st.Montage))
 						weight = r.Weight;

@@ -32,6 +32,7 @@ namespace GB
 		struct Weight { size_t Index = 0; float Value = 0.0f; };
 
 		size_t Add(const GaitInfo& info, glm::vec2 position);   // returns the entry index
+		void Replace(size_t i, const GaitInfo& info, glm::vec2 position);   // moves / changes an entry (the triangulation is made again)
 		size_t Size() const { return m_Entries.size(); }
 		const GaitInfo& Info(size_t i) const { return m_Entries[i].Info; }
 		glm::vec2 Position(size_t i) const { return m_Entries[i].Position; }

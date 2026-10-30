@@ -1,5 +1,6 @@
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/AbilityTasks.h"
+#include "GB/Animation/AnimBindings.h"
 #include "GB/Animation/AnimManifest.h"
 #include <algorithm>
 
@@ -19,19 +20,23 @@ namespace GB
 			for (const AbilityEventDef& e : ability.Events)
 				if (!e.Notify.empty()) notifies.push_back({ e.Time, e.Notify });
 			if (notifies.empty()) continue;
-			for (const std::string& montage : ability.Montages)
-				for (MontageDesc& d : base)
+			const std::string aliasPrefix = "bind:ability:" + name;   // the montages the animation bindings make for the ability (by context too)
+			for (MontageDesc& d : base)
+			{
+				const bool listed = Contains(ability.Montages, d.Name);
+				const bool alias = d.Name.size() > aliasPrefix.size() && d.Name.compare(0, aliasPrefix.size(), aliasPrefix) == 0
+					&& (d.Name[aliasPrefix.size()] == '#' || d.Name[aliasPrefix.size()] == '?');
+				if (!listed && !alias) continue;
+				// the montage owns its notifies (the Timeline panel edits them, the JSON files keep them): the times of the ability's events are
+				// only the default for a notify the montage does not have yet, never an overwrite of one it already has. They are fractions of what
+				// the montage plays (its trim), so a trimmed montage still raises them inside the part that plays.
+				for (const MontageNotify& n : notifies)
 				{
-					if (d.Name != montage) continue;
-					// the montage owns its notifies (the Timeline panel edits them, the JSON files keep them): the times of the ability's events are
-					// only the default for a notify the montage does not have yet, never an overwrite of one it already has
-					for (const MontageNotify& n : notifies)
-					{
-						bool has = false;
-						for (const MontageNotify& own : d.Notifies) has = has || own.Name == n.Name;
-						if (!has) d.Notifies.push_back(n);
-					}
+					bool has = false;
+					for (const MontageNotify& own : d.Notifies) has = has || own.Name == n.Name;
+					if (!has) d.Notifies.push_back({ d.TrimStart + std::clamp(n.Time, 0.0f, 1.0f) * (d.TrimEnd - d.TrimStart), n.Name });
 				}
+			}
 		}
 		return base;
 	}
@@ -225,7 +230,14 @@ namespace GB
 		inst->Target = d->NeedsTarget ? target : nullptr;
 		inst->TargetName = !targetName.empty() ? targetName : target ? target->Name() : "";
 		inst->Fired.assign(d->Events.size(), false);
-		if (!d->Montages.empty())
+		// the clip of this use: the one the character's animation bindings pick for where it happens (the node, the tool), else the next of the list
+		if (m_Runtime && m_Runtime->PickMontage)
+		{
+			const auto it = m_Uses.find(ability);
+			inst->Montage = m_Runtime->PickMontage(*d, it == m_Uses.end() ? 0 : it->second, BindingContext(*d, this, inst->Target));
+			if (!inst->Montage.empty()) ++m_Uses[ability];
+		}
+		if (inst->Montage.empty() && !d->Montages.empty())
 		{
 			const int use = m_Uses[ability]++;
 			inst->Montage = d->Montages[static_cast<size_t>(use) % d->Montages.size()];
@@ -233,7 +245,7 @@ namespace GB
 		// with no character to walk there is no walk: it commits (pays and starts its cooldown) at once
 		const bool moves = d->MoveToTarget && d->NeedsTarget && m_Runtime && m_Runtime->Controller && m_Runtime->World && m_Runtime->Resolve;
 		if (moves) inst->Tasks.push_back(std::make_unique<MoveToTargetTask>());
-		if (!d->Montages.empty()) inst->Tasks.push_back(std::make_unique<PlayMontageAndWaitTask>());
+		if (!inst->Montage.empty()) inst->Tasks.push_back(std::make_unique<PlayMontageAndWaitTask>());
 		if (!d->WaitEvent.empty()) inst->Tasks.push_back(std::make_unique<WaitGameplayEventTask>(d->WaitEvent, d->WaitTimeout));
 
 		m_Tags.Add(d->Tag);

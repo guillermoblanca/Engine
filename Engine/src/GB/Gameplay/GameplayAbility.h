@@ -56,16 +56,20 @@ namespace GB
 	{
 	public:
 		void AddEffect(const GameplayEffectDef& def) { m_Effects[def.Name] = def; }
-		void AddAbility(const AbilityDef& def) { m_Abilities[def.Name] = def; }
+		void AddAbility(const AbilityDef& def) { m_Abilities[def.Name] = def; ++m_Revision; }
 		const GameplayEffectDef* Effect(const std::string& name) const { auto it = m_Effects.find(name); return it == m_Effects.end() ? nullptr : &it->second; }
 		const AbilityDef* Ability(const std::string& name) const { auto it = m_Abilities.find(name); return it == m_Abilities.end() ? nullptr : &it->second; }
 		const std::map<std::string, GameplayEffectDef>& Effects() const { return m_Effects; }
 		const std::map<std::string, AbilityDef>& Abilities() const { return m_Abilities; }
-		void Clear() { m_Effects.clear(); m_Abilities.clear(); }
+		void Clear() { m_Effects.clear(); m_Abilities.clear(); ++m_Revision; }
+		// Counts the abilities added since the start: whoever copied their montages (the actors, from the animation manifest) sees that the rules were
+		// registered again (a combat rules reload) and puts its own back.
+		unsigned Revision() const { return m_Revision; }
 
 	private:
 		std::map<std::string, GameplayEffectDef> m_Effects;   // map nodes do not move: pointers stay valid
 		std::map<std::string, AbilityDef> m_Abilities;
+		unsigned m_Revision = 0;
 	};
 
 	// The montages `base` (usually the ones of the animation manifest, or MixamoMontages()) with the notifies the abilities of the library raise:

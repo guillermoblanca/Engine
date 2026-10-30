@@ -1,4 +1,5 @@
 #include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/Combat.h"
 #include "GB/Gameplay/GameplayAbility.h"
 #include "GB/Log.h"
@@ -69,6 +70,8 @@ namespace GB
 			return nullptr;
 		}
 
+		std::string AliasName(const AnimBinding& b, int i);
+
 		// Resolves clip number `turn` of `binding` against the manifest. `why` tells why it cannot be built (a missing clip).
 		bool BuildFromEntry(const AnimBinding& binding, const AnimManifest& manifest, int turn, const ClipExists& hasClip, ResolvedClip& out, std::string& why)
 		{
@@ -96,6 +99,7 @@ namespace GB
 			r.Found = true;
 			r.FromBinding = true;
 			r.Why = "binding";
+			r.Playable = (!c.HasOverrides() && base) ? base->Name : AliasName(binding, static_cast<int>(static_cast<size_t>(turn) % binding.Clips.size()));
 			r.Set = binding.Set;
 			r.Repeat = binding.Repeat.value_or(false);
 			out = std::move(r);
@@ -122,7 +126,22 @@ namespace GB
 			return nullptr;
 		}
 
-		std::string AliasName(const std::string& action, int i) { return "bind:" + action + "#" + std::to_string(i); }
+		// The montage made for clip `i` of a binding: "bind:ability:Chop#0", and for one that depends on the context "bind:ability:Chop?node=tree&tool=axe#0"
+		std::string AliasName(const AnimBinding& b, int i)
+		{
+			std::string name = "bind:" + b.Action;
+			char sep = '?';
+			for (const auto& [k, v] : b.When) { name += sep; name += k + "=" + v; sep = '&'; }
+			return name + "#" + std::to_string(i);
+		}
+
+		// The binding answers for its own conditions (no other one of the file wins where it would), so its clips are worth making montages of.
+		bool Reachable(const AnimBindings& all, const AnimBinding& b, const std::string& skeleton)
+		{
+			return SkeletonMatches(b.Skeleton, skeleton) && FindBinding(all, b.Action, b.When, skeleton) == &b;
+		}
+
+		bool IsUseAction(const std::string& action) { return StartsWith(action, "ability:") || StartsWith(action, "activity:"); }
 	}
 
 	std::string SkeletonKey(const std::string& modelPath)
@@ -183,6 +202,26 @@ namespace GB
 			trs.push_back(std::move(j));
 		}
 		root["transitions"] = std::move(trs);
+		if (!b.Locomotion.empty())
+		{
+			Json locos = Json::array();
+			for (const LocomotionTuning& t : b.Locomotion)
+			{
+				Json j = Json::object();
+				if (!t.Skeleton.empty()) j["skeleton"] = t.Skeleton;
+				const ManifestLocomotion& l = t.Values;
+				if (l.MinSpeedScale) j["minSpeedScale"] = *l.MinSpeedScale;
+				if (l.MaxSpeedScale) j["maxSpeedScale"] = *l.MaxSpeedScale;
+				if (l.VelocitySmoothing) j["velocitySmoothing"] = *l.VelocitySmoothing;
+				if (l.MinGaitWeight) j["minGaitWeight"] = *l.MinGaitWeight;
+				if (l.SetFade) j["setFade"] = *l.SetFade;
+				Json clips = Json::array();
+				for (const ManifestClipSpeed& c : l.Clips) clips.push_back({ { "set", c.Set }, { "clip", c.Clip }, { "speed", c.Speed } });
+				if (!l.Clips.empty()) j["clips"] = clips;
+				locos.push_back(std::move(j));
+			}
+			root["locomotion"] = std::move(locos);
+		}
 		return root.dump(2) + "\n";
 	}
 
@@ -244,6 +283,25 @@ namespace GB
 					t.Duration = j.value("duration", 0.2f);
 					t.Curve = BlendCurveFromName(j.value("curve", "smooth"));
 					result.Transitions.push_back(std::move(t));
+				}
+			}
+			if (const auto it = root.find("locomotion"); it != root.end())
+			{
+				if (!it->is_array()) return fail("'locomotion' must be a list");
+				for (const Json& j : *it)
+				{
+					if (!j.is_object()) return fail("a locomotion entry must be an object");
+					LocomotionTuning t;
+					t.Skeleton = j.value("skeleton", "");
+					t.Values.MinSpeedScale = optF(j, "minSpeedScale");
+					t.Values.MaxSpeedScale = optF(j, "maxSpeedScale");
+					t.Values.VelocitySmoothing = optF(j, "velocitySmoothing");
+					t.Values.MinGaitWeight = optF(j, "minGaitWeight");
+					t.Values.SetFade = optF(j, "setFade");
+					if (j.contains("clips") && j["clips"].is_array())
+						for (const Json& c : j["clips"])
+							if (c.is_object()) t.Values.Clips.push_back({ c.value("set", ""), c.value("clip", ""), c.value("speed", 0.0f) });
+					result.Locomotion.push_back(std::move(t));
 				}
 			}
 		}
@@ -354,6 +412,40 @@ namespace GB
 		return out;
 	}
 
+	// ---- context
+
+	std::map<std::string, std::string> BindingContext(const AbilityDef& ability, const AbilitySystemComponent* owner, const AbilitySystemComponent* target)
+	{
+		std::map<std::string, std::string> c;
+		c["ability"] = ability.Name;
+		if (target)
+		{
+			c["target"] = target->Name();
+			for (const auto& [tag, count] : target->Tags().All())
+			{
+				if (StartsWith(tag, "Resource.Node.")) { if (!c.count("node")) c["node"] = tag.substr(14); }
+				else if (StartsWith(tag, "Resource.") && tag != "Resource.Node" && tag.find('.', 9) == std::string::npos && !c.count("kind")) c["kind"] = Lower(tag.substr(9));
+			}
+		}
+		// the tool the ability asks for, and which of that kind the owner holds (the most specific tag: "Item.Tool.Axe.Flint" is a flint axe)
+		std::string required;
+		for (const std::string& t : ability.RequiredTags)
+			if (StartsWith(t, "Item.Tool.")) { required = t; break; }
+		c["tool"] = "none";
+		if (!required.empty())
+		{
+			const size_t dot = required.find('.', 10);
+			const std::string family = dot == std::string::npos ? required : required.substr(0, dot);   // "Item.Tool.Axe"
+			c["tool"] = Lower(family.substr(10));
+			std::string variant = "basic";
+			if (owner)
+				for (const auto& [tag, count] : owner->Tags().All())
+					if (StartsWith(tag, (family + ".").c_str())) { variant = Lower(tag.substr(family.size() + 1)); break; }
+			c["variant"] = variant;
+		}
+		return c;
+	}
+
 	// ---- resolution
 
 	ResolvedClip FromMontage(const MontageDesc& d)
@@ -378,6 +470,7 @@ namespace GB
 		MontageDesc d;
 		if (const MontageDesc* base = FindMontage(manifest, r.Montage)) d = *base;   // slot, notifies, sections and hold-end of the base
 		d.Name.clear();
+		const float baseStart = d.TrimStart, baseEnd = d.TrimEnd;
 		d.Clip = r.Clip;
 		d.Loop = r.Loop;
 		d.TrimStart = r.TrimStart;
@@ -387,6 +480,15 @@ namespace GB
 		d.BlendOut = r.BlendOut;
 		d.Curve = r.Curve;
 		d.StripTravel = !r.KeepRootMotion;
+		// the notifies that the new trim leaves outside would never fire: they are put inside it, in proportion to where they were in the trim of the
+		// base (an ability's hit stays at the same point of the swing whatever part of the clip plays)
+		const float from = std::clamp(baseStart, 0.0f, 1.0f), to = std::clamp(baseEnd, 0.0f, 1.0f);
+		for (MontageNotify& n : d.Notifies)
+			if (n.Time < r.TrimStart - 1e-4f || n.Time > r.TrimEnd + 1e-4f)
+			{
+				const float along = to > from + 1e-4f ? std::clamp((n.Time - from) / (to - from), 0.0f, 1.0f) : 0.5f;
+				n.Time = r.TrimStart + along * (r.TrimEnd - r.TrimStart);
+			}
 		return d;
 	}
 
@@ -427,6 +529,31 @@ namespace GB
 		return r;
 	}
 
+	// ---- locomotion tuning
+
+	ManifestLocomotion LocomotionFor(const AnimBindings& bindings, const std::string& skeleton)
+	{
+		ManifestLocomotion out;
+		for (int pass = 0; pass < 2; ++pass)   // general entries first, then the model's own
+			for (const LocomotionTuning& t : bindings.Locomotion)
+			{
+				if (t.Skeleton.empty() != (pass == 0) || !SkeletonMatches(t.Skeleton, skeleton)) continue;
+				const ManifestLocomotion& v = t.Values;
+				if (v.MinSpeedScale) out.MinSpeedScale = v.MinSpeedScale;
+				if (v.MaxSpeedScale) out.MaxSpeedScale = v.MaxSpeedScale;
+				if (v.VelocitySmoothing) out.VelocitySmoothing = v.VelocitySmoothing;
+				if (v.MinGaitWeight) out.MinGaitWeight = v.MinGaitWeight;
+				if (v.SetFade) out.SetFade = v.SetFade;
+				for (const ManifestClipSpeed& c : v.Clips)
+				{
+					bool replaced = false;
+					for (ManifestClipSpeed& e : out.Clips) if (e.Set == c.Set && e.Clip == c.Clip) { e = c; replaced = true; }
+					if (!replaced) out.Clips.push_back(c);
+				}
+			}
+		return out;
+	}
+
 	// ---- applying
 
 	BindingsReport ApplyBindings(AnimManifest& manifest, const AnimBindings& bindings, const BindingDefaults& defaults, const std::string& skeleton, const ClipExists& hasClip)
@@ -437,13 +564,13 @@ namespace GB
 			report.Skipped.push_back(text);
 			GB_CLIENT_WARN("Animation bindings: {}", text);
 		};
-		std::set<std::string> done;
 		for (const AnimBinding& entry : bindings.Bindings)
 		{
-			if (!done.insert(entry.Action).second) continue;
-			const AnimBinding* chosen = FindBinding(bindings, entry.Action, {}, skeleton);
-			if (!chosen) continue;   // (only context- or other-skeleton bindings: nothing for the manifest)
+			if (!Reachable(bindings, entry, skeleton)) continue;   // (another skeleton's, or shadowed by a more specific one)
+			const AnimBinding* chosen = &entry;
 			const std::string& action = chosen->Action;
+			const bool contextual = !chosen->When.empty();
+			if (contextual && !IsUseAction(action)) { skip(action + ": 'when' only works on abilities and activities (ignored)"); continue; }
 
 			if (StartsWith(action, "loco:"))
 			{
@@ -480,13 +607,14 @@ namespace GB
 				if (!BuildFromEntry(*chosen, manifest, static_cast<int>(i), hasClip, r, why)) { skip(action + " #" + std::to_string(i + 1) + ": " + why + " (default kept)"); continue; }
 				if (!chosen->Clips[i].HasOverrides() && !r.Montage.empty()) { names.push_back(r.Montage); continue; }   // the montage as the manifest has it
 				MontageDesc d = ToMontage(r, manifest);
-				d.Name = AliasName(action, static_cast<int>(i));
+				d.Name = AliasName(*chosen, static_cast<int>(i));
 				bool replaced = false;
 				for (MontageDesc& m : manifest.Montages) if (m.Name == d.Name) { m = d; replaced = true; }
 				if (!replaced) manifest.Montages.push_back(d);
 				names.push_back(d.Name);
 			}
 			if (names.empty()) continue;
+			if (contextual) { ++report.Applied; continue; }   // (the montages exist; the game picks among them by context: Actor::PickMontage)
 			std::vector<ManifestUse>& uses = isAbility ? manifest.Abilities : manifest.Activities;
 			const std::string name = After(action, isAbility ? 8 : 9);
 			ManifestUse* use = FindUseMutable(uses, name);
@@ -496,6 +624,32 @@ namespace GB
 			if (chosen->Repeat) use->Loop = *chosen->Repeat;
 			if (!chosen->Note.empty()) use->Note = chosen->Note;
 			++report.Applied;
+		}
+
+		// the tuning of the blend space
+		{
+			const ManifestLocomotion tuning = LocomotionFor(bindings, skeleton);
+			const bool sane = (!tuning.MinSpeedScale || *tuning.MinSpeedScale > 0.0f) && (!tuning.MaxSpeedScale || *tuning.MaxSpeedScale > 0.0f)
+				&& (!tuning.VelocitySmoothing || *tuning.VelocitySmoothing >= 0.0f) && (!tuning.SetFade || *tuning.SetFade >= 0.0f);
+			if (!sane) skip("locomotion: a scale must be positive and a time cannot be negative (not applied)");
+			else if (!tuning.Empty())
+			{
+				ManifestLocomotion& out = manifest.Locomotion;
+				if (tuning.MinSpeedScale) out.MinSpeedScale = tuning.MinSpeedScale;
+				if (tuning.MaxSpeedScale) out.MaxSpeedScale = tuning.MaxSpeedScale;
+				if (tuning.VelocitySmoothing) out.VelocitySmoothing = tuning.VelocitySmoothing;
+				if (tuning.MinGaitWeight) out.MinGaitWeight = tuning.MinGaitWeight;
+				if (tuning.SetFade) out.SetFade = tuning.SetFade;
+				for (const ManifestClipSpeed& c : tuning.Clips)
+				{
+					if (!(c.Speed > 0.0f)) { skip("locomotion: the speed of '" + c.Clip + "' must be positive (kept as it was)"); continue; }
+					if (hasClip && !hasClip(c.Clip)) { skip("locomotion: clip '" + c.Clip + "' does not exist"); continue; }
+					bool replaced = false;
+					for (ManifestClipSpeed& e : out.Clips) if (e.Set == c.Set && e.Clip == c.Clip) { e = c; replaced = true; }
+					if (!replaced) out.Clips.push_back(c);
+				}
+				report.Locomotion = true;
+			}
 		}
 
 		// transitions: actions expand to their montages
@@ -581,10 +735,30 @@ namespace GB
 				if ((c.BlendIn && *c.BlendIn < 0.0f) || (c.BlendOut && *c.BlendOut < 0.0f)) error(at + ": a blend cannot be negative");
 				if (base && t1 > t0 && t0 >= 0.0f && t1 <= 1.0f)
 					for (const MontageNotify& n : base->Notifies)
-						if (n.Time < t0 || n.Time > t1) warn(at + ": notify '" + n.Name + "' of montage '" + base->Name + "' falls outside the trim: the action's event would never fire");
+						if (n.Time < t0 || n.Time > t1) warn(at + ": notify '" + n.Name + "' of montage '" + base->Name + "' falls outside the trim: it is moved inside it, in proportion (the timing changes)");
 				const bool loop = c.Loop.value_or(base ? base->Loop : false);
 				if (isAbility && loop) warn(at + ": loops, but an ability is a single shot (it would never reach its end)");
 				if (isAbility && base && base->HoldEnd && !c.Loop) warn(at + ": the montage holds its last frame until stopped, on a single-shot ability");
+			}
+		}
+		// locomotion tuning
+		for (const LocomotionTuning& t : bindings.Locomotion)
+		{
+			const std::string at = "locomotion" + (t.Skeleton.empty() ? std::string() : " [" + t.Skeleton + "]");
+			const ManifestLocomotion& l = t.Values;
+			if (l.MinSpeedScale && (*l.MinSpeedScale <= 0.0f || *l.MinSpeedScale > 1.0f)) error(at + ": the minimum speed factor must be in (0, 1]");
+			if (l.MaxSpeedScale && (*l.MaxSpeedScale < 1.0f || *l.MaxSpeedScale > 4.0f)) error(at + ": the maximum speed factor must be between 1 and 4");
+			if (l.VelocitySmoothing && (*l.VelocitySmoothing < 0.0f || *l.VelocitySmoothing > 2.0f)) error(at + ": the velocity smoothing must be between 0 and 2 seconds");
+			if (l.MinGaitWeight && (*l.MinGaitWeight < 0.0f || *l.MinGaitWeight > 1.0f)) error(at + ": the gait share must be between 0 and 1");
+			if (l.SetFade && (*l.SetFade < 0.0f || *l.SetFade > 3.0f)) error(at + ": the set fade must be between 0 and 3 seconds");
+			for (const ManifestClipSpeed& c : l.Clips)
+			{
+				const std::string cat = at + " clip '" + c.Clip + "'";
+				const ManifestSet* s = FindSet(manifest, c.Set.empty() ? std::string("default") : c.Set);
+				if (!s) { error(cat + ": no such locomotion set '" + c.Set + "'"); continue; }
+				if (std::find(s->Clips.begin(), s->Clips.end(), c.Clip) == s->Clips.end()) warn(cat + ": the set does not use that clip");
+				if (hasClip && !hasClip(c.Clip)) error(cat + ": the clip does not exist");
+				if (!(c.Speed > 0.05f) || c.Speed > 20.0f) error(cat + ": the reference speed must be between 0.05 and 20 m/s");
 			}
 		}
 		// transitions

@@ -55,6 +55,13 @@ namespace GB
 		void Bind(EntityWorld* scene, GameplayWorld* gameplay) { m_Scene = scene; m_Gameplay = gameplay; }
 		// The manifest new actors are built with (null: the built-in one).
 		void SetManifest(const AnimManifest* manifest) { m_Manifest = manifest ? *manifest : MixamoManifest(); }
+		// The animation bindings (AnimBindings.h) of every character: those that exist now are rebuilt when their manifest changes with them, and the ones
+		// made later are born with them. `setup->Only` limits them to the models with that SkeletonKey; null takes them all off. Returns how many characters
+		// changed.
+		int SetBindings(std::shared_ptr<const BindingsSetup> setup);
+		const BindingsSetup* Bindings() const { return m_Bindings.get(); }
+		// Every character puts its manifest's ability montages (and the notifies the abilities need) into the shared library again.
+		void SyncAbilities() { for (auto& [name, actor] : m_Actors) actor->SyncAbilities(); if (m_Gameplay) m_AbilityRevision = m_Gameplay->Library.Revision(); }
 
 		// A model loaded once however many actors use it.
 		std::shared_ptr<Model> LoadModel(const std::string& path, std::string& error);
@@ -115,6 +122,8 @@ namespace GB
 		ActorHost m_Host;
 		std::string m_AssetRoot;
 		AnimManifest m_Manifest = MixamoManifest();
+		std::shared_ptr<const BindingsSetup> m_Bindings;
+		unsigned m_AbilityRevision = 0;   // GameplayLibrary::Revision the actors' ability montages were put there for
 		EntityWorld* m_Scene = nullptr;
 		GameplayWorld* m_Gameplay = nullptr;
 		std::map<std::string, std::shared_ptr<Model>> m_Models;

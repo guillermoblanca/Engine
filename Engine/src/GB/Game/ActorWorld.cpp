@@ -84,6 +84,8 @@ namespace GB
 		spec.Height = spawn.Height;
 		spec.Rigged = spawn.Rigged;
 		spec.Manifest = &m_Manifest;
+		spec.Bindings = m_Bindings;
+		spec.Skeleton = SkeletonKey(spawn.Kind.empty() ? spawn.Path : spawn.Kind);
 		spec.Start = spawn.Position;
 		spec.StartYaw = spawn.Yaw;
 		spec.Others = CirclesExcept("");
@@ -101,7 +103,17 @@ namespace GB
 		m_Actors[name] = std::move(actor);
 		m_Kinds[name] = spawn.Kind;
 		raw->PrepareAbilities();
+		if (m_Gameplay) m_AbilityRevision = m_Gameplay->Library.Revision();
 		return raw;
+	}
+
+	int ActorWorld::SetBindings(std::shared_ptr<const BindingsSetup> setup)
+	{
+		m_Bindings = std::move(setup);
+		int changed = 0;
+		for (auto& [name, actor] : m_Actors) changed += actor->SetBindings(m_Bindings, actor->Skeleton()) ? 1 : 0;
+		if (m_Gameplay) m_AbilityRevision = m_Gameplay->Library.Revision();
+		return changed;
 	}
 
 	std::vector<Save::ActorState> ActorWorld::CaptureActors() const
@@ -221,6 +233,12 @@ namespace GB
 
 	void ActorWorld::PrepareAbilities()
 	{
+		// the rules registered the abilities again (a combat rules reload writes their montage lists anew): the characters put their own back
+		if (m_Gameplay && m_Gameplay->Library.Revision() != m_AbilityRevision)
+		{
+			for (auto& [name, actor] : m_Actors) actor->SyncAbilities();
+			m_AbilityRevision = m_Gameplay->Library.Revision();
+		}
 		for (auto& [name, actor] : m_Actors) if (!m_Suspended.count(name)) actor->PrepareAbilities();
 	}
 

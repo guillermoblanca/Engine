@@ -274,6 +274,19 @@ namespace GB
 		return -1.0f;
 	}
 
+	float MontagePlayer::RunFraction(const std::string& name) const
+	{
+		for (const Active& a : m_Active)
+		{
+			const Entry& e = m_Entries[static_cast<size_t>(a.Entry)];
+			if (a.Leaving || e.Desc.Name != name) continue;
+			float start = 0.0f, end = 0.0f;
+			Window(e.Desc, e.Stats.Duration, start, end);
+			return end > start ? std::clamp((a.Time - start) / (end - start), 0.0f, 1.0f) : 0.0f;
+		}
+		return -1.0f;
+	}
+
 	void MontagePlayer::Stop(const std::string& name, float blendOut)
 	{
 		for (Active& a : m_Active)

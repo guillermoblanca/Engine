@@ -4,6 +4,8 @@
 // See docs/EDITOR_ANIMACIONES.md.
 #include "EditorApp.h"
 #include "GB/Animation/AnimBindings.h"
+#include "GB/Animation/BlendSpace.h"
+#include "GB/Gameplay/Resources.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cstdio>
@@ -108,17 +110,39 @@ namespace GB::Editor
 		ImGui::SameLine();
 		if (ImGui::Button("Load")) { m_Player.LoadBindings(m_AssetRoot, report); ui.Status = report; ui.Selected.clear(); }
 		ImGui::SameLine();
-		if (ImGui::Button("Apply to character"))
+		if (ImGui::Button("Apply to all"))
 		{
 			std::string why;
-			ui.Status = m_Player.ApplyBindingsToCharacter(why) ? "applied: " + why : "not applied: " + why;
+			m_Player.SetOnlySkeleton(ui.ApplyOnlyThisModel ? skeleton : std::string());
+			ui.Status = m_Player.ApplyBindingsToAll(why) ? "applied: " + why : "not applied: " + why;
+			ui.AppliedSignature = AnimBindingsToJson(bindings) + m_Player.OnlySkeleton();
 		}
-		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Rebuilds the controlled character with these bindings (abilities, activities, sets, transitions).\nSave writes %s so the game reads it.", file.c_str());
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Every character of the world (the player's, the AI's, the other clans') plays these bindings, and the ones made later too.\nSave writes %s so the game reads it.", file.c_str());
 		ImGui::SameLine();
-		ImGui::Checkbox("new bindings only for this skeleton", &ui.ThisSkeletonOnly);
+		ImGui::Checkbox("live", &ui.Live);
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Apply to all at once when an edit is finished");
+		ImGui::SameLine();
+		ImGui::Checkbox("only this model", &ui.ApplyOnlyThisModel);
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Apply only to the characters of the controlled one's model (the others play their defaults)");
+		ImGui::SameLine();
+		ImGui::Checkbox("new bindings only for this model", &ui.ThisSkeletonOnly);
 		ImGui::SameLine();
 		ImGui::TextDisabled("(%s)", skeleton.empty() ? "no character: start one with `player <fbx>`" : skeleton.c_str());
 		if (!ui.Status.empty()) ImGui::TextWrapped("%s", ui.Status.c_str());
+
+		// live: an edit that is finished (no slider being dragged) reaches every character
+		{
+			const std::string only = ui.ApplyOnlyThisModel ? skeleton : std::string();
+			const std::string signature = AnimBindingsToJson(bindings) + only;
+			if (ui.AppliedSignature.empty()) ui.AppliedSignature = signature;   // (what was loaded is what the characters already have)
+			else if (ui.Live && signature != ui.AppliedSignature && !ImGui::IsAnyItemActive() && m_Player.ActorCount() > 0)
+			{
+				std::string why;
+				m_Player.SetOnlySkeleton(only);
+				ui.Status = m_Player.ApplyBindingsToAll(why) ? "applied: " + why : "not applied: " + why;
+				ui.AppliedSignature = signature;
+			}
+		}
 
 		// the validation, always visible; sent to the log when it changes
 		const std::vector<BindingIssue> issues = ValidateBindings(bindings, manifest, defaults, hasClip);
@@ -166,7 +190,37 @@ namespace GB::Editor
 			const bool isLoco = action->Key.rfind("loco:", 0) == 0, isAir = action->Key == "air";
 			ImGui::Text("%s  [%s]", action->Key.c_str(), action->Category.c_str());
 			ImGui::TextDisabled("default: %s", action->Defaults.empty() ? "(nothing)" : Join(action->Defaults).c_str());
-			AnimBinding* binding = FindBinding(bindings, action->Key, scope);
+			const bool usesContext = action->Key.rfind("ability:", 0) == 0 || action->Key.rfind("activity:", 0) == 0;
+			std::vector<AnimBinding*> variants;
+			for (AnimBinding& x : bindings.Bindings) if (x.Action == action->Key && x.Skeleton == scope) variants.push_back(&x);
+			if (!variants.empty()) ui.Variant = std::clamp(ui.Variant, 0, static_cast<int>(variants.size()) - 1);
+			AnimBinding* binding = variants.empty() ? nullptr : variants[static_cast<size_t>(ui.Variant)];
+			if (usesContext && !variants.empty())
+			{
+				ImGui::TextUnformatted("variant:");
+				for (size_t v = 0; v < variants.size(); ++v)
+				{
+					ImGui::SameLine();
+					std::string label;
+					for (const auto& [k, val] : variants[v]->When) label += (label.empty() ? "" : ", ") + k + "=" + val;
+					if (label.empty()) label = "always";
+					ImGui::PushID(static_cast<int>(v));
+					if (ImGui::RadioButton(label.c_str(), ui.Variant == static_cast<int>(v))) { ui.Variant = static_cast<int>(v); ui.Clip = 0; binding = variants[v]; }
+					ImGui::PopID();
+				}
+				ImGui::SameLine();
+				if (ImGui::SmallButton("+ context"))
+				{
+					AnimBinding nb = *binding;
+					nb.When.clear();
+					nb.When["node"] = m_NodeDefs.empty() ? std::string("tree") : m_NodeDefs.begin()->first;
+					for (const auto& [id, d] : m_NodeDefs) if (d.Ability == action->Key.substr(8)) { nb.When["node"] = id; break; }
+					bindings.Bindings.push_back(std::move(nb));
+					ui.Variant = static_cast<int>(variants.size());
+					binding = &bindings.Bindings.back();
+				}
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("Another clip for when the action happens in a context: on a given node, with a given tool...\nThe most specific variant that matches wins; 'always' is the fallback.");
+			}
 			if (!binding)
 			{
 				if (ImGui::Button("Bind this action (start from the default)"))
@@ -180,6 +234,7 @@ namespace GB::Editor
 					if (nb.Clips.empty()) nb.Clips.push_back({});
 					bindings.Bindings.push_back(std::move(nb));
 					binding = &bindings.Bindings.back();
+					ui.Variant = 0;
 				}
 				ImGui::TextDisabled("%s", scope.empty() ? "for every model" : ("for the skeleton '" + scope + "'").c_str());
 			}
@@ -190,12 +245,46 @@ namespace GB::Editor
 					bindings.Bindings.erase(bindings.Bindings.begin() + (binding - bindings.Bindings.data()));
 					binding = nullptr;
 					ui.Clip = 0;
+					ui.Variant = 0;
 				}
 			}
 			if (binding)
 			{
 				ImGui::SameLine();
 				ImGui::TextDisabled("%s", binding->Skeleton.empty() ? "every model" : ("skeleton " + binding->Skeleton).c_str());
+				if (usesContext && !binding->When.empty())
+				{
+					ImGui::SeparatorText("When (all must hold)");
+					static const char* const keys[] = { "node", "kind", "tool", "variant", "target", "ability" };
+					std::vector<std::string> nodes;
+					for (const auto& [id, d] : m_NodeDefs) nodes.push_back(id);
+					std::string drop;
+					for (auto it = binding->When.begin(); it != binding->When.end(); ++it)
+					{
+						ImGui::PushID(it->first.c_str());
+						ImGui::SetNextItemWidth(90.0f);
+						ImGui::TextUnformatted(it->first.c_str());
+						ImGui::SameLine(100.0f);
+						std::vector<std::string> options;
+						if (it->first == "node") options = nodes;
+						else if (it->first == "kind") options = { "wood", "stone", "plant", "loose" };
+						else if (it->first == "tool") options = { "axe", "pickaxe", "hoe", "none" };
+						else if (it->first == "variant") options = { "basic", "flint" };
+						if (!options.empty()) StringCombo("##value", it->second, options, 160.0f);
+						else { char buf[64]; std::snprintf(buf, sizeof buf, "%s", it->second.c_str()); ImGui::SetNextItemWidth(160.0f); if (ImGui::InputText("##value", buf, sizeof buf)) it->second = buf; }
+						ImGui::SameLine();
+						if (ImGui::SmallButton("x")) drop = it->first;
+						ImGui::PopID();
+					}
+					if (!drop.empty()) binding->When.erase(drop);
+					for (const char* k : keys)
+						if (!binding->When.count(k))
+						{
+							ImGui::SameLine();
+							if (ImGui::SmallButton((std::string("+ ") + k).c_str())) binding->When[k] = k == std::string("node") && !nodes.empty() ? nodes.front() : k == std::string("tool") ? "axe" : k == std::string("kind") ? "wood" : k == std::string("variant") ? "basic" : "";
+						}
+					if (binding->When.empty()) ImGui::TextDisabled("(no conditions: this variant always matches)");
+				}
 				if (action->Key.rfind("activity:", 0) == 0)
 				{
 					std::vector<std::string> sets = { "" , "default" };
@@ -262,6 +351,27 @@ namespace GB::Editor
 					}
 					OptionalCheck("keep root motion / feet (do not pin the clip's travel)", c.KeepRootMotion, base.KeepRootMotion);
 
+					// the real thing: the character uses the ability on a node of the world (its props, its tool, the context of the bindings)
+					if (action->Key.rfind("ability:", 0) == 0 && !m_NodeDefs.empty())
+					{
+						ImGui::SeparatorText("Try on a node");
+						std::vector<std::string> nodes;
+						for (const auto& [id, d] : m_NodeDefs) if (!d.Decor && !d.Ability.empty()) nodes.push_back(id);
+						if (ui.TryNode.empty() || std::find(nodes.begin(), nodes.end(), ui.TryNode) == nodes.end())
+						{
+							ui.TryNode = nodes.empty() ? std::string() : nodes.front();
+							for (const std::string& n : nodes) if (m_NodeDefs.at(n).Ability == action->Key.substr(8)) { ui.TryNode = n; break; }
+						}
+						StringCombo("node type", ui.TryNode, nodes, 180.0f);
+						ImGui::SameLine();
+						if (ImGui::Button("Try on a node") && !ui.TryNode.empty())
+						{
+							std::string why;
+							ui.Status = TryOnNode(ui.TryNode, why) ? why : "cannot try: " + why;
+						}
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("Puts the character in front of the nearest node of that type (with the tool it asks for) and makes it work it:\nthe clip that plays is the one the bindings pick for that node.");
+					}
+
 					// the preview on the controlled character
 					ImGui::SeparatorText("Preview on the character");
 					if (!anim) ImGui::TextDisabled("Start a character (player <fbx>) to preview.");
@@ -308,6 +418,52 @@ namespace GB::Editor
 					}
 				}
 			}
+		}
+		// the tuning of the locomotion blend space: it is not a per-action binding but the speed axis every character walks on
+		if (action && action->Key.rfind("loco:", 0) == 0)
+		{
+			ImGui::SeparatorText("Locomotion blend space (all the characters)");
+			LocomotionTuning* tuning = nullptr;
+			for (LocomotionTuning& t : bindings.Locomotion) if (t.Skeleton == scope) tuning = &t;
+			LocomotionTuning scratch;
+			scratch.Skeleton = scope;
+			LocomotionTuning& t = tuning ? *tuning : scratch;
+			const LocomotionOptions engine;   // what the engine does without tuning
+			bool edited = false;
+			edited |= OptionalSlider("slowest speed factor", t.Values.MinSpeedScale, engine.MinSpeedScale, 0.1f, 1.0f, "x%.2f");
+			edited |= OptionalSlider("fastest speed factor", t.Values.MaxSpeedScale, engine.MaxSpeedScale, 1.0f, 3.0f, "x%.2f");
+			edited |= OptionalSlider("blend time (velocity smoothing)", t.Values.VelocitySmoothing, engine.VelocitySmoothing, 0.0f, 1.0f, "%.2f s");
+			edited |= OptionalSlider("gait share for footsteps", t.Values.MinGaitWeight, engine.MinGaitWeight, 0.0f, 1.0f, "%.2f");
+			edited |= OptionalSlider("fade between sets", t.Values.SetFade, 0.3f, 0.0f, 2.0f, "%.2f s");
+			const std::string setName = action->Key.substr(5) == "default" ? std::string() : action->Key.substr(5);
+			const ManifestSet* set = setName.empty() ? &manifest.Free : nullptr;
+			for (const ManifestSet& s : manifest.Sets) if (s.Name == setName) set = &s;
+			const ModelInstance* inst = m_Player.Instance();
+			if (set && inst)
+			{
+				ImGui::TextDisabled("Reference speed of each clip: where it sits on the speed axis (idle < walk < run) and the ground speed it plays at its natural rate");
+				for (const std::string& clip : set->Clips)
+				{
+					const int index = inst->GetModel().FindClip(clip);
+					const float natural = index >= 0 ? glm::length(MakeGaitInfo(inst->GetModel(), index).Velocity) : 0.0f;
+					ImGui::PushID(clip.c_str());
+					if (natural < 0.05f) { ImGui::TextDisabled("%s: no travel (idle / turn)", clip.c_str()); ImGui::PopID(); continue; }
+					ManifestClipSpeed* entry = nullptr;
+					for (ManifestClipSpeed& c : t.Values.Clips) if (c.Set == setName && c.Clip == clip) entry = &c;
+					std::optional<float> v;
+					if (entry) v = entry->Speed;
+					if (OptionalSlider(clip.c_str(), v, natural, 0.3f, 10.0f, "%.2f m/s"))
+					{
+						edited = true;
+						if (v && entry) entry->Speed = *v;
+						else if (v) t.Values.Clips.push_back({ setName, clip, *v });
+						else t.Values.Clips.erase(std::remove_if(t.Values.Clips.begin(), t.Values.Clips.end(), [&](const ManifestClipSpeed& c) { return c.Set == setName && c.Clip == clip; }), t.Values.Clips.end());
+					}
+					ImGui::PopID();
+				}
+			}
+			if (edited && !tuning) bindings.Locomotion.push_back(scratch);
+			if (tuning && tuning->Values.Empty()) bindings.Locomotion.erase(bindings.Locomotion.begin() + (tuning - bindings.Locomotion.data()));
 		}
 		ImGui::EndChild();
 
@@ -389,6 +545,59 @@ namespace GB::Editor
 		ImGui::End();
 	}
 
+	bool EditorApp::TryOnNode(const std::string& nodeId, std::string& report)
+	{
+		Actor* actor = m_Player.Controlled();
+		if (!actor) { report = "no controlled character (player <fbx>)"; return false; }
+		const auto def = m_NodeDefs.find(nodeId);
+		if (def == m_NodeDefs.end()) { report = "no resource node type '" + nodeId + "'"; return false; }
+		if (def->second.Ability.empty()) { report = "'" + nodeId + "' is not worked by any ability"; return false; }
+		EntityWorld& world = m_SceneEditor.World();
+		std::string best;
+		glm::vec3 where(0.0f);
+		float bestDistance = 1e30f;
+		const glm::vec3 me = actor->GetPosition();
+		for (const std::string& name : m_Gameplay.Names())
+		{
+			const AbilitySystemComponent* asc = m_Gameplay.Find(name);
+			if (!asc || !asc->HasTag("Resource.Node." + nodeId) || asc->HasTag("State.Depleted")) continue;
+			const EntityId id = world.FindByName(name);
+			if (id == NullEntity) continue;
+			const glm::vec3 p = glm::vec3(world.WorldMatrix(id)[3]);
+			const float d = (p.x - me.x) * (p.x - me.x) + (p.z - me.z) * (p.z - me.z);
+			if (d < bestDistance) { bestDistance = d; best = name; where = p; }
+		}
+		// the character needs an ability system to work a node (a player made with `player` has none until now)
+		if (!m_Gameplay.Find(m_Player.ControlledName()))
+		{
+			if (world.FindByName(m_Player.ControlledName()) == NullEntity) world.Find(world.Create(m_Player.ControlledName()))->Gameplay.emplace();
+			m_Gameplay.Create(m_Player.ControlledName());
+			actor->SetAbilities(&m_Gameplay, m_Player.ControlledName());
+		}
+		if (best.empty()) { report = "there is no '" + nodeId + "' node in the world (generate one with resources: generate temperate 5)"; return false; }
+		// the tool the node asks for, in the bag (the abilities read it as a tag of the character)
+		if (!def->second.RequiresTag.empty())
+			for (const std::string& item : m_Items.Ids())
+			{
+				const ItemDef* d = m_Items.Find(item);
+				bool matches = false;
+				if (d) for (const std::string& tag : d->Tags) matches = matches || GameplayTag(def->second.RequiresTag).Matches(tag);
+				if (!matches) continue;
+				if (actor->Bag().Count(item) == 0) actor->Bag().Add(m_Items, item, 1);
+				break;
+			}
+		if (AbilitySystemComponent* asc = m_Gameplay.Find(m_Player.ControlledName())) ResourceSystem::SyncTools(*asc, actor->Bag(), m_Items);
+		// in front of the node, looking at it
+		glm::vec2 away(me.x - where.x, me.z - where.z);
+		away = glm::length(away) > 1e-3f ? glm::normalize(away) : glm::vec2(0.0f, 1.0f);
+		const glm::vec2 stand = glm::vec2(where.x, where.z) + away * 2.2f;
+		actor->Teleport(stand.x, stand.y, std::atan2(-away.x, -away.y));
+		std::string error;
+		if (!m_Player.UseAbility(def->second.Ability, best, error)) { report = def->second.Ability + " on '" + best + "' did not start: " + error; return false; }
+		report = "the character uses " + def->second.Ability + " on '" + best + "'";
+		return true;
+	}
+
 	// ---- commands (the window's buttons, for scripts and agents)
 
 	void EditorApp::RegisterAnimBindingCommands()
@@ -429,12 +638,106 @@ namespace GB::Editor
 			const bool ok = a.empty() ? m_Player.LoadBindings(m_AssetRoot, report) : m_Player.LoadBindings(m_AssetRoot, report, a[0]);
 			return { ok, report };
 		});
-		c.Register("bindings_apply", "bindings_apply: rebuilds the controlled character with the current animation bindings", [=, this](const std::vector<std::string>&) -> CommandResult
+		c.Register("bindings_apply", "bindings_apply [model]: every character of the world (and those made later) plays the current animation bindings; with `model`, only the controlled character's model", [=, this](const std::vector<std::string>& a) -> CommandResult
 		{
 			ensure();
 			std::string why;
-			const bool ok = m_Player.ApplyBindingsToCharacter(why);
+			m_Player.SetOnlySkeleton(!a.empty() && a[0] == "model" ? m_Player.SkeletonOfControlled() : std::string());
+			const bool ok = m_Player.ApplyBindingsToAll(why);
+			m_AnimBindingsUi.AppliedSignature = AnimBindingsToJson(m_Player.Bindings()) + m_Player.OnlySkeleton();
 			return { ok, why };
+		});
+		c.Register("bindings_try", "bindings_try <node type> [ability]: the controlled character uses the ability that works the nearest node of that type (tree, rock, berry_bush...) in front of it", [=, this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.empty()) return { false, "usage: bindings_try <node type>" };
+			ensure();
+			std::string report;
+			const bool ok = TryOnNode(a[0], report);
+			return { ok, report };
+		});
+		c.Register("bindings_when", "bindings_when <action> <source> key=value[,key=value] [loop=0|1] [trim=a,b] [speed=x] ...: a binding for a context (node=tree, tool=axe, kind=wood, variant=flint, target=name)", [=, this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.size() < 3) return { false, "usage: bindings_when <action> <source> node=tree[,tool=axe] [loop=0|1] [trim=a,b] [speed=x] [blend=in,out]" };
+			ensure();
+			AnimBindings& all = m_Player.Bindings();
+			const std::string scope = m_AnimBindingsUi.ThisSkeletonOnly ? m_Player.SkeletonOfControlled() : std::string();
+			AnimBinding nb;
+			nb.Action = a[0];
+			nb.Skeleton = scope;
+			std::stringstream conds(a[2]);
+			std::string part;
+			while (std::getline(conds, part, ','))
+			{
+				const size_t eq = part.find('=');
+				if (eq == std::string::npos || eq == 0) return { false, "expected key=value in the context, got '" + part + "'" };
+				nb.When[part.substr(0, eq)] = part.substr(eq + 1);
+			}
+			BindingClip clip;
+			clip.Source = a[1];
+			for (size_t i = 3; i < a.size(); ++i)
+			{
+				const size_t eq = a[i].find('=');
+				if (eq == std::string::npos) return { false, "expected key=value, got '" + a[i] + "'" };
+				const std::string k = a[i].substr(0, eq), v = a[i].substr(eq + 1);
+				const size_t comma = v.find(',');
+				const float v0 = static_cast<float>(std::atof(v.c_str())), v1 = comma == std::string::npos ? 0.0f : static_cast<float>(std::atof(v.c_str() + comma + 1));
+				if (k == "loop") clip.Loop = v != "0";
+				else if (k == "trim" && comma != std::string::npos) { clip.TrimStart = v0; clip.TrimEnd = v1; }
+				else if (k == "speed") clip.Speed = v0;
+				else if (k == "blend" && comma != std::string::npos) { clip.BlendIn = v0; clip.BlendOut = v1; }
+				else return { false, "unknown or malformed setting '" + a[i] + "'" };
+			}
+			nb.Clips.push_back(clip);
+			m_AnimBindingsUi.Selected = a[0];
+			m_AnimBindingsUi.Clip = 0;
+			for (AnimBinding& e : all.Bindings) if (e.Action == nb.Action && e.Skeleton == nb.Skeleton && e.When == nb.When) { e = nb; return { true, "binding for that context updated" }; }
+			all.Bindings.push_back(nb);
+			int variant = -1;
+			for (const AnimBinding& e : all.Bindings) if (e.Action == nb.Action && e.Skeleton == nb.Skeleton) ++variant;
+			m_AnimBindingsUi.Variant = std::max(variant, 0);
+			return { true, a[0] + " when " + a[2] + " -> " + a[1] };
+		});
+		c.Register("bindings_loco", "bindings_loco [min=x] [max=x] [smooth=s] [gait=x] [fade=s] [clip=<name>:<m/s>] [set=<name>] [reset]: tunes the locomotion blend space (the limits of the speed factor, the blend time, the reference speed of a clip)", [=, this](const std::vector<std::string>& a) -> CommandResult
+		{
+			ensure();
+			AnimBindings& all = m_Player.Bindings();
+			const std::string scope = m_AnimBindingsUi.ThisSkeletonOnly ? m_Player.SkeletonOfControlled() : std::string();
+			if (!a.empty() && a[0] == "reset")
+			{
+				all.Locomotion.erase(std::remove_if(all.Locomotion.begin(), all.Locomotion.end(), [&](const LocomotionTuning& t) { return t.Skeleton == scope; }), all.Locomotion.end());
+				return { true, "locomotion tuning removed" };
+			}
+			LocomotionTuning* t = nullptr;
+			for (LocomotionTuning& e : all.Locomotion) if (e.Skeleton == scope) t = &e;
+			if (!t) { all.Locomotion.push_back({}); t = &all.Locomotion.back(); t->Skeleton = scope; }
+			std::string set;
+			for (const std::string& arg : a) if (arg.rfind("set=", 0) == 0) set = arg.substr(4);
+			for (const std::string& arg : a)
+			{
+				const size_t eq = arg.find('=');
+				if (eq == std::string::npos) return { false, "expected key=value, got '" + arg + "'" };
+				const std::string k = arg.substr(0, eq), v = arg.substr(eq + 1);
+				const float f = static_cast<float>(std::atof(v.c_str()));
+				if (k == "min") t->Values.MinSpeedScale = f;
+				else if (k == "max") t->Values.MaxSpeedScale = f;
+				else if (k == "smooth") t->Values.VelocitySmoothing = f;
+				else if (k == "gait") t->Values.MinGaitWeight = f;
+				else if (k == "fade") t->Values.SetFade = f;
+				else if (k == "set") continue;
+				else if (k == "clip")
+				{
+					const size_t colon = v.rfind(':');
+					if (colon == std::string::npos) return { false, "clip=<name>:<m/s>" };
+					const std::string name = v.substr(0, colon);
+					const float speed = static_cast<float>(std::atof(v.c_str() + colon + 1));
+					bool done = false;
+					for (ManifestClipSpeed& c : t->Values.Clips) if (c.Set == set && c.Clip == name) { c.Speed = speed; done = true; }
+					if (!done) t->Values.Clips.push_back({ set, name, speed });
+				}
+				else return { false, "unknown setting '" + arg + "'" };
+			}
+			m_AnimBindingsUi.Selected = "loco:" + (set.empty() ? std::string("default") : set);
+			return { true, "locomotion tuning updated" };
 		});
 		c.Register("bindings_resolve", "bindings_resolve <action> [turn]: what the action plays now (ability:Chop, activity:sleep, loco:default, air): clip, loop, trim, speed, blends", [=, this](const std::vector<std::string>& a) -> CommandResult
 		{

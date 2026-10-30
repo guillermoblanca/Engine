@@ -86,7 +86,10 @@ namespace GB
 		m_StaticObstacles = m_World.Obstacles.size();
 		m_Interactions = host.Interactions;
 		m_Steps = host.Steps;
-		if (spec.Manifest) m_Manifest = *spec.Manifest;
+		if (spec.Manifest) m_BaseManifest = *spec.Manifest;
+		m_Bindings = spec.Bindings;
+		m_Skeleton = spec.Skeleton;
+		m_Manifest = m_BaseManifest;
 
 		m_Controller.Config.Radius = std::max(0.2f * m_Height, 0.25f);
 		m_Controller.Config.MaxWadeDepth = 0.55f * m_Height;
@@ -98,6 +101,7 @@ namespace GB
 
 		m_Model = std::move(model);
 		m_Instance = std::make_unique<ModelInstance>(*m_Model);
+		m_Manifest = EffectiveManifest();
 		if (spec.Rigged)
 		{
 			if (!BuildAnimator(error))
@@ -128,13 +132,55 @@ namespace GB
 		}
 		m_ManifestReport = animator->LoadManifest(m_Manifest);   // the sets, turns, jump and montages the folder has clips for
 		// which montage each ability plays is the manifest's (its "abilities"), among those this character has clips for
-		if (m_Gameplay) ApplyManifestAbilities(m_Gameplay->Library, m_Manifest, [&](const std::string& m) { return animator->Anim().Montages().Has(m); });
-		if (m_Gameplay) RegisterAbilityMontages(m_Gameplay->Library, animator->Anim(), m_Manifest.Montages);   // the same montages plus the notifies the abilities need
 		animator->SetFootsteps(m_Steps);
 		if (animator->Anim().Turn().HasClips("")) m_Controller.Config.TurnInPlaceAngle = 70.0f;   // the character has a turn on the spot to show
 		m_Animator = std::move(animator);
+		SyncAbilities();
 		ApplyFeet();
 		return true;
+	}
+
+	AnimManifest Actor::EffectiveManifest() const
+	{
+		AnimManifest manifest = m_BaseManifest;
+		if (m_Bindings && m_Bindings->Applies(m_Skeleton) && (!m_Bindings->Bindings.Bindings.empty() || !m_Bindings->Bindings.Transitions.empty() || !m_Bindings->Bindings.Locomotion.empty()))
+		{
+			const Model* model = m_Model.get();
+			const ClipExists hasClip = model ? ClipExists([model](const std::string& c) { return model->FindClip(c) >= 0; }) : ClipExists();
+			ApplyBindings(manifest, m_Bindings->Bindings, m_Bindings->Defaults, m_Skeleton, hasClip);
+		}
+		return manifest;
+	}
+
+	bool Actor::SetBindings(std::shared_ptr<const BindingsSetup> setup, const std::string& skeleton)
+	{
+		m_Bindings = std::move(setup);
+		m_Skeleton = skeleton;
+		AnimManifest next = EffectiveManifest();
+		if (AnimManifestToJson(next) == AnimManifestToJson(m_Manifest)) return false;
+		m_Manifest = std::move(next);
+		if (m_Model && m_Instance && m_Animator)
+		{
+			std::string error;
+			RebuildAnimator(error);
+		}
+		return true;
+	}
+
+	void Actor::SyncAbilities()
+	{
+		if (!m_Gameplay || !m_Animator) return;
+		ApplyManifestAbilities(m_Gameplay->Library, m_Manifest, [this](const std::string& m) { return m_Animator->Anim().Montages().Has(m); });
+		RegisterAbilityMontages(m_Gameplay->Library, m_Animator->Anim(), m_Manifest.Montages);   // the same montages plus the notifies the abilities need
+	}
+
+	std::string Actor::PickMontage(const AbilityDef& ability, int use, const std::map<std::string, std::string>& context) const
+	{
+		if (!m_Bindings || !m_Bindings->Applies(m_Skeleton) || !m_Animator) return {};
+		const Model* model = m_Model.get();
+		const ClipExists hasClip = model ? ClipExists([model](const std::string& c) { return model->FindClip(c) >= 0; }) : ClipExists();
+		const ResolvedClip r = ResolveClip(m_Bindings->Bindings, m_BaseManifest, m_Bindings->Defaults, "ability:" + ability.Name, context, m_Skeleton, use, hasClip);
+		return r.FromBinding && !r.Playable.empty() && m_Animator->Anim().Montages().Has(r.Playable) ? r.Playable : std::string();
 	}
 
 	bool Actor::RebuildAnimator(std::string& error)
@@ -166,7 +212,8 @@ namespace GB
 			for (const std::string& p : problems) report += "\n  " + p;
 			return false;
 		}
-		m_Manifest = std::move(manifest);
+		m_BaseManifest = std::move(manifest);
+		m_Manifest = EffectiveManifest();
 		report = "loaded " + std::to_string(m_Manifest.Sets.size() + 1) + " set(s) and " + std::to_string(m_Manifest.Montages.size()) + " montage(s)" + (source.empty() ? "" : " from " + source);
 		if (m_Model && m_Instance && m_Animator)
 		{
@@ -352,8 +399,7 @@ namespace GB
 		if (AbilitySystemComponent* old = Abilities()) { old->CancelAll(); old->SetRuntime(nullptr); }
 		m_Gameplay = gameplay;
 		m_AbilityName = name;
-		if (m_Gameplay && m_Animator) ApplyManifestAbilities(m_Gameplay->Library, m_Manifest, [this](const std::string& m) { return m_Animator->Anim().Montages().Has(m); });
-		if (m_Gameplay && m_Animator) RegisterAbilityMontages(m_Gameplay->Library, m_Animator->Anim(), m_Manifest.Montages);
+		SyncAbilities();
 	}
 
 	void Actor::PrepareAbilities()
@@ -371,6 +417,7 @@ namespace GB
 		m_AbilityRt.World = &m_World;
 		m_AbilityRt.Resolve = m_Interactions ? m_Interactions : TaskRunner::Resolver([](const std::string&, const std::string&, InteractionTarget&, std::string*) { return false; });
 		m_AbilityRt.Equip = [this](const std::string& prop, bool on) { return EquipProp(prop, on); };
+		m_AbilityRt.PickMontage = [this](const AbilityDef& d, int use, const std::map<std::string, std::string>& context) { return PickMontage(d, use, context); };
 		asc->SetRuntime(&m_AbilityRt);
 	}
 

@@ -69,6 +69,13 @@ namespace GB
 		std::vector<std::string> SetNames() const override;
 		bool HasSet(const std::string& name) const override { return Find(name) >= 0; }
 
+		// Tuning of the locomotion that the animation bindings edit (see AnimManifest::Locomotion): the limits of the speed factor, the smoothing of the
+		// velocity, the gait share for footsteps, for every set; where a clip of a set sits on the speed axis; and how long a change of set always fades
+		// (< 0: each change keeps its own time; an instant change stays instant).
+		const LocomotionOptions& Options() const { return m_Options; }
+		void SetOptions(const LocomotionOptions& options);
+		bool SetClipSpeed(const std::string& set, const std::string& clip, float speed);
+		void SetFadeOverride(float seconds) { m_FadeOverride = seconds; }
 		// Makes `name` the active set, cross-fading over `fadeSeconds`. False for an unknown set (nothing changes).
 		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) override;
 		const std::string& Overlay() const { return m_Sets[static_cast<size_t>(m_Active)].Name; }
@@ -166,6 +173,7 @@ namespace GB
 		int m_Active = 0, m_From = -1;   // m_From: the set being left, -1 when not changing, -2 when leaving a frozen pose
 		Pose m_FromSnapshot;
 		float m_Progress = 1.0f, m_FadeSeconds = 0.3f;
+		float m_FadeOverride = -1.0f;
 		FootstepSounds* m_Steps = nullptr;
 		int m_LeftFoot = -1, m_RightFoot = -1;
 		struct Attached

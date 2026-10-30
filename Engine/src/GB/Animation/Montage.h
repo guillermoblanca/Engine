@@ -115,6 +115,9 @@ namespace GB
 		bool Paused() const { return m_Paused; }
 		bool Seek(const std::string& name, float seconds);
 		float Time(const std::string& name) const;                   // seconds into the clip of the playing montage, -1 when not playing
+		// How far the run is, 0..1 of the part that plays (the trim): the clock things tied to "the fraction of the animation" read, so a trimmed montage
+		// has its props and reach windows over the part that is seen, not over the whole clip. -1 when not playing.
+		float RunFraction(const std::string& name) const;
 		void Stop(const std::string& name, float blendOut = -1.0f);   // < 0: the montage's own BlendOut
 		void StopSlot(const std::string& slot, float blendOut = -1.0f);
 		bool IsPlaying(const std::string& name) const;
