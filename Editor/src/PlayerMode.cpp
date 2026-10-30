@@ -110,13 +110,6 @@ namespace GB::Editor
 		return MakeBindingDefaults(BaseManifest(), m_Gameplay ? &m_Gameplay->Library : nullptr);
 	}
 
-	AnimManifest PlayerMode::EffectiveManifest(const std::string& skeleton, const ClipExists& hasClip) const
-	{
-		AnimManifest manifest = BaseManifest();
-		if (!m_Bindings.Bindings.empty() || !m_Bindings.Transitions.empty()) ApplyBindings(manifest, m_Bindings, Defaults(), skeleton, hasClip);
-		return manifest;
-	}
-
 	bool PlayerMode::LoadBindings(const std::string& assetRoot, std::string& report, const std::string& file)
 	{
 		LoadShipped(assetRoot);
@@ -133,6 +126,9 @@ namespace GB::Editor
 		}
 		m_Bindings = std::move(loaded);
 		m_BindingsRoot = assetRoot;
+		std::string applied;
+		if (m_Actors && m_Actors->Count() > 0) ApplyBindingsToAll(applied);   // (a loaded file reaches the characters that are there)
+		else if (m_Actors) m_Actors->SetBindings(MakeSetup());                 // (and those that will be)
 		report = found ? "loaded " + std::to_string(m_Bindings.Bindings.size()) + " binding(s) and " + std::to_string(m_Bindings.Transitions.size()) + " transition(s) from " + path
 			: "no " + path + ": every action plays its default";
 		return true;
@@ -144,17 +140,26 @@ namespace GB::Editor
 		return it == m_KindOf.end() ? std::string() : SkeletonKey(it->second);
 	}
 
-	bool PlayerMode::ApplyBindingsToCharacter(std::string& report)
+	std::shared_ptr<const BindingsSetup> PlayerMode::MakeSetup() const
 	{
-		Actor* actor = Controlled();
-		if (!actor) { report = "no controlled character"; return false; }
+		auto setup = std::make_shared<BindingsSetup>();
+		setup->Bindings = m_Bindings;
+		setup->Defaults = Defaults();
+		setup->Only = m_OnlySkeleton;
+		return setup;
+	}
+
+	bool PlayerMode::ApplyBindingsToAll(std::string& report)
+	{
+		if (!m_Actors) { report = "no actor world"; return false; }
 		CapturePristine();
 		if (m_HasPristine && m_Gameplay) RestoreAbilityMontages(m_Gameplay->Library, m_Pristine);   // (a binding taken off must bring the C++ lists back)
-		// the bindings are checked against the clips this character really has: one that is not there is skipped (and logged), the default stays
-		const Model* model = actor->Instance() ? &actor->Instance()->GetModel() : nullptr;
-		const ClipExists hasClip = model ? ClipExists([model](const std::string& c) { return model->FindClip(c) >= 0; }) : ClipExists();
-		const AnimManifest effective = EffectiveManifest(SkeletonOfControlled(), hasClip);
-		return actor->SetManifest(effective, report, "the animation bindings");
+		// each character checks the bindings against the clips it really has: one that is not there is skipped (and logged), the default stays
+		const int changed = m_Actors->SetBindings(MakeSetup());
+		m_Actors->SyncAbilities();
+		report = std::to_string(changed) + " of " + std::to_string(m_Actors->Count()) + " character(s) rebuilt with the bindings"
+			+ (m_OnlySkeleton.empty() ? " (every model)" : " (only '" + m_OnlySkeleton + "')");
+		return true;
 	}
 
 	Actor* PlayerMode::Spawn(const std::string& name, const std::string& kind, WorldInstance& world, const SceneEditor& edit, const std::string& assetRoot,
@@ -178,12 +183,7 @@ namespace GB::Editor
 		{
 			LoadShipped(assetRoot);
 			if (m_BindingsRoot != assetRoot) { std::string report; LoadBindings(assetRoot, report); }
-			if (m_HasShipped)
-			{
-				const AnimManifest effective = EffectiveManifest(SkeletonKey(kind));   // (the manifest itself when no binding applies)
-				m_Actors->SetManifest(&effective);
-			}
-			else m_Actors->SetManifest(nullptr);
+			m_Actors->SetManifest(m_HasShipped ? &m_Shipped : nullptr);   // (the bindings are the world's: the new character is born with them)
 		}
 		else
 			m_Actors->SetManifest(nullptr);

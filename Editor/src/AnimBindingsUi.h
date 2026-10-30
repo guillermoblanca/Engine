@@ -16,7 +16,12 @@ namespace GB::Editor
 		std::string Status;                    // the result of the last Save / Load / Apply
 		std::string PreviewSignature;          // what the preview montage was last built from
 		std::vector<std::string> LoggedIssues; // the issues last sent to the log (they are logged again only when they change)
-		bool ThisSkeletonOnly = true;          // new bindings are scoped to the controlled character's skeleton
+		bool ThisSkeletonOnly = false;         // new bindings are scoped to the controlled character's model (default: every model)
+		int Variant = 0;                       // which binding of the action (the always one, or one with a context) is being edited
+		bool Live = true;                      // a committed edit is applied to every character at once
+		bool ApplyOnlyThisModel = false;       // "apply to all" limited to the controlled character's model
+		std::string AppliedSignature;          // what was last applied (bindings + model limit): a different one is applied by Live
+		std::string TryNode;                   // the node type "Try on a node" uses
 		bool Loaded = false;
 
 		// the A -> B test: play A, then B after `Delay` seconds, with the transition being edited

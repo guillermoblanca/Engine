@@ -184,6 +184,9 @@ namespace GB::Editor
 		void DrawTimelinePanel();
 		void DrawAnimBindingsPanel();      // EditorAnimBindings.cpp: which clip each action plays, and how
 		void RegisterAnimBindingCommands();
+		// Animation bindings: puts the controlled character in front of the nearest node of that type (giving it the tool the node asks for) and makes it
+		// use the ability that works it, so the clip that plays is the real one, with its props. False and the reason in `report` when it cannot.
+		bool TryOnNode(const std::string& nodeId, std::string& report);
 		void DrawGraphPanel();
 		void DrawTestsPanel();
 		// simulation QA (EditorQA.cpp): `qa`, the live monitor of the invariants and the QA panel

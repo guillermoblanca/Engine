@@ -80,7 +80,14 @@ namespace GB::Editor
 		// Reads the shipped manifest and the bindings file (`file` "" = the default one). False and the reason in `report` when the file is bad; a
 		// missing file is fine (no bindings).
 		bool LoadBindings(const std::string& assetRoot, std::string& report, const std::string& file = "");
-		bool ApplyBindingsToCharacter(std::string& report);
+		// "Apply to all": every character of the world (the player's, the AI's, the other clans'), and those made or loaded afterwards, plays the bindings;
+		// the abilities' montages of the shared library are put back first, so a binding taken off brings the C++ lists back. With OnlySkeleton set
+		// (SkeletonKey of a model) only the characters of that model get them. The report says how many characters changed.
+		bool ApplyBindingsToAll(std::string& report);
+		std::shared_ptr<const BindingsSetup> MakeSetup() const;   // the bindings, their defaults and the model limit, as the actors hold them
+		const std::string& OnlySkeleton() const { return m_OnlySkeleton; }
+		void SetOnlySkeleton(const std::string& key) { m_OnlySkeleton = key; }
+		int ActorCount() const { return m_Actors ? static_cast<int>(m_Actors->Count()) : 0; }
 		std::string SkeletonOfControlled() const;   // SkeletonKey of the model the controlled character was spawned from ("" when none)
 		bool PlayMontage(const std::string& name, const std::string& section = "") { Actor* a = Controlled(); return a && a->PlayMontage(name, section); }
 		void StopMontage() { if (Actor* a = Controlled()) a->StopMontage(); }
@@ -135,7 +142,6 @@ namespace GB::Editor
 		void SnapCamera(const Actor& actor);
 		void LoadShipped(const std::string& assetRoot);
 		void CapturePristine();   // the library's montage lists before any binding touched them (so unbinding can put them back)
-		AnimManifest EffectiveManifest(const std::string& skeleton, const ClipExists& hasClip = nullptr) const;   // the base manifest with the bindings of that skeleton applied
 
 		ActorWorld* m_Actors = nullptr;
 		std::string m_Controlled;
@@ -149,6 +155,7 @@ namespace GB::Editor
 		bool m_HasShipped = false;
 		AnimManifest m_Builtin = MixamoManifest();
 		AnimBindings m_Bindings;
+		std::string m_OnlySkeleton;       // "" = the bindings reach every model
 		std::string m_BindingsRoot;       // the asset folder the bindings were read from
 		std::map<std::string, std::string> m_KindOf;   // actor name -> the kind it was spawned from
 		std::map<std::string, std::vector<std::string>> m_Pristine;   // ability -> montages as the library had them (Attack.*, Block... come from C++)
