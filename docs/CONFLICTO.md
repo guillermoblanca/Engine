@@ -15,7 +15,7 @@ Tests: `tests/combat_test.cpp` (test `combat`).
 | `ClanHostility` | `GB/Game/ClanHostility.h` | El adaptador sobre la diplomacia de los clanes (H13) |
 | `FightOrFlight`, `WeighRaid`, `ChooseRaidParty`, `ConflictState` | `GB/Game/Conflict.h` | Las reglas puras del clan y su estado guardado |
 | Ganchos en `Tribe` | `GB/Game/TribeConflict.cpp` (y una línea cada uno en `Tribe.cpp`, `TribeWork.cpp`) | Amenazas, luchar o huir, órdenes, caza, descanso y cuidados, incursiones |
-| Editor | `Editor/src/EditorConflict.cpp` | `combat`, `hostile`, `raid`, ragdoll al morir, sección `combat` del guardado |
+| Editor | `Editor/src/Gameplay/EditorConflict.cpp` | `combat`, `hostile`, `raid`, ragdoll al morir, sección `combat` del guardado |
 
 ## El núcleo: GAS
 

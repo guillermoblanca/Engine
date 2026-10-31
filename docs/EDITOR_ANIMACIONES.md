@@ -121,9 +121,11 @@ que el set no tiene, y transiciones cuyos extremos no reproducen nada (**sin sal
 ## Ventana "Animation Bindings"
 
 Menú *View > Animation Bindings* (o `panel AnimBindings`). Lista de acciones por categoría (Locomotion, Interaction, Attack, Defence, Life, Work,
-Social), con su clip actual; al elegir una se edita su binding (clip, bucle, recorte, velocidad, mezcla, curva, mantener root motion), se
-previsualiza sobre el personaje del jugador (Play/Pause/scrub, la reproducción respeta el recorte) y se prueba una transición A→B. Guardar/Cargar
-escriben `animation_bindings.json`; la lista de problemas está siempre visible.
+Social), con su clip actual; al elegir una se edita su binding (clip, bucle, recorte, velocidad, mezcla, curva, mantener root motion). El mismo
+menú mantiene un panel **Preview** a la derecha: `Play animation`, `Pause`, `Resume`, `Stop`, `Play default` y scrub reproducen el binding
+seleccionado o, si todavía no existe, el comportamiento por defecto sobre el personaje del `Viewport`. En la sección **Flow preview**, el botón
+`Test selected A -> B` reproduce la transición seleccionada completa, con su mezcla y retardo. Guardar/Cargar escriben `animation_bindings.json`;
+la lista de problemas está siempre visible.
 
 * **Apply to all** (por defecto, y en vivo con *live*: al terminar una edición, sin arrastrar un deslizador) aplica los bindings a todos los
   personajes del mundo y a los que se creen después; *only this model* lo limita a los del modelo del personaje controlado. Los bindings nuevos
@@ -155,8 +157,9 @@ Afinado de la locomoción (blend space) para todos los personajes: factores de v
 
 ## Cómo usarlo (pasos para reproducirlo)
 
-1. Arranca el Editor y un personaje con animaciones (el X Bot de `packs/full`, ver [modelos-y-animacion.md](modelos-y-animacion.md)):
-   `generate temperate 5` y `player "packs/full/X Bot.fbx"`.
+1. Arranca el Editor y pulsa **Start isolated sandbox**: reemplaza la escena por un sandbox local con un plano, navegación y el X Bot de `packs/full`
+   en la escena actual; no regenera el mundo. También se puede usar `player "packs/full/X Bot.fbx"` directamente. Para probar `Try on a node`
+   se usa el nodo de prueba creado en el sandbox; el mundo de juego existente no se reconstruye.
 2. Abre la ventana: menú **View > Animation Bindings** o `panel AnimBindings on`.
 3. Elige una acción a la izquierda (por ejemplo `Interaction > Chop`; un `*` marca las que ya tienen binding). Pulsa **Bind this action**: empieza copiando lo
    que el juego reproduce hoy. Cambia el *source* (un montaje o cualquier clip del modelo), marca la casilla de un ajuste para sobrescribirlo

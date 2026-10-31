@@ -258,6 +258,63 @@ int main()
 		Check(system.Report().find("Shelter 1 (shelter): done") != std::string::npos, "the report says so");
 	}
 
+	// ---- construction failure modes: missing materials must not make progress, and a site created after the
+	// gameplay binding must still be connected to the BuildingSystem and persisted back to the entity
+	{
+		const std::map<std::string, BuildingDef> defs = DefaultBuildings();
+		const BuildingDef& def = defs.at("shelter");
+		EntityWorld entities;
+		GameplayWorld gameplay;
+		RegisterBuildingContent(gameplay.Library);
+		BuildingSystem system;
+		system.Bind(gameplay);
+
+		const EntityId id = BuildSite(entities, def, "Shelter 1", { 0.0f, 0.0f, 0.0f });
+		AbilitySystemComponent* site = gameplay.Create("Shelter 1");
+		site->FromComponent(*entities.Find(id)->Gameplay);
+		system.Update(0.0f, &entities); // the site was added after Bind: this must install its listener
+		Entity& workerEntity = *entities.Find(entities.Create("Worker"));
+		workerEntity.Gameplay.emplace();
+		workerEntity.Gameplay->Abilities = { "Build" };
+		AbilitySystemComponent* worker = gameplay.Create("Worker");
+		worker->FromComponent(*workerEntity.Gameplay);
+
+		Check(!worker->Activate("Build", site), "a site without materials cannot start construction");
+		for (int frame = 0; frame < 120; ++frame)
+		{
+			gameplay.Update(1.0f / 60.0f);
+			system.Update(1.0f / 60.0f, &entities);
+		}
+		SiteState blocked = ReadSite(*site, def);
+		Check(blocked.Phase == 0 && blocked.Work == 0.0f && !blocked.Ready && !blocked.Done,
+			"missing materials leave the site blocked without accumulating work");
+
+		Check(DeliverToSite(*site, def, "stone", 3) == 3 && site->HasTag("Building.Ready"),
+			"delivering the missing materials makes the phase ready");
+		for (int frame = 0; frame < 60 * 60 && !site->HasTag("Building.Done"); ++frame)
+		{
+			if (!worker->AnyActive() && site->HasTag("Building.Ready"))
+				Check(worker->Activate("Build", site), "the worker can activate Build after delivery");
+			gameplay.Update(1.0f / 60.0f);
+			system.Update(1.0f / 60.0f, &entities);
+			const SiteState now = ReadSite(*site, def);
+			if (!now.Ready && !now.Done)
+				for (const auto& [item, n] : now.Missing) DeliverToSite(*site, def, item, n);
+		}
+		Check(site->HasTag("Building.Done"), "a site added after the initial bind can finish all phases");
+		const int storedCount = gameplay.Store(entities);
+		Check(storedCount == 2, "the gameplay state stores the worker and building back to the scene");
+		const Entity* stored = entities.Find(id);
+		Check(stored && stored->Gameplay && std::find(stored->Gameplay->Tags.begin(), stored->Gameplay->Tags.end(), "Building.Done") != stored->Gameplay->Tags.end(),
+			"the completed building remains finished in the entity component");
+		GameplayWorld loaded;
+		RegisterBuildingContent(loaded.Library);
+		Check(loaded.Load(entities) == 2, "the stored gameplay state loads back for the worker and building");
+		const AbilitySystemComponent* loadedSite = loaded.Find("Shelter 1");
+		Check(loadedSite && loadedSite->HasTag("Building.Done") && ReadSite(*loadedSite, def).Done,
+			"the loaded building remains finished after gameplay synchronization");
+	}
+
 	// ---- the place of the camp on a synthetic land
 	{
 		const ResourceGround land = Land();

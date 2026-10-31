@@ -23,18 +23,26 @@ add_library(GBEditor STATIC
     src/SceneEditor.cpp
     src/WorldInstance.cpp
     src/TestScenarios.cpp
-    src/EditorGameplay.cpp
-    src/EditorExplore.cpp
-    src/EditorClans.cpp
+    src/Gameplay/EditorGameplay.cpp
+    src/Gameplay/EditorGameplayParsing.cpp
+    src/Gameplay/EditorExplore.cpp
+    src/Gameplay/EditorClans.cpp
     src/EditorVisuals.cpp
-    src/EditorEconomy.cpp
-    src/EditorConflict.cpp
-    src/EditorSocial.cpp
-    src/EditorSave.cpp
-    src/EditorQA.cpp
-    src/EditorAnimCommands.cpp
-    src/EditorAnimPanels.cpp
-    src/EditorAnimBindings.cpp
+    src/Gameplay/EditorEconomy.cpp
+    src/Gameplay/EditorConflict.cpp
+    src/Gameplay/EditorSocial.cpp
+    src/Gameplay/EditorSave.cpp
+    src/Gameplay/EditorQA.cpp
+    src/Animation/EditorAnimCommands.cpp
+    src/Animation/EditorAnimPanels.cpp
+    src/Animation/EditorAnimBindings.cpp
+    src/Animation/EditorAnimActionList.cpp
+    src/Animation/EditorAnimBindingLifecycle.cpp
+    src/Animation/EditorAnimClipSettings.cpp
+    src/Animation/EditorAnimContext.cpp
+    src/Animation/EditorAnimPreview.cpp
+    src/Animation/EditorAnimTransitions.cpp
+    src/Animation/EditorAnimInteraction.cpp
     src/EditorPriorityGraph.cpp
     src/EditorApp.cpp)
 target_include_directories(GBEditor PUBLIC src)

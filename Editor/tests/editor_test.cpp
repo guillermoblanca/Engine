@@ -1,5 +1,6 @@
 // Editor logic without a window: property registry, command runner and the log buffer. CPU only.
 #include "Commands.h"
+#include "Gameplay/EditorGameplayParsing.h"
 #include "LogBuffer.h"
 #include "Properties.h"
 #include "SceneEditor.h"
@@ -53,6 +54,17 @@ int main()
 
 	Check(CommandRunner::Tokenize("set \"a b\" 3 # note").size() == 3, "tokenize quotes and comments");
 	Check(CommandRunner::SplitScript("a; b\nc # x\n\n").size() == 3, "split script");
+
+	{
+		const std::vector<std::string> args{ "path", "1.25", "-2", "3", "4", "0.5" };
+		Check(ParseFloat(args, 1, "x").Ok && ParseFloat(args, 1, "x").Value == 1.25, "gameplay float parser");
+		Check(ParseInteger(std::vector<std::string>{ "3" }, 0, "count").Ok, "gameplay integer parser");
+		Check(ParseFloat(args, 8, "missing").Error == "missing is required", "missing gameplay argument");
+		Check(ParseFloat(std::vector<std::string>{ "abc" }, 0, "x").Error == "x must be a number", "invalid gameplay float");
+		Check(ParseInteger(std::vector<std::string>{ "1.5" }, 0, "count").Error == "count must be an integer", "invalid gameplay integer");
+		CommandResult usage;
+		Check(!RequireArgumentCount(args, 5, 5, "usage", usage) && usage.Message == "usage", "gameplay argument limit");
+	}
 
 	CommandRunner cmd;
 	int sum = 0;

@@ -20,7 +20,17 @@ namespace GB::Editor
 	ActorHost PlayerMode::MakeHost(WorldInstance& world, const SceneEditor& edit, FootstepSounds* steps, const GameplayWorld* gameplay)
 	{
 		ActorHost host;
-		host.World = MakeTerrainCharacterWorld(world.GetTerrain());
+		if (world.IsBuilt())
+			host.World = MakeTerrainCharacterWorld(world.GetTerrain());
+		else
+		{
+			// Animation Bindings can run as an isolated interaction sandbox: flat ground, finite navigation
+			// bounds and no generated world are enough for an actor and a hand-placed test node.
+			host.World.GroundHeight = [](float, float) { return 0.0f; };
+			host.World.WaterLevel = [](float, float) { return -1e9f; };
+			host.World.BoundsMin = { -12.0f, -12.0f };
+			host.World.BoundsMax = { 12.0f, 12.0f };
+		}
 		host.Steps = steps;
 		// Trees (trunk), rocks (a bit smaller than their bounding sphere) and anything the user gave a body.
 		for (const auto& [id, entity] : edit.World().All())
@@ -179,11 +189,6 @@ namespace GB::Editor
 			}
 		}
 		if (!m_Actors) { error = "no actor world"; return nullptr; }
-		if (!world.IsBuilt())
-		{
-			error = "generate a world first (generate temperate 5)";
-			return nullptr;
-		}
 		namespace fs = std::filesystem;
 		const bool isFbx = IsFbx(kind);
 		const bool fox = kind != "cesium" && !isFbx;

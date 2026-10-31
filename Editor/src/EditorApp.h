@@ -1,5 +1,5 @@
 #pragma once
-#include "AnimBindingsUi.h"
+#include "Animation/AnimBindingsUi.h"
 #include "Commands.h"
 #include "EditorSave.h"
 #include "ImGuiLayer.h"
@@ -110,6 +110,13 @@ namespace GB::Editor
 		void DrawAssets();
 		void DrawModelPanel();
 		void DrawAnimationPanel();
+		void DrawAnimBindingActionList(const std::vector<BindableAction>& actions, AnimBindings& bindings);
+		int DrawAnimBindingLifecycle(const BindableAction& action, AnimBindings& bindings, const AnimManifest& manifest, const std::string& scope);
+		void DrawAnimBindingContext(AnimBinding& binding, const BindableAction& action);
+		void DrawAnimBindingClipSettings(const BindableAction& action, AnimBinding& binding, const AnimManifest& manifest,
+			const BindingDefaults& defaults, const ClipExists& hasClip);
+		void DrawAnimBindingTransitions(const std::vector<BindableAction>& actions, AnimBindings& bindings, const AnimManifest& manifest,
+			const BindingDefaults& defaults, AnimInstance* anim, const std::string& skeleton, const ClipExists& hasClip);
 		void DrawAbilitiesPanel();
 		void DrawTribePanel();
 		void DrawNpcInspector(const TribeMember& m);
@@ -173,7 +180,7 @@ namespace GB::Editor
 		GameModeState m_Game;
 		ControlRules m_Controls = DefaultControls();             // the "controls" section: keys, interface, how `play` starts
 		CommandResult NavCommand(const std::vector<std::string>& a);
-		std::string AiStatsLine() const;   // H16: `stats ai` (EditorGameplay.cpp)
+		std::string AiStatsLine() const;   // H16: `stats ai` (Gameplay/EditorGameplay.cpp)
 		void DrawNavDebug(float ox, float oy, float w, float h);   // blocked and costly cells and the paths walked, over the viewport
 		CommandResult InteractivesCommand(const std::vector<std::string>& a);
 		CommandResult SiteCommand(const std::vector<std::string>& a);         // H8: where a clan would settle

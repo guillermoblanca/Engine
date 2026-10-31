@@ -16,7 +16,7 @@ parejas), [CONOCIMIENTO.md](CONOCIMIENTO.md) (tecnologías), [EXPLORACION.md](EX
 | `TerritoryMap`, `ClanFootprint` | `GB/Game/Territory.h`, `Territory.cpp` | Las reclamaciones de tierra región a región |
 | Ganchos en la tribu | `TribeOutside`, `MemberTransfer` en `Tribe.h`; `TribeClans.cpp` | Opciones de fuera (el enviado), avisos de cada recogida, un miembro que sale de un clan y entra en otro |
 | `Society::Admit/Marry`, `ClanKnowledge::Admit/Instruct` | `Society.h`, `Knowledge.h` | Un miembro que llega con su persona y lo que sabe; una boda; una lección de otro clan |
-| Editor | `Editor/src/EditorClans.cpp` | `clan new|list|select|relations|trade|visit|wed|move|territory|meetings|log`, sección del panel, guardado |
+| Editor | `Editor/src/Gameplay/EditorClans.cpp` | `clan new|list|select|relations|trade|visit|wed|move|territory|meetings|log`, sección del panel, guardado |
 
 ## El clan
 

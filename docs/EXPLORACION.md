@@ -16,7 +16,7 @@ cuando su tierra se agota. Todo es CPU, determinista y sin ventana; las reglas s
 | `ClanAtlas`, `RegionLore` | `GB/Game/Exploration.h` | Lo que el clan sabe de cada región |
 | `Expedition`, `ExpeditionRecord`, `MigrationRecord`, `ExplorationState` | `GB/Game/Exploration.h` | La expedición en curso, el historial y las mudanzas (se guardan) |
 | La parte de la tribu | `GB/Game/TribeExplore.cpp` | Reloj, opciones de los miembros, expediciones, puntuación del sitio y mudanza |
-| Editor | `Editor/src/EditorExplore.cpp` | `region list | info <id|nombre> | explore` |
+| Editor | `Editor/src/Gameplay/EditorExplore.cpp` | `region list | info <id|nombre> | explore` |
 
 ## Regiones
 

@@ -1,6 +1,13 @@
 {
-  "version": 1,
-  "note": "Animation bindings: action -> clip, with loop / trim (fractions of the clip) / speed / blend. Edited in the Editor (Animation Bindings window); see docs/EDITOR_ANIMACIONES.md. An action not listed here plays its default.",
   "bindings": [],
-  "transitions": []
+  "note": "Animation bindings: action -> clip, with loop / trim (fractions of the clip) / speed / blend. Edited in the Editor (Animation Bindings window); see docs/EDITOR_ANIMACIONES.md. An action not listed here plays its default.",
+  "transitions": [
+    {
+      "curve": "smooth",
+      "duration": 0.20000000298023224,
+      "from": "*",
+      "to": "*"
+    }
+  ],
+  "version": 1
 }

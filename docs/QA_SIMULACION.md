@@ -17,7 +17,7 @@ guion (principio 7 del plan): ver el final.
 | Cuerpo de prueba | `SimBody` | Un `ITribeBody` que ejecuta el mismo texto de tareas que un actor (`goto`, `wait`, `ability`) con un `AbstractAgent` que sigue los caminos de la **rejilla de navegación real** con el perfil del miembro: rodea el agua y los muros, y una meta inalcanzable falla como la del actor |
 | Arnés | `SimRun` | Mundo generado en CPU (`WorldGenerator::GenerateData`), nodos repartidos por los datos (`PlanWorldResources`), rejilla de navegación con los troncos y rocas del mundo, pozo, campamento en el punto llano del centro, y una tribu como la de `tribe build` (nombres de los datos y oficios de `PlanRoles`). Determinista: `Fingerprint()` |
 | Test | `tests/sim_sweep_test.cpp` (`ctest -R sim_sweep`) | El barrido: semillas × biomas × tamaños de tribu × días |
-| Editor | `qa sim|check|status|reset|expect`, panel **QA** (`Editor/src/EditorQA.cpp`) | La misma tabla sobre la escena actual |
+| Editor | `qa sim|check|status|reset|expect`, panel **QA** (`Editor/src/Gameplay/EditorQA.cpp`) | La misma tabla sobre la escena actual |
 
 Todo es CPU y determinista: la misma semilla y el mismo arnés dan el mismo final paso a paso (el test lo comprueba repitiendo la primera partida).
 

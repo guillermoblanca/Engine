@@ -26,7 +26,7 @@ los tests de antes no cambian y el editor y el modo de juego, que cargan el paqu
 | Ganchos en `Tribe` | `GB/Game/TribeSocial.cpp` (una línea en `Update`, `Decide`, `Execute`, `Finish`, `Eat`, `Die`, `ToJson`/`FromJson`) | Opciones `talk`, `rite`, `snare`; los ritos del clan; omen, tabúes |
 | Caza ampliada | `HuntRule::Yields`, `Group` en `GB/Gameplay/Combat.h`; `TribeConflict.cpp` | Despiece, cacerías en grupo con papeles, tabú del lugar sagrado |
 | Creencias entre clanes | `GB/Game/ClansBeliefs.cpp` (una línea en `ClanWorld::Greet`) | Las creencias se contagian y las compartidas dan confianza |
-| Editor | `Editor/src/EditorSocial.cpp` | `social`, `rite`, `belief`, `hunt`; sección **Social life** del panel Tribe |
+| Editor | `Editor/src/Gameplay/EditorSocial.cpp` | `social`, `rite`, `belief`, `hunt`; sección **Social life** del panel Tribe |
 
 ## 2. Ánimo y duelo
 

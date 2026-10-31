@@ -3,9 +3,9 @@
 // resolution, validation, JSON, application to the manifest) held by PlayerMode; this file only draws them and forwards the buttons.
 // See docs/EDITOR_ANIMACIONES.md.
 #include "EditorApp.h"
+#include "Animation/EditorAnimPreview.h"
 #include "GB/Animation/AnimBindings.h"
 #include "GB/Animation/BlendSpace.h"
-#include "GB/Gameplay/Resources.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cstdio>
@@ -19,8 +19,6 @@ namespace GB::Editor
 	namespace
 	{
 		constexpr const char* kPreview = "bind:preview";
-		constexpr const char* kTestA = "bind:test_from";
-		constexpr const char* kTestB = "bind:test_to";
 
 		AnimBinding* FindBinding(AnimBindings& b, const std::string& action, const std::string& skeleton)
 		{
@@ -109,7 +107,21 @@ namespace GB::Editor
 		// top bar
 		if (ImGui::Button("Save")) { std::string why; ui.Status = SaveAnimBindingsFile(file, bindings, &why) ? "saved " + file : "could not save: " + why; }
 		ImGui::SameLine();
-		if (ImGui::Button("Load")) { m_Player.LoadBindings(m_AssetRoot, report); ui.Status = report; ui.Selected.clear(); }
+		if (ImGui::Button("Load"))
+		{
+			const bool ok = m_Player.LoadBindings(m_AssetRoot, report);
+			ui.Status = report;
+			if (ok)
+			{
+				ui.Selected.clear();
+				ui.Transition = -1;
+				ui.Clip = 0;
+				ui.Variant = 0;
+				ui.PreviewSignature.clear();
+				ui.AppliedSignature.clear();
+				ui.LoggedIssues.clear();
+			}
+		}
 		ImGui::SameLine();
 		if (ImGui::Button("Apply to all"))
 		{
@@ -129,14 +141,14 @@ namespace GB::Editor
 		ImGui::Checkbox("new bindings only for this model", &ui.ThisSkeletonOnly);
 		if (skeleton.empty())
 		{
-			// nothing to preview on yet: one click makes a world with nodes and the X Bot (the same as `generate temperate 5`, `resources world`, `player "packs/full/X Bot.fbx"`)
-			if (ImGui::Button("Start a character"))
+			// Nothing to preview on yet: one click creates the isolated interaction sandbox.
+			if (ImGui::Button("Start isolated sandbox"))
 			{
-				m_UiCommands.push_back("generate temperate 5");
-				m_UiCommands.push_back("resources world");
+				m_UiCommands.push_back("new_scene");
+				m_UiCommands.push_back("add plane 0 0 0");
 				m_UiCommands.push_back("player \"packs/full/X Bot.fbx\"");
 			}
-			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Makes a world with resource nodes and puts the X Bot in it, so the clips and the tests on a node have a character to play on.\nThe preview plays on the character in the Viewport: move this window aside to see it.");
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("Replaces the current scene with an isolated flat interaction sandbox: plane, navigation and the X Bot. It does not generate a game world or resource patch.\nThe preview plays on the character in the Viewport: move this window aside to see it.");
 			ImGui::SameLine();
 		}
 		ImGui::TextDisabled("(%s)", skeleton.empty() ? "no character yet" : skeleton.c_str());
@@ -167,268 +179,62 @@ namespace GB::Editor
 			}
 		}
 
-		const float listWidth = 270.0f;
-		ImGui::BeginChild("##actions", ImVec2(listWidth, -150.0f), true);
-		ImGui::SetNextItemWidth(-1.0f);
-		ImGui::InputTextWithHint("##filter", "filter actions", ui.Filter, sizeof ui.Filter);
 		const std::vector<BindableAction> actions = ListBindableActions(manifest, defaults);
-		std::vector<std::string> categories;
-		for (const BindableAction& a : actions) if (std::find(categories.begin(), categories.end(), a.Category) == categories.end()) categories.push_back(a.Category);
-		for (const char* first : { "Locomotion", "Interaction", "Attack", "Defence", "Life", "Work", "Social", "Other" })
-		{
-			if (std::find(categories.begin(), categories.end(), first) == categories.end()) continue;
-			if (!ImGui::TreeNodeEx(first, ImGuiTreeNodeFlags_DefaultOpen)) continue;
-			for (const BindableAction& a : actions)
-			{
-				if (a.Category != first) continue;
-				if (ui.Filter[0] && a.Key.find(ui.Filter) == std::string::npos) continue;
-				bool bound = false;
-				for (const AnimBinding& b : bindings.Bindings) bound |= b.Action == a.Key;
-				const std::string label = (bound ? "* " : "  ") + a.Key.substr(a.Key.find(':') == std::string::npos ? 0 : a.Key.find(':') + 1) + "##" + a.Key;
-				if (ImGui::Selectable(label.c_str(), ui.Selected == a.Key)) { ui.Selected = a.Key; ui.Clip = 0; }
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s\nplays by default: %s", a.Key.c_str(), a.Defaults.empty() ? "(nothing)" : Join(a.Defaults).c_str());
-			}
-			ImGui::TreePop();
-		}
-		ImGui::EndChild();
+		DrawAnimBindingActionList(actions, bindings);
 		ImGui::SameLine();
 
-		ImGui::BeginChild("##editor", ImVec2(0.0f, -150.0f), true);
+		ImGui::BeginChild("##editor", ImVec2(-285.0f, -150.0f), true);
 		const BindableAction* action = nullptr;
 		for (const BindableAction& a : actions) if (a.Key == ui.Selected) action = &a;
 		if (!action) ImGui::TextWrapped("Pick an action on the left. A * marks the ones with a binding; the rest play their default (the manifest, or the C++ list of the combat rules).");
 		else
 		{
-			const bool isLoco = action->Key.rfind("loco:", 0) == 0, isAir = action->Key == "air";
 			ImGui::Text("%s  [%s]", action->Key.c_str(), action->Category.c_str());
 			ImGui::TextDisabled("default: %s", action->Defaults.empty() ? "(nothing)" : Join(action->Defaults).c_str());
-			const bool usesContext = action->Key.rfind("ability:", 0) == 0 || action->Key.rfind("activity:", 0) == 0;
-			std::vector<AnimBinding*> variants;
-			for (AnimBinding& x : bindings.Bindings) if (x.Action == action->Key && x.Skeleton == scope) variants.push_back(&x);
-			if (!variants.empty()) ui.Variant = std::clamp(ui.Variant, 0, static_cast<int>(variants.size()) - 1);
-			AnimBinding* binding = variants.empty() ? nullptr : variants[static_cast<size_t>(ui.Variant)];
-			if (usesContext && !variants.empty())
+			const int bindingIndex = DrawAnimBindingLifecycle(*action, bindings, manifest, scope);
+			if (bindingIndex >= 0 && bindingIndex < static_cast<int>(bindings.Bindings.size()))
 			{
-				ImGui::TextUnformatted("variant:");
-				for (size_t v = 0; v < variants.size(); ++v)
-				{
-					ImGui::SameLine();
-					std::string label;
-					for (const auto& [k, val] : variants[v]->When) label += (label.empty() ? "" : ", ") + k + "=" + val;
-					if (label.empty()) label = "always";
-					ImGui::PushID(static_cast<int>(v));
-					if (ImGui::RadioButton(label.c_str(), ui.Variant == static_cast<int>(v))) { ui.Variant = static_cast<int>(v); ui.Clip = 0; binding = variants[v]; }
-					ImGui::PopID();
-				}
-				ImGui::SameLine();
-				if (ImGui::SmallButton("+ context"))
-				{
-					AnimBinding nb = *binding;
-					nb.When.clear();
-					nb.When["node"] = m_NodeDefs.empty() ? std::string("tree") : m_NodeDefs.begin()->first;
-					for (const auto& [id, d] : m_NodeDefs) if (d.Ability == action->Key.substr(8)) { nb.When["node"] = id; break; }
-					bindings.Bindings.push_back(std::move(nb));
-					ui.Variant = static_cast<int>(variants.size());
-					binding = &bindings.Bindings.back();
-				}
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("Another clip for when the action happens in a context: on a given node, with a given tool...\nThe most specific variant that matches wins; 'always' is the fallback.");
-			}
-			if (!binding)
-			{
-				if (ImGui::Button("Bind this action (start from the default)"))
-				{
-					AnimBinding nb;
-					nb.Action = action->Key;
-					nb.Skeleton = scope;
-					if (isLoco) for (const std::string& c : action->Defaults) { BindingClip bc; bc.Source = c; bc.Replaces = c; nb.Clips.push_back(bc); }
-					else if (isAir) { BindingClip bc; bc.Source = manifest.AirClip; nb.Clips.push_back(bc); }
-					else for (const std::string& c : action->Defaults) { BindingClip bc; bc.Source = c; nb.Clips.push_back(bc); }
-					if (nb.Clips.empty()) nb.Clips.push_back({});
-					bindings.Bindings.push_back(std::move(nb));
-					binding = &bindings.Bindings.back();
-					ui.Variant = 0;
-				}
-				ImGui::TextDisabled("%s", scope.empty() ? "for every model" : ("for the skeleton '" + scope + "'").c_str());
-			}
-			if (binding)
-			{
-				if (ImGui::Button("Remove binding (back to the default)"))
-				{
-					bindings.Bindings.erase(bindings.Bindings.begin() + (binding - bindings.Bindings.data()));
-					binding = nullptr;
-					ui.Clip = 0;
-					ui.Variant = 0;
-				}
-			}
-			if (binding)
-			{
-				ImGui::SameLine();
-				ImGui::TextDisabled("%s", binding->Skeleton.empty() ? "every model" : ("skeleton " + binding->Skeleton).c_str());
-				if (usesContext && !binding->When.empty())
-				{
-					ImGui::SeparatorText("When (all must hold)");
-					static const char* const keys[] = { "node", "kind", "tool", "variant", "target", "ability" };
-					std::vector<std::string> nodes;
-					for (const auto& [id, d] : m_NodeDefs) nodes.push_back(id);
-					std::string drop;
-					for (auto it = binding->When.begin(); it != binding->When.end(); ++it)
-					{
-						ImGui::PushID(it->first.c_str());
-						ImGui::SetNextItemWidth(90.0f);
-						ImGui::TextUnformatted(it->first.c_str());
-						ImGui::SameLine(100.0f);
-						std::vector<std::string> options;
-						if (it->first == "node") options = nodes;
-						else if (it->first == "kind") options = { "wood", "stone", "plant", "loose" };
-						else if (it->first == "tool") options = { "axe", "pickaxe", "hoe", "none" };
-						else if (it->first == "variant") options = { "basic", "flint" };
-						if (!options.empty()) StringCombo("##value", it->second, options, 160.0f);
-						else { char buf[64]; std::snprintf(buf, sizeof buf, "%s", it->second.c_str()); ImGui::SetNextItemWidth(160.0f); if (ImGui::InputText("##value", buf, sizeof buf)) it->second = buf; }
-						ImGui::SameLine();
-						if (ImGui::SmallButton("x")) drop = it->first;
-						ImGui::PopID();
-					}
-					if (!drop.empty()) binding->When.erase(drop);
-					for (const char* k : keys)
-						if (!binding->When.count(k))
-						{
-							ImGui::SameLine();
-							if (ImGui::SmallButton((std::string("+ ") + k).c_str())) binding->When[k] = k == std::string("node") && !nodes.empty() ? nodes.front() : k == std::string("tool") ? "axe" : k == std::string("kind") ? "wood" : k == std::string("variant") ? "basic" : "";
-						}
-					if (binding->When.empty()) ImGui::TextDisabled("(no conditions: this variant always matches)");
-				}
-				if (action->Key.rfind("activity:", 0) == 0)
-				{
-					std::vector<std::string> sets = { "" , "default" };
-					for (const ManifestSet& s : manifest.Sets) sets.push_back(s.Name);
-					StringCombo("locomotion set while it lasts", binding->Set, sets, 150.0f);
-					bool repeat = binding->Repeat.value_or(false);
-					ImGui::SameLine();
-					if (ImGui::Checkbox("repeat while the job lasts", &repeat)) binding->Repeat = repeat;
-				}
+				AnimBinding& binding = bindings.Bindings[static_cast<size_t>(bindingIndex)];
+				DrawAnimBindingContext(binding, *action);
+				const bool isLoco = action->Key.rfind("loco:", 0) == 0, isAir = action->Key == "air";
 				std::vector<std::string> sources;
 				for (const MontageDesc& m : manifest.Montages) sources.push_back(m.Name);
 				for (const std::string& c : clipNames) sources.push_back(c);
-				ImGui::SeparatorText(isLoco ? "Clips that replace the set's" : "Clips (one per use, in turn)");
-				for (size_t i = 0; i < binding->Clips.size(); ++i)
+				ImGui::SeparatorText(isLoco ? "Clips that replace the set's" : "Animation associated with this action");
+				ImGui::TextUnformatted("Change the animation played by this action:");
+				for (size_t i = 0; i < binding.Clips.size(); ++i)
 				{
 					ImGui::PushID(static_cast<int>(i));
 					if (ImGui::RadioButton("##sel", ui.Clip == static_cast<int>(i))) ui.Clip = static_cast<int>(i);
 					ImGui::SameLine();
-					StringCombo("source", binding->Clips[i].Source, sources, 220.0f);
+					ImGui::TextDisabled("source");
+					ImGui::SameLine();
+					const bool sourceChanged = StringCombo("Change animation", binding.Clips[i].Source, sources, 220.0f);
+					if (sourceChanged)
+					{
+						ui.PreviewSignature.clear();
+						ui.Status = "animation '" + binding.Clips[i].Source + "' associated with " + action->Key;
+					}
+					if (sources.empty())
+					{
+						ImGui::SameLine();
+						ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "no montages or model clips available");
+					}
 					if (isLoco)
 					{
 						ImGui::SameLine();
-						std::string current = binding->Clips[i].Replaces;
+						std::string current = binding.Clips[i].Replaces;
 						const ManifestSet* set = action->Key == "loco:default" ? &manifest.Free : nullptr;
 						for (const ManifestSet& s : manifest.Sets) if ("loco:" + s.Name == action->Key) set = &s;
-						if (set && StringCombo("replaces", current, set->Clips, 200.0f)) binding->Clips[i].Replaces = current;
+						if (set && StringCombo("replaces", current, set->Clips, 200.0f)) binding.Clips[i].Replaces = current;
 					}
 					ImGui::SameLine();
-					if (ImGui::SmallButton("x") && binding->Clips.size() > 1) { binding->Clips.erase(binding->Clips.begin() + static_cast<std::ptrdiff_t>(i)); ui.Clip = 0; ImGui::PopID(); break; }
+					if (ImGui::SmallButton("x") && binding.Clips.size() > 1) { binding.Clips.erase(binding.Clips.begin() + static_cast<std::ptrdiff_t>(i)); ui.Clip = 0; ImGui::PopID(); break; }
 					ImGui::PopID();
 				}
-				if (ImGui::SmallButton("+ clip")) { binding->Clips.push_back({}); ui.Clip = static_cast<int>(binding->Clips.size()) - 1; }
+				if (ImGui::SmallButton("+ clip")) { binding.Clips.push_back({}); ui.Clip = static_cast<int>(binding.Clips.size()) - 1; }
 
-				if (!isLoco && !isAir && !binding->Clips.empty())
-				{
-					ui.Clip = std::clamp(ui.Clip, 0, static_cast<int>(binding->Clips.size()) - 1);
-					BindingClip& c = binding->Clips[static_cast<size_t>(ui.Clip)];
-					// the values without this clip's overrides: what "not set" means
-					AnimBinding plain;
-					plain.Action = binding->Action;
-					BindingClip bare;
-					bare.Source = c.Source;
-					plain.Clips.push_back(bare);
-					AnimBindings tmp;
-					tmp.Bindings.push_back(plain);
-					const ResolvedClip base = ResolveClip(tmp, manifest, defaults, plain.Action, {}, "", 0, hasClip);
-					ImGui::SeparatorText("Settings of the selected clip (tick to override the montage's own)");
-					OptionalCheck("loop", c.Loop, base.Loop);
-					OptionalSlider("trim start", c.TrimStart, base.TrimStart, 0.0f, 1.0f, "%.2f of the clip");
-					OptionalSlider("trim end", c.TrimEnd, base.TrimEnd, 0.0f, 1.0f, "%.2f of the clip");
-					OptionalSlider("speed", c.Speed, base.Speed, 0.1f, 4.0f, "x%.2f");
-					OptionalSlider("blend in", c.BlendIn, base.BlendIn, 0.0f, 2.0f, "%.2f s");
-					OptionalSlider("blend out", c.BlendOut, base.BlendOut, 0.0f, 2.0f, "%.2f s");
-					{
-						ImGui::PushID("curve");
-						bool on = c.Curve.has_value();
-						if (ImGui::Checkbox("##set", &on)) { if (on) c.Curve = base.Curve; else c.Curve.reset(); }
-						ImGui::SameLine();
-						ImGui::BeginDisabled(!on);
-						std::string name = BlendCurveName(c.Curve.value_or(base.Curve));
-						if (StringCombo("blend curve", name, { "smooth", "linear", "easeIn", "easeOut" }, 120.0f)) c.Curve = BlendCurveFromName(name);
-						ImGui::EndDisabled();
-						ImGui::PopID();
-					}
-					OptionalCheck("keep root motion / feet (do not pin the clip's travel)", c.KeepRootMotion, base.KeepRootMotion);
-
-					// the real thing: the character uses the ability on a node of the world (its props, its tool, the context of the bindings)
-					if (action->Key.rfind("ability:", 0) == 0 && !m_NodeDefs.empty())
-					{
-						ImGui::SeparatorText("Try on a node");
-						std::vector<std::string> nodes;
-						for (const auto& [id, d] : m_NodeDefs) if (!d.Decor && !d.Ability.empty()) nodes.push_back(id);
-						if (ui.TryNode.empty() || std::find(nodes.begin(), nodes.end(), ui.TryNode) == nodes.end())
-						{
-							ui.TryNode = nodes.empty() ? std::string() : nodes.front();
-							for (const std::string& n : nodes) if (m_NodeDefs.at(n).Ability == action->Key.substr(8)) { ui.TryNode = n; break; }
-						}
-						StringCombo("node type", ui.TryNode, nodes, 180.0f);
-						ImGui::SameLine();
-						if (ImGui::Button("Try on a node") && !ui.TryNode.empty())
-						{
-							std::string why;
-							ui.Status = TryOnNode(ui.TryNode, why) ? why : "cannot try: " + why;
-						}
-						if (ImGui::IsItemHovered()) ImGui::SetTooltip("Puts the character in front of the nearest node of that type (with the tool it asks for) and makes it work it:\nthe clip that plays is the one the bindings pick for that node.");
-					}
-
-					// the preview on the controlled character
-					ImGui::SeparatorText("Preview on the character");
-					if (!anim) ImGui::TextDisabled("Start a character (player <fbx>) to preview.");
-					else
-					{
-						MontagePlayer& mp = anim->Montages();
-						AnimBindings one;
-						AnimBinding solo = *binding;
-						solo.Skeleton.clear();
-						solo.When.clear();
-						one.Bindings.push_back(solo);
-						const ResolvedClip r = ResolveClip(one, manifest, defaults, binding->Action, {}, "", ui.Clip, hasClip);
-						if (!r.Found || !r.FromBinding) ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "cannot preview: %s", r.Why.c_str());
-						else
-						{
-							const std::string signature = AnimBindingsToJson(one) + std::to_string(ui.Clip);
-							if (signature != ui.PreviewSignature || !mp.Has(kPreview))
-							{
-								MontageDesc d = ToMontage(r, manifest);
-								d.Name = kPreview;
-								mp.Add(d);
-								ui.PreviewSignature = signature;
-							}
-							const float whole = mp.ClipDuration(kPreview);
-							const bool playing = mp.IsPlaying(kPreview);
-							if (ImGui::Button(playing ? "Restart" : "Play")) { mp.SetPaused(false); m_Player.PlayMontage(kPreview); }
-							ImGui::SameLine();
-							if (ImGui::Button(mp.Paused() ? "Resume" : "Pause")) mp.SetPaused(!mp.Paused());
-							ImGui::SameLine();
-							if (ImGui::Button("Stop")) { mp.SetPaused(false); m_Player.StopMontage(); }
-							ImGui::SameLine();
-							if (ImGui::Button("Play default instead") && !action->Defaults.empty()) { mp.SetPaused(false); m_Player.PlayMontage(action->Defaults[static_cast<size_t>(ui.Clip) % action->Defaults.size()]); }
-							float t = std::max(mp.Time(kPreview), 0.0f);
-							ImGui::SetNextItemWidth(-130.0f);
-							if (ImGui::SliderFloat("##scrub", &t, 0.0f, whole, "%.2f s"))
-							{
-								if (!mp.IsPlaying(kPreview)) m_Player.PlayMontage(kPreview);
-								mp.SetPaused(true);
-								mp.Seek(kPreview, t);
-							}
-							ImGui::SameLine();
-							ImGui::Text("clip %.2f s, plays %.2f s", static_cast<double>(whole), static_cast<double>(mp.PlayDuration(kPreview)));
-						}
-					}
-				}
+				if (!isLoco && !isAir) DrawAnimBindingClipSettings(*action, binding, manifest, defaults, hasClip);
 			}
 		}
 		// the tuning of the locomotion blend space: it is not a per-action binding but the speed axis every character walks on
@@ -478,72 +284,99 @@ namespace GB::Editor
 			if (tuning && tuning->Values.Empty()) bindings.Locomotion.erase(bindings.Locomotion.begin() + (tuning - bindings.Locomotion.data()));
 		}
 		ImGui::EndChild();
-
-		// transitions
-		ImGui::BeginChild("##transitions", ImVec2(0.0f, 0.0f), true);
-		ImGui::Text("Transitions (the blend when one montage gives way to another in a slot)");
-		std::vector<std::string> ends = { "*" };
-		for (const BindableAction& a : actions) if (a.Key.rfind("loco:", 0) != 0 && a.Key != "air") ends.push_back(a.Key);
-		for (size_t i = 0; i < bindings.Transitions.size(); ++i)
-		{
-			BindingTransition& t = bindings.Transitions[i];
-			ImGui::PushID(static_cast<int>(i));
-			if (ImGui::RadioButton("##sel", ui.Transition == static_cast<int>(i))) ui.Transition = static_cast<int>(i);
-			ImGui::SameLine();
-			StringCombo("from", t.From, ends, 190.0f);
-			ImGui::SameLine();
-			StringCombo("to", t.To, ends, 190.0f);
-			ImGui::SameLine();
-			ImGui::SetNextItemWidth(90.0f);
-			ImGui::SliderFloat("s", &t.Duration, 0.0f, 1.5f, "%.2f");
-			ImGui::SameLine();
-			std::string curve = BlendCurveName(t.Curve);
-			if (StringCombo("curve", curve, { "smooth", "linear", "easeIn", "easeOut" }, 90.0f)) t.Curve = BlendCurveFromName(curve);
-			ImGui::SameLine();
-			if (ImGui::SmallButton("x")) { bindings.Transitions.erase(bindings.Transitions.begin() + static_cast<std::ptrdiff_t>(i)); ui.Transition = -1; ImGui::PopID(); break; }
-			ImGui::PopID();
-		}
-		if (ImGui::SmallButton("+ transition")) { BindingTransition t; t.From = "*"; t.To = "*"; bindings.Transitions.push_back(t); ui.Transition = static_cast<int>(bindings.Transitions.size()) - 1; }
 		ImGui::SameLine();
-		const bool canTest = anim && ui.Transition >= 0 && ui.Transition < static_cast<int>(bindings.Transitions.size());
-		ImGui::BeginDisabled(!canTest);
-		if (ImGui::Button("Test selected A -> B") && canTest)
+		ImGui::BeginChild("##preview", ImVec2(270.0f, -150.0f), true);
+		ImGui::SeparatorText("Preview");
+		ImGui::TextDisabled("The selected animation plays on the character in the Viewport.");
+		const BindableAction* previewAction = nullptr;
+		for (const BindableAction& candidate : actions)
+			if (candidate.Key == ui.Selected) { previewAction = &candidate; break; }
+		if (!anim) ImGui::TextWrapped("Start a character to preview an animation or a flow.");
+		else if (!previewAction) ImGui::TextWrapped("Select an action on the left.");
+		else if (previewAction->Key.rfind("loco:", 0) == 0 || previewAction->Key == "air")
+			ImGui::TextWrapped("Locomotion is previewed by moving the character in the Viewport. Select an ability or activity for clip playback.");
+		else
 		{
-			// the first montage each end plays (an action: the first of its binding or default), registered under test names so the real ones are untouched
-			const BindingTransition& t = bindings.Transitions[static_cast<size_t>(ui.Transition)];
-			MontagePlayer& mp = anim->Montages();
-			auto montageFor = [&](const std::string& end, const char* name) -> bool
+			std::vector<AnimBinding*> previewVariants;
+			for (AnimBinding& candidate : bindings.Bindings)
+				if (candidate.Action == previewAction->Key && candidate.Skeleton == scope) previewVariants.push_back(&candidate);
+			AnimBinding* previewBinding = previewVariants.empty() ? nullptr : previewVariants[static_cast<size_t>(std::clamp(ui.Variant, 0, static_cast<int>(previewVariants.size()) - 1))];
+			AnimBindings previewBindings;
+			if (previewBinding)
 			{
-				ResolvedClip r;
-				if (end == "*") { const std::vector<std::string> n = mp.Names(); for (const std::string& m : n) if (const MontageDesc* d = mp.Get(m); d && d->Name.rfind("bind:", 0) != 0 && !d->Loop) { r = FromMontage(*d); break; } }
-				else r = ResolveClip(bindings, manifest, defaults, end, {}, skeleton, 0, hasClip);
-				if (!r.Found) return false;
-				MontageDesc d = ToMontage(r, manifest);
-				d.Name = name;
-				return mp.Add(d);
-			};
-			if (montageFor(t.From, kTestA) && montageFor(t.To, kTestB))
-			{
-				std::vector<MontageTransition> list = mp.Transitions();
-				list.push_back({ kTestA, kTestB, t.Duration, t.Curve });
-				mp.SetTransitions(list);
-				mp.SetPaused(false);
-				m_Player.PlayMontage(kTestA);
-				ui.TestStage = 1;
-				ui.TestTimer = 0.0f;
-				ui.Status = "testing " + t.From + " -> " + t.To;
+				AnimBinding solo = *previewBinding;
+				solo.Skeleton.clear();
+				solo.When.clear();
+				previewBindings.Bindings.push_back(std::move(solo));
 			}
-			else ui.Status = "cannot test: an end plays nothing the character has";
+			const ResolvedClip preview = ResolveClip(previewBinding ? previewBindings : bindings, manifest, defaults, previewAction->Key, {},
+				previewBinding ? std::string() : skeleton, ui.Clip, hasClip);
+			if (!preview.Found)
+				ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.3f, 1.0f), "Cannot preview: %s", preview.Why.c_str());
+			else
+			{
+				MontagePlayer& mp = anim->Montages();
+				const std::string signature = (previewBinding ? AnimBindingsToJson(previewBindings) : previewAction->Key) + std::to_string(ui.Clip);
+				if (signature != ui.PreviewSignature || !mp.Has(kPreview))
+				{
+					MontageDesc d = MakeNamedPreviewMontage(preview, manifest, kPreview);
+					mp.Remove(kPreview);
+					if (!mp.Add(d))
+					{
+						ui.PreviewSignature.clear();
+						ui.Status = "preview could not be created for '" + previewAction->Key + "'";
+					}
+					else
+					{
+						ui.PreviewSignature = signature;
+						ui.Status = "preview ready for '" + previewAction->Key + "'";
+					}
+				}
+				if (mp.Has(kPreview))
+				{
+					const float whole = mp.ClipDuration(kPreview);
+					const bool playing = mp.IsPlaying(kPreview);
+					ImGui::TextWrapped("%s%s", previewAction->Key.c_str(), previewBinding ? " (binding)" : " (default)");
+					if (ImGui::Button(playing ? "Restart animation" : "Play animation"))
+					{
+						mp.SetPaused(false);
+						if (!m_Player.PlayMontage(kPreview))
+							ui.Status = "preview could not start '" + previewAction->Key + "'";
+					}
+					if (ImGui::Button(mp.Paused() ? "Resume" : "Pause")) mp.SetPaused(!mp.Paused());
+					ImGui::SameLine();
+					if (ImGui::Button("Stop")) { mp.SetPaused(false); m_Player.StopMontage(); }
+					if (!previewAction->Defaults.empty() && ImGui::Button("Play default"))
+					{
+						const size_t defaultClip = static_cast<size_t>(ui.Clip) % previewAction->Defaults.size();
+						const ResolvedClip fallback = ResolveClip(bindings, manifest, defaults, previewAction->Key, {}, skeleton, static_cast<int>(defaultClip), hasClip);
+						MontageDesc defaultDesc = MakeNamedPreviewMontage(fallback, manifest, "bind:default");
+						mp.Remove(defaultDesc.Name);
+						if (fallback.Found && mp.Add(defaultDesc))
+						{
+							mp.SetPaused(false);
+							if (!m_Player.PlayMontage(defaultDesc.Name))
+								ui.Status = "default animation could not start '" + previewAction->Key + "'";
+						}
+						else
+							ui.Status = "default animation could not be created for '" + previewAction->Key + "'";
+					}
+					float t = std::max(mp.Time(kPreview), 0.0f);
+					if (ImGui::SliderFloat("##preview_scrub", &t, 0.0f, whole, "%.2f s"))
+					{
+						if (!mp.IsPlaying(kPreview)) m_Player.PlayMontage(kPreview);
+						mp.SetPaused(true);
+						mp.Seek(kPreview, t);
+					}
+					ImGui::Text("%.2f s clip, %.2f s played", static_cast<double>(whole), static_cast<double>(mp.PlayDuration(kPreview)));
+				}
+			}
 		}
-		ImGui::EndDisabled();
-		ImGui::SameLine();
-		ImGui::SetNextItemWidth(110.0f);
-		ImGui::SliderFloat("switch after", &ui.TestDelay, 0.1f, 3.0f, "%.1f s");
-		if (ui.TestStage == 1 && anim)
-		{
-			ui.TestTimer += ImGui::GetIO().DeltaTime;
-			if (ui.TestTimer >= ui.TestDelay) { m_Player.PlayMontage(kTestB); ui.TestStage = 0; }
-		}
+		ImGui::SeparatorText("Flow preview");
+		ImGui::TextWrapped("Select a transition below and use Test selected A -> B to play the complete flow with its blend.");
+		ImGui::EndChild();
+
+		DrawAnimBindingTransitions(actions, bindings, manifest, defaults, anim, skeleton, hasClip);
 
 		// the validation
 		ImGui::Separator();
@@ -555,59 +388,6 @@ namespace GB::Editor
 			ImGui::TextColored(i.Severity == BindingIssue::Level::Error ? ImVec4(1.0f, 0.5f, 0.45f, 1.0f) : ImVec4(1.0f, 0.82f, 0.4f, 1.0f), "%s", i.Text.c_str());
 		ImGui::EndChild();
 		ImGui::End();
-	}
-
-	bool EditorApp::TryOnNode(const std::string& nodeId, std::string& report)
-	{
-		Actor* actor = m_Player.Controlled();
-		if (!actor) { report = "no controlled character (player <fbx>)"; return false; }
-		const auto def = m_NodeDefs.find(nodeId);
-		if (def == m_NodeDefs.end()) { report = "no resource node type '" + nodeId + "'"; return false; }
-		if (def->second.Ability.empty()) { report = "'" + nodeId + "' is not worked by any ability"; return false; }
-		EntityWorld& world = m_SceneEditor.World();
-		std::string best;
-		glm::vec3 where(0.0f);
-		float bestDistance = 1e30f;
-		const glm::vec3 me = actor->GetPosition();
-		for (const std::string& name : m_Gameplay.Names())
-		{
-			const AbilitySystemComponent* asc = m_Gameplay.Find(name);
-			if (!asc || !asc->HasTag("Resource.Node." + nodeId) || asc->HasTag("State.Depleted")) continue;
-			const EntityId id = world.FindByName(name);
-			if (id == NullEntity) continue;
-			const glm::vec3 p = glm::vec3(world.WorldMatrix(id)[3]);
-			const float d = (p.x - me.x) * (p.x - me.x) + (p.z - me.z) * (p.z - me.z);
-			if (d < bestDistance) { bestDistance = d; best = name; where = p; }
-		}
-		// the character needs an ability system to work a node (a player made with `player` has none until now)
-		if (!m_Gameplay.Find(m_Player.ControlledName()))
-		{
-			if (world.FindByName(m_Player.ControlledName()) == NullEntity) world.Find(world.Create(m_Player.ControlledName()))->Gameplay.emplace();
-			m_Gameplay.Create(m_Player.ControlledName());
-			actor->SetAbilities(&m_Gameplay, m_Player.ControlledName());
-		}
-		if (best.empty()) { report = "there is no '" + nodeId + "' node in the world (generate one with resources: generate temperate 5)"; return false; }
-		// the tool the node asks for, in the bag (the abilities read it as a tag of the character)
-		if (!def->second.RequiresTag.empty())
-			for (const std::string& item : m_Items.Ids())
-			{
-				const ItemDef* d = m_Items.Find(item);
-				bool matches = false;
-				if (d) for (const std::string& tag : d->Tags) matches = matches || GameplayTag(def->second.RequiresTag).Matches(tag);
-				if (!matches) continue;
-				if (actor->Bag().Count(item) == 0) actor->Bag().Add(m_Items, item, 1);
-				break;
-			}
-		if (AbilitySystemComponent* asc = m_Gameplay.Find(m_Player.ControlledName())) ResourceSystem::SyncTools(*asc, actor->Bag(), m_Items);
-		// in front of the node, looking at it
-		glm::vec2 away(me.x - where.x, me.z - where.z);
-		away = glm::length(away) > 1e-3f ? glm::normalize(away) : glm::vec2(0.0f, 1.0f);
-		const glm::vec2 stand = glm::vec2(where.x, where.z) + away * 2.2f;
-		actor->Teleport(stand.x, stand.y, std::atan2(-away.x, -away.y));
-		std::string error;
-		if (!m_Player.UseAbility(def->second.Ability, best, error)) { report = def->second.Ability + " on '" + best + "' did not start: " + error; return false; }
-		report = "the character uses " + def->second.Ability + " on '" + best + "'";
-		return true;
 	}
 
 	// ---- commands (the window's buttons, for scripts and agents)
@@ -648,6 +428,16 @@ namespace GB::Editor
 			std::string report;
 			m_AnimBindingsUi.Loaded = true;
 			const bool ok = a.empty() ? m_Player.LoadBindings(m_AssetRoot, report) : m_Player.LoadBindings(m_AssetRoot, report, a[0]);
+			if (ok)
+			{
+				m_AnimBindingsUi.Selected.clear();
+				m_AnimBindingsUi.Transition = -1;
+				m_AnimBindingsUi.Clip = 0;
+				m_AnimBindingsUi.Variant = 0;
+				m_AnimBindingsUi.PreviewSignature.clear();
+				m_AnimBindingsUi.AppliedSignature.clear();
+				m_AnimBindingsUi.LoggedIssues.clear();
+			}
 			return { ok, report };
 		});
 		c.Register("bindings_apply", "bindings_apply [model]: every character of the world (and those made later) plays the current animation bindings; with `model`, only the controlled character's model", [=, this](const std::vector<std::string>& a) -> CommandResult
