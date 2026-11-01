@@ -156,12 +156,15 @@ add_library(GB STATIC
     src/GB/World/Rocks.cpp
     src/GB/World/Erosion.cpp
     src/GB/World/ThermalErosion.cpp
+    src/GB/World/FlowAccumulation.cpp
     src/GB/World/Graph/TerrainGraph.cpp
     src/GB/World/Graph/ITerrainNode.cpp
     src/GB/World/Graph/ITerrainTarget.cpp
     src/GB/World/Graph/Nodes/NoiseNode.cpp
     src/GB/World/Graph/Nodes/ErosionNode.cpp
     src/GB/World/Graph/Nodes/ThermalErosionNode.cpp
+    src/GB/World/Graph/Nodes/FlowAccumulationNode.cpp
+    src/GB/World/Graph/Nodes/ScatterNode.cpp
     src/GB/World/Graph/Nodes/BiomeClassifyNode.cpp
     src/GB/World/Graph/Nodes/BuiltinNodes.cpp
     src/GB/Qa/Qa.cpp

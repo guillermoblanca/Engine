@@ -20,6 +20,23 @@ namespace GB
 		glm::vec2 Center{ 0.0f };
 	};
 
+	// Where a discrete object (a tree, a rock) ends up -- what GB::ScatterTrees (GB/World/Trees.h) already
+	// returns as GB::TreePlacement, generalised past trees: a terrain graph node has no notion of a tree, only
+	// of a position with a yaw, a scale and a variant index the caller gives meaning to.
+	struct TgPlacement { glm::vec2 Position{ 0.0f }; float Yaw = 0.0f; float Scale = 1.0f; int Variant = 0; };
+	struct TgPlacements { std::vector<TgPlacement> Items; };
+
+	// A node that, besides (or instead of) a field, also places discrete objects -- "scatter" (Nodes/ScatterNode.h)
+	// is the one example today. A second, optional interface (ISP) rather than a second method on every
+	// ITerrainNode: a noise or erosion node has nothing to say here and does not need to know this type exists.
+	class IScatterNode
+	{
+	public:
+		virtual ~IScatterNode() = default;
+		virtual bool Scatter(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs,
+			TgPlacements& out, std::string& error) const = 0;
+	};
+
 	// One kind of terrain node (noise, erosion, a biome classifier...). A single purpose per implementation
 	// (ISP): nothing here a node does not need. New kinds are added by writing a new ITerrainNode and
 	// registering it (OCP) -- TerrainGraph.cpp never changes to add one.
@@ -33,6 +50,10 @@ namespace GB
 		// with what it was given; the graph evaluation then stops and nothing downstream runs.
 		virtual bool Evaluate(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs,
 			TgField& out, std::string& error) const = 0;
+
+		// Null for every node except one that is also an IScatterNode (OCP: adding that capability to a node
+		// does not touch this base class or any other node; a plain field node inherits this default untouched).
+		virtual const IScatterNode* AsScatterNode() const { return nullptr; }
 	};
 
 	// Open catalogue of node types, keyed by TgNode::Type. A factory is registered once (usually from a static

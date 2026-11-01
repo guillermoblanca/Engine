@@ -67,7 +67,8 @@ namespace GB
 
 	struct TgResult
 	{
-		std::map<std::string, TgField> Outputs;   // keyed by the Source of each "output" node that ran
+		std::map<std::string, TgField> Outputs;         // keyed by the Source of each "output" node that ran
+		std::map<std::string, TgPlacements> Placements; // keyed by the Id of each node that is also an IScatterNode
 	};
 
 	// Pure evaluation: runs every node in topological order through TerrainNodeRegistry, with no side effect on

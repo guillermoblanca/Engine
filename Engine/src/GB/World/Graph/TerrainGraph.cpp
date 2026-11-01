@@ -181,6 +181,17 @@ namespace GB
 				return false;
 			}
 			ready[index] = true;
+
+			if (const IScatterNode* scatter = impl->AsScatterNode())
+			{
+				TgPlacements placements;
+				if (!scatter->Scatter(node, ctx, inputs, placements, error))
+				{
+					if (error.empty()) error = "node '" + node.Id + "' failed to scatter";
+					return false;
+				}
+				out.Placements[node.Id] = std::move(placements);
+			}
 		}
 
 		for (int index : graph.Order)

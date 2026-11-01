@@ -752,7 +752,7 @@ private:
 				for (const GB::TreeParams& tp : recipes)
 					m_TreeVariants.push_back(m_TreeFactory->Create(tp));
 				const float snowLine = 1e9f;
-				const auto placements = GB::ScatterTrees(*m_Terrain, treeCount, static_cast<int>(m_TreeVariants.size()), 7.0f, seed + 11,
+				const auto placements = GB::ScatterTrees(m_Terrain->GetHeightmap(), treeCount, static_cast<int>(m_TreeVariants.size()), 7.0f, seed + 11,
 					m_Terrain->HasLake() ? m_Terrain->GetWaterLevel() + 0.7f : -1e9f, snowLine, 24.0f, [this](float x, float z) { return std::hypot(x, z) > 16.0f && (!m_Terrain->GetRiver() || m_Terrain->DistanceToRiver(x, z) > m_Terrain->GetRiver()->HalfWidth * 2.4f); });   // keep the middle clear for the walker and the river banks free
 				for (const GB::TreePlacement& pl : placements)
 				{
@@ -1469,7 +1469,7 @@ private:
 				m_Physics->AddStatic(c);
 			}
 		};
-		const auto spots = GB::ScatterTrees(*terrain, count, 6, 5.0f, seed + 21, -1e9f, 1e9f, 40.0f,
+		const auto spots = GB::ScatterTrees(terrain->GetHeightmap(), count, 6, 5.0f, seed + 21, -1e9f, 1e9f, 40.0f,
 			[&](float x, float z) { return !terrain->GetRiver() || terrain->DistanceToRiver(x, z) > terrain->GetRiver()->HalfWidth * 1.1f; });
 		for (const GB::TreePlacement& pl : spots) place(pl.Position.x, pl.Position.z, pl.Variant);
 		if (terrain->GetRiver())   // rocks in and along the river

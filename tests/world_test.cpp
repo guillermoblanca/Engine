@@ -4,6 +4,7 @@
 #include "GB/Renderer/Renderer.h"
 #include "GB/Window.h"
 #include "GB/World/Erosion.h"
+#include "GB/World/FlowAccumulation.h"
 #include "GB/World/ThermalErosion.h"
 #include "GB/World/WorldGen.h"
 #include <cmath>
@@ -164,6 +165,39 @@ int main()
 		const GB::ThermalErosionStats steepStats = GB::ThermalErosion::Run(steepTalus, steep);
 		const GB::ThermalErosionStats gentleStats = GB::ThermalErosion::Run(gentleTalus, gentle);
 		Check(gentleStats.Moved > steepStats.Moved, "a gentler talus angle (closer to flat) lets more of the hill slump");
+	}
+
+	// ---------------------------------------------------------------- flow accumulation (CPU)
+	{
+		const GB::Heightmap hill = MakeHill();
+		const GB::FlowAccumulationResult acc = GB::FlowAccumulation::Run(hill);
+		Check(acc.N == hill.GetResolution() && acc.Accumulation.size() == static_cast<size_t>(acc.N) * acc.N, "flow accumulation covers the whole map");
+		bool everyCellCountsItself = true, bounded = true;
+		float maxAcc = 0.0f;
+		for (float v : acc.Accumulation)
+		{
+			if (v < 1.0f) everyCellCountsItself = false;
+			if (!std::isfinite(v) || v > static_cast<float>(acc.Accumulation.size())) bounded = false;
+			maxAcc = std::max(maxAcc, v);
+		}
+		Check(everyCellCountsItself, "every cell's accumulation counts at least its own rain");
+		Check(bounded, "no cell's accumulation exceeds the number of cells on the map");
+		Check(maxAcc > 1.0f, "on a hill (not a flat map) at least one cell collects more than just its own rain");
+		const GB::FlowAccumulationResult again = GB::FlowAccumulation::Run(hill);
+		Check(acc.Accumulation == again.Accumulation, "flow accumulation is deterministic (it has no randomness)");
+		// a uniform ramp (height decreasing with x): every cell drains toward +x, so the high-x edge collects
+		// much more than the low-x edge
+		GB::Heightmap ramp(65, 64.0f);
+		for (uint32_t j = 0; j < ramp.GetResolution(); ++j)
+			for (uint32_t i = 0; i < ramp.GetResolution(); ++i) ramp.At(i, j) = -static_cast<float>(i);
+		const GB::FlowAccumulationResult rampAcc = GB::FlowAccumulation::Run(ramp);
+		double lowXEdge = 0.0, highXEdge = 0.0;
+		for (uint32_t j = 0; j < ramp.GetResolution(); ++j)
+		{
+			lowXEdge += rampAcc.Accumulation[static_cast<size_t>(j) * ramp.GetResolution() + 0];
+			highXEdge += rampAcc.Accumulation[static_cast<size_t>(j) * ramp.GetResolution() + (ramp.GetResolution() - 1)];
+		}
+		Check(highXEdge > lowXEdge * 10.0, "water flows downhill: the low (outlet) end of a uniform ramp collects far more than the high end");
 	}
 
 	// ---------------------------------------------------------------- GL

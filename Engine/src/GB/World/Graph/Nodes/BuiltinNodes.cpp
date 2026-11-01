@@ -2,7 +2,9 @@
 #include "GB/World/Graph/ITerrainNode.h"
 #include "GB/World/Graph/Nodes/BiomeClassifyNode.h"
 #include "GB/World/Graph/Nodes/ErosionNode.h"
+#include "GB/World/Graph/Nodes/FlowAccumulationNode.h"
 #include "GB/World/Graph/Nodes/NoiseNode.h"
+#include "GB/World/Graph/Nodes/ScatterNode.h"
 #include "GB/World/Graph/Nodes/ThermalErosionNode.h"
 #include <memory>
 
@@ -14,5 +16,7 @@ namespace GB
 		registry.Register("erosion_hydraulic", [] { return std::make_unique<HydraulicErosionNode>(); });
 		registry.Register("erosion_thermal", [] { return std::make_unique<ThermalErosionNode>(); });
 		registry.Register("biome_classify", [] { return std::make_unique<BiomeClassifyNode>(); });
+		registry.Register("scatter", [] { return std::make_unique<ScatterNode>(); });
+		registry.Register("flow_accumulation", [] { return std::make_unique<FlowAccumulationNode>(); });
 	}
 }

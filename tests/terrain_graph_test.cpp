@@ -7,6 +7,7 @@
 #include "GB/World/Graph/Nodes/BiomeClassifyNode.h"
 #include "GB/World/Graph/TerrainGraph.h"
 #include "GB/World/Terrain.h"
+#include <cmath>
 #include <cstdio>
 #include <set>
 
@@ -215,6 +216,53 @@ int main()
 			for (uint32_t i = 0; i < height.N; ++i)
 				if (heightmap.At(i, j) != height.At(i, j)) matches = false;
 		Check(matches, "the wrapped Heightmap holds exactly the graph's height output");
+	}
+
+	// ---------------------------------------------------------------- flow_accumulation
+	{
+		TerrainGraph g;
+		g.Nodes = {
+			Node("noise", "heightfield_noise", "", { { "Octaves", 4.0 }, { "Amplitude", 18.0 } }),
+			Node("flow", "flow_accumulation"),
+			Node("out", "output", "flow"),
+		};
+		g.Edges = { { "noise", "flow" }, { "flow", "out" } };
+		TgResult flowResult;
+		std::string error;
+		Check(EvaluateTerrainGraph(g, MakeContext(9), flowResult, error), ("noise -> flow_accumulation evaluates: " + error).c_str());
+		const TgField& flow = flowResult.Outputs.at("flow");
+		bool everyCellCountsItself = true, someCellCollectsMore = false;
+		for (float v : flow.Values)
+		{
+			if (v < 1.0f) everyCellCountsItself = false;
+			if (v > 1.0f) someCellCollectsMore = true;
+		}
+		Check(everyCellCountsItself && someCellCollectsMore, "flow_accumulation's field is at least 1 everywhere and above 1 somewhere");
+	}
+
+	// ---------------------------------------------------------------- scatter
+	{
+		TerrainGraph g;
+		g.Nodes = {
+			Node("noise", "heightfield_noise", "", { { "Octaves", 4.0 }, { "Amplitude", 18.0 } }),
+			Node("spots", "scatter", "", { { "Count", 40.0 }, { "MinSpacing", 6.0 } }),
+		};
+		g.Edges = { { "noise", "spots" } };
+		TgResult scatterResult;
+		std::string error;
+		Check(EvaluateTerrainGraph(g, MakeContext(11), scatterResult, error), ("noise -> scatter evaluates: " + error).c_str());
+		Check(scatterResult.Placements.count("spots") == 1, "scatter's placements are keyed by the node's id");
+		const TgPlacements& spots = scatterResult.Placements.at("spots");
+		Check(!spots.Items.empty() && spots.Items.size() <= 40, "scatter places at least one spot and never more than Count");
+		bool withinBounds = true;
+		for (const TgPlacement& p : spots.Items)
+			if (std::fabs(p.Position.x) > 64.0f + 1e-3f || std::fabs(p.Position.y) > 64.0f + 1e-3f) withinBounds = false;
+		Check(withinBounds, "every spot lands inside the field it was scattered over");
+		bool spacingOk = true;
+		for (size_t i = 0; i < spots.Items.size() && spacingOk; ++i)
+			for (size_t k = i + 1; k < spots.Items.size(); ++k)
+				if (glm::distance(spots.Items[i].Position, spots.Items[k].Position) < 6.0f - 1e-3f) { spacingOk = false; break; }
+		Check(spacingOk, "no two spots are closer than MinSpacing");
 	}
 
 	if (failures == 0) std::printf("terrain_graph_test: OK\n");

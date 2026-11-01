@@ -175,9 +175,10 @@ de aparición en seco, colocaciones válidas...); `golden_data` se actualizó co
 aceptarlo, no se regeneró a ciegas.
 
 La sustitución de la **rama imperativa completa** (dunas, lago/río, bioma, *scatter*) por nodos del grafo queda, correctamente, para cuando existan los
-nodos que de verdad la cubren sin regresión: erosión térmica, acumulación de flujo para el río, y *scatter* envolviendo `ScatterTrees`. Eso es la Fase 3
-(sección 9), ya en marcha: `biome_classify` ya escribe `GB::Biome` (`GB/World/Biome.h`, extraído de `WorldGen.h` para que el nodo no arrastre `Terrain.h`)
-en vez de un enum propio de prueba, así que ya puede alimentar directamente `GeneratedWorld::Maps`/`BiomeAt` el día que se enganche.
+nodos que de verdad la cubren sin regresión — erosión térmica, acumulación de flujo para el río, *scatter* — que es exactamente lo que entrega la
+Fase 3 (sección 9), ya completa: el catálogo está listo, pero el enganche a `WorldGen.cpp` en sí sigue sin hacerse (sección 10). `biome_classify` ya
+escribe `GB::Biome` (`GB/World/Biome.h`, extraído de `WorldGen.h` para que el nodo no arrastre `Terrain.h`) en vez de un enum propio de prueba, así que
+ya puede alimentar directamente `GeneratedWorld::Maps`/`BiomeAt` el día que se enganche.
 
 ## 8. Malla adaptativa por curvatura (resolución variable, ya implementada)
 
@@ -208,24 +209,44 @@ distinto de `tests/sim_sweep_test.cpp` (migración de campamento) por una razón
 propio archivo: es un problema real, preexistente, de otro subsistema (IA de movimiento abstracto), expuesto — no causado — por la erosión; no se intentó
 de nuevo bajo presión de tiempo para no cambiar un fallo conocido por otro sin verificar.
 
-## 9. Próximas fases
+## 9. Fase 3, completa: catálogo de nodos
 
-3. **Catálogo completo** (`biome_classify` con `GB::Biome`, y `erosion_thermal`, ya hechos — ver abajo): acumulación de flujo para ríos (sustituye el
-   Dijkstra *coarse*), máscaras/blend, *scatter* (envolviendo `Trees::ScatterTrees` — necesita extender el grafo más allá de un único tipo de valor por
-   puerto, `TgField`, ya que una colocación es una lista de posiciones, no un campo escalar). Con esto completo, la rama imperativa de
-   `WorldGenerator::GenerateData` sí se puede sustituir por un `TerrainGraph` evaluado de principio a fin, sin regresión.
+Los cuatro nodos que le faltaban al catálogo (docs/GRAFO_TERRENO.md los daba como pendientes) ya están todos, con el mismo patrón de las Fases 1-2:
+el algoritmo vive como primitivo reutilizable en `GB/World/*`, el nodo es un adaptador fino que solo convierte `TgField` ↔ `Heightmap` en los bordes.
 
-   **`erosion_thermal`** (ya implementado, `GB/World/ThermalErosion.h/.cpp` + `Nodes/ThermalErosionNode`): hueco de realismo #2 (no había erosión
-   térmica en absoluto). Grid de talud/ángulo de reposo, 8-conectado: cada celda mueve una fracción de su exceso de pendiente (por encima de
-   `TalusAngleDegrees`) hacia su vecino más bajo, varias pasadas. Es la pieza de `GB::HydraulicErosion` que no existía: el agua esculpe, esto asienta lo
-   que queda demasiado vertical. Actualización secuencial en el sitio (Gauss-Seidel), no un búfer de deltas aplicado de golpe (Jacobi): con varias
-   celdas empujando al mismo vecino en la misma pasada, un búfer aparte permite que ese vecino acabe, brevemente, por encima de la cumbre original — se
-   encontró exactamente ese fallo al escribir el test (`tests/world_test.cpp`) y se corrigió antes de integrarlo. Determinista (sin azar). No conectado
-   todavía a la generación real (igual que `biome_classify`): eso es la sustitución completa de la rama imperativa, más arriba en este punto.
+- **`erosion_thermal`** (`GB/World/ThermalErosion.h/.cpp` + `Nodes/ThermalErosionNode`): hueco de realismo #2 (no había erosión térmica en absoluto).
+  Grid de talud/ángulo de reposo, 8-conectado: cada celda mueve una fracción de su exceso de pendiente (por encima de `TalusAngleDegrees`) hacia su
+  vecino más bajo. Actualización **secuencial en el sitio (Gauss-Seidel)**, no un búfer de deltas aplicado de golpe (Jacobi): con varias celdas
+  empujando al mismo vecino en la misma pasada, un búfer aparte permite que ese vecino acabe, brevemente, por encima de la cumbre original — se
+  encontró exactamente ese fallo al escribir `tests/world_test.cpp` (la cumbre no bajaba, la varianza subía en vez de bajar) y se corrigió antes de
+  dar el nodo por bueno. Determinista.
+- **`flow_accumulation`** (`GB/World/FlowAccumulation.h/.cpp` + `Nodes/FlowAccumulationNode`): hueco de realismo #3. D8 — cada celda drena a su único
+  vecino más bajo (8-conectado), recorrido de mayor a menor altura para que la acumulación de cada celda esté cerrada antes de pasarla aguas abajo.
+  Calcula la hidrología sobre el terreno **ya final** (con erosión incluida), a diferencia del Dijkstra sobre una rejilla *coarse* que decide el
+  trazado del río **antes** de tallar las colinas. Sin relleno de depresiones (*pit-filling*): una cuenca cerrada se queda con su caudal en vez de
+  seguir aguas abajo — limitación documentada, no un *bug*. Salida sin normalizar (recuento de celdas en cuenca, no 0..1): un nodo futuro de
+  máscara/umbral decide qué cuenta como "esto es un río".
+- **`scatter`** (`Nodes/ScatterNode`, reutiliza `GB::ScatterTrees` tal cual): coloca árboles/rocas por *dart-throwing* con espaciado mínimo. Necesitaba
+  extender el grafo más allá de "todo puerto es un `TgField`" — una colocación es una lista de posiciones, no un campo escalar. Se hizo de forma
+  puramente aditiva: `IScatterNode` (`ITerrainNode.h`), una segunda interfaz opcional (ISP) con un único método `Scatter`; `ITerrainNode` gana
+  `AsScatterNode()` (devuelve `nullptr` por defecto, así que `heightfield_noise`/`erosion_*`/`biome_classify` no cambiaron ni una línea); `TgResult`
+  gana `Placements` (mapa por id de nodo), rellenado por `EvaluateTerrainGraph` justo después de evaluar un nodo que también es `IScatterNode`.
+  **Prerrequisito**: `GB::ScatterTrees` pedía un `const Terrain&` pero solo leía `terrain.GetHeightmap()` — se estrechó a `const Heightmap&`
+  (cero cambio de comportamiento, los 4 puntos de llamada existentes en `WorldGen.cpp`/`Sandbox/SandboxAPP.cpp` ahora pasan `.GetHeightmap()`), para
+  que el nodo no tenga que levantar un `Terrain` completo (con su malla y materiales) solo para colocar unos árboles.
+
+Con el catálogo completo, la sustitución de la rama imperativa de `WorldGenerator::GenerateData` por un `TerrainGraph` evaluado de principio a fin ya
+es viable sin regresión — sigue sin hacerse en este PR (es un cambio de mayor riesgo sobre código en producción, mejor en su propia iniciativa con
+tiempo para verificarlo con calma, no apresurado al final de esta). `biome_classify`, `erosion_thermal`, `flow_accumulation` y `scatter` están
+probados de forma aislada (`tests/terrain_graph_test.cpp`, `tests/world_test.cpp`) pero **no** conectados todavía a `WorldGen.cpp`.
+
+## 10. Próximas fases
+
 4. **NavMesh incremental** — [NAVMESH_INCREMENTAL.md](NAVMESH_INCREMENTAL.md).
 5. **Editor visual**: `EditorTerrainGraph.cpp`/`TerrainGraphLibrary`, clon de `EditorPriorityGraph.cpp`/`PriorityLibrary`.
-6. **Limpieza**: extraer `GB_WorldGen` (sección 6) si no se adelantó antes, retirar el código imperativo ya sustituido de `WorldGen.cpp`, unificar las
-   tres implementaciones de ruido (`Terrain`, `WorldGen.cpp`, el nodo de ruido) en una sola.
+6. **Limpieza**: sustituir de verdad la rama imperativa de `WorldGenerator::GenerateData` por el `TerrainGraph` (sección 9), extraer `GB_WorldGen`
+   (sección 6) si no se adelantó antes, unificar las tres implementaciones de ruido (`Terrain`, `WorldGen.cpp`, el nodo de ruido) en una sola, arreglar
+   `GB::AbstractAgent::Walk` (sección 8).
 
 **Guardado y versionado**: por decisión explícita, esta iniciativa no prioriza la compatibilidad con partidas guardadas ni introduce una rama de
 `GeneratorVersion` paralela. El sistema de nodos sustituye directamente la generación imperativa; el versionado del generador y la compatibilidad de saves

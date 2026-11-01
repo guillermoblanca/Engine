@@ -839,12 +839,11 @@ namespace GB
 		}
 	}
 
-	std::vector<TreePlacement> ScatterTrees(const Terrain& terrain, int count, int variants, float minSpacing, uint32_t seed,
+	std::vector<TreePlacement> ScatterTrees(const Heightmap& hm, int count, int variants, float minSpacing, uint32_t seed,
 		float minHeight, float maxHeight, float maxSlopeDegrees, const std::function<bool(float, float)>& allow)
 	{
 		std::vector<TreePlacement> out;
 		Rng rng(static_cast<uint64_t>(seed) * 40503u + 7u);
-		const Heightmap& hm = terrain.GetHeightmap();
 		const glm::vec2 lo = hm.GetMin(), hi = hm.GetMax();
 		const float cell = std::max(minSpacing, 0.5f);
 		std::unordered_map<int64_t, std::vector<glm::vec2>> grid;

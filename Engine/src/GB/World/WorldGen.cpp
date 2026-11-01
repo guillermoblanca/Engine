@@ -540,7 +540,7 @@ namespace GB
 				}
 			};
 			const uint32_t acceptSalt = salt(31u);
-			auto spots = ScatterTrees(terrain, desc.TreeBudget * 3, static_cast<int>(w.TreeRecipes.size()), desert ? 18.0f : 4.2f, desc.Seed + 11, -1e9f, w.SnowLine, 38.0f,
+			auto spots = ScatterTrees(terrain.GetHeightmap(), desc.TreeBudget * 3, static_cast<int>(w.TreeRecipes.size()), desert ? 18.0f : 4.2f, desc.Seed + 11, -1e9f, w.SnowLine, 38.0f,
 				[&](float x, float z) { return Hash2(x, z, acceptSalt) < density(x, z) && (!terrain.GetRiver() || terrain.DistanceToRiver(x, z) > terrain.GetRiver()->HalfWidth * 2.2f); });
 			if (static_cast<int>(spots.size()) > desc.TreeBudget) spots.resize(static_cast<size_t>(desc.TreeBudget));
 			const uint32_t palmVariantSalt = salt(3u), speciesSalt = salt(13u), coniferSalt = salt(17u), broadleafSalt = salt(19u);
@@ -576,7 +576,7 @@ namespace GB
 			}
 			const GeneratedWorld* self = &w;
 			const uint32_t desertRockSalt = salt(41u), rockSalt = salt(43u);
-			auto spots = ScatterTrees(terrain, desc.RockBudget * 3, 6, 5.0f, desc.Seed + 21, -1e9f, 1e9f, 55.0f,
+			auto spots = ScatterTrees(terrain.GetHeightmap(), desc.RockBudget * 3, 6, 5.0f, desc.Seed + 21, -1e9f, 1e9f, 55.0f,
 				[&](float x, float z)
 				{
 					if (desert) return Hash2(x, z, desertRockSalt) < 0.05f;
