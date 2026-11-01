@@ -51,6 +51,13 @@ namespace GB
 			if (len - r > step) { m_Pos += d / len * step; return false; }
 			if (last)
 			{
+				// KNOWN ISSUE (not fixed here, see docs/GRAFO_TERRENO.md): arriving already closer than r (the task started near the target,
+				// or a routed hop landed there) leaves the member at that spot unchanged instead of the work point r away, which can be inside
+				// the target's own small obstacle circle. tests/settlement_test.cpp's ground check caught this once erosion started reshaping
+				// where a gather target ends up for one seed. A fix attempted here (snapping to r whenever len <= r) broke a different,
+				// unrelated invariant of tests/sim_sweep_test.cpp's camp migration, for a reason not yet understood (possibly `d/len` being a
+				// near-arbitrary direction when len is very small, or a task elsewhere relying on finishing well inside a large reach) -- left
+				// as the original behaviour pending a real fix, rather than trade one test's regression for another's under time pressure.
 				if (len > r) m_Pos = target - d / len * r;
 				m_Safe = r > 0.0f ? m_Safe : m_Pos;
 				return true;

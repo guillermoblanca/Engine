@@ -30,8 +30,10 @@ namespace GB::Editor
 		{
 			ApplicationConfig c;
 			c.Title = "GB Editor";
-			c.Width = 1600;
-			c.Height = 900;
+			// --width=/--height=: a bigger (or smaller) window for a screenshot/record session (--hidden); the panel layout keeps its
+			// proportions (MakeDockLayout), so the viewport grows with it. Unset: the usual 1600x900.
+			c.Width = static_cast<uint32_t>(std::max(320, std::atoi(GetLaunchOptions().GetValue("width", "1600").c_str())));
+			c.Height = static_cast<uint32_t>(std::max(240, std::atoi(GetLaunchOptions().GetValue("height", "900").c_str())));
 			c.CreateWindow = true;
 			return c;
 		}
@@ -601,7 +603,7 @@ namespace GB::Editor
 			const SetResult r = m_Props.Set(a[0], value);
 			return { r.Ok, r.Message };
 		});
-		c.Register("generate", "generate <temperate|alpine|desert> [seed] [trees] [rocks]: builds a new world", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("generate", "generate <temperate|alpine|desert> [seed] [trees] [rocks] [mesh_detail]: builds a new world (mesh_detail: metres, WorldDesc::MeshDetail, <= 0 off)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			WorldDesc d = m_WorldDesc;
 			d.GeneratorVersion = kWorldGeneratorLatest;   // a new world uses the newest generator (a loaded game keeps the version it was made with)
@@ -616,6 +618,7 @@ namespace GB::Editor
 			if (a.size() > 1) d.Seed = static_cast<uint32_t>(std::atoi(a[1].c_str()));
 			if (a.size() > 2) d.TreeBudget = std::max(0, std::atoi(a[2].c_str()));
 			if (a.size() > 3) d.RockBudget = std::max(0, std::atoi(a[3].c_str()));
+			if (a.size() > 4) d.MeshDetail = static_cast<float>(std::atof(a[4].c_str()));
 			BuildWorld(d);
 			return { true, "world generated (seed " + std::to_string(d.Seed) + ")" };
 		});

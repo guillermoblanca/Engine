@@ -118,6 +118,8 @@ namespace GB
 	std::unique_ptr<Terrain> Terrain::CreateDunes(const DuneParams& p, float size, uint32_t resolution, TerrainStyle style, bool gpu)
 	{
 		std::unique_ptr<Terrain> t(new Terrain(resolution, size));
+		t->m_ShoreSubdivision = std::clamp(p.DetailSubdivision, 1, 8);
+		t->m_DetailThreshold = p.DetailThreshold;
 		t->m_WindAngle = glm::radians(p.WindAngleDegrees);
 		const glm::vec2 wind(std::cos(t->m_WindAngle), std::sin(t->m_WindAngle));
 		Heightmap& hm = t->m_Heightmap;
@@ -168,6 +170,7 @@ namespace GB
 		t->m_SurfaceMaps = p.SurfaceMaps;
 		t->m_ShoreSubdivision = std::clamp(p.ShoreSubdivision, 1, 8);
 		t->m_ShoreMargin = std::max(p.ShoreMarginCells, 0);
+		t->m_DetailThreshold = p.DetailThreshold;
 		Heightmap& hm = t->m_Heightmap;
 		for (uint32_t j = 0; j < hm.GetResolution(); ++j)
 		{
@@ -505,13 +508,43 @@ namespace GB
 		return flags;
 	}
 
-	void Terrain::BuildShoreRefinement(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+	// Cells where a flat quad would visibly miss the ground: the centre of the bilinear quad (what an unrefined cell actually draws)
+	// compared with SmoothHeight's cubic surface through the same four corners (what the refined vertices follow). Ridgelines, gullies
+	// and the channels HydraulicErosion carves diverge enough to flag; a gentle slope or a lake bed does not. Unlike FlagShoreCells this
+	// has no notion of water -- a second, independent strategy over the same (n-1)^2 grid of flags (SRP/OCP: BuildMeshRefinement only
+	// ORs whatever strategies flag a cell, it does not know why any of them did).
+	std::vector<uint8_t> Terrain::FlagDetailCells(float threshold) const
+	{
+		const Heightmap& hm = m_Heightmap;
+		const int cells = static_cast<int>(hm.GetResolution()) - 1;
+		std::vector<uint8_t> flags(static_cast<size_t>(cells) * static_cast<size_t>(cells), 0);
+		if (threshold <= 0.0f) return flags;
+		for (int cj = 0; cj < cells; ++cj)
+		{
+			for (int ci = 0; ci < cells; ++ci)
+			{
+				const float a = hm.At(ci, cj), b = hm.At(ci + 1, cj), c = hm.At(ci, cj + 1), d = hm.At(ci + 1, cj + 1);
+				const float bilinearCenter = (a + b + c + d) * 0.25f;
+				const glm::vec2 pos = hm.GetMin() + (glm::vec2(static_cast<float>(ci), static_cast<float>(cj)) + 0.5f) * hm.GetSpacing();
+				if (std::fabs(SmoothHeight(pos.x, pos.y) - bilinearCenter) > threshold)
+					flags[static_cast<size_t>(cj) * static_cast<size_t>(cells) + static_cast<size_t>(ci)] = 1;
+			}
+		}
+		return flags;
+	}
+
+	void Terrain::BuildMeshRefinement(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
 	{
 		m_FineIndex.clear();
 		m_RefinedCells.clear();
 		const int N = m_ShoreSubdivision;
-		if (N < 2 || (!m_HasLake && m_River.Points.empty())) return;
-		std::vector<uint8_t> flags = FlagShoreCells(m_ShoreMargin);
+		if (N < 2) return;
+		std::vector<uint8_t> flags = FlagShoreCells(m_ShoreMargin);   // always sized (n-1)^2, water cells set to 1
+		if (m_DetailThreshold > 0.0f)
+		{
+			const std::vector<uint8_t> detail = FlagDetailCells(m_DetailThreshold);
+			for (size_t i = 0; i < flags.size(); ++i) flags[i] |= detail[i];
+		}
 		size_t flagged = 0;
 		for (uint8_t f : flags) flagged += f;
 		if (flagged == 0) return;
@@ -554,7 +587,7 @@ namespace GB
 			}
 		}
 		indices.swap(out);
-		GB_CORE_INFO("Terrain shore refinement: {} cells split {}x{} (+{} vertices)", flagged, N, N, vertices.size() - m_FineFirst);
+		GB_CORE_INFO("Terrain mesh refinement: {} cells split {}x{} (+{} vertices)", flagged, N, N, vertices.size() - m_FineFirst);
 	}
 
 	void Terrain::RefreshMesh(int i0, int j0, int i1, int j1)
@@ -642,7 +675,7 @@ namespace GB
 				indices.insert(indices.end(), { i0, i2, i1, i1, i2, i3 });   // counter-clockwise seen from above (+Y)
 			}
 		}
-		BuildShoreRefinement(vertices, indices);
+		BuildMeshRefinement(vertices, indices);
 		m_Mesh = std::make_unique<Mesh>(vertices, indices);
 		m_Vertices = std::move(vertices);
 

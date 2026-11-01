@@ -1,4 +1,5 @@
 #include "WorldGen.h"
+#include "GB/World/Erosion.h"
 #include <algorithm>
 #include <functional>
 #include <queue>
@@ -382,6 +383,7 @@ namespace GB
 		{
 			DuneParams dp;
 			dp.Seed = desc.Seed;
+			dp.DetailThreshold = desc.MeshDetail;
 			w.TerrainPtr = Terrain::CreateDunes(dp, desc.Size, desc.Resolution, TerrainStyle::Desert, false);
 		}
 		else
@@ -391,6 +393,7 @@ namespace GB
 			hp.Height = desc.Type == WorldType::Alpine ? 58.0f : 16.0f;
 			hp.Scale = desc.Type == WorldType::Alpine ? 190.0f : 140.0f;
 			hp.Flatten = desc.Type == WorldType::Alpine ? 0.05f : 0.25f;
+			hp.DetailThreshold = desc.MeshDetail;
 			const TerrainStyle style = desc.Type == WorldType::Alpine ? TerrainStyle::Snow : TerrainStyle::Meadow;
 
 			// Pass 1: the bare terrain, to find the basin for the lake and the way down for the river.
@@ -474,6 +477,32 @@ namespace GB
 			hp.SurfaceMaps = true;
 			w.Hills = hp;
 			w.TerrainPtr = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style, false);
+			// Hueco #1 of docs/GRAFO_TERRENO.md: the generator used to never call HydraulicErosion, even though it is implemented and tested
+			// (tests/world_test.cpp) -- only Sandbox's interactive rain used it, on a terrain already built. Carved here, right after the lake and
+			// river and before SnowLine/biomes/spawn/trees/rocks read the terrain, so every one of them sees the eroded ground, same as a player who
+			// lets it rain before building. `gpu=false` above means BuildGpu (the mesh, the normal map) has not run yet, so there is nothing stale
+			// to invalidate: WorldGenerator::BuildGpu reads these heights afterwards, whenever it is called.
+			if (desc.Erosion)
+			{
+				Heightmap& hm = w.TerrainPtr->GetEditableHeightmap();
+				// The lowest point of the map is, by construction, the lake basin (it is where the basin was dug from in the first place,
+				// tests/sweep_test.cpp checks it stays a metre under WaterLevel): with droplets starting anywhere, water keeps running downhill
+				// into it and a full-map pass would silt it back up. A copy of the pre-erosion shore and basin, restored after, keeps the lake
+				// exactly as CreateHills sculpted it while letting erosion carve freely everywhere else (the river bed could in principle see the
+				// same siltation; no test catches it today, so it is not guarded here -- the same restore-after-erosion technique would apply).
+				const Heightmap before = hm;
+				ErosionParams ep;
+				// One droplet per ~6 texels keeps the density about the same regardless of WorldDesc::Resolution (tests use much smaller worlds
+				// than the default); the Strength/BrushRadius/etc. defaults of ErosionParams are already tuned for this engine's scale.
+				ep.Droplets = std::clamp(static_cast<int>(static_cast<double>(desc.Resolution) * static_cast<double>(desc.Resolution) / 6.0), 1500, 90000);
+				ep.Seed = desc.Seed + 97u;
+				HydraulicErosion::Run(hm, ep);
+				if (hp.LakeRadius > 0.0f)
+					for (uint32_t j = 0; j < hm.GetResolution(); ++j)
+						for (uint32_t i = 0; i < hm.GetResolution(); ++i)
+							if (glm::length(hm.SamplePosition(i, j) - hp.LakeCenter) < hp.LakeRadius)
+								hm.At(i, j) = before.At(i, j);
+			}
 			if (desc.Type == WorldType::Alpine)
 				w.SnowLine = w.TerrainPtr->GetHeightmap().GetMinHeight() + 0.68f * (w.TerrainPtr->GetHeightmap().GetMaxHeight() - w.TerrainPtr->GetHeightmap().GetMinHeight());
 		}

@@ -58,6 +58,9 @@ namespace GB
 		float WarpScale = 110.0f;         // meters; size of the meanders
 		float SizeVariation = 0.45f;      // some dunes are taller than others
 		float BaseHills = 2.5f;           // meters of gentle large-scale undulation underneath
+		// Curvature-driven mesh refinement (there is no shore to drive it here): see HillParams::ShoreSubdivision/DetailThreshold.
+		int DetailSubdivision = 4;
+		float DetailThreshold = 0.08f;
 	};
 
 	struct HillParams
@@ -85,6 +88,10 @@ namespace GB
 		// ShoreSubdivision x ShoreSubdivision times (smooth cubic surface, 0/1 = off) so the waterline stops looking stepped.
 		int ShoreSubdivision = 4;
 		int ShoreMarginCells = 2;         // extra ring of refined cells around the shore, so the detail has room to fade out
+		// The same refinement, driven by curvature instead of water: a cell is split when its flat bilinear quad would sit more than
+		// this many metres away from the smooth cubic surface through its corners (ridges, gullies, the channels erosion carves --
+		// not the flat ground most of the map actually is). <= 0 = off (shore-only, as before).
+		float DetailThreshold = 0.08f;
 	};
 
 
@@ -141,9 +148,11 @@ namespace GB
 		Terrain(uint32_t resolution, float size) : m_Heightmap(resolution, size) {}
 		void Finish(TerrainStyle style, bool gpu);
 		void CarveRiver(const HillParams& params);
-		// Shore refinement (see HillParams::ShoreSubdivision): extra vertices appended after the grid ones.
+		// Mesh refinement (see HillParams::ShoreSubdivision/DetailThreshold): extra vertices appended after the grid ones, for cells
+		// flagged by either strategy below (SRP: each only decides *which* cells, never how a flagged cell is split or stitched).
 		std::vector<uint8_t> FlagShoreCells(int marginCells) const;
-		void BuildShoreRefinement(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
+		std::vector<uint8_t> FlagDetailCells(float threshold) const;
+		void BuildMeshRefinement(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 		float SmoothHeight(float x, float z) const;          // Catmull-Rom surface through the heightmap, never beyond the cell's corner heights
 		float FineHeight(int fi, int fj) const;              // height of a vertex of the refined lattice (fi, fj in units of spacing / N)
 		bool IsCellRefined(int ci, int cj) const;
@@ -153,6 +162,7 @@ namespace GB
 
 		bool m_SurfaceMaps = true;
 		int m_ShoreSubdivision = 1, m_ShoreMargin = 2;
+		float m_DetailThreshold = 0.0f;   // 0 = off; set from HillParams::DetailThreshold (CreateDunes leaves it off)
 		uint32_t m_FineFirst = 0;                            // index of the first refined vertex (= grid vertex count)
 		std::vector<uint8_t> m_RefinedCells;                 // (n-1)^2 flags
 		std::unordered_map<uint64_t, uint32_t> m_FineIndex;  // refined lattice coordinate -> vertex index
