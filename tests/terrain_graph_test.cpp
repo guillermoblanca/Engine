@@ -153,6 +153,21 @@ int main()
 		bool anyDifferent = false;
 		for (size_t i = 0; i < raw.Values.size(); ++i) if (raw.Values[i] != eroded.Values[i]) { anyDifferent = true; break; }
 		Check(anyDifferent, "erosion_hydraulic changes the height field it was given");
+
+		// erosion_thermal, wired straight after the same noise (not through erosion_hydraulic, to test it alone)
+		TerrainGraph thermalOnly;
+		thermalOnly.Nodes = {
+			Node("noise", "heightfield_noise", "", { { "Octaves", 4.0 }, { "Amplitude", 18.0 } }),
+			Node("thermal", "erosion_thermal", "", { { "Iterations", 10.0 }, { "TalusAngleDegrees", 15.0 } }),
+			Node("out", "output", "height"),
+		};
+		thermalOnly.Edges = { { "noise", "thermal" }, { "thermal", "out" } };
+		TgResult thermalResult;
+		Check(EvaluateTerrainGraph(thermalOnly, ctx, thermalResult, error), "the noise -> erosion_thermal graph evaluates");
+		const TgField& thermal = thermalResult.Outputs.at("height");
+		bool thermalDifferent = false;
+		for (size_t i = 0; i < raw.Values.size(); ++i) if (raw.Values[i] != thermal.Values[i]) { thermalDifferent = true; break; }
+		Check(thermalDifferent, "erosion_thermal changes the height field it was given");
 	}
 
 	// ---------------------------------------------------------------- determinism

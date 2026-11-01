@@ -25,15 +25,15 @@ namespace GB
 		// What one rule needs to decide a cell's biome. Table-driven (SRP/OCP): a new biome is a new entry
 		// here, not a new branch threaded into the others.
 		struct Context { float Height, Slope, Moisture, WaterLevel, ShoreBand, SnowHeight, RockSlopeDeg, ForestMoisture; };
-		struct Rule { TgBiome Biome; bool (*Test)(const Context&); };
+		struct Rule { Biome Kind; bool (*Test)(const Context&); };
 
 		const Rule kRules[] = {
-			{ TgBiome::Water, [](const Context& c) { return c.Height <= c.WaterLevel; } },
-			{ TgBiome::Shore, [](const Context& c) { return c.Height <= c.WaterLevel + c.ShoreBand; } },
-			{ TgBiome::Snow, [](const Context& c) { return c.Height >= c.SnowHeight; } },
-			{ TgBiome::Rock, [](const Context& c) { return c.Slope >= c.RockSlopeDeg; } },
-			{ TgBiome::Forest, [](const Context& c) { return c.Moisture >= c.ForestMoisture; } },
-			{ TgBiome::Grass, [](const Context&) { return true; } },   // catches everything else
+			{ Biome::Water, [](const Context& c) { return c.Height <= c.WaterLevel; } },
+			{ Biome::Shore, [](const Context& c) { return c.Height <= c.WaterLevel + c.ShoreBand; } },
+			{ Biome::Snow, [](const Context& c) { return c.Height >= c.SnowHeight; } },
+			{ Biome::Rock, [](const Context& c) { return c.Slope >= c.RockSlopeDeg; } },
+			{ Biome::Forest, [](const Context& c) { return c.Moisture >= c.ForestMoisture; } },
+			{ Biome::Meadow, [](const Context&) { return true; } },   // catches everything else
 		};
 	}
 
@@ -68,8 +68,8 @@ namespace GB
 				c.Slope = slopeDeg;
 				c.Moisture = moisture ? moisture->At(i, j) : FallbackMoisture(static_cast<int>(i), static_cast<int>(j), seed);
 
-				TgBiome biome = TgBiome::Grass;
-				for (const Rule& rule : kRules) if (rule.Test(c)) { biome = rule.Biome; break; }
+				Biome biome = Biome::Meadow;
+				for (const Rule& rule : kRules) if (rule.Test(c)) { biome = rule.Kind; break; }
 				out.At(i, j) = static_cast<float>(biome);
 			}
 		return true;

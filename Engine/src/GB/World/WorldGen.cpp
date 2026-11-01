@@ -254,20 +254,8 @@ namespace GB
 		}
 	}
 
-	const char* BiomeName(Biome b)
-	{
-		switch (b)
-		{
-		case Biome::Water: return "Water";
-		case Biome::Shore: return "Shore";
-		case Biome::Meadow: return "Meadow";
-		case Biome::Forest: return "Forest";
-		case Biome::Rock: return "Rock";
-		case Biome::Snow: return "Snow";
-		case Biome::Dunes: return "Dunes";
-		}
-		return "Water";
-	}
+	// BiomeName moved to GB/World/Biome.cpp (the enum now lives in GB/World/Biome.h, included by WorldGen.h, so a terrain graph node can use it
+	// without WorldGen.h's heavier includes); every existing `#include "GB/World/WorldGen.h"` still gets GB::BiomeName unchanged.
 
 	size_t BiomeMap::Nearest(float x, float z) const
 	{

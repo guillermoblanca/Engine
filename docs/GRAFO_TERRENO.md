@@ -175,9 +175,9 @@ de aparición en seco, colocaciones válidas...); `golden_data` se actualizó co
 aceptarlo, no se regeneró a ciegas.
 
 La sustitución de la **rama imperativa completa** (dunas, lago/río, bioma, *scatter*) por nodos del grafo queda, correctamente, para cuando existan los
-nodos que de verdad la cubren sin regresión: acumulación de flujo para el río, *scatter* envolviendo `ScatterTrees`, y un `biome_classify` que hable el
-mismo `GB::Biome` que el resto del motor (el de la Fase 1 usa su propio `TgBiome`, pensado para probar el patrón, no para sustituir `Classify` todavía).
-Eso es exactamente la Fase 3.
+nodos que de verdad la cubren sin regresión: erosión térmica, acumulación de flujo para el río, y *scatter* envolviendo `ScatterTrees`. Eso es la Fase 3
+(sección 9), ya en marcha: `biome_classify` ya escribe `GB::Biome` (`GB/World/Biome.h`, extraído de `WorldGen.h` para que el nodo no arrastre `Terrain.h`)
+en vez de un enum propio de prueba, así que ya puede alimentar directamente `GeneratedWorld::Maps`/`BiomeAt` el día que se enganche.
 
 ## 8. Malla adaptativa por curvatura (resolución variable, ya implementada)
 
@@ -210,9 +210,18 @@ de nuevo bajo presión de tiempo para no cambiar un fallo conocido por otro sin 
 
 ## 9. Próximas fases
 
-3. **Catálogo completo**: erosión térmica, acumulación de flujo para ríos (sustituye el Dijkstra *coarse*), máscaras/blend, *scatter* (envolviendo
-   `Trees::ScatterTrees`), y un `biome_classify` que escriba `GB::Biome` en vez de `TgBiome`. Con esto completo, la rama imperativa de
+3. **Catálogo completo** (`biome_classify` con `GB::Biome`, y `erosion_thermal`, ya hechos — ver abajo): acumulación de flujo para ríos (sustituye el
+   Dijkstra *coarse*), máscaras/blend, *scatter* (envolviendo `Trees::ScatterTrees` — necesita extender el grafo más allá de un único tipo de valor por
+   puerto, `TgField`, ya que una colocación es una lista de posiciones, no un campo escalar). Con esto completo, la rama imperativa de
    `WorldGenerator::GenerateData` sí se puede sustituir por un `TerrainGraph` evaluado de principio a fin, sin regresión.
+
+   **`erosion_thermal`** (ya implementado, `GB/World/ThermalErosion.h/.cpp` + `Nodes/ThermalErosionNode`): hueco de realismo #2 (no había erosión
+   térmica en absoluto). Grid de talud/ángulo de reposo, 8-conectado: cada celda mueve una fracción de su exceso de pendiente (por encima de
+   `TalusAngleDegrees`) hacia su vecino más bajo, varias pasadas. Es la pieza de `GB::HydraulicErosion` que no existía: el agua esculpe, esto asienta lo
+   que queda demasiado vertical. Actualización secuencial en el sitio (Gauss-Seidel), no un búfer de deltas aplicado de golpe (Jacobi): con varias
+   celdas empujando al mismo vecino en la misma pasada, un búfer aparte permite que ese vecino acabe, brevemente, por encima de la cumbre original — se
+   encontró exactamente ese fallo al escribir el test (`tests/world_test.cpp`) y se corrigió antes de integrarlo. Determinista (sin azar). No conectado
+   todavía a la generación real (igual que `biome_classify`): eso es la sustitución completa de la rama imperativa, más arriba en este punto.
 4. **NavMesh incremental** — [NAVMESH_INCREMENTAL.md](NAVMESH_INCREMENTAL.md).
 5. **Editor visual**: `EditorTerrainGraph.cpp`/`TerrainGraphLibrary`, clon de `EditorPriorityGraph.cpp`/`PriorityLibrary`.
 6. **Limpieza**: extraer `GB_WorldGen` (sección 6) si no se adelantó antes, retirar el código imperativo ya sustituido de `WorldGen.cpp`, unificar las

@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/World/Biome.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Terrain.h"
 #include "GB/World/Trees.h"
@@ -10,8 +11,6 @@
 namespace GB
 {
 	enum class WorldType { Temperate, Alpine, Desert };
-	enum class Biome { Water, Shore, Meadow, Forest, Rock, Snow, Dunes };
-	const char* BiomeName(Biome b);   // "Water", "Shore", "Meadow", "Forest", "Rock", "Snow", "Dunes" (the names the data uses)
 
 	struct WorldDesc
 	{
