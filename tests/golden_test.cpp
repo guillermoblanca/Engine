@@ -38,6 +38,7 @@ int main()
 		std::fprintf(stderr, "SKIP: no OpenGL 4.5 context\n");
 		return 77;
 	}
+	const GB::Qa::Config qa = GB::Qa::Config::FromEnvironment();
 	GB::Renderer renderer(W, H, 1, 1024);   // one sample: identical across drivers
 	GB::Framebuffer fb(W, H);
 	auto shoot = [&](const char* name, const GB::Scene& scene, const GB::Camera& cam, GB::Qa::ImageTolerance tol = {})
@@ -45,7 +46,7 @@ int main()
 		renderer.Render(scene, cam, &fb);
 		GB::Image img;
 		img.Width = W; img.Height = H; img.Pixels = fb.ReadPixels();
-		Report(GB::Qa::CheckGoldenImage(GB_GOLDEN_DIR "/images", name, img, tol));
+		Report(GB::Qa::CheckGoldenImage(qa, GB_GOLDEN_DIR "/images", name, img, tol));
 	};
 	GB::Mesh sphere = GB::Mesh::CreateSphere(0.5f, 48, 24);
 	GB::Mesh floorMesh = GB::Mesh::CreateGrid(60.0f, 16);

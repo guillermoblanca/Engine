@@ -31,5 +31,12 @@ CMakeUserPresets.json
 docs/wiki/data/export.txt
 editor_layout.ini
 
+# water screenshots: only the side-by-side comparisons are kept (tools/water_compare.ps1 makes them from these)
+/docs/img/water/before/
+/docs/img/water/after/
+
+# Agent worktrees / local agent state
+/.claude/
+
 # Laboratory runs (telemetry files)
 /lab_runs/

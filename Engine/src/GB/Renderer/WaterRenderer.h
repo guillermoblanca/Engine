@@ -4,8 +4,11 @@
 #include "Framebuffer.h"
 #include "Scene.h"
 #include "Shader.h"
+#include "Mesh.h"
 #include <glm/glm.hpp>
 #include <cstdint>
+#include <memory>
+#include <unordered_map>
 
 namespace GB
 {
@@ -29,7 +32,16 @@ namespace GB
 
 	private:
 		void BindEnvironment(const Environment& env);
+		// The GPU mesh of a surface, uploaded from its CPU geometry the first time it is drawn and kept while the geometry lives.
+		const Mesh& MeshFor(const WaterSurface& surface);
+
+		struct CachedMesh
+		{
+			std::weak_ptr<const WaterGeometry> Source;   // tells a live geometry from a dead one whose address was reused
+			std::unique_ptr<Mesh> Gpu;
+		};
 
 		Shader m_Shader;
+		std::unordered_map<const WaterGeometry*, CachedMesh> m_Meshes;
 	};
 }

@@ -14,22 +14,27 @@ namespace GB
 
 		// A float prints as the shortest text that reads back as the same float (0.1, not 0.10000000149; 134.02432, not 134.0243): a scene that is saved
 		// and loaded comes back exactly, which the fingerprints of a replay depend on (7 digits moved a value across a rounding boundary now and then).
-		thread_local bool t_short7 = false;   // set while SaveSceneToString writes with SceneFloats::Short7
-
-		double Round(float v)
+		// The writer carries the choice of SceneFloats (Short7: 7 significant digits, for the identity hash of a generated world) down the call chain,
+		// instead of a thread-local flag the callee would have to guess.
+		struct FloatWriter
 		{
-			char buf[40];
-			if (t_short7)
+			bool Short7 = false;
+
+			double Round(float v) const
 			{
-				std::snprintf(buf, sizeof(buf), "%.7g", static_cast<double>(v));
+				char buf[40];
+				if (Short7)
+				{
+					std::snprintf(buf, sizeof(buf), "%.7g", static_cast<double>(v));
+					return std::strtod(buf, nullptr);
+				}
+				const std::to_chars_result r = std::to_chars(buf, buf + sizeof(buf) - 1, v);
+				*r.ptr = '\0';
 				return std::strtod(buf, nullptr);
 			}
-			const std::to_chars_result r = std::to_chars(buf, buf + sizeof(buf) - 1, v);
-			*r.ptr = '\0';
-			return std::strtod(buf, nullptr);
-		}
 
-		Json ToJson(const glm::vec3& v) { return Json::array({ Round(v.x), Round(v.y), Round(v.z) }); }
+			Json ToJson(const glm::vec3& v) const { return Json::array({ Round(v.x), Round(v.y), Round(v.z) }); }
+		};
 
 		bool ReadVec3(const Json& j, const char* key, glm::vec3& out)
 		{
@@ -54,15 +59,15 @@ namespace GB
 		const char* ShapeName(MeshShape s) { return s == MeshShape::Sphere ? "sphere" : s == MeshShape::Plane ? "plane" : "cube"; }
 		const char* ColliderName(ColliderShape s) { return s == ColliderShape::Sphere ? "sphere" : s == ColliderShape::Capsule ? "capsule" : "box"; }
 
-		Json MeshToJson(const MeshComponent& m)
+		Json MeshToJson(const MeshComponent& m, const FloatWriter& w)
 		{
 			Json j;
-			if (m.Model.empty()) { j["shape"] = ShapeName(m.Shape); j["size"] = Round(m.Size); }
+			if (m.Model.empty()) { j["shape"] = ShapeName(m.Shape); j["size"] = w.Round(m.Size); }
 			else j["model"] = m.Model;
-			j["albedo"] = ToJson(m.Albedo);
-			j["metallic"] = Round(m.Metallic);
-			j["roughness"] = Round(m.Roughness);
-			if (m.Emissive != glm::vec3(0.0f)) j["emissive"] = ToJson(m.Emissive);
+			j["albedo"] = w.ToJson(m.Albedo);
+			j["metallic"] = w.Round(m.Metallic);
+			j["roughness"] = w.Round(m.Roughness);
+			if (m.Emissive != glm::vec3(0.0f)) j["emissive"] = w.ToJson(m.Emissive);
 			return j;
 		}
 
@@ -81,15 +86,15 @@ namespace GB
 			return true;
 		}
 
-		Json BodyToJson(const BodyComponent& b)
+		Json BodyToJson(const BodyComponent& b, const FloatWriter& w)
 		{
 			Json j;
 			j["type"] = b.Type == BodyType::Static ? "static" : "dynamic";
 			j["shape"] = ColliderName(b.Shape);
-			j["halfExtents"] = ToJson(b.HalfExtents);
-			j["mass"] = Round(b.Mass);
-			j["friction"] = Round(b.Friction);
-			j["restitution"] = Round(b.Restitution);
+			j["halfExtents"] = w.ToJson(b.HalfExtents);
+			j["mass"] = w.Round(b.Mass);
+			j["friction"] = w.Round(b.Friction);
+			j["restitution"] = w.Round(b.Restitution);
 			return j;
 		}
 
@@ -114,7 +119,7 @@ namespace GB
 
 	std::string SaveSceneToString(const EntityWorld& world, SceneFloats floats)
 	{
-		struct Mode { bool was; explicit Mode(bool on) : was(t_short7) { t_short7 = on; } ~Mode() { t_short7 = was; } } mode(floats == SceneFloats::Short7);
+		const FloatWriter w{ floats == SceneFloats::Short7 };
 		Json root;
 		root["version"] = 1;
 		Json list = Json::array();
@@ -126,30 +131,30 @@ namespace GB
 			if (e.Parent != NullEntity) j["parent"] = e.Parent;
 			if (!e.Tags.empty()) j["tags"] = e.Tags;
 			if (!e.Active) j["active"] = false;
-			j["position"] = ToJson(e.Transform.Position);
-			j["rotation"] = ToJson(e.Transform.Rotation);
-			j["scale"] = ToJson(e.Transform.Scale);
-			if (e.Mesh) j["mesh"] = MeshToJson(*e.Mesh);
+			j["position"] = w.ToJson(e.Transform.Position);
+			j["rotation"] = w.ToJson(e.Transform.Rotation);
+			j["scale"] = w.ToJson(e.Transform.Scale);
+			if (e.Mesh) j["mesh"] = MeshToJson(*e.Mesh, w);
 			if (e.Light)
 			{
 				Json l;
-				l["color"] = ToJson(e.Light->Color);
-				l["intensity"] = Round(e.Light->Intensity);
-				l["radius"] = Round(e.Light->Radius);
+				l["color"] = w.ToJson(e.Light->Color);
+				l["intensity"] = w.Round(e.Light->Intensity);
+				l["radius"] = w.Round(e.Light->Radius);
 				j["light"] = l;
 			}
-			if (e.Body) j["body"] = BodyToJson(*e.Body);
+			if (e.Body) j["body"] = BodyToJson(*e.Body, w);
 			if (e.Prop) j["prop"] = Json{ { "kind", e.Prop->Kind == PropKind::Rock ? "rock" : "tree" }, { "variant", e.Prop->Variant } };
 			if (e.Interact)
 			{
 				Json points = Json::array();
 				for (const InteractionPoint& p : e.Interact->Points)
 				{
-					Json jp{ { "name", p.Name }, { "position", ToJson(p.Position) }, { "yaw", Round(p.Yaw) } };
+					Json jp{ { "name", p.Name }, { "position", w.ToJson(p.Position) }, { "yaw", w.Round(p.Yaw) } };
 					if (!p.Montage.empty()) jp["montage"] = p.Montage;
 					if (!p.Requires.empty()) jp["requires"] = p.Requires;
 					if (!p.Gives.empty()) jp["gives"] = p.Gives;
-					if (p.WarpSeconds != 0.4f) jp["warp"] = Round(p.WarpSeconds);
+					if (p.WarpSeconds != 0.4f) jp["warp"] = w.Round(p.WarpSeconds);
 					points.push_back(std::move(jp));
 				}
 				j["interact"] = std::move(points);
@@ -162,7 +167,7 @@ namespace GB
 				if (!e.Gameplay->Effects.empty()) g["effects"] = e.Gameplay->Effects;
 				Json attrs = Json::array();
 				for (const GameplayAttribute& a : e.Gameplay->Attributes)
-					attrs.push_back(Json{ { "name", a.Name }, { "value", Round(a.Value) }, { "min", Round(a.Min) }, { "max", Round(a.Max) } });
+					attrs.push_back(Json{ { "name", a.Name }, { "value", w.Round(a.Value) }, { "min", w.Round(a.Min) }, { "max", w.Round(a.Max) } });
 				if (!attrs.empty()) g["attributes"] = std::move(attrs);
 				j["gameplay"] = std::move(g);
 			}

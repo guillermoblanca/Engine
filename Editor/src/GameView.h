@@ -29,7 +29,7 @@ namespace GB::Editor
 		// `camera game <args>`; `current` is the view on screen now (the blend starts from it).
 		CommandResult Command(const std::vector<std::string>& args, const ActorWorld& actors, const PlayerMode& player, WorldInstance& world, const Camera& current);
 		// One frame: the subjects from the actors, the input (when `acceptInput`), the rig; writes `camera`. Nothing when not active.
-		void Update(float dt, bool acceptInput, const ActorWorld& actors, const PlayerMode& player, WorldInstance& world, Camera& camera);
+		void Update(const IInputSource& source, float dt, bool acceptInput, const ActorWorld& actors, const PlayerMode& player, WorldInstance& world, Camera& camera);
 		glm::vec3 Focus() const { return m_Rig.Focus(); }
 		std::string Describe() const;
 

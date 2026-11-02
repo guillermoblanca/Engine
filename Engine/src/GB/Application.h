@@ -1,4 +1,5 @@
 #pragma once
+#include "InputSource.h"
 #include "Window.h"
 #include <cstdint>
 #include <memory>
@@ -7,7 +8,9 @@
 
 namespace GB
 {
-	// Set by the entry point from the command line before CreateApplication().
+	// What the command line asked for. Parsed by the entry point into a local value and handed to CreateApplication(),
+	// which gives it to the Application it builds: there is no process-wide copy, so a test or a tool can start an
+	// Application with any options without touching global state.
 	struct LaunchOptions
 	{
 		uint64_t Frames = 0;        // --frames=N   run N frames then exit (0 = until closed)
@@ -23,10 +26,10 @@ namespace GB
 		std::string GetValue(const std::string& key, const std::string& fallback = "") const;
 		bool HasFlag(const std::string& flag) const;   // "--flag"
 	};
-	LaunchOptions& GetLaunchOptions();
 
 	struct ApplicationConfig
 	{
+		LaunchOptions Launch;       // the command line this application was started with (Application::Options())
 		std::string Title = "GB Engine";
 		uint32_t Width = 1280;
 		uint32_t Height = 720;
@@ -54,12 +57,19 @@ namespace GB
 		// False when a window was requested but could not be created.
 		bool IsValid() const { return m_Valid; }
 		Window* GetWindow() const { return m_Window.get(); }
+		// Keyboard, mouse and gamepads of this application's window; with no window, an input where nothing is ever pressed.
+		const IInputSource& GetInput() const { return m_Window ? static_cast<const IInputSource&>(m_Window->GetInput()) : m_NoInput; }
+		// The options this application was started with. Mutable: an application may fill in defaults for what the command line left out.
+		LaunchOptions& Options() { return m_Options; }
+		const LaunchOptions& Options() const { return m_Options; }
 
 	protected:
 		virtual void OnUpdate(float deltaTime) { (void)deltaTime; }
 		virtual void OnRender() {}
 
 	private:
+		LaunchOptions m_Options;
+		NoInput m_NoInput;
 		std::unique_ptr<Window> m_Window;
 		std::string m_Screenshot;
 		bool m_Valid = true;
@@ -69,6 +79,6 @@ namespace GB
 		uint64_t m_MaxFrames = 0;
 	};
 
-	// To be defined in CLIENT
-	Application* CreateApplication();
+	// To be defined in CLIENT: builds the application for the options the entry point parsed.
+	Application* CreateApplication(const LaunchOptions& options);
 }

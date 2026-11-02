@@ -3,40 +3,36 @@
 
 namespace GB
 {
-	TerrainNodeRegistry& TerrainNodeRegistry::Instance()
-	{
-		// Built once, here: see BuiltinNodes.h for why the engine's own node types are registered from a
-		// named composition root rather than from self-registering statics in each node's .cpp.
-		static TerrainNodeRegistry registry = [] { TerrainNodeRegistry r; RegisterBuiltinTerrainNodes(r); return r; }();
-		return registry;
-	}
-
 	void TerrainNodeRegistry::Register(std::string type, Factory factory)
 	{
-		m_Factories[std::move(type)] = std::move(factory);
+		if (!factory) return;
+		std::unique_ptr<ITerrainNode> node = factory();
+		if (!node) return;
+		m_Nodes[std::move(type)] = std::move(node);
 	}
 
-	bool TerrainNodeRegistry::IsKnown(const std::string& type) const { return m_Factories.find(type) != m_Factories.end(); }
+	bool TerrainNodeRegistry::Unregister(const std::string& type) { return m_Nodes.erase(type) > 0; }
+
+	bool TerrainNodeRegistry::IsKnown(const std::string& type) const { return m_Nodes.find(type) != m_Nodes.end(); }
 
 	const ITerrainNode* TerrainNodeRegistry::Find(const std::string& type) const
 	{
-		const auto cached = m_Instances.find(type);
-		if (cached != m_Instances.end()) return cached->second.get();
-
-		const auto factory = m_Factories.find(type);
-		if (factory == m_Factories.end()) return nullptr;
-
-		std::unique_ptr<ITerrainNode> instance = factory->second();
-		const ITerrainNode* raw = instance.get();
-		m_Instances.emplace(type, std::move(instance));
-		return raw;
+		const auto it = m_Nodes.find(type);
+		return it == m_Nodes.end() ? nullptr : it->second.get();
 	}
 
 	std::vector<std::string> TerrainNodeRegistry::KnownTypes() const
 	{
 		std::vector<std::string> types;
-		types.reserve(m_Factories.size());
-		for (const auto& entry : m_Factories) types.push_back(entry.first);
+		types.reserve(m_Nodes.size());
+		for (const auto& entry : m_Nodes) types.push_back(entry.first);
 		return types;
+	}
+
+	TerrainNodeRegistry MakeDefaultTerrainNodeRegistry()
+	{
+		TerrainNodeRegistry registry;
+		RegisterBuiltinTerrainNodes(registry);
+		return registry;
 	}
 }

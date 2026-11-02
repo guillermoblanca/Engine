@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
+#include "GB/Water/WaterField.h"
 #include "GB/World/RiverData.h"
 #include <memory>
 #include <unordered_map>
@@ -78,12 +79,14 @@ namespace GB
 		// Steepest rise of the ground away from the shore (meters per meter, 0 = unlimited). Hills next to the basin are cut down to this
 		// cone, so the lake gets a gentle bank instead of a cliff with a jagged edge.
 		float LakeBankSlope = 0.3f;
+		float LakeIrregularity = 0.0f;    // 0 = a circular shore; up to ~0.25 lobes it, differently for each Seed (GB/Water/LakeOutline.h)
 		bool SurfaceMaps = true;          // build the normal and macro color maps (off for a throw-away terrain used only for its heights)
 		// A river carved along these control points (xz, smoothed with a Catmull-Rom spline); it always flows
 		// downhill: the water level only descends along the path. Empty = none.
 		std::vector<glm::vec2> RiverPath;
 		float RiverWidth = 5.0f;          // meters of water
 		float RiverDepth = 1.3f;          // meters below the water level
+		std::vector<float> RiverDischarge;   // relative discharge (0..1) at each RiverPath point: a river that widens and deepens downstream (GB/Water/RiverHydraulics.h); empty = uniform
 		// Mesh refinement where the ground meets the water: cells along the lake shore and the river banks are split
 		// ShoreSubdivision x ShoreSubdivision times (smooth cubic surface, 0/1 = off) so the waterline stops looking stepped.
 		int ShoreSubdivision = 4;
@@ -119,17 +122,19 @@ namespace GB
 		Material& GetMaterial() { return m_Material; }
 		const Mesh& GetMesh() const { return *m_Mesh; }   // only after BuildGpu
 		TerrainStyle GetStyle() const { return m_Style; }
-		const RiverData* GetRiver() const { return m_River.Points.empty() ? nullptr : &m_River; }
+		// The water carved into this terrain, as data (GB/Water/WaterField.h): the queries below forward to it.
+		const WaterField& Water() const { return m_Water; }
+		const RiverData* GetRiver() const { return m_Water.River(); }
 		// Water velocity (m/s, xz) of the river at a point; zero away from it. Usable as PhysicsWorld::SetCurrent.
-		glm::vec2 GetRiverFlow(float x, float z) const;
+		glm::vec2 GetRiverFlow(float x, float z) const { return m_Water.RiverFlow(x, z); }
 		// True where the surface of the river is above the ground (inside the water).
 		float GetRiverLevelAt(float x, float z) const;   // water level, or -1e9 outside the water
-		float GetRiverSurfaceLevel(float x, float z) const;   // water level at the nearest river point (even on land); -1e9 without a river
-		float DistanceToRiver(float x, float z) const;   // meters to the river axis; 1e9 when there is none
-		bool HasLake() const { return m_HasLake; }
-		float GetWaterLevel() const { return m_WaterLevel; }
-		glm::vec2 GetLakeCenter() const { return m_LakeCenter; }
-		float GetLakeRadius() const { return m_LakeRadius; }
+		float GetRiverSurfaceLevel(float x, float z) const { return m_Water.RiverSurfaceLevel(x, z); }   // water level at the nearest river point (even on land); -1e9 without a river
+		float DistanceToRiver(float x, float z) const { return m_Water.DistanceToRiver(x, z); }   // meters to the river axis; 1e9 when there is none
+		bool HasLake() const { return m_Water.HasLake(); }
+		float GetWaterLevel() const { return m_Water.LakeLevel(); }
+		glm::vec2 GetLakeCenter() const { return m_Water.LakeCenter(); }
+		float GetLakeRadius() const { return m_Water.LakeRadius(); }
 		// Smooth ground normal (Catmull-Rom surface through the heightmap, like the refined shore and the normal map).
 		glm::vec3 GetSmoothNormal(float x, float z) const;
 		float GetSmoothHeight(float x, float z) const { return SmoothHeight(x, z); }
@@ -147,7 +152,6 @@ namespace GB
 	private:
 		Terrain(uint32_t resolution, float size) : m_Heightmap(resolution, size) {}
 		void Finish(TerrainStyle style, bool gpu);
-		void CarveRiver(const HillParams& params);
 		// Mesh refinement (see HillParams::ShoreSubdivision/DetailThreshold): extra vertices appended after the grid ones, for cells
 		// flagged by either strategy below (SRP: each only decides *which* cells, never how a flagged cell is split or stitched).
 		std::vector<uint8_t> FlagShoreCells(int marginCells) const;
@@ -171,10 +175,7 @@ namespace GB
 		TerrainStyle m_Style = TerrainStyle::Desert;
 		float m_WindAngle = 0.0f;
 		std::vector<Vertex> m_Vertices;
-		RiverData m_River;
-		bool m_HasLake = false;
-		float m_WaterLevel = 0.0f, m_LakeRadius = 0.0f;
-		glm::vec2 m_LakeCenter{ 0.0f };
+		WaterField m_Water;
 		std::unique_ptr<Mesh> m_Mesh;
 		std::unique_ptr<Texture2D> m_Grain, m_Ripples, m_Macro, m_NormalMap;
 		Image m_NormalImage;                                 // CPU copy of the normal map, for partial updates

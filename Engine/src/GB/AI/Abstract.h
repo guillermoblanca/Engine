@@ -29,6 +29,8 @@ namespace GB
 		// again next frame. Empty function: always (a host with no budget).
 		using Gate = std::function<bool()>;
 
+		// Moves the agent without touching what it is doing (its tasks, its path): a collision pushed it, it did not choose to go there.
+		void Push(const glm::vec2& pos) { m_Pos = pos; }
 		void Place(const glm::vec2& pos) { m_Pos = m_Safe = pos; m_Tasks.clear(); m_Path.clear(); m_Failed = false; m_Error.clear(); m_Started = false; }
 		bool Do(const std::string& text, std::string& error);
 		void Update(float dt, AbilitySystemComponent* who, GameplayWorld& gameplay, const Locate& locate, float speed, const Route& route = Route(), const Gate& mayPlan = Gate());

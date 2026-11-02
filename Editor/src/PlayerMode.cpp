@@ -263,16 +263,16 @@ namespace GB::Editor
 		m_Camera.Snap(actor.GetPosition());
 	}
 
-	void PlayerMode::BeginFrame(float dt, bool acceptInput)
+	void PlayerMode::BeginFrame(const IInputSource& input, float dt, bool acceptInput)
 	{
 		Actor* a = Controlled();
 		if (!a) return;
 		const bool scripted = a->ScriptRunning();
 		// the player can look around while an AI or a task list walks the character; a script turns the view itself
 		const bool aiWalking = a->Source() == OrderSource::AI && !a->AIArrived() && !a->AIStuck();
-		if (!scripted && (a->Ragdolled() || a->TasksRunning() || aiWalking || acceptInput)) m_Camera.ReadInput(dt);
+		if (!scripted && (a->Ragdolled() || a->TasksRunning() || aiWalking || acceptInput)) m_Camera.ReadInput(input, dt);
 		if (!scripted) a->SetViewYaw(m_Camera.Yaw);
-		if (acceptInput && !a->Ragdolled()) a->SetInput(ReadCharacterInput(m_Camera.Yaw));
+		if (acceptInput && !a->Ragdolled()) a->SetInput(ReadCharacterInput(input, m_Camera.Yaw));
 		if (m_LookCamera)
 		{
 			Camera cam;
@@ -289,10 +289,10 @@ namespace GB::Editor
 		m_Camera.Update(dt, a->GetPosition());
 	}
 
-	void PlayerMode::Update(float dt, bool acceptInput)
+	void PlayerMode::Update(const IInputSource& input, float dt, bool acceptInput)
 	{
 		if (!m_Actors) return;
-		BeginFrame(dt, acceptInput);
+		BeginFrame(input, dt, acceptInput);
 		m_Actors->Update(dt);
 		EndFrame(dt);
 	}

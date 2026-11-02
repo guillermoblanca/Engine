@@ -21,5 +21,10 @@ namespace GB
 	{
 	public:
 		static FlowAccumulationResult Run(const Heightmap& heightmap);
+		// The same over a flat n x n array of heights (row major, index = j*n+i): what a terrain graph field holds, with no Heightmap in between.
+		static FlowAccumulationResult Run(const float* heights, uint32_t n);
+		// Where each cell of that array drains to: the flat index (j*n+i) of its steepest downhill neighbour, or -1 for a cell with none. The
+		// same rule Run accumulates along, for whoever wants to follow the water itself (the river_trace node).
+		static std::vector<int> Directions(const float* heights, uint32_t n);
 	};
 }

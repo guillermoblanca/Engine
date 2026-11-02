@@ -15,6 +15,7 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -76,7 +77,7 @@ namespace GB
 		// The level the world updated it at in the last frame (0 full, 1 reduced, 2 far); the world sets it, TribeVisuals reads it through ActorWorld::AnimLevel.
 		int AnimLevel() const { return m_AnimLevel; }
 		void SetAnimLevel(int level) { m_AnimLevel = level; }
-		const std::shared_ptr<Model>& GetModel() const { return m_Geometry ? m_Geometry->GetModel() : kNoModel(); }
+		std::shared_ptr<Model> GetModel() const { return m_Geometry ? m_Geometry->GetModel() : nullptr; }
 
 		// ---- the frame
 		// Once per frame. Pushes of SetInput are used (and forgotten) here.
@@ -123,13 +124,13 @@ namespace GB
 		bool UsesLocomotionBlend() const { return m_Animation && m_Animation->UsesLocomotionBlend(); }
 		bool SetOverlay(const std::string& name, float fadeSeconds = 0.3f) { return m_Animation && m_Animation->SetOverlay(name, fadeSeconds); }
 		std::vector<std::string> OverlayNames() const { return m_Animation ? m_Animation->OverlayNames() : std::vector<std::string>(); }
-		const AnimManifest& Manifest() const { return m_Animation ? m_Animation->Manifest() : kNoManifest(); }          // what the character plays: the base manifest with the bindings applied
-		const AnimManifest& BaseManifest() const { return m_Animation ? m_Animation->BaseManifest() : kNoManifest(); }  // before the bindings
+		const AnimManifest& Manifest() const { return m_Animation ? m_Animation->Manifest() : m_NoManifest; }          // what the character plays: the base manifest with the bindings applied
+		const AnimManifest& BaseManifest() const { return m_Animation ? m_Animation->BaseManifest() : m_NoManifest; }  // before the bindings
 		// The animation bindings of the character (see BindingsSetup): its manifest is the base one with them applied, and the montage of each use of an
 		// ability is picked from them by context. `skeleton` is the key of its model. False when nothing changed for this character (the animator is
 		// only rebuilt when its manifest is not the one it has).
 		bool SetBindings(std::shared_ptr<const BindingsSetup> setup, const std::string& skeleton) { return m_Animation && m_Animation->SetBindings(std::move(setup), skeleton); }
-		const std::string& Skeleton() const { return m_Animation ? m_Animation->Skeleton() : kNoString(); }
+		std::string Skeleton() const { return m_Animation ? m_Animation->Skeleton() : std::string(); }
 		const BindingsSetup* Bindings() const { return m_Animation ? m_Animation->Bindings() : nullptr; }
 		// Puts the manifest's ability montages (and the notifies the abilities need) into the shared library again: the rules registered it anew.
 		void SyncAbilities() { if (m_Animation) m_Animation->SyncAbilities(); }
@@ -174,10 +175,10 @@ namespace GB
 		const CharacterProfile* Profile() const { return m_Animation ? m_Animation->Profile() : nullptr; }
 		// Animations made for another skeleton: retargeted onto the model (which every actor that shares it sees; those must call RebuildAnimator).
 		bool Retarget(const std::string& path, const std::string& assetRoot, std::string& report) { return Animated(report) && m_Animation->Retarget(path, assetRoot, report); }
-		const std::string& RetargetReport() const { return m_Animation ? m_Animation->RetargetReport() : kNoString(); }
+		std::string RetargetReport() const { return m_Animation ? m_Animation->RetargetReport() : std::string(); }
 		bool RebuildAnimator(std::string& error) { return !m_Animation || m_Animation->RebuildAnimator(error); }
 		const MotionState& GetMotion() const { return m_Movement->Motion(); }
-		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animation ? m_Animation->Plants() : none; }
+		std::span<const FootPlant> Plants() const { return m_Animation ? m_Animation->Plants() : std::span<const FootPlant>(); }
 
 		// ---- abilities (see GB/Gameplay): this actor is the ability system called `name` of `gameplay`
 		void SetAbilities(GameplayWorld* gameplay, const std::string& name);
@@ -218,9 +219,6 @@ namespace GB
 		std::string Describe() const;
 
 	private:
-		static const std::shared_ptr<Model>& kNoModel() { static const std::shared_ptr<Model> none; return none; }
-		static const AnimManifest& kNoManifest() { static const AnimManifest none = MixamoManifest(); return none; }
-		static const std::string& kNoString() { static const std::string none; return none; }
 		bool Animated(std::string& report) const { if (!m_Animation) report = "the actor has no presentation (no model)"; return m_Animation != nullptr; }
 		void UpdateBody(float dt);
 		void SyncTransform();   // the controller is the truth of where it stands; the object's Transform follows
@@ -232,6 +230,7 @@ namespace GB
 		TaskRunner::Resolver m_Interactions;
 		FootstepSounds* m_Steps = nullptr;
 		ActorCost m_Cost;
+		AnimManifest m_NoManifest;   // what Manifest()/BaseManifest() answer for an actor with no presentation: an empty one (it plays nothing)
 
 		// the components, which the object owns (non-owning pointers here)
 		MovementComponent* m_Movement = nullptr;

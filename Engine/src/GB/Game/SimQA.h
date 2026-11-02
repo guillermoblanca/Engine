@@ -29,7 +29,8 @@ namespace GB
 	// headless run of the current scene) and by the editor's QA panel (the live scene, checked as it runs). See docs/QA_SIMULACION.md.
 	//
 	// Extending it (another lane adds a system): write a function that looks at a SimView and reports what is wrong with SimReport::Add, and append it
-	// to SimInvariants() (a metric: to SimMetricTable()). Nothing else changes: the sweep, `qa sim` and the panel pick it up.
+	// to the invariants of MakeDefaultSimChecks() (a metric: to its metrics), or `Add` it to the SimCheckRegistry a SimMonitor is built with. Nothing
+	// else changes: the sweep, `qa sim` and the panel pick it up.
 
 	// What the checks look at. Pointers the host fills; a check skips what is missing.
 	struct SimView
@@ -117,10 +118,6 @@ namespace GB
 		std::function<void(const SimView&, SimTrack&, SimReport&)> Check;
 	};
 
-	// The table of invariants. Built in: counts, claims, stuck, deaths, store, fire, positions, ground, for H7 board and skills, for H11 knowledge
-	// for H12 expeditions and migration, for H9 + H10 society and for H8 buildings (see the .cpp and docs/QA_SIMULACION.md).
-	// Mutable so another system can add its own at start-up.
-	std::vector<SimInvariant>& SimInvariants();
 
 	// The metrics of a run.
 	struct SimMetrics
@@ -142,7 +139,7 @@ namespace GB
 		int Births = 0, Population = 0, PeakPopulation = 0;   // H9: children born, the living at the end and the most there were
 		std::map<std::string, int> SpoiledFood, Intermediates, Harvests;   // H18: units that went off, made by "make" jobs (production chains), harvested
 		int Hauled = 0;                                       // H18: units hauled from the stockpiles to the main store
-		std::map<std::string, double> Extra;    // what SimMetricTable() adds
+		std::map<std::string, double> Extra;    // what the registry's metrics add
 		double IdlePercent() const { return Samples ? 100.0 * static_cast<double>(IdleSamples) / static_cast<double>(Samples) : 0.0; }
 		// One line: "alive 6/6 | gathered berry 41, wood 22 | idle 23% | failures 1 | deaths 0 | meals 54 | made 2 | deposited 80 | fire lit".
 		std::string Line() const;
@@ -154,12 +151,31 @@ namespace GB
 		std::string Name;
 		std::function<void(const SimView&, SimMetrics&)> Measure;
 	};
-	std::vector<SimMetricDef>& SimMetricTable();
 
-	// Runs the table over a view and keeps what it found and the metrics. The host calls Step after each simulation step (or every few).
+	// The checks a monitor runs: the invariants and the metrics of a run. A plain value, not a global table: whoever builds a SimMonitor decides
+	// which checks it carries, so a test can run one invariant alone and another system's lane adds its own to a copy of the defaults.
+	struct SimCheckRegistry
+	{
+		std::vector<SimInvariant> Invariants;
+		std::vector<SimMetricDef> Metrics;
+
+		void Add(SimInvariant invariant) { Invariants.push_back(std::move(invariant)); }
+		void Add(SimMetricDef metric) { Metrics.push_back(std::move(metric)); }
+	};
+
+	// The checks GB ships with. Invariants: counts, claims, stuck, deaths, store, fire, positions, ground, for H7 board and skills, for H11 knowledge,
+	// for H12 expeditions and migration, for H9 + H10 society and for H8 buildings (see the .cpp and docs/QA_SIMULACION.md). Each call returns a
+	// new registry the caller owns and may extend.
+	SimCheckRegistry MakeDefaultSimChecks();
+
+	// Runs its checks over a view and keeps what it found and the metrics. The host calls Step after each simulation step (or every few).
 	class SimMonitor
 	{
 	public:
+		SimMonitor();   // with MakeDefaultSimChecks()
+		explicit SimMonitor(SimCheckRegistry checks) : m_Checks(std::move(checks)) {}
+		const SimCheckRegistry& Checks() const { return m_Checks; }
+
 		void Reset();
 		// Checks every invariant now. Returns how many findings this step made.
 		int Step(const SimView& view);
@@ -180,6 +196,7 @@ namespace GB
 		std::string Describe(size_t max = 12) const;
 	private:
 		void ReadLog(const SimView& view);   // the new lines of the tribe's log into m_Track (and its counters)
+		SimCheckRegistry m_Checks;
 		SimTrack m_Track;
 		std::vector<SimFinding> m_Findings;
 		std::map<std::string, size_t> m_Index;   // check + subject + what -> finding
@@ -210,6 +227,9 @@ namespace GB
 		bool Route(const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points) const override;
 		bool MayPlan() override { return m_Nav.AllowPlan(&m_Ticket); }   // H16: the plan budget, when the run has one (SimSetup::PlanBudget)
 		void Update(float dt);
+		// The walls this body cannot stand in (the world's trunks and rocks): the abstract agent walks straight lines and routes, and a work point
+		// can fall inside a rock's circle, so after each step it is pushed out to the edge, as the character controller of a real actor does.
+		void SetObstacles(const CharacterWorld* world) { m_Obstacles = world; }
 		bool Suspended() const { return m_Suspended; }
 		const Inventory& Carried() const { return m_Bag; }
 	private:
@@ -222,6 +242,7 @@ namespace GB
 		Inventory m_Bag{ 12, 0.0f };
 		NavProfile m_Profile;
 		bool m_Suspended = false;
+		const CharacterWorld* m_Obstacles = nullptr;
 		PlanTicket m_Ticket;
 	};
 

@@ -1,4 +1,5 @@
 #include "EditorApp.h"
+#include "GB/Water/WaterParamInfo.h"
 #include "GB/AI/Needs.h"
 #include "GB/Animation/Character.h"
 #include "GB/Animation/ClipAnalysis.h"
@@ -26,14 +27,15 @@ namespace GB::Editor
 		const WeatherPreset kWeatherPresets[] = { WeatherPreset::Clear, WeatherPreset::LightRain, WeatherPreset::Rain, WeatherPreset::Thunderstorm, WeatherPreset::Snowfall,
 			WeatherPreset::Blizzard, WeatherPreset::Dust, WeatherPreset::Sandstorm, WeatherPreset::Tornado };
 
-		ApplicationConfig MakeConfig()
+		ApplicationConfig MakeConfig(const LaunchOptions& launch)
 		{
 			ApplicationConfig c;
+			c.Launch = launch;
 			c.Title = "GB Editor";
 			// --width=/--height=: a bigger (or smaller) window for a screenshot/record session (--hidden); the panel layout keeps its
 			// proportions (MakeDockLayout), so the viewport grows with it. Unset: the usual 1600x900.
-			c.Width = static_cast<uint32_t>(std::max(320, std::atoi(GetLaunchOptions().GetValue("width", "1600").c_str())));
-			c.Height = static_cast<uint32_t>(std::max(240, std::atoi(GetLaunchOptions().GetValue("height", "900").c_str())));
+			c.Width = static_cast<uint32_t>(std::max(320, std::atoi(launch.GetValue("width", "1600").c_str())));
+			c.Height = static_cast<uint32_t>(std::max(240, std::atoi(launch.GetValue("height", "900").c_str())));
 			c.CreateWindow = true;
 			return c;
 		}
@@ -77,11 +79,11 @@ namespace GB::Editor
 		}
 	}
 
-	EditorApp::EditorApp() : Application(MakeConfig())
+	EditorApp::EditorApp(const LaunchOptions& launch) : Application(MakeConfig(launch))
 	{
 		if (!IsValid())
 			return;
-		const LaunchOptions& options = GetLaunchOptions();
+		const LaunchOptions& options = Options();
 
 		m_Log = std::make_shared<LogBuffer>();
 		m_Log->set_pattern("[%H:%M:%S] %v");
@@ -519,13 +521,8 @@ namespace GB::Editor
 			if (!w) return;
 			const std::string p = std::string("water.") + name + ".";
 			WaterParams& q = w->Params;
-			m_Props.Float(p + "waveHeight", q.WaveHeight, 0.0f, 1.5f, "Water");
-			m_Props.Float(p + "waveLength", q.WaveLength, 1.0f, 40.0f, "Water");
-			m_Props.Float(p + "steepness", q.Steepness, 0.0f, 1.0f, "Water");
-			m_Props.Float(p + "choppiness", q.Choppiness, 0.0f, 3.0f, "Water");
-			m_Props.Float(p + "clarity", q.Clarity, 0.1f, 12.0f, "Water");
-			m_Props.Float(p + "foam", q.Foam, 0.0f, 2.0f, "Water");
-			m_Props.Float(p + "roughness", q.Roughness, 0.01f, 0.6f, "Water");
+			for (const WaterParamField& field : kWaterParamFields)   // the names and ranges live with WaterParams (GB/Water/WaterParamInfo.h)
+				m_Props.Float(p + field.Name, q.*field.Member, field.Min, field.Max, "Water");
 			m_Props.Color(p + "shallow", q.ShallowColor, "Water");
 			m_Props.Color(p + "deep", q.DeepColor, "Water");
 		};
@@ -603,7 +600,7 @@ namespace GB::Editor
 			const SetResult r = m_Props.Set(a[0], value);
 			return { r.Ok, r.Message };
 		});
-		c.Register("generate", "generate <temperate|alpine|desert> [seed] [trees] [rocks] [mesh_detail]: builds a new world (mesh_detail: metres, WorldDesc::MeshDetail, <= 0 off)", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("generate", "generate <temperate|alpine|desert> [seed] [trees] [rocks] [mesh_detail] [erosion] [generator] (a dash keeps an argument as it is; generator: 1 to the newest, to see the water of an older one): builds a new world (mesh_detail: metres, WorldDesc::MeshDetail, <= 0 off; erosion: 0/1, WorldDesc::Erosion, default on)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			WorldDesc d = m_WorldDesc;
 			d.GeneratorVersion = kWorldGeneratorLatest;   // a new world uses the newest generator (a loaded game keeps the version it was made with)
@@ -615,10 +612,19 @@ namespace GB::Editor
 				else if (t == "desert") d.Type = WorldType::Desert;
 				else return { false, "unknown world type '" + a[0] + "' (temperate, alpine, desert)" };
 			}
-			if (a.size() > 1) d.Seed = static_cast<uint32_t>(std::atoi(a[1].c_str()));
-			if (a.size() > 2) d.TreeBudget = std::max(0, std::atoi(a[2].c_str()));
-			if (a.size() > 3) d.RockBudget = std::max(0, std::atoi(a[3].c_str()));
-			if (a.size() > 4) d.MeshDetail = static_cast<float>(std::atof(a[4].c_str()));
+			auto given = [&](size_t i) { return a.size() > i && a[i] != "-"; };   // "-" keeps the current value of that argument
+			if (given(1)) d.Seed = static_cast<uint32_t>(std::atoi(a[1].c_str()));
+			if (given(2)) d.TreeBudget = std::max(0, std::atoi(a[2].c_str()));
+			if (given(3)) d.RockBudget = std::max(0, std::atoi(a[3].c_str()));
+			if (given(4)) d.MeshDetail = static_cast<float>(std::atof(a[4].c_str()));
+			if (given(5)) d.Erosion = std::atoi(a[5].c_str()) != 0;
+			if (given(6))
+			{
+				const int version = std::atoi(a[6].c_str());
+				if (version < static_cast<int>(kWorldGeneratorV1) || version > static_cast<int>(kWorldGeneratorLatest))
+					return { false, "generator " + a[6] + " does not exist (1 to " + std::to_string(kWorldGeneratorLatest) + ")" };
+				d.GeneratorVersion = static_cast<uint32_t>(version);   // an old generator makes the world it always made
+			}
 			BuildWorld(d);
 			return { true, "world generated (seed " + std::to_string(d.Seed) + ")" };
 		});
@@ -641,10 +647,38 @@ namespace GB::Editor
 			SetQuality(a[0]);
 			return { true, "" };
 		});
-		c.Register("camera", "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera free | top | follow [member]: walk over the ground with WASD (Q/E turn, Shift runs, the wheel zooms to the cursor), look straight down, or orbit a tribe member (keys F and T in the viewport). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("camera", "camera <yaw> <pitch> <distance> [x y z]: places the orbit camera (angles in degrees). camera lake|river [yaw pitch distance]: frames the water of the world. camera free | top | follow [member]: walk over the ground with WASD (Q/E turn, Shift runs, the wheel zooms to the cursor), look straight down, or orbit a tribe member (keys F and T in the viewport). camera game follow [actor] | overview [x z [distance]] | observe [actor...|all] | off: the game cameras (H19)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!a.empty() && a[0] == "game")
 				return m_GameView.Command(std::vector<std::string>(a.begin() + 1, a.end()), m_Actors, m_Player, m_World, m_Camera);
+			if (!a.empty() && (a[0] == "lake" || a[0] == "river"))
+			{
+				// camera lake|river [yaw pitch distance]: frames the water body (reproducible shots for water QA)
+				const Terrain& t = m_World.GetTerrain();
+				glm::vec3 target;
+				float distance;
+				if (a[0] == "lake")
+				{
+					if (!t.HasLake()) return { false, "this world has no lake" };
+					target = { t.GetLakeCenter().x, t.GetWaterLevel(), t.GetLakeCenter().y };
+					distance = t.GetLakeRadius() * 2.4f;
+				}
+				else
+				{
+					const RiverData* r = t.GetRiver();
+					if (!r) return { false, "this world has no river" };
+					target = r->Points[r->Points.size() * 7 / 10];   // 70 % of the way down: where the river has widened, not its spring
+					distance = 38.0f;
+				}
+				if (m_GameView.Active()) m_GameView.Command({ "off" }, m_Actors, m_Player, m_World, m_Camera);
+				m_Orbit.Yaw = glm::radians(a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : 35.0f);
+				m_Orbit.Pitch = glm::radians(a.size() > 2 ? static_cast<float>(std::atof(a[2].c_str())) : 28.0f);
+				m_Orbit.Distance = a.size() > 3 ? static_cast<float>(std::atof(a[3].c_str())) : distance;
+				m_Orbit.Target = target;
+				char where[96];
+				std::snprintf(where, sizeof(where), " (target %.2f %.2f %.2f, distance %.1f)", static_cast<double>(target.x), static_cast<double>(target.y), static_cast<double>(target.z), static_cast<double>(m_Orbit.Distance));
+				return { true, "camera on the " + a[0] + where };
+			}
 			if (!a.empty() && a[0] == "free") return SetCamMode(CamMode::Free);
 			if (!a.empty() && (a[0] == "top" || a[0] == "topdown")) return SetCamMode(CamMode::TopDown);
 			if (!a.empty() && a[0] == "follow") return SetCamMode(CamMode::Follow, a.size() > 1 ? a[1] : std::string());
@@ -1230,7 +1264,7 @@ namespace GB::Editor
 		{
 			m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
 			StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
-			if (m_Player.IsActive()) m_Player.BeginFrame(dt, (m_ViewportHovered || m_Game.Active) && !io.WantTextInput && m_GameView.CharacterKeys());
+			if (m_Player.IsActive()) m_Player.BeginFrame(GetInput(), dt, (m_ViewportHovered || m_Game.Active) && !io.WantTextInput && m_GameView.CharacterKeys());
 			if (m_Player.IsActive()) m_Actors.SetViewer(m_Camera.Position);
 			if (m_Player.IsActive()) m_Actors.Update(dt);   // (with no player the actors move in the fixed tick: EditorSaveHost::Step)
 		}
@@ -1249,7 +1283,7 @@ namespace GB::Editor
 		}
 		else if (!m_GameView.Active())
 		{
-			if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt);
+			if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt, GetInput());
 			if (m_CamMode == CamMode::Follow)   // the target eases to the member; dragging still orbits it
 			{
 				const Actor* actor = m_Actors.Find(m_FollowMember);
@@ -1262,7 +1296,7 @@ namespace GB::Editor
 		}
 		if (m_GameView.Active())   // a game camera (camera game ...) owns the view; shadows and weather centre on what it looks at
 		{
-			m_GameView.Update(dt, m_ViewportHovered && !io.WantTextInput, m_Actors, m_Player, m_World, m_Camera);
+			m_GameView.Update(GetInput(), dt, m_ViewportHovered && !io.WantTextInput, m_Actors, m_Player, m_World, m_Camera);
 			if (!m_Player.IsActive()) m_Orbit.Target = m_GameView.Focus();
 		}
 		ApplyTimeOfDay();

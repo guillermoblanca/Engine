@@ -779,7 +779,7 @@ namespace GB
 			if (t.From.empty() || t.To.empty()) { error(at + ": needs both ends"); continue; }
 			if (!playsSomething(t.From, t.Skeleton)) error(at + ": '" + t.From + "' plays nothing (no way out)");
 			if (!playsSomething(t.To, t.Skeleton)) error(at + ": '" + t.To + "' plays nothing (it goes nowhere)");
-			if (t.From == t.To) warn(at + ": goes from an end to itself");
+			if (t.From == t.To && t.From != "*") warn(at + ": goes from an end to itself");   // ("* -> *" is the default blend for every pair, not a loop)
 			if (!(t.Duration >= 0.0f)) error(at + ": the duration cannot be negative");
 			else if (t.Duration > 3.0f) warn(at + ": a blend longer than 3 s");
 			if (!pairs.insert(t.From + ">" + t.To + "|" + Lower(t.Skeleton)).second) warn(at + ": repeated (the last one wins)");

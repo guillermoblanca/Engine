@@ -1,6 +1,7 @@
 #include "Terrain.h"
 #include "GB/Log.h"
 #include "GB/Renderer/Image.h"
+#include "GB/Water/WaterCarver.h"
 #include <algorithm>
 #include <cmath>
 
@@ -172,6 +173,9 @@ namespace GB
 		t->m_ShoreMargin = std::max(p.ShoreMarginCells, 0);
 		t->m_DetailThreshold = p.DetailThreshold;
 		Heightmap& hm = t->m_Heightmap;
+		LakeShape lake;
+		lake.Center = p.LakeCenter; lake.Radius = p.LakeRadius; lake.Depth = p.LakeDepth; lake.Level = p.WaterLevel; lake.BankSlope = p.LakeBankSlope;
+		lake.Outline = MakeLakeOutline(p.Seed, p.LakeIrregularity);
 		for (uint32_t j = 0; j < hm.GetResolution(); ++j)
 		{
 			for (uint32_t i = 0; i < hm.GetResolution(); ++i)
@@ -181,201 +185,29 @@ namespace GB
 				n = glm::clamp((n - 0.25f) / 0.6f, 0.0f, 1.0f);
 				n = glm::mix(n, n * n * (3.0f - 2.0f * n), p.Flatten + 0.35f);   // rounded hilltops, flatter valleys
 				float h = n * p.Height;
-				if (p.LakeRadius > 0.0f)
-				{
-					const float d = glm::length(pos - p.LakeCenter);
-					if (p.LakeBankSlope > 0.0f)
-					{
-						// Hills above the basin are cut down to a cone that rises at most LakeBankSlope away from the shore (smooth minimum,
-						// fading out far from the lake): the water gets a gentle bank, not a cliff.
-						const float cone = p.WaterLevel + 0.45f + std::max(d - p.LakeRadius, 0.0f) * p.LakeBankSlope;
-						const float k = 2.0f, m = std::max(k - std::abs(h - cone), 0.0f) / k;
-						const float cut = std::min(h, cone) - m * m * k * 0.25f;
-						h = glm::mix(cut, h, glm::smoothstep(p.LakeRadius * 3.0f, p.LakeRadius * 5.0f, d));
-					}
-					// Banks: lift the ground near the lake above the water, then dig the basin.
-					const float bank = glm::smoothstep(p.LakeRadius * 2.8f, p.LakeRadius * 1.5f, d);
-					h = glm::mix(h, glm::max(h, p.WaterLevel + 0.45f), bank);
-					const float basin = glm::smoothstep(p.LakeRadius * 1.15f, p.LakeRadius * 0.15f, d);
-					h = glm::mix(h, p.WaterLevel - p.LakeDepth, basin);
-				}
+				if (lake.Radius > 0.0f) h = ApplyLakeBasin(h, pos, lake);   // the basin and its banks (GB/Water/WaterCarver.h)
 				hm.At(i, j) = h;
 			}
 		}
-		if (!p.RiverPath.empty() && p.RiverPath.size() >= 2)
-			t->CarveRiver(p);
-		if (p.LakeRadius > 0.0f)
+		if (p.RiverPath.size() >= 2)
 		{
-			t->m_HasLake = true;
-			t->m_WaterLevel = p.WaterLevel;
-			t->m_LakeCenter = p.LakeCenter;
-			t->m_LakeRadius = p.LakeRadius;
+			RiverShape river;
+			river.Path = p.RiverPath; river.Width = p.RiverWidth; river.Depth = p.RiverDepth; river.Discharge = p.RiverDischarge;
+			t->m_Water.SetRiver(CarveRiver(hm, river, lake));
 		}
+		if (p.LakeRadius > 0.0f)
+			t->m_Water.SetLake({ true, p.LakeCenter, p.LakeRadius, p.WaterLevel, lake.Outline });
 		t->Finish(style, gpu);
 		return t;
 	}
 
 	// ------------------------------------------------------------------ river
-	namespace
-	{
-		constexpr float kMouthLength = 16.0f;   // meters over which a river blends into the lake it flows into
-
-		glm::vec2 CatmullRom(const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2, const glm::vec2& p3, float t)
-		{
-			const float t2 = t * t, t3 = t2 * t;
-			return 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
-		}
-	}
-
-	void Terrain::CarveRiver(const HillParams& p)
-	{
-		Heightmap& hm = m_Heightmap;
-		// Dense polyline, about 1.5 m apart.
-		std::vector<glm::vec2> pts;
-		const auto& c = p.RiverPath;
-		for (size_t i = 0; i + 1 < c.size(); ++i)
-		{
-			const glm::vec2 p0 = c[i == 0 ? 0 : i - 1], p1 = c[i], p2 = c[i + 1], p3 = c[std::min(i + 2, c.size() - 1)];
-			const int n = std::max(2, static_cast<int>(glm::length(p2 - p1) / 1.5f));
-			for (int k = 0; k < n; ++k) pts.push_back(CatmullRom(p0, p1, p2, p3, static_cast<float>(k) / static_cast<float>(n)));
-		}
-		pts.push_back(c.back());
-		const int n = static_cast<int>(pts.size());
-
-		// Water level: follows the (smoothed) ground but only ever goes down.
-		std::vector<float> base(static_cast<size_t>(n)), level(static_cast<size_t>(n));
-		for (int i = 0; i < n; ++i) base[static_cast<size_t>(i)] = hm.GetHeight(pts[static_cast<size_t>(i)].x, pts[static_cast<size_t>(i)].y);
-		for (int i = 0; i < n; ++i)
-		{
-			float sum = 0.0f; int cnt = 0;
-			for (int k = std::max(0, i - 12); k <= std::min(n - 1, i + 12); ++k) { sum += base[static_cast<size_t>(k)]; ++cnt; }
-			const float smooth = sum / static_cast<float>(cnt) - p.RiverDepth * 0.3f;
-			level[static_cast<size_t>(i)] = i == 0 ? smooth : std::min(smooth, level[static_cast<size_t>(i) - 1] - 0.0045f * 1.5f);
-		}
-		if (p.LakeRadius > 0.0f)
-		{
-			// Near the lake the river comes down to the lake level (at most ~0.35 m of drop per meter), cutting a channel through the bank.
-			for (int i = 0; i < n; ++i)
-			{
-				const float dist = glm::length(pts[static_cast<size_t>(i)] - p.LakeCenter);
-				level[static_cast<size_t>(i)] = std::min(level[static_cast<size_t>(i)], p.WaterLevel + std::max(dist - p.LakeRadius, 0.0f) * 0.35f);
-				if (i > 0) level[static_cast<size_t>(i)] = std::min(level[static_cast<size_t>(i)], level[static_cast<size_t>(i) - 1] - 0.0045f * 1.5f);
-			}
-			// The river meets the lake at exactly the lake level (no step where the two surfaces overlap); never below it before that.
-			for (int i = 0; i < n; ++i)
-				level[static_cast<size_t>(i)] = glm::length(pts[static_cast<size_t>(i)] - p.LakeCenter) <= p.LakeRadius ? p.WaterLevel : std::max(level[static_cast<size_t>(i)], p.WaterLevel);
-			for (int i = n - 2; i >= 0; --i)
-				level[static_cast<size_t>(i)] = std::max(level[static_cast<size_t>(i)], level[static_cast<size_t>(i) + 1]);
-		}
-		m_River.HalfWidth = p.RiverWidth * 0.5f;
-		m_River.Depth = p.RiverDepth;
-		for (int i = 0; i < n; ++i)
-		{
-			m_River.Points.push_back({ pts[static_cast<size_t>(i)].x, level[static_cast<size_t>(i)], pts[static_cast<size_t>(i)].y });
-			const int a = std::max(0, i - 6), b = std::min(n - 1, i + 6);
-			const float run = std::max(glm::length(pts[static_cast<size_t>(b)] - pts[static_cast<size_t>(a)]), 1e-3f);
-			const float slope = (level[static_cast<size_t>(a)] - level[static_cast<size_t>(b)]) / run;
-			float speed = glm::clamp(0.9f + 18.0f * slope, 0.9f, 4.5f);
-			if (p.LakeRadius > 0.0f)   // the current dies down as the river reaches the still water of the lake
-				speed *= glm::smoothstep(p.LakeRadius * 0.9f, p.LakeRadius + kMouthLength, glm::length(pts[static_cast<size_t>(i)] - p.LakeCenter));
-			m_River.Speed.push_back(speed);
-		}
-		m_River.MouthLength = p.LakeRadius > 0.0f ? kMouthLength : 0.0f;
-
-		// Carve the valley: V-shaped slopes down to a flat bed, banks kept above the water.
-		const float w = m_River.HalfWidth, reach = w * 6.0f;
-		glm::vec2 lo(1e9f), hi(-1e9f);
-		for (const glm::vec2& q : pts) { lo = glm::min(lo, q); hi = glm::max(hi, q); }
-		for (uint32_t j = 0; j < hm.GetResolution(); ++j)
-		{
-			for (uint32_t i = 0; i < hm.GetResolution(); ++i)
-			{
-				const glm::vec2 pos = hm.SamplePosition(i, j);
-				if (pos.x < lo.x - reach || pos.x > hi.x + reach || pos.y < lo.y - reach || pos.y > hi.y + reach) continue;
-				float bestD = 1e9f, bestLevel = 0.0f;
-				for (int k = 0; k + 1 < n; ++k)
-				{
-					const glm::vec2 a = pts[static_cast<size_t>(k)], ab = pts[static_cast<size_t>(k) + 1] - a;
-					const float tt = glm::clamp(glm::dot(pos - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
-					const float d = glm::length(pos - (a + ab * tt));
-					if (d < bestD) { bestD = d; bestLevel = glm::mix(level[static_cast<size_t>(k)], level[static_cast<size_t>(k) + 1], tt); }
-				}
-				if (bestD > reach) continue;
-				const float bed = bestLevel - p.RiverDepth;
-				const float cap = bed + std::max(bestD - w * 0.55f, 0.0f) * 0.6f;                              // valley wall
-				const float bank = bestLevel + 0.4f * glm::smoothstep(w * 0.7f, w * 1.4f, bestD);            // never below the water on land
-				float h = hm.At(i, j);
-				// Hills above the valley wall are cut down to it, with the cut fading out toward `reach` (a hard stop there left a cliff along the whole river).
-				h -= std::max(h - cap, 0.0f) * (1.0f - glm::smoothstep(reach * 0.5f, reach, bestD));
-				// The raised bank must not fill the lake basin where the river arrives (it would cut the lake with a flat shelf and a cliff).
-				const float lakeFree = p.LakeRadius > 0.0f ? glm::smoothstep(p.LakeRadius * 0.85f, p.LakeRadius * 1.2f, glm::length(pos - p.LakeCenter)) : 1.0f;
-				if (bestD > w * 0.7f) h = glm::mix(h, std::max(h, bank), lakeFree * (1.0f - glm::smoothstep(reach * 0.62f, reach, bestD)));   // fades out toward `reach` (a hard stop left a dam along the river)
-				hm.At(i, j) = h;
-			}
-		}
-	}
-
+	// The river itself (carving, queries) is GB/Water; only the question that needs the ground stays here.
 	float Terrain::GetRiverLevelAt(float x, float z) const
 	{
-		if (m_River.Points.empty()) return -1e9f;
-		float bestD = 1e9f, bestLevel = -1e9f;
-		const auto& P = m_River.Points;
-		for (size_t k = 0; k + 1 < P.size(); ++k)
-		{
-			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
-			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
-			const float d = glm::length(glm::vec2(x, z) - (a + ab * tt));
-			if (d < bestD) { bestD = d; bestLevel = glm::mix(P[k].y, P[k + 1].y, tt); }
-		}
-		return bestD <= m_River.HalfWidth * 1.2f && m_Heightmap.GetHeight(x, z) < bestLevel ? bestLevel : -1e9f;
+		const RiverSample s = m_Water.NearestRiver(x, z);
+		return m_Water.InRiverBand(s) && m_Heightmap.GetHeight(x, z) < s.Level ? s.Level : kNoWaterLevel;
 	}
-
-	float Terrain::GetRiverSurfaceLevel(float x, float z) const
-	{
-		float bestD = 1e9f, lvl = -1e9f;
-		const auto& P = m_River.Points;
-		for (size_t k = 0; k + 1 < P.size(); ++k)
-		{
-			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
-			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
-			const float d = glm::length(glm::vec2(x, z) - (a + ab * tt));
-			if (d < bestD) { bestD = d; lvl = glm::mix(P[k].y, P[k + 1].y, tt); }
-		}
-		return lvl;
-	}
-
-	float Terrain::DistanceToRiver(float x, float z) const
-	{
-		float best = 1e9f;
-		const auto& P = m_River.Points;
-		for (size_t k = 0; k + 1 < P.size(); ++k)
-		{
-			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
-			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
-			best = std::min(best, glm::length(glm::vec2(x, z) - (a + ab * tt)));
-		}
-		return best;
-	}
-
-	glm::vec2 Terrain::GetRiverFlow(float x, float z) const
-	{
-		if (m_River.Points.empty()) return glm::vec2(0.0f);
-		float bestD = 1e9f;
-		glm::vec2 dir(0.0f);
-		float speed = 0.0f;
-		const auto& P = m_River.Points;
-		for (size_t k = 0; k + 1 < P.size(); ++k)
-		{
-			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
-			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
-			const float d = glm::length(glm::vec2(x, z) - (a + ab * tt));
-			if (d < bestD) { bestD = d; dir = ab; speed = glm::mix(m_River.Speed[k], m_River.Speed[k + 1], tt); }
-		}
-		if (bestD > m_River.HalfWidth * 1.1f || glm::length(dir) < 1e-6f) return glm::vec2(0.0f);
-		const float edge = glm::clamp(bestD / m_River.HalfWidth, 0.0f, 1.0f);
-		return glm::normalize(dir) * speed * (1.0f - 0.65f * edge * edge);
-	}
-
 	// ------------------------------------------------------------------ shore refinement
 	// The grid is uniform, so where the water meets the ground (lake shore, river banks) the waterline follows its
 	// ~0.5 m cells and looks stepped. Cells there are split N x N and the new vertices sit on a smooth cubic surface
@@ -454,27 +286,29 @@ namespace GB
 		auto cellAt = [&](int ci, int cj) -> uint8_t& { return flags[static_cast<size_t>(cj) * static_cast<size_t>(cells) + static_cast<size_t>(ci)]; };
 		auto center = [&](int ci, int cj) { return lo + (glm::vec2(static_cast<float>(ci), static_cast<float>(cj)) + 0.5f) * s; };
 
-		if (m_HasLake)   // cells whose heights straddle the lake level, near the lake
+		if (m_Water.HasLake())   // cells whose heights straddle the lake level, near the lake
 		{
-			const float reach = m_LakeRadius * 1.8f + s;
-			const int c0 = std::max(0, static_cast<int>((m_LakeCenter.x - reach - lo.x) / s)), c1 = std::min(cells - 1, static_cast<int>((m_LakeCenter.x + reach - lo.x) / s));
-			const int r0 = std::max(0, static_cast<int>((m_LakeCenter.y - reach - lo.y) / s)), r1 = std::min(cells - 1, static_cast<int>((m_LakeCenter.y + reach - lo.y) / s));
+			const float reach = m_Water.LakeRadius() * 1.8f + s;
+			const int c0 = std::max(0, static_cast<int>((m_Water.LakeCenter().x - reach - lo.x) / s)), c1 = std::min(cells - 1, static_cast<int>((m_Water.LakeCenter().x + reach - lo.x) / s));
+			const int r0 = std::max(0, static_cast<int>((m_Water.LakeCenter().y - reach - lo.y) / s)), r1 = std::min(cells - 1, static_cast<int>((m_Water.LakeCenter().y + reach - lo.y) / s));
 			for (int cj = r0; cj <= r1; ++cj)
 				for (int ci = c0; ci <= c1; ++ci)
 				{
-					if (glm::length(center(ci, cj) - m_LakeCenter) > reach) continue;
+					if (glm::length(center(ci, cj) - m_Water.LakeCenter()) > reach) continue;
 					const float a = hm.At(ci, cj), b = hm.At(ci + 1, cj), c = hm.At(ci, cj + 1), d = hm.At(ci + 1, cj + 1);
 					const float lowest = std::min(std::min(a, b), std::min(c, d)), highest = std::max(std::max(a, b), std::max(c, d));
-					if (lowest <= m_WaterLevel + 0.6f && highest >= m_WaterLevel - 0.6f)
+					if (lowest <= m_Water.LakeLevel() + 0.6f && highest >= m_Water.LakeLevel() - 0.6f)
 						cellAt(ci, cj) = 1;
 				}
 		}
-		if (!m_River.Points.empty())   // the bank zone on both sides of the river axis
+		if (const RiverData* river = m_Water.River())   // the bank zone on both sides of the river axis
 		{
-			const float inner = m_River.HalfWidth * 0.5f, outer = m_River.HalfWidth * 1.8f + s;
-			const auto& P = m_River.Points;
+			const auto& P = river->Points;
 			for (size_t k = 0; k + 1 < P.size(); ++k)
 			{
+				// the bank zone of this segment: a river that widens downstream has a wider one there (its widest end decides)
+				const float hw = std::max(river->HalfWidthAt(k, 0.0f), river->HalfWidthAt(k, 1.0f));
+				const float inner = hw * 0.5f, outer = hw * 1.8f + s;
 				const glm::vec2 a(P[k].x, P[k].z), b(P[k + 1].x, P[k + 1].z), ab = b - a;
 				const glm::vec2 bmin = glm::min(a, b) - outer, bmax = glm::max(a, b) + outer;
 				const int c0 = std::max(0, static_cast<int>((bmin.x - lo.x) / s)), c1 = std::min(cells - 1, static_cast<int>((bmax.x - lo.x) / s));
@@ -854,9 +688,9 @@ namespace GB
 	std::function<float(float, float)> Terrain::MakeGroundFunction(bool waterIsGround) const
 	{
 		const Heightmap* hm = &m_Heightmap;
-		if (waterIsGround && m_HasLake)
+		if (waterIsGround && m_Water.HasLake())
 		{
-			const float level = m_WaterLevel;
+			const float level = m_Water.LakeLevel();
 			return [hm, level](float x, float z) { return std::max(hm->GetHeight(x, z), level); };
 		}
 		return [hm](float x, float z) { return hm->GetHeight(x, z); };

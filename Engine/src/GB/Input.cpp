@@ -4,74 +4,66 @@
 
 namespace GB
 {
-	static GLFWwindow* s_Window = nullptr;
-
-	static double s_LastX = 0.0, s_LastY = 0.0, s_DeltaX = 0.0, s_DeltaY = 0.0;
-	static bool s_HasLast = false;
-	static float s_Scroll = 0.0f;
-
-	void Input::Bind(GLFWwindow* window)
+	void GlfwInput::Bind(GLFWwindow* window)
 	{
-		s_Window = window;
-		s_HasLast = false;
-		s_DeltaX = s_DeltaY = 0.0;
-		s_Scroll = 0.0f;
+		m_Window = window;
+		m_HasLast = false;
+		m_DeltaX = m_DeltaY = 0.0;
+		m_Scroll = 0.0f;
 	}
 
-	void Input::NewFrame() { s_Scroll = 0.0f; }
-	void Input::AddScroll(float amount) { s_Scroll += amount; }
-	float Input::GetScrollDelta() { return s_Scroll; }
-	std::pair<double, double> Input::GetMouseDelta() { return { s_DeltaX, s_DeltaY }; }
-
-	void Input::PostPoll()
+	void GlfwInput::PostPoll()
 	{
-		if (!s_Window)
+		if (!m_Window)
 			return;
 		double x = 0.0, y = 0.0;
-		glfwGetCursorPos(s_Window, &x, &y);
-		s_DeltaX = s_HasLast ? x - s_LastX : 0.0;
-		s_DeltaY = s_HasLast ? y - s_LastY : 0.0;
-		s_LastX = x;
-		s_LastY = y;
-		s_HasLast = true;
+		glfwGetCursorPos(m_Window, &x, &y);
+		m_DeltaX = m_HasLast ? x - m_LastX : 0.0;
+		m_DeltaY = m_HasLast ? y - m_LastY : 0.0;
+		m_LastX = x;
+		m_LastY = y;
+		m_HasLast = true;
 	}
 
-	bool Input::IsKeyDown(Key key)
+	bool GlfwInput::IsKeyDown(Key key) const
 	{
-		return s_Window && glfwGetKey(s_Window, static_cast<int>(key)) == GLFW_PRESS;
+		return m_Window && glfwGetKey(m_Window, static_cast<int>(key)) == GLFW_PRESS;
 	}
 
-	bool Input::IsMouseDown(MouseButton button)
+	bool GlfwInput::IsMouseDown(MouseButton button) const
 	{
-		return s_Window && glfwGetMouseButton(s_Window, static_cast<int>(button)) == GLFW_PRESS;
+		return m_Window && glfwGetMouseButton(m_Window, static_cast<int>(button)) == GLFW_PRESS;
 	}
 
-	std::pair<double, double> Input::GetMousePosition()
+	std::pair<double, double> GlfwInput::GetMousePosition() const
 	{
 		double x = 0.0, y = 0.0;
-		if (s_Window)
-			glfwGetCursorPos(s_Window, &x, &y);
+		if (m_Window)
+			glfwGetCursorPos(m_Window, &x, &y);
 		return { x, y };
 	}
 
-	static bool ReadPad(int pad, GLFWgamepadstate& state)
+	namespace
 	{
-		return pad >= 0 && pad <= GLFW_JOYSTICK_LAST &&
-			glfwJoystickIsGamepad(pad) && glfwGetGamepadState(pad, &state);
+		bool ReadPad(int pad, GLFWgamepadstate& state)
+		{
+			return pad >= 0 && pad <= GLFW_JOYSTICK_LAST &&
+				glfwJoystickIsGamepad(pad) && glfwGetGamepadState(pad, &state);
+		}
 	}
 
-	bool Input::IsGamepadConnected(int pad)
+	bool GlfwInput::IsGamepadConnected(int pad) const
 	{
 		return pad >= 0 && pad <= GLFW_JOYSTICK_LAST && glfwJoystickIsGamepad(pad);
 	}
 
-	bool Input::IsGamepadButtonDown(GamepadButton button, int pad)
+	bool GlfwInput::IsGamepadButtonDown(GamepadButton button, int pad) const
 	{
 		GLFWgamepadstate state;
 		return ReadPad(pad, state) && state.buttons[static_cast<int>(button)] == GLFW_PRESS;
 	}
 
-	float Input::GetGamepadAxis(GamepadAxis axis, int pad, float deadzone)
+	float GlfwInput::GetGamepadAxis(GamepadAxis axis, int pad, float deadzone) const
 	{
 		GLFWgamepadstate state;
 		if (!ReadPad(pad, state))

@@ -167,7 +167,7 @@ con color y tamaño: ciervo, jabalí; `rabbit` pequeño para el urogallo); el zo
 - La sección `ai` de la tribu lleva `social` (opcional): ánimo, duelo, dietas, agenda y rito en curso, creencias, lugar sagrado, chamán,
   trampas, primeras cazas y contadores. Una partida anterior carga sin nada de eso.
 - Editor: `social status [nombre]`, `rite list | start <rito> [sujeto]`, `belief status`, `hunt status`; sección **Social life** del panel Tribe.
-- QA (`SimInvariants`, `social`): ánimo y duelo en 0..1; los asistentes de un rito están vivos; ningún rito dura más de su máximo; el almacén
+- QA (`MakeDefaultSimChecks`, `social`): ánimo y duelo en 0..1; los asistentes de un rito están vivos; ningún rito dura más de su máximo; el almacén
   nunca negativo; las trampas apuntan a animales de su etiqueta.
 
 ## 11. Tests

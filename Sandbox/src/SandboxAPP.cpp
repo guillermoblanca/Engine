@@ -43,12 +43,12 @@
 class Sandbox : public GB::Application
 {
 public:
-	Sandbox() : GB::Application(MakeConfig())
+	explicit Sandbox(const GB::LaunchOptions& launch) : GB::Application(MakeConfig(launch))
 	{
 		if (!IsValid())
 			return;
 
-		const GB::LaunchOptions& options = GB::GetLaunchOptions();
+		const GB::LaunchOptions& options = Options();
 		ParseQuality(options);
 		m_Renderer = std::make_unique<GB::Renderer>(GetWindow()->GetWidth(), GetWindow()->GetHeight(), m_MsaaSamples, m_ShadowSize);
 		if (!m_Renderer->IsValid())
@@ -130,7 +130,7 @@ protected:
 	{
 		using GB::Key;
 		m_FrameDt = dt;
-		const bool cameraKey = GB::Input::IsKeyDown(Key::C) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::Y);
+		const bool cameraKey = GetInput().IsKeyDown(Key::C) || GetInput().IsGamepadButtonDown(GB::GamepadButton::Y);
 		if (cameraKey && !m_CameraKeyWasDown)
 			SwitchCamera((m_CameraMode + 1) % CameraModeCount(), true);
 		m_CameraKeyWasDown = cameraKey;
@@ -140,12 +140,12 @@ protected:
 			static const char* names[9] = { "clear", "lightrain", "rain", "storm", "snow", "blizzard", "dust", "sandstorm", "tornado" };
 			for (int i = 0; i < 9; ++i)
 			{
-				const bool down = GB::Input::IsKeyDown(static_cast<Key>(static_cast<int>(Key::D1) + i));
+				const bool down = GetInput().IsKeyDown(static_cast<Key>(static_cast<int>(Key::D1) + i));
 				if (down && !m_WeatherKeyWasDown[i])
 					ApplyWeatherPreset(names[i], false);
 				m_WeatherKeyWasDown[i] = down;
 			}
-			const bool strike = GB::Input::IsKeyDown(Key::L);
+			const bool strike = GetInput().IsKeyDown(Key::L);
 			if (strike && !m_StrikeKeyWasDown)
 				m_Weather->GetLightning().Strike();
 			m_StrikeKeyWasDown = strike;
@@ -157,29 +157,29 @@ protected:
 		if (!m_Particles.empty() && !m_Terrain)   // (the desert scene updates its own particle systems)
 		{
 			UpdateParticles(dt);
-			const bool boom = GB::Input::IsKeyDown(Key::B);
+			const bool boom = GetInput().IsKeyDown(Key::B);
 			if (boom && !m_BoomKeyWasDown && m_Explosion)
 				m_Explosion->Burst(110);
 			m_BoomKeyWasDown = boom;
 		}
 
 		if (m_CameraMode == 0 && m_Player)
-			m_PlayerCam.ReadInput(dt);   // (the orbit camera would also turn on WASD)
+			m_PlayerCam.ReadInput(GetInput(), dt);   // (the orbit camera would also turn on WASD)
 		else if (m_CameraMode == 0)
-			m_Orbit.Update(dt);
+			m_Orbit.Update(dt, GetInput());
 		else if (m_CameraMode == 1)
-			m_Fly.Update(dt);
+			m_Fly.Update(dt, GetInput());
 		if (m_BlendT < 1.0f)
 			m_BlendT = std::min(1.0f, m_BlendT + dt / 0.6f);
 
 		if (m_Instance)
 		{
-			const bool space = GB::Input::IsKeyDown(Key::Space) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::A);
+			const bool space = GetInput().IsKeyDown(Key::Space) || GetInput().IsGamepadButtonDown(GB::GamepadButton::A);
 			if (space && !m_SpaceWasDown)
 				m_Instance->SetPaused(!m_Instance->IsPaused());
 			m_SpaceWasDown = space;
 			for (int i = 0; i < 9; ++i)
-				if (GB::Input::IsKeyDown(static_cast<Key>(static_cast<int>(Key::D1) + i)))
+				if (GetInput().IsKeyDown(static_cast<Key>(static_cast<int>(Key::D1) + i)))
 					m_Instance->Play(i, true, 0.3f);
 			if (m_Playlist.size() > 1 && !m_Instance->IsPaused())
 			{
@@ -196,7 +196,7 @@ protected:
 		if (m_CameraMode == 0)
 			m_Orbit.Yaw += m_OrbitSpeed * dt;
 
-		if (GB::Input::IsKeyDown(Key::Escape) || GB::Input::IsGamepadButtonDown(GB::GamepadButton::Back))
+		if (GetInput().IsKeyDown(Key::Escape) || GetInput().IsGamepadButtonDown(GB::GamepadButton::Back))
 			Close();
 	}
 
@@ -272,14 +272,15 @@ private:
 			: "glTF '" + m_Model->GetCameras()[mode - 2].Name + "'");
 	}
 
-	static GB::ApplicationConfig MakeConfig()
+	static GB::ApplicationConfig MakeConfig(const GB::LaunchOptions& launch)
 	{
 		GB::ApplicationConfig config;
+		config.Launch = launch;
 		config.Title = "GB Sandbox - PBR";
 		config.Width = 1600;
 		config.Height = 900;
 		unsigned w = 0, h = 0;
-		if (std::sscanf(GB::GetLaunchOptions().GetValue("size").c_str(), "%ux%u", &w, &h) == 2 && w > 0 && h > 0)
+		if (std::sscanf(launch.GetValue("size").c_str(), "%ux%u", &w, &h) == 2 && w > 0 && h > 0)
 		{
 			config.Width = w;
 			config.Height = h;
@@ -1059,7 +1060,7 @@ private:
 	// lanterns that light up at dusk, and a camera that moves between shots. Everything loops every 100 s.
 	void BuildShowcaseScene()
 	{
-		GB::LaunchOptions& options = GB::GetLaunchOptions();
+		GB::LaunchOptions& options = Options();
 		auto fallback = [&](const char* arg)
 		{
 			const std::string a(arg);
@@ -1281,7 +1282,7 @@ private:
 	void UpdateDestructionTriggers(float)
 	{
 		using GB::Key;
-		const bool x = GB::Input::IsKeyDown(Key::X), f = GB::Input::IsKeyDown(Key::F);
+		const bool x = GetInput().IsKeyDown(Key::X), f = GetInput().IsKeyDown(Key::F);
 		if (x && !m_BlastKeyWasDown)
 			Blast(m_Orbit.Target + glm::vec3(0.0f, -1.0f, 0.0f), 9.0f, 22.0f);
 		if (f && !m_FireKeyWasDown)
@@ -1671,7 +1672,7 @@ private:
 				m_PlayerClock += dt;
 			}
 			else if (m_CameraMode == 0)
-				in = GB::ReadCharacterInput(m_PlayerCam.Yaw);
+				in = GB::ReadCharacterInput(GetInput(), m_PlayerCam.Yaw);
 		}
 		m_PlayerCtl.Step(in, m_PlayerWorld, dt);
 		w.Position = m_PlayerCtl.GetPosition();
@@ -1999,7 +2000,7 @@ private:
 	bool m_SpaceWasDown = false;
 };
 
-GB::Application* GB::CreateApplication()
+GB::Application* GB::CreateApplication(const GB::LaunchOptions& options)
 {
-	return new Sandbox();
+	return new Sandbox(options);
 }

@@ -74,31 +74,32 @@ namespace
 int main()
 {
 	Log::Init();
+	const TerrainNodeRegistry registry = MakeDefaultTerrainNodeRegistry();   // injected: there is no global registry
 
 	// ---------------------------------------------------------------- validation
 	{
 		TerrainGraph g;
 		g.Nodes = { Node("a", "heightfield_noise"), Node("a", "erosion_hydraulic") };   // duplicate id
-		const std::vector<TgIssue> issues = ValidateTerrainGraph(g);
+		const std::vector<TgIssue> issues = ValidateTerrainGraph(g, registry);
 		Check(HasTgErrors(issues), "duplicate node id is rejected");
 	}
 	{
 		TerrainGraph g;
 		g.Nodes = { Node("a", "not_a_real_type") };
-		const std::vector<TgIssue> issues = ValidateTerrainGraph(g);
+		const std::vector<TgIssue> issues = ValidateTerrainGraph(g, registry);
 		Check(HasTgErrors(issues), "unknown node type is rejected");
 	}
 	{
 		TerrainGraph g;
 		g.Nodes = { Node("a", "heightfield_noise"), Node("b", "erosion_hydraulic") };
 		g.Edges = { { "a", "b" }, { "b", "a" } };   // a -> b -> a
-		const std::vector<TgIssue> issues = ValidateTerrainGraph(g);
+		const std::vector<TgIssue> issues = ValidateTerrainGraph(g, registry);
 		Check(HasTgErrors(issues), "a cycle is rejected");
 		Check(TgIssuesText(issues).find("cycle") != std::string::npos, "the cycle message names it as such");
 	}
 	{
 		TerrainGraph g = MakeGraph();
-		const std::vector<TgIssue> issues = ValidateTerrainGraph(g);
+		const std::vector<TgIssue> issues = ValidateTerrainGraph(g, registry);
 		Check(!HasTgErrors(issues), "the noise -> erosion -> biome graph has no structural errors");
 	}
 
@@ -106,7 +107,7 @@ int main()
 	{
 		TerrainGraph g = MakeGraph();
 		CompiledTerrainGraph compiled;
-		const bool ok = CompileTerrainGraph(g, compiled);
+		const bool ok = CompileTerrainGraph(g, registry, compiled);
 		Check(ok, "the graph compiles");
 		Check(compiled.Order.size() == g.Nodes.size(), "every node gets an order position");
 		// "noise" must come before "erosion", which must come before "biome" and "out_height"; "biome"
@@ -126,7 +127,7 @@ int main()
 	TgResult result;
 	{
 		std::string error;
-		const bool ok = EvaluateTerrainGraph(MakeGraph(), MakeContext(7), result, error);
+		const bool ok = EvaluateTerrainGraph(MakeGraph(), registry, MakeContext(7), result, error);
 		Check(ok, ("the graph evaluates: " + error).c_str());
 		Check(result.Outputs.count("height") == 1, "the height output is produced");
 		Check(result.Outputs.count("biome") == 1, "the biome output is produced");
@@ -147,7 +148,7 @@ int main()
 		TerrainGraph noiseOnly;
 		noiseOnly.Nodes = { Node("noise", "heightfield_noise", "", { { "Octaves", 4.0 }, { "Amplitude", 18.0 } }), Node("out", "output", "height") };
 		noiseOnly.Edges = { { "noise", "out" } };
-		Check(EvaluateTerrainGraph(noiseOnly, ctx, rawResult, error), "the noise-only graph evaluates");
+		Check(EvaluateTerrainGraph(noiseOnly, registry, ctx, rawResult, error), "the noise-only graph evaluates");
 
 		const TgField& raw = rawResult.Outputs.at("height");
 		const TgField& eroded = result.Outputs.at("height");
@@ -164,7 +165,7 @@ int main()
 		};
 		thermalOnly.Edges = { { "noise", "thermal" }, { "thermal", "out" } };
 		TgResult thermalResult;
-		Check(EvaluateTerrainGraph(thermalOnly, ctx, thermalResult, error), "the noise -> erosion_thermal graph evaluates");
+		Check(EvaluateTerrainGraph(thermalOnly, registry, ctx, thermalResult, error), "the noise -> erosion_thermal graph evaluates");
 		const TgField& thermal = thermalResult.Outputs.at("height");
 		bool thermalDifferent = false;
 		for (size_t i = 0; i < raw.Values.size(); ++i) if (raw.Values[i] != thermal.Values[i]) { thermalDifferent = true; break; }
@@ -175,12 +176,12 @@ int main()
 	{
 		TgResult again;
 		std::string error;
-		Check(EvaluateTerrainGraph(MakeGraph(), MakeContext(7), again, error), "the graph re-evaluates");
+		Check(EvaluateTerrainGraph(MakeGraph(), registry, MakeContext(7), again, error), "the graph re-evaluates");
 		Check(FieldFingerprint(result.Outputs.at("height")) == FieldFingerprint(again.Outputs.at("height")),
 			"the same seed gives the same height field (erosion included)");
 
 		TgResult different;
-		Check(EvaluateTerrainGraph(MakeGraph(), MakeContext(8), different, error), "a different seed also evaluates");
+		Check(EvaluateTerrainGraph(MakeGraph(), registry, MakeContext(8), different, error), "a different seed also evaluates");
 		Check(FieldFingerprint(result.Outputs.at("height")) != FieldFingerprint(different.Outputs.at("height")),
 			"a different seed gives a different height field");
 	}
@@ -229,7 +230,7 @@ int main()
 		g.Edges = { { "noise", "flow" }, { "flow", "out" } };
 		TgResult flowResult;
 		std::string error;
-		Check(EvaluateTerrainGraph(g, MakeContext(9), flowResult, error), ("noise -> flow_accumulation evaluates: " + error).c_str());
+		Check(EvaluateTerrainGraph(g, registry, MakeContext(9), flowResult, error), ("noise -> flow_accumulation evaluates: " + error).c_str());
 		const TgField& flow = flowResult.Outputs.at("flow");
 		bool everyCellCountsItself = true, someCellCollectsMore = false;
 		for (float v : flow.Values)
@@ -250,7 +251,7 @@ int main()
 		g.Edges = { { "noise", "spots" } };
 		TgResult scatterResult;
 		std::string error;
-		Check(EvaluateTerrainGraph(g, MakeContext(11), scatterResult, error), ("noise -> scatter evaluates: " + error).c_str());
+		Check(EvaluateTerrainGraph(g, registry, MakeContext(11), scatterResult, error), ("noise -> scatter evaluates: " + error).c_str());
 		Check(scatterResult.Placements.count("spots") == 1, "scatter's placements are keyed by the node's id");
 		const TgPlacements& spots = scatterResult.Placements.at("spots");
 		Check(!spots.Items.empty() && spots.Items.size() <= 40, "scatter places at least one spot and never more than Count");
@@ -263,6 +264,38 @@ int main()
 			for (size_t k = i + 1; k < spots.Items.size(); ++k)
 				if (glm::distance(spots.Items[i].Position, spots.Items[k].Position) < 6.0f - 1e-3f) { spacingOk = false; break; }
 		Check(spacingOk, "no two spots are closer than MinSpacing");
+	}
+
+	// ---------------------------------------------------------------- registries are independent values
+	{
+		TerrainNodeRegistry custom = MakeDefaultTerrainNodeRegistry();
+		Check(custom.IsKnown("output") && custom.IsKnown("heightfield_noise"), "the default registry knows the builtin nodes, output included");
+		Check(custom.Unregister("scatter") && !custom.IsKnown("scatter"), "a node type can be unregistered at run time");
+		Check(!custom.Unregister("scatter"), "unregistering an unknown type reports false");
+
+		TerrainGraph g;
+		g.Nodes = { Node("noise", "heightfield_noise"), Node("spots", "scatter") };
+		g.Edges = { { "noise", "spots" } };
+		Check(HasTgErrors(ValidateTerrainGraph(g, custom)), "a registry without 'scatter' rejects a graph that uses it");
+		Check(!HasTgErrors(ValidateTerrainGraph(g, registry)), "another registry is unaffected by that removal");
+
+		struct ConstantNode final : ITerrainNode
+		{
+			bool Evaluate(const TgNode&, const TgContext& ctx, const std::vector<const TgField*>&, TgField& out, std::string&) const override
+			{
+				out.Resize(ctx.Resolution, ctx.Size, ctx.Center);
+				return true;
+			}
+		};
+		TerrainNodeRegistry plugin = MakeDefaultTerrainNodeRegistry();
+		plugin.Register("plugin_constant", [] { return std::make_unique<ConstantNode>(); });
+		TerrainGraph pg;
+		pg.Nodes = { Node("c", "plugin_constant"), Node("o", "output", "height") };
+		pg.Edges = { { "c", "o" } };
+		TgResult pluginResult;
+		std::string pluginError;
+		Check(EvaluateTerrainGraph(pg, plugin, MakeContext(1), pluginResult, pluginError), ("a node registered at run time evaluates: " + pluginError).c_str());
+		Check(!registry.IsKnown("plugin_constant"), "a node registered into one registry does not leak into another");
 	}
 
 	if (failures == 0) std::printf("terrain_graph_test: OK\n");

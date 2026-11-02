@@ -60,7 +60,8 @@ namespace
 int main()
 {
 	GB::Log::Init();
-	GB::Qa::Config::SetOutputDir("qa_artifacts");
+	GB::Qa::Config qa = GB::Qa::Config::FromEnvironment();
+	qa.OutputDir = "qa_artifacts";
 	const std::string dir = GB_GOLDEN_DIR "/data";
 
 	// ---- erosion of a fixed hill (CPU)
@@ -78,7 +79,7 @@ int main()
 		GB::Qa::GoldenData d;
 		d.Set("eroded", st.Eroded, 0, 0.05); d.Set("deposited", st.Deposited, 0, 0.05);
 		d.Set("height.max", h.Max, 0.8); d.Set("height.mean", h.Mean, 0.2); d.Set("height.std", h.Std, 0.3);
-		Report(d.Check(dir, "erosion_hill"));
+		Report(d.Check(qa, dir, "erosion_hill"));
 	}
 
 	// ---- a brick wall hit by a ball, and a blast on crates (CPU physics + destruction)
@@ -120,7 +121,7 @@ int main()
 		for (const GB::BreakEvent& e : ds.TakeBreaks()) broke += e.Fragments > 0 ? 1 : 0;
 		d.Set("blast.cratesBroken", broke, 1);
 		d.Set("blast.debris", static_cast<double>(ds.GetDebrisCount()), 8);
-		Report(d.Check(dir, "physics_wall"));
+		Report(d.Check(qa, dir, "physics_wall"));
 	}
 
 	// ---- generated worlds, on the CPU (WorldGenerator::GenerateData needs no OpenGL). The first three were recorded with generator 1 and keep it;
@@ -134,7 +135,7 @@ int main()
 		const GB::GeneratedWorld w = GB::WorldGenerator::GenerateData(wd);
 		GB::Qa::GoldenData d;
 		AddWorld(d, w);
-		Report(d.Check(dir, c.Name));
+		Report(d.Check(qa, dir, c.Name));
 	}
 	return failures;
 }

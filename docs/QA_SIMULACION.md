@@ -11,8 +11,8 @@ guion (principio 7 del plan): ver el final.
 
 | Pieza | Dónde | Qué es |
 |---|---|---|
-| Tabla de invariantes | `SimInvariants()` en `Engine/src/GB/Game/SimQA.h` | Cada invariante es un nombre, una promesa y una función que mira un `SimView` (tribu, sistemas de habilidades, escena, suelo) y anota lo que está mal |
-| Tabla de métricas | `SimMetricTable()` | Funciones que añaden métricas al final de una partida (`SimMetrics::Extra`) |
+| Tabla de invariantes | `SimCheckRegistry::Invariants` (`MakeDefaultSimChecks()`) en `Engine/src/GB/Game/SimQA.h` | Cada invariante es un nombre, una promesa y una función que mira un `SimView` (tribu, sistemas de habilidades, escena, suelo) y anota lo que está mal |
+| Tabla de métricas | `SimCheckRegistry::Metrics` | Funciones que añaden métricas al final de una partida (`SimMetrics::Extra`) |
 | Monitor | `SimMonitor` | Ejecuta la tabla en cada paso, agrupa los hallazgos por invariante y sujeto (un miembro metido en el lago una hora es un hallazgo visto muchas veces, no miles) y lleva las métricas |
 | Cuerpo de prueba | `SimBody` | Un `ITribeBody` que ejecuta el mismo texto de tareas que un actor (`goto`, `wait`, `ability`) con un `AbstractAgent` que sigue los caminos de la **rejilla de navegación real** con el perfil del miembro: rodea el agua y los muros, y una meta inalcanzable falla como la del actor |
 | Arnés | `SimRun` | Mundo generado en CPU (`WorldGenerator::GenerateData`), nodos repartidos por los datos (`PlanWorldResources`), rejilla de navegación con los troncos y rocas del mundo, pozo, campamento en el punto llano del centro, y una tribu como la de `tribe build` (nombres de los datos y oficios de `PlanRoles`). Determinista: `Fingerprint()` |
@@ -90,14 +90,16 @@ decisiones, el tablón, las aptitudes, el conocimiento, el atlas y la sociedad (
 
 ## Extenderlo (otros carriles)
 
-Un sistema nuevo (asentamientos, conocimiento...) añade su comprobación sin tocar el barrido ni el editor:
+Un sistema nuevo (asentamientos, conocimiento...) añade su comprobación sin tocar el barrido ni el editor. No hay tablas globales: los checks viven en un `SimCheckRegistry` que se pasa al `SimMonitor` (`SimMonitor(registry)`; el constructor por defecto usa `MakeDefaultSimChecks()`):
 
 ```cpp
-SimInvariants().push_back({ "buildings", "ningún edificio tiene más trabajadores que plazas", [](const SimView& v, SimTrack&, SimReport& r)
+SimCheckRegistry checks = MakeDefaultSimChecks();   // una copia propia, que se puede ampliar
+checks.Add(SimInvariant{ "buildings", "ningún edificio tiene más trabajadores que plazas", [](const SimView& v, SimTrack&, SimReport& r)
 {
 	for (...) if (...) r.Add(nombreDelEdificio, "lo que está mal");
 } });
-SimMetricTable().push_back({ "buildings", [](const SimView& v, SimMetrics& m) { m.Extra["buildings"] = ...; } });
+checks.Add(SimMetricDef{ "buildings", [](const SimView& v, SimMetrics& m) { m.Extra["buildings"] = ...; } });
+SimMonitor monitor(std::move(checks));
 ```
 
 `SimTrack` guarda lo que una comprobación necesita recordar entre pasos (hoy, el historial de fallos y de posición de cada miembro). Si el sistema vive fuera de la tribu, se añade su puntero a

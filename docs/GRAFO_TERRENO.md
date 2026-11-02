@@ -70,12 +70,14 @@ nodo, qué nodos compilados alimentan cada uno de sus puertos de entrada, en el 
 | `ITerrainTarget` / `HeightmapTerrainTarget` / `InMemoryTerrainTarget` | `ITerrainTarget.h/.cpp` | DIP | El núcleo del grafo no conoce `Heightmap`/`Terrain` concretos (calcado de `IGraphTarget` en `GB/Animation/AnimGraph.h`); un test usa un target en memoria de cuatro líneas. |
 | `EvaluateTerrainGraph` → `ApplyTerrainGraph` | `TerrainGraph.cpp`, `ITerrainTarget.cpp` | — (dos fases) | Evaluar es puro; aplicar solo escribe si evaluar tuvo éxito y las dimensiones casan (mismo espíritu que `ISaveHost::Validate`/`Commit`, `GB/Save/SaveWorld.h`). |
 
-Los nodos propios del motor (`heightfield_noise`, `erosion_hydraulic`, `biome_classify`) se registran desde un único punto,
-`GB/World/Graph/Nodes/BuiltinNodes.cpp` (`RegisterBuiltinTerrainNodes`), en vez de auto-registrarse cada uno con una estática de fichero: `GB` es una
-única biblioteca estática (`Engine/CMakeLists.txt`) y el `.cpp` de un nodo no exporta ningún símbolo que otra unidad de traducción referencie por nombre,
-así que una estática auto-registrable en él podría quedar fuera del binario final si el enlazador decide no traer ese objeto del archivo `.lib`/`.a`. Un
-nodo añadido fuera del motor (Editor, Sandbox, un mod) sí puede auto-registrarse con seguridad con `TerrainNodeAutoRegister` (`ITerrainNode.h`), porque
-entonces forma parte de su propio ejecutable.
+`TerrainNodeRegistry` es un valor corriente, no un singleton: quien construye un grafo es dueño del registro y se lo pasa a `ValidateTerrainGraph`,
+`CompileTerrainGraph` y `EvaluateTerrainGraph`. Así dos mundos o dos tests pueden tener catálogos distintos y un plugin cargado en ejecución puede añadir
+(`Register`) o quitar (`Unregister`) tipos sin estado global. Los nodos propios del motor (`output`, `heightfield_noise`, `erosion_hydraulic`, ...) se
+registran desde un único punto, `GB/World/Graph/Nodes/BuiltinNodes.cpp` (`RegisterBuiltinTerrainNodes`), y `MakeDefaultTerrainNodeRegistry()` devuelve un
+registro nuevo con todos ellos. No hay auto-registro por estáticas de fichero: `GB` es una única biblioteca estática (`Engine/CMakeLists.txt`) y el
+`.cpp` de un nodo no exporta ningún símbolo que otra unidad de traducción referencie, así que una estática en él podría quedar fuera del binario. Un nodo
+añadido fuera del motor (Editor, Sandbox, un mod) se registra explícitamente en el registro de su dueño, p. ej. desde una función exportada
+`GB_RegisterTerrainNodes(TerrainNodeRegistry&)` que invoca el cargador.
 
 ## 5. Estado actual (Fase 1, ya implementada)
 
@@ -83,7 +85,7 @@ Prueba de concepto end a end, de riesgo cero sobre el código existente: no toca
 `Engine/src/GB/World/Graph/` y dos entradas de `CMakeLists.txt`.
 
 - `TgField.h` — el campo 2D.
-- `TerrainGraph.h/.cpp` — datos, validar, compilar, evaluar; incluye el nodo de *plumbing* `"output"`.
+- `TerrainGraph.h/.cpp` — datos, validar, compilar, evaluar; el nodo de *plumbing* `"output"` vive en `Nodes/OutputNode.h/.cpp`.
 - `ITerrainNode.h/.cpp` — la interfaz y el registro.
 - `ITerrainTarget.h/.cpp` — las dos implementaciones de destino y `ApplyTerrainGraph`.
 - `Nodes/NoiseNode.h/.cpp` (`"heightfield_noise"`) — ruido fBm propio y autocontenido (deliberadamente una tercera implementación aislada: no toca el
@@ -193,7 +195,7 @@ existía en vez de inventar uno nuevo:
   celda se marca. `Terrain::BuildMeshRefinement` (renombrado desde `BuildShoreRefinement`) junta ambas estrategias con un simple OR bit a bit — ninguna
   conoce a la otra (SRP/OCP: la pila de reconstrucción/costura de vértices no cambió ni una línea).
 - Expuesto como `WorldDesc::MeshDetail` (por defecto 0.08 m) → `HillParams`/`DuneParams::DetailThreshold`, y como quinto argumento opcional del comando
-  del Editor `generate <tipo> [seed] [trees] [rocks] [mesh_detail]`, para poder comparar sin recompilar.
+  del Editor `generate <tipo> [seed] [trees] [rocks] [mesh_detail] [erosion]` (el sexto argumento, `0`/`1`, activa `WorldDesc::Erosion`), para poder comparar sin recompilar.
 - **Resultado del barrido pedido** (mismo seed, misma cámara, umbral ÷10 cada paso: 0.08 → 0.008 → 0.0008): en `temperate` (colinas suaves, `Flatten`
   alto) el refinamiento por curvatura casi no añade nada sobre el de la orilla (ya lo medía la Fase 2, ~310 k → ~310 k vértices). En `alpine`
   (pendiente fuerte + erosión) sí escala mucho: 586 k → 3,9 M → 5,9 M vértices. **Pero, a la distancia de cámara habitual, la diferencia visual entre los
@@ -251,3 +253,75 @@ probados de forma aislada (`tests/terrain_graph_test.cpp`, `tests/world_test.cpp
 **Guardado y versionado**: por decisión explícita, esta iniciativa no prioriza la compatibilidad con partidas guardadas ni introduce una rama de
 `GeneratorVersion` paralela. El sistema de nodos sustituye directamente la generación imperativa; el versionado del generador y la compatibilidad de saves
 para el nuevo pipeline se revisan en una iniciativa posterior, una vez el sistema esté completo.
+
+## 11. Agua: un módulo propio (`GB/Water`)
+
+El agua estaba repartida: `Terrain`/`HillParams` mezclaban lago y río con la altura, `WorldGen.cpp` repetía la aritmética del río "a la misma
+precisión de bit", `WorldInstance` tenía una tercera copia, y `World/Water.h` arrastraba la clase GL `Mesh`. Ahora cada cosa tiene un dueño:
+
+| Pieza | Archivo | Principio | Qué hace |
+| --- | --- | --- | --- |
+| `WaterField`, `LakeBody`, `RiverSample` | `Water/WaterField.h/.cpp` | SRP | Datos del agua y las preguntas que se le hacen (distancia, nivel, corriente, "nivel que moja alrededor"). **Único** origen: `Terrain`, `WorldGen` y el editor preguntan aquí. |
+| `ApplyLakeBasin`, `CarveRiver` (`LakeShape`, `RiverShape`) | `Water/WaterCarver.h/.cpp` | SRP | La excavación, movida desde `Terrain::CreateHills`/`Terrain::CarveRiver`. `Terrain` solo guarda alturas; los números que eran literales (boca de 16 m, 0,45 m de ribera...) son campos con nombre. |
+| `WaterGeometry`, `MakeRiverGeometry` | `Water/WaterGeometry.h/.cpp` | SRP / DIP | La cinta del río y la malla del lago como **datos CPU** sin OpenGL. `WaterSurface` ya no posee ningún `Mesh`; `WaterRenderer` sube la malla la primera vez que la dibuja y la cachea por geometría. |
+| `WaveSetGlsl` | `Water/WaterWaves.h/.cpp` | DRY | Las constantes de las olas del shader se generan desde `GB::WaveSet` (marcador `@WAVESET@` en `Shaders::WaterWaves`): CPU y GPU no pueden divergir. |
+| `WaterGenParams`, `WaterLook`, `MakeLakeSurface/MakeRiverSurface` | `Water/WaterPresets.h/.cpp` | OCP | Tamaño del lago y ancho del río por tipo de mundo, y el aspecto del agua, antes literales en `WorldGen.cpp` y `WorldInstance.cpp`. |
+| `kWaterParamFields` | `Water/WaterParamInfo.h` | OCP | Nombre, miembro y rango de cada parámetro de `WaterParams`: el panel del editor se construye de esta tabla en vez de nueve literales en `EditorApp.cpp`. |
+
+`Terrain` conserva su API pública (`GetRiver`, `DistanceToRiver`, `HasLake`...) como reenvíos a su `WaterField` (`Terrain::Water()`), así que ningún
+llamador cambió. `HillParams` sigue teniendo los campos del lago y del río (es la "receta" del terreno y la usan generador, tests y Sandbox); lo que
+se movió son los algoritmos. Las constantes de alcance que difieren entre consumidores (`Classify` usa 1,3/1,2/1,8; las rocas mojadas 1,5/3,0) se
+dejaron distintas a propósito y ahora son parámetros con nombre (`WaterField::LevelNear`), no copias de la geometría.
+
+### 11.1 El agua sale del grafo (generador 3)
+
+Hasta el generador 2 el río era un Dijkstra sobre una rejilla de 65x65 trazado antes de que las colinas estuvieran terminadas, con un ancho fijo, y el
+lago un disco perfecto. El generador 3 (`kWorldGeneratorV3`, `WorldGenVersion.h`; las versiones 1 y 2 conservan su código bit a bit) pregunta a un grafo
+de terreno, construido por `MakeWaterGraph` (`Water/WaterPlanner.h`) y evaluado sobre el terreno base:
+
+```
+height_input ──► lake_site ───────────────────────────────────────────────┐
+     │               │                                                    ▼
+     └──► lake_basin ──► depression_fill (salidas: el lago) ──► flow_accumulation ──► river_trace (hasta el lago)
+```
+
+| Nodo | Qué hace | Matemática |
+| --- | --- | --- |
+| `height_input` | Trae al grafo un campo de fuera (`TgContext::Inputs`). | — |
+| `lake_site` | La cuenca más baja lejos de los bordes (máscara de salida y punto). | Media 3x3 sobre una rejilla gruesa: un valle ancho gana a un hoyo ruidoso. |
+| `lake_basin` | Excava el lago en el campo con la misma función que el carver (`ApplyLakeBasin`). | Un lago es un hueco con bancos: sin excavar, el agua de alrededor pasa de largo. |
+| `depression_fill` | Rellena los sumideros para que toda celda drene. | Priority-Flood con épsilon (Barnes, Lehman y Mulla, 2014): O(N log N), deja una pendiente mínima hacia la salida. |
+| `flow_accumulation` | Área de drenaje de cada celda (ya existía; ahora sobre el terreno relleno). | D8: cada celda va a su vecino más empinado. |
+| `river_trace` | El río: la línea de flujo más larga que acaba en el lago. | Sigue las direcciones D8, suaviza la escalera con media móvil y adelgaza a un punto cada 6 m con el área de drenaje de cada uno. |
+
+`IPathNode` es una tercera interfaz opcional (como `IScatterNode`): `lake_site` y `river_trace` devuelven caminos (`TgResult::Paths`).
+`ApplyWaterPlan` escribe el plan en la receta del terreno; si el grafo fallase, el mundo se construye igualmente con el método antiguo.
+
+**Un río con física** (`Water/RiverHydraulics.h`). Cada punto del río lleva su caudal relativo q = área de drenaje / área en la desembocadura:
+
+- Geometría hidráulica de Leopold y Maddock (1953): ancho `W ∝ Q^0,5`, profundidad `d ∝ Q^0,4`, velocidad `v ∝ Q^0,1` (los exponentes suman 1 por continuidad
+  Q = W·d·v). El río nace con un 30 % del ancho de la desembocadura y se ensancha aguas abajo; `RiverData::HalfWidths` guarda el ancho de cada punto y todas
+  las consultas (`WaterField`), la excavación, la malla del agua y el bioma leen el ancho local.
+- Manning (1891): `v = (1/n) R^(2/3) S^(1/2)`, con `R = W·d / (W + 2d)` y `n = 0,04`. Sustituye a la regla empírica anterior (`0,9 + 18·pendiente`); se acota a
+  0,6–4,5 m/s para que el río no se pare ni corra como una cascada.
+
+**Un lago con orilla propia** (`Water/LakeOutline.h`). El radio depende del ángulo, `r(θ) = R·(1 + a·N(θ))`, con `N` una suma de armónicos bajos (2, 3 y 5) de fases
+distintas en cada semilla; `|N| ≤ 1`, así que la orilla se queda en `R·(1 ± a)` y no tiene esquinas. Con `a = 0` es el círculo de siempre. Todas las
+fórmulas escritas para un círculo (cuenca, bancos, desembocadura) usan la distancia efectiva `d / r(θ)/R`.
+
+**Erosión.** La erosión hidráulica de después rellenaba el cauce estrecho y poco profundo, así que el generador 3 devuelve el corredor del río (hasta 6 anchos
+medios) tal y como lo excavó el carver, con una transición suave hacia el terreno erosionado.
+
+Otros ajustes que llegaron con esto: `AbstractAgent::Plan` termina la ruta en el objetivo con su alcance cuando ésta acaba dentro de él, y el cuerpo simulado
+de los tests (`SimBody`) sale de los obstáculos como hace el controlador de un personaje real.
+### Comparativa antes/después
+
+`docs/img/water/before/` y `docs/img/water/after/` (no se versionan: se regeneran) guardan las capturas (semillas 5 y 77: vista cenital de todo el mapa y primeros planos con `camera lake` y
+`camera river`) del generador 2 y del 3; `docs/img/water/compare_*.jpg` las pone lado a lado (`tools/water_compare.ps1`). Se reproducen con (el séptimo argumento de
+`generate` elige el generador; un guion salta un argumento):
+
+```
+Editor.exe --hidden --quality=medium "--exec=generate temperate 5 - - - - 2; time 12; camera lake; wait 4; screenshot docs/img/water/before/seed5_lake.png; quit"
+Editor.exe --hidden --quality=medium "--exec=generate temperate 5; time 12; camera lake; wait 4; screenshot docs/img/water/after/seed5_lake.png; quit"
+powershell -File tools/water_compare.ps1
+```

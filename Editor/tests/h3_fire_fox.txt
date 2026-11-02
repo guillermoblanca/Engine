@@ -9,9 +9,11 @@ tribe build fox 0 0 4
 ecology spawn 6 12 8
 ecology spawn 2 12 8 fox
 timescale 20
-wait 1500
-qa expect "tribe log 800" "lights the campfire"
-qa expect "tribe log 800" "feeds the campfire"
+wait 400
+# (the fire is lit within the first two minutes of game; the tribe's log keeps only its latest lines, so it is read while they are still in it)
+qa expect "tribe log 100000" "lights the campfire"
+qa expect "tribe log 100000" "feeds the campfire"
+wait 1100
 qa expect "ecology status" "caught by hunters [1-9]"
 qa check
 panel WorldState on

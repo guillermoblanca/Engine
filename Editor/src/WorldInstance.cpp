@@ -1,9 +1,16 @@
 #include "WorldInstance.h"
 #include "GB/Log.h"
+#include "GB/Water/WaterPresets.h"
 #include <algorithm>
 
 namespace GB::Editor
 {
+	namespace
+	{
+		// How far from the water a rock still looks wet, in lake radii and river half-widths (the band the shader darkens).
+		constexpr float kWetLakeReach = 1.5f, kWetRiverReach = 3.0f;
+	}
+
 	void WorldInstance::Clear(Scene& scene)
 	{
 		scene.Objects.clear();
@@ -19,11 +26,7 @@ namespace GB::Editor
 
 	float WorldInstance::WaterLevelAt(float x, float z) const
 	{
-		const Terrain* terrain = m_Terrain.get();
-		float level = -1e9f;
-		if (terrain->HasLake() && glm::distance(glm::vec2(x, z), terrain->GetLakeCenter()) < terrain->GetLakeRadius() * 1.5f) level = terrain->GetWaterLevel();
-		if (terrain->GetRiver() && terrain->DistanceToRiver(x, z) < terrain->GetRiver()->HalfWidth * 3.0f) level = std::max(level, terrain->GetRiverSurfaceLevel(x, z));
-		return level;
+		return m_Terrain->Water().LevelNear(x, z, kWetLakeReach, kWetRiverReach);
 	}
 
 	bool WorldInstance::AddProp(const PropComponent& prop, const glm::mat4& world, Scene& scene) const
@@ -91,24 +94,11 @@ namespace GB::Editor
 		for (const RockParams& rp : world->RockRecipes)
 			m_RockVariants.push_back(RockFactory::Create(rp));
 
-		if (terrain->HasLake())
-		{
-			m_Lake = std::make_unique<WaterSurface>(terrain->GetLakeRadius() * 2.6f, 160);
-			const glm::vec2 c = terrain->GetLakeCenter();
-			m_Lake->Position = { c.x, terrain->GetWaterLevel(), c.y };
-			m_Lake->Radius = terrain->GetLakeRadius() * 1.2f;
-			m_Lake->Params.WaveHeight = 0.05f;
-			scene.Water.push_back(m_Lake.get());
-		}
-		if (terrain->GetRiver())
-		{
-			m_River = std::make_unique<WaterSurface>(*terrain->GetRiver());
-			m_River->Params.WaveHeight = 0.015f;
-			m_River->Params.Choppiness = 1.4f;
-			m_River->Params.Clarity = 1.6f;
-			m_River->Params.Foam = 0.4f;
-			scene.Water.push_back(m_River.get());
-		}
+		// The water is drawn from the terrain's own WaterField: the surfaces and how they look come from GB/Water.
+		m_Lake = MakeLakeSurface(terrain->Water());
+		if (m_Lake) scene.Water.push_back(m_Lake.get());
+		m_River = MakeRiverSurface(terrain->Water());
+		if (m_River) scene.Water.push_back(m_River.get());
 		scene.Env.ShadowRadius = 70.0f;
 		GB_CLIENT_INFO("World built: {} trees, {} rocks, {} grass blades{}{}", world->Trees.size(), world->Rocks.size(), GrassBlades(),
 			terrain->HasLake() ? ", lake" : "", terrain->GetRiver() ? ", river" : "");

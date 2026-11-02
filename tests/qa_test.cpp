@@ -31,7 +31,8 @@ int main()
 	namespace fs = std::filesystem;
 	const std::string root = "qa_test_tmp";
 	fs::remove_all(root);
-	GB::Qa::Config::SetOutputDir(root + "/out");
+	GB::Qa::Config qa = GB::Qa::Config::FromEnvironment();
+	qa.OutputDir = root + "/out";
 
 	// ---- comparison metrics
 	{
@@ -57,24 +58,24 @@ int main()
 	{
 		const std::string dir = root + "/golden";
 		const GB::Image a = Gradient();
-		GB::Qa::Config::SetUpdateMode(0);
-		GB::Qa::Result r = GB::Qa::CheckGoldenImage(dir, "gradient", a);
+		qa.UpdateGolden = false;
+		GB::Qa::Result r = GB::Qa::CheckGoldenImage(qa, dir, "gradient", a);
 		Check(!r.Passed && r.Message.find("GB_UPDATE_GOLDEN") != std::string::npos && fs::exists(root + "/out/gradient.actual.png"), "a missing reference fails with instructions and leaves the candidate");
-		GB::Qa::Config::SetUpdateMode(1);
-		r = GB::Qa::CheckGoldenImage(dir, "gradient", a);
+		qa.UpdateGolden = true;
+		r = GB::Qa::CheckGoldenImage(qa, dir, "gradient", a);
 		Check(r.Passed && fs::exists(dir + "/gradient.png"), "update mode writes the reference");
-		GB::Qa::Config::SetUpdateMode(0);
-		r = GB::Qa::CheckGoldenImage(dir, "gradient", a);
+		qa.UpdateGolden = false;
+		r = GB::Qa::CheckGoldenImage(qa, dir, "gradient", a);
 		Check(r.Passed, "and it then matches (PNG round trip keeps the pixels and the orientation)");
 		GB::Image changed = a;
 		for (uint32_t y = 0; y < 36; ++y) for (uint32_t x = 0; x < 64; ++x) changed.Pixels[(static_cast<size_t>(y) * 64 + x) * 4 + 2] = 200;
-		r = GB::Qa::CheckGoldenImage(dir, "gradient", changed);
+		r = GB::Qa::CheckGoldenImage(qa, dir, "gradient", changed);
 		Check(!r.Passed && fs::exists(root + "/out/gradient.compare.png") && r.Message.find("rmse") != std::string::npos, "a changed render fails and leaves actual + compare images");
 		// a platform-specific reference wins over the generic one
 		GB::Image platformImage = changed;
 		fs::create_directories(dir + "/" + GB::Qa::Config::Platform());
 		GB::SavePNG((dir + "/" + GB::Qa::Config::Platform() + "/gradient.png").c_str(), 64, 36, platformImage.Pixels.data());
-		r = GB::Qa::CheckGoldenImage(dir, "gradient", changed);
+		r = GB::Qa::CheckGoldenImage(qa, dir, "gradient", changed);
 		Check(r.Passed, "a reference in the platform folder takes precedence");
 	}
 
@@ -85,22 +86,22 @@ int main()
 		data.Set("trees", 120, 0);
 		data.Set("height.max", 14.25, 0.05);
 		data.Set("share.forest", 0.4, 0, 0.02);
-		GB::Qa::Config::SetUpdateMode(0);
-		Check(!data.Check(dir, "world").Passed, "missing reference data fails");
-		GB::Qa::Config::SetUpdateMode(1);
-		Check(data.Check(dir, "world").Passed, "update mode writes it");
-		GB::Qa::Config::SetUpdateMode(0);
-		Check(data.Check(dir, "world").Passed, "and it matches");
+		qa.UpdateGolden = false;
+		Check(!data.Check(qa, dir, "world").Passed, "missing reference data fails");
+		qa.UpdateGolden = true;
+		Check(data.Check(qa, dir, "world").Passed, "update mode writes it");
+		qa.UpdateGolden = false;
+		Check(data.Check(qa, dir, "world").Passed, "and it matches");
 		GB::Qa::GoldenData near;
 		near.Set("trees", 120, 0); near.Set("height.max", 14.28, 0.05); near.Set("share.forest", 0.405, 0, 0.02);
-		Check(near.Check(dir, "world").Passed, "values within their tolerances pass");
+		Check(near.Check(qa, dir, "world").Passed, "values within their tolerances pass");
 		GB::Qa::GoldenData far;
 		far.Set("trees", 121, 0); far.Set("height.max", 14.25, 0.05); far.Set("share.forest", 0.4, 0, 0.02);
-		const GB::Qa::Result bad = far.Check(dir, "world");
+		const GB::Qa::Result bad = far.Check(qa, dir, "world");
 		Check(!bad.Passed && bad.Message.find("trees") != std::string::npos && bad.Message.find("121") != std::string::npos, "a value off by one with zero tolerance fails and says which");
 		GB::Qa::GoldenData missing;
 		missing.Set("trees", 120, 0); missing.Set("height.max", 14.25, 0.05); missing.Set("extra", 1, 0);
-		const GB::Qa::Result res = missing.Check(dir, "world");
+		const GB::Qa::Result res = missing.Check(qa, dir, "world");
 		Check(!res.Passed && res.Message.find("extra") != std::string::npos && res.Message.find("share.forest") != std::string::npos, "new and vanished keys are both reported");
 	}
 

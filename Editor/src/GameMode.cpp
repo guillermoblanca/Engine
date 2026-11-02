@@ -5,7 +5,7 @@
 // knowledge, other clans). The rules of what the player does are the tribe's (GB/Game/TribePlayer.cpp): this file only reads keys and the scene.
 // See docs/JUGAR.md.
 #include "EditorApp.h"
-#include "GB/Input.h"
+#include "GB/InputSource.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
@@ -321,7 +321,7 @@ namespace GB::Editor
 			m_Tribe.SetPlayerActivity(m_Game.Player, std::string());
 		}
 		// walking away from a fight (a key held with the foe out of reach) breaks it off: a chase of something faster never traps the player
-		if (float gap = 0.0f; m_Tribe.PlayerFighting(m_Game.Player, &gap) && gap > 0.5f && !ImGui::GetIO().WantTextInput && (Input::IsKeyDown(Key::W) || Input::IsKeyDown(Key::A) || Input::IsKeyDown(Key::S) || Input::IsKeyDown(Key::D)))
+		if (float gap = 0.0f; m_Tribe.PlayerFighting(m_Game.Player, &gap) && gap > 0.5f && !ImGui::GetIO().WantTextInput && (GetInput().IsKeyDown(Key::W) || GetInput().IsKeyDown(Key::A) || GetInput().IsKeyDown(Key::S) || GetInput().IsKeyDown(Key::D)))
 		{
 			m_Tribe.PlayerStop(m_Game.Player);
 			GameNote("You break off the fight");

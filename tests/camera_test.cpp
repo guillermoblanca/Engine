@@ -1,5 +1,5 @@
 // CPU-only tests for cameras: projection, blending and the orbit / fly / follow controllers.
-#include "GB/Input.h"
+#include "GB/InputSource.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
 #include <cmath>
@@ -174,7 +174,7 @@ int main()
 		Check(Near(f1.Target, { 100, 0, 0 }, 1e-2f), "orbit follow: converges to the goal");
 		f1.Target = { 100, 0, 0 };
 		f1.Keys = GB::OrbitController::KeyScheme::Walk;
-		f1.Update(0.016f);
+		f1.Update(0.016f, GB::NoInput());
 		Check(Near(f1.Target, { 100, 0, 0 }, 1e-4f), "orbit follow: with no input the target stays");
 
 		// Top-down: straight down, the mouse cannot tilt it, and the old pitch comes back.
@@ -189,8 +189,26 @@ int main()
 	}
 
 	// ---- Polling with no window must be harmless
-	orbit.Update(0.016f);
-	fly.Update(0.016f);
-	Check(GB::Input::GetScrollDelta() == 0.0f && GB::Input::GetMouseDelta().first == 0.0, "input: no window means no mouse or scroll");
+	const GB::NoInput none;
+	orbit.Update(0.016f, none);
+	fly.Update(0.016f, none);
+	Check(none.GetScrollDelta() == 0.0f && none.GetMouseDelta().first == 0.0, "input: no window means no mouse or scroll");
+
+	// ---- The controllers read whatever IInputSource they are given (there is no global input)
+	{
+		GB::FlyController flier;
+		const glm::vec3 start = flier.Position;
+		GB::ScriptedInput keys;
+		flier.Update(0.5f, keys);
+		Check(Near(flier.Position, start, 1e-6f), "scripted input: nothing pressed, the fly camera stays");
+		keys.SetKey(GB::Key::W, true);
+		flier.Update(0.5f, keys);
+		Check(!Near(flier.Position, start, 1e-3f), "scripted input: a held W moves the fly camera");
+
+		GB::FlyController other;   // a second controller on its own source is unaffected by the first one's keys
+		GB::ScriptedInput idle;
+		other.Update(0.5f, idle);
+		Check(Near(other.Position, start, 1e-6f), "scripted input: two sources are independent");
+	}
 	return failures;
 }

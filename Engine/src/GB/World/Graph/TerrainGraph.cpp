@@ -2,24 +2,6 @@
 
 namespace GB
 {
-	namespace
-	{
-		// The graph's own plumbing node: copies its single input through unchanged. Collecting results by
-		// Source name happens in EvaluateTerrainGraph once every node ran, so "output" needs no special case
-		// inside the evaluator itself -- it is a node like any other (OCP).
-		class OutputNode final : public ITerrainNode
-		{
-		public:
-			bool Evaluate(const TgNode&, const TgContext&, const std::vector<const TgField*>& inputs, TgField& out, std::string& error) const override
-			{
-				if (inputs.empty() || inputs[0] == nullptr) { error = "output node has no input connected"; return false; }
-				out = *inputs[0];
-				return true;
-			}
-		};
-		const TerrainNodeAutoRegister g_RegisterOutput("output", [] { return std::make_unique<OutputNode>(); });
-	}
-
 	const TgNode* TerrainGraph::FindNode(const std::string& id) const
 	{
 		for (const TgNode& n : Nodes) if (n.Id == id) return &n;
@@ -93,7 +75,7 @@ namespace GB
 		}
 	}
 
-	std::vector<TgIssue> ValidateTerrainGraph(const TerrainGraph& graph)
+	std::vector<TgIssue> ValidateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry)
 	{
 		std::vector<TgIssue> issues;
 		auto Error = [&](const std::string& node, const std::string& message) { issues.push_back({ true, node, message }); };
@@ -105,7 +87,7 @@ namespace GB
 
 		// unknown types
 		for (const TgNode& n : graph.Nodes)
-			if (!TerrainNodeRegistry::Instance().IsKnown(n.Type)) Error(n.Id, "unknown node type '" + n.Type + "'");
+			if (!registry.IsKnown(n.Type)) Error(n.Id, "unknown node type '" + n.Type + "'");
 
 		// edges to/from nodes that do not exist
 		std::vector<std::vector<int>> adj(graph.Nodes.size());
@@ -127,10 +109,10 @@ namespace GB
 		return issues;
 	}
 
-	bool CompileTerrainGraph(const TerrainGraph& graph, CompiledTerrainGraph& out, std::vector<TgIssue>* issues)
+	bool CompileTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, CompiledTerrainGraph& out, std::vector<TgIssue>* issues)
 	{
 		out = CompiledTerrainGraph();
-		std::vector<TgIssue> local = ValidateTerrainGraph(graph);
+		std::vector<TgIssue> local = ValidateTerrainGraph(graph, registry);
 		if (issues) *issues = local;
 		if (HasTgErrors(local)) return false;
 
@@ -159,7 +141,7 @@ namespace GB
 		return true;   // ValidateTerrainGraph already rejected cycles, so every node is reachable here
 	}
 
-	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TgContext& ctx, TgResult& out, std::string& error)
+	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error)
 	{
 		out = TgResult();
 		std::vector<TgField> fields(graph.Nodes.size());
@@ -168,7 +150,7 @@ namespace GB
 		for (int index : graph.Order)
 		{
 			const TgNode& node = graph.Nodes[index];
-			const ITerrainNode* impl = TerrainNodeRegistry::Instance().Find(node.Type);
+			const ITerrainNode* impl = registry.Find(node.Type);
 			if (!impl) { error = "node '" + node.Id + "' has unregistered type '" + node.Type + "'"; return false; }
 
 			std::vector<const TgField*> inputs;
@@ -192,6 +174,17 @@ namespace GB
 				}
 				out.Placements[node.Id] = std::move(placements);
 			}
+
+			if (const IPathNode* tracer = impl->AsPathNode())
+			{
+				TgPaths paths;
+				if (!tracer->Trace(node, ctx, inputs, paths, error))
+				{
+					if (error.empty()) error = "node '" + node.Id + "' failed to trace";
+					return false;
+				}
+				out.Paths[node.Id] = std::move(paths);
+			}
 		}
 
 		for (int index : graph.Order)
@@ -202,11 +195,11 @@ namespace GB
 		return true;
 	}
 
-	bool EvaluateTerrainGraph(const TerrainGraph& graph, const TgContext& ctx, TgResult& out, std::string& error)
+	bool EvaluateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error)
 	{
 		CompiledTerrainGraph compiled;
 		std::vector<TgIssue> issues;
-		if (!CompileTerrainGraph(graph, compiled, &issues)) { error = TgIssuesText(issues); return false; }
-		return EvaluateTerrainGraph(compiled, ctx, out, error);
+		if (!CompileTerrainGraph(graph, registry, compiled, &issues)) { error = TgIssuesText(issues); return false; }
+		return EvaluateTerrainGraph(compiled, registry, ctx, out, error);
 	}
 }

@@ -47,8 +47,8 @@ namespace GB
 
 	// Structural problems only: duplicate ids, edges to a node that does not exist, cycles (found the same way
 	// as ValidatePriorityGraph: a coloured DFS that names the path), and node types unknown to
-	// TerrainNodeRegistry. Does not run any node.
-	std::vector<TgIssue> ValidateTerrainGraph(const TerrainGraph& graph);
+	// the `registry` it is given (the caller owns it: see MakeDefaultTerrainNodeRegistry). Does not run any node.
+	std::vector<TgIssue> ValidateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry);
 	bool HasTgErrors(const std::vector<TgIssue>& issues);
 	std::string TgIssuesText(const std::vector<TgIssue>& issues);
 
@@ -63,17 +63,19 @@ namespace GB
 
 	// Fills `out` from a graph with no structural errors; false (and `out` left empty) when it has any -- they
 	// are in `issues`, same as ValidatePriorityGraph/CompilePriorityGraph.
-	bool CompileTerrainGraph(const TerrainGraph& graph, CompiledTerrainGraph& out, std::vector<TgIssue>* issues = nullptr);
+	bool CompileTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, CompiledTerrainGraph& out, std::vector<TgIssue>* issues = nullptr);
 
 	struct TgResult
 	{
 		std::map<std::string, TgField> Outputs;         // keyed by the Source of each "output" node that ran
 		std::map<std::string, TgPlacements> Placements; // keyed by the Id of each node that is also an IScatterNode
+		std::map<std::string, TgPaths> Paths;           // keyed by the Id of each node that is also an IPathNode
 	};
 
-	// Pure evaluation: runs every node in topological order through TerrainNodeRegistry, with no side effect on
-	// the engine (no Heightmap, no GPU, no file). A node that fails stops the walk; `error` says which and why.
-	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TgContext& ctx, TgResult& out, std::string& error);
+	// Pure evaluation: runs every node in topological order through the given TerrainNodeRegistry, with no side
+	// effect on the engine (no Heightmap, no GPU, no file). A node that fails stops the walk; `error` says which
+	// and why.
+	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error);
 	// Convenience that compiles first (as EvaluatePriorityGraph does for a raw PriorityGraph).
-	bool EvaluateTerrainGraph(const TerrainGraph& graph, const TgContext& ctx, TgResult& out, std::string& error);
+	bool EvaluateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error);
 }

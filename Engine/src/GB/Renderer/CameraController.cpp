@@ -1,5 +1,5 @@
 #include "CameraController.h"
-#include "GB/Input.h"
+#include "GB/InputSource.h"
 #include <algorithm>
 #include <cmath>
 
@@ -99,31 +99,31 @@ namespace GB
 		Target += (right * deltaRight + up * deltaUp) * Distance;
 	}
 
-	void OrbitController::Update(float dt)
+	void OrbitController::Update(float dt, const IInputSource& input)
 	{
 		using GB::Key;
 		if (Keys == KeyScheme::Walk)
 		{
 			float right = 0.0f, forward = 0.0f, turn = 0.0f;
-			if (Input::IsKeyDown(Key::W) || Input::IsKeyDown(Key::Up))    forward += 1.0f;
-			if (Input::IsKeyDown(Key::S) || Input::IsKeyDown(Key::Down))  forward -= 1.0f;
-			if (Input::IsKeyDown(Key::D) || Input::IsKeyDown(Key::Right)) right += 1.0f;
-			if (Input::IsKeyDown(Key::A) || Input::IsKeyDown(Key::Left))  right -= 1.0f;
-			if (Input::IsKeyDown(Key::E)) turn += 1.0f;
-			if (Input::IsKeyDown(Key::Q)) turn -= 1.0f;
-			right += Input::GetGamepadAxis(GamepadAxis::LeftX);
-			forward -= Input::GetGamepadAxis(GamepadAxis::LeftY);
-			turn += Input::GetGamepadAxis(GamepadAxis::RightX);
-			const bool boost = Input::IsKeyDown(Key::LeftShift) || Input::IsGamepadButtonDown(GamepadButton::LeftStick);
+			if (input.IsKeyDown(Key::W) || input.IsKeyDown(Key::Up))    forward += 1.0f;
+			if (input.IsKeyDown(Key::S) || input.IsKeyDown(Key::Down))  forward -= 1.0f;
+			if (input.IsKeyDown(Key::D) || input.IsKeyDown(Key::Right)) right += 1.0f;
+			if (input.IsKeyDown(Key::A) || input.IsKeyDown(Key::Left))  right -= 1.0f;
+			if (input.IsKeyDown(Key::E)) turn += 1.0f;
+			if (input.IsKeyDown(Key::Q)) turn -= 1.0f;
+			right += input.GetGamepadAxis(GamepadAxis::LeftX);
+			forward -= input.GetGamepadAxis(GamepadAxis::LeftY);
+			turn += input.GetGamepadAxis(GamepadAxis::RightX);
+			const bool boost = input.IsKeyDown(Key::LeftShift) || input.IsGamepadButtonDown(GamepadButton::LeftStick);
 			if (!Following && (right != 0.0f || forward != 0.0f)) Walk(right, forward, dt, boost ? WalkBoost : 1.0f);
 			Rotate(turn * RotateSpeed * dt, 0.0f);
 
-			const auto [dx, dy] = Input::GetMouseDelta();
-			if (Input::IsMouseDown(MouseButton::Left))
+			const auto [dx, dy] = input.GetMouseDelta();
+			if (input.IsMouseDown(MouseButton::Left))
 				Rotate(-static_cast<float>(dx) * MouseSensitivity, static_cast<float>(dy) * MouseSensitivity);
-			if (!Following && (Input::IsMouseDown(MouseButton::Right) || Input::IsMouseDown(MouseButton::Middle)))
+			if (!Following && (input.IsMouseDown(MouseButton::Right) || input.IsMouseDown(MouseButton::Middle)))
 				PanGround(-static_cast<float>(dx) * 0.0015f, static_cast<float>(dy) * 0.0015f);
-			const float scroll = Input::GetScrollDelta();
+			const float scroll = input.GetScrollDelta();
 			if (scroll != 0.0f)
 			{
 				glm::vec3 point;
@@ -134,26 +134,26 @@ namespace GB
 			return;
 		}
 		float yaw = 0.0f, pitch = 0.0f, zoom = 0.0f;
-		if (Input::IsKeyDown(Key::Left) || Input::IsKeyDown(Key::A))  yaw -= 1.0f;
-		if (Input::IsKeyDown(Key::Right) || Input::IsKeyDown(Key::D)) yaw += 1.0f;
-		if (Input::IsKeyDown(Key::Up) || Input::IsKeyDown(Key::W))    pitch += 1.0f;
-		if (Input::IsKeyDown(Key::Down) || Input::IsKeyDown(Key::S))  pitch -= 1.0f;
-		if (Input::IsKeyDown(Key::Q)) zoom -= 1.0f;
-		if (Input::IsKeyDown(Key::E)) zoom += 1.0f;
-		yaw += Input::GetGamepadAxis(GamepadAxis::RightX);
-		pitch -= Input::GetGamepadAxis(GamepadAxis::RightY);
+		if (input.IsKeyDown(Key::Left) || input.IsKeyDown(Key::A))  yaw -= 1.0f;
+		if (input.IsKeyDown(Key::Right) || input.IsKeyDown(Key::D)) yaw += 1.0f;
+		if (input.IsKeyDown(Key::Up) || input.IsKeyDown(Key::W))    pitch += 1.0f;
+		if (input.IsKeyDown(Key::Down) || input.IsKeyDown(Key::S))  pitch -= 1.0f;
+		if (input.IsKeyDown(Key::Q)) zoom -= 1.0f;
+		if (input.IsKeyDown(Key::E)) zoom += 1.0f;
+		yaw += input.GetGamepadAxis(GamepadAxis::RightX);
+		pitch -= input.GetGamepadAxis(GamepadAxis::RightY);
 		// Triggers report -1 (released) .. 1 (pressed).
-		zoom += 0.5f * (Input::GetGamepadAxis(GamepadAxis::RightTrigger, 0, 0.0f) + 1.0f) * 0.5f;
-		zoom -= 0.5f * (Input::GetGamepadAxis(GamepadAxis::LeftTrigger, 0, 0.0f) + 1.0f) * 0.5f;
+		zoom += 0.5f * (input.GetGamepadAxis(GamepadAxis::RightTrigger, 0, 0.0f) + 1.0f) * 0.5f;
+		zoom -= 0.5f * (input.GetGamepadAxis(GamepadAxis::LeftTrigger, 0, 0.0f) + 1.0f) * 0.5f;
 		Rotate(yaw * RotateSpeed * dt, pitch * RotateSpeed * dt);
 		Zoom(zoom * ZoomSpeed * dt);
 
-		const auto [dx, dy] = Input::GetMouseDelta();
-		if (Input::IsMouseDown(MouseButton::Left))
+		const auto [dx, dy] = input.GetMouseDelta();
+		if (input.IsMouseDown(MouseButton::Left))
 			Rotate(-static_cast<float>(dx) * MouseSensitivity, static_cast<float>(dy) * MouseSensitivity);
-		if (Input::IsMouseDown(MouseButton::Right) || Input::IsMouseDown(MouseButton::Middle))
+		if (input.IsMouseDown(MouseButton::Right) || input.IsMouseDown(MouseButton::Middle))
 			Pan(-static_cast<float>(dx) * 0.0015f, static_cast<float>(dy) * 0.0015f);
-		Zoom(-Input::GetScrollDelta() * 0.1f);
+		Zoom(-input.GetScrollDelta() * 0.1f);
 	}
 
 	void OrbitController::Apply(Camera& camera) const
@@ -192,33 +192,33 @@ namespace GB
 		Yaw = std::atan2(-d.x, -d.z);
 	}
 
-	void FlyController::Update(float dt)
+	void FlyController::Update(float dt, const IInputSource& input)
 	{
 		using GB::Key;
 		float forward = 0.0f, right = 0.0f, up = 0.0f;
-		if (Input::IsKeyDown(Key::W) || Input::IsKeyDown(Key::Up))    forward += 1.0f;
-		if (Input::IsKeyDown(Key::S) || Input::IsKeyDown(Key::Down))  forward -= 1.0f;
-		if (Input::IsKeyDown(Key::D) || Input::IsKeyDown(Key::Right)) right += 1.0f;
-		if (Input::IsKeyDown(Key::A) || Input::IsKeyDown(Key::Left))  right -= 1.0f;
-		if (Input::IsKeyDown(Key::E)) up += 1.0f;
-		if (Input::IsKeyDown(Key::Q)) up -= 1.0f;
-		forward -= Input::GetGamepadAxis(GamepadAxis::LeftY);
-		right += Input::GetGamepadAxis(GamepadAxis::LeftX);
-		up += 0.5f * (Input::GetGamepadAxis(GamepadAxis::RightTrigger, 0, 0.0f) + 1.0f) * 0.5f;
-		up -= 0.5f * (Input::GetGamepadAxis(GamepadAxis::LeftTrigger, 0, 0.0f) + 1.0f) * 0.5f;
-		const bool boost = Input::IsKeyDown(Key::LeftShift) || Input::IsGamepadButtonDown(GamepadButton::LeftStick);
+		if (input.IsKeyDown(Key::W) || input.IsKeyDown(Key::Up))    forward += 1.0f;
+		if (input.IsKeyDown(Key::S) || input.IsKeyDown(Key::Down))  forward -= 1.0f;
+		if (input.IsKeyDown(Key::D) || input.IsKeyDown(Key::Right)) right += 1.0f;
+		if (input.IsKeyDown(Key::A) || input.IsKeyDown(Key::Left))  right -= 1.0f;
+		if (input.IsKeyDown(Key::E)) up += 1.0f;
+		if (input.IsKeyDown(Key::Q)) up -= 1.0f;
+		forward -= input.GetGamepadAxis(GamepadAxis::LeftY);
+		right += input.GetGamepadAxis(GamepadAxis::LeftX);
+		up += 0.5f * (input.GetGamepadAxis(GamepadAxis::RightTrigger, 0, 0.0f) + 1.0f) * 0.5f;
+		up -= 0.5f * (input.GetGamepadAxis(GamepadAxis::LeftTrigger, 0, 0.0f) + 1.0f) * 0.5f;
+		const bool boost = input.IsKeyDown(Key::LeftShift) || input.IsGamepadButtonDown(GamepadButton::LeftStick);
 		Move(forward, right, up, dt, boost ? BoostMultiplier : 1.0f);
 
-		float yaw = Input::GetGamepadAxis(GamepadAxis::RightX) * LookSpeed * dt;
-		float pitch = -Input::GetGamepadAxis(GamepadAxis::RightY) * LookSpeed * dt;
-		if (Input::IsMouseDown(MouseButton::Right))
+		float yaw = input.GetGamepadAxis(GamepadAxis::RightX) * LookSpeed * dt;
+		float pitch = -input.GetGamepadAxis(GamepadAxis::RightY) * LookSpeed * dt;
+		if (input.IsMouseDown(MouseButton::Right))
 		{
-			const auto [dx, dy] = Input::GetMouseDelta();
+			const auto [dx, dy] = input.GetMouseDelta();
 			yaw -= static_cast<float>(dx) * MouseSensitivity;
 			pitch -= static_cast<float>(dy) * MouseSensitivity;
 		}
 		Look(yaw, pitch);
-		Speed = std::clamp(Speed * std::exp(Input::GetScrollDelta() * 0.1f), 0.1f, 500.0f);   // wheel = speed
+		Speed = std::clamp(Speed * std::exp(input.GetScrollDelta() * 0.1f), 0.1f, 500.0f);   // wheel = speed
 	}
 
 	void FlyController::Apply(Camera& camera) const

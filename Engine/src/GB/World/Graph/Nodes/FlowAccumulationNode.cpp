@@ -1,7 +1,6 @@
 #include "GB/World/Graph/Nodes/FlowAccumulationNode.h"
 #include "GB/World/FlowAccumulation.h"
 #include "GB/World/Graph/TerrainGraph.h"
-#include "GB/World/Terrain.h"
 
 namespace GB
 {
@@ -11,11 +10,7 @@ namespace GB
 		const TgField& in = *inputs[0];
 		if (in.N == 0) { error = "flow_accumulation node '" + node.Id + "' got an empty field"; return false; }
 
-		Heightmap heightmap(in.N, in.Size, in.Center);
-		for (uint32_t j = 0; j < in.N; ++j)
-			for (uint32_t i = 0; i < in.N; ++i) heightmap.At(i, j) = in.At(i, j);
-
-		const FlowAccumulationResult result = FlowAccumulation::Run(heightmap);
+		const FlowAccumulationResult result = FlowAccumulation::Run(in.Values.data(), in.N);
 
 		out.Resize(in.N, in.Size, in.Center);
 		for (uint32_t j = 0; j < in.N; ++j)

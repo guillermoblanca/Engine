@@ -22,3 +22,18 @@ d.Check(GB_GOLDEN_DIR "/data", "world_temperate_5");
 - Flujo: `ctest` normal compara; tras un cambio visual **intencionado**: `GB_UPDATE_GOLDEN=1 ctest -R golden --test-dir build`, mira las imágenes y haz commit de `tests/golden`. `tools/qa_report.py build/tests/qa_artifacts` genera una página HTML con las diferencias; el CI sube `qa_artifacts` como artefacto si algo falla.
 - Primer fruto: los datos de referencia delataron que el río del mundo templado acababa 3,7 m **por debajo** del lago (el trazado chocaba con el borde del mapa); ahora el camino se calcula con Dijkstra hasta el lago y el nivel del agua baja hasta el del lago, y los barridos lo vigilan.
 - Test `qa` (CPU): métricas, tolerancias, referencias de imagen y de datos, sobrescritura por plataforma, huellas.
+
+## Capturas del agua (antes/después)
+
+Para comparar el agua de dos versiones del generador hace falta el mismo encuadre en las dos. El Editor lo da con comandos de consola, sin ventana:
+
+- `camera lake` / `camera river [yaw pitch distancia]` enmarcan el lago o el tramo del río al 70 % de su recorrido (ya ensanchado) y escriben dónde han puesto la cámara.
+- `generate <tipo> [semilla] [árboles] [rocas] [detalle] [erosión] [generador]` acepta un guion (`-`) para dejar un argumento como está y, como último, el generador (1 a 3), para ver el agua que hacía uno antiguo.
+
+```
+Editor.exe --hidden --quality=medium "--exec=generate temperate 5 - - - - 2; time 12; camera lake; wait 4; screenshot docs/img/water/before/seed5_lake.png; quit"
+Editor.exe --hidden --quality=medium "--exec=generate temperate 5; time 12; camera lake; wait 4; screenshot docs/img/water/after/seed5_lake.png; quit"
+powershell -File tools/water_compare.ps1
+```
+
+`tools/water_compare.ps1` pone cada pareja de `before/` y `after/` lado a lado en `docs/img/water/compare_*.jpg`. Los tests (`ctest -R water_module`) cubren el agua sin ventana.

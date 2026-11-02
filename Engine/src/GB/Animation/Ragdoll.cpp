@@ -8,8 +8,6 @@ namespace GB
 {
 	namespace
 	{
-		int g_NextGroup = 100;
-
 		glm::quat WorldRotation(const glm::mat4& m)
 		{
 			return glm::normalize(glm::quat_cast(glm::mat3(glm::normalize(glm::vec3(m[0])), glm::normalize(glm::vec3(m[1])), glm::normalize(glm::vec3(m[2])))));
@@ -90,7 +88,7 @@ namespace GB
 		for (const Spec& sp : specs) massSum += sp.Mass;
 
 		// the bodies
-		m_Group = ++g_NextGroup;
+		m_Group = m_World.AllocateGroup();
 		const float totalMass = Config.TotalMass * s * s * s;
 		std::vector<glm::quat> rotations;
 		for (const Spec& sp : specs)

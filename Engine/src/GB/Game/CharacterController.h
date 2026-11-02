@@ -10,6 +10,7 @@
 
 namespace GB
 {
+	class IInputSource;
 	// A third-person character: acceleration, turning toward the direction of travel, terrain following, and
 	// collision against trees/rocks (XZ circles) and deep water. Everything is a pure step over plain data and
 	// callbacks, so it runs without a window or GL (see tests/character_test.cpp); ReadInput() is the only
@@ -24,7 +25,7 @@ namespace GB
 	};
 
 	// Keyboard (WASD, Shift = run) and left stick (past ~90% = run, or hold the stick button). Zero without a window.
-	CharacterInput ReadCharacterInput(float cameraYaw);
+	CharacterInput ReadCharacterInput(const IInputSource& input, float cameraYaw);
 
 	// A timeline of input for headless runs and tests: "WD:1.5,RW:2,:0.5" = hold W+D for 1.5 s, then R(un)+W for 2 s,
 	// then nothing for 0.5 s. W A S D move, R runs, J jumps, Q / E turn the camera left / right; the keys come before the colon.
@@ -170,7 +171,7 @@ namespace GB
 		void Update(float dt, const glm::vec3& characterPosition);
 		void Snap(const glm::vec3& characterPosition);
 		// Mouse drag (left or right button), arrows, right stick, wheel. Not WASD: those walk.
-		void ReadInput(float dt);
+		void ReadInput(const IInputSource& input, float dt);
 		void Apply(Camera& camera) const;
 
 		glm::vec3 GetPosition() const;

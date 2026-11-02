@@ -1,30 +1,37 @@
 #include "Window.h"
-#include "Input.h"
 #include "Log.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
 namespace GB
 {
-	static int s_GLFWRefs = 0;
-
-	static void GLFWErrorCallback(int error, const char* description)
+	namespace
 	{
-		GB_CORE_ERROR("GLFW error {}: {}", error, description);
+		void GLFWErrorCallback(int error, const char* description)
+		{
+			GB_CORE_ERROR("GLFW error {}: {}", error, description);
+		}
 	}
 
-	std::unique_ptr<Window> Window::Create(const WindowProps& props)
+	std::shared_ptr<GlfwContext> GlfwContext::Create()
 	{
-		if (s_GLFWRefs == 0)
+		glfwSetErrorCallback(GLFWErrorCallback);
+		if (!glfwInit())
 		{
-			glfwSetErrorCallback(GLFWErrorCallback);
-			if (!glfwInit())
-			{
-				GB_CORE_ERROR("glfwInit failed");
-				return nullptr;
-			}
+			GB_CORE_ERROR("glfwInit failed");
+			return nullptr;
 		}
-		++s_GLFWRefs;
+		return std::shared_ptr<GlfwContext>(new GlfwContext());
+	}
+
+	GlfwContext::~GlfwContext() { glfwTerminate(); }
+
+	std::unique_ptr<Window> Window::Create(const WindowProps& props, std::shared_ptr<GlfwContext> glfw)
+	{
+		if (!glfw)
+			glfw = GlfwContext::Create();
+		if (!glfw)
+			return nullptr;
 
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
@@ -36,6 +43,7 @@ namespace GB
 #endif
 
 		std::unique_ptr<Window> window(new Window());
+		window->m_Glfw = std::move(glfw);   // from here on ~Window releases the library reference
 		window->m_Width = props.Width;
 		window->m_Height = props.Height;
 		window->m_Handle = glfwCreateWindow(static_cast<int>(props.Width), static_cast<int>(props.Height),
@@ -43,7 +51,7 @@ namespace GB
 		if (!window->m_Handle)
 		{
 			GB_CORE_ERROR("Could not create a {}x{} OpenGL 4.5 window", props.Width, props.Height);
-			return nullptr; // ~Window releases the GLFW reference
+			return nullptr;
 		}
 
 		glfwMakeContextCurrent(window->m_Handle);
@@ -53,8 +61,14 @@ namespace GB
 			return nullptr;
 		}
 		glfwSwapInterval(props.VSync ? 1 : 0);
-		Input::Bind(window->m_Handle);
-		glfwSetScrollCallback(window->m_Handle, [](GLFWwindow*, double, double yOffset) { Input::AddScroll(static_cast<float>(yOffset)); });
+		window->m_Input.Bind(window->m_Handle);
+		// The scroll wheel reaches this window's own input through the GLFW user pointer (no global to find it by).
+		glfwSetWindowUserPointer(window->m_Handle, window.get());
+		glfwSetScrollCallback(window->m_Handle, [](GLFWwindow* handle, double, double yOffset)
+		{
+			if (Window* w = static_cast<Window*>(glfwGetWindowUserPointer(handle)))
+				w->m_Input.AddScroll(static_cast<float>(yOffset));
+		});
 
 		GB_CORE_INFO("OpenGL {} | {} | {}",
 			reinterpret_cast<const char*>(glGetString(GL_VERSION)),
@@ -67,16 +81,17 @@ namespace GB
 	{
 		if (m_Handle)
 		{
-			Input::Bind(nullptr);
+			m_Input.Bind(nullptr);
 			glfwDestroyWindow(m_Handle);
 		}
-		if (--s_GLFWRefs == 0)
-			glfwTerminate();
+		// m_Glfw is released after this body: glfwTerminate runs when the last window of the context is gone.
 	}
 
 	void Window::PollEvents()
 	{
+		m_Input.NewFrame();   // the scroll accumulator starts over, then the events add to it
 		glfwPollEvents();
+		m_Input.PostPoll();
 		// Follow the real size of the framebuffer (the user resizing the window). A minimised or hidden window may
 		// report 0: keep the last good size then.
 		int w = 0, h = 0;

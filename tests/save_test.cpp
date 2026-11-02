@@ -228,7 +228,7 @@ static void TestMigrations()
 	const std::string dir = std::string(GB_SAVES_DIR);
 	// v0: a bare scene file from before saved games
 	{
-		if (Qa::Config::UpdateMode() && !fs::exists(dir + "/v0_scene.json"))
+		if (Qa::Config::FromEnvironment().UpdateGolden && !fs::exists(dir + "/v0_scene.json"))
 		{
 			EntityWorld w;
 			BuildGarden(w, glm::vec3(0.0f));
@@ -257,7 +257,7 @@ static void TestMigrations()
 	// v1: the first saved game format
 	{
 		const std::string path = dir + "/v1_garden.gbsave";
-		if (Qa::Config::UpdateMode() && !fs::exists(path))   // a past version is frozen: never rewritten
+		if (Qa::Config::FromEnvironment().UpdateGolden && !fs::exists(path))   // a past version is frozen: never rewritten
 		{
 			GameSession s({ Seed(7) });
 			Play(s, 500);
@@ -280,7 +280,7 @@ static void TestMigrations()
 	// v2: the world records the version of its generator and the density of its wild resource nodes
 	{
 		const std::string path = dir + "/v2_world.gbsave";
-		if (Qa::Config::UpdateMode() && !fs::exists(path))
+		if (Qa::Config::FromEnvironment().UpdateGolden && !fs::exists(path))
 		{
 			WorldParams w = Seed(13);
 			w.GeneratorVersion = 2;
@@ -566,7 +566,7 @@ static void TestReservedSlots()
 
 	// the golden: a past version wrote it and this one must keep loading it
 	const std::string path = std::string(GB_SAVES_DIR) + "/v1_slots.gbsave";
-	if (Qa::Config::UpdateMode() && !fs::exists(path)) CheckR(SaveGameToFile(full, path), "writing the golden save with the reserved slots");
+	if (Qa::Config::FromEnvironment().UpdateGolden && !fs::exists(path)) CheckR(SaveGameToFile(full, path), "writing the golden save with the reserved slots");
 	SaveGame g;
 	const std::string text = Slurp(path);
 	CheckR(ParseSaveGame(text, g), "the golden save with the reserved slots loads");
