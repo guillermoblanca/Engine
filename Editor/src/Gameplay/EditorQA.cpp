@@ -110,7 +110,7 @@ namespace GB::Editor
 			if (m_Tribe.Members().empty()) return { false, "no tribe to check (tribe build)" };
 			SimMonitor once;
 			once.Step(QaView());
-			if (once.Violations() == 0) return { true, "qa check: every invariant holds (" + std::to_string(SimInvariants().size()) + " checked)" };
+			if (once.Violations() == 0) return { true, "qa check: every invariant holds (" + std::to_string(once.Checks().Invariants.size()) + " checked)" };
 			std::string lines = once.Describe(20);
 			for (char& c : lines) if (c == '\n') c = '|';
 			return { false, "qa check: " + std::to_string(once.Violations()) + " violation(s): " + lines };
@@ -159,7 +159,7 @@ namespace GB::Editor
 				ImGui::TableSetupColumn("Seen", ImGuiTableColumnFlags_WidthFixed, 45.0f);
 				ImGui::TableSetupColumn("Promise");
 				ImGui::TableHeadersRow();
-				for (const SimInvariant& inv : SimInvariants())
+				for (const SimInvariant& inv : m_SimQA.Checks().Invariants)
 				{
 					const auto it = counts.find(inv.Name);
 					const int n = it == counts.end() ? 0 : it->second;

@@ -96,7 +96,7 @@ namespace GB::Editor
 		return { true, Describe() };
 	}
 
-	void GameView::Update(float dt, bool acceptInput, const ActorWorld& actors, const PlayerMode& player, WorldInstance& world, Camera& camera)
+	void GameView::Update(const IInputSource& source, float dt, bool acceptInput, const ActorWorld& actors, const PlayerMode& player, WorldInstance& world, Camera& camera)
 	{
 		if (!m_Active) return;
 		Configure(world);
@@ -108,7 +108,7 @@ namespace GB::Editor
 		GameCameraInput input;
 		if (acceptInput)
 		{
-			input = ReadGameCameraInput(m_Rig.Mode(), QeTurns);
+			input = ReadGameCameraInput(source, m_Rig.Mode(), QeTurns);
 			const bool playerSteers = m_Rig.Mode() == GameCameraMode::Follow && m_Follow.empty();
 			if (playerSteers) input = GameCameraInput{ .ZoomDelta = input.ZoomDelta };   // the player's camera reads the turns itself
 		}

@@ -56,7 +56,7 @@ namespace GB::Editor
 	{
 		friend class EditorSaveHost;
 	public:
-		EditorApp();
+		explicit EditorApp(const LaunchOptions& launch);
 		~EditorApp() override;
 
 		CommandResult Execute(const std::string& line);

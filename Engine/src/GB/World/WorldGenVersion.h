@@ -9,6 +9,10 @@ namespace GB
 {
 	// 1: the first generator (until October 2026). The placement hashes of trees and rocks used fixed salts, the same in every seed.
 	// 2: the placement hashes mix the seed in; the biomes and the distance to the water are baked on a grid before placing anything.
+	// 3: the water is found by a terrain graph on the bare ground (GB/Water/WaterPlanner.h): the lake in the broadest basin with a lobed shore, the river
+	//    along the real drainage network down to it, widening, deepening and quickening downstream (GB/Water/RiverHydraulics.h). The terrain, the biomes
+	//    and the placement are the same code as 2; only the lake and the river change, so a world of generator 3 differs from the same seed of 2 there.
 	constexpr uint32_t kWorldGeneratorV1 = 1;
-	constexpr uint32_t kWorldGeneratorLatest = 2;
+	constexpr uint32_t kWorldGeneratorV3 = 3;
+	constexpr uint32_t kWorldGeneratorLatest = 3;
 }

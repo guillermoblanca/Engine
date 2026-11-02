@@ -1,4 +1,8 @@
 #include "WorldGen.h"
+#include "GB/Log.h"
+#include "GB/Water/WaterPlanner.h"
+#include "GB/Water/WaterPresets.h"
+#include "GB/World/Erosion.h"
 #include <algorithm>
 #include <functional>
 #include <queue>
@@ -68,29 +72,18 @@ namespace GB
 			return c;
 		}
 
-		// Distance from (x, z) to segment k of the river, and the water level at the nearest point of it: the very operations of
-		// Terrain::DistanceToRiver / GetRiverLevelAt / GetRiverSurfaceLevel, so the results are the same to the bit.
-		void RiverSegment(const RiverData& r, size_t k, float x, float z, float& d, float& level)
-		{
-			const auto& P = r.Points;
-			const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
-			const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
-			d = glm::length(glm::vec2(x, z) - (a + ab * tt));
-			level = glm::mix(P[k].y, P[k + 1].y, tt);
-		}
-
 		// The biome from what is measured at a point. `riverD` and `riverLevel` are the distance to the river axis and the water level at its
 		// nearest point (1e9 and -1e9 without a river, or far from it).
-		Biome Classify(const GeneratedWorld& w, float x, float z, float riverD, float riverLevel)
+		Biome Classify(const GeneratedWorld& w, float x, float z, float riverD, float riverLevel, float riverHalf)
 		{
 			const Terrain& t = *w.TerrainRef;
 			const float h = t.GetHeight(x, z);
 			if (t.HasLake() && h < t.GetWaterLevel() - 0.02f && glm::distance(glm::vec2(x, z), t.GetLakeCenter()) < t.GetLakeRadius() * 1.3f) return Biome::Water;
 			const RiverData* river = t.GetRiver();
-			if (river && riverD <= river->HalfWidth * 1.2f && h < riverLevel) return Biome::Water;
+			if (river && riverD <= riverHalf * 1.2f && h < riverLevel) return Biome::Water;
 			float nearWater = 1e9f;
 			if (t.HasLake()) nearWater = std::min(nearWater, std::max(h - t.GetWaterLevel(), 0.0f) + (glm::distance(glm::vec2(x, z), t.GetLakeCenter()) > t.GetLakeRadius() * 1.8f ? 1e9f : 0.0f));
-			if (river && riverD < river->HalfWidth * 1.8f) nearWater = std::min(nearWater, std::max(h - riverLevel, 0.0f));
+			if (river && riverD < riverHalf * 1.8f) nearWater = std::min(nearWater, std::max(h - riverLevel, 0.0f));
 			if (nearWater < 0.7f) return Biome::Shore;
 			if (h > w.SnowLine) return Biome::Snow;
 			const glm::vec3 n = t.GetHeightmap().GetNormal(x, z);
@@ -164,7 +157,7 @@ namespace GB
 
 			// The river's distance and level, rasterized segment by segment around the river only: a sample takes the first segment that is strictly
 			// nearest, like the loop over all the segments of Terrain, and a sample farther than `reach` from every segment does not need it.
-			std::vector<float> riverD(count, 1e9f), riverLevel(count, -1e9f);
+			std::vector<float> riverD(count, 1e9f), riverLevel(count, -1e9f), riverHalf(count, 0.0f);   // (riverHalf: the half-width of the river at the nearest point)
 			if (const RiverData* r = w.TerrainRef->GetRiver())
 			{
 				const float reach = r->HalfWidth * 1.8f + m.Cell;
@@ -178,10 +171,9 @@ namespace GB
 						for (int i = i0; i <= i1; ++i)
 						{
 							const glm::vec2 p = m.SamplePosition(i, j);
-							float d, level;
-							RiverSegment(*r, k, p.x, p.y, d, level);
+							const RiverSample s = ProbeRiverSegment(*r, k, p.x, p.y);   // (the same geometry as Terrain's river queries: GB/Water)
 							const size_t o = static_cast<size_t>(j) * static_cast<size_t>(m.N) + static_cast<size_t>(i);
-							if (d < riverD[o]) { riverD[o] = d; riverLevel[o] = level; }
+							if (s.Distance < riverD[o]) { riverD[o] = s.Distance; riverLevel[o] = s.Level; riverHalf[o] = s.HalfWidth; }
 						}
 				}
 			}
@@ -191,7 +183,7 @@ namespace GB
 				{
 					const size_t o = static_cast<size_t>(j) * static_cast<size_t>(m.N) + static_cast<size_t>(i);
 					const glm::vec2 p = m.SamplePosition(i, j);
-					const Biome b = Classify(w, p.x, p.y, riverD[o], riverLevel[o]);
+					const Biome b = Classify(w, p.x, p.y, riverD[o], riverLevel[o], riverHalf[o]);
 					m.Biomes[o] = static_cast<uint8_t>(b);
 					f[o] = b == Biome::Water ? 0.0f : 1e20f;
 				}
@@ -253,20 +245,8 @@ namespace GB
 		}
 	}
 
-	const char* BiomeName(Biome b)
-	{
-		switch (b)
-		{
-		case Biome::Water: return "Water";
-		case Biome::Shore: return "Shore";
-		case Biome::Meadow: return "Meadow";
-		case Biome::Forest: return "Forest";
-		case Biome::Rock: return "Rock";
-		case Biome::Snow: return "Snow";
-		case Biome::Dunes: return "Dunes";
-		}
-		return "Water";
-	}
+	// BiomeName moved to GB/World/Biome.cpp (the enum now lives in GB/World/Biome.h, included by WorldGen.h, so a terrain graph node can use it
+	// without WorldGen.h's heavier includes); every existing `#include "GB/World/WorldGen.h"` still gets GB::BiomeName unchanged.
 
 	size_t BiomeMap::Nearest(float x, float z) const
 	{
@@ -291,15 +271,15 @@ namespace GB
 	Biome GeneratedWorld::ComputeBiome(float x, float z) const
 	{
 		if (Desc.Type == WorldType::Desert) return Biome::Dunes;
-		float riverD = 1e9f, riverLevel = -1e9f;
+		float riverD = 1e9f, riverLevel = -1e9f, riverHalf = 0.0f;
 		if (const RiverData* r = TerrainRef->GetRiver())
-			for (size_t k = 0; k + 1 < r->Points.size(); ++k)
-			{
-				float d, level;
-				RiverSegment(*r, k, x, z, d, level);
-				if (d < riverD) { riverD = d; riverLevel = level; }
-			}
-		return Classify(*this, x, z, riverD, riverLevel);
+		{
+			const RiverSample s = NearestRiverPoint(*r, x, z);
+			riverD = s.Distance;
+			riverLevel = s.Level;
+			riverHalf = s.HalfWidth;
+		}
+		return Classify(*this, x, z, riverD, riverLevel, riverHalf);
 	}
 
 	Biome GeneratedWorld::BiomeAt(float x, float z) const
@@ -382,6 +362,7 @@ namespace GB
 		{
 			DuneParams dp;
 			dp.Seed = desc.Seed;
+			dp.DetailThreshold = desc.MeshDetail;
 			w.TerrainPtr = Terrain::CreateDunes(dp, desc.Size, desc.Resolution, TerrainStyle::Desert, false);
 		}
 		else
@@ -391,89 +372,158 @@ namespace GB
 			hp.Height = desc.Type == WorldType::Alpine ? 58.0f : 16.0f;
 			hp.Scale = desc.Type == WorldType::Alpine ? 190.0f : 140.0f;
 			hp.Flatten = desc.Type == WorldType::Alpine ? 0.05f : 0.25f;
+			hp.DetailThreshold = desc.MeshDetail;
 			const TerrainStyle style = desc.Type == WorldType::Alpine ? TerrainStyle::Snow : TerrainStyle::Meadow;
 
 			// Pass 1: the bare terrain, to find the basin for the lake and the way down for the river.
 			hp.SurfaceMaps = false;
 			auto bare = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style, false);
-			const Coarse coarse = MakeCoarse(bare->GetHeightmap(), 65);
-			// lowest point away from the borders
-			int bi = 0, bj = 0; float lowest = 1e9f;
-			for (int j = 12; j < coarse.N - 12; ++j)
-				for (int i = 12; i < coarse.N - 12; ++i)
-					if (coarse.At(i, j) < lowest) { lowest = coarse.At(i, j); bi = i; bj = j; }
-			const glm::vec2 basin = coarse.Pos(bi, bj);
-			if (desc.Lake)
+			// Generators 1 and 2 find the water below with code of their own; generator 3 asks a terrain graph (GB/Water/WaterPlanner.h) to analyse the
+			// bare ground: where the broadest basin is, where the rain goes, which flow line is the river. If the graph fails (it should not) the world
+			// is still built, with the old method.
+			const bool organic = desc.GeneratorVersion >= kWorldGeneratorV3;
+			const WaterGenParams waterGen = DefaultWaterGen(desc.Type == WorldType::Alpine, organic);
+			bool planned = false;
+			if (organic && (desc.Lake || desc.River))
 			{
-				hp.LakeCenter = basin;
-				hp.LakeRadius = desc.Type == WorldType::Alpine ? 26.0f : 22.0f;
-				hp.LakeDepth = 3.0f;
-				hp.WaterLevel = lowest + 1.0f;
+				WaterPlanRequest request;
+				request.Lake = desc.Lake;
+				request.River = desc.River;
+				request.Gen = waterGen;
+				request.Seed = desc.Seed;
+				WaterPlan plan;
+				std::string why;
+				if (PlanWater(MakeDefaultTerrainNodeRegistry(), bare->GetHeightmap(), request, plan, why))
+				{
+					ApplyWaterPlan(plan, waterGen, hp);
+					planned = true;
+				}
+				else GB_CORE_WARN("the water graph failed ({}); using the coarse-grid river", why);
 			}
-			if (desc.River)
+			if (!planned)
 			{
-				// A cheapest path (Dijkstra) on the coarse grid from the highest border point to the lake basin (or, without
-				// a lake, to the lowest border point): going uphill is expensive, so the river follows the valleys and always arrives.
-				const int N = coarse.N;
-				glm::ivec2 startCell(4, 4); float top = -1e9f;
-				glm::ivec2 goalCell(bi, bj); float bottom = 1e9f;
-				for (int k = 4; k < N - 4; ++k)
-					for (const glm::ivec2 e : { glm::ivec2(k, 3), glm::ivec2(k, N - 4), glm::ivec2(3, k), glm::ivec2(N - 4, k) })
-					{
-						if (coarse.At(e.x, e.y) > top && (!desc.Lake || glm::distance(coarse.Pos(e.x, e.y), basin) > desc.Size * 0.3f)) { top = coarse.At(e.x, e.y); startCell = e; }
-						if (!desc.Lake && coarse.At(e.x, e.y) < bottom && glm::distance(coarse.Pos(e.x, e.y), coarse.Pos(startCell.x, startCell.y)) > desc.Size * 0.4f) { bottom = coarse.At(e.x, e.y); goalCell = e; }
-					}
-				std::vector<float> cost(static_cast<size_t>(N) * static_cast<size_t>(N), 1e30f);
-				std::vector<int> from(cost.size(), -1);
-				using Item = std::pair<float, int>;
-				std::priority_queue<Item, std::vector<Item>, std::greater<Item>> open;
-				auto idx = [&](int i, int j) { return j * N + i; };
-				cost[static_cast<size_t>(idx(startCell.x, startCell.y))] = 0.0f;
-				open.push({ 0.0f, idx(startCell.x, startCell.y) });
-				while (!open.empty())
+				const Coarse coarse = MakeCoarse(bare->GetHeightmap(), 65);
+				// lowest point away from the borders
+				int bi = 0, bj = 0; float lowest = 1e9f;
+				for (int j = 12; j < coarse.N - 12; ++j)
+					for (int i = 12; i < coarse.N - 12; ++i)
+						if (coarse.At(i, j) < lowest) { lowest = coarse.At(i, j); bi = i; bj = j; }
+				const glm::vec2 basin = coarse.Pos(bi, bj);
+				if (desc.Lake)
 				{
-					const auto [c, cur] = open.top();
-					open.pop();
-					if (c > cost[static_cast<size_t>(cur)]) continue;
-					const int ci = cur % N, cj = cur / N;
-					if (ci == goalCell.x && cj == goalCell.y) break;
-					for (int dj = -1; dj <= 1; ++dj)
-						for (int di = -1; di <= 1; ++di)
+					hp.LakeCenter = basin;
+					hp.LakeRadius = waterGen.LakeRadius;
+					hp.LakeDepth = waterGen.LakeDepth;
+					hp.WaterLevel = lowest + waterGen.LakeLevelAboveBasin;
+				}
+				if (desc.River)
+				{
+					// A cheapest path (Dijkstra) on the coarse grid from the highest border point to the lake basin (or, without
+					// a lake, to the lowest border point): going uphill is expensive, so the river follows the valleys and always arrives.
+					const int N = coarse.N;
+					glm::ivec2 startCell(4, 4); float top = -1e9f;
+					glm::ivec2 goalCell(bi, bj); float bottom = 1e9f;
+					for (int k = 4; k < N - 4; ++k)
+						for (const glm::ivec2 e : { glm::ivec2(k, 3), glm::ivec2(k, N - 4), glm::ivec2(3, k), glm::ivec2(N - 4, k) })
 						{
-							const int ni = ci + di, nj = cj + dj;
-							if ((di == 0 && dj == 0) || ni < 2 || nj < 2 || ni >= N - 2 || nj >= N - 2) continue;
-							const float len = (di != 0 && dj != 0 ? 1.4142f : 1.0f) * coarse.Step;
-							const float rise = coarse.At(ni, nj) - coarse.At(ci, cj);
-							const glm::vec2 q = coarse.Pos(ni, nj);
-							const float meander = 1.0f + 0.6f * Noise2(q.x / 30.0f, q.y / 30.0f, desc.Seed + 99u);
-							// Going down costs nothing extra (a term "2 * max(-rise, 0) * 0" used to stand here: adding +0 never changed a cost, so dropping it
-							// keeps generator 1 exact).
-							const float next = c + len * meander + 14.0f * std::max(rise, 0.0f);
-							if (next < cost[static_cast<size_t>(idx(ni, nj))]) { cost[static_cast<size_t>(idx(ni, nj))] = next; from[static_cast<size_t>(idx(ni, nj))] = cur; open.push({ next, idx(ni, nj) }); }
+							if (coarse.At(e.x, e.y) > top && (!desc.Lake || glm::distance(coarse.Pos(e.x, e.y), basin) > desc.Size * 0.3f)) { top = coarse.At(e.x, e.y); startCell = e; }
+							if (!desc.Lake && coarse.At(e.x, e.y) < bottom && glm::distance(coarse.Pos(e.x, e.y), coarse.Pos(startCell.x, startCell.y)) > desc.Size * 0.4f) { bottom = coarse.At(e.x, e.y); goalCell = e; }
 						}
+					std::vector<float> cost(static_cast<size_t>(N) * static_cast<size_t>(N), 1e30f);
+					std::vector<int> from(cost.size(), -1);
+					using Item = std::pair<float, int>;
+					std::priority_queue<Item, std::vector<Item>, std::greater<Item>> open;
+					auto idx = [&](int i, int j) { return j * N + i; };
+					cost[static_cast<size_t>(idx(startCell.x, startCell.y))] = 0.0f;
+					open.push({ 0.0f, idx(startCell.x, startCell.y) });
+					while (!open.empty())
+					{
+						const auto [c, cur] = open.top();
+						open.pop();
+						if (c > cost[static_cast<size_t>(cur)]) continue;
+						const int ci = cur % N, cj = cur / N;
+						if (ci == goalCell.x && cj == goalCell.y) break;
+						for (int dj = -1; dj <= 1; ++dj)
+							for (int di = -1; di <= 1; ++di)
+							{
+								const int ni = ci + di, nj = cj + dj;
+								if ((di == 0 && dj == 0) || ni < 2 || nj < 2 || ni >= N - 2 || nj >= N - 2) continue;
+								const float len = (di != 0 && dj != 0 ? 1.4142f : 1.0f) * coarse.Step;
+								const float rise = coarse.At(ni, nj) - coarse.At(ci, cj);
+								const glm::vec2 q = coarse.Pos(ni, nj);
+								const float meander = 1.0f + 0.6f * Noise2(q.x / 30.0f, q.y / 30.0f, desc.Seed + 99u);
+								// Going down costs nothing extra (a term "2 * max(-rise, 0) * 0" used to stand here: adding +0 never changed a cost, so dropping it
+								// keeps generator 1 exact).
+								const float next = c + len * meander + 14.0f * std::max(rise, 0.0f);
+								if (next < cost[static_cast<size_t>(idx(ni, nj))]) { cost[static_cast<size_t>(idx(ni, nj))] = next; from[static_cast<size_t>(idx(ni, nj))] = cur; open.push({ next, idx(ni, nj) }); }
+							}
+					}
+					std::vector<glm::vec2> path;
+					for (int cur = idx(goalCell.x, goalCell.y); cur >= 0; cur = from[static_cast<size_t>(cur)])
+						path.push_back(coarse.Pos(cur % N, cur / N));
+					std::reverse(path.begin(), path.end());
+					// every third node is plenty for the spline; the first and last stay
+					std::vector<glm::vec2> thinned;
+					for (size_t i = 0; i < path.size(); ++i)
+						if (i % 3 == 0 || i + 1 == path.size()) thinned.push_back(path[i]);
+					path.swap(thinned);
+					if (desc.Lake)   // the river ends at the bank of the lake, not in the middle of it
+					{
+						while (path.size() > 2 && glm::distance(path.back(), basin) < hp.LakeRadius * 1.7f) path.pop_back();
+						const glm::vec2 toLake = basin - path.back();
+						const float len = glm::length(toLake);
+						path.push_back(basin - (len > 1e-3f ? toLake / len : glm::vec2(1.0f, 0.0f)) * hp.LakeRadius * 0.95f);
+					}
+					if (path.size() >= 3) hp.RiverPath = path;
+					hp.RiverWidth = waterGen.RiverWidth;
 				}
-				std::vector<glm::vec2> path;
-				for (int cur = idx(goalCell.x, goalCell.y); cur >= 0; cur = from[static_cast<size_t>(cur)])
-					path.push_back(coarse.Pos(cur % N, cur / N));
-				std::reverse(path.begin(), path.end());
-				// every third node is plenty for the spline; the first and last stay
-				std::vector<glm::vec2> thinned;
-				for (size_t i = 0; i < path.size(); ++i)
-					if (i % 3 == 0 || i + 1 == path.size()) thinned.push_back(path[i]);
-				path.swap(thinned);
-				if (desc.Lake)   // the river ends at the bank of the lake, not in the middle of it
-				{
-					while (path.size() > 2 && glm::distance(path.back(), basin) < hp.LakeRadius * 1.7f) path.pop_back();
-					const glm::vec2 toLake = basin - path.back();
-					const float len = glm::length(toLake);
-					path.push_back(basin - (len > 1e-3f ? toLake / len : glm::vec2(1.0f, 0.0f)) * hp.LakeRadius * 0.95f);
-				}
-				if (path.size() >= 3) hp.RiverPath = path;
-				hp.RiverWidth = desc.Type == WorldType::Alpine ? 5.0f : 6.5f;
 			}
 			hp.SurfaceMaps = true;
 			w.Hills = hp;
 			w.TerrainPtr = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style, false);
+			// Hueco #1 of docs/GRAFO_TERRENO.md: the generator used to never call HydraulicErosion, even though it is implemented and tested
+			// (tests/world_test.cpp) -- only Sandbox's interactive rain used it, on a terrain already built. Carved here, right after the lake and
+			// river and before SnowLine/biomes/spawn/trees/rocks read the terrain, so every one of them sees the eroded ground, same as a player who
+			// lets it rain before building. `gpu=false` above means BuildGpu (the mesh, the normal map) has not run yet, so there is nothing stale
+			// to invalidate: WorldGenerator::BuildGpu reads these heights afterwards, whenever it is called.
+			if (desc.Erosion)
+			{
+				Heightmap& hm = w.TerrainPtr->GetEditableHeightmap();
+				// The lowest point of the map is, by construction, the lake basin (it is where the basin was dug from in the first place,
+				// tests/sweep_test.cpp checks it stays a metre under WaterLevel): with droplets starting anywhere, water keeps running downhill
+				// into it and a full-map pass would silt it back up. A copy of the pre-erosion shore and basin, restored after, keeps the lake
+				// exactly as CreateHills sculpted it while letting erosion carve freely everywhere else (the river bed could in principle see the
+				// same siltation; no test catches it today, so it is not guarded here -- the same restore-after-erosion technique would apply).
+				const Heightmap before = hm;
+				ErosionParams ep;
+				// One droplet per ~6 texels keeps the density about the same regardless of WorldDesc::Resolution (tests use much smaller worlds
+				// than the default); the Strength/BrushRadius/etc. defaults of ErosionParams are already tuned for this engine's scale.
+				ep.Droplets = std::clamp(static_cast<int>(static_cast<double>(desc.Resolution) * static_cast<double>(desc.Resolution) / 6.0), 1500, 90000);
+				ep.Seed = desc.Seed + 97u;
+				HydraulicErosion::Run(hm, ep);
+				if (hp.LakeRadius > 0.0f)
+					for (uint32_t j = 0; j < hm.GetResolution(); ++j)
+						for (uint32_t i = 0; i < hm.GetResolution(); ++i)
+							if (MakeLakeOutline(hp.Seed, hp.LakeIrregularity).EffectiveDistance(hm.SamplePosition(i, j), hp.LakeCenter) < hp.LakeRadius)
+								hm.At(i, j) = before.At(i, j);
+				// Generator 3 keeps the river's channel too: the droplets run down the carved valley and silt up a narrow, shallow bed (the headwaters are
+				// two metres wide), so the corridor of the river -- its channel and banks, out to six half-widths -- is given back as CreateHills carved it,
+				// fading into the eroded ground at its edge. Generators 1 and 2 never did, and their worlds must not change.
+				if (organic && w.TerrainPtr->GetRiver())
+				{
+					const WaterField& water = w.TerrainPtr->Water();
+					for (uint32_t j = 0; j < hm.GetResolution(); ++j)
+						for (uint32_t i = 0; i < hm.GetResolution(); ++i)
+						{
+							const glm::vec2 pos = hm.SamplePosition(i, j);
+							const RiverSample s = water.NearestRiver(pos.x, pos.y);
+							const float reach = s.HalfWidth * 6.0f;
+							if (!s.Found || s.Distance >= reach) continue;
+							const float keep = 1.0f - glm::smoothstep(reach * 0.5f, reach, s.Distance);
+							hm.At(i, j) = glm::mix(hm.At(i, j), before.At(i, j), keep);
+						}
+				}
+			}
 			if (desc.Type == WorldType::Alpine)
 				w.SnowLine = w.TerrainPtr->GetHeightmap().GetMinHeight() + 0.68f * (w.TerrainPtr->GetHeightmap().GetMaxHeight() - w.TerrainPtr->GetHeightmap().GetMinHeight());
 		}
@@ -523,7 +573,7 @@ namespace GB
 				}
 			};
 			const uint32_t acceptSalt = salt(31u);
-			auto spots = ScatterTrees(terrain, desc.TreeBudget * 3, static_cast<int>(w.TreeRecipes.size()), desert ? 18.0f : 4.2f, desc.Seed + 11, -1e9f, w.SnowLine, 38.0f,
+			auto spots = ScatterTrees(terrain.GetHeightmap(), desc.TreeBudget * 3, static_cast<int>(w.TreeRecipes.size()), desert ? 18.0f : 4.2f, desc.Seed + 11, -1e9f, w.SnowLine, 38.0f,
 				[&](float x, float z) { return Hash2(x, z, acceptSalt) < density(x, z) && (!terrain.GetRiver() || terrain.DistanceToRiver(x, z) > terrain.GetRiver()->HalfWidth * 2.2f); });
 			if (static_cast<int>(spots.size()) > desc.TreeBudget) spots.resize(static_cast<size_t>(desc.TreeBudget));
 			const uint32_t palmVariantSalt = salt(3u), speciesSalt = salt(13u), coniferSalt = salt(17u), broadleafSalt = salt(19u);
@@ -559,7 +609,7 @@ namespace GB
 			}
 			const GeneratedWorld* self = &w;
 			const uint32_t desertRockSalt = salt(41u), rockSalt = salt(43u);
-			auto spots = ScatterTrees(terrain, desc.RockBudget * 3, 6, 5.0f, desc.Seed + 21, -1e9f, 1e9f, 55.0f,
+			auto spots = ScatterTrees(terrain.GetHeightmap(), desc.RockBudget * 3, 6, 5.0f, desc.Seed + 21, -1e9f, 1e9f, 55.0f,
 				[&](float x, float z)
 				{
 					if (desert) return Hash2(x, z, desertRockSalt) < 0.05f;

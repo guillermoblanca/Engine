@@ -3,7 +3,7 @@
 #include "EditorApp.h"
 #include "GB/EntryPoint.h"
 
-GB::Application* GB::CreateApplication()
+GB::Application* GB::CreateApplication(const GB::LaunchOptions& options)
 {
-	return new GB::Editor::EditorApp();
+	return new GB::Editor::EditorApp(options);
 }

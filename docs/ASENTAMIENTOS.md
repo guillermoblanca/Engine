@@ -175,7 +175,7 @@ trabajo en curso (`deliver`/`build` con la obra), que se vuelve a ordenar como c
 
 ## Pruebas
 
-**QA de la simulación (H20).** `SimInvariants()` tiene el invariante `buildings`: fase y trabajo dentro de sus datos, nada entregado por encima de lo que pide la fase,
+**QA de la simulación (H20).** `MakeDefaultSimChecks()` tiene el invariante `buildings`: fase y trabajo dentro de sus datos, nada entregado por encima de lo que pide la fase,
 etiquetas según el estado, progreso que nunca retrocede y ninguna obra en agua profunda. `SimSetup::Buildings` hace que el arnés sin ventana (`SimRun`) construya; el test
 `settlement` corre dos días en dos mundos generados con edificios y sin ninguna violación. La demo del editor `editor_demo_h8` elige sitio, pone una obra, guarda y carga a
 mitad y pasa `qa check`.

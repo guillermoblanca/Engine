@@ -1,5 +1,5 @@
 #include "CharacterController.h"
-#include "GB/Input.h"
+#include "GB/InputSource.h"
 #include "GB/World/Terrain.h"
 #include <algorithm>
 #include <cmath>
@@ -30,18 +30,18 @@ namespace GB
 	}
 
 	// ------------------------------------------------------------ input
-	CharacterInput ReadCharacterInput(float cameraYaw)
+	CharacterInput ReadCharacterInput(const IInputSource& input, float cameraYaw)
 	{
 		CharacterInput in;
 		in.CameraYaw = cameraYaw;
-		if (Input::IsKeyDown(Key::W)) in.Move.y += 1.0f;
-		if (Input::IsKeyDown(Key::S)) in.Move.y -= 1.0f;
-		if (Input::IsKeyDown(Key::D)) in.Move.x += 1.0f;
-		if (Input::IsKeyDown(Key::A)) in.Move.x -= 1.0f;
-		const glm::vec2 stick(Input::GetGamepadAxis(GamepadAxis::LeftX), -Input::GetGamepadAxis(GamepadAxis::LeftY));
+		if (input.IsKeyDown(Key::W)) in.Move.y += 1.0f;
+		if (input.IsKeyDown(Key::S)) in.Move.y -= 1.0f;
+		if (input.IsKeyDown(Key::D)) in.Move.x += 1.0f;
+		if (input.IsKeyDown(Key::A)) in.Move.x -= 1.0f;
+		const glm::vec2 stick(input.GetGamepadAxis(GamepadAxis::LeftX), -input.GetGamepadAxis(GamepadAxis::LeftY));
 		in.Move += stick;
-		in.Jump = Input::IsKeyDown(Key::Space) || Input::IsGamepadButtonDown(GamepadButton::A);
-		in.Run = Input::IsKeyDown(Key::LeftShift) || Input::IsGamepadButtonDown(GamepadButton::LeftStick) || glm::length(stick) > 0.9f;
+		in.Jump = input.IsKeyDown(Key::Space) || input.IsGamepadButtonDown(GamepadButton::A);
+		in.Run = input.IsKeyDown(Key::LeftShift) || input.IsGamepadButtonDown(GamepadButton::LeftStick) || glm::length(stick) > 0.9f;
 		return in;
 	}
 
@@ -398,20 +398,20 @@ namespace GB
 		m_Effective = std::min(m_Effective, Distance);
 	}
 
-	void ThirdPersonCamera::ReadInput(float dt)
+	void ThirdPersonCamera::ReadInput(const IInputSource& input, float dt)
 	{
 		float yaw = 0.0f, pitch = 0.0f;
-		if (Input::IsKeyDown(Key::Left) || (TurnWithQE && Input::IsKeyDown(Key::Q))) yaw -= 1.0f;
-		if (Input::IsKeyDown(Key::Right) || (TurnWithQE && Input::IsKeyDown(Key::E))) yaw += 1.0f;
-		if (Input::IsKeyDown(Key::Up)) pitch += 1.0f;
-		if (Input::IsKeyDown(Key::Down)) pitch -= 1.0f;
-		yaw += Input::GetGamepadAxis(GamepadAxis::RightX);
-		pitch -= Input::GetGamepadAxis(GamepadAxis::RightY);
+		if (input.IsKeyDown(Key::Left) || (TurnWithQE && input.IsKeyDown(Key::Q))) yaw -= 1.0f;
+		if (input.IsKeyDown(Key::Right) || (TurnWithQE && input.IsKeyDown(Key::E))) yaw += 1.0f;
+		if (input.IsKeyDown(Key::Up)) pitch += 1.0f;
+		if (input.IsKeyDown(Key::Down)) pitch -= 1.0f;
+		yaw += input.GetGamepadAxis(GamepadAxis::RightX);
+		pitch -= input.GetGamepadAxis(GamepadAxis::RightY);
 		Rotate(yaw * RotateSpeed * dt, pitch * RotateSpeed * dt);
-		const auto [dx, dy] = Input::GetMouseDelta();
-		if (Input::IsMouseDown(MouseButton::Left) || Input::IsMouseDown(MouseButton::Right))
+		const auto [dx, dy] = input.GetMouseDelta();
+		if (input.IsMouseDown(MouseButton::Left) || input.IsMouseDown(MouseButton::Right))
 			Rotate(-static_cast<float>(dx) * MouseSensitivity, static_cast<float>(dy) * MouseSensitivity);
-		Zoom(-Input::GetScrollDelta() * 0.1f);
+		Zoom(-input.GetScrollDelta() * 0.1f);
 	}
 
 	glm::vec3 ThirdPersonCamera::GetPosition() const

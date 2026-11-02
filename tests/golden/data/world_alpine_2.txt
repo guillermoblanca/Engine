@@ -1,17 +1,17 @@
 # golden data 'world_alpine_2' (generated; tolerances are in the test code)
-height.min = 5.8796730041503906
-height.max = 33.960006713867188
-height.mean = 18.715619042981416
-height.std = 4.868735161540088
+height.min = 7.1376791000366211
+height.max = 33.701309204101562
+height.mean = 18.723047433421016
+height.std = 4.5365385273792898
 trees = 150
 rocks = 40
 tree.recipes = 7
-share.water = 0.062499891966581345
-share.shore = 0.025607649236917496
-share.meadow = 0.36198174953460693
-share.forest = 0.38932633399963379
-share.rock = 0.068576261401176453
-share.snow = 0.09201367199420929
+share.water = 0.045138847082853317
+share.shore = 0.031684037297964096
+share.meadow = 0.34418606758117676
+share.forest = 0.3650200366973877
+share.rock = 0.10633653402328491
+share.snow = 0.10763861238956451
 share.dunes = 0
 lake = 1
 lake.x = 0

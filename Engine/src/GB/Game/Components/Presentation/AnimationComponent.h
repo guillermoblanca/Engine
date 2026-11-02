@@ -11,6 +11,7 @@
 #include "GB/Gameplay/GameplayWorld.h"
 #include <map>
 #include <memory>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -82,7 +83,7 @@ namespace GB
 		void SetFootsteps(FootstepSounds* steps) { m_Steps = steps; if (m_Animator) m_Animator->SetFootsteps(steps); }
 		void SetFootIK(bool on) { m_FeetOn = on; ApplyFeet(); }
 		bool FootIKOn() const { return m_FeetOn; }
-		const std::vector<FootPlant>& Plants() const { static const std::vector<FootPlant> none; return m_Animator ? m_Animator->Anim().Plants() : none; }
+		std::span<const FootPlant> Plants() const { return m_Animator ? std::span<const FootPlant>(m_Animator->Anim().Plants()) : std::span<const FootPlant>(); }
 
 		// ---- save
 		void CaptureState(Save::ActorState& state) const override { if (const AnimInstance* anim = Anim()) state.Set = anim->Overlay(); }

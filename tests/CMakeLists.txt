@@ -76,6 +76,11 @@ add_executable(GBPhysicsTests physics_test.cpp)
 target_link_libraries(GBPhysicsTests PRIVATE GB::GB)
 add_test(NAME physics COMMAND GBPhysicsTests)
 
+# The water module (GB/Water), headless: WaterField, carver, surfaces without GL, generated shader waves.
+add_executable(GBWaterModuleTests water_module_test.cpp)
+target_link_libraries(GBWaterModuleTests PRIVATE GB::GB)
+add_test(NAME water_module COMMAND GBWaterModuleTests)
+
 add_executable(GBRiverTests river_test.cpp)
 target_link_libraries(GBRiverTests PRIVATE GB::GB)
 add_test(NAME river COMMAND GBRiverTests)
@@ -415,3 +420,9 @@ add_test(NAME anim_bindings_world COMMAND GBAnimBindingsWorldTests)
 add_executable(GBObjectTests gbobject_test.cpp)
 target_link_libraries(GBObjectTests PRIVATE GB::GB)
 add_test(NAME gbobject COMMAND GBObjectTests)
+
+# The terrain graph (docs/GRAFO_TERRENO.md): nodes/edges, validation (cycles, unknown types), compiling,
+# evaluating noise/erosion/biome nodes, determinism, and applying a result to both terrain targets.
+add_executable(GBTerrainGraphTests terrain_graph_test.cpp)
+target_link_libraries(GBTerrainGraphTests PRIVATE GB::GB)
+add_test(NAME terrain_graph COMMAND GBTerrainGraphTests)

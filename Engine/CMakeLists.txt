@@ -155,8 +155,34 @@ add_library(GB STATIC
     src/GB/World/Physics.cpp
     src/GB/World/Rocks.cpp
     src/GB/World/Erosion.cpp
+    src/GB/World/ThermalErosion.cpp
+    src/GB/World/FlowAccumulation.cpp
+    src/GB/Water/WaterField.cpp
+    src/GB/Water/WaterCarver.cpp
+    src/GB/Water/WaterPresets.cpp
+    src/GB/Water/WaterGeometry.cpp
+    src/GB/Water/WaterWaves.cpp
+    src/GB/Water/RiverHydraulics.cpp
+    src/GB/Water/WaterPlanner.cpp
+    src/GB/World/Graph/TerrainGraph.cpp
+    src/GB/World/Graph/ITerrainNode.cpp
+    src/GB/World/Graph/ITerrainTarget.cpp
+    src/GB/World/Graph/Nodes/OutputNode.cpp
+    src/GB/World/Graph/Nodes/HeightInputNode.cpp
+    src/GB/World/Graph/Nodes/DepressionFillNode.cpp
+    src/GB/World/Graph/Nodes/LakeSiteNode.cpp
+    src/GB/World/Graph/Nodes/LakeBasinNode.cpp
+    src/GB/World/Graph/Nodes/RiverTraceNode.cpp
+    src/GB/World/Graph/Nodes/NoiseNode.cpp
+    src/GB/World/Graph/Nodes/ErosionNode.cpp
+    src/GB/World/Graph/Nodes/ThermalErosionNode.cpp
+    src/GB/World/Graph/Nodes/FlowAccumulationNode.cpp
+    src/GB/World/Graph/Nodes/ScatterNode.cpp
+    src/GB/World/Graph/Nodes/BiomeClassifyNode.cpp
+    src/GB/World/Graph/Nodes/BuiltinNodes.cpp
     src/GB/Qa/Qa.cpp
     src/GB/World/Destruction.cpp
+    src/GB/World/Biome.cpp
     src/GB/World/WorldGen.cpp
     src/GB/Renderer/EnvironmentMap.cpp
     src/GB/Effects/Lightning.cpp

@@ -1,5 +1,5 @@
 #include "GB/Game/GameCamera.h"
-#include "GB/Input.h"
+#include "GB/InputSource.h"
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -409,10 +409,10 @@ namespace GB
 		return glm::vec3(0.0f);
 	}
 
-	GameCameraInput ReadGameCameraInput(GameCameraMode mode, bool qeTurn)
+	GameCameraInput ReadGameCameraInput(const IInputSource& input, GameCameraMode mode, bool qeTurn)
 	{
 		GameCameraInput in;
-		auto down = [](Key k) { return Input::IsKeyDown(k); };
+		auto down = [&input](Key k) { return input.IsKeyDown(k); };
 		// Q / E turn the camera; a game that gives E another job (interact) turns outside the overview with the arrows (the overview pans with them).
 		if (qeTurn || mode == GameCameraMode::Overview)
 		{
@@ -424,23 +424,23 @@ namespace GB
 			if (down(Key::Left)) in.Turn -= 1.0f;
 			if (down(Key::Right)) in.Turn += 1.0f;
 		}
-		in.Turn += Input::GetGamepadAxis(GamepadAxis::RightX);
-		const auto [dx, dy] = Input::GetMouseDelta();
-		if (Input::IsMouseDown(MouseButton::Right)) in.TurnDelta -= static_cast<float>(dx) * 0.005f;
-		in.ZoomDelta -= Input::GetScrollDelta() * 0.1f;
+		in.Turn += input.GetGamepadAxis(GamepadAxis::RightX);
+		const auto [dx, dy] = input.GetMouseDelta();
+		if (input.IsMouseDown(MouseButton::Right)) in.TurnDelta -= static_cast<float>(dx) * 0.005f;
+		in.ZoomDelta -= input.GetScrollDelta() * 0.1f;
 		if (mode == GameCameraMode::Overview)
 		{
 			if (down(Key::W) || down(Key::Up)) in.Pan.y += 1.0f;
 			if (down(Key::S) || down(Key::Down)) in.Pan.y -= 1.0f;
 			if (down(Key::D) || down(Key::Right)) in.Pan.x += 1.0f;
 			if (down(Key::A) || down(Key::Left)) in.Pan.x -= 1.0f;
-			in.Pan.x += Input::GetGamepadAxis(GamepadAxis::LeftX);
-			in.Pan.y -= Input::GetGamepadAxis(GamepadAxis::LeftY);
+			in.Pan.x += input.GetGamepadAxis(GamepadAxis::LeftX);
+			in.Pan.y -= input.GetGamepadAxis(GamepadAxis::LeftY);
 			if (down(Key::Z)) in.Zoom -= 1.0f;
 			if (down(Key::X)) in.Zoom += 1.0f;
 			// Triggers report -1 (released) .. 1 (pressed).
-			in.Zoom += 0.5f * (Input::GetGamepadAxis(GamepadAxis::RightTrigger, 0, 0.0f) + 1.0f);
-			in.Zoom -= 0.5f * (Input::GetGamepadAxis(GamepadAxis::LeftTrigger, 0, 0.0f) + 1.0f);
+			in.Zoom += 0.5f * (input.GetGamepadAxis(GamepadAxis::RightTrigger, 0, 0.0f) + 1.0f);
+			in.Zoom -= 0.5f * (input.GetGamepadAxis(GamepadAxis::LeftTrigger, 0, 0.0f) + 1.0f);
 		}
 		return in;
 	}

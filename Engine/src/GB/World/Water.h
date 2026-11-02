@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Renderer/Mesh.h"
+#include "GB/Water/WaterGeometry.h"
 #include "GB/World/RiverData.h"
 #include <glm/glm.hpp>
 #include <memory>
@@ -23,45 +23,42 @@ namespace GB
 		float RippleStrength = 1.0f;   // normal perturbation from WaterRipples
 	};
 
-	// A flat patch of water (waves are displaced in the shader). Place it with Position (Position.y is the
-	// water level). Drawn translucent after the opaque geometry; tints by depth, reflects the sky, foams at the shore.
+	// A patch of water (waves are displaced in the shader): its look (Params), where it is (Position; Position.y is the
+	// water level) and its CPU geometry. It holds no GPU object: the renderer uploads the geometry the first time it
+	// draws it (WaterRenderer), so this is built, queried and tested with no OpenGL context. Drawn translucent after
+	// the opaque geometry; tints by depth, reflects the sky, foams at the shore.
 	class WaterSurface
 	{
 	public:
+		// A flat grid (a lake, see Radius).
 		explicit WaterSurface(float size = 64.0f, uint32_t subdivisions = 192);
-		// A ribbon of flowing water along a river (see HillParams::RiverPath): the surface follows the water level,
-		// the shader advects the surface detail along the current and adds foam in the rapids.
-		// The ribbon is resampled to RiverStep meters along and RiverColumns across (waves need far more vertices than the carve path has).
-		// A river that ends in a lake (RiverData::MouthLength > 0) is extended a few meters into it, flares open and fades out, so the
-		// two surfaces overlap instead of meeting in a hard edge.
+		// A ribbon of flowing water along a river (see MakeRiverGeometry for how it is resampled).
 		explicit WaterSurface(const RiverData& river, float widthScale = 1.5f);
-		static constexpr int RiverColumns = 25;
-		static constexpr float RiverStep = 0.75f;
+		static constexpr int RiverColumns = kRiverColumns;
+		static constexpr float RiverStep = kRiverStep;
 
-		bool IsRiver() const { return !m_RiverVertices.empty(); }
-		size_t GetRiverVertexCount() const { return m_RiverVertices.size(); }
-		const std::vector<Vertex>& GetRiverVertices() const { return m_RiverVertices; }   // CPU copy of the ribbon (for tests)
+		bool IsRiver() const { return m_Geometry->IsRiver(); }
+		size_t GetRiverVertexCount() const { return m_Geometry->RiverVertices.size(); }
+		const std::vector<Vertex>& GetRiverVertices() const { return m_Geometry->RiverVertices; }   // CPU copy of the ribbon (for tests)
 
 		WaterParams Params;
 		glm::vec3 Position{ 0.0f };
 		float Radius = 0.0f;           // > 0: only a disc of this radius around Position is drawn (lakes)
 
-		float GetSize() const { return m_Size; }
-		const Mesh& GetMesh() const;   // built on first use, so the CPU queries work without an OpenGL context
+		float GetSize() const { return m_Geometry->GridSize; }
+		// The geometry the renderer uploads. Shared and immutable: a renderer may key its GPU mesh on it and notice when it is gone.
+		const std::shared_ptr<const WaterGeometry>& Geometry() const { return m_Geometry; }
 
 		// Vertical displacement of the waves at a world xz and time (same waves as the shader).
 		float HeightAt(float x, float z, float time) const;
 		float SurfaceY(float x, float z, float time) const { return Position.y + HeightAt(x, z, time); }
 
 	private:
-		float m_Size;
-		uint32_t m_Subdivisions = 0;
-		std::vector<Vertex> m_RiverVertices;
-		std::vector<uint32_t> m_RiverIndices;
-		mutable std::unique_ptr<Mesh> m_Mesh;
+		std::shared_ptr<const WaterGeometry> m_Geometry;
 	};
 
-	// The shared wave set, so CPU queries match the GPU (4 Gerstner waves around the main direction).
+	// The shared wave set, so CPU queries match the GPU (4 Gerstner waves around the main direction). The shader's copy of these
+	// numbers is generated from this struct (WaveSetGlsl, GB/Water/WaterWaves.h): there is one place to change them.
 	struct WaveSet
 	{
 		static constexpr int Count = 4;

@@ -31,6 +31,10 @@ namespace GB
 		if (route && glm::distance(m_Pos, to) > reach + 1e-3f)
 		{
 			if (!route(m_Pos, to, reach, m_Path) || m_Path.empty()) { m_Path.clear(); return false; }
+			// A route that ends short of the goal, but within its reach (the nearest ground to a node that is itself an obstacle), used to leave the
+			// member exactly where the route ended -- which can be inside the node's own obstacle circle, nearer than the work point. Ending the walk
+			// at the goal, with its reach, stands it at the work point instead.
+			if (reach > 0.0f && m_Path.back() != to && glm::distance(m_Path.back(), to) <= reach + 1e-3f) m_Path.push_back(to);
 		}
 		else m_Path.push_back(to);
 		m_EndReach = m_Path.back() == to ? reach : 0.0f;
@@ -51,8 +55,14 @@ namespace GB
 			if (len - r > step) { m_Pos += d / len * step; return false; }
 			if (last)
 			{
-				if (len > r) m_Pos = target - d / len * r;
-				m_Safe = r > 0.0f ? m_Safe : m_Pos;
+				// r is 0 for a plain GoTo (Update's GoTo case always plans with reach 0: arrive exactly at the point) and the work reach for every
+				// Ability-with-an-entity task (the work point of a tree, a rock...). A member that arrives at this leg already closer than r (the task
+				// started near its target, or a routed hop landed there) used to stay where it was, which can be inside the target's own small obstacle
+				// circle (the `ground` invariant of tests/settlement_test.cpp caught it once erosion moved a gather target for one seed): with a reach
+				// it now always ends exactly r from the target, the work point. A GoTo (r == 0) is untouched: it is how the camp moves (MoveCamp), and
+				// there arriving exactly at the point is the whole job.
+				if (r > 0.0f) { if (len > 1e-4f) m_Pos = target - d / len * r; }
+				else if (len > r) m_Pos = target - d / len * r;				m_Safe = r > 0.0f ? m_Safe : m_Pos;
 				return true;
 			}
 			m_Pos = m_Safe = target;

@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/World/Biome.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Terrain.h"
 #include "GB/World/Trees.h"
@@ -10,8 +11,6 @@
 namespace GB
 {
 	enum class WorldType { Temperate, Alpine, Desert };
-	enum class Biome { Water, Shore, Meadow, Forest, Rock, Snow, Dunes };
-	const char* BiomeName(Biome b);   // "Water", "Shore", "Meadow", "Forest", "Rock", "Snow", "Dunes" (the names the data uses)
 
 	struct WorldDesc
 	{
@@ -24,6 +23,12 @@ namespace GB
 		uint32_t Resolution = 641;
 		bool River = true;               // a river from the high ground down to the lake (or across the map)
 		bool Lake = true;                // a lake in the lowest basin
+		// Hydraulic erosion (GB::HydraulicErosion, GB/World/Erosion.h) carved into the hills after the lake and river, before anything reads the
+		// terrain (biomes, spawn, trees, rocks all see the eroded ground). Deterministic for a seed; off for Desert (there is no water to carve with).
+		bool Erosion = true;
+		// Render-mesh refinement by curvature (Terrain::FlagDetailCells, HillParams/DuneParams::DetailThreshold): metres a flat quad may miss
+		// the smooth surface before it is split. Smaller = more detail (and more vertices); <= 0 = off (water-shore refinement only).
+		float MeshDetail = 0.08f;
 		float ForestAmount = 0.55f;      // 0..1: share of the land covered by forest
 		int TreeBudget = 420;            // most trees placed (per tile)
 		int RockBudget = 70;             // (per tile)

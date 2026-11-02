@@ -2,6 +2,7 @@
 #include "GB/Animation/AnimBindings.h"
 #include "GB/Game/Actor.h"
 #include "GB/Game/ActorWorld.h"
+#include "GB/InputSource.h"
 #include "GB/Renderer/Camera.h"
 #include <map>
 #include <memory>
@@ -52,10 +53,10 @@ namespace GB::Editor
 
 		// The frame: BeginFrame feeds the controlled actor the keyboard (`acceptInput`: false while the user types in a text box) and turns the
 		// camera; ActorWorld::Update steps everyone; EndFrame moves the camera after the actor.
-		void BeginFrame(float dt, bool acceptInput);
+		void BeginFrame(const IInputSource& input, float dt, bool acceptInput);
 		void EndFrame(float dt);
 		// BeginFrame, ActorWorld::Update, EndFrame.
-		void Update(float dt, bool acceptInput);
+		void Update(const IInputSource& input, float dt, bool acceptInput);
 
 		void SetScript(const std::string& text);   // see GB::ParseCharacterScript; time starts now
 		void MoveTo(const glm::vec2& xz, bool run) { if (Actor* a = Controlled()) a->MoveTo(xz, run); }
@@ -124,7 +125,7 @@ namespace GB::Editor
 		void HitRagdoll(const glm::vec3& impulse) { if (Actor* a = Controlled()) a->HitRagdoll(impulse); }
 		std::string RagdollStatus() const { const Actor* a = Controlled(); return a ? a->RagdollStatus() : ""; }
 		bool Retarget(const std::string& path, const std::string& assetRoot, std::string& report);
-		const std::string& RetargetReport() const { const Actor* a = Controlled(); return a ? a->RetargetReport() : m_NoText; }
+		std::string RetargetReport() const { const Actor* a = Controlled(); return a ? a->RetargetReport() : std::string(); }
 		const MotionState& GetMotion() const { const Actor* a = Controlled(); return a ? a->GetMotion() : m_NoMotion; }
 
 		void ApplyCamera(Camera& camera) const { m_Camera.Apply(camera); }
@@ -163,6 +164,5 @@ namespace GB::Editor
 		ThirdPersonCamera m_Camera;
 		AnimManifest m_NoManifest;
 		MotionState m_NoMotion;
-		std::string m_NoText;
 	};
 }

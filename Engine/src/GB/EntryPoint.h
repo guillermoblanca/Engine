@@ -10,7 +10,7 @@ int main(int argc, char** argv)
 {
 	GB::Log::Init();
 
-	GB::LaunchOptions& options = GB::GetLaunchOptions();
+	GB::LaunchOptions options;
 	for (int i = 1; i < argc; ++i)
 	{
 		const char* arg = argv[i];
@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 			options.Extra.emplace_back(arg);
 	}
 
-	std::unique_ptr<GB::Application> app(GB::CreateApplication());
+	std::unique_ptr<GB::Application> app(GB::CreateApplication(options));
 	if (!app->IsValid())
 		return 1;
 	app->Run();

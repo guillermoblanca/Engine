@@ -274,7 +274,7 @@ int main()
 		add("step_grass", AudioClip::Footstep(Surface::Grass, 1));
 		add("step_stone", AudioClip::Footstep(Surface::Stone, 1));
 		add("step_snow", AudioClip::Footstep(Surface::Snow, 1));
-		const Qa::Result r = d.Check(GB_GOLDEN_DIR "/data", "audio_presets");
+		const Qa::Result r = d.Check(Qa::Config::FromEnvironment(), GB_GOLDEN_DIR "/data", "audio_presets");
 		if (!r.Passed) { std::fprintf(stderr, "FAIL: %s\n", r.Message.c_str()); ++failures; }
 	}
 

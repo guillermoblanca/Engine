@@ -130,7 +130,7 @@ El panel **Tribe** tiene la sección **Conflict** (el mismo texto que `raid stat
 
 ## QA de la simulación (H20)
 
-La tabla `SimInvariants()` tiene el invariante `combat`: vida y estamina dentro de su rango y números; los muertos ni luchan ni son atacados; moral y heridas
+El registro `MakeDefaultSimChecks()` tiene el invariante `combat`: vida y estamina dentro de su rango y números; los muertos ni luchan ni son atacados; moral y heridas
 en rango, nadie vive con heridas letales; y las heridas se curan (su total solo crece con un golpe nuevo). `deaths` acepta la muerte por `Wounds`.
 
 ## Animaciones

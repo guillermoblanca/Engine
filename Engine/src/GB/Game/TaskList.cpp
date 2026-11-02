@@ -31,11 +31,9 @@ namespace GB
 		for (char& c : normalized) if (c == ';' || c == '|') c = '\n';
 		std::istringstream in(normalized);
 		std::string line;
-		int lineNumber = 0;
 		auto fail = [&](const std::string& why) { if (error) *error = "task " + std::to_string(out.size() + 1) + ": " + why; return false; };
 		while (std::getline(in, line))
 		{
-			++lineNumber;
 			const size_t hash = line.find('#');
 			if (hash != std::string::npos) line = line.substr(0, hash);
 			const std::vector<std::string> w = Words(line);

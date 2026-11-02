@@ -4,8 +4,10 @@
 
 namespace GB
 {
+	class IInputSource;
+
 	// Camera controllers. Each has pure methods (Rotate, Move, ...) that are easy to drive from scripts
-	// or tests, plus Update(dt) which polls keyboard, mouse and gamepad through GB::Input.
+	// or tests, plus Update(dt, input) which polls keyboard, mouse and gamepad through the GB::IInputSource it is given.
 
 	// Orbits around a target. Mouse: left drag rotates, middle/right drag pans, wheel zooms.
 	// Keyboard: arrows or WASD rotate, Q/E zoom. Gamepad: right stick rotates, triggers zoom.
@@ -48,7 +50,7 @@ namespace GB
 		void Rotate(float deltaYaw, float deltaPitch);
 		void Zoom(float amount);                          // > 0 moves away (multiplicative)
 		void Pan(float deltaRight, float deltaUp);        // in camera-plane units scaled by the distance
-		void Update(float dt);
+		void Update(float dt, const IInputSource& input);
 		void Apply(Camera& camera) const;
 		glm::vec3 GetPosition() const;
 
@@ -73,7 +75,7 @@ namespace GB
 		// forward/right/up in [-1,1] relative to the view direction; distance = axis * Speed * dt.
 		void Move(float forward, float right, float up, float dt, float speedMultiplier = 1.0f);
 		void LookAt(const glm::vec3& point);
-		void Update(float dt);
+		void Update(float dt, const IInputSource& input);
 		void Apply(Camera& camera) const;
 		glm::vec3 GetForward() const;
 	};

@@ -1,9 +1,11 @@
-// Hydraulic erosion, view/distance culling, and the procedural world generator (biomes, forests, rocks).
-// The erosion part is CPU only; the rest needs OpenGL 4.5 and skips without it.
+// Hydraulic and thermal erosion, view/distance culling, and the procedural world generator (biomes, forests, rocks).
+// The erosion parts are CPU only; the rest needs OpenGL 4.5 and skips without it.
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Window.h"
 #include "GB/World/Erosion.h"
+#include "GB/World/FlowAccumulation.h"
+#include "GB/World/ThermalErosion.h"
 #include "GB/World/WorldGen.h"
 #include <cmath>
 #include <cstdio>
@@ -109,6 +111,93 @@ int main()
 				if (glm::distance(p, lp.Center) > 8.0f + 45.0f && local.At(i, j) != original.At(i, j)) farUntouched = false;
 			}
 		Check(farUntouched && ls.MaxI >= ls.MinI, "a local erosion only reshapes the ground near its circle and reports the box it touched");
+	}
+
+	// ---------------------------------------------------------------- thermal erosion (CPU)
+	{
+		GB::Heightmap a = MakeHill(), b = MakeHill();
+		const GB::Heightmap original = MakeHill();
+		GB::ThermalErosionParams tp;
+		tp.Iterations = 30;
+		tp.TalusAngleDegrees = 20.0f;   // well under MakeHill's ~25 degree average flank, so this is never a borderline, flaky check
+		const GB::ThermalErosionStats st = GB::ThermalErosion::Run(a, tp);
+		GB::ThermalErosion::Run(b, tp);
+		Check(st.Moved > 0.0 && st.MaxI >= st.MinI, "thermal erosion moves material and reports the box it touched");
+		bool same = true;
+		for (uint32_t j = 0; j < a.GetResolution(); ++j)
+			for (uint32_t i = 0; i < a.GetResolution(); ++i)
+				if (a.At(i, j) != b.At(i, j)) same = false;
+		Check(same, "thermal erosion is deterministic (it has no randomness)");
+		Check(a.GetMaxHeight() <= original.GetMaxHeight() + 1e-3f, "the summit never ends up higher than it started");
+		// Mass conservation relative to how much actually moved (not to Sum(original): MakeHill's heights straddle
+		// zero away from the hill, so that sum is small from cancellation and a useless scale for a tolerance).
+		const double mass = std::fabs(Sum(a) - Sum(original));
+		Check(mass < 0.02 * st.Moved, "material only moves sideways: the total volume is conserved");
+		// Thermal erosion shaves the steep parts of a uniform-slope cone pretty much evenly along the whole flank
+		// (unlike hydraulic erosion's droplets, it has no reason to pile material up at one particular band), so
+		// what it reliably does is make the terrain smoother: less variance in height than before.
+		auto variance = [](const GB::Heightmap& hm, double mean)
+		{
+			double v = 0.0;
+			for (uint32_t j = 0; j < hm.GetResolution(); ++j)
+				for (uint32_t i = 0; i < hm.GetResolution(); ++i) { const double d = hm.At(i, j) - mean; v += d * d; }
+			return v;
+		};
+		const double n2 = static_cast<double>(a.GetResolution()) * static_cast<double>(a.GetResolution());
+		Check(variance(a, Sum(a) / n2) < variance(original, Sum(original) / n2), "thermal erosion smooths the terrain (less variance in height)");
+		// strength 0 and a flat map both change nothing
+		GB::Heightmap z = MakeHill();
+		GB::ThermalErosionParams zp; zp.Strength = 0.0f;
+		GB::ThermalErosion::Run(z, zp);
+		bool untouched = true;
+		for (uint32_t i = 0; i < z.GetResolution(); ++i)
+			if (z.At(i, 40) != original.At(i, 40)) untouched = false;
+		Check(untouched, "strength 0 leaves the terrain alone");
+		GB::Heightmap flat(65, 64.0f);
+		for (uint32_t j = 0; j < flat.GetResolution(); ++j) for (uint32_t i = 0; i < flat.GetResolution(); ++i) flat.At(i, j) = 5.0f;
+		const double flatSum = Sum(flat);
+		GB::ThermalErosion::Run(flat, tp);
+		Check(Sum(flat) == flatSum, "a flat map is already under the talus angle everywhere: nothing to slump");
+		// a steeper talus angle (closer to vertical) moves less material than a gentler one, for the same hill
+		GB::Heightmap steepTalus = MakeHill(), gentleTalus = MakeHill();
+		GB::ThermalErosionParams steep; steep.TalusAngleDegrees = 60.0f;
+		GB::ThermalErosionParams gentle; gentle.TalusAngleDegrees = 15.0f;
+		const GB::ThermalErosionStats steepStats = GB::ThermalErosion::Run(steepTalus, steep);
+		const GB::ThermalErosionStats gentleStats = GB::ThermalErosion::Run(gentleTalus, gentle);
+		Check(gentleStats.Moved > steepStats.Moved, "a gentler talus angle (closer to flat) lets more of the hill slump");
+	}
+
+	// ---------------------------------------------------------------- flow accumulation (CPU)
+	{
+		const GB::Heightmap hill = MakeHill();
+		const GB::FlowAccumulationResult acc = GB::FlowAccumulation::Run(hill);
+		Check(acc.N == hill.GetResolution() && acc.Accumulation.size() == static_cast<size_t>(acc.N) * acc.N, "flow accumulation covers the whole map");
+		bool everyCellCountsItself = true, bounded = true;
+		float maxAcc = 0.0f;
+		for (float v : acc.Accumulation)
+		{
+			if (v < 1.0f) everyCellCountsItself = false;
+			if (!std::isfinite(v) || v > static_cast<float>(acc.Accumulation.size())) bounded = false;
+			maxAcc = std::max(maxAcc, v);
+		}
+		Check(everyCellCountsItself, "every cell's accumulation counts at least its own rain");
+		Check(bounded, "no cell's accumulation exceeds the number of cells on the map");
+		Check(maxAcc > 1.0f, "on a hill (not a flat map) at least one cell collects more than just its own rain");
+		const GB::FlowAccumulationResult again = GB::FlowAccumulation::Run(hill);
+		Check(acc.Accumulation == again.Accumulation, "flow accumulation is deterministic (it has no randomness)");
+		// a uniform ramp (height decreasing with x): every cell drains toward +x, so the high-x edge collects
+		// much more than the low-x edge
+		GB::Heightmap ramp(65, 64.0f);
+		for (uint32_t j = 0; j < ramp.GetResolution(); ++j)
+			for (uint32_t i = 0; i < ramp.GetResolution(); ++i) ramp.At(i, j) = -static_cast<float>(i);
+		const GB::FlowAccumulationResult rampAcc = GB::FlowAccumulation::Run(ramp);
+		double lowXEdge = 0.0, highXEdge = 0.0;
+		for (uint32_t j = 0; j < ramp.GetResolution(); ++j)
+		{
+			lowXEdge += rampAcc.Accumulation[static_cast<size_t>(j) * ramp.GetResolution() + 0];
+			highXEdge += rampAcc.Accumulation[static_cast<size_t>(j) * ramp.GetResolution() + (ramp.GetResolution() - 1)];
+		}
+		Check(highXEdge > lowXEdge * 10.0, "water flows downhill: the low (outlet) end of a uniform ramp collects far more than the high end");
 	}
 
 	// ---------------------------------------------------------------- GL

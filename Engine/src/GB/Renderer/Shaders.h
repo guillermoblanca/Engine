@@ -1042,9 +1042,7 @@ uniform float uWaveLength;
 uniform float uSteep;
 uniform float uChop;
 
-const float kAngle[4] = float[4](0.0, 0.42, -0.58, 0.95);
-const float kLen[4] = float[4](1.0, 0.62, 0.38, 0.24);
-const float kAmp[4] = float[4](1.0, 0.55, 0.30, 0.16);
+@WAVESET@
 
 // xz offset in .xz, height in .y; the surface slope (dh/dx, dh/dz) in `slope`. `fade` removes the small waves with distance.
 vec3 Waves(vec2 p, float fade, out vec2 slope)

@@ -1,6 +1,8 @@
 #include "WaterRenderer.h"
 #include "Shaders.h"
+#include "GB/Water/WaterWaves.h"
 #include <algorithm>
+#include <iterator>
 #include <glad/gl.h>
 #include <string>
 
@@ -8,9 +10,28 @@ namespace GB
 {
 	WaterRenderer::WaterRenderer()
 		: m_Shader(
-			std::string(Shaders::WaterVS) + Shaders::WaterWaves + Shaders::WaterVSMain,
-			std::string(Shaders::WaterFS) + Shaders::SkyCommon + Shaders::WaterWaves + Shaders::WaterFSMain)
+			std::string(Shaders::WaterVS) + InjectWaveSet(Shaders::WaterWaves) + Shaders::WaterVSMain,
+			std::string(Shaders::WaterFS) + Shaders::SkyCommon + InjectWaveSet(Shaders::WaterWaves) + Shaders::WaterFSMain)
 	{
+	}
+
+	const Mesh& WaterRenderer::MeshFor(const WaterSurface& surface)
+	{
+		const std::shared_ptr<const WaterGeometry>& geometry = surface.Geometry();
+		const auto found = m_Meshes.find(geometry.get());
+		if (found != m_Meshes.end() && !found->second.Source.expired())
+			return *found->second.Gpu;
+
+		// A geometry that is gone leaves its mesh behind: drop those before adding another.
+		for (auto it = m_Meshes.begin(); it != m_Meshes.end();)
+			it = it->second.Source.expired() ? m_Meshes.erase(it) : std::next(it);
+
+		CachedMesh entry;
+		entry.Source = geometry;
+		entry.Gpu = geometry->IsRiver()
+			? std::make_unique<Mesh>(geometry->RiverVertices, geometry->RiverIndices)
+			: std::make_unique<Mesh>(Mesh::CreateGrid(geometry->GridSize, geometry->GridSubdivisions));
+		return *(m_Meshes[geometry.get()] = std::move(entry)).Gpu;
 	}
 
 	void WaterRenderer::BindEnvironment(const Environment& env)
@@ -115,7 +136,7 @@ namespace GB
 			m_Shader.SetFloat("uFoam", p.Foam);
 			m_Shader.SetFloat("uFoamWidth", p.FoamWidth);
 			m_Shader.SetFloat("uRippleStrength", p.RippleStrength);
-			water->GetMesh().Draw();
+			MeshFor(*water).Draw();
 		}
 		glDepthMask(GL_TRUE);
 		glDisable(GL_BLEND);

@@ -1,5 +1,4 @@
 #include "Application.h"
-#include "Input.h"
 #include "Log.h"
 #include "Renderer/Framebuffer.h"
 #include <GLFW/glfw3.h>
@@ -25,15 +24,9 @@ namespace GB
 		return false;
 	}
 
-	LaunchOptions& GetLaunchOptions()
+	Application::Application(const ApplicationConfig& config) : m_Options(config.Launch)
 	{
-		static LaunchOptions options;
-		return options;
-	}
-
-	Application::Application(const ApplicationConfig& config)
-	{
-		const LaunchOptions& options = GetLaunchOptions();
+		const LaunchOptions& options = m_Options;
 		m_MaxFrames = options.Frames;
 		m_Screenshot = options.Screenshot;
 
@@ -57,7 +50,7 @@ namespace GB
 		if (!m_Valid)
 			return;
 
-		const LaunchOptions& options = GetLaunchOptions();
+		const LaunchOptions& options = m_Options;
 		const bool recording = m_Window && !options.RecordDir.empty() && options.RecordFps > 0.0f;
 		if (recording)
 		{
@@ -71,9 +64,7 @@ namespace GB
 			float dt = 0.0f;
 			if (m_Window)
 			{
-				Input::NewFrame();
-				m_Window->PollEvents();
-				Input::PostPoll();
+				m_Window->PollEvents();   // (also advances the window's input: GetInput())
 				const double now = glfwGetTime();
 				dt = static_cast<float>(now - last);
 				last = now;

@@ -1,8 +1,8 @@
 # golden data 'world_desert_3' (generated; tolerances are in the test code)
 height.min = -0.6230500340461731
 height.max = 8.9616127014160156
-height.mean = 3.8285670619970915
-height.std = 2.0123331015439989
+height.mean = 3.82856706181974
+height.std = 2.0123331016547104
 trees = 66
 rocks = 40
 tree.recipes = 3

@@ -1,18 +1,11 @@
 #pragma once
+#include "GB/Renderer/Vertex.h"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <vector>
 
 namespace GB
 {
-	struct Vertex
-	{
-		glm::vec3 Position;
-		glm::vec3 Normal;
-		glm::vec2 UV;
-		glm::vec4 Tangent;   // xyz = direction of increasing U, w = bitangent handedness (+1/-1)
-	};
-
 	// Per-vertex skinning data (glTF JOINTS_0 / WEIGHTS_0). Joint indices refer to the skin's joint list.
 	struct SkinVertex
 	{

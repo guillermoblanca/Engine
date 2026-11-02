@@ -8,12 +8,13 @@
 
 namespace GB
 {
+	class IInputSource;
 	// Game cameras (H19): the views a player of the clan game uses, as opposed to the editor's orbit and fly cameras.
 	//   follow   - third person behind one actor: swings round behind its facing, never goes into a hill (ThirdPersonCamera's ground test)
 	//   overview - the clan view: an RTS-like camera over a point of the ground, panned, rotated and zoomed, kept inside the map
 	//   observe  - the cinematic view: frames one actor or a group, slowly circling round it
 	// GameCameraRig owns the three and blends from one to the next. Everything here is plain math over a ground-height function: no GL, no
-	// window, no input polling (ReadGameCameraInput is the one function that reads GB::Input), so the tests drive it frame by frame and the same
+	// window, no input polling (ReadGameCameraInput is the one function that reads an IInputSource), so the tests drive it frame by frame and the same
 	// inputs always give the same poses. The tuning is data: the "cameras" section of a content pack (assets/data/cameras.json), whose values are
 	// the defaults below.
 
@@ -231,5 +232,5 @@ namespace GB
 	// Keyboard, mouse and pad for a game camera (needs a window; the rest of this file does not):
 	//   overview - WASD / arrows / left stick pan, Q/E or right-mouse drag turn, wheel / Z-X / triggers zoom
 	//   follow, observe - Q/E / right stick / right-mouse drag turn, wheel zoom (WASD walk the player, so they are not read)
-	GameCameraInput ReadGameCameraInput(GameCameraMode mode, bool qeTurn = true);   // qeTurn false: Q / E are free (outside the overview the arrows turn)
+	GameCameraInput ReadGameCameraInput(const IInputSource& input, GameCameraMode mode, bool qeTurn = true);   // qeTurn false: Q / E are free (outside the overview the arrows turn)
 }

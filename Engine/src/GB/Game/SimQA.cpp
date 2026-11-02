@@ -462,9 +462,11 @@ namespace GB
 		return m.Body ? m.Body->Position() : glm::vec2(0.0f);
 	}
 
-	std::vector<SimInvariant>& SimInvariants()
+	namespace
 	{
-		static std::vector<SimInvariant> table = {
+		std::vector<SimInvariant> DefaultInvariants()
+		{
+			std::vector<SimInvariant> table = {
 			{ "counts", "no node, store or bag holds a negative or empty count, and no node more than its capacity", CheckCounts },
 			{ "claims", "no two members walk to the same node, and one at most stokes the fire", CheckClaims },
 			{ "stuck", "nobody fails trip after trip, nor stands still on a busy job for long", CheckStuck },
@@ -491,9 +493,9 @@ namespace GB
 		return table;
 	}
 
-	std::vector<SimMetricDef>& SimMetricTable()
+	std::vector<SimMetricDef> DefaultMetrics()
 	{
-		static std::vector<SimMetricDef> table = {
+		std::vector<SimMetricDef> table = {
 			{ "berries in store", [](const SimView& v, SimMetrics& m) { if (v.Clan) m.Extra["store berry"] = v.Clan->Store().Count("berry"); } },
 			// what the clan holds of what is not food: a surplus that piles up (fibre while the foragers pull it forever) shows here
 			{ "fibre in store", [](const SimView& v, SimMetrics& m) { if (v.Clan) m.Extra["stored fiber"] = v.Clan->Stored("fiber"); } },
@@ -525,6 +527,17 @@ namespace GB
 		};
 		return table;
 	}
+	}   // namespace
+
+	SimCheckRegistry MakeDefaultSimChecks()
+	{
+		SimCheckRegistry registry;
+		registry.Invariants = DefaultInvariants();
+		registry.Metrics = DefaultMetrics();
+		return registry;
+	}
+
+	SimMonitor::SimMonitor() : m_Checks(MakeDefaultSimChecks()) {}
 
 	std::string SimMetrics::Line() const
 	{
@@ -641,7 +654,7 @@ namespace GB
 		++m_Steps;
 		ReadLog(view);
 		SimReport report;
-		for (const SimInvariant& inv : SimInvariants())
+		for (const SimInvariant& inv : m_Checks.Invariants)
 		{
 			report.Begin(inv.Name);
 			if (inv.Check) inv.Check(view, m_Track, report);
@@ -712,13 +725,13 @@ namespace GB
 			m_Metrics.Hauled = econ.Hauled;
 			m_Metrics.Population = m_Metrics.Alive;
 		}
-		for (const SimMetricDef& def : SimMetricTable()) if (def.Measure) def.Measure(view, m_Metrics);
+		for (const SimMetricDef& def : m_Checks.Metrics) if (def.Measure) def.Measure(view, m_Metrics);
 	}
 
 	std::map<std::string, int> SimMonitor::CountByCheck() const
 	{
 		std::map<std::string, int> out;
-		for (const SimInvariant& inv : SimInvariants()) out[inv.Name] = 0;
+		for (const SimInvariant& inv : m_Checks.Invariants) out[inv.Name] = 0;
 		for (const SimFinding& f : m_Findings) out[f.Check] += f.Count;
 		return out;
 	}
@@ -795,6 +808,22 @@ namespace GB
 			return true;
 		}, 3.0f * std::max(0.3f, vigor), [this](const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points) { return Route(from, to, reach, points); },
 			[this]() { return MayPlan(); });
+		if (m_Obstacles)   // out of the trunks and rocks (only the static ones: the dynamic ones are other bodies)
+		{
+			glm::vec2 at = m_Agent.Position();
+			const size_t statics = std::min(m_Obstacles->Obstacles.size(), m_Obstacles->DynamicFrom);
+			bool moved = false;
+			for (size_t i = 0; i < statics; ++i)
+			{
+				const CircleObstacle& o = m_Obstacles->Obstacles[i];
+				const glm::vec2 d = at - o.Center;
+				const float len = glm::length(d);
+				if (len >= o.Radius) continue;
+				at = o.Center + (len > 1e-4f ? d / len : glm::vec2(1.0f, 0.0f)) * (o.Radius + 0.02f);
+				moved = true;
+			}
+			if (moved) m_Agent.Push(at);
+		}
 	}
 
 	// ---------------------------------------------------------------- SimRun
@@ -899,7 +928,7 @@ namespace GB
 			const size_t col = i % 8, row = i / 8, inRow = std::min<size_t>(8, roster.size() - row * 8);
 			glm::vec2 start = camp + glm::vec2((static_cast<float>(col) - static_cast<float>(inRow - 1) * 0.5f) * 1.5f, 1.5f * static_cast<float>(row));
 			if (!m_Nav.Walkable(start)) start = FindFreeSpot(m_Ground, start, 0.6f);
-			m_Bodies.push_back(std::make_unique<SimBody>(roster[i].first, m_Gameplay, m_Entities, m_Nav, m_Items, start));
+			m_Bodies.push_back(std::make_unique<SimBody>(roster[i].first, m_Gameplay, m_Entities, m_Nav, m_Items, start)); m_Bodies.back()->SetObstacles(&m_Ground);
 			m_Index[roster[i].first] = i;
 			if (const auto bag = setup.Bags.find(roster[i].first); bag != setup.Bags.end()) m_Bodies.back()->Bag().FromJson(bag->second);
 		}
@@ -943,7 +972,7 @@ namespace GB
 		{
 			AbilitySystemComponent* asc = m_Gameplay.Create(name);
 			for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);
-			m_Bodies.push_back(std::make_unique<SimBody>(name, m_Gameplay, m_Entities, m_Nav, m_Items, at));
+			m_Bodies.push_back(std::make_unique<SimBody>(name, m_Gameplay, m_Entities, m_Nav, m_Items, at)); m_Bodies.back()->SetObstacles(&m_Ground);
 			m_Index[name] = m_Bodies.size() - 1;
 			return m_Bodies.back().get();
 		});
@@ -992,7 +1021,7 @@ namespace GB
 					const size_t col = static_cast<size_t>(i) % 8, row = static_cast<size_t>(i) / 8;
 					glm::vec2 start = home + glm::vec2((static_cast<float>(col) - 3.5f) * 1.5f, 1.5f * static_cast<float>(row));
 					if (!m_Nav.Walkable(start)) start = FindFreeSpot(m_Ground, start, 0.6f);
-					m_Bodies.push_back(std::make_unique<SimBody>(who, m_Gameplay, m_Entities, m_Nav, m_Items, start));
+					m_Bodies.push_back(std::make_unique<SimBody>(who, m_Gameplay, m_Entities, m_Nav, m_Items, start)); m_Bodies.back()->SetObstacles(&m_Ground);
 					m_Index[who] = m_Bodies.size() - 1;
 					t.AddMember(who, static_cast<size_t>(i) < roles.size() ? roles[static_cast<size_t>(i)] : std::string("forager"), m_Bodies.back().get());
 				}
@@ -1000,7 +1029,7 @@ namespace GB
 				{
 					AbilitySystemComponent* asc = m_Gameplay.Create(who);
 					for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);
-					m_Bodies.push_back(std::make_unique<SimBody>(who, m_Gameplay, m_Entities, m_Nav, m_Items, at));
+					m_Bodies.push_back(std::make_unique<SimBody>(who, m_Gameplay, m_Entities, m_Nav, m_Items, at)); m_Bodies.back()->SetObstacles(&m_Ground);
 					m_Index[who] = m_Bodies.size() - 1;
 					return m_Bodies.back().get();
 				});

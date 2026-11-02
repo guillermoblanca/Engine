@@ -13,9 +13,6 @@ namespace GB::Qa
 {
 	namespace
 	{
-		int g_UpdateOverride = -1;
-		std::string g_OutOverride;
-
 		// getenv without MSVC's deprecation warning (the library builds with warnings as errors).
 		std::string Env(const char* name)
 		{
@@ -38,20 +35,15 @@ namespace GB::Qa
 		void EnsureDir(const std::string& dir) { std::error_code ec; fs::create_directories(dir, ec); }
 	}
 
-	bool Config::UpdateMode()
+	Config Config::FromEnvironment()
 	{
-		if (g_UpdateOverride >= 0) return g_UpdateOverride != 0;
-		const std::string v = Env("GB_UPDATE_GOLDEN");
-		return !v.empty() && v != "0";
+		Config config;
+		const std::string update = Env("GB_UPDATE_GOLDEN");
+		config.UpdateGolden = !update.empty() && update != "0";
+		const std::string out = Env("GB_QA_OUT");
+		if (!out.empty()) config.OutputDir = out;
+		return config;
 	}
-	void Config::SetUpdateMode(int mode) { g_UpdateOverride = mode; }
-	std::string Config::OutputDir()
-	{
-		if (!g_OutOverride.empty()) return g_OutOverride;
-		const std::string v = Env("GB_QA_OUT");
-		return v.empty() ? "qa_artifacts" : v;
-	}
-	void Config::SetOutputDir(const std::string& dir) { g_OutOverride = dir; }
 	std::string Config::Platform()
 	{
 #if defined(_WIN32)
@@ -109,14 +101,14 @@ namespace GB::Qa
 		return !diff.SizeMismatch && diff.Rmse <= tol.Rmse && diff.BadFraction <= tol.BadFraction;
 	}
 
-	Result CheckGoldenImage(const std::string& goldenDir, const std::string& name, const Image& actual, const ImageTolerance& tol)
+	Result CheckGoldenImage(const Config& config, const std::string& goldenDir, const std::string& name, const Image& actual, const ImageTolerance& tol)
 	{
 		Result r;
 		const std::string generic = Join(goldenDir, name + ".png");
 		const std::string platform = Join(Join(goldenDir, Config::Platform()), name + ".png");
 		const std::string reference = fs::exists(platform) ? platform : generic;
 
-		if (Config::UpdateMode())
+		if (config.UpdateGolden)
 		{
 			EnsureDir(fs::path(reference).parent_path().string());
 			if (!SavePNG(reference.c_str(), actual.Width, actual.Height, actual.Pixels.data()))
@@ -125,9 +117,9 @@ namespace GB::Qa
 		}
 		if (!fs::exists(reference))
 		{
-			EnsureDir(Config::OutputDir());
-			SavePNG(Join(Config::OutputDir(), name + ".actual.png").c_str(), actual.Width, actual.Height, actual.Pixels.data());
-			return { false, "no reference image '" + generic + "'. Run with GB_UPDATE_GOLDEN=1, look at the picture and commit it (the candidate is in " + Config::OutputDir() + ")" };
+			EnsureDir(config.OutputDir);
+			SavePNG(Join(config.OutputDir, name + ".actual.png").c_str(), actual.Width, actual.Height, actual.Pixels.data());
+			return { false, "no reference image '" + generic + "'. Run with GB_UPDATE_GOLDEN=1, look at the picture and commit it (the candidate is in " + config.OutputDir + ")" };
 		}
 		const Image expected = Image::Load(reference, false);
 		const ImageDiff diff = Compare(expected, actual, tol.BadDelta);
@@ -137,16 +129,16 @@ namespace GB::Qa
 			std::snprintf(buf, sizeof buf, "%s: rmse %.2f, max %d, %.2f%% pixels off", name.c_str(), diff.Rmse, diff.MaxDelta, diff.BadFraction * 100.0);
 			return { true, buf };
 		}
-		EnsureDir(Config::OutputDir());
-		SavePNG(Join(Config::OutputDir(), name + ".actual.png").c_str(), actual.Width, actual.Height, actual.Pixels.data());
+		EnsureDir(config.OutputDir);
+		SavePNG(Join(config.OutputDir, name + ".actual.png").c_str(), actual.Width, actual.Height, actual.Pixels.data());
 		if (!diff.SizeMismatch)
-			SavePNG(Join(Config::OutputDir(), name + ".compare.png").c_str(), diff.Visual.Width, diff.Visual.Height, diff.Visual.Pixels.data());
+			SavePNG(Join(config.OutputDir, name + ".compare.png").c_str(), diff.Visual.Width, diff.Visual.Height, diff.Visual.Pixels.data());
 		char buf[320];
 		if (diff.SizeMismatch)
 			std::snprintf(buf, sizeof buf, "%s: size %ux%u differs from the reference %ux%u", name.c_str(), actual.Width, actual.Height, expected.Width, expected.Height);
 		else
 			std::snprintf(buf, sizeof buf, "%s: rmse %.2f (limit %.2f), max %d, %.2f%% pixels off (limit %.2f%%); see %s/%s.compare.png", name.c_str(),
-				diff.Rmse, tol.Rmse, diff.MaxDelta, diff.BadFraction * 100.0, tol.BadFraction * 100.0, Config::OutputDir().c_str(), name.c_str());
+				diff.Rmse, tol.Rmse, diff.MaxDelta, diff.BadFraction * 100.0, tol.BadFraction * 100.0, config.OutputDir.c_str(), name.c_str());
 		return { false, buf };
 	}
 
@@ -157,7 +149,7 @@ namespace GB::Qa
 		m_Entries.push_back({ key, value, absTolerance, relTolerance });
 	}
 
-	Result GoldenData::Check(const std::string& goldenDir, const std::string& name) const
+	Result GoldenData::Check(const Config& config, const std::string& goldenDir, const std::string& name) const
 	{
 		const std::string path = Join(goldenDir, name + ".txt");
 		auto write = [&](const std::string& file)
@@ -169,14 +161,14 @@ namespace GB::Qa
 			for (const Entry& e : m_Entries) out << e.Key << " = " << e.Value << "\n";
 			return out.good();
 		};
-		if (Config::UpdateMode())
+		if (config.UpdateGolden)
 			return write(path) ? Result{ true, "updated " + path } : Result{ false, "could not write " + path };
 
 		std::ifstream in(path);
 		if (!in)
 		{
-			write(Join(Config::OutputDir(), name + ".actual.txt"));
-			return { false, "no reference data '" + path + "'. Run with GB_UPDATE_GOLDEN=1 and commit it (candidate in " + Config::OutputDir() + ")" };
+			write(Join(config.OutputDir, name + ".actual.txt"));
+			return { false, "no reference data '" + path + "'. Run with GB_UPDATE_GOLDEN=1 and commit it (candidate in " + config.OutputDir + ")" };
 		}
 		std::map<std::string, double> ref;
 		std::string line;
@@ -205,8 +197,8 @@ namespace GB::Qa
 		}
 		for (const auto& left : ref) { problems << "\n  " << left.first << ": in the reference but no longer produced"; ++bad; }
 		if (bad == 0) return { true, name + ": " + std::to_string(m_Entries.size()) + " values match" };
-		write(Join(Config::OutputDir(), name + ".actual.txt"));
-		return { false, name + ": " + std::to_string(bad) + " value(s) differ" + problems.str() + "\n  (new values in " + Config::OutputDir() + "/" + name + ".actual.txt)" };
+		write(Join(config.OutputDir, name + ".actual.txt"));
+		return { false, name + ": " + std::to_string(bad) + " value(s) differ" + problems.str() + "\n  (new values in " + config.OutputDir + "/" + name + ".actual.txt)" };
 	}
 
 	void Fingerprint::Add(int64_t value)

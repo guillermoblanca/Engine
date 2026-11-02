@@ -242,7 +242,8 @@ struct Valley
 		view.Entities = &Entities;
 		SimTrack track;
 		SimReport report;
-		for (const SimInvariant& inv : SimInvariants())
+		const SimCheckRegistry checks = MakeDefaultSimChecks();
+		for (const SimInvariant& inv : checks.Invariants)
 			if (inv.Name == "clans" || inv.Name == "territory") { report.Begin(inv.Name); inv.Check(view, track, report); }
 		for (const SimFinding& f : report.Items) std::printf("  invariant %s: %s %s\n", f.Check.c_str(), f.Subject.c_str(), f.What.c_str());
 		return report.Items;

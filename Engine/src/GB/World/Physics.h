@@ -143,6 +143,9 @@ namespace GB
 		RigidBody& GetBody(int index) { return *m_Bodies[static_cast<size_t>(index)]; }
 		const RigidBody& GetBody(int index) const { return *m_Bodies[static_cast<size_t>(index)]; }
 		size_t GetBodyCount() const { return m_Bodies.size(); }
+		// A new collision group number for a set of bodies that must not collide with each other (BodyDesc::Group), e.g. the limbs of one ragdoll.
+		// Numbered per world, from 100 up, so two runs of the same scene give the same groups (the old counter was shared by the whole process).
+		int AllocateGroup() { return ++m_NextGroup; }
 		void RemoveBody(int index);                // leaves a hole (the index stays valid for the others); see IsAlive
 		bool IsAlive(int index) const { return index >= 0 && static_cast<size_t>(index) < m_Bodies.size() && m_Bodies[static_cast<size_t>(index)]; }
 		// Joints. MakeJoint fills the body-space anchor, axes and reference from a world point, axis and reference direction at the bodies'
@@ -192,6 +195,7 @@ namespace GB
 			bool Alive = true;
 		};
 		std::vector<std::unique_ptr<RigidBody>> m_Bodies;
+		int m_NextGroup = 100;
 		std::vector<Joint> m_Joints;
 		std::vector<StaticCollider> m_Statics;
 		std::function<float(float, float)> m_GroundHeight;
