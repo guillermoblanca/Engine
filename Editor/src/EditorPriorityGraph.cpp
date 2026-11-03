@@ -3,6 +3,7 @@
 // the JSON, the validation and the evaluation are in GB/AI/PriorityGraph.* and GB/AI/PriorityLibrary.* (headless, tested), and the bridge to the tribe in GB/Game/TribePriorities.*.
 // How to use it: docs/GRAFO_PRIORIDADES.md.
 #include "EditorApp.h"
+#include "NodeGraphEditor.h"
 #include "GB/AI/PriorityLibrary.h"
 #include "GB/Game/TribePriorities.h"
 #include <algorithm>
@@ -16,18 +17,12 @@
 
 namespace GB::Editor
 {
-	struct PriorityGraphUi
+	struct PriorityGraphUi : NodeGraphEditor
 	{
 		std::shared_ptr<PriorityLibrary> Lib = std::make_shared<PriorityLibrary>();
 		bool Loaded = false;
-		std::string Dir, Current = "builtin", SelNode, Message;
+		std::string Dir, Current = "builtin", Message;
 		bool MessageError = false;
-		int SelEdge = -1;
-		ImVec2 Pan{ 40.0f, 40.0f };
-		float Zoom = 1.0f;
-		std::string DragNode, ConnectFrom;
-		bool Panning = false;
-		ImVec2 PopupAt{ 0.0f, 0.0f };
 		bool WhatIf = false;
 		std::map<std::string, float> Over;
 		float WhatScore = 1.0f;
@@ -122,26 +117,6 @@ namespace GB::Editor
 			std::string id = base;
 			for (int i = 2; g.FindNode(id); ++i) id = base + std::to_string(i);
 			return id;
-		}
-
-		float DistanceToCurve(ImVec2 a, ImVec2 b, ImVec2 p)
-		{
-			const float dx = std::max(40.0f, std::fabs(b.x - a.x) * 0.5f);
-			const ImVec2 c1(a.x + dx, a.y), c2(b.x - dx, b.y);
-			float best = 1e9f;
-			ImVec2 prev = a;
-			for (int i = 1; i <= 24; ++i)
-			{
-				const float t = static_cast<float>(i) / 24.0f, u = 1.0f - t;
-				const ImVec2 q(u * u * u * a.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * b.x, u * u * u * a.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * b.y);
-				const float vx = q.x - prev.x, vy = q.y - prev.y, len2 = vx * vx + vy * vy;
-				float s = len2 > 0 ? ((p.x - prev.x) * vx + (p.y - prev.y) * vy) / len2 : 0.0f;
-				s = std::clamp(s, 0.0f, 1.0f);
-				const float ex = prev.x + vx * s - p.x, ey = prev.y + vy * s - p.y;
-				best = std::min(best, std::sqrt(ex * ex + ey * ey));
-				prev = q;
-			}
-			return best;
 		}
 
 		void Say(PriorityGraphUi& ui, const std::string& text, bool error = false)
@@ -316,7 +291,7 @@ namespace GB::Editor
 		draw->AddRectFilled(origin, Add(origin, size), IM_COL32(22, 24, 30, 255));
 		ImGuiIO& io = ImGui::GetIO();
 		const float zoom = ui.Zoom;
-		auto toScreen = [&](float x, float y) { return Add(Add(origin, ui.Pan), ImVec2(x * zoom, y * zoom)); };
+		auto toScreen = [&](float x, float y) { return ui.CanvasToScreen(origin, x, y); };
 		auto nodeRect = [&](const PgNode& n, ImVec2& a, ImVec2& b) { a = toScreen(n.X, n.Y); b = Add(a, ImVec2(kNodeW * zoom, kNodeH * zoom)); };
 		auto inPin = [&](const PgNode& n) { ImVec2 a, b; nodeRect(n, a, b); return ImVec2(a.x, (a.y + b.y) * 0.5f); };
 		auto outPin = [&](const PgNode& n) { ImVec2 a, b; nodeRect(n, a, b); return ImVec2(b.x, (a.y + b.y) * 0.5f); };
@@ -345,10 +320,7 @@ namespace GB::Editor
 		{
 			if (io.MouseWheel != 0.0f)
 			{
-				const float old = ui.Zoom;
-				ui.Zoom = std::clamp(ui.Zoom * (io.MouseWheel > 0 ? 1.1f : 1.0f / 1.1f), 0.35f, 2.5f);
-				const ImVec2 rel = Sub(Sub(mouse, origin), ui.Pan);   // keep the point under the mouse where it is
-				ui.Pan = Sub(ui.Pan, Mul(rel, ui.Zoom / old - 1.0f));
+				ui.ZoomAt(origin, mouse, io.MouseWheel > 0 ? 1.1f : 1.0f / 1.1f);
 			}
 			if (ImGui::IsMouseClicked(0))
 			{
@@ -370,7 +342,7 @@ namespace GB::Editor
 						{
 							const PgNode* a = graph->FindNode(graph->Edges[i].From);
 							const PgNode* b = graph->FindNode(graph->Edges[i].To);
-							if (a && b && DistanceToCurve(outPin(*a), inPin(*b), mouse) < 6.0f) { hit = static_cast<int>(i); break; }
+							if (a && b && ui.DistanceToBezier(outPin(*a), inPin(*b), mouse) < 6.0f) { hit = static_cast<int>(i); break; }
 						}
 						ui.SelEdge = hit;
 						if (hit >= 0) ui.SelNode.clear(); else { ui.SelNode.clear(); ui.Panning = true; }

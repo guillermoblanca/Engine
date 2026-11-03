@@ -9,8 +9,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include "GB/Gameplay/DocsExport.h"
+#include "TerrainGraphUi.h"
 #include <filesystem>
 #include <fstream>
+#include <chrono>
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -268,13 +270,18 @@ namespace GB::Editor
 
 	void EditorApp::BuildWorld(const WorldDesc& desc)
 	{
+		BuildWorld(WorldGenerator::Generate(desc));
+	}
+
+	void EditorApp::BuildWorld(GeneratedWorld&& world)
+	{
 		m_Actors.Clear();   // they point into the old terrain
 		m_Player.Stop();
-		m_WorldDesc = desc;
+		m_WorldDesc = world.Desc;
 		m_WildResources = 0.0f;
 		m_Instance.reset();
 		m_SceneEditor.RemoveEnvironment();   // the old trees, rocks and wild resource nodes go with the old world; what the user added stays
-		m_World.Build(desc, m_Scene);
+		m_World.Build(std::move(world), m_Scene);
 		m_StaticObjects = m_Scene.Objects.size();   // the terrain; entities are appended every frame
 		m_SceneEditor.PopulateEnvironment(m_World.World().Trees, m_World.World().Rocks);
 		m_Scene.Env.ShadowCenter = m_Orbit.Target;
@@ -283,6 +290,39 @@ namespace GB::Editor
 		FrameWorld();
 		if (m_Props.All().size() > 0)
 			RegisterWaterProperties();
+	}
+
+	bool EditorApp::RequestWorldBuild(const WorldDesc& desc)
+	{
+		PollWorldBuild();
+		if (m_WorldBuildPending)
+		{
+			GB_CLIENT_WARN("World generation already in progress; request ignored");
+			return false;
+		}
+		m_WorldBuildPending = true;
+		m_WorldBuild = std::async(std::launch::async, [desc]() { return WorldGenerator::GenerateData(desc); });
+		GB_CLIENT_INFO("World generation started in background (seed {})", desc.Seed);
+		return true;
+	}
+
+	void EditorApp::PollWorldBuild()
+	{
+		if (!m_WorldBuildPending || !m_WorldBuild.valid()) return;
+		if (m_WorldBuild.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+
+		try
+		{
+			GeneratedWorld world = m_WorldBuild.get();
+			m_WorldBuildPending = false;
+			BuildWorld(std::move(world));
+			GB_CLIENT_INFO("World generation completed (seed {})", m_WorldDesc.Seed);
+		}
+		catch (const std::exception& error)
+		{
+			m_WorldBuildPending = false;
+			GB_CLIENT_ERROR("World generation failed: {}", error.what());
+		}
 	}
 
 	void EditorApp::ResetWorld()
@@ -625,8 +665,9 @@ namespace GB::Editor
 					return { false, "generator " + a[6] + " does not exist (1 to " + std::to_string(kWorldGeneratorLatest) + ")" };
 				d.GeneratorVersion = static_cast<uint32_t>(version);   // an old generator makes the world it always made
 			}
-			BuildWorld(d);
-			return { true, "world generated (seed " + std::to_string(d.Seed) + ")" };
+			if (!RequestWorldBuild(d))
+				return { false, "world generation already in progress" };
+			return { true, "world generation started in background (seed " + std::to_string(d.Seed) + ")" };
 		});
 		c.Register("time", "time <hours>: sets the hour of the day (0-24) and turns time of day on", [this](const std::vector<std::string>& a) -> CommandResult
 		{
@@ -1238,6 +1279,7 @@ namespace GB::Editor
 	// ------------------------------------------------------------------ frame
 	void EditorApp::OnUpdate(float dt)
 	{
+		PollWorldBuild();
 		m_FrameDt = dt;
 		const float ms = dt * 1000.0f;
 		m_FrameMsSmooth = m_FrameMsSmooth * 0.9f + ms * 0.1f;
@@ -1422,6 +1464,17 @@ namespace GB::Editor
 		if (m_Panels.Tests) DrawTestsPanel();
 		if (m_Panels.QA) DrawQaPanel();
 		if (m_ShowPriorityGraph) DrawPriorityGraphPanel();
+		if (m_ShowTerrainGraph)
+		{
+			if (!m_TgUi) m_TgUi = std::make_unique<TerrainGraphUi>();
+			m_TgUi->Draw(&m_ShowTerrainGraph);
+			if (m_TgUi->ConsumeApplyRequest())
+			{
+				WorldDesc graphDesc = m_WorldDesc;
+				graphDesc.TerrainGraphDefinition = m_TgUi->Graph();
+				RequestWorldBuild(graphDesc);
+			}
+		}
 		if (m_Panels.Console) DrawConsole();
 		if (m_Panels.Assets) DrawAssets();
 		if (m_Panels.Demo) ImGui::ShowDemoWindow(&m_Panels.Demo);
@@ -1501,6 +1554,7 @@ namespace GB::Editor
 			ImGui::MenuItem("Inspector", nullptr, &m_Panels.Inspector);
 			ImGui::MenuItem("Tests", nullptr, &m_Panels.Tests);
 			ImGui::MenuItem("Priority Graph", nullptr, &m_ShowPriorityGraph);
+			ImGui::MenuItem("Terrain Graph", nullptr, &m_ShowTerrainGraph);
 			ImGui::MenuItem("Viewport", nullptr, &m_Panels.Viewport);
 			ImGui::MenuItem("Properties", nullptr, &m_Panels.Properties);
 			ImGui::MenuItem("World", nullptr, &m_Panels.World);
@@ -1638,6 +1692,8 @@ namespace GB::Editor
 			ImGui::SliderInt("rock budget", &m_WorldDesc.RockBudget, 0, 300);
 			ImGui::SliderFloat("forest", &m_WorldDesc.ForestAmount, 0.0f, 1.0f);
 			ImGui::Checkbox("river", &m_WorldDesc.River); ImGui::SameLine(); ImGui::Checkbox("lake", &m_WorldDesc.Lake);
+			if (m_WorldBuildPending)
+				ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.25f, 1.0f), "Generating world in background...");
 			if (ImGui::Button("Generate", ImVec2(-1, 0))) Execute("generate " + std::string(m_WorldDesc.Type == WorldType::Temperate ? "temperate" : m_WorldDesc.Type == WorldType::Alpine ? "alpine" : "desert") +
 				" " + std::to_string(m_WorldDesc.Seed) + " " + std::to_string(m_WorldDesc.TreeBudget) + " " + std::to_string(m_WorldDesc.RockBudget));
 			if (ImGui::Button("Frame world", ImVec2(-1, 0))) FrameWorld();

@@ -67,12 +67,19 @@ namespace GB::Editor
 
 	void WorldInstance::Build(const WorldDesc& desc, Scene& scene)
 	{
+		Build(WorldGenerator::GenerateData(desc), scene);
+	}
+
+	void WorldInstance::Build(GeneratedWorld&& generated, Scene& scene)
+	{
 		Clear(scene);
-		m_World = std::make_unique<GeneratedWorld>(WorldGenerator::Generate(desc));
+		WorldGenerator::BuildGpu(generated);
+		m_World = std::make_unique<GeneratedWorld>(std::move(generated));
 		m_Terrain = std::move(m_World->TerrainPtr);
 		m_Terrain->AddToScene(scene);
 		const Terrain* terrain = m_Terrain.get();
 		const GeneratedWorld* world = m_World.get();
+		const WorldDesc& desc = world->Desc;
 
 		if (desc.Type == WorldType::Temperate)
 		{

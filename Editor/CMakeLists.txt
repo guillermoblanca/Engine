@@ -44,6 +44,7 @@ add_library(GBEditor STATIC
     src/Animation/EditorAnimTransitions.cpp
     src/Animation/EditorAnimInteraction.cpp
     src/EditorPriorityGraph.cpp
+    src/TerrainGraphUi.cpp
     src/EditorApp.cpp)
 target_include_directories(GBEditor PUBLIC src)
 target_link_libraries(GBEditor PUBLIC GB::GB imgui)

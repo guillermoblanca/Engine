@@ -96,6 +96,8 @@ namespace GB
 			const int from = NodeIndex(graph, e.From), to = NodeIndex(graph, e.To);
 			if (from < 0) { Error(e.To, "edge from unknown node '" + e.From + "'"); continue; }
 			if (to < 0) { Error(e.From, "edge to unknown node '" + e.To + "'"); continue; }
+			if (e.From == e.To) Error(e.To, "self-connection is not allowed");
+			if (e.Port.empty()) Error(e.To, "edge has an empty input port");
 			adj[from].push_back(to);
 		}
 

@@ -36,6 +36,7 @@
 #include "GB/Renderer/Framebuffer.h"
 #include "GB/Renderer/Renderer.h"
 #include <deque>
+#include <future>
 #include <functional>
 #include <memory>
 #include <string>
@@ -85,6 +86,9 @@ namespace GB::Editor
 		void RegisterProperties();
 		void RegisterWaterProperties();
 		void BuildWorld(const WorldDesc& desc);
+		void BuildWorld(GeneratedWorld&& world);
+		bool RequestWorldBuild(const WorldDesc& desc);
+		void PollWorldBuild();
 		void RebaseWeather();
 		void ApplyTimeOfDay();
 		void SetQuality(const std::string& name);
@@ -203,8 +207,11 @@ namespace GB::Editor
 		void DrawQaPanel();
 		// the Priority Graph window (EditorPriorityGraph.cpp): the graph of decision priorities of the characters (docs/GRAFO_PRIORIDADES.md)
 		void DrawPriorityGraphPanel();
+		void DrawTerrainGraphPanel();
 		bool m_ShowPriorityGraph = false;
+		bool m_ShowTerrainGraph = false;
 		std::shared_ptr<PriorityGraphUi> m_PgUi;
+		std::unique_ptr<class TerrainGraphUi> m_TgUi;
 		void BuildDefaultLayout(unsigned int dockspaceId, float width, float height);
 
 		// scene
@@ -218,6 +225,8 @@ namespace GB::Editor
 		std::unique_ptr<Framebuffer> m_ViewportFb;
 		std::unique_ptr<Weather> m_Weather;
 		WorldInstance m_World;
+		std::future<GeneratedWorld> m_WorldBuild;
+		bool m_WorldBuildPending = false;
 		WorldDesc m_WorldDesc;
 		float m_WildResources = 0.0f;   // density of the last `resources world` on this world (0 = none): saved in WorldParams, the nodes go in the baseline
 		NatureConfig m_Nature;          // the patches (forests, stony ground, flower beds) of assets/data/bosques.json; its abundance is the default density

@@ -35,7 +35,7 @@ encontraron varios huecos de realismo, de mayor a menor impacto:
 | Reutilización / composición | HDAs (Houdini), subgrafos de PCG | El mismo mecanismo de subgrafo que ya usa `PriorityGraph` (`PgResolver`) se puede aplicar igual a `TerrainGraph` cuando haga falta (no necesario para los 3 nodos de la Fase 1). |
 | Comparación determinista | *geodiff* de Houdini | Ya existe: `GB::Qa::GoldenData`/`Fingerprint` (`GB/Qa/Qa.h`, su propio comentario ya cita a Houdini como inspiración). Se reutiliza sin cambios. |
 | NavMesh dinámico | `RecastNavMesh` + `dtTileCache` | Ver [NAVMESH_INCREMENTAL.md](NAVMESH_INCREMENTAL.md) (Fase 4, no implementada todavía). |
-| Editor de nodos | Red de nodos Houdini / PCG graph editor | Fase 5 (no implementada todavía): clon del canvas ImGui ya probado en `Editor/src/EditorPriorityGraph.cpp`, sin librería de terceros. |
+| Editor de nodos | Red de nodos Houdini / PCG graph editor | La base común de interacción está en `Editor/src/NodeGraphEditor.h` y la UI de prioridades la hereda en `Editor/src/EditorPriorityGraph.cpp`; el editor visual de terreno y su modelo específico siguen pendientes de la Fase 1. |
 
 ## 3. Modelo de datos
 

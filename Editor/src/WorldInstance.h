@@ -21,6 +21,7 @@ namespace GB::Editor
 	{
 	public:
 		void Build(const WorldDesc& desc, Scene& scene);
+		void Build(GeneratedWorld&& world, Scene& scene);
 		void Clear(Scene& scene);
 		bool IsBuilt() const { return m_World != nullptr; }
 

@@ -378,6 +378,30 @@ namespace GB
 			// Pass 1: the bare terrain, to find the basin for the lake and the way down for the river.
 			hp.SurfaceMaps = false;
 			auto bare = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style, false);
+			if (desc.TerrainGraphDefinition)
+			{
+				TgContext context;
+				context.Seed = desc.Seed;
+				context.Resolution = desc.Resolution;
+				context.Size = desc.Size;
+				TgResult result;
+				std::string error;
+				if (EvaluateTerrainGraph(*desc.TerrainGraphDefinition, MakeDefaultTerrainNodeRegistry(), context, result, error))
+				{
+					const auto output = result.Outputs.find("height");
+					if (output != result.Outputs.end() && output->second.N == bare->GetHeightmap().GetResolution())
+					{
+						Heightmap& target = bare->GetEditableHeightmap();
+						const TgField& source = output->second;
+						for (uint32_t j = 0; j < source.N; ++j)
+							for (uint32_t i = 0; i < source.N; ++i) target.At(i, j) = source.At(i, j);
+					}
+					else
+						GB_CORE_WARN("terrain graph has no compatible height output; using the built-in heightfield");
+				}
+				else
+					GB_CORE_WARN("terrain graph evaluation failed ({}); using the built-in heightfield", error);
+			}
 			// Generators 1 and 2 find the water below with code of their own; generator 3 asks a terrain graph (GB/Water/WaterPlanner.h) to analyse the
 			// bare ground: where the broadest basin is, where the rain goes, which flow line is the river. If the graph fails (it should not) the world
 			// is still built, with the old method.

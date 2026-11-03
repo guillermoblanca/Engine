@@ -4,6 +4,7 @@
 #include "GB/World/Terrain.h"
 #include "GB/World/Trees.h"
 #include "GB/World/WorldGenVersion.h"
+#include "GB/World/Graph/TerrainGraph.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -36,6 +37,7 @@ namespace GB
 		// heightmap of (Resolution - 1) x Tiles + 1 samples, the budgets x Tiles^2), so it is seamless at the borders by construction; GPU meshes
 		// and navigation can still be cut by tile (WorldTiles.h). 1, the default, is exactly the world of before. One lake and one river per world.
 		int Tiles = 1;
+		std::shared_ptr<const TerrainGraph> TerrainGraphDefinition;
 		float Extent() const { return Size * static_cast<float>(Tiles < 1 ? 1 : Tiles); }   // metres per side of the whole world
 	};
 
