@@ -5,6 +5,7 @@
 #include "GB/Log.h"
 #include "GB/Qa/Qa.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/TerrainGpu.h"
 #include "GB/Window.h"
 #include "GB/World/Grass.h"
 #include "GB/World/Rocks.h"
@@ -121,6 +122,7 @@ int main()
 	// 4. Rolling hills with grass and trees (all procedural, seeded)
 	GB::HillParams hp; hp.Seed = 5; hp.Height = 10.0f;
 	auto terrain = GB::Terrain::CreateHills(hp, 96.0f, 129, GB::TerrainStyle::Meadow);
+	GB::TerrainGpu terrainGpu(*terrain);
 	GB::TreeFactory trees;
 	auto oak = trees.Create([] { GB::TreeParams t; t.Species = GB::TreeSpecies::Broadleaf; t.Height = 8.0f; t.Seed = 3; return t; }());
 	auto pine = trees.Create([] { GB::TreeParams t; t.Species = GB::TreeSpecies::Conifer; t.Height = 11.0f; t.Seed = 4; return t; }());
@@ -133,7 +135,7 @@ int main()
 	auto hillScene = [&]()
 	{
 		GB::Scene sc;
-		terrain->AddToScene(sc);
+		terrainGpu.AddToScene(sc);
 		sc.Grass.push_back(&grass);
 		oak->AddToScene(sc, { -6.0f, terrain->GetHeight(-6.0f, -10.0f), -10.0f }, 0.5f, 1.0f);
 		pine->AddToScene(sc, { 7.0f, terrain->GetHeight(7.0f, -14.0f), -14.0f }, 1.2f, 1.0f);

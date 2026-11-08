@@ -55,14 +55,14 @@ namespace GB
 	// so the edges of two neighbouring tiles are the same vertices (no seam, no crack). CPU only.
 	void BuildTileMesh(const Terrain& terrain, const WorldTiles& tiles, int tile, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 
-	// The GPU side: a mesh per resident tile, drawn with the terrain's material (needs an OpenGL context to build; the terrain's BuildGpu must have
-	// made its material). Not wired into the editor yet: the editor still draws the whole terrain (see docs/mundo.md).
+	// The GPU side: a mesh per resident tile, drawn with the terrain's material (needs an OpenGL context to build; AddToScene takes the material of the
+	// terrain's TerrainGpu). Not wired into the editor yet: the editor still draws the whole terrain (see docs/mundo.md).
 	class TerrainTileSet
 	{
 	public:
 		// Builds and drops what WorldTiles::Update says; returns the tiles built this frame.
 		int Stream(const Terrain& terrain, WorldTiles& tiles, const glm::vec2& viewer, const TileStreamConfig& config = TileStreamConfig());
-		void AddToScene(const Terrain& terrain, Scene& scene) const;
+		void AddToScene(const Material& material, Scene& scene) const;   // material: the terrain's (TerrainGpu::GetMaterial)
 		size_t Meshes() const;
 	private:
 		std::vector<std::unique_ptr<Mesh>> m_Meshes;   // by tile

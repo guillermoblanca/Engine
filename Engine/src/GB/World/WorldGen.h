@@ -108,11 +108,12 @@ namespace GB
 	{
 	public:
 		// Pure CPU (no OpenGL, no window): the heights, the lake and river, the baked biome map and the placement of trees and rocks. The terrain
-		// has no mesh nor textures yet (BuildGpu adds them). What the headless tests, the save baseline and a simulation without a window use.
+		// has no mesh nor textures yet (PrepareRenderData). What the headless tests, the save baseline and a simulation without a window use.
 		static GeneratedWorld GenerateData(const WorldDesc& desc);
-		// The mesh, material and textures of the terrain of a world from GenerateData (needs an OpenGL context). Call it before moving TerrainPtr out.
-		static void BuildGpu(GeneratedWorld& world);
-		// GenerateData + BuildGpu: needs an OpenGL context.
+		// The CPU half of the terrain's drawing (Terrain::PrepareRenderData: the refined mesh, the images of its textures), still with no OpenGL.
+		// The upload is GB/Renderer/TerrainGpu.h's, made by whoever draws the world. Call it before moving TerrainPtr out.
+		static void PrepareRenderData(GeneratedWorld& world);
+		// GenerateData + PrepareRenderData.
 		static GeneratedWorld Generate(const WorldDesc& desc);
 	};
 }

@@ -2,6 +2,7 @@
 // The GL part is skipped, with the CPU part still reported, when there is no OpenGL 4.5 context.
 #include "GB/Effects/SandSpray.h"
 #include "GB/Log.h"
+#include "GB/Renderer/TerrainGpu.h"
 #include "GB/Window.h"
 #include "GB/World/Terrain.h"
 #include <cmath>
@@ -59,6 +60,7 @@ int main()
 	dp.Wavelength = 50.0f;
 	dp.Height = 6.0f;
 	auto terrain = GB::Terrain::CreateDunes(dp, 240.0f, 241, GB::TerrainStyle::Desert);
+	GB::TerrainGpu terrainGpu(*terrain);
 	const GB::Heightmap& hm = terrain->GetHeightmap();
 
 	// Same parameters, same dunes; another seed, other dunes.
@@ -119,29 +121,29 @@ int main()
 	}
 
 	// Mesh, material and helpers.
-	Check(terrain->GetMesh().GetIndexCount() == 240u * 240u * 6u, "two triangles per grid cell");
-	const GB::Material& mat = terrain->GetMaterial();
+	Check(terrainGpu.GetMesh().GetIndexCount() == 240u * 240u * 6u, "two triangles per grid cell");
+	const GB::Material& mat = terrainGpu.GetMaterial();
 	Check(mat.AlbedoMap && mat.NormalMap && mat.MacroMap, "grain, ripple and macro textures are set");
 	Check(Near(mat.MacroRect.x, hm.GetMin().x, 1e-3f) && Near(mat.MacroRect.z, 240.0f, 1e-3f), "the macro map covers the whole terrain");
 	const auto ground = terrain->MakeGroundFunction();
 	Check(Near(ground(12.3f, -45.6f), terrain->GetHeight(12.3f, -45.6f), 1e-5f), "ground function = height query");
 	GB::Scene scene;
-	terrain->AddToScene(scene, glm::translate(glm::mat4(1.0f), glm::vec3(0, 1, 0)));
+	terrainGpu.AddToScene(scene, glm::translate(glm::mat4(1.0f), glm::vec3(0, 1, 0)));
 	uint64_t tileIndices = 0;
 	bool allTerrain = !scene.Objects.empty();
 	for (const GB::RenderObject& obj : scene.Objects)
 	{
-		allTerrain = allTerrain && obj.MeshPtr == &terrain->GetMesh() && (scene.Objects.size() == 1 || obj.BoundingRadius > 0.0f);
-		tileIndices += obj.IndexCount > 0 ? obj.IndexCount : terrain->GetMesh().GetIndexCount();
+		allTerrain = allTerrain && obj.MeshPtr == &terrainGpu.GetMesh() && (scene.Objects.size() == 1 || obj.BoundingRadius > 0.0f);
+		tileIndices += obj.IndexCount > 0 ? obj.IndexCount : terrainGpu.GetMesh().GetIndexCount();
 	}
-	Check(allTerrain && tileIndices == terrain->GetMesh().GetIndexCount(), "AddToScene adds the terrain mesh as bounded tiles that cover every index");
+	Check(allTerrain && tileIndices == terrainGpu.GetMesh().GetIndexCount(), "AddToScene adds the terrain mesh as bounded tiles that cover every index");
 
 	// Rendering: from above the terrain fills the frame with sand-colored, lit pixels.
 	{
 		GB::Renderer renderer(160, 90, 1, 1024);
 		Check(renderer.IsValid(), "renderer initializes");
 		GB::Scene lit;
-		terrain->AddToScene(lit);
+		terrainGpu.AddToScene(lit);
 		lit.Sun.Direction = { std::cos(glm::radians(20.0f)) * 0.9f, -0.43f, std::sin(glm::radians(20.0f)) * 0.9f };
 		lit.Env.ShadowCenter = { 0.0f, 0.0f, 0.0f };
 		lit.Env.ShadowRadius = 40.0f;

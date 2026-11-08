@@ -51,7 +51,7 @@ namespace GB
 	float Heightmap::GetMaxHeight() const { return *std::max_element(m_Heights.begin(), m_Heights.end()); }
 
 	// ------------------------------------------------------------------ generators
-	std::unique_ptr<Terrain> Terrain::CreateDunes(const DuneParams& p, float size, uint32_t resolution, TerrainStyle style, bool gpu)
+	std::unique_ptr<Terrain> Terrain::CreateDunes(const DuneParams& p, float size, uint32_t resolution, TerrainStyle style)
 	{
 		std::unique_ptr<Terrain> t(new Terrain(resolution, size));
 		t->m_ShoreSubdivision = std::clamp(p.DetailSubdivision, 1, 8);
@@ -69,7 +69,7 @@ namespace GB
 		}
 
 		t->FindCrests(p.Wavelength);
-		t->Finish(style, gpu);
+		t->m_Style = style;
 		return t;
 	}
 
@@ -103,7 +103,7 @@ namespace GB
 		}
 	}
 
-	std::unique_ptr<Terrain> Terrain::CreateHills(const HillParams& p, float size, uint32_t resolution, TerrainStyle style, bool gpu)
+	std::unique_ptr<Terrain> Terrain::CreateHills(const HillParams& p, float size, uint32_t resolution, TerrainStyle style)
 	{
 		Heightmap ground(resolution, size);
 		for (uint32_t j = 0; j < ground.GetResolution(); ++j)
@@ -113,10 +113,10 @@ namespace GB
 				ground.At(i, j) = HillHeight(ground.SamplePosition(i, j), p.Scale, p.Octaves, p.Seed, p.Flatten, p.Height);
 			}
 		}
-		return CreateFromHeightmap(ground, p, style, gpu);
+		return CreateFromHeightmap(ground, p, style);
 	}
 
-	std::unique_ptr<Terrain> Terrain::CreateFromHeightmap(const Heightmap& ground, const WaterField& water, const HillParams& p, TerrainStyle style, bool gpu)
+	std::unique_ptr<Terrain> Terrain::CreateFromHeightmap(const Heightmap& ground, const WaterField& water, const HillParams& p, TerrainStyle style)
 	{
 		std::unique_ptr<Terrain> t(new Terrain(ground.GetResolution(), ground.GetSize()));
 		t->m_SurfaceMaps = p.SurfaceMaps;
@@ -125,11 +125,11 @@ namespace GB
 		t->m_DetailThreshold = p.DetailThreshold;
 		t->m_Heightmap = ground;
 		t->m_Water = water;
-		t->Finish(style, gpu);
+		t->m_Style = style;
 		return t;
 	}
 
-	std::unique_ptr<Terrain> Terrain::CreateFromHeightmap(const Heightmap& ground, const HillParams& p, TerrainStyle style, bool gpu)
+	std::unique_ptr<Terrain> Terrain::CreateFromHeightmap(const Heightmap& ground, const HillParams& p, TerrainStyle style)
 	{
 		std::unique_ptr<Terrain> t(new Terrain(ground.GetResolution(), ground.GetSize()));
 		t->m_SurfaceMaps = p.SurfaceMaps;
@@ -153,7 +153,7 @@ namespace GB
 		}
 		if (p.LakeRadius > 0.0f)
 			t->m_Water.SetLake({ true, p.LakeCenter, p.LakeRadius, p.WaterLevel, lake.Outline });
-		t->Finish(style, gpu);
+		t->m_Style = style;
 		return t;
 	}
 
@@ -227,7 +227,7 @@ namespace GB
 		Vertex v;
 		v.Position = { pos.x, FineHeight(fi, fj), pos.y };
 		v.Normal = GetSmoothNormal(pos.x, pos.y);
-		v.UV = { pos.x / 4.0f, pos.y / 4.0f };   // same detail tiling as the grid (tileMeters in Finish)
+		v.UV = { pos.x / 4.0f, pos.y / 4.0f };   // same detail tiling as the grid (tileMeters in PrepareRenderData)
 		v.Tangent = { 1.0f, 0.0f, 0.0f, 1.0f };
 		return v;
 	}
@@ -385,7 +385,7 @@ namespace GB
 		const int n = static_cast<int>(m_Heightmap.GetResolution());
 		i0 = std::clamp(i0 - 2, 0, n - 1); j0 = std::clamp(j0 - 2, 0, n - 1);
 		i1 = std::clamp(i1 + 2, 0, n - 1); j1 = std::clamp(j1 + 2, 0, n - 1);
-		if (!m_Mesh || m_Vertices.size() < static_cast<size_t>(n) * static_cast<size_t>(n) || i1 < i0 || j1 < j0) return;   // no mesh yet: BuildGpu reads the heights as they are
+		if (m_Vertices.size() < static_cast<size_t>(n) * static_cast<size_t>(n) || i1 < i0 || j1 < j0) return;   // no renderer took the mesh yet: it reads the heights as they are
 		if (!m_FineIndex.empty())   // refined shore vertices that sit over the edited texels
 		{
 			const int N = m_ShoreSubdivision;
@@ -405,9 +405,12 @@ namespace GB
 						}
 				}
 			if (lowest <= highest)
-				m_Mesh->UpdateVertices(lowest, &m_Vertices[lowest], highest - lowest + 1);
+			{
+				if (m_Edits.FineLast < m_Edits.FineFirst) { m_Edits.FineFirst = lowest; m_Edits.FineLast = highest; }
+				else { m_Edits.FineFirst = std::min(m_Edits.FineFirst, lowest); m_Edits.FineLast = std::max(m_Edits.FineLast, highest); }
+			}
 		}
-		if (m_NormalMap)   // the same area of the high-resolution normal map (SmoothHeight reads two cells around a point)
+		if (m_NormalRes > 0 && !m_NormalImage.Pixels.empty())   // the same area of the high-resolution normal map (SmoothHeight reads two cells around a point)
 		{
 			const glm::vec2 lo = m_Heightmap.GetMin(), a = m_Heightmap.SamplePosition(static_cast<uint32_t>(i0), static_cast<uint32_t>(j0)), b = m_Heightmap.SamplePosition(static_cast<uint32_t>(i1), static_cast<uint32_t>(j1));
 			const float inv = static_cast<float>(m_NormalRes) / m_Heightmap.GetSize(), margin = m_Heightmap.GetSpacing() * 2.0f;
@@ -423,22 +426,29 @@ namespace GB
 				v.Position.y = m_Heightmap.At(static_cast<uint32_t>(i), static_cast<uint32_t>(j));
 				v.Normal = GetSmoothNormal(pos.x, pos.y);
 			}
-			m_Mesh->UpdateVertices(static_cast<uint32_t>(j * n + i0), &m_Vertices[static_cast<size_t>(j) * static_cast<size_t>(n) + static_cast<size_t>(i0)], static_cast<uint32_t>(i1 - i0 + 1));
 		}
+		if (m_Edits.RowJ1 < m_Edits.RowJ0) { m_Edits.RowI0 = i0; m_Edits.RowI1 = i1; m_Edits.RowJ0 = j0; m_Edits.RowJ1 = j1; }
+		else
+		{
+			m_Edits.RowI0 = std::min(m_Edits.RowI0, i0); m_Edits.RowI1 = std::max(m_Edits.RowI1, i1);
+			m_Edits.RowJ0 = std::min(m_Edits.RowJ0, j0); m_Edits.RowJ1 = std::max(m_Edits.RowJ1, j1);
+		}
+		++m_EditRevision;
 	}
 
-	// ------------------------------------------------------------------ mesh + material
-	void Terrain::Finish(TerrainStyle style, bool gpu)
+	TerrainEdits Terrain::TakeEdits()
 	{
-		m_Style = style;
-		if (gpu) BuildGpu();
+		TerrainEdits edits = m_Edits;
+		m_Edits = {};
+		return edits;
 	}
 
-	void Terrain::PrepareGpu()
+	// ------------------------------------------------------------------ mesh + material images (the CPU half of the drawing)
+	void Terrain::PrepareRenderData()
 	{
-		if (m_Mesh || m_Prepared) return;
-		auto prepared = std::make_unique<Prepared>();
-		Prepared& d = *prepared;
+		if (m_Prepared) return;   // (a terrain already handed to a renderer prepares again from its heights, for another one)
+		auto prepared = std::make_unique<TerrainRenderData>();
+		TerrainRenderData& d = *prepared;
 		const TerrainStyle style = m_Style;
 		const Heightmap& hm = m_Heightmap;
 		const uint32_t n = hm.GetResolution();
@@ -469,7 +479,7 @@ namespace GB
 		}
 		BuildMeshRefinement(vertices, indices);
 		SortIntoTiles(vertices, indices);
-		d.Vertices = std::move(vertices);
+		m_PreparedVertices = std::move(vertices);
 		d.Indices = std::move(indices);
 
 		// ---- palette
@@ -540,43 +550,12 @@ namespace GB
 		m_Prepared = std::move(prepared);
 	}
 
-	void Terrain::BuildGpu()
+	std::unique_ptr<TerrainRenderData> Terrain::TakeRenderData()
 	{
-		if (m_Mesh) return;
-		PrepareGpu();
-		Prepared& d = *m_Prepared;
-		const Heightmap& hm = m_Heightmap;
-		const TerrainStyle style = m_Style;
-		m_Mesh = std::make_unique<Mesh>(d.Vertices, d.Indices);
-		m_Vertices = std::move(d.Vertices);
-		m_Grain = std::make_unique<Texture2D>(d.Grain, TextureEncoding::SRGB);
-		m_Ripples = std::make_unique<Texture2D>(d.Ripples, TextureEncoding::Linear);
-		if (m_SurfaceMaps)
-		{
-			m_Macro = std::make_unique<Texture2D>(d.Macro, TextureEncoding::SRGB);
-			m_NormalMap = std::make_unique<Texture2D>(m_NormalImage, TextureEncoding::Linear);
-		}
-		const float roughness = d.Roughness, rippleDepth = d.RippleDepth;
-		m_Prepared.reset();
-
-		m_Material = {};
-		m_Material.Albedo = glm::vec3(1.0f);
-		m_Material.Roughness = roughness;
-		m_Material.AlbedoMap = m_Grain.get();
-		m_Material.NormalMap = rippleDepth > 0.0f ? m_Ripples.get() : nullptr;
-		m_Material.UVScale = 1.0f;
-		m_Material.HeightScale = 0.0f;
-		m_Material.CavityStrength = 0.0f;
-		// Ground marks: sand holds shallow, compacted prints; snow takes deep, blue-shaded ones.
-		switch (style)
-		{
-		case TerrainStyle::Desert: m_Material.TrailDepth = 0.07f; m_Material.TrailTint = { 0.60f, 0.52f, 0.44f }; m_Material.TrailNormalBoost = 3.5f; break;
-		case TerrainStyle::Snow: m_Material.TrailDepth = 0.14f; m_Material.TrailTint = { 0.70f, 0.80f, 0.96f }; m_Material.TrailNormalBoost = 3.0f; break;
-		default: m_Material.TrailDepth = 0.05f; m_Material.TrailTint = { 0.62f, 0.70f, 0.50f }; m_Material.TrailNormalBoost = 3.0f; break;
-		}
-		m_Material.MacroMap = m_Macro.get();
-		m_Material.SurfaceNormalMap = m_NormalMap.get();
-		m_Material.MacroRect = { hm.GetMin().x, hm.GetMin().y, hm.GetSize(), hm.GetSize() };
+		if (!m_Prepared) return nullptr;
+		m_Vertices = std::move(m_PreparedVertices);
+		m_PreparedVertices = {};
+		return std::move(m_Prepared);
 	}
 
 	// A normal map and a macro color map over the whole terrain, both at a texel of ~0.2 m (much finer than the 0.5 m heightmap grid):
@@ -640,7 +619,7 @@ namespace GB
 				if (layered) c = PaintLayers(c, wx, wz, H(x, y), nrm, patch, fine);
 				for (int k = 0; k < 3; ++k) macro.Pixels[o + static_cast<size_t>(k)] = static_cast<uint8_t>(glm::clamp(c[k], 0.0f, 1.0f) * 255.0f + 0.5f);
 			}
-		out = std::move(macro);   // (the textures are made from it and m_NormalImage by BuildGpu)
+		out = std::move(macro);   // (the renderer makes the textures from it and m_NormalImage: GB/Renderer/TerrainGpu.h)
 	}
 
 	// ------------------------------------------------------------------ material layers
@@ -740,7 +719,7 @@ namespace GB
 
 	void Terrain::WriteNormalTexels(int x0, int y0, int x1, int y1)
 	{
-		if (!m_NormalMap || m_NormalRes == 0) return;
+		if (m_NormalRes == 0 || m_NormalImage.Pixels.empty()) return;
 		const int R = static_cast<int>(m_NormalRes);
 		x0 = std::clamp(x0, 0, R - 1); y0 = std::clamp(y0, 0, R - 1); x1 = std::clamp(x1, 0, R - 1); y1 = std::clamp(y1, 0, R - 1);
 		if (x1 < x0 || y1 < y0) return;
@@ -755,17 +734,20 @@ namespace GB
 				heights[static_cast<size_t>(y + 1) * static_cast<size_t>(hw) + static_cast<size_t>(x + 1)] = m_Layers.empty() ? SmoothHeight(wx, wz) : SmoothHeight(wx, wz) + SurfaceDetail(wx, wz);
 			}
 		auto H = [&](int x, int y) { return heights[static_cast<size_t>(y + 1) * static_cast<size_t>(hw) + static_cast<size_t>(x + 1)]; };
-		std::vector<uint8_t> patch(static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
 		for (int y = 0; y < h; ++y)
 			for (int x = 0; x < w; ++x)
 			{
 				const glm::vec3 nrm = glm::normalize(glm::vec3(-(H(x + 1, y) - H(x - 1, y)), 2.0f * texel, -(H(x, y + 1) - H(x, y - 1))));
-				const size_t o = (static_cast<size_t>(y) * static_cast<size_t>(w) + static_cast<size_t>(x)) * 4;
-				for (int k = 0; k < 3; ++k) patch[o + static_cast<size_t>(k)] = static_cast<uint8_t>(glm::clamp(nrm[k] * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f + 0.5f);
-				patch[o + 3] = 255;
-				std::copy_n(&patch[o], 4, &m_NormalImage.Pixels[(static_cast<size_t>(y0 + y) * m_NormalRes + static_cast<size_t>(x0 + x)) * 4]);
+				uint8_t* p = &m_NormalImage.Pixels[(static_cast<size_t>(y0 + y) * m_NormalRes + static_cast<size_t>(x0 + x)) * 4];
+				for (int k = 0; k < 3; ++k) p[k] = static_cast<uint8_t>(glm::clamp(nrm[k] * 0.5f + 0.5f, 0.0f, 1.0f) * 255.0f + 0.5f);
+				p[3] = 255;
 			}
-		m_NormalMap->Update(static_cast<uint32_t>(x0), static_cast<uint32_t>(y0), static_cast<uint32_t>(w), static_cast<uint32_t>(h), patch.data());
+		if (m_Edits.NormalX1 < m_Edits.NormalX0) { m_Edits.NormalX0 = x0; m_Edits.NormalY0 = y0; m_Edits.NormalX1 = x1; m_Edits.NormalY1 = y1; }
+		else
+		{
+			m_Edits.NormalX0 = std::min(m_Edits.NormalX0, x0); m_Edits.NormalY0 = std::min(m_Edits.NormalY0, y0);
+			m_Edits.NormalX1 = std::max(m_Edits.NormalX1, x1); m_Edits.NormalY1 = std::max(m_Edits.NormalY1, y1);
+		}
 	}
 
 	std::function<float(float, float)> Terrain::MakeGroundFunction(bool waterIsGround) const
@@ -777,32 +759,6 @@ namespace GB
 			return [hm, level](float x, float z) { return std::max(hm->GetHeight(x, z), level); };
 		}
 		return [hm](float x, float z) { return hm->GetHeight(x, z); };
-	}
-
-	void Terrain::AddToScene(Scene& scene, const glm::mat4& root) const
-	{
-		if (!m_Mesh) return;   // a CPU-only terrain (BuildGpu not called) draws nothing
-		if (m_Tiles.size() <= 1)
-		{
-			RenderObject obj;
-			obj.MeshPtr = m_Mesh.get();
-			obj.Mat = m_Material;
-			obj.Transform = root;
-			scene.Objects.push_back(std::move(obj));
-			return;
-		}
-		for (const Tile& tile : m_Tiles)   // one object per tile, culled by its bounds (SortIntoTiles)
-		{
-			RenderObject obj;
-			obj.MeshPtr = m_Mesh.get();
-			obj.Mat = m_Material;
-			obj.Transform = root;
-			obj.IndexFirst = tile.First;
-			obj.IndexCount = tile.Count;
-			obj.BoundingCenter = tile.Center;
-			obj.BoundingRadius = tile.Radius;
-			scene.Objects.push_back(std::move(obj));
-		}
 	}
 
 	// The triangles in tile order (each by the cell its centroid falls in), and each tile's range and bounds. A terrain of one tile or less (the
@@ -829,7 +785,7 @@ namespace GB
 		for (const auto& b : buckets)
 		{
 			if (b.empty()) continue;
-			Tile tile;
+			TerrainTile tile;
 			tile.First = static_cast<uint32_t>(sorted.size());
 			tile.Count = static_cast<uint32_t>(b.size());
 			glm::vec3 mn(1e30f), mx(-1e30f);

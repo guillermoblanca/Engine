@@ -139,7 +139,7 @@ namespace GB::Editor
 			rects.swap(v.Dirty);
 			for (glm::vec4& r : rects) r += glm::vec4(-1.0f, -1.0f, 1.0f, 1.0f);
 			// 1. the ground: the macro colour map under the trails, from the texels it had before
-			Terrain& terrain = m_World.GetTerrain();
+			TerrainGpu& terrain = m_World.GetTerrainGpu();
 			if (Texture2D* tex = terrain.MacroTexture(); tex && tex->GetWidth() > 0)
 			{
 				if (v.Macro != tex || v.Build != m_World.BuildCount()) { v.Macro = tex; v.Build = m_World.BuildCount(); v.Tiles.clear(); }
@@ -270,7 +270,7 @@ namespace GB::Editor
 						int i = 0, j = 0;
 						if (s.CellOf(p, i, j)) out << "\n  " << c->Name << ": wear " << s.Wear(s.Index(i, j)) << ", tier " << static_cast<int>(s.TierAt(s.Index(i, j), c->Folk->Config.Trails));
 					}
-				Terrain& terrain = m_World.GetTerrain();
+				TerrainGpu& terrain = m_World.GetTerrainGpu();
 				if (Texture2D* tex = terrain.MacroTexture())
 				{
 					const glm::vec4 mr = terrain.GetMaterial().MacroRect;

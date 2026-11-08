@@ -109,7 +109,7 @@ namespace GB
 				hp.SurfaceMaps = false;
 				DuneParams dp;
 				dp.Seed = desc.Seed;
-				const auto base = desert ? Terrain::CreateDunes(dp, desc.Size, desc.Resolution, style, false) : Terrain::CreateHills(hp, desc.Size, desc.Resolution, style, false);
+				const auto base = desert ? Terrain::CreateDunes(dp, desc.Size, desc.Resolution, style) : Terrain::CreateHills(hp, desc.Size, desc.Resolution, style);
 				const Heightmap& hm = base->GetHeightmap();
 				TgField& f = inputs["height"];
 				f.Resize(hm.GetResolution(), hm.GetSize(), (hm.GetMin() + hm.GetMax()) * 0.5f);
@@ -136,8 +136,8 @@ namespace GB
 			recipe.DetailThreshold = desc.MeshDetail;
 			recipe.SurfaceMaps = true;
 			const auto water = result.WaterOutputs.find("water");
-			w.TerrainPtr = water != result.WaterOutputs.end() ? Terrain::CreateFromHeightmap(ground, water->second, recipe, style, false)
-				: Terrain::CreateFromHeightmap(ground, recipe, style, false);
+			w.TerrainPtr = water != result.WaterOutputs.end() ? Terrain::CreateFromHeightmap(ground, water->second, recipe, style)
+				: Terrain::CreateFromHeightmap(ground, recipe, style);
 			w.TerrainPtr->SetSurfaceLayers(SurfaceLayersOf(result, ground));
 			if (desert)   // the wind of the default dunes (DuneParams): the ripples and the blowing sand follow it
 			{
@@ -418,13 +418,13 @@ namespace GB
 	GeneratedWorld WorldGenerator::Generate(const WorldDesc& desc)
 	{
 		GeneratedWorld w = GenerateData(desc);
-		BuildGpu(w);
+		PrepareRenderData(w);
 		return w;
 	}
 
-	void WorldGenerator::BuildGpu(GeneratedWorld& world)
+	void WorldGenerator::PrepareRenderData(GeneratedWorld& world)
 	{
-		if (world.TerrainPtr) world.TerrainPtr->BuildGpu();
+		if (world.TerrainPtr) world.TerrainPtr->PrepareRenderData();
 	}
 
 	GeneratedWorld WorldGenerator::GenerateData(const WorldDesc& desc)

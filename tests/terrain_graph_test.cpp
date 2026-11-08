@@ -413,7 +413,7 @@ int main()
 		HillParams hp;
 		hp.Seed = 12;
 		hp.SurfaceMaps = false;
-		const auto terrain = Terrain::CreateHills(hp, 128.0f, 65, TerrainStyle::Meadow, false);
+		const auto terrain = Terrain::CreateHills(hp, 128.0f, 65, TerrainStyle::Meadow);
 		TerrainGraph g;
 		g.Nodes = { Node("hills", "hills", "", { { "Height", 14.0 }, { "Scale", 140.0 }, { "Octaves", 5.0 }, { "Flatten", 0.25 } }), Node("out", "output", "height") };
 		g.Edges = { { "hills", "out" } };

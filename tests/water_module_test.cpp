@@ -82,7 +82,7 @@ int main()
 		hp.WaterLevel = 1.5f;
 		hp.RiverPath = { { -90.0f, -60.0f }, { -40.0f, -30.0f }, { 0.0f, -5.0f }, { 14.0f, 6.0f } };
 		hp.RiverWidth = 5.0f;
-		auto terrain = GB::Terrain::CreateHills(hp, 200.0f, 129, GB::TerrainStyle::Meadow, false);
+		auto terrain = GB::Terrain::CreateHills(hp, 200.0f, 129, GB::TerrainStyle::Meadow);
 		const GB::WaterField& w = terrain->Water();
 		Check(terrain->HasLake() && w.HasLake() && terrain->GetLakeRadius() == 14.0f && terrain->GetWaterLevel() == 1.5f, "the terrain's lake is its field's lake");
 		Check(terrain->GetRiver() == w.River() && terrain->GetRiver() != nullptr, "the terrain's river is its field's river");
@@ -99,7 +99,7 @@ int main()
 		Check(terrain->GetRiverLevelAt(mid.x + 60.0f, mid.z + 60.0f) == GB::kNoWaterLevel, "far from the river there is no river level");
 		Check(terrain->GetHeight(hp.LakeCenter.x, hp.LakeCenter.y) < hp.WaterLevel - 1.0f, "the lake basin was dug under the water level");
 		// the carver is deterministic: the same recipe gives the same ground and the same river
-		auto again = GB::Terrain::CreateHills(hp, 200.0f, 129, GB::TerrainStyle::Meadow, false);
+		auto again = GB::Terrain::CreateHills(hp, 200.0f, 129, GB::TerrainStyle::Meadow);
 		Check(again->GetHeight(-20.0f, -12.0f) == terrain->GetHeight(-20.0f, -12.0f) && again->GetRiver()->Points.size() == river.Points.size(), "the same recipe digs the same water");
 	}
 

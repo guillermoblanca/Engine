@@ -1,8 +1,6 @@
 #pragma once
-#include "GB/Renderer/Mesh.h"
-#include "GB/Renderer/Renderer.h"
 #include "GB/Scene/Image.h"
-#include "GB/Renderer/Texture.h"
+#include "GB/Scene/Vertex.h"
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
@@ -109,47 +107,78 @@ namespace GB
 		std::vector<float> Weights;
 	};
 
-	// A drawable heightfield with a matching material (grain, wind ripples, slope-based coloring).
+	// The triangles of one square tile of a terrain's mesh (Terrain::GetTiles): a range of its sorted index buffer and its bounds, so the
+	// shadows' box and the view draw, and cull, only the tiles they touch.
+	struct TerrainTile { uint32_t First = 0, Count = 0; glm::vec3 Center{ 0.0f }; float Radius = 0.0f; };
+
+	// What PrepareRenderData leaves for the renderer to upload once (GB/Renderer/TerrainGpu.h takes it): the triangles sorted into tiles and the
+	// images of the detail textures and of the macro colour map, with the material's roughness and ripple depth. The vertices and the normal
+	// map stay in the Terrain (GetVertices, GetNormalImage), because an edit (RefreshMesh) rewrites them.
+	struct TerrainRenderData
+	{
+		std::vector<uint32_t> Indices;
+		Image Grain, Ripples, Macro;   // Macro is empty without surface maps
+		float Roughness = 0.9f, RippleDepth = 1.0f;
+	};
+
+	// What RefreshMesh rewrote since the renderer last read it (Terrain::TakeEdits): the grid rows and columns, the range of refined vertices and
+	// the rectangle of normal-map texels, each the union of the edits. The CPU copies are exact, so uploading a little more than changed is harmless.
+	struct TerrainEdits
+	{
+		int RowJ0 = 0, RowJ1 = -1, RowI0 = 0, RowI1 = -1;        // grid vertices: columns [RowI0, RowI1] of the rows [RowJ0, RowJ1]
+		uint32_t FineFirst = 1, FineLast = 0;                    // refined vertices [FineFirst, FineLast]
+		int NormalX0 = 0, NormalY0 = 0, NormalX1 = -1, NormalY1 = -1;   // normal-map texels, inclusive
+		bool Any() const { return RowJ1 >= RowJ0 || FineLast >= FineFirst || NormalX1 >= NormalX0; }
+	};
+
+	// A heightfield and what the world asks of it: heights, smooth normals, the water carved into it, the material layers, the dune crests. Pure
+	// CPU, no OpenGL: it also prepares, as plain data, the refined mesh and the images its drawing needs (PrepareRenderData), which
+	// GB/Renderer/TerrainGpu.h uploads, keeps in step with the edits and draws (docs/ARQUITECTURA_REVISION.md, H5).
 	class Terrain
 	{
 	public:
-		// `gpu` = false builds only the heights and the queries (pure CPU, no OpenGL): BuildGpu adds the mesh, material and textures later.
+		// The heights and the queries only: PrepareRenderData (or a TerrainGpu, which calls it) adds the mesh and the images.
 		static std::unique_ptr<Terrain> CreateDunes(const DuneParams& dunes = {}, float size = 256.0f, uint32_t resolution = 513,
-			TerrainStyle style = TerrainStyle::Desert, bool gpu = true);
+			TerrainStyle style = TerrainStyle::Desert);
 		static std::unique_ptr<Terrain> CreateHills(const HillParams& hills = {}, float size = 256.0f, uint32_t resolution = 513,
-			TerrainStyle style = TerrainStyle::Meadow, bool gpu = true);
+			TerrainStyle style = TerrainStyle::Meadow);
 		// CreateHills without the hills' noise: `ground` (a terrain graph's height output, or any heightmap) is the ground the lake and river of
 		// `water` are carved into; the rest of the recipe (refinement, surface maps) is read the same way. CreateHills is its noise + this.
 		static std::unique_ptr<Terrain> CreateFromHeightmap(const Heightmap& ground, const HillParams& water = {},
-			TerrainStyle style = TerrainStyle::Meadow, bool gpu = true);
+			TerrainStyle style = TerrainStyle::Meadow);
 		// A ground the water has already been carved into (a terrain graph's lake_carve/river_carve): `water` is taken as it is, nothing is dug.
 		// Only the refinement and surface-map fields of `recipe` are read.
 		static std::unique_ptr<Terrain> CreateFromHeightmap(const Heightmap& ground, const WaterField& water, const HillParams& recipe,
-			TerrainStyle style = TerrainStyle::Meadow, bool gpu = true);
+			TerrainStyle style = TerrainStyle::Meadow);
 
-		// Builds the mesh, the material and its textures from the heights (needs an OpenGL context); nothing when they are already built. The result
-		// is the same as building them at creation.
-		void BuildGpu();
-		// The CPU half of BuildGpu (the refined mesh sorted into tiles, the images of the textures), on any thread and with no OpenGL: a world
-		// generated in the background prepares it there, so BuildGpu on the main thread only uploads (a 3 km map froze the window for seconds).
-		// Nothing when it is prepared or built already.
-		void PrepareGpu();
-		bool HasGpu() const { return m_Mesh != nullptr; }
+		// The CPU half of drawing the terrain (the refined mesh sorted into tiles, the images of the textures), on any thread and with no OpenGL:
+		// a world generated in the background prepares it there, so the main thread only uploads it (a 3 km map froze the window for seconds).
+		// Nothing when it is prepared already. A TerrainGpu calls it when nobody did.
+		void PrepareRenderData();
+		bool HasRenderData() const { return m_Prepared != nullptr || !m_Vertices.empty(); }   // prepared, or already handed to a renderer
+		// For the renderer, once: the prepared data moved out (null when there is none). The vertices move to GetVertices, where the edits go.
+		std::unique_ptr<TerrainRenderData> TakeRenderData();
+		const std::vector<Vertex>& GetVertices() const { return m_Vertices; }   // the mesh's vertices, once taken (TakeRenderData)
+		const std::vector<TerrainTile>& GetTiles() const { return m_Tiles; }    // empty for a terrain of one tile or less (one draw)
+		bool HasSurfaceMaps() const { return m_SurfaceMaps; }
+		const Image& GetNormalImage() const { return m_NormalImage; }          // the high-resolution normal map (empty without surface maps)
+		// The parts of GetVertices and GetNormalImage that RefreshMesh rewrote since the last call, which clears them. The revision goes up on
+		// every edit, so a renderer can tell cheaply that there is something to take.
+		TerrainEdits TakeEdits();
+		uint64_t GetEditRevision() const { return m_EditRevision; }
 		// The material layers (see SurfaceLayer); a layer whose weights are not resolution^2 long is ignored. Read when the surface maps are
-		// built (BuildGpu): set them before it. Without layers the ground is coloured by its style alone, as always.
+		// built (PrepareRenderData): set them before it. Without layers the ground is coloured by its style alone, as always.
 		void SetSurfaceLayers(std::vector<SurfaceLayer> layers);
 		const std::vector<SurfaceLayer>& GetSurfaceLayers() const { return m_Layers; }
 		float SurfaceLayerWeight(SurfaceLayerKind kind, float x, float z) const;   // bilinear; 0 without that layer
 
 		const Heightmap& GetHeightmap() const { return m_Heightmap; }
 		Heightmap& GetEditableHeightmap() { return m_Heightmap; }   // call RefreshMesh after editing
-		// Re-uploads the vertices of the texels [i0, i1] x [j0, j1] (heights and normals; one extra texel is updated around the box for the normals).
+		// Rewrites the vertices of the texels [i0, i1] x [j0, j1] (heights and normals; one extra texel is updated around the box for the normals)
+		// and that part of the normal map, and records it for the renderer (TakeEdits: TerrainGpu::Sync uploads it). Nothing before a renderer took
+		// the mesh: it reads the heights as they are then.
 		void RefreshMesh(int i0 = 0, int j0 = 0, int i1 = 1 << 30, int j1 = 1 << 30);
 		float GetHeight(float x, float z) const { return m_Heightmap.GetHeight(x, z); }
-		const Material& GetMaterial() const { return m_Material; }
-		Material& GetMaterial() { return m_Material; }
-		Texture2D* MacroTexture() { return m_Macro.get(); }   // the macro colour map (null without surface maps): a tool may tint it in place (T5c: trails)
-		const Mesh& GetMesh() const { return *m_Mesh; }   // only after BuildGpu
 		TerrainStyle GetStyle() const { return m_Style; }
 		// The water carved into this terrain, as data (GB/Water/WaterField.h): the queries below forward to it.
 		const WaterField& Water() const { return m_Water; }
@@ -167,7 +196,6 @@ namespace GB
 		// Smooth ground normal (Catmull-Rom surface through the heightmap, like the refined shore and the normal map).
 		glm::vec3 GetSmoothNormal(float x, float z) const;
 		float GetSmoothHeight(float x, float z) const { return SmoothHeight(x, z); }
-		const Texture2D* GetNormalMap() const { return m_NormalMap.get(); }   // high-resolution surface normals (null for none)
 		float GetWindAngle() const { return m_WindAngle; }   // radians, dune terrains only
 		// The wind of a dune field built some other way (a terrain graph's dunes): sets the angle and finds the crests as CreateDunes does.
 		void SetWind(float angleRadians, float wavelength);
@@ -178,11 +206,8 @@ namespace GB
 		// Points along the dune crests (local maxima across the wind), for effects such as blowing sand.
 		const std::vector<glm::vec3>& GetCrestPoints() const { return m_Crests; }
 
-		void AddToScene(Scene& scene, const glm::mat4& root = glm::mat4(1.0f)) const;
-
 	private:
 		Terrain(uint32_t resolution, float size) : m_Heightmap(resolution, size) {}
-		void Finish(TerrainStyle style, bool gpu);
 		void FindCrests(float wavelength);   // the local maxima across the wind (m_WindAngle), into m_Crests
 		// Mesh refinement (see HillParams::ShoreSubdivision/DetailThreshold): extra vertices appended after the grid ones, for cells
 		// flagged by either strategy below (SRP: each only decides *which* cells, never how a flagged cell is split or stitched).
@@ -193,15 +218,9 @@ namespace GB
 		float FineHeight(int fi, int fj) const;              // height of a vertex of the refined lattice (fi, fj in units of spacing / N)
 		bool IsCellRefined(int ci, int cj) const;
 		void BuildSurfaceMaps(TerrainStyle style, const glm::vec3& sunlit, const glm::vec3& shade, const glm::vec3& crest, Image& macro);
-		struct Prepared
-		{
-			std::vector<Vertex> Vertices;
-			std::vector<uint32_t> Indices;
-			Image Grain, Ripples, Macro;
-			float Roughness = 0.9f, RippleDepth = 1.0f;
-		};
-		std::unique_ptr<Prepared> m_Prepared;   // PrepareGpu's work, waiting for BuildGpu
-		void WriteNormalTexels(int x0, int y0, int x1, int y1);   // recomputes the normal map texels in [x0, x1] x [y0, y1] (and uploads them)
+		std::unique_ptr<TerrainRenderData> m_Prepared;   // PrepareRenderData's work, waiting for a renderer (TakeRenderData)
+		std::vector<Vertex> m_PreparedVertices;         // its vertices, moved to m_Vertices when a renderer takes the rest
+		void WriteNormalTexels(int x0, int y0, int x1, int y1);   // recomputes the normal map texels in [x0, x1] x [y0, y1] (and records them as edited)
 		// Metres the surface maps add to the smooth height at a point: the fluting of the rock layer (0 without one). Used by both the first
 		// build of the normal map and its partial updates, so an edit never erases it.
 		float SurfaceDetail(float x, float z) const;
@@ -219,19 +238,17 @@ namespace GB
 		Heightmap m_Heightmap;
 		TerrainStyle m_Style = TerrainStyle::Desert;
 		float m_WindAngle = 0.0f;
-		std::vector<Vertex> m_Vertices;
+		std::vector<Vertex> m_Vertices;                      // the mesh's vertices once a renderer took it: the copy RefreshMesh edits
 		WaterField m_Water;
-		std::unique_ptr<Mesh> m_Mesh;
 		// The mesh's triangles sorted into square tiles of about kTileCells cells (the vertices stay one buffer): each tile is drawn, and culled,
 		// on its own, so the shadows' box and the view draw only the tiles they touch.
 		static constexpr int kTileCells = 64;
-		struct Tile { uint32_t First = 0, Count = 0; glm::vec3 Center{ 0.0f }; float Radius = 0.0f; };
-		std::vector<Tile> m_Tiles;
+		std::vector<TerrainTile> m_Tiles;
 		void SortIntoTiles(const std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
-		std::unique_ptr<Texture2D> m_Grain, m_Ripples, m_Macro, m_NormalMap;
 		Image m_NormalImage;                                 // CPU copy of the normal map, for partial updates
 		uint32_t m_NormalRes = 0;
-		Material m_Material;
+		TerrainEdits m_Edits;                                // what RefreshMesh rewrote since the renderer last took the edits
+		uint64_t m_EditRevision = 0;
 		std::vector<glm::vec3> m_Crests;
 		std::vector<SurfaceLayer> m_Layers;
 	};

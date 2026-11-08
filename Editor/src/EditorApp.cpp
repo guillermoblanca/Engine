@@ -313,7 +313,7 @@ namespace GB::Editor
 		m_WorldBuild = std::async(std::launch::async, [desc]()
 		{
 			GeneratedWorld world = WorldGenerator::GenerateData(desc);
-			if (world.TerrainPtr) world.TerrainPtr->PrepareGpu();   // (the CPU half of the mesh and textures here too: the main thread only uploads them)
+			if (world.TerrainPtr) world.TerrainPtr->PrepareRenderData();   // (the CPU half of the mesh and textures here too: the main thread only uploads them)
 			TreeFactory::PrepareTextures();
 			return world;
 		});

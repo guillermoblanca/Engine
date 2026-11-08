@@ -223,6 +223,7 @@ add_library(GB STATIC
     src/GB/Renderer/Shader.cpp
     src/GB/Renderer/ShadowRenderer.cpp
     src/GB/Renderer/Texture.cpp
+    src/GB/Renderer/TerrainGpu.cpp
     src/GB/Renderer/WaterRenderer.cpp
     src/GB/Renderer/Visibility.cpp)
 add_library(GB::GB ALIAS GB)

@@ -2,6 +2,7 @@
 // The erosion parts are CPU only; the rest needs OpenGL 4.5 and skips without it.
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/TerrainGpu.h"
 #include "GB/Window.h"
 #include "GB/World/Erosion.h"
 #include "GB/World/FlowAccumulation.h"
@@ -249,12 +250,15 @@ int main()
 		GB::HillParams hp;
 		hp.Seed = 2;
 		auto terrain = GB::Terrain::CreateHills(hp, 128.0f, 129, GB::TerrainStyle::Meadow);
+		GB::TerrainGpu terrainGpu(*terrain);
 		const float before = terrain->GetHeight(10.0f, 10.0f);
 		GB::ErosionParams ep;
 		ep.Droplets = 20000; ep.Seed = 5; ep.Center = { 10.0f, 10.0f }; ep.Radius = 30.0f; ep.Strength = 3.0f;
 		const GB::ErosionStats st = GB::HydraulicErosion::Run(terrain->GetEditableHeightmap(), ep);
 		terrain->RefreshMesh(st.MinI, st.MinJ, st.MaxI, st.MaxJ);
+		terrainGpu.Sync();
 		terrain->RefreshMesh();   // the whole mesh
+		terrainGpu.Sync();
 		Check(st.Eroded > 0.0 && std::fabs(terrain->GetHeight(10.0f, 10.0f) - before) >= 0.0f, "the terrain can be eroded and its mesh refreshed");
 	}
 

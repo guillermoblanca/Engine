@@ -22,6 +22,7 @@ namespace GB::Editor
 		scene.Ground = nullptr;
 		m_Lake.reset(); m_River.reset(); m_Grass.reset();
 		m_RockVariants.clear(); m_TreeVariants.clear(); m_TreeVariantsFar.clear(); m_TreeFactory.reset();
+		m_TerrainGpu.reset();
 		m_Terrain.reset();
 		m_World.reset();
 	}
@@ -99,11 +100,11 @@ namespace GB::Editor
 	void WorldInstance::Build(GeneratedWorld&& generated, Scene& scene)
 	{
 		Clear(scene);
-		WorldGenerator::BuildGpu(generated);
 		m_World = std::make_unique<GeneratedWorld>(std::move(generated));
 		++m_BuildCount;
 		m_Terrain = std::move(m_World->TerrainPtr);
-		m_Terrain->AddToScene(scene);
+		m_TerrainGpu = std::make_unique<TerrainGpu>(*m_Terrain);   // uploads what the generation prepared (or prepares it here first)
+		m_TerrainGpu->AddToScene(scene);
 		const Terrain* terrain = m_Terrain.get();
 		const GeneratedWorld* world = m_World.get();
 		const WorldDesc& desc = world->Desc;

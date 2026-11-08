@@ -52,7 +52,7 @@ namespace
 		auto check = [&](bool ok, const char* text) { std::snprintf(what, sizeof(what), "%s: %s", label, text); Check(ok, what); };
 		const GB::BiomeMap& m = w.Maps;
 		const GB::Heightmap& hm = w.TerrainRef->GetHeightmap();
-		check(!w.TerrainRef->HasGpu(), "GenerateData builds no mesh");
+		check(!w.TerrainRef->HasRenderData(), "GenerateData builds no mesh");
 		check(m.N > 2 && m.Biomes.size() == static_cast<size_t>(m.N) * static_cast<size_t>(m.N) && m.WaterDistance.size() == m.Biomes.size(), "the biome map is baked");
 		check(m.Cell > 0.5f && m.Cell <= 2.0f && std::fabs(m.Min.x - hm.GetMin().x) < 1e-4f && std::fabs(m.SamplePosition(m.N - 1, m.N - 1).x - hm.GetMax().x) < 1e-2f, "on a 0.5-2 m grid over the whole map");
 		// the map holds what is measured at its samples

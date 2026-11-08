@@ -49,7 +49,7 @@ namespace GB::WorldGenDetail
 			DuneParams dp;
 			dp.Seed = desc.Seed;
 			dp.DetailThreshold = desc.MeshDetail;
-			w.TerrainPtr = Terrain::CreateDunes(dp, desc.Size, desc.Resolution, TerrainStyle::Desert, false);
+			w.TerrainPtr = Terrain::CreateDunes(dp, desc.Size, desc.Resolution, TerrainStyle::Desert);
 		}
 		else
 		{
@@ -63,7 +63,7 @@ namespace GB::WorldGenDetail
 
 			// Pass 1: the bare terrain, to find the basin for the lake and the way down for the river.
 			hp.SurfaceMaps = false;
-			auto bare = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style, false);
+			auto bare = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style);
 			// Generators 1 and 2 find the water below with code of their own; generator 3 asks a terrain graph (GB/Water/WaterPlanner.h) to analyse the
 			// bare ground: where the broadest basin is, where the rain goes, which flow line is the river. If the graph fails (it should not) the world
 			// is still built, with the old method.
@@ -166,12 +166,12 @@ namespace GB::WorldGenDetail
 			}
 			hp.SurfaceMaps = true;
 			w.Hills = hp;
-			w.TerrainPtr = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style, false);
+			w.TerrainPtr = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style);
 			// Hueco #1 of docs/GRAFO_TERRENO.md: the generator used to never call HydraulicErosion, even though it is implemented and tested
 			// (tests/world_test.cpp) -- only Sandbox's interactive rain used it, on a terrain already built. Carved here, right after the lake and
 			// river and before SnowLine/biomes/spawn/trees/rocks read the terrain, so every one of them sees the eroded ground, same as a player who
-			// lets it rain before building. `gpu=false` above means BuildGpu (the mesh, the normal map) has not run yet, so there is nothing stale
-			// to invalidate: WorldGenerator::BuildGpu reads these heights afterwards, whenever it is called.
+			// lets it rain before building. The terrain above has no mesh nor normal map yet (Terrain::PrepareRenderData), so there is nothing stale
+			// to invalidate: PrepareRenderData reads these heights afterwards, whenever it is called.
 			if (desc.Erosion)
 			{
 				Heightmap& hm = w.TerrainPtr->GetEditableHeightmap();

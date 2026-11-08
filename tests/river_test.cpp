@@ -2,6 +2,7 @@
 // (geometry, determinism, variety) plus their surface layers (moss, sand, wet band). GL part skips without OpenGL 4.5.
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/TerrainGpu.h"
 #include "GB/Window.h"
 #include "GB/World/Physics.h"
 #include "GB/World/Rocks.h"
@@ -84,6 +85,7 @@ int main()
 		hp.RiverWidth = 6.0f;
 		hp.RiverDepth = 1.4f;
 		auto terrain = GB::Terrain::CreateHills(hp, 256.0f, 257, GB::TerrainStyle::Meadow);
+		GB::TerrainGpu terrainGpu(*terrain);
 		const GB::RiverData* river = terrain->GetRiver();
 		Check(river && river->Points.size() > 50, "a river is carved along the path");
 		{
@@ -91,8 +93,9 @@ int main()
 			GB::HillParams plain = hp;
 			plain.ShoreSubdivision = 1;
 			auto flat = GB::Terrain::CreateHills(plain, 256.0f, 257, GB::TerrainStyle::Meadow);
-			Check(flat->GetMesh().GetIndexCount() == 256u * 256u * 6u, "without shore refinement the mesh is two triangles per cell");
-			Check(terrain->GetMesh().GetIndexCount() > flat->GetMesh().GetIndexCount() + 6000u, "the river banks are refined into many more triangles");
+			GB::TerrainGpu flatGpu(*flat);
+			Check(flatGpu.GetMesh().GetIndexCount() == 256u * 256u * 6u, "without shore refinement the mesh is two triangles per cell");
+			Check(terrainGpu.GetMesh().GetIndexCount() > flatGpu.GetMesh().GetIndexCount() + 6000u, "the river banks are refined into many more triangles");
 			float worst = 0.0f;
 			for (const glm::vec3& pt : terrain->GetRiver()->Points)
 				worst = std::max(worst, std::fabs(terrain->GetHeight(pt.x, pt.z) - flat->GetHeight(pt.x, pt.z)));
@@ -217,7 +220,7 @@ int main()
 
 		// smooth surface normals: the Catmull-Rom normals agree with the heightmap ones on average and are unit length
 		{
-			Check(terrain->GetNormalMap() != nullptr, "the terrain has a high-resolution normal map");
+			Check(terrainGpu.GetNormalMap() != nullptr, "the terrain has a high-resolution normal map");
 			const GB::Heightmap& hm = terrain->GetHeightmap();
 			double dot = 0.0; int count = 0; bool unit = true;
 			for (uint32_t j = 8; j + 8 < hm.GetResolution(); j += 5)

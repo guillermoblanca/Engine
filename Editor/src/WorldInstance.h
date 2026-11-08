@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Game/Entity.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/TerrainGpu.h"
 #include "GB/World/Grass.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Terrain.h"
@@ -30,6 +31,7 @@ namespace GB::Editor
 
 		const GeneratedWorld& World() const { return *m_World; }
 		Terrain& GetTerrain() { return *m_Terrain; }
+		TerrainGpu& GetTerrainGpu() { return *m_TerrainGpu; }   // its mesh, textures and material (the macro map the trails tint)
 		WaterSurface* Lake() { return m_Lake.get(); }
 		WaterSurface* River() { return m_River.get(); }
 		size_t TreeCount() const { return m_World ? m_World->Trees.size() : 0; }
@@ -58,6 +60,7 @@ namespace GB::Editor
 
 		std::unique_ptr<GeneratedWorld> m_World;
 		std::unique_ptr<Terrain> m_Terrain;
+		std::unique_ptr<TerrainGpu> m_TerrainGpu;   // after m_Terrain: destroyed before it
 		std::unique_ptr<TreeFactory> m_TreeFactory;
 		std::vector<std::unique_ptr<Tree>> m_TreeVariants;
 		std::vector<std::unique_ptr<Tree>> m_TreeVariantsFar;   // the same trees with half the foliage (TreeParams::Detail 0), drawn past kTreeLodDistance

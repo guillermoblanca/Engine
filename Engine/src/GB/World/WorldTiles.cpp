@@ -71,7 +71,7 @@ namespace GB
 		j1 = std::min(j1, last);
 		if (i1 <= i0 || j1 <= j0) return;
 		const uint32_t w = static_cast<uint32_t>(i1 - i0 + 1);
-		const float tileMeters = 4.0f;   // one detail texture tile (as Terrain::BuildGpu)
+		const float tileMeters = 4.0f;   // one detail texture tile (as Terrain::PrepareRenderData)
 		vertices.reserve(static_cast<size_t>(w) * static_cast<size_t>(j1 - j0 + 1));
 		for (int j = j0; j <= j1; ++j)
 			for (int i = i0; i <= i1; ++i)
@@ -109,14 +109,14 @@ namespace GB
 		return static_cast<int>(work.Build.size());
 	}
 
-	void TerrainTileSet::AddToScene(const Terrain& terrain, Scene& scene) const
+	void TerrainTileSet::AddToScene(const Material& material, Scene& scene) const
 	{
 		for (const std::unique_ptr<Mesh>& m : m_Meshes)
 		{
 			if (!m) continue;
 			RenderObject obj;
 			obj.MeshPtr = m.get();
-			obj.Mat = terrain.GetMaterial();
+			obj.Mat = material;
 			scene.Objects.push_back(std::move(obj));
 		}
 	}

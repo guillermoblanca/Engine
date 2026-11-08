@@ -602,7 +602,8 @@ private:
 			dp.Height = static_cast<float>(std::atof(options.GetValue("height", "7.5").c_str()));
 			m_Terrain = GB::Terrain::CreateDunes(dp, 360.0f, 641, style);
 		}
-		m_Terrain->AddToScene(m_Scene);
+		m_TerrainGpu = std::make_unique<GB::TerrainGpu>(*m_Terrain);
+		m_TerrainGpu->AddToScene(m_Scene);
 		if (options.HasFlag("physics") || !options.GetValue("physics").empty() || options.HasFlag("destruction"))
 		{
 			m_Physics = std::make_unique<GB::PhysicsWorld>();
@@ -1049,6 +1050,7 @@ private:
 		if (m_ErosionRefreshTimer > 0.25f && m_ErosionDirty[2] >= 0)   // upload the changed area a few times per second
 		{
 			m_Terrain->RefreshMesh(m_ErosionDirty[0], m_ErosionDirty[1], m_ErosionDirty[2], m_ErosionDirty[3]);
+			m_TerrainGpu->Sync();
 			m_ErosionDirty[0] = m_ErosionDirty[1] = 1 << 30; m_ErosionDirty[2] = m_ErosionDirty[3] = -1;
 			m_ErosionRefreshTimer = 0.0f;
 		}
@@ -1942,6 +1944,7 @@ private:
 	std::vector<std::unique_ptr<GB::ParticleSystem>> m_Particles;
 	std::unique_ptr<GB::Weather> m_Weather;
 	std::unique_ptr<GB::Terrain> m_Terrain;
+	std::unique_ptr<GB::TerrainGpu> m_TerrainGpu;   // after m_Terrain: destroyed before it
 	std::unique_ptr<GB::SandSpray> m_SandSpray;
 	std::unique_ptr<GB::GrassField> m_Grass;
 	std::unique_ptr<GB::TreeFactory> m_TreeFactory;
