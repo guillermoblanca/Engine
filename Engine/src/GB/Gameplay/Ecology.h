@@ -100,6 +100,8 @@ namespace GB
 	public:
 		// What lives here (see SpeciesDef). The editor reads assets/data/world.json into it at start and with `content load`.
 		std::map<std::string, SpeciesDef> Species = DefaultSpecies();
+		// T0: the seed of the animals' wanders (Hash01), from the game's master seed (GB/Game/GameSeeds.h, stream "ecology"). 0 = the hash of before.
+		uint32_t Seed = 0;
 
 		// Height of the ground at x, z (a flat world when empty).
 		using Ground = std::function<float(float x, float z)>;

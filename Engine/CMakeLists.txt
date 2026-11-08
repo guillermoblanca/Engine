@@ -91,6 +91,7 @@ add_library(GB STATIC
     src/GB/Game/DataNeeds.cpp
     src/GB/Game/History.cpp
     src/GB/Game/Values.cpp
+    src/GB/Game/GameSeeds.cpp
     src/GB/Game/Requests.cpp
     src/GB/Game/Diplomacy.cpp
     src/GB/Game/Territory.cpp

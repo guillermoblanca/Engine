@@ -20,6 +20,11 @@ namespace GB
 	public:
 		explicit Weather(uint32_t seed = 1);
 
+		// T0: seeds every effect again as Weather(seed) would (the lightning and each particle system, whose particles are cleared); the levels,
+		// wind and base stay. A game gives it the seed of its stream "weather" (GB/Game/GameSeeds.h) when it mounts the world.
+		void Reseed(uint32_t seed);
+		uint32_t GetSeed() const { return m_Seed; }
+
 		// Ground height used for rain/snow impacts and where the tornado touches down.
 		float GroundY = 0.0f;
 		float TransitionSeconds = 4.0f;   // time to go from 0 to 1 (or back)

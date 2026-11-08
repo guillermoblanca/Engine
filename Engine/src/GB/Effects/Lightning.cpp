@@ -11,6 +11,16 @@ namespace GB
 		ScheduleNext();
 	}
 
+	void Lightning::Reseed(uint32_t seed)
+	{
+		Desc.Seed = seed;
+		m_Rng = 0x9E3779B97F4A7C15ull ^ (static_cast<uint64_t>(Desc.Seed) * 0xBF58476D1CE4E5B9ull);
+		Random(); Random();
+		m_Segments.clear(); m_Glow.clear(); m_Core.clear();
+		m_Active = false; m_Age = 0.0f; m_Flash = 0.0f;
+		ScheduleNext();
+	}
+
 	float Lightning::Random()
 	{
 		m_Rng ^= m_Rng >> 12;

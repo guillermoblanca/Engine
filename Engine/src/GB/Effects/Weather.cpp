@@ -1,6 +1,7 @@
 #include "Weather.h"
 #include <algorithm>
 #include <cmath>
+#include <utility>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace GB
@@ -259,6 +260,21 @@ namespace GB
 		cloud.SoftDistance = 0.0f;
 		cloud.Seed = seed * 53 + 1;
 		m_StormCloud = Make(cloud);
+	}
+
+	void Weather::Reseed(uint32_t seed)
+	{
+		// (the same multipliers as the constructor: Weather(s) and Reseed(s) give the same effects)
+		m_Seed = seed;
+		m_Lightning.Reseed(seed * 7 + 1);
+		const std::pair<ParticleSystem*, uint32_t> systems[] = { { m_Rain.get(), 11 }, { m_Splash.get(), 13 }, { m_Mist.get(), 17 }, { m_SnowFlakes.get(), 19 },
+			{ m_Motes.get(), 23 }, { m_Haze.get(), 29 }, { m_SandStreaks.get(), 31 }, { m_SandClouds.get(), 37 }, { m_Funnel.get(), 41 }, { m_FunnelBase.get(), 43 },
+			{ m_Debris.get(), 47 }, { m_StormCloud.get(), 53 } };
+		for (const auto& [system, k] : systems)
+		{
+			system->Desc.Seed = seed * k + 1;
+			system->Reset();
+		}
 	}
 
 	std::unique_ptr<ParticleSystem> Weather::Make(const ParticleEmitterDesc& desc)

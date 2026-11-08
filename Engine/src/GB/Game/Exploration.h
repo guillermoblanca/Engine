@@ -59,6 +59,9 @@ namespace GB
 		RegionRules Regions;
 		ExpeditionRules Expeditions;
 		MigrationRules Migration;
+		// T0: the seed of where each member goes exploring (not in the content: GB/Game/GameSeeds.h gives it from the game's master seed, stream
+		// "explore"). 0 = the directions of before.
+		uint32_t Seed = 0;
 		bool operator==(const ExplorationRules&) const = default;
 	};
 

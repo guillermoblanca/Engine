@@ -354,7 +354,7 @@ namespace GB
 
 	float EcologySystem::Hash01(const std::string& name, int n, int salt) const
 	{
-		uint32_t h = 2166136261u;
+		uint32_t h = 2166136261u ^ Seed;   // (T0: Seed 0 gives the hash of before)
 		for (const char c : name) h = (h ^ static_cast<uint32_t>(static_cast<unsigned char>(c))) * 16777619u;
 		h = (h ^ static_cast<uint32_t>(n)) * 16777619u;
 		h = (h ^ static_cast<uint32_t>(salt)) * 2654435761u;

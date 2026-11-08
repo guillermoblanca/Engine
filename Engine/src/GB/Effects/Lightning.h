@@ -49,6 +49,9 @@ namespace GB
 		explicit Lightning(const LightningDesc& desc = {});
 		LightningDesc Desc;
 
+		// T0: starts the generator again from `seed` (Desc.Seed = seed): the same seed gives the same strikes from here on. What a game
+		// does when it mounts its weather (GB/Game/GameSeeds.h, stream "weather").
+		void Reseed(uint32_t seed);
 		void SetListener(const glm::vec3& position) { m_Listener = position; }
 		void Update(float dt);
 		// Strikes now at `target` (a point on the ground), or at a random point of the area.

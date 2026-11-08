@@ -293,6 +293,9 @@ namespace GB
 		// The telemetry of the run (GB/Telemetry/TelemetrySink.h), already started by the host: every clan writes to it. Null = off.
 		class TelemetrySink* Telemetry = nullptr;
 		double TelemetryEvery = 60.0;
+		// T0: a game, not a test: every system takes its seed from the world's (the master seed, GB/Game/GameSeeds.h) instead of the fixed one of its
+		// rules (knowledge, society, social, exploration, diplomacy, combat, ecology). GBSim sets it; the tests keep the rules' seeds (false).
+		bool GameSeeds = false;
 	};
 
 	// A tribe living on a generated world with no window: the harness of the simulation sweep and of `qa sim`. Deterministic: the same setup gives

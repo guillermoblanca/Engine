@@ -2,6 +2,7 @@
 #include "GameTheme.h"
 #include "GB/Water/WaterParamInfo.h"
 #include "GB/AI/Needs.h"
+#include "GB/Game/GameSeeds.h"
 #include "GB/Animation/Character.h"
 #include "GB/Animation/ClipAnalysis.h"
 #include "GB/Log.h"
@@ -263,6 +264,13 @@ namespace GB::Editor
 		m_Weather->SetBase(m_Scene);
 	}
 
+	void EditorApp::ApplyGameSeeds()
+	{
+		const uint64_t master = MasterSeedOf(m_WorldDesc.Seed);
+		GB::ApplyGameSeeds(master, { &m_Techs.Rules, &m_Tribe.Config, &m_Clans, &m_Combat.Rules, &m_Ecology });
+		m_Weather->Reseed(StreamSeed(master, SeedStream::Weather));
+	}
+
 	void EditorApp::BuildWorld(const WorldDesc& desc)
 	{
 		BuildWorld(WorldGenerator::Generate(desc));
@@ -275,6 +283,7 @@ namespace GB::Editor
 		m_WorldDesc = world.Desc;
 		m_Values.Seed = world.Desc.Seed;   // V2: the cultures of this world (GB/Game/Values.h)
 		m_Clans.SetCultureSeed(world.Desc.Seed);   // V4: the same cultures shape what each clan builds
+		ApplyGameSeeds();   // T0: the seeds of every system come from the world's (m_WorldDesc, set above)
 		m_WildResources = 0.0f;
 		m_Instance.reset();
 		m_SceneEditor.RemoveEnvironment();   // the old trees, rocks and wild resource nodes go with the old world; what the user added stays
@@ -1148,6 +1157,7 @@ namespace GB::Editor
 				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // the wild nodes of the baseline are planned with this data
+				ApplyGameSeeds();   // T0: (a section may have read a seed from the file)
 				return { true, "content loaded from " + a[1] + ": " + std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes"
 					+ (report.Problems.empty() ? std::string() : "\n" + report.Text()) };
 			}
@@ -1178,6 +1188,7 @@ namespace GB::Editor
 				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // (see content load)
+				ApplyGameSeeds();   // T0: (see content load)
 				return { true, "pack " + a[1] + " loaded: " + std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size())
 					+ " resource nodes, " + std::to_string(report.Problems.size()) + " problem(s)\n" + report.Text() };
 			}

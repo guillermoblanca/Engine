@@ -626,7 +626,6 @@
     "roles": { "review": 900.0, "inertia": 0.3, "skillSwitch": 25.0, "minClan": 3, "fireDemand": 6.0 }
   },
   "society": {
-    "seed": 1,
     "mutation": 0.06,
     "life": {
       "daySeconds": 0.0,
@@ -766,7 +765,7 @@
     { "id": "bone_working", "name": "Bone working", "era": 1, "requires": [ "cordage", "stone_tools" ], "recipes": [ "bone_pickaxe" ], "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
     { "id": "tillage", "name": "Tillage", "era": 1, "requires": [ "flint_knapping" ], "recipes": [ "stone_hoe", "flint_sickle" ], "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.3 } }
   ],
-  "knowledge": { "lessonSeconds": 20.0, "observeRadius": 12.0, "growth": 0.5, "seed": 1, "progression": [ "fire_making", "stone_tools", "cordage", "basketry", "tillage", "food_storage", "wattle_and_daub", "cooking", "hide_working", "spear_making", "pottery", "smelting" ],
+  "knowledge": { "lessonSeconds": 20.0, "observeRadius": 12.0, "growth": 0.5, "progression": [ "fire_making", "stone_tools", "cordage", "basketry", "tillage", "food_storage", "wattle_and_daub", "cooking", "hide_working", "spear_making", "pottery", "smelting" ],
     "eras": [
       { "id": "stone", "name": "Stone Age", "leap": 500, "key": [], "progression": [ "fire_making", "stone_tools", "cordage", "basketry", "tillage", "food_storage", "wattle_and_daub", "cooking", "hide_working", "spear_making" ] },
       { "id": "neolithic", "name": "Neolithic", "leap": 400, "key": [ "tillage" ], "from": [ "stone" ], "pull": 0.6, "interest": [ "grain_seed", "clay" ],
@@ -830,7 +829,6 @@
   "diplomacy": {
     "ranks": [ { "id": "camp", "name": "camp", "people": 0, "buildings": 0 }, { "id": "village", "name": "village", "people": 10, "buildings": 3 },
                { "id": "town", "name": "town", "people": 30, "buildings": 8 }, { "id": "city", "name": "city", "people": 80, "buildings": 18 } ],
-    "seed": 1,
     "territory": {
       "every": 30.0,
       "reach": 160.0,
@@ -949,7 +947,6 @@
     }
   },
   "combat": {
-    "seed": 7,
     "unarmed": "fists",
     "weapons": {
       "fists": {

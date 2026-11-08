@@ -100,6 +100,9 @@ namespace GB::Editor
 		// world calls it first: what it made on the old world would be lost when the new one replaces it (the actors cleared under their clans).
 		void FinishWorldBuild();
 		void RebaseWeather();
+		// T0: every system of the game takes its seed from the world's (the master seed, GB/Game/GameSeeds.h): after each world build and each
+		// content load (a section puts back the seed of its data). Idempotent.
+		void ApplyGameSeeds();
 		void ApplyTimeOfDay();
 		void SetQuality(const std::string& name);
 		void FrameWorld();

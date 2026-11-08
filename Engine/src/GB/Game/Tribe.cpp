@@ -1749,7 +1749,7 @@ namespace GB
 				UtilityOption o;
 				o.Kind = "explore";
 				o.Target = what;
-				const float angle = (static_cast<float>(mind.ExploreCount) * 2.3999632f + Hash01(m.Name, 7) * 2.0f * kPi);
+				const float angle = (static_cast<float>(mind.ExploreCount) * 2.3999632f + Hash01(m.Name, 7 ^ static_cast<int>(Config.Explore.Seed)) * 2.0f * kPi);
 				const float radius = Config.Exploration.ExploreRadius + Config.Exploration.RadiusPerTrip * static_cast<float>(mind.ExploreCount % 4);
 				o.Where = Config.Economy.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
 				for (int k = 1; k < 8 && !m.Body->CanReach(o.Where); ++k)   // not into a lake or a cliff: try the next angle

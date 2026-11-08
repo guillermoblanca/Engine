@@ -192,6 +192,7 @@ int main(int argc, char** argv)
 	GB::SimSetup setup;
 	setup.World = &world;
 	setup.Know = know;
+	setup.GameSeeds = true;   // T0: a game: every system takes its seed from --seed (GB/Game/GameSeeds.h)
 	if (era)
 	{
 		setup.Items = &era->Items;

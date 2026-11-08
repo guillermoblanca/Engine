@@ -435,3 +435,8 @@ add_test(NAME history COMMAND GBHistoryTests)
 add_executable(GBEraPackTests era_pack_test.cpp)
 target_link_libraries(GBEraPackTests PRIVATE GB::GB)
 add_test(NAME era_pack COMMAND GBEraPackTests)
+
+# T0: the master seed of a game (GB/Core/Seed.h, GB/Game/GameSeeds.h): pinned derivation, and the same master mounts the same game.
+add_executable(GBSeedTests seed_test.cpp)
+target_link_libraries(GBSeedTests PRIVATE GB::GB)
+add_test(NAME seed COMMAND GBSeedTests)

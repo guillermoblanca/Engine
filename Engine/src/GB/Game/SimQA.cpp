@@ -1,4 +1,5 @@
 #include "GB/Game/SimQA.h"
+#include "GB/Game/GameSeeds.h"
 #include "GB/AI/Needs.h"
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/World/Terrain.h"
@@ -957,6 +958,8 @@ namespace GB
 		}
 		// H12: the regions of the world (the editor's, or cut here with the clan's rules and the nodes planned on it), so expeditions and moves can happen
 		if (setup.Config) { m_Tribe.Config.Explore = setup.Config->Explore; m_Tribe.Config.Society = setup.Config->Society; m_Tribe.Config.Econ = setup.Config->Econ; }
+		const uint64_t master = MasterSeedOf(world.Desc.Seed);   // T0: (with GameSeeds) the seeds of this game, before the first member joins
+		if (setup.GameSeeds) { ApplyGameSeeds(master, { &m_Techs.Rules, &m_Tribe.Config, nullptr, nullptr, nullptr }); m_Clans.Rules.Seed = StreamSeed(master, SeedStream::Diplomacy); }
 		if (!setup.Regions) m_Regions = RegionMap::Build(world, m_Tribe.Config.Explore.Regions, RegionThingsOf(m_Spots));
 		const Terrain* terrain = world.TerrainRef;
 		m_Tribe.SetRegions(setup.Regions ? setup.Regions : &m_Regions, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
@@ -988,6 +991,7 @@ namespace GB
 			m_Clans.SetRegions(setup.Regions ? setup.Regions : &m_Regions);
 			if (setup.Diplomacy) m_Clans.Rules = *setup.Diplomacy;
 			m_Clans.Values.Seed = world.Desc.Seed;   // V4: the cultures of this world
+			if (setup.GameSeeds) m_Clans.Rules.Seed = StreamSeed(master, SeedStream::Diplomacy);   // T0 (the further clans copy the first's config, seeded above)
 			m_Clans.Add("Clan 1", &m_Tribe);
 			if (setup.ThinkPerFrame >= 0) m_Clans.ThinkPerFrame = setup.ThinkPerFrame;
 			size_t named = roster.size();
@@ -1037,6 +1041,7 @@ namespace GB
 		if (setup.Combat)
 		{
 			if (setup.CombatRules) m_Combat.Rules = *setup.CombatRules;
+			if (setup.GameSeeds) ApplyGameSeeds(master, { nullptr, nullptr, nullptr, &m_Combat.Rules, &m_Ecology });   // T0
 			m_Combat.Bind(m_Entities, m_Gameplay);
 			m_Hostility.FromRules(m_Combat.Rules);
 			IHostility* hostility = &m_Hostility;
