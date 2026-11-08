@@ -1,6 +1,6 @@
 #include "GB/Save/SaveWorld.h"
 #include "GB/Game/SceneIO.h"
-#include "GB/Qa/Qa.h"
+#include "GB/Core/Fingerprint.h"
 #include <algorithm>
 #include <nlohmann/json.hpp>
 
@@ -24,12 +24,12 @@ namespace GB::Save
 			return out;
 		}
 
-		void AddText(Qa::Fingerprint& f, const std::string& s)
+		void AddText(GB::Fingerprint& f, const std::string& s)
 		{
 			f.Add(static_cast<int64_t>(s.size()));
 			for (unsigned char c : s) f.Add(static_cast<int64_t>(c));
 		}
-		void AddVec(Qa::Fingerprint& f, const glm::vec3& v, float quantum)
+		void AddVec(GB::Fingerprint& f, const glm::vec3& v, float quantum)
 		{
 			f.Add(v.x, quantum);
 			f.Add(v.y, quantum);
@@ -204,7 +204,7 @@ namespace GB::Save
 		const GameplayWorld* gp = host.Gameplay();
 		if (gp) gp->Store(entities);
 		{
-			Qa::Fingerprint f;
+			GB::Fingerprint f;
 			for (const auto& [id, e] : entities.All())
 			{
 				f.Add(static_cast<int64_t>(id));
@@ -228,7 +228,7 @@ namespace GB::Save
 			d.Parts["entities"] = f.Value();
 		}
 		{
-			Qa::Fingerprint f;
+			GB::Fingerprint f;
 			if (gp)
 				for (const std::string& name : gp->Names())
 				{
@@ -245,7 +245,7 @@ namespace GB::Save
 			d.Parts["gameplay"] = f.Value();
 		}
 		{
-			Qa::Fingerprint f;
+			GB::Fingerprint f;
 			for (const ActorState& a : host.Actors())
 			{
 				AddText(f, a.Name);
@@ -270,24 +270,24 @@ namespace GB::Save
 		}
 		{
 			const ClockState c = host.Clock();
-			Qa::Fingerprint f;
+			GB::Fingerprint f;
 			f.Add(static_cast<int64_t>(c.Tick));
 			f.Add(c.Hours, 1e-2f);
 			f.Add(static_cast<int64_t>(c.Day));
 			d.Parts["clock"] = f.Value();
 		}
 		{
-			Qa::Fingerprint f;
+			GB::Fingerprint f;
 			AddText(f, host.Weather().Preset);
 			d.Parts["weather"] = f.Value();
 		}
 		for (const SectionBlob& s : host.Sections())   // one part per section, so a replay that differs says in which ("section:ai", "section:history")
 		{
-			Qa::Fingerprint f;
+			GB::Fingerprint f;
 			AddText(f, s.Json);
 			d.Parts["section:" + s.Name] = f.Value();
 		}
-		Qa::Fingerprint total;
+		GB::Fingerprint total;
 		for (const auto& [name, value] : d.Parts) { AddText(total, name); total.Add(static_cast<int64_t>(value & 0x7FFFFFFFFFFFFFFFull)); }
 		d.Total = total.Value();
 		return d;

@@ -1,5 +1,5 @@
 #pragma once
-#include "Image.h"
+#include "GB/Scene/Image.h"
 #include <cstdint>
 
 namespace GB

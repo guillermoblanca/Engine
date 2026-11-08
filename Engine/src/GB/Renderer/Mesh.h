@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Renderer/Vertex.h"
+#include "GB/Scene/Vertex.h"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <vector>

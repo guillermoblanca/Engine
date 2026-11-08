@@ -72,7 +72,7 @@ namespace GB::Save
 	// Loads the ability systems of `entities` and puts the clocks back. False and `error` when an effect is unknown.
 	bool RestoreGameplay(GameplayWorld& gameplay, const EntityWorld& entities, const std::vector<GameplayRuntime>& runtime, std::string* error = nullptr);
 
-	// ---- fingerprints of the state, to compare runs. Numbers are quantized (Qa::Fingerprint), so tiny float differences do not count.
+	// ---- fingerprints of the state, to compare runs. Numbers are quantized (GB::Fingerprint, GB/Core/Fingerprint.h), so tiny float differences do not count.
 	struct Digest
 	{
 		std::map<std::string, uint64_t> Parts;   // "entities", "gameplay", "actors", "clock", "weather", "sections"

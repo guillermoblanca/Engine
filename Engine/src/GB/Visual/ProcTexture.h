@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Renderer/Image.h"
+#include "GB/Scene/Image.h"
 #include <cstdint>
 #include <string>
 #include <vector>

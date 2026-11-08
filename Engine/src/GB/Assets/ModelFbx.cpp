@@ -3,7 +3,7 @@
 #include "Model.h"
 #include "ModelUtil.h"
 #include "GB/Log.h"
-#include "GB/Renderer/Image.h"
+#include "GB/Scene/Image.h"
 #include <algorithm>
 #include <cmath>
 #include <cstring>

@@ -1,4 +1,4 @@
-#include "Image.h"
+#include "GB/Scene/Image.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cstring>

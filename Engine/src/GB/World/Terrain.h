@@ -1,7 +1,7 @@
 #pragma once
 #include "GB/Renderer/Mesh.h"
 #include "GB/Renderer/Renderer.h"
-#include "GB/Renderer/Image.h"
+#include "GB/Scene/Image.h"
 #include "GB/Renderer/Texture.h"
 #include <cstdint>
 #include <functional>

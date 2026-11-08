@@ -1,6 +1,6 @@
 #include "Terrain.h"
 #include "GB/Log.h"
-#include "GB/Renderer/Image.h"
+#include "GB/Scene/Image.h"
 #include "GB/Water/WaterCarver.h"
 #include "GB/World/TerrainNoise.h"
 #include <algorithm>

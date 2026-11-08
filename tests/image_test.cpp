@@ -1,6 +1,6 @@
 // CPU-only tests for Image loading/cropping, including the shipped texture atlases.
 #include "GB/Log.h"
-#include "GB/Renderer/Image.h"
+#include "GB/Scene/Image.h"
 #include <cstdio>
 #include <string>
 

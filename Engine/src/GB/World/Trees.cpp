@@ -1,5 +1,5 @@
 #include "Trees.h"
-#include "GB/Renderer/Image.h"
+#include "GB/Scene/Image.h"
 #include <algorithm>
 #include <cmath>
 #include <unordered_map>

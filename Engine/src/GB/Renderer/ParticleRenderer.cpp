@@ -1,6 +1,6 @@
 #include "ParticleRenderer.h"
 #include "RenderStats.h"
-#include "Image.h"
+#include "GB/Scene/Image.h"
 #include "Scene.h"
 #include "Shader.h"
 #include "Shaders.h"

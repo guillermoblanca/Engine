@@ -23,6 +23,7 @@ add_library(GB STATIC
     src/GB/Game/Interaction.cpp
     src/GB/Game/TaskList.cpp
     src/GB/Scene/Task.cpp
+    src/GB/Scene/MeshData.cpp
     src/GB/Game/GBObject.cpp
     src/GB/Game/Components/Gameplay/MovementComponent.cpp
     src/GB/Game/Components/Gameplay/OrdersComponent.cpp
@@ -149,6 +150,7 @@ add_library(GB STATIC
     src/GB/Visual/BuildingVisuals.cpp
     src/GB/Input.cpp
     src/GB/Log.cpp
+    src/GB/Core/Fingerprint.cpp
     src/GB/Assets/Model.cpp
     src/GB/Assets/ModelFbx.cpp
     src/GB/Animation/ClipAnalysis.cpp
@@ -212,7 +214,7 @@ add_library(GB STATIC
     src/GB/Renderer/CameraController.cpp
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/GrassRenderer.cpp
-    src/GB/Renderer/Image.cpp
+    src/GB/Scene/Image.cpp
     src/GB/Renderer/Mesh.cpp
     src/GB/Renderer/Particles.cpp
     src/GB/Renderer/ParticleRenderer.cpp

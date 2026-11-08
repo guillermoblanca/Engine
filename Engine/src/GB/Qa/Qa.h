@@ -1,5 +1,6 @@
 #pragma once
-#include "GB/Renderer/Image.h"
+#include "GB/Core/Fingerprint.h"
+#include "GB/Scene/Image.h"
 #include <cstdint>
 #include <string>
 #include <utility>
@@ -67,18 +68,6 @@ namespace GB::Qa
 		std::vector<Entry> m_Entries;
 	};
 
-	// Stable fingerprint of float data: values are quantized first, so tiny cross-platform differences do not
-	// change it. FNV-1a, 64 bit.
-	class Fingerprint
-	{
-	public:
-		void Add(float value, float quantum = 1e-3f);
-		void Add(int64_t value);
-		uint64_t Value() const { return m_Hash; }
-		// A double that fits exactly (53 bits) for storing in a GoldenData.
-		double AsNumber() const { return static_cast<double>(m_Hash & ((1ull << 52) - 1)); }
-
-	private:
-		uint64_t m_Hash = 1469598103934665603ull;
-	};
+	// The stable fingerprint of float data now lives in Core (GB/Core/Fingerprint.h); the QA name stays as an alias.
+	using Fingerprint = GB::Fingerprint;
 }
