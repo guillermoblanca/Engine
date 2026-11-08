@@ -1,7 +1,7 @@
 #pragma once
 #include "GB/Animation/ClipAnalysis.h"
 #include "GB/Animation/Pose.h"
-#include "GB/Game/MotionState.h"
+#include "GB/Scene/MotionState.h"
 #include <string>
 #include <vector>
 

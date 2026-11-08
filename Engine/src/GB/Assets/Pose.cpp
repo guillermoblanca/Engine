@@ -1,4 +1,4 @@
-#include "GB/Animation/Pose.h"
+#include "GB/Assets/Pose.h"
 #include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>

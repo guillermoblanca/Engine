@@ -1,7 +1,8 @@
 #pragma once
-#include "GB/Game/CharacterController.h"
+#include "GB/Scene/CharacterTypes.h"
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <vector>
 #include <glm/glm.hpp>
 

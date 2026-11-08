@@ -1,6 +1,6 @@
 #pragma once
 #include "Model.h"
-#include "GB/Animation/Pose.h"
+#include "GB/Assets/Pose.h"
 #include <string>
 #include <vector>
 

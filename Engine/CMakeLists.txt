@@ -22,6 +22,7 @@ add_library(GB STATIC
     src/GB/Game/MotionWarp.cpp
     src/GB/Game/Interaction.cpp
     src/GB/Game/TaskList.cpp
+    src/GB/Scene/Task.cpp
     src/GB/Game/GBObject.cpp
     src/GB/Game/Components/Gameplay/MovementComponent.cpp
     src/GB/Game/Components/Gameplay/OrdersComponent.cpp
@@ -113,7 +114,7 @@ add_library(GB STATIC
     src/GB/Audio/AudioEngine.cpp
     src/GB/Audio/FootstepSounds.cpp
     src/GB/Audio/AudioMixer.cpp
-    src/GB/Game/Entity.cpp
+    src/GB/Scene/Entity.cpp
     src/GB/Animation/CharacterAnimator.cpp
     src/GB/Animation/AnimInstance.cpp
     src/GB/Animation/Montage.cpp
@@ -130,7 +131,7 @@ add_library(GB STATIC
     src/GB/Animation/AnimGraph.cpp
     src/GB/Animation/FootIK.cpp
     src/GB/Animation/LookAt.cpp
-    src/GB/Game/SceneIO.cpp
+    src/GB/Scene/SceneIO.cpp
     src/GB/Save/SaveGame.cpp
     src/GB/Save/SaveWorld.cpp
     src/GB/Save/SaveFiles.cpp
@@ -150,7 +151,7 @@ add_library(GB STATIC
     src/GB/Assets/Model.cpp
     src/GB/Assets/ModelFbx.cpp
     src/GB/Animation/ClipAnalysis.cpp
-    src/GB/Animation/Pose.cpp
+    src/GB/Assets/Pose.cpp
     src/GB/Animation/BlendSpace.cpp
     src/GB/Animation/Locomotion.cpp
     src/GB/World/Footsteps.cpp

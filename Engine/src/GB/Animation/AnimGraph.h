@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Game/MotionState.h"
+#include "GB/Scene/MotionState.h"
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>

@@ -2,6 +2,7 @@
 // ability tasks, scenes with gameplay components, and the whole garden loop (dig, sow, water, grow, harvest) run twice with the same result.
 // CPU only; the character parts use the generated test humanoid, and the real Mixamo packs when GB_MIXAMO_DIR / GB_FARMING_DIR are set.
 #include "GB/Animation/CharacterAnimator.h"
+#include "GB/Game/MotionState.h"
 #include "GB/Game/SceneIO.h"
 #include "GB/Game/TaskList.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"

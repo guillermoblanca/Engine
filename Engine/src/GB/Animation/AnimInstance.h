@@ -11,7 +11,7 @@
 #include "GB/Animation/Socket.h"
 #include "GB/Animation/TurnLayer.h"
 #include "GB/Audio/FootstepSounds.h"
-#include "GB/Game/MotionState.h"
+#include "GB/Scene/MotionState.h"
 #include "GB/World/Footsteps.h"
 #include <memory>
 #include <string>

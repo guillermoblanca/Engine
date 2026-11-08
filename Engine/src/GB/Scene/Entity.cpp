@@ -1,4 +1,4 @@
-#include "GB/Game/Entity.h"
+#include "GB/Scene/Entity.h"
 #include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>

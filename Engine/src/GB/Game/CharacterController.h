@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Renderer/Camera.h"
+#include "GB/Scene/CharacterTypes.h"
 #include <cmath>
 #include <cstddef>
 #include <functional>
@@ -15,14 +16,6 @@ namespace GB
 	// collision against trees/rocks (XZ circles) and deep water. Everything is a pure step over plain data and
 	// callbacks, so it runs without a window or GL (see tests/character_test.cpp); ReadInput() is the only
 	// part that touches GB::Input.
-
-	struct CharacterInput
-	{
-		glm::vec2 Move{ 0.0f };   // x = right, y = forward, relative to the camera; any length (clamped to 1)
-		bool Run = false;
-		bool Jump = false;        // held; the jump starts on the press (edge) while standing on the ground
-		float CameraYaw = 0.0f;   // yaw of the OrbitController convention: the camera sits at (sin yaw, cos yaw) from the target
-	};
 
 	// Keyboard (WASD, Shift = run) and left stick (past ~90% = run, or hold the stick button). Zero without a window.
 	CharacterInput ReadCharacterInput(const IInputSource& input, float cameraYaw);
@@ -40,25 +33,6 @@ namespace GB
 	std::vector<CharacterScriptStep> ParseCharacterScript(const std::string& text);
 	// The step active at `time` seconds, or nullptr after the end.
 	const CharacterScriptStep* SampleCharacterScript(const std::vector<CharacterScriptStep>& script, float time);
-
-	struct CircleObstacle
-	{
-		glm::vec2 Center{ 0.0f };   // xz
-		float Radius = 0.5f;
-	};
-
-	class NavGrid;   // GB/Navigation/NavGrid.h
-
-	// What the character can stand on and bump into. Every callback is optional.
-	struct CharacterWorld
-	{
-		std::function<float(float, float)> GroundHeight;   // terrain height at x,z (default 0)
-		std::function<float(float, float)> WaterLevel;     // surface height, or <= -1e8 where there is no water
-		std::vector<CircleObstacle> Obstacles;
-		glm::vec2 BoundsMin{ -1e9f }, BoundsMax{ 1e9f };    // the character stays inside (xz)
-		const NavGrid* Nav = nullptr;                       // where an AIDriver finds paths (null: it walks in a straight line); must outlive the world
-		size_t DynamicFrom = static_cast<size_t>(-1);       // Obstacles from this index on are other characters (moving): the AIDriver steers around them
-	};
 
 	class Terrain;
 	// Ground, water (lake and river) and the map edges of a terrain. The Terrain must outlive the result.

@@ -1,0 +1,176 @@
+#pragma once
+#include <cstdint>
+#include <glm/glm.hpp>
+#include <map>
+#include <optional>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
+namespace GB
+{
+	using EntityId = uint32_t;
+	constexpr EntityId NullEntity = 0;
+
+	// Local transform; rotation is Euler angles in degrees (pitch, yaw, roll).
+	struct TransformComponent
+	{
+		glm::vec3 Position{ 0.0f };
+		glm::vec3 Rotation{ 0.0f };
+		glm::vec3 Scale{ 1.0f };
+		glm::mat4 ToMatrix() const;
+		// Decomposes a matrix (no shear) into this transform.
+		void FromMatrix(const glm::mat4& m);
+	};
+
+	enum class MeshShape { Cube, Sphere, Plane };
+
+	// Something to draw: a primitive, or a glTF model by path (relative to the asset directory).
+	struct MeshComponent
+	{
+		MeshShape Shape = MeshShape::Cube;
+		float Size = 1.0f;               // edge / diameter / side, before the entity scale
+		std::string Model;               // when not empty, the model replaces the primitive
+		glm::vec3 Albedo{ 0.8f };
+		float Metallic = 0.0f;
+		float Roughness = 0.5f;
+		glm::vec3 Emissive{ 0.0f };
+	};
+
+	struct LightComponent
+	{
+		glm::vec3 Color{ 1.0f };
+		float Intensity = 20.0f;
+		float Radius = 0.0f;             // > 0: fades to zero at this distance
+	};
+
+	enum class BodyType { Static, Dynamic };
+	enum class ColliderShape { Box, Sphere, Capsule };
+
+	struct BodyComponent
+	{
+		BodyType Type = BodyType::Dynamic;
+		ColliderShape Shape = ColliderShape::Box;
+		glm::vec3 HalfExtents{ 0.5f };   // Box; x = radius for Sphere/Capsule, y = half height for Capsule
+		float Mass = 1.0f;
+		float Friction = 0.5f;
+		float Restitution = 0.1f;
+	};
+
+	// A piece of generated world (tree or rock) the host draws itself: `Variant` indexes the host's recipes.
+	// Lets the editor move, rotate, scale and delete the environment like any other entity.
+	enum class PropKind { Tree, Rock };
+
+	struct PropComponent
+	{
+		PropKind Kind = PropKind::Tree;
+		int Variant = 0;
+	};
+
+	// Where and how a character uses something in the world (a fruit tree, a cow, a flower bed): the spot it has to stand on (in the
+	// entity's space), the direction it faces, the montage it plays there, and what it must carry / carries afterwards. Players and NPCs
+	// use the same points (see Interaction.h).
+	struct InteractionPoint
+	{
+		std::string Name = "use";
+		glm::vec3 Position{ 0.0f };   // where the character stands, in the entity's space
+		float Yaw = 0.0f;             // degrees: the direction it faces, in the entity's space (0 = the entity's +Z)
+		std::string Montage;          // the action to play ("" = just go there)
+		std::string Requires;         // a prop the character has to be carrying ("" = none)
+		std::string Gives;            // a prop it carries afterwards ("" = unchanged)
+		float WarpSeconds = 0.4f;     // the time it takes to settle exactly on the spot while the action starts
+	};
+
+	struct InteractableComponent
+	{
+		std::vector<InteractionPoint> Points;
+		mutable int Turn = 0;   // a resource node has one point and room around it for many: each use of it takes the next place on the ring (see FindInteraction)
+	};
+
+	// A number of the entity's ability system (see GB/Gameplay): its value now and its range.
+	struct GameplayAttribute
+	{
+		std::string Name;
+		float Value = 0.0f, Min = 0.0f, Max = 1e9f;
+	};
+
+	// The state of an entity's ability system, as scene data: the tags it holds, its attributes, the abilities it can use and the endless
+	// effects running on it (regrowing fruit, regaining energy). Creatures, plots of soil and trees use the same component.
+	struct GameplayComponent
+	{
+		std::vector<std::string> Tags;
+		std::vector<GameplayAttribute> Attributes;
+		std::vector<std::string> Abilities;
+		std::vector<std::string> Effects;
+	};
+
+	struct Entity
+	{
+		EntityId Id = NullEntity;
+		std::string Name;
+		EntityId Parent = NullEntity;
+		std::vector<EntityId> Children;
+		std::vector<std::string> Tags;
+		bool Active = true;              // inactive entities (and their children) are not built into the scene
+		TransformComponent Transform;
+		std::optional<MeshComponent> Mesh;
+		std::optional<LightComponent> Light;
+		std::optional<BodyComponent> Body;
+		std::optional<PropComponent> Prop;
+		std::optional<InteractableComponent> Interact;
+		std::optional<GameplayComponent> Gameplay;
+
+		bool HasTag(const std::string& tag) const;
+	};
+
+	// The objects of a game scene: named entities in a hierarchy, each with a few optional components.
+	// Pure data (no GL), so it runs headless; see SceneIO.h for the JSON form and EntityRender.h for drawing.
+	class EntityWorld
+	{
+	public:
+		// Names are unique: a clash gets a numeric suffix ("Cube" -> "Cube 2").
+		EntityId Create(const std::string& name = "Entity", EntityId parent = NullEntity);
+		// Destroys the entity and all its descendants.
+		bool Destroy(EntityId id);
+		// Deep copy (with descendants) under the same parent. Returns the new root, or NullEntity.
+		EntityId Duplicate(EntityId id);
+		void Clear();
+
+		Entity* Find(EntityId id);
+		const Entity* Find(EntityId id) const;
+		EntityId FindByName(const std::string& name) const;
+		std::vector<EntityId> FindByTag(const std::string& tag) const;
+
+		bool Rename(EntityId id, const std::string& name);
+		// Reparents; `keepWorld` preserves the world transform. Fails (false) for cycles and unknown ids.
+		bool SetParent(EntityId id, EntityId parent, bool keepWorld = true);
+
+		glm::mat4 WorldMatrix(EntityId id) const;
+		// False when the entity or any ancestor is inactive.
+		bool IsActive(EntityId id) const;
+
+		std::vector<EntityId> Roots() const;
+		size_t Count() const { return m_Entities.size(); }
+		// Every entity, parents before children is NOT guaranteed; ordered by id.
+		const std::map<EntityId, Entity>& All() const { return m_Entities; }
+
+		// Used by loaders: inserts an entity with a given id (no hierarchy links; call Link afterwards).
+		Entity* Insert(EntityId id, const std::string& name);
+		bool Link(EntityId id, EntityId parent);
+		// The id the next Create will take. Saved games keep it so the ids a session hands out do not depend on what it loaded.
+		EntityId NextId() const { return m_NextId; }
+		void SetNextId(EntityId next) { if (next > m_NextId) m_NextId = next; }
+
+	private:
+		std::string UniqueName(const std::string& wanted, EntityId ignore) const;
+		bool IsDescendant(EntityId id, EntityId ancestor) const;
+		EntityId CopyTree(EntityId src, EntityId parent);
+
+		std::map<EntityId, Entity> m_Entities;
+		// Every entity by its name, kept by Insert, Rename, Destroy and Clear (the only ways a name is given: Entity::Name is not to be written
+		// directly). UniqueName and FindByName ask it instead of walking the scene (building tens of thousands of nodes was quadratic, and a
+		// search for a name nobody has walked the whole scene).
+		std::unordered_map<std::string, EntityId> m_ByName;
+		EntityId m_NextId = 1;
+	};
+}

@@ -6,6 +6,7 @@
 #include "GB/Animation/CharacterAnimator.h"
 #include "GB/Assets/Model.h"
 #include "GB/Game/CharacterController.h"
+#include "GB/Game/MotionState.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>

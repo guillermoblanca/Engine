@@ -1,7 +1,7 @@
 #pragma once
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"
-#include "GB/Game/Entity.h"
+#include "GB/Scene/Entity.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Items.h"
 #include "GB/Renderer/Mesh.h"

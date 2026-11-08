@@ -3,6 +3,7 @@
 // (text parsing and running). The generated humanoid and a flat world; CPU only.
 #include "GB/Animation/AnimInstance.h"
 #include "GB/Game/Interaction.h"
+#include "GB/Game/MotionState.h"
 #include "GB/Game/MotionWarp.h"
 #include "GB/Game/SceneIO.h"
 #include "GB/Game/TaskList.h"

@@ -2,7 +2,7 @@
 #include "GB/Animation/AnimInstance.h"
 #include "GB/Animation/AnimManifest.h"
 #include "GB/Animation/Character.h"
-#include "GB/Game/MotionState.h"
+#include "GB/Scene/MotionState.h"
 
 namespace GB
 {

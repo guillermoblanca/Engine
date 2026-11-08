@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Game/TaskList.h"
+#include "GB/Scene/Task.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include <functional>
