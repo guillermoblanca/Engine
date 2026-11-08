@@ -37,7 +37,10 @@
 #include "GB/Renderer/Particles.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/Shader.h"
+#include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TerrainGpu.h"
+#include "GB/Renderer/TreesGpu.h"
+#include "GB/Renderer/WorldTilesGpu.h"
 #include "GB/Renderer/Texture.h"
 // Entry point
 #include "GB/EntryPoint.h"

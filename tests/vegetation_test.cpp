@@ -4,6 +4,8 @@
 #include "GB/Log.h"
 #include "GB/Renderer/Framebuffer.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/RocksGpu.h"
+#include "GB/Renderer/TreesGpu.h"
 #include "GB/Window.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Trees.h"
@@ -76,7 +78,7 @@ int main()
 		Check(t->TriangleCount <= cs.MaxTriangles && t->TriangleCount > 300, msg);
 		std::snprintf(msg, sizeof msg, "%s has a sensible crown radius (%.2f)", cs.Name, t->CrownRadius);
 		Check(t->CrownRadius > cs.P.Height * 0.12f && t->CrownRadius < cs.P.Height * 0.9f, msg);
-		Check((cs.P.Species == TreeSpecies::Bare) == (t->Foliage == nullptr), "only bare trees have no foliage");
+		Check((cs.P.Species == TreeSpecies::Bare) == (t->Foliage.Empty()), "only bare trees have no foliage");
 		std::fprintf(stderr, "  %-8s %6zu triangles (%zu cards), crown %.2f m\n", cs.Name, t->TriangleCount, t->LeafCardCount, t->CrownRadius);
 	}
 
@@ -139,6 +141,7 @@ int main()
 	{
 		constexpr uint32_t W = 1600, H = 700;
 		GB::Renderer renderer(W, H, 4, 2048);
+		GB::TreesGpu treesGpu;
 		GB::Framebuffer fb(W, H);
 		GB::Mesh floor = GB::Mesh::CreateGrid(80.0f, 8);
 		auto floorObject = [&](const glm::vec3& color)
@@ -151,10 +154,10 @@ int main()
 		{
 			GB::Scene sc;
 			sc.Objects.push_back(floorObject({ 0.28f, 0.4f, 0.16f }));
-			std::vector<std::unique_ptr<GB::Tree>> keep;
+			std::vector<std::unique_ptr<GB::TreeGpu>> keep;
 			for (size_t i = 0; i < list.size(); ++i)
 			{
-				keep.push_back(factory.Create(list[i]));
+				keep.push_back(treesGpu.Create(list[i]));
 				keep.back()->AddToScene(sc, { (static_cast<float>(i) - 0.5f * static_cast<float>(list.size() - 1)) * spacing, 0.0f, 0.0f }, 0.0f, 1.0f);
 			}
 			sc.Env.ShadowCenter = { 0, 3, 0 }; sc.Env.ShadowRadius = 26.0f;
@@ -177,14 +180,14 @@ int main()
 
 		GB::Scene sc;
 		sc.Objects.push_back(floorObject({ 0.3f, 0.38f, 0.2f }));
-		std::vector<std::unique_ptr<GB::Rock>> rocks;
+		std::vector<std::unique_ptr<GB::RockGpu>> rocks;
 		for (uint32_t s = 1; s <= 8; ++s)
 		{
 			GB::RockParams rp;
 			rp.Seed = s * 7u; rp.Size = 1.0f; rp.Stretch = { 1.0f + 0.1f * static_cast<float>(s % 3), 0.55f + 0.12f * static_cast<float>(s % 4), 1.0f };
 			rp.Moss = s % 3 == 0 ? 0.7f : 0.0f; rp.Sand = s % 3 == 1 ? 0.7f : 0.0f;
 			rp.Color = s % 3 == 1 ? glm::vec3(0.55f, 0.40f, 0.28f) : glm::vec3(0.42f, 0.40f, 0.37f);
-			rocks.push_back(GB::RockFactory::Create(rp));
+			rocks.push_back(GB::RocksGpu::Create(rp));
 			rocks.back()->AddToScene(sc, { (static_cast<float>(s) - 4.5f) * 3.0f, 0.0f, 0.0f }, 0.5f * static_cast<float>(s), 1.0f, 0.0f);
 		}
 		sc.Env.ShadowCenter = { 0, 1, 0 }; sc.Env.ShadowRadius = 16.0f;

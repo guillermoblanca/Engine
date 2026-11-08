@@ -1,4 +1,4 @@
-#include "Trees.h"
+#include "GB/World/Trees.h"
 #include "GB/Scene/Image.h"
 #include <algorithm>
 #include <cmath>
@@ -378,42 +378,36 @@ namespace GB
 		}
 	}
 
-	namespace
+	// The bark and leaf images depend on nothing of the world: painted once in the process (seconds of work), on whichever thread asks first
+	// (the static is initialised once even when two threads ask together).
+	const TreeImages& TreeFactory::Textures()
 	{
-		// The bark and leaf images depend on nothing of the world: painted once in the process (seconds of work), on whichever thread asks first
-		// (the static is initialised once even when two threads ask together).
-		struct TreeImages { Image Bark, BarkPalm, Foliage[5]; };
-		const TreeImages& Images()
+		static const TreeImages images = []
 		{
-			static const TreeImages images = []
-			{
-				TreeImages t;
-				t.Bark = MakeBark(false);
-				t.BarkPalm = MakeBark(true);
-				for (int kind = 0; kind < 5; ++kind) t.Foliage[kind] = MakeFoliage(kind);
-				return t;
-			}();
-			return images;
-		}
+			TreeImages t;
+			t.Images[static_cast<size_t>(TreeTexture::Bark)] = MakeBark(false);
+			t.Images[static_cast<size_t>(TreeTexture::BarkPalm)] = MakeBark(true);
+			t.Images[static_cast<size_t>(TreeTexture::Leaf)] = MakeFoliage(0);
+			t.Images[static_cast<size_t>(TreeTexture::Needle)] = MakeFoliage(1);
+			t.Images[static_cast<size_t>(TreeTexture::Frond)] = MakeFoliage(2);
+			t.Images[static_cast<size_t>(TreeTexture::LeafRound)] = MakeFoliage(3);
+			t.Images[static_cast<size_t>(TreeTexture::LeafMaple)] = MakeFoliage(4);
+			return t;
+		}();
+		return images;
 	}
 
-	void TreeFactory::PrepareTextures() { (void)Images(); }
+	void TreeFactory::PrepareTextures() { (void)Textures(); }
 
-	TreeFactory::TreeFactory()
+	TreeTexture TreeFactory::TrunkTexture(const TreeParams& p) { return p.Species == TreeSpecies::Palm ? TreeTexture::BarkPalm : TreeTexture::Bark; }
+
+	TreeTexture TreeFactory::FoliageTexture(const TreeParams& p)
 	{
-		const TreeImages& images = Images();
-		m_Bark = std::make_unique<Texture2D>(images.Bark, TextureEncoding::SRGB);
-		m_BarkPalm = std::make_unique<Texture2D>(images.BarkPalm, TextureEncoding::SRGB);
-		m_Leaf = std::make_unique<Texture2D>(images.Foliage[0], TextureEncoding::SRGB);
-		m_LeafRound = std::make_unique<Texture2D>(images.Foliage[3], TextureEncoding::SRGB);
-		m_LeafMaple = std::make_unique<Texture2D>(images.Foliage[4], TextureEncoding::SRGB);
-		m_Needle = std::make_unique<Texture2D>(images.Foliage[1], TextureEncoding::SRGB);
-		m_Frond = std::make_unique<Texture2D>(images.Foliage[2], TextureEncoding::SRGB);
+		const TreeTexture broadleaf[] = { TreeTexture::Leaf, TreeTexture::LeafRound, TreeTexture::LeafMaple };   // the leaf shape varies with the seed
+		return p.Species == TreeSpecies::Conifer ? TreeTexture::Needle : p.Species == TreeSpecies::Palm ? TreeTexture::Frond : broadleaf[p.Seed % 3];
 	}
 
-	TreeFactory::~TreeFactory() = default;
-
-	std::unique_ptr<Tree> TreeFactory::Create(const TreeParams& p) const
+	std::unique_ptr<Tree> TreeFactory::Create(const TreeParams& p)
 	{
 		auto tree = std::make_unique<Tree>();
 		Rng rng(static_cast<uint64_t>(p.Seed) * 2654435761u + static_cast<uint64_t>(p.Species) * 97u + 13u);
@@ -799,68 +793,21 @@ namespace GB
 			tree->BoundsHeight = std::max(top, H);
 		}
 
-		// ---- GPU meshes and materials
+		// ---- the meshes (TreesGpu uploads them and derives the materials from the params)
+		tree->Params = p;
 		tree->Height = H;
 		tree->CrownRadius = crownRadius;
-		tree->Trunk = std::make_unique<Mesh>(wood.v, wood.i);
 		tree->TriangleCount = wood.i.size() / 3;
-		Material trunk;
-		trunk.Albedo = p.Species == TreeSpecies::Bare ? glm::vec3(0.8f, 0.75f, 0.7f) : glm::vec3(1.0f);
-		trunk.AlbedoMap = p.Species == TreeSpecies::Palm ? m_BarkPalm.get() : m_Bark.get();
-		trunk.Roughness = 0.95f;
-		trunk.HeightScale = 0.0f;
-		trunk.CavityStrength = 0.0f;
-		trunk.WindSway = p.Species == TreeSpecies::Palm ? 0.9f : 0.5f;
-		trunk.WindHeight = H;
-		tree->TrunkMaterial = trunk;
-
+		tree->Trunk.Vertices = std::move(wood.v);
+		tree->Trunk.Indices = std::move(wood.i);
 		if (!leaves.v.empty())
 		{
-			tree->Foliage = std::make_unique<Mesh>(leaves.v, leaves.i);
 			tree->TriangleCount += leaves.i.size() / 3;
 			tree->LeafCardCount = leaves.i.size() / 6;
-			Material foliage;
-			foliage.Albedo = p.LeafTint;
-			const Texture2D* broadleaf[] = { m_Leaf.get(), m_LeafRound.get(), m_LeafMaple.get() };   // the leaf shape varies with the seed
-			foliage.AlbedoMap = p.Species == TreeSpecies::Conifer ? m_Needle.get() : p.Species == TreeSpecies::Palm ? m_Frond.get() : broadleaf[p.Seed % 3];
-			foliage.Roughness = 0.7f;
-			foliage.Alpha = AlphaMode::Mask;
-			foliage.AlphaCutoff = 0.4f;
-			foliage.DoubleSided = true;
-			foliage.FoliageNormals = true;
-			foliage.HeightScale = 0.0f;
-			foliage.CavityStrength = 0.0f;
-			foliage.WindSway = p.Species == TreeSpecies::Conifer ? 0.45f : (p.Species == TreeSpecies::Palm ? 1.0f : 0.8f);
-			foliage.WindHeight = H;
-			foliage.WindFlutter = p.Species == TreeSpecies::Conifer ? 0.03f : 0.09f;
-			tree->FoliageMaterial = foliage;
+			tree->Foliage.Vertices = std::move(leaves.v);
+			tree->Foliage.Indices = std::move(leaves.i);
 		}
 		return tree;
-	}
-
-	void Tree::AddToScene(Scene& scene, const glm::vec3& position, float yaw, float scale, float maxDistance) const
-	{
-		const glm::mat4 transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position), yaw, glm::vec3(0, 1, 0)), glm::vec3(scale));
-		const float top = std::max(Height, BoundsHeight);
-		const glm::vec3 boundsCenter(0.0f, top * 0.5f, 0.0f);
-		const float boundsRadius = 1.1f * glm::length(glm::vec2(top * 0.5f, CrownRadius + 0.5f));
-		RenderObject t;
-		t.BoundingCenter = boundsCenter; t.BoundingRadius = boundsRadius; t.MaxDistance = maxDistance;
-		t.Instanced = true;   // (every tree of this variant: the same trunk mesh and material)
-		t.MeshPtr = Trunk.get();
-		t.Mat = TrunkMaterial;
-		t.Transform = transform;
-		scene.Objects.push_back(t);
-		if (Foliage)
-		{
-			RenderObject f;
-			f.BoundingCenter = boundsCenter; f.BoundingRadius = boundsRadius; f.MaxDistance = maxDistance;
-			f.Instanced = true;
-			f.MeshPtr = Foliage.get();
-			f.Mat = FoliageMaterial;
-			f.Transform = transform;
-			scene.Objects.push_back(f);
-		}
 	}
 
 	std::vector<TreePlacement> ScatterTrees(const Heightmap& hm, int count, int variants, float minSpacing, uint32_t seed,

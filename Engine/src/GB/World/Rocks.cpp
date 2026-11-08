@@ -1,7 +1,6 @@
-#include "Rocks.h"
+#include "GB/World/Rocks.h"
 #include <algorithm>
 #include <cmath>
-#include <glm/gtc/matrix_transform.hpp>
 #include <map>
 
 namespace GB
@@ -153,37 +152,12 @@ namespace GB
 	{
 		auto rock = std::make_unique<Rock>();
 		rock->Params = params;
-		std::vector<Vertex> vertices;
-		std::vector<uint32_t> indices;
-		BuildGeometry(params, vertices, indices);
+		BuildGeometry(params, rock->Geometry.Vertices, rock->Geometry.Indices);
 		float r = 0.0f, h = 0.0f;
-		for (const Vertex& v : vertices) { r = std::max(r, glm::length(glm::vec2(v.Position.x, v.Position.z))); h = std::max(h, v.Position.y); }
+		for (const Vertex& v : rock->Geometry.Vertices) { r = std::max(r, glm::length(glm::vec2(v.Position.x, v.Position.z))); h = std::max(h, v.Position.y); }
 		rock->Radius = r;
 		rock->Height = h;
-		rock->TriangleCount = indices.size() / 3;
-		rock->MeshPtr = std::make_unique<Mesh>(vertices, indices);
-		Material& m = rock->Mat;
-		m.Albedo = params.Color;
-		m.Roughness = 0.88f;
-		m.HeightScale = 0.0f;
-		m.CavityStrength = 0.0f;
-		m.Grain = 0.8f;
-		m.GrainScale = 2.4f / std::max(params.Size, 0.3f);
-		m.Moss = params.Moss;
-		m.Sand = params.Sand;
+		rock->TriangleCount = rock->Geometry.Indices.size() / 3;
 		return rock;
-	}
-
-	void Rock::AddToScene(Scene& scene, const glm::vec3& position, float yaw, float scale, float sink, float waterLine) const
-	{
-		RenderObject o;
-		o.MeshPtr = MeshPtr.get();
-		o.Mat = Mat;
-		o.Mat.BaseY = position.y - sink;
-		o.Mat.WaterLine = waterLine;
-		o.BoundingCenter = { 0.0f, Height * 0.5f, 0.0f };
-		o.BoundingRadius = 1.05f * glm::length(glm::vec2(Radius, Height * 0.5f));
-		o.Transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), position - glm::vec3(0.0f, sink, 0.0f)), yaw, glm::vec3(0, 1, 0)), glm::vec3(scale));
-		scene.Objects.push_back(o);
 	}
 }

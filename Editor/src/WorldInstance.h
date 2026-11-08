@@ -1,7 +1,9 @@
 #pragma once
 #include "GB/Game/Entity.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TerrainGpu.h"
+#include "GB/Renderer/TreesGpu.h"
 #include "GB/World/Grass.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Terrain.h"
@@ -61,12 +63,12 @@ namespace GB::Editor
 		std::unique_ptr<GeneratedWorld> m_World;
 		std::unique_ptr<Terrain> m_Terrain;
 		std::unique_ptr<TerrainGpu> m_TerrainGpu;   // after m_Terrain: destroyed before it
-		std::unique_ptr<TreeFactory> m_TreeFactory;
-		std::vector<std::unique_ptr<Tree>> m_TreeVariants;
-		std::vector<std::unique_ptr<Tree>> m_TreeVariantsFar;   // the same trees with half the foliage (TreeParams::Detail 0), drawn past kTreeLodDistance
+		std::unique_ptr<TreesGpu> m_TreesGpu;   // the bark and leaf textures every variant below points at: destroyed after them
+		std::vector<std::unique_ptr<TreeGpu>> m_TreeVariants;
+		std::vector<std::unique_ptr<TreeGpu>> m_TreeVariantsFar;   // the same trees with half the foliage (TreeParams::Detail 0), drawn past kTreeLodDistance
 		static constexpr float kTreeLodDistance = 70.0f;
 		glm::vec3 m_Viewer{ 0.0f };   // the camera, for the trees' level of detail (FollowCamera)
-		std::vector<std::unique_ptr<Rock>> m_RockVariants;
+		std::vector<std::unique_ptr<RockGpu>> m_RockVariants;
 		std::unique_ptr<GrassField> m_Grass;
 		std::unique_ptr<WaterSurface> m_Lake, m_River;
 		uint64_t m_BuildCount = 0;

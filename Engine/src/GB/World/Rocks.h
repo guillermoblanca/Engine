@@ -1,6 +1,7 @@
 #pragma once
-#include "GB/Renderer/Mesh.h"
-#include "GB/Renderer/Renderer.h"
+#include "GB/Scene/MeshData.h"
+#include "GB/Scene/Vertex.h"
+#include <cstddef>
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <memory>
@@ -27,27 +28,22 @@ namespace GB
 		float Sand = 0.0f;
 	};
 
-	// A procedural rock: noise-displaced icosphere, flat base, procedural grain/bump in the material.
-	class Rock
+	// A procedural rock on the CPU (no OpenGL, any thread): a noise-displaced icosphere with a flat base, and its measures. The procedural
+	// grain/bump of its material is derived from the params by GB/Renderer/RocksGpu.h, which uploads it (docs/ARQUITECTURA_REVISION.md, H5).
+	struct Rock
 	{
-	public:
-		std::unique_ptr<Mesh> MeshPtr;
-		Material Mat;
-		float Radius = 1.0f;                       // bounding radius of the mesh
+		RockParams Params;
+		MeshData Geometry;
+		float Radius = 1.0f;                       // horizontal radius of the mesh around its axis
 		float Height = 1.0f;                       // top of the mesh above its base
 		size_t TriangleCount = 0;
-		RockParams Params;
-
-		// Places an instance with its base on `position` (sunk by `sink` meters). `waterLine` (world y) wets the
-		// lower part when the rock stands in water.
-		void AddToScene(Scene& scene, const glm::vec3& position, float yaw, float scale = 1.0f, float sink = 0.1f, float waterLine = -1e9f) const;
 	};
 
 	class RockFactory
 	{
 	public:
 		static std::unique_ptr<Rock> Create(const RockParams& params);
-		// The CPU part alone (vertices and indices), usable without an OpenGL context.
+		// The geometry alone (vertices and indices).
 		static void BuildGeometry(const RockParams& params, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 	};
 }

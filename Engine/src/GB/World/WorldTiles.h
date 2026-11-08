@@ -1,8 +1,7 @@
 #pragma once
-#include "GB/Renderer/Mesh.h"
-#include "GB/Renderer/Renderer.h"
+#include "GB/Scene/Vertex.h"
+#include <cstdint>
 #include <glm/glm.hpp>
-#include <memory>
 #include <vector>
 
 namespace GB
@@ -11,8 +10,8 @@ namespace GB
 
 	// A bigger world cut in tiles (H16, groundwork for the streaming). The world of WorldDesc::Tiles > 1 is generated on the CPU as one seamless
 	// heightmap; what is cut by tile is what costs memory and draw time: the GPU meshes of the terrain (built near the viewer, dropped far away), and
-	// later the objects and the agents of each tile. Everything here but TerrainTileSet is CPU only and deterministic (tests/worlds_tiles in
-	// scale_test.cpp).
+	// later the objects and the agents of each tile. Everything here is CPU only and deterministic (tests/worlds_tiles in scale_test.cpp); the GPU
+	// meshes are GB/Renderer/WorldTilesGpu.h's.
 	struct TileStreamConfig
 	{
 		float LoadRadius = 260.0f;    // m from the viewer to the nearest point of a tile: closer, its mesh is wanted
@@ -38,7 +37,7 @@ namespace GB
 		float Distance(int tile, const glm::vec2& p) const;
 
 		// ---- streaming: which tiles have their mesh. Update marks what should be resident from the viewer and returns this frame's work: the tiles to
-		// build (nearest first, at most MaxBuildsPerFrame) and those to drop. The caller builds and drops them (TerrainTileSet does).
+		// build (nearest first, at most MaxBuildsPerFrame) and those to drop. The caller builds and drops them (WorldTilesGpu does).
 		struct Work { std::vector<int> Build, Drop; };
 		Work Update(const glm::vec2& viewer, const TileStreamConfig& config = TileStreamConfig());
 		bool Resident(int tile) const { return tile >= 0 && tile < Count() && m_Resident[static_cast<size_t>(tile)]; }
@@ -54,17 +53,4 @@ namespace GB
 	// The vertices and triangles of one tile of a terrain: its heightmap samples, with the normals and UVs the whole terrain's mesh would give them,
 	// so the edges of two neighbouring tiles are the same vertices (no seam, no crack). CPU only.
 	void BuildTileMesh(const Terrain& terrain, const WorldTiles& tiles, int tile, std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
-
-	// The GPU side: a mesh per resident tile, drawn with the terrain's material (needs an OpenGL context to build; AddToScene takes the material of the
-	// terrain's TerrainGpu). Not wired into the editor yet: the editor still draws the whole terrain (see docs/mundo.md).
-	class TerrainTileSet
-	{
-	public:
-		// Builds and drops what WorldTiles::Update says; returns the tiles built this frame.
-		int Stream(const Terrain& terrain, WorldTiles& tiles, const glm::vec2& viewer, const TileStreamConfig& config = TileStreamConfig());
-		void AddToScene(const Material& material, Scene& scene) const;   // material: the terrain's (TerrainGpu::GetMaterial)
-		size_t Meshes() const;
-	private:
-		std::vector<std::unique_ptr<Mesh>> m_Meshes;   // by tile
-	};
 }

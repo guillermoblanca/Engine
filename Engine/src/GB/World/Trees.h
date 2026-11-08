@@ -1,8 +1,11 @@
 #pragma once
-#include "GB/Renderer/Mesh.h"
-#include "GB/Renderer/Renderer.h"
-#include "GB/Renderer/Texture.h"
+#include "GB/Scene/Image.h"
+#include "GB/Scene/MeshData.h"
 #include "GB/World/Terrain.h"
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <glm/glm.hpp>
 #include <memory>
 #include <vector>
 
@@ -30,37 +33,36 @@ namespace GB
 		int Detail = 1;                 // 0 = low (about half the foliage; far trees), 1 = normal, 2 = high
 	};
 
-	// One generated tree: a bark mesh and (except for Bare trees) a foliage mesh, ready to be placed in a
-	// Scene any number of times. Owned by a TreeFactory, whose textures its materials point to.
+	// One generated tree, on the CPU (no OpenGL, any thread): a bark mesh and (except for Bare trees) a foliage mesh, with the measures the
+	// placement and the picking read. GB/Renderer/TreesGpu.h uploads it and gives it its materials (docs/ARQUITECTURA_REVISION.md, H5).
 	struct Tree
 	{
-		std::unique_ptr<Mesh> Trunk;
-		std::unique_ptr<Mesh> Foliage;     // null for bare trees
-		Material TrunkMaterial;
-		Material FoliageMaterial;
+		TreeParams Params;                 // what it was made from (the materials are derived from it)
+		MeshData Trunk;
+		MeshData Foliage;                  // empty for bare trees
 		float Height = 0.0f;
 		float CrownRadius = 0.0f;          // largest horizontal distance of any vertex from the trunk base
 		float BoundsHeight = 0.0f;         // highest vertex
 		size_t TriangleCount = 0;
 		size_t LeafCardCount = 0;
-
-		// Adds the tree at a position (on the ground) with a yaw and uniform scale.
-		void AddToScene(Scene& scene, const glm::vec3& position, float yawRadians = 0.0f, float scale = 1.0f, float maxDistance = 0.0f) const;   // maxDistance > 0: culled beyond it
 	};
 
-	// Generates trees. Owns the procedural bark / leaf / needle / frond textures.
+	// The procedural bark / leaf / needle / frond images every tree's materials sample, painted once in the process.
+	enum class TreeTexture { Bark, BarkPalm, Leaf, LeafRound, LeafMaple, Needle, Frond, Count };
+	struct TreeImages { Image Images[static_cast<size_t>(TreeTexture::Count)]; const Image& Get(TreeTexture t) const { return Images[static_cast<size_t>(t)]; } };
+
+	// Generates trees on the CPU (deterministic by TreeParams).
 	class TreeFactory
 	{
 	public:
-		TreeFactory();
-		~TreeFactory();
-		// Paints the bark and leaf images (no OpenGL, any thread): a world built in the background calls it there, so making a factory on the main
-		// thread only uploads them.
+		// Paints the bark and leaf images (no OpenGL, any thread): a world built in the background calls it there, so making a TreesGpu on the main
+		// thread only uploads them. Painted once (seconds of work), on whichever thread asks first.
 		static void PrepareTextures();
-		std::unique_ptr<Tree> Create(const TreeParams& params) const;
-
-	private:
-		std::unique_ptr<Texture2D> m_Bark, m_Leaf, m_LeafRound, m_LeafMaple, m_Needle, m_Frond, m_BarkPalm;
+		static const TreeImages& Textures();   // painted on the first call
+		static std::unique_ptr<Tree> Create(const TreeParams& params);
+		// The texture each part of a tree of these params samples.
+		static TreeTexture TrunkTexture(const TreeParams& params);
+		static TreeTexture FoliageTexture(const TreeParams& params);
 	};
 
 	struct TreePlacement

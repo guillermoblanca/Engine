@@ -223,8 +223,11 @@ add_library(GB STATIC
     src/GB/Renderer/Shader.cpp
     src/GB/Renderer/ShadowRenderer.cpp
     src/GB/Renderer/Texture.cpp
+    src/GB/Renderer/RocksGpu.cpp
     src/GB/Renderer/TerrainGpu.cpp
+    src/GB/Renderer/TreesGpu.cpp
     src/GB/Renderer/WaterRenderer.cpp
+    src/GB/Renderer/WorldTilesGpu.cpp
     src/GB/Renderer/Visibility.cpp)
 add_library(GB::GB ALIAS GB)
 # the game's data (ShippedContent.h): the catalogue is read from here unless the application says otherwise

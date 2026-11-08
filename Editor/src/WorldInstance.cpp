@@ -21,7 +21,7 @@ namespace GB::Editor
 		scene.Ripples = nullptr;
 		scene.Ground = nullptr;
 		m_Lake.reset(); m_River.reset(); m_Grass.reset();
-		m_RockVariants.clear(); m_TreeVariants.clear(); m_TreeVariantsFar.clear(); m_TreeFactory.reset();
+		m_RockVariants.clear(); m_TreeVariants.clear(); m_TreeVariantsFar.clear(); m_TreesGpu.reset();
 		m_TerrainGpu.reset();
 		m_Terrain.reset();
 		m_World.reset();
@@ -58,7 +58,7 @@ namespace GB::Editor
 		if (prop.Kind == PropKind::Tree)
 		{
 			if (variant >= m_TreeVariants.size()) return false;
-			const Tree& tree = *m_TreeVariants[variant];
+			const TreeGpu& tree = *m_TreeVariants[variant];
 			center = { 0.0f, tree.Height * 0.5f, 0.0f };
 			radius = std::max(tree.Height * 0.5f, tree.CrownRadius);
 			return true;
@@ -146,17 +146,17 @@ namespace GB::Editor
 			scene.Grass.push_back(m_Grass.get());
 		}
 
-		m_TreeFactory = std::make_unique<TreeFactory>();
+		m_TreesGpu = std::make_unique<TreesGpu>();
 		for (const TreeParams& tp : world->TreeRecipes)
 		{
-			m_TreeVariants.push_back(m_TreeFactory->Create(tp));
+			m_TreeVariants.push_back(m_TreesGpu->Create(tp));
 			TreeParams farParams = tp;   // the level of detail of the far trees: the same silhouette, half the leaf cards
 			farParams.Detail = 0;
-			m_TreeVariantsFar.push_back(m_TreeFactory->Create(farParams));
+			m_TreeVariantsFar.push_back(m_TreesGpu->Create(farParams));
 			GB_CLIENT_INFO("tree variant {}: {} triangles, {} far", m_TreeVariants.size() - 1, m_TreeVariants.back()->TriangleCount, m_TreeVariantsFar.back()->TriangleCount);
 		}
 		for (const RockParams& rp : world->RockRecipes)
-			m_RockVariants.push_back(RockFactory::Create(rp));
+			m_RockVariants.push_back(RocksGpu::Create(rp));
 
 		// The water is drawn from the terrain's own WaterField: the surfaces and how they look come from GB/Water.
 		m_Lake = MakeLakeSurface(terrain->Water());

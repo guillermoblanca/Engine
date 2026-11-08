@@ -734,7 +734,7 @@ private:
 			const int treeCount = std::atoi(options.GetValue("trees", std::to_string(defaultTrees)).c_str());
 			if (treeCount > 0)
 			{
-				m_TreeFactory = std::make_unique<GB::TreeFactory>();
+				m_TreesGpu = std::make_unique<GB::TreesGpu>();
 				std::vector<GB::TreeParams> recipes;
 				auto add = [&](GB::TreeSpecies sp, float h, uint32_t sd, glm::vec3 tint = glm::vec3(1.0f)) { GB::TreeParams tp; tp.Species = sp; tp.Height = h; tp.Seed = sd; tp.LeafTint = tint; recipes.push_back(tp); };
 				if (style == GB::TerrainStyle::Meadow)
@@ -752,13 +752,13 @@ private:
 					add(GB::TreeSpecies::Palm, 7.5f, 1); add(GB::TreeSpecies::Palm, 9.0f, 2); add(GB::TreeSpecies::Palm, 6.0f, 3);
 				}
 				for (const GB::TreeParams& tp : recipes)
-					m_TreeVariants.push_back(m_TreeFactory->Create(tp));
+					m_TreeVariants.push_back(m_TreesGpu->Create(tp));
 				const float snowLine = 1e9f;
 				const auto placements = GB::ScatterTrees(m_Terrain->GetHeightmap(), treeCount, static_cast<int>(m_TreeVariants.size()), 7.0f, seed + 11,
 					m_Terrain->HasLake() ? m_Terrain->GetWaterLevel() + 0.7f : -1e9f, snowLine, 24.0f, [this](float x, float z) { return std::hypot(x, z) > 16.0f && (!m_Terrain->GetRiver() || m_Terrain->DistanceToRiver(x, z) > m_Terrain->GetRiver()->HalfWidth * 2.4f); });   // keep the middle clear for the walker and the river banks free
 				for (const GB::TreePlacement& pl : placements)
 				{
-					const GB::Tree& tree = *m_TreeVariants[static_cast<size_t>(pl.Variant)];
+					const GB::TreeGpu& tree = *m_TreeVariants[static_cast<size_t>(pl.Variant)];
 					tree.AddToScene(m_Scene, pl.Position, pl.Yaw, pl.Scale);
 					if (m_Physics)   // the trunk is a vertical capsule
 					{
@@ -1384,12 +1384,12 @@ private:
 	// The trees and rocks of a generated world (forests are culled by distance and view).
 	void BuildWorldVegetation()
 	{
-		m_TreeFactory = std::make_unique<GB::TreeFactory>();
+		m_TreesGpu = std::make_unique<GB::TreesGpu>();
 		for (const GB::TreeParams& tp : m_World->TreeRecipes)
-			m_TreeVariants.push_back(m_TreeFactory->Create(tp));
+			m_TreeVariants.push_back(m_TreesGpu->Create(tp));
 		for (const GB::TreePlacement& pl : m_World->Trees)
 		{
-			const GB::Tree& tree = *m_TreeVariants[static_cast<size_t>(pl.Variant)];
+			const GB::TreeGpu& tree = *m_TreeVariants[static_cast<size_t>(pl.Variant)];
 			tree.AddToScene(m_Scene, pl.Position, pl.Yaw, pl.Scale, 340.0f);
 			m_Obstacles.push_back({ { pl.Position.x, pl.Position.z }, 0.28f * pl.Scale * (tree.Height > 9.0f ? 1.3f : 1.0f) });
 			if (m_Physics)
@@ -1403,10 +1403,10 @@ private:
 			}
 		}
 		for (const GB::RockParams& rp : m_World->RockRecipes)
-			m_RockVariants.push_back(GB::RockFactory::Create(rp));
+			m_RockVariants.push_back(GB::RocksGpu::Create(rp));
 		for (const GB::RockPlacement& rk : m_World->Rocks)
 		{
-			const GB::Rock& rock = *m_RockVariants[static_cast<size_t>(rk.Variant)];
+			const GB::RockGpu& rock = *m_RockVariants[static_cast<size_t>(rk.Variant)];
 			rock.AddToScene(m_Scene, rk.Position, rk.Yaw, rk.Scale, 0.12f * rk.Scale, WaterNear(rk.Position.x, rk.Position.z));
 			if (rock.Height * rk.Scale > 0.4f)   // lower ones are stepped over
 				m_Obstacles.push_back({ { rk.Position.x, rk.Position.z }, rock.Radius * rk.Scale * 0.75f });
@@ -1443,7 +1443,7 @@ private:
 			if (style == GB::TerrainStyle::Meadow) { rp.Moss = 0.75f; rp.Color = { 0.40f, 0.39f, 0.36f }; }
 			else if (style == GB::TerrainStyle::Snow) { rp.Moss = 0.15f; rp.Color = { 0.36f, 0.37f, 0.40f }; }
 			else { rp.Sand = 0.8f; rp.Color = { 0.55f, 0.40f, 0.28f }; }
-			m_RockVariants.push_back(GB::RockFactory::Create(rp));
+			m_RockVariants.push_back(GB::RocksGpu::Create(rp));
 		}
 		const GB::Terrain* terrain = m_Terrain.get();
 		auto waterNear = [&](float x, float z)
@@ -1457,7 +1457,7 @@ private:
 		auto rnd = [&]() { rng = rng * 1664525u + 1013904223u; return static_cast<float>(rng >> 8) / 16777216.0f; };
 		auto place = [&](float x, float z, int variant)
 		{
-			const GB::Rock& rock = *m_RockVariants[static_cast<size_t>(variant)];
+			const GB::RockGpu& rock = *m_RockVariants[static_cast<size_t>(variant)];
 			const float sc = 0.7f + 0.8f * rnd();
 			const float y = terrain->GetHeight(x, z);
 			rock.AddToScene(m_Scene, { x, y, z }, rnd() * 6.28f, sc, 0.12f * sc, waterNear(x, z));
@@ -1947,8 +1947,8 @@ private:
 	std::unique_ptr<GB::TerrainGpu> m_TerrainGpu;   // after m_Terrain: destroyed before it
 	std::unique_ptr<GB::SandSpray> m_SandSpray;
 	std::unique_ptr<GB::GrassField> m_Grass;
-	std::unique_ptr<GB::TreeFactory> m_TreeFactory;
-	std::vector<std::unique_ptr<GB::Tree>> m_TreeVariants;
+	std::unique_ptr<GB::TreesGpu> m_TreesGpu;   // the textures of the variants below: destroyed after them
+	std::vector<std::unique_ptr<GB::TreeGpu>> m_TreeVariants;
 	std::unique_ptr<Walker> m_Walker;
 	GB::CharacterController m_PlayerCtl;
 	GB::CharacterWorld m_PlayerWorld;
@@ -1973,7 +1973,7 @@ private:
 	int m_ErosionDirty[4] = { 1 << 30, 1 << 30, -1, -1 };
 	float m_ErosionRefreshTimer = 0.0f;
 	std::unique_ptr<GB::GeneratedWorld> m_World;
-	std::vector<std::unique_ptr<GB::Rock>> m_RockVariants;
+	std::vector<std::unique_ptr<GB::RockGpu>> m_RockVariants;
 	struct PhysItem { int Body = -1; bool Sphere = false; glm::vec3 Scale{ 1.0f }, Color{ 1.0f }; };
 	std::unique_ptr<GB::PhysicsWorld> m_Physics;
 	std::unique_ptr<GB::DestructionSystem> m_Destruction;

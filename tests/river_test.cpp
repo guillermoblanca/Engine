@@ -2,6 +2,7 @@
 // (geometry, determinism, variety) plus their surface layers (moss, sand, wet band). GL part skips without OpenGL 4.5.
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TerrainGpu.h"
 #include "GB/Window.h"
 #include "GB/World/Physics.h"
@@ -261,7 +262,7 @@ int main()
 	Check(renderer.IsValid(), "renderer initializes");
 	GB::RockParams rp;
 	rp.Seed = 2; rp.Size = 1.0f; rp.Color = glm::vec3(0.45f);
-	auto bare = GB::RockFactory::Create(rp);
+	auto bare = GB::RocksGpu::Create(rp);
 	Check(bare && bare->MeshPtr && bare->TriangleCount == 5120, "a rock mesh is uploaded");
 	GB::Camera cam;
 	cam.Position = { 0.0f, 4.0f, 3.0f };
@@ -281,7 +282,7 @@ int main()
 			}
 		return sum / static_cast<double>(n);
 	};
-	auto sceneWith = [&](const GB::Rock& r, float waterLine = -1e9f)
+	auto sceneWith = [&](const GB::RockGpu& r, float waterLine = -1e9f)
 	{
 		GB::Scene sc;
 		sc.Sun.CastShadows = false;
@@ -292,12 +293,12 @@ int main()
 	};
 	const glm::dvec3 plain = average(sceneWith(*bare), cam);
 	rp.Moss = 0.9f;
-	auto mossy = GB::RockFactory::Create(rp);
+	auto mossy = GB::RocksGpu::Create(rp);
 	const glm::dvec3 green = average(sceneWith(*mossy), cam);
 	std::fprintf(stderr, "info: rock average colour bare %.0f %.0f %.0f, mossy %.0f %.0f %.0f\n", plain.x, plain.y, plain.z, green.x, green.y, green.z);
 	Check(green.y - green.x > plain.y - plain.x + 8.0, "moss makes the top of a rock greener");
 	rp.Moss = 0.0f; rp.Sand = 1.0f;
-	auto sandy = GB::RockFactory::Create(rp);
+	auto sandy = GB::RocksGpu::Create(rp);
 	GB::Camera low;   // from the side, where the sand lies
 	low.Position = { 0.0f, 0.4f, 4.5f };
 	low.Target = { 0.0f, 0.4f, 0.0f };

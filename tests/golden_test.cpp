@@ -5,7 +5,9 @@
 #include "GB/Log.h"
 #include "GB/Qa/Qa.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TerrainGpu.h"
+#include "GB/Renderer/TreesGpu.h"
 #include "GB/Window.h"
 #include "GB/World/Grass.h"
 #include "GB/World/Rocks.h"
@@ -123,7 +125,7 @@ int main()
 	GB::HillParams hp; hp.Seed = 5; hp.Height = 10.0f;
 	auto terrain = GB::Terrain::CreateHills(hp, 96.0f, 129, GB::TerrainStyle::Meadow);
 	GB::TerrainGpu terrainGpu(*terrain);
-	GB::TreeFactory trees;
+	GB::TreesGpu trees;
 	auto oak = trees.Create([] { GB::TreeParams t; t.Species = GB::TreeSpecies::Broadleaf; t.Height = 8.0f; t.Seed = 3; return t; }());
 	auto pine = trees.Create([] { GB::TreeParams t; t.Species = GB::TreeSpecies::Conifer; t.Height = 11.0f; t.Seed = 4; return t; }());
 	GB::GrassParams gp;
@@ -168,7 +170,7 @@ int main()
 		GB::RockParams a; a.Seed = 3; a.Size = 1.0f; a.Moss = 0.8f;
 		GB::RockParams b; b.Seed = 8; b.Size = 1.1f; b.Sand = 0.9f; b.Color = { 0.5f, 0.4f, 0.3f };
 		GB::RockParams c; c.Seed = 12; c.Size = 0.9f;
-		auto r1 = GB::RockFactory::Create(a), r2 = GB::RockFactory::Create(b), r3 = GB::RockFactory::Create(c);
+		auto r1 = GB::RocksGpu::Create(a), r2 = GB::RocksGpu::Create(b), r3 = GB::RocksGpu::Create(c);
 		r1->AddToScene(sc, { -2.2f, 0, 0 }, 0.3f);
 		r2->AddToScene(sc, { 0.0f, 0, 0 }, 1.0f);
 		r3->AddToScene(sc, { 2.2f, 0, 0 }, 2.0f, 0.1f, 0.45f);
