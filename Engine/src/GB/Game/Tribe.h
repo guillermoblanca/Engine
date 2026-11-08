@@ -7,9 +7,11 @@
 #include "GB/AI/Utility.h"
 #include "GB/Game/Chronicle.h"
 #include "GB/Game/Conflict.h"
+#include "GB/Game/DataNeeds.h"
 #include "GB/Game/Economy.h"
 #include "GB/Game/Entity.h"
 #include "GB/Game/Exploration.h"
+#include "GB/Game/History.h"
 #include "GB/Game/JobBoard.h"
 #include "GB/Game/Skills.h"
 #include "GB/Game/Knowledge.h"
@@ -17,6 +19,7 @@
 #include "GB/Game/PlayerMember.h"
 #include "GB/Game/Society.h"
 #include "GB/Game/Social.h"
+#include "GB/Game/Trails.h"
 #include "GB/Game/Production.h"
 #include "GB/Game/Schedule.h"
 #include "GB/Game/SettlementPlanner.h"
@@ -76,6 +79,8 @@ namespace GB
 		virtual bool MayPlan() { return true; }
 		// H9: how grown it is, 0..1 of an adult's height (a child grows every day; see Society::Growth). A body that cannot change its size ignores it.
 		virtual void SetGrowth(float) {}
+		// T5c: how much faster than its own speed it walks now (1 = its own; a trail or a paved path under its feet, GB/Game/Trails.h).
+		virtual void SetPace(float) {}
 	};
 
 	struct TribeMember
@@ -83,6 +88,8 @@ namespace GB
 		std::string Name, Role;
 		ITribeBody* Body = nullptr;
 		std::string Job, Detail;      // what it is doing now: "gather", "deposit", "craft", "fire", "eat", "sleep", "rest"... and the node or item
+		std::string Watched;          // the job and detail the watchdog saw last, and since when (Tribe::Update: a talk that never ends is let go)
+		double WatchedSince = 0.0;
 		int Deposited = 0;            // units carried to the store
 		int Made = 0;                 // tools and objects made
 		int Failures = 0;
@@ -167,13 +174,18 @@ namespace GB
 		std::string DrinkTag = "Item.Food.Water";   // ... unless it is tagged this (or below): that is drunk, not eaten
 		StockTarget DefaultStock;                   // the target of anything Stock does not list (12)
 		std::map<std::string, StockTarget> Stock;   // item id -> its target (berry: 6, or 3 per member; wood 10; stone 8)
+		// N1b: who owns the food ("property"): "communal" (all of it goes to the clan's store, as always), "household" (what a member brings fills
+		// its household's pantry first) or "mixed" (half of it). Each clan its own (`clan property`), to set clans of different kinds side by side.
+		std::string Property = "communal";
+		int PantryPerMember = 4;                    // food a household keeps in its pantry for each of its members ("pantryPerMember")
+		int MembersPerWell = 0;                     // a well dug for every this many living ("membersPerWell"; 0: the clan never digs one)
 		// ---- the camp and its store (not in the content file: set by whoever builds the tribe)
 		glm::vec2 Camp{ 0.0f };       // where the store and the campfire are (x, z)
 		float CampY = 0.0f;           // ground height there
 		int StoreCapacity = 40;       // slots of the main store (the units of one item it takes are the economy rules' StoreCap, see Tribe::StoreCap)
 		int DepositAt = 4;            // units in the bag that send a worker to the store
 		int Swings = 3;               // gathers per trip to a node
-		float FireSeconds = 30.0f;    // the campfire burns FireHeat of fuel this often (its BurnSeconds attribute is FireSeconds / FireHeat)
+		float FireSeconds = 500.0f;   // the campfire burns FireHeat of fuel this often: one wood every 500 s (its BurnSeconds attribute is FireSeconds / FireHeat; at 30 s the fire ate ~120 wood an hour a clan and the shelters waited for branches)
 		float UpkeepSeconds = 60.0f;  // the camp uses one fibre per member this often (thatch, rope)
 		int FireWoodRequired = 4;     // wood in the store before the clan builds its campfire ...
 		int FireStoneRequired = 3;    // ... and stone
@@ -199,6 +211,10 @@ namespace GB
 		float ExploreRadius = 22.0f;   // how far from the camp an unknown-ground trip goes ...
 		float RadiusPerTrip = 8.0f;    // ... and how much farther each of the next three trips goes
 		float FreshSeconds = 6.0f;     // a sighting this recent is trusted as it is; older ones are checked on arrival
+		// The clan's home ground: a node farther than HomeRadius from the camp is worth less to gather from (falling off over HomeFalloff), so the
+		// work stays round the camp (the store, the sites and the fields are there) and does not follow a member to wherever it wandered
+		float HomeRadius = 60.0f;
+		float HomeFalloff = 40.0f;
 	};
 
 	// Being together: telling what one knows, being near the camp and the fire, hearing.
@@ -226,6 +242,7 @@ namespace GB
 		TribePerformanceConfig Performance;
 		float DuskShift = 2.0f;       // hours earlier that dusk and night come in winter (and half of it in autumn)
 		NeedsConfig Needs;
+		NeedBook DataNeeds;            // V5: the needs the content packs add (DataNeeds.h; the "needs" section)
 		VisionParams Vision;
 		MemoryConfig Memory;
 		ChooserConfig Chooser;
@@ -246,12 +263,14 @@ namespace GB
 		SocietyRules Society;         // H9 + H10: life, births, genes, personality, relations and culture (DefaultSocietyRules; the "society" section)
 		EconomyRules Econ;            // H18: production chains, spoilage, fields and stores (DefaultEconomyRules; the "economy" section of a content file)
 		SocialRules Social;           // social life: mood, talk, rites, beliefs, diet, traps (DefaultSocialRules; the "social" section, docs/VIDA_SOCIAL.md)
+		TrailRules Trails;            // T5c: trails worn by walking and paved paths (DefaultTrailRules; the "trails" section, assets/data/trails.json)
 		// The settlement (H8, see Settlement.cpp and docs/ASENTAMIENTOS.md): only with buildings (Tribe::SetBuildings).
 		float PlanSeconds = 10.0f;    // how often the clan looks at what it should build
 		float SiteRadius = 7.0f;      // the first ring around the camp where buildings go
 		int Builders = 2;             // members working one site at the same time
 		int HaulAt = 6;               // most units of a material a member carries to a site in one trip
-		float SettlementRadius = 40.0f;   // the buildings that count as the clan's: within this of the camp (a clan that migrates leaves the others behind)
+		float SettlementRadius = 70.0f;   // the buildings that count as the clan's: within this of the camp (a clan that migrates leaves the others behind; the
+		                                  // houses and workshops spread out to VillageReach, at most this less 4 m)
 		PlayerRules Player = DefaultPlayerRules();   // H15: standing, proposals, gifts... (the "player" section of a content file)
 	};
 
@@ -347,6 +366,10 @@ namespace GB
 			double EconomyMs = 0.0, SocietyMs = 0.0, ExploreMs = 0.0, ConflictMs = 0.0, AbstractMs = 0.0;   // ... and some of the clocks (needs and board in Society)
 		};
 		const FrameCost& LastCost() const { return m_Cost; }
+		// The wall time of every Update since the tribe was made (or cleared): its mean and its slowest, and how many there were (`village report`).
+		double MeanUpdateMs() const { return m_CostTicks > 0 ? m_CostTotalMs / static_cast<double>(m_CostTicks) : 0.0; }
+		double PeakUpdateMs() const { return m_CostPeakMs; }
+		long long UpdateCount() const { return m_CostTicks; }
 		int AbstractCount() const { int n = 0; for (const TribeMember& m : m_Members) if (m.Abstract) ++n; return n; }
 		// Takes a member out of the tribe (its claims go too). False when there is none with that name.
 		bool RemoveMember(const std::string& name);
@@ -381,24 +404,56 @@ namespace GB
 		// The defs must outlive the tribe (the editor's BuildingSystem::Defs); the sites are entities with the tags of GB/Gameplay/Buildings.h.
 		// With buildings the tribe also tells the economy (H18) where the stations of its buildings are (SetStations) and what its sites still need (SetDemand).
 		void SetBuildings(const std::map<std::string, BuildingDef>* defs);
+		// ---- T5c: trails and built paths (Trails.cpp): the clan's grid of worn ground, how fast a member walks at a place, and for people.
+		const TrailState& Trails() const { return m_Trails; }
+		TrailState& Trails() { return m_Trails; }
+		float TrailPace(const glm::vec2& at) const;
+		std::string TrailsReport() const;
+		// Who reads the ground again when a trail's tier changes (the editor: its navigation grid's UpdateRegion over the rectangle min..max, x z).
+		// Called within Update, so a run is the same whatever its frames. Unset: nobody (a test, a headless run).
+		void SetTrailNavigation(std::function<void(const glm::vec2& min, const glm::vec2& max)> refresh) { m_TrailNav = std::move(refresh); }
 		const std::map<std::string, BuildingDef>* Buildings() const { return m_Buildings; }
 		// The finished buildings of the camp (what makes a clan's claims stronger, H13).
 		int BuildingCount() const;
 		// The height of the ground (x, z), for the sites; without it the camp's height.
 		void SetGround(std::function<float(float, float)> height) { m_Ground = std::move(height); }
+		// Who puts a well where a dug well (BuildingDef::Well) stands: the host builds the interactive called `name` and its ability system.
+		void SetWellDigger(std::function<void(const std::string& name, const glm::vec2& at)> dig) { m_DigWell = std::move(dig); }
 		// Whether a tech is known, for a tribe without technologies (SetTechs); with them, what the members know decides (ClanKnowledge, H11).
 		void SetTechCheck(std::function<bool(const std::string&)> knows) { m_KnowsTech = std::move(knows); }
 		// Beds in the finished shelters of the camp (the society, H9, counts a roof as shelter for births).
 		int Beds() const;
+		// N1 (docs/PLAN_SIMULACION_NATURAL.md): the households: a couple and their children; a grown child without a partner lives with its mother
+		// (else its father), and anyone else alone. Each has a house of its own, kept once given (a finished shelter: the biggest households
+		// choose first). Its members sleep in it; a new house is built where the household's work and kin are near (PlanSettlement).
+		struct Household
+		{
+			std::string Id;                       // the name of its first member by name order (the key of its couple)
+			std::vector<std::string> Members;     // living, by name
+			std::string Home;                     // its house (a building's name), "" = none yet
+		};
+		const std::vector<Household>& Households() const { return m_Households; }
+		const Household* HouseholdOf(const std::string& member) const;
+		const Household* HouseholdAt(const std::string& building) const;   // whose house it is (nullptr: nobody's)
+		std::map<std::string, int> NextStepNeeds() const { return GoalInputs(); }   // N5: what the clan's next experiment lacks (it trades for it)
+		std::map<std::string, int> ForeignNeeds() const;   // V5: what its production chains want and it knows nowhere to gather (the tin of bronze: it trades for it)
+		float HouseholdWorkAt(const Household& h, const glm::vec2& at) const { return HouseholdWork(h, at); }   // N7: where a household would go
+		// N6: the era the clan is in (the last of the knowledge rules' eras whose key technologies it knows; "" = no eras), and its name
+		std::string Era() const;
+		std::string EraName() const;
+		// N1b: what a household keeps in its house (its food, by the clan's Property); nullptr = nothing yet
+		const Inventory* Pantry(const std::string& household) const { const auto it = m_Econ.Pantries.find(household); return it != m_Econ.Pantries.end() ? &it->second : nullptr; }
 		// A station is there: the camp's (Config.Econ.Production.CampStations) or a finished building's.
 		bool StationAvailable(const std::string& station) const;
 		// What the clan wants built now, most urgent first (empty without buildings, before the campfire and the tools, or with as many sites open as
 		// EconomyRules::Construction allows for its members).
-		std::vector<BuildingNeed> BuildingNeeds() const;
+		// `anyTech`: as if every technology were known (what an unknown one would let the clan build: the goals of UpdateGoals)
+		std::vector<BuildingNeed> BuildingNeeds(bool anyTech = false) const;
 		// What the open sites still lack: item -> units not yet delivered nor on their way (what the job board would ask to gather or haul).
 		std::map<std::string, int> SiteDemand() const;
 		// One line per site and building: phase, work and what it lacks.
 		std::string SettlementReport() const;
+		std::vector<BuildingNeed> PublicBuildingNeeds() const { return BuildingNeeds(); }   // (for reports: what the planner wants now)
 		bool CanBuild(const std::string& building) const;   // the clan knows how: no technology locks it, or a living member knows one that unlocks it (H11)
 		// The same as data, for an interface that draws them: where each is, how far it is built and what it gives once done.
 		struct SettlementSite { std::string Name, Building; glm::vec2 Pos{ 0.0f }; SiteState State; int Beds = 0; std::string Station, Store; };
@@ -417,8 +472,27 @@ namespace GB
 		// is first seen and every event. The sink belongs to the host and nothing reads it back, so the run is the same with it or without it. Null = off.
 		void SetTelemetry(TelemetrySink* sink, int clanId = 0, double every = 60.0);
 		TelemetrySink* Telemetry() const { return m_Telemetry; }
+		// V1: the history of the world (GB/Game/History.h) this clan writes its events to, as clan `clanId`, and its members' memories of them.
+		// The clan world gives it (one history for every clan); null = none. Written only: nothing in the simulation reads it back.
+		void SetHistory(WorldHistory* history, int clanId) { m_History = history; m_HistoryClan = clanId; }
+		WorldHistory* History() const { return m_History; }
+		int HistoryClan() const { return m_HistoryClan; }
+		// V4: the culture of the clan (GB/Game/Values.h: value -> -50..50), given by the clan world; a building that asks for a culture
+		// (BuildingDef::Values) is only planned where the culture holds it. Empty: no culture (such buildings are never planned).
+		void SetCulture(std::map<std::string, int> values) { m_Culture = std::move(values); }
+		const std::map<std::string, int>& Culture() const { return m_Culture; }
+		// V7: the ranks its settlement has reached (ClanWorld gives them); a building that asks for a rank is only planned once it has it
+		void SetRanks(std::set<std::string> ranks) { m_RanksReached = std::move(ranks); }
+		const std::set<std::string>& Ranks() const { return m_RanksReached; }
+		// V4: the sum of a generic provision over the clan's standing buildings ("trade").
+		float Provision(const std::string& what) const;
+		// Writes an event of this clan to the history: `who` did it, `whom` suffered it; the members near `where` saw it (TribeHistory.cpp).
+		int Happen(const std::string& kind, const std::string& who, const std::string& whom, const std::string& text, const glm::vec2* where = nullptr);   // (its id; 0: no history)
 		// Starts a site of a building at a place (the planner does this by itself); "" or why not. The name is "<Name> <n>".
 		std::string StartSite(const std::string& building, const glm::vec2& at, std::string* name = nullptr);
+		// A building that already stands: its site started at a place, turned `yawDegrees`, with every phase's materials delivered and its work done
+		// (a clan founded with its village, not one that has yet to build it). No technology is asked for: the caller decides what the village has.
+		std::string RaiseBuilding(const std::string& building, const glm::vec2& at, float yawDegrees = 0.0f, std::string* name = nullptr);
 		// The generic provisions of the finished buildings of the camp (BuildingDef, docs/PROGRESION.md): its defense against raids (H14), how many
 		// times as fast wounds heal at a place (1 = no healer near) and where a wounded member rests (before the healer's hut, or at the camp), and
 		// what they add to the main store (its cap per item, and the factor on how fast its food goes off: the lowest of them, 1 = none).
@@ -467,6 +541,11 @@ namespace GB
 		// ---- the senses and the clan's knowledge
 		SoundBus& Sounds() { return m_Sounds; }
 		const SpatialMemory& ClanMemory() const { return m_Clan; }
+		// N0 (docs/PLAN_SIMULACION_NATURAL.md): how much of an item the clan can get round each cell of `cell` metres within `radius` of its camp,
+		// from the nodes on the clan's map that give it (what each holds, worth twice when it grows back; less the farther the node, Falloff over
+		// `reach` metres). Cells with nothing are left out. The base of where a household lives and works, and of what the clan lacks near home.
+		struct ProductivityCell { glm::vec2 Pos{ 0.0f }; float Value = 0.0f; };
+		std::vector<ProductivityCell> ProductivityMap(const std::string& item, float cell = 20.0f, float radius = 200.0f, float reach = 30.0f) const;
 		const std::vector<Occluder>& Occluders() const { return m_Occluders; }
 		// A shout at a place: whoever is within `radius` hears it, learns where it came from and feels less safe.
 		void Shout(const std::string& who, const glm::vec2& pos, float radius = 30.0f);
@@ -602,11 +681,34 @@ namespace GB
 		PlayerAct PlayerWorked(const std::string& player, const std::string& activity, const std::string& key, float units = 1.0f);
 		// Makes a recipe from its bag (at a station of the camp when the recipe asks for one), as `actor bag craft` would, and counts it.
 		PlayerAct PlayerCraft(const std::string& player, const std::string& recipe);
+		// The technology the player sets the clan to seek ("" or "none": the clan chooses again): it goes first among the clan's goals, after what it
+		// requires (Tribe::UpdateGoals), with no vote and no cost; it is kept with the game and dropped once the clan knows it.
+		PlayerAct PlayerResearch(const std::string& player, const std::string& tech);
+		const std::string& ResearchAim() const { return m_Players.Aim; }
+		// How the clan would vote a proposal now, without making it (the same count Propose makes: it is deterministic): the adults that would
+		// vote, those for, the names against (in the members' order) and whether it would pass.
+		struct ProposalForecast
+		{
+			int Yes = 0, Voters = 0;
+			std::vector<std::string> Against;
+			bool Accepted = false;
+			float Standing = 0.0f;
+			bool Leader = false;
+		};
+		ProposalForecast ForeseeProposal(const std::string& player, const std::string& kind, const std::string& target, int units = 0) const;
 		// A proposal to the clan (see ProposalRules): "gather" or "make" an item (`units`), or "build" a building (at `at`, or by the camp when it is 0).
-		PlayerAct Propose(const std::string& player, const std::string& kind, const std::string& target, int units = 0, glm::vec2 at = glm::vec2(0.0f));
+		// `force` (a building only): the site opens even when the clan says no ("forced"; the vote is told, nothing is lost or gained by it).
+		PlayerAct Propose(const std::string& player, const std::string& kind, const std::string& target, int units = 0, glm::vec2 at = glm::vec2(0.0f), bool force = false);
 		// What a member is doing and why (from its mind), its trade, its job and how it feels about the player; a talk now and then brings them closer.
 		PlayerAct PlayerTalk(const std::string& player, const std::string& other);
 		// A lesson: the player shows a member a technology it knows, or a member shows the player one ("" = the first it can).
+		// V3: a member dies now of `cause` (a test, the host); false when there is none alive of that name. A player dies too.
+		bool Kill(const std::string& name, const std::string& cause);
+		// V6: the years between two lives, lived in aggregate (TribeLeap.cpp): the society's days (at most a generation of them) and a next step
+		// learnt every so many years; written to the history as one event the clan knows. EraLeap: the years the clan's era leaps (its data, 0: none).
+		struct LeapResult { float Years = 0.0f; int Born = 0; int Died = 0; std::vector<std::string> Learnt; };
+		LeapResult Leap(float years);
+		float EraLeap() const;
 		PlayerAct PlayerTeach(const std::string& player, const std::string& other, const std::string& tech = std::string());
 		PlayerAct PlayerLearn(const std::string& player, const std::string& other, const std::string& tech = std::string());
 		// Marriage with a member that likes the player enough (Society::Marry).
@@ -689,10 +791,12 @@ namespace GB
 		void RecordRow();   // one row of the chronicle: the clan and each member now
 		// The pyramid on a member's options (the last word before it chooses): while the clan or the member itself is short of food, the options
 		// that feed it (eat, drink, gather or look for food, carry food) score more and what is not about staying alive scores less.
-		void MaslowOptions(const TribeMember& m, float hunger, int foodInBag, bool foodHeld, std::vector<UtilityOption>& options) const;
+		void MaslowOptions(const TribeMember& m, float hunger, float thirst, int foodInBag, bool foodHeld, std::vector<UtilityOption>& options) const;
 		void Practise(TribeMember& m, const std::string& activity, const std::string& key, float units);
 		float JobScore(const TribeMember& m, const Job& job, const std::map<std::string, Nearest>& known) const;
 		void Say(const TribeMember& m, const std::string& text);
+		void Chronicled(const TribeMember& m, const std::string& text);   // V1: a line of the log that is an event of the history (TribeHistory.cpp)
+		void Gossip(const TribeMember& a, const TribeMember& b, const std::string& kind, const std::string& about);   // V2: rumours in a talk (TribeHistory.cpp)
 		void BuildFire(float fuel);
 		void WatchFire();
 		glm::vec2 CampSpot(const TribeMember& m) const;
@@ -701,7 +805,7 @@ namespace GB
 		DayShape Day() const { return { Config.Needs.NightFrom, Config.Needs.NightTo, Config.Agenda.DuskHours, Config.DuskShift }; }   // the shape of the day (Schedule.h)
 		glm::vec2 FirePos() const { return Config.Economy.Camp + glm::vec2(1.5f, 0.0f); }
 		size_t IndexOf(const TribeMember& m) const;
-		std::string WhyNot(const std::string& kind) const;
+		std::string WhyNot(const TribeMember& m, const std::string& kind) const;   // why it does not go for that kind of node, from what it remembers
 		int FoodIn(const Inventory& inv) const;
 		std::string FirstFood(const Inventory& inv) const;
 		void Steer(TribeMember& m) const;   // hands the body its navigation profile (role and load) before it is sent anywhere
@@ -781,26 +885,58 @@ namespace GB
 		// of its proposals), the floor of its health, the members it can reach and the wants a proposal leaves.
 		void StepPlayer(TribeMember& m);
 		void StepPlayers(float dt);
-		void GuardPlayer(const TribeMember& m, AbilitySystemComponent& asc) const;
+		void GuardPlayer(TribeMember& m, AbilitySystemComponent& asc);
 		void KnockOut(TribeMember& m, const std::string& cause);   // an immortal player who would die: it wakes at the camp, wounds tended
 		TribeMember* MemberNamed(const std::string& name);
 		bool NearCampForPlayer(const TribeMember& m) const;
 		PlayerRecord& RecordOf(const std::string& player);
 		// the settlement (Settlement.cpp)
 		struct Placed { std::string Name; const BuildingDef* Def = nullptr; glm::vec2 Pos{ 0.0f }; SiteState State; };
-		std::vector<Placed> Placements() const;   // every site and building of the scene, by name
+		// every site and building of the clan, by name. Within an Update it is read once and kept until a site changes by the clan's hand
+		// (StartSite, a delivery): a decision asks it a score of times. The list it hands out lives as long as the loop over it does.
+		struct PlacedList
+		{
+			std::shared_ptr<const std::vector<Placed>> List;
+			std::vector<Placed>::const_iterator begin() const { return List->begin(); }
+			std::vector<Placed>::const_iterator end() const { return List->end(); }
+		};
+		PlacedList Placements() const;
+		const Placed* ProvidingBuilding(const glm::vec2& from, const std::string& provision, std::vector<Placed>& keep) const;   // V5: the nearest finished one that provides it (kept in `keep`)
+		void ForgetPlacements() const { m_PlacedOut.reset(); }
 		void PlanSettlement(float dt);
 		void SettlementOptions(TribeMember& m, std::vector<UtilityOption>& opts) const;
 		int ExecuteSettlement(TribeMember& m, const UtilityOption& o);   // -1: not a settlement option; 0: failed; 1: given
 		bool FinishSettlement(TribeMember& m, const std::string& job);   // false: not a settlement job
+		// T5c (Trails.cpp): the members' walks wear the grid, the stretch to pave, the "pave" option, carrying it out and its end
+		void StepTrails(float dt);
+		void PlanPaving(float dt);
+		int PaveSurplus(const std::string& item) const;
+		void TrailOptions(TribeMember& m, std::vector<UtilityOption>& opts);
+		bool ExecuteTrails(TribeMember& m, const UtilityOption& o);
+		bool FinishTrails(TribeMember& m, const std::string& job);   // false: not "pave"
+		void TrailNote(const std::string& text);   // a line of the clan in the log, and its "say" event in the telemetry
+		std::set<std::pair<int, int>> TrailNavBlocks(bool all);   // the navigation blocks under the cells whose tier changed (all: under every trail)
+		void TellTrailNav(const std::set<std::pair<int, int>>& blocks);
+		void FlushTrailNav(bool all);
+		void ReplaceTrails(TrailState&& next);   // a load or a clear: the navigation reads again the ground of the old grid and of the new one
 		void ShelterNeeds(TribeMember& m, float dt);
-		glm::vec2 SleepSpot(const TribeMember& m) const;                   // its bed in a shelter, else its place at the camp
+		glm::vec2 SleepSpot(const TribeMember& m) const;                   // its bed in its household's house, else a free bed, else its place at the camp
+		void UpdateHouseholds();                                            // N1: who lives with whom and which house is whose
+		float HouseholdWork(const Household& h, const glm::vec2& at) const; // N1: what the household's members like to work, known round `at`
 		glm::vec2 StationSpot(const TribeMember& m, const std::string& station) const;   // where to craft at a station: its building, else the camp
 		std::string CraftStation(const std::string& recipe) const;        // the station the recipe can be made at now ("" = none there)
 		int InFlight(const std::string& site, const std::string& item) const;
 		void PostSettlementJobs();                                         // "haul <site>" and "build <site>" on the job board (H7)
 		float SettlementJobScore(const TribeMember& m, const Job& job) const;
 		bool SiteWorkable(const std::string& site) const;                 // a site whose current phase can still be worked (Build after it moved on is no fault)
+		// V5: the needs of the content packs (TribeNeeds.cpp)
+		bool DataNeedActive(const NeedDef& n) const;   // its era (if any) is the clan's or one listed before it
+		float DataNeedLevel(const TribeMember& m, const NeedDef& n) const;
+		void StepDataNeeds(TribeMember& m, AbilitySystemComponent& asc, float dt);
+		void DataNeedOptions(TribeMember& m, std::vector<UtilityOption>& opts);
+		bool ExecuteDataNeed(TribeMember& m, const UtilityOption& o);   // false: not a need's verb
+		bool FinishDataNeed(TribeMember& m, const std::string& job);    // false: not a need's verb
+		bool CultureAllows(const BuildingDef& def) const;                  // V4: the clan's culture holds what the building asks (its Values)
 		bool ClanKnowsBuilding(const BuildingDef& def) const;              // no technology locks it, or a living member knows one that unlocks it (H11)
 		// H14 (TribeConflict.cpp): the clock of conflict (the members' places and stats in the fights, what happened in them, the animals near,
 		// the raid), a member's turn when a threat, a fight, a flight or a raid steers it (true: it does not decide as usual), the options of the
@@ -831,6 +967,12 @@ namespace GB
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;
 		TelemetrySink* m_Telemetry = nullptr;   // not owned
+		WorldHistory* m_History = nullptr;      // V1: not owned (the clan world's)
+		int m_HistoryClan = -1;
+		std::map<std::string, int> m_Culture;    // V4
+		bool m_Leaping = false;                  // V6: inside Leap (the society lives its days fed and sheltered)
+		int m_LeapCap = 0;                       // ... while it has fewer living than this
+		std::set<std::string> m_RanksReached;    // V7
 		int m_TelemetryClan = 0;
 		double m_TelemetryEvery = 60.0, m_TelemetryNext = 0.0;
 		double m_TelemetryRelationsNext = 0.0;   // the bonds are written about once a day
@@ -853,12 +995,45 @@ namespace GB
 		const std::map<std::string, InteractiveDef>* m_InteractiveDefs = nullptr;
 		const std::map<std::string, BuildingDef>* m_Buildings = nullptr;
 		std::function<float(float, float)> m_Ground;
+		std::function<void(const std::string&, const glm::vec2&)> m_DigWell;
 		std::function<bool(const std::string&)> m_KnowsTech;
 		float m_PlanTimer = 0.0f;
 		mutable std::vector<std::pair<std::string, glm::vec2>> m_Placed;   // the sites and buildings of the scene (name, x z), looked up once per tick
 		mutable double m_PlacedAt = -1.0;
 		mutable size_t m_PlacedSystems = 0;
+		mutable std::shared_ptr<const std::vector<Placed>> m_PlacedOut;   // what Placements() said in this Update (see Placements)
+		bool m_Updating = false;
 		std::set<std::string> m_Announced;   // the buildings whose end the log has told
+		std::map<std::string, double> m_SiteWaiting;   // F4: since when each open site's phase waits for materials (PlanSettlement)
+		std::set<std::string> m_NoPlace;               // F6: the buildings the log said have no place (once each)
+		std::vector<Household> m_Households;           // N1 (UpdateHouseholds; not saved: the people and the homes give them back)
+		std::map<std::string, std::string> m_Homes;    // N1: building -> household id (kept once given)
+		std::set<std::string> m_Apprentices;           // N3: the members ReviewRoles already gave their household's trade (or found none for)
+		std::map<std::string, std::string> m_Upgrades; // N1c: a better house being built -> the house it replaces (pulled down when it stands)
+		bool UpgradeHouse();                           // N1c: starts the better house of one household (false: none to do now)
+		float VillageReach() const;                    // how far from the fire the clan builds now (grows with its people and buildings)
+		int FieldsWanted() const;                      // G2: the fields the clan marks out now (FarmRules::FieldsFor its living members)
+		bool KnowsNearHome(const TribeMember& m, const std::string& item) const;   // a node of `item`, not empty, on the home ground (its memory or the clan's)
+		std::string m_Era;                             // N6: the era the clan was in at the last plan (to tell when it changes)
+		int ToPantry(TribeMember& m, const std::string& item, int count);   // N1b: what of `count` goes to its household's pantry (and is moved there)
+		// F2: the searches that found nothing, by item: how many in a row and until when it does not look for it again (120 s, doubling, up to an hour)
+		std::map<std::string, std::pair<int, double>> m_Searches;
+		float m_HomeTimer = 0.0f;   // KnowHome: when the clan's map of its home ground is refreshed again
+		bool m_HomeKnown = false;   // ... and whether the founders were told it
+		void KnowHome(float dt);
+		// F4: how much more a site (or what a site lacks) is worth for the time its phase has waited: 1 .. 1 + Construction.AgeMax
+		float SiteAge(const std::string& site) const;
+		float ItemAge(const std::string& item) const;
+		float HomeFactor(const glm::vec2& at) const;
+		bool NeededNow(const std::string& item, bool hungry) const;
+		int StoreSlots() const;
+		// P2: what the experiments of the clan's goals still lack in the store (the inputs of their recipes: meat for cooking, hides, clay)
+		std::map<std::string, int> GoalInputs() const;   // the slots of the main store (the economy rules' main store, at least Economy.StoreCapacity)
+		// The fuel of `inv` that goes in the campfire: the hottest that no building site nor production chain needs; what they need only at night
+		// (before 7, from 19), when the fire is the clan's warmth. "" = none to burn now.
+		std::string Burnable(const Inventory& inv) const;   // worth looking for far away (explore, expeditions): see Tribe.cpp   // 1 within Exploration.HomeRadius of the camp, falling off beyond (gather options)
+		// F5: the clan's next steps (the technologies of the buildings it needs and of its fields, what they require first) for its experiments
+		void UpdateGoals();
 		std::map<std::string, std::map<std::string, int>> m_SiteDemandSet;   // what the sites asked the economy for (SetDemand), to take back what they no longer need
 
 		SoundBus m_Sounds;
@@ -867,11 +1042,22 @@ namespace GB
 		std::map<std::string, size_t> m_SightIndex;
 		std::vector<Occluder> m_Occluders;
 		OccluderGrid m_OccGrid;
-		std::unordered_map<long long, std::vector<size_t>> m_SightCells;   // the sights filed by place, so a look only visits what is near
+		std::unordered_map<long long, std::vector<size_t>> m_SightCells;   // the sights filed by place, so a look only visits what is near: the nodes ...
+		std::unordered_map<long long, std::vector<size_t>> m_AgentCells;   // ... and the members (filed again at every refresh)
+		// The nodes' part of the sights (their names, kinds, places and cells) is listed again only when the scene's systems change; a refresh
+		// reads their amounts and files the members (the first m_NodeSights of m_Sights are the nodes, m_SightSystems their systems).
+		std::vector<const AbilitySystemComponent*> m_SightSystems;
+		size_t m_NodeSights = 0;
+		uint64_t m_SightsRevision = 0;
+		const GameplayWorld* m_SightsWorld = nullptr;
+		bool m_SightsMissing = false;
+		std::vector<std::pair<const AbilitySystemComponent*, std::string>> m_SightSet;   // the nodes and wells the sights were listed from
 		std::vector<Occluder> m_OccBuilt;   // what the grid was built from
 		float m_LodTimer = 0.0f;
 		int m_ThinkBudget = -1;   // H16: set from outside (SetThinkBudget)
 		FrameCost m_Cost;
+		double m_CostTotalMs = 0.0, m_CostPeakMs = 0.0;
+		long long m_CostTicks = 0;
 		JobBoard m_Board;             // H7: the clan's jobs and who holds them
 		float m_BoardTimer = 0.0f, m_ReviewTimer = 0.0f;
 		std::map<std::string, glm::vec2> m_PosCache;
@@ -900,6 +1086,8 @@ namespace GB
 		std::string m_ClanName = "Clan";
 		ConflictState m_Conflict;     // H14 (saved under "conflict")
 		SocialState m_Social;         // social life (saved under "social")
+		TrailState m_Trails;          // T5c: the worn ground and the stretch to pave (saved under "trails")
+		std::function<void(const glm::vec2&, const glm::vec2&)> m_TrailNav;   // T5c: SetTrailNavigation
 		struct Animal { std::string Name, Tag; glm::vec2 Pos{ 0.0f }; bool Predator = false; };
 		std::vector<Animal> m_Animals;   // the animals of the rules near the camp, refreshed with the conflict clock (not saved: the world has them)
 

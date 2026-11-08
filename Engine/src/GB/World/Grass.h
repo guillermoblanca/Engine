@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
+#include <map>
 #include <vector>
 
 namespace GB
@@ -26,12 +27,17 @@ namespace GB
 		std::function<float(float, float)> HeightFn;    // ground height at (x, z); default 0
 		std::function<float(float, float)> DensityFn;   // optional 0..1 multiplier (0 = bare ground, e.g. sand, water)
 		std::function<glm::vec3(float, float)> NormalFn;   // optional ground normal, for the slope limit
+		// Optional per-place look: rgb multiplies the blade colors, w (0..1) dries the blade toward DryColor (on top of DryAmount's random
+		// share). Unset: every blade is tinted (1, 1, 1, 0), the look of before.
+		std::function<glm::vec4(float, float)> TintFn;
+		std::function<float(float, float)> HeightScaleFn;   // optional multiplier of the blade height (tall clumps, short turf)
 	};
 
 	struct GrassBlade
 	{
 		glm::vec4 PositionYaw;    // x, y (ground), z, yaw (radians)
 		glm::vec4 Shape;          // height, width, seed (0..1), lean
+		glm::vec4 Tint{ 1.0f, 1.0f, 1.0f, 0.0f };   // color multiplier, dryness
 	};
 
 	struct GrassChunk
@@ -58,14 +64,31 @@ namespace GB
 		const std::vector<GrassChunk>& GetChunks() const { return m_Chunks; }
 		// Number of blades inside chunks that are within the draw distance of a point.
 		size_t CountVisibleBlades(const glm::vec3& cameraPosition) const;
+		// Moves the covered square (Size per side) to be centered on a point, on the field's own chunk grid: chunks that stay are kept as they
+		// are, new ones are grown with the seed of their place, so the same spot always has the same blades. A big world keeps a field of
+		// grass around the camera this way. Returns whether anything changed (the GPU buffer is then uploaded again on next use).
+		bool Recenter(const glm::vec2& center);
+		// Grows every chunk of the window again (after what DensityFn or the other functions read changed: a village trod the grass down).
+		void Regrow();
+		// ... only the chunks of the window that touch one of the rectangles (min x, min z, max x, max z). Returns whether any did (T5c: a trail
+		// appeared or faded).
+		bool RegrowAreas(const std::vector<glm::vec4>& rects);
 
 		// GPU side (called by the Renderer; needs a GL context). Uploads on first use.
 		uint32_t GetBuffer() const;
 
 	private:
+		struct ChunkBlades { GrassChunk Chunk; std::vector<GrassBlade> Blades; bool Empty = true; };
 		void Generate();
+		ChunkBlades GrowChunk(int cx, int cz) const;
+		void Assemble();
 		std::vector<GrassBlade> m_Blades;
 		std::vector<GrassChunk> m_Chunks;
+		glm::vec2 m_Anchor{ 0.0f };     // world x, z of chunk (0, 0)'s corner: where the field first was
+		int m_ChunksPerSide = 1;
+		glm::ivec2 m_First{ 0 };        // chunk index of the window's first corner
+		std::map<std::pair<int, int>, ChunkBlades> m_Cache;
 		mutable uint32_t m_Buffer = 0;
+		mutable bool m_BufferStale = false;
 	};
 }

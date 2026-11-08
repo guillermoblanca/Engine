@@ -27,6 +27,9 @@ namespace GB
 		std::string Name;                       // "foundation", "frame", "roof"
 		float Work = 10.0f;                     // seconds of Build work it takes once its materials are there
 		std::map<std::string, int> Needs;       // item -> units carried to the site before it can be worked
+		// item -> what can be brought instead, one for one ("substitutes": { "reed": [ "branch" ] }: a roof of branches when there are no reeds).
+		// A substitute is not one of the phase's own needs (it would count twice)
+		std::map<std::string, std::vector<std::string>> Substitutes;
 		std::string Part = "posts";             // how it looks: "slab", "posts", "walls", "roof", "table", "rack"
 		bool operator==(const BuildingPhase&) const = default;
 	};
@@ -44,6 +47,11 @@ namespace GB
 		std::string Store;                      // a kind of store of the economy rules (H18, EconomyRules::Logistics: "stockpile"): once done it is a secondary store
 		std::string Station;                    // recipes with this station can be made at it ("workbench", "drying_rack", "kiln")
 		std::string Tech;                       // optional: what must be known first (H11); "" = nothing
+		// N2 (docs/PLAN_SIMULACION_NATURAL.md): where it wants to stand. `Near`: beside a node of this kind ("clay_bank") or "field"; `Zone`: with
+		// the other buildings of its zone ("craft", "food", "farm"), the first of a zone standing where its anchor or the rings put it.
+		std::string Near;
+		std::string Rank;                       // V7: the rank its clan must have reached (DiplomacyRules::Ranks: a town hall for a town); "" = any
+		std::string Zone;
 		// Generic provisions (docs/PROGRESION.md): numbers any building may carry, read by the systems that care, never per-building code.
 		int StoreCap = 0;                       // more units of each item the clan's main store takes (H18: Tribe::StoreCap)
 		float Keep = 1.0f;                      // multiplies how fast the main store's food goes off (the lowest of the standing buildings counts)
@@ -51,7 +59,15 @@ namespace GB
 		float Healing = 0.0f;                   // wounds heal (1 + this) times as fast within its reach (H14)
 		float Culture = 0.0f;                   // company per second to anyone within its reach: a meeting place (H10)
 		float Aura = 0.0f;                      // metres beyond its footprint its warmth (when it has no beds), company and healing reach
+		// V4 (docs/VISION_MUNDO_VIVO.md): a clan that trades: its envoys meet other clans (1 + the sum of this) times as often, and bring that much more
+		float Trade = 0.0f;
+		// V4: what the clan's culture must hold for it to build it (GB/Game/Values.h): value -> threshold; a positive one asks at least that much,
+		// a negative one at most that much ({ "peace": -10 }: a warlike clan). So clans of different cultures raise different buildings.
+		std::map<std::string, int> Values;
+		// V5: what doing a need's verb there gives (GB/Game/DataNeeds.h): provision -> how much ({ "faith": 1.5 }: praying there counts 1.5 times)
+		std::map<std::string, float> Provides;
 		std::vector<std::string> Supersedes;    // buildings the clan stops planning for beds once it can plan this one (the hut over the shelter)
+		bool Well = false;                      // once done the host puts a well there (Tribe::SetWellDigger): a big village digs more ("well")
 		glm::vec3 Color{ 0.45f, 0.32f, 0.18f }; // the colour of its parts
 		bool operator==(const BuildingDef&) const = default;
 
@@ -63,13 +79,13 @@ namespace GB
 	};
 
 	// The built-in era-1 buildings (assets/data/era1.json says the same in its "buildings" section): shelter, storage, workbench and drying rack, known
-	// to all; hut, longhouse, cache pit, granary, hearth, smoking rack, hide frame, healer's hut, totem and palisade behind the technologies of era 1;
-	// kiln and forge of era 2 (docs/PROGRESION.md).
+	// to all; hut, longhouse, cache pit, granary, hearth, smoking rack, hide frame, healer's hut, totem, palisade and watchtower behind the technologies
+	// of era 1; kiln, forge and jar store of era 2 (docs/PROGRESION.md).
 	std::map<std::string, BuildingDef> DefaultBuildings();
 	// Reads the "buildings" section of a content file:
 	//   { "buildings": { "<id>": { "name": ..., "footprint": [x, z], "phases": [ { "name": ..., "work": s, "needs": { "<item>": n }, "part": ... } ],
 	//                              "shelter": n, "rest": r, "warmth": w, "store": ..., "station": ..., "tech": ..., "color": [r, g, b],
-	//                              "storeCap": n, "keep": k, "defense": d, "healing": h, "culture": c, "aura": m, "supersedes": [ "<id>" ] } } }
+	//                              "storeCap": n, "keep": k, "defense": d, "healing": h, "culture": c, "aura": m, "supersedes": [ "<id>" ], "well": true } } }
 	// A building is added or replaced whole. A file without the section changes nothing; on a mistake it returns why and changes nothing.
 	std::string LoadBuildings(const std::string& json, std::map<std::string, BuildingDef>& defs);
 	std::string LoadBuildingsFile(const std::string& path, std::map<std::string, BuildingDef>& defs);
@@ -86,7 +102,8 @@ namespace GB
 		int Phase = 0, Phases = 0;
 		std::string PhaseName;
 		float Work = 0.0f, WorkNeeded = 0.0f;   // of the current phase
-		std::map<std::string, int> Missing;     // materials of the current phase still to be brought
+		std::map<std::string, int> Missing;     // materials of the current phase still to be brought (what a substitute brought counts)
+		std::map<std::string, std::vector<std::string>> Substitutes;   // of the missing ones: what can be brought instead
 		bool Ready = false;                     // the current phase has all its materials
 		bool Done = false;
 		float Progress = 0.0f;                  // 0..1 over the whole building (by work)
@@ -127,6 +144,7 @@ namespace GB
 	private:
 		void Listen(const std::string& name, AbilitySystemComponent* a);
 		GameplayWorld* m_Gameplay = nullptr;
+		TaggedSystems m_Sites{ { "Building" } };
 		std::map<std::string, std::pair<AbilitySystemComponent*, int>> m_Bound;   // the system each site's listener is on, and the listener
 		std::map<std::string, float> m_Shown;   // the progress last shown of each site (visuals are only written when it changes)
 	};

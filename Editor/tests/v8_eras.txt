@@ -1,0 +1,46 @@
+# V8 (docs/VISION_MUNDO_VIVO.md): one pack of data per era, from the Bronze Age to the arrival of AI (era2..era9.pack.json, each needing the one
+# before). Loaded strictly, the check finds every item, recipe, node, technology and building can be had; and a clan that learns the key of each
+# era is in that era, in the order of history (the eras a pack adds go right after the eras they follow).
+pack load era9 strict
+qa expect "pack load era9 strict" "0 problem"
+generate temperate 5
+site best
+tribe build fox
+knowledge grant clan flint_knapping
+knowledge grant clan fire_making
+knowledge grant clan stone_tools
+knowledge grant clan cordage
+knowledge grant clan basketry
+knowledge grant clan wattle_and_daub
+knowledge grant clan timber_framing
+knowledge grant clan pottery
+knowledge grant clan smelting
+knowledge grant clan alloying
+wait 120
+qa expect "village report" "Bronze Age \|"
+knowledge grant clan forging
+wait 120
+qa expect "village report" "Iron Age \|"
+knowledge grant clan writing
+wait 120
+qa expect "village report" "Classical Age \|"
+knowledge grant clan carpentry
+knowledge grant clan masonry
+wait 120
+qa expect "village report" "Middle Ages \|"
+knowledge grant clan printing
+wait 120
+qa expect "village report" "Renaissance \|"
+knowledge grant clan steam_power
+wait 120
+qa expect "village report" "Industrial Age \|"
+knowledge grant clan electricity
+wait 120
+qa expect "village report" "Electric Age \|"
+knowledge grant clan computing
+wait 120
+qa expect "village report" "Information Age \|"
+knowledge grant clan artificial_intelligence
+wait 120
+qa expect "village report" "Age of AI \|"
+quit

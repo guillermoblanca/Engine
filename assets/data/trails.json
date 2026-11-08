@@ -1,0 +1,39 @@
+{
+  "trails": {
+    "_doc": "T5c: trails worn by the clans' walking and the paths they pave (GB/Game/Trails.h). Wear is in passes: each cell a member walks into gets wearPerPass; a cell fades by decayPerDay a game day; trailAt and wornAt are the tiers. The defaults in code (TrailRules) are these.",
+    "enabled": true,
+    "cellSize": 2.0,
+    "extent": 320.0,
+    "sampleSeconds": 1.0,
+    "wearPerPass": 1.0,
+    "maxWear": 100.0,
+    "decayPerDay": 6.0,
+    "decaySeconds": 60.0,
+    "trailAt": 6.0,
+    "wornAt": 18.0,
+    "maxJump": 40.0,
+    "speed": { "trail": 1.1, "worn": 1.2, "paved": 1.35 },
+    "navEase": { "trail": 0.5, "worn": 0.8, "paved": 1.0 },
+    "pave": {
+      "enabled": true,
+      "planSeconds": 30.0,
+      "paveAt": 30.0,
+      "extendAt": 20.0,
+      "minCells": 3,
+      "maxCells": 8,
+      "cellsPerTrip": 4,
+      "workSeconds": 6.0,
+      "reserve": 1.0,
+      "timeoutSeconds": 2400.0,
+      "score": 0.8,
+      "materials": [ { "item": "stone", "perCell": 1 }, { "item": "plank", "perCell": 1 } ]
+    },
+    "visual": {
+      "grass": { "trail": 0.7, "worn": 0.95, "paved": 1.0 },
+      "tint": { "trail": 0.6, "worn": 0.9 },
+      "dirt": [ 0.42, 0.33, 0.23 ],
+      "stone": [ 0.52, 0.5, 0.47 ],
+      "refreshSeconds": 4.0
+    }
+  }
+}

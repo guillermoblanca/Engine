@@ -75,6 +75,62 @@ namespace GB
 		}
 	}
 
+	namespace
+	{
+		// Binds every edge to an input port of its target and an output port of its source (TgEdge::Port/FromPort), checks the kinds agree and
+		// that every required input is fed. Explicitly named inputs are bound first; then the version 1 edges ("in", not a port of the node) take
+		// the free inputs in port order, in edge order -- the wiring those graphs always had. Edges touching an unknown node or type are left out
+		// (they are reported elsewhere).
+		std::vector<std::vector<TgSource>> BindPorts(const TerrainGraph& graph, const TerrainNodeRegistry& registry, std::vector<TgIssue>& issues)
+		{
+			auto Error = [&](const std::string& node, const std::string& message) { issues.push_back({ true, node, message }); };
+			std::vector<const TgNodeSchema*> schemas(graph.Nodes.size(), nullptr);
+			std::vector<std::vector<TgSource>> in(graph.Nodes.size());
+			for (size_t i = 0; i < graph.Nodes.size(); ++i)
+			{
+				schemas[i] = registry.Schema(graph.Nodes[i].Type);
+				if (schemas[i]) in[i].resize(schemas[i]->Inputs.size());
+			}
+			auto bind = [&](const TgEdge& e, int from, int to, int slot)
+			{
+				const TgNodeSchema& source = *schemas[static_cast<size_t>(from)];
+				int index = source.OutputIndex(e.FromPort);
+				if (index < 0 && e.FromPort == "out" && !source.Outputs.empty()) index = 0;
+				if (index < 0) { Error(e.From, "no output named '" + e.FromPort + "'"); return; }
+				const TgPortInfo& output = source.Outputs[static_cast<size_t>(index)];
+				const TgPortInfo& input = schemas[static_cast<size_t>(to)]->Inputs[static_cast<size_t>(slot)];
+				if (output.Kind != input.Kind && output.Kind != TgPortKind::Any && input.Kind != TgPortKind::Any)
+					Error(e.To, "input '" + input.Name + "' takes " + TgPortKindName(input.Kind) + ", but '" + e.From + "." + output.Name + "' gives " + TgPortKindName(output.Kind));
+				in[static_cast<size_t>(to)][static_cast<size_t>(slot)] = { from, output.Name };
+			};
+			std::vector<const TgEdge*> legacy;
+			for (const TgEdge& e : graph.Edges)
+			{
+				const int from = NodeIndex(graph, e.From), to = NodeIndex(graph, e.To);
+				if (from < 0 || to < 0 || !schemas[static_cast<size_t>(from)] || !schemas[static_cast<size_t>(to)]) continue;
+				const int slot = schemas[static_cast<size_t>(to)]->InputIndex(e.Port);
+				if (slot < 0) { legacy.push_back(&e); continue; }
+				if (in[static_cast<size_t>(to)][static_cast<size_t>(slot)].Node >= 0) { Error(e.To, "two edges feed input '" + e.Port + "'"); continue; }
+				bind(e, from, to, slot);
+			}
+			for (const TgEdge* e : legacy)
+			{
+				const int from = NodeIndex(graph, e->From), to = NodeIndex(graph, e->To);
+				if (e->Port != "in") { Error(e->To, "no input named '" + e->Port + "'"); continue; }
+				const std::vector<TgSource>& slots = in[static_cast<size_t>(to)];
+				int slot = -1;
+				for (size_t i = 0; i < slots.size() && slot < 0; ++i) if (slots[i].Node < 0) slot = static_cast<int>(i);
+				if (slot < 0) { Error(e->To, "no free input for the edge from '" + e->From + "'"); continue; }
+				bind(*e, from, to, slot);
+			}
+			for (size_t i = 0; i < graph.Nodes.size(); ++i)
+				if (schemas[i])
+					for (size_t k = 0; k < schemas[i]->Inputs.size(); ++k)
+						if (!schemas[i]->Inputs[k].Optional && in[i][k].Node < 0) Error(graph.Nodes[i].Id, "input '" + schemas[i]->Inputs[k].Name + "' is not connected");
+			return in;
+		}
+	}
+
 	std::vector<TgIssue> ValidateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry)
 	{
 		std::vector<TgIssue> issues;
@@ -90,19 +146,23 @@ namespace GB
 			if (!registry.IsKnown(n.Type)) Error(n.Id, "unknown node type '" + n.Type + "'");
 
 		// edges to/from nodes that do not exist
+		bool dangling = false;
 		std::vector<std::vector<int>> adj(graph.Nodes.size());
 		for (const TgEdge& e : graph.Edges)
 		{
 			const int from = NodeIndex(graph, e.From), to = NodeIndex(graph, e.To);
-			if (from < 0) { Error(e.To, "edge from unknown node '" + e.From + "'"); continue; }
-			if (to < 0) { Error(e.From, "edge to unknown node '" + e.To + "'"); continue; }
+			if (from < 0) { Error(e.To, "edge from unknown node '" + e.From + "'"); dangling = true; continue; }
+			if (to < 0) { Error(e.From, "edge to unknown node '" + e.To + "'"); dangling = true; continue; }
 			if (e.From == e.To) Error(e.To, "self-connection is not allowed");
 			if (e.Port.empty()) Error(e.To, "edge has an empty input port");
 			adj[from].push_back(to);
 		}
 
-		// cycles (only once the graph is otherwise well formed: a dangling edge already failed above)
-		if (!HasTgErrors(issues))
+		// ports: every edge lands on an input that exists and takes what it gives; every required input is fed
+		BindPorts(graph, registry, issues);
+
+		// cycles (once every edge joins two nodes that exist; a port problem does not hide a cycle)
+		if (!dangling)
 		{
 			std::string path;
 			if (FindCycle(graph, adj, path)) Error("", "cycle: " + path);
@@ -119,13 +179,14 @@ namespace GB
 		if (HasTgErrors(local)) return false;
 
 		out.Nodes = graph.Nodes;
-		out.In.assign(graph.Nodes.size(), {});
+		std::vector<TgIssue> ignored;
+		out.In = BindPorts(graph, registry, ignored);
+		for (const TgNode& n : graph.Nodes) out.Schemas.push_back(*registry.Schema(n.Type));
 		std::vector<int> inDegree(graph.Nodes.size(), 0);
 		std::vector<std::vector<int>> outAdj(graph.Nodes.size());
 		for (const TgEdge& e : graph.Edges)
 		{
 			const int from = NodeIndex(graph, e.From), to = NodeIndex(graph, e.To);
-			out.In[to].push_back(from);   // in edge order, as declared
 			outAdj[from].push_back(to);
 			++inDegree[to];
 		}
@@ -146,7 +207,7 @@ namespace GB
 	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error)
 	{
 		out = TgResult();
-		std::vector<TgField> fields(graph.Nodes.size());
+		std::vector<std::map<std::string, TgValue>> values(graph.Nodes.size());
 		std::vector<bool> ready(graph.Nodes.size(), false);
 
 		for (int index : graph.Order)
@@ -155,44 +216,51 @@ namespace GB
 			const ITerrainNode* impl = registry.Find(node.Type);
 			if (!impl) { error = "node '" + node.Id + "' has unregistered type '" + node.Type + "'"; return false; }
 
-			std::vector<const TgField*> inputs;
+			std::vector<const TgValue*> inputs;
 			inputs.reserve(graph.In[index].size());
-			for (int src : graph.In[index]) inputs.push_back(ready[src] ? &fields[src] : nullptr);
+			for (const TgSource& src : graph.In[index])
+			{
+				const TgValue* v = nullptr;
+				if (src.Node >= 0 && ready[src.Node])
+				{
+					const auto it = values[src.Node].find(src.Port);
+					if (it != values[src.Node].end()) v = &it->second;
+				}
+				inputs.push_back(v);
+			}
 
-			if (!impl->Evaluate(node, ctx, inputs, fields[index], error))
+			if (!impl->Run(node, ctx, inputs, values[index], error))
 			{
 				if (error.empty()) error = "node '" + node.Id + "' failed";
 				return false;
 			}
 			ready[index] = true;
-
-			if (const IScatterNode* scatter = impl->AsScatterNode())
-			{
-				TgPlacements placements;
-				if (!scatter->Scatter(node, ctx, inputs, placements, error))
-				{
-					if (error.empty()) error = "node '" + node.Id + "' failed to scatter";
-					return false;
-				}
-				out.Placements[node.Id] = std::move(placements);
-			}
-
-			if (const IPathNode* tracer = impl->AsPathNode())
-			{
-				TgPaths paths;
-				if (!tracer->Trace(node, ctx, inputs, paths, error))
-				{
-					if (error.empty()) error = "node '" + node.Id + "' failed to trace";
-					return false;
-				}
-				out.Paths[node.Id] = std::move(paths);
-			}
 		}
 
 		for (int index : graph.Order)
 		{
 			const TgNode& node = graph.Nodes[index];
-			if (node.Type == "output" && !node.Source.empty()) out.Outputs[node.Source] = fields[index];
+			std::map<std::string, TgValue>& produced = values[index];
+			if (node.Type == "output" && !node.Source.empty())
+			{
+				const auto it = produced.find("out");
+				if (it != produced.end())
+					switch (it->second.Kind)
+					{
+					case TgPortKind::Field: out.Outputs[node.Source] = it->second.Field; break;
+					case TgPortKind::Placements: out.PlacementOutputs[node.Source] = it->second.Placements; break;
+					case TgPortKind::Paths: out.PathOutputs[node.Source] = it->second.Paths; break;
+					case TgPortKind::Water: out.WaterOutputs[node.Source] = it->second.Water; break;
+					default: break;
+					}
+			}
+			// the first Placements and the first Paths a node produced, by its id (what the callers of the scatter and path nodes read)
+			for (const auto& [port, value] : produced)
+			{
+				if (value.Kind == TgPortKind::Placements && !out.Placements.count(node.Id)) out.Placements[node.Id] = value.Placements;
+				if (value.Kind == TgPortKind::Paths && !out.Paths.count(node.Id)) out.Paths[node.Id] = value.Paths;
+			}
+			out.Nodes[node.Id] = std::move(produced);
 		}
 		return true;
 	}

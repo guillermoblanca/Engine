@@ -14,7 +14,7 @@ namespace GB
 		using Json = nlohmann::json;
 		constexpr float kPi = 3.14159265358979f;
 
-		const char* const kShapes[] = { "box", "cylinder", "blob", "blade" };
+		const char* const kShapes[] = { "box", "cylinder", "blob", "blade", "model" };
 		const char* const kLayouts[] = { "ring", "row", "stack", "scatter" };
 		const char* const kSockets[] = { "hand_l", "hand_r", "head", "back", "carry", "hip_l", "hip_r", "foot_l", "foot_r" };
 
@@ -57,6 +57,7 @@ namespace GB
 			j["size"] = Vec(p.Size);
 			if (p.Rotation != d.Rotation) j["rot"] = Vec(p.Rotation);
 			j["material"] = p.Material;
+			if (!p.Model.empty()) j["model"] = p.Model;
 			if (p.Sides != d.Sides) j["sides"] = p.Sides;
 			if (p.Bend != d.Bend) j["bend"] = p.Bend;
 			if (p.Detail != d.Detail) j["detail"] = p.Detail;
@@ -80,10 +81,12 @@ namespace GB
 			if (!j.is_object()) return where + ": a part must be an object";
 			p.Name = j.value("name", "");
 			p.Shape = j.value("shape", "box");
-			if (!OneOf(p.Shape, kShapes)) return where + " '" + p.Name + "': unknown shape '" + p.Shape + "' (box, cylinder, blob, blade)";
+			if (!OneOf(p.Shape, kShapes)) return where + " '" + p.Name + "': unknown shape '" + p.Shape + "' (box, cylinder, blob, blade, model)";
 			if (!ReadVec(j, "pos", p.Position) || !ReadVec(j, "size", p.Size) || !ReadVec(j, "rot", p.Rotation)) return where + " '" + p.Name + "': pos, size and rot are [x, y, z]";
 			p.Material = j.value("material", "");
-			if (!materials.count(p.Material)) return where + " '" + p.Name + "': unknown material '" + p.Material + "'";
+			p.Model = j.value("model", "");
+			if (p.Shape == "model" && p.Model.empty()) return where + " '" + p.Name + "': a model part names its piece (\"model\": \"<path of a glTF>\")";
+			if (p.Shape != "model" && !materials.count(p.Material)) return where + " '" + p.Name + "': unknown material '" + p.Material + "'";
 			p.Sides = j.value("sides", p.Sides);
 			p.Bend = j.value("bend", p.Bend);
 			p.Detail = j.value("detail", p.Detail);
@@ -337,6 +340,22 @@ namespace GB
 					for (const Json& s : *c) r.CarryJobs.push_back(s.get<std::string>());
 				}
 				r.MaxShown = std::clamp(p.value("maxShown", r.MaxShown), 0, 8);
+				if (const auto o = p.find("outfits"); o != p.end() && o->is_object())
+					for (const auto& [role, j] : o->items())
+					{
+						PropRules::Outfit outfit;
+						if (j.contains("color") && !ReadVec(j, "color", outfit.Color)) return "outfit '" + role + "': color is [r, g, b]";
+						if (const auto ps = j.find("props"); ps != j.end() && ps->is_array())
+							for (const Json& q : *ps)
+							{
+								PropRules::OutfitPiece pl;
+								pl.Name = "outfit:" + q.value("name", std::string("piece"));
+								pl.Socket = q.value("socket", std::string("back"));
+								pl.Look = q.value("look", std::string());
+								outfit.Props.push_back(pl);
+							}
+						r.Outfits[role] = outfit;
+					}
 			}
 		}
 		catch (const Json::exception& e)
@@ -354,6 +373,12 @@ namespace GB
 			if (!next.Props.Looks.count(c.Look)) return "a carry rule uses the unknown look '" + c.Look + "'";
 		for (const auto& [family, socket] : next.Props.RestSockets)
 			if (!OneOf(socket, kSockets)) return "'" + family + "' rests at the unknown socket '" + socket + "'";
+		for (const auto& [role, outfit] : next.Props.Outfits)
+			for (const PropRules::OutfitPiece& pl : outfit.Props)
+			{
+				if (!next.Props.Looks.count(pl.Look)) return "the outfit of '" + role + "' wears the unknown look '" + pl.Look + "'";
+				if (!OneOf(pl.Socket, kSockets)) return "the outfit of '" + role + "' hangs at the unknown socket '" + pl.Socket + "'";
+			}
 		for (const auto& [tag, pile] : next.Piles)
 			if (!next.Models.count(pile.Model)) return "the pile of '" + tag + "' uses the unknown model '" + pile.Model + "'";
 		for (const auto& [tag, c] : next.Creatures)
@@ -455,6 +480,19 @@ namespace GB
 		props["carry"] = carry;
 		props["carryJobs"] = lib.Props.CarryJobs;
 		props["maxShown"] = lib.Props.MaxShown;
+		if (!lib.Props.Outfits.empty())
+		{
+			Json outfits = Json::object();
+			for (const auto& [role, o] : lib.Props.Outfits)
+			{
+				Json j = Json::object(), ps = Json::array();
+				if (o.Color.r >= 0.0f) j["color"] = Vec(o.Color);
+				for (const PropRules::OutfitPiece& pl : o.Props) ps.push_back({ { "name", pl.Name.substr(pl.Name.rfind(':') + 1) }, { "socket", pl.Socket }, { "look", pl.Look } });
+				j["props"] = ps;
+				outfits[role] = j;
+			}
+			props["outfits"] = outfits;
+		}
 		root["props"] = props;
 		Json doc;
 		doc["visuals"] = root;
@@ -492,6 +530,7 @@ namespace GB
 			{
 				if (copy < visible.size() && !visible[copy]) continue;
 				if (copy >= visible.size()) continue;
+				if (p.Shape == "model") continue;   // (a kit piece: ModelPieces)
 				VisualPiece* target = nullptr;
 				for (VisualPiece& pc : pieces) if (pc.Material == p.Material) target = &pc;
 				if (!target) { pieces.push_back({ MeshData(), p.Material }); target = &pieces.back(); }
@@ -506,6 +545,22 @@ namespace GB
 		}
 		pieces.erase(std::remove_if(pieces.begin(), pieces.end(), [](const VisualPiece& p) { return p.Mesh.Empty(); }), pieces.end());
 		return pieces;
+	}
+
+	std::vector<std::pair<size_t, glm::mat4>> ModelPieces(const VisualModel& model, const std::vector<bool>& visible, int variant)
+	{
+		std::vector<std::pair<size_t, glm::mat4>> out;
+		const uint32_t seed = VisualHash(static_cast<uint32_t>(variant) + 1u, 0x2F6B7A3Du);
+		size_t copy = 0;
+		for (size_t pi = 0; pi < model.Parts.size(); ++pi)
+		{
+			const VisualPart& p = model.Parts[pi];
+			const glm::mat4 own = glm::translate(glm::mat4(1.0f), p.Position) * Rotation(p.Rotation) * glm::scale(glm::mat4(1.0f), p.Size);
+			const uint32_t partSeed = VisualHash(seed, static_cast<uint32_t>(pi) * 104729u);
+			for (int i = 0; i < p.Count; ++i, ++copy)
+				if (p.Shape == "model" && copy < visible.size() && visible[copy]) out.push_back({ pi, CopyTransform(p, i, partSeed) * own });
+		}
+		return out;
 	}
 
 	int VisualVariant(const VisualModel& model, const std::string& instance)

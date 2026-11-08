@@ -40,6 +40,7 @@ add_library(GB STATIC
     src/GB/Gameplay/GameplayWorld.cpp
     src/GB/Gameplay/Garden.cpp
     src/GB/Gameplay/Items.cpp
+    src/GB/Gameplay/ShippedContent.cpp
     src/GB/Gameplay/Techs.cpp
     src/GB/Gameplay/ContentPack.cpp
     src/GB/Gameplay/Resources.cpp
@@ -57,6 +58,7 @@ add_library(GB STATIC
     src/GB/Game/TribeExplore.cpp
     src/GB/Game/TribeEconomy.cpp
     src/GB/Game/TribeConflict.cpp
+    src/GB/Game/Trails.cpp
     src/GB/Game/Conflict.cpp
     src/GB/Game/ClanHostility.cpp
 
@@ -82,6 +84,14 @@ add_library(GB STATIC
     src/GB/Game/Schedule.cpp
     src/GB/Game/GameContent.cpp
     src/GB/Game/TribeClans.cpp
+    src/GB/Game/TribeHistory.cpp
+    src/GB/Game/TribeNeeds.cpp
+    src/GB/Game/TribeLeap.cpp
+    src/GB/Game/ClansPolity.cpp
+    src/GB/Game/DataNeeds.cpp
+    src/GB/Game/History.cpp
+    src/GB/Game/Values.cpp
+    src/GB/Game/Requests.cpp
     src/GB/Game/Diplomacy.cpp
     src/GB/Game/Territory.cpp
     src/GB/Game/Clans.cpp
@@ -165,6 +175,7 @@ add_library(GB STATIC
     src/GB/Water/RiverHydraulics.cpp
     src/GB/Water/WaterPlanner.cpp
     src/GB/World/Graph/TerrainGraph.cpp
+    src/GB/World/Graph/TerrainGraphPresets.cpp
     src/GB/World/Graph/ITerrainNode.cpp
     src/GB/World/Graph/ITerrainTarget.cpp
     src/GB/World/Graph/Nodes/OutputNode.cpp
@@ -177,6 +188,10 @@ add_library(GB STATIC
     src/GB/World/Graph/Nodes/ErosionNode.cpp
     src/GB/World/Graph/Nodes/ThermalErosionNode.cpp
     src/GB/World/Graph/Nodes/FlowAccumulationNode.cpp
+    src/GB/World/Graph/Nodes/FieldNodes.cpp
+    src/GB/World/Graph/Nodes/MaskNodes.cpp
+    src/GB/World/Graph/Nodes/WaterCarveNodes.cpp
+    src/GB/World/Graph/Nodes/ValleyNodes.cpp
     src/GB/World/Graph/Nodes/ScatterNode.cpp
     src/GB/World/Graph/Nodes/BiomeClassifyNode.cpp
     src/GB/World/Graph/Nodes/BuiltinNodes.cpp
@@ -184,6 +199,7 @@ add_library(GB STATIC
     src/GB/World/Destruction.cpp
     src/GB/World/Biome.cpp
     src/GB/World/WorldGen.cpp
+    src/GB/World/WorldGenLegacy.cpp
     src/GB/Renderer/EnvironmentMap.cpp
     src/GB/Effects/Lightning.cpp
     src/GB/Effects/SandSpray.cpp
@@ -205,6 +221,8 @@ add_library(GB STATIC
     src/GB/Renderer/WaterRenderer.cpp
     src/GB/Renderer/Visibility.cpp)
 add_library(GB::GB ALIAS GB)
+# the game's data (ShippedContent.h): the catalogue is read from here unless the application says otherwise
+target_compile_definitions(GB PRIVATE GB_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets/data")
 
 target_include_directories(GB PUBLIC src)
 find_package(Threads REQUIRED)

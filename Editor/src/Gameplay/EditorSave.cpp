@@ -5,6 +5,7 @@
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/Log.h"
 #include "GB/World/WorldGen.h"
+#include <chrono>
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -29,6 +30,8 @@ namespace GB::Editor
 		constexpr const char* kSeasonSection = "season-look";          // the weather, snow and leaf colour the season wrote
 		constexpr const char* kClansSection = "clans";                 // H13: the clans besides the first (their tribes), relations, territory, meetings
 		constexpr const char* kKnowledgeSection = "knowledge-clan";    // H11: what the clan knows, what is half learnt, the tries (each member's own is in its actor)
+		constexpr const char* kHistorySection = "history";           // V1: what the world lived through and what each person remembers of it
+		constexpr const char* kRequestsSection = "requests";         // V3: what people asked of the player
 
 		// `wild`: the density of the resource nodes spread over the world (`resources world`), 0 when there are none; they are part of the baseline.
 		WorldParams ParamsOf(const WorldDesc& d, bool generated, float wild)
@@ -73,6 +76,7 @@ namespace GB::Editor
 			const Entity keep = dst;
 			dst = src;
 			dst.Id = keep.Id;
+			dst.Name = keep.Name;   // the name Insert gave (the same, unless it clashed): the world's index of names knows it by that one
 			dst.Parent = keep.Parent;
 			dst.Children = keep.Children;
 		}
@@ -293,6 +297,8 @@ namespace GB::Editor
 		if (!m_App.m_Tribe.Members().empty()) out.push_back({ kTribeSection, 1, m_App.m_Tribe.ToJson() });   // store, fire, memory and decisions (the needs are attributes)
 		if (!m_App.m_Tribe.Members().empty() && m_App.m_Tribe.Knowledge().Gated()) out.push_back({ kKnowledgeSection, 1, m_App.m_Tribe.Knowledge().ToJson() });
 		if (m_App.m_Clans.Count() > 1) out.push_back({ kClansSection, 1, m_App.m_Clans.ToJson() });   // H13 (a game of one clan writes what it wrote before)
+		if (!m_App.m_Clans.Past().Events().empty()) out.push_back({ kHistorySection, 1, m_App.m_Clans.Past().ToJson() });   // V1
+		if (!m_App.m_Clans.Requests().All().empty()) out.push_back({ kRequestsSection, 1, m_App.m_Clans.Requests().ToJson() });   // V3
 		return out;
 	}
 
@@ -378,6 +384,13 @@ namespace GB::Editor
 			if (s.Name == kKnowledgeSection && !app.m_Tribe.Knowledge().FromJson(s.Json)) GB_CLIENT_WARN("the knowledge of the clan in the save could not be read: it starts again");
 		for (const SectionBlob& s : game.Sections)
 			if (s.Name == kClansSection) app.RestoreClans(s.Json);   // H13 (a save from before has none: its tribe is clan 0, alone)
+		// V1: the history (a save from before has none: it starts empty)
+		app.m_Clans.Past().Clear();
+		for (const SectionBlob& s : game.Sections)
+			if (s.Name == kHistorySection && !app.m_Clans.Past().FromJson(s.Json)) GB_CLIENT_WARN("the history of the save could not be read: it starts again");
+		app.m_Clans.Requests().Clear();
+		for (const SectionBlob& s : game.Sections)
+			if (s.Name == kRequestsSection && !app.m_Clans.Requests().FromJson(s.Json)) GB_CLIENT_WARN("the requests of the save could not be read: they are gone");
 		// what the systems keep apart from the components (a save from before these sections leaves them at their start)
 		std::string ecology = "{\"born\":0,\"starved\":0,\"eaten\":0,\"walks\":[]}", interactives = app.m_NoInteractiveTimers;
 		SeasonLook look;
@@ -406,6 +419,10 @@ namespace GB::Editor
 
 	void EditorSaveHost::Step()
 	{
+		// (the wall time of each part of the tick, for `stats sim`: laps of the clock, never read by the simulation)
+		using Clock = std::chrono::steady_clock;
+		auto mark = Clock::now();
+		auto lap = [&mark, this](int part) { const auto now = Clock::now(); m_App.m_SimPartMs[part] += std::chrono::duration<double, std::milli>(now - mark).count(); mark = now; };
 		// The characters move in the fixed tick (not with the frame time) so a replay, a loaded game and a run at another frame rate go the same way. With a player
 		// driving one they follow the frame, which reads the keyboard (EditorApp::OnUpdate).
 		if (!m_App.m_Player.IsActive())
@@ -414,20 +431,36 @@ namespace GB::Editor
 			m_App.m_Actors.PrepareAbilities();
 			m_App.m_Actors.Update(static_cast<float>(kSimDt));
 		}
+		lap(0);
 		m_App.m_Gameplay.Update(static_cast<float>(kSimDt));
+		lap(1);
 		m_App.m_Garden.Update(static_cast<float>(kSimDt));
 		m_App.StepResources();
+		lap(2);
 		m_App.StepWorld(static_cast<double>(m_App.m_SimTick) / 60.0);
+		lap(3);
 		m_App.m_Interactives.Update(static_cast<float>(kSimDt), &m_App.m_SceneEditor.World());
 		m_App.m_Buildings.Update(static_cast<float>(kSimDt), &m_App.m_SceneEditor.World());   // H8: the sites the tribe (or a load) made are picked up; their parts grow
 		for (const auto& c : m_App.m_Clans.All()) c->Buildings = static_cast<float>(c->Folk->BuildingCount());   // H8: its finished buildings make its claims stronger (H13)
+		lap(4);
 		m_App.StepCombat();   // H14: blows, wounds, the predators; after the animals moved, before the clans read what happened
-		m_App.m_Clans.SetViewer({ m_App.m_Camera.Position.x, m_App.m_Camera.Position.z });   // far from the camera the members are abstract agents
+		lap(5);
+		// far from what the camera looks at the members are abstract agents (its target, not the camera itself: a view from high above still
+		// shows the people under it)
+		m_App.m_Clans.SetViewer({ m_App.m_Orbit.Target.x, m_App.m_Orbit.Target.z });
 		m_App.m_Clans.SetWorldClock(static_cast<double>(m_App.m_SimTick) / 60.0);
 		m_App.SyncRegions();   // H12: the tribes know the world by regions (rebuilt only when the world or its wild nodes change)
 		m_App.m_Clans.Update(static_cast<float>(kSimDt));   // H13: every clan (the first is m_Tribe), then what lies between them
+		lap(6);
 		m_App.StepQa();   // the invariants of the simulation, every half second (QA panel)
+		m_App.StepVillageReport();
+		lap(7);
 		++m_App.m_SimTick;
+		if (++m_App.m_SimPartTicks >= 300)   // a window of 5 s of game: its means become what `stats sim` says
+		{
+			for (int k = 0; k < EditorApp::kSimParts; ++k) { m_App.m_SimPartMean[k] = m_App.m_SimPartMs[k] / m_App.m_SimPartTicks; m_App.m_SimPartMs[k] = 0.0; }
+			m_App.m_SimPartTicks = 0;
+		}
 	}
 
 	bool EditorSaveHost::Command(const std::string& line, std::string& message)
@@ -442,8 +475,13 @@ namespace GB::Editor
 	{
 		m_SimAccum += static_cast<double>(dt);
 		int steps = 0;
+		auto overBudget = [this]
+		{
+			return m_SimBudgetMs > 0.0 && std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - m_FrameStart).count() > m_SimBudgetMs;
+		};
 		for (; m_SimAccum >= kSimDt && steps < 8; ++steps)
 		{
+			if (steps > 0 && overBudget()) { m_SimAccum = 0.0; break; }   // the frame's time is spent: the world runs slower instead of the window stalling
 			m_SaveHost->Step();
 			m_SimAccum -= kSimDt;
 		}
@@ -498,6 +536,13 @@ namespace GB::Editor
 		if (sub == "record")
 		{
 			if (m_Recorder.Active()) return { false, "already recording" };
+			// the run goes on from the state a load would give, as the replay will: what live characters carry that a save does not (a montage under
+			// way, the pose a walk left them in) would otherwise make the recording and its playback part after a few seconds
+			{
+				const CaptureResult start = CaptureGame(*m_SaveHost);
+				const Result applied = ApplyGame(*m_SaveHost, start.Game);
+				if (!applied.Ok) return { false, "cannot start recording: " + applied.Error };
+			}
 			const Result r = m_Recorder.Begin(*m_SaveHost);
 			for (const std::string& w : r.Warnings) GB_CLIENT_WARN("{}", w);
 			return { true, "recording from tick " + std::to_string(m_SimTick) + " (garden, ability, add, delete, move, set, time, weather... are kept; replay stop <file>)" };
@@ -591,6 +636,13 @@ namespace GB::Editor
 				m_AutoSaver.Configure(a[0] == "on", seconds);
 			}
 			return { true, std::string("autosave ") + (m_AutoSaver.Enabled() ? "on" : "off") + ", every " + std::to_string(static_cast<int>(m_AutoSaver.Interval())) + " s" };
+		});
+		c.Register("advance", "advance <ticks>: runs that many fixed ticks of the simulation now, in this frame (as a replay plays them; a recording keeps the time it gives)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			const int n = a.empty() ? 0 : std::atoi(a[0].c_str());
+			if (n <= 0 || n > 360000) return { false, "usage: advance <ticks> (1..360000; 60 ticks are a second of game)" };
+			for (int i = 0; i < n; ++i) m_SaveHost->Step();
+			return { true, "advanced " + std::to_string(n) + " ticks (tick " + std::to_string(m_SimTick) + ")" };
 		});
 		c.Register("replay", "replay record | replay stop [file] | replay play <file>: records the orders of a session and plays them again from the same start to check the end state", [this](const std::vector<std::string>& a) -> CommandResult { return ReplayCommand(a); });
 	}

@@ -6,14 +6,6 @@
 
 namespace GB
 {
-	namespace
-	{
-		double Param(const TgNode& n, const char* key, double fallback)
-		{
-			const auto it = n.Params.find(key);
-			return it == n.Params.end() ? fallback : it->second;
-		}
-	}
 
 	bool DepressionFillNode::Evaluate(const TgNode& node, const TgContext&, const std::vector<const TgField*>& inputs, TgField& out, std::string& error) const
 	{
@@ -26,7 +18,7 @@ namespace GB
 		out = in;
 		const uint32_t n = in.N;
 		if (n < 3) return true;
-		const float epsilon = static_cast<float>(Param(node, "Epsilon", 0.001));
+		const float epsilon = static_cast<float>(TgParam(node, "Epsilon", 0.001));
 
 		std::vector<uint8_t> closed(out.Values.size(), 0);
 		using Item = std::pair<float, uint32_t>;   // (height, flat index): ties go to the lower index, so the result is deterministic
@@ -64,5 +56,17 @@ namespace GB
 				}
 		}
 		return true;
+	}
+
+	TgNodeSchema DepressionFillNode::Describe() const
+	{
+		TgNodeSchema s;
+		s.Category = "Water";
+		s.Summary = "Fills every pit so that each cell drains to the border or an outlet (Priority-Flood, Barnes et al. 2014).";
+		s.Color = 0x288282;
+		s.Inputs = { { "height", TgPortKind::Field }, { "outlets", TgPortKind::Field, true, "cells > 0.5 drain like the border (a lake)" } };
+		s.Outputs = { { "height", TgPortKind::Field } };
+		s.Params = { { "Epsilon", 0.001, 0, 0.05, false, "metres a filled cell rises above the one it drains through" } };
+		return s;
 	}
 }

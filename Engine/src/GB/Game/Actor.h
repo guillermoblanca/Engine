@@ -87,6 +87,8 @@ namespace GB
 		// The world circles of the other actors, to push against this frame (the static ones come with the host).
 		void SetOthers(const std::vector<CircleObstacle>& others) { m_Movement->SetOthers(others); }
 		void AddToScene(Scene& scene) const { if (m_Geometry) m_Geometry->AddToScene(scene); if (m_Props) m_Props->AddToScene(scene); }
+		void SetTints(std::vector<glm::vec3> tints) { if (m_Geometry) m_Geometry->SetTints(std::move(tints)); }   // U4: a colour per material
+		const std::vector<glm::vec3>* Tints() const { return m_Geometry ? &m_Geometry->Tints() : nullptr; }
 
 		// ---- save: name, kind and place are the object's; each component adds its own (InventoryComponent, AnimationComponent, PropsComponent...)
 		void CaptureState(Save::ActorState& state) const;
@@ -104,6 +106,7 @@ namespace GB
 		// Replaces the static obstacles (trees felled or planted, a door that closed): until now they were the ones the actor was built with.
 		void SetStaticObstacles(const std::vector<CircleObstacle>& obstacles) { m_Movement->SetStaticObstacles(obstacles); }
 		void SetNavigation(const NavGrid* nav) { m_Movement->SetNavigation(nav); }   // null: straight lines
+		void SetPace(float pace) { m_Movement->SetPace(pace); }   // T5c: faster on a trail (1 = its own speeds)
 		NavProfile Navigation;   // how this actor values the terrain when it plans a path (role, load); see GB/Navigation/NavGrid.h
 		bool AIArrived() const { return m_Orders->AIArrived(); }
 		bool AIStuck() const { return m_Orders->AIStuck(); }

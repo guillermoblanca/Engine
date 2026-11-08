@@ -19,6 +19,7 @@ namespace GB
 	class ScatterNode final : public ITerrainNode, public IScatterNode
 	{
 	public:
+		TgNodeSchema Describe() const override;
 		bool Evaluate(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs, TgField& out, std::string& error) const override;
 		const IScatterNode* AsScatterNode() const override { return this; }
 		bool Scatter(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs, TgPlacements& out, std::string& error) const override;

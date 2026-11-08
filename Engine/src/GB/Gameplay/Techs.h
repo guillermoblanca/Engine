@@ -40,6 +40,21 @@ namespace GB
 		bool operator==(const TechDef&) const = default;
 	};
 
+	// N6 (docs/PLAN_SIMULACION_NATURAL.md): an era a clan can be in ("knowledge": { "eras": [ ... ] }), in order: a clan is in the last whose
+	// key technologies it knows all of (the first has none: where everyone starts). Each era has its own ladder, and the eras it can be reached
+	// from pull a clan towards their ladder by what it has near (its interest items) and a bias.
+	struct EraDef
+	{
+		std::string Id, Name;
+		std::vector<std::string> Key;           // technologies that, all known, put the clan in this era
+		std::vector<std::string> From;          // the eras it is the next step of (empty: none)
+		std::vector<std::string> Progression;   // its ladder (the first unknown, after what it requires, is a goal)
+		std::vector<std::string> Interest;      // items whose nearness pulls a clan towards this era (copper ore for the copper age)
+		float Pull = 0.5f;                      // the pull of its ladder with nothing near (the current era's ladder pulls 1)
+		float Leap = 0.0f;                      // V6: years the world leaps between two lives in this era (long at first, short at the end; 0: none)
+		bool operator==(const EraDef&) const = default;
+	};
+
 	// The pace of knowledge for the whole clan (JSON "knowledge" beside "techs").
 	struct KnowledgeRules
 	{
@@ -47,6 +62,11 @@ namespace GB
 		float ObserveRadius = 12.0f;   // how far away an agent sees someone else use a technology
 		float Growth = 0.5f;           // each failed try multiplies the next try's chance by (1 + Growth x tries so far)
 		uint32_t Seed = 1;             // the seed of the rolls: the same seed, names and clock give the same discoveries
+		float ExperimentProgress = 1.0f;   // U6: a failed try adds its chance x this to the agent's understanding (Progress): at 1 it is found. 0: luck only
+		// The ladder a clan climbs on its own ("progression": [ tech ids ]): the first it does not know yet (and what that requires) is one of
+		// its goals, beside the technologies of the buildings it needs (Tribe::UpdateGoals). Empty = only the buildings lead it.
+		std::vector<std::string> Progression;
+		std::vector<EraDef> Eras;      // N6: empty = no eras (the one ladder above)
 		bool operator==(const KnowledgeRules&) const = default;
 	};
 

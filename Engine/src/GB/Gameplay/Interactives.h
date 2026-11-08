@@ -132,6 +132,7 @@ namespace GB
 		int FuelOf(const std::string& item, int fallback) const;
 		int TakeFuel(const std::string& actor, int fallback) const;   // takes one fuel item out of the actor's bag; the heat it gives (0 = none to give)
 		GameplayWorld* m_Gameplay = nullptr;
+		TaggedSystems m_Kinds{ { "Interactive.Campfire", "Interactive.Well", "Interactive.Door" } };
 		Take m_Take;
 		Give m_Give;
 		std::vector<std::pair<std::string, float>> m_Burn;   // interactive name -> time into the current unit of fuel / to the next refill

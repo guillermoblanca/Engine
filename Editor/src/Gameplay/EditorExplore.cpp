@@ -18,7 +18,7 @@ namespace GB::Editor
 			return;
 		}
 		const WorldDesc& d = m_World.World().Desc;
-		const std::string key = std::to_string(static_cast<int>(d.Type)) + " " + std::to_string(d.Seed) + " " + std::to_string(d.GeneratorVersion) + " " + std::to_string(m_WildResources)
+		const std::string key = std::to_string(m_World.BuildCount()) + " " + std::to_string(static_cast<int>(d.Type)) + " " + std::to_string(d.Seed) + " " + std::to_string(d.GeneratorVersion) + " " + std::to_string(m_WildResources)
 			+ " " + ExplorationRulesToJson(m_Tribe.Config.Explore);
 		if (key != m_RegionsKey)
 		{
@@ -28,6 +28,7 @@ namespace GB::Editor
 			m_RegionsKey = key;
 			m_RegionTicks = 0;
 			for (const auto& c : m_Clans.All()) c->Folk->SetRegions(nullptr);   // (the same address: set it again so each tribe checks its map against the new cut)
+			m_Clans.SetRegions(nullptr);   // and so the clan world's chooser below is made again: the one it has reads the world that went
 		}
 		for (const auto& c : m_Clans.All())   // every clan (H13) lives on the same regions, and the clan world claims them
 			if (c->Folk->Regions() != &m_Regions)

@@ -1,0 +1,20 @@
+# V0 (docs/VISION_MUNDO_VIVO.md): the player can be anyone of any clan. `play` makes a world with two clans and the player in the first; `game become
+# clan Blue` takes over the first member of the second clan: the character left goes back to its clan's brain and the HUD, the orders and the store
+# are now the Blue clan's. The game is saved and loaded and the player is still that member of the Blue (a member marked as a player in a kept clan).
+play temperate 5 3 2
+qa expect "game status" "player: Player \(forager\)"
+timescale 10
+wait 120
+game become clan Blue
+qa expect "game status" "player: (?!Player )[A-Z][a-z]+ \("
+qa expect "game take berry 1" "store is at the camp|you take"
+wait 120
+qa expect "clan list" "Blue"
+game save v0_become
+game load v0_become
+qa expect "game status" "player: (?!Player )[A-Z][a-z]+ \("
+game become Player
+qa expect "game status" "player: Player \("
+qa check
+qa expect "qa status" "[1-9][0-9]* live checks, 0 violation"
+quit

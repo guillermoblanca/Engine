@@ -5,6 +5,7 @@
 #include "GB/Game/Clans.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Combat.h"
+#include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Items.h"
@@ -268,12 +269,18 @@ namespace GB
 		const RecipeBook* Recipes = nullptr;
 		const std::map<std::string, ResourceNodeDef>* Nodes = nullptr;
 		const TribeConfig* Config = nullptr;     // roles, work rules (H7), agenda and economy of the clan (null: the built-in ones)
+		const DiplomacyRules* Diplomacy = nullptr;   // the content's "diplomacy" (null: the built-in rules; the long runs read theirs, as the editor does)
+		const CombatRules* CombatRules = nullptr;    // the content's "combat" (null: the built-in rules)
+		// with Combat: the species of the content; the game of social.hunting.wildlife is let loose round each camp (as the editor does), so the
+		// clans hunt (meat and hides: cooking, hide working, the way to the later eras). Null: no animals, as before
+		const std::map<std::string, SpeciesDef>* Species = nullptr;
 		const TechTree* Techs = nullptr;         // H11: the technologies (null: the built-in DefaultTechs(), what era1.json says)
 		const RegionMap* Regions = nullptr;      // H12: the regions (null: cut from the world with the clan's rules and the planned nodes); must outlive the run
 		const std::map<std::string, BuildingDef>* Buildings = nullptr;   // H8: with them the clan builds (null: it builds nothing, as before); must outlive the run
 		// H16, scale: several clans on the world (a ClanWorld; the first is the tribe of the run, Brain()). Members are shared out among them and each
 		// further clan settles where ClanWorld::ChooseHome says (at least ClanApart from every camp), with a well of its own.
 		int Clans = 1;
+		std::vector<std::string> Know;           // V5: technologies every clan starts knowing, with all they require (a run at the door of an era)
 		float ClanApart = 70.0f;
 		int ThinkPerFrame = -1;                  // the clan world's shared budget of thinking turns (-1: its default; see ClanWorld::ThinkPerFrame)
 		int PlanBudget = 0;                      // searches of the grid per step, shared fairly by every body (0: no budget, as before H16)
@@ -324,6 +331,8 @@ namespace GB
 
 	private:
 		void Frame();
+		void SetUpClan(Tribe& t, const std::string& name, const glm::vec2& home);
+		void DigWell(const std::string& name, const glm::vec2& at);
 
 		SimSetup m_Setup;
 		std::string m_Error;
@@ -339,6 +348,7 @@ namespace GB
 		InteractiveSystem m_Rules;
 		BuildingSystem m_Builds;   // H8 (only with SimSetup::Buildings)
 		CombatSystem m_Combat;            // H14 (only with SimSetup::Combat): the fights of every clan of the run
+		EcologySystem m_Ecology;          // the wild animals (only with SimSetup::Combat and Species)
 		HostilityTable m_Hostility;
 		ClanHostility m_ClanHostility;
 		Tribe m_Tribe;

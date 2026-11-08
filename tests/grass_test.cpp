@@ -79,6 +79,33 @@ int main()
 	Check(short1.CountVisibleBlades({ 0.0f, 1.0f, 0.0f }) < short1.GetBladeCount() / 2, "a short draw distance keeps the far chunks out");
 	Check(short1.CountVisibleBlades({ 500.0f, 1.0f, 500.0f }) == 0, "far from the field nothing is drawn");
 
+	// Following the camera: the field moves on its own chunk grid and the same place always grows the same blades.
+	GB::GrassField moving(p);
+	Check(!moving.Recenter({ 3.0f, -2.0f }), "a move smaller than half a chunk keeps the field");
+	Check(moving.Recenter({ 100.0f, -60.0f }), "a far move regrows the field there");
+	bool around = moving.GetBladeCount() > 0;
+	for (const GB::GrassBlade& b : moving.GetBlades())
+		around = around && std::fabs(b.PositionYaw.x - 100.0f) <= 30.0f && std::fabs(b.PositionYaw.z + 60.0f) <= 30.0f;
+	Check(around, "after the move the blades cover the square around the new centre");
+	Check(Near(static_cast<float>(moving.GetBladeCount()), expected, expected * 0.03f), "a moved field keeps its density");
+	moving.Recenter({ 0.0f, 0.0f });
+	bool back = moving.GetBladeCount() == field.GetBladeCount();
+	for (size_t i = 0; back && i < field.GetBladeCount(); i += 29)
+		back = moving.GetBlades()[i].PositionYaw == field.GetBlades()[i].PositionYaw && moving.GetBlades()[i].Shape == field.GetBlades()[i].Shape;
+	Check(back, "back where it began, the field is the one it was");
+	GB::GrassParams tinted = p;
+	tinted.TintFn = [](float x, float) { return glm::vec4(1.0f, 0.9f, 0.8f, x > 0.0f ? 1.0f : 0.0f); };
+	tinted.HeightScaleFn = [](float, float) { return 0.5f; };
+	GB::GrassField tintedField(tinted);
+	bool tintOk = true, shorter = true;
+	for (const GB::GrassBlade& b : tintedField.GetBlades())
+	{
+		tintOk = tintOk && b.Tint.y == 0.9f && b.Tint.w == (b.PositionYaw.x > 0.0f ? 1.0f : 0.0f);
+		shorter = shorter && b.Shape.x <= p.Height.y * 0.5f + 1e-5f;
+	}
+	Check(tintOk && shorter, "TintFn and HeightScaleFn shape each blade by its place");
+	Check(field.GetBlades()[0].Tint == glm::vec4(1.0f, 1.0f, 1.0f, 0.0f), "without TintFn a blade keeps the plain look");
+
 	// ---------------------------------------------------------------- GPU
 	GB::WindowProps props;
 	props.Visible = false;

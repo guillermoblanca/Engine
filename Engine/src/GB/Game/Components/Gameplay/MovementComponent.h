@@ -34,6 +34,8 @@ namespace GB
 		// A set with a walk and no run (a box, a barrow) caps the speeds: never faster than `limit`, never above the controller's own.
 		bool HasOwnSpeeds() const { return m_BaseRun > 0.0f; }
 		void LimitSpeeds(float limit);
+		// T5c: walks this many times faster than the speeds above allow (a trail, a paved path: GB/Game/Trails.h). 1 = as they are.
+		void SetPace(float pace);
 		// One step with the input of the frame, then the motion of the body.
 		void Step(const CharacterInput& input, float dt);
 		// The motion without a step: the body is moved by something else (a ragdoll).
@@ -47,6 +49,8 @@ namespace GB
 		size_t m_StaticObstacles = 0;
 		float m_Height = 1.75f;
 		float m_BaseWalk = 0.0f, m_BaseRun = 0.0f;   // the controller's own speeds, before a set with no run clip caps them
+		float m_Limit = 1e30f, m_Pace = 1.0f;          // the cap of the set (LimitSpeeds) and the pace of the ground (SetPace)
+		void ApplySpeeds();
 		MotionTracker m_Tracker;
 		MotionState m_Motion;
 	};

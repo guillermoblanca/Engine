@@ -49,6 +49,8 @@ namespace GB
 		std::string Role = "forager";          // the trade a player starts with (the review of the trades never moves it)
 		bool Mortal = false;                   // false: its health never falls below FloorHealth (hunger and cold weaken it, they do not kill it)
 		float FloorHealth = 10.0f;
+		// V3: the causes of death that kill a player even when it is not Mortal (a life ends: old age; a deadly blow still only knocks it out), so the game goes on with an heir
+		std::vector<std::string> MortalCauses = { "OldAge" };
 		float Reach = 4.0f;                    // how near a member, a node or an interactive must be to act on it
 		float CampReach = 7.0f;                // how near the camp the player must be to use the store
 		float StandingStart = 10.0f;
@@ -99,7 +101,7 @@ namespace GB
 
 	struct ControlRules
 	{
-		std::map<std::string, std::string> Keys;   // action -> key: interact, eat, drink, deposit, sleep, clan, jobs, claim, pause, faster, slower, save, load, help
+		std::map<std::string, std::string> Keys;   // action -> key: interact, eat, drink, deposit, sleep, clan, jobs, claim, pause, faster, slower, save, load, help, console, village, homes, clans, tech, map, story
 		HudRules Hud;
 		GameSetup Game;
 		bool operator==(const ControlRules&) const = default;
@@ -154,6 +156,7 @@ namespace GB
 		std::vector<Proposal> Proposals;       // the latest first is at the back (the last 40 are kept)
 		int NextProposal = 1;
 		double DayTimer = 0.0;
+		std::string Aim, AimBy;                // the technology a player set the clan to seek (Tribe::PlayerResearch; "" = the clan chooses) and who
 		void Clear() { *this = PlayerSociety(); }
 		std::string ToJson() const;
 		bool FromJson(const std::string& json);   // false (nothing changed) on a mistake

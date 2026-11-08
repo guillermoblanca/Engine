@@ -98,6 +98,17 @@ namespace GB
 	};
 
 
+	// A layer of the ground's material with a 0..1 weight per sample of the heightmap (row major, resolution^2): what a terrain graph's
+	// "splat_rock"/"splat_snow"/"splat_grass"/"splat_sand"/"splat_dry"/"splat_forest" outputs give (docs/GRAFO_TERRENO.md, 4b). The layers are
+	// painted into the macro colour map over the style's palette, in order (a later layer covers an earlier one); rock also carves its fluting
+	// into the surface normals. Dry is sun-cured grass (olive to straw); Forest is the canopy seen from afar (crowns and the dark between them).
+	enum class SurfaceLayerKind { Rock, Snow, Grass, Sand, Dry, Forest };
+	struct SurfaceLayer
+	{
+		SurfaceLayerKind Kind = SurfaceLayerKind::Rock;
+		std::vector<float> Weights;
+	};
+
 	// A drawable heightfield with a matching material (grain, wind ripples, slope-based coloring).
 	class Terrain
 	{
@@ -107,11 +118,28 @@ namespace GB
 			TerrainStyle style = TerrainStyle::Desert, bool gpu = true);
 		static std::unique_ptr<Terrain> CreateHills(const HillParams& hills = {}, float size = 256.0f, uint32_t resolution = 513,
 			TerrainStyle style = TerrainStyle::Meadow, bool gpu = true);
+		// CreateHills without the hills' noise: `ground` (a terrain graph's height output, or any heightmap) is the ground the lake and river of
+		// `water` are carved into; the rest of the recipe (refinement, surface maps) is read the same way. CreateHills is its noise + this.
+		static std::unique_ptr<Terrain> CreateFromHeightmap(const Heightmap& ground, const HillParams& water = {},
+			TerrainStyle style = TerrainStyle::Meadow, bool gpu = true);
+		// A ground the water has already been carved into (a terrain graph's lake_carve/river_carve): `water` is taken as it is, nothing is dug.
+		// Only the refinement and surface-map fields of `recipe` are read.
+		static std::unique_ptr<Terrain> CreateFromHeightmap(const Heightmap& ground, const WaterField& water, const HillParams& recipe,
+			TerrainStyle style = TerrainStyle::Meadow, bool gpu = true);
 
 		// Builds the mesh, the material and its textures from the heights (needs an OpenGL context); nothing when they are already built. The result
 		// is the same as building them at creation.
 		void BuildGpu();
+		// The CPU half of BuildGpu (the refined mesh sorted into tiles, the images of the textures), on any thread and with no OpenGL: a world
+		// generated in the background prepares it there, so BuildGpu on the main thread only uploads (a 3 km map froze the window for seconds).
+		// Nothing when it is prepared or built already.
+		void PrepareGpu();
 		bool HasGpu() const { return m_Mesh != nullptr; }
+		// The material layers (see SurfaceLayer); a layer whose weights are not resolution^2 long is ignored. Read when the surface maps are
+		// built (BuildGpu): set them before it. Without layers the ground is coloured by its style alone, as always.
+		void SetSurfaceLayers(std::vector<SurfaceLayer> layers);
+		const std::vector<SurfaceLayer>& GetSurfaceLayers() const { return m_Layers; }
+		float SurfaceLayerWeight(SurfaceLayerKind kind, float x, float z) const;   // bilinear; 0 without that layer
 
 		const Heightmap& GetHeightmap() const { return m_Heightmap; }
 		Heightmap& GetEditableHeightmap() { return m_Heightmap; }   // call RefreshMesh after editing
@@ -120,6 +148,7 @@ namespace GB
 		float GetHeight(float x, float z) const { return m_Heightmap.GetHeight(x, z); }
 		const Material& GetMaterial() const { return m_Material; }
 		Material& GetMaterial() { return m_Material; }
+		Texture2D* MacroTexture() { return m_Macro.get(); }   // the macro colour map (null without surface maps): a tool may tint it in place (T5c: trails)
 		const Mesh& GetMesh() const { return *m_Mesh; }   // only after BuildGpu
 		TerrainStyle GetStyle() const { return m_Style; }
 		// The water carved into this terrain, as data (GB/Water/WaterField.h): the queries below forward to it.
@@ -140,6 +169,8 @@ namespace GB
 		float GetSmoothHeight(float x, float z) const { return SmoothHeight(x, z); }
 		const Texture2D* GetNormalMap() const { return m_NormalMap.get(); }   // high-resolution surface normals (null for none)
 		float GetWindAngle() const { return m_WindAngle; }   // radians, dune terrains only
+		// The wind of a dune field built some other way (a terrain graph's dunes): sets the angle and finds the crests as CreateDunes does.
+		void SetWind(float angleRadians, float wavelength);
 
 		// A function usable as ParticleEmitterDesc::GroundHeightFn. The Terrain must outlive it.
 		std::function<float(float, float)> MakeGroundFunction(bool waterIsGround = false) const;   // waterIsGround: lakes count as ground (rain splashes on them)
@@ -152,6 +183,7 @@ namespace GB
 	private:
 		Terrain(uint32_t resolution, float size) : m_Heightmap(resolution, size) {}
 		void Finish(TerrainStyle style, bool gpu);
+		void FindCrests(float wavelength);   // the local maxima across the wind (m_WindAngle), into m_Crests
 		// Mesh refinement (see HillParams::ShoreSubdivision/DetailThreshold): extra vertices appended after the grid ones, for cells
 		// flagged by either strategy below (SRP: each only decides *which* cells, never how a flagged cell is split or stitched).
 		std::vector<uint8_t> FlagShoreCells(int marginCells) const;
@@ -160,8 +192,21 @@ namespace GB
 		float SmoothHeight(float x, float z) const;          // Catmull-Rom surface through the heightmap, never beyond the cell's corner heights
 		float FineHeight(int fi, int fj) const;              // height of a vertex of the refined lattice (fi, fj in units of spacing / N)
 		bool IsCellRefined(int ci, int cj) const;
-		void BuildSurfaceMaps(TerrainStyle style, const glm::vec3& sunlit, const glm::vec3& shade, const glm::vec3& crest);
+		void BuildSurfaceMaps(TerrainStyle style, const glm::vec3& sunlit, const glm::vec3& shade, const glm::vec3& crest, Image& macro);
+		struct Prepared
+		{
+			std::vector<Vertex> Vertices;
+			std::vector<uint32_t> Indices;
+			Image Grain, Ripples, Macro;
+			float Roughness = 0.9f, RippleDepth = 1.0f;
+		};
+		std::unique_ptr<Prepared> m_Prepared;   // PrepareGpu's work, waiting for BuildGpu
 		void WriteNormalTexels(int x0, int y0, int x1, int y1);   // recomputes the normal map texels in [x0, x1] x [y0, y1] (and uploads them)
+		// Metres the surface maps add to the smooth height at a point: the fluting of the rock layer (0 without one). Used by both the first
+		// build of the normal map and its partial updates, so an edit never erases it.
+		float SurfaceDetail(float x, float z) const;
+		// The colour of the material layers at a point, painted over `base` (the style's colour there).
+		glm::vec3 PaintLayers(const glm::vec3& base, float x, float z, float height, const glm::vec3& normal, float patch, float fine) const;
 		Vertex MakeFineVertex(int fi, int fj) const;
 
 		bool m_SurfaceMaps = true;
@@ -177,10 +222,17 @@ namespace GB
 		std::vector<Vertex> m_Vertices;
 		WaterField m_Water;
 		std::unique_ptr<Mesh> m_Mesh;
+		// The mesh's triangles sorted into square tiles of about kTileCells cells (the vertices stay one buffer): each tile is drawn, and culled,
+		// on its own, so the shadows' box and the view draw only the tiles they touch.
+		static constexpr int kTileCells = 64;
+		struct Tile { uint32_t First = 0, Count = 0; glm::vec3 Center{ 0.0f }; float Radius = 0.0f; };
+		std::vector<Tile> m_Tiles;
+		void SortIntoTiles(const std::vector<Vertex>& vertices, std::vector<uint32_t>& indices);
 		std::unique_ptr<Texture2D> m_Grain, m_Ripples, m_Macro, m_NormalMap;
 		Image m_NormalImage;                                 // CPU copy of the normal map, for partial updates
 		uint32_t m_NormalRes = 0;
 		Material m_Material;
 		std::vector<glm::vec3> m_Crests;
+		std::vector<SurfaceLayer> m_Layers;
 	};
 }

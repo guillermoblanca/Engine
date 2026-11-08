@@ -43,7 +43,9 @@ namespace GB
 		void Clear() { m_Tags.clear(); }
 
 		// True when any held tag is `query` or below it.
-		bool Has(const GameplayTag& query) const;
+		bool Has(const GameplayTag& query) const { return HasName(query.Name()); }
+		bool Has(const std::string& query) const { return HasName(query); }   // (no tag made for the question: asked thousands of times a tick)
+		bool Has(const char* query) const { return query && HasName(query); }
 		bool HasExact(const GameplayTag& tag) const { return m_Tags.count(tag.Name()) > 0; }
 		bool HasAll(const std::vector<std::string>& queries) const;
 		bool HasAny(const std::vector<std::string>& queries) const;
@@ -53,6 +55,7 @@ namespace GB
 		const std::map<std::string, int>& All() const { return m_Tags; }
 
 	private:
+		bool HasName(const std::string& query) const;
 		std::map<std::string, int> m_Tags;
 	};
 }

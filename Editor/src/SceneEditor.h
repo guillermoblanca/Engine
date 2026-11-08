@@ -42,7 +42,9 @@ namespace GB::Editor
 		EntityId Pick(const Ray& ray) const;
 		EntityId Resolve(const std::string& token) const;   // "12", a name, or "sel"
 
-		// Undo works on whole-scene snapshots (JSON). Commit records the current state when it changed.
+		// Undo works on whole-scene snapshots (JSON). Commit records the current state when it changed. A scene of more than kUndoEntities
+		// (the trees and wild nodes of a map of kilometres) keeps no snapshots: writing one is seconds, and a hundred of them gigabytes.
+		static constexpr size_t kUndoEntities = 20000;
 		void Commit();
 		void MarkDirty() { m_Dirty = true; }                 // a property was edited; committed once nothing is being dragged
 		void Tick(bool interacting) { if (m_Dirty && !interacting) { m_Dirty = false; Commit(); } }

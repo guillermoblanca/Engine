@@ -1,0 +1,151 @@
+{
+  "note": "Era 7, the electric age (V8): copper wire and dynamos; a power station lights the town.",
+  "items": [
+    {
+      "category": "resource",
+      "id": "copper_wire",
+      "name": "Copper wire",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Electric.Wire"
+      ],
+      "weight": 0.5
+    },
+    {
+      "category": "resource",
+      "id": "dynamo",
+      "name": "Dynamo",
+      "stack": 2,
+      "tags": [
+        "Item.Resource.Machine.Dynamo"
+      ],
+      "weight": 6.0
+    }
+  ],
+  "recipes": [
+    {
+      "ability": "Craft",
+      "count": 2,
+      "id": "copper_wire",
+      "inputs": {
+        "copper_ingot": 1
+      },
+      "output": "copper_wire",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "dynamo",
+      "inputs": {
+        "copper_wire": 4,
+        "steel_ingot": 2,
+        "engine": 1
+      },
+      "output": "dynamo",
+      "station": "factory"
+    }
+  ],
+  "techs": [
+    {
+      "id": "electricity",
+      "name": "Electricity",
+      "era": 13,
+      "requires": [
+        "steam_power"
+      ],
+      "recipes": [
+        "copper_wire",
+        "dynamo"
+      ],
+      "buildings": [
+        "power_station"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    }
+  ],
+  "buildings": {
+    "power_station": {
+      "name": "Power station",
+      "zone": "craft",
+      "footprint": [
+        4.0,
+        3.5
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 12,
+            "fired_brick": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "dynamo": 1,
+            "copper_wire": 6
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.45,
+        0.45,
+        0.5
+      ]
+    }
+  },
+  "eras": [
+    {
+      "id": "electric",
+      "name": "Electric Age",
+      "key": [
+        "electricity"
+      ],
+      "from": [
+        "industrial"
+      ],
+      "pull": 0.4,
+      "interest": [
+        "copper_ore"
+      ],
+      "progression": [
+        "steam_power",
+        "electricity"
+      ],
+      "leap": 10
+    }
+  ],
+  "diplomacy": {
+    "trade": {
+      "values": {
+        "copper_wire": 3.0,
+        "dynamo": 40.0
+      }
+    }
+  }
+}

@@ -52,7 +52,9 @@ namespace GB
 		float WorkSeconds = 2.0f;                // seconds of work per plot
 		int PlotsPerTrip = 3;                    // plots one member works in one trip
 		float Priority = 1.2f;                   // base priority of a "farm" job
-		int Fields = 1;                          // fields the clan marks out (one is enough for era 1)
+		int Fields = 1;                          // fields the clan marks out (one is enough for era 1): with MembersPerField, the most it marks out
+		int MembersPerField = 0;                 // a field for every this many living members (0: always Fields), so a growing village feeds itself
+		int FieldsFor(int alive) const { return MembersPerField > 0 ? std::clamp((alive + MembersPerField - 1) / MembersPerField, 1, std::max(1, Fields)) : Fields; }
 		bool operator==(const FarmRules&) const = default;
 	};
 
@@ -83,6 +85,10 @@ namespace GB
 	{
 		int MaxSites = 3;
 		int MembersPerSite = 4;                  // 0: always MaxSites
+		// A phase that waits for materials is worth more with time (F4 of REVISION_IA_TRIBUS: shelters waited days for reeds or one stone): the
+		// options that carry to it, work it and gather for it are multiplied by 1 + min(AgeMax, waiting / AgeSeconds)
+		float AgeSeconds = 300.0f;
+		float AgeMax = 2.0f;
 		bool operator==(const ConstructionRules&) const = default;
 		int SitesFor(int alive) const { return MembersPerSite > 0 ? std::clamp(alive / MembersPerSite, 1, std::max(1, MaxSites)) : std::max(1, MaxSites); }
 	};
@@ -139,6 +145,7 @@ namespace GB
 		int Ruined = 0;                          // plots the seasons ruined
 		double DayStart = 0.0;                   // start of the day the food counter is for
 		int FoodToday = 0, FoodYesterday = 0;    // food units brought to the stores this day and the day before (the clan's carrying capacity)
+		std::map<std::string, Inventory> Pantries;   // N1b: household id -> what it keeps at home (Tribe::ToPantry)
 		std::string ToJson() const;
 		bool FromJson(const std::string& json);   // false (and nothing changed) on a mistake
 	};

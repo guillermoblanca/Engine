@@ -1,0 +1,1578 @@
+{
+ "_doc": "Textos del juego en espanol (Editor/src/Lang.h). Solo caracteres Latin-1: la fuente (Proggy) no tiene puntos suspensivos, rayas ni flechas. Los nombres en minuscula (la interfaz pone la mayuscula cuando son etiqueta). {0}, {1}... son los valores; en phrases, {n} es un grupo capturado y {item:n}, {building:n}, {tech:n}, {ent:n}, {line:n} lo traducen.",
+ "names": {
+  "item": {
+   "herbs": "hierbas medicinales",
+   "hide": "piel",
+   "poultice": "cataplasma",
+   "leather": "cuero",
+   "leather_bag": "bolsa de cuero",
+   "cooked_meat": "carne asada",
+   "smoked_meat": "carne ahumada",
+   "daub": "barro",
+   "reed_mat": "estera de junco",
+   "stake": "estaca",
+   "fired_brick": "ladrillo cocido",
+   "flint_spear": "lanza de sílex",
+   "flint_sword": "espada de sílex",
+   "hunting_bow": "arco de caza",
+   "basket_wicker": "cesto de mimbre",
+   "berry": "bayas",
+   "branch": "ramas",
+   "campfire": "hoguera (kit)",
+   "clay": "arcilla",
+   "copper_ingot": "lingote de cobre",
+   "copper_ore": "mineral de cobre",
+   "cordage": "cuerda",
+   "fiber": "fibra",
+   "flint": "sílex",
+   "flint_axe": "hacha de sílex",
+   "flint_pickaxe": "pico de sílex",
+   "meat": "carne",
+   "reed": "junco",
+   "stone": "piedra",
+   "stone_axe": "hacha de piedra",
+   "stone_pickaxe": "pico de piedra",
+   "water": "agua",
+   "wood": "madera",
+   "log": "tronco",
+   "plank": "tablón",
+   "resin": "resina",
+   "granite": "bloque de granito",
+   "mud_brick": "adobe",
+   "salt": "sal",
+   "grain_seed": "semilla de cereal",
+   "acorn": "bellotas",
+   "grain": "cereal",
+   "dried_berry": "bayas secas",
+   "copper_axe": "hacha de cobre",
+   "bone_pickaxe": "pico de hueso",
+   "stone_hoe": "azada de piedra",
+   "copper_hoe": "azada de cobre",
+   "flint_sickle": "hoz de sílex",
+   "bone": "hueso",
+   "roots": "raíces y tubérculos",
+   "nuts": "nueces",
+   "mushrooms": "setas",
+   "greens": "verduras silvestres",
+   "eggs": "huevos",
+   "honey": "miel",
+   "fish": "pescado",
+   "stew": "guiso",
+   "roast": "asado",
+   "sinew": "tendón",
+   "fat": "grasa",
+   "feather": "plumas",
+   "snare": "lazo",
+   "fish_trap": "nasa",
+   "food": "comida"
+  },
+  "building": {
+   "shelter": "refugio",
+   "storage": "almacén",
+   "workbench": "banco de trabajo",
+   "drying_rack": "secadero",
+   "hut": "choza de zarzo",
+   "longhouse": "casa larga",
+   "cache_pit": "silo de hoyo",
+   "granary": "granero elevado",
+   "dug_well": "pozo excavado",
+   "hearth": "hogar comunal",
+   "smoking_rack": "ahumadero",
+   "hide_frame": "bastidor de pieles",
+   "healer_hut": "choza del curandero",
+   "totem": "tótem",
+   "palisade": "empalizada",
+   "watchtower": "atalaya",
+   "kiln": "horno",
+   "forge": "fragua",
+   "jar_store": "despensa de tinajas",
+   "timber_house": "casa de madera",
+   "townhouse": "casa de villa",
+   "stone_house": "casa de piedra",
+   "tavern": "taberna",
+   "ancestor_shrine": "santuario de los antepasados",
+   "story_lodge": "casa de las historias",
+   "trade_post": "puesto de comercio",
+   "war_lodge": "casa de guerra",
+   "family_hall": "casa de familia",
+   "craft_lodge": "taller",
+   "spirit_grove": "arboleda de los esp�ritus",
+   "chief_hall": "casa del jefe"
+  },
+  "phase": {
+   "foundation": "cimientos",
+   "frame": "armazón",
+   "roof": "tejado",
+   "floor": "suelo",
+   "walls": "paredes",
+   "bench": "banco",
+   "rack": "rejilla",
+   "footings": "zapatas",
+   "pit": "hoyo",
+   "lining": "revestimiento",
+   "stilts": "pilotes",
+   "shaft": "pozo",
+   "curb": "brocal",
+   "ring": "c�rculo",
+   "fire": "fuego",
+   "cover": "cubierta",
+   "remedies": "remedios",
+   "circle": "círculo",
+   "pole": "poste",
+   "stakes": "estacas",
+   "rails": "travesaños",
+   "legs": "patas",
+   "platform": "plataforma",
+   "parapet": "parapeto",
+   "base": "base",
+   "dome": "cúpula",
+   "chimney": "chimenea",
+   "bellows": "fuelle",
+   "jars": "tinajas",
+   "stones": "piedras",
+   "posts": "postes",
+   "awning": "toldo"
+  },
+  "station": {
+   "workbench": "banco de trabajo",
+   "drying_rack": "secadero",
+   "hearth": "hogar comunal",
+   "smoking_rack": "ahumadero",
+   "tannery": "curtiduría",
+   "kiln": "horno",
+   "forge": "fragua"
+  },
+  "tech": {
+   "stone_tools": "herramientas de piedra",
+   "fire_making": "hacer fuego",
+   "cordage": "cordelería",
+   "flint_knapping": "tallar sílex",
+   "basketry": "cestería",
+   "spear_making": "lanzas enmangadas",
+   "hide_working": "trabajo de pieles",
+   "cooking": "cocinar",
+   "smoking": "ahumar",
+   "weaving": "tejer",
+   "wattle_and_daub": "zarzo y barro",
+   "timber_framing": "armazón de madera",
+   "palisade_building": "empalizadas",
+   "food_storage": "conservar comida",
+   "herb_lore": "saber de hierbas",
+   "ritual": "ritos",
+   "pottery": "alfarería",
+   "smelting": "fundición",
+   "bone_working": "trabajo del hueso",
+   "tillage": "labranza",
+   "storytelling": "contar historias",
+   "shamanism": "chamanismo",
+   "trapping": "trampeo",
+   "fishing": "pesca",
+   "butchery": "carnicería",
+   "cuisine": "cocina",
+   "carpentry": "carpintería",
+   "masonry": "cantería"
+  },
+  "techname": {
+   "Stone tools": "herramientas de piedra",
+   "Fire making": "hacer fuego",
+   "Cordage": "cordelería",
+   "Flint knapping": "tallar sílex",
+   "Basketry": "cestería",
+   "Hafted spears": "lanzas enmangadas",
+   "Hide working": "trabajo de pieles",
+   "Cooking": "cocinar",
+   "Smoking": "ahumar",
+   "Weaving": "tejer",
+   "Wattle and daub": "zarzo y barro",
+   "Timber framing": "armazón de madera",
+   "Palisades": "empalizadas",
+   "Food storage": "conservar comida",
+   "Herb lore": "saber de hierbas",
+   "Rites": "ritos",
+   "Pottery": "alfarería",
+   "Smelting": "fundición",
+   "Bone working": "trabajo del hueso",
+   "Tillage": "labranza",
+   "Storytelling": "contar historias",
+   "Shamanism": "chamanismo",
+   "Trapping": "trampeo",
+   "Fishing": "pesca",
+   "Butchery": "carnicería",
+   "Cuisine": "cocina",
+   "Carpentry": "carpintería",
+   "Masonry": "cantería"
+  },
+  "role": {
+   "crafter": "artesano",
+   "builder": "constructor",
+   "farmer": "agricultor",
+   "forager": "recolector",
+   "miner": "minero",
+   "woodcutter": "leñador",
+   "player": "jugador"
+  },
+  "need": {
+   "Hunger": "hambre",
+   "Thirst": "sed",
+   "Rest": "descanso",
+   "Warmth": "calor",
+   "Health": "salud",
+   "Vigor": "vigor"
+  },
+  "season": {
+   "spring": "primavera",
+   "summer": "verano",
+   "autumn": "otoño",
+   "winter": "invierno"
+  },
+  "skill": {
+   "foraging": "recolectar",
+   "woodcutting": "leñar",
+   "crafting": "fabricar",
+   "building": "construir",
+   "mining": "minar",
+   "farming": "cultivar",
+   "hunting": "cazar"
+  },
+  "doing": {
+   "gather": "recoge",
+   "deposit": "deja en el almacén",
+   "craft": "fabrica",
+   "make": "fabrica",
+   "fire": "aviva el fuego",
+   "stoke": "aviva el fuego",
+   "eat": "come",
+   "drink": "bebe",
+   "sleep": "duerme",
+   "rest": "descansa",
+   "hunt": "caza",
+   "build": "construye",
+   "deliver": "lleva material",
+   "approach": "va hacia",
+   "idle": "sin hacer nada",
+   "chop": "tala",
+   "mine": "pica",
+   "collect": "recoge",
+   "explore": "explora",
+   "expedition": "expedición",
+   "flee": "huye",
+   "fight": "pelea",
+   "care": "cuida",
+   "talk": "habla",
+   "rite": "rito",
+   "experiment": "experimenta",
+   "learn": "aprende",
+   "teach": "enseña",
+   "haul": "acarrea",
+   "till": "labra",
+   "sow": "siembra",
+   "tend": "cuida el campo",
+   "harvest": "cosecha",
+   "warm": "se calienta",
+   "goto": "camina",
+   "migrate": "emigra",
+   "trade": "comercia",
+   "envoy": "embajada a"
+  },
+  "kind": {
+   "gather": "recoger",
+   "craft": "fabricar",
+   "make": "fabricar",
+   "build": "construir",
+   "deliver": "llevar material",
+   "hunt": "cazar",
+   "stoke": "avivar el fuego",
+   "fire": "encender el fuego",
+   "expedition": "expedición",
+   "explore": "explorar",
+   "farm": "cultivar"
+  },
+  "stance": {
+   "allied": "aliados",
+   "friendly": "amistosos",
+   "neutral": "neutrales",
+   "wary": "recelosos",
+   "truce": "tregua",
+   "hostile": "hostiles",
+   "unknown": "sin conocerse"
+  },
+  "pact": {
+   "alliance": "alianza",
+   "truce": "tregua",
+   "trade": "comercio"
+  },
+  "era": {
+   "stone": "Edad de Piedra",
+   "neolithic": "Neolítico",
+   "copper": "Edad del Cobre",
+   "medieval": "Edad Media"
+  },
+  "eraname": {
+   "Stone Age": "Edad de Piedra",
+   "Neolithic": "Neolítico",
+   "Copper Age": "Edad del Cobre",
+   "Middle Ages": "Edad Media"
+  },
+  "belief": {
+   "ancestors": "espíritus de los antepasados",
+   "animism": "animismo",
+   "sky": "el cielo y las estaciones"
+  },
+  "rite": {
+   "appeasement": "apaciguamiento",
+   "coming_of_age": "mayoría de edad",
+   "first_hunt": "primera caza",
+   "funeral": "funeral",
+   "harvest_feast": "fiesta de la cosecha",
+   "healing": "sanación",
+   "naming": "nombramiento",
+   "pairing": "emparejamiento",
+   "solstice": "solsticio de invierno",
+   "spring_feast": "fiesta de la primavera",
+   "tradition": "tradición"
+  },
+  "ritename": {
+   "Appeasement": "apaciguamiento",
+   "Coming of age": "mayoría de edad",
+   "First hunt": "primera caza",
+   "Funeral": "funeral",
+   "Harvest feast": "fiesta de la cosecha",
+   "Healing": "sanación",
+   "Naming": "nombramiento",
+   "Pairing": "emparejamiento",
+   "Winter solstice": "solsticio de invierno",
+   "Spring feast": "fiesta de la primavera",
+   "Kept tradition": "tradición"
+  },
+  "omen": {
+   "A great kill": "una gran caza",
+   "The sun goes dark": "el sol se oscurece",
+   "A good harvest": "una buena cosecha",
+   "A storm": "una tormenta",
+   "Two deaths in a day": "dos muertes en un día"
+  },
+  "property": {
+   "communal": "comunal",
+   "household": "por familias",
+   "private": "privada"
+  },
+  "clan": {
+   "Blue": "Azul",
+   "Red": "Rojo",
+   "Green": "Verde",
+   "Gold": "Oro",
+   "Ash": "Ceniza",
+   "Clan 1": "Clan 1"
+  },
+  "animal": {
+   "Rabbit": "conejo",
+   "Deer": "ciervo",
+   "Boar": "jabalí",
+   "Grouse": "urogallo",
+   "Fox": "zorro",
+   "Wolf": "lobo",
+   "Bear": "oso"
+  },
+  "ability": {
+   "Gather": "Recoger",
+   "Collect": "Recoger",
+   "Chop": "Talar",
+   "Mine": "Picar",
+   "PullFiber": "Arrancar fibra",
+   "Dig": "Cavar",
+   "Fish": "Pescar"
+  },
+  "action": {
+   "interact": "interactuar",
+   "eat": "comer",
+   "drink": "beber",
+   "deposit": "dejar en el almacén",
+   "sleep": "dormir",
+   "clan": "libro: la aldea",
+   "jobs": "libro: el tablón",
+   "claim": "coger el trabajo más urgente",
+   "pause": "pausa",
+   "faster": "más rápido",
+   "slower": "más lento",
+   "save": "guardar",
+   "load": "cargar",
+   "help": "libro: las teclas",
+   "view": "cámara: detrás de ti o desde arriba",
+   "quit": "cerrar lo abierto o el menú",
+   "inventory": "libro: tu bolsa",
+   "people": "libro: la gente",
+   "build": "libro: construir",
+   "attack": "atacar",
+   "block": "bloquear",
+   "console": "consola",
+   "village": "libro: la aldea",
+   "homes": "libro: los hogares",
+   "clans": "libro: los otros clanes",
+   "tech": "árbol del saber",
+   "map": "libro: el mapa",
+   "story": "libro: la crónica"
+  },
+  "key": {
+   "GraveAccent": "`",
+   "Equal": "=",
+   "Minus": "-",
+   "Escape": "Esc",
+   "Apostrophe": "'",
+   "Semicolon": ";",
+   "Space": "Espacio"
+  },
+  "status": {
+   "accepted": "aceptada",
+   "rejected": "rechazada",
+   "dropped": "aceptada pero no se pudo",
+   "forced": "forzada",
+   "done": "cumplida"
+  },
+  "talk": {
+   "chat": "charla con",
+   "story": "cuenta una historia a",
+   "gossip": "cotillea con",
+   "teach": "enseña algo a",
+   "console": "consuela a",
+   "settle": "hace las paces con",
+   "greet": "saluda a",
+   "share": "comparte comida con",
+   "groom": "acicala a",
+   "play": "juega con"
+  },
+  "talkabout": {
+   "chat": "charla",
+   "story": "una historia",
+   "gossip": "cotilleo",
+   "teach": "le enseña",
+   "console": "consuelo",
+   "settle": "paces",
+   "greet": "saludo",
+   "share": "comida",
+   "groom": "acicalado",
+   "play": "juego"
+  },
+  "fall": {
+   "Hunger": "de hambre",
+   "Thirst": "de sed",
+   "Warmth": "de frío",
+   "Wounds": "por sus heridas",
+   "its wounds": "por sus heridas"
+  },
+  "opinion": {
+   "so it goes": "as� es la vida",
+   "proud of it": "con orgullo",
+   "it still hurts": "a�n duele",
+   "a good thing": "algo bueno",
+   "a bad business": "un mal asunto"
+  },
+  "value": {
+   "family": "la familia",
+   "knowledge": "el saber",
+   "craft": "el oficio",
+   "tradition": "la tradici�n",
+   "peace": "la paz",
+   "trade": "el comercio",
+   "nature": "la naturaleza",
+   "power": "el poder"
+  },
+  "tie": {
+   "child": "hijo o hija",
+   "grandchild": "nieto o nieta",
+   "partner": "pareja",
+   "sibling": "hermano o hermana",
+   "parent": "padre o madre",
+   "clan": "tu clan, otro linaje",
+   "other clan": "otro clan, otro linaje"
+  },
+  "cause": {
+   "OldAge": "vejez",
+   "Wounds": "heridas",
+   "Hunger": "hambre",
+   "Thirst": "sed",
+   "Warmth": "fr�o"
+  },
+  "dir": {
+   "east": "este",
+   "north-east": "noreste",
+   "north": "norte",
+   "north-west": "noroeste",
+   "west": "oeste",
+   "south-west": "suroeste",
+   "south": "sur",
+   "south-east": "sureste"
+  }
+ },
+ "entity": {
+  "herb patch": "mata de hierbas",
+  "berry bush": "arbusto de bayas",
+  "clay bank": "barranco de arcilla",
+  "copper vein": "veta de cobre",
+  "fiber grass": "hierba de fibra",
+  "flint outcrop": "afloramiento de sílex",
+  "old tree": "árbol viejo",
+  "reed bed": "juncal",
+  "rock": "roca",
+  "tree": "árbol",
+  "young tree": "árbol joven",
+  "oak acorns": "encina",
+  "granite rock": "roca de granito",
+  "pine resin": "pino resinero",
+  "wild grain": "cereal silvestre",
+  "salt flat": "salina",
+  "old bones": "huesos viejos",
+  "fallen trunk": "tronco caído",
+  "rock small": "piedra",
+  "boulder": "peñasco",
+  "rock pile": "montón de piedras",
+  "loose stones": "piedras sueltas",
+  "fallen branch": "rama caída",
+  "flowers red": "flores rojas",
+  "flowers yellow": "flores amarillas",
+  "flowers white": "flores blancas",
+  "flowers blue": "flores azules",
+  "flowers purple": "flores moradas",
+  "root patch": "mata de raíces",
+  "nut tree": "nogal",
+  "mushroom ring": "corro de setas",
+  "wild greens": "verduras silvestres",
+  "greens": "verduras silvestres",
+  "bird nest": "nido",
+  "bee tree": "colmena silvestre",
+  "fishing spot": "pesquera",
+  "shelter": "Refugio",
+  "storage": "Almacén",
+  "workbench": "Banco de trabajo",
+  "drying rack": "Secadero",
+  "wattle hut": "Choza de zarzo",
+  "longhouse": "Casa larga",
+  "cache pit": "Silo de hoyo",
+  "raised granary": "Granero elevado",
+  "dug well": "Pozo excavado",
+  "communal hearth": "Hogar comunal",
+  "smoking rack": "Ahumadero",
+  "hide frame": "Bastidor de pieles",
+  "healer's hut": "Choza del curandero",
+  "totem": "Tótem",
+  "palisade": "Empalizada",
+  "watchtower": "Atalaya",
+  "kiln": "Horno",
+  "forge": "Fragua",
+  "jar store": "Despensa de tinajas",
+  "rabbit": "Conejo",
+  "deer": "Ciervo",
+  "boar": "Jabalí",
+  "grouse": "Urogallo",
+  "fox": "Zorro",
+  "wolf": "Lobo",
+  "campfire": "la hoguera",
+  "well": "Pozo",
+  "timber house": "Casa de madera",
+  "townhouse": "Casa de villa",
+  "stone house": "Casa de piedra",
+  "tavern": "Taberna",
+  "Ancestor shrine": "Santuario",
+  "Story lodge": "Casa de las historias",
+  "Trade post": "Puesto de comercio",
+  "War lodge": "Casa de guerra",
+  "Family hall": "Casa de familia",
+  "Craft lodge": "Taller",
+  "Spirit grove": "Arboleda",
+  "Chief's hall": "Casa del jefe"
+ },
+ "phrases": [
+  {
+   "re": "^what the clan holds dear$",
+   "to": "lo que el clan aprecia"
+  },
+  {
+   "re": "^a place to trade with the other clans$",
+   "to": "un sitio para comerciar con los otros clanes"
+  },
+  {
+   "re": "^(\\S+) says there is (\\S+) about (\\d+) m to the (\\S+)$",
+   "to": "{1} dice que hay {item:2} a unos {3} m hacia el {dir:4}"
+  },
+  {
+   "re": "^(\\S+) does not know where to find (\\S+)$",
+   "to": "{1} no sabe d�nde encontrar {item:2}"
+  },
+  {
+   "re": "^(\\S+) knows nothing more of (\\S+)$",
+   "to": "{1} no sabe nada m�s de {2}"
+  },
+  {
+   "re": "^(\\S+) is pleased by your words$",
+   "to": "A {1} le agradan tus palabras"
+  },
+  {
+   "re": "^(\\S+) has no time for you now$",
+   "to": "{1} no tiene tiempo para ti ahora"
+  },
+  {
+   "re": "^You are (\\S+), a (\\S+) of (.+)\\.$",
+   "to": "Eres {1}, {role:2} de {clan:3}."
+  },
+  {
+   "re": "^You carry on as (\\S+) \\((.+)\\), who remembers what (\\S+) told\\.$",
+   "to": "Sigues como {1} ({tie:2}), que recuerda lo que contaba {3}."
+  },
+  {
+   "re": "^You died of (\\S+) and nobody is left to carry on\\. The game is over: load a save or play again\\.$",
+   "to": "Has muerto ({cause:1}) y no queda nadie que siga. Fin de la partida: carga una partida o juega otra."
+  },
+  {
+   "re": "^You died of (\\S+)\\. Choose who carries on: game heir$",
+   "to": "Has muerto ({cause:1}). Elige qui�n sigue tu vida"
+  },
+  {
+   "re": "^(\\S+) does what (\\S+) asked: (.+)$",
+   "to": "{1} hace lo que le pidi� {2} ({line:3})"
+  },
+  {
+   "re": "^(\\S+) no longer counts on you: (.+)$",
+   "to": "{1} ya no cuenta contigo ({line:2})"
+  },
+  {
+   "re": "^(\\S+) thanks you: (.+)$",
+   "to": "{1} te lo agradece ({line:2})"
+  },
+  {
+   "re": "^the clan needs (\\S+) and the (.+) may have it$",
+   "to": "el clan necesita {item:1} y quiz� {clan:2} lo tengan"
+  },
+  {
+   "re": "^(\\S+) would learn (\\S+)$",
+   "to": "{1} quiere aprender {tech:2}"
+  },
+  {
+   "re": "^(\\S+) has been away from the camp \\((\\d+) m\\) and (\\S+) worries$",
+   "to": "{1} lleva tiempo lejos del campamento ({2} m) y {3} se preocupa"
+  },
+  {
+   "re": "^the (.+) lacks (\\d+) (\\S+)$",
+   "to": "a {ent:1} le faltan {2} {item:3}"
+  },
+  {
+   "re": "^the clan has food for less than (\\d+) days$",
+   "to": "al clan le queda comida para menos de {1} d�as"
+  },
+  {
+   "re": "^(\\S+) asks you to talk to the (.+): (.+)$",
+   "to": "{1} te pide que hables con {clan:2}: {line:3}"
+  },
+  {
+   "re": "^(\\S+) asks you to teach (\\S+): (.+)$",
+   "to": "{1} te pide que le ense�es {tech:2}: {line:3}"
+  },
+  {
+   "re": "^(\\S+) asks you to find (\\S+): (.+)$",
+   "to": "{1} te pide que busques a {2}: {line:3}"
+  },
+  {
+   "re": "^(\\S+) asks you to bring (\\d+) (\\S+): (.+)$",
+   "to": "{1} te pide que traigas {2} {item:3}: {line:4}"
+  },
+  {
+   "re": "^(\\S+) asks you to bring (\\d+) food: (.+)$",
+   "to": "{1} te pide que traigas {2} de comida: {line:3}"
+  },
+  {
+   "re": "^(\\S+) of the (.+) has nothing new to tell you$",
+   "to": "{1} ({clan:2}) no tiene nada nuevo que contarte"
+  },
+  {
+   "re": "^(\\S+) tells you: \"(.+)\" - (.+)$",
+   "to": "{1} te cuenta: \"{line:2}\" ({opinion:3})"
+  },
+  {
+   "re": "^(\\S+) tells you what (\\S+) told: \"(.+)\" - (.+)$",
+   "to": "{1} te cuenta lo que le dijo {2}: \"{line:3}\" ({opinion:4})"
+  },
+  {
+   "re": "^Bring materials to (.+)$",
+   "to": "Llevar materiales a {ent:1}"
+  },
+  {
+   "re": "^(.+) needs materials$",
+   "to": "A {ent:1} le faltan materiales"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) falls \\(([^)]*)\\) and wakes at the camp, tended by the clan$",
+   "to": "{1} cae {fall:2} y despierta en el campamento, cuidado por el clan"
+  },
+  {
+   "re": "^falls \\(([^)]*)\\) and wakes at the camp, tended by the clan$",
+   "to": "cae {fall:1} y despierta en el campamento, cuidado por el clan"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) asks the clan to seek (.+)$",
+   "to": "{1} pide al clan que busque {techname:2}"
+  },
+  {
+   "re": "^the clan now seeks (.+?) \\(the way: (.+)\\)$",
+   "to": "El clan busca ahora {techname:1} (el camino: {2})"
+  },
+  {
+   "re": "^the clan now seeks (.+)$",
+   "to": "El clan busca ahora {techname:1}"
+  },
+  {
+   "re": "^the clan chooses what to seek again$",
+   "to": "El clan vuelve a elegir qué buscar"
+  },
+  {
+   "re": "^has learnt (.+), as (\\S+) asked$",
+   "to": "ha aprendido {techname:1}, como pidió {2}"
+  },
+  {
+   "re": "^the clan has learnt (.+), as (\\S+) asked$",
+   "to": "el clan ha aprendido {techname:1}, como pidió {2}"
+  },
+  {
+   "re": "^the clan starts (.+) at [^(]+ \\(([^)]*)\\)$",
+   "to": "el clan empieza {ent:1} ({2})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) proposes to build (\\S+): the clan says no, but the player builds it \\((\\d+) of (\\d+) agree(.*)\\)$",
+   "to": "Construyes {building:2} aunque el clan dice que no ({3} de {4} a favor)"
+  },
+  {
+   "re": "^proposal #(\\d+) build (\\S+): forced \\((.*)$",
+   "to": "Propuesta {1}: construyes {building:2} igualmente"
+  },
+  {
+   "re": "^proposal #(\\d+) build (\\S+): (accepted|rejected|dropped) \\((\\d+) of (\\d+) agree(.*)$",
+   "to": "Propuesta {1} (construir {building:2}): {3} ({4} de {5} a favor)"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) joins the clan$",
+   "to": "{1} se une al clan"
+  },
+  {
+   "re": "^the clan adopts a sacred place at (.+)$",
+   "to": "el clan adopta un lugar sagrado"
+  },
+  {
+   "re": "^health (\\d+), stamina (\\d+)(.*)$",
+   "to": "salud {1}, aguante {2}{3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the job (gather|craft|make) (\\S+) from the board$",
+   "to": "{1} coge el trabajo: {kind:2} {item:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the job (build|deliver) (.+) from the board$",
+   "to": "{1} coge el trabajo: {kind:2} {ent:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the job hunt Animal\\.(\\S+) from the board$",
+   "to": "{1} coge el trabajo: cazar {animal:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the job (stoke|fire) (.+) from the board$",
+   "to": "{1} coge el trabajo: {kind:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the job (.+) from the board$",
+   "to": "{1} coge el trabajo: {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) goes to (.+) \\((\\S+)\\)$",
+   "to": "{1} va a {ent:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) heads for (.+) to see how it is$",
+   "to": "{1} va a ver cómo está {ent:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is better at (\\S+) \\((\\d+)\\)$",
+   "to": "{1} mejora al {skill:2} ({3})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) carries (\\d+) things to the store$",
+   "to": "{1} lleva {2} cosas al almacén"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) carries (.+) to (.+)$",
+   "to": "{1} lleva {2} a {ent:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) leaves (\\d+) in the store$",
+   "to": "{1} deja {2} en el almacén"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) brings (\\d+) to (.+): the (\\S+) can be built$",
+   "to": "{1} lleva {2} a {ent:3}: ya se puede hacer {phase:4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) builds the (\\S+) of (.+)$",
+   "to": "{1} construye {phase:2} de {ent:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) finishes (.+): it stands$",
+   "to": "{1} termina {ent:2}: ya está en pie"
+  },
+  {
+   "re": "^(.+) stands: (\\d+) beds$",
+   "to": "{ent:1} está en pie: {2} camas"
+  },
+  {
+   "re": "^(.+) stands(.*)$",
+   "to": "{ent:1} está en pie{2}"
+  },
+  {
+   "re": "^the clan starts (.+) at [^(]+ \\(([^)]*)\\): (.+)$",
+   "to": "el clan empieza {ent:1} ({2}): {line:3}"
+  },
+  {
+   "re": "^beds for (\\d+) of (\\d+) \\(the house of (\\S+)'s household\\)$",
+   "to": "camas para {1} de {2} (la casa de la familia de {3})"
+  },
+  {
+   "re": "^the recipe (\\S+) needs a (\\S+)$",
+   "to": "la receta de {item:1} necesita {station:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) goes to the camp to make a (\\S+)$",
+   "to": "{1} va al campamento a hacer {item:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) goes to make (\\S+) at the (\\S+)$",
+   "to": "{1} va a hacer {item:2} en {station:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) goes to make (\\S+)$",
+   "to": "{1} va a hacer {item:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) makes a (\\S+) and takes it$",
+   "to": "{1} hace {item:2} y se lo queda"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) makes (\\d+) (\\S+) for the store$",
+   "to": "{1} hace {2} de {item:3} para el almacén"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) goes to light the campfire$",
+   "to": "{1} va a encender la hoguera"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) lights the campfire$",
+   "to": "{1} enciende la hoguera"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes (\\S+) to feed the campfire$",
+   "to": "{1} coge {item:2} para la hoguera"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) feeds the campfire \\(fuel (\\S+)\\)$",
+   "to": "{1} aviva la hoguera (combustible {2})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) goes hunting (\\S+) (\\d+)$",
+   "to": "{1} sale a cazar un {animal:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) drives (\\S+) (\\d+) \\(a group hunt\\)$",
+   "to": "{1} acosa a un {animal:2} (caza en grupo)"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) waits for (\\S+) (\\d+) with the spear \\(a group hunt\\)$",
+   "to": "{1} espera al {animal:2} con la lanza (caza en grupo)"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) kills (\\S+) (\\d+): (.+)$",
+   "to": "{1} caza un {animal:2}: {4}"
+  },
+  {
+   "re": "^the clan celebrates its first kill: (\\S+) brought it home$",
+   "to": "el clan celebra su primera caza: la trajo {1}"
+  },
+  {
+   "re": "^the clan calls everyone to (.+?) for (.+) at the fire$",
+   "to": "el clan llama a todos a la hoguera: {ritename:1} por {2}"
+  },
+  {
+   "re": "^the clan calls everyone to (.+) at the fire$",
+   "to": "el clan llama a todos a la hoguera: {ritename:1}"
+  },
+  {
+   "re": "^the clan reads an omen: (.+) \\(a good sign\\)$",
+   "to": "el clan ve un presagio: {omen:1} (buena señal)"
+  },
+  {
+   "re": "^the clan reads an omen: (.+) \\(a bad sign\\)$",
+   "to": "el clan ve un presagio: {omen:1} (mala señal)"
+  },
+  {
+   "re": "^the clan (.+) begins: (\\d+) of (\\d+) in the circle$",
+   "to": "empieza {ritename:1}: {2} de {3} en el círculo"
+  },
+  {
+   "re": "^the clan holds (.+) for (.+): (\\d+) of (\\d+) attend(.*)$",
+   "to": "el clan celebra {ritename:1} por {2}: acuden {3} de {4}"
+  },
+  {
+   "re": "^the clan holds (.+): (\\d+) of (\\d+) attend(.*)$",
+   "to": "el clan celebra {ritename:1}: acuden {2} de {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) brings (\\d+) to (.+)$",
+   "to": "{1} lleva {2} a {ent:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) tries to work out (.+?) with the materials of the (\\S+) and fails \\(try (\\d+), (\\d+)% worked out\\); one (\\S+) is spoilt$",
+   "to": "{1} intenta descubrir {techname:2} con lo de {item:3} y no lo logra (intento {4}, {5} % hecho); se estropea {item:6}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) talking with (\\S+)$",
+   "to": "{1} entiende el {2} % de {techname:3} hablando con {4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) sits down at the camp to work out (.+)$",
+   "to": "{1} se sienta en el campamento a descubrir {techname:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) tries to work out (.+?) with the materials of the (\\S+) and fails \\(try (\\d+), (\\d+)% worked out\\)$",
+   "to": "{1} intenta descubrir {techname:2} con lo de {item:3} y no lo logra (intento {4}, {5} % hecho)"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) tries to work out (.+?) and fails \\(try (\\d+), (\\d+)% worked out\\)$",
+   "to": "{1} intenta descubrir {techname:2} y no lo logra (intento {3}, {4} % hecho)"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) discovers (.+?) by experimenting with the materials of the (\\S+) \\(try (\\d+)\\)$",
+   "to": "{1} descubre {techname:2} experimentando con {item:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) discovers (.+?) by experimenting \\(try (\\d+)\\)$",
+   "to": "{1} descubre {techname:2} experimentando"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) shows the clan how (.+) is done$",
+   "to": "{1} enseña al clan {techname:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) shows something to (\\S+) \\((\\S+)\\)$",
+   "to": "{1} le enseña algo a {2} ({tech:3})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) from (\\S+) at the camp$",
+   "to": "{1} entiende el {2} % de {techname:3} gracias a {4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) learns (.+) from (\\S+) at the camp$",
+   "to": "{1} aprende {techname:2} de {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) lies down to sleep$",
+   "to": "{1} se acuesta a dormir"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) eats again$",
+   "to": "{1} vuelve a comer"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) eats(.*)$",
+   "to": "{1} come"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) drinks$",
+   "to": "{1} bebe"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) chats with (\\S+)$",
+   "to": "{1} charla con {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is in high spirits \\(mood (\\S+)\\)$",
+   "to": "{1} está de buen humor"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is in low spirits \\(mood (\\S+)\\)$",
+   "to": "{1} está de mal humor"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) could not find (\\S+) to talk$",
+   "to": "{1} no encuentra a {2} para hablar"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) could not finish (.*)$",
+   "to": "{1} no pudo terminar lo que hacía"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) cannot get next to (.+?): (.*)$",
+   "to": "{1} no puede llegar a {ent:2}"
+  },
+  {
+   "re": "^clan \\(all\\) the clan keeps a new tradition: (.+) \\((\\d+) times (\\S+)\\)$",
+   "to": "el clan tiene una tradición nueva: {1}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) dies of (\\S+)(.*)$",
+   "to": "{1} muere de {need:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) dies(.*)$",
+   "to": "{1} muere{2}"
+  },
+  {
+   "re": "^(\\S+) is born(.*)$",
+   "to": "nace {1}{2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes (\\d+) (\\S+) from the store$",
+   "to": "{1} coge {2} de {item:3} del almacén"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes up the trade of (\\S+)(.*)$",
+   "to": "{1} se hace {role:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) proposes to gather (\\S+) x(\\d+): the clan says no \\((\\d+) of (\\d+) agree \\(standing (\\d+)\\); against: (.+)\\)$",
+   "to": "Tu propuesta de recoger {3} de {item:2}: el clan dice que no ({4} de {5} a favor; en contra: {7})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) proposes to gather (\\S+) x(\\d+): the clan says yes(.*)$",
+   "to": "Tu propuesta de recoger {3} de {item:2}: el clan dice que sí"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) proposes to make (\\S+) x(\\d+): the clan says no \\((\\d+) of (\\d+) agree \\(standing (\\d+)\\); against: (.+)\\)$",
+   "to": "Tu propuesta de hacer {3} de {item:2}: el clan dice que no ({4} de {5} a favor; en contra: {7})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) proposes to build (\\S+)(.*): the clan says no \\((\\d+) of (\\d+) agree \\(standing (\\d+)\\); against: (.+)\\)$",
+   "to": "Tu propuesta de construir {building:2}: el clan dice que no ({4} de {5} a favor; en contra: {7})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) proposes to (.+): the clan says yes(.*)$",
+   "to": "Tu propuesta: el clan dice que sí ({2})"
+  },
+  {
+   "re": "^proposal #(\\d+) gather (\\S+) x(\\d+): rejected \\((\\d+) of (\\d+) agree \\(standing (\\d+)\\); against: (.+)\\)$",
+   "to": "Propuesta {1} (recoger {3} de {item:2}): rechazada ({4} de {5} a favor; en contra: {7})"
+  },
+  {
+   "re": "^proposal #(\\d+) (.+): rejected \\((\\d+) of (\\d+) agree(.*)$",
+   "to": "Propuesta {1}: rechazada ({3} de {4} a favor)"
+  },
+  {
+   "re": "^proposal #(\\d+) (.+): accepted(.*)$",
+   "to": "Propuesta {1}: aceptada"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) has done what (.+)$",
+   "to": "{1} ha cumplido lo que {2}"
+  },
+  {
+   "re": "^You are (\\S+), a (\\S+) of the clan\\. Gather, bring to the store, take jobs, help\\. \\[(\\S+)\\] help$",
+   "to": "Eres {1}, {role:2} del clan. Recoge, lleva al almacén, coge trabajos y ayuda. [{3}] ayuda"
+  },
+  {
+   "re": "^Back in the game\\.$",
+   "to": "De vuelta en la partida."
+  },
+  {
+   "re": "^Water in your bag: drink it when thirsty$",
+   "to": "Llevas agua: bébela cuando tengas sed"
+  },
+  {
+   "re": "^You break off the fight$",
+   "to": "Dejas la pelea"
+  },
+  {
+   "re": "^Could not: (.*)$",
+   "to": "No se pudo: {1}"
+  },
+  {
+   "re": "^You died of (\\S+)\\. The game is over: load a save or play again\\.$",
+   "to": "Has muerto de {need:1}. Fin de la partida: carga una partida o empieza otra."
+  },
+  {
+   "re": "^Slow frames \\((\\S+) ms\\): quality minimum$",
+   "to": "Fotogramas lentos ({1} ms): calidad mínima"
+  },
+  {
+   "re": "^you take the job (gather|craft|make) (\\S+)(.*)$",
+   "to": "Coges el trabajo: {kind:1} {item:2}"
+  },
+  {
+   "re": "^you take the job (build|deliver) (.+?): (.*)$",
+   "to": "Coges el trabajo: {kind:1} {ent:2}"
+  },
+  {
+   "re": "^you take the job (.+)$",
+   "to": "Coges el trabajo: {1}"
+  },
+  {
+   "re": "^took (\\d+) (\\S+)$",
+   "to": "Coges {1} de {item:2}"
+  },
+  {
+   "re": "^saved (.*)$",
+   "to": "Partida guardada"
+  },
+  {
+   "re": "^loaded (.*)$",
+   "to": "Partida cargada"
+  },
+  {
+   "re": "^Talk to (\\S+)$",
+   "to": "Hablar con {1}"
+  },
+  {
+   "re": "^Feed the campfire$",
+   "to": "Avivar la hoguera"
+  },
+  {
+   "re": "^Draw water at (.+)$",
+   "to": "Sacar agua de {ent:1}"
+  },
+  {
+   "re": "^Build (.+)$",
+   "to": "Construir {ent:1}"
+  },
+  {
+   "re": "^Leave (\\d+) things in the store$",
+   "to": "Dejar {1} cosas en el almacén"
+  },
+  {
+   "re": "^Trade with the (\\S+)$",
+   "to": "Comerciar con los {clan:1}"
+  },
+  {
+   "re": "^Fight back (\\S+)$",
+   "to": "Defenderte de {ent:1}"
+  },
+  {
+   "re": "^(Gather|Collect|Chop|Mine|PullFiber|Dig|Fish) (.+)$",
+   "to": "{ability:1}: {ent:2}"
+  },
+  {
+   "re": "^the store has (\\d+) of (\\d+) (\\S+) \\(the days of food the clan lives on\\)$",
+   "to": "el almacén tiene {1} de {2} ({item:3}): es la comida de cada día"
+  },
+  {
+   "re": "^the store has (\\d+) of (\\d+) (\\S+) \\(and the campfire\\)$",
+   "to": "el almacén tiene {1} de {2} ({item:3}), también para la hoguera"
+  },
+  {
+   "re": "^the store has (\\d+) of (\\d+) (\\S+) \\(with the upkeep of the camp\\)$",
+   "to": "el almacén tiene {1} de {2} ({item:3}), con lo que gasta el campamento"
+  },
+  {
+   "re": "^the store has (\\d+) of (\\d+) (\\S+)$",
+   "to": "el almacén tiene {1} de {2} ({item:3})"
+  },
+  {
+   "re": "^the (\\S+) of (.+) has its materials \\((\\S+)/(\\S+) s of work\\)$",
+   "to": "{phase:1} de {ent:2} tiene sus materiales ({3} de {4} s de trabajo)"
+  },
+  {
+   "re": "^the (\\S+) of (.+) needs (.+)$",
+   "to": "{phase:1} de {ent:2} necesita {3}"
+  },
+  {
+   "re": "^(\\d+) of the clan lack a (\\S+)$",
+   "to": "a {1} del clan les falta {item:2}"
+  },
+  {
+   "re": "^make (\\S+): the store keeps (\\d+) (\\S+)$",
+   "to": "el almacén guarda {2} de {item:1}"
+  },
+  {
+   "re": "^the campfire has (\\S+) fuel$",
+   "to": "la hoguera tiene {1} de combustible"
+  },
+  {
+   "re": "^(\\d+) food for (\\d+); (\\S+) (\\d+) (\\d+) m from the camp(.*)$",
+   "to": "{1} de comida para {2}; {animal:3} a {5} m del campamento"
+  },
+  {
+   "re": "^the clan keeps a new tradition: (.+) \\(([^)]*)\\)$",
+   "to": "El clan adopta una tradici�n nueva: {1}"
+  },
+  {
+   "re": "^(.+) and (.+): (\\S+) of (.+) takes from (.+) in (.+), which the (.+) hold$",
+   "to": "{3} de {4} toma {ent:5} en {6}, tierra de {7}"
+  }
+ ],
+ "ui": {
+  "(not known yet)": "(aún no se sabe)",
+  "(the clan's next step)": "(el siguiente paso del clan)",
+  "(the store is the camp's: leave what you gather here)": "(el almacén es del campamento: deja aquí lo que recojas)",
+  "(what the clan holds most)": "(lo que más cree el clan)",
+  "(yours)": "(el tuyo)",
+  "({0} days in hand)": "({0} días de reserva)",
+  "({0} done)": "({0} hecho)",
+  "({0} or Esc closes it; the commands are in English)": "({0} o Esc la cierran; las órdenes van en inglés)",
+  "+ known, ~ being learnt, light: can be found now, dim: needs others first. Hover one to see what it opens.": "+ sabido, ~ aprendiéndose, claro: se puede descubrir ya, apagado: necesita otros antes. Pasa el ratón para ver qué abre.",
+  "Also the ones you cannot make yet": "Ver también las que aún no puedes hacer",
+  "Asleep (walk to wake up)": "Durmiendo (camina para despertar)",
+  "Attack": "Atacar",
+  "Attack the nearest foe (right mouse on an animal or foe does it too); Esc, right mouse on the ground or walking away breaks it off": "Ataca al enemigo más cercano (también con el botón derecho sobre un animal o enemigo); Esc, botón derecho en el suelo o alejarte lo dejan",
+  "Back to the editor": "Volver al editor",
+  "Back to your character": "Volver a tu personaje",
+  "Bag": "Bolsa",
+  "Beds": "Camas",
+  "Behind you / from above": "Detrás de ti / desde arriba",
+  "Being worked out": "Descubriéndose ahora",
+  "Below the mark (25) it is a danger.": "Por debajo de la marca (25) es un peligro.",
+  "Block": "Bloquear",
+  "Bond {0}: gifts, talks and lessons raise it; with a strong bond you can marry": "Vínculo {0}: los regalos, las charlas y las lecciones lo suben; con un vínculo fuerte os podéis casar",
+  "Build": "Construir",
+  "Building": "Obras",
+  "Camera": "Cámara",
+  "Camp of the {0}": "Campamento de los {0}",
+  "Carries": "Llevas",
+  "Clan": "Clan",
+  "Clan book": "Libro del clan",
+  "Clans": "Clanes",
+  "Close": "Cerrar",
+  "Console": "Consola",
+  "Day {0}": "Día {0}",
+  "Days of food the clan has in hand (store and bags); the bar is how far it is from the days it wants": "Días de comida que tiene el clan (almacén y bolsas); la barra es cuánto le falta para los días que quiere",
+  "Details": "Detalles",
+  "Do what the prompt says (pick up, talk, build, feed the fire...)": "Haz lo que dice el aviso (recoger, hablar, construir, avivar el fuego...)",
+  "Doing": "Qué hace",
+  "Drink": "Beber",
+  "Drink the water you carry": "Bebe el agua que llevas",
+  "Eat": "Comer",
+  "Eat [{0}]": "Comer [{0}]",
+  "Eat what you carry or, at the camp, from the store": "Come lo que llevas o, en el campamento, del almacén",
+  "Era": "Era",
+  "Era {0}": "Era {0}",
+  "Every clan's land in its colour: take from another clan's land and it is theft": "La tierra de cada clan con su color: coger de la tierra de otro clan es robar",
+  "Faster": "Más rápido",
+  "Feasts of the year: {0}": "Fiestas del año: {0}",
+  "Fed": "Alimentado",
+  "Feeling": "Sentimiento",
+  "Fields": "Campos",
+  "Fire": "Fuego",
+  "Food": "Comida",
+  "Food. Eat [{0}]: what you carry or, at the camp, from the store.": "Comida. Come [{0}]: lo que llevas o, en el campamento, del almacén.",
+  "GAME OVER": "FIN DE LA PARTIDA",
+  "Gather {0}": "Recoger {0}",
+  "Give": "Dar",
+  "Give the job back to the board": "Devuelve el trabajo al tablón",
+  "Give {0}": "Dar {0}",
+  "Gives {0}.": "Da {0}.",
+  "Go to the camp": "Ir al campamento",
+  "Health": "Salud",
+  "Health. Hunger, thirst, cold and wounds take it; rest and food bring it back.": "Salud. El hambre, la sed, el frío y las heridas la bajan; el descanso y la comida la devuelven.",
+  "Help": "Ayuda",
+  "Home ground": "Tierra del campamento",
+  "Homes": "Hogares",
+  "How much of the clan holds this belief: rites, omens and the shaman move it": "Cuánto del clan tiene esta creencia: la mueven los ritos, los presagios y el chamán",
+  "How the clan stands with each of the others. The bar is the feeling: to the left enmity, to the right friendship.": "Cómo está el clan con cada uno de los otros. La barra es el sentimiento: a la izquierda enemistad, a la derecha amistad.",
+  "How the village is": "Cómo está la aldea",
+  "Hunt {0}": "Cazar {0}",
+  "Hunting": "Caza",
+  "Interact": "Interactuar",
+  "Job board": "Tablón",
+  "Job: {0}": "Trabajo: {0}",
+  "Keys": "Teclas",
+  "Knowledge": "Saber",
+  "Land of each clan": "Tierra de cada clan",
+  "Learn": "Aprender",
+  "Leave": "Dejar",
+  "Leave in the store": "Dejar en el almacén",
+  "Leave it": "Dejarlo",
+  "Leave what you carry in the store (at the camp)": "Deja lo que llevas en el almacén (en el campamento)",
+  "Load": "Cargar",
+  "Log": "Registro",
+  "Lowest need": "Necesidad más baja",
+  "Make": "Hacer",
+  "Make {0}": "Hacer {0}",
+  "Map": "Mapa",
+  "Marry": "Casarse",
+  "Materials": "Materiales",
+  "Me": "Yo",
+  "Members": "Miembros",
+  "Needs": "Necesita",
+  "Needs {0}; {1} s of work.": "Necesita {0}; {1} s de trabajo.",
+  "No job: [{0}] takes the most urgent one": "Sin trabajo: [{0}] coge el más urgente",
+  "No rite now": "Ningún rito ahora",
+  "No room: {0} already hold it": "No hay sitio: ya lo tienen {0}",
+  "Nobody within reach ({0} m). Nearest: {1}, {2} m away.": "Nadie a tu alcance ({0} m). Más cerca: {1}, a {2} m.",
+  "Not from above: [V] goes back to your character": "No desde arriba: [V] vuelve a tu personaje",
+  "Now: {0} (the clan is gathering)": "Ahora: {0} (el clan se está reuniendo)",
+  "Now: {0} (under way)": "Ahora: {0} (en marcha)",
+  "Observe the {0}: {1} alive": "Observar a los {0}: {1} con vida",
+  "Other": "Otros",
+  "Other clans": "Otros clanes",
+  "Pantry": "Despensa",
+  "Pause": "Pausa",
+  "Paused": "En pausa",
+  "People": "Gente",
+  "Propose here": "Proponer aquí",
+  "Raise your guard": "Levanta la guardia",
+  "Rare resources (nearest zone of each)": "Recursos escasos (la zona más cercana de cada uno)",
+  "Rest. Sleep [{0}]: in your bed if the clan has a shelter, else by the fire.": "Descanso. Duerme [{0}]: en tu cama si el clan tiene refugio; si no, junto al fuego.",
+  "Resume": "Seguir",
+  "Rites and beliefs": "Ritos y creencias",
+  "Save": "Guardar",
+  "Select {0} (its card goes under the clan's)": "Seleccionar a {0} (su ficha sale bajo la del clan)",
+  "Shaman: {0}": "Chamán: {0}",
+  "Sites": "Obras",
+  "Skills": "Aptitudes",
+  "Sleep": "Dormir",
+  "Sleep (in your bed if there is a shelter)": "Duerme (en tu cama si hay un refugio)",
+  "Slower": "Más lento",
+  "Stand where you want it and propose it: the clan votes (your standing counts).": "Ponte donde lo quieras y proponlo: el clan vota (cuenta tu posición).",
+  "Standing": "Posición",
+  "State (for the curious)": "Estado (para curiosos)",
+  "Store": "Almacén",
+  "Store: {0}": "Almacén: {0}",
+  "Story": "Crónica",
+  "Take": "Coger",
+  "Talk": "Hablar",
+  "Teach": "Enseñar",
+  "The buttons at the bottom do the same. The console ({0}) takes the rest: game talk, give, teach, learn, marry, propose, craft, trade...": "Los botones de abajo hacen lo mismo. La consola ({0}) hace el resto: game talk, give, teach, learn, marry, propose, craft, trade...",
+  "The clan does not know how yet: it needs the knowledge that opens it": "El clan aún no sabe hacerlo: necesita el saber que lo abre",
+  "The clan's sites": "Las obras del clan",
+  "The clan's store": "El almacén del clan",
+  "The clans (their colours on the map)": "Los clanes (sus colores en el mapa)",
+  "The keys": "Las teclas",
+  "The lowest need the clan has not covered: food, then warmth (fire and roof), then safety; when all are covered it grows": "La necesidad más baja que el clan no tiene cubierta: comida, después calor (fuego y techo), después seguridad; con todo cubierto, crece",
+  "The other clans, the map, what the clan knows and its story": "Los otros clanes, el mapa, lo que sabe el clan y su crónica",
+  "The ring round each camp where the clan works and builds": "El anillo alrededor de cada campamento donde el clan trabaja y construye",
+  "The store is at the camp": "El almacén está en el campamento",
+  "The village, the job board, the homes and what to build": "La aldea, el tablón, los hogares y qué construir",
+  "The world and the clans stay: `play resume` (or the editor's button) comes back here": "El mundo y los clanes se quedan: `play resume` (o el botón del editor) vuelve aquí",
+  "The {0}": "Los {0}",
+  "The {0} family": "La familia de {0}",
+  "To make": "Por hacer",
+  "Tools": "Herramientas",
+  "Trade": "Comerciar",
+  "View from above": "Ver desde arriba",
+  "Village": "Aldea",
+  "Visit": "Visitar",
+  "WASD to walk, Shift to run, drag the mouse to look around": "WASD para andar, Mayús para correr, arrastra el ratón para mirar",
+  "Warmth. Stay by the campfire or in a shelter; keep the fire fed [{1}].": "Calor. Quédate junto a la hoguera o en un refugio; mantén el fuego avivado [{1}].",
+  "Water": "Agua",
+  "Water. Drink [{0}] the water you carry, or draw it at a well [{1}].": "Agua. Bebe [{0}] el agua que llevas o sácala de un pozo [{1}].",
+  "What is painted": "Qué se pinta",
+  "What the clan knows ({0} of {1})": "Lo que sabe el clan ({0} de {1})",
+  "What the clan needs, the most pressing first in each group. Hover a job to see why.": "Lo que necesita el clan, lo más urgente primero en cada grupo. Pasa el ratón por un trabajo para ver por qué.",
+  "What the clan wants to build next": "Lo próximo que el clan quiere construir",
+  "What you can make": "Lo que puedes hacer",
+  "Where copper, flint, clay, salt and the rest grow: only in these places": "Donde salen el cobre, el sílex, la arcilla, la sal y lo demás: solo en estos sitios",
+  "Where it pays to gather": "Dónde compensa recoger",
+  "While this sheet is open the areas are painted on the ground round what the camera looks at. From above you see more.": "Mientras esta hoja está abierta, las zonas se pintan en el suelo alrededor de lo que mira la cámara. Desde arriba se ve más.",
+  "Who": "Quién",
+  "World": "Mundo",
+  "YOU": "TÚ",
+  "You carry": "Llevas",
+  "You carry no water: draw it at a well": "No llevas agua: sácala de un pozo",
+  "You carry nothing to give": "No llevas nada que dar",
+  "You do not have all it asks (the store counts at the camp)": "No tienes todo lo que pide (el almacén cuenta en el campamento)",
+  "You do not have all it asks: at the camp the store counts too": "No tienes todo lo que pide: en el campamento cuenta también el almacén",
+  "You must be at the camp to take from it": "Tienes que estar en el campamento para coger de él",
+  "Your bag, your recipes and the people around you": "Tu bolsa, tus recetas y la gente de alrededor",
+  "Your clan's camp": "Campamento de tu clan",
+  "Your standing in the clan (of {0}). Bringing things to the store, jobs of the board, gifts and lessons raise it; it fades a little every day. At {1} (the mark) you lead: the clan follows your proposals.": "Tu posición en el clan (de {0}). La suben llevar cosas al almacén, los trabajos del tablón, los regalos y las lecciones; baja un poco cada día. Con {1} (la marca) lideras: el clan sigue tus propuestas.",
+  "[{0}] or the clock's button resumes": "[{0}] o el botón del reloj sigue",
+  "a hoe": "una azada",
+  "a hunter": "cazador",
+  "a meeting place": "un lugar de reunión",
+  "a pickaxe": "un pico",
+  "a sickle": "una hoz",
+  "a spear": "una lanza",
+  "a store": "un almacén",
+  "a tool": "una herramienta",
+  "a well": "un pozo",
+  "a workplace ({0})": "un taller ({0})",
+  "all covered: growing": "todo cubierto: crece",
+  "almost full: the clan will build a store": "casi lleno: el clan construirá un almacén",
+  "an axe": "un hacha",
+  "and {0} x{1}": "y {0} x{1}",
+  "at home": "en casa",
+  "at the {0}": "en {0}",
+  "bare hands": "las manos",
+  "being learnt": "aprendiéndose",
+  "between clans": "entre clanes",
+  "births": "nacimientos",
+  "bond with you {0}": "vínculo contigo {0}",
+  "building {0} % ({1})": "en obras {0} % ({1})",
+  "buildings": "edificios",
+  "can be found now": "se puede descubrir ya",
+  "child": "niño",
+  "dead": "muerto",
+  "dead of {0}": "muerto de {0}",
+  "deaths": "muertes",
+  "discoveries": "descubrimientos",
+  "dislikes you": "no te aprecia",
+  "does not regrow": "no vuelve a crecer",
+  "eats: {0}": "come: {0}",
+  "elder": "anciano",
+  "empty": "vacío",
+  "every {0} years": "cada {0} años",
+  "fights": "peleas",
+  "fire OUT": "fuego APAGADO",
+  "fire lit": "fuego encendido",
+  "food (survival)": "comida (sobrevivir)",
+  "gives {0} x{1} each time": "da {0} x{1} cada vez",
+  "go to their camp ({0} m) to trade or visit": "ve a su campamento ({0} m) para comerciar o visitar",
+  "grazes": "pasta",
+  "hardly knows you": "apenas te conoce",
+  "has its materials: it can be built": "tiene sus materiales: se puede construir",
+  "inside": "dentro",
+  "knows you a little": "te conoce un poco",
+  "lacks {0}": "le falta {0}",
+  "lacks:": "le falta:",
+  "lately: {0}": "lo último: {0}",
+  "leads the clan": "lidera el clan",
+  "left: {0} of {1}": "queda: {0} de {1}",
+  "likes you": "te aprecia",
+  "lit": "encendido",
+  "loves you": "te quiere",
+  "met {0} times: {1} trades, {2} gifts, {3} lessons, {4} marriages; {5} thefts, {6} raids": "se han visto {0} veces: {1} trueques, {2} regalos, {3} lecciones, {4} bodas; {5} robos, {6} incursiones",
+  "more than {0} drink from each: the clan will dig another": "beben más de {0} de cada uno: el clan cavará otro",
+  "needs work (press E beside it)": "falta trabajo (pulsa E a su lado)",
+  "needs {0}": "necesita {0}",
+  "needs: {0}": "necesita: {0}",
+  "no campfire yet": "aún no hay hoguera",
+  "no fields yet: the clan needs tillage, seeds and a hoe": "aún no hay campos: el clan necesita labranza, semillas y una azada",
+  "no house": "sin casa",
+  "no households yet: they form as couples pair and children are born": "aún no hay familias: se forman con las parejas y los hijos",
+  "no sites yet": "aún no hay obras",
+  "no technologies in this world": "este mundo no tiene técnicas",
+  "no well near the camp": "no hay pozo cerca del campamento",
+  "no world": "no hay mundo",
+  "nobody else in the clan is alive": "no queda nadie más vivo en el clan",
+  "nobody is working anything out now": "ahora nadie está descubriendo nada",
+  "nobody now": "nadie ahora",
+  "nobody's house yet: anyone may sleep in it": "aún no es la casa de nadie: cualquiera puede dormir en ella",
+  "not met yet": "aún no se conocen",
+  "nothing": "nada",
+  "nothing for now (or every site it may open is open)": "nada por ahora (o ya tiene abiertas todas las obras que puede)",
+  "nothing has happened yet": "aún no ha pasado nada",
+  "nothing with what you have: tick the box to see what each recipe asks": "nada con lo que tienes: marca la casilla para ver qué pide cada receta",
+  "nothing yet": "nada todavía",
+  "on it: {0}": "en ello: {0}",
+  "opened by {0}": "la abre {0}",
+  "opens: {0}": "abre: {0}",
+  "or": "o",
+  "out (no wood)": "apagado (sin leña)",
+  "pantry ({0}):": "despensa ({0}):",
+  "pick an item": "elige un objeto",
+  "property: {0}": "propiedad: {0}",
+  "regrows {0} every {1} s": "vuelve a crecer {0} cada {1} s",
+  "safety": "seguridad",
+  "short of food: fewer children are born and the clan gathers and farms more": "falta comida: nacen menos niños y el clan recoge y cultiva más",
+  "show": "ver",
+  "stands": "en pie",
+  "store": "almacén",
+  "store: {0} things": "almacén: {0} cosas",
+  "take 1": "coger 1",
+  "the board is empty: the clan has all it wants for now": "el tablón está vacío: el clan tiene todo lo que quiere por ahora",
+  "the clan is alone in the world": "el clan está solo en el mundo",
+  "the house of the {0} family": "la casa de la familia de {0}",
+  "this world has no resource zones": "este mundo no tiene zonas de recursos",
+  "warmth (fire and roof)": "calor (fuego y techo)",
+  "where every clan starts": "donde empiezan todos los clanes",
+  "working here: {0}": "trabajan aquí: {0}",
+  "workplace: {0}": "taller: {0}",
+  "your clan": "tu clan",
+  "{0} ({1} of {2})": "{0} ({1} de {2})",
+  "{0} alive": "{0} con vida",
+  "{0} alive ({1} children, {2} elders)": "{0} con vida ({1} niños, {2} ancianos)",
+  "{0} alive, {1} dead": "{0} con vida, {1} muertos",
+  "{0} beds": "{0} camas",
+  "{0} beds for {1}": "{0} camas para {1}",
+  "{0} can stand in for {1}": "{0} puede sustituir a {1}",
+  "{0} days": "{0} días",
+  "{0} done; phase {1} of {2}: {3} ({4} of {5} s of work)": "{0} hecho; fase {1} de {2}: {3} ({4} de {5} s de trabajo)",
+  "{0} households": "{0} familias",
+  "{0} households, {1} with a house of their own": "{0} familias, {1} con casa propia",
+  "{0} lack it": "a {0} les falta",
+  "{0} m": "{0} m",
+  "{0} m away": "a {0} m",
+  "{0} m from the camp": "a {0} m del campamento",
+  "{0} of {1} ({2} growing, {3} ripe)": "{0} de {1} ({2} creciendo, {3} maduros)",
+  "{0} of {1} food": "{0} de {1} de comida",
+  "{0} of {1} places, up to {2} of each": "{0} de {1} huecos, hasta {2} de cada cosa",
+  "{0} people": "{0} personas",
+  "{0} people, {1}": "{0} personas, {1}",
+  "{0} ripe": "{0} maduros",
+  "{0} sleep in the open: the clan will build more": "{0} duermen al raso: el clan construirá más",
+  "{0} well, {1} people each": "{0} pozo, {1} personas por pozo",
+  "{0} wells, {1} people each": "{0} pozos, {1} personas por pozo",
+  "{0}, trust {1}": "{0}, confianza {1}",
+  "healing": "curación",
+  "warmth": "calor",
+  "defence": "defensa",
+  "State": "Estado",
+  "Stand where you want it and propose it: the clan votes (your standing counts). If it says no you can build it all the same.": "Ponte donde lo quieras y proponlo: el clan vota (cuenta tu posición). Si dice que no, puedes construirlo igualmente.",
+  "The clan would say yes: {0} of {1} for.": "El clan diría que sí: {0} de {1} a favor.",
+  "The clan would say no: {0} of {1} for; against: {2}.": "El clan diría que no: {0} de {1} a favor; en contra: {2}.",
+  "Your standing is {0}; at {1} you lead and the clan follows you more readily.": "Tu posición es {0}; con {1} lideras y el clan te sigue con más facilidad.",
+  "Phases: {0}.": "Fases: {0}.",
+  "The clan would say no: the proposal stays in its record": "El clan diría que no: la propuesta queda en su registro",
+  "Build it all the same": "Construir igualmente",
+  "The site opens where you stand even though the clan says no; it costs you nothing": "La obra se abre donde estás aunque el clan diga que no; no te cuesta nada",
+  "What it does:": "Qué hace:",
+  "When it stands:": "Cuando esté en pie:",
+  "{0} beds: who sleeps inside rests under a roof": "{0} camas: quien duerme dentro descansa a cubierto",
+  "rests faster": "descansa más rápido",
+  "keeps warm at night": "abriga por la noche",
+  "gives warmth to whoever is near ({0} m)": "da calor a quien esté cerca ({0} m)",
+  "a workshop ({0})": "un taller ({0})",
+  "a workshop: here the clan makes {0}": "un taller: aquí el clan hace {0}",
+  "a second store: what is gathered nearby is kept here": "un segundo almacén: aquí se guarda lo que se recoge cerca",
+  "the clan's store holds {0} more of each thing": "el almacén del clan guarda {0} más de cada cosa",
+  "the food in the store goes off {0} % slower": "la comida del almacén se estropea un {0} % más despacio",
+  "defence {0}: raiders think twice and the camp's defenders fight harder": "defensa {0}: los asaltantes se lo piensan y los defensores luchan mejor",
+  "wounds heal {0} times as fast near it": "las heridas sanan {0} veces más rápido cerca",
+  "a meeting place: company for whoever is near; rites gather here": "un lugar de reunión: da compañía a quien esté cerca; aquí se reúnen los ritos",
+  "a well: water for the clan": "un pozo: agua para el clan",
+  "once the clan can raise it, it stops planning {0}": "cuando el clan sabe levantarlo, deja de planear {0}",
+  "no lasting effect": "sin efecto duradero",
+  "Fold the book": "Plegar el libro",
+  "Unfold the book": "Desplegar el libro",
+  "Tree of knowledge": "Árbol del saber",
+  "{0} of {1} known": "{0} de {1} sabidas",
+  "needs others first": "necesita otras antes",
+  "The clan seeks: {0}": "El clan busca: {0}",
+  "The clan chooses what to seek: pick one and press Seek this": "El clan elige qué buscar: escoge una y pulsa Buscar esto",
+  "The clan chooses what to seek": "El clan elige qué buscar",
+  "Click a technology to see who is on it, what it needs and what it opens. Drag to move around the tree.": "Pulsa una técnica para ver quién la busca, qué necesita y qué abre. Arrastra para moverte por el árbol.",
+  "Opens:": "Abre:",
+  "knowledge for the clan (rites, stories, ways of doing)": "saber para el clan (ritos, historias, maneras de hacer)",
+  "In the clan's plans: step {0} of {1}": "En los planes del clan: paso {0} de {1}",
+  "Stop seeking it": "Dejar de buscarla",
+  "The clan chooses what to seek again": "El clan vuelve a elegir qué buscar",
+  "Seek this": "Buscar esto",
+  "The clan works out what it needs first and then this; no vote, no cost": "El clan descubre primero lo que necesita y luego esto; sin voto ni coste",
+  "Open the tree of knowledge": "Abrir el árbol del saber",
+  "known": "sabida",
+  "listens to {0}": "escucha a {0}",
+  "Gathering {0}": "Recogiendo {0}",
+  "Building {0}": "Construyendo {0}",
+  "Feeding the campfire": "Avivando la hoguera",
+  "Drawing water": "Sacando agua",
+  "Cancel": "Cancelar",
+  "The other clans, the map and the clan's story": "Los otros clanes, el mapa y la crónica del clan",
+  "The tree of knowledge: what the clan knows, what it is working out and what to seek next": "El árbol del saber: lo que sabe el clan, lo que está descubriendo y qué buscar después",
+  "values {0}": "valora {0}",
+  "scorns {0}": "desprecia {0}",
+  "Known by {0} people: {1}": "Te conocen {0} personas: {1}",
+  "nobody tells anything of you yet": "nadie cuenta nada de ti todav�a",
+  "they speak well of you": "hablan bien de ti",
+  "they speak ill of you": "hablan mal de ti",
+  "they speak of you, neither well nor ill": "hablan de ti, ni bien ni mal",
+  "Asked of you": "Te han pedido",
+  "A life ends": "Termina una vida",
+  "{0} has died ({1}). Who carries on?": "{0} ha muerto ({1}). �Qui�n sigue?",
+  "Your lineage ends here: you may carry on with someone of another lineage.": "Tu linaje termina aqu�: puedes seguir con alguien de otro linaje.",
+  "Carry on as {0}": "Seguir como {0}",
+  "a trade post: the clan meets the other clans more often to trade": "un puesto de comercio: el clan se re�ne m�s a menudo con los otros clanes para comerciar",
+  "only a clan that values {0} raises it": "solo lo levanta un clan que valora {0}",
+  "only a clan that scorns {0} raises it": "solo lo levanta un clan que desprecia {0}",
+  "(your clan does not value {0} enough)": "(tu clan no valora lo bastante {0})",
+  "(your clan values {0} too much)": "(tu clan valora demasiado {0})"
+ }
+}

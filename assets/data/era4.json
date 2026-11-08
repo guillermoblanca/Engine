@@ -1,0 +1,213 @@
+{
+  "note": "Era 4, the classical age (V8): writing on clay tablets, a school where people study, and the need to learn.",
+  "items": [
+    {
+      "category": "resource",
+      "id": "tablet",
+      "name": "Clay tablet",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Writing.Tablet"
+      ],
+      "weight": 0.6
+    },
+    {
+      "category": "resource",
+      "id": "scroll",
+      "name": "Scroll",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Writing.Scroll"
+      ],
+      "weight": 0.2
+    }
+  ],
+  "recipes": [
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "tablet",
+      "inputs": {
+        "clay": 2
+      },
+      "output": "tablet",
+      "station": "kiln"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "scroll",
+      "inputs": {
+        "fiber": 3,
+        "resin": 1
+      },
+      "output": "scroll",
+      "station": "workbench"
+    }
+  ],
+  "techs": [
+    {
+      "id": "writing",
+      "name": "Writing",
+      "era": 7,
+      "requires": [
+        "forging",
+        "pottery"
+      ],
+      "recipes": [
+        "tablet",
+        "scroll"
+      ],
+      "buildings": [
+        "school"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    },
+    {
+      "id": "masonry",
+      "name": "Masonry",
+      "era": 8,
+      "requires": [
+        "carpentry",
+        "pottery",
+        "writing"
+      ],
+      "recipes": [],
+      "buildings": [
+        "stone_house",
+        "townhouse"
+      ],
+      "discovery": {
+        "experiment": 0.03,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    }
+  ],
+  "buildings": {
+    "school": {
+      "name": "School",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "fired_brick": 6,
+            "tablet": 2
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.7,
+        0.66,
+        0.55
+      ],
+      "provides": {
+        "learning": 1.5
+      },
+      "aura": 3.0
+    }
+  },
+  "eras": [
+    {
+      "id": "classical",
+      "name": "Classical Age",
+      "key": [
+        "writing"
+      ],
+      "from": [
+        "iron"
+      ],
+      "pull": 0.4,
+      "interest": [
+        "clay"
+      ],
+      "progression": [
+        "forging",
+        "writing"
+      ],
+      "leap": 200
+    },
+    {
+      "id": "medieval",
+      "name": "Middle Ages",
+      "key": [
+        "masonry"
+      ],
+      "from": [
+        "classical"
+      ],
+      "pull": 0.3,
+      "interest": [
+        "stone",
+        "fired_brick"
+      ],
+      "progression": [
+        "timber_framing",
+        "pottery",
+        "smelting",
+        "carpentry",
+        "masonry"
+      ],
+      "leap": 100
+    }
+  ],
+  "needs": [
+    {
+      "id": "learning",
+      "name": "Learning",
+      "era": "classical",
+      "verb": "study",
+      "provision": "learning",
+      "decayPerDay": 30.0,
+      "threshold": 35.0,
+      "weight": 0.8,
+      "seconds": 10.0,
+      "amount": 50.0
+    }
+  ],
+  "diplomacy": {
+    "trade": {
+      "values": {
+        "tablet": 3.0,
+        "scroll": 4.0
+      }
+    }
+  }
+}

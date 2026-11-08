@@ -167,7 +167,10 @@ namespace GB
 		EntityId CopyTree(EntityId src, EntityId parent);
 
 		std::map<EntityId, Entity> m_Entities;
-		mutable std::unordered_map<std::string, EntityId> m_NameCache;   // FindByName: checked on every use, so a rename or a delete cannot make it lie
+		// Every entity by its name, kept by Insert, Rename, Destroy and Clear (the only ways a name is given: Entity::Name is not to be written
+		// directly). UniqueName and FindByName ask it instead of walking the scene (building tens of thousands of nodes was quadratic, and a
+		// search for a name nobody has walked the whole scene).
+		std::unordered_map<std::string, EntityId> m_ByName;
 		EntityId m_NextId = 1;
 	};
 }

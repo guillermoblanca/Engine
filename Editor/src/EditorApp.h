@@ -8,6 +8,7 @@
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GameView.h"
 #include "GameMode.h"
+#include "Lang.h"
 #include "Properties.h"
 #include "SceneEditor.h"
 #include "TestScenarios.h"
@@ -23,10 +24,13 @@
 #include "GB/Visual/SceneVisuals.h"
 #include "GB/Gameplay/Garden.h"
 #include "GB/Game/Clans.h"
+#include "GB/Game/Values.h"
+#include "GB/Gameplay/WorldResources.h"
 #include "GB/Game/ClanHostility.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Game/SimQA.h"
 #include "GB/Game/GameContent.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
@@ -34,8 +38,11 @@
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
 #include "GB/Renderer/Framebuffer.h"
+#include "GB/Renderer/Texture.h"
 #include "GB/Renderer/Renderer.h"
+#include <chrono>
 #include <deque>
+#include <filesystem>
 #include <future>
 #include <functional>
 #include <memory>
@@ -89,6 +96,9 @@ namespace GB::Editor
 		void BuildWorld(GeneratedWorld&& world);
 		bool RequestWorldBuild(const WorldDesc& desc);
 		void PollWorldBuild();
+		// Waits for the world being generated in the background and builds it (nothing when none is). Every command that puts things into the
+		// world calls it first: what it made on the old world would be lost when the new one replaces it (the actors cleared under their clans).
+		void FinishWorldBuild();
 		void RebaseWeather();
 		void ApplyTimeOfDay();
 		void SetQuality(const std::string& name);
@@ -102,6 +112,8 @@ namespace GB::Editor
 		void DrawUI();
 		void DrawMenu();
 		void DrawViewport();
+		void DrawGameScreen();       // the game: its view and interface over the whole window (no dock, no menu)
+		void DrawViewportBody();     // the 3D view and what is drawn over it, inside the Viewport panel or the game's screen
 		void DrawProperties();
 		void DrawWorldPanel();
 		void DrawHierarchy();
@@ -111,6 +123,7 @@ namespace GB::Editor
 		void HandleSceneShortcuts();
 		void DrawStats();
 		void DrawConsole();
+		void DrawConsoleBody();
 		void DrawAssets();
 		void DrawModelPanel();
 		void DrawAnimationPanel();
@@ -179,8 +192,77 @@ namespace GB::Editor
 		void RefreshPrompt();
 		std::vector<std::string> GameHud() const;
 		void DrawGameHud(float ox, float oy, float w, float h);
+		// the observer of the free mode (ObserverView.cpp): the clans one by one with the game's look, inside the editor's viewport
+		CommandResult ObserverCommand(const std::vector<std::string>& a);
+		void DrawObserver(float ox, float oy, float w, float h);
+		// the tree of knowledge (TechTreeView.cpp): t's technologies as a graph over the window; `playing`: its card may set the player's aim
+		void DrawTechTree(const Tribe& t, bool playing, float ox, float oy, float w, float h, bool& open, std::string& pick);
+		bool* BookFlag(const std::string& sheet);   // the flag of a sheet of the clan book (BookSheets(), GameMode.h); null when there is no such sheet
+		void DrawKeysSheet();        // the clan book's Keys sheet
+		// the sheets that look at the clan and the world (GameSheets.cpp)
+		// the sheets that look at a clan (GameSheets.cpp): the player's in the game, any in the observer; `playing`: its buttons may queue `game` commands
+		void DrawVillageSheet(const Tribe& t);              // the village at a glance: era, people, beds, food, water, fields, store and what the clan wants built
+		std::vector<std::string> BuildingDoes(const BuildingDef& def) const;   // what a building does once it stands, a line per effect (Lang)
+		std::string JobName(const Job& j) const;            // a job of the board in the player's words (Lang)
+		void DrawBoardSheet(const Tribe& t, bool playing);  // the job board by kind: an icon, have/want, who holds it (and Take/Leave it when playing)
+		void DrawHomesSheet(const Tribe& t, bool playing);  // each household: its house, its members and its pantry
+		void DrawClansSheet(const Tribe& t);                // the other clans seen from t's: colour, people, era, stance, feeling, pacts and what passed between them
+		void DrawTechSheet(const Tribe& t);                 // what is being worked out, the eras and every technology: known, being learnt, open or locked
+		void DrawMapSheet();         // the map of areas: what is painted, its legend and the resource zones nearest the camp
+		void DrawStorySheet();       // the story so far, by day
+		void DrawGameConsole(float ox, float oy, float w, float h);   // the console inside the game (`game console`), with the frame rate and draw calls
 		void DrawGamePanels(float ox, float oy, float w, float h);   // the action bar and the panels of the bag, the people and the buildings (GamePanels.cpp)
+		// ---- the selection, in the free mode and in a game (SelectionView.cpp): the card of what a click picked (a character, a resource node, a
+		// building or a site) and the bubble over a selected character (what it does, the thing it is after, how it feels), with the icons of
+		// assets/ui/icons.png (tools/make_icon_atlas.py)
+		void DrawSelection(float ox, float oy, float w, float h, std::string& selected);   // clears `selected` when it is gone or the card is closed
+		void DrawBubble(float ox, float oy, float w, float h, const std::string& name);
+		void DrawResearch(const ClanKnowledge& k);                  // U6: a bar for each technology the clan is working out, and who is on it
+		std::string PickSelectable(const struct Ray& ray) const;
+		// U1 (MapOverlay.cpp): the map of areas painted on the ground, with its filters
+		struct MapAreas
+		{
+			bool On = false, Territory = true, Home = true, Zones = true, Productivity = false;
+			std::string Item;                     // the item of the productivity map
+			float Reach = 300.0f;                 // metres round what the camera looks at
+			std::vector<ResourceZone> ZoneList;   // the world's resource zones (planned again when the world changes)
+			uint64_t ZonesBuild = 0;
+		};
+		MapAreas m_MapAreas;
+		std::vector<std::pair<const Tribe*, ClanId>> MapClans() const;
+		ClanId FoundClan(ClanId parent, const glm::vec2& camp, const std::string& name);   // N7 (EditorClans.cpp)
+		void PlaceWell(const std::string& name, const glm::vec2& at);                         // a well and its ability system (EditorClans.cpp)
+		void DrawMapOverlay(float ox, float oy, float w, float h);
+		void DrawMapPanel();
+		CommandResult MapAreasCommand(const std::vector<std::string>& a);
+		std::string PickArea(const struct Ray& ray) const;          // U2: a building by its footprint, an animal by its size ("" = none)
+		void DrawArea(float ox, float oy, float w, float h, const std::string& name);   // U2: the selection's area on the ground
+		void DrawItems(const Inventory& items);                     // the grid of what a bag or a store holds    // a character, else a node, else a building or anything with abilities ("" = nothing)
+		bool IconButton(const char* id, const std::string& icon, float size);   // an image button of the atlas; false (and nothing drawn) without that icon
+		bool IconUv(const std::string& id, glm::vec2& uv0, glm::vec2& uv1);   // false when the atlas has no such icon
+		bool Icon(const std::string& id, float size);                         // an ImGui item; false (nothing drawn) when there is no such icon
+		const TribeMember* AnyMember(const std::string& name) const;          // of the first tribe or of any clan
+		std::unique_ptr<Texture2D> m_IconTexture;
+		std::map<std::string, glm::vec2> m_IconCells;   // id -> top-left pixel of its cell
+		float m_IconCell = 128.0f;
+		bool m_IconsTried = false;
+		std::string m_FreeSelected;                      // what a click picked in the free mode
 		void GameNote(const std::string& text);
+		// V2: what a person says about something it remembers (intent "tell"): the one place that turns a fact and a feeling into words, in
+		// English like the log (the interface translates it). A language model could take its place, given the same intent and facts.
+		std::string Speak(const std::string& intent, const std::string& speaker, const HistoryEvent& e, const Recollection& r, float opinion) const;
+		// V2: `speaker` tells `listener` the weightiest thing it remembers that the listener does not know (the listener remembers it); "" = nothing.
+		std::string TellNews(const std::string& speaker, const std::string& listener);
+		// V3: requests (GB/Game/Requests.h): what a request asks, in a sentence (English, the interface translates it); a request done (the bond,
+		// the standing, the deed in the history); what a talk brings about (a new request, a reminder, one done).
+		std::string AskLine(const Request& r) const;
+		void RequestDone(int id);
+		std::string TalkRequest(const std::string& who);
+		int ClanIdOf(const std::string& member) const;
+		// V3: who can carry on when the player's character dies: its descendants first (its lineage), then kin, its clan and the other clans.
+		struct HeirOption { std::string Name, Clan, Tie; bool Lineage = false; };
+		std::vector<HeirOption> Heirs(const std::string& dead) const;
+		void DrawHeirChoice();
 		GameModeState m_Game;
 		ControlRules m_Controls = DefaultControls();             // the "controls" section: keys, interface, how `play` starts
 		CommandResult NavCommand(const std::vector<std::string>& a);
@@ -190,6 +272,7 @@ namespace GB::Editor
 		CommandResult SiteCommand(const std::vector<std::string>& a);         // H8: where a clan would settle
 		CommandResult SettlementCommand(const std::vector<std::string>& a);   // H8: the buildings and sites of the tribe
 		void SyncGameplay();                                     // ability systems from the scene's entities (after a scene is loaded or the garden built)
+		void SyncNewGameplay();                                  // ... only for the entities that have none yet (the rest keep running: a patch added to a big world)
 		CommandResult AbilityCommand(const std::vector<std::string>& a);
 		CommandResult GardenCommand(const std::vector<std::string>& a);
 		void DrawTimelinePanel();
@@ -258,7 +341,6 @@ namespace GB::Editor
 		bool m_AiDebug = false;                                  // `ai debug on`: cones, obstacles and memory drawn in the viewport
 		bool m_NavDebug = false;                                 // `nav debug on`
 		bool m_ClanOverlay = true;                               // `overlay on|off`: fields, stockpiles and a label (name, trade, task) over each member
-		float m_NavSyncTimer = 0.0f;                             // real seconds to the next look at whether trees went or appeared
 		int m_TimeScale = 1;                                     // simulation steps per frame (`timescale`)
 		RegionMap m_Regions;                                     // H12: the regions of the world (derived from the seed and the wild density, never saved)
 		std::string m_RegionsKey;                                // what they were built from ("" = not built)
@@ -274,6 +356,7 @@ namespace GB::Editor
 		// H13 (EditorClans.cpp): every clan of the world; clan 0 is m_Tribe (the first tribe, saved in the "ai" section as before), the others are
 		// kept by the clan world (`clan new`) and saved in the "clans" section. `clan select` chooses the one the Tribe panel and `tribe` reports show.
 		ClanWorld m_Clans;
+		ValueRules m_Values = DefaultValueRules();               // V2: what people value (GB/Game/Values.h)
 		TelemetrySink m_Telemetry;                               // the telemetry of the run (`telemetry start <file>`, --telemetry=<file>): see docs/DATOS_INDIVIDUO.md
 		ClanHostility m_ClanHostility;                           // H14: the hostility of the fights from the clans' diplomacy (the table for the rest)
 		// The visual layer (EditorVisuals.cpp, docs/VISUALES.md): node, building and creature looks from assets/data/visuals.json (the "visuals" section of
@@ -284,10 +367,42 @@ namespace GB::Editor
 		void UpdateVisuals(float dt);
 		void AddVisualsToScene();
 		void RegisterVisualCommands();
+		// T5c (TrailsView.cpp): the clans' trails on the ground (the terrain's colour, the grass) and in the navigation, and `trails`
+		struct TrailsView;
+		std::shared_ptr<TrailsView> m_TrailsView;
+		void RegisterTrailCommands();
+		void UpdateTrailsView();
 		ClanId m_ActiveClan = 0;
+		struct ObserverState
+		{
+			bool On = false;                // `observer on|off`, the Clans button over the viewport, View > Observe the clans
+			std::string Tab = "members";    // the sheet of the observed clan's book shown ...
+			std::string Ask;                // ... and one a command asked for (selected on the next frame)
+			bool Folded = false;
+			bool Tree = false;              // the tree of knowledge of the observed clan (`observer tree`)
+			std::string TreePick;            // the book shows only its tabs (`observer fold`, the card's button)
+			float CardBottom = 0.0f, BookWidth = 0.0f;   // where the clan card ended and how wide the book was, last frame (the selection goes between)
+		} m_Observer;
 
 		Tribe& ActiveTribe();
+		// V0: the clan the player's character belongs to (any clan, not only the first); the first tribe when nobody plays
+		Tribe& PlayTribe();
+		const Tribe& PlayTribe() const;
 		CommandResult ClanCommand(const std::vector<std::string>& a);
+		CommandResult VillageCommand(const std::vector<std::string>& a);   // clans founded with their villages standing (EditorClans.cpp)
+		std::string RaiseVillage(Tribe& t, const std::string& label);
+		std::string VillageReport() const;   // `village report`: how each clan is developing (EditorClans.cpp)
+		void StepVillageReport();            // `village report every <s>`: the report in the log every so many seconds of game
+		double m_VillageReportEvery = 0.0, m_VillageReportNext = 0.0;
+		std::vector<EntityId> m_FoliageParts;   // ApplySeasonLook: the crowns and bushes it recolours (kept while the systems and entities stay the same)
+		uint64_t m_FoliageRevision = 0;
+		size_t m_FoliageEntities = 0;
+		// `stats sim`: the milliseconds of each part of the fixed tick (EditorSaveHost::Step), as means over the last 300 ticks
+		static constexpr int kSimParts = 8;
+		double m_SimPartMs[kSimParts] = {}, m_SimPartMean[kSimParts] = {};
+		int m_SimPartTicks = 0;
+		std::string SimStatsLine() const;
+		std::vector<glm::vec2> PickVillageSites(int count, std::vector<glm::vec2> sites = {}) const;   // after the given ones
 		void PrepareClanTribe(Tribe& tribe);                     // binds a kept clan's tribe to the scene, the content, the regions and a spawner
 		void ClearKeptClans();                                   // the clans `clan new` made go (their actors stay)
 		void RestoreClans(const std::string& json);              // after a load: the kept clans with their members' actors, then the diplomacy
@@ -326,6 +441,7 @@ namespace GB::Editor
 
 		// time of day
 		struct TimeOfDay { bool Enabled = false; float Hours = 12.0f, Azimuth = 200.0f, Clouds = 0.3f, Haze = 0.0f; } m_Tod;
+		bool m_TodByGame = false;   // the game turned the time of day on (its sky follows the clan's clock) and turns it off again when it ends
 		Environment m_TodBaseEnv;
 		DirectionalLight m_TodBaseSun;
 		int m_WeatherPreset = 0;
@@ -336,6 +452,27 @@ namespace GB::Editor
 		Save::ReplayRecorder m_Recorder;
 		uint64_t m_SimTick = 0;                                  // fixed 1/60 s ticks of gameplay since the world began
 		double m_SimAccum = 0.0;
+		// The wall time the simulation may take in one frame (all its ticks, `timescale` included): past it the frame stops catching up and the
+		// world runs slower than the clock, instead of the window freezing (a big world's ticks cost milliseconds each). 0 = no limit.
+		float m_SimBudgetMs = 14.0f;
+		bool m_SimBudgetSet = false;
+		bool m_DrawActors = true;
+		bool m_ShowRenderStats = true;   // `set ui.stats 0`: no draw-call / GPU / CPU lines over the viewport
+		float m_CpuSimMs = 0.0f, m_CpuBuildMs = 0.0f, m_CpuRenderMs = 0.0f;
+		float m_CpuUpdateMs = 0.0f, m_CpuUiMs = 0.0f;   // all of OnUpdate (the simulation included), and the interface (DrawUI)   // this frame's CPU time of the simulation, of building the scene and of the renderer (smoothed)
+		std::string RenderStatsLine() const;
+		static constexpr size_t kHierarchyListed = 64;   // more children than this: the Hierarchy lists them clipped, one line each
+		void DrawHierarchyList(const std::vector<EntityId>& ids);
+		std::vector<EntityId> m_HierarchyRoots;
+		size_t m_HierarchyCount = static_cast<size_t>(-1);
+		double m_HierarchyAt = -1e9;
+		std::vector<std::filesystem::path> m_AssetFiles;   // the Assets panel's listing (read again every two seconds)
+		double m_AssetScanAt = -1e9;   // the draw calls, triangles and the GPU and CPU times of the last frame, in two lines   // `set render.actors 0`: the characters are not drawn (to measure what they cost)
+		// > 0 while a command spawns a crew (tribe build, clan new, village, play): `actor spawn` then only makes the actor, without storing and
+		// reloading every ability system of the scene or taking an undo snapshot for each one (seconds each in a big world).
+		int m_SpawnBatch = 0;
+		struct SpawnBatch { EditorApp& App; explicit SpawnBatch(EditorApp& app) : App(app) { ++App.m_SpawnBatch; } ~SpawnBatch() { if (--App.m_SpawnBatch == 0) App.m_SceneEditor.Commit(); } };
+		std::chrono::steady_clock::time_point m_FrameStart;
 		std::string m_SaveDir = "saves";                         // GB_SAVE_DIR overrides it
 
 		// automation
@@ -362,9 +499,11 @@ namespace GB::Editor
 		size_t m_ConsoleVersion = 0;
 		std::vector<float> m_FrameTimes;
 		float m_FrameMsSmooth = 16.0f;
+		float m_NavSyncTimer = 0.0f;                             // real seconds to the next look at whether trees went or appeared
 		float m_FrameDt = 1.0f / 60.0f;
 		int m_WorldTypeIndex = 0;
 		std::string m_AssetRoot;
+		Lang m_Lang;                                     // the words of the game's interface (Lang.h, assets/ui/lang): only what is drawn
 		std::string m_TimelineMontage, m_TimelineFile = "montages.json";
 		int m_TimelineNotify = -1;
 		bool m_TimelineDrag = false;

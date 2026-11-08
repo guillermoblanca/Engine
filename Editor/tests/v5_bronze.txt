@@ -1,0 +1,21 @@
+# V5 (docs/VISION_MUNDO_VIVO.md): an era is a pack of data. era2.pack.json adds to era1 the Bronze Age (its key technology, alloying), tin, bronze,
+# a need of the age (faith) and its verb (pray), done at a building that provides it (the temple): no code knows any of them. The clan is given
+# smelting and alloying, so it is in the Bronze Age; its people lose faith (a test's copy of the need that falls in seconds) and go to pray at the
+# temple. The era is state: it is saved and loaded with the clan.
+pack load era2 strict
+generate temperate 5
+resources world
+site best
+tribe build fox
+content load v5_faith_fast.json
+knowledge grant clan smelting
+knowledge grant clan alloying
+settlement raise temple
+wait 600
+qa expect "village report" "Bronze Age"
+wait 1200
+qa expect "tribe log 80" "prays at Temple 1 \(Faith\)"
+save v5_bronze
+load v5_bronze
+qa expect "village report" "Bronze Age"
+quit

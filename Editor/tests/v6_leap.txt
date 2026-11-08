@@ -1,0 +1,18 @@
+# V6 (docs/VISION_MUNDO_VIVO.md §9): between two lives the world leaps years. Each clan lives them in aggregate: its society's days (ageing, old
+# age, couples, births: newborns get their bodies), a next step learnt every 50 years, all written to the history as one event that every member
+# knows. The player dies of old age and the world leaps the years of its era (era1.json: the Stone Age leaps 500); then an heir is chosen
+# among those living, who remembers them; the game is saved and loaded with them.
+play temperate 5 4 2
+wait 60
+game die
+wait 5
+qa expect "tribe history 3" "500 years pass"
+qa expect "game heir first" "you are"
+qa expect "tribe history of me leap" "500 years pass"
+qa expect "clan leap 60" "60 years pass \| .*born, .*died"
+qa expect "tribe history 3" "60 years pass"
+save v6_leap
+load v6_leap
+qa expect "tribe history of me leap" "500 years pass"
+qa check
+quit

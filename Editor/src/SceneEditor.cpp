@@ -1,5 +1,6 @@
 #include "SceneEditor.h"
 #include "GB/Game/SceneIO.h"
+#include "GB/Log.h"
 #include <algorithm>
 #include <cctype>
 #include <cmath>
@@ -143,6 +144,14 @@ namespace GB::Editor
 
 	void SceneEditor::Commit()
 	{
+		if (m_World.Count() > kUndoEntities)
+		{
+			if (!m_Undo.empty() || !m_Redo.empty() || !m_Current.empty()) GB_CLIENT_INFO("the scene has {} entities: no undo for it (more than {})", m_World.Count(), kUndoEntities);
+			m_Undo.clear();
+			m_Redo.clear();
+			m_Current.clear();
+			return;
+		}
 		std::string now = SaveSceneToString(m_World);
 		if (now == m_Current) return;
 		m_Undo.push_back(std::move(m_Current));

@@ -326,6 +326,27 @@ static void Proposals()
 	Town b(4);
 	const auto no2 = b.T.Propose(b.Player, "gather", "wood", 10);
 	Check(no2.Text == no.Text, "the vote is deterministic: the same clan answers the same");
+	// the vote foreseen (the clan book shows it before proposing) is the vote cast
+	{
+		Town e(4);
+		const Tribe::ProposalForecast f = e.T.ForeseeProposal(e.Player, "gather", "wood", 10);
+		const auto cast = e.T.Propose(e.Player, "gather", "wood", 10);
+		const Proposal& p = e.T.Players().Proposals.back();
+		Check(!f.Accepted && !cast.Ok && f.Yes == p.Yes && f.Voters == p.Voters, "the foreseen vote is the vote cast");
+	}
+	// a building the clan says no to, built all the same: the site opens, the standing does not move
+	{
+		Town g(4);
+		const float before = g.T.Standing(g.Player);
+		const auto forced = g.T.Propose(g.Player, "build", "shelter", 0, glm::vec2(0.0f), true);
+		if (forced.Text.find("no building") != std::string::npos) std::printf("  (no buildings in this town: the forced build is not checked here)\n");
+		else
+		{
+			Check(forced.Ok && g.T.Players().Proposals.back().Status == "forced", "a building the clan says no to can be built all the same");
+			Check(g.T.Standing(g.Player) == before, "building it all the same costs no standing");
+			std::printf("  %s\n", forced.Text.c_str());
+		}
+	}
 	// a player the clan likes: yes
 	Town c(4);
 	for (const std::string& n : c.Names) if (n != c.Player) c.T.People().Adjust(c.T.Config.Society, n, c.Player, 0.3f);

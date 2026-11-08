@@ -15,6 +15,8 @@ namespace GB
 	class BiomeClassifyNode final : public ITerrainNode
 	{
 	public:
+		TgNodeSchema Describe() const override;
 		bool Evaluate(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs, TgField& out, std::string& error) const override;
+		bool Run(const TgNode& node, const TgContext& ctx, const std::vector<const TgValue*>& inputs, std::map<std::string, TgValue>& outputs, std::string& error) const override;
 	};
 }

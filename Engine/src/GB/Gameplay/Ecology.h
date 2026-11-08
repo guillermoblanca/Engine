@@ -13,7 +13,7 @@ namespace GB
 
 	struct SeasonClock
 	{
-		float SeasonSeconds = 240.0f;   // one season; a year is four of them
+		float SeasonSeconds = 16800.0f;   // one season: two weeks of 1200 s days (NeedsConfig::DaySeconds); a year is four of them, 56 days
 
 		Season At(double seconds) const;
 		float Progress(double seconds) const;           // 0..1 through the current season
@@ -128,6 +128,7 @@ namespace GB
 		// Plant: the plant it is going to eat, or the prey it chases.
 		struct Walk { glm::vec2 Home{ 0.0f }, Target{ 0.0f }; std::string Plant; float Eating = 0.0f; bool Has = false; EntityId Id = NullEntity; };
 		struct Counts { int Born = 0, Starved = 0, Eaten = 0, Killed = 0; };
+		struct Plant { std::string Name; glm::vec2 At; };
 
 		EntityId Make(const SpeciesDef& species, const glm::vec3& at, float food, float age);
 		const SpeciesDef* SpeciesOf(const AbilitySystemComponent& a) const;
@@ -141,5 +142,13 @@ namespace GB
 		std::map<std::string, Walk> m_Walks;
 		std::map<std::string, int> m_Serials;     // species -> the last number given to one
 		std::map<std::string, Counts> m_Counts;   // species -> what happened to them
+		// The plants of each species' diet and where they stand, kept while the scene's systems and entities stay as many (plants do not move;
+		// whether one still has something is asked at the moment of choosing).
+		std::map<std::string, std::vector<Plant>> m_Plants;
+		uint64_t m_PlantsRevision = 0;
+		size_t m_PlantsEntities = 0;
+		// The systems that may be animals (every species' tag is Animal.<something>), listed again only when the world gains or loses one: the
+		// scan of every system (thousands of resource nodes) cost more than the animals themselves.
+		mutable TaggedSystems m_Animals{ { "Animal" } };
 	};
 }

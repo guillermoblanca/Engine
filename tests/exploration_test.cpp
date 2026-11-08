@@ -120,6 +120,9 @@ struct Land
 		WorldDesc desc;
 		desc.Type = type;
 		desc.Seed = seed;
+		// The worlds these expeditions were written against: the regions, the wild nodes and where clay and copper are found depend on them, so the
+		// fixture keeps its generator when a newer one changes what a seed makes (GB/World/WorldGenVersion.h).
+		desc.GeneratorVersion = kWorldGeneratorV3;
 		World = WorldGenerator::GenerateData(desc);
 		ItemLibrary items;
 		RecipeBook recipes;

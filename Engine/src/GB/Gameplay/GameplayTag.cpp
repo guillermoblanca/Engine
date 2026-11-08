@@ -45,10 +45,13 @@ namespace GB
 
 	bool GameplayTagContainer::RemoveAll(const GameplayTag& tag) { return m_Tags.erase(tag.Name()) > 0; }
 
-	bool GameplayTagContainer::Has(const GameplayTag& query) const
+	// What TagMatches says of every held tag, by the order of the names: the query itself and its descendants ("<query>.<...>") all start
+	// with the query, so they lie together from its lower bound on (with, maybe, others that start with it too, "<query>X", which do not match).
+	bool GameplayTagContainer::HasName(const std::string& query) const
 	{
-		for (const auto& [name, count] : m_Tags)
-			if (GameplayTag::TagMatches(query.Name(), name)) return true;
+		if (query.empty()) return false;
+		for (auto it = m_Tags.lower_bound(query); it != m_Tags.end() && it->first.compare(0, query.size(), query) == 0; ++it)
+			if (GameplayTag::TagMatches(query, it->first)) return true;
 		return false;
 	}
 

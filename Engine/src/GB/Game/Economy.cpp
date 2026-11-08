@@ -1,4 +1,5 @@
 #include "GB/Game/Economy.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Gameplay/GameplayTag.h"
 #include <algorithm>
 #include <cmath>
@@ -126,7 +127,9 @@ namespace GB
 
 	EconomyRules DefaultEconomyRules()
 	{
-		return EconomyRules();   // (the defaults of each part are the game's: cordage kept, the camp's workbench, the cold of winter, a main store and stockpiles)
+		// the "economy" section of the game's data (era1.json): production, spoilage, fields and crops, stores and hauling. Not a second copy here.
+		static const EconomyRules rules = ShippedSection<EconomyRules>([](const std::string& doc, EconomyRules& r) { return LoadEconomyRules(doc, r); });
+		return rules;
 	}
 
 	std::string LoadEconomyRules(const std::string& json, EconomyRules& live)
@@ -196,7 +199,7 @@ namespace GB
 					|| !(e = r.Int("columns", x.Columns, 1, 100)).empty() || !(e = r.Float("spacing", x.Spacing, 0.5f, 20.0f)).empty()
 					|| !(e = r.Float("moistureSeconds", x.MoistureSeconds, 1.0f, 1e6f)).empty() || !(e = r.Float("workSeconds", x.WorkSeconds, 0.0f, 600.0f)).empty()
 					|| !(e = r.Int("plotsPerTrip", x.PlotsPerTrip, 1, 100)).empty() || !(e = r.Float("priority", x.Priority, 0.0f, 100.0f)).empty()
-					|| !(e = r.Int("fields", x.Fields, 0, 16)).empty()) return e;
+					|| !(e = r.Int("fields", x.Fields, 0, 64)).empty() || !(e = r.Int("membersPerField", x.MembersPerField, 0, 1000)).empty()) return e;
 				if (!x.ToolTag.empty() && !GameplayTag::IsValidTagName(x.ToolTag)) return "economy: farming tool is a bad tag " + x.ToolTag;
 				if (r.Has("offset"))
 				{
@@ -249,7 +252,8 @@ namespace GB
 				ConstructionRules& x = rules.Construction;
 				x = ConstructionRules();
 				Reader r{ *p, "construction", {} };
-				if (!(e = r.Int("maxSites", x.MaxSites, 1, 50)).empty() || !(e = r.Int("membersPerSite", x.MembersPerSite, 0, 1000)).empty()) return e;
+				if (!(e = r.Int("maxSites", x.MaxSites, 1, 50)).empty() || !(e = r.Int("membersPerSite", x.MembersPerSite, 0, 1000)).empty()
+					|| !(e = r.Float("ageSeconds", x.AgeSeconds, 1.0f, 1e6f)).empty() || !(e = r.Float("ageMax", x.AgeMax, 0.0f, 100.0f)).empty()) return e;
 				if (!(e = r.Unknown()).empty()) return e;
 			}
 		}
@@ -303,6 +307,7 @@ namespace GB
 		f["plotsPerTrip"] = m.PlotsPerTrip;
 		f["priority"] = Rounded(m.Priority);
 		f["fields"] = m.Fields;
+		f["membersPerField"] = m.MembersPerField;
 		for (const auto& [id, crop] : r.Crops)
 		{
 			Json y = Json::object();
@@ -317,7 +322,8 @@ namespace GB
 		l["priority"] = Rounded(r.Logistics.Priority);
 		l["haulAt"] = r.Logistics.HaulAt;
 		l["fieldStore"] = r.Logistics.FieldStore;
-		const Json k = { { "maxSites", r.Construction.MaxSites }, { "membersPerSite", r.Construction.MembersPerSite } };
+		const Json k = { { "maxSites", r.Construction.MaxSites }, { "membersPerSite", r.Construction.MembersPerSite }, { "ageSeconds", Rounded(r.Construction.AgeSeconds) },
+			{ "ageMax", Rounded(r.Construction.AgeMax) } };
 		return Json{ { "production", p }, { "spoilage", s }, { "farming", f }, { "crops", c }, { "logistics", l }, { "construction", k } }.dump();
 	}
 
@@ -354,6 +360,12 @@ namespace GB
 		j["dayStart"] = DayStart;
 		j["foodToday"] = FoodToday;
 		j["foodYesterday"] = FoodYesterday;
+		if (!Pantries.empty())
+		{
+			Json pantries = Json::object();
+			for (const auto& [id, inv] : Pantries) pantries[id] = Json::parse(inv.ToJson());
+			j["pantries"] = pantries;
+		}
 		return j.dump();
 	}
 
@@ -377,6 +389,16 @@ namespace GB
 					p.Pos = { o["pos"][0].get<float>(), o["pos"][1].get<float>() };
 					if (p.Name.empty() || !p.Store.FromJson(o["store"].dump())) return false;
 					s.Stockpiles.push_back(std::move(p));
+				}
+			}
+			if (j.contains("pantries"))
+			{
+				if (!j["pantries"].is_object()) return false;
+				for (const auto& [id, o] : j["pantries"].items())
+				{
+					Inventory inv(12, 0.0f);
+					if (!inv.FromJson(o.dump())) return false;
+					s.Pantries[id] = std::move(inv);
 				}
 			}
 			auto counts = [&](const char* key, std::map<std::string, int>& m)

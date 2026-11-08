@@ -1,4 +1,5 @@
 #include "GB/Gameplay/Items.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Gameplay/GameplayTag.h"
 #include <algorithm>
 #include <cmath>
@@ -458,6 +459,13 @@ namespace GB
 					str(o, "kind", d.Kind);
 					str(o, "model", d.Model);
 					d.Decor = o.value("decor", false);
+					if (auto ex = o.find("extra"); ex != o.end())
+					{
+						if (!ex->is_object()) return "node '" + d.Id + "': extra must be an object { item, perGather }";
+						str(*ex, "item", d.ExtraItem);
+						d.ExtraPerGather = ex->value("perGather", 1);
+						if (d.ExtraItem.empty() || d.ExtraPerGather < 1) return "node '" + d.Id + "': extra needs an item and a perGather of at least 1";
+					}
 					if (!d.Kind.empty() && !GameplayTag::IsValidTagName("Resource." + d.Kind)) return "node '" + d.Id + "': bad kind " + d.Kind;
 					if (auto pt = o.find("patch"); pt != o.end())
 					{
@@ -492,6 +500,23 @@ namespace GB
 						d.Spawn.ScaleMin = sp->value("scaleMin", 1.0f);
 						d.Spawn.ScaleMax = sp->value("scaleMax", d.Spawn.ScaleMin);
 						d.Spawn.Stack = sp->value("stack", 0);
+						if (auto z = sp->find("zones"); z != sp->end())
+						{
+							if (!z->is_object()) return "node '" + d.Id + "': spawn zones must be an object";
+							ResourceSpawnDef::ZoneRule& r = d.Spawn.Zones;
+							r.PerKm2 = z->value("perKm2", 0.0f);
+							r.Min = z->value("min", 1);
+							r.Max = z->value("max", 0);
+							r.RadiusMin = z->value("radiusMin", 30.0f);
+							r.RadiusMax = z->value("radiusMax", r.RadiusMin);
+							if (const auto f = z->find("fallback"); f != z->end())
+							{
+								if (!f->is_array()) return "node '" + d.Id + "': spawn zones fallback must be a list of biomes";
+								for (const auto& b : *f) { if (!b.is_string()) return "node '" + d.Id + "': spawn zones fallback must be a list of biomes"; r.Fallback.push_back(b.get<std::string>()); }
+							}
+							if (!(r.PerKm2 >= 0.0f && r.PerKm2 <= 100.0f) || r.Min < 0 || r.Max < 0 || (r.Max > 0 && r.Max < r.Min)) return "node '" + d.Id + "': spawn zones perKm2 (0..100), min or max out of range";
+							if (!(r.RadiusMin >= 5.0f && r.RadiusMax >= r.RadiusMin && r.RadiusMax <= 500.0f)) return "node '" + d.Id + "': spawn zones radius (5..500) out of range";
+						}
 						if (!d.Spawn.Prop.empty() && d.Spawn.Prop != "tree" && d.Spawn.Prop != "rock") return "node '" + d.Id + "': spawn prop must be tree or rock";
 						if (!(d.Spawn.ScaleMin >= 0.1f && d.Spawn.ScaleMax >= d.Spawn.ScaleMin && d.Spawn.ScaleMax <= 6.0f) || d.Spawn.Stack < 0 || d.Spawn.Stack > 4) return "node '" + d.Id + "': spawn scaleMin/scaleMax (0.1..6) or stack (0..4) out of range";
 						if (!(d.Spawn.PerHectare >= 0.0f && d.Spawn.PerHectare <= 500.0f)) return "node '" + d.Id + "': spawn perHectare must be between 0 and 500";
@@ -576,6 +601,7 @@ namespace GB
 			if (!d.Kind.empty()) o["kind"] = d.Kind;
 			if (!d.Model.empty()) o["model"] = d.Model;
 			if (d.Decor) o["decor"] = true;
+			if (!d.ExtraItem.empty()) o["extra"] = { { "item", d.ExtraItem }, { "perGather", d.ExtraPerGather } };
 			if (d.Patch.Count != 0 || d.Patch.PerWorker != 0)
 			{
 				Json pt = { { "count", d.Patch.Count }, { "perWorker", d.Patch.PerWorker }, { "spacing", Round3(d.Patch.Spacing) }, { "shape", d.Patch.Shape } };
@@ -591,6 +617,13 @@ namespace GB
 				if (!d.Spawn.Prop.empty()) sp["prop"] = d.Spawn.Prop;
 				if (d.Spawn.ScaleMin != 1.0f || d.Spawn.ScaleMax != 1.0f) { sp["scaleMin"] = Round3(d.Spawn.ScaleMin); sp["scaleMax"] = Round3(d.Spawn.ScaleMax); }
 				if (d.Spawn.Stack > 0) sp["stack"] = d.Spawn.Stack;
+				if (const ResourceSpawnDef::ZoneRule& r = d.Spawn.Zones; r.PerKm2 > 0.0f)
+				{
+					Json z = { { "perKm2", Round3(r.PerKm2) }, { "min", r.Min }, { "radiusMin", Round3(r.RadiusMin) }, { "radiusMax", Round3(r.RadiusMax) } };
+					if (r.Max > 0) z["max"] = r.Max;
+					if (!r.Fallback.empty()) z["fallback"] = r.Fallback;
+					sp["zones"] = z;
+				}
 				o["spawn"] = sp;
 			}
 			jn.push_back(o);
@@ -599,162 +632,12 @@ namespace GB
 		return j.dump(2);
 	}
 
-	namespace
-	{
-		ItemDef Def(const char* id, const char* name, const char* category, float weight, int stack, std::vector<std::string> tags, const char* ability, const char* socket)
-		{
-			ItemDef d;
-			d.Id = id; d.Name = name; d.Category = category; d.Weight = weight; d.MaxStack = stack; d.Tags = std::move(tags); d.Ability = ability; d.Socket = socket;
-			return d;
-		}
-
-		ItemDef Fuel(ItemDef d, int fuel)
-		{
-			d.Fuel = fuel;
-			return d;
-		}
-
-		ResourceNodeDef Node(const char* id, const char* item, int capacity, int perGather, float regenSeconds, int regen, const char* tool, const char* ability,
-			const char* kind, int patchCount, int patchPerWorker, const char* shape = "row", float spacing = 4.0f, const char* beside = "")
-		{
-			ResourceNodeDef d;
-			d.Id = id; d.Item = item; d.Capacity = capacity; d.PerGather = perGather; d.RegenSeconds = regenSeconds; d.Regen = regen; d.RequiresTag = tool; d.Ability = ability;
-			d.Kind = kind;
-			d.Patch.Count = patchCount; d.Patch.PerWorker = patchPerWorker; d.Patch.Shape = shape; d.Patch.Spacing = spacing; d.Patch.Near = beside;
-			return d;
-		}
-
-		ItemDef Tool(ItemDef d, int power, float speed)
-		{
-			d.Power = power;
-			d.Speed = speed;
-			return d;
-		}
-	}
-
 	void RegisterEraOneItems(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes)
 	{
-		// Wood burns for 2 units of heat in a campfire, a branch for 1 (E1): it takes two branches for the heat of one piece of wood.
-		items.Add(Fuel(Def("wood",      "Wood",        "resource", 2.0f, 10, { "Item.Resource.Wood" },  "", ""), 2));
-		items.Add(Def("stone",     "Stone",       "resource", 3.0f, 10, { "Item.Resource.Stone" }, "", ""));
-		items.Add(Def("fiber",     "Plant fiber", "resource", 0.2f, 20, { "Item.Resource.Fiber" }, "", ""));
-		{
-			// E6: a berry keeps a day and a half (1800 s): the stack that is not eaten goes off as a whole, which takes about as much surplus away as
-			// the old sink did (one berry above 20 every 100 s) without touching what the clan eats in time (it eats the oldest first)
-			ItemDef berry = Def("berry", "Berry", "food", 0.1f, 20, { "Item.Food" }, "Eat", "");
-			berry.ShelfLife = 1800.0f;
-			items.Add(berry);
-			// H14: meat from the hunt (GB/Gameplay/Combat.h, the "hunts" of the combat rules). It keeps half as long as berries: a clan eats it
-			// first (it eats what goes off soonest) and a surplus spoils in a day.
-			ItemDef meat = Def("meat", "Meat", "food", 0.5f, 10, { "Item.Food.Meat" }, "Eat", "");
-			meat.ShelfLife = 900.0f;
-			items.Add(meat);
-		}
-
-		items.Add(Def("stone_axe",     "Stone axe",     "tool", 2.5f, 1, { "Item.Tool.Axe" },     "Chop", "RightHand"));
-		items.Add(Def("stone_pickaxe", "Stone pickaxe", "tool", 3.0f, 1, { "Item.Tool.Pickaxe" }, "Mine", "RightHand"));
-		items.Add(Def("water",     "Water",       "food",     1.0f,  5, { "Item.Food.Water" },     "Drink", ""));
-		items.Add(Def("campfire",  "Campfire kit", "structure", 6.0f, 1, { "Item.Structure.Fire" }, "Place", ""));
-
-		// Flint (E2): sharper than stone, so a flint tool gives one more unit per swing and swings a little faster. Branches, flint and reed
-		// come from nodes that the extended content (era1_ampliado.json) defines; until a node places them, `actor bag <name> add` supplies them.
-		items.Add(Fuel(Def("branch",  "Branch",  "resource", 0.6f, 20, { "Item.Resource.Wood.Branch" }, "", ""), 1));
-		items.Add(Def("flint",   "Flint",   "resource", 1.0f, 10, { "Item.Resource.Stone.Flint" }, "", ""));
-		items.Add(Def("reed",    "Reed",    "resource", 0.2f, 20, { "Item.Resource.Fiber.Reed" }, "", ""));
-		items.Add(Def("cordage", "Cordage", "resource", 0.3f, 20, { "Item.Resource.Cordage" }, "", ""));
-		// E1: clay from a bank, and copper (ore from a vein; the forge that smelts it arrives with E10, so its recipe cannot be made yet: WhyNot says so).
-		items.Add(Def("clay",         "Clay",          "resource", 2.5f, 10, { "Item.Resource.Clay" },         "", ""));
-		items.Add(Def("copper_ore",   "Copper ore",    "resource", 2.0f, 10, { "Item.Resource.Ore.Copper" },   "", ""));
-		items.Add(Def("copper_ingot", "Copper ingot",  "resource", 1.5f, 10, { "Item.Resource.Metal.Copper" }, "", ""));
-		items.Add(Tool(Def("flint_axe",     "Flint axe",     "tool", 2.2f, 1, { "Item.Tool.Axe.Flint" },     "Chop", "RightHand"), 1, 1.15f));
-		items.Add(Tool(Def("flint_pickaxe", "Flint pickaxe", "tool", 2.6f, 1, { "Item.Tool.Pickaxe.Flint" }, "Mine", "RightHand"), 1, 1.15f));
-		// A wicker basket in the bag adds six slots (the best container counts, they do not add up); the weight bonus is for bags that have a limit.
-		ItemDef basket = Def("basket_wicker", "Wicker basket", "container", 1.5f, 1, { "Item.Container.Basket" }, "", "");
-		basket.BagSlots = 6;
-		basket.BagWeight = 8.0f;
-		items.Add(basket);
-
-		recipes.Add({ "stone_axe",     "workbench", "",                  { { "wood", 2 }, { "stone", 2 }, { "fiber", 3 } }, "stone_axe",     1, "Craft" });
-		recipes.Add({ "stone_pickaxe", "workbench", "",                  { { "wood", 2 }, { "stone", 3 }, { "fiber", 3 } }, "stone_pickaxe", 1, "Craft" });
-		recipes.Add({ "cordage",       "",          "",                  { { "fiber", 3 } },                                "cordage",       1, "Craft" });
-		recipes.Add({ "flint_axe",     "workbench", "",                  { { "flint", 2 }, { "branch", 2 }, { "cordage", 1 } }, "flint_axe",     1, "Craft" });
-		recipes.Add({ "flint_pickaxe", "workbench", "",                  { { "flint", 3 }, { "branch", 2 }, { "cordage", 1 } }, "flint_pickaxe", 1, "Craft" });
-		recipes.Add({ "basket_wicker", "",          "",                  { { "reed", 5 }, { "branch", 2 } },                "basket_wicker", 1, "Craft" });
-		recipes.Add({ "campfire",      "",          "Item.Tool.Axe",     { { "wood", 4 }, { "stone", 3 } },                 "campfire",      1, "Craft" });
-		recipes.Add({ "copper_ingot",  "forge",     "",                  { { "copper_ore", 2 } },                           "copper_ingot",  1, "Craft" });
-
-		// The Stone-Age progression (docs/PROGRESION.md): what the new technologies unlock and the new buildings are made of. Herbs grow wild; the hide
-		// comes from the hunt (the byproduct of a rabbit, H14); the rest is made.
-		items.Add(Def("herbs",    "Healing herbs", "resource", 0.1f, 20, { "Item.Resource.Herb" },     "", ""));
-		items.Add(Def("hide",     "Hide",          "resource", 0.8f, 10, { "Item.Resource.Hide" },     "", ""));
-		items.Add(Def("poultice", "Poultice",      "resource", 0.2f, 10, { "Item.Medicine.Poultice" }, "", ""));
-		items.Add(Def("leather",  "Leather",       "resource", 0.6f, 10, { "Item.Resource.Leather" },  "", ""));
-		items.Add(Def("daub",     "Daub",          "resource", 2.0f, 10, { "Item.Resource.Daub" },     "", ""));
-		items.Add(Def("reed_mat", "Reed mat",      "resource", 1.0f, 10, { "Item.Resource.Mat" },      "", ""));
-		items.Add(Fuel(Def("stake", "Stake",       "resource", 1.5f, 10, { "Item.Resource.Wood.Stake" }, "", ""), 1));
-		items.Add(Def("fired_brick", "Fired brick", "resource", 2.5f, 10, { "Item.Resource.Brick.Fired" }, "", ""));
-		items.Add(Def("flint_spear", "Flint spear", "weapon", 1.8f, 1, { "Item.Weapon.Spear" }, "", "RightHand"));
-		items.Add(Def("flint_sword", "Flint sword", "weapon", 2.0f, 1, { "Item.Weapon.Sword" }, "", "RightHand"));
-		items.Add(Def("hunting_bow", "Hunting bow", "weapon", 1.2f, 1, { "Item.Weapon.Bow" }, "", "LeftHand"));
-		{
-			// a leather bag is a better container than the basket: three more slots
-			ItemDef bag = Def("leather_bag", "Leather bag", "container", 1.0f, 1, { "Item.Container.Bag" }, "", "");
-			bag.BagSlots = 9;
-			bag.BagWeight = 12.0f;
-			items.Add(bag);
-			// cooked meat keeps a little longer than raw (900 s); smoked meat for days
-			ItemDef cooked = Def("cooked_meat", "Cooked meat", "food", 0.4f, 10, { "Item.Food.Meat.Cooked" }, "Eat", "");
-			cooked.ShelfLife = 2400.0f;
-			items.Add(cooked);
-			ItemDef smoked = Def("smoked_meat", "Smoked meat", "food", 0.3f, 20, { "Item.Food.Meat.Smoked" }, "Eat", "");
-			smoked.ShelfLife = 9600.0f;
-			items.Add(smoked);
-		}
-		recipes.Add({ "poultice",    "",             "",              { { "herbs", 2 }, { "fiber", 1 } },                    "poultice",    1, "Craft" });
-		recipes.Add({ "leather",     "tannery",      "",              { { "hide", 2 } },                                     "leather",     1, "Craft" });
-		recipes.Add({ "leather_bag", "workbench",    "",              { { "leather", 2 }, { "cordage", 1 } },                "leather_bag", 1, "Craft" });
-		recipes.Add({ "cooked_meat", "hearth",       "",              { { "meat", 1 } },                                     "cooked_meat", 1, "Craft" });
-		recipes.Add({ "smoked_meat", "smoking_rack", "",              { { "meat", 2 }, { "wood", 1 } },                      "smoked_meat", 2, "Craft" });
-		recipes.Add({ "daub",        "",             "",              { { "clay", 2 }, { "fiber", 1 } },                     "daub",        2, "Craft" });
-		recipes.Add({ "reed_mat",    "",             "",              { { "reed", 4 }, { "cordage", 1 } },                   "reed_mat",    1, "Craft" });
-		recipes.Add({ "stakes",      "",             "Item.Tool.Axe", { { "wood", 1 } },                                     "stake",       2, "Craft" });
-		recipes.Add({ "flint_sword", "workbench",    "",              { { "wood", 1 }, { "flint", 2 }, { "cordage", 1 } },   "flint_sword", 1, "Craft" });
-		recipes.Add({ "hunting_bow", "workbench",    "",              { { "wood", 2 }, { "cordage", 2 } },   "hunting_bow", 1, "Craft" });
-		recipes.Add({ "flint_spear", "workbench",    "",              { { "wood", 1 }, { "flint", 1 }, { "cordage", 1 } },   "flint_spear", 1, "Craft" });
-		recipes.Add({ "fired_brick", "kiln",         "",              { { "clay", 2 }, { "wood", 1 } },                      "fired_brick", 2, "Craft" });
-
-		// The patch fields say how many of each node a patch has (Count + PerWorker * workers; the first four match ScaledResources) and how they are laid out.
-		// young_tree and old_tree are sibling nodes (E1): the young ones stand beside the old ones, branches for the hands and wood for the axe.
-		nodes["tree"]          = Node("tree",          "wood",       5, 1,  30.0f, 1, "Item.Tool.Axe",     "Chop",      "Wood",         2, 2);
-		nodes["rock"]          = Node("rock",          "stone",      4, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone",        3, 2);
-		nodes["berry_bush"]    = Node("berry_bush",    "berry",      6, 2,  20.0f, 2, "",                  "Gather",    "Plant",        2, 1);
-		nodes["fiber_grass"]   = Node("fiber_grass",   "fiber",      8, 2,  15.0f, 2, "",                  "PullFiber", "Plant",        2, 1);
-		nodes["young_tree"]    = Node("young_tree",    "branch",     3, 1,  40.0f, 1, "",                  "Gather",    "Plant.Branch", 1, 1, "row", 4.0f, "old_tree");
-		nodes["old_tree"]      = Node("old_tree",      "wood",       8, 1, 120.0f, 1, "Item.Tool.Axe",     "Chop",      "Wood",         1, 1, "cluster", 7.0f);
-		nodes["clay_bank"]     = Node("clay_bank",     "clay",       8, 2,  60.0f, 2, "",                  "Collect",   "Loose.Clay",   1, 0, "cluster", 3.0f);
-		nodes["reed_bed"]      = Node("reed_bed",      "reed",       8, 2,  20.0f, 2, "",                  "Collect",   "Loose.Reed",   1, 1, "cluster", 3.0f);
-		nodes["flint_outcrop"] = Node("flint_outcrop", "flint",      5, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Flint",  1, 1, "cluster", 3.5f);
-		nodes["copper_vein"]   = Node("copper_vein",   "copper_ore", 4, 1,   0.0f, 1, "Item.Tool.Pickaxe", "Mine",      "Stone.Copper", 1, 0, "row", 4.0f);
-		// (herbs grow wild only: no patch of `resources build`, so the patch of a camp stays as it was)
-		nodes["herb_patch"]    = Node("herb_patch",    "herbs",      4, 1,  60.0f, 1, "",                  "Gather",    "Plant.Herb",   0, 0);
-
-		// Where each grows over a generated world (PlanWorldResources): wood in the forest, berries and fibre in the meadow, clay and reeds by the water,
-		// stone, flint and copper on rocky ground (copper rare and in veins). PerHectare is the average over the matching ground; a map of 360 m gets a few hundred nodes.
-		auto spawn = [&](const char* id, std::vector<std::string> biomes, float perHectare, float spacing, float maxSlope, float waterWithin = 0.0f, float clump = 0.0f, int most = 0)
-		{
-			ResourceSpawnDef& s = nodes[id].Spawn;
-			s.Biomes = std::move(biomes); s.PerHectare = perHectare; s.Spacing = spacing; s.MaxSlope = maxSlope; s.WaterWithin = waterWithin; s.Clump = clump; s.Max = most;
-		};
-		spawn("tree",          { "Forest", "Meadow" },          6.0f, 8.0f, 30.0f, 0.0f, 0.3f);
-		spawn("old_tree",      { "Forest" },                    8.0f, 9.0f, 28.0f, 0.0f, 0.2f);
-		spawn("young_tree",    { "Forest", "Meadow" },          8.0f, 5.0f, 30.0f, 0.0f, 0.35f);
-		spawn("berry_bush",    { "Meadow", "Forest" },          6.0f, 5.0f, 25.0f, 0.0f, 0.5f);
-		spawn("fiber_grass",   { "Meadow", "Shore" },           8.0f, 5.0f, 25.0f, 0.0f, 0.3f);
-		spawn("rock",          { "Rock", "Meadow", "Shore", "Dunes" }, 4.0f, 7.0f, 45.0f);
-		spawn("flint_outcrop", { "Rock", "Shore", "Dunes" },    4.0f, 6.0f, 45.0f, 0.0f, 0.55f, 16);
-		spawn("copper_vein",   { "Rock", "Snow" },              2.0f, 8.0f, 50.0f, 0.0f, 0.7f, 5);
-		spawn("clay_bank",     { "Shore", "Meadow" },          15.0f, 6.0f, 15.0f, 9.0f, 0.4f, 12);
-		spawn("reed_bed",      { "Shore", "Meadow" },         25.0f, 4.0f, 15.0f, 6.0f, 0.2f, 24);
-		spawn("herb_patch",    { "Meadow", "Forest" },          2.0f, 7.0f, 25.0f, 0.0f, 0.5f, 20);
+		// the game's catalogue as the data ships it (ShippedContent.h): the items, recipes and resource nodes of every file of the pack
+		const ShippedCatalog& c = Shipped();
+		for (const std::string& id : c.Items.Ids()) items.Add(*c.Items.Find(id));
+		for (const std::string& id : c.Recipes.Ids()) recipes.Add(*c.Recipes.Find(id));
+		for (const auto& [id, node] : c.Nodes) nodes[id] = node;
 	}
 }

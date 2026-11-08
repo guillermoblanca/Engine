@@ -36,11 +36,12 @@ namespace GB
 	{
 		std::string Name;
 		std::string Shape = "box";        // "box", "cylinder" (Size = bottom diameter, height, top diameter; top 0 = cone), "blob" (Size = radii),
-		                                  // "blade" (Size = width, height, lean)
+		                                  // "blade" (Size = width, height, lean), "model" (a kit piece: Model)
 		glm::vec3 Position{ 0.0f };
 		glm::vec3 Size{ 1.0f };
 		glm::vec3 Rotation{ 0.0f };       // degrees: pitch (x), yaw (y), roll (z)
 		std::string Material;
+		std::string Model;                // shape "model": a piece of a modular kit (a glTF/GLB under the assets, drawn as it is; Size scales it)
 		int Sides = 8;                    // cylinder
 		float Bend = 0.0f;                // cylinder: the top leans this far (metres)
 		int Detail = 1;                   // blob: subdivisions (0..3)
@@ -85,6 +86,9 @@ namespace GB
 	};
 
 	// How a carried thing is drawn and where (see PropVisuals.h): a model and the socket it hangs from, moved by an offset in the socket's frame.
+	// The kit pieces of a model (parts of shape "model") that are visible: the part's index and where the copy goes in the model.
+	std::vector<std::pair<size_t, glm::mat4>> ModelPieces(const struct VisualModel& model, const std::vector<bool>& visible, int variant);
+
 	struct PropLook
 	{
 		std::string Model;                // a model of VisualLibrary::Models
@@ -134,6 +138,20 @@ namespace GB
 		std::vector<CarryRule> Carry;                         // first match wins, by order
 		std::vector<std::string> CarryJobs{ "deposit", "haul" };   // the jobs that carry the load in the arms
 		int MaxShown = 3;                                     // at most this many props at once
+		// U5: what a member of a role wears ("outfits": { "<role>": { "color": [r, g, b], "props": [ { "name", "socket", "look" } ] } }): its trade's
+		// colour on the model's darker materials (the clan's is on the brightest) and pieces always on it (a cap, a satchel, a tool on the back)
+		struct OutfitPiece
+		{
+			std::string Name, Socket, Look;                   // the prop's name ("outfit:<name>"), where it hangs and how it looks
+			bool operator==(const OutfitPiece&) const = default;
+		};
+		struct Outfit
+		{
+			glm::vec3 Color{ -1.0f };                         // negative = none
+			std::vector<OutfitPiece> Props;
+			bool operator==(const Outfit&) const = default;
+		};
+		std::map<std::string, Outfit> Outfits;
 		bool operator==(const PropRules&) const = default;
 	};
 

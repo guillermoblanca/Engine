@@ -96,6 +96,10 @@ namespace GB
 		// The technology the agent would experiment with now ("" = none): the first by id that it can learn, can be found by trying, it is not waiting
 		// to try again and one of whose recipes has its inputs in `store` and `bag` together. `recipe` gets that recipe.
 		std::string NextExperiment(const std::string& name, double now, const Inventory& store, const Inventory& bag, const RecipeBook& book, std::string* recipe = nullptr) const;
+		// The clan's next steps (F5 of REVISION_IA_TRIBUS: the experiments went to whatever came first by id, trapping, and basketry, which opens the
+		// cabin, came on day 4 or never): NextExperiment tries these first, in this order. The tribe sets them (Tribe::UpdateGoals).
+		void SetGoals(std::vector<std::string> goals) { m_Goals = std::move(goals); }
+		const std::vector<std::string>& Goals() const { return m_Goals; }
 		// One try with that technology at `now` (the agent has spent its Seconds already): it finds it or not, and may spoil a unit of material (from the
 		// store first). Nothing happens when there is nothing to try.
 		std::vector<KnowledgeEvent> Experiment(const std::string& name, double now, Inventory& store, Inventory& bag, const RecipeBook& book);
@@ -113,6 +117,10 @@ namespace GB
 		// ---- for people
 		std::string Status(const std::string& name) const;   // "knows ...; learning ... 34%; tried ... x2"
 		std::string ClanStatus() const;
+		// U6: the technologies the clan is working out and does not know yet: the furthest any member has got (0..1) and who is on it (tried it or
+		// understands some of it), the furthest first.
+		struct ResearchLine { std::string Tech; float Progress = 0.0f; std::vector<std::string> Who; };
+		std::vector<ResearchLine> Research() const;
 		std::string Name(const std::string& tech) const;      // the technology's name, or its id
 
 		// ---- saving (docs/GUARDADO.md): what each agent knows as names ("tech.<id>", plus the Other names) for Save::ActorState::Knowledge, and the
@@ -133,6 +141,7 @@ namespace GB
 		std::map<std::string, AgentKnowledge> m_Agents;
 		std::set<std::string> m_Clan;
 		std::vector<std::string> m_ClanOther;   // names of a save that are not technologies, kept
+		std::vector<std::string> m_Goals;       // SetGoals (saved: the experiments read them before the next plan sets them again)
 		float m_LessonTimer = 0.0f;
 	};
 }

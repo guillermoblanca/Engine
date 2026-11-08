@@ -17,6 +17,16 @@ namespace GB
 {
 	namespace
 	{
+		// Each member's own place around a stockpile or a station: one point for all of them was a queue, and the ones behind waited for the crowd
+		// (20 s) and gave up (the golden angle spreads any number of them round the circle)
+		constexpr float kReachStore = 4.0f;   // what a stockpile holds is picked up within this of it
+
+		glm::vec2 Around(const glm::vec2& at, size_t index, float radius)
+		{
+			const float a = static_cast<float>(index) * 2.3999632f;
+			return at + glm::vec2(std::cos(a), std::sin(a)) * radius;
+		}
+
 		bool IsTool(const ItemLibrary& items, const std::string& id)
 		{
 			const ItemDef* d = items.Find(id);
@@ -262,7 +272,7 @@ namespace GB
 		if (!farm.ToolTag.empty())
 		{
 			bool farming = !m_Econ.Fields.empty();
-			if (!farming && static_cast<int>(m_Econ.Fields.size()) < farm.Fields)
+			if (!farming && static_cast<int>(m_Econ.Fields.size()) < FieldsWanted())
 			{
 				bool seeds = false, can = false;
 				for (const auto& [id, crop] : Config.Econ.Crops) seeds = seeds || Stored(crop.Seed) > 0;
@@ -310,7 +320,9 @@ namespace GB
 					const float life = out_->Perishable() ? out_->ShelfLife : 1e30f;   // (what never goes off keeps longest)
 					if (!best || life > bestLife) { best = r; bestLife = life; }
 				}
-				if (best)
+				// (a store full of what keeps: no more of it; 2000 dried berries in twelve days filled every slot). The same test the maker makes (a
+				// batch past the cap is not made): with "below the cap" a store at 79 of 80 planned a batch the maker refused, 2800 times in 12 days
+				if (best && m_Store.Count(best->Output) + std::max(1, best->OutputCount) <= StoreCap())
 				{
 					const int batches = surplus / std::max(1, best->Inputs.at(food));
 					if (batches >= 1)
@@ -364,7 +376,7 @@ namespace GB
 		// farm: mark out a field once the clan knows how and has seeds; then till, sow (in its season), water and harvest
 		const FarmRules& f = econ.Farming;
 		const Season season = CurrentSeason();
-		if (static_cast<int>(m_Econ.Fields.size()) < f.Fields && season != Season::Winter)
+		if (static_cast<int>(m_Econ.Fields.size()) < FieldsWanted() && season != Season::Winter)
 		{
 			bool seeds = false, can = false;
 			for (const auto& [id, crop] : econ.Crops) seeds = seeds || Stored(crop.Seed) > 0;
@@ -404,8 +416,13 @@ namespace GB
 			const auto kind = econ.Logistics.Stores.find(p.Kind);
 			if (kind == econ.Logistics.Stores.end() || !kind->second.Haul) continue;
 			int units = 0;
-			for (const ItemSlot& s : p.Store.Stacks()) units += s.Count;
-			if (units >= econ.Logistics.HaulAt)
+			bool fits = false;   // L2: no haul while the main store has no room for any of it (the hauler would carry it back and forth)
+			for (const ItemSlot& s : p.Store.Stacks())
+			{
+				units += s.Count;
+				if (!fits) { Inventory probe = m_Store; fits = probe.Add(*m_Items, s.Id, 1) > 0; }
+			}
+			if (fits && units >= econ.Logistics.HaulAt)
 				m_Board.Post("haul", p.Name, "", static_cast<float>(units), econ.Logistics.Priority, 1, p.Name + " holds " + std::to_string(units) + " things for the store", m_Time, rules);
 		}
 	}
@@ -440,7 +457,8 @@ namespace GB
 			const Stockpile* pile = nullptr;
 			for (const Stockpile& p : m_Econ.Stockpiles) if (p.Name == job.Target) pile = &p;
 			if (!pile || Carried(*m_Items, bag) > 0) return 0.0f;   // it goes with an empty bag
-			return job.Priority * liking("haul") * Falloff(glm::distance(pos, pile->Pos), 60.0f) * vigor;
+			const float load = std::clamp(static_cast<float>(CarryLimit(m)) / static_cast<float>(std::max(1, Config.Economy.DepositAt)), 1.0f, 3.0f) / 3.0f;   // L3: who carries more (a basket) hauls
+			return job.Priority * liking("haul") * Falloff(glm::distance(pos, pile->Pos), 60.0f) * vigor * (0.5f + 0.5f * load);
 		}
 		return 0.0f;
 	}
@@ -476,7 +494,7 @@ namespace GB
 			const Recipe* r = m_Recipes->Find(o.Target);
 			glm::vec2 at;
 			if (!r || !StationAt(r->Station, &at)) return false;
-			const glm::vec2 spot = at == Config.Economy.Camp ? CampSpot(m) : at + glm::vec2(1.2f, 0.0f);
+			const glm::vec2 spot = at == Config.Economy.Camp ? CampSpot(m) : Around(at, IndexOf(m), 1.2f);
 			if (!Order(m, Go(spot, Seconds(econ.Production.Seconds)))) return false;
 			m.Job = "make";
 			m.Detail = r->Id;
@@ -487,7 +505,7 @@ namespace GB
 		{
 			const Stockpile* pile = FindStockpile(o.Target);
 			if (!pile) return false;
-			if (!Order(m, Go(pile->Pos + glm::vec2(0.8f, 0.0f), "wait 1"))) return false;
+			if (!Order(m, Go(Around(pile->Pos, IndexOf(m), 0.9f), "wait 1"))) return false;
 			m.Job = "haul";
 			m.Detail = pile->Name;
 			Say(m, "goes to fetch what " + pile->Name + " holds");
@@ -551,6 +569,11 @@ namespace GB
 			if (!r) return true;
 			const std::set<std::string> known = m_Knowledge.KnownRecipes(m.Name, *m_Recipes);
 			const std::set<std::string>* gate = m_Knowledge.Gated() ? &known : nullptr;
+			if (m_Store.Count(r->Output) > 0 && m_Store.Count(r->Output) + r->OutputCount > StoreCap())   // (a batch past the cap: 102 dried berries in a store of 100)
+			{
+				Say(m, "does not make " + r->Output + ": the store is full of it");
+				return true;
+			}
 			if (StationAt(r->Station) && m_Recipes->Craft(*m_Items, m_Store, r->Id, r->Station, gate))
 			{
 				Witnessed(m, r->Id, std::string());
@@ -569,6 +592,7 @@ namespace GB
 		{
 			Stockpile* pile = FindStockpile(m.Detail);
 			if (!pile) return true;
+			if (glm::distance(Where(m), pile->Pos) > kReachStore) { Say(m, "could not get to " + pile->Name); return true; }   // (what it holds is not picked up from afar)
 			int room = CarryLimit(m), moved = 0;
 			for (const ItemSlot& s : std::vector<ItemSlot>(pile->Store.Stacks()))
 			{
@@ -598,6 +622,9 @@ namespace GB
 		const FarmRules& f = econ.Farming;
 		int done = 0;
 		std::map<std::string, int> got;
+		// a better hoe reaps more: its Power is added to what each plot gives of its crop (not of its seed)
+		const ItemDef* hoe = f.ToolTag.empty() ? nullptr : bag.BestTool(*m_Items, f.ToolTag);
+		const int reap = hoe ? std::max(0, hoe->Power) : 0;
 		for (size_t i; in >> i;)
 		{
 			if (i >= field.Plots.size()) continue;
@@ -612,13 +639,22 @@ namespace GB
 			else if (action == "harvest" && p.State == "grown")
 			{
 				if (const auto c = econ.Crops.find(p.Crop); c != econ.Crops.end())
-					for (const auto& [item, n] : c->second.Yield)
+				{
+					// what the plot gives must fit in the bag: else the rest stays ripe for the next trip (it used to go straight into the store past
+					// its cap: 870 grain in a store of 100 after twelve days of five fields)
+					std::map<std::string, int> yield = c->second.Yield;
+					for (auto& [item, n] : yield) if (item != c->second.Seed) n += reap;
+					Inventory probe = bag;
+					bool fits = true;
+					for (const auto& [item, n] : yield) fits = fits && probe.Add(*m_Items, item, n) == n;
+					if (!fits) break;
+					for (const auto& [item, n] : yield)
 					{
-						const int put = bag.Add(*m_Items, item, n);
-						if (put < n) m_Store.Add(*m_Items, item, n - put);   // (no room in the bag: it is as if it called someone over)
+						bag.Add(*m_Items, item, n);
 						got[item] += n;
 						m_Econ.Harvested[item] += n;
 					}
+				}
 				p = FieldPlot{ "dug", "", 0.0f, 0.0f };   // the soil stays tilled for the next sowing
 				++done;
 			}
@@ -630,6 +666,7 @@ namespace GB
 			for (const auto& [item, n] : got) what += (what.empty() ? ": " : ", ") + std::to_string(n) + " " + item;
 			const char* verb = action == "till" ? "tills" : action == "sow" ? "sows" : action == "tend" ? "waters" : "harvests";
 			Say(m, std::string(verb) + " " + std::to_string(done) + " plots of " + field.Name + (action == "sow" ? " with " + crop : std::string()) + what);
+			Practise(m, "farm", "farm", static_cast<float>(done));   // N3: the farmer's trade
 		}
 		return true;
 	}
@@ -667,23 +704,48 @@ namespace GB
 	}
 
 	// ------------------------------------------------------------------ where things are left
+	// Where it leaves what it carries: the nearest store that has room for some of it (the main store at the camp, "" ; a stockpile, by name;
+	// "-" when none has: then it does not go). A stockpile must be clearly nearer than the camp, unless the main store is full: 1399 trips in a
+	// row left 0 in a full store while three storages stood empty.
 	std::string Tribe::DepositPlace(const TribeMember& m, glm::vec2& where) const
 	{
 		if (!m.Body || !m_Items) return {};
 		const glm::vec2 pos = Where(m);
-		float best = glm::distance(pos, Config.Economy.Camp) - 1.0f;   // a stockpile must be clearly nearer than the camp
-		std::string place;
+		auto room = [&](const Inventory& to, const StoreKind* kind)   // a copy is tried: the slots, the stacks and a stockpile's caps decide
+		{
+			Inventory probe = to;
+			for (const ItemSlot& s : m.Body->Bag().Stacks())
+			{
+				if (Kept(*m_Items, s.Id)) continue;
+				if (kind && (!Takes(*kind, m_Items->Find(s.Id)) || to.Count(s.Id) >= kind->Cap)) continue;
+				if (probe.Add(*m_Items, s.Id, 1) > 0) return true;
+			}
+			return false;
+		};
+		const bool main = room(m_Store, nullptr);
+		float best = main ? glm::distance(pos, Config.Economy.Camp) - 1.0f : 1e30f;
+		std::string place = main ? std::string() : std::string("-");
 		for (const Stockpile& p : m_Econ.Stockpiles)
 		{
 			const auto kind = Config.Econ.Logistics.Stores.find(p.Kind);
-			if (kind == Config.Econ.Logistics.Stores.end()) continue;
-			bool takes = false;
-			for (const ItemSlot& s : m.Body->Bag().Stacks())
-				if (!Kept(*m_Items, s.Id) && Takes(kind->second, m_Items->Find(s.Id)) && p.Store.Count(s.Id) < kind->second.Cap) takes = true;
+			if (kind == Config.Econ.Logistics.Stores.end() || !room(p.Store, &kind->second)) continue;
+			if (main && kind->second.Haul) continue;   // L1: what is left at a hauled stockpile is carried again to the main store: only when that is full
 			const float d = glm::distance(pos, p.Pos);
-			if (takes && d < best) { best = d; place = p.Name; where = p.Pos + glm::vec2(0.8f, 0.0f); }
+			if (d < best) { best = d; place = p.Name; where = Around(p.Pos, IndexOf(m), 0.9f); }
 		}
 		return place;
+	}
+
+	int Tribe::ToPantry(TribeMember& m, const std::string& item, int count)
+	{
+		const std::string& property = Config.Economy.Property;
+		if (!m.Body || !m_Items || count <= 0 || property == "communal" || property.empty()) return 0;
+		const Household* h = HouseholdOf(m.Name);
+		if (!h) return 0;
+		Inventory& pantry = m_Econ.Pantries.try_emplace(h->Id, Inventory(12, 0.0f)).first->second;
+		const int room = std::max(0, Config.Economy.PantryPerMember * static_cast<int>(h->Members.size()) - FoodIn(pantry));
+		const int share = property == "mixed" ? (count + 1) / 2 : count;
+		return m.Body->Bag().Transfer(*m_Items, pantry, item, std::min(share, room));
 	}
 
 	int Tribe::DepositAt(TribeMember& m, const std::string& place)
@@ -707,7 +769,22 @@ namespace GB
 				if (!Takes(*kind, m_Items->Find(s.Id))) continue;   // what this stockpile does not take stays in the bag (for the main store)
 				count = std::min(count, std::max(0, kind->Cap - to.Count(s.Id)));
 			}
-			const int n = bag.Transfer(*m_Items, to, s.Id, count);
+			if (!pile && !hauled && IsFood(s.Id))   // N1b: the household's share goes home
+				if (const int home = ToPantry(m, s.Id, count); home > 0) { moved += home; count -= home; m_Econ.FoodToday += home; m_FoodBy = m.Name; }
+			if (!(pile && kind))
+			{
+				// the main store takes each thing up to its cap; what is past it is left (else 900 grain in a store of 100 filled every slot, and
+				// the stone of the building sites and the wood of the fire found no room: the clans stopped building and having children)
+				const int room = std::max(0, StoreCap() - to.Count(s.Id));
+				if (count > room)
+				{
+					const int over = count - room;
+					bag.Remove(s.Id, over);
+					Say(m, "leaves " + std::to_string(over) + " " + s.Id + ": the store has all it can keep of it");
+					count = room;
+				}
+			}
+			const int n = count > 0 ? bag.Transfer(*m_Items, to, s.Id, count) : 0;
 			moved += n;
 			if (n > 0 && s.Id == jobItem) m_Board.Progress(m.Name, static_cast<float>(n), m_Time);   // delivered: the claim is alive
 			if (n > 0 && !hauled && IsFood(s.Id)) { m_Econ.FoodToday += n; m_FoodBy = m.Name; }   // (hauled food was counted where it was first left; who feeds the others, H10)
@@ -755,6 +832,7 @@ namespace GB
 		}
 		for (TribeMember& m : m_Members)
 			if (!m.Dead && m.Body) tell(AgeInventory(m.Body->Bag(), *m_Items, step, econ.Spoilage.Bag * cold), m.Name + "'s bag");
+		for (auto& [id, pantry] : m_Econ.Pantries) tell(AgeInventory(pantry, *m_Items, step, econ.Main().SpoilRate * cold), id + "'s pantry");   // N1b: a house keeps as the store does
 
 		// E7: the fields grow with the season and the rain of the season (SeasonClock::Weather), and the frost ruins what winter finds in them
 		const std::string weather = SeasonClock::Weather(season, Config.Seasons.Progress(now));

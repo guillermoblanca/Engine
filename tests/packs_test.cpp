@@ -1,5 +1,6 @@
 // Eras as data packs (H17): manifests, load order of the dependencies, atomicity across files and sections, section loaders that Items does not know,
-// and the reachability check (positives and negatives) over hand-made content and over assets/data/era1 and era1_ampliado. CPU only.
+// and the reachability check (positives and negatives) over hand-made content and over assets/data/era1 (the game's one pack). CPU only.
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/GameContent.h"
 #include <algorithm>
 #include <cstdio>
@@ -206,37 +207,41 @@ int main()
 		Check(!g.Packs.Check().Clean(), "and a later check finds them again");
 	}
 
-	// The real packs: era1 (the code content plus era1.json) is clean, and era1_ampliado, which depends on it, too, even strict.
+	// The game's pack: one manifest (era1) lists every file of the content, there is no catalogue in the code, and it is clean even strict.
 	{
 		Game g;
-		RegisterEraOneItems(g.Items, g.Recipes, g.Nodes);
-		g.Roles = DefaultRoles();
 		const std::string data = std::string(GB_ASSETS_DIR) + "/data";
 		ContentReport report;
 		ContentPacks::Options strict;
 		strict.Strict = true;
-		const std::string error = g.Packs.Load("era1", data, &report, strict);
-		Check(error.empty(), "the era1 pack loads, strict");
+		const std::string error = g.Packs.Load(GamePack(), data, &report, strict);
+		Check(error.empty(), "the game's pack loads, strict");
 		if (!error.empty() || !report.Clean()) std::fprintf(stderr, "  %s\n%s", error.c_str(), report.Text().c_str());
-		Check(report.Clean() && !Has(report.Notes, "deferred"), "every item of era 1 can be had, the copper ingot too (smelted at the forge of era 2): nothing deferred");
-		Check(g.Roles == DefaultRoles(), "the roles come in through their section and say what the code says");
-		Check(g.Buildings == DefaultBuildings(), "the buildings come in with the items section and say what DefaultBuildings says (H8)");
-		Check(g.Agenda == DefaultAgenda() && g.Economy == DefaultEconomy(), "and the tribe's agenda, food and stock through theirs");
-		Check(g.Work == DefaultWorkRules(), "and the clan's names, aptitudes and job board through \"work\"");
+		Check(report.Clean() && !Has(report.Notes, "deferred") && !Has(report.Notes, "cannot be had"), "every item can be had, grain too (from the fields), and nothing is deferred");
+		Check(ContentPacks::Available(data).size() == 1 && ContentPacks::Available(data)[0].Id == GamePack(), "the game has one pack: no parallel packs that may or may not be loaded");
+		Check(g.Items.Find("grain_seed") && g.Nodes.count("wild_grain") && g.Items.Find("stone_hoe") && g.Nodes.count("fallen_branch"), "the catalogue that was split over three packs is all in it");
 
-		// the same content read straight from era1.json, as before the packs
-		ItemLibrary fi; RecipeBook fr; std::map<std::string, ResourceNodeDef> fn;
-		RegisterEraOneItems(fi, fr, fn);
-		Check(LoadContentFile(data + "/era1.json", fi, fr, fn).empty() && LoadContentFile(data + "/social.json", fi, fr, fn).empty()
-			&& ContentToJson(fi, fr, fn) == ContentToJson(g.Items, g.Recipes, g.Nodes), "the pack gives what era1.json (and social.json, docs/VIDA_SOCIAL.md) gave");
+		// the catalogue the engine hands out (ShippedContent.h: DefaultBuildings, RegisterEraOneItems...) is this same pack
+		ItemLibrary si; RecipeBook sr; std::map<std::string, ResourceNodeDef> sn;
+		RegisterEraOneItems(si, sr, sn);
+		Check(Shipped().Error.empty() && ContentToJson(si, sr, sn) == ContentToJson(g.Items, g.Recipes, g.Nodes), "RegisterEraOneItems gives what the pack gives");
+		Check(g.Buildings == DefaultBuildings() && g.Roles == DefaultRoles(), "and so do DefaultBuildings and DefaultRoles");
+		Check(g.Agenda == DefaultAgenda() && g.Economy == DefaultEconomy() && g.Work == DefaultWorkRules(), "and the tribe's agenda, food, stock, names, aptitudes and job board");
+		Check(Shipped().Problems.empty(), "the shipped catalogue has no problems: every node has a way into a world (spawn, a camp's patch or a nature patch)");
+		for (const std::string& p : Shipped().Problems) std::fprintf(stderr, "  %s\n", p.c_str());
 
-		ContentReport more;
-		const std::string error2 = g.Packs.Load("era1_ampliado", data, &more, strict);
-		Check(error2.empty() && more.Clean(), "era1_ampliado loads on top, strict, with no problems");
-		if (!error2.empty() || !more.Clean()) std::fprintf(stderr, "  %s\n%s", error2.c_str(), more.Text().c_str());
-		Check(g.Packs.Loaded().size() == 2 && g.Packs.Loaded()[1].Id == "era1_ampliado", "after era1, which was already in");
-		Check(g.Items.Find("plank") && !Has(more.Notes, "item 'plank'") && Has(more.Notes, "item 'grain' cannot be had"), "planks come from the fallen trunks; grain waits for the fields");
-		Check(Has(more.Notes, "'dried_berry' is deferred but can be had now") && Has(more.Notes, "'mud_brick' is deferred but can be had now"), "dried berries and mud bricks are made at the drying rack, a building of era 1 (H8): the pack's deferrals are only notes now");
+		// one pack says each thing once: the same id in two of its files is a problem (one would silently win)
+		{
+			const std::filesystem::path twice = dir / "twice";
+			std::filesystem::create_directories(twice);
+			Write(twice / "twice.pack.json", R"({ "id": "twice", "files": [ "a.json", "b.json" ] })");
+			Write(twice / "a.json", R"({ "items": [ { "id": "pebble", "name": "Pebble" } ] })");
+			Write(twice / "b.json", R"({ "items": [ { "id": "pebble", "name": "Another pebble" } ] })");
+			Game t;
+			ContentReport dup;
+			Check(!t.Packs.Load("twice", twice.generic_string(), &dup, strict).empty() && Has(dup.Problems, "defines the items 'pebble' twice"), "an id defined in two files of one pack is a problem");
+			Check(Has(UnplacedNodes({ { "ghost_bush", ResourceNodeDef{} } }, NatureConfig{}), "node 'ghost_bush' never appears"), "a node with no way into a world is a problem");
+		}
 
 		// Buildings and the check (H8): a station only a building gives is there once the building can be paid; a building nobody can pay is a problem.
 		{
@@ -273,11 +278,6 @@ int main()
 				"a broken building refuses the whole document, items too");
 		}
 
-		// era1_ampliado alone pulls era1 in first
-		Game h;
-		RegisterEraOneItems(h.Items, h.Recipes, h.Nodes);
-		Check(h.Packs.Load("era1_ampliado", data, nullptr, strict).empty() && h.Packs.Loaded().size() == 2 && h.Packs.Loaded()[0].Id == "era1", "a pack loads its dependency first");
-		Check(ContentToJson(h.Items, h.Recipes, h.Nodes) == ContentToJson(g.Items, g.Recipes, g.Nodes), "and ends with the same content");
 	}
 
 	std::filesystem::remove_all(dir);

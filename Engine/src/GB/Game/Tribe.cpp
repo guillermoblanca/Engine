@@ -17,6 +17,7 @@ namespace GB
 	namespace
 	{
 		constexpr float kPi = 3.14159265f;
+		constexpr float kReachStore = 4.0f;      // a deposit is left within this of the stockpile it was carried to (9 m of the camp: its spots ring it)
 		constexpr float kSightCell = 16.0f;      // the cells the sights are filed in
 
 		std::string Underscored(std::string s)
@@ -57,19 +58,6 @@ namespace GB
 		}
 
 		// The piece of fuel Stoke would put in first from this inventory: the most heat (ItemDef::Fuel), then the lowest id; "" = none.
-		std::string FuelIn(const ItemLibrary& items, const Inventory& inv)
-		{
-			std::string best;
-			int heat = 0;
-			for (const ItemSlot& slot : inv.Stacks())
-				if (const ItemDef* d = items.Find(slot.Id); d && slot.Count > 0 && IsFuel(*d))
-				{
-					const int h = d->Fuel > 0 ? d->Fuel : 2;
-					if (best.empty() || h > heat || (h == heat && slot.Id < best)) { best = slot.Id; heat = h; }
-				}
-			return best;
-		}
-
 		// A number in 0..1 from a name (FNV-1a): the only "randomness" of the brain, and it is not random.
 		float Hash01(const std::string& s, int salt)
 		{
@@ -346,6 +334,22 @@ namespace GB
 				}
 			}
 		}
+		if (const auto p = t.find("property"); p != t.end())   // N1b
+		{
+			if (!p->is_string() || (p->get<std::string>() != "communal" && p->get<std::string>() != "household" && p->get<std::string>() != "mixed"))
+				return "tribe: property must be communal, household or mixed";
+			economy.Property = p->get<std::string>();
+		}
+		if (const auto p = t.find("pantryPerMember"); p != t.end())
+		{
+			if (!p->is_number_integer() || p->get<int>() < 0 || p->get<int>() > 100) return "tribe: pantryPerMember must be a whole number from 0 to 100";
+			economy.PantryPerMember = p->get<int>();
+		}
+		if (const auto p = t.find("membersPerWell"); p != t.end())
+		{
+			if (!p->is_number_integer() || p->get<int>() < 0 || p->get<int>() > 1000) return "tribe: membersPerWell must be a whole number from 0 to 1000";
+			economy.MembersPerWell = p->get<int>();
+		}
 		liveAgenda = agenda;
 		liveEconomy = economy;
 		return {};
@@ -450,6 +454,7 @@ namespace GB
 		m_Recipes = &recipes;
 		m_PosCache.clear();
 		m_CacheEntities = 0;
+		m_SightsWorld = nullptr;   // (the nodes' sights are listed again)
 		RegisterNeedContent(gameplay.Library);
 	}
 
@@ -475,7 +480,7 @@ namespace GB
 		m_Chronicle.Clear();
 		m_TelemetryKnown.clear();
 		m_TelemetryNext = 0.0;
-		m_Store = Inventory(Config.Economy.StoreCapacity, 0.0f);
+		m_Store = Inventory(StoreSlots(), 0.0f);
 		m_Time = 0.0;
 		m_Clock = 0.0;
 		m_ClockSet = false;
@@ -487,6 +492,18 @@ namespace GB
 		m_Placed.clear();
 		m_PlacedAt = -1.0;
 		m_Announced.clear();
+		m_SiteWaiting.clear();
+		m_NoPlace.clear();
+		m_Households.clear();
+		m_Homes.clear();
+		m_Apprentices.clear();
+		m_Upgrades.clear();
+		m_Era.clear();
+		m_Econ.Pantries.clear();
+		ReplaceTrails(TrailState());   // T5c
+		m_Searches.clear();
+		m_HomeTimer = 0.0f;
+		m_HomeKnown = false;
 		m_Sounds.Clear();
 		m_Clan.Clear();
 		m_Sights.clear();
@@ -494,10 +511,17 @@ namespace GB
 		m_Occluders.clear();
 		m_PosCache.clear();
 		m_ByKind.clear();
+		m_SightSystems.clear();
+		m_SightCells.clear();
+		m_AgentCells.clear();
+		m_NodeSights = 0;
+		m_SightsWorld = nullptr;
 		m_Runtimes.clear();
 		m_Cursor = 0;
 		m_UpkeepTimer = m_SpoilTimer = 0.0f;
 		m_SightsTime = -1e9;
+		m_CostTotalMs = m_CostPeakMs = 0.0;
+		m_CostTicks = 0;
 		m_LodTimer = 0.0f;
 		m_OccBuilt.clear();
 		m_OccGrid.Clear();
@@ -551,21 +575,147 @@ namespace GB
 		if (!m_Members.empty()) Say(m_Members.front(), burning ? "the campfire burns again" : "the campfire has no wood and goes out");
 	}
 
-	std::string Tribe::WhyNot(const std::string& kind) const
+	std::string Tribe::WhyNot(const TribeMember& m, const std::string& kind) const
 	{
 		const auto def = m_Defs.find(kind);
 		if (def != m_Defs.end() && m_Store.Count(def->second.Item) >= StoreCap())
 			return "the store has enough " + def->second.Item + " (" + std::to_string(m_Store.Count(def->second.Item)) + "/" + std::to_string(StoreCap()) + ")";
-		int total = 0, empty = 0;
-		if (const auto it = m_ByKind.find(kind); it != m_ByKind.end())
-			for (const size_t index : it->second)
+		// what it remembers of that kind: it decides on its memory, not on what the world has (at the start it knows nothing)
+		int known = 0, empty = 0, claimed = 0, away = 0;
+		for (const auto& [name, e] : m.Mind.Memory.All())
+		{
+			if (e.Kind != kind) continue;
+			++known;
+			if (e.Amount == 0) ++empty;
+			else if (m_Claims.HeldByOther(name, m.Name)) ++claimed;
+			else if (const auto u = m.Unreachable.find(name); u != m.Unreachable.end() && u->second.first > m_Time) ++away;
+		}
+		if (known == 0) return "it knows no " + kind + " yet";
+		if (empty == known) return "every " + kind + " it knows is empty: it waits for them to regrow or looks for more";
+		if (claimed > 0 && claimed + empty == known) return "the " + kind + " nodes it knows are taken by others";
+		if (away > 0) return "the " + kind + " it knows could not be reached a moment ago";
+		return "the " + kind + " it knows are not worth the walk now";
+	}
+
+	// What the clan needs now, the only things worth looking for far from what it knows (explore, expeditions): food when it is short of it, what
+	// the building sites and the production chains lack, the wood and stone of a campfire still to light, and the seed of a crop once someone can
+	// farm and the clan has none (the way to the fields). Not what the stock table would merely like more of: acorns and logs, which nothing of
+	// era 1 asks for, took 54% of the clans' time.
+	std::map<std::string, int> Tribe::GoalInputs() const
+	{
+		std::map<std::string, int> out;
+		const TechTree* tree = m_Knowledge.Techs();
+		if (!tree || !m_Recipes) return out;
+		for (const std::string& id : m_Knowledge.Goals())
+			if (const TechDef* t = tree->Find(id))
+				for (const std::string& rid : t->Recipes)
+					if (const Recipe* r = m_Recipes->Find(rid))
+						for (const auto& [item, n] : r->Inputs)
+							if (Stored(item) < n) out[item] = std::max(out[item], n - Stored(item));
+		return out;
+	}
+
+	bool Tribe::NeededNow(const std::string& item, bool hungry) const
+	{
+		if (GoalInputs().count(item)) return true;   // P2: the material of the next step's experiment (the meat of cooking, the hides of tanning)
+		if (IsFood(item)) return hungry;
+		if (static_cast<int>(m_Econ.Fields.size()) < FieldsWanted() && Stored(item) == 0)
+			for (const auto& [id, crop] : Config.Econ.Crops)
+				if (crop.Seed == item)
+					for (const TribeMember& m : m_Members) if (!m.Dead && m.Body && CanFarm(m)) return true;
+		return SiteDemand().count(item) > 0 || m_Plan.Raw.count(item) > 0 || (!HasFire() && (item == "wood" || item == "stone"));
+	}
+
+	std::string Tribe::Burnable(const Inventory& inv) const
+	{
+		if (!m_Items) return {};
+		const std::map<std::string, int> sites = SiteDemand();
+		const float hour = Hour();
+		const bool night = hour < 7.0f || hour >= 19.0f;
+		std::string best, needed;
+		int heat = 0, neededHeat = 0;
+		for (const ItemSlot& slot : inv.Stacks())
+			if (const ItemDef* d = m_Items->Find(slot.Id); d && slot.Count > 0 && IsFuel(*d))
 			{
-				++total;
-				if (m_Sights[index].Amount <= 0) ++empty;
+				const int h = d->Fuel > 0 ? d->Fuel : 2;
+				const bool wanted = sites.count(slot.Id) > 0 || m_Plan.Raw.count(slot.Id) > 0;
+				std::string& pick = wanted ? needed : best;
+				int& top = wanted ? neededHeat : heat;
+				if (pick.empty() || h > top || (h == top && slot.Id < pick)) { pick = slot.Id; top = h; }
 			}
-		if (total == 0) return "there are no " + kind + " nodes";
-		if (empty == total) return "every " + kind + " is empty: it waits for them to regrow or looks for more";
-		return "the " + kind + " nodes left are taken by others";
+		return !best.empty() ? best : night ? needed : std::string();
+	}
+
+	// The clan knows its home ground (it was founded there and walks it every day): every node within HomeRadius + HomeFalloff of the camp is on the
+	// clan's map with what it holds, refreshed every 30 s, and the members learn it at the camp (Share). Without it the nine reed beds of a
+	// village's own patch, 40 m off on the far side, were never seen: 2 reed gathers in 20 minutes while every shelter waited for its roof.
+	void Tribe::KnowHome(float dt)
+	{
+		m_HomeTimer -= dt;
+		if (m_HomeTimer > 0.0f) return;
+		const bool founding = !m_HomeKnown;
+		m_HomeTimer = 30.0f;
+		if (m_Sights.empty()) RefreshSights();
+		const float radius = Config.Exploration.HomeRadius + Config.Exploration.HomeFalloff;   // (the home ground and its edge: a village's own patch reaches ~85 m)
+		for (const Sight& s : m_Sights)
+		{
+			if (glm::distance(s.Pos, Config.Economy.Camp) > radius) continue;
+			const AbilitySystemComponent* node = m_Gameplay->Find(s.Name);
+			const int amount = node && node->Attributes().Has("Amount") ? ResourceSystem::Amount(*node) : s.Amount;
+			m_Clan.Observe({ s.Name, s.Kind, s.Pos, amount, m_Time, false });
+		}
+		if (founding)   // the first members were born there: they know it already, without waiting for their first visit to the camp
+			for (TribeMember& m : m_Members) if (!m.Dead) m.Mind.Memory.Merge(m_Clan);
+		m_HomeKnown = true;
+	}
+
+	std::vector<Tribe::ProductivityCell> Tribe::ProductivityMap(const std::string& item, float cell, float radius, float reach) const
+	{
+		std::vector<ProductivityCell> out;
+		cell = std::max(cell, 2.0f);
+		struct Source { glm::vec2 Pos; float Worth; };
+		std::vector<Source> sources;
+		for (const auto& [name, e] : m_Clan.All())
+		{
+			const auto def = m_Defs.find(e.Kind);
+			if (def == m_Defs.end() || (def->second.Item != item && def->second.ExtraItem != item)) continue;
+			if (glm::distance(e.Pos, Config.Economy.Camp) > radius + 3.0f * reach) continue;
+			const float amount = static_cast<float>(e.Amount >= 0 ? e.Amount : def->second.Capacity);
+			sources.push_back({ e.Pos, amount * (def->second.RegenSeconds > 0.0f ? 2.0f : 1.0f) });
+		}
+		if (sources.empty()) return out;
+		const int n = static_cast<int>(std::ceil(radius / cell));
+		for (int j = -n; j <= n; ++j)
+			for (int i = -n; i <= n; ++i)
+			{
+				const glm::vec2 p = Config.Economy.Camp + glm::vec2(static_cast<float>(i), static_cast<float>(j)) * cell;
+				if (glm::distance(p, Config.Economy.Camp) > radius) continue;
+				float v = 0.0f;
+				for (const Source& s : sources) v += s.Worth * Falloff(glm::distance(p, s.Pos), reach);
+				if (v > 0.01f) out.push_back({ p, v });
+			}
+		return out;
+	}
+
+	bool Tribe::KnowsNearHome(const TribeMember& m, const std::string& item) const
+	{
+		auto near = [&](const SpatialMemory& memory)
+		{
+			for (const auto& [name, e] : memory.All())
+				if (const auto d = m_Defs.find(e.Kind); d != m_Defs.end() && (d->second.Item == item || d->second.ExtraItem == item) && e.Amount != 0 && HomeFactor(e.Pos) >= 1.0f) return true;
+			return false;
+		};
+		return near(m.Mind.Memory) || near(m_Clan);
+	}
+
+	// The slots of the main store: the economy rules' (logistics.stores.main.slots), at least the kit's StoreCapacity.
+	int Tribe::StoreSlots() const { return std::max(Config.Economy.StoreCapacity, Config.Econ.Main().Slots); }
+
+	// 1 on the clan's home ground (within HomeRadius of the camp), falling off beyond it.
+	float Tribe::HomeFactor(const glm::vec2& at) const
+	{
+		const float out = glm::distance(at, Config.Economy.Camp) - Config.Exploration.HomeRadius;
+		return out <= 0.0f ? 1.0f : Falloff(out, std::max(1.0f, Config.Exploration.HomeFalloff));
 	}
 
 	// Each worker has its own place around the camp, so they do not wait on each other for the same spot.
@@ -604,6 +754,7 @@ namespace GB
 		m_Log.push_back(t + m.Name + " (" + m.Role + ") " + text);
 		m_Chronicle.Event(m_Time, m.Name, text);
 		if (m_Telemetry) EmitEvent("say", m.Name, std::string(), std::string(), text);
+		if (m_History) Chronicled(m, text);
 		if (static_cast<int>(m_Log.size()) > Config.Simulation.LogLines + Config.Simulation.LogLines / 4)   // a ring: the oldest quarter goes at once
 			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.Simulation.LogLines)));
 	}
@@ -620,6 +771,8 @@ namespace GB
 		if (!asc) return out;
 		for (const char* n : { NeedName::Hunger, NeedName::Thirst, NeedName::Rest, NeedName::Warmth, NeedName::Safety, NeedName::Company, NeedName::Health, NeedName::Vigor })
 			if (asc->Attributes().Has(n)) out[n] = asc->Attribute(n);
+		for (const NeedDef& n : Config.DataNeeds.Needs)   // V5: and those of the packs (by their id)
+			if (DataNeedActive(n)) out[n.Id] = DataNeedLevel(m, n);
 		return out;
 	}
 
@@ -698,7 +851,7 @@ namespace GB
 				}
 				pos = it->second;
 				return true;
-			}, 3.0f * std::max(0.3f, vigor), [body](const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points)
+			}, 3.0f * std::max(0.3f, vigor) * TrailPace(m.Agent.Position()), [body](const glm::vec2& from, const glm::vec2& to, float reach, std::vector<glm::vec2>& points)   // (T5c: faster on a trail)
 			{
 				return body->Route(from, to, reach, points);   // the way the body itself would go (its grid and its profile): round the lake, not through it
 			}, [body]() { return body->MayPlan(); });   // H16: its search waits its turn in the grid's plan budget, as an actor's does
@@ -752,45 +905,100 @@ namespace GB
 	// ------------------------------------------------------------------ the senses
 	void Tribe::RefreshSights()
 	{
-		m_Sights.clear();
-		m_SightIndex.clear();
-		m_ByKind.clear();
-		m_Occluders.clear();
 		m_SightsTime = m_Time;
-		if (m_Entities->Count() != m_CacheEntities) { m_PosCache.clear(); m_CacheEntities = m_Entities->Count(); }
-		for (const std::string& name : m_Gameplay->Names())
+		auto cellOf = [](const glm::vec2& p) { return (static_cast<long long>(static_cast<int>(std::floor(p.x / kSightCell))) << 32) ^ static_cast<long long>(static_cast<unsigned>(static_cast<int>(std::floor(p.y / kSightCell)))); };
+		bool occluders = false;
+		// A new revision with the same nodes and wells (an animal born or killed, a building's system made) changes nothing here: only a node or a
+		// well made or removed lists them again (the three clans of a big world rebuilt eleven thousand sights at every birth).
+		if (m_SightsWorld == m_Gameplay && m_SightsRevision != m_Gameplay->Revision() && !m_SightsMissing)
 		{
-			const AbilitySystemComponent* asc = m_Gameplay->Find(name);
-			if (!asc) continue;
-			std::string kind;
-			if (asc->HasTag("Resource.Node"))
-			{
-				for (const auto& [id, def] : m_Defs)
-					if (asc->HasTag("Resource.Node." + id)) { kind = id; break; }
-			}
-			else if (asc->HasTag("Interactive.Well")) kind = "well";
-			if (kind.empty()) continue;
-			auto cached = m_PosCache.find(name);
-			if (cached == m_PosCache.end())
-			{
-				const EntityId id = m_Entities->FindByName(name);
-				if (id == NullEntity) continue;
-				const glm::vec4 p = m_Entities->WorldMatrix(id)[3];
-				cached = m_PosCache.emplace(name, glm::vec2(p.x, p.z)).first;
-			}
-			Sight s;
-			s.Name = name;
-			s.Kind = kind;
-			s.Pos = cached->second;
-			s.Amount = kind == "well" ? static_cast<int>(asc->Attribute("Water")) : ResourceSystem::Amount(*asc);
-			m_SightIndex[name] = m_Sights.size();
-			m_ByKind[kind].push_back(m_Sights.size());
-			m_Sights.push_back(s);
-			if ((kind == "tree" || kind == "rock") && s.Amount > 0) m_Occluders.push_back({ name, s.Pos, kind == "tree" ? 0.6f : 0.9f });
+			const auto& nodes = m_Gameplay->WithTag("Resource.Node");
+			const auto& wells = m_Gameplay->WithTag("Interactive.Well");
+			bool same = nodes.size() + wells.size() == m_SightSet.size();
+			for (size_t i = 0; same && i < nodes.size(); ++i) same = m_SightSet[i].first == nodes[i].System && m_SightSet[i].second == *nodes[i].Name;
+			for (size_t i = 0; same && i < wells.size(); ++i) same = m_SightSet[nodes.size() + i].first == wells[i].System && m_SightSet[nodes.size() + i].second == *wells[i].Name;
+			if (same) m_SightsRevision = m_Gameplay->Revision();
 		}
-		bool same = m_Occluders.size() == m_OccBuilt.size();
-		for (size_t i = 0; same && i < m_Occluders.size(); ++i) same = m_Occluders[i].Id == m_OccBuilt[i].Id;
-		if (!same) { m_OccGrid.Build(m_Occluders); m_OccBuilt = m_Occluders; }   // trees and rocks stay where they are: only felled ones change the set
+		// (a node whose entity was not there yet is looked for again when the scene's entities change)
+		if (m_SightsWorld != m_Gameplay || m_SightsRevision != m_Gameplay->Revision() || (m_SightsMissing && m_Entities->Count() != m_CacheEntities))
+		{
+			m_SightsMissing = false;
+			// the nodes of the scene: listed again only when a system is made or removed (nodes do not move, nor change kind)
+			m_Sights.clear();
+			m_SightIndex.clear();
+			m_ByKind.clear();
+			m_SightSystems.clear();
+			m_SightCells.clear();
+			if (m_Entities->Count() != m_CacheEntities) { m_PosCache.clear(); m_CacheEntities = m_Entities->Count(); }
+			for (const auto& [name, system] : m_Gameplay->Systems())   // (nothing is made or removed here: no copy of the thousands of names)
+			{
+				const AbilitySystemComponent* asc = system.get();
+				if (!asc) continue;
+				std::string kind;
+				if (asc->HasTag("Resource.Node"))
+				{
+					// the kind is the first segment after "Resource.Node." of its tags (in their order, which is the defs' order): read off the
+					// sorted tags instead of asking for every kind of node in turn
+					static const std::string prefix = "Resource.Node.";
+					const auto& tags = asc->Tags().All();
+					for (auto it = tags.lower_bound(prefix); it != tags.end() && it->first.compare(0, prefix.size(), prefix) == 0 && kind.empty(); ++it)
+					{
+						const std::string id = it->first.substr(prefix.size(), it->first.find('.', prefix.size()) - prefix.size());
+						if (m_Defs.count(id)) kind = id;
+					}
+				}
+				else if (asc->HasTag("Interactive.Well")) kind = "well";
+				if (kind.empty()) continue;
+				auto cached = m_PosCache.find(name);
+				if (cached == m_PosCache.end())
+				{
+					const EntityId id = m_Entities->FindByName(name);
+					if (id == NullEntity) { m_SightsMissing = true; continue; }
+					const glm::vec4 p = m_Entities->WorldMatrix(id)[3];
+					cached = m_PosCache.emplace(name, glm::vec2(p.x, p.z)).first;
+				}
+				Sight s;
+				s.Name = name;
+				s.Kind = kind;
+				s.Pos = cached->second;
+				m_SightIndex[name] = m_Sights.size();
+				m_ByKind[kind].push_back(m_Sights.size());
+				m_SightCells[cellOf(s.Pos)].push_back(m_Sights.size());
+				m_Sights.push_back(std::move(s));
+				m_SightSystems.push_back(asc);
+			}
+			m_NodeSights = m_Sights.size();
+			m_SightsWorld = m_Gameplay;
+			m_SightsRevision = m_Gameplay->Revision();
+			m_SightSet.clear();   // (what the next revisions compare against)
+			for (const auto* list : { &m_Gameplay->WithTag("Resource.Node"), &m_Gameplay->WithTag("Interactive.Well") })
+				for (const GameplayWorld::Tagged& t : *list) m_SightSet.emplace_back(t.System, *t.Name);
+			occluders = true;
+		}
+		else
+		{
+			// the members of the last refresh go (they are filed again below)
+			for (size_t i = m_NodeSights; i < m_Sights.size(); ++i) m_SightIndex.erase(m_Sights[i].Name);
+			m_Sights.resize(m_NodeSights);
+		}
+		// what is left in each node; the occluders change only when a tree or a rock is used up or grows back
+		for (size_t i = 0; i < m_NodeSights; ++i)
+		{
+			Sight& s = m_Sights[i];
+			const int amount = s.Kind == "well" ? static_cast<int>(m_SightSystems[i]->Attribute("Water")) : ResourceSystem::Amount(*m_SightSystems[i]);
+			if ((s.Kind == "tree" || s.Kind == "rock") && (amount > 0) != (s.Amount > 0)) occluders = true;
+			s.Amount = amount;
+		}
+		if (occluders)
+		{
+			m_Occluders.clear();
+			for (size_t i = 0; i < m_NodeSights; ++i)
+				if ((m_Sights[i].Kind == "tree" || m_Sights[i].Kind == "rock") && m_Sights[i].Amount > 0) m_Occluders.push_back({ m_Sights[i].Name, m_Sights[i].Pos, m_Sights[i].Kind == "tree" ? 0.6f : 0.9f });
+			bool same = m_Occluders.size() == m_OccBuilt.size();
+			for (size_t i = 0; same && i < m_Occluders.size(); ++i) same = m_Occluders[i].Id == m_OccBuilt[i].Id;
+			if (!same) { m_OccGrid.Build(m_Occluders); m_OccBuilt = m_Occluders; }   // trees and rocks stay where they are: only felled ones change the set
+		}
+		m_AgentCells.clear();
 		for (const TribeMember& m : m_Members)
 		{
 			if (m.Dead || !m.Body) continue;
@@ -799,11 +1007,9 @@ namespace GB
 			s.Kind = "agent";
 			s.Pos = Where(m);
 			m_SightIndex[m.Name] = m_Sights.size();
-			m_Sights.push_back(s);
+			m_AgentCells[cellOf(s.Pos)].push_back(m_Sights.size());
+			m_Sights.push_back(std::move(s));
 		}
-		m_SightCells.clear();
-		for (size_t i = 0; i < m_Sights.size(); ++i)
-			m_SightCells[(static_cast<long long>(static_cast<int>(std::floor(m_Sights[i].Pos.x / kSightCell))) << 32) ^ static_cast<long long>(static_cast<unsigned>(static_cast<int>(std::floor(m_Sights[i].Pos.y / kSightCell))))].push_back(i);
 	}
 
 	// Turns the head (it follows the way it walks, and scans all round when it stands still) and sees what is in view.
@@ -838,8 +1044,11 @@ namespace GB
 		for (int cx = cx0; cx <= cx1; ++cx)
 			for (int cz = cz0; cz <= cz1; ++cz)
 		{
-			const auto cell = m_SightCells.find((static_cast<long long>(cx) << 32) ^ static_cast<long long>(static_cast<unsigned>(cz)));
-			if (cell == m_SightCells.end()) continue;
+			const long long key = (static_cast<long long>(cx) << 32) ^ static_cast<long long>(static_cast<unsigned>(cz));
+			for (const auto* cells : { &m_SightCells, &m_AgentCells })
+		{
+			const auto cell = cells->find(key);
+			if (cell == cells->end()) continue;
 			for (const size_t index : cell->second)
 		{
 			const Sight& s = m_Sights[index];
@@ -847,6 +1056,7 @@ namespace GB
 			if (!CanSeeIn(Config.Vision, pos, mind.Facing, s.Pos, m_OccGrid, s.Name)) continue;
 			if (!mind.Memory.Refresh(s.Name, s.Pos, s.Amount, m_Time)) mind.Memory.Observe({ s.Name, s.Kind, s.Pos, s.Amount, m_Time, false });
 			if (mind.Visible.size() < 12) mind.Visible.push_back(s.Name);
+		}
 		}
 		}
 		// what it remembers here and is no longer there (felled, taken)
@@ -903,16 +1113,18 @@ namespace GB
 		ctx.Sheltered = glm::distance(pos, Config.Economy.Camp) < Config.Community.NearCampRadius;
 		for (const TribeMember& o : m_Members)
 			if (&o != &m && !o.Dead && o.Body && glm::distance(pos, Where(o)) < Config.Community.CompanyRadius) ctx.WithOthers = true;
-		if (m.Player) GuardPlayer(m, *asc);   // H15: unless the rules make it mortal, hunger and cold weaken a player but do not kill it
+		if (m.Player) GuardPlayer(m, *asc);   // H15: unless the rules make it mortal, hunger and cold weaken a player and then knock it down, not kill it
 		UpdateNeeds(*asc, Config.Needs, ctx, dt);
 		ShelterNeeds(m, dt);   // asleep under a roof (H8): more rest and warmth
+		StepDataNeeds(m, *asc, dt);   // V5: the needs of the content packs (TribeNeeds.cpp)
 		m.Hungry = asc->Attribute(NeedName::Hunger) < 35.0f;
 		if (IsDead(*asc)) Die(m);
 	}
 
 	void Tribe::Die(TribeMember& m, const std::string& cause)
 	{
-		if (m.Player && !Config.Player.Mortal) { KnockOut(m, cause); return; }   // H15: a player falls and wakes at the camp (TribePlayer.cpp)
+		const std::vector<std::string>& mortal = Config.Player.MortalCauses;   // V3: some causes end a player's life whatever (old age, wounds)
+		if (m.Player && !Config.Player.Mortal && std::find(mortal.begin(), mortal.end(), cause) == mortal.end()) { KnockOut(m, cause); return; }   // H15: a player falls and wakes at the camp (TribePlayer.cpp)
 		const AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
 		m.Dead = true;
 		m.Cause = !cause.empty() ? cause : asc ? CauseOfDeath(*asc) : "Unknown";
@@ -941,10 +1153,29 @@ namespace GB
 		// H16: the wall time of the whole update and the turns given, for the perf line and the scale tests (never read by the simulation)
 		struct Timer
 		{
-			FrameCost& Cost;
+			Tribe& T;
 			std::chrono::steady_clock::time_point Start = std::chrono::steady_clock::now();
-			~Timer() { Cost.Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Start).count(); }
-		} timer{ m_Cost };
+			~Timer()
+			{
+				T.m_Cost.Ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - Start).count();
+				T.m_CostTotalMs += T.m_Cost.Ms;
+				T.m_CostPeakMs = std::max(T.m_CostPeakMs, T.m_Cost.Ms);
+				++T.m_CostTicks;
+			}
+		} timer{ *this };
+		// (what Placements() says is kept for this Update only: the buildings' systems may have moved on since the last one)
+		struct Updating
+		{
+			Tribe& T;
+			explicit Updating(Tribe& t) : T(t) { T.ForgetPlacements(); T.m_Updating = true; }
+			~Updating() { T.m_Updating = false; T.ForgetPlacements(); }
+		} updating{ *this };
+		if (m_Store.BaseSlots() < StoreSlots())   // (the rules came after the store was made: it grows to their size, keeping what it holds)
+		{
+			Inventory grown(StoreSlots(), 0.0f);
+			grown.SetStacks(m_Store.Stacks());
+			m_Store = std::move(grown);
+		}
 		m_Cost.Thinks = m_Cost.Budget = m_Cost.Due = 0;
 		m_Cost.ThinkMs = 0.0;
 		m_Time += static_cast<double>(dt);
@@ -962,6 +1193,7 @@ namespace GB
 		Upkeep(dt);
 		StepEconomy(dt);   // H18: spoilage and the fields (TribeEconomy.cpp)
 		PlanSettlement(dt);   // what to build next (H8; nothing without buildings)
+		KnowHome(dt);         // the nodes round the camp are on the clan's map
 		lap(m_Cost.EconomyMs);
 		m_NeedTimer += dt;
 		if (m_NeedTimer >= Config.Simulation.NeedSeconds)
@@ -988,6 +1220,7 @@ namespace GB
 		StepSocial(dt);   // social life: omens, seasonal and recurring rites, the rite in course, traps (TribeSocial.cpp)
 		lap(m_Cost.ConflictMs);
 		StepAbstract(dt);
+		StepTrails(dt);   // T5c: the walks wear the trails, they fade, the clan marks a stretch to pave (Trails.cpp)
 		lap(m_Cost.AbstractMs);
 		if (m_Knowledge.Tick(dt)) Tell(m_Knowledge.Lesson(KnowledgeView(true)));   // a lesson at the camp, and what the clan forgets (H11)
 		m_LodTimer += dt;
@@ -1004,6 +1237,23 @@ namespace GB
 					else if (m.Abstract && d < Config.Performance.DetailRadius - Config.Performance.DetailMargin) SetDetail(m, true);
 				}
 				else if (m.Abstract) SetDetail(m, true);
+			}
+		}
+
+		// a talk that does not end is let go (its walk never got there: a member stood 900 s "teaching" on one spot and starved, with food in the store)
+		for (TribeMember& m : m_Members)
+		{
+			if (m.Dead || !m.Body || m.Player) continue;
+			const std::string seen = m.Job + "|" + m.Detail;
+			if (seen != m.Watched) { m.Watched = seen; m.WatchedSince = m_Time; continue; }
+			if (m.Job == "talk" && m_Time - m.WatchedSince > 120.0)
+			{
+				m.Job.clear();
+				m.Detail.clear();
+				std::string error;
+				if (Run(m, "wait 0.2", error)) m.Mind.Orders = "wait 0.2";
+				Say(m, "leaves off talking: it has gone on too long");
+				m.Watched.clear();
 			}
 		}
 
@@ -1067,6 +1317,13 @@ namespace GB
 			const float d = glm::distance(from, e.Pos);
 			if (d >= n.Distance) continue;
 			if (SpatialMemory::Confidence(e, m_Time, Config.Memory) <= 0.0f) continue;
+			if (e.Amount == 0)   // seen empty: not worth the walk before it can have grown back a few units (never, if it does not grow back)
+				if (const auto def = m_Defs.find(e.Kind); def != m_Defs.end())
+				{
+					if (def->second.RegenSeconds <= 0.0f) continue;
+					const double back = static_cast<double>(def->second.RegenSeconds) * std::min(def->second.Capacity, 3) / std::max(1, def->second.Regen);
+					if (m_Time - e.Seen < back) continue;
+				}
 			if (m_Claims.HeldByOther(name, m.Name)) continue;
 			if (const auto away = m.Unreachable.find(name); away != m.Unreachable.end() && away->second.first > m_Time) continue;   // it failed to get there a moment ago
 			n.Distance = d;
@@ -1186,7 +1443,10 @@ namespace GB
 		const bool hasTool = tool.empty() || bag.CountTagged(*m_Items, toolTag) > 0;
 		const int carried = Carried(*m_Items, bag);
 		const int berries = FoodIn(bag), storeBerries = FoodIn(m_Store);   // food (TribeEconomy): berries in era 1
-		const int foodHeld = berries + storeBerries;
+		const Household* household = HouseholdOf(m.Name);
+		const Inventory* pantry = household ? Pantry(household->Id) : nullptr;
+		const int pantryFood = pantry ? FoodIn(*pantry) : 0;   // N1b: what its household keeps at home
+		const int foodHeld = berries + storeBerries + pantryFood;
 		const float hungerUrgency = Urgency(hunger, 60.0f);
 
 		// eat: from the bag, else from the store at the camp
@@ -1194,15 +1454,17 @@ namespace GB
 		{
 			UtilityOption o;
 			o.Kind = "eat";
-			o.Target = berries > 0 ? "bag" : "store";
+			o.Target = berries > 0 ? "bag" : pantryFood > 0 ? "pantry" : "store";
 			o.Where = berries > 0 ? pos : CampSpot(m);
+			if (o.Target == "pantry")   // at home: in front of its house (or at the camp while it has none)
+				for (const Placed& p : Placements()) if (p.Name == household->Home && p.State.Done) o.Where = SiteFront(p.Pos, *p.Def);
 			const float reach = Falloff(glm::distance(pos, o.Where), 60.0f);
 			o.Score = 2.2f * hungerUrgency * reach;
 			o.Commit = 4.0f;
 			Factor(o, "hunger", hungerUrgency);
 			Factor(o, "weight", 2.2f);
 			Factor(o, "distance", reach);
-			std::snprintf(buffer, sizeof buffer, "hunger %.0f/100, %d food in the %s", static_cast<double>(hunger), berries > 0 ? berries : storeBerries, berries > 0 ? "bag" : "store");
+			std::snprintf(buffer, sizeof buffer, "hunger %.0f/100, %d food in the %s", static_cast<double>(hunger), berries > 0 ? berries : pantryFood > 0 ? pantryFood : storeBerries, o.Target.c_str());
 			o.Note = buffer;
 			opts.push_back(o);
 		}
@@ -1348,14 +1610,16 @@ namespace GB
 			const float need = std::clamp(1.0f - have / target, 0.1f, 1.0f);
 			const float w = weight(kind);
 			const float reach = Falloff(distance, 30.0f);
+			const float home = HomeFactor(e->Pos);   // the camp's ground first: the trip ends at the store
 			UtilityOption o;
 			o.Kind = "gather";
 			o.Target = node;
 			o.Where = e->Pos;
-			o.Score = w * (0.4f + 0.7f * need) * reach * conf;
+			o.Score = w * (0.4f + 0.7f * need) * reach * conf * home;
 			Factor(o, "role", w);
 			Factor(o, "need", need);
 			Factor(o, "distance", reach);
+			if (home < 1.0f) Factor(o, "far from home", home);
 			Factor(o, "memory", conf);
 			std::snprintf(buffer, sizeof buffer, "%s: the store has %d %s", kind.c_str(), m_Store.Count(def.Item), def.Item.c_str());
 			o.Note = buffer;
@@ -1371,10 +1635,11 @@ namespace GB
 					o.Note += "; the " + tool + " lacks it";
 				}
 			}
-			// help with what a construction site lacks (H8)
-			if (const auto lack = siteDemand.find(def.Item); lack != siteDemand.end() && m_Store.Count(def.Item) < lack->second)
+			// help with what a construction site lacks (H8), what it gives besides included (a tree's branches)
+			const std::string& lacking = siteDemand.count(def.Item) || def.ExtraItem.empty() ? def.Item : def.ExtraItem;
+			if (const auto lack = siteDemand.find(lacking); lack != siteDemand.end() && m_Store.Count(lacking) < lack->second)
 			{
-				const float boost = 0.6f * reach * conf;
+				const float boost = 0.6f * reach * conf * home * ItemAge(lacking);   // (F4: more the longer the site has waited for it)
 				o.Score += boost;
 				Factor(o, "helps with a building", boost);
 				o.Note += "; a building lacks it";
@@ -1401,7 +1666,7 @@ namespace GB
 			o.Score = full * Falloff(glm::distance(pos, o.Where), 120.0f);
 			Factor(o, "load", full);
 			o.Note = std::to_string(carried) + " things in the bag";
-			opts.push_back(o);
+			if (o.Target != "-") opts.push_back(o);   // (no store has room for any of it: no trip; the planner sees the store full and wants another)
 		}
 
 		// light the campfire once the store can pay for it
@@ -1420,7 +1685,7 @@ namespace GB
 		if (weight("fire") > 0.0f && HasFire() && FireFuel() <= Config.StokeBelow)
 		{
 			const bool can = asc && std::find(asc->Granted().begin(), asc->Granted().end(), "Stoke") != asc->Granted().end();
-			if (can && !m_Claims.HeldByOther(Config.FireName, m.Name) && (!FuelIn(*m_Items, bag).empty() || !FuelIn(*m_Items, m_Store).empty()))
+			if (can && !m_Claims.HeldByOther(Config.FireName, m.Name) && (!Burnable(bag).empty() || !Burnable(m_Store).empty()))
 			{
 				UtilityOption o;
 				o.Kind = "stoke";
@@ -1440,15 +1705,33 @@ namespace GB
 		{
 			float want = 0.0f;
 			std::string what;
+			// what it looks for is a thing, not a kind of node: a kind it has never seen is no reason to go when another kind it knows gives the same
+			// (the catalogue has several woods, fibres and foods: telemetry showed the clans spending 74% of their time looking for flowers_blue and
+			// fallen_trunk with the trees and the fibre grass known, and no building finished)
+			std::set<std::string> within, heard;   // items of a kind it may gather and knows a place of worth going to / knows any place of
+			for (const auto& [kind, def] : m_Defs)
+			{
+				const auto it = known.find(kind);
+				if (it == known.end() || !m_Knowledge.CanGather(m.Name, kind) || (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0)) continue;
+				// F4: what a site has long waited for is not "known" while its only place is far from the camp: it looks for some nearer
+				const MemoryEntry* at = it->second.Name.empty() ? nullptr : mind.Memory.Find(it->second.Name);
+				const bool far = at && siteDemand.count(def.Item) && ItemAge(def.Item) > 1.5f && HomeFactor(at->Pos) < 1.0f && !KnowsNearHome(m, def.Item);   // (as the search's end judges it)
+				if (!it->second.Name.empty() && !far) { within.insert(def.Item); if (!def.ExtraItem.empty()) within.insert(def.ExtraItem); }   // (the branches of a tree)
+				if (it->second.Any) { heard.insert(def.Item); if (!def.ExtraItem.empty()) heard.insert(def.ExtraItem); }
+			}
+			// and only for what the clan needs now: food when it lacks it, what the building sites and the production chains lack, the wood and
+			// stone of a campfire still to light (with the first fix the searches went to acorns and logs, which nothing of era 1 asks for: 54% of the time)
 			for (const auto& [kind, def] : m_Defs)
 			{
 				if (m_Store.Count(def.Item) >= StoreCap()) continue;
 				if (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0) continue;
 				if (!m_Knowledge.CanGather(m.Name, kind)) continue;
-				if (!nearest(kind, nullptr).empty()) continue;
+				if (within.count(def.Item) || !NeededNow(def.Item, lacksFood)) continue;
+				if (KnowsNearHome(m, def.Item)) continue;   // there is some on the home ground: what it lacks is the tool (a pickaxe), not a place (2906 searches for loose stones in 13 days)
+				if (const auto s = m_Searches.find(def.Item); s != m_Searches.end() && s->second.second > now) continue;   // (it looked a moment ago and found none)
 				float u = 0.8f * weight(kind);
 				if (u < 0.5f) continue;
-				if (const auto it = known.find(kind); it != known.end() && it->second.Any) u *= 0.2f;   // it knows where they are, they are only empty for now: it only goes looking for more when it has nothing better
+				if (heard.count(def.Item)) u *= 0.2f;   // it knows where they are, they are only empty for now: it only goes looking for more when it has nothing better
 				if (u > want) { want = u; what = kind; }
 				if (lacksFood && IsFood(def.Item))
 				{
@@ -1456,6 +1739,11 @@ namespace GB
 					if (starve > want) { want = starve; what = kind; }
 				}
 			}
+			// thirsty and it knows no well: it goes to look for water (F3 of REVISION_IA_TRIBUS: with no well in its memory there was no option
+			// for water at all, and members died of thirst with food in the store)
+			const auto wellSearch = m_Searches.find("well");
+			if (const float dry = Urgency(thirst, 60.0f); dry > 0.0f && !known.count("well") && (wellSearch == m_Searches.end() || wellSearch->second.second <= now))
+				if (const float u = 0.5f + 1.2f * dry; u > want) { want = u; what = "well"; }
 			if (want > 0.0f)
 			{
 				UtilityOption o;
@@ -1486,9 +1774,11 @@ namespace GB
 				// curiosity, or need: the technology would let it make the tool of its trade, which it lacks (then it is worth as much as making it)
 				const TechDef* def = m_Knowledge.Techs()->Find(tech);
 				const bool trade = !hasTool && def && std::find(def->Recipes.begin(), def->Recipes.end(), tool) != def->Recipes.end();
-				const float want = trade ? 1.1f : 0.2f;
+				const std::vector<std::string>& goals = m_Knowledge.Goals();
+				const bool step = std::find(goals.begin(), goals.end(), tech) != goals.end();   // F5: the clan's next step (a building it needs, its fields)
+				const float want = trade ? 1.1f : step ? 0.9f : 0.2f;
 				o.Score = want * reach;
-				Factor(o, trade ? "needs it for its tool" : "curiosity", want);
+				Factor(o, trade ? "needs it for its tool" : step ? "the clan's next step" : "curiosity", want);
 				Factor(o, "distance", reach);
 				o.Note = "has what the " + (recipe.empty() ? tech : recipe) + " needs and does not know " + m_Knowledge.Name(tech);
 				opts.push_back(o);
@@ -1496,6 +1786,8 @@ namespace GB
 		}
 		// carry materials to a construction site and build it (H8)
 		SettlementOptions(m, opts);
+		TrailOptions(m, opts);   // T5c: pave the stretch of path the clan marked (Trails.cpp; the agenda of work is applied there)
+		DataNeedOptions(m, opts);   // V5: the verbs of the needs the packs add (TribeNeeds.cpp)
 
 		// nothing better: stand by (and look around)
 		{
@@ -1523,7 +1815,7 @@ namespace GB
 		SocialOptions(m, opts);   // social life: the mood on every option, talking, the rite of the clan, traps (TribeSocial.cpp)
 		JobBonus(m, opts);   // H7: what does the job it claimed is worth more (a factor on the options, not a new chooser)
 		SocietyFactors(m, opts);   // H9 + H10: its genes, personality, stage of life and the clan's culture (and the companion it likes best)
-		MaslowOptions(m, hunger, berries, foodHeld > 0, opts);   // the pyramid: staying alive before anything above it (TribeWork.cpp)
+		MaslowOptions(m, hunger, thirst, berries, foodHeld > 0, opts);   // the pyramid: staying alive before anything above it (TribeWork.cpp)
 
 		// what failed a moment ago is not offered again at once (a campfire it cannot reach, a bed it cannot get to: telemetry showed one member failing the same
 		// stoke 3400 times, and envoys dying of thirst on an errand that never opened); the pause doubles with each failure in a row, and "rest" is always left
@@ -1574,6 +1866,8 @@ namespace GB
 		Inventory& bag = m.Body->Bag();
 		if (o.Kind == "expedition" || o.Kind == "migrate") return ExecuteExplore(m, o);   // H12 (TribeExplore.cpp)
 		if (o.Kind == "make" || o.Kind == "farm" || o.Kind == "haul") return ExecuteEconomy(m, o);   // H18 (TribeEconomy.cpp)
+		if (o.Kind == "pave") return ExecuteTrails(m, o);   // T5c (Trails.cpp)
+		if (Config.DataNeeds.ByVerb(o.Kind)) return ExecuteDataNeed(m, o);   // V5 (TribeNeeds.cpp)
 		if (IsOutside(o.Kind)) return m_Outside.Execute && m_Outside.Execute(*this, m, o);   // H13 (Clans.cpp)
 		if (o.Kind == "hunt" || o.Kind == "recover" || o.Kind == "care") return ExecuteConflict(m, o);   // H14 (TribeConflict.cpp)
 		if (o.Kind == "talk" || o.Kind == "rite" || o.Kind == "snare" || o.Kind == "gear") return ExecuteSocial(m, o);   // social life (TribeSocial.cpp)
@@ -1624,11 +1918,11 @@ namespace GB
 		}
 		if (o.Kind == "stoke")
 		{
-			// it carries a piece of wood from the store unless it has one already (the hottest, as Stoke takes them)
-			std::string fuel = FuelIn(*m_Items, bag);
+			// it carries a piece of wood from the store unless it has one already (not what a building site waits for: Burnable)
+			std::string fuel = Burnable(bag);
 			if (fuel.empty())
 			{
-				fuel = FuelIn(*m_Items, m_Store);
+				fuel = Burnable(m_Store);
 				if (fuel.empty() || m_Store.Transfer(*m_Items, bag, fuel, 1) != 1) return false;
 			}
 			Wait(go, sizeof go, o.Where, ("wait 1 | ability Stoke " + Underscored(Config.FireName) + " | wait 1").c_str());
@@ -1722,7 +2016,7 @@ namespace GB
 				for (const auto& [kind, def] : m_Defs)
 				{
 					if (RoleWeight(m, kind) < 0.5f) continue;
-					r += (r.empty() ? "" : "; ") + WhyNot(kind);
+					r += (r.empty() ? "" : "; ") + WhyNot(m, kind);
 				}
 				return r;
 			}();
@@ -1739,9 +2033,16 @@ namespace GB
 	void Tribe::Eat(TribeMember& m)
 	{
 		AbilitySystemComponent* asc = m_Gameplay->Find(m.Name);
-		std::string carried = FirstFood(m.Body->Bag()), stored = carried.empty() ? FirstFood(m_Store) : std::string();
-		ChooseMeal(m, carried, stored);   // social life: a varied meal from the store when it can (TribeSocial.cpp)
-		const bool ate = (!carried.empty() && m.Body->Bag().RemoveOldest(carried, 1) == 1) || (!stored.empty() && m_Store.RemoveOldest(stored, 1) == 1);   // what it carries first, the oldest (E6)
+		// N1b: what it carries first, then its household's pantry, then the clan's store
+		const Household* household = HouseholdOf(m.Name);
+		const auto pantry = household ? m_Econ.Pantries.find(household->Id) : m_Econ.Pantries.end();
+		std::string carried = FirstFood(m.Body->Bag());
+		if (carried.empty() && pantry != m_Econ.Pantries.end())
+			if (const std::string home = FirstFood(pantry->second); !home.empty() && pantry->second.RemoveOldest(home, 1) == 1) carried = home;   // (eaten: taken now, as from the bag)
+		const bool fromHome = !carried.empty() && FirstFood(m.Body->Bag()) != carried;
+		std::string stored = carried.empty() ? FirstFood(m_Store) : std::string();
+		if (!fromHome) ChooseMeal(m, carried, stored);   // social life: a varied meal from the store when it can (TribeSocial.cpp)
+		const bool ate = fromHome || (!carried.empty() && m.Body->Bag().RemoveOldest(carried, 1) == 1) || (!stored.empty() && m_Store.RemoveOldest(stored, 1) == 1);   // the oldest (E6)
 		if (ate)
 		{
 			++m.Meals;
@@ -1778,10 +2079,22 @@ namespace GB
 		m.Job.clear();
 		m.Why.clear();
 		m.Mind.Orders.clear();
-		const std::string reason = job != "rest" && HasFailed(m) ? WhyFailed(m) : std::string();
+		std::string reason = job != "rest" && HasFailed(m) ? WhyFailed(m) : std::string();
+		// a gather queues its swings at once: the one after the node's last unit fails "Depleted". That is the trip done, not a fault (it counted
+		// as "empty" and the member was cross with whoever emptied it, itself included: 85% of the gathers looked failed)
+		bool emptiedIt = false;
+		if (job == "gather" && reason.find("Depleted") != std::string::npos)
+			if (const auto def = m_Defs.find(m.WorkKind); def != m_Defs.end() && bag.Count(def->second.Item) > m.WorkStart)
+			{
+				emptiedIt = true;
+				reason.clear();
+			}
+		// F7: the Build orders still queued when the phase (or the building) ends fail "needs Building.Ready": the work is done, not a fault
+		const bool phaseOver = job == "build" && HasFailed(m) && !SiteWorkable(m.Detail);
+		if (phaseOver) reason.clear();
 		if (m_Telemetry && !job.empty() && job != "rest")   // how every task ended: the base of the loops and repetitions the analysis looks for (a rest is no task: the samples show who idles)
 		{
-			const char* result = reason.empty() ? (job != "rest" && HasFailed(m) ? "failed" : "ok") : reason.find("Depleted") != std::string::npos ? "empty" : reason.find("cannot get next to") != std::string::npos ? "unreachable" : "failed";
+			const char* result = reason.empty() ? (job != "rest" && HasFailed(m) && !emptiedIt && !phaseOver ? "failed" : "ok") : reason.find("Depleted") != std::string::npos ? "empty" : reason.find("cannot get next to") != std::string::npos ? "unreachable" : "failed";
 			EmitEvent("task_end", m.Name, job, result, m.Detail + (reason.empty() ? std::string() : ": " + reason));
 			TelemetryTask task;
 			task.Clan = m_TelemetryClan;
@@ -1794,7 +2107,11 @@ namespace GB
 			task.Reason = reason;
 			m_Telemetry->Task(task);
 		}
-		if (!reason.empty() && job == "gather" && reason.find("Depleted") != std::string::npos)   // someone (or the rabbits) emptied it on the way: not a fault
+		if (emptiedIt)   // it took the last of it: it remembers the node empty (it regrows), and nobody is to blame
+		{
+			if (const MemoryEntry* e = m.Mind.Memory.Find(m.Detail)) m.Mind.Memory.Observe({ e->Name, e->Kind, e->Pos, 0, m_Time, false });
+		}
+		else if (!reason.empty() && job == "gather" && reason.find("Depleted") != std::string::npos)   // someone (or the rabbits) emptied it on the way: not a fault
 		{
 			if (const MemoryEntry* e = m.Mind.Memory.Find(m.Detail)) m.Mind.Memory.Observe({ e->Name, e->Kind, e->Pos, 0, m_Time, false });
 			Say(m, "finds " + m.Detail + " empty");
@@ -1813,7 +2130,7 @@ namespace GB
 		}
 		else if (!reason.empty() && job == "explore") Say(m, "cannot get to " + m.Detail + " ground: " + reason);   // a lake or a cliff in the way: it tries another way next time
 		else if (job == "build" && HasFailed(m) && !SiteWorkable(m.Detail)) {}   // the phase ended (or the building stands) under its last Build: not a fault (H8)
-		else if (job != "rest" && HasFailed(m))   // (a rest has no orders: an old failure would count again every half second)
+		else if (job != "rest" && HasFailed(m) && !emptiedIt)   // (a rest has no orders: an old failure would count again every half second)
 		{
 			++m.Failures;
 			{
@@ -1873,16 +2190,24 @@ namespace GB
 		}
 		else if (job == "deposit")
 		{
-			const int moved = DepositAt(m, m.Detail);   // H18: the main store or a stockpile (TribeEconomy.cpp)
-			m.Deposited += moved;
 			const bool atCamp = m.Detail.empty() || m.Detail == "hauled";
-			Say(m, "leaves " + std::to_string(moved) + " in " + (atCamp ? std::string("the store") : m.Detail));
-			if (atCamp) HandOut(m);   // at the camp: a better tool or a basket from the store
+			const Stockpile* pile = atCamp ? nullptr : FindStockpile(m.Detail);
+			// only where it got to: a trip that failed left the things in the store all the same, from wherever the member stood
+			if (glm::distance(Where(m), pile ? pile->Pos : Config.Economy.Camp) > (pile ? kReachStore : 9.0f))
+				Say(m, "could not get to " + (atCamp ? std::string("the store") : m.Detail) + ": it keeps what it carries");
+			else
+			{
+				const int moved = DepositAt(m, m.Detail);   // H18: the main store or a stockpile (TribeEconomy.cpp)
+				m.Deposited += moved;
+				Say(m, "leaves " + std::to_string(moved) + " in " + (atCamp ? std::string("the store") : m.Detail));
+				if (atCamp) HandOut(m);   // at the camp: a better tool or a basket from the store
+			}
 			Share(m);
 		}
 		else if (FinishEconomy(m, job)) {}   // H18: "make", "farm", "haul" (TribeEconomy.cpp)
 		else if (FinishConflict(m, job)) {}   // H14: "hunt", "recover", "care" (TribeConflict.cpp)
 		else if (FinishSocial(m, job)) {}   // social life: "talk", "rite", "snare" (TribeSocial.cpp)
+		else if (FinishDataNeed(m, job)) {}   // V5: the verb of a need of the packs (TribeNeeds.cpp)
 		else if (job == "craft")
 		{
 			const std::set<std::string> known = m_Knowledge.KnownRecipes(m.Name, *m_Recipes);   // H11: only what it knows how to make
@@ -1932,8 +2257,28 @@ namespace GB
 		else if (job == "drink") Drink(m);
 		else if (job == "expedition" || job == "migrate") FinishExplore(m, job);   // H12 (TribeExplore.cpp)
 		else if (IsOutside(job)) { if (m_Outside.Finish) m_Outside.Finish(*this, m, job); }   // H13 (Clans.cpp)
+		else if (FinishTrails(m, job)) {}   // T5c: "pave" (Trails.cpp)
 		else if (FinishSettlement(m, job)) {}
-		else if (job == "sleep" || job == "warm" || job == "regroup" || job == "socialize" || job == "explore") Share(m);
+		else if (job == "sleep" || job == "warm" || job == "regroup" || job == "socialize" || job == "explore")
+		{
+			Share(m);
+			// F2: a search that found nothing makes the clan wait before it looks for that again (110 trips after a wild grain the valley does not have)
+			if (job == "explore")
+			{
+				const auto def = m_Defs.find(m.Detail);
+				const std::string item = def != m_Defs.end() ? def->second.Item : m.Detail;
+				// found: a place of it on the home ground, as the search asked (F4 looks again for what it knows only far away: with "any place
+				// anywhere" here the wait was undone at every return, and a clan walked 119 searches for stone in three days)
+				const bool found = def != m_Defs.end() ? KnowsNearHome(m, item) : ScanMemory(m).count(m.Detail) > 0;
+				auto& s = m_Searches[item];
+				if (found) s = { 0, 0.0 };
+				else
+				{
+					s.second = m_Time + std::min(3600.0, 120.0 * static_cast<double>(1 << std::min(s.first, 5)));
+					++s.first;
+				}
+			}
+		}
 		if (job != "rest") m.Detail.clear();
 	}
 
@@ -2015,6 +2360,7 @@ namespace GB
 		j["needTimer"] = m_NeedTimer;
 		if (m_LodTimer != 0.0f) j["lod"] = m_LodTimer;   // the clock of the level of detail: abstract members walk otherwise, so a load must look at the viewer when the run did
 		if (m_PlanTimer != 0.0f) j["plan"] = m_PlanTimer;   // the settlement planner's clock (its sites are entities, saved with the scene)
+		if (!m_Era.empty()) j["era"] = m_Era;   // V5: the era the clan is in is state (the rules of an era pack follow it)
 		j["fire"] = m_Fire ? 1 : 0;   // its state is the interactive's (tags and attributes, saved with the gameplay)
 		j["camp"] = Json::array({ Config.Economy.Camp.x, Config.Economy.Camp.y, Config.Economy.CampY });
 		j["store"] = Json::parse(m_Store.ToJson());
@@ -2039,6 +2385,7 @@ namespace GB
 		j["economy"] = Json::parse(m_Econ.ToJson());   // H18 (an older save has none: no fields, no stockpiles; its stacks are fresh)
 		j["conflict"] = Json::parse(m_Conflict.ToJson());
 		j["social"] = Json::parse(m_Social.ToJson());   // social life (an older save has none: moods at their start, no rites on the agenda)   // H14 (an older save has none: no threats, no raid; the fights themselves are the combat system's)
+		if (m_Trails.Ready()) j["trails"] = Json::parse(m_Trails.ToJson());   // T5c (an older save has none: the ground is unworn)
 		Json members = Json::array();
 		for (const TribeMember& m : m_Members)
 			members.push_back(Json{ { "name", m.Name }, { "role", m.Role }, { "job", m.Job }, { "detail", m.Detail }, { "deposited", m.Deposited }, { "made", m.Made },
@@ -2079,6 +2426,8 @@ namespace GB
 		if (j.contains("conflict") && !conflict.FromJson(j["conflict"].dump())) return false;
 		SocialState social;   // (an older save has none)
 		if (j.contains("social") && !social.FromJson(j["social"].dump())) return false;
+		TrailState trails;   // T5c (an older save has none)
+		if (j.contains("trails") && !trails.FromJson(j["trails"].dump(), Config.Trails)) return false;
 		PlayerSociety players;   // H15 (an older save has none)
 		if (j.contains("player") && !players.FromJson(j["player"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
@@ -2111,6 +2460,7 @@ namespace GB
 		m_Econ = std::move(econ);
 		m_Conflict = std::move(conflict);
 		m_Social = std::move(social);
+		ReplaceTrails(std::move(trails));
 		m_Players = std::move(players);
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);
@@ -2121,6 +2471,7 @@ namespace GB
 		if (j.contains("lastWorker") && j["lastWorker"].is_object())
 			for (const auto& [node, who] : j["lastWorker"].items()) if (who.is_string()) m_LastWorker[node] = who.get<std::string>();
 		m_PlanTimer = j.value("plan", 0.0f);   // (H8; a save from before has none)
+		m_Era = j.value("era", std::string());
 		m_Fire = j.value("fire", 0) != 0;
 		if (j.contains("camp") && j["camp"].is_array() && j["camp"].size() == 3)
 		{

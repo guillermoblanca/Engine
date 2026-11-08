@@ -20,6 +20,13 @@ add_library(GBEditor STATIC
     src/GameView.cpp
     src/GameMode.cpp
     src/GamePanels.cpp
+    src/GameSheets.cpp
+    src/SelectionView.cpp
+    src/MapOverlay.cpp
+    src/ObserverView.cpp
+    src/TechTreeView.cpp
+    src/Lang.cpp
+    src/TrailsView.cpp
     src/SceneEditor.cpp
     src/WorldInstance.cpp
     src/TestScenarios.cpp
@@ -68,6 +75,9 @@ endif()
 
 add_executable(Editor src/main.cpp)
 target_link_libraries(Editor PRIVATE GBEditor)
+if(MSVC)
+    target_link_options(Editor PRIVATE /MAP)   # Editor.map: what the crash trace in the log (main.cpp) points at
+endif()
 
 # Logic tests (no window, no GL).
 add_executable(GBEditorTests tests/editor_test.cpp)
@@ -99,3 +109,20 @@ gb_editor_script_test(editor_demo_h8 h8_settlement.txt "says /.*live checks, 0 v
 # H15: the game mode headless: play, the player's actions, save and load, the HUD. In the game the characters follow the frame time (a player drives one),
 # so the test fixes it (--step=60, extra arguments go to the editor): the same stretch of game per `wait` on a fast machine and on a slow one.
 gb_editor_script_test(editor_play play.txt "says /.*live checks, 0 violation" --step=60)   # (the line qa expect writes when the live checks held)
+# V0 (docs/VISION_MUNDO_VIVO.md): the player takes over a member of another clan (`game become`), saves, loads and is still that member
+gb_editor_script_test(editor_become v0_become.txt "says /.*live checks, 0 violation" --step=60)
+# V1: the world's history and the members' memories are written while the clans live, shown in the story sheet and kept by save and load
+gb_editor_script_test(editor_history v1_history.txt "says /.*live checks, 0 violation" --step=60)
+# V5: the Bronze Age is a pack of data (era2): its era, and a need with its verb (faith, pray at the temple) that no code knows
+configure_file(tests/v5_faith_fast.json ${CMAKE_CURRENT_BINARY_DIR}/v5_faith_fast.json COPYONLY)
+gb_editor_script_test(editor_bronze v5_bronze.txt "prays at Temple 1" --step=60)
+# V8: a pack per era up to AI, loaded strictly; a clan that learns each key is in that era, in order
+gb_editor_script_test(editor_eras v8_eras.txt "Age of AI" --step=60)
+# V6: the leap of years between two lives (aggregate society, history the heir remembers)
+gb_editor_script_test(editor_leap v6_leap.txt "every invariant holds" --step=60)
+# V7: ranks of settlements and polities of allied clans, both history
+gb_editor_script_test(editor_polity v7_polity.txt "Clan 1 and Blue form the confederation" --step=60)
+# V2: talking to a member brings a real fact of the game, with what it makes of it; the player remembers who told it
+gb_editor_script_test(editor_talk v2_talk.txt "says /.*live checks, 0 violation" --step=60)
+# V3: people ask the player for help with their real problems; a life ends and the player chooses who carries on; saved and loaded
+gb_editor_script_test(editor_adventure v3_adventure.txt "says /.*live checks, 0 violation" --step=60)

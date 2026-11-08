@@ -1,6 +1,8 @@
 #include "GB/Gameplay/Buildings.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -116,7 +118,7 @@ namespace GB
 				d.Color = { (*c)[0].get<float>(), (*c)[1].get<float>(), (*c)[2].get<float>() };
 			}
 			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, float*>>{ { "rest", &d.Rest }, { "warmth", &d.Warmth }, { "defense", &d.Defense },
-				{ "healing", &d.Healing }, { "culture", &d.Culture }, { "aura", &d.Aura } })
+				{ "healing", &d.Healing }, { "culture", &d.Culture }, { "aura", &d.Aura }, { "trade", &d.Trade } })
 				if (const auto v = o.find(key); v != o.end())
 				{
 					if (!v->is_number() || v->get<float>() < 0.0f) return std::string(key) + " must be a number of 0 or more";
@@ -128,12 +130,35 @@ namespace GB
 					if (!v->is_number_integer() || v->get<int>() < 0) return std::string(key) + " must be a whole number of 0 or more";
 					*field = v->get<int>();
 				}
-			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, std::string*>>{ { "station", &d.Station }, { "tech", &d.Tech }, { "store", &d.Store } })
+			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, std::string*>>{ { "station", &d.Station }, { "tech", &d.Tech }, { "store", &d.Store }, { "near", &d.Near }, { "zone", &d.Zone }, { "rank", &d.Rank } })
 				if (const auto v = o.find(key); v != o.end())
 				{
 					if (!v->is_string()) return std::string(key) + " must be a string";
 					*field = v->get<std::string>();
 				}
+			if (const auto v = o.find("provides"); v != o.end())   // V5: the needs of the packs it answers
+			{
+				if (!v->is_object()) return "provides must be an object: provision -> amount";
+				for (const auto& [name, t] : v->items())
+				{
+					if (!t.is_number() || t.get<float>() <= 0.0f || t.get<float>() > 10.0f) return "what a building provides must be a number above 0 and up to 10";
+					d.Provides[name] = t.get<float>();
+				}
+			}
+			if (const auto v = o.find("values"); v != o.end())   // V4: the culture it asks for
+			{
+				if (!v->is_object()) return "values must be an object: value -> threshold";
+				for (const auto& [name, t] : v->items())
+				{
+					if (!t.is_number_integer() || t.get<int>() == 0 || std::abs(t.get<int>()) > 50) return "a value threshold must be a whole number from -50 to 50, not 0";
+					d.Values[name] = t.get<int>();
+				}
+			}
+			if (const auto v = o.find("well"); v != o.end())
+			{
+				if (!v->is_boolean()) return "well must be true or false";
+				d.Well = v->get<bool>();
+			}
 			if (const auto v = o.find("keep"); v != o.end())
 			{
 				if (!v->is_number() || v->get<float>() <= 0.0f || v->get<float>() > 1.0f) return "keep must be a number more than 0 and at most 1";
@@ -169,6 +194,21 @@ namespace GB
 						ph.Needs[item] = v.get<int>();
 					}
 				}
+				if (const auto sub = p.find("substitutes"); sub != p.end())
+				{
+					if (!sub->is_object()) return "phase " + ph.Name + ": substitutes must be an object of item -> [items]";
+					for (const auto& [item, list] : sub->items())
+					{
+						if (!ph.Needs.count(item)) return "phase " + ph.Name + ": a substitute for " + item + ", which the phase does not need";
+						if (!list.is_array()) return "phase " + ph.Name + ": the substitutes of " + item + " must be a list of items";
+						for (const Json& x : list)
+						{
+							if (!x.is_string() || x.get<std::string>().empty()) return "phase " + ph.Name + ": the substitutes of " + item + " must be item ids";
+							if (ph.Needs.count(x.get<std::string>())) return "phase " + ph.Name + ": " + x.get<std::string>() + " is a need of the phase and cannot stand in for " + item;
+							ph.Substitutes[item].push_back(x.get<std::string>());
+						}
+					}
+				}
 				if (const auto part = p.find("part"); part != p.end())
 				{
 					if (!part->is_string() || !KnownPart(part->get<std::string>())) return "phase " + ph.Name + ": part must be slab, posts, walls, roof, table or rack";
@@ -197,112 +237,7 @@ namespace GB
 
 	std::map<std::string, BuildingDef> DefaultBuildings()
 	{
-		auto phase = [](const char* name, float work, std::map<std::string, int> needs, const char* part) { return BuildingPhase{ name, work, std::move(needs), part }; };
-
-		// a hut of branches thatched with reeds: three sleep in it, rested and out of the cold
-		BuildingDef shelter;
-		shelter.Id = "shelter";
-		shelter.Name = "Shelter";
-		shelter.Footprint = { 3.0f, 3.0f };
-		shelter.Phases = { phase("foundation", 6.0f, { { "stone", 3 } }, "slab"), phase("frame", 12.0f, { { "branch", 6 } }, "posts"),
-			phase("roof", 10.0f, { { "reed", 4 }, { "fiber", 3 } }, "roof") };
-		shelter.Shelter = 3;
-		shelter.Rest = 0.2f;
-		shelter.Warmth = 0.3f;
-		shelter.Color = { 0.42f, 0.3f, 0.17f };
-
-		// a covered store: a stockpile of the economy (H18) by the camp
-		BuildingDef storage;
-		storage.Id = "storage";
-		storage.Name = "Storage";
-		storage.Footprint = { 3.0f, 2.5f };
-		storage.Phases = { phase("floor", 8.0f, { { "stone", 4 }, { "wood", 2 } }, "slab"), phase("walls", 10.0f, { { "branch", 6 } }, "walls"),
-			phase("roof", 8.0f, { { "reed", 4 } }, "roof") };
-		storage.Store = "stockpile";   // a secondary store of the economy (H18)
-		storage.Color = { 0.5f, 0.36f, 0.2f };
-
-		// a proper workbench: the camp's improvised one moves here
-		BuildingDef bench;
-		bench.Id = "workbench";
-		bench.Name = "Workbench";
-		bench.Footprint = { 2.0f, 1.2f };
-		bench.Phases = { phase("bench", 8.0f, { { "wood", 3 }, { "stone", 2 } }, "table") };
-		bench.Station = "workbench";
-		bench.Color = { 0.55f, 0.4f, 0.22f };
-
-		// a rack of branches tied with fibre: food and bricks dry on it
-		BuildingDef rack;
-		rack.Id = "drying_rack";
-		rack.Name = "Drying rack";
-		rack.Footprint = { 2.5f, 1.5f };
-		rack.Phases = { phase("frame", 6.0f, { { "branch", 4 } }, "posts"), phase("rack", 6.0f, { { "fiber", 3 } }, "rack") };
-		rack.Station = "drying_rack";
-		rack.Color = { 0.5f, 0.38f, 0.22f };
-
-		std::map<std::string, BuildingDef> out = { { shelter.Id, shelter }, { storage.Id, storage }, { bench.Id, bench }, { rack.Id, rack } };
-		auto make = [&](const char* id, const char* name, glm::vec2 footprint, std::vector<BuildingPhase> phases, glm::vec3 color) -> BuildingDef&
-		{
-			BuildingDef& d = out[id];
-			d.Id = id;
-			d.Name = name;
-			d.Footprint = footprint;
-			d.Phases = std::move(phases);
-			d.Color = color;
-			return d;
-		};
-
-		// The Stone-Age progression (docs/PROGRESION.md); the technology that unlocks each names it (TechDef::Buildings).
-		// Homes: the wattle hut and the longhouse, each better than the one before (and the clan stops raising the older one for beds).
-		{
-			BuildingDef& d = make("hut", "Wattle hut", { 3.6f, 3.6f }, { phase("foundation", 8.0f, { { "stone", 4 } }, "slab"), phase("frame", 12.0f, { { "branch", 6 }, { "wood", 2 } }, "posts"),
-				phase("walls", 14.0f, { { "branch", 6 }, { "daub", 6 } }, "walls"), phase("roof", 10.0f, { { "reed", 8 }, { "fiber", 2 } }, "roof") }, { 0.5f, 0.38f, 0.26f });
-			d.Shelter = 4; d.Rest = 0.3f; d.Warmth = 0.45f; d.Supersedes = { "shelter" };
-		}
-		{
-			BuildingDef& d = make("longhouse", "Longhouse", { 7.0f, 4.0f }, { phase("footings", 10.0f, { { "stone", 8 } }, "slab"), phase("frame", 18.0f, { { "wood", 10 }, { "cordage", 3 } }, "posts"),
-				phase("walls", 18.0f, { { "branch", 10 }, { "daub", 8 } }, "walls"), phase("roof", 14.0f, { { "reed", 10 }, { "reed_mat", 3 } }, "roof") }, { 0.46f, 0.34f, 0.22f });
-			d.Shelter = 8; d.Rest = 0.35f; d.Warmth = 0.55f; d.Supersedes = { "hut", "shelter" };
-		}
-		// Food storage: a lined pit and a granary on stilts hold more and keep it longer.
-		{
-			BuildingDef& d = make("cache_pit", "Cache pit", { 2.0f, 2.0f }, { phase("pit", 12.0f, { { "stone", 2 } }, "slab"), phase("lining", 6.0f, { { "reed", 4 }, { "fiber", 2 } }, "roof") },
-				{ 0.42f, 0.34f, 0.24f });
-			d.StoreCap = 10; d.Keep = 0.75f;
-		}
-		{
-			BuildingDef& d = make("granary", "Raised granary", { 2.6f, 2.6f }, { phase("stilts", 10.0f, { { "wood", 4 }, { "stone", 4 } }, "posts"), phase("floor", 8.0f, { { "wood", 3 }, { "branch", 4 } }, "slab"),
-				phase("walls", 10.0f, { { "branch", 6 }, { "daub", 4 } }, "walls"), phase("roof", 8.0f, { { "reed", 6 } }, "roof") }, { 0.55f, 0.42f, 0.26f });
-			d.StoreCap = 20; d.Keep = 0.5f;
-		}
-		// Fire and food: the communal hearth (cooking, and warmth and company around it) and the smoking rack.
-		{
-			BuildingDef& d = make("hearth", "Communal hearth", { 2.4f, 2.4f }, { phase("ring", 8.0f, { { "stone", 6 } }, "slab"), phase("fire", 6.0f, { { "wood", 3 } }, "rack") }, { 0.45f, 0.4f, 0.36f });
-			d.Station = "hearth"; d.Warmth = 0.4f; d.Culture = 0.15f; d.Aura = 6.0f;
-		}
-		make("smoking_rack", "Smoking rack", { 2.2f, 1.6f }, { phase("frame", 8.0f, { { "branch", 6 } }, "posts"), phase("cover", 8.0f, { { "reed", 4 }, { "fiber", 2 } }, "roof") },
-			{ 0.4f, 0.3f, 0.2f }).Station = "smoking_rack";
-		// Hides: a frame to stretch and scrape them, over a soaking pit.
-		make("hide_frame", "Hide frame", { 2.0f, 1.2f }, { phase("pit", 6.0f, { { "stone", 2 } }, "slab"), phase("frame", 8.0f, { { "branch", 4 }, { "cordage", 2 } }, "rack") },
-			{ 0.52f, 0.4f, 0.28f }).Station = "tannery";
-		// Care and rites: the healer's hut speeds the healing of the wounded near it; the totem is where the clan meets.
-		{
-			BuildingDef& d = make("healer_hut", "Healer's hut", { 2.6f, 2.6f }, { phase("frame", 8.0f, { { "branch", 6 } }, "posts"), phase("walls", 8.0f, { { "reed", 6 }, { "fiber", 2 } }, "walls"),
-				phase("remedies", 4.0f, { { "poultice", 2 } }, "table") }, { 0.4f, 0.42f, 0.28f });
-			d.Healing = 1.0f; d.Aura = 5.0f;
-		}
-		{
-			BuildingDef& d = make("totem", "Totem", { 3.0f, 3.0f }, { phase("circle", 8.0f, { { "stone", 6 } }, "slab"), phase("pole", 12.0f, { { "wood", 2 } }, "posts") }, { 0.5f, 0.32f, 0.2f });
-			d.Culture = 0.25f; d.Aura = 9.0f;
-		}
-		// Defence: a stretch of sharpened stakes.
-		make("palisade", "Palisade", { 6.0f, 0.8f }, { phase("stakes", 14.0f, { { "stake", 12 } }, "posts"), phase("rails", 10.0f, { { "branch", 6 }, { "cordage", 3 } }, "rack") },
-			{ 0.45f, 0.33f, 0.2f }).Defense = 1.0f;
-		// Era 2: the kiln fires bricks; the forge, built of them, smelts copper.
-		make("kiln", "Kiln", { 1.8f, 1.8f }, { phase("base", 8.0f, { { "stone", 6 } }, "slab"), phase("dome", 12.0f, { { "clay", 8 } }, "roof"), phase("chimney", 4.0f, { { "clay", 2 } }, "posts") },
-			{ 0.62f, 0.42f, 0.3f }).Station = "kiln";
-		make("forge", "Forge", { 2.2f, 2.0f }, { phase("hearth", 12.0f, { { "stone", 6 }, { "fired_brick", 6 } }, "slab"), phase("bellows", 8.0f, { { "hide", 2 }, { "wood", 2 } }, "table") },
-			{ 0.5f, 0.3f, 0.24f }).Station = "forge";
-		return out;
+		return Shipped().Buildings;   // what the data says (assets/data: era1.json, "buildings"): there is no second list in the code
 	}
 
 	std::string LoadBuildings(const std::string& json, std::map<std::string, BuildingDef>& defs)
@@ -348,21 +283,30 @@ namespace GB
 			{
 				Json needs = Json::object();
 				for (const auto& [item, n] : p.Needs) needs[item] = n;
-				phases.push_back({ { "name", p.Name }, { "work", Round(p.Work) }, { "needs", needs }, { "part", p.Part } });
+				Json ph = { { "name", p.Name }, { "work", Round(p.Work) }, { "needs", needs }, { "part", p.Part } };
+				if (!p.Substitutes.empty()) ph["substitutes"] = p.Substitutes;
+				phases.push_back(ph);
 			}
 			o["phases"] = phases;
 			if (d.Shelter) o["shelter"] = d.Shelter;
 			if (d.Rest != 0.0f) o["rest"] = Round(d.Rest);
 			if (d.Warmth != 0.0f) o["warmth"] = Round(d.Warmth);
 			if (!d.Store.empty()) o["store"] = d.Store;
+			if (!d.Near.empty()) o["near"] = d.Near;
+			if (!d.Zone.empty()) o["zone"] = d.Zone;
+			if (!d.Rank.empty()) o["rank"] = d.Rank;
 			if (!d.Station.empty()) o["station"] = d.Station;
 			if (!d.Tech.empty()) o["tech"] = d.Tech;
 			if (d.StoreCap) o["storeCap"] = d.StoreCap;
 			if (d.Keep != 1.0f) o["keep"] = Round(d.Keep);
+			if (d.Well) o["well"] = true;
 			if (d.Defense != 0.0f) o["defense"] = Round(d.Defense);
 			if (d.Healing != 0.0f) o["healing"] = Round(d.Healing);
 			if (d.Culture != 0.0f) o["culture"] = Round(d.Culture);
 			if (d.Aura != 0.0f) o["aura"] = Round(d.Aura);
+			if (d.Trade != 0.0f) o["trade"] = Round(d.Trade);
+			if (!d.Values.empty()) o["values"] = d.Values;
+			if (!d.Provides.empty()) { Json p = Json::object(); for (const auto& [k, v] : d.Provides) p[k] = Round(v); o["provides"] = p; }
 			if (!d.Supersedes.empty()) o["supersedes"] = d.Supersedes;
 			if (d.Color != plain.Color) o["color"] = Json::array({ Round(d.Color.r), Round(d.Color.g), Round(d.Color.b) });
 			out[id] = o;
@@ -411,10 +355,17 @@ namespace GB
 		s.PhaseName = p.Name;
 		s.WorkNeeded = p.Work;
 		s.Work = std::min(a.Attributes().Base("Work"), p.Work);
+		auto delivered = [&](const std::string& item) { return a.Attributes().Has(Delivered(item)) ? static_cast<int>(std::lround(a.Attributes().Base(Delivered(item)))) : 0; };
 		for (const auto& [item, n] : p.Needs)
 		{
-			const int have = static_cast<int>(std::lround(a.Attributes().Base(Delivered(item))));
-			if (have < n) s.Missing[item] = n - have;
+			int have = delivered(item);
+			const auto sub = p.Substitutes.find(item);
+			if (sub != p.Substitutes.end()) for (const std::string& other : sub->second) have += delivered(other);   // (what stood in for it)
+			if (have < n)
+			{
+				s.Missing[item] = n - have;
+				if (sub != p.Substitutes.end()) s.Substitutes[item] = sub->second;
+			}
 		}
 		s.Ready = s.Missing.empty();
 		s.Progress = std::clamp((before + s.Work) / total, 0.0f, 1.0f);
@@ -424,7 +375,10 @@ namespace GB
 	int DeliverToSite(AbilitySystemComponent& a, const BuildingDef& def, const std::string& item, int count)
 	{
 		const SiteState s = ReadSite(a, def);
-		const auto it = s.Missing.find(item);
+		auto it = s.Missing.find(item);
+		if (it == s.Missing.end())   // a substitute: it counts for the missing material it stands in for
+			for (const auto& [need, subs] : s.Substitutes)
+				if (std::find(subs.begin(), subs.end(), item) != subs.end()) { it = s.Missing.find(need); break; }
 		if (s.Done || it == s.Missing.end() || count <= 0) return 0;
 		const int taken = std::min(count, it->second);
 		if (!a.Attributes().Has(Delivered(item))) a.Attributes().Define(Delivered(item), 0.0f, 0.0f, 1e6f);
@@ -527,10 +481,10 @@ namespace GB
 	void BuildingSystem::Update(float, EntityWorld* entities)
 	{
 		if (!m_Gameplay) return;
-		for (const std::string& name : m_Gameplay->Names())
+		for (const TaggedSystems::Entry& entry : m_Sites.Of(*m_Gameplay))   // the sites only (no system is made or removed here)
 		{
-			AbilitySystemComponent* a = m_Gameplay->Find(name);
-			if (!a || !a->HasTag("Building")) continue;
+			const std::string& name = *entry.Name;
+			AbilitySystemComponent* a = entry.System;
 			if (const auto it = m_Bound.find(name); it == m_Bound.end() || it->second.first != a) Listen(name, a);   // a new site, or a reloaded one (a new system)
 			if (!entities) continue;
 			const BuildingDef* def = BuildingOf(*a, Defs);

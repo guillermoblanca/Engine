@@ -24,7 +24,10 @@ namespace GB
 		float Scale() const { return m_Scale; }
 		void ScaleBy(float factor) { m_Scale *= factor; }
 		glm::mat4 RootMatrix() const;
-		void AddToScene(Scene& scene) const { if (m_Instance) m_Instance->AddToScene(scene, RootMatrix()); }
+		void AddToScene(Scene& scene) const { if (m_Instance) m_Instance->AddToScene(scene, RootMatrix(), m_Tints.empty() ? nullptr : &m_Tints); }
+		// U4: a colour per material of the model (its clan's, its trade's): empty = as the model is
+		void SetTints(std::vector<glm::vec3> tints) { m_Tints = std::move(tints); }
+		const std::vector<glm::vec3>& Tints() const { return m_Tints; }
 
 		// The last to go: the animation, the props and the ragdoll that read it end before.
 		void OnDestroy(GBObject&) override { m_Instance.reset(); m_Model.reset(); }
@@ -34,5 +37,6 @@ namespace GB
 		float m_Scale = 1.0f;
 		std::shared_ptr<Model> m_Model;
 		std::unique_ptr<ModelInstance> m_Instance;
+		std::vector<glm::vec3> m_Tints;
 	};
 }

@@ -1,0 +1,225 @@
+{
+  "note": "Era 8, the information age (V8): sand made silicon, chips and computers; an office where people work with knowledge.",
+  "items": [
+    {
+      "category": "resource",
+      "id": "sand",
+      "name": "Sand",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Sand"
+      ],
+      "weight": 1.0
+    },
+    {
+      "category": "resource",
+      "id": "silicon",
+      "name": "Silicon",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Silicon"
+      ],
+      "weight": 0.5
+    },
+    {
+      "category": "resource",
+      "id": "chip",
+      "name": "Chip",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Electric.Chip"
+      ],
+      "weight": 0.05
+    },
+    {
+      "category": "resource",
+      "id": "computer",
+      "name": "Computer",
+      "stack": 2,
+      "tags": [
+        "Item.Resource.Machine.Computer"
+      ],
+      "weight": 5.0
+    }
+  ],
+  "nodes": [
+    {
+      "ability": "Collect",
+      "capacity": 6,
+      "id": "sand_bank",
+      "item": "sand",
+      "kind": "Loose.Sand",
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 900.0,
+      "spawn": {
+        "biomes": [
+          "Shore",
+          "Dunes",
+          "Meadow"
+        ],
+        "max": 10,
+        "maxSlope": 50.0,
+        "perHectare": 8.0,
+        "spacing": 8.0,
+        "zones": {
+          "perKm2": 0.5,
+          "min": 1,
+          "max": 2,
+          "radiusMin": 15.0,
+          "radiusMax": 35.0,
+          "fallback": [
+            "Meadow",
+            "Forest"
+          ]
+        }
+      }
+    }
+  ],
+  "recipes": [
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "silicon",
+      "inputs": {
+        "sand": 3,
+        "coal": 1
+      },
+      "output": "silicon",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 2,
+      "id": "chip",
+      "inputs": {
+        "silicon": 1,
+        "copper_wire": 1
+      },
+      "output": "chip",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "computer",
+      "inputs": {
+        "chip": 4,
+        "steel_ingot": 1,
+        "copper_wire": 2
+      },
+      "output": "computer",
+      "station": "factory"
+    }
+  ],
+  "techs": [
+    {
+      "id": "computing",
+      "name": "Computing",
+      "era": 15,
+      "requires": [
+        "electricity",
+        "writing"
+      ],
+      "recipes": [
+        "silicon",
+        "chip",
+        "computer"
+      ],
+      "buildings": [
+        "office"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    }
+  ],
+  "buildings": {
+    "office": {
+      "name": "Office",
+      "zone": "craft",
+      "footprint": [
+        4.0,
+        3.5
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 10,
+            "fired_brick": 10
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "computer": 2,
+            "plank": 6
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.62,
+        0.64,
+        0.68
+      ],
+      "provides": {
+        "learning": 4.0
+      },
+      "aura": 3.0
+    }
+  },
+  "eras": [
+    {
+      "id": "information",
+      "name": "Information Age",
+      "key": [
+        "computing"
+      ],
+      "from": [
+        "electric"
+      ],
+      "pull": 0.4,
+      "interest": [
+        "sand"
+      ],
+      "progression": [
+        "electricity",
+        "computing"
+      ],
+      "leap": 5
+    }
+  ],
+  "diplomacy": {
+    "trade": {
+      "values": {
+        "sand": 0.5,
+        "silicon": 3.0,
+        "chip": 6.0,
+        "computer": 40.0
+      }
+    }
+  }
+}

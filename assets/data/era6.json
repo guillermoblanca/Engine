@@ -1,0 +1,201 @@
+{
+  "note": "Era 6, the industrial age (V8): coal, steel and steam; the factory makes what hands made.",
+  "items": [
+    {
+      "category": "resource",
+      "id": "coal",
+      "name": "Coal",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Fuel.Coal"
+      ],
+      "weight": 1.5
+    },
+    {
+      "category": "resource",
+      "id": "steel_ingot",
+      "name": "Steel ingot",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Metal.Steel"
+      ],
+      "weight": 2.0
+    },
+    {
+      "category": "resource",
+      "id": "engine",
+      "name": "Steam engine",
+      "stack": 2,
+      "tags": [
+        "Item.Resource.Machine.Engine"
+      ],
+      "weight": 8.0
+    }
+  ],
+  "nodes": [
+    {
+      "ability": "Mine",
+      "capacity": 6,
+      "id": "coal_seam",
+      "item": "coal",
+      "kind": "Stone.Coal",
+      "model": "copper_vein",
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 900.0,
+      "requires": "Item.Tool.Pickaxe",
+      "spawn": {
+        "biomes": [
+          "Rock",
+          "Forest",
+          "Meadow"
+        ],
+        "max": 10,
+        "maxSlope": 50.0,
+        "perHectare": 8.0,
+        "spacing": 8.0,
+        "zones": {
+          "perKm2": 0.25,
+          "min": 1,
+          "max": 2,
+          "radiusMin": 15.0,
+          "radiusMax": 35.0,
+          "fallback": [
+            "Meadow",
+            "Forest"
+          ]
+        }
+      }
+    }
+  ],
+  "recipes": [
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "steel_ingot",
+      "inputs": {
+        "iron_ingot": 2,
+        "coal": 1
+      },
+      "output": "steel_ingot",
+      "station": "forge"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "engine",
+      "inputs": {
+        "steel_ingot": 4,
+        "coal": 2
+      },
+      "output": "engine",
+      "station": "factory"
+    }
+  ],
+  "techs": [
+    {
+      "id": "steam_power",
+      "name": "Steam power",
+      "era": 11,
+      "requires": [
+        "printing",
+        "forging"
+      ],
+      "recipes": [
+        "steel_ingot",
+        "engine"
+      ],
+      "buildings": [
+        "factory"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    }
+  ],
+  "buildings": {
+    "factory": {
+      "name": "Factory",
+      "zone": "craft",
+      "footprint": [
+        4.0,
+        3.5
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 12,
+            "fired_brick": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "steel_ingot": 4,
+            "plank": 6
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.4,
+        0.32,
+        0.3
+      ],
+      "station": "factory"
+    }
+  },
+  "eras": [
+    {
+      "id": "industrial",
+      "name": "Industrial Age",
+      "key": [
+        "steam_power"
+      ],
+      "from": [
+        "renaissance"
+      ],
+      "pull": 0.4,
+      "interest": [
+        "coal",
+        "iron_ore"
+      ],
+      "progression": [
+        "printing",
+        "steam_power"
+      ],
+      "leap": 25
+    }
+  ],
+  "diplomacy": {
+    "trade": {
+      "values": {
+        "coal": 2.0,
+        "steel_ingot": 9.0,
+        "engine": 30.0
+      }
+    }
+  }
+}

@@ -9,6 +9,7 @@ namespace GB
 	class HeightInputNode final : public ITerrainNode
 	{
 	public:
+		TgNodeSchema Describe() const override;
 		bool Evaluate(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs, TgField& out, std::string& error) const override;
 	};
 }

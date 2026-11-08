@@ -1,0 +1,24 @@
+# V7 (docs/VISION_MUNDO_VIVO.md): settlements climb ranks and clans form polities. The ranks are data (era1.json, diplomacy.ranks: camp, village,
+# town, city, by people and finished buildings); a rank reached is history ("Clan 1 become a village"); a building may ask for a rank (the town
+# hall of a town). Clans bound by alliances are a polity, named after the biggest; one that forms is history too. No player: nobody's death
+# sets off the leap between lives.
+generate temperate 5
+resources world
+site best
+tribe build fox
+clan new Blue 4
+wait 1900
+qa expect "clan polities" "Clan 1: camp .* \| Blue: camp"
+settlement raise shelter
+settlement raise storage
+settlement raise workbench
+clan leap 30
+clan leap 30
+wait 1900
+qa expect "clan polities" "Clan 1: village"
+qa expect "tribe history all 12" "Clan 1 become a village"
+qa expect "clan ally 0 1" "are allies"
+qa expect "clan polities" "polity: the confederation of the (Clan 1|Blue) \(Clan 1, Blue\)"
+qa expect "tribe history all 12" "Clan 1 and Blue form the confederation"
+qa check
+quit

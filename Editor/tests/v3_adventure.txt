@@ -1,0 +1,47 @@
+# V3 (docs/VISION_MUNDO_VIVO.md): adventures and inheritance. The player talks to the people of its clan and of the other: each tells a real fact
+# and, when it has a problem (a site short of a material, the clan short of food, a relative far from home, something the player could teach it,
+# a need another clan may meet), asks for help; `game requests` lists them. Then the character dies of old age: the game is not over, the player
+# chooses who carries on (its lineage first, else another lineage) and goes on as that person, who remembers what the dead one told. Saved and loaded.
+play temperate 5 4 2
+timescale 20
+wait 1500
+timescale 1
+game approach Ana
+wait 300
+game approach Ana
+wait 200
+qa expect "game talk Ana" "tells you|asks you"
+game approach Biel
+wait 400
+game approach Biel
+wait 400
+game talk Biel
+qa expect "game requests" "[0-9]+ open, [0-9]+ done, [0-9]+ dropped; [1-9][0-9]* kinds"
+# a request done: Ana asked to talk to the Blue (the clan needs something they may have): the player walks to one of them and talks
+timescale 5
+game approach Eli
+wait 600
+game approach Eli
+wait 300
+timescale 1
+game talk Eli
+qa expect "game requests" "[1-9][0-9]* done"
+qa expect "tribe reputation Player" "known by [1-9][0-9]*, [1-9][0-9]* deeds"
+game book me inventory
+wait 5
+shot_ui v3_requests.png
+game die OldAge
+wait 5
+qa expect "game heir" "lineage"
+wait 5
+shot_ui v3_heir.png
+game heir first
+qa expect "game status" "player: (?!Player )[A-Z][a-z]+ \("
+qa expect "tribe history of Player" "remembers"
+game save v3_adventure
+game load v3_adventure
+qa expect "game status" "player: (?!Player )[A-Z][a-z]+ \("
+qa expect "game requests" "kinds"
+qa check
+qa expect "qa status" "[1-9][0-9]* live checks, 0 violation"
+quit

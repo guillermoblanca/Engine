@@ -56,9 +56,9 @@
       "stand": [0.0, 0.0, -1.7],
       "tags": ["Interactive.Well"],
       "attributes": {
-        "Water": { "value": 6.0, "min": 0.0, "max": 6.0 }
+        "Water": { "value": 30.0, "min": 0.0, "max": 30.0 }
       },
-      "refillSeconds": 20.0,
+      "refillSeconds": 4.0,
       "refillAmount": 1,
       "waterPerDraw": 2,
       "abilities": [

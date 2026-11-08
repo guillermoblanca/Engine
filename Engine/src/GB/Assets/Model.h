@@ -148,7 +148,7 @@ namespace GB
 		std::vector<ModelCamera> m_Cameras;
 		std::vector<AnimationClip> m_Clips;
 		std::vector<Material> m_Materials;
-		std::vector<std::unique_ptr<Texture2D>> m_Textures;
+		std::vector<std::shared_ptr<Texture2D>> m_Textures;   // (an image file is shared by every model that uses it: the kit pieces)
 		glm::vec3 m_BoundsMin{ 0.0f }, m_BoundsMax{ 0.0f };
 		size_t m_TriangleCount = 0;
 		size_t m_MeshNodeCount = 0;

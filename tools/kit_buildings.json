@@ -1,0 +1,9 @@
+{
+  "note": "Buildings made of the Medieval Village MegaKit (assets/models/medieval_kit). tools/make_kit_buildings.py writes their visuals into assets/data/visuals.json. cells: [x, z] in 2 m cells (x is the gable side: 2, 3 or 4; z at least x); floors: 1 or 2; style: plaster or brick; the door is on the +z front, in the middle.",
+  "buildings": [
+    { "id": "townhouse",    "cells": [ 3, 3 ], "floors": 1, "style": "plaster" },
+    { "id": "timber_house", "cells": [ 2, 3 ], "floors": 2, "style": "plaster" },
+    { "id": "stone_house",  "cells": [ 3, 4 ], "floors": 2, "style": "brick" },
+    { "id": "tavern",       "cells": [ 4, 5 ], "floors": 2, "style": "brick" }
+  ]
+}

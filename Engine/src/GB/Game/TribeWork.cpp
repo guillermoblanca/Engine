@@ -107,6 +107,37 @@ namespace GB
 			}
 			for (const std::string& role : who) demand[role] += Config.Work.Roles.FireDemand / static_cast<float>(who.size());
 		}
+		// N3: what is to be made, built and farmed now goes to the trades that like that work most (a crafter, a builder, a farmer): never at the
+		// founding (`current` false), so a new clan gathers first
+		if (current)
+		{
+			float craft = 0.0f, build = 0.0f, farm = 0.0f;
+			for (const Job* j : m_Board.Ordered())
+			{
+				if (j->Kind == "make") craft += 2.0f * j->Amount;
+				else if (j->Kind == "farm") farm += 1.5f * j->Amount;
+			}
+			for (const Placed& p : Placements())
+				if (!p.State.Done)
+				{
+					build += 4.0f;
+					for (const auto& [item, n] : p.State.Missing) build += static_cast<float>(n);
+				}
+			for (const auto& [activity, want] : { std::pair<const char*, float>{ "craft", craft }, { "build", build }, { "farm", farm } })
+			{
+				if (want <= 0.0f) continue;
+				float best = 0.0f;
+				std::vector<std::string> who;
+				for (const std::string& role : names)
+				{
+					const float w = RoleWeight(role, activity);
+					if (w > best + 1e-6f) { best = w; who.assign(1, role); }
+					else if (w > 0.0f && std::fabs(w - best) <= 1e-6f) who.push_back(role);
+				}
+				if (best < 0.9f) continue;   // (only a trade made for it: the gatherers like building a little, and keep gathering)
+				for (const std::string& role : who) demand[role] += want / static_cast<float>(who.size());
+			}
+		}
 
 		// Shared out one member at a time: each goes to the role with the most demand per member already in it (ties: the first by name).
 		std::map<std::string, int> taken;
@@ -178,6 +209,42 @@ namespace GB
 			m.Role = role;
 		};
 
+		// N3: a young member takes up its household's trade, from its mother (else its father), with a part of what the parent knows of it
+		for (TribeMember* m : flexible)
+		{
+			if (m_Apprentices.count(m->Name)) continue;
+			m_Apprentices.insert(m->Name);
+			const Person* p = m_Society.Find(m->Name);
+			if (!p || p->Generation == 0) continue;   // (the founders came with their trades)
+			const TribeMember* parent = nullptr;
+			for (const std::string& who : { p->Mother, p->Father })
+				if (const TribeMember* o = who.empty() ? nullptr : FindMember(who); !parent && o && !o->Dead && !IsChild(*o) && Config.Roles.count(o->Role) && !Config.Roles.at(o->Role).Fixed) parent = o;
+			if (!parent || parent->Role == m->Role || !canTake(*m, parent->Role)) continue;
+			const std::string& family = Config.Roles.at(parent->Role).Skill;
+			if (!family.empty()) m->Skills[family] = std::max(SkillLevel(m->Skills, family), 0.3f * SkillLevel(parent->Skills, family));
+			change(*m, parent->Role, "learnt at home from " + parent->Name);
+			return true;
+		}
+		// N3: how much of a trade's work lies near a member's house (0..1 over the trades): it leans to the trade its home ground is good for
+		auto nearHome = [&](const TribeMember& m)
+		{
+			std::map<std::string, float> v;
+			glm::vec2 home = Config.Economy.Camp;
+			if (const Household* h = HouseholdOf(m.Name); h && !h->Home.empty())
+				for (const Placed& p : Placements()) if (p.Name == h->Home) home = p.Pos;
+			for (const auto& [name, e] : m_Clan.All())
+			{
+				const auto def = m_Defs.find(e.Kind);
+				if (def == m_Defs.end() || glm::distance(e.Pos, home) > 60.0f) continue;
+				const float amount = static_cast<float>(e.Amount >= 0 ? e.Amount : def->second.Capacity);
+				for (const auto& [role, r] : Config.Roles) if (!r.Fixed) v[role] += RoleWeight(role, e.Kind) * amount * Falloff(glm::distance(e.Pos, home), 25.0f);
+			}
+			float top = 0.0f;
+			for (const auto& [role, x] : v) top = std::max(top, x);
+			if (top > 0.0f) for (auto& [role, x] : v) x /= top;
+			return v;
+		};
+
 		// 1) a trade short of hands
 		std::string shortRole;
 		int gap = 0;
@@ -190,7 +257,9 @@ namespace GB
 			for (TribeMember* m : flexible)
 			{
 				if (m->Role == shortRole || actual[m->Role] <= ideal[m->Role] || !canTake(*m, shortRole)) continue;
-				const float v = skillOf(*m, shortRole) - rules.Inertia * skillOf(*m, m->Role);
+				const std::map<std::string, float> near = nearHome(*m);
+				auto at = [&](const std::string& role) { const auto it = near.find(role); return it == near.end() ? 0.0f : it->second; };
+				const float v = skillOf(*m, shortRole) - rules.Inertia * skillOf(*m, m->Role) + 15.0f * (at(shortRole) - at(m->Role));   // (N3: its home ground's work)
 				if (v > value) { value = v; best = m; }
 			}
 			if (best)
@@ -474,21 +543,38 @@ namespace GB
 		return 1.0f + (r.SurvivalDamp - 1.0f) * shortage;
 	}
 
-	void Tribe::MaslowOptions(const TribeMember& m, float hunger, int foodInBag, bool foodHeld, std::vector<UtilityOption>& options) const
+	void Tribe::MaslowOptions(const TribeMember& m, float hunger, float thirst, int foodInBag, bool foodHeld, std::vector<UtilityOption>& options) const
 	{
 		const JobRules& r = Config.Work.Jobs;
-		float severity = FoodShortage();
+		float hungry = FoodShortage();
 		// its own stomach, whatever the clan's days say: with no food in hand it goes for some from 55; with food in hand it eats it before it goes on (from 33)
 		const float critical = foodHeld ? r.CriticalHunger * 0.6f : r.CriticalHunger;
 		if (hunger < critical)
-			severity = std::max(severity, std::clamp(1.0f - hunger / std::max(critical, 1.0f), 0.0f, 1.0f));
+			hungry = std::max(hungry, std::clamp(1.0f - hunger / std::max(critical, 1.0f), 0.0f, 1.0f));
+		// and its thirst the same way (F3: only the hunger counted, and a member at thirst 0 still left on an expedition)
+		const float thirsty = thirst < r.CriticalHunger ? std::clamp(1.0f - thirst / std::max(r.CriticalHunger, 1.0f), 0.0f, 1.0f) : 0.0f;
+		const float severity = std::max(hungry, thirsty);
 		if (severity <= 0.0f) return;
-		const float boost = 1.0f + r.SurvivalBoost * severity;
+		const float foodBoost = 1.0f + r.SurvivalBoost * hungry;   // (food is worth more for the hunger, not for the thirst)
 		const float damp = 1.0f + (r.SurvivalDamp - 1.0f) * severity;
+		const bool weak = hunger < r.CriticalHunger * 0.5f || thirst < r.CriticalHunger * 0.5f;   // too hungry or thirsty to go far from the camp
 		for (UtilityOption& o : options)
 		{
+			if (weak && (o.Kind == "expedition" || IsOutside(o.Kind)))
+			{
+				o.Score = 0.0f;
+				o.Factors.push_back({ "too weak to leave", 0.0f });
+				continue;
+			}
+			if (o.Kind == "drink" || (o.Kind == "explore" && o.Target == "well"))   // water first of all when it is thirsty
+			{
+				const float f = thirsty > 0.0f ? (1.0f + r.SurvivalBoost * thirsty) * 2.0f : 1.0f;
+				o.Score *= f;
+				if (f != 1.0f) o.Factors.push_back({ "survival", f });
+				continue;
+			}
 			bool food = false, neutral = false;
-			if (o.Kind == "eat" || o.Kind == "drink") food = true;
+			if (o.Kind == "eat") food = true;
 			else if (o.Kind == "gather")
 			{
 				const MemoryEntry* e = m.Mind.Memory.Find(o.Target);
@@ -507,8 +593,9 @@ namespace GB
 			else neutral = o.Kind == "sleep" || o.Kind == "warm" || o.Kind == "regroup" || o.Kind == "rest" || o.Kind == "stoke" || o.Kind == "fire" || o.Kind == "farm"
 				|| o.Kind == "haul" || o.Kind == "hunt" || o.Kind == "gear" || o.Kind == "recover" || o.Kind == "care" || o.Kind == "migrate";
 			if (neutral) continue;
-			// eating and drinking when it can come first of all: the stomach is not a job to weigh against the others
-			const float f = (o.Kind == "eat" || o.Kind == "drink") ? boost * 2.0f : food ? boost : damp;
+			if (food && hungry <= 0.0f) continue;   // only thirsty: food is neither more nor less worth than before
+			// eating when it can comes first of all: the stomach is not a job to weigh against the others
+			const float f = o.Kind == "eat" ? foodBoost * 2.0f : food ? foodBoost : damp;
 			o.Score *= f;
 			o.Factors.push_back({ food ? "survival" : "survival (not now)", f });
 		}

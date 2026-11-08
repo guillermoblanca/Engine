@@ -2,6 +2,7 @@
 // by what an agent knows, deterministic discovery by experimenting, observation and teaching that spread a technology, the clan forgetting what nobody
 // alive knows, saving (actor names and the "knowledge-clan" section, old saves without them) and the reachability check aware of technologies. CPU only.
 // The tribe itself working out a technology is in tests/tribe_test.cpp (KnowledgeInTheTribe).
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/Knowledge.h"
 #include "GB/Save/SaveGame.h"
@@ -46,8 +47,9 @@ static void TestData()
 	const TechTree defaults = DefaultTechs();
 	TechTree fromFile;
 	fromFile.Techs.clear();
-	Check(LoadTechs(ReadFile(std::string(GB_ASSETS_DIR) + "/data/era1.json"), fromFile).empty(), "era1.json has readable techs");
-	Check(fromFile == defaults, "the techs of era1.json are DefaultTechs() (the code and the data say the same)");
+	Check(LoadTechs(ReadFile(std::string(GB_ASSETS_DIR) + "/data/era1.json"), fromFile).empty() && LoadTechs(ReadFile(std::string(GB_ASSETS_DIR) + "/data/social.json"), fromFile).empty(),
+		"era1.json and social.json have readable techs");
+	Check(fromFile == defaults, "DefaultTechs() is what the game's data says (there is no tree in the code)");
 	Check(defaults.Starting() == std::vector<std::string>({ "cordage", "fire_making", "stone_tools" }), "stone tools, fire making and cordage are known from the start");
 	Check(defaults.ForRecipe("flint_axe") == std::vector<std::string>({ "flint_knapping" }) && defaults.ForRecipe("plank").empty(), "a recipe no technology names is common knowledge");
 
@@ -302,9 +304,9 @@ static void TestReachability()
 	ContentPacks::Options strict;
 	strict.Strict = true;
 	const std::string dir = std::string(GB_ASSETS_DIR) + "/data";
-	Check(packs.Load("era1_ampliado", dir, &report, strict).empty(), "era1 and era1_ampliado load strict with their technologies");
+	Check(packs.Load(GamePack(), dir, &report, strict).empty(), "the game's pack loads strict with its technologies");
 	for (const std::string& p : report.Problems) std::fprintf(stderr, "  %s\n", p.c_str());
-	Check(techs.Find("flint_knapping") && techs.Find("tillage") && techs.Find("bone_working"), "both packs' technologies are in");
+	Check(techs.Find("flint_knapping") && techs.Find("tillage") && techs.Find("bone_working"), "its technologies are in");
 	for (const std::string& n : report.Notes) std::fprintf(stderr, "  note: %s\n", n.c_str());
 	Check(!Has(report.Notes, "smelting") && !Has(report.Notes, "copper"), "nothing waits for the forge: smelting is found with the forge it unlocks (era 2 preview)");
 	Check(techs.Techs.size() >= 20 && techs.Find("timber_framing") && techs.Find("pottery") && buildings.size() >= 16, "the Stone-Age tree: twenty technologies and sixteen buildings");

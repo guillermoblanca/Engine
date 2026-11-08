@@ -29,7 +29,7 @@ Motor gráfico 3D en C++20 sobre OpenGL 4.5, para Windows y Linux. Está pensado
    ```
 3. **Comprueba** que todo funciona: `ctest --test-dir build -C Release --output-on-failure`.
 4. **Juega**: `build\Editor\Release\Editor.exe --play` (Windows) o `./build/Editor/Editor --play` (Linux). Controles en [Jugar](#jugar).
-5. **Observa simulaciones** sin abrir el juego: abre el laboratorio (`python tools/lab/server.py`, o doble clic en `tools/lab/Laboratorio.bat`) y entra en <http://127.0.0.1:8765>. Ahí lanzas partidas por años o condiciones de parada y lees series temporales, necesidades, edificios, relaciones y un resumen de qué ocurrió. Ver [docs/LABORATORIO.md](docs/LABORATORIO.md).
+5. **Observa simulaciones** sin abrir el juego: abre el laboratorio (`python tools/lab/server.py`, o doble clic en `tools/lab/Laboratorio.bat`) y entra en <http://127.0.0.1:8765>. Ahí lanzas partidas por años o condiciones de parada y lees series temporales, necesidades, edificios, relaciones y un resumen de qué ocurrió. Ver [../documentation/02_tecnico/herramientas/LABORATORIO.md](../documentation/02_tecnico/herramientas/LABORATORIO.md).
 
 Si algo falla al compilar, usa `-DGB_WARNINGS_AS_ERRORS=OFF` solo para diagnosticar; el código que se sube a `master` compila con ellos en `ON`.
 
@@ -67,7 +67,7 @@ Ejecutables (en Windows, `build\<Proyecto>\Release\<Nombre>.exe`):
 WASD para andar, **E** para lo que indica el aviso (recoger, avivar la hoguera, hablar, dejar en el almacén, comerciar), **F** comer, **G** dejar en el
 almacén, **C** coger un trabajo del tablón, **Tab** el panel del clan, **P** pausa, **=/-** velocidad, **F5/F9** guardar y cargar, **H** ayuda. Lo que aportas
 sube tu posición en el clan; con posición, el clan acepta tus propuestas (`game propose gather wood 10`, `game propose build shelter`). Las teclas y la
-interfaz son datos (`assets/data/player.json`). Todo en [docs/JUGAR.md](docs/JUGAR.md).
+interfaz son datos (`assets/data/player.json`). Todo en [../documentation/02_tecnico/gameplay/JUGAR.md](../documentation/02_tecnico/gameplay/JUGAR.md).
 
 ### Sin pantalla (agentes y CI)
 
@@ -90,13 +90,13 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 | `tests/` | Tests (`ctest`), imágenes y datos de referencia (`tests/golden`) |
 | `assets/` | Modelos, texturas y entornos HDRI de ejemplo |
 | `tools/` | Scripts auxiliares: generadores de modelos, informe de QA, `analyze_run.py`, `sweep.py` y el laboratorio web (`tools/lab/`) |
-| `docs/` | Documentación por temas e imágenes |
+| `../documentation/` | Documentación por temas e imágenes. Desde el 2026-11-08 es un repo propio junto al motor (`D:/__game_engine__/documentation`): sus enlaces solo funcionan en local, con las dos carpetas una al lado de la otra. `docs/` solo guarda un README que apunta allí y la imagen de cabecera |
 
 ## Ramas y carpetas: qué es la fuente de verdad
 
 - **`master`** es lo único que se considera estable: compila con avisos como errores y pasa `ctest`. Todo lo demás es trabajo en curso.
 - **`integracion/novedades`** es la rama de trabajo actual: progresión, vida social, telemetría, GBSim y laboratorio. Se fusiona a `master` cuando la suite está en verde.
-- Los documentos de `docs/` describen sistemas; el estado de la planificación vigente está en [docs/PLAN_JUGABILIDAD.md](docs/PLAN_JUGABILIDAD.md). Si un documento y el código discrepan, manda el código y el documento es un fallo a corregir.
+- Los documentos de `../documentation/` describen sistemas; el estado de la planificación vigente está en [../documentation/01_diseno/PLAN_JUGABILIDAD.md](../documentation/01_diseno/PLAN_JUGABILIDAD.md). Si un documento y el código discrepan, manda el código y el documento es un fallo a corregir.
 - Las carpetas de `build*`, `lab_runs/`, `anim_check/` y capturas son salidas locales y no se versionan.
 - Una rama o *worktree* no listado aquí es de otra persona o sesión: no lo borres sin preguntar.
 
@@ -104,32 +104,32 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 
 | Tema | Documento |
 |---|---|
-| Render, luz, cielo, reflejos, postproceso y demo | [docs/render.md](docs/render.md) |
-| glTF, FBX, animación y cámaras | [docs/modelos-y-animacion.md](docs/modelos-y-animacion.md) |
-| Locomoción: estudio del pack Mixamo | [docs/ANIMACION_LOCOMOCION.md](docs/ANIMACION_LOCOMOCION.md) |
-| Arquitectura del sistema de animación completo (investigación) | [docs/ANIMACION_SISTEMA_COMPLETO.md](docs/ANIMACION_SISTEMA_COMPLETO.md) |
-| Habilidades de juego tipo GAS y escenario del huerto (`garden build`, `ability ...`) | [docs/habilidades.md](docs/habilidades.md) |
-| Animaciones que faltan en los packs y qué se usa mientras tanto | [docs/ANIMACIONES_PENDIENTES.md](docs/ANIMACIONES_PENDIENTES.md) |
-| Qué clip hace cada habilidad y cada trabajo de la tribu (datos del manifiesto), clips sin usar y lista para el artista | [docs/ANIMACIONES_USO.md](docs/ANIMACIONES_USO.md) |
-| Capa visual por datos: nodos que cambian con su cantidad, props en las manos, edificios por fases, texturas procedurales, zorro y conejo (`visuals`, `building`) | [docs/VISUALES.md](docs/VISUALES.md) |
-| Partidas guardadas, migraciones, guardado diferencial y repeticiones (`save`, `load`, `replay`) | [docs/GUARDADO.md](docs/GUARDADO.md) |
-| Objetos, inventario, recursos y recetas | [docs/OBJETOS.md](docs/OBJETOS.md) |
-| Recursos repartidos por el mundo generado, por bioma (`resources world`) | [docs/RECURSOS_MUNDO.md](docs/RECURSOS_MUNDO.md) |
-| **Jugar**: el jugador como miembro de un clan, controles, posición, propuestas, modo de juego (`play`, `game`) | [docs/JUGAR.md](docs/JUGAR.md) |
-| La primera tribu: trabajadores autónomos (`tribe build`) | [docs/TRIBU.md](docs/TRIBU.md) |
-| Percepción, necesidades y cerebro de utilidad de los agentes (`ai`) | [docs/IA.md](docs/IA.md) |
-| Navegación: cuadrícula con costes, caminos y evitación (`nav`) | [docs/NAVEGACION.md](docs/NAVEGACION.md) |
-| Interactivos con estado: fogata, pozo, puerta (`interactives build`) | [docs/INTERACTIVOS.md](docs/INTERACTIVOS.md) |
-| Estaciones y ecología: conejos que comen, crían y se mueren de hambre (`ecology`) | [docs/ECOLOGIA.md](docs/ECOLOGIA.md) |
-| Propuesta de habilidades y economía: herramientas, materiales, oficios, agricultura, conservación y edificios | [docs/PROPUESTA_HABILIDADES_Y_ECONOMIA.md](docs/PROPUESTA_HABILIDADES_Y_ECONOMIA.md) |
-| **Wiki del proyecto** (habilidades, atributos, necesidades, roles, estaciones y documentos, con buscador): `docs/wiki/index.html` | [docs/wiki/README.md](docs/wiki/README.md) |
-| Partículas y clima | [docs/efectos.md](docs/efectos.md) |
-| Terreno, agua, vegetación, erosión y mundos procedurales | [docs/mundo.md](docs/mundo.md) |
-| Física y destrucción | [docs/fisica.md](docs/fisica.md) |
-| Audio | [docs/audio.md](docs/audio.md) |
-| Editor, entidades y escenas | [docs/editor.md](docs/editor.md) |
-| QA automatizado y imágenes de referencia | [docs/qa.md](docs/qa.md) |
-| QA de la simulación: barrido de semillas con tribus, invariantes, `qa sim` y demos por hito | [docs/QA_SIMULACION.md](docs/QA_SIMULACION.md) |
+| Render, luz, cielo, reflejos, postproceso y demo | [../documentation/02_tecnico/motor/render.md](../documentation/02_tecnico/motor/render.md) |
+| glTF, FBX, animación y cámaras | [../documentation/02_tecnico/animacion/modelos-y-animacion.md](../documentation/02_tecnico/animacion/modelos-y-animacion.md) |
+| Locomoción: estudio del pack Mixamo | [../documentation/02_tecnico/animacion/ANIMACION_LOCOMOCION.md](../documentation/02_tecnico/animacion/ANIMACION_LOCOMOCION.md) |
+| Arquitectura del sistema de animación completo (investigación) | [../documentation/02_tecnico/animacion/ANIMACION_SISTEMA_COMPLETO.md](../documentation/02_tecnico/animacion/ANIMACION_SISTEMA_COMPLETO.md) |
+| Habilidades de juego tipo GAS y escenario del huerto (`garden build`, `ability ...`) | [../documentation/02_tecnico/gameplay/habilidades.md](../documentation/02_tecnico/gameplay/habilidades.md) |
+| Animaciones que faltan en los packs y qué se usa mientras tanto | [../documentation/02_tecnico/animacion/ANIMACIONES_PENDIENTES.md](../documentation/02_tecnico/animacion/ANIMACIONES_PENDIENTES.md) |
+| Qué clip hace cada habilidad y cada trabajo de la tribu (datos del manifiesto), clips sin usar y lista para el artista | [../documentation/02_tecnico/animacion/ANIMACIONES_USO.md](../documentation/02_tecnico/animacion/ANIMACIONES_USO.md) |
+| Capa visual por datos: nodos que cambian con su cantidad, props en las manos, edificios por fases, texturas procedurales, zorro y conejo (`visuals`, `building`) | [../documentation/02_tecnico/gameplay/VISUALES.md](../documentation/02_tecnico/gameplay/VISUALES.md) |
+| Partidas guardadas, migraciones, guardado diferencial y repeticiones (`save`, `load`, `replay`) | [../documentation/02_tecnico/motor/GUARDADO.md](../documentation/02_tecnico/motor/GUARDADO.md) |
+| Objetos, inventario, recursos y recetas | [../documentation/02_tecnico/gameplay/OBJETOS.md](../documentation/02_tecnico/gameplay/OBJETOS.md) |
+| Recursos repartidos por el mundo generado, por bioma (`resources world`) | [../documentation/02_tecnico/gameplay/RECURSOS_MUNDO.md](../documentation/02_tecnico/gameplay/RECURSOS_MUNDO.md) |
+| **Jugar**: el jugador como miembro de un clan, controles, posición, propuestas, modo de juego (`play`, `game`) | [../documentation/02_tecnico/gameplay/JUGAR.md](../documentation/02_tecnico/gameplay/JUGAR.md) |
+| La primera tribu: trabajadores autónomos (`tribe build`) | [../documentation/02_tecnico/gameplay/TRIBU.md](../documentation/02_tecnico/gameplay/TRIBU.md) |
+| Percepción, necesidades y cerebro de utilidad de los agentes (`ai`) | [../documentation/02_tecnico/gameplay/IA.md](../documentation/02_tecnico/gameplay/IA.md) |
+| Navegación: cuadrícula con costes, caminos y evitación (`nav`) | [../documentation/02_tecnico/motor/NAVEGACION.md](../documentation/02_tecnico/motor/NAVEGACION.md) |
+| Interactivos con estado: fogata, pozo, puerta (`interactives build`) | [../documentation/02_tecnico/gameplay/INTERACTIVOS.md](../documentation/02_tecnico/gameplay/INTERACTIVOS.md) |
+| Estaciones y ecología: conejos que comen, crían y se mueren de hambre (`ecology`) | [../documentation/02_tecnico/gameplay/ECOLOGIA.md](../documentation/02_tecnico/gameplay/ECOLOGIA.md) |
+| Propuesta de habilidades y economía: herramientas, materiales, oficios, agricultura, conservación y edificios | [../documentation/01_diseno/PROPUESTA_HABILIDADES_Y_ECONOMIA.md](../documentation/01_diseno/PROPUESTA_HABILIDADES_Y_ECONOMIA.md) |
+| **Wiki del proyecto** (habilidades, atributos, necesidades, roles, estaciones y documentos, con buscador): `../documentation/wiki/index.html` | [../documentation/wiki/README.md](../documentation/wiki/README.md) |
+| Partículas y clima | [../documentation/02_tecnico/motor/efectos.md](../documentation/02_tecnico/motor/efectos.md) |
+| Terreno, agua, vegetación, erosión y mundos procedurales | [../documentation/02_tecnico/motor/mundo.md](../documentation/02_tecnico/motor/mundo.md) |
+| Física y destrucción | [../documentation/02_tecnico/motor/fisica.md](../documentation/02_tecnico/motor/fisica.md) |
+| Audio | [../documentation/02_tecnico/motor/audio.md](../documentation/02_tecnico/motor/audio.md) |
+| Editor, entidades y escenas | [../documentation/02_tecnico/herramientas/editor.md](../documentation/02_tecnico/herramientas/editor.md) |
+| QA automatizado y imágenes de referencia | [../documentation/04_produccion/qa/qa.md](../documentation/04_produccion/qa/qa.md) |
+| QA de la simulación: barrido de semillas con tribus, invariantes, `qa sim` y demos por hito | [../documentation/04_produccion/qa/QA_SIMULACION.md](../documentation/04_produccion/qa/QA_SIMULACION.md) |
 
 ## Pruebas y calidad
 
@@ -141,7 +141,7 @@ Tras un cambio visual **intencionado**, regenera las referencias y revísalas an
 GB_UPDATE_GOLDEN=1 ctest --test-dir build -C Release -R golden
 ```
 
-Más detalles en [docs/qa.md](docs/qa.md).
+Más detalles en [../documentation/04_produccion/qa/qa.md](../documentation/04_produccion/qa/qa.md).
 
 ## Contribuir
 
@@ -165,18 +165,18 @@ Hecho:
 - Editor con jerarquía, inspector, selección, gizmo y deshacer; escenas JSON.
 - QA automatizado con referencias de imagen y de datos.
 - Prototipo de personaje controlable en tercera persona (`--player`).
-- Sistema de habilidades tipo GAS y huerto jugable, objetos, inventario y recursos del mundo (datos en paquetes de era: `assets/data/era1.pack.json`, ver `docs/PAQUETES.md`), interactivos con estado, estaciones y ecología básica.
+- Sistema de habilidades tipo GAS y huerto jugable, objetos, inventario y recursos del mundo (datos en paquetes de era: `assets/data/era1.pack.json`, ver `../documentation/02_tecnico/gameplay/PAQUETES.md`), interactivos con estado, estaciones y ecología básica.
 - Partidas guardadas con migraciones, guardado diferencial y repeticiones deterministas.
 - La primera tribu: trabajadores autónomos con paneles de estado en el editor.
-- Pase de calidad con cifras de rendimiento: [docs/INFORME_CALIDAD.md](docs/INFORME_CALIDAD.md).
+- Pase de calidad con cifras de rendimiento: [../documentation/04_produccion/qa/INFORME_CALIDAD.md](../documentation/04_produccion/qa/INFORME_CALIDAD.md).
 
 En curso o previsto:
 
 - Audio ligado a entidades y ambiente en el editor.
 - Calidad del agua y del terreno cerca de la cámara; árboles, palmeras y rocas procedurales.
-- Medición en GPU del alfa a cobertura del follaje (el refinado de orillas ya está medido: [docs/mundo.md](docs/mundo.md)).
+- Medición en GPU del alfa a cobertura del follaje (el refinado de orillas ya está medido: [../documentation/02_tecnico/motor/mundo.md](../documentation/02_tecnico/motor/mundo.md)).
 - API para agentes sobre el editor.
-- **Mundo vivo de clanes**: sociedades de NPC que construyen, descubren tecnología, tienen hijos, comercian y guerrean, con el jugador como un miembro más y con avance por eras hasta la espacial. El plan completo, por hitos, con criterios de aceptación y matriz de cobertura, está en [docs/PLAN_SOCIEDAD_VIVA.md](docs/PLAN_SOCIEDAD_VIVA.md).
+- **Mundo vivo de clanes**: sociedades de NPC que construyen, descubren tecnología, tienen hijos, comercian y guerrean, con el jugador como un miembro más y con avance por eras hasta la espacial. El plan completo, por hitos, con criterios de aceptación y matriz de cobertura, está en [../documentation/00_gdd/PLAN_SOCIEDAD_VIVA.md](../documentation/00_gdd/PLAN_SOCIEDAD_VIVA.md).
 
 ## Licencia
 

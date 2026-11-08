@@ -12,6 +12,14 @@ namespace GB
 {
 	namespace
 	{
+		// What `inv` holds of a site's missing material, its substitutes included (SiteState::Substitutes)
+		int WithSubstitutes(const Inventory& inv, const SiteState& site, const std::string& item)
+		{
+			int n = inv.Count(item);
+			if (const auto sub = site.Substitutes.find(item); sub != site.Substitutes.end()) for (const std::string& other : sub->second) n += inv.Count(other);
+			return n;
+		}
+
 		std::string Underscored(std::string s)
 		{
 			std::replace(s.begin(), s.end(), ' ', '_');
@@ -35,6 +43,7 @@ namespace GB
 			if (d.Healing > 0.0f) { std::snprintf(b, sizeof b, "wounds heal x%.1f", static_cast<double>(1.0f + d.Healing)); add(b); }
 			if (d.Culture > 0.0f) add("a place to meet");
 			if (d.Shelter == 0 && d.Warmth > 0.0f && d.Aura > 0.0f) add("warmth around it");
+			if (d.Well) add("a well");
 			return s.empty() ? std::string("nothing yet") : s;
 		}
 
@@ -96,18 +105,20 @@ namespace GB
 		};
 	}
 
-	std::vector<Tribe::Placed> Tribe::Placements() const
+	Tribe::PlacedList Tribe::Placements() const
 	{
-		std::vector<Placed> out;
-		if (!m_Buildings || !m_Gameplay || !m_Entities) return out;
-		// The names and places are looked up once per tick (the scene's systems are many; a site does not move); the state is read each time.
-		if (m_PlacedAt != m_Time || m_PlacedSystems != m_Gameplay->Count())
+		if (m_Updating && m_PlacedOut) return { m_PlacedOut };
+		auto list = std::make_shared<std::vector<Placed>>();
+		std::vector<Placed>& out = *list;
+		if (!m_Buildings || !m_Gameplay || !m_Entities) return { list };
+		// The names and places are looked up again when the scene's systems change in number, when a site was started (StartSite) and every few
+		// seconds besides (a world of kilometres has tens of thousands of systems, and a site does not move); the state is read each time.
+		if (m_PlacedAt < 0.0 || m_Time - m_PlacedAt >= 5.0 || m_Time < m_PlacedAt || m_PlacedSystems != m_Gameplay->Count())
 		{
 			m_Placed.clear();
-			for (const std::string& name : m_Gameplay->Names())
+			for (const GameplayWorld::Tagged& building : m_Gameplay->WithTag("Building"))   // (the sites and buildings only: not the thousands of nodes)
 			{
-				const AbilitySystemComponent* a = m_Gameplay->Find(name);
-				if (!a || !a->HasTag("Building")) continue;
+				const std::string& name = *building.Name;
 				const EntityId id = m_Entities->FindByName(name);
 				if (id == NullEntity) continue;
 				const glm::vec4 p = m_Entities->WorldMatrix(id)[3];
@@ -124,7 +135,8 @@ namespace GB
 			if (!def) continue;
 			out.push_back({ name, def, pos, ReadSite(*a, *def) });
 		}
-		return out;
+		if (m_Updating) m_PlacedOut = list;
+		return { list };
 	}
 
 	std::vector<Tribe::SettlementSite> Tribe::SettlementSites() const
@@ -186,9 +198,122 @@ namespace GB
 		return CampSpot(m);   // the camp's improvised station (Config.Econ.Production.CampStations)
 	}
 
+	const Tribe::Household* Tribe::HouseholdOf(const std::string& member) const
+	{
+		for (const Household& h : m_Households)
+			if (std::find(h.Members.begin(), h.Members.end(), member) != h.Members.end()) return &h;
+		return nullptr;
+	}
+
+	const Tribe::Household* Tribe::HouseholdAt(const std::string& building) const
+	{
+		for (const Household& h : m_Households) if (!h.Home.empty() && h.Home == building) return &h;
+		return nullptr;
+	}
+
+	void Tribe::UpdateHouseholds()
+	{
+		std::set<std::string> alive;
+		for (const TribeMember& m : m_Members) if (!m.Dead) alive.insert(m.Name);
+		// the key of a member's household: its couple's first name; else its mother's (or father's) household; else its own name
+		std::function<std::string(const std::string&, int)> key = [&](const std::string& name, int depth) -> std::string
+		{
+			const Person* p = m_Society.Find(name);
+			if (!p || depth > 6) return name;
+			if (!p->Partner.empty() && alive.count(p->Partner)) return std::min(name, p->Partner);
+			if (!p->Mother.empty() && alive.count(p->Mother)) return key(p->Mother, depth + 1);
+			if (!p->Father.empty() && alive.count(p->Father)) return key(p->Father, depth + 1);
+			return name;
+		};
+		std::map<std::string, Household> by;
+		for (const std::string& name : alive)
+		{
+			Household& h = by[key(name, 0)];
+			h.Id = key(name, 0);
+			h.Members.push_back(name);
+		}
+		// the houses: kept by their household while it lives and the house stands; a free one goes to the biggest household without one
+		std::set<std::string> shelters;
+		for (const Placed& p : Placements()) if (p.Def->Shelter > 0) shelters.insert(p.Name);   // (a house being built is already its household's)
+		// N1c: a better house that stands replaces the one it was built for: the household moves, the old house comes down
+		for (auto it = m_Upgrades.begin(); it != m_Upgrades.end();)
+		{
+			bool standing = false, gone = true;
+			for (const Placed& p : Placements())
+			{
+				if (p.Name == it->first) { gone = false; standing = p.State.Done; }
+			}
+			if (gone) { it = m_Upgrades.erase(it); continue; }
+			if (!standing) { ++it; continue; }
+			const std::string old = it->second;
+			if (m_Entities)
+				if (const EntityId e = m_Entities->FindByName(old); e != NullEntity) m_Entities->Destroy(e);
+			if (m_Gameplay) m_Gameplay->Remove(old);
+			m_Homes.erase(old);
+			shelters.erase(old);
+			ForgetPlacements();
+			char t[48];
+			std::snprintf(t, sizeof t, "%6.1f ", m_Time);
+			m_Log.push_back(std::string(t) + (m_Homes.count(it->first) ? m_Homes[it->first] + "'s household" : std::string("a household")) + " moves into " + it->first + " and pulls down " + old);
+			it = m_Upgrades.erase(it);
+		}
+		for (auto it = m_Homes.begin(); it != m_Homes.end();)
+			it = !shelters.count(it->first) || !by.count(it->second) ? m_Homes.erase(it) : std::next(it);
+		for (const auto& [building, id] : m_Homes)   // (while its better house is being built, a household lives in the one that stands)
+			if (by[id].Home.empty() || !m_Upgrades.count(building)) by[id].Home = building;
+		std::vector<Household*> homeless;
+		for (auto& [id, h] : by) if (h.Home.empty()) homeless.push_back(&h);
+		std::stable_sort(homeless.begin(), homeless.end(), [](const Household* a, const Household* b) { return a->Members.size() > b->Members.size(); });
+		size_t next = 0;
+		for (const std::string& building : shelters)
+		{
+			if (m_Homes.count(building) || next >= homeless.size()) continue;
+			m_Homes[building] = homeless[next]->Id;
+			homeless[next]->Home = building;
+			++next;
+		}
+		m_Households.clear();
+		for (auto& [id, h] : by) m_Households.push_back(std::move(h));
+		for (auto it = m_Econ.Pantries.begin(); it != m_Econ.Pantries.end();)   // N1b: a household that is gone leaves its pantry to the clan
+		{
+			if (by.count(it->first)) { ++it; continue; }
+			if (m_Items) for (const ItemSlot& s : std::vector<ItemSlot>(it->second.Stacks())) it->second.Transfer(*m_Items, m_Store, s.Id, s.Count);
+			it = m_Econ.Pantries.erase(it);
+		}
+	}
+
+	float Tribe::HouseholdWork(const Household& h, const glm::vec2& at) const
+	{
+		float v = 0.0f;
+		for (const auto& [name, e] : m_Clan.All())
+		{
+			const auto def = m_Defs.find(e.Kind);
+			if (def == m_Defs.end() || glm::distance(e.Pos, at) > 90.0f) continue;
+			float like = 0.0f;
+			for (const std::string& who : h.Members) if (const TribeMember* m = FindMember(who)) like += MemberWeight(*m, e.Kind);
+			like /= static_cast<float>(std::max<size_t>(1, h.Members.size()));
+			const float amount = static_cast<float>(e.Amount >= 0 ? e.Amount : def->second.Capacity) * (def->second.RegenSeconds > 0.0f ? 2.0f : 1.0f);
+			v += like * amount * Falloff(glm::distance(e.Pos, at), 25.0f);
+		}
+		return v;
+	}
+
 	glm::vec2 Tribe::SleepSpot(const TribeMember& m) const
 	{
-		// The beds go to the living members in order; who has none sleeps at its place at the camp.
+		auto bed = [](const Placed& p, int slot)
+		{
+			const float x = (-0.5f + (static_cast<float>(slot) + 0.5f) / static_cast<float>(p.Def->Shelter)) * 0.7f * p.Def->Footprint.x;
+			return p.Pos + glm::vec2(x, 0.0f);
+		};
+		// N1: its bed in its household's house
+		if (const Household* h = HouseholdOf(m.Name); h && !h->Home.empty())
+			for (const Placed& p : Placements())
+				if (p.Name == h->Home && p.State.Done && p.Def->Shelter > 0)
+				{
+					const int slot = static_cast<int>(std::find(h->Members.begin(), h->Members.end(), m.Name) - h->Members.begin());
+					if (slot < p.Def->Shelter) return bed(p, slot);
+				}
+		// The beds nobody owns go to the living members in order; who has none sleeps at its place at the camp.
 		int slot = 0;
 		for (const TribeMember& o : m_Members)
 		{
@@ -197,7 +322,7 @@ namespace GB
 		}
 		for (const Placed& p : Placements())
 		{
-			if (!p.State.Done || p.Def->Shelter <= 0) continue;
+			if (!p.State.Done || p.Def->Shelter <= 0 || m_Homes.count(p.Name)) continue;
 			if (slot < p.Def->Shelter)
 			{
 				const float x = (-0.5f + (static_cast<float>(slot) + 0.5f) / static_cast<float>(p.Def->Shelter)) * 0.7f * p.Def->Footprint.x;
@@ -277,9 +402,11 @@ namespace GB
 
 	int Tribe::InFlight(const std::string& site, const std::string& item) const
 	{
+		const SiteState* state = nullptr;   // (what is carried for it may be a substitute)
+		for (const Placed& p : Placements()) if (p.Name == site) state = &p.State;
 		int n = 0;
 		for (const TribeMember& o : m_Members)
-			if (o.Job == "deliver" && o.Detail == site && o.Body) n += o.Body->Bag().Count(item);
+			if (o.Job == "deliver" && o.Detail == site && o.Body) n += state ? WithSubstitutes(o.Body->Bag(), *state, item) : o.Body->Bag().Count(item);
 		return n;
 	}
 
@@ -290,16 +417,23 @@ namespace GB
 		{
 			if (p.State.Done) continue;
 			for (const auto& [item, n] : p.State.Missing)
-				if (const int left = n - InFlight(p.Name, item); left > 0) out[item] += left;
+				if (const int left = n - InFlight(p.Name, item); left > 0)
+				{
+					out[item] += left;
+					if (const auto sub = p.State.Substitutes.find(item); sub != p.State.Substitutes.end())   // (what can stand in for it is wanted too)
+						for (const std::string& other : sub->second) out[other] += left;
+				}
 		}
 		return out;
 	}
 
-	std::vector<BuildingNeed> Tribe::BuildingNeeds() const
+	std::vector<BuildingNeed> Tribe::BuildingNeeds(bool anyTech) const
 	{
 		std::vector<BuildingNeed> none;
 		if (!m_Buildings || !m_Items || !m_Recipes || m_Members.empty()) return none;
-		if (!HasFire() || !ToolsReady()) return none;   // first the tools and the campfire, as before there were buildings
+		// first the tools and the campfire, as before there were buildings; but a roof is wanted from the first day (its stone, branches and reeds
+		// are gathered by hand): without them only the buildings that give beds are planned
+		const bool sheltersOnly = !HasFire() || !ToolsReady();
 		SettlementFacts facts;
 		facts.Buildings = m_Buildings;
 		for (const Placed& p : Placements()) facts.Sites.push_back({ p.Def, p.Pos, p.State.Done });
@@ -307,6 +441,7 @@ namespace GB
 		for (const PlannerSite& p : facts.Sites) if (!p.Done) ++open;
 		for (const TribeMember& m : m_Members) if (!m.Dead) ++facts.Alive;
 		facts.MaxOpenSites = Config.Econ.Construction.SitesFor(facts.Alive);
+		if (anyTech) facts.MaxOpenSites = open + 1;   // (what it would want next, whatever is open now)
 		if (facts.Alive == 0 || open >= facts.MaxOpenSites) return none;
 		if (m_Combat)
 			for (const TribeMember& m : m_Members)   // H14: members with wounds
@@ -314,10 +449,27 @@ namespace GB
 		for (const auto& [item, n] : m_Econ.Spoiled) if (IsFood(item)) facts.Spoiled += n;   // H18: food the store lost to spoilage
 		facts.Raided = m_Conflict.Raided;
 		facts.StoreCap = StoreCap();
+		facts.MembersPerWell = m_DigWell ? Config.Economy.MembersPerWell : 0;
+		if (facts.MembersPerWell > 0 && m_Gameplay && m_Entities)
+			for (const auto& w : m_Gameplay->WithTag("Interactive.Well"))
+				if (const EntityId id = m_Entities->FindByName(*w.Name); id != NullEntity)   // (where it stands in the world: the scene's first well is a child)
+					if (const glm::vec3 at = m_Entities->WorldMatrix(id)[3]; glm::distance(glm::vec2(at.x, at.z), Config.Economy.Camp) <= VillageReach()) ++facts.Wells;
 		for (const ItemSlot& s : m_Store.Stacks())
 			if (m_Store.Count(s.Id) >= facts.StoreCap - 2 && (facts.FullItem.empty() || s.Id < facts.FullItem)) facts.FullItem = s.Id;
+		if (facts.FullItem.empty() && m_Store.UsedSlots() >= m_Store.Slots() - 2)   // every slot taken: as full as an item at its cap (the planner wants a storage)
+			for (const ItemSlot& s : m_Store.Stacks())
+				if (facts.FullItem.empty() || m_Store.Count(s.Id) > m_Store.Count(facts.FullItem)) facts.FullItem = s.Id;
 		if (!facts.FullItem.empty()) facts.FullCount = m_Store.Count(facts.FullItem);
-		facts.Known = [this](const BuildingDef& def) { return ClanKnowsBuilding(def); };
+		for (const NeedDef& n : Config.DataNeeds.Needs)   // V5: how short the living are of what a need of the packs asks of a building
+		{
+			if (n.Provision.empty() || !DataNeedActive(n)) continue;
+			float shortBy = 0.0f;
+			int living = 0;
+			for (const TribeMember& m : m_Members)
+				if (!m.Dead && m.Body) { ++living; shortBy += std::max(0.0f, n.Threshold + 20.0f - DataNeedLevel(m, n)) / std::max(1.0f, n.Threshold + 20.0f); }
+			if (living > 0) facts.Wanting[n.Provision] = std::max(facts.Wanting[n.Provision], shortBy / static_cast<float>(living));
+		}
+		facts.Known = [this, anyTech](const BuildingDef& def) { return anyTech ? CultureAllows(def) : ClanKnowsBuilding(def); };   // (a culture is not a technology to research)
 		// only what the clan can pay: every material is in the store, some node of the land gives it or a recipe the clan knows makes it where it can
 		facts.Payable = [this](const BuildingDef& def)
 		{
@@ -356,7 +508,10 @@ namespace GB
 			}
 			return std::string();
 		};
-		return PlanBuildingNeeds(facts);
+		std::vector<BuildingNeed> needs = PlanBuildingNeeds(facts);
+		if (sheltersOnly)
+			needs.erase(std::remove_if(needs.begin(), needs.end(), [&](const BuildingNeed& n) { return m_Buildings->at(n.Building).Shelter <= 0; }), needs.end());
+		return needs;
 	}
 
 	std::string Tribe::StartSite(const std::string& building, const glm::vec2& at, std::string* name)
@@ -375,6 +530,7 @@ namespace GB
 		AbilitySystemComponent* a = m_Gameplay->Create(n);
 		a->FromComponent(*m_Entities->Find(id)->Gameplay);
 		m_PlacedAt = -1.0;   // look again
+		ForgetPlacements();
 		std::string needs;
 		for (const auto& [item, k] : def->second.TotalNeeds()) needs += (needs.empty() ? "" : ", ") + std::to_string(k) + " " + item;
 		char t[48];
@@ -384,10 +540,46 @@ namespace GB
 		return {};
 	}
 
+	std::string Tribe::RaiseBuilding(const std::string& building, const glm::vec2& at, float yawDegrees, std::string* name)
+	{
+		std::string n;
+		if (const std::string error = StartSite(building, at, &n); !error.empty()) return error;
+		const BuildingDef& def = m_Buildings->at(building);
+		if (Entity* e = m_Entities->Find(m_Entities->FindByName(n))) e->Transform.Rotation.y = yawDegrees;
+		AbilitySystemComponent* a = m_Gameplay->Find(n);
+		for (size_t phase = 0; a && phase <= def.Phases.size(); ++phase)   // each phase: its materials, then its work
+		{
+			const SiteState s = ReadSite(*a, def);
+			if (s.Done) break;
+			for (const auto& [item, k] : s.Missing) DeliverToSite(*a, def, item, k);
+			WorkOnSite(*a, def, std::max(s.WorkNeeded, 0.0f) + 1.0f);
+		}
+		if (!a || !ReadSite(*a, def).Done) return n + " could not be finished";
+		if (Entity* e = m_Entities->Find(m_Entities->FindByName(n))) e->Gameplay = a->ToComponent();   // (the entity's copy too: a host that syncs from it keeps the finished state)
+		SyncSiteVisuals(*m_Entities, n, def, ReadSite(*a, def));
+		if (!m_Log.empty()) m_Log.back() += " (it already stands)";
+		if (name) *name = n;
+		return {};
+	}
+
 	// A building is locked by the technologies that list it (TechDef::Buildings, by id or by name) and by its own `tech`. With technologies (SetTechs) the clan
 	// can build it when a living member knows one of them; without, the check of SetTechCheck decides (none: a locked building is never planned).
+	bool Tribe::CultureAllows(const BuildingDef& def) const
+	{
+		if (!def.Rank.empty() && !m_RanksReached.count(def.Rank)) return false;   // V7: a building of a rank (the town hall of a town)
+		// V4: a building of a culture: only where the clan's culture holds it (a positive threshold asks at least that much, a negative one at most)
+		for (const auto& [value, threshold] : def.Values)
+		{
+			const auto it = m_Culture.find(value);
+			const int have = it != m_Culture.end() ? it->second : 0;
+			if (it == m_Culture.end() || (threshold > 0 ? have < threshold : have > threshold)) return false;
+		}
+		return true;
+	}
+
 	bool Tribe::ClanKnowsBuilding(const BuildingDef& def) const
 	{
+		if (!CultureAllows(def)) return false;
 		std::vector<std::string> locks;
 		if (!def.Tech.empty()) locks.push_back(def.Tech);
 		if (const TechTree* tree = m_Knowledge.Techs())
@@ -436,6 +628,19 @@ namespace GB
 				for (const auto& [item, n] : items) SetDemand(source, item, n);
 			m_SiteDemandSet = std::move(now);
 		}
+		// F4: since when each open phase waits for materials (a phase that has them, or a new phase, starts again)
+		{
+			std::map<std::string, double> waiting;
+			for (const Placed& p : Placements())
+				if (!p.State.Done && !p.State.Missing.empty())
+				{
+					const auto was = m_SiteWaiting.find(p.Name + "/" + p.State.PhaseName);
+					waiting[p.Name + "/" + p.State.PhaseName] = was != m_SiteWaiting.end() ? was->second : m_Time;
+				}
+			m_SiteWaiting = std::move(waiting);
+		}
+		UpdateGoals();   // F5
+		UpdateHouseholds();   // N1
 		// the log tells once when a building stands (whoever gave it its last Build)
 		for (const Placed& p : Placements())
 			if (p.State.Done && m_Announced.insert(p.Name).second)
@@ -444,16 +649,17 @@ namespace GB
 				std::snprintf(t, sizeof t, "%6.1f ", m_Time);
 				m_Log.push_back(std::string(t) + p.Name + " stands: " + Provides(*p.Def));
 			}
+		if (m_DigWell && m_Entities)   // a dug well that stands gets its well (once: it is found by name, a save keeps it)
+			for (const Placed& p : Placements())
+				if (p.State.Done && p.Def->Well && m_Entities->FindByName("Well of " + p.Name) == NullEntity) m_DigWell("Well of " + p.Name, p.Pos);
 		const std::vector<BuildingNeed> needs = BuildingNeeds();
-		if (needs.empty()) return;
-		const BuildingDef& def = m_Buildings->at(needs.front().Building);
+		if (needs.empty()) { UpgradeHouse(); return; }
 
 		// Where: rings round the camp, each building at its own angle, off the campfire, the other buildings and the resource nodes, on ground a member
 		// can stand on. The same scene gives the same place (SettlementPlanner.h).
 		const ITribeBody* body = nullptr;
 		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { body = m.Body; break; }
 		SitePlacement where;
-		where.Def = &def;
 		where.Camp = Config.Economy.Camp;
 		where.Fire = FirePos();
 		where.SiteRadius = Config.SiteRadius;
@@ -461,15 +667,331 @@ namespace GB
 		if (m_Sights.empty()) RefreshSights();
 		for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
 		if (body) where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); };
-		if (const std::optional<glm::vec2> spot = PlaceSite(where))
+		// F6: the most urgent that has a place (a long house with no room left every other building waiting); "no place" is told once a building
+		for (const BuildingNeed& need : needs)
 		{
-			StartSite(def.Id, *spot);
-			m_Log.back() += ": " + needs.front().Why;
-			return;
+			const BuildingDef& def = m_Buildings->at(need.Building);
+			where.Def = &def;
+			where.Prefer = nullptr;
+			where.Rings = 5;
+			// N2: a building with an anchor (a node kind it works, the field) or a zone stands by them, on the home ground
+			if (def.Shelter <= 0 && (!def.Near.empty() || !def.Zone.empty()))
+			{
+				std::vector<glm::vec2> anchors, mates;
+				if (def.Near == "field")
+					for (const Field& f : m_Econ.Fields) anchors.push_back(f.Centre());
+				else if (!def.Near.empty())
+					for (const auto& [name, e] : m_Clan.All())
+						if (e.Kind == def.Near && HomeFactor(e.Pos) >= 1.0f) anchors.push_back(e.Pos);
+				if (!def.Zone.empty())
+					for (const Placed& p : Placements()) if (p.Def->Zone == def.Zone) mates.push_back(p.Pos);
+				if (!anchors.empty() || !mates.empty())
+				{
+					const float reach = std::max(Config.Exploration.HomeRadius, 20.0f);
+					where.Rings = std::max(5, static_cast<int>((VillageReach() - where.SiteRadius) / 3.0f));
+					where.Prefer = [this, anchors, mates, reach](const glm::vec2& p)
+					{
+						float v = 0.0f;
+						for (const glm::vec2& a : anchors) v = std::max(v, 2.0f * Falloff(glm::distance(p, a), 8.0f));
+						for (const glm::vec2& a : mates) v = std::max(v, 1.5f * Falloff(glm::distance(p, a), 6.0f));
+						return v - 0.5f * glm::distance(p, Config.Economy.Camp) / reach;
+					};
+				}
+			}
+			// N1: a house goes up for the biggest household without one, where its work is near, by its kin and not far from the fire
+			std::string forWhom;
+			if (def.Shelter > 0)
+			{
+				const Household* h = nullptr;
+				for (const Household& o : m_Households) if (o.Home.empty() && (!h || o.Members.size() > h->Members.size())) h = &o;
+				if (h)
+				{
+					forWhom = h->Id;
+					std::vector<glm::vec2> kin;
+					for (const Household& o : m_Households)
+					{
+						if (o.Home.empty() || &o == h) continue;
+						bool related = false;
+						for (const std::string& a : h->Members)
+							for (const std::string& b : o.Members)
+							{
+								const Person* pa = m_Society.Find(a);
+								const Person* pb = m_Society.Find(b);
+								related = related || (pa && (pa->Mother == b || pa->Father == b)) || (pb && (pb->Mother == a || pb->Father == a))
+									|| (pa && pb && !pa->Mother.empty() && pa->Mother == pb->Mother);
+							}
+						if (!related) continue;
+						for (const Placed& p : Placements()) if (p.Name == o.Home) kin.push_back(p.Pos);
+					}
+					const Household home = *h;
+					const float reach = std::max(Config.Exploration.HomeRadius, 20.0f);
+					where.Rings = std::max(5, static_cast<int>((VillageReach() - where.SiteRadius) / 3.0f));
+					where.Prefer = [this, home, kin, reach](const glm::vec2& p)
+					{
+						float near = 0.0f;
+						for (const glm::vec2& k : kin) near = std::max(near, Falloff(glm::distance(p, k), 10.0f));
+						return std::log1p(HouseholdWork(home, p)) + 1.5f * near - 2.0f * glm::distance(p, Config.Economy.Camp) / reach;
+					};
+				}
+			}
+			if (const std::optional<glm::vec2> spot = PlaceSite(where))
+			{
+				std::string site;
+				StartSite(def.Id, *spot, &site);
+				if (!forWhom.empty() && !site.empty()) m_Homes[site] = forWhom;
+				m_Log.back() += ": " + need.Why + (forWhom.empty() ? std::string() : " (the house of " + forWhom + "'s household)");
+				m_NoPlace.erase(def.Id);
+				return;
+			}
+			if (m_NoPlace.insert(def.Id).second)
+			{
+				char t[48];
+				std::snprintf(t, sizeof t, "%6.1f ", m_Time);
+				m_Log.push_back(std::string(t) + "the clan wants a " + def.Name + " (" + need.Why + ") but finds no place for it near the camp");
+			}
 		}
-		char t[48];
-		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
-		m_Log.push_back(std::string(t) + "the clan wants a " + def.Name + " (" + needs.front().Why + ") but finds no place for it near the camp");
+	}
+
+	// N1c: one household at a time gets a better house (more beds, the data's "supersedes": the hut over the shelter, the long house over both), the
+	// clan knows it and can pay it, when nothing is more pressing and a site is free: built beside its house, which it pulls down when it stands.
+	bool Tribe::UpgradeHouse()
+	{
+		if (!m_Buildings || !m_Upgrades.empty() || !HasFire() || !ToolsReady()) return false;
+		int open = 0, alive = 0;
+		for (const Placed& p : Placements()) if (!p.State.Done) ++open;
+		for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
+		if (open >= std::max(1, Config.Econ.Construction.SitesFor(alive))) return false;
+		auto payable = [&](const BuildingDef& def)
+		{
+			for (const auto& [item, n] : def.TotalNeeds())
+			{
+				bool from = m_Store.Count(item) > 0;
+				for (const auto& [kind, node] : m_Defs) from = from || node.Item == item;
+				if (!from) return false;
+			}
+			return true;
+		};
+		// first a household with no house at all gets one (the beds may be enough, but they are someone else's): the smallest shelter it fits in
+		{
+			const Household* homeless = nullptr;
+			for (const Household& h : m_Households)
+				if (h.Home.empty() && h.Members.size() >= 2 && (!homeless || h.Members.size() > homeless->Members.size())) homeless = &h;   // (one alone sleeps in a free bed)
+			if (homeless)
+			{
+				const BuildingDef* pick = nullptr;
+				for (const auto& [id, def] : *m_Buildings)
+				{
+					if (def.Shelter <= 0 || !ClanKnowsBuilding(def) || !payable(def)) continue;
+					const bool fits = def.Shelter >= static_cast<int>(homeless->Members.size());
+					const bool pickFits = pick && pick->Shelter >= static_cast<int>(homeless->Members.size());
+					if (!pick || (fits && (!pickFits || def.Shelter < pick->Shelter)) || (!fits && !pickFits && def.Shelter > pick->Shelter)) pick = &def;
+				}
+				if (pick)
+				{
+					SitePlacement where;
+					where.Camp = Config.Economy.Camp;
+					where.Fire = FirePos();
+					where.SiteRadius = Config.SiteRadius;
+					where.Def = pick;
+					for (const Placed& p : Placements()) where.Others.push_back({ p.Def, p.Pos, p.State.Done });
+					if (m_Sights.empty()) RefreshSights();
+					for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
+					for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { const ITribeBody* body = m.Body; where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); }; break; }
+					const Household home = *homeless;
+					const float reach = std::max(Config.Exploration.HomeRadius, 20.0f);
+					where.Rings = std::max(5, static_cast<int>((VillageReach() - where.SiteRadius) / 3.0f));
+					where.Prefer = [this, home, reach](const glm::vec2& p) { return std::log1p(HouseholdWork(home, p)) - 2.0f * glm::distance(p, Config.Economy.Camp) / reach; };
+					std::string site;
+					if (const std::optional<glm::vec2> spot = PlaceSite(where); spot && StartSite(pick->Id, *spot, &site).empty() && !site.empty())
+					{
+						m_Homes[site] = home.Id;
+						m_Log.back() += ": the house of " + home.Id + "'s household, which has none";
+						return true;
+					}
+				}
+			}
+		}
+		const Household* who = nullptr;
+		const Placed* house = nullptr;
+		const BuildingDef* better = nullptr;
+		for (const Household& h : m_Households)
+		{
+			if (h.Home.empty() || (who && who->Members.size() >= h.Members.size())) continue;
+			const Placed* home = nullptr;
+			for (const Placed& p : Placements()) if (p.Name == h.Home && p.State.Done) home = &p;
+			if (!home) continue;
+			const BuildingDef* best = nullptr;
+			for (const auto& [id, def] : *m_Buildings)
+			{
+				if (def.Shelter <= home->Def->Shelter || std::find(def.Supersedes.begin(), def.Supersedes.end(), home->Def->Id) == def.Supersedes.end()) continue;
+				if (!ClanKnowsBuilding(def)) continue;
+				if (payable(def) && (!best || def.Shelter > best->Shelter)) best = &def;
+			}
+			if (best) { who = &h; house = home; better = best; }
+		}
+		if (!who) return false;
+		SitePlacement where;
+		where.Camp = Config.Economy.Camp;
+		where.Fire = FirePos();
+		where.SiteRadius = Config.SiteRadius;
+		where.Def = better;
+		for (const Placed& p : Placements()) where.Others.push_back({ p.Def, p.Pos, p.State.Done });
+		if (m_Sights.empty()) RefreshSights();
+		for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
+		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { const ITribeBody* body = m.Body; where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); }; break; }
+		const glm::vec2 old = house->Pos;
+		where.Rings = std::max(5, static_cast<int>((VillageReach() - where.SiteRadius) / 3.0f));
+		where.Prefer = [old](const glm::vec2& p) { return -glm::distance(p, old); };   // as near the old house as it fits
+		const std::optional<glm::vec2> spot = PlaceSite(where);
+		if (!spot) return false;
+		std::string site;
+		if (!StartSite(better->Id, *spot, &site).empty() || site.empty()) return false;
+		m_Homes[site] = who->Id;
+		m_Upgrades[site] = house->Name;
+		m_Log.back() += ": a better house for " + who->Id + "'s household (" + std::to_string(better->Shelter) + " beds instead of " + std::to_string(house->Def->Shelter) + ")";
+		return true;
+	}
+
+	// How far from the fire the clan builds now: a small clan keeps close, a growing one spreads its houses and workshops out (within
+	// SettlementRadius, past which a building is not the clan's any more).
+	int Tribe::FieldsWanted() const
+	{
+		int alive = 0;
+		for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
+		return Config.Econ.Farming.FieldsFor(alive);
+	}
+
+	float Tribe::VillageReach() const
+	{
+		int alive = 0;
+		for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
+		const float reach = 20.0f + 2.5f * static_cast<float>(alive) + 1.0f * static_cast<float>(BuildingCount());
+		return std::clamp(reach, 30.0f, std::max(30.0f, Config.SettlementRadius - 4.0f));
+	}
+
+	std::string Tribe::Era() const
+	{
+		const TechTree* tree = m_Knowledge.Techs();
+		if (!tree) return {};
+		std::string era;
+		for (const EraDef& e : tree->Rules.Eras)
+			if (std::all_of(e.Key.begin(), e.Key.end(), [&](const std::string& t) { return m_Knowledge.Clan().count(t) > 0; })) era = e.Id;
+		return era;
+	}
+
+	std::string Tribe::EraName() const
+	{
+		const TechTree* tree = m_Knowledge.Techs();
+		const std::string era = Era();
+		if (tree) for (const EraDef& e : tree->Rules.Eras) if (e.Id == era) return e.Name;
+		return era;
+	}
+
+	float Tribe::SiteAge(const std::string& site) const
+	{
+		const ConstructionRules& c = Config.Econ.Construction;
+		double since = m_Time;
+		for (const auto& [key, at] : m_SiteWaiting)
+			if (key.size() > site.size() && key.compare(0, site.size(), site) == 0 && key[site.size()] == '/') since = std::min(since, at);
+		return 1.0f + std::min(c.AgeMax, static_cast<float>(m_Time - since) / std::max(1.0f, c.AgeSeconds));
+	}
+
+	float Tribe::ItemAge(const std::string& item) const
+	{
+		float age = 1.0f;
+		for (const Placed& p : Placements())
+			if (!p.State.Done && p.State.Missing.count(item)) age = std::max(age, SiteAge(p.Name));
+		return age;
+	}
+
+	// The clan's next steps (F5): the technologies that would let it raise what it needs (its needs as if it knew everything, the ones it does not
+	// know), and the one of its fields while it has none; each after what it requires. Its members experiment with these first.
+	void Tribe::UpdateGoals()
+	{
+		const TechTree* tree = m_Knowledge.Techs();
+		if (!tree || !m_Buildings) return;
+		const std::set<std::string>& known = m_Knowledge.Clan();
+		std::vector<std::string> goals;
+		std::function<void(const std::string&, int)> add = [&](const std::string& id, int depth)
+		{
+			const TechDef* t = tree->Find(id);
+			if (!t || known.count(id) || depth > 8 || std::find(goals.begin(), goals.end(), id) != goals.end()) return;
+			for (const std::string& r : t->Requires) add(r, depth + 1);   // what it requires first
+			goals.push_back(id);
+		};
+		// the player's aim first (and what it requires before it); once known the aim is spent
+		if (!m_Players.Aim.empty())
+		{
+			if (known.count(m_Players.Aim) || !tree->Find(m_Players.Aim))
+			{
+				if (const TechDef* t = tree->Find(m_Players.Aim); t && known.count(m_Players.Aim)) NoteClan("has learnt " + t->Name + ", as " + m_Players.AimBy + " asked");
+				m_Players.Aim.clear();
+				m_Players.AimBy.clear();
+			}
+			else add(m_Players.Aim, 0);
+		}
+		for (const BuildingNeed& need : BuildingNeeds(true))
+		{
+			const BuildingDef& def = m_Buildings->at(need.Building);
+			if (ClanKnowsBuilding(def)) continue;
+			if (!def.Tech.empty()) add(def.Tech, 0);
+			for (const auto& [id, t] : tree->Techs)
+				if (std::find(t.Buildings.begin(), t.Buildings.end(), def.Id) != t.Buildings.end() || std::find(t.Buildings.begin(), t.Buildings.end(), def.Name) != t.Buildings.end()) add(id, 0);
+		}
+		const FarmRules& farm = Config.Econ.Farming;
+		if (!farm.Tech.empty() && static_cast<int>(m_Econ.Fields.size()) < FieldsWanted()) add(farm.Tech, 0);   // the way to the fields
+		// P1/N6: the next rung of a ladder the clan climbs on its own. Without eras, knowledge.progression; with them, the ladder of its era (pull 1)
+		// or of an era it can go on to, pulled by what of that era's interest the clan has in the store and knows of round it (the nearer, the
+		// more) and by the era's bias: a clan with copper near goes for smelting, one with grain and clay for the fields
+		const std::vector<EraDef>& eras = tree->Rules.Eras;
+		const std::string era = Era();
+		if (era != m_Era)
+		{
+			if (!m_Era.empty())
+			{
+				char t[48];
+				std::snprintf(t, sizeof t, "%6.1f ", m_Time);
+				m_Log.push_back(std::string(t) + "the clan enters the " + EraName());
+				TellClan("enters the " + EraName());
+			}
+			m_Era = era;
+		}
+		auto firstUnknown = [&](const std::vector<std::string>& ladder) -> std::string
+		{
+			for (const std::string& id : ladder) if (!known.count(id) && tree->Find(id)) return id;
+			return {};
+		};
+		std::string rung = firstUnknown(tree->Rules.Progression);
+		if (!eras.empty())
+		{
+			float best = -1.0f;
+			rung.clear();
+			for (const EraDef& e : eras)
+			{
+				const bool current = e.Id == era;
+				const bool next = !current && std::find(e.From.begin(), e.From.end(), era) != e.From.end();
+				if (!current && !next) continue;
+				const std::string id = firstUnknown(e.Progression);
+				if (id.empty()) continue;
+				float pull = current ? 1.0f : e.Pull;
+				if (next && !e.Interest.empty())
+				{
+					float interest = 0.0f;
+					for (const std::string& item : e.Interest)
+					{
+						float have = static_cast<float>(m_Store.Count(item));
+						for (const auto& [name, mem] : m_Clan.All())
+							if (const auto d = m_Defs.find(mem.Kind); d != m_Defs.end() && d->second.Item == item)
+								have += static_cast<float>(mem.Amount >= 0 ? mem.Amount : d->second.Capacity) * Falloff(glm::distance(mem.Pos, Config.Economy.Camp), 300.0f);
+						interest += std::min(1.0f, have / 20.0f);
+					}
+					pull += 2.0f * interest / static_cast<float>(e.Interest.size());
+				}
+				if (pull > best) { best = pull; rung = id; }
+			}
+		}
+		if (!rung.empty()) add(rung, 0);
+		m_Knowledge.SetGoals(std::move(goals));
 	}
 
 	void Tribe::SettlementOptions(TribeMember& m, std::vector<UtilityOption>& opts) const
@@ -484,20 +1006,22 @@ namespace GB
 		for (const Placed& p : Placements())
 		{
 			if (p.State.Done) continue;
-			const glm::vec2 front = FrontOf(p.Pos, *p.Def);
+			const glm::vec2 front = FrontOf(p.Pos, *p.Def, 0.7f * (static_cast<float>(IndexOf(m) % 3) - 1.0f));   // (each its own place at the front: one point for all was a queue)
 			const float reach = Falloff(glm::distance(pos, front), 120.0f);
 			// carry what the phase lacks from the store
 			int bring = 0;
 			std::string what;
 			for (const auto& [item, n] : p.State.Missing)
-				if (const int k = std::min(n - InFlight(p.Name, item), m_Store.Count(item)); k > 0) { bring += k; what += (what.empty() ? "" : ", ") + item; }
+				if (const int k = std::min(n - InFlight(p.Name, item), WithSubstitutes(m_Store, p.State, item)); k > 0) { bring += k; what += (what.empty() ? "" : ", ") + item; }
 			if (bring > 0)
 			{
 				UtilityOption o;
 				o.Kind = "deliver";
 				o.Target = p.Name;
 				o.Where = front;
-				o.Score = 0.85f * bw * reach * day;
+				const float age = SiteAge(p.Name);   // F4: it has waited for this long
+				o.Score = 0.85f * bw * reach * day * age;
+				if (age > 1.0f) Factor(o, "waiting", age);
 				Factor(o, "role", bw);
 				Factor(o, "distance", reach);
 				if (day != 1.0f) Factor(o, "agenda", day);
@@ -539,20 +1063,28 @@ namespace GB
 			Inventory& bag = m.Body->Bag();
 			std::string what;
 			int left = Config.HaulAt;
+			std::vector<std::string> taken;   // (to give back if the trip cannot start)
 			for (const auto& [item, n] : state.Missing)
 			{
-				const int k = std::min({ n - InFlight(o.Target, item), m_Store.Count(item), left });
-				if (k <= 0) continue;
-				const int moved = m_Store.Transfer(*m_Items, bag, item, k);
-				if (moved <= 0) continue;
-				left -= moved;
-				what += (what.empty() ? "" : ", ") + std::to_string(moved) + " " + item;
+				int k = std::min({ n - InFlight(o.Target, item), WithSubstitutes(m_Store, state, item), left });
+				std::vector<std::string> choices{ item };   // the material itself first, then what stands in for it (a roof of branches)
+				if (const auto sub = state.Substitutes.find(item); sub != state.Substitutes.end()) choices.insert(choices.end(), sub->second.begin(), sub->second.end());
+				for (const std::string& what_ : choices)
+				{
+					if (k <= 0) break;
+					const int moved = m_Store.Transfer(*m_Items, bag, what_, std::min(k, m_Store.Count(what_)));
+					if (moved <= 0) continue;
+					k -= moved;
+					left -= moved;
+					taken.push_back(what_);
+					what += (what.empty() ? "" : ", ") + std::to_string(moved) + " " + what_ + (what_ != item ? " (for " + item + ")" : std::string());
+				}
 			}
 			if (what.empty()) return 0;
 			std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(o.Where.x), static_cast<double>(o.Where.y));
 			if (!Order(m, go))
 			{
-				for (const auto& [item, n] : state.Missing) bag.Transfer(*m_Items, m_Store, item, bag.Count(item));   // gives them back
+				for (const std::string& item : taken) bag.Transfer(*m_Items, m_Store, item, bag.Count(item));   // gives them back
 				return 0;
 			}
 			m.Job = "deliver";
@@ -585,8 +1117,15 @@ namespace GB
 				if (p.Name == m.Detail && glm::distance(Where(m), p.Pos) > def->Radius() + 3.0f) { Say(m, "could not get to " + m.Detail); return true; }
 			Inventory& bag = m.Body->Bag();
 			int given = 0;
-			for (const auto& [item, n] : ReadSite(*site, *def).Missing)
-				if (const int k = std::min(n, bag.Count(item)); k > 0) given += bag.Remove(item, DeliverToSite(*site, *def, item, k));
+			const SiteState before = ReadSite(*site, *def);
+			for (const auto& [item, n] : before.Missing)
+			{
+				std::vector<std::string> choices{ item };   // the material, then what stands in for it
+				if (const auto sub = before.Substitutes.find(item); sub != before.Substitutes.end()) choices.insert(choices.end(), sub->second.begin(), sub->second.end());
+				for (const std::string& what : choices)
+					if (const int k = std::min(n, bag.Count(what)); k > 0) given += bag.Remove(what, DeliverToSite(*site, *def, what, k));
+			}
+			if (given > 0) ForgetPlacements();
 			if (given > 0)
 			{
 				Say(m, "brings " + std::to_string(given) + " to " + m.Detail + (site->HasTag("Building.Ready") ? ": the " + ReadSite(*site, *def).PhaseName + " can be built" : ""));
@@ -622,7 +1161,7 @@ namespace GB
 			int bring = 0;
 			std::string what;
 			for (const auto& [item, n] : p.State.Missing)
-				if (const int k = std::min(n - InFlight(p.Name, item), m_Store.Count(item)); k > 0) { bring += k; what += (what.empty() ? "" : ", ") + std::to_string(k) + " " + item; }
+				if (const int k = std::min(n - InFlight(p.Name, item), WithSubstitutes(m_Store, p.State, item)); k > 0) { bring += k; what += (what.empty() ? "" : ", ") + std::to_string(k) + " " + item; }
 			if (bring > 0)
 			{
 				const int slots = std::clamp((bring + Config.HaulAt - 1) / std::max(1, Config.HaulAt), 1, std::max(1, rules.MaxSlots));
@@ -652,10 +1191,18 @@ namespace GB
 				return can && p.State.Ready ? job.Priority * liking * distance : 0.0f;
 			}
 			bool any = false;
-			for (const auto& [item, n] : p.State.Missing) any = any || (n - InFlight(p.Name, item) > 0 && m_Store.Count(item) > 0);
+			for (const auto& [item, n] : p.State.Missing) any = any || (n - InFlight(p.Name, item) > 0 && WithSubstitutes(m_Store, p.State, item) > 0);
 			return any ? job.Priority * liking * distance : 0.0f;
 		}
 		return 0.0f;
+	}
+
+	float Tribe::Provision(const std::string& what) const
+	{
+		float sum = 0.0f;
+		for (const Placed& p : Placements())
+			if (p.State.Done && what == "trade") sum += p.Def->Trade;
+		return sum;
 	}
 
 	bool Tribe::CanBuild(const std::string& building) const

@@ -52,7 +52,17 @@ namespace GB
 		std::unique_ptr<PostProcessor> m_PostProcessor;
 		uint32_t m_EmptyVAO = 0;
 		uint32_t m_JointBuffer = 0;
+		uint32_t m_InstanceBuffer = 0;   // the matrices of one instanced draw (RenderObject::Instanced)
 
 		void BindSkin(Shader& shader, const RenderObject& obj);
+
+		// GPU timestamps of a frame: start, after the shadows, the objects, the grass, the water, the rest of the scene (particles, resolve) and the
+		// post-processing; two frames in flight, read when the GPU has them
+		static constexpr int kMarks = 7;
+		uint32_t m_Timers[2][kMarks] = {};
+		bool m_TimersIssued[2] = { false, false };
+		int m_TimerFrame = 0;
+		void Mark(int i);
+		void ReadTimers();
 	};
 }

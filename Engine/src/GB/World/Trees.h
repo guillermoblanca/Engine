@@ -54,6 +54,9 @@ namespace GB
 	public:
 		TreeFactory();
 		~TreeFactory();
+		// Paints the bark and leaf images (no OpenGL, any thread): a world built in the background calls it there, so making a factory on the main
+		// thread only uploads them.
+		static void PrepareTextures();
 		std::unique_ptr<Tree> Create(const TreeParams& params) const;
 
 	private:

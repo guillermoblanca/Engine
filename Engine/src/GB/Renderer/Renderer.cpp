@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cmath>
 #include <glad/gl.h>
+#include <map>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstdint>
 #include <string>
@@ -35,6 +36,8 @@ namespace GB
 
 		glCreateVertexArrays(1, &m_EmptyVAO);
 		glCreateBuffers(1, &m_JointBuffer);
+		glCreateBuffers(1, &m_InstanceBuffer);
+		glGenQueries(2 * kMarks, &m_Timers[0][0]);
 
 		m_ParticleRenderer = std::make_unique<ParticleRenderer>();
 
@@ -62,6 +65,8 @@ namespace GB
 	{
 		glDeleteVertexArrays(1, &m_EmptyVAO);
 		glDeleteBuffers(1, &m_JointBuffer);
+		glDeleteBuffers(1, &m_InstanceBuffer);
+		glDeleteQueries(2 * kMarks, &m_Timers[0][0]);
 	}
 
 	void Renderer::CreateTargets()
@@ -99,6 +104,22 @@ namespace GB
 		m_Height = height;
 		CreateTargets();
 		m_PostProcessor->Resize(width, height);
+	}
+
+	void Renderer::Mark(int i) { glQueryCounter(m_Timers[m_TimerFrame][i], GL_TIMESTAMP); }
+
+	void Renderer::ReadTimers()
+	{
+		const int set = m_TimerFrame;   // (called after the switch: the set this frame will reuse, issued a frame ago, done or nearly)
+		if (!m_TimersIssued[set]) return;
+		GLint ready = 0;
+		glGetQueryObjectiv(m_Timers[set][kMarks - 1], GL_QUERY_RESULT_AVAILABLE, &ready);
+		if (!ready) return;
+		GLuint64 t[kMarks];
+		for (int i = 0; i < kMarks; ++i) glGetQueryObjectui64v(m_Timers[set][i], GL_QUERY_RESULT, &t[i]);
+		auto ms = [&](int a, int b) { return static_cast<float>(static_cast<double>(t[b] - t[a]) * 1e-6); };
+		m_Stats.GpuShadowMs = ms(0, 1); m_Stats.GpuSceneMs = ms(1, 2); m_Stats.GpuGrassMs = ms(2, 3); m_Stats.GpuWaterMs = ms(3, 4);
+		m_Stats.GpuEffectsMs = ms(4, 5); m_Stats.GpuPostMs = ms(5, 6); m_Stats.GpuTotalMs = ms(0, 6);
 	}
 
 	void Renderer::BindSkin(Shader& shader, const RenderObject& obj)
@@ -202,12 +223,14 @@ namespace GB
 			pbr.SetFloatArray("uPointRadius", radii, pointCount);
 		}
 
-		auto drawObject = [&](const RenderObject& obj)
+		// `copies` > 0: an instanced draw of that many copies, their matrices already in m_InstanceBuffer (the object's material for all)
+		auto drawObject = [&](const RenderObject& obj, uint32_t copies = 0)
 		{
 			const Material& m = obj.Mat;
 			if (m.DoubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
 
 			pbr.SetMat4("uModel", obj.Transform);
+			pbr.SetInt("uInstanced", copies > 0 ? 1 : 0);
 			BindSkin(pbr, obj);
 			pbr.SetVec3("uAlbedo", m.Albedo);
 			pbr.SetFloat("uMetallic", m.Metallic);
@@ -267,8 +290,12 @@ namespace GB
 			if (m.MetallicRoughnessMap) m.MetallicRoughnessMap->Bind(4);
 			if (m.OcclusionMap) m.OcclusionMap->Bind(5);
 			if (m.EmissiveMap) m.EmissiveMap->Bind(6);
-			obj.MeshPtr->Draw();
+			if (copies > 0) obj.MeshPtr->DrawInstanced(copies);
+			else if (obj.IndexCount > 0) obj.MeshPtr->DrawRange(obj.IndexFirst, obj.IndexCount);
+			else obj.MeshPtr->Draw();
 		};
+		// the instanced objects that passed the culling, by mesh, drawn after the loop in one call each
+		std::map<const Mesh*, std::vector<const RenderObject*>> instanced;
 
 		// Opaque and alpha-masked first, then translucent objects back to front without depth writes.
 		std::vector<const RenderObject*> translucent;
@@ -293,13 +320,33 @@ namespace GB
 			++m_Stats.ObjectsDrawn;
 			if (obj.Mat.Alpha == AlphaMode::Blend)
 				translucent.push_back(&obj);
+			else if (obj.Instanced && !obj.JointMatrices && obj.IndexCount == 0)
+				instanced[obj.MeshPtr].push_back(&obj);
 			else
 				drawObject(obj);
 		}
+		std::vector<glm::mat4> matrices;
+		for (const auto& [mesh, objects] : instanced)
+		{
+			if (objects.size() == 1) { drawObject(*objects.front()); continue; }
+			matrices.clear();
+			for (const RenderObject* o : objects) matrices.push_back(o->Transform);
+			glNamedBufferData(m_InstanceBuffer, static_cast<GLsizeiptr>(matrices.size() * sizeof(glm::mat4)), matrices.data(), GL_STREAM_DRAW);
+			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_InstanceBuffer);
+			drawObject(*objects.front(), static_cast<uint32_t>(matrices.size()));
+			++m_Stats.InstancedDraws;
+		}
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 
+		const uint32_t beforeGrass = DrawCounter::Calls;
+		Mark(2);
 		GrassPass(scene, camera, viewProj, lightVP, shadows);
+		Mark(3);
+		m_Stats.GrassCalls = DrawCounter::Calls - beforeGrass;
+		const uint32_t beforeWater = DrawCounter::Calls;
 		WaterPass(scene, camera, viewProj);
+		Mark(4);
+		m_Stats.WaterCalls = DrawCounter::Calls - beforeWater;
 
 		if (!translucent.empty())
 		{
@@ -355,6 +402,11 @@ namespace GB
 
 		glm::mat4 lightVP(1.0f);
 		const bool shadows = scene.Sun.CastShadows;
+		DrawCounter::Calls = 0;
+		DrawCounter::Triangles = 0;
+		uint32_t shadowCalls = 0;
+		const RenderStats gpu = m_Stats;   // (ScenePass starts its stats over: the GPU times of the frames before are kept)
+		Mark(0);
 		if (shadows)
 		{
 			const Environment& env = scene.Env;
@@ -364,9 +416,18 @@ namespace GB
 			const float r = env.ShadowRadius;
 			lightVP = glm::ortho(-r, r, -r, r, 0.0f, r * 4.0f) * view;
 			ShadowPass(scene, lightVP);
+			shadowCalls = DrawCounter::Calls;
 		}
+		Mark(1);
 
 		ScenePass(scene, camera, lightVP, shadows);
+		Mark(5);
+		m_Stats.GpuShadowMs = gpu.GpuShadowMs; m_Stats.GpuSceneMs = gpu.GpuSceneMs; m_Stats.GpuGrassMs = gpu.GpuGrassMs; m_Stats.GpuWaterMs = gpu.GpuWaterMs;
+		m_Stats.GpuEffectsMs = gpu.GpuEffectsMs; m_Stats.GpuPostMs = gpu.GpuPostMs; m_Stats.GpuTotalMs = gpu.GpuTotalMs;
+		m_Stats.ShadowCalls = shadowCalls;
+		m_Stats.DrawCalls = DrawCounter::Calls;
+		m_Stats.Triangles = DrawCounter::Triangles;
+		m_Stats.SceneCalls = m_Stats.DrawCalls - shadowCalls - m_Stats.GrassCalls - m_Stats.WaterCalls;
 		m_PostProcessor->BloomPass(*m_SceneResolved, scene.Env);
 		{
 			const PostSettings& post = scene.Post;
@@ -379,5 +440,9 @@ namespace GB
 				m_PostProcessor->AdaptationPass(*m_SceneResolved, post);
 		}
 		m_PostProcessor->CompositePass(*m_SceneResolved, *m_SceneDepth, scene.Env, scene.Post, camera, target);
+		Mark(6);
+		m_TimersIssued[m_TimerFrame] = true;
+		m_TimerFrame ^= 1;
+		ReadTimers();
 	}
 }

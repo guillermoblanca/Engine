@@ -36,6 +36,9 @@ namespace GB
 		const FloatField<ExchangeRules> kExchangeFloats[] = { { "minAttitude", &ExchangeRules::MinAttitude, true }, { "teach", &ExchangeRules::Teach }, { "visitEvery", &ExchangeRules::VisitEvery } };
 		const FloatField<MarriageRules> kMarriageFloats[] = { { "every", &MarriageRules::Every }, { "minAttitude", &MarriageRules::MinAttitude, true }, { "minBond", &MarriageRules::MinBond, true },
 			{ "chance", &MarriageRules::Chance } };
+		const FloatField<FissionRules> kFissionFloats[] = { { "every", &FissionRules::Every }, { "share", &FissionRules::Share }, { "minApart", &FissionRules::MinApart },
+			{ "outpostReach", &FissionRules::OutpostReach } };
+		const IntField<FissionRules> kFissionInts[] = { { "minMembers", &FissionRules::MinMembers }, { "minHouseholds", &FissionRules::MinHouseholds }, { "outpostMembers", &FissionRules::OutpostMembers } };
 		const FloatField<PactRules> kPactFloats[] = { { "allianceAttitude", &PactRules::AllianceAttitude, true }, { "allianceTrust", &PactRules::AllianceTrust },
 			{ "truceGrievance", &PactRules::TruceGrievance }, { "truceOpenness", &PactRules::TruceOpenness }, { "days", &PactRules::Days }, { "breakBelow", &PactRules::BreakBelow, true } };
 
@@ -64,7 +67,7 @@ namespace GB
 				if (const auto* m = std::find_if(std::begin(maps), std::end(maps), [&](const MapField<T>& x) { return x.Field && key == x.Key; }); m != std::end(maps))
 				{
 					if (!v.is_object()) return where + " " + key + " must be an object of key -> number";
-					std::map<std::string, float> values;
+					std::map<std::string, float> values = into.*(m->Field);   // V5: a later pack adds keys (tin's trade value) to those of the first
 					for (const auto& [k, n] : v.items())
 					{
 						if (!n.is_number() || (!m->Signed && n.get<float>() < 0.0f)) return where + " " + key + " " + k + (m->Signed ? " must be a number" : " must be a number of 0 or more");
@@ -116,7 +119,8 @@ namespace GB
 		if (section == j.end()) return {};
 		if (!section->is_object()) return "diplomacy: expected an object";
 		DiplomacyRules rules = live;
-		const DiplomacyRules defaults = DefaultDiplomacyRules();
+		// V5: each part goes onto what is loaded already (the defaults, then the packs in order): a later pack that gives one value of a part (tin's
+		// trade value) changes that value only
 		for (const auto& [key, v] : section->items())
 		{
 			std::string e;
@@ -125,21 +129,35 @@ namespace GB
 				if (!v.is_number_integer() || v.get<long long>() < 0) return "diplomacy: seed must be a whole number of 0 or more";
 				rules.Seed = static_cast<uint32_t>(v.get<long long>());
 			}
-			else if (key == "territory") { rules.Territory = TerritoryRules(); e = ReadPart(v, "territory", kTerritoryFloats, NoInts<TerritoryRules>::List, NoMaps<TerritoryRules>::List, rules.Territory); }
-			else if (key == "encounters") { rules.Encounters = EncounterRules(); e = ReadPart(v, "encounters", kEncounterFloats, NoInts<EncounterRules>::List, NoMaps<EncounterRules>::List, rules.Encounters); }
+			else if (key == "territory") { e = ReadPart(v, "territory", kTerritoryFloats, NoInts<TerritoryRules>::List, NoMaps<TerritoryRules>::List, rules.Territory); }
+			else if (key == "encounters") { e = ReadPart(v, "encounters", kEncounterFloats, NoInts<EncounterRules>::List, NoMaps<EncounterRules>::List, rules.Encounters); }
 			else if (key == "relations")
 			{
-				rules.Relations = ClanRelationRules();
-				rules.Relations.Events = defaults.Relations.Events;   // a map the part does not give is the default one
-				rules.Relations.Grievances = defaults.Relations.Grievances;
-				rules.Relations.Openness = defaults.Relations.Openness;
-				rules.Relations.Aggression = defaults.Relations.Aggression;
 				e = ReadPart(v, "relations", kRelationFloats, NoInts<ClanRelationRules>::List, kRelationMaps, rules.Relations);
 			}
-			else if (key == "trade") { rules.Trade = TradeRules(); e = ReadPart(v, "trade", kTradeFloats, kTradeInts, kTradeMaps, rules.Trade); }
-			else if (key == "exchange") { rules.Exchange = ExchangeRules(); e = ReadPart(v, "exchange", kExchangeFloats, NoInts<ExchangeRules>::List, NoMaps<ExchangeRules>::List, rules.Exchange); }
-			else if (key == "marriage") { rules.Marriage = MarriageRules(); e = ReadPart(v, "marriage", kMarriageFloats, NoInts<MarriageRules>::List, NoMaps<MarriageRules>::List, rules.Marriage); }
-			else if (key == "pacts") { rules.Pacts = PactRules(); e = ReadPart(v, "pacts", kPactFloats, NoInts<PactRules>::List, NoMaps<PactRules>::List, rules.Pacts); }
+			else if (key == "trade") { e = ReadPart(v, "trade", kTradeFloats, kTradeInts, kTradeMaps, rules.Trade); }
+			else if (key == "exchange") { e = ReadPart(v, "exchange", kExchangeFloats, NoInts<ExchangeRules>::List, NoMaps<ExchangeRules>::List, rules.Exchange); }
+			else if (key == "marriage") { e = ReadPart(v, "marriage", kMarriageFloats, NoInts<MarriageRules>::List, NoMaps<MarriageRules>::List, rules.Marriage); }
+			else if (key == "fission") { e = ReadPart(v, "fission", kFissionFloats, kFissionInts, NoMaps<FissionRules>::List, rules.Fission); }
+			else if (key == "ranks")   // V7: the whole list (a later pack gives it whole)
+			{
+				if (!v.is_array()) return "diplomacy: ranks must be a list";
+				std::vector<RankDef> ranks;
+				for (const Json& o : v)
+				{
+					if (!o.is_object() || !o.contains("id") || !o["id"].is_string()) return "diplomacy: a rank is an object with an id";
+					RankDef r;
+					r.Id = o["id"].get<std::string>();
+					r.Name = o.value("name", r.Id);
+					r.People = o.value("people", 0);
+					r.Buildings = o.value("buildings", 0);
+					if (r.People < 0 || r.Buildings < 0) return "diplomacy: rank " + r.Id + ": people and buildings are 0 or more";
+					if (!ranks.empty() && (r.People < ranks.back().People || r.Buildings < ranks.back().Buildings)) return "diplomacy: rank " + r.Id + " asks less than the one before it";
+					ranks.push_back(r);
+				}
+				rules.Ranks = std::move(ranks);
+			}
+			else if (key == "pacts") { e = ReadPart(v, "pacts", kPactFloats, NoInts<PactRules>::List, NoMaps<PactRules>::List, rules.Pacts); }
 			else return "diplomacy: unknown part " + key;
 			if (!e.empty()) return e;
 		}
@@ -173,6 +191,13 @@ namespace GB
 		o["exchange"] = WritePart(kExchangeFloats, NoInts<ExchangeRules>::List, NoMaps<ExchangeRules>::List, r.Exchange);
 		o["marriage"] = WritePart(kMarriageFloats, NoInts<MarriageRules>::List, NoMaps<MarriageRules>::List, r.Marriage);
 		o["pacts"] = WritePart(kPactFloats, NoInts<PactRules>::List, NoMaps<PactRules>::List, r.Pacts);
+		o["fission"] = WritePart(kFissionFloats, kFissionInts, NoMaps<FissionRules>::List, r.Fission);
+		if (!r.Ranks.empty())
+		{
+			Json ranks = Json::array();
+			for (const RankDef& k : r.Ranks) ranks.push_back({ { "id", k.Id }, { "name", k.Name }, { "people", k.People }, { "buildings", k.Buildings } });
+			o["ranks"] = ranks;
+		}
 		return o.dump();
 	}
 
@@ -212,10 +237,21 @@ namespace GB
 			return out;
 		}
 
-		float Worth(const TradeRules& rules, const std::map<std::string, int>& goods)
+		// N5: what goods are worth to whoever gets them: the base value, up to three times it for what that clan lacks most (its want unmet)
+		float Worth(const TradeRules& rules, const std::map<std::string, int>& goods, const StoreView* to = nullptr)
 		{
 			float v = 0.0f;
-			for (const auto& [item, n] : goods) v += ItemValue(rules, item) * static_cast<float>(n);
+			for (const auto& [item, n] : goods)
+			{
+				float scarce = 0.0f;
+				if (to)
+					if (const auto w = to->Want.find(item); w != to->Want.end() && w->second > 0.0f)
+					{
+						const auto h = to->Have.find(item);
+						scarce = std::clamp((w->second - static_cast<float>(h != to->Have.end() ? h->second : 0)) / w->second, 0.0f, 1.0f);
+					}
+				v += ItemValue(rules, item) * (1.0f + 2.0f * scarce) * static_cast<float>(n);
+			}
 			return v;
 		}
 	}
@@ -229,7 +265,7 @@ namespace GB
 		if (!deal.Give[0].empty() && !deal.Give[1].empty())
 			for (int guard = 0; guard < 256; ++guard)   // the larger side gives up its largest stack one unit at a time (ties: the lowest id)
 			{
-				const float v0 = Worth(rules, deal.Give[0]), v1 = Worth(rules, deal.Give[1]);
+				const float v0 = Worth(rules, deal.Give[0], &b), v1 = Worth(rules, deal.Give[1], &a);   // (each side as the other values it)
 				const int big = v0 > v1 * rules.Balance ? 0 : v1 > v0 * rules.Balance ? 1 : -1;
 				if (big < 0) break;
 				std::map<std::string, int>& side = deal.Give[big];
@@ -239,8 +275,8 @@ namespace GB
 				if (side.empty()) break;
 			}
 		if (deal.Give[0].empty() != deal.Give[1].empty() && !gift) { deal.Give[0].clear(); deal.Give[1].clear(); }   // (cut down to nothing: no deal)
-		deal.Value[0] = Worth(rules, deal.Give[0]);
-		deal.Value[1] = Worth(rules, deal.Give[1]);
+		deal.Value[0] = Worth(rules, deal.Give[0], &b);
+		deal.Value[1] = Worth(rules, deal.Give[1], &a);
 		return deal;
 	}
 }

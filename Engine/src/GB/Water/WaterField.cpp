@@ -1,5 +1,6 @@
 #include "GB/Water/WaterField.h"
 #include <algorithm>
+#include <cmath>
 
 namespace GB
 {
@@ -28,6 +29,50 @@ namespace GB
 			if (s.Distance < best.Distance) best = s;
 		}
 		return best;
+	}
+
+	void WaterField::BuildRiverIndex()
+	{
+		m_IndexCells.clear();
+		m_IndexW = m_IndexH = 0;
+		const auto& P = m_River.Points;
+		if (P.size() < 2) return;
+		float widest = m_River.HalfWidth;
+		for (const float w : m_River.HalfWidths) widest = std::max(widest, w);
+		m_IndexReach = 1.2f * widest;
+		glm::vec2 lo(P[0].x, P[0].z), hi = lo;
+		for (const glm::vec3& p : P) { lo = glm::min(lo, glm::vec2(p.x, p.z)); hi = glm::max(hi, glm::vec2(p.x, p.z)); }
+		m_IndexMin = lo - glm::vec2(m_IndexReach + 1.0f);
+		const glm::vec2 size = hi - lo + glm::vec2(2.0f * (m_IndexReach + 1.0f));
+		m_IndexW = static_cast<int>(std::ceil(size.x / m_IndexCell)) + 1;
+		m_IndexH = static_cast<int>(std::ceil(size.y / m_IndexCell)) + 1;
+		m_IndexCells.assign(static_cast<size_t>(m_IndexW) * static_cast<size_t>(m_IndexH), {});
+		for (size_t k = 0; k + 1 < P.size(); ++k)
+		{
+			// the cells the segment's box, grown by the reach, touches (a cell is listed whole: every point of it is covered)
+			const glm::vec2 a(P[k].x, P[k].z), b(P[k + 1].x, P[k + 1].z);
+			const glm::vec2 smin = glm::min(a, b) - glm::vec2(m_IndexReach) - m_IndexMin, smax = glm::max(a, b) + glm::vec2(m_IndexReach) - m_IndexMin;
+			const int i0 = std::max(0, static_cast<int>(std::floor(smin.x / m_IndexCell))), i1 = std::min(m_IndexW - 1, static_cast<int>(std::floor(smax.x / m_IndexCell)));
+			const int j0 = std::max(0, static_cast<int>(std::floor(smin.y / m_IndexCell))), j1 = std::min(m_IndexH - 1, static_cast<int>(std::floor(smax.y / m_IndexCell)));
+			for (int j = j0; j <= j1; ++j)
+				for (int i = i0; i <= i1; ++i) m_IndexCells[static_cast<size_t>(j) * static_cast<size_t>(m_IndexW) + static_cast<size_t>(i)].push_back(static_cast<unsigned>(k));
+		}
+	}
+
+	RiverSample WaterField::NearestRiverInBand(float x, float z) const
+	{
+		// Exact where it matters: a segment within the reach of the point is filed in its cell, so if the nearest of the cell's segments is
+		// within the reach it is the nearest of all (and the first of equals, as NearestRiverPoint, since the cell lists them in order).
+		if (m_IndexCells.empty()) return {};
+		const int i = static_cast<int>(std::floor((x - m_IndexMin.x) / m_IndexCell)), j = static_cast<int>(std::floor((z - m_IndexMin.y) / m_IndexCell));
+		if (i < 0 || j < 0 || i >= m_IndexW || j >= m_IndexH) return {};
+		RiverSample best;
+		for (const unsigned k : m_IndexCells[static_cast<size_t>(j) * static_cast<size_t>(m_IndexW) + static_cast<size_t>(i)])
+		{
+			const RiverSample s = ProbeRiverSegment(m_River, k, x, z);
+			if (s.Distance < best.Distance) best = s;
+		}
+		return best.Found && best.Distance <= m_IndexReach ? best : RiverSample{};
 	}
 
 	glm::vec2 WaterField::RiverFlow(float x, float z) const

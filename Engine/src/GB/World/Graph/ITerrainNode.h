@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Water/WaterField.h"
 #include "GB/World/Graph/TgField.h"
 #include <functional>
 #include <map>
@@ -29,9 +30,67 @@ namespace GB
 	struct TgPlacement { glm::vec2 Position{ 0.0f }; float Yaw = 0.0f; float Scale = 1.0f; int Variant = 0; };
 	struct TgPlacements { std::vector<TgPlacement> Items; };
 
-	// A node that, besides (or instead of) a field, also places discrete objects -- "scatter" (Nodes/ScatterNode.h)
-	// is the one example today. A second, optional interface (ISP) rather than a second method on every
-	// ITerrainNode: a noise or erosion node has nothing to say here and does not need to know this type exists.
+	// A polyline a node traces over the terrain (a river course, a lake site as a one-point path), with one number per point (the drainage
+	// area that reaches it, a height...). Plain data: what the path means is the caller's.
+	struct TgPath { std::vector<glm::vec2> Points; std::vector<float> Values; };
+	struct TgPaths { std::vector<TgPath> Items; };
+
+	// What flows along an edge. A port has one kind; the evaluator checks that both ends of an edge agree (Any matches every kind: the
+	// "output" node takes whatever it is given).
+	enum class TgPortKind { Field, Placements, Paths, Water, Any };
+	const char* TgPortKindName(TgPortKind kind);
+
+	// The value of one port: only the member of its Kind is meaningful. Water is GB::WaterField (GB/Water/WaterField.h), plain data: the lake
+	// and the river a graph carved, which the world then floods.
+	struct TgValue
+	{
+		TgPortKind Kind = TgPortKind::Field;
+		TgField Field;
+		TgPlacements Placements;
+		TgPaths Paths;
+		WaterField Water;
+	};
+
+	// What a node type says about itself, so that the editor, the validator and the compiler read one description instead of each keeping its
+	// own copy (OCP: a node added by a plugin shows up in the editor with its ports and sliders, nothing else changes).
+	struct TgPortInfo
+	{
+		std::string Name;
+		TgPortKind Kind = TgPortKind::Field;
+		bool Optional = false;       // inputs only: the node runs with the port left unconnected
+		std::string Tooltip;
+	};
+
+	struct TgParamInfo
+	{
+		std::string Name;
+		double Default = 0.0;
+		double Min = 0.0, Max = 1.0; // the editor's slider range (a value outside it is still accepted)
+		bool Integer = false;
+		std::string Tooltip;
+	};
+
+	struct TgNodeSchema
+	{
+		std::string Category = "Other";   // the editor's add-node menu groups by this
+		std::string Summary;              // one line: what the node does
+		uint32_t Color = 0;               // 0xRRGGBB for the node's header in the editor; 0 = the editor's default
+		std::vector<TgPortInfo> Inputs, Outputs;
+		std::vector<TgParamInfo> Params;
+		bool UsesSource = false;          // TgNode::Source means something to this node (output: the slot it writes; height_input: the field it reads)
+		std::string SourceDefault;
+
+		int InputIndex(const std::string& name) const;
+		int OutputIndex(const std::string& name) const;
+		const TgParamInfo* FindParam(const std::string& name) const;
+	};
+
+	// The parameter `key` of a node, or `fallback` when the graph does not set it.
+	double TgParam(const TgNode& node, const char* key, double fallback);
+
+	// A node that, besides (or instead of) a field, also places discrete objects -- "scatter" (Nodes/ScatterNode.h).
+	// A second, optional interface (ISP) rather than a second method on every ITerrainNode: a noise or erosion node
+	// has nothing to say here and does not need to know this type exists. Its result is the node's first Placements output.
 	class IScatterNode
 	{
 	public:
@@ -40,13 +99,8 @@ namespace GB
 			TgPlacements& out, std::string& error) const = 0;
 	};
 
-	// A polyline a node traces over the terrain (a river course, a lake site as a one-point path), with one number per point (the drainage
-	// area that reaches it, a height...). Plain data: what the path means is the caller's.
-	struct TgPath { std::vector<glm::vec2> Points; std::vector<float> Values; };
-	struct TgPaths { std::vector<TgPath> Items; };
-
-	// A node that, besides (or instead of) a field, also traces paths: "river_trace" and "lake_site" (Nodes/). Another small optional interface
-	// (ISP), like IScatterNode: a noise or erosion node has nothing to say here and does not need to know this type exists.
+	// A node that, besides (or instead of) a field, also traces paths: "river_trace" and "lake_site" (Nodes/). Another small optional
+	// interface (ISP), like IScatterNode. Its result is the node's first Paths output.
 	class IPathNode
 	{
 	public:
@@ -63,11 +117,21 @@ namespace GB
 	public:
 		virtual ~ITerrainNode() = default;
 
-		// `inputs` are in the same order as the node's incoming edges (CompiledTerrainGraph::In). A null entry
-		// means that input was left unconnected. Returns false (and fills `error`) when the node cannot run
-		// with what it was given; the graph evaluation then stops and nothing downstream runs.
+		// The node's ports and parameters. The default is one optional field input "in" and one field output "out", what a node written before
+		// schemas existed was wired as.
+		virtual TgNodeSchema Describe() const;
+
+		// Runs the node. `inputs` has one entry per input of Describe(), in its order; null = that port is unconnected. Fills `outputs` by output
+		// port name. The default does it through Evaluate (the first Field output) and, for an IScatterNode/IPathNode, Scatter/Trace (the first
+		// Placements/Paths output) -- what every node with a single result needs, so most nodes only write Evaluate. A node with several
+		// results of the same kind overrides this instead. Returns false (and fills `error`) when the node cannot run with what it was given;
+		// the graph evaluation then stops and nothing downstream runs.
+		virtual bool Run(const TgNode& node, const TgContext& ctx, const std::vector<const TgValue*>& inputs,
+			std::map<std::string, TgValue>& outputs, std::string& error) const;
+
+		// The single-field form Run's default calls: `inputs` are the Field inputs in port order (null when unconnected or not a field).
 		virtual bool Evaluate(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs,
-			TgField& out, std::string& error) const = 0;
+			TgField& out, std::string& error) const;
 
 		// Null for every node except one that is also an IScatterNode (OCP: adding that capability to a node
 		// does not touch this base class or any other node; a plain field node inherits this default untouched).
@@ -94,9 +158,12 @@ namespace GB
 		bool IsKnown(const std::string& type) const;
 		const ITerrainNode* Find(const std::string& type) const;
 		std::vector<std::string> KnownTypes() const;
+		// The schema of a type (cached at registration); null when the type is unknown.
+		const TgNodeSchema* Schema(const std::string& type) const;
 
 	private:
-		std::map<std::string, std::unique_ptr<ITerrainNode>> m_Nodes;
+		struct Entry { std::unique_ptr<ITerrainNode> Node; TgNodeSchema Schema; };
+		std::map<std::string, Entry> m_Nodes;
 	};
 
 	// A registry holding every node type GB ships with (Nodes/BuiltinNodes.h). Each call returns a new,

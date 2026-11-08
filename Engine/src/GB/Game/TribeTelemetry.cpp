@@ -34,7 +34,7 @@ namespace GB
 		if (!m_Telemetry) return;
 		TelemetryEvent e;
 		e.Clan = m_TelemetryClan;
-		e.Time = m_Time;
+		e.Time = WorldSeconds();   // (the world's clock: a clan founded later starts its own at 0)
 		e.Kind = kind;
 		e.Who = who;
 		e.Other = other;
@@ -51,7 +51,7 @@ namespace GB
 		if (last == now) return;
 		TelemetryDecision d;
 		d.Clan = m_TelemetryClan;
-		d.Time = m_Time;
+		d.Time = WorldSeconds();
 		d.Member = m.Name;
 		d.Chosen = chosen.Kind;
 		d.Target = chosen.Target;
@@ -77,12 +77,12 @@ namespace GB
 	{
 		m_TelemetryNext = m_Time + m_TelemetryEvery;
 		const double day = std::max(1.0, static_cast<double>(Config.Needs.DaySeconds));
-		const int dayNo = static_cast<int>((m_Time / day) + static_cast<double>(Config.Needs.StartHour) / 24.0) + 1;
+		const int dayNo = static_cast<int>((WorldSeconds() / day) + static_cast<double>(Config.Needs.StartHour) / 24.0) + 1;
 		const double hour = static_cast<double>(Hour());
 
 		TelemetryClanSample clan;
 		clan.Clan = m_TelemetryClan;
-		clan.Time = m_Time;
+		clan.Time = WorldSeconds();
 		clan.Day = dayNo;
 		clan.Hour = hour;
 		clan.Tier = MaslowTier();
@@ -121,7 +121,7 @@ namespace GB
 			s.Role = m.Role;
 			s.Job = m.Job;
 			s.Detail = m.Detail;
-			s.Time = m_Time;
+			s.Time = WorldSeconds();
 			s.Day = dayNo;
 			s.Hour = hour;
 			s.Alive = !m.Dead;
@@ -153,7 +153,7 @@ namespace GB
 			{
 				TelemetryClanDay d;
 				d.Clan = m_TelemetryClan;
-				d.Time = m_Time;
+				d.Time = WorldSeconds();
 				d.Day = dayNo;
 				d.Members = clan.Alive;
 				d.Buildings = clan.Buildings;
@@ -174,7 +174,7 @@ namespace GB
 					if (m.Name >= other || std::fabs(bond) < 0.05f) continue;
 					TelemetryRelation r;
 					r.Clan = m_TelemetryClan;
-					r.Time = m_Time;
+					r.Time = WorldSeconds();
 					r.A = m.Name;
 					r.B = other;
 					r.Kin = m_Society.Kin(m.Name, other);

@@ -1,0 +1,12 @@
+{
+  "id": "era4",
+  "name": "Era 4 · Clásica",
+  "era": 4,
+  "version": "1.0",
+  "depends": [
+    "era3"
+  ],
+  "files": [
+    "era4.json"
+  ]
+}

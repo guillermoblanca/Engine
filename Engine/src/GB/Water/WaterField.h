@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <glm/glm.hpp>
 #include <utility>
+#include <vector>
 
 namespace GB
 {
@@ -49,7 +50,7 @@ namespace GB
 	{
 	public:
 		void SetLake(const LakeBody& lake) { m_Lake = lake; }
-		void SetRiver(RiverData river) { m_River = std::move(river); }
+		void SetRiver(RiverData river) { m_River = std::move(river); BuildRiverIndex(); }
 
 		bool HasLake() const { return m_Lake.Present; }
 		const LakeBody& Lake() const { return m_Lake; }
@@ -64,6 +65,10 @@ namespace GB
 		// The sample counts as "in the water band" of the river: within 1.2 half-widths of its axis. Whether the ground is under the
 		// surface there is the caller's to check, since the ground belongs to the terrain.
 		bool InRiverBand(const RiverSample& s) const { return s.Found && s.Distance <= s.HalfWidth * 1.2f; }
+		// NearestRiver for a caller that only wants the river where the point is in its band: the same sample when the nearest point of the
+		// axis is within 1.2 of the widest half-width, and Found == false otherwise (then the point cannot be in the band). It looks only at the
+		// segments filed near the point instead of the whole river: the navigation grid of a 3 km map asks it tens of millions of times.
+		RiverSample NearestRiverInBand(float x, float z) const;
 		float RiverSurfaceLevel(float x, float z) const { return NearestRiver(x, z).Level; }   // level at the nearest point (even on land); kNoWaterLevel without a river
 		float DistanceToRiver(float x, float z) const { return NearestRiver(x, z).Distance; }   // kNoWaterDistance without a river
 		// Water velocity (m/s, xz) of the river at a point; zero away from it.
@@ -75,7 +80,14 @@ namespace GB
 		float LevelNear(float x, float z, float lakeReach, float riverReach) const;
 
 	private:
+		void BuildRiverIndex();
+
 		LakeBody m_Lake;
 		RiverData m_River;
+		// The river's segments filed by square cells: each in every cell within m_IndexReach (1.2 of the widest half-width) of it, in order.
+		float m_IndexCell = 16.0f, m_IndexReach = 0.0f;
+		glm::vec2 m_IndexMin{ 0.0f };
+		int m_IndexW = 0, m_IndexH = 0;
+		std::vector<std::vector<unsigned>> m_IndexCells;
 	};
 }

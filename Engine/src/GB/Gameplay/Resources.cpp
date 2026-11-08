@@ -271,7 +271,10 @@ namespace GB
 		const EntityId root = MakeRoot(w, origin, out);
 		const std::vector<std::pair<std::string, int>> counts = PatchCounts(nodes, workers);
 		std::map<std::string, std::vector<glm::vec3>> placed;   // where each type went, for the types that stand beside another
-		float cursor = 0.0f;                                    // the next free depth (z) of the patch
+		// Each type's block (its row, ring or cluster) stands round the centre on a golden-angle spiral, the k-th 5 + 10 sqrt(k) m out: one block behind
+		// another made a strip of ~170 m with fifteen types, and the last of them (the reed beds a shelter's roof waits for) out of the clan's sight
+		const float cursor = 0.0f;
+		int block = 0;
 		for (int pass = 0; pass < 2; ++pass)
 			for (const auto& [id, n] : counts)
 			{
@@ -326,7 +329,14 @@ namespace GB
 						}
 						depth = sp * static_cast<float>((n + kPerRow - 1) / kPerRow);
 					}
-					cursor += depth + 3.0f;
+					(void)depth;
+					glm::vec3 centre(0.0f);
+					for (const glm::vec3& q : spots) centre += q;
+					centre /= static_cast<float>(std::max<size_t>(1, spots.size()));
+					const float a = 2.3999632f * static_cast<float>(block), r = block == 0 ? 0.0f : 5.0f + 10.0f * std::sqrt(static_cast<float>(block));
+					const glm::vec3 at(std::cos(a) * r, 0.0f, std::sin(a) * r);
+					for (glm::vec3& q : spots) q = q - centre + at;
+					++block;
 				}
 				for (int i = 0; i < n; ++i) MakeNode(w, root, def, i + 1, spots[static_cast<size_t>(i)], out);
 				placed[id] = spots;
@@ -419,6 +429,7 @@ namespace GB
 				if (take <= 0) return;
 				node->Attributes().SetBase("Amount", static_cast<float>(have - take));
 				if (m_Yield && e.Instigator) m_Yield(e.Instigator->Name(), def->Item, take);
+				if (m_Yield && e.Instigator && !def->ExtraItem.empty()) m_Yield(e.Instigator->Name(), def->ExtraItem, def->ExtraPerGather);   // (a tree's branches)
 			});
 		}
 	}
@@ -426,13 +437,16 @@ namespace GB
 	void ResourceSystem::Update(GameplayWorld& gameplay, float dt, float rate) const
 	{
 		if (rate <= 0.0f) return;
-		for (const std::string& name : gameplay.Names())
+		std::vector<std::pair<std::string, const ResourceNodeDef*>> kinds;   // the kind tags, made once a tick instead of once a node
+		kinds.reserve(m_Defs.size());
+		for (const auto& [id, d] : m_Defs) kinds.push_back({ "Resource.Node." + id, &d });
+		for (const TaggedSystems::Entry& entry : m_Nodes.Of(gameplay))
 		{
-			AbilitySystemComponent* node = gameplay.Find(name);
-			if (!node || !node->HasTag("Resource.Node") || !node->Attributes().Has("Regrow")) continue;
+			AbilitySystemComponent* node = entry.System;
+			if (!node->Attributes().Has("Regrow")) continue;
 			const ResourceNodeDef* def = nullptr;
-			for (const auto& [id, d] : m_Defs)
-				if (node->HasTag("Resource.Node." + id)) { def = &d; break; }
+			for (const auto& [tag, d] : kinds)
+				if (node->HasTag(tag)) { def = d; break; }
 			if (!def || def->RegenSeconds <= 0.0f) continue;
 			AttributeSet& at = node->Attributes();
 			const int amount = Amount(*node);
@@ -453,13 +467,15 @@ namespace GB
 
 	void ResourceSystem::SyncVisuals(GameplayWorld& gameplay, EntityWorld& entities) const
 	{
-		for (const std::string& name : gameplay.Names())
+		for (const TaggedSystems::Entry& entry : m_Nodes.Of(gameplay))
 		{
-			AbilitySystemComponent* node = gameplay.Find(name);
-			if (!node->HasTag("Resource.Node")) continue;
+			const std::string& name = *entry.Name;
+			AbilitySystemComponent* node = entry.System;
 			const bool empty = Amount(*node) <= 0;
-			if (empty && !node->HasTag("State.Depleted")) node->Tags().Add("State.Depleted");
-			if (!empty && node->HasTag("State.Depleted")) node->Tags().RemoveAll("State.Depleted");
+			const bool flipped = empty != node->HasTag("State.Depleted");
+			if (empty && flipped) node->Tags().Add("State.Depleted");
+			if (!empty && flipped) node->Tags().RemoveAll("State.Depleted");
+			if (!empty && !flipped) continue;   // a full node that was full: its parts are all shown already (only a change or an empty node needs them)
 			const EntityId id = entities.FindByName(name);
 			if (id == NullEntity) continue;
 			// A depleted node keeps its trunk but loses what is gathered from it (crown, berries, tuft, rock).

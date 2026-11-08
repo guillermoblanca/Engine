@@ -1,13 +1,13 @@
-# Puts the "before" and "after" screenshots of the water side by side (docs/img/water/compare_<name>.jpg, JPEG so the repository stays small), each labelled.
+# Puts the "before" and "after" screenshots of the water side by side (../documentation/img/water/compare_<name>.jpg, JPEG so the repository stays small), each labelled.
 #
-#   powershell -File tools/water_compare.ps1 [-Before docs/img/water/before] [-After docs/img/water/after] [-Out docs/img/water]
+#   powershell -File tools/water_compare.ps1 [-Before ../documentation/img/water/before] [-After ../documentation/img/water/after] [-Out ../documentation/img/water]
 #
-# Every file name that exists in both folders gets a comparison. The screenshots come from the editor (see docs/GRAFO_TERRENO.md, section 11):
+# Every file name that exists in both folders gets a comparison. The screenshots come from the editor (see ../documentation/02_tecnico/motor/GRAFO_TERRENO.md, section 11):
 #   Editor.exe --hidden "--exec=generate temperate 5; camera lake; wait 4; screenshot <file>.png; quit"
 param(
-	[string]$Before = "docs/img/water/before",
-	[string]$After = "docs/img/water/after",
-	[string]$Out = "docs/img/water",
+	[string]$Before = "../documentation/img/water/before",
+	[string]$After = "../documentation/img/water/after",
+	[string]$Out = "../documentation/img/water",
 	[string]$BeforeLabel = "ANTES  (generador 2)",
 	[string]$AfterLabel = "DESPUES  (generador 3: agua por nodos)"
 )

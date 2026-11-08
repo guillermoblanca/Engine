@@ -4,6 +4,7 @@
 #include "GB/Log.h"
 #include "GB/Gameplay/SiteChoice.h"
 #include "GB/Gameplay/WorldResources.h"
+#include <chrono>
 #include <algorithm>
 #include <fstream>
 #include <cmath>
@@ -21,6 +22,15 @@ namespace GB::Editor
 		m_Garden.SyncVisuals();
 		BindResources();
 		m_Actors.PrepareAbilities();   // the new systems get the player's character at once (a script can activate in this same frame)
+	}
+
+	void EditorApp::SyncNewGameplay()
+	{
+		for (const auto& [id, e] : m_SceneEditor.World().All())
+			if (e.Gameplay && !m_Gameplay.Find(e.Name)) m_Gameplay.Create(e.Name)->FromComponent(*e.Gameplay);
+		m_Garden.Bind(m_Gameplay, &m_SceneEditor.World());
+		BindResources();
+		m_Actors.PrepareAbilities();
 	}
 
 	void EditorApp::BindResources()
@@ -48,7 +58,7 @@ namespace GB::Editor
 			if (AbilitySystemComponent* asc = m_Gameplay.Find(name))
 				ResourceSystem::SyncTools(*asc, actor->Bag(), m_Items);
 		}
-		m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());
+		if (m_SimTick % 10 == 0) m_Resources.SyncVisuals(m_Gameplay, m_SceneEditor.World());   // (a node's look follows its amount within a sixth of a second: a big world has thousands)
 	}
 
 	namespace
@@ -100,6 +110,7 @@ namespace GB::Editor
 			std::string Error() const override { const Actor* a = m_Actors.Find(m_Name); return a ? a->TaskStatus() : std::string(); }
 			Inventory& Bag() override { Actor* a = m_Actors.Find(m_Name); return a ? a->Bag() : m_Gone; }
 			// H9: a child grows; the actor was made at an adult's height, so that height divided by how grown it was is what it grows to
+			void SetPace(float pace) override { if (Actor* a = m_Actors.Find(m_Name)) a->SetPace(pace); }   // T5c: faster on a trail
 			void SetGrowth(float g) override
 			{
 				Actor* a = m_Actors.Find(m_Name);
@@ -136,7 +147,17 @@ namespace GB::Editor
 			members, abstract, m_Clans.Count(), clans.Thinks, clans.Budget, m_Clans.ThinkPerFrame, clans.Due, clans.TribesMs, clans.DiplomacyMs,
 			plans.Planned, plans.Refused, plans.Queue, s.QueuePeak, s.WaitPeak, s.Paths, s.Paths ? s.PathSeconds * 1000.0 / static_cast<double>(s.Paths) : 0.0, s.CacheHits, s.CacheMisses, nav.CachedPaths(),
 			actors.Ms, actors.Full, actors.Reduced, actors.Far, actors.Suspended, actors.Posed);
-		return text;
+		// the parts of the clans' updates, summed over the clans (Tribe::FrameCost): where a slow clan spends its tick
+		Tribe::FrameCost parts;
+		for (const auto& c : m_Clans.All())
+		{
+			const Tribe::FrameCost& t = c->Folk->LastCost();
+			parts.EconomyMs += t.EconomyMs; parts.SocietyMs += t.SocietyMs; parts.ExploreMs += t.ExploreMs; parts.ConflictMs += t.ConflictMs; parts.AbstractMs += t.AbstractMs; parts.ThinkMs += t.ThinkMs;
+		}
+		char more[300];
+		std::snprintf(more, sizeof more, " | clan parts: economy %.2f, society %.2f, explore %.2f, conflict %.2f, abstract %.2f, thinking %.2f ms | clans over %d ticks: mean %.2f ms, peak %.2f ms",
+			parts.EconomyMs, parts.SocietyMs, parts.ExploreMs, parts.ConflictMs, parts.AbstractMs, parts.ThinkMs, ClanWorld::kCostWindow, clans.MeanMs, clans.PeakMs);
+		return std::string(text) + more;
 	}
 
 	CommandResult EditorApp::NavCommand(const std::vector<std::string>& a)
@@ -338,7 +359,16 @@ namespace GB::Editor
 			if (const std::string error = ActiveTribe().StartSite(a[1], at, &name); !error.empty()) return { false, error };
 			return { true, name + " started at " + std::to_string(static_cast<int>(at.x)) + ", " + std::to_string(static_cast<int>(at.y)) };
 		}
-		if (sub != "status") return { false, "settlement status | start <building> [x z] | buildings" };
+		if (sub == "raise" && a.size() > 1)   // a building standing at once (to look at a building's visuals, a kit house)
+		{
+			glm::vec2 at = ActiveTribe().Config.Economy.Camp + glm::vec2(ActiveTribe().Config.SiteRadius, 0.0f);
+			if (a.size() >= 4) at = { static_cast<float>(std::atof(a[2].c_str())), static_cast<float>(std::atof(a[3].c_str())) };
+			std::string name;
+			if (const std::string error = ActiveTribe().RaiseBuilding(a[1], at, 0.0f, &name); !error.empty()) return { false, error };
+			SyncNewGameplay();
+			return { true, name + " stands at " + std::to_string(static_cast<int>(at.x)) + ", " + std::to_string(static_cast<int>(at.y)) };
+		}
+		if (sub != "status") return { false, "settlement status | start <building> [x z] | raise <building> [x z] | buildings" };
 		std::string s = ActiveTribe().SettlementReport();
 		for (char& c : s) if (c == '\n') c = '|';
 		return { true, s };
@@ -349,6 +379,8 @@ namespace GB::Editor
 		const std::string sub = a.empty() ? "status" : a[0];
 		if (sub == "build")
 		{
+			FinishWorldBuild();
+			const SpawnBatch crew(*this);   // (its workers without reloading the scene's systems each)
 			std::string model = "fox";
 			std::vector<float> numbers;
 			for (size_t i = 1; i < a.size(); ++i)
@@ -403,9 +435,12 @@ namespace GB::Editor
 				// a well near the camp (the members get thirsty); the fire pit and the gate of the interactives are not wanted here
 				EntityWorld& world = m_SceneEditor.World();
 				const glm::vec3 wellOrigin(camp.x + 4.0f, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x + 4.0f, camp.y - 6.0f) : 0.0f, camp.y - 6.0f);
-				BuildInteractives(world, wellOrigin, m_Interactives.Defs);
+				const InteractiveLayout made = BuildInteractives(world, wellOrigin, m_Interactives.Defs);
 				for (const char* extra : { "Fire Pit", "Gate" }) if (const EntityId id = world.FindByName(extra); id != NullEntity) world.Destroy(id);
-				SyncGameplay();
+				// the old group went with BuildInteractives: its systems go, and the new well gets a fresh one (not a reload of the tens of thousands of the world's)
+				for (const std::string& n : { std::string("Fire Pit"), std::string("Gate"), made.Campfire, made.Well, made.Door })
+					if (!n.empty() && m_Gameplay.Find(n)) m_Gameplay.Remove(n);
+				SyncNewGameplay();
 			}
 			std::vector<ITribeBody*> bodies;
 			for (int i = 0; i < workers; ++i)
@@ -454,6 +489,33 @@ namespace GB::Editor
 			m_TribeBodies.erase(std::remove_if(m_TribeBodies.begin(), m_TribeBodies.end(), [&](const std::unique_ptr<ITribeBody>& b) { return IsClanZeroBody(b.get()); }), m_TribeBodies.end());
 			m_Tribe.Clear();
 			return { true, "tribe cleared (the actors stay: actor remove <name>)" };
+		}
+		// V1: the history of the world (GB/Game/History.h): `tribe history [n]` the active clan's last events, `tribe history all [n]` every clan's,
+		// `tribe history of <name>` what a person remembers
+		// V4: the culture of the active clan (what it values, -50..50), which decides its culture buildings
+		if (sub == "culture")
+		{
+			std::string s = ActiveTribe().ClanName() + " (history clan " + std::to_string(ActiveTribe().HistoryClan()) + "):";
+			for (const auto& [value, v] : ActiveTribe().Culture()) s += " " + value + " " + std::to_string(v);
+			return { true, ActiveTribe().Culture().empty() ? s + " no culture" : s };
+		}
+		// V2: what people make of a person: how many know of it, of its deeds, and how they feel about them; and what it values
+		if (sub == "reputation" && a.size() > 1)
+		{
+			const WorldHistory::Reputation r = m_Clans.Past().ReputationOf(a[1]);
+			const Clan* c = m_Clans.ClanOf(a[1]);
+			char b[160];
+			std::snprintf(b, sizeof b, "%s: known by %d, %d deeds told, feeling %+.2f; ", a[1].c_str(), r.Known, r.Deeds, static_cast<double>(r.Score));
+			return { true, b + ValuesReport(m_Values, c ? c->Id : -1, a[1]) };
+		}
+		if (sub == "history")
+		{
+			const WorldHistory& h = m_Clans.Past();
+			const double day = static_cast<double>(ActiveTribe().Config.Needs.DaySeconds);
+			if (a.size() > 2 && a[1] == "of") return { true, h.MemoryReport(a[2] == "me" && !m_Game.Player.empty() ? m_Game.Player : a[2], day, a.size() > 3 ? a[3] : std::string()) };   // ("me": the character played; a kind: only those)
+			const bool all = a.size() > 1 && a[1] == "all";
+			const size_t n = a.size() > (all ? 2u : 1u) ? static_cast<size_t>(std::max(1, std::atoi(a[all ? 2 : 1].c_str()))) : 30u;
+			return { true, h.Report(all ? -1 : ActiveTribe().HistoryClan(), n, day) };
 		}
 		// the chronicle of the clan (Chronicle.h): what it went through, by itself while it lives; the report is Markdown, the series CSV
 		if (sub == "chronicle")
@@ -535,14 +597,19 @@ namespace GB::Editor
 			m_AutoLeaf = leaf;
 			m_Visuals.Cache().Foliage = leaf;   // the procedural crowns and bushes take the season's colour too
 			EntityWorld& w = m_SceneEditor.World();
-			for (const std::string& n : m_Gameplay.Names())
+			// the crowns and bushes of the nodes, listed again only when the systems or the entities change (the colour moves every half second
+			// at the end of a season, and twenty thousand names were built and looked up each time)
+			if (m_FoliageRevision != m_Gameplay.Revision() || m_FoliageEntities != w.Count())
 			{
-				const AbilitySystemComponent* a = m_Gameplay.Find(n);
-				if (!a || !a->HasTag("Resource.Node")) continue;
-				for (const char* part : { " Crown", " Bush" })
-					if (const EntityId id = w.FindByName(n + part); id != NullEntity)
-						if (Entity* e = w.Find(id); e && e->Mesh) e->Mesh->Albedo = leaf;
+				m_FoliageParts.clear();
+				for (const GameplayWorld::Tagged& node : m_Gameplay.WithTag("Resource.Node"))
+					for (const char* part : { " Crown", " Bush" })
+						if (const EntityId id = w.FindByName(*node.Name + part); id != NullEntity) m_FoliageParts.push_back(id);
+				m_FoliageRevision = m_Gameplay.Revision();
+				m_FoliageEntities = w.Count();
 			}
+			for (const EntityId id : m_FoliageParts)
+				if (Entity* e = w.Find(id); e && e->Mesh) e->Mesh->Albedo = leaf;
 		}
 	}
 
@@ -552,12 +619,14 @@ namespace GB::Editor
 		if (m_SeasonVisuals && m_SimTick % 30 == 0) ApplySeasonLook(clock);
 		m_Garden.GrowthRate = SeasonClock::GrowthRate(season);
 		m_Ecology.Update(clock, static_cast<float>(1.0 / 60.0));
-		m_Resources.Update(m_Gameplay, static_cast<float>(1.0 / 60.0), SeasonClock::GrowthRate(season));   // plants and trees regrow with the season
+		// plants and trees regrow with the season: every quarter of a second, with that much time (a map of kilometres has tens of thousands of
+		// nodes, and growing a quarter of a second later is not seen)
+		constexpr uint64_t kRegrowTicks = 15;
+		if (m_SimTick % kRegrowTicks == 0) m_Resources.Update(m_Gameplay, static_cast<float>(kRegrowTicks) / 60.0f, SeasonClock::GrowthRate(season));
 		// rain waters the plots (every five seconds of simulation, so the effect does not depend on the frame rate)
 		const std::string weather = m_Props.Get("weather.preset");
 		if ((weather == "rain" || weather == "lightrain" || weather == "storm") && m_SimTick % 300 == 0)
-			for (const std::string& n : m_Gameplay.Names())
-				if (AbilitySystemComponent* plot = m_Gameplay.Find(n); plot && plot->HasTag("Garden.Plot")) plot->ApplyEffect("Soak");
+			for (const GameplayWorld::Tagged& plot : m_Gameplay.WithTag("Garden.Plot")) plot.System->ApplyEffect("Soak");
 	}
 
 	CommandResult EditorApp::EcologyCommand(const std::vector<std::string>& a)
@@ -697,19 +766,32 @@ namespace GB::Editor
 
 	CommandResult EditorApp::ResourcesCommand(const std::vector<std::string>& a)
 	{
+		FinishWorldBuild();
 		const std::string sub = a.empty() ? "status" : a[0];
 		if (sub == "build")
 		{
 			glm::vec3 origin = m_Orbit.Target;
 			if (a.size() > 2) { origin.x = static_cast<float>(std::atof(a[1].c_str())); origin.z = static_cast<float>(std::atof(a[2].c_str())); }
 			origin.y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(origin.x, origin.z) : 0.0f;
-			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
 			// `resources build x z <workers>`: the patch the node definitions describe (count, spacing and shape per type) for a tribe of that size
 			const int workers = a.size() > 3 ? std::max(1, std::atoi(a[3].c_str())) : 1;
+			// the patch replaces the last one ("Resources"): the systems of its nodes go with it (a new system is made only for a new node)
+			if (const Entity* old = m_SceneEditor.World().Find(m_SceneEditor.World().FindByName("Resources")))
+			{
+				std::vector<EntityId> stack{ old->Id };
+				while (!stack.empty())
+				{
+					const Entity* e = m_SceneEditor.World().Find(stack.back());
+					stack.pop_back();
+					if (!e) continue;
+					if (e->Gameplay) m_Gameplay.Remove(e->Name);
+					stack.insert(stack.end(), e->Children.begin(), e->Children.end());
+				}
+			}
 			const ResourceLayout layout = BuildResourcePatch(m_SceneEditor.World(), origin, m_NodeDefs, workers);
 			if (m_World.IsBuilt()) SnapToGround(m_SceneEditor.World(), layout, [this](float x, float z) { return m_World.GetTerrain().GetHeight(x, z); });
 			m_SceneEditor.Select(NullEntity);
-			SyncGameplay();
+			SyncNewGameplay();   // (the new nodes get their systems; what runs already keeps running)
 			m_SceneEditor.Commit();
 			std::string kinds;
 			for (const auto& [id, n] : PatchCounts(m_NodeDefs, workers)) kinds += (kinds.empty() ? "" : ", ") + std::to_string(n) + " " + id;
@@ -723,16 +805,24 @@ namespace GB::Editor
 			// no density = the abundance of assets/data/bosques.json (rich by default: a new game starts with resources to spare)
 			const float density = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : (m_Nature.Abundance > 0.0f ? m_Nature.Abundance : 1.0f);
 			if (!(density > 0.0f && density <= 10.0f)) return { false, "the density must be above 0 and at most 10" };
-			m_Gameplay.Store(m_SceneEditor.World());   // (see interactives build)
+			// (the seconds of each step go in the answer: on a world of kilometres this is the longest wait of a new game)
+			using Clock = std::chrono::steady_clock;
+			auto lap = [mark = Clock::now()]() mutable { const auto now = Clock::now(); const double s = std::chrono::duration<double>(now - mark).count(); mark = now; return s; };
 			const std::vector<ResourceSpot> spots = PlanWorldNature(ResourceGroundOf(m_World.World()), m_NodeDefs, NatureFor(density), m_World.World().Desc.Seed);
+			const double planned = lap();
 			const ResourceLayout layout = BuildWorldResources(m_SceneEditor.World(), spots, m_NodeDefs);
+			const double built = lap();
 			m_WildResources = density;   // the seed makes them again: a save keeps only what changed of them (EditorSaveHost::BuildBaseline)
 			m_SceneEditor.Select(NullEntity);
-			SyncGameplay();
+			SyncNewGameplay();
+			const double systems = lap();
 			m_SceneEditor.Commit();
+			const double committed = lap();
+			char took[160];
+			std::snprintf(took, sizeof took, " (plan %.1f s, entities %.1f s, systems %.1f s, undo %.1f s)", planned, built, systems, committed);
 			std::string kinds;
 			for (const auto& [id, n] : CountSpots(spots)) kinds += (kinds.empty() ? "" : ", ") + std::to_string(n) + " " + id;
-			return { true, std::to_string(layout.Nodes.size()) + " resource nodes spread over the world (density " + std::to_string(density).substr(0, 4) + ", " + std::to_string(m_Nature.Patches.size()) + " kinds of patch): " + (kinds.empty() ? "none" : kinds) };
+			return { true, std::to_string(layout.Nodes.size()) + " resource nodes spread over the world (density " + std::to_string(density).substr(0, 4) + ", " + std::to_string(m_Nature.Patches.size()) + " kinds of patch): " + (kinds.empty() ? "none" : kinds) + took };
 		}
 		if (sub != "status") return { false, "usage: resources build [x z [workers]] | world [density] | status" };
 			// Grouped by type: "tree: 3 nodes, 11 units, 1 depleted [tree 1: 5, tree 2: 0 (depleted), ...]"
@@ -1297,9 +1387,9 @@ namespace GB::Editor
 			ImVec2 s;
 			if (glm::distance(m_Camera.Position, glm::vec3(camp.x, ground(camp.x, camp.y), camp.y)) < 140.0f && screen(glm::vec3(camp.x, ground(camp.x, camp.y) + 3.2f, camp.y), s))
 			{
-				std::string head = (clanName.empty() ? std::string("Your clan") : "Clan " + clanName) + " camp - " + std::to_string(t.Members().size()) + " people";
-				if (t.HasFire()) head += t.FireBurning() ? ", fire lit" : ", fire OUT";
-				if (const int beds = t.Beds(); beds > 0) head += ", " + std::to_string(beds) + " beds";
+				std::string head = (clanName.empty() ? m_Lang.Text("Your clan's camp") : m_Lang.Text("Camp of the {0}", m_Lang.Name("clan", clanName, clanName))) + " - " + m_Lang.Text("{0} people", static_cast<int>(t.Members().size()));
+				if (t.HasFire()) head += ", " + m_Lang.Text(t.FireBurning() ? "fire lit" : "fire OUT");
+				if (const int beds = t.Beds(); beds > 0) head += ", " + m_Lang.Text("{0} beds", beds);
 				label(ImVec2(s.x, s.y - 2.0f * ImGui::GetTextLineHeight() - 6.0f), head, tint);
 				std::string store;
 				int shown = 0;
@@ -1308,11 +1398,11 @@ namespace GB::Editor
 					const int n = t.Store().Count(id);
 					if (n <= 0 || shown >= 5) continue;
 					const ItemDef* def = m_Items.Find(id);
-					store += (store.empty() ? "" : ", ") + (def ? def->Name : id) + " " + std::to_string(n);
+					store += (store.empty() ? "" : ", ") + m_Lang.Name("item", id, def ? def->Name : std::string()) + " " + std::to_string(n);
 					++shown;
 				}
-				label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), "Store: " + (store.empty() ? std::string("empty") : store), IM_COL32(230, 200, 150, 235));
-				label(s, "(the store is the camp's: leave what you gather here)", IM_COL32(180, 180, 180, 200));
+				label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), m_Lang.Text("Store: {0}", store.empty() ? m_Lang.Text("empty") : store), IM_COL32(230, 200, 150, 235));
+				label(s, m_Lang.Text("(the store is the camp's: leave what you gather here)"), IM_COL32(180, 180, 180, 200));
 			}
 		}
 		// the buildings: a finished one says what it is for, a site how far it is and what it still lacks
@@ -1323,21 +1413,21 @@ namespace GB::Editor
 			const bool done = b.State.Done;
 			quad(b.Pos, 1.4f, done ? IM_COL32(200, 160, 90, 70) : IM_COL32(120, 160, 230, 70), done ? IM_COL32(220, 180, 100, 220) : IM_COL32(130, 170, 240, 220));
 			if (!screen(glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y) + 2.6f, b.Pos.y), s)) continue;
-			std::string text = b.Building;
+			std::string text = m_Lang.Entity(b.Name.empty() ? b.Building : b.Name);
 			if (done)
 			{
-				if (b.Beds > 0) text += " - " + std::to_string(b.Beds) + " beds";
-				if (!b.Station.empty()) text += " - " + b.Station;
-				if (!b.Store.empty()) text += " - store";
+				if (b.Beds > 0) text += " - " + m_Lang.Text("{0} beds", b.Beds);
+				if (!b.Station.empty()) text += " - " + m_Lang.Name("station", b.Station);
+				if (!b.Store.empty()) text += " - " + m_Lang.Text("store");
 				label(s, text, IM_COL32(235, 205, 140, 240));
 			}
 			else
 			{
-				text += " - building " + std::to_string(static_cast<int>(b.State.Progress * 100.0f)) + "% (" + b.State.PhaseName + ")";
+				text += " - " + m_Lang.Text("building {0} % ({1})", static_cast<int>(b.State.Progress * 100.0f), m_Lang.Name("phase", b.State.PhaseName));
 				label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), text, IM_COL32(150, 190, 250, 240));
 				std::string lacks;
-				for (const auto& [item, n] : b.State.Missing) lacks += (lacks.empty() ? "" : ", ") + item + " x" + std::to_string(n);
-				label(s, b.State.Ready ? std::string("needs work (press E beside it)") : lacks.empty() ? std::string("waiting") : "needs " + lacks, IM_COL32(235, 235, 235, 230));
+				for (const auto& [item, n] : b.State.Missing) lacks += (lacks.empty() ? "" : ", ") + std::to_string(n) + " " + m_Lang.Name("item", item);
+				label(s, b.State.Ready ? m_Lang.Text("needs work (press E beside it)") : lacks.empty() ? m_Lang.Text("waiting") : m_Lang.Text("needs {0}", lacks), IM_COL32(235, 235, 235, 230));
 			}
 		}
 
@@ -1360,7 +1450,7 @@ namespace GB::Editor
 			}
 			ImVec2 s;
 			const glm::vec2 mid = f.Centre();
-			if (screen(glm::vec3(mid.x, ground(mid.x, mid.y) + 1.4f, mid.y), s)) label(s, f.Name + " (" + std::to_string(f.Count("grown")) + " ripe)", IM_COL32(240, 220, 120, 235));
+			if (screen(glm::vec3(mid.x, ground(mid.x, mid.y) + 1.4f, mid.y), s)) label(s, f.Name + " (" + m_Lang.Text("{0} ripe", f.Count("grown")) + ")", IM_COL32(240, 220, 120, 235));
 		}
 		for (const Stockpile& st : t.Economy().Stockpiles)
 		{
@@ -1375,16 +1465,15 @@ namespace GB::Editor
 			if (const Actor* actor = m_Actors.Find(m.Name)) at = glm::vec2(actor->GetPosition().x, actor->GetPosition().z);
 			else if (m.Body) at = m.Body->Position();
 			else continue;
-			if (glm::distance(m_Camera.Position, glm::vec3(at.x, ground(at.x, at.y), at.y)) > 90.0f) continue;
+			const bool you = m_Game.Active && m.Name == m_Game.Player;
+			if (!you && glm::distance(m_Camera.Position, glm::vec3(at.x, ground(at.x, at.y), at.y)) > 90.0f) continue;   // (you are marked from any height: from above the camera is far)
 			ImVec2 s;
 			if (!screen(glm::vec3(at.x, ground(at.x, at.y) + 2.5f, at.y), s)) continue;
-			const bool you = m_Game.Active && m.Name == m_Game.Player;
 			if (you) dl->AddCircle(s, 14.0f, IM_COL32(255, 235, 90, 255), 20, 2.5f);
 			const ImU32 color = you ? IM_COL32(255, 235, 90, 255) : m.Dead ? IM_COL32(150, 150, 150, 220) : m.Role == "forager" ? IM_COL32(150, 235, 120, 255) : m.Role == "miner" ? IM_COL32(150, 200, 255, 255)
 				: m.Role == "woodcutter" ? IM_COL32(235, 180, 110, 255) : IM_COL32(255, 255, 255, 255);
-			std::string task = m.Dead ? "dead" + (m.Cause.empty() ? std::string() : " of " + m.Cause) : m.Job.empty() ? std::string("idle") : m.Job;
-			if (!m.Dead && !m.Detail.empty()) task += " " + m.Detail;
-			label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), (you ? "YOU - " : "") + m.Name + " - " + m.Role + (clanName.empty() ? std::string() : " (" + clanName + ")"), color);
+			std::string task = m.Dead ? (m.Cause.empty() ? m_Lang.Text("dead") : m_Lang.Text("dead of {0}", m_Lang.Name("need", m.Cause))) : m_Lang.Doing(m.Job, m.Detail);
+			label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), (you ? m_Lang.Text("YOU") + " - " : std::string()) + m.Name + " - " + m_Lang.Name("role", m.Role) + (clanName.empty() ? std::string() : " (" + m_Lang.Name("clan", clanName, clanName) + ")"), color);
 			label(s, task, IM_COL32(235, 235, 235, 235));
 		}
 		// the thing the interact key would use: its prompt under it, in the world, with the key
@@ -1395,8 +1484,8 @@ namespace GB::Editor
 			{
 				const std::string key = m_Controls.Keys.count("interact") ? m_Controls.Keys.at("interact") : std::string("E");
 				dl->AddCircle(s, 16.0f, IM_COL32(255, 235, 90, 230), 20, 2.0f);
-				label(ImVec2(s.x, s.y + 20.0f), "Interact [" + key + "]", IM_COL32(255, 235, 90, 255));
-				label(ImVec2(s.x, s.y + 20.0f + ImGui::GetTextLineHeight() + 3.0f), m_Game.Prompt, IM_COL32(235, 235, 235, 235));
+				label(ImVec2(s.x, s.y + 20.0f), m_Lang.Text("Interact") + " [" + key + "]", IM_COL32(255, 235, 90, 255));
+				label(ImVec2(s.x, s.y + 20.0f + ImGui::GetTextLineHeight() + 3.0f), m_Lang.Line(m_Game.Prompt), IM_COL32(235, 235, 235, 235));
 			}
 		}
 		}
@@ -1478,6 +1567,7 @@ namespace GB::Editor
 			}
 
 			// H11: what the clan knows of the technologies, and what is not known yet (and who is half-way to it)
+			if (ActiveTribe().Knowledge().Gated() && ImGui::CollapsingHeader("Research", ImGuiTreeNodeFlags_DefaultOpen)) DrawResearch(ActiveTribe().Knowledge());   // U6
 			if (ActiveTribe().Knowledge().Gated() && ImGui::CollapsingHeader("Knowledge", ImGuiTreeNodeFlags_DefaultOpen))
 			{
 				const ClanKnowledge& k = ActiveTribe().Knowledge();

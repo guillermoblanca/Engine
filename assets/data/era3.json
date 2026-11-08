@@ -1,0 +1,229 @@
+{
+  "note": "Era 3, the Iron Age (V8): iron ore, which most lands have but deep, forged into tools for everyone.",
+  "items": [
+    {
+      "category": "resource",
+      "id": "iron_ore",
+      "name": "Iron ore",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Ore.Iron"
+      ],
+      "weight": 2.5
+    },
+    {
+      "category": "resource",
+      "id": "iron_ingot",
+      "name": "Iron ingot",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Metal.Iron"
+      ],
+      "weight": 2.0
+    },
+    {
+      "id": "iron_axe",
+      "name": "Iron axe",
+      "category": "tool",
+      "weight": 2.0,
+      "stack": 1,
+      "tags": [
+        "Item.Tool.Axe.Iron"
+      ],
+      "ability": "Chop",
+      "socket": "RightHand",
+      "power": 4,
+      "speed": 1.6
+    },
+    {
+      "id": "iron_pickaxe",
+      "name": "Iron pickaxe",
+      "category": "tool",
+      "weight": 2.0,
+      "stack": 1,
+      "tags": [
+        "Item.Tool.Pickaxe.Iron"
+      ],
+      "ability": "Mine",
+      "socket": "RightHand",
+      "power": 4,
+      "speed": 1.6
+    }
+  ],
+  "nodes": [
+    {
+      "ability": "Mine",
+      "capacity": 6,
+      "id": "iron_vein",
+      "item": "iron_ore",
+      "kind": "Stone.Iron",
+      "model": "copper_vein",
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 900.0,
+      "requires": "Item.Tool.Pickaxe",
+      "spawn": {
+        "biomes": [
+          "Rock",
+          "Snow",
+          "Forest"
+        ],
+        "max": 10,
+        "maxSlope": 50.0,
+        "perHectare": 8.0,
+        "spacing": 8.0,
+        "zones": {
+          "perKm2": 0.3,
+          "min": 1,
+          "max": 2,
+          "radiusMin": 15.0,
+          "radiusMax": 35.0,
+          "fallback": [
+            "Meadow",
+            "Forest"
+          ]
+        }
+      }
+    }
+  ],
+  "recipes": [
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "iron_ingot",
+      "inputs": {
+        "iron_ore": 2,
+        "wood": 2
+      },
+      "output": "iron_ingot",
+      "station": "forge"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "iron_axe",
+      "inputs": {
+        "iron_ingot": 2,
+        "branch": 2
+      },
+      "output": "iron_axe",
+      "station": "forge"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "iron_pickaxe",
+      "inputs": {
+        "iron_ingot": 2,
+        "branch": 2
+      },
+      "output": "iron_pickaxe",
+      "station": "forge"
+    }
+  ],
+  "techs": [
+    {
+      "id": "forging",
+      "name": "Forging",
+      "era": 6,
+      "requires": [
+        "alloying"
+      ],
+      "recipes": [
+        "iron_ingot",
+        "iron_axe",
+        "iron_pickaxe"
+      ],
+      "buildings": [
+        "smithy"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    }
+  ],
+  "buildings": {
+    "smithy": {
+      "name": "Smithy",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "iron_ingot": 2,
+            "wood": 4
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.35,
+        0.3,
+        0.28
+      ],
+      "station": "forge"
+    }
+  },
+  "eras": [
+    {
+      "id": "iron",
+      "name": "Iron Age",
+      "key": [
+        "forging"
+      ],
+      "from": [
+        "bronze"
+      ],
+      "pull": 0.4,
+      "interest": [
+        "iron_ore"
+      ],
+      "progression": [
+        "alloying",
+        "forging"
+      ],
+      "leap": 300
+    }
+  ],
+  "diplomacy": {
+    "trade": {
+      "values": {
+        "iron_ore": 3.0,
+        "iron_ingot": 6.0,
+        "iron_axe": 10.0,
+        "iron_pickaxe": 10.0
+      }
+    }
+  }
+}

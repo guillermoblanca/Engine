@@ -73,8 +73,10 @@ namespace GB
 	// With buildings (H8, E9): a building can be built once every material of its phases can be had and, when a technology unlocks it (TechDef::Buildings
 	// or its own `tech`), once one of those can be discovered; then its station is there too (a drying rack gives "drying_rack"). A building that can
 	// never be built is a problem (a note when deferred). Without technologies a building's `tech` is only noted.
+	// With crops (the "crops" of the economy section): a field sown with a seed that can be had gives what the crop yields (grain).
+	struct CropSource { std::string Seed; std::vector<std::string> Yields; };
 	ContentReport CheckReachability(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes, const PackRules& rules,
-		const TechTree* techs, const std::map<std::string, BuildingDef>* buildings = nullptr);
+		const TechTree* techs, const std::map<std::string, BuildingDef>* buildings = nullptr, const std::map<std::string, CropSource>* crops = nullptr);
 
 	// A section loader: the part of the content one system owns ("items" reads items, recipes and nodes; "roles" the tribe roles; later interactives,
 	// buildings, techs...). Items does not know the other systems: each registers its own section with ContentPacks. Loading goes Begin (copy the live
@@ -158,7 +160,7 @@ namespace GB
 		static std::vector<PackManifest> Available(const std::string& dir);
 
 	private:
-		struct Document { std::string Name; std::string Text; };
+		struct Document { std::string Name; std::string Text; std::string Pack; };   // Pack: the manifest it came from ("" for a loose file or text)
 		std::string Apply(const std::vector<Document>& docs, const PackRules& rules, ContentReport* report, Options options);
 		std::string Stage(const std::vector<Document>& docs, const PackRules& rules, ContentReport* report, Options options);   // Apply between Begin and End
 		std::string Resolve(const std::string& idOrPath, const std::string& dir, bool top, std::vector<PackManifest>& order, std::vector<std::string>& visiting) const;

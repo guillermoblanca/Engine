@@ -1,0 +1,19 @@
+# V1 (docs/VISION_MUNDO_VIVO.md): the world's history. Two clans live a while; what they go through (buildings that stand, discoveries, couples,
+# first contacts...) is written to the history of the clan world with who, to whom, where and when, and the members remember what they did or saw.
+# The game is saved and loaded and the history and the memories are the same.
+play temperate 5 4 2
+timescale 20
+wait 3000
+qa expect "tribe history all 40" "[1-9][0-9]* events, [1-9][0-9]* memories"
+tribe history all 40
+tribe history of Ana
+game book world story
+wait 5
+shot_ui v1_story.png
+game save v1_history
+qa expect "tribe history all 1" "events"
+game load v1_history
+qa expect "tribe history all 40" "[1-9][0-9]* events, [1-9][0-9]* memories"
+qa check
+qa expect "qa status" "[1-9][0-9]* live checks, 0 violation"
+quit

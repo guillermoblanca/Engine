@@ -1,5 +1,6 @@
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/World/WorldGen.h"
+#include <set>
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -48,10 +49,11 @@ namespace GB
 		{
 		public:
 			explicit Occupancy(float cell) : m_Cell(cell) {}
-			bool Free(const glm::vec2& p, float spacing) const
+			// `clear`: the two radii add up (a node's footprint against a tree or rock: who gathers it stands beside it, not inside the rock)
+			bool Free(const glm::vec2& p, float spacing, bool clear = false) const
 			{
 				// far enough for the widest spacing already in: a node that asked for 9 m must be seen from two cells away too
-				const int reach = static_cast<int>(std::ceil(std::max(spacing, m_Widest) / m_Cell));
+				const int reach = static_cast<int>(std::ceil((clear ? spacing + m_Widest : std::max(spacing, m_Widest)) / m_Cell));
 				const int ci = Cell(p.x), cj = Cell(p.y);
 				for (int dj = -reach; dj <= reach; ++dj)
 					for (int di = -reach; di <= reach; ++di)
@@ -60,7 +62,7 @@ namespace GB
 						if (it == m_Buckets.end()) continue;
 						for (const glm::vec3& q : it->second)   // x, z and the spacing that node asked for: the larger of the two wins
 						{
-							const float need = std::max(spacing, q.z);
+							const float need = clear ? spacing + q.z : std::max(spacing, q.z);
 							const glm::vec2 d = glm::vec2(q.x, q.y) - p;
 							if (d.x * d.x + d.y * d.y < need * need) return false;
 						}
@@ -106,6 +108,7 @@ namespace GB
 		void PlanBase(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, uint32_t seed, float density, Occupancy& taken, Occupancy& blockers,
 			std::vector<ResourceSpot>& spots)
 		{
+		const std::vector<ResourceZone> zones = PlanResourceZones(ground, nodes, seed);
 		std::vector<const ResourceNodeDef*> order;
 		for (const auto& [id, def] : nodes)
 			if (def.Spawn.Placed()) order.push_back(&def);
@@ -142,12 +145,19 @@ namespace GB
 					const int i = c.I, j = c.J;
 					const glm::vec2 p = lo + (glm::vec2(static_cast<float>(i), static_cast<float>(j)) + glm::vec2(0.15f + 0.7f * Unit(Mix(h ^ 1u)), 0.15f + 0.7f * Unit(Mix(h ^ 2u)))) * cell;
 					if (sp.Clump > 0.0f && Clumps(p.x, p.y, 28.0f, salt ^ 0xC1u) < sp.Clump) continue;
+					const ResourceZone* in = nullptr;   // R1
+					if (sp.Zones.PerKm2 > 0.0f)
+					{
+						for (const ResourceZone& z : zones) if (z.Node == def->Id && InResourceZone(z, p, seed)) { in = &z; break; }
+						if (!in) continue;
+					}
 					const std::string biome = ground.Biome(p.x, p.y);
-					if (std::find(sp.Biomes.begin(), sp.Biomes.end(), biome) == sp.Biomes.end()) continue;
+					const bool fallback = in && in->Fallback && std::find(sp.Zones.Fallback.begin(), sp.Zones.Fallback.end(), biome) != sp.Zones.Fallback.end();
+					if (!fallback && std::find(sp.Biomes.begin(), sp.Biomes.end(), biome) == sp.Biomes.end()) continue;
 					if (ground.SlopeDegrees && ground.SlopeDegrees(p.x, p.y) > sp.MaxSlope) continue;
 					if (sp.WaterWithin > 0.0f && !(ground.WaterDistance && ground.WaterDistance(p.x, p.y) <= sp.WaterWithin)) continue;
 					if (ground.WaterDistance && ground.WaterDistance(p.x, p.y) < 1.0f) continue;   // never with its feet in the water
-					if (!ground.Blockers.empty() && !blockers.Free(p, 1.0f)) continue;            // a node's own footprint against each tree or rock's radius
+					if (!ground.Blockers.empty() && !blockers.Free(p, 1.0f, true)) continue;            // a node's own footprint against each tree or rock's radius
 					if (!taken.Free(p, sp.Spacing)) continue;
 					taken.Add(p, sp.Spacing);
 					spots.push_back(MakeSpot(ground, *def, p, h, sp.Spacing));
@@ -214,7 +224,7 @@ namespace GB
 							for (const auto& [d, w] : mix) { if (pick < w) { def = d; break; } pick -= w; }
 							ResourceSpot probe = MakeSpot(ground, *def, p, ph, pd.Spacing);
 							probe.Radius = pd.Spacing * std::sqrt(probe.Scale);   // a big tree wants more room than a sapling
-							if (!ground.Blockers.empty() && !blockers.Free(p, 1.0f)) continue;
+							if (!ground.Blockers.empty() && !blockers.Free(p, 1.0f, true)) continue;
 							if (!taken.Free(p, probe.Radius)) continue;
 							taken.Add(p, probe.Radius);
 							spots.push_back(std::move(probe));
@@ -224,6 +234,63 @@ namespace GB
 				}
 			}
 		}
+	}
+
+	std::vector<ResourceZone> PlanResourceZones(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, uint32_t seed)
+	{
+		std::vector<ResourceZone> out;
+		if (!ground.Biome) return out;
+		const glm::vec2 lo = ground.Min, hi = ground.Max;
+		if (hi.x <= lo.x || hi.y <= lo.y) return out;
+		const float km2 = (hi.x - lo.x) * (hi.y - lo.y) / 1.0e6f;
+		const float cell = 60.0f;   // the candidate centres: one per cell, jittered, visited in the order of their hash
+		const int ni = static_cast<int>(std::floor((hi.x - lo.x) / cell)), nj = static_cast<int>(std::floor((hi.y - lo.y) / cell));
+		for (const auto& [id, def] : nodes)
+		{
+			const ResourceSpawnDef& sp = def.Spawn;
+			const ResourceSpawnDef::ZoneRule& rule = sp.Zones;
+			if (!sp.Placed() || rule.PerKm2 <= 0.0f) continue;
+			int want = std::max(rule.Min, static_cast<int>(std::lround(rule.PerKm2 * km2)));
+			if (rule.Max > 0) want = std::min(want, rule.Max);
+			const uint32_t salt = Mix(seed * 0x2C1B3C6Du ^ HashName("zone:" + id));
+			struct Cell { uint32_t H; int I, J; };
+			std::vector<Cell> cells;
+			for (int j = 0; j < nj; ++j)
+				for (int i = 0; i < ni; ++i) cells.push_back({ Hash(i, j, salt), i, j });
+			std::sort(cells.begin(), cells.end(), [](const Cell& a, const Cell& b) { return a.H != b.H ? a.H < b.H : a.J != b.J ? a.J < b.J : a.I < b.I; });
+			std::vector<ResourceZone> mine;
+			// its own biomes first; then, if the map has too few places for Min of them, the fallback biomes
+			auto choose = [&](const std::vector<std::string>& biomes, int most, bool fallback)
+			{
+				for (const Cell& c : cells)
+				{
+					if (static_cast<int>(mine.size()) >= most) break;
+					const glm::vec2 centre = lo + (glm::vec2(static_cast<float>(c.I), static_cast<float>(c.J)) + glm::vec2(Unit(Mix(c.H ^ 1u)), Unit(Mix(c.H ^ 2u)))) * cell;
+					const float radius = rule.RadiusMin + (rule.RadiusMax - rule.RadiusMin) * Unit(Mix(c.H ^ 3u));
+					if (centre.x - radius < lo.x || centre.y - radius < lo.y || centre.x + radius > hi.x || centre.y + radius > hi.y) continue;
+					const std::string biome = ground.Biome(centre.x, centre.y);
+					if (std::find(biomes.begin(), biomes.end(), biome) == biomes.end()) continue;
+					// a type that keeps to the water (clay, salt) has its zone on the water's edge, not out on the lake (where none of it can lie)
+					if (sp.WaterWithin > 0.0f && !(ground.WaterDistance && ground.WaterDistance(centre.x, centre.y) <= std::max(sp.WaterWithin, 0.5f * radius))) continue;
+					if (sp.WaterWithin > 0.0f && ground.WaterDistance(centre.x, centre.y) < 1.0f) continue;
+					// zones of one type keep apart: a few places on the map, not one big one
+					if (std::any_of(mine.begin(), mine.end(), [&](const ResourceZone& z) { return glm::distance(z.Centre, centre) < 2.0f * (z.Radius + radius); })) continue;
+					mine.push_back({ id, centre, radius, fallback });
+				}
+			};
+			choose(sp.Biomes, want, false);
+			if (!rule.Fallback.empty()) choose(rule.Fallback, std::min(want, rule.Min), true);
+			out.insert(out.end(), mine.begin(), mine.end());
+		}
+		return out;
+	}
+
+	bool InResourceZone(const ResourceZone& zone, const glm::vec2& p, uint32_t seed)
+	{
+		const float d = glm::distance(p, zone.Centre) / std::max(zone.Radius, 1.0f);
+		if (d > 1.4f) return false;
+		const uint32_t salt = Mix(seed * 0x2C1B3C6Du ^ HashName("edge:" + zone.Node));
+		return d + 0.6f * (Clumps(p.x, p.y, 0.3f * zone.Radius + 4.0f, salt) - 0.5f) <= 1.0f;   // a ragged edge, not a circle
 	}
 
 	std::vector<ResourceSpot> PlanWorldResources(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, uint32_t seed, float density)
@@ -249,13 +316,33 @@ namespace GB
 
 	bool NatureConfig::operator==(const NatureConfig& o) const { return NatureConfigToJson(*this) == NatureConfigToJson(o); }
 
+	std::string LoadNatureSection(const std::string& json, NatureConfig& out)
+	{
+		const nlohmann::json doc = nlohmann::json::parse(json, nullptr, false);
+		if (!doc.is_object() || !doc.contains("nature")) return {};
+		return ParseNatureConfig(json, out);
+	}
+
+	std::vector<std::string> UnplacedNodes(const std::map<std::string, ResourceNodeDef>& nodes, const NatureConfig& nature)
+	{
+		std::set<std::string> inPatch;
+		for (const NaturePatchDef& p : nature.Patches)
+			for (const NaturePatchMix& m : p.Mix) inPatch.insert(m.Node);
+		std::vector<std::string> out;
+		for (const auto& [id, n] : nodes)
+			if (!n.Spawn.Placed() && n.Patch.Count <= 0 && n.Patch.PerWorker <= 0 && !inPatch.count(id))
+				out.push_back("node '" + id + "' never appears in a world: no spawn by biome, no place in a camp's patch, no nature patch");
+		return out;
+	}
+
 	std::string ParseNatureConfig(const std::string& text, NatureConfig& out)
 	{
 		using Json = nlohmann::json;
 		static const char* const kBiomes[] = { "Water", "Shore", "Meadow", "Forest", "Rock", "Snow", "Dunes" };
 		try
 		{
-			const Json j = Json::parse(text);
+			const Json doc = Json::parse(text);
+			const Json& j = doc.is_object() && doc.contains("nature") ? doc["nature"] : doc;
 			if (!j.is_object()) return "the nature config must be an object";
 			NatureConfig c;
 			c.Abundance = j.value("abundance", 1.0f);

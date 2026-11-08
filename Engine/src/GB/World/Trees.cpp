@@ -378,15 +378,37 @@ namespace GB
 		}
 	}
 
+	namespace
+	{
+		// The bark and leaf images depend on nothing of the world: painted once in the process (seconds of work), on whichever thread asks first
+		// (the static is initialised once even when two threads ask together).
+		struct TreeImages { Image Bark, BarkPalm, Foliage[5]; };
+		const TreeImages& Images()
+		{
+			static const TreeImages images = []
+			{
+				TreeImages t;
+				t.Bark = MakeBark(false);
+				t.BarkPalm = MakeBark(true);
+				for (int kind = 0; kind < 5; ++kind) t.Foliage[kind] = MakeFoliage(kind);
+				return t;
+			}();
+			return images;
+		}
+	}
+
+	void TreeFactory::PrepareTextures() { (void)Images(); }
+
 	TreeFactory::TreeFactory()
 	{
-		m_Bark = std::make_unique<Texture2D>(MakeBark(false), TextureEncoding::SRGB);
-		m_BarkPalm = std::make_unique<Texture2D>(MakeBark(true), TextureEncoding::SRGB);
-		m_Leaf = std::make_unique<Texture2D>(MakeFoliage(0), TextureEncoding::SRGB);
-		m_LeafRound = std::make_unique<Texture2D>(MakeFoliage(3), TextureEncoding::SRGB);
-		m_LeafMaple = std::make_unique<Texture2D>(MakeFoliage(4), TextureEncoding::SRGB);
-		m_Needle = std::make_unique<Texture2D>(MakeFoliage(1), TextureEncoding::SRGB);
-		m_Frond = std::make_unique<Texture2D>(MakeFoliage(2), TextureEncoding::SRGB);
+		const TreeImages& images = Images();
+		m_Bark = std::make_unique<Texture2D>(images.Bark, TextureEncoding::SRGB);
+		m_BarkPalm = std::make_unique<Texture2D>(images.BarkPalm, TextureEncoding::SRGB);
+		m_Leaf = std::make_unique<Texture2D>(images.Foliage[0], TextureEncoding::SRGB);
+		m_LeafRound = std::make_unique<Texture2D>(images.Foliage[3], TextureEncoding::SRGB);
+		m_LeafMaple = std::make_unique<Texture2D>(images.Foliage[4], TextureEncoding::SRGB);
+		m_Needle = std::make_unique<Texture2D>(images.Foliage[1], TextureEncoding::SRGB);
+		m_Frond = std::make_unique<Texture2D>(images.Foliage[2], TextureEncoding::SRGB);
 	}
 
 	TreeFactory::~TreeFactory() = default;
@@ -824,6 +846,7 @@ namespace GB
 		const float boundsRadius = 1.1f * glm::length(glm::vec2(top * 0.5f, CrownRadius + 0.5f));
 		RenderObject t;
 		t.BoundingCenter = boundsCenter; t.BoundingRadius = boundsRadius; t.MaxDistance = maxDistance;
+		t.Instanced = true;   // (every tree of this variant: the same trunk mesh and material)
 		t.MeshPtr = Trunk.get();
 		t.Mat = TrunkMaterial;
 		t.Transform = transform;
@@ -832,6 +855,7 @@ namespace GB
 		{
 			RenderObject f;
 			f.BoundingCenter = boundsCenter; f.BoundingRadius = boundsRadius; f.MaxDistance = maxDistance;
+			f.Instanced = true;
 			f.MeshPtr = Foliage.get();
 			f.Mat = FoliageMaterial;
 			f.Transform = transform;

@@ -1,0 +1,12 @@
+{
+  "id": "era7",
+  "name": "Era 7 · Eléctrica",
+  "era": 7,
+  "version": "1.0",
+  "depends": [
+    "era6"
+  ],
+  "files": [
+    "era7.json"
+  ]
+}

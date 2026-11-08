@@ -80,7 +80,7 @@ namespace GB
 
 		std::vector<Field> PlayerFields(PlayerRules& r)
 		{
-			return { S("role", r.Role), B("mortal", r.Mortal), F("floorHealth", r.FloorHealth), F("reach", r.Reach), F("campReach", r.CampReach), F("giftBond", r.GiftBond),
+			return { S("role", r.Role), B("mortal", r.Mortal), L("mortalCauses", r.MortalCauses), F("floorHealth", r.FloorHealth), F("reach", r.Reach), F("campReach", r.CampReach), F("giftBond", r.GiftBond),
 				F("talkBond", r.TalkBond), F("talkSeconds", r.TalkSeconds), F("teachAmount", r.TeachAmount), F("marryBond", r.MarryBond), F("visitRadius", r.VisitRadius) };
 		}
 		std::vector<Field> StandingFields(PlayerRules& r)
@@ -117,7 +117,8 @@ namespace GB
 		ControlRules c;
 		c.Keys = { { "interact", "E" }, { "eat", "F" }, { "drink", "R" }, { "deposit", "G" }, { "sleep", "Z" }, { "clan", "Tab" }, { "jobs", "J" }, { "claim", "C" },
 			{ "pause", "P" }, { "faster", "Equal" }, { "slower", "Minus" }, { "save", "F5" }, { "load", "F9" }, { "help", "H" }, { "view", "V" }, { "quit", "Escape" },
-			{ "inventory", "I" }, { "people", "T" }, { "build", "B" }, { "attack", "X" }, { "block", "Q" } };
+			{ "inventory", "I" }, { "people", "T" }, { "build", "B" }, { "attack", "X" }, { "block", "Q" }, { "console", "GraveAccent" },
+			{ "village", "U" }, { "homes", "Y" }, { "clans", "O" }, { "tech", "K" }, { "map", "M" }, { "story", "N" } };
 		return c;
 	}
 
@@ -224,6 +225,7 @@ namespace GB
 		j["proposals"] = proposals;
 		j["next"] = NextProposal;
 		j["dayTimer"] = DayTimer;
+		if (!Aim.empty()) { j["aim"] = Aim; j["aimBy"] = AimBy; }
 		return j.dump();
 	}
 
@@ -266,6 +268,8 @@ namespace GB
 				}
 			read.NextProposal = j.value("next", 1);
 			read.DayTimer = j.value("dayTimer", 0.0);
+			read.Aim = j.value("aim", std::string());
+			read.AimBy = j.value("aimBy", std::string());
 		}
 		catch (const Json::exception&) { return false; }
 		*this = std::move(read);

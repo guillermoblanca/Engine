@@ -1,19 +1,23 @@
 #!/usr/bin/env python3
-"""Builds the project wiki: one self-contained HTML page (docs/wiki/index.html) from
+"""Builds the project wiki: one self-contained HTML page (../documentation/wiki/index.html) from
 
-  * docs/wiki/data/rules.json   what the rules say about themselves (editor command `docs export docs/wiki/data/rules.json`)
-  * assets/data/*.json          items, recipes and resource nodes
-  * docs/*.md                   the written documents
+  * ../documentation/wiki/data/rules.json   what the rules say about themselves (editor command
+                                            `docs export ../documentation/wiki/data/rules.json`)
+  * assets/data/*.json                      items, recipes and resource nodes
+  * ../documentation/**/*.md                the written documents (looked up by file name, in any subfolder)
 
-Usage:  python tools/make_wiki.py [--out docs/wiki/index.html]
+The documentation lives outside the engine, in D:/__game_engine__/documentation (its own git repository).
+
+Usage:  python tools/make_wiki.py [--out ../documentation/wiki/index.html]
 
 The page needs no server and no network: open it in a browser. Regenerate it after changing the rules or the documents
-(`tools/make_wiki.cmd` or the commands in docs/wiki/README.md do the whole sequence).
+(`tools/make_wiki.cmd` or the commands in ../documentation/wiki/README.md do the whole sequence).
 """
 import argparse
 import html
 import json
 import re
+import os
 import sys
 from pathlib import Path
 
@@ -23,10 +27,22 @@ except ImportError:  # pragma: no cover
     sys.exit('This script needs the "markdown" package: pip install markdown')
 
 ROOT = Path(__file__).resolve().parent.parent
-DOCS = ROOT / 'docs'
+DOCS = ROOT.parent / 'documentation'   # the docs left the engine on 2026-11-08
+
+
+def find_doc(name):
+    """Docs are sorted into subfolders by discipline; DOC_LIST keeps bare names, so look them up anywhere under DOCS."""
+    direct = DOCS / name
+    if direct.exists():
+        return direct
+    hits = sorted(q for q in DOCS.rglob(name) if 'wiki' not in q.relative_to(DOCS).parts[:1] and '.git' not in q.parts)
+    return hits[0] if hits else direct
 
 # documents shown in the wiki, in order: (file, group)
 DOC_LIST = [
+    ('GDD.md', 'GDD'),
+    ('VISION_MUNDO_VIVO.md', 'GDD'),
+    ('PLAN_GAMEPLAY.md', 'GDD'),
     ('JUGAR.md', 'Jugar'),
     ('PLAN_SOCIEDAD_VIVA.md', 'Plan'),
     ('PROPUESTA_HABILIDADES_Y_ECONOMIA.md', 'Plan'),
@@ -34,6 +50,14 @@ DOC_LIST = [
     ('PLAN_JUGABILIDAD.md', 'Plan'),
     ('ESTUDIO_ERA1.md', 'Plan'),
     ('INFORME_CALIDAD.md', 'Plan'),
+    ('PLAN_SIMULACION_NATURAL.md', 'Plan'),
+    ('REVISION_IA_TRIBUS.md', 'Plan'),
+    ('FEEDBACK.md', 'Plan'),
+    ('SUBSISTEMAS.md', 'Producción'),
+    ('DEPENDENCIAS.md', 'Producción'),
+    ('BACKLOG.md', 'Producción'),
+    ('HITOS.md', 'Producción'),
+    ('PIPELINE.md', 'Producción'),
     ('TRIBU.md', 'Sistemas'),
     ('IA.md', 'Sistemas'),
     ('NAVEGACION.md', 'Sistemas'),
@@ -75,6 +99,15 @@ DOC_LIST = [
     ('fisica.md', 'Motor'),
     ('audio.md', 'Motor'),
     ('qa.md', 'Motor'),
+    ('GRAFO_TERRENO.md', 'Motor'),
+    ('NAVMESH_INCREMENTAL.md', 'Motor'),
+    ('MURALLAS.md', 'Motor'),
+    ('ARQUITECTURA_REVISION.md', 'Arquitectura'),
+    ('CICLO_VIDA_ACTOR_ASSET.md', 'Arquitectura'),
+    ('unity-renderer-study.md', 'Arquitectura'),
+    ('EDITORGAMEPLAY_REFACTOR.md', 'Editor'),
+    ('REFACTOR_EDITOR.md', 'Editor'),
+    ('TAREAS_EDITOR.md', 'Editor'),
 ]
 
 e = html.escape
@@ -135,11 +168,21 @@ def render_doc(path, known):
     text = re.sub(r'!\[([^\]]*)\]\([^)]*\)', r'*[imagen: \1]*', text)  # the wiki is text only
     body = markdown.markdown(text, extensions=['tables', 'fenced_code', 'sane_lists'])
 
+    wiki_dir = DOCS / 'wiki'
+
     def link(m):
         target = m.group(1)
         name = Path(target.split('#')[0]).name
-        return f'href="#doc-{slug(name)}"' if name in known else f'href="{target}"'
-    body = re.sub(r'href="([^"]+\.md(?:#[^"]*)?)"', link, body)
+        if name in known and target.split('#')[0].endswith('.md'):
+            return f'href="#doc-{slug(name)}"'
+        if re.match(r'^[a-z]+:|^#|^/', target):
+            return m.group(0)
+        # any other relative link is relative to the document: make it relative to the wiki page instead
+        rel_path, _, frag = target.partition('#')
+        dest = (path.parent / rel_path).resolve()
+        new = os.path.relpath(dest, wiki_dir).replace('\\', '/') + (f'#{frag}' if frag else '')
+        return f'href="{new}"'
+    body = re.sub(r'href="([^"]+)"', link, body)
     return body
 
 
@@ -156,8 +199,8 @@ def section_home(rules, content, docs_status):
            'Usa el buscador de arriba para encontrar cualquier habilidad, atributo, etiqueta u objeto.</p>',
            '<div class="cards">' + ''.join(f'<div class="card"><b>{n}</b><span>{e(t)}</span></div>' for t, n in cards) + '</div>',
            '<h2>Cómo se actualiza</h2>',
-           '<ol><li>En el editor, con las demos construidas: <code>docs export docs/wiki/data/rules.json</code> (o <code>tools/make_wiki.cmd</code>, que lo hace sin ventana).</li>'
-           '<li><code>python tools/make_wiki.py</code> reconstruye <code>docs/wiki/index.html</code>.</li></ol>',
+           '<ol><li>En el editor, con las demos construidas: <code>docs export ../documentation/wiki/data/rules.json</code> (o <code>tools/make_wiki.cmd</code>, que lo hace sin ventana).</li>'
+           '<li><code>python tools/make_wiki.py</code> reconstruye <code>../documentation/wiki/index.html</code>.</li></ol>',
            '<h2>Mapa</h2><ul>'
            '<li><a href="#empezar"><b>Empezar</b></a>: compilar, abrir el editor con la tribu y los comandos exactos (también sin ventana, para agentes de otro equipo); <a href="#comandos">lista completa de comandos</a>.</li>'
            '<li><a href="#habilidades">Habilidades</a>: el árbol de lo que un personaje puede hacer, con requisitos, costes, enfriamientos y animaciones.</li>'
@@ -678,7 +721,7 @@ panel WorldState on</code></pre>
 <tr><td>Habilidades</td><td><code>ability list &lt;nombre&gt;</code> · <code>ability activate Chop "tree 1" &lt;actor&gt;</code></td></tr>
 <tr><td>Guardar y cargar</td><td><code>save s1</code> · <code>load s1</code> · <code>quicksave</code> · <code>quickload</code> · <code>replay</code></td></tr>
 <tr><td>Contenido en datos</td><td><code>content status</code> · <code>content export f.json</code> · <code>content load f.json</code></td></tr>
-<tr><td>Esta wiki</td><td><code>docs export docs/wiki/data/rules.json</code> y <code>python tools/make_wiki.py</code> (o <code>tools\\make_wiki.cmd</code>)</td></tr>
+<tr><td>Esta wiki</td><td><code>docs export ../documentation/wiki/data/rules.json</code> y <code>python tools/make_wiki.py</code> (o <code>tools\\make_wiki.cmd</code>)</td></tr>
 <tr><td>Capturas</td><td><code>shot_ui fichero.png</code></td></tr>
 <tr><td>Salir</td><td><code>quit</code></td></tr></table>
 <p>La lista completa y su ayuda está en la sección <a href="#comandos">Comandos</a>. En la consola del editor, <code>help</code> la enseña también.</p>
@@ -722,7 +765,7 @@ def section_docs(rendered):
     groups = {}
     for name, group, body in rendered:
         groups.setdefault(group, []).append((name, body))
-    out = ['<h1>Documentos</h1><p class="lead">Los documentos del repositorio (<code>docs/</code>), tal cual.</p>']
+    out = ['<h1>Documentos</h1><p class="lead">Los documentos del proyecto (<code>documentation/</code>, fuera del motor), tal cual.</p>']
     for g, lst in groups.items():
         out.append(f'<h2>{e(g)}</h2><ul>' + ''.join(f'<li><a href="#doc-{slug(n)}">{e(n)}</a></li>' for n, _ in lst) + '</ul>')
     return '\n'.join(out)
@@ -806,13 +849,13 @@ def main():
     known = {name for name, _ in DOC_LIST}
     rendered = []
     for name, group in DOC_LIST:
-        p = DOCS / name
+        p = find_doc(name)
         if p.exists():
             rendered.append((name, group, render_doc(p, known)))
 
     # the status table of the plan is shown on the home page
     status = ''
-    plan = DOCS / 'PLAN_SOCIEDAD_VIVA.md'
+    plan = find_doc('PLAN_SOCIEDAD_VIVA.md')
     if plan.exists():
         text = plan.read_text(encoding='utf-8')
         m = re.search(r'(\*\*Estado de los hitos\*\*.*?)(?=\n### |\Z)', text, re.S)   # the one status table, at the top of section 4
@@ -853,7 +896,7 @@ def main():
             g_last = group
         sid = f'doc-{slug(name)}'
         nav.append(f'<a href="#{sid}">{e(name)}</a>')
-        body.append(f'<section id="{sid}" data-search="{e(name.lower())}"><p class="muted">docs/{e(name)}</p>{doc}</section>')
+        body.append(f'<section id="{sid}" data-search="{e(name.lower())}"><p class="muted">documentation/{e(str(find_doc(name).relative_to(DOCS)).replace(chr(92), "/"))}</p>{doc}</section>')
 
     page = (f'<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>Wiki GB Engine</title><style>{CSS}</style></head><body>'

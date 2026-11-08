@@ -1,4 +1,5 @@
 #include "GB/Gameplay/Interactives.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -217,45 +218,7 @@ namespace GB
 
 	std::map<std::string, InteractiveDef> DefaultInteractives()
 	{
-		// campfire: a ring of stones and a log; flame and light appear when it burns
-		InteractiveDef fire;
-		fire.Id = "fire_pit";
-		fire.Kind = "campfire";
-		fire.Name = "Fire Pit";
-		fire.Stand = { 0.0f, 0.0f, -1.6f };
-		fire.Tags = { "Interactive.Campfire", "State.Unlit" };
-		fire.Attributes = { { "Fuel", 0.0f, 0.0f, 10.0f } };
-		InteractiveAbility stoke = Ability("Stoke", "plant", "stoke", "Event.Fuel.Add", "puts a piece of wood or a branch in a campfire (needs one in the bag)");
-		stoke.Requires = { "Item.Resource.Wood" };
-		fire.Abilities = { stoke };
-
-		// well: a ring of stones with a roof; it holds water that comes back
-		InteractiveDef well;
-		well.Id = "well";
-		well.Kind = "well";
-		well.Name = "Well";
-		well.At = { 6.0f, 0.0f, 0.0f };
-		well.Stand = { 0.0f, 0.0f, -1.7f };
-		well.Tags = { "Interactive.Well" };
-		well.Attributes = { { "Water", 6.0f, 0.0f, 6.0f } };
-		InteractiveAbility draw = Ability("DrawWater", "pick_fruit", "draw", "Event.Water.Draw", "fills the bag with water from a well");
-		draw.TargetMin = { { "Water", 1.0f } };
-		well.Abilities = { draw };
-
-		// door in a fence: the hinge turns the panel
-		InteractiveDef gate;
-		gate.Id = "gate";
-		gate.Kind = "door";
-		gate.Name = "Gate";
-		gate.At = { -6.0f, 0.0f, 0.0f };
-		gate.Stand = { 0.0f, 0.0f, -1.3f };
-		gate.Tags = { "Interactive.Door", "State.Closed" };
-		InteractiveAbility open = Ability("OpenDoor", "pick_fruit", "open", "Event.Door.Open", "opens a door");
-		open.TargetBlocked = { "State.Open" };
-		InteractiveAbility close = Ability("CloseDoor", "pick_fruit", "close", "Event.Door.Close", "closes a door");
-		close.TargetRequires = { "State.Open" };
-		gate.Abilities = { open, close };
-		return { { fire.Id, fire }, { well.Id, well }, { gate.Id, gate } };
+		return Shipped().Interactives;   // what the data says ("interactives": world.json)
 	}
 
 	std::string LoadInteractives(const std::string& json, std::map<std::string, InteractiveDef>& defs)
@@ -504,9 +467,10 @@ namespace GB
 			return m_Burn.back().second;
 		};
 		const InteractiveDef plain;
-		for (const std::string& name : m_Gameplay->Names())
+		for (const TaggedSystems::Entry& entry : m_Kinds.Of(*m_Gameplay))   // the interactives only, not the thousands of nodes of a big world
 		{
-			AbilitySystemComponent* a = m_Gameplay->Find(name);
+			const std::string& name = *entry.Name;
+			AbilitySystemComponent* a = entry.System;
 			if (const auto bound = m_Bound.find(name); bound == m_Bound.end() || bound->second != a) Listen(name, a);   // one made since Bind
 			const InteractiveDef* found = DefOf(name, *a);
 			const InteractiveDef& def = found ? *found : plain;

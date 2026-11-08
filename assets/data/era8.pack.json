@@ -1,0 +1,12 @@
+{
+  "id": "era8",
+  "name": "Era 8 · Información",
+  "era": 8,
+  "version": "1.0",
+  "depends": [
+    "era7"
+  ],
+  "files": [
+    "era8.json"
+  ]
+}

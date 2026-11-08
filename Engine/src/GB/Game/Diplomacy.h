@@ -90,6 +90,8 @@ namespace GB
 		float MinAttitude = 0.15f;      // clans this fond of each other show what they know at their meetings
 		float Teach = 0.5f;             // understanding an envoy gains of a technology the other shows it (H11: at 1 it knows it)
 		float VisitEvery = 900.0f;      // friendly clans with nothing to trade but something to teach meet this often
+		int Rumours = 2;                // V2: news each envoy tells the other at a meeting (GB/Game/History.h)
+		float NewsAge = 1200.0f;        // V2: ... only what happened at least this long ago (fresh news is still told round its own fire): news crosses in days
 		bool operator==(const ExchangeRules&) const = default;
 	};
 
@@ -115,6 +117,32 @@ namespace GB
 		bool operator==(const PactRules&) const = default;
 	};
 
+	// N7 (docs/PLAN_SIMULACION_NATURAL.md): when a clan splits. A clan that needs for its next step something it knows only far away (past
+	// OutpostReach) sends households to found an outpost by it (OutpostMembers or more living); a big clan (MinMembers, MinHouseholds) sends a
+	// part of its households (Share of its people, whole households) to a home of their own MinApart from every camp. At most one split a clan
+	// every Every x 3 seconds; a new clan starts as kin of the old one.
+	struct FissionRules
+	{
+		float Every = 600.0f;
+		int MinMembers = 12;
+		int MinHouseholds = 3;
+		float Share = 0.4f;
+		float MinApart = 120.0f;
+		float OutpostReach = 150.0f;
+		int OutpostMembers = 8;
+		bool operator==(const FissionRules&) const = default;
+	};
+
+	// V7 (docs/VISION_MUNDO_VIVO.md): the ranks a settlement climbs as it grows: the last one whose people and finished buildings it has. A rank
+	// is history when it is reached ("the Blue become a town"), and a building may ask for one (BuildingDef::Rank: the town hall of a town).
+	struct RankDef
+	{
+		std::string Id, Name;
+		int People = 0;
+		int Buildings = 0;
+		bool operator==(const RankDef&) const = default;
+	};
+
 	struct DiplomacyRules
 	{
 		TerritoryRules Territory;
@@ -124,14 +152,17 @@ namespace GB
 		ExchangeRules Exchange;
 		MarriageRules Marriage;
 		PactRules Pacts;
+		FissionRules Fission;
 		uint32_t Seed = 1;
+		std::vector<RankDef> Ranks;   // V7: in order, lowest first (empty: no ranks); "ranks": [ { "id", "name", "people", "buildings" } ]
 		bool operator==(const DiplomacyRules&) const = default;
 	};
 
 	DiplomacyRules DefaultDiplomacyRules();   // assets/data/era1.json says the same in its "diplomacy" section
 	// { "diplomacy": { "seed": 1, "territory": { "every", "reach", ... }, "encounters": { ... }, "relations": { "events": {}, "grievances": {}, "openness": {},
-	//   "aggression": {}, ... }, "trade": { ..., "values": {} }, "exchange": { ... }, "marriage": { ... }, "pacts": { ... } } }. Each part replaces that
-	// part whole (what it does not say is the default); a file without the section changes nothing; on a mistake it returns why and changes nothing.
+	//   "aggression": {}, ... }, "trade": { ..., "values": {} }, "exchange": { ... }, "marriage": { ... }, "pacts": { ... } } }. What a part says goes
+	// onto what was loaded before it (V5: a later pack changes only the values it gives, and adds to the maps); a file without the section changes
+	// nothing; on a mistake it returns why and changes nothing.
 	std::string LoadDiplomacyRules(const std::string& json, DiplomacyRules& rules);
 	std::string LoadDiplomacyRulesFile(const std::string& path, DiplomacyRules& rules);
 	std::string DiplomacyRulesToJson(const DiplomacyRules& rules);   // one JSON object, as the section reads it back

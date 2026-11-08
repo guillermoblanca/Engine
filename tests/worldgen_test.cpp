@@ -185,6 +185,49 @@ int main()
 		Check(same == n, "ResourceGroundOf gives the baked biome and distance to the water (0 where the walkers are in the water)");
 	}
 
+	// ---- generator 4: the world is a terrain graph (MakeWorldGraph), with the same invariants as every other generator
+	{
+		const auto t4 = std::chrono::steady_clock::now();
+		const GB::GeneratedWorld w4 = GB::WorldGenerator::GenerateData(Small(WorldType::Temperate, 5, 4));
+		std::printf("info: temperate 5 (generator 4, a terrain graph) in %.0f ms: %zu trees, %zu rocks\n",
+			std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t4).count(), w4.Trees.size(), w4.Rocks.size());
+		Audit(w4, "temperate 5 v4");
+		Check(w4.TerrainRef->HasLake() && w4.TerrainRef->GetRiver(), "generator 4: a temperate world has a lake and a river");
+		Check(w4.Trees.size() > 40 && !w4.Rocks.empty(), "generator 4: and trees and rocks");
+		Check(w4.BiomeField.N == 161 && w4.MoistureField.N == 161, "generator 4: the biomes and the moisture come from the graph");
+		const glm::vec2 c = w4.TerrainRef->GetLakeCenter();
+		Check(w4.BiomeAt(c.x, c.y) == GB::Biome::Water && w4.TerrainRef->GetHeight(c.x, c.y) < w4.TerrainRef->GetWaterLevel() - 0.5f, "generator 4: the lake is dug, and it is water");
+		const GB::GeneratedWorld w4again = GB::WorldGenerator::GenerateData(Small(WorldType::Temperate, 5, 4));
+		Check(SameHeights(w4, w4again) && SamePlacements(w4, w4again) && w4.Maps.Biomes == w4again.Maps.Biomes, "generator 4: the same seed gives the same world, bit for bit");
+		Check(!SameHeights(w4, GB::WorldGenerator::GenerateData(Small(WorldType::Temperate, 6, 4))), "generator 4: another seed, another world");
+		const GB::GeneratedWorld v3 = GB::WorldGenerator::GenerateData(Small(WorldType::Temperate, 5, 3));
+		Check(!SameHeights(w4, v3), "generator 4 is not generator 3 (whose worlds keep their own code)");
+
+		const GB::GeneratedWorld a4 = GB::WorldGenerator::GenerateData(Small(WorldType::Alpine, 2, 4));
+		Audit(a4, "alpine 2 v4");
+		const auto s4 = a4.BiomeShares();
+		Check(a4.SnowLine < 1e8f && s4[static_cast<size_t>(GB::Biome::Snow)] > 0.02f && s4[static_cast<size_t>(GB::Biome::Rock)] > 0.01f, "generator 4: an alpine world has snow and bare rock");
+		Check(!a4.TerrainRef->GetSurfaceLayers().empty(), "generator 4: an alpine world shows rock on its faces");
+
+		const GB::GeneratedWorld d4 = GB::WorldGenerator::GenerateData(Small(WorldType::Desert, 3, 4));
+		Audit(d4, "desert 3 v4");
+		Check(d4.BiomeShares()[static_cast<size_t>(GB::Biome::Dunes)] > 0.99f && d4.WaterDistanceAt(0.0f, 0.0f) >= 1e8f, "generator 4: a desert is dunes, far from any water");
+		Check(!d4.TerrainRef->GetCrestPoints().empty() && !d4.Trees.empty(), "generator 4: a desert keeps its dune crests (blowing sand) and its palms");
+		const GB::GeneratedWorld d3 = GB::WorldGenerator::GenerateData(Small(WorldType::Desert, 3, 3));
+		Check(SameHeights(d4, d3), "generator 4's dunes node rebuilds the built-in dunes exactly");
+
+		GB::WorldDesc dry = Small(WorldType::Temperate, 50, 4);
+		dry.River = false; dry.Lake = false;
+		const GB::GeneratedWorld dw = GB::WorldGenerator::GenerateData(dry);
+		Audit(dw, "no water v4");
+		Check(!dw.TerrainRef->HasLake() && !dw.TerrainRef->GetRiver(), "generator 4: a world without water has no lake nor river");
+		GB::WorldDesc noLake = Small(WorldType::Temperate, 40, 4);
+		noLake.Lake = false;
+		const GB::GeneratedWorld nl = GB::WorldGenerator::GenerateData(noLake);
+		Audit(nl, "no lake v4");
+		Check(!nl.TerrainRef->HasLake() && nl.TerrainRef->GetRiver(), "generator 4: without a lake there is still a river");
+	}
+
 	if (failures) { std::fprintf(stderr, "%d check(s) failed\n", failures); return 1; }
 	std::puts("worldgen tests passed");
 	return 0;

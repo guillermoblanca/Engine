@@ -1,0 +1,6 @@
+{
+  "note": "A test's copy of the need of era2.json (V5) that falls in seconds instead of a day, so the script sees the verb done within a minute.",
+  "needs": [
+    { "id": "faith", "name": "Faith", "era": "bronze", "verb": "pray", "provision": "faith", "decayPerDay": 9000.0, "threshold": 45.0, "weight": 3.0, "seconds": 3.0, "amount": 60.0 }
+  ]
+}

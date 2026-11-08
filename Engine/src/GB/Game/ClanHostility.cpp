@@ -38,6 +38,13 @@ namespace GB
 		return m_Fallback ? m_Fallback->Hostility(a, b) : 0.0f;
 	}
 
+	bool ClanHostility::AtWar(const std::string& a, const std::string& b) const
+	{
+		const ClanId ia = Id(a), ib = Id(b);
+		if (ia >= 0 && ib >= 0) return m_Clans->MayRaid(ia, ib);   // their stance is "hostile"
+		return m_Fallback ? m_Fallback->AtWar(a, b) : false;
+	}
+
 	std::vector<RaidTarget> ClanHostility::RaidTargets(const std::string& raider) const
 	{
 		const ClanId me = Id(raider);

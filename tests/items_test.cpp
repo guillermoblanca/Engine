@@ -210,8 +210,8 @@ int main()
 		RecipeBook fileRecipes;
 		std::map<std::string, ResourceNodeDef> fileNodes;
 		const std::string error = LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", fileItems, fileRecipes, fileNodes);
-		Check(error.empty(), "assets/data/era1.json loads");
-		Check(ContentToJson(fileItems, fileRecipes, fileNodes) == text, "and defines what RegisterEraOneItems defines");
+		Check(error.empty() && LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/social.json", fileItems, fileRecipes, fileNodes).empty(), "assets/data/era1.json and social.json load");
+		Check(ContentToJson(fileItems, fileRecipes, fileNodes) == text, "and RegisterEraOneItems gives what they define (there is no catalogue in the code)");
 	}
 
 	// The extended era-1 proposal (not loaded by default) loads cleanly on top of the base content and leaves it untouched.
@@ -220,11 +220,8 @@ int main()
 		RecipeBook er;
 		std::map<std::string, ResourceNodeDef> en;
 		RegisterEraOneItems(ei, er, en);
-		const size_t baseItems = ei.Ids().size(), baseNodes = en.size();
-		const std::string error = LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/era1_ampliado.json", ei, er, en);
-		Check(error.empty(), "assets/data/era1_ampliado.json loads on top of the base content");
-		Check(ei.Ids().size() > baseItems && en.size() > baseNodes, "the extended content adds items and nodes");
-		Check(ei.Find("stone_axe") && ei.Find("stone_axe")->Tags.size() == 1 && en["tree"].Capacity == 5, "and does not change the base definitions");
+		Check(ei.Find("plank") && en.count("fallen_trunk") && ei.Find("stone_axe") && ei.Find("stone_axe")->Tags.size() == 1 && en["tree"].Capacity == 5,
+			"the catalogue has the whole era (what was the extended content too) and the base definitions as they were");
 		// a tool variant still satisfies the generic tool requirement (tags are hierarchical)
 		Inventory bag(8);
 		bag.Add(ei, "flint_axe", 1);
@@ -331,10 +328,9 @@ int main()
 		Check(LoadContent(R"({ "items": [ { "id": "old" } ], "nodes": [ { "id": "oldnode", "item": "old" } ] })", li2, lr2, ln2).empty()
 			&& ln2["oldnode"].Kind.empty() && ln2["oldnode"].Patch.CountFor(2) == 0 && li2.Find("old")->Fuel == 0, "a content file without the new fields still loads, with defaults");
 
-		// the extended content loads on top and keeps the base definitions of the nodes that moved into the base
+		// the catalogue keeps what was the extended content with its own kinds and fuel
 		ItemLibrary ei; RecipeBook er; std::map<std::string, ResourceNodeDef> en;
 		RegisterEraOneItems(ei, er, en);
-		Check(LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/era1_ampliado.json", ei, er, en).empty(), "the extended content still loads");
 		Check(en["young_tree"].Capacity == 3 && en["old_tree"].Kind == "Wood" && en["granite_rock"].Kind == "Stone.Granite" && ei.Find("log")->Fuel == 4, "with its own kinds and fuel");
 		Check(er.Find("copper_axe") && er.Find("copper_axe")->Inputs.count("copper_ingot") == 1, "and the copper axe is made from ingots");
 	}

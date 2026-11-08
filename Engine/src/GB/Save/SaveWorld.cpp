@@ -281,10 +281,11 @@ namespace GB::Save
 			AddText(f, host.Weather().Preset);
 			d.Parts["weather"] = f.Value();
 		}
+		for (const SectionBlob& s : host.Sections())   // one part per section, so a replay that differs says in which ("section:ai", "section:history")
 		{
 			Qa::Fingerprint f;
-			for (const SectionBlob& s : host.Sections()) { AddText(f, s.Name); AddText(f, s.Json); }
-			d.Parts["sections"] = f.Value();
+			AddText(f, s.Json);
+			d.Parts["section:" + s.Name] = f.Value();
 		}
 		Qa::Fingerprint total;
 		for (const auto& [name, value] : d.Parts) { AddText(total, name); total.Add(static_cast<int64_t>(value & 0x7FFFFFFFFFFFFFFFull)); }

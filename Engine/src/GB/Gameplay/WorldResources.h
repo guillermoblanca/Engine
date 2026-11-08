@@ -41,6 +41,20 @@ namespace GB
 		float Radius = 0.0f;        // the room it asked for: no other node is closer than the larger of the two radii
 	};
 
+	// R1: a resource zone: a round area of the map where a type of node grows (ResourceSpawnDef::Zones), with a ragged edge.
+	struct ResourceZone
+	{
+		std::string Node;           // node type id
+		glm::vec2 Centre{ 0.0f };   // x, z
+		float Radius = 0.0f;
+		bool Fallback = false;      // on a biome of the rule's Fallback (the map had too few places of its own biomes)
+	};
+	// The zones of every type that has them, by type id and then in the order they were chosen. The same ground, data and seed give the same zones
+	// (PlanWorldResources and PlanWorldNature place those types only inside them).
+	std::vector<ResourceZone> PlanResourceZones(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, uint32_t seed);
+	// Whether a point is inside a zone, with the zone's ragged edge (as the nodes are placed).
+	bool InResourceZone(const ResourceZone& zone, const glm::vec2& p, uint32_t seed);
+
 	// Where every node goes. The same ground, data and seed always give the same spots, in the same order. `density` scales every PerHectare
 	// (and Max), for a richer or poorer world. Rare types are placed first, so the common ones cannot crowd them out.
 	std::vector<ResourceSpot> PlanWorldResources(const ResourceGround& ground, const std::map<std::string, ResourceNodeDef>& nodes, uint32_t seed, float density = 1.0f);
@@ -77,7 +91,13 @@ namespace GB
 	};
 
 	// "" or what is wrong; the config is left as it was on a mistake. Unknown biomes, empty mixes and values out of range are refused.
+	// A document of the content packs carries it under "nature" (assets/data/bosques.json); a bare config object is read as it is.
 	std::string ParseNatureConfig(const std::string& json, NatureConfig& out);
+	// The "nature" section of a pack document: "" and nothing changes when the document has none.
+	std::string LoadNatureSection(const std::string& json, NatureConfig& out);
+	// Every resource node of the catalogue has a way into the world: spread by biome (its spawn), in the patch a clan's camp gets, or in a patch of the
+	// nature config; a problem for each one that has none (designed and never seen in a game: what happened to the grain).
+	std::vector<std::string> UnplacedNodes(const std::map<std::string, ResourceNodeDef>& nodes, const NatureConfig& nature);
 	std::string LoadNatureConfigFile(const std::string& path, NatureConfig& out);
 	std::string NatureConfigToJson(const NatureConfig& cfg);
 

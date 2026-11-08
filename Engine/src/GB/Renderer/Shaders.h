@@ -22,6 +22,8 @@ uniform mat4 uModel;
 layout(location = 4) in uvec4 aJoints;
 layout(location = 5) in vec4 aWeights;
 layout(std430, binding = 0) readonly buffer JointBuffer { mat4 uJointMatrices[]; };
+layout(std430, binding = 2) readonly buffer InstanceBuffer { mat4 uInstances[]; };
+uniform int uInstanced;   // 1: one draw of many copies of the object, their matrices in uInstances (uModel unused)
 uniform int uSkinned;
 mat4 SkinMatrix()
 {
@@ -59,9 +61,10 @@ void main()
 		pos += normalize(aNormal) * (textureLod(uHeightMap, aUV * uUVScale, 0.0).r - 0.5) * uHeightScale;
 	if (uSkinned != 0)
 		pos = (SkinMatrix() * vec4(pos, 1.0)).xyz;
-	vec4 world = uModel * vec4(pos, 1.0);
+	mat4 model = uInstanced != 0 ? uInstances[gl_InstanceID] : uModel;
+	vec4 world = model * vec4(pos, 1.0);
 	if (uWindStrength > 0.0)
-		world.xyz += WindOffset(aPos, world.xyz, uModel[3].xyz);
+		world.xyz += WindOffset(aPos, world.xyz, model[3].xyz);
 	vUV = aUV * uUVScale;
 	gl_Position = uLightVP * world;
 }
@@ -101,6 +104,8 @@ float TrailAt(vec2 xz)
 layout(location = 4) in uvec4 aJoints;
 layout(location = 5) in vec4 aWeights;
 layout(std430, binding = 0) readonly buffer JointBuffer { mat4 uJointMatrices[]; };
+layout(std430, binding = 2) readonly buffer InstanceBuffer { mat4 uInstances[]; };
+uniform int uInstanced;   // 1: one draw of many copies of the object, their matrices in uInstances (uModel unused)
 uniform int uSkinned;
 mat4 SkinMatrix()
 {
@@ -148,15 +153,16 @@ void main()
 		nrm = mat3(skin) * nrm;
 		tng = mat3(skin) * tng;
 	}
-	vec4 world = uModel * vec4(pos, 1.0);
+	mat4 model = uInstanced != 0 ? uInstances[gl_InstanceID] : uModel;
+	vec4 world = model * vec4(pos, 1.0);
 	if (uWindStrength > 0.0)
-		world.xyz += WindOffset(aPos, world.xyz, uModel[3].xyz);
+		world.xyz += WindOffset(aPos, world.xyz, model[3].xyz);
 	if (uTrailDepth > 0.0)
 		world.y -= TrailAt(world.xz) * uTrailDepth;   // footprints, tracks
-	mat3 normalMatrix = mat3(transpose(inverse(uModel)));
+	mat3 normalMatrix = mat3(transpose(inverse(model)));
 	vPos = world.xyz;
 	vNormal = normalMatrix * nrm;
-	vTangent = vec4(mat3(uModel) * tng, aTangent.w);
+	vTangent = vec4(mat3(model) * tng, aTangent.w);
 	vUV = aUV * uUVScale;
 	gl_Position = uViewProj * world;
 }
@@ -1345,6 +1351,7 @@ float TrailAt(vec2 xz)
 	inline constexpr const char* GrassVS = R"GLSL(#version 450 core
 layout(location = 0) in vec4 aPosYaw;   // x, y, z of the root, yaw
 layout(location = 1) in vec4 aShape;    // height, width, seed, lean
+layout(location = 2) in vec4 aTint;     // color multiplier, dryness
 uniform mat4 uViewProj;
 uniform vec3 uCamPos;
 uniform float uTime;
@@ -1356,6 +1363,7 @@ out float vT;
 out float vSeed;
 out vec3 vNormal;
 out float vSide;
+out vec4 vTint;
 const int SEGMENTS = 4;
 )GLSL";
 
@@ -1375,7 +1383,7 @@ void main()
 	if (seed < fade)
 	{
 		gl_Position = vec4(2.0, 2.0, 2.0, 1.0);
-		vWorld = root; vT = 0.0; vSeed = seed; vNormal = vec3(0, 1, 0); vSide = 0.0;
+		vWorld = root; vT = 0.0; vSeed = seed; vNormal = vec3(0, 1, 0); vSide = 0.0; vTint = aTint;
 		return;
 	}
 	width *= 1.0 + dist * 0.03;
@@ -1424,6 +1432,7 @@ void main()
 	vT = t;
 	vSeed = seed;
 	vSide = side;
+	vTint = aTint;
 	vNormal = normalize(cross(right, tangent));
 	gl_Position = uViewProj * vec4(pos, 1.0);
 }
@@ -1435,6 +1444,7 @@ in float vT;
 in float vSeed;
 in vec3 vNormal;
 in float vSide;
+in vec4 vTint;
 out vec4 outColor;
 uniform vec3 uCamPos;
 uniform vec3 uSunDir;
@@ -1473,8 +1483,8 @@ void main()
 	N = normalize(mix(vec3(0.0, 1.0, 0.0), N, 0.55));   // fields shade like a soft carpet
 
 	float variation = 0.78 + 0.44 * fract(vSeed * 13.7);
-	vec3 col = mix(uBase, uTip, pow(max(vT, 0.0), 0.8)) * variation;   // vT can interpolate to a hair below 0: pow(<0) is NaN, which bloom/DOF smear over the screen
-	float dry = step(1.0 - uDryAmount, fract(vSeed * 7.31));
+	vec3 col = mix(uBase, uTip, pow(max(vT, 0.0), 0.8)) * variation * vTint.rgb;   // vT can interpolate to a hair below 0: pow(<0) is NaN, which bloom/DOF smear over the screen
+	float dry = max(step(1.0 - uDryAmount, fract(vSeed * 7.31)), clamp(vTint.a, 0.0, 1.0));
 	col = mix(col, uDry * (0.55 + 0.45 * vT), dry * 0.85);
 	col = mix(col, vec3(0.9, 0.93, 0.96), uSnowCover * 0.85 * smoothstep(0.05, 0.8, vT));
 	col *= 1.0 - 0.3 * uWetness;

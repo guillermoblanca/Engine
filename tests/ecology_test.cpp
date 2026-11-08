@@ -70,10 +70,11 @@ int main()
 	// Seasons.
 	{
 		const SeasonClock s;
-		Check(s.At(0.0) == Season::Spring && s.At(250.0) == Season::Summer && s.At(500.0) == Season::Autumn && s.At(750.0) == Season::Winter && s.At(960.0) == Season::Spring, "the seasons follow the clock and the year repeats");
+		const double q = static_cast<double>(s.SeasonSeconds);
+		Check(s.At(0.0) == Season::Spring && s.At(q * 1.04) == Season::Summer && s.At(q * 2.08) == Season::Autumn && s.At(q * 3.1) == Season::Winter && s.At(q * 4.0) == Season::Spring, "the seasons follow the clock and the year repeats");
 		Check(SeasonClock::GrowthRate(Season::Winter) == 0.0f && SeasonClock::GrowthRate(Season::Spring) > SeasonClock::GrowthRate(Season::Autumn), "winter stops growth, spring favours it");
 		Check(SeasonClock::HungerRate(Season::Winter) > SeasonClock::HungerRate(Season::Summer), "winter is hungrier");
-		Check(s.Progress(120.0) > 0.49f && s.Progress(120.0) < 0.51f, "progress through a season");
+		Check(s.Progress(q * 0.5) > 0.49f && s.Progress(q * 0.5) < 0.51f, "progress through a season");
 		Check(s.At(-5.0) == Season::Spring && s.Progress(-5.0) == 0.0f, "a clock before zero is the start of spring");
 		SeasonClock odd;
 		odd.SeasonSeconds = 0.0f;

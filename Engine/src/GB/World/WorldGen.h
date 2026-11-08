@@ -86,6 +86,10 @@ namespace GB
 		float SnowLine = 1e9f;                     // world height above which it is snowy
 		glm::vec2 Spawn{ 0.0f };                   // a flat, dry place near the middle
 		BiomeMap Maps;                             // baked biomes and distance to the water (see BiomeMap)
+		// What a terrain graph published as "biome" (GB::Biome ids) and "moisture" (0..1): empty when the world has no graph or it published
+		// neither; then the biome is measured and the moisture is a noise.
+		TgField BiomeField;
+		TgField MoistureField;
 
 		// The biome at a point: the baked map's nearest sample (ComputeBiome before the map is baked).
 		Biome BiomeAt(float x, float z) const;

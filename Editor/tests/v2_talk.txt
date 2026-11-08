@@ -1,0 +1,26 @@
+# V2 (docs/VISION_MUNDO_VIVO.md): people with something to say. The clan lives a while; the player walks to Ana and talks to her: she tells a
+# real fact of the game (an event of the world's history she remembers and the player does not), with what she makes of it, and the player
+# remembers it as heard from her. Rumours also pass in the members' own talks; `tribe reputation` says who knows of a person and its values.
+play temperate 5 4 2
+timescale 20
+wait 1500
+timescale 1
+game approach Ana
+wait 300
+game approach Ana
+wait 200
+qa expect "game talk Ana" "tells you"
+qa expect "tribe history of Player" "heard from Ana"
+qa expect "game ask Ana where berry" "says there is|does not know"
+qa expect "game ask Ana about Dan" "tells you|knows nothing"
+qa expect "game flatter Ana" "pleased|no time"
+qa expect "tribe reputation Player" "known by [1-9][0-9]*.*(values|scorns)"
+game book me people
+wait 5
+shot_ui v2_people.png
+game book me inventory
+wait 5
+shot_ui v2_me.png
+qa check
+qa expect "qa status" "[1-9][0-9]* live checks, 0 violation"
+quit

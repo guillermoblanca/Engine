@@ -1,4 +1,5 @@
 #include "Mesh.h"
+#include "RenderStats.h"
 #include <glad/gl.h>
 #include <algorithm>
 #include <cmath>
@@ -88,6 +89,21 @@ namespace GB
 	{
 		glBindVertexArray(m_VAO);
 		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(m_IndexCount), GL_UNSIGNED_INT, nullptr);
+		DrawCounter::Add(m_IndexCount / 3);
+	}
+
+	void Mesh::DrawRange(uint32_t firstIndex, uint32_t indexCount) const
+	{
+		glBindVertexArray(m_VAO);
+		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, reinterpret_cast<const void*>(static_cast<uintptr_t>(firstIndex) * sizeof(uint32_t)));
+		DrawCounter::Add(indexCount / 3);
+	}
+
+	void Mesh::DrawInstanced(uint32_t count) const
+	{
+		glBindVertexArray(m_VAO);
+		glDrawElementsInstanced(GL_TRIANGLES, static_cast<GLsizei>(m_IndexCount), GL_UNSIGNED_INT, nullptr, static_cast<GLsizei>(count));
+		DrawCounter::Add(static_cast<uint64_t>(m_IndexCount / 3) * count);
 	}
 
 	Mesh Mesh::CreateSphere(float radius, uint32_t segments, uint32_t rings)

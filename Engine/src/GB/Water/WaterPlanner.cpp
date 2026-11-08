@@ -98,27 +98,36 @@ namespace GB
 		if (!plan.HasRiver) return;
 
 		std::vector<glm::vec2> path = plan.RiverPath;
-		const float mouth = plan.RiverDrainage.empty() ? 1.0f : std::max(*std::max_element(plan.RiverDrainage.begin(), plan.RiverDrainage.end()), 1.0f);
-		std::vector<float> discharge(path.size());
-		for (size_t i = 0; i < path.size(); ++i) discharge[i] = std::min(plan.RiverDrainage[i] / mouth, 1.0f);
-
-		if (plan.HasLake)   // the river ends at the bank of the lake, not in the middle of it
-		{
-			const LakeOutline outline = MakeLakeOutline(recipe.Seed, recipe.LakeIrregularity);
-			while (path.size() > 2 && outline.EffectiveDistance(path.back(), recipe.LakeCenter) < recipe.LakeRadius * 1.7f) { path.pop_back(); discharge.pop_back(); }
-			const glm::vec2 fromLake = path.back() - recipe.LakeCenter;
-			const float len = glm::length(fromLake);
-			const glm::vec2 out = len > 1e-3f ? fromLake / len : glm::vec2(1.0f, 0.0f);
-			// the shore in that direction: 0.95 of the lake's radius there (it is a lobed shore)
-			const float shore = recipe.LakeRadius * outline.RadiusFactor(std::atan2(out.y, out.x)) * 0.95f;
-			path.push_back(recipe.LakeCenter + out * shore);
-			discharge.push_back(1.0f);
-		}
+		std::vector<float> discharge;
+		LakeBody lake;
+		lake.Present = plan.HasLake;
+		lake.Center = recipe.LakeCenter;
+		lake.Radius = recipe.LakeRadius;
+		lake.Outline = MakeLakeOutline(recipe.Seed, recipe.LakeIrregularity);
+		ShapeRiverCourse(path, plan.RiverDrainage, plan.HasLake ? &lake : nullptr, discharge);
 		if (path.size() >= 3)
 		{
 			recipe.RiverPath = path;
 			recipe.RiverDischarge = discharge;
 		}
 		recipe.RiverWidth = gen.RiverWidth;
+	}
+
+	void ShapeRiverCourse(std::vector<glm::vec2>& path, const std::vector<float>& drainage, const LakeBody* lake, std::vector<float>& discharge)
+	{
+		const float mouth = drainage.empty() ? 1.0f : std::max(*std::max_element(drainage.begin(), drainage.end()), 1.0f);
+		discharge.assign(path.size(), 1.0f);
+		for (size_t i = 0; i < path.size() && i < drainage.size(); ++i) discharge[i] = std::min(drainage[i] / mouth, 1.0f);
+		if (!lake || path.empty()) return;
+
+		// the river ends at the bank of the lake, not in the middle of it
+		while (path.size() > 2 && lake->Outline.EffectiveDistance(path.back(), lake->Center) < lake->Radius * 1.7f) { path.pop_back(); discharge.pop_back(); }
+		const glm::vec2 fromLake = path.back() - lake->Center;
+		const float len = glm::length(fromLake);
+		const glm::vec2 out = len > 1e-3f ? fromLake / len : glm::vec2(1.0f, 0.0f);
+		// the shore in that direction: 0.95 of the lake's radius there (it is a lobed shore)
+		const float shore = lake->Radius * lake->Outline.RadiusFactor(std::atan2(out.y, out.x)) * 0.95f;
+		path.push_back(lake->Center + out * shore);
+		discharge.push_back(1.0f);
 	}
 }

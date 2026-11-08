@@ -46,9 +46,8 @@ namespace GB
 		const std::string base = wanted.empty() ? "Entity" : wanted;
 		auto taken = [&](const std::string& n)
 		{
-			for (const auto& [id, e] : m_Entities)
-				if (id != ignore && e.Name == n) return true;
-			return false;
+			const auto it = m_ByName.find(n);
+			return it != m_ByName.end() && it->second != ignore;
 		};
 		if (!taken(base)) return base;
 		for (int i = 2;; ++i)
@@ -64,6 +63,7 @@ namespace GB
 		Entity e;
 		e.Id = id;
 		e.Name = UniqueName(name, NullEntity);
+		m_ByName[e.Name] = id;
 		m_NextId = std::max(m_NextId, id + 1);
 		return &m_Entities.emplace(id, std::move(e)).first->second;
 	}
@@ -105,18 +105,14 @@ namespace GB
 	{
 		// Systems look entities up by name every frame; the scan is linear in the scene (thousands of trees), so the last answer is kept and
 		// verified (the entity must still exist and still carry the name).
-		if (const auto hit = m_NameCache.find(name); hit != m_NameCache.end())
+		// The index is the whole truth (every name is given through Insert and Rename): a name it does not have is no entity's. It used to walk the
+		// scene on a miss, and the season's recolouring asked for twenty thousand names that do not exist ("<node> Crown" of a bush) among fifty
+		// thousand entities: the game stopped for minutes at the end of every season.
+		if (const auto hit = m_ByName.find(name); hit != m_ByName.end())
 		{
 			const auto e = m_Entities.find(hit->second);
 			if (e != m_Entities.end() && e->second.Name == name) return hit->second;
 		}
-		for (const auto& [id, e] : m_Entities)
-			if (e.Name == name)
-			{
-				if (m_NameCache.size() > 2 * m_Entities.size() + 64) m_NameCache.clear();
-				m_NameCache[name] = id;
-				return id;
-			}
 		return NullEntity;
 	}
 
@@ -136,6 +132,7 @@ namespace GB
 		for (EntityId c : children) Destroy(c);
 		if (Entity* p = Find(e->Parent))
 			p->Children.erase(std::remove(p->Children.begin(), p->Children.end(), id), p->Children.end());
+		if (const auto it = m_ByName.find(e->Name); it != m_ByName.end() && it->second == id) m_ByName.erase(it);
 		m_Entities.erase(id);
 		return true;
 	}
@@ -167,6 +164,7 @@ namespace GB
 	void EntityWorld::Clear()
 	{
 		m_Entities.clear();
+		m_ByName.clear();
 		m_NextId = 1;
 	}
 
@@ -174,7 +172,10 @@ namespace GB
 	{
 		Entity* e = Find(id);
 		if (!e) return false;
-		e->Name = UniqueName(name, id);
+		const std::string unique = UniqueName(name, id);
+		if (const auto it = m_ByName.find(e->Name); it != m_ByName.end() && it->second == id) m_ByName.erase(it);
+		e->Name = unique;
+		m_ByName[unique] = id;
 		return true;
 	}
 

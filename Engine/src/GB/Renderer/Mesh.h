@@ -27,6 +27,8 @@ namespace GB
 		Mesh& operator=(Mesh&& other) noexcept;
 
 		void Draw() const;
+		void DrawInstanced(uint32_t count) const;   // `count` copies in one call (gl_InstanceID tells them apart)
+		void DrawRange(uint32_t firstIndex, uint32_t indexCount) const;   // part of the triangles (a terrain's tile)
 		// Overwrites `count` vertices starting at `first` (e.g. terrain that erodes). The mesh keeps its topology.
 		void UpdateVertices(uint32_t first, const Vertex* vertices, uint32_t count);
 		uint32_t GetIndexCount() const { return m_IndexCount; }

@@ -110,6 +110,8 @@ namespace GB
 		c.Folk->SetOutside(std::move(o));
 		c.Folk->SetNameTaken([this](const std::string& n) { return NameTaken(n); });
 		if (m_Telemetry) c.Folk->SetTelemetry(m_Telemetry, id, m_TelemetryEvery);
+		c.Folk->SetHistory(&m_Past, id);   // V1
+		c.Folk->SetCulture(CultureOf(id));   // V4
 	}
 
 	void ClanWorld::SetTelemetry(TelemetrySink* sink, double every)
@@ -127,6 +129,7 @@ namespace GB
 		c.Folk->SetNameTaken(nullptr);
 		c.Folk->SetThinkBudget(-1);   // (a tribe the host keeps thinks by its own rule again)
 		if (m_Telemetry && c.Folk->Telemetry() == m_Telemetry) c.Folk->SetTelemetry(nullptr);
+		if (c.Folk->History() == &m_Past) c.Folk->SetHistory(nullptr, -1);
 	}
 
 	bool ClanWorld::Remove(ClanId id)
@@ -156,6 +159,8 @@ namespace GB
 		m_Territory.Clear();
 		m_Meetings.clear();
 		m_History.clear();
+		m_Past.Clear();
+		m_Requests.Clear();
 		m_NextMeeting = 1;
 		m_Time = 0.0;
 		m_EncounterTimer = m_TerritoryTimer = m_TradeTimer = m_WeddingTimer = 0.0f;
@@ -181,6 +186,16 @@ namespace GB
 		for (const auto& c : m_Clans) if (c->Name == idOrName) return c.get();
 		if (!idOrName.empty() && std::all_of(idOrName.begin(), idOrName.end(), [](char ch) { return ch >= '0' && ch <= '9'; })) return Find(std::atoi(idOrName.c_str()));
 		return nullptr;
+	}
+
+	glm::vec3 ClanWorld::ColorOf(ClanId id) const
+	{
+		static const glm::vec3 kPalette[] = { { 0.90f, 0.30f, 0.25f }, { 0.25f, 0.55f, 0.95f }, { 0.95f, 0.80f, 0.20f }, { 0.35f, 0.80f, 0.35f },
+			{ 0.75f, 0.40f, 0.90f }, { 0.95f, 0.55f, 0.15f }, { 0.20f, 0.80f, 0.80f }, { 0.90f, 0.45f, 0.70f } };
+		const Clan* c = Find(id);
+		if (!c) return glm::vec3(0.6f);
+		if (c->Color.r >= 0.0f) return c->Color;
+		return kPalette[static_cast<size_t>(std::max(0, id)) % (sizeof kPalette / sizeof kPalette[0])];
 	}
 
 	const Clan* ClanWorld::ClanOf(const std::string& member) const
@@ -225,7 +240,38 @@ namespace GB
 	}
 
 	void ClanWorld::SetViewer(const glm::vec2& pos) { for (auto& c : m_Clans) c->Folk->SetViewer(pos); }
-	void ClanWorld::SetWorldClock(double seconds) { for (auto& c : m_Clans) c->Folk->SetWorldClock(seconds); }
+	std::map<std::string, int> ClanWorld::CultureOf(ClanId id) const
+	{
+		std::map<std::string, int> out;
+		for (const std::string& v : Values.Names) out[v] = CultureValue(Values, id, v);
+		return out;
+	}
+
+	std::vector<std::string> ClanWorld::Leap(float years)
+	{
+		std::vector<std::string> out;
+		for (auto& c : m_Clans)
+		{
+			if (!c->Folk) continue;
+			const Tribe::LeapResult r = c->Folk->Leap(years);
+			std::string line = c->Name + ": " + std::to_string(r.Born) + " born, " + std::to_string(r.Died) + " died";
+			for (const std::string& t : r.Learnt) line += ", learns " + t;
+			out.push_back(line + " (now " + (c->Folk->EraName().empty() ? std::string("no eras") : c->Folk->EraName()) + ")");
+		}
+		return out;
+	}
+
+	void ClanWorld::SetCultureSeed(unsigned seed)
+	{
+		Values.Seed = seed;
+		for (auto& c : m_Clans) if (c->Folk) c->Folk->SetCulture(CultureOf(c->Id));
+	}
+
+	void ClanWorld::SetWorldClock(double seconds)
+	{
+		for (auto& c : m_Clans) c->Folk->SetWorldClock(seconds);
+		m_Past.SetClock(seconds);   // V1: the history is stamped with the world's clock
+	}
 
 	bool ClanWorld::ChooseHome(float minApart, const std::function<bool(const glm::vec2&)>& usable, CampSite& out) const
 	{
@@ -275,7 +321,7 @@ namespace GB
 	{
 		using Clock = std::chrono::steady_clock;
 		const auto t0 = Clock::now();
-		m_Cost = FrameCost();
+		m_Cost = { 0, 0, 0, 0.0, 0.0, 0.0, m_Cost.MeanMs, m_Cost.PeakMs };   // (the window's figures stay until the next window ends)
 		// H16: one budget of thinking turns for all the clans (see ThinkPerFrame). Each gets what it needs not to fall behind; the rest is shared by
 		// members (largest remainder, ties by clan order). Stateless, so it is the same after a load.
 		const size_t n = m_Clans.size();
@@ -322,6 +368,16 @@ namespace GB
 		StepDiplomacy(dt);
 		m_Cost.TribesMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
 		m_Cost.DiplomacyMs = std::chrono::duration<double, std::milli>(Clock::now() - t1).count();
+		const double whole = m_Cost.TribesMs + m_Cost.DiplomacyMs;
+		m_WindowSum += whole;
+		m_WindowPeak = std::max(m_WindowPeak, whole);
+		if (++m_WindowCount >= kCostWindow)
+		{
+			m_Cost.MeanMs = m_WindowSum / m_WindowCount;
+			m_Cost.PeakMs = m_WindowPeak;
+			m_WindowSum = m_WindowPeak = 0.0;
+			m_WindowCount = 0;
+		}
 	}
 
 	void ClanWorld::StepDiplomacy(float dt)
@@ -331,12 +387,14 @@ namespace GB
 		m_EncounterTimer += dt;
 		if (m_EncounterTimer >= Rules.Encounters.Every) { m_EncounterTimer = 0.0f; Encounters(); }
 		m_TerritoryTimer += dt;
-		if (m_TerritoryTimer >= Rules.Territory.Every) { const float step = m_TerritoryTimer; m_TerritoryTimer = 0.0f; StepTerritory(step); }
+		if (m_TerritoryTimer >= Rules.Territory.Every) { const float step = m_TerritoryTimer; m_TerritoryTimer = 0.0f; StepTerritory(step); StepPolity(); }
 		StepMeetings();
 		m_TradeTimer += dt;
 		if (m_TradeTimer >= Rules.Trade.Every) { m_TradeTimer = 0.0f; CheckPacts(); Trade(); CheckStances(); }
 		m_WeddingTimer += dt;
 		if (m_WeddingTimer >= Rules.Marriage.Every) { m_WeddingTimer = 0.0f; Weddings(); }
+		m_FissionTimer += dt;
+		if (m_FissionTimer >= Rules.Fission.Every) { m_FissionTimer = 0.0f; Fissions(); }
 		m_DayTimer += static_cast<double>(dt);
 		if (m_DayTimer >= static_cast<double>(DaySeconds())) { m_DayTimer -= static_cast<double>(DaySeconds()); Day(); }
 	}
@@ -348,6 +406,16 @@ namespace GB
 		m_Log.push_back(t + text);
 		if (m_Log.size() > kLogLines + kLogLines / 4) m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - kLogLines));
 		if (m_Telemetry) { TelemetryEvent te; te.Clan = a; te.Time = m_Time; te.Kind = "clan_" + kind; te.Who = ClanName(a); te.Other = ClanName(b); te.Result = std::to_string(b); te.Text = text; m_Telemetry->Event(te); }
+		if (kind != "meeting" && kind != "missed")   // V1: what passes between clans is history (a meeting is told by what came of it)
+		{
+			HistoryEvent h;
+			h.At = m_Past.HasClock() ? m_Past.Clock() : m_Time;
+			h.Kind = kind;
+			h.Clan = a;
+			h.Other = b;
+			h.Text = text;
+			m_Past.Add(std::move(h));
+		}
 		DiplomacyEvent e{ kind, a, b, text, m_Time };
 		for (const Listener& l : m_Listeners) l(e);
 	}
@@ -619,6 +687,15 @@ namespace GB
 			for (const auto& [item, target] : t.Config.Economy.Stock) want(item);
 			for (const auto& [item, n] : std::map<std::string, int>(v.Have)) want(item);
 		}
+		// N5: and what its next step and its building sites lack, on top of what it holds (the copper of smelting, the clay of a kiln)
+		auto more = [&](const std::string& item, int n)
+		{
+			const auto h = v.Have.find(item);
+			v.Want[item] = std::max(v.Want.count(item) ? v.Want[item] : 0.0f, static_cast<float>((h != v.Have.end() ? h->second : 0) + n));
+		};
+		for (const auto& [item, n] : t.NextStepNeeds()) more(item, n);
+		for (const auto& [item, n] : t.SiteDemand()) more(item, n);
+		for (const auto& [item, n] : t.ForeignNeeds()) more(item, n);   // V5: what its chains want and its land does not give
 		return v;
 	}
 
@@ -707,7 +784,16 @@ namespace GB
 				if (std::any_of(m_Meetings.begin(), m_Meetings.end(), [&](const Meeting& m) { return Key(m.A, m.B) == Key(a, b); })) continue;
 				const ClanRelation* r = Relation(a, b);
 				if (!r || r->Encounters == 0) continue;   // they have to have met
-				if (m_Time - r->LastMeeting < static_cast<double>(Rules.Trade.Cooldown)) continue;
+				// N5: one has what the other's next step lacks: they meet again sooner
+				auto lacks = [](const Clan& x, const Clan& y)
+				{
+					for (const auto& [item, n] : x.Folk->NextStepNeeds()) if (y.Folk->Store().Count(item) > 0) return true;
+					return false;
+				};
+				// V4: trade posts (BuildingDef::Trade) make a clan's meetings more frequent
+				const double posts = 1.0 + static_cast<double>(ca.Folk->Provision("trade") + cb.Folk->Provision("trade"));
+				const double cooldown = static_cast<double>(Rules.Trade.Cooldown) * (lacks(ca, cb) || lacks(cb, ca) ? 1.0 / 3.0 : 1.0) / posts;
+				if (m_Time - r->LastMeeting < cooldown) continue;
 				const float att = Attitude(a, b);
 				if (Stance(a, b) == "hostile")
 				{
@@ -880,14 +966,18 @@ namespace GB
 				if (mt.Leg[0] == 2 && mt.Leg[1] == 2) Exchange(mt);
 				else
 				{
+					// an envoy waits the rules' Wait and what the other has to walk to get there (at a slow 1 m/s: the camps of a split are far apart)
+					double walk[2] = { 0.0, 0.0 };
 					for (int s = 0; s < 2; ++s)
-						if (mt.Leg[s] == 2 && m_Time - mt.Arrived[s] > static_cast<double>(Rules.Trade.Wait))
+						if (clans[s]) walk[s] = static_cast<double>(glm::distance(clans[s]->Folk->Config.Economy.Camp, mt.Point));
+					for (int s = 0; s < 2; ++s)
+						if (mt.Leg[s] == 2 && m_Time - mt.Arrived[s] > static_cast<double>(Rules.Trade.Wait) + walk[1 - s])
 						{
 							mt.Leg[s] = 3;
 							if (mt.Outcome.empty()) mt.Outcome = mt.Envoy[s] + " waited in vain";
 							if (TribeMember* e = clans[s] ? Member(*clans[s], mt.Envoy[s]) : nullptr) clans[s]->Folk->Note(*e, "waited in vain for the envoy of the " + ClanName(s == 0 ? mt.B : mt.A) + ": it goes home");
 						}
-					if (m_Time - mt.Posted > 4.0 * static_cast<double>(Rules.Trade.Wait))   // nobody got there in time: everyone goes home
+					if (m_Time - mt.Posted > 4.0 * static_cast<double>(Rules.Trade.Wait) + 2.0 * std::max(walk[0], walk[1]))   // nobody got there in time: everyone goes home
 						for (int s = 0; s < 2; ++s) if (mt.Leg[s] < 3) { mt.Leg[s] = 3; if (mt.Outcome.empty()) mt.Outcome = "the envoys never met"; }
 				}
 			}
@@ -921,6 +1011,16 @@ namespace GB
 		bond.Value = std::clamp(bond.Value + 2.0f * Rules.Relations.MemberBond * 0.5f * (Openness(a) + Openness(b)), -1.0f, 1.0f);
 		ca->Folk->Note(*ea, "meets " + mt.Envoy[1] + " of the " + cb->Name + (two || one ? " (" + outcome + ")" : ""));
 		cb->Folk->Note(*eb, "meets " + mt.Envoy[0] + " of the " + ca->Name + (two || one ? " (" + outcome + ")" : ""));
+		// V2: the envoys tell each other the news of their clans: what people do travels between clans with them, at the pace of the meetings
+		for (int i = 0; i < Rules.Exchange.Rumours; ++i)
+		{
+			const double now = m_Past.HasClock() ? m_Past.Clock() : m_Time;
+			const ClanId from[2] = { a, b };
+			TribeMember* teller[2] = { ea, eb };
+			for (int s = 0; s < 2; ++s)
+				if (const int e = m_Past.Topic(teller[s]->Name, teller[1 - s]->Name, std::string(), now - static_cast<double>(Rules.Exchange.NewsAge)); e && m_Past.Tell(teller[s]->Name, teller[1 - s]->Name, e, now))
+					if (const HistoryEvent* h = m_Past.Find(e); h && h->Clan == from[s]) m_Past.Crossings.push_back(now - h->At);   // (news of its own clan, crossing now)
+		}
 		// what they know (H11): fond clans show each other a technology the other can learn
 		if (Attitude(a, b) >= Rules.Exchange.MinAttitude && mt.Purpose != "parley")
 		{
@@ -972,6 +1072,113 @@ namespace GB
 		m_History.push_back(r);
 		if (m_History.size() > kHistory) m_History.erase(m_History.begin());
 		m_Meetings.erase(m_Meetings.begin() + static_cast<std::ptrdiff_t>(index));
+	}
+
+	// ------------------------------------------------------------------ N7: new homes
+	void ClanWorld::Fissions()
+	{
+		std::vector<ClanId> ids;
+		for (const auto& c : m_Clans) ids.push_back(c->Id);
+		for (ClanId id : ids)
+		{
+			const auto last = m_LastSplit.find(id);
+			if (last != m_LastSplit.end() && m_Time - last->second < 3.0 * static_cast<double>(Rules.Fission.Every)) continue;
+			Split(id, false);
+		}
+	}
+
+	std::string ClanWorld::Split(ClanId id, bool force)
+	{
+		Clan* c = Find(id);
+		if (!c || !c->Folk) return "no such clan";
+		Tribe& t = *c->Folk;
+		const int alive = Alive(*c);
+		const std::vector<Tribe::Household>& households = t.Households();
+		if (households.size() < 2) return "the " + c->Name + " are one household: there is nobody to go";
+		const glm::vec2 camp = t.Config.Economy.Camp;
+		auto nearestCamp = [&](const glm::vec2& p)
+		{
+			float d = 1e9f;
+			for (const auto& o : m_Clans) if (!o->Folk->Members().empty()) d = std::min(d, glm::distance(p, o->Folk->Config.Economy.Camp));
+			return d;
+		};
+		// where: an outpost by what its next step needs and it knows only far away; else, a big clan, a home of their own
+		glm::vec2 target(0.0f);
+		std::string why;
+		if (force || alive >= Rules.Fission.OutpostMembers)
+			for (const auto& [item, n] : t.NextStepNeeds())
+			{
+				const MemoryEntry* best = nullptr;
+				float d = 1e9f;
+				for (const auto& [name, e] : t.ClanMemory().All())
+					if (const auto def = t.NodeDefs().find(e.Kind); def != t.NodeDefs().end() && def->second.Item == item && e.Amount != 0 && glm::distance(e.Pos, camp) < d) { d = glm::distance(e.Pos, camp); best = &e; }
+				if (!best || d <= Rules.Fission.OutpostReach) continue;
+				const glm::vec2 by = best->Pos + glm::normalize(camp - best->Pos) * 14.0f;   // beside it, on the side of home
+				if (nearestCamp(by) < Rules.Fission.MinApart) continue;   // (not on another clan's doorstep: an outpost by a neighbour's stone raided it to the last)
+				target = by;
+				why = "an outpost by the " + item + " the next step needs, " + std::to_string(static_cast<int>(d)) + " m from home";
+				break;
+			}
+		if (why.empty())
+		{
+			if (!force && (alive < Rules.Fission.MinMembers || static_cast<int>(households.size()) < Rules.Fission.MinHouseholds)) return "no reason to split";
+			CampSite site;
+			const float far = 4.0f * Rules.Fission.MinApart;   // (kin stay within reach of each other: the old camp is a day's walk at most)
+			// (not on land another clan holds: a daughter that settled in its parent's woods took from them, and they raided it for the rest of the run)
+			auto free = [this, camp, far](const glm::vec2& p) { return glm::distance(p, camp) <= far && (!m_Regions || OwnerOf(m_Regions->RegionAt(p)) < 0); };
+			if (!ChooseHome(Rules.Fission.MinApart, free, site)) return "no free land for a new home near enough";
+			target = site.At;
+			why = site.Why;
+		}
+		// who: the households whose work is best there, whole, up to Share of the clan; at least two stay
+		std::vector<const Tribe::Household*> order;
+		for (const Tribe::Household& h : households) order.push_back(&h);
+		std::stable_sort(order.begin(), order.end(), [&](const Tribe::Household* x, const Tribe::Household* y) { return t.HouseholdWorkAt(*x, target) > t.HouseholdWorkAt(*y, target); });
+		std::vector<std::string> leaving;
+		const size_t share = std::max<size_t>(2, static_cast<size_t>(std::ceil(Rules.Fission.Share * static_cast<float>(alive))));
+		for (const Tribe::Household* h : order)
+		{
+			if (leaving.size() >= share) break;
+			if (alive - static_cast<int>(leaving.size() + h->Members.size()) < std::max(2, (alive + 1) / 2)) continue;   // (half the clan stays: one of 11 sent 8 away)
+			for (const std::string& m : h->Members) if (!IsEnvoy(m)) leaving.push_back(m);
+		}
+		if (leaving.size() < 2) return "too few could go";
+		if (!FoundClan) return "the host cannot found a clan";
+		static const char* const kNumbers[] = { "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X" };
+		const int n = m_Splits[id]++;
+		const std::string name = c->Name + " " + (n < 9 ? kNumbers[n] : std::to_string(n + 2));
+		const ClanId nid = FoundClan(id, target, name);
+		Clan* nc = Find(nid);
+		if (!nc) return "the new clan could not be founded";
+		int moved = 0;
+		for (const std::string& m : leaving) if (MoveMember(m, nid, "goes with its household to found the " + name).empty()) ++moved;
+		// they take their share of the store (and the makings of a fire first: a new camp without one froze, with wood and no stone), and the two
+		// clans start as kin
+		if (const ItemLibrary* items = t.Items())
+			for (const auto& [item, need] : { std::pair<const char*, int>{ "wood", nc->Folk->Config.Economy.FireWoodRequired }, { "stone", nc->Folk->Config.Economy.FireStoneRequired } })
+				t.Store().Transfer(*items, nc->Folk->Store(), item, need);
+		if (const ItemLibrary* items = t.Items())
+			for (const ItemSlot& s : std::vector<ItemSlot>(t.Store().Stacks()))
+				if (const int k = s.Count * moved / std::max(1, alive); k > 0) t.Store().Transfer(*items, nc->Folk->Store(), s.Id, k);
+		Relate(id, nid, "marriage", 3.0f);
+		RelationRef(id, nid).Encounters += 1;
+		// and it knows the others as its parent does (a stranger to all, an outpost raided its parent's ally to the last)
+		for (const auto& o : m_Clans)
+			if (o->Id != id && o->Id != nid)
+			{
+				const ClanRelation was = RelationRef(id, o->Id);
+				ClanRelation& now = RelationRef(nid, o->Id);
+				now.Base = was.Base;
+				now.Trust = was.Trust;
+				now.Encounters = std::max(now.Encounters, std::min(was.Encounters, 1));
+				now.FirstMet = was.FirstMet;
+				now.LastMet = was.LastMet;
+			}
+		m_LastSplit[id] = m_Time;
+		m_LastSplit[nid] = m_Time;
+		Emit("found", id, nid, std::to_string(moved) + " of the " + c->Name + " leave to found the " + name + ": " + why);
+		t.NoteClan(std::to_string(moved) + " leave to found the " + name + " (" + why + ")");
+		return {};
 	}
 
 	// ------------------------------------------------------------------ marriages and moves

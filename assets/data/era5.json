@@ -1,0 +1,204 @@
+{
+  "note": "Era 5, the Renaissance (V8): paper and the press; knowledge is copied and travels. Its era follows the Middle Ages (masonry, in era1).",
+  "items": [
+    {
+      "category": "resource",
+      "id": "paper",
+      "name": "Paper",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Writing.Paper"
+      ],
+      "weight": 0.1
+    },
+    {
+      "category": "resource",
+      "id": "book",
+      "name": "Book",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Writing.Book"
+      ],
+      "weight": 0.5
+    }
+  ],
+  "recipes": [
+    {
+      "ability": "Craft",
+      "count": 2,
+      "id": "paper",
+      "inputs": {
+        "plank": 1,
+        "water": 1
+      },
+      "output": "paper",
+      "station": "workbench"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "book",
+      "inputs": {
+        "paper": 4,
+        "leather": 1
+      },
+      "output": "book",
+      "station": "press"
+    }
+  ],
+  "techs": [
+    {
+      "id": "printing",
+      "name": "Printing",
+      "era": 9,
+      "requires": [
+        "writing",
+        "masonry",
+        "carpentry"
+      ],
+      "recipes": [
+        "paper",
+        "book"
+      ],
+      "buildings": [
+        "print_shop",
+        "library"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    }
+  ],
+  "buildings": {
+    "print_shop": {
+      "name": "Print shop",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "plank": 6,
+            "iron_ingot": 2
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.55,
+        0.42,
+        0.3
+      ],
+      "station": "press"
+    },
+    "library": {
+      "name": "Library",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 10
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "plank": 6,
+            "book": 2
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.6,
+        0.5,
+        0.38
+      ],
+      "provides": {
+        "learning": 3.0
+      },
+      "aura": 3.0
+    }
+  },
+  "eras": [
+    {
+      "id": "renaissance",
+      "name": "Renaissance",
+      "key": [
+        "printing"
+      ],
+      "from": [
+        "medieval"
+      ],
+      "pull": 0.4,
+      "interest": [
+        "paper"
+      ],
+      "progression": [
+        "masonry",
+        "printing"
+      ],
+      "leap": 60
+    }
+  ],
+  "diplomacy": {
+    "trade": {
+      "values": {
+        "paper": 1.0,
+        "book": 8.0
+      }
+    }
+  }
+}

@@ -1,0 +1,193 @@
+{
+  "note": "Era 9, the arrival of AI (V8): a data centre; machines do work and decide, and people need a purpose (what is left for them is a question each culture answers).",
+  "items": [
+    {
+      "category": "resource",
+      "id": "model",
+      "name": "Trained model",
+      "stack": 5,
+      "tags": [
+        "Item.Resource.Machine.Model"
+      ],
+      "weight": 0.01
+    }
+  ],
+  "recipes": [
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "model",
+      "inputs": {
+        "computer": 2,
+        "book": 2
+      },
+      "output": "model",
+      "station": "datacenter"
+    }
+  ],
+  "techs": [
+    {
+      "id": "artificial_intelligence",
+      "name": "Artificial intelligence",
+      "era": 17,
+      "requires": [
+        "computing"
+      ],
+      "recipes": [
+        "model"
+      ],
+      "buildings": [
+        "datacenter",
+        "commons"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    }
+  ],
+  "buildings": {
+    "datacenter": {
+      "name": "Data centre",
+      "zone": "craft",
+      "footprint": [
+        4.0,
+        4.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 12,
+            "fired_brick": 10
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "computer": 4,
+            "copper_wire": 8
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.5,
+        0.55,
+        0.62
+      ],
+      "station": "datacenter"
+    },
+    "commons": {
+      "name": "Commons",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "plank": 6
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.55,
+        0.62,
+        0.45
+      ],
+      "provides": {
+        "purpose": 2.0
+      },
+      "aura": 3.0
+    }
+  },
+  "eras": [
+    {
+      "id": "ai",
+      "name": "Age of AI",
+      "key": [
+        "artificial_intelligence"
+      ],
+      "from": [
+        "information"
+      ],
+      "pull": 0.4,
+      "interest": [
+        "computer"
+      ],
+      "progression": [
+        "computing",
+        "artificial_intelligence"
+      ],
+      "leap": 2
+    }
+  ],
+  "needs": [
+    {
+      "id": "purpose",
+      "name": "Purpose",
+      "era": "ai",
+      "verb": "reflect",
+      "provision": "purpose",
+      "decayPerDay": 40.0,
+      "threshold": 40.0,
+      "weight": 1.0,
+      "seconds": 10.0,
+      "amount": 50.0
+    }
+  ],
+  "diplomacy": {
+    "trade": {
+      "values": {
+        "model": 60.0
+      }
+    }
+  }
+}

@@ -21,6 +21,7 @@ namespace GB
 	{
 	public:
 		explicit VisualCache(const VisualLibrary& library) : m_Library(library) {}
+		std::string AssetDir;   // where the kit pieces' paths start (the visuals' asset folder)
 
 		// Forgets every mesh and texture (after the library was reloaded, or the quality changed).
 		void Clear() { m_Meshes.clear(); m_Textures.clear(); }
@@ -43,9 +44,20 @@ namespace GB
 		struct Entry
 		{
 			std::vector<std::pair<std::unique_ptr<Mesh>, std::string>> Pieces;   // mesh, material
+			std::vector<std::pair<std::string, glm::mat4>> Kit;                   // kit pieces: glTF path, where in the model
 			glm::vec3 Center{ 0.0f };
 			float Radius = 0.0f;
 		};
+		// a kit piece (a glTF of a modular kit), loaded once: its primitives in the rest pose
+		struct KitPiece
+		{
+			std::shared_ptr<Model> Source;
+			std::vector<RenderObject> Objects;
+			glm::vec3 Min{ 0.0f }, Max{ 0.0f };
+			bool Failed = false;
+		};
+		const KitPiece* Kit(const std::string& path);
+		std::map<std::string, KitPiece> m_Kits;
 		const VisualLibrary& m_Library;
 		bool m_LowRes = false;
 		std::map<std::string, Entry> m_Meshes;
@@ -60,8 +72,8 @@ namespace GB
 	class SceneVisuals
 	{
 	public:
-		explicit SceneVisuals(std::string assetDir = "") : m_AssetDir(std::move(assetDir)), m_Cache(Library) {}
-		void SetAssetDir(std::string dir) { m_AssetDir = std::move(dir); }
+		explicit SceneVisuals(std::string assetDir = "") : m_AssetDir(std::move(assetDir)), m_Cache(Library) { m_Cache.AssetDir = m_AssetDir; }
+		void SetAssetDir(std::string dir) { m_AssetDir = std::move(dir); m_Cache.AssetDir = m_AssetDir; }
 
 		VisualLibrary Library;   // the live "visuals" section (the content packs load it; call Cache().Clear() after a reload)
 		VisualCache& Cache() { return m_Cache; }

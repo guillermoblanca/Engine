@@ -254,6 +254,9 @@ namespace GB
 		// `victim` was wronged by `culprit` ("raid", "theft", "killing"): its grievance grows by `weight`.
 		virtual void Wronged(const std::string& victim, const std::string& culprit, const std::string& what, float weight) { (void)victim; (void)culprit; (void)what; (void)weight; }
 		virtual float Grievance(const std::string& victim, const std::string& culprit) const { (void)victim; (void)culprit; return 0.0f; }
+		// Whether the two are at war (their relation's stance, with its own thresholds): a stranger is attacked on sight only then; a moment's
+		// spike of Hostility (a theft, a bad first look) is not a war. Without a relation, as Hostility says.
+		virtual bool AtWar(const std::string& a, const std::string& b) const { return Hostility(a, b) > 0.0f || Hostility(b, a) > 0.0f; }
 	};
 
 	// The plain hostility: an explicit table (symmetric unless set one way), predators hostile to everyone but their own kind, and grievances

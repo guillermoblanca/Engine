@@ -52,6 +52,7 @@ namespace GB
 
 	private:
 		GameplayWorld* m_Gameplay = nullptr;
+		TaggedSystems m_Growing{ { "Garden.Plot", "Garden.Tree" } };   // the plots and trees (not the thousands of other systems of a big world)
 		EntityWorld* m_Entities = nullptr;
 	};
 }

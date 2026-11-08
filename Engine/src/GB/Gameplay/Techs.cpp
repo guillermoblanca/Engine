@@ -1,4 +1,5 @@
 #include "GB/Gameplay/Techs.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
 #include <nlohmann/json.hpp>
@@ -38,62 +39,7 @@ namespace GB
 
 	TechTree DefaultTechs()
 	{
-		TechTree tree;
-		auto add = [&](const char* id, const char* name, int era, bool known, std::vector<std::string> requires_, std::vector<std::string> recipes, TechDiscovery d = {})
-		{
-			TechDef t;
-			t.Id = id;
-			t.Name = name;
-			t.Era = era;
-			t.Known = known;
-			t.Requires = std::move(requires_);
-			t.Recipes = std::move(recipes);
-			t.Discovery = d;
-			tree.Techs[t.Id] = t;
-		};
-		auto how = [](float experiment, float observe, float teach, float seconds, float waste)
-		{
-			TechDiscovery d;
-			d.Experiment = experiment;
-			d.Observe = observe;
-			d.Teach = teach;
-			d.Seconds = seconds;
-			d.Waste = waste;
-			return d;
-		};
-		auto builds = [&](const char* id, std::vector<std::string> buildings) { tree.Techs[id].Buildings = std::move(buildings); };
-		// The Stone-Age tree (docs/PROGRESION.md): tools, fire and cooking, fibre, hunting and hides, building, food storage, herbs and rites, and a
-		// preview of era 2 (pottery and the kiln, copper and the forge).
-		add("stone_tools", "Stone tools", 1, true, {}, { "stone_axe", "stone_pickaxe" });
-		add("fire_making", "Fire making", 1, true, {}, { "campfire" });
-		add("cordage", "Cordage", 1, true, {}, { "cordage" });
-		add("flint_knapping", "Flint knapping", 1, false, { "cordage", "stone_tools" }, { "flint_axe", "flint_pickaxe" }, how(0.15f, 0.34f, 0.25f, 20.0f, 0.3f));
-		add("basketry", "Basketry", 1, false, { "cordage" }, { "basket_wicker" }, how(0.2f, 0.34f, 0.25f, 15.0f, 0.3f));
-		add("spear_making", "Hafted spears", 1, false, { "flint_knapping" }, { "flint_spear", "flint_sword", "hunting_bow" }, how(0.12f, 0.3f, 0.25f, 20.0f, 0.3f));
-		add("hide_working", "Hide working", 1, false, { "flint_knapping" }, { "leather", "leather_bag" }, how(0.1f, 0.3f, 0.25f, 25.0f, 0.3f));
-		builds("hide_working", { "hide_frame" });
-		add("cooking", "Cooking", 1, false, { "fire_making" }, { "cooked_meat" }, how(0.2f, 0.34f, 0.3f, 15.0f, 0.2f));
-		builds("cooking", { "hearth" });
-		add("smoking", "Smoking", 1, false, { "cooking" }, { "smoked_meat" }, how(0.1f, 0.3f, 0.25f, 25.0f, 0.3f));
-		builds("smoking", { "smoking_rack" });
-		add("weaving", "Weaving", 1, false, { "basketry" }, { "reed_mat" }, how(0.15f, 0.3f, 0.25f, 20.0f, 0.2f));
-		add("wattle_and_daub", "Wattle and daub", 1, false, { "basketry" }, { "daub" }, how(0.15f, 0.3f, 0.25f, 20.0f, 0.2f));
-		builds("wattle_and_daub", { "hut" });
-		add("timber_framing", "Timber framing", 1, false, { "flint_knapping", "wattle_and_daub", "weaving" }, {}, how(0.04f, 0.0f, 0.2f, 60.0f, 0.0f));
-		builds("timber_framing", { "longhouse", "granary" });
-		add("palisade_building", "Palisades", 1, false, { "flint_knapping" }, { "stakes" }, how(0.08f, 0.3f, 0.2f, 30.0f, 0.1f));
-		builds("palisade_building", { "palisade" });
-		add("food_storage", "Food storage", 1, false, { "basketry" }, {}, how(0.1f, 0.0f, 0.25f, 20.0f, 0.0f));
-		builds("food_storage", { "cache_pit" });
-		add("herb_lore", "Herb lore", 1, false, { "basketry" }, { "poultice" }, how(0.15f, 0.3f, 0.25f, 20.0f, 0.3f));
-		builds("herb_lore", { "healer_hut" });
-		add("ritual", "Rites", 1, false, { "fire_making" }, {}, how(0.06f, 0.0f, 0.3f, 30.0f, 0.0f));
-		builds("ritual", { "totem" });
-		add("pottery", "Pottery", 2, false, { "fire_making", "wattle_and_daub" }, { "fired_brick" }, how(0.01f, 0.2f, 0.15f, 60.0f, 0.4f));
-		builds("pottery", { "kiln" });
-		add("smelting", "Smelting", 2, false, { "pottery", "flint_knapping" }, { "copper_ingot" }, how(0.01f, 0.2f, 0.1f, 60.0f, 0.5f));
-		builds("smelting", { "forge" });
-		return tree;
+		return Shipped().Techs;   // what the data says ("techs" and "knowledge" of the game's pack)
 	}
 
 	namespace
@@ -123,6 +69,54 @@ namespace GB
 			const float v = it->get<float>();
 			if (!std::isfinite(v) || v < lo || v > hi || (open && v <= lo)) return std::string(key) + " is out of range";
 			out = v;
+			return {};
+		}
+	}
+
+	namespace
+	{
+		// The eras of a list: into `eras`, which may already hold some (merge: the same id is replaced; otherwise two of one id are a mistake)
+		std::string ReadEras(const Json& list, std::vector<EraDef>& eras, bool merge)
+		{
+			if (!list.is_array()) return "eras must be a list";
+			auto ids = [](const Json& o, const char* key, std::vector<std::string>& out)
+			{
+				if (const auto l = o.find(key); l != o.end())
+				{
+					if (!l->is_array()) return false;
+					for (const Json& s : *l) { if (!s.is_string()) return false; out.push_back(s.get<std::string>()); }
+				}
+				return true;
+			};
+			std::vector<std::string> read;
+			for (const Json& o : list)
+			{
+				if (!o.is_object()) return "an era must be an object";
+				EraDef era;
+				era.Id = o.value("id", std::string());
+				era.Name = o.value("name", era.Id);
+				era.Pull = o.value("pull", 0.5f);
+				era.Leap = o.value("leap", 0.0f);
+				if (era.Id.empty()) return "an era has no id";
+				if (!ids(o, "key", era.Key) || !ids(o, "from", era.From) || !ids(o, "progression", era.Progression) || !ids(o, "interest", era.Interest))
+					return "era " + era.Id + ": key, from, progression and interest are lists of ids";
+				if (std::find(read.begin(), read.end(), era.Id) != read.end()) return "two eras called " + era.Id;
+				read.push_back(era.Id);
+				const auto same = std::find_if(eras.begin(), eras.end(), [&](const EraDef& e) { return e.Id == era.Id; });
+				if (same == eras.end() && merge)
+				{
+					// a new era goes right after the last of the eras it follows (the order says which era a clan that knows the keys of two is in:
+					// the bronze after the copper age, not after the middle ages)
+					auto at = eras.begin();
+					for (auto e = eras.begin(); e != eras.end(); ++e)
+						if (std::find(era.From.begin(), era.From.end(), e->Id) != era.From.end()) at = e + 1;
+					if (at == eras.begin()) at = eras.end();   // (it follows none of them: at the end)
+					eras.insert(at, std::move(era));
+				}
+				else if (same == eras.end()) eras.push_back(std::move(era));
+				else if (merge) *same = std::move(era);
+				else return "two eras called " + era.Id;
+			}
 			return {};
 		}
 	}
@@ -179,15 +173,30 @@ namespace GB
 			if (!it->is_object()) return "knowledge: expected an object";
 			KnowledgeRules r;
 			for (std::string error : { Number(*it, "lessonSeconds", r.LessonSeconds, 0.0f, 86400.0f, true), Number(*it, "observeRadius", r.ObserveRadius, 0.0f, 1000.0f),
-				Number(*it, "growth", r.Growth, 0.0f, 100.0f) })
+				Number(*it, "growth", r.Growth, 0.0f, 100.0f), Number(*it, "experimentProgress", r.ExperimentProgress, 0.0f, 100.0f) })
 				if (!error.empty()) return "knowledge: " + error;
 			if (const auto s = it->find("seed"); s != it->end())
 			{
 				if (!s->is_number_integer() || s->get<long long>() < 0 || s->get<long long>() > 0xffffffffLL) return "knowledge: seed must be a whole number of 0 or more";
 				r.Seed = static_cast<uint32_t>(s->get<long long>());
 			}
+			if (const auto p = it->find("progression"); p != it->end())
+			{
+				if (!p->is_array()) return "knowledge: progression must be a list of technology ids";
+				for (const Json& id : *p)
+				{
+					if (!id.is_string() || id.get<std::string>().empty()) return "knowledge: progression must be a list of technology ids";
+					r.Progression.push_back(id.get<std::string>());
+				}
+			}
+			if (const auto e = it->find("eras"); e != it->end())   // N6
+				if (std::string error = ReadEras(*e, r.Eras, false); !error.empty()) return "knowledge: " + error;
 			rules = r;
 		}
+		// V5: "eras" at the top of a file adds eras to those already read (or replaces the one of the same id): a later pack opens a new era without
+		// repeating the knowledge rules of the first
+		if (const auto e = j.find("eras"); e != j.end())
+			if (std::string error = ReadEras(*e, rules.Eras, true); !error.empty()) return "eras: " + error;
 		for (TechDef& t : read) tree.Techs[t.Id] = std::move(t);
 		tree.Rules = rules;
 		return {};
@@ -209,7 +218,14 @@ namespace GB
 			techs.push_back(o);
 		}
 		const KnowledgeRules& r = tree.Rules;
-		Json out = { { "techs", techs }, { "knowledge", { { "lessonSeconds", Round3(r.LessonSeconds) }, { "observeRadius", Round3(r.ObserveRadius) }, { "growth", Round3(r.Growth) }, { "seed", r.Seed } } } };
+		Json out = { { "techs", techs }, { "knowledge", { { "lessonSeconds", Round3(r.LessonSeconds) }, { "observeRadius", Round3(r.ObserveRadius) }, { "growth", Round3(r.Growth) }, { "experimentProgress", Round3(r.ExperimentProgress) }, { "seed", r.Seed }, { "progression", r.Progression } } } };
+		if (!r.Eras.empty())
+		{
+			Json eras = Json::array();
+			for (const EraDef& e : r.Eras)
+				eras.push_back({ { "id", e.Id }, { "name", e.Name }, { "key", e.Key }, { "from", e.From }, { "progression", e.Progression }, { "interest", e.Interest }, { "pull", Round3(e.Pull) }, { "leap", Round3(e.Leap) } });
+			out["knowledge"]["eras"] = eras;
+		}
 		return out.dump(2);
 	}
 }

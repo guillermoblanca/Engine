@@ -1,0 +1,12 @@
+{
+  "id": "era9",
+  "name": "Era 9 · Inteligencia artificial",
+  "era": 9,
+  "version": "1.0",
+  "depends": [
+    "era8"
+  ],
+  "files": [
+    "era9.json"
+  ]
+}

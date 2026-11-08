@@ -64,6 +64,7 @@ namespace GB
 		static int Amount(const AbilitySystemComponent& node);
 	private:
 		std::map<std::string, ResourceNodeDef> m_Defs;
+		mutable TaggedSystems m_Nodes{ { "Resource.Node" } };   // (walked every tick: kept until the scene's systems change)
 		Yield m_Yield;
 	};
 }

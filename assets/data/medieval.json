@@ -1,0 +1,344 @@
+{
+  "note": "The medieval era (docs/PLAN_SIMULACION_NATURAL.md §9): its technologies and its buildings, drawn with the Medieval Village MegaKit (assets/models/medieval_kit; visuals written by tools/make_kit_buildings.py). The era itself is in era1.json (knowledge.eras).",
+  "techs": [
+    {
+      "id": "carpentry",
+      "name": "Carpentry",
+      "era": 4,
+      "requires": [
+        "timber_framing",
+        "smelting"
+      ],
+      "recipes": [],
+      "buildings": [
+        "timber_house",
+        "tavern"
+      ],
+      "discovery": {
+        "experiment": 0.03,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.2
+      }
+    },
+    {
+      "id": "masonry",
+      "name": "Masonry",
+      "era": 5,
+      "requires": [
+        "carpentry",
+        "pottery"
+      ],
+      "recipes": [],
+      "buildings": [
+        "stone_house",
+        "townhouse"
+      ],
+      "discovery": {
+        "experiment": 0.03,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.2
+      }
+    }
+  ],
+  "buildings": {
+    "timber_house": {
+      "name": "Timber house",
+      "footprint": [
+        4.4,
+        6.4
+      ],
+      "zone": "homes",
+      "phases": [
+        {
+          "name": "floor",
+          "work": 10.0,
+          "needs": {
+            "plank": 6,
+            "stone": 4
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ],
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 24.0,
+          "needs": {
+            "wood": 10,
+            "daub": 10
+          },
+          "substitutes": {
+            "daub": [
+              "clay"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "storey 2",
+          "work": 20.0,
+          "needs": {
+            "plank": 14,
+            "daub": 8
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ],
+            "daub": [
+              "clay"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 14.0,
+          "needs": {
+            "wood": 4,
+            "fired_brick": 10
+          },
+          "part": "roof"
+        }
+      ],
+      "tech": "carpentry",
+      "shelter": 6,
+      "rest": 0.4,
+      "warmth": 0.6,
+      "supersedes": [
+        "longhouse",
+        "hut",
+        "shelter"
+      ],
+      "color": [
+        0.8,
+        0.72,
+        0.58
+      ]
+    },
+    "townhouse": {
+      "name": "Townhouse",
+      "footprint": [
+        6.4,
+        6.4
+      ],
+      "zone": "homes",
+      "phases": [
+        {
+          "name": "floor",
+          "work": 12.0,
+          "needs": {
+            "plank": 9,
+            "stone": 6
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ],
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 30.0,
+          "needs": {
+            "wood": 12,
+            "daub": 12
+          },
+          "substitutes": {
+            "daub": [
+              "clay"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 18.0,
+          "needs": {
+            "wood": 6,
+            "fired_brick": 12
+          },
+          "part": "roof"
+        }
+      ],
+      "tech": "masonry",
+      "shelter": 8,
+      "rest": 0.45,
+      "warmth": 0.7,
+      "supersedes": [
+        "timber_house",
+        "longhouse",
+        "hut",
+        "shelter"
+      ],
+      "color": [
+        0.82,
+        0.76,
+        0.62
+      ]
+    },
+    "stone_house": {
+      "name": "Stone house",
+      "footprint": [
+        6.4,
+        8.4
+      ],
+      "zone": "homes",
+      "phases": [
+        {
+          "name": "floor",
+          "work": 14.0,
+          "needs": {
+            "stone": 12
+          },
+          "substitutes": {
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 36.0,
+          "needs": {
+            "stone": 20,
+            "fired_brick": 10
+          },
+          "substitutes": {
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "storey 2",
+          "work": 30.0,
+          "needs": {
+            "plank": 20,
+            "stone": 10
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ],
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 18.0,
+          "needs": {
+            "wood": 6,
+            "fired_brick": 16
+          },
+          "part": "roof"
+        }
+      ],
+      "tech": "masonry",
+      "shelter": 10,
+      "rest": 0.5,
+      "warmth": 0.8,
+      "defense": 0.3,
+      "supersedes": [
+        "townhouse",
+        "timber_house",
+        "longhouse",
+        "hut",
+        "shelter"
+      ],
+      "color": [
+        0.62,
+        0.58,
+        0.54
+      ]
+    },
+    "tavern": {
+      "name": "Tavern",
+      "footprint": [
+        8.4,
+        10.4
+      ],
+      "zone": "civic",
+      "phases": [
+        {
+          "name": "floor",
+          "work": 16.0,
+          "needs": {
+            "stone": 14
+          },
+          "substitutes": {
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 40.0,
+          "needs": {
+            "stone": 20,
+            "wood": 12
+          },
+          "substitutes": {
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "storey 2",
+          "work": 30.0,
+          "needs": {
+            "plank": 26
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 20.0,
+          "needs": {
+            "wood": 8,
+            "fired_brick": 20
+          },
+          "part": "roof"
+        }
+      ],
+      "tech": "carpentry",
+      "shelter": 4,
+      "warmth": 0.6,
+      "culture": 0.5,
+      "aura": 8.0,
+      "color": [
+        0.6,
+        0.5,
+        0.42
+      ]
+    }
+  }
+}

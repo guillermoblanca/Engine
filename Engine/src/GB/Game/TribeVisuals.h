@@ -37,6 +37,8 @@ namespace GB
 			SceneVisuals* Visuals = nullptr;
 			std::function<float(float, float)> Ground; // height of the ground (fields and piles sit on it)
 			std::string Season;                         // "spring", "summer", "autumn", "winter" (the frost on the fields)
+			glm::vec3 ClanColor{ -1.0f };               // U4: the clan's colour on its people (negative = none)
+			const glm::vec3* Viewer = nullptr;          // the camera: the outfits are put on only within OutfitDistance of it (null = everyone)
 		};
 
 		bool Enabled = true;
@@ -44,6 +46,7 @@ namespace GB
 		// Whether a member is hurt (walks with the "injured" set): by default its "Health" attribute below InjuredBelow of its maximum, when it has one.
 		std::function<bool(const TribeMember&, const AbilitySystemComponent*)> Injured;
 		float InjuredBelow = 0.35f;
+		float OutfitDistance = 35.0f;   // U5: farther than this from the viewer a member wears no outfit pieces (a few pixels; they cost every frame)
 
 		void Update(const Tribe& tribe, const Context& context, float dt);
 		void AddToScene(const Tribe& tribe, const Context& context, Scene& scene);
@@ -62,6 +65,9 @@ namespace GB
 			const void* Anim = nullptr;   // the AnimInstance the layer was added to (a rebuilt animator needs a new one)
 			std::string PendingLoad;      // the load waits for the carrying set to finish blending in
 			float ReachWeight = 0.0f;
+			std::string TintRole;          // U4/U5: the role and clan colour its tints were made for (made again only when they change)
+			glm::vec3 TintClan{ -2.0f };
+			const void* TintModel = nullptr;
 		};
 		const MemberState* State(const std::string& member) const { const auto it = m_Members.find(member); return it == m_Members.end() ? nullptr : &it->second; }
 

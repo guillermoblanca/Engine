@@ -76,11 +76,12 @@ namespace GB::Editor
 		config.Vegetation = [w](float x, float z)
 		{
 			if (!w->IsBuilt()) return 0.0f;
+			const float trodden = w->TrailEase ? 1.0f - std::clamp(w->TrailEase(x, z), 0.0f, 1.0f) : 1.0f;   // T5c: a trail is trampled undergrowth
 			switch (w->World().BiomeAt(x, z))
 			{
-			case Biome::Forest: return 1.0f;
-			case Biome::Shore: return 0.3f;
-			case Biome::Meadow: return 0.15f;
+			case Biome::Forest: return 1.0f * trodden;
+			case Biome::Shore: return 0.3f * trodden;
+			case Biome::Meadow: return 0.15f * trodden;
 			default: return 0.0f;
 			}
 		};

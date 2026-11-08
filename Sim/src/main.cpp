@@ -1,7 +1,7 @@
 // GBSim: the simulation with no window (CPU only), for runs left working on their own and for sweeps (docs/DATOS_INDIVIDUO.md, section 5).
 //
 //   GBSim --seed=7 --years=2 --stop=clan_dead --stop=stagnant:6 --clans=3 ...   (a year of age is 4 simulated days; --days=N instead of --years=N)
-//   GBSim --seed=7 --days=30 --clans=3 --members=6 --biome=temperate --telemetry=run.db [--every=60] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text]
+//   GBSim --seed=7 --days=30 --clans=3 --members=6 --biome=temperate --telemetry=run.db [--every=60] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text] [--pack=id] [--know=tech,tech]
 //
 // Writes one SQLite file with the telemetry of the run. Ctrl+C stops it cleanly: the file is closed and passes the integrity check.
 #include "GB/Game/GameContent.h"
@@ -10,11 +10,15 @@
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/ContentPack.h"
 #include "GB/Gameplay/Items.h"
+#include "GB/Gameplay/Ecology.h"
+#include "GB/Gameplay/Interactives.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Log.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GB/World/WorldGen.h"
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <csignal>
@@ -82,23 +86,25 @@ namespace
 		GB::TechTree Techs;
 		std::map<std::string, GB::BuildingDef> Buildings;
 		GB::CombatRules Combat;
+		GB::DiplomacyRules Diplomacy = GB::DefaultDiplomacyRules();
+		std::map<std::string, GB::SpeciesDef> Species = GB::DefaultSpecies();
+		std::map<std::string, GB::InteractiveDef> Interactives;
 		GB::ControlRules Controls;
 		GB::ContentPacks Packs;
 		GB::NatureConfig Nature;
 		std::string Error;
 
-		explicit EraContent(const std::string& assets)
+		explicit EraContent(const std::string& assets, const std::string& pack)
 		{
-			GB::RegisterEraOneItems(Items, Recipes, Nodes);
-			GB::AddGameContentSections(Packs, Items, Recipes, Nodes, Config.Roles, &Config.Agenda, &Config.Economy, &Config.Work, &Techs, &Buildings);
-			GB::AddExplorationContentSection(Packs, Config.Explore);
-			GB::AddEconomyContentSection(Packs, Config.Econ);
-			GB::AddCombatContentSection(Packs, Combat);
-			GB::AddPlayerContentSections(Packs, Config.Player, Controls);
-			GB::AddSocialContentSection(Packs, Config.Social);
-			GB::AddSocietyContentSections(Packs, Config.Society);
+			GB::ContentTargets to;   // the sections the simulation reads (the list of sections is GameContent's, the same as the editor's)
+			to.Items = &Items; to.Recipes = &Recipes; to.Nodes = &Nodes; to.Techs = &Techs; to.Buildings = &Buildings;
+			to.Roles = &Config.Roles; to.Agenda = &Config.Agenda; to.Economy = &Config.Economy; to.Work = &Config.Work;
+			to.Explore = &Config.Explore; to.Econ = &Config.Econ; to.Combat = &Combat; to.Player = &Config.Player; to.Controls = &Controls;
+			to.Social = &Config.Social; to.Society = &Config.Society; to.Nature = &Nature; to.Diplomacy = &Diplomacy; to.Species = &Species; to.Interactives = &Interactives;
+			to.Needs = &Config.DataNeeds;   // V5
+			GB::AddContentSections(Packs, to);
 			GB::ContentReport report;
-			Error = Packs.Load("era1", assets + "/data", &report);
+			Error = Packs.Load(pack.empty() ? std::string(GB::GamePack()) : pack, assets + "/data", &report);
 			for (const std::string& problem : report.Problems) std::fprintf(stderr, "content check: %s\n", problem.c_str());
 		}
 	};
@@ -119,8 +125,9 @@ int main(int argc, char** argv)
 	double days = 3.0, every = 60.0, years = 0.0, stagnantDays = 0.0;
 	bool stopClanDead = false, stopExtinct = false;
 	int clans = 1, members = 4;
-	bool combat = false, hostile = false, content = true, forests = false;
-	std::string biome = "temperate", path, profile, note;
+	bool combat = false, hostile = false, content = true, forests = false, report = false;
+	std::string biome = "temperate", path, profile, note, pack;
+	std::vector<std::string> know;
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string v;
@@ -141,7 +148,10 @@ int main(int argc, char** argv)
 		else if (Arg(argv[i], "--every", v)) every = std::atof(v.c_str());
 		else if (Arg(argv[i], "--profile", v)) profile = v;
 		else if (Arg(argv[i], "--note", v)) note = v;
+		else if (Arg(argv[i], "--know", v)) { for (size_t s = 0, e; s <= v.size(); s = e + 1) { e = v.find(',', s); if (e == std::string::npos) e = v.size(); if (e > s) know.push_back(v.substr(s, e - s)); } }   // V5: --know=smelting,... every clan starts knowing them
+		else if (Arg(argv[i], "--pack", v)) pack = v;   // V5: the content pack to play (default the game's, GamePack(); "era2" adds the Bronze Age)
 		else if (!std::strcmp(argv[i], "--forest")) forests = true;
+		else if (!std::strcmp(argv[i], "--report")) report = true;   // at the end, each clan's settlement, fields, economy and goals
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
 		else if (!std::strcmp(argv[i], "--no-content")) content = false;   // the bare engine: no buildings, no technologies (the old runs)
 		else if (!std::strcmp(argv[i], "--hostile")) hostile = combat = true;
@@ -176,11 +186,12 @@ int main(int argc, char** argv)
 	std::unique_ptr<EraContent> era;
 	if (content)
 	{
-		era = std::make_unique<EraContent>(GB_ASSETS_DIR);
+		era = std::make_unique<EraContent>(GB_ASSETS_DIR, pack);
 		if (!era->Error.empty()) { std::fprintf(stderr, "the content of the era did not load: %s\n", era->Error.c_str()); return 1; }
 	}
 	GB::SimSetup setup;
 	setup.World = &world;
+	setup.Know = know;
 	if (era)
 	{
 		setup.Items = &era->Items;
@@ -189,14 +200,11 @@ int main(int argc, char** argv)
 		setup.Config = &era->Config;
 		setup.Techs = &era->Techs;
 		setup.Buildings = &era->Buildings;
+		setup.Diplomacy = &era->Diplomacy;
+		setup.CombatRules = &era->Combat;
+		setup.Species = &era->Species;
 	}
-	if (forests && era)   // --forest: the forest pack and the patches of bosques.json (docs/BOSQUES.md) on top of the era
-	{
-		GB::ContentReport report;
-		if (const std::string error = era->Packs.Load("era1_bosque", std::string(GB_ASSETS_DIR) + "/data", &report); !error.empty()) { std::fprintf(stderr, "%s\n", error.c_str()); return 1; }
-		if (const std::string error = GB::LoadNatureConfigFile(std::string(GB_ASSETS_DIR) + "/data/bosques.json", era->Nature); !error.empty()) { std::fprintf(stderr, "%s\n", error.c_str()); return 1; }
-		setup.Nature = &era->Nature;
-	}
+	if (forests && era) setup.Nature = &era->Nature;   // --forest: the patches of bosques.json (docs/BOSQUES.md); the game's pack already has the forest nodes
 	setup.Members = members * clans;
 	setup.Clans = clans;
 	setup.Combat = combat;
@@ -248,5 +256,49 @@ int main(int argc, char** argv)
 	const GB::TelemetryStats st = sink.Stats();
 	std::fprintf(stderr, "%s after %.2f days: %llu samples, %llu dropped, %llu events, %d violations\n", g_Stop ? "stopped" : "finished", done / kDay,
 		static_cast<unsigned long long>(st.SamplesWritten), static_cast<unsigned long long>(st.SamplesDropped), static_cast<unsigned long long>(st.EventsWritten), run.Monitor().Violations());
+	if (report)
+	{
+		std::vector<const GB::Tribe*> tribes;
+		if (run.Clans().Count() > 1) for (const auto& c : run.Clans().All()) tribes.push_back(c->Folk);
+		else tribes.push_back(&run.Brain());
+		for (const GB::Tribe* t : tribes)
+		{
+			int alive = 0;
+			for (const GB::TribeMember& m : t->Members()) if (!m.Dead) ++alive;
+			std::string goals;
+			for (const std::string& g : t->Knowledge().Goals()) goals += g + " ";
+			std::fprintf(stderr, "\n==== %d alive, era %s, %zu households, %zu fields (wants %d), store %d slots used; goals: %s\n%s\n%s\n%s\n", alive, t->EraName().c_str(),
+				t->Households().size(), t->Economy().Fields.size(), t->Config.Econ.Farming.FieldsFor(alive), t->Store().UsedSlots(), goals.c_str(), t->SettlementReport().c_str(),
+				t->FieldReport().c_str(), t->EconomyReport().c_str());
+			for (const GB::BuildingNeed& n : t->PublicBuildingNeeds()) std::fprintf(stderr, "  needs %s (%.2f): %s\n", n.Building.c_str(), n.Urgency, n.Why.c_str());
+		}
+		// V1: how big the world's history and its memories grew (bounded: GB/Game/History.h)
+		const GB::WorldHistory& past = run.Clans().Past();
+		std::map<std::string, int> kinds;
+		for (const GB::HistoryEvent& e : past.Events()) ++kinds[e.Kind];
+		std::string list;
+		for (const auto& [k, n] : kinds) list += " " + k + " " + std::to_string(n);
+		std::fprintf(stderr, "\nhistory: %zu events, %zu memories;%s\n", past.Events().size(), past.MemoryCount(), list.c_str());
+		// V2: rumours: memories heard from someone, and of them those about another clan's event (news that crossed between clans)
+		int heard = 0, crossed = 0;
+		for (const auto& c : run.Clans().All())
+			for (const GB::TribeMember& m : c->Folk->Members())
+				if (const std::vector<GB::Recollection>* mem = past.MemoriesOf(m.Name))
+					for (const GB::Recollection& r : *mem)
+					{
+						if (r.How != "heard") continue;
+						++heard;
+						if (const GB::HistoryEvent* e = past.Find(r.Event); e && e->Clan >= 0 && e->Clan != c->Id) ++crossed;
+					}
+		// (measured where a rumour is told across clans: an envoy telling news of its own clan; a member who moved keeps its memories but is not a rumour)
+		std::vector<double> told = past.Crossings;
+		std::sort(told.begin(), told.end());
+		double sum = 0.0;
+		for (double d : told) sum += d;
+		std::fprintf(stderr, "history: rumours %d heard, %d of another clan's events; %zu told across clans, %.2f days after the event on average (median %.2f, quickest %.2f)\n", heard, crossed,
+			told.size(), told.empty() ? 0.0 : sum / static_cast<double>(told.size()) / kDay, told.empty() ? 0.0 : told[told.size() / 2] / kDay, told.empty() ? 0.0 : told.front() / kDay);
+	}
+	for (const GB::SimFinding& f : run.Monitor().Findings())   // what broke an invariant, so a run left alone says it
+		std::fprintf(stderr, "violation %s: %s: %s (x%d, %.0f..%.0f s)\n", f.Check.c_str(), f.Subject.c_str(), f.What.c_str(), f.Count, f.First, f.Last);
 	return 0;
 }

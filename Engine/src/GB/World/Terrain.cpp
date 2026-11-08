@@ -2,78 +2,13 @@
 #include "GB/Log.h"
 #include "GB/Renderer/Image.h"
 #include "GB/Water/WaterCarver.h"
+#include "GB/World/TerrainNoise.h"
 #include <algorithm>
 #include <cmath>
 
 namespace GB
 {
-	namespace
-	{
-		constexpr float kPi = 3.14159265358979f;
-
-		float Hash(int x, int y, uint32_t seed)
-		{
-			uint32_t h = static_cast<uint32_t>(x) * 374761393u + static_cast<uint32_t>(y) * 668265263u + seed * 2246822519u;
-			h = (h ^ (h >> 13)) * 1274126177u;
-			return static_cast<float>((h ^ (h >> 16)) & 0xFFFFu) / 65535.0f;
-		}
-
-		float Smooth(float t) { return t * t * (3.0f - 2.0f * t); }
-
-		// Value noise in [0,1]. `period` > 0 makes it tile every `period` cells (for seamless textures).
-		float ValueNoise(float x, float y, uint32_t seed, int period = 0)
-		{
-			const int ix = static_cast<int>(std::floor(x)), iy = static_cast<int>(std::floor(y));
-			const float fx = Smooth(x - static_cast<float>(ix)), fy = Smooth(y - static_cast<float>(iy));
-			auto wrap = [&](int v) { return period > 0 ? ((v % period) + period) % period : v; };
-			const float a = Hash(wrap(ix), wrap(iy), seed), b = Hash(wrap(ix + 1), wrap(iy), seed);
-			const float c = Hash(wrap(ix), wrap(iy + 1), seed), d = Hash(wrap(ix + 1), wrap(iy + 1), seed);
-			return glm::mix(glm::mix(a, b, fx), glm::mix(c, d, fx), fy);
-		}
-
-		float Fbm(float x, float y, int octaves, uint32_t seed)
-		{
-			float sum = 0.0f, amp = 0.5f, norm = 0.0f;
-			for (int o = 0; o < octaves; ++o, amp *= 0.5f, x *= 2.0f, y *= 2.0f)
-			{
-				sum += amp * ValueNoise(x, y, seed + static_cast<uint32_t>(o) * 101u);
-				norm += amp;
-			}
-			return sum / norm;
-		}
-
-		// Tileable fractal noise for textures: `cells` base cells per tile, octaves double the frequency.
-		float TileFbm(float u, float v, int cells, int octaves, uint32_t seed)
-		{
-			float sum = 0.0f, amp = 0.5f, norm = 0.0f;
-			int period = cells;
-			for (int o = 0; o < octaves; ++o, amp *= 0.5f, period *= 2)
-			{
-				sum += amp * ValueNoise(u * static_cast<float>(period), v * static_cast<float>(period), seed + static_cast<uint32_t>(o) * 31u, period);
-				norm += amp;
-			}
-			return sum / norm;
-		}
-
-		// Dune cross-section: phase 0..1 along the wind; 0 = trough, `crest` = crest, back to 0 on the steep lee side.
-		float DuneProfile(float phase, float crest, float sharpness)
-		{
-			float cosine, triangle;
-			if (phase < crest)
-			{
-				const float t = phase / crest;
-				cosine = 0.5f - 0.5f * std::cos(kPi * t);
-				triangle = t;
-			}
-			else
-			{
-				const float t = (phase - crest) / (1.0f - crest);
-				cosine = 0.5f + 0.5f * std::cos(kPi * t);
-				triangle = 1.0f - t;
-			}
-			return glm::mix(cosine, triangle, sharpness);
-		}
-	}
+	using namespace TerrainNoise;   // (GB/World/TerrainNoise.h: shared with the terrain graph's hills and dunes nodes)
 
 	// ------------------------------------------------------------------ Heightmap
 	Heightmap::Heightmap(uint32_t resolution, float size, const glm::vec2& center)
@@ -122,30 +57,35 @@ namespace GB
 		t->m_ShoreSubdivision = std::clamp(p.DetailSubdivision, 1, 8);
 		t->m_DetailThreshold = p.DetailThreshold;
 		t->m_WindAngle = glm::radians(p.WindAngleDegrees);
-		const glm::vec2 wind(std::cos(t->m_WindAngle), std::sin(t->m_WindAngle));
 		Heightmap& hm = t->m_Heightmap;
 
 		for (uint32_t j = 0; j < hm.GetResolution(); ++j)
 		{
 			for (uint32_t i = 0; i < hm.GetResolution(); ++i)
 			{
-				const glm::vec2 pos = hm.SamplePosition(i, j);
-				// Crest lines meander: shift the along-wind coordinate by low-frequency noise.
-				const float warp = (Fbm(pos.x / p.WarpScale, pos.y / p.WarpScale, 3, p.Seed) - 0.5f) * 2.0f * p.Warp;
-				const float s = glm::dot(pos, wind) / p.Wavelength + warp;
-				const float phase = s - std::floor(s);
-				// Neighbouring dune ridges differ in size.
-				const float cell = std::floor(s);
-				const float across = glm::dot(pos, glm::vec2(-wind.y, wind.x));
-				const float size01 = ValueNoise(cell * 3.7f, across / 160.0f, p.Seed + 7);
-				const float amplitude = p.Height * (1.0f + p.SizeVariation * (size01 - 0.5f) * 2.0f);
-				const float hills = (Fbm(pos.x / 170.0f, pos.y / 170.0f, 3, p.Seed + 3) - 0.5f) * 2.0f * p.BaseHills;
-				hm.At(i, j) = amplitude * DuneProfile(phase, p.CrestPosition, p.CrestSharpness) + hills;
+				hm.At(i, j) = DuneHeight(hm.SamplePosition(i, j), t->m_WindAngle, p.Wavelength, p.Height, p.CrestPosition, p.CrestSharpness, p.Warp, p.WarpScale,
+					p.SizeVariation, p.BaseHills, p.Seed);
 			}
 		}
 
+		t->FindCrests(p.Wavelength);
+		t->Finish(style, gpu);
+		return t;
+	}
+
+	void Terrain::SetWind(float angleRadians, float wavelength)
+	{
+		m_WindAngle = angleRadians;
+		m_Crests.clear();
+		FindCrests(wavelength);
+	}
+
+	void Terrain::FindCrests(float wavelength)
+	{
+		const Heightmap& hm = m_Heightmap;
+		const glm::vec2 wind(std::cos(m_WindAngle), std::sin(m_WindAngle));
 		// Crest points: local maxima along the wind direction.
-		const float step = std::max(p.Wavelength * 0.08f, hm.GetSpacing() * 2.0f);
+		const float step = std::max(wavelength * 0.08f, hm.GetSpacing() * 2.0f);
 		const float minHeight = hm.GetMinHeight() + 0.55f * (hm.GetMaxHeight() - hm.GetMinHeight());
 		for (uint32_t j = 2; j + 2 < hm.GetResolution(); j += 3)
 		{
@@ -158,37 +98,53 @@ namespace GB
 				const float ahead = hm.GetHeight(pos.x + wind.x * step, pos.y + wind.y * step);
 				const float behind = hm.GetHeight(pos.x - wind.x * step, pos.y - wind.y * step);
 				if (h >= ahead && h >= behind)
-					t->m_Crests.push_back({ pos.x, h, pos.y });
+					m_Crests.push_back({ pos.x, h, pos.y });
 			}
 		}
-		t->Finish(style, gpu);
-		return t;
 	}
 
 	std::unique_ptr<Terrain> Terrain::CreateHills(const HillParams& p, float size, uint32_t resolution, TerrainStyle style, bool gpu)
 	{
-		std::unique_ptr<Terrain> t(new Terrain(resolution, size));
+		Heightmap ground(resolution, size);
+		for (uint32_t j = 0; j < ground.GetResolution(); ++j)
+		{
+			for (uint32_t i = 0; i < ground.GetResolution(); ++i)
+			{
+				ground.At(i, j) = HillHeight(ground.SamplePosition(i, j), p.Scale, p.Octaves, p.Seed, p.Flatten, p.Height);
+			}
+		}
+		return CreateFromHeightmap(ground, p, style, gpu);
+	}
+
+	std::unique_ptr<Terrain> Terrain::CreateFromHeightmap(const Heightmap& ground, const WaterField& water, const HillParams& p, TerrainStyle style, bool gpu)
+	{
+		std::unique_ptr<Terrain> t(new Terrain(ground.GetResolution(), ground.GetSize()));
 		t->m_SurfaceMaps = p.SurfaceMaps;
 		t->m_ShoreSubdivision = std::clamp(p.ShoreSubdivision, 1, 8);
 		t->m_ShoreMargin = std::max(p.ShoreMarginCells, 0);
 		t->m_DetailThreshold = p.DetailThreshold;
+		t->m_Heightmap = ground;
+		t->m_Water = water;
+		t->Finish(style, gpu);
+		return t;
+	}
+
+	std::unique_ptr<Terrain> Terrain::CreateFromHeightmap(const Heightmap& ground, const HillParams& p, TerrainStyle style, bool gpu)
+	{
+		std::unique_ptr<Terrain> t(new Terrain(ground.GetResolution(), ground.GetSize()));
+		t->m_SurfaceMaps = p.SurfaceMaps;
+		t->m_ShoreSubdivision = std::clamp(p.ShoreSubdivision, 1, 8);
+		t->m_ShoreMargin = std::max(p.ShoreMarginCells, 0);
+		t->m_DetailThreshold = p.DetailThreshold;
+		t->m_Heightmap = ground;
 		Heightmap& hm = t->m_Heightmap;
 		LakeShape lake;
 		lake.Center = p.LakeCenter; lake.Radius = p.LakeRadius; lake.Depth = p.LakeDepth; lake.Level = p.WaterLevel; lake.BankSlope = p.LakeBankSlope;
 		lake.Outline = MakeLakeOutline(p.Seed, p.LakeIrregularity);
-		for (uint32_t j = 0; j < hm.GetResolution(); ++j)
-		{
-			for (uint32_t i = 0; i < hm.GetResolution(); ++i)
-			{
-				const glm::vec2 pos = hm.SamplePosition(i, j);
-				float n = Fbm(pos.x / p.Scale, pos.y / p.Scale, p.Octaves, p.Seed);
-				n = glm::clamp((n - 0.25f) / 0.6f, 0.0f, 1.0f);
-				n = glm::mix(n, n * n * (3.0f - 2.0f * n), p.Flatten + 0.35f);   // rounded hilltops, flatter valleys
-				float h = n * p.Height;
-				if (lake.Radius > 0.0f) h = ApplyLakeBasin(h, pos, lake);   // the basin and its banks (GB/Water/WaterCarver.h)
-				hm.At(i, j) = h;
-			}
-		}
+		if (lake.Radius > 0.0f)
+			for (uint32_t j = 0; j < hm.GetResolution(); ++j)
+				for (uint32_t i = 0; i < hm.GetResolution(); ++i)
+					hm.At(i, j) = ApplyLakeBasin(hm.At(i, j), hm.SamplePosition(i, j), lake);   // the basin and its banks (GB/Water/WaterCarver.h)
 		if (p.RiverPath.size() >= 2)
 		{
 			RiverShape river;
@@ -205,7 +161,7 @@ namespace GB
 	// The river itself (carving, queries) is GB/Water; only the question that needs the ground stays here.
 	float Terrain::GetRiverLevelAt(float x, float z) const
 	{
-		const RiverSample s = m_Water.NearestRiver(x, z);
+		const RiverSample s = m_Water.NearestRiverInBand(x, z);   // (the same answer as NearestRiver here: only the band is wanted)
 		return m_Water.InRiverBand(s) && m_Heightmap.GetHeight(x, z) < s.Level ? s.Level : kNoWaterLevel;
 	}
 	// ------------------------------------------------------------------ shore refinement
@@ -478,9 +434,11 @@ namespace GB
 		if (gpu) BuildGpu();
 	}
 
-	void Terrain::BuildGpu()
+	void Terrain::PrepareGpu()
 	{
-		if (m_Mesh) return;
+		if (m_Mesh || m_Prepared) return;
+		auto prepared = std::make_unique<Prepared>();
+		Prepared& d = *prepared;
 		const TerrainStyle style = m_Style;
 		const Heightmap& hm = m_Heightmap;
 		const uint32_t n = hm.GetResolution();
@@ -510,8 +468,9 @@ namespace GB
 			}
 		}
 		BuildMeshRefinement(vertices, indices);
-		m_Mesh = std::make_unique<Mesh>(vertices, indices);
-		m_Vertices = std::move(vertices);
+		SortIntoTiles(vertices, indices);
+		d.Vertices = std::move(vertices);
+		d.Indices = std::move(indices);
 
 		// ---- palette
 		glm::vec3 sunlit, shade, crest;
@@ -536,7 +495,7 @@ namespace GB
 					uint8_t* p = &grain.Pixels[(static_cast<size_t>(y) * R + x) * 4];
 					p[0] = p[1] = p[2] = static_cast<uint8_t>(g * 255.0f + 0.5f);
 				}
-			m_Grain = std::make_unique<Texture2D>(grain, TextureEncoding::SRGB);
+			d.Grain = std::move(grain);
 		}
 
 		// ---- wind ripples (tangent-space normal map, tileable). Wave vector along the wind.
@@ -571,11 +530,34 @@ namespace GB
 					p[1] = static_cast<uint8_t>((nrm.y * 0.5f + 0.5f) * 255.0f + 0.5f);
 					p[2] = static_cast<uint8_t>((nrm.z * 0.5f + 0.5f) * 255.0f + 0.5f);
 				}
-			m_Ripples = std::make_unique<Texture2D>(normal, TextureEncoding::Linear);
+			d.Ripples = std::move(normal);
 		}
 
 		if (m_SurfaceMaps)
-			BuildSurfaceMaps(style, sunlit, shade, crest);
+			BuildSurfaceMaps(style, sunlit, shade, crest, d.Macro);
+		d.Roughness = roughness;
+		d.RippleDepth = rippleDepth;
+		m_Prepared = std::move(prepared);
+	}
+
+	void Terrain::BuildGpu()
+	{
+		if (m_Mesh) return;
+		PrepareGpu();
+		Prepared& d = *m_Prepared;
+		const Heightmap& hm = m_Heightmap;
+		const TerrainStyle style = m_Style;
+		m_Mesh = std::make_unique<Mesh>(d.Vertices, d.Indices);
+		m_Vertices = std::move(d.Vertices);
+		m_Grain = std::make_unique<Texture2D>(d.Grain, TextureEncoding::SRGB);
+		m_Ripples = std::make_unique<Texture2D>(d.Ripples, TextureEncoding::Linear);
+		if (m_SurfaceMaps)
+		{
+			m_Macro = std::make_unique<Texture2D>(d.Macro, TextureEncoding::SRGB);
+			m_NormalMap = std::make_unique<Texture2D>(m_NormalImage, TextureEncoding::Linear);
+		}
+		const float roughness = d.Roughness, rippleDepth = d.RippleDepth;
+		m_Prepared.reset();
 
 		m_Material = {};
 		m_Material.Albedo = glm::vec3(1.0f);
@@ -600,7 +582,7 @@ namespace GB
 	// A normal map and a macro color map over the whole terrain, both at a texel of ~0.2 m (much finer than the 0.5 m heightmap grid):
 	// heights come from the smooth Catmull-Rom surface, so slopes shade smoothly instead of showing the grid's facets, and the
 	// color carries mid-scale variation that keeps the ground from looking flat and pixelated up close.
-	void Terrain::BuildSurfaceMaps(TerrainStyle style, const glm::vec3& sunlit, const glm::vec3& shade, const glm::vec3& crest)
+	void Terrain::BuildSurfaceMaps(TerrainStyle style, const glm::vec3& sunlit, const glm::vec3& shade, const glm::vec3& crest, Image& out)
 	{
 		(void)style;
 		const Heightmap& hm = m_Heightmap;
@@ -612,9 +594,13 @@ namespace GB
 		const int R = static_cast<int>(res);
 
 		std::vector<float> heights(static_cast<size_t>(res) * res);
+		const bool layered = !m_Layers.empty();
 		for (int y = 0; y < R; ++y)
 			for (int x = 0; x < R; ++x)
-				heights[static_cast<size_t>(y) * res + static_cast<size_t>(x)] = SmoothHeight(lo.x + (static_cast<float>(x) + 0.5f) * texel, lo.y + (static_cast<float>(y) + 0.5f) * texel);
+			{
+				const float wx = lo.x + (static_cast<float>(x) + 0.5f) * texel, wz = lo.y + (static_cast<float>(y) + 0.5f) * texel;
+				heights[static_cast<size_t>(y) * res + static_cast<size_t>(x)] = layered ? SmoothHeight(wx, wz) + SurfaceDetail(wx, wz) : SmoothHeight(wx, wz);
+			}
 		auto H = [&](int x, int y) { return heights[static_cast<size_t>(std::clamp(y, 0, R - 1)) * res + static_cast<size_t>(std::clamp(x, 0, R - 1))]; };
 
 		// Large patches of lighter and darker ground (38 m features): evaluated on a coarse grid and interpolated, they are smooth anyway.
@@ -651,10 +637,105 @@ namespace GB
 				glm::vec3 c = glm::mix(sunlit, shade, glm::clamp(slope * 4.5f, 0.0f, 1.0f));
 				c = glm::mix(c, crest, glm::clamp((altitude - 0.55f) * 2.4f, 0.0f, 1.0f) * (1.0f - glm::clamp(slope * 6.0f, 0.0f, 1.0f)));
 				c *= (0.86f + 0.28f * patch) * (0.9f + 0.2f * fine);
+				if (layered) c = PaintLayers(c, wx, wz, H(x, y), nrm, patch, fine);
 				for (int k = 0; k < 3; ++k) macro.Pixels[o + static_cast<size_t>(k)] = static_cast<uint8_t>(glm::clamp(c[k], 0.0f, 1.0f) * 255.0f + 0.5f);
 			}
-		m_Macro = std::make_unique<Texture2D>(macro, TextureEncoding::SRGB);
-		m_NormalMap = std::make_unique<Texture2D>(m_NormalImage, TextureEncoding::Linear);
+		out = std::move(macro);   // (the textures are made from it and m_NormalImage by BuildGpu)
+	}
+
+	// ------------------------------------------------------------------ material layers
+	void Terrain::SetSurfaceLayers(std::vector<SurfaceLayer> layers)
+	{
+		const size_t count = static_cast<size_t>(m_Heightmap.GetResolution()) * m_Heightmap.GetResolution();
+		layers.erase(std::remove_if(layers.begin(), layers.end(), [count](const SurfaceLayer& l) { return l.Weights.size() != count; }), layers.end());
+		m_Layers = std::move(layers);
+		m_Prepared.reset();   // (the surface maps painted without them are made again)
+	}
+
+	float Terrain::SurfaceLayerWeight(SurfaceLayerKind kind, float x, float z) const
+	{
+		const Heightmap& hm = m_Heightmap;
+		for (const SurfaceLayer& layer : m_Layers)
+		{
+			if (layer.Kind != kind) continue;
+			const int n = static_cast<int>(hm.GetResolution());
+			const float maxIndex = static_cast<float>(n - 1);
+			const float fx = glm::clamp((x - hm.GetMin().x) / hm.GetSpacing(), 0.0f, maxIndex), fz = glm::clamp((z - hm.GetMin().y) / hm.GetSpacing(), 0.0f, maxIndex);
+			const int i0 = std::min(static_cast<int>(fx), n - 2), j0 = std::min(static_cast<int>(fz), n - 2);
+			const float tx = fx - static_cast<float>(i0), tz = fz - static_cast<float>(j0);
+			auto W = [&](int i, int j) { return layer.Weights[static_cast<size_t>(j) * static_cast<size_t>(n) + static_cast<size_t>(i)]; };
+			return glm::clamp(glm::mix(glm::mix(W(i0, j0), W(i0 + 1, j0), tx), glm::mix(W(i0, j0 + 1), W(i0 + 1, j0 + 1), tx), tz), 0.0f, 1.0f);
+		}
+		return 0.0f;
+	}
+
+	// Rock flutes: the grooves that rockfall and meltwater cut down a cliff, which run down its fall line. A noise stretched along the downhill
+	// direction (narrow across the slope, long down it), stronger the steeper the face, on the rock layer only.
+	float Terrain::SurfaceDetail(float x, float z) const
+	{
+		const float rock = SurfaceLayerWeight(SurfaceLayerKind::Rock, x, z);
+		if (rock <= 0.0f) return 0.0f;
+		const float e = m_Heightmap.GetSpacing() * 2.0f;
+		const glm::vec2 grad((m_Heightmap.GetHeight(x + e, z) - m_Heightmap.GetHeight(x - e, z)) / (2.0f * e), (m_Heightmap.GetHeight(x, z + e) - m_Heightmap.GetHeight(x, z - e)) / (2.0f * e));
+		const float steep = glm::clamp((glm::length(grad) - 0.35f) * 1.5f, 0.0f, 1.0f);
+		if (steep <= 0.0f) return 0.0f;
+		const glm::vec2 down = grad / std::max(glm::length(grad), 1e-4f);
+		const glm::vec2 across(-down.y, down.x);
+		const glm::vec2 p(x, z);
+		const float u = glm::dot(p, across), v = glm::dot(p, down);
+		const float ribs = Fbm(u / 7.0f, v / 40.0f, 4, 401) - 0.5f;            // ribs and gullies ~8 m apart, tens of metres long
+		const float flutes = Fbm(u / 1.8f, v / 12.0f, 3, 403) - 0.5f;          // grooves ~2 m apart
+		const float blocks = Fbm(u / 4.0f, v / 3.0f, 2, 409) - 0.5f;           // broken blocks between them
+		return (ribs * 2.6f + flutes * 0.8f + blocks * 0.5f) * rock * steep;
+	}
+
+	glm::vec3 Terrain::PaintLayers(const glm::vec3& base, float x, float z, float height, const glm::vec3& normal, float patch, float fine) const
+	{
+		glm::vec3 c = base;
+		const float slope = 1.0f - normal.y;
+		const float jitter = (ValueNoise(x / 2.3f, z / 2.3f, 211) - 0.5f) * 0.35f + (ValueNoise(x / 0.7f, z / 0.7f, 223) - 0.5f) * 0.15f;   // ragged edges
+		for (const SurfaceLayer& layer : m_Layers)
+		{
+			float w = SurfaceLayerWeight(layer.Kind, x, z);
+			if (w <= 0.0f) continue;
+			w = glm::clamp((w - 0.5f) * 1.6f + 0.5f + jitter, 0.0f, 1.0f);
+			glm::vec3 color;
+			switch (layer.Kind)
+			{
+			case SurfaceLayerKind::Rock:
+			{
+				// warm granite, banded by its bedding and darker in the grooves and on the steepest faces
+				const float band = std::sin(height * 1.3f + (Fbm(x / 40.0f, z / 40.0f, 2, 307) - 0.5f) * 6.0f) * 0.5f + 0.5f;
+				const float groove = glm::clamp(0.5f - SurfaceDetail(x, z) * 0.9f, 0.0f, 1.0f);
+				const float tone = Fbm(x / 14.0f, z / 14.0f, 3, 311);   // lighter and darker slabs
+				color = glm::mix(glm::vec3(0.55f, 0.43f, 0.35f), glm::vec3(0.33f, 0.25f, 0.21f), glm::clamp(band * 0.45f + (1.0f - tone) * 0.6f - 0.15f, 0.0f, 1.0f));
+				color *= (0.7f + 0.45f * groove) * (0.9f + 0.2f * fine) * (1.0f - 0.15f * glm::clamp(slope * 1.5f, 0.0f, 1.0f));
+				break;
+			}
+			case SurfaceLayerKind::Snow: color = glm::vec3(0.93f, 0.95f, 0.99f) * (0.96f + 0.04f * fine); break;
+			case SurfaceLayerKind::Grass: color = glm::vec3(0.30f, 0.45f, 0.16f) * (0.86f + 0.28f * patch) * (0.9f + 0.2f * fine); break;
+			case SurfaceLayerKind::Dry:
+			{
+				// sun-cured grass: olive where it is only drying, straw where it is dry through, in patches
+				const float cure = glm::clamp(w * 1.2f + (patch - 0.5f) * 0.8f, 0.0f, 1.0f);
+				color = glm::mix(glm::vec3(0.36f, 0.42f, 0.17f), glm::vec3(0.55f, 0.50f, 0.27f), cure) * (0.9f + 0.2f * fine);
+				w = glm::clamp(w * 0.85f, 0.0f, 1.0f);
+				break;
+			}
+			case SurfaceLayerKind::Forest:
+			{
+				// crowns of 4-7 m, lit on top and dark in the gaps between them, broadleaf greens mixed with darker conifers in clumps
+				const float crowns = ValueNoise(x / 4.5f, z / 4.5f, 421) * 0.65f + ValueNoise(x / 1.8f, z / 1.8f, 431) * 0.35f;
+				const float species = Fbm(x / 60.0f, z / 60.0f, 3, 433);
+				const glm::vec3 lit = glm::mix(glm::vec3(0.17f, 0.25f, 0.08f), glm::vec3(0.10f, 0.17f, 0.08f), glm::clamp((species - 0.42f) * 5.0f, 0.0f, 1.0f));
+				color = glm::mix(glm::vec3(0.07f, 0.10f, 0.05f), lit * 1.25f, glm::clamp((crowns - 0.25f) * 2.2f, 0.0f, 1.0f));
+				break;
+			}
+			default: color = glm::vec3(0.80f, 0.66f, 0.45f) * (0.9f + 0.2f * fine); break;
+			}
+			c = glm::mix(c, color, w);
+		}
+		return c;
 	}
 
 	void Terrain::WriteNormalTexels(int x0, int y0, int x1, int y1)
@@ -669,8 +750,10 @@ namespace GB
 		std::vector<float> heights(static_cast<size_t>(hw) * static_cast<size_t>(h + 2));
 		for (int y = -1; y <= h; ++y)
 			for (int x = -1; x <= w; ++x)
-				heights[static_cast<size_t>(y + 1) * static_cast<size_t>(hw) + static_cast<size_t>(x + 1)] =
-					SmoothHeight(lo.x + (static_cast<float>(x0 + x) + 0.5f) * texel, lo.y + (static_cast<float>(y0 + y) + 0.5f) * texel);
+			{
+				const float wx = lo.x + (static_cast<float>(x0 + x) + 0.5f) * texel, wz = lo.y + (static_cast<float>(y0 + y) + 0.5f) * texel;
+				heights[static_cast<size_t>(y + 1) * static_cast<size_t>(hw) + static_cast<size_t>(x + 1)] = m_Layers.empty() ? SmoothHeight(wx, wz) : SmoothHeight(wx, wz) + SurfaceDetail(wx, wz);
+			}
 		auto H = [&](int x, int y) { return heights[static_cast<size_t>(y + 1) * static_cast<size_t>(hw) + static_cast<size_t>(x + 1)]; };
 		std::vector<uint8_t> patch(static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
 		for (int y = 0; y < h; ++y)
@@ -699,10 +782,63 @@ namespace GB
 	void Terrain::AddToScene(Scene& scene, const glm::mat4& root) const
 	{
 		if (!m_Mesh) return;   // a CPU-only terrain (BuildGpu not called) draws nothing
-		RenderObject obj;
-		obj.MeshPtr = m_Mesh.get();
-		obj.Mat = m_Material;
-		obj.Transform = root;
-		scene.Objects.push_back(std::move(obj));
+		if (m_Tiles.size() <= 1)
+		{
+			RenderObject obj;
+			obj.MeshPtr = m_Mesh.get();
+			obj.Mat = m_Material;
+			obj.Transform = root;
+			scene.Objects.push_back(std::move(obj));
+			return;
+		}
+		for (const Tile& tile : m_Tiles)   // one object per tile, culled by its bounds (SortIntoTiles)
+		{
+			RenderObject obj;
+			obj.MeshPtr = m_Mesh.get();
+			obj.Mat = m_Material;
+			obj.Transform = root;
+			obj.IndexFirst = tile.First;
+			obj.IndexCount = tile.Count;
+			obj.BoundingCenter = tile.Center;
+			obj.BoundingRadius = tile.Radius;
+			scene.Objects.push_back(std::move(obj));
+		}
+	}
+
+	// The triangles in tile order (each by the cell its centroid falls in), and each tile's range and bounds. A terrain of one tile or less (the
+	// worlds of a few hundred metres) stays one draw, as it was.
+	void Terrain::SortIntoTiles(const std::vector<Vertex>& vertices, std::vector<uint32_t>& indices)
+	{
+		m_Tiles.clear();
+		const Heightmap& hm = m_Heightmap;
+		const int cells = static_cast<int>(hm.GetResolution()) - 1;
+		const int per = (cells + kTileCells - 1) / kTileCells;
+		if (per <= 1) return;
+		const float tileSize = hm.GetSize() / static_cast<float>(per);
+		const glm::vec2 lo = hm.GetMin();
+		std::vector<std::vector<uint32_t>> buckets(static_cast<size_t>(per) * per);
+		for (size_t t = 0; t + 2 < indices.size(); t += 3)
+		{
+			const glm::vec3 c = (vertices[indices[t]].Position + vertices[indices[t + 1]].Position + vertices[indices[t + 2]].Position) / 3.0f;
+			const int tx = std::clamp(static_cast<int>((c.x - lo.x) / tileSize), 0, per - 1), tz = std::clamp(static_cast<int>((c.z - lo.y) / tileSize), 0, per - 1);
+			auto& b = buckets[static_cast<size_t>(tz) * per + tx];
+			b.insert(b.end(), { indices[t], indices[t + 1], indices[t + 2] });
+		}
+		std::vector<uint32_t> sorted;
+		sorted.reserve(indices.size());
+		for (const auto& b : buckets)
+		{
+			if (b.empty()) continue;
+			Tile tile;
+			tile.First = static_cast<uint32_t>(sorted.size());
+			tile.Count = static_cast<uint32_t>(b.size());
+			glm::vec3 mn(1e30f), mx(-1e30f);
+			for (const uint32_t i : b) { mn = glm::min(mn, vertices[i].Position); mx = glm::max(mx, vertices[i].Position); }
+			tile.Center = (mn + mx) * 0.5f;
+			tile.Radius = glm::length(mx - mn) * 0.5f + 1.0f;   // (a metre for the displacement and the ground marks)
+			sorted.insert(sorted.end(), b.begin(), b.end());
+			m_Tiles.push_back(tile);
+		}
+		indices.swap(sorted);
 	}
 }

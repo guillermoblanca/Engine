@@ -28,6 +28,7 @@ namespace GB
 		ClanWorld* Clans() const { return m_Clans; }
 
 		float Hostility(const std::string& a, const std::string& b) const override;
+		bool AtWar(const std::string& a, const std::string& b) const override;
 		std::vector<RaidTarget> RaidTargets(const std::string& raider) const override;
 		void Settled(const std::string& clan, const glm::vec2& camp, Inventory* store, float defense = 0.0f) override;
 		void Wronged(const std::string& victim, const std::string& culprit, const std::string& what, float weight) override;

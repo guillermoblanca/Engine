@@ -64,8 +64,13 @@ namespace GB
 		glm::vec2 lo = world.BoundsMin, hi = world.BoundsMax;
 		if (c.AreaMax.x > c.AreaMin.x && c.AreaMax.y > c.AreaMin.y) { lo = c.AreaMin; hi = c.AreaMax; }
 		if (!(hi.x > lo.x && hi.y > lo.y) || hi.x - lo.x > 1e6f || hi.y - lo.y > 1e6f) return fail("the world has no finite bounds (set NavConfig::AreaMin/AreaMax)");
+		// a map of kilometres at the asked size would be tens of millions of cells: the cells grow until it fits (3 km: about 1 m, still finer
+		// than the gap between two trees), instead of no navigation at all (the characters walked straight into lakes and cliffs)
+		constexpr float kMaxCells = 8e6f;
+		if (std::ceil((hi.x - lo.x) / c.CellSize) * std::ceil((hi.y - lo.y) / c.CellSize) > kMaxCells)
+			c.CellSize = std::sqrt((hi.x - lo.x) * (hi.y - lo.y) / kMaxCells) * 1.01f;
 		const float w = std::ceil((hi.x - lo.x) / c.CellSize), h = std::ceil((hi.y - lo.y) / c.CellSize);
-		if (w * h > 8e6f) return fail("the area is too big for this cell size");
+		if (w * h > kMaxCells * 1.05f) return fail("the area is too big for this cell size");
 
 		Clear();
 		m_Config = c;
@@ -85,8 +90,11 @@ namespace GB
 		m_Veg.assign(n, 0);
 		m_Flags.assign(n, 0);
 		m_ChunkCost.assign(static_cast<size_t>(m_ChunkW) * static_cast<size_t>(m_ChunkH), 1.0f);
+		// the ground's signature at the points Matches samples (the grid's own corners: with cells grown to fit, its far edge is past `hi`, and a
+		// signature taken elsewhere never matched, so the 1 s build ran again at every sync, every frame)
+		const glm::vec2 top = Max();
 		for (int k = 0; k < 9; ++k)
-			m_Signature[k] = m_Ground(lo.x + (hi.x - lo.x) * (0.1f + 0.4f * static_cast<float>(k % 3)), lo.y + (hi.y - lo.y) * (0.1f + 0.4f * static_cast<float>(k / 3)));
+			m_Signature[k] = m_Ground(lo.x + (top.x - lo.x) * (0.1f + 0.4f * static_cast<float>(k % 3)), lo.y + (top.y - lo.y) * (0.1f + 0.4f * static_cast<float>(k / 3)));
 
 		ReadTerrain(0, 0, m_Width, m_Height);
 		Rasterize(0, 0, m_Width, m_Height);
@@ -208,6 +216,34 @@ namespace GB
 		m_Stats.CellsUpdated += cells;
 		m_Stats.UpdateSeconds += Since(t0);
 		return cells;
+	}
+
+	int NavGrid::UpdateVegetation(const glm::vec2& min, const glm::vec2& max)
+	{
+		if (!Ready() || !m_Config.Vegetation) return 0;
+		const auto t0 = Clock::now();
+		const float cs = m_Config.CellSize;
+		const int i0 = std::max(0, static_cast<int>(std::floor((min.x - m_Min.x) / cs))), j0 = std::max(0, static_cast<int>(std::floor((min.y - m_Min.y) / cs)));
+		const int i1 = std::min(m_Width, static_cast<int>(std::ceil((max.x - m_Min.x) / cs))), j1 = std::min(m_Height, static_cast<int>(std::ceil((max.y - m_Min.y) / cs)));
+		if (i1 <= i0 || j1 <= j0) return 0;
+		int changed = 0;
+		for (int j = j0; j < j1; ++j)
+			for (int i = i0; i < i1; ++i)
+			{
+				const glm::vec2 p = CellCenter(i, j);
+				const size_t k = static_cast<size_t>(Index(i, j));
+				const uint8_t v = Quantize(m_Config.Vegetation(p.x, p.y), 255.0f);
+				if (v != m_Veg[k]) { m_Veg[k] = v; ++changed; }
+			}
+		if (changed > 0)
+		{
+			RefreshChunks(i0, j0, i1, j1);
+			Log(i0, j0, i1, j1);
+			++m_Stats.Updates;
+			m_Stats.CellsUpdated += changed;
+		}
+		m_Stats.UpdateSeconds += Since(t0);
+		return changed;
 	}
 
 	int NavGrid::SyncObstacles(const std::vector<CircleObstacle>& now)

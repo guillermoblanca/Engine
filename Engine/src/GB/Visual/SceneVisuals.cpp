@@ -1,5 +1,7 @@
 #include "GB/Visual/SceneVisuals.h"
 #include "GB/Log.h"
+#include "GB/Assets/AssetPath.h"
+#include "GB/Assets/Model.h"
 #include "GB/Visual/BuildingVisuals.h"
 #include "GB/Visual/ProcTexture.h"
 #include <algorithm>
@@ -57,6 +59,19 @@ namespace GB
 				hi = glm::max(hi, b);
 				entry.Pieces.emplace_back(std::make_unique<Mesh>(piece.Mesh.Vertices, piece.Mesh.Indices), piece.Material);
 			}
+			for (const auto& [part, at] : ModelPieces(model, visible, variant))   // the kit pieces (shape "model")
+				if (const KitPiece* kit = Kit(model.Parts[part].Model))
+				{
+					entry.Kit.push_back({ model.Parts[part].Model, at });
+					for (int c = 0; c < 8; ++c)
+					{
+						const glm::vec3 corner((c & 1) ? kit->Max.x : kit->Min.x, (c & 2) ? kit->Max.y : kit->Min.y, (c & 4) ? kit->Max.z : kit->Min.z);
+						const glm::vec3 p = glm::vec3(at * glm::vec4(corner, 1.0f));
+						lo = glm::min(lo, p);
+						hi = glm::max(hi, p);
+					}
+				}
+			if (!entry.Kit.empty() && entry.Pieces.empty()) { entry.Center = (lo + hi) * 0.5f; entry.Radius = glm::length(hi - lo) * 0.5f; }
 			if (!entry.Pieces.empty()) { entry.Center = (lo + hi) * 0.5f; entry.Radius = glm::length(hi - lo) * 0.5f; }
 			it = m_Meshes.emplace(key, std::move(entry)).first;
 		}
@@ -69,9 +84,52 @@ namespace GB
 			obj.BoundingCenter = it->second.Center;
 			obj.BoundingRadius = std::max(it->second.Radius, 0.05f);
 			obj.MaxDistance = maxDistance;
+			obj.Instanced = true;   // (a cached piece: the same mesh always has the same material, so every node or building of the kind is one draw)
 			scene.Objects.push_back(std::move(obj));
 		}
+		for (const auto& [path, at] : it->second.Kit)   // kit pieces: every wall of every house is one draw per mesh
+			if (const KitPiece* kit = Kit(path))
+				for (const RenderObject& o : kit->Objects)
+				{
+					RenderObject obj = o;
+					obj.Transform = world * at * o.Transform;
+					obj.MaxDistance = maxDistance;
+					obj.Instanced = true;
+					scene.Objects.push_back(std::move(obj));
+				}
 		return true;
+	}
+
+	const VisualCache::KitPiece* VisualCache::Kit(const std::string& path)
+	{
+		auto it = m_Kits.find(path);
+		if (it == m_Kits.end())
+		{
+			KitPiece piece;
+			const std::string file = ResolveAssetPath(path, AssetDir);
+			piece.Source = std::shared_ptr<Model>(Model::Load(file).release());
+			if (!piece.Source)
+			{
+				GB_CORE_WARN("visuals: the kit piece '{}' could not be loaded", file);
+				piece.Failed = true;
+			}
+			else
+			{
+				Scene rest;
+				piece.Source->AddToScene(rest);   // the rest pose, once
+				piece.Min = piece.Source->GetBoundsMin();
+				piece.Max = piece.Source->GetBoundsMax();
+				for (RenderObject& o : rest.Objects)
+				{
+					o.JointMatrices = nullptr;
+					o.BoundingCenter = piece.Source->GetBoundsCenter();
+					o.BoundingRadius = std::max(piece.Source->GetBoundsRadius(), 0.05f);
+					piece.Objects.push_back(o);
+				}
+			}
+			it = m_Kits.emplace(path, std::move(piece)).first;
+		}
+		return it->second.Failed ? nullptr : &it->second;
 	}
 
 	bool VisualCache::AddModel(const std::string& model, float fraction, int variant, const glm::mat4& world, Scene& scene, float maxDistance)

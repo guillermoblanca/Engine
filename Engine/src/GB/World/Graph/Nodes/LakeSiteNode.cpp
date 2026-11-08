@@ -8,11 +8,6 @@ namespace GB
 {
 	namespace
 	{
-		double Param(const TgNode& n, const char* key, double fallback)
-		{
-			const auto it = n.Params.find(key);
-			return it == n.Params.end() ? fallback : it->second;
-		}
 
 		bool Check(const TgNode& node, const std::vector<const TgField*>& inputs, std::string& error)
 		{
@@ -58,7 +53,7 @@ namespace GB
 	{
 		if (!Check(node, inputs, error)) return false;
 		const TgField& in = *inputs[0];
-		const LakeSiteResult site = FindLakeSite(in, static_cast<int>(Param(node, "Coarse", 65.0)), static_cast<int>(Param(node, "Margin", 12.0)));
+		const LakeSiteResult site = FindLakeSite(in, static_cast<int>(TgParam(node, "Coarse", 65.0)), static_cast<int>(TgParam(node, "Margin", 12.0)));
 
 		out.Resize(in.N, in.Size, in.Center);
 		const float spacing = in.Spacing();
@@ -72,11 +67,26 @@ namespace GB
 	bool LakeSiteNode::Trace(const TgNode& node, const TgContext&, const std::vector<const TgField*>& inputs, TgPaths& out, std::string& error) const
 	{
 		if (!Check(node, inputs, error)) return false;
-		const LakeSiteResult site = FindLakeSite(*inputs[0], static_cast<int>(Param(node, "Coarse", 65.0)), static_cast<int>(Param(node, "Margin", 12.0)));
+		const LakeSiteResult site = FindLakeSite(*inputs[0], static_cast<int>(TgParam(node, "Coarse", 65.0)), static_cast<int>(TgParam(node, "Margin", 12.0)));
 		TgPath path;
 		path.Points.push_back(site.Position);
 		path.Values.push_back(site.Height);
 		out.Items.push_back(std::move(path));
 		return true;
+	}
+
+	TgNodeSchema LakeSiteNode::Describe() const
+	{
+		TgNodeSchema s;
+		s.Category = "Water";
+		s.Summary = "Where the lake goes: the broadest low basin away from the borders (an outlet mask and a one-point path).";
+		s.Color = 0x288282;
+		s.Inputs = { { "height", TgPortKind::Field } };
+		s.Outputs = { { "outlets", TgPortKind::Field }, { "site", TgPortKind::Paths } };
+		s.Params = {
+			{ "Coarse", 65, 5, 257, true, "cells per side of the smoothed grid" },
+			{ "Margin", 12, 1, 60, true, "coarse cells kept clear of the border" },
+		};
+		return s;
 	}
 }

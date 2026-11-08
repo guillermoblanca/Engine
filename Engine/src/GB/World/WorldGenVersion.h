@@ -12,7 +12,11 @@ namespace GB
 	// 3: the water is found by a terrain graph on the bare ground (GB/Water/WaterPlanner.h): the lake in the broadest basin with a lobed shore, the river
 	//    along the real drainage network down to it, widening, deepening and quickening downstream (GB/Water/RiverHydraulics.h). The terrain, the biomes
 	//    and the placement are the same code as 2; only the lake and the river change, so a world of generator 3 differs from the same seed of 2 there.
+	// 4: the whole world is a terrain graph (docs/GRAFO_TERRENO.md, section 12): a preset of GB/World/Graph/TerrainGraphPresets.h made from the
+	//    WorldDesc (MakeWorldGraph) builds the ground, digs the lake and the river, erodes around them, and publishes the moisture, the biomes, the
+	//    trees and rocks and the material layers. Generators 1-3 keep their own code (WorldGenLegacy.cpp), frozen.
 	constexpr uint32_t kWorldGeneratorV1 = 1;
 	constexpr uint32_t kWorldGeneratorV3 = 3;
-	constexpr uint32_t kWorldGeneratorLatest = 3;
+	constexpr uint32_t kWorldGeneratorV4 = 4;
+	constexpr uint32_t kWorldGeneratorLatest = 4;
 }

@@ -161,6 +161,20 @@ namespace GB
 		std::string Prop;
 		float ScaleMin = 1.0f, ScaleMax = 1.0f;
 		int Stack = 0;
+		// R1: resource zones ("zones": { "perKm2", "min", "max", "radiusMin", "radiusMax", "fallback": [biomes] }): the type grows only inside a few round areas of the map
+		// (a copper vein, a flint field, a clay bank), chosen from the seed where the centre's ground fits; PerHectare is the density inside them.
+		// PerKm2 0 = no zones: it grows wherever the ground fits.
+		struct ZoneRule
+		{
+			float PerKm2 = 0.0f;
+			int Min = 1, Max = 0;               // Max 0 = no limit
+			float RadiusMin = 30.0f, RadiusMax = 60.0f;
+			// biomes a zone may stand on when the map has too few places of Biomes for Min zones ("fallback": a small meadow map still gets
+			// its copper vein, so the copper age can be reached on it); the nodes of such a zone grow on these biomes too
+			std::vector<std::string> Fallback;
+			bool operator==(const ZoneRule&) const = default;
+		};
+		ZoneRule Zones;
 		bool Placed() const { return PerHectare > 0.0f && !Biomes.empty(); }
 	};
 
@@ -168,6 +182,10 @@ namespace GB
 	{
 		std::string Id;                     // "tree", "rock", "berry_bush"
 		std::string Item;                   // item it yields
+		// a second thing each gather gives besides (a felled tree's branches: "extra": { "item": "branch", "perGather": 1 }); "" = none. It does not
+		// take from the node's Amount: the node is worked for its Item
+		std::string ExtraItem;
+		int ExtraPerGather = 0;
 		int Capacity = 5;
 		int PerGather = 1;
 		float RegenSeconds = 0.0f;          // 0 = never regrows

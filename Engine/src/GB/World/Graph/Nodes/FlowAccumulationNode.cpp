@@ -17,4 +17,15 @@ namespace GB
 			for (uint32_t i = 0; i < in.N; ++i) out.At(i, j) = result.Accumulation[static_cast<size_t>(j) * in.N + i];
 		return true;
 	}
+
+	TgNodeSchema FlowAccumulationNode::Describe() const
+	{
+		TgNodeSchema s;
+		s.Category = "Water";
+		s.Summary = "Drainage area of every cell (D8): how many cells of rain run through it.";
+		s.Color = 0x288282;
+		s.Inputs = { { "height", TgPortKind::Field } };
+		s.Outputs = { { "flow", TgPortKind::Field } };
+		return s;
+	}
 }

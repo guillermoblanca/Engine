@@ -1,4 +1,5 @@
 #include "GB/Game/JobBoard.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -67,12 +68,9 @@ namespace GB
 
 	WorkRules DefaultWorkRules()
 	{
-		WorkRules w;
-		w.Names = { "Ana", "Biel", "Cleo", "Dan", "Eli", "Fran", "Gala", "Hugo", "Iris", "Joel", "Kira", "Leo", "Mara", "Nil", "Olga", "Pau", "Rita", "Saul", "Tea", "Unai" };
-		w.Skills = DefaultSkillRules();
-		w.Jobs.Priority = { { "gather", 1.0f }, { "craft", 1.4f }, { "stoke", 1.6f }, { "fire", 1.2f }, { "build", 1.3f }, { "deliver", 1.1f } };   // (H8: the construction sites)
-		w.Jobs.Upkeep = { { "fiber", 1.0f } };
-		return w;
+		// the "work" section of the game's data (era1.json): the names of the clan, the aptitudes, the job board and the review of the trades
+		static const WorkRules rules = ShippedSection<WorkRules>([](const std::string& doc, WorkRules& r) { return LoadWorkRules(doc, r); });
+		return rules;
 	}
 
 	std::string MemberName(const WorkRules& rules, size_t n)

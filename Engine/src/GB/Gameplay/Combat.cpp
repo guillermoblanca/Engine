@@ -1,4 +1,5 @@
 #include "GB/Gameplay/Combat.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/AI/Needs.h"
 #include <algorithm>
 #include <cmath>
@@ -94,33 +95,9 @@ namespace GB
 
 	CombatRules DefaultCombatRules()
 	{
-		CombatRules r;
-		auto weapon = [](const char* tag, float damage, float reach, float seconds, float stamina, float wound, const char* kind, float power, std::vector<std::string> montages, float hitAt)
-		{
-			WeaponDef w;
-			w.Tag = tag; w.Damage = damage; w.Reach = reach; w.Seconds = seconds; w.Stamina = stamina; w.Wound = wound; w.WoundKind = kind; w.Power = power;
-			w.Montages = std::move(montages); w.HitAt = hitAt;
-			return w;
-		};
-		// The montages are the sword and shield pack's (packs/full, names of assets/animation/mixamo.manifest.json); the packs have no clips of their
-		// own for these weapons yet (docs/CONFLICTO.md): sword attacks for the fists (there are no punches in the X Bot packs), the sword slashes for an
-		// axe, the sword attacks for a pick and a spear. The bite has no montage (the fox's body is drawn from primitives).
-		r.Weapons["fists"] = weapon("", 4.0f, 1.1f, 1.1f, 5.0f, 0.05f, "bruise", 0.0f, { "sword_attack_1", "sword_attack_3" }, 0.4f);
-		r.Weapons["axe"] = weapon("Item.Tool.Axe", 13.0f, 1.5f, 1.6f, 10.0f, 0.45f, "cut", 2.0f, { "sword_slash_1", "sword_slash_3" }, 0.45f);
-		r.Weapons["pickaxe"] = weapon("Item.Tool.Pickaxe", 11.0f, 1.5f, 1.8f, 11.0f, 0.4f, "cut", 2.0f, { "sword_attack_4" }, 0.5f);
-		r.Weapons["spear"] = weapon("Item.Weapon.Spear", 12.0f, 2.4f, 1.5f, 9.0f, 0.5f, "cut", 2.0f, { "sword_attack_2" }, 0.5f);
-		r.Weapons["sword"] = weapon("Item.Weapon.Sword", 16.0f, 1.7f, 1.2f, 8.0f, 0.55f, "cut", 2.5f, { "sword_slash_1", "sword_slash_2", "sword_attack_3" }, 0.45f);
-		r.Weapons["bow"] = weapon("Item.Weapon.Bow", 10.0f, 14.0f, 1.8f, 7.0f, 0.4f, "cut", 1.5f, { "sword_attack_2" }, 0.6f);   // (ranged: a long reach; the shot is the blow, no arrow in flight yet)
-		r.Weapons["bite"] = weapon("", 6.0f, 1.0f, 1.2f, 6.0f, 0.5f, "bite", 0.0f, {}, 0.4f);
-		PredatorRule fox;
-		fox.Tag = "Animal.Fox";
-		r.Predators["fox"] = fox;
-		HuntRule rabbit;
-		rabbit.Tag = "Animal.Rabbit";
-		rabbit.Byproduct = "hide";   // the skin of the kill: what hide working is about (docs/PROGRESION.md)
-		rabbit.ByproductUnits = 1;
-		r.Hunts["rabbit"] = rabbit;
-		return r;
+		// the "combat" section of the game's data (era1.json): weapons, blows, wounds, morale, threats, predators, hunts and raids
+		static const CombatRules rules = ShippedSection<CombatRules>([](const std::string& doc, CombatRules& r) { return LoadCombatRules(doc, r); });
+		return rules;
 	}
 
 	// ---- JSON: every part is a list of fields (key, kind, address, range), read and written by the same code
@@ -1032,7 +1009,7 @@ namespace GB
 	void CombatSystem::StepPredators()
 	{
 		if (Rules.Predators.empty() || !m_Gameplay) return;
-		for (const std::string& name : m_Gameplay->Names())
+		for (const std::string& name : m_Gameplay->NamesWithTag("Animal"))   // (every predator is an animal: not the thousands of resource nodes)
 		{
 			AbilitySystemComponent* asc = m_Gameplay->Find(name);
 			if (!asc || ::GB::IsDead(*asc) || asc->HasTag("State.Held")) continue;

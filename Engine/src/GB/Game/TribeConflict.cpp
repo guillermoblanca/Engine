@@ -14,11 +14,12 @@ namespace GB
 	namespace
 	{
 		constexpr float kScan = 0.5f;       // seconds between two refreshes of the stats in the fights and of the animals near
+		constexpr float kChaseLead = 1.5f;  // a charge aims this far past its foe (SteerFight), so it does not slow down short of it
 
-		std::string GoTo(const glm::vec2& at, const std::string& tail)
+		std::string GoTo(const glm::vec2& at, const std::string& tail, bool run = false)
 		{
 			char b[64];
-			std::snprintf(b, sizeof b, "goto %.2f %.2f | ", static_cast<double>(at.x), static_cast<double>(at.y));
+			std::snprintf(b, sizeof b, "goto %.2f %.2f%s | ", static_cast<double>(at.x), static_cast<double>(at.y), run ? " run" : "");
 			return b + tail;
 		}
 
@@ -76,6 +77,17 @@ namespace GB
 		std::vector<std::pair<const std::string*, glm::vec2>> carers;
 		for (const TribeMember& o : m_Members)
 			if (o.Job == "care" && !IsBusy(o)) carers.emplace_back(&o.Detail, Where(o));
+		// the healers' huts that stand, read once (HealingAt for each member read every building of the scene each time)
+		std::vector<std::pair<glm::vec2, std::pair<float, float>>> healers;   // where, (reach, healing)
+		if (m_Buildings)
+			for (const Placed& p : Placements())
+				if (p.State.Done && p.Def->Healing > 0.0f) healers.push_back({ p.Pos, { p.Def->Reach(), p.Def->Healing } });
+		auto healingAt = [&healers](const glm::vec2& at)
+		{
+			float h = 1.0f;
+			for (const auto& [pos, rh] : healers) if (glm::distance(at, pos) <= rh.first) h += rh.second;
+			return h;
+		};
 		for (TribeMember& m : m_Members)
 		{
 			if (m.Dead || !m.Body) continue;
@@ -84,7 +96,7 @@ namespace GB
 			if (!c) continue;
 			cs.Place(m.Name, Where(m));
 			c->Resting = m.Job == "sleep" || m.Job == "recover";
-			c->Heal = HealingAt(Where(m));   // a healer's hut near it (H8)
+			c->Heal = healingAt(Where(m));   // a healer's hut near it (H8: HealingAt)
 			const auto mc = m_Conflict.Members.find(m.Name);
 			c->Cared = mc != m_Conflict.Members.end() && mc->second.CareUntil > m_Time;
 			if (!c->Cared)   // someone at its side tending it right now
@@ -97,10 +109,11 @@ namespace GB
 		{
 			// the animals of the rules (prey to hunt, predators to fear) and the clan's camp for the raids of others
 			m_Animals.clear();
-			for (const std::string& name : m_Gameplay->Names())
+			for (const GameplayWorld::Tagged& animal : m_Gameplay->WithTag("Animal"))   // (the animals only; nothing made or removed here)
 			{
-				const AbilitySystemComponent* asc = m_Gameplay->Find(name);
-				if (!asc || !asc->HasTag("Animal") || ::GB::IsDead(*asc)) continue;
+				const std::string& name = *animal.Name;
+				const AbilitySystemComponent* asc = animal.System;
+				if (!asc || ::GB::IsDead(*asc)) continue;
 				const PredatorRule* p = cs.Rules.PredatorFor(*asc);
 				const HuntRule* h = p ? nullptr : cs.Rules.HuntFor(*asc);
 				if (!p && !h) continue;
@@ -257,7 +270,7 @@ namespace GB
 				if (d > std::max(t.Sight, t.Alarm)) continue;
 				const bool engagedOurs = f.Mode == FightMode::Engage && isOurs(f.Target);
 				const float hostility = m_Hostility ? std::max(m_Hostility->Hostility(f.Side, m_ClanName), m_Hostility->Hostility(m_ClanName, f.Side)) : 0.0f;
-				if (!engagedOurs && hostility < t.Hostile) continue;
+				if (!engagedOurs && (hostility < t.Hostile || (!f.Animal && m_Hostility && !m_Hostility->AtWar(m_ClanName, f.Side)))) continue;   // (a stranger: only at war)
 				const bool heard = mc.Threat == name && m_Time - mc.SeenAt < 3.0;   // a clanmate's cry about it
 				const bool seen = d <= t.Sight && (d <= Config.Vision.NearRange || CanSeeIn(Config.Vision, pos, m.Mind.Facing, f.Pos, m_OccGrid, name));
 				if (!seen && !heard) continue;
@@ -337,11 +350,14 @@ namespace GB
 			const float reach = cs.Rules.Weapon(c->Weapon).Reach;
 			if (d > reach * 0.9f)
 			{
-				const glm::vec2 away = d > 1e-3f ? (pos - at) / d : glm::vec2(1.0f, 0.0f);
-				const glm::vec2 goal = at + away * reach * 0.6f;
-				if (!mc.Ordered || !IsBusy(m) || glm::distance(goal, mc.Goal) > 1.0f)
+				// a charge: it runs at a point a stride past its foe (prey flees faster than a walk, 2.2 to 2.6 m/s against 1.7; and aimed at a point
+				// short of it, the driver eased in there and trailed a fleeing grouse at its own pace, 1.5 to 1.9 m behind for two minutes, out of a
+				// 1.1 m reach): it runs through where the foe is, and the swing comes as soon as it is within reach (the combat looks every frame)
+				const glm::vec2 toward = d > 1e-3f ? (at - pos) / d : glm::vec2(1.0f, 0.0f);
+				const glm::vec2 goal = at + toward * kChaseLead;
+				if (!mc.Ordered || !IsBusy(m) || glm::distance(goal, mc.Goal) > 0.5f)
 				{
-					if (Order(m, GoTo(goal, "wait 0.2"))) { mc.Goal = goal; mc.Ordered = true; }
+					if (Order(m, GoTo(goal, "wait 0.2", true))) { mc.Goal = goal; mc.Ordered = true; }
 				}
 			}
 			else if (mc.Ordered || !IsBusy(m))
@@ -376,7 +392,7 @@ namespace GB
 					if (m.Body->CanReach(g)) { goal = g; break; }
 				}
 			}
-			if (Order(m, GoTo(goal, "wait 0.5"))) { mc.Goal = goal; mc.Ordered = true; }
+			if (Order(m, GoTo(goal, "wait 0.5", true))) { mc.Goal = goal; mc.Ordered = true; }   // (a flight runs)
 		}
 		return true;
 	}
@@ -535,10 +551,13 @@ namespace GB
 		}
 		const float want = static_cast<float>(std::max(1, alive)) * 3.0f;   // three meals a member in hand: below it, meat is worth going after
 		const float short_ = std::clamp(1.0f - static_cast<float>(food) / want, 0.0f, 1.0f);
-		if (short_ <= 0.0f) return;
+		const std::map<std::string, int> goal = GoalInputs();   // P2: a hunt also brings what the next step's experiment needs (meat, hide, bone, sinew)
 		const JobRules& rules = Config.Work.Jobs;
 		for (const auto& [id, h] : m_Combat->Rules.Hunts)
 		{
+			bool wanted = goal.count(h.Item) || (!h.Byproduct.empty() && goal.count(h.Byproduct));
+			for (const auto& [item, n] : h.Yields) wanted = wanted || goal.count(item);
+			if (short_ <= 0.0f && !wanted) continue;
 			const Animal* nearest = nullptr;
 			float best = h.Range;
 			for (const Animal& a : m_Animals)
@@ -546,7 +565,7 @@ namespace GB
 			if (!nearest) continue;
 			char why[128];
 			std::snprintf(why, sizeof why, "%d food for %d; %s %.0f m from the camp", food, alive, nearest->Name.c_str(), static_cast<double>(best));
-			m_Board.Post("hunt", h.Tag, "hunting", 1.0f, h.Priority * (0.5f + 2.0f * short_), h.Hunters, why, m_Time, rules);
+			m_Board.Post("hunt", h.Tag, "hunting", 1.0f, h.Priority * (0.5f + 2.0f * std::max(short_, wanted ? 0.3f : 0.0f)), h.Hunters, std::string(why) + (wanted ? "; the next step needs what it gives" : ""), m_Time, rules);
 		}
 	}
 

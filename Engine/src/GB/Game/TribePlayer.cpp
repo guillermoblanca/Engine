@@ -92,6 +92,17 @@ namespace GB
 		return true;
 	}
 
+	bool Tribe::Kill(const std::string& name, const std::string& cause)
+	{
+		TribeMember* m = MemberNamed(name);
+		if (!m || m->Dead) return false;
+		const bool mortal = Config.Player.Mortal;
+		Config.Player.Mortal = true;   // (asked for: it dies, a player too)
+		Die(*m, cause);
+		Config.Player.Mortal = mortal;
+		return m->Dead;
+	}
+
 	float Tribe::Standing(const std::string& player) const
 	{
 		const auto it = m_Players.Players.find(player);
@@ -172,7 +183,7 @@ namespace GB
 		{
 			for (const char* tag : { "State.Dead", "Death.Hunger", "Death.Thirst", "Death.Warmth", "Death.Wounds" }) asc->Tags().RemoveAll(tag);
 			asc->CancelAll();
-			for (const char* need : { NeedName::Health, NeedName::Hunger, NeedName::Thirst, NeedName::Warmth })
+			for (const char* need : { NeedName::Health, NeedName::Hunger, NeedName::Thirst, NeedName::Warmth, NeedName::Rest })   // (it slept while it was out)
 				if (asc->Attributes().Has(need) && asc->Attribute(need) < 33.0f) SatisfyNeed(*asc, need, 33.0f - asc->Attribute(need));
 		}
 		if (m_Combat)
@@ -295,12 +306,16 @@ namespace GB
 		return s;
 	}
 
-	void Tribe::GuardPlayer(const TribeMember& m, AbilitySystemComponent& asc) const
+	void Tribe::GuardPlayer(TribeMember& m, AbilitySystemComponent& asc)
 	{
-		(void)m;
 		if (Config.Player.Mortal || !asc.Attributes().Has(NeedName::Health)) return;
 		const float health = asc.Attribute(NeedName::Health);
-		if (health < Config.Player.FloorHealth) SatisfyNeed(asc, NeedName::Health, Config.Player.FloorHealth - health);
+		if (health > Config.Player.FloorHealth) return;
+		// at the floor and still starving, parched or freezing: it falls (and wakes at the camp, tended), so neglect has a price; held at the
+		// floor for good it would stand there at a tenth of its health forever
+		for (const char* need : { NeedName::Hunger, NeedName::Thirst, NeedName::Warmth })
+			if (asc.Attributes().Has(need) && asc.Attribute(need) <= 0.0f) { KnockOut(m, need); return; }
+		SatisfyNeed(asc, NeedName::Health, Config.Player.FloorHealth - health);
 	}
 
 	// The days of the players (their standing fades) and the proposals the clan took on: a want is met when the stores hold what it asked for, a
@@ -317,7 +332,7 @@ namespace GB
 		}
 		for (Proposal& p : m_Players.Proposals)
 		{
-			if (p.Status != "accepted") continue;
+			if (p.Status != "accepted" && p.Status != "forced") continue;   // (a forced site is followed to the end too)
 			bool done = false;
 			if (p.Kind == "build")
 			{
@@ -550,8 +565,58 @@ namespace GB
 		return PlayerWorked(player, "craft", recipe, 1.0f);
 	}
 
+	// ------------------------------------------------------------------ the technology the player wants the clan to seek
+	Tribe::PlayerAct Tribe::PlayerResearch(const std::string& player, const std::string& tech)
+	{
+		const TribeMember* me = FindMember(player);
+		if (!me || !me->Player || me->Dead) return { false, "no player called " + player + " in the clan" };
+		if (tech.empty() || tech == "none")
+		{
+			m_Players.Aim.clear();
+			m_Players.AimBy.clear();
+			UpdateGoals();
+			return { true, "the clan chooses what to seek again" };
+		}
+		const TechTree* tree = m_Knowledge.Techs();
+		if (!tree) return { false, "this world has no technologies" };
+		const TechDef* t = tree->Find(tech);
+		if (!t) return { false, "no technology '" + tech + "'" };
+		if (m_Knowledge.Clan().count(tech)) return { false, "the clan already knows " + t->Name };
+		m_Players.Aim = tech;
+		m_Players.AimBy = player;
+		UpdateGoals();   // (the goals now lead to it: what it requires first)
+		Say(*me, "asks the clan to seek " + t->Name);
+		std::string path;
+		for (const std::string& g : m_Knowledge.Goals()) { if (const TechDef* d = tree->Find(g)) path += (path.empty() ? "" : ", ") + d->Name; if (g == tech) break; }
+		return { true, "the clan now seeks " + t->Name + (path.empty() ? std::string() : " (the way: " + path + ")") };
+	}
+
 	// ------------------------------------------------------------------ proposals
-	Tribe::PlayerAct Tribe::Propose(const std::string& player, const std::string& kind, const std::string& target, int units, glm::vec2 at)
+	Tribe::ProposalForecast Tribe::ForeseeProposal(const std::string& player, const std::string& kind, const std::string& target, int units) const
+	{
+		ProposalForecast f;
+		const ProposalRules& rules = Config.Player.Proposals;
+		const int count = kind == "build" ? 0 : std::clamp(units > 0 ? units : (kind == "gather" ? 10 : 1), 1, rules.MaxUnits);
+		const float cost = kind == "build" ? rules.BuildCost : rules.UnitCost * static_cast<float>(count);
+		(void)target;   // (the vote weighs who asks and how much, not what)
+		std::map<std::string, float> norms;
+		for (const auto& [norm, w] : rules.Culture) norms[norm] = m_Society.Norm(Config.Society, norm);
+		f.Standing = Standing(player);
+		f.Leader = Leads(player);
+		for (const TribeMember& o : m_Members)
+		{
+			if (o.Dead || !o.Body || o.Player || IsChild(o)) continue;   // the adults of the clan vote (not the players, not the children)
+			const float bond = m_Society.Affinity(Config.Society, o.Name, player);
+			const float vote = ProposalVote(rules, bond, f.Standing, Config.Player.StandingMax, f.Leader, norms, cost);
+			++f.Voters;
+			if (vote > 0.0f) ++f.Yes;
+			else f.Against.push_back(o.Name);
+		}
+		f.Accepted = f.Voters > 0 && static_cast<float>(f.Yes) > rules.Majority * static_cast<float>(f.Voters);
+		return f;
+	}
+
+	Tribe::PlayerAct Tribe::Propose(const std::string& player, const std::string& kind, const std::string& target, int units, glm::vec2 at, bool force)
 	{
 		const TribeMember* me = FindMember(player);
 		if (!me || !me->Player || me->Dead) return { false, "no player called " + player + " in the clan" };
@@ -572,25 +637,16 @@ namespace GB
 		p.Target = target;
 		p.Units = kind == "build" ? 0 : std::clamp(units > 0 ? units : (kind == "gather" ? 10 : 1), 1, rules.MaxUnits);
 		p.Posted = m_Time;
-		const float cost = kind == "build" ? rules.BuildCost : rules.UnitCost * static_cast<float>(p.Units);
-		std::map<std::string, float> norms;
-		for (const auto& [norm, w] : rules.Culture) norms[norm] = m_Society.Norm(Config.Society, norm);
-		const float standing = Standing(player);
-		const bool leader = Leads(player);
+		const ProposalForecast vote = ForeseeProposal(player, kind, target, p.Units);
+		p.Voters = vote.Voters;
+		p.Yes = vote.Yes;
 		std::string against;
-		for (const TribeMember& o : m_Members)
-		{
-			if (o.Dead || !o.Body || o.Player || IsChild(o)) continue;   // the adults of the clan vote (not the players, not the children)
-			const float bond = m_Society.Affinity(Config.Society, o.Name, player);
-			const float vote = ProposalVote(rules, bond, standing, Config.Player.StandingMax, leader, norms, cost);
-			++p.Voters;
-			if (vote > 0.0f) ++p.Yes;
-			else if (against.size() < 60) against += (against.empty() ? "" : ", ") + o.Name;
-		}
-		const bool accepted = p.Voters > 0 && static_cast<float>(p.Yes) > rules.Majority * static_cast<float>(p.Voters);
-		p.Why = std::to_string(p.Yes) + " of " + std::to_string(p.Voters) + " agree (standing " + Fixed(standing) + (leader ? ", you lead" : "") + ")" + (against.empty() ? std::string() : "; against: " + against);
-		p.Status = accepted ? "accepted" : "rejected";
-		if (accepted)
+		for (const std::string& name : vote.Against) if (against.size() < 60) against += (against.empty() ? "" : ", ") + name;
+		const bool accepted = vote.Accepted;
+		const bool forced = !accepted && force && kind == "build";   // the player builds it all the same (no standing lost or won for it)
+		p.Why = std::to_string(p.Yes) + " of " + std::to_string(p.Voters) + " agree (standing " + Fixed(vote.Standing) + (vote.Leader ? ", you lead" : "") + ")" + (against.empty() ? std::string() : "; against: " + against);
+		p.Status = accepted ? "accepted" : forced ? "forced" : "rejected";
+		if (accepted || forced)
 		{
 			if (kind == "build")
 			{
@@ -607,11 +663,11 @@ namespace GB
 			if (p.Status == "accepted") Credit(player, "proposal", 1.0f);
 		}
 		const std::string what = kind + " " + target + (kind == "build" ? std::string() : " x" + std::to_string(p.Units));
-		Say(*me, "proposes to " + what + ": " + (p.Status == "accepted" ? "the clan agrees" : p.Status == "dropped" ? "the clan agrees but cannot" : "the clan says no") + " (" + p.Why + ")");
+		Say(*me, "proposes to " + what + ": " + (p.Status == "accepted" ? "the clan agrees" : p.Status == "forced" ? "the clan says no, but the player builds it" : p.Status == "dropped" ? "the clan agrees but cannot" : "the clan says no") + " (" + p.Why + ")");
 		m_Players.Proposals.push_back(p);
 		if (m_Players.Proposals.size() > 40) m_Players.Proposals.erase(m_Players.Proposals.begin());
 		if (accepted && kind != "build") PostJobs();   // the board shows it at once
-		return { p.Status == "accepted", "proposal #" + std::to_string(p.Id) + " " + what + ": " + p.Status + " (" + p.Why + ")" + (p.Site.empty() ? std::string() : "; site " + p.Site) };
+		return { p.Status == "accepted" || p.Status == "forced", "proposal #" + std::to_string(p.Id) + " " + what + ": " + p.Status + " (" + p.Why + ")" + (p.Site.empty() ? std::string() : "; site " + p.Site) };
 	}
 
 	// ------------------------------------------------------------------ talk, lessons and marriage

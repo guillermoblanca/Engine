@@ -9,6 +9,9 @@ namespace GB
 	class OutputNode final : public ITerrainNode
 	{
 	public:
+		TgNodeSchema Describe() const override;
 		bool Evaluate(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs, TgField& out, std::string& error) const override;
+		// Takes any kind of value (a field, placements, paths, water) and passes it through.
+		bool Run(const TgNode& node, const TgContext& ctx, const std::vector<const TgValue*>& inputs, std::map<std::string, TgValue>& outputs, std::string& error) const override;
 	};
 }

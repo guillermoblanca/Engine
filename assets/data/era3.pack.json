@@ -1,0 +1,12 @@
+{
+  "id": "era3",
+  "name": "Era 3 · Hierro",
+  "era": 3,
+  "version": "1.0",
+  "depends": [
+    "era2"
+  ],
+  "files": [
+    "era3.json"
+  ]
+}

@@ -48,8 +48,23 @@ namespace GB
 
 	void MovementComponent::LimitSpeeds(float limit)
 	{
-		m_Controller.Config.WalkSpeed = std::min(m_BaseWalk, limit);
-		m_Controller.Config.RunSpeed = std::min(m_BaseRun, limit);
+		m_Limit = limit;
+		ApplySpeeds();
+	}
+
+	void MovementComponent::SetPace(float pace)
+	{
+		pace = std::max(pace, 0.1f);
+		if (pace == m_Pace) return;
+		m_Pace = pace;
+		ApplySpeeds();
+	}
+
+	void MovementComponent::ApplySpeeds()
+	{
+		if (m_BaseRun <= 0.0f) return;   // (before Init: the controller keeps its own)
+		m_Controller.Config.WalkSpeed = std::min(m_BaseWalk, m_Limit) * m_Pace;
+		m_Controller.Config.RunSpeed = std::min(m_BaseRun, m_Limit) * m_Pace;
 	}
 
 	void MovementComponent::Step(const CharacterInput& input, float dt)

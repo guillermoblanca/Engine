@@ -1,0 +1,33 @@
+{
+  "note": "Era 2, the Bronze Age (V5, docs/VISION_MUNDO_VIVO.md). It adds to era1 and repeats none of it: tin, which only a few places have, so a clan without it has to trade for it; bronze, alloyed from copper and tin at the forge; the era that knowing how opens; and a need of the age, faith, with its verb (pray) and the temple where it is done. None of it needs code: the sections merge into the first pack's by id.",
+  "items": [
+    { "category": "resource", "id": "tin_ore", "name": "Tin ore", "stack": 10, "tags": [ "Item.Resource.Ore.Tin" ], "weight": 2.0 },
+    { "category": "resource", "id": "bronze_ingot", "name": "Bronze ingot", "stack": 10, "tags": [ "Item.Resource.Metal.Bronze" ], "weight": 1.5 },
+    { "id": "bronze_axe", "name": "Bronze axe", "category": "tool", "weight": 2.2, "stack": 1, "tags": [ "Item.Tool.Axe.Bronze" ], "ability": "Chop", "socket": "RightHand", "power": 3, "speed": 1.4 }
+  ],
+  "nodes": [
+    { "ability": "Mine", "capacity": 4, "id": "tin_vein", "item": "tin_ore", "kind": "Stone.Tin", "model": "copper_vein", "perGather": 1, "regen": 1, "regenSeconds": 1800.0, "requires": "Item.Tool.Pickaxe",
+      "spawn": { "biomes": [ "Rock", "Snow" ], "max": 8, "maxSlope": 50.0, "perHectare": 8.0, "spacing": 8.0, "zones": { "perKm2": 0.08, "min": 1, "max": 1, "radiusMin": 15.0, "radiusMax": 30.0, "fallback": [ "Meadow", "Forest" ] } } }
+  ],
+  "recipes": [
+    { "ability": "Craft", "count": 1, "id": "bronze_ingot", "inputs": { "copper_ore": 2, "tin_ore": 1 }, "output": "bronze_ingot", "station": "forge" },
+    { "ability": "Craft", "count": 1, "id": "bronze_axe", "inputs": { "bronze_ingot": 2, "branch": 2, "cordage": 1 }, "output": "bronze_axe", "station": "forge" }
+  ],
+  "techs": [
+    { "id": "alloying", "name": "Alloying", "era": 3, "requires": [ "smelting" ], "recipes": [ "bronze_ingot", "bronze_axe" ],
+      "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.1, "seconds": 60.0, "waste": 0.5 } }
+  ],
+  "eras": [
+    { "id": "bronze", "name": "Bronze Age", "key": [ "alloying" ], "from": [ "copper" ], "pull": 0.4, "leap": 300, "interest": [ "tin_ore" ], "progression": [ "smelting", "alloying" ] }
+  ],
+  "needs": [
+    { "id": "faith", "name": "Faith", "era": "bronze", "verb": "pray", "provision": "faith", "decayPerDay": 60.0, "threshold": 45.0, "weight": 1.0, "seconds": 8.0, "amount": 60.0 }
+  ],
+  "buildings": {
+    "temple": { "name": "Temple", "provides": { "faith": 1.5 }, "zone": "craft", "footprint": [ 3.0, 3.0 ], "aura": 3.0,
+      "phases": [ { "name": "base", "work": 10.0, "needs": { "stone": 8 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+                  { "name": "roof", "work": 10.0, "needs": { "wood": 6 }, "substitutes": { "wood": [ "log" ] }, "part": "roof" } ],
+      "color": [ 0.72, 0.62, 0.42 ] }
+  },
+  "diplomacy": { "trade": { "values": { "tin_ore": 4.0, "bronze_ingot": 6.0, "bronze_axe": 9.0 } } }
+}

@@ -168,7 +168,7 @@ namespace GB
 		return true;
 	}
 
-	void ModelInstance::AddToScene(Scene& scene, const glm::mat4& root) const
+	void ModelInstance::AddToScene(Scene& scene, const glm::mat4& root, const std::vector<glm::vec3>* tints) const
 	{
 		const auto& nodes = m_Model.GetNodes();
 		for (int n : m_Model.GetNodeOrder())
@@ -181,6 +181,7 @@ namespace GB
 				RenderObject obj;
 				obj.MeshPtr = prim.MeshData.get();
 				obj.Mat = m_Model.GetMaterial(prim.MaterialIndex);
+				if (tints && prim.MaterialIndex >= 0 && prim.MaterialIndex < static_cast<int>(tints->size())) obj.Mat.Albedo *= (*tints)[static_cast<size_t>(prim.MaterialIndex)];
 				if (skinned && prim.MeshData->HasSkin())
 				{
 					// glTF: the transform of a skinned mesh's node is ignored; the joints place the vertices.

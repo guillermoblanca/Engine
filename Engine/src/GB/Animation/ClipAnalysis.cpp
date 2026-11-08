@@ -3,6 +3,9 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <map>
+#include <mutex>
+#include <tuple>
 
 namespace GB
 {
@@ -61,7 +64,37 @@ namespace GB
 		}
 	}
 
+	namespace
+	{
+		ClipStats AnalyzeClipNow(const Model& model, int clip, const ClipAnalysisConfig& config);
+	}
+
+	// The same clip of the same model is measured once: every character of a model (the members of a clan are many of the same) asks it for
+	// each of its montages, turns and blend clips, and for all of them again when the abilities are registered anew (it was a third of a second
+	// a character). The key names the clip as well as the model's address, so a model loaded where a freed one was is not taken for it.
 	ClipStats AnalyzeClip(const Model& model, int clip, const ClipAnalysisConfig& config)
+	{
+		if (clip < 0 || static_cast<size_t>(clip) >= model.GetClips().size()) return AnalyzeClipNow(model, clip, config);
+		const AnimationClip& c = model.GetClips()[static_cast<size_t>(clip)];
+		using Key = std::tuple<const Model*, int, std::string, float, size_t, const void*, std::string, std::string, std::string, std::string, std::string, float, float, float, float>;
+		const Key key{ &model, clip, c.Name, c.Duration, c.Channels.size(), c.Channels.data(), config.RootBone, config.LeftFoot, config.RightFoot, config.LeftHip, config.RightHip,
+			config.SampleRate, config.PlantHeight, config.PlantSpeed, config.AirHeight };
+		static std::mutex mutex;
+		static std::map<Key, ClipStats> cache;
+		{
+			std::lock_guard<std::mutex> lock(mutex);
+			if (const auto it = cache.find(key); it != cache.end()) return it->second;
+		}
+		ClipStats stats = AnalyzeClipNow(model, clip, config);
+		std::lock_guard<std::mutex> lock(mutex);
+		if (cache.size() > 4096) cache.clear();   // (a bound: many models loaded and freed in a long session)
+		cache.emplace(key, stats);
+		return stats;
+	}
+
+	namespace
+	{
+	ClipStats AnalyzeClipNow(const Model& model, int clip, const ClipAnalysisConfig& config)
 	{
 		ClipStats s;
 		if (clip < 0 || static_cast<size_t>(clip) >= model.GetClips().size()) return s;
@@ -146,6 +179,8 @@ namespace GB
 		}
 		s.Valid = true;
 		return s;
+	}
+
 	}
 
 	std::string FormatClipStats(const ClipStats& s)

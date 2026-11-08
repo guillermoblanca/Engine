@@ -7,6 +7,7 @@ namespace GB
 	{
 		auto& slot = m_Systems[name];
 		slot = std::make_unique<AbilitySystemComponent>(name, Library);
+		m_Revision = NextRevision();
 		return slot.get();
 	}
 
@@ -22,7 +23,12 @@ namespace GB
 		return it == m_Systems.end() ? nullptr : it->second.get();
 	}
 
-	bool GameplayWorld::Remove(const std::string& name) { return m_Systems.erase(name) > 0; }
+	bool GameplayWorld::Remove(const std::string& name)
+	{
+		if (m_Systems.erase(name) == 0) return false;
+		m_Revision = NextRevision();
+		return true;
+	}
 
 	std::vector<std::string> GameplayWorld::Names() const
 	{
@@ -31,9 +37,23 @@ namespace GB
 		return out;
 	}
 
+	const std::vector<GameplayWorld::Tagged>& GameplayWorld::WithTag(const std::string& tag) const
+	{
+		auto& [revision, list] = m_Tagged[tag];
+		if (revision != m_Revision)   // (0, never listed, is no revision)
+		{
+			list.clear();
+			for (const auto& [name, system] : m_Systems)
+				if (system && system->HasTag(tag)) list.push_back({ &name, system.get() });
+			revision = m_Revision;
+		}
+		return list;
+	}
+
 	int GameplayWorld::Load(const EntityWorld& world)
 	{
 		m_Systems.clear();
+		m_Revision = NextRevision();
 		int n = 0;
 		for (const auto& [id, e] : world.All())
 		{

@@ -63,6 +63,7 @@ namespace GB
 		char t[32];
 		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
 		m_Log.push_back(t + std::string("the clan ") + text);
+		if (m_History) { TribeMember clan; Chronicled(clan, text); }   // V1 (the clan speaks: nobody in particular)
 		if (static_cast<int>(m_Log.size()) > Config.Simulation.LogLines + Config.Simulation.LogLines / 4)
 			m_Log.erase(m_Log.begin(), m_Log.begin() + static_cast<std::ptrdiff_t>(m_Log.size() - static_cast<size_t>(Config.Simulation.LogLines)));
 	}
@@ -76,7 +77,7 @@ namespace GB
 			for (const auto& [name, e] : memory.All())
 			{
 				const auto def = m_Defs.find(e.Kind);
-				if (def != m_Defs.end() && def->second.Item == item && (e.Amount != 0 || def->second.RegenSeconds > 0.0f)) return true;
+				if (def != m_Defs.end() && (def->second.Item == item || def->second.ExtraItem == item) && (e.Amount != 0 || def->second.RegenSeconds > 0.0f)) return true;   // (a tree gives branches too)
 			}
 			return false;
 		};
@@ -87,11 +88,18 @@ namespace GB
 		return false;
 	}
 
+	std::map<std::string, int> Tribe::ForeignNeeds() const
+	{
+		std::map<std::string, int> out;
+		for (const auto& [item, n] : m_Plan.Raw) if (n > 0 && !KnowsNodeOf(item, false)) out[item] = n;
+		return out;
+	}
+
 	bool Tribe::CanGatherItem(const TribeMember& m, const std::string& item) const
 	{
 		if (m.Dead || !m.Body) return false;
 		for (const auto& [kind, def] : m_Defs)
-			if (def.Item == item && (def.RequiresTag.empty() || m.Body->Bag().CountTagged(*m_Items, def.RequiresTag) > 0)) return true;
+			if ((def.Item == item || def.ExtraItem == item) && (def.RequiresTag.empty() || m.Body->Bag().CountTagged(*m_Items, def.RequiresTag) > 0)) return true;
 		return false;
 	}
 
@@ -218,6 +226,7 @@ namespace GB
 			for (const auto& [id, job] : m_Board.Jobs())
 			{
 				if (job.Kind != "gather" || KnowsNodeOf(job.Target, false)) continue;
+				if (!NeededNow(job.Target, FoodShortage() > 0.0f)) continue;   // (only what the clan needs now: not the reeds or logs nothing asks for)
 				bool someone = false;
 				for (const TribeMember& m : m_Members) someone = someone || CanGatherItem(m, job.Target);
 				if (!someone) continue;   // (copper without a pickaxe: finding it would not help yet)

@@ -44,6 +44,9 @@ namespace GB
 		std::string FullItem;             // the lowest-id item the main store holds to within 2 of its cap ("" = none)
 		int FullCount = 0;                // ... and how many it holds
 		int StoreCap = 0;                 // ... of this cap
+		int Wells = 0;                    // wells the clan draws from on its home ground
+		int MembersPerWell = 0;           // a well dug for every this many living (0: none dug)
+		std::map<std::string, float> Wanting;   // V5: a provision the needs of the packs ask (BuildingDef::Provides) -> how short the clan is of it, 0..1
 		std::function<bool(const BuildingDef&)> Known;                           // the clan knows how (H11)
 		std::function<bool(const BuildingDef&)> Payable;                         // every material is in the store, in some node or made by a recipe the clan knows
 		std::function<bool(const std::string& station)> StationThere;            // a finished building's or the camp's station
@@ -67,6 +70,10 @@ namespace GB
 		std::vector<PlannerSite> Others;          // the sites and buildings already there
 		std::vector<glm::vec2> Obstacles;         // resource nodes and the like (a site keeps 1.2 m off them)
 		std::function<bool(const glm::vec2&)> CanStand;   // ground a member can stand on (null: all of it)
+		// N1: how good a spot is for this building (a household's house: its work near, its kin near). Null: the first spot that fits, ring by ring
+		// (as always); set: every spot of `Rings` rings x 24 angles is weighed and the best that fits wins (ties: the first).
+		std::function<float(const glm::vec2&)> Prefer;
+		int Rings = 5;
 	};
 
 	// Rings round the camp, each building at its own angle: the first spot that fits, or nothing. The same scene gives the same place.

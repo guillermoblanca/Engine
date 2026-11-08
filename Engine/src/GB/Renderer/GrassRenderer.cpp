@@ -1,4 +1,5 @@
 #include "GrassRenderer.h"
+#include "RenderStats.h"
 #include "Shaders.h"
 #include <algorithm>
 #include <glad/gl.h>
@@ -13,7 +14,7 @@ namespace GB
 	{
 		glCreateVertexArrays(1, &m_GrassVAO);
 		glVertexArrayBindingDivisor(m_GrassVAO, 0, 1);
-		for (GLuint i = 0; i < 2; ++i)
+		for (GLuint i = 0; i < 3; ++i)
 		{
 			glEnableVertexArrayAttrib(m_GrassVAO, i);
 			glVertexArrayAttribFormat(m_GrassVAO, i, 4, GL_FLOAT, GL_FALSE, i * 16);
@@ -104,6 +105,7 @@ namespace GB
 				glVertexArrayVertexBuffer(m_GrassVAO, 0, buffer,
 					static_cast<GLintptr>(chunk.First) * sizeof(GrassBlade), sizeof(GrassBlade));
 				glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 10, static_cast<GLsizei>(chunk.Count));
+				DrawCounter::Add(8ull * chunk.Count);
 			}
 		}
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);

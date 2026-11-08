@@ -1,4 +1,5 @@
 #include "GB/Gameplay/Ecology.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
 #include <cmath>
@@ -114,37 +115,7 @@ namespace GB
 
 	std::map<std::string, SpeciesDef> DefaultSpecies()
 	{
-		SpeciesDef rabbit;   // the defaults of SpeciesDef and EcologyConfig are the rabbit
-		rabbit.Id = "rabbit";
-
-		// a small hunter: few of them, faster than a rabbit, long-lived on one catch, slow to breed
-		SpeciesDef fox;
-		fox.Id = "fox";
-		fox.Name = "Fox";
-		fox.Plural = "foxes";
-		fox.Tag = "Animal.Fox";
-		fox.Body = "quadruped";
-		fox.Color = { 0.78f, 0.38f, 0.12f };
-		fox.Size = 1.0f;
-		fox.Eats = { "Animal.Rabbit" };
-		fox.Sight = 18.0f;
-		fox.BreedCost = 30.0f;
-		fox.NewbornFood = 70.0f;
-		fox.SpawnFood = 0.8f;
-		fox.LegSeconds = 6.0f;
-		fox.Life.MaxAnimals = 2;
-		fox.Life.Speed = 2.4f;
-		fox.Life.WanderRadius = 18.0f;
-		fox.Life.HungerPerSecond = 0.12f;
-		fox.Life.HungryBelow = 50.0f;
-		fox.Life.EatReach = 0.8f;
-		fox.Life.EatSeconds = 4.0f;
-		fox.Life.FoodPerPlant = 55.0f;
-		fox.Life.BreedAbove = 90.0f;
-		fox.Life.AdultSeconds = 200.0f;
-		fox.Life.BreedCooldown = 300.0f;
-		fox.Life.StarveSeconds = 120.0f;
-		return { { rabbit.Id, rabbit }, { fox.Id, fox } };
+		return Shipped().Species;   // what the data says ("species": world.json and social.json)
 	}
 
 	namespace
@@ -361,8 +332,8 @@ namespace GB
 	{
 		int n = 0;
 		if (!m_Gameplay) return 0;
-		for (const std::string& name : m_Gameplay->Names())
-			if (const AbilitySystemComponent* a = m_Gameplay->Find(name); a && SpeciesOf(*a)) ++n;
+		for (const TaggedSystems::Entry& a : m_Animals.Of(*m_Gameplay))
+			if (SpeciesOf(*a.System)) ++n;
 		return n;
 	}
 
@@ -371,8 +342,8 @@ namespace GB
 		const auto it = Species.find(species);
 		if (!m_Gameplay || it == Species.end()) return 0;
 		int n = 0;
-		for (const std::string& name : m_Gameplay->Names())
-			if (const AbilitySystemComponent* a = m_Gameplay->Find(name); a && a->Tags().HasExact(it->second.Tag)) ++n;
+		for (const TaggedSystems::Entry& a : m_Animals.Of(*m_Gameplay))
+			if (a.System->Tags().HasExact(it->second.Tag)) ++n;
 		return n;
 	}
 
@@ -412,21 +383,26 @@ namespace GB
 
 		std::vector<std::string> names;
 		std::map<std::string, int> population;   // species -> how many there are
-		for (const std::string& name : m_Gameplay->Names())
-			if (const AbilitySystemComponent* a = m_Gameplay->Find(name))
-				if (const SpeciesDef* s = SpeciesOf(*a)) { names.push_back(name); ++population[s->Id]; }
+		for (const TaggedSystems::Entry& a : m_Animals.Of(*m_Gameplay))
+			if (const SpeciesDef* s = SpeciesOf(*a.System)) { names.push_back(*a.Name); ++population[s->Id]; }
 
-		// The plants each grazer may eat and where they stand, listed once per update the first time one looks for food (the search by name is
-		// linear in the entities of the scene, and plants do not move). Whether a plant still has something is asked again at the moment of choosing.
-		struct Plant { std::string Name; glm::vec2 At; };
-		std::map<std::string, std::vector<Plant>> plants;   // species -> the plants of its diet
+		// The plants each grazer may eat and where they stand, listed the first time one looks for food and kept from update to update while the
+		// scene's systems stay the same and its entities as many (the search by name is linear in the entities of the scene, and plants do not
+		// move). Whether a plant still has something is asked again at the moment of choosing.
+		if (m_PlantsRevision != m_Gameplay->Revision() || m_PlantsEntities != m_Entities->Count())   // (a node gone or a new one: list them again)
+		{
+			m_Plants.clear();
+			m_PlantsRevision = m_Gameplay->Revision();
+			m_PlantsEntities = m_Entities->Count();
+		}
+		std::map<std::string, std::vector<Plant>>& plants = m_Plants;   // species -> the plants of its diet
 		auto listPlants = [&](const SpeciesDef& s) -> const std::vector<Plant>&
 		{
 			if (const auto it = plants.find(s.Id); it != plants.end()) return it->second;
 			std::vector<Plant>& list = plants[s.Id];
-			for (const std::string& n : m_Gameplay->Names())
+			for (const auto& [n, system] : m_Gameplay->Systems())
 			{
-				const AbilitySystemComponent* plant = m_Gameplay->Find(n);
+				const AbilitySystemComponent* plant = system.get();
 				if (!plant || !std::any_of(s.Eats.begin(), s.Eats.end(), [&](const std::string& t) { return plant->HasTag(t); })) continue;
 				const EntityId pid = m_Entities->FindByName(n);
 				if (pid == NullEntity) continue;

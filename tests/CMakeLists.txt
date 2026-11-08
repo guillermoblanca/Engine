@@ -426,3 +426,12 @@ add_test(NAME gbobject COMMAND GBObjectTests)
 add_executable(GBTerrainGraphTests terrain_graph_test.cpp)
 target_link_libraries(GBTerrainGraphTests PRIVATE GB::GB)
 add_test(NAME terrain_graph COMMAND GBTerrainGraphTests)
+
+# V1 (docs/VISION_MUNDO_VIVO.md): the world's history and each person's memory of it
+add_executable(GBHistoryTests history_test.cpp)
+target_link_libraries(GBHistoryTests PRIVATE GB::GB)
+add_test(NAME history COMMAND GBHistoryTests)
+# V5: eras as packs (needs and eras that a later pack adds, what a building provides)
+add_executable(GBEraPackTests era_pack_test.cpp)
+target_link_libraries(GBEraPackTests PRIVATE GB::GB)
+add_test(NAME era_pack COMMAND GBEraPackTests)

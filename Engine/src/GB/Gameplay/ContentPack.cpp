@@ -103,7 +103,7 @@ namespace GB
 	}
 
 	ContentReport CheckReachability(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes, const PackRules& rules,
-		const TechTree* techs, const std::map<std::string, BuildingDef>* buildings)
+		const TechTree* techs, const std::map<std::string, BuildingDef>* buildings, const std::map<std::string, CropSource>* crops)
 	{
 		ContentReport report;
 		std::set<std::string> have, made, worked, found, built, stations;   // items had, recipes made, nodes worked, technologies discovered, buildings that can be built (H8) and the stations they give
@@ -165,6 +165,11 @@ namespace GB
 					if (!b.Station.empty()) stations.insert(b.Station);
 					changed = true;
 				}
+			if (crops)   // a field sown with a seed that can be had
+				for (const auto& [id, c] : *crops)
+					if (have.count(c.Seed))
+						for (const std::string& y : c.Yields)
+							if (items.Find(y) && have.insert(y).second) changed = true;
 			for (const std::string& id : recipeIds)
 			{
 				const Recipe& r = *recipes.Find(id);
@@ -365,7 +370,7 @@ namespace GB
 
 	ContentSection ItemContentSection(ItemLibrary& items, RecipeBook& recipes, std::map<std::string, ResourceNodeDef>& nodes, TechTree& techs)
 	{
-		return StagedSection("items", { "items", "recipes", "nodes", "techs", "knowledge" },
+		return StagedSection("items", { "items", "recipes", "nodes", "techs", "knowledge", "eras" },
 			[](const std::string& json, ItemLibrary& i, RecipeBook& r, std::map<std::string, ResourceNodeDef>& n, TechTree& t)
 			{
 				// both readers are atomic; the tree is read on a copy first, so a mistake in either leaves both as they were
@@ -391,10 +396,26 @@ namespace GB
 		TechTree& tree = techs ? *techs : *noTechs;
 		const bool withTechs = techs != nullptr;
 		std::vector<std::string> keys = { "items", "recipes", "nodes", "buildings" };
-		if (withTechs) { keys.push_back("techs"); keys.push_back("knowledge"); }
+		if (withTechs) { keys.push_back("techs"); keys.push_back("knowledge"); keys.push_back("eras"); }
+		// what the crops of the economy section yield, read here only for the check (the economy section owns them): grain comes from a field
+		auto crops = std::make_shared<std::map<std::string, CropSource>>();
 		return StagedSection("items", keys,
-			[withTechs, noTechs](const std::string& json, ItemLibrary& i, RecipeBook& r, std::map<std::string, ResourceNodeDef>& n, TechTree& t, std::map<std::string, BuildingDef>& b) -> std::string
+			[withTechs, noTechs, crops](const std::string& json, ItemLibrary& i, RecipeBook& r, std::map<std::string, ResourceNodeDef>& n, TechTree& t, std::map<std::string, BuildingDef>& b,
+				std::map<std::string, CropSource>& c) -> std::string
 			{
+				const Json doc = Json::parse(json, nullptr, false);
+				if (doc.is_object())
+					if (const auto econ = doc.find("economy"); econ != doc.end() && econ->is_object())
+						if (const auto list = econ->find("crops"); list != econ->end() && list->is_array())
+							for (const Json& crop : *list)
+							{
+								if (!crop.is_object() || !crop.contains("id") || !crop["id"].is_string()) continue;
+								CropSource source;
+								source.Seed = crop.value("seed", std::string());
+								if (const auto y = crop.find("yield"); y != crop.end() && y->is_object())
+									for (auto it = y->begin(); it != y->end(); ++it) source.Yields.push_back(it.key());
+								c[crop["id"].get<std::string>()] = std::move(source);
+							}
 				TechTree read = t;
 				if (withTechs)
 					if (std::string error = LoadTechs(json, read); !error.empty()) return error;
@@ -404,11 +425,11 @@ namespace GB
 				return std::string();
 			},
 			[withTechs, noTechs](const PackRules& rules, ContentReport& report, const ItemLibrary& i, const RecipeBook& r, const std::map<std::string, ResourceNodeDef>& n, const TechTree& t,
-				const std::map<std::string, BuildingDef>& b)
+				const std::map<std::string, BuildingDef>& b, const std::map<std::string, CropSource>& c)
 			{
-				report.Append(CheckReachability(i, r, n, rules, withTechs ? &t : nullptr, &b));
+				report.Append(CheckReachability(i, r, n, rules, withTechs ? &t : nullptr, &b, &c));
 			},
-			items, recipes, nodes, tree, *buildings);
+			items, recipes, nodes, tree, *buildings, *crops);
 	}
 
 	void ContentPacks::AddSection(ContentSection section)
@@ -435,11 +456,32 @@ namespace GB
 	std::string ContentPacks::Stage(const std::vector<Document>& docs, const PackRules& rules, ContentReport* report, Options options)
 	{
 		ContentReport found;
+		// One pack says each thing once: the same id in two of its files is a problem (one of them would silently win). A later pack may still
+		// replace what an earlier one says, on purpose (a mod).
+		std::map<std::string, std::string> definedIn;   // "<pack>/<kind>/<id>" -> the file
+		auto define = [&](const Document& d, const std::string& kind, const std::string& id)
+		{
+			if (d.Pack.empty() || id.empty()) return;
+			const auto [it, fresh] = definedIn.emplace(d.Pack + "/" + kind + "/" + id, d.Name);
+			if (!fresh && it->second != d.Name)
+				found.Problems.push_back("pack '" + d.Pack + "' defines the " + kind + " '" + id + "' twice: in " + it->second + " and in " + d.Name);
+		};
 		for (const Document& d : docs)
 		{
 			const auto where = [&](const std::string& what) { return d.Name.empty() ? what : d.Name + ": " + what; };
 			const Json j = Json::parse(d.Text, nullptr, false);
 			if (j.is_discarded() || !j.is_object()) return where("the content is not a JSON object");
+			for (const char* kind : { "items", "nodes", "recipes", "techs" })   // the catalogue's lists of records with an id
+				if (const auto list = j.find(kind); list != j.end() && list->is_array())
+					for (const Json& r : *list)
+						if (r.is_object() && r.contains("id") && r["id"].is_string()) define(d, kind, r["id"].get<std::string>());
+			for (const char* kind : { "buildings", "species", "interactives" })   // ... and its maps of id -> record
+				if (const auto map = j.find(kind); map != j.end() && map->is_object())
+					for (auto it = map->begin(); it != map->end(); ++it) define(d, kind, it.key());
+			if (const auto econ = j.find("economy"); econ != j.end() && econ->is_object())
+				if (const auto crops = econ->find("crops"); crops != econ->end() && crops->is_array())
+					for (const Json& r : *crops)
+						if (r.is_object() && r.contains("id") && r["id"].is_string()) define(d, "crops", r["id"].get<std::string>());
 			for (auto it = j.begin(); it != j.end(); ++it)
 			{
 				const std::string& key = it.key();
@@ -502,6 +544,7 @@ namespace GB
 			{
 				Document d;
 				d.Name = (base / f).generic_string();
+				d.Pack = m.Id;
 				if (!ReadText(d.Name, d.Text)) return "pack '" + m.Id + "': cannot open " + d.Name;
 				docs.push_back(std::move(d));
 			}

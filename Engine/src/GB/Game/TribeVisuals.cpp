@@ -134,7 +134,46 @@ namespace GB
 				pc.Activity = st.Activity;
 				pc.Ability = st.Ability;
 				choice = ChooseProps(lib->Props, pc);
+				const bool near = !ctx.Viewer || glm::distance(actor->GetPosition(), *ctx.Viewer) <= OutfitDistance;
+				if (const auto outfit = lib->Props.Outfits.find(m.Role); near && outfit != lib->Props.Outfits.end())   // U5: what its trade wears, near the camera
+					for (const PropRules::OutfitPiece& pl : outfit->second.Props)
+						if (std::none_of(choice.Props.begin(), choice.Props.end(), [&](const PropPlacement& q) { return q.Socket == pl.Socket; }))
+						{
+							PropPlacement p;
+							p.Name = pl.Name;
+							p.Socket = pl.Socket;
+							p.Look = pl.Look;
+							choice.Props.push_back(p);
+						}
 				ApplyProps(*actor, st, choice, visuals);
+			}
+			// U4/U5: the clan's colour on the model's brightest material, its trade's on the others (made again only when the role, the clan's
+			// colour or the model change)
+			if (st.TintRole != m.Role || st.TintClan != ctx.ClanColor || st.TintModel != actor->GetModel().get())
+			{
+				st.TintRole = m.Role;
+				st.TintClan = ctx.ClanColor;
+				st.TintModel = actor->GetModel().get();
+				const auto outfit = lib ? lib->Props.Outfits.find(m.Role) : std::map<std::string, PropRules::Outfit>::const_iterator();
+				const glm::vec3 trade = lib && outfit != lib->Props.Outfits.end() ? outfit->second.Color : glm::vec3(-1.0f);
+				std::vector<glm::vec3> tints;
+				if (const std::shared_ptr<Model> model = actor->GetModel(); model && (ctx.ClanColor.r >= 0.0f || trade.r >= 0.0f))
+				{
+					const std::vector<Material>& mats = model->GetMaterials();
+					size_t brightest = 0;
+					auto light = [](const glm::vec3& c) { return 0.3f * c.r + 0.59f * c.g + 0.11f * c.b; };
+					for (size_t i = 1; i < mats.size(); ++i) if (light(mats[i].Albedo) > light(mats[brightest].Albedo)) brightest = i;
+					tints.assign(mats.size(), glm::vec3(1.0f));
+					for (size_t i = 0; i < mats.size(); ++i)
+					{
+						const glm::vec3 want = i == brightest ? ctx.ClanColor : trade;
+						if (want.r < 0.0f) continue;
+						// the colour over the material's own lightness (a white body takes it fully, a dark joint keeps dark)
+						const float l = std::max(light(mats[i].Albedo), 0.05f);
+						tints[i] = glm::mix(glm::vec3(1.0f), want * (std::min(1.0f, l * 1.4f) / l), 0.85f);
+					}
+				}
+				actor->SetTints(std::move(tints));
 			}
 			const ManifestUse* use = FindUse(manifest.Activities, st.Activity);
 			bool hurt = false;

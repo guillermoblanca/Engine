@@ -31,5 +31,6 @@ namespace GB
 
 		Shader m_Shader;
 		uint32_t m_JointBuffer = 0;
+		uint32_t m_InstanceBuffer = 0;   // the matrices of one instanced draw
 	};
 }

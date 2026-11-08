@@ -2,6 +2,7 @@
   "player": {
     "role": "forager",
     "mortal": false,
+    "mortalCauses": [ "OldAge" ],
     "floorHealth": 10.0,
     "reach": 4.0,
     "campReach": 7.0,
@@ -39,7 +40,9 @@
       "people": "T",
       "build": "B",
       "attack": "X",
-      "block": "Q"
+      "block": "Q",
+      "console": "GraveAccent",
+      "village": "U", "homes": "Y", "clans": "O", "tech": "K", "map": "M", "story": "N"
     },
     "hud": { "notifications": 5, "notifySeconds": 12.0, "needs": [ "Hunger", "Thirst", "Rest", "Warmth", "Health" ], "clock": true, "prompt": true },
     "game": {

@@ -127,7 +127,14 @@ int main()
 	Check(Near(ground(12.3f, -45.6f), terrain->GetHeight(12.3f, -45.6f), 1e-5f), "ground function = height query");
 	GB::Scene scene;
 	terrain->AddToScene(scene, glm::translate(glm::mat4(1.0f), glm::vec3(0, 1, 0)));
-	Check(scene.Objects.size() == 1 && scene.Objects[0].MeshPtr == &terrain->GetMesh(), "AddToScene adds the terrain mesh");
+	uint64_t tileIndices = 0;
+	bool allTerrain = !scene.Objects.empty();
+	for (const GB::RenderObject& obj : scene.Objects)
+	{
+		allTerrain = allTerrain && obj.MeshPtr == &terrain->GetMesh() && (scene.Objects.size() == 1 || obj.BoundingRadius > 0.0f);
+		tileIndices += obj.IndexCount > 0 ? obj.IndexCount : terrain->GetMesh().GetIndexCount();
+	}
+	Check(allTerrain && tileIndices == terrain->GetMesh().GetIndexCount(), "AddToScene adds the terrain mesh as bounded tiles that cover every index");
 
 	// Rendering: from above the terrain fills the frame with sand-colored, lit pixels.
 	{

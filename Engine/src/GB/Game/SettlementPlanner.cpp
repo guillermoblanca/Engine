@@ -42,7 +42,8 @@ namespace GB
 				std::snprintf(why, sizeof why, "beds for %d of %d", beds, alive);
 				need.Why = why;
 			}
-			if ((!def.Store.empty() || def.StoreCap > 0) && !f.FullItem.empty() && count[id] == 0)
+			// (one more for every 25 living while the store stays full: a big village keeps more than one granary)
+			if ((!def.Store.empty() || def.StoreCap > 0) && !f.FullItem.empty() && count[id] < std::max(1, alive / 25))
 				want(2.0f, "the store is full of " + f.FullItem + " (" + std::to_string(f.FullCount) + "/" + std::to_string(f.StoreCap) + ")");
 			// the generic provisions (docs/PROGRESION.md), each only for the first of its kind
 			if (count[id] == 0)
@@ -52,6 +53,21 @@ namespace GB
 				if (def.Defense > 0.0f) want(f.Raided > 0 ? 2.0f : 0.35f, f.Raided > 0 ? "raided " + std::to_string(f.Raided) + " times" : std::string("walls against raiders"));
 				if (def.Culture > 0.0f && def.Aura > 0.0f) want(std::min(0.8f, 0.3f + 0.05f * static_cast<float>(alive)), "a place for the clan to meet");
 				if (def.Shelter == 0 && def.Warmth > 0.0f && def.Aura > 0.0f) want(0.4f, "a fire to gather round");
+				if (def.Trade > 0.0f) want(0.45f, "a place to trade with the other clans");   // V4
+				if (!def.Values.empty()) want(0.5f, "what the clan holds dear");   // V4: a building of its culture (only built where the culture holds it)
+				if (!def.Rank.empty()) want(0.6f, "the hall of a " + def.Rank);   // V7: what a settlement of its rank raises
+				for (const auto& [provision, amount] : def.Provides)   // V5: the place for a need of the packs (a temple to pray in)
+					if (const auto w = f.Wanting.find(provision); w != f.Wanting.end() && w->second > 0.0f) want(0.4f + 1.2f * w->second, "a place for " + provision);
+			}
+			if (def.Well && f.MembersPerWell > 0)
+			{
+				int wells = f.Wells;   // (and those being dug)
+				for (const PlannerSite& p : f.Sites) if (p.Def->Well && !p.Done) ++wells;
+				if (alive > wells * f.MembersPerWell)
+				{
+					std::snprintf(why, sizeof why, "%d drink from %d wells", alive, wells);
+					want(std::min(2.5f, 1.0f + static_cast<float>(alive - wells * f.MembersPerWell) / static_cast<float>(f.MembersPerWell)), why);
+				}
 			}
 			if (!def.Station.empty() && count[id] == 0)
 			{
@@ -91,6 +107,20 @@ namespace GB
 			}
 			return stand(SiteFront(p, def));
 		};
+		if (s.Prefer)
+		{
+			std::optional<glm::vec2> best;
+			float top = -1e30f;
+			for (int ring = 0; ring < std::max(1, s.Rings); ++ring)
+				for (int k = 0; k < 24; ++k)
+				{
+					const float a = start + static_cast<float>(k) * 0.2618f;
+					const glm::vec2 p = s.Camp + glm::vec2(std::cos(a), std::sin(a)) * (s.SiteRadius + 3.0f * static_cast<float>(ring));
+					if (!fits(p)) continue;
+					if (const float v = s.Prefer(p); v > top) { top = v; best = p; }
+				}
+			return best;
+		}
 		for (int ring = 0; ring < 5; ++ring)
 			for (int k = 0; k < 12; ++k)
 			{

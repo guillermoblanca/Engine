@@ -76,8 +76,43 @@ namespace GB
 	ContentSection VisualContentSection(VisualLibrary& library);
 	void AddVisualContentSection(ContentPacks& packs, VisualLibrary& library);
 
+	// The "nature" section (assets/data/bosques.json): the patches of wild nodes a generated world gets, through LoadNatureSection.
+	void AddNatureContentSection(ContentPacks& packs, NatureConfig& nature);
+
 	// The "social" section (docs/VIDA_SOCIAL.md), through LoadSocialRules: mood, talk, rites, beliefs, the shaman, diet and traps (atomic for one
 	// document; "rites" add or replace by id). On its own, like "combat"; the editor adds it over TribeConfig::Social (assets/data/social.json).
 	ContentSection SocialContentSection(SocialRules& rules);
 	void AddSocialContentSection(ContentPacks& packs, SocialRules& rules);
+
+	// Where each section of the game's content goes: the live objects of an application (the editor's systems, the headless simulation's).
+	// AddContentSections registers a section for every target that is set, so the list of sections is written once, here: a new section is
+	// one more member and one more line in AddContentSections, and every application that gives the target reads it from the same pack.
+	struct ContentTargets
+	{
+		ItemLibrary* Items = nullptr;   // with Recipes and Nodes: the "items" section (and with Techs and Buildings, those too)
+		RecipeBook* Recipes = nullptr;
+		std::map<std::string, ResourceNodeDef>* Nodes = nullptr;
+		TechTree* Techs = nullptr;
+		std::map<std::string, BuildingDef>* Buildings = nullptr;
+		std::map<std::string, TribeRole>* Roles = nullptr;
+		TribeAgenda* Agenda = nullptr;   // with Economy: the "tribe" section
+		TribeEconomy* Economy = nullptr;
+		WorkRules* Work = nullptr;
+		ExplorationRules* Explore = nullptr;
+		EconomyRules* Econ = nullptr;
+		CombatRules* Combat = nullptr;
+		PlayerRules* Player = nullptr;   // with Controls: the "player" and "controls" sections
+		ControlRules* Controls = nullptr;
+		std::map<std::string, InteractiveDef>* Interactives = nullptr;   // with Species: the world sections
+		std::map<std::string, SpeciesDef>* Species = nullptr;
+		GameCameraParams* Cameras = nullptr;
+		SocialRules* Social = nullptr;
+		SocietyRules* Society = nullptr;
+		DiplomacyRules* Diplomacy = nullptr;
+		VisualLibrary* Visuals = nullptr;
+		NatureConfig* Nature = nullptr;
+		TrailRules* Trails = nullptr;   // T5c: the "trails" section (assets/data/trails.json)
+		NeedBook* Needs = nullptr;      // V5: the "needs" section (the needs and verbs a pack adds; DataNeeds.h)
+	};
+	void AddContentSections(ContentPacks& packs, const ContentTargets& to);
 }

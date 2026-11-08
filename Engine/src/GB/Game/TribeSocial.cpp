@@ -161,6 +161,7 @@ namespace GB
 			if (d.Season.empty() || d.Season != SeasonClock::Name(season) || progress < d.At) continue;
 			int& last = m_Social.Years[id];
 			if (last == year + 1) continue;
+			if (d.Every > 0.0f && last > 0 && static_cast<float>(year + 1 - last) < d.Every) continue;   // (a year is short: the whole clan at a feast every 1.6 days)
 			last = year + 1;
 			CallRite(id, std::string(), 0.0f);
 		}
@@ -313,9 +314,16 @@ namespace GB
 		if (!Config.Social.On) return;
 		SocialMember& s = SocialOf(hunter.Name);
 		++s.Kills;
-		if (s.Kills == 1)
+		// the clan's first kill (not each hunter's: with every new hunter it called the whole clan to the fire again, a minute each, for a mood
+		// nobody could see): the rite, and the hunter is the better hunter for it and the clan says so
+		if (m_Social.Counts["kills"]++ == 0)
 		{
 			CallRites("first_kill", hunter.Name);
+			Practise(hunter, "hunt", "hunt", 5.0f);
+			TellClan("celebrates its first kill: " + hunter.Name + " brought it home");
+		}
+		if (s.Kills == 1)
+		{
 			// the taboo of the shared kill: the first kill goes whole to the store, and everyone thanks the hunter
 			for (const auto& [id, t] : Config.Social.Beliefs.Taboos)
 			{
@@ -549,7 +557,7 @@ namespace GB
 			if (!s.Caught.empty()) continue;
 			const auto def = Config.Social.Hunting.Traps.find(s.Trap);
 			if (def == Config.Social.Hunting.Traps.end() || m_Time - s.Set < static_cast<double>(def->second.Arm)) continue;
-			for (const std::string& name : m_Gameplay->Names())
+			for (const std::string& name : m_Gameplay->NamesWithTag(def->second.Tag))   // (the few animals of that kind, not the thousands of nodes)
 			{
 				AbilitySystemComponent* a = m_Gameplay->Find(name);
 				if (!a || !a->HasTag(def->second.Tag) || a->HasTag("State.Dead") || a->HasTag("State.Held")) continue;
@@ -744,8 +752,9 @@ namespace GB
 				// where the game is: the nearest animal of its tag to the camp, within 60 m
 				glm::vec2 at{ 0.0f };
 				float near = 60.0f;
-				for (const std::string& name : m_Gameplay->Names())
+				for (const GameplayWorld::Tagged& game : m_Gameplay->WithTag(t.Tag))
 				{
+					const std::string& name = *game.Name;
 					const AbilitySystemComponent* a = m_Gameplay->Find(name);
 					if (!a || !a->HasTag(t.Tag) || a->HasTag("State.Dead")) continue;
 					const EntityId e = m_Entities->FindByName(name);
@@ -905,6 +914,7 @@ namespace GB
 		static const std::map<std::string, std::string> kSay = { { "chat", "chats with " }, { "story", "tells a story to " }, { "gossip", "gossips with " },
 			{ "teach", "shows something to " }, { "console", "consoles " }, { "settle", "makes peace with " }, { "greet", "greets " }, { "share", "shares food with " },
 			{ "groom", "grooms " }, { "play", "plays with " } };
+		if (m_History) Gossip(m, *other, kind, about);   // V2: what they remember passes from one to the other (TribeHistory.cpp)
 		const auto said = kSay.find(kind);
 		Say(m, (said != kSay.end() ? said->second : kind + " with ") + other->Name + (kind == "gossip" || about.empty() ? std::string() : " (" + about + ")"));
 		return true;

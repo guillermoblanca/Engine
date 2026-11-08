@@ -13,4 +13,16 @@ namespace GB
 		out = it->second;
 		return true;
 	}
+
+	TgNodeSchema HeightInputNode::Describe() const
+	{
+		TgNodeSchema s;
+		s.Category = "Generate";
+		s.Summary = "A field brought in from outside the graph (TgContext::Inputs): the world's built-in ground is \"height\".";
+		s.Color = 0x5656A0;
+		s.Outputs = { { "height", TgPortKind::Field } };
+		s.UsesSource = true;
+		s.SourceDefault = "height";
+		return s;
+	}
 }

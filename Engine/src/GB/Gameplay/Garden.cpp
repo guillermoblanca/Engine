@@ -455,9 +455,9 @@ namespace GB
 	void GardenSystem::Update(float dt)
 	{
 		if (!m_Gameplay) return;
-		for (const std::string& name : m_Gameplay->Names())
+		for (const TaggedSystems::Entry& entry : m_Growing.Of(*m_Gameplay))   // (no system is made or removed here)
 		{
-			AbilitySystemComponent* a = m_Gameplay->Find(name);
+			AbilitySystemComponent* a = entry.System;
 			const bool plot = a->HasTag("Garden.Plot"), tree = a->HasTag("Garden.Tree");
 			if (!plot && !tree) continue;
 			AttributeSet& at = a->Attributes();
@@ -493,9 +493,10 @@ namespace GB
 		{
 			if (Entity* e = m_Entities->Find(m_Entities->FindByName(name)); e && e->Active != on) e->Active = on;
 		};
-		for (const std::string& name : m_Gameplay->Names())
+		for (const TaggedSystems::Entry& entry : m_Growing.Of(*m_Gameplay))   // the plots and trees only (a big world has thousands of other systems)
 		{
-			const AbilitySystemComponent* a = m_Gameplay->Find(name);
+			const std::string& name = *entry.Name;
+			const AbilitySystemComponent* a = entry.System;
 			const std::string soil = SoilState(*a), tree = TreeState(*a);
 			if (!soil.empty())
 			{

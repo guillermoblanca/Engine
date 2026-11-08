@@ -57,16 +57,11 @@ int main()
 {
 	const std::string data = std::string(GB_ASSETS_DIR) + "/data";
 
-	// ---- the content: era 1 and the forest pack
+	// ---- the content: the forest nodes of the game's catalogue
 	ItemLibrary items;
 	RecipeBook recipes;
 	std::map<std::string, ResourceNodeDef> defs;
-	RegisterEraOneItems(items, recipes, defs);
-	Check(LoadContentFile(data + "/era1.json", items, recipes, defs).empty(), "era1.json loads");
-	Check(LoadContentFile(data + "/social.json", items, recipes, defs).empty(), "social.json loads (the wild foods of the social life)");
-	const std::string contentError = LoadContentFile(data + "/era1_bosque.json", items, recipes, defs);
-	if (!contentError.empty()) std::fprintf(stderr, "%s\n", contentError.c_str());
-	Check(contentError.empty(), "era1_bosque.json loads as content");
+	RegisterEraOneItems(items, recipes, defs);   // the game's catalogue (the forest nodes are in it: era1.json)
 	for (const char* id : { "tree", "old_tree", "young_tree", "rock", "rock_small", "boulder", "rock_pile", "loose_stones", "fallen_branch", "mushroom_ring", "root_patch",
 		"nut_tree", "bird_nest", "wild_greens", "flowers_red", "flowers_white" })
 		Check(defs.count(id) == 1, id);

@@ -1,4 +1,5 @@
 #include "GB/Game/GameContent.h"
+#include "GB/Gameplay/WorldResources.h"
 
 namespace GB
 {
@@ -154,4 +155,29 @@ namespace GB
 	}
 
 	void AddSocialContentSection(ContentPacks& packs, SocialRules& rules) { packs.AddSection(SocialContentSection(rules)); }
+
+	void AddNatureContentSection(ContentPacks& packs, NatureConfig& nature)
+	{
+		packs.AddSection(StagedSection("nature", { "nature" }, [](const std::string& json, NatureConfig& n) { return LoadNatureSection(json, n); }, nullptr, nature));
+	}
+
+	void AddContentSections(ContentPacks& packs, const ContentTargets& to)
+	{
+		static std::map<std::string, TribeRole> noRoles;   // (the items section comes with the roles one; a caller without roles reads them into nothing)
+		if (to.Items && to.Recipes && to.Nodes)
+			AddGameContentSections(packs, *to.Items, *to.Recipes, *to.Nodes, to.Roles ? *to.Roles : noRoles, to.Agenda, to.Economy, to.Work, to.Techs, to.Buildings);
+		if (to.Explore) AddExplorationContentSection(packs, *to.Explore);
+		if (to.Econ) AddEconomyContentSection(packs, *to.Econ);
+		if (to.Combat) AddCombatContentSection(packs, *to.Combat);
+		if (to.Player && to.Controls) AddPlayerContentSections(packs, *to.Player, *to.Controls);
+		if (to.Interactives && to.Species) AddWorldContentSections(packs, *to.Interactives, *to.Species);
+		if (to.Cameras) AddCameraContentSections(packs, *to.Cameras);
+		if (to.Social) AddSocialContentSection(packs, *to.Social);
+		if (to.Society) AddSocietyContentSections(packs, *to.Society);
+		if (to.Diplomacy) AddDiplomacyContentSection(packs, *to.Diplomacy);
+		if (to.Visuals) AddVisualContentSection(packs, *to.Visuals);
+		if (to.Nature) AddNatureContentSection(packs, *to.Nature);
+		if (to.Needs) packs.AddSection(StagedSection("needs", { "needs" }, [](const std::string& json, NeedBook& b) { return LoadNeeds(json, b); }, nullptr, *to.Needs));   // V5
+		if (to.Trails) packs.AddSection(StagedSection("trails", { "trails" }, [](const std::string& json, TrailRules& r) { return LoadTrailRules(json, r); }, nullptr, *to.Trails));   // T5c
+	}
 }

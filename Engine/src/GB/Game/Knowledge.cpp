@@ -175,6 +175,19 @@ namespace GB
 		if (!k || now < k->NextTry) return {};
 		// first what it has the materials of (by id); an idea (nothing to hold) only when there is none of those, the least tried first, so an idea that
 		// is always at hand never stands in front of the others
+		// the clan's next steps first: one it has the materials of, or an idea it can try
+		for (const std::string& id : m_Goals)
+		{
+			const TechDef* t = m_Techs->Find(id);
+			if (!t || t->Discovery.Experiment <= 0.0f || !CanLearn(name, id)) continue;
+			for (const std::string& rid : t->Recipes)
+				if (const Recipe* r = book.Find(rid); r && std::all_of(r->Inputs.begin(), r->Inputs.end(), [&](const auto& in) { return store.Count(in.first) + bag.Count(in.first) >= in.second; }))
+				{
+					if (recipe) *recipe = rid;
+					return id;
+				}
+			if (t->Recipes.empty()) { if (recipe) recipe->clear(); return id; }
+		}
 		std::string idea;
 		int ideaTries = 0;
 		for (const auto& [id, t] : m_Techs->Techs)
@@ -219,13 +232,27 @@ namespace GB
 			return out;
 		}
 		k.Tries[tech] = tries + 1;
+		// U6: a failed try is not lost: what it was worth goes to the agent's understanding, and with enough work it is found for sure
+		if (const float step = static_cast<float>(chance) * m_Techs->Rules.ExperimentProgress; step > 0.0f)
+		{
+			float& p = k.Progress[tech];
+			p = std::min(1.0f, p + step);
+			if (p >= 1.0f - 1e-5f)
+			{
+				Learn(name, k, tech);
+				out.push_back({ name, "discovers " + Name(tech) + " by experimenting" + with + " (worked out after " + std::to_string(tries + 1) + " tries)" });
+				return out;
+			}
+		}
 		std::string spoilt;
 		if (const Recipe* r = rid.empty() ? nullptr : book.Find(rid); r && !r->Inputs.empty() && Roll(name, tech, 2, tries) < static_cast<double>(t.Discovery.Waste))
 		{
 			const std::string& first = r->Inputs.begin()->first;
 			if (store.Remove(first, 1) == 1 || bag.Remove(first, 1) == 1) spoilt = "; one " + first + " is spoilt";
 		}
-		out.push_back({ name, "tries to work out " + Name(tech) + with + " and fails (try " + std::to_string(tries + 1) + ")" + spoilt });
+		const auto p = k.Progress.find(tech);
+		const std::string far = p == k.Progress.end() ? std::string() : ", " + Percent(p->second) + " worked out";
+		out.push_back({ name, "tries to work out " + Name(tech) + with + " and fails (try " + std::to_string(tries + 1) + far + ")" + spoilt });
 		return out;
 	}
 
@@ -357,6 +384,30 @@ namespace GB
 		return s;
 	}
 
+	std::vector<ClanKnowledge::ResearchLine> ClanKnowledge::Research() const
+	{
+		std::map<std::string, ResearchLine> lines;
+		for (const auto& [name, k] : m_Agents)
+		{
+			std::set<std::string> on;
+			for (const auto& [tech, n] : k.Tries) if (n > 0) on.insert(tech);
+			for (const auto& [tech, p] : k.Progress) if (p > 0.0f) on.insert(tech);
+			for (const std::string& tech : on)
+			{
+				if (m_Clan.count(tech) || k.Known.count(tech)) continue;
+				ResearchLine& l = lines[tech];
+				l.Tech = tech;
+				const auto p = k.Progress.find(tech);
+				l.Progress = std::max(l.Progress, p == k.Progress.end() ? 0.0f : p->second);
+				l.Who.push_back(name);
+			}
+		}
+		std::vector<ResearchLine> out;
+		for (auto& [tech, l] : lines) out.push_back(std::move(l));
+		std::stable_sort(out.begin(), out.end(), [](const ResearchLine& a, const ResearchLine& b) { return a.Progress > b.Progress; });
+		return out;
+	}
+
 	std::string ClanKnowledge::ClanStatus() const
 	{
 		if (!m_Techs) return "the clan knows everything (no technologies loaded)";
@@ -410,6 +461,7 @@ namespace GB
 		}
 		Json j = { { "known", known }, { "lesson", m_LessonTimer } };
 		if (!agents.empty()) j["agents"] = agents;
+		if (!m_Goals.empty()) j["goals"] = m_Goals;   // (the experiments read them before the next plan sets them again: a load must try what the run tried)
 		return j.dump();
 	}
 
@@ -420,6 +472,7 @@ namespace GB
 		std::set<std::string> clan;
 		std::vector<std::string> other;
 		float lesson = 0.0f;
+		std::vector<std::string> goals;
 		std::map<std::string, AgentKnowledge> agents = m_Agents;
 		for (auto& [name, k] : agents) { k.Progress.clear(); k.Tries.clear(); k.NextTry = 0.0; }   // only what the section says is half done
 		try
@@ -441,6 +494,11 @@ namespace GB
 				if (!it->is_number()) return false;
 				lesson = it->get<float>();
 			}
+			if (const auto it = j.find("goals"); it != j.end())
+			{
+				if (!it->is_array()) return false;
+				for (const Json& g : *it) { if (!g.is_string()) return false; goals.push_back(g.get<std::string>()); }
+			}
 			if (const auto it = j.find("agents"); it != j.end())
 			{
 				if (!it->is_object()) return false;
@@ -461,6 +519,7 @@ namespace GB
 		if (m_Techs)
 			for (const std::string& t : m_Techs->Starting()) m_Clan.insert(t);   // never forgotten (and a save from before the technologies has none)
 		m_LessonTimer = lesson;
+		m_Goals = std::move(goals);
 		m_Agents = std::move(agents);
 		return true;
 	}

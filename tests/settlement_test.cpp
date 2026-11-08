@@ -196,8 +196,8 @@ int main()
 		std::map<std::string, BuildingDef> file;
 		Check(LoadBuildingsFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty(), "the buildings of assets/data/era1.json load");
 		Check(file == DefaultBuildings(), "and say what DefaultBuildings says");
-		Check(file.size() == 16 && file.count("shelter") && file.count("storage") && file.count("workbench") && file.count("drying_rack") && file.count("hut") && file.count("forge"),
-			"shelter, storage, workbench and drying rack, and the twelve of the Stone-Age progression (docs/PROGRESION.md)");
+		Check(file.size() == 18 && file.count("shelter") && file.count("storage") && file.count("workbench") && file.count("drying_rack") && file.count("hut") && file.count("forge")
+			&& file.count("watchtower") && file.count("jar_store"), "shelter, storage, workbench and drying rack, and the fourteen of the Stone-Age progression (docs/PROGRESION.md)");
 		Check(file.at("hut").Supersedes == std::vector<std::string>{ "shelter" } && file.at("granary").Keep == 0.5f && file.at("palisade").Defense == 1.0f && file.at("totem").Aura == 9.0f,
 			"with their provisions");
 		std::map<std::string, BuildingDef> odd = DefaultBuildings();

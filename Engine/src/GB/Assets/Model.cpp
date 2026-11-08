@@ -12,6 +12,7 @@
 
 #define CGLTF_IMPLEMENTATION
 #include <cgltf.h>
+#include <filesystem>
 
 namespace GB
 {
@@ -164,14 +165,30 @@ namespace GB
 				std::string decoded = src->uri;
 				cgltf_decode_uri(decoded.data());
 				decoded.resize(std::strlen(decoded.c_str()));
+				// an image file is loaded once for every model that uses it (the pieces of a modular kit share a dozen textures between them)
+				static std::map<std::pair<std::string, int>, std::weak_ptr<Texture2D>> shared;
+				const auto fileKey = std::make_pair(std::filesystem::weakly_canonical(BaseDir + decoded).generic_string(), static_cast<int>(encoding));
+				if (std::shared_ptr<Texture2D> there = shared[fileKey].lock())
+				{
+					Out.m_Textures.push_back(there);
+					TextureCache[key] = there.get();
+					return there.get();
+				}
 				image = Image::Load(BaseDir + decoded, false);
+				if (image.IsValid())
+				{
+					Out.m_Textures.push_back(std::make_shared<Texture2D>(image, encoding));
+					shared[fileKey] = Out.m_Textures.back();
+					TextureCache[key] = Out.m_Textures.back().get();
+					return Out.m_Textures.back().get();
+				}
 			}
 
 			// glTF UV (0,0) is the top-left of the image, which is row 0 of the uploaded data (no flip).
 			Texture2D* result = nullptr;
 			if (image.IsValid())
 			{
-				Out.m_Textures.push_back(std::make_unique<Texture2D>(image, encoding));
+				Out.m_Textures.push_back(std::make_shared<Texture2D>(image, encoding));
 				result = Out.m_Textures.back().get();
 			}
 			else

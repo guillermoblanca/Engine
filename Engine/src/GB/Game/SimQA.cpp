@@ -4,6 +4,7 @@
 #include "GB/World/Terrain.h"
 #include "GB/World/WorldGen.h"
 #include <algorithm>
+#include <set>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -952,6 +953,7 @@ namespace GB
 			m_Builds.Bind(m_Gameplay);
 			m_Tribe.SetBuildings(&m_Builds.Defs);
 			m_Tribe.SetGround([terrain = world.TerrainRef](float x, float z) { return terrain->GetHeight(x, z); });
+			m_Tribe.SetWellDigger([this](const std::string& well, const glm::vec2& at) { DigWell(well, at); });   // (a big village digs more)
 		}
 		// H12: the regions of the world (the editor's, or cut here with the clan's rules and the nodes planned on it), so expeditions and moves can happen
 		if (setup.Config) { m_Tribe.Config.Explore = setup.Config->Explore; m_Tribe.Config.Society = setup.Config->Society; m_Tribe.Config.Econ = setup.Config->Econ; }
@@ -984,6 +986,8 @@ namespace GB
 		if (setup.Clans > 1)
 		{
 			m_Clans.SetRegions(setup.Regions ? setup.Regions : &m_Regions);
+			if (setup.Diplomacy) m_Clans.Rules = *setup.Diplomacy;
+			m_Clans.Values.Seed = world.Desc.Seed;   // V4: the cultures of this world
 			m_Clans.Add("Clan 1", &m_Tribe);
 			if (setup.ThinkPerFrame >= 0) m_Clans.ThinkPerFrame = setup.ThinkPerFrame;
 			size_t named = roster.size();
@@ -1001,15 +1005,7 @@ namespace GB
 				Clan& clan = m_Clans.Add(name, nullptr, -1, &m_Tribe.Config);
 				Tribe& t = *clan.Folk;
 				const glm::vec2 home = FindFreeSpot(m_Ground, site.At, 2.0f);
-				const glm::vec2 well = FindFreeSpot(m_Ground, home + glm::vec2(4.0f, -6.0f), 1.5f);
-				BuildInteractive(m_Entities, m_Rules.Defs.at("well"), "Well " + name, NullEntity, { well.x, terrain->GetHeight(well.x, well.y), well.y });
-				t.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
-				t.SetInteractives(&m_Rules.Defs);
-				t.SetTechs(&m_Techs);
-				if (setup.Buildings) { t.SetBuildings(&m_Builds.Defs); t.SetGround([terrain](float x, float z) { return terrain->GetHeight(x, z); }); }   // (H8, as the first clan)
-				t.SetRegions(setup.Regions ? setup.Regions : &m_Regions, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
-				t.Config.Economy.Camp = home;
-				t.Config.Economy.CampY = terrain->GetHeight(home.x, home.y);
+				SetUpClan(t, name, home);
 				t.Store().Add(m_Items, "wood", 2 + 2 * each);
 				t.Store().Add(m_Items, "stone", 3 * each);
 				const std::vector<std::string> roles = t.PlanRoles(each);
@@ -1025,21 +1021,22 @@ namespace GB
 					m_Index[who] = m_Bodies.size() - 1;
 					t.AddMember(who, static_cast<size_t>(i) < roles.size() ? roles[static_cast<size_t>(i)] : std::string("forager"), m_Bodies.back().get());
 				}
-				t.SetSpawner([this](const std::string& who, const glm::vec2& at, float) -> ITribeBody*
-				{
-					AbilitySystemComponent* asc = m_Gameplay.Create(who);
-					for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);
-					m_Bodies.push_back(std::make_unique<SimBody>(who, m_Gameplay, m_Entities, m_Nav, m_Items, at)); m_Bodies.back()->SetObstacles(&m_Ground);
-					m_Index[who] = m_Bodies.size() - 1;
-					return m_Bodies.back().get();
-				});
-				if (setup.Abstract) t.SetViewer(camp + glm::vec2(1e5f, 1e5f));
-				if (setup.ViewerAtCamp) t.SetViewer(camp);
 			}
+			// N7: a big clan splits (and one far from what its next step needs sends an outpost): the new clan is set up as these were, and its
+			// members move in from the old one (ClanWorld::Split)
+			m_Clans.FoundClan = [this](ClanId, const glm::vec2& at, const std::string& name) -> ClanId
+			{
+				if (m_Clans.Find(name)) return -1;
+				Clan& clan = m_Clans.Add(name, nullptr, -1, &m_Tribe.Config);
+				SetUpClan(*clan.Folk, name, FindFreeSpot(m_Ground, at, 2.0f));
+				if (m_Setup.Combat) { clan.Folk->SetClanName(name); clan.Folk->SetCombat(&m_Combat, &m_ClanHostility); }
+				return clan.Id;
+			};
 		}
 		// H14: one combat system for every clan of the run (as the editor's StepCombat): threats, fights and raids, with the hostility of the clans
 		if (setup.Combat)
 		{
+			if (setup.CombatRules) m_Combat.Rules = *setup.CombatRules;
 			m_Combat.Bind(m_Entities, m_Gameplay);
 			m_Hostility.FromRules(m_Combat.Rules);
 			IHostility* hostility = &m_Hostility;
@@ -1047,6 +1044,27 @@ namespace GB
 			const auto& all = m_Clans.All();
 			if (all.empty()) m_Tribe.SetCombat(&m_Combat, hostility);
 			for (const auto& c : all) { c->Folk->SetClanName(c->Name); c->Folk->SetCombat(&m_Combat, hostility); }
+			if (setup.Species && setup.World && setup.World->TerrainRef)   // the game round each camp, one herd a species (the editor's SpawnWildlife)
+			{
+				const Terrain* ground = setup.World->TerrainRef;
+				m_Ecology.Species = *setup.Species;
+				m_Ecology.Bind(m_Entities, m_Gameplay, [ground](float x, float z) { return ground->GetHeight(x, z); });
+				std::vector<const Tribe*> camps;
+				if (all.empty()) camps.push_back(&m_Tribe);
+				for (const auto& c : all) camps.push_back(c->Folk);
+				for (const Tribe* t : camps)
+				{
+					int k = 0;
+					for (const auto& [species, n] : t->Config.Social.Hunting.Wildlife)
+					{
+						if (n <= 0 || !m_Ecology.Species.count(species)) continue;
+						const float angle = 1.3f + 2.3999632f * static_cast<float>(k++);
+						const float radius = 18.0f + 6.0f * static_cast<float>(k % 3);
+						const glm::vec2 at = t->Config.Economy.Camp + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
+						m_Ecology.Spawn({ at.x, ground->GetHeight(at.x, at.y), at.y }, n, species);
+					}
+				}
+			}
 			if (setup.HostileClans)
 				for (size_t a = 0; a < all.size(); ++a)
 					for (size_t b = a + 1; b < all.size(); ++b) { m_Hostility.Set(all[a]->Name, all[b]->Name, 1.0f); m_Clans.Relate(all[a]->Id, all[b]->Id, "raid", 3.0f, "the scale run starts them hostile", all[a]->Id); }
@@ -1056,9 +1074,61 @@ namespace GB
 			if (m_Clans.Count() > 1) m_Clans.SetTelemetry(setup.Telemetry, setup.TelemetryEvery);
 			else m_Tribe.SetTelemetry(setup.Telemetry, 0, setup.TelemetryEvery);
 		}
+		// V5: every clan starts knowing these and everything they require (a run that starts at the door of an era)
+		for (const auto& c : m_Clans.All())
+		{
+			ClanKnowledge& k = c->Folk->Knowledge();
+			if (!k.Techs()) continue;
+			std::vector<std::string> todo = setup.Know;
+			std::set<std::string> done;
+			while (!todo.empty())
+			{
+				const std::string id = todo.back();
+				todo.pop_back();
+				const TechDef* t = k.Techs()->Find(id);
+				if (!t || !done.insert(id).second) continue;
+				k.GrantClan(id);
+				todo.insert(todo.end(), t->Requires.begin(), t->Requires.end());
+			}
+		}
 	}
 
 	SimRun::~SimRun() = default;
+
+	// A well and its ability system (the scene's were loaded before: without it the well is not there for anyone, and a clan died of thirst
+	// with its own well 7 m from the camp)
+	void SimRun::DigWell(const std::string& name, const glm::vec2& at)
+	{
+		const Terrain* terrain = m_Setup.World->TerrainRef;
+		const EntityId id = BuildInteractive(m_Entities, m_Rules.Defs.at("well"), name, NullEntity, { at.x, terrain->GetHeight(at.x, at.y), at.y });
+		if (const Entity* e = m_Entities.Find(id); e && e->Gameplay && !m_Gameplay.Find(e->Name)) m_Gameplay.Create(e->Name)->FromComponent(*e->Gameplay);
+	}
+
+	// A further clan's tribe (H16, N7): its well by the camp, bound to the run's world and content, and a stand-in body for each one born.
+	void SimRun::SetUpClan(Tribe& t, const std::string& name, const glm::vec2& home)
+	{
+		const Terrain* terrain = m_Setup.World->TerrainRef;
+		DigWell("Well " + name, FindFreeSpot(m_Ground, home + glm::vec2(4.0f, -6.0f), 1.5f));
+		t.SetWellDigger([this](const std::string& well, const glm::vec2& at) { DigWell(well, at); });
+		t.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
+		t.SetInteractives(&m_Rules.Defs);
+		t.SetTechs(&m_Techs);
+		if (m_Setup.Buildings) { t.SetBuildings(&m_Builds.Defs); t.SetGround([terrain](float x, float z) { return terrain->GetHeight(x, z); }); }   // (H8, as the first clan)
+		t.SetRegions(m_Setup.Regions ? m_Setup.Regions : &m_Regions, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
+		t.Config.Economy.Camp = home;
+		t.Config.Economy.CampY = terrain->GetHeight(home.x, home.y);
+		t.SetSpawner([this](const std::string& who, const glm::vec2& at, float) -> ITribeBody*
+		{
+			AbilitySystemComponent* asc = m_Gameplay.Create(who);
+			for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);
+			m_Bodies.push_back(std::make_unique<SimBody>(who, m_Gameplay, m_Entities, m_Nav, m_Items, at)); m_Bodies.back()->SetObstacles(&m_Ground);
+			m_Index[who] = m_Bodies.size() - 1;
+			return m_Bodies.back().get();
+		});
+		const glm::vec2 first = m_Tribe.Config.Economy.Camp;
+		if (m_Setup.Abstract) t.SetViewer(first + glm::vec2(1e5f, 1e5f));
+		if (m_Setup.ViewerAtCamp) t.SetViewer(first);
+	}
 
 	SimView SimRun::View() const
 	{
@@ -1092,6 +1162,7 @@ namespace GB
 		if (m_Setup.Combat)   // H14: the fights of every clan, before their brains read them (as the editor)
 		{
 			const auto c0 = Clock::now();
+			if (m_Setup.Species) m_Ecology.Update(m_Clock, dt);
 			m_Combat.Update(dt, m_Tribe.Config.Needs.DaySeconds);
 			m_Cost.CombatMs = std::chrono::duration<double, std::milli>(Clock::now() - c0).count();
 		}

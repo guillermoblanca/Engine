@@ -80,7 +80,8 @@ namespace GB
 	{
 		std::string Name;
 		// The trigger: Event ("birth", "adult", "pair", "death", "first_kill", "wounded", "harvest", "omen:<id>", "tradition") or a Season ("spring",
-		// "summer", "autumn", "winter") at the fraction At of it, once a year; with Every > 0 days it comes back that often (a tradition kept).
+		// "summer", "autumn", "winter") at the fraction At of it, once a year (with Every > 0: once in that many years); a tradition with Every > 0
+		// days comes back that often.
 		std::string Event, Season;
 		float At = 0.5f;
 		float Every = 0.0f;

@@ -1,0 +1,622 @@
+{
+ "cell": 128,
+ "columns": 16,
+ "icons": {
+  "goto": [
+   0,
+   0
+  ],
+  "gather": [
+   128,
+   0
+  ],
+  "chop": [
+   256,
+   0
+  ],
+  "mine": [
+   384,
+   0
+  ],
+  "collect": [
+   512,
+   0
+  ],
+  "deposit": [
+   640,
+   0
+  ],
+  "deliver": [
+   768,
+   0
+  ],
+  "build": [
+   896,
+   0
+  ],
+  "make": [
+   1024,
+   0
+  ],
+  "experiment": [
+   1152,
+   0
+  ],
+  "explore": [
+   1280,
+   0
+  ],
+  "expedition": [
+   1408,
+   0
+  ],
+  "hunt": [
+   1536,
+   0
+  ],
+  "fight": [
+   1664,
+   0
+  ],
+  "flee": [
+   1792,
+   0
+  ],
+  "care": [
+   1920,
+   0
+  ],
+  "eat": [
+   0,
+   128
+  ],
+  "drink": [
+   128,
+   128
+  ],
+  "sleep": [
+   256,
+   128
+  ],
+  "warm": [
+   384,
+   128
+  ],
+  "stoke": [
+   512,
+   128
+  ],
+  "fire": [
+   640,
+   128
+  ],
+  "rite": [
+   768,
+   128
+  ],
+  "talk": [
+   896,
+   128
+  ],
+  "till": [
+   1024,
+   128
+  ],
+  "sow": [
+   1152,
+   128
+  ],
+  "tend": [
+   1280,
+   128
+  ],
+  "harvest": [
+   1408,
+   128
+  ],
+  "haul": [
+   1536,
+   128
+  ],
+  "rest": [
+   1664,
+   128
+  ],
+  "migrate": [
+   1792,
+   128
+  ],
+  "trade": [
+   1920,
+   128
+  ],
+  "state.hungry": [
+   0,
+   256
+  ],
+  "state.thirsty": [
+   128,
+   256
+  ],
+  "state.tired": [
+   256,
+   256
+  ],
+  "state.cold": [
+   384,
+   256
+  ],
+  "state.wounded": [
+   512,
+   256
+  ],
+  "state.afraid": [
+   640,
+   256
+  ],
+  "state.angry": [
+   768,
+   256
+  ],
+  "state.happy": [
+   896,
+   256
+  ],
+  "state.cannot": [
+   1024,
+   256
+  ],
+  "state.waiting": [
+   1152,
+   256
+  ],
+  "state.full": [
+   1280,
+   256
+  ],
+  "state.looking": [
+   1408,
+   256
+  ],
+  "state.love": [
+   1536,
+   256
+  ],
+  "state.birth": [
+   1664,
+   256
+  ],
+  "state.death": [
+   1792,
+   256
+  ],
+  "state.discovery": [
+   1920,
+   256
+  ],
+  "berry": [
+   0,
+   384
+  ],
+  "cooked_meat": [
+   128,
+   384
+  ],
+  "dried_berry": [
+   256,
+   384
+  ],
+  "eggs": [
+   384,
+   384
+  ],
+  "bone": [
+   512,
+   384
+  ],
+  "branch": [
+   640,
+   384
+  ],
+  "clay": [
+   768,
+   384
+  ],
+  "copper_ingot": [
+   896,
+   384
+  ],
+  "fish": [
+   1024,
+   384
+  ],
+  "grain": [
+   1152,
+   384
+  ],
+  "greens": [
+   1280,
+   384
+  ],
+  "honey": [
+   1408,
+   384
+  ],
+  "copper_ore": [
+   1536,
+   384
+  ],
+  "cordage": [
+   1664,
+   384
+  ],
+  "daub": [
+   1792,
+   384
+  ],
+  "fat": [
+   1920,
+   384
+  ],
+  "meat": [
+   0,
+   512
+  ],
+  "mushrooms": [
+   128,
+   512
+  ],
+  "nuts": [
+   256,
+   512
+  ],
+  "roast": [
+   384,
+   512
+  ],
+  "feather": [
+   512,
+   512
+  ],
+  "fiber": [
+   640,
+   512
+  ],
+  "fired_brick": [
+   768,
+   512
+  ],
+  "flint": [
+   896,
+   512
+  ],
+  "roots": [
+   1024,
+   512
+  ],
+  "smoked_meat": [
+   1152,
+   512
+  ],
+  "stew": [
+   1280,
+   512
+  ],
+  "water": [
+   1408,
+   512
+  ],
+  "granite": [
+   1536,
+   512
+  ],
+  "herbs": [
+   1664,
+   512
+  ],
+  "hide": [
+   1792,
+   512
+  ],
+  "leather": [
+   1920,
+   512
+  ],
+  "log": [
+   0,
+   640
+  ],
+  "mud_brick": [
+   128,
+   640
+  ],
+  "plank": [
+   256,
+   640
+  ],
+  "poultice": [
+   384,
+   640
+  ],
+  "bone_pickaxe": [
+   512,
+   640
+  ],
+  "copper_pickaxe": [
+   640,
+   640
+  ],
+  "fish_trap": [
+   768,
+   640
+  ],
+  "flint_pickaxe": [
+   896,
+   640
+  ],
+  "reed": [
+   1024,
+   640
+  ],
+  "reed_mat": [
+   1152,
+   640
+  ],
+  "resin": [
+   1280,
+   640
+  ],
+  "salt": [
+   1408,
+   640
+  ],
+  "flint_sickle": [
+   1536,
+   640
+  ],
+  "stone_axe": [
+   1664,
+   640
+  ],
+  "stone_hoe": [
+   1792,
+   640
+  ],
+  "stone_pickaxe": [
+   1920,
+   640
+  ],
+  "sinew": [
+   0,
+   768
+  ],
+  "snare": [
+   128,
+   768
+  ],
+  "stake": [
+   256,
+   768
+  ],
+  "stone": [
+   384,
+   768
+  ],
+  "flint_spear": [
+   512,
+   768
+  ],
+  "flint_sword": [
+   640,
+   768
+  ],
+  "hunting_bow": [
+   768,
+   768
+  ],
+  "basket_wicker": [
+   896,
+   768
+  ],
+  "wood": [
+   1024,
+   768
+  ],
+  "acorn": [
+   1152,
+   768
+  ],
+  "grain_seed": [
+   1280,
+   768
+  ],
+  "campfire": [
+   1408,
+   768
+  ],
+  "copper_axe": [
+   1536,
+   768
+  ],
+  "leather_bag": [
+   1664,
+   768
+  ],
+  "tech.stone_tools": [
+   1792,
+   768
+  ],
+  "tech.fire_making": [
+   1920,
+   768
+  ],
+  "tech.cordage": [
+   0,
+   896
+  ],
+  "tech.flint_knapping": [
+   128,
+   896
+  ],
+  "tech.basketry": [
+   256,
+   896
+  ],
+  "tech.spear_making": [
+   384,
+   896
+  ],
+  "tech.hide_working": [
+   512,
+   896
+  ],
+  "tech.cooking": [
+   640,
+   896
+  ],
+  "tech.smoking": [
+   768,
+   896
+  ],
+  "tech.weaving": [
+   896,
+   896
+  ],
+  "tech.wattle_and_daub": [
+   1024,
+   896
+  ],
+  "tech.timber_framing": [
+   1152,
+   896
+  ],
+  "tech.palisade_building": [
+   1280,
+   896
+  ],
+  "tech.food_storage": [
+   1408,
+   896
+  ],
+  "tech.herb_lore": [
+   1536,
+   896
+  ],
+  "tech.ritual": [
+   1664,
+   896
+  ],
+  "tech.pottery": [
+   1792,
+   896
+  ],
+  "tech.smelting": [
+   1920,
+   896
+  ],
+  "tech.bone_working": [
+   0,
+   1024
+  ],
+  "tech.tillage": [
+   128,
+   1024
+  ],
+  "tech.storytelling": [
+   256,
+   1024
+  ],
+  "tech.shamanism": [
+   384,
+   1024
+  ],
+  "tech.trapping": [
+   512,
+   1024
+  ],
+  "tech.fishing": [
+   640,
+   1024
+  ],
+  "tech.butchery": [
+   768,
+   1024
+  ],
+  "tech.cuisine": [
+   896,
+   1024
+  ],
+  "tech.carpentry": [
+   1024,
+   1024
+  ],
+  "tech.masonry": [
+   1152,
+   1024
+  ],
+  "flint_axe": [
+   1280,
+   1024
+  ],
+  "clothing": [
+   1408,
+   1024
+  ],
+  "node.campfire": [
+   1536,
+   1024
+  ],
+  "world.meat": [
+   1664,
+   1024
+  ],
+  "spear": [
+   1792,
+   1024
+  ],
+  "gourd": [
+   1920,
+   1024
+  ],
+  "building.shelter": [
+   0,
+   1152
+  ],
+  "world.fish": [
+   128,
+   1152
+  ],
+  "club": [
+   256,
+   1152
+  ],
+  "node.berry_bush": [
+   384,
+   1152
+  ],
+  "world.hide": [
+   512,
+   1152
+  ],
+  "world.bone": [
+   640,
+   1152
+  ],
+  "world.basket": [
+   768,
+   1152
+  ],
+  "tusk": [
+   896,
+   1152
+  ],
+  "world.campfire": [
+   1024,
+   1152
+  ],
+  "world.axe": [
+   1152,
+   1152
+  ]
+ }
+}

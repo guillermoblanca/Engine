@@ -9,11 +9,6 @@ namespace GB
 {
 	namespace
 	{
-		double Param(const TgNode& n, const char* key, double fallback)
-		{
-			const auto it = n.Params.find(key);
-			return it == n.Params.end() ? fallback : it->second;
-		}
 
 		struct Course
 		{
@@ -59,7 +54,7 @@ namespace GB
 			int outletCell = -1;
 			for (size_t c = 0; c < count && outletCell < 0; ++c) if (isOutlet(c)) outletCell = static_cast<int>(c);
 			const glm::vec2 outletAt = outletCell >= 0 ? height.SamplePosition(static_cast<uint32_t>(outletCell) % n, static_cast<uint32_t>(outletCell) / n) : glm::vec2(0.0f);
-			const float minDistance = static_cast<float>(Param(node, "MinStartDistance", 0.3)) * height.Size;
+			const float minDistance = static_cast<float>(TgParam(node, "MinStartDistance", 0.3)) * height.Size;
 			auto pick = [&](float farEnough)
 			{
 				int best = -1;
@@ -111,7 +106,7 @@ namespace GB
 		for (uint32_t c : course.Cells) raw.push_back(height.SamplePosition(c % n, c / n));
 
 		// Round the staircase of the D8 steps with a moving average whose window shrinks toward the ends, so the source and the outlet stay put.
-		const int window = std::max(0, static_cast<int>(Param(node, "Smooth", 3.0)));
+		const int window = std::max(0, static_cast<int>(TgParam(node, "Smooth", 3.0)));
 		const int m = static_cast<int>(raw.size());
 		std::vector<glm::vec2> smooth(raw.size());
 		for (int i = 0; i < m; ++i)
@@ -123,7 +118,7 @@ namespace GB
 		}
 
 		// One point every `Spacing` metres of course, and the last one.
-		const float spacing = std::max(0.5f, static_cast<float>(Param(node, "Spacing", 6.0)));
+		const float spacing = std::max(0.5f, static_cast<float>(TgParam(node, "Spacing", 6.0)));
 		TgPath path;
 		auto keep = [&](int i) { path.Points.push_back(smooth[static_cast<size_t>(i)]); path.Values.push_back(flow.Values[course.Cells[static_cast<size_t>(i)]]); };
 		keep(0);
@@ -137,5 +132,22 @@ namespace GB
 		if (path.Points.size() < 2) { error = "river_trace node '" + node.Id + "': the course is shorter than its spacing"; return false; }
 		out.Items.push_back(std::move(path));
 		return true;
+	}
+
+	TgNodeSchema RiverTraceNode::Describe() const
+	{
+		TgNodeSchema s;
+		s.Category = "Water";
+		s.Summary = "The main river: the longest flow line (to the lake when an outlet is given), with the drainage at each point.";
+		s.Color = 0x288282;
+		s.Inputs = { { "height", TgPortKind::Field, false, "filled (depression_fill)" }, { "flow", TgPortKind::Field, false, "its flow accumulation" },
+			{ "outlets", TgPortKind::Field, true, "the lake site: the river ends there" } };
+		s.Outputs = { { "flow", TgPortKind::Field }, { "river", TgPortKind::Paths } };
+		s.Params = {
+			{ "MinStartDistance", 0.3, 0, 1, false, "the source is at least this fraction of the map from the outlet" },
+			{ "Smooth", 3, 0, 12, true, "cells of the moving average that rounds the D8 staircase" },
+			{ "Spacing", 6, 1, 30, false, "metres between points of the course" },
+		};
+		return s;
 	}
 }

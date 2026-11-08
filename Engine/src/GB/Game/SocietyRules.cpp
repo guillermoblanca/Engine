@@ -1,6 +1,7 @@
 // The "society" section of a content file (H9 + H10): the data of GB/Game/Society.h, read and written. Atomic: the rules are read into a copy and
 // only replace the live ones when the whole section is right.
 #include "GB/Game/Society.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -88,29 +89,9 @@ namespace GB
 
 	SocietyRules DefaultSocietyRules()
 	{
-		SocietyRules r;
-		r.Genes["strength"] = { 0.5f, 0.2f, { { "woodcutting", 0.25f }, { "mining", 0.25f } }, {}, { { "woodcutting", 0.2f }, { "mining", 0.2f } } };
-		r.Genes["endurance"] = { 0.5f, 0.2f, { { "sleep", -0.2f }, { "explore", 0.2f } }, {}, {} };
-		r.Genes["perception"] = { 0.5f, 0.2f, { { "explore", 0.3f }, { "experiment", 0.15f } }, { { "foraging", 0.3f } }, {} };
-		r.Genes["dexterity"] = { 0.5f, 0.2f, { { "crafting", 0.2f } }, { { "crafting", 0.4f }, { "foraging", 0.2f } }, { { "crafting", 0.2f }, { "foraging", 0.15f } } };
-		r.Genes["longevity"] = { 0.5f, 0.2f, {}, {}, {} };
-		r.Traits["sociability"] = { 0.5f, 0.25f, 0.5f, { { "socialize", 0.8f }, { "regroup", 0.2f }, { "warm", 0.1f } } };
-		r.Traits["diligence"] = { 0.5f, 0.25f, 0.5f, { { "gather", 0.35f }, { "deposit", 0.2f }, { "tool", 0.2f }, { "rest", -0.7f } } };
-		r.Traits["curiosity"] = { 0.5f, 0.25f, 0.5f, { { "experiment", 0.8f }, { "explore", 0.5f } } };
-		r.Traits["boldness"] = { 0.5f, 0.25f, 0.5f, { { "explore", 0.4f }, { "regroup", -0.5f } } };
-		r.Relations.Events = { { "work", 0.02f }, { "food", 0.03f }, { "camp", 0.015f }, { "conflict", -0.12f }, { "teach", 0.04f }, { "pair", 0.3f },
-			{ "birth", 0.4f }, { "help", 0.1f }, { "theft", -0.4f }, { "rescue", 0.4f }, { "care", 0.15f } };   // (care: H14, tending a wounded clanmate)
-		r.Culture.Norms["sharing"] = { 0.5f, "sociability", { { "socialize", 0.3f }, { "deposit", 0.2f }, { "warm", 0.1f } } };
-		r.Culture.Norms["industry"] = { 0.5f, "diligence", { { "gather", 0.2f }, { "rest", -0.3f }, { "sleep", -0.1f } } };
-		r.Culture.Norms["inquiry"] = { 0.5f, "curiosity", { { "experiment", 0.4f }, { "explore", 0.2f } } };
-		r.Culture.Norms["daring"] = { 0.5f, "boldness", { { "explore", 0.2f }, { "regroup", -0.2f }, { "fight", 0.3f }, { "flee", -0.2f } } };   // (fight, flee: H14)
-
-		r.Culture.Traditions["fire_vigil"] = { "Fire vigil", "stoke", 30, { { "warm", 0.15f }, { "socialize", 0.1f } } };
-		r.Culture.Traditions["naming_feast"] = { "Naming feast", "birth", 3, { { "socialize", 0.15f } } };
-		r.Culture.Traditions["mourning"] = { "Mourning", "death", 3, { { "regroup", 0.15f } } };
-		r.Culture.Traditions["lore_circle"] = { "Lore circle", "learn", 5, { { "experiment", 0.2f } } };
-		r.Culture.Traditions["toolmakers"] = { "Toolmakers' pride", "craft", 20, { { "tool", 0.2f } } };
-		return r;
+		// the "society" section of the game's data (era1.json): life, births, genes, personality, relations and culture
+		static const SocietyRules rules = ShippedSection<SocietyRules>([](const std::string& doc, SocietyRules& r) { return LoadSocietyRules(doc, r); });
+		return rules;
 	}
 
 	std::string LoadSocietyRules(const std::string& json, SocietyRules& live)

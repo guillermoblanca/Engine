@@ -45,6 +45,11 @@ namespace GB
 	// relative discharge of each point (its drainage over the mouth's) and its end brought to the shore of the lake.
 	void ApplyWaterPlan(const WaterPlan& plan, const WaterGenParams& gen, HillParams& recipe);
 
+	// The relative discharge of each point of a traced river course (its drainage over the mouth's, the same length as `path`) and, with a lake,
+	// its end brought to the lake's shore: the points within 1.7 radii are dropped and a last one is put at 0.95 of the shore's radius in that
+	// direction. What ApplyWaterPlan and the river_carve node both do with a river_trace course.
+	void ShapeRiverCourse(std::vector<glm::vec2>& path, const std::vector<float>& drainage, const LakeBody* lake, std::vector<float>& discharge);
+
 	// Evaluates MakeWaterGraph on `ground` and reads the plan from its results. False (and `error`) when a node fails.
 	bool PlanWater(const TerrainNodeRegistry& registry, const Heightmap& ground, const WaterPlanRequest& request, WaterPlan& plan, std::string& error);
 }

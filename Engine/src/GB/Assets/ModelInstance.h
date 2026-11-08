@@ -40,7 +40,8 @@ namespace GB
 
 		// Appends the current pose to `scene`. The joint palettes are owned by this instance, which
 		// must outlive the scene's use.
-		void AddToScene(Scene& scene, const glm::mat4& root = glm::mat4(1.0f)) const;
+		// `tints` (U4): a colour per material index that the material's albedo is multiplied by (null, or fewer entries: as it is).
+		void AddToScene(Scene& scene, const glm::mat4& root = glm::mat4(1.0f), const std::vector<glm::vec3>* tints = nullptr) const;
 
 		const Model& GetModel() const { return m_Model; }
 		// Camera `index` of Model::GetCameras() in its current (possibly animated) pose, transformed by `root`.

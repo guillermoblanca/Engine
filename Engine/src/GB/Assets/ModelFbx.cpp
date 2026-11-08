@@ -181,7 +181,7 @@ namespace GB
 			Texture2D* result = nullptr;
 			if (image.IsValid())
 			{
-				Out.m_Textures.push_back(std::make_unique<Texture2D>(image, encoding));
+				Out.m_Textures.push_back(std::make_shared<Texture2D>(image, encoding));
 				result = Out.m_Textures.back().get();
 			}
 			else

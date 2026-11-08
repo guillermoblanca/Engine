@@ -37,8 +37,13 @@ namespace GB::Editor
 		ctx.Items = &m_Items;
 		ctx.Entities = &m_SceneEditor.World();
 		ctx.Visuals = &m_Visuals;
+		ctx.Viewer = &m_Camera.Position;   // U5: the outfits near the camera only
 		for (const auto& clan : m_Clans.All())   // every clan (H13), not only the first tribe
-			if (clan->Folk) m_TribeVisuals.Update(*clan->Folk, ctx, dt);
+			if (clan->Folk)
+			{
+				ctx.ClanColor = m_Clans.Count() > 0 ? m_Clans.ColorOf(clan->Id) : glm::vec3(-1.0f);   // U4
+				m_TribeVisuals.Update(*clan->Folk, ctx, dt);
+			}
 	}
 
 	void EditorApp::AddVisualsToScene()

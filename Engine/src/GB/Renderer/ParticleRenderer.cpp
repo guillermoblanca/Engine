@@ -1,4 +1,5 @@
 #include "ParticleRenderer.h"
+#include "RenderStats.h"
 #include "Image.h"
 #include "Scene.h"
 #include "Shader.h"
@@ -108,6 +109,7 @@ namespace GB
 		m_Shader->SetFloat("uStretch", batch.Stretch);
 		m_Shader->SetVec2("uSheet", batch.Sheet);
 		m_Shader->SetFloat("uSoft", batch.SoftDistance);
+		DrawCounter::Add(2ull * batch.Instances->size());
 		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(batch.Instances->size()));
 	}
 

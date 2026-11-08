@@ -133,6 +133,9 @@ namespace GB
 		int SyncObstacles(const std::vector<CircleObstacle>& now);
 		// Reads the ground, the water and the obstacles again inside the rectangle (terrain edited, a river moved).
 		int UpdateRegion(const glm::vec2& min, const glm::vec2& max);
+		// Reads only the undergrowth again inside the rectangle (NavConfig::Vegetation: trails trodden in it, T5c), never the ground or the water: safe
+		// while the world the grid was built from is being replaced. Logs a change only where a cell's value moved. Returns the cells that changed.
+		int UpdateVegetation(const glm::vec2& min, const glm::vec2& max);
 		// Bumped by every change. Walkers remember it with their path.
 		uint32_t Revision() const { return m_Revision; }
 		// Whether something changed since `revision` inside the box around a and b (and `pad` m around it). True when the log no longer goes back that far.

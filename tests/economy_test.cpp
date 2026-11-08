@@ -1,10 +1,11 @@
 // The economy of the clan (H18: production chains, E6 spoilage and preservation, E7 agriculture, E11 logistics). Checked: the "economy" section of
-// assets/data/era1.json says what the code says, round-trips and is refused whole on a mistake, and era1_ampliado adds its crop; the strict check of the
+// assets/data/era1.json says what the code says, round-trips and is refused whole on a mistake, and has the grain crop; the strict check of the
 // packs still passes; the planner makes intermediates for what is wanted (and for what is only to be tried); stacks age, go off as a whole, take the mean
 // age when they mix and save their age; in play a clan makes cordage by itself so that flint knapping can be worked out and the flint axe made; food
 // goes off in the store at its pace and a surplus is dried at a drying rack (a station a building gives); a field is marked out, tilled, sown, watered,
 // ripens and is harvested over a season (and the frost ruins what winter finds); what is left at a stockpile is hauled to the main store; the economy
 // saves and loads (and a save from before loads). CPU only, stand-in bodies as in tribe_test and work_test.
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Interactives.h"
@@ -122,20 +123,16 @@ private:
 	bool m_Started = false, m_Failed = false;
 };
 
-// A clan of `n` on a patch scaled to it, as `tribe build` does (trades from its needs). `extended`: the content of era1_ampliado too (seeds, grain,
-// the hoe, dried berries and the grain crop).
+// A clan of `n` on a patch scaled to it, as `tribe build` does (trades from its needs). `extended`: with the game's economy section too (the grain
+// crop and the fields).
 struct Clan
 {
 	explicit Clan(int n, bool extended = false)
 	{
-		RegisterEraOneItems(Items, Recipes, Defs);
+		RegisterEraOneItems(Items, Recipes, Defs);   // (the whole catalogue: seeds, grain, the hoe and dried berries are in it)
+		for (const char* far : { "oak_acorns", "granite_rock", "pine_resin", "wild_grain", "salt_flat", "old_bones", "fallen_trunk" }) Defs.erase(far);   // (not placed here)
 		if (extended)
-		{
-			const std::string data = std::string(GB_ASSETS_DIR) + "/data";
-			Check(LoadContentFile(data + "/era1_ampliado.json", Items, Recipes, Defs).empty(), "era1_ampliado.json loads as content");
-			Check(LoadEconomyRulesFile(data + "/era1_ampliado.json", Tribe_.Config.Econ).empty(), "and its economy section (the crops)");
-			for (const char* far : { "oak_acorns", "granite_rock", "pine_resin", "wild_grain", "salt_flat", "old_bones", "fallen_trunk" }) Defs.erase(far);   // (not placed here)
-		}
+			Check(LoadEconomyRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", Tribe_.Config.Econ).empty(), "and the economy section of the game, with its crops");
 		RegisterResourceContent(Gameplay.Library, Defs);
 		RegisterInteractiveContent(Gameplay.Library);
 		const ResourceCounts c = ScaledResources(n);
@@ -241,13 +238,10 @@ int main()
 		Check(!LoadEconomyRules(R"({ "economy": { "crops": [ { "id": "rye", "seed": "rye_seed", "yield": { "rye": 2 }, "sow": [ "monsoon" ] } ] } })", keep).empty(), "an unknown season is refused");
 		Check(!LoadEconomyRules(R"({ "economy": { "logistics": { "fieldStore": "barn" } } })", keep).empty(), "a field store of a kind that does not exist is refused");
 		Check(LoadEconomyRules(R"({ "items": [] })", keep).empty() && keep == DefaultEconomyRules(), "a file without the section changes nothing");
-		EconomyRules ext = file;
-		Check(LoadEconomyRulesFile(data + "/era1_ampliado.json", ext).empty() && ext.Crops.count("grain") == 1 && ext.Production == file.Production && ext.Logistics == file.Logistics,
-			"era1_ampliado adds the grain crop and leaves the rest");
+		Check(file.Crops.count("grain") == 1, "the game's economy has the grain crop (the fields: sown with the seeds of the wild grain)");
 		ItemLibrary items; RecipeBook recipes; std::map<std::string, ResourceNodeDef> nodes;
 		RegisterEraOneItems(items, recipes, nodes);
-		Check(!CheckEconomy(ext, items).empty(), "the grain crop names items era 1 does not have");
-		Check(LoadContentFile(data + "/era1_ampliado.json", items, recipes, nodes).empty() && CheckEconomy(ext, items).empty(), "and with era1_ampliado's items everything it names exists");
+		Check(CheckEconomy(file, items).empty(), "and everything it names is in the catalogue");
 		Check(items.Find("berry")->ShelfLife == 1800.0f && items.Find("dried_berry")->ShelfLife > items.Find("berry")->ShelfLife && items.Find("wood")->ShelfLife == 0.0f,
 			"berries spoil, dried berries keep longer, wood keeps");
 		ItemLibrary bad; RecipeBook br; std::map<std::string, ResourceNodeDef> bn;
@@ -268,8 +262,8 @@ int main()
 		ContentPacks::Options strict;
 		strict.Strict = true;
 		ContentReport report;
-		const std::string error = packs.Load("era1_ampliado", data, &report, strict);
-		Check(error.empty() && report.Clean(), "era1 and era1_ampliado load strict, with the technologies and the economy section");
+		const std::string error = packs.Load(GamePack(), data, &report, strict);
+		Check(error.empty() && report.Clean(), "the game's pack loads strict, with the technologies and the economy section");
 		if (!error.empty() || !report.Clean()) std::fprintf(stderr, "  %s\n%s", error.c_str(), report.Text().c_str());
 		Check(econ.Crops.count("grain") == 1 && econ.Production.Stock.at("cordage") == 2, "the economy section comes in with the packs");
 		Check(CheckEconomy(econ, items).empty(), "and names only items that are loaded");
@@ -310,7 +304,6 @@ int main()
 	{
 		ItemLibrary items; RecipeBook recipes; std::map<std::string, ResourceNodeDef> nodes;
 		RegisterEraOneItems(items, recipes, nodes);
-		LoadContentFile(data + "/era1_ampliado.json", items, recipes, nodes);
 		Inventory store(40, 0.0f);
 		store.Add(items, "berry", 20);
 		store.Add(items, "dried_berry", 10);

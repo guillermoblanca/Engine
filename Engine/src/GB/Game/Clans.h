@@ -1,7 +1,9 @@
 #pragma once
 #include "GB/Game/Diplomacy.h"
+#include "GB/Game/Requests.h"
 #include "GB/Game/Territory.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/Values.h"
 #include <functional>
 #include <memory>
 #include <string>
@@ -35,6 +37,7 @@ namespace GB
 		ClanId Id = -1;
 		std::string Name;
 		float Buildings = 0.0f;           // what the settlement work (H8) tells of its buildings: they make its claims stronger
+		glm::vec3 Color{ -1.0f };         // U1/U4: the clan's colour on the map and on its people (negative = the palette's, by id: ClanWorld::ColorOf)
 		Tribe* Folk = nullptr;            // its tribe: kept here (Own) or by the host (the editor's first tribe)
 		std::unique_ptr<Tribe> Own;
 		bool Kept() const { return Own != nullptr; }
@@ -54,6 +57,20 @@ namespace GB
 	{
 	public:
 		DiplomacyRules Rules = DefaultDiplomacyRules();
+		// V4: what the cultures value (GB/Game/Values.h): each clan's culture comes from its id and the world's seed; SetCultureSeed gives it to
+		// every clan again (the host calls it with the world's seed).
+		ValueRules Values = DefaultValueRules();
+		void SetCultureSeed(unsigned seed);
+		// V6: every clan lives `years` in aggregate (Tribe::Leap), in id order; one line per clan of what happened
+		std::vector<std::string> Leap(float years);
+		// V7 (ClansPolity.cpp): the rank a clan's settlement has reached (Rules.Ranks: "" = none) and the polities, groups of clans bound by
+		// alliances (each in id order, two or more), named after the biggest.
+		std::string RankOf(ClanId id) const;
+		int RankIndex(const Clan& c) const;
+		std::vector<std::vector<ClanId>> Polities() const;
+		std::string PolityName(const std::vector<ClanId>& members) const;
+		std::string Ally(ClanId a, ClanId b);   // two clans agree an alliance now (a test, the player's word); "" or why not
+		std::map<std::string, int> CultureOf(ClanId id) const;
 		// H16: ONE budget of turns at looking around and deciding for all the clans of a frame (time-sliced thinking across clans). Each clan gets
 		// the turns it needs so none of its members falls behind (Tribe::ThinksNeeded) and what is left of ThinkPerFrame is shared by members, the
 		// largest remainders first and ties by clan order: no state, so a loaded game shares it as one that never stopped. With a single clan the
@@ -64,7 +81,9 @@ namespace GB
 		{
 			int Thinks = 0, Budget = 0, Due = 0;   // summed over the clans (see Tribe::FrameCost)
 			double TribesMs = 0.0, DiplomacyMs = 0.0, ThinkMs = 0.0;   // (ThinkMs: of TribesMs, the turns at deciding)
+			double MeanMs = 0.0, PeakMs = 0.0;   // the whole update over the last window of kCostWindow updates: its mean and its slowest
 		};
+		static constexpr int kCostWindow = 120;
 		const FrameCost& LastCost() const { return m_Cost; }
 		// The telemetry of the run (GB/Telemetry/TelemetrySink.h): every clan, present and future, writes to the sink under its own id. Null = off.
 		void SetTelemetry(TelemetrySink* sink, double every = 60.0);
@@ -89,6 +108,12 @@ namespace GB
 		Clan* Find(const std::string& idOrName) { return const_cast<Clan*>(static_cast<const ClanWorld*>(this)->Find(idOrName)); }
 		// The clan a member belongs to (nullptr: none).
 		const Clan* ClanOf(const std::string& member) const;
+		// N7: the host founds a clan for a split (its camp, its well, its tribe bound to the world, no members yet: they move in); -1 = it cannot
+		std::function<ClanId(ClanId parent, const glm::vec2& camp, const std::string& name)> FoundClan;
+		// N7: splits a clan now if it has a reason and a place (`force`: whatever its size), "" or why not
+		std::string Split(ClanId clan, bool force = false);
+		// U1/U4: a clan's colour: its own, else one of a palette of eight by its id (-1 or an unknown clan: grey).
+		glm::vec3 ColorOf(ClanId id) const;
 		const std::vector<std::unique_ptr<Clan>>& All() const { return m_Clans; }
 		size_t Count() const { return m_Clans.size(); }
 		// Whether a name is used by a member of any clan (alive or dead) or a person of any society: a new member must not reuse it.
@@ -166,6 +191,12 @@ namespace GB
 		std::string PlayerVisit(const std::string& player, ClanId to, const std::string& purpose, std::string* outcome = nullptr);
 		const std::vector<Meeting>& Meetings() const { return m_Meetings; }
 		const std::vector<MeetingRecord>& History() const { return m_History; }
+		// V1: what the world has lived through (GB/Game/History.h): every clan writes its events here, and the diplomacy its own.
+		WorldHistory& Past() { return m_Past; }
+		const WorldHistory& Past() const { return m_Past; }
+		// V3: what people have asked of the player (GB/Game/Requests.h); the simulation never reads it
+		RequestBoard& Requests() { return m_Requests; }
+		const RequestBoard& Requests() const { return m_Requests; }
 
 		// ---- invariants (the simulation QA of H20, SimInvariants: "clans" and "territory"), as (subject, what is wrong); empty when all holds.
 		// Members: every member (and every person of a society) is in exactly one clan, clan ids are unique, relations and meetings name clans
@@ -214,6 +245,7 @@ namespace GB
 		void Greet(Clan& ca, TribeMember& ma, Clan& cb, TribeMember& mb);
 		void StepTerritory(float dt);
 		void Trade();
+		void Fissions();
 		void Weddings();
 		void Day();
 		void CheckPacts();
@@ -242,9 +274,18 @@ namespace GB
 		std::map<std::pair<std::string, std::string>, double> m_Greeted;    // when two members last greeted each other
 		std::map<PairKey, std::string> m_Stances;                            // what the log last said of each pair
 		std::map<PairKey, double> m_TheftAt;                                 // the last theft between a pair (one a minute is told)
+		std::map<ClanId, double> m_LastSplit;                                // N7: when each clan last split
+		std::map<ClanId, int> m_Splits;                                      // N7: how many clans each one founded (their names)
+		float m_FissionTimer = 0.0f;
 		TerritoryMap m_Territory;
 		std::vector<Meeting> m_Meetings;
 		std::vector<MeetingRecord> m_History;
+		WorldHistory m_Past;
+		void StepPolity();                         // V7: ranks climbed and polities formed, told to the history (with the territory)
+		std::map<ClanId, int> m_Ranks;
+		std::set<std::string> m_Polities;
+		bool m_PolitiesSeen = false;
+		RequestBoard m_Requests;
 		int m_NextMeeting = 1;
 		double m_Time = 0.0;
 		float m_EncounterTimer = 0.0f, m_TerritoryTimer = 0.0f, m_TradeTimer = 0.0f, m_WeddingTimer = 0.0f;
@@ -253,5 +294,7 @@ namespace GB
 		std::vector<std::string> m_Log;
 		std::vector<Listener> m_Listeners;
 		FrameCost m_Cost;
+		double m_WindowSum = 0.0, m_WindowPeak = 0.0;
+		int m_WindowCount = 0;
 	};
 }

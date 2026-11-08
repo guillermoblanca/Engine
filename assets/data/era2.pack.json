@@ -1,0 +1,8 @@
+{
+  "id": "era2",
+  "name": "Era 2 · Bronce",
+  "era": 2,
+  "version": "1.0",
+  "depends": [ "era1" ],
+  "files": [ "era2.json" ]
+}

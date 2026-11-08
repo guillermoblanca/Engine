@@ -50,6 +50,11 @@ namespace GB
 		clan.Food = m_Items ? static_cast<float>(FoodIn(m_Store)) : 0.0f;
 		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) ++clan.Alive;
 		clan.Shelter = HasFire() || Beds() > 0;   // (H8: a finished shelter near the camp counts as shelter too)
+		if (m_Leaping && clan.Alive < m_LeapCap)   // V6: the years of a leap are lived in aggregate: the clan ate and kept its fire (nobody works in them, so the store says nothing), up to what its land fed
+		{
+			clan.Food = std::max(clan.Food, static_cast<float>(clan.Alive) * rules.Births.FoodPerMember);
+			clan.Shelter = true;
+		}
 		SocietyEvents(m_Society.Day(rules, clan));
 		// the children grow (and who came of age stands at its full height)
 		for (TribeMember& m : m_Members)
@@ -75,6 +80,7 @@ namespace GB
 		for (const SocietyEvent& e : events)
 		{
 			if (m_Telemetry) EmitEvent(e.Kind.c_str(), e.Who, e.Other, std::string(), e.Text);
+			if (m_History && (e.Kind == "pair" || e.Kind == "norm" || e.Kind == "tradition")) Happen(e.Kind, e.Kind == "pair" ? e.Who : std::string(), e.Kind == "pair" ? e.Other : std::string(), (e.Kind == "pair" ? e.Who + " " : std::string()) + e.Text);   // V1 (as a log line: "Ana pairs with Biel")
 			if (e.Kind != "birth" && e.Kind != "death") SocialHears(e);   // social life: the rites of passage (TribeSocial.cpp; a birth is told by Born)
 			if (e.Kind == "death")
 			{
