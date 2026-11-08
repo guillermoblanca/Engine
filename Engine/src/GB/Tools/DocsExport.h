@@ -18,6 +18,7 @@ namespace GB
 	// attributes and tags each kind of entity carries, the needs and how they move, the senses, the decision settings, the roles' weights, the seasons
 	// and the settings of the ecology, the interactives and the garden. The wiki (`tools/make_wiki.py`, docs/wiki) is built from it, so what it shows is
 	// what the engine does, not what someone remembered to write down. Pure and deterministic: the same inputs give the same text.
+	// It lives in Tools, a layer above AI and Gameplay (it reads both; ARQUITECTURA_REVISION.md §5.1), so neither of them depends on it.
 	struct DocsInputs
 	{
 		const GameplayLibrary* Library = nullptr;

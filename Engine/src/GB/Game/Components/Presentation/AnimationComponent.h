@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AnimBindings.h"
 #include "GB/Animation/Character.h"
 #include "GB/Animation/CharacterAnimator.h"
 #include "GB/Animation/Retarget.h"

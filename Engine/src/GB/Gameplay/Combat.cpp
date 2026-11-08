@@ -1,6 +1,6 @@
 #include "GB/Gameplay/Combat.h"
 #include "GB/Gameplay/ShippedContent.h"
-#include "GB/AI/Needs.h"
+#include "GB/Gameplay/Vitals.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>

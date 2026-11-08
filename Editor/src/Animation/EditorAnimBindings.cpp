@@ -1,10 +1,10 @@
 // The "Animation Bindings" window and its commands (bindings_*): which clip each game action plays, and how (loop, trim, speed, blends,
-// transitions), with a preview on the controlled character. All the data and logic are GB::AnimBindings (Engine/src/GB/Animation/AnimBindings.*:
+// transitions), with a preview on the controlled character. All the data and logic are GB::AnimBindings (Engine/src/GB/Gameplay/AnimBindings.*:
 // resolution, validation, JSON, application to the manifest) held by PlayerMode; this file only draws them and forwards the buttons.
 // See docs/EDITOR_ANIMACIONES.md.
 #include "EditorApp.h"
 #include "Animation/EditorAnimPreview.h"
-#include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AnimBindings.h"
 #include "GB/Animation/BlendSpace.h"
 #include "GB/Log.h"
 #include <algorithm>

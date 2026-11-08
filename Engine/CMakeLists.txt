@@ -52,8 +52,9 @@ add_library(GB STATIC
     src/GB/Gameplay/Ecology.cpp
     src/GB/Gameplay/Spoilage.cpp
     src/GB/Gameplay/Farming.cpp
-    src/GB/Gameplay/DocsExport.cpp
+    src/GB/Tools/DocsExport.cpp
     src/GB/Gameplay/Combat.cpp
+    src/GB/Gameplay/Vitals.cpp
     src/GB/Game/Tribe.cpp
     src/GB/Game/TribeWork.cpp
     src/GB/Game/TribeExplore.cpp
@@ -120,7 +121,7 @@ add_library(GB STATIC
     src/GB/Animation/Montage.cpp
     src/GB/Animation/AirLayer.cpp
     src/GB/Animation/AnimManifest.cpp
-    src/GB/Animation/AnimBindings.cpp
+    src/GB/Gameplay/AnimBindings.cpp
     src/GB/Animation/TurnLayer.cpp
     src/GB/Animation/Rig.cpp
     src/GB/Animation/Character.cpp

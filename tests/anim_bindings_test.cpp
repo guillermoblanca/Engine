@@ -2,7 +2,7 @@
 // (missing clips, bad trims, loops on single-shot abilities, transitions with no way out), ResolveClip with its fallbacks, ApplyBindings on the
 // shipped manifest (no bindings = the same manifest; with bindings the montages / abilities / sets change), and trim, loop, speed, blend curve and
 // transitions run on an animation clock (the pure clock and the MontagePlayer over the test rig). CPU only.
-#include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AnimBindings.h"
 #include "GB/Animation/AnimManifest.h"
 #include "GB/Animation/Montage.h"
 #include "GB/Assets/Model.h"

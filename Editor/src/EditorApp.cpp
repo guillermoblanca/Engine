@@ -10,7 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
-#include "GB/Gameplay/DocsExport.h"
+#include "GB/Tools/DocsExport.h"
 #include "TerrainGraphUi.h"
 #include "GB/World/Graph/TerrainGraphPresets.h"
 #include <filesystem>

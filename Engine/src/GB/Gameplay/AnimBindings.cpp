@@ -1,4 +1,4 @@
-#include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AnimBindings.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/Combat.h"
 #include "GB/Gameplay/GameplayAbility.h"

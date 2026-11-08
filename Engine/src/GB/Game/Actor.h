@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AnimBindings.h"
 #include "GB/Assets/Model.h"
 #include "GB/Game/Components/Gameplay/AbilityComponent.h"
 #include "GB/Game/Components/Presentation/AnimationComponent.h"

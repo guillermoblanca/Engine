@@ -1,6 +1,6 @@
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/AbilityTasks.h"
-#include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AnimBindings.h"
 #include "GB/Animation/AnimManifest.h"
 #include <algorithm>
 

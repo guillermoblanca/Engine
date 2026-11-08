@@ -8,23 +8,6 @@ namespace GB
 	{
 		constexpr const char* kDeathPrefix = "Death.";
 
-		struct Mood
-		{
-			const char* Effect;
-			const char* Need;
-			float On, Off;       // the effect starts below `On` and ends above `Off` (so it does not flicker)
-			float Slowdown;      // Vigor multiplier
-		};
-		const Mood kMoods[] = {
-			{ "Need.Hungry",   NeedName::Hunger,  35.0f, 45.0f, 0.8f },
-			{ "Need.Starving", NeedName::Hunger,   5.0f, 12.0f, 0.6f },
-			{ "Need.Thirsty",  NeedName::Thirst,  30.0f, 40.0f, 0.8f },
-			{ "Need.Tired",    NeedName::Rest,    25.0f, 35.0f, 0.7f },
-			{ "Need.Cold",     NeedName::Warmth,  30.0f, 40.0f, 0.85f },
-			{ "Need.Afraid",   NeedName::Safety,  30.0f, 40.0f, 0.85f },
-			{ "Need.Lonely",   NeedName::Company, 20.0f, 30.0f, 0.9f },
-		};
-
 		float Chill(Season s)
 		{
 			switch (s)
@@ -40,7 +23,7 @@ namespace GB
 
 		void SyncMoods(AbilitySystemComponent& who)
 		{
-			for (const Mood& m : kMoods)
+			for (const NeedMood& m : kNeedMoods)
 			{
 				const float level = who.Attribute(m.Need);
 				const bool active = who.EffectActive(m.Effect);
@@ -70,27 +53,12 @@ namespace GB
 		if (!a.Has(NeedName::Vigor)) a.Define(NeedName::Vigor, 1.0f, 0.0f, 1.0f);
 	}
 
-	void RegisterNeedContent(GameplayLibrary& library)
-	{
-		for (const Mood& m : kMoods)
-		{
-			GameplayEffectDef e;
-			e.Name = m.Effect;
-			e.Policy = EffectPolicy::Infinite;
-			e.Modifiers = { { NeedName::Vigor, ModOp::Multiply, m.Slowdown } };
-			e.GrantedTags = { m.Effect };
-			library.AddEffect(e);
-		}
-	}
-
 	void SatisfyNeed(AbilitySystemComponent& who, const char* need, float amount)
 	{
 		DefineNeeds(who);
 		Move(who.Attributes(), need, amount);
 		SyncMoods(who);
 	}
-
-	bool IsDead(const AbilitySystemComponent& who) { return who.HasTag("State.Dead"); }
 
 	std::string CauseOfDeath(const AbilitySystemComponent& who)
 	{

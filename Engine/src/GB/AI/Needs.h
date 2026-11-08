@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/Ecology.h"
+#include "GB/Gameplay/Vitals.h"
 #include <string>
 
 namespace GB
@@ -13,17 +14,7 @@ namespace GB
 	// (and "Need.Starving") scale the attribute "Vigor" (1 = at full strength) and grant the tag of the same name.
 	// Deterministic: no randomness, only the arguments.
 
-	namespace NeedName
-	{
-		inline constexpr const char* Hunger = "Hunger";
-		inline constexpr const char* Thirst = "Thirst";
-		inline constexpr const char* Rest = "Rest";
-		inline constexpr const char* Warmth = "Warmth";
-		inline constexpr const char* Safety = "Safety";
-		inline constexpr const char* Company = "Company";
-		inline constexpr const char* Health = "Health";
-		inline constexpr const char* Vigor = "Vigor";
-	}
+	// NeedName, the moods, RegisterNeedContent and IsDead are in Gameplay/Vitals.h (combat shares them).
 
 	struct NeedsConfig
 	{
@@ -61,14 +52,11 @@ namespace GB
 
 	// Defines the need attributes on an ability system (those it already has are left as they are).
 	void DefineNeeds(AbilitySystemComponent& who);
-	// The effects "Need.*" in the library.
-	void RegisterNeedContent(GameplayLibrary& library);
 	// Moves the needs forward by `dt` seconds. Does nothing to a dead agent.
 	void UpdateNeeds(AbilitySystemComponent& who, const NeedsConfig& cfg, const NeedContext& ctx, float dt);
 
 	// Adds to (or takes from) a need, clamped to 0..100.
 	void SatisfyNeed(AbilitySystemComponent& who, const char* need, float amount);
-	bool IsDead(const AbilitySystemComponent& who);
 	// "Hunger", "Thirst", "Warmth" once dead, "" while alive.
 	std::string CauseOfDeath(const AbilitySystemComponent& who);
 }

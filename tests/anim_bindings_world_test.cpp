@@ -1,7 +1,7 @@
 // Animation bindings in the game (docs/EDITOR_ANIMACIONES.md), headless: they reach every character of an ActorWorld (the ones that exist, the ones
 // made later, or only the ones of a model), a binding with a `when` picks its clip from where the ability is used (node, tool), and they survive the
 // rules registering the abilities again (a combat rules reload). Runs on the generated humanoid of tests/data. CPU only.
-#include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AnimBindings.h"
 #include "GB/Animation/Locomotion.h"
 #include "GB/Game/ActorWorld.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"

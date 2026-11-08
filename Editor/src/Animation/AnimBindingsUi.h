@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Animation/AnimBindings.h"
+#include "GB/Gameplay/AnimBindings.h"
 #include <string>
 #include <vector>
 

@@ -18,6 +18,7 @@ namespace GB
 	// montages of the combat rules, the abilities' own lists) are what the game plays, exactly as before. The overlay never bypasses the
 	// existing path: ApplyBindings rewrites the manifest's `abilities`, `activities`, locomotion sets and transitions, and the game reads those
 	// the way it always did (ApplyManifestAbilities, TribeVisuals, ApplyManifest).
+	// It lives in Gameplay, not Animation: it knows the abilities, and Gameplay sits above Animation (ARQUITECTURA_REVISION.md §5.1, H7).
 	constexpr int kAnimBindingsVersion = 1;
 
 	// One clip of a binding. `Source` is a montage of the manifest (its notifies, slot and tuning are the base) or, if no montage has that name,
