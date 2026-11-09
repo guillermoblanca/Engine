@@ -5,7 +5,7 @@
 - Usar `#include "GB/..."` con `/` (nunca `\`).
 - No versionar binarios ni salidas de build (ver `.gitignore`). Dependencias vía FetchContent con versión fija.
 - Todo código nuevo del motor debe poder ejecutarse headless (sin ventana) para tests y QA visual por capturas.
-- El motor es una biblioteca estática `GB`; no usar `__declspec(dllexport)`.
+- El motor son cuatro bibliotecas estáticas por capas (`GB_Core`, `GB_Sim`, `GB_Render`, `GB_Platform`) y `GB`, un objetivo INTERFACE que las enlaza todas (paso 7, T24); no usar `__declspec(dllexport)`. Un ejecutable o test sin ventana enlaza el objetivo más bajo que le basta (`GBSim` y los tests de CPU: `GB::Sim`, sin GL ni GLFW).
 - **La documentación vive fuera del motor**, en `../documentation` (repo git propio, desde el 2026-11-08): GDD en `00_gdd/`, diseño en `01_diseno/`,
   docs técnicos en `02_tecnico/`, arte en `03_arte/` (enlaza `../art-book`), producción, QA y estado de los subsistemas en `04_produccion/`. Un
   comentario del código que cite `docs/X.md` se refiere a ese fichero allí (búscalo por nombre). `docs/` solo tiene un README que apunta allí.

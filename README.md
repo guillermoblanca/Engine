@@ -83,7 +83,7 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 
 | Carpeta | Contenido |
 |---|---|
-| `Engine/` | Biblioteca estática `GB` (render, mundo, física, audio, animación, entidades, QA) |
+| `Engine/` | El motor: bibliotecas estáticas `GB_Core`, `GB_Sim`, `GB_Render` y `GB_Platform`, y `GB` (INTERFACE que las enlaza todas) |
 | `Editor/` | Editor Dear ImGui y sus tests |
 | `Sandbox/` | Aplicación de ejemplo con las escenas de prueba y la demo |
 | `Sim/` | `GBSim`: simulador sin ventana de tribus y clanes que escribe telemetría (SQLite) |
@@ -147,7 +147,7 @@ Más detalles en [../documentation/04_produccion/qa/qa.md](../documentation/04_p
 
 - C++20 y CMake; objetivo Windows y Linux. Espacio de nombres `GB`, macros `GB_*`.
 - Antes de commitear: configurar con `-DGB_WARNINGS_AS_ERRORS=ON`, compilar y pasar `ctest`.
-- Includes con `/` (`#include "GB/..."`), nunca `\`. Sin `__declspec(dllexport)` (el motor es una biblioteca estática).
+- Includes con `/` (`#include "GB/..."`), nunca `\`. Sin `__declspec(dllexport)` (el motor son bibliotecas estáticas).
 - No versionar binarios ni salidas de compilación. Las dependencias entran por `FetchContent` con versión fija.
 - Todo código nuevo del motor debe poder ejecutarse sin ventana, para tests y QA por capturas.
 
