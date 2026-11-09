@@ -86,11 +86,47 @@
         ]
       },
       "rock": {
-        "variants": 3, "note": "a boulder that breaks into smaller stones as it is mined, rubble when gone",
+        "variants": 3, "note": "a limestone boulder that breaks into smaller stones as it is mined, rubble when gone (glTF, art-book/models/src/era1_env_rock.py)",
         "parts": [
-          { "name": "Rock", "shape": "blob", "pos": [0, 0.3, 0], "size": [0.8, 0.6, 0.7], "material": "stone", "detail": 2, "rough": 0.32, "flat": -0.45, "show": [0.5, 1] },
-          { "name": "Rock Chunk", "shape": "blob", "pos": [0.55, 0.15, 0.3], "size": [0.4, 0.3, 0.35], "material": "stone", "count": 2, "layout": "row", "spacing": 0.9, "detail": 1, "rough": 0.35, "flat": -0.4, "show": [0, 1], "progressive": true },
-          { "name": "Rubble", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.1, 0.07, 0.09], "material": "stone_dark", "count": 7, "layout": "scatter", "radius": 0.6, "detail": 0, "rough": 0.4, "jitter": 0.8, "show": [-1, 0] }
+          { "name": "Rock", "shape": "model", "model": "models/era1/rock/rock_main_a.gltf", "models": [ "models/era1/rock/rock_main_a.gltf", "models/era1/rock/rock_main_b.gltf", "models/era1/rock/rock_main_c.gltf" ], "pos": [0, -0.08, 0], "size": [0.94, 0.94, 0.94], "material": "limestone", "show": [0.5, 1] },
+          { "name": "Rock Chunk", "shape": "model", "model": "models/era1/rock/rock_chunk_a.gltf", "models": [ "models/era1/rock/rock_chunk_a.gltf", "models/era1/rock/rock_chunk_b.gltf" ], "pos": [0.55, -0.05, 0.3], "size": [0.9, 0.9, 0.9], "material": "limestone", "count": 2, "layout": "row", "spacing": 0.9, "show": [0, 1], "progressive": true },
+          { "name": "Rubble", "shape": "model", "model": "models/era1/rock/rock_rubble_a.gltf", "models": [ "models/era1/rock/rock_rubble_a.gltf", "models/era1/rock/rock_rubble_b.gltf" ], "pos": [0, -0.02, 0], "size": [1, 1, 1], "material": "stone_dark", "count": 1, "layout": "scatter", "radius": 0, "jitter": 0.8, "show": [-1, 0] }
+        ]
+      },
+      "rock_small": {
+        "variants": 3, "note": "a single limestone block, gone when mined out (glTF in real metres, era1_env_rock.py)",
+        "parts": [
+          { "name": "Rock", "shape": "model", "model": "models/era1/rock/rock_small_a.gltf", "models": [ "models/era1/rock/rock_small_a.gltf", "models/era1/rock/rock_small_b.gltf", "models/era1/rock/rock_small_c.gltf" ], "material": "limestone", "show": [0, 1] }
+        ]
+      },
+      "boulder": {
+        "variants": 2, "note": "a big limestone formation: its blocks go one by one as it is mined, rubble when gone (glTF in real metres, era1_env_rock.py)",
+        "parts": [
+          { "name": "Boulder Top", "shape": "model", "model": "models/era1/rock/boulder_top_a.gltf", "models": [ "models/era1/rock/boulder_top_a.gltf", "models/era1/rock/boulder_top_b.gltf" ], "material": "limestone", "show": [0.79, 1] },
+          { "name": "Boulder Side", "shape": "model", "model": "models/era1/rock/boulder_side_a.gltf", "models": [ "models/era1/rock/boulder_side_a.gltf", "models/era1/rock/boulder_side_b.gltf" ], "material": "limestone", "show": [0.54, 1] },
+          { "name": "Boulder Front", "shape": "model", "model": "models/era1/rock/boulder_front_a.gltf", "models": [ "models/era1/rock/boulder_front_a.gltf", "models/era1/rock/boulder_front_b.gltf" ], "material": "limestone", "show": [0.29, 1] },
+          { "name": "Boulder Base", "shape": "model", "model": "models/era1/rock/boulder_base_a.gltf", "models": [ "models/era1/rock/boulder_base_a.gltf", "models/era1/rock/boulder_base_b.gltf" ], "material": "limestone", "show": [0, 1] },
+          { "name": "Rubble", "shape": "model", "model": "models/era1/rock/boulder_rubble_a.gltf", "models": [ "models/era1/rock/boulder_rubble_a.gltf", "models/era1/rock/boulder_rubble_b.gltf" ], "material": "stone_dark", "show": [-1, 0] }
+        ]
+      },
+      "rock_pile": {
+        "variants": 2, "note": "a heap of six loose limestone blocks, the top ones go first, rubble when gone (glTF in real metres, era1_env_rock.py)",
+        "parts": [
+          { "name": "Block 1", "shape": "model", "model": "models/era1/rock/rock_pile_block1_a.gltf", "models": [ "models/era1/rock/rock_pile_block1_a.gltf", "models/era1/rock/rock_pile_block1_b.gltf" ], "material": "limestone", "show": [0, 1] },
+          { "name": "Block 2", "shape": "model", "model": "models/era1/rock/rock_pile_block2_a.gltf", "models": [ "models/era1/rock/rock_pile_block2_a.gltf", "models/era1/rock/rock_pile_block2_b.gltf" ], "material": "limestone", "show": [0.19, 1] },
+          { "name": "Block 3", "shape": "model", "model": "models/era1/rock/rock_pile_block3_a.gltf", "models": [ "models/era1/rock/rock_pile_block3_a.gltf", "models/era1/rock/rock_pile_block3_b.gltf" ], "material": "limestone", "show": [0.31, 1] },
+          { "name": "Block 4", "shape": "model", "model": "models/era1/rock/rock_pile_block4_a.gltf", "models": [ "models/era1/rock/rock_pile_block4_a.gltf", "models/era1/rock/rock_pile_block4_b.gltf" ], "material": "limestone", "show": [0.44, 1] },
+          { "name": "Block 5", "shape": "model", "model": "models/era1/rock/rock_pile_block5_a.gltf", "models": [ "models/era1/rock/rock_pile_block5_a.gltf", "models/era1/rock/rock_pile_block5_b.gltf" ], "material": "limestone", "show": [0.69, 1] },
+          { "name": "Block 6", "shape": "model", "model": "models/era1/rock/rock_pile_block6_a.gltf", "models": [ "models/era1/rock/rock_pile_block6_a.gltf", "models/era1/rock/rock_pile_block6_b.gltf" ], "material": "limestone", "show": [0.81, 1] },
+          { "name": "Rubble", "shape": "model", "model": "models/era1/rock/rock_pile_rubble_a.gltf", "models": [ "models/era1/rock/rock_pile_rubble_a.gltf", "models/era1/rock/rock_pile_rubble_b.gltf" ], "material": "stone_dark", "show": [-1, 0] }
+        ]
+      },
+      "loose_stones": {
+        "variants": 2, "note": "a handful of earthy pebbles in three groups, picked up by hand (glTF in real metres, era1_env_rock.py)",
+        "parts": [
+          { "name": "Stones 1", "shape": "model", "model": "models/era1/rock/loose_stones_group1_a.gltf", "models": [ "models/era1/rock/loose_stones_group1_a.gltf", "models/era1/rock/loose_stones_group1_b.gltf" ], "material": "stone", "show": [0, 1] },
+          { "name": "Stones 2", "shape": "model", "model": "models/era1/rock/loose_stones_group2_a.gltf", "models": [ "models/era1/rock/loose_stones_group2_a.gltf", "models/era1/rock/loose_stones_group2_b.gltf" ], "material": "stone", "show": [0.5, 1] },
+          { "name": "Stones 3", "shape": "model", "model": "models/era1/rock/loose_stones_group3_a.gltf", "models": [ "models/era1/rock/loose_stones_group3_a.gltf", "models/era1/rock/loose_stones_group3_b.gltf" ], "material": "stone", "show": [0.83, 1] }
         ]
       },
       "granite_rock": {
@@ -566,20 +602,20 @@
         ]
       },
       "hut": {
-        "footprint": [3.8, 3.8], "note": "a round wattle-and-daub hut: stone footing, a ring of posts, plastered walls with a doorway, a thick thatched cone",
+        "footprint": [3.8, 3.8], "note": "a round wattle-and-daub hut: stone footing, a ring of posts, plastered walls with a doorway, a thick thatched cone. Modelled in Blender (art-book/models/src/era1_building_hut.py), two pieces per phase, shown in order",
         "phases": [
           { "name": "foundation", "parts": [
-            { "name": "Footing", "shape": "blob", "pos": [0, 0.08, 0], "size": [0.18, 0.12, 0.15], "material": "stone", "count": 14, "radius": 1.7, "detail": 1, "rough": 0.3, "jitter": 0.3 },
-            { "name": "Floor", "shape": "blob", "size": [1.7, 0.04, 1.7], "material": "mud", "detail": 2, "rough": 0.1, "flat": -0.2 } ] },
+            { "name": "Floor", "shape": "model", "model": "models/era1/hut/hut_floor.gltf" },
+            { "name": "Footing", "shape": "model", "model": "models/era1/hut/hut_footing.gltf" } ] },
           { "name": "frame", "parts": [
-            { "name": "Post", "shape": "cylinder", "size": [0.12, 1.7, 0.1], "material": "bark", "sides": 6, "count": 10, "radius": 1.62 },
-            { "name": "Ring Beam", "shape": "cylinder", "pos": [0, 1.65, 0], "size": [3.35, 0.08, 3.35], "material": "bark_pale", "sides": 18 } ] },
+            { "name": "Post", "shape": "model", "model": "models/era1/hut/hut_posts.gltf" },
+            { "name": "Ring Beam", "shape": "model", "model": "models/era1/hut/hut_ring.gltf" } ] },
           { "name": "walls", "parts": [
-            { "name": "Daub", "shape": "box", "pos": [0, 0.8, 0], "size": [0.12, 1.6, 0.98], "material": "mud", "count": 9, "radius": 1.6, "arc": 300 },
-            { "name": "Lintel", "shape": "box", "pos": [0, 1.55, 1.62], "size": [0.9, 0.12, 0.14], "material": "bark" } ] },
+            { "name": "Wattle", "shape": "model", "model": "models/era1/hut/hut_wattle.gltf" },
+            { "name": "Daub", "shape": "model", "model": "models/era1/hut/hut_daub.gltf" } ] },
           { "name": "roof", "parts": [
-            { "name": "Thatch", "shape": "cylinder", "pos": [0, 1.6, 0], "size": [4.2, 1.9, 0.2], "material": "thatch", "sides": 16 },
-            { "name": "Smoke Hole", "shape": "blob", "pos": [0, 3.45, 0], "size": [0.22, 0.12, 0.22], "material": "rope", "detail": 1, "rough": 0.2 } ] }
+            { "name": "Roof Pole", "shape": "model", "model": "models/era1/hut/hut_poles.gltf" },
+            { "name": "Thatch", "shape": "model", "model": "models/era1/hut/hut_thatch.gltf" } ] }
         ]
       },
       "longhouse": {
