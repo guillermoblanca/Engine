@@ -1770,14 +1770,17 @@ namespace GB::Editor
 	std::string EditorApp::RenderStatsLine() const
 	{
 		const RenderStats& s = m_Renderer->GetStats();
-		char text[512];
+		char text[768];
 		std::snprintf(text, sizeof text,
 			"draw calls %u: shadows %u, objects %u, grass %u, water %u | %u instanced batches | %.2f M triangles | objects %u drawn, %u culled\n"
 			"GPU %.1f ms: shadows %.1f, objects %.1f, grass %.1f, water %.1f, particles+resolve %.1f, post %.1f\n"
+			"GPU parts: sky %.2f (of objects), translucent %.2f, particles %.2f, resolve %.2f (of particles+resolve), bloom %.2f, ssao %.2f, composite %.2f (of post)\n"
 			"CPU: update %.1f ms (simulation %.1f), building the scene %.1f ms, sending it %.1f ms, interface %.1f ms, frame %.1f ms",
 			s.DrawCalls, s.ShadowCalls, s.SceneCalls, s.GrassCalls, s.WaterCalls, s.InstancedDraws, static_cast<double>(s.Triangles) * 1e-6, s.ObjectsDrawn, s.ObjectsCulled,
 			static_cast<double>(s.GpuTotalMs), static_cast<double>(s.GpuShadowMs), static_cast<double>(s.GpuSceneMs), static_cast<double>(s.GpuGrassMs), static_cast<double>(s.GpuWaterMs),
 			static_cast<double>(s.GpuEffectsMs), static_cast<double>(s.GpuPostMs),
+			static_cast<double>(s.GpuSkyMs), static_cast<double>(s.GpuTranslucentMs), static_cast<double>(s.GpuParticlesMs), static_cast<double>(s.GpuResolveMs),
+			static_cast<double>(s.GpuBloomMs), static_cast<double>(s.GpuSsaoMs), static_cast<double>(s.GpuCompositeMs),
 			static_cast<double>(m_CpuUpdateMs), static_cast<double>(m_CpuSimMs), static_cast<double>(m_CpuBuildMs), static_cast<double>(m_CpuRenderMs), static_cast<double>(m_CpuUiMs), static_cast<double>(m_FrameMsSmooth));
 		return text;
 	}

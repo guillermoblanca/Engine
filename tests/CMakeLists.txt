@@ -458,3 +458,14 @@ foreach(gb_test IN LISTS gb_test_targets)
     target_precompile_headers(${gb_test} REUSE_FROM GBTestPch)
 endforeach()
 gb_parallel_compile(GBTestPch ${gb_test_targets})   # /MP (MSVC only)
+
+# T40: the reference scene of the render plan (PLAN_RENDER E1): a village at 7 h, 12 h, 18:30 and 22 h, in rain and in snow, compared with
+# tests/golden/images/reference. GB_REFERENCE_BENCH=1 GBReferenceSceneTests measures its cost per pass at 1080p instead (not in ctest).
+add_executable(GBReferenceSceneTests reference_scene_test.cpp)
+target_link_libraries(GBReferenceSceneTests PRIVATE GB::GB)
+target_compile_definitions(GBReferenceSceneTests PRIVATE GB_GOLDEN_DIR="${CMAKE_CURRENT_SOURCE_DIR}/golden" GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets"
+                           GB_PACKS_DIR="${CMAKE_SOURCE_DIR}/packs/full")
+target_precompile_headers(GBReferenceSceneTests REUSE_FROM GBTestPch)
+gb_parallel_compile(GBReferenceSceneTests)
+add_test(NAME reference_scene COMMAND GBReferenceSceneTests)
+set_tests_properties(reference_scene PROPERTIES SKIP_RETURN_CODE 77 LABELS "imagen;gl")

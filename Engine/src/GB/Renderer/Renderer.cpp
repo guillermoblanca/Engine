@@ -133,8 +133,12 @@ namespace GB
 			for (int i = 0; i < kMarks; ++i) glGetQueryObjectui64v(m_Timers[set][i], GL_QUERY_RESULT, &t[i]);
 			--m_TimersPending;
 			auto ms = [&](int a, int b) { return static_cast<float>(static_cast<double>(t[b] - t[a]) * 1e-6); };
-			m_Stats.GpuShadowMs = ms(0, 1); m_Stats.GpuSceneMs = ms(1, 2); m_Stats.GpuGrassMs = ms(2, 3); m_Stats.GpuWaterMs = ms(3, 4);
-			m_Stats.GpuEffectsMs = ms(4, 5); m_Stats.GpuPostMs = ms(5, 6); m_Stats.GpuTotalMs = ms(0, 6);
+			m_Stats.GpuShadowMs = ms(kStart, kAfterShadows); m_Stats.GpuSceneMs = ms(kAfterShadows, kAfterObjects); m_Stats.GpuGrassMs = ms(kAfterObjects, kAfterGrass);
+			m_Stats.GpuWaterMs = ms(kAfterGrass, kAfterWater); m_Stats.GpuEffectsMs = ms(kAfterWater, kAfterResolve); m_Stats.GpuPostMs = ms(kAfterResolve, kAfterComposite);
+			m_Stats.GpuTotalMs = ms(kStart, kAfterComposite);
+			m_Stats.GpuSkyMs = ms(kAfterShadows, kAfterSky); m_Stats.GpuTranslucentMs = ms(kAfterWater, kAfterTranslucent);
+			m_Stats.GpuParticlesMs = ms(kAfterTranslucent, kAfterParticles); m_Stats.GpuResolveMs = ms(kAfterParticles, kAfterResolve);
+			m_Stats.GpuBloomMs = ms(kAfterResolve, kAfterBloom); m_Stats.GpuSsaoMs = ms(kAfterBloom, kAfterSsao); m_Stats.GpuCompositeMs = ms(kAfterSsao, kAfterComposite);
 		}
 	}
 
@@ -201,6 +205,7 @@ namespace GB
 		m_SkyShader->SetVec3("uWind", env.Wind);
 		glBindVertexArray(m_EmptyVAO);
 		glDrawArrays(GL_TRIANGLES, 0, 3);
+		Mark(kAfterSky);
 
 		// Opaque geometry
 		glEnable(GL_DEPTH_TEST);
@@ -358,13 +363,13 @@ namespace GB
 		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 
 		const uint32_t beforeGrass = DrawCounter::Calls;
-		Mark(2);
+		Mark(kAfterObjects);
 		GrassPass(scene, camera, viewProj, lightVP, shadows);
-		Mark(3);
+		Mark(kAfterGrass);
 		m_Stats.GrassCalls = DrawCounter::Calls - beforeGrass;
 		const uint32_t beforeWater = DrawCounter::Calls;
 		WaterPass(scene, camera, viewProj);
-		Mark(4);
+		Mark(kAfterWater);
 		m_Stats.WaterCalls = DrawCounter::Calls - beforeWater;
 
 		if (!translucent.empty())
@@ -386,8 +391,10 @@ namespace GB
 			glDisable(GL_BLEND);
 		}
 		glDisable(GL_CULL_FACE);
+		Mark(kAfterTranslucent);
 
 		m_ParticleRenderer->ParticlePass(scene, camera, viewProj, *m_SceneMSAA, *m_SceneDepth);
+		Mark(kAfterParticles);
 
 		Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);
 		if (ambientOut)
@@ -427,8 +434,8 @@ namespace GB
 		DrawCounter::Triangles = 0;
 		uint32_t shadowCalls = 0;
 		const RenderStats gpu = m_Stats;   // (ScenePass starts its stats over: the GPU times of the frames before are kept)
-		m_TimerActive = m_TimersPending < kTimerSets;   // (all seven marks of a frame, or none: a set not read yet is never issued again)
-		Mark(0);
+		m_TimerActive = m_TimersPending < kTimerSets;   // (all the marks of a frame, or none: a set not read yet is never issued again)
+		Mark(kStart);
 		if (shadows)
 		{
 			const Environment& env = scene.Env;
@@ -440,17 +447,20 @@ namespace GB
 			ShadowPass(scene, lightVP);
 			shadowCalls = DrawCounter::Calls;
 		}
-		Mark(1);
+		Mark(kAfterShadows);
 
 		ScenePass(scene, camera, lightVP, shadows);
-		Mark(5);
+		Mark(kAfterResolve);
 		m_Stats.GpuShadowMs = gpu.GpuShadowMs; m_Stats.GpuSceneMs = gpu.GpuSceneMs; m_Stats.GpuGrassMs = gpu.GpuGrassMs; m_Stats.GpuWaterMs = gpu.GpuWaterMs;
 		m_Stats.GpuEffectsMs = gpu.GpuEffectsMs; m_Stats.GpuPostMs = gpu.GpuPostMs; m_Stats.GpuTotalMs = gpu.GpuTotalMs;
+		m_Stats.GpuSkyMs = gpu.GpuSkyMs; m_Stats.GpuTranslucentMs = gpu.GpuTranslucentMs; m_Stats.GpuParticlesMs = gpu.GpuParticlesMs; m_Stats.GpuResolveMs = gpu.GpuResolveMs;
+		m_Stats.GpuBloomMs = gpu.GpuBloomMs; m_Stats.GpuSsaoMs = gpu.GpuSsaoMs; m_Stats.GpuCompositeMs = gpu.GpuCompositeMs;
 		m_Stats.ShadowCalls = shadowCalls;
 		m_Stats.DrawCalls = DrawCounter::Calls;
 		m_Stats.Triangles = DrawCounter::Triangles;
 		m_Stats.SceneCalls = m_Stats.DrawCalls - shadowCalls - m_Stats.GrassCalls - m_Stats.WaterCalls;
 		m_PostProcessor->BloomPass(*m_SceneResolved, scene.Env);
+		Mark(kAfterBloom);
 		{
 			const PostSettings& post = scene.Post;
 			const bool ao = post.SSAO > 0.0f && !camera.Orthographic, dof = post.DepthOfField > 0.0f && !camera.Orthographic;
@@ -458,11 +468,12 @@ namespace GB
 				Framebuffer::BlitDepth(*m_SceneMSAA, *m_SceneDepth);
 			if (ao)
 				m_PostProcessor->AmbientOcclusionPass(*m_SceneDepth, post, camera);
+			Mark(kAfterSsao);
 			if (post.AutoExposure)
 				m_PostProcessor->AdaptationPass(*m_SceneResolved, post);
 		}
 		m_PostProcessor->CompositePass(*m_SceneResolved, *m_SceneDepth, *m_SceneAmbient, scene.Env, scene.Post, camera, target);
-		Mark(6);
+		Mark(kAfterComposite);
 		if (m_TimerActive)
 		{
 			glFlush();   // (without it the last commands can wait in the driver's queue until the swap, and the post-processing reads as that wait)

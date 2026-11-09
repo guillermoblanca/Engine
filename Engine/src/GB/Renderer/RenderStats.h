@@ -17,6 +17,10 @@ namespace GB
 		uint64_t Triangles = 0;
 		// What the GPU spent on each pass, measured with timestamp queries (the frame before the last: the results are read without waiting)
 		float GpuShadowMs = 0.0f, GpuSceneMs = 0.0f, GpuGrassMs = 0.0f, GpuWaterMs = 0.0f, GpuEffectsMs = 0.0f, GpuPostMs = 0.0f, GpuTotalMs = 0.0f;
+		// T40: the same frame split finer, for the budget of PLAN_RENDER §3 (each is a part of one of the times above, which keep their meaning):
+		// the clear and the sky (of GpuSceneMs); the translucent objects, the particles and the MSAA resolve (of GpuEffectsMs); the bloom, the SSAO
+		// (with its depth copy) and the exposure and composite (of GpuPostMs).
+		float GpuSkyMs = 0.0f, GpuTranslucentMs = 0.0f, GpuParticlesMs = 0.0f, GpuResolveMs = 0.0f, GpuBloomMs = 0.0f, GpuSsaoMs = 0.0f, GpuCompositeMs = 0.0f;
 	};
 
 	// Counts the draw calls as they are made (the mesh and the instanced draws call Add): the renderer reads it around each pass.
