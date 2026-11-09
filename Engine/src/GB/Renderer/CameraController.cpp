@@ -1,5 +1,5 @@
 #include "CameraController.h"
-#include "GB/InputSource.h"
+#include "GB/Input/InputSource.h"
 #include <algorithm>
 #include <cmath>
 

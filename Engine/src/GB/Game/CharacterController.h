@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Assets/ModelInstance.h"
+#include "GB/Input/InputActions.h"
 #include "GB/Scene/Camera.h"
 #include "GB/Scene/CharacterTypes.h"
 #include <cmath>
@@ -14,11 +15,12 @@ namespace GB
 	class IInputSource;
 	// A third-person character: acceleration, turning toward the direction of travel, terrain following, and
 	// collision against trees/rocks (XZ circles) and deep water. Everything is a pure step over plain data and
-	// callbacks, so it runs without a window or GL (see tests/character_test.cpp); ReadInput() is the only
-	// part that touches GB::Input.
+	// callbacks, so it runs without a window or GL (see tests/character_test.cpp); ReadCharacterInput() and
+	// ThirdPersonCamera::ReadInput() are the only parts that read an input source, through named actions (GB/Input/InputActions.h).
 
-	// Keyboard (WASD, Shift = run) and left stick (past ~90% = run, or hold the stick button). Zero without a window.
-	CharacterInput ReadCharacterInput(const IInputSource& input, float cameraYaw);
+	// The actions "move", "jump" and "run" (by default WASD and the left stick; Space or pad A; Left Shift, the left stick button or the
+	// stick pushed past 90%: assets/data/input.json). Zero without a window.
+	CharacterInput ReadCharacterInput(const IInputSource& input, float cameraYaw, const InputActions& actions = DefaultInputActions());
 
 	// A timeline of input for headless runs and tests: "WD:1.5,RW:2,:0.5" = hold W+D for 1.5 s, then R(un)+W for 2 s,
 	// then nothing for 0.5 s. W A S D move, R runs, J jumps, Q / E turn the camera left / right; the keys come before the colon.
@@ -144,8 +146,9 @@ namespace GB
 		// Moves the target toward the character and works out the collision-free distance.
 		void Update(float dt, const glm::vec3& characterPosition);
 		void Snap(const glm::vec3& characterPosition);
-		// Mouse drag (left or right button), arrows, right stick, wheel. Not WASD: those walk.
-		void ReadInput(const IInputSource& input, float dt);
+		// The actions look_left/right/up/down (arrows), turn_left/right (Q / E, when TurnWithQE), look_stick (right stick), look_drag + pointer
+		// (mouse drag with the left or right button) and zoom_wheel. Not "move": that walks.
+		void ReadInput(const IInputSource& input, float dt, const InputActions& actions = DefaultInputActions());
 		void Apply(Camera& camera) const;
 
 		glm::vec3 GetPosition() const;

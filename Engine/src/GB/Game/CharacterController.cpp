@@ -1,5 +1,5 @@
 #include "CharacterController.h"
-#include "GB/InputSource.h"
+#include "GB/Input/InputSource.h"
 #include "GB/World/Terrain.h"
 #include <algorithm>
 #include <cmath>
@@ -30,18 +30,13 @@ namespace GB
 	}
 
 	// ------------------------------------------------------------ input
-	CharacterInput ReadCharacterInput(const IInputSource& input, float cameraYaw)
+	CharacterInput ReadCharacterInput(const IInputSource& input, float cameraYaw, const InputActions& actions)
 	{
 		CharacterInput in;
 		in.CameraYaw = cameraYaw;
-		if (input.IsKeyDown(Key::W)) in.Move.y += 1.0f;
-		if (input.IsKeyDown(Key::S)) in.Move.y -= 1.0f;
-		if (input.IsKeyDown(Key::D)) in.Move.x += 1.0f;
-		if (input.IsKeyDown(Key::A)) in.Move.x -= 1.0f;
-		const glm::vec2 stick(input.GetGamepadAxis(GamepadAxis::LeftX), -input.GetGamepadAxis(GamepadAxis::LeftY));
-		in.Move += stick;
-		in.Jump = input.IsKeyDown(Key::Space) || input.IsGamepadButtonDown(GamepadButton::A);
-		in.Run = input.IsKeyDown(Key::LeftShift) || input.IsGamepadButtonDown(GamepadButton::LeftStick) || glm::length(stick) > 0.9f;
+		in.Move += actions.Value(input, InputAction::Move);
+		in.Jump = actions.Pressed(input, InputAction::Jump);
+		in.Run = actions.Pressed(input, InputAction::Run);
 		return in;
 	}
 
@@ -398,20 +393,24 @@ namespace GB
 		m_Effective = std::min(m_Effective, Distance);
 	}
 
-	void ThirdPersonCamera::ReadInput(const IInputSource& input, float dt)
+	void ThirdPersonCamera::ReadInput(const IInputSource& input, float dt, const InputActions& actions)
 	{
+		auto pressed = [&](std::string_view action) { return actions.Pressed(input, action); };
 		float yaw = 0.0f, pitch = 0.0f;
-		if (input.IsKeyDown(Key::Left) || (TurnWithQE && input.IsKeyDown(Key::Q))) yaw -= 1.0f;
-		if (input.IsKeyDown(Key::Right) || (TurnWithQE && input.IsKeyDown(Key::E))) yaw += 1.0f;
-		if (input.IsKeyDown(Key::Up)) pitch += 1.0f;
-		if (input.IsKeyDown(Key::Down)) pitch -= 1.0f;
-		yaw += input.GetGamepadAxis(GamepadAxis::RightX);
-		pitch -= input.GetGamepadAxis(GamepadAxis::RightY);
+		if (pressed(InputAction::LookLeft) || (TurnWithQE && pressed(InputAction::TurnLeft))) yaw -= 1.0f;
+		if (pressed(InputAction::LookRight) || (TurnWithQE && pressed(InputAction::TurnRight))) yaw += 1.0f;
+		if (pressed(InputAction::LookUp)) pitch += 1.0f;
+		if (pressed(InputAction::LookDown)) pitch -= 1.0f;
+		const glm::vec2 stick = actions.Value(input, InputAction::LookStick);   // x right, y up
+		yaw += stick.x;
+		pitch += stick.y;
 		Rotate(yaw * RotateSpeed * dt, pitch * RotateSpeed * dt);
-		const auto [dx, dy] = input.GetMouseDelta();
-		if (input.IsMouseDown(MouseButton::Left) || input.IsMouseDown(MouseButton::Right))
-			Rotate(-static_cast<float>(dx) * MouseSensitivity, static_cast<float>(dy) * MouseSensitivity);
-		Zoom(-input.GetScrollDelta() * 0.1f);
+		if (pressed(InputAction::LookDrag))
+		{
+			const glm::vec2 drag = actions.Value(input, InputAction::Pointer);
+			Rotate(-drag.x * MouseSensitivity, drag.y * MouseSensitivity);
+		}
+		Zoom(-actions.Axis(input, InputAction::ZoomWheel) * 0.1f);
 	}
 
 	glm::vec3 ThirdPersonCamera::GetPosition() const

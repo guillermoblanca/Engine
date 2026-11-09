@@ -38,6 +38,11 @@ target_link_libraries(GBGameCameraTests PRIVATE GB::GB)
 target_compile_definitions(GBGameCameraTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
 add_test(NAME game_camera COMMAND GBGameCameraTests)
 
+add_executable(GBInputActionsTests input_actions_test.cpp)
+target_link_libraries(GBInputActionsTests PRIVATE GB::GB)
+target_compile_definitions(GBInputActionsTests PRIVATE GB_ASSETS_DIR="${CMAKE_SOURCE_DIR}/assets")
+add_test(NAME input_actions COMMAND GBInputActionsTests)
+
 add_executable(GBParticleTests particles_test.cpp)
 target_link_libraries(GBParticleTests PRIVATE GB::GB)
 add_test(NAME particles COMMAND GBParticleTests)

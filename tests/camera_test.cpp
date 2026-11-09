@@ -1,5 +1,5 @@
 // CPU-only tests for cameras: projection, blending and the orbit / fly / follow controllers.
-#include "GB/InputSource.h"
+#include "GB/Input/InputSource.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
 #include <cmath>

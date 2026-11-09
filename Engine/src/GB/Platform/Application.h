@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/InputSource.h"
+#include "GB/Input/InputSource.h"
 #include "GB/Platform/Window.h"
 #include <cstdint>
 #include <memory>

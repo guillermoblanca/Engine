@@ -1,0 +1,46 @@
+{
+  "input": {
+    "actions": {
+      "move": [
+        { "value": [0, 1], "keys": ["W"] },
+        { "value": [0, -1], "keys": ["S"] },
+        { "value": [1, 0], "keys": ["D"] },
+        { "value": [-1, 0], "keys": ["A"] },
+        { "value": [1, 0], "padAxis": "LeftX" },
+        { "value": [0, -1], "padAxis": "LeftY" }
+      ],
+      "jump": [ { "keys": ["Space"], "pad": ["A"] } ],
+      "run": [ { "keys": ["LeftShift"], "pad": ["LeftStick"], "stickAbove": { "stick": "Left", "above": 0.9 } } ],
+
+      "look_left": [ { "keys": ["Left"] } ],
+      "look_right": [ { "keys": ["Right"] } ],
+      "look_up": [ { "keys": ["Up"] } ],
+      "look_down": [ { "keys": ["Down"] } ],
+      "turn_left": [ { "keys": ["Q"] } ],
+      "turn_right": [ { "keys": ["E"] } ],
+      "look_stick": [
+        { "value": [1, 0], "padAxis": "RightX" },
+        { "value": [0, -1], "padAxis": "RightY" }
+      ],
+      "look_drag": [ { "mouse": ["Left", "Right"] } ],
+      "camera_drag": [ { "mouse": ["Right"] } ],
+      "pointer": [ { "mouseDelta": true } ],
+      "zoom_wheel": [ { "scroll": true } ],
+
+      "pan": [
+        { "value": [0, 1], "keys": ["W", "Up"] },
+        { "value": [0, -1], "keys": ["S", "Down"] },
+        { "value": [1, 0], "keys": ["D", "Right"] },
+        { "value": [-1, 0], "keys": ["A", "Left"] },
+        { "value": [1, 0], "padAxis": "LeftX" },
+        { "value": [0, -1], "padAxis": "LeftY" }
+      ],
+      "zoom": [
+        { "value": -1, "keys": ["Z"] },
+        { "value": 1, "keys": ["X"] },
+        { "value": 0.5, "padAxis": "RightTrigger", "deadzone": 0, "offset": 1 },
+        { "value": -0.5, "padAxis": "LeftTrigger", "deadzone": 0, "offset": 1 }
+      ]
+    }
+  }
+}

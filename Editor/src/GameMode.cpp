@@ -7,7 +7,7 @@
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include "SceneEditor.h"
-#include "GB/InputSource.h"
+#include "GB/Input/InputSource.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cctype>
@@ -1513,6 +1513,8 @@ namespace GB::Editor
 	void EditorApp::RegisterGameCommands()
 	{
 		CommandRunner& c = m_Commands;
+		// T38: the bindings of the named actions the player's character and the cameras read (assets/data/input.json)
+		if (const std::string error = m_Player.LoadActions(m_AssetRoot); !error.empty()) GB_CLIENT_WARN("input not loaded: {}", error);
 		c.Register("play", "play [temperate|alpine|desert] [seed] [members] [clans] | here | off | status: (here: into the world as it is, in its first clan) H15's game: a world, clans placed by the site chooser, and you as a member of clan 0 (the X Bot of packs/full, or the fox); the keys are in the \"controls\" section (player.json); see docs/JUGAR.md",
 			[this](const std::vector<std::string>& a) { return PlayCommand(a); });
 		c.Register("lang", "lang [es|en] | check: the language of the game's interface (assets/ui/lang/<code>.json; the commands, logs and `game status` stay English); check: how much of the clan's log its phrases cover",

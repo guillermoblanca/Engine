@@ -1,5 +1,5 @@
 #pragma once
-#include "KeyCodes.h"
+#include "GB/Input/KeyCodes.h"
 #include <array>
 #include <cmath>
 #include <set>

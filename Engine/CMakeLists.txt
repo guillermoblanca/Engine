@@ -152,6 +152,7 @@ add_library(GB STATIC
     src/GB/Visual/VisualContent.cpp
     src/GB/Visual/ActorRender.cpp
     src/GB/Platform/Input.cpp
+    src/GB/Input/InputActions.cpp
     src/GB/Log.cpp
     src/GB/Core/Fingerprint.cpp
     src/GB/Assets/Model.cpp

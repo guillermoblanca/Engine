@@ -1,5 +1,5 @@
 #include "GB/Game/GameCamera.h"
-#include "GB/InputSource.h"
+#include "GB/Input/InputSource.h"
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -409,38 +409,28 @@ namespace GB
 		return glm::vec3(0.0f);
 	}
 
-	GameCameraInput ReadGameCameraInput(const IInputSource& input, GameCameraMode mode, bool qeTurn)
+	GameCameraInput ReadGameCameraInput(const IInputSource& input, GameCameraMode mode, bool qeTurn, const InputActions& actions)
 	{
 		GameCameraInput in;
-		auto down = [&input](Key k) { return input.IsKeyDown(k); };
+		auto pressed = [&](std::string_view action) { return actions.Pressed(input, action); };
 		// Q / E turn the camera; a game that gives E another job (interact) turns outside the overview with the arrows (the overview pans with them).
 		if (qeTurn || mode == GameCameraMode::Overview)
 		{
-			if (down(Key::Q)) in.Turn -= 1.0f;
-			if (down(Key::E)) in.Turn += 1.0f;
+			if (pressed(InputAction::TurnLeft)) in.Turn -= 1.0f;
+			if (pressed(InputAction::TurnRight)) in.Turn += 1.0f;
 		}
 		else
 		{
-			if (down(Key::Left)) in.Turn -= 1.0f;
-			if (down(Key::Right)) in.Turn += 1.0f;
+			if (pressed(InputAction::LookLeft)) in.Turn -= 1.0f;
+			if (pressed(InputAction::LookRight)) in.Turn += 1.0f;
 		}
-		in.Turn += input.GetGamepadAxis(GamepadAxis::RightX);
-		const auto [dx, dy] = input.GetMouseDelta();
-		if (input.IsMouseDown(MouseButton::Right)) in.TurnDelta -= static_cast<float>(dx) * 0.005f;
-		in.ZoomDelta -= input.GetScrollDelta() * 0.1f;
+		in.Turn += actions.Value(input, InputAction::LookStick).x;
+		if (pressed(InputAction::CameraDrag)) in.TurnDelta -= actions.Value(input, InputAction::Pointer).x * 0.005f;
+		in.ZoomDelta -= actions.Axis(input, InputAction::ZoomWheel) * 0.1f;
 		if (mode == GameCameraMode::Overview)
 		{
-			if (down(Key::W) || down(Key::Up)) in.Pan.y += 1.0f;
-			if (down(Key::S) || down(Key::Down)) in.Pan.y -= 1.0f;
-			if (down(Key::D) || down(Key::Right)) in.Pan.x += 1.0f;
-			if (down(Key::A) || down(Key::Left)) in.Pan.x -= 1.0f;
-			in.Pan.x += input.GetGamepadAxis(GamepadAxis::LeftX);
-			in.Pan.y -= input.GetGamepadAxis(GamepadAxis::LeftY);
-			if (down(Key::Z)) in.Zoom -= 1.0f;
-			if (down(Key::X)) in.Zoom += 1.0f;
-			// Triggers report -1 (released) .. 1 (pressed).
-			in.Zoom += 0.5f * (input.GetGamepadAxis(GamepadAxis::RightTrigger, 0, 0.0f) + 1.0f);
-			in.Zoom -= 0.5f * (input.GetGamepadAxis(GamepadAxis::LeftTrigger, 0, 0.0f) + 1.0f);
+			in.Pan += actions.Value(input, InputAction::Pan);
+			in.Zoom += actions.Axis(input, InputAction::Zoom);   // (the triggers: (v + 1) * 0.5, they report -1 released .. 1 pressed)
 		}
 		return in;
 	}

@@ -3,7 +3,7 @@
 // For use by GB applications
 #include "GB/Platform/Application.h"
 #include "GB/Platform/Input.h"
-#include "GB/KeyCodes.h"
+#include "GB/Input/KeyCodes.h"
 #include "GB/Log.h"
 #include "GB/Platform/Window.h"
 #include "GB/Game/CharacterController.h"

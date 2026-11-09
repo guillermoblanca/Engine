@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <utility>
 
 namespace GB::Editor
 {
@@ -86,6 +87,15 @@ namespace GB::Editor
 			}
 		};
 		return m_Actors->SyncNavigation(config, error);
+	}
+
+	std::string PlayerMode::LoadActions(const std::string& assetRoot)
+	{
+		InputActions actions = DefaultInputActions();
+		std::string error = LoadInputActionsFile(assetRoot + "/data/input.json", actions);
+		if (error.empty()) error = LoadInputActionsFile(assetRoot + "/data/player.json", actions);   // a document without "input" changes nothing
+		if (error.empty()) Actions = std::move(actions);
+		return error;
 	}
 
 	void PlayerMode::LoadShipped(const std::string& assetRoot)
@@ -271,9 +281,9 @@ namespace GB::Editor
 		const bool scripted = a->ScriptRunning();
 		// the player can look around while an AI or a task list walks the character; a script turns the view itself
 		const bool aiWalking = a->Source() == OrderSource::AI && !a->AIArrived() && !a->AIStuck();
-		if (!scripted && (a->Ragdolled() || a->TasksRunning() || aiWalking || acceptInput)) m_Camera.ReadInput(input, dt);
+		if (!scripted && (a->Ragdolled() || a->TasksRunning() || aiWalking || acceptInput)) m_Camera.ReadInput(input, dt, Actions);
 		if (!scripted) a->SetViewYaw(m_Camera.Yaw);
-		if (acceptInput && !a->Ragdolled()) a->SetInput(ReadCharacterInput(input, m_Camera.Yaw));
+		if (acceptInput && !a->Ragdolled()) a->SetInput(ReadCharacterInput(input, m_Camera.Yaw, Actions));
 		if (m_LookCamera)
 		{
 			Camera cam;

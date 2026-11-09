@@ -2,7 +2,8 @@
 #include "GB/Gameplay/AnimBindings.h"
 #include "GB/Game/Actor.h"
 #include "GB/Game/ActorWorld.h"
-#include "GB/InputSource.h"
+#include "GB/Input/InputActions.h"
+#include "GB/Input/InputSource.h"
 #include "GB/Renderer/Camera.h"
 #include <map>
 #include <memory>
@@ -20,6 +21,12 @@ namespace GB::Editor
 	class PlayerMode
 	{
 	public:
+		// The named actions the character and the cameras read (GB/Input/InputActions.h; GameView reads them from here too). LoadActions:
+		// <assets>/data/input.json, then the "input" section of <assets>/data/player.json if it has one (none today: the hook for a player's own
+		// bindings). Without the files, the compiled defaults, which are the same. On a mistake nothing changes and it returns why.
+		InputActions Actions = DefaultInputActions();
+		std::string LoadActions(const std::string& assetRoot);
+
 		// The actors of the editor. Must be set before Start and outlive this object.
 		void Attach(ActorWorld* actors) { m_Actors = actors; }
 

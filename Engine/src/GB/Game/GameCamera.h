@@ -229,8 +229,10 @@ namespace GB
 		float m_Blend = 1.0f;
 	};
 
-	// Keyboard, mouse and pad for a game camera (needs a window; the rest of this file does not):
-	//   overview - WASD / arrows / left stick pan, Q/E or right-mouse drag turn, wheel / Z-X / triggers zoom
-	//   follow, observe - Q/E / right stick / right-mouse drag turn, wheel zoom (WASD walk the player, so they are not read)
-	GameCameraInput ReadGameCameraInput(const IInputSource& input, GameCameraMode mode, bool qeTurn = true);   // qeTurn false: Q / E are free (outside the overview the arrows turn)
+	// Keyboard, mouse and pad for a game camera, through the named actions of GB/Input/InputActions.h (the default bindings, assets/data/input.json, in brackets):
+	//   overview - "pan" (WASD / arrows / left stick), "turn_left/right" (Q/E) or "camera_drag" + "pointer" (right-mouse drag) turn,
+	//              "zoom_wheel" (wheel) and "zoom" (Z-X / triggers) zoom
+	//   follow, observe - "turn_left/right" (Q/E), "look_stick" x (right stick) or right-mouse drag turn, "zoom_wheel" zooms ("move" walks the player)
+	// qeTurn false: Q / E are free (outside the overview "look_left/right", the arrows, turn).
+	GameCameraInput ReadGameCameraInput(const IInputSource& input, GameCameraMode mode, bool qeTurn = true, const InputActions& actions = DefaultInputActions());
 }
