@@ -153,7 +153,7 @@ add_library(GB STATIC
     src/GB/Visual/ActorRender.cpp
     src/GB/Platform/Input.cpp
     src/GB/Input/InputActions.cpp
-    src/GB/Log.cpp
+    src/GB/Core/Log.cpp
     src/GB/Core/Fingerprint.cpp
     src/GB/Assets/Model.cpp
     src/GB/Assets/ModelFbx.cpp
@@ -242,8 +242,8 @@ target_compile_definitions(GB PRIVATE GB_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets
 
 target_include_directories(GB PUBLIC src)
 find_package(Threads REQUIRED)
-target_link_libraries(GB PUBLIC spdlog::spdlog glad glfw Threads::Threads ${CMAKE_DL_LIBS})
-target_link_libraries(GB PRIVATE ufbx sqlite3)
+target_link_libraries(GB PUBLIC glad glfw Threads::Threads ${CMAKE_DL_LIBS})
+target_link_libraries(GB PRIVATE spdlog::spdlog ufbx sqlite3)
 target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include ${miniaudio_SOURCE_DIR})
 # glm is header-only; added as SYSTEM so its headers do not trip our warning flags.
 target_include_directories(GB SYSTEM PUBLIC ${glm_SOURCE_DIR})

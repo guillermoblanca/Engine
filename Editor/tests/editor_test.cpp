@@ -74,10 +74,26 @@ int main()
 	Check(cmd.Complete("a").size() == 1, "completion");
 
 	LogBuffer buf;
-	buf.Add(spdlog::level::info, "hola");
+	buf.Add(GB::Log::Level::Info, "hola");
 	Check(buf.Snapshot().size() == 1, "log buffer");
 	buf.Clear();
 	Check(buf.Snapshot().empty(), "log clear");
+
+	// GB::Log sinks feed the console buffer as EditorApp does: "[HH:MM:SS] message", no logger name, until removed.
+	{
+		GB::Log::Init();
+		LogBuffer console;
+		const int sink = GB::Log::AddSink([&console](GB::Log::Channel, GB::Log::Level level, std::string_view text) { console.Sink(level, text); });
+		GB_CORE_WARN("sink test {} {:.1f}", 7, 1.06f);
+		GB_CLIENT_INFO("{}", "a{b}");
+		GB::Log::RemoveSink(sink);
+		GB_CORE_INFO("after remove");
+		const std::vector<LogLine> lines = console.Snapshot();
+		Check(sink != 0 && lines.size() == 2, "log sink receives lines until removed");
+		Check(lines.size() == 2 && lines[0].Level == GB::Log::Level::Warn && lines[0].Text.size() > 11 && lines[0].Text[0] == '[' && lines[0].Text[9] == ']'
+			&& lines[0].Text.substr(11) == "sink test 7 1.1", "log sink line text");
+		Check(lines.size() == 2 && lines[1].Level == GB::Log::Level::Info && lines[1].Text.substr(11) == "a{b}", "log sink keeps braces of the text");
+	}
 
 	// Scene editing: commands, selection, undo/redo, picking.
 	{

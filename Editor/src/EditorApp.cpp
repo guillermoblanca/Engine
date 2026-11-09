@@ -92,9 +92,7 @@ namespace GB::Editor
 		const LaunchOptions& options = Options();
 
 		m_Log = std::make_shared<LogBuffer>();
-		m_Log->set_pattern("[%H:%M:%S] %v");
-		Log::GetCoreLogger()->sinks().push_back(m_Log);
-		Log::GetClientLogger()->sinks().push_back(m_Log);
+		m_LogSink = GB::Log::AddSink([log = m_Log.get()](GB::Log::Channel, GB::Log::Level level, std::string_view text) { log->Sink(level, text); });
 
 		const bool headless = options.Hidden || !options.RecordDir.empty();
 		m_Ui = std::make_unique<ImGuiLayer>(*GetWindow(), headless ? "" : "editor_layout.ini");
@@ -216,16 +214,8 @@ namespace GB::Editor
 		// the scene's GPU objects must go before the context does
 		m_Instance.reset();
 		m_World.Clear(m_Scene);
-		if (m_Log)
-		{
-			auto drop = [&](std::shared_ptr<spdlog::logger>& logger)
-			{
-				auto& sinks = logger->sinks();
-				sinks.erase(std::remove(sinks.begin(), sinks.end(), std::static_pointer_cast<spdlog::sinks::sink>(m_Log)), sinks.end());
-			};
-			drop(Log::GetCoreLogger());
-			drop(Log::GetClientLogger());
-		}
+		if (m_LogSink)
+			GB::Log::RemoveSink(m_LogSink);
 	}
 
 	bool EditorApp::IsPanelOpen(const std::string& name) const
@@ -2456,7 +2446,7 @@ namespace GB::Editor
 			ImGui::BeginChild("##lines", ImVec2(0, -footer), false, ImGuiWindowFlags_HorizontalScrollbar);
 			for (const LogLine& l : m_Log->Snapshot())
 			{
-				const bool err = l.Level >= spdlog::level::err, warn = l.Level == spdlog::level::warn;
+				const bool err = l.Level >= GB::Log::Level::Error, warn = l.Level == GB::Log::Level::Warn;
 				if ((err && !m_ShowErr) || (warn && !m_ShowWarn) || (!err && !warn && !m_ShowInfo)) continue;
 				ImGui::PushStyleColor(ImGuiCol_Text, err ? ImVec4(1.0f, 0.45f, 0.4f, 1.0f) : warn ? ImVec4(1.0f, 0.82f, 0.35f, 1.0f) : ImVec4(0.82f, 0.85f, 0.9f, 1.0f));
 				ImGui::TextUnformatted(l.Text.c_str());

@@ -491,6 +491,7 @@ namespace GB::Editor
 		// ui
 		std::unique_ptr<ImGuiLayer> m_Ui;
 		std::shared_ptr<LogBuffer> m_Log;
+		int m_LogSink = 0;   // GB::Log::AddSink id that feeds m_Log
 		struct Panels { bool Viewport = true, Hierarchy = true, Inspector = true, Properties = true, World = true, Stats = true, Console = true, Assets = true, Model = true, Animation = true, Abilities = true, Tribe = true, WorldState = true, Timeline = false, AnimBindings = false, Graph = false, Tests = true, QA = true, Demo = false; } m_Panels;
 		bool m_ViewportHovered = false;
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
