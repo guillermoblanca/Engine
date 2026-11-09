@@ -138,15 +138,6 @@ namespace GB
 		if (work) packs.AddSection(WorkContentSection(*work));
 	}
 
-	ContentSection VisualContentSection(VisualLibrary& library)
-	{
-		return StagedSection("visuals", { "visuals" },
-			[](const std::string& json, VisualLibrary& l) { return LoadVisuals(json, l); },
-			nullptr, library);
-	}
-
-	void AddVisualContentSection(ContentPacks& packs, VisualLibrary& library) { packs.AddSection(VisualContentSection(library)); }
-
 	ContentSection SocialContentSection(SocialRules& rules)
 	{
 		return StagedSection("social", { "social" },
@@ -175,7 +166,6 @@ namespace GB
 		if (to.Social) AddSocialContentSection(packs, *to.Social);
 		if (to.Society) AddSocietyContentSections(packs, *to.Society);
 		if (to.Diplomacy) AddDiplomacyContentSection(packs, *to.Diplomacy);
-		if (to.Visuals) AddVisualContentSection(packs, *to.Visuals);
 		if (to.Nature) AddNatureContentSection(packs, *to.Nature);
 		if (to.Needs) packs.AddSection(StagedSection("needs", { "needs" }, [](const std::string& json, NeedBook& b) { return LoadNeeds(json, b); }, nullptr, *to.Needs));   // V5
 		if (to.Trails) packs.AddSection(StagedSection("trails", { "trails" }, [](const std::string& json, TrailRules& r) { return LoadTrailRules(json, r); }, nullptr, *to.Trails));   // T5c

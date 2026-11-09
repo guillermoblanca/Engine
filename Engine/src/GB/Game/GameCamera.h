@@ -1,6 +1,6 @@
 #pragma once
 #include "GB/Game/CharacterController.h"
-#include "GB/Renderer/Camera.h"
+#include "GB/Scene/Camera.h"
 #include <functional>
 #include <string>
 #include <vector>

@@ -3,8 +3,6 @@
 #include "GB/Game/Components/Presentation/AnimationComponent.h"
 #include "GB/Game/GBObject.h"
 #include "GB/Game/Components/Presentation/GeometryComponent.h"
-#include "GB/Renderer/Mesh.h"
-#include "GB/Renderer/Renderer.h"
 #include <functional>
 #include <map>
 #include <memory>
@@ -14,7 +12,8 @@
 namespace GB
 {
 	// What an actor holds in its hands and on its back ("box", "bag", "can", "shovel", "seeds", "tool", or a look of the visuals): the hands reach the
-	// grips with IK and the prop follows its socket. It works on the animation's sockets and draws with the geometry's matrix.
+	// grips with IK and the prop follows its socket. It works on the animation's sockets. It does not draw: the visual layer reads ForEachDrawn
+	// (GB/Visual/ActorRender.h), so this stays plain data with no GPU type in it.
 	class PropsComponent : public GBObjectComponent, public IStateSaver
 	{
 	public:
@@ -30,11 +29,12 @@ namespace GB
 		std::string LookOf(const std::string& name) const { const auto it = m_Looks.find(name); return it == m_Looks.end() ? std::string() : it->second.Look; }
 		std::string SocketOf(const std::string& name) const { const auto it = m_Looks.find(name); return it == m_Looks.end() ? std::string() : it->second.Socket; }
 
-		// Draws the looks (without one, a prop is a coloured box): the look, the prop's world matrix and the scene. False = draw the box.
-		using Drawer = std::function<bool(const std::string& look, const glm::mat4& world, Scene& scene)>;
-		void SetDrawer(Drawer drawer) { m_Drawer = std::move(drawer); }
 		void SetVisible(bool on) { m_Visible = on; }   // H16: far away they are a few pixels; they stay attached and come back when it is nearer
-		void AddToScene(Scene& scene) const;
+		bool Visible() const { return m_Visible; }
+		// The props to draw now, in the animation's prop order (nothing when hidden or without an animation): each one's look ("" = none: a
+		// coloured box), its world matrix, and the box's size and colour (the box is also what a look that cannot be drawn falls back to).
+		using DrawVisitor = std::function<void(const std::string& look, const glm::mat4& world, const glm::vec3& boxSize, const glm::vec3& boxColor)>;
+		void ForEachDrawn(const DrawVisitor& visit) const;
 
 		// After the pose of the frame: a box waits for its overlay to finish before the grips are measured.
 		void ResolvePending();
@@ -46,9 +46,7 @@ namespace GB
 
 		GeometryComponent& m_Geometry;
 		AnimationComponent& m_Animation;
-		Drawer m_Drawer;
 		std::map<std::string, PropLook> m_Looks;
-		mutable std::unique_ptr<Mesh> m_Mesh;
 		bool m_Visible = true;
 		std::string m_Pending;   // waits for the box overlay to finish before measuring the grips
 	};

@@ -87,7 +87,8 @@ namespace GB
 		// of the frame, so the order does not matter).
 		void PrepareAbilities();
 		void Update(float dt);
-		void AddToScene(Scene& scene) const;
+		// Every actor in name order (the order they are updated and drawn in; the visual layer draws them, GB/Visual/ActorRender.h).
+		const std::map<std::string, std::unique_ptr<Actor>>& All() const { return m_Actors; }
 		// Level of detail: a suspended actor is not animated, not drawn, not lent its abilities' runtime and not an obstacle to the others; its owner
 		// (the tribe's abstract agent) moves it by hand and puts it back (Teleport) when it is resumed.
 		void SetSuspended(const std::string& name, bool suspended);

@@ -140,8 +140,8 @@ add_library(GB STATIC
     src/GB/Save/SaveWorld.cpp
     src/GB/Save/SaveFiles.cpp
     src/GB/Save/Replay.cpp
-    src/GB/Game/EntityRender.cpp
-    src/GB/Game/TribeVisuals.cpp
+    src/GB/Visual/EntityRender.cpp
+    src/GB/Visual/TribeVisuals.cpp
     src/GB/Animation/ReachLayer.cpp
     src/GB/Visual/ProcMesh.cpp
     src/GB/Visual/ProcTexture.cpp
@@ -149,6 +149,8 @@ add_library(GB STATIC
     src/GB/Visual/PropVisuals.cpp
     src/GB/Visual/SceneVisuals.cpp
     src/GB/Visual/BuildingVisuals.cpp
+    src/GB/Visual/VisualContent.cpp
+    src/GB/Visual/ActorRender.cpp
     src/GB/Platform/Input.cpp
     src/GB/Log.cpp
     src/GB/Core/Fingerprint.cpp

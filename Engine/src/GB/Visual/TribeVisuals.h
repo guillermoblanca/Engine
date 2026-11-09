@@ -2,6 +2,7 @@
 #include "GB/Animation/AnimManifest.h"
 #include "GB/Game/ActorWorld.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Visual/ActorRender.h"
 #include "GB/Visual/PropVisuals.h"
 #include "GB/Visual/SceneVisuals.h"
 #include <functional>
@@ -47,6 +48,10 @@ namespace GB
 		std::function<bool(const TribeMember&, const AbilitySystemComponent*)> Injured;
 		float InjuredBelow = 0.35f;
 		float OutfitDistance = 35.0f;   // U5: farther than this from the viewer a member wears no outfit pieces (a few pixels; they cost every frame)
+
+		// Draws the prop looks that Update attaches (Actor::AttachLook) with the visuals' models: give it to the ActorRenderer that draws these
+		// actors (null `visuals`: no drawer, the props are boxes).
+		static ActorRenderer::PropDrawer PropDrawer(SceneVisuals* visuals);
 
 		void Update(const Tribe& tribe, const Context& context, float dt);
 		void AddToScene(const Tribe& tribe, const Context& context, Scene& scene);

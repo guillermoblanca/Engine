@@ -1,4 +1,4 @@
-#include "GB/Game/TribeVisuals.h"
+#include "GB/Visual/TribeVisuals.h"
 #include "GB/Animation/ReachLayer.h"
 #include <algorithm>
 #include <cmath>
@@ -39,6 +39,16 @@ namespace GB
 					if (TagUnder(*def, tag) && tag.size() > best.size()) best = tag;
 			return best;
 		}
+	}
+
+	ActorRenderer::PropDrawer TribeVisuals::PropDrawer(SceneVisuals* visuals)
+	{
+		if (!visuals) return nullptr;
+		return [visuals](const std::string& look, const glm::mat4& world, Scene& scene)
+		{
+			const auto l = visuals->Library.Props.Looks.find(look);
+			return l != visuals->Library.Props.Looks.end() && visuals->Cache().AddModel(l->second.Model, 1.0f, 0, world, scene, 80.0f);
+		};
 	}
 
 	void TribeVisuals::ApplyProps(Actor& actor, MemberState& st, const PropChoice& choice, const SceneVisuals* visuals)
@@ -107,7 +117,7 @@ namespace GB
 				for (const ManifestUse& u : manifest.Abilities)
 					if (asc->HasTag("Ability." + u.Name)) { st.Ability = u.Name; break; }
 
-			// a new animator (rebuilt, retargeted): the layer and the drawer go to it
+			// a new animator (rebuilt, retargeted): the layer goes to it (the looks it attaches are drawn by the ActorRenderer's PropDrawer)
 			if (st.Anim != &anim)
 			{
 				auto layer = std::make_unique<ReachLayer>(*actor->GetModel(), anim.Rig());
@@ -116,12 +126,6 @@ namespace GB
 				st.Anim = &anim;
 				st.Applied = PropChoice();
 				st.Set.clear();
-				if (visuals)
-					actor->SetPropDrawer([visuals](const std::string& look, const glm::mat4& world, Scene& scene)
-					{
-						const auto l = visuals->Library.Props.Looks.find(look);
-						return l != visuals->Library.Props.Looks.end() && visuals->Cache().AddModel(l->second.Model, 1.0f, 0, world, scene, 80.0f);
-					});
 			}
 
 			// ---- props and the set they (or the activity, or an injury) ask for

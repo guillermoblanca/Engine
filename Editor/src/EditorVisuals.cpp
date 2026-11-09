@@ -26,6 +26,7 @@ namespace GB::Editor
 			return true;
 		});
 		m_EntityRenderer->SetEntityVisual([this](const EntityWorld& w, EntityId id, const glm::mat4& m, Scene& s) { return m_Visuals.Draw(w, id, m, s); });
+		m_ActorRenderer.SetPropDrawer(TribeVisuals::PropDrawer(&m_Visuals));   // the looks the tribe director attaches to the actors' hands and backs
 	}
 
 	void EditorApp::UpdateVisuals(float dt)

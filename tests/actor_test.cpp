@@ -3,6 +3,7 @@
 // models they share. Runs on the generated humanoid of tests/data and, with GB_MIXAMO_DIR, GB_INJURED_DIR and GB_FARMING_DIR (the packs), on
 // the real characters. With GB_ACTOR_BENCH set it also prints what an actor costs per frame. CPU only.
 #include "GB/Game/ActorWorld.h"
+#include "GB/Visual/ActorRender.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <chrono>
@@ -439,7 +440,7 @@ int main()
 			Check(a->Transform.Position == a->GetPosition(), "and its object transform follows the body");
 			Check(a->Anim() == nullptr && a->Instance() == nullptr && !a->UsesLocomotionBlend() && a->PropNames().empty(), "the presentation queries answer empty");
 			Check(!a->AttachProp("box") && !a->StartRagdoll(), "and the presentation actions do nothing");
-			w.AddToScene(*std::make_unique<Scene>());   // nothing to draw: no crash
+			ActorRenderer().AddToScene(w, *std::make_unique<Scene>());   // nothing to draw: no crash
 			w.SetSuspended("abstract", true);
 			Check(a->State() == ObjectState::Paused && w.Suspended("abstract") && w.AnimLevel("abstract") == 3, "suspending pauses the object");
 			w.SetSuspended("abstract", false);

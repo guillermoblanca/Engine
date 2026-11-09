@@ -1,6 +1,6 @@
 #pragma once
 #include "GB/Assets/ModelInstance.h"
-#include "GB/Renderer/Camera.h"
+#include "GB/Scene/Camera.h"
 #include "GB/Scene/CharacterTypes.h"
 #include <cmath>
 #include <cstddef>

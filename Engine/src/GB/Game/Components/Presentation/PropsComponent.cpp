@@ -148,7 +148,7 @@ namespace GB
 		Attach(name);
 	}
 
-	void PropsComponent::AddToScene(Scene& scene) const
+	void PropsComponent::ForEachDrawn(const DrawVisitor& visit) const
 	{
 		const AnimInstance* anim = m_Animation.Anim();
 		if (!anim || !m_Visible) return;   // (H16: far away the props are not drawn)
@@ -157,14 +157,7 @@ namespace GB
 			glm::mat4 world;
 			const auto look = m_Looks.find(n);
 			if (look == m_Looks.end() || !anim->PropMatrix(n, world)) continue;
-			if (!look->second.Look.empty() && m_Drawer && m_Drawer(look->second.Look, world, scene)) continue;
-			if (!m_Mesh) m_Mesh = std::make_unique<Mesh>(Mesh::CreateCube(1.0f));
-			RenderObject obj;
-			obj.MeshPtr = m_Mesh.get();
-			obj.Mat.Albedo = look->second.Color;
-			obj.Mat.Roughness = 0.7f;
-			obj.Transform = glm::scale(world, look->second.Size);
-			scene.Objects.push_back(std::move(obj));
+			visit(look->second.Look, world, look->second.Size, look->second.Color);
 		}
 	}
 }

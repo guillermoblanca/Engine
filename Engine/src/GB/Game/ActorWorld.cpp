@@ -293,9 +293,4 @@ namespace GB
 		else if (preset == "ultra") { c.FullRadius = 50.0f; c.ReducedRadius = 100.0f; c.ReducedEvery = 1; c.FarEvery = 2; }
 		return c;
 	}
-
-	void ActorWorld::AddToScene(Scene& scene) const
-	{
-		for (const auto& [name, actor] : m_Actors) if (!actor->Paused()) actor->AddToScene(scene);
-	}
 }

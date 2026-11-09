@@ -19,8 +19,10 @@
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Effects/Sky.h"
 #include "GB/Effects/Weather.h"
-#include "GB/Game/EntityRender.h"
-#include "GB/Game/TribeVisuals.h"
+#include "GB/Visual/ActorRender.h"
+#include "GB/Visual/EntityRender.h"
+#include "GB/Visual/TribeVisuals.h"
+#include "GB/Visual/VisualContent.h"
 #include "GB/Visual/SceneVisuals.h"
 #include "GB/Gameplay/Garden.h"
 #include "GB/Game/Clans.h"
@@ -430,6 +432,7 @@ namespace GB::Editor
 		size_t m_WeatherLights = 0;
 		SceneEditor m_SceneEditor;
 		std::unique_ptr<EntityRenderer> m_EntityRenderer;
+		ActorRenderer m_ActorRenderer;        // draws m_Actors (GB/Visual/ActorRender.h): the actors hold only data
 		// viewport interaction: click to pick, drag a gizmo axis to move
 		int m_GizmoAxis = -1;                 // -1 none, 0..2 = x, y, z while dragging
 		float m_GizmoStart = 0.0f;

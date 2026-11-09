@@ -3,7 +3,6 @@
 #include "GB/Game/Diplomacy.h"
 #include "GB/Game/GameCamera.h"
 #include "GB/Game/Tribe.h"
-#include "GB/Visual/VisualDefs.h"
 
 namespace GB
 {
@@ -71,10 +70,8 @@ namespace GB
 		std::map<std::string, TribeRole>& roles, TribeAgenda* agenda = nullptr, TribeEconomy* economy = nullptr, WorkRules* work = nullptr, TechTree* techs = nullptr,
 		std::map<std::string, BuildingDef>* buildings = nullptr);
 
-	// The "visuals" section (assets/data/visuals.json): what nodes, props, piles, creatures and buildings look like, through LoadVisuals (atomic for
-	// one document). Apart from the others: the simulation never reads it, only the scene (SceneVisuals::Library).
-	ContentSection VisualContentSection(VisualLibrary& library);
-	void AddVisualContentSection(ContentPacks& packs, VisualLibrary& library);
+	// The "visuals" section is not here: the simulation never reads it. It belongs to the visual layer (GB/Visual/VisualContent.h), and the
+	// application that draws registers it next to these.
 
 	// The "nature" section (assets/data/bosques.json): the patches of wild nodes a generated world gets, through LoadNatureSection.
 	void AddNatureContentSection(ContentPacks& packs, NatureConfig& nature);
@@ -109,7 +106,6 @@ namespace GB
 		SocialRules* Social = nullptr;
 		SocietyRules* Society = nullptr;
 		DiplomacyRules* Diplomacy = nullptr;
-		VisualLibrary* Visuals = nullptr;
 		NatureConfig* Nature = nullptr;
 		TrailRules* Trails = nullptr;   // T5c: the "trails" section (assets/data/trails.json)
 		NeedBook* Needs = nullptr;      // V5: the "needs" section (the needs and verbs a pack adds; DataNeeds.h)

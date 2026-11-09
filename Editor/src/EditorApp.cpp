@@ -148,10 +148,11 @@ namespace GB::Editor
 		content.Explore = &m_Tribe.Config.Explore; content.Econ = &m_Tribe.Config.Econ; content.Combat = &m_Combat.Rules;
 		content.Player = &m_Tribe.Config.Player; content.Controls = &m_Controls; content.Interactives = &m_Interactives.Defs; content.Species = &m_Ecology.Species;
 		content.Cameras = &m_GameView.Params; content.Social = &m_Tribe.Config.Social; content.Society = &m_Tribe.Config.Society; content.Diplomacy = &m_Clans.Rules;
-		content.Visuals = &m_Visuals.Library; content.Nature = &m_Nature;
+		content.Nature = &m_Nature;
 		content.Trails = &m_Tribe.Config.Trails;   // T5c
 		content.Needs = &m_Tribe.Config.DataNeeds;   // V5
 		AddContentSections(m_Packs, content);
+		AddVisualContentSection(m_Packs, m_Visuals.Library);   // the "visuals" section is the visual layer's (the simulation does not read it)
 		{
 			ContentReport report;
 			if (const std::string error = m_Packs.Load(GamePack(), m_AssetRoot + "/data", &report); !error.empty()) GB_CLIENT_WARN("content not loaded: {}", error);
@@ -1557,7 +1558,7 @@ namespace GB::Editor
 		AddVisualsToScene();
 		if (m_Instance)
 			AddToScene(*m_Instance, m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
-		if (m_DrawActors) m_Actors.AddToScene(m_Scene);
+		if (m_DrawActors) m_ActorRenderer.AddToScene(m_Actors, m_Scene);
 		if (m_World.IsBuilt()) m_World.FollowCamera(m_Camera.Position);
 		const auto renderStart = std::chrono::steady_clock::now();
 		m_CpuBuildMs = m_CpuBuildMs * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(renderStart - buildStart).count());

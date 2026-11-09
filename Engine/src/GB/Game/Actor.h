@@ -86,7 +86,9 @@ namespace GB
 		bool KeysTakeOver = false;   // true: a key pressed drops an AI walk or a task list and the host's input drives (a person playing); false: the orders win
 		// The world circles of the other actors, to push against this frame (the static ones come with the host).
 		void SetOthers(const std::vector<CircleObstacle>& others) { m_Movement->SetOthers(others); }
-		void AddToScene(Scene& scene) const { if (m_Geometry) m_Geometry->AddToScene(scene); if (m_Props) m_Props->AddToScene(scene); }
+		// What is drawn of it (null without a model): read by the visual layer (GB/Visual/ActorRender.h); the actor itself does not draw.
+		const GeometryComponent* Geometry() const { return m_Geometry; }
+		const PropsComponent* Props() const { return m_Props; }
 		void SetTints(std::vector<glm::vec3> tints) { if (m_Geometry) m_Geometry->SetTints(std::move(tints)); }   // U4: a colour per material
 		const std::vector<glm::vec3>* Tints() const { return m_Geometry ? &m_Geometry->Tints() : nullptr; }
 
@@ -153,15 +155,12 @@ namespace GB
 		void DetachProp(const std::string& name = "") { if (m_Props) m_Props->Detach(name); }   // empty: all of them
 		std::vector<std::string> PropNames() const { return m_Props ? m_Props->Names() : std::vector<std::string>(); }
 		bool EquipProp(const std::string& name, bool on) { return m_Props && m_Props->Equip(name, on); }   // also changes the walk for the box and the wheelbarrow
-		// A prop drawn by a look of the visuals (GB/Visual): `look` is handed to the prop drawer, `socket` is where it hangs ("hand_r", "hip_r",
+		// A prop drawn by a look of the visuals (GB/Visual): `look` is handed to the prop drawer (ActorRenderer), `socket` is where it hangs ("hand_r", "hip_r",
 		// "back"...; "carry" holds it in both arms between the palms, measured from the clips on screen: switch to the carrying set first, see
 		// TribeVisuals) and `offset` places it in the socket's frame. The same name replaces the prop. False when the rig has no such socket.
 		bool AttachLook(const std::string& name, const std::string& socket, const std::string& look, const glm::mat4& offset = glm::mat4(1.0f)) { return m_Props && m_Props->AttachLook(name, socket, look, offset); }
 		std::string PropLookOf(const std::string& name) const { return m_Props ? m_Props->LookOf(name) : std::string(); }
 		std::string PropSocketOf(const std::string& name) const { return m_Props ? m_Props->SocketOf(name) : std::string(); }
-		// Draws the looks (without one, a prop is a coloured box): the look, the prop's world matrix and the scene. False = draw the box.
-		using PropDrawer = PropsComponent::Drawer;
-		void SetPropDrawer(PropDrawer drawer) { if (m_Props) m_Props->SetDrawer(std::move(drawer)); }
 		// Where the model is drawn: its space to the world (position, facing and the scale to its height). Targets of IK layers go through it.
 		glm::mat4 ModelToWorld() const { return m_Geometry ? m_Geometry->RootMatrix() : glm::mat4(1.0f); }
 		void SetFootIK(bool on) { if (m_Animation) m_Animation->SetFootIK(on); }

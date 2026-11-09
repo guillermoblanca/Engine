@@ -1,4 +1,4 @@
-#include "GB/Game/EntityRender.h"
+#include "GB/Visual/EntityRender.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
