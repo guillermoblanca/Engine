@@ -231,7 +231,8 @@ add_library(GB STATIC
     src/GB/Renderer/WaterRenderer.cpp
     src/GB/Renderer/WaterRipples.cpp
     src/GB/Renderer/WorldTilesGpu.cpp
-    src/GB/Renderer/Visibility.cpp)
+    src/GB/Renderer/Visibility.cpp
+    src/GB/Renderer/MaterialLayers.cpp)
 add_library(GB::GB ALIAS GB)
 # the game's data (ShippedContent.h): the catalogue is read from here unless the application says otherwise
 target_compile_definitions(GB PRIVATE GB_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets/data")

@@ -4,10 +4,14 @@
 // cluster, a felled tree leaves a stump); the props the tribe shows for a bag and a job (the axe in the hand while chopping and on the hip while
 // walking, the basket on the back, a load in the arms with the carrying set on the way to the store); and the buildings' phases with the
 // adapter H8 calls (BuildingVisuals::Build / Set / Read).
+#include "GB/Assets/AssetPath.h"
+#include "GB/Assets/Model.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Items.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Log.h"
+#include "GB/Renderer/Material.h"
+#include "GB/Renderer/MaterialLayers.h"
 #include "GB/Visual/BuildingVisuals.h"
 #include "GB/Visual/ProcMesh.h"
 #include "GB/Visual/ProcTexture.h"
@@ -17,6 +21,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <map>
+#include <memory>
 #include <set>
 
 namespace
@@ -38,6 +44,34 @@ namespace
 		for (const GB::VisualPart& p : m.Parts)
 			for (int i = 0; i < p.Count; ++i, ++k)
 				if (p.Name.rfind(name, 0) == 0 && mask[k]) ++n;
+		return n;
+	}
+
+	// Triangles of a glTF as it is drawn (every node with a mesh, its primitives), loaded on the CPU (GB/Assets/Model.h needs no GL).
+	size_t ModelTriangles(const GB::Model& model)
+	{
+		size_t n = 0;
+		for (const GB::ModelNode& node : model.GetNodes())
+			if (node.MeshIndex >= 0)
+				for (const GB::Model::Primitive& prim : model.GetPrimitives(node.MeshIndex)) n += prim.Geometry.Triangles();
+		return n;
+	}
+
+	// Triangles of the kit pieces (parts of shape "model") of a model in a state: the variant's glTF of every visible copy. `missing` counts the
+	// pieces whose glTF does not load.
+	size_t KitTriangles(const GB::VisualModel& m, const std::vector<bool>& mask, int variant, int* missing = nullptr)
+	{
+		static std::map<std::string, std::unique_ptr<GB::Model>> loaded;
+		size_t n = 0;
+		for (const auto& [part, at] : GB::ModelPieces(m, mask, variant))
+		{
+			(void)at;
+			const std::string& path = GB::KitModel(m.Parts[part], variant);
+			auto it = loaded.find(path);
+			if (it == loaded.end()) it = loaded.emplace(path, GB::Model::Load(GB::ResolveAssetPath(path, GB_ASSET_DIR))).first;
+			if (it->second) n += ModelTriangles(*it->second);
+			else if (missing) ++*missing;
+		}
 		return n;
 	}
 
@@ -74,6 +108,92 @@ int main()
 			"another file of the pack (H8's buildings in era1.json) is not read as visuals");
 		Check(LoadVisuals("{ \"visuals\": { \"models\": { \"tree\": { \"variants\": 1, \"parts\": [ { \"name\": \"Trunk\", \"shape\": \"box\", \"material\": \"bark\" } ] } } } }", copy).empty()
 			&& copy.Models.at("tree").Parts.size() == 1 && copy.Models.size() == lib.Models.size(), "a pack can redraw one model by id, keeping the rest");
+	}
+
+	// ---- material layers (GB/Renderer/MaterialLayers.h): data switches on engine-defined shader layers, checked against the registry
+	{
+		Check(FindMaterialLayer("moss") && FindMaterialLayer("grain") && !FindMaterialLayer("glass"), "the registry has moss and grain");
+		for (const auto& [id, m] : lib.Materials)
+			for (const auto& [layer, values] : m.Layers) Check(FindMaterialLayer(layer) != nullptr, "material " + id + " uses a registered layer");
+		const auto lime = lib.Materials.find("limestone");
+		Check(lime != lib.Materials.end() && lime->second.Layers.count("moss"), "visuals.json has limestone with the moss layer");
+		Check(lib.Materials.at("stone").Layers.empty(), "stone (the hut's footing) has no layers");
+
+		const std::string doc = R"({ "visuals": { "materials": {
+			"mossy": { "color": [0.5, 0.5, 0.5], "surface": "cutout", "layers": { "moss": { "amount": 0.3, "color": [0.16, 0.2, 0.06] }, "grain": { "scale": 5 } } },
+			"plain": { "color": [0.5, 0.5, 0.5] } } } })";
+		VisualLibrary l;
+		Check(LoadVisuals(doc, l).empty(), "a material with layers loads");
+		const VisualMaterial& mossy = l.Materials.at("mossy");
+		Check(mossy.Surface == "cutout" && l.Materials.at("plain").Surface == "opaque", "surface reads, opaque by default");
+		Check(mossy.Layers.at("moss").at("amount").x == 0.3f && mossy.Layers.at("moss").at("color") == glm::vec3(0.16f, 0.2f, 0.06f), "the moss parameters read");
+		Material r;
+		r.Albedo = glm::vec3(0.1f, 0.2f, 0.3f);
+		ApplyMaterialLayers(mossy.Layers, r);
+		Check(r.Moss == 0.3f && r.MossColor == glm::vec3(0.16f, 0.2f, 0.06f), "moss lands on the render material");
+		Check(r.Grain == 0.35f && r.GrainScale == 5.0f, "a missing parameter takes its default (grain amount 0.35), a given one its value");
+		Check(r.Albedo == glm::vec3(0.1f, 0.2f, 0.3f) && r.Alpha == AlphaMode::Opaque, "the layers change nothing else (a glTF piece keeps its surface and colour)");
+		Material plain, before;
+		ApplyMaterialLayers(l.Materials.at("plain").Layers, plain);
+		Check(l.Materials.at("plain").Layers.empty() && plain.Moss == before.Moss && plain.Grain == before.Grain && plain.MossColor == before.MossColor,
+			"without layers nothing changes (the old data draws as before)");
+		VisualLibrary back;
+		Check(LoadVisuals(VisualsToJson(l), back).empty() && back == l, "layers and surface go through JSON and back");
+
+		auto refused = [&](const std::string& material, const std::string& expect, const std::string& what)
+		{
+			VisualLibrary copy = l;
+			const std::string why = LoadVisuals(R"({ "visuals": { "materials": { "bad": )" + material + " } } }", copy);
+			Check(!why.empty() && why.find(expect) != std::string::npos && copy == l, what + " is refused (" + why + ")");
+		};
+		refused(R"({ "layers": { "glass": { "amount": 1 } } })", "unknown layer 'glass'", "an unknown layer");
+		refused(R"({ "layers": { "moss": { "thickness": 1 } } })", "unknown parameter 'thickness'", "an unknown parameter");
+		refused(R"({ "layers": { "moss": { "amount": [1, 2, 3] } } })", "'amount': a number", "a vector where a number goes");
+		refused(R"({ "layers": { "moss": { "amount": "lots" } } })", "'amount': a number", "a string where a number goes");
+		refused(R"({ "layers": { "moss": { "color": 0.5 } } })", "'color': a colour", "a number where a colour goes");
+		refused(R"({ "layers": { "moss": { "amount": 1.5 } } })", "out of range", "a value out of range");
+		refused(R"({ "layers": [ "moss" ] })", "layers must be an object", "a list of layers");
+		refused(R"({ "surface": "glass" })", "unknown surface", "an unknown surface");
+	}
+
+	// ---- kit pieces: one glTF per variant ("models"), counted in the budgets (T29)
+	{
+		const std::string doc = R"({ "visuals": { "materials": { "m": { "color": [0.5, 0.5, 0.5], "layers": { "moss": { "amount": 0.4 } } } },
+			"models": { "kit": { "variants": 3, "parts": [
+				{ "name": "Piece", "shape": "model", "models": [ "models/DamagedHelmet.glb", "models/Fox.glb" ], "material": "m" },
+				{ "name": "Old", "shape": "model", "model": "models/Fox.glb", "count": 2, "layout": "row", "spacing": 1 } ] } },
+			"buildings": { "kitbuilt": { "phases": [ { "name": "all", "parts": [ { "name": "Whole", "shape": "model", "model": "models/Fox.glb" } ] } ] } } } })";
+		VisualLibrary l;
+		const std::string why = LoadVisuals(doc, l);
+		Check(why.empty(), "a model of kit pieces with models per variant loads: " + why);
+		if (why.empty())
+		{
+			const VisualModel& m = l.Models.at("kit");
+			const VisualPart& piece = m.Parts[0];
+			Check(KitModel(piece, 0) == "models/DamagedHelmet.glb" && KitModel(piece, 1) == "models/Fox.glb" && KitModel(piece, 2) == "models/DamagedHelmet.glb",
+				"the copy of variant v takes models[v % n]");
+			Check(KitModel(m.Parts[1], 0) == "models/Fox.glb" && KitModel(m.Parts[1], 2) == "models/Fox.glb", "a part with one model keeps it for every variant");
+			const std::vector<bool> all = VisibleCopies(m, 1.0f);
+			Check(BuildVisual(m, all, 0).empty() && ModelPieces(m, all, 0).size() == 3, "only kit pieces: no procedural mesh, three pieces");
+			int missing = 0;
+			const size_t t0 = KitTriangles(m, all, 0, &missing), t1 = KitTriangles(m, all, 1, &missing);
+			Check(missing == 0 && t0 > 0 && t1 > 0 && t0 != t1, "the budget counts the variant's glTF (" + std::to_string(t0) + " / " + std::to_string(t1) + " triangles)");
+			std::vector<bool> mask;
+			const VisualModel whole = BuildingModel(l.Buildings.at("kitbuilt"), 1000, 1.0f, mask);
+			Check(KitTriangles(whole, mask, 0) > 0, "a building made only of kit pieces has triangles");
+			VisualLibrary back;
+			Check(LoadVisuals(VisualsToJson(l), back).empty() && back == l, "models go through JSON and back");
+		}
+		auto refused = [&](const std::string& part, const std::string& what)
+		{
+			VisualLibrary copy = l;
+			const std::string err = LoadVisuals(R"({ "visuals": { "models": { "bad": { "parts": [ )" + part + " ] } } } }", copy);
+			Check(!err.empty() && copy == l, what + " is refused (" + err + ")");
+		};
+		refused(R"({ "name": "x", "shape": "model", "models": [] })", "an empty models list");
+		refused(R"({ "name": "x", "shape": "model", "models": [ 3 ] })", "a models list that is not of paths");
+		refused(R"({ "name": "x", "shape": "box", "material": "m", "models": [ "a.glb" ] })", "models on a part that is not a model");
+		refused(R"({ "name": "x", "shape": "model", "model": "a.glb", "material": "nope" })", "a kit piece naming an unknown material");
 	}
 
 	// ---- procedural textures: deterministic, distinct, tileable, small for quality minimum
@@ -128,9 +248,13 @@ int main()
 			for (int v = 0; v < m.Variants; ++v)
 			{
 				const std::vector<VisualPiece> one = BuildVisual(m, 1.0f, v), two = BuildVisual(m, 1.0f, v);
-				Check(!one.empty(), "model " + id + " builds");
+				// T29: a model may be all kit pieces (glTF): they count for "builds" and for the budget
+				int missing = 0;
+				const size_t kit = KitTriangles(m, VisibleCopies(m, 1.0f), v, &missing);
+				Check(missing == 0, "model " + id + ": every kit piece loads");
+				Check(!one.empty() || kit > 0, "model " + id + " builds");
 				Check(VisualTriangles(one) == VisualTriangles(two) && (one.empty() || one[0].Mesh.Hash() == two[0].Mesh.Hash()), "model " + id + " builds the same twice");
-				const size_t tris = VisualTriangles(one);
+				const size_t tris = VisualTriangles(one) + kit;
 				const bool prop = lib.Props.Looks.count(id) || id.rfind("axe", 0) == 0 || id.rfind("pick", 0) == 0;
 				(prop ? worstProp : worstNode) = std::max(prop ? worstProp : worstNode, tris);
 				Check(tris <= (prop ? 1500u : 9000u), "model " + id + " stays within its triangle budget (" + std::to_string(tris) + ")");
@@ -139,7 +263,9 @@ int main()
 		{
 			std::vector<bool> mask;
 			const VisualModel whole = BuildingModel(b, 1000, 1.0f, mask);
-			const size_t tris = VisualTriangles(BuildVisual(whole, mask, 0));
+			int missing = 0;
+			const size_t tris = VisualTriangles(BuildVisual(whole, mask, 0)) + KitTriangles(whole, mask, 0, &missing);
+			Check(missing == 0, "building " + id + ": every kit piece loads");
 			worstBuilding = std::max(worstBuilding, tris);
 			Check(tris > 0 && tris <= 20000, "building " + id + " stays within 20000 triangles (" + std::to_string(tris) + ")");
 		}

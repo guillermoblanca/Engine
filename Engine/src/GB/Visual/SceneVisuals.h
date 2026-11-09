@@ -42,10 +42,16 @@ namespace GB
 		size_t CachedTextures() const { return m_Textures.size(); }
 
 	private:
+		struct KitDraw
+		{
+			std::string Path;                                                     // the glTF (the variant's, KitModel)
+			glm::mat4 At{ 1.0f };                                                 // where in the model
+			std::string Material;                                                 // the part's material: its layers go on the piece ("" = none)
+		};
 		struct Entry
 		{
 			std::vector<std::pair<std::unique_ptr<Mesh>, std::string>> Pieces;   // mesh, material
-			std::vector<std::pair<std::string, glm::mat4>> Kit;                   // kit pieces: glTF path, where in the model
+			std::vector<KitDraw> Kit;                                             // kit pieces
 			glm::vec3 Center{ 0.0f };
 			float Radius = 0.0f;
 		};

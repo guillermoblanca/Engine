@@ -58,6 +58,7 @@ namespace GB
 			if (p.Rotation != d.Rotation) j["rot"] = Vec(p.Rotation);
 			j["material"] = p.Material;
 			if (!p.Model.empty()) j["model"] = p.Model;
+			if (!p.Models.empty()) j["models"] = p.Models;
 			if (p.Sides != d.Sides) j["sides"] = p.Sides;
 			if (p.Bend != d.Bend) j["bend"] = p.Bend;
 			if (p.Detail != d.Detail) j["detail"] = p.Detail;
@@ -85,8 +86,19 @@ namespace GB
 			if (!ReadVec(j, "pos", p.Position) || !ReadVec(j, "size", p.Size) || !ReadVec(j, "rot", p.Rotation)) return where + " '" + p.Name + "': pos, size and rot are [x, y, z]";
 			p.Material = j.value("material", "");
 			p.Model = j.value("model", "");
-			if (p.Shape == "model" && p.Model.empty()) return where + " '" + p.Name + "': a model part names its piece (\"model\": \"<path of a glTF>\")";
-			if (p.Shape != "model" && !materials.count(p.Material)) return where + " '" + p.Name + "': unknown material '" + p.Material + "'";
+			if (const auto it = j.find("models"); it != j.end())
+			{
+				if (!it->is_array() || it->empty()) return where + " '" + p.Name + "': models is a list of glTF paths, one per variant";
+				for (const Json& m : *it)
+				{
+					if (!m.is_string() || m.get<std::string>().empty()) return where + " '" + p.Name + "': models is a list of glTF paths, one per variant";
+					p.Models.push_back(m.get<std::string>());
+				}
+			}
+			if (p.Shape == "model" && p.Model.empty() && p.Models.empty()) return where + " '" + p.Name + "': a model part names its piece (\"model\": \"<path of a glTF>\" or \"models\": [one per variant])";
+			if (p.Shape != "model" && !p.Models.empty()) return where + " '" + p.Name + "': only a model part has models";
+			// a kit piece needs no material (the glTF brings its own); if it names one, it must exist: its layers go on the piece
+			if ((p.Shape != "model" || !p.Material.empty()) && !materials.count(p.Material)) return where + " '" + p.Name + "': unknown material '" + p.Material + "'";
 			p.Sides = j.value("sides", p.Sides);
 			p.Bend = j.value("bend", p.Bend);
 			p.Detail = j.value("detail", p.Detail);
@@ -111,6 +123,54 @@ namespace GB
 			}
 			p.Progressive = j.value("progressive", false);
 			return "";
+		}
+
+		// "layers": { "<layer>": { "<param>": number or [x, y, z] } }, checked against the registry (GB/Renderer/MaterialLayers.h).
+		std::string LayersFromJson(const Json& material, MaterialLayers& out)
+		{
+			const auto it = material.find("layers");
+			if (it == material.end()) return "";
+			if (!it->is_object()) return "layers must be an object ({ \"moss\": { \"amount\": 0.4 } })";
+			for (const auto& [name, params] : it->items())
+			{
+				const MaterialLayerDef* def = FindMaterialLayer(name);
+				if (!def)
+				{
+					std::string known;
+					for (const MaterialLayerDef& l : MaterialLayerRegistry()) known += (known.empty() ? "" : ", ") + std::string(l.Name);
+					return "unknown layer '" + name + "' (" + known + ")";
+				}
+				if (!params.is_object()) return "layer '" + name + "' must be an object of parameters";
+				MaterialLayerValues values;
+				for (const auto& [param, v] : params.items())
+				{
+					std::vector<float> numbers;
+					if (v.is_number()) numbers.push_back(v.get<float>());
+					else if (v.is_array()) for (const Json& x : v) { if (!x.is_number()) { numbers.clear(); numbers.resize(4); break; } numbers.push_back(x.get<float>()); }
+					else numbers.resize(4);   // (not a number nor a list of numbers: the size check reports the type)
+					if (std::string why = SetLayerParam(*def, values, param, numbers); !why.empty()) return why;
+				}
+				out[name] = std::move(values);
+			}
+			return "";
+		}
+
+		Json LayersToJson(const MaterialLayers& layers)
+		{
+			Json out = Json::object();
+			for (const auto& [name, values] : layers)
+			{
+				Json j = Json::object();
+				for (const auto& [param, v] : values)
+				{
+					const MaterialLayerDef* def = FindMaterialLayer(name);
+					const MaterialLayerParam* p = def ? FindLayerParam(*def, param) : nullptr;
+					if (p && p->Type == LayerParamType::Float) j[param] = v.x;
+					else j[param] = Vec(v);
+				}
+				out[name] = j;
+			}
+			return out;
 		}
 
 		Json PartsToJson(const std::vector<VisualPart>& parts)
@@ -230,6 +290,9 @@ namespace GB
 					m.Wind = j.value("wind", 0.0f);
 					m.Seasonal = j.value("seasonal", false);
 					m.DoubleSided = j.value("doubleSided", false);
+					m.Surface = j.value("surface", m.Surface);
+					if (m.Surface != "opaque" && m.Surface != "cutout" && m.Surface != "translucent") return "material '" + id + "': unknown surface '" + m.Surface + "' (opaque, cutout, translucent)";
+					if (std::string why = LayersFromJson(j, m.Layers); !why.empty()) return "material '" + id + "': " + why;
 					next.Materials[id] = m;
 				}
 			}
@@ -413,6 +476,8 @@ namespace GB
 			if (m.Wind != 0.0f) j["wind"] = m.Wind;
 			if (m.Seasonal) j["seasonal"] = true;
 			if (m.DoubleSided) j["doubleSided"] = true;
+			if (m.Surface != "opaque") j["surface"] = m.Surface;
+			if (!m.Layers.empty()) j["layers"] = LayersToJson(m.Layers);
 			materials[id] = j;
 		}
 		root["materials"] = materials;
@@ -561,6 +626,13 @@ namespace GB
 				if (p.Shape == "model" && copy < visible.size() && visible[copy]) out.push_back({ pi, CopyTransform(p, i, partSeed) * own });
 		}
 		return out;
+	}
+
+	const std::string& KitModel(const VisualPart& part, int variant)
+	{
+		if (part.Models.empty()) return part.Model;
+		const size_t n = part.Models.size();
+		return part.Models[static_cast<size_t>(std::max(0, variant)) % n];
 	}
 
 	int VisualVariant(const VisualModel& model, const std::string& instance)

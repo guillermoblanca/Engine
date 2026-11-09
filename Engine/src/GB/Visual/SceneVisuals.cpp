@@ -41,6 +41,8 @@ namespace GB
 		m.WindHeight = v.Wind > 0.0f ? 3.0f : 1.0f;
 		m.WindFlutter = v.Wind * 0.5f;
 		m.DoubleSided = v.DoubleSided;
+		m.Alpha = v.Surface == "translucent" ? AlphaMode::Blend : v.Surface == "cutout" ? AlphaMode::Mask : AlphaMode::Opaque;
+		ApplyMaterialLayers(v.Layers, m);
 		return m;
 	}
 
@@ -59,10 +61,12 @@ namespace GB
 				hi = glm::max(hi, b);
 				entry.Pieces.emplace_back(std::make_unique<Mesh>(piece.Mesh.Vertices, piece.Mesh.Indices), piece.Material);
 			}
-			for (const auto& [part, at] : ModelPieces(model, visible, variant))   // the kit pieces (shape "model")
-				if (const KitPiece* kit = Kit(model.Parts[part].Model))
+			for (const auto& [part, at] : ModelPieces(model, visible, variant))   // the kit pieces (shape "model"), the variant's glTF
+			{
+				const std::string& path = KitModel(model.Parts[part], variant);
+				if (const KitPiece* kit = Kit(path))
 				{
-					entry.Kit.push_back({ model.Parts[part].Model, at });
+					entry.Kit.push_back({ path, at, model.Parts[part].Material });
 					for (int c = 0; c < 8; ++c)
 					{
 						const glm::vec3 corner((c & 1) ? kit->Max.x : kit->Min.x, (c & 2) ? kit->Max.y : kit->Min.y, (c & 4) ? kit->Max.z : kit->Min.z);
@@ -71,6 +75,7 @@ namespace GB
 						hi = glm::max(hi, p);
 					}
 				}
+			}
 			if (!entry.Kit.empty() && entry.Pieces.empty()) { entry.Center = (lo + hi) * 0.5f; entry.Radius = glm::length(hi - lo) * 0.5f; }
 			if (!entry.Pieces.empty()) { entry.Center = (lo + hi) * 0.5f; entry.Radius = glm::length(hi - lo) * 0.5f; }
 			it = m_Meshes.emplace(key, std::move(entry)).first;
@@ -87,16 +92,22 @@ namespace GB
 			obj.Instanced = true;   // (a cached piece: the same mesh always has the same material, so every node or building of the kind is one draw)
 			scene.Objects.push_back(std::move(obj));
 		}
-		for (const auto& [path, at] : it->second.Kit)   // kit pieces: every wall of every house is one draw per mesh
-			if (const KitPiece* kit = Kit(path))
+		for (const KitDraw& k : it->second.Kit)   // kit pieces: every wall of every house is one draw per mesh
+			if (const KitPiece* kit = Kit(k.Path))
+			{
+				// the part's material lends its layers (moss...) to every primitive of the piece; the glTF's own surface and maps stay
+				const auto layered = k.Material.empty() ? m_Library.Materials.end() : m_Library.Materials.find(k.Material);
+				const MaterialLayers* layers = layered != m_Library.Materials.end() && !layered->second.Layers.empty() ? &layered->second.Layers : nullptr;
 				for (const RenderObject& o : kit->Objects)
 				{
 					RenderObject obj = o;
-					obj.Transform = world * at * o.Transform;
+					if (layers) ApplyMaterialLayers(*layers, obj.Mat);
+					obj.Transform = world * k.At * o.Transform;
 					obj.MaxDistance = maxDistance;
 					obj.Instanced = true;
 					scene.Objects.push_back(std::move(obj));
 				}
+			}
 		return true;
 	}
 

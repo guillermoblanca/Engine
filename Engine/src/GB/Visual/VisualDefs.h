@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/MaterialLayers.h"
 #include "GB/Visual/ProcMesh.h"
 #include <glm/glm.hpp>
 #include <map>
@@ -25,6 +26,8 @@ namespace GB
 		float Wind = 0.0f;                // sway in the wind (crowns, grass)
 		bool Seasonal = false;            // takes the season's foliage colour (crowns, bushes)
 		bool DoubleSided = false;         // blades of grass and straw
+		std::string Surface = "opaque";   // "opaque", "cutout" (alpha-tested) or "translucent" (blended); see MATERIALES.md
+		MaterialLayers Layers;            // procedural layers ("moss", "grain"...) and their parameters (GB/Renderer/MaterialLayers.h)
 		bool operator==(const VisualMaterial&) const = default;
 	};
 
@@ -41,7 +44,9 @@ namespace GB
 		glm::vec3 Size{ 1.0f };
 		glm::vec3 Rotation{ 0.0f };       // degrees: pitch (x), yaw (y), roll (z)
 		std::string Material;
-		std::string Model;                // shape "model": a piece of a modular kit (a glTF/GLB under the assets, drawn as it is; Size scales it)
+		std::string Model;                // shape "model": a piece of a modular kit (a glTF/GLB under the assets, drawn as it is; Size scales it).
+		                                  // Its Material, if any, only lends its layers (moss...): the glTF keeps its own surface and textures
+		std::vector<std::string> Models;  // shape "model": one piece per variant (copy of variant v uses Models[v % size]); overrides Model
 		int Sides = 8;                    // cylinder
 		float Bend = 0.0f;                // cylinder: the top leans this far (metres)
 		int Detail = 1;                   // blob: subdivisions (0..3)
@@ -88,6 +93,8 @@ namespace GB
 	// How a carried thing is drawn and where (see PropVisuals.h): a model and the socket it hangs from, moved by an offset in the socket's frame.
 	// The kit pieces of a model (parts of shape "model") that are visible: the part's index and where the copy goes in the model.
 	std::vector<std::pair<size_t, glm::mat4>> ModelPieces(const struct VisualModel& model, const std::vector<bool>& visible, int variant);
+	// The glTF a kit part draws for a variant: Models[variant % size] when it has a list, else Model.
+	const std::string& KitModel(const VisualPart& part, int variant);
 
 	struct PropLook
 	{
@@ -181,6 +188,9 @@ namespace GB
 
 	// The "visuals" section: { "materials": {id: {...}}, "models": {id: {"variants", "note", "parts": [...]}}, "buildings": {id: {"footprint", "phases":
 	// [{"name", "parts"}]}}, "creatures", "piles", "reach", "props": {"looks", "items", "rest", "work", "hand", "carry", "carryJobs", "maxShown"} }.
+	// A material may say its "surface" (opaque, cutout, translucent) and switch on "layers" of the registry ({"moss": {"amount": 0.4, "color":
+	// [r, g, b]}}); an unknown layer or parameter, a value of the wrong type or out of range is a mistake. A model part may give "models": [one
+	// glTF per variant] instead of "model".
 	// Entries replace those of the same id (a pack can redraw one model); a part's fields that are missing take their defaults. Checks that every
 	// part names a known shape and an existing material, every look an existing model and every building phase has parts; on any mistake
 	// returns what is wrong and changes nothing.
