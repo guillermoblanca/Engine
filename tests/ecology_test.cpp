@@ -19,6 +19,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 struct Meadow
 {
 	explicit Meadow(bool plants)
@@ -64,8 +67,9 @@ struct Meadow
 	int peak = 0;
 	bool bad = false;
 };
+}
 
-int main()
+int GBTest_ecology(int, char**)
 {
 	// Seasons.
 	{

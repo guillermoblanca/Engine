@@ -16,6 +16,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 struct World
 {
 	ItemLibrary Items;
@@ -65,8 +68,9 @@ static std::string Loop(const World& w, bool& ok)
 	(void)tree2;
 	return inv.ToJson();
 }
+}
 
-int main()
+int GBTest_items(int, char**)
 {
 	World w;
 

@@ -48,7 +48,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_audio(int, char**)
 {
 	using namespace GB;
 	Log::Init();

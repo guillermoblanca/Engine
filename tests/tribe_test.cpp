@@ -27,6 +27,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // Runs the text of a task list against an ability system: goto and wait take time, "ability A node" activates it and waits until it ends.
 class FakeBody : public ITribeBody
 {
@@ -259,8 +262,9 @@ struct Village
 	std::vector<std::unique_ptr<FakeBody>> bodies;
 	bool bad = false;
 };
+}
 
-int main()
+int GBTest_tribe(int, char**)
 {
 	// Roles are data (assets/data/era1.json, "roles"): the file says what the code says, and a node the code never named is weighed by its kind.
 	{

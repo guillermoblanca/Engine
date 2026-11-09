@@ -30,7 +30,7 @@ namespace
 	};
 }
 
-int main()
+int GBTest_gbobject(int, char**)
 {
 	{
 		GB::GBObject o("marker");

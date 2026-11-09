@@ -32,7 +32,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_locomotion(int, char**)
 {
 	using namespace GB;
 	Log::Init();

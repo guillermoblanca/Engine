@@ -29,6 +29,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // Runs the text of a task list against an ability system (as in tribe_test): goto and wait take time, "ability A node" walks to it, activates it
 // and waits until it ends.
 class FakeBody : public ITribeBody
@@ -186,8 +189,9 @@ static ResourceGround Land()
 	g.SlopeDegrees = [](float x, float) { return x < -40.0f ? 30.0f : 3.0f; };
 	return g;
 }
+}
 
-int main()
+int GBTest_settlement(int, char**)
 {
 	Log::Init();
 

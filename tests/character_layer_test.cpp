@@ -19,7 +19,7 @@ namespace
 	bool Near(float a, float b, float eps = 0.05f) { return std::fabs(a - b) < eps; }
 }
 
-int main()
+int GBTest_character_layer(int, char**)
 {
 	using namespace GB;
 	Log::Init();

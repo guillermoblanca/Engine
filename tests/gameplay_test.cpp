@@ -35,6 +35,9 @@ static void Run(AbilitySystemComponent& a, float seconds)
 	for (int i = 0; i < frames; ++i) a.Update(dt);
 }
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // The garden as a game would run it, without a character: abilities run on timers.
 struct Garden
 {
@@ -121,8 +124,9 @@ struct Actor
 	CharacterController Controller;
 	MotionTracker Tracker;
 };
+}
 
-int main()
+int GBTest_gameplay(int, char**)
 {
 	Log::Init();
 

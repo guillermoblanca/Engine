@@ -16,7 +16,7 @@ namespace
 	struct Px { double r = 0, g = 0, b = 0; double Luma() const { return 0.2126 * r + 0.7152 * g + 0.0722 * b; } };
 }
 
-int main()
+int GBTest_post(int, char**)
 {
 	GB::Log::Init();
 	GB::WindowProps props;

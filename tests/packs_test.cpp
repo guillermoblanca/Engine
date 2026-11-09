@@ -32,6 +32,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // The live content of a game, with its packs.
 struct Game
 {
@@ -61,8 +64,9 @@ struct Game
 	}
 	std::string Snapshot() const { return ContentToJson(Items, Recipes, Nodes) + RolesToJson(Roles); }
 };
+}
 
-int main()
+int GBTest_packs(int, char**)
 {
 	const std::filesystem::path dir = std::filesystem::temp_directory_path() / "gb_packs_test";
 	std::filesystem::remove_all(dir);

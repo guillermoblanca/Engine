@@ -46,7 +46,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_turn_layer(int, char**)
 {
 	using namespace GB;
 	Log::Init();

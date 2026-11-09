@@ -44,7 +44,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_water_module(int, char**)
 {
 	GB::Log::Init();
 

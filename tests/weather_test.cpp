@@ -36,7 +36,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_weather(int, char**)
 {
 	// ---------------------------------------------------------------- particle forces
 	{

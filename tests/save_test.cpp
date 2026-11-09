@@ -574,7 +574,7 @@ static void TestReservedSlots()
 	if (kFormatVersion == 1) Check(SaveGameToString(g) == text, "and this version writes it back exactly");
 }
 
-int main()
+int GBTest_save(int, char**)
 try
 {
 	TestRoundTrip();

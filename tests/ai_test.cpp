@@ -33,6 +33,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // Runs the text of a task list against an ability system: goto and wait take time, "ability A node" walks to the node, activates it and waits until it ends.
 class FakeBody : public ITribeBody
 {
@@ -330,12 +333,20 @@ public:
 	double Clock = 0.0, BrainSeconds = 0.0, WorstMs = 0.0;
 	int Frames = 0;
 };
+}
 
-int main()
+// The argument picks a part (T51, tests/CMakeLists.txt): "main" every case but the crowd, "crowd_full" and "crowd_lod" one run of the crowd
+// each (the crowd is most of the time). With no argument, all of it (the "why" checks now before the crowd).
+int GBTest_ai(int argc, char** argv)
 {
 	const auto started = std::chrono::steady_clock::now();
 	const double tenDays = 10.0 * kDay;
+	const std::string part = argc > 1 ? argv[1] : "all";
+	const bool all = part == "all";
+	if (!all && part != "main" && part != "crowd_full" && part != "crowd_lod") { std::fprintf(stderr, "unknown part '%s' (main, crowd_full, crowd_lod)\n", part.c_str()); return 2; }
 
+	if (all || part == "main")
+	{
 	// ---- alone with food and water for ten days
 	Settings rich;
 	World lives(rich);
@@ -483,7 +494,19 @@ int main()
 		Check(!w.Member().Dead, "and the rest goes on");
 	}
 
+	// ---- why: the inspector has something to say (before the crowd since T51, which split the crowd off: it only reads the agent of the rich world)
+	{
+		const std::string why = lives.Brain.Because(lives.Member());
+		Check(!why.empty() && why != "no decision yet", "the agent can say why it does what it does");
+		Check(!lives.Member().Mind.Options.empty() && lives.Member().Mind.Chosen >= 0, "with the options it weighed");
+		bool factors = false;
+		for (const UtilityOption& o : lives.Member().Mind.Options) if (!o.Factors.empty()) factors = true;
+		Check(factors, "and the factors of each score");
+	}
+	}
+
 	// ---- a hundred agents, one tribe with a patch scaled to it: ten days, decisions spread over frames, the far ones abstract
+	if (all || part == "crowd_full" || part == "crowd_lod")
 	{
 		const int crowd = 100;
 		const double crowdDays = std::getenv("GB_AI_CROWD_DAYS") ? std::atof(std::getenv("GB_AI_CROWD_DAYS")) : 2.0;   // ten days take two minutes: GB_AI_CROWD_DAYS=10
@@ -491,6 +514,7 @@ int main()
 		std::fprintf(stderr, "  crowd of %d:", crowd);
 		for (const bool lod : { false, true })
 		{
+			if (!all && part != (lod ? "crowd_lod" : "crowd_full")) continue;
 			Crowd c(crowd, lod);
 			const auto t0 = std::chrono::steady_clock::now();
 			c.Run(1200.0 * (lod ? crowdDays : 1.0));
@@ -506,16 +530,6 @@ int main()
 			if (lod) Check(c.Brain.AbstractCount() > 0, "some were abstract");
 		}
 		std::fprintf(stderr, "\n");
-	}
-
-	// ---- why: the inspector has something to say
-	{
-		const std::string why = lives.Brain.Because(lives.Member());
-		Check(!why.empty() && why != "no decision yet", "the agent can say why it does what it does");
-		Check(!lives.Member().Mind.Options.empty() && lives.Member().Mind.Chosen >= 0, "with the options it weighed");
-		bool factors = false;
-		for (const UtilityOption& o : lives.Member().Mind.Options) if (!o.Factors.empty()) factors = true;
-		Check(factors, "and the factors of each score");
 	}
 
 	const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count();

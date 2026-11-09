@@ -27,7 +27,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_destruction(int, char**)
 {
 	// ---- an explosion pushes bodies away, weaker with distance and for heavy bodies
 	{

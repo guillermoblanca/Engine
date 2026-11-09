@@ -94,7 +94,7 @@ namespace
 		"experiment", "rest", "haul", "build", "deliver", "farm.till", "farm.sow", "farm.tend", "farm.harvest", "dead", "flee", "hunt", "injured", "explore", "recover", "care" };
 }
 
-int main()
+int GBTest_anim_usage(int, char**)
 {
 	using namespace GB;
 	Log::Init();

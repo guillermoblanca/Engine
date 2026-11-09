@@ -82,7 +82,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_visuals(int, char**)
 {
 	using namespace GB;
 	Log::Init();

@@ -370,7 +370,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_sim_scale(int, char**)
 {
 	GB::Log::Init();
 	std::setvbuf(stdout, nullptr, _IONBF, 0);

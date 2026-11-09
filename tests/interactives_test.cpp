@@ -18,6 +18,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 struct Camp
 {
 	Camp()
@@ -112,8 +115,9 @@ static std::string Day(bool& ok)
 	step(c.Entities.Find(hinge)->Transform.Rotation.y < 1.0f, "and swings back");
 	return c.State();
 }
+}
 
-int main()
+int GBTest_interactives(int, char**)
 {
 	// Interactives are data (assets/data/world.json, "interactives"): the file says what the code says, a damaged document changes nothing, and a
 	// new interactive of a known kind (a bigger hearth) needs no code.

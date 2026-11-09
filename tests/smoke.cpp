@@ -19,7 +19,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_smoke(int, char**)
 {
 	GB::Log::Init();
 	GB::Log::Init(); // must be idempotent

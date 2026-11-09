@@ -39,6 +39,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // The stand-in body of tribe_test: it runs the text of a task list (goto and wait take time; "ability A node" walks there and activates it).
 class FakeBody : public ITribeBody
 {
@@ -318,8 +321,9 @@ Duel RunDuel(float strengthA, float strengthB, const std::string& weaponA = "axe
 	for (const auto& [n, c] : w.Combat.All()) d.Blows += c.Landed + c.Missed;
 	return d;
 }
+}
 
-int main()
+int GBTest_combat(int, char**)
 {
 	const std::string data = std::string(GB_ASSETS_DIR) + "/data";
 

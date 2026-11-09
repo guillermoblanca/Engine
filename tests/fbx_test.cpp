@@ -20,7 +20,7 @@ namespace
 	bool Near(float a, float b, float eps = 0.02f) { return std::fabs(a - b) < eps; }
 }
 
-int main()
+int GBTest_fbx(int, char**)
 {
 	using namespace GB;
 	Log::Init();

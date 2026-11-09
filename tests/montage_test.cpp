@@ -43,7 +43,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_montage(int, char**)
 {
 	using namespace GB;
 	Log::Init();

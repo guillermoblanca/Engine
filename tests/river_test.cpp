@@ -23,7 +23,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_river(int, char**)
 {
 	GB::Log::Init();
 

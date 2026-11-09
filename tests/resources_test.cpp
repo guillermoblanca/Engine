@@ -15,6 +15,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 struct Field
 {
 	// patchWorkers 0 = the small default patch; more = the patch the node definitions describe, for that many workers (E1)
@@ -90,8 +93,9 @@ static std::string Loop(bool& ok)
 	step(f.Amount("tree 1") == 0 && f.Bag.Count("wood") == 7, "five chops fell the tree (2 wood left after the axe + 5)");
 	return f.Bag.ToJson() + "|" + std::to_string(f.Amount("tree 1")) + "|" + std::to_string(f.Amount("fiber grass 1"));
 }
+}
 
-int main()
+int GBTest_resources(int, char**)
 {
 	// One field, step by step.
 	{

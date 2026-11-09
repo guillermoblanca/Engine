@@ -28,6 +28,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // The same stand-in as tribe_test and work_test: it runs the text of a task list against an ability system; it also remembers how grown it is.
 class FakeBody : public ITribeBody
 {
@@ -222,8 +225,9 @@ struct Population
 		}
 	}
 };
+}
 
-int main()
+int GBTest_society(int, char**)
 {
 	// ---- the data: the section of era1.json says what the code says, round-trips, and a mistake changes nothing
 	{

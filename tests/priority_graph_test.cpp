@@ -1,7 +1,7 @@
 // The priority graph (docs/GRAFO_PRIORIDADES.md), headless: JSON (versioned, round trip, the files that ship equal the code), validation messages, curves and
 // combiners, the templates that rebuild the tribe's formulas (exactly), subgraphs, determinism, the library (duplicate, templates, import/export, assignments,
 // files) and the tribe itself: with the builtin graph a simulation ends exactly as without graphs, and a graph that changes scores changes it.
-//   GBPriorityGraphTests --write <dir>   writes the graphs that ship to <dir> (assets/data/priority_graphs)
+//   GBSimTests priority_graph --write <dir>   writes the graphs that ship to <dir> (assets/data/priority_graphs)
 #include "GB/AI/PriorityGraph.h"
 #include "GB/AI/PriorityLibrary.h"
 #include "GB/AI/Utility.h"
@@ -117,7 +117,7 @@ namespace
 	}
 }
 
-int main(int argc, char** argv)
+int GBTest_priority_graph(int argc, char** argv)
 {
 	if (argc == 3 && std::strcmp(argv[1], "--write") == 0)
 	{

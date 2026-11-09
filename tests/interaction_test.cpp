@@ -29,6 +29,9 @@ namespace
 	}
 }
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // One character as the game layer sees it: controller, motion tracker, animation.
 struct Actor
 {
@@ -54,8 +57,9 @@ struct Actor
 	GB::CharacterController Controller;
 	GB::MotionTracker Tracker;
 };
+}
 
-int main()
+int GBTest_interaction(int, char**)
 {
 	using namespace GB;
 	Log::Init();

@@ -363,7 +363,7 @@ static void TestReachability()
 	Check(p3.LoadText(R"({ "items": [ { "id": "thing" } ], "techs": [ { "id": "good", "recipes": [] } ] })").empty() && t3.Find("good") && i3.Find("thing"), "a good one loads both");
 }
 
-int main()
+int GBTest_knowledge(int, char**)
 {
 	TestData();
 	TestGating();

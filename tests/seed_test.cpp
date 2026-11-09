@@ -97,7 +97,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_seed(int, char**)
 {
 	// --- the derivation: pinned values (also as static_asserts above), stable sub-streams
 	Check(GB::DeriveSeed(5, "knowledge") == 0xA29C3A014C6E08D9ull, "DeriveSeed(5, knowledge)");

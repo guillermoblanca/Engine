@@ -28,7 +28,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_character_profile(int, char**)
 {
 	using namespace GB;
 	Log::Init();

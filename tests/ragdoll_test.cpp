@@ -34,7 +34,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_ragdoll(int, char**)
 {
 	using namespace GB;
 	Log::Init();

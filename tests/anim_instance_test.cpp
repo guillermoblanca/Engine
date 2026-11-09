@@ -46,7 +46,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_anim_instance(int, char**)
 {
 	using namespace GB;
 	Log::Init();

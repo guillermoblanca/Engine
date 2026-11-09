@@ -20,7 +20,7 @@ namespace
 	constexpr float kPi = 3.14159265358979f;
 }
 
-int main()
+int GBTest_ground(int, char**)
 {
 	GB::Log::Init();
 

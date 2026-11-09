@@ -18,7 +18,7 @@ namespace
 
 using namespace GB;
 
-int main()
+int GBTest_era_pack(int, char**)
 {
 	// needs: read, merged by id, checked
 	NeedBook book;

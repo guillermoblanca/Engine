@@ -26,7 +26,7 @@ namespace
 	glm::vec3 Position(const GB::ModelInstance& inst, int node) { return glm::vec3(inst.GetNodeWorld(node)[3]); }
 }
 
-int main()
+int GBTest_animation(int, char**)
 {
 	GB::Log::Init();
 

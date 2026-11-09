@@ -98,7 +98,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_worldgen(int, char**)
 {
 	GB::Log::Init();
 	using GB::WorldType;

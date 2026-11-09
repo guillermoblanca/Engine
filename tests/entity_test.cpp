@@ -20,7 +20,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_entity(int, char**)
 {
 	using namespace GB;
 

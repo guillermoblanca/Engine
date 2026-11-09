@@ -80,7 +80,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_game_camera(int, char**)
 {
 	// ---- Data: the shipped file holds exactly the defaults of the code, and the JSON writer round-trips.
 	{

@@ -46,7 +46,7 @@ namespace
 	};
 }
 
-int main()
+int GBTest_box_clearance(int, char**)
 {
 	using namespace GB;
 	Log::Init();

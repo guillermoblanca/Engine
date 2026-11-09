@@ -39,6 +39,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // The stand-in of tribe_test and society_test (it runs a task list against an ability system), which also counts the orders it was given and can
 // be put somewhere: the player's body is moved by the test, as a person would walk it.
 class FakeBody : public ITribeBody
@@ -481,8 +484,9 @@ static void Fights()
 	m.Run(2.0);
 	Check(m.Member(m.Player)->Dead, "with mortal players a deadly blow kills (the game mode then says the game is over)");
 }
+}
 
-int main()
+int GBTest_player(int, char**)
 {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);
 	DataSections();

@@ -25,7 +25,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_physics_joint(int, char**)
 {
 	using namespace GB;
 

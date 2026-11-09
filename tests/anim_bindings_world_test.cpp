@@ -158,7 +158,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_anim_bindings_world(int, char**)
 {
 	using namespace GB;
 	Log::Init();

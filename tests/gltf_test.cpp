@@ -18,7 +18,7 @@ namespace
 	bool Near(float a, float b) { return std::fabs(a - b) < 1e-4f; }
 }
 
-int main()
+int GBTest_gltf(int, char**)
 {
 	GB::Log::Init();
 

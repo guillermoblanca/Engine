@@ -35,6 +35,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 class FakeBody : public ITribeBody
 {
 public:
@@ -268,8 +271,9 @@ void CheckCut(const RegionMap& map, const char* what)
 	std::snprintf(text, sizeof text, "%s: every region is in one piece, has its own name and its anchor in it", what);
 	Check(connected && named && anchored, text);
 }
+}
 
-int main()
+int GBTest_exploration(int, char**)
 {
 	using Clock = std::chrono::steady_clock;
 	const auto t0 = Clock::now();

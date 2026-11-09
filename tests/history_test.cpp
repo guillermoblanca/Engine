@@ -16,7 +16,7 @@ namespace
 
 using namespace GB;
 
-int main()
+int GBTest_history(int, char**)
 {
 	WorldHistory h;
 	HistoryEvent e;

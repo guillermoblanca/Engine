@@ -24,7 +24,7 @@ namespace
 	glm::vec3 Pos(const glm::mat4& m) { return glm::vec3(m[3]); }
 }
 
-int main()
+int GBTest_props(int, char**)
 {
 	using namespace GB;
 	Log::Init();

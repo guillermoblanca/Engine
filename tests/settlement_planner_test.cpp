@@ -25,7 +25,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_settlement_planner(int, char**)
 {
 	std::map<std::string, GB::BuildingDef> defs;
 	defs["shelter"] = Def("shelter", 2);

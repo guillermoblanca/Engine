@@ -26,7 +26,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_qa(int, char**)
 {
 	namespace fs = std::filesystem;
 	const std::string root = "qa_test_tmp";

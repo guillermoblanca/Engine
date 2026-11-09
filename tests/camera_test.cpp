@@ -20,7 +20,7 @@ namespace
 	constexpr float kPi = 3.14159265358979f;
 }
 
-int main()
+int GBTest_camera(int, char**)
 {
 	// ---- Camera: orthographic projection maps the visible box to NDC [-1,1]
 	GB::Camera ortho;

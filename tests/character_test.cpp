@@ -29,7 +29,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_character(int, char**)
 {
 	GB::CharacterWorld flat;   // y = 0 everywhere
 

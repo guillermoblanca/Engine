@@ -33,6 +33,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // The stand-in body of tribe_test: it runs the text of a task list (goto and wait take time; "ability A node" walks there and activates it).
 class FakeBody : public ITribeBody
 {
@@ -274,8 +277,9 @@ namespace
 		t.Config.Social.Beliefs.Omens.clear();
 	}
 }
+}
 
-int main()
+int GBTest_social(int, char**)
 {
 	std::fprintf(stderr, "-- %s\n", "the data: the social section of social.json says what the ");
 	// ---- the data: the "social" section of social.json says what the code says, round-trips, and a mistake changes nothing

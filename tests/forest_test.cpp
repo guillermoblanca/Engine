@@ -53,7 +53,7 @@ static bool SameSpots(const std::vector<ResourceSpot>& a, const std::vector<Reso
 	return true;
 }
 
-int main()
+int GBTest_forest(int, char**)
 {
 	const std::string data = std::string(GB_ASSETS_DIR) + "/data";
 

@@ -41,7 +41,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_world(int, char**)
 {
 	GB::Log::Init();
 

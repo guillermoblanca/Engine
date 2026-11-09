@@ -74,7 +74,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_terrain_graph(int, char**)
 {
 	Log::Init();
 	const TerrainNodeRegistry registry = MakeDefaultTerrainNodeRegistry();   // injected: there is no global registry

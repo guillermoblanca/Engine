@@ -38,6 +38,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 class FakeBody : public ITribeBody
 {
 public:
@@ -266,8 +269,9 @@ struct Valley
 	std::vector<std::unique_ptr<FakeBody>> Bodies;
 	std::map<std::string, FakeBody*> ByName;
 };
+}
 
-int main()
+int GBTest_clans(int, char**)
 {
 	std::setvbuf(stdout, nullptr, _IONBF, 0);   // (every line, even if a check crashes)
 	using Clock = std::chrono::steady_clock;

@@ -102,7 +102,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_sweep(int, char**)
 {
 	GB::Log::Init();
 	int worlds = 0;

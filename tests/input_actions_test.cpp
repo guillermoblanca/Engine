@@ -219,7 +219,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_input_actions(int, char**)
 {
 	const InputActions& defaults = DefaultInputActions();
 	for (std::string_view name : { InputAction::Move, InputAction::Jump, InputAction::Run, InputAction::LookLeft, InputAction::LookRight, InputAction::LookUp,

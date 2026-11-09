@@ -130,7 +130,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_sim_sweep(int, char**)
 {
 	GB::Log::Init();
 	const auto started = std::chrono::steady_clock::now();

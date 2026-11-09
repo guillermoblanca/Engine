@@ -34,6 +34,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 struct Rng
 {
 	uint32_t S = 12345u;
@@ -224,8 +227,9 @@ static CharacterWorld FlatWorld(const std::vector<CircleObstacle>& obstacles)
 	w.Obstacles = obstacles;
 	return w;
 }
+}
 
-int main()
+int GBTest_navigation(int, char**)
 {
 	const NavProfile walker;
 

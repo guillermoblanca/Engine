@@ -51,7 +51,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_entity_render(int, char**)
 {
 	GB::Log::Init();
 	PropsAfterRegenerate();   // (needs no window)

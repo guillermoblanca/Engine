@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <thread>
 
-int main()
+int GBTest_audio_device(int, char**)
 {
 	GB::Log::Init();
 	GB::AudioConfig cfg;

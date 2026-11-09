@@ -52,6 +52,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // The same stand-in as tribe_test: it runs the text of a task list against an ability system (goto and wait take time, "ability A node" waits for it).
 class FakeBody : public ITribeBody
 {
@@ -220,8 +223,9 @@ struct Clan
 	std::map<std::string, std::string> Claimed;
 	bool bad = false;
 };
+}
 
-int main()
+int GBTest_economy(int, char**)
 {
 	const std::string data = std::string(GB_ASSETS_DIR) + "/data";
 

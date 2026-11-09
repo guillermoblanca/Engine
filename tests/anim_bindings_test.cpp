@@ -38,7 +38,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_anim_bindings(int, char**)
 {
 	using namespace GB;
 	Log::Init();

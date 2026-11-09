@@ -20,7 +20,7 @@ namespace
 	glm::quat Rotation(const glm::mat4& m) { return glm::normalize(glm::quat_cast(glm::mat3(glm::normalize(glm::vec3(m[0])), glm::normalize(glm::vec3(m[1])), glm::normalize(glm::vec3(m[2]))))); }
 }
 
-int main()
+int GBTest_retarget(int, char**)
 {
 	using namespace GB;
 	Log::Init();

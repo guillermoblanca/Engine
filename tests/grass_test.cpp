@@ -19,7 +19,7 @@ namespace
 	bool Near(float a, float b, float eps) { return std::fabs(a - b) <= eps; }
 }
 
-int main()
+int GBTest_grass(int, char**)
 {
 	GB::Log::Init();
 

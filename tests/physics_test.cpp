@@ -22,7 +22,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_physics(int, char**)
 {
 	// ---- a sphere dropped on flat ground bounces and settles on it
 	{

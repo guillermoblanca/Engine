@@ -19,7 +19,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_gl_scene(int, char**)
 {
 	GB::Log::Init();
 

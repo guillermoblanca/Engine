@@ -388,7 +388,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_actor(int, char**)
 {
 	using namespace GB;
 	Log::Init();

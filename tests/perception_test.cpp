@@ -167,7 +167,7 @@ static void Chooser()
 	Check(Ramp(5.0f, 0.0f, 10.0f) == 0.5f && Urgency(30.0f, 60.0f) == 0.5f && Urgency(80.0f, 60.0f) == 0.0f && Falloff(30.0f, 30.0f) == 0.5f, "the curves");
 }
 
-int main()
+int GBTest_perception(int, char**)
 {
 	Vision();
 	Hearing();

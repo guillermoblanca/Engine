@@ -14,7 +14,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_schedule(int, char**)
 {
 	using namespace GB;
 	const DayShape day;   // night 21..6, dusk 3 h before it, winter 2 h earlier

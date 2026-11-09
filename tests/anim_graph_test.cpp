@@ -51,7 +51,7 @@ namespace
 	};
 }
 
-int main()
+int GBTest_anim_graph(int, char**)
 {
 	using namespace GB;
 	Log::Init();

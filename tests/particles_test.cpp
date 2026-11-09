@@ -37,7 +37,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_particles(int, char**)
 {
 	// ---- determinism
 	{

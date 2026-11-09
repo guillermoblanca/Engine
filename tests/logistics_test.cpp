@@ -12,7 +12,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_logistics(int, char**)
 {
 	GB::NodeClaims claims;
 	Check(claims.Empty() && !claims.HeldByOther("berry 1", "Ana"), "nothing is claimed at first");

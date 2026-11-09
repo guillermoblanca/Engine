@@ -24,6 +24,9 @@ namespace
 
 using namespace GB;
 
+// File-local (T51: several tests share one executable, where two classes with one name would break the one-definition rule)
+namespace
+{
 // A body that finishes any order after a fixed time, without walking: enough to exercise the decisions of the tribe, not the movement.
 class QuickBody : public ITribeBody
 {
@@ -40,8 +43,9 @@ private:
 	float m_Left = 0.0f;
 	Inventory m_Bag{ 12, 0.0f };
 };
+}
 
-int main()
+int GBTest_scale(int, char**)
 {
 	const bool bench = std::getenv("GB_SCALE_BENCH") != nullptr;
 	ItemLibrary items;

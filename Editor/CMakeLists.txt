@@ -88,13 +88,14 @@ add_executable(GBEditorTests tests/editor_test.cpp)
 target_link_libraries(GBEditorTests PRIVATE GBEditor)
 gb_parallel_compile(GBEditorTests)
 add_test(NAME editor COMMAND GBEditorTests)
+set_tests_properties(editor PROPERTIES LABELS rapido)   # (a logic test, not one of the editor runs labelled "editor": tests/CMakeLists.txt)
 
 # Scripted runs of the real editor (hidden window; they need OpenGL like the GL tests). A line that fails makes the exit code 1 (--strict=1), and the pass
 # patterns check that the replay says it is identical (a replay that differs is an order that returns false, so the script line fails).
 function(gb_editor_script_test name script pass)
     add_test(NAME ${name} COMMAND Editor --hidden --quality=low --strict=1 ${ARGN} --script=${CMAKE_CURRENT_SOURCE_DIR}/tests/${script}
              WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-    set_tests_properties(${name} PROPERTIES PASS_REGULAR_EXPRESSION "${pass}" FAIL_REGULAR_EXPRESSION "REPLAY DIFFERS|script line failed|Could not read the script"
+    set_tests_properties(${name} PROPERTIES LABELS "editor;gl;lento" PASS_REGULAR_EXPRESSION "${pass}" FAIL_REGULAR_EXPRESSION "REPLAY DIFFERS|script line failed|Could not read the script"
                           SKIP_REGULAR_EXPRESSION "GLFW error|does not appear to support OpenGL|Failed to create|Could not create")   # no OpenGL (a CI runner without a GPU): skipped, like the GL tests
 endfunction()
 gb_editor_script_test(editor_replay replay_world.txt "replay identical")
@@ -131,3 +132,13 @@ gb_editor_script_test(editor_polity v7_polity.txt "Clan 1 and Blue form the conf
 gb_editor_script_test(editor_talk v2_talk.txt "says /.*live checks, 0 violation" --step=60)
 # V3: people ask the player for help with their real problems; a life ends and the player chooses who carries on; saved and loaded
 gb_editor_script_test(editor_adventure v3_adventure.txt "says /.*live checks, 0 violation" --step=60)
+
+# In parallel (T51): the runs write to this directory, but each with names of its own (saves/<script>, replays/<script>, <script>.png), so they
+# can go several at a time: `ctest -C Release -L editor -j 4` (T51: 4 to 6 min instead of 14 at -j 1, the same failures). COST (the seconds one takes at -j 1) makes ctest start the longest first, even
+# in a fresh build directory with no Testing/Temporary/CTestCostData.txt yet; otherwise the longest may start last and the run waits for it.
+set_tests_properties(editor_polity PROPERTIES COST 500)
+set_tests_properties(editor_bronze PROPERTIES COST 300)
+set_tests_properties(editor_replay_midrun PROPERTIES COST 260)
+set_tests_properties(editor_demo_h3 PROPERTIES COST 250)
+set_tests_properties(editor_eras PROPERTIES COST 165)
+set_tests_properties(editor_replay_society editor_demo_h5_h6 editor_history PROPERTIES COST 90)

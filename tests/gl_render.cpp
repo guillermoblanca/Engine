@@ -18,7 +18,7 @@ namespace
 	bool Near(int a, int b) { return a - b <= 2 && b - a <= 2; }
 }
 
-int main()
+int GBTest_gl_render(int, char**)
 {
 	GB::Log::Init();
 

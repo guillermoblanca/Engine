@@ -35,7 +35,7 @@ namespace
 	bool Contains(const std::vector<std::string>& v, const std::string& s) { return std::find(v.begin(), v.end(), s) != v.end(); }
 }
 
-int main()
+int GBTest_anim_manifest(int, char**)
 {
 	using namespace GB;
 	Log::Init();

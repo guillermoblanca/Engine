@@ -30,7 +30,7 @@ namespace
 	}
 }
 
-int main()
+int GBTest_vegetation(int, char**)
 {
 	GB::Log::Init();
 	GB::WindowProps props;
