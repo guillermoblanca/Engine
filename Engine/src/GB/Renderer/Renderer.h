@@ -60,11 +60,15 @@ namespace GB
 		void BindSkin(Shader& shader, const RenderObject& obj);
 
 		// GPU timestamps of a frame: start, after the shadows, the objects, the grass, the water, the rest of the scene (particles, resolve) and the
-		// post-processing; two frames in flight, read when the GPU has them
+		// post-processing. A ring of sets in flight, read oldest first when the GPU has them, never waiting: the CPU runs a frame or two
+		// ahead, and with only two sets the one due for reuse was never ready, so the times froze. A set is not issued again until it has
+		// been read; a frame that finds the ring full is not measured (the stats keep the last times read).
 		static constexpr int kMarks = 7;
-		uint32_t m_Timers[2][kMarks] = {};
-		bool m_TimersIssued[2] = { false, false };
-		int m_TimerFrame = 0;
+		static constexpr int kTimerSets = 5;
+		uint32_t m_Timers[kTimerSets][kMarks] = {};
+		int m_TimerHead = 0;          // the set the next measured frame writes
+		int m_TimersPending = 0;      // sets issued and not read yet, the oldest at m_TimerHead - m_TimersPending
+		bool m_TimerActive = false;   // this frame is being measured (the ring had room when it started)
 		void Mark(int i);
 		void ReadTimers();
 	};

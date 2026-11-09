@@ -38,7 +38,7 @@ namespace GB
 		glCreateVertexArrays(1, &m_EmptyVAO);
 		glCreateBuffers(1, &m_JointBuffer);
 		glCreateBuffers(1, &m_InstanceBuffer);
-		glGenQueries(2 * kMarks, &m_Timers[0][0]);
+		glGenQueries(kTimerSets * kMarks, &m_Timers[0][0]);
 
 		m_ParticleRenderer = std::make_unique<ParticleRenderer>();
 
@@ -67,7 +67,7 @@ namespace GB
 		glDeleteVertexArrays(1, &m_EmptyVAO);
 		glDeleteBuffers(1, &m_JointBuffer);
 		glDeleteBuffers(1, &m_InstanceBuffer);
-		glDeleteQueries(2 * kMarks, &m_Timers[0][0]);
+		glDeleteQueries(kTimerSets * kMarks, &m_Timers[0][0]);
 	}
 
 	void Renderer::CreateTargets()
@@ -112,20 +112,30 @@ namespace GB
 		m_PostProcessor->Resize(width, height);
 	}
 
-	void Renderer::Mark(int i) { glQueryCounter(m_Timers[m_TimerFrame][i], GL_TIMESTAMP); }
+	void Renderer::Mark(int i)
+	{
+		if (m_TimerActive)
+			glQueryCounter(m_Timers[m_TimerHead][i], GL_TIMESTAMP);
+	}
 
 	void Renderer::ReadTimers()
 	{
-		const int set = m_TimerFrame;   // (called after the switch: the set this frame will reuse, issued a frame ago, done or nearly)
-		if (!m_TimersIssued[set]) return;
-		GLint ready = 0;
-		glGetQueryObjectiv(m_Timers[set][kMarks - 1], GL_QUERY_RESULT_AVAILABLE, &ready);
-		if (!ready) return;
-		GLuint64 t[kMarks];
-		for (int i = 0; i < kMarks; ++i) glGetQueryObjectui64v(m_Timers[set][i], GL_QUERY_RESULT, &t[i]);
-		auto ms = [&](int a, int b) { return static_cast<float>(static_cast<double>(t[b] - t[a]) * 1e-6); };
-		m_Stats.GpuShadowMs = ms(0, 1); m_Stats.GpuSceneMs = ms(1, 2); m_Stats.GpuGrassMs = ms(2, 3); m_Stats.GpuWaterMs = ms(3, 4);
-		m_Stats.GpuEffectsMs = ms(4, 5); m_Stats.GpuPostMs = ms(5, 6); m_Stats.GpuTotalMs = ms(0, 6);
+		// Drain the ring oldest first while the GPU has the results (queries finish in order: the last mark of a set says the whole set is
+		// done); the newest set read gives the stats. Never waits: a set still in flight stays for a later frame.
+		while (m_TimersPending > 0)
+		{
+			const int set = (m_TimerHead - m_TimersPending + kTimerSets) % kTimerSets;
+			GLint ready = 0;
+			glGetQueryObjectiv(m_Timers[set][kMarks - 1], GL_QUERY_RESULT_AVAILABLE, &ready);
+			if (!ready)
+				break;
+			GLuint64 t[kMarks];
+			for (int i = 0; i < kMarks; ++i) glGetQueryObjectui64v(m_Timers[set][i], GL_QUERY_RESULT, &t[i]);
+			--m_TimersPending;
+			auto ms = [&](int a, int b) { return static_cast<float>(static_cast<double>(t[b] - t[a]) * 1e-6); };
+			m_Stats.GpuShadowMs = ms(0, 1); m_Stats.GpuSceneMs = ms(1, 2); m_Stats.GpuGrassMs = ms(2, 3); m_Stats.GpuWaterMs = ms(3, 4);
+			m_Stats.GpuEffectsMs = ms(4, 5); m_Stats.GpuPostMs = ms(5, 6); m_Stats.GpuTotalMs = ms(0, 6);
+		}
 	}
 
 	void Renderer::BindSkin(Shader& shader, const RenderObject& obj)
@@ -417,6 +427,7 @@ namespace GB
 		DrawCounter::Triangles = 0;
 		uint32_t shadowCalls = 0;
 		const RenderStats gpu = m_Stats;   // (ScenePass starts its stats over: the GPU times of the frames before are kept)
+		m_TimerActive = m_TimersPending < kTimerSets;   // (all seven marks of a frame, or none: a set not read yet is never issued again)
 		Mark(0);
 		if (shadows)
 		{
@@ -452,8 +463,12 @@ namespace GB
 		}
 		m_PostProcessor->CompositePass(*m_SceneResolved, *m_SceneDepth, *m_SceneAmbient, scene.Env, scene.Post, camera, target);
 		Mark(6);
-		m_TimersIssued[m_TimerFrame] = true;
-		m_TimerFrame ^= 1;
+		if (m_TimerActive)
+		{
+			glFlush();   // (without it the last commands can wait in the driver's queue until the swap, and the post-processing reads as that wait)
+			m_TimerHead = (m_TimerHead + 1) % kTimerSets;
+			++m_TimersPending;
+		}
 		ReadTimers();
 	}
 }
