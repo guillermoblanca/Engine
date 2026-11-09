@@ -280,6 +280,7 @@ target_link_libraries(GB_Platform PUBLIC GB_Render)
 target_link_libraries(GB_Platform PRIVATE glad glfw)
 
 foreach(gb_target GB_Core GB_Sim GB_Render GB_Platform)
+    gb_parallel_compile(${gb_target})
     if(MSVC)
         target_compile_options(${gb_target} PRIVATE /W4 /permissive-)
         if(GB_WARNINGS_AS_ERRORS)
@@ -292,6 +293,19 @@ foreach(gb_target GB_Core GB_Sim GB_Render GB_Platform)
         endif()
     endif()
 endforeach()
+
+# Precompiled headers (T50), PRIVATE: they speed up the target's own .cpp files and nothing else (no consumer sees them). Only the standard
+# library and the third-party headers each layer may already include, never a GB header (touching one would rebuild the whole target) and
+# never spdlog (private to Log.cpp, T39), glad, stb, cgltf, miniaudio or ufbx.
+set(GB_PCH_STD <algorithm> <array> <chrono> <cmath> <cstdint> <cstdio> <cstdlib> <filesystem> <fstream> <functional> <map> <memory>
+    <optional> <set> <sstream> <string> <unordered_map> <utility> <vector>)
+set(GB_PCH_GLM <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <glm/gtc/quaternion.hpp>)
+set(GB_PCH_STD ${GB_PCH_STD} PARENT_SCOPE)   # (the Editor reuses the list)
+set(GB_PCH_GLM ${GB_PCH_GLM} PARENT_SCOPE)
+target_precompile_headers(GB_Core PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})
+target_precompile_headers(GB_Sim PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM} <nlohmann/json.hpp>)   # json: about 40 of its .cpp files read data
+target_precompile_headers(GB_Render PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})                   # no glad: GL stays in the .cpp files that use it
+# GB_Platform has three .cpp files: building a PCH would cost about as much as it saves.
 
 # GB: everything, for the windowed applications (Editor, Sandbox) and the tests that open a window. glad and glfw stay visible to them,
 # as before the split (the Editor includes <glad/gl.h> and <GLFW/glfw3.h> itself).

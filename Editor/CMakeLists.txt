@@ -61,6 +61,9 @@ target_compile_definitions(GBEditor PUBLIC GB_ASSET_DIR="${CMAKE_SOURCE_DIR}/ass
 if(TARGET Sandbox)
     target_compile_definitions(GBEditor PRIVATE GB_SANDBOX_EXE="$<TARGET_FILE:Sandbox>")
 endif()
+gb_parallel_compile(GBEditor)
+# Precompiled headers (T50, PRIVATE): the standard library, glm and Dear ImGui, the same lists as the engine (Engine/CMakeLists.txt).
+target_precompile_headers(GBEditor PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM} <imgui.h>)
 if(MSVC)
     target_compile_options(GBEditor PRIVATE /W4 /permissive-)
     if(GB_WARNINGS_AS_ERRORS)
@@ -75,6 +78,7 @@ endif()
 
 add_executable(Editor src/main.cpp)
 target_link_libraries(Editor PRIVATE GBEditor)
+gb_parallel_compile(Editor)
 if(MSVC)
     target_link_options(Editor PRIVATE /MAP)   # Editor.map: what the crash trace in the log (main.cpp) points at
 endif()
@@ -82,6 +86,7 @@ endif()
 # Logic tests (no window, no GL).
 add_executable(GBEditorTests tests/editor_test.cpp)
 target_link_libraries(GBEditorTests PRIVATE GBEditor)
+gb_parallel_compile(GBEditorTests)
 add_test(NAME editor COMMAND GBEditorTests)
 
 # Scripted runs of the real editor (hidden window; they need OpenGL like the GL tests). A line that fails makes the exit code 1 (--strict=1), and the pass

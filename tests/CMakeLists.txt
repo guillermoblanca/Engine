@@ -445,3 +445,16 @@ add_test(NAME era_pack COMMAND GBEraPackTests)
 add_executable(GBSeedTests seed_test.cpp)
 target_link_libraries(GBSeedTests PRIVATE GB::Render)
 add_test(NAME seed COMMAND GBSeedTests)
+
+# Build speed (T50). Every test is one .cpp file, so instead of one precompiled header each (that would cost as much as it saves) they all
+# reuse the one of GBTestPch: the standard library and glm, the same lists as the engine. GBTestPch only needs GB::Core (the glm include
+# directory), so it builds while GB_Sim does, and it has no compile definitions: the tests may add theirs (GB_ASSETS_DIR...) on top.
+get_property(gb_test_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/test_pch.cpp CONTENT "// The precompiled header of the tests (tests/CMakeLists.txt)\n")
+add_library(GBTestPch OBJECT ${CMAKE_CURRENT_BINARY_DIR}/test_pch.cpp)
+target_link_libraries(GBTestPch PRIVATE GB::Core)
+target_precompile_headers(GBTestPch PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})
+foreach(gb_test IN LISTS gb_test_targets)
+    target_precompile_headers(${gb_test} REUSE_FROM GBTestPch)
+endforeach()
+gb_parallel_compile(GBTestPch ${gb_test_targets})   # /MP (MSVC only)

@@ -102,6 +102,14 @@ if(NOT stb_POPULATED)
     FetchContent_Populate(stb)
 endif()
 
+# Build speed (T50). The Visual Studio generator builds projects in parallel but the .cpp files of one project one after another; /MP makes
+# cl.exe compile them in parallel too. MSVC only (a generator expression, so GCC and Clang never see it); our own C++ targets only.
+function(gb_parallel_compile)
+    foreach(gb_target IN LISTS ARGN)
+        target_compile_options(${gb_target} PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/MP>)
+    endforeach()
+endfunction()
+
 add_subdirectory(Engine)
 
 if(GB_BUILD_SANDBOX)
