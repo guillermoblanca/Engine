@@ -1,6 +1,6 @@
 #pragma once
-#include "Application.h"
-#include "Log.h"
+#include "GB/Platform/Application.h"
+#include "GB/Log.h"
 #include <cstdlib>
 #include <cstring>
 #include <memory>

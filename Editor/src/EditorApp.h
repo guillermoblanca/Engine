@@ -13,7 +13,7 @@
 #include "SceneEditor.h"
 #include "TestScenarios.h"
 #include "WorldInstance.h"
-#include "GB/Application.h"
+#include "GB/Platform/Application.h"
 #include "GB/Audio/FootstepSounds.h"
 #include "GB/Assets/Model.h"
 #include "GB/Assets/ModelInstance.h"

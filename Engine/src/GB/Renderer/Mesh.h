@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Scene/SkinVertex.h"
 #include "GB/Scene/Vertex.h"
 #include <cstdint>
 #include <glm/glm.hpp>
@@ -6,13 +7,6 @@
 
 namespace GB
 {
-	// Per-vertex skinning data (glTF JOINTS_0 / WEIGHTS_0). Joint indices refer to the skin's joint list.
-	struct SkinVertex
-	{
-		uint32_t Joints[4] = { 0, 0, 0, 0 };
-		float Weights[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
-	};
-
 	// Immutable indexed triangle mesh stored on the GPU.
 	class Mesh
 	{

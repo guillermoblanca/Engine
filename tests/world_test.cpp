@@ -3,7 +3,7 @@
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/TerrainGpu.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/World/Erosion.h"
 #include "GB/World/FlowAccumulation.h"
 #include "GB/World/ThermalErosion.h"

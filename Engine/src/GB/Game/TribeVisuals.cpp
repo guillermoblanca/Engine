@@ -159,7 +159,7 @@ namespace GB
 				std::vector<glm::vec3> tints;
 				if (const std::shared_ptr<Model> model = actor->GetModel(); model && (ctx.ClanColor.r >= 0.0f || trade.r >= 0.0f))
 				{
-					const std::vector<Material>& mats = model->GetMaterials();
+					const std::vector<ModelMaterial>& mats = model->GetMaterials();
 					size_t brightest = 0;
 					auto light = [](const glm::vec3& c) { return 0.3f * c.r + 0.59f * c.g + 0.11f * c.b; };
 					for (size_t i = 1; i < mats.size(); ++i) if (light(mats[i].Albedo) > light(mats[brightest].Albedo)) brightest = i;

@@ -1,6 +1,6 @@
-#include "Application.h"
-#include "Log.h"
-#include "Renderer/Framebuffer.h"
+#include "GB/Platform/Application.h"
+#include "GB/Log.h"
+#include "GB/Renderer/Framebuffer.h"
 #include <GLFW/glfw3.h>
 #include <cstdio>
 #include <filesystem>

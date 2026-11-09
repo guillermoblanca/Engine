@@ -1,5 +1,5 @@
-#include "Window.h"
-#include "Log.h"
+#include "GB/Platform/Window.h"
+#include "GB/Log.h"
 #include <glad/gl.h>
 #include <GLFW/glfw3.h>
 

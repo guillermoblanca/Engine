@@ -6,6 +6,7 @@
 #include "GB/Animation/Character.h"
 #include "GB/Animation/ClipAnalysis.h"
 #include "GB/Log.h"
+#include "GB/Renderer/ModelGpu.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -1555,7 +1556,7 @@ namespace GB::Editor
 		m_EntityRenderer->Build(m_SceneEditor.World(), m_Scene, m_SceneEditor.Selected());
 		AddVisualsToScene();
 		if (m_Instance)
-			m_Instance->AddToScene(m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
+			AddToScene(*m_Instance, m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
 		if (m_DrawActors) m_Actors.AddToScene(m_Scene);
 		if (m_World.IsBuilt()) m_World.FollowCamera(m_Camera.Position);
 		const auto renderStart = std::chrono::steady_clock::now();

@@ -18,6 +18,9 @@ namespace GB
 		static Image Load(const std::string& path, bool flipY = true);
 		// Same, from an encoded image in memory (e.g. a texture embedded in a .glb).
 		static Image LoadFromMemory(const uint8_t* data, size_t size, bool flipY = true);
+		// Whether Load / LoadFromMemory would find an image there: reads only the header, decodes nothing (logs why not, like Load).
+		static bool Probe(const std::string& path);
+		static bool ProbeMemory(const uint8_t* data, size_t size);
 		static Image Solid(uint32_t width, uint32_t height, uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255);
 		// Copy of the rectangle [x, x+w) x [y, y+h) in the image's own row order. Clamped to the bounds.
 		Image Crop(uint32_t x, uint32_t y, uint32_t w, uint32_t h) const;

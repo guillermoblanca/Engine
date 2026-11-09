@@ -213,13 +213,13 @@ protected:
 		if (m_Instance)
 		{
 			m_Scene.Objects.resize(m_StaticObjects);
-			m_Instance->AddToScene(m_Scene);
+			GB::AddToScene(*m_Instance, m_Scene);
 		}
 		else if (m_Walker || m_Physics)
 		{
 			m_Scene.Objects.resize(m_StaticObjects);
 			if (m_Walker)
-				m_Walker->Instance->AddToScene(m_Scene, m_Walker->Root);
+				GB::AddToScene(*m_Walker->Instance, m_Scene, m_Walker->Root);
 			if (m_Physics)
 				AddPhysicsObjects();
 		}

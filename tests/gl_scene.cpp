@@ -2,7 +2,7 @@
 // tonemap) and sanity-checks the result. SKIPs (77) without an OpenGL 4.5 context.
 // Set GB_TEST_OUTPUT_DIR to also keep the rendered PNG for visual inspection.
 #include "GB/Log.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/Renderer/Renderer.h"
 #include <array>
 #include <cstdio>

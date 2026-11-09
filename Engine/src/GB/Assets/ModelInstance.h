@@ -1,6 +1,7 @@
 #pragma once
-#include "Model.h"
+#include "GB/Assets/Model.h"
 #include "GB/Assets/Pose.h"
+#include "GB/Scene/Camera.h"
 #include <string>
 #include <vector>
 
@@ -38,10 +39,7 @@ namespace GB
 		// Advances the animation and recomputes the pose.
 		void Update(float deltaTime);
 
-		// Appends the current pose to `scene`. The joint palettes are owned by this instance, which
-		// must outlive the scene's use.
-		// `tints` (U4): a colour per material index that the material's albedo is multiplied by (null, or fewer entries: as it is).
-		void AddToScene(Scene& scene, const glm::mat4& root = glm::mat4(1.0f), const std::vector<glm::vec3>* tints = nullptr) const;
+		// (Drawing the current pose: GB::AddToScene(instance, scene, ...) in GB/Renderer/ModelGpu.h.)
 
 		const Model& GetModel() const { return m_Model; }
 		// Camera `index` of Model::GetCameras() in its current (possibly animated) pose, transformed by `root`.

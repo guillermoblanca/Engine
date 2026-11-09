@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include <string>
 
 namespace GB::Editor

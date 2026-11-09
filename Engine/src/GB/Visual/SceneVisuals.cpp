@@ -116,7 +116,7 @@ namespace GB
 			else
 			{
 				Scene rest;
-				piece.Source->AddToScene(rest);   // the rest pose, once
+				AddToScene(*piece.Source, rest);   // the rest pose, once
 				piece.Min = piece.Source->GetBoundsMin();
 				piece.Max = piece.Source->GetBoundsMax();
 				for (RenderObject& o : rest.Objects)
@@ -274,7 +274,7 @@ namespace GB
 		const std::string clip = cr.Speed > c.RunSpeed ? c.Run : cr.Speed > 0.15f ? c.Walk : c.Idle;
 		if (clip != cr.Clip && !clip.empty()) { cr.Instance->Play(clip, true, 0.25f); cr.Clip = clip; }
 		const float scale = c.Length / std::max(2.0f * it->second->GetBoundsRadius(), 1e-4f);
-		cr.Instance->AddToScene(scene, matrix * turn * glm::scale(glm::mat4(1.0f), glm::vec3(scale)));
+		AddToScene(*cr.Instance, scene, matrix * turn * glm::scale(glm::mat4(1.0f), glm::vec3(scale)));
 		return true;
 	}
 

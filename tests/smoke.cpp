@@ -1,4 +1,4 @@
-#include "GB/Application.h"
+#include "GB/Platform/Application.h"
 #include "GB/Log.h"
 #include <cstdio>
 

@@ -13,7 +13,7 @@ find_package(Threads REQUIRED)
 target_link_libraries(sqlite3 PUBLIC Threads::Threads)
 
 add_library(GB STATIC
-    src/GB/Application.cpp
+    src/GB/Platform/Application.cpp
     src/GB/Game/CharacterController.cpp
     src/GB/Game/GameCamera.cpp
     src/GB/Game/MotionState.cpp
@@ -149,7 +149,7 @@ add_library(GB STATIC
     src/GB/Visual/PropVisuals.cpp
     src/GB/Visual/SceneVisuals.cpp
     src/GB/Visual/BuildingVisuals.cpp
-    src/GB/Input.cpp
+    src/GB/Platform/Input.cpp
     src/GB/Log.cpp
     src/GB/Core/Fingerprint.cpp
     src/GB/Assets/Model.cpp
@@ -209,7 +209,7 @@ add_library(GB STATIC
     src/GB/Effects/SandSpray.cpp
     src/GB/Effects/Weather.cpp
     src/GB/Assets/ModelInstance.cpp
-    src/GB/Window.cpp
+    src/GB/Platform/Window.cpp
     src/GB/Renderer/CameraController.cpp
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/GrassRenderer.cpp
@@ -225,6 +225,7 @@ add_library(GB STATIC
     src/GB/Renderer/ShadowRenderer.cpp
     src/GB/Renderer/Texture.cpp
     src/GB/Renderer/RocksGpu.cpp
+    src/GB/Renderer/ModelGpu.cpp
     src/GB/Renderer/TerrainGpu.cpp
     src/GB/Renderer/TreesGpu.cpp
     src/GB/Renderer/WaterRenderer.cpp

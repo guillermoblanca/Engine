@@ -1,7 +1,7 @@
 // Renders a triangle offscreen and checks the pixels. Exits with 77 (CTest SKIP)
 // when no OpenGL 4.5 context is available, e.g. on a machine without a display/GPU.
 #include "GB/Log.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/Renderer/Framebuffer.h"
 #include "GB/Renderer/Shader.h"
 #include <glad/gl.h>

@@ -1,7 +1,7 @@
 // Entities -> scene objects and lights, and a rendered frame. SKIPs (77) without an OpenGL 4.5 context.
 #include "GB/Game/EntityRender.h"
 #include "GB/Log.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include <cmath>
 #include <cstdio>
 

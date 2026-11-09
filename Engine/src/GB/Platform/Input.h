@@ -1,5 +1,5 @@
 #pragma once
-#include "InputSource.h"
+#include "GB/InputSource.h"
 
 struct GLFWwindow;
 

@@ -2,7 +2,7 @@
 #include "GB/Effects/Sky.h"
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include <cmath>
 #include <cstdio>
 #include <vector>

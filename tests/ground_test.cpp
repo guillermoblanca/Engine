@@ -2,7 +2,7 @@
 // detector and how a material shows the marks. The GL part skips without an OpenGL 4.5 context.
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/World/Footsteps.h"
 #include "GB/Renderer/GroundInteraction.h"
 #include <cmath>

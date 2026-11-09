@@ -1,6 +1,6 @@
 #pragma once
-#include "InputSource.h"
-#include "Window.h"
+#include "GB/InputSource.h"
+#include "GB/Platform/Window.h"
 #include <cstdint>
 #include <memory>
 #include <string>

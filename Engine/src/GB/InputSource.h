@@ -9,7 +9,7 @@ namespace GB
 {
 	// Where a controller reads the keyboard, the mouse and the gamepads from. Controllers take a reference to one of
 	// these instead of reaching for a global, so the same camera or character code runs with a window (GlfwInput,
-	// GB/Input.h), without one (NoInput) or fed by a test (ScriptedInput) -- the headless QA CLAUDE.md asks for.
+	// GB/Platform/Input.h), without one (NoInput) or fed by a test (ScriptedInput) -- the headless QA CLAUDE.md asks for.
 	class IInputSource
 	{
 	public:

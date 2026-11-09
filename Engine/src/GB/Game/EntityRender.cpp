@@ -171,7 +171,7 @@ namespace GB
 				{
 					if (ModelInstance* inst = InstanceFor(id, mc.Model))
 					{
-						inst->AddToScene(scene, m);
+						AddToScene(*inst, scene, m);
 						++drawn;
 					}
 				}

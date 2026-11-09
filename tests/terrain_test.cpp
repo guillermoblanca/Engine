@@ -3,7 +3,7 @@
 #include "GB/Effects/SandSpray.h"
 #include "GB/Log.h"
 #include "GB/Renderer/TerrainGpu.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/World/Terrain.h"
 #include <cmath>
 #include <cstdio>

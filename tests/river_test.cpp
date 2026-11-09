@@ -4,7 +4,7 @@
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TerrainGpu.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/World/Physics.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Terrain.h"

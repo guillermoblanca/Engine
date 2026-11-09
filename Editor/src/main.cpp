@@ -1,7 +1,7 @@
 // GB Editor. Options: --script=file | --exec="cmd; cmd" (run commands at startup), --quality=minimum|low|medium|high|ultra, --strict=1 (the exit code is 1 when a scripted line fails),
 // plus the engine's --frames=N --screenshot=file.png --hidden --record=dir --fps=N. Type `help` in the console.
 #include "EditorApp.h"
-#include "GB/EntryPoint.h"
+#include "GB/Platform/EntryPoint.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN

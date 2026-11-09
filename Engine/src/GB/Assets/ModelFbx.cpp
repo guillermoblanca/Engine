@@ -1,7 +1,7 @@
 // FBX import (ufbx): characters with skins, rigid meshes, PBR-ish materials and animation clips, converted to the same
 // Model data the glTF loader produces. Everything is converted to meters, Y up, right handed.
-#include "Model.h"
-#include "ModelUtil.h"
+#include "GB/Assets/Model.h"
+#include "GB/Assets/ModelUtil.h"
 #include "GB/Log.h"
 #include "GB/Scene/Image.h"
 #include <algorithm>
@@ -157,32 +157,39 @@ namespace GB
 		Model& Out;
 		ufbx_scene* Scene;
 		std::string BaseDir;
-		std::map<const ufbx_texture*, Texture2D*> TextureCache;
+		std::map<const ufbx_texture*, int> TextureCache;   // -> index into Out.m_Images, or -1
 		std::vector<int> NodeMap;   // ufbx node typed id -> model node
 
-		Texture2D* GetTexture(const ufbx_texture* tex, TextureEncoding encoding)
+		// The image of a texture, by index into the model's images (-1: none, or it cannot be read). Only the header is checked here: the
+		// render decodes it (GB/Renderer/ModelGpu.h).
+		int GetTexture(const ufbx_texture* tex, bool srgb)
 		{
-			if (!tex) return nullptr;
+			if (!tex) return -1;
 			auto it = TextureCache.find(tex);
 			if (it != TextureCache.end()) return it->second;
-			Image image;
-			if (tex->content.size > 0)
-				image = Image::LoadFromMemory(static_cast<const uint8_t*>(tex->content.data), tex->content.size, false);
-			if (!image.IsValid())
+			ModelImage image;
+			image.SRGB = srgb;
+			bool valid = false;
+			if (tex->content.size > 0 && Image::ProbeMemory(static_cast<const uint8_t*>(tex->content.data), tex->content.size))
+			{
+				const uint8_t* bytes = static_cast<const uint8_t*>(tex->content.data);
+				image.Encoded.assign(bytes, bytes + tex->content.size);
+				valid = true;
+			}
+			if (!valid)
 			{
 				// the path as written in the file, relative to the model, or just the file name next to the model
 				for (const std::string& candidate : { BaseDir + std::string(tex->relative_filename.data), std::string(tex->absolute_filename.data),
 					BaseDir + std::string(tex->filename.data).substr(std::string(tex->filename.data).find_last_of("/\\") + 1) })
 				{
-					image = Image::Load(candidate, false);
-					if (image.IsValid()) break;
+					if (Image::Probe(candidate)) { image.File = candidate; valid = true; break; }
 				}
 			}
-			Texture2D* result = nullptr;
-			if (image.IsValid())
+			int result = -1;
+			if (valid)
 			{
-				Out.m_Textures.push_back(std::make_shared<Texture2D>(image, encoding));
-				result = Out.m_Textures.back().get();
+				Out.m_Images.push_back(std::move(image));
+				result = static_cast<int>(Out.m_Images.size()) - 1;
 			}
 			else
 				GB_CORE_WARN("FBX: could not load texture '{}'; the material renders without it", tex->filename.data);
@@ -190,9 +197,9 @@ namespace GB
 			return result;
 		}
 
-		Material ConvertMaterial(const ufbx_material& src)
+		ModelMaterial ConvertMaterial(const ufbx_material& src)
 		{
-			Material m;
+			ModelMaterial m;
 			const ufbx_material_map& base = src.pbr.base_color;
 			if (base.has_value) m.Albedo = { static_cast<float>(base.value_vec4.x), static_cast<float>(base.value_vec4.y), static_cast<float>(base.value_vec4.z) };
 			if (src.pbr.base_factor.has_value) m.Albedo *= static_cast<float>(src.pbr.base_factor.value_real);
@@ -204,10 +211,10 @@ namespace GB
 				const float f = src.pbr.emission_factor.has_value ? static_cast<float>(src.pbr.emission_factor.value_real) : 1.0f;
 				m.Emissive = f * glm::vec3(static_cast<float>(src.pbr.emission_color.value_vec3.x), static_cast<float>(src.pbr.emission_color.value_vec3.y), static_cast<float>(src.pbr.emission_color.value_vec3.z));
 			}
-			m.AlbedoMap = GetTexture(base.texture, TextureEncoding::SRGB);
-			m.NormalMap = GetTexture(src.pbr.normal_map.texture, TextureEncoding::Linear);
-			m.OcclusionMap = GetTexture(src.pbr.ambient_occlusion.texture, TextureEncoding::Linear);
-			m.EmissiveMap = GetTexture(src.pbr.emission_color.texture, TextureEncoding::SRGB);
+			m.AlbedoMap = GetTexture(base.texture, true);
+			m.NormalMap = GetTexture(src.pbr.normal_map.texture, false);
+			m.OcclusionMap = GetTexture(src.pbr.ambient_occlusion.texture, false);
+			m.EmissiveMap = GetTexture(src.pbr.emission_color.texture, true);
 			return m;
 		}
 
@@ -266,7 +273,7 @@ namespace GB
 		};
 
 		// One glTF-style mesh per FBX mesh, one primitive per material slot.
-		void ConvertMesh(size_t meshIndex, const ufbx_mesh& mesh, std::vector<Model::PrimitiveCPU>& cpu)
+		void ConvertMesh(size_t meshIndex, const ufbx_mesh& mesh)
 		{
 			const ufbx_skin_deformer* skin = mesh.skin_deformers.count ? mesh.skin_deformers.data[0] : nullptr;
 			// rigid meshes carry their node's geometry offset in the vertices; skinned ones are placed by the joints
@@ -334,26 +341,23 @@ namespace GB
 				std::vector<Vertex> vertices(unique);
 				std::vector<SkinVertex> skinVerts;
 				if (skin) skinVerts.resize(unique);
-				Model::PrimitiveCPU prim;
-				prim.Positions.resize(unique);
 				for (size_t v = 0; v < unique; ++v)
 				{
 					vertices[v].Position = { cs[v].Pos[0], cs[v].Pos[1], cs[v].Pos[2] };
 					vertices[v].Normal = { cs[v].Normal[0], cs[v].Normal[1], cs[v].Normal[2] };
 					vertices[v].UV = { cs[v].UV[0], cs[v].UV[1] };
-					prim.Positions[v] = vertices[v].Position;
 					if (skin) for (int k = 0; k < 4; ++k) { skinVerts[v].Joints[k] = cs[v].Joints[k]; skinVerts[v].Weights[k] = cs[v].Weights[k]; }
 				}
 				if (!mesh.vertex_normal.exists) detail::GenerateNormals(vertices, indices);
 				detail::GenerateTangents(vertices, indices);
-				prim.Skin = skinVerts;
 				Out.m_TriangleCount += indices.size() / 3;
 
 				Model::Primitive primitive;
-				primitive.MeshData = std::make_unique<Mesh>(vertices, indices, skin ? &skinVerts : nullptr);
+				primitive.Geometry.Vertices = std::move(vertices);
+				primitive.Geometry.Indices = std::move(indices);
+				primitive.Skin = std::move(skinVerts);   // (empty for a rigid mesh)
 				primitive.MaterialIndex = slot < mesh.materials.count ? static_cast<int>(mesh.materials.data[slot]->typed_id) : -1;
 				Out.m_Meshes[meshIndex].push_back(std::move(primitive));
-				cpu.push_back(std::move(prim));
 			}
 		}
 	};
@@ -376,9 +380,8 @@ namespace GB
 		loader.ConvertSkins();
 
 		model->m_Meshes.resize(scene->meshes.count);
-		std::vector<std::vector<PrimitiveCPU>> cpu(scene->meshes.count);
 		for (size_t m = 0; m < scene->meshes.count; ++m)
-			loader.ConvertMesh(m, *scene->meshes.data[m], cpu[m]);
+			loader.ConvertMesh(m, *scene->meshes.data[m]);
 		for (size_t i = 0; i < scene->nodes.count; ++i)
 		{
 			const ufbx_node* n = scene->nodes.data[i];
@@ -394,11 +397,11 @@ namespace GB
 
 		BakedClips baked = BakeClips(scene, loader.NodeMap, &model->m_Nodes, StemOf(path));
 		model->m_Clips = std::move(baked.Clips);
-		model->ComputeBounds(cpu);
+		model->ComputeBounds();
 
 		ufbx_free_scene(scene);
 		GB_CORE_INFO("Loaded FBX '{}': {} meshes, {} nodes, {} materials, {} textures, {} triangles, {} skins, {} animations",
-			path, model->m_Meshes.size(), model->m_Nodes.size(), model->m_Materials.size(), model->m_Textures.size(), model->m_TriangleCount,
+			path, model->m_Meshes.size(), model->m_Nodes.size(), model->m_Materials.size(), model->m_Images.size(), model->m_TriangleCount,
 			model->m_Skins.size(), model->m_Clips.size());
 		return model;
 	}

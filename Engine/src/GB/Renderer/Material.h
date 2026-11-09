@@ -1,11 +1,10 @@
 #pragma once
 #include "Texture.h"
+#include "GB/Scene/AlphaMode.h"
 #include <glm/glm.hpp>
 
 namespace GB
 {
-	enum class AlphaMode { Opaque, Mask, Blend };
-
 	// Metallic/roughness PBR material (constant parameters; textures come with the glTF importer).
 	struct Material
 	{

@@ -44,6 +44,24 @@ namespace GB
 		return image;
 	}
 
+	bool Image::Probe(const std::string& path)
+	{
+		int w = 0, h = 0, channels = 0;
+		if (stbi_info(path.c_str(), &w, &h, &channels) && w > 0 && h > 0)
+			return true;
+		GB_CORE_ERROR("Could not load image '{}': {}", path, stbi_failure_reason() ? stbi_failure_reason() : "empty image");
+		return false;
+	}
+
+	bool Image::ProbeMemory(const uint8_t* data, size_t size)
+	{
+		int w = 0, h = 0, channels = 0;
+		if (stbi_info_from_memory(data, static_cast<int>(size), &w, &h, &channels) && w > 0 && h > 0)
+			return true;
+		GB_CORE_ERROR("Could not decode embedded image: {}", stbi_failure_reason() ? stbi_failure_reason() : "empty image");
+		return false;
+	}
+
 	Image Image::Solid(uint32_t width, uint32_t height, uint8_t r, uint8_t g, uint8_t b, uint8_t a)
 	{
 		Image image;

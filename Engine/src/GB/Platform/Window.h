@@ -1,5 +1,5 @@
 #pragma once
-#include "Input.h"
+#include "GB/Platform/Input.h"
 #include <cstdint>
 #include <memory>
 #include <string>

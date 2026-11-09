@@ -2,10 +2,11 @@
 // (linear / step / cubic spline), looping, cross-fades, joint palettes and GPU skinning.
 // SKIPs (77) without an OpenGL 4.5 context.
 #include "GB/Assets/Model.h"
+#include "GB/Renderer/ModelGpu.h"
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -136,7 +137,7 @@ int main()
 		GB::Scene scene;
 		scene.Sun.CastShadows = false;
 		scene.Env.ShadowRadius = 4.0f;
-		inst.AddToScene(scene);
+		GB::AddToScene(inst, scene);
 		renderer.Render(scene, camera, &target);
 		return target.ReadPixels();
 	};

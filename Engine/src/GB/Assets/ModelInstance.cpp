@@ -1,4 +1,4 @@
-#include "ModelInstance.h"
+#include "GB/Assets/ModelInstance.h"
 #include <algorithm>
 #include <cmath>
 #include <functional>
@@ -166,32 +166,5 @@ namespace GB
 		out.NearPlane = src.NearPlane;
 		out.FarPlane = src.FarPlane;
 		return true;
-	}
-
-	void ModelInstance::AddToScene(Scene& scene, const glm::mat4& root, const std::vector<glm::vec3>* tints) const
-	{
-		const auto& nodes = m_Model.GetNodes();
-		for (int n : m_Model.GetNodeOrder())
-		{
-			if (nodes[n].MeshIndex < 0)
-				continue;
-			const bool skinned = nodes[n].SkinIndex >= 0;
-			for (const Model::Primitive& prim : m_Model.GetPrimitives(nodes[n].MeshIndex))
-			{
-				RenderObject obj;
-				obj.MeshPtr = prim.MeshData.get();
-				obj.Mat = m_Model.GetMaterial(prim.MaterialIndex);
-				if (tints && prim.MaterialIndex >= 0 && prim.MaterialIndex < static_cast<int>(tints->size())) obj.Mat.Albedo *= (*tints)[static_cast<size_t>(prim.MaterialIndex)];
-				if (skinned && prim.MeshData->HasSkin())
-				{
-					// glTF: the transform of a skinned mesh's node is ignored; the joints place the vertices.
-					obj.Transform = root;
-					obj.JointMatrices = &m_Palettes[n];
-				}
-				else
-					obj.Transform = root * m_World[n];
-				scene.Objects.push_back(std::move(obj));
-			}
-		}
 	}
 }

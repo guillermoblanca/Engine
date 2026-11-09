@@ -6,7 +6,7 @@
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TreesGpu.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Trees.h"
 #include <cmath>

@@ -4,7 +4,7 @@
 #include "GB/Renderer/GrassGpu.h"
 #include "GB/Renderer/GroundInteraction.h"
 #include "GB/Renderer/Renderer.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/World/Grass.h"
 #include <cmath>
 #include <cstdio>

@@ -1,8 +1,9 @@
 // Loads tests/data/test_scene.glb (see tools/make_test_gltf.py) and checks the importer.
 // SKIPs (77) without an OpenGL 4.5 context because meshes and textures live on the GPU.
 #include "GB/Assets/Model.h"
+#include "GB/Renderer/ModelGpu.h"
 #include "GB/Log.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include <cmath>
 #include <cstdio>
 #include <string>
@@ -48,15 +49,17 @@ int main()
 	Check(Near(lo.x, -5) && Near(lo.y, 0) && Near(lo.z, 0), "bounds min includes the triangle");
 	Check(Near(hi.x, 2) && Near(hi.y, 4) && Near(hi.z, 4), "bounds max follows the node hierarchy");
 
-	const GB::Material& red = model->GetMaterials()[0];
+	const GB::ModelMaterial& red = model->GetMaterials()[0];
 	Check(Near(red.Albedo.g, 0.5f) && Near(red.Opacity, 0.8f), "base color factor");
 	Check(Near(red.Metallic, 0.25f) && Near(red.Roughness, 0.75f), "metallic/roughness factors");
-	Check(red.AlbedoMap != nullptr && red.AlbedoMap->IsValid(), "embedded PNG became a texture");
+	const GB::ModelGpu& gpu = GB::ModelGpu::Of(*model);   // (the textures are decoded and uploaded on the first draw)
+	Check(red.AlbedoMap >= 0 && gpu.GetMaterials()[0].AlbedoMap != nullptr && gpu.GetMaterials()[0].AlbedoMap->IsValid() && gpu.GetTextureCount() == 1,
+		"embedded PNG became a texture");
 	Check(red.Alpha == GB::AlphaMode::Mask && Near(red.AlphaCutoff, 0.3f) && red.DoubleSided, "alpha mask + double sided");
 	Check(Near(red.Emissive.b, 0.3f), "emissive factor");
 
 	GB::Scene scene;
-	model->AddToScene(scene, glm::translate(glm::mat4(1.0f), glm::vec3(10, 0, 0)));
+	GB::AddToScene(*model, scene, glm::translate(glm::mat4(1.0f), glm::vec3(10, 0, 0)));
 	Check(scene.Objects.size() == 2, "AddToScene emits one object per primitive instance");
 	if (scene.Objects.size() == 2)
 	{

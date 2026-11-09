@@ -1,7 +1,7 @@
 // Post-processing: ambient occlusion, depth of field, eye adaptation, tone mappers and grading. Needs OpenGL 4.5.
 #include "GB/Log.h"
 #include "GB/Renderer/Renderer.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include <cmath>
 #include <cstdio>
 #include <glm/gtc/matrix_transform.hpp>

@@ -9,7 +9,7 @@
 #include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TerrainGpu.h"
 #include "GB/Renderer/TreesGpu.h"
-#include "GB/Window.h"
+#include "GB/Platform/Window.h"
 #include "GB/World/Grass.h"
 #include "GB/World/Rocks.h"
 #include "GB/World/Terrain.h"

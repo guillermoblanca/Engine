@@ -5,6 +5,7 @@
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Items.h"
 #include "GB/Renderer/Mesh.h"
+#include "GB/Renderer/ModelGpu.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/Texture.h"
 #include "GB/Visual/VisualDefs.h"

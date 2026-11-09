@@ -1,6 +1,5 @@
-#include "Model.h"
-#include "ModelInstance.h"
-#include "ModelUtil.h"
+#include "GB/Assets/Model.h"
+#include "GB/Assets/ModelUtil.h"
 #include "GB/Log.h"
 #include "GB/Scene/Image.h"
 #include <algorithm>
@@ -131,65 +130,66 @@ namespace GB
 		Model& Out;
 		cgltf_data* Data;
 		std::string BaseDir;
-		std::map<std::pair<const cgltf_image*, int>, Texture2D*> TextureCache;
+		std::map<std::pair<const cgltf_image*, int>, int> TextureCache;   // -> index into Out.m_Images, or -1
 
-		const Texture2D* GetTexture(const cgltf_texture_view& view, TextureEncoding encoding)
+		// The image of a texture slot, by index into the model's images (-1: none, or it cannot be read). Only the header is checked here: the
+		// render decodes it (GB/Renderer/ModelGpu.h).
+		int GetTexture(const cgltf_texture_view& view, bool srgb)
 		{
 			const cgltf_texture* texture = view.texture;
 			if (!texture || !texture->image)
-				return nullptr;
+				return -1;
 			if (view.texcoord != 0)
 				GB_CORE_WARN("glTF: texture uses UV set {}; only UV0 is supported", view.texcoord);
 
-			const auto key = std::make_pair(texture->image, static_cast<int>(encoding));
+			const auto key = std::make_pair(texture->image, srgb ? 0 : 1);
 			auto it = TextureCache.find(key);
 			if (it != TextureCache.end())
 				return it->second;
 
-			Image image;
+			ModelImage image;
+			image.SRGB = srgb;
+			bool valid = false;
 			const cgltf_image* src = texture->image;
 			if (src->buffer_view)
 			{
 				const uint8_t* bytes = static_cast<const uint8_t*>(src->buffer_view->buffer->data) + src->buffer_view->offset;
-				image = Image::LoadFromMemory(bytes, src->buffer_view->size, false);
+				if (Image::ProbeMemory(bytes, src->buffer_view->size))
+				{
+					image.Encoded.assign(bytes, bytes + src->buffer_view->size);
+					valid = true;
+				}
 			}
 			else if (src->uri && std::strncmp(src->uri, "data:", 5) == 0)
 			{
 				const char* comma = std::strchr(src->uri, ',');
 				std::vector<uint8_t> bytes;
-				if (comma && DecodeBase64(comma + 1, std::strlen(comma + 1), bytes))
-					image = Image::LoadFromMemory(bytes.data(), bytes.size(), false);
+				if (comma && DecodeBase64(comma + 1, std::strlen(comma + 1), bytes) && Image::ProbeMemory(bytes.data(), bytes.size()))
+				{
+					image.Encoded = std::move(bytes);
+					valid = true;
+				}
 			}
 			else if (src->uri)
 			{
 				std::string decoded = src->uri;
 				cgltf_decode_uri(decoded.data());
 				decoded.resize(std::strlen(decoded.c_str()));
-				// an image file is loaded once for every model that uses it (the pieces of a modular kit share a dozen textures between them)
-				static std::map<std::pair<std::string, int>, std::weak_ptr<Texture2D>> shared;
-				const auto fileKey = std::make_pair(std::filesystem::weakly_canonical(BaseDir + decoded).generic_string(), static_cast<int>(encoding));
-				if (std::shared_ptr<Texture2D> there = shared[fileKey].lock())
+				// an image file is uploaded once for every model that uses it (the pieces of a modular kit share a dozen textures between them)
+				if (Image::Probe(BaseDir + decoded))
 				{
-					Out.m_Textures.push_back(there);
-					TextureCache[key] = there.get();
-					return there.get();
-				}
-				image = Image::Load(BaseDir + decoded, false);
-				if (image.IsValid())
-				{
-					Out.m_Textures.push_back(std::make_shared<Texture2D>(image, encoding));
-					shared[fileKey] = Out.m_Textures.back();
-					TextureCache[key] = Out.m_Textures.back().get();
-					return Out.m_Textures.back().get();
+					image.File = BaseDir + decoded;
+					image.SharedKey = std::filesystem::weakly_canonical(BaseDir + decoded).generic_string() + (srgb ? "|srgb" : "|linear");
+					valid = true;
 				}
 			}
 
 			// glTF UV (0,0) is the top-left of the image, which is row 0 of the uploaded data (no flip).
-			Texture2D* result = nullptr;
-			if (image.IsValid())
+			int result = -1;
+			if (valid)
 			{
-				Out.m_Textures.push_back(std::make_shared<Texture2D>(image, encoding));
-				result = Out.m_Textures.back().get();
+				Out.m_Images.push_back(std::move(image));
+				result = static_cast<int>(Out.m_Images.size()) - 1;
 			}
 			else
 				GB_CORE_WARN("glTF: could not load an image; the material will render without it");
@@ -197,9 +197,9 @@ namespace GB
 			return result;
 		}
 
-		Material ConvertMaterial(const cgltf_material& src)
+		ModelMaterial ConvertMaterial(const cgltf_material& src)
 		{
-			Material m;
+			ModelMaterial m;
 			if (src.has_pbr_metallic_roughness)
 			{
 				const cgltf_pbr_metallic_roughness& pbr = src.pbr_metallic_roughness;
@@ -207,8 +207,8 @@ namespace GB
 				m.Opacity = pbr.base_color_factor[3];
 				m.Metallic = pbr.metallic_factor;
 				m.Roughness = pbr.roughness_factor;
-				m.AlbedoMap = GetTexture(pbr.base_color_texture, TextureEncoding::SRGB);
-				m.MetallicRoughnessMap = GetTexture(pbr.metallic_roughness_texture, TextureEncoding::Linear);
+				m.AlbedoMap = GetTexture(pbr.base_color_texture, true);
+				m.MetallicRoughnessMap = GetTexture(pbr.metallic_roughness_texture, false);
 			}
 			else
 			{
@@ -216,11 +216,11 @@ namespace GB
 				m.Metallic = 1.0f;
 				m.Roughness = 1.0f;
 			}
-			m.NormalMap = GetTexture(src.normal_texture, TextureEncoding::Linear);
+			m.NormalMap = GetTexture(src.normal_texture, false);
 			m.NormalStrength = src.normal_texture.texture ? src.normal_texture.scale : 1.0f;
-			m.OcclusionMap = GetTexture(src.occlusion_texture, TextureEncoding::Linear);
+			m.OcclusionMap = GetTexture(src.occlusion_texture, false);
 			m.OcclusionStrength = src.occlusion_texture.texture ? src.occlusion_texture.scale : 1.0f;
-			m.EmissiveMap = GetTexture(src.emissive_texture, TextureEncoding::SRGB);
+			m.EmissiveMap = GetTexture(src.emissive_texture, true);
 			m.Emissive = { src.emissive_factor[0], src.emissive_factor[1], src.emissive_factor[2] };
 			if (src.has_emissive_strength)
 				m.Emissive *= src.emissive_strength.emissive_strength;
@@ -236,14 +236,13 @@ namespace GB
 			return m;
 		}
 
-		// CPU copies kept until the bounds are computed.
-
-		std::unique_ptr<Mesh> ConvertPrimitive(const cgltf_primitive& prim, Model::PrimitiveCPU& cpu)
+		// False (and logs why) for a primitive that is skipped.
+		bool ConvertPrimitive(const cgltf_primitive& prim, Model::Primitive& out)
 		{
 			if (prim.type != cgltf_primitive_type_triangles)
 			{
 				GB_CORE_WARN("glTF: skipping a non-triangle primitive");
-				return nullptr;
+				return false;
 			}
 			const cgltf_accessor *position = nullptr, *normal = nullptr, *tangent = nullptr, *uv = nullptr;
 			const cgltf_accessor *joints = nullptr, *weights = nullptr;
@@ -260,7 +259,7 @@ namespace GB
 			if (!position)
 			{
 				GB_CORE_WARN("glTF: skipping a primitive without POSITION");
-				return nullptr;
+				return false;
 			}
 
 			const size_t count = position->count;
@@ -297,7 +296,7 @@ namespace GB
 				if (index >= count)
 				{
 					GB_CORE_WARN("glTF: primitive has out-of-range indices; skipped");
-					return nullptr;
+					return false;
 				}
 			}
 
@@ -323,13 +322,11 @@ namespace GB
 				}
 			}
 
-			cpu.Positions.resize(count);
-			for (size_t i = 0; i < count; ++i)
-				cpu.Positions[i] = vertices[i].Position;
-			cpu.Skin = skin;
-
 			Out.m_TriangleCount += indices.size() / 3;
-			return std::make_unique<Mesh>(vertices, indices, skin.empty() ? nullptr : &skin);
+			out.Geometry.Vertices = std::move(vertices);
+			out.Geometry.Indices = std::move(indices);
+			out.Skin = std::move(skin);
+			return true;
 		}
 
 		static void DecomposeMatrix(const float* m, ModelNode& node)
@@ -526,35 +523,30 @@ namespace GB
 		loader.ConvertAnimations();
 
 		model->m_Meshes.resize(data->meshes_count);
-		std::vector<std::vector<Model::PrimitiveCPU>> cpu(data->meshes_count);
 		for (cgltf_size m = 0; m < data->meshes_count; ++m)
 		{
 			const cgltf_mesh& mesh = data->meshes[m];
 			for (cgltf_size p = 0; p < mesh.primitives_count; ++p)
 			{
 				const cgltf_primitive& prim = mesh.primitives[p];
-				Model::PrimitiveCPU primitiveCPU;
-				std::unique_ptr<Mesh> gpu = loader.ConvertPrimitive(prim, primitiveCPU);
-				if (!gpu)
-					continue;
 				Primitive primitive;
-				primitive.MeshData = std::move(gpu);
+				if (!loader.ConvertPrimitive(prim, primitive))
+					continue;
 				primitive.MaterialIndex = prim.material ? static_cast<int>(cgltf_material_index(data, prim.material)) : -1;
 				model->m_Meshes[m].push_back(std::move(primitive));
-				cpu[m].push_back(std::move(primitiveCPU));
 			}
 		}
 
-		model->ComputeBounds(cpu);
+		model->ComputeBounds();
 
 		cgltf_free(data);
 		GB_CORE_INFO("Loaded glTF '{}': {} meshes, {} nodes, {} materials, {} textures, {} triangles, {} skins, {} animations, {} cameras",
 			path, model->m_Meshes.size(), model->m_Nodes.size(), model->m_Materials.size(),
-			model->m_Textures.size(), model->m_TriangleCount, model->m_Skins.size(), model->m_Clips.size(), model->m_Cameras.size());
+			model->m_Images.size(), model->m_TriangleCount, model->m_Skins.size(), model->m_Clips.size(), model->m_Cameras.size());
 		return model;
 	}
 
-	void Model::ComputeBounds(const std::vector<std::vector<PrimitiveCPU>>& cpu)
+	void Model::ComputeBounds()
 	{
 		// Bounds in the rest pose: rigid vertices by their node's world, skinned ones through the rest palette.
 		const size_t nodeCount = m_Nodes.size();
@@ -584,11 +576,11 @@ namespace GB
 				for (size_t j = 0; j < skin.Joints.size(); ++j)
 					palette.push_back(world[skin.Joints[j]] * skin.InverseBind[j]);
 			}
-			for (const Model::PrimitiveCPU& prim : cpu[node.MeshIndex])
+			for (const Primitive& prim : m_Meshes[static_cast<size_t>(node.MeshIndex)])
 			{
-				for (size_t v = 0; v < prim.Positions.size(); ++v)
+				for (size_t v = 0; v < prim.Geometry.Vertices.size(); ++v)
 				{
-					glm::vec4 p(prim.Positions[v], 1.0f), w4;
+					glm::vec4 p(prim.Geometry.Vertices[v].Position, 1.0f), w4;
 					if (!prim.Skin.empty() && !palette.empty())
 					{
 						const SkinVertex& sv = prim.Skin[v];
@@ -628,26 +620,16 @@ namespace GB
 		return -1;
 	}
 
-	Material Model::GetMaterial(int materialIndex) const
+	ModelMaterial Model::GetMaterial(int materialIndex) const
 	{
 		if (materialIndex >= 0 && static_cast<size_t>(materialIndex) < m_Materials.size())
 			return m_Materials[materialIndex];
-		Material m;   // glTF default material
+		ModelMaterial m;   // glTF default material
 		m.Metallic = 1.0f;
 		m.Roughness = 1.0f;
 		m.HeightScale = 0.0f;
 		m.CavityStrength = 0.0f;
 		return m;
-	}
-
-	void Model::AddToScene(Scene& scene, const glm::mat4& root) const
-	{
-		ModelInstance rest(*this);   // rest pose, no playback
-		const size_t first = scene.Objects.size();
-		rest.AddToScene(scene, root);
-		// The palettes die with `rest`: skinned meshes are drawn unskinned (bind pose) in static scenes.
-		for (size_t i = first; i < scene.Objects.size(); ++i)
-			scene.Objects[i].JointMatrices = nullptr;
 	}
 
 	int Model::AddClip(AnimationClip clip)
