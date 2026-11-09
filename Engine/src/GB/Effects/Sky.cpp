@@ -28,14 +28,18 @@ namespace GB
 		const glm::vec3 nightTop(0.004f, 0.008f, 0.028f), nightHorizon(0.018f, 0.026f, 0.055f), nightGround(0.006f, 0.007f, 0.012f);
 		const glm::vec3 duskTop(0.10f, 0.13f, 0.34f), duskHorizon(1.0f, 0.46f, 0.20f);
 
-		glm::vec3 top = glm::mix(nightTop, dayTop, day);
-		glm::vec3 horizon = glm::mix(nightHorizon, dayHorizon, day);
+		// The sky (and so the ambient light it gives) keeps part of its day colour through the twilight and reaches the night colours at the end
+		// of the astronomical twilight (sun 18 degrees down, h -0.31), not with `day`, which is already 0 at 6 degrees: with it the sky was night
+		// half an hour after sunset and the ground and the tops of things sank into black at 18:30 (T52). Full day at h 0.18, as `day`.
+		const float skyLight = glm::smoothstep(-0.31f, 0.18f, h);
+		glm::vec3 top = glm::mix(nightTop, dayTop, skyLight);
+		glm::vec3 horizon = glm::mix(nightHorizon, dayHorizon, skyLight);
 		top = glm::mix(top, duskTop, twilight * 0.55f);
 		horizon = glm::mix(horizon, duskHorizon, twilight * 0.8f);
-		horizon = glm::mix(horizon, glm::vec3(0.78f, 0.80f, 0.84f) * (0.2f + 0.8f * day), d.Haze * 0.5f);
+		horizon = glm::mix(horizon, glm::vec3(0.78f, 0.80f, 0.84f) * (0.2f + 0.8f * skyLight), d.Haze * 0.5f);
 		st.Env.SkyTop = top;
 		st.Env.SkyHorizon = horizon;
-		st.Env.SkyGround = glm::mix(nightGround, dayGround, day) * glm::mix(1.0f, 0.8f, twilight);
+		st.Env.SkyGround = glm::mix(nightGround, dayGround, skyLight) * glm::mix(1.0f, 0.8f, twilight);
 		st.Env.Intensity = glm::mix(1.0f, base.Intensity, day);
 		st.Env.FogColor = glm::mix(horizon * 0.85f, glm::vec3(0.02f, 0.03f, 0.06f), st.NightFactor * 0.5f);
 		st.Env.Stars = st.NightFactor * (1.0f - d.CloudCover * 0.8f);
