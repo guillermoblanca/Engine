@@ -1,10 +1,14 @@
 #include "GB/Renderer/MaterialLayers.h"
 #include "GB/Renderer/Material.h"
+#include <algorithm>
+#include <cmath>
 
 namespace GB
 {
 	namespace
 	{
+		constexpr float kMossCurve = 0.683f;   // 0.4^0.683 = 0.535
+
 		float Get(const MaterialLayerDef& layer, const MaterialLayerValues& values, const char* param) { return LayerParam(layer, values, param).x; }
 
 		// Moss on the faces that look up, broken by world-space noise (PBRFS, "Procedural surface layers"): the mask uses the world position and
@@ -12,7 +16,11 @@ namespace GB
 		void ApplyMoss(const MaterialLayerValues& values, Material& m)
 		{
 			const MaterialLayerDef& self = *FindMaterialLayer("moss");
-			m.Moss = Get(self, values, "amount");
+			// The shader's uMoss is not a coverage: on the era 1 rocks seen from above 0.4 covers ~0% of the stone, 0.55 ~30%, 0.7 ~64%
+			// (measured, MATERIALES.md). The data's amount is remapped so 0.4 lands at ~0.535 (20-25%), keeping 0 and 1; the procedural rocks
+			// (RocksGpu) set uMoss directly and do not go through here, so they look as before.
+			const float amount = std::clamp(Get(self, values, "amount"), 0.0f, 1.0f);
+			m.Moss = amount > 0.0f ? std::pow(amount, kMossCurve) : 0.0f;
 			m.MossColor = LayerParam(self, values, "color");
 		}
 

@@ -130,7 +130,18 @@ int main()
 		Material r;
 		r.Albedo = glm::vec3(0.1f, 0.2f, 0.3f);
 		ApplyMaterialLayers(mossy.Layers, r);
-		Check(r.Moss == 0.3f && r.MossColor == glm::vec3(0.16f, 0.2f, 0.06f), "moss lands on the render material");
+		Check(r.Moss > 0.3f && r.Moss < 0.5f && r.MossColor == glm::vec3(0.16f, 0.2f, 0.06f), "moss lands on the render material (amount remapped to the shader's curve)");
+		{
+			MaterialLayers full, none, forty;
+			full["moss"]["amount"] = glm::vec3(1.0f);
+			none["moss"]["amount"] = glm::vec3(0.0f);
+			forty["moss"]["amount"] = glm::vec3(0.4f);
+			Material a, b, c;
+			ApplyMaterialLayers(full, a);
+			ApplyMaterialLayers(none, b);
+			ApplyMaterialLayers(forty, c);
+			Check(a.Moss == 1.0f && b.Moss == 0.0f && std::fabs(c.Moss - 0.535f) < 0.01f, "moss amount 0, 0.4 and 1 give uMoss 0, ~0.535 (20-25% seen from above) and 1");
+		}
 		Check(r.Grain == 0.35f && r.GrainScale == 5.0f, "a missing parameter takes its default (grain amount 0.35), a given one its value");
 		Check(r.Albedo == glm::vec3(0.1f, 0.2f, 0.3f) && r.Alpha == AlphaMode::Opaque, "the layers change nothing else (a glTF piece keeps its surface and colour)");
 		Material plain, before;
