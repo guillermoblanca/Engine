@@ -12,8 +12,25 @@ target_compile_definitions(sqlite3 PRIVATE SQLITE_THREADSAFE=1 SQLITE_OMIT_LOAD_
 find_package(Threads REQUIRED)
 target_link_libraries(sqlite3 PUBLIC Threads::Threads)
 
-add_library(GB STATIC
-    src/GB/Platform/Application.cpp
+# The engine is split by layers (documentation/02_tecnico/arquitectura/ARQUITECTURA_REVISION.md, sections 5.1 and 5.2): each target only links the
+# ones below it, so an include that goes up a layer no longer links. Every target is a static library.
+#   GB_Core     Core, Scene, Input                                  (glm)
+#   GB_Sim      World, Navigation, Assets, Audio, Save, Telemetry,
+#               Animation, Gameplay, AI, Game, Tools                (CPU only: GBSim and the CPU tests link this, without GL or GLFW)
+#   GB_Render   Renderer, Visual, Effects, Qa                       (glad)
+#   GB_Platform Platform: Window, Input, Application                (glfw)
+#   GB          INTERFACE with all of them (Editor, Sandbox, the tests that open a window)
+add_library(GB_Core STATIC
+    src/GB/Scene/Task.cpp
+    src/GB/Scene/MeshData.cpp
+    src/GB/Scene/Entity.cpp
+    src/GB/Scene/SceneIO.cpp
+    src/GB/Input/InputActions.cpp
+    src/GB/Core/Log.cpp
+    src/GB/Core/Fingerprint.cpp
+    src/GB/Scene/Image.cpp)
+
+add_library(GB_Sim STATIC
     src/GB/Game/CharacterController.cpp
     src/GB/Game/GameCamera.cpp
     src/GB/Game/MotionState.cpp
@@ -23,8 +40,6 @@ add_library(GB STATIC
     src/GB/Game/Interaction.cpp
     src/GB/Game/CharacterAbilityAvatar.cpp
     src/GB/Game/TaskList.cpp
-    src/GB/Scene/Task.cpp
-    src/GB/Scene/MeshData.cpp
     src/GB/Game/GBObject.cpp
     src/GB/Game/Components/Gameplay/MovementComponent.cpp
     src/GB/Game/Components/Gameplay/OrdersComponent.cpp
@@ -66,7 +81,6 @@ add_library(GB STATIC
     src/GB/Game/Trails.cpp
     src/GB/Game/Conflict.cpp
     src/GB/Game/ClanHostility.cpp
-
     src/GB/Game/Economy.cpp
     src/GB/Game/Production.cpp
     src/GB/Game/Exploration.cpp
@@ -118,7 +132,6 @@ add_library(GB STATIC
     src/GB/Audio/AudioEngine.cpp
     src/GB/Audio/FootstepSounds.cpp
     src/GB/Audio/AudioMixer.cpp
-    src/GB/Scene/Entity.cpp
     src/GB/Animation/CharacterAnimator.cpp
     src/GB/Animation/AnimInstance.cpp
     src/GB/Animation/Montage.cpp
@@ -135,26 +148,11 @@ add_library(GB STATIC
     src/GB/Animation/AnimGraph.cpp
     src/GB/Animation/FootIK.cpp
     src/GB/Animation/LookAt.cpp
-    src/GB/Scene/SceneIO.cpp
     src/GB/Save/SaveGame.cpp
     src/GB/Save/SaveWorld.cpp
     src/GB/Save/SaveFiles.cpp
     src/GB/Save/Replay.cpp
-    src/GB/Visual/EntityRender.cpp
-    src/GB/Visual/TribeVisuals.cpp
     src/GB/Animation/ReachLayer.cpp
-    src/GB/Visual/ProcMesh.cpp
-    src/GB/Visual/ProcTexture.cpp
-    src/GB/Visual/VisualDefs.cpp
-    src/GB/Visual/PropVisuals.cpp
-    src/GB/Visual/SceneVisuals.cpp
-    src/GB/Visual/BuildingVisuals.cpp
-    src/GB/Visual/VisualContent.cpp
-    src/GB/Visual/ActorRender.cpp
-    src/GB/Platform/Input.cpp
-    src/GB/Input/InputActions.cpp
-    src/GB/Core/Log.cpp
-    src/GB/Core/Fingerprint.cpp
     src/GB/Assets/Model.cpp
     src/GB/Assets/ModelFbx.cpp
     src/GB/Animation/ClipAnalysis.cpp
@@ -168,7 +166,6 @@ add_library(GB STATIC
     src/GB/World/Terrain.cpp
     src/GB/World/Trees.cpp
     src/GB/World/Water.cpp
-    src/GB/Effects/Sky.cpp
     src/GB/World/Physics.cpp
     src/GB/World/Rocks.cpp
     src/GB/World/Erosion.cpp
@@ -202,23 +199,34 @@ add_library(GB STATIC
     src/GB/World/Graph/Nodes/ScatterNode.cpp
     src/GB/World/Graph/Nodes/BiomeClassifyNode.cpp
     src/GB/World/Graph/Nodes/BuiltinNodes.cpp
-    src/GB/Qa/Qa.cpp
     src/GB/World/Destruction.cpp
     src/GB/World/Biome.cpp
     src/GB/World/WorldGen.cpp
     src/GB/World/WorldGenLegacy.cpp
+    src/GB/Assets/ModelInstance.cpp)
+
+add_library(GB_Render STATIC
+    src/GB/Visual/EntityRender.cpp
+    src/GB/Visual/TribeVisuals.cpp
+    src/GB/Visual/ProcMesh.cpp
+    src/GB/Visual/ProcTexture.cpp
+    src/GB/Visual/VisualDefs.cpp
+    src/GB/Visual/PropVisuals.cpp
+    src/GB/Visual/SceneVisuals.cpp
+    src/GB/Visual/BuildingVisuals.cpp
+    src/GB/Visual/VisualContent.cpp
+    src/GB/Visual/ActorRender.cpp
+    src/GB/Effects/Sky.cpp
+    src/GB/Qa/Qa.cpp
     src/GB/Renderer/EnvironmentMap.cpp
     src/GB/Effects/Lightning.cpp
     src/GB/Effects/SandSpray.cpp
     src/GB/Effects/Weather.cpp
-    src/GB/Assets/ModelInstance.cpp
-    src/GB/Platform/Window.cpp
     src/GB/Renderer/CameraController.cpp
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/GrassRenderer.cpp
     src/GB/Renderer/GrassGpu.cpp
     src/GB/Renderer/GroundInteraction.cpp
-    src/GB/Scene/Image.cpp
     src/GB/Renderer/Mesh.cpp
     src/GB/Renderer/Particles.cpp
     src/GB/Renderer/ParticleRenderer.cpp
@@ -236,26 +244,57 @@ add_library(GB STATIC
     src/GB/Renderer/WorldTilesGpu.cpp
     src/GB/Renderer/Visibility.cpp
     src/GB/Renderer/MaterialLayers.cpp)
-add_library(GB::GB ALIAS GB)
+
+add_library(GB_Platform STATIC
+    src/GB/Platform/Application.cpp
+    src/GB/Platform/Input.cpp
+    src/GB/Platform/Window.cpp)
+
+add_library(GB::Core ALIAS GB_Core)
+add_library(GB::Sim ALIAS GB_Sim)
+add_library(GB::Render ALIAS GB_Render)
+add_library(GB::Platform ALIAS GB_Platform)
+
+# GB_Core (L0-L2 without dependencies): Core, Scene, Input. glm is header-only and part of the public API (SYSTEM so its headers do not
+# trip our warning flags); spdlog stays behind Log.h (H10); stb_image (Image.cpp) and json (SceneIO, InputActions) are private.
+target_include_directories(GB_Core PUBLIC src)
+target_include_directories(GB_Core SYSTEM PUBLIC ${glm_SOURCE_DIR})
+target_link_libraries(GB_Core PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+target_link_libraries(GB_Core PRIVATE spdlog::spdlog)
+target_include_directories(GB_Core SYSTEM PRIVATE ${stb_SOURCE_DIR} ${json_SOURCE_DIR}/include)
+
+# GB_Sim (L2-L4, CPU only): what GBSim and the CPU tests link. No glad, no glfw, no imgui.
+target_link_libraries(GB_Sim PUBLIC GB_Core)
+target_link_libraries(GB_Sim PRIVATE ufbx sqlite3)
+target_include_directories(GB_Sim SYSTEM PRIVATE ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include ${miniaudio_SOURCE_DIR})
 # the game's data (ShippedContent.h): the catalogue is read from here unless the application says otherwise
-target_compile_definitions(GB PRIVATE GB_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets/data")
+target_compile_definitions(GB_Sim PRIVATE GB_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets/data")
 
-target_include_directories(GB PUBLIC src)
-find_package(Threads REQUIRED)
-target_link_libraries(GB PUBLIC glad glfw Threads::Threads ${CMAKE_DL_LIBS})
-target_link_libraries(GB PRIVATE spdlog::spdlog ufbx sqlite3)
-target_include_directories(GB SYSTEM PRIVATE ${stb_SOURCE_DIR} ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include ${miniaudio_SOURCE_DIR})
-# glm is header-only; added as SYSTEM so its headers do not trip our warning flags.
-target_include_directories(GB SYSTEM PUBLIC ${glm_SOURCE_DIR})
+# GB_Render (L5): the renderer (OpenGL through glad, private), Visual, Effects and Qa.
+target_link_libraries(GB_Render PUBLIC GB_Sim)
+target_link_libraries(GB_Render PRIVATE glad)
+target_include_directories(GB_Render SYSTEM PRIVATE ${stb_SOURCE_DIR} ${json_SOURCE_DIR}/include)
 
-if(MSVC)
-    target_compile_options(GB PRIVATE /W4 /permissive-)
-    if(GB_WARNINGS_AS_ERRORS)
-        target_compile_options(GB PRIVATE /WX)
+# GB_Platform (L5): window, input and application loop (glfw, private).
+target_link_libraries(GB_Platform PUBLIC GB_Render)
+target_link_libraries(GB_Platform PRIVATE glad glfw)
+
+foreach(gb_target GB_Core GB_Sim GB_Render GB_Platform)
+    if(MSVC)
+        target_compile_options(${gb_target} PRIVATE /W4 /permissive-)
+        if(GB_WARNINGS_AS_ERRORS)
+            target_compile_options(${gb_target} PRIVATE /WX)
+        endif()
+    else()
+        target_compile_options(${gb_target} PRIVATE -Wall -Wextra -Wpedantic)
+        if(GB_WARNINGS_AS_ERRORS)
+            target_compile_options(${gb_target} PRIVATE -Werror)
+        endif()
     endif()
-else()
-    target_compile_options(GB PRIVATE -Wall -Wextra -Wpedantic)
-    if(GB_WARNINGS_AS_ERRORS)
-        target_compile_options(GB PRIVATE -Werror)
-    endif()
-endif()
+endforeach()
+
+# GB: everything, for the windowed applications (Editor, Sandbox) and the tests that open a window. glad and glfw stay visible to them,
+# as before the split (the Editor includes <glad/gl.h> and <GLFW/glfw3.h> itself).
+add_library(GB INTERFACE)
+target_link_libraries(GB INTERFACE GB_Platform glad glfw)
+add_library(GB::GB ALIAS GB)
