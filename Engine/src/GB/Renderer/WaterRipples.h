@@ -20,6 +20,9 @@ namespace GB
 	// A 2D wave-equation simulation (height + velocity) on a scrolling window around a center, for ripples
 	// from raindrops, footsteps and swimmers. The water shader reads the height for normals and foam.
 	// The window is a torus like GroundInteraction; waves are absorbed near its border. Needs OpenGL 4.5.
+	//
+	// All of it is render: the wave equation is stepped in a shader and only the water shader reads the result (the tests read it back with
+	// ReadHeight). So it lives in Renderer, not in World (docs/ARQUITECTURA_REVISION.md, H5); the simulation does not see it.
 	class WaterRipples
 	{
 	public:

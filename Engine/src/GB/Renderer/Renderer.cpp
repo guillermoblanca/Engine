@@ -1,4 +1,5 @@
 #include "Renderer.h"
+#include "GroundInteraction.h"
 #include "ParticleRenderer.h"
 #include "Visibility.h"
 #include "Shaders.h"

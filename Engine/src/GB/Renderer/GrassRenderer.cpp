@@ -1,5 +1,8 @@
 #include "GrassRenderer.h"
+#include "GrassGpu.h"
+#include "GroundInteraction.h"
 #include "RenderStats.h"
+#include "GB/World/Grass.h"
 #include "Shaders.h"
 #include <algorithm>
 #include <glad/gl.h>
@@ -82,11 +85,12 @@ namespace GB
 		glBindVertexArray(m_GrassVAO);
 
 		const glm::vec3 forward = camera.GetForward();
-		for (const GrassField* field : scene.Grass)
+		for (const GrassGpu* gpu : scene.Grass)
 		{
-			if (!field || field->GetBladeCount() == 0)
+			if (!gpu || gpu->GetField().GetBladeCount() == 0)
 				continue;
-			const uint32_t buffer = field->GetBuffer();
+			const GrassField* field = &gpu->GetField();
+			const uint32_t buffer = gpu->GetBuffer();
 			const GrassParams& p = field->Params;
 			const float drawDistance = p.DrawDistance * std::max(scene.GrassDistanceScale, 0.0f);
 			if (drawDistance <= 0.0f)

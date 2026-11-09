@@ -4,7 +4,7 @@
 #include "GB/Renderer/Renderer.h"
 #include "GB/Window.h"
 #include "GB/World/Footsteps.h"
-#include "GB/World/GroundInteraction.h"
+#include "GB/Renderer/GroundInteraction.h"
 #include <cmath>
 #include <cstdio>
 #include <glm/gtc/matrix_transform.hpp>

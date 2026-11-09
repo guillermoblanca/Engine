@@ -20,7 +20,7 @@ namespace GB::Editor
 		scene.Water.clear();
 		scene.Ripples = nullptr;
 		scene.Ground = nullptr;
-		m_Lake.reset(); m_River.reset(); m_Grass.reset();
+		m_Lake.reset(); m_River.reset(); m_GrassGpu.reset(); m_Grass.reset();
 		m_RockVariants.clear(); m_TreeVariants.clear(); m_TreeVariantsFar.clear(); m_TreesGpu.reset();
 		m_TerrainGpu.reset();
 		m_Terrain.reset();
@@ -143,7 +143,8 @@ namespace GB::Editor
 				return (0.55f + 0.6f * glm::smoothstep(0.35f, 0.75f, clump)) * (0.85f + 0.3f * world->MoistureAt(x, z)) * (1.0f - 0.6f * TroddenAt(x, z));
 			};
 			m_Grass = std::make_unique<GrassField>(gp);
-			scene.Grass.push_back(m_Grass.get());
+			m_GrassGpu = std::make_unique<GrassGpu>(*m_Grass);   // uploads when first drawn, and again after every Recenter or Regrow
+			scene.Grass.push_back(m_GrassGpu.get());
 		}
 
 		m_TreesGpu = std::make_unique<TreesGpu>();

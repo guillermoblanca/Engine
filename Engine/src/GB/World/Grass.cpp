@@ -1,7 +1,6 @@
 #include "Grass.h"
 #include <algorithm>
 #include <cmath>
-#include <glad/gl.h>
 
 namespace GB
 {
@@ -22,12 +21,6 @@ namespace GB
 	GrassField::GrassField(const GrassParams& params) : Params(params)
 	{
 		Generate();
-	}
-
-	GrassField::~GrassField()
-	{
-		if (m_Buffer)
-			glDeleteBuffers(1, &m_Buffer);
 	}
 
 	void GrassField::Generate()
@@ -98,7 +91,7 @@ namespace GB
 				m_Blades.insert(m_Blades.end(), c.Blades.begin(), c.Blades.end());
 				m_Chunks.push_back(chunk);
 			}
-		m_BufferStale = true;
+		++m_Revision;
 	}
 
 	void GrassField::Regrow()
@@ -155,21 +148,5 @@ namespace GB
 			if (glm::length(c.Center - cameraPosition) - c.Radius <= Params.DrawDistance)
 				total += c.Count;
 		return total;
-	}
-
-	uint32_t GrassField::GetBuffer() const
-	{
-		if (m_BufferStale && m_Buffer)
-		{
-			glDeleteBuffers(1, &m_Buffer);
-			m_Buffer = 0;
-		}
-		m_BufferStale = false;
-		if (!m_Buffer && !m_Blades.empty())
-		{
-			glCreateBuffers(1, &m_Buffer);
-			glNamedBufferStorage(m_Buffer, static_cast<GLsizeiptr>(m_Blades.size() * sizeof(GrassBlade)), m_Blades.data(), 0);
-		}
-		return m_Buffer;
 	}
 }

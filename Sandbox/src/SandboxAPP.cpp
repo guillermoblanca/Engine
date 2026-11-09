@@ -678,7 +678,8 @@ private:
 				};
 			}
 			m_Grass = std::make_unique<GB::GrassField>(gp);
-			m_Scene.Grass.push_back(m_Grass.get());
+			m_GrassGpu = std::make_unique<GB::GrassGpu>(*m_Grass);
+			m_Scene.Grass.push_back(m_GrassGpu.get());
 			GB_CLIENT_INFO("Grass: {} blades in {} chunks", m_Grass->GetBladeCount(), m_Grass->GetChunks().size());
 		}
 
@@ -1947,6 +1948,7 @@ private:
 	std::unique_ptr<GB::TerrainGpu> m_TerrainGpu;   // after m_Terrain: destroyed before it
 	std::unique_ptr<GB::SandSpray> m_SandSpray;
 	std::unique_ptr<GB::GrassField> m_Grass;
+	std::unique_ptr<GB::GrassGpu> m_GrassGpu;   // after m_Grass: destroyed before it
 	std::unique_ptr<GB::TreesGpu> m_TreesGpu;   // the textures of the variants below: destroyed after them
 	std::vector<std::unique_ptr<GB::TreeGpu>> m_TreeVariants;
 	std::unique_ptr<Walker> m_Walker;

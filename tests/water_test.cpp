@@ -4,7 +4,7 @@
 #include "GB/Renderer/Renderer.h"
 #include "GB/Window.h"
 #include "GB/World/Water.h"
-#include "GB/World/WaterRipples.h"
+#include "GB/Renderer/WaterRipples.h"
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>

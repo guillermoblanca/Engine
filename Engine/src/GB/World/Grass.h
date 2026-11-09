@@ -49,12 +49,13 @@ namespace GB
 	};
 
 	// A field of grass blades, generated on the CPU and drawn instanced by the Renderer. Wind comes from the
-	// environment, bending from Scene::Ground, snow/wetness from the environment. Needs no GL to generate.
+	// environment, bending from Scene::Ground, snow/wetness from the environment. Pure CPU: its GPU side (the blade buffer) is a GrassGpu
+	// (GB/Renderer/GrassGpu.h), which reads the field and uploads it again when its revision moves on. The field does not know it exists: the
+	// render reads the world, never the other way round (docs/ARQUITECTURA_REVISION.md, H5).
 	class GrassField
 	{
 	public:
 		explicit GrassField(const GrassParams& params = {});
-		~GrassField();
 		GrassField(const GrassField&) = delete;
 		GrassField& operator=(const GrassField&) = delete;
 
@@ -66,7 +67,7 @@ namespace GB
 		size_t CountVisibleBlades(const glm::vec3& cameraPosition) const;
 		// Moves the covered square (Size per side) to be centered on a point, on the field's own chunk grid: chunks that stay are kept as they
 		// are, new ones are grown with the seed of their place, so the same spot always has the same blades. A big world keeps a field of
-		// grass around the camera this way. Returns whether anything changed (the GPU buffer is then uploaded again on next use).
+		// grass around the camera this way. Returns whether anything changed (the revision then moves on).
 		bool Recenter(const glm::vec2& center);
 		// Grows every chunk of the window again (after what DensityFn or the other functions read changed: a village trod the grass down).
 		void Regrow();
@@ -74,8 +75,8 @@ namespace GB
 		// appeared or faded).
 		bool RegrowAreas(const std::vector<glm::vec4>& rects);
 
-		// GPU side (called by the Renderer; needs a GL context). Uploads on first use.
-		uint32_t GetBuffer() const;
+		// Moves on every time the blade list is rebuilt (generation, Recenter, Regrow, RegrowAreas): a copy elsewhere (GrassGpu) compares it.
+		uint64_t GetRevision() const { return m_Revision; }
 
 	private:
 		struct ChunkBlades { GrassChunk Chunk; std::vector<GrassBlade> Blades; bool Empty = true; };
@@ -88,7 +89,6 @@ namespace GB
 		int m_ChunksPerSide = 1;
 		glm::ivec2 m_First{ 0 };        // chunk index of the window's first corner
 		std::map<std::pair<int, int>, ChunkBlades> m_Cache;
-		mutable uint32_t m_Buffer = 0;
-		mutable bool m_BufferStale = false;
+		uint64_t m_Revision = 0;
 	};
 }

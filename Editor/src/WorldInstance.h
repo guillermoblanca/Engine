@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Game/Entity.h"
+#include "GB/Renderer/GrassGpu.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TerrainGpu.h"
@@ -70,6 +71,7 @@ namespace GB::Editor
 		glm::vec3 m_Viewer{ 0.0f };   // the camera, for the trees' level of detail (FollowCamera)
 		std::vector<std::unique_ptr<RockGpu>> m_RockVariants;
 		std::unique_ptr<GrassField> m_Grass;
+		std::unique_ptr<GrassGpu> m_GrassGpu;   // after m_Grass: destroyed before it
 		std::unique_ptr<WaterSurface> m_Lake, m_River;
 		uint64_t m_BuildCount = 0;
 		struct Trodden { glm::vec2 A, B; float Inner, Outer, Strength; };   // A == B: a clearing; else a path (Inner: half its width)

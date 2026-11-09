@@ -162,10 +162,8 @@ add_library(GB STATIC
     src/GB/World/Regions.cpp
     src/GB/World/WorldTiles.cpp
     src/GB/World/Grass.cpp
-    src/GB/World/GroundInteraction.cpp
     src/GB/World/Terrain.cpp
     src/GB/World/Trees.cpp
-    src/GB/World/WaterRipples.cpp
     src/GB/World/Water.cpp
     src/GB/Effects/Sky.cpp
     src/GB/World/Physics.cpp
@@ -215,6 +213,8 @@ add_library(GB STATIC
     src/GB/Renderer/CameraController.cpp
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/GrassRenderer.cpp
+    src/GB/Renderer/GrassGpu.cpp
+    src/GB/Renderer/GroundInteraction.cpp
     src/GB/Scene/Image.cpp
     src/GB/Renderer/Mesh.cpp
     src/GB/Renderer/Particles.cpp
@@ -228,6 +228,7 @@ add_library(GB STATIC
     src/GB/Renderer/TerrainGpu.cpp
     src/GB/Renderer/TreesGpu.cpp
     src/GB/Renderer/WaterRenderer.cpp
+    src/GB/Renderer/WaterRipples.cpp
     src/GB/Renderer/WorldTilesGpu.cpp
     src/GB/Renderer/Visibility.cpp)
 add_library(GB::GB ALIAS GB)

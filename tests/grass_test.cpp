@@ -1,10 +1,11 @@
 // Grass: CPU generation (determinism, density, slope and mask rules, chunks) and GPU behaviour
 // (blades render, bend away under ground marks). The GL part skips without OpenGL 4.5.
 #include "GB/Log.h"
+#include "GB/Renderer/GrassGpu.h"
+#include "GB/Renderer/GroundInteraction.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Window.h"
 #include "GB/World/Grass.h"
-#include "GB/World/GroundInteraction.h"
 #include <cmath>
 #include <cstdio>
 
@@ -129,10 +130,11 @@ int main()
 	gp.DryAmount = 0.0f;
 	gp.DrawDistance = 40.0f;
 	GB::GrassField meadow(gp);
-	Check(meadow.GetBuffer() != 0, "blades upload to the GPU");
+	GB::GrassGpu meadowGpu(meadow);
+	Check(meadowGpu.GetBuffer() != 0, "blades upload to the GPU");
 
 	GB::Scene scene;
-	scene.Grass.push_back(&meadow);
+	scene.Grass.push_back(&meadowGpu);
 	scene.Sun.CastShadows = false;
 	scene.Env.ShadowRadius = 10.0f;
 	scene.Env.Wind = { 0.0f, 0.0f, 0.0f };

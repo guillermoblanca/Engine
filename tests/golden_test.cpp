@@ -4,6 +4,7 @@
 #include "GB/Effects/Sky.h"
 #include "GB/Log.h"
 #include "GB/Qa/Qa.h"
+#include "GB/Renderer/GrassGpu.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/RocksGpu.h"
 #include "GB/Renderer/TerrainGpu.h"
@@ -134,11 +135,12 @@ int main()
 	const GB::Heightmap* hm = &terrain->GetHeightmap();
 	gp.NormalFn = [hm](float x, float z) { return hm->GetNormal(x, z); };
 	GB::GrassField grass(gp);
+	GB::GrassGpu grassGpu(grass);
 	auto hillScene = [&]()
 	{
 		GB::Scene sc;
 		terrainGpu.AddToScene(sc);
-		sc.Grass.push_back(&grass);
+		sc.Grass.push_back(&grassGpu);
 		oak->AddToScene(sc, { -6.0f, terrain->GetHeight(-6.0f, -10.0f), -10.0f }, 0.5f, 1.0f);
 		pine->AddToScene(sc, { 7.0f, terrain->GetHeight(7.0f, -14.0f), -14.0f }, 1.2f, 1.0f);
 		sc.Env.Time = 4.0f;

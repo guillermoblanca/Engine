@@ -29,6 +29,9 @@ namespace GB
 	//
 	// The window is a torus: it follows the center without copying, clearing only the strips that enter.
 	// Marks outside the window are forgotten. Needs an OpenGL 4.5 context.
+	//
+	// All of it is render: the marks are drawn, faded and scrolled on the GPU (blend states over a framebuffer), and nothing on the CPU reads
+	// them but the tests (ReadDepth). So it lives in Renderer, not in World (docs/ARQUITECTURA_REVISION.md, H5); the simulation does not see it.
 	class GroundInteraction
 	{
 	public:

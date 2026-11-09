@@ -1,4 +1,5 @@
 #include "WaterRenderer.h"
+#include "WaterRipples.h"
 #include "Shaders.h"
 #include "GB/Water/WaterWaves.h"
 #include <algorithm>

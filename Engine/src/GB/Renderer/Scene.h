@@ -5,14 +5,15 @@
 #include "RenderObject.h"
 #include "RenderStats.h"
 #include "GB/Renderer/Particles.h"
-#include "GB/World/Grass.h"
-#include "GB/World/GroundInteraction.h"
 #include "GB/World/Water.h"
-#include "GB/World/WaterRipples.h"
 #include <vector>
 
 namespace GB
 {
+	class GrassGpu;            // GB/Renderer/GrassGpu.h: the GPU side of a GrassField
+	class GroundInteraction;   // GB/Renderer/GroundInteraction.h: the marks feet and wheels leave in the ground
+	class WaterRipples;        // GB/Renderer/WaterRipples.h: the ripples on the water around the camera
+
 	struct Scene
 	{
 		PostSettings Post;
@@ -22,7 +23,7 @@ namespace GB
 		std::vector<const ParticleSystem*> Particles;
 		std::vector<ParticleBatch> ParticleBatches;
 		const GroundInteraction* Ground = nullptr;
-		std::vector<const GrassField*> Grass;
+		std::vector<const GrassGpu*> Grass;
 		std::vector<const WaterSurface*> Water;
 		const WaterRipples* Ripples = nullptr;
 		bool ScreenSpaceReflections = true;
