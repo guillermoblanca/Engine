@@ -57,7 +57,7 @@ namespace GB
 		m_Valid = m_ShadowRenderer->IsValid() && m_PBRShader->IsValid() && m_SkyShader->IsValid() &&
 			m_ParticleRenderer->IsValid() && m_GrassRenderer->IsValid() && m_WaterRenderer->IsValid() &&
 			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete() &&
-			m_SceneDepth->IsComplete() && m_PostProcessor->IsValid();
+			m_SceneDepth->IsComplete() && m_SceneAmbient->IsComplete() && m_PostProcessor->IsValid();
 		if (!m_Valid)
 			GB_CORE_ERROR("Renderer failed to initialize");
 	}
@@ -77,11 +77,16 @@ namespace GB
 		spec.Height = m_Height;
 		spec.Format = ColorFormat::RGBA16F;
 		spec.Samples = m_Samples;
+		spec.Extra = ColorFormat::R11G11B10F;   // location 1: the ambient light (no alpha needed: the blends weigh by the source alpha)
 		m_SceneMSAA = std::make_unique<Framebuffer>(spec);
 
 		spec.Samples = 1;
 		spec.Depth = false;
+		spec.Extra = ColorFormat::None;
 		m_SceneResolved = std::make_unique<Framebuffer>(spec);
+		FramebufferSpec ambientSpec = spec;
+		ambientSpec.Format = ColorFormat::R11G11B10F;
+		m_SceneAmbient = std::make_unique<Framebuffer>(ambientSpec);
 
 		// Single-sample copy of the scene depth (soft particles, water depth...).
 		FramebufferSpec depthSpec;
@@ -145,6 +150,9 @@ namespace GB
 		const float aspect = static_cast<float>(m_Width) / static_cast<float>(m_Height);
 		const glm::mat4 viewProj = camera.GetProjection(aspect) * camera.GetView();
 
+		// The ambient target is only written when the SSAO will use it (every shader of the scene writes location 1: 0 where there is none).
+		const bool ambientOut = scene.Post.SSAO > 0.0f && !camera.Orthographic;
+		m_SceneMSAA->SetExtraEnabled(ambientOut);
 		m_SceneMSAA->Bind();
 		glEnable(GL_MULTISAMPLE);
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
@@ -372,6 +380,8 @@ namespace GB
 		m_ParticleRenderer->ParticlePass(scene, camera, viewProj, *m_SceneMSAA, *m_SceneDepth);
 
 		Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);
+		if (ambientOut)
+			Framebuffer::BlitExtra(*m_SceneMSAA, *m_SceneAmbient);
 	}
 
 	void Renderer::GrassPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows)
@@ -440,7 +450,7 @@ namespace GB
 			if (post.AutoExposure)
 				m_PostProcessor->AdaptationPass(*m_SceneResolved, post);
 		}
-		m_PostProcessor->CompositePass(*m_SceneResolved, *m_SceneDepth, scene.Env, scene.Post, camera, target);
+		m_PostProcessor->CompositePass(*m_SceneResolved, *m_SceneDepth, *m_SceneAmbient, scene.Env, scene.Post, camera, target);
 		Mark(6);
 		m_TimersIssued[m_TimerFrame] = true;
 		m_TimerFrame ^= 1;

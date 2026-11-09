@@ -27,21 +27,33 @@ namespace GB
 
 		glCreateFramebuffers(1, &m_FBO);
 
-		if (m_Spec.Format != ColorFormat::None)
+		// A color texture of `format`, multisampled like the target, at `attachment`.
+		auto makeColor = [&](ColorFormat format, GLenum attachment)
 		{
-			const GLenum internal = m_Spec.Format == ColorFormat::RGBA16F ? GL_RGBA16F : GL_RGBA8;
-			glCreateTextures(multisampled ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D, 1, &m_Color);
+			const GLenum internal = format == ColorFormat::RGBA16F ? GL_RGBA16F : format == ColorFormat::R11G11B10F ? GL_R11F_G11F_B10F : GL_RGBA8;
+			uint32_t texture = 0;
+			glCreateTextures(multisampled ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D, 1, &texture);
 			if (multisampled)
-				glTextureStorage2DMultisample(m_Color, samples, internal, w, h, GL_TRUE);
+				glTextureStorage2DMultisample(texture, samples, internal, w, h, GL_TRUE);
 			else
 			{
-				glTextureStorage2D(m_Color, 1, internal, w, h);
-				glTextureParameteri(m_Color, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTextureParameteri(m_Color, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTextureParameteri(m_Color, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTextureParameteri(m_Color, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTextureStorage2D(texture, 1, internal, w, h);
+				glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 			}
-			glNamedFramebufferTexture(m_FBO, GL_COLOR_ATTACHMENT0, m_Color, 0);
+			glNamedFramebufferTexture(m_FBO, attachment, texture, 0);
+			return texture;
+		};
+		if (m_Spec.Format != ColorFormat::None)
+		{
+			m_Color = makeColor(m_Spec.Format, GL_COLOR_ATTACHMENT0);
+			if (m_Spec.Extra != ColorFormat::None)
+			{
+				m_Extra = makeColor(m_Spec.Extra, GL_COLOR_ATTACHMENT1);
+				SetExtraEnabled(true);
+			}
 		}
 		else
 		{
@@ -93,6 +105,7 @@ namespace GB
 	{
 		glDeleteFramebuffers(1, &m_FBO);
 		glDeleteTextures(1, &m_Color);
+		glDeleteTextures(1, &m_Extra);
 		glDeleteTextures(1, &m_DepthTexture);
 		glDeleteRenderbuffers(1, &m_Depth);
 	}
@@ -109,6 +122,24 @@ namespace GB
 			0, 0, static_cast<GLint>(src.m_Spec.Width), static_cast<GLint>(src.m_Spec.Height),
 			0, 0, static_cast<GLint>(dst.m_Spec.Width), static_cast<GLint>(dst.m_Spec.Height),
 			GL_COLOR_BUFFER_BIT, GL_LINEAR);
+	}
+
+	void Framebuffer::SetExtraEnabled(bool on) const
+	{
+		if (!m_Extra) return;
+		const GLenum both[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+		glNamedFramebufferDrawBuffers(m_FBO, on ? 2 : 1, both);
+	}
+
+	void Framebuffer::BlitExtra(const Framebuffer& src, const Framebuffer& dst)
+	{
+		if (!src.m_Extra) return;
+		glNamedFramebufferReadBuffer(src.m_FBO, GL_COLOR_ATTACHMENT1);
+		glBlitNamedFramebuffer(src.m_FBO, dst.m_FBO,
+			0, 0, static_cast<GLint>(src.m_Spec.Width), static_cast<GLint>(src.m_Spec.Height),
+			0, 0, static_cast<GLint>(dst.m_Spec.Width), static_cast<GLint>(dst.m_Spec.Height),
+			GL_COLOR_BUFFER_BIT, GL_NEAREST);
+		glNamedFramebufferReadBuffer(src.m_FBO, GL_COLOR_ATTACHMENT0);
 	}
 
 	void Framebuffer::BindDefault(uint32_t w, uint32_t h)

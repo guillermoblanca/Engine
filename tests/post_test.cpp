@@ -72,8 +72,11 @@ int main()
 	cam.Target = { 0.0f, 0.5f, 0.0f };
 
 	// ---------------------------------------------------------------- ambient occlusion
+	// The SSAO occludes the sky light only (T52): measured on a scene lit by the sky alone, then checked to leave the sun's light as it is.
 	{
 		GB::Scene sc = baseScene();
+		sc.Sun.Intensity = 0.0f;
+		sc.Env.Intensity = 1.5f;
 		const auto off = render(sc, cam);
 		sc.Post.SSAO = 1.0f;
 		sc.Post.SSAORadius = 1.6f;
@@ -91,6 +94,18 @@ int main()
 		sc.Post.SSAO = 0.0f;
 		const auto again = render(sc, cam);
 		Check(region(again, a.x - 2, a.y - 1, a.x + 3, a.y + 2).Luma() == footOff, "strength 0 switches it off exactly");
+
+		// lit by the sun alone (no sky light): the SSAO has nothing to take away
+		GB::Scene sun = baseScene();
+		sun.Env.Intensity = 0.0f;
+		sun.Sun.Intensity = 3.0f;
+		const auto sunOff = render(sun, cam);
+		sun.Post.SSAO = 1.0f;
+		sun.Post.SSAORadius = 1.6f;
+		const auto sunOn = render(sun, cam);
+		const double sunFootOff = region(sunOff, a.x - 2, a.y - 1, a.x + 3, a.y + 2).Luma(), sunFootOn = region(sunOn, a.x - 2, a.y - 1, a.x + 3, a.y + 2).Luma();
+		std::fprintf(stderr, "info: sun only, AO foot %.0f -> %.0f\n", sunFootOff, sunFootOn);
+		Check(sunFootOff > 20.0 && std::fabs(sunFootOn - sunFootOff) < 1.0, "the SSAO does not darken the direct light of the sun");
 	}
 
 	// ---------------------------------------------------------------- depth of field

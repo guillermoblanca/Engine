@@ -4,7 +4,7 @@
 
 namespace GB
 {
-	enum class ColorFormat { None, RGBA8, RGBA16F };
+	enum class ColorFormat { None, RGBA8, RGBA16F, R11G11B10F };   // R11G11B10F: HDR color without alpha, 4 bytes
 
 	struct FramebufferSpec
 	{
@@ -15,6 +15,7 @@ namespace GB
 		bool Depth = true;             // 24-bit depth
 		bool DepthAsTexture = false;   // depth stored in a texture instead of a renderbuffer
 		bool DepthCompare = true;      // with DepthAsTexture: comparison sampler (shadow maps); false = plain sampler2D
+		ColorFormat Extra = ColorFormat::None;   // a second color attachment (fragment output location 1), same samples
 	};
 
 	// Offscreen render target.
@@ -37,9 +38,14 @@ namespace GB
 		uint32_t GetID() const { return m_FBO; }
 		uint32_t GetColorTexture() const { return m_Color; }
 		uint32_t GetDepthTexture() const { return m_DepthTexture; }
+		uint32_t GetExtraTexture() const { return m_Extra; }
+		// With an Extra attachment: whether draws write it (location 1) or only attachment 0. Writing it is on by default.
+		void SetExtraEnabled(bool on) const;
 
 		// Copies the color buffer (e.g. resolves MSAA into a single-sample target).
 		static void BlitColor(const Framebuffer& src, const Framebuffer& dst);
+		// Copies (resolves) the Extra attachment of `src` into the color attachment of `dst` (same format).
+		static void BlitExtra(const Framebuffer& src, const Framebuffer& dst);
 		// Copies the depth buffer (e.g. resolves an MSAA depth buffer). Both need a 24-bit depth attachment.
 		static void BlitDepth(const Framebuffer& src, const Framebuffer& dst);
 
@@ -51,7 +57,7 @@ namespace GB
 	private:
 		void Create();
 		FramebufferSpec m_Spec;
-		uint32_t m_FBO = 0, m_Color = 0, m_Depth = 0, m_DepthTexture = 0;
+		uint32_t m_FBO = 0, m_Color = 0, m_Extra = 0, m_Depth = 0, m_DepthTexture = 0;
 		bool m_Complete = false;
 	};
 

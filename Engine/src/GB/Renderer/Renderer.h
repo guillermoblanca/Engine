@@ -49,6 +49,9 @@ namespace GB
 		std::unique_ptr<GrassRenderer> m_GrassRenderer;
 		std::unique_ptr<WaterRenderer> m_WaterRenderer;
 		std::unique_ptr<Framebuffer> m_ShadowMap, m_SceneMSAA, m_SceneResolved, m_SceneDepth;
+		// The scene's ambient (indirect) light, written by the forward pass as a second target and resolved here: the SSAO only darkens this
+		// part in the composite, not the sun or the lamps.
+		std::unique_ptr<Framebuffer> m_SceneAmbient;
 		std::unique_ptr<PostProcessor> m_PostProcessor;
 		uint32_t m_EmptyVAO = 0;
 		uint32_t m_JointBuffer = 0;

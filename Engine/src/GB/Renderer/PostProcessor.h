@@ -24,7 +24,8 @@ namespace GB
 		void BloomPass(const Framebuffer& sceneResolved, const Environment& env);
 		void AmbientOcclusionPass(const Framebuffer& sceneDepth, const PostSettings& post, const Camera& camera);
 		void AdaptationPass(const Framebuffer& sceneResolved, const PostSettings& post);
-		void CompositePass(const Framebuffer& sceneResolved, const Framebuffer& sceneDepth,
+		// `sceneAmbient`: the ambient part of the scene color (resolved); the SSAO is taken off it alone.
+		void CompositePass(const Framebuffer& sceneResolved, const Framebuffer& sceneDepth, const Framebuffer& sceneAmbient,
 			const Environment& env, const PostSettings& post, const Camera& camera, const Framebuffer* target);
 
 	private:

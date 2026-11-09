@@ -221,7 +221,8 @@ vec3 SkyIrradiance(vec3 n)
 
 	inline constexpr const char* SkyFS = R"GLSL(#version 450 core
 in vec2 vUV;
-out vec4 outColor;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 uniform mat4 uInvViewProj;
 uniform vec3 uCamPos;
 uniform vec3 uSunDir;     // direction the light travels
@@ -301,6 +302,7 @@ void main()
 	float s = sd;
 	col += uSunColor * (pow(s, 1500.0) * 40.0 + pow(s, 24.0) * 0.06) * (1.0 - fogAmount * 0.85) * (1.0 - cl * 0.85);
 	outColor = vec4(col, 1.0);
+	outAmbient = vec4(0.0);
 }
 )GLSL";
 
@@ -309,7 +311,8 @@ in vec3 vPos;
 in vec3 vNormal;
 in vec4 vTangent;
 in vec2 vUV;
-out vec4 outColor;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 
 uniform vec3 uCamPos;
 uniform int uHasAlbedoMap;
@@ -637,13 +640,17 @@ void main()
 	vec3 emissive = uEmissive;
 	if (uHasEmissiveMap != 0) emissive *= texture(uEmissiveMap, vUV).rgb;
 	vec3 color = Lo + ambient + emissive;
+	float fogKeep = 1.0;   // the part of the surface's light that gets through the fog
 	if (uFogDensity > 0.0)
 	{
 		float dist = length(vPos - uCamPos);
 		float density = uFogDensity * exp(-uFogHeight * max(vPos.y, 0.0));
-		color = mix(uFogColor * uEnvIntensity, color, exp(-density * density * dist * dist));
+		fogKeep = exp(-density * density * dist * dist);
+		color = mix(uFogColor * uEnvIntensity, color, fogKeep);
 	}
-	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), (uAlphaMode == 2 || (uAlphaMode == 1 && uAlphaToCoverage != 0)) ? alpha : 1.0);
+	float outAlpha = (uAlphaMode == 2 || (uAlphaMode == 1 && uAlphaToCoverage != 0)) ? alpha : 1.0;
+	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), outAlpha);
+	outAmbient = vec4(clamp(ambient * fogKeep, vec3(0.0), vec3(4096.0)), outAlpha);   // blended like the color
 }
 )GLSL";
 
@@ -832,6 +839,7 @@ layout(binding = 1) uniform sampler2D uBloom;
 layout(binding = 2) uniform sampler2D uAO;
 layout(binding = 3) uniform sampler2D uDepth;
 layout(binding = 4) uniform sampler2D uExposureTex;
+layout(binding = 5) uniform sampler2D uAmbient;   // the ambient part of uScene (with the SSAO on)
 uniform float uExposure;
 uniform float uBloomIntensity;
 uniform float uVignette;
@@ -928,8 +936,9 @@ void main()
 	}
 	else
 		hdr = SceneColor(uv);
+	// The SSAO occludes the sky light only: take its occluded share off the ambient part, the sun and the lamps stay.
 	if (uAOStrength > 0.0)
-		hdr *= mix(1.0, texture(uAO, vUV).r, uAOStrength);
+		hdr = max(hdr - texture(uAmbient, vUV).rgb * ((1.0 - texture(uAO, vUV).r) * uAOStrength), vec3(0.0));
 	hdr = max(hdr + texture(uBloom, vUV).rgb * uBloomIntensity, vec3(0.0));
 	float exposure = uExposure * (uAutoExposure != 0 ? texelFetch(uExposureTex, ivec2(0, 0), 0).r : 1.0);
 	vec3 x = hdr * exposure;
@@ -1001,7 +1010,8 @@ void main()
 in vec2 vUV;
 in vec4 vColor;
 in vec3 vWorld;
-out vec4 outColor;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 layout(binding = 0) uniform sampler2D uSprite;
 layout(binding = 1) uniform sampler2D uSceneDepth;
 uniform float uSoft;            // soft particle fade distance (world units), 0 = off
@@ -1036,6 +1046,7 @@ void main()
 		a *= exp(-density * density * dist * dist);   // distant particles melt into the fog
 	}
 	outColor = vec4(vColor.rgb * t.rgb, a);
+	outAmbient = vec4(0.0, 0.0, 0.0, a);   // no ambient of its own: blended, it hides the one behind (additive: unchanged)
 }
 )GLSL";
 
@@ -1105,7 +1116,8 @@ void main()
 in vec3 vPos;
 in vec2 vFlow;
 in float vBlend;
-out vec4 outColor;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 layout(binding = 1) uniform sampler2D uSceneDepth;
 layout(binding = 2) uniform sampler2D uRipples;
 layout(binding = 3) uniform sampler2D uSceneColor;   // opaque scene so far (refraction)
@@ -1333,6 +1345,7 @@ void main()
 		color = mix(uFogColor * uEnvIntensity, color, exp(-density * density * camDist * camDist));
 	}
 	outColor = vec4(min(color, vec3(64.0)), alpha);
+	outAmbient = vec4(0.0, 0.0, 0.0, alpha);   // no SSAO on the water: it hides the ambient of the bed behind it
 }
 )GLSL";
 
@@ -1445,7 +1458,8 @@ in float vSeed;
 in vec3 vNormal;
 in float vSide;
 in vec4 vTint;
-out vec4 outColor;
+layout(location = 0) out vec4 outColor;
+layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 uniform vec3 uCamPos;
 uniform vec3 uSunDir;
 uniform vec3 uSunColor;
@@ -1499,14 +1513,17 @@ void main()
 	vec3 ambient = SkyIrradiance(N) * uEnvIntensity * (0.4 + 0.6 * vT);   // darker at the root (occlusion)
 	vec3 color = col * (direct + ambient);
 
+	float fogKeep = 1.0;
 	if (uFogDensity > 0.0)
 	{
 		float dist = length(vWorld - uCamPos);
 		float density = uFogDensity * exp(-uFogHeight * max(vWorld.y, 0.0));
-		color = mix(uFogColor * uEnvIntensity, color, exp(-density * density * dist * dist));
+		fogKeep = exp(-density * density * dist * dist);
+		color = mix(uFogColor * uEnvIntensity, color, fogKeep);
 	}
 	float alpha = 1.0 - smoothstep(0.7, 1.0, abs(vSide));   // soft edges, resolved by alpha-to-coverage
 	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), alpha);
+	outAmbient = vec4(clamp(col * ambient * fogKeep, vec3(0.0), vec3(4096.0)), alpha);
 }
 )GLSL";
 }

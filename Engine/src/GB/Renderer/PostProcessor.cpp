@@ -162,7 +162,7 @@ namespace GB
 		m_AdaptValid = true;
 	}
 
-	void PostProcessor::CompositePass(const Framebuffer& sceneResolved, const Framebuffer& sceneDepth,
+	void PostProcessor::CompositePass(const Framebuffer& sceneResolved, const Framebuffer& sceneDepth, const Framebuffer& sceneAmbient,
 		const Environment& env, const PostSettings& post, const Camera& camera, const Framebuffer* target)
 	{
 		if (target)
@@ -178,6 +178,7 @@ namespace GB
 		glBindTextureUnit(2, ao ? m_AOBlur->GetColorTexture() : sceneResolved.GetColorTexture());
 		glBindTextureUnit(3, sceneDepth.GetDepthTexture());
 		glBindTextureUnit(4, m_Adapt[m_AdaptCurrent]->GetColorTexture());
+		glBindTextureUnit(5, sceneAmbient.GetColorTexture());
 		m_Composite->SetInt("uTonemap", static_cast<int>(post.Mapper));
 		m_Composite->SetFloat("uAOStrength", ao ? glm::clamp(post.SSAO, 0.0f, 1.0f) : 0.0f);
 		m_Composite->SetFloat("uDOF", dof ? post.DepthOfField : 0.0f);
