@@ -1,6 +1,6 @@
 #include "GB/World/Graph/Nodes/WaterCarveNodes.h"
-#include "GB/Water/WaterCarver.h"
-#include "GB/Water/WaterPlanner.h"
+#include "GB/World/Water/WaterCarver.h"
+#include "GB/World/Water/WaterPlanner.h"
 #include "GB/World/Graph/TerrainGraph.h"
 #include "GB/World/Terrain.h"
 

@@ -9,7 +9,7 @@ namespace GB
 	// (the lake's site when one is given, else wherever the map drains) is the source, and the river is that water's way down.
 	//
 	// That is how a real river is born: it follows the valleys the ground already has, and the drainage area behind it (the flow accumulation, in
-	// cells) grows downstream -- which the hydraulic geometry of the river (width, depth, speed: GB/Water/RiverHydraulics.h) is made of.
+	// cells) grows downstream -- which the hydraulic geometry of the river (width, depth, speed: GB/World/Water/RiverHydraulics.h) is made of.
 	//
 	// Inputs, in edge order: [0] the height field to follow (filled: see depression_fill); [1] the flow accumulation of that field
 	// (flow_accumulation); [2] (optional) the outlet mask (lake_site): the river is then the longest flow line that ends at the lake.

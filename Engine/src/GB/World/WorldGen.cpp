@@ -1,6 +1,6 @@
 #include "WorldGen.h"
 #include "GB/Log.h"
-#include "GB/Water/WaterPresets.h"
+#include "GB/World/Water/WaterPresets.h"
 #include "GB/World/Graph/ITerrainTarget.h"
 #include "GB/World/Graph/TerrainGraphPresets.h"
 #include "GB/World/WorldGenInternal.h"
@@ -265,7 +265,7 @@ namespace GB
 						for (int i = i0; i <= i1; ++i)
 						{
 							const glm::vec2 p = m.SamplePosition(i, j);
-							const RiverSample s = ProbeRiverSegment(*r, k, p.x, p.y);   // (the same geometry as Terrain's river queries: GB/Water)
+							const RiverSample s = ProbeRiverSegment(*r, k, p.x, p.y);   // (the same geometry as Terrain's river queries: GB/World/Water)
 							const size_t o = static_cast<size_t>(j) * static_cast<size_t>(m.N) + static_cast<size_t>(i);
 							if (s.Distance < riverD[o]) { riverD[o] = s.Distance; riverLevel[o] = s.Level; riverHalf[o] = s.HalfWidth; }
 						}

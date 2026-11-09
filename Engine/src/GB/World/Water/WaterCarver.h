@@ -1,7 +1,7 @@
 #pragma once
-#include "GB/Water/LakeOutline.h"
-#include "GB/Water/RiverHydraulics.h"
-#include "GB/Water/WaterField.h"
+#include "GB/World/Water/LakeOutline.h"
+#include "GB/World/Water/RiverHydraulics.h"
+#include "GB/World/Water/WaterField.h"
 #include "GB/World/Terrain.h"
 #include <glm/glm.hpp>
 #include <vector>
@@ -35,7 +35,7 @@ namespace GB
 		float Depth = 1.3f;            // meters below the water level (at the mouth, when there is a Discharge)
 		// Relative discharge q (0..1) at each control point of Path: the drainage area that reaches it over the area that reaches the mouth. Empty = a
 		// uniform river (one width, one depth, the old rule of thumb for the speed). With one the river widens and deepens downstream and its current
-		// follows Manning's equation: see GB/Water/RiverHydraulics.h.
+		// follows Manning's equation: see GB/World/Water/RiverHydraulics.h.
 		std::vector<float> Discharge;
 		HydraulicRules Hydraulics;
 		float MouthLength = 16.0f;     // meters over which a river blends into the lake it flows into

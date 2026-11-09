@@ -76,7 +76,7 @@ add_executable(GBPhysicsTests physics_test.cpp)
 target_link_libraries(GBPhysicsTests PRIVATE GB::GB)
 add_test(NAME physics COMMAND GBPhysicsTests)
 
-# The water module (GB/Water), headless: WaterField, carver, surfaces without GL, generated shader waves.
+# The water module (GB/World/Water), headless: WaterField, carver, surfaces without GL, generated shader waves.
 add_executable(GBWaterModuleTests water_module_test.cpp)
 target_link_libraries(GBWaterModuleTests PRIVATE GB::GB)
 add_test(NAME water_module COMMAND GBWaterModuleTests)

@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Water/WaterGeometry.h"
+#include "GB/World/Water/WaterGeometry.h"
 #include "GB/World/RiverData.h"
 #include <glm/glm.hpp>
 #include <memory>
@@ -58,7 +58,7 @@ namespace GB
 	};
 
 	// The shared wave set, so CPU queries match the GPU (4 Gerstner waves around the main direction). The shader's copy of these
-	// numbers is generated from this struct (WaveSetGlsl, GB/Water/WaterWaves.h): there is one place to change them.
+	// numbers is generated from this struct (WaveSetGlsl, GB/World/Water/WaterWaves.h): there is one place to change them.
 	struct WaveSet
 	{
 		static constexpr int Count = 4;

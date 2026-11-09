@@ -285,7 +285,7 @@ namespace GB
 			g.Name = "Temperate valley";
 			Builder b{ g };
 			b.Node("hills", "hills", { { "Height", 16 }, { "Scale", 140 }, { "Flatten", 0.25 } }, "", 40, 160);
-			// where the water goes (the same analysis as GB/Water/WaterPlanner.h), then carve it
+			// where the water goes (the same analysis as GB/World/Water/WaterPlanner.h), then carve it
 			b.Node("site", "lake_site", {}, "", 290, 40);
 			b.Edge("hills", "height", "site", "height");
 			b.Node("lake", "lake_carve", { { "Radius", 22 }, { "Depth", 3 }, { "LevelAbove", 1 }, { "Irregularity", 0.12 } }, "", 540, 40);
@@ -368,7 +368,7 @@ namespace GB
 		g.Id = mountains ? "alpine" : "temperate";
 		g.Name = mountains ? "Alpine (generator 4)" : "Temperate (generator 4)";
 		b.Node("ground", "hills", { { "Height", mountains ? 58 : 16 }, { "Scale", mountains ? 190 : 140 }, { "Flatten", mountains ? 0.05 : 0.25 } }, "", 40, 200);
-		// the water: where the lake goes and where the rain runs, analysed on the ground with the lake dug (as GB/Water/WaterPlanner.h does), then carved
+		// the water: where the lake goes and where the rain runs, analysed on the ground with the lake dug (as GB/World/Water/WaterPlanner.h does), then carved
 		const char* ground = "ground";
 		const char* groundPort = "height";
 		const char* water = nullptr;

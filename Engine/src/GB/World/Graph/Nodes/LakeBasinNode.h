@@ -3,7 +3,7 @@
 
 namespace GB
 {
-	// "lake_basin": digs the lake into the ground: the same basin and banks the terrain will be carved with (GB/Water/WaterCarver.h, ApplyLakeBasin),
+	// "lake_basin": digs the lake into the ground: the same basin and banks the terrain will be carved with (GB/World/Water/WaterCarver.h, ApplyLakeBasin),
 	// at the site lake_site finds. A lake is a hollow with raised banks, and the water of the land around it runs down into it; analysed on the bare
 	// hills the basin is only the lowest point allowed, on a slope that keeps falling beyond it, and the rain of its surroundings drains past it. With
 	// the basin dug, depression_fill and flow_accumulation see what the finished world will have, and the river that river_trace follows ends in it.

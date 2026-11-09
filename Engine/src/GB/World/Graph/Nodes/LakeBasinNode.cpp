@@ -1,5 +1,5 @@
 #include "GB/World/Graph/Nodes/LakeBasinNode.h"
-#include "GB/Water/WaterCarver.h"
+#include "GB/World/Water/WaterCarver.h"
 #include "GB/World/Graph/Nodes/LakeSite.h"
 #include "GB/World/Graph/TerrainGraph.h"
 

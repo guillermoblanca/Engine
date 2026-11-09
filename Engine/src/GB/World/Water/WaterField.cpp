@@ -1,4 +1,5 @@
-#include "GB/Water/WaterField.h"
+#include "GB/World/Water/WaterField.h"
+#include "GB/World/PathGeometry.h"
 #include <algorithm>
 #include <cmath>
 
@@ -8,7 +9,7 @@ namespace GB
 	{
 		const auto& P = river.Points;
 		const glm::vec2 a(P[k].x, P[k].z), ab = glm::vec2(P[k + 1].x, P[k + 1].z) - a;
-		const float tt = glm::clamp(glm::dot(glm::vec2(x, z) - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+		const float tt = SegmentParameter(glm::vec2(x, z), a, ab);
 		RiverSample s;
 		s.Distance = glm::length(glm::vec2(x, z) - (a + ab * tt));
 		s.Level = glm::mix(P[k].y, P[k + 1].y, tt);

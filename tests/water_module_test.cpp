@@ -1,16 +1,16 @@
-// The water module (GB/Water), headless: the WaterField that Terrain holds answers like the queries it replaced, the carver digs
+// The water module (GB/World/Water), headless: the WaterField that Terrain holds answers like the queries it replaced, the carver digs
 // what the terrain recipe asked for, the surfaces and their geometry need no OpenGL, and the shader's wave constants are
 // generated from the CPU wave set. Nothing here opens a window.
 #include "GB/Log.h"
-#include "GB/Water/WaterCarver.h"
-#include "GB/Water/WaterField.h"
-#include "GB/Water/LakeOutline.h"
-#include "GB/Water/RiverHydraulics.h"
-#include "GB/Water/WaterGeometry.h"
-#include "GB/Water/WaterParamInfo.h"
-#include "GB/Water/WaterPlanner.h"
-#include "GB/Water/WaterPresets.h"
-#include "GB/Water/WaterWaves.h"
+#include "GB/World/Water/WaterCarver.h"
+#include "GB/World/Water/WaterField.h"
+#include "GB/World/Water/LakeOutline.h"
+#include "GB/World/Water/RiverHydraulics.h"
+#include "GB/World/Water/WaterGeometry.h"
+#include "GB/World/Water/WaterParamInfo.h"
+#include "GB/World/Water/WaterPlanner.h"
+#include "GB/World/Water/WaterPresets.h"
+#include "GB/World/Water/WaterWaves.h"
 #include "GB/World/FlowAccumulation.h"
 #include "GB/World/Graph/TerrainGraph.h"
 #include "GB/World/Terrain.h"

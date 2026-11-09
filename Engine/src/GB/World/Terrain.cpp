@@ -1,7 +1,8 @@
 #include "Terrain.h"
 #include "GB/Log.h"
 #include "GB/Scene/Image.h"
-#include "GB/Water/WaterCarver.h"
+#include "GB/World/Water/WaterCarver.h"
+#include "GB/World/PathGeometry.h"
 #include "GB/World/TerrainNoise.h"
 #include <algorithm>
 #include <cmath>
@@ -144,7 +145,7 @@ namespace GB
 		if (lake.Radius > 0.0f)
 			for (uint32_t j = 0; j < hm.GetResolution(); ++j)
 				for (uint32_t i = 0; i < hm.GetResolution(); ++i)
-					hm.At(i, j) = ApplyLakeBasin(hm.At(i, j), hm.SamplePosition(i, j), lake);   // the basin and its banks (GB/Water/WaterCarver.h)
+					hm.At(i, j) = ApplyLakeBasin(hm.At(i, j), hm.SamplePosition(i, j), lake);   // the basin and its banks (GB/World/Water/WaterCarver.h)
 		if (p.RiverPath.size() >= 2)
 		{
 			RiverShape river;
@@ -158,7 +159,7 @@ namespace GB
 	}
 
 	// ------------------------------------------------------------------ river
-	// The river itself (carving, queries) is GB/Water; only the question that needs the ground stays here.
+	// The river itself (carving, queries) is GB/World/Water; only the question that needs the ground stays here.
 	float Terrain::GetRiverLevelAt(float x, float z) const
 	{
 		const RiverSample s = m_Water.NearestRiverInBand(x, z);   // (the same answer as NearestRiver here: only the band is wanted)
@@ -273,7 +274,7 @@ namespace GB
 					for (int ci = c0; ci <= c1; ++ci)
 					{
 						const glm::vec2 q = center(ci, cj);
-						const float tt = glm::clamp(glm::dot(q - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+						const float tt = SegmentParameter(q, a, ab);
 						const float d = glm::length(q - (a + ab * tt));
 						if (d >= inner && d <= outer)
 							cellAt(ci, cj) = 1;

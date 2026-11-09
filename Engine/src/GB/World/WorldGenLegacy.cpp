@@ -2,8 +2,8 @@
 // terrain graph (docs/GRAFO_TERRENO.md, section 12): a saved world of an older generator rebuilds its baseline from this code, bit for bit.
 #include "GB/World/WorldGenInternal.h"
 #include "GB/Log.h"
-#include "GB/Water/WaterPlanner.h"
-#include "GB/Water/WaterPresets.h"
+#include "GB/World/Water/WaterPlanner.h"
+#include "GB/World/Water/WaterPresets.h"
 #include "GB/World/Erosion.h"
 #include <algorithm>
 #include <functional>
@@ -64,7 +64,7 @@ namespace GB::WorldGenDetail
 			// Pass 1: the bare terrain, to find the basin for the lake and the way down for the river.
 			hp.SurfaceMaps = false;
 			auto bare = Terrain::CreateHills(hp, desc.Size, desc.Resolution, style);
-			// Generators 1 and 2 find the water below with code of their own; generator 3 asks a terrain graph (GB/Water/WaterPlanner.h) to analyse the
+			// Generators 1 and 2 find the water below with code of their own; generator 3 asks a terrain graph (GB/World/Water/WaterPlanner.h) to analyse the
 			// bare ground: where the broadest basin is, where the rain goes, which flow line is the river. If the graph fails (it should not) the world
 			// is still built, with the old method.
 			const bool organic = desc.GeneratorVersion >= kWorldGeneratorV3;

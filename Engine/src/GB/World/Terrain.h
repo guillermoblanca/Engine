@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
-#include "GB/Water/WaterField.h"
+#include "GB/World/Water/WaterField.h"
 #include "GB/World/RiverData.h"
 #include <memory>
 #include <unordered_map>
@@ -77,14 +77,14 @@ namespace GB
 		// Steepest rise of the ground away from the shore (meters per meter, 0 = unlimited). Hills next to the basin are cut down to this
 		// cone, so the lake gets a gentle bank instead of a cliff with a jagged edge.
 		float LakeBankSlope = 0.3f;
-		float LakeIrregularity = 0.0f;    // 0 = a circular shore; up to ~0.25 lobes it, differently for each Seed (GB/Water/LakeOutline.h)
+		float LakeIrregularity = 0.0f;    // 0 = a circular shore; up to ~0.25 lobes it, differently for each Seed (GB/World/Water/LakeOutline.h)
 		bool SurfaceMaps = true;          // build the normal and macro color maps (off for a throw-away terrain used only for its heights)
 		// A river carved along these control points (xz, smoothed with a Catmull-Rom spline); it always flows
 		// downhill: the water level only descends along the path. Empty = none.
 		std::vector<glm::vec2> RiverPath;
 		float RiverWidth = 5.0f;          // meters of water
 		float RiverDepth = 1.3f;          // meters below the water level
-		std::vector<float> RiverDischarge;   // relative discharge (0..1) at each RiverPath point: a river that widens and deepens downstream (GB/Water/RiverHydraulics.h); empty = uniform
+		std::vector<float> RiverDischarge;   // relative discharge (0..1) at each RiverPath point: a river that widens and deepens downstream (GB/World/Water/RiverHydraulics.h); empty = uniform
 		// Mesh refinement where the ground meets the water: cells along the lake shore and the river banks are split
 		// ShoreSubdivision x ShoreSubdivision times (smooth cubic surface, 0/1 = off) so the waterline stops looking stepped.
 		int ShoreSubdivision = 4;
@@ -180,7 +180,7 @@ namespace GB
 		void RefreshMesh(int i0 = 0, int j0 = 0, int i1 = 1 << 30, int j1 = 1 << 30);
 		float GetHeight(float x, float z) const { return m_Heightmap.GetHeight(x, z); }
 		TerrainStyle GetStyle() const { return m_Style; }
-		// The water carved into this terrain, as data (GB/Water/WaterField.h): the queries below forward to it.
+		// The water carved into this terrain, as data (GB/World/Water/WaterField.h): the queries below forward to it.
 		const WaterField& Water() const { return m_Water; }
 		const RiverData* GetRiver() const { return m_Water.River(); }
 		// Water velocity (m/s, xz) of the river at a point; zero away from it. Usable as PhysicsWorld::SetCurrent.

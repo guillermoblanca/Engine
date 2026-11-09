@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Water/WaterField.h"
+#include "GB/World/Water/WaterField.h"
 #include "GB/World/Water.h"
 #include <memory>
 
@@ -16,7 +16,7 @@ namespace GB
 		float LakeDepth = 3.0f;             // meters below the surface at the centre
 		float LakeLevelAboveBasin = 1.0f;   // the surface stands this far above the lowest point the basin was dug at
 		float RiverWidth = 6.5f;            // meters of water, at the mouth
-		float LakeIrregularity = 0.0f;      // how far the shore departs from a circle (GB/Water/LakeOutline.h)
+		float LakeIrregularity = 0.0f;      // how far the shore departs from a circle (GB/World/Water/LakeOutline.h)
 	};
 	// `organic` is generator 3: a lake with a lobed shore. Generators 1 and 2 keep their circle.
 	WaterGenParams DefaultWaterGen(bool alpine, bool organic = false);

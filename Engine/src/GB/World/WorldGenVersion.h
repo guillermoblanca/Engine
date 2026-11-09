@@ -9,8 +9,8 @@ namespace GB
 {
 	// 1: the first generator (until October 2026). The placement hashes of trees and rocks used fixed salts, the same in every seed.
 	// 2: the placement hashes mix the seed in; the biomes and the distance to the water are baked on a grid before placing anything.
-	// 3: the water is found by a terrain graph on the bare ground (GB/Water/WaterPlanner.h): the lake in the broadest basin with a lobed shore, the river
-	//    along the real drainage network down to it, widening, deepening and quickening downstream (GB/Water/RiverHydraulics.h). The terrain, the biomes
+	// 3: the water is found by a terrain graph on the bare ground (GB/World/Water/WaterPlanner.h): the lake in the broadest basin with a lobed shore, the river
+	//    along the real drainage network down to it, widening, deepening and quickening downstream (GB/World/Water/RiverHydraulics.h). The terrain, the biomes
 	//    and the placement are the same code as 2; only the lake and the river change, so a world of generator 3 differs from the same seed of 2 there.
 	// 4: the whole world is a terrain graph (docs/GRAFO_TERRENO.md, section 12): a preset of GB/World/Graph/TerrainGraphPresets.h made from the
 	//    WorldDesc (MakeWorldGraph) builds the ground, digs the lake and the river, erodes around them, and publishes the moisture, the biomes, the

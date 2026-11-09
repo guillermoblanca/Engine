@@ -1,4 +1,4 @@
-#include "GB/Water/WaterWaves.h"
+#include "GB/World/Water/WaterWaves.h"
 #include "GB/World/Water.h"
 #include <cstdio>
 

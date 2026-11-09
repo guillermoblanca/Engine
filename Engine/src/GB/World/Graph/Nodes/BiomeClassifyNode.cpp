@@ -88,7 +88,7 @@ namespace GB
 						if (water->River())
 						{
 							const RiverSample r = water->NearestRiver(p.x, p.y);
-							if (r.Found && r.Distance <= r.HalfWidth * 1.2f && c.Height < r.Level) c.InWater = true;
+							if (water->InRiverBand(r) && c.Height < r.Level) c.InWater = true;
 							if (r.Found && r.Distance < r.HalfWidth * 1.8f) above = std::min(above, std::max(c.Height - r.Level, 0.0f));
 						}
 						c.NearWater = above < shoreBand;

@@ -1,6 +1,6 @@
 #include "WorldInstance.h"
 #include "GB/Log.h"
-#include "GB/Water/WaterPresets.h"
+#include "GB/World/Water/WaterPresets.h"
 #include "GB/World/TerrainNoise.h"
 #include <algorithm>
 
@@ -159,7 +159,7 @@ namespace GB::Editor
 		for (const RockParams& rp : world->RockRecipes)
 			m_RockVariants.push_back(RocksGpu::Create(rp));
 
-		// The water is drawn from the terrain's own WaterField: the surfaces and how they look come from GB/Water.
+		// The water is drawn from the terrain's own WaterField: the surfaces and how they look come from GB/World/Water.
 		m_Lake = MakeLakeSurface(terrain->Water());
 		if (m_Lake) scene.Water.push_back(m_Lake.get());
 		m_River = MakeRiverSurface(terrain->Water());

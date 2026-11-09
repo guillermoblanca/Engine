@@ -171,13 +171,13 @@ add_library(GB STATIC
     src/GB/World/Erosion.cpp
     src/GB/World/ThermalErosion.cpp
     src/GB/World/FlowAccumulation.cpp
-    src/GB/Water/WaterField.cpp
-    src/GB/Water/WaterCarver.cpp
-    src/GB/Water/WaterPresets.cpp
-    src/GB/Water/WaterGeometry.cpp
-    src/GB/Water/WaterWaves.cpp
-    src/GB/Water/RiverHydraulics.cpp
-    src/GB/Water/WaterPlanner.cpp
+    src/GB/World/Water/WaterField.cpp
+    src/GB/World/Water/WaterCarver.cpp
+    src/GB/World/Water/WaterPresets.cpp
+    src/GB/World/Water/WaterGeometry.cpp
+    src/GB/World/Water/WaterWaves.cpp
+    src/GB/World/Water/RiverHydraulics.cpp
+    src/GB/World/Water/WaterPlanner.cpp
     src/GB/World/Graph/TerrainGraph.cpp
     src/GB/World/Graph/TerrainGraphPresets.cpp
     src/GB/World/Graph/ITerrainNode.cpp

@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Water/WaterField.h"
+#include "GB/World/Water/WaterField.h"
 #include "GB/World/Graph/TgField.h"
 #include <functional>
 #include <map>
@@ -40,7 +40,7 @@ namespace GB
 	enum class TgPortKind { Field, Placements, Paths, Water, Any };
 	const char* TgPortKindName(TgPortKind kind);
 
-	// The value of one port: only the member of its Kind is meaningful. Water is GB::WaterField (GB/Water/WaterField.h), plain data: the lake
+	// The value of one port: only the member of its Kind is meaningful. Water is GB::WaterField (GB/World/Water/WaterField.h), plain data: the lake
 	// and the river a graph carved, which the world then floods.
 	struct TgValue
 	{

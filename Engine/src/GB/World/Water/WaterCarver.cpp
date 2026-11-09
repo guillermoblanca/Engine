@@ -1,19 +1,11 @@
-#include "GB/Water/WaterCarver.h"
-#include "GB/Water/RiverHydraulics.h"
+#include "GB/World/Water/WaterCarver.h"
+#include "GB/World/Water/RiverHydraulics.h"
+#include "GB/World/PathGeometry.h"
 #include <algorithm>
 #include <cmath>
 
 namespace GB
 {
-	namespace
-	{
-		glm::vec2 CatmullRom(const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2, const glm::vec2& p3, float t)
-		{
-			const float t2 = t * t, t3 = t2 * t;
-			return 0.5f * ((2.0f * p1) + (-p0 + p2) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 + (-p0 + 3.0f * p1 - 3.0f * p2 + p3) * t3);
-		}
-	}
-
 	float ApplyLakeBasin(float h, const glm::vec2& pos, const LakeShape& lake)
 	{
 		const float d = lake.Outline.EffectiveDistance(pos, lake.Center);
@@ -133,7 +125,7 @@ namespace GB
 				for (int k = 0; k + 1 < n; ++k)
 				{
 					const glm::vec2 a = pts[static_cast<size_t>(k)], ab = pts[static_cast<size_t>(k) + 1] - a;
-					const float tt = glm::clamp(glm::dot(pos - a, ab) / std::max(glm::dot(ab, ab), 1e-6f), 0.0f, 1.0f);
+					const float tt = SegmentParameter(pos, a, ab);
 					const float d = glm::length(pos - (a + ab * tt));
 					if (d < bestD)
 					{

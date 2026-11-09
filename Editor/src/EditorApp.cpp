@@ -1,6 +1,6 @@
 #include "EditorApp.h"
 #include "GameTheme.h"
-#include "GB/Water/WaterParamInfo.h"
+#include "GB/World/Water/WaterParamInfo.h"
 #include "GB/AI/Needs.h"
 #include "GB/Game/GameSeeds.h"
 #include "GB/Animation/Character.h"
@@ -601,7 +601,7 @@ namespace GB::Editor
 			if (!w) return;
 			const std::string p = std::string("water.") + name + ".";
 			WaterParams& q = w->Params;
-			for (const WaterParamField& field : kWaterParamFields)   // the names and ranges live with WaterParams (GB/Water/WaterParamInfo.h)
+			for (const WaterParamField& field : kWaterParamFields)   // the names and ranges live with WaterParams (GB/World/Water/WaterParamInfo.h)
 				m_Props.Float(p + field.Name, q.*field.Member, field.Min, field.Max, "Water");
 			m_Props.Color(p + "shallow", q.ShallowColor, "Water");
 			m_Props.Color(p + "deep", q.DeepColor, "Water");

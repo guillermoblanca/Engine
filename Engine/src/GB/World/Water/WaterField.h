@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Water/LakeOutline.h"
+#include "GB/World/Water/LakeOutline.h"
 #include "GB/World/RiverData.h"
 #include <cstddef>
 #include <glm/glm.hpp>

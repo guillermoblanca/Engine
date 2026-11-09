@@ -1,6 +1,7 @@
 #include "GB/World/Graph/Nodes/ValleyNodes.h"
 #include "GB/World/Graph/Nodes/FieldMath.h"
 #include "GB/World/Graph/TerrainGraph.h"
+#include "GB/World/PathGeometry.h"
 #include "GB/World/TerrainNoise.h"
 #include <algorithm>
 #include <cmath>
@@ -89,12 +90,6 @@ namespace GB
 				for (int i = 0; i < n; ++i) offer(i, j, i - 1, j);
 			}
 			return nearest;
-		}
-
-		glm::vec2 CatmullRom(const glm::vec2& p0, const glm::vec2& p1, const glm::vec2& p2, const glm::vec2& p3, float t)
-		{
-			const float t2 = t * t, t3 = t2 * t;
-			return 0.5f * (2.0f * p1 + (p2 - p0) * t + (2.0f * p0 - 5.0f * p1 + 4.0f * p2 - p3) * t2 + (3.0f * p1 - p0 - 3.0f * p2 + p3) * t3);
 		}
 
 		// Points every `spacing` metres along a polyline (the last one kept).
