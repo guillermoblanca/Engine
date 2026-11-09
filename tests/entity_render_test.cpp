@@ -4,6 +4,7 @@
 #include "GB/Platform/Window.h"
 #include <cmath>
 #include <cstdio>
+#include <string>
 
 namespace
 {
@@ -12,11 +13,48 @@ namespace
 	{
 		if (!ok) { std::fprintf(stderr, "FAIL: %s\n", what); ++failures; }
 	}
+
+	// A group of `n` props (trees) along x, as SceneEditor::PopulateEnvironment makes the scenery of a generated world.
+	void PopulateProps(GB::EntityWorld& w, int n)
+	{
+		const GB::EntityId group = w.Create("Trees");
+		for (int i = 0; i < n; ++i)
+		{
+			const GB::EntityId id = w.Create("Tree " + std::to_string(i + 1), group);
+			w.Find(id)->Transform.Position = { 3.0f * static_cast<float>(i), 0.0f, 10.0f };
+			w.Find(id)->Prop = GB::PropComponent{ GB::PropKind::Tree, 0 };
+		}
+	}
+
+	// T31: a regenerated world destroys the old trees and creates as many new ones (new ids, same count); its props must be drawn on the
+	// very next Build, not after the periodic refresh of the lists. No GPU: props only go through the prop builder.
+	void PropsAfterRegenerate()
+	{
+		GB::EntityWorld w;
+		PopulateProps(w, 50);
+		GB::EntityRenderer er;
+		size_t built = 0;
+		er.SetPropBuilder([&built](const GB::PropComponent&, const glm::mat4&, GB::Scene&) { ++built; return true; });
+		er.SetPropCull({ 0.0f, 0.0f, 0.0f }, 420.0f);   // (the editor's path: the props by cells)
+		GB::Scene scene;
+		er.Build(w, scene);
+		Check(built == 50, "the props of the first world are built");
+
+		const size_t count = w.Count();
+		Check(w.Destroy(w.FindByName("Trees")), "the old scenery goes (the group takes its trees along)");
+		PopulateProps(w, 50);
+		Check(w.Count() == count, "the new world has as many entities as the old one");
+		built = 0;
+		scene = GB::Scene{};
+		er.Build(w, scene);
+		Check(built == 50, "the props of a regenerated world with the same count are built on the next frame");
+	}
 }
 
 int main()
 {
 	GB::Log::Init();
+	PropsAfterRegenerate();   // (needs no window)
 	GB::WindowProps props;
 	props.Visible = false;
 	props.VSync = false;
@@ -24,7 +62,7 @@ int main()
 	if (!window)
 	{
 		std::fprintf(stderr, "SKIP: no OpenGL 4.5 context\n");
-		return 77;
+		return failures ? 1 : 77;   // (the checks without a window still count)
 	}
 
 	GB::EntityWorld w;

@@ -64,6 +64,7 @@ namespace GB
 	void EntityRenderer::RefreshLists(const EntityWorld& world)
 	{
 		m_ListedCount = world.Count();
+		m_ListedNextId = world.NextId();
 		m_ListedAge = 0;
 		m_LookIds.clear(); m_DrawIds.clear(); m_PropIds.clear(); m_PropCells.clear();
 		for (const auto& [id, e] : world.All())
@@ -94,7 +95,7 @@ namespace GB
 	size_t EntityRenderer::Build(const EntityWorld& world, Scene& scene, EntityId highlight)
 	{
 		size_t drawn = 0;
-		if (world.Count() != m_ListedCount || ++m_ListedAge > 120) RefreshLists(world);
+		if (world.Count() != m_ListedCount || world.NextId() != m_ListedNextId || ++m_ListedAge > 120) RefreshLists(world);
 		// the entities drawn by their data look (and so their descendants are not drawn again)
 		std::unordered_set<EntityId> claimed;
 		if (m_EntityVisual)

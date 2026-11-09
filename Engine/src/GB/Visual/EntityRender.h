@@ -42,8 +42,8 @@ namespace GB
 		ModelInstance* FindInstance(EntityId id);
 		// Local bounding sphere (center, radius) of the entity's model; false when not loaded.
 		bool ModelBounds(EntityId id, glm::vec3& center, float& radius);
-		// Forgets cached instances (ids were reused, e.g. after EntityWorld::Clear()).
-		void Reset() { m_Instances.clear(); }
+		// Forgets cached instances and the lists Build walks (ids were reused, e.g. after EntityWorld::Clear()).
+		void Reset() { m_Instances.clear(); m_ListedCount = static_cast<size_t>(-1); }
 
 	private:
 		const Mesh* PrimitiveMesh(MeshShape shape, float size);
@@ -54,12 +54,14 @@ namespace GB
 		glm::vec3 m_CullOrigin{ 0.0f };
 		float m_CullDistance = 0.0f;
 		EntityVisual m_EntityVisual;
-		// What Build walks, listed again when the world's entities change in number (and every couple of seconds besides: a component added
-		// without a new entity): the entities that may have a look of their own, those with a mesh or a light, and the props in cells of
+		// What Build walks, listed again when the world's entities change in number or a new one was created (the world's next id moved: a
+		// regenerated world destroys and creates as many trees and rocks as before, T31), and every couple of seconds besides (a component
+		// added without a new entity): the entities that may have a look of their own, those with a mesh or a light, and the props in cells of
 		// kPropCell metres (a world of kilometres has tens of thousands; only the cells within the cull distance are read).
 		static constexpr float kPropCell = 64.0f;
 		void RefreshLists(const EntityWorld& world);
 		size_t m_ListedCount = static_cast<size_t>(-1);
+		EntityId m_ListedNextId = NullEntity;
 		int m_ListedAge = 0;
 		std::vector<EntityId> m_LookIds, m_PropIds;
 		std::vector<std::pair<EntityId, EntityId>> m_DrawIds;   // an entity with a mesh or a light, and its nearest ancestor that may have a look (NullEntity: none)
