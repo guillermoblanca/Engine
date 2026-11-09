@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Game/Entity.h"
+#include "GB/Scene/Entity.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include <glm/glm.hpp>
 #include <map>

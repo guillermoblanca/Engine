@@ -26,9 +26,10 @@ namespace GB
 			return;
 		}
 		m_Runtime.Anim = anim;
-		m_Runtime.Controller = &controller;
-		m_Runtime.World = &world;
-		m_Runtime.Resolve = interactions ? interactions : TaskRunner::Resolver([](const std::string&, const std::string&, InteractionTarget&, std::string*) { return false; });
+		m_Avatar.Controller = &controller;
+		m_Avatar.World = &world;
+		m_Avatar.Resolve = interactions ? interactions : TaskRunner::Resolver([](const std::string&, const std::string&, InteractionTarget&, std::string*) { return false; });
+		m_Runtime.Avatar = &m_Avatar;
 		m_Runtime.Equip = m_Equip;
 		m_Runtime.PickMontage = m_PickMontage;
 		asc->SetRuntime(&m_Runtime);

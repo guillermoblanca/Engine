@@ -1,5 +1,5 @@
 #include "GB/Save/SaveGame.h"
-#include "GB/Game/SceneIO.h"
+#include "GB/Scene/SceneIO.h"
 #include <charconv>
 #include <algorithm>
 #include <cstdio>

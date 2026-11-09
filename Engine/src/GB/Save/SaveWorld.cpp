@@ -1,5 +1,5 @@
 #include "GB/Save/SaveWorld.h"
-#include "GB/Game/SceneIO.h"
+#include "GB/Scene/SceneIO.h"
 #include "GB/Core/Fingerprint.h"
 #include <algorithm>
 #include <nlohmann/json.hpp>

@@ -1,6 +1,6 @@
 #pragma once
 #include <atomic>
-#include "GB/Game/Entity.h"
+#include "GB/Scene/Entity.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include <map>
 #include <memory>

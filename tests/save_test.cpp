@@ -4,7 +4,7 @@
 // one of the CURRENT format (never overwrite an older one: they are the point).
 #include "GB/Game/SceneIO.h"
 #include "GB/Qa/Qa.h"
-#include "GB/Save/GameSession.h"
+#include "GB/Game/GameSession.h"
 #include "GB/Save/SaveFiles.h"
 #include <algorithm>
 #include <cmath>

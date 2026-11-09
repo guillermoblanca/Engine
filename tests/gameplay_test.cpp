@@ -4,6 +4,7 @@
 #include "GB/Animation/CharacterAnimator.h"
 #include "GB/Game/MotionState.h"
 #include "GB/Game/SceneIO.h"
+#include "GB/Game/CharacterAbilityAvatar.h"
 #include "GB/Game/TaskList.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
 #include "GB/Gameplay/Garden.h"
@@ -458,6 +459,7 @@ int main()
 			explicit Who(Model& m) : A(m) {}
 			Actor A;
 			AbilityRuntime Rt;
+			CharacterAbilityAvatar Avatar;
 			TaskRunner Tasks;
 			std::vector<std::string> Equipped;
 		};
@@ -478,9 +480,10 @@ int main()
 			for (const MontageDesc& d : AbilityMontages(g.Gameplay.Library, base)) w->A.Anim.Montages().Add(d);
 			w->A.Controller.SetPosition(flat, -6.0f + 3.0f * static_cast<float>(index++), -7.0f, 0.0f);
 			w->Rt.Anim = &w->A.Anim;
-			w->Rt.Controller = &w->A.Controller;
-			w->Rt.World = &flat;
-			w->Rt.Resolve = [&g](const std::string& e, const std::string& p, InteractionTarget& out, std::string* err) { return FindInteraction(g.Entities, e, p, out, err); };
+			w->Avatar.Controller = &w->A.Controller;
+			w->Avatar.World = &flat;
+			w->Rt.Avatar = &w->Avatar;
+			w->Avatar.Resolve = [&g](const std::string& e, const std::string& p, InteractionTarget& out, std::string* err) { return FindInteraction(g.Entities, e, p, out, err); };
 			w->Rt.Equip = [w](const std::string& prop, bool on) { w->Equipped.push_back(prop + (on ? " on" : " off")); return true; };
 			g.Gameplay.Find(name)->SetRuntime(&w->Rt);
 		}
@@ -623,9 +626,11 @@ int main()
 			const CharacterWorld flat;
 			AbilityRuntime rt;
 			rt.Anim = &animator.Anim();
-			rt.Controller = &controller;
-			rt.World = &flat;
-			rt.Resolve = [&g](const std::string& e, const std::string& p, InteractionTarget& out, std::string* err) { return FindInteraction(g.Entities, e, p, out, err); };
+			CharacterAbilityAvatar avatar;
+			avatar.Controller = &controller;
+			avatar.World = &flat;
+			rt.Avatar = &avatar;
+			avatar.Resolve = [&g](const std::string& e, const std::string& p, InteractionTarget& out, std::string* err) { return FindInteraction(g.Entities, e, p, out, err); };
 			rt.Equip = [](const std::string&, bool) { return true; };
 			AbilitySystemComponent* me = g.Gameplay.Find("Gardener");
 			me->SetRuntime(&rt);

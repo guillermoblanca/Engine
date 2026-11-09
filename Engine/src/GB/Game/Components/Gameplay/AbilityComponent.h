@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Game/CharacterAbilityAvatar.h"
 #include "GB/Game/CharacterController.h"
 #include "GB/Game/GBObject.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
@@ -42,6 +43,7 @@ namespace GB
 		GameplayWorld* m_Gameplay = nullptr;
 		std::string m_Name;   // the actor's own, except the player, which the editor links to the one it chose
 		AbilityRuntime m_Runtime;
+		CharacterAbilityAvatar m_Avatar;   // the body the runtime lends (m_Runtime.Avatar)
 		std::function<bool(const std::string&, bool)> m_Equip;
 		std::function<std::string(const AbilityDef&, int, const std::map<std::string, std::string>&)> m_PickMontage;
 	};

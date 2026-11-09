@@ -7,23 +7,19 @@ namespace GB
 	void MoveToTargetTask::Begin(AbilityTaskContext& c)
 	{
 		AbilityRuntime* rt = c.Runtime;
-		if (!rt || !rt->Controller || !rt->World || !rt->Resolve) { Succeed(); return; }   // nowhere to walk: the logic runs in place
-		InteractionTarget target;
+		if (!rt || !rt->Avatar || !rt->Avatar->CanWalk()) { Succeed(); return; }   // nowhere to walk: the logic runs in place
 		std::string error;
-		if (!rt->Resolve(c.Ability.TargetName, c.Ability.Def->Point, target, &error)) { Fail(error.empty() ? "no interaction point to go to" : error); return; }
-		target.Montage.clear();   // the montage is the next task's
-		target.Requires.clear();
-		target.Gives.clear();
-		m_Runner.ActSeconds = 0.0f;
-		if (!m_Runner.Start(target, rt->Anim, false)) Fail(m_Runner.Error());
+		m_Move = rt->Avatar->MoveTo(c.Ability.TargetName, c.Ability.Def->Point, rt->Anim, error);
+		if (!m_Move) { Fail(error.empty() ? "no interaction point to go to" : error); return; }
+		if (m_Move->GetStatus() == IAbilityMove::Status::Failed) Fail(m_Move->Error());
 	}
 
 	void MoveToTargetTask::Tick(AbilityTaskContext& c, float dt)
 	{
 		AbilityRuntime* rt = c.Runtime;
-		c.Input = m_Runner.Update(*rt->Controller, *rt->World, rt->Anim, dt);
-		if (m_Runner.GetPhase() == InteractionRunner::Phase::Done) Succeed();
-		else if (m_Runner.GetPhase() == InteractionRunner::Phase::Failed) Fail(m_Runner.Error());
+		c.Input = m_Move->Update(rt->Anim, dt);
+		if (m_Move->GetStatus() == IAbilityMove::Status::Done) Succeed();
+		else if (m_Move->GetStatus() == IAbilityMove::Status::Failed) Fail(m_Move->Error());
 	}
 
 	void PlayMontageAndWaitTask::Begin(AbilityTaskContext& c)

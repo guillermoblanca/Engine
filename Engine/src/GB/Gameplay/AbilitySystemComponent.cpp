@@ -243,7 +243,7 @@ namespace GB
 			inst->Montage = d->Montages[static_cast<size_t>(use) % d->Montages.size()];
 		}
 		// with no character to walk there is no walk: it commits (pays and starts its cooldown) at once
-		const bool moves = d->MoveToTarget && d->NeedsTarget && m_Runtime && m_Runtime->Controller && m_Runtime->World && m_Runtime->Resolve;
+		const bool moves = d->MoveToTarget && d->NeedsTarget && m_Runtime && m_Runtime->Avatar && m_Runtime->Avatar->CanWalk();
 		if (moves) inst->Tasks.push_back(std::make_unique<MoveToTargetTask>());
 		if (!inst->Montage.empty()) inst->Tasks.push_back(std::make_unique<PlayMontageAndWaitTask>());
 		if (!d->WaitEvent.empty()) inst->Tasks.push_back(std::make_unique<WaitGameplayEventTask>(d->WaitEvent, d->WaitTimeout));

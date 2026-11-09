@@ -1,9 +1,9 @@
 #pragma once
 #include <functional>
 #include "GB/Animation/AnimInstance.h"
-#include "GB/Game/CharacterController.h"
-#include "GB/Game/Entity.h"
-#include "GB/Game/Interaction.h"
+#include "GB/Gameplay/AbilityAvatar.h"
+#include "GB/Scene/CharacterTypes.h"
+#include "GB/Scene/Entity.h"
 #include "GB/Gameplay/AttributeSet.h"
 #include "GB/Gameplay/GameplayAbility.h"
 #include <functional>
@@ -29,10 +29,8 @@ namespace GB
 	struct AbilityRuntime
 	{
 		AnimInstance* Anim = nullptr;
-		CharacterController* Controller = nullptr;
-		const CharacterWorld* World = nullptr;
-		// Finds an interaction point of an entity (see FindInteraction).
-		std::function<bool(const std::string& entity, const std::string& point, InteractionTarget& out, std::string* error)> Resolve;
+		// The character the abilities walk to their targets (Game's CharacterAbilityAvatar: its controller, ground and interaction points).
+		IAbilityAvatar* Avatar = nullptr;
 		// Puts a prop in the character's hand (true) or takes it away (false): "box", "can", "shovel"...
 		std::function<bool(const std::string& prop, bool on)> Equip;
 		// Which montage this use of an ability plays, given where it happens: `context` is BindingContext (node, tool...), `use` the number of times the

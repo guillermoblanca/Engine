@@ -8,6 +8,7 @@
 
 namespace GB::Save
 {
+	// (Moved from GB/Save, architecture step 4: it runs a game, so it belongs to Game; Save is serialization only. The namespace stays.)
 	// A game with no window, the way tests, tools and replays run it: entities, ability systems, the garden, characters walking on flat ground
 	// and a clock in fixed ticks. Without a generated world (that needs a GL context) the seed scatters trees and rocks of its own.
 	//

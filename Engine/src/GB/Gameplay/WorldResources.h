@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/Game/Entity.h"
+#include "GB/Scene/Entity.h"
 #include "GB/Gameplay/Items.h"
 #include "GB/Gameplay/Resources.h"
 #include <cstdint>

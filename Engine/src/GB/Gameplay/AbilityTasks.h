@@ -1,6 +1,7 @@
 #pragma once
+#include "GB/Gameplay/AbilityAvatar.h"
 #include "GB/Gameplay/AbilitySystemComponent.h"
-#include "GB/Game/Interaction.h"
+#include <memory>
 #include <string>
 
 namespace GB
@@ -37,18 +38,18 @@ namespace GB
 		std::string m_Error;
 	};
 
-	// Walks the character to the target's interaction point and settles on it with a motion warp: the InteractionRunner, without an action of
-	// its own (the montage is the next task). Without a runtime there is nowhere to walk: it is done at once.
+	// Walks the character to the target's interaction point and settles on it with a motion warp: the avatar's move (Game's InteractionRunner),
+	// without an action of its own (the montage is the next task). Without a runtime or an avatar there is nowhere to walk: it is done at once.
 	class MoveToTargetTask : public AbilityTask
 	{
 	public:
 		const char* Name() const override { return "MoveToTarget"; }
 		void Begin(AbilityTaskContext& c) override;
 		void Tick(AbilityTaskContext& c, float dt) override;
-		void Cancel(AbilityTaskContext&) override { m_Runner.Cancel(); }
+		void Cancel(AbilityTaskContext&) override { if (m_Move) m_Move->Cancel(); }
 
 	private:
-		InteractionRunner m_Runner;
+		std::unique_ptr<IAbilityMove> m_Move;
 	};
 
 	// Plays the ability's montage and waits for it to end. Its notifies make the ability's events happen (FireNotify); if it ends well the

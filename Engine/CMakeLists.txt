@@ -21,6 +21,7 @@ add_library(GB STATIC
     src/GB/Game/AIDriver.cpp
     src/GB/Game/MotionWarp.cpp
     src/GB/Game/Interaction.cpp
+    src/GB/Game/CharacterAbilityAvatar.cpp
     src/GB/Game/TaskList.cpp
     src/GB/Scene/Task.cpp
     src/GB/Scene/MeshData.cpp
@@ -34,6 +35,7 @@ add_library(GB STATIC
     src/GB/Game/Components/Presentation/PropsComponent.cpp
     src/GB/Game/Actor.cpp
     src/GB/Game/ActorWorld.cpp
+    src/GB/Game/GameSession.cpp
     src/GB/Gameplay/GameplayTag.cpp
     src/GB/Gameplay/AttributeSet.cpp
     src/GB/Gameplay/GameplayEffect.cpp
@@ -138,7 +140,6 @@ add_library(GB STATIC
     src/GB/Save/SaveWorld.cpp
     src/GB/Save/SaveFiles.cpp
     src/GB/Save/Replay.cpp
-    src/GB/Save/GameSession.cpp
     src/GB/Game/EntityRender.cpp
     src/GB/Game/TribeVisuals.cpp
     src/GB/Animation/ReachLayer.cpp
