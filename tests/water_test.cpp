@@ -97,6 +97,7 @@ int GBTest_water(int, char**)
 		Check(renderer.IsValid(), "renderer initializes");
 		GB::Mesh floorMesh = GB::Mesh::CreateGrid(40.0f, 32);
 		GB::Scene scene;
+		scene.Post.Mapper = GB::Tonemap::ACES;   // colour thresholds tuned with ACES: this checks the feature, not the tonemap (Neutral is the default)
 		GB::RenderObject floor;
 		floor.MeshPtr = &floorMesh;
 		floor.Mat.Albedo = glm::vec3(0.55f, 0.5f, 0.35f);
@@ -143,6 +144,7 @@ int GBTest_water(int, char**)
 			calm.Params.Foam = 0.0f;
 			GB::Mesh blockMesh = GB::Mesh::CreateCube(1.0f);
 			GB::Scene sc2;
+			sc2.Post.Mapper = GB::Tonemap::ACES;   // colour thresholds tuned with ACES: this checks the feature, not the tonemap (Neutral is the default)
 			sc2.Sun.CastShadows = false;
 			GB::RenderObject ground = scene.Objects[0];
 			ground.Transform = glm::translate(glm::mat4(1.0f), { 0.0f, -3.0f, 0.0f });

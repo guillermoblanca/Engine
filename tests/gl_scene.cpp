@@ -43,6 +43,7 @@ int GBTest_gl_scene(int, char**)
 	GB::Mesh plane = GB::Mesh::CreatePlane(20.0f);
 
 	GB::Scene scene;
+	scene.Post.Mapper = GB::Tonemap::ACES;   // colour thresholds tuned with ACES: this checks the feature, not the tonemap (Neutral is the default)
 	GB::RenderObject floor;
 	floor.MeshPtr = &plane;
 	floor.Mat.Albedo = glm::vec3(0.5f);

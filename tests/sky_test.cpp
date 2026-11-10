@@ -118,6 +118,7 @@ int GBTest_sky(int, char**)
 		auto sunset = GB::EnvironmentMap::Load(std::string(GB_ASSET_DIR) + "/hdri/sunset_sky.hdr");
 		Check(sunset && sunset->GetWidth() == 512 && sunset->GetHeight() == 256, "the sample HDRI loads (512x256)");
 		GB::Scene sc;
+		sc.Post.Mapper = GB::Tonemap::ACES;   // colour thresholds tuned with ACES: this checks the feature, not the tonemap (Neutral is the default)
 		sc.Sun.CastShadows = false;
 		sc.Sun.Intensity = 0.0f;
 		sc.Env.EnvMap = map.get();
