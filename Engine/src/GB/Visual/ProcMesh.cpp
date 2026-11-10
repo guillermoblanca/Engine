@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <glm/gtc/matrix_transform.hpp>
 #include <map>
 #include <utility>
 
@@ -251,6 +252,137 @@ namespace GB
 			}
 			m.ComputeTangents();
 			return m;
+		}
+
+		MeshData CurvedCard(float width, float height, int segmentsAcross, int segmentsAlong, float bend, float fold, float twist, float jitter, uint32_t seed)
+		{
+			MeshData m;
+			const int na = std::clamp((segmentsAcross + 1) / 2 * 2, 2, 8), nl = std::clamp(segmentsAlong, 1, 16);
+			const glm::vec3 x0(1.0f, 0.0f, 0.0f);
+			for (int j = 0; j <= nl; ++j)
+			{
+				const float t = static_cast<float>(j) / static_cast<float>(nl);
+				// the spine as Card's (y up, the top bent toward +Z along t^2); the cross-section turned about it by the twist so far
+				const glm::vec3 spine(0.0f, height * t, bend * t * t);
+				const glm::vec3 along = glm::normalize(glm::vec3(0.0f, std::max(height, 1e-4f), 2.0f * bend * t));
+				const glm::vec3 out0 = glm::normalize(glm::cross(x0, along));
+				const float a = twist * t;
+				const glm::vec3 across = x0 * std::cos(a) + out0 * std::sin(a);
+				const glm::vec3 out = glm::cross(across, along);
+				for (int i = 0; i <= na; ++i)
+				{
+					const float u = static_cast<float>(i) / static_cast<float>(na), s = 2.0f * u - 1.0f;
+					const float noise = j == 0 ? 0.0f : jitter * (2.0f * HashUnit(VisualHash(static_cast<uint32_t>(i), static_cast<uint32_t>(j), seed ^ 0x2C1B3C6Du)) - 1.0f);
+					m.Vertices.push_back(MakeVertex(spine + across * (0.5f * width * s) + out * (fold * s * s + noise), out, { u, t }));
+				}
+			}
+			const uint32_t row = static_cast<uint32_t>(na + 1);
+			for (int j = 0; j < nl; ++j)
+				for (int i = 0; i < na; ++i)
+				{
+					const uint32_t a = static_cast<uint32_t>(j) * row + static_cast<uint32_t>(i), b = a + 1, c = a + row, d = c + 1;
+					AddTri(m, a, b, c);
+					AddTri(m, b, d, c);
+				}
+			// normals from the bent sheet: the area-weighted sum of the faces around every vertex
+			std::vector<glm::vec3> normals(m.Vertices.size(), glm::vec3(0.0f));
+			for (size_t i = 0; i + 2 < m.Indices.size(); i += 3)
+			{
+				const glm::vec3 fn = glm::cross(m.Vertices[m.Indices[i + 1]].Position - m.Vertices[m.Indices[i]].Position,
+				                                m.Vertices[m.Indices[i + 2]].Position - m.Vertices[m.Indices[i]].Position);
+				for (int k = 0; k < 3; ++k) normals[m.Indices[i + static_cast<size_t>(k)]] += fn;
+			}
+			for (size_t i = 0; i < m.Vertices.size(); ++i)
+				if (glm::length(normals[i]) > 1e-12f) m.Vertices[i].Normal = glm::normalize(normals[i]);
+			m.ComputeTangents();
+			return m;
+		}
+
+		namespace
+		{
+			// The placement of a card leaning out of an axis: turned `yaw` about +Y, lifted to `y`, pushed `out` metres from the axis and
+			// leaned `lean` radians from the vertical, its top going outward (its front, +Z, then faces up and in, toward the axis).
+			glm::mat4 Leaning(float yaw, float y, float out, float lean)
+			{
+				glm::mat4 m = glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+				m = glm::translate(m, glm::vec3(0.0f, y, -out));
+				return glm::rotate(m, -lean, glm::vec3(1.0f, 0.0f, 0.0f));
+			}
+		}
+
+		MeshData CardShrub(float cardWidth, float cardHeight, int cards, uint32_t seed)
+		{
+			MeshData out;
+			auto h01 = [seed](int a, uint32_t b) { return HashUnit(VisualHash(static_cast<uint32_t>(a), b, seed ^ 0x6B43A9B5u)); };
+			const float w = cardWidth, h = cardHeight;
+			// the core: three upright cards, crossed, a little folded
+			for (int c = 0; c < 3; ++c)
+			{
+				const MeshData card = CurvedCard(w * 0.9f, h * 1.05f, 4, 4, -0.06f * h, 0.08f * w, 0.3f * (h01(c, 1) - 0.5f), 0.012f * w, seed * 131u + static_cast<uint32_t>(c));
+				out.Append(card, Leaning(static_cast<float>(c) * glm::radians(60.0f) + 0.3f * h01(c, 2), 0.0f, 0.0f, glm::radians(6.0f * (h01(c, 3) - 0.5f))));
+			}
+			// the ring: low cards lean far out, high ones stand up; all droop at the tips, the fold opening upward
+			for (int k = 0; k < std::clamp(cards, 0, 64); ++k)
+			{
+				const float f = h01(k, 5), scale = 0.75f + 0.35f * h01(k, 6);
+				const float lean = glm::radians(58.0f - 38.0f * f + 12.0f * (h01(k, 4) - 0.5f));
+				const MeshData card = CurvedCard(w * scale, h * scale, 4, 4, -(0.08f + 0.14f * h01(k, 7)) * h * scale, (0.07f + 0.06f * h01(k, 8)) * w * scale,
+				                                 0.5f * (h01(k, 9) - 0.5f), 0.02f * w * scale, seed * 131u + 17u + static_cast<uint32_t>(k));
+				out.Append(card, Leaning(static_cast<float>(k) * 2.39996f + 0.4f * (h01(k, 3) - 0.5f), h * (0.02f + 0.4f * f), 0.08f * w, lean));
+			}
+			// the top: two cards nearly upright over the core
+			for (int c = 0; c < 2; ++c)
+			{
+				const MeshData card = CurvedCard(w * 0.7f, h * 0.7f, 4, 4, -0.08f * h, 0.07f * w, 0.2f, 0.015f * w, seed * 131u + 101u + static_cast<uint32_t>(c));
+				out.Append(card, Leaning(glm::radians(45.0f + 90.0f * static_cast<float>(c)), 0.32f * h, 0.03f * w, glm::radians(18.0f)));
+			}
+			return out;
+		}
+
+		MeshData CardConifer(float height, float radius, int tiers, uint32_t seed)
+		{
+			MeshData out;
+			auto h01 = [seed](int a, uint32_t b) { return HashUnit(VisualHash(static_cast<uint32_t>(a), b, seed ^ 0x1B873593u)); };
+			tiers = std::clamp(tiers, 1, 12);
+			int n = 0;
+			for (int i = 0; i < tiers; ++i)
+			{
+				const float f = static_cast<float>(i) / static_cast<float>(tiers);
+				const float y = height * (0.05f + 0.72f * f), length = radius * (1.0f - 0.75f * f);
+				for (int b = 0; b < 6; ++b, ++n)
+				{
+					const float size = length * (0.85f + 0.3f * h01(n, 1));
+					const MeshData card = CurvedCard(size, size, 4, 5, -(0.12f + 0.12f * h01(n, 2)) * size, 0.1f * size, 0.4f * (h01(n, 3) - 0.5f), 0.015f * size,
+					                                 seed * 131u + static_cast<uint32_t>(n));
+					const float yaw = static_cast<float>(b) * glm::radians(60.0f) + static_cast<float>(i) * 0.63f + 0.3f * (h01(n, 4) - 0.5f);
+					out.Append(card, Leaning(yaw, y + 0.04f * height * (h01(n, 5) - 0.5f), 0.01f * radius, glm::radians(50.0f + 12.0f * h01(n, 6) - 12.0f * f)));
+				}
+			}
+			// the leader
+			const float lead = 0.32f * height;
+			for (int c = 0; c < 2; ++c)
+			{
+				const MeshData card = CurvedCard(0.7f * lead, lead, 4, 4, -0.05f * lead, 0.06f * lead, 0.15f, 0.01f * lead, seed * 131u + 997u + static_cast<uint32_t>(c));
+				out.Append(card, Leaning(glm::radians(90.0f * static_cast<float>(c)) + 0.3f, height - lead, 0.0f, glm::radians(5.0f)));
+			}
+			return out;
+		}
+
+		MeshData CardTuft(float width, float height, int cards, uint32_t seed)
+		{
+			MeshData out;
+			auto h01 = [seed](int a, uint32_t b) { return HashUnit(VisualHash(static_cast<uint32_t>(a), b, seed ^ 0x7F4A7C15u)); };
+			cards = std::clamp(cards, 1, 8);
+			for (int c = 0; c < cards; ++c)
+			{
+				const float sw = width * (0.9f + 0.2f * h01(c, 1)), sh = height * (0.85f + 0.3f * h01(c, 2));
+				const MeshData card = CurvedCard(sw, sh, 4, 4, -(0.1f + 0.18f * h01(c, 3)) * sh, 0.16f * sw, 0.35f * (h01(c, 4) - 0.5f), 0.01f * sw,
+				                                 seed * 131u + static_cast<uint32_t>(c));
+				// crossed planes spread over half a turn, every other one turned round so the tuft leans out on all sides
+				const float yaw = static_cast<float>(c) * kPi / static_cast<float>(cards) + ((c & 1) ? kPi : 0.0f) + 0.5f * (h01(c, 5) - 0.5f);
+				out.Append(card, Leaning(yaw, 0.0f, 0.0f, glm::radians(4.0f + 14.0f * h01(c, 6))));
+			}
+			return out;
 		}
 	}
 }

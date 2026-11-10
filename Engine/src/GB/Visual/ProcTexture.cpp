@@ -223,6 +223,9 @@ namespace GB
 			float Height = 0.5f;   // 0..1, scaled by the kind's depth for the normal map
 			float Rough = 1.0f;    // 0..1, the factor on the material's roughness
 			float Alpha = 1.0f;    // T103 cards: 1 inside the silhouette, 0 outside (the surfaces that tile leave it at 1)
+			// T106 cards: a slope (du, dv of the normal over its z) added to the one from Height: the cross-section of a needle or a twig two
+			// texels wide, the crease of a blade, the fold of a leaf along its midrib, which a height difference cannot draw at that size
+			glm::vec2 Tilt{ 0.0f };
 		};
 		using SurfaceShader = Surface (*)(float u, float v, uint32_t seed);
 
@@ -1199,11 +1202,17 @@ namespace GB
 			{
 				if (!CapsuleAt(p, q, t, a)) return false;
 				const float round = std::sqrt(std::max(0.0f, 1.0f - a * a));
+				// T106: fine bark: short fissures along the twig (noise stretched along it) and a few scale rings across
+				const glm::vec2 axis = glm::normalize(p.B - p.A + glm::vec2(1e-6f, 0.0f));
+				const float s1 = glm::dot(q, axis), s2 = glm::dot(q, glm::vec2(-axis.y, axis.x));
+				const float fissure = Smooth(0.07f, 0.0f, std::fabs(Noise(s2 * 1.3f + 7.0f, s1 * 0.25f + 3.0f, 256, s + 21) - 0.5f));
+				const float bark = 0.6f * Noise(s1 + 5.0f, s2 + 9.0f, 192, s + 22) + 0.4f * (1.0f - fissure);
 				glm::vec3 c = Mix(glm::vec3(0.27f, 0.2f, 0.13f), glm::vec3(0.36f, 0.3f, 0.17f), p.Tone) * (0.75f + 0.25f * round);
-				c *= 1.0f - 0.3f * p.Back;
+				c *= (0.8f + 0.3f * bark) * (1.0f - 0.3f * p.Back);
 				o.Albedo = c;
-				o.Height = 0.5f + 0.3f * round;
-				o.Rough = 0.9f;
+				o.Height = 0.5f + 0.3f * round + 0.12f * (bark - 0.5f);
+				o.Tilt = glm::vec2(-axis.y, axis.x) * (0.6f * a / std::max(round, 0.35f));
+				o.Rough = 0.93f + 0.07f * bark;
 				return true;
 			}
 			case CardPrim::Type::Needle:
@@ -1215,7 +1224,11 @@ namespace GB
 				c *= (0.85f + 0.15f * round) * (1.0f - 0.35f * p.Back) * (0.9f + 0.15f * t);
 				o.Albedo = c;
 				o.Height = 0.5f + 0.25f * round;
-				o.Rough = 0.55f;
+				// T106: a rounded section (the analytic normal of a cylinder across the needle; two texels wide, too narrow for a height) and a waxy
+				// sheen along its top, rougher toward the tip
+				const glm::vec2 ab = glm::normalize(p.B - p.A + glm::vec2(1e-6f, 0.0f));
+				o.Tilt = glm::vec2(-ab.y, ab.x) * (0.85f * a / std::max(round, 0.3f));
+				o.Rough = 0.55f + 0.12f * t + 0.12f * (1.0f - round);
 				return true;
 			}
 			case CardPrim::Type::Blade:
@@ -1233,8 +1246,12 @@ namespace GB
 				c *= (1.0f - 0.38f * p.Back * (1.0f - 0.5f * gt)) * (0.62f + 0.38f * Smooth(0.0f, 0.3f, gt));   // painted occlusion in the tuft and at its base (R1)
 				c *= 0.94f + 0.12f * Noise(q.x, q.y, 64, s + 3);
 				o.Albedo = c;
-				o.Height = 0.5f + 0.2f * (1.0f - a * a) - 0.08f * rib;
-				o.Rough = 0.72f + 0.25f * std::max(tipDry, card.Dry);
+				// T106: the blade folded along its midrib (a V, both halves sloping down to the crease) and fine parallel veins
+				const glm::vec2 ab = glm::normalize(p.B - p.A + glm::vec2(1e-6f, 0.0f));
+				const float side = a >= 0.0f ? 1.0f : -1.0f, ax = std::fabs(a);
+				o.Tilt = glm::vec2(-ab.y, ab.x) * (-side * 0.38f * Smooth(0.0f, 0.18f, ax) * (1.0f - 0.5f * Smooth(0.75f, 1.0f, ax)));
+				o.Height = 0.5f + 0.05f * std::fabs(std::sin(ax * 3.14159265f * 3.0f)) - 0.04f * rib;
+				o.Rough = 0.68f + 0.25f * std::max(tipDry, card.Dry) + 0.06f * (1.0f - rib);
 				return true;
 			}
 			case CardPrim::Type::Head:
@@ -1272,15 +1289,33 @@ namespace GB
 				if (p.Shape == 0)
 				{
 					half = p.R0 * std::pow(std::sin(3.14159265f * std::pow(along, 0.62f)), 0.85f);
-					half *= 1.0f - 0.07f * (along * 20.0f - std::floor(along * 20.0f)) * Smooth(0.08f, 0.2f, along);   // serrated margin
+					// T106: serrated margin, teeth leaning toward the tip (a slow rise, a sharp notch), none on the stalk end or the drawn-out tip
+					const float tooth = along * 22.0f - std::floor(along * 22.0f);
+					half *= 1.0f - 0.1f * Smooth(0.0f, 0.85f, tooth) * Smooth(1.0f, 0.88f, tooth) * Smooth(0.08f, 0.2f, along) * Smooth(0.96f, 0.86f, along);
 				}
-				else half = p.R0 * std::pow(std::sin(3.14159265f * along), 0.7f);
+				else
+				{
+					half = p.R0 * std::pow(std::sin(3.14159265f * along), 0.7f);
+					const float tooth = along * 14.0f - std::floor(along * 14.0f);   // a finer, shallower serration
+					half *= 1.0f - 0.05f * tooth * Smooth(0.15f, 0.3f, along) * Smooth(0.92f, 0.8f, along);
+				}
 				const float ax = std::fabs(across);
 				if (ax >= half) return false;
 				const float rel = ax / half;
 				const float rib = Smooth(0.012f, 0.004f, ax) * (1.0f - 0.6f * along);
-				const float lat = std::fabs((along * (p.Shape == 0 ? 7.0f : 4.0f) - ax * 2.2f + 0.3f) - std::floor(along * (p.Shape == 0 ? 7.0f : 4.0f) - ax * 2.2f + 0.3f) - 0.5f);
+				// secondary veins: from the midrib toward the margin, angled to the tip; `phase` runs 0..1 between two of them
+				const float veinsAlong = p.Shape == 0 ? 7.0f : 4.0f;
+				const float veinCoord = along * veinsAlong - ax * 2.2f + 0.3f;
+				const float phase = veinCoord - std::floor(veinCoord);
+				const float lat = std::fabs(phase - 0.5f);
 				const float vein = Smooth(0.06f, 0.02f, lat) * Smooth(0.95f, 0.7f, rel) * Smooth(0.0f, 0.15f, along) * (p.Shape == 0 ? 1.0f : 0.5f);
+				// T106: tertiary veins, a fine net between the secondaries (two crossing families of thin lines, wobbling), and the lamina
+				// bulging between the secondaries (0 on a vein, 1 halfway), all fading toward the margin
+				const float wob = 0.25f * Noise(q.x, q.y, 40, s + 11);
+				const float t1 = along * veinsAlong * 3.2f + ax * 5.0f + wob, t2 = along * veinsAlong * 2.6f - ax * 9.0f + wob;
+				const float tert = std::max(Smooth(0.1f, 0.03f, std::fabs(t1 - std::floor(t1) - 0.5f)), Smooth(0.1f, 0.03f, std::fabs(t2 - std::floor(t2) - 0.5f)))
+				                   * Smooth(0.97f, 0.75f, rel) * (1.0f - vein) * (p.Shape == 0 ? 1.0f : 0.6f);
+				const float bulge = std::sin(3.14159265f * lat) * Smooth(0.95f, 0.6f, rel) * Smooth(0.0f, 0.12f, along);
 				glm::vec3 c = p.Shape == 0 ? Mix(glm::vec3(0.15f, 0.26f, 0.07f), glm::vec3(0.27f, 0.39f, 0.11f), p.Tone)
 				                           : Mix(glm::vec3(0.13f, 0.23f, 0.06f), glm::vec3(0.25f, 0.37f, 0.1f), p.Tone);
 				c *= 0.92f + 0.1f * (1.0f - rel);
@@ -1289,10 +1324,17 @@ namespace GB
 				const float aut = p.Age * Smooth(0.0f, 0.6f, 0.4f + 0.7f * rel + 0.4f * along - 0.6f * (1.0f - p.Age));
 				c = Mix(c, Mix(glm::vec3(0.66f, 0.5f, 0.14f), glm::vec3(0.58f, 0.25f, 0.09f), p.Tone2), aut);
 				c = Mix(c, c * 1.35f + glm::vec3(0.04f, 0.05f, 0.0f), std::max(rib, vein * 0.55f));
+				c = Mix(c, c * 1.12f, tert * 0.5f);
+				c *= 0.95f + 0.07f * bulge;   // the bulges a touch lighter, the veins' furrows a touch darker
 				c *= 1.0f - 0.32f * p.Back;
 				o.Albedo = c;
-				o.Height = 0.5f + 0.22f * std::sqrt(1.0f - rel * rel) - 0.12f * rib - 0.06f * vein;
-				o.Rough = 0.55f + 0.12f * vein + 0.2f * aut;
+				// T106: the lamina a low dome, bulging between the secondary veins, which sink with the midrib; the tertiary net barely
+				o.Height = 0.5f + 0.12f * std::sqrt(1.0f - rel * rel) + 0.14f * bulge - 0.14f * rib - 0.08f * vein - 0.05f * tert;
+				// and folded along the midrib: both halves slope down to it (the V the curved card makes, leaf by leaf), flattening at the margin
+				const float side = across >= 0.0f ? 1.0f : -1.0f;
+				o.Tilt = perp * (-side * 0.12f * Smooth(0.0f, 0.12f, rel) * (1.0f - 0.6f * Smooth(0.6f, 1.0f, rel)));
+				// the veins smoother (waxy, they glint) than the lamina, the tertiary net a little rougher; dry leaves rougher still
+				o.Rough = 0.58f - 0.12f * rib - 0.08f * vein + 0.05f * tert + 0.06f * Noise(q.x, q.y, 24, s + 13) + 0.2f * aut;
 				return true;
 			}
 			}
@@ -1334,9 +1376,9 @@ namespace GB
 		const std::vector<CardKind>& Cards()
 		{
 			static const std::vector<CardKind> table = {
-				{ "leaf_broad", LeafBroadCard, 0.004f }, { "leaf_small", LeafSmallCard, 0.004f }, { "leaf_needle", LeafNeedleCard, 0.003f },
-				{ "grass_short", GrassShortCard, 0.003f }, { "grass_medium", GrassMediumCard, 0.003f }, { "grass_tall", GrassTallCard, 0.003f },
-				{ "grass_dry", GrassDryCard, 0.003f } };
+				{ "leaf_broad", LeafBroadCard, 0.01f }, { "leaf_small", LeafSmallCard, 0.008f }, { "leaf_needle", LeafNeedleCard, 0.004f },
+				{ "grass_short", GrassShortCard, 0.004f }, { "grass_medium", GrassMediumCard, 0.004f }, { "grass_tall", GrassTallCard, 0.004f },
+				{ "grass_dry", GrassDryCard, 0.004f } };
 			return table;
 		}
 
@@ -1367,6 +1409,7 @@ namespace GB
 					sum.Albedo += o.Albedo;
 					sum.Height += o.Height;
 					sum.Rough += o.Rough;
+					sum.Tilt += o.Tilt;
 				}
 			Surface o;
 			if (hits == 0) { o.Albedo = card.Bleed; o.Height = 0.5f; o.Rough = 1.0f; o.Alpha = 0.0f; return o; }
@@ -1374,6 +1417,7 @@ namespace GB
 			o.Albedo = sum.Albedo / n;
 			o.Height = sum.Height / n;
 			o.Rough = sum.Rough / n;
+			o.Tilt = sum.Tilt / n;
 			o.Alpha = n / (kSub * kSub);
 			return o;
 		}
@@ -1510,10 +1554,12 @@ namespace GB
 			if (!shader && !surface && !card) return Image::Solid(size, size, 128, 128, 255);
 			// the relief at every texel: the surface's own, or the older kinds' albedo luminance (darker is lower: joints, furrows, cracks)
 			std::vector<float> height(static_cast<size_t>(size) * size);
+			std::vector<glm::vec2> tilt;   // T106 cards: the slopes drawn directly (a needle's round section, a blade's crease, a leaf's fold)
 			if (card)
 			{
 				const std::vector<Surface> texels = CardTexels(kind, size, seed);
-				for (size_t i = 0; i < texels.size(); ++i) height[i] = texels[i].Height;
+				tilt.resize(texels.size());
+				for (size_t i = 0; i < texels.size(); ++i) { height[i] = texels[i].Height; tilt[i] = texels[i].Tilt * texels[i].Alpha; }
 			}
 			else
 			{
@@ -1538,7 +1584,8 @@ namespace GB
 			ForTexels(size, [&](uint32_t x, uint32_t y, float, float)
 			{
 				const float gx = (at(x + 1, y) - at(x + size - 1, y)) * k, gy = (at(x, y + 1) - at(x, y + size - 1)) * k;
-				const glm::vec3 n = glm::normalize(glm::vec3(-gx, -gy, 1.0f));
+				const glm::vec2 extra = tilt.empty() ? glm::vec2(0.0f) : tilt[static_cast<size_t>(y) * size + x];
+				const glm::vec3 n = glm::normalize(glm::vec3(extra.x - gx, extra.y - gy, 1.0f));
 				uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * size + x) * 4];
 				p[0] = Byte(0.5f + 0.5f * n.x);
 				p[1] = Byte(0.5f + 0.5f * n.y);

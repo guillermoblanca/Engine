@@ -7,6 +7,9 @@
 // The small picture is a golden image (tests/golden/images/material_gallery.png; update: GB_UPDATE_GOLDEN=1 ctest -R "^material_gallery$").
 // `GBGLTests material_gallery --out <dir>` also writes the full-size gallery (galeria.png, 1600x900) and a close-up of every family
 // (galeria_<family>.png) there, and the new textures of T102 and T103 flat (texturas_v2.png, texturas_v3.png; no GL needed). It prints the mean albedo of every material (sRGB luminance of colour x texture) for the art bible's R2.
+// T106: tufts, bushes and leaf samples are built of curved cards (ProcMesh::CurvedCard, CardTuft, CardShrub, CardConifer; a leaf sample is
+// the bare curved card and the plant of its "plant" entry beside it), checked on the CPU first (normals, tangents, determinism); `--out`
+// also writes the cards' micro-relief flat and lit (texturas_v4.png) and a close-up of the leaf cards under a low sun (hojas_detalle.png).
 // SKIPs (77) without an OpenGL 4.5 context.
 #include "GB/Log.h"
 #include "GB/Platform/Window.h"
@@ -163,6 +166,107 @@ namespace
 		return GB::SavePNG(path.c_str(), W, H, px.data());
 	}
 
+	// T106: the cards flat with their micro-relief. One row per card; columns: the albedo over a light and dark checker (through its alpha),
+	// the alpha as grey, the normal, the roughness (G as grey), the albedo lit by its normal map under a grazing light from the upper left
+	// (tangent space; what the relief does without the renderer), and the middle third of that lit tile enlarged three times. v up.
+	bool WriteTextureSheetV4(const std::string& path)
+	{
+		const std::vector<std::string> kinds = { "leaf_broad", "leaf_small", "leaf_needle", "grass_short", "grass_medium", "grass_tall", "grass_dry" };
+		constexpr uint32_t T = 256, Gap = 6, Cols = 6;
+		const uint32_t W = Cols * T + (Cols + 1) * Gap, H = static_cast<uint32_t>(kinds.size()) * (T + Gap) + Gap;
+		std::vector<uint8_t> px(static_cast<size_t>(W) * H * 4, 40);
+		for (size_t i = 3; i < px.size(); i += 4) px[i] = 255;
+		const glm::vec3 light = glm::normalize(glm::vec3(-0.75f, 0.45f, 0.35f));
+		for (size_t row = 0; row < kinds.size(); ++row)
+		{
+			const std::string& k = kinds[row];
+			const GB::Image albedo = GB::ProcTexture::Generate(k, T), normal = GB::ProcTexture::GenerateNormal(k, T), rough = GB::ProcTexture::GenerateRoughness(k, T);
+			const uint32_t oy = Gap + static_cast<uint32_t>(row) * (T + Gap);
+			for (uint32_t col = 0; col < Cols; ++col)
+			{
+				const uint32_t ox = Gap + col * (T + Gap);
+				for (uint32_t y = 0; y < T; ++y)
+					for (uint32_t x = 0; x < T; ++x)
+					{
+						const bool zoom = col == 5;
+						const uint32_t sx = zoom ? T / 3 + x / 3 : x, sy = T - 1 - (zoom ? T / 3 + y / 3 : y);
+						const size_t s = (static_cast<size_t>(sy) * T + sx) * 4;
+						uint8_t* d = &px[(static_cast<size_t>(oy + y) * W + ox + x) * 4];
+						const float bg = ((x / 16 + y / 16) & 1) ? 200.0f : 120.0f;
+						const float a = static_cast<float>(albedo.Pixels[s + 3]) / 255.0f;
+						if (col == 0 || col >= 4)
+						{
+							float shade = 1.0f;
+							if (col >= 4)
+							{
+								const glm::vec3 n = glm::normalize(glm::vec3(normal.Pixels[s], normal.Pixels[s + 1], normal.Pixels[s + 2]) / 127.5f - 1.0f);
+								shade = 0.2f + 1.3f * std::max(0.0f, glm::dot(n, light));
+							}
+							for (int c = 0; c < 3; ++c)
+							{
+								const float lit = std::min(255.0f, static_cast<float>(albedo.Pixels[s + static_cast<size_t>(c)]) * shade);
+								d[c] = static_cast<uint8_t>(std::lround(bg + (lit - bg) * a));
+							}
+						}
+						else if (col == 1) d[0] = d[1] = d[2] = albedo.Pixels[s + 3];
+						else if (col == 2) for (int c = 0; c < 3; ++c) d[c] = normal.Pixels[s + static_cast<size_t>(c)];
+						else d[0] = d[1] = d[2] = rough.Pixels[s + 1];
+					}
+			}
+		}
+		return GB::SavePNG(path.c_str(), W, H, px.data());
+	}
+
+	// T106: the curved cards are sound: every vertex normal on the side of its faces' normals, unit, the tangents unit and perpendicular to it,
+	// and the same mesh for the same arguments.
+	void CheckCurvedCards()
+	{
+		const std::vector<GB::MeshData> meshes = { GB::ProcMesh::CurvedCard(0.8f, 0.8f, 4, 4, -0.1f, 0.08f, 0.3f, 0.01f, 7),
+			GB::ProcMesh::CurvedCard(0.5f, 1.0f, 3, 6, 0.2f, -0.05f, -0.5f, 0.02f, 9), GB::ProcMesh::CardShrub(0.6f, 0.6f, 14, 3),
+			GB::ProcMesh::CardConifer(1.2f, 0.45f, 5, 4), GB::ProcMesh::CardTuft(0.5f, 0.45f, 3, 5) };
+		const char* names[] = { "curved card", "curved card (odd segments, bent forward)", "card shrub", "card conifer", "card tuft" };
+		for (size_t k = 0; k < meshes.size(); ++k)
+		{
+			const GB::MeshData& m = meshes[k];
+			bool facing = true, unit = true, tangents = true, indices = true;
+			for (size_t i = 0; i + 2 < m.Indices.size(); i += 3)
+			{
+				for (int j = 0; j < 3; ++j) indices = indices && m.Indices[i + static_cast<size_t>(j)] < m.Vertices.size();
+				if (!indices) break;
+				const GB::Vertex& a = m.Vertices[m.Indices[i]], & b = m.Vertices[m.Indices[i + 1]], & c = m.Vertices[m.Indices[i + 2]];
+				const glm::vec3 fn = glm::cross(b.Position - a.Position, c.Position - a.Position);
+				if (glm::length(fn) < 1e-10f) continue;
+				for (const GB::Vertex* v : { &a, &b, &c }) facing = facing && glm::dot(v->Normal, glm::normalize(fn)) > 0.0f;
+			}
+			for (const GB::Vertex& v : m.Vertices)
+			{
+				unit = unit && std::fabs(glm::length(v.Normal) - 1.0f) < 1e-3f;
+				const glm::vec3 t(v.Tangent);
+				tangents = tangents && std::fabs(glm::length(t) - 1.0f) < 1e-3f && std::fabs(glm::dot(t, v.Normal)) < 1e-3f;
+			}
+			Check(indices && !m.Empty(), std::string(names[k]) + ": indices in range");
+			Check(facing, std::string(names[k]) + ": every vertex normal on the side of its faces");
+			Check(unit && tangents, std::string(names[k]) + ": unit normals, unit tangents perpendicular to them");
+		}
+		Check(GB::ProcMesh::CurvedCard(0.8f, 0.8f, 4, 4, -0.1f, 0.08f, 0.3f, 0.01f, 7).Hash() == meshes[0].Hash(), "a curved card is the same every time");
+		Check(GB::ProcMesh::CurvedCard(0.8f, 0.8f, 4, 4, -0.1f, 0.08f, 0.3f, 0.01f, 8).Hash() != meshes[0].Hash(), "the seed changes a curved card");
+		Check(GB::ProcMesh::CardConifer(1.2f, 0.45f, 5, 4).Hash() == meshes[3].Hash(), "a card conifer is the same every time");
+		// the fold lifts the side edges over the midrib toward +Z, and the base row stays on the ground
+		const GB::MeshData flatFold = GB::ProcMesh::CurvedCard(1.0f, 1.0f, 4, 2, 0.0f, 0.1f, 0.0f, 0.0f, 0);
+		Check(std::fabs(flatFold.Vertices[0].Position.z - 0.1f) < 1e-5f && std::fabs(flatFold.Vertices[2].Position.z) < 1e-5f, "the fold lifts the edges 0.1 over the midrib");
+		bool base = true;
+		for (const GB::Vertex& v : meshes[0].Vertices) if (v.UV.y == 0.0f) base = base && std::fabs(v.Position.y) < 1e-6f;
+		Check(base, "a curved card's base row stays at y = 0");
+	}
+
+	// The radius of a sphere around the origin of `m` holding all of it (for the renderer's culling and shadow fitting).
+	float RadiusOf(const GB::MeshData& m)
+	{
+		float r = 0.0f;
+		for (const GB::Vertex& v : m.Vertices) r = std::max(r, glm::length(v.Position));
+		return r + 0.05f;
+	}
+
 	// The gallery's ground (T103): two bands of columns (a family's "band", 0 in front, 1 behind it), the samples of a family in rows along -Z,
 	// four rows a column (a family with more takes more columns).
 	constexpr float kColumn = 2.6f, kRow = 2.4f;
@@ -230,6 +334,9 @@ int GBTest_material_gallery(int argc, char** argv)
 	if (doc["gallery"].contains("cardSize"))
 		for (const auto& [id, value] : doc["gallery"]["cardSize"].items()) cardSize[id] = { value[0].get<float>(), value[1].get<float>() };
 	Check(library.Materials.size() == samples, "every material of the file is in the gallery (" + std::to_string(library.Materials.size()) + " materials, " + std::to_string(samples) + " samples)");
+	std::map<std::string, std::string> plants;   // T106: what a "cards" sample builds beside its bare card ("shrub", "conifer")
+	if (doc["gallery"].contains("plant"))
+		for (const auto& [id, value] : doc["gallery"]["plant"].items()) plants[id] = value.get<std::string>();
 	std::map<std::string, float> opacity;
 	if (doc["gallery"].contains("opacity"))
 		for (const auto& [id, value] : doc["gallery"]["opacity"].items()) opacity[id] = value.get<float>();
@@ -247,7 +354,12 @@ int GBTest_material_gallery(int argc, char** argv)
 		const std::string sheet3 = outDir + "/texturas_v3.png";
 		Check(WriteTextureSheetV3(sheet3), "writes " + sheet3);
 		std::fprintf(stderr, "wrote %s\n", sheet3.c_str());
+		const std::string sheet4 = outDir + "/texturas_v4.png";
+		Check(WriteTextureSheetV4(sheet4), "writes " + sheet4);
+		std::fprintf(stderr, "wrote %s\n", sheet4.c_str());
 	}
+	CheckCurvedCards();
+	if (failures) return failures;
 
 	GB::WindowProps props;
 	props.Visible = false;
@@ -300,13 +412,12 @@ int GBTest_material_gallery(int argc, char** argv)
 	std::vector<std::unique_ptr<GB::Mesh>> built;
 	GB::Material soil;
 	soil.Albedo = glm::vec3(0.16f, 0.12f, 0.085f); soil.Roughness = 0.95f; soil.HeightScale = 0.0f; soil.CavityStrength = 0.0f;
-	// Tufts of crossed cards (three a tuft, 60 degrees apart, each turned and sized by a hash) scattered over the patch; a bush of cards
-	// around a centre (three upright, crossed, a ring of seven leaning out and two more on top).
+	// Tufts of crossed curved cards (ProcMesh::CardTuft, T106: three a tuft, arched and creased, every tuft its own seed; each turned and sized
+	// by a hash) scattered over the patch; a bush of curved cards (ProcMesh::CardShrub, T106).
 	auto hash01 = [](uint32_t a, uint32_t b) { return GB::HashUnit(GB::VisualHash(a, b, 0x51ED270Bu)); };
 	auto tufts = [&](const glm::vec2& card, uint32_t seed)
 	{
 		GB::MeshData out;
-		const GB::MeshData quad = GB::ProcMesh::Card(card.x, card.y, 0.08f * card.y, 3);
 		const float spacing = std::max(0.2f, 0.75f * card.x);
 		const int nx = std::max(1, static_cast<int>(1.9f / spacing)), nz = std::max(1, static_cast<int>(1.5f / spacing));
 		uint32_t k = seed * 977u;
@@ -316,36 +427,15 @@ int GBTest_material_gallery(int argc, char** argv)
 				const glm::vec3 at((static_cast<float>(x) + 0.5f) / static_cast<float>(nx) * 1.9f - 0.95f + spacing * 0.4f * (hash01(k, 1) - 0.5f), 0.06f,
 				                   (static_cast<float>(z) + 0.5f) / static_cast<float>(nz) * 1.5f - 0.75f + spacing * 0.4f * (hash01(k, 2) - 0.5f));
 				const float yaw = hash01(k, 3) * 3.14159f, size = 0.8f + 0.4f * hash01(k, 4);
-				for (int c = 0; c < 3; ++c)
-				{
-					glm::mat4 m = glm::translate(glm::mat4(1.0f), at);
-					m = glm::rotate(m, yaw + static_cast<float>(c) * glm::radians(60.0f), glm::vec3(0, 1, 0));
-					m = glm::rotate(m, 0.12f * (hash01(k, 5 + static_cast<uint32_t>(c)) - 0.5f), glm::vec3(1, 0, 0));
-					out.Append(quad, glm::scale(m, glm::vec3(size)));
-				}
+				glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), at), yaw, glm::vec3(0, 1, 0));
+				out.Append(GB::ProcMesh::CardTuft(card.x, card.y, 3, seed * 7919u + k), glm::scale(m, glm::vec3(size)));
 			}
 		return out;
 	};
-	auto shrub = [&](const glm::vec2& card)
+	auto shrub = [&](const glm::vec2& card, uint32_t seed)
 	{
 		GB::MeshData out;
-		const GB::MeshData quad = GB::ProcMesh::Card(card.x, card.y, 0.1f * card.y, 3);
-		const glm::vec3 centre(0.0f, 0.06f, 0.0f);
-		for (int c = 0; c < 3; ++c)
-			out.Append(quad, glm::rotate(glm::translate(glm::mat4(1.0f), centre), static_cast<float>(c) * glm::radians(60.0f), glm::vec3(0, 1, 0)));
-		for (int c = 0; c < 7; ++c)
-		{
-			const float yaw = static_cast<float>(c) * glm::radians(360.0f / 7.0f) + 0.3f;
-			glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), centre), yaw, glm::vec3(0, 1, 0));
-			m = glm::translate(m, glm::vec3(0.0f, 0.02f + 0.06f * hash01(static_cast<uint32_t>(c), 9), 0.12f));
-			m = glm::rotate(m, glm::radians(28.0f + 14.0f * hash01(static_cast<uint32_t>(c), 10)), glm::vec3(1, 0, 0));   // lean out (+Z)
-			out.Append(quad, glm::scale(m, glm::vec3(0.8f + 0.25f * hash01(static_cast<uint32_t>(c), 11))));
-		}
-		for (int c = 0; c < 2; ++c)
-		{
-			const glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), centre + glm::vec3(0.0f, 0.25f * card.y, 0.0f)), glm::radians(45.0f + 90.0f * static_cast<float>(c)), glm::vec3(0, 1, 0));
-			out.Append(quad, glm::scale(glm::rotate(m, glm::radians(-50.0f), glm::vec3(1, 0, 0)), glm::vec3(0.75f)));
-		}
+		out.Append(GB::ProcMesh::CardShrub(card.x, card.y, 14, seed), glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.06f, 0.0f)));
 		return out;
 	};
 	auto keep = [&](const GB::MeshData& data) { built.push_back(std::make_unique<GB::Mesh>(data.Vertices, data.Indices)); return built.back().get(); };
@@ -382,20 +472,29 @@ int GBTest_material_gallery(int argc, char** argv)
 			patch.MeshPtr = &slab; patch.Mat = soil; patch.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(0.0f, 0.03f, 0.0f)); patch.BoundingRadius = 1.4f;
 			sc.Objects.push_back(patch);
 			GB::RenderObject g;
-			g.MeshPtr = keep(shape == "tufts" ? tufts(card, seed) : shrub(card)); g.Mat = m;
-			g.Transform = glm::translate(glm::mat4(1.0f), at); g.BoundingRadius = 1.6f;
+			const GB::MeshData data = shape == "tufts" ? tufts(card, seed) : shrub(card, seed);
+			g.MeshPtr = keep(data); g.Mat = m;
+			g.Transform = glm::translate(glm::mat4(1.0f), at); g.BoundingRadius = std::max(1.4f, RadiusOf(data));
 			sc.Objects.push_back(g);
 			return;
 		}
 		if (shape == "cards")
 		{
-			// two leaf cards standing on the floor: one facing the camera, one turned and a little behind
+			// T106: on the left the bare card, curved (folded along its midrib, arched back, a little twisted) and leaning back a little; on the
+			// right the plant made of it (the "plant" of the gallery section: a bush or a young conifer of curved cards)
 			GB::RenderObject a;
-			a.MeshPtr = keep(GB::ProcMesh::Card(card.x, card.y, 0.0f, 1)); a.Mat = m; a.BoundingRadius = 1.0f;
-			a.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(-0.5f, 0.0f, 0.1f));
+			const GB::MeshData bare = GB::ProcMesh::CurvedCard(card.x, card.y, 4, 4, -0.12f * card.y, 0.07f * card.x, 0.25f, 0.008f * card.x, seed);
+			a.MeshPtr = keep(bare); a.Mat = m; a.BoundingRadius = RadiusOf(bare);
+			a.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), at + glm::vec3(-0.55f, 0.0f, 0.1f)), glm::radians(-12.0f), glm::vec3(1, 0, 0));
 			sc.Objects.push_back(a);
-			a.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), at + glm::vec3(0.5f, 0.0f, -0.25f)), glm::radians(-40.0f), glm::vec3(0, 1, 0));
-			sc.Objects.push_back(a);
+			const auto pl = plants.find(id);
+			const std::string plant = pl != plants.end() ? pl->second : "shrub";
+			const GB::MeshData whole = plant == "conifer" ? GB::ProcMesh::CardConifer(1.2f * card.y, 0.7f * card.x, 7, seed)
+			                                              : GB::ProcMesh::CardShrub(0.55f * card.x, 0.55f * card.y, 14, seed);
+			GB::RenderObject b;
+			b.MeshPtr = keep(whole); b.Mat = m; b.BoundingRadius = RadiusOf(whole);
+			b.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(0.55f, 0.0f, -0.15f));
+			sc.Objects.push_back(b);
 			return;
 		}
 		if (shape == "slab")
@@ -502,6 +601,26 @@ int GBTest_material_gallery(int argc, char** argv)
 				close.Position = { 0.0f, 1.1f, 0.9f + 1.5f * static_cast<float>(perRow) };
 			}
 			save(sc, close, "galeria_" + f.Name + ".png");
+		}
+		// T106: a close-up of the leaf cards' micro-relief: the three leaf cards curved and leaning back toward a camera 45 degrees above them,
+		// under a low sun from the front right (about 20 degrees high), which rakes across the veins and puts the highlights on the lamina
+		{
+			GB::Scene sc = stage({ 0.0f, 0.0f, 0.0f }, 2.5f);
+			sc.Sun.Direction = { -0.75f, -0.34f, -0.55f };
+			const char* ids[] = { "leaf_broad", "leaf_small", "leaf_needle" };
+			for (int i = 0; i < 3; ++i)
+			{
+				const GB::MeshData data = GB::ProcMesh::CurvedCard(0.9f, 0.9f, 4, 6, -0.1f, 0.06f, 0.2f, 0.006f, GB::VisualHash(ids[i]));
+				GB::RenderObject o;
+				o.MeshPtr = keep(data); o.Mat = material(ids[i]); o.BoundingRadius = RadiusOf(data);
+				o.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), { (static_cast<float>(i) - 1.0f) * 0.95f, 0.02f, 0.0f }), glm::radians(-38.0f), glm::vec3(1, 0, 0));
+				sc.Objects.push_back(o);
+			}
+			GB::Camera cam;
+			cam.Target = { 0.0f, 0.3f, -0.3f };
+			cam.Position = { 0.0f, 0.3f + 1.75f, -0.3f + 1.75f };
+			cam.FovYDegrees = 40.0f;
+			save(sc, cam, "hojas_detalle.png");
 		}
 	}
 	return failures;

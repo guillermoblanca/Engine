@@ -28,6 +28,26 @@ namespace GB
 		// plane, facing +Z, its top bent `bend` metres toward +Z along a smooth curve. One-sided (draw it with a double-sided material).
 		// Unlike the other shapes its UVs are not in metres: 0..1 over the card (u across, v up), so the whole texture is the card.
 		MeshData Card(float width, float height, float bend = 0.0f, int segments = 3);
+		// T106: a curved card, the same mapping and facing as Card (UVs 0..1, u across, v up, front +Z, the base row on the origin) but a
+		// real 3D sheet that catches the light differently across it: a grid of `segmentsAcross` (made even, 2..8, so a column of vertices lies
+		// on the midrib at u = 0.5) by `segmentsAlong` (1..16) quads.
+		//   bend    metres the top moves toward +Z (negative: away, a droop when the card leans back), along t^2 as Card
+		//   fold    metres both side edges rise toward +Z over the midrib (a soft V along the central vein; negative folds the other way)
+		//   twist   radians the cross-section turns around the spine at the top (0 at the base, growing linearly)
+		//   jitter  metres of per-vertex noise along the sheet's normal (0 on the base row, so the card stays anchored), from `seed`
+		// Normals are the area-weighted sum of the faces' (so they follow the fold, bend and twist), tangents from the UVs.
+		MeshData CurvedCard(float width, float height, int segmentsAcross = 4, int segmentsAlong = 4, float bend = 0.0f, float fold = 0.0f,
+		                    float twist = 0.0f, float jitter = 0.0f, uint32_t seed = 0);
+		// T106: plants assembled from curved cards (one alpha-masked material over the whole mesh, drawn double-sided), standing on the origin.
+		// A bush: three upright crossed cards in the core and `cards` more around it, leaning out and up at varied angles and heights, their
+		// tips drooping, every one folded and bent differently (by `seed`). `cardWidth` x `cardHeight` is the size of a card (the leaf_small
+		// or leaf_broad texture).
+		MeshData CardShrub(float cardWidth, float cardHeight, int cards, uint32_t seed);
+		// A young conifer `height` tall and `radius` wide at the bottom, of leaf_needle cards: `tiers` whorls stepping up the axis, six
+		// folded sprays a whorl leaning out about 50 degrees (shorter toward the top, drooping at the tips), and a leader of two crossed upright cards.
+		MeshData CardConifer(float height, float radius, int tiers, uint32_t seed);
+		// A tuft of grass: `cards` crossed cards (the grass_* textures) `width` x `height`, each arched outward with a crease down the middle.
+		MeshData CardTuft(float width, float height, int cards, uint32_t seed);
 	}
 
 	// Integer hashing for the procedural content: the same inputs give the same numbers everywhere (no std::rand, no floating point state).

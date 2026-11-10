@@ -55,6 +55,8 @@
       { "name": "hojas",    "materials": [ "leaf_broad", "leaf_small", "leaf_needle" ], "shape": "cards", "band": 1 }
     ],
     "shapes": { "shrub_small": "shrub" },
+    "plant": { "leaf_broad": "shrub", "leaf_small": "shrub", "leaf_needle": "conifer" },
+    "noteT106": "T106: tufts, shrub and leaf samples are built of curved cards (ProcMesh::CurvedCard, CardTuft, CardShrub, CardConifer); a cards sample is the bare curved card and, beside it, the plant of its 'plant' entry. For T46 to add on integration (not set yet, today's parser may refuse unknown keys): on grass_*, shrub_small and leaf_* a layers.foliage block { translucency 0.35-0.5, transmissionTint [0.55, 0.75, 0.2] (dry grass [0.8, 0.65, 0.3]), colorVariation 0.12-0.18, normalBlend 0.3-0.5 (bush and conifer: crown normals; grass tufts 0.2) }.",
     "cardSize": { "grass_short": [0.3, 0.14], "grass_medium": [0.5, 0.45], "grass_tall": [0.6, 1.0], "grass_dry": [0.5, 0.5],
                   "shrub_small": [0.7, 0.7], "leaf_broad": [0.8, 0.8], "leaf_small": [0.8, 0.8], "leaf_needle": [0.8, 0.8] },
     "opacity": {}
