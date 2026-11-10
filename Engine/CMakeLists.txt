@@ -180,6 +180,9 @@ add_library(GB_Sim STATIC
     src/GB/World/Water/WaterPlanner.cpp
     src/GB/World/Graph/TerrainGraph.cpp
     src/GB/World/Graph/TerrainGraphPresets.cpp
+    src/GB/World/Graph/TerrainGraphIO.cpp
+    src/GB/World/Graph/TerrainGraphLibrary.cpp
+    src/GB/World/Graph/TgHash.cpp
     src/GB/World/Graph/ITerrainNode.cpp
     src/GB/World/Graph/ITerrainTarget.cpp
     src/GB/World/Graph/Nodes/OutputNode.cpp

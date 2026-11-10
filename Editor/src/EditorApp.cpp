@@ -674,7 +674,7 @@ namespace GB::Editor
 			const SetResult r = m_Props.Set(a[0], value);
 			return { r.Ok, r.Message };
 		});
-		c.Register("terrain_graph", "terrain_graph list | preset <name> [temperate|alpine|desert] [seed] [mesh_detail] [size] [resolution] [trees] [rocks] | apply: builds a world from a terrain graph (docs/GRAFO_TERRENO.md): a preset that ships with the engine (loaded into the Terrain Graph panel too), or the graph in the panel (apply). The world type picks the ground's palette and the tree and rock recipes; the graph decides everything else", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("terrain_graph", "terrain_graph list | preset <name> [temperate|alpine|desert] [seed] [mesh_detail] [size] [resolution] [trees] [rocks] | apply | library | load <id|file.json> | save [id] | export <id> <file.json> | reload | panel [on|off]: builds a world from a terrain graph (docs/GRAFO_TERRENO.md): a preset that ships with the engine or a graph of the library (assets/data/terrain_graphs; loaded into the Terrain Graph panel too), or the graph in the panel (apply). The world type picks the ground's palette and the tree and rock recipes; the graph decides everything else", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty() || a[0] == "list")
 			{
@@ -683,13 +683,15 @@ namespace GB::Editor
 				return { true, "terrain graph presets: " + names };
 			}
 			if (!m_TgUi) m_TgUi = std::make_unique<TerrainGraphUi>();
+			if (a[0] == "panel") { m_ShowTerrainGraph = a.size() < 2 || (a[1] != "off" && a[1] != "0"); return { true, std::string("Terrain Graph panel ") + (m_ShowTerrainGraph ? "shown" : "hidden") }; }
+			if (a[0] == "library" || a[0] == "load" || a[0] == "save" || a[0] == "export" || a[0] == "reload") { std::string message; const bool ok = m_TgUi->Command(a, message); return { ok, message }; }
 			WorldDesc d = m_WorldDesc;
 			d.GeneratorVersion = kWorldGeneratorLatest;
 			if (a[0] == "preset")
 			{
-				TerrainGraph preset;
-				if (a.size() < 2 || !MakeTerrainGraphPreset(a[1], preset)) return { false, "unknown preset (terrain_graph list)" };
-				m_TgUi->LoadGraph(preset);
+				const TerrainGraph* preset = a.size() < 2 ? nullptr : m_TgUi->Library().Find(a[1]);   // a preset, or a graph saved in the library
+				if (!preset) return { false, "unknown terrain graph (terrain_graph list, terrain_graph library)" };
+				m_TgUi->LoadGraph(*preset);
 				if (a.size() > 2 && a[2] != "-")
 				{
 					const std::string t = Lower(a[2]);

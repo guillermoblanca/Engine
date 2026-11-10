@@ -1,6 +1,7 @@
 #include "TerrainGraphUi.h"
-#include "GB/World/Graph/TerrainGraphPresets.h"
+#include "GB/World/Graph/TerrainGraphLibrary.h"
 #include <algorithm>
+#include <filesystem>
 #include <cmath>
 #include <cstdio>
 #include <imgui.h>
@@ -84,9 +85,124 @@ namespace GB::Editor
 	void TerrainGraphUi::LoadGraph(const TerrainGraph& graph)
 	{
 		*m_Graph = graph;
+		std::snprintf(m_SaveId, sizeof m_SaveId, "%s", graph.Id.c_str());
 		ResetCanvasInteraction();
 		m_Message = "Loaded " + (graph.Name.empty() ? graph.Id : graph.Name);
 		m_MessageError = false;
+	}
+
+	TerrainGraphLibrary& TerrainGraphUi::Library()
+	{
+		if (!m_LibraryLoaded)
+		{
+			m_LibraryLoaded = true;
+			m_Dir = std::string(GB_ASSET_DIR) + "/data/terrain_graphs";
+			std::error_code ec;
+			if (std::filesystem::is_directory(m_Dir, ec))
+				if (const std::string e = m_Library.LoadDirectory(m_Dir); !e.empty()) { m_Message = e; m_MessageError = true; }
+		}
+		return m_Library;
+	}
+
+	std::string TerrainGraphUi::SaveCurrent(const std::string& id)
+	{
+		TerrainGraphLibrary& lib = Library();
+		TerrainGraph graph = *m_Graph;
+		if (!id.empty()) graph.Id = id;
+		if (graph.Name.empty() || graph.Name == "Terrain") graph.Name = graph.Id;
+		const std::string saved = graph.Id;
+		if (std::string e = lib.Add(graph, true); !e.empty()) return e;
+		if (std::string e = lib.SaveGraph(m_Dir, saved); !e.empty()) return e;
+		m_Graph->Id = saved;
+		m_Graph->Name = graph.Name;
+		std::snprintf(m_SaveId, sizeof m_SaveId, "%s", saved.c_str());
+		m_Message = "Saved " + m_Dir + "/" + saved + ".json";
+		m_MessageError = false;
+		return {};
+	}
+
+	std::string TerrainGraphUi::LoadNamed(const std::string& idOrPath)
+	{
+		TerrainGraphLibrary& lib = Library();
+		std::string id = idOrPath;
+		const bool file = idOrPath.size() > 5 && idOrPath.compare(idOrPath.size() - 5, 5, ".json") == 0;
+		if (file)
+			if (std::string e = lib.LoadFile(idOrPath, &id); !e.empty()) return e;
+		const TerrainGraph* g = lib.Find(id);
+		if (!g) return "no terrain graph '" + idOrPath + "' (terrain_graph library)";
+		LoadGraph(*g);
+		return {};
+	}
+
+	bool TerrainGraphUi::Command(const std::vector<std::string>& a, std::string& message)
+	{
+		TerrainGraphLibrary& lib = Library();
+		const std::string verb = a.empty() ? std::string("library") : a[0];
+		std::string error;
+		if (verb == "library")
+		{
+			for (const std::string& id : lib.Ids()) message += (message.empty() ? "" : ", ") + id + (lib.IsPreset(id) ? " (preset)" : "");
+			message = "terrain graphs in " + m_Dir + ": " + message;
+			return true;
+		}
+		if (verb == "reload") { error = lib.LoadDirectory(m_Dir); message = error.empty() ? "reloaded " + m_Dir : error; return error.empty(); }
+		if (verb == "load")
+		{
+			if (a.size() < 2) { message = "usage: terrain_graph load <id|file.json>"; return false; }
+			error = LoadNamed(a[1]);
+			message = error.empty() ? "loaded '" + m_Graph->Id + "' into the Terrain Graph panel (" + std::to_string(m_Graph->Nodes.size()) + " nodes)" : error;
+			return error.empty();
+		}
+		if (verb == "save")
+		{
+			error = SaveCurrent(a.size() > 1 ? a[1] : std::string());
+			message = error.empty() ? "saved " + m_Dir + "/" + m_Graph->Id + ".json" : error;
+			return error.empty();
+		}
+		if (verb == "export")
+		{
+			if (a.size() < 3) { message = "usage: terrain_graph export <id> <file.json>"; return false; }
+			error = lib.SaveFile(a[2], a[1]);
+			message = error.empty() ? "exported '" + a[1] + "' to " + a[2] : error;
+			return error.empty();
+		}
+		message = "terrain_graph library | load <id|file.json> | save [id] | export <id> <file.json> | reload";
+		return false;
+	}
+
+	void TerrainGraphUi::DrawLibraryBar()
+	{
+		TerrainGraphLibrary& lib = Library();
+		ImGui::SameLine();
+		if (ImGui::Button("Load")) ImGui::OpenPopup("terrain_library");
+		if (ImGui::BeginPopup("terrain_library"))
+		{
+			ImGui::TextDisabled("%s", m_Dir.c_str());
+			for (const std::string& id : lib.Ids())
+			{
+				const TerrainGraph* g = lib.Find(id);
+				const std::string label = id + (lib.IsPreset(id) ? "  (preset)" : "");
+				if (ImGui::MenuItem(label.c_str()) && g) LoadGraph(*g);
+				if (g && !g->Name.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s, %zu nodes", g->Name.c_str(), g->Nodes.size());
+			}
+			ImGui::EndPopup();
+		}
+		ImGui::SameLine();
+		if (m_SaveId[0] == 0) std::snprintf(m_SaveId, sizeof m_SaveId, "%s", m_Graph->Id.c_str());
+		ImGui::SetNextItemWidth(160.0f);
+		ImGui::InputText("##terrain_save_id", m_SaveId, sizeof m_SaveId);
+		ImGui::SameLine();
+		if (ImGui::Button("Save"))
+			if (const std::string e = SaveCurrent(m_SaveId); !e.empty()) { m_Message = e; m_MessageError = true; }
+		ImGui::SameLine();
+		if (ImGui::Button("Reload folder"))
+		{
+			const std::string e = lib.LoadDirectory(m_Dir);
+			m_Message = e.empty() ? "Reloaded " + m_Dir : e;
+			m_MessageError = !e.empty();
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("graph: %s", m_Graph->Id.c_str());
 	}
 
 	bool TerrainGraphUi::ConsumeApplyRequest()
@@ -126,6 +242,8 @@ namespace GB::Editor
 
 	void TerrainGraphUi::Draw(bool* open)
 	{
+		ImGui::SetNextWindowPos(ImVec2(40.0f, 60.0f), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(1280.0f, 700.0f), ImGuiCond_FirstUseEver);
 		if (!ImGui::Begin("Terrain Graph", open)) { ImGui::End(); return; }
 		if (ImGui::Button("Apply / Regenerate"))
 		{
@@ -141,19 +259,7 @@ namespace GB::Editor
 				m_MessageError = true;
 			}
 		}
-		ImGui::SameLine();
-		if (ImGui::Button("Presets")) ImGui::OpenPopup("terrain_presets");
-		if (ImGui::BeginPopup("terrain_presets"))
-		{
-			for (const std::string& name : TerrainGraphPresetNames())
-				if (ImGui::MenuItem(name.c_str()))
-				{
-					TerrainGraph preset;
-					if (MakeTerrainGraphPreset(name, preset)) LoadGraph(preset);
-				}
-			ImGui::EndPopup();
-		}
-		ImGui::SameLine();
+		DrawLibraryBar();
 		ImGui::TextDisabled("drag an output pin to an input | right click: add | middle drag: pan | wheel: zoom | Del: delete edge");
 
 		const std::vector<TgIssue> issues = ValidateTerrainGraph(*m_Graph, m_Registry);
