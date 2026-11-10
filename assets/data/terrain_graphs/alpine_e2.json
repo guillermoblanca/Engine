@@ -1,0 +1,635 @@
+{
+  "edges": [
+    {
+      "from": "e2_fluvial",
+      "fromPort": "height",
+      "port": "height",
+      "to": "site"
+    },
+    {
+      "from": "e2_fluvial",
+      "fromPort": "height",
+      "port": "height",
+      "to": "lake"
+    },
+    {
+      "from": "site",
+      "fromPort": "site",
+      "port": "site",
+      "to": "lake"
+    },
+    {
+      "from": "lake",
+      "fromPort": "height",
+      "port": "height",
+      "to": "fill"
+    },
+    {
+      "from": "site",
+      "fromPort": "outlets",
+      "port": "outlets",
+      "to": "fill"
+    },
+    {
+      "from": "fill",
+      "fromPort": "height",
+      "port": "height",
+      "to": "drainage"
+    },
+    {
+      "from": "fill",
+      "fromPort": "height",
+      "port": "height",
+      "to": "course"
+    },
+    {
+      "from": "drainage",
+      "fromPort": "flow",
+      "port": "flow",
+      "to": "course"
+    },
+    {
+      "from": "site",
+      "fromPort": "outlets",
+      "port": "outlets",
+      "to": "course"
+    },
+    {
+      "from": "lake",
+      "fromPort": "height",
+      "port": "height",
+      "to": "river"
+    },
+    {
+      "from": "course",
+      "fromPort": "river",
+      "port": "river",
+      "to": "river"
+    },
+    {
+      "from": "lake",
+      "fromPort": "water",
+      "port": "water",
+      "to": "river"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "water",
+      "port": "in",
+      "to": "out_water"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "dry"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "dry"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "in",
+      "to": "out_height"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "wet"
+    },
+    {
+      "from": "drainage",
+      "fromPort": "flow",
+      "port": "flow",
+      "to": "wet"
+    },
+    {
+      "from": "wet",
+      "fromPort": "moisture",
+      "port": "in",
+      "to": "out_moisture"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "biomes"
+    },
+    {
+      "from": "wet",
+      "fromPort": "moisture",
+      "port": "moisture",
+      "to": "biomes"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "biomes"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "in",
+      "to": "out_biome"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "biome",
+      "to": "tree_chance"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "banks"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "banks"
+    },
+    {
+      "from": "tree_chance",
+      "fromPort": "weight",
+      "port": "a",
+      "to": "tree_density"
+    },
+    {
+      "from": "banks",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "tree_density"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "trees"
+    },
+    {
+      "from": "e1_keep_trees",
+      "fromPort": "out",
+      "port": "density",
+      "to": "trees"
+    },
+    {
+      "from": "trees",
+      "fromPort": "placements",
+      "port": "in",
+      "to": "out_trees"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "biome",
+      "to": "rock_chance"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "stones"
+    },
+    {
+      "from": "e1_keep_stones",
+      "fromPort": "out",
+      "port": "density",
+      "to": "stones"
+    },
+    {
+      "from": "stones",
+      "fromPort": "placements",
+      "port": "in",
+      "to": "out_rocks"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "faces"
+    },
+    {
+      "from": "faces",
+      "fromPort": "mask",
+      "port": "in",
+      "to": "out_rock"
+    },
+    {
+      "from": "ground",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e2_fluvial"
+    },
+    {
+      "from": "river",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e1_drain"
+    },
+    {
+      "from": "river",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "level",
+      "port": "level",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "receiver",
+      "port": "receiver",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "order",
+      "port": "order",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "e1_drain"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "lakes",
+      "port": "in",
+      "to": "e1_near"
+    },
+    {
+      "from": "e1_near",
+      "fromPort": "out",
+      "port": "in",
+      "to": "e1_dry"
+    },
+    {
+      "from": "tree_density",
+      "fromPort": "out",
+      "port": "a",
+      "to": "e1_keep_trees"
+    },
+    {
+      "from": "e1_dry",
+      "fromPort": "out",
+      "port": "b",
+      "to": "e1_keep_trees"
+    },
+    {
+      "from": "rock_chance",
+      "fromPort": "weight",
+      "port": "a",
+      "to": "e1_keep_stones"
+    },
+    {
+      "from": "e1_dry",
+      "fromPort": "out",
+      "port": "b",
+      "to": "e1_keep_stones"
+    }
+  ],
+  "id": "alpine_e2",
+  "kind": "terrain_graph",
+  "name": "Alpine, E2 incision (TERRENO_V5)",
+  "nodes": [
+    {
+      "id": "ground",
+      "label": "ground",
+      "params": {
+        "Flatten": 0.05,
+        "Height": 58.0,
+        "Scale": 190.0
+      },
+      "type": "hills",
+      "x": 40.0,
+      "y": 200.0
+    },
+    {
+      "id": "site",
+      "label": "site",
+      "type": "lake_site",
+      "x": 290.0,
+      "y": 40.0
+    },
+    {
+      "id": "lake",
+      "label": "lake",
+      "params": {
+        "Depth": 3.0,
+        "Irregularity": 0.20000000298023224,
+        "LevelAbove": 1.0,
+        "Radius": 26.0
+      },
+      "type": "lake_carve",
+      "x": 540.0,
+      "y": 40.0
+    },
+    {
+      "id": "fill",
+      "label": "fill",
+      "type": "depression_fill",
+      "x": 790.0,
+      "y": 200.0
+    },
+    {
+      "id": "drainage",
+      "label": "drainage",
+      "type": "flow_accumulation",
+      "x": 1040.0,
+      "y": 200.0
+    },
+    {
+      "id": "course",
+      "label": "course",
+      "params": {
+        "MinStartDistance": 0.3,
+        "Spacing": 6.0
+      },
+      "type": "river_trace",
+      "x": 1290.0,
+      "y": 200.0
+    },
+    {
+      "id": "river",
+      "label": "river",
+      "params": {
+        "Width": 5.0
+      },
+      "type": "river_carve",
+      "x": 1540.0,
+      "y": 40.0
+    },
+    {
+      "id": "out_water",
+      "label": "out_water",
+      "source": "water",
+      "type": "output",
+      "x": 1800.0,
+      "y": 0.0
+    },
+    {
+      "id": "dry",
+      "label": "dry",
+      "params": {
+        "Falloff": 3.0,
+        "Reach": 2.0
+      },
+      "type": "mask_water",
+      "x": 1540.0,
+      "y": 360.0
+    },
+    {
+      "id": "out_height",
+      "label": "out_height",
+      "source": "height",
+      "type": "output",
+      "x": 2050.0,
+      "y": 40.0
+    },
+    {
+      "id": "wet",
+      "label": "wet",
+      "params": {
+        "AltitudeDryness": 0.0,
+        "FlowWetness": 0.2,
+        "Scale": 60.0
+      },
+      "type": "moisture",
+      "x": 2050.0,
+      "y": 200.0
+    },
+    {
+      "id": "out_moisture",
+      "label": "out_moisture",
+      "source": "moisture",
+      "type": "output",
+      "x": 2300.0,
+      "y": 200.0
+    },
+    {
+      "id": "biomes",
+      "label": "biomes",
+      "params": {
+        "ForestMoisture": 0.5249999761581421,
+        "RockSlopeDegrees": 26.0,
+        "ShoreBand": 0.7,
+        "SnowRelative": 0.68,
+        "WaterLevel": -1000000.0
+      },
+      "type": "biome_classify",
+      "x": 2050.0,
+      "y": 360.0
+    },
+    {
+      "id": "out_biome",
+      "label": "out_biome",
+      "source": "biome",
+      "type": "output",
+      "x": 2300.0,
+      "y": 360.0
+    },
+    {
+      "id": "tree_chance",
+      "label": "tree_chance",
+      "params": {
+        "Forest": 1.0,
+        "Meadow": 0.06,
+        "Rock": 0.12
+      },
+      "type": "biome_weights",
+      "x": 2300.0,
+      "y": 520.0
+    },
+    {
+      "id": "banks",
+      "label": "banks",
+      "params": {
+        "Falloff": 0.05,
+        "Reach": 1.2
+      },
+      "type": "mask_water",
+      "x": 2300.0,
+      "y": 680.0
+    },
+    {
+      "id": "tree_density",
+      "label": "tree_density",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 2550.0,
+      "y": 600.0
+    },
+    {
+      "id": "trees",
+      "label": "trees",
+      "params": {
+        "Count": 1260.0,
+        "MaxSlopeDegrees": 38.0,
+        "MinSpacing": 4.2,
+        "Probabilistic": 1.0,
+        "Seed": 1.0,
+        "Variants": 7.0
+      },
+      "type": "scatter",
+      "x": 2800.0,
+      "y": 520.0
+    },
+    {
+      "id": "out_trees",
+      "label": "out_trees",
+      "source": "trees",
+      "type": "output",
+      "x": 3050.0,
+      "y": 520.0
+    },
+    {
+      "id": "rock_chance",
+      "label": "rock_chance",
+      "params": {
+        "Dunes": 0.05,
+        "Forest": 0.05,
+        "Meadow": 0.05,
+        "Rock": 0.5,
+        "Shore": 0.35,
+        "Snow": 0.25
+      },
+      "type": "biome_weights",
+      "x": 2300.0,
+      "y": 840.0
+    },
+    {
+      "id": "stones",
+      "label": "stones",
+      "params": {
+        "Count": 210.0,
+        "MaxSlopeDegrees": 55.0,
+        "MinSpacing": 5.0,
+        "Probabilistic": 1.0,
+        "Seed": 2.0,
+        "Variants": 6.0
+      },
+      "type": "scatter",
+      "x": 2800.0,
+      "y": 840.0
+    },
+    {
+      "id": "out_rocks",
+      "label": "out_rocks",
+      "source": "rocks",
+      "type": "output",
+      "x": 3050.0,
+      "y": 840.0
+    },
+    {
+      "id": "faces",
+      "label": "faces",
+      "params": {
+        "Falloff": 10.0,
+        "MinDegrees": 30.0
+      },
+      "type": "mask_slope",
+      "x": 2050.0,
+      "y": 1000.0
+    },
+    {
+      "id": "out_rock",
+      "label": "out_rock",
+      "source": "splat_rock",
+      "type": "output",
+      "x": 2300.0,
+      "y": 1000.0
+    },
+    {
+      "id": "e2_fluvial",
+      "label": "e2_fluvial",
+      "params": {
+        "Diffusion": 0.0003,
+        "Erodibility": 10.0,
+        "TimeStep": 1000.0
+      },
+      "type": "fluvial_erosion",
+      "x": 160.0,
+      "y": 320.0
+    },
+    {
+      "id": "e1_drain",
+      "label": "e1_drain",
+      "type": "drainage",
+      "x": 4450.0,
+      "y": 200.0
+    },
+    {
+      "id": "e1_lakes",
+      "label": "e1_lakes",
+      "type": "lake_fill",
+      "x": 4700.0,
+      "y": 360.0
+    },
+    {
+      "id": "e1_near",
+      "label": "e1_near",
+      "params": {
+        "Passes": 1.0,
+        "Radius": 2.0
+      },
+      "type": "blur",
+      "x": 4200.0,
+      "y": 520.0
+    },
+    {
+      "id": "e1_dry",
+      "label": "e1_dry",
+      "params": {
+        "InMax": 0.02,
+        "InMin": 0.0,
+        "OutMax": 0.0,
+        "OutMin": 1.0
+      },
+      "type": "remap",
+      "x": 4450.0,
+      "y": 680.0
+    },
+    {
+      "id": "e1_keep_trees",
+      "label": "e1_keep_trees",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 4700.0,
+      "y": 840.0
+    },
+    {
+      "id": "e1_keep_stones",
+      "label": "e1_keep_stones",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 4200.0,
+      "y": 1000.0
+    }
+  ],
+  "version": 2
+}

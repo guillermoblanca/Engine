@@ -1,0 +1,1509 @@
+{
+  "edges": [
+    {
+      "from": "north_east",
+      "fromPort": "mask",
+      "port": "in",
+      "to": "range_mask"
+    },
+    {
+      "from": "crests",
+      "fromPort": "height",
+      "port": "a",
+      "to": "range"
+    },
+    {
+      "from": "range_mask",
+      "fromPort": "out",
+      "port": "b",
+      "to": "range"
+    },
+    {
+      "from": "range",
+      "fromPort": "out",
+      "port": "in",
+      "to": "range_m"
+    },
+    {
+      "from": "hill",
+      "fromPort": "mask",
+      "port": "in",
+      "to": "hill_m"
+    },
+    {
+      "from": "rolling",
+      "fromPort": "height",
+      "port": "a",
+      "to": "sum1"
+    },
+    {
+      "from": "range_m",
+      "fromPort": "out",
+      "port": "b",
+      "to": "sum1"
+    },
+    {
+      "from": "sum1",
+      "fromPort": "out",
+      "port": "a",
+      "to": "sum2"
+    },
+    {
+      "from": "hill_m",
+      "fromPort": "out",
+      "port": "b",
+      "to": "sum2"
+    },
+    {
+      "from": "sum2",
+      "fromPort": "out",
+      "port": "a",
+      "to": "ground"
+    },
+    {
+      "from": "bowl",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "ground"
+    },
+    {
+      "from": "e2_fluvial",
+      "fromPort": "height",
+      "port": "height",
+      "to": "basin"
+    },
+    {
+      "from": "e2_fluvial",
+      "fromPort": "height",
+      "port": "height",
+      "to": "basin_fill"
+    },
+    {
+      "from": "basin",
+      "fromPort": "outlets",
+      "port": "outlets",
+      "to": "basin_fill"
+    },
+    {
+      "from": "basin_fill",
+      "fromPort": "height",
+      "port": "height",
+      "to": "basin_flow"
+    },
+    {
+      "from": "basin_fill",
+      "fromPort": "height",
+      "port": "height",
+      "to": "course"
+    },
+    {
+      "from": "basin_flow",
+      "fromPort": "flow",
+      "port": "flow",
+      "to": "course"
+    },
+    {
+      "from": "basin",
+      "fromPort": "outlets",
+      "port": "outlets",
+      "to": "course"
+    },
+    {
+      "from": "e2_fluvial",
+      "fromPort": "height",
+      "port": "height",
+      "to": "valley"
+    },
+    {
+      "from": "course",
+      "fromPort": "river",
+      "port": "path",
+      "to": "valley"
+    },
+    {
+      "from": "e2_fluvial",
+      "fromPort": "height",
+      "port": "height",
+      "to": "site"
+    },
+    {
+      "from": "e2_fluvial",
+      "fromPort": "height",
+      "port": "height",
+      "to": "lake"
+    },
+    {
+      "from": "site",
+      "fromPort": "site",
+      "port": "site",
+      "to": "lake"
+    },
+    {
+      "from": "lake",
+      "fromPort": "height",
+      "port": "height",
+      "to": "fill"
+    },
+    {
+      "from": "site",
+      "fromPort": "outlets",
+      "port": "outlets",
+      "to": "fill"
+    },
+    {
+      "from": "fill",
+      "fromPort": "height",
+      "port": "height",
+      "to": "flow"
+    },
+    {
+      "from": "fill",
+      "fromPort": "height",
+      "port": "height",
+      "to": "trace"
+    },
+    {
+      "from": "flow",
+      "fromPort": "flow",
+      "port": "flow",
+      "to": "trace"
+    },
+    {
+      "from": "site",
+      "fromPort": "outlets",
+      "port": "outlets",
+      "to": "trace"
+    },
+    {
+      "from": "lake",
+      "fromPort": "height",
+      "port": "height",
+      "to": "river"
+    },
+    {
+      "from": "trace",
+      "fromPort": "river",
+      "port": "river",
+      "to": "river"
+    },
+    {
+      "from": "lake",
+      "fromPort": "water",
+      "port": "water",
+      "to": "river"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "water",
+      "port": "in",
+      "to": "out_water"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "dry"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "dry"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "in",
+      "to": "smoothed"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "gentle"
+    },
+    {
+      "from": "gentle",
+      "fromPort": "mask",
+      "port": "a",
+      "to": "gentle_dry"
+    },
+    {
+      "from": "dry",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "gentle_dry"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "in",
+      "to": "out_height"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "drainage"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "wet"
+    },
+    {
+      "from": "drainage",
+      "fromPort": "flow",
+      "port": "flow",
+      "to": "wet"
+    },
+    {
+      "from": "wet",
+      "fromPort": "moisture",
+      "port": "in",
+      "to": "out_moisture"
+    },
+    {
+      "from": "wet",
+      "fromPort": "moisture",
+      "port": "in",
+      "to": "wet_enough"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "sides"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "below_treeline"
+    },
+    {
+      "from": "edge_noise",
+      "fromPort": "height",
+      "port": "in",
+      "to": "edge_jitter"
+    },
+    {
+      "from": "valley",
+      "fromPort": "floor",
+      "port": "a",
+      "to": "floor_frayed"
+    },
+    {
+      "from": "edge_jitter",
+      "fromPort": "out",
+      "port": "b",
+      "to": "floor_frayed"
+    },
+    {
+      "from": "floor_frayed",
+      "fromPort": "out",
+      "port": "in",
+      "to": "open_floor"
+    },
+    {
+      "from": "wet_enough",
+      "fromPort": "out",
+      "port": "a",
+      "to": "suit_a"
+    },
+    {
+      "from": "sides",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "suit_a"
+    },
+    {
+      "from": "suit_a",
+      "fromPort": "out",
+      "port": "a",
+      "to": "suit_b"
+    },
+    {
+      "from": "below_treeline",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "suit_b"
+    },
+    {
+      "from": "suit_b",
+      "fromPort": "out",
+      "port": "a",
+      "to": "suit_c"
+    },
+    {
+      "from": "open_floor",
+      "fromPort": "out",
+      "port": "b",
+      "to": "suit_c"
+    },
+    {
+      "from": "hill",
+      "fromPort": "mask",
+      "port": "in",
+      "to": "pasture"
+    },
+    {
+      "from": "suit_c",
+      "fromPort": "out",
+      "port": "a",
+      "to": "suit_d"
+    },
+    {
+      "from": "pasture",
+      "fromPort": "out",
+      "port": "b",
+      "to": "suit_d"
+    },
+    {
+      "from": "suit_d",
+      "fromPort": "out",
+      "port": "in",
+      "to": "suit_m"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "riverside"
+    },
+    {
+      "from": "trace",
+      "fromPort": "river",
+      "port": "path",
+      "to": "riverside"
+    },
+    {
+      "from": "below_treeline",
+      "fromPort": "mask",
+      "port": "a",
+      "to": "riverside_t"
+    },
+    {
+      "from": "riverside",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "riverside_t"
+    },
+    {
+      "from": "suit_m",
+      "fromPort": "out",
+      "port": "a",
+      "to": "suit"
+    },
+    {
+      "from": "riverside_t",
+      "fromPort": "out",
+      "port": "b",
+      "to": "suit"
+    },
+    {
+      "from": "suit",
+      "fromPort": "out",
+      "port": "in",
+      "to": "forest_ok"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "biomes"
+    },
+    {
+      "from": "wet",
+      "fromPort": "moisture",
+      "port": "moisture",
+      "to": "biomes"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "biomes"
+    },
+    {
+      "from": "forest_ok",
+      "fromPort": "out",
+      "port": "forest",
+      "to": "biomes"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "in",
+      "to": "out_biome"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "biome",
+      "to": "tree_chance"
+    },
+    {
+      "from": "tree_chance",
+      "fromPort": "weight",
+      "port": "in",
+      "to": "tree_soft"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "trees"
+    },
+    {
+      "from": "e1_keep_trees",
+      "fromPort": "out",
+      "port": "density",
+      "to": "trees"
+    },
+    {
+      "from": "trees",
+      "fromPort": "placements",
+      "port": "in",
+      "to": "out_trees"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "biome",
+      "to": "rock_chance"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "stones"
+    },
+    {
+      "from": "e1_keep_stones",
+      "fromPort": "out",
+      "port": "density",
+      "to": "stones"
+    },
+    {
+      "from": "stones",
+      "fromPort": "placements",
+      "port": "in",
+      "to": "out_rocks"
+    },
+    {
+      "from": "wet",
+      "fromPort": "moisture",
+      "port": "in",
+      "to": "dryness"
+    },
+    {
+      "from": "dryness",
+      "fromPort": "out",
+      "port": "in",
+      "to": "out_dry"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "biome",
+      "to": "meadow"
+    },
+    {
+      "from": "dryness",
+      "fromPort": "out",
+      "port": "in",
+      "to": "not_dry"
+    },
+    {
+      "from": "meadow",
+      "fromPort": "mask",
+      "port": "a",
+      "to": "lush"
+    },
+    {
+      "from": "not_dry",
+      "fromPort": "out",
+      "port": "b",
+      "to": "lush"
+    },
+    {
+      "from": "lush",
+      "fromPort": "out",
+      "port": "in",
+      "to": "out_grass"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "biome",
+      "to": "canopy"
+    },
+    {
+      "from": "canopy",
+      "fromPort": "mask",
+      "port": "in",
+      "to": "out_canopy"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "faces"
+    },
+    {
+      "from": "faces",
+      "fromPort": "mask",
+      "port": "in",
+      "to": "out_rock"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "snow"
+    },
+    {
+      "from": "drainage",
+      "fromPort": "flow",
+      "port": "flow",
+      "to": "snow"
+    },
+    {
+      "from": "snow",
+      "fromPort": "snow",
+      "port": "in",
+      "to": "out_snow"
+    },
+    {
+      "from": "ground",
+      "fromPort": "out",
+      "port": "height",
+      "to": "e2_fluvial"
+    },
+    {
+      "from": "range_mask",
+      "fromPort": "out",
+      "port": "uplift",
+      "to": "e2_fluvial"
+    },
+    {
+      "from": "river",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e1_drain"
+    },
+    {
+      "from": "river",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "level",
+      "port": "level",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "receiver",
+      "port": "receiver",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "order",
+      "port": "order",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "e1_drain"
+    },
+    {
+      "from": "river",
+      "fromPort": "water",
+      "port": "water",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "lakes",
+      "port": "in",
+      "to": "e1_near"
+    },
+    {
+      "from": "e1_near",
+      "fromPort": "out",
+      "port": "in",
+      "to": "e1_dry"
+    },
+    {
+      "from": "tree_soft",
+      "fromPort": "out",
+      "port": "a",
+      "to": "e1_keep_trees"
+    },
+    {
+      "from": "e1_dry",
+      "fromPort": "out",
+      "port": "b",
+      "to": "e1_keep_trees"
+    },
+    {
+      "from": "rock_chance",
+      "fromPort": "weight",
+      "port": "a",
+      "to": "e1_keep_stones"
+    },
+    {
+      "from": "e1_dry",
+      "fromPort": "out",
+      "port": "b",
+      "to": "e1_keep_stones"
+    }
+  ],
+  "id": "highland_valley_e2",
+  "kind": "terrain_graph",
+  "name": "Highland valley, E2 incision (TERRENO_V5)",
+  "nodes": [
+    {
+      "id": "rolling",
+      "label": "rolling",
+      "params": {
+        "Amplitude": 45.0,
+        "Frequency": 0.0018,
+        "Gain": 0.4,
+        "Octaves": 4.0
+      },
+      "type": "heightfield_noise",
+      "x": 40.0,
+      "y": 40.0
+    },
+    {
+      "id": "crests",
+      "label": "crests",
+      "params": {
+        "Amplitude": 1.0,
+        "Frequency": 0.0012,
+        "Gain": 0.52,
+        "Mode": 1.0,
+        "Octaves": 9.0,
+        "Seed": 4.0,
+        "WarpAmount": 160.0,
+        "WarpFrequency": 0.0008
+      },
+      "type": "heightfield_noise",
+      "x": 40.0,
+      "y": 200.0
+    },
+    {
+      "id": "north_east",
+      "label": "north_east",
+      "params": {
+        "AngleDegrees": 50.0,
+        "Mode": 0.0
+      },
+      "type": "gradient",
+      "x": 40.0,
+      "y": 360.0
+    },
+    {
+      "id": "range_mask",
+      "label": "range_mask",
+      "params": {
+        "Gamma": 1.2,
+        "InMax": 0.97,
+        "InMin": 0.5
+      },
+      "type": "remap",
+      "x": 290.0,
+      "y": 360.0
+    },
+    {
+      "id": "range",
+      "label": "range",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 540.0,
+      "y": 280.0
+    },
+    {
+      "id": "range_m",
+      "label": "range_m",
+      "params": {
+        "Clamp": 0.0,
+        "InMax": 1.0,
+        "InMin": 0.0,
+        "OutMax": 380.0,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 790.0,
+      "y": 280.0
+    },
+    {
+      "id": "hill",
+      "label": "hill",
+      "params": {
+        "CenterX": -1000.0,
+        "CenterZ": -1050.0,
+        "Mode": 1.0,
+        "Radius": 850.0
+      },
+      "type": "gradient",
+      "x": 40.0,
+      "y": 520.0
+    },
+    {
+      "id": "hill_m",
+      "label": "hill_m",
+      "params": {
+        "Gamma": 0.75,
+        "OutMax": 150.0
+      },
+      "type": "remap",
+      "x": 290.0,
+      "y": 520.0
+    },
+    {
+      "id": "bowl",
+      "label": "bowl",
+      "params": {
+        "CenterX": -250.0,
+        "CenterZ": 50.0,
+        "Mode": 1.0,
+        "Radius": 900.0
+      },
+      "type": "gradient",
+      "x": 40.0,
+      "y": 680.0
+    },
+    {
+      "id": "sum1",
+      "label": "sum1",
+      "params": {
+        "Mode": 0.0
+      },
+      "type": "combine",
+      "x": 1040.0,
+      "y": 200.0
+    },
+    {
+      "id": "sum2",
+      "label": "sum2",
+      "params": {
+        "Mode": 0.0
+      },
+      "type": "combine",
+      "x": 1290.0,
+      "y": 280.0
+    },
+    {
+      "id": "ground",
+      "label": "ground",
+      "params": {
+        "Mode": 1.0,
+        "WeightB": 30.0
+      },
+      "type": "combine",
+      "x": 1540.0,
+      "y": 360.0
+    },
+    {
+      "id": "basin",
+      "label": "basin",
+      "params": {
+        "Margin": 18.0
+      },
+      "type": "lake_site",
+      "x": 1540.0,
+      "y": 520.0
+    },
+    {
+      "id": "basin_fill",
+      "label": "basin_fill",
+      "type": "depression_fill",
+      "x": 1540.0,
+      "y": 680.0
+    },
+    {
+      "id": "basin_flow",
+      "label": "basin_flow",
+      "type": "flow_accumulation",
+      "x": 1540.0,
+      "y": 840.0
+    },
+    {
+      "id": "course",
+      "label": "course",
+      "params": {
+        "MinStartDistance": 0.35,
+        "Smooth": 8.0,
+        "Spacing": 10.0
+      },
+      "type": "river_trace",
+      "x": 1790.0,
+      "y": 680.0
+    },
+    {
+      "id": "valley",
+      "label": "valley",
+      "params": {
+        "BedSmoothing": 400.0,
+        "FloorTilt": 0.01,
+        "FloorWidth": 110.0,
+        "Incision": 10.0,
+        "MaxFill": 4.0,
+        "WallGamma": 1.5,
+        "WallWidth": 320.0,
+        "WidthVariation": 0.35
+      },
+      "type": "valley_carve",
+      "x": 1790.0,
+      "y": 360.0
+    },
+    {
+      "id": "site",
+      "label": "site",
+      "params": {
+        "Margin": 18.0
+      },
+      "type": "lake_site",
+      "x": 2040.0,
+      "y": 520.0
+    },
+    {
+      "id": "lake",
+      "label": "lake",
+      "params": {
+        "BankSlope": 0.2,
+        "Depth": 7.0,
+        "Irregularity": 0.3,
+        "LevelAbove": 1.5,
+        "Radius": 170.0
+      },
+      "type": "lake_carve",
+      "x": 2290.0,
+      "y": 360.0
+    },
+    {
+      "id": "fill",
+      "label": "fill",
+      "type": "depression_fill",
+      "x": 2290.0,
+      "y": 680.0
+    },
+    {
+      "id": "flow",
+      "label": "flow",
+      "type": "flow_accumulation",
+      "x": 2540.0,
+      "y": 680.0
+    },
+    {
+      "id": "trace",
+      "label": "trace",
+      "params": {
+        "MinStartDistance": 0.3,
+        "Spacing": 8.0
+      },
+      "type": "river_trace",
+      "x": 2790.0,
+      "y": 680.0
+    },
+    {
+      "id": "river",
+      "label": "river",
+      "params": {
+        "Depth": 1.6,
+        "MouthLength": 30.0,
+        "Width": 9.0
+      },
+      "type": "river_carve",
+      "x": 2540.0,
+      "y": 360.0
+    },
+    {
+      "id": "out_water",
+      "label": "out_water",
+      "source": "water",
+      "type": "output",
+      "x": 3040.0,
+      "y": 40.0
+    },
+    {
+      "id": "dry",
+      "label": "dry",
+      "params": {
+        "Falloff": 8.0,
+        "Reach": 3.0
+      },
+      "type": "mask_water",
+      "x": 2790.0,
+      "y": 520.0
+    },
+    {
+      "id": "smoothed",
+      "label": "smoothed",
+      "params": {
+        "Passes": 3.0,
+        "Radius": 4.0
+      },
+      "type": "blur",
+      "x": 3290.0,
+      "y": 200.0
+    },
+    {
+      "id": "gentle",
+      "label": "gentle",
+      "params": {
+        "Falloff": 8.0,
+        "MaxDegrees": 20.0,
+        "MinDegrees": 0.0
+      },
+      "type": "mask_slope",
+      "x": 3290.0,
+      "y": 520.0
+    },
+    {
+      "id": "gentle_dry",
+      "label": "gentle_dry",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 3540.0,
+      "y": 520.0
+    },
+    {
+      "id": "out_height",
+      "label": "out_height",
+      "source": "height",
+      "type": "output",
+      "x": 3790.0,
+      "y": 200.0
+    },
+    {
+      "id": "drainage",
+      "label": "drainage",
+      "type": "flow_accumulation",
+      "x": 3540.0,
+      "y": 520.0
+    },
+    {
+      "id": "wet",
+      "label": "wet",
+      "params": {
+        "AltitudeDryness": 0.3,
+        "FlowBlur": 8.0,
+        "FlowWetness": 0.35,
+        "Scale": 260.0
+      },
+      "type": "moisture",
+      "x": 3790.0,
+      "y": 520.0
+    },
+    {
+      "id": "out_moisture",
+      "label": "out_moisture",
+      "source": "moisture",
+      "type": "output",
+      "x": 4040.0,
+      "y": 520.0
+    },
+    {
+      "id": "wet_enough",
+      "label": "wet_enough",
+      "params": {
+        "InMax": 0.55,
+        "InMin": 0.3
+      },
+      "type": "remap",
+      "x": 3790.0,
+      "y": 680.0
+    },
+    {
+      "id": "sides",
+      "label": "sides",
+      "params": {
+        "Falloff": 5.0,
+        "MaxDegrees": 34.0,
+        "MinDegrees": 0.0
+      },
+      "type": "mask_slope",
+      "x": 3790.0,
+      "y": 840.0
+    },
+    {
+      "id": "below_treeline",
+      "label": "below_treeline",
+      "params": {
+        "Falloff": 0.08,
+        "Max": 0.48,
+        "Min": -1.0,
+        "Relative": 1.0
+      },
+      "type": "mask_height",
+      "x": 3790.0,
+      "y": 1000.0
+    },
+    {
+      "id": "edge_noise",
+      "label": "edge_noise",
+      "params": {
+        "Amplitude": 1.0,
+        "Frequency": 0.009,
+        "Octaves": 3.0,
+        "Seed": 9.0
+      },
+      "type": "heightfield_noise",
+      "x": 3540.0,
+      "y": 1320.0
+    },
+    {
+      "id": "edge_jitter",
+      "label": "edge_jitter",
+      "params": {
+        "AutoRange": 1.0,
+        "OutMax": 0.6,
+        "OutMin": -0.6
+      },
+      "type": "remap",
+      "x": 3790.0,
+      "y": 1320.0
+    },
+    {
+      "id": "floor_frayed",
+      "label": "floor_frayed",
+      "params": {
+        "Mode": 0.0
+      },
+      "type": "combine",
+      "x": 3790.0,
+      "y": 1240.0
+    },
+    {
+      "id": "open_floor",
+      "label": "open_floor",
+      "params": {
+        "OutMax": 0.0,
+        "OutMin": 1.0
+      },
+      "type": "remap",
+      "x": 3790.0,
+      "y": 1160.0
+    },
+    {
+      "id": "suit_a",
+      "label": "suit_a",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 4040.0,
+      "y": 760.0
+    },
+    {
+      "id": "suit_b",
+      "label": "suit_b",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 4290.0,
+      "y": 840.0
+    },
+    {
+      "id": "suit_c",
+      "label": "suit_c",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 4540.0,
+      "y": 920.0
+    },
+    {
+      "id": "pasture",
+      "label": "pasture",
+      "params": {
+        "InMax": 0.42,
+        "InMin": 0.12,
+        "OutMax": 0.0,
+        "OutMin": 1.0
+      },
+      "type": "remap",
+      "x": 4540.0,
+      "y": 760.0
+    },
+    {
+      "id": "suit_d",
+      "label": "suit_d",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 4790.0,
+      "y": 840.0
+    },
+    {
+      "id": "suit_m",
+      "label": "suit_m",
+      "params": {
+        "InMax": 0.7,
+        "InMin": 0.0
+      },
+      "type": "remap",
+      "x": 4790.0,
+      "y": 920.0
+    },
+    {
+      "id": "riverside",
+      "label": "riverside",
+      "params": {
+        "Inner": 24.0,
+        "Outer": 70.0
+      },
+      "type": "mask_distance_to_path",
+      "x": 4540.0,
+      "y": 1080.0
+    },
+    {
+      "id": "riverside_t",
+      "label": "riverside_t",
+      "params": {
+        "Mode": 2.0,
+        "WeightB": 0.8
+      },
+      "type": "combine",
+      "x": 4790.0,
+      "y": 1080.0
+    },
+    {
+      "id": "suit",
+      "label": "suit",
+      "params": {
+        "Mode": 4.0
+      },
+      "type": "combine",
+      "x": 5040.0,
+      "y": 1000.0
+    },
+    {
+      "id": "forest_ok",
+      "label": "forest_ok",
+      "params": {
+        "Passes": 2.0,
+        "Radius": 3.0
+      },
+      "type": "blur",
+      "x": 5290.0,
+      "y": 1000.0
+    },
+    {
+      "id": "biomes",
+      "label": "biomes",
+      "params": {
+        "RockSlopeDegrees": 42.0,
+        "ShoreBand": 0.8,
+        "SnowRelative": 0.82
+      },
+      "type": "biome_classify",
+      "x": 5540.0,
+      "y": 680.0
+    },
+    {
+      "id": "out_biome",
+      "label": "out_biome",
+      "source": "biome",
+      "type": "output",
+      "x": 5790.0,
+      "y": 680.0
+    },
+    {
+      "id": "tree_chance",
+      "label": "tree_chance",
+      "params": {
+        "Forest": 1.0,
+        "Meadow": 0.012,
+        "Rock": 0.04
+      },
+      "type": "biome_weights",
+      "x": 5790.0,
+      "y": 840.0
+    },
+    {
+      "id": "tree_soft",
+      "label": "tree_soft",
+      "params": {
+        "Passes": 2.0,
+        "Radius": 2.0
+      },
+      "type": "blur",
+      "x": 6040.0,
+      "y": 840.0
+    },
+    {
+      "id": "trees",
+      "label": "trees",
+      "params": {
+        "ClumpScale": 45.0,
+        "Clumping": 0.6,
+        "Count": 40000.0,
+        "MaxSlopeDegrees": 36.0,
+        "MinSpacing": 5.0,
+        "Probabilistic": 1.0,
+        "Seed": 3.0,
+        "StrongHash": 1.0,
+        "Variants": 7.0
+      },
+      "type": "scatter",
+      "x": 6290.0,
+      "y": 840.0
+    },
+    {
+      "id": "out_trees",
+      "label": "out_trees",
+      "source": "trees",
+      "type": "output",
+      "x": 6540.0,
+      "y": 840.0
+    },
+    {
+      "id": "rock_chance",
+      "label": "rock_chance",
+      "params": {
+        "Meadow": 0.03,
+        "Rock": 0.5,
+        "Shore": 0.3,
+        "Snow": 0.2
+      },
+      "type": "biome_weights",
+      "x": 5790.0,
+      "y": 1000.0
+    },
+    {
+      "id": "stones",
+      "label": "stones",
+      "params": {
+        "Count": 900.0,
+        "MaxSlopeDegrees": 50.0,
+        "MinSpacing": 8.0,
+        "Probabilistic": 1.0,
+        "Seed": 2.0,
+        "StrongHash": 1.0,
+        "Variants": 6.0
+      },
+      "type": "scatter",
+      "x": 6040.0,
+      "y": 1000.0
+    },
+    {
+      "id": "out_rocks",
+      "label": "out_rocks",
+      "source": "rocks",
+      "type": "output",
+      "x": 6290.0,
+      "y": 1000.0
+    },
+    {
+      "id": "dryness",
+      "label": "dryness",
+      "params": {
+        "InMax": 0.28,
+        "InMin": 0.5
+      },
+      "type": "remap",
+      "x": 5790.0,
+      "y": 1160.0
+    },
+    {
+      "id": "out_dry",
+      "label": "out_dry",
+      "source": "splat_dry",
+      "type": "output",
+      "x": 6040.0,
+      "y": 1160.0
+    },
+    {
+      "id": "meadow",
+      "label": "meadow",
+      "params": {
+        "Biome": 2.0,
+        "Blur": 2.0
+      },
+      "type": "biome_mask",
+      "x": 5540.0,
+      "y": 1240.0
+    },
+    {
+      "id": "not_dry",
+      "label": "not_dry",
+      "params": {
+        "OutMax": 0.0,
+        "OutMin": 0.85
+      },
+      "type": "remap",
+      "x": 5540.0,
+      "y": 1400.0
+    },
+    {
+      "id": "lush",
+      "label": "lush",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 5790.0,
+      "y": 1240.0
+    },
+    {
+      "id": "out_grass",
+      "label": "out_grass",
+      "source": "splat_grass",
+      "type": "output",
+      "x": 6040.0,
+      "y": 1240.0
+    },
+    {
+      "id": "canopy",
+      "label": "canopy",
+      "params": {
+        "Biome": 3.0,
+        "Blur": 2.0
+      },
+      "type": "biome_mask",
+      "x": 5790.0,
+      "y": 1320.0
+    },
+    {
+      "id": "out_canopy",
+      "label": "out_canopy",
+      "source": "splat_forest",
+      "type": "output",
+      "x": 6040.0,
+      "y": 1320.0
+    },
+    {
+      "id": "faces",
+      "label": "faces",
+      "params": {
+        "Falloff": 7.0,
+        "MinDegrees": 43.0
+      },
+      "type": "mask_slope",
+      "x": 5790.0,
+      "y": 1480.0
+    },
+    {
+      "id": "out_rock",
+      "label": "out_rock",
+      "source": "splat_rock",
+      "type": "output",
+      "x": 6040.0,
+      "y": 1480.0
+    },
+    {
+      "id": "snow",
+      "label": "snow",
+      "params": {
+        "BareSlopeDegrees": 44.0,
+        "Breakup": 0.3,
+        "BreakupScale": 20.0,
+        "FlowBoost": 0.5,
+        "FullSlopeDegrees": 30.0,
+        "MinRelativeHeight": 0.8
+      },
+      "type": "snow_accumulate",
+      "x": 5790.0,
+      "y": 1640.0
+    },
+    {
+      "id": "out_snow",
+      "label": "out_snow",
+      "source": "splat_snow",
+      "type": "output",
+      "x": 6040.0,
+      "y": 1640.0
+    },
+    {
+      "id": "e2_fluvial",
+      "label": "e2_fluvial",
+      "params": {
+        "Diffusion": 0.003,
+        "Erodibility": 4.0,
+        "TimeStep": 1000.0,
+        "Uplift": 0.5
+      },
+      "type": "fluvial_erosion",
+      "x": 1660.0,
+      "y": 480.0
+    },
+    {
+      "id": "e1_drain",
+      "label": "e1_drain",
+      "type": "drainage",
+      "x": 4700.0,
+      "y": 1800.0
+    },
+    {
+      "id": "e1_lakes",
+      "label": "e1_lakes",
+      "type": "lake_fill",
+      "x": 4200.0,
+      "y": 40.0
+    },
+    {
+      "id": "e1_near",
+      "label": "e1_near",
+      "params": {
+        "Passes": 1.0,
+        "Radius": 2.0
+      },
+      "type": "blur",
+      "x": 4450.0,
+      "y": 200.0
+    },
+    {
+      "id": "e1_dry",
+      "label": "e1_dry",
+      "params": {
+        "InMax": 0.02,
+        "InMin": 0.0,
+        "OutMax": 0.0,
+        "OutMin": 1.0
+      },
+      "type": "remap",
+      "x": 4700.0,
+      "y": 360.0
+    },
+    {
+      "id": "e1_keep_trees",
+      "label": "e1_keep_trees",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 4200.0,
+      "y": 520.0
+    },
+    {
+      "id": "e1_keep_stones",
+      "label": "e1_keep_stones",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 4450.0,
+      "y": 680.0
+    }
+  ],
+  "version": 2
+}

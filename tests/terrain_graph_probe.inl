@@ -3,12 +3,16 @@
 // <preset> is a graph of TerrainGraphPresetNames(), "gen4" for the world generator 4 makes by itself for <type> (what `generate` builds), or a
 // graph file (*.json). "e1:<preset>" is that graph with the nodes of TERRENO_V5 E1 appended to its final height (AppendE1 below): drainage
 // and lake_fill, the scatter kept out of the lakes. "e1x:<preset>" the same with lake_fill making no lake (desert: only the drainage).
+// "e2:<preset>" adds TERRENO_V5 E2 too (AppendE2): fluvial_erosion right after the relief, the droplet erosion and the drawn valley out, and
+// E1 at the end; "e2v:" keeps the drawn valley, "e2x:" makes no lake, "e2w:" puts it after the water, in place of the droplets. GB_E2_PARAMS="Name=value ..." sets fluvial_erosion's parameters.
+//   GBSimTests terrain_graph_cache hausdorff <a_river.f32> <b_river.f32>   (the probe writes <tag>_river.f32 with an out_dir)
 //   GBSimTests terrain_graph_cache probe_export <preset> <type> <file.json> <id> [name]
 // writes that graph (with its e1: prefix applied) as a terrain graph file.
 // It prints the time of every node, of the whole graph and of the rest of the world (GenerateData), measures the drainage of the final ground
 // and how the water sits on it. With [out_dir] it writes <out_dir>/<tag>_{height,water,flow}.f32 (float32, N*N, row major) and <tag>_info.json,
 // which tools/terrain_probe_png.py turns into maps.
 #include "GB/World/FlowAccumulation.h"
+#include "GB/World/StreamPower.h"
 #include "GB/World/Graph/TerrainGraphIO.h"
 #include "GB/World/Water/LakeMesh.h"
 #include "GB/World/Water/WaterRaster.h"
@@ -99,13 +103,166 @@ namespace
 		return true;
 	}
 
+	// TERRENO_V5 E2 on any graph: "e2_fluvial" (fluvial_erosion) right after the relief, before any water is placed -- the node "ground" when
+	// the graph has one (highland_valley, generator 4), else whatever feeds the droplet erosion "rain" (alpine_peaks) -- so the lake site, the
+	// river trace and everything after read the incised ground; the droplet erosion "rain" and the thermal "rockfall" are taken out (their consumers read their input), and so
+	// is the drawn valley "valley" (valley_carve: its floor mask stays) unless `keepValley`. E1 is appended after it (AppendE1). The parameters of e2_fluvial come
+	// from the environment variable GB_E2_PARAMS ("Name=value Name=value ..."), for tuning; the defaults otherwise.
+	// (`keep`: the node stays for its other outputs -- valley_carve's floor mask -- and only `outPort`'s consumers are rewired)
+	void Bypass(TerrainGraph& g, const std::string& id, const char* inPort, const char* outPort, bool keep = false)
+	{
+		std::string from, fromPort;
+		for (const TgEdge& e : g.Edges) if (e.To == id && e.Port == inPort) { from = e.From; fromPort = e.FromPort; }
+		if (from.empty()) return;
+		for (TgEdge& e : g.Edges) if (e.From == id && e.FromPort == outPort) { e.From = from; e.FromPort = fromPort; }
+		if (keep) return;
+		g.Edges.erase(std::remove_if(g.Edges.begin(), g.Edges.end(), [&](const TgEdge& e) { return e.To == id || e.From == id; }), g.Edges.end());
+		g.Nodes.erase(std::remove_if(g.Nodes.begin(), g.Nodes.end(), [&](const TgNode& n) { return n.Id == id; }), g.Nodes.end());
+	}
+
+	std::map<std::string, double> E2Params()
+	{
+		std::map<std::string, double> params;
+		if (const char* env = std::getenv("GB_E2_PARAMS"))
+		{
+			std::istringstream in(env);
+			std::string kv;
+			while (in >> kv)
+			{
+				const size_t eq = kv.find('=');
+				if (eq != std::string::npos) params[kv.substr(0, eq)] = std::atof(kv.c_str() + eq + 1);
+			}
+		}
+		return params;
+	}
+
+	// `afterWater` ("e2w:"): fluvial_erosion goes where the droplet erosion was instead, after the lake and the river are carved, with that water
+	// as its base level (what the 360 m worlds of generator 4 want: their lake site and river trace are frozen nodes that pick the lowest point
+	// and the longest flow line, and on an incised relief they pick a puddle and a few metres of river).
+	bool AppendE2(TerrainGraph& g, bool keepValley, bool afterWater, std::string& error)
+	{
+		std::string anchor, port;
+		if (afterWater)
+		{
+			for (const TgEdge& e : g.Edges) if (e.To == "rain" && e.Port == "height") { anchor = e.From; port = e.FromPort; }
+			if (anchor.empty()) { error = "e2w: no droplet erosion 'rain' to put fluvial_erosion in place of"; return false; }
+		}
+		else if (g.FindNode("ground"))
+		{
+			anchor = "ground";
+			for (const TgEdge& e : g.Edges) if (e.From == anchor) { port = e.FromPort; break; }
+		}
+		else
+			for (const TgEdge& e : g.Edges) if (e.To == "rain" && e.Port == "height") { anchor = e.From; port = e.FromPort; }
+		if (anchor.empty() || port.empty()) { error = "no relief to put fluvial_erosion after (a node 'ground', or what feeds 'rain')"; return false; }
+		for (TgEdge& e : g.Edges) if (e.From == anchor && e.FromPort == port) { e.From = "e2_fluvial"; e.FromPort = "height"; }
+		TgNode n;
+		n.Id = "e2_fluvial"; n.Type = "fluvial_erosion"; n.Label = "e2_fluvial"; n.Params = E2Params();
+		if (const TgNode* a = g.FindNode(anchor)) { n.X = a->X + 120.0f; n.Y = a->Y + 120.0f; }
+		g.Nodes.push_back(std::move(n));
+		g.Edges.push_back({ anchor, "e2_fluvial", "height", port });
+		if (afterWater)   // the water the droplets were kept out of (mask_water "dry" reads it) is base level
+			for (const TgEdge& e : g.Edges)
+				if (e.To == "dry" && e.Port == "water") { g.Edges.push_back({ e.From, "e2_fluvial", "water", e.FromPort }); break; }
+		// the uplift where the graph has a mask of its range: highland_valley's "range_mask" (the sierra), alpine_peaks' "massif"; the rest of the
+		// map (the valley floor, the plain) only erodes
+		for (const char* mask : { "range_mask", "massif" })
+			if (const TgNode* m = g.FindNode(mask))
+			{
+				g.Edges.push_back({ mask, "e2_fluvial", "uplift", m->Type == "gradient" ? "mask" : "out" });
+				break;
+			}
+		if (g.FindNode("rain")) Bypass(g, "rain", "height", "height");
+		// the thermal erosion too: after the incision it pours the steep walls into the channels, damming them into pits (E4 brings a talus that
+		// runs with the drainage)
+		if (g.FindNode("rockfall")) Bypass(g, "rockfall", "height", "height");
+		// and highland_valley's smoothing of the gentle ground ("settled", a blur of 4 cells x 3 passes blended in where the slope is under 20
+		// degrees): it smoothed the droplets' pitting, and on the sharp ridges the incision leaves it pulls a ridge-top cell down to the average of
+		// 12 cells around (35 m at 1025, 140 m at 257), a pit lake_fill then fills by tens of metres
+		if (const TgNode* s = g.FindNode("settled"); s && s->Type == "blend") Bypass(g, "settled", "a", "out");
+		if (!keepValley && g.FindNode("valley")) Bypass(g, "valley", "height", "height", true);
+		return true;
+	}
+
+	// The river's course as float32 pairs (x, z), every point: what `hausdorff` compares between two probes.
+	void WriteRiver(const std::string& path, const RiverData& river)
+	{
+		std::vector<float> xz;
+		for (const glm::vec3& p : river.Points) { xz.push_back(p.x); xz.push_back(p.z); }
+		WriteF32(path, xz);
+	}
+
+	std::vector<glm::vec2> ReadRiver(const std::string& path)
+	{
+		std::vector<glm::vec2> out;
+		if (FILE* f = std::fopen(path.c_str(), "rb"))
+		{
+			float xz[2];
+			while (std::fread(xz, sizeof(float), 2, f) == 2) out.push_back({ xz[0], xz[1] });
+			std::fclose(f);
+		}
+		return out;
+	}
+
+	// The distance from p to the polyline (segment by segment).
+	float DistanceToPolyline(const glm::vec2& p, const std::vector<glm::vec2>& line)
+	{
+		float best = 1e30f;
+		for (size_t k = 0; k + 1 < line.size(); ++k)
+		{
+			const glm::vec2 a = line[k], ab = line[k + 1] - a;
+			const float len2 = glm::dot(ab, ab);
+			const float t = len2 > 0.0f ? glm::clamp(glm::dot(p - a, ab) / len2, 0.0f, 1.0f) : 0.0f;
+			best = std::min(best, glm::distance(p, a + ab * t));
+		}
+		if (line.size() == 1) best = glm::distance(p, line[0]);
+		return best;
+	}
+
+	//   GBSimTests terrain_graph_cache hausdorff <a_river.f32> <b_river.f32>
+	// The Hausdorff distance between two river courses the probe wrote (the 257 preview and the 1025 world): the farthest any point of one is
+	// from the other, both ways, and where. Also the 95th percentile and the mean, both ways.
+	int Hausdorff(int argc, char** argv)
+	{
+		if (argc < 4) { std::fprintf(stderr, "hausdorff <a_river.f32> <b_river.f32>\n"); return 2; }
+		const std::vector<glm::vec2> a = ReadRiver(argv[2]), b = ReadRiver(argv[3]);
+		if (a.size() < 2 || b.size() < 2) { std::fprintf(stderr, "a course is empty\n"); return 1; }
+		auto oneWay = [](const std::vector<glm::vec2>& from, const std::vector<glm::vec2>& to, const char* name)
+		{
+			std::vector<float> d;
+			float worst = 0.0f;
+			glm::vec2 at(0.0f);
+			for (const glm::vec2& p : from)
+			{
+				const float v = DistanceToPolyline(p, to);
+				d.push_back(v);
+				if (v > worst) { worst = v; at = p; }
+			}
+			std::vector<float> sorted = d;
+			std::sort(sorted.begin(), sorted.end());
+			double mean = 0.0;
+			for (const float v : d) mean += v;
+			mean /= static_cast<double>(d.size());
+			std::printf("  %s: max %.1f m at (%.0f, %.0f), p95 %.1f m, mean %.1f m over %zu points\n", name, worst, at.x, at.y,
+				sorted[static_cast<size_t>(0.95 * static_cast<double>(sorted.size() - 1))], mean, d.size());
+			return worst;
+		};
+		const float ab = oneWay(a, b, "a to b"), ba = oneWay(b, a, "b to a");
+		std::printf("hausdorff %.1f m\n", std::max(ab, ba));
+		return 0;
+	}
+
 	// The graph a probe name stands for (see the top of this file); false (and why) when there is none. `own`: the world must be built from it
 	// (anything but plain gen4, which the world builds by itself).
 	bool ProbeGraph(std::string name, const WorldDesc& desc, TerrainGraph& g, bool& own, std::string& error)
 	{
-		bool e1 = false, lakes = true;
+		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false;
 		if (name.rfind("e1:", 0) == 0) { e1 = true; name = name.substr(3); }
 		else if (name.rfind("e1x:", 0) == 0) { e1 = true; lakes = false; name = name.substr(4); }
+		else if (name.rfind("e2:", 0) == 0) { e1 = e2 = true; name = name.substr(3); }
+		else if (name.rfind("e2v:", 0) == 0) { e1 = e2 = keepValley = true; name = name.substr(4); }
+		else if (name.rfind("e2x:", 0) == 0) { e1 = e2 = true; lakes = false; name = name.substr(4); }
+		else if (name.rfind("e2w:", 0) == 0) { e1 = e2 = afterWater = true; name = name.substr(4); }
 		own = e1 || name != "gen4";
 		if (name == "gen4") g = WorldGraphFor(desc);
 		else if (name.size() > 5 && name.substr(name.size() - 5) == ".json")
@@ -117,6 +274,7 @@ namespace
 			if (!error.empty()) return false;
 		}
 		else if (!MakeTerrainGraphPreset(name, g)) { error = "unknown preset " + name; return false; }
+		if (e2 && !AppendE2(g, keepValley, afterWater, error)) return false;
 		return !e1 || AppendE1(g, lakes, error);
 	}
 
@@ -142,6 +300,126 @@ namespace
 		if (argc > 6) g.Name = argv[6];
 		std::ofstream(argv[4], std::ios::binary) << TerrainGraphToJson(g);
 		std::printf("wrote %s (%zu nodes)\n", argv[4], g.Nodes.size());
+		return 0;
+	}
+
+	// TERRENO_V5 E2, the cost first: the stream-power erosion run straight on one node's height (the relief before any water: "ground" in
+	// highland_valley and generator 4), at the graph's resolution. Prints, every few iterations, the time so far (drainage, solve, diffusion),
+	// how deep the channels are cut and the Strahler order of the network of the result.
+	//   GBSimTests terrain_graph_cache e2bench <graph> <type> <seed> <size> <resolution> <node> [key=value ...]
+	// keys: K (1e-5/yr), U (mm/yr), Kd (m2/yr), dt (yr), it (iterations), every (drainage every), report (iterations between lines),
+	// cascade=1 (StreamPowerErodeCascade with ci/mi/fi iterations instead; coarse=257)
+	struct NetworkStats { int Strahler = 0; size_t Confluences = 0, Cells = 0; };
+	NetworkStats NetworkOf(const DrainageResult& d)
+	{
+		NetworkStats s;
+		const size_t count = static_cast<size_t>(d.N) * d.N;
+		const float net = 0.002f * static_cast<float>(count) * d.Spacing * d.Spacing;
+		std::vector<uint8_t> order(count, 0), topIn(count, 0), topCount(count, 0), ins(count, 0);
+		for (size_t k = count; k-- > 0;)
+		{
+			const uint32_t c = d.Order[k];
+			if (d.Area[c] < net) continue;
+			++s.Cells;
+			order[c] = topIn[c] == 0 ? 1 : static_cast<uint8_t>(topIn[c] + (topCount[c] >= 2 ? 1 : 0));
+			if (ins[c] >= 2) ++s.Confluences;
+			s.Strahler = std::max(s.Strahler, static_cast<int>(order[c]));
+			const int32_t r = d.Receiver[c];
+			if (r < 0 || d.Area[static_cast<size_t>(r)] < net) continue;
+			const size_t rc = static_cast<size_t>(r);
+			ins[rc] = static_cast<uint8_t>(std::min(255, ins[rc] + 1));
+			if (order[c] > topIn[rc]) { topIn[rc] = order[c]; topCount[rc] = 1; }
+			else if (order[c] == topIn[rc]) topCount[rc] = static_cast<uint8_t>(std::min(255, topCount[rc] + 1));
+		}
+		return s;
+	}
+
+	int E2Bench(int argc, char** argv)
+	{
+		if (argc < 8) { std::fprintf(stderr, "e2bench <graph> <type> <seed> <size> <resolution> <node> [key=value ...]\n"); return 2; }
+		WorldDesc desc = ProbeDesc(argv[3], static_cast<uint32_t>(std::atoi(argv[4])), static_cast<float>(std::atof(argv[5])), static_cast<uint32_t>(std::atoi(argv[6])));
+		std::map<std::string, double> kv = { { "K", 1.0 }, { "U", 0.0 }, { "Kd", 0.0 }, { "dt", 500.0 }, { "it", 40 }, { "every", 1 }, { "report", 5 },
+			{ "cascade", 0 }, { "ci", 60 }, { "mi", 12 }, { "fi", 4 }, { "coarse", 257 } };
+		for (int a = 8; a < argc; ++a)
+		{
+			const std::string arg = argv[a];
+			const size_t eq = arg.find('=');
+			if (eq != std::string::npos) kv[arg.substr(0, eq)] = std::atof(arg.c_str() + eq + 1);
+		}
+		TerrainGraph g;
+		bool own = false;
+		std::string error;
+		if (!ProbeGraph(argv[2], desc, g, own, error)) { std::fprintf(stderr, "%s\n", error.c_str()); return 2; }
+		desc.TerrainGraphDefinition = std::make_shared<const TerrainGraph>(g);
+		TgResult r;
+		if (!EvaluateWorldGraph(desc, r, error)) { std::fprintf(stderr, "evaluation failed: %s\n", error.c_str()); return 1; }
+		const auto node = r.Nodes.find(argv[7]);
+		if (node == r.Nodes.end() || node->second.empty()) { std::fprintf(stderr, "no node %s\n", argv[7]); return 2; }
+		const TgField* f = nullptr;
+		for (const auto& [port, value] : node->second) if (value.Kind == TgPortKind::Field && !f) f = &value.Field;
+		if (!f) { std::fprintf(stderr, "node %s has no field\n", argv[7]); return 2; }
+		const uint32_t n = f->N;
+		const float sp = f->Spacing();
+		StreamPowerOptions o;
+		o.Erodibility = static_cast<float>(kv["K"] * 1e-5);
+		o.Uplift = static_cast<float>(kv["U"] * 1e-3);
+		o.Diffusion = static_cast<float>(kv["Kd"]);
+		o.TimeStep = static_cast<float>(kv["dt"]);
+		std::printf("e2bench %s %s seed %u, %u^2 (%.2f m cells), node %s: K %.2g /yr, U %.2g m/yr, Kd %.3g m2/yr, dt %.0f yr\n", argv[2], argv[3], desc.Seed, n, sp, argv[7],
+			o.Erodibility, o.Uplift, o.Diffusion, o.TimeStep);
+		const DrainageResult d0 = ComputeDrainage(f->Values.data(), n, sp);
+		const NetworkStats s0 = NetworkOf(d0);
+		std::printf("  before: Strahler %d, %zu confluences, %zu network cells\n", s0.Strahler, s0.Confluences, s0.Cells);
+		auto report = [&](const char* what, const std::vector<float>& h, const StreamPowerStats& st, const DrainageResult& d)
+		{
+			const NetworkStats s = NetworkOf(d);
+			const float net = 0.002f * static_cast<float>(h.size()) * sp * sp;
+			double cut = 0.0, maxCut = 0.0;
+			size_t channels = 0, cut2 = 0;
+			for (size_t c = 0; c < h.size(); ++c)
+			{
+				const double dz = static_cast<double>(f->Values[c]) - h[c];
+				maxCut = std::max(maxCut, dz);
+				cut2 += dz > 2.0;
+				if (d.Area[c] >= net) { cut += dz; ++channels; }
+			}
+			std::printf("  %s: %d it, %.0f ms (drainage %.0f in %d, solve %.0f, diffusion %.0f in %d steps); channels cut %.1f m on average, at most %.1f m; %.1f %% of cells cut > 2 m; Strahler %d, %zu confluences; eroded %.3g m3, uplift %.3g m3\n",
+				what, st.Iterations, st.DrainageMs + st.SolveMs + st.DiffusionMs, st.DrainageMs, st.Drainages, st.SolveMs, st.DiffusionMs, st.DiffusionSteps,
+				channels ? cut / static_cast<double>(channels) : 0.0, maxCut, Pct(cut2, h.size()), s.Strahler, s.Confluences, st.IncisionVolume, st.UpliftVolume);
+		};
+		if (kv["cascade"] > 0.5)
+		{
+			StreamPowerCascade cascade;
+			cascade.CoarseN = static_cast<uint32_t>(kv["coarse"]);
+			cascade.CoarseIterations = static_cast<int>(kv["ci"]);
+			cascade.MidIterations = static_cast<int>(kv["mi"]);
+			cascade.FineIterations = static_cast<int>(kv["fi"]);
+			cascade.FineDrainageEvery = static_cast<int>(kv["every"]);
+			const auto t0 = std::chrono::steady_clock::now();
+			const StreamPowerCascadeResult res = StreamPowerErodeCascade(f->Values.data(), n, sp, o, cascade);
+			const double ms = 1000.0 * Seconds(t0);
+			std::printf("  cascade stages:");
+			for (uint32_t s : res.Stages) std::printf(" %u", s);
+			std::printf(", wall %.0f ms\n", ms);
+			const DrainageResult dd = ComputeDrainage(res.Heights.data(), n, sp);
+			report("cascade", res.Heights, res.Stats, dd);
+			return 0;
+		}
+		std::vector<float> h = f->Values;
+		StreamPowerStats total;
+		const int iterations = static_cast<int>(kv["it"]), step = std::max(1, static_cast<int>(kv["report"]));
+		o.DrainageEvery = static_cast<int>(kv["every"]);
+		for (int done = 0; done < iterations; done += step)
+		{
+			o.Iterations = std::min(step, iterations - done);
+			StreamPowerStats st;
+			StreamPowerErode(h, n, sp, o, &st);
+			total.Iterations += st.Iterations; total.Drainages += st.Drainages; total.DiffusionSteps += st.DiffusionSteps;
+			total.DrainageMs += st.DrainageMs; total.SolveMs += st.SolveMs; total.DiffusionMs += st.DiffusionMs;
+			total.IncisionVolume += st.IncisionVolume; total.UpliftVolume += st.UpliftVolume;
+			const DrainageResult dd = ComputeDrainage(h.data(), n, sp);
+			report("after", h, total, dd);
+		}
 		return 0;
 	}
 
@@ -390,8 +668,11 @@ namespace
 			std::vector<double> arc(P.size(), 0.0);
 			for (size_t k = 1; k < P.size(); ++k) arc[k] = arc[k - 1] + glm::distance(glm::vec2(P[k].x, P[k].z), glm::vec2(P[k - 1].x, P[k - 1].z));
 			float wMin = 1e9f, wMax = 0.0f;
-			double maxDrop10 = 0.0, sumIncision = 0.0;
-			size_t b = 0, trench = 0, raised = 0;
+			double maxDrop10 = 0.0, sumIncision = 0.0, sumUpland = 0.0;
+			size_t b = 0, trench = 0, raised = 0, upland = 0, upland5 = 0;
+			// the upland stretch (E2): the points whose water stands above the mouth by more than a quarter of the course's fall
+			const float uplandLevel = P.back().y + 0.25f * (P.front().y - P.back().y);
+			std::vector<float> fars;
 			for (size_t k = 0; k < P.size(); ++k)
 			{
 				const size_t s = std::min(k, P.size() - 2);
@@ -408,6 +689,8 @@ namespace
 				const float far = 0.5f * (h.Sample(f1.x, f1.y) + h.Sample(f2.x, f2.y)) - P[k].y;
 				const float rim = std::min(h.Sample(r1.x, r1.y), h.Sample(r2.x, r2.y)) - P[k].y;
 				sumIncision += far;
+				fars.push_back(far);
+				if (P[k].y > uplandLevel) { ++upland; sumUpland += far; upland5 += far >= 5.0f; }
 				trench += far > 6.0f;
 				raised += rim < -0.1f;
 			}
@@ -419,6 +702,10 @@ namespace
 				P.size(), length, chord, length / std::max(chord, 1.0), wMin, wMax, P.front().y, P.back().y, steepest, maxDrop10);
 			std::printf("        ground 8 half-widths aside: %.1f m over the water on average, > 6 m (a trench) on %.0f %% of the course; ribbon edge over ground below the water on %.1f %%\n",
 				sumIncision / static_cast<double>(P.size()), Pct(trench, P.size()), Pct(raised, P.size()));
+			std::sort(fars.begin(), fars.end());
+			std::printf("        (E2) the median %.1f m; the upland stretch (water over %.0f m, %.0f %% of the course): %.1f m on average, >= 5 m on %.0f %% of it\n",
+				fars[fars.size() / 2], uplandLevel, Pct(upland, P.size()), upland ? sumUpland / static_cast<double>(upland) : 0.0, Pct(upland5, upland));
+			js.Num("river_incision_median", fars[fars.size() / 2]); js.Num("river_incision_upland", upland ? sumUpland / static_cast<double>(upland) : 0.0); js.Num("river_upland5", Pct(upland5, upland));
 			std::printf("        cells: mid-channel ground over the water %.2f %% of %zu; ribbon edge over ground 0.1 m below the water %.2f %% of %zu\n",
 				Pct(midCut, mid), mid, Pct(edgeFloat, edge), edge);
 			js.Num("river_points", static_cast<double>(P.size())); js.Num("river_length", length); js.Num("river_sinuosity", length / std::max(chord, 1.0));
@@ -539,6 +826,47 @@ namespace
 				Pct(l5, count), Pct(l50, count), Pct(l200, count), most);
 			js.Num("e1_raised_005", Pct(l5, count)); js.Num("e1_raised_05", Pct(l50, count)); js.Num("e1_raised_2", Pct(l200, count)); js.Num("e1_raised_max", most);
 		}
+		if (const auto e2 = r.Nodes.find("e2_fluvial"); e2 != r.Nodes.end() && e2->second.count("height"))
+		{
+			// the hollows fluvial_erosion leaves on its own ground (before the rest of the graph and lake_fill): how deep its pits are, and how
+			// much it cut
+			const TgField& eh = e2->second.at("height").Field;
+			const DrainageResult ed = ComputeDrainage(eh.Values.data(), eh.N, eh.Spacing());
+			size_t p5 = 0, p50 = 0, p200 = 0;
+			float deepest = 0.0f;
+			size_t at = 0;
+			for (size_t c = 0; c < eh.Values.size(); ++c)
+			{
+				const float dz = ed.Level[c] - eh.Values[c];
+				p5 += dz > 0.05f; p50 += dz > 0.5f; p200 += dz > 2.0f;
+				if (dz > deepest) { deepest = dz; at = c; }
+			}
+			const TgField& eroded = e2->second.at("eroded").Field;
+			double cut = 0.0;
+			float most = 0.0f;
+			for (const float v : eroded.Values) { cut += v; most = std::max(most, v); }
+			const glm::vec2 p = eh.SamplePosition(static_cast<uint32_t>(at % eh.N), static_cast<uint32_t>(at / eh.N));
+			std::printf("  E2 its own ground: hollows > 0.05 m on %.2f %% of the cells, > 0.5 m on %.3f %%, > 2 m on %.3f %%, deepest %.1f m at (%.0f, %.0f); it cut %.1f m on average, %.0f m at most\n",
+				Pct(p5, eh.Values.size()), Pct(p50, eh.Values.size()), Pct(p200, eh.Values.size()), deepest, p.x, p.y, cut / static_cast<double>(eroded.Values.size()), most);
+			js.Num("e2_hollow_05", Pct(p50, eh.Values.size())); js.Num("e2_hollow_max", deepest); js.Num("e2_cut_mean", cut / static_cast<double>(eroded.Values.size())); js.Num("e2_cut_max", most);
+			if (!outDir.empty())
+			{
+				WriteF32(outDir + "/" + tag + "_e2height.f32", eh.Values);
+				if (const auto in = r.Nodes.find("ground"); in != r.Nodes.end() && !in->second.empty()) WriteF32(outDir + "/" + tag + "_e2input.f32", in->second.begin()->second.Field.Values);
+			}
+		}
+		if (const char* dump = std::getenv("GB_PROBE_DUMP"); dump && !outDir.empty())   // "node.port node.port ...": those fields as <tag>_node_<node>.f32
+		{
+			std::istringstream in(dump);
+			std::string item;
+			while (in >> item)
+			{
+				const size_t dot = item.find('.');
+				const auto nd = r.Nodes.find(item.substr(0, dot));
+				if (nd == r.Nodes.end() || dot == std::string::npos || !nd->second.count(item.substr(dot + 1))) continue;
+				WriteF32(outDir + "/" + tag + "_node_" + item.substr(0, dot) + ".f32", nd->second.at(item.substr(dot + 1)).Field.Values);
+			}
+		}
 		std::printf("  world: %zu trees, %zu rocks\n", world.Trees.size(), world.Rocks.size());
 		if (js.File) { std::fprintf(js.File, "\n}\n"); std::fclose(js.File); }
 		if (!outDir.empty())
@@ -547,6 +875,7 @@ namespace
 			WriteF32(outDir + "/" + tag + "_water.f32", wet);
 			WriteF32(outDir + "/" + tag + "_flow.f32", acc.Accumulation);
 			if (!lakeMeshMap.empty()) WriteF32(outDir + "/" + tag + "_lakemesh.f32", lakeMeshMap);
+			if (river) WriteRiver(outDir + "/" + tag + "_river.f32", *river);
 			std::printf("  wrote %s and its fields\n", jsonPath.c_str());
 		}
 		return 0;
