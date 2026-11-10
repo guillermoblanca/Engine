@@ -149,6 +149,7 @@ gb_test(world world_test.cpp POOL GBGLTests LINK GB::GB LABELS gl SKIP77)
 gb_test(worldgen worldgen_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 gb_test(destruction destruction_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 gb_test(post post_test.cpp POOL GBGLTests LINK GB::GB LABELS "imagen;gl" SKIP77)
+gb_test(rhi_gl rhi_gl_test.cpp POOL GBGLTests LINK GB::GB LABELS gl SKIP77)   # T71: the RHI's API of M1 on GL (BC, arrays, ranges, ring)
 gb_test(qa qa_test.cpp POOL GBRenderTests LINK GB::Render LABELS "rapido;imagen")
 gb_test(golden_images golden_test.cpp EXE GBGoldenTests LINK GB::GB LABELS "imagen;gl" DEFS ${gb_golden} SKIP77)
 gb_test(golden_data golden_data_test.cpp EXE GBGoldenDataTests LINK GB::Render LABELS "rapido;imagen" DEFS ${gb_golden} SKIP77)
@@ -285,6 +286,8 @@ set_tests_properties(reference_scene PROPERTIES SKIP_RETURN_CODE 77 LABELS "imag
 gb_test(rhi rhi_test.cpp EXE GBRhiTests LINK GB::Render LABELS rapido)
 target_precompile_headers(GBRhiTests REUSE_FROM GBTestPch)
 gb_parallel_compile(GBRhiTests)
+# T71/T65: the RHI's API of M1 on the null backend, linked with GB_RHI alone (no GL, no GB_Render): that it links is part of the test.
+gb_test(rhi_api rhi_api_test.cpp EXE GBRhiApiTests LINK GB::RHI LABELS rapido)
 
 # T84: a saved game keeps its world's terrain graph whole and reopens the same world after the library's graph changed (docs/GUARDADO.md,
 # docs/GRAFO_TERRENO.md 12.7). An executable of its own (this block is after the pools' main()).

@@ -17,6 +17,11 @@ namespace GB::RHI
 		uint32_t StateCalls = 0;      // cull, alpha to coverage and blend, asked for (dynamic or by a pipeline)
 		uint32_t StateChanges = 0;    // ... that reached the API (with the state filter on, a repeat of the current state is not sent)
 		uint64_t UploadBytes = 0;     // UploadStream, UpdateBuffer, UploadTexture and buffers created with data
+		// T71 (render M1), apart from the ones above so these keep meaning what they did:
+		uint32_t UniformBufferBinds = 0;   // BindUniformBuffer
+		uint32_t StorageRangeBinds = 0;    // BindStorageBufferRange (BindStorageBuffer stays in BufferBinds)
+		uint64_t RingBytes = 0;            // allocated from upload rings (with the alignment padding); never in UploadBytes
+		uint64_t CompressedBytes = 0;      // UploadCompressed (UploadTextureLayer counts in UploadBytes, as UploadTexture)
 
 		// The work between two snapshots (`*this` taken after `before`).
 		FrameCounters Since(const FrameCounters& before) const
@@ -31,6 +36,10 @@ namespace GB::RHI
 			d.StateCalls = StateCalls - before.StateCalls;
 			d.StateChanges = StateChanges - before.StateChanges;
 			d.UploadBytes = UploadBytes - before.UploadBytes;
+			d.UniformBufferBinds = UniformBufferBinds - before.UniformBufferBinds;
+			d.StorageRangeBinds = StorageRangeBinds - before.StorageRangeBinds;
+			d.RingBytes = RingBytes - before.RingBytes;
+			d.CompressedBytes = CompressedBytes - before.CompressedBytes;
 			return d;
 		}
 		FrameCounters& operator+=(const FrameCounters& o)
@@ -38,6 +47,8 @@ namespace GB::RHI
 			UniformCalls += o.UniformCalls; UniformsSent += o.UniformsSent; TextureBinds += o.TextureBinds; PipelineBinds += o.PipelineBinds;
 			BufferBinds += o.BufferBinds; LayoutBinds += o.LayoutBinds; StateCalls += o.StateCalls; StateChanges += o.StateChanges;
 			UploadBytes += o.UploadBytes;
+			UniformBufferBinds += o.UniformBufferBinds; StorageRangeBinds += o.StorageRangeBinds; RingBytes += o.RingBytes;
+			CompressedBytes += o.CompressedBytes;
 			return *this;
 		}
 	};

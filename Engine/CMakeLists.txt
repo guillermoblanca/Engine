@@ -18,7 +18,9 @@ target_link_libraries(sqlite3 PUBLIC Threads::Threads)
 #   GB_WorldGen World/Graph, Heightmap, erosions, Water, Scatter    (CPU only, only GB_Core: the generation of a world as data)
 #   GB_Sim      the rest of World, Navigation, Assets, Audio, Save, Telemetry,
 #               Animation, Gameplay, AI, Game, Tools                (CPU only: GBSim and the CPU tests link this, without GL or GLFW)
-#   GB_Render   Renderer, Visual, Effects, Qa                       (glad)
+#   GB_RHI      Renderer/RHI without GL: the interface, the null backend   (only GB_Core: the CPU tests of the RHI link this)
+#   GB_RHI_GL   Renderer/RHI/GL: the OpenGL backend                 (glad: the only library of the render that links it)
+#   GB_Render   Renderer, Visual, Effects, Qa                       (over GB_RHI, with GB_RHI_GL as its device)
 #   GB_Platform Platform: Window, Input, Application                (glfw)
 #   GB          INTERFACE with all of them (Editor, Sandbox, the tests that open a window)
 add_library(GB_Core STATIC
@@ -255,10 +257,17 @@ add_library(GB_Render STATIC
     src/GB/Renderer/WaterRipples.cpp
     src/GB/Renderer/WorldTilesGpu.cpp
     src/GB/Renderer/Visibility.cpp
-    src/GB/Renderer/MaterialLayers.cpp
+    src/GB/Renderer/MaterialLayers.cpp)
+
+# GB_RHI (T65, ARQUITECTURA_REVISION 5.2): the render hardware interface and its null backend, without GL. GB_RHI_GL: the GL backend and
+# the default device (GetDevice), the only library of the render that links glad.
+add_library(GB_RHI STATIC
     src/GB/Renderer/RHI/RHI.cpp
-    src/GB/Renderer/RHI/NullDevice.cpp
-    src/GB/Renderer/RHI/GL/GLDevice.cpp)
+    src/GB/Renderer/RHI/NullDevice.cpp)
+
+add_library(GB_RHI_GL STATIC
+    src/GB/Renderer/RHI/GL/GLDevice.cpp
+    src/GB/Renderer/RHI/GL/DefaultDevice.cpp)
 
 add_library(GB_Platform STATIC
     src/GB/Platform/Application.cpp
@@ -268,6 +277,8 @@ add_library(GB_Platform STATIC
 add_library(GB::Core ALIAS GB_Core)
 add_library(GB::WorldGen ALIAS GB_WorldGen)
 add_library(GB::Sim ALIAS GB_Sim)
+add_library(GB::RHI ALIAS GB_RHI)
+add_library(GB::RHI_GL ALIAS GB_RHI_GL)
 add_library(GB::Render ALIAS GB_Render)
 add_library(GB::Platform ALIAS GB_Platform)
 
@@ -290,17 +301,22 @@ target_include_directories(GB_Sim SYSTEM PRIVATE ${cgltf_SOURCE_DIR} ${json_SOUR
 # the game's data (ShippedContent.h): the catalogue is read from here unless the application says otherwise
 target_compile_definitions(GB_Sim PRIVATE GB_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets/data")
 
-# GB_Render (L5): the render frontend, Visual, Effects and Qa, over the RHI (src/GB/Renderer/RHI, T25); OpenGL (glad, private) only in its
-# GL backend, RHI/GL/GLDevice.cpp. The separate GB_RHI / GB_RHI_GL targets of ARQUITECTURA_REVISION 5.2 are still to do.
-target_link_libraries(GB_Render PUBLIC GB_Sim)
-target_link_libraries(GB_Render PRIVATE glad)
+# GB_RHI: only GB_Core (glm, Log). GB_RHI_GL: GB_RHI, and glad private.
+target_link_libraries(GB_RHI PUBLIC GB_Core)
+target_link_libraries(GB_RHI_GL PUBLIC GB_RHI)
+target_link_libraries(GB_RHI_GL PRIVATE glad)
+
+# GB_Render (L5): the render frontend, Visual, Effects and Qa, over the RHI (GB_RHI, public: its headers use the RHI's types); the GL
+# backend (GB_RHI_GL) is private: nothing in GB_Render's headers sees it, and it still links into every program that links GB_Render.
+target_link_libraries(GB_Render PUBLIC GB_Sim GB_RHI)
+target_link_libraries(GB_Render PRIVATE GB_RHI_GL)
 target_include_directories(GB_Render SYSTEM PRIVATE ${stb_SOURCE_DIR} ${json_SOURCE_DIR}/include)
 
 # GB_Platform (L5): window, input and application loop (glfw, private).
 target_link_libraries(GB_Platform PUBLIC GB_Render)
 target_link_libraries(GB_Platform PRIVATE glad glfw)
 
-foreach(gb_target GB_Core GB_WorldGen GB_Sim GB_Render GB_Platform)
+foreach(gb_target GB_Core GB_WorldGen GB_Sim GB_RHI GB_RHI_GL GB_Render GB_Platform)
     gb_parallel_compile(${gb_target})
     if(MSVC)
         target_compile_options(${gb_target} PRIVATE /W4 /permissive-)
@@ -327,7 +343,7 @@ target_precompile_headers(GB_Core PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})
 target_precompile_headers(GB_WorldGen PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})
 target_precompile_headers(GB_Sim PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM} <nlohmann/json.hpp>)   # json: about 40 of its .cpp files read data
 target_precompile_headers(GB_Render PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})                   # no glad: GL stays in the .cpp files that use it
-# GB_Platform has three .cpp files: building a PCH would cost about as much as it saves.
+# GB_Platform has three .cpp files, GB_RHI and GB_RHI_GL two each: building a PCH would cost about as much as it saves.
 
 # GB: everything, for the windowed applications (Editor, Sandbox) and the tests that open a window. glad and glfw stay visible to them,
 # as before the split (the Editor includes <glad/gl.h> and <GLFW/glfw3.h> itself).

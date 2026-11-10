@@ -8,6 +8,58 @@ namespace GB::RHI
 {
 	std::unique_ptr<Device> CreateGLDevice() { return std::make_unique<GLDevice>(); }
 
+	// The GL upload ring (T71): one buffer with immutable storage, mapped once, persistent and coherent (writes are seen by the GPU without
+	// a flush), and a fence per region set after the frame that wrote it; BeginFrame waits for it before the region is written again.
+	class GLUploadRing final : public UploadRing
+	{
+	public:
+		GLUploadRing(GLuint buffer, std::byte* mapped, size_t regionBytes, uint32_t regions, size_t align)
+			: UploadRing({ buffer }, mapped, regionBytes, regions, align), m_Fences(regions, nullptr) {}
+		~GLUploadRing() override
+		{
+			for (GLsync& fence : m_Fences)
+				if (fence) glDeleteSync(fence);
+			const GLuint b = Buffer().Id;
+			if (b)
+			{
+				glUnmapNamedBuffer(b);
+				glDeleteBuffers(1, &b);
+			}
+		}
+
+	private:
+		void WaitRegion(uint32_t region) override
+		{
+			GLsync& fence = m_Fences[region];
+			if (!fence)
+				return;
+			// Flush on the first wait so the fence is sure to reach the GPU; then wait in slices of 10 ms until it is signalled (or fails).
+			GLbitfield flags = GL_SYNC_FLUSH_COMMANDS_BIT;
+			for (;;)
+			{
+				const GLenum r = glClientWaitSync(fence, flags, 10'000'000);
+				if (r == GL_ALREADY_SIGNALED || r == GL_CONDITION_SATISFIED || r == GL_WAIT_FAILED)
+				{
+					if (r == GL_WAIT_FAILED)
+						GB_CORE_ERROR("RHI GL: upload ring fence wait failed");
+					break;
+				}
+				flags = 0;
+			}
+			glDeleteSync(fence);
+			fence = nullptr;
+		}
+		void FenceRegion(uint32_t region) override
+		{
+			GLsync& fence = m_Fences[region];
+			if (fence)
+				glDeleteSync(fence);
+			fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+		}
+
+		std::vector<GLsync> m_Fences;
+	};
+
 	namespace
 	{
 		GLenum InternalFormat(Format format)
@@ -20,6 +72,9 @@ namespace GB::RHI
 			case Format::RGB16F: return GL_RGB16F;
 			case Format::R11G11B10F: return GL_R11F_G11F_B10F;
 			case Format::Depth24: return GL_DEPTH_COMPONENT24;
+			case Format::BC7: return GL_COMPRESSED_RGBA_BPTC_UNORM;
+			case Format::BC7SRGB: return GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM;
+			case Format::BC5: return GL_COMPRESSED_RG_RGTC2;
 			case Format::None: break;
 			}
 			return GL_RGBA8;
@@ -276,6 +331,38 @@ namespace GB::RHI
 		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, slot, buffer.Id);
 	}
 
+	namespace
+	{
+		// A range of `buffer` at `slot` of `target`; `bytes` 0 is the rest of the buffer from `offset` (all of it from 0: glBindBufferBase).
+		void BindRange(GLenum target, uint32_t slot, BufferHandle buffer, size_t offset, size_t bytes)
+		{
+			if (bytes == 0 && offset == 0)
+			{
+				glBindBufferBase(target, slot, buffer.Id);
+				return;
+			}
+			if (bytes == 0)
+			{
+				GLint64 size = 0;
+				glGetNamedBufferParameteri64v(buffer.Id, GL_BUFFER_SIZE, &size);
+				bytes = size > static_cast<GLint64>(offset) ? static_cast<size_t>(size) - offset : 0;
+			}
+			glBindBufferRange(target, slot, buffer.Id, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(bytes));
+		}
+	}
+
+	void GLCommandList::BindUniformBuffer(uint32_t slot, BufferHandle buffer, size_t offset, size_t bytes)
+	{
+		++Counters::Frame.UniformBufferBinds;
+		BindRange(GL_UNIFORM_BUFFER, slot, buffer, offset, bytes);
+	}
+
+	void GLCommandList::BindStorageBufferRange(uint32_t slot, BufferHandle buffer, size_t offset, size_t bytes)
+	{
+		++Counters::Frame.StorageRangeBinds;
+		BindRange(GL_SHADER_STORAGE_BUFFER, slot, buffer, offset, bytes);
+	}
+
 	void GLCommandList::UploadStream(BufferHandle buffer, size_t bytes, const void* data)
 	{
 		Counters::Frame.UploadBytes += bytes;
@@ -310,9 +397,16 @@ namespace GB::RHI
 			reinterpret_cast<const void*>(static_cast<uintptr_t>(firstIndex) * sizeof(uint32_t)));
 	}
 
-	void GLCommandList::DrawIndexedInstanced(uint32_t count, uint32_t instances)
+	void GLCommandList::DrawIndexedInstanced(const IndexedDraw& d)
 	{
-		glDrawElementsInstanced(GL_TRIANGLES, static_cast<GLsizei>(count), GL_UNSIGNED_INT, nullptr, static_cast<GLsizei>(instances));
+		if (d.FirstIndex == 0 && d.BaseVertex == 0 && d.BaseInstance == 0)   // (the call of before T71, unchanged)
+		{
+			glDrawElementsInstanced(GL_TRIANGLES, static_cast<GLsizei>(d.Count), GL_UNSIGNED_INT, nullptr, static_cast<GLsizei>(d.Instances));
+			return;
+		}
+		glDrawElementsInstancedBaseVertexBaseInstance(GL_TRIANGLES, static_cast<GLsizei>(d.Count), GL_UNSIGNED_INT,
+			reinterpret_cast<const void*>(static_cast<uintptr_t>(d.FirstIndex) * sizeof(uint32_t)), static_cast<GLsizei>(d.Instances),
+			d.BaseVertex, d.BaseInstance);
 	}
 
 	void GLCommandList::BlitColor(const RenderTarget& src, uint32_t srcW, uint32_t srcH, const RenderTarget& dst, uint32_t dstW, uint32_t dstH,
@@ -340,6 +434,46 @@ namespace GB::RHI
 	void GLCommandList::Flush() { glFlush(); }
 
 	// ---- Device -------------------------------------------------------------------------------------------------------------------------
+
+	GLDevice::GLDevice() : m_Commands(*this)
+	{
+		auto read = [](GLenum what, uint32_t& into)
+		{
+			GLint v = 0;
+			glGetIntegerv(what, &v);
+			if (v > 0)
+				into = static_cast<uint32_t>(v);
+		};
+		read(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, m_Limits.UniformBufferAlignment);
+		read(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, m_Limits.StorageBufferAlignment);
+		read(GL_MAX_UNIFORM_BLOCK_SIZE, m_Limits.MaxUniformBlockBytes);
+		read(GL_MAX_ARRAY_TEXTURE_LAYERS, m_Limits.MaxArrayLayers);
+	}
+
+	std::unique_ptr<UploadRing> GLDevice::CreateUploadRing(size_t regionBytes, uint32_t regions)
+	{
+		regions = std::max(regions, 1u);
+		const GLbitfield flags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT;
+		const GLsizeiptr total = static_cast<GLsizeiptr>(regionBytes * regions);
+		GLuint b = 0;
+		glCreateBuffers(1, &b);
+		glNamedBufferStorage(b, total, nullptr, flags);
+		void* mapped = glMapNamedBufferRange(b, 0, total, flags);
+		if (!mapped)
+		{
+			GB_CORE_ERROR("RHI GL: could not map an upload ring of {} bytes", static_cast<size_t>(total));
+			glDeleteBuffers(1, &b);
+			return nullptr;
+		}
+		const size_t align = std::max(m_Limits.UniformBufferAlignment, m_Limits.StorageBufferAlignment);
+		return std::make_unique<GLUploadRing>(b, static_cast<std::byte*>(mapped), regionBytes, regions, align);
+	}
+
+	const GLDevice::TextureInfo* GLDevice::Info(TextureHandle texture) const
+	{
+		const auto found = m_Textures.find(texture.Id);
+		return found != m_Textures.end() ? &found->second : nullptr;
+	}
 
 	BufferHandle GLDevice::CreateBuffer(size_t bytes, const void* data, bool dynamic)
 	{
@@ -372,13 +506,20 @@ namespace GB::RHI
 	TextureHandle GLDevice::CreateTexture(const TextureDesc& desc)
 	{
 		const bool multisampled = desc.Samples > 1;
+		const bool array = desc.IsArray() && !multisampled;
+		if (desc.IsArray() && multisampled)
+			GB_CORE_ERROR("RHI GL: multisampled texture arrays are not supported; creating a plain multisampled texture");
 		GLuint t = 0;
-		glCreateTextures(multisampled ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D, 1, &t);
+		glCreateTextures(multisampled ? GL_TEXTURE_2D_MULTISAMPLE : array ? GL_TEXTURE_2D_ARRAY : GL_TEXTURE_2D, 1, &t);
 		const GLsizei w = static_cast<GLsizei>(desc.Width), h = static_cast<GLsizei>(desc.Height);
 		if (multisampled)
 			glTextureStorage2DMultisample(t, static_cast<GLsizei>(desc.Samples), InternalFormat(desc.Fmt), w, h, GL_TRUE);
+		else if (array)
+			glTextureStorage3D(t, static_cast<GLsizei>(std::max(desc.Levels, 1u)), InternalFormat(desc.Fmt), w, h,
+				static_cast<GLsizei>(std::max(desc.Layers, 1u)));
 		else
 			glTextureStorage2D(t, static_cast<GLsizei>(std::max(desc.Levels, 1u)), InternalFormat(desc.Fmt), w, h);
+		m_Textures[t] = TextureInfo{ array, desc.Fmt };
 		return { t };
 	}
 
@@ -423,9 +564,63 @@ namespace GB::RHI
 			format, type, static_cast<GLsizei>(bytes), out);
 	}
 
+	void GLDevice::UploadTextureLayer(TextureHandle texture, uint32_t level, uint32_t layer, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+		PixelData layout, const void* data)
+	{
+		Counters::Frame.UploadBytes += static_cast<uint64_t>(width) * height * PixelBytes(layout);
+		GLenum format = GL_RGBA, type = GL_UNSIGNED_BYTE;
+		PixelFormat(layout, format, type);
+		const TextureInfo* info = Info(texture);
+		if (info && info->Array)
+			glTextureSubImage3D(texture.Id, static_cast<GLint>(level), static_cast<GLint>(x), static_cast<GLint>(y), static_cast<GLint>(layer),
+				static_cast<GLsizei>(width), static_cast<GLsizei>(height), 1, format, type, data);
+		else
+			glTextureSubImage2D(texture.Id, static_cast<GLint>(level), static_cast<GLint>(x), static_cast<GLint>(y),
+				static_cast<GLsizei>(width), static_cast<GLsizei>(height), format, type, data);
+	}
+
+	void GLDevice::UploadCompressed(TextureHandle texture, uint32_t level, uint32_t layer, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+		size_t bytes, const void* data)
+	{
+		const TextureInfo* info = Info(texture);
+		if (!info || !IsCompressed(info->Fmt))
+		{
+			GB_CORE_ERROR("RHI GL: UploadCompressed to a texture that is not compressed (or not created by the RHI)");
+			return;
+		}
+		Counters::Frame.CompressedBytes += bytes;
+		const GLenum format = InternalFormat(info->Fmt);
+		if (info->Array)
+			glCompressedTextureSubImage3D(texture.Id, static_cast<GLint>(level), static_cast<GLint>(x), static_cast<GLint>(y), static_cast<GLint>(layer),
+				static_cast<GLsizei>(width), static_cast<GLsizei>(height), 1, format, static_cast<GLsizei>(bytes), data);
+		else
+			glCompressedTextureSubImage2D(texture.Id, static_cast<GLint>(level), static_cast<GLint>(x), static_cast<GLint>(y),
+				static_cast<GLsizei>(width), static_cast<GLsizei>(height), format, static_cast<GLsizei>(bytes), data);
+	}
+
+	void GLDevice::ReadTextureLayer(TextureHandle texture, uint32_t level, uint32_t layer, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+		PixelData layout, size_t bytes, void* out)
+	{
+		GLenum format = GL_RGBA, type = GL_UNSIGNED_BYTE;
+		PixelFormat(layout, format, type);
+		glPixelStorei(GL_PACK_ALIGNMENT, 1);
+		glGetTextureSubImage(texture.Id, static_cast<GLint>(level), static_cast<GLint>(x), static_cast<GLint>(y), static_cast<GLint>(layer),
+			static_cast<GLsizei>(width), static_cast<GLsizei>(height), 1, format, type, static_cast<GLsizei>(bytes), out);
+	}
+
+	void GLDevice::ReadCompressed(TextureHandle texture, uint32_t level, uint32_t layer, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+		size_t bytes, void* out)
+	{
+		glGetCompressedTextureSubImage(texture.Id, static_cast<GLint>(level), static_cast<GLint>(x), static_cast<GLint>(y), static_cast<GLint>(layer),
+			static_cast<GLsizei>(width), static_cast<GLsizei>(height), 1, static_cast<GLsizei>(bytes), out);
+	}
+
 	void GLDevice::DestroyTexture(TextureHandle texture)
 	{
-		if (texture) glDeleteTextures(1, &texture.Id);
+		if (!texture)
+			return;
+		m_Textures.erase(texture.Id);
+		glDeleteTextures(1, &texture.Id);
 	}
 
 	RenderTarget GLDevice::CreateRenderTarget(const RenderTargetDesc& desc)

@@ -5,6 +5,11 @@
 // Filtering (T70, both switchable at run time through RHI::Tuning): a uniform set to the value its program already holds is not sent (the
 // programs' uniforms are only changed through here); cull, alpha to coverage and blend set to the state already current are not sent. Other
 // code (ImGui, the editor's tools) also changes GL state between frames, so the state is only trusted within a pass: BeginPass forgets it.
+//
+// T71: UBO and SSBO ranges (glBindBufferRange), glDrawElementsInstancedBaseVertexBaseInstance, GL_TEXTURE_2D_ARRAY (glTextureStorage3D),
+// BC5/BC7 (glCompressedTextureSubImage2D/3D) and the upload ring (glNamedBufferStorage, persistent and coherent, one glFenceSync per region).
+// The calls of before keep their GL calls: an indexed instanced draw with no offsets is still glDrawElementsInstanced, and a texture with one
+// layer and no Array flag is still GL_TEXTURE_2D.
 #include "GB/Renderer/RHI/RHI.h"
 #include "GB/Renderer/RHI/UniformCache.h"
 #include <unordered_map>
@@ -36,6 +41,8 @@ namespace GB::RHI
 
 		void BindTexture(uint32_t unit, TextureHandle texture) override;
 		void BindStorageBuffer(uint32_t slot, BufferHandle buffer) override;
+		void BindUniformBuffer(uint32_t slot, BufferHandle buffer, size_t offset, size_t bytes) override;
+		void BindStorageBufferRange(uint32_t slot, BufferHandle buffer, size_t offset, size_t bytes) override;
 		void UploadStream(BufferHandle buffer, size_t bytes, const void* data) override;
 
 		void BindVertexLayout(VertexLayoutHandle layout) override;
@@ -43,7 +50,8 @@ namespace GB::RHI
 		void Draw(Topology topology, uint32_t first, uint32_t count) override;
 		void DrawInstanced(Topology topology, uint32_t first, uint32_t count, uint32_t instances) override;
 		void DrawIndexed(uint32_t firstIndex, uint32_t count) override;
-		void DrawIndexedInstanced(uint32_t count, uint32_t instances) override;
+		using CommandList::DrawIndexedInstanced;
+		void DrawIndexedInstanced(const IndexedDraw& draw) override;
 
 		void BlitColor(const RenderTarget& src, uint32_t srcW, uint32_t srcH, const RenderTarget& dst, uint32_t dstW, uint32_t dstH,
 			uint32_t attachment, BlitFilter filter) override;
@@ -73,16 +81,27 @@ namespace GB::RHI
 	class GLDevice final : public Device
 	{
 	public:
-		GLDevice() : m_Commands(*this) {}
+		GLDevice();   // reads the limits: a GL 4.5 context must be current
 		const char* Name() const override { return "GL"; }
 		CommandList& Commands() override { return m_Commands; }
+		const DeviceLimits& Limits() const override { return m_Limits; }
 
 		BufferHandle CreateBuffer(size_t bytes, const void* data, bool dynamic) override;
 		BufferHandle CreateStreamBuffer() override;
 		void UpdateBuffer(BufferHandle buffer, size_t offset, size_t bytes, const void* data) override;
 		void DestroyBuffer(BufferHandle buffer) override;
+		std::unique_ptr<UploadRing> CreateUploadRing(size_t regionBytes, uint32_t regions) override;
+		using Device::CreateUploadRing;
 
 		TextureHandle CreateTexture(const TextureDesc& desc) override;
+		void UploadTextureLayer(TextureHandle texture, uint32_t level, uint32_t layer, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+			PixelData layout, const void* data) override;
+		void UploadCompressed(TextureHandle texture, uint32_t level, uint32_t layer, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+			size_t bytes, const void* data) override;
+		void ReadTextureLayer(TextureHandle texture, uint32_t level, uint32_t layer, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+			PixelData layout, size_t bytes, void* out) override;
+		void ReadCompressed(TextureHandle texture, uint32_t level, uint32_t layer, uint32_t x, uint32_t y, uint32_t width, uint32_t height,
+			size_t bytes, void* out) override;
 		void SetSampler(TextureHandle texture, const SamplerDesc& sampler) override;
 		void UploadTexture(TextureHandle texture, uint32_t x, uint32_t y, uint32_t width, uint32_t height, PixelData layout, const void* data) override;
 		void GenerateMips(TextureHandle texture) override;
@@ -110,7 +129,18 @@ namespace GB::RHI
 		uint64_t TimestampNs(QueryHandle query) override;
 
 	private:
+		// What the T71 uploads need to know of a texture: a 2D array or not, and its format (a compressed upload names it). Only textures
+		// created here (the render targets' too); erased on destroy, since GL reuses the names.
+		struct TextureInfo
+		{
+			bool Array = false;
+			Format Fmt = Format::RGBA8;
+		};
+		const TextureInfo* Info(TextureHandle texture) const;
+
 		GLCommandList m_Commands;
+		DeviceLimits m_Limits;
+		std::unordered_map<uint32_t, TextureInfo> m_Textures;
 		std::unordered_map<uint32_t, uint32_t> m_DepthBuffers;   // render target -> its depth renderbuffer
 		std::vector<std::optional<PipelineDesc>> m_Pipelines;    // by id - 1 (empty once destroyed, reused by the next one)
 	};
