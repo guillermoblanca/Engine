@@ -106,6 +106,7 @@ layout(binding = 5) uniform sampler2D uOcclusionMap;
 layout(binding = 6) uniform sampler2D uEmissiveMap;
 layout(binding = 7) uniform sampler2D uMacroMap;
 layout(binding = 10) uniform sampler2D uTerrainNormals;   // world normals over the macro rect (terrain)
+layout(binding = 11) uniform sampler2D uSceneColor;       // T34: the scene before the translucent objects (LAYER_TRANSMISSION only)
 #include "lib/object_trail"
 
 layout(binding = 0) uniform sampler2DShadow uShadowMap;
@@ -149,6 +150,33 @@ vec2 PuddleRings(vec2 p)
 		push += d / max(length(d), 1e-4) * ring;
 	}
 	return push;
+}
+
+// T34: what a transmissive surface (glass, ice) lets through: the scene behind it, from the copy at unit 11, looked up where the ray refracted
+// by the surface leaves it after the material's thickness (screen-space refraction), blurred by the roughness (a fixed disk of taps: the copy
+// has no mips) and dimmed by Beer-Lambert absorption. The copy already carries the fog between the camera and what is behind.
+vec3 Transmitted(vec3 N, vec3 V, float roughness)
+{
+	vec4 slot = MATERIAL.Layer[SLOT_TRANSMISSION];
+	vec3 r = refract(-V, N, 1.0 / max(MATERIAL.ModelParams.z, 1.0));
+	if (dot(r, r) < 1e-6) r = -V;
+	vec4 clip = uViewProj * vec4(vPos + r * slot.w, 1.0);
+	vec2 uv = clamp(clip.xy / max(clip.w, 1e-4) * 0.5 + 0.5, vec2(0.0), vec2(1.0));
+	vec3 behind = textureLod(uSceneColor, uv, 0.0).rgb;
+	vec2 size = vec2(textureSize(uSceneColor, 0));
+	float radius = roughness * roughness * 0.3 / max(clip.w, 0.25);   // in screen heights: frosted ice blurs ~0.1 of the screen at 1 m
+	if (radius * size.y > 1.0)
+	{
+		vec2 scale = vec2(radius * size.y / size.x, radius);
+		for (int i = 0; i < 12; ++i)
+		{
+			float angle = float(i) * 2.3999632;   // golden angle: a Vogel disk
+			vec2 o = vec2(cos(angle), sin(angle)) * sqrt((float(i) + 0.5) / 12.0) * scale;
+			behind += textureLod(uSceneColor, clamp(uv + o, vec2(0.0), vec2(1.0)), 0.0).rgb;
+		}
+		behind /= 13.0;
+	}
+	return behind * exp(-slot.rgb * slot.w);
 }
 
 void main()
@@ -287,6 +315,14 @@ void main()
 	roughness = clamp(roughness, 0.03, 1.0);
 	float a = roughness * roughness;
 	vec3 F0 = mix(vec3(0.04), albedo, metallic);
+	// T34: a transmissive surface reflects like a dielectric of its index of refraction and does not diffuse the light that goes through.
+	float transmission = (MATERIAL.Flags.x & LAYER_TRANSMISSION) != 0u ? MATERIAL.ModelParams.w : 0.0;
+	if (transmission > 0.0)
+	{
+		float f0 = (MATERIAL.ModelParams.z - 1.0) / (MATERIAL.ModelParams.z + 1.0);
+		F0 = mix(vec3(f0 * f0), albedo, metallic);
+		albedo *= 1.0 - transmission;
+	}
 
 	vec3 Lo = vec3(0.0);
 
@@ -322,15 +358,28 @@ void main()
 	vec3 emissive = MATERIAL.Emissive.rgb;
 	if (HasTex(TEX_EMISSIVE)) emissive *= texture(uEmissiveMap, vUV).rgb;
 	vec3 color = Lo + ambient + emissive;
+	// T34: the part of what is behind that gets through: not reflected (the Fresnel term of the ambient light), not absorbed. The reflection
+	// is not dimmed by any opacity; the transmitted light is, by (1 - F) and the amount.
+	vec3 through = vec3(0.0), passing = vec3(0.0);
+	if (transmission > 0.0)
+	{
+		passing = (1.0 - F) * (1.0 - metallic) * transmission;
+		through = Transmitted(N, V, roughness) * passing;
+	}
 	float fogKeep = 1.0;   // the part of the surface's light that gets through the fog
 	if (uFogDensity > 0.0)
 	{
 		float dist = length(vPos - uCamPos);
 		float density = uFogDensity * exp(-uFogHeight * max(vPos.y, 0.0));
 		fogKeep = exp(-density * density * dist * dist);
-		color = mix(uFogColor * uEnvIntensity, color, fogKeep);
+		if (transmission > 0.0)   // the fog on the surface's own light only: the transmitted light has it already (the copy is fogged)
+			color = mix(uFogColor * uEnvIntensity * (1.0 - dot(passing, vec3(1.0 / 3.0))), color, fogKeep);
+		else
+			color = mix(uFogColor * uEnvIntensity, color, fogKeep);
 	}
+	color += through;
 	float outAlpha = (MATERIAL.Flags.z == 2u || (MATERIAL.Flags.z == 1u && HasFlag(FLAG_ALPHA_TO_COVERAGE))) ? alpha : 1.0;
+	if (transmission > 0.0) outAlpha = 1.0;   // what is behind is in the color already: blending it again would count it twice
 	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), outAlpha);
 	outAmbient = vec4(clamp(ambient * fogKeep, vec3(0.0), vec3(4096.0)), outAlpha);   // blended like the color
 }

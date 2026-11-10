@@ -53,6 +53,19 @@ namespace
 		masked.Alpha = GB::AlphaMode::Mask;
 		Check((GB::PackMaterial(masked, { true, false }).Data.Flags.w & GB::MaterialData::FlagAlphaToCoverage) == 0 &&
 			(GB::PackMaterial(masked, context).Data.Flags.w & GB::MaterialData::FlagAlphaToCoverage) != 0, "alpha to coverage only with samples");
+		// T34: transmission packs only on a Blend material; on any other the bytes are those of the material without it
+		GB::Material glass = a;
+		glass.Transmission = 0.9f; glass.Ior = 1.31f; glass.Absorption = { 0.6f, 0.15f, 0.05f }; glass.Thickness = 0.4f;
+		Check(GB::PackMaterial(glass, context) == GB::PackMaterial(a, context), "transmission on an opaque material packs nothing (same bytes)");
+		glass.Alpha = GB::AlphaMode::Blend;
+		const GB::MaterialData g = GB::PackMaterial(glass, context).Data;
+		Check((g.Flags.x & GB::MaterialData::LayerTransmission) != 0 && g.ModelParams.z == 1.31f && g.ModelParams.w == 0.9f &&
+			g.Layer[GB::MaterialData::SlotTransmission] == glm::vec4(0.6f, 0.15f, 0.05f, 0.4f), "a Blend glass packs its bit, IOR, amount, absorption and thickness");
+		GB::Material plainBlend = a;
+		plainBlend.Alpha = GB::AlphaMode::Blend;
+		const GB::MaterialData p = GB::PackMaterial(plainBlend, context).Data;
+		Check((p.Flags.x & GB::MaterialData::LayerTransmission) == 0 && p.ModelParams.z == 0.0f && p.ModelParams.w == 0.0f &&
+			p.Layer[GB::MaterialData::SlotTransmission] == glm::vec4(0.0f), "a Blend material without transmission leaves the slot at zero");
 		Check(table.UploadedEnd() == 0 && table.Dirty(), "the new entries wait for an upload");
 		table.MarkUploaded();
 		Check(!table.Dirty(), "nothing left to upload");
@@ -108,9 +121,10 @@ namespace
 			{ "TEX_TERRAIN_NORMALS", D::TexTerrainNormals },
 			{ "FLAG_FOLIAGE_NORMALS", D::FlagFoliageNormals }, { "FLAG_ALPHA_TO_COVERAGE", D::FlagAlphaToCoverage }, { "FLAG_DOUBLE_SIDED", D::FlagDoubleSided },
 			{ "LAYER_GRAIN", D::LayerGrain }, { "LAYER_MOSS", D::LayerMoss }, { "LAYER_SAND", D::LayerSand }, { "LAYER_WATER_LINE", D::LayerWaterLine },
-			{ "LAYER_TRAIL", D::LayerTrail }, { "LAYER_MACRO", D::LayerMacro },
+			{ "LAYER_TRAIL", D::LayerTrail }, { "LAYER_MACRO", D::LayerMacro }, { "LAYER_TRANSMISSION", D::LayerTransmission },
 			{ "SLOT_GRAIN", D::SlotGrain }, { "SLOT_MOSS", D::SlotMoss }, { "SLOT_SAND", D::SlotSand }, { "SLOT_WATER_LINE", D::SlotWaterLine },
 			{ "SLOT_TRAIL", D::SlotTrail }, { "SLOT_TRAIL_TINT", D::SlotTrailTint }, { "SLOT_MACRO", D::SlotMacro },
+			{ "SLOT_TRANSMISSION", D::SlotTransmission },
 			{ "LAYER_SLOTS", D::LayerSlots },
 		};
 		int found = 0;

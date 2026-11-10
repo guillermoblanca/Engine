@@ -41,6 +41,8 @@ namespace GB
 		uint32_t MaterialsHashed = 0;    // ... of them, looked up in the table by hash
 		uint32_t MaterialsAdded = 0;     // materials added to the table (uploaded this frame)
 		uint32_t Materials = 0;          // materials in the table at the end of the frame
+		// T34: resolves of the scene for the transmissive translucent objects (glass, ice): 1 in a frame that has one in view, else 0
+		uint32_t TransmissionCopies = 0;
 	};
 
 	// Counts the draw calls as they are made (the mesh and the instanced draws call Add): the renderer reads it around each pass.

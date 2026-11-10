@@ -29,7 +29,7 @@ struct MaterialData
 	uvec4 Tex;          // x TEX_* bits: the maps bound
 	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
 	vec4 Wind;          // x sway, y height of full sway, z flutter
-	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength
+	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength, z index of refraction, w transmission (LAYER_TRANSMISSION)
 	vec4 Layer[8];      // the layers' slots (SLOT_*)
 };
 layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
@@ -53,6 +53,7 @@ const uint LAYER_SAND = 4u;
 const uint LAYER_WATER_LINE = 8u;
 const uint LAYER_TRAIL = 16u;
 const uint LAYER_MACRO = 32u;
+const uint LAYER_TRANSMISSION = 64u;
 const uint SLOT_GRAIN = 0u;        // x amount, y scale
 const uint SLOT_MOSS = 1u;         // rgb color, w amount
 const uint SLOT_SAND = 2u;         // rgb color, w amount
@@ -60,6 +61,7 @@ const uint SLOT_WATER_LINE = 3u;   // x water line (-1e9: none), y the sand's ba
 const uint SLOT_TRAIL = 4u;        // x depth (0: none), y normal boost
 const uint SLOT_TRAIL_TINT = 5u;   // rgb tint
 const uint SLOT_MACRO = 6u;        // the macro map's rect
+const uint SLOT_TRANSMISSION = 7u; // rgb absorption (1/m), w thickness (m)
 const uint LAYER_SLOTS = 8u;
 bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
 bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }

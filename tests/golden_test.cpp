@@ -16,6 +16,8 @@
 #include "GB/World/Trees.h"
 #include "GB/World/Water.h"
 #include <cstdio>
+#include <cstdlib>
+#include <string>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace
@@ -75,6 +77,7 @@ int main()
 		sc.Env.ShadowCenter = { 0, 0, 0 }; sc.Env.ShadowRadius = 8.0f;
 		GB::Camera cam; cam.Position = { 0.0f, 3.0f, 6.5f }; cam.Target = { 0.0f, 0.4f, -0.4f };
 		shoot("pbr_spheres", sc, cam);
+		Report({ renderer.GetStats().TransmissionCopies == 0, "no transmissive surface, no copy of the scene (T34)" });
 	}
 
 	// 2. A night: moon, stars, clouds and two lamps
@@ -200,6 +203,75 @@ int main()
 		sc.Env.ShadowCenter = { 0, 0, -6 }; sc.Env.ShadowRadius = 14.0f;
 		GB::Camera cam; cam.Position = { 1.0f, 3.0f, 8.0f }; cam.Target = { 0.0f, 0.5f, -5.0f };
 		shoot("post_stack", sc, cam, { 4.0, 0.02, 32 });
+	}
+
+	// 7. Glass and ice (T34): a clear glass sphere and block (IOR 1.5, almost no absorption), a green glass, and a frosted block of ice (IOR 1.31,
+	// a soft blue absorption, medium roughness) in front of colored bars: what is behind shows through, shifted and tinted, the edges brighter
+	// (Fresnel). GB_GLASS_SHOT=<file.png> also renders it at 1280x720 with 4x MSAA into that file (the documentation's picture).
+	{
+		GB::Mesh box = GB::Mesh::CreateCube(1.0f);
+		GB::Scene sc;
+		GB::RenderObject f;
+		f.MeshPtr = &floorMesh; f.Mat.Albedo = glm::vec3(0.42f, 0.4f, 0.37f); f.Mat.HeightScale = 0.0f; f.Mat.CavityStrength = 0.0f;
+		sc.Objects.push_back(f);
+		const glm::vec3 colors[] = { { 0.8f, 0.1f, 0.08f }, { 0.9f, 0.75f, 0.1f }, { 0.1f, 0.3f, 0.85f }, { 0.95f, 0.95f, 0.92f }, { 0.12f, 0.6f, 0.15f },
+			{ 0.85f, 0.35f, 0.05f }, { 0.08f, 0.08f, 0.08f }, { 0.6f, 0.15f, 0.7f } };
+		for (int i = 0; i < 16; ++i)   // bars behind the glass: their edges show the refraction's shift
+		{
+			GB::RenderObject bar;
+			bar.MeshPtr = &box; bar.Mat.Albedo = colors[i % 8]; bar.Mat.Roughness = 0.6f; bar.Mat.HeightScale = 0.0f; bar.Mat.CavityStrength = 0.0f;
+			bar.Transform = glm::scale(glm::translate(glm::mat4(1.0f), { (static_cast<float>(i) - 7.5f) * 0.42f, 1.0f, -2.2f }), glm::vec3(0.3f, 2.0f, 0.3f));
+			sc.Objects.push_back(bar);
+		}
+		auto glass = [](float roughness, float ior, glm::vec3 absorption, float thickness)
+		{
+			GB::Material m;
+			m.Albedo = glm::vec3(1.0f); m.Roughness = roughness; m.HeightScale = 0.0f; m.CavityStrength = 0.0f;
+			m.Alpha = GB::AlphaMode::Blend;
+			m.Transmission = 1.0f; m.Ior = ior; m.Absorption = absorption; m.Thickness = thickness;
+			return m;
+		};
+		auto add = [&](const GB::Mesh& mesh, const GB::Material& m, glm::vec3 at, glm::vec3 scale, float turn)
+		{
+			GB::RenderObject o;
+			o.MeshPtr = &mesh; o.Mat = m;
+			o.Transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), at), glm::radians(turn), { 0, 1, 0 }), scale);
+			sc.Objects.push_back(o);
+		};
+		add(sphere, glass(0.04f, 1.5f, glm::vec3(0.02f), 0.5f), { -2.2f, 0.62f, 0.0f }, glm::vec3(1.2f), 0.0f);
+		add(box, glass(0.04f, 1.5f, glm::vec3(0.02f), 0.4f), { -0.75f, 0.45f, 0.2f }, glm::vec3(0.9f), 30.0f);
+		add(sphere, glass(0.06f, 1.5f, { 2.6f, 0.25f, 2.2f }, 0.5f), { 0.75f, 0.55f, 0.1f }, glm::vec3(1.1f), 0.0f);
+		add(box, glass(0.45f, 1.31f, { 0.9f, 0.25f, 0.06f }, 0.5f), { 2.2f, 0.5f, 0.0f }, glm::vec3(0.95f, 1.0f, 0.95f), -20.0f);
+		sc.Env.ShadowCenter = { 0, 0, -1 }; sc.Env.ShadowRadius = 8.0f;
+		sc.Sun.Direction = { -0.4f, -0.7f, -0.6f };
+		GB::Camera cam; cam.Position = { 0.0f, 1.7f, 4.6f }; cam.Target = { 0.0f, 0.6f, -0.6f };
+		shoot("glass_ice", sc, cam, { 4.0, 0.02, 32 });
+		Report({ renderer.GetStats().TransmissionCopies == 1, "the transmissive surfaces share one copy of the scene (T34)" });
+		if (const char* shot = std::getenv("GB_GLASS_SHOT"); shot && *shot)
+		{
+			GB::Renderer big(1280, 720, 4, 2048);
+			GB::Framebuffer bigFb(1280, 720);
+			big.Render(sc, cam, &bigFb);
+			Report({ bigFb.SavePNG(shot), std::string("the large glass picture: ") + shot });
+		}
+		if (std::getenv("GB_GLASS_BENCH"))   // the cost of the translucent pass at 1920x1080, 4x MSAA: glass with transmission vs plain Blend
+		{
+			GB::Renderer big(1920, 1080, 4, 2048);
+			GB::Framebuffer bigFb(1920, 1080);
+			for (int pass = 0; pass < 2; ++pass)
+			{
+				GB::Scene s = sc;
+				if (pass == 1) for (GB::RenderObject& o : s.Objects) o.Mat.Transmission = 0.0f;
+				double ms = 0.0;
+				for (int i = 0; i < 60; ++i)
+				{
+					big.Render(s, cam, &bigFb);
+					if (i >= 20) ms += big.GetStats().GpuTranslucentMs;
+				}
+				std::fprintf(stderr, "bench: %s, translucent pass %.3f ms (mean of 40 frames), copies %u\n", pass == 0 ? "transmission" : "plain blend",
+					ms / 40.0, big.GetStats().TransmissionCopies);
+			}
+		}
 	}
 	return failures;
 }

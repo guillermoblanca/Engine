@@ -293,6 +293,9 @@ namespace GB
 					m.Surface = j.value("surface", m.Surface);
 					if (m.Surface != "opaque" && m.Surface != "cutout" && m.Surface != "translucent") return "material '" + id + "': unknown surface '" + m.Surface + "' (opaque, cutout, translucent)";
 					if (std::string why = LayersFromJson(j, m.Layers); !why.empty()) return "material '" + id + "': " + why;
+					// T34: only a translucent surface transmits (the renderer ignores the layer on any other): say so instead of drawing it opaque
+					if (m.Layers.count("transmission") && m.Surface != "translucent")
+						return "material '" + id + "': layer 'transmission' needs \"surface\": \"translucent\"";
 					next.Materials[id] = m;
 				}
 			}

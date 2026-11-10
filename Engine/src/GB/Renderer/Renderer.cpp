@@ -367,6 +367,24 @@ namespace GB
 			std::sort(translucent.begin(), translucent.end(),
 				[&](const RenderObject* a, const RenderObject* b) { return distance2(a) > distance2(b); });
 
+			// T34: a transmissive surface (glass, ice) reads the scene drawn so far (opaque, grass, water) from a resolved copy: one per frame,
+			// only when such a surface is in view (nothing new to pay without one). The copy goes into m_SceneResolved, scratch until the final
+			// resolve below, as the water's does; the water copies before drawing itself, so the glass needs its own to see the water.
+			const bool transmissive = std::any_of(translucent.begin(), translucent.end(),
+				[](const RenderObject* o) { return o->Mat.Alpha == AlphaMode::Blend && o->Mat.Transmission > 0.0f; });
+			if (transmissive)
+			{
+				Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);
+				cmd.BindTexture(11, m_SceneResolved->ColorTexture());
+				++m_Stats.TransmissionCopies;
+			}
+			// The grass and the water bind programs of their own: the translucent objects need the PBR one back (and its shadow map and ground
+			// marks units, which the grass binds too).
+			cmd.BindPipeline(m_PBRPipeline);
+			cmd.BindTexture(0, m_ShadowMap->DepthTexture());
+			if (scene.Ground && scene.Ground->IsValid())
+				cmd.BindTexture(8, { scene.Ground->GetTexture() });
+
 			cmd.SetBlend({ true, RHI::BlendFactor::SrcAlpha, RHI::BlendFactor::OneMinusSrcAlpha, {} });
 			cmd.SetDepthWrite(false);
 			for (const RenderObject* obj : translucent)

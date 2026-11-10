@@ -32,6 +32,17 @@ namespace GB
 			m.GrainScale = Get(self, values, "scale");
 		}
 
+		// T34: glass and ice. Only a translucent surface (AlphaMode::Blend) transmits: on any other the values are kept but the packer leaves the
+		// layer off (MaterialTable.h), and the data loader refuses a procedural material with the layer that is not "translucent".
+		void ApplyTransmission(const MaterialLayerValues& values, Material& m)
+		{
+			const MaterialLayerDef& self = *FindMaterialLayer("transmission");
+			m.Transmission = Get(self, values, "amount");
+			m.Ior = Get(self, values, "ior");
+			m.Absorption = LayerParam(self, values, "absorption");
+			m.Thickness = Get(self, values, "thickness");
+		}
+
 		std::vector<MaterialLayerDef> MakeRegistry()
 		{
 			const Material d;   // the defaults are the render material's, so a layer at its defaults draws as before
@@ -44,6 +55,12 @@ namespace GB
 					{ { "amount", LayerParamType::Float, glm::vec3(0.35f), 0.0f, 1.0f, "Layer[SLOT_GRAIN].x", "strength of the bump and of the mottling" },
 					  { "scale", LayerParamType::Float, glm::vec3(d.GrainScale), 0.1f, 50.0f, "Layer[SLOT_GRAIN].y", "noise frequency per metre" } },
 					&ApplyGrain },
+				{ "transmission", "glass, ice: the scene behind seen through the surface, refracted and absorbed (surface \"translucent\" only)",
+					{ { "amount", LayerParamType::Float, glm::vec3(1.0f), 0.0f, 1.0f, "ModelParams.w", "how much of what is behind goes through (the rest is a diffuse surface)" },
+					  { "ior", LayerParamType::Float, glm::vec3(d.Ior), 1.0f, 3.0f, "ModelParams.z", "index of refraction: the bend and the reflectance (glass 1.5, ice 1.31)" },
+					  { "absorption", LayerParamType::Vec3, d.Absorption, 0.0f, 100.0f, "Layer[SLOT_TRANSMISSION].rgb", "absorbed per metre and channel (1/m): what is taken out, so bluish ice absorbs red" },
+					  { "thickness", LayerParamType::Float, glm::vec3(d.Thickness), 0.0f, 10.0f, "Layer[SLOT_TRANSMISSION].w", "metres the light travels inside: the absorption's path and the refraction's offset" } },
+					&ApplyTransmission },
 			};
 		}
 	}

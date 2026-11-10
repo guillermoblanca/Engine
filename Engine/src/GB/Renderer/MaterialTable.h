@@ -69,6 +69,9 @@ namespace GB
 		if (m.WaterLine > -1e8f) layers |= D::LayerWaterLine;
 		if (trail) layers |= D::LayerTrail;
 		if (m.MacroMap) layers |= D::LayerMacro;
+		// Transmission only on a Blend material; any other packs zeros, so the bytes (and ids) of every other material are as before T34.
+		const bool transmission = m.Alpha == AlphaMode::Blend && m.Transmission > 0.0f;
+		if (transmission) layers |= D::LayerTransmission;
 		uint32_t flags = 0;
 		if (m.FoliageNormals) flags |= D::FlagFoliageNormals;
 		if (m.Alpha == AlphaMode::Mask && context.Multisample) flags |= D::FlagAlphaToCoverage;
@@ -76,7 +79,7 @@ namespace GB
 		d.Flags = glm::uvec4(layers, 0u, static_cast<uint32_t>(m.Alpha), flags);
 
 		d.Wind = glm::vec4(m.WindSway, m.WindHeight, m.WindFlutter, 0.0f);
-		d.ModelParams = glm::vec4(m.HeightScale, m.CavityStrength, 0.0f, 0.0f);
+		d.ModelParams = glm::vec4(m.HeightScale, m.CavityStrength, transmission ? m.Ior : 0.0f, transmission ? m.Transmission : 0.0f);
 		d.Layer[D::SlotGrain] = glm::vec4(m.Grain, m.GrainScale, 0.0f, 0.0f);
 		d.Layer[D::SlotMoss] = glm::vec4(m.MossColor, m.Moss);
 		d.Layer[D::SlotSand] = glm::vec4(m.SandColor, m.Sand);
@@ -84,6 +87,7 @@ namespace GB
 		d.Layer[D::SlotTrail] = glm::vec4(trail ? m.TrailDepth : 0.0f, m.TrailNormalBoost, 0.0f, 0.0f);
 		d.Layer[D::SlotTrailTint] = glm::vec4(m.TrailTint, 0.0f);
 		d.Layer[D::SlotMacro] = m.MacroRect;
+		d.Layer[D::SlotTransmission] = transmission ? glm::vec4(m.Absorption, m.Thickness) : glm::vec4(0.0f);
 		return desc;
 	}
 

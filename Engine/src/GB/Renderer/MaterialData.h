@@ -43,6 +43,8 @@ namespace GB
 		static constexpr uint32_t LayerWaterLine = 1u << 3;
 		static constexpr uint32_t LayerTrail = 1u << 4;
 		static constexpr uint32_t LayerMacro = 1u << 5;
+		static constexpr uint32_t LayerTransmission = 1u << 6;   // T34: a Blend material that sees what is behind it (glass, ice): the PBR shader's
+		                                                         // transmission branch, which reads the copy of the opaque scene (unit 11)
 
 		// Layer[] slots
 		static constexpr uint32_t SlotGrain = 0;       // x amount, y scale (noise frequency per metre)
@@ -52,7 +54,7 @@ namespace GB
 		static constexpr uint32_t SlotTrail = 4;       // x depth (0: no ground marks, or no ground), y normal boost
 		static constexpr uint32_t SlotTrailTint = 5;   // rgb tint of the marked ground
 		static constexpr uint32_t SlotMacro = 6;       // the macro map's rect: x, z of its corner, width, depth
-		// slot 7: free
+		static constexpr uint32_t SlotTransmission = 7;   // rgb absorption coefficient (1/m), w thickness (m); with LayerTransmission only (else 0)
 
 		glm::vec4 BaseColor{ 0.0f };     // rgb albedo (linear), a opacity
 		glm::vec4 Emissive{ 0.0f };      // rgb emissive, a alpha cutoff
@@ -61,7 +63,8 @@ namespace GB
 		glm::uvec4 Tex{ 0u };            // x Tex* bits; yzw: M6
 		glm::uvec4 Flags{ 0u };          // x Layer* bits, y shading model (0: standard), z alpha mode (0 opaque, 1 mask, 2 blend), w Flag* bits
 		glm::vec4 Wind{ 0.0f };          // x sway, y height of full sway, z flutter, w unused
-		glm::vec4 ModelParams{ 0.0f };   // standard: x height (displacement) scale, y cavity strength
+		glm::vec4 ModelParams{ 0.0f };   // standard: x height (displacement) scale, y cavity strength, z index of refraction and w transmission
+		                                 // amount (T34; both 0 without LayerTransmission)
 		glm::vec4 Layer[LayerSlots] = {};
 	};
 

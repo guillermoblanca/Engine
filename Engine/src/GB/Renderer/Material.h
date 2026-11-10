@@ -55,5 +55,13 @@ namespace GB
 		float AlphaCutoff = 0.5f;
 		float Opacity = 1.0f;
 		bool DoubleSided = false;
+
+		// T34: transmission (glass, ice), for AlphaMode::Blend only. The surface shows the opaque scene behind it, refracted by Ior and dimmed by
+		// Beer-Lambert absorption (exp(-Absorption * Thickness), Absorption per metre and channel: what is absorbed, so a bluish ice absorbs
+		// red); its reflection is not dimmed by the opacity, and Opacity is not used (Transmission says how much goes through). 0: off.
+		float Transmission = 0.0f;
+		float Ior = 1.5f;
+		glm::vec3 Absorption{ 0.0f };
+		float Thickness = 0.05f;   // metres: the absorption's path and how far the refracted ray goes before it is looked up on the screen
 	};
 }
