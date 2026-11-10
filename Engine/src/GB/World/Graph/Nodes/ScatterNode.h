@@ -1,5 +1,8 @@
 #pragma once
 #include "GB/World/Graph/ITerrainNode.h"
+#include <string>
+#include <utility>
+#include <vector>
 
 namespace GB
 {
@@ -16,6 +19,10 @@ namespace GB
 	// input connected). Evaluate() passes the height field through unchanged (so "scatter" can still sit in the
 	// middle of a chain of field nodes); the placements themselves come out through Scatter(), keyed by this
 	// node's TgNode::Id in TgResult::Placements.
+	//
+	// Rocks by id (documentation/02_tecnico/motor/ROCAS.md, phase 3): parameters named "Rock:<recipe>" or "Rock:<recipe>/<formation>" (the ids of
+	// assets/data/rocks.json) are the weights of the rocks it places. With any, each spot's Variant is an index into ScatterPalette (a weighted
+	// pick from a hash of the spot, so the spots themselves do not move) instead of 0..Variants-1, and the world generator builds those rocks.
 	class ScatterNode final : public ITerrainNode, public IScatterNode
 	{
 	public:
@@ -24,4 +31,8 @@ namespace GB
 		const IScatterNode* AsScatterNode() const override { return this; }
 		bool Scatter(const TgNode& node, const TgContext& ctx, const std::vector<const TgField*>& inputs, TgPlacements& out, std::string& error) const override;
 	};
+
+	// The "Rock:<id>" parameters of a node with a weight above 0, the prefix taken off, in key order: what its placements' Variant indexes.
+	// Empty when it names none.
+	std::vector<std::pair<std::string, double>> ScatterPalette(const TgNode& node);
 }

@@ -290,3 +290,7 @@ gb_parallel_compile(GBRhiTests)
 gb_test(world_graph_save world_graph_save_test.cpp EXE GBWorldGraphSaveTests LINK GB::Sim LABELS rapido)
 target_precompile_headers(GBWorldGraphSaveTests REUSE_FROM GBTestPch)
 gb_parallel_compile(GBWorldGraphSaveTests)
+# T28: the rocks of the world from data (documentation/02_tecnico/motor/ROCAS.md): the placements of generators 1-4 unchanged (a hash measured
+# before the refactor), the recipes, formations and kits of assets/data/rocks.json, and a terrain graph picking rocks by id. Headless.
+gb_test(rocks rocks_test.cpp EXE GBRocksTests LINK GB::Sim LABELS rapido DEFS "GB_ROCKS_DATA=\"${CMAKE_SOURCE_DIR}/assets/data\"")
+target_precompile_headers(GBRocksTests REUSE_FROM GBTestPch)

@@ -7,6 +7,14 @@
 
 namespace GB
 {
+	std::vector<std::pair<std::string, double>> ScatterPalette(const TgNode& node)
+	{
+		static const std::string prefix = "Rock:";
+		std::vector<std::pair<std::string, double>> palette;
+		for (const auto& [name, weight] : node.Params)
+			if (name.size() > prefix.size() && name.compare(0, prefix.size(), prefix) == 0 && weight > 0.0) palette.emplace_back(name.substr(prefix.size()), weight);
+		return palette;
+	}
 
 	bool ScatterNode::Evaluate(const TgNode& node, const TgContext&, const std::vector<const TgField*>& inputs, TgField& out, std::string& error) const
 	{
@@ -68,8 +76,27 @@ namespace GB
 			allow = [densityAt, densityThreshold](float x, float z) { return densityAt(x, z) >= densityThreshold; };
 		const std::vector<TreePlacement> spots = ScatterTrees(heightmap, count, variants, minSpacing, seed, minHeight, maxHeight, maxSlope, allow);
 
+		// rocks named by id: a weighted pick per spot (its own hash, so the spots and their yaw and scale are those without a palette)
+		const std::vector<std::pair<std::string, double>> palette = ScatterPalette(node);
+		double total = 0.0;
+		for (const auto& entry : palette) total += entry.second;
+		const uint32_t pickSeed = seed * 0x9E3779B1u + 0x2545F491u;
+		auto pick = [&](float x, float z)
+		{
+			const int ix = static_cast<int>(std::floor(x * 8.0f)), iz = static_cast<int>(std::floor(z * 8.0f));
+			uint64_t h = (static_cast<uint64_t>(static_cast<uint32_t>(ix)) << 32 | static_cast<uint32_t>(iz)) ^ (static_cast<uint64_t>(pickSeed) * 0x9E3779B97F4A7C15ull);
+			h ^= h >> 33; h *= 0xFF51AFD7ED558CCDull; h ^= h >> 33; h *= 0xC4CEB9FE1A85EC53ull; h ^= h >> 33;
+			double t = static_cast<double>(h >> 40) / 16777216.0 * total;
+			for (size_t i = 0; i < palette.size(); ++i)
+			{
+				t -= palette[i].second;
+				if (t < 0.0) return static_cast<int>(i);
+			}
+			return static_cast<int>(palette.size()) - 1;
+		};
+
 		out.Items.reserve(spots.size());
-		for (const TreePlacement& p : spots) out.Items.push_back({ { p.Position.x, p.Position.z }, p.Yaw, p.Scale, p.Variant });
+		for (const TreePlacement& p : spots) out.Items.push_back({ { p.Position.x, p.Position.z }, p.Yaw, p.Scale, palette.empty() ? p.Variant : pick(p.Position.x, p.Position.z) });
 		return true;
 	}
 
@@ -77,7 +104,7 @@ namespace GB
 	{
 		TgNodeSchema s;
 		s.Category = "Scatter";
-		s.Summary = "Places objects (trees, rocks) by dart throwing with a minimum spacing, gated by height, slope and a density mask.";
+		s.Summary = "Places objects (trees, rocks) by dart throwing with a minimum spacing, gated by height, slope and a density mask. Rocks by id: add parameters \"Rock:<recipe>[/<formation>]\" (assets/data/rocks.json), each its weight.";
 		s.Color = 0x968C32;
 		s.Inputs = { { "height", TgPortKind::Field }, { "density", TgPortKind::Field, true, "0..1: a spot is kept where it is at least DensityThreshold" } };
 		s.Outputs = { { "height", TgPortKind::Field }, { "placements", TgPortKind::Placements } };

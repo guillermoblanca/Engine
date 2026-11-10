@@ -4,6 +4,7 @@
 #include "GB/World/Graph/ITerrainTarget.h"
 #include "GB/World/Graph/TerrainGraphIO.h"
 #include "GB/World/Graph/TerrainGraphPresets.h"
+#include "GB/World/Graph/Nodes/ScatterNode.h"
 #include "GB/World/WorldGenInternal.h"
 #include <algorithm>
 #include <functional>
@@ -570,21 +571,48 @@ namespace GB
 			}
 		}
 
-		// ---- rocks: mostly on rocky ground and by the water
+		// ---- rocks: mostly on rocky ground and by the water. The recipes are data (assets/data/rocks.json, ROCAS.md): the kit of the world's type,
+		// its variants in order (a spot's variant indexes it, and its Size is what the navigation blocks, so the shipped kits keep the six sizes
+		// of before), or the rocks a graph's scatter node names by id ("Rock:<recipe>[/<formation>]", ScatterPalette).
 		{
-			const float sizes[] = { 0.55f, 0.9f, 1.3f, 1.8f, 2.5f, 0.4f };
-			for (uint32_t i = 0; i < 6; ++i)
+			const std::shared_ptr<const RockLibrary> rockLibrary = ShippedRockLibrary();
+			const char* kitName = desert ? "desert" : desc.Type == WorldType::Alpine ? "alpine" : "temperate";
+			const RockLibrary* kitLibrary = rockLibrary.get();
+			const std::vector<RockVariantDef>* kit = kitLibrary->Kit(kitName);
+			if (!kit) { GB_CORE_WARN("rocks: {} has no '{}' kit; the built-in one is used", rockLibrary->Source, kitName); kitLibrary = &BuiltinRockLibrary(); kit = kitLibrary->Kit(kitName); }
+			for (uint32_t i = 0; i < static_cast<uint32_t>(kit->size()); ++i)
 			{
 				RockParams rp;
+				kitLibrary->Resolve((*kit)[i], rp);   // (the loader checked its formation)
 				rp.Seed = desc.Seed * 31u + i + 1u;
-				rp.Size = sizes[i];
-				rp.Stretch = { 1.0f + 0.15f * static_cast<float>(i % 3), 0.65f + 0.1f * static_cast<float>(i % 4), 1.0f + 0.1f * static_cast<float>((i + 1) % 3) };
-				rp.Roughness = 0.3f + 0.03f * static_cast<float>(i);
-				rp.Facets = 0.5f + 0.08f * static_cast<float>(i);
-				if (desert) { rp.Sand = 0.8f; rp.Color = { 0.55f, 0.40f, 0.28f }; }
-				else if (desc.Type == WorldType::Alpine) { rp.Moss = 0.12f; rp.Color = { 0.36f, 0.37f, 0.40f }; }
-				else { rp.Moss = 0.75f; rp.Color = { 0.40f, 0.39f, 0.36f }; }
 				w.RockRecipes.push_back(rp);
+			}
+			// a graph that names its rocks: the node that feeds its "rocks" output
+			std::vector<std::pair<std::string, double>> palette;
+			if (const TerrainGraph* def = desc.TerrainGraphDefinition.get())
+				for (const TgNode& out : def->Nodes)
+					if (out.Type == "output" && out.Source == "rocks")
+						for (const TgEdge& e : def->Edges)
+							if (e.To == out.Id)
+								if (const TgNode* from = def->FindNode(e.From)) palette = ScatterPalette(*from);
+			if (!palette.empty())
+			{
+				std::vector<RockParams> named;
+				for (size_t j = 0; j < palette.size(); ++j)
+				{
+					const std::string& id = palette[j].first;
+					const size_t slash = id.find('/');
+					RockParams rp;
+					if (!rockLibrary->Resolve(id.substr(0, slash), slash == std::string::npos ? std::string() : id.substr(slash + 1), rp))
+					{
+						GB_CORE_WARN("rocks: the graph names '{}', which {} does not have; variant {} of the kit takes its place", id,
+							rockLibrary->Source.empty() ? std::string("the built-in library") : rockLibrary->Source, j % w.RockRecipes.size());
+						rp = w.RockRecipes[j % w.RockRecipes.size()];
+					}
+					rp.Seed = desc.Seed * 31u + 1000u + static_cast<uint32_t>(j);
+					named.push_back(rp);
+				}
+				w.RockRecipes = std::move(named);
 			}
 			const GeneratedWorld* self = &w;
 			const uint32_t desertRockSalt = salt(41u), rockSalt = salt(43u);
