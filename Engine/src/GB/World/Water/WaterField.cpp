@@ -97,4 +97,19 @@ namespace GB
 		}
 		return level;
 	}
+
+	std::vector<const LakeBody*> WaterField::Lakes() const
+	{
+		std::vector<const LakeBody*> all;
+		if (m_Lake.Present) all.push_back(&m_Lake);
+		for (const LakeBody& lake : m_MoreLakes) if (lake.Present) all.push_back(&lake);
+		return all;
+	}
+
+	float WaterField::LakeLevelAt(float x, float z) const
+	{
+		for (const LakeBody* lake : Lakes())
+			if (lake->Covers({ x, z })) return lake->Level;
+		return kNoWaterLevel;
+	}
 }

@@ -2,6 +2,7 @@
 #include "GB/World/Water/WaterField.h"
 #include "GB/World/Water.h"
 #include <memory>
+#include <vector>
 
 namespace GB
 {
@@ -35,5 +36,9 @@ namespace GB
 
 	// The renderable surfaces of a WaterField. Null when the field has no such body.
 	std::unique_ptr<WaterSurface> MakeLakeSurface(const WaterField& field, const WaterLook& look = DefaultWaterLook());
+	// One lake's (the main one is MakeLakeSurface(field)): a disc lake as above; a lake with a mask (lake_fill) on the circle that holds it.
+	std::unique_ptr<WaterSurface> MakeLakeSurface(const LakeBody& lake, const WaterLook& look = DefaultWaterLook());
+	// The surfaces of WaterField::MoreLakes(), in order (empty for a world with only its main lake).
+	std::vector<std::unique_ptr<WaterSurface>> MakeMoreLakeSurfaces(const WaterField& field, const WaterLook& look = DefaultWaterLook());
 	std::unique_ptr<WaterSurface> MakeRiverSurface(const WaterField& field, const WaterLook& look = DefaultWaterLook());
 }

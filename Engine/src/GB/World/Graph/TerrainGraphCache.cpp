@@ -34,6 +34,8 @@ namespace GB
 		for (const TgPath& p : v.Paths.Items) bytes += p.Points.capacity() * sizeof(glm::vec2) + p.Values.capacity() * sizeof(float);
 		if (const RiverData* river = v.Water.River())
 			bytes += river->Points.capacity() * sizeof(glm::vec3) + (river->Speed.capacity() + river->HalfWidths.capacity()) * sizeof(float);
+		bytes += v.Water.Lake().Mask.Cells.capacity();
+		for (const LakeBody& lake : v.Water.MoreLakes()) bytes += sizeof(LakeBody) + lake.Mask.Cells.capacity();
 		return bytes;
 	}
 

@@ -2,6 +2,7 @@
 #include "GB/World/Graph/ITerrainNode.h"
 #include "GB/World/Graph/Nodes/BiomeClassifyNode.h"
 #include "GB/World/Graph/Nodes/DepressionFillNode.h"
+#include "GB/World/Graph/Nodes/DrainageNodes.h"
 #include "GB/World/Graph/Nodes/ErosionNode.h"
 #include "GB/World/Graph/Nodes/FieldNodes.h"
 #include "GB/World/Graph/Nodes/FlowAccumulationNode.h"
@@ -55,6 +56,9 @@ namespace GB
 		// carving the world's water (Nodes/WaterCarveNodes.h)
 		registry.Register("lake_carve", [] { return std::make_unique<LakeCarveNode>(); });
 		registry.Register("river_carve", [] { return std::make_unique<RiverCarveNode>(); });
+		// generator 5, phase E1 (TERRENO_V5): one drainage, lakes filled to their overflow level (Nodes/DrainageNodes.h)
+		registry.Register("drainage", [] { return std::make_unique<DrainageNode>(); });
+		registry.Register("lake_fill", [] { return std::make_unique<LakeFillNode>(); });
 		// masks and the snow cover (Nodes/MaskNodes.h)
 		registry.Register("mask_height", [] { return std::make_unique<HeightMaskNode>(); });
 		registry.Register("mask_slope", [] { return std::make_unique<SlopeMaskNode>(); });

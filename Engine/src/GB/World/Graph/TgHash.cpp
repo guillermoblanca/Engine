@@ -74,6 +74,29 @@ namespace GB
 				h = Floats(river->HalfWidths, h);
 				h = Pod(river->HalfWidth, Pod(river->Depth, Pod(river->MouthLength, h)));
 			}
+			// the lakes lake_fill adds (E1), and a main lake with a mask: hashed only when there are any, so the water of every graph without
+			// them hashes as it always did
+			auto lakeExtras = [&](const LakeBody& l)
+			{
+				h = Pod(l.Mask.Spacing, Vec2(l.Mask.Origin, h));
+				h = Pod(l.Mask.W, Pod(l.Mask.H, h));
+				h = Pod(static_cast<uint64_t>(l.Mask.Cells.size()), h);
+				if (!l.Mask.Cells.empty()) h = TgHashBytes(l.Mask.Cells.data(), l.Mask.Cells.size(), h);
+				h = Pod(l.Area, Pod(l.Volume, Pod(l.MaxDepth, Vec2(l.Outlet, h))));
+			};
+			if (!lake.Mask.Empty()) lakeExtras(lake);
+			if (!v.Water.MoreLakes().empty())
+			{
+				h = Pod(static_cast<uint64_t>(v.Water.MoreLakes().size()), h);
+				for (const LakeBody& l : v.Water.MoreLakes())
+				{
+					h = Pod(static_cast<unsigned char>(l.Present ? 1 : 0), h);
+					h = Vec2(l.Center, h);
+					h = Pod(l.Radius, Pod(l.Level, h));
+					h = Pod(l.Outline.Irregularity, Pod(l.Outline.Phase1, Pod(l.Outline.Phase2, Pod(l.Outline.Phase3, h))));
+					lakeExtras(l);
+				}
+			}
 			return h;
 		}
 		default: return h;

@@ -1,7 +1,9 @@
 #pragma once
 #include "GB/World/Water/LakeOutline.h"
 #include "GB/World/RiverData.h"
+#include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <glm/glm.hpp>
 #include <utility>
 #include <vector>
@@ -12,19 +14,52 @@ namespace GB
 	// surface stands, how far a point is from it and which way it flows. It knows nothing about the terrain it was
 	// carved into, the mesh that draws it or the shader that shades it (SRP): Terrain keeps one, WorldGen and the
 	// editor ask it instead of repeating its arithmetic, and a renderer builds geometry from the same data.
-	// A world has at most one lake (a disc) and one river (a polyline) today; the questions are written so that
-	// more bodies (an ocean, a pond) extend this class rather than its callers.
+	// A world has one main lake (a disc, Lake()) and one river (a polyline); a terrain graph may add more lakes whose shore is a contour line
+	// (lake_fill, TERRENO_V5 E1: MoreLakes()). The questions are written so that more bodies extend this class rather than its callers.
 
 	inline constexpr float kNoWaterLevel = -1e9f;   // "no water here" for a level; also the level of a missing river
 	inline constexpr float kNoWaterDistance = 1e9f; // "no water at all" for a distance
+
+	// The cells of a grid a lake covers, for a lake whose shore is the contour line of its level (lake_fill): a box of W x H samples of the
+	// terrain grid, 1 where the water is. Empty for a lake that is its disc (Center, Radius, Outline).
+	struct LakeMask
+	{
+		glm::vec2 Origin{ 0.0f };   // world x,z of the box's first sample
+		float Spacing = 0.0f;       // metres between samples (the terrain grid's)
+		int W = 0, H = 0;
+		std::vector<uint8_t> Cells; // W*H, row major
+
+		bool Empty() const { return Cells.empty(); }
+		// True when the sample nearest to (x, z) is water.
+		bool Contains(float x, float z) const
+		{
+			if (Cells.empty() || Spacing <= 0.0f) return false;
+			const int i = static_cast<int>(std::floor((x - Origin.x) / Spacing + 0.5f)), j = static_cast<int>(std::floor((z - Origin.y) / Spacing + 0.5f));
+			return i >= 0 && j >= 0 && i < W && j < H && Cells[static_cast<size_t>(j) * static_cast<size_t>(W) + static_cast<size_t>(i)] != 0;
+		}
+	};
 
 	struct LakeBody
 	{
 		bool Present = false;
 		glm::vec2 Center{ 0.0f };
-		float Radius = 0.0f;   // meters of the water edge
+		float Radius = 0.0f;   // meters of the water edge (a lake with a Mask: the circle around Center that holds all of it)
 		float Level = 0.0f;    // height of the surface
 		LakeOutline Outline;   // how far the shore departs from the circle of `Radius` (a circle by default)
+		// A lake filled to the level it overflows at (lake_fill): which cells it covers, where it spills and how big it is. Empty Mask = a disc.
+		LakeMask Mask;
+		glm::vec2 Outlet{ 0.0f };   // where the water leaves it (the lowest point of its rim)
+		float Area = 0.0f;          // m2 of water
+		float Volume = 0.0f;        // m3
+		float MaxDepth = 0.0f;      // m
+
+		// The point is under this lake's surface as drawn: inside the Mask, or (without one) inside the outline of Radius.
+		bool Covers(const glm::vec2& p) const
+		{
+			if (!Present) return false;
+			if (!Mask.Empty()) return Mask.Contains(p.x, p.y);
+			return Outline.EffectiveDistance(p, Center) <= Radius;
+		}
 	};
 
 	// The nearest point of a river axis to a place: how far it is, how high the water stands there and the segment
@@ -50,6 +85,14 @@ namespace GB
 	{
 	public:
 		void SetLake(const LakeBody& lake) { m_Lake = lake; }
+		// Another lake (lake_fill). It does not become Lake(): what asks for "the lake" (the level a character swims at, the rain's ground) keeps
+		// the one SetLake gave, so a world with no main lake still has none (HasLake() false) however many of these it has.
+		void AddLake(LakeBody lake) { m_MoreLakes.push_back(std::move(lake)); }
+		const std::vector<LakeBody>& MoreLakes() const { return m_MoreLakes; }
+		// Every lake: Lake() first when there is one, then MoreLakes().
+		std::vector<const LakeBody*> Lakes() const;
+		// The level of the lake whose water covers (x, z) (LakeBody::Covers), the main lake first; kNoWaterLevel when none does.
+		float LakeLevelAt(float x, float z) const;
 		void SetRiver(RiverData river) { m_River = std::move(river); BuildRiverIndex(); }
 
 		bool HasLake() const { return m_Lake.Present; }
@@ -83,6 +126,7 @@ namespace GB
 		void BuildRiverIndex();
 
 		LakeBody m_Lake;
+		std::vector<LakeBody> m_MoreLakes;
 		RiverData m_River;
 		// The river's segments filed by square cells: each in every cell within m_IndexReach (1.2 of the widest half-width) of it, in order.
 		float m_IndexCell = 16.0f, m_IndexReach = 0.0f;
