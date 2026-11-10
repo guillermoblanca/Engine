@@ -1,0 +1,555 @@
+{
+  "edges": [
+    {
+      "from": "ridges",
+      "fromPort": "height",
+      "port": "a",
+      "to": "range"
+    },
+    {
+      "from": "massif",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "range"
+    },
+    {
+      "from": "range",
+      "fromPort": "out",
+      "port": "a",
+      "to": "relief"
+    },
+    {
+      "from": "foothills",
+      "fromPort": "height",
+      "port": "b",
+      "to": "relief"
+    },
+    {
+      "from": "relief",
+      "fromPort": "out",
+      "port": "in",
+      "to": "metres"
+    },
+    {
+      "from": "metres",
+      "fromPort": "out",
+      "port": "height",
+      "to": "steep"
+    },
+    {
+      "from": "crags",
+      "fromPort": "height",
+      "port": "a",
+      "to": "crag_mask"
+    },
+    {
+      "from": "steep",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "crag_mask"
+    },
+    {
+      "from": "metres",
+      "fromPort": "out",
+      "port": "a",
+      "to": "cragged"
+    },
+    {
+      "from": "crag_mask",
+      "fromPort": "out",
+      "port": "b",
+      "to": "cragged"
+    },
+    {
+      "from": "cragged",
+      "fromPort": "out",
+      "port": "height",
+      "to": "strata"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "in",
+      "to": "out_height"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "drainage"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "snow"
+    },
+    {
+      "from": "drainage",
+      "fromPort": "flow",
+      "port": "flow",
+      "to": "snow"
+    },
+    {
+      "from": "snow",
+      "fromPort": "snow",
+      "port": "in",
+      "to": "out_snow"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "faces"
+    },
+    {
+      "from": "faces",
+      "fromPort": "mask",
+      "port": "in",
+      "to": "out_rock"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "biomes"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "in",
+      "to": "out_biome"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "boulders"
+    },
+    {
+      "from": "boulders",
+      "fromPort": "placements",
+      "port": "in",
+      "to": "out_rocks"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "no_trees"
+    },
+    {
+      "from": "no_trees",
+      "fromPort": "placements",
+      "port": "in",
+      "to": "out_trees"
+    },
+    {
+      "from": "strata",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e2_fluvial"
+    },
+    {
+      "from": "massif",
+      "fromPort": "mask",
+      "port": "uplift",
+      "to": "e2_fluvial"
+    },
+    {
+      "from": "e4_talus",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e1_drain"
+    },
+    {
+      "from": "e4_talus",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "level",
+      "port": "level",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "receiver",
+      "port": "receiver",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_drain",
+      "fromPort": "order",
+      "port": "order",
+      "to": "e1_lakes"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "water",
+      "port": "in",
+      "to": "e1_out_water"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "lakes",
+      "port": "in",
+      "to": "e1_near"
+    },
+    {
+      "from": "e1_near",
+      "fromPort": "out",
+      "port": "in",
+      "to": "e1_dry"
+    },
+    {
+      "from": "e2_fluvial",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e4_talus"
+    }
+  ],
+  "id": "alpine_peaks_e4",
+  "kind": "terrain_graph",
+  "name": "Alpine peaks, E4 talus with hardness: towers and scree (TERRENO_V5)",
+  "nodes": [
+    {
+      "id": "ridges",
+      "label": "ridges",
+      "params": {
+        "Amplitude": 1.0,
+        "Frequency": 0.0042,
+        "Gain": 0.56,
+        "Lacunarity": 2.1,
+        "Mode": 1.0,
+        "Octaves": 8.0,
+        "WarpAmount": 45.0,
+        "WarpFrequency": 0.0028
+      },
+      "type": "heightfield_noise",
+      "x": 40.0,
+      "y": 40.0
+    },
+    {
+      "id": "massif",
+      "label": "massif",
+      "params": {
+        "CenterX": 0.0,
+        "CenterZ": 40.0,
+        "Mode": 1.0,
+        "Radius": 240.0
+      },
+      "type": "gradient",
+      "x": 40.0,
+      "y": 200.0
+    },
+    {
+      "id": "range",
+      "label": "range",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 290.0,
+      "y": 100.0
+    },
+    {
+      "id": "foothills",
+      "label": "foothills",
+      "params": {
+        "Amplitude": 0.12,
+        "Frequency": 0.012,
+        "Mode": 2.0,
+        "Octaves": 4.0,
+        "Seed": 3.0
+      },
+      "type": "heightfield_noise",
+      "x": 290.0,
+      "y": 260.0
+    },
+    {
+      "id": "relief",
+      "label": "relief",
+      "params": {
+        "Mode": 0.0
+      },
+      "type": "combine",
+      "x": 540.0,
+      "y": 160.0
+    },
+    {
+      "id": "metres",
+      "label": "metres",
+      "params": {
+        "AutoRange": 1.0,
+        "Gamma": 1.15,
+        "OutMax": 125.0,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 790.0,
+      "y": 160.0
+    },
+    {
+      "id": "crags",
+      "label": "crags",
+      "params": {
+        "Amplitude": 9.0,
+        "Frequency": 0.03,
+        "Gain": 0.5,
+        "Mode": 1.0,
+        "Octaves": 4.0,
+        "Seed": 7.0,
+        "WarpAmount": 6.0,
+        "WarpFrequency": 0.02
+      },
+      "type": "heightfield_noise",
+      "x": 790.0,
+      "y": 320.0
+    },
+    {
+      "id": "steep",
+      "label": "steep",
+      "params": {
+        "Falloff": 15.0,
+        "MinDegrees": 20.0
+      },
+      "type": "mask_slope",
+      "x": 790.0,
+      "y": 480.0
+    },
+    {
+      "id": "crag_mask",
+      "label": "crag_mask",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 1040.0,
+      "y": 400.0
+    },
+    {
+      "id": "cragged",
+      "label": "cragged",
+      "params": {
+        "Mode": 0.0
+      },
+      "type": "combine",
+      "x": 1040.0,
+      "y": 160.0
+    },
+    {
+      "id": "strata",
+      "label": "strata",
+      "params": {
+        "FullSlopeDegrees": 45.0,
+        "MinSlopeDegrees": 28.0,
+        "Sharpness": 0.8,
+        "Spacing": 5.0,
+        "Strength": 0.55,
+        "Waver": 4.0
+      },
+      "type": "strata",
+      "x": 1290.0,
+      "y": 320.0
+    },
+    {
+      "id": "out_height",
+      "label": "out_height",
+      "source": "height",
+      "type": "output",
+      "x": 1800.0,
+      "y": 40.0
+    },
+    {
+      "id": "drainage",
+      "label": "drainage",
+      "type": "flow_accumulation",
+      "x": 1800.0,
+      "y": 200.0
+    },
+    {
+      "id": "snow",
+      "label": "snow",
+      "params": {
+        "BareSlopeDegrees": 40.0,
+        "Breakup": 0.3,
+        "BreakupScale": 6.0,
+        "FlowBoost": 0.75,
+        "FullSlopeDegrees": 27.0,
+        "HollowBoost": 0.25,
+        "HollowRadius": 4.0,
+        "RidgeLoss": 0.3
+      },
+      "type": "snow_accumulate",
+      "x": 2050.0,
+      "y": 200.0
+    },
+    {
+      "id": "out_snow",
+      "label": "out_snow",
+      "source": "splat_snow",
+      "type": "output",
+      "x": 2300.0,
+      "y": 200.0
+    },
+    {
+      "id": "faces",
+      "label": "faces",
+      "params": {
+        "Falloff": 10.0,
+        "MinDegrees": 24.0
+      },
+      "type": "mask_slope",
+      "x": 2050.0,
+      "y": 360.0
+    },
+    {
+      "id": "out_rock",
+      "label": "out_rock",
+      "source": "splat_rock",
+      "type": "output",
+      "x": 2300.0,
+      "y": 360.0
+    },
+    {
+      "id": "biomes",
+      "label": "biomes",
+      "params": {
+        "RockSlopeDegrees": 38.0,
+        "SnowRelative": 0.3,
+        "WaterLevel": -1000.0
+      },
+      "type": "biome_classify",
+      "x": 2050.0,
+      "y": 520.0
+    },
+    {
+      "id": "out_biome",
+      "label": "out_biome",
+      "source": "biome",
+      "type": "output",
+      "x": 2300.0,
+      "y": 520.0
+    },
+    {
+      "id": "boulders",
+      "label": "boulders",
+      "params": {
+        "Count": 60.0,
+        "MaxSlopeDegrees": 40.0,
+        "MinSpacing": 6.0,
+        "Variants": 6.0
+      },
+      "type": "scatter",
+      "x": 2050.0,
+      "y": 680.0
+    },
+    {
+      "id": "out_rocks",
+      "label": "out_rocks",
+      "source": "rocks",
+      "type": "output",
+      "x": 2300.0,
+      "y": 680.0
+    },
+    {
+      "id": "no_trees",
+      "label": "no_trees",
+      "params": {
+        "Count": 0.0
+      },
+      "type": "scatter",
+      "x": 2050.0,
+      "y": 840.0
+    },
+    {
+      "id": "out_trees",
+      "label": "out_trees",
+      "source": "trees",
+      "type": "output",
+      "x": 2300.0,
+      "y": 840.0
+    },
+    {
+      "id": "e2_fluvial",
+      "label": "e2_fluvial",
+      "params": {
+        "Diffusion": 0.0003,
+        "Erodibility": 3.0,
+        "TimeStep": 1000.0,
+        "Uplift": 0.5
+      },
+      "type": "fluvial_erosion",
+      "x": 1410.0,
+      "y": 440.0
+    },
+    {
+      "id": "e1_drain",
+      "label": "e1_drain",
+      "type": "drainage",
+      "x": 4200.0,
+      "y": 40.0
+    },
+    {
+      "id": "e1_lakes",
+      "label": "e1_lakes",
+      "type": "lake_fill",
+      "x": 4450.0,
+      "y": 200.0
+    },
+    {
+      "id": "e1_out_water",
+      "label": "e1_out_water",
+      "source": "water",
+      "type": "output",
+      "x": 4700.0,
+      "y": 360.0
+    },
+    {
+      "id": "e1_near",
+      "label": "e1_near",
+      "params": {
+        "Passes": 1.0,
+        "Radius": 2.0
+      },
+      "type": "blur",
+      "x": 4200.0,
+      "y": 520.0
+    },
+    {
+      "id": "e1_dry",
+      "label": "e1_dry",
+      "params": {
+        "InMax": 0.02,
+        "InMin": 0.0,
+        "OutMax": 0.0,
+        "OutMin": 1.0
+      },
+      "type": "remap",
+      "x": 4450.0,
+      "y": 680.0
+    },
+    {
+      "id": "e4_talus",
+      "label": "e4_talus",
+      "params": {
+        "HardAngle": 75.0,
+        "HardCover": 0.0,
+        "NoiseScale": 120.0,
+        "SoftAngle": 36.0,
+        "Steep": 0.85,
+        "StrataCover": 0.55,
+        "StrataHard": 0.5,
+        "StrataSpacing": 12.0,
+        "StrataWarp": 3.0
+      },
+      "type": "talus",
+      "x": 1530.0,
+      "y": 560.0
+    }
+  ],
+  "version": 2
+}

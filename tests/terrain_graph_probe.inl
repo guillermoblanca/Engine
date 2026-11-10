@@ -5,6 +5,8 @@
 // and lake_fill, the scatter kept out of the lakes. "e1x:<preset>" the same with lake_fill making no lake (desert: only the drainage).
 // "e2:<preset>" adds TERRENO_V5 E2 too (AppendE2): fluvial_erosion right after the relief, the droplet erosion and the drawn valley out, and
 // E1 at the end; "e2v:" keeps the drawn valley, "e2x:" makes no lake, "e2w:" puts it after the water, in place of the droplets. GB_E2_PARAMS="Name=value ..." sets fluvial_erosion's parameters.
+// "e4:<preset>" adds TERRENO_V5 E4 (AppendE4): talus right after fluvial_erosion (E1 and E2 appended first unless the graph has an
+// "e2_fluvial" already, as the *_e2.json graphs do). GB_E4_PARAMS="Name=value ..." sets talus's parameters.
 //   GBSimTests terrain_graph_cache hausdorff <a_river.f32> <b_river.f32>   (the probe writes <tag>_river.f32 with an out_dir)
 //   GBSimTests terrain_graph_cache dem <height.f32> <n> <size> [lakes.f32|-] [out_dir] [tag]
 // the same measures on a bare height field, a real DEM crop or one of ours resampled (tools/dem_ref.py; see Dem below).
@@ -15,6 +17,7 @@
 // which tools/terrain_probe_png.py turns into maps.
 #include "GB/World/FlowAccumulation.h"
 #include "GB/World/StreamPower.h"
+#include "GB/World/Talus.h"
 #include "GB/World/Graph/TerrainGraphIO.h"
 #include "GB/World/Water/LakeMesh.h"
 #include "GB/World/Water/WaterRaster.h"
@@ -122,10 +125,10 @@ namespace
 		g.Nodes.erase(std::remove_if(g.Nodes.begin(), g.Nodes.end(), [&](const TgNode& n) { return n.Id == id; }), g.Nodes.end());
 	}
 
-	std::map<std::string, double> E2Params()
+	std::map<std::string, double> EnvParams(const char* var)
 	{
 		std::map<std::string, double> params;
-		if (const char* env = std::getenv("GB_E2_PARAMS"))
+		if (const char* env = std::getenv(var))
 		{
 			std::istringstream in(env);
 			std::string kv;
@@ -159,7 +162,7 @@ namespace
 		if (anchor.empty() || port.empty()) { error = "no relief to put fluvial_erosion after (a node 'ground', or what feeds 'rain')"; return false; }
 		for (TgEdge& e : g.Edges) if (e.From == anchor && e.FromPort == port) { e.From = "e2_fluvial"; e.FromPort = "height"; }
 		TgNode n;
-		n.Id = "e2_fluvial"; n.Type = "fluvial_erosion"; n.Label = "e2_fluvial"; n.Params = E2Params();
+		n.Id = "e2_fluvial"; n.Type = "fluvial_erosion"; n.Label = "e2_fluvial"; n.Params = EnvParams("GB_E2_PARAMS");
 		if (const TgNode* a = g.FindNode(anchor)) { n.X = a->X + 120.0f; n.Y = a->Y + 120.0f; }
 		g.Nodes.push_back(std::move(n));
 		g.Edges.push_back({ anchor, "e2_fluvial", "height", port });
@@ -184,6 +187,90 @@ namespace
 		if (const TgNode* s = g.FindNode("settled"); s && s->Type == "blend") Bypass(g, "settled", "a", "out");
 		if (!keepValley && g.FindNode("valley")) Bypass(g, "valley", "height", "height", true);
 		return true;
+	}
+
+	// TERRENO_V5 E4 on a graph with E2: "e4_talus" (talus) right after "e2_fluvial", so everything that read the incised ground reads it after
+	// the talus. Its parameters come from GB_E4_PARAMS ("Name=value ..."); the defaults otherwise.
+	bool AppendE4(TerrainGraph& g, std::string& error)
+	{
+		const TgNode* e2 = g.FindNode("e2_fluvial");
+		if (!e2) { error = "e4: no e2_fluvial to put talus after"; return false; }
+		for (TgEdge& e : g.Edges) if (e.From == "e2_fluvial" && e.FromPort == "height") { e.From = "e4_talus"; }
+		TgNode n;
+		n.Id = "e4_talus"; n.Type = "talus"; n.Label = "e4_talus"; n.Params = EnvParams("GB_E4_PARAMS");
+		n.X = e2->X + 120.0f; n.Y = e2->Y + 120.0f;
+		g.Nodes.push_back(std::move(n));
+		g.Edges.push_back({ "e2_fluvial", "e4_talus", "height", "height" });
+		return true;
+	}
+
+	//   GBSimTests terrain_graph_cache e4bench <height.f32> <n> <size> [key=value ...] [out=<height.f32>]
+	// TERRENO_V5 E4 on a height field (the probe's <tag>_e2height.f32, fluvial_erosion's ground): TalusErode with its own hardness, timed by
+	// phase, its volumes, the hollows it makes (the level of the water over the ground grows) and the slopes in and out of the hard rock.
+	// keys: soft, hard, scree (degrees), area (ChannelArea, m2), deposit (0/1), cover, scale, seed, edge, strata, strataHard, warp, strataCover
+	int E4Bench(int argc, char** argv)
+	{
+		if (argc < 5) { std::fprintf(stderr, "e4bench <height.f32> <n> <size> [key=value ...]\n"); return 2; }
+		const uint32_t n = static_cast<uint32_t>(std::atoi(argv[3]));
+		const float size = static_cast<float>(std::atof(argv[4])), sp = size / static_cast<float>(n - 1);
+		std::vector<float> h(static_cast<size_t>(n) * n);
+		if (FILE* f = std::fopen(argv[2], "rb")) { const size_t got = std::fread(h.data(), sizeof(float), h.size(), f); std::fclose(f); if (got != h.size()) { std::fprintf(stderr, "short file\n"); return 2; } }
+		else { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
+		std::map<std::string, std::string> kv;
+		for (int a = 5; a < argc; ++a) { const std::string t = argv[a]; const size_t eq = t.find('='); if (eq != std::string::npos) kv[t.substr(0, eq)] = t.substr(eq + 1); }
+		auto num = [&](const char* k, double d) { const auto it = kv.find(k); return it == kv.end() ? d : std::atof(it->second.c_str()); };
+		TalusHardnessParams hp;
+		hp.Cover = static_cast<float>(num("cover", 0.1)); hp.NoiseScale = static_cast<float>(num("scale", 250)); hp.Seed = static_cast<uint32_t>(num("seed", 0));
+		hp.Edge = static_cast<float>(num("edge", 0.08)); hp.StrataSpacing = static_cast<float>(num("strata", 0)); hp.StrataHard = static_cast<float>(num("strataHard", 0.35));
+		hp.StrataWarp = static_cast<float>(num("warp", 0)); hp.StrataCover = static_cast<float>(num("strataCover", 1)); hp.Steep = static_cast<float>(num("steep", 0));
+		auto t0 = std::chrono::steady_clock::now();
+		const std::vector<float> hard = TalusHardness(h.data(), n, sp, -0.5f * size, -0.5f * size, hp);
+		const double hardMs = Seconds(t0) * 1000.0;
+		TalusOptions o;
+		o.SoftAngle = static_cast<float>(num("soft", 36)); o.HardAngle = static_cast<float>(num("hard", 70)); o.ScreeAngle = static_cast<float>(num("scree", 33));
+		o.ChannelArea = static_cast<float>(num("area", 2000)); o.Deposit = num("deposit", 1) >= 0.5; o.Hardness = hard.data();
+		t0 = std::chrono::steady_clock::now();
+		const TalusResult r = TalusErode(h.data(), n, sp, o);
+		const double ms = Seconds(t0) * 1000.0;
+		const TalusStats& st = r.Stats;
+		std::printf("e4bench %u^2 (%.2f m): %.0f ms (hardness %.0f; flood %.0f, cut %.0f, fall %.0f, scree %.0f in %d passes, apex factor %.2f)\n", n, sp, ms, hardMs,
+			st.FloodMs, st.CutMs, st.FallMs, st.ScreeMs, st.FitPasses, st.ApexFactor);
+		std::printf("  cut %.3g m3 on %zu cells; to channels %.3g, lakes %.3g, border %.3g; %zu feet with %.3g m3, scree %.3g m3 on %zu cells; %zu channel cells, %zu lake cells\n",
+			st.CutVolume, st.CutCells, st.ChannelVolume, st.LakeVolume, st.BorderVolume, st.Feet, st.FootVolume, st.ScreeVolume, st.ScreeCells, st.ChannelCells, st.LakeCells);
+		const DrainageResult before = ComputeDrainage(h.data(), n, sp), after = ComputeDrainage(r.Heights.data(), n, sp);
+		size_t grew = 0, grew50 = 0, minima = 0, minimaScree = 0;
+		float deepest = 0.0f; size_t at = 0;
+		for (size_t c = 0; c < h.size(); ++c)
+		{
+			const float g = (after.Level[c] - r.Heights[c]) - (before.Level[c] - h[c]);
+			grew += g > 0.05f; grew50 += g > 0.5f;
+			if (g > deepest) { deepest = g; at = c; }
+			const uint32_t i = static_cast<uint32_t>(c % n), j = static_cast<uint32_t>(c / n);
+			if (i == 0 || j == 0 || i + 1 == n || j + 1 == n || r.Lake[c]) continue;
+			bool lower = false;
+			for (int dj = -1; dj <= 1; ++dj) for (int di = -1; di <= 1; ++di) if ((di || dj) && r.Heights[c + static_cast<size_t>(static_cast<int>(n) * dj + di)] < r.Heights[c]) lower = true;
+			if (!lower) { ++minima; minimaScree += r.Scree[c] > 0.0f; }
+		}
+		std::printf("  new hollows > 0.05 m on %.3f %% of the cells, > 0.5 m on %.3f %%, deepest %.2f m at cell (%zu, %zu): cut %.2f, scree %.2f, lake %d; %zu local minima outside the lakes (%zu on scree)\n",
+			Pct(grew, h.size()), Pct(grew50, h.size()), deepest, at % n, at / n, r.Cut[at], r.Scree[at], r.Lake[at], minima, minimaScree);
+		size_t hc = 0, sc = 0, h50 = 0, h3040 = 0, s40 = 0, s50 = 0, s3040 = 0, all40 = 0, all50 = 0;
+		for (uint32_t j = 1; j + 1 < n; ++j)
+			for (uint32_t i = 1; i + 1 < n; ++i)
+			{
+				const size_t c = static_cast<size_t>(j) * n + i;
+				if (r.Lake[c]) continue;
+				const float gx = (r.Heights[c + 1] - r.Heights[c - 1]) / (2.0f * sp), gz = (r.Heights[c + n] - r.Heights[c - n]) / (2.0f * sp);
+				const float deg = glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz)));
+				all40 += deg > 40.0f; all50 += deg > 50.0f;
+				if (hard[c] >= 0.5f) { ++hc; h50 += deg > 50.0f; h3040 += deg > 30.0f && deg <= 40.0f; }
+				else { ++sc; s40 += deg > 40.0f; s50 += deg > 50.0f; s3040 += deg > 30.0f && deg <= 40.0f; }
+			}
+		std::printf("  slopes: all > 40 %.1f %%, > 50 %.2f %%; hard (%.1f %%) > 50 %.1f %%, 30-40 %.1f %%; soft > 40 %.2f %%, > 50 %.2f %%, 30-40 %.1f %%\n",
+			Pct(all40, hc + sc), Pct(all50, hc + sc), Pct(hc, hc + sc), Pct(h50, hc), Pct(h3040, hc), Pct(s40, sc), Pct(s50, sc), Pct(s3040, sc));
+		if (kv.count("out")) WriteF32(kv["out"], r.Heights);
+		if (kv.count("outHard")) WriteF32(kv["outHard"], hard);
+		if (kv.count("outScree")) WriteF32(kv["outScree"], r.Scree);
+		return 0;
 	}
 
 	// The river's course as float32 pairs (x, z), every point: what `hausdorff` compares between two probes.
@@ -258,7 +345,8 @@ namespace
 	// (anything but plain gen4, which the world builds by itself).
 	bool ProbeGraph(std::string name, const WorldDesc& desc, TerrainGraph& g, bool& own, std::string& error)
 	{
-		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false;
+		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false, e4 = false;
+		if (name.rfind("e4:", 0) == 0) { e4 = true; name = name.substr(3); }
 		if (name.rfind("e1:", 0) == 0) { e1 = true; name = name.substr(3); }
 		else if (name.rfind("e1x:", 0) == 0) { e1 = true; lakes = false; name = name.substr(4); }
 		else if (name.rfind("e2:", 0) == 0) { e1 = e2 = true; name = name.substr(3); }
@@ -276,8 +364,11 @@ namespace
 			if (!error.empty()) return false;
 		}
 		else if (!MakeTerrainGraphPreset(name, g)) { error = "unknown preset " + name; return false; }
+		if (e4 && !g.FindNode("e2_fluvial")) e1 = e2 = true;
+		own = own || e4;
 		if (e2 && !AppendE2(g, keepValley, afterWater, error)) return false;
-		return !e1 || AppendE1(g, lakes, error);
+		if (e1 && !AppendE1(g, lakes, error)) return false;
+		return !e4 || AppendE4(g, error);
 	}
 
 	WorldDesc ProbeDesc(const std::string& type, uint32_t seed, float size, uint32_t resolution)
@@ -922,6 +1013,61 @@ namespace
 			Pct(s50, interior), 10.0 * Pct(pits, interior));
 		std::printf("  drainage of the dry land: to the water %.1f %%, off the map %.1f %%, into a pit %.1f %%; channel cells %zu, %.1f %% with water\n",
 			Pct(toWater, land), Pct(toBorder, land), Pct(pitLand, land), channel, Pct(channelWet, channel));
+		// walkable (TERRENO_V5 E4, ESCENARIOS_JUGABLES C3): a dry cell is walkable when its own slope (central differences) is under a limit; the
+		// share of all the dry land in the largest 8-connected piece of walkable cells. At 30 degrees (the order's measure) and at 40.4 (rise over
+		// run 0.85: NavProfile::MaxSlope, where the navigation makes a cell a wall)
+		double walk30 = 0.0, walk40 = 0.0;
+		{
+			std::vector<float> cellSlope(count, 0.0f);
+			for (uint32_t j = 0; j < n; ++j)
+				for (uint32_t i = 0; i < n; ++i)
+				{
+					const uint32_t i0 = i > 0 ? i - 1 : i, i1 = i + 1 < n ? i + 1 : i, j0 = j > 0 ? j - 1 : j, j1 = j + 1 < n ? j + 1 : j;
+					const float gx = (h.At(i1, j) - h.At(i0, j)) / (static_cast<float>(i1 - i0) * sp), gz = (h.At(i, j1) - h.At(i, j0)) / (static_cast<float>(j1 - j0) * sp);
+					cellSlope[static_cast<size_t>(j) * n + i] = std::sqrt(gx * gx + gz * gz);
+				}
+			size_t dryAll = 0;
+			for (size_t c = 0; c < count; ++c) dryAll += wetKinds[c] == 0.0f;
+			auto largest = [&](float limit, size_t& pieces)
+			{
+				std::vector<uint8_t> seen(count, 0);
+				std::vector<uint32_t> stack;
+				size_t best = 0;
+				pieces = 0;
+				for (size_t c0 = 0; c0 < count; ++c0)
+				{
+					if (seen[c0] || wetKinds[c0] != 0.0f || cellSlope[c0] > limit) continue;
+					++pieces;
+					size_t size = 0;
+					seen[c0] = 1;
+					stack.assign(1, static_cast<uint32_t>(c0));
+					while (!stack.empty())
+					{
+						const uint32_t c = stack.back();
+						stack.pop_back();
+						++size;
+						const int ci = static_cast<int>(c % n), cj = static_cast<int>(c / n);
+						for (int dj = -1; dj <= 1; ++dj)
+							for (int di = -1; di <= 1; ++di)
+							{
+								const int ni = ci + di, nj = cj + dj;
+								if ((!di && !dj) || ni < 0 || nj < 0 || ni >= static_cast<int>(n) || nj >= static_cast<int>(n)) continue;
+								const size_t m = static_cast<size_t>(nj) * n + static_cast<size_t>(ni);
+								if (seen[m] || wetKinds[m] != 0.0f || cellSlope[m] > limit) continue;
+								seen[m] = 1;
+								stack.push_back(static_cast<uint32_t>(m));
+							}
+					}
+					best = std::max(best, size);
+				}
+				return Pct(best, dryAll);
+			};
+			size_t p30 = 0, p40 = 0;
+			walk30 = largest(std::tan(glm::radians(30.0f)), p30);
+			walk40 = largest(0.85f, p40);
+			std::printf("  walkable: the largest piece of dry cells under 30 deg holds %.1f %% of the dry land (%zu pieces); under 40.4 deg (NavProfile::MaxSlope 0.85) %.1f %% (%zu pieces)\n",
+				walk30, p30, walk40, p40);
+		}
 		ProbeJson js;
 		std::string jsonPath;
 		if (!outDir.empty()) { jsonPath = outDir + "/" + tag + "_info.json"; js.File = std::fopen(jsonPath.c_str(), "w"); if (js.File) std::fprintf(js.File, "{\n  "); }
@@ -931,6 +1077,7 @@ namespace
 		js.Num("slope30", Pct(s30, interior)); js.Num("slope40", Pct(s40, interior)); js.Num("slope50", Pct(s50, interior));
 		js.Num("pits_per_1000", 10.0 * Pct(pits, interior)); js.Num("land_to_pit", Pct(pitLand, land)); js.Num("channel_wet", Pct(channelWet, channel));
 		js.Num("fill_005", Pct(fill5, count)); js.Num("fill_05", Pct(fill50, count)); js.Num("biggest_basin_m3", biggestBasin);
+		js.Num("walk30", walk30); js.Num("walk40", walk40);
 		js.Num("strahler", maxOrder); js.Num("confluences", static_cast<double>(confluences)); js.Num("floor_flat", Pct(floorFlat, floorCells)); js.Num("slope3040", Pct(s3040, interior));
 		if (lake)
 		{
@@ -1130,6 +1277,55 @@ namespace
 			{
 				WriteF32(outDir + "/" + tag + "_e2height.f32", eh.Values);
 				if (const auto in = r.Nodes.find("ground"); in != r.Nodes.end() && !in->second.empty()) WriteF32(outDir + "/" + tag + "_e2input.f32", in->second.begin()->second.Field.Values);
+			}
+		}
+		if (const auto e4 = r.Nodes.find("e4_talus"); e4 != r.Nodes.end() && e4->second.count("height"))
+		{
+			// the talus against its input (fluvial_erosion's ground): the hollows it makes that were not there (the level of the water over the
+			// ground grows by > 0.05 m), how much it cut and laid down as scree, and the steepest ground in and out of the hard rock
+			const TgField& th = e4->second.at("height").Field;
+			const TgField& tin = r.Nodes.at("e2_fluvial").at("height").Field;
+			const DrainageResult before = ComputeDrainage(tin.Values.data(), tin.N, tin.Spacing());
+			const DrainageResult after = ComputeDrainage(th.Values.data(), th.N, th.Spacing());
+			const size_t tc = th.Values.size();
+			size_t newHollow = 0, newHollow50 = 0;
+			float deepestNew = 0.0f;
+			size_t at = 0;
+			for (size_t c = 0; c < tc; ++c)
+			{
+				const float grew = (after.Level[c] - th.Values[c]) - (before.Level[c] - tin.Values[c]);
+				newHollow += grew > 0.05f; newHollow50 += grew > 0.5f;
+				if (grew > deepestNew) { deepestNew = grew; at = c; }
+			}
+			const std::vector<float>& cutV = e4->second.at("cut").Field.Values;
+			const std::vector<float>& screeV = e4->second.at("scree").Field.Values;
+			const std::vector<float>& hardV = e4->second.at("hardness").Field.Values;
+			const float tsp = th.Spacing(), cellA = tsp * tsp;
+			double cutVol = 0.0, screeVol = 0.0;
+			size_t screeCells = 0, hardCells = 0, softCells = 0, hard50 = 0, soft50 = 0, hard3040 = 0, soft40 = 0;
+			for (size_t c = 0; c < tc; ++c) { cutVol += cutV[c] * cellA; screeVol += screeV[c] * cellA; screeCells += screeV[c] > 0.1f; }
+			for (uint32_t j = 1; j + 1 < th.N; ++j)
+				for (uint32_t i = 1; i + 1 < th.N; ++i)
+				{
+					const size_t c = static_cast<size_t>(j) * th.N + i;
+					const float gx = (th.At(i + 1, j) - th.At(i - 1, j)) / (2.0f * tsp), gz = (th.At(i, j + 1) - th.At(i, j - 1)) / (2.0f * tsp);
+					const float deg = glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz)));
+					if (hardV[c] >= 0.5f) { ++hardCells; hard50 += deg > 50.0f; hard3040 += deg > 30.0f && deg <= 40.0f; }
+					else { ++softCells; soft50 += deg > 50.0f; soft40 += deg > 40.0f; }
+				}
+			const glm::vec2 p = th.SamplePosition(static_cast<uint32_t>(at % th.N), static_cast<uint32_t>(at / th.N));
+			std::printf("  E4 talus: cut %.3g m3, scree %.3g m3 on %.2f %% of the cells (%.0f %% of the cut); new hollows > 0.05 m on %.3f %% of the cells, > 0.5 m on %.3f %%, deepest %.2f m at (%.0f, %.0f)\n",
+				cutVol, screeVol, Pct(screeCells, tc), cutVol > 0.0 ? 100.0 * screeVol / cutVol : 0.0, Pct(newHollow, tc), Pct(newHollow50, tc), deepestNew, p.x, p.y);
+			std::printf("  E4 slopes at %.2f m: hard rock (%.1f %% of the map) > 50 deg %.1f %%, 30-40 %.1f %%; the rest > 40 deg %.2f %%, > 50 %.2f %%\n",
+				tsp, Pct(hardCells, hardCells + softCells), Pct(hard50, hardCells), Pct(hard3040, hardCells), Pct(soft40, softCells), Pct(soft50, softCells));
+			js.Num("e4_cut_m3", cutVol); js.Num("e4_scree_m3", screeVol); js.Num("e4_new_hollow_005", Pct(newHollow, tc)); js.Num("e4_new_hollow_05", Pct(newHollow50, tc));
+			js.Num("e4_new_hollow_max", deepestNew); js.Num("e4_hard_frac", Pct(hardCells, hardCells + softCells)); js.Num("e4_hard_gt50", Pct(hard50, hardCells));
+			js.Num("e4_hard_30_40", Pct(hard3040, hardCells)); js.Num("e4_soft_gt40", Pct(soft40, softCells)); js.Num("e4_soft_gt50", Pct(soft50, softCells));
+			if (!outDir.empty())
+			{
+				WriteF32(outDir + "/" + tag + "_e4hardness.f32", hardV);
+				WriteF32(outDir + "/" + tag + "_e4scree.f32", screeV);
+				WriteF32(outDir + "/" + tag + "_e4cut.f32", cutV);
 			}
 		}
 		if (const char* dump = std::getenv("GB_PROBE_DUMP"); dump && !outDir.empty())   // "node.port node.port ...": those fields as <tag>_node_<node>.f32
