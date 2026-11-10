@@ -2,6 +2,13 @@
 
 - C++20, CMake. Objetivo: Windows y Linux. Namespace `GB`, macros `GB_*`.
 - Build y tests: ver README. Antes de commitear: configurar con `-DGB_WARNINGS_AS_ERRORS=ON`, compilar y pasar `ctest`.
+- Tests (T51): tres ejecutables comunes (`GBSimTests`, `GBRenderTests`, `GBGLTests`); uno a mano con `GBSimTests <nombre> [args]`
+  (p. ej. `GBSimTests ai main`). Etiquetas: `rapido`, `lento`, `imagen`, `gl`, `sim`, `editor`.
+  - Rápido (~13 s): `ctest -C Release -L rapido -j 8`
+  - Sin editor (~4 min): `ctest -C Release -LE editor -j 8`
+  - Editor: `ctest -C Release -L editor -j 4`
+  - Cambio no visual: `ctest -C Release -LE "imagen|editor" -j 8` (sin capturas ni golden)
+  - Test nuevo: `gb_test(<nombre> <fuente>.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)` y la función `int GBTest_<fichero>(int, char**)`.
 - Usar `#include "GB/..."` con `/` (nunca `\`).
 - No versionar binarios ni salidas de build (ver `.gitignore`). Dependencias vía FetchContent con versión fija.
 - Todo código nuevo del motor debe poder ejecutarse headless (sin ventana) para tests y QA visual por capturas.
