@@ -683,54 +683,78 @@ namespace GB::Editor
 			ImGui::Text("Season: %s", SeasonClock::Name(season));
 			ImGui::ProgressBar(SeasonClock().Progress(clock), ImVec2(-1.0f, 0.0f));
 			ImGui::Text("Plants grow x%.1f   weather: %s   time %.0f s", static_cast<double>(SeasonClock::GrowthRate(season)), m_Props.Get("weather.preset").c_str(), clock);
+			// T79: the rows come from one walk of the systems, remade when one is created or removed or once a second (m_WorldStateRows), and
+			// only the rows in view are drawn (ImGuiListClipper): what the panel shows is the same as when every frame walked them all.
+			WorldStateRows& rows = m_WorldStateRows;
+			const auto now = std::chrono::steady_clock::now();
+			if (!rows.Valid || rows.Revision != m_Gameplay.Revision() || now - rows.Made >= std::chrono::seconds(1))
+			{
+				rows.Valid = true;
+				rows.Revision = m_Gameplay.Revision();
+				rows.Made = now;
+				rows.Ecology = m_Ecology.Describe();
+				rows.Animals.clear(); rows.Interactives.clear(); rows.Kinds.clear(); rows.Garden.clear();
+				std::map<std::string, std::pair<int, int>> kinds;   // kind -> (units, nodes)
+				char line[160];
+				for (const auto& [n, system] : m_Gameplay.Systems())   // (in name order, as Names() listed them)
+				{
+					const AbilitySystemComponent* a = system.get();
+					if (!a) continue;
+					if (a->HasTag("Animal"))
+					{
+						const float food = a->Attributes().Current("Food");
+						std::snprintf(line, sizeof line, "%s  food %.0f  age %.0f s%s", n.c_str(), static_cast<double>(food), static_cast<double>(a->Attributes().Current("Age")), food < 55.0f ? "  (hungry)" : "");
+						rows.Animals.push_back({ line, food });
+					}
+					if (a->HasTag("Interactive.Campfire")) { std::snprintf(line, sizeof line, "%s: %s, fuel %.0f", n.c_str(), InteractiveSystem::CampfireState(*a).c_str(), static_cast<double>(a->Attributes().Current("Fuel"))); rows.Interactives.push_back(line); }
+					else if (a->HasTag("Interactive.Well")) { std::snprintf(line, sizeof line, "%s: water %.0f / %.0f", n.c_str(), static_cast<double>(a->Attributes().Current("Water")), static_cast<double>(a->Attributes().Max("Water"))); rows.Interactives.push_back(line); }
+					else if (a->HasTag("Interactive.Door")) rows.Interactives.push_back(n + ": " + InteractiveSystem::DoorState(*a));
+					if (a->HasTag("Resource.Node"))
+					{
+						std::pair<int, int>& k = kinds[n.substr(0, n.rfind(' '))];
+						k.first += ResourceSystem::Amount(*a);
+						++k.second;
+					}
+					if (a->HasTag("Garden.Plot")) rows.Garden.push_back(n + ": " + GardenSystem::SoilState(*a));
+				}
+				for (const auto& [kind, v] : kinds) rows.Kinds.push_back(kind + ": " + std::to_string(v.first) + " units in " + std::to_string(v.second) + " nodes");
+			}
+			// a list of text lines, only those in view drawn
+			auto lines = [](const std::vector<std::string>& list)
+			{
+				ImGuiListClipper clipper;
+				clipper.Begin(static_cast<int>(list.size()), ImGui::GetTextLineHeightWithSpacing());
+				while (clipper.Step())
+					for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i) ImGui::TextUnformatted(list[static_cast<size_t>(i)].c_str());
+			};
 			if (ImGui::CollapsingHeader("Animals", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				ImGui::TextWrapped("%s", m_Ecology.Describe().c_str());
+				ImGui::TextWrapped("%s", rows.Ecology.c_str());
 				if (ImGui::SmallButton("Add 4 rabbits")) m_UiCommands.push_back("ecology spawn 4");
 				if (m_Ecology.Species.count("fox")) { ImGui::SameLine(); if (ImGui::SmallButton("Add a fox")) m_UiCommands.push_back("ecology spawn 1 fox"); }
-				for (const std::string& n : m_Gameplay.Names())
-				{
-					const AbilitySystemComponent* a = m_Gameplay.Find(n);
-					if (!a || !a->HasTag("Animal")) continue;
-					const float food = a->Attributes().Current("Food");
-					char label[96];
-					std::snprintf(label, sizeof label, "%s  food %.0f  age %.0f s%s", n.c_str(), static_cast<double>(food), static_cast<double>(a->Attributes().Current("Age")), food < 55.0f ? "  (hungry)" : "");
-					ImGui::ProgressBar(food / 100.0f, ImVec2(-1.0f, 0.0f), label);
-				}
+				ImGuiListClipper clipper;
+				clipper.Begin(static_cast<int>(rows.Animals.size()), ImGui::GetFrameHeightWithSpacing());
+				while (clipper.Step())
+					for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
+					{
+						const WorldStateRows::Animal& an = rows.Animals[static_cast<size_t>(i)];
+						ImGui::ProgressBar(an.Food / 100.0f, ImVec2(-1.0f, 0.0f), an.Label.c_str());
+					}
 			}
 			if (ImGui::CollapsingHeader("Interactives", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				bool any = false;
-				for (const std::string& n : m_Gameplay.Names())
-				{
-					const AbilitySystemComponent* a = m_Gameplay.Find(n);
-					if (!a) continue;
-					if (a->HasTag("Interactive.Campfire")) { any = true; ImGui::Text("%s: %s, fuel %.0f", n.c_str(), InteractiveSystem::CampfireState(*a).c_str(), static_cast<double>(a->Attributes().Current("Fuel"))); }
-					else if (a->HasTag("Interactive.Well")) { any = true; ImGui::Text("%s: water %.0f / %.0f", n.c_str(), static_cast<double>(a->Attributes().Current("Water")), static_cast<double>(a->Attributes().Max("Water"))); }
-					else if (a->HasTag("Interactive.Door")) { any = true; ImGui::Text("%s: %s", n.c_str(), InteractiveSystem::DoorState(*a).c_str()); }
-				}
-				if (!any) ImGui::TextDisabled("none (interactives build)");
+				lines(rows.Interactives);
+				if (rows.Interactives.empty()) ImGui::TextDisabled("none (interactives build)");
 			}
 			if (ImGui::CollapsingHeader("Resource nodes", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				std::map<std::string, std::pair<int, int>> kinds;   // kind -> (units, nodes)
-				for (const std::string& n : m_Gameplay.Names())
-				{
-					const AbilitySystemComponent* a = m_Gameplay.Find(n);
-					if (!a || !a->HasTag("Resource.Node")) continue;
-					const std::string kind = n.substr(0, n.rfind(' '));
-					kinds[kind].first += ResourceSystem::Amount(*a);
-					++kinds[kind].second;
-				}
-				for (const auto& [kind, v] : kinds) ImGui::Text("%s: %d units in %d nodes", kind.c_str(), v.first, v.second);
-				if (kinds.empty()) ImGui::TextDisabled("none (resources build)");
+				lines(rows.Kinds);
+				if (rows.Kinds.empty()) ImGui::TextDisabled("none (resources build)");
 			}
 			if (ImGui::CollapsingHeader("Garden", ImGuiTreeNodeFlags_DefaultOpen))
 			{
-				bool any = false;
-				for (const std::string& n : m_Gameplay.Names())
-					if (const AbilitySystemComponent* a = m_Gameplay.Find(n); a && a->HasTag("Garden.Plot")) { any = true; ImGui::Text("%s: %s", n.c_str(), GardenSystem::SoilState(*a).c_str()); }
-				if (!any) ImGui::TextDisabled("none (garden build)");
+				lines(rows.Garden);
+				if (rows.Garden.empty()) ImGui::TextDisabled("none (garden build)");
 			}
 		}
 		ImGui::End();

@@ -342,6 +342,19 @@ namespace GB::Editor
 		std::string m_NoInteractiveTimers = "{\"timers\":[]}";   // what InteractiveSystem::ToJson says when nothing is burning or filling
 		bool m_StrictScript = false;                             // --strict=1: scripted lines that fail make the editor exit with 1
 		int m_FocusWorldState = 0, m_FocusAbilities = 0;         // the same for the World state and Abilities panels (panel <name> on)
+		// T79: what the World state panel lists, made in one walk of the ability systems and kept until a system is created or removed (the
+		// world's Revision) or a second has passed (food, fuel and units change without a new revision): a valley of 70 000 systems walked four
+		// times a frame, copying every name, cost the panel ~18 ms of CPU a frame.
+		struct WorldStateRows
+		{
+			uint64_t Revision = 0;
+			std::chrono::steady_clock::time_point Made{};
+			bool Valid = false;
+			std::string Ecology;                                  // m_Ecology.Describe()
+			struct Animal { std::string Label; float Food = 0.0f; };
+			std::vector<Animal> Animals;
+			std::vector<std::string> Interactives, Kinds, Garden;  // one line each, as drawn
+		} m_WorldStateRows;
 		int m_FocusTribe = 0;                                    // frames left in which the Tribe panel is brought to the front (after tribe build)
 		bool m_AiDebug = false;                                  // `ai debug on`: cones, obstacles and memory drawn in the viewport
 		bool m_NavDebug = false;                                 // `nav debug on`
