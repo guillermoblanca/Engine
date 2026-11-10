@@ -1,5 +1,6 @@
 #include "GB/World/Graph/TerrainGraph.h"
 #include "GB/World/Graph/TerrainGraphCache.h"
+#include <chrono>
 #include <set>
 
 namespace GB
@@ -173,6 +174,30 @@ namespace GB
 		return issues;
 	}
 
+	TerrainGraph TerrainGraphUpstreamOf(const TerrainGraph& graph, const std::vector<std::string>& nodeIds)
+	{
+		std::set<std::string> keep;
+		std::vector<std::string> pending;
+		for (const std::string& id : nodeIds)
+			if (graph.FindNode(id) && keep.insert(id).second) pending.push_back(id);
+		while (!pending.empty())
+		{
+			const std::string id = pending.back();
+			pending.pop_back();
+			for (const TgEdge& e : graph.Edges)
+				if (e.To == id && graph.FindNode(e.From) && keep.insert(e.From).second) pending.push_back(e.From);
+		}
+		TerrainGraph out;
+		out.Id = graph.Id;
+		out.Name = graph.Name;
+		out.Version = graph.Version;
+		for (const TgNode& n : graph.Nodes)
+			if (keep.count(n.Id)) out.Nodes.push_back(n);
+		for (const TgEdge& e : graph.Edges)   // every edge into a kept node comes from a kept node: the wiring (and a version 1 edge order) is the same
+			if (keep.count(e.To)) out.Edges.push_back(e);
+		return out;
+	}
+
 	bool CompileTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, CompiledTerrainGraph& out, std::vector<TgIssue>* issues)
 	{
 		out = CompiledTerrainGraph();
@@ -245,6 +270,8 @@ namespace GB
 		std::unique_lock<std::mutex> lock;
 		std::vector<uint64_t> keys;
 		uint64_t context = 0;
+		using Clock = std::chrono::steady_clock;
+		const Clock::time_point started = Clock::now();
 		if (cache)
 		{
 			lock = std::unique_lock<std::mutex>(cache->m_Mutex);
@@ -292,22 +319,34 @@ namespace GB
 				inputs.push_back(v);
 			}
 
+			const Clock::time_point nodeStarted = Clock::now();
 			if (!impl->Run(node, ctx, inputs, values[index], error))
 			{
 				if (error.empty()) error = "node '" + node.Id + "' failed";
-				if (cache) { cache->m_Entries.erase(node.Id); ++cache->m_Generation; }
+				if (cache) { cache->m_Entries.erase(node.Id); cache->Tally(); ++cache->m_Generation; }
 				return false;
 			}
 			ready[index] = true;
 			if (cache)
 			{
+				const double ms = std::chrono::duration<double, std::milli>(Clock::now() - nodeStarted).count();
 				TerrainGraphCache::Entry& entry = cache->m_Entries[node.Id];
 				entry.Key = keys[static_cast<size_t>(index)];
 				entry.Outputs = values[index];
+				entry.Ms = ms;
+				entry.Bytes = 0;
+				for (const auto& [port, value] : entry.Outputs) entry.Bytes += TerrainGraphCache::BytesOf(value);
+				cache->m_Stats.RunMs[node.Id] = ms;
 				++cache->m_Stats.Ran;
 			}
 		}
-		if (cache) ++cache->m_Generation;
+		if (cache)
+		{
+			cache->FitBudget();   // (after the walk: the budget weighs what every node cost this time)
+			cache->Tally();
+			cache->m_Stats.Ms = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+			++cache->m_Generation;
+		}
 
 		for (int index : graph.Order)
 		{

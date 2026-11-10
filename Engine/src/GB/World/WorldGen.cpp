@@ -477,10 +477,14 @@ namespace GB
 			GeneratedWorld w = GenerateData(big);
 			w.Desc = desc;
 			w.Desc.Tiles = t;
+			w.Desc.GraphCache.reset();
 			return w;
 		}
 		GeneratedWorld w;
 		w.Desc = desc;
+		// T84: the world does not keep the memo it was evaluated with (it never changes the world, and it holds hundreds of MB): its owner, the
+		// editor's Terrain Graph panel, decides how long it lives.
+		w.Desc.GraphCache.reset();
 		const bool desert = desc.Type == WorldType::Desert;
 		// Generator 1 is kept exactly as it was (a saved world rebuilds its baseline from the seed): fixed salts, and the trees and rocks placed
 		// with the biome measured at each point. Generator 2 mixes the seed into the salts and bakes the biome map before placing anything.

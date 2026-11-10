@@ -75,6 +75,11 @@ namespace GB
 		std::vector<int> Order;                  // topological order (indices into Nodes/In)
 	};
 
+	// T84: the part of a graph that `nodeIds` depend on -- those nodes and every node upstream of them, with the edges between them, in the
+	// graph's order. Evaluating it gives those nodes exactly the outputs the whole graph gives them (and the same cache keys), skipping the rest:
+	// the editor's quick preview evaluates only what the previewed port needs. Ids that are not in the graph are ignored.
+	TerrainGraph TerrainGraphUpstreamOf(const TerrainGraph& graph, const std::vector<std::string>& nodeIds);
+
 	// Fills `out` from a graph with no structural errors; false (and `out` left empty) when it has any -- they
 	// are in `issues`, same as ValidatePriorityGraph/CompilePriorityGraph.
 	bool CompileTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, CompiledTerrainGraph& out, std::vector<TgIssue>* issues = nullptr);
