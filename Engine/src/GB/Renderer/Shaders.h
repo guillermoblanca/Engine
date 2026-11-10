@@ -529,15 +529,23 @@ void main()
 	float mossMask = 0.0, sandMask = 0.0, bandWet = 0.0;
 	if (uGrain > 0.0 || uMoss > 0.0 || uSand > 0.0 || uWaterLine > -1e8)
 	{
-		vec3 gp = vPos * uGrainScale;
-		float g1 = FBM3(gp), g2 = FBM3(vPos * 11.0 + 5.0);
-		albedo *= mix(1.0, 0.55 + 0.9 * g1, uGrain);
-		if (uGrain > 0.0)
+		// With uGrain == 0 the mottling is mix(1, x, 0) == 1 exactly: the grain noise (g1) is only paid when grain is on. g2 is the
+		// fine noise of moss, sand and the wet band, so it is only paid when one of those is on.
+		if (uGrain != 0.0)
 		{
-			float e = 0.05;
-			vec3 grad = vec3(FBM3(gp + vec3(e, 0, 0)) - g1, FBM3(gp + vec3(0, e, 0)) - g1, FBM3(gp + vec3(0, 0, e)) - g1) / e;
-			N = normalize(N - (grad - N * dot(grad, N)) * 0.06 * uGrain);
+			vec3 gp = vPos * uGrainScale;
+			float g1 = FBM3(gp);
+			albedo *= mix(1.0, 0.55 + 0.9 * g1, uGrain);
+			if (uGrain > 0.0)
+			{
+				float e = 0.05;
+				vec3 grad = vec3(FBM3(gp + vec3(e, 0, 0)) - g1, FBM3(gp + vec3(0, e, 0)) - g1, FBM3(gp + vec3(0, 0, e)) - g1) / e;
+				N = normalize(N - (grad - N * dot(grad, N)) * 0.06 * uGrain);
+			}
 		}
+		float g2 = 0.0;
+		if (uMoss > 0.0 || uSand > 0.0 || uWaterLine > -1e8)
+			g2 = FBM3(vPos * 11.0 + 5.0);
 		float up = clamp(normalize(vNormal).y, 0.0, 1.0);
 		if (uMoss > 0.0)
 		{
@@ -576,7 +584,8 @@ void main()
 		float cover = smoothstep(0.3, 1.0, uWetness) * 0.5;
 		puddle = smoothstep(1.0 - cover - 0.05, 1.0 - cover + 0.02, pn) * flatness * (1.0 - snow);
 		N = normalize(mix(N, normalize(vNormal), puddle * 0.9));
-		N = normalize(N + vec3(PuddleRings(vPos.xz).x, 0.0, PuddleRings(vPos.xz).y) * 0.6 * puddle * smoothstep(0.4, 0.9, uWetness));
+		vec2 rings = PuddleRings(vPos.xz);
+		N = normalize(N + vec3(rings.x, 0.0, rings.y) * 0.6 * puddle * smoothstep(0.4, 0.9, uWetness));
 		albedo *= mix(1.0, 0.55, puddle);
 	}
 	float ao = uAO;
