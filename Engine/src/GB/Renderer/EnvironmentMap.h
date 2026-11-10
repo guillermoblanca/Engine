@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/RHI.h"
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -22,6 +23,7 @@ namespace GB
 
 		bool IsValid() const { return m_Texture != 0; }
 		uint32_t GetID() const { return m_Texture; }
+		RHI::TextureHandle GetHandle() const { return { m_Texture }; }
 		uint32_t GetWidth() const { return m_Width; }
 		uint32_t GetHeight() const { return m_Height; }
 		uint32_t GetMipCount() const { return m_Levels; }

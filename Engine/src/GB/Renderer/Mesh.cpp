@@ -1,6 +1,6 @@
 #include "Mesh.h"
 #include "RenderStats.h"
-#include <glad/gl.h>
+#include <cstddef>
 #include <algorithm>
 #include <cmath>
 #include <utility>
@@ -11,59 +11,47 @@ namespace GB
 		const std::vector<SkinVertex>* skin)
 		: m_IndexCount(static_cast<uint32_t>(indices.size()))
 	{
-		glCreateBuffers(1, &m_VBO);
-		glNamedBufferStorage(m_VBO, static_cast<GLsizeiptr>(vertices.size() * sizeof(Vertex)), vertices.data(), GL_DYNAMIC_STORAGE_BIT);
-		glCreateBuffers(1, &m_IBO);
-		glNamedBufferStorage(m_IBO, static_cast<GLsizeiptr>(indices.size() * sizeof(uint32_t)), indices.data(), 0);
+		RHI::Device& device = RHI::GetDevice();
+		m_VBO = device.CreateBuffer(vertices.size() * sizeof(Vertex), vertices.data(), true);
+		m_IBO = device.CreateBuffer(indices.size() * sizeof(uint32_t), indices.data(), false);
 
-		glCreateVertexArrays(1, &m_VAO);
-		glVertexArrayVertexBuffer(m_VAO, 0, m_VBO, 0, sizeof(Vertex));
-		glVertexArrayElementBuffer(m_VAO, m_IBO);
-
-		glEnableVertexArrayAttrib(m_VAO, 0);
-		glVertexArrayAttribFormat(m_VAO, 0, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, Position));
-		glVertexArrayAttribBinding(m_VAO, 0, 0);
-		glEnableVertexArrayAttrib(m_VAO, 1);
-		glVertexArrayAttribFormat(m_VAO, 1, 3, GL_FLOAT, GL_FALSE, offsetof(Vertex, Normal));
-		glVertexArrayAttribBinding(m_VAO, 1, 0);
-		glEnableVertexArrayAttrib(m_VAO, 2);
-		glVertexArrayAttribFormat(m_VAO, 2, 2, GL_FLOAT, GL_FALSE, offsetof(Vertex, UV));
-		glVertexArrayAttribBinding(m_VAO, 2, 0);
-		glEnableVertexArrayAttrib(m_VAO, 3);
-		glVertexArrayAttribFormat(m_VAO, 3, 4, GL_FLOAT, GL_FALSE, offsetof(Vertex, Tangent));
-		glVertexArrayAttribBinding(m_VAO, 3, 0);
-
+		RHI::VertexLayoutDesc layout;
+		layout.Indices = m_IBO;
+		layout.Bindings.push_back({ 0, m_VBO, 0, sizeof(Vertex), 0 });
+		layout.Attribs.push_back({ 0, 3, RHI::AttribType::Float, offsetof(Vertex, Position), 0 });
+		layout.Attribs.push_back({ 1, 3, RHI::AttribType::Float, offsetof(Vertex, Normal), 0 });
+		layout.Attribs.push_back({ 2, 2, RHI::AttribType::Float, offsetof(Vertex, UV), 0 });
+		layout.Attribs.push_back({ 3, 4, RHI::AttribType::Float, offsetof(Vertex, Tangent), 0 });
 		if (skin && skin->size() == vertices.size())
 		{
-			glCreateBuffers(1, &m_SkinVBO);
-			glNamedBufferStorage(m_SkinVBO, static_cast<GLsizeiptr>(skin->size() * sizeof(SkinVertex)), skin->data(), 0);
-			glVertexArrayVertexBuffer(m_VAO, 1, m_SkinVBO, 0, sizeof(SkinVertex));
-			glEnableVertexArrayAttrib(m_VAO, 4);
-			glVertexArrayAttribIFormat(m_VAO, 4, 4, GL_UNSIGNED_INT, offsetof(SkinVertex, Joints));
-			glVertexArrayAttribBinding(m_VAO, 4, 1);
-			glEnableVertexArrayAttrib(m_VAO, 5);
-			glVertexArrayAttribFormat(m_VAO, 5, 4, GL_FLOAT, GL_FALSE, offsetof(SkinVertex, Weights));
-			glVertexArrayAttribBinding(m_VAO, 5, 1);
+			m_SkinVBO = device.CreateBuffer(skin->size() * sizeof(SkinVertex), skin->data(), false);
+			layout.Bindings.push_back({ 1, m_SkinVBO, 0, sizeof(SkinVertex), 0 });
+			layout.Attribs.push_back({ 4, 4, RHI::AttribType::UInt, offsetof(SkinVertex, Joints), 1 });
+			layout.Attribs.push_back({ 5, 4, RHI::AttribType::Float, offsetof(SkinVertex, Weights), 1 });
 		}
+		m_VAO = device.CreateVertexLayout(layout);
 	}
 
 	void Mesh::UpdateVertices(uint32_t first, const Vertex* vertices, uint32_t count)
 	{
 		if (count == 0) return;
-		glNamedBufferSubData(m_VBO, static_cast<GLintptr>(first) * static_cast<GLintptr>(sizeof(Vertex)), static_cast<GLsizeiptr>(count) * static_cast<GLsizeiptr>(sizeof(Vertex)), vertices);
+		RHI::GetDevice().UpdateBuffer(m_VBO, static_cast<size_t>(first) * sizeof(Vertex), static_cast<size_t>(count) * sizeof(Vertex), vertices);
 	}
 
-	Mesh::~Mesh()
+	void Mesh::Release()
 	{
-		glDeleteVertexArrays(1, &m_VAO);
-		glDeleteBuffers(1, &m_VBO);
-		glDeleteBuffers(1, &m_IBO);
-		glDeleteBuffers(1, &m_SkinVBO);
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyVertexLayout(std::exchange(m_VAO, {}));
+		device.DestroyBuffer(std::exchange(m_VBO, {}));
+		device.DestroyBuffer(std::exchange(m_IBO, {}));
+		device.DestroyBuffer(std::exchange(m_SkinVBO, {}));
 	}
+
+	Mesh::~Mesh() { Release(); }
 
 	Mesh::Mesh(Mesh&& other) noexcept
-		: m_VAO(std::exchange(other.m_VAO, 0)), m_VBO(std::exchange(other.m_VBO, 0)),
-		  m_IBO(std::exchange(other.m_IBO, 0)), m_SkinVBO(std::exchange(other.m_SkinVBO, 0)),
+		: m_VAO(std::exchange(other.m_VAO, {})), m_VBO(std::exchange(other.m_VBO, {})),
+		  m_IBO(std::exchange(other.m_IBO, {})), m_SkinVBO(std::exchange(other.m_SkinVBO, {})),
 		  m_IndexCount(std::exchange(other.m_IndexCount, 0))
 	{
 	}
@@ -72,14 +60,11 @@ namespace GB
 	{
 		if (this != &other)
 		{
-			glDeleteVertexArrays(1, &m_VAO);
-			glDeleteBuffers(1, &m_VBO);
-			glDeleteBuffers(1, &m_IBO);
-			glDeleteBuffers(1, &m_SkinVBO);
-			m_SkinVBO = std::exchange(other.m_SkinVBO, 0);
-			m_VAO = std::exchange(other.m_VAO, 0);
-			m_VBO = std::exchange(other.m_VBO, 0);
-			m_IBO = std::exchange(other.m_IBO, 0);
+			Release();
+			m_SkinVBO = std::exchange(other.m_SkinVBO, {});
+			m_VAO = std::exchange(other.m_VAO, {});
+			m_VBO = std::exchange(other.m_VBO, {});
+			m_IBO = std::exchange(other.m_IBO, {});
 			m_IndexCount = std::exchange(other.m_IndexCount, 0);
 		}
 		return *this;
@@ -87,22 +72,25 @@ namespace GB
 
 	void Mesh::Draw() const
 	{
-		glBindVertexArray(m_VAO);
-		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(m_IndexCount), GL_UNSIGNED_INT, nullptr);
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BindVertexLayout(m_VAO);
+		cmd.DrawIndexed(0, m_IndexCount);
 		DrawCounter::Add(m_IndexCount / 3);
 	}
 
 	void Mesh::DrawRange(uint32_t firstIndex, uint32_t indexCount) const
 	{
-		glBindVertexArray(m_VAO);
-		glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(indexCount), GL_UNSIGNED_INT, reinterpret_cast<const void*>(static_cast<uintptr_t>(firstIndex) * sizeof(uint32_t)));
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BindVertexLayout(m_VAO);
+		cmd.DrawIndexed(firstIndex, indexCount);
 		DrawCounter::Add(indexCount / 3);
 	}
 
 	void Mesh::DrawInstanced(uint32_t count) const
 	{
-		glBindVertexArray(m_VAO);
-		glDrawElementsInstanced(GL_TRIANGLES, static_cast<GLsizei>(m_IndexCount), GL_UNSIGNED_INT, nullptr, static_cast<GLsizei>(count));
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BindVertexLayout(m_VAO);
+		cmd.DrawIndexedInstanced(m_IndexCount, count);
 		DrawCounter::Add(static_cast<uint64_t>(m_IndexCount / 3) * count);
 	}
 

@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/RHI.h"
 #include "GB/Scene/Image.h"
 #include <cstdint>
 
@@ -19,8 +20,9 @@ namespace GB
 		Texture2D(const Texture2D&) = delete;
 		Texture2D& operator=(const Texture2D&) = delete;
 
-		bool IsValid() const { return m_Texture != 0; }
-		uint32_t GetID() const { return m_Texture; }
+		bool IsValid() const { return static_cast<bool>(m_Texture); }
+		RHI::TextureHandle GetHandle() const { return m_Texture; }
+		uint32_t GetID() const { return m_Texture.Id; }   // the device's id (the GL name with the GL device: ImGui images use it)
 		uint32_t GetWidth() const { return m_Width; }
 		uint32_t GetHeight() const { return m_Height; }
 		void Bind(uint32_t unit) const;
@@ -28,7 +30,7 @@ namespace GB
 		void Update(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const uint8_t* rgba);
 
 	private:
-		uint32_t m_Texture = 0;
+		RHI::TextureHandle m_Texture;
 		uint32_t m_Width = 0, m_Height = 0;
 	};
 }

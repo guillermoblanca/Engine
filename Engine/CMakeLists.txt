@@ -243,7 +243,10 @@ add_library(GB_Render STATIC
     src/GB/Renderer/WaterRipples.cpp
     src/GB/Renderer/WorldTilesGpu.cpp
     src/GB/Renderer/Visibility.cpp
-    src/GB/Renderer/MaterialLayers.cpp)
+    src/GB/Renderer/MaterialLayers.cpp
+    src/GB/Renderer/RHI/RHI.cpp
+    src/GB/Renderer/RHI/NullDevice.cpp
+    src/GB/Renderer/RHI/GL/GLDevice.cpp)
 
 add_library(GB_Platform STATIC
     src/GB/Platform/Application.cpp

@@ -1,6 +1,5 @@
 #include "Framebuffer.h"
 #include "GB/Log.h"
-#include <glad/gl.h>
 #include <cstring>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -20,150 +19,81 @@ namespace GB
 
 	void Framebuffer::Create()
 	{
-		const GLsizei w = static_cast<GLsizei>(m_Spec.Width);
-		const GLsizei h = static_cast<GLsizei>(m_Spec.Height);
-		const bool multisampled = m_Spec.Samples > 1;
-		const GLsizei samples = static_cast<GLsizei>(m_Spec.Samples);
-
-		glCreateFramebuffers(1, &m_FBO);
-
-		// A color texture of `format`, multisampled like the target, at `attachment`.
-		auto makeColor = [&](ColorFormat format, GLenum attachment)
+		const auto format = [](ColorFormat f)
 		{
-			const GLenum internal = format == ColorFormat::RGBA16F ? GL_RGBA16F : format == ColorFormat::R11G11B10F ? GL_R11F_G11F_B10F : GL_RGBA8;
-			uint32_t texture = 0;
-			glCreateTextures(multisampled ? GL_TEXTURE_2D_MULTISAMPLE : GL_TEXTURE_2D, 1, &texture);
-			if (multisampled)
-				glTextureStorage2DMultisample(texture, samples, internal, w, h, GL_TRUE);
-			else
-			{
-				glTextureStorage2D(texture, 1, internal, w, h);
-				glTextureParameteri(texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTextureParameteri(texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTextureParameteri(texture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-				glTextureParameteri(texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-			}
-			glNamedFramebufferTexture(m_FBO, attachment, texture, 0);
-			return texture;
+			return f == ColorFormat::RGBA16F ? RHI::Format::RGBA16F : f == ColorFormat::R11G11B10F ? RHI::Format::R11G11B10F
+				: f == ColorFormat::RGBA8 ? RHI::Format::RGBA8 : RHI::Format::None;
 		};
-		if (m_Spec.Format != ColorFormat::None)
-		{
-			m_Color = makeColor(m_Spec.Format, GL_COLOR_ATTACHMENT0);
-			if (m_Spec.Extra != ColorFormat::None)
-			{
-				m_Extra = makeColor(m_Spec.Extra, GL_COLOR_ATTACHMENT1);
-				SetExtraEnabled(true);
-			}
-		}
-		else
-		{
-			glNamedFramebufferDrawBuffer(m_FBO, GL_NONE);
-			glNamedFramebufferReadBuffer(m_FBO, GL_NONE);
-		}
-
-		if (m_Spec.Depth)
-		{
-			if (m_Spec.DepthAsTexture)
-			{
-				glCreateTextures(GL_TEXTURE_2D, 1, &m_DepthTexture);
-				glTextureStorage2D(m_DepthTexture, 1, GL_DEPTH_COMPONENT24, w, h);
-				glTextureParameteri(m_DepthTexture, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-				glTextureParameteri(m_DepthTexture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-				glTextureParameteri(m_DepthTexture, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-				glTextureParameteri(m_DepthTexture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-				const float border[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
-				glTextureParameterfv(m_DepthTexture, GL_TEXTURE_BORDER_COLOR, border);
-				if (m_Spec.DepthCompare)
-				{
-					glTextureParameteri(m_DepthTexture, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
-					glTextureParameteri(m_DepthTexture, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-				}
-				else
-				{
-					glTextureParameteri(m_DepthTexture, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-					glTextureParameteri(m_DepthTexture, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-				}
-				glNamedFramebufferTexture(m_FBO, GL_DEPTH_ATTACHMENT, m_DepthTexture, 0);
-			}
-			else
-			{
-				glCreateRenderbuffers(1, &m_Depth);
-				if (multisampled)
-					glNamedRenderbufferStorageMultisample(m_Depth, samples, GL_DEPTH_COMPONENT24, w, h);
-				else
-					glNamedRenderbufferStorage(m_Depth, GL_DEPTH_COMPONENT24, w, h);
-				glNamedFramebufferRenderbuffer(m_FBO, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, m_Depth);
-			}
-		}
-
-		m_Complete = glCheckNamedFramebufferStatus(m_FBO, GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE;
-		if (!m_Complete)
-			GB_CORE_ERROR("Framebuffer {}x{} is incomplete", m_Spec.Width, m_Spec.Height);
+		RHI::RenderTargetDesc desc;
+		desc.Width = m_Spec.Width;
+		desc.Height = m_Spec.Height;
+		desc.Samples = m_Spec.Samples;
+		desc.Color = format(m_Spec.Format);
+		desc.Extra = format(m_Spec.Extra);
+		desc.Depth = m_Spec.Depth;
+		desc.DepthAsTexture = m_Spec.DepthAsTexture;
+		desc.DepthCompare = m_Spec.DepthCompare;
+		m_Target = RHI::GetDevice().CreateRenderTarget(desc);
+		m_Complete = m_Target.Complete;
 	}
 
 	Framebuffer::~Framebuffer()
 	{
-		glDeleteFramebuffers(1, &m_FBO);
-		glDeleteTextures(1, &m_Color);
-		glDeleteTextures(1, &m_Extra);
-		glDeleteTextures(1, &m_DepthTexture);
-		glDeleteRenderbuffers(1, &m_Depth);
+		RHI::GetDevice().DestroyRenderTarget(m_Target);
+	}
+
+	RHI::PassDesc Framebuffer::Pass(const char* name) const
+	{
+		RHI::PassDesc pass;
+		pass.Target = m_Target.Handle;
+		pass.Width = m_Spec.Width;
+		pass.Height = m_Spec.Height;
+		pass.Name = name;
+		return pass;
 	}
 
 	void Framebuffer::Bind() const
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, m_FBO);
-		glViewport(0, 0, static_cast<GLsizei>(m_Spec.Width), static_cast<GLsizei>(m_Spec.Height));
+		RHI::GetDevice().Commands().BeginPass(Pass());
 	}
 
 	void Framebuffer::BlitColor(const Framebuffer& src, const Framebuffer& dst)
 	{
-		glBlitNamedFramebuffer(src.m_FBO, dst.m_FBO,
-			0, 0, static_cast<GLint>(src.m_Spec.Width), static_cast<GLint>(src.m_Spec.Height),
-			0, 0, static_cast<GLint>(dst.m_Spec.Width), static_cast<GLint>(dst.m_Spec.Height),
-			GL_COLOR_BUFFER_BIT, GL_LINEAR);
+		RHI::GetDevice().Commands().BlitColor(src.m_Target, src.m_Spec.Width, src.m_Spec.Height, dst.m_Target, dst.m_Spec.Width, dst.m_Spec.Height,
+			0, RHI::BlitFilter::Linear);
 	}
 
 	void Framebuffer::SetExtraEnabled(bool on) const
 	{
-		if (!m_Extra) return;
-		const GLenum both[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-		glNamedFramebufferDrawBuffers(m_FBO, on ? 2 : 1, both);
+		if (!m_Target.Extra) return;
+		RHI::GetDevice().Commands().SetDrawAttachments(m_Target.Handle, on ? 2 : 1);
 	}
 
 	void Framebuffer::BlitExtra(const Framebuffer& src, const Framebuffer& dst)
 	{
-		if (!src.m_Extra) return;
-		glNamedFramebufferReadBuffer(src.m_FBO, GL_COLOR_ATTACHMENT1);
-		glBlitNamedFramebuffer(src.m_FBO, dst.m_FBO,
-			0, 0, static_cast<GLint>(src.m_Spec.Width), static_cast<GLint>(src.m_Spec.Height),
-			0, 0, static_cast<GLint>(dst.m_Spec.Width), static_cast<GLint>(dst.m_Spec.Height),
-			GL_COLOR_BUFFER_BIT, GL_NEAREST);
-		glNamedFramebufferReadBuffer(src.m_FBO, GL_COLOR_ATTACHMENT0);
+		if (!src.m_Target.Extra) return;
+		RHI::GetDevice().Commands().BlitColor(src.m_Target, src.m_Spec.Width, src.m_Spec.Height, dst.m_Target, dst.m_Spec.Width, dst.m_Spec.Height,
+			1, RHI::BlitFilter::Nearest);
 	}
 
 	void Framebuffer::BindDefault(uint32_t w, uint32_t h)
 	{
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glViewport(0, 0, static_cast<GLsizei>(w), static_cast<GLsizei>(h));
+		RHI::PassDesc pass;
+		pass.Width = w;
+		pass.Height = h;
+		RHI::GetDevice().Commands().BeginPass(pass);
 	}
 
 	void Framebuffer::BlitDepth(const Framebuffer& src, const Framebuffer& dst)
 	{
-		glBlitNamedFramebuffer(src.m_FBO, dst.m_FBO,
-			0, 0, static_cast<GLint>(src.m_Spec.Width), static_cast<GLint>(src.m_Spec.Height),
-			0, 0, static_cast<GLint>(dst.m_Spec.Width), static_cast<GLint>(dst.m_Spec.Height),
-			GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+		RHI::GetDevice().Commands().BlitDepth(src.m_Target, src.m_Spec.Width, src.m_Spec.Height, dst.m_Target, dst.m_Spec.Width, dst.m_Spec.Height);
 	}
 
 	std::vector<uint8_t> Framebuffer::ReadPixels() const
 	{
 		const size_t stride = static_cast<size_t>(m_Spec.Width) * 4;
 		std::vector<uint8_t> bottomUp(stride * m_Spec.Height);
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, m_FBO);
-		glPixelStorei(GL_PACK_ALIGNMENT, 1);
-		glReadPixels(0, 0, static_cast<GLsizei>(m_Spec.Width), static_cast<GLsizei>(m_Spec.Height),
-			GL_RGBA, GL_UNSIGNED_BYTE, bottomUp.data());
+		RHI::GetDevice().ReadPixels(m_Target.Handle, m_Spec.Width, m_Spec.Height, bottomUp.data());
 
 		std::vector<uint8_t> topDown(bottomUp.size());
 		for (uint32_t y = 0; y < m_Spec.Height; ++y)
@@ -189,11 +119,7 @@ namespace GB
 	{
 		const size_t stride = static_cast<size_t>(width) * 4;
 		std::vector<uint8_t> bottomUp(stride * height), topDown(stride * height);
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-		glReadBuffer(GL_BACK);
-		glPixelStorei(GL_PACK_ALIGNMENT, 1);
-		glReadPixels(0, 0, static_cast<GLsizei>(width), static_cast<GLsizei>(height),
-			GL_RGBA, GL_UNSIGNED_BYTE, bottomUp.data());
+		RHI::GetDevice().ReadPixels({}, width, height, bottomUp.data());
 		for (uint32_t y = 0; y < height; ++y)
 			std::memcpy(&topDown[y * stride], &bottomUp[(height - 1 - y) * stride], stride);
 		return SavePNG(path, width, height, topDown.data());

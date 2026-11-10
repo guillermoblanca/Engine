@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/RHI.h"
 #include <cstdint>
 #include <vector>
 
@@ -18,7 +19,7 @@ namespace GB
 		ColorFormat Extra = ColorFormat::None;   // a second color attachment (fragment output location 1), same samples
 	};
 
-	// Offscreen render target.
+	// Offscreen render target: an RHI render target with its attachments.
 	class Framebuffer
 	{
 	public:
@@ -35,10 +36,17 @@ namespace GB
 
 		uint32_t GetWidth() const { return m_Spec.Width; }
 		uint32_t GetHeight() const { return m_Spec.Height; }
-		uint32_t GetID() const { return m_FBO; }
-		uint32_t GetColorTexture() const { return m_Color; }
-		uint32_t GetDepthTexture() const { return m_DepthTexture; }
-		uint32_t GetExtraTexture() const { return m_Extra; }
+		const RHI::RenderTarget& GetTarget() const { return m_Target; }
+		// The device's ids (the GL names with the GL device: ImGui images and the editor's tools use them).
+		uint32_t GetID() const { return m_Target.Handle.Id; }
+		uint32_t GetColorTexture() const { return m_Target.Color.Id; }
+		uint32_t GetDepthTexture() const { return m_Target.DepthTexture.Id; }
+		uint32_t GetExtraTexture() const { return m_Target.Extra.Id; }
+		RHI::TextureHandle ColorTexture() const { return m_Target.Color; }
+		RHI::TextureHandle DepthTexture() const { return m_Target.DepthTexture; }
+		RHI::TextureHandle ExtraTexture() const { return m_Target.Extra; }
+		// The pass that draws into this target: its size as the viewport, and what it clears.
+		RHI::PassDesc Pass(const char* name = "") const;
 		// With an Extra attachment: whether draws write it (location 1) or only attachment 0. Writing it is on by default.
 		void SetExtraEnabled(bool on) const;
 
@@ -57,7 +65,7 @@ namespace GB
 	private:
 		void Create();
 		FramebufferSpec m_Spec;
-		uint32_t m_FBO = 0, m_Color = 0, m_Extra = 0, m_Depth = 0, m_DepthTexture = 0;
+		RHI::RenderTarget m_Target;
 		bool m_Complete = false;
 	};
 

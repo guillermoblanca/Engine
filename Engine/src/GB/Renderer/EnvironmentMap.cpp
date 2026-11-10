@@ -2,7 +2,6 @@
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
-#include <glad/gl.h>
 #include <stb_image.h>
 
 namespace GB
@@ -32,19 +31,27 @@ namespace GB
 		map->m_Width = width;
 		map->m_Height = height;
 		map->m_Levels = 1 + static_cast<uint32_t>(std::floor(std::log2(static_cast<float>(std::max(width, height)))));
-		glCreateTextures(GL_TEXTURE_2D, 1, &map->m_Texture);
-		glTextureStorage2D(map->m_Texture, static_cast<GLsizei>(map->m_Levels), GL_RGB16F, static_cast<GLsizei>(width), static_cast<GLsizei>(height));
-		glTextureSubImage2D(map->m_Texture, 0, 0, 0, static_cast<GLsizei>(width), static_cast<GLsizei>(height), GL_RGB, GL_FLOAT, rgb.data());
-		glGenerateTextureMipmap(map->m_Texture);
-		glTextureParameteri(map->m_Texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-		glTextureParameteri(map->m_Texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-		glTextureParameteri(map->m_Texture, GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTextureParameteri(map->m_Texture, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		RHI::Device& device = RHI::GetDevice();
+		RHI::TextureDesc desc;
+		desc.Width = width;
+		desc.Height = height;
+		desc.Levels = map->m_Levels;
+		desc.Fmt = RHI::Format::RGB16F;
+		const RHI::TextureHandle texture = device.CreateTexture(desc);
+		map->m_Texture = texture.Id;
+		device.UploadTexture(texture, 0, 0, width, height, RHI::PixelData::RGBFloat, rgb.data());
+		device.GenerateMips(texture);
+		RHI::SamplerDesc sampler;
+		sampler.Min = RHI::Filter::LinearMipLinear;
+		sampler.Mag = RHI::Filter::Linear;
+		sampler.WrapS = RHI::Wrap::Repeat;
+		sampler.WrapT = RHI::Wrap::ClampToEdge;
+		device.SetSampler(texture, sampler);
 		return map;
 	}
 
 	EnvironmentMap::~EnvironmentMap()
 	{
-		glDeleteTextures(1, &m_Texture);
+		RHI::GetDevice().DestroyTexture({ m_Texture });
 	}
 }

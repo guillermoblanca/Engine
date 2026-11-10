@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/RHI.h"
 #include <cstdint>
 
 namespace GB
@@ -25,12 +26,13 @@ namespace GB
 		// Uploads the blades if the field changed since the last upload.
 		void Sync() { GetBuffer(); }
 		// The blade buffer (0 for a field without blades), uploaded first if the field changed.
-		uint32_t GetBuffer() const;
+		uint32_t GetBuffer() const { return GetHandle().Id; }   // the device's id (0: no blades)
+		RHI::BufferHandle GetHandle() const;
 		const GrassField& GetField() const { return *m_Field; }
 
 	private:
 		const GrassField* m_Field = nullptr;
-		mutable uint32_t m_Buffer = 0;
+		mutable RHI::BufferHandle m_Buffer;
 		mutable uint64_t m_Revision = 0;   // the field's revision last uploaded (0: never; a field starts at 1)
 	};
 }

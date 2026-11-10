@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/RHI.h"
 #include "GB/Scene/SkinVertex.h"
 #include "GB/Scene/Vertex.h"
 #include <cstdint>
@@ -26,7 +27,7 @@ namespace GB
 		// Overwrites `count` vertices starting at `first` (e.g. terrain that erodes). The mesh keeps its topology.
 		void UpdateVertices(uint32_t first, const Vertex* vertices, uint32_t count);
 		uint32_t GetIndexCount() const { return m_IndexCount; }
-		bool HasSkin() const { return m_SkinVBO != 0; }
+		bool HasSkin() const { return static_cast<bool>(m_SkinVBO); }
 
 		// Procedural primitives (counter-clockwise, outward normals).
 		static Mesh CreateSphere(float radius = 0.5f, uint32_t segments = 64, uint32_t rings = 32);
@@ -36,7 +37,9 @@ namespace GB
 		static Mesh CreateCube(float size = 1.0f);
 
 	private:
-		uint32_t m_VAO = 0, m_VBO = 0, m_IBO = 0, m_SkinVBO = 0;
+		void Release();
+		RHI::VertexLayoutHandle m_VAO;
+		RHI::BufferHandle m_VBO, m_IBO, m_SkinVBO;
 		uint32_t m_IndexCount = 0;
 	};
 }
