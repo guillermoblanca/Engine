@@ -7,7 +7,8 @@
 // The shader_assembly test compares each stage in Stages() with tests/golden/shaders/<name>.glsl, byte for byte: a change of the assembled
 // text is regenerated on purpose (GB_UPDATE_GOLDEN=1) and its diff reviewed.
 //
-//   ShaderLib/Pieces.h            lib/*: the per-frame block (lib/frame, mirror of FrameConstants.h), sky, scene targets, trail, skinning,
+//   ShaderLib/Pieces.h            lib/*: the per-frame block (lib/frame, mirror of FrameConstants.h), the per-material block (lib/material,
+//                                 mirror of MaterialData.h), sky, scene targets, trail, skinning,
 //                                 height, tree wind, depth, brdf, shadow, PBR noise, water waves
 //   ShaderLib/ObjectShaders.h     ShadowVS/FS, PBRVS/FS
 //   ShaderLib/SkyShaders.h        SkyFS
@@ -33,6 +34,7 @@ namespace GB::Shaders
 	// The registry of the `#include` names.
 	inline constexpr ShaderPiece kLibrary[] = {
 		{ "lib/frame", Lib::Frame },
+		{ "lib/material", Lib::Material },
 		{ "lib/scene_targets", Lib::SceneTargets },
 		{ "lib/sky", Lib::Sky },
 		{ "lib/trail_at", Lib::TrailAt },

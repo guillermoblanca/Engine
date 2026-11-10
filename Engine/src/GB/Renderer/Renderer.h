@@ -4,6 +4,7 @@
 #include "FrameConstants.h"
 #include "PostProcessor.h"
 #include "GrassRenderer.h"
+#include "MaterialBuffer.h"
 #include "RenderList.h"
 #include "Scene.h"
 #include "ShadowRenderer.h"
@@ -73,6 +74,8 @@ namespace GB
 		FrameConstants m_Frame;
 		std::unique_ptr<RHI::UploadRing> m_FrameRing;
 		bool m_FrameRingFull = false;   // (logged once)
+		// T36 (render M4): the materials of the scene by id and their storage buffer, shared by the shadow and scene passes.
+		MaterialBuffer m_Materials;
 
 		void BindSkin(Shader& shader, const RenderObject& obj);
 

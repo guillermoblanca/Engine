@@ -24,7 +24,7 @@ namespace GB
 		LayerParamType Type;
 		glm::vec3 Default;                // a float keeps its value in x
 		float Min, Max;                   // every component must be in [Min, Max]
-		const char* Uniform;              // the shader uniform that carries it ("uMoss"), for the docs and the backend
+		const char* Uniform;              // where the shader reads it (T36: its slot of lib/material, "Layer[SLOT_MOSS].w"), for the docs
 		const char* Note;
 	};
 

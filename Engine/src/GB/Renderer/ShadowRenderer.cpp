@@ -43,40 +43,29 @@ namespace GB
 		cmd.BindStorageBuffer(0, m_JointBuffer);
 	}
 
-	void ShadowRenderer::Render(const Scene& scene, const RenderList& list, const Framebuffer& target)
+	void ShadowRenderer::Render(const Scene& scene, const RenderList& list, MaterialBuffer& materials, const Framebuffer& target)
 	{
 		RHI::CommandList& cmd = RHI::GetDevice().Commands();
 		RHI::PassDesc pass = target.Pass("shadows");
 		pass.ClearDepth = true;
 		cmd.BeginPass(pass);
 		cmd.BindPipeline(m_Pipeline);
+		// T36 (render M4): wind, UV scale, alpha mask and displacement come from the material buffer at uMaterialId; the draw binds the maps
+		// the shaders sample (the albedo of a masked caster, the height map of a displaced one).
 		auto draw = [&](const RenderObject& object, uint32_t copies)
 		{
 			m_Shader.SetMat4("uModel", object.Transform);
 			m_Shader.SetInt("uInstanced", copies > 0 ? 1 : 0);
-			m_Shader.SetFloat("uWindStrength", object.Mat.WindSway);
-			m_Shader.SetFloat("uWindHeight", object.Mat.WindHeight);
-			m_Shader.SetFloat("uWindFlutter", object.Mat.WindFlutter);
 			BindSkin(object);
+			const uint32_t index = static_cast<uint32_t>(&object - scene.Objects.data());
+			m_Shader.SetInt("uMaterialId", static_cast<int>(materials.Resolve(index, object.Mat)));
 
 			const bool masked = object.Mat.Alpha == AlphaMode::Mask && object.Mat.AlbedoMap;
-			m_Shader.SetInt("uAlphaMode", masked ? 1 : 0);
-			m_Shader.SetFloat("uUVScale", object.Mat.UVScale);
 			if (masked)
-			{
-				m_Shader.SetFloat("uAlphaCutoff", object.Mat.AlphaCutoff);
-				m_Shader.SetFloat("uOpacity", object.Mat.Opacity);
 				object.Mat.AlbedoMap->Bind(1);
-			}
-
 			const bool displaced = object.Mat.HeightMap && object.Mat.HeightScale != 0.0f;
-			m_Shader.SetInt("uHasHeight", displaced ? 1 : 0);
 			if (displaced)
-			{
-				m_Shader.SetFloat("uHeightScale", object.Mat.HeightScale);
-				m_Shader.SetFloat("uUVScale", object.Mat.UVScale);
 				object.Mat.HeightMap->Bind(3);
-			}
 			if (copies > 0) object.MeshPtr->DrawInstanced(copies);
 			else if (object.IndexCount > 0) object.MeshPtr->DrawRange(object.IndexFirst, object.IndexCount);
 			else object.MeshPtr->Draw();

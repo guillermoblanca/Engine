@@ -151,6 +151,7 @@ gb_test(destruction destruction_test.cpp POOL GBSimTests LINK GB::Sim LABELS rap
 gb_test(post post_test.cpp POOL GBGLTests LINK GB::GB LABELS "imagen;gl" SKIP77)
 gb_test(rhi_gl rhi_gl_test.cpp POOL GBGLTests LINK GB::GB LABELS gl SKIP77)   # T71: the RHI's API of M1 on GL (BC, arrays, ranges, ring)
 gb_test(frame_block frame_block_test.cpp POOL GBGLTests LINK GB::GB LABELS gl SKIP77)   # T69: the per-frame block (lib/frame) laid out as FrameConstants
+gb_test(material_block material_block_test.cpp POOL GBGLTests LINK GB::GB LABELS gl SKIP77)   # T36: the per-material block (lib/material) laid out as MaterialData; MaterialTable
 gb_test(qa qa_test.cpp POOL GBRenderTests LINK GB::Render LABELS "rapido;imagen")
 gb_test(golden_images golden_test.cpp EXE GBGoldenTests LINK GB::GB LABELS "imagen;gl" DEFS ${gb_golden} SKIP77)
 gb_test(golden_data golden_data_test.cpp EXE GBGoldenDataTests LINK GB::Render LABELS "rapido;imagen" DEFS ${gb_golden} SKIP77)

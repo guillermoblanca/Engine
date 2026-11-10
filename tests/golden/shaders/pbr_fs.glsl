@@ -20,6 +20,49 @@ layout(std140, binding = 0) uniform FrameBlock
 	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
 	vec4 uPointColor[32];                     // rgb color * intensity
 };
+struct MaterialData
+{
+	vec4 BaseColor;     // rgb albedo, a opacity
+	vec4 Emissive;      // rgb emissive, a alpha cutoff
+	vec4 Surface;       // x metallic, y roughness, z ao, w occlusion strength
+	vec4 Uv;            // x uv scale, y normal strength, zw normal map sign per axis
+	uvec4 Tex;          // x TEX_* bits: the maps bound
+	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
+	vec4 Wind;          // x sway, y height of full sway, z flutter
+	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength
+	vec4 Layer[8];      // the layers' slots (SLOT_*)
+};
+layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
+uniform int uMaterialId;
+#define MATERIAL uMaterials[uMaterialId]
+const uint TEX_ALBEDO = 1u;
+const uint TEX_NORMAL = 2u;
+const uint TEX_HEIGHT_MAP = 4u;
+const uint TEX_HEIGHT = 8u;
+const uint TEX_MR = 16u;
+const uint TEX_OCCLUSION = 32u;
+const uint TEX_EMISSIVE = 64u;
+const uint TEX_MACRO = 128u;
+const uint TEX_TERRAIN_NORMALS = 256u;
+const uint FLAG_FOLIAGE_NORMALS = 1u;
+const uint FLAG_ALPHA_TO_COVERAGE = 2u;
+const uint FLAG_DOUBLE_SIDED = 4u;
+const uint LAYER_GRAIN = 1u;
+const uint LAYER_MOSS = 2u;
+const uint LAYER_SAND = 4u;
+const uint LAYER_WATER_LINE = 8u;
+const uint LAYER_TRAIL = 16u;
+const uint LAYER_MACRO = 32u;
+const uint SLOT_GRAIN = 0u;        // x amount, y scale
+const uint SLOT_MOSS = 1u;         // rgb color, w amount
+const uint SLOT_SAND = 2u;         // rgb color, w amount
+const uint SLOT_WATER_LINE = 3u;   // x water line (-1e9: none), y the sand's base height
+const uint SLOT_TRAIL = 4u;        // x depth (0: none), y normal boost
+const uint SLOT_TRAIL_TINT = 5u;   // rgb tint
+const uint SLOT_MACRO = 6u;        // the macro map's rect
+const uint LAYER_SLOTS = 8u;
+bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
+bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 
 
 layout(binding = 9) uniform sampler2D uEnvMap;
@@ -63,55 +106,20 @@ in vec2 vUV;
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 
-uniform int uHasAlbedoMap;
-uniform int uHasNormalMap;
-uniform int uHasHeightMap;       // height doubles as a cavity/AO term
-uniform float uNormalStrength;
-uniform vec2 uNormalFlip;        // per-axis sign: y = -1 for DirectX style maps
-uniform float uCavityStrength;
 layout(binding = 1) uniform sampler2D uAlbedoMap;
 layout(binding = 2) uniform sampler2D uNormalMap;
-layout(binding = 3) uniform sampler2D uHeightMap;
+layout(binding = 3) uniform sampler2D uHeightMap;   // height doubles as a cavity/AO term (TEX_HEIGHT_MAP)
 layout(binding = 4) uniform sampler2D uMRMap;
 layout(binding = 5) uniform sampler2D uOcclusionMap;
 layout(binding = 6) uniform sampler2D uEmissiveMap;
 layout(binding = 7) uniform sampler2D uMacroMap;
-uniform int uHasMacroMap;
 layout(binding = 10) uniform sampler2D uTerrainNormals;   // world normals over the macro rect (terrain)
-uniform int uHasTerrainNormals;
-uniform float uGrain;
-uniform float uGrainScale;
-uniform float uMoss;
-uniform vec3 uMossColor;
-uniform float uSand;
-uniform vec3 uSandColor;
-uniform float uBaseY;
-uniform float uWaterLine;
-uniform vec4 uMacroRect;
 layout(binding = 8) uniform sampler2D uTrailMap;
-uniform float uTrailDepth;     // 0 = this material ignores ground marks
-uniform vec3 uTrailTint;
-uniform float uTrailBoost;
 float TrailAt(vec2 xz)
 {
 	float edge = max(abs(xz.x - uTrailRect.x), abs(xz.y - uTrailRect.y)) / uTrailRect.z;
 	return textureLod(uTrailMap, xz / uTrailRect.z, 0.0).r * (1.0 - smoothstep(0.38, 0.5, edge));
 }
-
-uniform int uHasMRMap;
-uniform int uHasOcclusionMap;
-uniform int uHasEmissiveMap;
-uniform float uOcclusionStrength;
-uniform int uAlphaMode;          // 0 opaque, 1 mask, 2 blend
-uniform float uAlphaCutoff;
-uniform int uAlphaToCoverage;     // 1: masked alpha leaves the shader as coverage (MSAA target)
-uniform float uOpacity;
-uniform int uNoNormalFlip;       // foliage: cards use crown normals on both faces
-uniform vec3 uAlbedo;
-uniform float uMetallic;
-uniform float uRoughness;
-uniform float uAO;
-uniform vec3 uEmissive;
 
 layout(binding = 0) uniform sampler2DShadow uShadowMap;
 
@@ -218,84 +226,86 @@ void main()
 {
 	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCamPos - vPos);
-	if (!gl_FrontFacing && uNoNormalFlip == 0) N = -N;   // back faces of double-sided materials
-	if (uHasTerrainNormals != 0)   // per-pixel smooth ground normal instead of the interpolated (faceted) vertex normal
-		N = normalize(texture(uTerrainNormals, clamp((vPos.xz - uMacroRect.xy) / uMacroRect.zw, vec2(0.0004), vec2(0.9996))).xyz * 2.0 - 1.0);
+	if (!gl_FrontFacing && !HasFlag(FLAG_FOLIAGE_NORMALS)) N = -N;   // back faces of double-sided materials
+	if (HasTex(TEX_TERRAIN_NORMALS))   // per-pixel smooth ground normal instead of the interpolated (faceted) vertex normal
+		N = normalize(texture(uTerrainNormals, clamp((vPos.xz - MATERIAL.Layer[SLOT_MACRO].xy) / MATERIAL.Layer[SLOT_MACRO].zw, vec2(0.0004), vec2(0.9996))).xyz * 2.0 - 1.0);
 	float trailT = 0.0;
-	if (uTrailDepth > 0.0)
+	if (MATERIAL.Layer[SLOT_TRAIL].x > 0.0)
 	{
 		// The surface is lower where the map is high: its normal tilts toward the dent's rim.
 		float e = uTrailRect.w;
 		trailT = TrailAt(vPos.xz);
 		vec2 grad = vec2(TrailAt(vPos.xz + vec2(e, 0.0)) - TrailAt(vPos.xz - vec2(e, 0.0)),
 		                 TrailAt(vPos.xz + vec2(0.0, e)) - TrailAt(vPos.xz - vec2(0.0, e))) / (2.0 * e);
-		N = normalize(N + vec3(grad.x, 0.0, grad.y) * uTrailDepth * uTrailBoost);
+		N = normalize(N + vec3(grad.x, 0.0, grad.y) * MATERIAL.Layer[SLOT_TRAIL].x * MATERIAL.Layer[SLOT_TRAIL].y);
 	}
 
-	if (uHasNormalMap != 0)
+	if (HasTex(TEX_NORMAL))
 	{
 		vec3 tn = texture(uNormalMap, vUV).xyz * 2.0 - 1.0;
-		tn.xy *= uNormalFlip;
-		tn.xy *= uNormalStrength;
+		tn.xy *= MATERIAL.Uv.zw;
+		tn.xy *= MATERIAL.Uv.y;
 		vec3 T = normalize(vTangent.xyz - N * dot(N, vTangent.xyz));
 		vec3 B = cross(N, T) * vTangent.w;
 		N = normalize(mat3(T, B, N) * normalize(tn));
 	}
 
-	vec3 albedo = uAlbedo;
-	float alpha = uOpacity;
-	if (uHasAlbedoMap != 0)
+	vec3 albedo = MATERIAL.BaseColor.rgb;
+	float alpha = MATERIAL.BaseColor.a;
+	if (HasTex(TEX_ALBEDO))
 	{
 		vec4 t = texture(uAlbedoMap, vUV);
 		albedo *= t.rgb;
 		alpha *= t.a;
 	}
-	if (uHasMacroMap != 0)
-		albedo *= texture(uMacroMap, (vPos.xz - uMacroRect.xy) / uMacroRect.zw).rgb;
-	albedo *= mix(vec3(1.0), uTrailTint, clamp(trailT * 1.3, 0.0, 1.0));   // compacted / wetter ground
-	if (uAlphaMode == 1)
+	if (HasTex(TEX_MACRO))
+		albedo *= texture(uMacroMap, (vPos.xz - MATERIAL.Layer[SLOT_MACRO].xy) / MATERIAL.Layer[SLOT_MACRO].zw).rgb;
+	albedo *= mix(vec3(1.0), MATERIAL.Layer[SLOT_TRAIL_TINT].rgb, clamp(trailT * 1.3, 0.0, 1.0));   // compacted / wetter ground
+	if (MATERIAL.Flags.z == 1u)
 	{
 		// Mip levels blur the mask: rescale around the cutoff by the screen-space change of alpha (soft, sharp edge).
-		alpha = clamp((alpha - uAlphaCutoff) / max(fwidth(alpha), 1e-3) + 0.5, 0.0, 1.0);
-		if (alpha < (uAlphaToCoverage != 0 ? 0.02 : 0.5)) discard;
+		alpha = clamp((alpha - MATERIAL.Emissive.a) / max(fwidth(alpha), 1e-3) + 0.5, 0.0, 1.0);
+		if (alpha < (HasFlag(FLAG_ALPHA_TO_COVERAGE) ? 0.02 : 0.5)) discard;
 	}
 	// Procedural surface layers: grain, moss on top, sand at the base, a wet band at the water line.
 	float mossMask = 0.0, sandMask = 0.0, bandWet = 0.0;
-	if (uGrain > 0.0 || uMoss > 0.0 || uSand > 0.0 || uWaterLine > -1e8)
+	float grain = MATERIAL.Layer[SLOT_GRAIN].x, moss = MATERIAL.Layer[SLOT_MOSS].w, sand = MATERIAL.Layer[SLOT_SAND].w;
+	float waterLine = MATERIAL.Layer[SLOT_WATER_LINE].x;
+	if (grain > 0.0 || moss > 0.0 || sand > 0.0 || waterLine > -1e8)
 	{
-		// With uGrain == 0 the mottling is mix(1, x, 0) == 1 exactly: the grain noise (g1) is only paid when grain is on. g2 is the
+		// With grain == 0 the mottling is mix(1, x, 0) == 1 exactly: the grain noise (g1) is only paid when grain is on. g2 is the
 		// fine noise of moss, sand and the wet band, so it is only paid when one of those is on.
-		if (uGrain != 0.0)
+		if (grain != 0.0)
 		{
-			vec3 gp = vPos * uGrainScale;
+			vec3 gp = vPos * MATERIAL.Layer[SLOT_GRAIN].y;
 			float g1 = FBM3(gp);
-			albedo *= mix(1.0, 0.55 + 0.9 * g1, uGrain);
-			if (uGrain > 0.0)
+			albedo *= mix(1.0, 0.55 + 0.9 * g1, grain);
+			if (grain > 0.0)
 			{
 				float e = 0.05;
 				vec3 grad = vec3(FBM3(gp + vec3(e, 0, 0)) - g1, FBM3(gp + vec3(0, e, 0)) - g1, FBM3(gp + vec3(0, 0, e)) - g1) / e;
-				N = normalize(N - (grad - N * dot(grad, N)) * 0.06 * uGrain);
+				N = normalize(N - (grad - N * dot(grad, N)) * 0.06 * grain);
 			}
 		}
 		float g2 = 0.0;
-		if (uMoss > 0.0 || uSand > 0.0 || uWaterLine > -1e8)
+		if (moss > 0.0 || sand > 0.0 || waterLine > -1e8)
 			g2 = FBM3(vPos * 11.0 + 5.0);
 		float up = clamp(normalize(vNormal).y, 0.0, 1.0);
-		if (uMoss > 0.0)
+		if (moss > 0.0)
 		{
-			float v = up * 0.55 + FBM3(vPos * 1.9 + 3.0) * 0.7 + (uMoss - 0.5) * 0.9 - 0.45;
-			mossMask = smoothstep(0.3, 0.55, v) * smoothstep(0.0, 0.12, uMoss);
-			albedo = mix(albedo, uMossColor * (0.55 + 0.9 * g2), mossMask);
+			float v = up * 0.55 + FBM3(vPos * 1.9 + 3.0) * 0.7 + (moss - 0.5) * 0.9 - 0.45;
+			mossMask = smoothstep(0.3, 0.55, v) * smoothstep(0.0, 0.12, moss);
+			albedo = mix(albedo, MATERIAL.Layer[SLOT_MOSS].rgb * (0.55 + 0.9 * g2), mossMask);
 		}
-		if (uSand > 0.0)
+		if (sand > 0.0)
 		{
-			float h = vPos.y - uBaseY;
-			sandMask = (1.0 - smoothstep(0.0, 0.5, h + (g2 - 0.5) * 0.3)) * uSand * (0.55 + 0.45 * up);
-			albedo = mix(albedo, uSandColor * (0.85 + 0.3 * g2), sandMask);
+			float h = vPos.y - MATERIAL.Layer[SLOT_WATER_LINE].y;
+			sandMask = (1.0 - smoothstep(0.0, 0.5, h + (g2 - 0.5) * 0.3)) * sand * (0.55 + 0.45 * up);
+			albedo = mix(albedo, MATERIAL.Layer[SLOT_SAND].rgb * (0.85 + 0.3 * g2), sandMask);
 		}
-		if (uWaterLine > -1e8)
+		if (waterLine > -1e8)
 		{
-			bandWet = 1.0 - smoothstep(uWaterLine, uWaterLine + 0.3, vPos.y + (g2 - 0.5) * 0.1);
+			bandWet = 1.0 - smoothstep(waterLine, waterLine + 0.3, vPos.y + (g2 - 0.5) * 0.1);
 			albedo *= mix(1.0, 0.5, bandWet);
 		}
 	}
@@ -322,17 +332,17 @@ void main()
 		N = normalize(N + vec3(rings.x, 0.0, rings.y) * 0.6 * puddle * smoothstep(0.4, 0.9, uWetness));
 		albedo *= mix(1.0, 0.55, puddle);
 	}
-	float ao = uAO;
-	if (uHasOcclusionMap != 0)
-		ao *= mix(1.0, texture(uOcclusionMap, vUV).r, uOcclusionStrength);
-	if (uHasHeightMap != 0)
+	float ao = MATERIAL.Surface.z;
+	if (HasTex(TEX_OCCLUSION))
+		ao *= mix(1.0, texture(uOcclusionMap, vUV).r, MATERIAL.Surface.w);
+	if (HasTex(TEX_HEIGHT_MAP))
 	{
 		float h = texture(uHeightMap, vUV).r;
-		ao *= mix(1.0, clamp(h * 1.4, 0.0, 1.0), uCavityStrength);
+		ao *= mix(1.0, clamp(h * 1.4, 0.0, 1.0), MATERIAL.ModelParams.y);
 	}
-	float metallic = uMetallic;
-	float roughness = uRoughness;
-	if (uHasMRMap != 0)
+	float metallic = MATERIAL.Surface.x;
+	float roughness = MATERIAL.Surface.y;
+	if (HasTex(TEX_MR))
 	{
 		vec3 mr = texture(uMRMap, vUV).rgb;
 		roughness *= mr.g;
@@ -380,8 +390,8 @@ void main()
 	vec3 ambient = (ambientDiffuse + ambientSpec * horizon) * ao * uEnvIntensity;
 
 	// RGBA16F overflows at 65504; a tiny GGX lobe can exceed that and the bloom would spread the inf.
-	vec3 emissive = uEmissive;
-	if (uHasEmissiveMap != 0) emissive *= texture(uEmissiveMap, vUV).rgb;
+	vec3 emissive = MATERIAL.Emissive.rgb;
+	if (HasTex(TEX_EMISSIVE)) emissive *= texture(uEmissiveMap, vUV).rgb;
 	vec3 color = Lo + ambient + emissive;
 	float fogKeep = 1.0;   // the part of the surface's light that gets through the fog
 	if (uFogDensity > 0.0)
@@ -391,7 +401,7 @@ void main()
 		fogKeep = exp(-density * density * dist * dist);
 		color = mix(uFogColor * uEnvIntensity, color, fogKeep);
 	}
-	float outAlpha = (uAlphaMode == 2 || (uAlphaMode == 1 && uAlphaToCoverage != 0)) ? alpha : 1.0;
+	float outAlpha = (MATERIAL.Flags.z == 2u || (MATERIAL.Flags.z == 1u && HasFlag(FLAG_ALPHA_TO_COVERAGE))) ? alpha : 1.0;
 	outColor = vec4(clamp(color, vec3(0.0), vec3(4096.0)), outAlpha);
 	outAmbient = vec4(clamp(ambient * fogKeep, vec3(0.0), vec3(4096.0)), outAlpha);   // blended like the color
 }

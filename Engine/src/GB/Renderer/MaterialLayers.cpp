@@ -37,12 +37,12 @@ namespace GB
 			const Material d;   // the defaults are the render material's, so a layer at its defaults draws as before
 			return {
 				{ "moss", "moss on top of the piece, by orientation and world-space noise",
-					{ { "amount", LayerParamType::Float, glm::vec3(0.4f), 0.0f, 1.0f, "uMoss", "how much of the up-facing surface it covers (0 = none)" },
-					  { "color", LayerParamType::Color, d.MossColor, 0.0f, 1.0f, "uMossColor", "linear RGB, mottled by the shader's fine noise" } },
+					{ { "amount", LayerParamType::Float, glm::vec3(0.4f), 0.0f, 1.0f, "Layer[SLOT_MOSS].w", "how much of the up-facing surface it covers (0 = none)" },
+					  { "color", LayerParamType::Color, d.MossColor, 0.0f, 1.0f, "Layer[SLOT_MOSS].rgb", "linear RGB, mottled by the shader's fine noise" } },
 					&ApplyMoss },
 				{ "grain", "noise bump and mottling in world space (stone, bark)",
-					{ { "amount", LayerParamType::Float, glm::vec3(0.35f), 0.0f, 1.0f, "uGrain", "strength of the bump and of the mottling" },
-					  { "scale", LayerParamType::Float, glm::vec3(d.GrainScale), 0.1f, 50.0f, "uGrainScale", "noise frequency per metre" } },
+					{ { "amount", LayerParamType::Float, glm::vec3(0.35f), 0.0f, 1.0f, "Layer[SLOT_GRAIN].x", "strength of the bump and of the mottling" },
+					  { "scale", LayerParamType::Float, glm::vec3(d.GrainScale), 0.1f, 50.0f, "Layer[SLOT_GRAIN].y", "noise frequency per metre" } },
 					&ApplyGrain },
 			};
 		}

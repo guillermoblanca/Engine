@@ -229,7 +229,7 @@ namespace GB
 
 	void Renderer::ShadowPass(const Scene& scene)
 	{
-		m_ShadowRenderer->Render(scene, m_List, *m_ShadowMap);
+		m_ShadowRenderer->Render(scene, m_List, m_Materials, *m_ShadowMap);
 	}
 
 	void Renderer::ScenePass(const Scene& scene, const Camera& camera)
@@ -266,6 +266,8 @@ namespace GB
 		// `copies` > 0: an instanced draw of that many copies, their matrices already in m_InstanceBuffer (the object's material for all)
 		using Clock = std::chrono::steady_clock;
 		double drawMs = 0.0;   // T70: the part of the object loop spent in here (uniforms, binds, draw), the rest is culling and batching
+		// T36 (render M4): the material's values are in the material buffer (lib/material, bound by MaterialBuffer::BeginFrame); the draw sets
+		// its entry, uMaterialId, and binds the material's maps (still loose until M6). uModel, uInstanced and uSkinned are the object's (M5).
 		auto drawObject = [&](const RenderObject& obj, uint32_t copies = 0)
 		{
 			const auto drawStart = Clock::now();
@@ -275,58 +277,12 @@ namespace GB
 			pbr.SetMat4("uModel", obj.Transform);
 			pbr.SetInt("uInstanced", copies > 0 ? 1 : 0);
 			BindSkin(pbr, obj);
-			pbr.SetVec3("uAlbedo", m.Albedo);
-			pbr.SetFloat("uMetallic", m.Metallic);
-			pbr.SetFloat("uRoughness", m.Roughness);
-			pbr.SetFloat("uAO", m.AO);
-			pbr.SetVec3("uEmissive", m.Emissive);
-
-			pbr.SetInt("uHasAlbedoMap", m.AlbedoMap ? 1 : 0);
-			pbr.SetInt("uHasNormalMap", m.NormalMap ? 1 : 0);
-			pbr.SetInt("uHasHeightMap", m.HeightMap ? 1 : 0);
-			pbr.SetInt("uHasHeight", m.HeightMap && m.HeightScale != 0.0f ? 1 : 0);
-			pbr.SetInt("uHasMRMap", m.MetallicRoughnessMap ? 1 : 0);
-			pbr.SetInt("uHasOcclusionMap", m.OcclusionMap ? 1 : 0);
-			pbr.SetInt("uHasEmissiveMap", m.EmissiveMap ? 1 : 0);
-			pbr.SetFloat("uWindStrength", m.WindSway);
-			pbr.SetFloat("uWindHeight", m.WindHeight);
-			pbr.SetFloat("uWindFlutter", m.WindFlutter);
-			pbr.SetInt("uNoNormalFlip", m.FoliageNormals ? 1 : 0);
-			pbr.SetInt("uHasMacroMap", m.MacroMap ? 1 : 0);
-			pbr.SetInt("uHasTerrainNormals", m.SurfaceNormalMap && m.MacroMap ? 1 : 0);
+			const uint32_t object = static_cast<uint32_t>(&obj - scene.Objects.data());
+			pbr.SetInt("uMaterialId", static_cast<int>(m_Materials.Resolve(object, m)));
 			if (m.SurfaceNormalMap && m.MacroMap) m.SurfaceNormalMap->Bind(10);
-			pbr.SetFloat("uGrain", m.Grain);
-			pbr.SetFloat("uGrainScale", m.GrainScale);
-			pbr.SetFloat("uMoss", m.Moss);
-			pbr.SetVec3("uMossColor", m.MossColor);
-			pbr.SetFloat("uSand", m.Sand);
-			pbr.SetVec3("uSandColor", m.SandColor);
-			pbr.SetFloat("uBaseY", m.BaseY);
-			pbr.SetFloat("uWaterLine", m.WaterLine);
-			const bool trail = scene.Ground && scene.Ground->IsValid() && m.TrailDepth > 0.0f;
-			pbr.SetFloat("uTrailDepth", trail ? m.TrailDepth : 0.0f);
-			if (trail)
-			{
-				pbr.SetVec3("uTrailTint", m.TrailTint);
-				pbr.SetFloat("uTrailBoost", m.TrailNormalBoost);
-			}
-			if (m.MacroMap)
-			{
-				pbr.SetVec4("uMacroRect", m.MacroRect);
-				m.MacroMap->Bind(7);
-			}
-			pbr.SetFloat("uHeightScale", m.HeightScale);
-			pbr.SetFloat("uUVScale", m.UVScale);
-			pbr.SetFloat("uNormalStrength", m.NormalStrength);
-			pbr.SetVec2("uNormalFlip", { m.NormalFlipX ? -1.0f : 1.0f, m.NormalFlipY ? -1.0f : 1.0f });
-			pbr.SetFloat("uCavityStrength", m.CavityStrength);
-			pbr.SetFloat("uOcclusionStrength", m.OcclusionStrength);
-			pbr.SetInt("uAlphaMode", static_cast<int>(m.Alpha));
+			if (m.MacroMap) m.MacroMap->Bind(7);
 			const bool coverage = m.Alpha == AlphaMode::Mask && m_Samples > 1;   // leaf edges antialiased by the MSAA target
-			pbr.SetInt("uAlphaToCoverage", coverage ? 1 : 0);
 			cmd.SetAlphaToCoverage(coverage);
-			pbr.SetFloat("uAlphaCutoff", m.AlphaCutoff);
-			pbr.SetFloat("uOpacity", m.Opacity);
 			if (m.AlbedoMap) m.AlbedoMap->Bind(1);
 			if (m.NormalMap) m.NormalMap->Bind(2);
 			if (m.HeightMap) m.HeightMap->Bind(3);
@@ -466,6 +422,18 @@ namespace GB
 		const Frustum cameraFrustum = MakeFrustum(viewProj), lightFrustum = MakeFrustum(lightVP);
 		m_List.Build(scene.Objects, scene.DrawDistance);
 		m_List.Cull(cameraFrustum, camera.Position, shadows ? &lightFrustum : nullptr);
+		// T36: the materials' context for this frame and their buffer bound for both passes. The objects drawn alone have their material's id
+		// resolved here and the new materials uploaded at once; the draws set the ids (an instanced batch resolves its first object's then).
+		m_Materials.BeginFrame({ scene.Ground && scene.Ground->IsValid(), m_Samples > 1 }, scene.Objects.size());
+		{
+			const std::vector<RenderItem>& items = m_List.Items();
+			for (const uint32_t i : m_List.Visible())
+				if (!items[i].Has(RenderItem::Batched)) m_Materials.Prepare(items[i].Object, scene.Objects[items[i].Object].Mat);
+			if (shadows)
+				for (const uint32_t i : m_List.Casters())
+					if (!items[i].Has(RenderItem::Batched)) m_Materials.Prepare(items[i].Object, scene.Objects[items[i].Object].Mat);
+			m_Materials.Flush();
+		}
 		const float cullMs = static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cullStart).count());
 		UploadFrame(scene, camera, viewProj, lightVP, shadows);
 
@@ -492,6 +460,12 @@ namespace GB
 		m_Stats.ShadowCalls = shadowCalls;
 		m_Stats.DrawCalls = DrawCounter::Calls;
 		m_Stats.Triangles = DrawCounter::Triangles;
+		const MaterialBuffer::Stats& materials = m_Materials.FrameStats();
+		m_Stats.MaterialResolves = materials.Resolves;
+		m_Stats.MaterialsPacked = materials.Packed;
+		m_Stats.MaterialsHashed = materials.Hashed;
+		m_Stats.MaterialsAdded = materials.Added;
+		m_Stats.Materials = materials.Count;
 		m_Stats.SceneCalls = m_Stats.DrawCalls - shadowCalls - m_Stats.GrassCalls - m_Stats.WaterCalls;
 		m_PostProcessor->BloomPass(*m_SceneResolved, scene.Env);
 		Mark(kAfterBloom);

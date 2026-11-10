@@ -30,9 +30,17 @@ namespace GB
 		RHI::FrameCounters Submit, ObjectSubmit;
 		float CpuObjectsMs = 0.0f;
 		float CpuObjectDrawMs = 0.0f;   // ... of it, inside the draws of the objects (uniforms, binds, the draw call); the rest is culling and batching
-		float CpuCullMs = 0.0f;         // ... of it, building the list and culling it for both passes (T78)
+		float CpuCullMs = 0.0f;         // ... of it, building the list and culling it for both passes (T78), and preparing the materials of the objects drawn alone (T36)
 		float CpuShadowMs = 0.0f;       // the CPU time of the shadow pass (its draws and batches), for the rest of "sending"
 		RHI::FrameCounters ShadowSubmit;
+		// T36 (render M4): the materials by id (MaterialBuffer). The objects drawn alone are prepared before the passes, and each object draw,
+		// shadow or scene, resolves its material's id. The first time in a frame an object packs its material and compares it with the entry it
+		// had; only a changed or unknown material is hashed, and only a new one is added to the table and uploaded (256 B).
+		uint32_t MaterialResolves = 0;   // draws of objects that set uMaterialId
+		uint32_t MaterialsPacked = 0;    // objects that packed their material (once per object and frame, prepared or drawn)
+		uint32_t MaterialsHashed = 0;    // ... of them, looked up in the table by hash
+		uint32_t MaterialsAdded = 0;     // materials added to the table (uploaded this frame)
+		uint32_t Materials = 0;          // materials in the table at the end of the frame
 	};
 
 	// Counts the draw calls as they are made (the mesh and the instanced draws call Add): the renderer reads it around each pass.

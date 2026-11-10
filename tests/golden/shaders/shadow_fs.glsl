@@ -1,11 +1,51 @@
 #version 450 core
+struct MaterialData
+{
+	vec4 BaseColor;     // rgb albedo, a opacity
+	vec4 Emissive;      // rgb emissive, a alpha cutoff
+	vec4 Surface;       // x metallic, y roughness, z ao, w occlusion strength
+	vec4 Uv;            // x uv scale, y normal strength, zw normal map sign per axis
+	uvec4 Tex;          // x TEX_* bits: the maps bound
+	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
+	vec4 Wind;          // x sway, y height of full sway, z flutter
+	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength
+	vec4 Layer[8];      // the layers' slots (SLOT_*)
+};
+layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
+uniform int uMaterialId;
+#define MATERIAL uMaterials[uMaterialId]
+const uint TEX_ALBEDO = 1u;
+const uint TEX_NORMAL = 2u;
+const uint TEX_HEIGHT_MAP = 4u;
+const uint TEX_HEIGHT = 8u;
+const uint TEX_MR = 16u;
+const uint TEX_OCCLUSION = 32u;
+const uint TEX_EMISSIVE = 64u;
+const uint TEX_MACRO = 128u;
+const uint TEX_TERRAIN_NORMALS = 256u;
+const uint FLAG_FOLIAGE_NORMALS = 1u;
+const uint FLAG_ALPHA_TO_COVERAGE = 2u;
+const uint FLAG_DOUBLE_SIDED = 4u;
+const uint LAYER_GRAIN = 1u;
+const uint LAYER_MOSS = 2u;
+const uint LAYER_SAND = 4u;
+const uint LAYER_WATER_LINE = 8u;
+const uint LAYER_TRAIL = 16u;
+const uint LAYER_MACRO = 32u;
+const uint SLOT_GRAIN = 0u;        // x amount, y scale
+const uint SLOT_MOSS = 1u;         // rgb color, w amount
+const uint SLOT_SAND = 2u;         // rgb color, w amount
+const uint SLOT_WATER_LINE = 3u;   // x water line (-1e9: none), y the sand's base height
+const uint SLOT_TRAIL = 4u;        // x depth (0: none), y normal boost
+const uint SLOT_TRAIL_TINT = 5u;   // rgb tint
+const uint SLOT_MACRO = 6u;        // the macro map's rect
+const uint LAYER_SLOTS = 8u;
+bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
+bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 in vec2 vUV;
-uniform int uAlphaMode;
-uniform float uAlphaCutoff;
-uniform float uOpacity;
 layout(binding = 1) uniform sampler2D uAlbedoMap;
 void main()
 {
-	if (uAlphaMode == 1 && texture(uAlbedoMap, vUV).a * uOpacity < uAlphaCutoff)
+	if (MATERIAL.Flags.z == 1u && HasTex(TEX_ALBEDO) && texture(uAlbedoMap, vUV).a * MATERIAL.BaseColor.a < MATERIAL.Emissive.a)
 		discard;
 }

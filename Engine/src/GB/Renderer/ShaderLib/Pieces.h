@@ -41,6 +41,55 @@ layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of ou
 };
 )GLSL";
 
+	// lib/material: the per-material block (render M4, T36): one MaterialData per distinct material in a storage buffer at
+	// MaterialData::Binding, written by the renderer's MaterialBuffer; a draw reads its entry, MATERIAL, at uMaterialId. Mirror of
+	// GB::MaterialData (MaterialData.h): same members, same order, std430; the constants are its Tex*, Flag*, Layer* and Slot* (the test
+	// material_block checks the offsets against the driver and these lines against the C++). PBR and Shadow VS and FS.
+	inline constexpr const char* Material = R"GLSL(struct MaterialData
+{
+	vec4 BaseColor;     // rgb albedo, a opacity
+	vec4 Emissive;      // rgb emissive, a alpha cutoff
+	vec4 Surface;       // x metallic, y roughness, z ao, w occlusion strength
+	vec4 Uv;            // x uv scale, y normal strength, zw normal map sign per axis
+	uvec4 Tex;          // x TEX_* bits: the maps bound
+	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
+	vec4 Wind;          // x sway, y height of full sway, z flutter
+	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength
+	vec4 Layer[8];      // the layers' slots (SLOT_*)
+};
+layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
+uniform int uMaterialId;
+#define MATERIAL uMaterials[uMaterialId]
+const uint TEX_ALBEDO = 1u;
+const uint TEX_NORMAL = 2u;
+const uint TEX_HEIGHT_MAP = 4u;
+const uint TEX_HEIGHT = 8u;
+const uint TEX_MR = 16u;
+const uint TEX_OCCLUSION = 32u;
+const uint TEX_EMISSIVE = 64u;
+const uint TEX_MACRO = 128u;
+const uint TEX_TERRAIN_NORMALS = 256u;
+const uint FLAG_FOLIAGE_NORMALS = 1u;
+const uint FLAG_ALPHA_TO_COVERAGE = 2u;
+const uint FLAG_DOUBLE_SIDED = 4u;
+const uint LAYER_GRAIN = 1u;
+const uint LAYER_MOSS = 2u;
+const uint LAYER_SAND = 4u;
+const uint LAYER_WATER_LINE = 8u;
+const uint LAYER_TRAIL = 16u;
+const uint LAYER_MACRO = 32u;
+const uint SLOT_GRAIN = 0u;        // x amount, y scale
+const uint SLOT_MOSS = 1u;         // rgb color, w amount
+const uint SLOT_SAND = 2u;         // rgb color, w amount
+const uint SLOT_WATER_LINE = 3u;   // x water line (-1e9: none), y the sand's base height
+const uint SLOT_TRAIL = 4u;        // x depth (0: none), y normal boost
+const uint SLOT_TRAIL_TINT = 5u;   // rgb tint
+const uint SLOT_MACRO = 6u;        // the macro map's rect
+const uint LAYER_SLOTS = 8u;
+bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
+bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
+)GLSL";
+
 	// lib/sky (the old SkyCommon): procedural sky and environment map, shared by the background and image based lighting.
 	// Sky, PBR, Water and Grass FS. Its values (sky colors, fog, environment map) are in lib/frame. Starts with a blank line, as SkyCommon did.
 	inline constexpr const char* Sky = R"GLSL(
@@ -92,11 +141,9 @@ float TrailAt(vec2 xz)
 }
 )GLSL";
 
-	// lib/object_trail: the ground-mark uniforms of an object's material, plus TrailAt (the window, uTrailRect, is in lib/frame). PBR VS and FS.
+	// lib/object_trail: the ground-mark map of the objects, plus TrailAt (the window, uTrailRect, is in lib/frame; the material's depth, tint
+	// and boost in lib/material, SLOT_TRAIL and SLOT_TRAIL_TINT). PBR VS and FS.
 	inline constexpr const char* ObjectTrail = R"GLSL(layout(binding = 8) uniform sampler2D uTrailMap;
-uniform float uTrailDepth;     // 0 = this material ignores ground marks
-uniform vec3 uTrailTint;
-uniform float uTrailBoost;
 #include "lib/trail_at"
 )GLSL";
 
@@ -114,29 +161,26 @@ mat4 SkinMatrix()
 }
 )GLSL";
 
-	// lib/object_height: height-map displacement uniforms. Shadow and PBR VS.
-	inline constexpr const char* ObjectHeight = R"GLSL(uniform int uHasHeight;
-uniform float uHeightScale;
-uniform float uUVScale;
-layout(binding = 3) uniform sampler2D uHeightMap;
+	// lib/object_height: the height map of the displacement (whether it is on, TEX_HEIGHT, and its scale are in lib/material). Shadow and PBR VS.
+	inline constexpr const char* ObjectHeight = R"GLSL(layout(binding = 3) uniform sampler2D uHeightMap;
 )GLSL";
 
 	// lib/tree_wind: tree and foliage sway, WindOffset(). Shadow and PBR VS. The grass wind is another formula (Grass VS).
+	// The material's MATERIAL.Wind: x sway (0 = rigid; meters at the top of the object per unit of wind), y the object-space height at which
+	// the sway is full, z flutter (small fast leaf motion, meters).
 	inline constexpr const char* TreeWind = R"GLSL(// Tree / foliage sway: bend grows with height, a travelling gust wave, and high-frequency flutter.
-uniform float uWindStrength;      // 0 = rigid; meters of sway at the top of the object per unit of wind
-uniform float uWindHeight;        // object-space height at which the sway is full
-uniform float uWindFlutter;       // small fast leaf motion (meters)
+#include "lib/material"
 #include "lib/frame"
 vec3 WindOffset(vec3 localPos, vec3 worldPos, vec3 origin)
 {
-	float hw = clamp(localPos.y / max(uWindHeight, 1e-3), 0.0, 1.0);
+	float hw = clamp(localPos.y / max(MATERIAL.Wind.y, 1e-3), 0.0, 1.0);
 	hw *= hw;
 	float ws = length(uWind.xz);
 	vec2 wd = ws > 0.01 ? uWind.xz / ws : vec2(1.0, 0.0);
 	float phase = dot(origin.xz, wd) * 0.12 - uTime * (0.8 + 0.1 * ws);
 	float sway = (0.05 + 0.03 * ws) * (0.75 + 0.3 * sin(phase) + 0.2 * sin(phase * 2.3 + 1.0));
-	vec3 off = vec3(wd.x, 0.0, wd.y) * sway * uWindStrength * hw;
-	float fl = uWindFlutter * (0.35 + 0.08 * ws) * hw;
+	vec3 off = vec3(wd.x, 0.0, wd.y) * sway * MATERIAL.Wind.x * hw;
+	float fl = MATERIAL.Wind.z * (0.35 + 0.08 * ws) * hw;
 	off += vec3(sin(uTime * 4.1 + worldPos.z * 4.0), 0.4 * sin(uTime * 5.3 + worldPos.x * 3.0), sin(uTime * 3.7 + worldPos.y * 5.0)) * fl;
 	return off;
 }
