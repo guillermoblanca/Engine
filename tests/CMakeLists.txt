@@ -263,6 +263,9 @@ gb_test(drainage drainage_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS
 gb_test(lake_mesh lake_mesh_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS rapido)
 # TERRENO_V5 E2: the stream-power erosion (mass by the formula, valleys on a cone, lakes not incised, the cascade and the preview) and fluvial_erosion.
 gb_test(fluvial_erosion fluvial_erosion_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS rapido)
+# TERRENO_V5 E4: the talus with hardness (a step: the hard wall keeps a cliff, the soft one is cut to its angle, scree at the foot, the volume
+# kept; lakes still, no new hollows, the same twice) and the node talus; GB_WorldGen alone.
+gb_test(talus talus_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS rapido)
 gb_test_write_pool_mains()   # (after the last gb_test of a pool)
 
 # Build speed (T50). Every test executable is a few .cpp files, so instead of one precompiled header each (that would cost as much as it saves) they all

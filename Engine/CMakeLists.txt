@@ -44,6 +44,7 @@ add_library(GB_WorldGen STATIC
     src/GB/World/FlowAccumulation.cpp
     src/GB/World/Drainage.cpp
     src/GB/World/StreamPower.cpp
+    src/GB/World/Talus.cpp
     src/GB/World/Water.cpp
     src/GB/World/Water/WaterField.cpp
     src/GB/World/Water/WaterRaster.cpp
@@ -67,6 +68,7 @@ add_library(GB_WorldGen STATIC
     src/GB/World/Graph/Nodes/DepressionFillNode.cpp
     src/GB/World/Graph/Nodes/DrainageNodes.cpp
     src/GB/World/Graph/Nodes/FluvialErosionNode.cpp
+    src/GB/World/Graph/Nodes/TalusNode.cpp
     src/GB/World/Graph/Nodes/LakeSiteNode.cpp
     src/GB/World/Graph/Nodes/LakeBasinNode.cpp
     src/GB/World/Graph/Nodes/RiverTraceNode.cpp
