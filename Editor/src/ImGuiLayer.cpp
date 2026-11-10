@@ -3,6 +3,7 @@
 #include <imgui.h>
 #include <imgui_impl_glfw.h>
 #include <imgui_impl_opengl3.h>
+#include <chrono>
 
 namespace GB::Editor
 {
@@ -54,7 +55,11 @@ namespace GB::Editor
 
 	void ImGuiLayer::EndFrame()
 	{
+		const auto start = std::chrono::steady_clock::now();
 		ImGui::Render();
+		const auto rendered = std::chrono::steady_clock::now();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+		m_RenderMs = static_cast<float>(std::chrono::duration<double, std::milli>(rendered - start).count());
+		m_DrawMs = static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - rendered).count());
 	}
 }

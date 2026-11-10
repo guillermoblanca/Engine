@@ -1227,6 +1227,13 @@ namespace GB::Editor
 			if (!m_ViewportFb) return { false, "no viewport yet" };
 			return m_ViewportFb->SavePNG(a[0].c_str()) ? CommandResult{ true, "saved " + a[0] } : CommandResult{ false, "could not write " + a[0] };
 		});
+		c.Register("uiprof", "uiprof [finish on|off]: the interface's CPU time by part, in ms (smoothed): each editor panel, ImGui::Render and the OpenGL draw of the lists; finish on drains the GPU (glFinish) before the interface and times that wait apart (T62)", [this](const std::vector<std::string>& a) -> CommandResult
+		{
+			if (a.size() >= 2 && a[0] == "finish") { m_UiFinish = a[1] == "on" || a[1] == "1"; m_UiPartMs[kUiFinish] = 0.0f; }
+			const std::string line = UiProfileLine();
+			GB_CLIENT_INFO("{}", line);
+			return { true, line };
+		});
 		c.Register("shot_ui", "shot_ui <file.png>: saves the whole window, panels included, at the end of this frame", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty()) return { false, "usage: shot_ui <file.png>" };
@@ -1581,10 +1588,20 @@ namespace GB::Editor
 		Framebuffer::BindDefault(ww, wh);
 		glClearColor(0.07f, 0.07f, 0.08f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		const auto smoothUi = [this](int which, float ms) { m_UiPartMs[which] = m_UiPartMs[which] * 0.9f + 0.1f * ms; };
+		if (m_UiFinish)   // `uiprof finish on`: the wait for the GPU to finish the 3D frame, outside the interface's timer
+		{
+			const auto finishStart = std::chrono::steady_clock::now();
+			glFinish();
+			smoothUi(kUiFinish, static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - finishStart).count()));
+		}
 		const auto uiStart = std::chrono::steady_clock::now();
 		m_Ui->BeginFrame(m_FrameDt, ww, wh);
+		smoothUi(kUiNewFrame, static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - uiStart).count()));
 		DrawUI();
 		m_Ui->EndFrame();
+		smoothUi(kUiImGuiRender, m_Ui->LastRenderMs());
+		smoothUi(kUiGlDraw, m_Ui->LastDrawMs());
 		m_CpuUiMs = m_CpuUiMs * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - uiStart).count());
 
 		if (!m_PendingUiShot.empty())
@@ -1629,16 +1646,26 @@ namespace GB::Editor
 	void EditorApp::DrawUI()
 	{
 		ImGuiViewport* vp = ImGui::GetMainViewport();
+		auto lap = std::chrono::steady_clock::now();
+		const auto mark = [&](int which)   // T62: each part's CPU time (`uiprof`)
+		{
+			const auto now = std::chrono::steady_clock::now();
+			m_UiPartMs[which] = m_UiPartMs[which] * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(now - lap).count());
+			lap = now;
+		};
 		if (m_Game.Active)
 		{   // the game: only its view, over the whole window. The editor's dock layout is kept alive (not shown) so `play off` finds it as it was; no
 			// docked window is drawn meanwhile (it would land in the hidden node). The console is the game's own window (`game console`).
 			ImGui::DockSpaceOverViewport(0, vp, ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_KeepAliveOnly);
 			DrawGameScreen();
+			mark(kUiGame);
 			for (const std::string& line : m_UiCommands) Execute(line);
 			m_UiCommands.clear();
+			mark(kUiCommands);
 			return;
 		}
 		DrawMenu();
+		mark(kUiMenu);
 		const ImGuiID dock = ImGui::DockSpaceOverViewport(0, vp, ImGuiDockNodeFlags_PassthruCentralNode);
 		if (!m_LayoutBuilt)
 		{
@@ -1646,23 +1673,41 @@ namespace GB::Editor
 			if (ImGui::GetIO().IniFilename == nullptr || ImGui::DockBuilderGetNode(dock) == nullptr || ImGui::DockBuilderGetNode(dock)->IsLeafNode())
 				BuildDefaultLayout(dock, vp->Size.x, vp->Size.y);
 		}
+		mark(kUiDock);
 		if (m_Panels.Viewport) DrawViewport();
+		mark(kUiViewport);
 		if (m_Panels.Hierarchy) DrawHierarchy();
+		mark(kUiHierarchy);
 		if (m_Panels.Inspector) DrawInspector();
+		mark(kUiInspector);
 		if (m_Panels.Properties) DrawProperties();
+		mark(kUiProperties);
 		if (m_Panels.World) DrawWorldPanel();
+		mark(kUiWorld);
 		if (m_Panels.Stats) DrawStats();
+		mark(kUiStats);
 		if (m_Panels.Model) DrawModelPanel();
+		mark(kUiModel);
 		if (m_Panels.Animation) DrawAnimationPanel();
+		mark(kUiAnimation);
 		if (m_Panels.Abilities) DrawAbilitiesPanel();
+		mark(kUiAbilities);
 		if (m_Panels.Tribe) DrawTribePanel();
+		mark(kUiTribe);
 		if (m_Panels.WorldState) DrawWorldStatePanel();
+		mark(kUiWorldState);
 		if (m_Panels.Timeline) DrawTimelinePanel();
+		mark(kUiTimeline);
 		if (m_Panels.AnimBindings) DrawAnimBindingsPanel();
+		mark(kUiAnimBindings);
 		if (m_Panels.Graph) DrawGraphPanel();
+		mark(kUiGraph);
 		if (m_Panels.Tests) DrawTestsPanel();
+		mark(kUiTests);
 		if (m_Panels.QA) DrawQaPanel();
+		mark(kUiQa);
 		if (m_ShowPriorityGraph) DrawPriorityGraphPanel();
+		mark(kUiPriorityGraph);
 		if (m_ShowTerrainGraph)
 		{
 			if (!m_TgUi) m_TgUi = std::make_unique<TerrainGraphUi>();
@@ -1675,12 +1720,32 @@ namespace GB::Editor
 				RequestWorldBuild(graphDesc);
 			}
 		}
+		mark(kUiTerrainGraph);
 		if (m_Panels.Console) DrawConsole();
+		mark(kUiConsole);
 		if (m_Panels.Assets) DrawAssets();
+		mark(kUiAssets);
 		if (m_Panels.Demo) ImGui::ShowDemoWindow(&m_Panels.Demo);
 		HandleSceneShortcuts();
 		for (const std::string& line : m_UiCommands) Execute(line);
 		m_UiCommands.clear();
+		mark(kUiCommands);
+	}
+
+	std::string EditorApp::UiProfileLine() const
+	{
+		static const char* const names[kUiParts] = { "new frame", "game screen", "menu", "dock", "viewport", "hierarchy", "inspector", "properties", "world", "stats",
+			"model", "animation", "abilities", "tribe", "world state", "timeline", "anim bindings", "graph", "tests", "qa", "priority graph", "terrain graph", "console",
+			"assets", "commands", "imgui render", "gl draw", "gpu finish" };
+		std::string line = "ui profile:";
+		char part[64];
+		for (int i = 0; i < kUiParts; ++i)
+		{
+			std::snprintf(part, sizeof part, "%s %s %.3f", i == 0 ? "" : ",", names[i], static_cast<double>(m_UiPartMs[i]));
+			line += part;
+		}
+		std::snprintf(part, sizeof part, " | interface %.2f ms, frame %.2f ms", static_cast<double>(m_CpuUiMs), static_cast<double>(m_FrameMsSmooth));
+		return line + part;
 	}
 
 	void EditorApp::DrawMenu()

@@ -502,6 +502,15 @@ namespace GB::Editor
 		float m_RenderScale = 1.0f;          // the 3D view is rendered at this fraction of the viewport (`quality minimum`)
 		bool m_MinimumQuality = false;       // the renderer was made without MSAA and with a small shadow map
 		bool m_LayoutBuilt = false;
+		// T62: the interface's CPU time by part (smoothed 0.9/0.1 like the rest), printed by `uiprof`: ImGui's new frame, each panel of DrawUI,
+		// ImGui::Render (the draw lists) and the OpenGL draw of the lists. With `uiprof finish on` the GPU's queue is drained (glFinish) before
+		// the interface starts and that wait is timed apart, so the draw time left is the driver's own work, not a wait for the 3D frame.
+		enum UiPart { kUiNewFrame, kUiGame, kUiMenu, kUiDock, kUiViewport, kUiHierarchy, kUiInspector, kUiProperties, kUiWorld, kUiStats, kUiModel, kUiAnimation,
+			kUiAbilities, kUiTribe, kUiWorldState, kUiTimeline, kUiAnimBindings, kUiGraph, kUiTests, kUiQa, kUiPriorityGraph, kUiTerrainGraph, kUiConsole, kUiAssets,
+			kUiCommands, kUiImGuiRender, kUiGlDraw, kUiFinish, kUiParts };
+		float m_UiPartMs[kUiParts] = {};
+		bool m_UiFinish = false;
+		std::string UiProfileLine() const;
 		std::string m_PropFilter;
 		char m_ConsoleInput[256] = {};
 		std::vector<std::string> m_History;
