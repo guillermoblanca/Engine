@@ -4,6 +4,8 @@
 #include "GB/Scene/Image.h"
 #include "GB/World/Terrain.h"
 #include "SceneEditor.h"
+#include "GB/Log.h"
+#include "GB/World/Graph/TgHash.h"
 #include <algorithm>
 #include <filesystem>
 #include <cmath>
@@ -35,10 +37,22 @@ namespace GB::Editor
 			}
 		}
 		bool Compatible(TgPortKind a, TgPortKind b) { return a == b || a == TgPortKind::Any || b == TgPortKind::Any; }
+
+		// The panel's memo of the full world (T84): a budget keeps the 3 km valley at 1025 x 1025 from holding every output of every node (measured:
+		// docs/GRAFO_TERRENO.md 12.6). The nodes that cost the most time per byte stay, so a change near the end of the graph is still instant.
+		constexpr size_t kFullCacheBudget = size_t(128) << 20;
+		std::shared_ptr<TerrainGraphCache> NewFullCache()
+		{
+			auto cache = std::make_shared<TerrainGraphCache>();
+			cache->SetByteBudget(kFullCacheBudget);
+			return cache;
+		}
+		double Megabytes(size_t bytes) { return static_cast<double>(bytes) / 1048576.0; }
 	}
 
 	TerrainGraphUi::TerrainGraphUi() : m_Graph(std::make_shared<TerrainGraph>()), m_Registry(MakeDefaultTerrainNodeRegistry())
 	{
+		m_Cache = NewFullCache();
 		m_Graph->Id = "terrain";
 		m_Graph->Name = "Terrain";
 		AddNode("heightfield_noise", ImVec2(40.0f, 90.0f));
@@ -180,7 +194,166 @@ namespace GB::Editor
 			message = error.empty() ? "previewing " + m_Preview.Node + "." + m_Preview.Port + (m_Preview.Map ? " (map)" : "") + (m_Preview.Overlay ? " (on the terrain)" : "") : error;
 			return error.empty();
 		}
-		message = "terrain_graph library | load <id|file.json> | save [id] | export <id> <file.json> | reload | preview <node> [port] [map|overlay|both|off]";
+		if (verb == "quick")
+		{
+			if (a.size() > 1)
+			{
+				if (a[1] == "on" || a[1] == "off") m_Quick.Enabled = a[1] == "on";
+				else if (a[1] == "auto") m_Quick.AutoFull = a.size() < 3 || (a[2] != "off" && a[2] != "0");
+				else
+				{
+					const int resolution = std::atoi(a[1].c_str());
+					if (resolution < 33 || resolution > 1025) { message = "usage: terrain_graph quick [on|off|<resolution 33..1025>|auto on|off]"; return false; }
+					m_Quick.Resolution = static_cast<uint32_t>(resolution);
+				}
+			}
+			message = QuickStatus();
+			return true;
+		}
+		if (verb == "set")
+		{
+			if (a.size() < 4) { message = "usage: terrain_graph set <node> <param> <value>"; return false; }
+			TgNode* node = m_Graph->FindNode(a[1]);
+			if (!node) { message = "no node '" + a[1] + "' in the panel's graph"; return false; }
+			if (!SchemaOf(node->Type).FindParam(a[2]) && !node->Params.count(a[2])) { message = "node '" + a[1] + "' has no parameter '" + a[2] + "'"; return false; }
+			node->Params[a[2]] = std::atof(a[3].c_str());
+			message = a[1] + "." + a[2] + " = " + a[3] + (m_Quick.Enabled ? " (the quick preview runs again)" : "");
+			return true;
+		}
+		if (verb == "memory")
+		{
+			if (a.size() > 1) m_Cache->SetByteBudget(static_cast<size_t>(std::max(0.0, std::atof(a[1].c_str())) * 1048576.0));
+			const std::string budget = m_Cache->ByteBudget() ? std::to_string(m_Cache->ByteBudget() >> 20) + " MB" : std::string("none");
+			char text[200];
+			std::snprintf(text, sizeof text, "terrain graph caches: full %.1f MB in %zu nodes (budget %s), quick %.1f MB", Megabytes(m_Cache->Bytes()), m_Cache->Size(),
+				budget.c_str(), Megabytes(m_Quick.Cache->Bytes()));
+			message = text;
+			return true;
+		}
+		if (verb == "release") { ReleaseMemory(); message = "terrain graph caches released"; return true; }
+		message = "terrain_graph library | load <id|file.json> | save [id] | export <id> <file.json> | reload | preview <node> [port] [map|overlay|both|off] | "
+			"quick [on|off|<resolution>|auto on|off] | set <node> <param> <value> | memory [budget_mb] | release";
+		return false;
+	}
+
+	void TerrainGraphUi::SetWorld(const WorldDesc& desc)
+	{
+		m_World = desc;
+		m_World.TerrainGraphDefinition.reset();
+		m_World.GraphCache.reset();
+	}
+
+	void TerrainGraphUi::ReleaseMemory()
+	{
+		// new, empty caches: a build or a quick evaluation still running keeps the old one alive until it ends (it holds a reference), and the
+		// world it makes does not keep it (WorldGenerator::GenerateData)
+		m_Cache = NewFullCache();
+		m_Quick.Cache = std::make_shared<TerrainGraphCache>();
+		m_Quick.LaunchedKey = m_Quick.ShownKey = 0;
+		m_Quick.Done = m_Quick.FullDone = {};
+		m_Quick.FullGeneration = m_Cache->Generation();
+		m_Preview.Value = TgValue();
+		m_Preview.Texture.reset();
+		m_Preview.Valid = false;
+		m_Preview.Source = nullptr;
+		m_Preview.Generation = ~0ull;
+	}
+
+	uint64_t TerrainGraphUi::GraphKey() const
+	{
+		uint64_t h = kTgHashSeed;
+		for (const TgNode& n : m_Graph->Nodes)
+		{
+			h = TgHashString(n.Source, TgHashString(n.Type, TgHashString(n.Id, h)));
+			for (const auto& [name, value] : n.Params) h = TgHashBytes(&value, sizeof value, TgHashString(name, h));
+		}
+		for (const TgEdge& e : m_Graph->Edges) h = TgHashString(e.FromPort, TgHashString(e.Port, TgHashString(e.To, TgHashString(e.From, h))));
+		// the world it is evaluated for, and at which resolution
+		const float extent = m_World.Extent();
+		const int type = static_cast<int>(m_World.Type);
+		h = TgHashBytes(&m_World.Seed, sizeof m_World.Seed, h);
+		h = TgHashBytes(&extent, sizeof extent, h);
+		h = TgHashBytes(&type, sizeof type, h);
+		h = TgHashBytes(&m_Quick.Resolution, sizeof m_Quick.Resolution, h);
+		std::string node, port;   // and what it previews (the quick evaluation runs only what that needs)
+		if (PreviewTarget(node, port)) h = TgHashString(node, h);
+		return h == 0 ? 1 : h;   // (0 means "none")
+	}
+
+	std::string TerrainGraphUi::QuickStatus() const
+	{
+		char text[320];
+		const QuickOutcome& q = m_Quick.Last;
+		if (m_Quick.Runs == 0)
+			std::snprintf(text, sizeof text, "quick preview %s at %u x %u, not run yet", m_Quick.Enabled ? "on" : "off", m_Quick.Resolution, m_Quick.Resolution);
+		else if (!q.Ok)
+			std::snprintf(text, sizeof text, "quick preview %u x %u failed: %s", q.Resolution, q.Resolution, q.Error.c_str());
+		else
+			std::snprintf(text, sizeof text, "quick preview %u x %u: %.2f s (%d ran, %d reused), quick cache %.1f MB, full cache %.1f MB%s", q.Resolution, q.Resolution,
+				q.Seconds, q.Ran, q.Reused, Megabytes(m_Quick.Cache->Bytes()), Megabytes(m_Cache->Bytes()), m_Quick.AutoFull ? ", full build after the edits" : "");
+		return text;
+	}
+
+	void TerrainGraphUi::UpdateQuick()
+	{
+		using Clock = Quick::Clock;
+		const Clock::time_point now = Clock::now();
+		if (const uint64_t full = m_Cache->Generation(); full != m_Quick.FullGeneration) { m_Quick.FullGeneration = full; m_Quick.FullDone = now; }
+		if (m_Quick.Running && m_Quick.Job.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+		{
+			m_Quick.Last = m_Quick.Job.get();
+			m_Quick.Running = false;
+			++m_Quick.Runs;
+			m_Quick.ShownKey = m_Quick.LaunchedKey;   // (a graph that fails is not tried again until it changes)
+			if (m_Quick.Last.Ok) m_Quick.Done = Clock::now();
+			else { m_Message = "Quick preview failed: " + m_Quick.Last.Error; m_MessageError = true; }
+			GB_CLIENT_INFO("terrain graph {}", QuickStatus());
+		}
+		const uint64_t key = GraphKey();
+		if (key != m_Quick.SeenKey) { m_Quick.SeenKey = key; m_Quick.Changed = now; }
+		const bool settled = now - m_Quick.Changed >= std::chrono::milliseconds(80);   // (a slider being dragged moves every frame)
+		if (m_Quick.Enabled && !m_Quick.Running && key != m_Quick.LaunchedKey && settled && !HasTgErrors(ValidateTerrainGraph(*m_Graph, m_Registry)))
+		{
+			WorldDesc desc = m_World;
+			desc.Size = m_World.Extent();
+			desc.Tiles = 1;
+			desc.Resolution = m_Quick.Resolution;
+			// a copy (the panel keeps editing its own) of only what the previewed port needs: the published height does not wait for the biomes
+			std::string node, port;
+			desc.TerrainGraphDefinition = std::make_shared<const TerrainGraph>(PreviewTarget(node, port) ? TerrainGraphUpstreamOf(*m_Graph, { node }) : *m_Graph);
+			desc.GraphCache = m_Quick.Cache;
+			m_Quick.LaunchedKey = key;
+			m_Quick.Running = true;
+			m_Quick.Job = std::async(std::launch::async, [desc]()
+			{
+				QuickOutcome o;
+				TgResult result;
+				const auto t0 = Clock::now();
+				o.Ok = EvaluateWorldGraph(desc, result, o.Error);
+				o.Seconds = std::chrono::duration<double>(Clock::now() - t0).count();
+				const TerrainGraphCache::Stats s = desc.GraphCache->LastStats();
+				o.Ran = s.Ran;
+				o.Reused = s.Reused;
+				o.Resolution = desc.Resolution;
+				return o;
+			});
+		}
+		// the full build by itself, once the edits stopped and no slider is held (T84: "al soltar el slider con un retardo")
+		if (m_Quick.AutoFull && key != m_Quick.AutoKey && now - m_Quick.Changed >= std::chrono::duration<float>(m_Quick.FullDelay) && !ImGui::IsAnyItemActive() &&
+			!HasTgErrors(ValidateTerrainGraph(*m_Graph, m_Registry)))
+		{
+			m_Quick.AutoKey = key;
+			m_ApplyRequested = true;
+			m_Message = "Edits settled: full build queued";
+			m_MessageError = false;
+		}
+	}
+
+	bool TerrainGraphUi::PreviewTarget(std::string& node, std::string& port) const
+	{
+		if (!m_Preview.Node.empty()) { node = m_Preview.Node; port = m_Preview.Port; return true; }
+		for (const TgNode& n : m_Graph->Nodes)   // nothing picked: the height the graph publishes
+			if (n.Type == "output" && n.Source == "height") { node = n.Id; port = "out"; return true; }
 		return false;
 	}
 
@@ -251,15 +424,28 @@ namespace GB::Editor
 
 	bool TerrainGraphUi::RefreshPreview()
 	{
-		if (m_Preview.Node.empty()) return false;
-		const uint64_t generation = m_Cache->Generation();
-		if (generation == m_Preview.Generation) return m_Preview.Valid;
+		std::string node, port;
+		if (!PreviewTarget(node, port)) return false;
+		// the newer of the two evaluations: the quick one while the graph is being edited, the full one once a build finished after it
+		const bool quick = m_Quick.ShownKey != 0 && m_Quick.Last.Ok && m_Quick.Done > m_Quick.FullDone;
+		TerrainGraphCache* source = quick ? m_Quick.Cache.get() : m_Cache.get();
+		const std::string target = node + "." + port;
+		const uint64_t generation = source->Generation();
+		const bool same = source == m_Preview.Source && target == m_Preview.Target;
+		if (same && generation == m_Preview.Generation) return m_Preview.Valid;
 		TgValue value;
-		if (!m_Cache->TryCopyOutput(m_Preview.Node, m_Preview.Port, value)) { m_Preview.Valid = false; return false; }   // (busy: try next frame)
+		if (!source->TryCopyOutput(node, port, value))   // busy (try next frame) or not there
+		{
+			if (target != m_Preview.Target) m_Preview.Valid = false;   // (the same port keeps showing what it showed)
+			return m_Preview.Valid;
+		}
+		if (target != m_Preview.Target) { m_Cache->SetPinned(node); m_Quick.Cache->SetPinned(node); }
+		m_Preview.Source = source;
+		m_Preview.Target = target;
 		m_Preview.Generation = generation;
 		m_Preview.Value = std::move(value);
 		m_Preview.Valid = true;
-		m_Cache->Footprint(m_Preview.Size, m_Preview.Center);
+		source->Footprint(m_Preview.Size, m_Preview.Center);
 		m_Preview.Texture.reset();
 		if (m_Preview.Value.Kind == TgPortKind::Field && !m_Preview.Value.Field.Values.empty())
 		{
@@ -306,14 +492,31 @@ namespace GB::Editor
 		ImGui::Checkbox("map", &m_Preview.Map);
 		ImGui::SameLine();
 		ImGui::Checkbox("on the terrain", &m_Preview.Overlay);
-		if (m_Preview.Node.empty()) { ImGui::TextDisabled("pick an output of the selected node"); return; }
+		// T84: the quick preview (a low resolution while editing) and the full build after the edits
+		ImGui::Checkbox("quick", &m_Quick.Enabled);
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Evaluate the graph again at a low resolution after every edit (same seed and footprint as the world)");
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(70.0f);
+		static const uint32_t kQuickSides[] = { 129, 257, 513 };
+		if (ImGui::BeginCombo("##quick_res", std::to_string(m_Quick.Resolution).c_str()))
+		{
+			for (const uint32_t side : kQuickSides)
+				if (ImGui::Selectable(std::to_string(side).c_str(), side == m_Quick.Resolution)) m_Quick.Resolution = side;
+			ImGui::EndCombo();
+		}
+		ImGui::SameLine();
+		ImGui::Checkbox("full after edits", &m_Quick.AutoFull);
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("Build the whole world at its resolution %.1f s after the last edit, once no slider is held", static_cast<double>(m_Quick.FullDelay));
+		ImGui::TextDisabled("%s", m_Quick.Running ? "quick preview running..." : QuickStatus().c_str());
+		std::string node, port;
+		if (!PreviewTarget(node, port)) { ImGui::TextDisabled("pick an output of the selected node"); return; }
 		if (!RefreshPreview())
 		{
-			ImGui::TextDisabled("%s.%s: no value yet (Apply / Regenerate builds the world from the panel)", m_Preview.Node.c_str(), m_Preview.Port.c_str());
+			ImGui::TextDisabled("%s.%s: no value yet (quick preview, or Apply / Regenerate builds the world from the panel)", node.c_str(), port.c_str());
 			return;
 		}
 		const TgValue& v = m_Preview.Value;
-		ImGui::TextDisabled("%s.%s (%s)", m_Preview.Node.c_str(), m_Preview.Port.c_str(), TgPortKindName(v.Kind));
+		ImGui::TextDisabled("%s.%s (%s, %s)", node.c_str(), port.c_str(), TgPortKindName(v.Kind), m_Preview.Source == m_Quick.Cache.get() ? "quick" : "full");
 		if (v.Kind == TgPortKind::Field) ImGui::TextDisabled("%u x %u, %.4g .. %.4g", v.Field.N, v.Field.N, static_cast<double>(m_Preview.Min), static_cast<double>(m_Preview.Max));
 		if (v.Kind == TgPortKind::Placements) ImGui::TextDisabled("%zu placements", v.Placements.Items.size());
 		if (v.Kind == TgPortKind::Paths) ImGui::TextDisabled("%zu paths", v.Paths.Items.size());
@@ -488,6 +691,13 @@ namespace GB::Editor
 		ImGui::SetNextWindowPos(ImVec2(40.0f, 60.0f), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2(1280.0f, 700.0f), ImGuiCond_FirstUseEver);
 		if (!ImGui::Begin("Terrain Graph", open)) { ImGui::End(); return; }
+		if (open && !*open)   // closed this frame: what it keeps goes (T84)
+		{
+			ReleaseMemory();
+			ImGui::End();
+			return;
+		}
+		UpdateQuick();
 		if (ImGui::Button("Apply / Regenerate"))
 		{
 			if (!HasTgErrors(ValidateTerrainGraph(*m_Graph, m_Registry)))

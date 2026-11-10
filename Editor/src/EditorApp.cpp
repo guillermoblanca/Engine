@@ -674,7 +674,7 @@ namespace GB::Editor
 			const SetResult r = m_Props.Set(a[0], value);
 			return { r.Ok, r.Message };
 		});
-		c.Register("terrain_graph", "terrain_graph list | preset <name> [temperate|alpine|desert] [seed] [mesh_detail] [size] [resolution] [trees] [rocks] | apply | library | load <id|file.json> | save [id] | export <id> <file.json> | reload | preview <node> [port] [map|overlay|both|off] | panel [on|off]: builds a world from a terrain graph (docs/GRAFO_TERRENO.md): a preset that ships with the engine or a graph of the library (assets/data/terrain_graphs; loaded into the Terrain Graph panel too), or the graph in the panel (apply). The world type picks the ground's palette and the tree and rock recipes; the graph decides everything else", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("terrain_graph", "terrain_graph list | preset <name> [temperate|alpine|desert] [seed] [mesh_detail] [size] [resolution] [trees] [rocks] | apply | library | load <id|file.json> | save [id] | export <id> <file.json> | reload | preview <node> [port] [map|overlay|both|off] | quick [on|off|<resolution>|auto on|off] | set <node> <param> <value> | memory [budget_mb] | release | panel [on|off]: builds a world from a terrain graph (docs/GRAFO_TERRENO.md): a preset that ships with the engine or a graph of the library (assets/data/terrain_graphs; loaded into the Terrain Graph panel too), or the graph in the panel (apply). The world type picks the ground's palette and the tree and rock recipes; the graph decides everything else", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty() || a[0] == "list")
 			{
@@ -683,8 +683,14 @@ namespace GB::Editor
 				return { true, "terrain graph presets: " + names };
 			}
 			if (!m_TgUi) m_TgUi = std::make_unique<TerrainGraphUi>();
-			if (a[0] == "panel") { m_ShowTerrainGraph = a.size() < 2 || (a[1] != "off" && a[1] != "0"); return { true, std::string("Terrain Graph panel ") + (m_ShowTerrainGraph ? "shown" : "hidden") }; }
-			if (a[0] == "library" || a[0] == "load" || a[0] == "save" || a[0] == "export" || a[0] == "reload" || a[0] == "preview") { std::string message; const bool ok = m_TgUi->Command(a, message); return { ok, message }; }
+			if (a[0] == "panel")
+			{
+				m_ShowTerrainGraph = a.size() < 2 || (a[1] != "off" && a[1] != "0");
+				if (!m_ShowTerrainGraph) m_TgUi->ReleaseMemory();   // T84: as when its window is closed
+				return { true, std::string("Terrain Graph panel ") + (m_ShowTerrainGraph ? "shown" : "hidden") };
+			}
+			if (a[0] == "library" || a[0] == "load" || a[0] == "save" || a[0] == "export" || a[0] == "reload" || a[0] == "preview" || a[0] == "quick" || a[0] == "set" ||
+				a[0] == "memory" || a[0] == "release") { std::string message; const bool ok = m_TgUi->Command(a, message); return { ok, message }; }
 			WorldDesc d = m_WorldDesc;
 			d.GeneratorVersion = kWorldGeneratorLatest;
 			if (a[0] == "preset")
@@ -1717,8 +1723,9 @@ namespace GB::Editor
 		if (m_ShowTerrainGraph)
 		{
 			if (!m_TgUi) m_TgUi = std::make_unique<TerrainGraphUi>();
+			m_TgUi->SetWorld(m_WorldDesc);   // T84: the quick preview evaluates for this world's seed and footprint
 			m_TgUi->Draw(&m_ShowTerrainGraph);
-			if (m_TgUi->ConsumeApplyRequest())
+			if (!m_WorldBuildPending && m_TgUi->ConsumeApplyRequest())   // (a request made while a world is being built waits for it)
 			{
 				WorldDesc graphDesc = m_WorldDesc;
 				// a copy: the world is built on another thread while the panel keeps editing its own graph
