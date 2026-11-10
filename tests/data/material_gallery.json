@@ -2,9 +2,12 @@
   "visuals": {
     "materials": {
       "ice_faceted":   { "color": [0.94, 0.97, 0.98], "texture": "ice_faceted",   "uvScale": 1.0, "roughness": 0.85, "surface": "translucent",
-                       "layers": { "transmission": { "ior": 1.31, "absorption": [2.5, 0.5, 0.15], "thickness": 0.8, "amount": 0.9 } } },
+                       "layers": { "transmission": { "ior": 1.31, "absorption": [2.5, 0.5, 0.15], "thickness": 0.8, "amount": 0.9,
+                                                  "scatter": 0.6, "shadow": 0.35, "thicknessVariation": 0.8,
+                                                  "interior": { "map": "ice_faceted", "depth": 0.05, "strength": 0.9 } } } },
       "ice_clear":     { "color": [0.88, 0.91, 0.93], "texture": "ice",           "uvScale": 1.0, "roughness": 0.35, "surface": "translucent",
-                       "layers": { "transmission": { "ior": 1.31, "absorption": [0.9, 0.25, 0.06], "thickness": 0.4, "amount": 0.85 } } },
+                       "layers": { "transmission": { "ior": 1.31, "absorption": [0.9, 0.25, 0.06], "thickness": 0.4, "amount": 0.85,
+                                                  "scatter": 0.4, "shadow": 0.25, "interior": { "map": "ice", "depth": 0.03, "strength": 0.7 } } } },
       "ice_frost":     { "color": [0.91, 0.92, 0.93], "texture": "ice_frost",     "uvScale": 1.0, "roughness": 0.8 },
       "glass_clear":   { "color": [0.84, 0.86, 0.85],                             "roughness": 0.04, "surface": "translucent",
                        "layers": { "transmission": { "ior": 1.5, "absorption": [0.4, 0.15, 0.3], "thickness": 0.3, "amount": 1 } } },

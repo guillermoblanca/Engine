@@ -186,9 +186,7 @@ int GBTest_material_gallery(int argc, char** argv)
 			const uint32_t size = GB::ProcTexture::Size(false);
 			m.NormalMap = map(v.Texture + ".normal", GB::ProcTexture::GenerateNormal(v.Texture, size));
 			m.MetallicRoughnessMap = map(v.Texture + ".rough", GB::ProcTexture::GenerateRoughness(v.Texture, size));
-#if defined(GB_MATERIAL_HAS_INTERIOR_MAP)
-			// TODO(T101): GB::Material::InteriorMap comes with T101's parallax interior layer; define GB_MATERIAL_HAS_INTERIOR_MAP (or drop
-			// this #if) when it lands. Only ice has an interior; the other kinds would bind a transparent map, so they are skipped.
+			// the parallax interior layer (T101): only ice has one; the other kinds would bind a transparent map, so they are skipped
 			if (v.Texture == "ice" || v.Texture == "ice_faceted")
 			{
 				const std::string key = v.Texture + ".interior";
@@ -196,7 +194,6 @@ int GBTest_material_gallery(int argc, char** argv)
 				if (it == maps.end()) it = maps.emplace(key, std::make_unique<GB::Texture2D>(GB::ProcTexture::GenerateInterior(v.Texture, size), GB::TextureEncoding::SRGB)).first;
 				m.InteriorMap = it->second->IsValid() ? it->second.get() : nullptr;
 			}
-#endif
 		}
 		if (const auto it = opacity.find(id); it != opacity.end()) m.Opacity = it->second;
 		return m;
