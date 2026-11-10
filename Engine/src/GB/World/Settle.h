@@ -129,11 +129,11 @@ namespace GB
 		float Cell = 6.0f;               // metres: the routing grid is the height's every round(Cell / spacing)-th sample
 		float MaxGrade = 0.14f;          // rise per run along a trail (era 1 path)
 		float GradeWeight = 2.0f;        // the cost of climbing at the maximum grade (x the distance)
-		float SteepWeight = 25.0f;       // per unit of grade over the maximum
+		float SteepWeight = 100.0f;      // per unit of grade over the maximum
 		float CliffGrade = 0.85f;        // never steeper than this along the move (NavProfile::MaxSlope)
 		float SideFree = 0.27f;          // cross slope (tan, 15 deg) that costs nothing
 		float SideWeight = 3.0f;         // per unit of tan over SideFree
-		float SideMax = 0.58f;           // ground over this (tan 30 deg): a 30 deg talus cannot meet it, the trail avoids it
+		float SideMax = 0.58f;           // ground over this (tan 30 deg) is dear: the talus (under 30 deg) meets it late or never
 		float SideMaxWeight = 30.0f;
 		float FordDepth = 1.0f;          // a river reach this shallow is a natural ford (NavProfile::MaxWadeDepth)
 		float FordSpacing = 300.0f;      // metres between two fords
@@ -167,7 +167,8 @@ namespace GB
 	{
 		float MaxGrade = 0.14f;
 		float Width = 4.0f;
-		float Talus = 0.5f;              // tan of the side slopes of cuts, fills and platforms (26.6 deg)
+		float Talus = 0.55f;             // tan of the side slopes of cuts, fills and platforms (28.8 deg)
+		float TalusReach = 10.0f;        // metres past a tread or a platform's edge the talus may run to meet the ground
 		float SmoothLength = 24.0f;      // metres: the ground along a trail is averaged over this before the grade is imposed
 		float MaxCut = 2.5f, MaxFill = 2.0f;
 		float CulvertArea = 20000.0f;    // m2 drained: a trail does not fill over a channel this big (the stream goes under it)

@@ -964,7 +964,7 @@ namespace GB
 			{
 				SettlementSite& site = out.Sites[s];
 				const float R = site.Radius;
-				const float reach = R + 6.0f / T + sp;   // (the talus of up to 6 m of difference)
+				const float reach = R + P.TalusReach + sp;
 				const int ci = static_cast<int>(std::lround((site.Position.x - height.Min().x) / sp)), cj = static_cast<int>(std::lround((site.Position.y - height.Min().y) / sp));
 				const int r = static_cast<int>(std::ceil(reach / sp));
 				std::vector<float> disc;
@@ -1065,7 +1065,7 @@ namespace GB
 		}
 
 		// the ground around each trail: its level on the tread, its talus out to the ground
-		const float reach = 0.5f * P.Width + std::max(P.MaxCut, P.MaxFill) / T + sp;
+		const float reach = 0.5f * P.Width + P.TalusReach + sp;
 		const std::vector<TrailHit> hits = NearestTrails(height, out.Trails, reach);
 		std::vector<float> next = g;
 		std::vector<double> cut(out.Trails.size(), 0.0), fill(out.Trails.size(), 0.0);

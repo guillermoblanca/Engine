@@ -231,6 +231,7 @@ int GBTest_terrain_graph_cache(int argc, char** argv)
 	if (argc > 1 && std::string(argv[1]) == "e2bench") return E2Bench(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "e4bench") return E4Bench(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "hausdorff") return Hausdorff(argc, argv);
+	if (argc > 1 && std::string(argv[1]) == "settle_tune") return SettleTune(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "dem") return Dem(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "layers") return Layers(argc, argv);
 	if (const char* bench = std::getenv("GB_TGRAPH_BENCH"); bench && bench[0] != 0 && bench[0] != '0')

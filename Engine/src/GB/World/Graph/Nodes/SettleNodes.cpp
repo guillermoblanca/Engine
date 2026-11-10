@@ -207,6 +207,7 @@ namespace GB
 			{ "MaxGrade", d.MaxGrade, 0.02, 0.5, false, "rise per run of a trail" },
 			{ "Width", d.Width, 0.5, 20, false, "metres of tread" },
 			{ "Talus", d.Talus, 0.05, 1.5, false, "tan of the side slopes" },
+			{ "TalusReach", d.TalusReach, 0, 100, false, "metres the talus may run to meet the ground" },
 			{ "SmoothLength", d.SmoothLength, 0, 200, false, "metres the profile is averaged over" },
 			{ "MaxCut", d.MaxCut, 0, 10, false, "metres" },
 			{ "MaxFill", d.MaxFill, 0, 10, false, "metres" },
@@ -238,7 +239,7 @@ namespace GB
 		if (fordsIn && !DecodeFords(fordsIn->Paths, fords)) { error = Who(node) + ": input 'fords' is not a route_network's"; return false; }
 		const GradeParams d;
 		GradeParams p;
-		p.MaxGrade = F(node, "MaxGrade", d.MaxGrade); p.Width = F(node, "Width", d.Width); p.Talus = F(node, "Talus", d.Talus);
+		p.MaxGrade = F(node, "MaxGrade", d.MaxGrade); p.Width = F(node, "Width", d.Width); p.Talus = F(node, "Talus", d.Talus); p.TalusReach = F(node, "TalusReach", d.TalusReach);
 		p.SmoothLength = F(node, "SmoothLength", d.SmoothLength); p.MaxCut = F(node, "MaxCut", d.MaxCut); p.MaxFill = F(node, "MaxFill", d.MaxFill);
 		p.CulvertArea = F(node, "CulvertArea", d.CulvertArea); p.NoCutNearWater = F(node, "NoCutNearWater", d.NoCutNearWater);
 		p.FordDepth = F(node, "FordDepth", d.FordDepth); p.Fade = F(node, "Fade", d.Fade); p.Platforms = I(node, "Platforms", d.Platforms);

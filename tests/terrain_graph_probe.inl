@@ -3,6 +3,7 @@
 // <preset> is a graph of TerrainGraphPresetNames(), "gen4" for the world generator 4 makes by itself for <type> (what `generate` builds), or a
 // graph file (*.json). "e1:<preset>" is that graph with the nodes of TERRENO_V5 E1 appended to its final height (AppendE1 below): drainage
 // and lake_fill, the scatter kept out of the lakes. "e1x:<preset>" the same with lake_fill making no lake (desert: only the drainage).
+// "settle:<graph>" appends the settlement nodes (AppendSettle; GRAFO_TERRENO, "Asentamientos y sendas") and measures them (ProbeSettle).
 // "e2:<preset>" adds TERRENO_V5 E2 too (AppendE2): fluvial_erosion right after the relief, the droplet erosion and the drawn valley out, and
 // E1 at the end; "e2v:" keeps the drawn valley, "e2x:" makes no lake, "e2w:" puts it after the water, in place of the droplets. GB_E2_PARAMS="Name=value ..." sets fluvial_erosion's parameters.
 // "e4:<preset>" adds TERRENO_V5 E4 (AppendE4): talus right after fluvial_erosion (E1 and E2 appended first unless the graph has an
@@ -11,6 +12,7 @@
 //   GBSimTests terrain_graph_cache dem <height.f32> <n> <size> [lakes.f32|-] [out_dir] [tag]
 // the same measures on a bare height field, a real DEM crop or one of ours resampled (tools/dem_ref.py; see Dem below).
 //   GBSimTests terrain_graph_cache probe_export <preset> <type> <file.json> <id> [name]
+//   GBSimTests terrain_graph_cache settle_tune <graph> <type> <seed> <size> <resolution> <set> [<set> ...]   (SettleTune)
 // writes that graph (with its e1: prefix applied) as a terrain graph file.
 // It prints the time of every node, of the whole graph and of the rest of the world (GenerateData), measures the drainage of the final ground
 // and how the water sits on it. With [out_dir] it writes <out_dir>/<tag>_{height,water,flow}.f32 (float32, N*N, row major) and <tag>_info.json,
@@ -21,11 +23,13 @@
 #include "GB/World/Graph/TerrainGraphIO.h"
 #include "GB/World/Water/LakeMesh.h"
 #include "GB/World/Water/WaterRaster.h"
+#include "GB/World/Settle.h"
 #include <fstream>
 #include <sstream>
 #include <cmath>
 #include <functional>
 #include <queue>
+#include <set>
 #include <string>
 #include <utility>
 
@@ -273,6 +277,83 @@ namespace
 		return 0;
 	}
 
+	// Settlement sites, trails and their levelling (GRAFO_TERRENO, "Asentamientos y sendas") on any graph: "settle_sites" (settlement_sites),
+	// "settle_routes" (route_network) and "settle_grade" (path_grade) on the height its "height" output publishes, with its water and, when the
+	// graph has one, "forest_ok" as the forest; the height output, the biomes, the scatters, the snow and every field that feeds an output
+	// directly read the levelled ground; the scatters are kept off the treads and the platforms; and the sites, trails, fords, cols and the
+	// path and platform masks are published ("settlements", "trails", "trail_info", "fords", "cols", "path", "platform").
+	bool AppendSettle(TerrainGraph& g, std::string& error)
+	{
+		auto outputNamed = [&](const char* source) -> std::string { for (const TgNode& n : g.Nodes) if (n.Type == "output" && n.Source == source) return n.Id; return ""; };
+		const std::string outHeight = outputNamed("height"), outWater = outputNamed("water");
+		if (outHeight.empty() || outWater.empty()) { error = "settle: the graph has no height or no water output"; return false; }
+		std::string from, fromPort, water, waterPort;
+		for (const TgEdge& e : g.Edges) if (e.To == outHeight) { from = e.From; fromPort = e.FromPort; }
+		for (const TgEdge& e : g.Edges) if (e.To == outWater) { water = e.From; waterPort = e.FromPort; }
+		if (from.empty() || water.empty()) { error = "settle: nothing feeds the height or the water output"; return false; }
+		auto node = [&](const std::string& id, const char* type, std::map<std::string, double> params = {}, const char* source = "")
+		{
+			TgNode n; n.Id = id; n.Type = type; n.Label = id; n.Source = source; n.Params = std::move(params);
+			n.X = 5200.0f + 250.0f * static_cast<float>(g.Nodes.size() % 3); n.Y = 40.0f + 160.0f * static_cast<float>(g.Nodes.size() % 12);
+			g.Nodes.push_back(std::move(n));
+		};
+		auto typeOf = [&](const std::string& id) -> std::string { const TgNode* n = g.FindNode(id); return n ? n->Type : std::string(); };
+		auto feedsOutput = [&](const std::string& id) { for (const TgEdge& e : g.Edges) if (e.From == id && typeOf(e.To) == "output") return true; return false; };
+		// (not what the sites read: the forest they weigh is worked out on the ground before the levelling)
+		std::set<std::string> before;
+		if (g.FindNode("forest_ok")) for (const TgNode& u : TerrainGraphUpstreamOf(g, { "forest_ok" }).Nodes) before.insert(u.Id);
+		for (TgEdge& e : g.Edges)   // what shows the ground reads the levelled one
+		{
+			if (e.From != from || e.FromPort != fromPort) continue;
+			if (before.count(e.To)) continue;
+			const std::string t = typeOf(e.To);
+			if (e.To == outHeight || t == "biome_classify" || t == "scatter" || t == "snow_accumulate" || feedsOutput(e.To)) { e.From = "settle_grade"; e.FromPort = "height"; }
+		}
+		node("settle_sites", "settlement_sites");
+		node("settle_routes", "route_network");
+		node("settle_grade", "path_grade");
+		g.Edges.push_back({ from, "settle_sites", "height", fromPort });
+		g.Edges.push_back({ water, "settle_sites", "water", waterPort });
+		if (g.FindNode("forest_ok")) g.Edges.push_back({ "forest_ok", "settle_sites", "forest", "out" });
+		g.Edges.push_back({ from, "settle_routes", "height", fromPort });
+		g.Edges.push_back({ water, "settle_routes", "water", waterPort });
+		g.Edges.push_back({ "settle_sites", "settle_routes", "sites", "sites" });
+		g.Edges.push_back({ from, "settle_grade", "height", fromPort });
+		g.Edges.push_back({ water, "settle_grade", "water", waterPort });
+		g.Edges.push_back({ "settle_sites", "settle_grade", "sites", "sites" });
+		g.Edges.push_back({ "settle_routes", "settle_grade", "trails", "trails" });
+		g.Edges.push_back({ "settle_routes", "settle_grade", "trail_info", "trail_info" });
+		g.Edges.push_back({ "settle_routes", "settle_grade", "fords", "fords" });
+		// the scatters off the treads and the platforms (and a cell around them)
+		node("settle_worked", "combine", { { "Mode", 4 } });
+		g.Edges.push_back({ "settle_grade", "settle_worked", "a", "path" });
+		g.Edges.push_back({ "settle_grade", "settle_worked", "b", "platform" });
+		node("settle_near", "blur", { { "Radius", 1 }, { "Passes", 1 } });
+		g.Edges.push_back({ "settle_worked", "settle_near", "in", "out" });
+		node("settle_clear", "remap", { { "InMin", 0 }, { "InMax", 0.05 }, { "OutMin", 1 }, { "OutMax", 0 } });
+		g.Edges.push_back({ "settle_near", "settle_clear", "in", "out" });
+		std::vector<TgEdge> densities;
+		for (const TgEdge& e : g.Edges) if (e.Port == "density" && typeOf(e.To) == "scatter") densities.push_back(e);
+		for (const TgEdge& e : densities)
+		{
+			const std::string id = "settle_keep_" + e.To;
+			node(id, "combine", { { "Mode", 2 } });
+			for (TgEdge& f : g.Edges) if (f.To == e.To && f.Port == "density") { f.From = id; f.FromPort = "out"; }
+			g.Edges.push_back({ e.From, id, "a", e.FromPort });
+			g.Edges.push_back({ "settle_clear", id, "b", "out" });
+		}
+		const std::pair<const char*, const char*> outs[] = { { "settlements", "sites" }, { "trails", "trails" }, { "trail_info", "trail_info" },
+			{ "fords", "fords" }, { "path", "path" }, { "platform", "platform" } };
+		for (const auto& [source, port] : outs)
+		{
+			node(std::string("settle_out_") + source, "output", {}, source);
+			g.Edges.push_back({ "settle_grade", std::string("settle_out_") + source, "in", port });
+		}
+		node("settle_out_cols", "output", {}, "cols");
+		g.Edges.push_back({ "settle_routes", "settle_out_cols", "in", "cols" });
+		return true;
+	}
+
 	// The river's course as float32 pairs (x, z), every point: what `hausdorff` compares between two probes.
 	void WriteRiver(const std::string& path, const RiverData& river)
 	{
@@ -347,13 +428,16 @@ namespace
 	{
 		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false, e4 = false;
 		if (name.rfind("e4:", 0) == 0) { e4 = true; name = name.substr(3); }
+		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false;
+		bool settle = false;
+		if (name.rfind("settle:", 0) == 0) { settle = true; name = name.substr(7); }
 		if (name.rfind("e1:", 0) == 0) { e1 = true; name = name.substr(3); }
 		else if (name.rfind("e1x:", 0) == 0) { e1 = true; lakes = false; name = name.substr(4); }
 		else if (name.rfind("e2:", 0) == 0) { e1 = e2 = true; name = name.substr(3); }
 		else if (name.rfind("e2v:", 0) == 0) { e1 = e2 = keepValley = true; name = name.substr(4); }
 		else if (name.rfind("e2x:", 0) == 0) { e1 = e2 = true; lakes = false; name = name.substr(4); }
 		else if (name.rfind("e2w:", 0) == 0) { e1 = e2 = afterWater = true; name = name.substr(4); }
-		own = e1 || name != "gen4";
+		own = e1 || settle || name != "gen4";
 		if (name == "gen4") g = WorldGraphFor(desc);
 		else if (name.size() > 5 && name.substr(name.size() - 5) == ".json")
 		{
@@ -369,6 +453,7 @@ namespace
 		if (e2 && !AppendE2(g, keepValley, afterWater, error)) return false;
 		if (e1 && !AppendE1(g, lakes, error)) return false;
 		return !e4 || AppendE4(g, error);
+		return !settle || AppendSettle(g, error);
 	}
 
 	WorldDesc ProbeDesc(const std::string& type, uint32_t seed, float size, uint32_t resolution)
@@ -864,6 +949,248 @@ namespace
 		return 0;
 	}
 
+	// The villages the game would found on a big world (EditorApp::PickVillageSites, Editor/src/Gameplay/EditorClans.cpp): the same filters and
+	// score over the world as built (its terrain, baked biomes and water distance), so the graph's sites can be compared with them headless.
+	std::vector<glm::vec2> GameVillageSites(const GeneratedWorld& world, int count)
+	{
+		const Terrain& ground = *world.TerrainRef;
+		const Heightmap& hm = ground.GetHeightmap();
+		const float lowest = hm.GetMinHeight(), span = std::max(hm.GetMaxHeight() - hm.GetMinHeight(), 1.0f);
+		const float extent = world.Desc.Extent(), margin = std::min(150.0f, extent * 0.1f), apart = std::max(250.0f, extent / 8.0f);
+		struct Candidate { glm::vec2 At; float Score; };
+		std::vector<Candidate> candidates;
+		for (float z = hm.GetMin().y + margin; z <= hm.GetMax().y - margin; z += 25.0f)
+			for (float x = hm.GetMin().x + margin; x <= hm.GetMax().x - margin; x += 25.0f)
+			{
+				const Biome b = world.BiomeAt(x, z);
+				if (b != Biome::Meadow && b != Biome::Forest) continue;
+				const float hh = ground.GetHeight(x, z);
+				float rough = 0.0f;
+				for (int k = 0; k < 8; ++k)
+				{
+					const float angle = static_cast<float>(k) * 0.785398f;
+					rough = std::max(rough, std::fabs(ground.GetHeight(x + 22.0f * std::cos(angle), z + 22.0f * std::sin(angle)) - hh));
+				}
+				if (rough > 2.5f) continue;
+				const float wd = world.WaterDistanceAt(x, z);
+				if (wd < 35.0f) continue;
+				const float score = (1.0f - rough / 2.5f) + (1.0f - glm::clamp((wd - 60.0f) / 400.0f, 0.0f, 1.0f)) - 0.8f * (hh - lowest) / span + (b == Biome::Meadow ? 0.2f : 0.0f);
+				candidates.push_back({ { x, z }, score });
+			}
+		std::stable_sort(candidates.begin(), candidates.end(), [](const Candidate& p, const Candidate& q) { return p.Score > q.Score; });
+		std::vector<glm::vec2> sites;
+		for (const Candidate& c : candidates)
+		{
+			if (static_cast<int>(sites.size()) >= count) break;
+			if (std::all_of(sites.begin(), sites.end(), [&](const glm::vec2& s) { return glm::distance(s, c.At) >= apart; })) sites.push_back(c.At);
+		}
+		return sites;
+	}
+
+	// What the settle nodes made (AppendSettle): the sites against ESCENARIOS S1, S2, X3 and X4 and their separation (R2); the trails (C1, the
+	// grade after levelling, the detour against the straight line C2); the earth moved by trail and platform; the fords and the cols (C6); the
+	// talus left; the final fill; and where the game's own picker would found its villages on this world.
+	void ProbeSettle(const TgResult& r, const TgField& h, const GeneratedWorld* world, const std::vector<float>& wetKinds, const TerrainGraphCache::Stats& stats, ProbeJson& js,
+		const std::string& outDir, const std::string& tag)
+	{
+		const std::vector<glm::vec2> game = world ? GameVillageSites(*world, 3) : std::vector<glm::vec2>();
+		if (world)
+		{
+			std::printf("  game picker (PickVillageSites, 3):");
+			for (const glm::vec2& p : game) std::printf(" (%.0f, %.0f) water %.0f m;", p.x, p.y, world->WaterDistanceAt(p.x, p.y));
+			std::printf("\n");
+		}
+		const auto gn = r.Nodes.find("settle_grade");
+		if (gn == r.Nodes.end()) return;
+		const auto& G = gn->second;
+		std::vector<SettlementSite> sites;
+		std::vector<Trail> trails;
+		std::vector<Ford> fords;
+		std::vector<Col> cols;
+		DecodeSites(G.at("sites").Paths, sites);
+		DecodeTrails(G.at("trails").Paths, G.at("trail_info").Paths, trails);
+		DecodeFords(G.at("fords").Paths, fords);
+		if (const auto rn = r.Nodes.find("settle_routes"); rn != r.Nodes.end()) DecodeCols(rn->second.at("cols").Paths, cols);
+		const TgField& path = G.at("path").Field;
+		const TgField& platform = G.at("platform").Field;
+		const TgField& earth = G.at("earthwork").Field;
+		const TgField& drainFill = G.at("drain_fill").Field;
+		const uint32_t n = h.N;
+		const float sp = h.Spacing();
+		double ms = 0.0;
+		std::printf("  settle nodes (ms):");
+		for (const char* id : { "settle_sites", "settle_routes", "settle_grade" })
+		{
+			const auto t = stats.RunMs.find(id);
+			const double v = t != stats.RunMs.end() ? t->second : 0.0;
+			ms += v;
+			std::printf(" %s %.0f", id, v);
+			js.Num(id, v);
+		}
+		std::printf(", together %.0f\n", ms);
+		js.Num("settle_ms", ms);
+
+		// sites
+		size_t s1 = 0, s2 = 0, x3 = 0, x4 = 0;
+		float apart = 1e9f;
+		for (size_t i = 0; i < sites.size(); ++i)
+		{
+			const SettlementSite& s = sites[i];
+			s1 += s.WaterDistance >= 35.0f && s.WaterDistance <= 150.0f;
+			s2 += s.CampSlopeMax <= 14.0f && s.CampSlopeMean <= 7.0f;
+			x3 += s.SteepShare <= 0.2f;
+			x4 += s.AboveWater >= 1.5f;
+			for (size_t j = i + 1; j < sites.size(); ++j) apart = std::min(apart, glm::distance(s.Position, sites[j].Position));
+			float gameNear = 1e9f;
+			for (const glm::vec2& p : game) gameNear = std::min(gameNear, glm::distance(p, s.Position));
+			std::printf("    site %d (%.0f, %.0f): score %.2f = water %.2f flat %.2f area %.2f dry %.2f low %.2f forest %.2f stone %.2f | water %.0f m (baked %.0f), %.1f m above it, camp %.1f/%.1f deg, village %.1f deg, flat %.0f %%, steep %.0f %%, rough %.1f m | platform %.1f m: cut %.0f m3, fill %.0f m3 | nearest game village %.0f m\n",
+				s.Rank, s.Position.x, s.Position.y, s.Score, s.Water, s.Flat, s.Area, s.Dry, s.Low, s.Forest, s.Stone, s.WaterDistance, world ? world->WaterDistanceAt(s.Position.x, s.Position.y) : -1.0f,
+				s.AboveWater, s.CampSlopeMax, s.CampSlopeMean, s.VillageSlopeMean, 100.0f * s.FlatShare, 100.0f * s.SteepShare, s.Roughness, s.PlatformLevel, s.Cut, s.Fill, gameNear);
+		}
+		std::printf("  sites: %zu; S1 (water 35-150 m) %zu, S2 %zu, X3 %zu, X4 (>= 1.5 m above the water) %zu; closest two %.0f m apart\n", sites.size(), s1, s2, x3, x4, sites.size() > 1 ? apart : 0.0f);
+		js.Num("settle_sites", static_cast<double>(sites.size())); js.Num("settle_apart", sites.size() > 1 ? apart : 0.0f);
+		const TgField& score = r.Nodes.at("settle_sites").at("score").Field;
+		for (const glm::vec2& p : game)
+		{
+			const SettlementSite* best = nullptr;
+			for (const SettlementSite& s : sites) if (!best || glm::distance(s.Position, p) < glm::distance(best->Position, p)) best = &s;
+			std::printf("    game village (%.0f, %.0f): the graph's score there %.2f (0 = refused), its nearest site %d at %.0f m\n", p.x, p.y, score.Sample(p.x, p.y),
+				best ? best->Rank : -1, best ? glm::distance(best->Position, p) : -1.0f);
+		}
+
+		// trails
+		std::vector<int> root(sites.size());
+		for (size_t s = 0; s < root.size(); ++s) root[s] = static_cast<int>(s);
+		auto find = [&](int x) { while (root[static_cast<size_t>(x)] != x) x = root[static_cast<size_t>(x)]; return x; };
+		double linkLen = 0.0, linkGood = 0.0, ratioSum = 0.0, trailCut = 0.0, trailFill = 0.0, allLen = 0.0, allGood = 0.0;
+		float ratioMax = 0.0f;
+		int links = 0;
+		for (const Trail& t : trails)
+		{
+			float within = 0.0f, steepest = 0.0f;
+			MeasureTrailGrade(h, t, 0.14f, 9.0f, within, steepest);
+			allLen += t.Length; allGood += within * t.Length;
+			trailCut += t.Cut; trailFill += t.Fill;
+			const bool link = t.Kind == TrailKind::Link || t.Kind == TrailKind::Extra;
+			if (link && t.From >= 0 && t.To >= 0)
+			{
+				root[static_cast<size_t>(find(t.From))] = find(t.To);
+				const float ratio = t.Length / std::max(t.Straight, 1.0f);
+				ratioSum += ratio; ratioMax = std::max(ratioMax, ratio); ++links;
+				linkLen += t.Length; linkGood += within * t.Length;
+			}
+			std::printf("    trail %s %d-%d: %.0f m (straight %.0f, x%.2f), within 14 %% on %.1f %% (record %.1f %%), steepest 9 m %.0f %%, cut %.0f m3, fill %.0f m3, %d fords\n",
+				TrailKindName(t.Kind), t.From, t.To, t.Length, t.Straight, t.Length / std::max(t.Straight, 1.0f), 100.0f * within, 100.0f * t.WithinGrade, 100.0f * steepest, t.Cut, t.Fill, t.Fords);
+		}
+		std::vector<int> roots;
+		for (size_t s = 0; s < sites.size(); ++s) roots.push_back(find(static_cast<int>(s)));
+		std::sort(roots.begin(), roots.end());
+		const size_t groups = static_cast<size_t>(std::unique(roots.begin(), roots.end()) - roots.begin());
+		double platCut = 0.0, platFill = 0.0;
+		for (const SettlementSite& s : sites) { platCut += s.Cut; platFill += s.Fill; }
+		std::printf("  trails: %zu, %.0f m; the sites in %zu group(s) (C1: 1); links %d, detour x%.2f mean, x%.2f worst; within 14 %%: links %.1f %%, all %.1f %%; earth: trails %.0f cut + %.0f fill m3, platforms %.0f + %.0f m3\n",
+			trails.size(), allLen, groups, links, links ? ratioSum / links : 0.0, ratioMax, linkLen > 0 ? 100.0 * linkGood / linkLen : 0.0, allLen > 0 ? 100.0 * allGood / allLen : 0.0,
+			trailCut, trailFill, platCut, platFill);
+		js.Num("settle_trails", static_cast<double>(trails.size())); js.Num("settle_groups", static_cast<double>(groups)); js.Num("settle_detour_mean", links ? ratioSum / links : 0.0);
+		js.Num("settle_detour_max", ratioMax); js.Num("settle_within_links", linkLen > 0 ? 100.0 * linkGood / linkLen : 0.0); js.Num("settle_within_all", allLen > 0 ? 100.0 * allGood / allLen : 0.0);
+		js.Num("settle_trail_cut", trailCut); js.Num("settle_trail_fill", trailFill); js.Num("settle_platform_cut", platCut); js.Num("settle_platform_fill", platFill);
+		for (const Ford& f : fords)
+			std::printf("    ford (%.0f, %.0f): water %.2f m, %.2f m deep, half-width %.1f m, %d trails%s\n", f.Position.x, f.Position.y, f.Level, f.Depth, f.HalfWidth, f.Used, f.Built ? ", built (bed raised)" : "");
+		for (const Col& c : cols)
+		{
+			float grade = -1.0f;
+			for (const Trail& t : trails)
+				if (!t.Points.empty() && glm::distance(glm::vec2(t.Points.back().x, t.Points.back().z), c.Position) < 10.0f) { float w = 0.0f; MeasureTrailGrade(h, t, 0.14f, 9.0f, w, grade); }
+			if (grade < 0.0f) std::printf("    col (%.0f, %.0f) at %.0f m, from site %d: reached by another trail\n", c.Position.x, c.Position.y, c.Height, c.Site);
+			else std::printf("    col (%.0f, %.0f) at %.0f m, from site %d: its trail's steepest 9 m %.0f %%\n", c.Position.x, c.Position.y, c.Height, c.Site, 100.0f * grade);
+		}
+
+		// the ground the levelling changed, outside the treads and platforms: how much of it is steeper than 30 degrees; the final fill
+		size_t changed = 0, steep = 0, raised = 0, steepBefore = 0, steepWorse = 0, steepNew = 0;
+		float raise = 0.0f;
+		double raiseVol = 0.0;
+		for (uint32_t j = 1; j + 1 < n; ++j)
+			for (uint32_t i = 1; i + 1 < n; ++i)
+			{
+				const size_t c = static_cast<size_t>(j) * n + i;
+				raise = std::max(raise, drainFill.Values[c]);
+				raised += drainFill.Values[c] > 0.05f;
+				raiseVol += drainFill.Values[c] * sp * sp;
+				if (wetKinds[c] != 0.0f || std::fabs(earth.Values[c]) < 0.05f || path.Values[c] > 0.5f || platform.Values[c] > 0.5f) continue;
+				++changed;
+				const float gx = (h.At(i + 1, j) - h.At(i - 1, j)) / (2.0f * sp), gz = (h.At(i, j + 1) - h.At(i, j - 1)) / (2.0f * sp);
+				if (std::atan(std::sqrt(gx * gx + gz * gz)) * 57.2958f <= 30.0f) continue;
+				++steep;
+				auto pre = [&](uint32_t a, uint32_t b) { return h.At(a, b) - earth.At(a, b); };
+				const float px = (pre(i + 1, j) - pre(i - 1, j)) / (2.0f * sp), pz = (pre(i, j + 1) - pre(i, j - 1)) / (2.0f * sp);
+				const float before = std::atan(std::sqrt(px * px + pz * pz)) * 57.2958f, after = std::atan(std::sqrt(gx * gx + gz * gz)) * 57.2958f;
+				steepBefore += before > 30.0f;
+				steepWorse += after > before + 1.0f;
+				steepNew += before <= 30.0f;
+			}
+		std::printf("  talus: %zu cells changed outside the treads and platforms, %.2f %% of them over 30 deg (of those, %.0f %% were over 30 deg before, %.0f %% made steeper than they were: %.2f %% of the changed cells; over 30 deg where the ground was not: %.2f %%); the final fill raised %zu cells by > 5 cm, at most %.2f m, %.0f m3\n",
+			changed, Pct(steep, changed), Pct(steepBefore, steep), Pct(steepWorse, steep), Pct(steepWorse, changed), Pct(steepNew, changed), raised, raise, raiseVol);
+		js.Num("settle_talus_steep_before", Pct(steepBefore, steep)); js.Num("settle_talus_made_steep", Pct(steepWorse, changed)); js.Num("settle_talus_new_steep", Pct(steepNew, changed));
+		js.Num("settle_talus_over30", Pct(steep, changed)); js.Num("settle_fill_max", raise); js.Num("settle_fill_cells", static_cast<double>(raised));
+		if (!outDir.empty())
+		{
+			// the map for the png tools: 1 tread, 2 platform, 3 site centre (within 8 m)
+			std::vector<float> map(h.Values.size(), 0.0f);
+			for (size_t c = 0; c < map.size(); ++c) map[c] = platform.Values[c] > 0.5f ? 2.0f : path.Values[c] > 0.5f ? 1.0f : 0.0f;
+			for (const SettlementSite& s : sites)
+				for (size_t c = 0; c < map.size(); ++c)
+					if (glm::distance(h.SamplePosition(static_cast<uint32_t>(c % n), static_cast<uint32_t>(c / n)), s.Position) < 8.0f) map[c] = 3.0f;
+			WriteF32(outDir + "/" + tag + "_settle.f32", map);
+		}
+	}
+
+	// The settle nodes again and again on one world, the rest of the graph from the cache: each argument after the first five is a set of
+	// parameters ("settle_routes.SteepWeight=60,settle_grade.MaxCut=3"; "-" for none) and gets ProbeSettle's report (without the game picker).
+	//   GBSimTests terrain_graph_cache settle_tune <graph> <type> <seed> <size> <resolution> <set> [<set> ...]
+	int SettleTune(int argc, char** argv)
+	{
+		if (argc < 8) { std::fprintf(stderr, "settle_tune <graph> <type> <seed> <size> <resolution> <set> [<set> ...]\n"); return 2; }
+		WorldDesc desc = ProbeDesc(argv[3], static_cast<uint32_t>(std::atoi(argv[4])), static_cast<float>(std::atof(argv[5])), static_cast<uint32_t>(std::atoi(argv[6])));
+		TerrainGraph base;
+		bool own = false;
+		std::string error;
+		if (!ProbeGraph(std::string("settle:") + argv[2], desc, base, own, error)) { std::fprintf(stderr, "%s\n", error.c_str()); return 2; }
+		desc.GraphCache = std::make_shared<TerrainGraphCache>();
+		for (int a = 7; a < argc; ++a)
+		{
+			TerrainGraph g = base;
+			std::string set = argv[a];
+			if (set != "-")
+			{
+				std::stringstream items(set);
+				std::string item;
+				while (std::getline(items, item, ','))
+				{
+					const size_t dot = item.find('.'), eq = item.find('=');
+					if (dot == std::string::npos || eq == std::string::npos || eq < dot) { std::fprintf(stderr, "bad item %s\n", item.c_str()); return 2; }
+					TgNode* nd = g.FindNode(item.substr(0, dot));
+					if (!nd) { std::fprintf(stderr, "no node %s\n", item.substr(0, dot).c_str()); return 2; }
+					nd->Params[item.substr(dot + 1, eq - dot - 1)] = std::atof(item.substr(eq + 1).c_str());
+				}
+			}
+			desc.TerrainGraphDefinition = std::make_shared<const TerrainGraph>(g);
+			TgResult r;
+			const auto t0 = std::chrono::steady_clock::now();
+			if (!EvaluateWorldGraph(desc, r, error)) { std::fprintf(stderr, "evaluation failed: %s\n", error.c_str()); return 1; }
+			std::printf("set %s: %.2f s\n", set.c_str(), Seconds(t0));
+			const TgField& h = r.Outputs.at("height");
+			std::vector<float> wet(h.Values.size(), 0.0f);
+			if (const auto w = r.WaterOutputs.find("water"); w != r.WaterOutputs.end())
+			{
+				const WaterRaster raster = RasterizeWater(w->second, h.N, h.Min(), h.Spacing());
+				for (size_t c = 0; c < wet.size(); ++c) wet[c] = static_cast<float>(raster.Kinds[c]);
+			}
+			ProbeJson js;
+			ProbeSettle(r, h, nullptr, wet, desc.GraphCache->LastStats(), js, "", "");
+		}
+		return 0;
+	}
+
 	int Probe(int argc, char** argv)
 	{
 		if (argc < 7) { std::fprintf(stderr, "probe <preset|gen4|file.json|e1:...> <temperate|alpine|desert> <seed> <size> <resolution> [out_dir]\n"); return 2; }
@@ -1328,6 +1655,7 @@ namespace
 				WriteF32(outDir + "/" + tag + "_e4cut.f32", cutV);
 			}
 		}
+		if (world.Desc.Extent() > 1000.0f || r.Nodes.count("settle_grade")) ProbeSettle(r, h, &world, wetKinds, stats, js, outDir, tag);
 		if (const char* dump = std::getenv("GB_PROBE_DUMP"); dump && !outDir.empty())   // "node.port node.port ...": those fields as <tag>_node_<node>.f32
 		{
 			std::istringstream in(dump);
