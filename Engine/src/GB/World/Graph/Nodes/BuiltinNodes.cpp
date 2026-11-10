@@ -16,6 +16,7 @@
 #include "GB/World/Graph/Nodes/OutputNode.h"
 #include "GB/World/Graph/Nodes/RiverTraceNode.h"
 #include "GB/World/Graph/Nodes/ScatterNode.h"
+#include "GB/World/Graph/Nodes/SurfaceLayerNodes.h"
 #include "GB/World/Graph/Nodes/ThermalErosionNode.h"
 #include "GB/World/Graph/Nodes/ValleyNodes.h"
 #include "GB/World/Graph/Nodes/WaterCarveNodes.h"
@@ -73,5 +74,11 @@ namespace GB
 		registry.Register("biome_mask", [] { return std::make_unique<BiomeMaskNode>(); });
 		registry.Register("snow_accumulate", [] { return std::make_unique<SnowAccumulateNode>(); });
 		registry.Register("biome_weights", [] { return std::make_unique<BiomeWeightsNode>(); });
+		// the material layers and the trees of the terrain of TERRENO_V5 (Nodes/SurfaceLayerNodes.h)
+		registry.Register("layer_cliff_scree", [] { return std::make_unique<CliffScreeLayerNode>(); });
+		registry.Register("layer_wet", [] { return std::make_unique<WetLayerNode>(); });
+		registry.Register("layer_normalize", [] { return std::make_unique<NormalizeLayersNode>(); });
+		registry.Register("biome_water", [] { return std::make_unique<BiomeWaterNode>(); });
+		registry.Register("tree_species", [] { return std::make_unique<TreeSpeciesNode>(); });
 	}
 }

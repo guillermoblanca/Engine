@@ -18,7 +18,16 @@ namespace GB
 	// "splat_rock"/"splat_snow"/"splat_grass"/"splat_sand"/"splat_dry"/"splat_forest" outputs give (docs/GRAFO_TERRENO.md, 4b). The layers are
 	// painted into the macro colour map over the style's palette, in order (a later layer covers an earlier one); rock also carves its fluting
 	// into the surface normals. Dry is sun-cured grass (olive to straw); Forest is the canopy seen from afar (crowns and the dark between them).
-	enum class SurfaceLayerKind { Rock, Snow, Grass, Sand, Dry, Forest };
+	//
+	// The layers of the terrain of TERRENO_V5 come after those six, in this order, with the ids they have here (the renderer keys its materials
+	// by them): Cliff (bare faces), Scree (broken rock at their foot), Gravel (river bed and channel banks), Mud (lake beds and shores), MudDry
+	// (the shore the water left), GrassWet (damp meadow) and Path ("splat_cliff" ... "splat_path"; GRAFO_TERRENO.md, "Capas de material y
+	// árboles del terreno nuevo"). A set of layers with any of them is a partition: the weights sum to 1 at every sample (the graph's
+	// layer_normalize makes them so, snow and path on top), and they are painted as a weighted sum of flat colours, not one over another; the
+	// rock fluting is carved on Rock and Cliff. A set with only the six of before is painted exactly as before.
+	enum class SurfaceLayerKind { Rock, Snow, Grass, Sand, Dry, Forest, Cliff, Scree, Gravel, Mud, MudDry, GrassWet, Path };
+	static_assert(static_cast<int>(SurfaceLayerKind::Forest) == 5 && static_cast<int>(SurfaceLayerKind::Cliff) == 6 && static_cast<int>(SurfaceLayerKind::Path) == 12,
+		"the six kinds of before keep their ids; the new ones follow them");
 	struct SurfaceLayer
 	{
 		SurfaceLayerKind Kind = SurfaceLayerKind::Rock;
@@ -88,6 +97,8 @@ namespace GB
 		// built (PrepareRenderData): set them before it. Without layers the ground is coloured by its style alone, as always.
 		void SetSurfaceLayers(std::vector<SurfaceLayer> layers);
 		const std::vector<SurfaceLayer>& GetSurfaceLayers() const { return m_Layers; }
+		// True when the layers hold any kind after Forest: they are a partition (sum 1 at every sample) and are painted as one.
+		bool SurfaceLayersArePartition() const { return m_LayersPartition; }
 		float SurfaceLayerWeight(SurfaceLayerKind kind, float x, float z) const;   // bilinear; 0 without that layer
 
 		const Heightmap& GetHeightmap() const { return m_Heightmap; }
@@ -144,6 +155,8 @@ namespace GB
 		float SurfaceDetail(float x, float z) const;
 		// The colour of the material layers at a point, painted over `base` (the style's colour there).
 		glm::vec3 PaintLayers(const glm::vec3& base, float x, float z, float height, const glm::vec3& normal, float patch, float fine) const;
+		// The same for a partition (SurfaceLayersArePartition): the weighted sum of every layer's flat colour, a little sharpened.
+		glm::vec3 PaintPartition(const glm::vec3& base, float x, float z, float height, const glm::vec3& normal, float patch, float fine) const;
 		Vertex MakeFineVertex(int fi, int fj) const;
 
 		bool m_SurfaceMaps = true;
@@ -169,5 +182,6 @@ namespace GB
 		uint64_t m_EditRevision = 0;
 		std::vector<glm::vec3> m_Crests;
 		std::vector<SurfaceLayer> m_Layers;
+		bool m_LayersPartition = false;
 	};
 }

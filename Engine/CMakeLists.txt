@@ -79,6 +79,7 @@ add_library(GB_WorldGen STATIC
     src/GB/World/Graph/Nodes/FieldNodes.cpp
     src/GB/World/Graph/Nodes/MaskNodes.cpp
     src/GB/World/Graph/Nodes/WaterCarveNodes.cpp
+    src/GB/World/Graph/Nodes/SurfaceLayerNodes.cpp
     src/GB/World/Graph/Nodes/ValleyNodes.cpp
     src/GB/World/Graph/Nodes/ScatterNode.cpp
     src/GB/World/Graph/Nodes/BiomeClassifyNode.cpp

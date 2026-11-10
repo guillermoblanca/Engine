@@ -5,10 +5,12 @@
 #include "GB/World/Graph/TerrainGraphIO.h"
 #include "GB/World/Graph/TerrainGraphPresets.h"
 #include "GB/World/Graph/Nodes/ScatterNode.h"
+#include "GB/World/Graph/Nodes/SurfaceLayerNodes.h"
 #include "GB/World/WorldGenInternal.h"
 #include <algorithm>
 #include <functional>
 #include <cmath>
+#include <cstdlib>
 #include <glm/gtc/constants.hpp>
 
 namespace GB
@@ -44,13 +46,17 @@ namespace GB
 
 		// The material layers a graph published ("splat_dry", "splat_forest", "splat_rock", "splat_snow", "splat_grass", "splat_sand"), in that order
 		// of painting: the canopy covers the dry meadow, rock both, snow the rock, grass and sand all of them. A field of another size than the
-		// terrain is left out.
+		// terrain is left out. The layers of TERRENO_V5 ("splat_cliff" ... "splat_path") follow them, in the order of SurfaceLayerKind: a graph
+		// that publishes any of them publishes a partition (layer_normalize), which the terrain paints as one (Terrain.h).
 		std::vector<SurfaceLayer> SurfaceLayersOf(const TgResult& result, const Heightmap& ground)
 		{
 			std::vector<SurfaceLayer> layers;
 			const std::pair<const char*, SurfaceLayerKind> slots[] = { { "splat_dry", SurfaceLayerKind::Dry }, { "splat_forest", SurfaceLayerKind::Forest },
 				{ "splat_rock", SurfaceLayerKind::Rock }, { "splat_snow", SurfaceLayerKind::Snow },
-				{ "splat_grass", SurfaceLayerKind::Grass }, { "splat_sand", SurfaceLayerKind::Sand } };
+				{ "splat_grass", SurfaceLayerKind::Grass }, { "splat_sand", SurfaceLayerKind::Sand },
+				{ "splat_cliff", SurfaceLayerKind::Cliff }, { "splat_scree", SurfaceLayerKind::Scree }, { "splat_gravel", SurfaceLayerKind::Gravel },
+				{ "splat_mud", SurfaceLayerKind::Mud }, { "splat_mud_dry", SurfaceLayerKind::MudDry }, { "splat_grass_wet", SurfaceLayerKind::GrassWet },
+				{ "splat_path", SurfaceLayerKind::Path } };
 			for (const auto& [name, kind] : slots)
 			{
 				const auto it = result.Outputs.find(name);
@@ -58,6 +64,43 @@ namespace GB
 				layers.push_back({ kind, it->second.Values });
 			}
 			return layers;
+		}
+
+		// The tree_species node that feeds a graph's "trees" output (Nodes/SurfaceLayerNodes.h), or null: with one, the graph chose each tree's
+		// species and the world keeps it.
+		const TgNode* TreeSpeciesNodeOf(const TerrainGraph* graph)
+		{
+			if (!graph) return nullptr;
+			for (const TgNode& out : graph->Nodes)
+				if (out.Type == "output" && out.Source == "trees")
+					for (const TgEdge& e : graph->Edges)
+						if (e.To == out.Id)
+							if (const TgNode* from = graph->FindNode(e.From); from && from->Type == "tree_species") return from;
+			return nullptr;
+		}
+
+		// The recipe of a species a tree_species node names ("Broadleaf/<style>", "Conifer/<style>", "Bare", "Palm[/<style>]"), the k-th of its
+		// variety: TreeParams' species and style, a height of its habit, a seed of its own. An unknown species is a broadleaf, with a warning.
+		TreeParams TreeRecipeOf(const std::string& id, uint32_t seed, int k)
+		{
+			const size_t slash = id.find('/');
+			const std::string species = id.substr(0, slash);
+			TreeParams tp;
+			tp.Seed = seed;
+			tp.Style = slash == std::string::npos ? -1 : std::atoi(id.c_str() + slash + 1);
+			if (species == "Conifer") tp.Species = TreeSpecies::Conifer;
+			else if (species == "Palm") tp.Species = TreeSpecies::Palm;
+			else if (species == "Bare") tp.Species = TreeSpecies::Bare;
+			else if (species != "Broadleaf") GB_CORE_WARN("trees: the graph names the species '{}', which is not Broadleaf, Conifer, Bare or Palm; a broadleaf takes its place", id);
+			const float vary = 1.0f + 0.12f * static_cast<float>(k);
+			switch (tp.Species)
+			{
+			case TreeSpecies::Broadleaf: tp.Height = (tp.Style == 2 ? 12.0f : tp.Style == 1 ? 10.5f : 9.0f) * vary; if (k % 2 == 1) tp.LeafTint = { 1.08f, 1.0f, 0.82f }; break;
+			case TreeSpecies::Conifer: tp.Height = (tp.Style == 1 ? 12.5f : tp.Style == 2 ? 11.0f : 13.5f) * vary; break;
+			case TreeSpecies::Palm: tp.Height = 7.0f * vary; break;
+			case TreeSpecies::Bare: tp.Height = 8.0f * vary; break;
+			}
+			return tp;
 		}
 
 		// What a world of generator 4 asks of its graph (TerrainGraphPresets.h): the WorldDesc's type, water, erosion, budgets and forest.
@@ -535,6 +578,17 @@ namespace GB
 			add(TreeSpecies::Conifer, 11.0f, 4); add(TreeSpecies::Conifer, 14.0f, 5); add(TreeSpecies::Conifer, 8.5f, 6);                               // 3-5 conifers
 			add(TreeSpecies::Bare, 8.0f, 7);                                                                                                            // 6 dead tree
 		}
+		// a graph whose trees come from tree_species chose their species: the recipes are its palette, Variety of each (Variant indexes them)
+		const TgNode* speciesNode = graph.PlacementOutputs.count("trees") ? TreeSpeciesNodeOf(desc.TerrainGraphDefinition.get()) : nullptr;
+		if (speciesNode)
+		{
+			const std::vector<std::string> palette = TreeSpeciesPalette(*speciesNode);
+			const int variety = TreeSpeciesVariety(*speciesNode);
+			w.TreeRecipes.clear();
+			for (size_t kind = 0; kind < palette.size(); ++kind)
+				for (int k = 0; k < variety; ++k) w.TreeRecipes.push_back(TreeRecipeOf(palette[kind], static_cast<uint32_t>(kind * 8 + static_cast<size_t>(k) + 1), k));
+			if (w.TreeRecipes.empty()) speciesNode = nullptr;
+		}
 		{
 			const float minH = terrain.GetHeightmap().GetMinHeight(), maxH = terrain.GetHeightmap().GetMaxHeight();
 			const GeneratedWorld* self = &w;
@@ -561,6 +615,7 @@ namespace GB
 			const uint32_t palmVariantSalt = salt(3u), speciesSalt = salt(13u), coniferSalt = salt(17u), broadleafSalt = salt(19u);
 			for (TreePlacement& pl : spots)
 			{
+				if (speciesNode) { pl.Variant = std::clamp(pl.Variant, 0, static_cast<int>(w.TreeRecipes.size()) - 1); w.Trees.push_back(pl); continue; }
 				if (desert) { pl.Variant = static_cast<int>(Hash2(pl.Position.x, pl.Position.z, palmVariantSalt) * 2.99f); w.Trees.push_back(pl); continue; }
 				const float alt = glm::clamp((pl.Position.y - minH) / std::max(maxH - minH, 1.0f), 0.0f, 1.0f);
 				const float r = Hash2(pl.Position.x, pl.Position.z, speciesSalt);

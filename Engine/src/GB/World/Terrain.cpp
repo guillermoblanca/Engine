@@ -589,6 +589,7 @@ namespace GB
 		const size_t count = static_cast<size_t>(m_Heightmap.GetResolution()) * m_Heightmap.GetResolution();
 		layers.erase(std::remove_if(layers.begin(), layers.end(), [count](const SurfaceLayer& l) { return l.Weights.size() != count; }), layers.end());
 		m_Layers = std::move(layers);
+		m_LayersPartition = std::any_of(m_Layers.begin(), m_Layers.end(), [](const SurfaceLayer& l) { return static_cast<int>(l.Kind) > static_cast<int>(SurfaceLayerKind::Forest); });
 		m_Prepared.reset();   // (the surface maps painted without them are made again)
 	}
 
@@ -613,7 +614,8 @@ namespace GB
 	// direction (narrow across the slope, long down it), stronger the steeper the face, on the rock layer only.
 	float Terrain::SurfaceDetail(float x, float z) const
 	{
-		const float rock = SurfaceLayerWeight(SurfaceLayerKind::Rock, x, z);
+		const float rock = m_LayersPartition ? SurfaceLayerWeight(SurfaceLayerKind::Rock, x, z) + SurfaceLayerWeight(SurfaceLayerKind::Cliff, x, z)
+			: SurfaceLayerWeight(SurfaceLayerKind::Rock, x, z);   // (a partition shares the faces between rock and cliff)
 		if (rock <= 0.0f) return 0.0f;
 		const float e = m_Heightmap.GetSpacing() * 2.0f;
 		const glm::vec2 grad((m_Heightmap.GetHeight(x + e, z) - m_Heightmap.GetHeight(x - e, z)) / (2.0f * e), (m_Heightmap.GetHeight(x, z + e) - m_Heightmap.GetHeight(x, z - e)) / (2.0f * e));
@@ -631,6 +633,7 @@ namespace GB
 
 	glm::vec3 Terrain::PaintLayers(const glm::vec3& base, float x, float z, float height, const glm::vec3& normal, float patch, float fine) const
 	{
+		if (m_LayersPartition) return PaintPartition(base, x, z, height, normal, patch, fine);
 		glm::vec3 c = base;
 		const float slope = 1.0f - normal.y;
 		const float jitter = (ValueNoise(x / 2.3f, z / 2.3f, 211) - 0.5f) * 0.35f + (ValueNoise(x / 0.7f, z / 0.7f, 223) - 0.5f) * 0.15f;   // ragged edges
@@ -676,6 +679,73 @@ namespace GB
 			c = glm::mix(c, color, w);
 		}
 		return c;
+	}
+
+	// The layers of the terrain of TERRENO_V5 as the CPU paints them until the renderer has their materials: a flat colour per layer (the rock
+	// and the cliff keep the banding and the grooves of the rock), mixed by the weights squared and renormalised, so the edges between layers are
+	// a little crisper than a plain blend; grass is half the style's own colour, so a partition of grass alone looks like the meadow of before.
+	glm::vec3 Terrain::PaintPartition(const glm::vec3& base, float x, float z, float height, const glm::vec3& normal, float patch, float fine) const
+	{
+		const Heightmap& hm = m_Heightmap;
+		const int n = static_cast<int>(hm.GetResolution());
+		const float maxIndex = static_cast<float>(n - 1);
+		const float fx = glm::clamp((x - hm.GetMin().x) / hm.GetSpacing(), 0.0f, maxIndex), fz = glm::clamp((z - hm.GetMin().y) / hm.GetSpacing(), 0.0f, maxIndex);
+		const int i0 = std::min(static_cast<int>(fx), n - 2), j0 = std::min(static_cast<int>(fz), n - 2);
+		const float tx = fx - static_cast<float>(i0), tz = fz - static_cast<float>(j0);
+		const size_t a = static_cast<size_t>(j0) * static_cast<size_t>(n) + static_cast<size_t>(i0), b = a + static_cast<size_t>(n);
+		const float slope = 1.0f - normal.y;
+		glm::vec3 sum(0.0f);
+		float total = 0.0f;
+		for (const SurfaceLayer& layer : m_Layers)
+		{
+			const std::vector<float>& W = layer.Weights;
+			float w = glm::clamp(glm::mix(glm::mix(W[a], W[a + 1], tx), glm::mix(W[b], W[b + 1], tx), tz), 0.0f, 1.0f);
+			if (w <= 0.0f) continue;
+			w *= w;
+			glm::vec3 color = base;
+			switch (layer.Kind)
+			{
+			case SurfaceLayerKind::Rock:
+			case SurfaceLayerKind::Cliff:
+			{
+				const float band = std::sin(height * 1.3f + (Fbm(x / 40.0f, z / 40.0f, 2, 307) - 0.5f) * 6.0f) * 0.5f + 0.5f;
+				const float groove = glm::clamp(0.5f - SurfaceDetail(x, z) * 0.9f, 0.0f, 1.0f);
+				const float tone = Fbm(x / 14.0f, z / 14.0f, 3, 311);
+				const float t = glm::clamp(band * 0.45f + (1.0f - tone) * 0.6f - 0.15f, 0.0f, 1.0f);
+				color = layer.Kind == SurfaceLayerKind::Rock ? glm::mix(glm::vec3(0.55f, 0.43f, 0.35f), glm::vec3(0.33f, 0.25f, 0.21f), t)   // warm granite
+					: glm::mix(glm::vec3(0.47f, 0.45f, 0.43f), glm::vec3(0.27f, 0.26f, 0.25f), t);                                            // a grey wall
+				color *= (0.7f + 0.45f * groove) * (0.9f + 0.2f * fine) * (1.0f - 0.15f * glm::clamp(slope * 1.5f, 0.0f, 1.0f));
+				break;
+			}
+			case SurfaceLayerKind::Snow: color = glm::vec3(0.93f, 0.95f, 0.99f) * (0.96f + 0.04f * fine); break;
+			case SurfaceLayerKind::Grass: color = glm::mix(base, glm::vec3(0.30f, 0.45f, 0.16f) * (0.86f + 0.28f * patch) * (0.9f + 0.2f * fine), 0.5f); break;
+			case SurfaceLayerKind::Sand: color = glm::vec3(0.80f, 0.66f, 0.45f) * (0.9f + 0.2f * fine); break;
+			case SurfaceLayerKind::Dry:
+				color = glm::mix(glm::vec3(0.36f, 0.42f, 0.17f), glm::vec3(0.55f, 0.50f, 0.27f), glm::clamp(0.6f + (patch - 0.5f) * 0.8f, 0.0f, 1.0f)) * (0.9f + 0.2f * fine);
+				break;
+			case SurfaceLayerKind::Forest:
+			{
+				const float crowns = ValueNoise(x / 4.5f, z / 4.5f, 421) * 0.65f + ValueNoise(x / 1.8f, z / 1.8f, 431) * 0.35f;
+				const float species = Fbm(x / 60.0f, z / 60.0f, 3, 433);
+				const glm::vec3 lit = glm::mix(glm::vec3(0.17f, 0.25f, 0.08f), glm::vec3(0.10f, 0.17f, 0.08f), glm::clamp((species - 0.42f) * 5.0f, 0.0f, 1.0f));
+				color = glm::mix(glm::vec3(0.07f, 0.10f, 0.05f), lit * 1.25f, glm::clamp((crowns - 0.25f) * 2.2f, 0.0f, 1.0f));
+				break;
+			}
+			case SurfaceLayerKind::Scree:   // broken blocks of a lighter grey, half a metre across
+				color = glm::vec3(0.58f, 0.55f, 0.50f) * (0.72f + 0.45f * ValueNoise(x / 0.55f, z / 0.55f, 241)) * (0.92f + 0.16f * fine);
+				break;
+			case SurfaceLayerKind::Gravel:   // rounded pebbles, pale and speckled
+				color = glm::vec3(0.62f, 0.58f, 0.50f) * (0.80f + 0.35f * ValueNoise(x / 0.3f, z / 0.3f, 251)) * (0.94f + 0.12f * fine);
+				break;
+			case SurfaceLayerKind::Mud: color = glm::vec3(0.26f, 0.21f, 0.16f) * (0.9f + 0.2f * fine); break;
+			case SurfaceLayerKind::MudDry: color = glm::mix(glm::vec3(0.50f, 0.43f, 0.33f), glm::vec3(0.43f, 0.37f, 0.29f), patch) * (0.85f + 0.3f * fine); break;
+			case SurfaceLayerKind::GrassWet: color = glm::vec3(0.17f, 0.33f, 0.12f) * (0.86f + 0.28f * patch) * (0.9f + 0.2f * fine); break;
+			case SurfaceLayerKind::Path: color = glm::vec3(0.50f, 0.42f, 0.31f) * (0.9f + 0.2f * fine); break;
+			}
+			sum += color * w;
+			total += w;
+		}
+		return total > 0.0f ? sum / total : base;
 	}
 
 	void Terrain::WriteNormalTexels(int x0, int y0, int x1, int y1)
