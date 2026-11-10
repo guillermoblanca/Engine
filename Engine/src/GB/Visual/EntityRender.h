@@ -43,7 +43,16 @@ namespace GB
 		// Local bounding sphere (center, radius) of the entity's model; false when not loaded.
 		bool ModelBounds(EntityId id, glm::vec3& center, float& radius);
 		// Forgets cached instances and the lists Build walks (ids were reused, e.g. after EntityWorld::Clear()).
-		void Reset() { m_Instances.clear(); m_ListedCount = static_cast<size_t>(-1); }
+		void Reset() { m_Instances.clear(); m_ListedStructure = 0; }
+
+		// Where the last Build's CPU time went (the editor's `drawcalls`): the data looks (nodes, buildings, creatures) and the walk of the
+		// meshes, lights and props; how many look entities were read and how many drew, and how many entities the walk read.
+		struct BuildStats
+		{
+			float LooksMs = 0.0f, WalkMs = 0.0f;
+			uint32_t Looks = 0, LooksDrawn = 0, Walked = 0;
+		};
+		const BuildStats& LastBuild() const { return m_Stats; }
 
 	private:
 		const Mesh* PrimitiveMesh(MeshShape shape, float size);
@@ -54,18 +63,31 @@ namespace GB
 		glm::vec3 m_CullOrigin{ 0.0f };
 		float m_CullDistance = 0.0f;
 		EntityVisual m_EntityVisual;
-		// What Build walks, listed again when the world's entities change in number or a new one was created (the world's next id moved: a
-		// regenerated world destroys and creates as many trees and rocks as before, T31), and every couple of seconds besides (a component
-		// added without a new entity): the entities that may have a look of their own, those with a mesh or a light, and the props in cells of
-		// kPropCell metres (a world of kilometres has tens of thousands; only the cells within the cull distance are read).
+		BuildStats m_Stats;
+		// What Build walks, listed again when the world's structure changes (an entity added or removed or moved to another parent:
+		// EntityWorld::Structure) and every couple of seconds besides (a component added without a new entity): the entities that may have a
+		// look of their own, those with a mesh or a light, and the props in cells of kPropCell metres (a world of kilometres has tens of
+		// thousands; only the cells within the cull distance are read). Each keeps its Entity's address, valid while the structure stays the
+		// same (a std::map's nodes do not move), so the walk does not look the tens of thousands of ids up in the world's map every frame (T59).
 		static constexpr float kPropCell = 64.0f;
+		struct Listed
+		{
+			EntityId Id = NullEntity;
+			const Entity* E = nullptr;
+			const Entity* Parent = nullptr;   // (its parent's, null at the root)
+			EntityId Look = NullEntity;   // (the meshes and lights: the nearest ancestor that may have a look; NullEntity: none)
+		};
 		void RefreshLists(const EntityWorld& world);
-		size_t m_ListedCount = static_cast<size_t>(-1);
-		EntityId m_ListedNextId = NullEntity;
+		uint64_t m_ListedStructure = 0;
 		int m_ListedAge = 0;
-		std::vector<EntityId> m_LookIds, m_PropIds;
-		std::vector<std::pair<EntityId, EntityId>> m_DrawIds;   // an entity with a mesh or a light, and its nearest ancestor that may have a look (NullEntity: none)
-		std::map<std::pair<int, int>, std::vector<EntityId>> m_PropCells;
+		std::vector<Listed> m_Looks, m_Draws, m_Props;
+		std::map<std::pair<int, int>, std::vector<Listed>> m_PropCells;
+		// Build's scratch, kept between frames: the look entities that drew (or were culled with all they hold) this Build, by id (the Build's
+		// number in their slot: nothing to clear), the entries the walk reads and an entity's chain of ancestors.
+		std::vector<uint32_t> m_ClaimedAt;
+		uint32_t m_BuildNumber = 0;
+		std::vector<const Listed*> m_Walk;
+		std::vector<const Entity*> m_Chain;
 		std::map<std::pair<int, float>, std::unique_ptr<Mesh>> m_Primitives;
 		std::map<std::string, std::unique_ptr<Model>> m_Models;   // null entry: failed to load (not retried)
 		std::map<EntityId, std::pair<std::string, std::unique_ptr<ModelInstance>>> m_Instances;

@@ -160,8 +160,22 @@ namespace GB
 		// The id the next Create will take. Saved games keep it so the ids a session hands out do not depend on what it loaded.
 		EntityId NextId() const { return m_NextId; }
 		void SetNextId(EntityId next) { if (next > m_NextId) m_NextId = next; }
+		// A number that changes whenever an entity is added or removed or changes parent, and that no two worlds share (a copy or a move takes a
+		// new one). While it stays the same the entities keep their addresses and their parents: a cache of Entity pointers by id is valid
+		// (the EntityRenderer's lists). Never 0.
+		uint64_t Structure() const { return m_Structure.Value; }
 
 	private:
+		struct StructureStamp
+		{
+			uint64_t Value = Next();
+			StructureStamp() = default;
+			StructureStamp(const StructureStamp&) noexcept : Value(Next()) {}
+			StructureStamp& operator=(const StructureStamp&) noexcept { Value = Next(); return *this; }
+			void Bump() { Value = Next(); }
+			static uint64_t Next();
+		};
+		StructureStamp m_Structure;
 		std::string UniqueName(const std::string& wanted, EntityId ignore) const;
 		bool IsDescendant(EntityId id, EntityId ancestor) const;
 		EntityId CopyTree(EntityId src, EntityId parent);

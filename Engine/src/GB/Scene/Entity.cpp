@@ -1,11 +1,18 @@
 #include "GB/Scene/Entity.h"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 namespace GB
 {
+	uint64_t EntityWorld::StructureStamp::Next()
+	{
+		static std::atomic<uint64_t> next{ 1 };   // (worlds are built on the generation thread too)
+		return next.fetch_add(1, std::memory_order_relaxed);
+	}
+
 	glm::mat4 TransformComponent::ToMatrix() const
 	{
 		const glm::quat q(glm::radians(Rotation));
@@ -65,6 +72,7 @@ namespace GB
 		e.Name = UniqueName(name, NullEntity);
 		m_ByName[e.Name] = id;
 		m_NextId = std::max(m_NextId, id + 1);
+		m_Structure.Bump();
 		return &m_Entities.emplace(id, std::move(e)).first->second;
 	}
 
@@ -77,6 +85,7 @@ namespace GB
 		if (!p || parent == id || IsDescendant(parent, id)) return false;
 		e->Parent = parent;
 		p->Children.push_back(id);
+		m_Structure.Bump();
 		return true;
 	}
 
@@ -134,6 +143,7 @@ namespace GB
 			p->Children.erase(std::remove(p->Children.begin(), p->Children.end(), id), p->Children.end());
 		if (const auto it = m_ByName.find(e->Name); it != m_ByName.end() && it->second == id) m_ByName.erase(it);
 		m_Entities.erase(id);
+		m_Structure.Bump();
 		return true;
 	}
 
@@ -166,6 +176,7 @@ namespace GB
 		m_Entities.clear();
 		m_ByName.clear();
 		m_NextId = 1;
+		m_Structure.Bump();
 	}
 
 	bool EntityWorld::Rename(EntityId id, const std::string& name)
@@ -196,6 +207,7 @@ namespace GB
 			old->Children.erase(std::remove(old->Children.begin(), old->Children.end(), id), old->Children.end());
 		e->Parent = parent;
 		if (Entity* p = Find(parent)) p->Children.push_back(id);
+		m_Structure.Bump();
 		if (keepWorld)
 			e->Transform.FromMatrix(glm::inverse(WorldMatrix(parent)) * world);
 		return true;
