@@ -3,6 +3,7 @@
 #include "GB/World/Graph/TerrainGraph.h"
 #include "GB/World/Water/WaterRaster.h"
 #include <algorithm>
+#include <cmath>
 
 namespace GB
 {
@@ -43,6 +44,8 @@ namespace GB
 			{ "Erodibility", 4.0, 0, 40, false, "K, in 1e-5 per year: incision = K sqrt(A) S (m/yr, A in m2)" },
 			{ "Uplift", 0.0, 0, 10, false, "mm per year (times the uplift input)" },
 			{ "Diffusion", 0.003, 0, 0.1, false, "hillslope diffusivity, m2 per year" },
+			{ "CriticalSlope", 0, 0, 80, false, "degrees: the diffusion grows as the slope nears it, Kd / (1 - (S/Sc)^2) (Roering): steep walls wear back, gentle hollows keep. 0 = linear" },
+			{ "CriticalSlopeCap", 0.9, 0.5, 0.99, false, "S/Sc at which that factor stops growing (0.9: at most 5.3 Kd; more sub-steps the higher)" },
 			{ "TimeStep", 1000, 10, 20000, false, "years per iteration" },
 			{ "HardErodibility", 0.25, 0, 1, false, "the erodibility's factor at hardness 1" },
 			{ "MultipleFlow", 1, 0, 1, true, "1: the drainage area by multiple flow (channels where the ground converges); 0: along single receivers (D8)" },
@@ -91,6 +94,9 @@ namespace GB
 		o.Erodibility = static_cast<float>(TgParam(node, "Erodibility", 4.0) * 1e-5);
 		o.Uplift = static_cast<float>(TgParam(node, "Uplift", 0.0) * 1e-3);
 		o.Diffusion = static_cast<float>(TgParam(node, "Diffusion", 0.003));
+		if (const double sc = TgParam(node, "CriticalSlope", 0.0); sc > 0.0)
+			o.CriticalSlope = static_cast<float>(std::tan(std::min(sc, 89.0) * 3.14159265358979323846 / 180.0));
+		o.CriticalSlopeCap = static_cast<float>(TgParam(node, "CriticalSlopeCap", 0.9));
 		o.TimeStep = static_cast<float>(TgParam(node, "TimeStep", 1000.0));
 		o.HardErodibility = static_cast<float>(TgParam(node, "HardErodibility", 0.25));
 		o.MultipleFlow = TgParam(node, "MultipleFlow", 1.0) >= 0.5;

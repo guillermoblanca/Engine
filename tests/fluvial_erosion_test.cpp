@@ -5,6 +5,8 @@
 //   - a closed bowl: its cells (a lake for the drainage) only rise with the uplift, they are never incised;
 //   - the cascade: the same twice, bit for bit; its coarse stage on a field that nests over the coarse grid is exactly the erosion run on the
 //     decimated field (what the preview at the coarse resolution computes); hard rock erodes less;
+//   - E2b, the diffusion near a critical slope (Roering): a steep wall wears back faster than with the linear diffusion, a gentle slope almost
+//     the same, and the volume stays; with it off (the default), the cascade and the node give the bytes they gave before it existed;
 //   - the node: evaluates, the same twice and through the cache, and an unknown Revision is refused.
 #include "GB/World/Drainage.h"
 #include "GB/World/FlowAccumulation.h"
@@ -197,6 +199,63 @@ int GBTest_fluvial_erosion(int, char**)
 		Check(outside > 100, "the slopes outside it are incised");
 	}
 
+	// ---------------------------------------------------------------- E2b: the diffusion near a critical slope (Roering)
+	// A mesa in the middle of a flat map (no incision, no uplift: only the diffusion), once with a 45-degree wall and once with a 6-degree one,
+	// linear and with the critical slope at 30 degrees. The steep wall wears back faster with the critical slope, under 30 degrees; the gentle one
+	// almost as with the linear diffusion; the ground's volume stays (nothing reaches the border, which is flat).
+	{
+		constexpr uint32_t n = 65;
+		const float spacing = 4.0f;
+		auto mesa = [&](float top, float inner, float outer)
+		{
+			std::vector<float> h(static_cast<size_t>(n) * n);
+			for (uint32_t j = 0; j < n; ++j)
+				for (uint32_t i = 0; i < n; ++i)
+				{
+					const float x = (static_cast<float>(i) - 32.0f) * spacing, z = (static_cast<float>(j) - 32.0f) * spacing;
+					const float r = std::sqrt(x * x + z * z);
+					h[static_cast<size_t>(j) * n + i] = top * std::clamp((outer - r) / (outer - inner), 0.0f, 1.0f);
+				}
+			return h;
+		};
+		auto run = [&](const std::vector<float>& h0, float sc, double& moved, double& dv, float& steepest)
+		{
+			std::vector<float> h = h0;
+			StreamPowerOptions o;
+			o.Erodibility = 0.0f;
+			o.Diffusion = 0.004f;
+			o.CriticalSlope = sc;
+			o.TimeStep = 1000.0f;
+			o.Iterations = 10;
+			StreamPowerErode(h, n, spacing, o);
+			moved = 0.0;
+			steepest = 0.0f;
+			for (size_t c = 0; c < h.size(); ++c) moved = std::max(moved, static_cast<double>(std::fabs(h[c] - h0[c])));
+			for (uint32_t j = 1; j + 1 < n; ++j)
+				for (uint32_t i = 1; i + 1 < n; ++i)
+				{
+					const size_t c = static_cast<size_t>(j) * n + i;
+					steepest = std::max({ steepest, std::fabs(h[c + 1] - h[c]) / spacing, std::fabs(h[c + n] - h[c]) / spacing });
+				}
+			dv = Volume(h, spacing * spacing) - Volume(h0, spacing * spacing);
+		};
+		const float sc = std::tan(30.0f * 3.14159265f / 180.0f);
+		const std::vector<float> steep = mesa(30.0f, 50.0f, 80.0f), gentle = mesa(6.0f, 40.0f, 100.0f);
+		double moveLin = 0, moveCrit = 0, gentleLin = 0, gentleCrit = 0, dvLin = 0, dvCrit = 0, dvGentle = 0;
+		float slopeLin = 0, slopeCrit = 0, slopeGentle = 0;
+		run(steep, 0.0f, moveLin, dvLin, slopeLin);
+		run(steep, sc, moveCrit, dvCrit, slopeCrit);
+		run(gentle, 0.0f, gentleLin, dvGentle, slopeGentle);
+		run(gentle, sc, gentleCrit, dvGentle, slopeGentle);
+		std::printf("fluvial_erosion: critical slope 30 deg: the 45-degree wall moves %.2f m (linear %.2f m) and ends at %.2f (linear %.2f); the 6-degree one %.3f m (linear %.3f m)\n",
+			moveCrit, moveLin, slopeCrit, slopeLin, gentleCrit, gentleLin);
+		Check(moveCrit > 2.0 * moveLin && slopeCrit < sc && slopeLin > sc,
+			"with the critical slope a steep wall wears back faster than with the linear diffusion, down to under the critical slope (the linear one stays above it)");
+		Check(gentleCrit < 1.15 * gentleLin && gentleCrit >= gentleLin, "a gentle slope diffuses almost as with the linear diffusion");
+		const double volume = Volume(steep, spacing * spacing);
+		Check(std::fabs(dvCrit) < 1e-5 * volume && std::fabs(dvGentle) < 1e-5 * volume, "the critical-slope diffusion moves ground, it does not make or lose it (" + std::to_string(dvCrit) + " m3)");
+	}
+
 	// ---------------------------------------------------------------- the cascade
 	{
 		const std::vector<float> h = Cone(kN, kSize);
@@ -216,6 +275,9 @@ int GBTest_fluvial_erosion(int, char**)
 		cascade.FineIterations = 2;
 		const StreamPowerCascadeResult a = StreamPowerErodeCascade(h.data(), kN, sp, o, cascade);
 		const StreamPowerCascadeResult b = StreamPowerErodeCascade(h.data(), kN, sp, o, cascade);
+		// (E2b) with the critical slope off this is what it was before CriticalSlope existed: the hash recorded on master 02b8307
+		const uint64_t cascadeHash = TgHashBytes(a.Heights.data(), a.Heights.size() * sizeof(float));
+		Check(cascadeHash == 0x8bd9076c17d138b8ull, "linear diffusion (CriticalSlope 0) gives the cascade of before E2b, bit for bit (hash " + std::to_string(cascadeHash) + ")");
 		Check(a.Stages == std::vector<uint32_t>{ 33, 65, 129 }, "the stages are 33, 65 and 129");
 		Check(a.Heights.size() == count && std::memcmp(a.Heights.data(), b.Heights.data(), count * sizeof(float)) == 0, "the cascade gives the same twice, bit for bit");
 		// the preview: the same graph at 33 samples sees the decimated input and runs the coarse stage alone
@@ -281,6 +343,22 @@ int GBTest_fluvial_erosion(int, char**)
 			for (size_t c = 0; c < count; ++c) { sum = sum && eroded.Values[c] == in.Values[c] - h.Values[c]; cut = std::max(cut, static_cast<double>(eroded.Values[c])); }
 			Check(sum && cut > 1.0, "eroded is the input minus the output, and the ground went down (" + std::to_string(cut) + " m at most)");
 			Check(out.at("area").Field.Values.size() == count && out.at("coarse").Field.Values.size() == count, "area and coarse are fields of the same size");
+		}
+		// E2b: the node with the critical slope off (its default) gives what it gave before the parameter existed, bit for bit: the hash of
+		// this graph's height recorded on master 02b8307, before the change (with diffusion and uplift, so the linear diffusion runs)
+		{
+			TerrainGraph lin = g;
+			for (TgNode& n : lin.Nodes) if (n.Id == "fluvial") { n.Params["Diffusion"] = 0.05; n.Params["Uplift"] = 0.5; }
+			TgResult rl;
+			const bool ok = EvaluateTerrainGraph(lin, registry, ctx, rl, error);
+			const uint64_t hash = ok && rl.Outputs.count("height") ? TgHashField(rl.Outputs.at("height")) : 0;
+			Check(hash == 0x64bcc8da27be3374ull, "the node with CriticalSlope 0 (its default) gives what it gave before E2b, bit for bit");
+			TerrainGraph rg = lin;
+			for (TgNode& n : rg.Nodes) if (n.Id == "fluvial") n.Params["CriticalSlope"] = 30;
+			TgResult ra, rb;
+			const bool okA = EvaluateTerrainGraph(rg, registry, ctx, ra, error), okB = EvaluateTerrainGraph(rg, registry, ctx, rb, error);
+			Check(okA && okB && TgHashResult(ra) == TgHashResult(rb), "with CriticalSlope 30 the node gives the same twice");
+			Check(okA && ra.Outputs.count("height") && TgHashField(ra.Outputs.at("height")) != hash, "and CriticalSlope changes the result");
 		}
 		TerrainGraph bad = g;
 		for (TgNode& n : bad.Nodes) if (n.Id == "fluvial") n.Params["Revision"] = 2;

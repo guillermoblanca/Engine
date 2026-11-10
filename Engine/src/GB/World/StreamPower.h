@@ -18,7 +18,8 @@ namespace GB
 	// cell at a time along Order -- each cell after its receiver, whose new height is already known --
 	//     h'[c] = (h[c] + U dt + F * base) / (1 + F),   F = K dt sqrt(A) / L,   L the distance to the receiver (1 or sqrt 2 cells)
 	// and last the diffusion (explicit, a 4-neighbour Laplacian, in as many sub-steps as keep Kd dt' / dx2 <= 0.2, each from a copy: the result
-	// does not depend on the order the cells are visited in). The incision depends on the order and is sequential; everything else is per cell.
+	// does not depend on the order the cells are visited in; non-linear near a critical slope when CriticalSlope is set). The incision depends
+	// on the order and is sequential; everything else is per cell.
 	//
 	// Base level: the map's border and the outlet cells are not uplifted nor incised; a border cell only goes down, to its inner neighbour's
 	// height when that one ends lower (so the edge never stands as a wall over land that drained elsewhere). A cell in a hollow (its drainage Level above its
@@ -35,6 +36,13 @@ namespace GB
 		const float* Precipitation = nullptr;     // N*N, rain relative to 1: weights the area (null = 1)
 		bool MultipleFlow = true;                 // the area by multiple flow (AccumulateMultipleFlowArea); false: along the receivers only
 		float Diffusion = 0.0f;                   // Kd, m2/yr
+		// The hillslope diffusion made non-linear near a critical slope (Roering, Kirchner and Dietrich, 1999; TERRENO_V5 E2b): the flux across
+		// each edge between two cells is Kd S / (1 - (S/Sc)^2), S the slope along that edge, so ground near Sc creeps much faster than ground
+		// at a gentle slope. A steep wall is worn back toward Sc while a shallow hollow (where the channels start) keeps the low Kd. The factor
+		// stops growing at S/Sc = CriticalSlopeCap (with 0.9, at most 5.3 times Kd): it keeps the explicit scheme stable in a known number of
+		// sub-steps (Kd dt factor / dx2 <= 0.2 each), and slopes above Sc only wear back at that rate. 0 = linear diffusion (what it was).
+		float CriticalSlope = 0.0f;               // Sc, the tangent of the critical angle; 0 = off
+		float CriticalSlopeCap = 0.9f;            // S/Sc at which the factor stops growing (< 1)
 		float TimeStep = 1000.0f;                 // years per iteration
 		int Iterations = 10;
 		int DrainageEvery = 1;                    // recompute the drainage every this many iterations (the receivers in between are the last ones)

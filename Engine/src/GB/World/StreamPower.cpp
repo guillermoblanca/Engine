@@ -173,8 +173,14 @@ namespace GB
 
 		// the diffusion's sub-steps: Kd dt / dx2 per step at most 0.2 (the explicit 4-neighbour scheme is stable up to 0.25)
 		const double alphaTotal = static_cast<double>(o.Diffusion) * dt / (static_cast<double>(spacing) * spacing);
-		const int diffusionSteps = alphaTotal > 0.0 ? static_cast<int>(std::ceil(alphaTotal / 0.2)) : 0;
+		// non-linear (Roering): every edge's factor 1 / (1 - (S/Sc)^2) is at most 1 / (1 - cap^2), and the sub-steps are as many as keep
+		// alpha times that at most 0.2
+		const bool critical = o.CriticalSlope > 0.0f;
+		const float cap = std::clamp(o.CriticalSlopeCap, 0.0f, 0.99f);
+		const double maxFactor = critical ? 1.0 / (1.0 - static_cast<double>(cap) * cap) : 1.0;
+		const int diffusionSteps = alphaTotal > 0.0 ? static_cast<int>(std::ceil(alphaTotal * maxFactor / 0.2)) : 0;
 		const float alpha = diffusionSteps > 0 ? static_cast<float>(alphaTotal / diffusionSteps) : 0.0f;
+		const float invScDx = critical ? 1.0f / (o.CriticalSlope * spacing) : 0.0f;   // |dh| times this is S/Sc along an edge
 
 		DrainageResult d;
 		std::vector<float> next(count), surface(count);
@@ -244,7 +250,32 @@ namespace GB
 			t0 = std::chrono::steady_clock::now();
 			double before = 0.0;
 			if (diffusionSteps > 0) for (size_t c = 0; c < count; ++c) before += h[c];
-			for (int s = 0; s < diffusionSteps; ++s)
+			for (int s = 0; s < diffusionSteps && critical; ++s)
+			{
+				// each edge's flux from its own slope: the same factor seen from both cells, so what one loses the other gains
+				next = h;
+				auto edge = [&](float a, float b)
+				{
+					const float d = b - a;
+					const float r = std::min(std::fabs(d) * invScDx, cap);
+					return d / (1.0f - r * r);
+				};
+				for (uint32_t j = 1; j + 1 < n; ++j)
+				{
+					const size_t row = static_cast<size_t>(j) * n;
+					for (uint32_t i = 1; i + 1 < n; ++i)
+					{
+						const size_t c = row + i;
+						if (fixed[c]) continue;
+						const float hc = h[c];
+						const float flux = edge(hc, h[c - 1]) + edge(hc, h[c + 1]) + edge(hc, h[c - n]) + edge(hc, h[c + n]);
+						next[c] = hc + alpha * flux;
+					}
+				}
+				h.swap(next);
+				++stats.DiffusionSteps;
+			}
+			for (int s = 0; s < diffusionSteps && !critical; ++s)
 			{
 				next = h;
 				for (uint32_t j = 1; j + 1 < n; ++j)

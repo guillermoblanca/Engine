@@ -309,7 +309,7 @@ namespace
 	// highland_valley and generator 4), at the graph's resolution. Prints, every few iterations, the time so far (drainage, solve, diffusion),
 	// how deep the channels are cut and the Strahler order of the network of the result.
 	//   GBSimTests terrain_graph_cache e2bench <graph> <type> <seed> <size> <resolution> <node> [key=value ...]
-	// keys: K (1e-5/yr), U (mm/yr), Kd (m2/yr), dt (yr), it (iterations), every (drainage every), report (iterations between lines),
+	// keys: K (1e-5/yr), U (mm/yr), Kd (m2/yr), Sc (critical slope, degrees; 0 linear), dt (yr), it (iterations), every (drainage every), report (iterations between lines),
 	// cascade=1 (StreamPowerErodeCascade with ci/mi/fi iterations instead; coarse=257)
 	struct NetworkStats { int Strahler = 0; size_t Confluences = 0, Cells = 0; };
 	NetworkStats NetworkOf(const DrainageResult& d)
@@ -341,7 +341,7 @@ namespace
 		if (argc < 8) { std::fprintf(stderr, "e2bench <graph> <type> <seed> <size> <resolution> <node> [key=value ...]\n"); return 2; }
 		WorldDesc desc = ProbeDesc(argv[3], static_cast<uint32_t>(std::atoi(argv[4])), static_cast<float>(std::atof(argv[5])), static_cast<uint32_t>(std::atoi(argv[6])));
 		std::map<std::string, double> kv = { { "K", 1.0 }, { "U", 0.0 }, { "Kd", 0.0 }, { "dt", 500.0 }, { "it", 40 }, { "every", 1 }, { "report", 5 },
-			{ "cascade", 0 }, { "ci", 60 }, { "mi", 12 }, { "fi", 4 }, { "coarse", 257 } };
+			{ "cascade", 0 }, { "ci", 60 }, { "mi", 12 }, { "fi", 4 }, { "coarse", 257 }, { "Sc", 0 } };
 		for (int a = 8; a < argc; ++a)
 		{
 			const std::string arg = argv[a];
@@ -367,6 +367,7 @@ namespace
 		o.Uplift = static_cast<float>(kv["U"] * 1e-3);
 		o.Diffusion = static_cast<float>(kv["Kd"]);
 		o.TimeStep = static_cast<float>(kv["dt"]);
+		if (kv["Sc"] > 0.0) o.CriticalSlope = static_cast<float>(std::tan(kv["Sc"] * 3.14159265358979323846 / 180.0));
 		std::printf("e2bench %s %s seed %u, %u^2 (%.2f m cells), node %s: K %.2g /yr, U %.2g m/yr, Kd %.3g m2/yr, dt %.0f yr\n", argv[2], argv[3], desc.Seed, n, sp, argv[7],
 			o.Erodibility, o.Uplift, o.Diffusion, o.TimeStep);
 		const DrainageResult d0 = ComputeDrainage(f->Values.data(), n, sp);
