@@ -6,6 +6,8 @@
 // "e2:<preset>" adds TERRENO_V5 E2 too (AppendE2): fluvial_erosion right after the relief, the droplet erosion and the drawn valley out, and
 // E1 at the end; "e2v:" keeps the drawn valley, "e2x:" makes no lake, "e2w:" puts it after the water, in place of the droplets. GB_E2_PARAMS="Name=value ..." sets fluvial_erosion's parameters.
 //   GBSimTests terrain_graph_cache hausdorff <a_river.f32> <b_river.f32>   (the probe writes <tag>_river.f32 with an out_dir)
+//   GBSimTests terrain_graph_cache dem <height.f32> <n> <size> [lakes.f32|-] [out_dir] [tag]
+// the same measures on a bare height field, a real DEM crop or one of ours resampled (tools/dem_ref.py; see Dem below).
 //   GBSimTests terrain_graph_cache probe_export <preset> <type> <file.json> <id> [name]
 // writes that graph (with its e1: prefix applied) as a terrain graph file.
 // It prints the time of every node, of the whole graph and of the rest of the world (GenerateData), measures the drainage of the final ground
@@ -423,6 +425,353 @@ namespace
 		return 0;
 	}
 
+	// The closed hollows of a ground: Priority-Flood (as depression_fill, the map's border the only outlet, the water too: `wet` non-zero) and
+	// how deep it fills each cell; the pitting of the droplets fills by millimetres, a real basin by metres.
+	std::vector<float> FillHollows(const std::vector<float>& heights, const std::vector<float>& wet, uint32_t n)
+	{
+		const size_t count = heights.size();
+		auto border = [n](size_t c) { const size_t i = c % n, j = c / n; return i == 0 || j == 0 || i == n - 1 || j == n - 1; };
+		std::vector<float> filled = heights;
+		std::vector<uint8_t> closed(count, 0);
+		using Item = std::pair<float, uint32_t>;
+		std::priority_queue<Item, std::vector<Item>, std::greater<Item>> open;
+		for (size_t c = 0; c < count; ++c)
+			if (border(c) || wet[c] != 0.0f) { closed[c] = 1; open.push({ filled[c], static_cast<uint32_t>(c) }); }
+		while (!open.empty())
+		{
+			const auto [z, cell] = open.top();
+			open.pop();
+			const int ci = static_cast<int>(cell % n), cj = static_cast<int>(cell / n);
+			for (int dj = -1; dj <= 1; ++dj)
+				for (int di = -1; di <= 1; ++di)
+				{
+					const int ni = ci + di, nj = cj + dj;
+					if ((di == 0 && dj == 0) || ni < 0 || nj < 0 || ni >= static_cast<int>(n) || nj >= static_cast<int>(n)) continue;
+					const size_t m = static_cast<size_t>(nj) * n + static_cast<size_t>(ni);
+					if (closed[m]) continue;
+					closed[m] = 1;
+					if (filled[m] <= z) filled[m] = z + 0.0001f;
+					open.push({ filled[m], static_cast<uint32_t>(m) });
+				}
+		}
+		return filled;
+	}
+
+	// The biggest closed basin: the connected cells filled over 0.05 m, by volume (m3); `at` its first cell in the map's order.
+	double BiggestBasin(const TgField& h, const std::vector<float>& filled, glm::vec2& at)
+	{
+		const uint32_t n = h.N;
+		const size_t count = h.Values.size();
+		const float sp = h.Spacing();
+		double biggest = 0.0;
+		std::vector<uint8_t> seen(count, 0);
+		std::vector<size_t> stack;
+		for (size_t c = 0; c < count; ++c)
+		{
+			if (seen[c] || filled[c] - h.Values[c] <= 0.05f) continue;
+			double volume = 0.0;
+			stack.assign(1, c);
+			seen[c] = 1;
+			while (!stack.empty())
+			{
+				const size_t k = stack.back();
+				stack.pop_back();
+				volume += static_cast<double>(filled[k] - h.Values[k]) * sp * sp;
+				const int ki = static_cast<int>(k % n), kj = static_cast<int>(k / n);
+				for (int dj = -1; dj <= 1; ++dj)
+					for (int di = -1; di <= 1; ++di)
+					{
+						const int ni = ki + di, nj = kj + dj;
+						if (ni < 0 || nj < 0 || ni >= static_cast<int>(n) || nj >= static_cast<int>(n)) continue;
+						const size_t m = static_cast<size_t>(nj) * n + static_cast<size_t>(ni);
+						if (!seen[m] && filled[m] - h.Values[m] > 0.05f) { seen[m] = 1; stack.push_back(m); }
+					}
+			}
+			if (volume > biggest) { biggest = volume; at = h.SamplePosition(static_cast<uint32_t>(c % n), static_cast<uint32_t>(c / n)); }
+		}
+		return biggest;
+	}
+
+	// The channel network of a filled ground, the probe's (TERR0): D8 (FlowAccumulation) on it, the cells draining over `netCells` cells, their
+	// Strahler order and confluences (a channel cell with two or more channel cells draining into it).
+	struct FilledNetworkStats { int Strahler = 0; size_t Confluences = 0, Cells = 0; FlowAccumulationResult Acc; };
+	FilledNetworkStats FilledNetwork(const std::vector<float>& filled, uint32_t n, float netCells)
+	{
+		FilledNetworkStats s;
+		const size_t count = filled.size();
+		const std::vector<int> fdown = FlowAccumulation::Directions(filled.data(), n);
+		s.Acc = FlowAccumulation::Run(filled.data(), n);
+		std::vector<uint32_t> byHeight(count);
+		for (size_t c = 0; c < count; ++c) byHeight[c] = static_cast<uint32_t>(c);
+		std::sort(byHeight.begin(), byHeight.end(), [&](uint32_t a, uint32_t b) { return filled[a] != filled[b] ? filled[a] > filled[b] : a < b; });
+		std::vector<uint8_t> order(count, 0), topIn(count, 0), topCount(count, 0), ins(count, 0);
+		for (uint32_t c : byHeight)
+		{
+			if (s.Acc.Accumulation[c] < netCells) continue;
+			++s.Cells;
+			order[c] = topIn[c] == 0 ? 1 : static_cast<uint8_t>(topIn[c] + (topCount[c] >= 2 ? 1 : 0));
+			if (ins[c] >= 2) ++s.Confluences;
+			s.Strahler = std::max(s.Strahler, static_cast<int>(order[c]));
+			const int d = fdown[c];
+			if (d < 0) continue;
+			const size_t dc = static_cast<size_t>(d);
+			if (s.Acc.Accumulation[dc] < netCells) continue;
+			ins[dc] = static_cast<uint8_t>(std::min(255, ins[dc] + 1));
+			if (order[c] > topIn[dc]) { topIn[dc] = order[c]; topCount[dc] = 1; }
+			else if (order[c] == topIn[dc]) topCount[dc] = static_cast<uint8_t>(std::min(255, topCount[dc] + 1));
+		}
+		return s;
+	}
+
+	double Percentile(std::vector<float> v, double q)
+	{
+		if (v.empty()) return 0.0;
+		std::sort(v.begin(), v.end());
+		return v[static_cast<size_t>(q * static_cast<double>(v.size() - 1))];
+	}
+
+	//   GBSimTests terrain_graph_cache dem <height.f32> <n> <size> [lakes.f32|-] [out_dir] [tag]
+	// TERRENO_V5 "Referencias reales": the same measures as the probe on a bare height field -- a real DEM crop that tools/dem_ref.py made
+	// metric, or one of our worlds (the probe's <tag>_height.f32) resampled by it to the DEM's spacing. No graph is evaluated. Lakes: the cells
+	// of `lakes.f32` equal to 1 (the probe's water kinds or dem_ref's resample), else the flat surfaces of the DEM itself (a reservoir or a tarn
+	// has no bathymetry in a DEM: connected cells whose 4 neighbours are within 5 cm, 2000 m2 or more, as lake_fill's MinArea). Everything is
+	// measured on the dry cells. Besides the probe's measures (slopes, pits, fill, the D8 network of the filled ground), on the drainage of E1
+	// (ComputeDrainage, the receivers E2 incises along):
+	//   - its own network (NetworkOf, what e2bench prints), on the same area threshold, 0.2 % of the map;
+	//   - the height above the channel each cell drains into (HAND: Level minus the Level of the first network cell down its flow path) and
+	//     how far it is from it in a straight line: "the ground N m from the channel" is the median HAND of the cells N m away (0.75..1.25 N),
+	//     for every channel and for the trunks (over 0.25 km2);
+	//   - the width of the valley floors: the dry cells within 2 m (and 5 m) of their trunk's level, over the length of the trunks;
+	//   - the drainage density: the length of the network per km2.
+	// With out_dir it writes <tag>_flow.f32 (the drainage area in m2), <tag>_water.f32 (1 lake) and <tag>_relief.json.
+	int Dem(int argc, char** argv)
+	{
+		if (argc < 5) { std::fprintf(stderr, "dem <height.f32> <n> <size> [lakes.f32|-] [out_dir] [tag]\n"); return 2; }
+		const uint32_t n = static_cast<uint32_t>(std::atoi(argv[3]));
+		const float size = static_cast<float>(std::atof(argv[4]));
+		const size_t count = static_cast<size_t>(n) * n;
+		const std::string lakesPath = argc > 5 ? argv[5] : "-", outDir = argc > 6 ? argv[6] : "", tag = argc > 7 ? argv[7] : "dem";
+		TgField h;
+		h.N = n; h.Size = size; h.Center = glm::vec2(0.0f);
+		h.Values.assign(count, 0.0f);
+		{
+			FILE* f = std::fopen(argv[2], "rb");
+			if (!f || std::fread(h.Values.data(), sizeof(float), count, f) != count) { std::fprintf(stderr, "cannot read %u^2 floats from %s\n", n, argv[2]); if (f) std::fclose(f); return 1; }
+			std::fclose(f);
+		}
+		const float sp = h.Spacing(), cellArea = sp * sp;
+		auto border = [n](size_t c) { const size_t i = c % n, j = c / n; return i == 0 || j == 0 || i == n - 1 || j == n - 1; };
+		std::vector<float> wet(count, 0.0f);
+		bool flats = false;
+		if (lakesPath != "-")
+		{
+			FILE* f = std::fopen(lakesPath.c_str(), "rb");
+			std::vector<float> w(count, 0.0f);
+			if (!f || std::fread(w.data(), sizeof(float), count, f) != count) { std::fprintf(stderr, "cannot read %u^2 floats from %s\n", n, lakesPath.c_str()); if (f) std::fclose(f); return 1; }
+			std::fclose(f);
+			for (size_t c = 0; c < count; ++c) wet[c] = w[c] == 1.0f ? 1.0f : 0.0f;
+		}
+		else
+		{
+			flats = true;
+			std::vector<uint8_t> flat(count, 0), seen(count, 0);
+			for (uint32_t j = 1; j + 1 < n; ++j)
+				for (uint32_t i = 1; i + 1 < n; ++i)
+				{
+					const float z = h.At(i, j);
+					flat[static_cast<size_t>(j) * n + i] = std::abs(h.At(i + 1, j) - z) < 0.05f && std::abs(h.At(i - 1, j) - z) < 0.05f &&
+						std::abs(h.At(i, j + 1) - z) < 0.05f && std::abs(h.At(i, j - 1) - z) < 0.05f;
+				}
+			std::vector<size_t> stack, comp;
+			for (size_t c = 0; c < count; ++c)
+			{
+				if (!flat[c] || seen[c]) continue;
+				comp.clear();
+				stack.assign(1, c);
+				seen[c] = 1;
+				while (!stack.empty())
+				{
+					const size_t k = stack.back();
+					stack.pop_back();
+					comp.push_back(k);
+					const size_t ki = k % n, kj = k / n;
+					const size_t nb[4] = { ki > 0 ? k - 1 : k, ki + 1 < n ? k + 1 : k, kj > 0 ? k - n : k, kj + 1 < n ? k + n : k };
+					for (const size_t m : nb) if (flat[m] && !seen[m]) { seen[m] = 1; stack.push_back(m); }
+				}
+				if (comp.size() >= 4 && static_cast<float>(comp.size()) * cellArea >= 2000.0f) for (const size_t k : comp) wet[k] = 1.0f;
+			}
+		}
+		size_t lakeCells = 0;
+		for (const float w : wet) lakeCells += w != 0.0f;
+
+		// slopes of the dry interior, the probe's central differences
+		const float bins[] = { 3.0f, 14.0f, 30.0f, 40.0f, 1e9f };
+		size_t slopeBin[5] = {}, s50 = 0, dryInterior = 0;
+		for (uint32_t j = 1; j + 1 < n; ++j)
+			for (uint32_t i = 1; i + 1 < n; ++i)
+			{
+				if (wet[static_cast<size_t>(j) * n + i] != 0.0f) continue;
+				const float gx = (h.At(i + 1, j) - h.At(i - 1, j)) / (2.0f * sp), gz = (h.At(i, j + 1) - h.At(i, j - 1)) / (2.0f * sp);
+				const float deg = glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz)));
+				++dryInterior;
+				int b = 0;
+				while (deg >= bins[b]) ++b;
+				++slopeBin[b];
+				s50 += deg > 50.0f;
+			}
+		// the same slopes on the mountain part only: the dry interior cells with over 100 m of relief (max - min) in the square of +-300 m around
+		// them -- the same rule for a real crop and ours, so a valley that is half plain is compared by its sierra
+		std::vector<float> lo = h.Values, hi = h.Values;
+		const int reliefCells = std::max(1, static_cast<int>(std::lround(300.0f / sp)));
+		for (int pass = 0; pass < 2; ++pass)   // the min and max along the rows, then along the columns of that
+		{
+			std::vector<float> tlo(count), thi(count);
+			for (uint32_t a = 0; a < n; ++a)
+				for (uint32_t b = 0; b < n; ++b)
+				{
+					float mn = 1e30f, mx = -1e30f;
+					const int k0 = std::max(0, static_cast<int>(b) - reliefCells), k1 = std::min(static_cast<int>(n) - 1, static_cast<int>(b) + reliefCells);
+					for (int k = k0; k <= k1; ++k)
+					{
+						const size_t m = pass == 0 ? static_cast<size_t>(a) * n + static_cast<size_t>(k) : static_cast<size_t>(k) * n + a;
+						mn = std::min(mn, lo[m]); mx = std::max(mx, hi[m]);
+					}
+					const size_t c = pass == 0 ? static_cast<size_t>(a) * n + b : static_cast<size_t>(b) * n + a;
+					tlo[c] = mn; thi[c] = mx;
+				}
+			lo.swap(tlo); hi.swap(thi);
+		}
+		size_t mountBin[5] = {}, mount50 = 0, mountCells = 0;
+		for (uint32_t j = 1; j + 1 < n; ++j)
+			for (uint32_t i = 1; i + 1 < n; ++i)
+			{
+				const size_t c = static_cast<size_t>(j) * n + i;
+				if (wet[c] != 0.0f || hi[c] - lo[c] < 100.0f) continue;
+				const float gx = (h.At(i + 1, j) - h.At(i - 1, j)) / (2.0f * sp), gz = (h.At(i, j + 1) - h.At(i, j - 1)) / (2.0f * sp);
+				const float deg = glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz)));
+				++mountCells;
+				int b = 0;
+				while (deg >= bins[b]) ++b;
+				++mountBin[b];
+				mount50 += deg > 50.0f;
+			}
+		// pits and where the dry land drains (D8 on the bare heights), the fill and the biggest basin, the probe's network
+		const std::vector<int> down = FlowAccumulation::Directions(h.Values.data(), n);
+		size_t pits = 0, pitLand = 0, land = 0;
+		for (size_t c = 0; c < count; ++c)
+		{
+			if (wet[c] != 0.0f) continue;
+			if (down[c] < 0 && !border(c)) ++pits;
+			++land;
+			size_t k = c, steps = 0;
+			while (wet[k] == 0.0f && down[k] >= 0 && steps++ < count) k = static_cast<size_t>(down[k]);
+			if (wet[k] == 0.0f && !border(k)) ++pitLand;
+		}
+		const std::vector<float> filled = FillHollows(h.Values, wet, n);
+		size_t fill50 = 0;
+		for (size_t c = 0; c < count; ++c) fill50 += filled[c] - h.Values[c] > 0.5f;
+		glm::vec2 basinAt(0.0f);
+		const double basin = BiggestBasin(h, filled, basinAt);
+		const FilledNetworkStats fnet = FilledNetwork(filled, n, 0.002f * static_cast<float>(count));
+		size_t floorCells = 0, floorFlat = 0;
+		for (uint32_t j = 1; j + 1 < n; ++j)
+			for (uint32_t i = 1; i + 1 < n; ++i)
+			{
+				const size_t c = static_cast<size_t>(j) * n + i;
+				if (fnet.Acc.Accumulation[c] < 0.0005f * static_cast<float>(count) || wet[c] != 0.0f) continue;
+				++floorCells;
+				const float gx = (h.At(i + 1, j) - h.At(i - 1, j)) / (2.0f * sp), gz = (h.At(i, j + 1) - h.At(i, j - 1)) / (2.0f * sp);
+				floorFlat += glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz))) < 3.0f;
+			}
+
+		// the drainage of E1, the lakes as outlets
+		std::vector<uint8_t> outlets(count, 0);
+		for (size_t c = 0; c < count; ++c) outlets[c] = wet[c] != 0.0f;
+		DrainageOptions dopt;
+		dopt.Outlets = outlets.data();
+		const DrainageResult d = ComputeDrainage(h.Values.data(), n, sp, dopt);
+		const NetworkStats dnet = NetworkOf(d);
+		const float netArea = 0.002f * static_cast<float>(count) * cellArea, trunkArea = 250000.0f;
+		std::vector<int32_t> entry(count, -1);
+		double netLength = 0.0, trunkLength = 0.0;
+		for (const uint32_t c : d.Order)
+		{
+			const int32_t r = d.Receiver[c];
+			if (d.Area[c] >= netArea && wet[c] == 0.0f)
+			{
+				entry[c] = static_cast<int32_t>(c);
+				if (r >= 0)
+				{
+					const bool diag = (c % n) != (static_cast<uint32_t>(r) % n) && (c / n) != (static_cast<uint32_t>(r) / n);
+					const double step = (diag ? 1.41421356 : 1.0) * sp;
+					netLength += step;
+					if (d.Area[c] >= trunkArea) trunkLength += step;
+				}
+			}
+			else if (r >= 0) entry[c] = entry[static_cast<size_t>(r)];
+		}
+		const float dists[] = { 30.0f, 60.0f, 120.0f, 240.0f };
+		std::vector<float> handAt[4], handTrunkAt[4], handAll;
+		size_t floor2 = 0, floor5 = 0;
+		for (size_t c = 0; c < count; ++c)
+		{
+			if (wet[c] != 0.0f || entry[c] < 0) continue;
+			const size_t e = static_cast<size_t>(entry[c]);
+			const float hand = d.Level[c] - d.Level[e];
+			handAll.push_back(hand);
+			const bool trunk = d.Area[e] >= trunkArea;
+			if (trunk) { floor2 += hand < 2.0f; floor5 += hand < 5.0f; }
+			if (e == c) continue;
+			const float dist = glm::distance(h.SamplePosition(static_cast<uint32_t>(c % n), static_cast<uint32_t>(c / n)), h.SamplePosition(static_cast<uint32_t>(e % n), static_cast<uint32_t>(e / n)));
+			for (int k = 0; k < 4; ++k)
+				if (dist >= 0.75f * dists[k] && dist <= 1.25f * dists[k]) { handAt[k].push_back(hand); if (trunk) handTrunkAt[k].push_back(hand); }
+		}
+		const double mapKm2 = static_cast<double>(size) * size / 1e6;
+		const double width2 = trunkLength > 0.0 ? static_cast<double>(floor2) * cellArea / trunkLength : 0.0;
+		const double width5 = trunkLength > 0.0 ? static_cast<double>(floor5) * cellArea / trunkLength : 0.0;
+
+		std::printf("dem %s: %u^2, %.2f m cells, %.0f m; %.0f..%.0f m; lakes %.2f %% of the map (%s)\n", tag.c_str(), n, sp, size,
+			*std::min_element(h.Values.begin(), h.Values.end()), *std::max_element(h.Values.begin(), h.Values.end()), Pct(lakeCells, count), flats ? "flat surfaces of the DEM" : "given");
+		std::printf("  slopes (dry): < 3 deg %.1f %%, 3-14 %.1f %%, 14-30 %.1f %%, 30-40 %.1f %%, > 40 %.1f %%, > 50 %.2f %%\n",
+			Pct(slopeBin[0], dryInterior), Pct(slopeBin[1], dryInterior), Pct(slopeBin[2], dryInterior), Pct(slopeBin[3], dryInterior), Pct(slopeBin[4], dryInterior), Pct(s50, dryInterior));
+		std::printf("  mountain (> 100 m of relief within 300 m: %.1f %% of the dry land): < 3 deg %.1f %%, 3-14 %.1f %%, 14-30 %.1f %%, 30-40 %.1f %%, > 40 %.1f %%, > 50 %.2f %%\n",
+			Pct(mountCells, dryInterior), Pct(mountBin[0], mountCells), Pct(mountBin[1], mountCells), Pct(mountBin[2], mountCells), Pct(mountBin[3], mountCells), Pct(mountBin[4], mountCells), Pct(mount50, mountCells));
+		std::printf("  pits %.2f per 1000 cells, dry land into a pit %.1f %%, filling raises %.3f %% by > 0.5 m, biggest basin %.0f m3 at (%.0f, %.0f)\n",
+			10.0 * Pct(pits, land), Pct(pitLand, land), Pct(fill50, count), basin, basinAt.x, basinAt.y);
+		std::printf("  network > %.0f m2: probe (D8 on the filled ground) Strahler %d, %zu confluences, %zu cells; drainage (E1 receivers) Strahler %d, %zu confluences, %zu cells; %.2f km/km2; channel floors under 3 deg %.1f %%\n",
+			netArea, fnet.Strahler, fnet.Confluences, fnet.Cells, dnet.Strahler, dnet.Confluences, dnet.Cells, netLength / 1000.0 / mapKm2, Pct(floorFlat, floorCells));
+		std::printf("  height over the channel (median HAND) at 30 / 60 / 120 / 240 m: every channel %.1f / %.1f / %.1f / %.1f m; trunks (> 0.25 km2, %.0f m long) %.1f / %.1f / %.1f / %.1f m; all dry cells p50 %.1f m, p90 %.1f m\n",
+			Percentile(handAt[0], 0.5), Percentile(handAt[1], 0.5), Percentile(handAt[2], 0.5), Percentile(handAt[3], 0.5), trunkLength,
+			Percentile(handTrunkAt[0], 0.5), Percentile(handTrunkAt[1], 0.5), Percentile(handTrunkAt[2], 0.5), Percentile(handTrunkAt[3], 0.5), Percentile(handAll, 0.5), Percentile(handAll, 0.9));
+		std::printf("  valley floor of the trunks: %.0f m wide within 2 m of their level, %.0f m within 5 m\n", width2, width5);
+		if (!outDir.empty())
+		{
+			ProbeJson js;
+			js.File = std::fopen((outDir + "/" + tag + "_relief.json").c_str(), "w");
+			if (js.File) std::fprintf(js.File, "{\n  ");
+			js.Num("n", n); js.Num("size", size); js.Num("spacing", sp); js.Num("lakes", Pct(lakeCells, count));
+			js.Num("slope_lt3", Pct(slopeBin[0], dryInterior)); js.Num("slope_3_14", Pct(slopeBin[1], dryInterior)); js.Num("slope_14_30", Pct(slopeBin[2], dryInterior));
+			js.Num("slope_30_40", Pct(slopeBin[3], dryInterior)); js.Num("slope_gt40", Pct(slopeBin[4], dryInterior)); js.Num("slope_gt50", Pct(s50, dryInterior));
+			js.Num("mountain", Pct(mountCells, dryInterior)); js.Num("m_slope_lt3", Pct(mountBin[0], mountCells)); js.Num("m_slope_3_14", Pct(mountBin[1], mountCells));
+			js.Num("m_slope_14_30", Pct(mountBin[2], mountCells)); js.Num("m_slope_30_40", Pct(mountBin[3], mountCells)); js.Num("m_slope_gt40", Pct(mountBin[4], mountCells));
+			js.Num("m_slope_gt50", Pct(mount50, mountCells));
+			js.Num("pits_per_1000", 10.0 * Pct(pits, land)); js.Num("land_to_pit", Pct(pitLand, land)); js.Num("fill_05", Pct(fill50, count)); js.Num("biggest_basin_m3", basin);
+			js.Num("strahler", fnet.Strahler); js.Num("confluences", static_cast<double>(fnet.Confluences)); js.Num("strahler_e1", dnet.Strahler); js.Num("confluences_e1", static_cast<double>(dnet.Confluences));
+			js.Num("drainage_density", netLength / 1000.0 / mapKm2); js.Num("floor_flat", Pct(floorFlat, floorCells));
+			for (int k = 0; k < 4; ++k)
+			{
+				const std::string a = "hand_" + std::to_string(static_cast<int>(dists[k])), b = "hand_trunk_" + std::to_string(static_cast<int>(dists[k]));
+				js.Num(a.c_str(), Percentile(handAt[k], 0.5)); js.Num(b.c_str(), Percentile(handTrunkAt[k], 0.5));
+			}
+			js.Num("hand_p50", Percentile(handAll, 0.5)); js.Num("hand_p90", Percentile(handAll, 0.9)); js.Num("trunk_length", trunkLength);
+			js.Num("floor_width_2", width2); js.Num("floor_width_5", width5);
+			if (js.File) { std::fprintf(js.File, "\n}\n"); std::fclose(js.File); }
+			WriteF32(outDir + "/" + tag + "_flow.f32", d.Area);
+			WriteF32(outDir + "/" + tag + "_water.f32", wet);
+		}
+		return 0;
+	}
+
 	int Probe(int argc, char** argv)
 	{
 		if (argc < 7) { std::fprintf(stderr, "probe <preset|gen4|file.json|e1:...> <temperate|alpine|desert> <seed> <size> <resolution> [out_dir]\n"); return 2; }
@@ -514,91 +863,18 @@ namespace
 			}
 		const size_t interior = static_cast<size_t>(n - 2) * static_cast<size_t>(n - 2);
 
-		// the closed hollows of the final ground: Priority-Flood (as depression_fill, the map's border the only outlet, the water too) and how
-		// deep it fills each cell; the pitting of the droplets fills by millimetres, a real basin by metres. The biggest basin: the connected
-		// cells filled over 0.05 m, by volume.
-		std::vector<float> filled = h.Values;
-		{
-			std::vector<uint8_t> closed(count, 0);
-			using Item = std::pair<float, uint32_t>;
-			std::priority_queue<Item, std::vector<Item>, std::greater<Item>> open;
-			for (size_t c = 0; c < count; ++c)
-				if (border(c) || wet[c] != 0.0f) { closed[c] = 1; open.push({ filled[c], static_cast<uint32_t>(c) }); }
-			while (!open.empty())
-			{
-				const auto [z, cell] = open.top();
-				open.pop();
-				const int ci = static_cast<int>(cell % n), cj = static_cast<int>(cell / n);
-				for (int dj = -1; dj <= 1; ++dj)
-					for (int di = -1; di <= 1; ++di)
-					{
-						const int ni = ci + di, nj = cj + dj;
-						if ((di == 0 && dj == 0) || ni < 0 || nj < 0 || ni >= static_cast<int>(n) || nj >= static_cast<int>(n)) continue;
-						const size_t m = static_cast<size_t>(nj) * n + static_cast<size_t>(ni);
-						if (closed[m]) continue;
-						closed[m] = 1;
-						if (filled[m] <= z) filled[m] = z + 0.0001f;
-						open.push({ filled[m], static_cast<uint32_t>(m) });
-					}
-			}
-		}
+		// the closed hollows of the final ground (FillHollows), the biggest basin and the channel network of the filled ground (FilledNetwork)
+		const std::vector<float> filled = FillHollows(h.Values, wet, n);
 		size_t fill5 = 0, fill50 = 0;
 		for (size_t c = 0; c < count; ++c) { const float d = filled[c] - h.Values[c]; fill5 += d > 0.05f; fill50 += d > 0.5f; }
-		double biggestBasin = 0.0;
-		glm::vec2 biggestAt(0.0f);   // (its first cell in the map's order)
-		{
-			std::vector<uint8_t> seen(count, 0);
-			std::vector<size_t> stack;
-			for (size_t c = 0; c < count; ++c)
-			{
-				if (seen[c] || filled[c] - h.Values[c] <= 0.05f) continue;
-				double volume = 0.0;
-				stack.assign(1, c);
-				seen[c] = 1;
-				while (!stack.empty())
-				{
-					const size_t k = stack.back();
-					stack.pop_back();
-					volume += static_cast<double>(filled[k] - h.Values[k]) * sp * sp;
-					const int ki = static_cast<int>(k % n), kj = static_cast<int>(k / n);
-					for (int dj = -1; dj <= 1; ++dj)
-						for (int di = -1; di <= 1; ++di)
-						{
-							const int ni = ki + di, nj = kj + dj;
-							if (ni < 0 || nj < 0 || ni >= static_cast<int>(n) || nj >= static_cast<int>(n)) continue;
-							const size_t m = static_cast<size_t>(nj) * n + static_cast<size_t>(ni);
-							if (!seen[m] && filled[m] - h.Values[m] > 0.05f) { seen[m] = 1; stack.push_back(m); }
-						}
-				}
-				if (volume > biggestBasin) { biggestBasin = volume; biggestAt = h.SamplePosition(static_cast<uint32_t>(c % n), static_cast<uint32_t>(c / n)); }
-			}
-		}
-		// the channel network of the filled ground: cells draining over 0.2 % of the map, their Strahler order and confluences (a channel cell
-		// with two or more channel cells draining into it), and the flat valley floors (a channel or its 0.05 % neighbour under 3 degrees)
-		const std::vector<int> fdown = FlowAccumulation::Directions(filled.data(), n);
-		const FlowAccumulationResult facc = FlowAccumulation::Run(filled.data(), n);
-		const float netArea = 0.002f * static_cast<float>(count), floorArea = 0.0005f * static_cast<float>(count);
-		std::vector<uint32_t> byHeight(count);
-		for (size_t c = 0; c < count; ++c) byHeight[c] = static_cast<uint32_t>(c);
-		std::sort(byHeight.begin(), byHeight.end(), [&](uint32_t a, uint32_t b) { return filled[a] != filled[b] ? filled[a] > filled[b] : a < b; });
-		std::vector<uint8_t> order(count, 0), topIn(count, 0), topCount(count, 0), ins(count, 0);
-		int maxOrder = 0;
-		size_t confluences = 0, netCells = 0, floorCells = 0, floorFlat = 0;
-		for (uint32_t c : byHeight)
-		{
-			if (facc.Accumulation[c] < netArea) continue;
-			++netCells;
-			order[c] = topIn[c] == 0 ? 1 : static_cast<uint8_t>(topIn[c] + (topCount[c] >= 2 ? 1 : 0));
-			if (ins[c] >= 2) ++confluences;
-			maxOrder = std::max(maxOrder, static_cast<int>(order[c]));
-			const int d = fdown[c];
-			if (d < 0) continue;
-			const size_t dc = static_cast<size_t>(d);
-			if (facc.Accumulation[dc] < netArea) continue;
-			ins[dc] = static_cast<uint8_t>(std::min(255, ins[dc] + 1));
-			if (order[c] > topIn[dc]) { topIn[dc] = order[c]; topCount[dc] = 1; }
-			else if (order[c] == topIn[dc]) topCount[dc] = static_cast<uint8_t>(std::min(255, topCount[dc] + 1));
-		}
+		glm::vec2 biggestAt(0.0f);
+		const double biggestBasin = BiggestBasin(h, filled, biggestAt);
+		const float floorArea = 0.0005f * static_cast<float>(count);
+		const FilledNetworkStats fnet = FilledNetwork(filled, n, 0.002f * static_cast<float>(count));
+		const FlowAccumulationResult& facc = fnet.Acc;
+		const int maxOrder = fnet.Strahler;
+		const size_t confluences = fnet.Confluences, netCells = fnet.Cells;
+		size_t floorCells = 0, floorFlat = 0;
 		for (uint32_t j = 1; j + 1 < n; ++j)
 			for (uint32_t i = 1; i + 1 < n; ++i)
 			{
