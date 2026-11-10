@@ -219,8 +219,28 @@ int GBTest_material_gallery(int argc, char** argv)
 		{
 			const size_t n = f.Materials.size();
 			GB::Scene sc = stage({ 0.0f, 0.0f, 0.0f }, 4.5f);
+			bool transmissive = false;
 			for (size_t i = 0; i < n; ++i)
+			{
 				addSample(sc, f.Materials[i], { (static_cast<float>(i) - 0.5f * static_cast<float>(n - 1)) * 2.5f, 0.0f, 0.0f });
+				transmissive = transmissive || material(f.Materials[i]).Transmission > 0.0f;
+			}
+			// glass and clear ice show what is behind them: a row of coloured posts there, or they refract a plain grey floor
+			if (transmissive)
+			{
+				static const glm::vec3 colours[] = { { 0.8f, 0.15f, 0.12f }, { 0.85f, 0.7f, 0.15f }, { 0.15f, 0.35f, 0.8f }, { 0.9f, 0.9f, 0.88f },
+				                                     { 0.2f, 0.6f, 0.25f }, { 0.85f, 0.4f, 0.1f }, { 0.08f, 0.08f, 0.08f } };
+				for (int i = 0; i < 14; ++i)
+				{
+					GB::RenderObject post;
+					post.MeshPtr = &box;
+					post.Mat.Albedo = colours[i % 7];
+					post.Mat.Roughness = 0.6f;
+					post.Transform = glm::scale(glm::translate(glm::mat4(1.0f), { (static_cast<float>(i) - 6.5f) * 0.42f, 1.0f, -1.6f }), { 0.3f, 2.2f, 0.3f });
+					post.BoundingRadius = 1.3f;
+					sc.Objects.push_back(post);
+				}
+			}
 			GB::Camera close;
 			close.Target = { 0.0f, 0.45f, 0.1f };
 			close.Position = { 0.0f, 2.1f, 1.6f + 1.6f * static_cast<float>(n) };

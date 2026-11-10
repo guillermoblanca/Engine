@@ -1,10 +1,13 @@
 {
   "visuals": {
     "materials": {
-      "ice_clear":     { "color": [0.88, 0.91, 0.93], "texture": "ice",           "uvScale": 1.0, "roughness": 0.35 },
+      "ice_clear":     { "color": [0.88, 0.91, 0.93], "texture": "ice",           "uvScale": 1.0, "roughness": 0.35, "surface": "translucent",
+                       "layers": { "transmission": { "ior": 1.31, "absorption": [0.9, 0.25, 0.06], "thickness": 0.4, "amount": 0.85 } } },
       "ice_frost":     { "color": [0.91, 0.92, 0.93], "texture": "ice_frost",     "uvScale": 1.0, "roughness": 0.8 },
-      "glass_clear":   { "color": [0.84, 0.86, 0.85],                             "roughness": 0.04, "surface": "translucent" },
-      "glass_frosted": { "color": [0.88, 0.91, 0.90], "texture": "glass_frosted", "uvScale": 2.0, "roughness": 0.45, "surface": "translucent" },
+      "glass_clear":   { "color": [0.84, 0.86, 0.85],                             "roughness": 0.04, "surface": "translucent",
+                       "layers": { "transmission": { "ior": 1.5, "absorption": [0.4, 0.15, 0.3], "thickness": 0.3, "amount": 1 } } },
+      "glass_frosted": { "color": [0.88, 0.91, 0.90], "texture": "glass_frosted", "uvScale": 2.0, "roughness": 0.45, "surface": "translucent",
+                       "layers": { "transmission": { "ior": 1.5, "absorption": [0.4, 0.15, 0.3], "thickness": 0.3, "amount": 0.9 } } },
       "sand_dry":      { "color": [0.86, 0.82, 0.74], "texture": "sand",          "uvScale": 1.0, "roughness": 0.95 },
       "sand_wet":      { "color": [0.50, 0.45, 0.38], "texture": "sand",          "uvScale": 1.0, "roughness": 0.4 },
       "wood_planks":   { "color": [0.80, 0.80, 0.80], "texture": "planks",        "uvScale": 1.0, "roughness": 0.8 },
@@ -18,7 +21,7 @@
     }
   },
   "gallery": {
-    "note": "T91: the material families side by side (a box and a ball each). Glass takes the blend surface of today with the opacity below and ice is opaque, until T34 (transmission).",
+    "note": "T91: the material families side by side (a box and a ball each). Clear ice and both glasses use the transmission layer (T34); frosted ice stays opaque so it keeps its shadow.",
     "families": [
       { "name": "hielo",    "materials": [ "ice_clear", "ice_frost" ] },
       { "name": "cristal",  "materials": [ "glass_clear", "glass_frosted" ] },
@@ -27,6 +30,6 @@
       { "name": "roca",     "materials": [ "rock", "stone_cut", "stone" ] },
       { "name": "ladrillo", "materials": [ "brick_new", "brick_worn" ] }
     ],
-    "opacity": { "glass_clear": 0.25, "glass_frosted": 0.45 }
+    "opacity": {}
   }
 }
