@@ -191,6 +191,37 @@ namespace GB::Editor
 				if (ImGui::Button((L.Text("Save") + " [" + m_Lang.Key(KeyOf(m_Controls.Keys, "save")) + "]###save").c_str(), full)) run("game save");
 				if (ImGui::Button((L.Text("Load") + " [" + m_Lang.Key(KeyOf(m_Controls.Keys, "load")) + "]###load").c_str(), full)) run("game load");
 				if (ImGui::Button((L.Text("Keys") + "###keys").c_str(), full)) { run("game menu"); run("game help"); }
+				// T49: the graphics presets (`game quality`: applied at once and kept in player.json). The one chosen is ochre on a darker hide and
+				// framed, and the line under them says in words what is in use, so the colour is never the only sign.
+				ImGui::Separator();
+				ImGui::TextDisabled("%s", L.Text("Graphics").c_str());
+				{
+					struct Choice { const char* Id; const char* Level; const char* Label; const char* Tip; };
+					std::vector<Choice> choices;
+					for (const GraphicsPreset& p : GraphicsPresets()) choices.push_back({ p.Id, p.Level, p.Label, p.Tip });
+					choices.push_back({ "auto", "auto", "Auto", "Starts low and drops to the lowest picture as soon as frames are slow" });
+					const float gap = ImGui::GetStyle().ItemSpacing.x;
+					const float each = (ImGui::GetContentRegionAvail().x - gap * static_cast<float>(choices.size() - 1)) / static_cast<float>(choices.size());
+					for (size_t i = 0; i < choices.size(); ++i)
+					{
+						const Choice& c = choices[i];
+						const bool chosen = m_Controls.Game.Quality == c.Level;
+						if (i > 0) ImGui::SameLine();
+						if (chosen) { ImGui::PushStyleColor(ImGuiCol_Button, GameTheme::HideActive); ImGui::PushStyleColor(ImGuiCol_Text, GameTheme::Ochre); }
+						if (ImGui::Button((L.Text(c.Label) + "###quality_" + c.Id).c_str(), ImVec2(each, 26.0f))) run(std::string("game quality ") + c.Id);
+						if (chosen)
+						{
+							ImGui::PopStyleColor(2);
+							ImGui::GetWindowDrawList()->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), GameTheme::Ochre, 4.0f);
+						}
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text(c.Tip).c_str());
+					}
+					// what is in use now: a preset, auto (lowered or not) or a level given at launch that is none of the three
+					const GraphicsPreset* now = PresetOfLevel(m_QualityLevel);
+					std::string inUse = now ? L.Text(now->Label) : L.Text("Custom");
+					if (m_Game.AutoQuality) inUse = m_Game.Lowered && now ? L.Text("Auto") + " (" + inUse + ")" : L.Text("Auto");   // (auto starts above low, at a level of its own)
+					ImGui::TextDisabled("%s", L.Text("In use: {0}", inUse).c_str());
+				}
 				ImGui::Separator();
 				if (ImGui::Button((L.Text("Back to the editor") + "###editor").c_str(), full)) run("play off");
 				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The world and the clans stay: `play resume` (or the editor's button) comes back here").c_str());

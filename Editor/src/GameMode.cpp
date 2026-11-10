@@ -14,7 +14,11 @@
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <regex>
 #include <set>
+#include <sstream>
 #include <imgui.h>
 
 namespace GB::Editor
@@ -105,6 +109,49 @@ namespace GB::Editor
 		}
 
 		constexpr const char* kClanNames[] = { "Blue", "Red", "Green", "Gold", "Ash" };
+
+		// T49: the player's choice of preset into player.json. Only the value of its one "quality" key changes, in place: the file keeps its layout
+		// (it is written by hand) and every other setting. The text is read back through LoadControls before it is written, so a file that would
+		// not load is never left behind. Returns why it could not, or "".
+		std::string WriteQuality(const std::string& path, const std::string& level)
+		{
+			std::string text;
+			{
+				std::ifstream in(path, std::ios::binary);
+				if (!in) return "cannot read " + path;
+				std::ostringstream all;
+				all << in.rdbuf();
+				text = all.str();
+			}
+			static const std::regex key("(\"quality\"\\s*:\\s*\")[^\"]*(\")");
+			const auto first = std::sregex_iterator(text.begin(), text.end(), key);
+			if (std::distance(first, std::sregex_iterator()) != 1) return path + " has not exactly one \"quality\" key";
+			const std::string changed = std::regex_replace(text, key, "$1" + level + "$2", std::regex_constants::format_first_only);
+			ControlRules check = DefaultControls();
+			if (const std::string e = LoadControls(changed, check); !e.empty()) return e;
+			if (check.Game.Quality != level) return "the \"quality\" key of " + path + " is not controls.game.quality";
+			if (changed == text) return {};
+			std::ofstream out(path, std::ios::binary | std::ios::trunc);
+			if (!out) return "cannot write " + path;
+			out << changed;
+			return out ? std::string() : "cannot write " + path;
+		}
+	}
+
+	const std::vector<GraphicsPreset>& GraphicsPresets()
+	{
+		static const std::vector<GraphicsPreset> presets = {
+			{ "low", "minimum", "Low", "For slow graphics cards: 60% resolution, no antialiasing, smaller shadows, no water reflections, half the grass and a shorter view" },
+			{ "medium", "medium", "Medium", "Full resolution with antialiasing and ambient occlusion: 1080p at 60 fps on a GTX 1060" },
+			{ "high", "high", "High", "Stronger ambient occlusion, film grain, people fully animated further away and resources seen from further" },
+		};
+		return presets;
+	}
+
+	const GraphicsPreset* PresetOfLevel(const std::string& level)
+	{
+		for (const GraphicsPreset& p : GraphicsPresets()) if (level == p.Level) return &p;
+		return nullptr;
 	}
 
 	void EditorApp::GameNote(const std::string& text)
@@ -648,6 +695,27 @@ namespace GB::Editor
 			std::string s = "keys:";
 			for (const auto& [action, key] : m_Controls.Keys) s += " " + key + "=" + action;
 			return { true, s + "; WASD walk, Shift runs, the mouse turns the camera; more: game talk|give|teach|learn|marry|propose|craft|attack|block|flee|trade <...>" };
+		}
+		// T49: the graphics preset (the pause menu's buttons, the editor's Quality menu; also outside a game). `game quality` says the one in use and the
+		// one saved; `game quality low|medium|high|auto` applies it now and keeps it in player.json for the next `play`. A choice made here is as
+		// explicit as `--quality=`, so it replaces the launch's from now on.
+		if (sub == "quality")
+		{
+			auto named = [](const std::string& level) { const GraphicsPreset* p = PresetOfLevel(level); return p ? std::string(p->Id) + " (" + level + ")" : level.empty() ? std::string("the default") : level; };
+			if (a.size() < 2)
+				return { true, "graphics: " + named(m_QualityLevel) + (m_Game.AutoQuality ? ", auto" + std::string(m_Game.Lowered ? " (lowered)" : "") : std::string()) + "; player.json: "
+					+ named(m_Controls.Game.Quality) + (m_LaunchQuality.empty() ? std::string() : "; --quality=" + m_LaunchQuality + " wins at play") };
+			std::string level = a[1] == "auto" ? "auto" : std::string();
+			for (const GraphicsPreset& p : GraphicsPresets()) if (a[1] == p.Id) level = p.Level;
+			if (level.empty()) return { false, "usage: game quality [low|medium|high|auto]" };
+			m_Controls.Game.Quality = level;
+			m_LaunchQuality.clear();
+			m_Game.AutoQuality = m_Game.Active && level == "auto";
+			m_Game.Lowered = false;
+			SetQuality(level == "auto" ? "low" : level);   // ("auto" starts low, as `play` does)
+			const std::string error = WriteQuality(m_AssetRoot + "/data/player.json", level);
+			if (!error.empty()) return { false, "graphics " + named(level) + " applied but not saved: " + error };
+			return { true, "graphics " + named(level) + ", saved in player.json" };
 		}
 		if (!m_Game.Active) return { false, "not playing: play [temperate|alpine|desert] [seed] [members] [clans]" };
 		const std::string& me = m_Game.Player;
@@ -1548,7 +1616,7 @@ namespace GB::Editor
 			});
 		c.Register("observer", "observer [on|off|toggle|status|next|prev|<clan id or name>|sheet <members|board|store|buildings|knowledge|relations|log>]: the free mode's observer: the clans one by one with the game's look over the viewport (a card to pick the clan, its book on the right); the clan is the one the Tribe panel shows",
 			[this](const std::vector<std::string>& a) { return ObserverCommand(a); });
-		c.Register("game", "game <action>: what the keys of the game do (status, village, homes, clans, tech, map, story, interact, eat, drink, deposit, take, sleep, claim, give, talk, teach, learn, marry, propose, craft, attack, block, flee, trade, clan, jobs, pause, faster, slower, save, load, help)",
+		c.Register("game", "game <action>: what the keys of the game do (status, village, homes, clans, tech, map, story, interact, eat, drink, deposit, take, sleep, claim, give, talk, teach, learn, marry, propose, craft, attack, block, flee, trade, clan, jobs, pause, faster, slower, save, load, help, quality [low|medium|high|auto])",
 			[this](const std::vector<std::string>& a) { return GameCommand(a); });
 	}
 }

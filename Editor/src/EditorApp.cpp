@@ -499,6 +499,7 @@ namespace GB::Editor
 		else if (name == "ultra") { p.SSAO = 0.75f; p.AutoExposure = true; p.Grain = 0.25f; p.ChromaticAberration = 0.2f; p.Saturation = 1.08f; p.Contrast = 1.06f; }
 		m_Actors.SetAnimLod(AnimLodForQuality(name));   // H16: how far the characters keep their full animation
 		m_Visuals.NodeDrawDistance = minimum ? 90.0f : name == "low" ? 120.0f : name == "medium" ? 170.0f : name == "high" ? 240.0f : 0.0f;   // H16: resource nodes culled by distance
+		m_QualityLevel = name;
 		GB_CLIENT_INFO("Quality '{}'", name);
 	}
 
@@ -1857,8 +1858,17 @@ namespace GB::Editor
 		}
 		if (ImGui::BeginMenu("Quality"))
 		{
+			// T49: the player's three presets (the same as the game's pause menu: applied and saved in player.json), then every level of SetQuality
+			ImGui::SeparatorText("Presets (player.json)");
+			for (const GraphicsPreset& p : GraphicsPresets())
+			{
+				if (ImGui::MenuItem((std::string(p.Label) + " (" + p.Level + ")").c_str(), nullptr, m_QualityLevel == p.Level)) m_UiCommands.push_back(std::string("game quality ") + p.Id);
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", p.Tip);
+			}
+			if (ImGui::MenuItem("Auto (low, minimum on slow frames)", nullptr, m_Controls.Game.Quality == "auto")) m_UiCommands.push_back("game quality auto");
+			ImGui::SeparatorText("Levels (this session)");
 			for (const char* q : { "minimum", "low", "medium", "high", "ultra" })
-				if (ImGui::MenuItem(q)) SetQuality(q);
+				if (ImGui::MenuItem(q, nullptr, m_QualityLevel == q)) SetQuality(q);
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Help"))

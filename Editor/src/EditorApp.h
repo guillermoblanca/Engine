@@ -502,6 +502,7 @@ namespace GB::Editor
 		float m_RenderScale = 1.0f;          // the 3D view is rendered at this fraction of the viewport (`quality minimum`)
 		bool m_MinimumQuality = false;       // the renderer was made without MSAA and with a small shadow map
 		std::string m_LaunchQuality;         // `--quality=` as the editor was launched ("" = not given): `play` keeps it instead of player.json's (T60)
+		std::string m_QualityLevel;          // the level SetQuality applied last ("" = none yet): `game quality` and the pause menu show its preset
 		bool m_LayoutBuilt = false;
 		// T62: the interface's CPU time by part (smoothed 0.9/0.1 like the rest), printed by `uiprof`: ImGui's new frame, each panel of DrawUI,
 		// ImGui::Render (the draw lists) and the OpenGL draw of the lists. With `uiprof finish on` the GPU's queue is drained (glFinish) before
