@@ -465,6 +465,10 @@ namespace GB::Editor
 		bool m_DrawActors = true;
 		bool m_ShowRenderStats = true;   // `set ui.stats 0`: no draw-call / GPU / CPU lines over the viewport
 		float m_CpuSimMs = 0.0f, m_CpuBuildMs = 0.0f, m_CpuRenderMs = 0.0f;
+		// building the scene by part (smoothed like the rest): the models' animation, the tribe's looks (Update), the trails, the entities' data
+		// looks, the walk of meshes, lights and props, the tribe's fields and piles, the actors, the grass following the camera
+		enum BuildPart { kBuildAnim, kBuildVisuals, kBuildTrails, kBuildLooks, kBuildWalk, kBuildTribe, kBuildActors, kBuildWorld, kBuildParts };
+		float m_CpuBuildPartMs[kBuildParts] = {};
 		float m_CpuUpdateMs = 0.0f, m_CpuUiMs = 0.0f;   // all of OnUpdate (the simulation included), and the interface (DrawUI)   // this frame's CPU time of the simulation, of building the scene and of the renderer (smoothed)
 		std::string RenderStatsLine() const;
 		static constexpr size_t kHierarchyListed = 64;   // more children than this: the Hierarchy lists them clipped, one line each

@@ -1538,18 +1538,37 @@ namespace GB::Editor
 			m_Renderer->Resize(rw, rh);
 		}
 		const auto buildStart = std::chrono::steady_clock::now();
+		auto lap = buildStart;
+		const auto part = [&](int which)
+		{
+			const auto now = std::chrono::steady_clock::now();
+			m_CpuBuildPartMs[which] = m_CpuBuildPartMs[which] * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(now - lap).count());
+			lap = now;
+		};
 		m_Scene.Objects.resize(m_StaticObjects);
 		m_Scene.PointLights.resize(m_WeatherLights);
 		m_EntityRenderer->Update(m_FrameDt);
+		part(kBuildAnim);
 		UpdateVisuals(m_FrameDt);
+		part(kBuildVisuals);
 		UpdateTrailsView();   // T5c: the trails on the ground, the grass and the navigation (TrailsView.cpp)
+		part(kBuildTrails);
 		m_EntityRenderer->SetPropCull(m_Camera.Position, 420.0f);   // (a map of kilometres: the far props are not built at all; the trees are drawn to 340 m)
 		m_EntityRenderer->Build(m_SceneEditor.World(), m_Scene, m_SceneEditor.Selected());
+		{
+			const EntityRenderer::BuildStats& es = m_EntityRenderer->LastBuild();
+			m_CpuBuildPartMs[kBuildLooks] = m_CpuBuildPartMs[kBuildLooks] * 0.9f + 0.1f * es.LooksMs;
+			m_CpuBuildPartMs[kBuildWalk] = m_CpuBuildPartMs[kBuildWalk] * 0.9f + 0.1f * es.WalkMs;
+		}
+		lap = std::chrono::steady_clock::now();
 		AddVisualsToScene();
+		part(kBuildTribe);
 		if (m_Instance)
 			AddToScene(*m_Instance, m_Scene, glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), m_ModelPosition), m_ModelYaw, glm::vec3(0, 1, 0)), glm::vec3(m_ModelScale)));
 		if (m_DrawActors) m_ActorRenderer.AddToScene(m_Actors, m_Scene);
+		part(kBuildActors);
 		if (m_World.IsBuilt()) m_World.FollowCamera(m_Camera.Position);
+		part(kBuildWorld);
 		const auto renderStart = std::chrono::steady_clock::now();
 		m_CpuBuildMs = m_CpuBuildMs * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(renderStart - buildStart).count());
 		m_Renderer->Render(m_Scene, m_Camera, m_ViewportFb.get());
@@ -1770,17 +1789,23 @@ namespace GB::Editor
 	std::string EditorApp::RenderStatsLine() const
 	{
 		const RenderStats& s = m_Renderer->GetStats();
-		char text[768];
+		const EntityRenderer::BuildStats& es = m_EntityRenderer->LastBuild();
+		char text[1280];
 		std::snprintf(text, sizeof text,
 			"draw calls %u: shadows %u, objects %u, grass %u, water %u | %u instanced batches | %.2f M triangles | objects %u drawn, %u culled\n"
 			"GPU %.1f ms: shadows %.1f, objects %.1f, grass %.1f, water %.1f, particles+resolve %.1f, post %.1f\n"
 			"GPU parts: sky %.2f (of objects), translucent %.2f, particles %.2f, resolve %.2f (of particles+resolve), bloom %.2f, ssao %.2f, composite %.2f (of post)\n"
+			"CPU building parts: animation %.2f, tribe looks %.2f, trails %.2f, data looks %.2f (%u of %u drawn), meshes and props %.2f (%u walked), fields and piles %.2f, actors %.2f, grass recentre %.2f\n"
 			"CPU: update %.1f ms (simulation %.1f), building the scene %.1f ms, sending it %.1f ms, interface %.1f ms, frame %.1f ms",
 			s.DrawCalls, s.ShadowCalls, s.SceneCalls, s.GrassCalls, s.WaterCalls, s.InstancedDraws, static_cast<double>(s.Triangles) * 1e-6, s.ObjectsDrawn, s.ObjectsCulled,
 			static_cast<double>(s.GpuTotalMs), static_cast<double>(s.GpuShadowMs), static_cast<double>(s.GpuSceneMs), static_cast<double>(s.GpuGrassMs), static_cast<double>(s.GpuWaterMs),
 			static_cast<double>(s.GpuEffectsMs), static_cast<double>(s.GpuPostMs),
 			static_cast<double>(s.GpuSkyMs), static_cast<double>(s.GpuTranslucentMs), static_cast<double>(s.GpuParticlesMs), static_cast<double>(s.GpuResolveMs),
 			static_cast<double>(s.GpuBloomMs), static_cast<double>(s.GpuSsaoMs), static_cast<double>(s.GpuCompositeMs),
+			static_cast<double>(m_CpuBuildPartMs[kBuildAnim]), static_cast<double>(m_CpuBuildPartMs[kBuildVisuals]), static_cast<double>(m_CpuBuildPartMs[kBuildTrails]),
+			static_cast<double>(m_CpuBuildPartMs[kBuildLooks]), es.LooksDrawn, es.Looks, static_cast<double>(m_CpuBuildPartMs[kBuildWalk]), es.Walked,
+			static_cast<double>(m_CpuBuildPartMs[kBuildTribe]), static_cast<double>(m_CpuBuildPartMs[kBuildActors]),
+			static_cast<double>(m_CpuBuildPartMs[kBuildWorld]),
 			static_cast<double>(m_CpuUpdateMs), static_cast<double>(m_CpuSimMs), static_cast<double>(m_CpuBuildMs), static_cast<double>(m_CpuRenderMs), static_cast<double>(m_CpuUiMs), static_cast<double>(m_FrameMsSmooth));
 		return text;
 	}
