@@ -572,6 +572,12 @@ namespace GB
 		return mask;
 	}
 
+	void AppendMaskKey(const VisualModel& model, float fraction, std::string& key)
+	{
+		for (const VisualPart& p : model.Parts)
+			for (int i = 0; i < p.Count; ++i) key.push_back(CopyVisible(p, i, fraction) ? '1' : '0');
+	}
+
 	std::string MaskKey(const std::vector<bool>& mask)
 	{
 		std::string key;

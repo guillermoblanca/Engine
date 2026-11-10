@@ -46,7 +46,7 @@ namespace GB
 		return m;
 	}
 
-	bool VisualCache::Add(const std::string& key, const VisualModel& model, const std::vector<bool>& visible, int variant, const glm::mat4& world, Scene& scene, float maxDistance)
+	VisualCache::Entry& VisualCache::EntryFor(const std::string& key, const VisualModel& model, const std::vector<bool>& visible, int variant)
 	{
 		auto it = m_Meshes.find(key);
 		if (it == m_Meshes.end())
@@ -80,19 +80,37 @@ namespace GB
 			if (!entry.Pieces.empty()) { entry.Center = (lo + hi) * 0.5f; entry.Radius = glm::length(hi - lo) * 0.5f; }
 			it = m_Meshes.emplace(key, std::move(entry)).first;
 		}
-		for (const auto& [mesh, material] : it->second.Pieces)
+		return it->second;
+	}
+
+	bool VisualCache::Add(const std::string& key, const VisualModel& model, const std::vector<bool>& visible, int variant, const glm::mat4& world, Scene& scene, float maxDistance)
+	{
+		Emit(EntryFor(key, model, visible, variant), world, scene, maxDistance);
+		return true;
+	}
+
+	void VisualCache::Emit(Entry& entry, const glm::mat4& world, Scene& scene, float maxDistance)
+	{
+		if (Foliage != m_StampFoliage) { m_StampFoliage = Foliage; ++m_MaterialStamp; }   // (the seasonal materials take the leaves' colour)
+		if (entry.MaterialStamp != m_MaterialStamp)
+		{
+			entry.PieceMaterials.clear();
+			for (const auto& piece : entry.Pieces) entry.PieceMaterials.push_back(MaterialFor(piece.second));
+			entry.MaterialStamp = m_MaterialStamp;
+		}
+		for (size_t i = 0; i < entry.Pieces.size(); ++i)
 		{
 			RenderObject obj;
-			obj.MeshPtr = mesh.get();
-			obj.Mat = MaterialFor(material);
+			obj.MeshPtr = entry.Pieces[i].first.get();
+			obj.Mat = entry.PieceMaterials[i];
 			obj.Transform = world;
-			obj.BoundingCenter = it->second.Center;
-			obj.BoundingRadius = std::max(it->second.Radius, 0.05f);
+			obj.BoundingCenter = entry.Center;
+			obj.BoundingRadius = std::max(entry.Radius, 0.05f);
 			obj.MaxDistance = maxDistance;
 			obj.Instanced = true;   // (a cached piece: the same mesh always has the same material, so every node or building of the kind is one draw)
 			scene.Objects.push_back(std::move(obj));
 		}
-		for (const KitDraw& k : it->second.Kit)   // kit pieces: every wall of every house is one draw per mesh
+		for (const KitDraw& k : entry.Kit)   // kit pieces: every wall of every house is one draw per mesh
 			if (const KitPiece* kit = Kit(k.Path))
 			{
 				// the part's material lends its layers (moss...) to every primitive of the piece; the glTF's own surface and maps stay
@@ -108,7 +126,6 @@ namespace GB
 					scene.Objects.push_back(std::move(obj));
 				}
 			}
-		return true;
 	}
 
 	const VisualCache::KitPiece* VisualCache::Kit(const std::string& path)
@@ -147,9 +164,21 @@ namespace GB
 	{
 		const auto it = m_Library.Models.find(model);
 		if (it == m_Library.Models.end()) return false;
-		const std::vector<bool> mask = VisibleCopies(it->second, fraction);
 		const int v = std::clamp(variant, 0, std::max(0, it->second.Variants - 1));
-		return Add("m:" + model + "#" + std::to_string(v) + ":" + MaskKey(mask), it->second, mask, v, world, scene, maxDistance);
+		// the key "m:<model>#<variant>:<mask>", written into the same string every time (the mask's vector only for a new entry)
+		m_Key.assign("m:");
+		m_Key += model;
+		m_Key += '#';
+		m_Key += std::to_string(v);
+		m_Key += ':';
+		AppendMaskKey(it->second, fraction, m_Key);
+		if (const auto found = m_Meshes.find(m_Key); found != m_Meshes.end())
+		{
+			Emit(found->second, world, scene, maxDistance);
+			return true;
+		}
+		const std::vector<bool> mask = VisibleCopies(it->second, fraction);
+		return Add(m_Key, it->second, mask, v, world, scene, maxDistance);
 	}
 
 	bool VisualCache::AddBuilding(const std::string& building, int phase, float progress, const glm::mat4& world, Scene& scene)

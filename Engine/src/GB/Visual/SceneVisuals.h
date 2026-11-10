@@ -26,7 +26,7 @@ namespace GB
 
 		// Forgets every mesh and texture (after the library was reloaded, or the quality changed).
 		void Clear() { m_Meshes.clear(); m_Textures.clear(); }
-		void SetLowRes(bool lowRes) { if (lowRes != m_LowRes) { m_LowRes = lowRes; m_Textures.clear(); } }
+		void SetLowRes(bool lowRes) { if (lowRes != m_LowRes) { m_LowRes = lowRes; m_Textures.clear(); ++m_MaterialStamp; } }
 		bool LowRes() const { return m_LowRes; }
 		// The colour of the season's leaves: seasonal materials (crowns, bushes) multiply their colour by it.
 		glm::vec3 Foliage{ 0.22f, 0.45f, 0.16f };
@@ -54,7 +54,16 @@ namespace GB
 			std::vector<KitDraw> Kit;                                             // kit pieces
 			glm::vec3 Center{ 0.0f };
 			float Radius = 0.0f;
+			// the pieces' MaterialFor, made when the entry was last drawn with another m_MaterialStamp (T59: not looked up again for every
+			// node every frame; the library is not edited without Clear, see SceneVisuals::Library)
+			std::vector<Material> PieceMaterials;
+			uint64_t MaterialStamp = 0;
 		};
+		Entry& EntryFor(const std::string& key, const VisualModel& model, const std::vector<bool>& visible, int variant);
+		void Emit(Entry& entry, const glm::mat4& world, Scene& scene, float maxDistance);
+		uint64_t m_MaterialStamp = 1;                 // moves when what MaterialFor gives may change: the foliage colour, the texture size
+		glm::vec3 m_StampFoliage{ -1.0f };
+		std::string m_Key;                            // AddModel's key, kept to reuse its memory
 		// a kit piece (a glTF of a modular kit), loaded once: its primitives in the rest pose
 		struct KitPiece
 		{

@@ -212,6 +212,8 @@ namespace GB
 	// same mesh, so they key the GPU cache.
 	std::vector<bool> VisibleCopies(const VisualModel& model, float fraction);
 	std::string MaskKey(const std::vector<bool>& mask);
+	// MaskKey(VisibleCopies(model, fraction)) appended to `key`, without the two in between (VisualCache::AddModel, every node every frame).
+	void AppendMaskKey(const VisualModel& model, float fraction, std::string& key);
 	// The meshes of a model in a state: `variant` (0..Variants-1) seeds the jitter of the copies.
 	std::vector<VisualPiece> BuildVisual(const VisualModel& model, const std::vector<bool>& visible, int variant);
 	inline std::vector<VisualPiece> BuildVisual(const VisualModel& model, float fraction, int variant) { return BuildVisual(model, VisibleCopies(model, fraction), variant); }
