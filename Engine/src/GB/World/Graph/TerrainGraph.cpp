@@ -1,4 +1,6 @@
 #include "GB/World/Graph/TerrainGraph.h"
+#include "GB/World/Graph/TerrainGraphCache.h"
+#include <set>
 
 namespace GB
 {
@@ -204,17 +206,78 @@ namespace GB
 		return true;   // ValidateTerrainGraph already rejected cycles, so every node is reachable here
 	}
 
-	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error)
+	namespace
+	{
+		// What decides the result of every node besides its own definition and inputs: the seed, the footprint and the fields brought in.
+		uint64_t ContextKey(const TgContext& ctx)
+		{
+			uint64_t h = TgHashBytes(&ctx.Seed, sizeof ctx.Seed);
+			h = TgHashBytes(&ctx.Resolution, sizeof ctx.Resolution, h);
+			h = TgHashBytes(&ctx.Size, sizeof ctx.Size, h);
+			h = TgHashBytes(&ctx.Center, sizeof ctx.Center, h);
+			if (ctx.Inputs)
+				for (const auto& [name, field] : *ctx.Inputs) h = TgHashField(field, TgHashString(name, h));
+			return h;
+		}
+
+		// A node's cache key: its type, its Source, the exact bits of its parameters, then, port by port, the key of the node feeding it and the
+		// output it is fed from (a change upstream changes every key below it), and the context. Not its label or position.
+		uint64_t NodeKey(const TgNode& node, const std::vector<TgSource>& in, const std::vector<uint64_t>& keys, uint64_t context)
+		{
+			uint64_t h = TgHashString(node.Type, context);
+			h = TgHashString(node.Source, h);
+			for (const auto& [name, value] : node.Params) h = TgHashBytes(&value, sizeof value, TgHashString(name, h));
+			for (const TgSource& src : in)
+			{
+				const uint64_t upstream = src.Node >= 0 ? keys[static_cast<size_t>(src.Node)] : 0;
+				h = TgHashString(src.Port, TgHashBytes(&upstream, sizeof upstream, h));
+			}
+			return h;
+		}
+	}
+
+	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error,
+		TerrainGraphCache* cache)
 	{
 		out = TgResult();
 		std::vector<std::map<std::string, TgValue>> values(graph.Nodes.size());
 		std::vector<bool> ready(graph.Nodes.size(), false);
+		std::unique_lock<std::mutex> lock;
+		std::vector<uint64_t> keys;
+		uint64_t context = 0;
+		if (cache)
+		{
+			lock = std::unique_lock<std::mutex>(cache->m_Mutex);
+			cache->m_Stats = {};
+			cache->m_HasFootprint = true;
+			cache->m_Size = ctx.Size;
+			cache->m_Center = ctx.Center;
+			keys.assign(graph.Nodes.size(), 0);
+			context = ContextKey(ctx);
+			// what is not a node of this graph any more is dropped (an id reused by the next graph would only miss: its key differs)
+			std::set<std::string> ids;
+			for (const TgNode& node : graph.Nodes) ids.insert(node.Id);
+			for (auto it = cache->m_Entries.begin(); it != cache->m_Entries.end();) it = ids.count(it->first) ? std::next(it) : cache->m_Entries.erase(it);
+		}
 
 		for (int index : graph.Order)
 		{
 			const TgNode& node = graph.Nodes[index];
 			const ITerrainNode* impl = registry.Find(node.Type);
 			if (!impl) { error = "node '" + node.Id + "' has unregistered type '" + node.Type + "'"; return false; }
+
+			if (cache)
+			{
+				keys[static_cast<size_t>(index)] = NodeKey(node, graph.In[index], keys, context);
+				const auto it = cache->m_Entries.find(node.Id);
+				if (it != cache->m_Entries.end() && it->second.Key == keys[static_cast<size_t>(index)])
+				{
+					values[index] = it->second.Outputs;
+					ready[index] = true;
+					++cache->m_Stats.Reused;
+					continue;
+				}
+			}
 
 			std::vector<const TgValue*> inputs;
 			inputs.reserve(graph.In[index].size());
@@ -232,10 +295,19 @@ namespace GB
 			if (!impl->Run(node, ctx, inputs, values[index], error))
 			{
 				if (error.empty()) error = "node '" + node.Id + "' failed";
+				if (cache) { cache->m_Entries.erase(node.Id); ++cache->m_Generation; }
 				return false;
 			}
 			ready[index] = true;
+			if (cache)
+			{
+				TerrainGraphCache::Entry& entry = cache->m_Entries[node.Id];
+				entry.Key = keys[static_cast<size_t>(index)];
+				entry.Outputs = values[index];
+				++cache->m_Stats.Ran;
+			}
 		}
+		if (cache) ++cache->m_Generation;
 
 		for (int index : graph.Order)
 		{
@@ -265,11 +337,12 @@ namespace GB
 		return true;
 	}
 
-	bool EvaluateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error)
+	bool EvaluateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error,
+		TerrainGraphCache* cache)
 	{
 		CompiledTerrainGraph compiled;
 		std::vector<TgIssue> issues;
 		if (!CompileTerrainGraph(graph, registry, compiled, &issues)) { error = TgIssuesText(issues); return false; }
-		return EvaluateTerrainGraph(compiled, registry, ctx, out, error);
+		return EvaluateTerrainGraph(compiled, registry, ctx, out, error, cache);
 	}
 }

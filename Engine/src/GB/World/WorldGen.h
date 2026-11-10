@@ -38,6 +38,10 @@ namespace GB
 		// and navigation can still be cut by tile (WorldTiles.h). 1, the default, is exactly the world of before. One lake and one river per world.
 		int Tiles = 1;
 		std::shared_ptr<const TerrainGraph> TerrainGraphDefinition;
+		// The node-by-node memo of the graph's evaluation (GB/World/Graph/TerrainGraphCache.h): the editor keeps one across regenerations so a
+		// parameter change only runs that node and what depends on it. Null = every node runs. It never changes the world: a reused output is
+		// the output the node would give again.
+		std::shared_ptr<TerrainGraphCache> GraphCache;
 		float Extent() const { return Size * static_cast<float>(Tiles < 1 ? 1 : Tiles); }   // metres per side of the whole world
 	};
 

@@ -183,6 +183,7 @@ add_library(GB_Sim STATIC
     src/GB/World/Graph/TerrainGraphIO.cpp
     src/GB/World/Graph/TerrainGraphLibrary.cpp
     src/GB/World/Graph/TgHash.cpp
+    src/GB/World/Graph/TerrainGraphCache.cpp
     src/GB/World/Graph/ITerrainNode.cpp
     src/GB/World/Graph/ITerrainTarget.cpp
     src/GB/World/Graph/Nodes/OutputNode.cpp

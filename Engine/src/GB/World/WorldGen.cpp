@@ -118,7 +118,7 @@ namespace GB
 				context.Inputs = &inputs;
 			}
 			std::string error;
-			if (!EvaluateTerrainGraph(*graph, MakeDefaultTerrainNodeRegistry(), context, result, error))
+			if (!EvaluateTerrainGraph(*graph, MakeDefaultTerrainNodeRegistry(), context, result, error, desc.GraphCache.get()))
 			{
 				GB_CORE_WARN("terrain graph '{}' failed ({}); the world is built by generator 3", graph->Id, error);
 				return false;

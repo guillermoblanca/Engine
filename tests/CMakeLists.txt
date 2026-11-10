@@ -247,6 +247,9 @@ gb_test(seed seed_test.cpp POOL GBRenderTests LINK GB::Render LABELS rapido)
 # TerrainGraphLibrary, and the shipped assets/data/terrain_graphs/*.json equal to the presets of their id.
 gb_test(terrain_graph_io terrain_graph_io_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido
         DEFS GB_TERRAIN_GRAPHS_DIR="${CMAKE_SOURCE_DIR}/assets/data/terrain_graphs")
+# The per-node cache of the terrain graph (TerrainGraphCache): only what changed runs again, bit for bit the same result.
+# GB_TGRAPH_BENCH=1 GBSimTests terrain_graph_cache times it on the 3 km highland_valley.
+gb_test(terrain_graph_cache terrain_graph_cache_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 gb_test_write_pool_mains()   # (after the last gb_test of a pool)
 
 # Build speed (T50). Every test executable is a few .cpp files, so instead of one precompiled header each (that would cost as much as it saves) they all

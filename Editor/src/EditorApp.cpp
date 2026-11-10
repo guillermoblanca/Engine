@@ -711,6 +711,7 @@ namespace GB::Editor
 			const std::vector<TgIssue> issues = ValidateTerrainGraph(*m_TgUi->Graph(), MakeDefaultTerrainNodeRegistry());
 			if (HasTgErrors(issues)) return { false, "the terrain graph has errors: " + TgIssuesText(issues) };
 			d.TerrainGraphDefinition = std::make_shared<const TerrainGraph>(*m_TgUi->Graph());
+			d.GraphCache = m_TgUi->Cache();   // only the nodes that changed since the last build run again
 			if (!RequestWorldBuild(d)) return { false, "world generation already in progress" };
 			return { true, "world generation from the terrain graph '" + m_TgUi->Graph()->Id + "' started (seed " + std::to_string(d.Seed) + ")" };
 		});
@@ -1719,6 +1720,7 @@ namespace GB::Editor
 				WorldDesc graphDesc = m_WorldDesc;
 				// a copy: the world is built on another thread while the panel keeps editing its own graph
 				graphDesc.TerrainGraphDefinition = std::make_shared<const TerrainGraph>(*m_TgUi->Graph());
+				graphDesc.GraphCache = m_TgUi->Cache();
 				RequestWorldBuild(graphDesc);
 			}
 		}

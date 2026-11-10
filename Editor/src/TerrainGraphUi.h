@@ -2,6 +2,7 @@
 #include "NodeGraphEditor.h"
 #include "GB/World/Graph/TerrainGraph.h"
 #include "GB/World/Graph/Nodes/BuiltinNodes.h"
+#include "GB/World/Graph/TerrainGraphCache.h"
 #include "GB/World/Graph/TerrainGraphLibrary.h"
 #include <memory>
 #include <string>
@@ -21,6 +22,8 @@ namespace GB::Editor
 		// Replaces the edited graph (a preset, a loaded file).
 		void LoadGraph(const TerrainGraph& graph);
 		bool ConsumeApplyRequest();
+		// The node-by-node memo of the panel's graph (WorldDesc::GraphCache): a world built from the panel reuses every node that did not change.
+		std::shared_ptr<TerrainGraphCache> Cache() const { return m_Cache; }
 
 		// The library of graphs (TerrainGraphLibrary): the presets plus the files of assets/data/terrain_graphs, read the first time it is asked for.
 		TerrainGraphLibrary& Library();
@@ -51,5 +54,6 @@ namespace GB::Editor
 		std::string m_Dir;             // where the library reads and writes its files
 		bool m_LibraryLoaded = false;
 		char m_SaveId[64] = {};
+		std::shared_ptr<TerrainGraphCache> m_Cache = std::make_shared<TerrainGraphCache>();
 	};
 }

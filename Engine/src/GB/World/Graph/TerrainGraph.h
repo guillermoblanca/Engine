@@ -6,6 +6,8 @@
 
 namespace GB
 {
+	class TerrainGraphCache;   // TerrainGraphCache.h
+
 	// A terrain generation graph: nodes that build and reshape TgFields (height, moisture, biome id...) and
 	// feed one another, ending in one or more "output" nodes. Pure data (SRP): nothing here knows how to
 	// validate, compile or evaluate itself (docs/GRAFO_TERRENO.md). Modelled directly on GB::PgNode/PgEdge/
@@ -92,8 +94,11 @@ namespace GB
 
 	// Pure evaluation: runs every node in topological order through the given TerrainNodeRegistry, with no side
 	// effect on the engine (no Heightmap, no GPU, no file). A node that fails stops the walk; `error` says which
-	// and why.
-	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error);
+	// and why. With a `cache` (TerrainGraphCache.h), a node whose type, parameters, inputs and context are those of the last evaluation is not
+	// run again: its stored outputs are used, bit for bit the same. Null = every node runs.
+	bool EvaluateTerrainGraph(const CompiledTerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error,
+		TerrainGraphCache* cache = nullptr);
 	// Convenience that compiles first (as EvaluatePriorityGraph does for a raw PriorityGraph).
-	bool EvaluateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error);
+	bool EvaluateTerrainGraph(const TerrainGraph& graph, const TerrainNodeRegistry& registry, const TgContext& ctx, TgResult& out, std::string& error,
+		TerrainGraphCache* cache = nullptr);
 }
