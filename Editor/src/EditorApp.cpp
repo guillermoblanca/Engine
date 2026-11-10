@@ -2615,35 +2615,49 @@ namespace GB::Editor
 					if (it->is_regular_file(ec)) m_AssetFiles.push_back(it->path());
 				std::sort(m_AssetFiles.begin(), m_AssetFiles.end());
 				m_AssetScanAt = ImGui::GetTime();
+				// T62: the rows once per read. fs::relative resolves both paths on disk (weakly_canonical): ~0.24 ms a file, 37 ms a frame for
+				// the ~150 files; the iterator's paths all start with the root, so the relative path is plain path arithmetic.
+				const fs::path root(m_AssetRoot);
+				m_AssetRows.clear();
+				for (const fs::path& f : m_AssetFiles)
+				{
+					AssetRow row{ f, f.lexically_relative(root).generic_string(), Lower(f.extension().string()), {} };
+					if (row.Ext == ".md") continue;
+					const char* kind = row.Ext == ".glb" || row.Ext == ".gltf" ? "[model]" : row.Ext == ".hdr" ? "[hdri]" : row.Ext == ".jpg" || row.Ext == ".png" ? "[image]" : "";
+					row.Label = std::string(kind) + " " + row.Rel;
+					m_AssetRows.push_back(std::move(row));
+				}
 			}
-			const std::vector<fs::path>& files = m_AssetFiles;
 			ImGui::TextDisabled("%s", m_AssetRoot.c_str());
 			ImGui::TextDisabled("double-click a model (.glb/.gltf) to add it to the scene (right-click: animation viewer), an .hdr to use it as the environment");
 			ImGui::BeginChild("##assets");
-			for (const fs::path& f : files)
-			{
-				const std::string rel = fs::relative(f, m_AssetRoot, ec).generic_string();
-				const std::string ext = Lower(f.extension().string());
-				if (ext == ".md") continue;
-				ImGui::PushID(rel.c_str());
-				const char* kind = ext == ".glb" || ext == ".gltf" ? "[model]" : ext == ".hdr" ? "[hdri]" : ext == ".jpg" || ext == ".png" ? "[image]" : "";
-				if (ImGui::Selectable((std::string(kind) + " " + rel).c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(0))
+			ImGuiListClipper clipper;   // (one line each: only the rows on screen are built)
+			clipper.Begin(static_cast<int>(m_AssetRows.size()));
+			while (clipper.Step())
+				for (int i = clipper.DisplayStart; i < clipper.DisplayEnd; ++i)
 				{
-					if (ext == ".glb" || ext == ".gltf") Execute("add \"" + f.generic_string() + "\"");
-					else if (ext == ".hdr") Execute("hdri \"" + f.generic_string() + "\"");
-				}
-				if ((ext == ".glb" || ext == ".gltf") && ImGui::BeginPopupContextItem())
-				{
-					if (ImGui::MenuItem("Add to scene as an entity"))
+					const AssetRow& row = m_AssetRows[static_cast<size_t>(i)];
+					const fs::path& f = row.File;
+					const std::string& rel = row.Rel;
+					const std::string& ext = row.Ext;
+					ImGui::PushID(rel.c_str());
+					if (ImGui::Selectable(row.Label.c_str(), false, ImGuiSelectableFlags_AllowDoubleClick) && ImGui::IsMouseDoubleClicked(0))
 					{
-						const std::string name = f.stem().string();
-						m_UiCommands.push_back("entity create empty \"" + name + "\"");
-						m_UiCommands.push_back("entity model \"" + rel + "\"");
+						if (ext == ".glb" || ext == ".gltf") Execute("add \"" + f.generic_string() + "\"");
+						else if (ext == ".hdr") Execute("hdri \"" + f.generic_string() + "\"");
 					}
-					ImGui::EndPopup();
+					if ((ext == ".glb" || ext == ".gltf") && ImGui::BeginPopupContextItem())
+					{
+						if (ImGui::MenuItem("Add to scene as an entity"))
+						{
+							const std::string name = f.stem().string();
+							m_UiCommands.push_back("entity create empty \"" + name + "\"");
+							m_UiCommands.push_back("entity model \"" + rel + "\"");
+						}
+						ImGui::EndPopup();
+					}
+					ImGui::PopID();
 				}
-				ImGui::PopID();
-			}
 			ImGui::EndChild();
 		}
 		ImGui::End();

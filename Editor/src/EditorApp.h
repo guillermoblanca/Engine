@@ -511,6 +511,9 @@ namespace GB::Editor
 		float m_UiPartMs[kUiParts] = {};
 		bool m_UiFinish = false;
 		std::string UiProfileLine() const;
+		// the Assets panel's rows, worked out when the folder is read (not every frame): the path relative to assets/, its extension and label
+		struct AssetRow { std::filesystem::path File; std::string Rel, Ext, Label; };
+		std::vector<AssetRow> m_AssetRows;
 		std::string m_PropFilter;
 		char m_ConsoleInput[256] = {};
 		std::vector<std::string> m_History;
