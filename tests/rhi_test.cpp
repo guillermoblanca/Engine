@@ -3,6 +3,7 @@
 // call would crash here (glad is never loaded), so passing also says the frontend only talks to the RHI.
 #include "GB/Renderer/Mesh.h"
 #include "GB/Renderer/RHI/NullDevice.h"
+#include "GB/Renderer/RHI/UniformCache.h"
 #include "GB/Renderer/Renderer.h"
 #include "GB/Renderer/Scene.h"
 #include <cstdio>
@@ -115,16 +116,58 @@ namespace
 
 			// The stats come from the draws the frontend counted.
 			Check(stats.DrawCalls > 0 && stats.SceneCalls == static_cast<uint32_t>(indexed + instanced), "draw-call stats count the scene's draws");
+
+			// T70: the RHI counters of the frame. The null backend never filters: every uniform and state call reaches it.
+			uint32_t uniforms = 0, pipelines = 0;
+			for (const NullCommand& c : log)
+			{
+				if (c.Op == NullOp::SetUniform) ++uniforms;
+				if (c.Op == NullOp::BindPipeline) ++pipelines;
+			}
+			const GB::RHI::FrameCounters& f = stats.Submit, &o = stats.ObjectSubmit;
+			Check(f.UniformCalls == uniforms && f.PipelineBinds == pipelines, "the frame's counters match the commands recorded");
+			Check(f.UniformsSent == f.UniformCalls && f.StateChanges == f.StateCalls, "the null backend sends every uniform and state call");
+			Check(o.UniformCalls > 0 && o.UniformCalls < f.UniformCalls && o.StateCalls > 0 && o.UploadBytes == 3 * sizeof(glm::mat4),
+				"the object loop's share: its uniforms and state, and one batch of 3 matrices uploaded");
+			Check(stats.CpuObjectsMs >= 0.0f, "the object loop is timed");
 			result = failures;
 		}
 		GB::RHI::SetDevice(nullptr);
 		return result;
 	}
+
+	// T70: the GL backend's uniform cache, on its own (it is plain CPU code).
+	int RunUniformCache()
+	{
+		using Kind = GB::RHI::UniformCache::Kind;
+		GB::RHI::UniformCache cache;
+		const float a[3] = { 1.0f, 2.0f, 3.0f }, b[3] = { 1.0f, 2.0f, 4.0f };
+		const int one = 1;
+		const float negZero = -0.0f, zero = 0.0f;
+		Check(cache.Update(5, 7, Kind::Float3, a, sizeof a), "cache: the first set is sent");
+		Check(!cache.Update(5, 7, Kind::Float3, a, sizeof a), "cache: the same value again is not");
+		Check(cache.Update(5, 7, Kind::Float3, b, sizeof b), "cache: another value is");
+		Check(cache.Update(6, 7, Kind::Float3, b, sizeof b), "cache: the same location of another program is another uniform");
+		Check(cache.Update(5, 7, Kind::Int, &one, sizeof one) && cache.Update(5, 7, Kind::Float1, &one, sizeof one),
+			"cache: the same bits as another kind are another value");
+		Check(cache.Update(5, 8, Kind::Float1, &zero, sizeof zero) && cache.Update(5, 8, Kind::Float1, &negZero, sizeof negZero),
+			"cache: values compare bit for bit (0 and -0 differ)");
+		cache.Forget(5, 8);
+		Check(cache.Update(5, 8, Kind::Float1, &negZero, sizeof negZero), "cache: a forgotten location is sent again (an array set)");
+		cache.ForgetProgram(5);
+		Check(cache.Update(5, 8, Kind::Float1, &negZero, sizeof negZero), "cache: a destroyed program's values are forgotten");
+		Check(!cache.Update(6, 7, Kind::Float3, b, sizeof b), "cache: ... and only that program's");
+		Check(cache.Update(5, -1, Kind::Int, &one, sizeof one) && cache.Update(5, -1, Kind::Int, &one, sizeof one), "cache: no location is never cached");
+		cache.Clear();
+		Check(cache.Update(6, 7, Kind::Float3, b, sizeof b), "cache: cleared (turned on again), everything is sent");
+		return failures;
+	}
 }
 
 int main()
 {
-	const int result = Run();
+	Run();
+	const int result = RunUniformCache();
 	if (result) std::fprintf(stderr, "%d check(s) failed\n", result);
 	return result ? 1 : 0;
 }

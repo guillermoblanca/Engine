@@ -11,6 +11,9 @@
 // Pipeline state is "light": a pipeline is a program plus the fixed-function state it sets; a state left unset keeps what the stream set
 // before (GL semantics; a backend with full pipeline objects resolves it at record time). The constant blocks (T36) and the shader sources
 // out of Shaders.h (T41) come later: uniforms are still set one by one, by location.
+//
+// T70: the backends count what is recorded (RHI/Counters.h) and the GL one can filter repeated uniform values and repeated state (Options).
+#include "GB/Renderer/RHI/Counters.h"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <memory>
@@ -239,6 +242,22 @@ namespace GB::RHI
 		virtual void DestroyTimestamp(QueryHandle query) = 0;
 		virtual bool TimestampReady(QueryHandle query) = 0;      // never waits
 		virtual uint64_t TimestampNs(QueryHandle query) = 0;     // waits if not ready
+	};
+
+	// Run-time switches of the backend (T70, render M0), to measure what they save; the editor binds them to render.uniform_cache,
+	// render.state_filter and render.string_uniforms. The defaults come from the environment, read once at start-up: GB_RENDER_UNIFORM_CACHE=0
+	// and GB_RENDER_STATE_FILTER=0 turn the first two off (a test or a bench without the editor), GB_RENDER_STRING_UNIFORMS=1 turns the third on.
+	// The GL backend honors them; the null one ignores the two filters (its log keeps every command) and only counts.
+	struct Options
+	{
+		bool UniformCache = true;     // a uniform set to the value its program already holds is not sent again
+		bool StateFilter = true;      // cull, alpha to coverage and blend set to the state already current are not sent again (reset at each pass)
+		bool StringUniforms = false;  // Shader looks uniforms up through a temporary std::string, as before T70: only to measure what it cost
+	};
+	Options OptionsFromEnvironment();
+	struct Tuning
+	{
+		static inline Options Current = OptionsFromEnvironment();
 	};
 
 	// The device the render uses. The first call with none set creates the GL device (a GL 4.5 context must be current by then); a test

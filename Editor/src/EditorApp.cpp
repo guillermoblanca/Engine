@@ -571,6 +571,9 @@ namespace GB::Editor
 		r.Bool("render.ssr", m_Scene.ScreenSpaceReflections, "Post-processing", "water reflects nearby objects");
 		r.Float("render.grass", m_Scene.GrassDistanceScale, 0.0f, 2.0f, "Post-processing", "how far the grass is drawn (x its draw distance; 0 = none)");
 		r.Bool("render.actors", m_DrawActors, "Post-processing", "the characters are drawn");
+		r.Bool("render.uniform_cache", RHI::Tuning::Current.UniformCache, "Post-processing", "T70: a uniform set to the value its program already holds is not sent again");
+		r.Bool("render.state_filter", RHI::Tuning::Current.StateFilter, "Post-processing", "T70: cull, alpha to coverage and blend set to the current state are not sent again");
+		r.Bool("render.string_uniforms", RHI::Tuning::Current.StringUniforms, "Post-processing", "T70, to measure: uniforms looked up through a temporary string, as before");
 		r.Bool("ui.stats", m_ShowRenderStats, "Post-processing", "draw calls, triangles and the GPU and CPU time of each part, over the viewport");
 		r.Float("sim.budget", m_SimBudgetMs, 0.0f, 100.0f, "Simulation", "milliseconds a frame the simulation may take before the world runs slower than the clock (0 = no limit)");
 
@@ -1790,12 +1793,15 @@ namespace GB::Editor
 	{
 		const RenderStats& s = m_Renderer->GetStats();
 		const EntityRenderer::BuildStats& es = m_EntityRenderer->LastBuild();
-		char text[1280];
+		char text[1920];
+		const RHI::FrameCounters& o = s.ObjectSubmit;
+		const RHI::FrameCounters& f = s.Submit;
 		std::snprintf(text, sizeof text,
 			"draw calls %u: shadows %u, objects %u, grass %u, water %u | %u instanced batches | %.2f M triangles | objects %u drawn, %u culled\n"
 			"GPU %.1f ms: shadows %.1f, objects %.1f, grass %.1f, water %.1f, particles+resolve %.1f, post %.1f\n"
 			"GPU parts: sky %.2f (of objects), translucent %.2f, particles %.2f, resolve %.2f (of particles+resolve), bloom %.2f, ssao %.2f, composite %.2f (of post)\n"
 			"CPU building parts: animation %.2f, tribe looks %.2f, trails %.2f, data looks %.2f (%u of %u drawn), meshes and props %.2f (%u walked), fields and piles %.2f, actors %.2f, grass recentre %.2f\n"
+			"CPU sending objects: loop %.2f ms (draws %.2f), shadow pass %.2f ms (uniforms %u sent of %u) | uniforms %u sent of %u, textures %u, pipelines %u, buffers %u, layouts %u, state %u sent of %u, upload %.1f KB | frame: uniforms %u sent of %u, textures %u, pipelines %u, buffers %u, layouts %u, state %u sent of %u, upload %.1f KB\n"
 			"CPU: update %.1f ms (simulation %.1f), building the scene %.1f ms, sending it %.1f ms, interface %.1f ms, frame %.1f ms",
 			s.DrawCalls, s.ShadowCalls, s.SceneCalls, s.GrassCalls, s.WaterCalls, s.InstancedDraws, static_cast<double>(s.Triangles) * 1e-6, s.ObjectsDrawn, s.ObjectsCulled,
 			static_cast<double>(s.GpuTotalMs), static_cast<double>(s.GpuShadowMs), static_cast<double>(s.GpuSceneMs), static_cast<double>(s.GpuGrassMs), static_cast<double>(s.GpuWaterMs),
@@ -1806,6 +1812,10 @@ namespace GB::Editor
 			static_cast<double>(m_CpuBuildPartMs[kBuildLooks]), es.LooksDrawn, es.Looks, static_cast<double>(m_CpuBuildPartMs[kBuildWalk]), es.Walked,
 			static_cast<double>(m_CpuBuildPartMs[kBuildTribe]), static_cast<double>(m_CpuBuildPartMs[kBuildActors]),
 			static_cast<double>(m_CpuBuildPartMs[kBuildWorld]),
+			static_cast<double>(s.CpuObjectsMs), static_cast<double>(s.CpuObjectDrawMs), static_cast<double>(s.CpuShadowMs), s.ShadowSubmit.UniformsSent, s.ShadowSubmit.UniformCalls,
+			o.UniformsSent, o.UniformCalls, o.TextureBinds, o.PipelineBinds, o.BufferBinds, o.LayoutBinds, o.StateChanges, o.StateCalls,
+			static_cast<double>(o.UploadBytes) / 1024.0,
+			f.UniformsSent, f.UniformCalls, f.TextureBinds, f.PipelineBinds, f.BufferBinds, f.LayoutBinds, f.StateChanges, f.StateCalls, static_cast<double>(f.UploadBytes) / 1024.0,
 			static_cast<double>(m_CpuUpdateMs), static_cast<double>(m_CpuSimMs), static_cast<double>(m_CpuBuildMs), static_cast<double>(m_CpuRenderMs), static_cast<double>(m_CpuUiMs), static_cast<double>(m_FrameMsSmooth));
 		return text;
 	}

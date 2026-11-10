@@ -1,7 +1,8 @@
 #pragma once
 // The null backend of the RHI (T25): accepts every call, draws nothing and keeps a log of the commands, so the render frontend (draw list,
 // order, culling, pass structure) runs and is tested on the CPU without a GL context. Resources are ids that are always valid: programs
-// "compile", render targets are complete, timestamps are ready at 0.
+// "compile", render targets are complete, timestamps are ready at 0. It counts like the GL backend (RHI/Counters.h) but never filters
+// (RHI::Tuning is ignored): the log keeps every command.
 //
 //   GB::RHI::NullDevice device;
 //   GB::RHI::SetDevice(&device);   // before creating any resource; SetDevice(nullptr) at the end
@@ -85,14 +86,17 @@ namespace GB::RHI
 		const char* Name() const override { return "Null"; }
 		CommandList& Commands() override { return List; }
 
-		BufferHandle CreateBuffer(size_t, const void*, bool) override { return { Next() }; }
+		BufferHandle CreateBuffer(size_t bytes, const void* data, bool) override { if (data) Counters::Frame.UploadBytes += bytes; return { Next() }; }
 		BufferHandle CreateStreamBuffer() override { return { Next() }; }
-		void UpdateBuffer(BufferHandle, size_t, size_t, const void*) override {}
+		void UpdateBuffer(BufferHandle, size_t, size_t bytes, const void*) override { Counters::Frame.UploadBytes += bytes; }
 		void DestroyBuffer(BufferHandle) override {}
 
 		TextureHandle CreateTexture(const TextureDesc&) override { return { Next() }; }
 		void SetSampler(TextureHandle, const SamplerDesc&) override {}
-		void UploadTexture(TextureHandle, uint32_t, uint32_t, uint32_t, uint32_t, PixelData, const void*) override {}
+		void UploadTexture(TextureHandle, uint32_t, uint32_t, uint32_t width, uint32_t height, PixelData layout, const void*) override
+		{
+			Counters::Frame.UploadBytes += static_cast<uint64_t>(width) * height * (layout == PixelData::RGBFloat ? 12u : 4u);
+		}
 		void GenerateMips(TextureHandle) override {}
 		void ReadTexture(TextureHandle, uint32_t, uint32_t, uint32_t, uint32_t, PixelData, size_t bytes, void* out) override;
 		void DestroyTexture(TextureHandle) override {}

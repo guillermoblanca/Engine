@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/Counters.h"
 #include <cstdint>
 
 namespace GB
@@ -21,6 +22,14 @@ namespace GB
 		// the clear and the sky (of GpuSceneMs); the translucent objects, the particles and the MSAA resolve (of GpuEffectsMs); the bloom, the SSAO
 		// (with its depth copy) and the exposure and composite (of GpuPostMs).
 		float GpuSkyMs = 0.0f, GpuTranslucentMs = 0.0f, GpuParticlesMs = 0.0f, GpuResolveMs = 0.0f, GpuBloomMs = 0.0f, GpuSsaoMs = 0.0f, GpuCompositeMs = 0.0f;
+		// T70 (render M0): what the frame asked of the RHI backend and what reached the API (uniforms, binds, state, bytes uploaded), for the
+		// whole frame and for the object loop alone; and the CPU time of that loop (culling, the draws of the opaque and masked objects, the
+		// instanced batches and the translucent objects), of this frame, without the grass, water and particle passes.
+		RHI::FrameCounters Submit, ObjectSubmit;
+		float CpuObjectsMs = 0.0f;
+		float CpuObjectDrawMs = 0.0f;   // ... of it, inside the draws of the objects (uniforms, binds, the draw call); the rest is culling and batching
+		float CpuShadowMs = 0.0f;       // the CPU time of the shadow pass (its own culling and draws), for the rest of "sending"
+		RHI::FrameCounters ShadowSubmit;
 	};
 
 	// Counts the draw calls as they are made (the mesh and the instanced draws call Add): the renderer reads it around each pass.

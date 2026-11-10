@@ -6,6 +6,18 @@ namespace GB::RHI
 {
 	NullCommand& NullCommandList::Push(NullOp op, uint32_t a, uint32_t b, uint32_t c)
 	{
+		// The counters of the frame (T70), as the GL backend with its filters off: every command reaches the "API".
+		FrameCounters& n = Counters::Frame;
+		switch (op)
+		{
+		case NullOp::BindPipeline: ++n.PipelineBinds; break;
+		case NullOp::SetCull: case NullOp::SetAlphaToCoverage: case NullOp::SetBlend: ++n.StateCalls; ++n.StateChanges; break;
+		case NullOp::SetUniform: ++n.UniformCalls; ++n.UniformsSent; break;
+		case NullOp::BindTexture: ++n.TextureBinds; break;
+		case NullOp::BindStorageBuffer: case NullOp::SetVertexBuffer: ++n.BufferBinds; break;
+		case NullOp::BindVertexLayout: ++n.LayoutBinds; break;
+		default: break;
+		}
 		NullCommand& cmd = Log.emplace_back();
 		cmd.Op = op;
 		cmd.A = a;
@@ -46,6 +58,7 @@ namespace GB::RHI
 	{
 		NullCommand& cmd = Push(NullOp::UploadStream, buffer.Id);
 		cmd.Bytes = bytes;
+		Counters::Frame.UploadBytes += bytes;
 	}
 
 	void NullDevice::ReadTexture(TextureHandle, uint32_t, uint32_t, uint32_t, uint32_t, PixelData, size_t bytes, void* out)

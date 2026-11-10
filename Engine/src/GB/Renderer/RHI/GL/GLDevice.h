@@ -1,8 +1,12 @@
 #pragma once
 // The OpenGL 4.5 backend of the RHI (T25). GL is an immediate API: the command list runs each command as it is recorded, which keeps the
-// order (and the image) the renderer had when it called GL itself. Handles are the GL object names. Redundant state is not filtered: other
-// code (ImGui, the editor's tools) also changes GL state between frames, so the backend cannot trust a cache of it.
+// order (and the image) the renderer had when it called GL itself. Handles are the GL object names.
+//
+// Filtering (T70, both switchable at run time through RHI::Tuning): a uniform set to the value its program already holds is not sent (the
+// programs' uniforms are only changed through here); cull, alpha to coverage and blend set to the state already current are not sent. Other
+// code (ImGui, the editor's tools) also changes GL state between frames, so the state is only trusted within a pass: BeginPass forgets it.
 #include "GB/Renderer/RHI/RHI.h"
+#include "GB/Renderer/RHI/UniformCache.h"
 #include <unordered_map>
 #include <vector>
 
@@ -48,8 +52,22 @@ namespace GB::RHI
 		void WriteTimestamp(QueryHandle query) override;
 		void Flush() override;
 
+		// A destroyed program's name can come back: its cached uniforms go with it.
+		void ForgetProgram(ProgramHandle program) { m_Uniforms.ForgetProgram(program.Id); }
+
 	private:
+		bool UniformCacheOn();
+		bool StateFilterOn();
+		void ForgetState();
+		bool SendUniform(ProgramHandle program, int location, UniformCache::Kind kind, const void* data, uint32_t bytes);
+		void ApplyAlphaToCoverage(bool on);
+
 		GLDevice& m_Device;
+		UniformCache m_Uniforms;
+		bool m_UniformCacheWasOn = false, m_StateFilterWasOn = false;   // (turned on again: what was recorded meanwhile is not known)
+		// The state last sent within the current pass; -1 / unset: not known.
+		int m_Cull = -1, m_AlphaToCoverage = -1;
+		std::optional<BlendState> m_Blend;
 	};
 
 	class GLDevice final : public Device

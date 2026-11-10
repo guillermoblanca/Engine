@@ -6,6 +6,7 @@
 #include "ShadowView.h"
 #include "GB/Log.h"
 #include <algorithm>
+#include <chrono>
 #include <cmath>
 #include <map>
 #include <glm/gtc/matrix_transform.hpp>
@@ -258,8 +259,11 @@ namespace GB
 		}
 
 		// `copies` > 0: an instanced draw of that many copies, their matrices already in m_InstanceBuffer (the object's material for all)
+		using Clock = std::chrono::steady_clock;
+		double drawMs = 0.0;   // T70: the part of the object loop spent in here (uniforms, binds, draw), the rest is culling and batching
 		auto drawObject = [&](const RenderObject& obj, uint32_t copies = 0)
 		{
+			const auto drawStart = Clock::now();
 			const Material& m = obj.Mat;
 			cmd.SetCull(m.DoubleSided ? RHI::Cull::None : RHI::Cull::Back);
 
@@ -327,6 +331,7 @@ namespace GB
 			if (copies > 0) obj.MeshPtr->DrawInstanced(copies);
 			else if (obj.IndexCount > 0) obj.MeshPtr->DrawRange(obj.IndexFirst, obj.IndexCount);
 			else obj.MeshPtr->Draw();
+			drawMs += std::chrono::duration<double, std::milli>(Clock::now() - drawStart).count();
 		};
 		// the instanced objects that passed the culling, by mesh, drawn after the loop in one call each
 		std::map<const Mesh*, std::vector<const RenderObject*>> instanced;
@@ -334,6 +339,15 @@ namespace GB
 		// Opaque and alpha-masked first, then translucent objects back to front without depth writes.
 		std::vector<const RenderObject*> translucent;
 		m_Stats = {};
+		// T70: the CPU time and the RHI work of the object loop (this one, the instanced batches and, below, the translucent objects)
+		auto loopStart = Clock::now();
+		RHI::FrameCounters loopBefore = RHI::Counters::Frame;
+		auto endLoop = [&]()
+		{
+			m_Stats.CpuObjectsMs += static_cast<float>(std::chrono::duration<double, std::milli>(Clock::now() - loopStart).count());
+			m_Stats.CpuObjectDrawMs = static_cast<float>(drawMs);
+			m_Stats.ObjectSubmit += RHI::Counters::Frame.Since(loopBefore);
+		};
 		const Frustum frustum = MakeFrustum(viewProj);
 		for (const RenderObject& obj : scene.Objects)
 		{
@@ -371,6 +385,7 @@ namespace GB
 			++m_Stats.InstancedDraws;
 		}
 		cmd.SetAlphaToCoverage(false);
+		endLoop();
 
 		const uint32_t beforeGrass = DrawCounter::Calls;
 		Mark(kAfterObjects);
@@ -384,6 +399,8 @@ namespace GB
 
 		if (!translucent.empty())
 		{
+			loopStart = Clock::now();
+			loopBefore = RHI::Counters::Frame;
 			auto distance2 = [&](const RenderObject* o)
 			{
 				const glm::vec3 d = glm::vec3(o->Transform[3]) - camera.Position;
@@ -398,6 +415,7 @@ namespace GB
 				drawObject(*obj);
 			cmd.SetDepthWrite(true);
 			cmd.SetBlend({});
+			endLoop();
 		}
 		cmd.SetCull(RHI::Cull::None);
 		Mark(kAfterTranslucent);
@@ -441,20 +459,26 @@ namespace GB
 		const bool shadows = scene.Sun.CastShadows;
 		DrawCounter::Calls = 0;
 		DrawCounter::Triangles = 0;
+		RHI::Counters::Frame = {};
 		uint32_t shadowCalls = 0;
 		const RenderStats gpu = m_Stats;   // (ScenePass starts its stats over: the GPU times of the frames before are kept)
 		m_TimerActive = m_TimersPending < kTimerSets;   // (all the marks of a frame, or none: a set not read yet is never issued again)
 		Mark(kStart);
+		const auto shadowStart = std::chrono::steady_clock::now();
 		if (shadows)
 		{
 			lightVP = ShadowViewProj(scene.Env.ShadowCenter, scene.Sun.Direction, scene.Env.ShadowRadius, m_ShadowSize);   // snapped to texels
 			ShadowPass(scene, lightVP);
 			shadowCalls = DrawCounter::Calls;
 		}
+		const float shadowMs = static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - shadowStart).count());
+		const RHI::FrameCounters shadowSubmit = RHI::Counters::Frame;
 		Mark(kAfterShadows);
 
 		ScenePass(scene, camera, lightVP, shadows);
 		Mark(kAfterResolve);
+		m_Stats.CpuShadowMs = shadowMs;
+		m_Stats.ShadowSubmit = shadowSubmit;
 		m_Stats.GpuShadowMs = gpu.GpuShadowMs; m_Stats.GpuSceneMs = gpu.GpuSceneMs; m_Stats.GpuGrassMs = gpu.GpuGrassMs; m_Stats.GpuWaterMs = gpu.GpuWaterMs;
 		m_Stats.GpuEffectsMs = gpu.GpuEffectsMs; m_Stats.GpuPostMs = gpu.GpuPostMs; m_Stats.GpuTotalMs = gpu.GpuTotalMs;
 		m_Stats.GpuSkyMs = gpu.GpuSkyMs; m_Stats.GpuTranslucentMs = gpu.GpuTranslucentMs; m_Stats.GpuParticlesMs = gpu.GpuParticlesMs; m_Stats.GpuResolveMs = gpu.GpuResolveMs;
@@ -478,6 +502,7 @@ namespace GB
 		}
 		m_PostProcessor->CompositePass(*m_SceneResolved, *m_SceneDepth, *m_SceneAmbient, scene.Env, scene.Post, camera, target);
 		Mark(kAfterComposite);
+		m_Stats.Submit = RHI::Counters::Frame;
 		if (m_TimerActive)
 		{
 			RHI::GetDevice().Commands().Flush();   // (without it the last commands can wait in the driver's queue until the swap, and the post-processing reads as that wait)

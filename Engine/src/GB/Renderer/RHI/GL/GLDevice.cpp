@@ -49,6 +49,8 @@ namespace GB::RHI
 			return GL_ONE;
 		}
 		void Toggle(GLenum cap, bool on) { if (on) glEnable(cap); else glDisable(cap); }
+		bool SameBlend(const BlendState& a, const BlendState& b) { return a.Enabled == b.Enabled && a.Src == b.Src && a.Dst == b.Dst && a.Op == b.Op; }
+		uint32_t PixelBytes(PixelData layout) { return layout == PixelData::RGBFloat ? 12u : 4u; }
 
 		GLuint Compile(GLenum type, const std::string& source)
 		{
@@ -75,8 +77,50 @@ namespace GB::RHI
 
 	// ---- Command list -------------------------------------------------------------------------------------------------------------------
 
+	bool GLCommandList::UniformCacheOn()
+	{
+		const bool on = Tuning::Current.UniformCache;
+		if (on && !m_UniformCacheWasOn)
+			m_Uniforms.Clear();
+		m_UniformCacheWasOn = on;
+		return on;
+	}
+
+	bool GLCommandList::StateFilterOn()
+	{
+		const bool on = Tuning::Current.StateFilter;
+		if (on && !m_StateFilterWasOn)
+			ForgetState();
+		m_StateFilterWasOn = on;
+		return on;
+	}
+
+	void GLCommandList::ForgetState()
+	{
+		m_Cull = m_AlphaToCoverage = -1;
+		m_Blend.reset();
+	}
+
+	// Counts the set and says whether to send it: with the cache on, not when the program already holds the value (or has no such uniform).
+	bool GLCommandList::SendUniform(ProgramHandle program, int location, UniformCache::Kind kind, const void* data, uint32_t bytes)
+	{
+		++Counters::Frame.UniformCalls;
+		if (UniformCacheOn())
+		{
+			if (location < 0)
+				return false;
+			if (kind == UniformCache::Kind::None)
+				m_Uniforms.Forget(program.Id, location);
+			else if (!m_Uniforms.Update(program.Id, location, kind, data, bytes))
+				return false;
+		}
+		++Counters::Frame.UniformsSent;
+		return true;
+	}
+
 	void GLCommandList::BeginPass(const PassDesc& pass)
 	{
+		ForgetState();   // (GL state may have been changed outside the RHI since the last pass: ImGui, the editor)
 		glBindFramebuffer(GL_FRAMEBUFFER, pass.Target.Id);
 		glViewport(0, 0, static_cast<GLsizei>(pass.Width), static_cast<GLsizei>(pass.Height));
 		GLbitfield bits = 0;
@@ -107,6 +151,7 @@ namespace GB::RHI
 
 	void GLCommandList::BindPipeline(PipelineHandle pipeline)
 	{
+		++Counters::Frame.PipelineBinds;
 		const PipelineDesc* p = m_Device.GetPipeline(pipeline);
 		if (!p)
 			return;
@@ -118,7 +163,7 @@ namespace GB::RHI
 		if (p->CullMode) SetCull(*p->CullMode);
 		if (p->Scissor) Toggle(GL_SCISSOR_TEST, *p->Scissor);
 		if (p->Blend) SetBlend(*p->Blend);
-		if (p->AlphaToCoverage) Toggle(GL_SAMPLE_ALPHA_TO_COVERAGE, *p->AlphaToCoverage);
+		if (p->AlphaToCoverage) SetAlphaToCoverage(*p->AlphaToCoverage);
 		if (p->Offset)
 		{
 			Toggle(GL_POLYGON_OFFSET_FILL, p->Offset->Enabled);
@@ -129,6 +174,14 @@ namespace GB::RHI
 
 	void GLCommandList::SetCull(Cull cull)
 	{
+		++Counters::Frame.StateCalls;
+		if (StateFilterOn())
+		{
+			if (m_Cull == static_cast<int>(cull))
+				return;
+			m_Cull = static_cast<int>(cull);
+		}
+		++Counters::Frame.StateChanges;
 		if (cull == Cull::None)
 			glDisable(GL_CULL_FACE);
 		else
@@ -138,11 +191,30 @@ namespace GB::RHI
 		}
 	}
 
-	void GLCommandList::SetAlphaToCoverage(bool on) { Toggle(GL_SAMPLE_ALPHA_TO_COVERAGE, on); }
+	void GLCommandList::SetAlphaToCoverage(bool on)
+	{
+		++Counters::Frame.StateCalls;
+		if (StateFilterOn())
+		{
+			if (m_AlphaToCoverage == (on ? 1 : 0))
+				return;
+			m_AlphaToCoverage = on ? 1 : 0;
+		}
+		++Counters::Frame.StateChanges;
+		Toggle(GL_SAMPLE_ALPHA_TO_COVERAGE, on);
+	}
 	void GLCommandList::SetDepthWrite(bool on) { glDepthMask(on ? GL_TRUE : GL_FALSE); }
 
 	void GLCommandList::SetBlend(const BlendState& blend)
 	{
+		++Counters::Frame.StateCalls;
+		if (StateFilterOn())
+		{
+			if (m_Blend && SameBlend(*m_Blend, blend))   // (the same call again changes nothing)
+				return;
+			m_Blend = blend;
+		}
+		++Counters::Frame.StateChanges;
 		Toggle(GL_BLEND, blend.Enabled);
 		if (blend.Op)
 			glBlendEquation(*blend.Op == BlendOp::Max ? GL_MAX : GL_FUNC_ADD);
@@ -162,10 +234,19 @@ namespace GB::RHI
 		glScissor(rect->x, rect->y, rect->z, rect->w);
 	}
 
-	void GLCommandList::SetUniformInt(ProgramHandle program, int location, int value) { glProgramUniform1i(program.Id, location, value); }
+	void GLCommandList::SetUniformInt(ProgramHandle program, int location, int value)
+	{
+		if (SendUniform(program, location, UniformCache::Kind::Int, &value, sizeof value))
+			glProgramUniform1i(program.Id, location, value);
+	}
 
 	void GLCommandList::SetUniformFloats(ProgramHandle program, int location, uint32_t components, uint32_t count, const float* values)
 	{
+		// one value of 1-4 floats is cached; an array is always sent (and its location forgotten)
+		const UniformCache::Kind kind = count != 1 || components < 1 || components > 4 ? UniformCache::Kind::None
+			: static_cast<UniformCache::Kind>(static_cast<uint32_t>(UniformCache::Kind::Float1) + components - 1);
+		if (!SendUniform(program, location, kind, values, components * static_cast<uint32_t>(sizeof(float))))
+			return;
 		const GLsizei n = static_cast<GLsizei>(count);
 		switch (components)
 		{
@@ -178,21 +259,38 @@ namespace GB::RHI
 
 	void GLCommandList::SetUniformMat4(ProgramHandle program, int location, const glm::mat4& value)
 	{
+		if (!SendUniform(program, location, UniformCache::Kind::Mat4, glm::value_ptr(value), static_cast<uint32_t>(sizeof(glm::mat4))))
+			return;
 		glProgramUniformMatrix4fv(program.Id, location, 1, GL_FALSE, glm::value_ptr(value));
 	}
 
-	void GLCommandList::BindTexture(uint32_t unit, TextureHandle texture) { glBindTextureUnit(unit, texture.Id); }
-	void GLCommandList::BindStorageBuffer(uint32_t slot, BufferHandle buffer) { glBindBufferBase(GL_SHADER_STORAGE_BUFFER, slot, buffer.Id); }
+	void GLCommandList::BindTexture(uint32_t unit, TextureHandle texture)
+	{
+		++Counters::Frame.TextureBinds;
+		glBindTextureUnit(unit, texture.Id);
+	}
+
+	void GLCommandList::BindStorageBuffer(uint32_t slot, BufferHandle buffer)
+	{
+		++Counters::Frame.BufferBinds;
+		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, slot, buffer.Id);
+	}
 
 	void GLCommandList::UploadStream(BufferHandle buffer, size_t bytes, const void* data)
 	{
+		Counters::Frame.UploadBytes += bytes;
 		glNamedBufferData(buffer.Id, static_cast<GLsizeiptr>(bytes), data, GL_STREAM_DRAW);
 	}
 
-	void GLCommandList::BindVertexLayout(VertexLayoutHandle layout) { glBindVertexArray(layout.Id); }
+	void GLCommandList::BindVertexLayout(VertexLayoutHandle layout)
+	{
+		++Counters::Frame.LayoutBinds;
+		glBindVertexArray(layout.Id);
+	}
 
 	void GLCommandList::SetVertexBuffer(VertexLayoutHandle layout, uint32_t binding, BufferHandle buffer, size_t offset, uint32_t stride)
 	{
+		++Counters::Frame.BufferBinds;
 		glVertexArrayVertexBuffer(layout.Id, binding, buffer.Id, static_cast<GLintptr>(offset), static_cast<GLsizei>(stride));
 	}
 
@@ -245,6 +343,8 @@ namespace GB::RHI
 
 	BufferHandle GLDevice::CreateBuffer(size_t bytes, const void* data, bool dynamic)
 	{
+		if (data)
+			Counters::Frame.UploadBytes += bytes;
 		GLuint b = 0;
 		glCreateBuffers(1, &b);
 		glNamedBufferStorage(b, static_cast<GLsizeiptr>(bytes), data, dynamic ? GL_DYNAMIC_STORAGE_BIT : 0);
@@ -260,6 +360,7 @@ namespace GB::RHI
 
 	void GLDevice::UpdateBuffer(BufferHandle buffer, size_t offset, size_t bytes, const void* data)
 	{
+		Counters::Frame.UploadBytes += bytes;
 		glNamedBufferSubData(buffer.Id, static_cast<GLintptr>(offset), static_cast<GLsizeiptr>(bytes), data);
 	}
 
@@ -305,6 +406,7 @@ namespace GB::RHI
 
 	void GLDevice::UploadTexture(TextureHandle texture, uint32_t x, uint32_t y, uint32_t width, uint32_t height, PixelData layout, const void* data)
 	{
+		Counters::Frame.UploadBytes += static_cast<uint64_t>(width) * height * PixelBytes(layout);
 		GLenum format = GL_RGBA, type = GL_UNSIGNED_BYTE;
 		PixelFormat(layout, format, type);
 		glTextureSubImage2D(texture.Id, 0, static_cast<GLint>(x), static_cast<GLint>(y), static_cast<GLsizei>(width), static_cast<GLsizei>(height),
@@ -445,6 +547,7 @@ namespace GB::RHI
 		}
 
 		const GLuint program = glCreateProgram();
+		m_Commands.ForgetProgram({ program });   // (a name reused from a destroyed program)
 		glAttachShader(program, vs);
 		glAttachShader(program, fs);
 		glLinkProgram(program);
@@ -470,7 +573,10 @@ namespace GB::RHI
 
 	void GLDevice::DestroyProgram(ProgramHandle program)
 	{
-		if (program) glDeleteProgram(program.Id);
+		if (!program)
+			return;
+		m_Commands.ForgetProgram(program);
+		glDeleteProgram(program.Id);
 	}
 
 	VertexLayoutHandle GLDevice::CreateVertexLayout(const VertexLayoutDesc& desc)
