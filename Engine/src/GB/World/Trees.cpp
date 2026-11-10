@@ -60,6 +60,7 @@ namespace GB
 		{
 			std::vector<Vertex> v;
 			std::vector<uint32_t> i;
+			size_t Cards = 0;   // leaf cards added (T113: the count of the crown, some cards being built into a scratch builder)
 
 			uint32_t Add(const glm::vec3& p, const glm::vec3& n, const glm::vec2& uv, const glm::vec4& t)
 			{
@@ -168,6 +169,7 @@ namespace GB
 			void LeafCard(const glm::vec3& c, const glm::vec3& r, const glm::vec3& u, float halfW, float halfH, int cols, int rows,
 			              float fold, float curl, float twist, float jitter, const glm::vec3& bendDir, uint32_t seed, const glm::vec3& normal)
 			{
+				++Cards;
 				const uint32_t base = static_cast<uint32_t>(v.size());
 				const glm::vec3 pn = glm::normalize(glm::cross(r, u));
 				const glm::vec3 bend = glm::dot(bendDir, pn) < 0.0f ? -pn : pn;
@@ -217,7 +219,88 @@ namespace GB
 						i.insert(i.end(), { a, b, a + 1, a + 1, b, b + 1 });
 					}
 			}
+
+			// T113: a cut face closing the open rim of a strip (`m` + 1 vertices of `rim` from `rimStart`, the last one repeating the first):
+			// the same positions bit for bit, so the bark and the face close the wood; facing `out`; the wood_end tile fitted to the face
+			// (0.5 +- 0.49 of the ring's radius), turned by `turn`.
+			void Disc(const MeshBuilder& rim, uint32_t rimStart, int m, const glm::vec3& centre, const glm::vec3& out, float radius, float turn)
+			{
+				const glm::vec3 n = glm::normalize(out);
+				const glm::vec3 a = AnyPerpendicular(n), b = glm::cross(n, a);
+				const float ca = std::cos(turn), sa = std::sin(turn);
+				auto uv = [&](const glm::vec3& p)
+				{
+					const glm::vec2 q(glm::dot(p - centre, a), glm::dot(p - centre, b));
+					return glm::vec2(0.5f) + 0.49f * glm::vec2(q.x * ca - q.y * sa, q.x * sa + q.y * ca) / std::max(radius, 1e-5f);
+				};
+				const uint32_t c = Add(centre, n, { 0.5f, 0.5f }, glm::vec4(a, 1.0f));
+				for (int s = 0; s <= m; ++s)
+				{
+					const glm::vec3& p = rim.v[rimStart + static_cast<uint32_t>(s)].Position;
+					Add(p, n, uv(p), glm::vec4(a, 1.0f));
+				}
+				const glm::vec3 p0 = rim.v[rimStart].Position, p1 = rim.v[rimStart + 1].Position;
+				const bool flip = glm::dot(glm::cross(p0 - centre, p1 - centre), n) < 0.0f;
+				for (uint32_t s = 0; s < static_cast<uint32_t>(m); ++s)
+				{
+					const uint32_t q0 = c + 1 + s, q1 = q0 + 1;
+					if (flip) i.insert(i.end(), { c, q1, q0 }); else i.insert(i.end(), { c, q0, q1 });
+				}
+			}
+
+			// T113: a closed box (a wood chip), `half` its half sizes, turned by `yaw` round Y; flat faces, UV in metres.
+			void Box(const glm::vec3& c, const glm::vec3& half, float yaw, float tilt)
+			{
+				const glm::vec3 ax = RotateY(glm::vec3(1, 0, 0), yaw);
+				const glm::vec3 ay = glm::normalize(glm::vec3(0, 1, 0) + ax * tilt);
+				const glm::vec3 axT = glm::normalize(ax - ay * glm::dot(ax, ay));
+				const glm::vec3 e[3] = { axT * half.x, ay * half.y, glm::normalize(glm::cross(axT, ay)) * half.z };
+				glm::vec3 corners[8];   // computed once, so the faces share their corners bit for bit (a closed solid)
+				for (int q = 0; q < 8; ++q)
+					corners[q] = c + e[0] * ((q & 1) ? 1.0f : -1.0f) + e[1] * ((q & 2) ? 1.0f : -1.0f) + e[2] * ((q & 4) ? 1.0f : -1.0f);
+				for (int f = 0; f < 6; ++f)
+				{
+					const int k = f / 2;
+					const float sgn = (f % 2) ? -1.0f : 1.0f;
+					const glm::vec3 n = glm::normalize(e[k]) * sgn;
+					const int ku = (k + 1) % 3, kw = (k + 2) % 3;
+					const glm::vec3 u = e[ku], w = e[kw];
+					const uint32_t base = static_cast<uint32_t>(v.size());
+					const glm::vec2 corner[4] = { { -1, -1 }, { 1, -1 }, { 1, 1 }, { -1, 1 } };
+					for (const glm::vec2& q : corner)
+					{
+						int bits = sgn > 0.0f ? (1 << k) : 0;
+						if (q.x > 0.0f) bits |= 1 << ku;
+						if (q.y > 0.0f) bits |= 1 << kw;
+						Add(corners[bits], n, { (q.x + 1.0f) * glm::length(u), (q.y + 1.0f) * glm::length(w) }, glm::vec4(glm::normalize(u), 1.0f));
+					}
+					const bool flip = glm::dot(glm::cross(u, w), n) < 0.0f;
+					if (flip) i.insert(i.end(), { base, base + 2, base + 1, base, base + 3, base + 2 });
+					else i.insert(i.end(), { base, base + 1, base + 2, base, base + 2, base + 3 });
+				}
+			}
+
+			static glm::vec3 RotateY(const glm::vec3& p, float a) { return glm::vec3(p.x * std::cos(a) + p.z * std::sin(a), p.y, -p.x * std::sin(a) + p.z * std::cos(a)); }
 		};
+
+		// T113: smooth normals over the triangles from `from` on (vertices at the same position share theirs: the seam of a ball).
+		void SmoothNormals(MeshBuilder& mb, uint32_t from)
+		{
+			std::vector<glm::vec3> acc(mb.v.size(), glm::vec3(0.0f));
+			for (size_t t = 0; t + 2 < mb.i.size(); t += 3)
+			{
+				if (mb.i[t] < from) continue;
+				const glm::vec3 fn = glm::cross(mb.v[mb.i[t + 1]].Position - mb.v[mb.i[t]].Position, mb.v[mb.i[t + 2]].Position - mb.v[mb.i[t]].Position);
+				for (int k = 0; k < 3; ++k) acc[mb.i[t + static_cast<size_t>(k)]] += fn;
+			}
+			for (size_t a = from; a < mb.v.size(); ++a)
+			{
+				glm::vec3 sum(0.0f);
+				for (size_t b = from; b < mb.v.size(); ++b)
+					if (mb.v[b].Position == mb.v[a].Position) sum += acc[b];
+				if (glm::length(sum) > 1e-12f) mb.v[a].Normal = glm::normalize(sum);
+			}
+		}
 
 		glm::vec3 RotateAround(const glm::vec3& v, const glm::vec3& axis, float a)
 		{
@@ -592,6 +675,81 @@ namespace GB
 		}
 	}
 
+	namespace
+	{
+		// T113: how a stage reshapes the adult's skeleton (TreeParams::Stage). The positions scale by the stage's height over the adult's;
+		// the radii by the same with Thick (mature, old) or, for the young stages, by a power law: the trunk thins much more than the twigs,
+		// which stay at least 2.5 mm (a young tree is slender, its twigs are not thinner than an old tree's).
+		struct StageShape
+		{
+			float Thick;    // the radii over the scale (Gamma 1)
+			float Gamma;    // < 1: radius = max(scale x thinnest twig, 2.5 mm) x (r / thinnest twig)^Gamma
+			float Crown;    // the crown's width (x, z) over the scale, from a quarter of the height up
+			float Roots;    // the roots' reach and thickness past their first ring
+			float Card;     // the leaf cards' size
+			float Budget;   // broadleaf: the crown's card budget
+			float Sprays;   // conifer: the share of sprays kept
+			int Levels;     // broadleaf: the deepest branch level grown (a bare tree one more)
+			int Whorls;     // conifer: one whorl in this many grown
+			float Twist;    // the trunk's axis winds round a helix of this many trunk radii (old)
+		};
+		const StageShape kStages[6] = {
+			{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 99, 1, 0.0f },       // sprout (its own little builder)
+			{ 1.0f, 0.55f, 0.85f, 1.0f, 0.5f, 0.12f, 0.45f, 1, 3, 0.0f },     // sapling
+			{ 1.0f, 0.75f, 0.92f, 1.0f, 0.75f, 0.45f, 0.6f, 2, 2, 0.0f },    // young
+			{ 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 1.0f, 99, 1, 0.0f },       // adult: the skeleton as it is
+			{ 1.2f, 1.0f, 1.15f, 1.3f, 1.05f, 1.1f, 1.0f, 99, 1, 0.0f },    // mature
+			{ 1.4f, 1.0f, 1.2f, 1.6f, 1.0f, 0.8f, 0.85f, 99, 1, 0.22f } };  // old
+
+		// The kinds of wood a strip is, for what a stage and a piece of a felled tree do with it.
+		enum class Wood { Trunk, Limb, Root, Knot };
+		struct WoodInfo
+		{
+			Wood Kind = Wood::Limb;
+			int Level = 1;
+			glm::vec3 Anchor{ 0.0f };   // roots and knots: the point of the trunk they grow from (their rings scale round it)
+			float AnchorR = 0.0f;       // and the trunk's radius there (they thicken as it does)
+			int Collar = -1;            // the ring of the collar (dropped when the stage thins the branches: it would float off the parent)
+			float StubParentR = 0.0f;   // > 0: taken: cut to a stub just out of its parent (of this radius, unscaled)
+			glm::vec3 StubParentDir{ 0.0f, 1.0f, 0.0f };
+			float BreakAt = 0.0f;       // > 0: broken at this share of its length, ending in a splinter
+		};
+
+		std::unique_ptr<Tree> BuildTree(const TreeParams& p, float fixedFit, float* fitOut);
+	}
+
+	float TreeFactory::StageHeight(const TreeParams& p)
+	{
+		const float H = p.Height;
+		if (p.Species == TreeSpecies::Palm) return H;
+		switch (p.Stage)
+		{
+		case TreeStage::Sprout: return 0.15f + 0.15f * Hash(static_cast<int>(p.Seed), 77, 5u);
+		case TreeStage::Sapling: return std::max(std::min(std::clamp(0.19f * H, 1.0f, 2.0f), 0.3f * H), 0.4f);
+		case TreeStage::Young: return std::max(std::min(std::clamp(0.45f * H, 3.0f, 5.0f), 0.7f * H), 0.8f);
+		case TreeStage::Adult: return H;
+		case TreeStage::Mature: return 1.08f * H;
+		case TreeStage::Old: return 1.12f * H;
+		}
+		return H;
+	}
+
+	// T113: a piece of a felled tree, or a tree with branches taken, is fitted to its height by the same factor as the plain standing tree
+	// of its stage (so a stump, a fallen trunk and the tree they came from measure the same, and taking branches does not rescale it).
+	std::unique_ptr<Tree> TreeFactory::Create(const TreeParams& p)
+	{
+		float fit = 0.0f;
+		if (p.Part != TreePart::Standing || p.BranchesTaken > 0.0f)
+		{
+			TreeParams plain = p;
+			plain.Part = TreePart::Standing;
+			plain.BranchesTaken = 0.0f;
+			plain.Planted = plain.Uprooted = false;
+			(void)BuildTree(plain, 0.0f, &fit);
+		}
+		return BuildTree(p, fit, nullptr);
+	}
+
 	// The bark and leaf images depend on nothing of the world: painted once in the process (seconds of work), on whichever thread asks first
 	// (the static is initialised once even when two threads ask together).
 	const TreeImages& TreeFactory::Textures()
@@ -621,7 +779,9 @@ namespace GB
 		return p.Species == TreeSpecies::Conifer ? TreeTexture::Needle : p.Species == TreeSpecies::Palm ? TreeTexture::Frond : broadleaf[p.Seed % 3];
 	}
 
-	std::unique_ptr<Tree> TreeFactory::Create(const TreeParams& p)
+	namespace
+	{
+	std::unique_ptr<Tree> BuildTree(const TreeParams& p, float fixedFit, float* fitOut)
 	{
 		auto tree = std::make_unique<Tree>();
 		Rng rng(static_cast<uint64_t>(p.Seed) * 2654435761u + static_cast<uint64_t>(p.Species) * 97u + 13u);
@@ -640,6 +800,472 @@ namespace GB
 		uint32_t cardSeed = 0;
 
 		float crownRadius = H * 0.4f;
+
+		// ---- T113: the stage, what was done to the tree and the piece made. The adult standing tree takes none of these paths: its strips go
+		// to wood.Strip and its cards to `leaves` as before T113, bit for bit (`plainShape`, Part Standing, nothing taken).
+		const bool palm = p.Species == TreeSpecies::Palm;
+		const StageShape& sg = kStages[palm ? 3 : static_cast<size_t>(p.Stage)];
+		const float Ht = TreeFactory::StageHeight(p);
+		const float grow = Ht / H;                 // the stage's positions over the adult's
+		const bool plainShape = palm || p.Stage == TreeStage::Adult;
+		const bool wantLeaves = p.Part == TreePart::Standing;
+		const bool thin = sg.Gamma < 1.0f;
+		MeshBuilder cuts, soil;
+		MeshBuilder scratch;   // the cards of the branches taken, dead or not grown: built there and dropped, so the rest of the crown keeps its draws
+		float rMinA = H * 0.0011f;                 // the adult's thinnest twig (set per species)
+		float baseRA = trunkR;                     // the adult trunk's radius at its foot, without the flare
+		float trunkTopA = H * 0.35f;               // the top of the adult's trunk proper
+		std::function<glm::vec3(float)> axisA = [](float y) { return glm::vec3(0.0f, y, 0.0f); };   // the adult trunk's axis at height y
+		const float twistPh = 2.0f * kPi * Hash(static_cast<int>(p.Seed), 81, 3u), twistPitch = 2.4f + 1.2f * Hash(static_cast<int>(p.Seed), 82, 3u);
+		auto warp = [&](float y)   // the old trunk winds round a helix (a fraction of its radius), fading out at the foot and above the trunk
+		{
+			if (sg.Twist <= 0.0f) return glm::vec3(0.0f);
+			const float a = twistPh + y / twistPitch * 2.0f * kPi;
+			const float fade = glm::smoothstep(0.0f, 1.5f * baseRA + 0.5f, y) * (1.0f - glm::smoothstep(trunkTopA, trunkTopA * 1.6f, y));
+			return glm::vec3(std::cos(a), 0.0f, std::sin(a)) * (sg.Twist * baseRA * fade);
+		};
+		float flareA = 1.0f;                       // the height over which the adult trunk's foot flares out
+		auto T = [&](glm::vec3 c)   // a point of the adult's skeleton where the stage has it
+		{
+			c += warp(c.y);
+			const float cx = 1.0f + (sg.Crown - 1.0f) * glm::smoothstep(0.25f * H, 0.6f * H, c.y);
+			// a thicker trunk's flared foot rises as much higher as it widens (its slope kept); an old one's whole trunk stretches a little
+			const float rise = sg.Twist > 0.0f ? std::max(flareA, 0.6f * trunkTopA) : flareA;
+			const float lift = sg.Thick > 1.0f ? (sg.Thick - 1.0f) * (c.y > 0.0f ? rise * (1.0f - std::exp(-c.y / rise)) : c.y) : 0.0f;
+			return glm::vec3(c.x * grow * cx, (c.y + lift) * grow, c.z * grow * cx);
+		};
+		auto mapR = [&](float r)   // a radius of the adult's skeleton at the stage
+		{
+			if (r <= 0.0f) return 0.0f;
+			// (a mature or old tree thickens by Thick, every branch alike: a mouth stays inside its parent. Thick stays moderate: the taper's
+			// slope grows with it, and the bark's u, in metres round every ring, shears with the slope; the flared foot rises with it, T)
+			if (!thin) return r * grow * sg.Thick;
+			return std::max(std::max(grow * rMinA, 0.0025f) * std::pow(r / rMinA, sg.Gamma), 0.0022f);
+		};
+		auto thickT = [&]() { return mapR(baseRA) / (grow * baseRA); };   // the trunk's radius over the scale (roots and knots follow it)
+
+		// the felled tree: the stump's height, the fallen trunk's pose, what the bucked pieces are cut from (all in the stage's metres)
+		const glm::vec3 fallDir(std::cos(p.FallAzimuth), 0.0f, std::sin(p.FallAzimuth));
+		float cutY = 0.0f;
+		auto cutHeight = [&]() { if (cutY <= 0.0f) cutY = glm::clamp(0.25f + mapR(baseRA), 0.3f, 0.8f); return cutY; };
+		bool laid = false;
+		glm::vec3 layPivot(0.0f), layAxis(0.0f, 0.0f, 1.0f), layOffset(0.0f);
+		float layAngle = 0.0f;
+		auto lay = [&](const glm::vec3& c) { return RotateAround(c - layPivot, layAxis, layAngle) + layOffset; };
+		std::vector<Ring> buckTrunk;
+		std::vector<int> buckTrunkSides;
+		std::vector<std::vector<Ring>> buckLimbs;
+		uint32_t pieceKey = 0;
+
+		// a strip into the bark, its open ends closed by cut faces (the same rim vertices: the wood is closed)
+		auto put = [&](const std::vector<Ring>& rings, const std::vector<int>& sides, bool tip, bool cutStart, bool cutEnd, float u0, float v0)
+		{
+			if (rings.size() < 2) return;
+			const uint32_t first = static_cast<uint32_t>(wood.v.size());
+			wood.Strip(rings, sides, tip, u0, v0);
+			const size_t n = rings.size();
+			++pieceKey;
+			if (cutStart)
+				cuts.Disc(wood, first, std::max(3, sides.front()), rings.front().C, rings.front().C - rings[1].C, rings.front().R, 2.0f * kPi * Hash(static_cast<int>(pieceKey), 61, p.Seed));
+			if (cutEnd && !tip)
+			{
+				const int m = std::max(3, sides.back());
+				cuts.Disc(wood, static_cast<uint32_t>(wood.v.size()) - static_cast<uint32_t>(m + 1), m, rings.back().C, rings.back().C - rings[n - 2].C, rings.back().R,
+				          2.0f * kPi * Hash(static_cast<int>(pieceKey), 62, p.Seed));
+			}
+		};
+		auto lengthOf = [](const std::vector<Ring>& rings)
+		{
+			float len = 0.0f;
+			for (size_t k = 0; k + 1 < rings.size(); ++k) len += glm::distance(rings[k].C, rings[k + 1].C);
+			return len;
+		};
+		auto ringAlong = [](const std::vector<Ring>& rings, float at)   // the ring `at` metres along a strip
+		{
+			float walked = 0.0f;
+			for (size_t k = 0; k + 1 < rings.size(); ++k)
+			{
+				const float seg = glm::distance(rings[k].C, rings[k + 1].C);
+				if (walked + seg >= at && seg > 1e-6f)
+				{
+					const float t = glm::clamp((at - walked) / seg, 0.0f, 1.0f);
+					return Ring{ glm::mix(rings[k].C, rings[k + 1].C, t), glm::mix(rings[k].R, rings[k + 1].R > 0.0f ? rings[k + 1].R : rings[k].R, t) };
+				}
+				walked += seg;
+			}
+			return rings.back();
+		};
+		// cuts a strip `len` metres along it (the last ring interpolated); false when it is shorter
+		auto truncate = [](std::vector<Ring>& rings, std::vector<int>& sides, float len)
+		{
+			float walked = 0.0f;
+			for (size_t k = 0; k + 1 < rings.size(); ++k)
+			{
+				const float seg = glm::distance(rings[k].C, rings[k + 1].C);
+				if (walked + seg >= len && seg > 1e-6f)
+				{
+					const float t = glm::clamp((len - walked) / seg, 0.1f, 1.0f);
+					const Ring r{ glm::mix(rings[k].C, rings[k + 1].C, t), glm::mix(rings[k].R, rings[k + 1].R > 0.0f ? rings[k + 1].R : rings[k].R, t) };
+					rings.resize(k + 1);
+					sides.resize(k + 1);
+					rings.push_back(r);
+					sides.push_back(sides.back());
+					return true;
+				}
+				walked += seg;
+			}
+			return false;
+		};
+		// the trunk's rings below or above the height y (the ring at y last or first)
+		auto splitY = [](const std::vector<Ring>& rings, const std::vector<int>& sides, float y, bool below, std::vector<Ring>& outR, std::vector<int>& outS)
+		{
+			outR.clear();
+			outS.clear();
+			for (size_t k = 0; k + 1 < rings.size(); ++k)
+			{
+				const float y0 = rings[k].C.y, y1 = rings[k + 1].C.y;
+				if (!(y0 <= y && y1 > y)) continue;
+				const float t = glm::clamp((y - y0) / (y1 - y0), 0.0f, 1.0f);
+				const Ring cut{ glm::mix(rings[k].C, rings[k + 1].C, t), glm::mix(rings[k].R, rings[k + 1].R > 0.0f ? rings[k + 1].R : rings[k].R, t) };
+				if (below)
+				{
+					const size_t keep = (t < 0.1f && k > 0) ? k : k + 1;   // (never two rings on top of each other)
+					outR.assign(rings.begin(), rings.begin() + static_cast<std::ptrdiff_t>(keep));
+					outS.assign(sides.begin(), sides.begin() + static_cast<std::ptrdiff_t>(keep));
+					outR.push_back(cut);
+					outS.push_back(sides[k]);
+				}
+				else
+				{
+					const size_t from = (t > 0.9f && k + 2 < rings.size()) ? k + 2 : k + 1;
+					outR.push_back(cut);
+					outS.push_back(sides[k + 1]);
+					outR.insert(outR.end(), rings.begin() + static_cast<std::ptrdiff_t>(from), rings.end());
+					outS.insert(outS.end(), sides.begin() + static_cast<std::ptrdiff_t>(from), sides.end());
+				}
+				return;
+			}
+		};
+		// chips of wood round a stump of radius rc
+		auto addChips = [&](float rc)
+		{
+			const int count = detail == 0 ? 5 : 9;
+			for (int k = 0; k < count; ++k)
+			{
+				const float a = 2.0f * kPi * Hash(k, 71, p.Seed), d = rc * (1.25f + 2.0f * Hash(k, 72, p.Seed)) + 0.05f;
+				const glm::vec3 half(0.025f + 0.035f * Hash(k, 73, p.Seed), 0.006f + 0.006f * Hash(k, 74, p.Seed), 0.012f + 0.015f * Hash(k, 75, p.Seed));
+				cuts.Box(glm::vec3(std::cos(a) * d, half.y * 0.7f, std::sin(a) * d), half, 2.0f * kPi * Hash(k, 76, p.Seed), 0.3f * (Hash(k, 77, p.Seed) - 0.5f));
+			}
+		};
+
+		// Every strip of wood of a broadleaf or a conifer goes through here: the stage reshapes it (T, mapR), a taken branch is cut to a stub, a
+		// broken one ends in a splinter, and the piece asked for keeps, cuts, lays down or collects it.
+		auto emit = [&](std::vector<Ring> rings, std::vector<int> sides, bool tip, float u0, float v0, const WoodInfo& info)
+		{
+			const bool stub = info.StubParentR > 0.0f, broken = info.BreakAt > 0.0f;
+			if (plainShape && p.Part == TreePart::Standing && !stub && !broken)
+			{
+				wood.Strip(rings, sides, tip, u0, v0);
+				return;
+			}
+			// the stage
+			if (thin && info.Collar > 0 && info.Collar + 1 < static_cast<int>(rings.size()))
+			{
+				rings.erase(rings.begin() + info.Collar);
+				sides.erase(sides.begin() + info.Collar);
+			}
+			const float tk = info.AnchorR > 0.0f ? mapR(info.AnchorR) / (grow * info.AnchorR) : thickT();
+			for (size_t j = 0; j < rings.size(); ++j)
+			{
+				Ring& r = rings[j];
+				if (info.Kind == Wood::Root || info.Kind == Wood::Knot)
+				{
+					// round the point of the trunk they grow from, as the trunk thickens (the roots past their first ring reach further)
+					const float out = info.Kind == Wood::Root ? 1.0f + (sg.Roots - 1.0f) * static_cast<float>(j) / static_cast<float>(rings.size() - 1) : 1.0f;
+					const glm::vec3 d = r.C - info.Anchor;
+					const float kh = tk * out, kv = info.Kind == Wood::Root ? std::min(tk, 1.0f) : tk;
+					r.C = T(info.Anchor + glm::vec3(d.x * kh, d.y * kv, d.z * kh));   // (T: the scale, and the old trunk's twist at its height)
+					if (r.R > 0.0f) r.R = std::max(r.R * grow * tk * out, 0.0025f);
+				}
+				else
+				{
+					if (info.Kind == Wood::Trunk && sg.Twist > 0.0f && r.R > 0.0f && r.C.y < trunkTopA)   // the old trunk's burrs
+						r.R *= 1.0f + 0.08f * std::max(0.0f, std::sin(r.C.y * 1.7f + twistPh)) * (1.0f - r.C.y / trunkTopA);
+					r.C = T(r.C);
+					r.R = mapR(r.R);
+				}
+			}
+			bool cutEnd = false;
+			if (stub && rings.size() >= 2)
+			{
+				// just out of its parent's bark: the length it takes to leave it at its angle, and a little more
+				const glm::vec3 d0 = glm::normalize(rings[1].C - rings[0].C + glm::vec3(1e-7f));
+				const float sinT = glm::length(glm::cross(d0, glm::normalize(info.StubParentDir)));
+				const float len = mapR(info.StubParentR) / std::max(sinT, 0.2f) + std::max(0.6f * rings[0].R, 0.02f);
+				if (!truncate(rings, sides, len) && rings.back().R <= 0.0f)
+				{
+					rings.pop_back();
+					sides.pop_back();
+				}
+				tip = false;
+				cutEnd = true;
+			}
+			else if (broken && rings.size() >= 2)
+			{
+				truncate(rings, sides, info.BreakAt * lengthOf(rings));
+				// (a break just past a ring breaks at that ring: a sliver of bark between them would be pinched by the splinter)
+				if (rings.size() >= 3 && glm::distance(rings[rings.size() - 1].C, rings[rings.size() - 2].C) < 0.8f * rings[rings.size() - 2].R)
+				{
+					rings.erase(rings.end() - 1);
+					sides.erase(sides.end() - 1);
+				}
+				const Ring last = rings.back();
+				if (last.R > 0.0f)
+				{
+					// a splinter: a short point off to one side
+					const glm::vec3 d = glm::normalize(last.C - rings[rings.size() - 2].C + glm::vec3(1e-7f));
+					rings.push_back({ last.C + d * (last.R * 1.4f) + AnyPerpendicular(d) * (last.R * 0.6f), 0.0f });
+					sides.push_back(sides.back());
+				}
+				tip = true;
+			}
+			if (rings.size() < 2) return;
+			switch (p.Part)
+			{
+			case TreePart::Standing:
+				put(rings, sides, tip, false, cutEnd, u0, v0);
+				return;
+			case TreePart::Stump:
+			{
+				const float cy = cutHeight();
+				if (info.Kind == Wood::Limb) return;
+				if (info.Kind == Wood::Knot)
+				{
+					for (const Ring& r : rings) if (r.C.y + r.R > cy - 0.03f) return;
+				}
+				else if (info.Kind == Wood::Root)
+				{
+					for (Ring& r : rings) r.C.y = std::min(r.C.y, cy - r.R - 0.03f);   // the root's flare kept under the cut
+				}
+				else
+				{
+					// the trunk's foot up to the cut, the cut face on top, chips round it
+					std::vector<Ring> below;
+					std::vector<int> belowS;
+					splitY(rings, sides, cy, true, below, belowS);
+					put(below, belowS, false, false, true, u0, v0);
+					if (!below.empty()) addChips(below.back().R);
+					return;
+				}
+				put(rings, sides, tip, false, cutEnd, u0, v0);
+				return;
+			}
+			case TreePart::FallenTrunk:
+			{
+				const float cy = cutHeight();
+				if (info.Kind == Wood::Root || (info.Kind == Wood::Limb && info.Level > 1)) return;
+				bool cutStart = false;
+				if (info.Kind == Wood::Trunk)
+				{
+					std::vector<Ring> above;
+					std::vector<int> aboveS;
+					splitY(rings, sides, cy, false, above, aboveS);
+					if (above.size() < 2) return;
+					rings = std::move(above);
+					sides = std::move(aboveS);
+					cutStart = true;
+					// lie down: the trunk's axis (from the cut to the top of the trunk) along the fall, resting on the ground, its butt by the stump
+					layPivot = rings.front().C;
+					const glm::vec3 a = glm::normalize(T(axisA(trunkTopA)) - layPivot + glm::vec3(0.0f, 1e-4f, 0.0f));
+					const glm::vec3 ax = glm::cross(a, fallDir);
+					layAxis = glm::length(ax) > 1e-5f ? glm::normalize(ax) : AnyPerpendicular(a);
+					layAngle = std::acos(glm::clamp(glm::dot(a, fallDir), -1.0f, 1.0f));
+					layOffset = glm::vec3(0.0f);
+					float lift = -1e9f;
+					for (const Ring& r : rings) lift = std::max(lift, r.R - lay(r.C).y);
+					layOffset = fallDir * (rings.front().R + 0.25f) + glm::vec3(0.0f, lift, 0.0f);
+					laid = true;
+				}
+				else if (info.Kind == Wood::Limb)
+				{
+					if (rings.front().C.y < cy + rings.front().R) return;   // (below the cut: it stays on the stump)
+				}
+				else
+				{
+					for (const Ring& r : rings) if (r.C.y - r.R < cy + 0.03f) return;
+				}
+				if (!laid) return;
+				for (Ring& r : rings)
+				{
+					r.C = lay(r.C);
+					if (info.Kind != Wood::Trunk) r.C.y = std::max(r.C.y, std::max(r.R, 0.01f));   // the branches under it pressed onto the ground
+				}
+				put(rings, sides, tip, cutStart, cutEnd, u0, v0);
+				return;
+			}
+			case TreePart::Bucked:
+			{
+				const float cy = cutHeight();
+				if (info.Kind == Wood::Trunk)
+					splitY(rings, sides, cy, false, buckTrunk, buckTrunkSides);
+				else if (info.Kind == Wood::Limb && info.Level == 1 && rings.front().C.y > cy)
+					buckLimbs.push_back(rings);
+				return;
+			}
+			}
+		};
+
+		// The trunk cut into logs (1.6 m, up to five, two rows) lying along the fall beside the stump, and the main branches cut into pieces
+		// of up to 1.2 m piled beside them; every end a cut face.
+		auto buildBucked = [&]()
+		{
+			if (buckTrunk.size() < 2) return;
+			const glm::vec3 side(-fallDir.z, 0.0f, fallDir.x);
+			const int logSides = std::max(5, buckTrunkSides.front());
+			const float r0 = buckTrunk.front().R, y0 = buckTrunk.front().C.y;
+			auto radiusAtY = [&](float y)
+			{
+				for (size_t k = 0; k + 1 < buckTrunk.size(); ++k)
+					if (buckTrunk[k + 1].C.y >= y)
+					{
+						const float t = glm::clamp((y - buckTrunk[k].C.y) / std::max(buckTrunk[k + 1].C.y - buckTrunk[k].C.y, 1e-4f), 0.0f, 1.0f);
+						return glm::mix(buckTrunk[k].R, buckTrunk[k + 1].R > 0.0f ? buckTrunk[k + 1].R : buckTrunk[k].R, t);
+					}
+				return buckTrunk.back().R;
+			};
+			float yTop = y0;
+			for (const Ring& r : buckTrunk)
+			{
+				if (r.R < std::max(0.05f, 0.2f * r0)) break;   // (the leader above a fork still gives logs; the twigs do not)
+				yTop = r.C.y;
+			}
+			const float usable = std::max(yTop - y0, 0.6f);
+			float L = 1.6f;
+			int count = std::min(static_cast<int>(usable / L), 5);
+			if (count < 1) { count = 1; L = usable; }
+			std::vector<glm::vec2> logs;
+			float rMax = 0.0f;
+			for (int k = 0; k < count; ++k)
+			{
+				logs.push_back({ radiusAtY(y0 + L * static_cast<float>(k)), radiusAtY(y0 + L * static_cast<float>(k + 1)) });
+				rMax = std::max(rMax, std::max(logs.back().x, logs.back().y));
+			}
+			const int bottom = std::min(count, 3);
+			const glm::vec3 start = fallDir * (r0 + 0.5f);
+			for (int k = 0; k < count; ++k)
+			{
+				const bool upper = k >= bottom;
+				const int j = upper ? k - bottom : k, m = upper ? count - bottom : bottom;
+				const float lateral = (static_cast<float>(j) - 0.5f * static_cast<float>(m - 1)) * (2.0f * rMax + 0.03f);
+				const float y = upper ? rMax * 2.73f : std::max(logs[static_cast<size_t>(k)].x, logs[static_cast<size_t>(k)].y);
+				std::vector<Ring> rr;
+				for (int q = 0; q <= 3; ++q)
+				{
+					const float t = static_cast<float>(q) / 3.0f;
+					rr.push_back({ start + fallDir * (t * L) + side * lateral + up * y, glm::mix(logs[static_cast<size_t>(k)].x, logs[static_cast<size_t>(k)].y, t) });
+				}
+				put(rr, std::vector<int>(rr.size(), logSides), false, true, true, Hash(k, 63, p.Seed), Hash(k, 64, p.Seed));
+			}
+			// the branches
+			const int pieceSides = std::max(4, 6 - sideCut);
+			const int maxPieces = detail == 0 ? 10 : 16;
+			const glm::vec3 pileAt = start + fallDir * (0.5f * L) + side * (0.5f * static_cast<float>(bottom - 1) * (2.0f * rMax + 0.03f) + rMax + 0.9f);
+			int pieces = 0;
+			for (const std::vector<Ring>& limb : buckLimbs)
+			{
+				const float total = lengthOf(limb);
+				for (float s0 = 0.0f; s0 + 0.35f < total && pieces < maxPieces; s0 += 1.2f)
+				{
+					const float s1 = std::min(s0 + 1.2f, total);
+					const float ra = ringAlong(limb, s0).R, rb = std::max(ringAlong(limb, s1).R, 0.6f * ra);
+					if (ra < 0.015f) break;
+					const float len = s1 - s0;
+					const int key = pieces;
+					const glm::vec3 dir = RotateAround(fallDir, up, (Hash(key, 65, p.Seed) - 0.5f) * 0.8f);
+					const glm::vec3 c = pileAt + side * ((Hash(key, 66, p.Seed) - 0.5f) * 0.9f) + fallDir * ((Hash(key, 67, p.Seed) - 0.5f) * 0.5f)
+					                    + up * (ra + 0.06f * static_cast<float>(pieces / 4));
+					std::vector<Ring> rr;
+					for (int q = 0; q <= 2; ++q)
+					{
+						const float t = static_cast<float>(q) / 2.0f;
+						rr.push_back({ c + dir * ((t - 0.5f) * len), glm::mix(ra, rb, t) });
+					}
+					put(rr, std::vector<int>(rr.size(), pieceSides), false, true, true, Hash(key, 68, p.Seed), Hash(key, 69, p.Seed));
+					++pieces;
+				}
+			}
+		};
+
+		// The earth of a tree just planted (a low lumpy patch of turned earth round its foot, its rim under the ground) or dug up (a squat
+		// lumpy root ball round the foot, closed, its top just over the ground).
+		auto buildSoil = [&]()
+		{
+			const uint32_t from = static_cast<uint32_t>(soil.v.size());
+			const glm::vec3 c = p.Uprooted ? glm::vec3(0.0f, -0.45f * glm::clamp(0.08f + 0.09f * Ht, 0.08f, 0.55f), 0.0f) : glm::vec3(0.0f);
+			if (p.Uprooted)
+			{
+				const float rb = glm::clamp(0.08f + 0.09f * Ht, 0.08f, 0.55f);
+				const int lat = detail == 0 ? 5 : 7, seg = detail == 0 ? 8 : 12;
+				auto point = [&](int y, int x)
+				{
+					const float phi = static_cast<float>(y) / static_cast<float>(lat + 1) * kPi, th = static_cast<float>(x) / static_cast<float>(seg) * 2.0f * kPi;
+					const float r = rb * (1.0f + 0.16f * (Hash(y, (x % seg) + 100, p.Seed) - 0.5f));
+					return c + glm::vec3(std::sin(phi) * std::cos(th) * r, std::cos(phi) * r * 0.8f, std::sin(phi) * std::sin(th) * r);
+				};
+				const uint32_t topPole = soil.Add(point(0, 0), up, { 0.0f, 0.0f }, glm::vec4(1, 0, 0, 1));
+				const uint32_t ring0 = static_cast<uint32_t>(soil.v.size());
+				for (int y = 1; y <= lat; ++y)
+					for (int x = 0; x <= seg; ++x)
+						soil.Add(point(y, x), up, { static_cast<float>(x) / static_cast<float>(seg) * 2.0f * kPi * rb, static_cast<float>(y) / static_cast<float>(lat + 1) * kPi * rb },
+						         glm::vec4(1, 0, 0, 1));
+				const uint32_t bottomPole = soil.Add(point(lat + 1, 0), -up, { 0.0f, kPi * rb }, glm::vec4(1, 0, 0, 1));
+				const uint32_t w = static_cast<uint32_t>(seg + 1);
+				for (uint32_t x = 0; x < static_cast<uint32_t>(seg); ++x)
+				{
+					soil.i.insert(soil.i.end(), { topPole, ring0 + x, ring0 + x + 1 });
+					soil.i.insert(soil.i.end(), { bottomPole, ring0 + static_cast<uint32_t>(lat - 1) * w + x + 1, ring0 + static_cast<uint32_t>(lat - 1) * w + x });
+				}
+				for (uint32_t y = 0; y + 1 < static_cast<uint32_t>(lat); ++y)
+					for (uint32_t x = 0; x < static_cast<uint32_t>(seg); ++x)
+					{
+						const uint32_t a = ring0 + y * w + x, b = a + w;
+						soil.i.insert(soil.i.end(), { a, b, a + 1, a + 1, b, b + 1 });
+					}
+			}
+			else
+			{
+				const float rp = glm::clamp(0.2f + 0.12f * Ht, 0.22f, 0.6f), hp = glm::clamp(0.035f + 0.02f * Ht, 0.035f, 0.09f);
+				const int rings = 4, seg = detail == 0 ? 10 : 14;
+				const uint32_t centre = soil.Add({ 0.0f, hp * 0.85f, 0.0f }, up, { 0.0f, 0.0f }, glm::vec4(1, 0, 0, 1));
+				const uint32_t ring0 = static_cast<uint32_t>(soil.v.size());
+				for (int y = 1; y <= rings; ++y)
+					for (int x = 0; x <= seg; ++x)
+					{
+						const float t = static_cast<float>(y) / static_cast<float>(rings), th = static_cast<float>(x) / static_cast<float>(seg) * 2.0f * kPi;
+						const int hx = x % seg;
+						const float r = t * rp * (1.0f + 0.18f * (Hash(y, hx + 200, p.Seed) - 0.5f));
+						const float h = y == rings ? -0.012f : hp * (1.0f - t * t) * (1.0f + 0.6f * (Hash(y, hx + 300, p.Seed) - 0.5f));
+						soil.Add({ std::cos(th) * r, h, std::sin(th) * r }, up, { std::cos(th) * r, std::sin(th) * r }, glm::vec4(1, 0, 0, 1));
+					}
+				const uint32_t w = static_cast<uint32_t>(seg + 1);
+				for (uint32_t x = 0; x < static_cast<uint32_t>(seg); ++x)
+					soil.i.insert(soil.i.end(), { centre, ring0 + x, ring0 + x + 1 });
+				for (uint32_t y = 0; y + 1 < static_cast<uint32_t>(rings); ++y)
+					for (uint32_t x = 0; x < static_cast<uint32_t>(seg); ++x)
+					{
+						const uint32_t a = ring0 + y * w + x, b = a + w;
+						soil.i.insert(soil.i.end(), { a, b, a + 1, a + 1, b, b + 1 });
+					}
+			}
+			// every triangle facing out of the ball (or up, for the patch)
+			for (size_t t = 0; t + 2 < soil.i.size(); t += 3)
+			{
+				const glm::vec3 a = soil.v[soil.i[t]].Position, b = soil.v[soil.i[t + 1]].Position, d = soil.v[soil.i[t + 2]].Position;
+				const glm::vec3 out = p.Uprooted ? (a + b + d) / 3.0f - c : up;
+				if (glm::dot(glm::cross(b - a, d - a), out) < 0.0f) std::swap(soil.i[t + 1], soil.i[t + 2]);
+			}
+			SmoothNormals(soil, from);
+		};
 
 		// T111: roots of every count, angle, length and thickness: each sunk in the trunk's foot (its first ring inside the trunk), running
 		// out and curving down into the ground, where it ends closed below the surface. The gaps between them are uneven, the thicker ones
@@ -671,10 +1297,56 @@ namespace GB
 					const glm::vec3 c = foot + o * (R * 0.8f + reach * s) + up * (h0 * std::pow(1.0f - s, 2.2f) + thick * 0.2f - (thick * 0.2f + depth) * glm::smoothstep(0.45f, 1.0f, s));
 					rings.push_back({ c, j == n ? 0.0f : thick * (1.0f - 0.8f * std::pow(s, 1.1f)) });
 				}
-				wood.Strip(rings, std::vector<int>(rings.size(), rootSides), true, Hash(k, 15, p.Seed), Hash(k, 16, p.Seed));
+				WoodInfo info;
+				info.Kind = Wood::Root;
+				info.Anchor = foot;
+				info.AnchorR = trunkAtY(0.0f).R;
+				emit(rings, std::vector<int>(rings.size(), rootSides), true, Hash(k, 15, p.Seed), Hash(k, 16, p.Seed), info);
 			}
 		};
 
+		// ---- T113: the sprout, its own little builder: a stem of the stage's height leaning where the tree's trunk will lean (the same first
+		// draws of the seed), the seed leaves and the first true leaves (a broadleaf), or a tuft of needles (a conifer); no roots.
+		if (p.Stage == TreeStage::Sprout && !palm)
+		{
+			Rng first = rng;   // the species' first draws: where the trunk leans
+			float leanAz = 0.0f;
+			if (p.Species == TreeSpecies::Conifer) { first.next(); first.next(); first.next(); leanAz = first.range(0.0f, 2.0f * kPi); }
+			else { first.next(); first.next(); leanAz = first.range(0.0f, 2.0f * kPi); }
+			const glm::vec3 leanDir(std::cos(leanAz), 0.0f, std::sin(leanAz)), across(-leanDir.z, 0.0f, leanDir.x);
+			const float hS = Ht;
+			auto stem = [&](float t) { return up * (t * hS) + leanDir * (0.08f * hS * t * t) + across * (0.03f * hS * std::sin(t * kPi) * (Hash(1, 90, p.Seed) - 0.5f)); };
+			std::vector<Ring> rings;
+			for (int j = 0; j <= 4; ++j)
+			{
+				const float t = static_cast<float>(j) / 4.0f;
+				rings.push_back({ stem(t), j == 4 ? 0.0f : 0.004f * (1.0f - 0.4f * t) });
+			}
+			wood.Strip(rings, std::vector<int>(rings.size(), detail == 0 ? 4 : 5), true, 0.0f, 0.0f);
+			if (p.Species != TreeSpecies::Bare && wantLeaves)
+			{
+				const int count = 2 + static_cast<int>(Hash(2, 90, p.Seed) * 2.999f);
+				const float a0 = 2.0f * kPi * Hash(3, 90, p.Seed);
+				const bool needles = p.Species == TreeSpecies::Conifer;
+				for (int k = 0; k < count; ++k)
+				{
+					// broadleaf: the two seed leaves opposite each other below the top, the true leaves at the top across them;
+					// conifer: the needles radiating from the top
+					const bool seedLeaf = !needles && k < 2;
+					const float az = a0 + (needles ? static_cast<float>(k) * 2.0f * kPi / static_cast<float>(count) : (seedLeaf ? static_cast<float>(k) * kPi : 0.5f * kPi + static_cast<float>(k) * kPi));
+					const glm::vec3 out(std::cos(az), 0.0f, std::sin(az));
+					const float at = seedLeaf ? 0.62f : 0.96f;
+					const float half = needles ? 0.035f : (seedLeaf ? 0.03f : 0.042f);
+					const glm::vec3 uu = glm::normalize(out * (needles ? 0.55f : (seedLeaf ? 1.0f : 0.8f)) + up * (needles ? 1.0f : (seedLeaf ? 0.35f : 0.7f)));
+					const glm::vec3 nrm = glm::normalize(glm::cross(glm::cross(uu, up + glm::vec3(1e-4f)), uu) + up * 0.5f);
+					const glm::vec3 rr = glm::normalize(glm::cross(uu, nrm));
+					const glm::vec3 c = stem(at) + uu * (half * 0.95f);
+					leaves.LeafCard(c, rr, uu, half * (needles ? 0.5f : 0.8f), half, 2, 1, needles ? 0.5f : 0.35f, 0.0f, look.range(-0.2f, 0.2f), 0.03f, nrm,
+					                ++cardSeed + p.Seed * 7919u, glm::normalize(up + out * 0.4f));
+				}
+			}
+		}
+		else
 		// ---------------------------------------------------------------- broadleaf / bare
 		if (p.Species == TreeSpecies::Broadleaf || p.Species == TreeSpecies::Bare)
 		{
@@ -700,7 +1372,7 @@ namespace GB
 			const float baseR = p.TrunkRadius > 0.0f ? trunkR : trunkR * hb.RadiusK;
 			const float trunkLen = H * (hb.TrunkFrac + (bare ? 0.06f : 0.0f)) * rng.range(0.92f, 1.08f);
 			const int maxLevel = (bare ? 5 : (sapling ? 2 : 3)) - (detail == 0 && !sapling ? (bare ? 2 : 1) : 0);   // far trees: no finest twigs
-			const float leafSize = hb.LeafSize;
+			const float leafSize = hb.LeafSize * sg.Card;   // (T113: the cards of a young tree are smaller)
 			const float rMin = H * (bare ? 0.0009f : 0.0011f) * (sapling ? 0.8f : 1.0f);   // the thinnest twig
 			const float flare = sapling ? 0.35f : (bare ? 0.9f : 0.75f);
 			const float lightAz = rng.range(0.0f, 2.0f * kPi);
@@ -711,6 +1383,10 @@ namespace GB
 			const float bendAmp = bare ? 0.10f : (sapling ? 0.035f : 0.05f);
 			const float wobble = bare ? 0.16f : 0.06f;   // the dead trunk's twist: its axis winds round a small helix (fractions of its radius)
 			const float wobblePitch = rng.range(1.2f, 2.0f), wobblePh = rng.range(0.0f, 2.0f * kPi);
+			rMinA = rMin;
+			baseRA = baseR;
+			trunkTopA = trunkLen;
+			flareA = baseR * flare / 0.22f;
 
 			struct Branch
 			{
@@ -730,11 +1406,17 @@ namespace GB
 				int parent = -1;
 				bool cont = false;
 				bool tipKids = false;     // branches leave from its last ring
+				// T113: what a stage and a state need of it
+				int level = 0;
+				float pr = 0.0f;          // the parent's radius where it leaves it
+				glm::vec3 pdir{ 0.0f, 1.0f, 0.0f };
+				int collar = -1;          // its collar ring
 			};
-			struct Site { glm::vec3 pos, dir; float scale; };   // where a cluster of leaves hangs
+			struct Site { glm::vec3 pos, dir; float scale; int strip = -1; };   // where a cluster of leaves hangs (T113: on which strip)
 			std::vector<Branch> stack;
 			std::vector<StripDef> strips;
 			std::vector<Site> sites;
+			std::vector<Site> endSites;   // T113: the end of every branch the adult carries on or does not leaf at its end (a young tree leafs there)
 			const glm::vec3 trunkDir = glm::normalize(up + glm::vec3(std::cos(leanAz), 0.0f, std::sin(leanAz)) * lean);
 			stack.push_back({ glm::vec3(0.0f), trunkDir, trunkLen, baseR, 0, rng.range(0.0f, 2.0f * kPi), false });
 			constexpr float kCollar = 1.25f;
@@ -838,6 +1520,9 @@ namespace GB
 				StripDef sd;
 				sd.parent = b.parent;
 				sd.cont = b.cont;
+				sd.level = b.level;
+				sd.pr = b.pr;
+				sd.pdir = b.pdir;
 				const bool sunk = b.parent >= 0 && !b.cont;
 				float r0 = radiusAt(0.0f, b.start);
 				if (sunk) r0 = std::min(r0, 0.85f * b.pr * std::cos(kPi / static_cast<float>(b.psides)));   // inside the parent's polygon
@@ -886,6 +1571,7 @@ namespace GB
 						if (at < 0.7f * segLen)
 						{
 							const glm::vec3 c = pos + dir * at;
+							sd.collar = static_cast<int>(sd.rings.size());
 							sd.rings.push_back({ c, radiusAt(at / b.length, c) * kCollar });
 							sd.sides.push_back(sides);
 						}
@@ -920,10 +1606,12 @@ namespace GB
 				if (!bare && b.level >= 1)
 				{
 					if (!shoot && (b.level >= 2 || kidTotal == 0 || b.length < H * 0.22f || sapling))
-						sites.push_back({ pos, dir, b.trunkSide ? 0.75f : 1.0f });
+						sites.push_back({ pos, dir, b.trunkSide ? 0.75f : 1.0f, strip });
+					else
+						endSites.push_back({ pos, dir, b.trunkSide ? 0.75f : 1.0f, strip });
 					// and along the branch from about a third of its length, every ~0.7 of a leaf card (the crowding test spaces them)
 					for (size_t k = static_cast<size_t>(along.size() / 3); k + 1 < along.size(); ++k)
-						sites.push_back({ along[k].first, along[k].second, b.trunkSide ? 0.7f : 0.85f });
+						sites.push_back({ along[k].first, along[k].second, b.trunkSide ? 0.7f : 0.85f, strip });
 				}
 				strips[static_cast<size_t>(strip)] = std::move(sd);
 			}
@@ -941,6 +1629,40 @@ namespace GB
 					}
 				return trunkRings.back();
 			};
+			axisA = [&](float y) { return trunkAt(y).C; };
+
+			// T113: per strip, what grows at this stage and what was done to the tree (all zero for the adult as it stands). A strip whose
+			// parent is unborn is unborn; one whose parent was taken or broken is gone with it; a dead limb's branches are dead.
+			const size_t stripCount = strips.size();
+			std::vector<uint8_t> unborn(stripCount, 0), goneWith(stripCount, 0), taken(stripCount, 0), dead(stripCount, 0), continued(stripCount, 0);
+			std::vector<float> breakAt(stripCount, 0.0f);
+			const int keepLevel = sg.Levels + (bare ? 1 : 0);
+			for (size_t k = 0; k < stripCount; ++k)
+			{
+				const StripDef& s = strips[k];
+				if (s.parent >= 0)
+				{
+					const size_t pa = static_cast<size_t>(s.parent);
+					if (unborn[pa]) { unborn[k] = 1; continue; }
+					if (goneWith[pa] || taken[pa] || breakAt[pa] > 0.0f) { goneWith[k] = 1; continue; }
+					dead[k] = dead[pa];
+				}
+				if (s.level > keepLevel) { unborn[k] = 1; continue; }
+				if (s.cont && s.parent >= 0) continued[static_cast<size_t>(s.parent)] = 1;
+				if (k == 0 || s.cont || s.rings.empty()) continue;
+				const int key = static_cast<int>(k);
+				// within reach: leaving its parent below 2.2 m, or (a branch of a limb) hanging down below 1.8 m; thin enough to break or cut
+				bool reach = T(s.rings[0].C).y < 2.2f;
+				if (!reach && s.level >= 2)
+					for (const Ring& r : s.rings) reach = reach || T(r.C).y < 1.8f;
+				if (p.BranchesTaken > 0.0f && reach && mapR(s.rings[0].R) < 0.09f && Hash(key, 41, p.Seed) < p.BranchesTaken)
+					taken[k] = 1;
+				else if (p.Stage == TreeStage::Old && s.level == 1 && Hash(key, 43, p.Seed) < 0.3f)
+					dead[k] = 1;
+				else if (p.Stage == TreeStage::Old && s.level >= 2 && Hash(key, 44, p.Seed) < 0.15f)
+					breakAt[k] = 0.35f + 0.3f * Hash(key, 45, p.Seed);
+			}
+			auto leafless = [&](int strip) { return strip >= 0 && (goneWith[static_cast<size_t>(strip)] || taken[static_cast<size_t>(strip)] || dead[static_cast<size_t>(strip)] || breakAt[static_cast<size_t>(strip)] > 0.0f); };
 
 			// Chains: a branch that carries its parent on joins the parent's strip at the parent's last ring. Then every chain is one strip,
 			// closed at its end by a short rounded cap (T111: never a long spike).
@@ -950,6 +1672,7 @@ namespace GB
 				{
 					StripDef& s = strips[k];
 					root[k] = static_cast<int>(k);
+					if (unborn[k] || goneWith[k]) { s.rings.clear(); continue; }   // (T113)
 					if (!s.cont || s.parent < 0) continue;
 					const int r = root[static_cast<size_t>(s.parent)];
 					StripDef& chain = strips[static_cast<size_t>(r)];
@@ -975,7 +1698,13 @@ namespace GB
 					}
 					s.rings.push_back({ last.C + d * (last.R * (capRing ? 0.85f : 0.6f) * reach), 0.0f });
 					s.sides.push_back(s.sides.back());
-					wood.Strip(s.rings, s.sides, true, Hash(static_cast<int>(k), 11, p.Seed), Hash(static_cast<int>(k), 12, p.Seed) * 2.0f);
+					WoodInfo info;
+					info.Kind = k == 0 ? Wood::Trunk : Wood::Limb;
+					info.Level = s.level;
+					info.Collar = s.collar;
+					if (taken[k]) { info.StubParentR = s.pr; info.StubParentDir = s.pdir; }
+					info.BreakAt = breakAt[k];
+					emit(s.rings, s.sides, true, Hash(static_cast<int>(k), 11, p.Seed), Hash(static_cast<int>(k), 12, p.Seed) * 2.0f, info);
 				}
 			}
 
@@ -991,7 +1720,11 @@ namespace GB
 					const Ring t = trunkAt(y);
 					const std::vector<Ring> rings = { { t.C + o * (t.R * 0.45f), std::min(baseR * 0.26f, 0.5f * t.R) }, { t.C + o * (t.R + baseR * 0.28f), baseR * 0.20f },
 					                                  { t.C + o * (t.R + baseR * 0.36f), 0.0f } };
-					wood.Strip(rings, std::vector<int>(rings.size(), knotSides), true, Hash(k, 13, p.Seed), Hash(k, 14, p.Seed));
+					WoodInfo info;
+					info.Kind = Wood::Knot;
+					info.Anchor = t.C;
+					info.AnchorR = t.R;
+					emit(rings, std::vector<int>(rings.size(), knotSides), true, Hash(k, 13, p.Seed), Hash(k, 14, p.Seed), info);
 				}
 				const int roots = sapling ? 3 + static_cast<int>(rng.next() * 2.0f) : 4 + static_cast<int>(rng.next() * 4.0f);
 				addRoots(trunkAt, baseR, roots, sapling ? 1.4f : 1.8f, sapling ? 2.6f : 3.8f);
@@ -1002,6 +1735,17 @@ namespace GB
 			// lying across that direction like the scales of a ball, the outward half of the ball fuller. A cluster too close to one already
 			// made is dropped, so the crown keeps holes between its clusters where the branches show. The shading normal mixes the crown's
 			// ellipsoid with the cluster's own ball, so every cluster reads as a volume and the crown as one mass.
+			// T113: a young tree leafs on the branches it has grown, and at the ends of those whose shoots have not grown yet; every stage has
+			// its sites where its branches are
+			if (!plainShape)
+			{
+				std::vector<Site> grown;
+				for (const Site& st : sites) if (!unborn[static_cast<size_t>(st.strip)]) grown.push_back(st);
+				if (sg.Levels < 99)
+					for (const Site& st : endSites) if (!unborn[static_cast<size_t>(st.strip)] && !continued[static_cast<size_t>(st.strip)]) grown.push_back(st);
+				for (Site& st : grown) st.pos = T(st.pos);
+				sites = std::move(grown);
+			}
 			glm::vec3 centre(0.0f, H * 0.65f, 0.0f), ext(H * 0.35f);
 			if (!sites.empty())
 			{
@@ -1026,7 +1770,7 @@ namespace GB
 				weight += st.scale;
 			}
 			// the crown's cards: a budget by habit and height (about what the crowns had before T111), shared out over the clusters
-			const float cardBudget = hb.Leaves * 82.0f * (H / 7.5f) * density;
+			const float cardBudget = hb.Leaves * 82.0f * (H / 7.5f) * density * sg.Budget;
 			const float perWeight = weight > 0.0f ? cardBudget / weight : 0.0f;
 			for (const Cluster& cl : clusters)
 			{
@@ -1056,10 +1800,11 @@ namespace GB
 					const glm::vec3 fold = cardN * (rng.next() < 0.5f ? 1.0f : -1.0f);
 					const bool flat = rng.next() < 0.35f;
 					const float foldAngle = flat ? 0.0f : rng.range(0.45f, 0.85f);
+					MeshBuilder& lb = (!wantLeaves || leafless(st.strip)) ? scratch : leaves;   // (T113: a taken, dead or broken branch's cards are dropped)
 					if (flat)
-						leaves.LeafCard(c, rr, uu, sz * 0.5f, sz * 0.5f, 1, 2, 0.0f, look.range(0.12f, 0.32f), look.range(-0.35f, 0.35f), 0.05f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
+						lb.LeafCard(c, rr, uu, sz * 0.5f, sz * 0.5f, 1, 2, 0.0f, look.range(0.12f, 0.32f), look.range(-0.35f, 0.35f), 0.05f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
 					else
-						leaves.LeafCard(c, rr, uu, sz * 0.5f, sz * 0.5f, 2, 1, foldAngle, 0.0f, look.range(-0.4f, 0.4f), 0.05f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
+						lb.LeafCard(c, rr, uu, sz * 0.5f, sz * 0.5f, 2, 1, foldAngle, 0.0f, look.range(-0.4f, 0.4f), 0.05f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
 				}
 			}
 			crownRadius = std::max(ext.x, ext.z);
@@ -1085,6 +1830,11 @@ namespace GB
 			};
 			auto trunkRadius = [&](float t) { return trunkR * (1.0f - 0.9f * std::pow(t, 0.85f)) * (1.0f + 0.7f * std::exp(-t * H / (trunkR * 3.0f))); };
 			const int trunkSides = std::max(3, 8 - sideCut);
+			rMinA = 0.005f;
+			baseRA = trunkR;
+			trunkTopA = 0.6f * H;
+			flareA = 3.0f * trunkR;
+			axisA = [&](float ay) { return trunkPoint(ay / H); };
 			{
 				// T110: one strip, closed at the top (the leader's sprays hide the point); T111: three more rings at the foot for its flare
 				std::vector<Ring> rings;
@@ -1095,7 +1845,10 @@ namespace GB
 					ts.push_back(static_cast<float>(s) / segs);
 				for (size_t s = 0; s < ts.size(); ++s)
 					rings.push_back({ trunkPoint(ts[s]), s + 1 == ts.size() ? 0.0f : trunkRadius(ts[s]) });
-				wood.Strip(rings, std::vector<int>(rings.size(), trunkSides), true, Hash(0, 11, p.Seed), Hash(0, 12, p.Seed) * 2.0f);
+				WoodInfo info;
+				info.Kind = Wood::Trunk;
+				info.Level = 0;
+				emit(rings, std::vector<int>(rings.size(), trunkSides), true, Hash(0, 11, p.Seed), Hash(0, 12, p.Seed) * 2.0f, info);
 			}
 			addRoots([&](float y) { return Ring{ trunkPoint(y / H), trunkRadius(y / H) }; }, trunkR, 4 + static_cast<int>(rng.next() * 3.0f), cypress ? 1.5f : 1.6f, cypress ? 2.6f : 3.0f);
 			int armIndex = 0;
@@ -1103,8 +1856,10 @@ namespace GB
 			const glm::vec3 ext(maxReach, H * (1.0f - bareFrac) * 0.5f, maxReach);
 			const float spacing = H * (pine ? 0.075f : cypress ? 0.05f : 0.062f);
 			float y = H * bareFrac;
+			int whorl = 0;   // T113: a young conifer has one whorl in sg.Whorls
 			while (y < H * 0.97f)
 			{
+				const bool whorlGrown = whorl++ % sg.Whorls == 0;
 				const float u = glm::clamp((y - H * bareFrac) / (H * (0.97f - bareFrac)), 0.0f, 1.0f);   // 0 at the lowest whorl, 1 at the top
 				const float profile = pine ? std::pow(1.0f - u, 0.62f) * (0.7f + 0.5f * Hash(static_cast<int>(y * 13.0f), 5, p.Seed))
 				                    : cypress ? (0.7f + 0.3f * std::sin(std::min(u / 0.3f, 1.0f) * 0.5f * kPi)) * std::pow(1.0f - u, 0.75f) * (0.85f + 0.3f * Hash(static_cast<int>(y * 13.0f), 5, p.Seed))
@@ -1127,23 +1882,41 @@ namespace GB
 					const float r0 = trunkR * (cypress ? 0.12f : 0.20f) * (1.0f - 0.6f * u) + (cypress ? 0.008f : 0.012f);
 					const int armSegs = detail == 0 || cypress ? 2 : 3;
 					const int armSides = cypress ? 3 : 4;
+					// T113: taken (within reach), dead (an old tree's, mostly the low ones) or broken
+					const int armKey = armIndex + 1;
+					const bool armTaken = whorlGrown && p.BranchesTaken > 0.0f && T(axis0).y < 2.2f && mapR(r0) < 0.09f && Hash(armKey, 41, p.Seed) < p.BranchesTaken;
+					const bool armDead = !armTaken && p.Stage == TreeStage::Old && Hash(armKey, 43, p.Seed) < (u < 0.35f ? 0.55f : 0.15f);
+					const bool armBroken = !armTaken && !armDead && p.Stage == TreeStage::Old && Hash(armKey, 44, p.Seed) < 0.12f;
+					const bool sprayGone = !whorlGrown || armTaken || armDead || armBroken || !wantLeaves;
 					{
 						// T110: one strip sunk in the trunk (its first ring inside the trunk's polygon), a collar where it leaves the
 						// trunk's surface, closed at its tip
 						auto surface = [&](float t) { const float last = static_cast<float>(segs - 1) / segs; return t > last ? trunkRadius(last) * (1.0f - t) * segs : trunkRadius(t); };
 						const float rt = std::min(surface(y / H), surface(std::min(1.0f, (y + 2.0f * r0) / H)));
 						std::vector<Ring> rings = { { armPoint(0.0f), std::min(r0, 0.85f * rt * std::cos(kPi / static_cast<float>(trunkSides))) } };
+						int collarAt = -1;
 						const float sinT = glm::length(glm::cross(armTangent(0.0f), up));
 						const float collar = (rt / std::max(sinT, 0.2f) + 0.5f * r0) / std::max(reach, 1e-3f);   // as a fraction of the arm
 						if (collar < 0.7f / static_cast<float>(armSegs))
+						{
+							collarAt = 1;
 							rings.push_back({ armPoint(collar), glm::mix(r0, 0.005f, collar) * 1.25f });
+						}
 						for (int k = 1; k <= armSegs; ++k)
 						{
 							const float s1 = static_cast<float>(k) / static_cast<float>(armSegs);
 							rings.push_back({ armPoint(s1), k == armSegs ? 0.0f : glm::mix(r0, 0.005f, s1) });
 						}
 						++armIndex;
-						wood.Strip(rings, std::vector<int>(rings.size(), armSides), true, Hash(armIndex, 11, p.Seed), Hash(armIndex, 12, p.Seed) * 2.0f);
+						if (whorlGrown)
+						{
+							WoodInfo info;
+							info.Kind = Wood::Limb;
+							info.Collar = collarAt;
+							if (armTaken) { info.StubParentR = rt; info.StubParentDir = up; }
+							if (armBroken) info.BreakAt = 0.35f + 0.3f * Hash(armKey, 45, p.Seed);
+							emit(rings, std::vector<int>(rings.size(), armSides), true, Hash(armIndex, 11, p.Seed), Hash(armIndex, 12, p.Seed) * 2.0f, info);
+						}
 					}
 					const float size = cypress ? 0.6f * (1.0f - 0.35f * u) + 0.3f : (pine ? 1.0f : 0.9f) * (1.0f - 0.42f * u) + 0.32f;
 					const int n = std::max(2, static_cast<int>(std::ceil((reach * 1.45f + 0.5f) * density)));
@@ -1171,10 +1944,14 @@ namespace GB
 							const float yaw = look.range(-0.2f, 0.2f), pitch = look.range(-0.25f, 0.25f);
 							const glm::vec3 r2 = RotateAround(rr, pn, yaw);
 							const glm::vec3 u2 = RotateAround(RotateAround(tang, pn, yaw), r2, pitch);
+							// T113: a young tree's sprays are smaller and fewer (one in sg.Sprays kept), where its arms are
+							const float hc = h * sg.Card;
+							const glm::vec3 pcS = plainShape ? pc : T(armPoint(s)) + tang * (hc * 0.42f);
+							MeshBuilder& lb = (sprayGone || (sg.Sprays < 1.0f && Hash(static_cast<int>(cardSeed), 46, p.Seed) >= sg.Sprays)) ? scratch : leaves;
 							if (look.next() < 0.25f)
-								leaves.LeafCard(pc, r2, u2, h * 0.46f, h * 0.55f, 2, 2, foldAngle, look.range(0.15f, 0.3f), look.range(-0.25f, 0.25f), 0.04f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
+								lb.LeafCard(pcS, r2, u2, hc * 0.46f, hc * 0.55f, 2, 2, foldAngle, look.range(0.15f, 0.3f), look.range(-0.25f, 0.25f), 0.04f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
 							else
-								leaves.LeafCard(pc, r2, u2, h * 0.46f, h * 0.55f, 2, 1, foldAngle, 0.0f, look.range(-0.3f, 0.3f), 0.04f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
+								lb.LeafCard(pcS, r2, u2, hc * 0.46f, hc * 0.55f, 2, 1, foldAngle, 0.0f, look.range(-0.3f, 0.3f), 0.04f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
 						}
 					}
 				}
@@ -1187,7 +1964,8 @@ namespace GB
 				const glm::vec3 rr(std::cos(ang), 0.0f, std::sin(ang));
 				const glm::vec3 tip = trunkPoint(1.0f);
 				const glm::vec3 n = glm::normalize(rr * 0.2f + up);
-				leaves.LeafCard(tip + up * 0.35f * lod, rr, up, 0.22f, 0.5f, 1, 2, 0.0f, 0.12f, look.range(-0.3f, 0.3f), 0.03f, glm::cross(rr, up), ++cardSeed + p.Seed * 7919u, n);
+				MeshBuilder& lb = wantLeaves ? leaves : scratch;
+				lb.LeafCard(plainShape ? tip + up * 0.35f * lod : T(tip) + up * (0.35f * lod * sg.Card), rr, up, 0.22f * sg.Card, 0.5f * sg.Card, 1, 2, 0.0f, 0.12f, look.range(-0.3f, 0.3f), 0.03f, glm::cross(rr, up), ++cardSeed + p.Seed * 7919u, n);
 			}
 			crownRadius = maxReach * 1.05f;
 		}
@@ -1279,14 +2057,21 @@ namespace GB
 			}
 		}
 
+		// ---- T113: the logs and the pile of a bucked tree, and the earth of a planted or uprooted one
+		if (p.Part == TreePart::Bucked)
+			buildBucked();
+		if (p.Part == TreePart::Standing && (p.Uprooted || p.Planted))
+			buildSoil();
+
 		// ---- fit the requested height, measure the real extent
 		{
 			float maxY = 0.0f;
 			for (const Vertex& v : wood.v) maxY = std::max(maxY, v.Position.y);
 			for (const Vertex& v : leaves.v) maxY = std::max(maxY, v.Position.y);
-			const float k = maxY > 1e-3f ? glm::clamp(H / maxY, 0.6f, 1.6f) : 1.0f;
+			const float k = fixedFit > 0.0f ? fixedFit : (maxY > 1e-3f ? glm::clamp(Ht / maxY, 0.6f, 1.6f) : 1.0f);
+			if (fitOut) *fitOut = k;
 			float reach = 0.0f, top = 0.0f;
-			for (auto* mb : { &wood, &leaves })
+			for (auto* mb : { &wood, &leaves, &cuts, &soil })
 				for (Vertex& v : mb->v)
 				{
 					v.Position *= k;
@@ -1295,34 +2080,42 @@ namespace GB
 				}
 			for (Vertex& v : wood.v)
 				v.UV *= k;   // T110: the bark's UVs are metres: they scale with the tree
+			for (Vertex& v : soil.v)
+				v.UV *= k;
 			crownRadius = reach;
-			tree->BoundsHeight = std::max(top, H);
+			tree->Height = p.Part == TreePart::Standing ? Ht : top;
+			tree->BoundsHeight = std::max(top, tree->Height);
 		}
 		// T110: tangents from the UVs (dP/du, with the bitangent's sign in w), once the tree has its final size
 		{
 			MeshData m;
-			m.Vertices = std::move(wood.v); m.Indices = std::move(wood.i);
-			m.ComputeTangents();
-			wood.v = std::move(m.Vertices); wood.i = std::move(m.Indices);
-			m.Vertices = std::move(leaves.v); m.Indices = std::move(leaves.i);
-			m.ComputeTangents();
-			leaves.v = std::move(m.Vertices); leaves.i = std::move(m.Indices);
+			for (MeshBuilder* mb : { &wood, &leaves, &cuts, &soil })
+			{
+				if (mb->v.empty()) continue;
+				m.Vertices = std::move(mb->v); m.Indices = std::move(mb->i);
+				m.ComputeTangents();
+				mb->v = std::move(m.Vertices); mb->i = std::move(m.Indices);
+			}
 		}
 
 		// ---- the meshes (TreesGpu uploads them and derives the materials from the params)
 		tree->Params = p;
-		tree->Height = H;
 		tree->CrownRadius = crownRadius;
-		tree->TriangleCount = wood.i.size() / 3;
+		tree->TriangleCount = wood.i.size() / 3 + cuts.i.size() / 3 + soil.i.size() / 3;
 		tree->Trunk.Vertices = std::move(wood.v);
 		tree->Trunk.Indices = std::move(wood.i);
+		tree->Cuts.Vertices = std::move(cuts.v);
+		tree->Cuts.Indices = std::move(cuts.i);
+		tree->Soil.Vertices = std::move(soil.v);
+		tree->Soil.Indices = std::move(soil.i);
 		if (!leaves.v.empty())
 		{
 			tree->TriangleCount += leaves.i.size() / 3;
-			tree->LeafCardCount = p.Species == TreeSpecies::Palm ? leaves.i.size() / 6 : cardSeed;   // T110: the cards have 2 to 8 triangles
+			tree->LeafCardCount = p.Species == TreeSpecies::Palm ? leaves.i.size() / 6 : leaves.Cards;   // T110: the cards have 2 to 8 triangles
 			tree->Foliage.Vertices = std::move(leaves.v);
 			tree->Foliage.Indices = std::move(leaves.i);
 		}
 		return tree;
+	}
 	}
 }

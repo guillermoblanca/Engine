@@ -80,7 +80,8 @@ int GBTest_vegetation(int, char**)
 		std::snprintf(msg, sizeof msg, "%s has a sensible crown radius (%.2f)", cs.Name, t->CrownRadius);
 		Check(t->CrownRadius > cs.P.Height * 0.12f && t->CrownRadius < cs.P.Height * 0.9f, msg);
 		Check((cs.P.Species == TreeSpecies::Bare) == (t->Foliage.Empty()), "only bare trees have no foliage");
-		std::fprintf(stderr, "  %-8s %6zu triangles (%zu cards), crown %.2f m\n", cs.Name, t->TriangleCount, t->LeafCardCount, t->CrownRadius);
+		std::fprintf(stderr, "  %-8s %6zu triangles (%zu cards), crown %.2f m, hash bark %016llx leaves %016llx\n", cs.Name, t->TriangleCount, t->LeafCardCount,
+		             t->CrownRadius, static_cast<unsigned long long>(t->Trunk.Hash()), static_cast<unsigned long long>(t->Foliage.Hash()));
 	}
 
 	// level of detail and palm fruit

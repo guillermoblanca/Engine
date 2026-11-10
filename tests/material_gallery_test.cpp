@@ -20,12 +20,15 @@
 // meshes go up as they come; the test checks them on the CPU (CheckBark: tangents, outward normals, stretch, open edges only where a
 // branch is sunk in its parent or at the trunk's foot; the cards' tangents; determinism) and `--out` also writes the fork close up
 // (arboles_union.png; the file name from GB_TREE_UNION_NAME if set, for a before/after pair).
+// T113: the stages and states of a tree ("treeGrowth"): checked on the CPU (determinism, heights, CheckBark, budgets, closed pieces, the
+// adult the default tree) and, with `--out`, drawn as arboles_fases.png (one band a habit, real scale) and arboles_estados.png.
 // SKIPs (77) without an OpenGL 4.5 context.
 #include "GB/Log.h"
 #include "GB/Platform/Window.h"
 #include "GB/Qa/Qa.h"
 #include "GB/Renderer/Framebuffer.h"
 #include "GB/Renderer/Renderer.h"
+#include "GB/Renderer/TreesGpu.h"
 #include "GB/Visual/ProcMesh.h"
 #include "GB/Visual/ProcTexture.h"
 #include "GB/Visual/SceneVisuals.h"
@@ -622,6 +625,8 @@ int GBTest_material_gallery(int argc, char** argv)
 		             t.Name.c_str(), tree->TriangleCount, tm.Trunk.Triangles(), tm.Foliage.Triangles(), tree->LeafCardCount, tree->CrownRadius, tree->BoundsHeight,
 		             r.BadTangents, r.BadNormals, r.Inward, r.Sampled, r.OpenLoops, r.GroundLoops, r.ExposedLoops, r.DanglingEdges,
 		             r.MinStretch, r.MaxStretch, r.Stretched, r.Measured);
+		std::fprintf(stderr, "tree %-22s hash bark %016llx leaves %016llx\n", t.Name.c_str(), static_cast<unsigned long long>(tm.Trunk.Hash()),
+		             static_cast<unsigned long long>(tm.Foliage.Hash()));
 		Check(r.BadTangents == 0, "tree " + t.Name + ": unit tangents perpendicular to the normals, along +dP/du, bitangents along +dP/dv");
 		Check(r.BadNormals == 0, "tree " + t.Name + ": every bark normal on the side of its faces");
 		Check(r.Inward == 0, "tree " + t.Name + ": every sampled bark normal points out of the wood");
@@ -639,6 +644,8 @@ int GBTest_material_gallery(int argc, char** argv)
 			farParams.Detail = 0;
 			const std::unique_ptr<GB::Tree> far = GB::TreeFactory::Create(farParams);
 			const BarkReport rf = CheckBark(far->Trunk);
+			std::fprintf(stderr, "tree %-22s detail 0 hash bark %016llx leaves %016llx\n", t.Name.c_str(), static_cast<unsigned long long>(far->Trunk.Hash()),
+			             static_cast<unsigned long long>(far->Foliage.Hash()));
 			std::fprintf(stderr, "tree %-22s detail 0: triangles %5zu (bark %5zu, leaves %5zu), crown %.2f m | bark: tangents off %zu, normals off %zu, inward %zu/%zu;"
 			             " exposed loops %zu, dangling %zu, stretch u/v %.2f..%.2f (%zu/%zu out)\n", t.Name.c_str(), far->TriangleCount, far->Trunk.Triangles(),
 			             far->Foliage.Triangles(), far->CrownRadius, rf.BadTangents, rf.BadNormals, rf.Inward, rf.Sampled, rf.ExposedLoops, rf.DanglingEdges,
@@ -659,6 +666,171 @@ int GBTest_material_gallery(int argc, char** argv)
 			double a = 0.0;
 			for (size_t i = 3; i < img.Pixels.size(); i += 4) a += img.Pixels[i];
 			std::fprintf(stderr, "tree texture %-10s coverage %.3f\n", names[k], a / 255.0 / static_cast<double>(img.Pixels.size() / 4));
+		}
+	}
+	if (failures) return failures;
+
+	// ---- T113: the growth stages (TreeParams::Stage) of every habit of treeGrowth.rows and the states of treeGrowth.states, on the CPU:
+	// the same tree every time, taller stage after stage, the bark (with its cut faces: the stubs, the stump, the logs) closed and passing
+	// CheckBark, the far level of detail cheaper, the triangles within their budget; the stump, the fallen trunk, the logs and the root
+	// ball closed
+	struct Grown
+	{
+		std::string Name, Bark, Leaves;
+		std::shared_ptr<GB::Tree> Tree;
+	};
+	std::vector<std::vector<Grown>> growthRows;   // per habit, the six stages
+	std::vector<Grown> treeStates;                // the tree whole, taken 0.5 and 1, stump, fallen trunk, bucked, planted, uprooted, dead standing
+	const char* stageNames[6] = { "brote", "planton", "joven", "adulto", "maduro", "viejo" };
+	auto parseTree = [&](const nlohmann::json& t)
+	{
+		TreeSample s;
+		s.Name = t.value("name", "");
+		s.Bark = t.value("bark", "");
+		s.Leaves = t.value("leaves", "");
+		const std::string species = t.value("species", "broadleaf");
+		s.Params.Species = species == "conifer" ? GB::TreeSpecies::Conifer : species == "bare" ? GB::TreeSpecies::Bare : GB::TreeSpecies::Broadleaf;
+		s.Params.Style = t.value("style", -1);
+		s.Params.Seed = t.value("seed", 1u);
+		s.Params.Height = t.value("height", 8.0f);
+		Check(library.Materials.count(s.Bark) == 1 && (s.Params.Species == GB::TreeSpecies::Bare || library.Materials.count(s.Leaves) == 1), "tree " + s.Name + ": its materials are defined");
+		return s;
+	};
+	auto barkOf = [](const GB::Tree& t) { GB::MeshData m = t.Trunk; m.Append(t.Cuts); return m; };   // the wood closed by its cut faces
+	// open edges of a mesh, its vertices welded by position (0 for a closed solid)
+	auto openEdges = [](const GB::MeshData& m)
+	{
+		std::map<std::tuple<long, long, long>, uint32_t> weld;
+		std::vector<uint32_t> id(m.Vertices.size());
+		for (size_t i = 0; i < m.Vertices.size(); ++i)
+		{
+			const glm::vec3 q = m.Vertices[i].Position * 1e5f;
+			id[i] = weld.emplace(std::make_tuple(std::lround(q.x), std::lround(q.y), std::lround(q.z)), static_cast<uint32_t>(weld.size())).first->second;
+		}
+		std::map<std::pair<uint32_t, uint32_t>, int> edges;
+		for (size_t i = 0; i + 2 < m.Indices.size(); i += 3)
+			for (int k = 0; k < 3; ++k)
+			{
+				const uint32_t a = id[m.Indices[i + static_cast<size_t>(k)]], b = id[m.Indices[i + static_cast<size_t>((k + 1) % 3)]];
+				if (a != b) ++edges[{ a, b }];
+			}
+		size_t open = 0;
+		for (const auto& [e, n] : edges)
+			if (edges.find({ e.second, e.first }) == edges.end()) ++open;
+		return open;
+	};
+	// the bark checks of T110/T111 on a tree or piece; `ground` open loops allowed on the ground (the foot of a standing trunk or stump)
+	// (the bark alone for its normals, tangents and stretch: the cut faces meet it at a sharp edge, where "out of the wood" means nothing;
+	// the bark with its cut faces for the open edges)
+	auto checkWood = [&](const std::string& name, const GB::Tree& t, size_t ground, bool small)
+	{
+		const BarkReport r = CheckBark(t.Trunk), closed = CheckBark(barkOf(t)), faces = CheckBark(t.Cuts);
+		std::fprintf(stderr, "tree %-30s triangles %5zu (bark %5zu, cuts %4zu, soil %4zu, leaves %5zu, %4zu cards), height %.2f m, top %.2f, crown %.2f |"
+		             " tangents off %zu, normals off %zu, inward %zu/%zu, stretch %.2f..%.2f (%zu/%zu out) | with the cut faces: open loops %zu (%zu on the ground,"
+		             " %zu exposed), dangling %zu; cut faces: tangents off %zu, normals off %zu\n",
+		             name.c_str(), t.TriangleCount, t.Trunk.Triangles(), t.Cuts.Triangles(), t.Soil.Triangles(), t.Foliage.Triangles(), t.LeafCardCount, t.Height,
+		             t.BoundsHeight, t.CrownRadius, r.BadTangents, r.BadNormals, r.Inward, r.Sampled, r.MinStretch, r.MaxStretch, r.Stretched, r.Measured,
+		             closed.OpenLoops, closed.GroundLoops, closed.ExposedLoops, closed.DanglingEdges, faces.BadTangents, faces.BadNormals);
+		Check(r.BadTangents == 0 && r.BadNormals == 0 && faces.BadTangents == 0 && faces.BadNormals == 0, "tree " + name + ": tangents and normals of the bark and its cut faces");
+		Check(r.Inward == 0, "tree " + name + ": every sampled bark normal points out of the wood");
+		Check(closed.DanglingEdges == 0 && closed.ExposedLoops == 0 && closed.GroundLoops <= ground, "tree " + name + ": the wood is closed (open only at the foot and the mouths sunk in a parent)");
+		// (a sprout's stem and a sapling's trunk are under 2 cm: nothing to measure the stretch on)
+		Check(r.Stretched == 0 && (r.Measured > 0 || small), "tree " + name + ": the bark is stretched 0.7..1.4 (u over v) on branches over 2 cm");
+	};
+	if (doc["gallery"].contains("treeGrowth"))
+	{
+		const nlohmann::json& tg = doc["gallery"]["treeGrowth"];
+		for (const auto& row : tg["rows"])
+		{
+			const TreeSample s = parseTree(row);
+			std::vector<Grown> stages;
+			float prevHeight = 0.0f;
+			for (int st = 0; st < 6; ++st)
+			{
+				GB::TreeParams tp = s.Params;
+				tp.Stage = static_cast<GB::TreeStage>(st);
+				const std::string name = s.Name + "_" + stageNames[st];
+				std::shared_ptr<GB::Tree> t = GB::TreeFactory::Create(tp);
+				const std::unique_ptr<GB::Tree> again = GB::TreeFactory::Create(tp);
+				Check(again->Trunk.Hash() == t->Trunk.Hash() && again->Foliage.Hash() == t->Foliage.Hash() && again->Cuts.Hash() == t->Cuts.Hash(), "tree " + name + ": the same tree every time");
+				Check(t->Height > prevHeight && std::fabs(t->Height - GB::TreeFactory::StageHeight(tp)) < 1e-4f, "tree " + name + ": taller than the stage before it, as tall as its stage");
+				Check(t->BoundsHeight < t->Height * 1.12f, "tree " + name + ": its top near its height");
+				prevHeight = t->Height;
+				checkWood(name, *t, 1, st <= 1);
+				GB::TreeParams farParams = tp;
+				farParams.Detail = 0;
+				const std::unique_ptr<GB::Tree> far = GB::TreeFactory::Create(farParams);
+				checkWood(name + "_lejos", *far, 1, st <= 1);
+				Check(far->TriangleCount < t->TriangleCount, "tree " + name + ": its far level of detail is cheaper");
+				if (st == 3)
+				{
+					Check(far->TriangleCount < t->TriangleCount * 3 / 4, "tree " + name + ": its far level of detail is clearly cheaper (under 3/4 of the triangles)");
+					// the adult of the stages is the tree as it was before T113
+					GB::TreeParams before = s.Params;
+					const std::unique_ptr<GB::Tree> plain = GB::TreeFactory::Create(before);
+					Check(plain->Trunk.Hash() == t->Trunk.Hash() && plain->Foliage.Hash() == t->Foliage.Hash() && t->Cuts.Empty() && t->Soil.Empty(), "tree " + name + ": the adult is the default tree");
+				}
+				stages.push_back({ name, s.Bark, s.Leaves, t });
+			}
+			const size_t adult = stages[3].Tree->TriangleCount;
+			for (int st = 0; st < 3; ++st)
+				Check(stages[static_cast<size_t>(st)].Tree->TriangleCount < adult, "tree " + stages[static_cast<size_t>(st)].Name + ": fewer triangles than the adult");
+			Check(stages[4].Tree->TriangleCount * 100 <= adult * 120, "tree " + stages[4].Name + ": at most 20 % more triangles than the adult");
+			Check(stages[5].Tree->TriangleCount * 100 <= adult * 135, "tree " + stages[5].Name + ": at most 35 % more triangles than the adult");
+			growthRows.push_back(std::move(stages));
+		}
+		if (tg.contains("states"))
+		{
+			const TreeSample s = parseTree(tg["states"]);
+			auto make = [&](const std::string& name, GB::TreeParams tp)
+			{
+				treeStates.push_back({ s.Name + "_" + name, s.Bark, s.Leaves, std::shared_ptr<GB::Tree>(GB::TreeFactory::Create(tp)) });
+				return treeStates.back().Tree;
+			};
+			GB::TreeParams tp = s.Params;
+			const std::shared_ptr<GB::Tree> whole = make("entero", tp);
+			tp.BranchesTaken = 0.5f;
+			const std::shared_ptr<GB::Tree> half = make("ramas_0.5", tp);
+			tp.BranchesTaken = 1.0f;
+			const std::shared_ptr<GB::Tree> all = make("ramas_1", tp);
+			tp.BranchesTaken = 0.0f;
+			tp.FallAzimuth = 0.0f;
+			tp.Part = GB::TreePart::Stump;
+			const std::shared_ptr<GB::Tree> stump = make("tocon", tp);
+			tp.Part = GB::TreePart::FallenTrunk;
+			const std::shared_ptr<GB::Tree> fallen = make("tronco_caido", tp);
+			tp.Part = GB::TreePart::Bucked;
+			const std::shared_ptr<GB::Tree> bucked = make("troceado", tp);
+			tp.Part = GB::TreePart::Standing;
+			tp.Stage = GB::TreeStage::Sapling;
+			tp.Planted = true;
+			const std::shared_ptr<GB::Tree> planted = make("planton_plantado", tp);
+			tp.Planted = false;
+			tp.Uprooted = true;
+			const std::shared_ptr<GB::Tree> uprooted = make("planton_arrancado", tp);
+			tp.Stage = GB::TreeStage::Young;
+			const std::shared_ptr<GB::Tree> uprootedYoung = make("joven_arrancado", tp);
+			treeStates.pop_back();   // (checked, not shown)
+			for (const Grown& g : treeStates)
+				checkWood(g.Name, *g.Tree, g.Tree->Params.Part == GB::TreePart::FallenTrunk || g.Tree->Params.Part == GB::TreePart::Bucked ? 0 : 1, g.Tree->Params.Stage == GB::TreeStage::Sapling);
+			checkWood(s.Name + "_joven_arrancado", *uprootedYoung, 1, false);
+			Check(half->Cuts.Triangles() > 0 && all->Cuts.Triangles() > half->Cuts.Triangles() && all->Foliage.Triangles() < half->Foliage.Triangles() &&
+			      half->Foliage.Triangles() < whole->Foliage.Triangles(), "taking branches leaves stubs with cut faces and fewer leaves, more at 1 than at 0.5");
+			Check(half->Height == whole->Height && all->Height == whole->Height, "taking branches does not rescale the tree");
+			Check(stump->Foliage.Empty() && !stump->Cuts.Empty() && stump->Height > 0.25f && stump->Height < 1.0f, "the stump is a short foot with its cut face");
+			Check(fallen->Foliage.Empty() && fallen->BoundsHeight < 0.4f * whole->Height && fallen->CrownRadius > 0.6f * whole->Height,
+			      "the fallen trunk lies on the ground, about as long as the tree was tall");
+			Check(!bucked->Cuts.Empty() && bucked->BoundsHeight < 1.5f, "the bucked tree is a low pile of logs and branches");
+			Check(!planted->Soil.Empty() && !uprooted->Soil.Empty() && planted->Height < 2.1f, "the planted and the uprooted sapling have their earth");
+			Check(openEdges(uprooted->Soil) == 0 && openEdges(uprootedYoung->Soil) == 0, "the root ball is closed");
+		}
+		if (tg.contains("deadStanding"))
+		{
+			const TreeSample s = parseTree(tg["deadStanding"]);
+			GB::TreeParams tp = s.Params;
+			tp.Stage = GB::TreeStage::Old;
+			treeStates.push_back({ s.Name, s.Bark, s.Leaves, std::shared_ptr<GB::Tree>(GB::TreeFactory::Create(tp)) });
+			checkWood(s.Name, *treeStates.back().Tree, 1, false);
 		}
 	}
 	if (failures) return failures;
@@ -898,6 +1070,32 @@ int GBTest_material_gallery(int argc, char** argv)
 		const GB::Qa::Result r = GB::Qa::CheckGoldenImage(GB::Qa::Config::FromEnvironment(), GB_GOLDEN_DIR "/images", "material_gallery", img, { 4.0, 0.02, 32 });
 		std::fprintf(stderr, "%s: %s\n", r.Passed ? "ok" : "FAIL", r.Message.c_str());
 		if (!r.Passed) ++failures;
+	}
+
+	// ---- T113: TreesGpu uploads the cut faces and the earth and places them (a stump: bark and cuts, lying still; a planted sapling: bark,
+	// earth and crown; a default tree: bark and crown, as before)
+	{
+		GB::TreesGpu treesGpu;
+		GB::TreeParams tp;
+		tp.Seed = 7;
+		tp.Style = 2;
+		tp.Height = 8.5f;
+		const std::unique_ptr<GB::TreeGpu> plain = treesGpu.Create(tp);
+		tp.Part = GB::TreePart::Stump;
+		const std::unique_ptr<GB::TreeGpu> stump = treesGpu.Create(tp);
+		tp.Part = GB::TreePart::Standing;
+		tp.Stage = GB::TreeStage::Sapling;
+		tp.Planted = true;
+		const std::unique_ptr<GB::TreeGpu> planted = treesGpu.Create(tp);
+		GB::Scene a, b, c;
+		plain->AddToScene(a, glm::vec3(0.0f));
+		stump->AddToScene(b, glm::vec3(0.0f));
+		planted->AddToScene(c, glm::vec3(0.0f));
+		std::fprintf(stderr, "TreesGpu objects: default %zu, stump %zu, planted sapling %zu\n", a.Objects.size(), b.Objects.size(), c.Objects.size());
+		Check(!plain->Cuts && !plain->Soil && a.Objects.size() == 2, "TreesGpu: a default tree is its bark and its crown");
+		Check(stump->Cuts && !stump->Soil && b.Objects.size() == 2 && stump->TrunkMaterial.WindSway == 0.0f && stump->CutMaterial.WindSway == 0.0f,
+		      "TreesGpu: a stump is its bark and its cut faces, still in the wind");
+		Check(planted->Soil && !planted->Cuts && c.Objects.size() == 3, "TreesGpu: a planted sapling is its bark, its earth and its crown");
 	}
 
 	// ---- the pictures for the documentation: the whole gallery, then every family on its own with its variants side by side
@@ -1223,6 +1421,169 @@ int GBTest_material_gallery(int argc, char** argv)
 			cam.Target = { 0.0f, 0.15f, 0.1f };
 			cam.FovYDegrees = 45.0f;
 			save(sc, cam, "arboles_madera.png");
+		}
+
+		// ---- T113: the stages and the states of a tree, in the light of arboles_referencia.png (a pale floor under a pale sky, the sun from the
+		// right and in front). A grown tree or piece as TreesGpu draws it: the bark, the cut faces in the cutFace material, the earth, the crown
+		// as addTree sets it up
+		auto referenceLight = [&](const glm::vec3& centre, float radius)
+		{
+			GB::Scene sc = stage(centre, radius);
+			sc.Objects[0].Mat.Albedo = glm::vec3(0.45f);
+			sc.Sun.Direction = { -0.8f, -0.55f, -0.45f };
+			sc.Sun.Color = { 1.0f, 0.98f, 0.95f };
+			sc.Env.SkyTop = { 0.72f, 0.74f, 0.77f };
+			sc.Env.SkyHorizon = { 0.82f, 0.82f, 0.83f };
+			sc.Env.SkyGround = { 0.45f, 0.45f, 0.45f };
+			return sc;
+		};
+		GB::Material cutMat;
+		cutMat.Albedo = glm::vec3(0.62f, 0.49f, 0.33f);
+		cutMat.Roughness = 0.85f;
+		if (!cutFace.empty()) cutMat = material(cutFace);
+		auto addGrown = [&](GB::Scene& sc, const Grown& g, const glm::vec3& at, float yaw)
+		{
+			const GB::Tree& t = *g.Tree;
+			const float top = std::max(t.Height, t.BoundsHeight);
+			GB::RenderObject o;
+			o.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), at), yaw, glm::vec3(0, 1, 0));
+			o.BoundingCenter = { 0.0f, 0.5f * top, 0.0f };
+			o.BoundingRadius = 1.1f * glm::length(glm::vec2(0.5f * top, t.CrownRadius + 0.5f));
+			o.MeshPtr = keep(t.Trunk); o.Mat = material(g.Bark);
+			sc.Objects.push_back(o);
+			if (!t.Cuts.Empty()) { o.MeshPtr = keep(t.Cuts); o.Mat = cutMat; sc.Objects.push_back(o); }
+			if (!t.Soil.Empty()) { o.MeshPtr = keep(t.Soil); o.Mat = earth; sc.Objects.push_back(o); }
+			if (!t.Foliage.Empty())
+			{
+				GB::Material leaves = material(g.Leaves);
+				leaves.UVScale = 2.0f;
+				leaves.FoliageNormals = true;
+				leaves.NormalBlend = 0.0f;
+				leaves.BaseOcclusion = 0.0f;
+				leaves.OcclusionHeight = 0.25f * t.Height;
+				leaves.InteriorOcclusion = 0.3f;
+				o.MeshPtr = keep(t.Foliage); o.Mat = leaves;
+				sc.Objects.push_back(o);
+			}
+		};
+		// the six stages of every habit at their real scale, one band a habit (the same orthographic scale in all of them), each stage in a
+		// column as wide as its widest crown, on a low mound sized to it; the bands stacked into one picture
+		if (!growthRows.empty())
+		{
+			const size_t cols = growthRows[0].size();
+			std::vector<float> colW(cols, 0.0f);
+			float maxTop = 0.0f;
+			for (const auto& row : growthRows)
+				for (size_t c = 0; c < cols; ++c)
+				{
+					colW[c] = std::max(colW[c], 2.0f * row[c].Tree->CrownRadius + 0.8f);
+					maxTop = std::max(maxTop, row[c].Tree->BoundsHeight);
+				}
+			float total = 0.0f;
+			for (float w : colW) total += w;
+			std::vector<float> colX(cols);
+			{
+				float x = -0.5f * total;
+				for (size_t c = 0; c < cols; ++c) { colX[c] = x + 0.5f * colW[c]; x += colW[c]; }
+			}
+			const float pxPerM = static_cast<float>(W) / (total + 1.0f);
+			const float tilt = glm::radians(6.0f);
+			const uint32_t ground = 40;   // pixels under the foot of the trees in a band
+			const uint32_t band = std::min<uint32_t>(H, static_cast<uint32_t>(std::ceil(maxTop * pxPerM * std::cos(tilt))) + ground + 30);
+			std::vector<uint8_t> sheet;
+			for (const auto& row : growthRows)
+			{
+				GB::Scene sc = referenceLight({ 0.0f, 3.0f, 0.0f }, 0.55f * total);
+				const float yaw = 6.2831853f * GB::HashUnit(GB::VisualHash(row[0].Name.c_str()));
+				for (size_t c = 0; c < cols; ++c)
+				{
+					const GB::Tree& t = *row[c].Tree;
+					const float mr = std::clamp(0.2f * t.Height + 0.35f, 0.45f, 2.2f), mh = std::clamp(0.03f + 0.012f * t.Height, 0.035f, 0.15f);
+					GB::RenderObject m;
+					m.MeshPtr = keep(GB::ProcMesh::Blob(glm::vec3(mr, mh, mr), 3, 0.12f, GB::VisualHash(row[c].Name.c_str()), 0.0f));
+					m.Mat = earth;
+					m.Transform = glm::translate(glm::mat4(1.0f), { colX[c], 0.0f, 0.0f });
+					m.BoundingRadius = mr * 1.2f;
+					sc.Objects.push_back(m);
+					addGrown(sc, row[c], { colX[c], mh * 0.92f, 0.0f }, yaw);
+				}
+				// orthographic, a little from above: the foot of the trees `ground` pixels over the bottom of the picture
+				GB::Camera cam;
+				cam.Orthographic = true;
+				cam.OrthoHalfHeight = 0.5f * static_cast<float>(H) / pxPerM;
+				const float below = (0.5f * static_cast<float>(H) - static_cast<float>(ground)) / pxPerM;   // metres from the centre down to the foot
+				cam.Target = { 0.0f, below / std::cos(tilt), 0.0f };
+				cam.Position = cam.Target + glm::vec3(0.0f, std::sin(tilt), std::cos(tilt)) * 200.0f;
+				cam.NearPlane = 1.0f;
+				cam.FarPlane = 400.0f;
+				sc.Env.ShadowCenter = { 0.0f, 3.0f, 0.0f };
+				sc.Env.ShadowRadius = 0.55f * total;
+				renderer.Render(sc, cam, &fb);
+				const std::vector<uint8_t> px = fb.ReadPixels();
+				// (ReadPixels gives the top row first: the band is the last `band` rows; the first habit on top)
+				sheet.insert(sheet.end(), px.end() - static_cast<std::ptrdiff_t>(band) * W * 4, px.end());
+			}
+			const std::string path = outDir + "/arboles_fases.png";
+			Check(GB::SavePNG(path.c_str(), W, band * static_cast<uint32_t>(growthRows.size()), sheet.data()), "writes " + path);
+			std::fprintf(stderr, "wrote %s (%u x %u, %.1f px a metre)\n", path.c_str(), W, band * static_cast<uint32_t>(growthRows.size()), pxPerM);
+		}
+		// the states: behind, the tree whole, with its branches taken at 0.5 and at 1, and a dead tree standing; in front, the stump with the
+		// trunk fallen from it, the tree bucked into logs and a pile of branches, a planted sapling and an uprooted one standing on its root ball
+		if (!treeStates.empty())
+		{
+			auto find = [&](const std::string& suffix) -> const Grown*
+			{
+				for (const Grown& g : treeStates)
+					if (g.Name.size() >= suffix.size() && g.Name.compare(g.Name.size() - suffix.size(), suffix.size(), suffix) == 0) return &g;
+				return nullptr;
+			};
+			const Grown* back[] = { find("_entero"), find("_ramas_0.5"), find("_ramas_1"), treeStates.back().Tree->Params.Species == GB::TreeSpecies::Bare ? &treeStates.back() : nullptr };
+			const Grown* stump = find("_tocon"), * fallen = find("_tronco_caido"), * bucked = find("_troceado"), * planted = find("_planton_plantado"),
+			           * uprooted = find("_planton_arrancado");
+			float backW = 0.0f;
+			for (const Grown* g : back) if (g) backW += 2.0f * g->Tree->CrownRadius + 1.0f;
+			// the front row: [stump + fallen trunk] [bucked] [planted] [uprooted], each as wide as it reaches along +X from its origin
+			struct Slot { const Grown* G; float Left, Right; };
+			std::vector<Slot> front;
+			if (stump && fallen) front.push_back({ stump, 1.0f, fallen->Tree->CrownRadius + 0.6f });
+			if (bucked) front.push_back({ bucked, 1.0f, bucked->Tree->CrownRadius + 0.6f });
+			if (planted) front.push_back({ planted, planted->Tree->CrownRadius + 0.6f, planted->Tree->CrownRadius + 0.6f });
+			if (uprooted) front.push_back({ uprooted, uprooted->Tree->CrownRadius + 0.6f, uprooted->Tree->CrownRadius + 0.6f });
+			float frontW = 0.0f;
+			for (const Slot& s : front) frontW += s.Left + s.Right;
+			const float width = std::max(backW, frontW);
+			GB::Scene sc = referenceLight({ 0.0f, 2.0f, 0.0f }, 0.6f * width + 4.0f);
+			float x = -0.5f * backW;
+			for (const Grown* g : back)
+			{
+				if (!g) continue;
+				x += g->Tree->CrownRadius + 0.5f;
+				addGrown(sc, *g, { x, 0.0f, -4.0f }, 0.4f);
+				x += g->Tree->CrownRadius + 0.5f;
+			}
+			x = -0.5f * frontW;
+			for (const Slot& s : front)
+			{
+				x += s.Left;
+				glm::vec3 at{ x, 0.0f, 5.0f };
+				if (s.G == uprooted)
+				{
+					float low = 0.0f;   // stood on the bottom of its root ball
+					for (const GB::Vertex& v : s.G->Tree->Soil.Vertices) low = std::min(low, v.Position.y);
+					at.y = -low;
+				}
+				// (the pieces of the felled tree lie along +X: FallAzimuth 0, not turned)
+				addGrown(sc, *s.G, at, s.G == planted || s.G == uprooted ? 0.4f : 0.0f);
+				if (s.G == stump) addGrown(sc, *fallen, at, 0.0f);
+				x += s.Right;
+			}
+			GB::Camera cam;
+			cam.FovYDegrees = 30.0f;
+			const float dist = 0.5f * width / (std::tan(glm::radians(0.5f * cam.FovYDegrees)) * 16.0f / 9.0f);
+			cam.Target = { 0.0f, 3.2f, 1.0f };
+			cam.Position = { 0.0f, 3.2f + 0.2f * dist, 1.0f + dist };
+			sc.Env.ShadowCenter = { 0.0f, 2.0f, 0.0f };
+			save(sc, cam, "arboles_estados.png");
 		}
 	}
 	return failures;

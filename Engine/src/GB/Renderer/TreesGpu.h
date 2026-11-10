@@ -16,8 +16,12 @@ namespace GB
 	{
 		std::unique_ptr<Mesh> Trunk;
 		std::unique_ptr<Mesh> Foliage;     // null for bare trees
+		std::unique_ptr<Mesh> Cuts;        // T113: the end grain (stubs, stump, logs, chips); null when the tree has none
+		std::unique_ptr<Mesh> Soil;        // T113: the planted patch or the root ball; null when it has none
 		Material TrunkMaterial;
 		Material FoliageMaterial;
+		Material CutMaterial;
+		Material SoilMaterial;
 		float Height = 0.0f;               // the measures of the Tree it was made from
 		float CrownRadius = 0.0f;
 		float BoundsHeight = 0.0f;

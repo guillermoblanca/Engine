@@ -90,6 +90,19 @@
       { "name": "seco_b",               "species": "bare",      "style": 1, "seed": 9,  "height": 6.5, "bark": "bark2" },
       { "name": "seco_c",               "species": "bare",      "style": 2, "seed": 31, "height": 6.5, "bark": "wood_log2" }
     ],
+    "noteT113": "T113: treeGrowth.rows are the habits shown at the six stages (TreeParams::Stage, the same seed) in arboles_fases.png; treeGrowth.states is the tree shown whole, with branches taken, felled (stump, fallen trunk, bucked), planted and uprooted as a sapling in arboles_estados.png, with deadStanding (a bare tree at the old stage). Only in the --out takes; the CPU checks run on all of them.",
+    "treeGrowth": {
+      "rows": [
+        { "name": "frondoso_extendido", "species": "broadleaf", "style": 0, "seed": 11, "height": 7.5, "bark": "bark_oak",    "leaves": "leaf_broad" },
+        { "name": "frondoso_ovado",     "species": "broadleaf", "style": 1, "seed": 5,  "height": 7.5, "bark": "bark_birch",  "leaves": "leaf_small" },
+        { "name": "frondoso_columnar",  "species": "broadleaf", "style": 2, "seed": 7,  "height": 8.5, "bark": "bark2",       "leaves": "leaf_small" },
+        { "name": "conifera_abeto",     "species": "conifer",   "style": 0, "seed": 3,  "height": 9.0, "bark": "bark_spruce", "leaves": "leaf_needle" },
+        { "name": "conifera_pino",      "species": "conifer",   "style": 1, "seed": 4,  "height": 9.0, "bark": "bark_pine",   "leaves": "leaf_needle" },
+        { "name": "conifera_cipres",    "species": "conifer",   "style": 2, "seed": 6,  "height": 10.0, "bark": "bark_pine",  "leaves": "leaf_needle" }
+      ],
+      "states": { "name": "estados", "species": "broadleaf", "style": 2, "seed": 7, "height": 8.5, "bark": "bark2", "leaves": "leaf_small" },
+      "deadStanding": { "name": "muerto_en_pie", "species": "bare", "style": 0, "seed": 2, "height": 6.5, "bark": "bark2" }
+    },
     "plant": { "leaf_broad": "shrub", "leaf_small": "shrub", "leaf_needle": "conifer" },
     "noteT106": "T106: tufts, shrub and leaf samples are built of curved cards (ProcMesh::CurvedCard, CardTuft, CardShrub, CardConifer); a cards sample is the bare curved card and, beside it, the plant of its 'plant' entry. T46 integration: grass_*, shrub_small and leaf_* carry layers.foliage (translucency, per-instance and macro colour variation, crown normal blend, alpha by mip). Grass patches are merged meshes, so their normalBlend stays 0 (the sphere centre is the object pivot).",
     "noteT107": "T107: the tufts are instances now (one pivot per tuft: per-tuft colour and occlusion; normalBlend stays 0 on grass, the cards are thin and stand apart). layers.foliage adds baseOcclusion, occlusionHeight (metres over the pivot; the ground is the patch top for tufts and the bush), interiorOcclusion and backlightSpread. The conifer's trunk is bark2.",

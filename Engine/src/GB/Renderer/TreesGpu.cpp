@@ -33,9 +33,34 @@ namespace GB
 		trunk.Roughness = 0.95f;
 		trunk.HeightScale = 0.0f;
 		trunk.CavityStrength = 0.0f;
-		trunk.WindSway = p.Species == TreeSpecies::Palm ? 0.9f : 0.5f;
+		trunk.WindSway = p.Part != TreePart::Standing ? 0.0f : (p.Species == TreeSpecies::Palm ? 0.9f : 0.5f);   // (T113: a felled piece lies still)
 		trunk.WindHeight = H;
 		tree->TrunkMaterial = trunk;
+
+		// T113: the cut faces in pale wood (a plain colour: the end-grain texture of the gallery is not one of the trees' yet), swaying with the
+		// trunk they close; the earth of a planted or uprooted tree, still
+		if (!source.Cuts.Empty())
+		{
+			tree->Cuts = std::make_unique<Mesh>(source.Cuts.Vertices, source.Cuts.Indices);
+			Material cut;
+			cut.Albedo = glm::vec3(0.62f, 0.49f, 0.33f);
+			cut.Roughness = 0.85f;
+			cut.HeightScale = 0.0f;
+			cut.CavityStrength = 0.0f;
+			cut.WindSway = trunk.WindSway;
+			cut.WindHeight = H;
+			tree->CutMaterial = cut;
+		}
+		if (!source.Soil.Empty())
+		{
+			tree->Soil = std::make_unique<Mesh>(source.Soil.Vertices, source.Soil.Indices);
+			Material earth;
+			earth.Albedo = glm::vec3(0.2f, 0.15f, 0.1f);
+			earth.Roughness = 0.95f;
+			earth.HeightScale = 0.0f;
+			earth.CavityStrength = 0.0f;
+			tree->SoilMaterial = earth;
+		}
 
 		if (!source.Foliage.Vertices.empty())
 		{
@@ -71,6 +96,17 @@ namespace GB
 		t.Mat = TrunkMaterial;
 		t.Transform = transform;
 		scene.Objects.push_back(t);
+		for (const auto& [mesh, mat] : { std::pair<const Mesh*, const Material*>{ Cuts.get(), &CutMaterial }, std::pair<const Mesh*, const Material*>{ Soil.get(), &SoilMaterial } })
+		{
+			if (!mesh) continue;   // (T113: only a tree with cut faces or earth adds these)
+			RenderObject o;
+			o.BoundingCenter = boundsCenter; o.BoundingRadius = boundsRadius; o.MaxDistance = maxDistance;
+			o.Instanced = true;
+			o.MeshPtr = mesh;
+			o.Mat = *mat;
+			o.Transform = transform;
+			scene.Objects.push_back(o);
+		}
 		if (Foliage)
 		{
 			RenderObject f;
