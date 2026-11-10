@@ -1,0 +1,32 @@
+{
+  "visuals": {
+    "materials": {
+      "ice_clear":     { "color": [0.88, 0.91, 0.93], "texture": "ice",           "uvScale": 1.0, "roughness": 0.35 },
+      "ice_frost":     { "color": [0.91, 0.92, 0.93], "texture": "ice_frost",     "uvScale": 1.0, "roughness": 0.8 },
+      "glass_clear":   { "color": [0.84, 0.86, 0.85],                             "roughness": 0.04, "surface": "translucent" },
+      "glass_frosted": { "color": [0.88, 0.91, 0.90], "texture": "glass_frosted", "uvScale": 2.0, "roughness": 0.45, "surface": "translucent" },
+      "sand_dry":      { "color": [0.86, 0.82, 0.74], "texture": "sand",          "uvScale": 1.0, "roughness": 0.95 },
+      "sand_wet":      { "color": [0.50, 0.45, 0.38], "texture": "sand",          "uvScale": 1.0, "roughness": 0.4 },
+      "wood_planks":   { "color": [0.80, 0.80, 0.80], "texture": "planks",        "uvScale": 1.0, "roughness": 0.8 },
+      "wood_log":      { "color": [0.70, 0.68, 0.66], "texture": "wood",          "uvScale": 1.0, "roughness": 0.85 },
+      "wood_bark":     { "color": [0.60, 0.58, 0.56], "texture": "bark",          "uvScale": 1.0, "roughness": 0.9 },
+      "rock":          { "color": [0.82, 0.80, 0.78], "texture": "rock",          "uvScale": 0.7, "roughness": 0.9 },
+      "stone_cut":     { "color": [0.85, 0.83, 0.80], "texture": "ashlar",        "uvScale": 1.0, "roughness": 0.85 },
+      "stone":         { "color": [0.70, 0.69, 0.66], "texture": "stone",         "uvScale": 0.9, "roughness": 0.85, "grain": 0.35 },
+      "brick_new":     { "color": [0.90, 0.88, 0.86], "texture": "brick",         "uvScale": 1.0, "roughness": 0.85 },
+      "brick_worn":    { "color": [0.86, 0.84, 0.82], "texture": "brick_worn",    "uvScale": 1.0, "roughness": 0.95 }
+    }
+  },
+  "gallery": {
+    "note": "T91: the material families side by side (a box and a ball each). Glass takes the blend surface of today with the opacity below and ice is opaque, until T34 (transmission).",
+    "families": [
+      { "name": "hielo",    "materials": [ "ice_clear", "ice_frost" ] },
+      { "name": "cristal",  "materials": [ "glass_clear", "glass_frosted" ] },
+      { "name": "arena",    "materials": [ "sand_dry", "sand_wet" ] },
+      { "name": "madera",   "materials": [ "wood_planks", "wood_log", "wood_bark" ] },
+      { "name": "roca",     "materials": [ "rock", "stone_cut", "stone" ] },
+      { "name": "ladrillo", "materials": [ "brick_new", "brick_worn" ] }
+    ],
+    "opacity": { "glass_clear": 0.25, "glass_frosted": 0.45 }
+  }
+}

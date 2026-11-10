@@ -213,6 +213,266 @@ namespace GB
 				{ "grass", Grass }, { "fur", Fur } };
 			return table;
 		}
+
+		// ---- T91: kinds written as a surface (albedo, relief, roughness), so they also give a normal and a roughness map. The albedo follows the
+		// art bible: physical ranges, the painted light that does not move (occlusion in joints and cracks, R1) but no directional shadow nor
+		// highlight. Every period is a whole number of cells over the tile (rows of bricks, ripples, strata), so they tile like the rest.
+		struct Surface
+		{
+			glm::vec3 Albedo{ 0.5f };
+			float Height = 0.5f;   // 0..1, scaled by the kind's depth for the normal map
+			float Rough = 1.0f;    // 0..1, the factor on the material's roughness
+		};
+		using SurfaceShader = Surface (*)(float u, float v, uint32_t seed);
+
+		int Wrap(int a, int period) { return ((a % period) + period) % period; }
+		float Hash01(int a, int b, uint32_t seed) { return HashUnit(VisualHash(static_cast<uint32_t>(a), static_cast<uint32_t>(b) * 2654435761u, seed)); }
+
+		// Periodic value noise with its own period along u and along v (fibres, streaks): `pu` cells across, `pv` along.
+		float NoiseXY(float u, float v, int pu, int pv, uint32_t seed)
+		{
+			const float x = u * static_cast<float>(pu), y = v * static_cast<float>(pv);
+			const float fx = std::floor(x), fy = std::floor(y);
+			const int ix = static_cast<int>(fx), iy = static_cast<int>(fy);
+			float tx = x - fx, ty = y - fy;
+			tx = tx * tx * (3.0f - 2.0f * tx);
+			ty = ty * ty * (3.0f - 2.0f * ty);
+			const auto at = [&](int cx, int cy) { return Hash01(Wrap(cx, pu), Wrap(cy, pv), seed); };
+			const float a = at(ix, iy), b = at(ix + 1, iy), c = at(ix, iy + 1), d = at(ix + 1, iy + 1);
+			return (a + (b - a) * tx) + ((c + (d - c) * tx) - (a + (b - a) * tx)) * ty;
+		}
+
+		Surface Sand(float u, float v, uint32_t s)
+		{
+			// wind ripples across v (seven a tile, about 14 cm at UVScale 1) that wander and fade, over a fine grain of light and dark sand
+			const float warp = Fbm(u, v, 3, 3, s + 1) - 0.5f;
+			const float phase = 7.0f * v + 1.3f * warp + 0.35f * (Noise(u, v, 2, s + 2) - 0.5f);
+			const float w = phase * kTau;
+			const float ripple = 0.5f + 0.5f * std::sin(w + 0.7f * std::sin(w));   // a steep lee side and a long gentle stoss side
+			const float strength = 0.35f + 0.65f * Fbm(u, v, 2, 2, s + 3);
+			const float grain = Noise(u, v, 128, s + 5) * 0.6f + Noise(u, v, 64, s + 6) * 0.4f;
+			const float speck = Cell(static_cast<int>(u * 256.0f), static_cast<int>(v * 256.0f), 256, s + 9);
+			Surface o;
+			o.Albedo = Mix(glm::vec3(0.72f, 0.64f, 0.50f), glm::vec3(0.86f, 0.79f, 0.64f), 0.6f * Fbm(u, v, 4, 4, s + 7) + 0.4f * grain);
+			o.Albedo = Mix(o.Albedo, glm::vec3(0.44f, 0.38f, 0.32f), speck > 0.9f ? 0.55f : 0.0f);      // dark mineral grains
+			o.Albedo = Mix(o.Albedo, glm::vec3(0.95f, 0.93f, 0.88f), speck > 0.985f ? 0.6f : 0.0f);     // bright quartz
+			o.Albedo *= 0.9f + 0.1f * (1.0f + (ripple - 1.0f) * strength);          // the troughs keep the heavy dark grains
+			o.Height = 0.62f * ripple * strength + 0.38f * grain;
+			o.Rough = 0.88f + 0.12f * grain;
+			return o;
+		}
+
+		// Bricks or cut stone laid in courses: `rows` courses (even, so the half-offset bond tiles) of `cols` blocks a tile, joints of mortar
+		// `mortar` wide (tile units, half on each side), bevelled over `bevel`; `wear` chips the arrises, pits the faces and stains the wall.
+		struct Masonry
+		{
+			int Rows, Cols;
+			float Mortar, Bevel, Wear;
+			bool Stone;
+		};
+
+		Surface Lay(float u, float v, uint32_t s, const Masonry& p)
+		{
+			const float fr = v * static_cast<float>(p.Rows);
+			const int row = static_cast<int>(std::floor(fr));
+			const float fv = fr - static_cast<float>(row);
+			const float fc = u * static_cast<float>(p.Cols) + ((Wrap(row, p.Rows) & 1) ? 0.5f : 0.0f);
+			const int col = static_cast<int>(std::floor(fc));
+			const float fu = fc - static_cast<float>(col);
+			const int bc = Wrap(col, p.Cols), br = Wrap(row, p.Rows);
+			const float tone = Hash01(bc, br, s + 31), odd = Hash01(bc, br, s + 37), tilt = Hash01(bc, br, s + 41);
+			// distance to the block's edge in tile units, the corners rounded, the arris broken by noise where it is worn
+			const float ex = std::min(fu, 1.0f - fu) / static_cast<float>(p.Cols), ey = std::min(fv, 1.0f - fv) / static_cast<float>(p.Rows);
+			const float round = p.Mortar + p.Bevel;
+			float edge = (ex < round && ey < round) ? round - std::sqrt((round - ex) * (round - ex) + (round - ey) * (round - ey)) : std::min(ex, ey);
+			const float chip = Fbm(u, v, 24, 3, s + 43);
+			edge -= p.Wear * 0.012f * Smooth(0.45f, 0.75f, chip);
+			const float face = Smooth(p.Mortar, p.Mortar + p.Bevel, edge);           // 0 in the joint, 1 on the face
+			const float mortarMask = 1.0f - Smooth(p.Mortar - 0.0015f, p.Mortar + 0.0015f, edge);
+			const float mottle = Fbm(u, v, 8, 4, s + 51);
+			float second = 0.0f;
+			const float pit = p.Wear * Smooth(0.16f, 0.06f, Cells(u, v, 40, s + 61, &second)) * Smooth(0.5f, 0.7f, Noise(u, v, 6, s + 63));
+			Surface o;
+			glm::vec3 block;
+			if (p.Stone)
+			{
+				// cut stone: pale limestone blocks, each its own tint, with the fine diagonal strokes of the dressing chisel
+				block = Mix(glm::vec3(0.62f, 0.60f, 0.56f), glm::vec3(0.80f, 0.77f, 0.71f), tone) * (0.9f + 0.2f * mottle);
+				const float strokes = 0.5f + 0.5f * std::sin((24.0f * (u + v) + 0.6f * Fbm(u, v, 4, 2, s + 71)) * kTau);
+				block *= 0.97f + 0.03f * strokes;
+				o.Height = 0.8f + 0.03f * strokes + 0.08f * (mottle - 0.5f);
+			}
+			else
+			{
+				// fired clay: red to orange by the brick, a few over-burnt dark ones, a mottled face
+				block = Mix(glm::vec3(0.60f, 0.31f, 0.21f), glm::vec3(0.80f, 0.50f, 0.35f), tone);
+				block = Mix(block, glm::vec3(0.38f, 0.23f, 0.19f), odd > 0.84f ? 0.65f : 0.0f);
+				block *= 0.86f + 0.28f * mottle;
+				o.Height = 0.82f + 0.1f * (mottle - 0.5f) + 0.05f * (tilt - 0.5f);
+			}
+			if (p.Wear > 0.0f)
+			{
+				// weathering: the faces fade and take white salt bloom in patches, the pits are dark
+				const float bloom = Smooth(0.6f, 0.78f, Fbm(u, v, 3, 4, s + 81)) * p.Wear;
+				block = Mix(block, block * 0.75f + glm::vec3(0.2f), 0.35f * p.Wear);
+				block = Mix(block, glm::vec3(0.84f, 0.82f, 0.78f), bloom * 0.55f);
+				block *= 1.0f - 0.35f * pit;
+				o.Height -= 0.3f * pit;
+			}
+			block *= 0.8f + 0.2f * Smooth(p.Mortar, p.Mortar + 2.0f * p.Bevel, edge);   // painted occlusion along the joints (R1)
+			const float m = Noise(u, v, 64, s + 91);
+			const glm::vec3 mortar = Mix(glm::vec3(0.70f, 0.67f, 0.62f), glm::vec3(0.52f, 0.50f, 0.46f), p.Wear * 0.6f) * (0.78f + 0.2f * m);
+			o.Albedo = Mix(block, mortar, mortarMask);
+			const float mortarHeight = 0.18f + 0.08f * m - 0.1f * p.Wear;
+			o.Height = mortarHeight + (o.Height - mortarHeight) * face;
+			o.Rough = Mix(glm::vec3(0.82f + 0.12f * mottle + 0.06f * p.Wear), glm::vec3(1.0f), mortarMask).x;
+			return o;
+		}
+
+		Surface Brick(float u, float v, uint32_t s) { return Lay(u, v, s, { 12, 4, 0.006f, 0.005f, 0.0f, false }); }
+		Surface BrickWorn(float u, float v, uint32_t s) { return Lay(u, v, s, { 12, 4, 0.007f, 0.012f, 1.0f, false }); }
+		Surface Ashlar(float u, float v, uint32_t s) { return Lay(u, v, s, { 4, 2, 0.004f, 0.008f, 0.25f, true }); }
+
+		Surface Rock(float u, float v, uint32_t s)
+		{
+			// a large layered rock: six strata a tile that wander, each its own tone and hardness (the soft ones weathered back), split by
+			// joints that run across them, mottled and speckled
+			const float sv = 6.0f * v + 1.2f * (Fbm(u, v, 2, 3, s + 1) - 0.5f) + 0.3f * (Fbm(u, v, 8, 2, s + 2) - 0.5f);
+			const int band = static_cast<int>(std::floor(sv));
+			const float fb = sv - static_cast<float>(band);
+			const int bw = Wrap(band, 6);
+			const float tone = Hash01(bw, 13, s + 5), warm = Hash01(bw, 17, s + 5), hard = Hash01(bw, 19, s + 5);
+			const float groove = Smooth(0.0f, 0.1f, fb) * Smooth(0.0f, 0.1f, 1.0f - fb);
+			float second = 0.0f;
+			const float d = Cells(u * 2.0f, v, 3, s + 7, &second);
+			const float joint = Smooth(0.07f, 0.0f, second - d) * Smooth(0.35f, 0.6f, Noise(u, v, 4, s + 9));
+			const float fine = Fbm(u, v, 8, 5, s + 11);
+			const float speck = Cell(static_cast<int>(u * 128.0f), static_cast<int>(v * 128.0f), 128, s + 13);
+			Surface o;
+			glm::vec3 c = Mix(glm::vec3(0.50f, 0.49f, 0.47f), glm::vec3(0.74f, 0.71f, 0.66f), tone);
+			c = Mix(c, glm::vec3(0.70f, 0.60f, 0.49f), warm * 0.4f);
+			c *= 0.84f + 0.32f * fine;
+			c *= 0.72f + 0.28f * groove;
+			c = Mix(c, glm::vec3(0.24f, 0.23f, 0.22f), joint * 0.55f);
+			o.Albedo = Mix(c, glm::vec3(0.86f), speck > 0.975f ? 0.15f : 0.0f);
+			o.Height = (0.35f + 0.25f * hard + 0.4f * fine) * (0.45f + 0.55f * groove) - 0.35f * joint;
+			o.Rough = Mix(glm::vec3(0.82f + 0.15f * fine), glm::vec3(1.0f), 1.0f - groove).x;
+			return o;
+		}
+
+		Surface Wood(float u, float v, uint32_t s)
+		{
+			// worked timber, the grain along v (a post or a beam standing): growth rings as fine dark lines that bend round the knots, fibre
+			// streaks, a few knots and the long checks of drying
+			float second = 0.0f;
+			const float kd = Cells(u, v, 3, s + 3, &second);
+			const float knotOn = Smooth(0.5f, 0.62f, Noise(u, v, 3, s + 4));
+			const float knotCore = Smooth(0.09f, 0.03f, kd) * knotOn;
+			const float g = 14.0f * u + 1.4f * (NoiseXY(u, v, 3, 1, s + 2) - 0.5f) + 0.9f * (Fbm(u, v, 3, 3, s + 1) - 0.5f) + 1.6f * Smooth(0.32f, 0.0f, kd) * knotOn;
+			const float lines = 0.5f + 0.5f * std::sin(g * kTau);
+			const float late = lines * lines * lines;
+			const float fibre = NoiseXY(u, v, 128, 6, s + 5) * 0.6f + NoiseXY(u, v, 64, 3, s + 6) * 0.4f;
+			const float check = Smooth(0.022f, 0.0f, std::fabs(NoiseXY(u, v, 20, 2, s + 9) - 0.5f)) * Smooth(0.55f, 0.7f, NoiseXY(u, v, 3, 3, s + 10));
+			Surface o;
+			glm::vec3 c = Mix(glm::vec3(0.80f, 0.66f, 0.48f), glm::vec3(0.52f, 0.38f, 0.25f), 0.55f * late + 0.35f * fibre);
+			c *= 0.9f + 0.2f * Fbm(u, v, 4, 3, s + 7);
+			c = Mix(c, glm::vec3(0.30f, 0.21f, 0.14f), knotCore);
+			o.Albedo = Mix(c, glm::vec3(0.22f, 0.16f, 0.11f), check * 0.85f);
+			o.Height = 0.5f + 0.28f * late + 0.18f * fibre - 0.6f * check + 0.1f * knotCore;
+			o.Rough = 0.78f + 0.22f * fibre;
+			return o;
+		}
+
+		Surface IceSurface(float u, float v, uint32_t s, float frost)
+		{
+			// clear ice, deeper and bluer where it is thick, crazed by fine white fractures, with strings of trapped bubbles; frost grows over
+			// it in feathery patches (all of it on ice_frost). Very little saturation: it is white with a cold cast, not blue.
+			const float depth = Fbm(u, v, 2, 4, s + 1);
+			glm::vec3 c = Mix(glm::vec3(0.56f, 0.66f, 0.74f), glm::vec3(0.80f, 0.86f, 0.90f), depth);
+			float second = 0.0f;
+			const float d = Cells(u, v, 4, s + 3, &second);
+			const float crackA = Smooth(0.02f, 0.0f, second - d) * Smooth(0.35f, 0.55f, Noise(u, v, 6, s + 4));
+			const float crackB = Smooth(0.012f, 0.0f, std::fabs(Fbm(u, v, 3, 3, s + 5) - 0.5f));
+			const float crack = std::max(crackA, crackB * 0.8f);
+			c = Mix(c, glm::vec3(0.95f, 0.97f, 0.98f), crack * 0.8f);
+			float bs = 0.0f;
+			const float bd = Cells(u, v, 20, s + 7, &bs);
+			const float radius = 0.06f + 0.12f * Noise(u, v, 16, s + 10);   // few bubbles, of every size, in loose clouds
+			const float bubble = Smooth(radius, radius - 0.05f, bd) * Smooth(0.62f, 0.8f, Noise(u, v, 7, s + 8));
+			c = Mix(c, glm::vec3(0.97f, 0.98f, 0.99f), bubble * 0.7f);
+			const float cover = Fbm(u, v, 4, 5, s + 9);
+			const float frostMask = Smooth(0.72f - 0.42f * frost, 0.84f - 0.32f * frost, cover);
+			float fs = 0.0f;
+			const float fd = Cells(u, v, 48, s + 11, &fs);
+			const float crystals = Noise(u, v, 128, s + 12) * 0.6f + Smooth(0.0f, 0.2f, fs - fd) * 0.4f;
+			const glm::vec3 rime = glm::vec3(0.88f, 0.91f, 0.93f) * (0.9f + 0.1f * crystals);
+			Surface o;
+			o.Albedo = Mix(c, rime, frostMask);
+			o.Height = 0.45f + 0.05f * depth - 0.25f * crack + frostMask * (0.2f + 0.3f * crystals);
+			o.Rough = Mix(glm::vec3(0.22f + 0.35f * crack + 0.2f * bubble), glm::vec3(0.85f + 0.15f * crystals), frostMask).x;
+			return o;
+		}
+
+		Surface Ice(float u, float v, uint32_t s) { return IceSurface(u, v, s, 0.0f); }
+		Surface IceFrost(float u, float v, uint32_t s) { return IceSurface(u, v, s, 1.0f); }
+
+		Surface GlassFrosted(float u, float v, uint32_t s)
+		{
+			// sand-blasted glass: almost white, a fine even pitting that scatters the highlight
+			const float n = Noise(u, v, 128, s + 1) * 0.6f + Noise(u, v, 64, s + 2) * 0.4f;
+			Surface o;
+			o.Albedo = glm::vec3(0.94f + 0.03f * n);
+			o.Height = n;
+			o.Rough = 0.82f + 0.18f * n;
+			return o;
+		}
+
+		struct SurfaceKind
+		{
+			const char* Name;
+			SurfaceShader Fn;
+			float Depth;   // the relief of Height 0..1, in tile units (0.01 = 1 cm at UVScale 1)
+		};
+
+		const std::vector<SurfaceKind>& Surfaces()
+		{
+			static const std::vector<SurfaceKind> table = {
+				{ "sand", Sand, 0.006f }, { "brick", Brick, 0.012f }, { "brick_worn", BrickWorn, 0.014f }, { "ashlar", Ashlar, 0.012f },
+				{ "rock", Rock, 0.03f }, { "wood", Wood, 0.006f }, { "ice", Ice, 0.004f }, { "ice_frost", IceFrost, 0.006f },
+				{ "glass_frosted", GlassFrosted, 0.0015f } };
+			return table;
+		}
+
+		const SurfaceKind* FindSurface(const std::string& kind)
+		{
+			for (const SurfaceKind& k : Surfaces()) if (kind == k.Name) return &k;
+			return nullptr;
+		}
+
+		const Shader* FindShader(const std::string& kind)
+		{
+			for (const auto& [name, fn] : Table()) if (name == kind) return &fn;
+			return nullptr;
+		}
+
+		// One value per texel at the texel centres (the same pattern at every size, so the low-res texture is the same look, only blurrier).
+		template <typename F>
+		void ForTexels(uint32_t size, F&& f)
+		{
+			for (uint32_t y = 0; y < size; ++y)
+				for (uint32_t x = 0; x < size; ++x)
+					f(x, y, (static_cast<float>(x) + 0.5f) / static_cast<float>(size), (static_cast<float>(y) + 0.5f) / static_cast<float>(size));
+		}
+
+		Image Blank(uint32_t size)
+		{
+			Image img;
+			img.Width = img.Height = size;
+			img.Pixels.resize(static_cast<size_t>(size) * size * 4);
+			return img;
+		}
+
+		uint8_t Byte(float c) { return static_cast<uint8_t>(std::lround(std::clamp(c, 0.0f, 1.0f) * 255.0f)); }
 	}
 
 	namespace ProcTexture
@@ -223,6 +483,7 @@ namespace GB
 			{
 				std::vector<std::string> k;
 				for (const auto& [name, fn] : Table()) k.push_back(name);
+				for (const SurfaceKind& s : Surfaces()) k.push_back(s.Name);
 				return k;
 			}();
 			return kinds;
@@ -230,32 +491,82 @@ namespace GB
 
 		bool Known(const std::string& kind)
 		{
-			for (const auto& [name, fn] : Table()) if (name == kind) return true;
-			return false;
+			return FindShader(kind) != nullptr || FindSurface(kind) != nullptr;
 		}
 
 		Image Generate(const std::string& kind, uint32_t size, uint32_t seed)
 		{
 			size = std::clamp(size, 16u, 1024u);
-			const Shader* shader = nullptr;
-			for (const auto& [name, fn] : Table()) if (name == kind) shader = &fn;
-			if (!shader) return Image::Solid(size, size, 128, 128, 128);
-			Image img;
-			img.Width = img.Height = size;
-			img.Pixels.resize(static_cast<size_t>(size) * size * 4);
+			const Shader* shader = FindShader(kind);
+			const SurfaceKind* surface = shader ? nullptr : FindSurface(kind);
+			if (!shader && !surface) return Image::Solid(size, size, 128, 128, 128);
+			Image img = Blank(size);
 			const uint32_t s = VisualHash(kind.c_str(), seed);
-			for (uint32_t y = 0; y < size; ++y)
-				for (uint32_t x = 0; x < size; ++x)
+			ForTexels(size, [&](uint32_t x, uint32_t y, float u, float v)
+			{
+				const glm::vec3 c = shader ? (*shader)(u, v, s) : surface->Fn(u, v, s).Albedo;
+				uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * size + x) * 4];
+				p[0] = Byte(c.r);
+				p[1] = Byte(c.g);
+				p[2] = Byte(c.b);
+				p[3] = 255;
+			});
+			return img;
+		}
+
+		Image GenerateNormal(const std::string& kind, uint32_t size, uint32_t seed)
+		{
+			size = std::clamp(size, 16u, 1024u);
+			const Shader* shader = FindShader(kind);
+			const SurfaceKind* surface = shader ? nullptr : FindSurface(kind);
+			if (!shader && !surface) return Image::Solid(size, size, 128, 128, 255);
+			// the relief at every texel: the surface's own, or the older kinds' albedo luminance (darker is lower: joints, furrows, cracks)
+			std::vector<float> height(static_cast<size_t>(size) * size);
+			const uint32_t s = VisualHash(kind.c_str(), seed);
+			ForTexels(size, [&](uint32_t x, uint32_t y, float u, float v)
+			{
+				float h = 0.0f;
+				if (surface) h = surface->Fn(u, v, s).Height;
+				else
 				{
-					// (texel centres: the same pattern at every size, so the low-res texture is the same look, only blurrier)
-					const float u = (static_cast<float>(x) + 0.5f) / static_cast<float>(size), v = (static_cast<float>(y) + 0.5f) / static_cast<float>(size);
 					const glm::vec3 c = glm::clamp((*shader)(u, v, s), glm::vec3(0.0f), glm::vec3(1.0f));
-					uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * size + x) * 4];
-					p[0] = static_cast<uint8_t>(std::lround(c.r * 255.0f));
-					p[1] = static_cast<uint8_t>(std::lround(c.g * 255.0f));
-					p[2] = static_cast<uint8_t>(std::lround(c.b * 255.0f));
-					p[3] = 255;
+					h = 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b;
 				}
+				height[static_cast<size_t>(y) * size + x] = h;
+			});
+			const float depth = surface ? surface->Depth : 0.004f;
+			// slopes by central differences across the wrapped edges (the map tiles like the albedo), in tile units: dh/du = depth * dH * size / 2
+			const float k = depth * static_cast<float>(size) * 0.5f;
+			Image img = Blank(size);
+			const auto at = [&](uint32_t x, uint32_t y) { return height[static_cast<size_t>(y % size) * size + x % size]; };
+			ForTexels(size, [&](uint32_t x, uint32_t y, float, float)
+			{
+				const float gx = (at(x + 1, y) - at(x + size - 1, y)) * k, gy = (at(x, y + 1) - at(x, y + size - 1)) * k;
+				const glm::vec3 n = glm::normalize(glm::vec3(-gx, -gy, 1.0f));
+				uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * size + x) * 4];
+				p[0] = Byte(0.5f + 0.5f * n.x);
+				p[1] = Byte(0.5f + 0.5f * n.y);
+				p[2] = Byte(0.5f + 0.5f * n.z);
+				p[3] = 255;
+			});
+			return img;
+		}
+
+		Image GenerateRoughness(const std::string& kind, uint32_t size, uint32_t seed)
+		{
+			size = std::clamp(size, 16u, 1024u);
+			const SurfaceKind* surface = FindShader(kind) ? nullptr : FindSurface(kind);
+			if (!surface) return Image::Solid(size, size, 255, 255, 255);
+			Image img = Blank(size);
+			const uint32_t s = VisualHash(kind.c_str(), seed);
+			ForTexels(size, [&](uint32_t x, uint32_t y, float u, float v)
+			{
+				uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * size + x) * 4];
+				p[0] = 255;
+				p[1] = Byte(surface->Fn(u, v, s).Rough);
+				p[2] = 255;
+				p[3] = 255;
+			});
 			return img;
 		}
 
