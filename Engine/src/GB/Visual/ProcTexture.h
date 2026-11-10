@@ -17,6 +17,14 @@ namespace GB
 		// The kinds this build can make, in a fixed order.
 		const std::vector<std::string>& Kinds();
 		bool Known(const std::string& kind);
+		// T103: mud (puddles, ruts, footprints), mud_dry (curled plates, cracks), wood_planks2 (boards with real grain, knots, sunk joints),
+		// wood_log2 (debarked log or beam), bark2 (fissured plates that repeat in v too), wood_old (silver weathered boards) are surfaces
+		// like T91's. The cards leaf_broad, leaf_small, leaf_needle (twigs with leaves or needles) and grass_short, grass_medium, grass_tall,
+		// grass_dry (tufts) are one picture over the whole texture, not a tiling pattern: Generate gives RGBA with the silhouette's coverage
+		// in alpha (straight, edge texels partial for alpha to coverage; the texels outside have one bleed colour), v up (the stem or the
+		// base of the tuft at v ~ 0). Their colour is the plant's own (not a tint for the material's colour). Use them with "cutout",
+		// double-sided, on quads mapped 0..1 (ProcMesh::Card).
+		bool IsCard(const std::string& kind);
 		// The texture; an unknown kind gives a flat mid-grey image (so a newer content file still draws).
 		Image Generate(const std::string& kind, uint32_t size, uint32_t seed = 0);
 		// T91: the relief and the shine of the same pattern, as data maps (upload them Linear). The kinds of T91 (sand, brick, brick_worn,

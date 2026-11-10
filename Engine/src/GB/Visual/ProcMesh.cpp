@@ -230,5 +230,27 @@ namespace GB
 			m.ComputeTangents();
 			return m;
 		}
+
+		MeshData Card(float width, float height, float bend, int segments)
+		{
+			MeshData m;
+			segments = std::clamp(segments, 1, 8);
+			for (int s = 0; s <= segments; ++s)
+			{
+				const float t = static_cast<float>(s) / static_cast<float>(segments);
+				const float y = height * t, z = bend * t * t;
+				const glm::vec3 n = glm::normalize(glm::vec3(0.0f, -2.0f * bend * t / std::max(height, 1e-4f), 1.0f));
+				m.Vertices.push_back(MakeVertex({ -0.5f * width, y, z }, n, { 0.0f, t }));
+				m.Vertices.push_back(MakeVertex({ 0.5f * width, y, z }, n, { 1.0f, t }));
+			}
+			for (int s = 0; s < segments; ++s)
+			{
+				const uint32_t a = static_cast<uint32_t>(s * 2);
+				AddTri(m, a, a + 1, a + 2);
+				AddTri(m, a + 1, a + 3, a + 2);
+			}
+			m.ComputeTangents();
+			return m;
+		}
 	}
 }

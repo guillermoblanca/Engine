@@ -1,11 +1,12 @@
-// T91: the material gallery. The families of tests/data/material_gallery.json (ice, glass, sand, wood, rock, brick), two or three variants each,
-// as a box and a ball on a neutral floor under a midday sun with shadows and the default Neutral tone mapper. The materials are read with the
+// T91: the material gallery. The families of tests/data/material_gallery.json (ice, glass, sand, wood, rock, brick; T103: mud, vegetation,
+// leaves), two to seven variants each, as a box and a ball (or, by the family's "shape": a slab of ground, tufts of grass cards, a bush of
+// cards, standing leaf cards) on a neutral floor under a midday sun with shadows and the default Neutral tone mapper. The materials are read with the
 // game's loader (LoadVisuals) and turned into renderer materials by the game's VisualCache::MaterialFor; the test adds the procedural normal and
 // roughness maps (ProcTexture::GenerateNormal / GenerateRoughness), which the game's path does not bind yet, and the opacity of the gallery
 // section for glass and ice (the blend surface of today, until T34 brings transmission).
 // The small picture is a golden image (tests/golden/images/material_gallery.png; update: GB_UPDATE_GOLDEN=1 ctest -R "^material_gallery$").
 // `GBGLTests material_gallery --out <dir>` also writes the full-size gallery (galeria.png, 1600x900) and a close-up of every family
-// (galeria_<family>.png) there, and the new textures of T102 flat (texturas_v2.png, no GL needed). It prints the mean albedo of every material (sRGB luminance of colour x texture) for the art bible's R2.
+// (galeria_<family>.png) there, and the new textures of T102 and T103 flat (texturas_v2.png, texturas_v3.png; no GL needed). It prints the mean albedo of every material (sRGB luminance of colour x texture) for the art bible's R2.
 // SKIPs (77) without an OpenGL 4.5 context.
 #include "GB/Log.h"
 #include "GB/Platform/Window.h"
@@ -41,26 +42,34 @@ namespace
 	{
 		std::string Name;
 		std::vector<std::string> Materials;
+		std::string Shape = "box";   // "box" (a box and a ball), "slab" (a slab of ground and a ball), "tufts", "shrub", "cards" (T103)
+		int Band = 0;                // the overview's band: 0 in front, 1 behind
 	};
 
 	float ToLinear(float c) { return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f); }
 	float ToSrgb(float c) { return c <= 0.0031308f ? c * 12.92f : 1.055f * std::pow(c, 1.0f / 2.4f) - 0.055f; }
 
 	// The mean albedo of a material as the art bible measures it (R2): colour x texture, averaged in linear light, as an sRGB luminance 0..255.
+	// Weighted by the texture's alpha (T103 cards: only the leaf or the blade counts; the other textures are opaque, so nothing changes).
 	float MeanAlbedo(const GB::VisualMaterial& m)
 	{
 		glm::vec3 sum(0.0f);
-		size_t n = 1;
+		float n = 1.0f;
 		if (m.Texture.empty()) sum = m.Color;
 		else
 		{
 			const GB::Image img = GB::ProcTexture::Generate(m.Texture, 128);
-			n = static_cast<size_t>(img.Width) * img.Height;
-			for (size_t i = 0; i < n; ++i)
+			n = 0.0f;
+			for (size_t i = 0; i < static_cast<size_t>(img.Width) * img.Height; ++i)
+			{
+				const float a = static_cast<float>(img.Pixels[i * 4 + 3]) / 255.0f;
+				n += a;
 				for (int c = 0; c < 3; ++c)
-					sum[c] += ToLinear(static_cast<float>(img.Pixels[i * 4 + static_cast<size_t>(c)]) / 255.0f) * m.Color[c];
+					sum[c] += a * ToLinear(static_cast<float>(img.Pixels[i * 4 + static_cast<size_t>(c)]) / 255.0f) * m.Color[c];
+			}
+			n = std::max(n, 1e-6f);
 		}
-		const glm::vec3 mean = sum / static_cast<float>(n);
+		const glm::vec3 mean = sum / n;
 		return ToSrgb(0.2126f * mean.r + 0.7152f * mean.g + 0.0722f * mean.b) * 255.0f;
 	}
 
@@ -107,11 +116,84 @@ namespace
 		return GB::SavePNG(path.c_str(), W, H, px.data());
 	}
 
-	// The gallery's ground: rows of samples along -Z, one column per family along X.
-	constexpr float kColumn = 2.6f, kRow = 2.4f;
-	glm::vec3 SampleAt(size_t family, size_t families, size_t row)
+	// T103: the new textures flat. Two panels side by side: the surfaces that tile (mud, wood) on the left, the cards (leaves, grass) on the
+	// right. Columns: the albedo over a light and dark checker (through its alpha), the alpha as grey, the normal, the roughness (G as grey),
+	// and a 2x2 repeat of the albedo at half scale (the tiling check; a card shows its bleed colour around it). v up, as on a ProcMesh wall.
+	bool WriteTextureSheetV3(const std::string& path)
 	{
-		return { (static_cast<float>(family) - 0.5f * static_cast<float>(families - 1)) * kColumn, 0.0f, -static_cast<float>(row) * kRow };
+		const std::vector<std::string> left = { "mud", "mud_dry", "wood_planks2", "wood_log2", "bark2", "wood_old" };
+		const std::vector<std::string> right = { "leaf_broad", "leaf_small", "leaf_needle", "grass_short", "grass_medium", "grass_tall", "grass_dry" };
+		constexpr uint32_t T = 256, Gap = 6, Cols = 5, PanelGap = 30;
+		const uint32_t panelW = Cols * T + (Cols + 1) * Gap;
+		const uint32_t W = 2 * panelW + PanelGap, H = static_cast<uint32_t>(std::max(left.size(), right.size())) * (T + Gap) + Gap;
+		std::vector<uint8_t> px(static_cast<size_t>(W) * H * 4, 40);
+		for (size_t i = 3; i < px.size(); i += 4) px[i] = 255;
+		for (int panel = 0; panel < 2; ++panel)
+		{
+			const std::vector<std::string>& kinds = panel == 0 ? left : right;
+			for (size_t row = 0; row < kinds.size(); ++row)
+			{
+				const std::string& k = kinds[row];
+				const GB::Image albedo = GB::ProcTexture::Generate(k, T), normal = GB::ProcTexture::GenerateNormal(k, T), rough = GB::ProcTexture::GenerateRoughness(k, T);
+				const uint32_t oy = Gap + static_cast<uint32_t>(row) * (T + Gap);
+				for (uint32_t col = 0; col < Cols; ++col)
+				{
+					const uint32_t ox = static_cast<uint32_t>(panel) * (panelW + PanelGap) + Gap + col * (T + Gap);
+					for (uint32_t y = 0; y < T; ++y)
+						for (uint32_t x = 0; x < T; ++x)
+						{
+							const bool repeat = col == 4;
+							const uint32_t sx = repeat ? (x * 2) % T : x, sy = T - 1 - (repeat ? (y * 2) % T : y);
+							const size_t s = (static_cast<size_t>(sy) * T + sx) * 4;
+							uint8_t* d = &px[(static_cast<size_t>(oy + y) * W + ox + x) * 4];
+							if (col == 0)
+							{
+								const float bg = ((x / 16 + y / 16) & 1) ? 200.0f : 120.0f;
+								const float a = static_cast<float>(albedo.Pixels[s + 3]) / 255.0f;
+								for (int c = 0; c < 3; ++c) d[c] = static_cast<uint8_t>(std::lround(bg + (static_cast<float>(albedo.Pixels[s + static_cast<size_t>(c)]) - bg) * a));
+							}
+							else if (col == 1) d[0] = d[1] = d[2] = albedo.Pixels[s + 3];
+							else if (col == 2) for (int c = 0; c < 3; ++c) d[c] = normal.Pixels[s + static_cast<size_t>(c)];
+							else if (col == 3) d[0] = d[1] = d[2] = rough.Pixels[s + 1];
+							else for (int c = 0; c < 3; ++c) d[c] = albedo.Pixels[s + static_cast<size_t>(c)];
+						}
+				}
+			}
+		}
+		return GB::SavePNG(path.c_str(), W, H, px.data());
+	}
+
+	// The gallery's ground (T103): two bands of columns (a family's "band", 0 in front, 1 behind it), the samples of a family in rows along -Z,
+	// four rows a column (a family with more takes more columns).
+	constexpr float kColumn = 2.6f, kRow = 2.4f;
+	constexpr size_t kRowsPerColumn = 4;
+	std::vector<std::vector<glm::vec3>> Layout(const std::vector<Family>& families)
+	{
+		std::vector<std::vector<glm::vec3>> at(families.size());
+		float bandZ = 0.0f;
+		for (int band = 0; band < 2; ++band)
+		{
+			size_t columns = 0, rows = 0;
+			for (const Family& f : families)
+				if (f.Band == band)
+				{
+					columns += (f.Materials.size() + kRowsPerColumn - 1) / kRowsPerColumn;
+					rows = std::max(rows, std::min(f.Materials.size(), kRowsPerColumn));
+				}
+			size_t column = 0;
+			for (size_t i = 0; i < families.size(); ++i)
+			{
+				if (families[i].Band != band) continue;
+				for (size_t m = 0; m < families[i].Materials.size(); ++m)
+				{
+					const float x = (static_cast<float>(column + m / kRowsPerColumn) - 0.5f * static_cast<float>(columns - 1)) * kColumn;
+					at[i].push_back({ x, 0.0f, bandZ - static_cast<float>(m % kRowsPerColumn) * kRow });
+				}
+				column += (families[i].Materials.size() + kRowsPerColumn - 1) / kRowsPerColumn;
+			}
+			bandZ -= static_cast<float>(rows) * kRow + 0.6f;
+		}
+		return at;
 	}
 }
 
@@ -136,11 +218,17 @@ int GBTest_material_gallery(int argc, char** argv)
 	size_t samples = 0;
 	for (const auto& f : doc["gallery"]["families"])
 	{
-		families.push_back({ f.value("name", ""), f["materials"].get<std::vector<std::string>>() });
+		families.push_back({ f.value("name", ""), f["materials"].get<std::vector<std::string>>(), f.value("shape", "box"), f.value("band", 0) });
 		samples += families.back().Materials.size();
 		for (const std::string& id : families.back().Materials) Check(library.Materials.count(id) == 1, "family " + families.back().Name + ": material " + id + " is defined");
 	}
-	Check(families.size() == 6, "six families");
+	Check(families.size() == 9, "nine families");
+	std::map<std::string, std::string> shapes;   // per material, overriding its family's
+	if (doc["gallery"].contains("shapes"))
+		for (const auto& [id, value] : doc["gallery"]["shapes"].items()) shapes[id] = value.get<std::string>();
+	std::map<std::string, glm::vec2> cardSize;   // the card of a tuft, a bush or a leaf sample, metres
+	if (doc["gallery"].contains("cardSize"))
+		for (const auto& [id, value] : doc["gallery"]["cardSize"].items()) cardSize[id] = { value[0].get<float>(), value[1].get<float>() };
 	Check(library.Materials.size() == samples, "every material of the file is in the gallery (" + std::to_string(library.Materials.size()) + " materials, " + std::to_string(samples) + " samples)");
 	std::map<std::string, float> opacity;
 	if (doc["gallery"].contains("opacity"))
@@ -156,6 +244,9 @@ int GBTest_material_gallery(int argc, char** argv)
 		const std::string sheet = outDir + "/texturas_v2.png";
 		Check(WriteTextureSheet(sheet), "writes " + sheet);
 		std::fprintf(stderr, "wrote %s\n", sheet.c_str());
+		const std::string sheet3 = outDir + "/texturas_v3.png";
+		Check(WriteTextureSheetV3(sheet3), "writes " + sheet3);
+		std::fprintf(stderr, "wrote %s\n", sheet3.c_str());
 	}
 
 	GB::WindowProps props;
@@ -196,12 +287,68 @@ int GBTest_material_gallery(int argc, char** argv)
 			}
 		}
 		if (const auto it = opacity.find(id); it != opacity.end()) m.Opacity = it->second;
+		if (m.Alpha == GB::AlphaMode::Mask) m.AlphaCutoff = 0.4f;   // as the tree crowns (TreesGpu); the data cannot set it yet
 		return m;
 	};
 
 	const GB::MeshData boxData = GB::ProcMesh::Box(glm::vec3(0.9f)), ballData = GB::ProcMesh::Blob(glm::vec3(0.45f), 4, 0.0f, 1);
 	GB::Mesh box(boxData.Vertices, boxData.Indices), ball(ballData.Vertices, ballData.Indices);
 	GB::Mesh floorMesh = GB::Mesh::CreateGrid(80.0f, 16);
+	// T103: the ground slab of the mud and the patch under the grass; the cards of every tuft or bush are built per sample (kept here)
+	const GB::MeshData slabData = GB::ProcMesh::Box(glm::vec3(2.0f, 0.06f, 1.6f));
+	GB::Mesh slab(slabData.Vertices, slabData.Indices);
+	std::vector<std::unique_ptr<GB::Mesh>> built;
+	GB::Material soil;
+	soil.Albedo = glm::vec3(0.16f, 0.12f, 0.085f); soil.Roughness = 0.95f; soil.HeightScale = 0.0f; soil.CavityStrength = 0.0f;
+	// Tufts of crossed cards (three a tuft, 60 degrees apart, each turned and sized by a hash) scattered over the patch; a bush of cards
+	// around a centre (three upright, crossed, a ring of seven leaning out and two more on top).
+	auto hash01 = [](uint32_t a, uint32_t b) { return GB::HashUnit(GB::VisualHash(a, b, 0x51ED270Bu)); };
+	auto tufts = [&](const glm::vec2& card, uint32_t seed)
+	{
+		GB::MeshData out;
+		const GB::MeshData quad = GB::ProcMesh::Card(card.x, card.y, 0.08f * card.y, 3);
+		const float spacing = std::max(0.2f, 0.75f * card.x);
+		const int nx = std::max(1, static_cast<int>(1.9f / spacing)), nz = std::max(1, static_cast<int>(1.5f / spacing));
+		uint32_t k = seed * 977u;
+		for (int z = 0; z < nz; ++z)
+			for (int x = 0; x < nx; ++x, ++k)
+			{
+				const glm::vec3 at((static_cast<float>(x) + 0.5f) / static_cast<float>(nx) * 1.9f - 0.95f + spacing * 0.4f * (hash01(k, 1) - 0.5f), 0.06f,
+				                   (static_cast<float>(z) + 0.5f) / static_cast<float>(nz) * 1.5f - 0.75f + spacing * 0.4f * (hash01(k, 2) - 0.5f));
+				const float yaw = hash01(k, 3) * 3.14159f, size = 0.8f + 0.4f * hash01(k, 4);
+				for (int c = 0; c < 3; ++c)
+				{
+					glm::mat4 m = glm::translate(glm::mat4(1.0f), at);
+					m = glm::rotate(m, yaw + static_cast<float>(c) * glm::radians(60.0f), glm::vec3(0, 1, 0));
+					m = glm::rotate(m, 0.12f * (hash01(k, 5 + static_cast<uint32_t>(c)) - 0.5f), glm::vec3(1, 0, 0));
+					out.Append(quad, glm::scale(m, glm::vec3(size)));
+				}
+			}
+		return out;
+	};
+	auto shrub = [&](const glm::vec2& card)
+	{
+		GB::MeshData out;
+		const GB::MeshData quad = GB::ProcMesh::Card(card.x, card.y, 0.1f * card.y, 3);
+		const glm::vec3 centre(0.0f, 0.06f, 0.0f);
+		for (int c = 0; c < 3; ++c)
+			out.Append(quad, glm::rotate(glm::translate(glm::mat4(1.0f), centre), static_cast<float>(c) * glm::radians(60.0f), glm::vec3(0, 1, 0)));
+		for (int c = 0; c < 7; ++c)
+		{
+			const float yaw = static_cast<float>(c) * glm::radians(360.0f / 7.0f) + 0.3f;
+			glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), centre), yaw, glm::vec3(0, 1, 0));
+			m = glm::translate(m, glm::vec3(0.0f, 0.02f + 0.06f * hash01(static_cast<uint32_t>(c), 9), 0.12f));
+			m = glm::rotate(m, glm::radians(28.0f + 14.0f * hash01(static_cast<uint32_t>(c), 10)), glm::vec3(1, 0, 0));   // lean out (+Z)
+			out.Append(quad, glm::scale(m, glm::vec3(0.8f + 0.25f * hash01(static_cast<uint32_t>(c), 11))));
+		}
+		for (int c = 0; c < 2; ++c)
+		{
+			const glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), centre + glm::vec3(0.0f, 0.25f * card.y, 0.0f)), glm::radians(45.0f + 90.0f * static_cast<float>(c)), glm::vec3(0, 1, 0));
+			out.Append(quad, glm::scale(glm::rotate(m, glm::radians(-50.0f), glm::vec3(1, 0, 0)), glm::vec3(0.75f)));
+		}
+		return out;
+	};
+	auto keep = [&](const GB::MeshData& data) { built.push_back(std::make_unique<GB::Mesh>(data.Vertices, data.Indices)); return built.back().get(); };
 
 	// midday: a high sun, a grey sky (neutral ambient), shadows over the samples; a mid-grey floor
 	auto stage = [&](const glm::vec3& centre, float radius)
@@ -220,10 +367,49 @@ int GBTest_material_gallery(int argc, char** argv)
 		sc.Env.Vignette = 0.0f;
 		return sc;
 	};
-	// one sample: a box turned a little (two faces lit differently) and a ball in front of it to the right
-	auto addSample = [&](GB::Scene& sc, const std::string& id, const glm::vec3& at)
+	// one sample: a box turned a little (two faces lit differently) and a ball in front of it to the right; or the family's own shape (T103)
+	auto addSample = [&](GB::Scene& sc, const std::string& id, const glm::vec3& at, const std::string& familyShape)
 	{
 		const GB::Material m = material(id);
+		const auto so = shapes.find(id);
+		const std::string shape = so != shapes.end() ? so->second : familyShape;
+		const auto cs = cardSize.find(id);
+		const glm::vec2 card = cs != cardSize.end() ? cs->second : glm::vec2(0.6f);
+		const uint32_t seed = GB::VisualHash(id.c_str());
+		if (shape == "tufts" || shape == "shrub")
+		{
+			GB::RenderObject patch;
+			patch.MeshPtr = &slab; patch.Mat = soil; patch.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(0.0f, 0.03f, 0.0f)); patch.BoundingRadius = 1.4f;
+			sc.Objects.push_back(patch);
+			GB::RenderObject g;
+			g.MeshPtr = keep(shape == "tufts" ? tufts(card, seed) : shrub(card)); g.Mat = m;
+			g.Transform = glm::translate(glm::mat4(1.0f), at); g.BoundingRadius = 1.6f;
+			sc.Objects.push_back(g);
+			return;
+		}
+		if (shape == "cards")
+		{
+			// two leaf cards standing on the floor: one facing the camera, one turned and a little behind
+			GB::RenderObject a;
+			a.MeshPtr = keep(GB::ProcMesh::Card(card.x, card.y, 0.0f, 1)); a.Mat = m; a.BoundingRadius = 1.0f;
+			a.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(-0.5f, 0.0f, 0.1f));
+			sc.Objects.push_back(a);
+			a.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), at + glm::vec3(0.5f, 0.0f, -0.25f)), glm::radians(-40.0f), glm::vec3(0, 1, 0));
+			sc.Objects.push_back(a);
+			return;
+		}
+		if (shape == "slab")
+		{
+			GB::RenderObject g;
+			g.MeshPtr = &slab; g.Mat = m; g.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(0.0f, 0.03f, 0.0f)); g.BoundingRadius = 1.4f;
+			sc.Objects.push_back(g);
+			GB::RenderObject s;
+			s.MeshPtr = &ball; s.Mat = m;
+			s.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(0.55f, 0.06f + 0.4f, -0.4f));
+			s.BoundingRadius = 0.5f;
+			sc.Objects.push_back(s);
+			return;
+		}
 		GB::RenderObject b;
 		b.MeshPtr = &box; b.Mat = m;
 		b.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), at + glm::vec3(-0.55f, 0.45f, 0.0f)), glm::radians(30.0f), glm::vec3(0, 1, 0));
@@ -236,12 +422,13 @@ int GBTest_material_gallery(int argc, char** argv)
 		sc.Objects.push_back(s);
 	};
 
-	GB::Scene scene = stage({ 0.0f, 0.0f, -1.2f }, 9.0f);
+	const std::vector<std::vector<glm::vec3>> layout = Layout(families);
+	GB::Scene scene = stage({ 0.0f, 0.0f, -6.0f }, 16.0f);
 	for (size_t c = 0; c < families.size(); ++c)
-		for (size_t r = 0; r < families[c].Materials.size(); ++r) addSample(scene, families[c].Materials[r], SampleAt(c, families.size(), r));
+		for (size_t r = 0; r < families[c].Materials.size(); ++r) addSample(scene, families[c].Materials[r], layout[c][r], families[c].Shape);
 	GB::Camera overview;
-	overview.Position = { 0.0f, 7.0f, 9.6f };
-	overview.Target = { 0.0f, 0.1f, -2.3f };
+	overview.Position = { 0.0f, 9.0f, 7.6f };
+	overview.Target = { 0.0f, 0.0f, -5.6f };
 	overview.FovYDegrees = 45.0f;
 
 	// ---- the golden image: small, one sample (identical across drivers), like golden_images
@@ -280,7 +467,10 @@ int GBTest_material_gallery(int argc, char** argv)
 			bool transmissive = false;
 			for (size_t i = 0; i < n; ++i)
 			{
-				addSample(sc, f.Materials[i], { (static_cast<float>(i) - 0.5f * static_cast<float>(n - 1)) * 2.5f, 0.0f, 0.0f });
+				// up to four side by side (as before T103); more in two rows, the second behind
+				const size_t perRow = n <= 4 ? n : (n + 1) / 2, row = i / perRow, inRow = row == 0 ? perRow : n - perRow;
+				const float spacing = f.Shape == "cards" ? 2.3f : 2.5f;   // leaf cards are small: closer together, and the camera nearer
+				addSample(sc, f.Materials[i], { (static_cast<float>(i % perRow) - 0.5f * static_cast<float>(inRow - 1)) * spacing, 0.0f, -2.6f * static_cast<float>(row) }, f.Shape);
 				transmissive = transmissive || material(f.Materials[i]).Transmission > 0.0f;
 			}
 			// glass and clear ice show what is behind them: a row of coloured posts there, or they refract a plain grey floor
@@ -302,9 +492,15 @@ int GBTest_material_gallery(int argc, char** argv)
 				}
 			}
 			GB::Camera close;
-			close.Target = { 0.0f, 0.45f, 0.1f };
-			close.Position = { 0.0f, 2.1f, 1.6f + 1.6f * static_cast<float>(n) };
+			const size_t perRow = n <= 4 ? n : (n + 1) / 2, rows = (n + perRow - 1) / perRow;
+			close.Target = { 0.0f, 0.45f, 0.1f - 1.3f * static_cast<float>(rows - 1) };
+			close.Position = { 0.0f, 2.1f + 1.4f * static_cast<float>(rows - 1), 1.6f + 1.6f * static_cast<float>(perRow) };
 			close.FovYDegrees = 40.0f;
+			if (f.Shape == "cards")
+			{
+				close.Target = { 0.0f, 0.4f, 0.0f };
+				close.Position = { 0.0f, 1.1f, 0.9f + 1.5f * static_cast<float>(perRow) };
+			}
 			save(sc, close, "galeria_" + f.Name + ".png");
 		}
 	}

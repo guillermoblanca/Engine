@@ -24,6 +24,10 @@ namespace GB
 		// A thin double-sided blade (grass, reed, straw): a quad strip `width` wide at the base narrowing to a point, `height` tall, bent `lean`
 		// metres along +X at the tip.
 		MeshData Blade(float width, float height, float lean, int segments = 3);
+		// T103: a card for an alpha-masked texture (leaves, grass): a quad `width` wide and `height` tall standing on the origin in the XY
+		// plane, facing +Z, its top bent `bend` metres toward +Z along a smooth curve. One-sided (draw it with a double-sided material).
+		// Unlike the other shapes its UVs are not in metres: 0..1 over the card (u across, v up), so the whole texture is the card.
+		MeshData Card(float width, float height, float bend = 0.0f, int segments = 3);
 	}
 
 	// Integer hashing for the procedural content: the same inputs give the same numbers everywhere (no std::rand, no floating point state).

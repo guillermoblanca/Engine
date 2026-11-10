@@ -24,7 +24,21 @@
       "stone_cut":     { "color": [0.85, 0.83, 0.80], "texture": "ashlar",        "uvScale": 1.0, "roughness": 0.85 },
       "stone":         { "color": [0.70, 0.69, 0.66], "texture": "stone",         "uvScale": 0.9, "roughness": 0.85, "grain": 0.35 },
       "brick_new":     { "color": [0.90, 0.88, 0.86], "texture": "brick",         "uvScale": 1.0, "roughness": 0.85 },
-      "brick_worn":    { "color": [0.86, 0.84, 0.82], "texture": "brick_worn",    "uvScale": 1.0, "roughness": 0.95 }
+      "brick_worn":    { "color": [0.86, 0.84, 0.82], "texture": "brick_worn",    "uvScale": 1.0, "roughness": 0.95 },
+      "wood_planks2":  { "color": [0.95, 0.95, 0.95], "texture": "wood_planks2",  "uvScale": 1.0, "roughness": 0.8 },
+      "wood_log2":     { "color": [0.95, 0.95, 0.95], "texture": "wood_log2",     "uvScale": 1.0, "roughness": 0.85 },
+      "bark2":         { "color": [0.95, 0.95, 0.95], "texture": "bark2",         "uvScale": 1.0, "roughness": 0.95 },
+      "wood_old":      { "color": [0.95, 0.95, 0.95], "texture": "wood_old",      "uvScale": 1.0, "roughness": 0.95 },
+      "mud":           { "color": [0.95, 0.95, 0.95], "texture": "mud",           "uvScale": 1.0, "roughness": 0.95 },
+      "mud_dry":       { "color": [0.95, 0.95, 0.95], "texture": "mud_dry",       "uvScale": 1.0, "roughness": 0.95 },
+      "grass_short":   { "color": [1.0, 1.0, 1.0],    "texture": "grass_short",   "roughness": 0.85, "surface": "cutout", "doubleSided": true },
+      "grass_medium":  { "color": [1.0, 1.0, 1.0],    "texture": "grass_medium",  "roughness": 0.85, "surface": "cutout", "doubleSided": true },
+      "grass_tall":    { "color": [1.0, 1.0, 1.0],    "texture": "grass_tall",    "roughness": 0.85, "surface": "cutout", "doubleSided": true },
+      "grass_dry":     { "color": [1.0, 1.0, 1.0],    "texture": "grass_dry",     "roughness": 0.9,  "surface": "cutout", "doubleSided": true },
+      "shrub_small":   { "color": [1.0, 1.0, 1.0],    "texture": "leaf_small",    "roughness": 0.8,  "surface": "cutout", "doubleSided": true },
+      "leaf_broad":    { "color": [1.0, 1.0, 1.0],    "texture": "leaf_broad",    "roughness": 0.8,  "surface": "cutout", "doubleSided": true },
+      "leaf_small":    { "color": [1.0, 1.0, 1.0],    "texture": "leaf_small",    "roughness": 0.8,  "surface": "cutout", "doubleSided": true },
+      "leaf_needle":   { "color": [1.0, 1.0, 1.0],    "texture": "leaf_needle",   "roughness": 0.8,  "surface": "cutout", "doubleSided": true }
     }
   },
   "gallery": {
@@ -33,10 +47,16 @@
       { "name": "hielo",    "materials": [ "ice_faceted", "ice_clear", "ice_frost" ] },
       { "name": "cristal",  "materials": [ "glass_clear", "glass_frosted", "glass_wet" ] },
       { "name": "arena",    "materials": [ "sand_dry", "sand_wet" ] },
-      { "name": "madera",   "materials": [ "wood_planks", "wood_log", "wood_bark" ] },
       { "name": "roca",     "materials": [ "rock", "stone_cut", "stone" ] },
-      { "name": "ladrillo", "materials": [ "brick_new", "brick_worn" ] }
+      { "name": "ladrillo", "materials": [ "brick_new", "brick_worn" ] },
+      { "name": "barro",    "materials": [ "mud", "mud_dry" ], "shape": "slab" },
+      { "name": "madera",   "materials": [ "wood_planks", "wood_log", "wood_bark", "wood_planks2", "wood_log2", "bark2", "wood_old" ], "band": 1 },
+      { "name": "vegetacion", "materials": [ "grass_short", "grass_medium", "grass_tall", "grass_dry", "shrub_small" ], "shape": "tufts", "band": 1 },
+      { "name": "hojas",    "materials": [ "leaf_broad", "leaf_small", "leaf_needle" ], "shape": "cards", "band": 1 }
     ],
+    "shapes": { "shrub_small": "shrub" },
+    "cardSize": { "grass_short": [0.3, 0.14], "grass_medium": [0.5, 0.45], "grass_tall": [0.6, 1.0], "grass_dry": [0.5, 0.5],
+                  "shrub_small": [0.7, 0.7], "leaf_broad": [0.8, 0.8], "leaf_small": [0.8, 0.8], "leaf_needle": [0.8, 0.8] },
     "opacity": {}
   }
 }
