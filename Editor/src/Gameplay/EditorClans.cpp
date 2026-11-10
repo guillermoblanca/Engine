@@ -100,7 +100,9 @@ namespace GB::Editor
 		(void)parent;
 		if (m_Clans.Find(name)) return -1;
 		Clan& c = m_Clans.Add(name, nullptr, -1, &m_Tribe.Config);
-		PlaceWell("Well " + name, camp + glm::vec2(4.0f, -6.0f));
+		// on dry ground clear of trunks and rocks, as GBSim digs it (SimRun::SetUpClan); with no world built the host is a 24 m sandbox, so the raw spot
+		const glm::vec2 wellAt = camp + glm::vec2(4.0f, -6.0f);
+		PlaceWell("Well " + name, m_World.IsBuilt() ? FindFreeSpot(m_Actors.Host().World, wellAt, 1.5f) : wellAt);
 		Tribe& t = *c.Folk;
 		PrepareClanTribe(t);
 		t.Config.Economy.Camp = camp;
@@ -178,7 +180,8 @@ namespace GB::Editor
 			{
 				const auto def = m_Interactives.Defs.find("well");
 				const InteractiveDef well = def != m_Interactives.Defs.end() ? def->second : DefaultInteractives().at("well");
-				const glm::vec2 at = camp + glm::vec2(4.0f, -6.0f);
+				const glm::vec2 raw = camp + glm::vec2(4.0f, -6.0f);   // on dry ground clear of trunks and rocks, as GBSim digs it (SimRun::SetUpClan)
+				const glm::vec2 at = m_World.IsBuilt() ? FindFreeSpot(m_Actors.Host().World, raw, 1.5f) : raw;
 				BuildInteractive(m_SceneEditor.World(), well, "Well " + name, NullEntity, { at.x, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(at.x, at.y) : 0.0f, at.y });
 				SyncNewGameplay();
 			}
