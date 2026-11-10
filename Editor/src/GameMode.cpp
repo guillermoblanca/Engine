@@ -7,6 +7,7 @@
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include "SceneEditor.h"
+#include "UserSettings.h"
 #include "GB/Input/InputSource.h"
 #include "GB/Log.h"
 #include <algorithm>
@@ -15,8 +16,6 @@
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
-#include <regex>
 #include <set>
 #include <sstream>
 #include <imgui.h>
@@ -110,32 +109,6 @@ namespace GB::Editor
 
 		constexpr const char* kClanNames[] = { "Blue", "Red", "Green", "Gold", "Ash" };
 
-		// T49: the player's choice of preset into player.json. Only the value of its one "quality" key changes, in place: the file keeps its layout
-		// (it is written by hand) and every other setting. The text is read back through LoadControls before it is written, so a file that would
-		// not load is never left behind. Returns why it could not, or "".
-		std::string WriteQuality(const std::string& path, const std::string& level)
-		{
-			std::string text;
-			{
-				std::ifstream in(path, std::ios::binary);
-				if (!in) return "cannot read " + path;
-				std::ostringstream all;
-				all << in.rdbuf();
-				text = all.str();
-			}
-			static const std::regex key("(\"quality\"\\s*:\\s*\")[^\"]*(\")");
-			const auto first = std::sregex_iterator(text.begin(), text.end(), key);
-			if (std::distance(first, std::sregex_iterator()) != 1) return path + " has not exactly one \"quality\" key";
-			const std::string changed = std::regex_replace(text, key, "$1" + level + "$2", std::regex_constants::format_first_only);
-			ControlRules check = DefaultControls();
-			if (const std::string e = LoadControls(changed, check); !e.empty()) return e;
-			if (check.Game.Quality != level) return "the \"quality\" key of " + path + " is not controls.game.quality";
-			if (changed == text) return {};
-			std::ofstream out(path, std::ios::binary | std::ios::trunc);
-			if (!out) return "cannot write " + path;
-			out << changed;
-			return out ? std::string() : "cannot write " + path;
-		}
 	}
 
 	const std::vector<GraphicsPreset>& GraphicsPresets()
@@ -152,6 +125,16 @@ namespace GB::Editor
 	{
 		for (const GraphicsPreset& p : GraphicsPresets()) if (level == p.Level) return &p;
 		return nullptr;
+	}
+
+	void EditorApp::ApplyUserSettings()
+	{
+		// what the packs left is player.json's default, unless it is still the saved value a load without "controls" did not touch
+		if (m_SavedQuality.empty() || m_Controls.Game.Quality != m_SavedQuality) m_DefaultQuality = m_Controls.Game.Quality;
+		const UserSettingsLoad r = GB::Editor::ApplyUserSettings(m_SettingsPath, m_Controls);
+		if (!r.Error.empty()) GB_CLIENT_WARN("settings {} ignored ({}): player.json's values stay", m_SettingsPath, r.Error);
+		else if (r.Found) GB_CLIENT_INFO("settings {}{}", m_SettingsPath, r.Quality.empty() ? std::string() : ": quality " + r.Quality);
+		m_SavedQuality = r.Error.empty() ? r.Quality : std::string();
 	}
 
 	void EditorApp::GameNote(const std::string& text)
@@ -337,8 +320,9 @@ namespace GB::Editor
 		}
 		const SpawnBatch crew(*this);
 		GameSetup setup = m_Controls.Game;
-		// T60: a quality given at launch (`--quality=medium`) is kept by the game: neither player.json's preset nor "auto" (which starts low and
-		// drops to minimum on slow frames) overrides what was asked for explicitly. Without `--quality`, player.json decides as before.
+		// T60: a quality given at launch (`--quality=medium`) is kept by the game: neither the saved preset nor "auto" (which starts low and
+		// drops to minimum on slow frames) overrides what was asked for explicitly. Without `--quality`, the saved one decides: the player's
+		// settings file, else player.json (T88, ApplyUserSettings).
 		if (!m_LaunchQuality.empty()) setup.Quality = m_LaunchQuality;
 		// `play here`: into the world as it is (a terrain graph's map, the villages of `village`), as one more member of the first clan
 		const bool here = !a.empty() && a[0] == "here";
@@ -697,14 +681,15 @@ namespace GB::Editor
 			return { true, s + "; WASD walk, Shift runs, the mouse turns the camera; more: game talk|give|teach|learn|marry|propose|craft|attack|block|flee|trade <...>" };
 		}
 		// T49: the graphics preset (the pause menu's buttons, the editor's Quality menu; also outside a game). `game quality` says the one in use and the
-		// one saved; `game quality low|medium|high|auto` applies it now and keeps it in player.json for the next `play`. A choice made here is as
-		// explicit as `--quality=`, so it replaces the launch's from now on.
+		// one saved; `game quality low|medium|high|auto` applies it now and keeps it for the next `play`, in the player's settings file (T88: never in
+		// player.json, which is versioned). A choice made here is as explicit as `--quality=`, so it replaces the launch's from now on.
 		if (sub == "quality")
 		{
 			auto named = [](const std::string& level) { const GraphicsPreset* p = PresetOfLevel(level); return p ? std::string(p->Id) + " (" + level + ")" : level.empty() ? std::string("the default") : level; };
 			if (a.size() < 2)
-				return { true, "graphics: " + named(m_QualityLevel) + (m_Game.AutoQuality ? ", auto" + std::string(m_Game.Lowered ? " (lowered)" : "") : std::string()) + "; player.json: "
-					+ named(m_Controls.Game.Quality) + (m_LaunchQuality.empty() ? std::string() : "; --quality=" + m_LaunchQuality + " wins at play") };
+				return { true, "graphics: " + named(m_QualityLevel) + (m_Game.AutoQuality ? ", auto" + std::string(m_Game.Lowered ? " (lowered)" : "") : std::string()) + "; saved: "
+					+ (m_SavedQuality.empty() ? named(m_DefaultQuality) + ", player.json's default" : named(m_SavedQuality) + " in " + m_SettingsPath)
+					+ (m_LaunchQuality.empty() ? std::string() : "; --quality=" + m_LaunchQuality + " wins at play") };
 			std::string level = a[1] == "auto" ? "auto" : std::string();
 			for (const GraphicsPreset& p : GraphicsPresets()) if (a[1] == p.Id) level = p.Level;
 			if (level.empty()) return { false, "usage: game quality [low|medium|high|auto]" };
@@ -713,9 +698,10 @@ namespace GB::Editor
 			m_Game.AutoQuality = m_Game.Active && level == "auto";
 			m_Game.Lowered = false;
 			SetQuality(level == "auto" ? "low" : level);   // ("auto" starts low, as `play` does)
-			const std::string error = WriteQuality(m_AssetRoot + "/data/player.json", level);
+			const std::string error = SaveUserQuality(m_SettingsPath, level);
 			if (!error.empty()) return { false, "graphics " + named(level) + " applied but not saved: " + error };
-			return { true, "graphics " + named(level) + ", saved in player.json" };
+			m_SavedQuality = level;
+			return { true, "graphics " + named(level) + ", saved in " + m_SettingsPath };
 		}
 		if (!m_Game.Active) return { false, "not playing: play [temperate|alpine|desert] [seed] [members] [clans]" };
 		const std::string& me = m_Game.Player;

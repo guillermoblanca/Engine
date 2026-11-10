@@ -194,6 +194,10 @@ namespace GB::Editor
 		m_StrictScript = !options.GetValue("strict").empty();
 		const std::string quality = options.GetValue("quality");
 		if (!quality.empty()) { SetQuality(quality); m_LaunchQuality = quality; }
+		// T88: the player's own settings (the preset chosen in the game) over player.json, before any script or `--play` starts a game
+		m_SettingsPath = options.GetValue("settings");
+		if (m_SettingsPath.empty()) m_SettingsPath = m_SaveDir + "/settings.json";
+		ApplyUserSettings();
 		const std::string telemetry = options.GetValue("telemetry");
 		if (!telemetry.empty()) { const CommandResult r = TelemetryCommand({ "start", telemetry }); if (!r.Ok) GB_CLIENT_ERROR("{}", r.Message); }
 		const std::string exec = options.GetValue("exec");
@@ -1167,6 +1171,7 @@ namespace GB::Editor
 				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // the wild nodes of the baseline are planned with this data
 				ApplyGameSeeds();   // T0: (a section may have read a seed from the file)
+				ApplyUserSettings();   // T88: (a section may have read player.json's controls again)
 				return { true, "content loaded from " + a[1] + ": " + std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes"
 					+ (report.Problems.empty() ? std::string() : "\n" + report.Text()) };
 			}
@@ -1198,6 +1203,7 @@ namespace GB::Editor
 				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // (see content load)
 				ApplyGameSeeds();   // T0: (see content load)
+				ApplyUserSettings();   // T88: (a section may have read player.json's controls again)
 				return { true, "pack " + a[1] + " loaded: " + std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size())
 					+ " resource nodes, " + std::to_string(report.Problems.size()) + " problem(s)\n" + report.Text() };
 			}
@@ -1858,8 +1864,8 @@ namespace GB::Editor
 		}
 		if (ImGui::BeginMenu("Quality"))
 		{
-			// T49: the player's three presets (the same as the game's pause menu: applied and saved in player.json), then every level of SetQuality
-			ImGui::SeparatorText("Presets (player.json)");
+			// T49: the player's three presets (the same as the game's pause menu: applied and kept in the player's settings file, T88), then every level of SetQuality
+			ImGui::SeparatorText("Presets (saved)");
 			for (const GraphicsPreset& p : GraphicsPresets())
 			{
 				if (ImGui::MenuItem((std::string(p.Label) + " (" + p.Level + ")").c_str(), nullptr, m_QualityLevel == p.Level)) m_UiCommands.push_back(std::string("game quality ") + p.Id);

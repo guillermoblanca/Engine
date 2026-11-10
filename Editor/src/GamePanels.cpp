@@ -191,7 +191,7 @@ namespace GB::Editor
 				if (ImGui::Button((L.Text("Save") + " [" + m_Lang.Key(KeyOf(m_Controls.Keys, "save")) + "]###save").c_str(), full)) run("game save");
 				if (ImGui::Button((L.Text("Load") + " [" + m_Lang.Key(KeyOf(m_Controls.Keys, "load")) + "]###load").c_str(), full)) run("game load");
 				if (ImGui::Button((L.Text("Keys") + "###keys").c_str(), full)) { run("game menu"); run("game help"); }
-				// T49: the graphics presets (`game quality`: applied at once and kept in player.json). The one chosen is ochre on a darker hide and
+				// T49: the graphics presets (`game quality`: applied at once and kept in the player's settings file, T88). The one chosen is ochre on a darker hide and
 				// framed, and the line under them says in words what is in use, so the colour is never the only sign.
 				ImGui::Separator();
 				ImGui::TextDisabled("%s", L.Text("Graphics").c_str());

@@ -1,14 +1,17 @@
-// Editor logic without a window: property registry, command runner and the log buffer. CPU only.
+// Editor logic without a window: property registry, command runner, the log buffer and the player's settings file (T88). CPU only.
 #include "Commands.h"
 #include "Gameplay/EditorGameplayParsing.h"
 #include "LogBuffer.h"
 #include "Properties.h"
 #include "SceneEditor.h"
 #include "TestScenarios.h"
+#include "UserSettings.h"
 #include "GB/Game/SceneIO.h"
 #include <cmath>
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace
 {
@@ -249,6 +252,58 @@ int main()
 		sc.Execute("new_scene");
 		for (const std::string& line : CommandRunner::SplitScript(FindTestScenario("model")->Script)) sc.Execute(line);
 		Check(ed.World().FindByName("DamagedHelmet") != NullEntity, "model scene has the helmet");
+	}
+
+	// T88: the player's settings file over player.json (UserSettings.h): absent, saved, laid over, broken
+	{
+		namespace fs = std::filesystem;
+		const fs::path dir = fs::temp_directory_path() / "gb_editor_settings_test";
+		std::error_code ec;
+		fs::remove_all(dir, ec);
+		const std::string path = (dir / "sub" / "settings.json").string();   // (a folder that is not there yet)
+		ControlRules base = DefaultControls();
+		{
+			std::ifstream in(std::string(GB_ASSET_DIR) + "/data/player.json", std::ios::binary);
+			std::stringstream all; all << in.rdbuf();
+			Check(LoadControls(all.str(), base).empty(), "player.json's controls load");
+		}
+		ControlRules c = base;
+		UserSettingsLoad r = ApplyUserSettings(path, c);
+		Check(!r.Found && r.Error.empty() && r.Quality.empty() && c == base, "no settings file: player.json's controls as they are");
+
+		Check(SaveUserQuality(path, "high").empty() && fs::exists(path), "a preset saved makes the file (and its folder)");
+		r = ApplyUserSettings(path, c);
+		ControlRules expected = base;
+		expected.Game.Quality = "high";
+		Check(r.Found && r.Error.empty() && r.Quality == "high" && c == expected, "the saved preset is laid over player.json and nothing else changes");
+
+		c = base;
+		Check(SaveUserQuality(path, base.Game.Quality).empty() && ApplyUserSettings(path, c).Quality == base.Game.Quality, "a saved value equal to player.json's still counts as saved");
+
+		{
+			std::ofstream out(path, std::ios::binary | std::ios::trunc);
+			out << "{\"controls\":{\"keys\":{\"interact\":\"Q\"},\"game\":{\"quality\":\"medium\"}},\"input\":{}}";
+		}
+		Check(SaveUserQuality(path, "minimum").empty(), "saving into a file with more in it");
+		c = base;
+		r = ApplyUserSettings(path, c);
+		Check(r.Quality == "minimum" && c.Keys["interact"] == "Q" && c.Game.Quality == "minimum", "saving keeps the file's other keys (a rebound key)");
+		{
+			std::ifstream in(path, std::ios::binary);
+			std::stringstream all; all << in.rdbuf();
+			Check(all.str().find("\"input\"") != std::string::npos, "and the sections it does not know");
+		}
+
+		for (const char* broken : { "{ not json", "{\"controls\":{\"game\":{\"quality\":3}}}", "{\"controls\":{\"nope\":1}}" })
+		{
+			{ std::ofstream out(path, std::ios::binary | std::ios::trunc); out << broken; }
+			c = base;
+			r = ApplyUserSettings(path, c);
+			Check(r.Found && !r.Error.empty() && r.Quality.empty() && c == base, "a broken settings file says why and changes nothing");
+		}
+		{ std::ofstream out(path, std::ios::binary | std::ios::trunc); out << "{ not json"; }
+		Check(!SaveUserQuality(path, "high").empty(), "a broken settings file is not overwritten");
+		fs::remove_all(dir, ec);
 	}
 
 	if (failures) return 1;

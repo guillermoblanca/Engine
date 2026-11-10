@@ -105,6 +105,9 @@ namespace GB::Editor
 		// T0: every system of the game takes its seed from the world's (the master seed, GB/Game/GameSeeds.h): after each world build and each
 		// content load (a section puts back the seed of its data). Idempotent.
 		void ApplyGameSeeds();
+		// T88: the player's settings file (m_SettingsPath) over the controls the packs loaded, at start and after each content load (a load brings
+		// player.json's values back). A broken file is a warning in the log and changes nothing (GameMode.cpp).
+		void ApplyUserSettings();
 		void ApplyTimeOfDay();
 		void SetQuality(const std::string& name);
 		void FrameWorld();
@@ -514,7 +517,10 @@ namespace GB::Editor
 		uint32_t m_ViewportW = 960, m_ViewportH = 540;
 		float m_RenderScale = 1.0f;          // the 3D view is rendered at this fraction of the viewport (`quality minimum`)
 		bool m_MinimumQuality = false;       // the renderer was made without MSAA and with a small shadow map
-		std::string m_LaunchQuality;         // `--quality=` as the editor was launched ("" = not given): `play` keeps it instead of player.json's (T60)
+		std::string m_LaunchQuality;         // `--quality=` as the editor was launched ("" = not given): `play` keeps it instead of the saved one (T60)
+		std::string m_SettingsPath;          // T88: the player's settings file over player.json (UserSettings.h): <save dir>/settings.json or --settings=
+		std::string m_SavedQuality;          // ... the preset it keeps ("" = none: player.json's, m_DefaultQuality, decides)
+		std::string m_DefaultQuality;        // player.json's controls.game.quality, as the packs loaded it
 		std::string m_QualityLevel;          // the level SetQuality applied last ("" = none yet): `game quality` and the pause menu show its preset
 		bool m_LayoutBuilt = false;
 		// T62: the interface's CPU time by part (smoothed 0.9/0.1 like the rest), printed by `uiprof`: ImGui's new frame, each panel of DrawUI,

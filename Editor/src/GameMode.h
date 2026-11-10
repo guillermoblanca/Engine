@@ -18,7 +18,8 @@ namespace GB::Editor
 	const std::vector<BookSheet>& BookSheets();
 
 	// T49: the three graphics presets the player chooses from (the pause menu, `game quality`, the editor's Quality menu) and the editor's quality
-	// level each one stands for (EditorApp::SetQuality). player.json's controls.game.quality keeps the level ("minimum", "medium", "high") or "auto",
+	// level each one stands for (EditorApp::SetQuality). controls.game.quality (player.json's default, the player's choice in its settings file: T88,
+	// UserSettings.h) keeps the level ("minimum", "medium", "high") or "auto",
 	// so `--quality=<level>` and the tests keep meaning what they meant. What each one changes: documentation/02_tecnico/motor/render.md, section
 	// "Preajustes graficos". Medium is the 1080p60 target of a GTX 1060 (PLAN_RENDER, section 6).
 	struct GraphicsPreset { const char* Id; const char* Level; const char* Label; const char* Tip; };
