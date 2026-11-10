@@ -1,8 +1,6 @@
 #include "ShadowRenderer.h"
 
 #include "Shaders.h"
-#include "Visibility.h"
-#include <map>
 
 namespace GB
 {
@@ -45,7 +43,7 @@ namespace GB
 		cmd.BindStorageBuffer(0, m_JointBuffer);
 	}
 
-	void ShadowRenderer::Render(const Scene& scene, const Framebuffer& target, const glm::mat4& lightVP)
+	void ShadowRenderer::Render(const Scene& scene, const RenderList& list, const Framebuffer& target, const glm::mat4& lightVP)
 	{
 		m_Shader.SetFloat("uTime", scene.Env.Time);
 		m_Shader.SetVec3("uWind", scene.Env.Wind);
@@ -55,8 +53,6 @@ namespace GB
 		cmd.BeginPass(pass);
 		cmd.BindPipeline(m_Pipeline);
 		m_Shader.SetMat4("uLightVP", lightVP);
-		const Frustum lightFrustum = MakeFrustum(lightVP);
-		std::map<const Mesh*, std::vector<const RenderObject*>> instanced;   // (RenderObject::Instanced: one call per mesh, after the loop)
 		auto draw = [&](const RenderObject& object, uint32_t copies)
 		{
 			m_Shader.SetMat4("uModel", object.Transform);
@@ -88,28 +84,33 @@ namespace GB
 			else if (object.IndexCount > 0) object.MeshPtr->DrawRange(object.IndexFirst, object.IndexCount);
 			else object.MeshPtr->Draw();
 		};
-		for (const RenderObject& object : scene.Objects)
+		// The casters (no translucent objects; the culling against the light's frustum is done), in scene order. The instanced ones wait for
+		// their mesh's batch: one call per mesh after the loop, by mesh address and in scene order inside one (RenderObject::Instanced).
+		m_Batches.clear();
+		const std::vector<RenderItem>& items = list.Items();
+		for (const uint32_t i : list.Casters())
 		{
-			if (!object.MeshPtr || object.Mat.Alpha == AlphaMode::Blend)
-				continue;
-
-			glm::vec3 boundsCenter;
-			float boundsRadius;
-			if (BoundsOf(object, boundsCenter, boundsRadius) &&
-				!InFrustum(lightFrustum, boundsCenter, boundsRadius))
-				continue;
-			if (object.Instanced && !object.JointMatrices && object.IndexCount == 0) instanced[object.MeshPtr].push_back(&object);
+			const RenderItem& item = items[i];
+			const RenderObject& object = scene.Objects[item.Object];
+			if (item.Has(RenderItem::Batched)) m_Batches.push_back({ object.MeshPtr, item.Object });
 			else draw(object, 0);
 		}
-		std::vector<glm::mat4> matrices;
-		for (const auto& [mesh, objects] : instanced)
+		SortBatches(m_Batches);
+		for (size_t first = 0; first < m_Batches.size();)
 		{
-			if (objects.size() == 1) { draw(*objects.front(), 0); continue; }
-			matrices.clear();
-			for (const RenderObject* o : objects) matrices.push_back(o->Transform);
-			cmd.UploadStream(m_InstanceBuffer, matrices.size() * sizeof(glm::mat4), matrices.data());
-			cmd.BindStorageBuffer(2, m_InstanceBuffer);
-			draw(*objects.front(), static_cast<uint32_t>(matrices.size()));
+			size_t last = first + 1;
+			while (last < m_Batches.size() && m_Batches[last].MeshPtr == m_Batches[first].MeshPtr) ++last;
+			const RenderObject& head = scene.Objects[m_Batches[first].Object];
+			if (last - first == 1) draw(head, 0);
+			else
+			{
+				m_Matrices.clear();
+				for (size_t b = first; b < last; ++b) m_Matrices.push_back(scene.Objects[m_Batches[b].Object].Transform);
+				cmd.UploadStream(m_InstanceBuffer, m_Matrices.size() * sizeof(glm::mat4), m_Matrices.data());
+				cmd.BindStorageBuffer(2, m_InstanceBuffer);
+				draw(head, static_cast<uint32_t>(m_Matrices.size()));
+			}
+			first = last;
 		}
 		cmd.BindPipeline(m_End);
 		cmd.EndPass();

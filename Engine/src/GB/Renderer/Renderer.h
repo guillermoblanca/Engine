@@ -3,6 +3,7 @@
 #include "Framebuffer.h"
 #include "PostProcessor.h"
 #include "GrassRenderer.h"
+#include "RenderList.h"
 #include "Scene.h"
 #include "ShadowRenderer.h"
 #include "Shader.h"
@@ -34,12 +35,18 @@ namespace GB
 	private:
 		void CreateTargets();
 		void ShadowPass(const Scene& scene, const glm::mat4& lightVP);
-		void ScenePass(const Scene& scene, const Camera& camera, const glm::mat4& lightVP, bool shadows);
+		void ScenePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows);
 		void GrassPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows);
 		void BindEnvironment(Shader& shader, const Environment& env) const;
 		void WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
 
 		RenderStats m_Stats;
+		// T78: the frame's objects and what the camera and the shadow map see of them (built and culled once at the start of Render), and the
+		// buffers of the scene pass: the instanced objects by mesh, the translucent ones, the matrices of a batch. Kept between frames.
+		RenderList m_List;
+		std::vector<BatchEntry> m_Batches;
+		std::vector<const RenderObject*> m_Translucent;
+		std::vector<glm::mat4> m_Matrices;
 		uint32_t m_Width, m_Height, m_Samples, m_ShadowSize;
 		bool m_Valid = false;
 

@@ -25,10 +25,13 @@ namespace GB
 		// T70 (render M0): what the frame asked of the RHI backend and what reached the API (uniforms, binds, state, bytes uploaded), for the
 		// whole frame and for the object loop alone; and the CPU time of that loop (culling, the draws of the opaque and masked objects, the
 		// instanced batches and the translucent objects), of this frame, without the grass, water and particle passes.
+		// T78: the culling is shared now (RenderList, at the start of Render): CpuObjectsMs also holds building the object list and culling it
+		// for the camera and for the shadow map (CpuCullMs), and CpuShadowMs is only the shadow pass's draws and batches.
 		RHI::FrameCounters Submit, ObjectSubmit;
 		float CpuObjectsMs = 0.0f;
 		float CpuObjectDrawMs = 0.0f;   // ... of it, inside the draws of the objects (uniforms, binds, the draw call); the rest is culling and batching
-		float CpuShadowMs = 0.0f;       // the CPU time of the shadow pass (its own culling and draws), for the rest of "sending"
+		float CpuCullMs = 0.0f;         // ... of it, building the list and culling it for both passes (T78)
+		float CpuShadowMs = 0.0f;       // the CPU time of the shadow pass (its draws and batches), for the rest of "sending"
 		RHI::FrameCounters ShadowSubmit;
 	};
 

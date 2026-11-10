@@ -1,10 +1,12 @@
 #pragma once
 
 #include "Framebuffer.h"
+#include "RenderList.h"
 #include "Scene.h"
 #include "Shader.h"
 #include <glm/glm.hpp>
 #include <cstdint>
+#include <vector>
 
 namespace GB
 {
@@ -23,11 +25,15 @@ namespace GB
 		bool IsValid() const { return m_Shader.IsValid(); }
 
 		// The framebuffer must have a depth attachment (normally DepthAsTexture).
-		// The pass clears its depth and draws at its size.
-		void Render(const Scene& scene, const Framebuffer& target, const glm::mat4& lightVP);
+		// The pass clears its depth and draws at its size. It draws the casters of `list`, culled with the frustum of `lightVP`
+		// (RenderList::Cull; T78: the culling is shared with the scene pass): in scene order, and the instanced batches after them.
+		void Render(const Scene& scene, const RenderList& list, const Framebuffer& target, const glm::mat4& lightVP);
 
 	private:
 		void BindSkin(const RenderObject& object);
+
+		std::vector<BatchEntry> m_Batches;   // the instanced casters of the frame, sorted by mesh (kept between frames)
+		std::vector<glm::mat4> m_Matrices;   // the matrices of one batch
 
 		Shader m_Shader;
 		RHI::BufferHandle m_JointBuffer;

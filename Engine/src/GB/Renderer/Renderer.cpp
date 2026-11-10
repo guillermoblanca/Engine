@@ -8,7 +8,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <map>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstdint>
 #include <string>
@@ -164,14 +163,12 @@ namespace GB
 
 	void Renderer::ShadowPass(const Scene& scene, const glm::mat4& lightVP)
 	{
-		m_ShadowRenderer->Render(scene, *m_ShadowMap, lightVP);
+		m_ShadowRenderer->Render(scene, m_List, *m_ShadowMap, lightVP);
 	}
 
-	void Renderer::ScenePass(const Scene& scene, const Camera& camera, const glm::mat4& lightVP, bool shadows)
+	void Renderer::ScenePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows)
 	{
 		const Environment& env = scene.Env;
-		const float aspect = static_cast<float>(m_Width) / static_cast<float>(m_Height);
-		const glm::mat4 viewProj = camera.GetProjection(aspect) * camera.GetView();
 
 		// The ambient target is only written when the SSAO will use it (every shader of the scene writes location 1: 0 where there is none).
 		const bool ambientOut = scene.Post.SSAO > 0.0f && !camera.Orthographic;
@@ -324,11 +321,11 @@ namespace GB
 			else obj.MeshPtr->Draw();
 			drawMs += std::chrono::duration<double, std::milli>(Clock::now() - drawStart).count();
 		};
-		// the instanced objects that passed the culling, by mesh, drawn after the loop in one call each
-		std::map<const Mesh*, std::vector<const RenderObject*>> instanced;
-
-		// Opaque and alpha-masked first, then translucent objects back to front without depth writes.
-		std::vector<const RenderObject*> translucent;
+		// Opaque and alpha-masked first, then translucent objects back to front without depth writes. The instanced objects the camera sees
+		// wait for their mesh's batch, drawn after the loop in one call each (m_Batches, sorted by mesh as the std::map of before T78 did).
+		m_Batches.clear();
+		std::vector<const RenderObject*>& translucent = m_Translucent;
+		translucent.clear();
 		m_Stats = {};
 		// T70: the CPU time and the RHI work of the object loop (this one, the instanced batches and, below, the translucent objects)
 		auto loopStart = Clock::now();
@@ -339,41 +336,38 @@ namespace GB
 			m_Stats.CpuObjectDrawMs = static_cast<float>(drawMs);
 			m_Stats.ObjectSubmit += RHI::Counters::Frame.Since(loopBefore);
 		};
-		const Frustum frustum = MakeFrustum(viewProj);
-		for (const RenderObject& obj : scene.Objects)
+		// What the camera sees, culled at the start of Render (RenderList::Cull: its frustum and the draw distance), in scene order
+		const std::vector<RenderItem>& items = m_List.Items();
+		m_Stats.ObjectsCulled = m_List.Culled();
+		for (const uint32_t i : m_List.Visible())
 		{
-			if (!obj.MeshPtr)
-				continue;
-			glm::vec3 bc; float br;
-			if (BoundsOf(obj, bc, br))
-			{
-				float maxDistance = obj.MaxDistance;
-				if (scene.DrawDistance > 0.0f) maxDistance = maxDistance > 0.0f ? std::min(maxDistance, scene.DrawDistance) : scene.DrawDistance;
-				const bool tooFar = maxDistance > 0.0f && glm::distance(bc, camera.Position) - br > maxDistance;
-				if (tooFar || !InFrustum(frustum, bc, br))
-				{
-					++m_Stats.ObjectsCulled;
-					continue;
-				}
-			}
+			const RenderItem& item = items[i];
+			const RenderObject& obj = scene.Objects[item.Object];
 			++m_Stats.ObjectsDrawn;
-			if (obj.Mat.Alpha == AlphaMode::Blend)
+			if (item.Has(RenderItem::Blend))
 				translucent.push_back(&obj);
-			else if (obj.Instanced && !obj.JointMatrices && obj.IndexCount == 0)
-				instanced[obj.MeshPtr].push_back(&obj);
+			else if (item.Has(RenderItem::Batched))
+				m_Batches.push_back({ obj.MeshPtr, item.Object });
 			else
 				drawObject(obj);
 		}
-		std::vector<glm::mat4> matrices;
-		for (const auto& [mesh, objects] : instanced)
+		SortBatches(m_Batches);
+		for (size_t first = 0; first < m_Batches.size();)
 		{
-			if (objects.size() == 1) { drawObject(*objects.front()); continue; }
-			matrices.clear();
-			for (const RenderObject* o : objects) matrices.push_back(o->Transform);
-			cmd.UploadStream(m_InstanceBuffer, matrices.size() * sizeof(glm::mat4), matrices.data());
-			cmd.BindStorageBuffer(2, m_InstanceBuffer);
-			drawObject(*objects.front(), static_cast<uint32_t>(matrices.size()));
-			++m_Stats.InstancedDraws;
+			size_t last = first + 1;
+			while (last < m_Batches.size() && m_Batches[last].MeshPtr == m_Batches[first].MeshPtr) ++last;
+			const RenderObject& head = scene.Objects[m_Batches[first].Object];   // (the batch draws with the first one's material)
+			if (last - first == 1) drawObject(head);
+			else
+			{
+				m_Matrices.clear();
+				for (size_t b = first; b < last; ++b) m_Matrices.push_back(scene.Objects[m_Batches[b].Object].Transform);
+				cmd.UploadStream(m_InstanceBuffer, m_Matrices.size() * sizeof(glm::mat4), m_Matrices.data());
+				cmd.BindStorageBuffer(2, m_InstanceBuffer);
+				drawObject(head, static_cast<uint32_t>(m_Matrices.size()));
+				++m_Stats.InstancedDraws;
+			}
+			first = last;
 		}
 		cmd.SetAlphaToCoverage(false);
 		endLoop();
@@ -455,10 +449,22 @@ namespace GB
 		const RenderStats gpu = m_Stats;   // (ScenePass starts its stats over: the GPU times of the frames before are kept)
 		m_TimerActive = m_TimersPending < kTimerSets;   // (all the marks of a frame, or none: a set not read yet is never issued again)
 		Mark(kStart);
+
+		// T78: the objects once, and what the camera and the shadow map see of them in one walk (the two passes used to walk the scene each).
+		// Its CPU time goes into CpuObjectsMs, which held the scene pass's own culling before.
+		const auto cullStart = std::chrono::steady_clock::now();
+		const float aspect = static_cast<float>(m_Width) / static_cast<float>(m_Height);
+		const glm::mat4 viewProj = camera.GetProjection(aspect) * camera.GetView();
+		if (shadows)
+			lightVP = ShadowViewProj(scene.Env.ShadowCenter, scene.Sun.Direction, scene.Env.ShadowRadius, m_ShadowSize);   // snapped to texels
+		const Frustum cameraFrustum = MakeFrustum(viewProj), lightFrustum = MakeFrustum(lightVP);
+		m_List.Build(scene.Objects, scene.DrawDistance);
+		m_List.Cull(cameraFrustum, camera.Position, shadows ? &lightFrustum : nullptr);
+		const float cullMs = static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cullStart).count());
+
 		const auto shadowStart = std::chrono::steady_clock::now();
 		if (shadows)
 		{
-			lightVP = ShadowViewProj(scene.Env.ShadowCenter, scene.Sun.Direction, scene.Env.ShadowRadius, m_ShadowSize);   // snapped to texels
 			ShadowPass(scene, lightVP);
 			shadowCalls = DrawCounter::Calls;
 		}
@@ -466,8 +472,10 @@ namespace GB
 		const RHI::FrameCounters shadowSubmit = RHI::Counters::Frame;
 		Mark(kAfterShadows);
 
-		ScenePass(scene, camera, lightVP, shadows);
+		ScenePass(scene, camera, viewProj, lightVP, shadows);
 		Mark(kAfterResolve);
+		m_Stats.CpuCullMs = cullMs;
+		m_Stats.CpuObjectsMs += cullMs;
 		m_Stats.CpuShadowMs = shadowMs;
 		m_Stats.ShadowSubmit = shadowSubmit;
 		m_Stats.GpuShadowMs = gpu.GpuShadowMs; m_Stats.GpuSceneMs = gpu.GpuSceneMs; m_Stats.GpuGrassMs = gpu.GpuGrassMs; m_Stats.GpuWaterMs = gpu.GpuWaterMs;
