@@ -357,7 +357,9 @@ namespace
 			const glm::vec3 t(v.Tangent);
 			bool ok = std::fabs(glm::length(t) - 1.0f) < 1e-3f && std::fabs(glm::dot(t, v.Normal)) < 1e-3f && std::fabs(glm::length(v.Normal) - 1.0f) < 1e-3f;
 			if (glm::length(du[i]) > 1e-6f) ok = ok && glm::dot(t, du[i]) > 0.0f;
-			if (glm::length(dv[i]) > 1e-6f) ok = ok && glm::dot(glm::cross(v.Normal, t) * v.Tangent.w, dv[i]) > 0.0f;
+			// T111: the apex of a closed tip has its normal along the branch, parallel to dP/dv: its bitangent's sign is undefined there (the
+			// dot is ~0 and rounding decides it), so a dot within 1e-3 of |dP/dv| does not count against it
+			if (glm::length(dv[i]) > 1e-6f) ok = ok && glm::dot(glm::cross(v.Normal, t) * v.Tangent.w, dv[i]) > -1e-3f * glm::length(dv[i]);
 			if (!ok) ++r.BadTangents;
 		}
 		// open edges between welded vertices
@@ -631,6 +633,20 @@ int GBTest_material_gallery(int argc, char** argv)
 		Check(cards, "tree " + t.Name + ": the cards have unit tangents perpendicular to their normals and v in 0..1");
 		const std::unique_ptr<GB::Tree> again = GB::TreeFactory::Create(t.Params);
 		Check(again->Trunk.Hash() == tree->Trunk.Hash() && again->Foliage.Hash() == tree->Foliage.Hash(), "tree " + t.Name + ": the same tree every time");
+		{
+			// T111: the far level of detail (TreeParams::Detail 0) must stay clearly cheaper; its bark is checked as well
+			GB::TreeParams farParams = t.Params;
+			farParams.Detail = 0;
+			const std::unique_ptr<GB::Tree> far = GB::TreeFactory::Create(farParams);
+			const BarkReport rf = CheckBark(far->Trunk);
+			std::fprintf(stderr, "tree %-22s detail 0: triangles %5zu (bark %5zu, leaves %5zu), crown %.2f m | bark: tangents off %zu, normals off %zu, inward %zu/%zu;"
+			             " exposed loops %zu, dangling %zu, stretch u/v %.2f..%.2f (%zu/%zu out)\n", t.Name.c_str(), far->TriangleCount, far->Trunk.Triangles(),
+			             far->Foliage.Triangles(), far->CrownRadius, rf.BadTangents, rf.BadNormals, rf.Inward, rf.Sampled, rf.ExposedLoops, rf.DanglingEdges,
+			             rf.MinStretch, rf.MaxStretch, rf.Stretched, rf.Measured);
+			Check(rf.BadTangents == 0 && rf.BadNormals == 0 && rf.Inward == 0 && rf.DanglingEdges == 0 && rf.ExposedLoops == 0 && rf.GroundLoops <= 1 && rf.Stretched == 0,
+			      "tree " + t.Name + ": the bark of its far level of detail passes the same checks");
+			Check(far->TriangleCount < tree->TriangleCount * 3 / 4, "tree " + t.Name + ": its far level of detail is clearly cheaper (under 3/4 of the triangles)");
+		}
 		treeMeshes.push_back(std::move(tm));
 	}
 	{
@@ -988,16 +1004,36 @@ int GBTest_material_gallery(int argc, char** argv)
 		// ---- T109: the trees. Bark: the sample's material on the trunk as TreeFactory maps it (T110). Crown: its leaf material as TreesGpu sets a crown up (the
 		// crown normal baked in the mesh kept on both faces, cutoff 0.4), so no sphere blend (normalBlend 0) and no occlusion at the foot of
 		// the pivot; the interior occlusion sized to the tree (the core within a quarter of its height of the trunk)
-		std::vector<const GB::Mesh*> trunkMesh(trees.size(), nullptr), crownMesh(trees.size(), nullptr);
-		auto addTree = [&](GB::Scene& sc, size_t i, const glm::vec3& at, float yaw, bool crown = true)
+		// T111: every tree stands on a low mound of dry earth (a gallery object, not TreeFactory's: as the reference, art-book
+		// .../ref_arboles_*.jpg), the tree set a little into its top so its roots dive into it; its leaves sample the gallery's leaf
+		// textures at twice the repeat (UVScale 2: those textures are drawn for 0.8 m cards, TreeFactory's cards are ~1.4 m, so the
+		// leaves come out at their size; the card is a whole number of tiles, so no sprig is cut at its edge)
+		std::vector<const GB::Mesh*> trunkMesh(trees.size(), nullptr), crownMesh(trees.size(), nullptr), moundMesh(trees.size(), nullptr);
+		GB::Material earth = soil;   // dark earth with a little moss in it
+		earth.Albedo = glm::vec3(0.12f, 0.115f, 0.07f);
+		auto moundOf = [&](size_t i) { return glm::vec2(std::clamp(0.16f * treeMeshes[i].Height + 0.5f, 1.1f, 2.1f), 0.16f); };   // radius, height
+		auto addTree = [&](GB::Scene& sc, size_t i, const glm::vec3& at, float yaw, bool crown = true, bool mound = true)
 		{
 			const TreeSample& t = trees[i];
 			const TreeMeshes& tm = treeMeshes[i];
 			if (!trunkMesh[i]) trunkMesh[i] = keep(tm.Trunk);
 			if (!crownMesh[i] && !tm.Foliage.Empty()) crownMesh[i] = keep(tm.Foliage);
+			const glm::vec2 md = moundOf(i);
+			glm::vec3 foot = at;
+			if (mound)
+			{
+				if (!moundMesh[i]) moundMesh[i] = keep(GB::ProcMesh::Blob(glm::vec3(md.x, md.y, md.x), 3, 0.12f, GB::VisualHash(t.Name.c_str()), 0.0f));
+				GB::RenderObject m;
+				m.MeshPtr = moundMesh[i];
+				m.Mat = earth;
+				m.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), at), yaw, glm::vec3(0, 1, 0));
+				m.BoundingRadius = md.x * 1.2f;
+				sc.Objects.push_back(m);
+				foot.y += md.y * 0.92f;
+			}
 			const float top = std::max(tm.Height, tm.BoundsHeight);
 			GB::RenderObject o;
-			o.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), at), yaw, glm::vec3(0, 1, 0));
+			o.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), foot), yaw, glm::vec3(0, 1, 0));
 			o.BoundingCenter = { 0.0f, 0.5f * top, 0.0f };
 			o.BoundingRadius = 1.1f * glm::length(glm::vec2(0.5f * top, tm.CrownRadius + 0.5f));
 			o.MeshPtr = trunkMesh[i]; o.Mat = material(t.Bark);
@@ -1005,6 +1041,7 @@ int GBTest_material_gallery(int argc, char** argv)
 			if (crownMesh[i] && crown)
 			{
 				GB::Material leaves = material(t.Leaves);
+				leaves.UVScale = 2.0f;
 				leaves.FoliageNormals = true;
 				leaves.NormalBlend = 0.0f;
 				leaves.BaseOcclusion = 0.0f;
@@ -1019,29 +1056,88 @@ int GBTest_material_gallery(int argc, char** argv)
 			for (size_t i = 0; i < trees.size(); ++i) if (trees[i].Name == name) return static_cast<int>(i);
 			return -1;
 		};
+		auto yawOf = [&](size_t i) { return 6.2831853f * GB::HashUnit(GB::VisualHash(trees[i].Name.c_str())); };
+		// T111: a row of trees side by side, each as far from the next as their real crowns (CrownRadius) and a metre between; centred on x = 0.
+		// Returns the x of every tree.
+		auto rowOf = [&](const std::vector<size_t>& row, float gap)
+		{
+			std::vector<float> xs;
+			float x = 0.0f;
+			for (size_t k = 0; k < row.size(); ++k)
+			{
+				if (k > 0) x += treeMeshes[row[k - 1]].CrownRadius + treeMeshes[row[k]].CrownRadius + gap;
+				xs.push_back(x);
+			}
+			for (float& v : xs) v -= 0.5f * x;
+			return xs;
+		};
 		if (!trees.empty())
 		{
-			// every tree of the section on a grid: the bare ones in front, the broadleaves behind them, the conifers at the back, every row
-			// centred so the one behind shows between; each tree turned by a hash of its name
-			std::vector<size_t> rows[3];
+			// every tree of the section in four rows: the bare ones in front, then the slender broadleaves (columnar, saplings), the wide ones
+			// (spreading, ovate), the conifers at the back; in a row each tree as far from the next as their crowns, and every row behind the
+			// one in front by their widest crowns (no tree reaches into another); each tree turned by a hash of its name
+			std::vector<size_t> rows[4];
 			for (size_t i = 0; i < trees.size(); ++i)
-				rows[trees[i].Params.Species == GB::TreeSpecies::Bare ? 0 : trees[i].Params.Species == GB::TreeSpecies::Conifer ? 2 : 1].push_back(i);
-			GB::Scene sc = stage({ 0.0f, 3.0f, -12.0f }, 32.0f);
-			for (int r = 0; r < 3; ++r)
+			{
+				const GB::TreeParams& tp = trees[i].Params;
+				rows[tp.Species == GB::TreeSpecies::Bare ? 0 : tp.Species == GB::TreeSpecies::Conifer ? 3 : (tp.Style == 2 || tp.Style == 3) ? 1 : 2].push_back(i);
+			}
+			GB::Scene sc = stage({ 0.0f, 3.0f, -20.0f }, 48.0f);
+			float z = 0.0f, prevCrown = 0.0f, width = 0.0f, zBack = 0.0f;
+			for (int r = 0; r < 4; ++r)
+			{
+				if (rows[r].empty()) continue;
+				float crownMax = 0.0f;
+				for (size_t i : rows[r]) crownMax = std::max(crownMax, treeMeshes[i].CrownRadius);
+				if (prevCrown > 0.0f) z -= prevCrown + crownMax + 1.0f;
+				const std::vector<float> xs = rowOf(rows[r], 1.0f);
 				for (size_t k = 0; k < rows[r].size(); ++k)
 				{
-					const float step = r == 1 ? 9.0f : 10.0f, x = (static_cast<float>(k) - 0.5f * static_cast<float>(rows[r].size() - 1)) * step;
-					addTree(sc, rows[r][k], { x, 0.0f, -12.0f * static_cast<float>(r) }, 6.2831853f * GB::HashUnit(GB::VisualHash(trees[rows[r][k]].Name.c_str())));
+					addTree(sc, rows[r][k], { xs[k], 0.0f, z }, yawOf(rows[r][k]));
+					width = std::max(width, 2.0f * std::fabs(xs[k]) + 2.0f * treeMeshes[rows[r][k]].CrownRadius);
 				}
+				prevCrown = crownMax;
+				zBack = z;
+			}
+			std::fprintf(stderr, "tree gallery: %.1f m wide, %.1f m deep\n", width, -zBack);
 			GB::Camera cam;
-			cam.Position = { 0.0f, 17.0f, 27.0f };
-			cam.Target = { 0.0f, 2.5f, -11.0f };
-			cam.FovYDegrees = 48.0f;
+			cam.Target = { 0.0f, 2.5f, 0.45f * zBack };
+			cam.Position = { 0.0f, 0.42f * width, 0.45f * zBack + 0.95f * width };
+			cam.FovYDegrees = 40.0f;
+			sc.Env.ShadowCenter = cam.Target;
+			sc.Env.ShadowRadius = 0.6f * width - 0.5f * zBack;
 			save(sc, cam, "galeria_arboles.png");
 			// the same against a low warm sun behind the trees
 			sc.Sun.Direction = { 0.18f, -0.3f, 1.0f };
 			sc.Sun.Color = { 1.0f, 0.9f, 0.74f };
 			save(sc, cam, "arboles_contraluz.png");
+		}
+		// T111: a row like the reference (art-book .../ref_arboles_*.jpg, GEN1 and GEN2): broadleaf, conifer, bare, sapling and cypress on
+		// their mounds, on a pale floor under a pale sky, the sun from the right and in front casting the shadows to the left, the camera
+		// level with the crowns
+		if (treeIndex("frondoso_extendido_a") >= 0 && treeIndex("conifera_abeto_a") >= 0 && treeIndex("seco_a") >= 0 && treeIndex("planton_a") >= 0 &&
+		    treeIndex("conifera_cipres_a") >= 0)
+		{
+			std::vector<size_t> row;
+			for (const char* name : { "frondoso_extendido_a", "conifera_abeto_a", "seco_a", "planton_a", "conifera_cipres_a" })
+				row.push_back(static_cast<size_t>(treeIndex(name)));
+			const std::vector<float> xs = rowOf(row, 0.5f);
+			const float width = xs.back() - xs.front() + treeMeshes[row.front()].CrownRadius + treeMeshes[row.back()].CrownRadius;
+			GB::Scene sc = stage({ 0.0f, 3.0f, 0.0f }, 0.6f * width);
+			sc.Objects[0].Mat.Albedo = glm::vec3(0.45f);
+			sc.Sun.Direction = { -0.8f, -0.55f, -0.45f };
+			sc.Sun.Color = { 1.0f, 0.98f, 0.95f };
+			sc.Env.SkyTop = { 0.72f, 0.74f, 0.77f };
+			sc.Env.SkyHorizon = { 0.82f, 0.82f, 0.83f };
+			sc.Env.SkyGround = { 0.45f, 0.45f, 0.45f };
+			for (size_t k = 0; k < row.size(); ++k)
+				addTree(sc, row[k], { xs[k], 0.0f, 0.0f }, yawOf(row[k]));
+			GB::Camera cam;
+			cam.FovYDegrees = 30.0f;
+			const float dist = 0.5f * width / (std::tan(glm::radians(0.5f * cam.FovYDegrees)) * 16.0f / 9.0f) + 3.0f;
+			cam.Target = { 0.0f, 4.2f, 0.0f };
+			cam.Position = { 0.0f, 4.6f, dist };
+			save(sc, cam, "arboles_referencia.png");
 		}
 		// the bark close up: the trunk of a spreading broadleaf (its crown left out: it hangs down to the ground and hides the fork) and of
 		// a bare tree, where the limbs leave them, under a sun low from the left

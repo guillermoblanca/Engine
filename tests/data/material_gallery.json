@@ -82,7 +82,11 @@
       { "name": "conifera_abeto_b",     "species": "conifer",   "style": 0, "seed": 13, "height": 9.0, "bark": "bark_spruce", "leaves": "leaf_needle" },
       { "name": "conifera_pino_a",      "species": "conifer",   "style": 1, "seed": 4,  "height": 9.0, "bark": "bark_pine",   "leaves": "leaf_needle" },
       { "name": "conifera_pino_b",      "species": "conifer",   "style": 1, "seed": 21, "height": 9.0, "bark": "bark_pine",   "leaves": "leaf_needle" },
-      { "name": "seco_a",               "species": "bare",      "style": 0, "seed": 2,  "height": 6.5, "bark": "bark2" },
+      { "name": "planton_a",            "species": "broadleaf", "style": 3, "seed": 8,  "height": 5.0, "bark": "bark2",       "leaves": "leaf_small" },
+      { "name": "planton_b",            "species": "broadleaf", "style": 3, "seed": 19, "height": 5.5, "bark": "bark_birch",  "leaves": "leaf_broad" },
+      { "name": "conifera_cipres_a",    "species": "conifer",   "style": 2, "seed": 6,  "height": 10.0, "bark": "bark_pine",  "leaves": "leaf_needle" },
+      { "name": "conifera_cipres_b",    "species": "conifer",   "style": 2, "seed": 15, "height": 9.0, "bark": "bark_pine",   "leaves": "leaf_needle" },
+      { "name": "seco_a",              "species": "bare",      "style": 0, "seed": 2,  "height": 6.5, "bark": "bark2" },
       { "name": "seco_b",               "species": "bare",      "style": 1, "seed": 9,  "height": 6.5, "bark": "bark2" },
       { "name": "seco_c",               "species": "bare",      "style": 2, "seed": 31, "height": 6.5, "bark": "wood_log2" }
     ],

@@ -67,7 +67,8 @@ int GBTest_vegetation(int, char**)
 		{ "oak", Params(TreeSpecies::Broadleaf, 8.0f, 1, 0), 9500 }, { "lime", Params(TreeSpecies::Broadleaf, 10.0f, 2, 1), 9500 }, { "poplar", Params(TreeSpecies::Broadleaf, 9.0f, 3, 2), 9500 },
 		{ "spruce", Params(TreeSpecies::Conifer, 11.0f, 4, 0), 7000 }, { "pine", Params(TreeSpecies::Conifer, 11.0f, 5, 1), 7000 },
 		{ "coconut", Params(TreeSpecies::Palm, 7.5f, 1, 0), 4000 }, { "date", Params(TreeSpecies::Palm, 9.0f, 2, 1), 4000 },
-		{ "bare", Params(TreeSpecies::Bare, 8.0f, 7), 9500 } };
+		{ "bare", Params(TreeSpecies::Bare, 8.0f, 7), 9500 },
+		{ "sapling", Params(TreeSpecies::Broadleaf, 5.0f, 8, 3), 4000 }, { "cypress", Params(TreeSpecies::Conifer, 10.0f, 6, 2), 7000 } };   // T111: Style 3 / Style 2
 	for (const Case& cs : cases)
 	{
 		auto t = factory.Create(cs.P);

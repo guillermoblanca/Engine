@@ -641,25 +641,77 @@ namespace GB
 
 		float crownRadius = H * 0.4f;
 
+		// T111: roots of every count, angle, length and thickness: each sunk in the trunk's foot (its first ring inside the trunk), running
+		// out and curving down into the ground, where it ends closed below the surface. The gaps between them are uneven, the thicker ones
+		// reach further, each veers a little to one side.
+		auto addRoots = [&](const auto& trunkAtY, float R, int count, float reachLo, float reachHi)
+		{
+			const int rootSides = std::max(3, 5 - sideCut);
+			std::vector<float> steps(static_cast<size_t>(count));
+			float total = 0.0f;
+			for (float& st : steps) { st = rng.range(0.45f, 1.55f); total += st; }
+			float az = rng.range(0.0f, 2.0f * kPi);
+			const glm::vec3 foot = trunkAtY(0.0f).C;
+			for (int k = 0; k < count; ++k)
+			{
+				az += steps[static_cast<size_t>(k)] / total * 2.0f * kPi;
+				const float thick = R * rng.range(0.3f, 0.55f);
+				const float reach = R * rng.range(reachLo, reachHi) * (0.55f + thick / R);
+				const float h0 = std::max(std::min(R * rng.range(1.2f, 2.2f), 0.55f * reach), thick * 1.4f);
+				const float depth = R * rng.range(0.25f, 0.5f);
+				const float veer = rng.range(-0.35f, 0.35f);
+				const Ring at0 = trunkAtY(h0);
+				std::vector<Ring> rings = { { at0.C + glm::vec3(std::cos(az), 0.0f, std::sin(az)) * (at0.R * 0.4f), std::min(thick, 0.55f * at0.R) } };
+				const int n = detail == 0 ? 3 : 6;
+				for (int j = 1; j <= n; ++j)
+				{
+					const float s = static_cast<float>(j) / static_cast<float>(n);
+					const float a = az + veer * s;
+					const glm::vec3 o(std::cos(a), 0.0f, std::sin(a));
+					const glm::vec3 c = foot + o * (R * 0.8f + reach * s) + up * (h0 * std::pow(1.0f - s, 2.2f) + thick * 0.2f - (thick * 0.2f + depth) * glm::smoothstep(0.45f, 1.0f, s));
+					rings.push_back({ c, j == n ? 0.0f : thick * (1.0f - 0.8f * std::pow(s, 1.1f)) });
+				}
+				wood.Strip(rings, std::vector<int>(rings.size(), rootSides), true, Hash(k, 15, p.Seed), Hash(k, 16, p.Seed));
+			}
+		};
+
 		// ---------------------------------------------------------------- broadleaf / bare
 		if (p.Species == TreeSpecies::Broadleaf || p.Species == TreeSpecies::Bare)
 		{
 			const bool bare = p.Species == TreeSpecies::Bare;
-			// Habit by style: 0 spreading (oak), 1 ovate (lime, birch), 2 columnar (poplar).
-			struct Habit { float TrunkFrac, AngLo, AngHi, LenLo, LenHi, Up; int EndKids, TrunkKids; };
-			static const Habit habits[3] = {
-				{ 0.34f, 42.0f, 72.0f, 0.60f, 0.85f, 0.05f, 3, 4 },
-				{ 0.42f, 32.0f, 58.0f, 0.50f, 0.75f, 0.12f, 2, 6 },
-				{ 0.30f, 16.0f, 34.0f, 0.45f, 0.70f, 0.22f, 1, 7 } };
-			const Habit hb = habits[style % 3];
+			// T111: habit by style: 0 spreading (oak), 1 ovate (lime, birch), 2 columnar (poplar), 3 sapling (only when asked for: the style
+			// derived from the seed stays 0..2, so the game's recipes keep their habits). How a tree grows:
+			// - the radii follow the pipe model (Leonardo's rule): a side branch takes its cross-section off its parent's, so the parent
+			//   narrows past every fork and the area of a mother is about the sum of her daughters';
+			// - the trunk divides over a transition zone at its top: the limbs leave it one by one (ForkKids), each with its share of the
+			//   area, and the trunk carries on as the leader with what is left (no ring that every limb leaves from);
+			// - the side branches sag with their weight (Gravity, more the longer and the more level they are) and their ends turn up to
+			//   the light (Light); the crown leans toward a light side (longer branches there, fewer on the shaded one);
+			// - the trunk leans and bends gently (a dead tree more, and wobbling), and stands on a flared foot with roots of every size.
+			struct Habit { float TrunkFrac, AngLo, AngHi, LenLo, LenHi, Up, Gravity, Light, LeafSize, RadiusK, Leaves; int ForkKids, TrunkKids, LeaderKids; };
+			static const Habit habits[4] = {
+				{ 0.34f, 42.0f, 70.0f, 0.55f, 0.80f, 0.07f, 0.06f, 0.12f, 1.40f, 1.00f, 7.6f, 3, 2, 3 },
+				{ 0.40f, 32.0f, 58.0f, 0.50f, 0.75f, 0.12f, 0.05f, 0.12f, 1.30f, 1.00f, 5.8f, 2, 4, 4 },
+				{ 0.30f, 16.0f, 34.0f, 0.45f, 0.70f, 0.22f, 0.03f, 0.08f, 1.30f, 1.00f, 4.6f, 1, 7, 5 },
+				{ 0.46f, 38.0f, 64.0f, 0.45f, 0.70f, 0.14f, 0.05f, 0.14f, 1.05f, 0.42f, 1.7f, 0, 4, 5 } };
+			const int habit = p.Style == 3 ? 3 : style % 3;
+			const Habit hb = habits[habit];
+			const bool sapling = habit == 3;
+			const float baseR = p.TrunkRadius > 0.0f ? trunkR : trunkR * hb.RadiusK;
 			const float trunkLen = H * (hb.TrunkFrac + (bare ? 0.06f : 0.0f)) * rng.range(0.92f, 1.08f);
-			const int maxLevel = bare ? 4 : 3;
-			const float leafSize = (style == 0 ? 1.45f : 1.25f) * (bare ? 1.0f : 1.0f);
+			const int maxLevel = (bare ? 5 : (sapling ? 2 : 3)) - (detail == 0 && !sapling ? (bare ? 2 : 1) : 0);   // far trees: no finest twigs
+			const float leafSize = hb.LeafSize;
+			const float rMin = H * (bare ? 0.0009f : 0.0011f) * (sapling ? 0.8f : 1.0f);   // the thinnest twig
+			const float flare = sapling ? 0.35f : (bare ? 0.9f : 0.75f);
+			const float lightAz = rng.range(0.0f, 2.0f * kPi);
+			const glm::vec3 lightDir(std::cos(lightAz), 0.0f, std::sin(lightAz));
+			const float leanAz = rng.range(0.0f, 2.0f * kPi), lean = bare ? rng.range(0.10f, 0.22f) : rng.range(0.03f, 0.11f);
+			const float bendAz = rng.range(0.0f, 2.0f * kPi), bendFreq = rng.range(1.6f, 3.2f), bendPh = rng.range(0.0f, 2.0f * kPi);
+			const glm::vec3 bendDir(std::cos(bendAz), 0.0f, std::sin(bendAz));
+			const float bendAmp = bare ? 0.10f : (sapling ? 0.035f : 0.05f);
+			const float wobble = bare ? 0.16f : 0.06f;   // the dead trunk's twist: its axis winds round a small helix (fractions of its radius)
+			const float wobblePitch = rng.range(1.2f, 2.0f), wobblePh = rng.range(0.0f, 2.0f * kPi);
 
-			// T110: every branch keeps its rings (`Strip` builds the mesh once the whole tree is grown). A side branch is "sunk": its first
-			// ring sits on the parent's axis, inside it, and a collar ring where it leaves the parent's surface is 25 % wider, so the branch
-			// flares into the parent instead of being a cylinder stuck in it. The branch that carries its parent on (the first limb at the top
-			// of the trunk, the end shoot of a branch) continues the parent's strip instead: the trunk does not end in an open ring.
 			struct Branch
 			{
 				glm::vec3 start, dir; float length, radius; int level; float az; bool trunkSide;
@@ -668,6 +720,8 @@ namespace GB
 				glm::vec3 pdir{ 0.0f };   // the parent's direction where this one leaves it
 				float pr = 0.0f;          // the parent's radius there
 				int psides = 3;           // and its sides
+				bool stunted = false;     // stopped growing early: no side branches
+				bool leader = false;      // the trunk carried on above the fork
 			};
 			struct StripDef
 			{
@@ -675,67 +729,110 @@ namespace GB
 				std::vector<int> sides;
 				int parent = -1;
 				bool cont = false;
-				bool tipKids = false;     // branches leave from its last ring: close it with a point beyond it instead of collapsing it
+				bool tipKids = false;     // branches leave from its last ring
 			};
-			struct Anchor { glm::vec3 pos, dir; int level; };
+			struct Site { glm::vec3 pos, dir; float scale; };   // where a cluster of leaves hangs
 			std::vector<Branch> stack;
 			std::vector<StripDef> strips;
-			std::vector<Anchor> anchors;
-			glm::vec3 trunkDir = glm::normalize(glm::vec3(rng.range(-0.06f, 0.06f), 1.0f, rng.range(-0.06f, 0.06f)));
-			stack.push_back({ glm::vec3(0.0f), trunkDir, trunkLen, trunkR, 0, rng.range(0.0f, 2.0f * kPi), false });
-			std::vector<glm::vec3> woodPoints;   // where branches (level >= 1) pass, to hang leaves on
+			std::vector<Site> sites;
+			const glm::vec3 trunkDir = glm::normalize(up + glm::vec3(std::cos(leanAz), 0.0f, std::sin(leanAz)) * lean);
+			stack.push_back({ glm::vec3(0.0f), trunkDir, trunkLen, baseR, 0, rng.range(0.0f, 2.0f * kPi), false });
 			constexpr float kCollar = 1.25f;
 
+			// The finest twigs of a dead tree (level 4) are grown in a second pass: when there are more than its budget (by height; the rest of
+			// the bark is bounded by the branch counts), an evenly spread subset of them is kept, so the cost stays bounded whatever the seed
+			// and no side of the crown is left bare.
+			std::vector<Branch> fine;
+			const size_t twigBudget = static_cast<size_t>(150.0f * H / 6.5f);
+			for (int pass = 0; pass < 2; ++pass)
+			{
+			if (pass == 1)
+			{
+				const size_t keep = std::min(fine.size(), twigBudget);
+				for (size_t k = 0; k < keep; ++k)
+					stack.push_back(fine[k * fine.size() / keep]);
+			}
 			while (!stack.empty())
 			{
 				Branch b = stack.back();
 				stack.pop_back();
 				const int strip = static_cast<int>(strips.size());
 				strips.push_back({});
-				const int segments = b.level >= 2 ? std::max(3, static_cast<int>(b.length * 2.2f)) : std::max(b.level == 0 ? 4 : 3, static_cast<int>(b.length * (b.level == 0 ? 2.5f : 2.2f)));
-				const int sides = std::max(3, (b.level == 0 ? 10 : (b.level == 1 ? 5 : (b.level == 2 ? 4 : 3))) - sideCut);
+				const float perMetre = (b.level == 0 ? 2.5f : (b.level == 1 ? 2.2f : (b.level == 2 ? 1.8f : 1.5f))) * (detail == 0 ? 0.7f : 1.0f);
+				const int segments = std::max(b.level == 0 ? 4 : (b.level >= 4 ? 1 : (b.level == 3 ? 2 : 3)), static_cast<int>(b.length * perMetre));
+				const int sides = std::max(3, (b.level == 0 ? 10 : (b.level == 1 ? 5 : (b.level == 2 && !bare ? 4 : 3))) - sideCut);
 				glm::vec3 pos = b.start, dir = glm::normalize(b.dir);
 				glm::vec3 wander = uniformDir();
-				glm::vec3 midPos = b.start, midDir = dir;
+				std::vector<std::pair<glm::vec3, glm::vec3>> along;   // every ring's centre and direction (the leaves' sites)
 				const float segLen = b.length / static_cast<float>(segments);
-				const float taper = b.level == 0 ? 0.6f : 0.78f;
-				auto radiusAt = [&](float t, const glm::vec3& at)
-				{
-					float r = std::max(b.radius * (1.0f - taper * std::pow(t, b.level == 0 ? 1.3f : 0.9f)), H * 0.0016f);
-					if (b.level == 0)
-						r *= 1.0f + 0.6f * std::exp(-at.y / (trunkR * 3.5f));   // widened base
-					return r;
-				};
-				// Where along the branch the side branches leave (golden-angle azimuths, fewer and later on thin twigs).
-				std::vector<int> kidsAt(static_cast<size_t>(segments), 0);
-				int kidTotal = b.level == 0 ? hb.TrunkKids : (b.level == 1 ? 3 + static_cast<int>(rng.next() * 3.0f) : (b.level == 2 ? 2 + static_cast<int>(rng.next() * 2.0f) : (bare ? 1 : 0)));
+
+				// where along the branch the side branches leave (and, on the trunk, the limbs of the fork)
+				std::vector<int> kidsAt(static_cast<size_t>(segments), 0), forkAt(static_cast<size_t>(segments), 0);
+				int kidTotal = b.level == 0 ? hb.TrunkKids
+				             : b.leader ? hb.LeaderKids + static_cast<int>(rng.next() * 2.0f)
+				             : b.level == 1 ? 2 + static_cast<int>(rng.next() * 3.0f)
+				             : b.level == 2 ? (bare ? 2 + static_cast<int>(rng.next() * 2.5f) : 2 + static_cast<int>(rng.next() * 2.0f))
+				             : b.level == 3 ? (bare ? 1 + static_cast<int>(rng.next() * 2.0f) : 0)
+				                            : (bare ? 2 + static_cast<int>(rng.next() * 2.0f) : 0);
 				if (b.trunkSide) kidTotal = (kidTotal + 1) / 2;
-				if (b.level == 0 && !bare && style != 2) kidTotal = std::max(2, kidTotal - 1);
-				const float kidStart = b.level == 0 ? 0.45f : 0.3f;
+				if (b.stunted || b.level >= (b.trunkSide ? std::min(maxLevel, 2) : maxLevel)) kidTotal = 0;
+				const float kidStart = b.level == 0 ? (sapling ? 0.3f : 0.4f) : 0.22f, kidEnd = b.level == 0 && hb.ForkKids > 0 ? 0.68f : 0.95f;
 				for (int k = 0; k < kidTotal; ++k)
 				{
-					const float tk = glm::mix(kidStart, 0.95f, (static_cast<float>(k) + rng.range(0.1f, 0.9f)) / static_cast<float>(kidTotal));
+					const float tk = glm::mix(kidStart, kidEnd, (static_cast<float>(k) + rng.range(0.0f, 1.0f)) / static_cast<float>(kidTotal));
 					++kidsAt[static_cast<size_t>(std::min(segments - 1, static_cast<int>(tk * static_cast<float>(segments))))];
 				}
-				auto spawn = [&](const glm::vec3& at, const glm::vec3& d, float radiusHere, float tAlong, bool end, bool cont)
+				if (b.level == 0)
+					for (int k = 0; k < hb.ForkKids; ++k)
+					{
+						const float tk = glm::mix(0.72f, 0.98f, (static_cast<float>(k) + rng.range(0.2f, 0.8f)) / static_cast<float>(hb.ForkKids));
+						++forkAt[static_cast<size_t>(std::min(segments - 2, static_cast<int>(tk * static_cast<float>(segments))))];
+					}
+
+				// the radius: the cross-section left after the side branches (pipe model), a gentle taper on top of it, the trunk's foot flared
+				float area = b.radius * b.radius;
+				const float taper = b.level == 0 ? 0.15f : (kidTotal == 0 ? 0.42f : 0.30f);
+				auto radiusAt = [&](float t, const glm::vec3& at)
+				{
+					float r = std::max(std::sqrt(area) * (1.0f - taper * t), rMin);
+					if (b.level == 0)
+						r *= 1.0f + flare * std::exp(-std::max(at.y, 0.0f) / (baseR * flare / 0.22f));   // its slope kept under ~0.22 (the bark's u, in metres round every ring, shears with it)
+					return r;
+				};
+				// kind 0: a side branch, 1: a limb of the fork, 2: the shoot that carries the branch on (the leader on the trunk)
+				auto spawn = [&](const glm::vec3& at, const glm::vec3& d, float radiusHere, float tAlong, int kind, bool cont)
 				{
 					const glm::vec3 side = AnyPerpendicular(d);
-					b.az += 2.399963f + rng.range(-0.35f, 0.35f);
+					b.az += 2.399963f + rng.range(-0.6f, 0.6f);
 					const glm::vec3 axis = glm::normalize(side * std::cos(b.az) + glm::cross(d, side) * std::sin(b.az));
-					float angDeg = rng.range(hb.AngLo, hb.AngHi);
-					if (end) angDeg = b.level == 0 ? rng.range(14.0f, 34.0f) * (style == 2 ? 0.4f : 1.0f) : angDeg * 0.55f;
+					float angDeg;
+					if (kind == 1) angDeg = habit == 0 ? rng.range(18.0f, 36.0f) : (habit == 1 ? rng.range(18.0f, 34.0f) : rng.range(10.0f, 22.0f));
+					else if (kind == 2) angDeg = b.level == 0 ? (habit == 0 ? rng.range(8.0f, 26.0f) : rng.range(2.0f, 10.0f)) : rng.range(hb.AngLo, hb.AngHi) * 0.45f;
+					else angDeg = rng.range(hb.AngLo, hb.AngHi);
 					const float ang = angDeg * kPi / 180.0f;
 					glm::vec3 cd = glm::normalize(d * std::cos(ang) + axis * std::sin(ang));
-					cd = glm::normalize(cd + up * hb.Up * (b.level == 0 ? 1.0f : 0.5f) + glm::vec3(0.0f, b.level >= 2 ? -0.05f : 0.0f, 0.0f));
-					if (b.level == 0) cd.y = std::max(cd.y, 0.15f);
+					cd = glm::normalize(cd + up * hb.Up * (b.level == 0 ? 1.0f : 0.5f));
+					if (b.level == 0 && cd.y < 0.15f) { cd.y = 0.15f; cd = glm::normalize(cd); }
+					const glm::vec3 flat(cd.x, 0.0f, cd.z);
+					const float toLight = glm::length(flat) > 1e-3f ? glm::dot(glm::normalize(flat), lightDir) : 0.0f;
+					if (kind == 0 && b.level <= 1 && rng.next() < 0.22f * (0.5f - 0.5f * toLight))
+						return;   // a side branch in the shade that died
 					float len;
-					if (end && b.level == 0)
-						len = std::max((H * 0.97f - at.y) / std::max(cd.y, 0.45f), trunkLen * 0.5f) * rng.range(0.75f, 0.92f);   // the limbs finish the crown
+					if (kind != 0 && b.level == 0)   // the limbs and the leader finish the crown
+						len = std::max((H * 0.97f - at.y) / std::max(cd.y, 0.62f), trunkLen * 0.5f) * rng.range(0.68f, 0.88f);
 					else
-						len = b.length * rng.range(hb.LenLo, hb.LenHi) * (b.level == 1 ? 1.12f - 0.45f * tAlong : 1.0f) * (end ? 0.8f : 1.0f) * (b.level == 0 ? 0.6f : 1.0f);
-					Branch kid{ at, cd, len, radiusHere * rng.range(0.58f, 0.74f), b.level + 1, b.az, b.trunkSide || (b.level == 0 && !end) };
+						len = b.length * rng.range(hb.LenLo, hb.LenHi) * (b.level == 1 ? 1.12f - 0.45f * tAlong : 1.0f) * (kind == 2 ? 0.8f : 1.0f) * (b.level == 0 ? 0.6f : 1.0f);
+					len *= (1.0f + 0.22f * toLight) * (b.level >= 3 ? 0.55f : 1.0f);   // (the finest twigs short: a dense fringe, not wires)
+					bool stunted = false;
+					if (kind == 0 && b.level >= 1 && rng.next() < 0.12f) { len *= 0.45f; stunted = true; }
+					const float ratio = kind == 1 ? std::sqrt(rng.range(0.28f, 0.40f)) : kind == 2 ? 1.0f : (b.level == 0 ? rng.range(0.30f, 0.45f) : rng.range(0.50f, 0.70f));
+					const float rk = std::max(radiusHere * ratio, rMin);
+					if (kind != 2)
+						area = std::max(area - rk * rk * 0.85f, 0.09f * b.radius * b.radius);
+					Branch kid{ at, cd, len, rk, b.level + 1, b.az, b.trunkSide || (b.level == 0 && kind == 0) };
 					kid.parent = strip; kid.cont = cont; kid.pdir = d; kid.pr = radiusHere; kid.psides = sides;
-					stack.push_back(kid);
+					kid.stunted = stunted; kid.leader = b.level == 0 && kind == 2;
+					(bare && kid.level == 4 ? fine : stack).push_back(kid);   // the finest twigs wait for the second pass
 				};
 
 				StripDef sd;
@@ -746,13 +843,40 @@ namespace GB
 				if (sunk) r0 = std::min(r0, 0.85f * b.pr * std::cos(kPi / static_cast<float>(b.psides)));   // inside the parent's polygon
 				sd.rings.push_back({ b.start, r0 });
 				sd.sides.push_back(sides);
+				// the trunk's axis winds round a small helix (a twisted dead trunk); the rings sit on it, the growth follows the plain axis
+				auto wound = [&](const glm::vec3& c)
+				{
+					if (b.level != 0) return c;
+					const float a = wobblePh + c.y / wobblePitch * 2.0f * kPi, fade = glm::smoothstep(0.0f, 1.6f, c.y) * (1.0f - glm::smoothstep(0.8f * trunkLen, trunkLen, c.y));
+					return c + glm::vec3(std::cos(a), 0.0f, std::sin(a)) * (wobble * baseR * fade);
+				};
+				if (b.level == 0)   // the flare: two more rings low on the trunk, so its foot widens over several of them
+					for (const float f : { 0.3f, 0.65f })
+					{
+						const glm::vec3 c = wound(pos + dir * (segLen * f));
+						sd.rings.push_back({ c, radiusAt(f / static_cast<float>(segments), c) });
+						sd.sides.push_back(sides);
+					}
+				// (the sag grows with the branch's length and falls with its thickness: a thick limb hardly bends, a long thin branch arches)
+				const float grav = b.level == 0 ? 0.0f : hb.Gravity * (bare ? 1.2f : 1.0f) * (b.level >= 4 ? 0.5f : 1.0f) * std::min(b.length / (H * 0.25f), 2.0f)
+				                                        * glm::clamp(0.3f * baseR / std::max(b.radius, 1e-4f), 0.25f, 1.5f);
+				const float light = b.level == 0 ? 0.0f : hb.Light * (bare ? 1.1f : 1.0f);
 				for (int s = 0; s < segments; ++s)
 				{
-					const float t1 = static_cast<float>(s + 1) / static_cast<float>(segments);
+					const float t1 = static_cast<float>(s + 1) / static_cast<float>(segments), tm = (static_cast<float>(s) + 0.5f) / static_cast<float>(segments);
 					wander = glm::normalize(wander + uniformDir() * 0.5f);
-					dir = glm::normalize(dir + wander * (b.level == 0 ? 0.05f : 0.10f) + up * (b.level == 0 ? 0.0f : hb.Up * 0.06f) - up * (b.level >= 2 ? 0.035f : 0.0f));
+					glm::vec3 steer = wander * (b.level == 0 ? 0.03f : b.leader ? 0.035f : (b.level >= 3 ? 0.18f : 0.10f));
+					if (b.leader) steer += up * 0.05f;
+					if (b.level == 0)
+						steer += bendDir * (bendAmp * std::sin(bendPh + bendFreq * tm * kPi)) + up * 0.02f;   // a gentle S, righting itself
+					else
+					{
+						const float level = 1.0f - std::fabs(dir.y);   // a level branch sags the most
+						steer += up * (hb.Up * 0.06f + light * tm * tm) - up * (grav * level * (1.0f - 0.5f * tm));
+					}
+					dir = glm::normalize(dir + steer);
 					const glm::vec3 next = pos + dir * segLen;
-					const float r1 = radiusAt(t1, next);
+					const glm::vec3 ringAt = wound(next);
 					if (s == 0 && sunk && r0 > 0.015f)   // (a twig under 1.5 cm gets none: it would not show, and it saves triangles)
 					{
 						// the collar: just out of the parent's surface (a steep branch leaves it soon, a shallow one runs along it)
@@ -766,35 +890,46 @@ namespace GB
 							sd.sides.push_back(sides);
 						}
 					}
-					sd.rings.push_back({ next, r1 });
+					const float r1 = radiusAt(t1, ringAt);
+					sd.rings.push_back({ ringAt, r1 });
 					sd.sides.push_back(sides);
-					if (s == segments * 3 / 5) { midPos = next; midDir = dir; }
-					if (b.level >= 1 && !b.trunkSide) woodPoints.push_back(next);
-					if (b.level < (b.trunkSide ? std::min(maxLevel, 2) : maxLevel))
-						for (int k = 0; k < kidsAt[static_cast<size_t>(s)]; ++k)
-						{
-							spawn(next, dir, r1, t1, false, false);
-							if (s == segments - 1) sd.tipKids = true;
-						}
+					along.push_back({ ringAt, dir });
+					for (int k = 0; k < kidsAt[static_cast<size_t>(s)]; ++k)
+					{
+						spawn(ringAt, dir, r1, t1, 0, false);
+						if (s == segments - 1) sd.tipKids = true;
+					}
+					if (b.level == 0)
+						for (int k = 0; k < forkAt[static_cast<size_t>(s)]; ++k)
+							spawn(ringAt, dir, r1, t1, 1, false);
 					pos = next;
 				}
-				// the end of the branch: the limbs of the crown (level 0, the first one carries the trunk on), or the branch just carries on
-				// as the leaves' anchor
+				// the end: the trunk carries on as the leader; a branch may carry on as its own end shoot
+				bool shoot = false;
 				if (b.level == 0)
 				{
-					for (int k = 0; k < hb.EndKids; ++k)
-						spawn(pos, dir, radiusAt(1.0f, pos), 1.0f, true, k == 0);
+					spawn(wound(pos), dir, radiusAt(1.0f, wound(pos)), 1.0f, 2, true);
+					shoot = true;
 				}
-				else if (b.level < maxLevel && b.level <= 2 && rng.next() < 0.5f)
-					spawn(pos, dir, radiusAt(1.0f, pos), 1.0f, true, true);
-				if (!bare && b.level >= 1 && b.level <= 2)
-					anchors.push_back({ midPos, midDir, b.trunkSide ? 0 : 1 });   // leaves along the branch, not only at its tip
-				if (!bare && (b.level >= 2 || (b.level == 1 && b.length < H * 0.22f)))
-					anchors.push_back({ pos, dir, b.trunkSide ? 0 : b.level });
+				else if (b.level < maxLevel && b.level <= 2 && !b.stunted && rng.next() < 0.5f)
+				{
+					spawn(pos, dir, radiusAt(1.0f, pos), 1.0f, 2, true);
+					shoot = true;
+				}
+				// the leaves: a cluster at every branch end that does not carry on, and one along the longer branches
+				if (!bare && b.level >= 1)
+				{
+					if (!shoot && (b.level >= 2 || kidTotal == 0 || b.length < H * 0.22f || sapling))
+						sites.push_back({ pos, dir, b.trunkSide ? 0.75f : 1.0f });
+					// and along the branch from about a third of its length, every ~0.7 of a leaf card (the crowding test spaces them)
+					for (size_t k = static_cast<size_t>(along.size() / 3); k + 1 < along.size(); ++k)
+						sites.push_back({ along[k].first, along[k].second, b.trunkSide ? 0.7f : 0.85f });
+				}
 				strips[static_cast<size_t>(strip)] = std::move(sd);
 			}
+			}
 
-			// The trunk's centre and radius at height y (from its rings, before the first limb carries it on), for the knots and roots.
+			// The trunk's centre and radius at height y (from its rings, before the leader carries it on), for the knots and roots.
 			const std::vector<Ring> trunkRings = strips.front().rings;
 			auto trunkAt = [&](float y)
 			{
@@ -807,8 +942,8 @@ namespace GB
 				return trunkRings.back();
 			};
 
-			// Chains: a branch that carries its parent on joins the parent's strip at the parent's last ring (which keeps its radius:
-			// the other limbs of a fork leave from it). Then every chain is one strip, closed at its end.
+			// Chains: a branch that carries its parent on joins the parent's strip at the parent's last ring. Then every chain is one strip,
+			// closed at its end by a short rounded cap (T111: never a long spike).
 			{
 				std::vector<int> root(strips.size(), -1);
 				for (size_t k = 0; k < strips.size(); ++k)
@@ -828,114 +963,103 @@ namespace GB
 				{
 					StripDef& s = strips[k];
 					if (s.rings.size() < 2) continue;
-					const Ring& last = s.rings.back();
-					if (s.tipKids || last.R > 0.012f)
+					const Ring last = s.rings.back();
+					const glm::vec3 d = glm::normalize(last.C - s.rings[s.rings.size() - 2].C + glm::vec3(1e-6f));
+					// (a thin twig ends in the apex alone; when branches leave from the last ring, the cap is longer, so it covers their mouths)
+					const float reach = s.tipKids ? 1.6f : 1.0f;
+					const bool capRing = detail > 0 && (last.R >= 0.02f || s.tipKids);
+					if (capRing)
 					{
-						// a short point beyond the last ring: its side branches leave from that ring, or it is too thick to end in a long
-						// spike (a twig under 1.2 cm just narrows to its point over its last segment)
-						const glm::vec3 d = glm::normalize(last.C - s.rings[s.rings.size() - 2].C + glm::vec3(1e-6f));
-						s.rings.push_back({ last.C + d * (last.R * 1.5f), 0.0f });
+						s.rings.push_back({ last.C + d * (last.R * 0.55f * reach), last.R * 0.75f });
 						s.sides.push_back(s.sides.back());
 					}
+					s.rings.push_back({ last.C + d * (last.R * (capRing ? 0.85f : 0.6f) * reach), 0.0f });
+					s.sides.push_back(s.sides.back());
 					wood.Strip(s.rings, s.sides, true, Hash(static_cast<int>(k), 11, p.Seed), Hash(static_cast<int>(k), 12, p.Seed) * 2.0f);
 				}
 			}
 
-			// Pruned-branch knots on the trunk and roots spreading from the base: sunk in the trunk, closed at their outer end.
+			// Pruned-branch knots on the trunk, and the roots.
 			{
 				const int knotSides = std::max(3, 5 - sideCut);
-				const int knots = bare ? 3 : 2 + static_cast<int>(rng.next() * 3.0f);
+				const int knots = sapling ? 1 : (bare ? 3 : 2 + static_cast<int>(rng.next() * 3.0f));
 				for (int k = 0; k < knots; ++k)
 				{
-					const float y = trunkLen * rng.range(0.12f, 0.8f);
-					const float r = trunkR * (1.0f - 0.6f * y / trunkLen) * 1.0f;
+					const float y = trunkLen * rng.range(0.15f, 0.7f);
 					const float ang = rng.range(0.0f, 2.0f * kPi);
-					const glm::vec3 out(std::cos(ang), 0.25f, std::sin(ang));
-					const glm::vec3 o = glm::normalize(out);
+					const glm::vec3 o = glm::normalize(glm::vec3(std::cos(ang), 0.25f, std::sin(ang)));
 					const Ring t = trunkAt(y);
-					const float rt = std::max(t.R, r);
-					const std::vector<Ring> rings = { { t.C + o * (rt * 0.45f), std::min(trunkR * 0.26f, 0.5f * t.R) }, { t.C + o * (rt + trunkR * 0.28f), trunkR * 0.20f },
-					                                  { t.C + o * (rt + trunkR * 0.36f), 0.0f } };
+					const std::vector<Ring> rings = { { t.C + o * (t.R * 0.45f), std::min(baseR * 0.26f, 0.5f * t.R) }, { t.C + o * (t.R + baseR * 0.28f), baseR * 0.20f },
+					                                  { t.C + o * (t.R + baseR * 0.36f), 0.0f } };
 					wood.Strip(rings, std::vector<int>(rings.size(), knotSides), true, Hash(k, 13, p.Seed), Hash(k, 14, p.Seed));
 				}
-				const int roots = (style == 2 ? 4 : 5) + static_cast<int>(rng.next() * 3.0f);
-				for (int k = 0; k < roots; ++k)
-				{
-					const float ang = (static_cast<float>(k) + rng.range(-0.3f, 0.3f)) / static_cast<float>(roots) * 2.0f * kPi;
-					const glm::vec3 o(std::cos(ang), 0.0f, std::sin(ang));
-					const float reach = trunkR * rng.range(2.2f, 3.4f);
-					const float r = trunkR * 1.35f;
-					const glm::vec3 base = trunkAt(trunkR * 1.9f).C;
-					const glm::vec3 a = base + o * r * 0.3f, m = o * (r + reach * 0.45f) + glm::vec3(0, trunkR * 0.55f, 0), e = o * (r + reach) + glm::vec3(0, -trunkR * 0.25f, 0);
-					const std::vector<Ring> rings = { { a, trunkR * 0.62f }, { m, trunkR * 0.36f }, { e, 0.0f } };
-					wood.Strip(rings, { std::max(3, 6 - sideCut), std::max(3, 6 - sideCut), std::max(3, 6 - sideCut) }, true, Hash(k, 15, p.Seed), Hash(k, 16, p.Seed));
-				}
+				const int roots = sapling ? 3 + static_cast<int>(rng.next() * 2.0f) : 4 + static_cast<int>(rng.next() * 4.0f);
+				addRoots(trunkAt, baseR, roots, sapling ? 1.4f : 1.8f, sapling ? 2.6f : 3.8f);
 			}
 
-			// Crown shape from where the leaves are, so the vertex normals shade it like one rounded volume.
+			// T111: the crown in clusters. Every site (a branch end, the middle of a long branch) carries a cluster: its cards spread round
+			// its centre on a Fibonacci spiral (every card a different direction: never two nearly coplanar cards on top of each other),
+			// lying across that direction like the scales of a ball, the outward half of the ball fuller. A cluster too close to one already
+			// made is dropped, so the crown keeps holes between its clusters where the branches show. The shading normal mixes the crown's
+			// ellipsoid with the cluster's own ball, so every cluster reads as a volume and the crown as one mass.
 			glm::vec3 centre(0.0f, H * 0.65f, 0.0f), ext(H * 0.35f);
-			if (!anchors.empty())
+			if (!sites.empty())
 			{
 				glm::vec3 lo(1e9f), hi(-1e9f), sum(0.0f);
-				for (const Anchor& a : anchors) { lo = glm::min(lo, a.pos); hi = glm::max(hi, a.pos); sum += a.pos; }
-				centre = sum / static_cast<float>(anchors.size());
-				ext = glm::max((hi - lo) * 0.5f + glm::vec3(leafSize), glm::vec3(1.0f));
+				for (const Site& st : sites) { lo = glm::min(lo, st.pos); hi = glm::max(hi, st.pos); sum += st.pos; }
+				centre = sum / static_cast<float>(sites.size());
+				ext = glm::max((hi - lo) * 0.5f + glm::vec3(leafSize * 0.8f), glm::vec3(1.0f));
 				centre.y = (lo.y + hi.y) * 0.5f;
 			}
-			std::vector<glm::vec3> cardCentres;
-			auto cluster = [&](const glm::vec3& at, const glm::vec3& dir, int level, int count)
+			const float clusterR = leafSize * 0.6f;
+			struct Cluster { glm::vec3 c0; float R; Site st; };
+			std::vector<Cluster> clusters;
+			float weight = 0.0f;
+			for (const Site& st : sites)
 			{
-				const float spread = leafSize * (level >= 2 ? 1.0f : 0.8f);
+				const float R = clusterR * st.scale * rng.range(0.85f, 1.15f);
+				const glm::vec3 c0 = st.pos + st.dir * (R * 0.35f) + up * (R * 0.1f);
+				bool crowded = false;
+				for (const Cluster& q : clusters) crowded = crowded || glm::distance(q.c0, c0) < R * 1.1f;
+				if (crowded) continue;
+				clusters.push_back({ c0, R, st });
+				weight += st.scale;
+			}
+			// the crown's cards: a budget by habit and height (about what the crowns had before T111), shared out over the clusters
+			const float cardBudget = hb.Leaves * 82.0f * (H / 7.5f) * density;
+			const float perWeight = weight > 0.0f ? cardBudget / weight : 0.0f;
+			for (const Cluster& cl : clusters)
+			{
+				const Site& st = cl.st;
+				const float R = cl.R;
+				const glm::vec3 c0 = cl.c0;
+				const int count = std::clamp(static_cast<int>(std::lround(perWeight * st.scale)), 3, 14);
+				const glm::vec3 away = c0 - centre;
+				const glm::vec3 outward = glm::normalize(glm::mix(glm::length(away) > 1e-3f ? glm::normalize(away) : up, up, 0.3f));
+				const float spin = rng.range(0.0f, 2.0f * kPi);
 				for (int k = 0; k < count; ++k)
 				{
-					glm::vec3 off = uniformDir() * std::cbrt(rng.next()) * spread;
-					off.y *= 0.8f;
-					const glm::vec3 c = at + off - dir * (level >= 2 ? spread * 0.25f : 0.0f);
-					cardCentres.push_back(c);
+					const float zf = 1.0f - 2.0f * (static_cast<float>(k) + 0.5f) / static_cast<float>(count);
+					const float ring = std::sqrt(std::max(0.0f, 1.0f - zf * zf)), th = static_cast<float>(k) * 2.399963f + spin;
+					const glm::vec3 o = glm::normalize(glm::vec3(ring * std::cos(th), zf, ring * std::sin(th)) + outward * 0.55f);
+					const glm::vec3 c = c0 + o * (R * rng.range(0.3f, 0.6f));
+					const glm::vec3 cardN = glm::normalize(o + uniformDir() * 0.3f);
+					glm::vec3 uRef = glm::normalize(st.dir + up * 0.3f);
+					uRef -= cardN * glm::dot(uRef, cardN);
+					glm::vec3 uu = glm::length(uRef) > 1e-3f ? glm::normalize(uRef) : AnyPerpendicular(cardN);
+					uu = RotateAround(uu, cardN, rng.range(-0.7f, 0.7f));
+					const glm::vec3 rr = glm::normalize(glm::cross(uu, cardN));
 					const glm::vec3 d = (c - centre) / (ext * ext);
 					const glm::vec3 g = glm::length(d) > 1e-5f ? glm::normalize(d) : up;
-					const glm::vec3 lobe = glm::length(off) > 1e-4f ? glm::normalize(off) : up;
-					const glm::vec3 shadeN = glm::normalize(glm::mix(glm::normalize(g * 0.75f + lobe * 0.35f), up, 0.18f));
-					const glm::vec3 cardN = glm::normalize(g * 0.6f + uniformDir() * 0.9f);
-					const glm::vec3 r0 = AnyPerpendicular(cardN), u0 = glm::cross(cardN, r0);
-					const float rot = rng.range(0.0f, 2.0f * kPi);
-					const glm::vec3 rr = r0 * std::cos(rot) + u0 * std::sin(rot), uu = -r0 * std::sin(rot) + u0 * std::cos(rot);
-					const float sz = leafSize * rng.range(0.75f, 1.3f);
-					const glm::vec3 fold = glm::cross(rr, uu) * (rng.next() < 0.5f ? 1.0f : -1.0f);
-					// some flat cards (cheaper, and it varies the surface), the rest folded; the draws of the tree's stream as before T110
+					const glm::vec3 shadeN = glm::normalize(glm::mix(glm::normalize(g * 0.55f + o * 0.6f), up, 0.15f));
+					const float sz = leafSize * rng.range(0.8f, 1.15f);
+					const glm::vec3 fold = cardN * (rng.next() < 0.5f ? 1.0f : -1.0f);
 					const bool flat = rng.next() < 0.35f;
 					const float foldAngle = flat ? 0.0f : rng.range(0.45f, 0.85f);
-					// T110: from the look stream, a further turn of every card (yaw about its normal, pitch about its width), and its shape:
-					// the flat ones bent along their height in two rows and warped, the folded ones warped; all jittered
-					const glm::vec3 pn = glm::cross(rr, uu);
-					const float yaw = look.range(-0.35f, 0.35f), pitch = look.range(-0.4f, 0.4f);
-					const glm::vec3 r2 = RotateAround(rr, pn, yaw);
-					const glm::vec3 u2 = RotateAround(RotateAround(uu, pn, yaw), r2, pitch);
 					if (flat)
-						leaves.LeafCard(c, r2, u2, sz * 0.5f, sz * 0.5f, 1, 2, 0.0f, look.range(0.12f, 0.32f), look.range(-0.35f, 0.35f), 0.05f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
+						leaves.LeafCard(c, rr, uu, sz * 0.5f, sz * 0.5f, 1, 2, 0.0f, look.range(0.12f, 0.32f), look.range(-0.35f, 0.35f), 0.05f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
 					else
-						leaves.LeafCard(c, r2, u2, sz * 0.5f, sz * 0.5f, 2, 1, foldAngle, 0.0f, look.range(-0.4f, 0.4f), 0.05f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
-				}
-			};
-			for (const Anchor& a : anchors)
-				cluster(a.pos, a.dir, a.level, std::max(2, static_cast<int>(std::ceil((a.level >= 2 ? 9.0f : (a.level == 1 ? 6.0f : 3.0f)) * density))));
-			// fill the holes: best-candidate sampling along the branches, away from the leaves already placed
-			if (!woodPoints.empty() && !cardCentres.empty())
-			{
-				const int fillers = static_cast<int>(static_cast<float>(anchors.size()) * 0.9f * lod);
-				for (int k = 0; k < fillers; ++k)
-				{
-					glm::vec3 best = woodPoints[0];
-					float bestD = -1.0f;
-					for (int c = 0; c < 8; ++c)
-					{
-						const glm::vec3& cand = woodPoints[static_cast<size_t>(rng.next() * static_cast<float>(woodPoints.size())) % woodPoints.size()];
-						float nearest = 1e9f;
-						for (const glm::vec3& cc : cardCentres) nearest = std::min(nearest, glm::distance(cc, cand));
-						if (nearest > bestD) { bestD = nearest; best = cand; }
-					}
-					if (bestD < leafSize * 0.5f) break;   // the crown is already covered
-					cluster(best, up, 1, std::max(2, static_cast<int>(std::ceil(4.0f * density))));
+						leaves.LeafCard(c, rr, uu, sz * 0.5f, sz * 0.5f, 2, 1, foldAngle, 0.0f, look.range(-0.4f, 0.4f), 0.05f, fold, ++cardSeed + p.Seed * 7919u, shadeN);
 				}
 			}
 			crownRadius = std::max(ext.x, ext.z);
@@ -943,35 +1067,50 @@ namespace GB
 		// ---------------------------------------------------------------- conifer
 		else if (p.Species == TreeSpecies::Conifer)
 		{
-			const bool pine = (style % 2) == 1;   // pine: bare lower trunk and tiers of upturned arms; spruce: a dense drooping cone
-			const float bareFrac = pine ? rng.range(0.28f, 0.38f) : rng.range(0.10f, 0.18f);
-			const float maxReach = H * (pine ? 0.25f : 0.20f) * rng.range(0.9f, 1.1f);
+			// pine: bare lower trunk and tiers of upturned arms; spruce: a dense drooping cone; T111: cypress (only when asked for, Style 2:
+			// the style derived from the seed stays spruce or pine as before), a narrow column of short arms climbing steeply, widest at about
+			// a third of its height, closing to a point
+			const int habit = p.Style == 2 ? 2 : (style % 2);
+			const bool pine = habit == 1, cypress = habit == 2;
+			const float bareFrac = pine ? rng.range(0.28f, 0.38f) : cypress ? rng.range(0.03f, 0.07f) : rng.range(0.10f, 0.18f);
+			const float maxReach = H * (pine ? 0.25f : cypress ? 0.085f : 0.20f) * rng.range(0.9f, 1.1f);
 			const int segs = 12;
 			const float phase = rng.range(0.0f, 2.0f * kPi);
-			auto trunkPoint = [&](float t) { return glm::vec3(H * 0.012f * std::sin(t * 5.0f + phase), t * H, H * 0.012f * std::sin(t * 4.0f + phase * 1.7f)); };
-			auto trunkRadius = [&](float t) { return trunkR * (1.0f - 0.9f * std::pow(t, 0.85f)) * (1.0f + 0.5f * std::exp(-t * H / (trunkR * 3.0f))); };
+			// T111: the trunk leans a little and bends back up toward the top
+			const float leanAz = rng.range(0.0f, 2.0f * kPi), lean = H * rng.range(0.008f, 0.025f);
+			const glm::vec3 leanDir(std::cos(leanAz), 0.0f, std::sin(leanAz));
+			auto trunkPoint = [&](float t)
+			{
+				return glm::vec3(H * 0.012f * std::sin(t * 5.0f + phase), t * H, H * 0.012f * std::sin(t * 4.0f + phase * 1.7f)) + leanDir * (lean * std::sin(t * kPi * 0.8f));
+			};
+			auto trunkRadius = [&](float t) { return trunkR * (1.0f - 0.9f * std::pow(t, 0.85f)) * (1.0f + 0.7f * std::exp(-t * H / (trunkR * 3.0f))); };
 			const int trunkSides = std::max(3, 8 - sideCut);
 			{
-				// T110: one strip, closed at the top (the leader's sprays hide the point)
+				// T110: one strip, closed at the top (the leader's sprays hide the point); T111: three more rings at the foot for its flare
 				std::vector<Ring> rings;
-				for (int s = 0; s <= segs; ++s)
-				{
-					const float t = static_cast<float>(s) / segs;
-					rings.push_back({ trunkPoint(t), s == segs ? 0.0f : trunkRadius(t) });
-				}
+				std::vector<float> ts = { 0.0f };
+				for (const float f : { 0.25f, 0.6f, 1.2f })
+					if (f * trunkR / H < 0.8f / segs) ts.push_back(f * trunkR / H);
+				for (int s = 1; s <= segs; ++s)
+					ts.push_back(static_cast<float>(s) / segs);
+				for (size_t s = 0; s < ts.size(); ++s)
+					rings.push_back({ trunkPoint(ts[s]), s + 1 == ts.size() ? 0.0f : trunkRadius(ts[s]) });
 				wood.Strip(rings, std::vector<int>(rings.size(), trunkSides), true, Hash(0, 11, p.Seed), Hash(0, 12, p.Seed) * 2.0f);
 			}
+			addRoots([&](float y) { return Ring{ trunkPoint(y / H), trunkRadius(y / H) }; }, trunkR, 4 + static_cast<int>(rng.next() * 3.0f), cypress ? 1.5f : 1.6f, cypress ? 2.6f : 3.0f);
 			int armIndex = 0;
 			const glm::vec3 centre(0.0f, H * (bareFrac + 1.0f) * 0.5f, 0.0f);
 			const glm::vec3 ext(maxReach, H * (1.0f - bareFrac) * 0.5f, maxReach);
-			const float spacing = H * (pine ? 0.075f : 0.062f);
+			const float spacing = H * (pine ? 0.075f : cypress ? 0.05f : 0.062f);
 			float y = H * bareFrac;
 			while (y < H * 0.97f)
 			{
 				const float u = glm::clamp((y - H * bareFrac) / (H * (0.97f - bareFrac)), 0.0f, 1.0f);   // 0 at the lowest whorl, 1 at the top
-				const float profile = pine ? std::pow(1.0f - u, 0.62f) * (0.7f + 0.5f * Hash(static_cast<int>(y * 13.0f), 5, p.Seed)) : std::pow(1.0f - u, 0.92f);
-				const float reachBase = maxReach * profile + 0.22f;
-				const int arms = std::max(3, static_cast<int>(((pine ? 4 : 5) + static_cast<int>(rng.next() * 3.0f)) * (detail == 0 ? 0.7f : 1.0f)));
+				const float profile = pine ? std::pow(1.0f - u, 0.62f) * (0.7f + 0.5f * Hash(static_cast<int>(y * 13.0f), 5, p.Seed))
+				                    : cypress ? (0.7f + 0.3f * std::sin(std::min(u / 0.3f, 1.0f) * 0.5f * kPi)) * std::pow(1.0f - u, 0.75f) * (0.85f + 0.3f * Hash(static_cast<int>(y * 13.0f), 5, p.Seed))
+				                              : std::pow(1.0f - u, 0.92f);
+				const float reachBase = maxReach * profile + (cypress ? 0.10f : 0.22f);
+				const int arms = std::max(3, static_cast<int>(((pine || cypress ? 4 : 5) + static_cast<int>(rng.next() * (cypress ? 2.0f : 3.0f))) * (detail == 0 ? 0.7f : 1.0f)));
 				const float ph = rng.range(0.0f, 2.0f * kPi);
 				const glm::vec3 axis0 = trunkPoint(y / H);
 				for (int a = 0; a < arms; ++a)
@@ -981,16 +1120,18 @@ namespace GB
 					const float ang = ph + (static_cast<float>(a) + rng.range(-0.25f, 0.25f)) / arms * 2.0f * kPi;
 					const float reach = reachBase * rng.range(0.78f, 1.12f);
 					const glm::vec3 out(std::cos(ang), 0.0f, std::sin(ang));
-					const float d0 = pine ? rng.range(-0.05f, 0.25f) : rng.range(-0.42f, -0.18f);   // initial slope
-					const float d1 = pine ? rng.range(0.25f, 0.6f) : rng.range(0.0f, 0.35f);        // slope at the tip: tips curl up
+					const float d0 = pine ? rng.range(-0.05f, 0.25f) : cypress ? rng.range(1.2f, 1.8f) : rng.range(-0.42f, -0.18f);   // initial slope
+					const float d1 = pine ? rng.range(0.25f, 0.6f) : cypress ? rng.range(1.0f, 1.6f) : rng.range(0.0f, 0.35f);        // slope at the tip: tips curl up
 					auto armPoint = [&](float s) { return axis0 + out * (reach * s) + glm::vec3(0.0f, reach * (d0 * s + (d1 - d0) * s * s), 0.0f); };
 					auto armTangent = [&](float s) { return glm::normalize(out + glm::vec3(0.0f, d0 + 2.0f * (d1 - d0) * s, 0.0f)); };
-					const float r0 = trunkR * 0.20f * (1.0f - 0.6f * u) + 0.012f;
-					const int armSegs = detail == 0 ? 2 : 3;
+					const float r0 = trunkR * (cypress ? 0.12f : 0.20f) * (1.0f - 0.6f * u) + (cypress ? 0.008f : 0.012f);
+					const int armSegs = detail == 0 || cypress ? 2 : 3;
+					const int armSides = cypress ? 3 : 4;
 					{
 						// T110: one strip sunk in the trunk (its first ring inside the trunk's polygon), a collar where it leaves the
 						// trunk's surface, closed at its tip
-						const float rt = trunkRadius(y / H);
+						auto surface = [&](float t) { const float last = static_cast<float>(segs - 1) / segs; return t > last ? trunkRadius(last) * (1.0f - t) * segs : trunkRadius(t); };
+						const float rt = std::min(surface(y / H), surface(std::min(1.0f, (y + 2.0f * r0) / H)));
 						std::vector<Ring> rings = { { armPoint(0.0f), std::min(r0, 0.85f * rt * std::cos(kPi / static_cast<float>(trunkSides))) } };
 						const float sinT = glm::length(glm::cross(armTangent(0.0f), up));
 						const float collar = (rt / std::max(sinT, 0.2f) + 0.5f * r0) / std::max(reach, 1e-3f);   // as a fraction of the arm
@@ -1002,9 +1143,9 @@ namespace GB
 							rings.push_back({ armPoint(s1), k == armSegs ? 0.0f : glm::mix(r0, 0.005f, s1) });
 						}
 						++armIndex;
-						wood.Strip(rings, std::vector<int>(rings.size(), 4), true, Hash(armIndex, 11, p.Seed), Hash(armIndex, 12, p.Seed) * 2.0f);
+						wood.Strip(rings, std::vector<int>(rings.size(), armSides), true, Hash(armIndex, 11, p.Seed), Hash(armIndex, 12, p.Seed) * 2.0f);
 					}
-					const float size = (pine ? 1.0f : 0.9f) * (1.0f - 0.42f * u) + 0.32f;
+					const float size = cypress ? 0.6f * (1.0f - 0.35f * u) + 0.3f : (pine ? 1.0f : 0.9f) * (1.0f - 0.42f * u) + 0.32f;
 					const int n = std::max(2, static_cast<int>(std::ceil((reach * 1.45f + 0.5f) * density)));
 					for (int k = 0; k < n; ++k)
 					{
@@ -1046,7 +1187,7 @@ namespace GB
 				const glm::vec3 rr(std::cos(ang), 0.0f, std::sin(ang));
 				const glm::vec3 tip = trunkPoint(1.0f);
 				const glm::vec3 n = glm::normalize(rr * 0.2f + up);
-				leaves.LeafCard(tip + up * 0.45f * lod, rr, up, 0.32f, 0.62f, 1, 2, 0.0f, 0.12f, look.range(-0.3f, 0.3f), 0.03f, glm::cross(rr, up), ++cardSeed + p.Seed * 7919u, n);
+				leaves.LeafCard(tip + up * 0.35f * lod, rr, up, 0.22f, 0.5f, 1, 2, 0.0f, 0.12f, look.range(-0.3f, 0.3f), 0.03f, glm::cross(rr, up), ++cardSeed + p.Seed * 7919u, n);
 			}
 			crownRadius = maxReach * 1.05f;
 		}
