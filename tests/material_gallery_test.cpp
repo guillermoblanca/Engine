@@ -13,6 +13,12 @@
 // T107: the tufts of a grass patch are instances (six CardTuft variants a material, placed by dart throwing, each turned, sized, stretched
 // and tilted), the conifer has its trunk (ProcMesh::CardConiferTrunk, bark2), it prints the plants' triangles, and `--out` also writes
 // the leaves family and a strip of grass against a low sun (hojas_contraluz.png).
+// T109: the cortezas family (a stump with its cut face, wood_end, and a short log beside it, the bark in metres round every ring) and,
+// only with `--out` (not in the golden image), the trees of the "trees" section: TreeFactory's (GB/World/Trees.h, unchanged) dressed with
+// the gallery's barks and leaves. TreeFactory's tubes map the bark 0..1 (0..2 on the trunk) round any girth and 0.4 a metre along, with
+// the tangent opposite to u, so the test measures that and remaps the trunk mesh before uploading it: u in metres round every ring, v in
+// metres along the branch (carried from segment to segment), the u phase carried over the joints, tangents from the UVs. `--out` writes
+// galeria_arboles.png, arboles_contraluz.png, arboles_corteza.png and arboles_madera.png.
 // SKIPs (77) without an OpenGL 4.5 context.
 #include "GB/Log.h"
 #include "GB/Platform/Window.h"
@@ -23,6 +29,7 @@
 #include "GB/Visual/ProcTexture.h"
 #include "GB/Visual/SceneVisuals.h"
 #include "GB/Visual/VisualDefs.h"
+#include "GB/World/Trees.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -266,6 +273,178 @@ namespace
 		Check(base, "a curved card's base row stays at y = 0");
 	}
 
+	// ---- T109: the bark of TreeFactory's trees
+	// TreeFactory's wood is a list of tubes (Trees.cpp, MeshBuilder::Tube): `sides + 1` pairs of vertices (bottom, top) round the axis and
+	// six indices a side, { i0, i0 + 2, i0 + 1, i0 + 1, i0 + 2, i0 + 3 } with i0 = base + 2 s. A run of those groups with i0 stepping by 2 is
+	// one tube; the next tube starts 4 past the last i0. Anything else (a palm's fruit) is skipped.
+	struct TubeRun
+	{
+		uint32_t Base = 0;
+		int Sides = 0;
+	};
+	std::vector<TubeRun> FindTubes(const GB::MeshData& m)
+	{
+		std::vector<TubeRun> runs;
+		auto group = [&](size_t i)
+		{
+			const uint32_t* q = &m.Indices[i];
+			return q[1] == q[0] + 2 && q[2] == q[0] + 1 && q[3] == q[0] + 1 && q[4] == q[0] + 2 && q[5] == q[0] + 3;
+		};
+		size_t i = 0;
+		while (i + 6 <= m.Indices.size())
+		{
+			if (!group(i)) { i += 3; continue; }
+			TubeRun run;
+			run.Base = m.Indices[i];
+			while (i + 6 <= m.Indices.size() && group(i) && m.Indices[i] == run.Base + 2u * static_cast<uint32_t>(run.Sides)) { ++run.Sides; i += 6; }
+			if (run.Base + 2u * static_cast<uint32_t>(run.Sides) + 1u < m.Vertices.size()) runs.push_back(run);
+		}
+		return runs;
+	}
+
+	// What the remap found and did, for the report.
+	struct BarkStats
+	{
+		size_t Tubes = 0, Vertices = 0, Covered = 0, TangentsFlipped = 0, BitangentsFlipped = 0, Chained = 0, FrameJumps = 0;
+		// the texture's metres a tile round the girth over its metres a tile along the branch, as TreeFactory maps it (1 = not stretched),
+		// on the trunk's first segment and on the thinnest tube; and the girth of that tube
+		float TrunkAspect = 0.0f, TwigAspect = 0.0f, TwigGirth = 0.0f, MinAspect = 1e9f, MaxAspect = 0.0f;
+	};
+
+	// Remaps the bark of a TreeFactory trunk mesh in place (see the file's header) and returns what it measured before.
+	BarkStats RemapTreeBark(GB::MeshData& m, uint32_t seed)
+	{
+		BarkStats st;
+		st.Vertices = m.Vertices.size();
+		// the tangents as TreeFactory writes them against the ones its UVs imply (the shader's bitangent is cross(N, T) * w)
+		{
+			GB::MeshData fromUV = m;
+			fromUV.ComputeTangents();
+			for (size_t i = 0; i < m.Vertices.size(); ++i)
+			{
+				const GB::Vertex& a = m.Vertices[i], & b = fromUV.Vertices[i];
+				if (glm::dot(glm::vec3(a.Tangent), glm::vec3(b.Tangent)) < 0.0f) ++st.TangentsFlipped;
+				if (glm::dot(glm::cross(a.Normal, glm::vec3(a.Tangent)) * a.Tangent.w, glm::cross(b.Normal, glm::vec3(b.Tangent)) * b.Tangent.w) < 0.0f) ++st.BitangentsFlipped;
+			}
+		}
+		const std::vector<TubeRun> runs = FindTubes(m);
+		st.Tubes = runs.size();
+		auto at = [&](uint32_t i) -> GB::Vertex& { return m.Vertices[i]; };
+		struct Ring { glm::vec3 Centre{ 0.0f }; float Radius = 0.0f; };
+		auto ring = [&](const TubeRun& r, uint32_t top)
+		{
+			Ring g;
+			for (int s = 0; s < r.Sides; ++s) g.Centre += at(r.Base + 2u * static_cast<uint32_t>(s) + top).Position;
+			g.Centre /= static_cast<float>(r.Sides);
+			for (int s = 0; s < r.Sides; ++s) g.Radius += glm::length(at(r.Base + 2u * static_cast<uint32_t>(s) + top).Position - g.Centre);
+			g.Radius /= static_cast<float>(r.Sides);
+			return g;
+		};
+		auto across = [](const glm::vec3& d, const glm::vec3& axis) { const glm::vec3 p = d - axis * glm::dot(d, axis); return glm::length(p) > 1e-9f ? glm::normalize(p) : p; };
+		float thinnest = 1e9f;
+		bool havePrev = false;
+		TubeRun prev;
+		Ring prevTop;
+		float prevV1 = 0.0f, prevOffset = 0.0f;
+		for (size_t k = 0; k < runs.size(); ++k)
+		{
+			const TubeRun& r = runs[k];
+			const Ring a = ring(r, 0), b = ring(r, 1);
+			const float len = glm::length(b.Centre - a.Centre);
+			if (len < 1e-6f || a.Radius < 1e-6f) continue;
+			const glm::vec3 axis = (b.Centre - a.Centre) / len;
+			st.Covered += 2u * static_cast<size_t>(r.Sides + 1);
+			// before: metres a tile round (the girth at mid length over the u span) and along (the length over the v span)
+			const float du = at(r.Base + 2u * static_cast<uint32_t>(r.Sides)).UV.x - at(r.Base).UV.x, dv = at(r.Base + 1).UV.y - at(r.Base).UV.y;
+			const float girth = 3.14159265f * (a.Radius + b.Radius);
+			if (std::fabs(du) > 1e-6f && std::fabs(dv) > 1e-6f)
+			{
+				const float aspect = (girth / std::fabs(du)) / (len / std::fabs(dv));
+				if (k == 0) st.TrunkAspect = aspect;
+				if (0.5f * (a.Radius + b.Radius) < thinnest) { thinnest = 0.5f * (a.Radius + b.Radius); st.TwigAspect = aspect; st.TwigGirth = girth; }
+				st.MinAspect = std::min(st.MinAspect, aspect);
+				st.MaxAspect = std::max(st.MaxAspect, aspect);
+			}
+			// chained: this tube starts where the previous one (just before it in the buffer) ended, with the same girth
+			const bool chained = havePrev && prev.Base + 2u * static_cast<uint32_t>(prev.Sides + 1) == r.Base &&
+			                     glm::length(a.Centre - prevTop.Centre) < 0.3f * std::max(a.Radius, 1e-3f) && std::fabs(a.Radius - prevTop.Radius) < 0.2f * a.Radius;
+			const float v0 = chained ? prevV1 : GB::HashUnit(GB::VisualHash(static_cast<uint32_t>(k), seed, 0xBA4Cu));
+			// u = offset + (angle - pi) * radius of the ring: metres round every ring, the lines converging toward the front line (angle pi)
+			// as the branch tapers, without a shear; the offset (metres) is a hash at the start of a branch
+			float offset = GB::HashUnit(GB::VisualHash(static_cast<uint32_t>(k), seed, 0x9E37u));
+			if (chained)
+			{
+				// carry u over the joint: this tube's first vertex is `phi` round the axis from the previous tube's, so shift by that arc
+				const glm::vec3 e0 = across(at(prev.Base + 1).Position - prevTop.Centre, axis), e1 = across(at(r.Base).Position - a.Centre, axis);
+				const float phi = std::atan2(glm::dot(glm::cross(e0, e1), axis), glm::dot(e0, e1));
+				offset = prevOffset + phi * a.Radius;
+				++st.Chained;
+				if (std::fabs(phi) > glm::radians(30.0f)) ++st.FrameJumps;
+			}
+			for (int s = 0; s <= r.Sides; ++s)
+			{
+				const float theta = 6.2831853f * static_cast<float>(s) / static_cast<float>(r.Sides) - 3.14159265f;
+				GB::Vertex& lo = at(r.Base + 2u * static_cast<uint32_t>(s));
+				GB::Vertex& hi = at(r.Base + 2u * static_cast<uint32_t>(s) + 1u);
+				lo.UV = { offset + theta * a.Radius, v0 };
+				hi.UV = { offset + theta * b.Radius, v0 + len };
+			}
+			havePrev = true;
+			prev = r;
+			prevTop = b;
+			prevV1 = v0 + len;
+			prevOffset = offset;
+		}
+		m.ComputeTangents();
+		return st;
+	}
+
+	// TreeFactory's cards have v = 0 at their top (the outer end of a conifer's spray); the gallery's leaf cards have the stem at v = 0.
+	void FlipCardsV(GB::MeshData& m)
+	{
+		for (GB::Vertex& v : m.Vertices) v.UV.y = 1.0f - v.UV.y;
+		m.ComputeTangents();
+	}
+
+	// A (tapered, bent) log or branch standing on the origin along +Y, open at both ends: ProcMesh::Cylinder with its u remapped to metres
+	// round every ring (Cylinder puts a whole number of tiles round the girth, at least one, which squeezes the bark round a thin branch).
+	GB::MeshData BarkLog(float bottom, float top, float length, int sides, float bend)
+	{
+		GB::MeshData m = GB::ProcMesh::Cylinder(bottom, top, length, sides, false, bend);
+		sides = std::clamp(sides, 3, 48);
+		const size_t perRing = static_cast<size_t>(sides) + 1, rings = m.Vertices.size() / perRing;
+		for (size_t r = 0; r < rings; ++r)
+		{
+			const float t = rings > 1 ? static_cast<float>(r) / static_cast<float>(rings - 1) : 0.0f, radius = bottom + (top - bottom) * t;
+			for (size_t s = 0; s < perRing; ++s)
+				m.Vertices[r * perRing + s].UV.x = (6.2831853f * static_cast<float>(s) / static_cast<float>(sides) - 3.14159265f) * radius;   // as RemapTreeBark
+		}
+		m.ComputeTangents();
+		return m;
+	}
+
+	// The cut face of a log of radius `radius` at height `y`, facing up (or down), the wood_end tile's log fitted to it (0.5 +- 0.49),
+	// turned by `turn` radians so two faces do not show the same checks.
+	GB::MeshData CutFace(float radius, int sides, float y, bool up, float turn)
+	{
+		GB::MeshData m;
+		const glm::vec3 n(0.0f, up ? 1.0f : -1.0f, 0.0f);
+		m.Vertices.push_back({ glm::vec3(0.0f, y, 0.0f), n, { 0.5f, 0.5f }, glm::vec4(1, 0, 0, 1) });
+		for (int s = 0; s <= sides; ++s)
+		{
+			const float a = 6.2831853f * static_cast<float>(s) / static_cast<float>(sides);
+			const glm::vec2 c(std::cos(a), std::sin(a));
+			m.Vertices.push_back({ glm::vec3(c.x * radius, y, c.y * radius), n, glm::vec2(0.5f) + 0.49f * glm::vec2(std::cos(a + turn), std::sin(a + turn)), glm::vec4(1, 0, 0, 1) });
+		}
+		for (int s = 0; s < sides; ++s)
+		{
+			const uint32_t a = 1u + static_cast<uint32_t>(s), b = a + 1u;
+			if (up) m.Indices.insert(m.Indices.end(), { 0u, b, a }); else m.Indices.insert(m.Indices.end(), { 0u, a, b });
+		}
+		m.ComputeTangents();
+		return m;
+	}
+
 	// The radius of a sphere around the origin of `m` holding all of it (for the renderer's culling and shadow fitting).
 	float RadiusOf(const GB::MeshData& m)
 	{
@@ -333,7 +512,7 @@ int GBTest_material_gallery(int argc, char** argv)
 		samples += families.back().Materials.size();
 		for (const std::string& id : families.back().Materials) Check(library.Materials.count(id) == 1, "family " + families.back().Name + ": material " + id + " is defined");
 	}
-	Check(families.size() == 9, "nine families");
+	Check(families.size() == 10, "ten families");
 	std::map<std::string, std::string> shapes;   // per material, overriding its family's
 	if (doc["gallery"].contains("shapes"))
 		for (const auto& [id, value] : doc["gallery"]["shapes"].items()) shapes[id] = value.get<std::string>();
@@ -344,6 +523,31 @@ int GBTest_material_gallery(int argc, char** argv)
 	std::map<std::string, std::string> plants;   // T106: what a "cards" sample builds beside its bare card ("shrub", "conifer")
 	if (doc["gallery"].contains("plant"))
 		for (const auto& [id, value] : doc["gallery"]["plant"].items()) plants[id] = value.get<std::string>();
+	// T109: the cut face of the log samples, and the trees (TreeFactory's, dressed with the gallery's materials; only in the --out takes)
+	const std::string cutFace = doc["gallery"].value("cutFace", "");
+	Check(cutFace.empty() || library.Materials.count(cutFace) == 1, "the cut face's material " + cutFace + " is defined");
+	struct TreeSample
+	{
+		std::string Name, Bark, Leaves;
+		GB::TreeParams Params;
+	};
+	std::vector<TreeSample> trees;
+	if (doc["gallery"].contains("trees"))
+		for (const auto& t : doc["gallery"]["trees"])
+		{
+			TreeSample s;
+			s.Name = t.value("name", "");
+			s.Bark = t.value("bark", "");
+			s.Leaves = t.value("leaves", "");
+			const std::string species = t.value("species", "broadleaf");
+			s.Params.Species = species == "conifer" ? GB::TreeSpecies::Conifer : species == "bare" ? GB::TreeSpecies::Bare : species == "palm" ? GB::TreeSpecies::Palm : GB::TreeSpecies::Broadleaf;
+			s.Params.Style = t.value("style", -1);
+			s.Params.Seed = t.value("seed", 1u);
+			s.Params.Height = t.value("height", 8.0f);
+			Check(library.Materials.count(s.Bark) == 1, "tree " + s.Name + ": bark " + s.Bark + " is defined");
+			Check(s.Params.Species == GB::TreeSpecies::Bare || library.Materials.count(s.Leaves) == 1, "tree " + s.Name + ": leaves " + s.Leaves + " are defined");
+			trees.push_back(s);
+		}
 	std::map<std::string, float> opacity;
 	if (doc["gallery"].contains("opacity"))
 		for (const auto& [id, value] : doc["gallery"]["opacity"].items()) opacity[id] = value.get<float>();
@@ -366,6 +570,38 @@ int GBTest_material_gallery(int argc, char** argv)
 		std::fprintf(stderr, "wrote %s\n", sheet4.c_str());
 	}
 	CheckCurvedCards();
+	if (failures) return failures;
+
+	// ---- T109: the trees on the CPU: made by TreeFactory, the bark remapped (measured first), the cards' v turned over
+	struct TreeMeshes
+	{
+		GB::MeshData Trunk, Foliage;
+		float Height = 0.0f, CrownRadius = 0.0f, BoundsHeight = 0.0f;
+	};
+	std::vector<TreeMeshes> treeMeshes;
+	for (const TreeSample& t : trees)
+	{
+		const std::unique_ptr<GB::Tree> tree = GB::TreeFactory::Create(t.Params);
+		TreeMeshes tm;
+		tm.Trunk = tree->Trunk;
+		tm.Foliage = tree->Foliage;
+		tm.Height = tree->Height; tm.CrownRadius = tree->CrownRadius; tm.BoundsHeight = tree->BoundsHeight;
+		const BarkStats st = RemapTreeBark(tm.Trunk, GB::VisualHash(t.Name.c_str()));
+		if (!tm.Foliage.Empty()) FlipCardsV(tm.Foliage);
+		std::fprintf(stderr, "tree %-22s triangles %5zu (bark %5zu, leaves %5zu, %4zu cards) | bark: %zu tubes, %zu/%zu vertices remapped, %zu chained, %zu frame jumps > 30 deg;"
+		             " TreeFactory's tangents opposite %zu/%zu, bitangents %zu; round/along stretch trunk %.2f, thinnest tube (girth %.3f m) %.2f, range %.2f..%.2f\n",
+		             t.Name.c_str(), tree->TriangleCount, tree->Trunk.Indices.size() / 3, tree->Foliage.Indices.size() / 3, tree->LeafCardCount,
+		             st.Tubes, st.Covered, st.Vertices, st.Chained, st.FrameJumps, st.TangentsFlipped, st.Vertices, st.BitangentsFlipped,
+		             st.TrunkAspect, st.TwigGirth, st.TwigAspect, st.MinAspect, st.MaxAspect);
+		Check(st.Covered == st.Vertices, "tree " + t.Name + ": every bark vertex is on a tube the remap found");
+		// after: unit tangents perpendicular to the normals (u and v in metres by construction)
+		bool tangents = true;
+		for (const GB::Vertex& v : tm.Trunk.Vertices)
+			tangents = tangents && std::fabs(glm::length(glm::vec3(v.Tangent)) - 1.0f) < 1e-3f && std::fabs(glm::dot(glm::vec3(v.Tangent), glm::normalize(v.Normal))) < 1e-3f;
+		Check(tangents, "tree " + t.Name + ": remapped bark has unit tangents perpendicular to the normals");
+		Check(GB::TreeFactory::Create(t.Params)->Trunk.Hash() == tree->Trunk.Hash(), "tree " + t.Name + ": the same tree every time");
+		treeMeshes.push_back(std::move(tm));
+	}
 	if (failures) return failures;
 
 	GB::WindowProps props;
@@ -536,6 +772,28 @@ int GBTest_material_gallery(int argc, char** argv)
 			}
 			return;
 		}
+		if (shape == "log")
+		{
+			// T109: a stump (the bark round it, its cut face on top) and a short log lying beside it, both ends cut; the cut faces in the
+			// gallery's cutFace material (wood_end), every face turned its own way
+			const GB::Material face = cutFace.empty() ? m : material(cutFace);
+			auto put = [&](const GB::MeshData& data, const GB::Material& mat, const glm::mat4& t)
+			{
+				GB::RenderObject o;
+				o.MeshPtr = keep(data); o.Mat = mat; o.Transform = t; o.BoundingRadius = RadiusOf(data);
+				sc.Objects.push_back(o);
+			};
+			const float turn = 6.2831853f * GB::HashUnit(seed);
+			const glm::mat4 stump = glm::translate(glm::mat4(1.0f), at + glm::vec3(-0.5f, 0.0f, 0.1f));
+			put(BarkLog(0.34f, 0.31f, 0.55f, 24, 0.0f), m, stump);
+			put(CutFace(0.31f, 24, 0.55f, true, turn), face, stump);
+			// the log along Z, its axis 0.17 m over the floor
+			const glm::mat4 log = glm::rotate(glm::translate(glm::mat4(1.0f), at + glm::vec3(0.55f, 0.17f, -0.55f)), glm::radians(90.0f), glm::vec3(1, 0, 0));
+			put(BarkLog(0.17f, 0.155f, 1.1f, 16, 0.0f), m, log);
+			put(CutFace(0.17f, 16, 0.0f, false, turn + 2.0f), face, log);
+			put(CutFace(0.155f, 16, 1.1f, true, turn + 4.0f), face, log);
+			return;
+		}
 		if (shape == "slab")
 		{
 			GB::RenderObject g;
@@ -682,6 +940,123 @@ int GBTest_material_gallery(int argc, char** argv)
 			cam.Position = { 0.0f, 1.75f, 5.8f };
 			cam.FovYDegrees = 40.0f;
 			save(sc, cam, "hojas_contraluz.png");
+		}
+
+		// ---- T109: the trees. Bark: the sample's material on the remapped trunk. Crown: its leaf material as TreesGpu sets a crown up (the
+		// crown normal baked in the mesh kept on both faces, cutoff 0.4), so no sphere blend (normalBlend 0) and no occlusion at the foot of
+		// the pivot; the interior occlusion sized to the tree (the core within a quarter of its height of the trunk)
+		std::vector<const GB::Mesh*> trunkMesh(trees.size(), nullptr), crownMesh(trees.size(), nullptr);
+		auto addTree = [&](GB::Scene& sc, size_t i, const glm::vec3& at, float yaw, bool crown = true)
+		{
+			const TreeSample& t = trees[i];
+			const TreeMeshes& tm = treeMeshes[i];
+			if (!trunkMesh[i]) trunkMesh[i] = keep(tm.Trunk);
+			if (!crownMesh[i] && !tm.Foliage.Empty()) crownMesh[i] = keep(tm.Foliage);
+			const float top = std::max(tm.Height, tm.BoundsHeight);
+			GB::RenderObject o;
+			o.Transform = glm::rotate(glm::translate(glm::mat4(1.0f), at), yaw, glm::vec3(0, 1, 0));
+			o.BoundingCenter = { 0.0f, 0.5f * top, 0.0f };
+			o.BoundingRadius = 1.1f * glm::length(glm::vec2(0.5f * top, tm.CrownRadius + 0.5f));
+			o.MeshPtr = trunkMesh[i]; o.Mat = material(t.Bark);
+			sc.Objects.push_back(o);
+			if (crownMesh[i] && crown)
+			{
+				GB::Material leaves = material(t.Leaves);
+				leaves.FoliageNormals = true;
+				leaves.NormalBlend = 0.0f;
+				leaves.BaseOcclusion = 0.0f;
+				leaves.OcclusionHeight = 0.25f * tm.Height;
+				leaves.InteriorOcclusion = 0.3f;
+				o.MeshPtr = crownMesh[i]; o.Mat = leaves;
+				sc.Objects.push_back(o);
+			}
+		};
+		auto treeIndex = [&](const std::string& name)
+		{
+			for (size_t i = 0; i < trees.size(); ++i) if (trees[i].Name == name) return static_cast<int>(i);
+			return -1;
+		};
+		if (!trees.empty())
+		{
+			// every tree of the section on a grid: the bare ones in front, the broadleaves behind them, the conifers at the back, every row
+			// centred so the one behind shows between; each tree turned by a hash of its name
+			std::vector<size_t> rows[3];
+			for (size_t i = 0; i < trees.size(); ++i)
+				rows[trees[i].Params.Species == GB::TreeSpecies::Bare ? 0 : trees[i].Params.Species == GB::TreeSpecies::Conifer ? 2 : 1].push_back(i);
+			GB::Scene sc = stage({ 0.0f, 3.0f, -12.0f }, 32.0f);
+			for (int r = 0; r < 3; ++r)
+				for (size_t k = 0; k < rows[r].size(); ++k)
+				{
+					const float step = r == 1 ? 9.0f : 10.0f, x = (static_cast<float>(k) - 0.5f * static_cast<float>(rows[r].size() - 1)) * step;
+					addTree(sc, rows[r][k], { x, 0.0f, -12.0f * static_cast<float>(r) }, 6.2831853f * GB::HashUnit(GB::VisualHash(trees[rows[r][k]].Name.c_str())));
+				}
+			GB::Camera cam;
+			cam.Position = { 0.0f, 17.0f, 27.0f };
+			cam.Target = { 0.0f, 2.5f, -11.0f };
+			cam.FovYDegrees = 48.0f;
+			save(sc, cam, "galeria_arboles.png");
+			// the same against a low warm sun behind the trees
+			sc.Sun.Direction = { 0.18f, -0.3f, 1.0f };
+			sc.Sun.Color = { 1.0f, 0.9f, 0.74f };
+			save(sc, cam, "arboles_contraluz.png");
+		}
+		// the bark close up: the trunk of a spreading broadleaf (its crown left out: it hangs down to the ground and hides the fork) and of
+		// a bare tree, where the limbs leave them, under a sun low from the left
+		if (treeIndex("frondoso_extendido_a") >= 0 && treeIndex("seco_a") >= 0)
+		{
+			GB::Scene sc = stage({ 0.0f, 2.0f, 0.0f }, 9.0f);
+			sc.Sun.Direction = { -0.8f, -0.5f, -0.35f };
+			addTree(sc, static_cast<size_t>(treeIndex("frondoso_extendido_a")), { -1.5f, 0.0f, 0.0f }, 0.6f, false);
+			addTree(sc, static_cast<size_t>(treeIndex("seco_a")), { 1.5f, 0.0f, 0.0f }, 2.0f);
+			GB::Camera cam;
+			cam.Position = { 0.0f, 1.9f, 4.6f };
+			cam.Target = { 0.0f, 2.0f, 0.0f };
+			cam.FovYDegrees = 50.0f;
+			save(sc, cam, "arboles_corteza.png");
+		}
+		// cut wood: a stump with its cut face, a cut log with its bark, a debarked log, two fallen branches (oak-like and birch bark), a birch
+		// log and two weathered split boards; every cut face in the cutFace material
+		if (!cutFace.empty() && library.Materials.count("bark_oak") && library.Materials.count("bark_birch") && library.Materials.count("wood_old"))
+		{
+			GB::Scene sc = stage({ 0.0f, 0.0f, 0.3f }, 3.5f);
+			sc.Sun.Direction = { -0.6f, -0.65f, -0.45f };
+			const GB::Material face = material(cutFace);
+			auto put = [&](const GB::MeshData& data, const GB::Material& mat, const glm::mat4& t)
+			{
+				GB::RenderObject o;
+				o.MeshPtr = keep(data); o.Mat = mat; o.Transform = t; o.BoundingRadius = RadiusOf(data);
+				sc.Objects.push_back(o);
+			};
+			const glm::mat4 lying = glm::rotate(glm::mat4(1.0f), glm::radians(-90.0f), glm::vec3(0, 0, 1));   // +Y along +X
+			// the logs turned so the camera sees their far (+X) end face
+			auto yawed = [&](const glm::vec3& p, float degrees) { return glm::rotate(glm::translate(glm::mat4(1.0f), p), glm::radians(degrees), glm::vec3(0, 1, 0)) * lying; };
+			const glm::mat4 stump = glm::translate(glm::mat4(1.0f), { -1.6f, 0.0f, -0.3f });
+			put(BarkLog(0.36f, 0.31f, 0.5f, 28, 0.0f), material("bark_oak"), stump);
+			put(CutFace(0.31f, 28, 0.5f, true, 0.7f), face, stump);
+			const glm::mat4 log = yawed({ -0.7f, 0.21f, -0.7f }, -30.0f);
+			put(BarkLog(0.21f, 0.19f, 1.7f, 20, 0.0f), material("bark2"), log);
+			put(CutFace(0.21f, 20, 0.0f, false, 2.1f), face, log);
+			put(CutFace(0.19f, 20, 1.7f, true, 4.4f), face, log);
+			const glm::mat4 debarked = yawed({ -0.6f, 0.16f, 0.45f }, -25.0f);
+			put(BarkLog(0.16f, 0.15f, 1.5f, 18, 0.0f), material("wood_log2"), debarked);
+			put(CutFace(0.16f, 18, 0.0f, false, 1.3f), face, debarked);
+			put(CutFace(0.15f, 18, 1.5f, true, 5.0f), face, debarked);
+			const glm::mat4 birch = yawed({ 0.9f, 0.13f, -0.9f }, -30.0f);
+			put(BarkLog(0.13f, 0.12f, 0.9f, 16, 0.0f), material("bark_birch"), birch);
+			put(CutFace(0.13f, 16, 0.0f, false, 3.3f), face, birch);
+			put(CutFace(0.12f, 16, 0.9f, true, 0.4f), face, birch);
+			// fallen branches, tapered and bent, lying on their side
+			put(BarkLog(0.07f, 0.025f, 2.2f, 10, 0.18f), material("bark2"), yawed({ -1.9f, 0.07f, 1.2f }, 0.0f));
+			put(BarkLog(0.05f, 0.02f, 1.6f, 10, -0.12f), material("bark_birch"), yawed({ 0.2f, 0.05f, 1.55f }, 10.0f));
+			// two weathered split boards, one board of wood_old wide (20 cm)
+			const GB::MeshData board = GB::ProcMesh::Box(glm::vec3(1.2f, 0.05f, 0.2f));
+			put(board, material("wood_old"), glm::rotate(glm::translate(glm::mat4(1.0f), { 1.8f, 0.025f, 0.25f }), glm::radians(80.0f), glm::vec3(0, 1, 0)));
+			put(board, material("wood_old"), glm::rotate(glm::translate(glm::mat4(1.0f), { 2.1f, 0.075f, 0.3f }), glm::radians(95.0f), glm::vec3(0, 1, 0)));
+			GB::Camera cam;
+			cam.Position = { 0.0f, 1.8f, 3.9f };
+			cam.Target = { 0.0f, 0.15f, 0.1f };
+			cam.FovYDegrees = 45.0f;
+			save(sc, cam, "arboles_madera.png");
 		}
 	}
 	return failures;

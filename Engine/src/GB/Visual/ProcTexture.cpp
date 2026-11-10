@@ -916,6 +916,87 @@ namespace GB
 			return o;
 		}
 
+		Surface BarkBirch(float u, float v, uint32_t s)
+		{
+			// T109: a light birch bark, the grain across v (u runs round the stem): a chalky white skin with grey mottling, rows of short
+			// dark lenticels lying across the stem (seven cells a tile row, about 4 to 12 cm long at UVScale 1), thin papery bands that
+			// peel at their lower edge with the warm inner bark showing, and a few rough black fissured patches stretched across the stem
+			const float mottle = Fbm(u, v, 4, 4, s + 1);
+			// lenticels: 48 rows a tile along v, each row its own phase across u; a dash in a cell when the hash says so
+			const int row = static_cast<int>(std::floor(v * 48.0f));
+			const float rowPhase = Hash01(Wrap(row, 48), 1, s + 2);
+			const float cu = u * 7.0f + rowPhase * 7.0f, cv = v * 48.0f;
+			const int cell = static_cast<int>(std::floor(cu));
+			const float fx = cu - std::floor(cu), fy = cv - std::floor(cv);
+			const float len = 0.25f + 0.6f * Hash01(Wrap(cell, 7), Wrap(row, 48), s + 3);
+			const bool on = Hash01(Wrap(cell, 7), Wrap(row, 48), s + 4) < 0.55f;
+			const float dash = on ? Smooth(0.5f * len, 0.5f * len - 0.06f, std::fabs(fx - 0.5f)) * Smooth(0.22f, 0.08f, std::fabs(fy - 0.5f)) : 0.0f;
+			// papery bands: a sawtooth along v (about 9 bands a tile, wandering across u), the lower edge of each lifts and shows the inner bark
+			const float band = 9.0f * v + 0.8f * (NoiseXY(u, v, 3, 2, s + 5) - 0.5f);
+			const float bf = band - std::floor(band);
+			const float peel = Smooth(0.08f, 0.0f, bf) * Smooth(0.55f, 0.75f, NoiseXY(u, v, 5, 9, s + 6));
+			// black patches: noise stretched across the stem (wide in u, short in v), fissured inside
+			const float blot = 0.6f * NoiseXY(u, v, 3, 14, s + 7) + 0.4f * NoiseXY(u, v, 6, 28, s + 8);
+			const float black = Smooth(0.66f, 0.74f, blot);
+			const float fissure = NoiseXY(u, v, 24, 6, s + 9);
+			const float fine = Fbm(u, v, 32, 2, s + 10);
+			Surface o;
+			glm::vec3 c = Mix(glm::vec3(0.86f, 0.85f, 0.80f), glm::vec3(0.70f, 0.69f, 0.65f), 0.7f * Smooth(0.35f, 0.75f, mottle));
+			c *= 0.95f + 0.08f * fine;
+			c = Mix(c, glm::vec3(0.78f, 0.62f, 0.50f), 0.7f * peel);   // the warm inner bark under a lifting band
+			c = Mix(c, glm::vec3(0.22f, 0.18f, 0.16f), 0.9f * dash);
+			c = Mix(c, glm::vec3(0.10f, 0.09f, 0.085f) * (0.8f + 0.5f * fissure), black);
+			c *= 1.0f - 0.25f * Smooth(0.0f, 0.04f, bf) * Smooth(0.12f, 0.04f, bf) * (1.0f - black);   // painted occlusion under the lifted edge (R1)
+			o.Albedo = c;
+			o.Height = 0.6f + 0.06f * fine + 0.2f * peel - 0.15f * dash - black * (0.25f + 0.25f * fissure) + 0.12f * Smooth(0.0f, 0.06f, bf) * Smooth(0.3f, 0.06f, bf);
+			o.Rough = Lerp(0.55f + 0.15f * mottle, 1.0f, std::max(black, dash));
+			return o;
+		}
+
+		Surface WoodEnd(float u, float v, uint32_t s)
+		{
+			// T109: the end grain of a cut log or a stump, one log centred on the tile: its rings (26 to the bark, wandering a little, the pith
+			// off centre), darker heartwood inside and pale sapwood outside, a dark cambium line and a ring of bark from radius 0.45 (map a cut
+			// face of radius r onto 0.5 +- 0.49 of the tile), a few radial drying checks, the shallow facets of the axe. Beyond the bark the
+			// tile is bark-coloured (a face mapped this way never shows it), so the tile still repeats without a seam.
+			const glm::vec2 p(u - 0.5f, v - 0.5f);
+			const glm::vec2 pith(0.05f * (Hash01(1, 1, s + 1) - 0.5f), 0.05f * (Hash01(1, 2, s + 1) - 0.5f));
+			const float r = glm::length(p), rp = glm::length(p - pith * Smooth(0.45f, 0.0f, r));   // the pith's offset fades toward the bark
+			const float wobble = 0.024f * (Fbm(u, v, 3, 3, s + 2) - 0.5f);
+			const float rings = (rp + wobble) / 0.45f * 26.0f + 0.25f * (Noise(u, v, 16, s + 3) - 0.5f);
+			const float late = LateWood(rings);
+			const float heart = Smooth(0.30f, 0.26f, r);
+			const float cambium = Smooth(0.008f, 0.0f, std::fabs(r - 0.445f));
+			const float bark = Smooth(0.448f, 0.455f, r);
+			// radial checks: five, from near the pith outward to a random length, narrowing toward their end
+			float check = 0.0f;
+			const float ang = std::atan2(p.y, p.x);
+			for (int k = 0; k < 5; ++k)
+			{
+				const float a = 6.2831853f * Hash01(k, 3, s + 4) - 3.14159265f;
+				const float reach = 0.18f + 0.25f * Hash01(k, 4, s + 4);
+				float d = std::fabs(ang - a);
+				d = std::min(d, 6.2831853f - d);
+				const float width = 0.004f * (1.0f - r / reach);
+				if (r > 0.03f && r < reach) check = std::max(check, Smooth(width + 0.002f, 0.0f, d * r));
+			}
+			const float facet = Noise(u, v, 4, s + 5);
+			const float fibre = Noise(u, v, 128, s + 6) * 0.6f + Noise(u, v, 64, s + 7) * 0.4f;
+			const float barkTex = Fbm(u, v, 24, 3, s + 8);
+			Surface o;
+			glm::vec3 c = Mix(glm::vec3(0.74f, 0.60f, 0.43f), glm::vec3(0.62f, 0.44f, 0.29f), heart);   // sapwood -> heartwood
+			c = Mix(c, c * glm::vec3(0.72f, 0.66f, 0.60f), 0.75f * late);
+			c *= 0.93f + 0.1f * fibre;
+			c *= 1.0f - 0.35f * Smooth(0.03f, 0.0f, rp);   // the pith
+			c = Mix(c, glm::vec3(0.36f, 0.25f, 0.16f), cambium);
+			c = Mix(c, glm::vec3(0.12f, 0.08f, 0.05f), check * 0.9f);
+			const glm::vec3 barkC = Mix(glm::vec3(0.22f, 0.17f, 0.13f), glm::vec3(0.40f, 0.33f, 0.26f), barkTex);
+			o.Albedo = Mix(c, barkC, bark);
+			o.Height = Lerp(0.55f + 0.04f * late + 0.03f * fibre + 0.12f * (facet - 0.5f) - 0.5f * check, 0.75f + 0.2f * barkTex, bark);
+			o.Rough = Lerp(0.85f + 0.15f * fibre, 1.0f, std::max(check, bark));
+			return o;
+		}
+
 		// ---- T103 cards: leaves, twigs and grass on an alpha-masked card (u, v 0..1 over the whole card, v up: the stem or the grass's
 		// base at v ~ 0). A card is a list of primitives in drawing order (capsules for twigs, needles, blades and stems; leaves; seed heads),
 		// binned on a grid; a sample takes the topmost primitive under it. Cards do not tile: the silhouette stays inside the card's borders
@@ -1447,7 +1528,7 @@ namespace GB
 				{ "rock", Rock, 0.03f }, { "wood", Wood, 0.006f }, { "ice", Ice, 0.004f }, { "ice_frost", IceFrost, 0.006f },
 				{ "glass_frosted", GlassFrosted, 0.0015f }, { "ice_faceted", IceFaceted, 0.15f }, { "glass_wet", GlassWet, 0.025f },
 				{ "mud", Mud, 0.03f }, { "mud_dry", MudDry, 0.02f }, { "wood_planks2", WoodPlanks2, 0.006f }, { "wood_log2", WoodLog2, 0.006f },
-				{ "bark2", Bark2, 0.03f }, { "wood_old", WoodOld, 0.008f } };
+				{ "bark2", Bark2, 0.03f }, { "wood_old", WoodOld, 0.008f }, { "bark_birch", BarkBirch, 0.01f }, { "wood_end", WoodEnd, 0.008f } };
 			return table;
 		}
 

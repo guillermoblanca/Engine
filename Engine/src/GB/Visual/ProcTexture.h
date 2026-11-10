@@ -24,6 +24,8 @@ namespace GB
 		// in alpha (straight, edge texels partial for alpha to coverage; the texels outside have one bleed colour), v up (the stem or the
 		// base of the tuft at v ~ 0). Their colour is the plant's own (not a tint for the material's colour). Use them with "cutout",
 		// double-sided, on quads mapped 0..1 (ProcMesh::Card).
+		// T109: bark_birch (a white birch bark: lenticels and black patches across the stem, u round it) and wood_end (the end grain of a
+		// cut log, one log centred on the tile: map a cut face of radius r onto 0.5 +- 0.49 of the tile) are surfaces too.
 		bool IsCard(const std::string& kind);
 		// The texture; an unknown kind gives a flat mid-grey image (so a newer content file still draws).
 		Image Generate(const std::string& kind, uint32_t size, uint32_t seed = 0);
