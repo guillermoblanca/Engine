@@ -199,7 +199,7 @@ namespace GB::Editor
 					struct Choice { const char* Id; const char* Level; const char* Label; const char* Tip; };
 					std::vector<Choice> choices;
 					for (const GraphicsPreset& p : GraphicsPresets()) choices.push_back({ p.Id, p.Level, p.Label, p.Tip });
-					choices.push_back({ "auto", "auto", "Auto", "Starts low and drops to the lowest picture as soon as frames are slow" });
+					choices.push_back({ "auto", "auto", "Auto", "Starts like Medium without ambient occlusion and drops to Low as soon as frames are slow" });
 					const float gap = ImGui::GetStyle().ItemSpacing.x;
 					const float each = (ImGui::GetContentRegionAvail().x - gap * static_cast<float>(choices.size() - 1)) / static_cast<float>(choices.size());
 					for (size_t i = 0; i < choices.size(); ++i)
@@ -218,7 +218,7 @@ namespace GB::Editor
 					}
 					// what is in use now: a preset, auto (lowered or not) or a level given at launch that is none of the three
 					const GraphicsPreset* now = PresetOfLevel(m_QualityLevel);
-					std::string inUse = now ? L.Text(now->Label) : L.Text("Custom");
+					std::string inUse = now ? L.Text(now->Label) : L.Text(m_LaunchQuality.empty() ? "Custom" : "Custom (given at launch)");
 					if (m_Game.AutoQuality) inUse = m_Game.Lowered && now ? L.Text("Auto") + " (" + inUse + ")" : L.Text("Auto");   // (auto starts above low, at a level of its own)
 					ImGui::TextDisabled("%s", L.Text("In use: {0}", inUse).c_str());
 				}
