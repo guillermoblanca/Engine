@@ -2,7 +2,6 @@
 
 #include "Shaders.h"
 #include "Visibility.h"
-#include <glad/gl.h>
 #include <map>
 
 namespace GB
@@ -10,14 +9,27 @@ namespace GB
 	ShadowRenderer::ShadowRenderer()
 		: m_Shader(Shaders::ShadowVS, Shaders::ShadowFS)
 	{
-		glCreateBuffers(1, &m_JointBuffer);
-		glCreateBuffers(1, &m_InstanceBuffer);
+		RHI::Device& device = RHI::GetDevice();
+		m_JointBuffer = device.CreateStreamBuffer();
+		m_InstanceBuffer = device.CreateStreamBuffer();
+		RHI::PipelineDesc pipeline;
+		pipeline.Program = m_Shader.GetHandle();
+		pipeline.DepthTest = true;
+		pipeline.DepthWrite = true;
+		pipeline.Offset = RHI::PolygonOffset{ true, 2.0f, 4.0f };
+		m_Pipeline = device.CreatePipeline(pipeline);
+		RHI::PipelineDesc end;
+		end.Offset = RHI::PolygonOffset{};
+		m_End = device.CreatePipeline(end);
 	}
 
 	ShadowRenderer::~ShadowRenderer()
 	{
-		glDeleteBuffers(1, &m_JointBuffer);
-		glDeleteBuffers(1, &m_InstanceBuffer);
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyBuffer(m_JointBuffer);
+		device.DestroyBuffer(m_InstanceBuffer);
+		device.DestroyPipeline(m_Pipeline);
+		device.DestroyPipeline(m_End);
 	}
 
 	void ShadowRenderer::BindSkin(const RenderObject& object)
@@ -28,24 +40,20 @@ namespace GB
 		if (!skinned)
 			return;
 
-		glNamedBufferData(m_JointBuffer,
-			static_cast<GLsizeiptr>(object.JointMatrices->size() * sizeof(glm::mat4)),
-			object.JointMatrices->data(), GL_STREAM_DRAW);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_JointBuffer);
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.UploadStream(m_JointBuffer, object.JointMatrices->size() * sizeof(glm::mat4), object.JointMatrices->data());
+		cmd.BindStorageBuffer(0, m_JointBuffer);
 	}
 
 	void ShadowRenderer::Render(const Scene& scene, const Framebuffer& target, const glm::mat4& lightVP)
 	{
 		m_Shader.SetFloat("uTime", scene.Env.Time);
 		m_Shader.SetVec3("uWind", scene.Env.Wind);
-		target.Bind();
-		glEnable(GL_DEPTH_TEST);
-		glDepthMask(GL_TRUE);
-		glClear(GL_DEPTH_BUFFER_BIT);
-		glEnable(GL_POLYGON_OFFSET_FILL);
-		glPolygonOffset(2.0f, 4.0f);
-
-		m_Shader.Bind();
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		RHI::PassDesc pass = target.Pass("shadows");
+		pass.ClearDepth = true;
+		cmd.BeginPass(pass);
+		cmd.BindPipeline(m_Pipeline);
 		m_Shader.SetMat4("uLightVP", lightVP);
 		const Frustum lightFrustum = MakeFrustum(lightVP);
 		std::map<const Mesh*, std::vector<const RenderObject*>> instanced;   // (RenderObject::Instanced: one call per mesh, after the loop)
@@ -99,10 +107,11 @@ namespace GB
 			if (objects.size() == 1) { draw(*objects.front(), 0); continue; }
 			matrices.clear();
 			for (const RenderObject* o : objects) matrices.push_back(o->Transform);
-			glNamedBufferData(m_InstanceBuffer, static_cast<GLsizeiptr>(matrices.size() * sizeof(glm::mat4)), matrices.data(), GL_STREAM_DRAW);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_InstanceBuffer);
+			cmd.UploadStream(m_InstanceBuffer, matrices.size() * sizeof(glm::mat4), matrices.data());
+			cmd.BindStorageBuffer(2, m_InstanceBuffer);
 			draw(*objects.front(), static_cast<uint32_t>(matrices.size()));
 		}
-		glDisable(GL_POLYGON_OFFSET_FILL);
+		cmd.BindPipeline(m_End);
+		cmd.EndPass();
 	}
 }

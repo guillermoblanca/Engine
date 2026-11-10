@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/RHI.h"
 
 #include "Camera.h"
 #include "Framebuffer.h"
@@ -28,7 +29,10 @@ namespace GB
 
 		std::unique_ptr<class Shader> m_Shader;
 		std::unique_ptr<class Texture2D> m_SpriteSoft, m_SpriteSmoke, m_SpriteSpark, m_SpriteStreak;
-		uint32_t m_VAO = 0, m_VBO = 0;
+		RHI::VertexLayoutHandle m_VAO;
+		RHI::BufferHandle m_VBO;
+		RHI::PipelineHandle m_Pipeline;   // depth test without writes, no culling (the blend is set per batch)
+		RHI::PipelineHandle m_End;        // depth writes on and blending off again for the passes after
 		std::vector<ParticleInstance> m_Scratch;
 	};
 }

@@ -2,7 +2,6 @@
 #include "Shaders.h"
 #include <algorithm>
 #include <cmath>
-#include <glad/gl.h>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace GB
@@ -17,13 +16,49 @@ namespace GB
 		m_AOBlurShader = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::AOBlurFS);
 		m_LumShader = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::LumFS);
 		m_AdaptShader = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::AdaptFS);
-		glCreateVertexArrays(1, &m_EmptyVAO);
+		RHI::Device& device = RHI::GetDevice();
+		m_EmptyVAO = device.CreateVertexLayout({});
+		// `first`: the first pass of a chain, which sets the depth test and the blending off; the next ones only change the program.
+		auto pipeline = [&](const Shader& shader, bool first)
+		{
+			RHI::PipelineDesc desc;
+			desc.Program = shader.GetHandle();
+			if (first)
+			{
+				desc.DepthTest = false;
+				desc.Blend = RHI::BlendState{};
+			}
+			return device.CreatePipeline(desc);
+		};
+		m_BloomDownPipe = pipeline(*m_BloomDown, true);
+		{
+			RHI::PipelineDesc up;
+			up.Program = m_BloomUp->GetHandle();
+			up.Blend = RHI::BlendState{ true, RHI::BlendFactor::One, RHI::BlendFactor::One, {} };
+			m_BloomUpPipe = device.CreatePipeline(up);
+		}
+		m_AOPipe = pipeline(*m_AOShader, true);
+		m_AOBlurPipe = pipeline(*m_AOBlurShader, false);
+		m_LumPipe = pipeline(*m_LumShader, true);
+		m_AdaptPipe = pipeline(*m_AdaptShader, false);
+		{
+			RHI::PipelineDesc composite;
+			composite.Program = m_Composite->GetHandle();
+			composite.DepthTest = false;
+			m_CompositePipe = device.CreatePipeline(composite);
+			RHI::PipelineDesc depthOn;
+			depthOn.DepthTest = true;
+			m_DepthOn = device.CreatePipeline(depthOn);
+		}
 		CreateTargets();
 	}
 
 	PostProcessor::~PostProcessor()
 	{
-		glDeleteVertexArrays(1, &m_EmptyVAO);
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyVertexLayout(m_EmptyVAO);
+		for (RHI::PipelineHandle p : { m_BloomDownPipe, m_BloomUpPipe, m_AOPipe, m_AOBlurPipe, m_LumPipe, m_AdaptPipe, m_CompositePipe, m_DepthOn })
+			device.DestroyPipeline(p);
 	}
 
 	bool PostProcessor::IsValid() const
@@ -80,84 +115,79 @@ namespace GB
 
 	void PostProcessor::BloomPass(const Framebuffer& sceneResolved, const Environment& env)
 	{
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_BLEND);
-		glBindVertexArray(m_EmptyVAO);
-		m_BloomDown->Bind();
-		uint32_t srcTexture = sceneResolved.GetColorTexture();
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BindPipeline(m_BloomDownPipe);
+		cmd.BindVertexLayout(m_EmptyVAO);
+		RHI::TextureHandle srcTexture = sceneResolved.ColorTexture();
 		uint32_t srcW = m_Width, srcH = m_Height;
 		for (size_t i = 0; i < m_BloomChain.size(); ++i)
 		{
 			Framebuffer& dst = *m_BloomChain[i];
-			dst.Bind();
-			glBindTextureUnit(0, srcTexture);
+			cmd.BeginPass(dst.Pass("bloom down"));
+			cmd.BindTexture(0, srcTexture);
 			m_BloomDown->SetVec2("uTexel", { 1.0f / static_cast<float>(srcW), 1.0f / static_cast<float>(srcH) });
 			m_BloomDown->SetInt("uPrefilter", i == 0 ? 1 : 0);
 			m_BloomDown->SetFloat("uThreshold", env.BloomThreshold);
 			m_BloomDown->SetFloat("uKnee", env.BloomThreshold * 0.5f);
-			glDrawArrays(GL_TRIANGLES, 0, 3);
-			srcTexture = dst.GetColorTexture();
+			cmd.Draw(RHI::Topology::Triangles, 0, 3);
+			srcTexture = dst.ColorTexture();
 			srcW = dst.GetWidth();
 			srcH = dst.GetHeight();
 		}
-		m_BloomUp->Bind();
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_ONE, GL_ONE);
+		cmd.BindPipeline(m_BloomUpPipe);
 		for (size_t i = m_BloomChain.size() - 1; i > 0; --i)
 		{
 			const Framebuffer& src = *m_BloomChain[i];
-			m_BloomChain[i - 1]->Bind();
-			glBindTextureUnit(0, src.GetColorTexture());
+			cmd.BeginPass(m_BloomChain[i - 1]->Pass("bloom up"));
+			cmd.BindTexture(0, src.ColorTexture());
 			m_BloomUp->SetVec2("uTexel", { 1.0f / static_cast<float>(src.GetWidth()), 1.0f / static_cast<float>(src.GetHeight()) });
 			m_BloomUp->SetFloat("uRadius", env.BloomRadius);
-			glDrawArrays(GL_TRIANGLES, 0, 3);
+			cmd.Draw(RHI::Topology::Triangles, 0, 3);
 		}
-		glDisable(GL_BLEND);
+		cmd.SetBlend({});
 	}
 
 	void PostProcessor::AmbientOcclusionPass(const Framebuffer& sceneDepth, const PostSettings& post, const Camera& camera)
 	{
 		const float aspect = static_cast<float>(m_Width) / static_cast<float>(m_Height);
 		const glm::mat4 proj = camera.GetProjection(aspect);
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_BLEND);
-		glBindVertexArray(m_EmptyVAO);
-		m_AO->Bind();
-		m_AOShader->Bind();
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BindPipeline(m_AOPipe);
+		cmd.BindVertexLayout(m_EmptyVAO);
+		cmd.BeginPass(m_AO->Pass("ssao"));
 		m_AOShader->SetMat4("uProj", proj);
 		m_AOShader->SetMat4("uInvProj", glm::inverse(proj));
 		m_AOShader->SetFloat("uRadius", post.SSAORadius);
 		m_AOShader->SetFloat("uBias", post.SSAOBias);
-		glBindTextureUnit(0, sceneDepth.GetDepthTexture());
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-		m_AOBlur->Bind();
-		m_AOBlurShader->Bind();
+		cmd.BindTexture(0, sceneDepth.DepthTexture());
+		cmd.Draw(RHI::Topology::Triangles, 0, 3);
+		cmd.BeginPass(m_AOBlur->Pass("ssao blur"));
+		cmd.BindPipeline(m_AOBlurPipe);
 		m_AOBlurShader->SetVec2("uTexel", { 1.0f / static_cast<float>(m_AO->GetWidth()), 1.0f / static_cast<float>(m_AO->GetHeight()) });
 		m_AOBlurShader->SetVec2("uNearFar", { camera.NearPlane, camera.FarPlane });
-		glBindTextureUnit(0, m_AO->GetColorTexture());
-		glBindTextureUnit(1, sceneDepth.GetDepthTexture());
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		cmd.BindTexture(0, m_AO->ColorTexture());
+		cmd.BindTexture(1, sceneDepth.DepthTexture());
+		cmd.Draw(RHI::Topology::Triangles, 0, 3);
 	}
 
 	void PostProcessor::AdaptationPass(const Framebuffer& sceneResolved, const PostSettings& post)
 	{
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_BLEND);
-		glBindVertexArray(m_EmptyVAO);
-		m_LumSmall->Bind();
-		m_LumShader->Bind();
-		glBindTextureUnit(0, sceneResolved.GetColorTexture());
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BindPipeline(m_LumPipe);
+		cmd.BindVertexLayout(m_EmptyVAO);
+		cmd.BeginPass(m_LumSmall->Pass("luminance"));
+		cmd.BindTexture(0, sceneResolved.ColorTexture());
+		cmd.Draw(RHI::Topology::Triangles, 0, 3);
 		const int next = 1 - m_AdaptCurrent;
-		m_Adapt[next]->Bind();
-		m_AdaptShader->Bind();
-		glBindTextureUnit(0, m_LumSmall->GetColorTexture());
-		glBindTextureUnit(1, m_Adapt[m_AdaptCurrent]->GetColorTexture());
+		cmd.BeginPass(m_Adapt[next]->Pass("adaptation"));
+		cmd.BindPipeline(m_AdaptPipe);
+		cmd.BindTexture(0, m_LumSmall->ColorTexture());
+		cmd.BindTexture(1, m_Adapt[m_AdaptCurrent]->ColorTexture());
 		m_AdaptShader->SetFloat("uKey", post.ExposureKey);
 		m_AdaptShader->SetFloat("uMin", post.MinExposure);
 		m_AdaptShader->SetFloat("uMax", post.MaxExposure);
 		m_AdaptShader->SetFloat("uBlend", m_AdaptValid ? 1.0f - std::exp(-std::max(post.DeltaTime, 0.0f) * post.AdaptSpeed) : 1.0f);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		cmd.Draw(RHI::Topology::Triangles, 0, 3);
 		m_AdaptCurrent = next;
 		m_AdaptValid = true;
 	}
@@ -165,20 +195,26 @@ namespace GB
 	void PostProcessor::CompositePass(const Framebuffer& sceneResolved, const Framebuffer& sceneDepth, const Framebuffer& sceneAmbient,
 		const Environment& env, const PostSettings& post, const Camera& camera, const Framebuffer* target)
 	{
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		RHI::PassDesc pass;
 		if (target)
-			target->Bind();
+			pass = target->Pass();
 		else
-			Framebuffer::BindDefault(m_Width, m_Height);
-		glDisable(GL_DEPTH_TEST);
-		m_Composite->Bind();
-		glBindTextureUnit(0, sceneResolved.GetColorTexture());
-		glBindTextureUnit(1, m_BloomChain.front()->GetColorTexture());
+		{
+			pass.Width = m_Width;
+			pass.Height = m_Height;
+		}
+		pass.Name = "composite";
+		cmd.BeginPass(pass);
+		cmd.BindPipeline(m_CompositePipe);
+		cmd.BindTexture(0, sceneResolved.ColorTexture());
+		cmd.BindTexture(1, m_BloomChain.front()->ColorTexture());
 		const bool ao = post.SSAO > 0.0f && !camera.Orthographic;
 		const bool dof = post.DepthOfField > 0.0f && !camera.Orthographic;
-		glBindTextureUnit(2, ao ? m_AOBlur->GetColorTexture() : sceneResolved.GetColorTexture());
-		glBindTextureUnit(3, sceneDepth.GetDepthTexture());
-		glBindTextureUnit(4, m_Adapt[m_AdaptCurrent]->GetColorTexture());
-		glBindTextureUnit(5, sceneAmbient.GetColorTexture());
+		cmd.BindTexture(2, ao ? m_AOBlur->ColorTexture() : sceneResolved.ColorTexture());
+		cmd.BindTexture(3, sceneDepth.DepthTexture());
+		cmd.BindTexture(4, m_Adapt[m_AdaptCurrent]->ColorTexture());
+		cmd.BindTexture(5, sceneAmbient.ColorTexture());
 		m_Composite->SetInt("uTonemap", static_cast<int>(post.Mapper));
 		m_Composite->SetFloat("uAOStrength", ao ? glm::clamp(post.SSAO, 0.0f, 1.0f) : 0.0f);
 		m_Composite->SetFloat("uDOF", dof ? post.DepthOfField : 0.0f);
@@ -197,8 +233,9 @@ namespace GB
 		m_Composite->SetFloat("uExposure", env.Exposure);
 		m_Composite->SetFloat("uBloomIntensity", env.BloomIntensity);
 		m_Composite->SetFloat("uVignette", env.Vignette);
-		glBindVertexArray(m_EmptyVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-		glEnable(GL_DEPTH_TEST);
+		cmd.BindVertexLayout(m_EmptyVAO);
+		cmd.Draw(RHI::Topology::Triangles, 0, 3);
+		cmd.BindPipeline(m_DepthOn);
+		cmd.EndPass();
 	}
 }

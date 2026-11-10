@@ -7,7 +7,6 @@
 #include "Texture.h"
 #include <algorithm>
 #include <cmath>
-#include <glad/gl.h>
 
 namespace GB
 {
@@ -68,22 +67,32 @@ namespace GB
 		m_SpriteSmoke = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Smoke, 128), TextureEncoding::Linear);
 		m_SpriteSpark = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Spark, 32), TextureEncoding::Linear);
 		m_SpriteStreak = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Streak, 64), TextureEncoding::Linear);
-		glCreateBuffers(1, &m_VBO);
-		glCreateVertexArrays(1, &m_VAO);
-		glVertexArrayVertexBuffer(m_VAO, 0, m_VBO, 0, sizeof(ParticleInstance));
-		glVertexArrayBindingDivisor(m_VAO, 0, 1);
-		for (GLuint i = 0; i < 4; ++i)
-		{
-			glEnableVertexArrayAttrib(m_VAO, i);
-			glVertexArrayAttribFormat(m_VAO, i, 4, GL_FLOAT, GL_FALSE, i * 16);
-			glVertexArrayAttribBinding(m_VAO, i, 0);
-		}
+		RHI::Device& device = RHI::GetDevice();
+		m_VBO = device.CreateStreamBuffer();
+		RHI::VertexLayoutDesc layout;
+		layout.Bindings.push_back({ 0, m_VBO, 0, sizeof(ParticleInstance), 1 });
+		for (uint32_t i = 0; i < 4; ++i)
+			layout.Attribs.push_back({ i, 4, RHI::AttribType::Float, i * 16, 0 });
+		m_VAO = device.CreateVertexLayout(layout);
+		RHI::PipelineDesc pipeline;
+		pipeline.Program = m_Shader->GetHandle();
+		pipeline.DepthTest = true;
+		pipeline.DepthWrite = false;
+		pipeline.CullMode = RHI::Cull::None;
+		m_Pipeline = device.CreatePipeline(pipeline);
+		RHI::PipelineDesc end;
+		end.DepthWrite = true;
+		end.Blend = RHI::BlendState{};
+		m_End = device.CreatePipeline(end);
 	}
 
 	ParticleRenderer::~ParticleRenderer()
 	{
-		glDeleteBuffers(1, &m_VBO);
-		glDeleteVertexArrays(1, &m_VAO);
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyBuffer(m_VBO);
+		device.DestroyVertexLayout(m_VAO);
+		device.DestroyPipeline(m_Pipeline);
+		device.DestroyPipeline(m_End);
 	}
 
 	bool ParticleRenderer::IsValid() const
@@ -96,8 +105,9 @@ namespace GB
 		if (!batch.Instances || batch.Instances->empty())
 			return;
 		const size_t bytes = batch.Instances->size() * sizeof(ParticleInstance);
-		glNamedBufferData(m_VBO, static_cast<GLsizeiptr>(bytes), batch.Instances->data(), GL_STREAM_DRAW);
-		glBlendFunc(GL_SRC_ALPHA, batch.Blend == ParticleBlend::Additive ? GL_ONE : GL_ONE_MINUS_SRC_ALPHA);
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.UploadStream(m_VBO, bytes, batch.Instances->data());
+		cmd.SetBlend({ true, RHI::BlendFactor::SrcAlpha, batch.Blend == ParticleBlend::Additive ? RHI::BlendFactor::One : RHI::BlendFactor::OneMinusSrcAlpha, {} });
 
 		const Texture2D* sprite = m_SpriteSoft.get();
 		if (batch.Sprite == ParticleSprite::Smoke) sprite = m_SpriteSmoke.get();
@@ -110,7 +120,7 @@ namespace GB
 		m_Shader->SetVec2("uSheet", batch.Sheet);
 		m_Shader->SetFloat("uSoft", batch.SoftDistance);
 		DrawCounter::Add(2ull * batch.Instances->size());
-		glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(batch.Instances->size()));
+		cmd.DrawInstanced(RHI::Topology::TriangleStrip, 0, 4, static_cast<uint32_t>(batch.Instances->size()));
 	}
 
 	void ParticleRenderer::ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
@@ -124,13 +134,9 @@ namespace GB
 		const glm::vec3 up(view[0][1], view[1][1], view[2][1]);
 		const Environment& env = scene.Env;
 		Framebuffer::BlitDepth(sceneMSAA, sceneDepth);
-		sceneMSAA.Bind();
-
-		glEnable(GL_DEPTH_TEST);
-		glDepthMask(GL_FALSE);
-		glDisable(GL_CULL_FACE);
-		glEnable(GL_BLEND);
-		m_Shader->Bind();
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BeginPass(sceneMSAA.Pass("particles"));
+		cmd.BindPipeline(m_Pipeline);
 		m_Shader->SetMat4("uViewProj", viewProj);
 		m_Shader->SetVec3("uCamRight", right);
 		m_Shader->SetVec3("uCamUp", up);
@@ -140,8 +146,8 @@ namespace GB
 		m_Shader->SetVec3("uFogColor", env.FogColor);
 		m_Shader->SetFloat("uFogDensity", env.FogDensity);
 		m_Shader->SetFloat("uFogHeight", env.FogHeightFalloff);
-		glBindTextureUnit(1, sceneDepth.GetDepthTexture());
-		glBindVertexArray(m_VAO);
+		cmd.BindTexture(1, sceneDepth.DepthTexture());
+		cmd.BindVertexLayout(m_VAO);
 
 		for (const ParticleSystem* system : scene.Particles)
 		{
@@ -153,7 +159,6 @@ namespace GB
 		for (const ParticleBatch& batch : scene.ParticleBatches)
 			DrawBatch(batch);
 
-		glDepthMask(GL_TRUE);
-		glDisable(GL_BLEND);
+		cmd.BindPipeline(m_End);
 	}
 }

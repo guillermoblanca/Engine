@@ -6,7 +6,6 @@
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
-#include <glad/gl.h>
 #include <map>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstdint>
@@ -15,10 +14,6 @@
 
 namespace GB
 {
-	namespace
-	{
-	}
-
 	Renderer::Renderer(uint32_t width, uint32_t height, uint32_t msaaSamples, uint32_t shadowMapSize)
 		: m_Width(std::max(width, 1u)), m_Height(std::max(height, 1u)),
 		  m_Samples(std::max(msaaSamples, 1u)), m_ShadowSize(shadowMapSize)
@@ -35,10 +30,27 @@ namespace GB
 			m_PBRShader = std::make_unique<Shader>(Shaders::PBRVS, fs);
 		}
 
-		glCreateVertexArrays(1, &m_EmptyVAO);
-		glCreateBuffers(1, &m_JointBuffer);
-		glCreateBuffers(1, &m_InstanceBuffer);
-		glGenQueries(kTimerSets * kMarks, &m_Timers[0][0]);
+		RHI::Device& device = RHI::GetDevice();
+		m_EmptyVAO = device.CreateVertexLayout({});
+		m_JointBuffer = device.CreateStreamBuffer();
+		m_InstanceBuffer = device.CreateStreamBuffer();
+		for (auto& set : m_Timers)
+			for (RHI::QueryHandle& q : set)
+				q = device.CreateTimestamp();
+		{
+			RHI::PipelineDesc skyState;
+			skyState.Program = m_SkyShader->GetHandle();
+			skyState.Multisample = true;
+			skyState.DepthTest = false;
+			skyState.DepthWrite = false;
+			m_SkyPipeline = device.CreatePipeline(skyState);
+			RHI::PipelineDesc pbr;
+			pbr.Program = m_PBRShader->GetHandle();
+			pbr.DepthTest = true;
+			pbr.DepthWrite = true;
+			pbr.CullMode = RHI::Cull::Back;
+			m_PBRPipeline = device.CreatePipeline(pbr);
+		}
 
 		m_ParticleRenderer = std::make_unique<ParticleRenderer>();
 
@@ -64,10 +76,15 @@ namespace GB
 
 	Renderer::~Renderer()
 	{
-		glDeleteVertexArrays(1, &m_EmptyVAO);
-		glDeleteBuffers(1, &m_JointBuffer);
-		glDeleteBuffers(1, &m_InstanceBuffer);
-		glDeleteQueries(kTimerSets * kMarks, &m_Timers[0][0]);
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyVertexLayout(m_EmptyVAO);
+		device.DestroyBuffer(m_JointBuffer);
+		device.DestroyBuffer(m_InstanceBuffer);
+		for (auto& set : m_Timers)
+			for (RHI::QueryHandle q : set)
+				device.DestroyTimestamp(q);
+		device.DestroyPipeline(m_SkyPipeline);
+		device.DestroyPipeline(m_PBRPipeline);
 	}
 
 	void Renderer::CreateTargets()
@@ -115,22 +132,21 @@ namespace GB
 	void Renderer::Mark(int i)
 	{
 		if (m_TimerActive)
-			glQueryCounter(m_Timers[m_TimerHead][i], GL_TIMESTAMP);
+			RHI::GetDevice().Commands().WriteTimestamp(m_Timers[m_TimerHead][i]);
 	}
 
 	void Renderer::ReadTimers()
 	{
 		// Drain the ring oldest first while the GPU has the results (queries finish in order: the last mark of a set says the whole set is
 		// done); the newest set read gives the stats. Never waits: a set still in flight stays for a later frame.
+		RHI::Device& device = RHI::GetDevice();
 		while (m_TimersPending > 0)
 		{
 			const int set = (m_TimerHead - m_TimersPending + kTimerSets) % kTimerSets;
-			GLint ready = 0;
-			glGetQueryObjectiv(m_Timers[set][kMarks - 1], GL_QUERY_RESULT_AVAILABLE, &ready);
-			if (!ready)
+			if (!device.TimestampReady(m_Timers[set][kMarks - 1]))
 				break;
-			GLuint64 t[kMarks];
-			for (int i = 0; i < kMarks; ++i) glGetQueryObjectui64v(m_Timers[set][i], GL_QUERY_RESULT, &t[i]);
+			uint64_t t[kMarks];
+			for (int i = 0; i < kMarks; ++i) t[i] = device.TimestampNs(m_Timers[set][i]);
 			--m_TimersPending;
 			auto ms = [&](int a, int b) { return static_cast<float>(static_cast<double>(t[b] - t[a]) * 1e-6); };
 			m_Stats.GpuShadowMs = ms(kStart, kAfterShadows); m_Stats.GpuSceneMs = ms(kAfterShadows, kAfterObjects); m_Stats.GpuGrassMs = ms(kAfterObjects, kAfterGrass);
@@ -148,9 +164,9 @@ namespace GB
 		shader.SetInt("uSkinned", skinned ? 1 : 0);
 		if (!skinned)
 			return;
-		glNamedBufferData(m_JointBuffer, static_cast<GLsizeiptr>(obj.JointMatrices->size() * sizeof(glm::mat4)),
-			obj.JointMatrices->data(), GL_STREAM_DRAW);
-		glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 0, m_JointBuffer);
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.UploadStream(m_JointBuffer, obj.JointMatrices->size() * sizeof(glm::mat4), obj.JointMatrices->data());
+		cmd.BindStorageBuffer(0, m_JointBuffer);
 	}
 
 	void Renderer::ShadowPass(const Scene& scene, const glm::mat4& lightVP)
@@ -166,12 +182,12 @@ namespace GB
 
 		// The ambient target is only written when the SSAO will use it (every shader of the scene writes location 1: 0 where there is none).
 		const bool ambientOut = scene.Post.SSAO > 0.0f && !camera.Orthographic;
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
 		m_SceneMSAA->SetExtraEnabled(ambientOut);
-		m_SceneMSAA->Bind();
-		glEnable(GL_MULTISAMPLE);
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glDepthMask(GL_TRUE);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		RHI::PassDesc pass = m_SceneMSAA->Pass("scene");
+		pass.ClearColor = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+		pass.ClearDepth = true;
+		cmd.BeginPass(pass);
 
 		const glm::vec3 sunDir = glm::normalize(scene.Sun.Direction);
 		const glm::vec3 sunColor = scene.Sun.Color * scene.Sun.Intensity;
@@ -193,9 +209,7 @@ namespace GB
 		};
 
 		// Background sky
-		glDisable(GL_DEPTH_TEST);
-		glDepthMask(GL_FALSE);
-		m_SkyShader->Bind();
+		cmd.BindPipeline(m_SkyPipeline);
 		setSky(*m_SkyShader);
 		m_SkyShader->SetMat4("uInvViewProj", glm::inverse(viewProj));
 		m_SkyShader->SetVec3("uCamPos", camera.Position);
@@ -203,18 +217,13 @@ namespace GB
 		m_SkyShader->SetFloat("uCloudCover", env.CloudCover);
 		m_SkyShader->SetFloat("uTime", env.Time);
 		m_SkyShader->SetVec3("uWind", env.Wind);
-		glBindVertexArray(m_EmptyVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		cmd.BindVertexLayout(m_EmptyVAO);
+		cmd.Draw(RHI::Topology::Triangles, 0, 3);
 		Mark(kAfterSky);
 
 		// Opaque geometry
-		glEnable(GL_DEPTH_TEST);
-		glDepthMask(GL_TRUE);
-		glEnable(GL_CULL_FACE);
-		glCullFace(GL_BACK);
-
 		Shader& pbr = *m_PBRShader;
-		pbr.Bind();
+		cmd.BindPipeline(m_PBRPipeline);
 		setSky(pbr);
 		pbr.SetMat4("uViewProj", viewProj);
 		pbr.SetVec3("uCamPos", camera.Position);
@@ -224,11 +233,11 @@ namespace GB
 		if (scene.Ground && scene.Ground->IsValid())
 		{
 			pbr.SetVec4("uTrailRect", scene.Ground->GetRect());
-			glBindTextureUnit(8, scene.Ground->GetTexture());
+			cmd.BindTexture(8, { scene.Ground->GetTexture() });
 		}
 		pbr.SetMat4("uLightVP", lightVP);
 		pbr.SetFloat("uShadowTexel", 2.0f * env.ShadowRadius / static_cast<float>(m_ShadowSize));
-		glBindTextureUnit(0, m_ShadowMap->GetDepthTexture());
+		cmd.BindTexture(0, m_ShadowMap->DepthTexture());
 
 		const int pointCount = static_cast<int>(std::min<size_t>(scene.PointLights.size(), MaxPointLights));
 		glm::vec3 positions[MaxPointLights] = {}, colors[MaxPointLights] = {};
@@ -251,7 +260,7 @@ namespace GB
 		auto drawObject = [&](const RenderObject& obj, uint32_t copies = 0)
 		{
 			const Material& m = obj.Mat;
-			if (m.DoubleSided) glDisable(GL_CULL_FACE); else glEnable(GL_CULL_FACE);
+			cmd.SetCull(m.DoubleSided ? RHI::Cull::None : RHI::Cull::Back);
 
 			pbr.SetMat4("uModel", obj.Transform);
 			pbr.SetInt("uInstanced", copies > 0 ? 1 : 0);
@@ -305,7 +314,7 @@ namespace GB
 			pbr.SetInt("uAlphaMode", static_cast<int>(m.Alpha));
 			const bool coverage = m.Alpha == AlphaMode::Mask && m_Samples > 1;   // leaf edges antialiased by the MSAA target
 			pbr.SetInt("uAlphaToCoverage", coverage ? 1 : 0);
-			if (coverage) glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE); else glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+			cmd.SetAlphaToCoverage(coverage);
 			pbr.SetFloat("uAlphaCutoff", m.AlphaCutoff);
 			pbr.SetFloat("uOpacity", m.Opacity);
 			if (m.AlbedoMap) m.AlbedoMap->Bind(1);
@@ -355,12 +364,12 @@ namespace GB
 			if (objects.size() == 1) { drawObject(*objects.front()); continue; }
 			matrices.clear();
 			for (const RenderObject* o : objects) matrices.push_back(o->Transform);
-			glNamedBufferData(m_InstanceBuffer, static_cast<GLsizeiptr>(matrices.size() * sizeof(glm::mat4)), matrices.data(), GL_STREAM_DRAW);
-			glBindBufferBase(GL_SHADER_STORAGE_BUFFER, 2, m_InstanceBuffer);
+			cmd.UploadStream(m_InstanceBuffer, matrices.size() * sizeof(glm::mat4), matrices.data());
+			cmd.BindStorageBuffer(2, m_InstanceBuffer);
 			drawObject(*objects.front(), static_cast<uint32_t>(matrices.size()));
 			++m_Stats.InstancedDraws;
 		}
-		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+		cmd.SetAlphaToCoverage(false);
 
 		const uint32_t beforeGrass = DrawCounter::Calls;
 		Mark(kAfterObjects);
@@ -382,15 +391,14 @@ namespace GB
 			std::sort(translucent.begin(), translucent.end(),
 				[&](const RenderObject* a, const RenderObject* b) { return distance2(a) > distance2(b); });
 
-			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-			glDepthMask(GL_FALSE);
+			cmd.SetBlend({ true, RHI::BlendFactor::SrcAlpha, RHI::BlendFactor::OneMinusSrcAlpha, {} });
+			cmd.SetDepthWrite(false);
 			for (const RenderObject* obj : translucent)
 				drawObject(*obj);
-			glDepthMask(GL_TRUE);
-			glDisable(GL_BLEND);
+			cmd.SetDepthWrite(true);
+			cmd.SetBlend({});
 		}
-		glDisable(GL_CULL_FACE);
+		cmd.SetCull(RHI::Cull::None);
 		Mark(kAfterTranslucent);
 
 		m_ParticleRenderer->ParticlePass(scene, camera, viewProj, *m_SceneMSAA, *m_SceneDepth);
@@ -403,7 +411,7 @@ namespace GB
 
 	void Renderer::GrassPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows)
 	{
-		m_GrassRenderer->Render(scene, camera, viewProj, lightVP, shadows, m_ShadowMap->GetDepthTexture());
+		m_GrassRenderer->Render(scene, camera, viewProj, lightVP, shadows, m_ShadowMap->DepthTexture());
 	}
 
 	void Renderer::BindEnvironment(Shader& shader, const Environment& env) const
@@ -415,7 +423,7 @@ namespace GB
 		shader.SetFloat("uEnvMaxLod", static_cast<float>(env.EnvMap->GetMipCount() - 1));
 		shader.SetFloat("uEnvRotation", env.EnvMap->Rotation / 6.2831853f);
 		shader.SetFloat("uEnvExposure", env.EnvMap->Exposure);
-		glBindTextureUnit(9, env.EnvMap->GetID());
+		RHI::GetDevice().Commands().BindTexture(9, env.EnvMap->GetHandle());
 	}
 
 	void Renderer::WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj)
@@ -476,7 +484,7 @@ namespace GB
 		Mark(kAfterComposite);
 		if (m_TimerActive)
 		{
-			glFlush();   // (without it the last commands can wait in the driver's queue until the swap, and the post-processing reads as that wait)
+			RHI::GetDevice().Commands().Flush();   // (without it the last commands can wait in the driver's queue until the swap, and the post-processing reads as that wait)
 			m_TimerHead = (m_TimerHead + 1) % kTimerSets;
 			++m_TimersPending;
 		}

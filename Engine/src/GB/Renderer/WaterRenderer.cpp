@@ -4,7 +4,6 @@
 #include "GB/World/Water/WaterWaves.h"
 #include <algorithm>
 #include <iterator>
-#include <glad/gl.h>
 #include <string>
 
 namespace GB
@@ -14,6 +13,25 @@ namespace GB
 			std::string(Shaders::WaterVS) + InjectWaveSet(Shaders::WaterWaves) + Shaders::WaterVSMain,
 			std::string(Shaders::WaterFS) + Shaders::SkyCommon + InjectWaveSet(Shaders::WaterWaves) + Shaders::WaterFSMain)
 	{
+		RHI::Device& device = RHI::GetDevice();
+		RHI::PipelineDesc pipeline;
+		pipeline.Program = m_Shader.GetHandle();
+		pipeline.DepthTest = true;
+		pipeline.DepthWrite = false;
+		pipeline.CullMode = RHI::Cull::None;
+		pipeline.Blend = RHI::BlendState{ true, RHI::BlendFactor::SrcAlpha, RHI::BlendFactor::OneMinusSrcAlpha, {} };
+		m_Pipeline = device.CreatePipeline(pipeline);
+		RHI::PipelineDesc end;
+		end.DepthWrite = true;
+		end.Blend = RHI::BlendState{};
+		m_End = device.CreatePipeline(end);
+	}
+
+	WaterRenderer::~WaterRenderer()
+	{
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyPipeline(m_Pipeline);
+		device.DestroyPipeline(m_End);
 	}
 
 	const Mesh& WaterRenderer::MeshFor(const WaterSurface& surface)
@@ -44,7 +62,7 @@ namespace GB
 		m_Shader.SetFloat("uEnvMaxLod", static_cast<float>(env.EnvMap->GetMipCount() - 1));
 		m_Shader.SetFloat("uEnvRotation", env.EnvMap->Rotation / 6.2831853f);
 		m_Shader.SetFloat("uEnvExposure", env.EnvMap->Exposure);
-		glBindTextureUnit(9, env.EnvMap->GetID());
+		RHI::GetDevice().Commands().BindTexture(9, env.EnvMap->GetHandle());
 	}
 
 	void WaterRenderer::Render(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
@@ -57,9 +75,9 @@ namespace GB
 		// The water reads the depth of everything opaque to measure how deep it is.
 		Framebuffer::BlitDepth(sceneMSAA, sceneDepth);
 		Framebuffer::BlitColor(sceneMSAA, sceneResolved);   // what the water refracts
-		sceneMSAA.Bind();
-
-		m_Shader.Bind();
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BeginPass(sceneMSAA.Pass("water"));
+		cmd.BindPipeline(m_Pipeline);
 		const bool ssr = scene.ScreenSpaceReflections;
 		m_Shader.SetMat4("uViewProj", viewProj);
 		m_Shader.SetVec3("uCamPos", camera.Position);
@@ -98,22 +116,17 @@ namespace GB
 		BindEnvironment(env);
 		m_Shader.SetVec2("uNearFar", { camera.NearPlane, camera.FarPlane });
 		m_Shader.SetInt("uOrtho", camera.Orthographic ? 1 : 0);
-		glBindTextureUnit(1, sceneDepth.GetDepthTexture());
-		glBindTextureUnit(3, sceneResolved.GetColorTexture());
+		cmd.BindTexture(1, sceneDepth.DepthTexture());
+		cmd.BindTexture(3, sceneResolved.ColorTexture());
 		const bool ripples = scene.Ripples && scene.Ripples->IsValid();
 		if (ripples)
 		{
 			m_Shader.SetVec4("uRippleRect", scene.Ripples->GetRect());
-			glBindTextureUnit(2, scene.Ripples->GetTexture());
+			cmd.BindTexture(2, { scene.Ripples->GetTexture() });
 		}
 		else
 			m_Shader.SetVec4("uRippleRect", glm::vec4(0.0f));
 
-		glEnable(GL_DEPTH_TEST);
-		glDepthMask(GL_FALSE);
-		glDisable(GL_CULL_FACE);
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		for (const WaterSurface* water : scene.Water)
 		{
 			if (!water)
@@ -139,7 +152,6 @@ namespace GB
 			m_Shader.SetFloat("uRippleStrength", p.RippleStrength);
 			MeshFor(*water).Draw();
 		}
-		glDepthMask(GL_TRUE);
-		glDisable(GL_BLEND);
+		cmd.BindPipeline(m_End);
 	}
 }

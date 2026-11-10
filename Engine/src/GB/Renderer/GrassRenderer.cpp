@@ -5,7 +5,6 @@
 #include "GB/World/Grass.h"
 #include "Shaders.h"
 #include <algorithm>
-#include <glad/gl.h>
 
 namespace GB
 {
@@ -15,19 +14,26 @@ namespace GB
 			std::string(Shaders::GrassFS) + Shaders::SkyCommon + Shaders::GrassFSMain),
 		  m_ShadowMapSize(std::max(shadowMapSize, 1u))
 	{
-		glCreateVertexArrays(1, &m_GrassVAO);
-		glVertexArrayBindingDivisor(m_GrassVAO, 0, 1);
-		for (GLuint i = 0; i < 3; ++i)
-		{
-			glEnableVertexArrayAttrib(m_GrassVAO, i);
-			glVertexArrayAttribFormat(m_GrassVAO, i, 4, GL_FLOAT, GL_FALSE, i * 16);
-			glVertexArrayAttribBinding(m_GrassVAO, i, 0);
-		}
+		RHI::Device& device = RHI::GetDevice();
+		RHI::VertexLayoutDesc layout;
+		layout.Bindings.push_back({ 0, {}, 0, 0, 1 });
+		for (uint32_t i = 0; i < 3; ++i)
+			layout.Attribs.push_back({ i, 4, RHI::AttribType::Float, i * 16, 0 });
+		m_GrassVAO = device.CreateVertexLayout(layout);
+		RHI::PipelineDesc pipeline;
+		pipeline.Program = m_Shader.GetHandle();
+		pipeline.CullMode = RHI::Cull::None;
+		pipeline.DepthTest = true;
+		pipeline.DepthWrite = true;
+		pipeline.AlphaToCoverage = true;
+		m_Pipeline = device.CreatePipeline(pipeline);
 	}
 
 	GrassRenderer::~GrassRenderer()
 	{
-		glDeleteVertexArrays(1, &m_GrassVAO);
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyVertexLayout(m_GrassVAO);
+		device.DestroyPipeline(m_Pipeline);
 	}
 
 	void GrassRenderer::BindEnvironment(const Environment& env)
@@ -39,17 +45,18 @@ namespace GB
 		m_Shader.SetFloat("uEnvMaxLod", static_cast<float>(env.EnvMap->GetMipCount() - 1));
 		m_Shader.SetFloat("uEnvRotation", env.EnvMap->Rotation / 6.2831853f);
 		m_Shader.SetFloat("uEnvExposure", env.EnvMap->Exposure);
-		glBindTextureUnit(9, env.EnvMap->GetID());
+		RHI::GetDevice().Commands().BindTexture(9, env.EnvMap->GetHandle());
 	}
 
 	void GrassRenderer::Render(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
-		const glm::mat4& lightVP, bool shadows, uint32_t shadowTexture)
+		const glm::mat4& lightVP, bool shadows, RHI::TextureHandle shadowTexture)
 	{
 		if (scene.Grass.empty())
 			return;
 
 		const Environment& env = scene.Env;
-		m_Shader.Bind();
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BindPipeline(m_Pipeline);
 		m_Shader.SetMat4("uViewProj", viewProj);
 		m_Shader.SetVec3("uCamPos", camera.Position);
 		m_Shader.SetFloat("uTime", env.Time);
@@ -69,20 +76,16 @@ namespace GB
 		m_Shader.SetInt("uShadowsOn", shadows ? 1 : 0);
 		m_Shader.SetMat4("uLightVP", lightVP);
 		m_Shader.SetFloat("uShadowTexel", 2.0f * env.ShadowRadius / static_cast<float>(m_ShadowMapSize));
-		glBindTextureUnit(0, shadowTexture);
+		cmd.BindTexture(0, shadowTexture);
 
 		const bool trails = scene.Ground && scene.Ground->IsValid();
 		if (trails)
 		{
 			m_Shader.SetVec4("uTrailRect", scene.Ground->GetRect());
-			glBindTextureUnit(8, scene.Ground->GetTexture());
+			cmd.BindTexture(8, { scene.Ground->GetTexture() });
 		}
 
-		glDisable(GL_CULL_FACE);
-		glEnable(GL_DEPTH_TEST);
-		glDepthMask(GL_TRUE);
-		glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-		glBindVertexArray(m_GrassVAO);
+		cmd.BindVertexLayout(m_GrassVAO);
 
 		const glm::vec3 forward = camera.GetForward();
 		for (const GrassGpu* gpu : scene.Grass)
@@ -90,7 +93,7 @@ namespace GB
 			if (!gpu || gpu->GetField().GetBladeCount() == 0)
 				continue;
 			const GrassField* field = &gpu->GetField();
-			const uint32_t buffer = gpu->GetBuffer();
+			const RHI::BufferHandle buffer = gpu->GetHandle();
 			const GrassParams& p = field->Params;
 			const float drawDistance = p.DrawDistance * std::max(scene.GrassDistanceScale, 0.0f);
 			if (drawDistance <= 0.0f)
@@ -106,12 +109,11 @@ namespace GB
 				const glm::vec3 d = chunk.Center - camera.Position;
 				if (glm::length(d) - chunk.Radius > drawDistance || glm::dot(d, forward) < -chunk.Radius)
 					continue;
-				glVertexArrayVertexBuffer(m_GrassVAO, 0, buffer,
-					static_cast<GLintptr>(chunk.First) * sizeof(GrassBlade), sizeof(GrassBlade));
-				glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 10, static_cast<GLsizei>(chunk.Count));
+				cmd.SetVertexBuffer(m_GrassVAO, 0, buffer, static_cast<size_t>(chunk.First) * sizeof(GrassBlade), sizeof(GrassBlade));
+				cmd.DrawInstanced(RHI::Topology::TriangleStrip, 0, 10, chunk.Count);
 				DrawCounter::Add(8ull * chunk.Count);
 			}
 		}
-		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+		cmd.SetAlphaToCoverage(false);
 	}
 }

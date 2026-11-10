@@ -21,7 +21,7 @@ namespace GB
 		static constexpr uint32_t MaxPointLights = 32;
 
 		WaterRenderer();
-		~WaterRenderer() = default;
+		~WaterRenderer();
 		WaterRenderer(const WaterRenderer&) = delete;
 		WaterRenderer& operator=(const WaterRenderer&) = delete;
 
@@ -42,6 +42,8 @@ namespace GB
 		};
 
 		Shader m_Shader;
+		RHI::PipelineHandle m_Pipeline;   // depth test without writes, no culling, alpha blending
+		RHI::PipelineHandle m_End;        // depth writes on and blending off again for the passes after
 		std::unordered_map<const WaterGeometry*, CachedMesh> m_Meshes;
 	};
 }

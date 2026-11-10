@@ -39,6 +39,9 @@ namespace GB
 		int m_AdaptCurrent = 0;
 		bool m_AdaptValid = false;
 		float m_TimeAccum = 0.0f;
-		uint32_t m_EmptyVAO = 0;
+		RHI::VertexLayoutHandle m_EmptyVAO;
+		// Full-screen passes: no depth test, and no blending except the bloom's way up (additive). m_DepthOn: the depth test on again after
+		// the composite, for whatever draws next.
+		RHI::PipelineHandle m_BloomDownPipe, m_BloomUpPipe, m_AOPipe, m_AOBlurPipe, m_LumPipe, m_AdaptPipe, m_CompositePipe, m_DepthOn;
 	};
 }

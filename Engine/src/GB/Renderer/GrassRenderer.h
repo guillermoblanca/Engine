@@ -24,13 +24,14 @@ namespace GB
 		bool IsValid() const { return m_Shader.IsValid(); }
 
 		void Render(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
-			const glm::mat4& lightVP, bool shadows, uint32_t shadowTexture);
+			const glm::mat4& lightVP, bool shadows, RHI::TextureHandle shadowTexture);
 
 	private:
 		void BindEnvironment(const Environment& env);
 
 		Shader m_Shader;
 		uint32_t m_ShadowMapSize = 1;
-		uint32_t m_GrassVAO = 0;
+		RHI::VertexLayoutHandle m_GrassVAO;   // a blade per instance; the chunk's range of the field's buffer is bound per draw
+		RHI::PipelineHandle m_Pipeline;       // depth, no culling, alpha to coverage
 	};
 }

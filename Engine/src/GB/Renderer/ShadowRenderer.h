@@ -23,14 +23,16 @@ namespace GB
 		bool IsValid() const { return m_Shader.IsValid(); }
 
 		// The framebuffer must have a depth attachment (normally DepthAsTexture).
-		// Its viewport is selected by Framebuffer::Bind().
+		// The pass clears its depth and draws at its size.
 		void Render(const Scene& scene, const Framebuffer& target, const glm::mat4& lightVP);
 
 	private:
 		void BindSkin(const RenderObject& object);
 
 		Shader m_Shader;
-		uint32_t m_JointBuffer = 0;
-		uint32_t m_InstanceBuffer = 0;   // the matrices of one instanced draw
+		RHI::BufferHandle m_JointBuffer;
+		RHI::BufferHandle m_InstanceBuffer;   // the matrices of one instanced draw
+		RHI::PipelineHandle m_Pipeline;       // depth test and writes, polygon offset
+		RHI::PipelineHandle m_End;            // the polygon offset off again for the passes after
 	};
 }
