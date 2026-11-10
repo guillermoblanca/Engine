@@ -715,7 +715,7 @@
       "to": "settle_grade"
     },
     {
-      "from": "settle_sites",
+      "from": "settle_routes",
       "fromPort": "sites",
       "port": "sites",
       "to": "settle_grade"

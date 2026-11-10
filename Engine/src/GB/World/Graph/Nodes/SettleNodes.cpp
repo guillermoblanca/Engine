@@ -129,7 +129,7 @@ namespace GB
 		s.Inputs = { { "height", TgPortKind::Field }, { "water", TgPortKind::Water, true, "lakes (forbidden) and river (only at a ford)" },
 			{ "sites", TgPortKind::Paths, false, "settlement_sites: sites" } };
 		s.Outputs = { { "trails", TgPortKind::Paths }, { "trail_info", TgPortKind::Paths }, { "path", TgPortKind::Field },
-			{ "fords", TgPortKind::Paths }, { "cols", TgPortKind::Paths } };
+			{ "fords", TgPortKind::Paths }, { "cols", TgPortKind::Paths }, { "sites", TgPortKind::Paths } };
 		s.Params = {
 			{ "Cell", d.Cell, 1, 30, false, "metres between the samples of the routing grid" },
 			{ "MaxGrade", d.MaxGrade, 0.02, 0.5, false, "rise per run of a trail" },
@@ -155,6 +155,7 @@ namespace GB
 			{ "Spacing", d.Spacing, 0.5, 20, false, "metres between trail points" },
 			{ "Width", d.Width, 0.5, 20, false, "metres of tread" },
 			{ "Fade", d.Fade, 0, 10, false, "metres the mask fades over" },
+			{ "ReachRatio", d.ReachRatio, 0, 20, false, "a site whose cheapest link costs more than this x its straight line is dropped (0: none); the sites kept go out on 'sites'" },
 			{ "Revision", 1, 1, 1, true, "behaviour version (1)" },
 		};
 		return s;
@@ -179,6 +180,7 @@ namespace GB
 		p.ExtraLinks = I(node, "ExtraLinks", d.ExtraLinks); p.WaterSpurMax = F(node, "WaterSpurMax", d.WaterSpurMax); p.ColBasinShare = F(node, "ColBasinShare", d.ColBasinShare);
 		p.MaxCols = I(node, "MaxCols", d.MaxCols); p.ColSpurMax = F(node, "ColSpurMax", d.ColSpurMax); p.FordSpurMax = F(node, "FordSpurMax", d.FordSpurMax);
 		p.Spacing = F(node, "Spacing", d.Spacing); p.Width = F(node, "Width", d.Width); p.Fade = F(node, "Fade", d.Fade);
+		p.ReachRatio = F(node, "ReachRatio", d.ReachRatio);
 		RouteResult r = PlanRoutes(height->Field, water ? &water->Water : nullptr, sites, p);
 		TgPaths geometry, info;
 		EncodeTrails(r.Trails, geometry, info);
@@ -187,6 +189,7 @@ namespace GB
 		FieldOut(outputs, "path", height->Field, std::move(r.Path));
 		PathsOut(outputs, "fords", EncodeFords(r.Fords));
 		PathsOut(outputs, "cols", EncodeCols(r.Cols));
+		PathsOut(outputs, "sites", EncodeSites(r.Sites));
 		return true;
 	}
 

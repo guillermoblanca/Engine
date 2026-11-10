@@ -541,7 +541,7 @@ namespace GB
 		}
 	}
 
-	RouteResult PlanRoutes(const TgField& height, const WaterField* water, const std::vector<SettlementSite>& sites, const RouteParams& P)
+	static RouteResult PlanRoutesOnce(const TgField& height, const WaterField* water, const std::vector<SettlementSite>& sites, const RouteParams& P)
 	{
 		RouteResult out;
 		const uint32_t n = height.N;
@@ -891,6 +891,45 @@ namespace GB
 		for (size_t c = 0; c < count; ++c)
 			if (hits[c].Trail >= 0) out.Path[c] = 1.0f - Smoothstep(0.5f * P.Width, 0.5f * P.Width + P.Fade, hits[c].Distance);
 		return out;
+	}
+
+	RouteResult PlanRoutes(const TgField& height, const WaterField* water, const std::vector<SettlementSite>& sites, const RouteParams& P)
+	{
+		std::vector<SettlementSite> kept = sites;
+		std::vector<int> index(sites.size());
+		for (size_t s = 0; s < index.size(); ++s) index[s] = static_cast<int>(s);
+		std::vector<int> dropped;
+		for (;;)
+		{
+			RouteResult r = PlanRoutesOnce(height, water, kept, P);
+			size_t worst = kept.size();
+			if (P.ReachRatio > 0.0f && kept.size() > 2)
+			{
+				// each site's cheapest link to the network, per metre of straight line
+				std::vector<float> cheapest(kept.size(), kInf);
+				for (const Trail& t : r.Trails)
+				{
+					if ((t.Kind != TrailKind::Link && t.Kind != TrailKind::Extra) || t.From < 0 || t.To < 0) continue;
+					const size_t a = static_cast<size_t>(t.From), b = static_cast<size_t>(t.To);
+					const float ratio = t.Cost / std::max(glm::distance(kept[a].Position, kept[b].Position), 1.0f);
+					cheapest[a] = std::min(cheapest[a], ratio);
+					cheapest[b] = std::min(cheapest[b], ratio);
+				}
+				float worstRatio = P.ReachRatio;
+				for (size_t s = 0; s < kept.size(); ++s)   // (a tie goes to the later site: the lower score)
+					if (cheapest[s] != kInf && cheapest[s] > P.ReachRatio && cheapest[s] >= worstRatio) { worstRatio = cheapest[s]; worst = s; }
+			}
+			if (worst == kept.size())
+			{
+				for (size_t s = 0; s < kept.size(); ++s) kept[s].Rank = static_cast<int>(s);
+				r.Sites = std::move(kept);
+				r.Dropped = std::move(dropped);
+				return r;
+			}
+			dropped.push_back(index[worst]);
+			kept.erase(kept.begin() + static_cast<std::ptrdiff_t>(worst));
+			index.erase(index.begin() + static_cast<std::ptrdiff_t>(worst));
+		}
 	}
 
 	// ------------------------------------------------------------------ 3. levelling

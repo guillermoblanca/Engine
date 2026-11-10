@@ -320,7 +320,7 @@ namespace
 		g.Edges.push_back({ "settle_sites", "settle_routes", "sites", "sites" });
 		g.Edges.push_back({ from, "settle_grade", "height", fromPort });
 		g.Edges.push_back({ water, "settle_grade", "water", waterPort });
-		g.Edges.push_back({ "settle_sites", "settle_grade", "sites", "sites" });
+		g.Edges.push_back({ "settle_routes", "settle_grade", "sites", "sites" });   // the sites the reach kept
 		g.Edges.push_back({ "settle_routes", "settle_grade", "trails", "trails" });
 		g.Edges.push_back({ "settle_routes", "settle_grade", "trail_info", "trail_info" });
 		g.Edges.push_back({ "settle_routes", "settle_grade", "fords", "fords" });
@@ -1017,6 +1017,18 @@ namespace
 		std::vector<Ford> fords;
 		std::vector<Col> cols;
 		DecodeSites(G.at("sites").Paths, sites);
+		if (const auto sn = r.Nodes.find("settle_sites"); sn != r.Nodes.end())
+		{
+			// the candidates the reach of route_network dropped
+			std::vector<SettlementSite> picked;
+			DecodeSites(sn->second.at("sites").Paths, picked);
+			std::printf("  reach: %zu of %zu sites kept;", sites.size(), picked.size());
+			for (const SettlementSite& c : picked)
+				if (std::none_of(sites.begin(), sites.end(), [&](const SettlementSite& k) { return glm::distance(k.Position, c.Position) < 1.0f; }))
+					std::printf(" dropped (%.0f, %.0f) score %.2f;", c.Position.x, c.Position.y, c.Score);
+			std::printf("\n");
+			js.Num("settle_sites_dropped", static_cast<double>(picked.size() - sites.size()));
+		}
 		DecodeTrails(G.at("trails").Paths, G.at("trail_info").Paths, trails);
 		DecodeFords(G.at("fords").Paths, fords);
 		if (const auto rn = r.Nodes.find("settle_routes"); rn != r.Nodes.end()) DecodeCols(rn->second.at("cols").Paths, cols);
@@ -1088,8 +1100,8 @@ namespace
 				ratioSum += ratio; ratioMax = std::max(ratioMax, ratio); ++links;
 				linkLen += t.Length; linkGood += within * t.Length;
 			}
-			std::printf("    trail %s %d-%d: %.0f m (straight %.0f, x%.2f), within 14 %% on %.1f %% (record %.1f %%), steepest 9 m %.0f %%, cut %.0f m3, fill %.0f m3, %d fords\n",
-				TrailKindName(t.Kind), t.From, t.To, t.Length, t.Straight, t.Length / std::max(t.Straight, 1.0f), 100.0f * within, 100.0f * t.WithinGrade, 100.0f * steepest, t.Cut, t.Fill, t.Fords);
+			std::printf("    trail %s %d-%d: %.0f m (straight %.0f, x%.2f), within 14 %% on %.1f %% (record %.1f %%), steepest 9 m %.0f %%, cut %.0f m3, fill %.0f m3, %d fords, cost x%.2f the straight line\n",
+				TrailKindName(t.Kind), t.From, t.To, t.Length, t.Straight, t.Length / std::max(t.Straight, 1.0f), 100.0f * within, 100.0f * t.WithinGrade, 100.0f * steepest, t.Cut, t.Fill, t.Fords, t.Cost / std::max(t.Straight, 1.0f));
 		}
 		std::vector<int> roots;
 		for (size_t s = 0; s < sites.size(); ++s) roots.push_back(find(static_cast<int>(s)));

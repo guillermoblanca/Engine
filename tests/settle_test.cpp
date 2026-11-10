@@ -195,6 +195,36 @@ int GBTest_settle(int, char**)
 			if (wet.Kinds[c] == WaterRaster::River && graded.Path[c] > 0.5f) shallowest = std::fmin(shallowest, wet.Level[c] - graded.Height[c]);
 		Check(shallowest <= GradeParams{}.FordDepth + 1e-3f, "the built ford is wadeable on the tread");
 	}
+	// reach: two sites on one bank and one across the river, which only the ford joins; the dearest is dropped when its cheapest link
+	// costs more than ReachRatio x its straight line, and the trails index the sites kept
+	{
+		std::vector<SettlementSite> three = two;
+		three.push_back(two[0]);
+		three[2].Position = { -140.0f, 80.0f };
+		three[2].Rank = 2;
+		RouteParams keep = rp;
+		keep.ReachRatio = 0.0f;
+		const RouteResult all = PlanRoutes(river, &riverWater, three, keep);
+		Check(all.Dropped.empty() && all.Sites.size() == 3, "ReachRatio 0 keeps every site");
+		std::vector<float> cheapest(3, 1e30f);
+		for (const Trail& t : all.Trails)
+			if ((t.Kind == TrailKind::Link || t.Kind == TrailKind::Extra) && t.From >= 0 && t.To >= 0)
+			{
+				const float ratio = t.Cost / glm::distance(three[static_cast<size_t>(t.From)].Position, three[static_cast<size_t>(t.To)].Position);
+				cheapest[static_cast<size_t>(t.From)] = std::min(cheapest[static_cast<size_t>(t.From)], ratio);
+				cheapest[static_cast<size_t>(t.To)] = std::min(cheapest[static_cast<size_t>(t.To)], ratio);
+			}
+		Check(cheapest[1] > cheapest[0] && cheapest[1] > cheapest[2], "the site across the river has the dearest cheapest link");
+		RouteParams cut = keep;
+		cut.ReachRatio = 0.5f * (cheapest[1] + std::max(cheapest[0], cheapest[2]));
+		const RouteResult some = PlanRoutes(river, &riverWater, three, cut);
+		Check(some.Dropped.size() == 1 && !some.Dropped.empty() && some.Dropped[0] == 1, "the site across the river is dropped");
+		Check(some.Sites.size() == 2 && some.Sites[0].Rank == 0 && some.Sites[1].Rank == 1 && some.Sites[1].Position == three[2].Position, "the others are kept, ranked again");
+		Check(some.Components == 1 && std::all_of(some.Trails.begin(), some.Trails.end(), [](const Trail& t) { return t.From < 2 && t.To < 2; }), "the trails index the sites kept");
+		RouteParams none = keep;
+		none.ReachRatio = 1.0e-3f;
+		Check(PlanRoutes(river, &riverWater, two, none).Sites.size() == 2, "never fewer than two sites");
+	}
 
 	// ---------------------------------------------------------------- levelling
 	{

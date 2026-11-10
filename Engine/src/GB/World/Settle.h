@@ -150,12 +150,17 @@ namespace GB
 		float Spacing = 3.0f;            // metres between the points of a trail
 		float Width = 4.0f;
 		float Fade = 1.0f;               // the path mask fades to 0 over this past the width
+		// reach: a site whose cheapest link (cost / straight line) is dearer than this is dropped, the dearest first, and the network planned
+		// again without it, down to two sites; 0 keeps every site
+		float ReachRatio = 2.5f;        // (highland valley: kept sites at x1.04-1.48, the sierra bench of seed 5 at x5.4)
 	};
 	struct RouteResult
 	{
 		std::vector<Trail> Trails;
 		std::vector<Ford> Fords;
 		std::vector<Col> Cols;
+		std::vector<SettlementSite> Sites;   // the sites kept (Rank renumbered); the trails' From and To index these
+		std::vector<int> Dropped;            // the input indices of the sites the reach dropped, in the order dropped
 		std::vector<float> Path;         // N*N mask: 1 on the tread, 0 past Width / 2 + Fade
 		int Components = 0;              // groups of sites the trails join (1 = all connected, C1)
 		uint32_t RouteN = 0;
