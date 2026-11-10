@@ -1,5 +1,5 @@
 #include "GB/World/Graph/ITerrainTarget.h"
-#include "GB/World/Terrain.h"
+#include "GB/World/Heightmap.h"
 
 namespace GB
 {

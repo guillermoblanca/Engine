@@ -250,6 +250,8 @@ gb_test(terrain_graph_io terrain_graph_io_test.cpp POOL GBSimTests LINK GB::Sim 
 # The per-node cache of the terrain graph (TerrainGraphCache): only what changed runs again, bit for bit the same result.
 # GB_TGRAPH_BENCH=1 GBSimTests terrain_graph_cache times it on the 3 km highland_valley.
 gb_test(terrain_graph_cache terrain_graph_cache_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
+# GB_WorldGen alone (docs/GRAFO_TERRENO.md 6): a pool that links only GB::WorldGen, so it linking proves the world generation needs nothing above it.
+gb_test(worldgen_graph worldgen_graph_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS rapido)
 gb_test_write_pool_mains()   # (after the last gb_test of a pool)
 
 # Build speed (T50). Every test executable is a few .cpp files, so instead of one precompiled header each (that would cost as much as it saves) they all

@@ -1,6 +1,6 @@
 #include "GB/World/Graph/Nodes/ThermalErosionNode.h"
 #include "GB/World/Graph/TerrainGraph.h"
-#include "GB/World/Terrain.h"
+#include "GB/World/Heightmap.h"
 #include "GB/World/ThermalErosion.h"
 #include <glm/glm.hpp>
 

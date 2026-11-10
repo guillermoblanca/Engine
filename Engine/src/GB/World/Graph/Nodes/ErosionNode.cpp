@@ -1,7 +1,7 @@
 #include "GB/World/Graph/Nodes/ErosionNode.h"
 #include "GB/World/Erosion.h"
 #include "GB/World/Graph/TerrainGraph.h"
-#include "GB/World/Terrain.h"
+#include "GB/World/Heightmap.h"
 #include <glm/glm.hpp>
 
 namespace GB

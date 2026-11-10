@@ -1,7 +1,8 @@
 #pragma once
 #include "GB/World/Water/WaterPresets.h"
 #include "GB/World/Graph/TerrainGraph.h"
-#include "GB/World/Terrain.h"
+#include "GB/World/Heightmap.h"
+#include "GB/World/TerrainParams.h"
 #include <glm/glm.hpp>
 #include <string>
 #include <vector>

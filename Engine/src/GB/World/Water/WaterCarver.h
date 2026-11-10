@@ -2,7 +2,7 @@
 #include "GB/World/Water/LakeOutline.h"
 #include "GB/World/Water/RiverHydraulics.h"
 #include "GB/World/Water/WaterField.h"
-#include "GB/World/Terrain.h"
+#include "GB/World/Heightmap.h"
 #include <glm/glm.hpp>
 #include <vector>
 

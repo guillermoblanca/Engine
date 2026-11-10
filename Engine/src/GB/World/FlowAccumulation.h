@@ -1,5 +1,5 @@
 #pragma once
-#include "GB/World/Terrain.h"
+#include "GB/World/Heightmap.h"
 #include <vector>
 
 namespace GB

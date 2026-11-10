@@ -1,8 +1,8 @@
 #include "GB/World/Graph/Nodes/ScatterNode.h"
 #include "GB/World/Graph/TerrainGraph.h"
-#include "GB/World/Terrain.h"
+#include "GB/World/Heightmap.h"
 #include "GB/World/TerrainNoise.h"
-#include "GB/World/Trees.h"
+#include "GB/World/Scatter.h"
 #include <cmath>
 
 namespace GB

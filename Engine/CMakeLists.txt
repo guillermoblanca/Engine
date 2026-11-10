@@ -15,7 +15,8 @@ target_link_libraries(sqlite3 PUBLIC Threads::Threads)
 # The engine is split by layers (documentation/02_tecnico/arquitectura/ARQUITECTURA_REVISION.md, sections 5.1 and 5.2): each target only links the
 # ones below it, so an include that goes up a layer no longer links. Every target is a static library.
 #   GB_Core     Core, Scene, Input                                  (glm)
-#   GB_Sim      World, Navigation, Assets, Audio, Save, Telemetry,
+#   GB_WorldGen World/Graph, Heightmap, erosions, Water, Scatter    (CPU only, only GB_Core: the generation of a world as data)
+#   GB_Sim      the rest of World, Navigation, Assets, Audio, Save, Telemetry,
 #               Animation, Gameplay, AI, Game, Tools                (CPU only: GBSim and the CPU tests link this, without GL or GLFW)
 #   GB_Render   Renderer, Visual, Effects, Qa                       (glad)
 #   GB_Platform Platform: Window, Input, Application                (glfw)
@@ -29,6 +30,50 @@ add_library(GB_Core STATIC
     src/GB/Core/Log.cpp
     src/GB/Core/Fingerprint.cpp
     src/GB/Scene/Image.cpp)
+
+# GB_WorldGen (L2, CPU only, below GB_Sim): the generation of a world as plain data -- the terrain graph and its nodes (World/Graph), the
+# heightmap, the erosions, the water model and its planner, the scatter and the biome ids (docs/GRAFO_TERRENO.md, section 6). It sees only
+# GB_Core: what it builds is a guarantee of the build, not a convention (a tool or a test that only generates worlds links GB::WorldGen).
+add_library(GB_WorldGen STATIC
+    src/GB/World/Heightmap.cpp
+    src/GB/World/Scatter.cpp
+    src/GB/World/Erosion.cpp
+    src/GB/World/ThermalErosion.cpp
+    src/GB/World/FlowAccumulation.cpp
+    src/GB/World/Water.cpp
+    src/GB/World/Water/WaterField.cpp
+    src/GB/World/Water/WaterCarver.cpp
+    src/GB/World/Water/WaterPresets.cpp
+    src/GB/World/Water/WaterGeometry.cpp
+    src/GB/World/Water/WaterWaves.cpp
+    src/GB/World/Water/RiverHydraulics.cpp
+    src/GB/World/Water/WaterPlanner.cpp
+    src/GB/World/Graph/TerrainGraph.cpp
+    src/GB/World/Graph/TerrainGraphPresets.cpp
+    src/GB/World/Graph/TerrainGraphIO.cpp
+    src/GB/World/Graph/TerrainGraphLibrary.cpp
+    src/GB/World/Graph/TgHash.cpp
+    src/GB/World/Graph/TerrainGraphCache.cpp
+    src/GB/World/Graph/ITerrainNode.cpp
+    src/GB/World/Graph/ITerrainTarget.cpp
+    src/GB/World/Graph/Nodes/OutputNode.cpp
+    src/GB/World/Graph/Nodes/HeightInputNode.cpp
+    src/GB/World/Graph/Nodes/DepressionFillNode.cpp
+    src/GB/World/Graph/Nodes/LakeSiteNode.cpp
+    src/GB/World/Graph/Nodes/LakeBasinNode.cpp
+    src/GB/World/Graph/Nodes/RiverTraceNode.cpp
+    src/GB/World/Graph/Nodes/NoiseNode.cpp
+    src/GB/World/Graph/Nodes/ErosionNode.cpp
+    src/GB/World/Graph/Nodes/ThermalErosionNode.cpp
+    src/GB/World/Graph/Nodes/FlowAccumulationNode.cpp
+    src/GB/World/Graph/Nodes/FieldNodes.cpp
+    src/GB/World/Graph/Nodes/MaskNodes.cpp
+    src/GB/World/Graph/Nodes/WaterCarveNodes.cpp
+    src/GB/World/Graph/Nodes/ValleyNodes.cpp
+    src/GB/World/Graph/Nodes/ScatterNode.cpp
+    src/GB/World/Graph/Nodes/BiomeClassifyNode.cpp
+    src/GB/World/Graph/Nodes/BuiltinNodes.cpp
+    src/GB/World/Biome.cpp)
 
 add_library(GB_Sim STATIC
     src/GB/Game/CharacterController.cpp
@@ -165,46 +210,9 @@ add_library(GB_Sim STATIC
     src/GB/World/Grass.cpp
     src/GB/World/Terrain.cpp
     src/GB/World/Trees.cpp
-    src/GB/World/Water.cpp
     src/GB/World/Physics.cpp
     src/GB/World/Rocks.cpp
-    src/GB/World/Erosion.cpp
-    src/GB/World/ThermalErosion.cpp
-    src/GB/World/FlowAccumulation.cpp
-    src/GB/World/Water/WaterField.cpp
-    src/GB/World/Water/WaterCarver.cpp
-    src/GB/World/Water/WaterPresets.cpp
-    src/GB/World/Water/WaterGeometry.cpp
-    src/GB/World/Water/WaterWaves.cpp
-    src/GB/World/Water/RiverHydraulics.cpp
-    src/GB/World/Water/WaterPlanner.cpp
-    src/GB/World/Graph/TerrainGraph.cpp
-    src/GB/World/Graph/TerrainGraphPresets.cpp
-    src/GB/World/Graph/TerrainGraphIO.cpp
-    src/GB/World/Graph/TerrainGraphLibrary.cpp
-    src/GB/World/Graph/TgHash.cpp
-    src/GB/World/Graph/TerrainGraphCache.cpp
-    src/GB/World/Graph/ITerrainNode.cpp
-    src/GB/World/Graph/ITerrainTarget.cpp
-    src/GB/World/Graph/Nodes/OutputNode.cpp
-    src/GB/World/Graph/Nodes/HeightInputNode.cpp
-    src/GB/World/Graph/Nodes/DepressionFillNode.cpp
-    src/GB/World/Graph/Nodes/LakeSiteNode.cpp
-    src/GB/World/Graph/Nodes/LakeBasinNode.cpp
-    src/GB/World/Graph/Nodes/RiverTraceNode.cpp
-    src/GB/World/Graph/Nodes/NoiseNode.cpp
-    src/GB/World/Graph/Nodes/ErosionNode.cpp
-    src/GB/World/Graph/Nodes/ThermalErosionNode.cpp
-    src/GB/World/Graph/Nodes/FlowAccumulationNode.cpp
-    src/GB/World/Graph/Nodes/FieldNodes.cpp
-    src/GB/World/Graph/Nodes/MaskNodes.cpp
-    src/GB/World/Graph/Nodes/WaterCarveNodes.cpp
-    src/GB/World/Graph/Nodes/ValleyNodes.cpp
-    src/GB/World/Graph/Nodes/ScatterNode.cpp
-    src/GB/World/Graph/Nodes/BiomeClassifyNode.cpp
-    src/GB/World/Graph/Nodes/BuiltinNodes.cpp
     src/GB/World/Destruction.cpp
-    src/GB/World/Biome.cpp
     src/GB/World/WorldGen.cpp
     src/GB/World/WorldGenLegacy.cpp
     src/GB/Assets/ModelInstance.cpp)
@@ -258,6 +266,7 @@ add_library(GB_Platform STATIC
     src/GB/Platform/Window.cpp)
 
 add_library(GB::Core ALIAS GB_Core)
+add_library(GB::WorldGen ALIAS GB_WorldGen)
 add_library(GB::Sim ALIAS GB_Sim)
 add_library(GB::Render ALIAS GB_Render)
 add_library(GB::Platform ALIAS GB_Platform)
@@ -270,8 +279,12 @@ target_link_libraries(GB_Core PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 target_link_libraries(GB_Core PRIVATE spdlog::spdlog)
 target_include_directories(GB_Core SYSTEM PRIVATE ${stb_SOURCE_DIR} ${json_SOURCE_DIR}/include)
 
+# GB_WorldGen: only GB_Core (glm); json (TerrainGraphIO.cpp) is private.
+target_link_libraries(GB_WorldGen PUBLIC GB_Core)
+target_include_directories(GB_WorldGen SYSTEM PRIVATE ${json_SOURCE_DIR}/include)
+
 # GB_Sim (L2-L4, CPU only): what GBSim and the CPU tests link. No glad, no glfw, no imgui.
-target_link_libraries(GB_Sim PUBLIC GB_Core)
+target_link_libraries(GB_Sim PUBLIC GB_WorldGen)
 target_link_libraries(GB_Sim PRIVATE ufbx sqlite3)
 target_include_directories(GB_Sim SYSTEM PRIVATE ${cgltf_SOURCE_DIR} ${json_SOURCE_DIR}/include ${miniaudio_SOURCE_DIR})
 # the game's data (ShippedContent.h): the catalogue is read from here unless the application says otherwise
@@ -287,7 +300,7 @@ target_include_directories(GB_Render SYSTEM PRIVATE ${stb_SOURCE_DIR} ${json_SOU
 target_link_libraries(GB_Platform PUBLIC GB_Render)
 target_link_libraries(GB_Platform PRIVATE glad glfw)
 
-foreach(gb_target GB_Core GB_Sim GB_Render GB_Platform)
+foreach(gb_target GB_Core GB_WorldGen GB_Sim GB_Render GB_Platform)
     gb_parallel_compile(${gb_target})
     if(MSVC)
         target_compile_options(${gb_target} PRIVATE /W4 /permissive-)
@@ -311,6 +324,7 @@ set(GB_PCH_GLM <glm/glm.hpp> <glm/gtc/matrix_transform.hpp> <glm/gtc/quaternion.
 set(GB_PCH_STD ${GB_PCH_STD} PARENT_SCOPE)   # (the Editor reuses the list)
 set(GB_PCH_GLM ${GB_PCH_GLM} PARENT_SCOPE)
 target_precompile_headers(GB_Core PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})
+target_precompile_headers(GB_WorldGen PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})
 target_precompile_headers(GB_Sim PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM} <nlohmann/json.hpp>)   # json: about 40 of its .cpp files read data
 target_precompile_headers(GB_Render PRIVATE ${GB_PCH_STD} ${GB_PCH_GLM})                   # no glad: GL stays in the .cpp files that use it
 # GB_Platform has three .cpp files: building a PCH would cost about as much as it saves.

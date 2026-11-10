@@ -2,7 +2,7 @@
 #include "GB/World/Water/WaterCarver.h"
 #include "GB/World/Water/WaterPlanner.h"
 #include "GB/World/Graph/TerrainGraph.h"
-#include "GB/World/Terrain.h"
+#include "GB/World/Heightmap.h"
 
 namespace GB
 {

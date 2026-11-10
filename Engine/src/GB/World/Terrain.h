@@ -5,6 +5,8 @@
 #include <functional>
 #include <glm/glm.hpp>
 #include "GB/World/Water/WaterField.h"
+#include "GB/World/Heightmap.h"
+#include "GB/World/TerrainParams.h"
 #include "GB/World/RiverData.h"
 #include <memory>
 #include <unordered_map>
@@ -12,90 +14,6 @@
 
 namespace GB
 {
-	// Regular grid of heights covering a square of the XZ plane, centered on `Center`.
-	class Heightmap
-	{
-	public:
-		Heightmap(uint32_t resolution, float size, const glm::vec2& center = { 0.0f, 0.0f });
-
-		uint32_t GetResolution() const { return m_Resolution; }   // samples per side
-		float GetSize() const { return m_Size; }                  // meters per side
-		float GetSpacing() const { return m_Size / static_cast<float>(m_Resolution - 1); }
-		glm::vec2 GetMin() const { return m_Center - m_Size * 0.5f; }
-		glm::vec2 GetMax() const { return m_Center + m_Size * 0.5f; }
-		bool Contains(float x, float z) const;
-
-		float& At(uint32_t i, uint32_t j) { return m_Heights[static_cast<size_t>(j) * m_Resolution + i]; }
-		float At(uint32_t i, uint32_t j) const { return m_Heights[static_cast<size_t>(j) * m_Resolution + i]; }
-		glm::vec2 SamplePosition(uint32_t i, uint32_t j) const;   // world x,z of a grid point
-
-		// Bilinear height at a world position; clamps to the border outside the map.
-		float GetHeight(float x, float z) const;
-		// Smooth surface normal (central differences) at a world position.
-		glm::vec3 GetNormal(float x, float z) const;
-		float GetMinHeight() const;
-		float GetMaxHeight() const;
-
-	private:
-		uint32_t m_Resolution;
-		float m_Size;
-		glm::vec2 m_Center;
-		std::vector<float> m_Heights;
-	};
-
-	enum class TerrainStyle { Desert, Snow, Meadow };
-
-	struct DuneParams
-	{
-		uint32_t Seed = 1;
-		float WindAngleDegrees = 30.0f;   // direction the wind blows toward, measured from +X toward +Z
-		float Wavelength = 45.0f;         // meters between crests along the wind
-		float Height = 6.0f;              // typical crest height above the trough
-		float CrestPosition = 0.78f;      // fraction of the wavelength taken by the gentle windward slope
-		float CrestSharpness = 0.55f;     // 0 = rounded cosine crest, 1 = knife edge
-		float Warp = 0.5f;                // how much the crest lines meander (in wavelengths)
-		float WarpScale = 110.0f;         // meters; size of the meanders
-		float SizeVariation = 0.45f;      // some dunes are taller than others
-		float BaseHills = 2.5f;           // meters of gentle large-scale undulation underneath
-		// Curvature-driven mesh refinement (there is no shore to drive it here): see HillParams::ShoreSubdivision/DetailThreshold.
-		int DetailSubdivision = 4;
-		float DetailThreshold = 0.08f;
-	};
-
-	struct HillParams
-	{
-		uint32_t Seed = 1;
-		float Height = 14.0f;
-		float Scale = 140.0f;             // meters of the largest features
-		int Octaves = 5;
-		float Flatten = 0.25f;            // pushes valleys flatter (0 = none)
-		// A lake basin carved into the hills (LakeRadius 0 = none). The shore is raised to stay above WaterLevel.
-		glm::vec2 LakeCenter{ 0.0f, 0.0f };
-		float LakeRadius = 0.0f;          // meters of the water edge
-		float LakeDepth = 2.5f;           // meters below WaterLevel at the center
-		float WaterLevel = 1.0f;
-		// Steepest rise of the ground away from the shore (meters per meter, 0 = unlimited). Hills next to the basin are cut down to this
-		// cone, so the lake gets a gentle bank instead of a cliff with a jagged edge.
-		float LakeBankSlope = 0.3f;
-		float LakeIrregularity = 0.0f;    // 0 = a circular shore; up to ~0.25 lobes it, differently for each Seed (GB/World/Water/LakeOutline.h)
-		bool SurfaceMaps = true;          // build the normal and macro color maps (off for a throw-away terrain used only for its heights)
-		// A river carved along these control points (xz, smoothed with a Catmull-Rom spline); it always flows
-		// downhill: the water level only descends along the path. Empty = none.
-		std::vector<glm::vec2> RiverPath;
-		float RiverWidth = 5.0f;          // meters of water
-		float RiverDepth = 1.3f;          // meters below the water level
-		std::vector<float> RiverDischarge;   // relative discharge (0..1) at each RiverPath point: a river that widens and deepens downstream (GB/World/Water/RiverHydraulics.h); empty = uniform
-		// Mesh refinement where the ground meets the water: cells along the lake shore and the river banks are split
-		// ShoreSubdivision x ShoreSubdivision times (smooth cubic surface, 0/1 = off) so the waterline stops looking stepped.
-		int ShoreSubdivision = 4;
-		int ShoreMarginCells = 2;         // extra ring of refined cells around the shore, so the detail has room to fade out
-		// The same refinement, driven by curvature instead of water: a cell is split when its flat bilinear quad would sit more than
-		// this many metres away from the smooth cubic surface through its corners (ridges, gullies, the channels erosion carves --
-		// not the flat ground most of the map actually is). <= 0 = off (shore-only, as before).
-		float DetailThreshold = 0.08f;
-	};
-
-
 	// A layer of the ground's material with a 0..1 weight per sample of the heightmap (row major, resolution^2): what a terrain graph's
 	// "splat_rock"/"splat_snow"/"splat_grass"/"splat_sand"/"splat_dry"/"splat_forest" outputs give (docs/GRAFO_TERRENO.md, 4b). The layers are
 	// painted into the macro colour map over the style's palette, in order (a later layer covers an earlier one); rock also carves its fluting
