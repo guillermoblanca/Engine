@@ -674,7 +674,7 @@ namespace GB::Editor
 			const SetResult r = m_Props.Set(a[0], value);
 			return { r.Ok, r.Message };
 		});
-		c.Register("terrain_graph", "terrain_graph list | preset <name> [temperate|alpine|desert] [seed] [mesh_detail] [size] [resolution] [trees] [rocks] | apply | library | load <id|file.json> | save [id] | export <id> <file.json> | reload | panel [on|off]: builds a world from a terrain graph (docs/GRAFO_TERRENO.md): a preset that ships with the engine or a graph of the library (assets/data/terrain_graphs; loaded into the Terrain Graph panel too), or the graph in the panel (apply). The world type picks the ground's palette and the tree and rock recipes; the graph decides everything else", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("terrain_graph", "terrain_graph list | preset <name> [temperate|alpine|desert] [seed] [mesh_detail] [size] [resolution] [trees] [rocks] | apply | library | load <id|file.json> | save [id] | export <id> <file.json> | reload | preview <node> [port] [map|overlay|both|off] | panel [on|off]: builds a world from a terrain graph (docs/GRAFO_TERRENO.md): a preset that ships with the engine or a graph of the library (assets/data/terrain_graphs; loaded into the Terrain Graph panel too), or the graph in the panel (apply). The world type picks the ground's palette and the tree and rock recipes; the graph decides everything else", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (a.empty() || a[0] == "list")
 			{
@@ -684,7 +684,7 @@ namespace GB::Editor
 			}
 			if (!m_TgUi) m_TgUi = std::make_unique<TerrainGraphUi>();
 			if (a[0] == "panel") { m_ShowTerrainGraph = a.size() < 2 || (a[1] != "off" && a[1] != "0"); return { true, std::string("Terrain Graph panel ") + (m_ShowTerrainGraph ? "shown" : "hidden") }; }
-			if (a[0] == "library" || a[0] == "load" || a[0] == "save" || a[0] == "export" || a[0] == "reload") { std::string message; const bool ok = m_TgUi->Command(a, message); return { ok, message }; }
+			if (a[0] == "library" || a[0] == "load" || a[0] == "save" || a[0] == "export" || a[0] == "reload" || a[0] == "preview") { std::string message; const bool ok = m_TgUi->Command(a, message); return { ok, message }; }
 			WorldDesc d = m_WorldDesc;
 			d.GeneratorVersion = kWorldGeneratorLatest;
 			if (a[0] == "preset")
@@ -1966,6 +1966,9 @@ namespace GB::Editor
 					glm::vec2(static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH)), origin.x, origin.y);
 			}
 			DrawMapOverlay(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // U1: the areas, under the cards
+			if (m_TgUi && m_World.IsBuilt() && m_World.World().TerrainRef)   // the terrain graph's previewed port (TerrainGraphUi::SetPreview)
+				m_TgUi->DrawViewportOverlay(ImGui::GetWindowDrawList(), m_Camera.GetProjection(static_cast<float>(m_ViewportW) / std::max(static_cast<float>(m_ViewportH), 1.0f)) * m_Camera.GetView(),
+					origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), *m_World.World().TerrainRef);
 			DrawBubble(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_Game.Active ? m_Game.Selected : m_FreeSelected);   // over the selected character
 			if (!m_Game.Active) DrawMapPanel();   // (in a game the map is a sheet of the clan book)
 			if (!m_Game.Active)

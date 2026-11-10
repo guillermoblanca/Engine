@@ -4,9 +4,12 @@
 #include "GB/World/Graph/Nodes/BuiltinNodes.h"
 #include "GB/World/Graph/TerrainGraphCache.h"
 #include "GB/World/Graph/TerrainGraphLibrary.h"
+#include <glm/glm.hpp>
 #include <memory>
 #include <string>
 #include <vector>
+
+namespace GB { class Terrain; class Texture2D; }
 
 namespace GB::Editor
 {
@@ -17,6 +20,7 @@ namespace GB::Editor
 	{
 	public:
 		TerrainGraphUi();
+		~TerrainGraphUi();
 		void Draw(bool* open);
 		std::shared_ptr<const TerrainGraph> Graph() const { return m_Graph; }
 		// Replaces the edited graph (a preset, a loaded file).
@@ -35,6 +39,14 @@ namespace GB::Editor
 		// `terrain_graph library | load <id|file.json> | save [id] | export <id> <file.json> | reload`: false when it failed; `message` says what happened.
 		bool Command(const std::vector<std::string>& args, std::string& message);
 
+		// The preview of one port (docs/GRAFO_TERRENO.md 10.5): the value a node gave in the last world built from the panel, read from the cache
+		// (Cache()), as a map in the inspector and/or painted over the terrain in the viewport. A field is coloured from its lowest to its highest
+		// value; placements are dots, paths lines, water the lake's shore and the river. `mode`: map, overlay, both or off.
+		std::string SetPreview(const std::string& node, const std::string& port, const std::string& mode);
+		// Paints the previewed port over the ground (ImGui quads projected with the camera, like the editor's map overlay): `draw` is the viewport
+		// window's draw list, (ox, oy, w, h) its rectangle.
+		void DrawViewportOverlay(ImDrawList* draw, const glm::mat4& viewProj, float ox, float oy, float w, float h, const Terrain& terrain);
+
 	private:
 		void AddNode(const std::string& type, const ImVec2& canvasPosition);
 		std::string UniqueId(const std::string& type) const;
@@ -43,6 +55,9 @@ namespace GB::Editor
 		void Connect(const std::string& from, const std::string& fromPort, TgNode& to, size_t input);
 		void DrawInspector(const std::vector<TgIssue>& issues);
 		void DrawLibraryBar();
+		void DrawPreview();          // the map and the port picker, in the inspector
+		bool RefreshPreview();       // copies the previewed port out of the cache when a newer evaluation left it; false while there is none
+		glm::vec4 PreviewColour(float value) const;   // rgba 0..1 for a field value
 		std::shared_ptr<TerrainGraph> m_Graph;
 		TerrainNodeRegistry m_Registry;
 		TgNodeSchema m_Unknown;
@@ -55,5 +70,17 @@ namespace GB::Editor
 		bool m_LibraryLoaded = false;
 		char m_SaveId[64] = {};
 		std::shared_ptr<TerrainGraphCache> m_Cache = std::make_shared<TerrainGraphCache>();
+		struct Preview
+		{
+			std::string Node, Port;
+			bool Map = true, Overlay = false;
+			uint64_t Generation = ~0ull;     // of the cache, when Value was copied
+			bool Valid = false;
+			TgValue Value;
+			float Min = 0.0f, Max = 1.0f;    // a field's range
+			float Size = 0.0f;               // the footprint of the evaluation (placements, paths and water are drawn in it)
+			glm::vec2 Center{ 0.0f };
+			std::unique_ptr<Texture2D> Texture;   // the field as a 256 x 256 image
+		} m_Preview;
 	};
 }

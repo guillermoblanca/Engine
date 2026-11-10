@@ -1,5 +1,9 @@
 #include "TerrainGraphUi.h"
 #include "GB/World/Graph/TerrainGraphLibrary.h"
+#include "GB/Renderer/Texture.h"
+#include "GB/Scene/Image.h"
+#include "GB/World/Terrain.h"
+#include "SceneEditor.h"
 #include <algorithm>
 #include <filesystem>
 #include <cmath>
@@ -43,6 +47,8 @@ namespace GB::Editor
 		m_Graph->Edges = { { "heightfield_noise", "erosion_hydraulic", "height", "height" }, { "erosion_hydraulic", "output", "in", "height" } };
 		m_Message.clear();
 	}
+
+	TerrainGraphUi::~TerrainGraphUi() = default;
 
 	const TgNodeSchema& TerrainGraphUi::SchemaOf(const std::string& type) const
 	{
@@ -166,7 +172,15 @@ namespace GB::Editor
 			message = error.empty() ? "exported '" + a[1] + "' to " + a[2] : error;
 			return error.empty();
 		}
-		message = "terrain_graph library | load <id|file.json> | save [id] | export <id> <file.json> | reload";
+		if (verb == "preview")
+		{
+			if (a.size() < 2) { message = "usage: terrain_graph preview <node> [port|-] [map|overlay|both|off]"; return false; }
+			if (a[1] == "off") { SetPreview("", "", "off"); message = "preview off"; return true; }
+			error = SetPreview(a[1], a.size() > 2 ? a[2] : std::string(), a.size() > 3 ? a[3] : std::string("map"));
+			message = error.empty() ? "previewing " + m_Preview.Node + "." + m_Preview.Port + (m_Preview.Map ? " (map)" : "") + (m_Preview.Overlay ? " (on the terrain)" : "") : error;
+			return error.empty();
+		}
+		message = "terrain_graph library | load <id|file.json> | save [id] | export <id> <file.json> | reload | preview <node> [port] [map|overlay|both|off]";
 		return false;
 	}
 
@@ -203,6 +217,235 @@ namespace GB::Editor
 		}
 		ImGui::SameLine();
 		ImGui::TextDisabled("graph: %s", m_Graph->Id.c_str());
+	}
+
+	std::string TerrainGraphUi::SetPreview(const std::string& node, const std::string& port, const std::string& mode)
+	{
+		if (mode == "off") { m_Preview.Map = m_Preview.Overlay = false; return {}; }
+		const TgNode* n = m_Graph->FindNode(node);
+		if (!n) return "no node '" + node + "' in the panel's graph";
+		const TgNodeSchema& s = SchemaOf(n->Type);
+		std::string p = port;
+		if (p.empty() || p == "-") p = s.Outputs.empty() ? std::string("out") : s.Outputs[0].Name;
+		if (s.OutputIndex(p) < 0) return "node '" + node + "' has no output '" + p + "'";
+		m_Preview.Node = node;
+		m_Preview.Port = p;
+		m_Preview.Map = mode.empty() || mode == "map" || mode == "both";
+		m_Preview.Overlay = mode == "overlay" || mode == "both";
+		m_Preview.Generation = ~0ull;   // read it again
+		m_Preview.Valid = false;
+		SelNode = node;
+		return {};
+	}
+
+	glm::vec4 TerrainGraphUi::PreviewColour(float value) const
+	{
+		// a ramp from deep blue (lowest) through teal and green to yellow and white (highest)
+		static const glm::vec3 kRamp[] = { { 0.10f, 0.12f, 0.45f }, { 0.10f, 0.50f, 0.60f }, { 0.25f, 0.70f, 0.30f }, { 0.95f, 0.85f, 0.25f }, { 1.0f, 1.0f, 1.0f } };
+		const float span = m_Preview.Max - m_Preview.Min;
+		const float t = span > 1e-12f ? std::clamp((value - m_Preview.Min) / span, 0.0f, 1.0f) : 0.5f;
+		const float f = t * 4.0f;
+		const int i = std::min(3, static_cast<int>(f));
+		return glm::vec4(glm::mix(kRamp[i], kRamp[i + 1], f - static_cast<float>(i)), 1.0f);
+	}
+
+	bool TerrainGraphUi::RefreshPreview()
+	{
+		if (m_Preview.Node.empty()) return false;
+		const uint64_t generation = m_Cache->Generation();
+		if (generation == m_Preview.Generation) return m_Preview.Valid;
+		TgValue value;
+		if (!m_Cache->TryCopyOutput(m_Preview.Node, m_Preview.Port, value)) { m_Preview.Valid = false; return false; }   // (busy: try next frame)
+		m_Preview.Generation = generation;
+		m_Preview.Value = std::move(value);
+		m_Preview.Valid = true;
+		m_Cache->Footprint(m_Preview.Size, m_Preview.Center);
+		m_Preview.Texture.reset();
+		if (m_Preview.Value.Kind == TgPortKind::Field && !m_Preview.Value.Field.Values.empty())
+		{
+			const TgField& f = m_Preview.Value.Field;
+			const auto [lo, hi] = std::minmax_element(f.Values.begin(), f.Values.end());
+			m_Preview.Min = *lo;
+			m_Preview.Max = *hi;
+			m_Preview.Size = f.Size;
+			m_Preview.Center = f.Center;
+			constexpr uint32_t kSide = 256;
+			Image image;
+			image.Width = image.Height = kSide;
+			image.Pixels.resize(static_cast<size_t>(kSide) * kSide * 4);
+			for (uint32_t y = 0; y < kSide; ++y)
+				for (uint32_t x = 0; x < kSide; ++x)
+				{
+					// +x to the right and row 0 the smallest z: the map as the default camera (yaw 0, looking down -z) sees the world
+					const uint32_t i = std::min(f.N - 1, x * f.N / kSide), j = std::min(f.N - 1, y * f.N / kSide);
+					const glm::vec4 c = PreviewColour(f.At(i, j));
+					uint8_t* px = &image.Pixels[(static_cast<size_t>(y) * kSide + x) * 4];
+					px[0] = static_cast<uint8_t>(c.r * 255.0f); px[1] = static_cast<uint8_t>(c.g * 255.0f); px[2] = static_cast<uint8_t>(c.b * 255.0f); px[3] = 255;
+				}
+			m_Preview.Texture = std::make_unique<Texture2D>(image, TextureEncoding::Linear);
+		}
+		return true;
+	}
+
+	void TerrainGraphUi::DrawPreview()
+	{
+		ImGui::Separator();
+		ImGui::Text("Preview");
+		if (TgNode* node = m_Graph->FindNode(SelNode))
+		{
+			const TgNodeSchema& s = SchemaOf(node->Type);
+			for (const TgPortInfo& port : s.Outputs)
+			{
+				const bool on = m_Preview.Node == node->Id && m_Preview.Port == port.Name && (m_Preview.Map || m_Preview.Overlay);
+				if (ImGui::RadioButton((port.Name + "##preview").c_str(), on))
+					SetPreview(node->Id, port.Name, m_Preview.Overlay ? (m_Preview.Map ? "both" : "overlay") : "map");
+				ImGui::SameLine();
+			}
+			ImGui::NewLine();
+		}
+		ImGui::Checkbox("map", &m_Preview.Map);
+		ImGui::SameLine();
+		ImGui::Checkbox("on the terrain", &m_Preview.Overlay);
+		if (m_Preview.Node.empty()) { ImGui::TextDisabled("pick an output of the selected node"); return; }
+		if (!RefreshPreview())
+		{
+			ImGui::TextDisabled("%s.%s: no value yet (Apply / Regenerate builds the world from the panel)", m_Preview.Node.c_str(), m_Preview.Port.c_str());
+			return;
+		}
+		const TgValue& v = m_Preview.Value;
+		ImGui::TextDisabled("%s.%s (%s)", m_Preview.Node.c_str(), m_Preview.Port.c_str(), TgPortKindName(v.Kind));
+		if (v.Kind == TgPortKind::Field) ImGui::TextDisabled("%u x %u, %.4g .. %.4g", v.Field.N, v.Field.N, static_cast<double>(m_Preview.Min), static_cast<double>(m_Preview.Max));
+		if (v.Kind == TgPortKind::Placements) ImGui::TextDisabled("%zu placements", v.Placements.Items.size());
+		if (v.Kind == TgPortKind::Paths) ImGui::TextDisabled("%zu paths", v.Paths.Items.size());
+		if (!m_Preview.Map || m_Preview.Size <= 0.0f) return;
+		const float side = std::max(64.0f, std::min(ImGui::GetContentRegionAvail().x, 300.0f));
+		const ImVec2 a = ImGui::GetCursorScreenPos(), b(a.x + side, a.y + side);
+		ImDrawList* draw = ImGui::GetWindowDrawList();
+		if (m_Preview.Texture)
+			draw->AddImage(static_cast<ImTextureID>(static_cast<intptr_t>(m_Preview.Texture->GetID())), a, b);
+		else draw->AddRectFilled(a, b, IM_COL32(30, 34, 40, 255));
+		const glm::vec2 min = m_Preview.Center - m_Preview.Size * 0.5f;
+		auto toMap = [&](const glm::vec2& p) { return ImVec2(a.x + (p.x - min.x) / m_Preview.Size * side, a.y + (p.y - min.y) / m_Preview.Size * side); };
+		if (v.Kind == TgPortKind::Placements)
+		{
+			const size_t step = std::max<size_t>(1, v.Placements.Items.size() / 6000);
+			for (size_t i = 0; i < v.Placements.Items.size(); i += step) draw->AddCircleFilled(toMap(v.Placements.Items[i].Position), 1.5f, IM_COL32(150, 230, 110, 255), 4);
+		}
+		if (v.Kind == TgPortKind::Paths)
+			for (const TgPath& path : v.Paths.Items)
+			{
+				std::vector<ImVec2> points;
+				for (const glm::vec2& p : path.Points) points.push_back(toMap(p));
+				if (points.size() == 1) draw->AddCircle(points[0], 5.0f, IM_COL32(240, 180, 90, 255), 12, 2.0f);
+				else if (points.size() > 1) draw->AddPolyline(points.data(), static_cast<int>(points.size()), IM_COL32(240, 180, 90, 255), 0, 2.0f);
+			}
+		if (v.Kind == TgPortKind::Water)
+		{
+			if (v.Water.HasLake())
+			{
+				const LakeBody& lake = v.Water.Lake();
+				std::vector<ImVec2> shore;
+				for (int i = 0; i < 64; ++i)
+				{
+					const float t = 6.2831853f * static_cast<float>(i) / 64.0f;
+					shore.push_back(toMap(lake.Center + glm::vec2(std::cos(t), std::sin(t)) * lake.Radius * lake.Outline.RadiusFactor(t)));
+				}
+				draw->AddConvexPolyFilled(shore.data(), static_cast<int>(shore.size()), IM_COL32(60, 150, 230, 200));
+			}
+			if (const RiverData* river = v.Water.River())
+			{
+				std::vector<ImVec2> points;
+				for (const glm::vec3& p : river->Points) points.push_back(toMap(glm::vec2(p.x, p.z)));
+				if (points.size() > 1) draw->AddPolyline(points.data(), static_cast<int>(points.size()), IM_COL32(60, 150, 230, 255), 0, 2.0f);
+			}
+		}
+		draw->AddRect(a, b, IM_COL32(90, 90, 100, 255));
+		ImGui::Dummy(ImVec2(side, side));
+	}
+
+	void TerrainGraphUi::DrawViewportOverlay(ImDrawList* draw, const glm::mat4& viewProj, float ox, float oy, float w, float h, const Terrain& terrain)
+	{
+		if (!m_Preview.Overlay || !RefreshPreview()) return;
+		const TgValue& v = m_Preview.Value;
+		const float lift = 0.4f + m_Preview.Size * 0.0004f;   // over the ground, so the quads are not hidden in it
+		auto screen = [&](const glm::vec2& p, ImVec2& out)
+		{
+			glm::vec2 s;
+			if (!ProjectToScreen(viewProj, glm::vec3(p.x, terrain.GetHeight(p.x, p.y) + lift, p.y), glm::vec2(w, h), s)) return false;
+			out = ImVec2(ox + s.x, oy + s.y);
+			return true;
+		};
+		if (v.Kind == TgPortKind::Field && v.Field.N > 1)
+		{
+			// the field over its footprint as a grid of translucent quads (at most 72 x 72: the draw list stays small whatever the field's size)
+			const TgField& f = v.Field;
+			const int cells = static_cast<int>(std::min<uint32_t>(72, f.N - 1));
+			const float cell = f.Size / static_cast<float>(cells);
+			const glm::vec2 min = f.Min();
+			std::vector<ImVec2> corner(static_cast<size_t>(cells + 1) * (cells + 1));
+			std::vector<char> ok(corner.size());
+			for (int j = 0; j <= cells; ++j)
+				for (int i = 0; i <= cells; ++i)
+				{
+					const size_t k = static_cast<size_t>(j) * (cells + 1) + i;
+					ok[k] = screen(min + glm::vec2(static_cast<float>(i), static_cast<float>(j)) * cell, corner[k]) ? 1 : 0;
+				}
+			for (int j = 0; j < cells; ++j)
+				for (int i = 0; i < cells; ++i)
+				{
+					const size_t k00 = static_cast<size_t>(j) * (cells + 1) + i, k10 = k00 + 1, k01 = k00 + cells + 1, k11 = k01 + 1;
+					if (!ok[k00] || !ok[k10] || !ok[k01] || !ok[k11]) continue;
+					const glm::vec2 centre = min + (glm::vec2(static_cast<float>(i), static_cast<float>(j)) + 0.5f) * cell;
+					const glm::vec4 c = PreviewColour(f.Sample(centre.x, centre.y));
+					draw->AddQuadFilled(corner[k00], corner[k10], corner[k11], corner[k01],
+						IM_COL32(static_cast<int>(c.r * 255.0f), static_cast<int>(c.g * 255.0f), static_cast<int>(c.b * 255.0f), 120));
+				}
+			return;
+		}
+		if (v.Kind == TgPortKind::Placements)
+		{
+			const size_t step = std::max<size_t>(1, v.Placements.Items.size() / 4000);
+			for (size_t i = 0; i < v.Placements.Items.size(); i += step)
+			{
+				ImVec2 s;
+				if (screen(v.Placements.Items[i].Position, s)) draw->AddCircleFilled(s, 3.0f, IM_COL32(150, 230, 110, 230), 6);
+			}
+			return;
+		}
+		auto line = [&](const std::vector<glm::vec2>& points, ImU32 colour)
+		{
+			std::vector<ImVec2> run;
+			for (const glm::vec2& p : points)
+			{
+				ImVec2 s;
+				if (screen(p, s)) { run.push_back(s); continue; }
+				if (run.size() > 1) draw->AddPolyline(run.data(), static_cast<int>(run.size()), colour, 0, 3.0f);
+				run.clear();
+			}
+			if (run.size() > 1) draw->AddPolyline(run.data(), static_cast<int>(run.size()), colour, 0, 3.0f);
+		};
+		if (v.Kind == TgPortKind::Paths)
+			for (const TgPath& path : v.Paths.Items) line(path.Points, IM_COL32(240, 180, 90, 255));
+		if (v.Kind == TgPortKind::Water)
+		{
+			if (v.Water.HasLake())
+			{
+				const LakeBody& lake = v.Water.Lake();
+				std::vector<glm::vec2> shore;
+				for (int i = 0; i <= 96; ++i)
+				{
+					const float t = 6.2831853f * static_cast<float>(i) / 96.0f;
+					shore.push_back(lake.Center + glm::vec2(std::cos(t), std::sin(t)) * lake.Radius * lake.Outline.RadiusFactor(t));
+				}
+				line(shore, IM_COL32(60, 150, 230, 255));
+			}
+			if (const RiverData* river = v.Water.River())
+			{
+				std::vector<glm::vec2> axis;
+				for (const glm::vec3& p : river->Points) axis.push_back(glm::vec2(p.x, p.z));
+				line(axis, IM_COL32(60, 150, 230, 255));
+			}
+		}
 	}
 
 	bool TerrainGraphUi::ConsumeApplyRequest()
@@ -522,6 +765,7 @@ namespace GB::Editor
 			}
 		}
 		else ImGui::TextDisabled("Select a node");
+		DrawPreview();
 		ImGui::Separator();
 		ImGui::Text("Validation");
 		if (issues.empty()) ImGui::TextColored(ImVec4(0.5f, 0.9f, 0.5f, 1.0f), "Graph is valid");
