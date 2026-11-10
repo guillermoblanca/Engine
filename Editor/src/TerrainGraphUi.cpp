@@ -106,6 +106,7 @@ namespace GB::Editor
 	{
 		*m_Graph = graph;
 		std::snprintf(m_SaveId, sizeof m_SaveId, "%s", graph.Id.c_str());
+		PinPreview();   // (a build from this graph may come before the panel is drawn: `terrain_graph preset`)
 		ResetCanvasInteraction();
 		m_Message = "Loaded " + (graph.Name.empty() ? graph.Id : graph.Name);
 		m_MessageError = false;
@@ -256,7 +257,9 @@ namespace GB::Editor
 		m_Preview.Texture.reset();
 		m_Preview.Valid = false;
 		m_Preview.Source = nullptr;
+		m_Preview.Target.clear();
 		m_Preview.Generation = ~0ull;
+		PinPreview();
 	}
 
 	uint64_t TerrainGraphUi::GraphKey() const
@@ -349,6 +352,16 @@ namespace GB::Editor
 		}
 	}
 
+	void TerrainGraphUi::PinPreview()
+	{
+		// the budget never drops what the map shows (the published height is a pass-through, the cheapest entry per byte there is); set on the
+		// caches of now, which ReleaseMemory replaces, before a build fills them
+		std::string node, port;
+		if (!PreviewTarget(node, port)) node.clear();
+		m_Cache->SetPinned(node);
+		m_Quick.Cache->SetPinned(node);
+	}
+
 	bool TerrainGraphUi::PreviewTarget(std::string& node, std::string& port) const
 	{
 		if (!m_Preview.Node.empty()) { node = m_Preview.Node; port = m_Preview.Port; return true; }
@@ -408,6 +421,7 @@ namespace GB::Editor
 		m_Preview.Generation = ~0ull;   // read it again
 		m_Preview.Valid = false;
 		SelNode = node;
+		PinPreview();
 		return {};
 	}
 
@@ -426,6 +440,7 @@ namespace GB::Editor
 	{
 		std::string node, port;
 		if (!PreviewTarget(node, port)) return false;
+		PinPreview();
 		// the newer of the two evaluations: the quick one while the graph is being edited, the full one once a build finished after it
 		const bool quick = m_Quick.ShownKey != 0 && m_Quick.Last.Ok && m_Quick.Done > m_Quick.FullDone;
 		TerrainGraphCache* source = quick ? m_Quick.Cache.get() : m_Cache.get();
@@ -439,7 +454,6 @@ namespace GB::Editor
 			if (target != m_Preview.Target) m_Preview.Valid = false;   // (the same port keeps showing what it showed)
 			return m_Preview.Valid;
 		}
-		if (target != m_Preview.Target) { m_Cache->SetPinned(node); m_Quick.Cache->SetPinned(node); }
 		m_Preview.Source = source;
 		m_Preview.Target = target;
 		m_Preview.Generation = generation;

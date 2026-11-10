@@ -70,6 +70,7 @@ namespace GB::Editor
 		void UpdateQuick();
 		uint64_t GraphKey() const;   // what decides the graph's result (types, sources, parameters, edges; not labels nor positions)
 		bool PreviewTarget(std::string& node, std::string& port) const;   // the picked port, else the output publishing "height"
+		void PinPreview();           // keeps PreviewTarget's node out of the byte budget of both caches
 		std::string QuickStatus() const;
 		glm::vec4 PreviewColour(float value) const;   // rgba 0..1 for a field value
 		std::shared_ptr<TerrainGraph> m_Graph;
