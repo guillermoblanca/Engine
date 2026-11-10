@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Renderer/RHI/RHI.h"
 #include <cstdint>
+#include <glm/glm.hpp>
 
 namespace GB
 {
@@ -29,6 +30,17 @@ namespace GB
 		uint32_t GetBuffer() const { return GetHandle().Id; }   // the device's id (0: no blades)
 		RHI::BufferHandle GetHandle() const;
 		const GrassField& GetField() const { return *m_Field; }
+
+		// T46: how the field's blades take the light, the PBR foliage layer's terms (Material::Translucency...; MATERIALES.md, "Follaje").
+		// A render value, not the field's (GrassParams is the world's): whoever owns the GrassGpu sets it. All 0: the grass as before.
+		struct Look
+		{
+			float Translucency = 0.0f;                         // the sun through the blades, on top of their own back light
+			glm::vec3 TransmissionTint{ 0.85f, 1.0f, 0.42f };  // times the blade's colour
+			float ColorVariation = 0.0f;                       // hue, saturation and brightness by clumps of ~0.6 m
+			float MacroVariation = 0.0f;                       // low-frequency world patches, yellowish to olive
+		};
+		Look Shading;
 
 	private:
 		const GrassField* m_Field = nullptr;

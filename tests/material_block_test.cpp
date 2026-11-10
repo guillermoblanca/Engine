@@ -84,6 +84,28 @@ namespace
 		GB::Material opaquePlain = opaqueIce;
 		opaquePlain.InteriorMap = nullptr; opaquePlain.Scatter = 0.0f; opaquePlain.ShadowDensity = 0.0f; opaquePlain.Transmission = 0.0f;
 		Check(GB::PackMaterial(opaqueIce, context) == GB::PackMaterial(opaquePlain, context), "the T101 values on an opaque material pack nothing (same bytes)");
+		// T46: the foliage layer packs only with one of its values on; the tint alone (its default is not zero) changes nothing
+		GB::Material tintOnly = a;
+		tintOnly.TransmissionTint = { 0.3f, 0.6f, 0.9f };
+		tintOnly.AlphaMipScale = 0.3f;   // (masked only: on an opaque material it is nothing)
+		Check(GB::PackMaterial(tintOnly, context) == GB::PackMaterial(a, context), "the foliage tint and the alpha mip scale of an opaque material pack nothing (same bytes)");
+		GB::Material leaf = a;
+		leaf.Alpha = GB::AlphaMode::Mask;
+		leaf.Translucency = 0.7f; leaf.TransmissionTint = { 0.8f, 1.0f, 0.4f }; leaf.ColorVariation = 0.5f; leaf.NormalBlend = 0.4f;
+		leaf.MacroVariation = 0.25f; leaf.AlphaMipScale = 0.3f;
+		const GB::MaterialData fl = GB::PackMaterial(leaf, context).Data;
+		Check((fl.Flags.x & GB::MaterialData::LayerFoliage) != 0 && fl.Layer[GB::MaterialData::SlotFoliage] == glm::vec4(0.8f, 1.0f, 0.4f, 0.7f) &&
+			fl.Layer[GB::MaterialData::SlotFoliageExtra] == glm::vec4(0.5f, 0.4f, 0.25f, 0.3f), "a foliage material packs its bit, tint, translucency, variation, blend and mip scale");
+		GB::Material blendLeaf = leaf;
+		blendLeaf.Alpha = GB::AlphaMode::Blend;   // the translucent pass draws with the base program only
+		Check(GB::FoliageOn(leaf) && !GB::FoliageOn(blendLeaf) && (GB::PackMaterial(blendLeaf, context).Data.Flags.x & GB::MaterialData::LayerFoliage) == 0 &&
+			GB::PackMaterial(blendLeaf, context).Data.Layer[GB::MaterialData::SlotFoliage] == glm::vec4(0.0f), "a Blend material keeps its foliage values but not the layer");
+		GB::Material mipOnly = a;
+		mipOnly.Alpha = GB::AlphaMode::Mask;
+		mipOnly.AlphaMipScale = 0.25f;
+		const GB::MaterialData mo = GB::PackMaterial(mipOnly, context).Data;
+		Check((mo.Flags.x & GB::MaterialData::LayerFoliage) != 0 && mo.Layer[GB::MaterialData::SlotFoliage].w == 0.0f &&
+			mo.Layer[GB::MaterialData::SlotFoliageExtra].w == 0.25f, "a masked material with only the alpha mip scale turns the layer on");
 		Check(table.UploadedEnd() == 0 && table.Dirty(), "the new entries wait for an upload");
 		table.MarkUploaded();
 		Check(!table.Dirty(), "nothing left to upload");
@@ -149,6 +171,30 @@ namespace
 		GB::VisualLibrary bad;
 		Check(!GB::LoadVisuals(R"({ "visuals": { "materials": { "x": { "surface": "translucent", "layers": { "transmission": { "interior": { "deep": 1 } } } } } } })", bad).empty(),
 			"visuals: an unknown interior parameter is a mistake");
+
+		// T46: the foliage layer
+		const char* leaves = R"({ "visuals": { "materials": { "bush": { "color": [1.0, 1.0, 1.0], "surface": "cutout", "doubleSided": true,
+			"layers": { "foliage": { "translucency": 0.6, "transmissionTint": [0.8, 1.0, 0.4], "colorVariation": 0.5, "normalBlend": 0.4,
+				"macroVariation": 0.3, "alphaMipScale": 0.25 } } } } } })";
+		GB::VisualLibrary fol;
+		const std::string whyFol = GB::LoadVisuals(leaves, fol);
+		Check(whyFol.empty() && fol.Materials.count("bush") == 1, "visuals: a foliage layer loads (" + whyFol + ")");
+		if (whyFol.empty() && fol.Materials.count("bush"))
+		{
+			GB::Material f;
+			GB::ApplyMaterialLayers(fol.Materials.at("bush").Layers, f);
+			Check(f.Translucency == 0.6f && f.TransmissionTint == glm::vec3(0.8f, 1.0f, 0.4f) && f.ColorVariation == 0.5f && f.NormalBlend == 0.4f &&
+				f.MacroVariation == 0.3f && f.AlphaMipScale == 0.25f, "visuals: the foliage values on the material");
+			GB::VisualLibrary folBack;
+			Check(GB::LoadVisuals(GB::VisualsToJson(fol), folBack).empty() && folBack.Materials.count("bush") && folBack.Materials.at("bush") == fol.Materials.at("bush"),
+				"visuals: VisualsToJson reads the foliage layer back to the same material");
+			GB::Material d;
+			GB::ApplyMaterialLayers({ { "foliage", {} } }, d);
+			Check(d.Translucency == 0.0f && d.ColorVariation == 0.0f && d.NormalBlend == 0.0f && d.MacroVariation == 0.0f && d.AlphaMipScale == 0.0f &&
+				GB::PackMaterial(d, { true, true }) == GB::PackMaterial(GB::Material{}, { true, true }), "visuals: an empty foliage layer is off (every default 0)");
+		}
+		Check(!GB::LoadVisuals(R"({ "visuals": { "materials": { "x": { "layers": { "foliage": { "translucency": 2 } } } } } })", bad).empty(),
+			"visuals: a translucency out of range is a mistake");
 	}
 
 	// The constants of lib/material, as text: "const uint NAME = <value>u;".
@@ -164,10 +210,11 @@ namespace
 			{ "FLAG_FOLIAGE_NORMALS", D::FlagFoliageNormals }, { "FLAG_ALPHA_TO_COVERAGE", D::FlagAlphaToCoverage }, { "FLAG_DOUBLE_SIDED", D::FlagDoubleSided },
 			{ "LAYER_GRAIN", D::LayerGrain }, { "LAYER_MOSS", D::LayerMoss }, { "LAYER_SAND", D::LayerSand }, { "LAYER_WATER_LINE", D::LayerWaterLine },
 			{ "LAYER_TRAIL", D::LayerTrail }, { "LAYER_MACRO", D::LayerMacro }, { "LAYER_TRANSMISSION", D::LayerTransmission },
+			{ "LAYER_FOLIAGE", D::LayerFoliage },
 			{ "SLOT_GRAIN", D::SlotGrain }, { "SLOT_MOSS", D::SlotMoss }, { "SLOT_SAND", D::SlotSand }, { "SLOT_WATER_LINE", D::SlotWaterLine },
 			{ "SLOT_TRAIL", D::SlotTrail }, { "SLOT_TRAIL_TINT", D::SlotTrailTint }, { "SLOT_MACRO", D::SlotMacro },
 			{ "SLOT_TRANSMISSION", D::SlotTransmission }, { "SLOT_INTERIOR", D::SlotInterior },
-			{ "SLOT_TRANSMISSION_EXTRA", D::SlotTransmissionExtra },
+			{ "SLOT_TRANSMISSION_EXTRA", D::SlotTransmissionExtra }, { "SLOT_FOLIAGE", D::SlotFoliage }, { "SLOT_FOLIAGE_EXTRA", D::SlotFoliageExtra },
 			{ "LAYER_SLOTS", D::LayerSlots },
 		};
 		int found = 0;

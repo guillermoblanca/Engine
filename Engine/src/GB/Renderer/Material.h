@@ -40,7 +40,25 @@ namespace GB
 		float WindSway = 0.0f;
 		float WindHeight = 1.0f;
 		float WindFlutter = 0.0f;
-		bool FoliageNormals = false;
+		bool FoliageNormals = false;   // the cards keep their (crown) normal on back faces instead of flipping it to the viewer
+
+		// T46: foliage (leaves, bushes, grass cards; opaque or masked). All 0: off, the material packs as before (MATERIALES.md, "Follaje").
+		// - Translucency (0-1): the sun seen through the leaf: a back light around -L plus a diffuse part on the face away from the sun,
+		//   tinted by TransmissionTint times the albedo, and shadowed like the sun (a leaf in the shadow of another does not glow).
+		float Translucency = 0.0f;
+		glm::vec3 TransmissionTint{ 0.85f, 1.0f, 0.42f };   // a light yellow-green: the light through a leaf is warmer than the one off it
+		// - ColorVariation (0-1): hue (toward yellow), saturation (toward olive) and brightness shifted per instance by a hash of the object's
+		//   position in the world (the instance's matrix in an instanced batch); MacroVariation (0-1): a low-frequency world patch between a
+		//   yellowish and an olive green on top.
+		float ColorVariation = 0.0f;
+		float MacroVariation = 0.0f;
+		// - NormalBlend (0-1): the card's normal mixed with the normal of a sphere around the object's origin (its pivot, on the ground, so
+		//   the sphere's normals lean up): the inside of a bush or a crown gets sky and soft sun instead of black. The normal map then
+		//   perturbs the blended normal, so the card's relief still shows.
+		float NormalBlend = 0.0f;
+		// - AlphaMipScale (0-~0.5, masked only): the alpha of the mask raised by mip level * scale before the cutoff, in the colour and in the
+		//   shadow, so thin cards do not thin out and flicker in the distance (mip averaging lowers their alpha).
+		float AlphaMipScale = 0.0f;
 
 		float Grain = 0.0f;
 		float GrainScale = 3.0f;

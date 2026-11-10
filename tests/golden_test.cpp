@@ -184,6 +184,134 @@ namespace
 				c[0] = c[1] = c[2] = Byte(wet ? 0.0f : 1.0f); c[3] = 255;
 			}
 	}
+
+	// ---- T46: the foliage cards, made here (ProcTexture's leaf and grass cards and ProcMesh::Card are T106's, changing in parallel) ----
+	// One card texture: `strokes` shapes from the bottom of the card (v = 0 at the base), each a leaf or a blade along a direction, with a
+	// half-width that grows and closes (leaf) or narrows to the tip (blade). The albedo is sRGB, the alpha the coverage of 3 x 3 samples per
+	// texel (partial edges for alpha to coverage), the colour outside a dark green (the filtering does not grey the edges); the normal
+	// domes each shape across its midline (tangent space: x along u, y along v).
+	struct Stroke { glm::vec2 Base, Dir; float Length, Width; glm::vec3 Color; bool Blade; };
+	void FoliageCard(uint32_t size, const std::vector<Stroke>& strokes, GB::Image& albedo, GB::Image& normal)
+	{
+		albedo = MakeImage(size);
+		normal = MakeImage(size);
+		for (uint32_t j = 0; j < size; ++j)
+			for (uint32_t i = 0; i < size; ++i)
+			{
+				float cover = 0.0f;
+				glm::vec3 color(0.07f, 0.13f, 0.03f);
+				glm::vec3 n(0.0f, 0.0f, 1.0f);
+				for (int sy = 0; sy < 3; ++sy)
+					for (int sx = 0; sx < 3; ++sx)
+					{
+						const glm::vec2 p((static_cast<float>(i) + (static_cast<float>(sx) + 0.5f) / 3.0f) / static_cast<float>(size),
+							(static_cast<float>(j) + (static_cast<float>(sy) + 0.5f) / 3.0f) / static_cast<float>(size));
+						for (size_t k = strokes.size(); k-- > 0;)   // the last stroke is in front
+						{
+							const Stroke& st = strokes[k];
+							const glm::vec2 side(-st.Dir.y, st.Dir.x);
+							const float s = glm::dot(p - st.Base, st.Dir) / st.Length, t = glm::dot(p - st.Base, side);
+							if (s < 0.0f || s > 1.0f) continue;
+							const float half = st.Width * (st.Blade ? (1.0f - s) : std::pow(std::sin(3.14159f * s), 0.7f));
+							if (std::abs(t) >= half) continue;
+							cover += 1.0f / 9.0f;
+							if (sx == 1 && sy == 1)
+							{
+								const float across = t / half;
+								const float rib = 1.0f - std::clamp(std::abs(across) * 8.0f, 0.0f, 1.0f);
+								color = st.Color * (0.7f + 0.45f * s) * (1.0f + 0.25f * rib);
+								const glm::vec2 tilt = side * across * 0.55f;
+								n = glm::normalize(glm::vec3(tilt.x, tilt.y, 1.0f));
+							}
+							break;
+						}
+					}
+				uint8_t* a = &albedo.Pixels[(static_cast<size_t>(j) * size + i) * 4];
+				a[0] = Byte(std::pow(color.r, 1.0f / 2.2f)); a[1] = Byte(std::pow(color.g, 1.0f / 2.2f)); a[2] = Byte(std::pow(color.b, 1.0f / 2.2f));
+				a[3] = Byte(cover);
+				uint8_t* q = &normal.Pixels[(static_cast<size_t>(j) * size + i) * 4];
+				q[0] = Byte(n.x * 0.5f + 0.5f); q[1] = Byte(n.y * 0.5f + 0.5f); q[2] = Byte(n.z * 0.5f + 0.5f); q[3] = 255;
+			}
+	}
+
+	// A cluster of small leaves over the card (their bases in a dome, pointing up and out), and a tuft of blades (linear colours).
+	std::vector<Stroke> LeafStrokes()
+	{
+		std::vector<Stroke> s;
+		for (int k = 0; k < 30; ++k)
+		{
+			const float x = 0.14f + 0.72f * Rand(k, 1, 61);
+			const glm::vec2 stem(x, 0.04f + 0.62f * Rand(k, 2, 61) * (1.0f - 1.2f * std::abs(x - 0.5f)));
+			const float b = (x - 0.5f) * 2.2f + glm::radians(-45.0f + 90.0f * Rand(k, 3, 61));
+			const glm::vec3 green = glm::mix(glm::vec3(0.06f, 0.17f, 0.03f), glm::vec3(0.13f, 0.27f, 0.04f), Rand(k, 4, 61));
+			s.push_back({ stem, glm::vec2(std::sin(b), std::cos(b)), 0.18f + 0.08f * Rand(k, 5, 61), 0.06f + 0.02f * Rand(k, 6, 61), green, false });
+		}
+		return s;
+	}
+	std::vector<Stroke> GrassStrokes()
+	{
+		std::vector<Stroke> s;
+		for (int k = 0; k < 26; ++k)
+		{
+			const float x = 0.2f + 0.6f * Rand(k, 1, 71);
+			const float a = glm::radians((x - 0.5f) * 70.0f + (-12.0f + 24.0f * Rand(k, 2, 71)));
+			const glm::vec3 green = glm::mix(glm::vec3(0.08f, 0.2f, 0.03f), glm::vec3(0.2f, 0.33f, 0.06f), Rand(k, 3, 71));
+			s.push_back({ glm::vec2(x, 0.0f), glm::vec2(std::sin(a), std::cos(a)), 0.6f + 0.38f * Rand(k, 4, 71), 0.022f + 0.01f * Rand(k, 5, 71), green, true });
+		}
+		return s;
+	}
+
+	// A flat card from `base` along `right` and `up` (UV 0..1, v up), its normal right x up, added to a mesh.
+	void AddCard(std::vector<GB::Vertex>& v, std::vector<uint32_t>& idx, glm::vec3 base, glm::vec3 right, glm::vec3 up, float w, float h)
+	{
+		const glm::vec3 n = glm::normalize(glm::cross(right, up));
+		const uint32_t first = static_cast<uint32_t>(v.size());
+		for (int c = 0; c < 4; ++c)
+		{
+			const float u = (c & 1) ? 1.0f : 0.0f, vv = (c & 2) ? 1.0f : 0.0f;
+			v.push_back({ base + right * ((u - 0.5f) * w) + up * (vv * h), n, glm::vec2(u, vv), glm::vec4(right, 1.0f) });
+		}
+		for (uint32_t k : { 0u, 1u, 3u, 0u, 3u, 2u }) idx.push_back(first + k);
+	}
+
+	// A bush of ~1.1 m on its pivot at the ground: three crossed upright cards, seven leaning out on a ring and two near the top.
+	GB::Mesh BushMesh()
+	{
+		std::vector<GB::Vertex> v;
+		std::vector<uint32_t> idx;
+		for (int k = 0; k < 3; ++k)
+		{
+			const float a = glm::radians(60.0f * static_cast<float>(k) + 10.0f);
+			AddCard(v, idx, { 0.0f, 0.0f, 0.0f }, { std::cos(a), 0.0f, std::sin(a) }, { 0.0f, 1.0f, 0.0f }, 1.0f, 1.0f);
+		}
+		for (int k = 0; k < 7; ++k)
+		{
+			const float a = glm::radians(360.0f / 7.0f * static_cast<float>(k));
+			const glm::vec3 out(std::cos(a), 0.0f, std::sin(a)), around(-std::sin(a), 0.0f, std::cos(a));
+			const float tilt = glm::radians(40.0f);
+			AddCard(v, idx, out * 0.2f + glm::vec3(0.0f, 0.08f, 0.0f), around, glm::normalize(out * std::sin(tilt) + glm::vec3(0.0f, std::cos(tilt), 0.0f)), 0.8f, 0.85f);
+		}
+		for (int k = 0; k < 2; ++k)
+		{
+			const float a = glm::radians(90.0f * static_cast<float>(k) + 30.0f);
+			const glm::vec3 r(std::cos(a), 0.0f, std::sin(a)), f(-std::sin(a), 0.0f, std::cos(a));
+			AddCard(v, idx, glm::vec3(0.0f, 0.55f, 0.0f) - f * 0.3f, r, glm::normalize(f + glm::vec3(0.0f, 0.8f, 0.0f)), 0.75f, 0.65f);
+		}
+		return GB::Mesh(v, idx);
+	}
+
+	// A tuft: three upright cards crossed at 60 degrees, 0.55 x 0.5 m.
+	GB::Mesh TuftMesh()
+	{
+		std::vector<GB::Vertex> v;
+		std::vector<uint32_t> idx;
+		for (int k = 0; k < 3; ++k)
+		{
+			const float a = glm::radians(60.0f * static_cast<float>(k));
+			AddCard(v, idx, { 0.0f, 0.0f, 0.0f }, { std::cos(a), 0.0f, std::sin(a) }, { 0.0f, 1.0f, 0.0f }, 0.55f, 0.5f);
+		}
+		return GB::Mesh(v, idx);
+	}
 }
 
 int main()
@@ -486,6 +614,92 @@ int main()
 		}
 		if (std::getenv("GB_GLASS_BENCH"))
 			GlassBench("ice_glass_v2", sc, cam);
+	}
+
+	// 9. Foliage (T46): bushes of leaf cards and tufts of grass cards against a low sun behind them (the camera faces the sun): the light
+	// through the leaves (translucency, shadowed: the cards in the shadow of others stay dark), the colour per instance (five bushes and nine
+	// tufts in instanced batches, two bushes drawn alone: both paths), the crown normal (no black inside the bushes), the alpha mip scale,
+	// and a patch of the grass renderer with the same terms. The cards and their maps are made here (T106 changes ProcTexture's and
+	// ProcMesh::Card). GB_FOLIAGE_SHOT=<dir> also renders 1600x900 pictures with 4x MSAA (alpha to coverage) into that folder: back-lit and
+	// front-lit, each with the foliage terms and without them ("_antes"), and a far view.
+	{
+		GB::Image leafAlbedo, leafNormal, grassAlbedo, grassNormal;
+		FoliageCard(256, LeafStrokes(), leafAlbedo, leafNormal);
+		FoliageCard(256, GrassStrokes(), grassAlbedo, grassNormal);
+		const GB::Texture2D leafMap(leafAlbedo, GB::TextureEncoding::SRGB), leafNormalMap(leafNormal, GB::TextureEncoding::Linear);
+		const GB::Texture2D grassMap(grassAlbedo, GB::TextureEncoding::SRGB), grassNormalMap(grassNormal, GB::TextureEncoding::Linear);
+		const GB::Mesh bush = BushMesh(), tuft = TuftMesh();
+		const GB::Mesh ground = GB::Mesh::CreateGrid(40.0f, 8);
+		GB::GrassParams fp;
+		fp.Seed = 9; fp.Size = 2.6f; fp.Center = { 0.4f, 1.9f }; fp.Density = 160.0f; fp.Height = { 0.1f, 0.24f }; fp.ChunkSize = 4.0f;
+		GB::GrassField field(fp);
+		GB::GrassGpu fieldGpu(field);
+
+		auto cards = [](const GB::Texture2D& albedo, const GB::Texture2D& normal, bool on)
+		{
+			GB::Material m;
+			m.AlbedoMap = &albedo; m.NormalMap = &normal; m.NormalStrength = 0.8f;
+			m.Roughness = 0.65f; m.HeightScale = 0.0f; m.CavityStrength = 0.0f;
+			m.Alpha = GB::AlphaMode::Mask; m.AlphaCutoff = 0.4f; m.DoubleSided = true;
+			if (on)
+			{
+				m.Translucency = 0.8f; m.ColorVariation = 0.6f; m.MacroVariation = 0.35f; m.NormalBlend = 0.55f; m.AlphaMipScale = 0.25f;
+			}
+			return m;
+		};
+		auto foliageScene = [&](bool on, bool backLit)
+		{
+			GB::Scene sc;
+			GB::RenderObject f;
+			f.MeshPtr = &ground; f.Mat.Albedo = glm::vec3(0.32f, 0.27f, 0.19f); f.Mat.Roughness = 0.9f; f.Mat.HeightScale = 0.0f; f.Mat.CavityStrength = 0.0f;
+			sc.Objects.push_back(f);
+			const GB::Material leaf = cards(leafMap, leafNormalMap, on);
+			GB::Material grassCard = cards(grassMap, grassNormalMap, on);
+			if (on) { grassCard.Translucency = 0.7f; grassCard.NormalBlend = 0.35f; }
+			auto place = [&](const GB::Mesh& mesh, const GB::Material& m, glm::vec3 at, float yaw, float scale, bool instanced)
+			{
+				GB::RenderObject o;
+				o.MeshPtr = &mesh; o.Mat = m; o.Instanced = instanced;
+				o.BoundingCenter = { 0.0f, 0.5f, 0.0f }; o.BoundingRadius = 1.0f;
+				o.Transform = glm::scale(glm::rotate(glm::translate(glm::mat4(1.0f), at), glm::radians(yaw), { 0, 1, 0 }), glm::vec3(scale));
+				sc.Objects.push_back(o);
+			};
+			for (int i = 0; i < 5; ++i)
+				place(bush, leaf, { (static_cast<float>(i) - 2.0f) * 1.45f, 0.0f, -1.2f - 0.3f * static_cast<float>(i % 2) }, 37.0f * static_cast<float>(i),
+					0.9f + 0.12f * static_cast<float>(i % 3), true);
+			place(bush, leaf, { -1.6f, 0.0f, -3.6f }, 15.0f, 1.5f, false);
+			place(bush, leaf, { 1.9f, 0.0f, -3.9f }, 70.0f, 1.6f, false);
+			for (int i = 0; i < 9; ++i)
+				place(tuft, grassCard, { (static_cast<float>(i) - 4.0f) * 0.75f + 0.2f * Rand(i, 1, 81), 0.0f, 0.35f + 0.5f * Rand(i, 2, 81) }, 47.0f * static_cast<float>(i),
+					0.85f + 0.35f * Rand(i, 3, 81), true);
+			fieldGpu.Shading = {};
+			if (on) { fieldGpu.Shading.Translucency = 0.7f; fieldGpu.Shading.ColorVariation = 0.4f; fieldGpu.Shading.MacroVariation = 0.25f; }
+			sc.Grass.push_back(&fieldGpu);
+			sc.Sun.Direction = backLit ? glm::vec3(0.2f, -0.3f, 0.93f) : glm::vec3(-0.3f, -0.55f, -0.78f);
+			sc.Sun.Intensity = 3.0f;
+			sc.Env.ShadowCenter = { 0, 0, -1.5f }; sc.Env.ShadowRadius = 7.0f;
+			sc.Env.Time = 1.0f;
+			return sc;
+		};
+		GB::Camera cam; cam.Position = { 0.0f, 1.25f, 4.6f }; cam.Target = { 0.0f, 0.55f, -1.6f };
+		shoot("foliage_backlit", foliageScene(true, true), cam, { 4.0, 0.02, 32 });
+		if (const char* dir = std::getenv("GB_FOLIAGE_SHOT"); dir && *dir)
+		{
+			GB::Renderer big(1600, 900, 4, 2048);
+			GB::Framebuffer bigFb(1600, 900);
+			GB::Camera far; far.Position = { 0.0f, 5.0f, 42.0f }; far.Target = { 0.0f, 0.4f, -2.0f }; far.FovYDegrees = 30.0f;
+			const struct { const char* Name; bool On, Back; const GB::Camera* Cam; } shots[] = {
+				{ "follaje_contraluz", true, true, &cam }, { "follaje_contraluz_antes", false, true, &cam },
+				{ "follaje_frente", true, false, &cam }, { "follaje_frente_antes", false, false, &cam },
+				{ "follaje_lejos", true, true, &far }, { "follaje_lejos_antes", false, true, &far },
+			};
+			for (const auto& s : shots)
+			{
+				big.Render(foliageScene(s.On, s.Back), *s.Cam, &bigFb);
+				const std::string path = std::string(dir) + "/" + s.Name + ".png";
+				Report({ bigFb.SavePNG(path.c_str()), "the foliage picture: " + path });
+			}
+		}
 	}
 	return failures;
 }

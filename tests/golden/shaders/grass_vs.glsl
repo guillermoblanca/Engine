@@ -30,6 +30,7 @@ out float vSeed;
 out vec3 vNormal;
 out float vSide;
 out vec4 vTint;
+flat out vec3 vRoot;   // T46: the blade's root in the world (the colour variation's hash)
 const int SEGMENTS = 4;
 
 layout(binding = 8) uniform sampler2D uTrailMap;
@@ -48,6 +49,7 @@ void main()
 	vec3 root = aPosYaw.xyz;
 	float yaw = aPosYaw.w;
 	float height = aShape.x, width = aShape.y, seed = aShape.z, lean = aShape.w;
+	vRoot = root;
 
 	// Far away, blades thin out (the survivors get wider so the ground stays covered) and then vanish.
 	float dist = length(root - uCamPos);

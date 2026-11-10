@@ -38,8 +38,15 @@ in vec2 vUV;
 layout(binding = 1) uniform sampler2D uAlbedoMap;
 void main()
 {
-	if (MATERIAL.Flags.z == 1u && HasTex(TEX_ALBEDO) && texture(uAlbedoMap, vUV).a * MATERIAL.BaseColor.a < MATERIAL.Emissive.a)
-		discard;
+	if (MATERIAL.Flags.z == 1u && HasTex(TEX_ALBEDO))
+	{
+		float alpha = texture(uAlbedoMap, vUV).a * MATERIAL.BaseColor.a;
+		// T46: foliage with an alpha mip scale: the alpha raised by the mip level, as in PBRFS, so thin cards keep their shadow far away
+		if ((MATERIAL.Flags.x & LAYER_FOLIAGE) != 0u)
+			alpha *= 1.0 + max(textureQueryLod(uAlbedoMap, vUV).x, 0.0) * MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].w;
+		if (alpha < MATERIAL.Emissive.a)
+			discard;
+	}
 	// T101: a transmissive caster (only with a shadow density: RenderList) covers that fraction of the shadow map's texels in a 4x4 ordered
 	// dither; the 5x5 PCF of the lookup averages it into a faint, even shadow.
 	if (MATERIAL.Flags.z == 2u)
@@ -67,6 +74,7 @@ out vec3 vPos;
 out vec3 vNormal;
 out vec4 vTangent;
 out vec2 vUV;
+flat out vec3 vOrigin;   // T46: the object's (or the instance's) origin in the world: the foliage's per-instance hash and crown centre
 #include "lib/tree_wind"
 void main()
 {
@@ -93,11 +101,16 @@ void main()
 	vNormal = normalMatrix * nrm;
 	vTangent = vec4(mat3(model) * tng, aTangent.w);
 	vUV = aUV * MATERIAL.Uv.x;
+	vOrigin = model[3].xyz;
 	gl_Position = uViewProj * world;
 }
 )GLSL";
 
 	// (Two raw literals joined: one MSVC string literal holds at most 16 KB. The text is the same as one.)
+	// T46: compiled twice. With GB_FOLIAGE (Renderer's foliage program, for the materials with MaterialData::LayerFoliage: FoliageOn in
+	// MaterialTable.h) it adds the crown normal blend, the alpha mip scale, the per-instance colour and the light through the leaf. In the
+	// base program those blocks are compiled out: as branches on the layer bit they cost every object ~6% of the opaque pass on the
+	// reference scene (register pressure; measured, MATERIALES.md "Follaje"), even with no foliage in view.
 	inline constexpr const char* PBRFS = R"GLSL(#version 450 core
 #include "lib/frame"
 #include "lib/material"
@@ -106,6 +119,7 @@ in vec3 vPos;
 in vec3 vNormal;
 in vec4 vTangent;
 in vec2 vUV;
+flat in vec3 vOrigin;   // T46 (LAYER_FOLIAGE only)
 #include "lib/scene_targets"
 
 layout(binding = 1) uniform sampler2D uAlbedoMap;
@@ -143,6 +157,9 @@ vec3 Shade(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 albedo, vec3 F0, float a,
 #include "lib/shadow"
 
 #include "lib/noise_pbr"
+#ifdef GB_FOLIAGE
+#include "lib/foliage"
+#endif
 
 // Rain rings on a puddle: one expanding ring per random cell, two layers.
 vec2 PuddleRings(vec2 p)
@@ -218,6 +235,17 @@ void main()
 		                 TrailAt(vPos.xz + vec2(0.0, e)) - TrailAt(vPos.xz - vec2(0.0, e))) / (2.0 * e);
 		N = normalize(N + vec3(grad.x, 0.0, grad.y) * MATERIAL.Layer[SLOT_TRAIL].x * MATERIAL.Layer[SLOT_TRAIL].y);
 	}
+#ifdef GB_FOLIAGE
+	// T46: foliage. The card's normal mixed with the normal of a sphere around the object's pivot (on the ground: the sphere leans up), so
+	// the inside of a bush sees the sky; before the normal map, which perturbs the blended normal (the card's relief still shows).
+	if (MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].y > 0.0)
+	{
+		vec3 crown = vPos - vOrigin;
+		vec3 S = dot(crown, crown) > 1e-8 ? normalize(crown) : vec3(0.0, 1.0, 0.0);
+		vec3 n = mix(N, S, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].y);
+		N = dot(n, n) > 1e-6 ? normalize(n) : S;
+	}
+#endif
 
 	if (HasTex(TEX_NORMAL))
 	{
@@ -236,7 +264,16 @@ void main()
 		vec4 t = texture(uAlbedoMap, vUV);
 		albedo *= t.rgb;
 		alpha *= t.a;
+#ifdef GB_FOLIAGE
+		// T46: the mip levels average the mask's alpha down, so thin cards thin out and flicker far away: raise it by the level
+		if (MATERIAL.Flags.z == 1u)
+			alpha *= 1.0 + max(textureQueryLod(uAlbedoMap, vUV).x, 0.0) * MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].w;
+#endif
 	}
+#ifdef GB_FOLIAGE
+	// T46: per-instance colour (a hash of the instance's origin) and the world's macro patches
+	albedo = FoliageVary(albedo, vOrigin, vPos, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].x, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].z);
+#endif
 	if (HasTex(TEX_MACRO))
 		albedo *= texture(uMacroMap, (vPos.xz - MATERIAL.Layer[SLOT_MACRO].xy) / MATERIAL.Layer[SLOT_MACRO].zw).rgb;
 	albedo *= mix(vec3(1.0), MATERIAL.Layer[SLOT_TRAIL_TINT].rgb, clamp(trailT * 1.3, 0.0, 1.0));   // compacted / wetter ground
@@ -375,6 +412,15 @@ void main()
 	vec3 Ls = normalize(-uSunDir);
 	float sunShadow = Shadow(vPos, N, Ls);
 	Lo += Shade(N, V, Ls, uSunColor, albedo, F0, a, metallic) * sunShadow;
+#ifdef GB_FOLIAGE
+	// T46: the sun through the leaf (diffuse transmission), tinted by the albedo times the transmission tint. Its shadow is looked up
+	// offset toward the sun, not along N: on the face away from the sun N points away from it and the leaf would shadow itself; the
+	// leaves between this one and the sun still do (a leaf in the shadow of another does not glow).
+	float leafT = MATERIAL.Layer[SLOT_FOLIAGE].w;
+	vec3 leafTint = MATERIAL.Layer[SLOT_FOLIAGE].rgb * albedo * leafT;
+	if (leafT > 0.0)
+		Lo += uSunColor / PI * Shadow(vPos, Ls, Ls) * FoliageThrough(N, V, Ls) * leafTint;
+#endif
 
 	for (int i = 0; i < uPointCount; ++i)
 	{
@@ -400,6 +446,10 @@ void main()
 	// Horizon occlusion: reflections under the surface plane fade out.
 	float horizon = clamp(1.0 + dot(R, N) * 1.5, 0.0, 1.0);
 	vec3 ambient = (ambientDiffuse + ambientSpec * horizon) * ao * uEnvIntensity;
+#ifdef GB_FOLIAGE
+	if (leafT > 0.0)   // T46: the sky behind the leaf, through it (a quarter of what the face toward it gets)
+		ambient += SkyIrradiance(-N) * leafTint * (0.25 * ao * uEnvIntensity);
+#endif
 
 	// RGBA16F overflows at 65504; a tiny GGX lobe can exceed that and the bloom would spread the inf.
 	vec3 emissive = MATERIAL.Emissive.rgb;

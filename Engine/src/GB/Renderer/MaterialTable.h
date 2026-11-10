@@ -39,6 +39,16 @@ namespace GB
 		bool Multisample = false;   // the scene target has more than one sample
 	};
 
+	// T46: whether a material has the foliage layer on: one of its values on, and opaque or masked (the translucent pass draws with the base
+	// PBR program only; a Blend material keeps the values but not the layer). PackMaterial sets MaterialData::LayerFoliage by it and the
+	// Renderer draws with its foliage program (GB_FOLIAGE) by it, so the two always agree.
+	inline bool FoliageOn(const Material& m)
+	{
+		if (m.Alpha == AlphaMode::Blend) return false;
+		return m.Translucency > 0.0f || m.ColorVariation > 0.0f || m.MacroVariation > 0.0f || m.NormalBlend > 0.0f ||
+			(m.AlphaMipScale > 0.0f && m.Alpha == AlphaMode::Mask);
+	}
+
 	inline MaterialDesc PackMaterial(const Material& m, const MaterialContext& context)
 	{
 		using D = MaterialData;
@@ -73,6 +83,10 @@ namespace GB
 		if (trail) layers |= D::LayerTrail;
 		if (m.MacroMap) layers |= D::LayerMacro;
 		if (transmission) layers |= D::LayerTransmission;
+		// T46: the foliage layer only with one of its values on; else its slots stay zero (the tint's default is not), so every other material
+		// packs the bytes it packed before.
+		const bool foliage = FoliageOn(m);
+		if (foliage) layers |= D::LayerFoliage;
 		uint32_t flags = 0;
 		if (m.FoliageNormals) flags |= D::FlagFoliageNormals;
 		if (m.Alpha == AlphaMode::Mask && context.Multisample) flags |= D::FlagAlphaToCoverage;
@@ -92,6 +106,9 @@ namespace GB
 		d.Layer[D::SlotInterior] = transmission && m.InteriorMap ? glm::vec4(m.InteriorTint, m.InteriorStrength) : glm::vec4(0.0f);
 		d.Layer[D::SlotTransmissionExtra] = transmission
 			? glm::vec4(m.InteriorMap ? m.InteriorDepth : 0.0f, m.Scatter, m.ShadowDensity, m.ThicknessVariation) : glm::vec4(0.0f);
+		d.Layer[D::SlotFoliage] = foliage ? glm::vec4(m.TransmissionTint, m.Translucency) : glm::vec4(0.0f);
+		d.Layer[D::SlotFoliageExtra] = foliage
+			? glm::vec4(m.ColorVariation, m.NormalBlend, m.MacroVariation, m.Alpha == AlphaMode::Mask ? m.AlphaMipScale : 0.0f) : glm::vec4(0.0f);
 		return desc;
 	}
 
@@ -100,7 +117,7 @@ namespace GB
 	public:
 		static constexpr MaterialId None = ~0u;
 
-		// A 64-bit hash of the desc's bytes (32 words, multiply and rotate).
+		// A 64-bit hash of the desc's bytes (40 words, multiply and rotate).
 		static uint64_t Hash(const MaterialDesc& desc)
 		{
 			uint64_t words[sizeof(MaterialData) / 8];

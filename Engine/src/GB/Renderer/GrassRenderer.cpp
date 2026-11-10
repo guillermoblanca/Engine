@@ -67,6 +67,11 @@ namespace GB
 			m_Shader.SetVec3("uTip", p.TipColor);
 			m_Shader.SetVec3("uDry", p.DryColor);
 			m_Shader.SetFloat("uDryAmount", p.DryAmount);
+			const GrassGpu::Look& look = gpu->Shading;   // T46
+			m_Shader.SetFloat("uTranslucency", look.Translucency);
+			m_Shader.SetVec3("uTransmissionTint", look.TransmissionTint);
+			m_Shader.SetFloat("uColorVariation", look.ColorVariation);
+			m_Shader.SetFloat("uMacroVariation", look.MacroVariation);
 			for (const GrassChunk& chunk : field->GetChunks())
 			{
 				const glm::vec3 d = chunk.Center - camera.Position;

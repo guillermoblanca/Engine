@@ -49,6 +49,19 @@ namespace GB
 			m.InteriorTint = LayerParam(self, values, "interior.tint");
 		}
 
+		// T46: leaves, bushes and grass cards (opaque or "cutout"): the sun through the leaf, colour variation per instance, the crown normal and
+		// the alpha mip scale of thin cards. Every value defaults to 0, so a layer without values draws as before.
+		void ApplyFoliage(const MaterialLayerValues& values, Material& m)
+		{
+			const MaterialLayerDef& self = *FindMaterialLayer("foliage");
+			m.Translucency = Get(self, values, "translucency");
+			m.TransmissionTint = LayerParam(self, values, "transmissionTint");
+			m.ColorVariation = Get(self, values, "colorVariation");
+			m.MacroVariation = Get(self, values, "macroVariation");
+			m.NormalBlend = Get(self, values, "normalBlend");
+			m.AlphaMipScale = Get(self, values, "alphaMipScale");
+		}
+
 		std::vector<MaterialLayerDef> MakeRegistry()
 		{
 			const Material d;   // the defaults are the render material's, so a layer at its defaults draws as before
@@ -75,6 +88,14 @@ namespace GB
 					  { "interior.strength", LayerParamType::Float, glm::vec3(d.InteriorStrength), 0.0f, 1.0f, "Layer[SLOT_INTERIOR].w", "how much the interior (cracks, bubbles) covers what is behind" },
 					  { "interior.tint", LayerParamType::Color, d.InteriorTint, 0.0f, 4.0f, "Layer[SLOT_INTERIOR].rgb", "multiplies the interior map's colour" } },
 					&ApplyTransmission },
+				{ "foliage", "leaves and grass cards: sun through the leaf, colour variation per instance, crown normals, alpha mip scale",
+					{ { "translucency", LayerParamType::Float, glm::vec3(d.Translucency), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE].w", "the sun seen through the leaf: back light and the diffuse light of the face away from the sun, shadowed" },
+					  { "transmissionTint", LayerParamType::Color, d.TransmissionTint, 0.0f, 2.0f, "Layer[SLOT_FOLIAGE].rgb", "the colour of that light, times the albedo (a light yellow-green: warmer than the reflected)" },
+					  { "colorVariation", LayerParamType::Float, glm::vec3(d.ColorVariation), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].x", "hue (toward yellow), saturation (toward olive) and brightness per instance, by a hash of its position" },
+					  { "normalBlend", LayerParamType::Float, glm::vec3(d.NormalBlend), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].y", "the card's normal mixed with a sphere's around the object's pivot: no black inside the bush" },
+					  { "macroVariation", LayerParamType::Float, glm::vec3(d.MacroVariation), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].z", "low-frequency world patches between a yellowish and an olive green" },
+					  { "alphaMipScale", LayerParamType::Float, glm::vec3(d.AlphaMipScale), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].w", "\"cutout\" only: the mask's alpha raised by mip level x scale, so thin cards keep their coverage far away" } },
+					&ApplyFoliage },
 			};
 		}
 	}

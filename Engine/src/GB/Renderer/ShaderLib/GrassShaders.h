@@ -17,6 +17,7 @@ out float vSeed;
 out vec3 vNormal;
 out float vSide;
 out vec4 vTint;
+flat out vec3 vRoot;   // T46: the blade's root in the world (the colour variation's hash)
 const int SEGMENTS = 4;
 
 layout(binding = 8) uniform sampler2D uTrailMap;
@@ -31,6 +32,7 @@ void main()
 	vec3 root = aPosYaw.xyz;
 	float yaw = aPosYaw.w;
 	float height = aShape.x, width = aShape.y, seed = aShape.z, lean = aShape.w;
+	vRoot = root;
 
 	// Far away, blades thin out (the survivors get wider so the ground stays covered) and then vanish.
 	float dist = length(root - uCamPos);
@@ -101,13 +103,20 @@ in float vSeed;
 in vec3 vNormal;
 in float vSide;
 in vec4 vTint;
+flat in vec3 vRoot;
 #include "lib/scene_targets"
 layout(binding = 0) uniform sampler2DShadow uShadowMap;
 uniform vec3 uBase;
 uniform vec3 uTip;
 uniform vec3 uDry;
 uniform float uDryAmount;
+// T46: the foliage terms of the PBR's LAYER_FOLIAGE, per field (GrassGpu::Look; all 0: the grass as before)
+uniform float uTranslucency;
+uniform vec3 uTransmissionTint;
+uniform float uColorVariation;
+uniform float uMacroVariation;
 #include "lib/sky"
+#include "lib/foliage"
 
 float GrassShadow(vec3 p)
 {
@@ -132,6 +141,8 @@ void main()
 
 	float variation = 0.78 + 0.44 * fract(vSeed * 13.7);
 	vec3 col = mix(uBase, uTip, pow(max(vT, 0.0), 0.8)) * variation * vTint.rgb;   // vT can interpolate to a hair below 0: pow(<0) is NaN, which bloom/DOF smear over the screen
+	if (uColorVariation > 0.0 || uMacroVariation > 0.0)   // T46: by clumps of ~0.6 m (the root's cell), and the world's macro patches
+		col = FoliageVary(col, floor(vRoot * 1.6), vWorld, uColorVariation, uMacroVariation);
 	float dry = max(step(1.0 - uDryAmount, fract(vSeed * 7.31)), clamp(vTint.a, 0.0, 1.0));
 	col = mix(col, uDry * (0.55 + 0.45 * vT), dry * 0.85);
 	col = mix(col, vec3(0.9, 0.93, 0.96), uSnowCover * 0.85 * smoothstep(0.05, 0.8, vT));
@@ -146,6 +157,8 @@ void main()
 	vec3 direct = uSunColor * (wrap * 0.9 + trans) * shadow / 3.14159;
 	vec3 ambient = SkyIrradiance(N) * uEnvIntensity * (0.4 + 0.6 * vT);   // darker at the root (occlusion)
 	vec3 color = col * (direct + ambient);
+	if (uTranslucency > 0.0)   // T46: the PBR foliage's diffuse transmission, on top of the blades' own `trans`, stronger toward the tip
+		color += col * uTransmissionTint * (uTranslucency * vT) * uSunColor * (shadow / 3.14159) * FoliageThrough(N, V, L);
 
 	float fogKeep = 1.0;
 	if (uFogDensity > 0.0)

@@ -30,7 +30,7 @@ struct MaterialData
 	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
 	vec4 Wind;          // x sway, y height of full sway, z flutter
 	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength, z index of refraction, w transmission (LAYER_TRANSMISSION)
-	vec4 Layer[10];     // the layers' slots (SLOT_*)
+	vec4 Layer[12];     // the layers' slots (SLOT_*)
 };
 layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
 uniform int uMaterialId;
@@ -55,6 +55,7 @@ const uint LAYER_WATER_LINE = 8u;
 const uint LAYER_TRAIL = 16u;
 const uint LAYER_MACRO = 32u;
 const uint LAYER_TRANSMISSION = 64u;
+const uint LAYER_FOLIAGE = 128u;
 const uint SLOT_GRAIN = 0u;        // x amount, y scale
 const uint SLOT_MOSS = 1u;         // rgb color, w amount
 const uint SLOT_SAND = 2u;         // rgb color, w amount
@@ -65,7 +66,9 @@ const uint SLOT_MACRO = 6u;        // the macro map's rect
 const uint SLOT_TRANSMISSION = 7u; // rgb absorption (1/m), w thickness (m)
 const uint SLOT_INTERIOR = 8u;     // rgb interior tint, w strength
 const uint SLOT_TRANSMISSION_EXTRA = 9u;   // x interior depth (uv), y scatter, z shadow density, w thickness variation
-const uint LAYER_SLOTS = 10u;
+const uint SLOT_FOLIAGE = 10u;     // rgb transmission tint, w translucency
+const uint SLOT_FOLIAGE_EXTRA = 11u;   // x colour variation, y normal blend, z macro variation, w alpha mip scale
+const uint LAYER_SLOTS = 12u;
 bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
 bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 layout(location = 0) in vec3 aPos;

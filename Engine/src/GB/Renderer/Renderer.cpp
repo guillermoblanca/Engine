@@ -22,6 +22,10 @@ namespace GB
 	{
 		m_SkyShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::FullscreenVS), Shaders::Assemble(Shaders::SkyFS));
 		m_PBRShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS), Shaders::Assemble(Shaders::PBRFS));
+		{
+			const std::string_view foliage[] = { "GB_FOLIAGE" };   // T46
+			m_PBRFoliageShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS), Shaders::Assemble(Shaders::PBRFS, foliage));
+		}
 
 		RHI::Device& device = RHI::GetDevice();
 		m_EmptyVAO = device.CreateVertexLayout({});
@@ -45,6 +49,8 @@ namespace GB
 			pbr.DepthWrite = true;
 			pbr.CullMode = RHI::Cull::Back;
 			m_PBRPipeline = device.CreatePipeline(pbr);
+			pbr.Program = m_PBRFoliageShader->GetHandle();
+			m_PBRFoliagePipeline = device.CreatePipeline(pbr);
 		}
 
 		m_ParticleRenderer = std::make_unique<ParticleRenderer>();
@@ -61,7 +67,7 @@ namespace GB
 		m_WaterRenderer = std::make_unique<WaterRenderer>();
 		m_ShadowRenderer = std::make_unique<ShadowRenderer>();
 
-		m_Valid = m_FrameRing && m_ShadowRenderer->IsValid() && m_PBRShader->IsValid() && m_SkyShader->IsValid() &&
+		m_Valid = m_FrameRing && m_ShadowRenderer->IsValid() && m_PBRShader->IsValid() && m_PBRFoliageShader->IsValid() && m_SkyShader->IsValid() &&
 			m_ParticleRenderer->IsValid() && m_GrassRenderer->IsValid() && m_WaterRenderer->IsValid() &&
 			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete() &&
 			m_SceneDepth->IsComplete() && m_SceneAmbient->IsComplete() && m_PostProcessor->IsValid();
@@ -80,6 +86,7 @@ namespace GB
 				device.DestroyTimestamp(q);
 		device.DestroyPipeline(m_SkyPipeline);
 		device.DestroyPipeline(m_PBRPipeline);
+		device.DestroyPipeline(m_PBRFoliagePipeline);
 		m_FrameRing.reset();
 	}
 
@@ -269,17 +276,27 @@ namespace GB
 		double drawMs = 0.0;   // T70: the part of the object loop spent in here (uniforms, binds, draw), the rest is culling and batching
 		// T36 (render M4): the material's values are in the material buffer (lib/material, bound by MaterialBuffer::BeginFrame); the draw sets
 		// its entry, uMaterialId, and binds the material's maps (still loose until M6). uModel, uInstanced and uSkinned are the object's (M5).
+		// T46: the foliage materials draw with the GB_FOLIAGE program; the pipeline is switched only when the kind changes (the pipeline sets
+		// the cull, so it goes first). foliageBound: the foliage program is the one bound.
+		bool foliageBound = false;
 		auto drawObject = [&](const RenderObject& obj, uint32_t copies = 0)
 		{
 			const auto drawStart = Clock::now();
 			const Material& m = obj.Mat;
+			const bool foliage = FoliageOn(m);
+			if (foliage != foliageBound)
+			{
+				cmd.BindPipeline(foliage ? m_PBRFoliagePipeline : m_PBRPipeline);
+				foliageBound = foliage;
+			}
+			Shader& program = foliage ? *m_PBRFoliageShader : pbr;
 			cmd.SetCull(m.DoubleSided ? RHI::Cull::None : RHI::Cull::Back);
 
-			pbr.SetMat4("uModel", obj.Transform);
-			pbr.SetInt("uInstanced", copies > 0 ? 1 : 0);
-			BindSkin(pbr, obj);
+			program.SetMat4("uModel", obj.Transform);
+			program.SetInt("uInstanced", copies > 0 ? 1 : 0);
+			BindSkin(program, obj);
 			const uint32_t object = static_cast<uint32_t>(&obj - scene.Objects.data());
-			pbr.SetInt("uMaterialId", static_cast<int>(m_Materials.Resolve(object, m)));
+			program.SetInt("uMaterialId", static_cast<int>(m_Materials.Resolve(object, m)));
 			if (m.SurfaceNormalMap && m.MacroMap) m.SurfaceNormalMap->Bind(10);
 			if (m.MacroMap) m.MacroMap->Bind(7);
 			const bool coverage = m.Alpha == AlphaMode::Mask && m_Samples > 1;   // leaf edges antialiased by the MSAA target
@@ -410,6 +427,7 @@ namespace GB
 			// The grass and the water bind programs of their own: the translucent objects need the PBR one back (and its shadow map and ground
 			// marks units, which the grass binds too).
 			cmd.BindPipeline(m_PBRPipeline);
+			foliageBound = false;   // (no translucent material is foliage: FoliageOn)
 			cmd.BindTexture(0, m_ShadowMap->DepthTexture());
 			if (scene.Ground && scene.Ground->IsValid())
 				cmd.BindTexture(8, { scene.Ground->GetTexture() });

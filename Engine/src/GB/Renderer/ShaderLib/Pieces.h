@@ -55,7 +55,7 @@ layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of ou
 	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
 	vec4 Wind;          // x sway, y height of full sway, z flutter
 	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength, z index of refraction, w transmission (LAYER_TRANSMISSION)
-	vec4 Layer[10];     // the layers' slots (SLOT_*)
+	vec4 Layer[12];     // the layers' slots (SLOT_*)
 };
 layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
 uniform int uMaterialId;
@@ -80,6 +80,7 @@ const uint LAYER_WATER_LINE = 8u;
 const uint LAYER_TRAIL = 16u;
 const uint LAYER_MACRO = 32u;
 const uint LAYER_TRANSMISSION = 64u;
+const uint LAYER_FOLIAGE = 128u;
 const uint SLOT_GRAIN = 0u;        // x amount, y scale
 const uint SLOT_MOSS = 1u;         // rgb color, w amount
 const uint SLOT_SAND = 2u;         // rgb color, w amount
@@ -90,7 +91,9 @@ const uint SLOT_MACRO = 6u;        // the macro map's rect
 const uint SLOT_TRANSMISSION = 7u; // rgb absorption (1/m), w thickness (m)
 const uint SLOT_INTERIOR = 8u;     // rgb interior tint, w strength
 const uint SLOT_TRANSMISSION_EXTRA = 9u;   // x interior depth (uv), y scatter, z shadow density, w thickness variation
-const uint LAYER_SLOTS = 10u;
+const uint SLOT_FOLIAGE = 10u;     // rgb transmission tint, w translucency
+const uint SLOT_FOLIAGE_EXTRA = 11u;   // x colour variation, y normal blend, z macro variation, w alpha mip scale
+const uint LAYER_SLOTS = 12u;
 bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
 bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 )GLSL";
@@ -272,6 +275,46 @@ float PNoise3(vec3 p)
 	           mix(mix(PHash3(i + vec3(0, 0, 1)), PHash3(i + vec3(1, 0, 1)), f.x), mix(PHash3(i + vec3(0, 1, 1)), PHash3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
 }
 float FBM3(vec3 p) { return PNoise3(p) * 0.55 + PNoise3(p * 2.07 + 3.1) * 0.3 + PNoise3(p * 4.3 + 7.7) * 0.15; }
+)GLSL";
+
+	// lib/foliage (T46): what leaves and grass share (MATERIALES.md, "Follaje"). PBR FS (LAYER_FOLIAGE) and Grass FS (its uniforms).
+	// - FoliageVary: the colour of one instance of a plant, from a hash of its origin in the world: hue turned around the grey axis (mostly
+	//   toward yellow, some toward a deeper green), saturation down toward olive or a little up, and brightness up or down, by `amount`;
+	//   and, by `macro`, a low-frequency world patch between a
+	//   yellowish and an olive green. Self-contained (its own hash, not lib/noise_pbr's, which the grass does not have).
+	// - FoliageThrough: how much of the sun gets through a leaf toward the eye, before its tint and shadow: a lobe around the sun seen
+	//   through the leaf (V . -L) and a diffuse part on the face away from the sun (-N . L), as a wrap.
+	inline constexpr const char* Foliage = R"GLSL(float FHash3(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+float FNoise2(vec2 p)
+{
+	vec2 i = floor(p), f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(FHash3(vec3(i, 0.0)), FHash3(vec3(i + vec2(1, 0), 0.0)), f.x), mix(FHash3(vec3(i + vec2(0, 1), 0.0)), FHash3(vec3(i + vec2(1, 1), 0.0)), f.x), f.y);
+}
+vec3 FoliageVary(vec3 c, vec3 origin, vec3 world, float amount, float macro)
+{
+	if (amount > 0.0)
+	{
+		float h1 = FHash3(origin * 1.37 + 0.11), h2 = FHash3(origin.zxy * 2.11 + 5.3), h3 = FHash3(origin.yzx * 3.07 + 9.1);
+		float a = (0.3 - h1) * amount * 0.55;   // radians around the grey axis: negative turns green toward yellow, positive toward a deeper green
+		const vec3 k = vec3(0.57735027);
+		c = c * cos(a) + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - cos(a));
+		float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+		c = mix(vec3(lum), c, 1.0 + (0.4 - h2) * amount * 0.6);   // less saturated (olive) or a little more
+		c *= 1.0 + (h3 - 0.5) * amount * 0.7;
+	}
+	if (macro > 0.0)
+	{
+		float m = FNoise2(world.xz * 0.07) * 0.65 + FNoise2(world.xz * 0.19 + 7.0) * 0.35;
+		vec3 patchTint = mix(vec3(1.16, 1.06, 0.62), vec3(0.78, 0.84, 0.62), smoothstep(0.3, 0.7, m));
+		c *= mix(vec3(1.0), patchTint, macro);
+	}
+	return max(c, vec3(0.0));
+}
+float FoliageThrough(vec3 N, vec3 V, vec3 L)
+{
+	return pow(clamp(dot(V, -L), 0.0, 1.0), 4.0) * 3.0 + clamp(dot(-N, L), 0.0, 1.0);
+}
 )GLSL";
 
 	// lib/water_waves: the four Gerstner waves of WaterSurface::HeightAt. Water VS and FS. The @WAVESET@ line is replaced

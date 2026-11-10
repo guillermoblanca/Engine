@@ -18,8 +18,11 @@ namespace GB
 	struct MaterialData
 	{
 		static constexpr uint32_t Binding = 3;      // layout(std430, binding = 3) readonly buffer MaterialBuffer
-		static constexpr uint32_t LayerSlots = 10;  // Layer[]: fixed slots, one or two per layer (below). T101: 8 -> 10 for the transmission's
-		                                            // interior, scatter and shadow (7 more floats; no slot was free and Tex.yzw is M6's)
+		static constexpr uint32_t LayerSlots = 12;  // Layer[]: fixed slots, one or two per layer (below). T101: 8 -> 10 for the transmission's
+		                                            // interior, scatter and shadow (7 more floats; no slot was free and Tex.yzw is M6's).
+		                                            // T46: 10 -> 12 for the foliage (8 floats; only Wind.w was free, and the transmission's
+		                                            // slots are Blend-only while foliage is opaque or masked: sharing them would make a slot
+		                                            // mean two things)
 
 		// Tex.x: the loose maps the draw binds (until M6 puts them in arrays and Tex.yzw holds their layers)
 		static constexpr uint32_t TexAlbedo = 1u << 0;           // unit 1
@@ -47,6 +50,8 @@ namespace GB
 		static constexpr uint32_t LayerMacro = 1u << 5;
 		static constexpr uint32_t LayerTransmission = 1u << 6;   // T34: a Blend material that sees what is behind it (glass, ice): the PBR shader's
 		                                                         // transmission branch, which reads the copy of the opaque scene (unit 11)
+		static constexpr uint32_t LayerFoliage = 1u << 7;        // T46: leaves and grass cards: diffuse back light (translucency), colour variation
+		                                                         // per instance, the crown normal blend and the alpha mip scale (SlotFoliage*)
 
 		// Layer[] slots
 		static constexpr uint32_t SlotGrain = 0;       // x amount, y scale (noise frequency per metre)
@@ -60,6 +65,9 @@ namespace GB
 		// T101, with LayerTransmission only (else 0):
 		static constexpr uint32_t SlotInterior = 8;       // rgb tint of the interior map, w its strength
 		static constexpr uint32_t SlotTransmissionExtra = 9;   // x interior depth (uv units), y scatter, z shadow density, w thickness variation
+		// T46, with LayerFoliage only (else 0):
+		static constexpr uint32_t SlotFoliage = 10;        // rgb transmission tint (times the albedo), w translucency
+		static constexpr uint32_t SlotFoliageExtra = 11;   // x colour variation, y normal blend, z macro variation, w alpha mip scale
 
 		glm::vec4 BaseColor{ 0.0f };     // rgb albedo (linear), a opacity
 		glm::vec4 Emissive{ 0.0f };      // rgb emissive, a alpha cutoff
@@ -83,5 +91,5 @@ namespace GB
 	static_assert(offsetof(MaterialData, Wind) == 96);
 	static_assert(offsetof(MaterialData, ModelParams) == 112);
 	static_assert(offsetof(MaterialData, Layer) == 128);
-	static_assert(sizeof(MaterialData) == 288, "8 x 16 + 10 slots x 16 B (std430, array stride 288)");
+	static_assert(sizeof(MaterialData) == 320, "8 x 16 + 12 slots x 16 B (std430, array stride 320)");
 }

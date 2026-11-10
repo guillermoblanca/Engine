@@ -9,7 +9,7 @@ struct MaterialData
 	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
 	vec4 Wind;          // x sway, y height of full sway, z flutter
 	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength, z index of refraction, w transmission (LAYER_TRANSMISSION)
-	vec4 Layer[10];     // the layers' slots (SLOT_*)
+	vec4 Layer[12];     // the layers' slots (SLOT_*)
 };
 layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
 uniform int uMaterialId;
@@ -34,6 +34,7 @@ const uint LAYER_WATER_LINE = 8u;
 const uint LAYER_TRAIL = 16u;
 const uint LAYER_MACRO = 32u;
 const uint LAYER_TRANSMISSION = 64u;
+const uint LAYER_FOLIAGE = 128u;
 const uint SLOT_GRAIN = 0u;        // x amount, y scale
 const uint SLOT_MOSS = 1u;         // rgb color, w amount
 const uint SLOT_SAND = 2u;         // rgb color, w amount
@@ -44,15 +45,24 @@ const uint SLOT_MACRO = 6u;        // the macro map's rect
 const uint SLOT_TRANSMISSION = 7u; // rgb absorption (1/m), w thickness (m)
 const uint SLOT_INTERIOR = 8u;     // rgb interior tint, w strength
 const uint SLOT_TRANSMISSION_EXTRA = 9u;   // x interior depth (uv), y scatter, z shadow density, w thickness variation
-const uint LAYER_SLOTS = 10u;
+const uint SLOT_FOLIAGE = 10u;     // rgb transmission tint, w translucency
+const uint SLOT_FOLIAGE_EXTRA = 11u;   // x colour variation, y normal blend, z macro variation, w alpha mip scale
+const uint LAYER_SLOTS = 12u;
 bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
 bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 in vec2 vUV;
 layout(binding = 1) uniform sampler2D uAlbedoMap;
 void main()
 {
-	if (MATERIAL.Flags.z == 1u && HasTex(TEX_ALBEDO) && texture(uAlbedoMap, vUV).a * MATERIAL.BaseColor.a < MATERIAL.Emissive.a)
-		discard;
+	if (MATERIAL.Flags.z == 1u && HasTex(TEX_ALBEDO))
+	{
+		float alpha = texture(uAlbedoMap, vUV).a * MATERIAL.BaseColor.a;
+		// T46: foliage with an alpha mip scale: the alpha raised by the mip level, as in PBRFS, so thin cards keep their shadow far away
+		if ((MATERIAL.Flags.x & LAYER_FOLIAGE) != 0u)
+			alpha *= 1.0 + max(textureQueryLod(uAlbedoMap, vUV).x, 0.0) * MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].w;
+		if (alpha < MATERIAL.Emissive.a)
+			discard;
+	}
 	// T101: a transmissive caster (only with a shadow density: RenderList) covers that fraction of the shadow map's texels in a 4x4 ordered
 	// dither; the 5x5 PCF of the lookup averages it into a faint, even shadow.
 	if (MATERIAL.Flags.z == 2u)

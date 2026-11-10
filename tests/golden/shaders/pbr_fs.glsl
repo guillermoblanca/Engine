@@ -30,7 +30,7 @@ struct MaterialData
 	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
 	vec4 Wind;          // x sway, y height of full sway, z flutter
 	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength, z index of refraction, w transmission (LAYER_TRANSMISSION)
-	vec4 Layer[10];     // the layers' slots (SLOT_*)
+	vec4 Layer[12];     // the layers' slots (SLOT_*)
 };
 layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
 uniform int uMaterialId;
@@ -55,6 +55,7 @@ const uint LAYER_WATER_LINE = 8u;
 const uint LAYER_TRAIL = 16u;
 const uint LAYER_MACRO = 32u;
 const uint LAYER_TRANSMISSION = 64u;
+const uint LAYER_FOLIAGE = 128u;
 const uint SLOT_GRAIN = 0u;        // x amount, y scale
 const uint SLOT_MOSS = 1u;         // rgb color, w amount
 const uint SLOT_SAND = 2u;         // rgb color, w amount
@@ -65,7 +66,9 @@ const uint SLOT_MACRO = 6u;        // the macro map's rect
 const uint SLOT_TRANSMISSION = 7u; // rgb absorption (1/m), w thickness (m)
 const uint SLOT_INTERIOR = 8u;     // rgb interior tint, w strength
 const uint SLOT_TRANSMISSION_EXTRA = 9u;   // x interior depth (uv), y scatter, z shadow density, w thickness variation
-const uint LAYER_SLOTS = 10u;
+const uint SLOT_FOLIAGE = 10u;     // rgb transmission tint, w translucency
+const uint SLOT_FOLIAGE_EXTRA = 11u;   // x colour variation, y normal blend, z macro variation, w alpha mip scale
+const uint LAYER_SLOTS = 12u;
 bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
 bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 
@@ -108,6 +111,7 @@ in vec3 vPos;
 in vec3 vNormal;
 in vec4 vTangent;
 in vec2 vUV;
+flat in vec3 vOrigin;   // T46 (LAYER_FOLIAGE only)
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 
@@ -209,6 +213,39 @@ float PNoise3(vec3 p)
 	           mix(mix(PHash3(i + vec3(0, 0, 1)), PHash3(i + vec3(1, 0, 1)), f.x), mix(PHash3(i + vec3(0, 1, 1)), PHash3(i + vec3(1, 1, 1)), f.x), f.y), f.z);
 }
 float FBM3(vec3 p) { return PNoise3(p) * 0.55 + PNoise3(p * 2.07 + 3.1) * 0.3 + PNoise3(p * 4.3 + 7.7) * 0.15; }
+#ifdef GB_FOLIAGE
+float FHash3(vec3 p) { p = fract(p * vec3(0.1031, 0.1030, 0.0973)); p += dot(p, p.yxz + 33.33); return fract((p.x + p.y) * p.z); }
+float FNoise2(vec2 p)
+{
+	vec2 i = floor(p), f = fract(p);
+	f = f * f * (3.0 - 2.0 * f);
+	return mix(mix(FHash3(vec3(i, 0.0)), FHash3(vec3(i + vec2(1, 0), 0.0)), f.x), mix(FHash3(vec3(i + vec2(0, 1), 0.0)), FHash3(vec3(i + vec2(1, 1), 0.0)), f.x), f.y);
+}
+vec3 FoliageVary(vec3 c, vec3 origin, vec3 world, float amount, float macro)
+{
+	if (amount > 0.0)
+	{
+		float h1 = FHash3(origin * 1.37 + 0.11), h2 = FHash3(origin.zxy * 2.11 + 5.3), h3 = FHash3(origin.yzx * 3.07 + 9.1);
+		float a = (0.3 - h1) * amount * 0.55;   // radians around the grey axis: negative turns green toward yellow, positive toward a deeper green
+		const vec3 k = vec3(0.57735027);
+		c = c * cos(a) + cross(k, c) * sin(a) + k * dot(k, c) * (1.0 - cos(a));
+		float lum = dot(c, vec3(0.2126, 0.7152, 0.0722));
+		c = mix(vec3(lum), c, 1.0 + (0.4 - h2) * amount * 0.6);   // less saturated (olive) or a little more
+		c *= 1.0 + (h3 - 0.5) * amount * 0.7;
+	}
+	if (macro > 0.0)
+	{
+		float m = FNoise2(world.xz * 0.07) * 0.65 + FNoise2(world.xz * 0.19 + 7.0) * 0.35;
+		vec3 patchTint = mix(vec3(1.16, 1.06, 0.62), vec3(0.78, 0.84, 0.62), smoothstep(0.3, 0.7, m));
+		c *= mix(vec3(1.0), patchTint, macro);
+	}
+	return max(c, vec3(0.0));
+}
+float FoliageThrough(vec3 N, vec3 V, vec3 L)
+{
+	return pow(clamp(dot(V, -L), 0.0, 1.0), 4.0) * 3.0 + clamp(dot(-N, L), 0.0, 1.0);
+}
+#endif
 
 // Rain rings on a puddle: one expanding ring per random cell, two layers.
 vec2 PuddleRings(vec2 p)
@@ -284,6 +321,17 @@ void main()
 		                 TrailAt(vPos.xz + vec2(0.0, e)) - TrailAt(vPos.xz - vec2(0.0, e))) / (2.0 * e);
 		N = normalize(N + vec3(grad.x, 0.0, grad.y) * MATERIAL.Layer[SLOT_TRAIL].x * MATERIAL.Layer[SLOT_TRAIL].y);
 	}
+#ifdef GB_FOLIAGE
+	// T46: foliage. The card's normal mixed with the normal of a sphere around the object's pivot (on the ground: the sphere leans up), so
+	// the inside of a bush sees the sky; before the normal map, which perturbs the blended normal (the card's relief still shows).
+	if (MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].y > 0.0)
+	{
+		vec3 crown = vPos - vOrigin;
+		vec3 S = dot(crown, crown) > 1e-8 ? normalize(crown) : vec3(0.0, 1.0, 0.0);
+		vec3 n = mix(N, S, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].y);
+		N = dot(n, n) > 1e-6 ? normalize(n) : S;
+	}
+#endif
 
 	if (HasTex(TEX_NORMAL))
 	{
@@ -302,7 +350,16 @@ void main()
 		vec4 t = texture(uAlbedoMap, vUV);
 		albedo *= t.rgb;
 		alpha *= t.a;
+#ifdef GB_FOLIAGE
+		// T46: the mip levels average the mask's alpha down, so thin cards thin out and flicker far away: raise it by the level
+		if (MATERIAL.Flags.z == 1u)
+			alpha *= 1.0 + max(textureQueryLod(uAlbedoMap, vUV).x, 0.0) * MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].w;
+#endif
 	}
+#ifdef GB_FOLIAGE
+	// T46: per-instance colour (a hash of the instance's origin) and the world's macro patches
+	albedo = FoliageVary(albedo, vOrigin, vPos, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].x, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].z);
+#endif
 	if (HasTex(TEX_MACRO))
 		albedo *= texture(uMacroMap, (vPos.xz - MATERIAL.Layer[SLOT_MACRO].xy) / MATERIAL.Layer[SLOT_MACRO].zw).rgb;
 	albedo *= mix(vec3(1.0), MATERIAL.Layer[SLOT_TRAIL_TINT].rgb, clamp(trailT * 1.3, 0.0, 1.0));   // compacted / wetter ground
@@ -441,6 +498,15 @@ void main()
 	vec3 Ls = normalize(-uSunDir);
 	float sunShadow = Shadow(vPos, N, Ls);
 	Lo += Shade(N, V, Ls, uSunColor, albedo, F0, a, metallic) * sunShadow;
+#ifdef GB_FOLIAGE
+	// T46: the sun through the leaf (diffuse transmission), tinted by the albedo times the transmission tint. Its shadow is looked up
+	// offset toward the sun, not along N: on the face away from the sun N points away from it and the leaf would shadow itself; the
+	// leaves between this one and the sun still do (a leaf in the shadow of another does not glow).
+	float leafT = MATERIAL.Layer[SLOT_FOLIAGE].w;
+	vec3 leafTint = MATERIAL.Layer[SLOT_FOLIAGE].rgb * albedo * leafT;
+	if (leafT > 0.0)
+		Lo += uSunColor / PI * Shadow(vPos, Ls, Ls) * FoliageThrough(N, V, Ls) * leafTint;
+#endif
 
 	for (int i = 0; i < uPointCount; ++i)
 	{
@@ -466,6 +532,10 @@ void main()
 	// Horizon occlusion: reflections under the surface plane fade out.
 	float horizon = clamp(1.0 + dot(R, N) * 1.5, 0.0, 1.0);
 	vec3 ambient = (ambientDiffuse + ambientSpec * horizon) * ao * uEnvIntensity;
+#ifdef GB_FOLIAGE
+	if (leafT > 0.0)   // T46: the sky behind the leaf, through it (a quarter of what the face toward it gets)
+		ambient += SkyIrradiance(-N) * leafTint * (0.25 * ao * uEnvIntensity);
+#endif
 
 	// RGBA16F overflows at 65504; a tiny GGX lobe can exceed that and the bloom would spread the inf.
 	vec3 emissive = MATERIAL.Emissive.rgb;

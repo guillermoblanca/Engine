@@ -9,7 +9,7 @@
 //
 //   ShaderLib/Pieces.h            lib/*: the per-frame block (lib/frame, mirror of FrameConstants.h), the per-material block (lib/material,
 //                                 mirror of MaterialData.h), sky, scene targets, trail, skinning,
-//                                 height, tree wind, depth, brdf, shadow, PBR noise, water waves
+//                                 height, tree wind, depth, brdf, shadow, PBR noise, foliage, water waves
 //   ShaderLib/ObjectShaders.h     ShadowVS/FS, PBRVS/FS
 //   ShaderLib/SkyShaders.h        SkyFS
 //   ShaderLib/PostShaders.h       FullscreenVS, bloom, SSAO, exposure, composite
@@ -46,6 +46,7 @@ namespace GB::Shaders
 		{ "lib/brdf", Lib::Brdf },
 		{ "lib/shadow", Lib::Shadow },
 		{ "lib/noise_pbr", Lib::NoisePbr },
+		{ "lib/foliage", Lib::Foliage },
 		{ "lib/water_waves", Lib::WaterWaves },
 	};
 	inline std::span<const ShaderPiece> Library() { return kLibrary; }
