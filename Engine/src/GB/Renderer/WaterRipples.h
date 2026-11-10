@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/RHI.h"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <memory>
@@ -53,7 +54,9 @@ namespace GB
 		std::unique_ptr<Framebuffer> m_Buffers[2];
 		int m_Current = 0;
 		std::unique_ptr<Shader> m_StepShader, m_DropShader;
-		uint32_t m_EmptyVAO = 0, m_VAO = 0, m_VBO = 0;
+		RHI::VertexLayoutHandle m_EmptyVAO, m_VAO;
+		RHI::BufferHandle m_VBO;
+		RHI::PipelineHandle m_StepPipe, m_DropPipe;   // the wave step (no blending, no depth); the drops (additive)
 		std::vector<Drop> m_Pending;
 		glm::ivec2 m_CenterTexel{ 0 };
 		glm::vec2 m_Center{ 0.0f };

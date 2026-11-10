@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Renderer/RHI/RHI.h"
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <memory>
@@ -71,7 +72,9 @@ namespace GB
 
 		std::unique_ptr<Framebuffer> m_Target;
 		std::unique_ptr<Shader> m_StampShader, m_DecayShader;
-		uint32_t m_VAO = 0, m_VBO = 0, m_EmptyVAO = 0;
+		RHI::VertexLayoutHandle m_VAO, m_EmptyVAO;
+		RHI::BufferHandle m_VBO;
+		RHI::PipelineHandle m_Pipeline;   // full-screen and stamps: no depth test, no culling, no scissor
 		std::vector<PendingStamp> m_Pending;
 		std::vector<Stamp4> m_Instances;
 		glm::ivec2 m_CenterTexel{ 0 };

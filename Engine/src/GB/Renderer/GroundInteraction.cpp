@@ -4,7 +4,6 @@
 #include "GB/Renderer/Shader.h"
 #include <algorithm>
 #include <cmath>
-#include <glad/gl.h>
 
 namespace GB
 {
@@ -89,30 +88,36 @@ void main() { outValue = vec4(0.0); }   // the blend state does the work: dst *=
 		spec.Depth = false;
 		m_Target = std::make_unique<Framebuffer>(spec);
 		// The window is a torus: lookups outside [0,1] must wrap.
-		glTextureParameteri(m_Target->GetColorTexture(), GL_TEXTURE_WRAP_S, GL_REPEAT);
-		glTextureParameteri(m_Target->GetColorTexture(), GL_TEXTURE_WRAP_T, GL_REPEAT);
+		RHI::Device& device = RHI::GetDevice();
+		{
+			RHI::SamplerDesc wrap;   // (linear filtering, as the target has)
+			device.SetSampler(m_Target->ColorTexture(), wrap);
+		}
 		m_StampShader = std::make_unique<Shader>(kStampVS, kStampFS);
 		m_DecayShader = std::make_unique<Shader>(kFullscreenVS, kDecayFS);
 
-		glCreateBuffers(1, &m_VBO);
-		glCreateVertexArrays(1, &m_VAO);
-		glVertexArrayVertexBuffer(m_VAO, 0, m_VBO, 0, sizeof(Stamp4));
-		glVertexArrayBindingDivisor(m_VAO, 0, 1);
-		for (GLuint i = 0; i < 2; ++i)
-		{
-			glEnableVertexArrayAttrib(m_VAO, i);
-			glVertexArrayAttribFormat(m_VAO, i, 4, GL_FLOAT, GL_FALSE, i * 16);
-			glVertexArrayAttribBinding(m_VAO, i, 0);
-		}
-		glCreateVertexArrays(1, &m_EmptyVAO);
+		m_VBO = device.CreateStreamBuffer();
+		RHI::VertexLayoutDesc layout;
+		layout.Bindings.push_back({ 0, m_VBO, 0, sizeof(Stamp4), 1 });
+		for (uint32_t i = 0; i < 2; ++i)
+			layout.Attribs.push_back({ i, 4, RHI::AttribType::Float, i * 16, 0 });
+		m_VAO = device.CreateVertexLayout(layout);
+		m_EmptyVAO = device.CreateVertexLayout({});
+		RHI::PipelineDesc pipeline;
+		pipeline.DepthTest = false;
+		pipeline.CullMode = RHI::Cull::None;
+		pipeline.Scissor = false;
+		m_Pipeline = device.CreatePipeline(pipeline);
 		Clear();
 	}
 
 	GroundInteraction::~GroundInteraction()
 	{
-		glDeleteBuffers(1, &m_VBO);
-		glDeleteVertexArrays(1, &m_VAO);
-		glDeleteVertexArrays(1, &m_EmptyVAO);
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyBuffer(m_VBO);
+		device.DestroyVertexLayout(m_VAO);
+		device.DestroyVertexLayout(m_EmptyVAO);
+		device.DestroyPipeline(m_Pipeline);
 	}
 
 	bool GroundInteraction::IsValid() const
@@ -124,8 +129,7 @@ void main() { outValue = vec4(0.0); }   // the blend state does the work: dst *=
 
 	void GroundInteraction::Clear()
 	{
-		const float zero[4] = { 0, 0, 0, 0 };
-		glClearNamedFramebufferfv(m_Target->GetID(), GL_COLOR, 0, zero);
+		RHI::GetDevice().Commands().ClearColorAttachment(m_Target->GetTarget().Handle, 0, glm::vec4(0.0f));
 		m_Pending.clear();
 	}
 
@@ -160,24 +164,24 @@ void main() { outValue = vec4(0.0); }   // the blend state does the work: dst *=
 		const int n = static_cast<int>(Desc.Resolution);
 		if (count <= 0)
 			return;
-		const float zero[4] = { 0, 0, 0, 0 };
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		const RHI::RenderTargetHandle target = m_Target->GetTarget().Handle;
 		if (count >= n)
 		{
-			glClearNamedFramebufferfv(m_Target->GetID(), GL_COLOR, 0, zero);
+			cmd.ClearColorAttachment(target, 0, glm::vec4(0.0f));
 			return;
 		}
 		from = Mod(from, n);
 		const int first = std::min(count, n - from);
-		glEnable(GL_SCISSOR_TEST);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_Target->GetID());
-		glScissor(from, 0, first, n);
-		glClearNamedFramebufferfv(m_Target->GetID(), GL_COLOR, 0, zero);
+		cmd.BeginPass(m_Target->Pass("ground clear"));
+		cmd.SetScissor(glm::ivec4(from, 0, first, n));
+		cmd.ClearColorAttachment(target, 0, glm::vec4(0.0f));
 		if (count > first)
 		{
-			glScissor(0, 0, count - first, n);
-			glClearNamedFramebufferfv(m_Target->GetID(), GL_COLOR, 0, zero);
+			cmd.SetScissor(glm::ivec4(0, 0, count - first, n));
+			cmd.ClearColorAttachment(target, 0, glm::vec4(0.0f));
 		}
-		glDisable(GL_SCISSOR_TEST);
+		cmd.SetScissor(std::nullopt);
 	}
 
 	void GroundInteraction::ClearRows(int from, int count)
@@ -185,24 +189,24 @@ void main() { outValue = vec4(0.0); }   // the blend state does the work: dst *=
 		const int n = static_cast<int>(Desc.Resolution);
 		if (count <= 0)
 			return;
-		const float zero[4] = { 0, 0, 0, 0 };
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		const RHI::RenderTargetHandle target = m_Target->GetTarget().Handle;
 		if (count >= n)
 		{
-			glClearNamedFramebufferfv(m_Target->GetID(), GL_COLOR, 0, zero);
+			cmd.ClearColorAttachment(target, 0, glm::vec4(0.0f));
 			return;
 		}
 		from = Mod(from, n);
 		const int first = std::min(count, n - from);
-		glEnable(GL_SCISSOR_TEST);
-		glBindFramebuffer(GL_FRAMEBUFFER, m_Target->GetID());
-		glScissor(0, from, n, first);
-		glClearNamedFramebufferfv(m_Target->GetID(), GL_COLOR, 0, zero);
+		cmd.BeginPass(m_Target->Pass("ground clear"));
+		cmd.SetScissor(glm::ivec4(0, from, n, first));
+		cmd.ClearColorAttachment(target, 0, glm::vec4(0.0f));
 		if (count > first)
 		{
-			glScissor(0, 0, n, count - first);
-			glClearNamedFramebufferfv(m_Target->GetID(), GL_COLOR, 0, zero);
+			cmd.SetScissor(glm::ivec4(0, 0, n, count - first));
+			cmd.ClearColorAttachment(target, 0, glm::vec4(0.0f));
 		}
-		glDisable(GL_SCISSOR_TEST);
+		cmd.SetScissor(std::nullopt);
 	}
 
 	void GroundInteraction::Update(float dt, const glm::vec3& center)
@@ -230,22 +234,19 @@ void main() { outValue = vec4(0.0); }   // the blend state does the work: dst *=
 		}
 		m_Center = glm::vec2(static_cast<float>(m_CenterTexel.x), static_cast<float>(m_CenterTexel.y)) * texel;
 
-		m_Target->Bind();
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_CULL_FACE);
-		glDisable(GL_SCISSOR_TEST);
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BeginPass(m_Target->Pass("ground"));
+		cmd.BindPipeline(m_Pipeline);
 
 		// 2. Recovery: dst *= exp(-rate * dt).
 		if (dt > 0.0f && Desc.RecoveryPerSecond > 0.0f)
 		{
 			const float k = std::exp(-Desc.RecoveryPerSecond * dt);
-			glEnable(GL_BLEND);
-			glBlendEquation(GL_FUNC_ADD);
-			glBlendColor(k, k, k, k);
-			glBlendFunc(GL_ZERO, GL_CONSTANT_COLOR);
+			cmd.SetBlend({ true, RHI::BlendFactor::Zero, RHI::BlendFactor::ConstantColor, RHI::BlendOp::Add });
+			cmd.SetBlendColor(glm::vec4(k));
 			m_DecayShader->Bind();
-			glBindVertexArray(m_EmptyVAO);
-			glDrawArrays(GL_TRIANGLES, 0, 3);
+			cmd.BindVertexLayout(m_EmptyVAO);
+			cmd.Draw(RHI::Topology::Triangles, 0, 3);
 		}
 
 		// 3. Marks. A stamp near the seam of the torus is drawn again on the other side.
@@ -272,20 +273,18 @@ void main() { outValue = vec4(0.0); }   // the blend state does the work: dst *=
 			}
 			if (!m_Instances.empty())
 			{
-				glNamedBufferData(m_VBO, static_cast<GLsizeiptr>(m_Instances.size() * sizeof(Stamp4)), m_Instances.data(), GL_STREAM_DRAW);
-				glEnable(GL_BLEND);
-				glBlendEquation(GL_MAX);       // overlapping marks do not dig deeper than the deepest one
-				glBlendFunc(GL_ONE, GL_ONE);
+				cmd.UploadStream(m_VBO, m_Instances.size() * sizeof(Stamp4), m_Instances.data());
+				// (overlapping marks do not dig deeper than the deepest one)
+				cmd.SetBlend({ true, RHI::BlendFactor::One, RHI::BlendFactor::One, RHI::BlendOp::Max });
 				m_StampShader->Bind();
 				m_StampShader->SetFloat("uSize", S);
-				glBindVertexArray(m_VAO);
-				glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(m_Instances.size()));
+				cmd.BindVertexLayout(m_VAO);
+				cmd.DrawInstanced(RHI::Topology::TriangleStrip, 0, 4, static_cast<uint32_t>(m_Instances.size()));
 			}
 			m_Pending.clear();
 		}
 
-		glBlendEquation(GL_FUNC_ADD);
-		glDisable(GL_BLEND);
+		cmd.SetBlend({ false, RHI::BlendFactor::One, RHI::BlendFactor::Zero, RHI::BlendOp::Add });
 	}
 
 	float GroundInteraction::ReadDepth(float x, float z) const
@@ -296,7 +295,7 @@ void main() { outValue = vec4(0.0); }   // the blend state does the work: dst *=
 		const int ix = std::clamp(static_cast<int>(u * static_cast<float>(n)), 0, n - 1);
 		const int iy = std::clamp(static_cast<int>(v * static_cast<float>(n)), 0, n - 1);
 		float value = 0.0f;
-		glGetTextureSubImage(m_Target->GetColorTexture(), 0, ix, iy, 0, 1, 1, 1, GL_RED, GL_FLOAT, sizeof(float), &value);
+		RHI::GetDevice().ReadTexture(m_Target->ColorTexture(), static_cast<uint32_t>(ix), static_cast<uint32_t>(iy), 1, 1, RHI::PixelData::RedFloat, sizeof(float), &value);
 		return value;
 	}
 }

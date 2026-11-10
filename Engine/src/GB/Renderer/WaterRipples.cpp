@@ -3,7 +3,6 @@
 #include "GB/Renderer/Shader.h"
 #include <algorithm>
 #include <cmath>
-#include <glad/gl.h>
 
 namespace GB
 {
@@ -85,27 +84,38 @@ void main()
 		for (auto& b : m_Buffers)
 		{
 			b = std::make_unique<Framebuffer>(spec);
-			glTextureParameteri(b->GetColorTexture(), GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTextureParameteri(b->GetColorTexture(), GL_TEXTURE_WRAP_T, GL_REPEAT);
+			RHI::GetDevice().SetSampler(b->ColorTexture(), RHI::SamplerDesc{});   // a torus: linear filtering, wrapping
 		}
 		m_StepShader = std::make_unique<Shader>(kFullscreenVS, kStepFS);
 		m_DropShader = std::make_unique<Shader>(kDropVS, kDropFS);
-		glCreateVertexArrays(1, &m_EmptyVAO);
-		glCreateBuffers(1, &m_VBO);
-		glCreateVertexArrays(1, &m_VAO);
-		glVertexArrayVertexBuffer(m_VAO, 0, m_VBO, 0, sizeof(glm::vec4));
-		glVertexArrayBindingDivisor(m_VAO, 0, 1);
-		glEnableVertexArrayAttrib(m_VAO, 0);
-		glVertexArrayAttribFormat(m_VAO, 0, 4, GL_FLOAT, GL_FALSE, 0);
-		glVertexArrayAttribBinding(m_VAO, 0, 0);
+		RHI::Device& device = RHI::GetDevice();
+		m_EmptyVAO = device.CreateVertexLayout({});
+		m_VBO = device.CreateStreamBuffer();
+		RHI::VertexLayoutDesc layout;
+		layout.Bindings.push_back({ 0, m_VBO, 0, sizeof(glm::vec4), 1 });
+		layout.Attribs.push_back({ 0, 4, RHI::AttribType::Float, 0, 0 });
+		m_VAO = device.CreateVertexLayout(layout);
+		RHI::PipelineDesc step;
+		step.Program = m_StepShader->GetHandle();
+		step.Blend = RHI::BlendState{};
+		step.DepthTest = false;
+		m_StepPipe = device.CreatePipeline(step);
+		RHI::PipelineDesc drop;
+		drop.Program = m_DropShader->GetHandle();
+		drop.DepthTest = false;
+		drop.Blend = RHI::BlendState{ true, RHI::BlendFactor::One, RHI::BlendFactor::One, RHI::BlendOp::Add };
+		m_DropPipe = device.CreatePipeline(drop);
 		Clear();
 	}
 
 	WaterRipples::~WaterRipples()
 	{
-		glDeleteVertexArrays(1, &m_EmptyVAO);
-		glDeleteVertexArrays(1, &m_VAO);
-		glDeleteBuffers(1, &m_VBO);
+		RHI::Device& device = RHI::GetDevice();
+		device.DestroyVertexLayout(m_EmptyVAO);
+		device.DestroyVertexLayout(m_VAO);
+		device.DestroyBuffer(m_VBO);
+		device.DestroyPipeline(m_StepPipe);
+		device.DestroyPipeline(m_DropPipe);
 	}
 
 	bool WaterRipples::IsValid() const
@@ -117,9 +127,9 @@ void main()
 
 	void WaterRipples::Clear()
 	{
-		const float zero[4] = { 0, 0, 0, 0 };
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
 		for (auto& b : m_Buffers)
-			glClearNamedFramebufferfv(b->GetID(), GL_COLOR, 0, zero);
+			cmd.ClearColorAttachment(b->GetTarget().Handle, 0, glm::vec4(0.0f));
 		m_Pending.clear();
 	}
 
@@ -131,15 +141,14 @@ void main()
 	void WaterRipples::ClearStrips(const glm::ivec2& from, const glm::ivec2& count)
 	{
 		const int n = static_cast<int>(Desc.Resolution);
-		const float zero[4] = { 0, 0, 0, 0 };
-		glEnable(GL_SCISSOR_TEST);
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
 		for (auto& b : m_Buffers)
 		{
-			glBindFramebuffer(GL_FRAMEBUFFER, b->GetID());
+			cmd.BeginPass(b->Pass("ripples clear"));
 			auto clear = [&](int x, int y, int w, int h)
 			{
-				glScissor(x, y, w, h);
-				glClearNamedFramebufferfv(b->GetID(), GL_COLOR, 0, zero);
+				cmd.SetScissor(glm::ivec4(x, y, w, h));
+				cmd.ClearColorAttachment(b->GetTarget().Handle, 0, glm::vec4(0.0f));
 			};
 			if (count.x > 0)
 			{
@@ -154,27 +163,26 @@ void main()
 				if (count.y > first) clear(0, 0, n, count.y - first);
 			}
 		}
-		glDisable(GL_SCISSOR_TEST);
+		cmd.SetScissor(std::nullopt);
 	}
 
 	void WaterRipples::Step(float dt)
 	{
 		const int next = 1 - m_Current;
-		m_Buffers[next]->Bind();
-		glDisable(GL_BLEND);
-		glDisable(GL_DEPTH_TEST);
-		glBindTextureUnit(0, m_Buffers[m_Current]->GetColorTexture());
+		RHI::CommandList& cmd = RHI::GetDevice().Commands();
+		cmd.BeginPass(m_Buffers[next]->Pass("ripples step"));
+		cmd.BindPipeline(m_StepPipe);
+		cmd.BindTexture(0, m_Buffers[m_Current]->ColorTexture());
 		const float n = static_cast<float>(Desc.Resolution);
 		const float texel = Desc.Size / n;
-		m_StepShader->Bind();
 		m_StepShader->SetFloat("uDt", dt);
 		m_StepShader->SetFloat("uC2", Desc.WaveSpeed * Desc.WaveSpeed / (texel * texel));
 		m_StepShader->SetFloat("uDamping", Desc.Damping);
 		m_StepShader->SetVec2("uTexel", { 1.0f / n, 1.0f / n });
 		m_StepShader->SetFloat("uEdge", 8.0f);
 		m_StepShader->SetVec2("uCenterUV", { m_Center.x / Desc.Size - std::floor(m_Center.x / Desc.Size), m_Center.y / Desc.Size - std::floor(m_Center.y / Desc.Size) });
-		glBindVertexArray(m_EmptyVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		cmd.BindVertexLayout(m_EmptyVAO);
+		cmd.Draw(RHI::Topology::Triangles, 0, 3);
 		m_Current = next;
 	}
 
@@ -229,17 +237,14 @@ void main()
 			}
 			if (!drops.empty())
 			{
-				m_Buffers[m_Current]->Bind();
-				glDisable(GL_DEPTH_TEST);
-				glNamedBufferData(m_VBO, static_cast<GLsizeiptr>(drops.size() * sizeof(glm::vec4)), drops.data(), GL_STREAM_DRAW);
-				glEnable(GL_BLEND);
-				glBlendEquation(GL_FUNC_ADD);
-				glBlendFunc(GL_ONE, GL_ONE);
-				m_DropShader->Bind();
+				RHI::CommandList& cmd = RHI::GetDevice().Commands();
+				cmd.BeginPass(m_Buffers[m_Current]->Pass("ripples drops"));
+				cmd.UploadStream(m_VBO, drops.size() * sizeof(glm::vec4), drops.data());
+				cmd.BindPipeline(m_DropPipe);
 				m_DropShader->SetFloat("uSize", S);
-				glBindVertexArray(m_VAO);
-				glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, static_cast<GLsizei>(drops.size()));
-				glDisable(GL_BLEND);
+				cmd.BindVertexLayout(m_VAO);
+				cmd.DrawInstanced(RHI::Topology::TriangleStrip, 0, 4, static_cast<uint32_t>(drops.size()));
+				cmd.SetBlend({});
 			}
 			m_Pending.clear();
 		}
@@ -266,7 +271,7 @@ void main()
 		const int ix = std::clamp(static_cast<int>(u * static_cast<float>(n)), 0, n - 1);
 		const int iy = std::clamp(static_cast<int>(v * static_cast<float>(n)), 0, n - 1);
 		float value = 0.0f;
-		glGetTextureSubImage(m_Buffers[m_Current]->GetColorTexture(), 0, ix, iy, 0, 1, 1, 1, GL_RED, GL_FLOAT, sizeof(float), &value);
+		RHI::GetDevice().ReadTexture(m_Buffers[m_Current]->ColorTexture(), static_cast<uint32_t>(ix), static_cast<uint32_t>(iy), 1, 1, RHI::PixelData::RedFloat, sizeof(float), &value);
 		return value;
 	}
 }
