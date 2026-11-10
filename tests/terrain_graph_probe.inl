@@ -10,6 +10,7 @@
 // which tools/terrain_probe_png.py turns into maps.
 #include "GB/World/FlowAccumulation.h"
 #include "GB/World/Graph/TerrainGraphIO.h"
+#include "GB/World/Water/LakeMesh.h"
 #include "GB/World/Water/WaterRaster.h"
 #include <fstream>
 #include <sstream>
@@ -474,6 +475,49 @@ namespace
 				std::fprintf(js.File, "]");
 			}
 		}
+		std::vector<float> lakeMeshMap;   // T105: <tag>_lakemesh.f32, written only when there is a lake (the other files stay as they were)
+		if (water && !water->Lakes().empty())
+		{
+			// T105: every lake as one mesh on the grid (GB/World/Water/LakeMesh.h), what the renderer will draw instead of the discs. Every
+			// sample the mesh uses outside its own lake's cells, against the ground: below the level minus 5 cm there it would show water over
+			// dry ground (wetKinds 0), over another, lower, lake (1) or over the river (2). The map: 1 a lake cell the mesh draws, 2 the skirt
+			// (a vertex past the shore, under the ground), 3 a lake cell no triangle touches, 4 the old disc over dry ground (now not drawn),
+			// 5 the mesh over ground below the level outside its lake (a defect).
+			const LakeMeshGround ground{ h.Values.data(), n, h.Min(), sp };
+			auto tm = std::chrono::steady_clock::now();
+			const LakeMesh lm = BuildLakeMesh(*water, ground);
+			const double meshMs = 1000.0 * Seconds(tm);
+			const std::vector<const LakeBody*> lakes = water->Lakes();
+			lakeMeshMap.assign(count, 0.0f);
+			for (size_t c = 0; c < count; ++c) if (wet[c] == 5.0f) lakeMeshMap[c] = 4.0f;
+			std::vector<uint8_t> used(count, 0);
+			size_t skirtVerts = 0, overDry = 0, overLake = 0, overRiver = 0, cellVerts = 0;
+			for (const LakeVertex& v : lm.Vertices)
+			{
+				const int i = static_cast<int>(std::lround((v.Position.x - h.Min().x) / sp)), j = static_cast<int>(std::lround((v.Position.z - h.Min().y) / sp));
+				const size_t c = static_cast<size_t>(j) * n + static_cast<size_t>(i);
+				const glm::vec2 p = h.SamplePosition(static_cast<uint32_t>(i), static_cast<uint32_t>(j));
+				int owner = -1;
+				for (size_t k = 0; k < lakes.size() && owner < 0; ++k) if (lakes[k]->Covers(p)) owner = static_cast<int>(k);
+				used[c] = 1;
+				if (owner == static_cast<int>(v.Lake)) { ++cellVerts; lakeMeshMap[c] = 1.0f; continue; }
+				++skirtVerts;
+				if (lakeMeshMap[c] != 1.0f) lakeMeshMap[c] = 2.0f;
+				if (h.Values[c] >= v.Position.y - 0.05f) continue;
+				lakeMeshMap[c] = 5.0f;
+				if (wetKinds[c] == 0.0f) ++overDry; else if (wetKinds[c] == 1.0f) ++overLake; else ++overRiver;
+			}
+			size_t gap = 0;
+			for (size_t c = 0; c < count; ++c) if (wetKinds[c] == 1.0f && !used[c]) { ++gap; lakeMeshMap[c] = 3.0f; }
+			std::printf("  lake mesh (T105): %zu lakes, %zu vertices, %zu triangles, built in %.1f ms; %zu lake cells, %zu of them untouched (%.2f %%); %zu shore triangles left out\n",
+				lm.Bodies.size(), lm.Vertices.size(), lm.TriangleCount(), meshMs, lm.LakeCells, gap, Pct(gap, lm.LakeCells), lm.DroppedShoreTriangles);
+			std::printf("    the mesh outside its lake: %zu skirt vertices; over dry ground below the level %zu (%.2f %%), over a lower lake %zu, over the river %zu\n",
+				skirtVerts, overDry, Pct(overDry, skirtVerts), overLake, overRiver);
+			js.Num("lakemesh_vertices", static_cast<double>(lm.Vertices.size())); js.Num("lakemesh_triangles", static_cast<double>(lm.TriangleCount()));
+			js.Num("lakemesh_ms", meshMs); js.Num("lakemesh_skirt", static_cast<double>(skirtVerts)); js.Num("lakemesh_over_dry", static_cast<double>(overDry));
+			js.Num("lakemesh_over_lake", static_cast<double>(overLake)); js.Num("lakemesh_over_river", static_cast<double>(overRiver));
+			js.Num("lakemesh_gap", static_cast<double>(gap)); js.Num("lakemesh_dropped", static_cast<double>(lm.DroppedShoreTriangles));
+		}
 		if (const auto e1 = r.Nodes.find("e1_lakes"); e1 != r.Nodes.end() && e1->second.count("raised"))
 		{
 			// what lake_fill added to the ground outside the lakes (the silt of the filled hollows): the other half of "filling raises 0 %"
@@ -502,6 +546,7 @@ namespace
 			WriteF32(outDir + "/" + tag + "_height.f32", h.Values);
 			WriteF32(outDir + "/" + tag + "_water.f32", wet);
 			WriteF32(outDir + "/" + tag + "_flow.f32", acc.Accumulation);
+			if (!lakeMeshMap.empty()) WriteF32(outDir + "/" + tag + "_lakemesh.f32", lakeMeshMap);
 			std::printf("  wrote %s and its fields\n", jsonPath.c_str());
 		}
 		return 0;

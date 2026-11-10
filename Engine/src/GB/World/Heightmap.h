@@ -22,6 +22,7 @@ namespace GB
 		float& At(uint32_t i, uint32_t j) { return m_Heights[static_cast<size_t>(j) * m_Resolution + i]; }
 		float At(uint32_t i, uint32_t j) const { return m_Heights[static_cast<size_t>(j) * m_Resolution + i]; }
 		glm::vec2 SamplePosition(uint32_t i, uint32_t j) const;   // world x,z of a grid point
+		const float* Data() const { return m_Heights.data(); }    // the resolution^2 heights, row major (index = j * resolution + i)
 
 		// Bilinear height at a world position; clamps to the border outside the map.
 		float GetHeight(float x, float z) const;

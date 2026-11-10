@@ -10,6 +10,7 @@
 #include "GB/World/Terrain.h"
 #include "GB/World/Trees.h"
 #include "GB/World/Water.h"
+#include "GB/World/Water/LakeMesh.h"
 #include "GB/World/WorldGen.h"
 #include <functional>
 #include <memory>
@@ -37,6 +38,11 @@ namespace GB::Editor
 		TerrainGpu& GetTerrainGpu() { return *m_TerrainGpu; }   // its mesh, textures and material (the macro map the trails tint)
 		WaterSurface* Lake() { return m_Lake.get(); }
 		WaterSurface* River() { return m_River.get(); }
+		// T105: every lake of the terrain's WaterField (the main one first, then lake_fill's) as one mesh on the terrain grid, its triangles only
+		// on the lakes' cells and a skirt under the ground (GB/World/Water/LakeMesh.h), for the renderer to draw in one call instead of a disc
+		// per lake. Null without lakes. Built with the world; the disc surfaces (Lake(), scene.Water) stay until the renderer changes over.
+		// Shared and immutable, as WaterSurface::Geometry: a renderer may key its GPU buffers on it.
+		const std::shared_ptr<const LakeMesh>& GetLakeMesh() const { return m_LakeMesh; }
 		size_t TreeCount() const { return m_World ? m_World->Trees.size() : 0; }
 		size_t RockCount() const { return m_World ? m_World->Rocks.size() : 0; }
 		size_t GrassBlades() const { return m_Grass ? m_Grass->GetBladeCount() : 0; }
@@ -74,6 +80,7 @@ namespace GB::Editor
 		std::unique_ptr<GrassGpu> m_GrassGpu;   // after m_Grass: destroyed before it
 		std::unique_ptr<WaterSurface> m_Lake, m_River;
 		std::vector<std::unique_ptr<WaterSurface>> m_MoreLakes;   // WaterField::MoreLakes(), drawn like the lake
+		std::shared_ptr<const LakeMesh> m_LakeMesh;               // GetLakeMesh
 		uint64_t m_BuildCount = 0;
 		struct Trodden { glm::vec2 A, B; float Inner, Outer, Strength; };   // A == B: a clearing; else a path (Inner: half its width)
 		std::vector<Trodden> m_Trodden;

@@ -52,6 +52,7 @@ add_library(GB_WorldGen STATIC
     src/GB/World/Water/WaterWaves.cpp
     src/GB/World/Water/RiverHydraulics.cpp
     src/GB/World/Water/WaterPlanner.cpp
+    src/GB/World/Water/LakeMesh.cpp
     src/GB/World/Graph/TerrainGraph.cpp
     src/GB/World/Graph/TerrainGraphPresets.cpp
     src/GB/World/Graph/TerrainGraphIO.cpp

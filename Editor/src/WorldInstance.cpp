@@ -3,6 +3,7 @@
 #include "GB/World/Water/WaterPresets.h"
 #include "GB/World/TerrainNoise.h"
 #include <algorithm>
+#include <chrono>
 
 namespace GB::Editor
 {
@@ -20,7 +21,7 @@ namespace GB::Editor
 		scene.Water.clear();
 		scene.Ripples = nullptr;
 		scene.Ground = nullptr;
-		m_Lake.reset(); m_MoreLakes.clear(); m_River.reset(); m_GrassGpu.reset(); m_Grass.reset();
+		m_Lake.reset(); m_MoreLakes.clear(); m_LakeMesh.reset(); m_River.reset(); m_GrassGpu.reset(); m_Grass.reset();
 		m_RockVariants.clear(); m_TreeVariants.clear(); m_TreeVariantsFar.clear(); m_TreesGpu.reset();
 		m_TerrainGpu.reset();
 		m_Terrain.reset();
@@ -166,6 +167,14 @@ namespace GB::Editor
 		for (const auto& lake : m_MoreLakes) scene.Water.push_back(lake.get());
 		m_River = MakeRiverSurface(terrain->Water());
 		if (m_River) scene.Water.push_back(m_River.get());
+		if (!terrain->Water().Lakes().empty())   // T105: the same lakes as one mesh on the terrain grid, for the renderer to take (GetLakeMesh)
+		{
+			const auto t0 = std::chrono::steady_clock::now();
+			auto lakeMesh = std::make_shared<LakeMesh>(BuildLakeMesh(terrain->Water(), terrain->GetHeightmap()));
+			const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
+			GB_CLIENT_INFO("lake mesh: {} lakes, {} vertices, {} triangles in {:.1f} ms", lakeMesh->Bodies.size(), lakeMesh->Vertices.size(), lakeMesh->TriangleCount(), ms);
+			m_LakeMesh = std::move(lakeMesh);
+		}
 		scene.Env.ShadowRadius = 70.0f;
 		GB_CLIENT_INFO("World built: {} trees, {} rocks, {} grass blades{}{}{}", world->Trees.size(), world->Rocks.size(), GrassBlades(),
 			terrain->HasLake() ? ", lake" : "", m_MoreLakes.empty() ? std::string() : ", " + std::to_string(m_MoreLakes.size()) + " more lakes",
