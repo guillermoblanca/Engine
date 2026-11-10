@@ -450,6 +450,8 @@ namespace GB
 		return {};
 	}
 
+	TerrainGraph WorldGraphFor(const WorldDesc& desc) { return MakeWorldGraph(WorldGraphOptionsOf(desc)); }
+
 	bool EvaluateWorldGraph(const WorldDesc& desc, TgResult& result, std::string& error)
 	{
 		TerrainGraph preset;

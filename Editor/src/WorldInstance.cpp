@@ -20,7 +20,7 @@ namespace GB::Editor
 		scene.Water.clear();
 		scene.Ripples = nullptr;
 		scene.Ground = nullptr;
-		m_Lake.reset(); m_River.reset(); m_GrassGpu.reset(); m_Grass.reset();
+		m_Lake.reset(); m_MoreLakes.clear(); m_River.reset(); m_GrassGpu.reset(); m_Grass.reset();
 		m_RockVariants.clear(); m_TreeVariants.clear(); m_TreeVariantsFar.clear(); m_TreesGpu.reset();
 		m_TerrainGpu.reset();
 		m_Terrain.reset();
@@ -162,10 +162,13 @@ namespace GB::Editor
 		// The water is drawn from the terrain's own WaterField: the surfaces and how they look come from GB/World/Water.
 		m_Lake = MakeLakeSurface(terrain->Water());
 		if (m_Lake) scene.Water.push_back(m_Lake.get());
+		m_MoreLakes = MakeMoreLakeSurfaces(terrain->Water());   // the lakes a terrain graph filled (lake_fill, TERRENO_V5 E1), one surface each
+		for (const auto& lake : m_MoreLakes) scene.Water.push_back(lake.get());
 		m_River = MakeRiverSurface(terrain->Water());
 		if (m_River) scene.Water.push_back(m_River.get());
 		scene.Env.ShadowRadius = 70.0f;
-		GB_CLIENT_INFO("World built: {} trees, {} rocks, {} grass blades{}{}", world->Trees.size(), world->Rocks.size(), GrassBlades(),
-			terrain->HasLake() ? ", lake" : "", terrain->GetRiver() ? ", river" : "");
+		GB_CLIENT_INFO("World built: {} trees, {} rocks, {} grass blades{}{}{}", world->Trees.size(), world->Rocks.size(), GrassBlades(),
+			terrain->HasLake() ? ", lake" : "", m_MoreLakes.empty() ? std::string() : ", " + std::to_string(m_MoreLakes.size()) + " more lakes",
+			terrain->GetRiver() ? ", river" : "");
 	}
 }

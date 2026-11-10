@@ -73,6 +73,7 @@ namespace GB::Editor
 		std::unique_ptr<GrassField> m_Grass;
 		std::unique_ptr<GrassGpu> m_GrassGpu;   // after m_Grass: destroyed before it
 		std::unique_ptr<WaterSurface> m_Lake, m_River;
+		std::vector<std::unique_ptr<WaterSurface>> m_MoreLakes;   // WaterField::MoreLakes(), drawn like the lake
 		uint64_t m_BuildCount = 0;
 		struct Trodden { glm::vec2 A, B; float Inner, Outer, Strength; };   // A == B: a clearing; else a path (Inner: half its width)
 		std::vector<Trodden> m_Trodden;

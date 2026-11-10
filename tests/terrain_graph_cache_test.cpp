@@ -226,6 +226,7 @@ namespace
 int GBTest_terrain_graph_cache(int argc, char** argv)
 {
 	if (argc > 1 && std::string(argv[1]) == "probe") return Probe(argc, argv);
+	if (argc > 1 && std::string(argv[1]) == "probe_export") return ProbeExport(argc, argv);
 	if (const char* bench = std::getenv("GB_TGRAPH_BENCH"); bench && bench[0] != 0 && bench[0] != '0')
 	{
 		// 1: everything; preview: only the quick preview; budget[=MB]: only the full cache with a byte budget

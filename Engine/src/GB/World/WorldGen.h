@@ -132,4 +132,7 @@ namespace GB
 	// height_input fields, through desc.GraphCache -- and nothing more: no terrain, biomes nor placement. The editor's quick preview runs it at a
 	// low Resolution while a graph is being edited.
 	bool EvaluateWorldGraph(const WorldDesc& desc, TgResult& result, std::string& error);
+	// The graph generator 4 makes for a WorldDesc that has none of its own (MakeWorldGraph with the options the WorldDesc asks for): what a tool
+	// starts from to try new nodes on the world `generate` builds (the terrain probe of TERRENO_V5).
+	TerrainGraph WorldGraphFor(const WorldDesc& desc);
 }
