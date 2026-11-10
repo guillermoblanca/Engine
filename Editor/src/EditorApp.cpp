@@ -192,7 +192,7 @@ namespace GB::Editor
 
 		m_StrictScript = !options.GetValue("strict").empty();
 		const std::string quality = options.GetValue("quality");
-		if (!quality.empty()) SetQuality(quality);
+		if (!quality.empty()) { SetQuality(quality); m_LaunchQuality = quality; }
 		const std::string telemetry = options.GetValue("telemetry");
 		if (!telemetry.empty()) { const CommandResult r = TelemetryCommand({ "start", telemetry }); if (!r.Ok) GB_CLIENT_ERROR("{}", r.Message); }
 		const std::string exec = options.GetValue("exec");

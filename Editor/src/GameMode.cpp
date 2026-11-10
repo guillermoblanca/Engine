@@ -290,6 +290,9 @@ namespace GB::Editor
 		}
 		const SpawnBatch crew(*this);
 		GameSetup setup = m_Controls.Game;
+		// T60: a quality given at launch (`--quality=medium`) is kept by the game: neither player.json's preset nor "auto" (which starts low and
+		// drops to minimum on slow frames) overrides what was asked for explicitly. Without `--quality`, player.json decides as before.
+		if (!m_LaunchQuality.empty()) setup.Quality = m_LaunchQuality;
 		// `play here`: into the world as it is (a terrain graph's map, the villages of `village`), as one more member of the first clan
 		const bool here = !a.empty() && a[0] == "here";
 		if (here && (!m_World.IsBuilt() || m_Tribe.Members().empty())) return { false, "play here needs a world with a clan (terrain_graph preset ... ; village)" };
