@@ -84,7 +84,9 @@ add_library(GB_WorldGen STATIC
     src/GB/World/Graph/Nodes/ScatterNode.cpp
     src/GB/World/Graph/Nodes/BiomeClassifyNode.cpp
     src/GB/World/Graph/Nodes/BuiltinNodes.cpp
-    src/GB/World/Biome.cpp)
+    src/GB/World/Biome.cpp
+    src/GB/World/Settle.cpp
+    src/GB/World/Graph/Nodes/SettleNodes.cpp)
 
 add_library(GB_Sim STATIC
     src/GB/Game/CharacterController.cpp

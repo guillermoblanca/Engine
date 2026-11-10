@@ -17,6 +17,7 @@
 #include "GB/World/Graph/Nodes/RiverTraceNode.h"
 #include "GB/World/Graph/Nodes/ScatterNode.h"
 #include "GB/World/Graph/Nodes/SurfaceLayerNodes.h"
+#include "GB/World/Graph/Nodes/SettleNodes.h"
 #include "GB/World/Graph/Nodes/ThermalErosionNode.h"
 #include "GB/World/Graph/Nodes/ValleyNodes.h"
 #include "GB/World/Graph/Nodes/WaterCarveNodes.h"
@@ -80,5 +81,9 @@ namespace GB
 		registry.Register("layer_normalize", [] { return std::make_unique<NormalizeLayersNode>(); });
 		registry.Register("biome_water", [] { return std::make_unique<BiomeWaterNode>(); });
 		registry.Register("tree_species", [] { return std::make_unique<TreeSpeciesNode>(); });
+		// settlement sites, the trails between them and their levelling (Nodes/SettleNodes.h; GRAFO_TERRENO, "Asentamientos y sendas")
+		registry.Register("settlement_sites", [] { return std::make_unique<SettlementSitesNode>(); });
+		registry.Register("route_network", [] { return std::make_unique<RouteNetworkNode>(); });
+		registry.Register("path_grade", [] { return std::make_unique<PathGradeNode>(); });
 	}
 }

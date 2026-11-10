@@ -550,6 +550,12 @@ namespace GB
 		// a graph's biome and moisture replace the measured ones (the baked map, the grass and the placements below read them)
 		if (const auto it = graph.Outputs.find("biome"); it != graph.Outputs.end()) w.BiomeField = it->second;
 		if (const auto it = graph.Outputs.find("moisture"); it != graph.Outputs.end()) w.MoistureField = it->second;
+		// what the graph published for settling (Settle.h): read as they are, nothing above depends on them
+		if (const auto it = graph.PathOutputs.find("settlements"); it != graph.PathOutputs.end()) DecodeSites(it->second, w.Settlements);
+		if (const auto it = graph.PathOutputs.find("trails"), info = graph.PathOutputs.find("trail_info"); it != graph.PathOutputs.end() && info != graph.PathOutputs.end())
+			DecodeTrails(it->second, info->second, w.Trails);
+		if (const auto it = graph.PathOutputs.find("fords"); it != graph.PathOutputs.end()) DecodeFords(it->second, w.Fords);
+		if (const auto it = graph.Outputs.find("path"); it != graph.Outputs.end()) w.PathField = it->second;
 		Terrain& terrain = *w.TerrainPtr;
 		if (!v1) w.Maps = BakeBiomes(w);   // generator 2 places everything below on the baked map
 

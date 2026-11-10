@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/World/Biome.h"
 #include "GB/World/Rocks.h"
+#include "GB/World/Settle.h"
 #include "GB/World/Terrain.h"
 #include "GB/World/Trees.h"
 #include "GB/World/WorldGenVersion.h"
@@ -94,6 +95,14 @@ namespace GB
 		// neither; then the biome is measured and the moisture is a noise.
 		TgField BiomeField;
 		TgField MoistureField;
+		// Where to settle and the trails, when the graph published them (settlement_sites, route_network, path_grade: GB/World/Settle.h): the
+		// output "settlements" (the sites, best first: Rank 0 is the first choice, with their platform level), "trails" with "trail_info"
+		// (polylines of the levelled ground, what they join), "fords", and the "path" mask (1 on a tread, 0..1 at its edge) in PathField, for a
+		// material layer. Empty on a world whose graph has none of them: every world of before.
+		std::vector<SettlementSite> Settlements;
+		std::vector<Trail> Trails;
+		std::vector<Ford> Fords;
+		TgField PathField;
 
 		// The biome at a point: the baked map's nearest sample (ComputeBiome before the map is baked).
 		Biome BiomeAt(float x, float z) const;

@@ -269,6 +269,8 @@ gb_test(talus talus_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS rapid
 # The material layers and the trees of the new terrain (GRAFO_TERRENO.md): the layer nodes on a synthetic map (normalised, masks, Revision),
 # tree_species keeping trees off the water, cliffs and paths, and a world from a graph keeping the species and the six layer kinds of before.
 gb_test(surface_layers surface_layers_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
+# Settlement sites, trails and their levelling (GRAFO_TERRENO, "Asentamientos y sendas"): the obvious site first, separation, a route by the ford, the grade held, no pit.
+gb_test(settle settle_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS rapido)
 gb_test_write_pool_mains()   # (after the last gb_test of a pool)
 
 # Build speed (T50). Every test executable is a few .cpp files, so instead of one precompiled header each (that would cost as much as it saves) they all
