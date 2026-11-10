@@ -538,6 +538,10 @@ def profile(args):
         inner = [c for c in big if relief(c) >= 100.0]
     top = max(a[c] for c in inner)
     main = [c for c in inner if a[c] >= frac * top]
+    if "--band" in args:   # an absolute band of drainage area in km2 instead ("0.3,0.7"): the same size of channel in every crop
+        lo_a, hi_a = (float(v) * 1e6 for v in opt(args, "--band", "").split(","))
+        main = [c for c in inner if lo_a <= a[c] <= hi_a]
+        top = hi_a / frac
     pos = {c: (-size / 2 + (c % n) * sp, -size / 2 + (c // n) * sp) for c in main}
     sh = grid_sampler(h, n, size)
     dists = [k * 30.0 for k in range(1, int(reach / 30.0) + 1)]
@@ -554,6 +558,8 @@ def profile(args):
         h0 = h[c]
         for k, d in enumerate(dists):
             prof[k].append(0.5 * (sh(x + px * d, z + pz * d) + sh(x - px * d, z - pz * d)) - h0)
+    xs, zs = [pos[c][0] for c in main], [pos[c][1] for c in main]
+    print("  main cells within x %.0f..%.0f, z %.0f..%.0f (mean %.0f, %.0f)" % (min(xs), max(xs), min(zs), max(zs), sum(xs) / len(xs), sum(zs) / len(zs)))
     med = [sorted(v)[len(v) // 2] for v in prof]
     last = med[-1] if med[-1] > 0 else 1.0
     print("%s: %d main channel cells (area >= %.2f km2), median cross-section (m above the channel):" % (base, len(main), frac * top / 1e6))
