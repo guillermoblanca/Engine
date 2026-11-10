@@ -7,7 +7,7 @@ namespace GB
 
 	struct PostSettings
 	{
-		Tonemap Mapper = Tonemap::ACES;
+		Tonemap Mapper = Tonemap::Neutral;   // Khronos PBR Neutral keeps the art bible's albedos and hues; ACES stays as an option
 		float SSAO = 0.0f;
 		float SSAORadius = 0.7f;
 		float SSAOBias = 0.04f;

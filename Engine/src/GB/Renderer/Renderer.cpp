@@ -3,6 +3,7 @@
 #include "ParticleRenderer.h"
 #include "Visibility.h"
 #include "Shaders.h"
+#include "ShadowView.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
@@ -446,12 +447,7 @@ namespace GB
 		Mark(kStart);
 		if (shadows)
 		{
-			const Environment& env = scene.Env;
-			const glm::vec3 dir = glm::normalize(scene.Sun.Direction);
-			const glm::vec3 up = std::abs(dir.y) > 0.99f ? glm::vec3(0, 0, 1) : glm::vec3(0, 1, 0);
-			const glm::mat4 view = glm::lookAt(env.ShadowCenter - dir * env.ShadowRadius * 2.0f, env.ShadowCenter, up);
-			const float r = env.ShadowRadius;
-			lightVP = glm::ortho(-r, r, -r, r, 0.0f, r * 4.0f) * view;
+			lightVP = ShadowViewProj(scene.Env.ShadowCenter, scene.Sun.Direction, scene.Env.ShadowRadius, m_ShadowSize);   // snapped to texels
 			ShadowPass(scene, lightVP);
 			shadowCalls = DrawCounter::Calls;
 		}

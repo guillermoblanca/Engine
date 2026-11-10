@@ -2,6 +2,7 @@
 #include "GB/Input/InputSource.h"
 #include "GB/Renderer/Camera.h"
 #include "GB/Renderer/CameraController.h"
+#include "GB/Renderer/ShadowView.h"
 #include <cmath>
 #include <cstdio>
 
@@ -209,6 +210,32 @@ int GBTest_camera(int, char**)
 		GB::ScriptedInput idle;
 		other.Update(0.5f, idle);
 		Check(Near(other.Position, start, 1e-6f), "scripted input: two sources are independent");
+	}
+
+	// ---- Shadow map snapped to texels: a fixed world point keeps its spot inside its texel while the centre moves by fractions of a texel
+	{
+		const unsigned size = 2048;
+		const float radius = 30.0f, texel = 2.0f * radius / static_cast<float>(size);
+		const glm::vec3 sun = glm::normalize(glm::vec3(-0.4f, -0.8f, -0.3f));
+		const glm::vec3 point(3.21f, 1.5f, -7.65f);
+		auto spot = [&](const glm::vec3& center)
+		{
+			const glm::vec4 c = GB::ShadowViewProj(center, sun, radius, size) * glm::vec4(point, 1.0f);
+			const glm::vec2 t = glm::vec2(c) * (0.5f * static_cast<float>(size));
+			return t - glm::floor(t);   // the point's position inside its texel
+		};
+		const glm::vec2 first = spot({ 0.0f, 0.0f, 0.0f });
+		bool steady = true, insideBox = true;
+		for (int i = 1; i <= 12; ++i)
+		{
+			const glm::vec3 center = glm::vec3(0.37f, 0.11f, -0.23f) * (texel * 0.29f * static_cast<float>(i));   // 0.29 texel steps
+			const glm::vec2 s = spot(center), d = glm::abs(s - first);
+			steady = steady && glm::all(glm::lessThan(glm::min(d, 1.0f - d), glm::vec2(2e-3f)));
+			const glm::vec4 c = GB::ShadowViewProj(center, sun, radius, size) * glm::vec4(center, 1.0f);
+			insideBox = insideBox && std::fabs(c.x) < 2.0f / static_cast<float>(size) + 1e-4f && std::fabs(c.y) < 2.0f / static_cast<float>(size) + 1e-4f;
+		}
+		Check(steady, "shadow snap: a world point stays on the same spot of its texel as the centre moves by fractions of a texel");
+		Check(insideBox, "shadow snap: the centre stays within a texel of the middle of the map");
 	}
 	return failures;
 }
