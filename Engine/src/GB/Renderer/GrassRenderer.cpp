@@ -10,8 +10,8 @@ namespace GB
 {
 	GrassRenderer::GrassRenderer(uint32_t shadowMapSize)
 		: m_Shader(
-			std::string(Shaders::GrassVS) + Shaders::GrassTrailCommon + Shaders::GrassVSMain,
-			std::string(Shaders::GrassFS) + Shaders::SkyCommon + Shaders::GrassFSMain),
+			Shaders::Assemble(Shaders::GrassVS),
+			Shaders::Assemble(Shaders::GrassFS)),
 		  m_ShadowMapSize(std::max(shadowMapSize, 1u))
 	{
 		RHI::Device& device = RHI::GetDevice();

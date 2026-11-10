@@ -20,17 +20,8 @@ namespace GB
 		: m_Width(std::max(width, 1u)), m_Height(std::max(height, 1u)),
 		  m_Samples(std::max(msaaSamples, 1u)), m_ShadowSize(shadowMapSize)
 	{
-		const std::string sky = Shaders::SkyCommon;
-		m_SkyShader = std::make_unique<Shader>(Shaders::FullscreenVS,
-			std::string(Shaders::SkyFS) + sky + Shaders::SkyMain);
-
-		// The PBR shader needs the sky functions too: splice them in after the #version line.
-		{
-			std::string fs = Shaders::PBRFS;
-			const size_t firstLine = fs.find('\n') + 1;
-			fs.insert(firstLine, sky);
-			m_PBRShader = std::make_unique<Shader>(Shaders::PBRVS, fs);
-		}
+		m_SkyShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::FullscreenVS), Shaders::Assemble(Shaders::SkyFS));
+		m_PBRShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS), Shaders::Assemble(Shaders::PBRFS));
 
 		RHI::Device& device = RHI::GetDevice();
 		m_EmptyVAO = device.CreateVertexLayout({});

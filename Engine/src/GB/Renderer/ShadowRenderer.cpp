@@ -7,7 +7,7 @@
 namespace GB
 {
 	ShadowRenderer::ShadowRenderer()
-		: m_Shader(Shaders::ShadowVS, Shaders::ShadowFS)
+		: m_Shader(Shaders::Assemble(Shaders::ShadowVS), Shaders::Assemble(Shaders::ShadowFS))
 	{
 		RHI::Device& device = RHI::GetDevice();
 		m_JointBuffer = device.CreateStreamBuffer();

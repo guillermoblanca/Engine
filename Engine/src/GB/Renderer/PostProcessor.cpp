@@ -9,13 +9,14 @@ namespace GB
 	PostProcessor::PostProcessor(uint32_t width, uint32_t height)
 		: m_Width(std::max(width, 1u)), m_Height(std::max(height, 1u))
 	{
-		m_BloomDown = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::BloomDownFS);
-		m_BloomUp = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::BloomUpFS);
-		m_Composite = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::CompositeFS);
-		m_AOShader = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::AOFS);
-		m_AOBlurShader = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::AOBlurFS);
-		m_LumShader = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::LumFS);
-		m_AdaptShader = std::make_unique<Shader>(Shaders::FullscreenVS, Shaders::AdaptFS);
+		const std::string fullscreen = Shaders::Assemble(Shaders::FullscreenVS);
+		m_BloomDown = std::make_unique<Shader>(fullscreen, Shaders::Assemble(Shaders::BloomDownFS));
+		m_BloomUp = std::make_unique<Shader>(fullscreen, Shaders::Assemble(Shaders::BloomUpFS));
+		m_Composite = std::make_unique<Shader>(fullscreen, Shaders::Assemble(Shaders::CompositeFS));
+		m_AOShader = std::make_unique<Shader>(fullscreen, Shaders::Assemble(Shaders::AOFS));
+		m_AOBlurShader = std::make_unique<Shader>(fullscreen, Shaders::Assemble(Shaders::AOBlurFS));
+		m_LumShader = std::make_unique<Shader>(fullscreen, Shaders::Assemble(Shaders::LumFS));
+		m_AdaptShader = std::make_unique<Shader>(fullscreen, Shaders::Assemble(Shaders::AdaptFS));
 		RHI::Device& device = RHI::GetDevice();
 		m_EmptyVAO = device.CreateVertexLayout({});
 		// `first`: the first pass of a chain, which sets the depth test and the blending off; the next ones only change the program.

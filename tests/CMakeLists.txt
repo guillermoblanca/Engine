@@ -161,6 +161,7 @@ gb_test(sim_scale sim_scale_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido
 gb_test(entity entity_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 gb_test(entity_render entity_render_test.cpp POOL GBGLTests LINK GB::GB LABELS gl SKIP77)
 gb_test(audio audio_test.cpp POOL GBRenderTests LINK GB::Render LABELS rapido DEFS ${gb_golden})
+gb_test(shader_assembly shader_assembly_test.cpp POOL GBRenderTests LINK GB::Render LABELS rapido DEFS ${gb_golden})
 gb_test(audio_device audio_device_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido SKIP77)
 gb_test(fbx fbx_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_data})
 gb_test(character character_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)

@@ -62,7 +62,7 @@ namespace GB
 
 	ParticleRenderer::ParticleRenderer()
 	{
-		m_Shader = std::make_unique<Shader>(Shaders::ParticleVS, Shaders::ParticleFS);
+		m_Shader = std::make_unique<Shader>(Shaders::Assemble(Shaders::ParticleVS), Shaders::Assemble(Shaders::ParticleFS));
 		m_SpriteSoft = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::SoftCircle, 64), TextureEncoding::Linear);
 		m_SpriteSmoke = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Smoke, 128), TextureEncoding::Linear);
 		m_SpriteSpark = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Spark, 32), TextureEncoding::Linear);

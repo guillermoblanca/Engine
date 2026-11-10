@@ -1,0 +1,2 @@
+# Byte-exact shader references (shader_assembly test): never convert line endings.
+* -text

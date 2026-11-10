@@ -10,8 +10,8 @@ namespace GB
 {
 	WaterRenderer::WaterRenderer()
 		: m_Shader(
-			std::string(Shaders::WaterVS) + InjectWaveSet(Shaders::WaterWaves) + Shaders::WaterVSMain,
-			std::string(Shaders::WaterFS) + Shaders::SkyCommon + InjectWaveSet(Shaders::WaterWaves) + Shaders::WaterFSMain)
+			InjectWaveSet(Shaders::Assemble(Shaders::WaterVS)),
+			InjectWaveSet(Shaders::Assemble(Shaders::WaterFS)))
 	{
 		RHI::Device& device = RHI::GetDevice();
 		RHI::PipelineDesc pipeline;
