@@ -351,6 +351,15 @@ namespace
 		}
 		node("settle_out_cols", "output", {}, "cols");
 		g.Edges.push_back({ "settle_routes", "settle_out_cols", "in", "cols" });
+		// a stand-in so the treads and platforms show in the editor until the terrain has a Path layer: the valley publishes no sand, and
+		// sand is painted last, over the other five
+		bool sand = false;
+		for (const TgNode& nd : g.Nodes) sand |= nd.Type == "output" && nd.Source == "splat_sand";
+		if (!sand)
+		{
+			node("settle_out_sand", "output", {}, "splat_sand");
+			g.Edges.push_back({ "settle_worked", "settle_out_sand", "in", "out" });
+		}
 		return true;
 	}
 
