@@ -5,10 +5,10 @@
 namespace GB::Shaders
 {
 	inline constexpr const char* ShadowVS = R"GLSL(#version 450 core
+#include "lib/frame"
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
-uniform mat4 uLightVP;
 uniform mat4 uModel;
 #include "lib/object_skin"
 #include "lib/object_height"
@@ -45,12 +45,12 @@ void main()
 )GLSL";
 
 	inline constexpr const char* PBRVS = R"GLSL(#version 450 core
+#include "lib/frame"
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aTangent;
 uniform mat4 uModel;
-uniform mat4 uViewProj;
 #include "lib/object_trail"
 #include "lib/object_skin"
 #include "lib/object_height"
@@ -89,6 +89,7 @@ void main()
 )GLSL";
 
 	inline constexpr const char* PBRFS = R"GLSL(#version 450 core
+#include "lib/frame"
 #include "lib/sky"
 in vec3 vPos;
 in vec3 vNormal;
@@ -96,7 +97,6 @@ in vec4 vTangent;
 in vec2 vUV;
 #include "lib/scene_targets"
 
-uniform vec3 uCamPos;
 uniform int uHasAlbedoMap;
 uniform int uHasNormalMap;
 uniform int uHasHeightMap;       // height doubles as a cavity/AO term
@@ -139,16 +139,7 @@ uniform float uRoughness;
 uniform float uAO;
 uniform vec3 uEmissive;
 
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-#include "lib/point_lights"
-
-uniform int uShadowsOn;
-uniform mat4 uLightVP;
-uniform float uShadowTexel;   // world-space size of one shadow map texel
 layout(binding = 0) uniform sampler2DShadow uShadowMap;
-
-uniform float uEnvIntensity;
 
 #include "lib/brdf"
 
@@ -168,7 +159,6 @@ vec3 Shade(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 albedo, vec3 F0, float a,
 
 #include "lib/shadow"
 
-uniform float uTime;
 #include "lib/noise_pbr"
 
 // Rain rings on a puddle: one expanding ring per random cell, two layers.
@@ -334,17 +324,17 @@ void main()
 
 	for (int i = 0; i < uPointCount; ++i)
 	{
-		vec3 toLight = uPointPos[i] - vPos;
+		vec3 toLight = uPointPosRadius[i].xyz - vPos;
 		float d2 = dot(toLight, toLight);
 		vec3 L = toLight * inversesqrt(d2);
 		float window = 1.0;
-		if (uPointRadius[i] > 0.0)
+		if (uPointPosRadius[i].w > 0.0)
 		{
-			float r = d2 / (uPointRadius[i] * uPointRadius[i]);
+			float r = d2 / (uPointPosRadius[i].w * uPointPosRadius[i].w);
 			window = clamp(1.0 - r * r, 0.0, 1.0);
 			window *= window;
 		}
-		Lo += Shade(N, V, L, uPointColor[i] * (window / (d2 + 0.01)), albedo, F0, a, metallic);
+		Lo += Shade(N, V, L, uPointColor[i].rgb * (window / (d2 + 0.01)), albedo, F0, a, metallic);
 	}
 
 	float NoV = max(dot(N, V), 1e-4);

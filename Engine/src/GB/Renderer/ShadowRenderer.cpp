@@ -43,16 +43,13 @@ namespace GB
 		cmd.BindStorageBuffer(0, m_JointBuffer);
 	}
 
-	void ShadowRenderer::Render(const Scene& scene, const RenderList& list, const Framebuffer& target, const glm::mat4& lightVP)
+	void ShadowRenderer::Render(const Scene& scene, const RenderList& list, const Framebuffer& target)
 	{
-		m_Shader.SetFloat("uTime", scene.Env.Time);
-		m_Shader.SetVec3("uWind", scene.Env.Wind);
 		RHI::CommandList& cmd = RHI::GetDevice().Commands();
 		RHI::PassDesc pass = target.Pass("shadows");
 		pass.ClearDepth = true;
 		cmd.BeginPass(pass);
 		cmd.BindPipeline(m_Pipeline);
-		m_Shader.SetMat4("uLightVP", lightVP);
 		auto draw = [&](const RenderObject& object, uint32_t copies)
 		{
 			m_Shader.SetMat4("uModel", object.Transform);

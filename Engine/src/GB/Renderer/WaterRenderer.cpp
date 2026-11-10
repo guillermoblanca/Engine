@@ -53,25 +53,11 @@ namespace GB
 		return *(m_Meshes[geometry.get()] = std::move(entry)).Gpu;
 	}
 
-	void WaterRenderer::BindEnvironment(const Environment& env)
-	{
-		const bool has = env.EnvMap && env.EnvMap->IsValid();
-		m_Shader.SetInt("uHasEnvMap", has ? 1 : 0);
-		if (!has)
-			return;
-		m_Shader.SetFloat("uEnvMaxLod", static_cast<float>(env.EnvMap->GetMipCount() - 1));
-		m_Shader.SetFloat("uEnvRotation", env.EnvMap->Rotation / 6.2831853f);
-		m_Shader.SetFloat("uEnvExposure", env.EnvMap->Exposure);
-		RHI::GetDevice().Commands().BindTexture(9, env.EnvMap->GetHandle());
-	}
-
-	void WaterRenderer::Render(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
-		const Framebuffer& sceneMSAA, const Framebuffer& sceneResolved, const Framebuffer& sceneDepth)
+	void WaterRenderer::Render(const Scene& scene, const Framebuffer& sceneMSAA, const Framebuffer& sceneResolved, const Framebuffer& sceneDepth)
 	{
 		if (scene.Water.empty())
 			return;
 
-		const Environment& env = scene.Env;
 		// The water reads the depth of everything opaque to measure how deep it is.
 		Framebuffer::BlitDepth(sceneMSAA, sceneDepth);
 		Framebuffer::BlitColor(sceneMSAA, sceneResolved);   // what the water refracts
@@ -79,43 +65,7 @@ namespace GB
 		cmd.BeginPass(sceneMSAA.Pass("water"));
 		cmd.BindPipeline(m_Pipeline);
 		const bool ssr = scene.ScreenSpaceReflections;
-		m_Shader.SetMat4("uViewProj", viewProj);
-		m_Shader.SetVec3("uCamPos", camera.Position);
-		m_Shader.SetMat4("uViewProj", viewProj);
 		m_Shader.SetFloat("uSSR", ssr ? 1.0f : 0.0f);
-		{
-			const int pointCount = static_cast<int>(std::min<size_t>(scene.PointLights.size(), MaxPointLights));
-			glm::vec3 positions[MaxPointLights] = {}, colors[MaxPointLights] = {};
-			float radii[MaxPointLights] = {};
-			for (int i = 0; i < pointCount; ++i)
-			{
-				positions[i] = scene.PointLights[i].Position;
-				colors[i] = scene.PointLights[i].Color * scene.PointLights[i].Intensity;
-				radii[i] = scene.PointLights[i].Radius;
-			}
-			m_Shader.SetInt("uPointCount", pointCount);
-			if (pointCount > 0)
-			{
-				m_Shader.SetVec3Array("uPointPos", positions, pointCount);
-				m_Shader.SetVec3Array("uPointColor", colors, pointCount);
-				m_Shader.SetFloatArray("uPointRadius", radii, pointCount);
-			}
-		}
-		m_Shader.SetFloat("uTime", env.Time);
-		m_Shader.SetVec3("uSkyTop", env.SkyTop);
-		m_Shader.SetVec3("uSkyHorizon", env.SkyHorizon);
-		m_Shader.SetVec3("uSkyGround", env.SkyGround);
-		m_Shader.SetFloat("uEnvIntensity", env.Intensity);
-		m_Shader.SetVec3("uSunDir", glm::normalize(scene.Sun.Direction));
-		m_Shader.SetVec3("uSunColor", scene.Sun.Color * scene.Sun.Intensity);
-		m_Shader.SetVec3("uFogColor", env.FogColor);
-		m_Shader.SetFloat("uFogDensity", env.FogDensity);
-		m_Shader.SetFloat("uFogHeight", env.FogHeightFalloff);
-		m_Shader.SetFloat("uSnowCover", env.SnowCover);
-		m_Shader.SetFloat("uWetness", env.Wetness);
-		BindEnvironment(env);
-		m_Shader.SetVec2("uNearFar", { camera.NearPlane, camera.FarPlane });
-		m_Shader.SetInt("uOrtho", camera.Orthographic ? 1 : 0);
 		cmd.BindTexture(1, sceneDepth.DepthTexture());
 		cmd.BindTexture(3, sceneResolved.ColorTexture());
 		const bool ripples = scene.Ripples && scene.Ripples->IsValid();

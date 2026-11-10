@@ -18,8 +18,6 @@ namespace GB
 	class WaterRenderer
 	{
 	public:
-		static constexpr uint32_t MaxPointLights = 32;
-
 		WaterRenderer();
 		~WaterRenderer();
 		WaterRenderer(const WaterRenderer&) = delete;
@@ -27,11 +25,11 @@ namespace GB
 
 		bool IsValid() const { return m_Shader.IsValid(); }
 
-		void Render(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
-			const Framebuffer& sceneMSAA, const Framebuffer& sceneResolved, const Framebuffer& sceneDepth);
+		// The camera, sun, sky, fog, point lights and time come from the frame block (FrameConstants), bound by Renderer::Render with the
+		// environment map.
+		void Render(const Scene& scene, const Framebuffer& sceneMSAA, const Framebuffer& sceneResolved, const Framebuffer& sceneDepth);
 
 	private:
-		void BindEnvironment(const Environment& env);
 		// The GPU mesh of a surface, uploaded from its CPU geometry the first time it is drawn and kept while the geometry lives.
 		const Mesh& MeshFor(const WaterSurface& surface);
 

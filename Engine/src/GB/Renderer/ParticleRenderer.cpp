@@ -123,29 +123,15 @@ namespace GB
 		cmd.DrawInstanced(RHI::Topology::TriangleStrip, 0, 4, static_cast<uint32_t>(batch.Instances->size()));
 	}
 
-	void ParticleRenderer::ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
-		Framebuffer& sceneMSAA, Framebuffer& sceneDepth)
+	void ParticleRenderer::ParticlePass(const Scene& scene, const Camera& camera, Framebuffer& sceneMSAA, Framebuffer& sceneDepth)
 	{
 		if (scene.Particles.empty() && scene.ParticleBatches.empty())
 			return;
 
-		const glm::mat4 view = camera.GetView();
-		const glm::vec3 right(view[0][0], view[1][0], view[2][0]);
-		const glm::vec3 up(view[0][1], view[1][1], view[2][1]);
-		const Environment& env = scene.Env;
 		Framebuffer::BlitDepth(sceneMSAA, sceneDepth);
 		RHI::CommandList& cmd = RHI::GetDevice().Commands();
 		cmd.BeginPass(sceneMSAA.Pass("particles"));
 		cmd.BindPipeline(m_Pipeline);
-		m_Shader->SetMat4("uViewProj", viewProj);
-		m_Shader->SetVec3("uCamRight", right);
-		m_Shader->SetVec3("uCamUp", up);
-		m_Shader->SetVec3("uCamPos", camera.Position);
-		m_Shader->SetVec2("uNearFar", { camera.NearPlane, camera.FarPlane });
-		m_Shader->SetInt("uOrtho", camera.Orthographic ? 1 : 0);
-		m_Shader->SetVec3("uFogColor", env.FogColor);
-		m_Shader->SetFloat("uFogDensity", env.FogDensity);
-		m_Shader->SetFloat("uFogHeight", env.FogHeightFalloff);
 		cmd.BindTexture(1, sceneDepth.DepthTexture());
 		cmd.BindVertexLayout(m_VAO);
 

@@ -13,28 +13,40 @@ namespace GB::Shaders::Lib
 layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 )GLSL";
 
-	// lib/fog_uniforms: exponential height fog. Inside lib/sky; Particle FS on its own.
-	// The fog formula itself is still written out in each main (different variable names): unified in M8.
-	inline constexpr const char* FogUniforms = R"GLSL(uniform vec3 uFogColor;
-uniform float uFogDensity;
-uniform float uFogHeight;
+	// lib/frame: the per-frame block (render M3, T69): camera, sun, sky, fog, environment, weather, time, wind, shadow and point lights,
+	// written once per frame by Renderer::Render into its upload ring and bound at FrameConstants::Binding. Mirror of GB::FrameConstants
+	// (FrameConstants.h): same members, same order, std140; a change here is a change there. The members keep the names the loose uniforms
+	// had, so the code that reads them did not change; only the point lights are packed (a vec3 or float array has a 16 B stride in std140).
+	// Every program of the scene pass and the shadow pass (Sky, PBR, Shadow, Grass, Water, Particle); not the post-processing.
+	inline constexpr const char* Frame = R"GLSL(layout(std140, binding = 0) uniform FrameBlock
+{
+	mat4 uViewProj;
+	mat4 uInvViewProj;
+	mat4 uLightVP;
+	vec3 uCamPos;      float uEnvIntensity;
+	vec3 uSunDir;      float uTime;           // uSunDir: the direction the light travels; uTime: Environment::Time (s)
+	vec3 uSunColor;    float uShadowTexel;    // uSunColor: color * intensity; uShadowTexel: world size of one shadow map texel
+	vec3 uSkyTop;      float uFogDensity;
+	vec3 uSkyHorizon;  float uFogHeight;
+	vec3 uSkyGround;   float uWetness;
+	vec3 uFogColor;    float uSnowCover;
+	vec3 uWind;        float uEnvMaxLod;
+	vec3 uCamRight;    float uEnvRotation;    // uCamRight, uCamUp: the camera's axes in world space (particle billboards)
+	vec3 uCamUp;       float uEnvExposure;
+	vec4 uTrailRect;                          // ground marks window: center x, z, size (m), texel size (m)
+	vec2 uNearFar;     float uStars;  float uCloudCover;
+	int uShadowsOn;    int uPointCount;  int uOrtho;  int uHasEnvMap;
+	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
+	vec4 uPointColor[32];                     // rgb color * intensity
+};
 )GLSL";
 
 	// lib/sky (the old SkyCommon): procedural sky and environment map, shared by the background and image based lighting.
-	// Sky, PBR, Water and Grass FS. Starts with a blank line, as SkyCommon did.
+	// Sky, PBR, Water and Grass FS. Its values (sky colors, fog, environment map) are in lib/frame. Starts with a blank line, as SkyCommon did.
 	inline constexpr const char* Sky = R"GLSL(
-uniform vec3 uSkyTop;
-uniform vec3 uSkyHorizon;
-uniform vec3 uSkyGround;
-#include "lib/fog_uniforms"
-uniform float uWetness;
-uniform float uSnowCover;
+#include "lib/frame"
 
 layout(binding = 9) uniform sampler2D uEnvMap;
-uniform int uHasEnvMap;
-uniform float uEnvMaxLod;
-uniform float uEnvRotation;
-uniform float uEnvExposure;
 
 vec2 EnvUV(vec3 d)
 {
@@ -70,18 +82,18 @@ vec3 SkyIrradiance(vec3 n)
 }
 )GLSL";
 
-	// lib/trail_at: ground-mark lookup (footprints, tracks). Needs uTrailMap and uTrailRect declared before it.
+	// lib/trail_at: ground-mark lookup (footprints, tracks). Needs uTrailMap declared before it (uTrailRect is in lib/frame).
 	// PBR VS and FS (through lib/object_trail) and Grass VS (with its own uniforms).
-	inline constexpr const char* TrailAt = R"GLSL(float TrailAt(vec2 xz)
+	inline constexpr const char* TrailAt = R"GLSL(#include "lib/frame"
+float TrailAt(vec2 xz)
 {
 	float edge = max(abs(xz.x - uTrailRect.x), abs(xz.y - uTrailRect.y)) / uTrailRect.z;
 	return textureLod(uTrailMap, xz / uTrailRect.z, 0.0).r * (1.0 - smoothstep(0.38, 0.5, edge));
 }
 )GLSL";
 
-	// lib/object_trail: the ground-mark uniforms of objects and terrain, plus TrailAt. PBR VS and FS.
+	// lib/object_trail: the ground-mark uniforms of an object's material, plus TrailAt (the window, uTrailRect, is in lib/frame). PBR VS and FS.
 	inline constexpr const char* ObjectTrail = R"GLSL(layout(binding = 8) uniform sampler2D uTrailMap;
-uniform vec4 uTrailRect;       // window center x, z, size (m), texel size (m)
 uniform float uTrailDepth;     // 0 = this material ignores ground marks
 uniform vec3 uTrailTint;
 uniform float uTrailBoost;
@@ -114,8 +126,7 @@ layout(binding = 3) uniform sampler2D uHeightMap;
 uniform float uWindStrength;      // 0 = rigid; meters of sway at the top of the object per unit of wind
 uniform float uWindHeight;        // object-space height at which the sway is full
 uniform float uWindFlutter;       // small fast leaf motion (meters)
-uniform float uTime;
-uniform vec3 uWind;
+#include "lib/frame"
 vec3 WindOffset(vec3 localPos, vec3 worldPos, vec3 origin)
 {
 	float hw = clamp(localPos.y / max(uWindHeight, 1e-3), 0.0, 1.0);
@@ -131,14 +142,8 @@ vec3 WindOffset(vec3 localPos, vec3 worldPos, vec3 origin)
 }
 )GLSL";
 
-	// lib/point_lights: the point light uniforms (32 max, Renderer::MaxPointLights). PBR and Water FS.
-	inline constexpr const char* PointLights = R"GLSL(uniform int uPointCount;
-uniform vec3 uPointPos[32];
-uniform vec3 uPointColor[32];
-uniform float uPointRadius[32];
-)GLSL";
-
-	// lib/depth: LinearDepth() from a depth-buffer value (perspective or ortho). Needs uNearFar and uOrtho.
+	// lib/depth: LinearDepth() from a depth-buffer value (perspective or ortho). Needs uNearFar and uOrtho (lib/frame in Particle and Water,
+	// its own uniforms in Composite).
 	// Composite, Particle and Water FS. AOBlur's Lin() has no ortho branch: it stays apart (M8).
 	inline constexpr const char* Depth = R"GLSL(float LinearDepth(float d)
 {
@@ -180,7 +185,7 @@ vec3 EnvBRDFApprox(vec3 F0, float roughness, float NoV)
 }
 )GLSL";
 
-	// lib/shadow: the 5x5 PCF sun shadow of objects, Shadow(). Needs uShadowsOn, uLightVP, uShadowTexel and uShadowMap.
+	// lib/shadow: the 5x5 PCF sun shadow of objects, Shadow(). Needs uShadowMap and lib/frame (uShadowsOn, uLightVP, uShadowTexel).
 	// PBR FS. Grass has its own 3x3 filter (GrassShadow).
 	inline constexpr const char* Shadow = R"GLSL(float Shadow(vec3 worldPos, vec3 N, vec3 L)
 {
@@ -223,7 +228,7 @@ float FBM3(vec3 p) { return PNoise3(p) * 0.55 + PNoise3(p * 2.07 + 3.1) * 0.3 + 
 	// lib/water_waves: the four Gerstner waves of WaterSurface::HeightAt. Water VS and FS. The @WAVESET@ line is replaced
 	// after assembly by InjectWaveSet (World/Water/WaterWaves.h) with the wave constants.
 	inline constexpr const char* WaterWaves = R"GLSL(
-uniform float uTime;
+#include "lib/frame"
 uniform vec2 uWaveDir;
 uniform float uWaveHeight;
 uniform float uWaveLength;

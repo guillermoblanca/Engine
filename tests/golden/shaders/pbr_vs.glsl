@@ -1,12 +1,31 @@
 #version 450 core
+layout(std140, binding = 0) uniform FrameBlock
+{
+	mat4 uViewProj;
+	mat4 uInvViewProj;
+	mat4 uLightVP;
+	vec3 uCamPos;      float uEnvIntensity;
+	vec3 uSunDir;      float uTime;           // uSunDir: the direction the light travels; uTime: Environment::Time (s)
+	vec3 uSunColor;    float uShadowTexel;    // uSunColor: color * intensity; uShadowTexel: world size of one shadow map texel
+	vec3 uSkyTop;      float uFogDensity;
+	vec3 uSkyHorizon;  float uFogHeight;
+	vec3 uSkyGround;   float uWetness;
+	vec3 uFogColor;    float uSnowCover;
+	vec3 uWind;        float uEnvMaxLod;
+	vec3 uCamRight;    float uEnvRotation;    // uCamRight, uCamUp: the camera's axes in world space (particle billboards)
+	vec3 uCamUp;       float uEnvExposure;
+	vec4 uTrailRect;                          // ground marks window: center x, z, size (m), texel size (m)
+	vec2 uNearFar;     float uStars;  float uCloudCover;
+	int uShadowsOn;    int uPointCount;  int uOrtho;  int uHasEnvMap;
+	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
+	vec4 uPointColor[32];                     // rgb color * intensity
+};
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;
 layout(location = 2) in vec2 aUV;
 layout(location = 3) in vec4 aTangent;
 uniform mat4 uModel;
-uniform mat4 uViewProj;
 layout(binding = 8) uniform sampler2D uTrailMap;
-uniform vec4 uTrailRect;       // window center x, z, size (m), texel size (m)
 uniform float uTrailDepth;     // 0 = this material ignores ground marks
 uniform vec3 uTrailTint;
 uniform float uTrailBoost;
@@ -38,8 +57,6 @@ out vec2 vUV;
 uniform float uWindStrength;      // 0 = rigid; meters of sway at the top of the object per unit of wind
 uniform float uWindHeight;        // object-space height at which the sway is full
 uniform float uWindFlutter;       // small fast leaf motion (meters)
-uniform float uTime;
-uniform vec3 uWind;
 vec3 WindOffset(vec3 localPos, vec3 worldPos, vec3 origin)
 {
 	float hw = clamp(localPos.y / max(uWindHeight, 1e-3), 0.0, 1.0);

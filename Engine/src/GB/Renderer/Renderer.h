@@ -1,6 +1,7 @@
 #pragma once
 #include "Camera.h"
 #include "Framebuffer.h"
+#include "FrameConstants.h"
 #include "PostProcessor.h"
 #include "GrassRenderer.h"
 #include "RenderList.h"
@@ -18,7 +19,7 @@ namespace GB
 	class Renderer
 	{
 	public:
-		static constexpr uint32_t MaxPointLights = 32;
+		static constexpr uint32_t MaxPointLights = FrameConstants::MaxPointLights;
 
 		Renderer(uint32_t width, uint32_t height, uint32_t msaaSamples = 4, uint32_t shadowMapSize = 2048);
 		~Renderer();
@@ -34,11 +35,12 @@ namespace GB
 
 	private:
 		void CreateTargets();
-		void ShadowPass(const Scene& scene, const glm::mat4& lightVP);
-		void ScenePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows);
-		void GrassPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows);
-		void BindEnvironment(Shader& shader, const Environment& env) const;
-		void WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj);
+		// T69: fills m_Frame for this frame, writes it into m_FrameRing and binds it at FrameConstants::Binding (before the shadow pass).
+		void UploadFrame(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows);
+		void ShadowPass(const Scene& scene);
+		void ScenePass(const Scene& scene, const Camera& camera);
+		void GrassPass(const Scene& scene, const Camera& camera);
+		void WaterPass(const Scene& scene);
 
 		RenderStats m_Stats;
 		// T78: the frame's objects and what the camera and the shadow map see of them (built and culled once at the start of Render), and the
@@ -65,6 +67,12 @@ namespace GB
 		RHI::BufferHandle m_InstanceBuffer;   // the matrices of one instanced draw (RenderObject::Instanced)
 		// The state of the scene pass: the sky (no depth), the objects (depth, back faces culled).
 		RHI::PipelineHandle m_SkyPipeline, m_PBRPipeline;
+		// T69 (render M3): the per-frame block and the ring it is written into, one region per frame in flight. m_Frame is kept between
+		// frames: the ground marks window and the environment map's values are only rewritten when there are marks or a map, as the loose
+		// uniforms they replace kept their last value.
+		FrameConstants m_Frame;
+		std::unique_ptr<RHI::UploadRing> m_FrameRing;
+		bool m_FrameRingFull = false;   // (logged once)
 
 		void BindSkin(Shader& shader, const RenderObject& obj);
 

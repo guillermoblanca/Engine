@@ -1,4 +1,25 @@
 #version 450 core
+layout(std140, binding = 0) uniform FrameBlock
+{
+	mat4 uViewProj;
+	mat4 uInvViewProj;
+	mat4 uLightVP;
+	vec3 uCamPos;      float uEnvIntensity;
+	vec3 uSunDir;      float uTime;           // uSunDir: the direction the light travels; uTime: Environment::Time (s)
+	vec3 uSunColor;    float uShadowTexel;    // uSunColor: color * intensity; uShadowTexel: world size of one shadow map texel
+	vec3 uSkyTop;      float uFogDensity;
+	vec3 uSkyHorizon;  float uFogHeight;
+	vec3 uSkyGround;   float uWetness;
+	vec3 uFogColor;    float uSnowCover;
+	vec3 uWind;        float uEnvMaxLod;
+	vec3 uCamRight;    float uEnvRotation;    // uCamRight, uCamUp: the camera's axes in world space (particle billboards)
+	vec3 uCamUp;       float uEnvExposure;
+	vec4 uTrailRect;                          // ground marks window: center x, z, size (m), texel size (m)
+	vec2 uNearFar;     float uStars;  float uCloudCover;
+	int uShadowsOn;    int uPointCount;  int uOrtho;  int uHasEnvMap;
+	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
+	vec4 uPointColor[32];                     // rgb color * intensity
+};
 in vec3 vPos;
 in vec2 vFlow;
 in float vBlend;
@@ -7,12 +28,6 @@ layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of ou
 layout(binding = 1) uniform sampler2D uSceneDepth;
 layout(binding = 2) uniform sampler2D uRipples;
 layout(binding = 3) uniform sampler2D uSceneColor;   // opaque scene so far (refraction)
-uniform vec3 uCamPos;
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform float uEnvIntensity;
-uniform vec2 uNearFar;
-uniform int uOrtho;
 uniform vec3 uShallow;
 uniform vec3 uDeep;
 uniform float uClarity;
@@ -21,30 +36,13 @@ uniform float uFoam;
 uniform float uFoamWidth;
 uniform float uRippleStrength;
 uniform vec4 uRippleRect;     // window center x, z, size, texel size (size 0 = off)
-uniform mat4 uViewProj;
-uniform int uPointCount;
-uniform vec3 uPointPos[32];
-uniform vec3 uPointColor[32];
-uniform float uPointRadius[32];
 uniform float uSSR;           // 0 = sky only, 1 = screen-space reflections
 uniform float uOriginY;
 uniform vec3 uOriginXZ;     // water center
 uniform float uMask;          // > 0: discard beyond this radius
 
-uniform vec3 uSkyTop;
-uniform vec3 uSkyHorizon;
-uniform vec3 uSkyGround;
-uniform vec3 uFogColor;
-uniform float uFogDensity;
-uniform float uFogHeight;
-uniform float uWetness;
-uniform float uSnowCover;
 
 layout(binding = 9) uniform sampler2D uEnvMap;
-uniform int uHasEnvMap;
-uniform float uEnvMaxLod;
-uniform float uEnvRotation;
-uniform float uEnvExposure;
 
 vec2 EnvUV(vec3 d)
 {
@@ -79,7 +77,6 @@ vec3 SkyIrradiance(vec3 n)
 	return mix(uSkyGround, skyHemisphere, h);
 }
 
-uniform float uTime;
 uniform vec2 uWaveDir;
 uniform float uWaveHeight;
 uniform float uWaveLength;
@@ -266,14 +263,14 @@ void main()
 	// Lamps and torches glitter on the surface too.
 	for (int i = 0; i < uPointCount; ++i)
 	{
-		vec3 toLight = uPointPos[i] - vPos;
+		vec3 toLight = uPointPosRadius[i].xyz - vPos;
 		float d2 = dot(toLight, toLight);
 		vec3 Lp = toLight * inversesqrt(d2);
 		float w = 1.0;
-		if (uPointRadius[i] > 0.0) { float r = d2 / (uPointRadius[i] * uPointRadius[i]); w = clamp(1.0 - r * r, 0.0, 1.0); w *= w; }
+		if (uPointPosRadius[i].w > 0.0) { float r = d2 / (uPointPosRadius[i].w * uPointPosRadius[i].w); w = clamp(1.0 - r * r, 0.0, 1.0); w *= w; }
 		float nhp = max(dot(N, normalize(Lp + V)), 0.0);
 		float sp = min(pow(nhp, 2.0 / a2 - 1.0) * (2.0 / a2) * 0.05, 40.0);
-		glint += uPointColor[i] * (sp * w / (d2 + 0.01)) * F * step(0.0, Lp.y);
+		glint += uPointColor[i].rgb * (sp * w / (d2 + 0.01)) * F * step(0.0, Lp.y);
 	}
 
 	// Foam at the shore, on crests and where ripples are strong.

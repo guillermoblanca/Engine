@@ -1,19 +1,28 @@
 #version 450 core
+layout(std140, binding = 0) uniform FrameBlock
+{
+	mat4 uViewProj;
+	mat4 uInvViewProj;
+	mat4 uLightVP;
+	vec3 uCamPos;      float uEnvIntensity;
+	vec3 uSunDir;      float uTime;           // uSunDir: the direction the light travels; uTime: Environment::Time (s)
+	vec3 uSunColor;    float uShadowTexel;    // uSunColor: color * intensity; uShadowTexel: world size of one shadow map texel
+	vec3 uSkyTop;      float uFogDensity;
+	vec3 uSkyHorizon;  float uFogHeight;
+	vec3 uSkyGround;   float uWetness;
+	vec3 uFogColor;    float uSnowCover;
+	vec3 uWind;        float uEnvMaxLod;
+	vec3 uCamRight;    float uEnvRotation;    // uCamRight, uCamUp: the camera's axes in world space (particle billboards)
+	vec3 uCamUp;       float uEnvExposure;
+	vec4 uTrailRect;                          // ground marks window: center x, z, size (m), texel size (m)
+	vec2 uNearFar;     float uStars;  float uCloudCover;
+	int uShadowsOn;    int uPointCount;  int uOrtho;  int uHasEnvMap;
+	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
+	vec4 uPointColor[32];                     // rgb color * intensity
+};
 
-uniform vec3 uSkyTop;
-uniform vec3 uSkyHorizon;
-uniform vec3 uSkyGround;
-uniform vec3 uFogColor;
-uniform float uFogDensity;
-uniform float uFogHeight;
-uniform float uWetness;
-uniform float uSnowCover;
 
 layout(binding = 9) uniform sampler2D uEnvMap;
-uniform int uHasEnvMap;
-uniform float uEnvMaxLod;
-uniform float uEnvRotation;
-uniform float uEnvExposure;
 
 vec2 EnvUV(vec3 d)
 {
@@ -54,7 +63,6 @@ in vec2 vUV;
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 
-uniform vec3 uCamPos;
 uniform int uHasAlbedoMap;
 uniform int uHasNormalMap;
 uniform int uHasHeightMap;       // height doubles as a cavity/AO term
@@ -81,7 +89,6 @@ uniform float uBaseY;
 uniform float uWaterLine;
 uniform vec4 uMacroRect;
 layout(binding = 8) uniform sampler2D uTrailMap;
-uniform vec4 uTrailRect;       // window center x, z, size (m), texel size (m)
 uniform float uTrailDepth;     // 0 = this material ignores ground marks
 uniform vec3 uTrailTint;
 uniform float uTrailBoost;
@@ -106,19 +113,7 @@ uniform float uRoughness;
 uniform float uAO;
 uniform vec3 uEmissive;
 
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform int uPointCount;
-uniform vec3 uPointPos[32];
-uniform vec3 uPointColor[32];
-uniform float uPointRadius[32];
-
-uniform int uShadowsOn;
-uniform mat4 uLightVP;
-uniform float uShadowTexel;   // world-space size of one shadow map texel
 layout(binding = 0) uniform sampler2DShadow uShadowMap;
-
-uniform float uEnvIntensity;
 
 const float PI = 3.14159265359;
 
@@ -181,7 +176,6 @@ float Shadow(vec3 worldPos, vec3 N, vec3 L)
 	return sum / 25.0;
 }
 
-uniform float uTime;
 float PHash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
 float PNoise(vec2 p)
 {
@@ -362,17 +356,17 @@ void main()
 
 	for (int i = 0; i < uPointCount; ++i)
 	{
-		vec3 toLight = uPointPos[i] - vPos;
+		vec3 toLight = uPointPosRadius[i].xyz - vPos;
 		float d2 = dot(toLight, toLight);
 		vec3 L = toLight * inversesqrt(d2);
 		float window = 1.0;
-		if (uPointRadius[i] > 0.0)
+		if (uPointPosRadius[i].w > 0.0)
 		{
-			float r = d2 / (uPointRadius[i] * uPointRadius[i]);
+			float r = d2 / (uPointPosRadius[i].w * uPointPosRadius[i].w);
 			window = clamp(1.0 - r * r, 0.0, 1.0);
 			window *= window;
 		}
-		Lo += Shade(N, V, L, uPointColor[i] * (window / (d2 + 0.01)), albedo, F0, a, metallic);
+		Lo += Shade(N, V, L, uPointColor[i].rgb * (window / (d2 + 0.01)), albedo, F0, a, metallic);
 	}
 
 	float NoV = max(dot(N, V), 1e-4);

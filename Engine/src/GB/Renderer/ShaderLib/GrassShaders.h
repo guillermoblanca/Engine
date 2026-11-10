@@ -6,15 +6,11 @@ namespace GB::Shaders
 {
 	// The grass ground-mark uniforms (uTrailBend, comment without units) differ from lib/object_trail: only TrailAt is shared.
 	inline constexpr const char* GrassVS = R"GLSL(#version 450 core
+#include "lib/frame"
 layout(location = 0) in vec4 aPosYaw;   // x, y, z of the root, yaw
 layout(location = 1) in vec4 aShape;    // height, width, seed, lean
 layout(location = 2) in vec4 aTint;     // color multiplier, dryness
-uniform mat4 uViewProj;
-uniform vec3 uCamPos;
-uniform float uTime;
-uniform vec3 uWind;
 uniform float uDrawDistance;
-uniform float uSnowCover;
 out vec3 vWorld;
 out float vT;
 out float vSeed;
@@ -24,7 +20,6 @@ out vec4 vTint;
 const int SEGMENTS = 4;
 
 layout(binding = 8) uniform sampler2D uTrailMap;
-uniform vec4 uTrailRect;       // window center x, z, size, texel size
 uniform float uTrailBend;      // 0 = ignore marks
 #include "lib/trail_at"
 
@@ -99,6 +94,7 @@ void main()
 )GLSL";
 
 	inline constexpr const char* GrassFS = R"GLSL(#version 450 core
+#include "lib/frame"
 in vec3 vWorld;
 in float vT;
 in float vSeed;
@@ -106,13 +102,6 @@ in vec3 vNormal;
 in float vSide;
 in vec4 vTint;
 #include "lib/scene_targets"
-uniform vec3 uCamPos;
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform float uEnvIntensity;
-uniform int uShadowsOn;
-uniform mat4 uLightVP;
-uniform float uShadowTexel;
 layout(binding = 0) uniform sampler2DShadow uShadowMap;
 uniform vec3 uBase;
 uniform vec3 uTip;

@@ -5,13 +5,11 @@
 namespace GB::Shaders
 {
 	inline constexpr const char* ParticleVS = R"GLSL(#version 450 core
+#include "lib/frame"
 layout(location = 0) in vec4 aPosSize;     // xyz position, w size
 layout(location = 1) in vec4 aColor;
 layout(location = 2) in vec4 aVelRot;      // xyz velocity, w rotation
 layout(location = 3) in vec4 aFrame;       // x = flipbook frame
-uniform mat4 uViewProj;
-uniform vec3 uCamRight;
-uniform vec3 uCamUp;
 uniform float uStretch;
 uniform vec2 uSheet;                       // columns, rows
 out vec2 vUV;
@@ -50,6 +48,7 @@ void main()
 )GLSL";
 
 	inline constexpr const char* ParticleFS = R"GLSL(#version 450 core
+#include "lib/frame"
 in vec2 vUV;
 in vec4 vColor;
 in vec3 vWorld;
@@ -57,10 +56,6 @@ in vec3 vWorld;
 layout(binding = 0) uniform sampler2D uSprite;
 layout(binding = 1) uniform sampler2D uSceneDepth;
 uniform float uSoft;            // soft particle fade distance (world units), 0 = off
-uniform vec2 uNearFar;
-uniform int uOrtho;
-uniform vec3 uCamPos;
-#include "lib/fog_uniforms"
 
 #include "lib/depth"
 

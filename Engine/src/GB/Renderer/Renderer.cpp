@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <cstring>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cstdint>
 #include <string>
@@ -26,6 +27,8 @@ namespace GB
 		m_EmptyVAO = device.CreateVertexLayout({});
 		m_JointBuffer = device.CreateStreamBuffer();
 		m_InstanceBuffer = device.CreateStreamBuffer();
+		// The per-frame block: one allocation a frame (16 KiB regions leave room for the blocks of M4 and M5).
+		m_FrameRing = device.CreateUploadRing(16 * 1024);
 		for (auto& set : m_Timers)
 			for (RHI::QueryHandle& q : set)
 				q = device.CreateTimestamp();
@@ -54,11 +57,11 @@ namespace GB
 
 		CreateTargets();
 		m_PostProcessor = std::make_unique<PostProcessor>(m_Width, m_Height);
-		m_GrassRenderer = std::make_unique<GrassRenderer>(m_ShadowSize);
+		m_GrassRenderer = std::make_unique<GrassRenderer>();
 		m_WaterRenderer = std::make_unique<WaterRenderer>();
 		m_ShadowRenderer = std::make_unique<ShadowRenderer>();
 
-		m_Valid = m_ShadowRenderer->IsValid() && m_PBRShader->IsValid() && m_SkyShader->IsValid() &&
+		m_Valid = m_FrameRing && m_ShadowRenderer->IsValid() && m_PBRShader->IsValid() && m_SkyShader->IsValid() &&
 			m_ParticleRenderer->IsValid() && m_GrassRenderer->IsValid() && m_WaterRenderer->IsValid() &&
 			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete() &&
 			m_SceneDepth->IsComplete() && m_SceneAmbient->IsComplete() && m_PostProcessor->IsValid();
@@ -77,6 +80,7 @@ namespace GB
 				device.DestroyTimestamp(q);
 		device.DestroyPipeline(m_SkyPipeline);
 		device.DestroyPipeline(m_PBRPipeline);
+		m_FrameRing.reset();
 	}
 
 	void Renderer::CreateTargets()
@@ -161,12 +165,74 @@ namespace GB
 		cmd.BindStorageBuffer(0, m_JointBuffer);
 	}
 
-	void Renderer::ShadowPass(const Scene& scene, const glm::mat4& lightVP)
+	void Renderer::UploadFrame(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows)
 	{
-		m_ShadowRenderer->Render(scene, m_List, *m_ShadowMap, lightVP);
+		// The values the loose uniforms got before, computed the same way (the pictures must not change by a bit).
+		const Environment& env = scene.Env;
+		FrameConstants& f = m_Frame;
+		f.ViewProj = viewProj;
+		f.InvViewProj = glm::inverse(viewProj);
+		f.LightVP = lightVP;
+		f.CamPos = camera.Position;
+		const glm::mat4 view = camera.GetView();
+		f.CamRight = glm::vec3(view[0][0], view[1][0], view[2][0]);
+		f.CamUp = glm::vec3(view[0][1], view[1][1], view[2][1]);
+		f.NearFar = { camera.NearPlane, camera.FarPlane };
+		f.Ortho = camera.Orthographic ? 1 : 0;
+		f.SunDir = glm::normalize(scene.Sun.Direction);
+		f.SunColor = scene.Sun.Color * scene.Sun.Intensity;
+		f.SkyTop = env.SkyTop;
+		f.SkyHorizon = env.SkyHorizon;
+		f.SkyGround = env.SkyGround;
+		f.EnvIntensity = env.Intensity;
+		f.FogColor = env.FogColor;
+		f.FogDensity = env.FogDensity;
+		f.FogHeight = env.FogHeightFalloff;
+		f.Wetness = env.Wetness;
+		f.SnowCover = env.SnowCover;
+		f.Stars = env.Stars;
+		f.CloudCover = env.CloudCover;
+		f.Time = env.Time;
+		f.Wind = env.Wind;
+		f.ShadowsOn = shadows ? 1 : 0;
+		f.ShadowTexel = 2.0f * env.ShadowRadius / static_cast<float>(m_ShadowSize);
+		const bool hasEnvMap = env.EnvMap && env.EnvMap->IsValid();
+		f.HasEnvMap = hasEnvMap ? 1 : 0;
+		if (hasEnvMap)
+		{
+			f.EnvMaxLod = static_cast<float>(env.EnvMap->GetMipCount() - 1);
+			f.EnvRotation = env.EnvMap->Rotation / 6.2831853f;
+			f.EnvExposure = env.EnvMap->Exposure;
+		}
+		if (scene.Ground && scene.Ground->IsValid())
+			f.TrailRect = scene.Ground->GetRect();
+		const uint32_t pointCount = static_cast<uint32_t>(std::min<size_t>(scene.PointLights.size(), MaxPointLights));
+		f.PointCount = static_cast<int32_t>(pointCount);
+		for (uint32_t i = 0; i < pointCount; ++i)
+		{
+			const PointLight& light = scene.PointLights[i];
+			f.PointPosRadius[i] = glm::vec4(light.Position, light.Radius);
+			f.PointColor[i] = glm::vec4(light.Color * light.Intensity, 0.0f);
+		}
+
+		RHI::Device& device = RHI::GetDevice();
+		const RHI::RingAllocation block = m_FrameRing->Allocate(sizeof(FrameConstants), device.Limits().UniformBufferAlignment);
+		if (!block)
+		{
+			if (!m_FrameRingFull) GB_CORE_ERROR("Renderer: the frame ring is full, the frame block is not updated");
+			m_FrameRingFull = true;
+			return;
+		}
+		std::memcpy(block.Ptr, &f, sizeof(FrameConstants));
+		device.Commands().BindUniformBuffer(FrameConstants::Binding, block.Buffer, block.Offset, sizeof(FrameConstants));
 	}
 
-	void Renderer::ScenePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows)
+	void Renderer::ShadowPass(const Scene& scene)
+	{
+		m_ShadowRenderer->Render(scene, m_List, *m_ShadowMap);
+	}
+
+	void Renderer::ScenePass(const Scene& scene, const Camera& camera)
 	{
 		const Environment& env = scene.Env;
 
@@ -179,34 +245,13 @@ namespace GB
 		pass.ClearDepth = true;
 		cmd.BeginPass(pass);
 
-		const glm::vec3 sunDir = glm::normalize(scene.Sun.Direction);
-		const glm::vec3 sunColor = scene.Sun.Color * scene.Sun.Intensity;
-
-		auto setSky = [&](Shader& s)
-		{
-			s.SetVec3("uSkyTop", env.SkyTop);
-			s.SetVec3("uSkyHorizon", env.SkyHorizon);
-			s.SetVec3("uSkyGround", env.SkyGround);
-			s.SetFloat("uEnvIntensity", env.Intensity);
-			s.SetVec3("uSunDir", sunDir);
-			s.SetVec3("uSunColor", sunColor);
-			s.SetVec3("uFogColor", env.FogColor);
-			s.SetFloat("uFogDensity", env.FogDensity);
-			s.SetFloat("uFogHeight", env.FogHeightFalloff);
-			s.SetFloat("uWetness", env.Wetness);
-			s.SetFloat("uSnowCover", env.SnowCover);
-			BindEnvironment(s, env);
-		};
+		// The frame's values are in the block bound by UploadFrame; the environment map is the one texture they need (the sky, the objects,
+		// the grass and the water read it at unit 9, and nothing else binds that unit).
+		if (env.EnvMap && env.EnvMap->IsValid())
+			cmd.BindTexture(9, env.EnvMap->GetHandle());
 
 		// Background sky
 		cmd.BindPipeline(m_SkyPipeline);
-		setSky(*m_SkyShader);
-		m_SkyShader->SetMat4("uInvViewProj", glm::inverse(viewProj));
-		m_SkyShader->SetVec3("uCamPos", camera.Position);
-		m_SkyShader->SetFloat("uStars", env.Stars);
-		m_SkyShader->SetFloat("uCloudCover", env.CloudCover);
-		m_SkyShader->SetFloat("uTime", env.Time);
-		m_SkyShader->SetVec3("uWind", env.Wind);
 		cmd.BindVertexLayout(m_EmptyVAO);
 		cmd.Draw(RHI::Topology::Triangles, 0, 3);
 		Mark(kAfterSky);
@@ -214,37 +259,9 @@ namespace GB
 		// Opaque geometry
 		Shader& pbr = *m_PBRShader;
 		cmd.BindPipeline(m_PBRPipeline);
-		setSky(pbr);
-		pbr.SetMat4("uViewProj", viewProj);
-		pbr.SetVec3("uCamPos", camera.Position);
-		pbr.SetInt("uShadowsOn", shadows ? 1 : 0);
-		pbr.SetFloat("uTime", env.Time);
-		pbr.SetVec3("uWind", env.Wind);
 		if (scene.Ground && scene.Ground->IsValid())
-		{
-			pbr.SetVec4("uTrailRect", scene.Ground->GetRect());
 			cmd.BindTexture(8, { scene.Ground->GetTexture() });
-		}
-		pbr.SetMat4("uLightVP", lightVP);
-		pbr.SetFloat("uShadowTexel", 2.0f * env.ShadowRadius / static_cast<float>(m_ShadowSize));
 		cmd.BindTexture(0, m_ShadowMap->DepthTexture());
-
-		const int pointCount = static_cast<int>(std::min<size_t>(scene.PointLights.size(), MaxPointLights));
-		glm::vec3 positions[MaxPointLights] = {}, colors[MaxPointLights] = {};
-		float radii[MaxPointLights] = {};
-		for (int i = 0; i < pointCount; ++i)
-		{
-			positions[i] = scene.PointLights[i].Position;
-			colors[i] = scene.PointLights[i].Color * scene.PointLights[i].Intensity;
-			radii[i] = scene.PointLights[i].Radius;
-		}
-		pbr.SetInt("uPointCount", pointCount);
-		if (pointCount > 0)
-		{
-			pbr.SetVec3Array("uPointPos", positions, pointCount);
-			pbr.SetVec3Array("uPointColor", colors, pointCount);
-			pbr.SetFloatArray("uPointRadius", radii, pointCount);
-		}
 
 		// `copies` > 0: an instanced draw of that many copies, their matrices already in m_InstanceBuffer (the object's material for all)
 		using Clock = std::chrono::steady_clock;
@@ -374,11 +391,11 @@ namespace GB
 
 		const uint32_t beforeGrass = DrawCounter::Calls;
 		Mark(kAfterObjects);
-		GrassPass(scene, camera, viewProj, lightVP, shadows);
+		GrassPass(scene, camera);
 		Mark(kAfterGrass);
 		m_Stats.GrassCalls = DrawCounter::Calls - beforeGrass;
 		const uint32_t beforeWater = DrawCounter::Calls;
-		WaterPass(scene, camera, viewProj);
+		WaterPass(scene);
 		Mark(kAfterWater);
 		m_Stats.WaterCalls = DrawCounter::Calls - beforeWater;
 
@@ -405,7 +422,7 @@ namespace GB
 		cmd.SetCull(RHI::Cull::None);
 		Mark(kAfterTranslucent);
 
-		m_ParticleRenderer->ParticlePass(scene, camera, viewProj, *m_SceneMSAA, *m_SceneDepth);
+		m_ParticleRenderer->ParticlePass(scene, camera, *m_SceneMSAA, *m_SceneDepth);
 		Mark(kAfterParticles);
 
 		Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);
@@ -413,26 +430,14 @@ namespace GB
 			Framebuffer::BlitExtra(*m_SceneMSAA, *m_SceneAmbient);
 	}
 
-	void Renderer::GrassPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj, const glm::mat4& lightVP, bool shadows)
+	void Renderer::GrassPass(const Scene& scene, const Camera& camera)
 	{
-		m_GrassRenderer->Render(scene, camera, viewProj, lightVP, shadows, m_ShadowMap->DepthTexture());
+		m_GrassRenderer->Render(scene, camera, m_ShadowMap->DepthTexture());
 	}
 
-	void Renderer::BindEnvironment(Shader& shader, const Environment& env) const
+	void Renderer::WaterPass(const Scene& scene)
 	{
-		const bool has = env.EnvMap && env.EnvMap->IsValid();
-		shader.SetInt("uHasEnvMap", has ? 1 : 0);
-		if (!has)
-			return;
-		shader.SetFloat("uEnvMaxLod", static_cast<float>(env.EnvMap->GetMipCount() - 1));
-		shader.SetFloat("uEnvRotation", env.EnvMap->Rotation / 6.2831853f);
-		shader.SetFloat("uEnvExposure", env.EnvMap->Exposure);
-		RHI::GetDevice().Commands().BindTexture(9, env.EnvMap->GetHandle());
-	}
-
-	void Renderer::WaterPass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj)
-	{
-		m_WaterRenderer->Render(scene, camera, viewProj, *m_SceneMSAA, *m_SceneResolved, *m_SceneDepth);
+		m_WaterRenderer->Render(scene, *m_SceneMSAA, *m_SceneResolved, *m_SceneDepth);
 	}
 
 	void Renderer::Render(const Scene& scene, const Camera& camera, const Framebuffer* target)
@@ -448,6 +453,7 @@ namespace GB
 		uint32_t shadowCalls = 0;
 		const RenderStats gpu = m_Stats;   // (ScenePass starts its stats over: the GPU times of the frames before are kept)
 		m_TimerActive = m_TimersPending < kTimerSets;   // (all the marks of a frame, or none: a set not read yet is never issued again)
+		m_FrameRing->BeginFrame();
 		Mark(kStart);
 
 		// T78: the objects once, and what the camera and the shadow map see of them in one walk (the two passes used to walk the scene each).
@@ -461,18 +467,19 @@ namespace GB
 		m_List.Build(scene.Objects, scene.DrawDistance);
 		m_List.Cull(cameraFrustum, camera.Position, shadows ? &lightFrustum : nullptr);
 		const float cullMs = static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cullStart).count());
+		UploadFrame(scene, camera, viewProj, lightVP, shadows);
 
 		const auto shadowStart = std::chrono::steady_clock::now();
 		if (shadows)
 		{
-			ShadowPass(scene, lightVP);
+			ShadowPass(scene);
 			shadowCalls = DrawCounter::Calls;
 		}
 		const float shadowMs = static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - shadowStart).count());
 		const RHI::FrameCounters shadowSubmit = RHI::Counters::Frame;
 		Mark(kAfterShadows);
 
-		ScenePass(scene, camera, viewProj, lightVP, shadows);
+		ScenePass(scene, camera);
 		Mark(kAfterResolve);
 		m_Stats.CpuCullMs = cullMs;
 		m_Stats.CpuObjectsMs += cullMs;
@@ -501,6 +508,7 @@ namespace GB
 		}
 		m_PostProcessor->CompositePass(*m_SceneResolved, *m_SceneDepth, *m_SceneAmbient, scene.Env, scene.Post, camera, target);
 		Mark(kAfterComposite);
+		m_FrameRing->EndFrame();
 		m_Stats.Submit = RHI::Counters::Frame;
 		if (m_TimerActive)
 		{

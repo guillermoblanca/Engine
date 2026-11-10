@@ -21,8 +21,9 @@ namespace GB
 		ParticleRenderer& operator=(const ParticleRenderer&) = delete;
 
 		bool IsValid() const;
-		void ParticlePass(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
-			Framebuffer& sceneMSAA, Framebuffer& sceneDepth);
+		// The camera (its matrices and axes, near and far) and the fog come from the frame block (FrameConstants), bound by Renderer::Render;
+		// `camera` sorts the particles here.
+		void ParticlePass(const Scene& scene, const Camera& camera, Framebuffer& sceneMSAA, Framebuffer& sceneDepth);
 
 	private:
 		void DrawBatch(const ParticleBatch& batch);

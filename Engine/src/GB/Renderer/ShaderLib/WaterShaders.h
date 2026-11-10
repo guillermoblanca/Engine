@@ -5,12 +5,11 @@
 namespace GB::Shaders
 {
 	inline constexpr const char* WaterVS = R"GLSL(#version 450 core
+#include "lib/frame"
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;    // rivers: x = opacity (fades out where the river runs into a lake)
 layout(location = 3) in vec4 aTangent;   // rivers: xy = flow direction, z = speed
-uniform mat4 uViewProj;
 uniform vec3 uOrigin;
-uniform vec3 uCamPos;
 uniform int uRiver;
 out vec3 vPos;
 out vec2 vFlow;
@@ -32,6 +31,7 @@ void main()
 )GLSL";
 
 	inline constexpr const char* WaterFS = R"GLSL(#version 450 core
+#include "lib/frame"
 in vec3 vPos;
 in vec2 vFlow;
 in float vBlend;
@@ -39,12 +39,6 @@ in float vBlend;
 layout(binding = 1) uniform sampler2D uSceneDepth;
 layout(binding = 2) uniform sampler2D uRipples;
 layout(binding = 3) uniform sampler2D uSceneColor;   // opaque scene so far (refraction)
-uniform vec3 uCamPos;
-uniform vec3 uSunDir;
-uniform vec3 uSunColor;
-uniform float uEnvIntensity;
-uniform vec2 uNearFar;
-uniform int uOrtho;
 uniform vec3 uShallow;
 uniform vec3 uDeep;
 uniform float uClarity;
@@ -53,8 +47,6 @@ uniform float uFoam;
 uniform float uFoamWidth;
 uniform float uRippleStrength;
 uniform vec4 uRippleRect;     // window center x, z, size, texel size (size 0 = off)
-uniform mat4 uViewProj;
-#include "lib/point_lights"
 uniform float uSSR;           // 0 = sky only, 1 = screen-space reflections
 uniform float uOriginY;
 uniform vec3 uOriginXZ;     // water center
@@ -211,14 +203,14 @@ void main()
 	// Lamps and torches glitter on the surface too.
 	for (int i = 0; i < uPointCount; ++i)
 	{
-		vec3 toLight = uPointPos[i] - vPos;
+		vec3 toLight = uPointPosRadius[i].xyz - vPos;
 		float d2 = dot(toLight, toLight);
 		vec3 Lp = toLight * inversesqrt(d2);
 		float w = 1.0;
-		if (uPointRadius[i] > 0.0) { float r = d2 / (uPointRadius[i] * uPointRadius[i]); w = clamp(1.0 - r * r, 0.0, 1.0); w *= w; }
+		if (uPointPosRadius[i].w > 0.0) { float r = d2 / (uPointPosRadius[i].w * uPointPosRadius[i].w); w = clamp(1.0 - r * r, 0.0, 1.0); w *= w; }
 		float nhp = max(dot(N, normalize(Lp + V)), 0.0);
 		float sp = min(pow(nhp, 2.0 / a2 - 1.0) * (2.0 / a2) * 0.05, 40.0);
-		glint += uPointColor[i] * (sp * w / (d2 + 0.01)) * F * step(0.0, Lp.y);
+		glint += uPointColor[i].rgb * (sp * w / (d2 + 0.01)) * F * step(0.0, Lp.y);
 	}
 
 	// Foam at the shore, on crests and where ripples are strong.

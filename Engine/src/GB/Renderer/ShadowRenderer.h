@@ -27,7 +27,8 @@ namespace GB
 		// The framebuffer must have a depth attachment (normally DepthAsTexture).
 		// The pass clears its depth and draws at its size. It draws the casters of `list`, culled with the frustum of `lightVP`
 		// (RenderList::Cull; T78: the culling is shared with the scene pass): in scene order, and the instanced batches after them.
-		void Render(const Scene& scene, const RenderList& list, const Framebuffer& target, const glm::mat4& lightVP);
+		// The light's view-projection, the time and the wind come from the frame block (FrameConstants), bound by Renderer::Render.
+		void Render(const Scene& scene, const RenderList& list, const Framebuffer& target);
 
 	private:
 		void BindSkin(const RenderObject& object);

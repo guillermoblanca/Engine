@@ -4,11 +4,11 @@
 //
 // Each program is its own text plus `#include "lib/..."` lines; Shaders::Assemble resolves them against the shared pieces in
 // ShaderLib/Pieces.h and adds the variant defines (ShaderAssembler.h). Every renderer compiles through Assemble, never the raw text.
-// The assembled sources are byte for byte the ones that were compiled before the split (T68): the shader_assembly test compares each
-// stage in Stages() with tests/golden/shaders/<name>.glsl.
+// The shader_assembly test compares each stage in Stages() with tests/golden/shaders/<name>.glsl, byte for byte: a change of the assembled
+// text is regenerated on purpose (GB_UPDATE_GOLDEN=1) and its diff reviewed.
 //
-//   ShaderLib/Pieces.h            lib/*: sky, fog uniforms, scene targets, trail, skinning, height, tree wind, point lights, depth, brdf,
-//                                 shadow, PBR noise, water waves
+//   ShaderLib/Pieces.h            lib/*: the per-frame block (lib/frame, mirror of FrameConstants.h), sky, scene targets, trail, skinning,
+//                                 height, tree wind, depth, brdf, shadow, PBR noise, water waves
 //   ShaderLib/ObjectShaders.h     ShadowVS/FS, PBRVS/FS
 //   ShaderLib/SkyShaders.h        SkyFS
 //   ShaderLib/PostShaders.h       FullscreenVS, bloom, SSAO, exposure, composite
@@ -32,15 +32,14 @@ namespace GB::Shaders
 {
 	// The registry of the `#include` names.
 	inline constexpr ShaderPiece kLibrary[] = {
+		{ "lib/frame", Lib::Frame },
 		{ "lib/scene_targets", Lib::SceneTargets },
-		{ "lib/fog_uniforms", Lib::FogUniforms },
 		{ "lib/sky", Lib::Sky },
 		{ "lib/trail_at", Lib::TrailAt },
 		{ "lib/object_trail", Lib::ObjectTrail },
 		{ "lib/object_skin", Lib::ObjectSkin },
 		{ "lib/object_height", Lib::ObjectHeight },
 		{ "lib/tree_wind", Lib::TreeWind },
-		{ "lib/point_lights", Lib::PointLights },
 		{ "lib/depth", Lib::Depth },
 		{ "lib/brdf", Lib::Brdf },
 		{ "lib/shadow", Lib::Shadow },

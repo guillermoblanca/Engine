@@ -1,11 +1,29 @@
 #version 450 core
+layout(std140, binding = 0) uniform FrameBlock
+{
+	mat4 uViewProj;
+	mat4 uInvViewProj;
+	mat4 uLightVP;
+	vec3 uCamPos;      float uEnvIntensity;
+	vec3 uSunDir;      float uTime;           // uSunDir: the direction the light travels; uTime: Environment::Time (s)
+	vec3 uSunColor;    float uShadowTexel;    // uSunColor: color * intensity; uShadowTexel: world size of one shadow map texel
+	vec3 uSkyTop;      float uFogDensity;
+	vec3 uSkyHorizon;  float uFogHeight;
+	vec3 uSkyGround;   float uWetness;
+	vec3 uFogColor;    float uSnowCover;
+	vec3 uWind;        float uEnvMaxLod;
+	vec3 uCamRight;    float uEnvRotation;    // uCamRight, uCamUp: the camera's axes in world space (particle billboards)
+	vec3 uCamUp;       float uEnvExposure;
+	vec4 uTrailRect;                          // ground marks window: center x, z, size (m), texel size (m)
+	vec2 uNearFar;     float uStars;  float uCloudCover;
+	int uShadowsOn;    int uPointCount;  int uOrtho;  int uHasEnvMap;
+	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
+	vec4 uPointColor[32];                     // rgb color * intensity
+};
 layout(location = 0) in vec4 aPosSize;     // xyz position, w size
 layout(location = 1) in vec4 aColor;
 layout(location = 2) in vec4 aVelRot;      // xyz velocity, w rotation
 layout(location = 3) in vec4 aFrame;       // x = flipbook frame
-uniform mat4 uViewProj;
-uniform vec3 uCamRight;
-uniform vec3 uCamUp;
 uniform float uStretch;
 uniform vec2 uSheet;                       // columns, rows
 out vec2 vUV;

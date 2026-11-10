@@ -6,17 +6,9 @@ namespace GB::Shaders
 {
 	// Sky background: the lib/sky colour plus stars, moon, clouds and the sun disc (with FullscreenVS).
 	inline constexpr const char* SkyFS = R"GLSL(#version 450 core
+#include "lib/frame"
 in vec2 vUV;
 #include "lib/scene_targets"
-uniform mat4 uInvViewProj;
-uniform vec3 uCamPos;
-uniform vec3 uSunDir;     // direction the light travels
-uniform vec3 uSunColor;   // color * intensity
-uniform float uEnvIntensity;
-uniform float uStars;
-uniform float uCloudCover;
-uniform float uTime;
-uniform vec3 uWind;
 #include "lib/sky"
 
 

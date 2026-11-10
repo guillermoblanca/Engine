@@ -16,21 +16,19 @@ namespace GB
 	class GrassRenderer
 	{
 	public:
-		explicit GrassRenderer(uint32_t shadowMapSize = 2048);
+		GrassRenderer();
 		~GrassRenderer();
 		GrassRenderer(const GrassRenderer&) = delete;
 		GrassRenderer& operator=(const GrassRenderer&) = delete;
 
 		bool IsValid() const { return m_Shader.IsValid(); }
 
-		void Render(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
-			const glm::mat4& lightVP, bool shadows, RHI::TextureHandle shadowTexture);
+		// The camera, sun, sky, fog, shadow and wind values come from the frame block (FrameConstants), bound by Renderer::Render with the
+		// environment map; `camera` only culls the chunks here.
+		void Render(const Scene& scene, const Camera& camera, RHI::TextureHandle shadowTexture);
 
 	private:
-		void BindEnvironment(const Environment& env);
-
 		Shader m_Shader;
-		uint32_t m_ShadowMapSize = 1;
 		RHI::VertexLayoutHandle m_GrassVAO;   // a blade per instance; the chunk's range of the field's buffer is bound per draw
 		RHI::PipelineHandle m_Pipeline;       // depth, no culling, alpha to coverage
 	};

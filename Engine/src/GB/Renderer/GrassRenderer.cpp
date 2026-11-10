@@ -8,11 +8,10 @@
 
 namespace GB
 {
-	GrassRenderer::GrassRenderer(uint32_t shadowMapSize)
+	GrassRenderer::GrassRenderer()
 		: m_Shader(
 			Shaders::Assemble(Shaders::GrassVS),
-			Shaders::Assemble(Shaders::GrassFS)),
-		  m_ShadowMapSize(std::max(shadowMapSize, 1u))
+			Shaders::Assemble(Shaders::GrassFS))
 	{
 		RHI::Device& device = RHI::GetDevice();
 		RHI::VertexLayoutDesc layout;
@@ -36,54 +35,18 @@ namespace GB
 		device.DestroyPipeline(m_Pipeline);
 	}
 
-	void GrassRenderer::BindEnvironment(const Environment& env)
-	{
-		const bool has = env.EnvMap && env.EnvMap->IsValid();
-		m_Shader.SetInt("uHasEnvMap", has ? 1 : 0);
-		if (!has)
-			return;
-		m_Shader.SetFloat("uEnvMaxLod", static_cast<float>(env.EnvMap->GetMipCount() - 1));
-		m_Shader.SetFloat("uEnvRotation", env.EnvMap->Rotation / 6.2831853f);
-		m_Shader.SetFloat("uEnvExposure", env.EnvMap->Exposure);
-		RHI::GetDevice().Commands().BindTexture(9, env.EnvMap->GetHandle());
-	}
-
-	void GrassRenderer::Render(const Scene& scene, const Camera& camera, const glm::mat4& viewProj,
-		const glm::mat4& lightVP, bool shadows, RHI::TextureHandle shadowTexture)
+	void GrassRenderer::Render(const Scene& scene, const Camera& camera, RHI::TextureHandle shadowTexture)
 	{
 		if (scene.Grass.empty())
 			return;
 
-		const Environment& env = scene.Env;
 		RHI::CommandList& cmd = RHI::GetDevice().Commands();
 		cmd.BindPipeline(m_Pipeline);
-		m_Shader.SetMat4("uViewProj", viewProj);
-		m_Shader.SetVec3("uCamPos", camera.Position);
-		m_Shader.SetFloat("uTime", env.Time);
-		m_Shader.SetVec3("uWind", env.Wind);
-		m_Shader.SetFloat("uSnowCover", env.SnowCover);
-		m_Shader.SetFloat("uWetness", env.Wetness);
-		BindEnvironment(env);
-		m_Shader.SetVec3("uSkyTop", env.SkyTop);
-		m_Shader.SetVec3("uSkyHorizon", env.SkyHorizon);
-		m_Shader.SetVec3("uSkyGround", env.SkyGround);
-		m_Shader.SetFloat("uEnvIntensity", env.Intensity);
-		m_Shader.SetVec3("uSunDir", glm::normalize(scene.Sun.Direction));
-		m_Shader.SetVec3("uSunColor", scene.Sun.Color * scene.Sun.Intensity);
-		m_Shader.SetVec3("uFogColor", env.FogColor);
-		m_Shader.SetFloat("uFogDensity", env.FogDensity);
-		m_Shader.SetFloat("uFogHeight", env.FogHeightFalloff);
-		m_Shader.SetInt("uShadowsOn", shadows ? 1 : 0);
-		m_Shader.SetMat4("uLightVP", lightVP);
-		m_Shader.SetFloat("uShadowTexel", 2.0f * env.ShadowRadius / static_cast<float>(m_ShadowMapSize));
 		cmd.BindTexture(0, shadowTexture);
 
 		const bool trails = scene.Ground && scene.Ground->IsValid();
 		if (trails)
-		{
-			m_Shader.SetVec4("uTrailRect", scene.Ground->GetRect());
 			cmd.BindTexture(8, { scene.Ground->GetTexture() });
-		}
 
 		cmd.BindVertexLayout(m_GrassVAO);
 
