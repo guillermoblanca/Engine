@@ -134,6 +134,11 @@ namespace GB
 		bool Destroy(EntityId id);
 		// Deep copy (with descendants) under the same parent. Returns the new root, or NullEntity.
 		EntityId Duplicate(EntityId id);
+		// Empties the world and starts the ids again at 1: a cleared world numbers its entities as a new one does (T53). The saves depend on
+		// it: a game's diff is by id against a baseline numbered from 1 by a fresh scene (EditorSaveHost::BuildBaseline), and the user's
+		// objects are written numbered from 1 (GUARDADO.md, "Guardado diferencial"); ids that kept growing across a Clear would number a new
+		// game differently from the same game made in a fresh editor. A cache of entities must not key on NextId (the same entities make the
+		// same NextId again) but on Structure(), which Clear changes.
 		void Clear();
 
 		Entity* Find(EntityId id);
@@ -160,18 +165,22 @@ namespace GB
 		// The id the next Create will take. Saved games keep it so the ids a session hands out do not depend on what it loaded.
 		EntityId NextId() const { return m_NextId; }
 		void SetNextId(EntityId next) { if (next > m_NextId) m_NextId = next; }
-		// A number that changes whenever an entity is added or removed or changes parent, and that no two worlds share (a copy or a move takes a
-		// new one). While it stays the same the entities keep their addresses and their parents: a cache of Entity pointers by id is valid
-		// (the EntityRenderer's lists). Never 0.
+		// A number that changes whenever an entity is added or removed or changes parent (Clear too), and that no two worlds share (a copy or
+		// a move takes a new one; a move changes the moved-from world's as well, its nodes went to the other side: T66). While it stays the
+		// same the entities keep their addresses and their parents: a cache of Entity pointers by id is valid (the EntityRenderer's lists).
+		// Never 0.
 		uint64_t Structure() const { return m_Structure.Value; }
 
 	private:
+		// (the moves of EntityWorld are the implicit ones: they move the containers and take the stamp's moves below, which restamp both sides)
 		struct StructureStamp
 		{
 			uint64_t Value = Next();
 			StructureStamp() = default;
 			StructureStamp(const StructureStamp&) noexcept : Value(Next()) {}
+			StructureStamp(StructureStamp&& from) noexcept : Value(Next()) { from.Bump(); }
 			StructureStamp& operator=(const StructureStamp&) noexcept { Value = Next(); return *this; }
+			StructureStamp& operator=(StructureStamp&& from) noexcept { Value = Next(); from.Bump(); return *this; }
 			void Bump() { Value = Next(); }
 			static uint64_t Next();
 		};

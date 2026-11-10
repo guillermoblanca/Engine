@@ -108,6 +108,7 @@ namespace GB::Editor
 		m_SceneEditor.SetAssetRoot(m_AssetRoot);
 		m_Lang.Load(m_AssetRoot + "/ui/lang", "es");   // the game's interface in Spanish (`lang en` for the code's English)
 		m_SceneEditor.OnNewScene = [this]() { ResetWorld(); };   // File > New Scene also drops the generated world
+		m_SceneEditor.OnWorldReplaced = [this]() { if (m_EntityRenderer) m_EntityRenderer->Reset(); };   // T53: the old world's models, kept by id, go with it
 		m_SceneEditor.SetPropBounds([this](const PropComponent& p, glm::vec3& center, float& radius) { return m_World.PropBounds(p, center, radius); });
 		m_Weather = std::make_unique<Weather>(5);
 		m_Orbit.Pitch = 0.3f; m_Orbit.Yaw = 0.6f; m_Orbit.Distance = 60.0f; m_Orbit.MinDistance = 0.6f; m_Orbit.MaxDistance = 600.0f;

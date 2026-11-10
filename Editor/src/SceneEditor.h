@@ -73,6 +73,10 @@ namespace GB::Editor
 
 		// Called by NewScene so the application can drop the generated world too (an empty scene: camera and sun only).
 		std::function<void()> OnNewScene;
+		// Called when the world is replaced by another whose ids mean other entities: NewScene (after the Clear), Load (a scene file) and
+		// ReplaceWorld (a loaded game). The application forgets what it keeps by id there (the EntityRenderer's playing models: T53). Not called
+		// by undo and redo (the same ids are the same entities) nor by PopulateEnvironment (new entities take new ids).
+		std::function<void()> OnWorldReplaced;
 
 		// Puts another scene in place (a loaded game): selection and undo history start afresh.
 		void ReplaceWorld(EntityWorld&& world);

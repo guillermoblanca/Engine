@@ -42,7 +42,10 @@ namespace GB
 		ModelInstance* FindInstance(EntityId id);
 		// Local bounding sphere (center, radius) of the entity's model; false when not loaded.
 		bool ModelBounds(EntityId id, glm::vec3& center, float& radius);
-		// Forgets cached instances and the lists Build walks (ids were reused, e.g. after EntityWorld::Clear()).
+		// Forgets cached instances and the lists Build walks. The lists need no call (Build lists again when EntityWorld::Structure changes, a
+		// Clear or a move too: T53, T66); the playing models are kept by id, so a new world whose entity takes an old id and the same model
+		// would get the old one's animation. Call it when the world is replaced by another (the editor's new scene, scene load and game
+		// load do, through SceneEditor::OnWorldReplaced); an undo keeps them (the same ids are the same entities).
 		void Reset() { m_Instances.clear(); m_ListedStructure = 0; }
 
 		// Where the last Build's CPU time went (the editor's `drawcalls`): the data looks (nodes, buildings, creatures) and the walk of the

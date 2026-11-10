@@ -243,6 +243,7 @@ namespace GB::Editor
 	{
 		m_World.Clear();
 		m_Selected = NullEntity;
+		if (OnWorldReplaced) OnWorldReplaced();
 		if (OnNewScene)
 		{
 			OnNewScene();
@@ -257,6 +258,7 @@ namespace GB::Editor
 	{
 		m_World = std::move(world);
 		m_Selected = NullEntity;
+		if (OnWorldReplaced) OnWorldReplaced();
 		ResetHistory();
 		Rebind();
 	}
@@ -378,6 +380,7 @@ namespace GB::Editor
 	{
 		const SceneIOResult r = LoadSceneFromFile(m_World, path);
 		if (!r.Ok) return { false, r.Error };
+		if (OnWorldReplaced) OnWorldReplaced();
 		if (!m_World.Find(m_Selected)) m_Selected = NullEntity;
 		Commit();
 		Rebind();

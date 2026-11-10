@@ -295,3 +295,5 @@ gb_parallel_compile(GBWorldGraphSaveTests)
 # before the refactor), the recipes, formations and kits of assets/data/rocks.json, and a terrain graph picking rocks by id. Headless.
 gb_test(rocks rocks_test.cpp EXE GBRocksTests LINK GB::Sim LABELS rapido DEFS "GB_ROCKS_DATA=\"${CMAKE_SOURCE_DIR}/assets/data\"")
 target_precompile_headers(GBRocksTests REUSE_FROM GBTestPch)
+# T53, T66: EntityWorld::Clear starts the ids again at 1 and changes the structure stamp; a move restamps both sides. Headless; an executable of its own (this block is after the pools' main()).
+gb_test(entity_world entity_world_test.cpp EXE GBEntityWorldTests LINK GB::Sim LABELS rapido)
