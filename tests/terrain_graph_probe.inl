@@ -480,7 +480,17 @@ namespace
 			const TgField& lift = e1->second.at("raised").Field;
 			size_t l5 = 0, l50 = 0, l200 = 0;
 			float most = 0.0f;
-			for (const float v : lift.Values) { l5 += v > 0.05f; l50 += v > 0.5f; l200 += v > 2.0f; most = std::max(most, v); }
+			size_t at = 0;
+			for (size_t c = 0; c < lift.Values.size(); ++c)
+			{
+				const float v = lift.Values[c];
+				l5 += v > 0.05f; l50 += v > 0.5f; l200 += v > 2.0f;
+				if (v > most) { most = v; at = c; }
+			}
+			// where the most was added, and how far that is from the river's axis (in half-widths) and the main lake's centre
+			const glm::vec2 p = h.SamplePosition(static_cast<uint32_t>(at % n), static_cast<uint32_t>(at / n));
+			std::printf("  E1 the most raised cell: (%.0f, %.0f), %.1f m from the river's axis (%.1f half-widths), %.0f m from the main lake's centre\n",
+				p.x, p.y, riverDist[at], riverRel[at], lake ? static_cast<double>(glm::distance(p, water->Lake().Center)) : -1.0);
 			std::printf("  E1 lake_fill raised the ground (outside the lakes) by > 0.05 m on %.2f %% of the cells, > 0.5 m on %.3f %%, > 2 m on %.3f %%; at most %.2f m\n",
 				Pct(l5, count), Pct(l50, count), Pct(l200, count), most);
 			js.Num("e1_raised_005", Pct(l5, count)); js.Num("e1_raised_05", Pct(l50, count)); js.Num("e1_raised_2", Pct(l200, count)); js.Num("e1_raised_max", most);
