@@ -254,6 +254,84 @@ int GBTest_fluvial_erosion(int, char**)
 		Check(gentleCrit < 1.15 * gentleLin && gentleCrit >= gentleLin, "a gentle slope diffuses almost as with the linear diffusion");
 		const double volume = Volume(steep, spacing * spacing);
 		Check(std::fabs(dvCrit) < 1e-5 * volume && std::fabs(dvGentle) < 1e-5 * volume, "the critical-slope diffusion moves ground, it does not make or lose it (" + std::to_string(dvCrit) + " m3)");
+
+		// no checkerboard on a steep, rough wall: a 45-degree cone with cell-scale noise, diffused with the critical slope. The sub-steps are
+		// sized by the flux's derivative; sized by its ratio q/u (what E2b had first) the walls grew an odd-even mode, the diamonds of the snow
+		constexpr uint32_t cn = 129;
+		std::vector<float> cone(static_cast<size_t>(cn) * cn);
+		for (uint32_t j = 0; j < cn; ++j)
+			for (uint32_t i = 0; i < cn; ++i)
+			{
+				const float x = (static_cast<float>(i) - 64.0f) * spacing, z = (static_cast<float>(j) - 64.0f) * spacing;
+				cone[static_cast<size_t>(j) * cn + i] = std::max(0.0f, 200.0f - std::sqrt(x * x + z * z)) + 0.5f * Hash01(i, j, 3);
+			}
+		StreamPowerOptions co;
+		co.Erodibility = 0.0f;
+		co.Diffusion = 0.01f;
+		co.CriticalSlope = sc;
+		co.CriticalSlopeCap = 0.8f;
+		co.TimeStep = 1000.0f;
+		co.Iterations = 20;
+		StreamPowerErode(cone, cn, spacing, co);
+		double board = 0.0, rough = 0.0;
+		size_t cells = 0;
+		for (uint32_t j = 2; j + 2 < cn; ++j)
+			for (uint32_t i = 2; i + 2 < cn; ++i)
+			{
+				const size_t c = static_cast<size_t>(j) * cn + i;
+				if (cone[c] < 5.0f) continue;
+				const double lap = static_cast<double>(cone[c - 1] + cone[c + 1] + cone[c - cn] + cone[c + cn] - 4.0f * cone[c]);
+				board += (i + j) % 2 ? lap : -lap;
+				rough += std::fabs(lap);
+				++cells;
+			}
+		board = std::fabs(board) / static_cast<double>(std::max<size_t>(1, cells));
+		rough /= static_cast<double>(std::max<size_t>(1, cells));
+		std::printf("fluvial_erosion: critical slope on a rough 45-degree cone: checkerboard %.4f m, mean |laplacian| %.4f m over %zu cells\n", board, rough, cells);
+		Check(cells > 1000 && board < 0.01, "the critical-slope diffusion grows no checkerboard on a steep wall");
+	}
+
+	// ---------------------------------------------------------------- E2b: the channel head
+	// With ChannelArea the incision only acts where the drainage area passes it: in one step without diffusion every cell below the ramp
+	// rises by exactly U dt, and those well above it are incised. Over 40 steps the same twice and no new pit.
+	{
+		const std::vector<float> h0 = Cone(kN, kSize);
+		StreamPowerOptions o;
+		o.Erodibility = 4e-5f;
+		o.Uplift = 1e-3f;
+		o.TimeStep = 1000.0f;
+		o.Iterations = 1;
+		o.MultipleFlow = false;   // (the drainage below is the one the step used)
+		o.ChannelArea = 5000.0f;
+		o.ChannelSpread = 2.0f;
+		std::vector<float> h1 = h0;
+		StreamPowerErode(h1, kN, sp, o);
+		const DrainageResult d = ComputeDrainage(h0.data(), kN, sp);
+		const float udt = o.Uplift * o.TimeStep;
+		size_t hill = 0, hillWrong = 0, channel = 0, channelCut = 0;
+		for (size_t c = 0; c < count; ++c)
+		{
+			const size_t i = c % kN, j = c / kN;
+			if (i == 0 || j == 0 || i == kN - 1 || j == kN - 1 || d.Receiver[c] < 0) continue;
+			if (d.Area[c] < 2500.0f) { ++hill; hillWrong += h1[c] != h0[c] + udt; }
+			else if (d.Area[c] > 10000.0f && !(d.Level[c] > h0[c])) { ++channel; channelCut += h1[c] < h0[c] + udt; }
+		}
+		std::printf("fluvial_erosion: channel head 5000 m2: %zu hillslope cells (%zu not just uplifted), %zu channel cells (%zu incised)\n", hill, hillWrong, channel, channelCut);
+		Check(hill > 1000 && hillWrong == 0, "below the channel head the ground is not incised: it rises by U dt exactly");
+		Check(channel > 20 && channelCut * 10 >= channel * 9, "well above the channel head the cells are incised");
+		o.Iterations = 40;
+		o.MultipleFlow = true;
+		o.Diffusion = 0.01f;
+		o.CriticalSlope = std::tan(35.0f * 3.14159265f / 180.0f);
+		std::vector<float> a = h0, b = h0;
+		StreamPowerErode(a, kN, sp, o);
+		StreamPowerErode(b, kN, sp, o);
+		Check(std::memcmp(a.data(), b.data(), count * sizeof(float)) == 0, "with the channel head and the critical slope the same twice, bit for bit");
+		Check(Pits(a, kN) <= Pits(h0, kN), "the channel head makes no new pit (" + std::to_string(Pits(a, kN)) + " pits, " + std::to_string(Pits(h0, kN)) + " before)");
+		std::vector<float> plain = h0;
+		o.ChannelArea = 0.0f;
+		StreamPowerErode(plain, kN, sp, o);
+		Check(std::memcmp(a.data(), plain.data(), count * sizeof(float)) != 0, "the channel head changes the result");
 	}
 
 	// ---------------------------------------------------------------- the cascade

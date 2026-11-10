@@ -38,11 +38,20 @@ namespace GB
 		float Diffusion = 0.0f;                   // Kd, m2/yr
 		// The hillslope diffusion made non-linear near a critical slope (Roering, Kirchner and Dietrich, 1999; TERRENO_V5 E2b): the flux across
 		// each edge between two cells is Kd S / (1 - (S/Sc)^2), S the slope along that edge, so ground near Sc creeps much faster than ground
-		// at a gentle slope. A steep wall is worn back toward Sc while a shallow hollow (where the channels start) keeps the low Kd. The factor
-		// stops growing at S/Sc = CriticalSlopeCap (with 0.9, at most 5.3 times Kd): it keeps the explicit scheme stable in a known number of
-		// sub-steps (Kd dt factor / dx2 <= 0.2 each), and slopes above Sc only wear back at that rate. 0 = linear diffusion (what it was).
+		// at a gentle slope. A steep wall is worn back toward Sc while a shallow hollow (where the channels start) keeps the low Kd. From
+		// S/Sc = CriticalSlopeCap on, the flux follows its tangent there (it keeps growing, linearly): the flux's derivative, what bounds an
+		// explicit step, is then at most (1 + cap^2) / (1 - cap^2)^2 times Kd (12.6 with 0.8), and the sub-steps are sized by it. 0 = linear
+		// diffusion (what it was).
 		float CriticalSlope = 0.0f;               // Sc, the tangent of the critical angle; 0 = off
-		float CriticalSlopeCap = 0.9f;            // S/Sc at which the factor stops growing (< 1)
+		float CriticalSlopeCap = 0.8f;            // S/Sc from which the flux follows its tangent (<= 0.95)
+		// The channel head (TERRENO_V5 E2b): the fluvial incision only acts where the drainage area passes ChannelArea (m2, so the same at every
+		// stage of the cascade); below it the ground is hillslope, shaped by the uplift and the diffusion alone. Without it every cell incises
+		// toward its receiver and the walls between gullies are incision fronts nothing wears back. The incision is weighted by a ramp linear in
+		// sqrt(A) from sqrt(ChannelArea / ChannelSpread) to sqrt(ChannelArea * ChannelSpread): sqrt(A) is already the law's factor and exact in
+		// IEEE (no log: the same on every platform), and over a span of 2 either side it stays within a few percent of a ramp in log A, with no
+		// step where the channels start. ChannelSpread <= 1: a hard step. 0 = off (every cell incises, what it was).
+		float ChannelArea = 0.0f;                 // A_c, m2; 0 = off
+		float ChannelSpread = 2.0f;               // the ramp spans A_c / this .. A_c * this
 		float TimeStep = 1000.0f;                 // years per iteration
 		int Iterations = 10;
 		int DrainageEvery = 1;                    // recompute the drainage every this many iterations (the receivers in between are the last ones)

@@ -173,14 +173,24 @@ namespace GB
 
 		// the diffusion's sub-steps: Kd dt / dx2 per step at most 0.2 (the explicit 4-neighbour scheme is stable up to 0.25)
 		const double alphaTotal = static_cast<double>(o.Diffusion) * dt / (static_cast<double>(spacing) * spacing);
-		// non-linear (Roering): every edge's factor 1 / (1 - (S/Sc)^2) is at most 1 / (1 - cap^2), and the sub-steps are as many as keep
-		// alpha times that at most 0.2
+		// non-linear (Roering): the flux of an edge, in units of Kd/dx, is q(u) = u / (1 - r^2) with r = u / (Sc dx) up to r = cap, and its
+		// tangent beyond (q0 + q'(cap) (u - u0)). What limits an explicit step is the flux's derivative, (1 + r^2) / (1 - r^2)^2 -- not the
+		// ratio q/u: stepping by the ratio let the steep walls grow a checkerboard (seen as diamonds in the snow) -- so the sub-steps are as
+		// many as keep alpha times q'(cap) at most 0.2, and the tangent keeps the derivative at q'(cap) for any slope above
 		const bool critical = o.CriticalSlope > 0.0f;
-		const float cap = std::clamp(o.CriticalSlopeCap, 0.0f, 0.99f);
-		const double maxFactor = critical ? 1.0 / (1.0 - static_cast<double>(cap) * cap) : 1.0;
+		const float cap = std::clamp(o.CriticalSlopeCap, 0.0f, 0.95f);
+		const double maxFactor = critical ? (1.0 + static_cast<double>(cap) * cap) / ((1.0 - static_cast<double>(cap) * cap) * (1.0 - static_cast<double>(cap) * cap)) : 1.0;
 		const int diffusionSteps = alphaTotal > 0.0 ? static_cast<int>(std::ceil(alphaTotal * maxFactor / 0.2)) : 0;
 		const float alpha = diffusionSteps > 0 ? static_cast<float>(alphaTotal / diffusionSteps) : 0.0f;
 		const float invScDx = critical ? 1.0f / (o.CriticalSlope * spacing) : 0.0f;   // |dh| times this is S/Sc along an edge
+		const float capDrop = critical ? cap / invScDx : 0.0f;                         // |dh| at r = cap
+		const float capFlux = critical ? capDrop / (1.0f - cap * cap) : 0.0f;          // q there
+		const float capSlope = static_cast<float>(maxFactor);                          // q' there
+
+		// the channel head: the incision's weight, a ramp in sqrt(A) around sqrt(ChannelArea)
+		const bool channelHead = o.ChannelArea > 0.0f;
+		const float spread = std::max(1.0f, o.ChannelSpread);
+		const float sLo = channelHead ? std::sqrt(o.ChannelArea / spread) : 0.0f, sHi = channelHead ? std::sqrt(o.ChannelArea * spread) : 0.0f;
 
 		DrainageResult d;
 		std::vector<float> next(count), surface(count);
@@ -215,7 +225,19 @@ namespace GB
 				}
 				const uint32_t ri = static_cast<uint32_t>(r) % n, rj = static_cast<uint32_t>(r) / n;
 				const bool diag = ri != c % n && rj != c / n;
-				const float f = kdt[c] * std::sqrt(d.Area[c]) / (diag ? diagonal : spacing);
+				const float sa = std::sqrt(d.Area[c]);
+				float f = kdt[c] * sa / (diag ? diagonal : spacing);
+				if (channelHead)
+				{
+					const float w = sHi > sLo ? std::clamp((sa - sLo) / (sHi - sLo), 0.0f, 1.0f) : (sa >= sLo ? 1.0f : 0.0f);
+					if (!(w > 0.0f))   // hillslope: no incision, only the uplift (the diffusion shapes it)
+					{
+						next[c] = up;
+						surface[c] = up;
+						continue;
+					}
+					f *= w;
+				}
 				const float v = (up + f * base) / (1.0f + f);
 				next[c] = v;
 				surface[c] = v;
@@ -257,8 +279,11 @@ namespace GB
 				auto edge = [&](float a, float b)
 				{
 					const float d = b - a;
-					const float r = std::min(std::fabs(d) * invScDx, cap);
-					return d / (1.0f - r * r);
+					const float u = std::fabs(d);
+					const float r = u * invScDx;
+					if (r <= cap) return d / (1.0f - r * r);
+					const float q = capFlux + capSlope * (u - capDrop);   // the tangent beyond the cap
+					return d < 0.0f ? -q : q;
 				};
 				for (uint32_t j = 1; j + 1 < n; ++j)
 				{
