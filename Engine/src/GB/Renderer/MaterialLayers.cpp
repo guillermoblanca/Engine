@@ -60,6 +60,10 @@ namespace GB
 			m.MacroVariation = Get(self, values, "macroVariation");
 			m.NormalBlend = Get(self, values, "normalBlend");
 			m.AlphaMipScale = Get(self, values, "alphaMipScale");
+			m.BaseOcclusion = Get(self, values, "baseOcclusion");
+			m.OcclusionHeight = Get(self, values, "occlusionHeight");
+			m.InteriorOcclusion = Get(self, values, "interiorOcclusion");
+			m.BacklightSpread = Get(self, values, "backlightSpread");
 		}
 
 		std::vector<MaterialLayerDef> MakeRegistry()
@@ -94,7 +98,12 @@ namespace GB
 					  { "colorVariation", LayerParamType::Float, glm::vec3(d.ColorVariation), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].x", "hue (toward yellow), saturation (toward olive) and brightness per instance, by a hash of its position" },
 					  { "normalBlend", LayerParamType::Float, glm::vec3(d.NormalBlend), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].y", "the card's normal mixed with a sphere's around the object's pivot: no black inside the bush" },
 					  { "macroVariation", LayerParamType::Float, glm::vec3(d.MacroVariation), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].z", "low-frequency world patches between a yellowish and an olive green" },
-					  { "alphaMipScale", LayerParamType::Float, glm::vec3(d.AlphaMipScale), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].w", "\"cutout\" only: the mask's alpha raised by mip level x scale, so thin cards keep their coverage far away" } },
+					  { "alphaMipScale", LayerParamType::Float, glm::vec3(d.AlphaMipScale), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_EXTRA].w", "\"cutout\" only: the mask's alpha raised by mip level x scale, so thin cards keep their coverage far away" },
+					  // T107
+					  { "baseOcclusion", LayerParamType::Float, glm::vec3(d.BaseOcclusion), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_SHADE].x", "how dark the plant is where it meets the ground (at its pivot), fading out by occlusionHeight above it" },
+					  { "occlusionHeight", LayerParamType::Float, glm::vec3(d.OcclusionHeight), 0.0f, 10.0f, "Layer[SLOT_FOLIAGE_SHADE].y", "metres over the pivot the base occlusion fades over; also the radius of the interior's core (0: no occlusion)" },
+					  { "interiorOcclusion", LayerParamType::Float, glm::vec3(d.InteriorOcclusion), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_SHADE].z", "how dark the core is near the vertical axis through the pivot (within occlusionHeight; fades out by 3x it up)" },
+					  { "backlightSpread", LayerParamType::Float, glm::vec3(d.BacklightSpread), 0.0f, 1.0f, "Layer[SLOT_FOLIAGE_SHADE].w", "widens the light through the leaf (bent by the normal) and makes the grazing edges glow: it shows with the sun high or to a side (0: as T46)" } },
 					&ApplyFoliage },
 			};
 		}

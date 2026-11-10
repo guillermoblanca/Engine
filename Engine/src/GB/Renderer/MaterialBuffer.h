@@ -5,7 +5,7 @@
 //
 // - Resolve(object, material) gives a draw its id. Each object of the scene remembers the id it got (by its index in scene.Objects): in the
 //   same frame (the shadow pass, then the scene pass) it is reused as is; in a later frame the material is packed again and compared with
-//   that entry (a 320 B memcmp), and only when it differs does it go through the table's hash. A new entry is uploaded before the draw that
+//   that entry (a 336 B memcmp), and only when it differs does it go through the table's hash. A new entry is uploaded before the draw that
 //   needs it (UpdateBuffer of the new range; GL keeps the order with the draws before).
 // - Prepare + Flush do the same before the passes, for the draws known then (Renderer::Render: the objects drawn alone), so the new
 //   materials of a frame go up in one UpdateBuffer and the passes only set ids. The draws resolve again (the same frame: no packing) and

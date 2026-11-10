@@ -18,11 +18,13 @@ namespace GB
 	struct MaterialData
 	{
 		static constexpr uint32_t Binding = 3;      // layout(std430, binding = 3) readonly buffer MaterialBuffer
-		static constexpr uint32_t LayerSlots = 12;  // Layer[]: fixed slots, one or two per layer (below). T101: 8 -> 10 for the transmission's
+		static constexpr uint32_t LayerSlots = 13;  // Layer[]: fixed slots, one or two per layer (below). T101: 8 -> 10 for the transmission's
 		                                            // interior, scatter and shadow (7 more floats; no slot was free and Tex.yzw is M6's).
 		                                            // T46: 10 -> 12 for the foliage (8 floats; only Wind.w was free, and the transmission's
 		                                            // slots are Blend-only while foliage is opaque or masked: sharing them would make a slot
 		                                            // mean two things)
+		                                            // T107: 12 -> 13 for the foliage's occlusion and back-light spread (4 floats; the free
+		                                            // floats left are Wind.w and the zw of other layers' slots, which would mean two things)
 
 		// Tex.x: the loose maps the draw binds (until M6 puts them in arrays and Tex.yzw holds their layers)
 		static constexpr uint32_t TexAlbedo = 1u << 0;           // unit 1
@@ -68,6 +70,8 @@ namespace GB
 		// T46, with LayerFoliage only (else 0):
 		static constexpr uint32_t SlotFoliage = 10;        // rgb transmission tint (times the albedo), w translucency
 		static constexpr uint32_t SlotFoliageExtra = 11;   // x colour variation, y normal blend, z macro variation, w alpha mip scale
+		// T107, with LayerFoliage only (else 0):
+		static constexpr uint32_t SlotFoliageShade = 12;   // x base occlusion, y occlusion height (m), z interior occlusion, w back-light spread
 
 		glm::vec4 BaseColor{ 0.0f };     // rgb albedo (linear), a opacity
 		glm::vec4 Emissive{ 0.0f };      // rgb emissive, a alpha cutoff
@@ -91,5 +95,5 @@ namespace GB
 	static_assert(offsetof(MaterialData, Wind) == 96);
 	static_assert(offsetof(MaterialData, ModelParams) == 112);
 	static_assert(offsetof(MaterialData, Layer) == 128);
-	static_assert(sizeof(MaterialData) == 320, "8 x 16 + 12 slots x 16 B (std430, array stride 320)");
+	static_assert(sizeof(MaterialData) == 336, "8 x 16 + 13 slots x 16 B (std430, array stride 336)");
 }

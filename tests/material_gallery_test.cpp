@@ -10,6 +10,9 @@
 // T106: tufts, bushes and leaf samples are built of curved cards (ProcMesh::CurvedCard, CardTuft, CardShrub, CardConifer; a leaf sample is
 // the bare curved card and the plant of its "plant" entry beside it), checked on the CPU first (normals, tangents, determinism); `--out`
 // also writes the cards' micro-relief flat and lit (texturas_v4.png) and a close-up of the leaf cards under a low sun (hojas_detalle.png).
+// T107: the tufts of a grass patch are instances (six CardTuft variants a material, placed by dart throwing, each turned, sized, stretched
+// and tilted), the conifer has its trunk (ProcMesh::CardConiferTrunk, bark2), it prints the plants' triangles, and `--out` also writes
+// the leaves family and a strip of grass against a low sun (hojas_contraluz.png).
 // SKIPs (77) without an OpenGL 4.5 context.
 #include "GB/Log.h"
 #include "GB/Platform/Window.h"
@@ -223,8 +226,12 @@ namespace
 	{
 		const std::vector<GB::MeshData> meshes = { GB::ProcMesh::CurvedCard(0.8f, 0.8f, 4, 4, -0.1f, 0.08f, 0.3f, 0.01f, 7),
 			GB::ProcMesh::CurvedCard(0.5f, 1.0f, 3, 6, 0.2f, -0.05f, -0.5f, 0.02f, 9), GB::ProcMesh::CardShrub(0.6f, 0.6f, 14, 3),
-			GB::ProcMesh::CardConifer(1.2f, 0.45f, 5, 4), GB::ProcMesh::CardTuft(0.5f, 0.45f, 3, 5) };
-		const char* names[] = { "curved card", "curved card (odd segments, bent forward)", "card shrub", "card conifer", "card tuft" };
+			GB::ProcMesh::CardConifer(1.2f, 0.45f, 5, 4), GB::ProcMesh::CardTuft(0.5f, 0.45f, 3, 5), GB::ProcMesh::CardConiferTrunk(1.2f, 0.04f) };
+		const char* names[] = { "curved card", "curved card (odd segments, bent forward)", "card shrub", "card conifer", "card tuft", "conifer trunk" };
+		// T107: the triangles of the plants as the gallery builds them (the budget of the denser cores)
+		std::fprintf(stderr, "triangles: card shrub (14) %zu, card conifer (7 tiers) %zu, card tuft (3) %zu, conifer trunk %zu\n",
+			GB::ProcMesh::CardShrub(0.44f, 0.44f, 14, 1).Indices.size() / 3, GB::ProcMesh::CardConifer(0.96f, 0.56f, 7, 1).Indices.size() / 3,
+			GB::ProcMesh::CardTuft(0.5f, 0.45f, 3, 1).Indices.size() / 3, GB::ProcMesh::CardConiferTrunk(0.96f, 0.035f).Indices.size() / 3);
 		for (size_t k = 0; k < meshes.size(); ++k)
 		{
 			const GB::MeshData& m = meshes[k];
@@ -415,30 +422,46 @@ int GBTest_material_gallery(int argc, char** argv)
 	// Tufts of crossed curved cards (ProcMesh::CardTuft, T106: three a tuft, arched and creased, every tuft its own seed; each turned and sized
 	// by a hash) scattered over the patch; a bush of curved cards (ProcMesh::CardShrub, T106).
 	auto hash01 = [](uint32_t a, uint32_t b) { return GB::HashUnit(GB::VisualHash(a, b, 0x51ED270Bu)); };
-	auto tufts = [&](const glm::vec2& card, uint32_t seed)
-	{
-		GB::MeshData out;
-		const float spacing = std::max(0.2f, 0.75f * card.x);
-		const int nx = std::max(1, static_cast<int>(1.9f / spacing)), nz = std::max(1, static_cast<int>(1.5f / spacing));
-		uint32_t k = seed * 977u;
-		for (int z = 0; z < nz; ++z)
-			for (int x = 0; x < nx; ++x, ++k)
-			{
-				const glm::vec3 at((static_cast<float>(x) + 0.5f) / static_cast<float>(nx) * 1.9f - 0.95f + spacing * 0.4f * (hash01(k, 1) - 0.5f), 0.06f,
-				                   (static_cast<float>(z) + 0.5f) / static_cast<float>(nz) * 1.5f - 0.75f + spacing * 0.4f * (hash01(k, 2) - 0.5f));
-				const float yaw = hash01(k, 3) * 3.14159f, size = 0.8f + 0.4f * hash01(k, 4);
-				glm::mat4 m = glm::rotate(glm::translate(glm::mat4(1.0f), at), yaw, glm::vec3(0, 1, 0));
-				out.Append(GB::ProcMesh::CardTuft(card.x, card.y, 3, seed * 7919u + k), glm::scale(m, glm::vec3(size)));
-			}
-		return out;
-	};
-	auto shrub = [&](const glm::vec2& card, uint32_t seed)
-	{
-		GB::MeshData out;
-		out.Append(GB::ProcMesh::CardShrub(card.x, card.y, 14, seed), glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.06f, 0.0f)));
-		return out;
-	};
 	auto keep = [&](const GB::MeshData& data) { built.push_back(std::make_unique<GB::Mesh>(data.Vertices, data.Indices)); return built.back().get(); };
+	// T107: the tufts of a patch are instances, not one merged mesh: kTuftVariants CardTufts (each its own seed), every tuft one of them
+	// with its own matrix, so the foliage layer's per-instance colour and its occlusion from the pivot work tuft by tuft. They are placed
+	// by dart throwing (a minimum distance, no grid), each turned, sized, stretched in height and tilted a little by a hash.
+	constexpr int kTuftVariants = 6;
+	std::map<std::string, std::vector<const GB::Mesh*>> tuftMeshes;   // per material
+	std::map<std::string, float> tuftRadius;
+	auto tufts = [&](GB::Scene& sc, const std::string& id, const GB::Material& m, const glm::vec2& card, uint32_t seed, const glm::vec3& at)
+	{
+		std::vector<const GB::Mesh*>& variants = tuftMeshes[id];
+		if (variants.empty())
+			for (int v = 0; v < kTuftVariants; ++v)
+			{
+				const GB::MeshData data = GB::ProcMesh::CardTuft(card.x, card.y, 3, seed * 7919u + static_cast<uint32_t>(v));
+				variants.push_back(keep(data));
+				tuftRadius[id] = std::max(tuftRadius[id], RadiusOf(data));
+			}
+		const float spacing = std::max(0.2f, 0.75f * card.x), minDistance = 0.8f * spacing;
+		const int target = static_cast<int>(1.9f * 1.5f / (spacing * spacing));
+		std::vector<glm::vec2> placed;
+		for (uint32_t k = seed * 977u, tries = 0; static_cast<int>(placed.size()) < target && tries < static_cast<uint32_t>(target) * 40u; ++k, ++tries)
+		{
+			const glm::vec2 p(-0.92f + 1.84f * hash01(k, 1), -0.72f + 1.44f * hash01(k, 2));
+			bool free = true;
+			for (const glm::vec2& q : placed) free = free && glm::length(p - q) >= minDistance;
+			if (!free) continue;
+			placed.push_back(p);
+			const float yaw = hash01(k, 3) * 6.2831853f, size = 0.75f + 0.5f * hash01(k, 4), stretch = 0.8f + 0.45f * hash01(k, 5);
+			const float tiltAxis = hash01(k, 6) * 6.2831853f, tilt = glm::radians(10.0f * hash01(k, 7));
+			glm::mat4 t = glm::translate(glm::mat4(1.0f), at + glm::vec3(p.x, 0.06f, p.y));
+			t = glm::rotate(t, tilt, glm::vec3(std::cos(tiltAxis), 0.0f, std::sin(tiltAxis)));
+			t = glm::rotate(t, yaw, glm::vec3(0, 1, 0));
+			GB::RenderObject o;
+			o.MeshPtr = variants[GB::VisualHash(k, 8u) % kTuftVariants]; o.Mat = m; o.Instanced = true;
+			o.Transform = glm::scale(t, glm::vec3(size, size * stretch, size));
+			o.BoundingRadius = tuftRadius[id] * size * std::max(stretch, 1.0f);
+			sc.Objects.push_back(o);
+		}
+	};
+	auto shrub = [&](const glm::vec2& card, uint32_t seed) { return GB::ProcMesh::CardShrub(card.x, card.y, 14, seed); };
 
 	// midday: a high sun, a grey sky (neutral ambient), shadows over the samples; a mid-grey floor
 	auto stage = [&](const glm::vec3& centre, float radius)
@@ -471,10 +494,16 @@ int GBTest_material_gallery(int argc, char** argv)
 			GB::RenderObject patch;
 			patch.MeshPtr = &slab; patch.Mat = soil; patch.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(0.0f, 0.03f, 0.0f)); patch.BoundingRadius = 1.4f;
 			sc.Objects.push_back(patch);
+			if (shape == "tufts")
+			{
+				tufts(sc, id, m, card, seed, at);
+				return;
+			}
+			// the bush's pivot on the patch (y 0.06), so the foliage occlusion measures from the ground it stands on
 			GB::RenderObject g;
-			const GB::MeshData data = shape == "tufts" ? tufts(card, seed) : shrub(card, seed);
+			const GB::MeshData data = shrub(card, seed);
 			g.MeshPtr = keep(data); g.Mat = m;
-			g.Transform = glm::translate(glm::mat4(1.0f), at); g.BoundingRadius = std::max(1.4f, RadiusOf(data));
+			g.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(0.0f, 0.06f, 0.0f)); g.BoundingRadius = RadiusOf(data);
 			sc.Objects.push_back(g);
 			return;
 		}
@@ -495,6 +524,16 @@ int GBTest_material_gallery(int argc, char** argv)
 			b.MeshPtr = keep(whole); b.Mat = m; b.BoundingRadius = RadiusOf(whole);
 			b.Transform = glm::translate(glm::mat4(1.0f), at + glm::vec3(0.55f, 0.0f, -0.15f));
 			sc.Objects.push_back(b);
+			if (plant == "conifer")
+			{
+				// T107: the trunk, its own object in bark2 (a mesh has one material), at the conifer's pivot. Its bark is a young tree's:
+				// the texture at four times its scale (the plates of bark2 are ~8 cm wide, a whole tree's)
+				const GB::MeshData trunkData = GB::ProcMesh::CardConiferTrunk(1.2f * card.y, 0.035f * card.x / 0.8f);
+				GB::RenderObject t;
+				t.MeshPtr = keep(trunkData); t.Mat = material("bark2"); t.Mat.UVScale *= 4.0f; t.BoundingRadius = RadiusOf(trunkData);
+				t.Transform = b.Transform;
+				sc.Objects.push_back(t);
+			}
 			return;
 		}
 		if (shape == "slab")
@@ -621,6 +660,28 @@ int GBTest_material_gallery(int argc, char** argv)
 			cam.Position = { 0.0f, 0.3f + 1.75f, -0.3f + 1.75f };
 			cam.FovYDegrees = 40.0f;
 			save(sc, cam, "hojas_detalle.png");
+		}
+		// T107: the plants against the light, as the reference (art-book .../ref_vegetacion_v3.jpg): the row of the leaves family (each card
+		// and its plant, the conifer with its trunk) and a strip of grass tufts in front, under a low warm sun (about 17 degrees) behind
+		// them, the camera looking toward it
+		{
+			GB::Scene sc = stage({ 0.0f, 0.0f, 0.0f }, 5.0f);
+			sc.Sun.Direction = { 0.18f, -0.3f, 1.0f };
+			sc.Sun.Color = { 1.0f, 0.9f, 0.74f };
+			const Family* leaves = nullptr;
+			for (const Family& f : families) if (f.Shape == "cards") leaves = &f;
+			if (leaves)
+				for (size_t i = 0; i < leaves->Materials.size(); ++i)
+					addSample(sc, leaves->Materials[i], { (static_cast<float>(i) - 0.5f * static_cast<float>(leaves->Materials.size() - 1)) * 2.3f, 0.0f, 0.0f }, "cards");
+			const auto gc = cardSize.find("grass_medium");
+			if (library.Materials.count("grass_medium"))
+				tufts(sc, "grass_medium", material("grass_medium"), gc != cardSize.end() ? gc->second : glm::vec2(0.5f), GB::VisualHash("grass_medium_backlit"),
+				      { 0.0f, -0.06f, 2.0f });
+			GB::Camera cam;
+			cam.Target = { 0.0f, 0.3f, -0.2f };
+			cam.Position = { 0.0f, 1.75f, 5.8f };
+			cam.FovYDegrees = 40.0f;
+			save(sc, cam, "hojas_contraluz.png");
 		}
 	}
 	return failures;

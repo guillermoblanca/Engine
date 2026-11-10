@@ -46,7 +46,7 @@ namespace GB
 	{
 		if (m.Alpha == AlphaMode::Blend) return false;
 		return m.Translucency > 0.0f || m.ColorVariation > 0.0f || m.MacroVariation > 0.0f || m.NormalBlend > 0.0f ||
-			(m.AlphaMipScale > 0.0f && m.Alpha == AlphaMode::Mask);
+			(m.AlphaMipScale > 0.0f && m.Alpha == AlphaMode::Mask) || (m.OcclusionHeight > 0.0f && (m.BaseOcclusion > 0.0f || m.InteriorOcclusion > 0.0f));
 	}
 
 	inline MaterialDesc PackMaterial(const Material& m, const MaterialContext& context)
@@ -109,6 +109,11 @@ namespace GB
 		d.Layer[D::SlotFoliage] = foliage ? glm::vec4(m.TransmissionTint, m.Translucency) : glm::vec4(0.0f);
 		d.Layer[D::SlotFoliageExtra] = foliage
 			? glm::vec4(m.ColorVariation, m.NormalBlend, m.MacroVariation, m.Alpha == AlphaMode::Mask ? m.AlphaMipScale : 0.0f) : glm::vec4(0.0f);
+		// T107: the occlusion only with a height to fade over (else both strengths pack 0, and the shader skips it)
+		const bool occlusion = foliage && m.OcclusionHeight > 0.0f;
+		d.Layer[D::SlotFoliageShade] = foliage
+			? glm::vec4(occlusion ? m.BaseOcclusion : 0.0f, occlusion ? m.OcclusionHeight : 0.0f, occlusion ? m.InteriorOcclusion : 0.0f, m.BacklightSpread)
+			: glm::vec4(0.0f);
 		return desc;
 	}
 

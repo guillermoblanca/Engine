@@ -59,6 +59,16 @@ namespace GB
 		// - AlphaMipScale (0-~0.5, masked only): the alpha of the mask raised by mip level * scale before the cutoff, in the colour and in the
 		//   shadow, so thin cards do not thin out and flicker in the distance (mip averaging lowers their alpha).
 		float AlphaMipScale = 0.0f;
+		// T107 (MATERIALES.md, "Vegetación v3"): occlusion measured from the object's origin (its pivot, on the ground), no maps:
+		// - BaseOcclusion (0-1): how dark the plant is where it meets the ground, fading out by OcclusionHeight metres above the pivot;
+		// - InteriorOcclusion (0-1): how dark its core is, within OcclusionHeight of the vertical axis through the pivot, fading out by
+		//   three times OcclusionHeight up. Both dim the ambient light and the light through the leaf fully, the sun half.
+		// - BacklightSpread (0-1): widens the light through the leaf (the sun's direction bent by the normal, a wider lobe) and adds a
+		//   glow on the silhouette's grazing edges, so it shows with the sun high or to a side, not only right behind. 0: as T46.
+		float BaseOcclusion = 0.0f;
+		float OcclusionHeight = 0.0f;
+		float InteriorOcclusion = 0.0f;
+		float BacklightSpread = 0.0f;
 
 		float Grain = 0.0f;
 		float GrainScale = 3.0f;

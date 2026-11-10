@@ -41,12 +41,20 @@ namespace GB
 		// T106: plants assembled from curved cards (one alpha-masked material over the whole mesh, drawn double-sided), standing on the origin.
 		// A bush: three upright crossed cards in the core and `cards` more around it, leaning out and up at varied angles and heights, their
 		// tips drooping, every one folded and bent differently (by `seed`). `cardWidth` x `cardHeight` is the size of a card (the leaf_small
-		// or leaf_broad texture).
+		// or leaf_broad texture). T107: a fourth card in the core, an inner ring of five at mid height and three more cards over the top,
+		// so the core and the crown are closed (no dark holes through to the ground).
 		MeshData CardShrub(float cardWidth, float cardHeight, int cards, uint32_t seed);
 		// A young conifer `height` tall and `radius` wide at the bottom, of leaf_needle cards: `tiers` whorls stepping up the axis, six
 		// folded sprays a whorl leaning out about 50 degrees (shorter toward the top, drooping at the tips), and a leader of two crossed upright cards.
+		// T107: the first whorl at 0.18 of the height (the trunk shows under it) and, from the second up, three short upright sprays a whorl
+		// near the axis (a fuller crown).
 		MeshData CardConifer(float height, float radius, int tiers, uint32_t seed);
+		// T107: the conifer's trunk, a separate mesh for its own material (bark2; a mesh has one material): a pole `radius` wide at the base
+		// tapering to 0.18 of it at 0.92 of `height` (inside the leader), `sides` around (3..24), open at both ends. Unlike Cylinder its u
+		// is in metres around the girth at the base (a thin trunk does not squeeze the whole texture round it), v in metres up.
+		MeshData CardConiferTrunk(float height, float radius, int sides = 7);
 		// A tuft of grass: `cards` crossed cards (the grass_* textures) `width` x `height`, each arched outward with a crease down the middle.
+		// T107: every card its own height (0.7..1.2), droop, turn and lean, and a lean to one side within its plane.
 		MeshData CardTuft(float width, float height, int cards, uint32_t seed);
 	}
 

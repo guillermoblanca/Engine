@@ -30,7 +30,7 @@ struct MaterialData
 	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
 	vec4 Wind;          // x sway, y height of full sway, z flutter
 	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength, z index of refraction, w transmission (LAYER_TRANSMISSION)
-	vec4 Layer[12];     // the layers' slots (SLOT_*)
+	vec4 Layer[13];     // the layers' slots (SLOT_*)
 };
 layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
 uniform int uMaterialId;
@@ -68,7 +68,8 @@ const uint SLOT_INTERIOR = 8u;     // rgb interior tint, w strength
 const uint SLOT_TRANSMISSION_EXTRA = 9u;   // x interior depth (uv), y scatter, z shadow density, w thickness variation
 const uint SLOT_FOLIAGE = 10u;     // rgb transmission tint, w translucency
 const uint SLOT_FOLIAGE_EXTRA = 11u;   // x colour variation, y normal blend, z macro variation, w alpha mip scale
-const uint LAYER_SLOTS = 12u;
+const uint SLOT_FOLIAGE_SHADE = 12u;   // x base occlusion, y occlusion height (m), z interior occlusion, w back-light spread
+const uint LAYER_SLOTS = 13u;
 bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
 bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 
@@ -497,6 +498,29 @@ void main()
 
 	vec3 Ls = normalize(-uSunDir);
 	float sunShadow = Shadow(vPos, N, Ls);
+#ifdef GB_FOLIAGE
+	// T107: occlusion from the pivot, no maps: dark where the plant meets the ground, fading out by `height` over the pivot, and in its core,
+	// near the vertical axis (within `height` of it, fading out by three times `height` up). It dims the ambient and the light through the
+	// leaf fully and the sun half (the ground and the inner leaves still see some of it).
+	vec4 shade = MATERIAL.Layer[SLOT_FOLIAGE_SHADE];
+	float leafOcc = 1.0;
+	if (shade.y > 0.0)
+	{
+		vec3 rel = vPos - vOrigin;
+		float up = clamp(rel.y / shade.y, 0.0, 1.0);
+		float baseOcc = 1.0 - up * up * (3.0 - 2.0 * up);
+		float core = (1.0 - smoothstep(0.0, shade.y, length(rel.xz))) * (1.0 - smoothstep(shade.y, 3.0 * shade.y, rel.y));
+		leafOcc = (1.0 - shade.x * baseOcc) * (1.0 - shade.z * core);
+		ao *= leafOcc;
+		sunShadow *= 0.5 + 0.5 * leafOcc;
+	}
+	// T107: with the spread on, a face the sun does not reach (its interpolated normal turned away from the sun; the crown normal can
+	// still lean toward it) takes the sun as diffuse only: that light came through the leaf, it is not mirrored (no white glints on
+	// the back-lit edges)
+	if (shade.w > 0.0 && dot(Ng, Ls) < 0.0)
+		Lo += albedo * ((1.0 - metallic) / PI * max(dot(N, Ls), 0.0)) * uSunColor * sunShadow;
+	else
+#endif
 	Lo += Shade(N, V, Ls, uSunColor, albedo, F0, a, metallic) * sunShadow;
 #ifdef GB_FOLIAGE
 	// T46: the sun through the leaf (diffuse transmission), tinted by the albedo times the transmission tint. Its shadow is looked up
@@ -505,7 +529,21 @@ void main()
 	float leafT = MATERIAL.Layer[SLOT_FOLIAGE].w;
 	vec3 leafTint = MATERIAL.Layer[SLOT_FOLIAGE].rgb * albedo * leafT;
 	if (leafT > 0.0)
-		Lo += uSunColor / PI * Shadow(vPos, Ls, Ls) * FoliageThrough(N, V, Ls) * leafTint;
+	{
+		float through;
+		if (shade.w > 0.0)
+		{
+			// T107: the spread. The sun's direction bent by the normal (as thin-surface scattering does) and a wider lobe, so the glow
+			// is seen around the sun and not only right behind; and the grazing edges of the silhouette lit where the sun reaches them
+			// (the thinnest part of the leaf, seen edge-on).
+			vec3 Lb = normalize(Ls + N * (0.6 * shade.w));
+			float edge = pow(1.0 - abs(dot(N, V)), 3.0) * (0.5 + 0.5 * dot(V, -Ls));
+			through = pow(clamp(dot(V, -Lb), 0.0, 1.0), 4.0 - 2.5 * shade.w) * 3.0 + clamp(dot(-N, Ls), 0.0, 1.0) + edge * 1.5 * shade.w;
+		}
+		else
+			through = FoliageThrough(N, V, Ls);
+		Lo += uSunColor / PI * Shadow(vPos, Ls, Ls) * through * leafTint * leafOcc;
+	}
 #endif
 
 	for (int i = 0; i < uPointCount; ++i)

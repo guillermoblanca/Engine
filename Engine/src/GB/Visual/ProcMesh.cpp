@@ -315,11 +315,23 @@ namespace GB
 			MeshData out;
 			auto h01 = [seed](int a, uint32_t b) { return HashUnit(VisualHash(static_cast<uint32_t>(a), b, seed ^ 0x6B43A9B5u)); };
 			const float w = cardWidth, h = cardHeight;
-			// the core: three upright cards, crossed, a little folded
-			for (int c = 0; c < 3; ++c)
+			// the core: three upright cards, crossed, a little folded (T107: and a fourth between them, so the middle is closed)
+			for (int c = 0; c < 4; ++c)
 			{
-				const MeshData card = CurvedCard(w * 0.9f, h * 1.05f, 4, 4, -0.06f * h, 0.08f * w, 0.3f * (h01(c, 1) - 0.5f), 0.012f * w, seed * 131u + static_cast<uint32_t>(c));
-				out.Append(card, Leaning(static_cast<float>(c) * glm::radians(60.0f) + 0.3f * h01(c, 2), 0.0f, 0.0f, glm::radians(6.0f * (h01(c, 3) - 0.5f))));
+				const float width = c < 3 ? 0.9f : 0.8f, height = c < 3 ? 1.05f : 0.95f;
+				const float yaw = c < 3 ? static_cast<float>(c) * glm::radians(60.0f) + 0.3f * h01(c, 2) : glm::radians(30.0f) + 0.3f * h01(c, 2);
+				const MeshData card = CurvedCard(w * width, h * height, 4, 4, -0.06f * h, 0.08f * w, 0.3f * (h01(c, 1) - 0.5f), 0.012f * w, seed * 131u + static_cast<uint32_t>(c));
+				out.Append(card, Leaning(yaw, 0.0f, 0.0f, glm::radians(6.0f * (h01(c, 3) - 0.5f))));
+			}
+			// T107: an inner ring at mid height, leaning less than the outer one: it fills the space between the core and the ring (where the
+			// gallery saw through to the dark ground). Hidden mostly, so coarser (three segments along).
+			for (int k = 0; k < 5; ++k)
+			{
+				const float scale = 0.7f + 0.2f * h01(k, 21);
+				const MeshData card = CurvedCard(w * scale, h * scale, 4, 3, -0.1f * h * scale, 0.07f * w * scale, 0.4f * (h01(k, 22) - 0.5f), 0.015f * w * scale,
+				                                 seed * 131u + 211u + static_cast<uint32_t>(k));
+				out.Append(card, Leaning(static_cast<float>(k) * glm::radians(72.0f) + 0.5f * h01(k, 23), h * (0.12f + 0.12f * h01(k, 24)), 0.04f * w,
+				                         glm::radians(26.0f + 14.0f * h01(k, 25))));
 			}
 			// the ring: low cards lean far out, high ones stand up; all droop at the tips, the fold opening upward
 			for (int k = 0; k < std::clamp(cards, 0, 64); ++k)
@@ -336,6 +348,16 @@ namespace GB
 				const MeshData card = CurvedCard(w * 0.7f, h * 0.7f, 4, 4, -0.08f * h, 0.07f * w, 0.2f, 0.015f * w, seed * 131u + 101u + static_cast<uint32_t>(c));
 				out.Append(card, Leaning(glm::radians(45.0f + 90.0f * static_cast<float>(c)), 0.32f * h, 0.03f * w, glm::radians(18.0f)));
 			}
+			// T107: three more up there, higher, turned between those and leaning out a little more: the crown closes over the core (the
+			// gallery saw holes at the top)
+			for (int c = 0; c < 3; ++c)
+			{
+				const float scale = 0.55f + 0.15f * h01(c, 31);
+				const MeshData card = CurvedCard(w * scale, h * scale, 4, 3, -0.1f * h * scale, 0.07f * w * scale, 0.3f * (h01(c, 32) - 0.5f), 0.015f * w * scale,
+				                                 seed * 131u + 307u + static_cast<uint32_t>(c));
+				out.Append(card, Leaning(glm::radians(15.0f + 120.0f * static_cast<float>(c)) + 0.4f * h01(c, 33), h * (0.42f + 0.1f * h01(c, 34)), 0.06f * w,
+				                         glm::radians(28.0f + 12.0f * h01(c, 35))));
+			}
 			return out;
 		}
 
@@ -348,7 +370,8 @@ namespace GB
 			for (int i = 0; i < tiers; ++i)
 			{
 				const float f = static_cast<float>(i) / static_cast<float>(tiers);
-				const float y = height * (0.05f + 0.72f * f), length = radius * (1.0f - 0.75f * f);
+				// T107: the first whorl at 0.18 of the height (was 0.05), so the trunk (CardConiferTrunk) shows under the crown
+				const float y = height * (0.18f + 0.6f * f), length = radius * (1.0f - 0.75f * f);
 				for (int b = 0; b < 6; ++b, ++n)
 				{
 					const float size = length * (0.85f + 0.3f * h01(n, 1));
@@ -356,6 +379,17 @@ namespace GB
 					                                 seed * 131u + static_cast<uint32_t>(n));
 					const float yaw = static_cast<float>(b) * glm::radians(60.0f) + static_cast<float>(i) * 0.63f + 0.3f * (h01(n, 4) - 0.5f);
 					out.Append(card, Leaning(yaw, y + 0.04f * height * (h01(n, 5) - 0.5f), 0.01f * radius, glm::radians(50.0f + 12.0f * h01(n, 6) - 12.0f * f)));
+				}
+				// T107: three short sprays a whorl nearer the axis and more upright, between the long ones: the crown is fuller near the trunk
+				// (from the second whorl up, so the trunk still shows under the first)
+				if (i == 0) continue;
+				for (int b = 0; b < 3; ++b)
+				{
+					const uint32_t k = 1000u + static_cast<uint32_t>(i * 3 + b);
+					const float size = length * (0.5f + 0.15f * h01(static_cast<int>(k), 1));
+					const MeshData card = CurvedCard(size, size, 4, 3, -0.12f * size, 0.1f * size, 0.3f * (h01(static_cast<int>(k), 3) - 0.5f), 0.015f * size, seed * 131u + k);
+					const float yaw = (static_cast<float>(b) + 0.5f) * glm::radians(120.0f) + static_cast<float>(i) * 0.63f + 0.4f * (h01(static_cast<int>(k), 4) - 0.5f);
+					out.Append(card, Leaning(yaw, y + 0.06f * height * h01(static_cast<int>(k), 5), 0.0f, glm::radians(30.0f + 10.0f * h01(static_cast<int>(k), 6))));
 				}
 			}
 			// the leader
@@ -368,6 +402,37 @@ namespace GB
 			return out;
 		}
 
+		MeshData CardConiferTrunk(float height, float radius, int sides)
+		{
+			// a tapered pole to just under the leader, open at both ends (the base is in the ground, the top inside the crown)
+			sides = std::clamp(sides, 3, 24);
+			const float top = 0.92f * height, r1 = 0.18f * radius;
+			const float slope = (radius - r1) / std::max(top, 1e-4f);
+			MeshData m;
+			constexpr int kRings = 3;
+			for (int r = 0; r <= kRings; ++r)
+			{
+				const float t = static_cast<float>(r) / static_cast<float>(kRings), rr = radius + (r1 - radius) * t;
+				for (int s = 0; s <= sides; ++s)
+				{
+					const float a = 2.0f * kPi * static_cast<float>(s) / static_cast<float>(sides);
+					const glm::vec3 dir(std::cos(a), 0.0f, std::sin(a));
+					// u in metres around the base's girth (the bark's plates keep their size; one seam at the back, as Cylinder's), v in metres up
+					m.Vertices.push_back(MakeVertex(glm::vec3(dir.x * rr, top * t, dir.z * rr), glm::normalize(glm::vec3(dir.x, slope, dir.z)),
+					                                { 2.0f * kPi * radius * static_cast<float>(s) / static_cast<float>(sides), top * t }));
+				}
+			}
+			for (int r = 0; r < kRings; ++r)
+				for (int s = 0; s < sides; ++s)
+				{
+					const uint32_t a = static_cast<uint32_t>(r * (sides + 1) + s), b = a + 1, c = a + static_cast<uint32_t>(sides + 1), d = c + 1;
+					AddTri(m, a, c, b);
+					AddTri(m, b, c, d);
+				}
+			m.ComputeTangents();
+			return m;
+		}
+
 		MeshData CardTuft(float width, float height, int cards, uint32_t seed)
 		{
 			MeshData out;
@@ -375,12 +440,16 @@ namespace GB
 			cards = std::clamp(cards, 1, 8);
 			for (int c = 0; c < cards; ++c)
 			{
-				const float sw = width * (0.9f + 0.2f * h01(c, 1)), sh = height * (0.85f + 0.3f * h01(c, 2));
-				const MeshData card = CurvedCard(sw, sh, 4, 4, -(0.1f + 0.18f * h01(c, 3)) * sh, 0.16f * sw, 0.35f * (h01(c, 4) - 0.5f), 0.01f * sw,
+				// T107: the heights vary more (0.7..1.2 of `height`, was 0.85..1.15), and the droop with them
+				const float sw = width * (0.85f + 0.3f * h01(c, 1)), sh = height * (0.7f + 0.5f * h01(c, 2));
+				const MeshData card = CurvedCard(sw, sh, 4, 4, -(0.08f + 0.22f * h01(c, 3)) * sh, 0.16f * sw, 0.5f * (h01(c, 4) - 0.5f), 0.01f * sw,
 				                                 seed * 131u + static_cast<uint32_t>(c));
-				// crossed planes spread over half a turn, every other one turned round so the tuft leans out on all sides
-				const float yaw = static_cast<float>(c) * kPi / static_cast<float>(cards) + ((c & 1) ? kPi : 0.0f) + 0.5f * (h01(c, 5) - 0.5f);
-				out.Append(card, Leaning(yaw, 0.0f, 0.0f, glm::radians(4.0f + 14.0f * h01(c, 6))));
+				// crossed planes spread over half a turn, every other one turned round so the tuft leans out on all sides; T107: the turn
+				// jittered by up to +-0.45 rad (was +-0.25), the lean out 2..24 degrees (was 4..18) and a lean to one side, +-14 degrees about
+				// the card's normal, so the blades do not all stand in one plane
+				const float yaw = static_cast<float>(c) * kPi / static_cast<float>(cards) + ((c & 1) ? kPi : 0.0f) + 0.9f * (h01(c, 5) - 0.5f);
+				const glm::mat4 side = glm::rotate(glm::mat4(1.0f), glm::radians(28.0f * (h01(c, 7) - 0.5f)), glm::vec3(0.0f, 0.0f, 1.0f));
+				out.Append(card, Leaning(yaw, 0.0f, 0.0f, glm::radians(2.0f + 22.0f * h01(c, 6))) * side);
 			}
 			return out;
 		}

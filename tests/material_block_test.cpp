@@ -106,6 +106,15 @@ namespace
 		const GB::MaterialData mo = GB::PackMaterial(mipOnly, context).Data;
 		Check((mo.Flags.x & GB::MaterialData::LayerFoliage) != 0 && mo.Layer[GB::MaterialData::SlotFoliage].w == 0.0f &&
 			mo.Layer[GB::MaterialData::SlotFoliageExtra].w == 0.25f, "a masked material with only the alpha mip scale turns the layer on");
+		// T107: the occlusion turns the layer on only with a height to fade over; the spread rides on the layer
+		Check(fl.Layer[GB::MaterialData::SlotFoliageShade] == glm::vec4(0.0f), "a foliage material without the T107 values packs its shade slot zero");
+		GB::Material occOnly = a;
+		occOnly.BaseOcclusion = 0.6f; occOnly.InteriorOcclusion = 0.3f; occOnly.BacklightSpread = 0.5f;
+		Check(!GB::FoliageOn(occOnly) && GB::PackMaterial(occOnly, context) == GB::PackMaterial(a, context), "occlusion without a height packs nothing (same bytes)");
+		occOnly.OcclusionHeight = 0.25f;
+		const GB::MaterialData oc = GB::PackMaterial(occOnly, context).Data;
+		Check(GB::FoliageOn(occOnly) && (oc.Flags.x & GB::MaterialData::LayerFoliage) != 0 &&
+			oc.Layer[GB::MaterialData::SlotFoliageShade] == glm::vec4(0.6f, 0.25f, 0.3f, 0.5f), "base and interior occlusion with a height turn the layer on and pack the shade slot");
 		Check(table.UploadedEnd() == 0 && table.Dirty(), "the new entries wait for an upload");
 		table.MarkUploaded();
 		Check(!table.Dirty(), "nothing left to upload");
@@ -215,7 +224,7 @@ namespace
 			{ "SLOT_TRAIL", D::SlotTrail }, { "SLOT_TRAIL_TINT", D::SlotTrailTint }, { "SLOT_MACRO", D::SlotMacro },
 			{ "SLOT_TRANSMISSION", D::SlotTransmission }, { "SLOT_INTERIOR", D::SlotInterior },
 			{ "SLOT_TRANSMISSION_EXTRA", D::SlotTransmissionExtra }, { "SLOT_FOLIAGE", D::SlotFoliage }, { "SLOT_FOLIAGE_EXTRA", D::SlotFoliageExtra },
-			{ "LAYER_SLOTS", D::LayerSlots },
+			{ "SLOT_FOLIAGE_SHADE", D::SlotFoliageShade }, { "LAYER_SLOTS", D::LayerSlots },
 		};
 		int found = 0;
 		for (const Constant& c : constants)

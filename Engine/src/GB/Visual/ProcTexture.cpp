@@ -1235,15 +1235,23 @@ namespace GB
 			{
 				if (!CapsuleAt(p, q, t, a)) return false;
 				const float gt = Lerp(p.T0, p.T1, t);
-				const glm::vec3 base(0.1f, 0.17f, 0.06f), mid = Mix(glm::vec3(0.22f, 0.34f, 0.1f), glm::vec3(0.33f, 0.45f, 0.15f), p.Tone);
-				glm::vec3 c = Mix(base, mid, Smooth(0.0f, 0.5f, gt));
+				// T107: a longer gradient, base to tip: a deep green at the base, the blade's green in the middle, a paler sun-bleached
+				// yellow-green over the upper half and the dry tip (was: dark base to the green by the middle, then straight to the dry tip)
+				const glm::vec3 base(0.06f, 0.14f, 0.045f), mid = Mix(glm::vec3(0.2f, 0.33f, 0.09f), glm::vec3(0.31f, 0.44f, 0.13f), p.Tone);
+				const glm::vec3 upper = Mix(glm::vec3(0.36f, 0.47f, 0.15f), glm::vec3(0.47f, 0.54f, 0.2f), p.Tone);
+				glm::vec3 c = Mix(base, mid, Smooth(0.0f, 0.42f, gt));
+				c = Mix(c, upper, 0.75f * Smooth(0.45f, 0.92f, gt));
 				const float tipDry = Smooth(1.0f - 0.12f - 0.3f * p.Age, 1.0f, gt);
-				c = Mix(c, glm::vec3(0.6f, 0.54f, 0.33f), tipDry * 0.85f);
-				const glm::vec3 straw = Mix(glm::vec3(0.5f, 0.41f, 0.22f), glm::vec3(0.7f, 0.6f, 0.36f), p.Tone) * (0.72f + 0.28f * Smooth(0.0f, 0.5f, gt));
+				c = Mix(c, glm::vec3(0.6f, 0.53f, 0.31f), tipDry * 0.85f);
+				// grass_dry: straw, a trace of green left at the base and the tips toasted (a darker, warmer gold-brown)
+				glm::vec3 straw = Mix(glm::vec3(0.5f, 0.41f, 0.22f), glm::vec3(0.7f, 0.6f, 0.36f), p.Tone) * (0.72f + 0.28f * Smooth(0.0f, 0.5f, gt));
+				straw = Mix(straw, glm::vec3(0.22f, 0.25f, 0.1f), 0.45f * Smooth(0.25f, 0.0f, gt));
+				straw = Mix(straw, glm::vec3(0.5f, 0.33f, 0.16f), 0.55f * Smooth(0.72f, 1.0f, gt) * (0.6f + 0.4f * p.Age));
 				c = Mix(c, straw, card.Dry * (0.8f + 0.2f * p.Age));
 				const float rib = Smooth(0.3f, 0.0f, std::fabs(a));
 				c *= 1.0f + 0.12f * rib;
-				c *= (1.0f - 0.38f * p.Back * (1.0f - 0.5f * gt)) * (0.62f + 0.38f * Smooth(0.0f, 0.3f, gt));   // painted occlusion in the tuft and at its base (R1)
+				// painted occlusion in the tuft and at its base (R1); T107: deeper at the base (0.5, was 0.62) and over a longer stretch
+				c *= (1.0f - 0.38f * p.Back * (1.0f - 0.5f * gt)) * (0.5f + 0.5f * Smooth(0.0f, 0.35f, gt));
 				c *= 0.94f + 0.12f * Noise(q.x, q.y, 64, s + 3);
 				o.Albedo = c;
 				// T106: the blade folded along its midrib (a V, both halves sloping down to the crease) and fine parallel veins
@@ -1320,6 +1328,9 @@ namespace GB
 				                           : Mix(glm::vec3(0.13f, 0.23f, 0.06f), glm::vec3(0.25f, 0.37f, 0.1f), p.Tone);
 				c *= 0.92f + 0.1f * (1.0f - rel);
 				c *= 0.92f + 0.14f * Noise(q.x, q.y, 48, s + 5);
+				// T107: micro-grain, a speckle about two texels wide (the reference's close-up), in the colour and, below, the relief
+				const float grain = Noise(q.x, q.y, 128, s + 17);
+				c *= 0.88f + 0.24f * grain;
 				// autumn: from the margin and the tip inward, yellow or rust by the leaf
 				const float aut = p.Age * Smooth(0.0f, 0.6f, 0.4f + 0.7f * rel + 0.4f * along - 0.6f * (1.0f - p.Age));
 				c = Mix(c, Mix(glm::vec3(0.66f, 0.5f, 0.14f), glm::vec3(0.58f, 0.25f, 0.09f), p.Tone2), aut);
@@ -1329,7 +1340,7 @@ namespace GB
 				c *= 1.0f - 0.32f * p.Back;
 				o.Albedo = c;
 				// T106: the lamina a low dome, bulging between the secondary veins, which sink with the midrib; the tertiary net barely
-				o.Height = 0.5f + 0.12f * std::sqrt(1.0f - rel * rel) + 0.14f * bulge - 0.14f * rib - 0.08f * vein - 0.05f * tert;
+				o.Height = 0.5f + 0.12f * std::sqrt(1.0f - rel * rel) + 0.14f * bulge - 0.14f * rib - 0.08f * vein - 0.05f * tert + 0.08f * (grain - 0.5f);
 				// and folded along the midrib: both halves slope down to it (the V the curved card makes, leaf by leaf), flattening at the margin
 				const float side = across >= 0.0f ? 1.0f : -1.0f;
 				o.Tilt = perp * (-side * 0.12f * Smooth(0.0f, 0.12f, rel) * (1.0f - 0.6f * Smooth(0.6f, 1.0f, rel)));
