@@ -5,7 +5,9 @@ namespace GB
 {
 	using Json = nlohmann::json;
 
-	std::string TerrainGraphToJson(const TerrainGraph& g)
+	namespace
+	{
+	Json GraphJson(const TerrainGraph& g)
 	{
 		Json j;
 		j["kind"] = "terrain_graph";
@@ -42,8 +44,12 @@ namespace GB
 			edges.push_back(o);
 		}
 		j["edges"] = edges;
-		return j.dump(2) + "\n";
+		return j;
 	}
+	}
+
+	std::string TerrainGraphToJson(const TerrainGraph& g) { return GraphJson(g).dump(2) + "\n"; }
+	std::string TerrainGraphToJsonCompact(const TerrainGraph& g) { return GraphJson(g).dump(); }
 
 	std::string TerrainGraphFromJson(const std::string& json, TerrainGraph& out)
 	{

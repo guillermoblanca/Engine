@@ -120,4 +120,16 @@ namespace GB
 		// GenerateData + PrepareRenderData.
 		static GeneratedWorld Generate(const WorldDesc& desc);
 	};
+
+	// T84 (docs/GRAFO_TERRENO.md 12.7): a world's own terrain graph as a saved game keeps it (Save::WorldParams::TerrainGraph), the compact JSON of
+	// TerrainGraphToJsonCompact; "" when the world has none (generator 4 then makes its graph from the WorldDesc).
+	std::string WorldGraphJson(const WorldDesc& desc);
+	// Sets desc.TerrainGraphDefinition from that text ("" = none, the generator's own world). "" when done; otherwise why not (the text is not a graph,
+	// or the graph has errors against the default node registry) and `desc` is left as it was: a world must not be built from a graph that would
+	// fail and fall back to another generator.
+	std::string SetWorldGraphJson(WorldDesc& desc, const std::string& json);
+	// The world's graph (its own, or generator 4's from the WorldDesc) evaluated exactly as GenerateData evaluates it -- the same context and
+	// height_input fields, through desc.GraphCache -- and nothing more: no terrain, biomes nor placement. The editor's quick preview runs it at a
+	// low Resolution while a graph is being edited.
+	bool EvaluateWorldGraph(const WorldDesc& desc, TgResult& result, std::string& error);
 }

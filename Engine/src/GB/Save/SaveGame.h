@@ -49,10 +49,18 @@ namespace GB::Save
 		// Density of the resource nodes the data spreads over the world (PlanWorldResources, the editor's `resources world`), 0 = none. They come
 		// from the seed too, so they are part of the baseline and the save keeps only the ones that changed. Written only when not 0.
 		float WildResources = 0.0f;
+		// Hydraulic erosion (WorldDesc::Erosion). Written only when off, so a save from before has it on, as every world had.
+		bool Erosion = true;
+		// T84: the world's own terrain graph (WorldDesc::TerrainGraphDefinition), as the compact JSON of TerrainGraphToJsonCompact
+		// (GB/World/Graph/TerrainGraphIO.h); "" = none (the generator's own world: generator 4 makes its graph from these parameters). The whole graph,
+		// not its id in the library: the save rebuilds the world it was made with even when that graph was edited or deleted since. Kept as text so
+		// GB/Save does not depend on the graph. Written only when there is one, so the saves of before read the same bytes.
+		std::string TerrainGraph;
 		bool operator==(const WorldParams& o) const
 		{
 			return Generated == o.Generated && Type == o.Type && Seed == o.Seed && GeneratorVersion == o.GeneratorVersion && Size == o.Size && Resolution == o.Resolution &&
-				River == o.River && Lake == o.Lake && ForestAmount == o.ForestAmount && TreeBudget == o.TreeBudget && RockBudget == o.RockBudget && WildResources == o.WildResources && Tiles == o.Tiles;
+				River == o.River && Lake == o.Lake && ForestAmount == o.ForestAmount && TreeBudget == o.TreeBudget && RockBudget == o.RockBudget && WildResources == o.WildResources && Tiles == o.Tiles &&
+				Erosion == o.Erosion && TerrainGraph == o.TerrainGraph;
 		}
 		bool operator!=(const WorldParams& o) const { return !(*this == o); }
 	};

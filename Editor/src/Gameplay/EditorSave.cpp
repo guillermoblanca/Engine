@@ -50,10 +50,13 @@ namespace GB::Editor
 			p.TreeBudget = d.TreeBudget;
 			p.RockBudget = d.RockBudget;
 			p.Tiles = d.Tiles;
+			p.Erosion = d.Erosion;
+			p.TerrainGraph = generated ? WorldGraphJson(d) : std::string();   // T84: a world made from the Terrain Graph panel keeps its graph, whole
 			return p;
 		}
 
-		WorldDesc DescOf(const WorldParams& p)
+		// `error`: why the save's terrain graph cannot make the world (then the desc has none); checked by BuildBaseline before anything is loaded.
+		WorldDesc DescOf(const WorldParams& p, std::string* error = nullptr)
 		{
 			WorldDesc d;
 			d.Type = p.Type == "alpine" ? WorldType::Alpine : p.Type == "desert" ? WorldType::Desert : WorldType::Temperate;
@@ -67,6 +70,9 @@ namespace GB::Editor
 			d.TreeBudget = p.TreeBudget;
 			d.Tiles = p.Tiles;
 			d.RockBudget = p.RockBudget;
+			d.Erosion = p.Erosion;
+			const std::string why = SetWorldGraphJson(d, p.TerrainGraph);
+			if (error) *error = why;
 			return d;
 		}
 
@@ -177,8 +183,11 @@ namespace GB::Editor
 				error = "the world was made by generator version " + std::to_string(world.GeneratorVersion) + " (this one knows 1 to " + std::to_string(kWorldGeneratorLatest) + ")";
 				return false;
 			}
+			std::string why;
+			const WorldDesc desc = DescOf(world, &why);
+			if (!why.empty()) { error = why; return false; }
 			// No GL here: only the heights, biomes and placements are needed, not the mesh (WorldGenerator::GenerateData).
-			populate(WorldGenerator::GenerateData(DescOf(world)));
+			populate(WorldGenerator::GenerateData(desc));
 		}
 		m_Baseline = scratch.World();
 		m_BaselineKey = world;

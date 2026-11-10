@@ -719,6 +719,9 @@ namespace GB::Editor
 		{
 			WorldDesc d = m_WorldDesc;
 			d.GeneratorVersion = kWorldGeneratorLatest;   // a new world uses the newest generator (a loaded game keeps the version it was made with)
+			// the generator's own world: not the Terrain Graph panel's graph a previous world was built from (T84: it would be saved with this one)
+			d.TerrainGraphDefinition.reset();
+			d.GraphCache.reset();
 			if (!a.empty())
 			{
 				const std::string t = Lower(a[0]);

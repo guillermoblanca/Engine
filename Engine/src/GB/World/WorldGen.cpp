@@ -2,6 +2,7 @@
 #include "GB/Log.h"
 #include "GB/World/Water/WaterPresets.h"
 #include "GB/World/Graph/ITerrainTarget.h"
+#include "GB/World/Graph/TerrainGraphIO.h"
 #include "GB/World/Graph/TerrainGraphPresets.h"
 #include "GB/World/WorldGenInternal.h"
 #include <algorithm>
@@ -83,13 +84,11 @@ namespace GB
 			return std::any_of(graph.Nodes.begin(), graph.Nodes.end(), [](const TgNode& n) { return n.Type == "height_input"; });
 		}
 
-		// The ground of a world built by a terrain graph: the WorldDesc's own graph, or (generator 4) the one MakeWorldGraph makes for it. Fills
-		// w.TerrainPtr (the graph's height, its water as it carved it, its material layers), w.Hills (the recipe it was built with) and the snow line,
-		// and leaves what else the graph published in `result`. False, with a warning, when the graph fails or publishes no usable height.
-		bool GraphTerrain(const WorldDesc& desc, GeneratedWorld& w, TgResult& result)
+		// The graph of a world (its own, or the one MakeWorldGraph makes for it) evaluated over the WorldDesc's footprint, with the built-in ground
+		// as the "height" input when the graph reads one. `graph` is set to the graph that ran (`preset` holds generator 4's).
+		bool EvaluateGraphOf(const WorldDesc& desc, TerrainGraph& preset, const TerrainGraph*& graph, TgResult& result, std::string& error)
 		{
-			TerrainGraph preset;
-			const TerrainGraph* graph = desc.TerrainGraphDefinition.get();
+			graph = desc.TerrainGraphDefinition.get();
 			if (!graph) { preset = MakeWorldGraph(WorldGraphOptionsOf(desc)); graph = &preset; }
 			const bool desert = desc.Type == WorldType::Desert;
 			const TerrainStyle style = desert ? TerrainStyle::Desert : desc.Type == WorldType::Alpine ? TerrainStyle::Snow : TerrainStyle::Meadow;
@@ -117,8 +116,20 @@ namespace GB
 					for (uint32_t i = 0; i < f.N; ++i) f.At(i, j) = hm.At(i, j);
 				context.Inputs = &inputs;
 			}
+			return EvaluateTerrainGraph(*graph, MakeDefaultTerrainNodeRegistry(), context, result, error, desc.GraphCache.get());
+		}
+
+		// The ground of a world built by a terrain graph: the WorldDesc's own graph, or (generator 4) the one MakeWorldGraph makes for it. Fills
+		// w.TerrainPtr (the graph's height, its water as it carved it, its material layers), w.Hills (the recipe it was built with) and the snow line,
+		// and leaves what else the graph published in `result`. False, with a warning, when the graph fails or publishes no usable height.
+		bool GraphTerrain(const WorldDesc& desc, GeneratedWorld& w, TgResult& result)
+		{
+			TerrainGraph preset;
+			const TerrainGraph* graph = nullptr;
+			const bool desert = desc.Type == WorldType::Desert;
+			const TerrainStyle style = desert ? TerrainStyle::Desert : desc.Type == WorldType::Alpine ? TerrainStyle::Snow : TerrainStyle::Meadow;
 			std::string error;
-			if (!EvaluateTerrainGraph(*graph, MakeDefaultTerrainNodeRegistry(), context, result, error, desc.GraphCache.get()))
+			if (!EvaluateGraphOf(desc, preset, graph, result, error))
 			{
 				GB_CORE_WARN("terrain graph '{}' failed ({}); the world is built by generator 3", graph->Id, error);
 				return false;
@@ -420,6 +431,29 @@ namespace GB
 		GeneratedWorld w = GenerateData(desc);
 		PrepareRenderData(w);
 		return w;
+	}
+
+	std::string WorldGraphJson(const WorldDesc& desc)
+	{
+		return desc.TerrainGraphDefinition ? TerrainGraphToJsonCompact(*desc.TerrainGraphDefinition) : std::string();
+	}
+
+	std::string SetWorldGraphJson(WorldDesc& desc, const std::string& json)
+	{
+		if (json.empty()) { desc.TerrainGraphDefinition.reset(); return {}; }
+		TerrainGraph graph;
+		if (std::string e = TerrainGraphFromJson(json, graph); !e.empty()) return "the world's terrain graph does not read: " + e;
+		const std::vector<TgIssue> issues = ValidateTerrainGraph(graph, MakeDefaultTerrainNodeRegistry());
+		if (HasTgErrors(issues)) return "the world's terrain graph '" + graph.Id + "' has errors: " + TgIssuesText(issues);
+		desc.TerrainGraphDefinition = std::make_shared<const TerrainGraph>(std::move(graph));
+		return {};
+	}
+
+	bool EvaluateWorldGraph(const WorldDesc& desc, TgResult& result, std::string& error)
+	{
+		TerrainGraph preset;
+		const TerrainGraph* graph = nullptr;
+		return EvaluateGraphOf(desc, preset, graph, result, error);
 	}
 
 	void WorldGenerator::PrepareRenderData(GeneratedWorld& world)

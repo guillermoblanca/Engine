@@ -13,6 +13,9 @@ namespace GB
 	// Lossless: the parameters are written as full doubles and the nodes and edges keep their order (a version 1 edge binds by edge order and the
 	// evaluation order breaks ties by node order), so a graph read back evaluates bit for bit like the one written.
 	std::string TerrainGraphToJson(const TerrainGraph& graph);
+	// The same JSON on one line, without indentation (T84: how a saved game keeps its world's graph, Save::WorldParams::TerrainGraph). Parsing it
+	// and dumping it again with nlohmann gives back the same text, so a save loaded and written again keeps its bytes.
+	std::string TerrainGraphToJsonCompact(const TerrainGraph& graph);
 	// "" when it was read; otherwise why not, and `out` is left untouched. A graph newer than kTerrainGraphVersion is refused; an older one keeps
 	// the version it was written with (version 1 edges are still understood by CompileTerrainGraph).
 	std::string TerrainGraphFromJson(const std::string& json, TerrainGraph& out);

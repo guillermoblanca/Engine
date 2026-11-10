@@ -284,3 +284,9 @@ set_tests_properties(reference_scene PROPERTIES SKIP_RETURN_CODE 77 LABELS "imag
 gb_test(rhi rhi_test.cpp EXE GBRhiTests LINK GB::Render LABELS rapido)
 target_precompile_headers(GBRhiTests REUSE_FROM GBTestPch)
 gb_parallel_compile(GBRhiTests)
+
+# T84: a saved game keeps its world's terrain graph whole and reopens the same world after the library's graph changed (docs/GUARDADO.md,
+# docs/GRAFO_TERRENO.md 12.7). An executable of its own (this block is after the pools' main()).
+gb_test(world_graph_save world_graph_save_test.cpp EXE GBWorldGraphSaveTests LINK GB::Sim LABELS rapido)
+target_precompile_headers(GBWorldGraphSaveTests REUSE_FROM GBTestPch)
+gb_parallel_compile(GBWorldGraphSaveTests)

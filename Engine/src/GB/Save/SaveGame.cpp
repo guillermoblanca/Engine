@@ -51,6 +51,13 @@ namespace GB::Save
 				{ "resolution", w.Resolution }, { "river", w.River }, { "lake", w.Lake }, { "forest", Round(w.ForestAmount) }, { "trees", w.TreeBudget }, { "rocks", w.RockBudget } };
 			if (w.WildResources != 0.0f) root["world"]["wild"] = Round(w.WildResources);
 			if (w.Tiles > 1) root["world"]["tiles"] = w.Tiles;
+			if (!w.Erosion) root["world"]["erosion"] = false;
+			if (!w.TerrainGraph.empty())   // T84: the world's own terrain graph, as an object (readable in the file); read back to the same compact text
+			{
+				Json graph = Json::parse(w.TerrainGraph, nullptr, false);
+				if (graph.is_discarded() || !graph.is_object()) root["world"]["graph"] = w.TerrainGraph;   // (never made so: kept as it is, the load refuses it)
+				else root["world"]["graph"] = std::move(graph);
+			}
 			root["baseline"] = Json{ { "entities", g.Baseline.Entities }, { "hash", g.Baseline.Hash } };
 			const ClockState& c = g.Clock;
 			root["clock"] = Json{ { "tick", c.Tick }, { "dt", c.Dt }, { "hours", Round(c.Hours) }, { "dayLength", Round(c.DayLengthSeconds) },
@@ -152,6 +159,12 @@ namespace GB::Save
 				Read(*it, "trees", w.TreeBudget);
 				Read(*it, "rocks", w.RockBudget);
 				Read(*it, "tiles", w.Tiles);
+				Read(*it, "erosion", w.Erosion);
+				if (auto graph = it->find("graph"); graph != it->end())
+				{
+					if (!graph->is_object()) throw std::runtime_error("the world's terrain graph is not a JSON object");
+					w.TerrainGraph = graph->dump();   // compact, as TerrainGraphToJsonCompact writes it
+				}
 				if (w.Tiles < 1 || w.Tiles > 4) throw std::runtime_error("bad number of world tiles (1 to 4 per side)");
 				if (w.GeneratorVersion < kWorldGeneratorV1 || w.GeneratorVersion > kWorldGeneratorLatest)
 					throw std::runtime_error("world generator " + std::to_string(w.GeneratorVersion) + " is unknown to this engine (it knows 1 to " + std::to_string(kWorldGeneratorLatest) + ")");
