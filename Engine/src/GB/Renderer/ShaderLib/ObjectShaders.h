@@ -154,6 +154,21 @@ vec3 Shade(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 albedo, vec3 F0, float a,
 	return (diffuse + spec) * radiance * NoL;
 }
 
+// T110: Shade with the mirrored part scaled by `specScale` (the crowns shaded with a baked crown normal, see main)
+vec3 ShadeSpecScaled(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 albedo, vec3 F0, float a, float metallic, float specScale)
+{
+	float NoL = max(dot(N, L), 0.0);
+	if (NoL <= 0.0) return vec3(0.0);
+	vec3 H = normalize(V + L);
+	float NoV = max(dot(N, V), 1e-4);
+	float NoH = max(dot(N, H), 0.0);
+	float VoH = max(dot(V, H), 0.0);
+	vec3 F = F_Schlick(VoH, F0);
+	vec3 spec = D_GGX(NoH, a) * V_SmithGGXCorrelated(NoV, NoL, a) * F;
+	vec3 diffuse = (1.0 - F) * (1.0 - metallic) * albedo / PI;
+	return (diffuse + spec * specScale) * radiance * NoL;
+}
+
 #include "lib/shadow"
 
 #include "lib/noise_pbr"
@@ -407,7 +422,23 @@ void main()
 			thickness *= mix(1.0, 0.35 + 1.3 * clamp(h, 0.0, 1.0), extra.w);
 	}
 
+)GLSL" R"GLSL(
 	vec3 Lo = vec3(0.0);
+
+	// T110: a crown that keeps its baked crown normal on both faces (FLAG_FOLIAGE_NORMALS: the tree crowns) mirrors the sun and the sky
+	// only as much as the card really faces that way: the crown normal is the volume's, not the leaf's, and on its own it put white glints
+	// over the tops of the crowns against a low sun (the whole top of a crown "facing" the half vector). The specular is scaled by the
+	// fourth power of the agreement between the card's own face (from the screen derivatives) and the shading normal.
+	// The other materials keep their code untouched (bit for bit the same pictures).
+	bool crownNormals = HasFlag(FLAG_FOLIAGE_NORMALS);
+	float specScale = 1.0;
+	if (crownNormals)
+	{
+		vec3 face = cross(dFdx(vPos), dFdy(vPos));
+		float agree = dot(face, face) > 1e-20 ? abs(dot(normalize(face), N)) : 1.0;
+		float agree2 = agree * agree;
+		specScale = agree2 * agree2;
+	}
 
 	vec3 Ls = normalize(-uSunDir);
 	float sunShadow = Shadow(vPos, N, Ls);
@@ -434,7 +465,12 @@ void main()
 		Lo += albedo * ((1.0 - metallic) / PI * max(dot(N, Ls), 0.0)) * uSunColor * sunShadow;
 	else
 #endif
-	Lo += Shade(N, V, Ls, uSunColor, albedo, F0, a, metallic) * sunShadow;
+	{
+		if (crownNormals)
+			Lo += ShadeSpecScaled(N, V, Ls, uSunColor, albedo, F0, a, metallic, specScale) * sunShadow;
+		else
+			Lo += Shade(N, V, Ls, uSunColor, albedo, F0, a, metallic) * sunShadow;
+	}
 #ifdef GB_FOLIAGE
 	// T46: the sun through the leaf (diffuse transmission), tinted by the albedo times the transmission tint. Its shadow is looked up
 	// offset toward the sun, not along N: on the face away from the sun N points away from it and the leaf would shadow itself; the
@@ -471,7 +507,10 @@ void main()
 			window = clamp(1.0 - r * r, 0.0, 1.0);
 			window *= window;
 		}
-		Lo += Shade(N, V, L, uPointColor[i].rgb * (window / (d2 + 0.01)), albedo, F0, a, metallic);
+		if (crownNormals)
+			Lo += ShadeSpecScaled(N, V, L, uPointColor[i].rgb * (window / (d2 + 0.01)), albedo, F0, a, metallic, specScale);
+		else
+			Lo += Shade(N, V, L, uPointColor[i].rgb * (window / (d2 + 0.01)), albedo, F0, a, metallic);
 	}
 
 	float NoV = max(dot(N, V), 1e-4);
@@ -480,6 +519,8 @@ void main()
 	vec3 kd = (1.0 - F) * (1.0 - metallic);
 	vec3 ambientDiffuse = kd * albedo * SkyIrradiance(N);
 	vec3 ambientSpec = SkyPrefiltered(R, roughness) * F;
+	if (crownNormals)
+		ambientSpec *= specScale;
 	// Horizon occlusion: reflections under the surface plane fade out.
 	float horizon = clamp(1.0 + dot(R, N) * 1.5, 0.0, 1.0);
 	vec3 ambient = (ambientDiffuse + ambientSpec * horizon) * ao * uEnvIntensity;

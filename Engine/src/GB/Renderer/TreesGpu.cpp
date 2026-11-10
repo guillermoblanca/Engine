@@ -28,6 +28,8 @@ namespace GB
 		Material trunk;
 		trunk.Albedo = p.Species == TreeSpecies::Bare ? glm::vec3(0.8f, 0.75f, 0.7f) : glm::vec3(1.0f);
 		trunk.AlbedoMap = GetTexture(TreeFactory::TrunkTexture(p));
+		// T110: the bark's UVs are metres; the bark tile is 0.8 m (about what it was round a trunk before), the palm's 1 m
+		trunk.UVScale = p.Species == TreeSpecies::Palm ? 1.0f : 1.25f;
 		trunk.Roughness = 0.95f;
 		trunk.HeightScale = 0.0f;
 		trunk.CavityStrength = 0.0f;
