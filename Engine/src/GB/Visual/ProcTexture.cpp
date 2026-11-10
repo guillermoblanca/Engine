@@ -427,6 +427,225 @@ namespace GB
 			return o;
 		}
 
+		// ---- T102: faceted ice and wet glass. A Voronoi that also says which cell won (wrapped id, for its hash), where its point is (unwrapped,
+		// so a plane through it is continuous inside the cell) and the true distance to the cell's border (bisector, two passes), so cracks
+		// along the borders keep an even width.
+		struct Voronoi
+		{
+			glm::vec2 X{ 0.0f };            // the sample, in cell units
+			glm::vec2 P1{ 0.0f }, P2{ 0.0f };   // the nearest point and the one across the nearest border (cell units, unwrapped)
+			int Id1 = 0, Id2 = 0;          // their wrapped cell ids
+			float D1 = 0.0f;               // distance to P1 (cell units)
+			float Edge = 0.0f;             // distance to the nearest border (cell units)
+		};
+
+		glm::vec2 VoronoiPoint(int cx, int cy, int period, uint32_t seed, float jitter)
+		{
+			const int wx = Wrap(cx, period), wy = Wrap(cy, period);
+			return { static_cast<float>(cx) + 0.5f + jitter * (Hash01(wx, wy, seed) - 0.5f), static_cast<float>(cy) + 0.5f + jitter * (Hash01(wx, wy, seed ^ 0x5BD1E995u) - 0.5f) };
+		}
+
+		// `x`, `y` in cell units (u * period plus any periodic warp); the pattern repeats every `period` cells.
+		Voronoi VoronoiAt(float x, float y, int period, uint32_t seed, float jitter)
+		{
+			Voronoi r;
+			r.X = { x, y };
+			const int ix = static_cast<int>(std::floor(x)), iy = static_cast<int>(std::floor(y));
+			float best = 1e9f;
+			int bx = ix, by = iy;
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx)
+				{
+					const glm::vec2 p = VoronoiPoint(ix + dx, iy + dy, period, seed, jitter);
+					const float d = glm::dot(p - r.X, p - r.X);
+					if (d < best) { best = d; r.P1 = p; bx = ix + dx; by = iy + dy; }
+				}
+			r.D1 = std::sqrt(best);
+			r.Id1 = Wrap(bx, period) + Wrap(by, period) * period;
+			r.Edge = 1e9f;
+			for (int dy = -2; dy <= 2; ++dy)
+				for (int dx = -2; dx <= 2; ++dx)
+				{
+					if (dx == 0 && dy == 0) continue;
+					const glm::vec2 p = VoronoiPoint(bx + dx, by + dy, period, seed, jitter);
+					const glm::vec2 n = glm::normalize(p - r.P1);
+					const float e = glm::dot(0.5f * (r.P1 + p) - r.X, n);
+					if (e < r.Edge) { r.Edge = e; r.P2 = p; r.Id2 = Wrap(bx + dx, period) + Wrap(by + dy, period) * period; }
+				}
+			r.Edge = std::max(r.Edge, 0.0f);
+			return r;
+		}
+
+		float Lerp(float a, float b, float t) { return a + (b - a) * std::clamp(t, 0.0f, 1.0f); }
+
+		// A tilted plane per cell (not a dome): its own height and slope (up to `tilt` per cell unit) through the cell's point.
+		float FacetPlane(const glm::vec2& p, int id, const glm::vec2& x, uint32_t seed, float tilt)
+		{
+			const float a = Hash01(id, 1, seed) * kTau, m = tilt * (0.35f + 0.65f * Hash01(id, 2, seed));
+			return 0.5f + 0.3f * (Hash01(id, 3, seed) - 0.5f) + m * (std::cos(a) * (x.x - p.x) + std::sin(a) * (x.y - p.y));
+		}
+
+		// The faceted relief of a Voronoi: every cell its plane, and a narrow crease `bevel` wide (cell units) where two planes meet, so the
+		// height is continuous and the arris is sharp (no one-texel step for the normal map to turn into a spike).
+		float Facets(const Voronoi& c, uint32_t seed, float tilt, float bevel)
+		{
+			const float h1 = FacetPlane(c.P1, c.Id1, c.X, seed, tilt), h2 = FacetPlane(c.P2, c.Id2, c.X, seed, tilt);
+			return Lerp(0.5f * (h1 + h2), h1, Smooth(0.0f, bevel, c.Edge));
+		}
+
+		Surface IceFaceted(float u, float v, uint32_t s)
+		{
+			// chiselled ice: big facets (six a tile, ~17 cm at UVScale 1), each a tilted plane with a sharp arris whose line is chipped by a
+			// warp; smaller facets in patches over them and conchoidal chips near the arrises. Fine white cracks run along some arrises and
+			// across the faces, small dark inclusions, a little rime on the arrises. The albedo is almost white: the cyan is the absorption's.
+			const float wu = 0.035f * (Fbm(u, v, 6, 3, s + 1) - 0.5f), wv = 0.035f * (Fbm(u, v, 6, 3, s + 2) - 0.5f);
+			constexpr int kBig = 6, kSmall = 15;
+			const Voronoi a = VoronoiAt((u + wu) * kBig, (v + wv) * kBig, kBig, s + 3, 0.85f);
+			const Voronoi b = VoronoiAt((u + 0.6f * wu) * kSmall, (v + 0.6f * wv) * kSmall, kSmall, s + 5, 0.9f);
+			const float big = Facets(a, s + 4, 0.9f, 0.05f);
+			const float small = Facets(b, s + 6, 0.8f, 0.06f) - 0.5f;
+			const float smallOn = Smooth(0.35f, 0.6f, Noise(u, v, 4, s + 7));
+			const float nearArris = Smooth(0.3f, 0.04f, a.Edge);
+			const float chipR = 0.25f + 0.12f * Hash01(b.Id1, 4, s + 8);
+			const float chip = Hash01(b.Id1, 5, s + 8) > 0.97f - 0.12f * nearArris ? std::max(0.0f, 1.0f - (b.D1 * b.D1) / (chipR * chipR)) : 0.0f;
+			// cracks: half the arrises, and two wandering lines across the faces
+			const float edgeCrack = Smooth(0.03f, 0.0f, a.Edge) * Smooth(0.42f, 0.55f, Noise(u, v, 5, s + 10));
+			const float crossA = Smooth(0.008f, 0.0f, std::fabs(Fbm(u + 0.5f * wu, v + 0.5f * wv, 3, 4, s + 11) - 0.5f));
+			const float crossB = Smooth(0.006f, 0.0f, std::fabs(Fbm(u, v, 5, 3, s + 12) - 0.5f)) * Smooth(0.5f, 0.65f, Noise(u, v, 3, s + 13));
+			const float crack = std::max({ edgeCrack, crossA * 0.9f, crossB * 0.7f });
+			// inclusions: a few small dark flecks
+			const Voronoi i = VoronoiAt(u * 40.0f, v * 40.0f, 40, s + 17, 0.8f);
+			const float ir = 0.1f + 0.14f * Hash01(i.Id1, 6, s + 18);
+			const float inclusion = Hash01(i.Id1, 7, s + 18) > 0.84f ? Smooth(ir, ir * 0.5f, i.D1) : 0.0f;
+			// rime on the arrises, in patches
+			const float crystals = Noise(u, v, 128, s + 15);
+			const float frost = Smooth(0.14f, 0.02f, a.Edge) * Smooth(0.45f, 0.7f, Fbm(u, v, 4, 3, s + 14)) * (0.5f + 0.5f * crystals) * 0.8f;
+			const float tone = Fbm(u, v, 2, 3, s + 16);
+			Surface o;
+			glm::vec3 c = Mix(glm::vec3(0.86f, 0.93f, 0.96f), glm::vec3(0.95f, 0.98f, 0.99f), tone) * (0.97f + 0.06f * Hash01(a.Id1, 8, s + 19));
+			c = Mix(c, glm::vec3(0.97f, 0.98f, 0.99f), crack * 0.85f);
+			c = Mix(c, glm::vec3(0.28f, 0.36f, 0.42f), inclusion * 0.75f);
+			o.Albedo = Mix(c, glm::vec3(0.93f, 0.95f, 0.97f), frost);
+			o.Height = 0.66f * big + 0.2f * smallOn * small - 0.22f * chip - 0.1f * crack + 0.06f * frost * crystals;
+			float rough = 0.07f + 0.08f * Noise(u, v, 8, s + 20);   // the faces: x the material's 0.85 gives 0.06..0.13
+			rough = std::max(rough, 0.3f * chip);
+			rough = std::max(rough, crack);
+			o.Rough = Lerp(rough, 0.9f + 0.1f * crystals, frost);
+			return o;
+		}
+
+		// The inside of clear ice (GenerateInterior): rgb what is seen in the ice, a its density (straight alpha). Fracture planes on a coarser
+		// and a finer Voronoi than any surface facet (3 and 8 a tile against 6 and 15), clouds of small bubbles and milky veils.
+		glm::vec4 IceInterior(float u, float v, uint32_t s)
+		{
+			const float wu = 0.05f * (Fbm(u, v, 3, 3, s + 1) - 0.5f), wv = 0.05f * (Fbm(u, v, 3, 3, s + 2) - 0.5f);
+			const Voronoi a = VoronoiAt((u + wu) * 3.0f, (v + wv) * 3.0f, 3, s + 3, 0.9f);
+			const float aOn = Smooth(0.4f, 0.6f, Noise(u, v, 4, s + 4));
+			const float planeA = (0.7f * Smooth(0.04f, 0.0f, a.Edge) + 0.3f * Smooth(0.22f, 0.0f, a.Edge)) * aOn;   // a bright core and a sheet seen aslant
+			const Voronoi b = VoronoiAt((u - wv) * 8.0f, (v + wu) * 8.0f, 8, s + 5, 0.9f);
+			const float planeB = 0.5f * Smooth(0.04f, 0.0f, b.Edge) * Smooth(0.55f, 0.7f, Noise(u, v, 6, s + 6));
+			const Voronoi c = VoronoiAt(u * 56.0f, v * 56.0f, 56, s + 7, 0.8f);
+			const float r = 0.12f + 0.2f * Hash01(c.Id1, 1, s + 8);
+			const float cloud = Smooth(0.55f, 0.75f, Fbm(u, v, 4, 3, s + 9));
+			const float bubble = Hash01(c.Id1, 2, s + 8) > 0.45f ? 0.8f * Smooth(r, r * 0.6f, c.D1) * cloud : 0.0f;
+			const float veil = 0.3f * Smooth(0.5f, 0.85f, Fbm(u, v, 2, 4, s + 10));
+			const glm::vec3 crackColour(0.93f, 0.96f, 0.98f), bubbleColour(1.0f), veilColour(0.88f, 0.93f, 0.96f);
+			const float sum = planeA + planeB + bubble + veil;
+			const glm::vec3 rgb = sum > 1e-5f ? (crackColour * (planeA + planeB) + bubbleColour * bubble + veilColour * veil) / sum : glm::vec3(1.0f);
+			const float alpha = 1.0f - (1.0f - std::min(planeA, 1.0f)) * (1.0f - planeB) * (1.0f - bubble) * (1.0f - veil);
+			return { rgb, alpha };
+		}
+
+		// Wet glass. Drops on stratified jittered grids (an approximation of a Poisson disc per size class): four classes, each twice as
+		// many and half as big as the last (few big drops, many small); a drop is a spherical lens cap, a little taller than wide and
+		// sagging at the bottom, and its height scales with its radius (the same contact angle for all). Gravity is -v (ProcMesh's v grows
+		// up the side of a box or a ball): rivulets run down from their head drop towards lower v, leaving a thin beaded thread and a band
+		// swept clean of fog above it. Bigger drops and the swept bands clear the smaller drops around them.
+		constexpr float kDropBig = 0.36f / 8.0f;   // the biggest radius (tile units): Height 1
+
+		struct WetSample
+		{
+			float Height = 0.0f, Drop = 0.0f, Clear = 0.0f;
+		};
+
+		void DropLayer(float u, float v, int period, float presence, float rMin, float rMax, float halo, uint32_t seed, WetSample& w)
+		{
+			const float x = u * static_cast<float>(period), y = v * static_cast<float>(period);
+			const int ix = static_cast<int>(std::floor(x)), iy = static_cast<int>(std::floor(y));
+			const float visible = 1.0f - w.Clear;
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx)
+				{
+					const int cx = Wrap(ix + dx, period), cy = Wrap(iy + dy, period);
+					if (Hash01(cx, cy, seed) >= presence) continue;
+					const float px = static_cast<float>(ix + dx) + 0.25f + 0.5f * Hash01(cx, cy, seed + 1);
+					const float py = static_cast<float>(iy + dy) + 0.25f + 0.5f * Hash01(cx, cy, seed + 2);
+					const float sz = Hash01(cx, cy, seed + 3);
+					const float r = rMin + (rMax - rMin) * sz * sz;
+					const float stretch = 1.0f + 0.5f * std::pow(Hash01(cx, cy, seed + 4), 3.0f);   // some run long
+					float ly = (y - py) / stretch;
+					if (ly < 0.0f) ly *= 0.85f;   // the lower half (toward -v) bulges
+					const float q = std::sqrt((x - px) * (x - px) + ly * ly) / r;
+					const float rTile = r / static_cast<float>(period);
+					if (q < 1.0f) w.Height = std::max(w.Height, visible * rTile / kDropBig * std::sqrt(1.0f - q * q));
+					w.Drop = std::max(w.Drop, visible * Smooth(1.0f, 0.85f, q));
+					if (halo > 1.0f) w.Clear = std::max(w.Clear, Smooth(halo, 1.0f, q));   // the dry ring a drop leaves by gathering the fog around it
+				}
+		}
+
+		Surface GlassWet(float u, float v, uint32_t s)
+		{
+			WetSample w;
+			// rivulets: sixteen columns a tile, six in ten carry one, its head anywhere in v; the thread climbs L above the head (+v)
+			constexpr int kCols = 16;
+			const int col = static_cast<int>(std::floor(u * kCols));
+			for (int dc = -1; dc <= 1; ++dc)
+			{
+				const int id = Wrap(col + dc, kCols);
+				if (Hash01(id, 0, s + 30) > 0.6f) continue;
+				const float x0 = (static_cast<float>(col + dc) + 0.2f + 0.6f * Hash01(id, 1, s + 30)) / kCols;
+				const float head = Hash01(id, 2, s + 30), len = 0.15f + 0.45f * Hash01(id, 3, s + 30);
+				const float rh = 0.012f + 0.01f * Hash01(id, 4, s + 30);
+				const auto centre = [&](float at) { return x0 + 0.012f * (NoiseXY(0.0f, at, 1, 8, s + 31 + static_cast<uint32_t>(id)) - 0.5f); };
+				float t = v - head;   // how far above the head, wrapped to [0, 1)
+				t -= std::floor(t);
+				float ddx = u - centre(v);
+				ddx -= std::round(ddx);
+				// the head: a drop sitting on the head line, its lower half fuller
+				float hy = t - rh;
+				hy -= std::round(hy);
+				float hdx = u - centre(head + rh);
+				hdx -= std::round(hdx);
+				const float qh = std::sqrt(hdx * hdx + (hy < 0.0f ? hy * 0.85f : hy) * (hy < 0.0f ? hy * 0.85f : hy)) / rh;
+				if (qh < 1.0f) w.Height = std::max(w.Height, rh / kDropBig * std::sqrt(1.0f - qh * qh));
+				w.Drop = std::max(w.Drop, Smooth(1.0f, 0.85f, qh));
+				w.Clear = std::max(w.Clear, Smooth(1.6f, 1.0f, qh));
+				if (t < len)
+				{
+					// the thread, thinner toward its top, beaded; the band the drop swept clean is about as wide as the drop
+					const float k = t / len;
+					const float bead = std::pow(0.5f + 0.5f * std::sin(t * 260.0f + 6.0f * Hash01(id, 5, s + 30)), 6.0f);
+					const float wt = rh * 0.45f * (1.0f - 0.6f * k) * (1.0f + 0.6f * bead);
+					const float qt = std::fabs(ddx) / wt;
+					if (t > rh && qt < 1.0f) w.Height = std::max(w.Height, wt / kDropBig * 0.8f * std::sqrt(1.0f - qt * qt));
+					if (t > rh) w.Drop = std::max(w.Drop, Smooth(1.0f, 0.8f, qt));
+					w.Clear = std::max(w.Clear, Smooth(1.3f, 0.9f, std::fabs(ddx) / rh) * Smooth(len, 0.75f * len, t));
+				}
+			}
+			// the drops, from the big ones down
+			DropLayer(u, v, 8, 0.35f, 0.2f, 0.36f, 1.5f, s + 40, w);
+			DropLayer(u, v, 16, 0.45f, 0.18f, 0.34f, 1.4f, s + 41, w);
+			DropLayer(u, v, 32, 0.55f, 0.16f, 0.32f, 1.25f, s + 42, w);
+			DropLayer(u, v, 64, 0.6f, 0.15f, 0.3f, 1.0f, s + 43, w);   // the finest: no ring
+			const float fog = Noise(u, v, 128, s + 50) * 0.6f + Noise(u, v, 64, s + 51) * 0.4f;
+			const float fogged = 1.0f - w.Clear;
+			Surface o;
+			o.Albedo = Mix(Mix(glm::vec3(0.93f, 0.94f, 0.95f) * (0.98f + 0.02f * fog), glm::vec3(0.98f), w.Clear), glm::vec3(1.0f), w.Drop);
+			o.Height = w.Height + 0.015f * fog * fogged;
+			o.Rough = Lerp(Lerp(0.78f + 0.22f * fog, 0.25f, w.Clear), 0.07f, w.Drop);   // x the material's 0.8: fog 0.62..0.8, swept 0.2, drops 0.06
+			return o;
+		}
+
 		struct SurfaceKind
 		{
 			const char* Name;
@@ -439,7 +658,7 @@ namespace GB
 			static const std::vector<SurfaceKind> table = {
 				{ "sand", Sand, 0.006f }, { "brick", Brick, 0.012f }, { "brick_worn", BrickWorn, 0.014f }, { "ashlar", Ashlar, 0.012f },
 				{ "rock", Rock, 0.03f }, { "wood", Wood, 0.006f }, { "ice", Ice, 0.004f }, { "ice_frost", IceFrost, 0.006f },
-				{ "glass_frosted", GlassFrosted, 0.0015f } };
+				{ "glass_frosted", GlassFrosted, 0.0015f }, { "ice_faceted", IceFaceted, 0.15f }, { "glass_wet", GlassWet, 0.025f } };
 			return table;
 		}
 
@@ -566,6 +785,24 @@ namespace GB
 				p[1] = Byte(surface->Fn(u, v, s).Rough);
 				p[2] = 255;
 				p[3] = 255;
+			});
+			return img;
+		}
+
+		Image GenerateInterior(const std::string& kind, uint32_t size, uint32_t seed)
+		{
+			size = std::clamp(size, 16u, 1024u);
+			Image img = Blank(size);   // all zero: transparent, clean ice
+			if (kind != "ice" && kind != "ice_faceted") return img;
+			const uint32_t s = VisualHash((kind + ".interior").c_str(), seed);
+			ForTexels(size, [&](uint32_t x, uint32_t y, float u, float v)
+			{
+				const glm::vec4 c = IceInterior(u, v, s);
+				uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * size + x) * 4];
+				p[0] = Byte(c.r);
+				p[1] = Byte(c.g);
+				p[2] = Byte(c.b);
+				p[3] = Byte(c.a);
 			});
 			return img;
 		}

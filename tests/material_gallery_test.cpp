@@ -5,7 +5,7 @@
 // section for glass and ice (the blend surface of today, until T34 brings transmission).
 // The small picture is a golden image (tests/golden/images/material_gallery.png; update: GB_UPDATE_GOLDEN=1 ctest -R "^material_gallery$").
 // `GBGLTests material_gallery --out <dir>` also writes the full-size gallery (galeria.png, 1600x900) and a close-up of every family
-// (galeria_<family>.png) there. It prints the mean albedo of every material (sRGB luminance of colour x texture) for the art bible's R2.
+// (galeria_<family>.png) there, and the new textures of T102 flat (texturas_v2.png, no GL needed). It prints the mean albedo of every material (sRGB luminance of colour x texture) for the art bible's R2.
 // SKIPs (77) without an OpenGL 4.5 context.
 #include "GB/Log.h"
 #include "GB/Platform/Window.h"
@@ -16,6 +16,7 @@
 #include "GB/Visual/ProcTexture.h"
 #include "GB/Visual/SceneVisuals.h"
 #include "GB/Visual/VisualDefs.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -63,6 +64,49 @@ namespace
 		return ToSrgb(0.2126f * mean.r + 0.7152f * mean.g + 0.0722f * mean.b) * 255.0f;
 	}
 
+	// T102: the new textures flat, without the shader, so they can be judged on their own: one row per kind, the columns albedo, normal,
+	// roughness (G as grey), interior over a dark cyan, interior alpha as grey, and 2x2 repeats of the albedo and of the normal at half scale
+	// (the tiling check). Every tile is drawn with v up (row 0 of the PNG is the top of the tile, v = 1), as on a ProcMesh wall: drops fall
+	// down the picture.
+	bool WriteTextureSheet(const std::string& path)
+	{
+		const std::vector<std::string> kinds = { "ice_faceted", "glass_wet", "ice" };
+		constexpr uint32_t T = 256, Gap = 6, Cols = 7;
+		const uint32_t W = Cols * T + (Cols + 1) * Gap, H = static_cast<uint32_t>(kinds.size()) * (T + Gap) + Gap;
+		std::vector<uint8_t> px(static_cast<size_t>(W) * H * 4, 40);
+		for (size_t i = 3; i < px.size(); i += 4) px[i] = 255;
+		for (size_t row = 0; row < kinds.size(); ++row)
+		{
+			const std::string& k = kinds[row];
+			const GB::Image albedo = GB::ProcTexture::Generate(k, T), normal = GB::ProcTexture::GenerateNormal(k, T);
+			const GB::Image rough = GB::ProcTexture::GenerateRoughness(k, T), interior = GB::ProcTexture::GenerateInterior(k, T);
+			const uint32_t oy = Gap + static_cast<uint32_t>(row) * (T + Gap);
+			for (uint32_t col = 0; col < Cols; ++col)
+			{
+				const uint32_t ox = Gap + col * (T + Gap);
+				for (uint32_t y = 0; y < T; ++y)
+					for (uint32_t x = 0; x < T; ++x)
+					{
+						const bool repeat = col >= 5;
+						const uint32_t sx = repeat ? (x * 2) % T : x, sy = T - 1 - (repeat ? (y * 2) % T : y);
+						const size_t s = (static_cast<size_t>(sy) * T + sx) * 4;
+						uint8_t* d = &px[(static_cast<size_t>(oy + y) * W + ox + x) * 4];
+						const GB::Image& src = col == 0 || col == 5 ? albedo : col == 1 || col == 6 ? normal : col == 2 ? rough : interior;
+						if (col == 2) d[0] = d[1] = d[2] = src.Pixels[s + 1];
+						else if (col == 3)
+						{
+							static const float bg[3] = { 10.0f, 60.0f, 80.0f };
+							const float a = static_cast<float>(src.Pixels[s + 3]) / 255.0f;
+							for (int c = 0; c < 3; ++c) d[c] = static_cast<uint8_t>(std::lround(bg[c] + (static_cast<float>(src.Pixels[s + static_cast<size_t>(c)]) - bg[c]) * a));
+						}
+						else if (col == 4) d[0] = d[1] = d[2] = src.Pixels[s + 3];
+						else for (int c = 0; c < 3; ++c) d[c] = src.Pixels[s + static_cast<size_t>(c)];
+					}
+			}
+		}
+		return GB::SavePNG(path.c_str(), W, H, px.data());
+	}
+
 	// The gallery's ground: rows of samples along -Z, one column per family along X.
 	constexpr float kColumn = 2.6f, kRow = 2.4f;
 	glm::vec3 SampleAt(size_t family, size_t families, size_t row)
@@ -107,6 +151,12 @@ int GBTest_material_gallery(int argc, char** argv)
 		std::fprintf(stderr, "albedo %-14s texture %-14s mean sRGB %5.1f\n", id.c_str(), m.Texture.empty() ? "-" : m.Texture.c_str(), MeanAlbedo(m));
 	}
 	if (failures) return failures;
+	if (!outDir.empty())
+	{
+		const std::string sheet = outDir + "/texturas_v2.png";
+		Check(WriteTextureSheet(sheet), "writes " + sheet);
+		std::fprintf(stderr, "wrote %s\n", sheet.c_str());
+	}
 
 	GB::WindowProps props;
 	props.Visible = false;
@@ -136,6 +186,17 @@ int GBTest_material_gallery(int argc, char** argv)
 			const uint32_t size = GB::ProcTexture::Size(false);
 			m.NormalMap = map(v.Texture + ".normal", GB::ProcTexture::GenerateNormal(v.Texture, size));
 			m.MetallicRoughnessMap = map(v.Texture + ".rough", GB::ProcTexture::GenerateRoughness(v.Texture, size));
+#if defined(GB_MATERIAL_HAS_INTERIOR_MAP)
+			// TODO(T101): GB::Material::InteriorMap comes with T101's parallax interior layer; define GB_MATERIAL_HAS_INTERIOR_MAP (or drop
+			// this #if) when it lands. Only ice has an interior; the other kinds would bind a transparent map, so they are skipped.
+			if (v.Texture == "ice" || v.Texture == "ice_faceted")
+			{
+				const std::string key = v.Texture + ".interior";
+				auto it = maps.find(key);
+				if (it == maps.end()) it = maps.emplace(key, std::make_unique<GB::Texture2D>(GB::ProcTexture::GenerateInterior(v.Texture, size), GB::TextureEncoding::SRGB)).first;
+				m.InteriorMap = it->second->IsValid() ? it->second.get() : nullptr;
+			}
+#endif
 		}
 		if (const auto it = opacity.find(id); it != opacity.end()) m.Opacity = it->second;
 		return m;
@@ -230,13 +291,15 @@ int GBTest_material_gallery(int argc, char** argv)
 			{
 				static const glm::vec3 colours[] = { { 0.8f, 0.15f, 0.12f }, { 0.85f, 0.7f, 0.15f }, { 0.15f, 0.35f, 0.8f }, { 0.9f, 0.9f, 0.88f },
 				                                     { 0.2f, 0.6f, 0.25f }, { 0.85f, 0.4f, 0.1f }, { 0.08f, 0.08f, 0.08f } };
-				for (int i = 0; i < 14; ++i)
+				// seven posts a sample (fourteen for two, as before), so three samples have posts behind the outer ones too
+				const int posts = 7 * static_cast<int>(std::max<size_t>(n, 2));
+				for (int i = 0; i < posts; ++i)
 				{
 					GB::RenderObject post;
 					post.MeshPtr = &box;
 					post.Mat.Albedo = colours[i % 7];
 					post.Mat.Roughness = 0.6f;
-					post.Transform = glm::scale(glm::translate(glm::mat4(1.0f), { (static_cast<float>(i) - 6.5f) * 0.42f, 1.0f, -1.6f }), { 0.3f, 2.2f, 0.3f });
+					post.Transform = glm::scale(glm::translate(glm::mat4(1.0f), { (static_cast<float>(i) - 0.5f * static_cast<float>(posts - 1)) * 0.42f, 1.0f, -1.6f }), { 0.3f, 2.2f, 0.3f });
 					post.BoundingRadius = 1.3f;
 					sc.Objects.push_back(post);
 				}
