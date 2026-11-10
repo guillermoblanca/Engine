@@ -273,7 +273,8 @@ target_include_directories(GB_Sim SYSTEM PRIVATE ${cgltf_SOURCE_DIR} ${json_SOUR
 # the game's data (ShippedContent.h): the catalogue is read from here unless the application says otherwise
 target_compile_definitions(GB_Sim PRIVATE GB_CONTENT_DIR="${CMAKE_SOURCE_DIR}/assets/data")
 
-# GB_Render (L5): the renderer (OpenGL through glad, private), Visual, Effects and Qa.
+# GB_Render (L5): the render frontend, Visual, Effects and Qa, over the RHI (src/GB/Renderer/RHI, T25); OpenGL (glad, private) only in its
+# GL backend, RHI/GL/GLDevice.cpp. The separate GB_RHI / GB_RHI_GL targets of ARQUITECTURA_REVISION 5.2 are still to do.
 target_link_libraries(GB_Render PUBLIC GB_Sim)
 target_link_libraries(GB_Render PRIVATE glad)
 target_include_directories(GB_Render SYSTEM PRIVATE ${stb_SOURCE_DIR} ${json_SOURCE_DIR}/include)

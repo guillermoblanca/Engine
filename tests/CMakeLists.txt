@@ -269,3 +269,9 @@ target_precompile_headers(GBReferenceSceneTests REUSE_FROM GBTestPch)
 gb_parallel_compile(GBReferenceSceneTests)
 add_test(NAME reference_scene COMMAND GBReferenceSceneTests)
 set_tests_properties(reference_scene PROPERTIES SKIP_RETURN_CODE 77 LABELS "imagen;gl")
+
+# T25: the render frontend on the null RHI backend (no window, no GL context): the passes, the culling, the instanced draws and the order
+# of the translucent objects, read from the null device's command log. An executable of its own (this block is after the pools' main()).
+gb_test(rhi rhi_test.cpp EXE GBRhiTests LINK GB::Render LABELS rapido)
+target_precompile_headers(GBRhiTests REUSE_FROM GBTestPch)
+gb_parallel_compile(GBRhiTests)
