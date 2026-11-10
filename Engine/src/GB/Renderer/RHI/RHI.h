@@ -178,7 +178,17 @@ namespace GB::RHI
 		bool Depth = true;                 // 24-bit depth
 		bool DepthAsTexture = false;       // depth in a texture (sampled later) instead of a buffer
 		bool DepthCompare = true;          // with DepthAsTexture: comparison sampler (true) or a plain one with nearest filtering
+		// T101: mip levels of the color attachments (single-sample only; a multisampled target keeps 1). The target draws into level 0;
+		// GenerateMips fills the rest. With more than one level the color is sampled with trilinear filtering (Filter::LinearMipLinear).
+		uint32_t Levels = 1;
 	};
+	// The levels of a full mip chain down to 1x1 for a width x height image.
+	constexpr uint32_t FullMipLevels(uint32_t width, uint32_t height)
+	{
+		uint32_t levels = 1;
+		for (uint32_t size = width > height ? width : height; size > 1; size >>= 1) ++levels;
+		return levels;
+	}
 	struct RenderTarget
 	{
 		RenderTargetHandle Handle;

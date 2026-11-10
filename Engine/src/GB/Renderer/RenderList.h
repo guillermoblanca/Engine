@@ -23,9 +23,10 @@ namespace GB
 			Bounded = 1u << 0,       // has a bounding sphere (BoundsOf): without one it is never culled
 			Batched = 1u << 1,       // drawn in its mesh's instanced batch (Instanced, not skinned, the whole mesh)
 			Skinned = 1u << 2,       // has joint matrices
-			Blend = 1u << 3,         // translucent: drawn back to front after the opaque objects, casts no shadow
+			Blend = 1u << 3,         // translucent: drawn back to front after the opaque objects, casts no shadow (but see T101 below)
 			Masked = 1u << 4,        // alpha-tested
-			CastsShadow = 1u << 5,   // drawn into the shadow map (today: everything but the translucent objects)
+			CastsShadow = 1u << 5,   // drawn into the shadow map (everything but the translucent objects; T101: and the transmissive ones with a
+			                         // shadow density)
 		};
 
 		glm::vec3 Center{ 0.0f };   // the bounding sphere in world space (when Bounded)
@@ -76,7 +77,12 @@ namespace GB
 				item.MaxDistance = maxDistance;
 				if (obj.Instanced && !obj.JointMatrices && obj.IndexCount == 0) item.Flags |= RenderItem::Batched;
 				if (obj.JointMatrices) item.Flags |= RenderItem::Skinned;
-				if (obj.Mat.Alpha == AlphaMode::Blend) item.Flags |= RenderItem::Blend;
+				if (obj.Mat.Alpha == AlphaMode::Blend)
+				{
+					item.Flags |= RenderItem::Blend;
+					// T101: a transmissive surface with a shadow density casts a faint, dithered shadow (ShadowFS); any other Blend casts none
+					if (obj.Mat.Transmission > 0.0f && obj.Mat.ShadowDensity > 0.0f) item.Flags |= RenderItem::CastsShadow;
+				}
 				else item.Flags |= RenderItem::CastsShadow;
 				if (obj.Mat.Alpha == AlphaMode::Mask) item.Flags |= RenderItem::Masked;
 				m_Items.push_back(item);

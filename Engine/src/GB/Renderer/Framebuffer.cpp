@@ -33,6 +33,7 @@ namespace GB
 		desc.Depth = m_Spec.Depth;
 		desc.DepthAsTexture = m_Spec.DepthAsTexture;
 		desc.DepthCompare = m_Spec.DepthCompare;
+		desc.Levels = m_Spec.Levels;
 		m_Target = RHI::GetDevice().CreateRenderTarget(desc);
 		m_Complete = m_Target.Complete;
 	}

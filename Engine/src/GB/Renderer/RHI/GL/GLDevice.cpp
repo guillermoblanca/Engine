@@ -639,12 +639,14 @@ namespace GB::RHI
 			td.Width = desc.Width;
 			td.Height = desc.Height;
 			td.Samples = desc.Samples;
+			td.Levels = multisampled ? 1u : std::max(desc.Levels, 1u);
 			td.Fmt = format == Format::RGBA16F || format == Format::R11G11B10F ? format : Format::RGBA8;
 			const TextureHandle texture = CreateTexture(td);
 			if (!multisampled)
 			{
 				SamplerDesc s;
 				s.WrapS = s.WrapT = Wrap::ClampToEdge;
+				if (td.Levels > 1) s.Min = Filter::LinearMipLinear;
 				SetSampler(texture, s);
 			}
 			glNamedFramebufferTexture(fbo, attachment, texture.Id, 0);

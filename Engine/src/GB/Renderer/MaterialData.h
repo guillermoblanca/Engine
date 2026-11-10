@@ -18,7 +18,8 @@ namespace GB
 	struct MaterialData
 	{
 		static constexpr uint32_t Binding = 3;      // layout(std430, binding = 3) readonly buffer MaterialBuffer
-		static constexpr uint32_t LayerSlots = 8;   // Layer[]: fixed slots, one or two per layer (below)
+		static constexpr uint32_t LayerSlots = 10;  // Layer[]: fixed slots, one or two per layer (below). T101: 8 -> 10 for the transmission's
+		                                            // interior, scatter and shadow (7 more floats; no slot was free and Tex.yzw is M6's)
 
 		// Tex.x: the loose maps the draw binds (until M6 puts them in arrays and Tex.yzw holds their layers)
 		static constexpr uint32_t TexAlbedo = 1u << 0;           // unit 1
@@ -30,6 +31,7 @@ namespace GB
 		static constexpr uint32_t TexEmissive = 1u << 6;         // unit 6
 		static constexpr uint32_t TexMacro = 1u << 7;            // unit 7
 		static constexpr uint32_t TexTerrainNormals = 1u << 8;   // unit 10 (only with a macro map)
+		static constexpr uint32_t TexInterior = 1u << 9;         // unit 13: the inside of the ice (T101; only with LayerTransmission)
 
 		// Flags.w
 		static constexpr uint32_t FlagFoliageNormals = 1u << 0;   // the cards keep the crown normal on both faces (no flip on back faces)
@@ -55,6 +57,9 @@ namespace GB
 		static constexpr uint32_t SlotTrailTint = 5;   // rgb tint of the marked ground
 		static constexpr uint32_t SlotMacro = 6;       // the macro map's rect: x, z of its corner, width, depth
 		static constexpr uint32_t SlotTransmission = 7;   // rgb absorption coefficient (1/m), w thickness (m); with LayerTransmission only (else 0)
+		// T101, with LayerTransmission only (else 0):
+		static constexpr uint32_t SlotInterior = 8;       // rgb tint of the interior map, w its strength
+		static constexpr uint32_t SlotTransmissionExtra = 9;   // x interior depth (uv units), y scatter, z shadow density, w thickness variation
 
 		glm::vec4 BaseColor{ 0.0f };     // rgb albedo (linear), a opacity
 		glm::vec4 Emissive{ 0.0f };      // rgb emissive, a alpha cutoff
@@ -78,5 +83,5 @@ namespace GB
 	static_assert(offsetof(MaterialData, Wind) == 96);
 	static_assert(offsetof(MaterialData, ModelParams) == 112);
 	static_assert(offsetof(MaterialData, Layer) == 128);
-	static_assert(sizeof(MaterialData) == 256, "8 x 16 + 8 slots x 16 B (std430, array stride 256)");
+	static_assert(sizeof(MaterialData) == 288, "8 x 16 + 10 slots x 16 B (std430, array stride 288)");
 }

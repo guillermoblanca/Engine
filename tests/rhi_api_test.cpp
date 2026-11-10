@@ -176,6 +176,33 @@ namespace
 		Check(b.UniformBufferBinds == 6 && b.RingBytes == 200 && d.StorageRangeBinds == 2 && d.CompressedBytes == 16,
 			"counters: the new fields add and subtract");
 	}
+
+	// T101: a render target's color with a mip chain (the copy of the scene the glass blurs through).
+	void TargetLevels(NullDevice& device)
+	{
+		static_assert(FullMipLevels(1, 1) == 1 && FullMipLevels(4, 4) == 3 && FullMipLevels(1920, 1080) == 11 && FullMipLevels(192, 108) == 8);
+		const uint32_t misuses = device.Misuses;
+		RenderTargetDesc plain;
+		plain.Width = 64; plain.Height = 32; plain.Depth = false; plain.Color = Format::RGBA16F;
+		const RenderTarget a = device.CreateRenderTarget(plain);
+		const TextureDesc* ca = device.GetTexture(a.Color);
+		Check(ca && ca->Levels == 1 && ca->Width == 64 && ca->Fmt == Format::RGBA16F, "target levels: a target's color has one level by default");
+		RenderTargetDesc mipped = plain;
+		mipped.Levels = FullMipLevels(64, 32);
+		const RenderTarget b = device.CreateRenderTarget(mipped);
+		const TextureDesc* cb = device.GetTexture(b.Color);
+		Check(cb && cb->Levels == 7 && device.Misuses == misuses, "target levels: a single-sample target keeps its 7 levels down to 1x1");
+		device.GenerateMips(b.Color);
+		RenderTargetDesc msaa = mipped;
+		msaa.Samples = 4;
+		const RenderTarget c = device.CreateRenderTarget(msaa);
+		const TextureDesc* cc = device.GetTexture(c.Color);
+		Check(device.Misuses == misuses + 1 && cc && cc->Levels == 1, "target levels: mips on a multisampled target are a misuse (it keeps 1)");
+		RenderTargetDesc tooMany = plain;
+		tooMany.Levels = 8;
+		device.CreateRenderTarget(tooMany);
+		Check(device.Misuses == misuses + 2, "target levels: more levels than the size has are a misuse");
+	}
 }
 
 int main()
@@ -186,6 +213,7 @@ int main()
 	RangesAndDraws(device);
 	Ring(device);
 	Installed(device);
+	TargetLevels(device);
 	if (failures) std::fprintf(stderr, "%d check(s) failed\n", failures);
 	return failures ? 1 : 0;
 }

@@ -70,7 +70,7 @@ namespace GB
 			else if (object.IndexCount > 0) object.MeshPtr->DrawRange(object.IndexFirst, object.IndexCount);
 			else object.MeshPtr->Draw();
 		};
-		// The casters (no translucent objects; the culling against the light's frustum is done), in scene order. The instanced ones wait for
+		// The casters (no translucent objects but the transmissive ones with a shadow density, T101; the culling against the light's frustum is done), in scene order. The instanced ones wait for
 		// their mesh's batch: one call per mesh after the loop, by mesh address and in scene order inside one (RenderObject::Instanced).
 		m_Batches.clear();
 		const std::vector<RenderItem>& items = list.Items();

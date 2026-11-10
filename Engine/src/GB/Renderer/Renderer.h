@@ -62,6 +62,10 @@ namespace GB
 		// The scene's ambient (indirect) light, written by the forward pass as a second target and resolved here: the SSAO only darkens this
 		// part in the composite, not the sun or the lamps.
 		std::unique_ptr<Framebuffer> m_SceneAmbient;
+		// T101: the copy of the scene the transmissive surfaces see, with a mip chain for the rough ones; made the first time one is in view
+		// (a scene without glass or ice never has it).
+		std::unique_ptr<Framebuffer> m_SceneTransmission;
+		static constexpr float kTransmissionMipRoughness = 0.08f;
 		std::unique_ptr<PostProcessor> m_PostProcessor;
 		RHI::VertexLayoutHandle m_EmptyVAO;
 		RHI::BufferHandle m_JointBuffer;

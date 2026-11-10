@@ -125,8 +125,20 @@ namespace GB
 			return "";
 		}
 
-		// "layers": { "<layer>": { "<param>": number or [x, y, z] } }, checked against the registry (GB/Renderer/MaterialLayers.h).
-		std::string LayersFromJson(const Json& material, MaterialLayers& out)
+		// The numbers of one parameter value: one for a number, the list for [x, y, z]; anything else gives a size SetLayerParam reports.
+		std::vector<float> Numbers(const Json& v)
+		{
+			std::vector<float> numbers;
+			if (v.is_number()) numbers.push_back(v.get<float>());
+			else if (v.is_array()) for (const Json& x : v) { if (!x.is_number()) { numbers.clear(); numbers.resize(4); break; } numbers.push_back(x.get<float>()); }
+			else numbers.resize(4);   // (not a number nor a list of numbers: the size check reports the type)
+			return numbers;
+		}
+
+		// "layers": { "<layer>": { "<param>": number or [x, y, z] } }, checked against the registry (GB/Renderer/MaterialLayers.h). A parameter
+		// that is an object, "<group>": { "<key>": value }, is the registry's "<group>.<key>" (T101: the transmission's "interior"); its "map"
+		// is a texture name, not a number, and goes to `interiorMap`.
+		std::string LayersFromJson(const Json& material, MaterialLayers& out, std::string& interiorMap)
 		{
 			const auto it = material.find("layers");
 			if (it == material.end()) return "";
@@ -144,11 +156,21 @@ namespace GB
 				MaterialLayerValues values;
 				for (const auto& [param, v] : params.items())
 				{
-					std::vector<float> numbers;
-					if (v.is_number()) numbers.push_back(v.get<float>());
-					else if (v.is_array()) for (const Json& x : v) { if (!x.is_number()) { numbers.clear(); numbers.resize(4); break; } numbers.push_back(x.get<float>()); }
-					else numbers.resize(4);   // (not a number nor a list of numbers: the size check reports the type)
-					if (std::string why = SetLayerParam(*def, values, param, numbers); !why.empty()) return why;
+					if (v.is_object())
+					{
+						for (const auto& [key, w] : v.items())
+						{
+							if (name == "transmission" && param == "interior" && key == "map")
+							{
+								if (!w.is_string() || w.get<std::string>().empty()) return "layer 'transmission', 'interior.map': the name of an interior texture";
+								interiorMap = w.get<std::string>();
+								continue;
+							}
+							if (std::string why = SetLayerParam(*def, values, param + "." + key, Numbers(w)); !why.empty()) return why;
+						}
+						continue;
+					}
+					if (std::string why = SetLayerParam(*def, values, param, Numbers(v)); !why.empty()) return why;
 				}
 				out[name] = std::move(values);
 			}
@@ -165,8 +187,11 @@ namespace GB
 				{
 					const MaterialLayerDef* def = FindMaterialLayer(name);
 					const MaterialLayerParam* p = def ? FindLayerParam(*def, param) : nullptr;
-					if (p && p->Type == LayerParamType::Float) j[param] = v.x;
-					else j[param] = Vec(v);
+					const Json value = p && p->Type == LayerParamType::Float ? Json(v.x) : Vec(v);
+					if (const size_t dot = param.find('.'); dot != std::string::npos)   // "interior.depth" -> "interior": { "depth" }
+						j[param.substr(0, dot)][param.substr(dot + 1)] = value;
+					else
+						j[param] = value;
 				}
 				out[name] = j;
 			}
@@ -292,7 +317,7 @@ namespace GB
 					m.DoubleSided = j.value("doubleSided", false);
 					m.Surface = j.value("surface", m.Surface);
 					if (m.Surface != "opaque" && m.Surface != "cutout" && m.Surface != "translucent") return "material '" + id + "': unknown surface '" + m.Surface + "' (opaque, cutout, translucent)";
-					if (std::string why = LayersFromJson(j, m.Layers); !why.empty()) return "material '" + id + "': " + why;
+					if (std::string why = LayersFromJson(j, m.Layers, m.InteriorMap); !why.empty()) return "material '" + id + "': " + why;
 					// T34: only a translucent surface transmits (the renderer ignores the layer on any other): say so instead of drawing it opaque
 					if (m.Layers.count("transmission") && m.Surface != "translucent")
 						return "material '" + id + "': layer 'transmission' needs \"surface\": \"translucent\"";
@@ -481,6 +506,7 @@ namespace GB
 			if (m.DoubleSided) j["doubleSided"] = true;
 			if (m.Surface != "opaque") j["surface"] = m.Surface;
 			if (!m.Layers.empty()) j["layers"] = LayersToJson(m.Layers);
+			if (!m.InteriorMap.empty()) j["layers"]["transmission"]["interior"]["map"] = m.InteriorMap;
 			materials[id] = j;
 		}
 		root["materials"] = materials;

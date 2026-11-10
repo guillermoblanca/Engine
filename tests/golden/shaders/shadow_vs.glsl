@@ -30,7 +30,7 @@ struct MaterialData
 	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
 	vec4 Wind;          // x sway, y height of full sway, z flutter
 	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength, z index of refraction, w transmission (LAYER_TRANSMISSION)
-	vec4 Layer[8];      // the layers' slots (SLOT_*)
+	vec4 Layer[10];     // the layers' slots (SLOT_*)
 };
 layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
 uniform int uMaterialId;
@@ -44,6 +44,7 @@ const uint TEX_OCCLUSION = 32u;
 const uint TEX_EMISSIVE = 64u;
 const uint TEX_MACRO = 128u;
 const uint TEX_TERRAIN_NORMALS = 256u;
+const uint TEX_INTERIOR = 512u;
 const uint FLAG_FOLIAGE_NORMALS = 1u;
 const uint FLAG_ALPHA_TO_COVERAGE = 2u;
 const uint FLAG_DOUBLE_SIDED = 4u;
@@ -62,7 +63,9 @@ const uint SLOT_TRAIL = 4u;        // x depth (0: none), y normal boost
 const uint SLOT_TRAIL_TINT = 5u;   // rgb tint
 const uint SLOT_MACRO = 6u;        // the macro map's rect
 const uint SLOT_TRANSMISSION = 7u; // rgb absorption (1/m), w thickness (m)
-const uint LAYER_SLOTS = 8u;
+const uint SLOT_INTERIOR = 8u;     // rgb interior tint, w strength
+const uint SLOT_TRANSMISSION_EXTRA = 9u;   // x interior depth (uv), y scatter, z shadow density, w thickness variation
+const uint LAYER_SLOTS = 10u;
 bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
 bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 layout(location = 0) in vec3 aPos;

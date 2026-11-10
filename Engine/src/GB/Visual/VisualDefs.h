@@ -28,6 +28,10 @@ namespace GB
 		bool DoubleSided = false;         // blades of grass and straw
 		std::string Surface = "opaque";   // "opaque", "cutout" (alpha-tested) or "translucent" (blended); see MATERIALES.md
 		MaterialLayers Layers;            // procedural layers ("moss", "grain"...) and their parameters (GB/Renderer/MaterialLayers.h)
+		// T101: the procedural interior map of the transmission layer ("layers": {"transmission": {"interior": {"map": "<kind>", "depth",
+		// "strength", "tint"}}}); "" = none. Its numbers go into Layers["transmission"] as "interior.depth"... The texture is made by
+		// ProcTexture::GenerateInterior and set as Material::InteriorMap by whoever builds the render material (VisualCache).
+		std::string InteriorMap;
 		bool operator==(const VisualMaterial&) const = default;
 	};
 

@@ -30,7 +30,7 @@ struct MaterialData
 	uvec4 Flags;        // x LAYER_* bits, y shading model, z alpha mode (0 opaque, 1 mask, 2 blend), w FLAG_* bits
 	vec4 Wind;          // x sway, y height of full sway, z flutter
 	vec4 ModelParams;   // standard: x height (displacement) scale, y cavity strength, z index of refraction, w transmission (LAYER_TRANSMISSION)
-	vec4 Layer[8];      // the layers' slots (SLOT_*)
+	vec4 Layer[10];     // the layers' slots (SLOT_*)
 };
 layout(std430, binding = 3) readonly buffer MaterialBuffer { MaterialData uMaterials[]; };
 uniform int uMaterialId;
@@ -44,6 +44,7 @@ const uint TEX_OCCLUSION = 32u;
 const uint TEX_EMISSIVE = 64u;
 const uint TEX_MACRO = 128u;
 const uint TEX_TERRAIN_NORMALS = 256u;
+const uint TEX_INTERIOR = 512u;
 const uint FLAG_FOLIAGE_NORMALS = 1u;
 const uint FLAG_ALPHA_TO_COVERAGE = 2u;
 const uint FLAG_DOUBLE_SIDED = 4u;
@@ -62,7 +63,9 @@ const uint SLOT_TRAIL = 4u;        // x depth (0: none), y normal boost
 const uint SLOT_TRAIL_TINT = 5u;   // rgb tint
 const uint SLOT_MACRO = 6u;        // the macro map's rect
 const uint SLOT_TRANSMISSION = 7u; // rgb absorption (1/m), w thickness (m)
-const uint LAYER_SLOTS = 8u;
+const uint SLOT_INTERIOR = 8u;     // rgb interior tint, w strength
+const uint SLOT_TRANSMISSION_EXTRA = 9u;   // x interior depth (uv), y scatter, z shadow density, w thickness variation
+const uint LAYER_SLOTS = 10u;
 bool HasTex(uint bit) { return (MATERIAL.Tex.x & bit) != 0u; }
 bool HasFlag(uint bit) { return (MATERIAL.Flags.w & bit) != 0u; }
 
@@ -117,6 +120,9 @@ layout(binding = 6) uniform sampler2D uEmissiveMap;
 layout(binding = 7) uniform sampler2D uMacroMap;
 layout(binding = 10) uniform sampler2D uTerrainNormals;   // world normals over the macro rect (terrain)
 layout(binding = 11) uniform sampler2D uSceneColor;       // T34: the scene before the translucent objects (LAYER_TRANSMISSION only)
+layout(binding = 12) uniform sampler2D uSceneDepth;       // T101: the depth of that scene (LAYER_TRANSMISSION only)
+layout(binding = 13) uniform sampler2D uInteriorMap;      // T101: what is inside the ice, rgb colour and a density (TEX_INTERIOR)
+uniform float uSceneColorLods;                            // T101: the copy's last mip level with this frame's content (0: only level 0)
 layout(binding = 8) uniform sampler2D uTrailMap;
 float TrailAt(vec2 xz)
 {
@@ -226,30 +232,38 @@ vec2 PuddleRings(vec2 p)
 }
 
 // T34: what a transmissive surface (glass, ice) lets through: the scene behind it, from the copy at unit 11, looked up where the ray refracted
-// by the surface leaves it after the material's thickness (screen-space refraction), blurred by the roughness (a fixed disk of taps: the copy
-// has no mips) and dimmed by Beer-Lambert absorption. The copy already carries the fog between the camera and what is behind.
-vec3 Transmitted(vec3 N, vec3 V, float roughness)
+// by the surface leaves it after `thickness` metres (screen-space refraction), blurred by the roughness and dimmed by Beer-Lambert absorption
+// over the same thickness. The copy already carries the fog between the camera and what is behind. N and roughness are the pixel's, after
+// the normal and metal-roughness maps: a smooth drop on misted glass refracts sharp, the mist around it blurs.
+// T101: the blur reads the copy's mip chain (uSceneColorLods levels this frame): the level whose texel is half the blur radius and four taps
+// at half the radius around it, smooth and stable where the 12-tap disk of T34 was grainy. And a depth test: where the opaque scene at the
+// refracted point is nearer than this surface, what is there is in front of the glass, not behind it, so the lookup falls back to the point
+// straight behind (no leak of the things in front into the glass).
+vec3 Transmitted(vec3 N, vec3 V, float roughness, float thickness)
 {
-	vec4 slot = MATERIAL.Layer[SLOT_TRANSMISSION];
 	vec3 r = refract(-V, N, 1.0 / max(MATERIAL.ModelParams.z, 1.0));
 	if (dot(r, r) < 1e-6) r = -V;
-	vec4 clip = uViewProj * vec4(vPos + r * slot.w, 1.0);
-	vec2 uv = clamp(clip.xy / max(clip.w, 1e-4) * 0.5 + 0.5, vec2(0.0), vec2(1.0));
-	vec3 behind = textureLod(uSceneColor, uv, 0.0).rgb;
+	vec4 clip = uViewProj * vec4(vPos + r * thickness, 1.0);
 	vec2 size = vec2(textureSize(uSceneColor, 0));
+	vec2 uv = clamp(clip.xy / max(clip.w, 1e-4) * 0.5 + 0.5, vec2(0.0), vec2(1.0));
+	if (textureLod(uSceneDepth, uv, 0.0).r < gl_FragCoord.z)
+		uv = gl_FragCoord.xy / size;
 	float radius = roughness * roughness * 0.3 / max(clip.w, 0.25);   // in screen heights: frosted ice blurs ~0.1 of the screen at 1 m
-	if (radius * size.y > 1.0)
+	float pixels = radius * size.y;
+	vec3 behind;
+	if (pixels > 1.0)
 	{
-		vec2 scale = vec2(radius * size.y / size.x, radius);
-		for (int i = 0; i < 12; ++i)
-		{
-			float angle = float(i) * 2.3999632;   // golden angle: a Vogel disk
-			vec2 o = vec2(cos(angle), sin(angle)) * sqrt((float(i) + 0.5) / 12.0) * scale;
-			behind += textureLod(uSceneColor, clamp(uv + o, vec2(0.0), vec2(1.0)), 0.0).rgb;
-		}
-		behind /= 13.0;
+		float lod = clamp(log2(pixels) - 1.0, 0.0, uSceneColorLods);
+		vec2 scale = vec2(radius * size.y / size.x, radius) * 0.5;
+		behind = textureLod(uSceneColor, uv, lod).rgb * 2.0;
+		const vec2 taps[4] = vec2[4](vec2(0.94, 0.34), vec2(-0.34, 0.94), vec2(-0.94, -0.34), vec2(0.34, -0.94));
+		for (int i = 0; i < 4; ++i)
+			behind += textureLod(uSceneColor, clamp(uv + taps[i] * scale, vec2(0.0), vec2(1.0)), lod).rgb;
+		behind /= 6.0;
 	}
-	return behind * exp(-slot.rgb * slot.w);
+	else
+		behind = textureLod(uSceneColor, uv, 0.0).rgb;
+	return behind * exp(-MATERIAL.Layer[SLOT_TRANSMISSION].rgb * thickness);
 }
 
 void main()
@@ -257,6 +271,7 @@ void main()
 	vec3 N = normalize(vNormal);
 	vec3 V = normalize(uCamPos - vPos);
 	if (!gl_FrontFacing && !HasFlag(FLAG_FOLIAGE_NORMALS)) N = -N;   // back faces of double-sided materials
+	vec3 Ng = N;   // T101: the interpolated normal, before any map (the interior's parallax and the scatter's edges)
 	if (HasTex(TEX_TERRAIN_NORMALS))   // per-pixel smooth ground normal instead of the interpolated (faceted) vertex normal
 		N = normalize(texture(uTerrainNormals, clamp((vPos.xz - MATERIAL.Layer[SLOT_MACRO].xy) / MATERIAL.Layer[SLOT_MACRO].zw, vec2(0.0004), vec2(0.9996))).xyz * 2.0 - 1.0);
 	float trailT = 0.0;
@@ -396,11 +411,36 @@ void main()
 		F0 = mix(vec3(f0 * f0), albedo, metallic);
 		albedo *= 1.0 - transmission;
 	}
+	// T101: the thickness Beer-Lambert absorbs over, changed by the height map (or else the interior's density) by the variation, and the
+	// interior map at two depths under the surface: the uv shifted along the view in tangent space (uv - V.xy / V.z * depth), so the cracks
+	// and bubbles move against the surface (parallax). The deeper sample reads another part of the map at another scale.
+	float thickness = MATERIAL.Layer[SLOT_TRANSMISSION].w;
+	vec4 inner0 = vec4(0.0), inner1 = vec4(0.0);
+	if (transmission > 0.0)
+	{
+		vec4 extra = MATERIAL.Layer[SLOT_TRANSMISSION_EXTRA];
+		float h = -1.0;
+		if (HasTex(TEX_INTERIOR))
+		{
+			vec3 T = normalize(vTangent.xyz - Ng * dot(Ng, vTangent.xyz));
+			vec3 B = cross(Ng, T) * vTangent.w;
+			vec3 Vt = vec3(dot(V, T), dot(V, B), dot(V, Ng));
+			vec2 shift = Vt.xy / max(Vt.z, 0.25);   // grazing views clamped: the layer would slide off
+			inner0 = texture(uInteriorMap, vUV - shift * extra.x * 0.4);
+			inner1 = texture(uInteriorMap, vUV * 0.71 + vec2(0.37, 0.61) - shift * extra.x);
+			h = 0.25 + 0.5 * (inner0.a + inner1.a);
+		}
+		if (HasTex(TEX_HEIGHT_MAP))
+			h = texture(uHeightMap, vUV).r;
+		if (h >= 0.0)
+			thickness *= mix(1.0, 0.35 + 1.3 * clamp(h, 0.0, 1.0), extra.w);
+	}
 
 	vec3 Lo = vec3(0.0);
 
 	vec3 Ls = normalize(-uSunDir);
-	Lo += Shade(N, V, Ls, uSunColor, albedo, F0, a, metallic) * Shadow(vPos, N, Ls);
+	float sunShadow = Shadow(vPos, N, Ls);
+	Lo += Shade(N, V, Ls, uSunColor, albedo, F0, a, metallic) * sunShadow;
 
 	for (int i = 0; i < uPointCount; ++i)
 	{
@@ -437,7 +477,29 @@ void main()
 	if (transmission > 0.0)
 	{
 		passing = (1.0 - F) * (1.0 - metallic) * transmission;
-		through = Transmitted(N, V, roughness) * passing;
+		through = Transmitted(N, V, roughness, thickness) * passing;
+		vec3 absorb = MATERIAL.Layer[SLOT_TRANSMISSION].rgb * thickness;
+		float scatter = MATERIAL.Layer[SLOT_TRANSMISSION_EXTRA].y;
+		float wrap = clamp((dot(N, Ls) + 0.6) / 1.6, 0.0, 1.0);
+		if (HasTex(TEX_INTERIOR))
+		{
+			// T101: the inclusions scatter the light that reaches them (the sky and the wrapped, shadowed sun), dimmed by the ice above them,
+			// and hide what is behind by their density: the deep layer first, the shallow one over it.
+			vec4 inside = MATERIAL.Layer[SLOT_INTERIOR];
+			vec3 lit = (SkyIrradiance(N) * uEnvIntensity + uSunColor / PI * sunShadow * (0.25 + 0.75 * wrap)) * inside.rgb * passing;
+			through = mix(through, inner1.rgb * lit * exp(-absorb * 0.6), clamp(inner1.a * inside.w, 0.0, 1.0));
+			through = mix(through, inner0.rgb * lit * exp(-absorb * 0.25), clamp(inner0.a * inside.w, 0.0, 1.0));
+		}
+		if (scatter > 0.0)
+		{
+			// T101: light through the thin parts, cheap: the silhouette (grazing view, the ice is thin there) and the sun seen through the
+			// piece (back light around -Ls, bent by the normal), plus a little wrap; tinted by a shorter path, so the edges are a paler cyan.
+			float edge = pow(1.0 - clamp(dot(Ng, V), 0.0, 1.0), 3.0);
+			float back = pow(clamp(dot(V, -normalize(Ls + N * 0.4)), 0.0, 1.0), 6.0);
+			vec3 thin = exp(-absorb * 0.3);
+			color += (uSunColor / PI * sunShadow * (back * 2.0 + edge * wrap * 1.2 + wrap * 0.15) + SkyIrradiance(N) * uEnvIntensity * edge * 0.5)
+				* thin * scatter * transmission;
+		}
 	}
 	float fogKeep = 1.0;   // the part of the surface's light that gets through the fog
 	if (uFogDensity > 0.0)

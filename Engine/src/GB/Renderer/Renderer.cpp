@@ -111,6 +111,7 @@ namespace GB
 		depthSpec.DepthCompare = false;
 		m_SceneDepth = std::make_unique<Framebuffer>(depthSpec);
 
+		m_SceneTransmission.reset();   // T101: made again at the new size the next time a transmissive surface is in view
 	}
 
 	void Renderer::Resize(uint32_t width, uint32_t height)
@@ -289,6 +290,7 @@ namespace GB
 			if (m.MetallicRoughnessMap) m.MetallicRoughnessMap->Bind(4);
 			if (m.OcclusionMap) m.OcclusionMap->Bind(5);
 			if (m.EmissiveMap) m.EmissiveMap->Bind(6);
+			if (m.InteriorMap) m.InteriorMap->Bind(13);   // T101 (read with LAYER_TRANSMISSION only)
 			if (copies > 0) obj.MeshPtr->DrawInstanced(copies);
 			else if (obj.IndexCount > 0) obj.MeshPtr->DrawRange(obj.IndexFirst, obj.IndexCount);
 			else obj.MeshPtr->Draw();
@@ -368,14 +370,41 @@ namespace GB
 				[&](const RenderObject* a, const RenderObject* b) { return distance2(a) > distance2(b); });
 
 			// T34: a transmissive surface (glass, ice) reads the scene drawn so far (opaque, grass, water) from a resolved copy: one per frame,
-			// only when such a surface is in view (nothing new to pay without one). The copy goes into m_SceneResolved, scratch until the final
-			// resolve below, as the water's does; the water copies before drawing itself, so the glass needs its own to see the water.
-			const bool transmissive = std::any_of(translucent.begin(), translucent.end(),
-				[](const RenderObject* o) { return o->Mat.Alpha == AlphaMode::Blend && o->Mat.Transmission > 0.0f; });
+			// only when such a surface is in view (nothing new to pay without one). The water copies before drawing itself, so the glass needs
+			// its own to see the water.
+			// T101: the copy has a target of its own with a mip chain (m_SceneTransmission, made the first time a transmissive surface is in
+			// view): the mips are generated only when one of them is rough enough to blur (a smooth glass reads level 0), and the shader is told
+			// how many levels it may read (uSceneColorLods). The opaque depth is resolved too (unit 12) for the refraction's depth test.
+			const auto isTransmissive = [](const RenderObject* o) { return o->Mat.Alpha == AlphaMode::Blend && o->Mat.Transmission > 0.0f; };
+			const bool transmissive = std::any_of(translucent.begin(), translucent.end(), isTransmissive);
 			if (transmissive)
 			{
-				Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneResolved);
-				cmd.BindTexture(11, m_SceneResolved->ColorTexture());
+				if (!m_SceneTransmission)
+				{
+					FramebufferSpec spec;
+					spec.Width = m_Width;
+					spec.Height = m_Height;
+					spec.Format = ColorFormat::RGBA16F;
+					spec.Depth = false;
+					spec.Levels = RHI::FullMipLevels(m_Width, m_Height);
+					m_SceneTransmission = std::make_unique<Framebuffer>(spec);
+				}
+				Framebuffer::BlitColor(*m_SceneMSAA, *m_SceneTransmission);
+				// The roughness that blurs more than a pixel at 1080p and 1 m is ~0.08 (radius r^2 * 0.3 / distance screens): a
+				// metal-roughness map only lowers the material's roughness, so the material's is the bound.
+				const bool rough = std::any_of(translucent.begin(), translucent.end(),
+					[&](const RenderObject* o) { return isTransmissive(o) && o->Mat.Roughness > kTransmissionMipRoughness; });
+				float lods = 0.0f;
+				if (rough)
+				{
+					RHI::GetDevice().GenerateMips(m_SceneTransmission->ColorTexture());
+					lods = static_cast<float>(m_SceneTransmission->GetLevels() - 1);
+					++m_Stats.TransmissionMips;
+				}
+				m_PBRShader->SetFloat("uSceneColorLods", lods);
+				Framebuffer::BlitDepth(*m_SceneMSAA, *m_SceneDepth);
+				cmd.BindTexture(11, m_SceneTransmission->ColorTexture());
+				cmd.BindTexture(12, m_SceneDepth->DepthTexture());
 				++m_Stats.TransmissionCopies;
 			}
 			// The grass and the water bind programs of their own: the translucent objects need the PBR one back (and its shadow map and ground

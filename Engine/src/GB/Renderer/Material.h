@@ -63,5 +63,19 @@ namespace GB
 		float Ior = 1.5f;
 		glm::vec3 Absorption{ 0.0f };
 		float Thickness = 0.05f;   // metres: the absorption's path and how far the refracted ray goes before it is looked up on the screen
+
+		// T101, with Transmission only (MATERIALES.md, "Hielo y cristal v2"):
+		// - an interior map (rgb the colour of what is inside: cracks, bubbles; a its density) seen at two depths under the surface, shifted by
+		//   the view (parallax), so the cracks look inside the ice and move against the surface. InteriorDepth is in uv units of the map.
+		const Texture2D* InteriorMap = nullptr;
+		float InteriorDepth = 0.03f;
+		float InteriorStrength = 0.8f;
+		glm::vec3 InteriorTint{ 1.0f };
+		// - scatter (0-1): sunlight through the thin parts (the silhouette and where the sun is behind) and a little wrap in the diffuse.
+		float Scatter = 0.0f;
+		// - a faint shadow (0: none, as before T101): the density of a dithered shadow in the shadow map.
+		float ShadowDensity = 0.0f;
+		// - how much the height map (or else the interior's density) changes the absorption's thickness (0: a fixed thickness).
+		float ThicknessVariation = 0.5f;
 	};
 }

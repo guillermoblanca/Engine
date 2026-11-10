@@ -43,6 +43,7 @@ namespace GB
 		uint32_t Materials = 0;          // materials in the table at the end of the frame
 		// T34: resolves of the scene for the transmissive translucent objects (glass, ice): 1 in a frame that has one in view, else 0
 		uint32_t TransmissionCopies = 0;
+		uint32_t TransmissionMips = 0;   // T101: ... of them, with the mip chain generated (a rough one in view)
 	};
 
 	// Counts the draw calls as they are made (the mesh and the instanced draws call Add): the renderer reads it around each pass.

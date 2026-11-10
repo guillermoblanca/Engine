@@ -72,8 +72,18 @@ namespace GB::RHI
 	{
 		RenderTarget rt;
 		rt.Handle = { Next() };
-		if (desc.Color != Format::None) rt.Color = { Next() };
-		if (desc.Color != Format::None && desc.Extra != Format::None) rt.Extra = { Next() };
+		Expect(desc.Levels >= 1 && (desc.Levels == 1 || desc.Samples <= 1), "CreateRenderTarget: mip levels on a multisampled target");
+		Expect(desc.Levels <= FullMipLevels(desc.Width, desc.Height), "CreateRenderTarget: more mip levels than the size has");
+		// The color attachments are textures like any other (T101): what they were made with, levels included, is in GetTexture.
+		TextureDesc color;
+		color.Width = desc.Width;
+		color.Height = desc.Height;
+		color.Samples = desc.Samples;
+		color.Levels = desc.Samples > 1 ? 1u : std::max(desc.Levels, 1u);
+		color.Fmt = desc.Color;
+		if (desc.Color != Format::None) rt.Color = CreateTexture(color);
+		color.Fmt = desc.Extra;
+		if (desc.Color != Format::None && desc.Extra != Format::None) rt.Extra = CreateTexture(color);
 		if (desc.Depth && desc.DepthAsTexture) rt.DepthTexture = { Next() };
 		rt.Complete = true;
 		return rt;

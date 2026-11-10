@@ -238,6 +238,29 @@ void main() { FragColor = vColor * uTint + uAdd[1]; }
 	}
 	Check(rounds, "ring: 6 more frames go round the 3 regions, each from its region's start");
 
+	// ---- T101: a render target with mip levels: cleared at level 0, GenerateMips fills the chain down to 1x1 ----
+	{
+		RenderTargetDesc md;
+		md.Width = md.Height = 4;
+		md.Depth = false;
+		md.Levels = FullMipLevels(4, 4);
+		RenderTarget mipped = device.CreateRenderTarget(md);
+		Check(mipped.Complete, "target levels: a 4x4 RGBA8 target with 3 levels is complete");
+		PassDesc clear;
+		clear.Target = mipped.Handle;
+		clear.Width = clear.Height = 4;
+		clear.ClearColor = glm::vec4(1.0f, 0.5f, 0.0f, 1.0f);
+		clear.Name = "rhi_gl_levels";
+		cmd.BeginPass(clear);
+		cmd.EndPass();
+		device.GenerateMips(mipped.Color);
+		uint8_t last[4] = {};
+		device.ReadTextureLayer(mipped.Color, 2, 0, 0, 0, 1, 1, PixelData::RGBA8, sizeof(last), last);
+		std::fprintf(stderr, "levels: 1x1 level %u %u %u %u\n", last[0], last[1], last[2], last[3]);
+		Check(last[0] == 255 && last[1] >= 127 && last[1] <= 128 && last[2] == 0, "target levels: the 1x1 level has the clear colour after GenerateMips");
+		device.DestroyRenderTarget(mipped);
+	}
+
 	ring.reset();
 	device.DestroyRenderTarget(target);
 	device.DestroyPipeline(pipeline);

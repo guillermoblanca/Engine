@@ -6,6 +6,8 @@
 #include "GB/Log.h"
 #include "GB/Platform/Window.h"
 #include "GB/Renderer/MaterialData.h"
+#include "GB/Renderer/MaterialLayers.h"
+#include "GB/Visual/VisualDefs.h"
 #include "GB/Renderer/MaterialTable.h"
 #include "GB/Renderer/RHI/RHI.h"
 #include "GB/Renderer/Shaders.h"
@@ -66,6 +68,22 @@ namespace
 		const GB::MaterialData p = GB::PackMaterial(plainBlend, context).Data;
 		Check((p.Flags.x & GB::MaterialData::LayerTransmission) == 0 && p.ModelParams.z == 0.0f && p.ModelParams.w == 0.0f &&
 			p.Layer[GB::MaterialData::SlotTransmission] == glm::vec4(0.0f), "a Blend material without transmission leaves the slot at zero");
+		// T101: the interior, scatter and shadow pack only with the transmission; the interior's slot and bit only with a map
+		GB::Material ice = glass;
+		ice.Scatter = 0.6f; ice.ShadowDensity = 0.35f; ice.ThicknessVariation = 0.8f; ice.InteriorDepth = 0.04f; ice.InteriorStrength = 0.9f;
+		ice.InteriorTint = { 0.9f, 1.0f, 1.1f };
+		const GB::MaterialData noMap = GB::PackMaterial(ice, context).Data;
+		Check((noMap.Tex.x & GB::MaterialData::TexInterior) == 0 && noMap.Layer[GB::MaterialData::SlotInterior] == glm::vec4(0.0f) &&
+			noMap.Layer[GB::MaterialData::SlotTransmissionExtra] == glm::vec4(0.0f, 0.6f, 0.35f, 0.8f), "without an interior map: scatter, shadow and variation only");
+		ice.InteriorMap = reinterpret_cast<const GB::Texture2D*>(&ice);   // (any non-null pointer: PackMaterial only tests it)
+		const GB::MaterialData withMap = GB::PackMaterial(ice, context).Data;
+		Check((withMap.Tex.x & GB::MaterialData::TexInterior) != 0 && withMap.Layer[GB::MaterialData::SlotInterior] == glm::vec4(0.9f, 1.0f, 1.1f, 0.9f) &&
+			withMap.Layer[GB::MaterialData::SlotTransmissionExtra].x == 0.04f, "with an interior map: its bit, tint, strength and depth");
+		GB::Material opaqueIce = ice;
+		opaqueIce.Alpha = GB::AlphaMode::Opaque;
+		GB::Material opaquePlain = opaqueIce;
+		opaquePlain.InteriorMap = nullptr; opaquePlain.Scatter = 0.0f; opaquePlain.ShadowDensity = 0.0f; opaquePlain.Transmission = 0.0f;
+		Check(GB::PackMaterial(opaqueIce, context) == GB::PackMaterial(opaquePlain, context), "the T101 values on an opaque material pack nothing (same bytes)");
 		Check(table.UploadedEnd() == 0 && table.Dirty(), "the new entries wait for an upload");
 		table.MarkUploaded();
 		Check(!table.Dirty(), "nothing left to upload");
@@ -109,6 +127,30 @@ namespace
 			acquireNs, table.Size(), sink);
 	}
 
+	// T101: the transmission layer's new parameters in the data: "scatter", "shadow", "thicknessVariation" and the "interior" object (its "map"
+	// a texture name); read onto a render material by the registry, and written back by VisualsToJson to the same library.
+	void CheckVisualsJson()
+	{
+		const char* json = R"({ "visuals": { "materials": { "ice": { "color": [0.9, 0.95, 1.0], "roughness": 0.3, "surface": "translucent",
+			"layers": { "transmission": { "ior": 1.31, "absorption": [3.0, 0.5, 0.25], "thickness": 0.5, "scatter": 0.6, "shadow": 0.3,
+				"interior": { "map": "ice_cracks", "depth": 0.03, "strength": 0.8, "tint": [0.9, 1.0, 1.0] } } } } } } })";
+		GB::VisualLibrary lib;
+		const std::string why = GB::LoadVisuals(json, lib);
+		Check(why.empty() && lib.Materials.count("ice") == 1, "visuals: a transmission layer with interior, scatter and shadow loads (" + why + ")");
+		if (!why.empty() || !lib.Materials.count("ice")) return;
+		const GB::VisualMaterial& v = lib.Materials.at("ice");
+		GB::Material m;
+		GB::ApplyMaterialLayers(v.Layers, m);
+		Check(v.InteriorMap == "ice_cracks" && m.Scatter == 0.6f && m.ShadowDensity == 0.3f && m.InteriorDepth == 0.03f && m.InteriorStrength == 0.8f &&
+			m.InteriorTint == glm::vec3(0.9f, 1.0f, 1.0f) && m.ThicknessVariation == 0.5f, "visuals: the interior's map name and the values on the material");
+		GB::VisualLibrary back;
+		Check(GB::LoadVisuals(GB::VisualsToJson(lib), back).empty() && back.Materials.count("ice") && back.Materials.at("ice") == v,
+			"visuals: VisualsToJson reads back to the same material");
+		GB::VisualLibrary bad;
+		Check(!GB::LoadVisuals(R"({ "visuals": { "materials": { "x": { "surface": "translucent", "layers": { "transmission": { "interior": { "deep": 1 } } } } } } })", bad).empty(),
+			"visuals: an unknown interior parameter is a mistake");
+	}
+
 	// The constants of lib/material, as text: "const uint NAME = <value>u;".
 	void CheckConstants()
 	{
@@ -118,13 +160,14 @@ namespace
 		const Constant constants[] = {
 			{ "TEX_ALBEDO", D::TexAlbedo }, { "TEX_NORMAL", D::TexNormal }, { "TEX_HEIGHT_MAP", D::TexHeightMap }, { "TEX_HEIGHT", D::TexHeight },
 			{ "TEX_MR", D::TexMR }, { "TEX_OCCLUSION", D::TexOcclusion }, { "TEX_EMISSIVE", D::TexEmissive }, { "TEX_MACRO", D::TexMacro },
-			{ "TEX_TERRAIN_NORMALS", D::TexTerrainNormals },
+			{ "TEX_TERRAIN_NORMALS", D::TexTerrainNormals }, { "TEX_INTERIOR", D::TexInterior },
 			{ "FLAG_FOLIAGE_NORMALS", D::FlagFoliageNormals }, { "FLAG_ALPHA_TO_COVERAGE", D::FlagAlphaToCoverage }, { "FLAG_DOUBLE_SIDED", D::FlagDoubleSided },
 			{ "LAYER_GRAIN", D::LayerGrain }, { "LAYER_MOSS", D::LayerMoss }, { "LAYER_SAND", D::LayerSand }, { "LAYER_WATER_LINE", D::LayerWaterLine },
 			{ "LAYER_TRAIL", D::LayerTrail }, { "LAYER_MACRO", D::LayerMacro }, { "LAYER_TRANSMISSION", D::LayerTransmission },
 			{ "SLOT_GRAIN", D::SlotGrain }, { "SLOT_MOSS", D::SlotMoss }, { "SLOT_SAND", D::SlotSand }, { "SLOT_WATER_LINE", D::SlotWaterLine },
 			{ "SLOT_TRAIL", D::SlotTrail }, { "SLOT_TRAIL_TINT", D::SlotTrailTint }, { "SLOT_MACRO", D::SlotMacro },
-			{ "SLOT_TRANSMISSION", D::SlotTransmission },
+			{ "SLOT_TRANSMISSION", D::SlotTransmission }, { "SLOT_INTERIOR", D::SlotInterior },
+			{ "SLOT_TRANSMISSION_EXTRA", D::SlotTransmissionExtra },
 			{ "LAYER_SLOTS", D::LayerSlots },
 		};
 		int found = 0;
@@ -144,6 +187,7 @@ int GBTest_material_block(int, char**)
 {
 	GB::Log::Init();
 	CheckTable();
+	CheckVisualsJson();
 	TimeTable();
 	CheckConstants();
 

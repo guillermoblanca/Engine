@@ -17,6 +17,7 @@ namespace GB
 		bool DepthAsTexture = false;   // depth stored in a texture instead of a renderbuffer
 		bool DepthCompare = true;      // with DepthAsTexture: comparison sampler (shadow maps); false = plain sampler2D
 		ColorFormat Extra = ColorFormat::None;   // a second color attachment (fragment output location 1), same samples
+		uint32_t Levels = 1;           // T101: mip levels of the color (single-sample only); draws and blits fill level 0, GenerateMips the rest
 	};
 
 	// Offscreen render target: an RHI render target with its attachments.
@@ -36,6 +37,7 @@ namespace GB
 
 		uint32_t GetWidth() const { return m_Spec.Width; }
 		uint32_t GetHeight() const { return m_Spec.Height; }
+		uint32_t GetLevels() const { return m_Spec.Levels; }
 		const RHI::RenderTarget& GetTarget() const { return m_Target; }
 		// The device's ids (the GL names with the GL device: ImGui images and the editor's tools use them).
 		uint32_t GetID() const { return m_Target.Handle.Id; }

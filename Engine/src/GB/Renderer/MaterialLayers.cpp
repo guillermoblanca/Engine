@@ -41,6 +41,12 @@ namespace GB
 			m.Ior = Get(self, values, "ior");
 			m.Absorption = LayerParam(self, values, "absorption");
 			m.Thickness = Get(self, values, "thickness");
+			m.Scatter = Get(self, values, "scatter");
+			m.ShadowDensity = Get(self, values, "shadow");
+			m.ThicknessVariation = Get(self, values, "thicknessVariation");
+			m.InteriorDepth = Get(self, values, "interior.depth");
+			m.InteriorStrength = Get(self, values, "interior.strength");
+			m.InteriorTint = LayerParam(self, values, "interior.tint");
 		}
 
 		std::vector<MaterialLayerDef> MakeRegistry()
@@ -59,7 +65,15 @@ namespace GB
 					{ { "amount", LayerParamType::Float, glm::vec3(1.0f), 0.0f, 1.0f, "ModelParams.w", "how much of what is behind goes through (the rest is a diffuse surface)" },
 					  { "ior", LayerParamType::Float, glm::vec3(d.Ior), 1.0f, 3.0f, "ModelParams.z", "index of refraction: the bend and the reflectance (glass 1.5, ice 1.31)" },
 					  { "absorption", LayerParamType::Vec3, d.Absorption, 0.0f, 100.0f, "Layer[SLOT_TRANSMISSION].rgb", "absorbed per metre and channel (1/m): what is taken out, so bluish ice absorbs red" },
-					  { "thickness", LayerParamType::Float, glm::vec3(d.Thickness), 0.0f, 10.0f, "Layer[SLOT_TRANSMISSION].w", "metres the light travels inside: the absorption's path and the refraction's offset" } },
+					  { "thickness", LayerParamType::Float, glm::vec3(d.Thickness), 0.0f, 10.0f, "Layer[SLOT_TRANSMISSION].w", "metres the light travels inside: the absorption's path and the refraction's offset" },
+					  // T101. The "interior.*" parameters are written in the data as an object, "interior": {"depth", "strength", "tint",
+					  // "map"} (VisualDefs flattens it; "map" names the interior texture and is not a number, so it is the material's)
+					  { "scatter", LayerParamType::Float, glm::vec3(d.Scatter), 0.0f, 1.0f, "Layer[SLOT_TRANSMISSION_EXTRA].y", "sunlight through the thin parts (edges, back-lit) and a little wrap in the diffuse" },
+					  { "shadow", LayerParamType::Float, glm::vec3(d.ShadowDensity), 0.0f, 1.0f, "Layer[SLOT_TRANSMISSION_EXTRA].z", "density of a faint, dithered shadow (0 = no shadow)" },
+					  { "thicknessVariation", LayerParamType::Float, glm::vec3(d.ThicknessVariation), 0.0f, 1.0f, "Layer[SLOT_TRANSMISSION_EXTRA].w", "how much the height map (or the interior's density) changes the absorption's thickness" },
+					  { "interior.depth", LayerParamType::Float, glm::vec3(d.InteriorDepth), 0.0f, 0.5f, "Layer[SLOT_TRANSMISSION_EXTRA].x", "how deep the interior map lies under the surface, in uv units (parallax)" },
+					  { "interior.strength", LayerParamType::Float, glm::vec3(d.InteriorStrength), 0.0f, 1.0f, "Layer[SLOT_INTERIOR].w", "how much the interior (cracks, bubbles) covers what is behind" },
+					  { "interior.tint", LayerParamType::Color, d.InteriorTint, 0.0f, 4.0f, "Layer[SLOT_INTERIOR].rgb", "multiplies the interior map's colour" } },
 					&ApplyTransmission },
 			};
 		}

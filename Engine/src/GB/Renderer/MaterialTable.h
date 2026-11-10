@@ -59,6 +59,9 @@ namespace GB
 		if (m.EmissiveMap) tex |= D::TexEmissive;
 		if (m.MacroMap) tex |= D::TexMacro;
 		if (m.SurfaceNormalMap && m.MacroMap) tex |= D::TexTerrainNormals;
+		// Transmission only on a Blend material; any other packs zeros, so the bytes (and ids) of every other material are as before T34.
+		const bool transmission = m.Alpha == AlphaMode::Blend && m.Transmission > 0.0f;
+		if (transmission && m.InteriorMap) tex |= D::TexInterior;
 		d.Tex.x = tex;
 
 		const bool trail = context.GroundMarks && m.TrailDepth > 0.0f;
@@ -69,8 +72,6 @@ namespace GB
 		if (m.WaterLine > -1e8f) layers |= D::LayerWaterLine;
 		if (trail) layers |= D::LayerTrail;
 		if (m.MacroMap) layers |= D::LayerMacro;
-		// Transmission only on a Blend material; any other packs zeros, so the bytes (and ids) of every other material are as before T34.
-		const bool transmission = m.Alpha == AlphaMode::Blend && m.Transmission > 0.0f;
 		if (transmission) layers |= D::LayerTransmission;
 		uint32_t flags = 0;
 		if (m.FoliageNormals) flags |= D::FlagFoliageNormals;
@@ -88,6 +89,9 @@ namespace GB
 		d.Layer[D::SlotTrailTint] = glm::vec4(m.TrailTint, 0.0f);
 		d.Layer[D::SlotMacro] = m.MacroRect;
 		d.Layer[D::SlotTransmission] = transmission ? glm::vec4(m.Absorption, m.Thickness) : glm::vec4(0.0f);
+		d.Layer[D::SlotInterior] = transmission && m.InteriorMap ? glm::vec4(m.InteriorTint, m.InteriorStrength) : glm::vec4(0.0f);
+		d.Layer[D::SlotTransmissionExtra] = transmission
+			? glm::vec4(m.InteriorMap ? m.InteriorDepth : 0.0f, m.Scatter, m.ShadowDensity, m.ThicknessVariation) : glm::vec4(0.0f);
 		return desc;
 	}
 
