@@ -324,6 +324,32 @@ int GBTest_water_module(int, char**)
 		const size_t rows = ribbon.RiverVertices.size() / static_cast<size_t>(GB::kRiverColumns);
 		auto span = [&](size_t row) { return glm::distance(ribbon.RiverVertices[row * GB::kRiverColumns].Position, ribbon.RiverVertices[row * GB::kRiverColumns + GB::kRiverColumns - 1].Position); };
 		Check(rows > 20 && span(rows - 1) > 1.8f * span(1), "the water ribbon is wider downstream than upstream");
+		// T139: every vertex carries its row's half-width in Normal.z, the x (opacity) unchanged; and at a mouth the flare widens it up to 1.7x
+		auto halfWidths = [](const GB::WaterGeometry& geo, float& lo, float& hi)
+		{
+			bool ok = true;
+			lo = 1e9f; hi = 0.0f;
+			const size_t n = geo.RiverVertices.size() / static_cast<size_t>(GB::kRiverColumns);
+			for (size_t row = 0; row < n; ++row)
+			{
+				const GB::Vertex* v = &geo.RiverVertices[row * GB::kRiverColumns];
+				const float half = 0.5f * glm::distance(v[0].Position, v[GB::kRiverColumns - 1].Position);
+				for (int c = 0; c < GB::kRiverColumns; ++c) ok = ok && Near(v[c].Normal.z, half, 1e-3f) && v[c].Normal.y == 1.0f && v[c].Normal.x >= 0.0f && v[c].Normal.x <= 1.0f;
+				lo = std::min(lo, v[0].Normal.z); hi = std::max(hi, v[0].Normal.z);
+			}
+			return ok;
+		};
+		float halfLo = 0.0f, halfHi = 0.0f;
+		Check(halfWidths(ribbon, halfLo, halfHi), "a river vertex's Normal.z is the half-width of its row");
+		Check(halfLo >= 1.5f * river.HalfWidths.front() - 1e-3f && halfHi <= 1.5f * river.HalfWidth + 1e-3f && halfHi > 1.8f * halfLo,
+			"the half-width in Normal.z spans the river's, times the ribbon's 1.5 (no mouth: no flare)");
+		GB::RiverData intoLake = river;
+		intoLake.MouthLength = 12.0f;
+		const GB::WaterGeometry flared = GB::MakeRiverGeometry(intoLake);
+		float mouthLo = 0.0f, mouthHi = 0.0f;
+		Check(halfWidths(flared, mouthLo, mouthHi), "with a mouth too");
+		Check(mouthHi > 1.5f * river.HalfWidth * 1.6f && mouthHi <= 1.5f * river.HalfWidth * 1.7f + 1e-3f, "the mouth flares the half-width up to 1.7x the river's");
+		std::printf("water_module: river half-width in Normal.z %.2f-%.2f m, %.2f-%.2f m with a mouth\n", halfLo, halfHi, mouthLo, mouthHi);
 		// a river with no discharge is the uniform river it always was
 		GB::RiverShape plain = shape; plain.Discharge.clear();
 		GB::Heightmap again(129, 192.0f);

@@ -30,6 +30,82 @@ namespace GB
 			lo = lake.Center - glm::vec2(reach);
 			hi = lake.Center + glm::vec2(reach);
 		}
+
+		// One line of the exact squared Euclidean distance transform (Felzenszwalb & Huttenlocher 2012, "Distance Transforms of Sampled
+		// Functions"): d[q] = min over p of (q - p)^2 + f[p], the lower envelope of the parabolas rooted at every p. v and z are scratch of
+		// n and n + 1. Every f is finite (a squared distance along the column), so in doubles every value is exact.
+		void SquaredDistance1D(const double* f, int n, double* d, int* v, double* z)
+		{
+			constexpr double kInf = std::numeric_limits<double>::infinity();
+			auto meet = [f](int q, int p)   // where the parabolas of q and p cross
+			{
+				const double dq = static_cast<double>(q), dp = static_cast<double>(p);
+				return ((f[q] + dq * dq) - (f[p] + dp * dp)) / (2.0 * (dq - dp));
+			};
+			int k = 0;
+			v[0] = 0;
+			z[0] = -kInf;
+			z[1] = kInf;
+			for (int q = 1; q < n; ++q)
+			{
+				double s = meet(q, v[k]);
+				while (s <= z[k]) { --k; s = meet(q, v[k]); }   // z[0] is -inf: stops at k = 0
+				++k;
+				v[k] = q;
+				z[k] = s;
+				z[k + 1] = kInf;
+			}
+			k = 0;
+			for (int q = 0; q < n; ++q)
+			{
+				while (z[k + 1] < static_cast<double>(q)) ++k;
+				const double dq = static_cast<double>(q - v[k]);
+				d[q] = dq * dq + f[v[k]];
+			}
+		}
+
+		// The distance in samples from every sample of a w x h box to the nearest sample that is not a cell (isCell[c] == 0), exact
+		// Euclidean, with a ring of non-cells around the box: a lake that reaches the grid's edge has its shore there, and every column has
+		// a non-cell at both ends. First the distance along each column (two sweeps), then the transform along each row. out: w * h.
+		void ShoreDistanceTransform(const std::vector<uint8_t>& isCell, int w, int h, std::vector<double>& grid, std::vector<double>& row,
+			std::vector<int>& v, std::vector<double>& z, std::vector<float>& out)
+		{
+			const int pw = w + 2, ph = h + 2;
+			auto cell = [&](int pi, int pj)   // padded coordinates; the ring is not a cell
+			{
+				return pi >= 1 && pj >= 1 && pi <= w && pj <= h && isCell[static_cast<size_t>(pj - 1) * static_cast<size_t>(w) + static_cast<size_t>(pi - 1)] != 0;
+			};
+			grid.assign(static_cast<size_t>(pw) * static_cast<size_t>(ph), 0.0);
+			auto g = [&](int pi, int pj) -> double& { return grid[static_cast<size_t>(pj) * static_cast<size_t>(pw) + static_cast<size_t>(pi)]; };
+			for (int pi = 0; pi < pw; ++pi)
+			{
+				int last = 0;   // the padding row 0 is a non-cell
+				for (int pj = 0; pj < ph; ++pj)
+				{
+					if (!cell(pi, pj)) last = pj;
+					g(pi, pj) = static_cast<double>(pj - last);
+				}
+				last = ph - 1;
+				for (int pj = ph - 1; pj >= 0; --pj)
+				{
+					if (!cell(pi, pj)) last = pj;
+					const double down = static_cast<double>(last - pj);
+					double& d = g(pi, pj);
+					d = std::min(d, down);
+					d *= d;   // squared, for the row pass
+				}
+			}
+			row.resize(static_cast<size_t>(pw));
+			v.resize(static_cast<size_t>(pw));
+			z.resize(static_cast<size_t>(pw) + 1);
+			out.assign(static_cast<size_t>(w) * static_cast<size_t>(h), 0.0f);
+			for (int pj = 1; pj <= h; ++pj)
+			{
+				SquaredDistance1D(&g(0, pj), pw, row.data(), v.data(), z.data());
+				for (int pi = 1; pi <= w; ++pi)
+					out[static_cast<size_t>(pj - 1) * static_cast<size_t>(w) + static_cast<size_t>(pi - 1)] = static_cast<float>(std::sqrt(row[static_cast<size_t>(pi)]));
+			}
+		}
 	}
 
 	LakeMesh BuildLakeMesh(const WaterField& water, const LakeMeshGround& ground, const WaterLook& look, const LakeMeshOptions& options)
@@ -54,8 +130,11 @@ namespace GB
 		constexpr uint8_t kOut = 0, kCell = 1, kSkirt = 2;
 		constexpr uint8_t kFar = 255;
 		constexpr uint32_t kNone = std::numeric_limits<uint32_t>::max();
-		std::vector<uint8_t> kind, dist, next;
+		std::vector<uint8_t> kind, dist, next, isCell;
 		std::vector<uint32_t> remap;
+		std::vector<double> edtGrid, edtRow, edtZ;
+		std::vector<int> edtV;
+		std::vector<float> shore;   // per local sample: samples to the nearest non-cell (0 off the lake)
 
 		for (size_t k = 0; k < lakes.size(); ++k)
 		{
@@ -95,6 +174,11 @@ namespace GB
 				}
 			mesh.LakeCells += cells;
 			if (cells == 0) continue;
+
+			// how far every cell is from the shore (T139): the exact distance transform over the box, the non-cells its features
+			isCell.resize(local);
+			for (size_t c = 0; c < local; ++c) isCell[c] = kind[c] == kCell ? 1 : 0;
+			ShoreDistanceTransform(isCell, w, h, edtGrid, edtRow, edtV, edtZ, shore);
 
 			// the Chebyshev distance to the nearest cell, up to the skirt (one 3x3 grow per ring)
 			for (int ring = 1; ring <= skirt; ++ring)
@@ -136,6 +220,8 @@ namespace GB
 					const glm::vec2 p = ground.SamplePosition(static_cast<uint32_t>(i0 + li), static_cast<uint32_t>(j0 + lj));
 					lv.Position = { p.x, lake.Level, p.y };
 					lv.Lake = static_cast<uint32_t>(k);
+					lv.Depth = lake.Level - ground.At(static_cast<uint32_t>(i0 + li), static_cast<uint32_t>(j0 + lj));
+					lv.ShoreDistance = kind[at(li, lj)] == kCell ? shore[at(li, lj)] * ground.Spacing : 0.0f;
 					mesh.Vertices.push_back(lv);
 				}
 				return v;

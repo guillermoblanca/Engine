@@ -71,7 +71,9 @@ namespace GB
 				const float u = static_cast<float>(c) / static_cast<float>(columns - 1) * 2.0f - 1.0f;   // -1..1 across
 				Vertex v;
 				v.Position = { s.P.x + side.x * u * width, s.P.y, s.P.z + side.y * u * width };
-				v.Normal = { blend, 1.0f, 0.0f };   // x = opacity toward the lake (the shader reads it in place of a normal)
+				// x = opacity toward the lake (the shader reads it in place of a normal); z = the half-width in metres of this row, widened
+				// at the mouth (T139, for the shader's bank foam; no shader reads it yet)
+				v.Normal = { blend, 1.0f, width };
 				v.UV = { u, arc[i] / 4.0f };
 				// xy = flow direction (xz), z = speed m/s (slower toward the banks), w = |across|
 				v.Tangent = { dir.x, dir.y, s.Speed * (1.0f - 0.55f * u * u), std::fabs(u) };

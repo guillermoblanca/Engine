@@ -30,5 +30,7 @@ namespace GB
 	// kRiverColumns across (waves need far more vertices than the carve path has). A river that ends in a lake
 	// (RiverData::MouthLength > 0) is extended a few meters into it, flares open and fades out, so the two surfaces
 	// overlap instead of meeting in a hard edge. A river with fewer than two points gives an empty geometry.
+	// A river vertex: Normal = (opacity toward the lake, 1, half-width in metres of its row, widened at the mouth), UV = (-1..1 across,
+	// metres along / 4), Tangent = (flow direction xz, speed m/s, |across|).
 	WaterGeometry MakeRiverGeometry(const RiverData& river, float widthScale = 1.5f);
 }

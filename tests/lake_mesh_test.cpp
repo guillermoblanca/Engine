@@ -7,6 +7,7 @@
 #include "GB/World/Water/LakeMesh.h"
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstring>
 #include <string>
@@ -90,13 +91,30 @@ namespace
 		return -1;
 	}
 
-	struct Tally { size_t Triangles = 0, OutsideSkirt = 0, SkirtAbove = 0, SkirtBelow = 0, WrongLake = 0, WrongLevel = 0, Winding = 0, OffGrid = 0, Range = 0; };
+	struct Tally { size_t Triangles = 0, OutsideSkirt = 0, SkirtAbove = 0, SkirtBelow = 0, WrongLake = 0, WrongLevel = 0, Winding = 0, OffGrid = 0, Range = 0,
+		WrongDepth = 0, WrongSkirtShore = 0, WrongShore = 0, ShoreChecked = 0; };
+
+	// T139: the distance from sample (i, j) to the nearest sample that is not a cell of lake k, by brute force over the whole grid, with the
+	// samples past the grid's edge counting as shore (what LakeVertex::ShoreDistance promises), in metres.
+	float BruteShoreDistance(const std::vector<int>& owners, uint32_t n, float spacing, int i, int j, int k)
+	{
+		const int ni = static_cast<int>(n);
+		const int edge = std::min({ i + 1, j + 1, ni - i, ni - j });   // the ring past the grid's edge
+		int bestSq = edge * edge;
+		for (int y = 0; y < ni; ++y)
+			for (int x = 0; x < ni; ++x)
+				if (owners[static_cast<size_t>(y) * n + static_cast<size_t>(x)] != k) bestSq = std::min(bestSq, (x - i) * (x - i) + (y - j) * (y - j));
+		return std::sqrt(static_cast<float>(bestSq)) * spacing;
+	}
 
 	// Every invariant of the mesh against the water and the ground it was built from.
-	Tally Validate(const LakeMesh& mesh, const WaterField& water, const LakeMeshGround& ground, int skirt, const char* what)
+	Tally Validate(const LakeMesh& mesh, const WaterField& water, const LakeMeshGround& ground, int skirt, const char* what, bool bruteShore = false)
 	{
 		Tally t;
 		const std::vector<const LakeBody*> lakes = water.Lakes();
+		std::vector<int> owners(static_cast<size_t>(ground.N) * ground.N);
+		for (uint32_t j = 0; j < ground.N; ++j)
+			for (uint32_t i = 0; i < ground.N; ++i) owners[static_cast<size_t>(j) * ground.N + i] = Owner(lakes, ground.SamplePosition(i, j));
 		Check(mesh.Bodies.size() == lakes.size() && mesh.Ranges.size() == lakes.size(), std::string(what) + ": one body and one range per lake");
 		for (size_t k = 0; k < std::min(mesh.Bodies.size(), lakes.size()); ++k)
 			Check(mesh.Bodies[k].Level == lakes[k]->Level && mesh.Bodies[k].Center == lakes[k]->Center, std::string(what) + ": body " + std::to_string(k) + " is Lakes()[" + std::to_string(k) + "]");
@@ -121,6 +139,25 @@ namespace
 			const LakeMesh::Range& r = mesh.Ranges[lv.Lake];
 			if (v < r.FirstVertex || v >= r.FirstVertex + r.VertexCount) ++t.Range;
 			if (lv.Position.y != mesh.Bodies[lv.Lake].Level || lv.Normal != glm::vec3(0.0f, 1.0f, 0.0f)) ++t.WrongLevel;
+			// T139: the depth is the level minus the ground at the sample, everywhere; off the lake's cells (the skirt) it is <= 0 and the
+			// distance to the shore is 0; on a cell it is at least one sample, and (bruteShore) the exact distance to the nearest non-cell
+			const int i = static_cast<int>(std::lround((lv.Position.x - ground.Min.x) / ground.Spacing));
+			const int j = static_cast<int>(std::lround((lv.Position.z - ground.Min.y) / ground.Spacing));
+			if (i < 0 || j < 0 || i >= static_cast<int>(ground.N) || j >= static_cast<int>(ground.N)) continue;   // OffGrid counts it below
+			const float level = mesh.Bodies[lv.Lake].Level;
+			if (lv.Depth != level - ground.At(static_cast<uint32_t>(i), static_cast<uint32_t>(j))) ++t.WrongDepth;
+			const bool cell = owners[static_cast<size_t>(j) * ground.N + static_cast<size_t>(i)] == static_cast<int>(lv.Lake);
+			if (!cell)
+			{
+				if (lv.ShoreDistance != 0.0f || lv.Depth > 0.0f) ++t.WrongSkirtShore;
+			}
+			else if (!std::isfinite(lv.ShoreDistance) || !(lv.ShoreDistance >= ground.Spacing * 0.999f)) ++t.WrongShore;
+			else if (bruteShore)
+			{
+				++t.ShoreChecked;
+				const float exact = BruteShoreDistance(owners, ground.N, ground.Spacing, i, j, static_cast<int>(lv.Lake));
+				if (std::fabs(lv.ShoreDistance - exact) > 1e-4f * std::max(1.0f, exact)) ++t.WrongShore;
+			}
 		}
 		for (size_t q = 0; q + 2 < mesh.Indices.size(); q += 3)
 		{
@@ -150,6 +187,11 @@ namespace
 		Check(t.Winding == 0, std::string(what) + ": counter-clockwise seen from +Y (" + std::to_string(t.Winding) + ")");
 		Check(t.OutsideSkirt == 0, std::string(what) + ": no triangle outside its lake's cells grown by the skirt (" + std::to_string(t.OutsideSkirt) + ")");
 		Check(t.SkirtBelow == 0, std::string(what) + ": the skirt is under the terrain, no vertex past the shore over ground below the level (" + std::to_string(t.SkirtBelow) + ")");
+		Check(t.WrongDepth == 0, std::string(what) + ": every vertex's Depth is its lake's level minus the ground (" + std::to_string(t.WrongDepth) + ")");
+		Check(t.WrongSkirtShore == 0, std::string(what) + ": a skirt vertex has Depth <= 0 and ShoreDistance 0 (" + std::to_string(t.WrongSkirtShore) + ")");
+		Check(t.WrongShore == 0, std::string(what) + ": every cell's ShoreDistance is the exact distance to the nearest non-cell (" + std::to_string(t.WrongShore) + " wrong, " +
+			std::to_string(t.ShoreChecked) + " by brute force)");
+		Check(!bruteShore || t.ShoreChecked > 0, std::string(what) + ": some cells checked by brute force");
 		return t;
 	}
 
@@ -194,7 +236,7 @@ int GBTest_lake_mesh(int, char**)
 		water.SetLake(main);
 
 		const LakeMesh mesh = BuildLakeMesh(water, ground);
-		const Tally t = Validate(mesh, water, ground, 1, "synthetic");
+		const Tally t = Validate(mesh, water, ground, 1, "synthetic", true);
 		std::printf("lake_mesh: synthetic 49 x 49, %zu lakes, %zu cells, %zu vertices, %zu triangles, %zu shore triangles left out, %zu skirt corners\n",
 			mesh.Bodies.size(), mesh.LakeCells, mesh.Vertices.size(), mesh.TriangleCount(), mesh.DroppedShoreTriangles, t.SkirtAbove);
 		Check(mesh.Bodies.size() == 3 && mesh.Bodies[0].Level == 1.5f && mesh.Bodies[1].Level == 5.0f && mesh.Bodies[2].Level == 7.0f,
@@ -249,8 +291,53 @@ int GBTest_lake_mesh(int, char**)
 		LakeMeshOptions wide;
 		wide.SkirtCells = 2;
 		const LakeMesh mesh2 = BuildLakeMesh(water, ground, DefaultWaterLook(), wide);
-		Validate(mesh2, water, ground, 2, "synthetic, skirt 2");
+		Validate(mesh2, water, ground, 2, "synthetic, skirt 2", true);
 		Check(mesh2.TriangleCount() > mesh.TriangleCount(), "a skirt of two cells has more triangles");
+	}
+
+	// ---------------------------------------------------------------- T139: the vertex layout the renderer binds
+	Check(sizeof(LakeVertex) == 36 && offsetof(LakeVertex, Position) == 0 && offsetof(LakeVertex, Normal) == 12 && offsetof(LakeVertex, Lake) == 24 &&
+		offsetof(LakeVertex, Depth) == 28 && offsetof(LakeVertex, ShoreDistance) == 32, "LakeVertex: stride 36; Position 0, Normal 12, Lake 24, Depth 28, ShoreDistance 32");
+
+	// ---------------------------------------------------------------- T139: a round lake on flat ground, 2 m per sample: the distance to the shore
+	{
+		constexpr uint32_t n = 65;
+		TgField flat;
+		flat.Resize(n, 128.0f);   // 2 m per sample
+		for (float& v : flat.Values) v = 0.0f;
+		const LakeMeshGround ground = GroundOf(flat);
+		LakeBody disc;
+		disc.Present = true;
+		disc.Center = flat.SamplePosition(32, 32);
+		disc.Radius = 40.0f;
+		disc.Level = 1.0f;
+		WaterField water;
+		water.SetLake(disc);
+		const LakeMesh mesh = BuildLakeMesh(water, ground);
+		Validate(mesh, water, ground, 1, "round lake", true);
+		float maxShore = 0.0f;
+		bool depth = true, grows = true, ring = true;
+		size_t ringCells = 0;
+		for (const LakeVertex& v : mesh.Vertices)
+		{
+			const glm::vec2 p{ v.Position.x, v.Position.z };
+			if (!disc.Covers(p)) continue;
+			maxShore = std::max(maxShore, v.ShoreDistance);
+			depth = depth && v.Depth == 1.0f;
+			// inward it grows as the radius minus the distance from the centre, within a sample and a half
+			grows = grows && std::fabs(v.ShoreDistance - (disc.Radius - glm::distance(p, disc.Center))) <= 1.5f * ground.Spacing;
+			// next to the shore (a neighbour along the grid is not water) it is one sample, the least a cell can be
+			bool shoreNeighbour = false;
+			for (const glm::vec2 d : { glm::vec2(1.0f, 0.0f), glm::vec2(-1.0f, 0.0f), glm::vec2(0.0f, 1.0f), glm::vec2(0.0f, -1.0f) })
+				shoreNeighbour = shoreNeighbour || !disc.Covers(p + d * ground.Spacing);
+			if (shoreNeighbour) { ++ringCells; ring = ring && v.ShoreDistance == ground.Spacing; }
+		}
+		std::printf("lake_mesh: round lake of %.0f m at 2 m per sample, %zu cells, the farthest from the shore at %.2f m, %zu cells on the shore\n",
+			disc.Radius, mesh.LakeCells, maxShore, ringCells);
+		Check(depth, "round lake: Depth is the level over the flat ground, 1 m");
+		Check(ringCells > 0 && ring, "round lake: the cells on the shore are one sample (2 m) from it");
+		Check(grows, "round lake: ShoreDistance grows inward as the radius minus the distance to the centre");
+		Check(std::fabs(maxShore - disc.Radius) <= ground.Spacing, "round lake: its largest ShoreDistance is the radius, within a sample");
 	}
 
 	// ---------------------------------------------------------------- a noise terrain: lakes where it pools

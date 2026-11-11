@@ -2,6 +2,7 @@
 #include "GB/World/Heightmap.h"
 #include "GB/World/Water/WaterField.h"
 #include "GB/World/Water/WaterPresets.h"
+#include <cstddef>
 #include <cstdint>
 #include <glm/glm.hpp>
 #include <vector>
@@ -22,7 +23,22 @@ namespace GB
 	// the ground past the shore falls below the level (an outlet, a lower valley, a lower lake) there is no triangle: no water over dry ground.
 	//
 	// The contract with the renderer:
-	//   - LakeVertex: world position with y = the lake's level, the normal up, the lake's index (Bodies[Lake]); the wave UVs come from xz;
+	//   - LakeVertex: world position with y = the lake's level, the normal up, the lake's index (Bodies[Lake]), the water's depth and the
+	//     distance to the shore (T139, for the shader's colour, clarity and shore foam); the wave UVs come from xz. Nine tightly packed
+	//     32-bit values, stride 36:
+	//       offset  0  vec3  Position
+	//       offset 12  vec3  Normal         (0, 1, 0)
+	//       offset 24  uint  Lake
+	//       offset 28  float Depth          m: the lake's level minus the ground at that sample, signed and not clamped. Positive in the water;
+	//                                       0 or negative on the skirt (its ground is at or above the level: the water is under the terrain
+	//                                       there, so the value says how far under). A cell of a disc lake (the main one, Covers by its
+	//                                       outline) can be on ground above its level too: negative. The shader clamps (e.g. saturate as alpha).
+	//       offset 32  float ShoreDistance  m: the exact Euclidean distance (Felzenszwalb-Huttenlocher transform, in samples, times Spacing)
+	//                                       from a cell to the nearest sample of the grid that is not a cell of this lake (dry ground, the
+	//                                       skirt, or a cell owned by another lake). The samples past the grid's edge count as shore. So
+	//                                       the first ring of cells is at 1 * Spacing (diagonal: sqrt(2) * Spacing), and the skirt is 0;
+	//                                       interpolated on a shore triangle, the value crosses ~0.5 * Spacing where the shore is.
+	//     No flow field: the outlet is a point (LakeBody::Outlet), and a straight pull toward it crosses the land of a lake that is not convex.
 	//   - Bodies is parallel to WaterField::Lakes(): index 0 is the main lake when there is one, so a lake's index is not its MoreLakes() index;
 	//   - one vertex and index buffer for every lake (one draw); Ranges says which part is which lake. The rivers stay their own meshes.
 
@@ -31,8 +47,12 @@ namespace GB
 		glm::vec3 Position{ 0.0f };            // world; y = the level of the lake
 		glm::vec3 Normal{ 0.0f, 1.0f, 0.0f };
 		uint32_t Lake = 0;                     // index into LakeMesh::Bodies (and WaterField::Lakes())
+		float Depth = 0.0f;                    // m, level - ground, signed (<= 0 on the skirt)
+		float ShoreDistance = 0.0f;            // m to the nearest sample that is not a cell of this lake (0 on the skirt)
 	};
-	static_assert(sizeof(LakeVertex) == 28, "LakeVertex: 7 tightly packed 32-bit values (stride 28; Position 0, Normal 12, Lake 24)");
+	static_assert(sizeof(LakeVertex) == 36, "LakeVertex: 9 tightly packed 32-bit values (stride 36)");
+	static_assert(offsetof(LakeVertex, Position) == 0 && offsetof(LakeVertex, Normal) == 12 && offsetof(LakeVertex, Lake) == 24 &&
+		offsetof(LakeVertex, Depth) == 28 && offsetof(LakeVertex, ShoreDistance) == 32, "LakeVertex: Position 0, Normal 12, Lake 24, Depth 28, ShoreDistance 32");
 
 	// What the renderer needs to shade one lake: its level and its look (WaterParams, the colours and the clarity are its absorption).
 	struct WaterBodyParams
