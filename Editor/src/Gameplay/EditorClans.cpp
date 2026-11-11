@@ -4,6 +4,7 @@
 #include "EditorApp.h"
 #include "GB/Log.h"
 #include "GB/Gameplay/WorldResources.h"
+#include "GB/Game/StartSites.h"
 #include <chrono>
 #include <algorithm>
 #include <cstdlib>
@@ -106,7 +107,7 @@ namespace GB::Editor
 		Tribe& t = *c.Folk;
 		PrepareClanTribe(t);
 		t.Config.Economy.Camp = camp;
-		t.Config.Economy.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
+		t.Config.Economy.CampY = m_World.IsBuilt() ? CampGround(m_World.World(), camp) : 0.0f;   // (T118: a graph site's platform level)
 		return c.Id;
 	}
 
@@ -200,7 +201,7 @@ namespace GB::Editor
 			}
 			PrepareClanTribe(t);
 			t.Config.Economy.Camp = camp;
-			t.Config.Economy.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
+			t.Config.Economy.CampY = m_World.IsBuilt() ? CampGround(m_World.World(), camp) : 0.0f;   // (T118: a graph site's platform level)
 			t.Store().Add(m_Items, "wood", 2 + 2 * members);    // what they found lying around on the first day (as `tribe build`)
 			t.Store().Add(m_Items, "stone", 3 * members);
 			const std::vector<std::string> roles = t.PlanRoles(members);
@@ -407,7 +408,8 @@ namespace GB::Editor
 
 	// Where the villages of a big world go, read from the terrain alone (the site chooser scores every place against every resource node, which a
 	// map of kilometres with its wild nodes everywhere makes far too slow): flat meadow or forest edge, low, some way from the water but near it,
-	// away from the border and far from each other.
+	// away from the border and far from each other. T118: on a world whose terrain graph published settlement sites, those first, in their Rank
+	// order (GraphStartCamps: the graph keeps them apart and levelled them), and this search only for the villages beyond them.
 	std::vector<glm::vec2> EditorApp::PickVillageSites(int count, std::vector<glm::vec2> sites) const
 	{
 		const GeneratedWorld& world = m_World.World();
@@ -415,6 +417,12 @@ namespace GB::Editor
 		const Heightmap& hm = ground.GetHeightmap();
 		const float lowest = hm.GetMinHeight(), span = std::max(hm.GetMaxHeight() - hm.GetMinHeight(), 1.0f);
 		const float extent = world.Desc.Extent(), margin = std::min(150.0f, extent * 0.1f), apart = std::max(250.0f, extent / 8.0f);
+		if (!world.Settlements.empty())
+		{
+			const std::vector<glm::vec2> graph = GraphStartCamps(world.Settlements, count - static_cast<int>(sites.size()), sites, apart);
+			sites.insert(sites.end(), graph.begin(), graph.end());
+			if (static_cast<int>(sites.size()) >= count) return sites;
+		}
 		struct Candidate { glm::vec2 At; float Score; };
 		std::vector<Candidate> candidates;
 		for (float z = hm.GetMin().y + margin; z <= hm.GetMax().y - margin; z += 25.0f)

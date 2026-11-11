@@ -2,6 +2,7 @@
 #include "SceneEditor.h"
 #include "WorldInstance.h"
 #include "GB/Game/Interaction.h"
+#include "GB/Game/StartSites.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Log.h"
 #include <algorithm>
@@ -78,13 +79,15 @@ namespace GB::Editor
 		{
 			if (!w->IsBuilt()) return 0.0f;
 			const float trodden = w->TrailEase ? 1.0f - std::clamp(w->TrailEase(x, z), 0.0f, 1.0f) : 1.0f;   // T5c: a trail is trampled undergrowth
+			float undergrowth = 0.0f;
 			switch (w->World().BiomeAt(x, z))
 			{
-			case Biome::Forest: return 1.0f * trodden;
-			case Biome::Shore: return 0.3f * trodden;
-			case Biome::Meadow: return 0.15f * trodden;
-			default: return 0.0f;
+			case Biome::Forest: undergrowth = 1.0f * trodden; break;
+			case Biome::Shore: undergrowth = 0.3f * trodden; break;
+			case Biome::Meadow: undergrowth = 0.15f * trodden; break;
+			default: break;
 			}
+			return TrailUndergrowth(w->World(), x, z, undergrowth);   // T118: and so is a levelled trail of the terrain graph (GBSim's SimRun too)
 		};
 		return m_Actors->SyncNavigation(config, error);
 	}

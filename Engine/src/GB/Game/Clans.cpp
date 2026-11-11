@@ -283,6 +283,13 @@ namespace GB
 			for (const glm::vec2& c : camps) d = std::min(d, glm::distance(p, c));
 			return d;
 		};
+		for (const CampSite& site : m_GraphSites)   // T118: the terrain graph's sites, in their order (no slope test: the platform is levelled)
+			if (nearest(site.At) >= minApart && (!usable || usable(site.At)))
+			{
+				out = site;
+				if (m_Regions) out.Region = m_Regions->RegionAt(site.At);
+				return true;
+			}
 		if (m_SiteChooser)   // the settlement work's chooser (H8), asked for a place a home radius from the camps' centre; kept when it is far enough from all
 		{
 			CampSiteRequest request;

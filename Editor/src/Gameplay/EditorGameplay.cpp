@@ -4,6 +4,7 @@
 #include "GB/Log.h"
 #include "GB/Gameplay/SiteChoice.h"
 #include "GB/Gameplay/WorldResources.h"
+#include "GB/Game/StartSites.h"
 #include <chrono>
 #include <algorithm>
 #include <fstream>
@@ -460,7 +461,7 @@ namespace GB::Editor
 			m_FocusTribe = 20;
 			SelectActor(names.front(), false);   // the panel shows its mind at once
 			m_Tribe.Config.Economy.Camp = camp;
-			m_Tribe.Config.Economy.CampY = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x, camp.y) : 0.0f;
+			m_Tribe.Config.Economy.CampY = m_World.IsBuilt() ? CampGround(m_World.World(), camp) : 0.0f;   // (T118: a graph site's platform level)
 			m_Tribe.Store().Add(m_Items, "wood", 2 + 2 * workers);    // what they found lying around on the first day
 			m_Tribe.Store().Add(m_Items, "stone", 3 * workers);
 			const std::vector<std::string> roles = m_Tribe.PlanRoles(workers);

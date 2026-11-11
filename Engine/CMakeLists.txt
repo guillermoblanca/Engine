@@ -173,6 +173,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/Diplomacy.cpp
     src/GB/Game/Territory.cpp
     src/GB/Game/Clans.cpp
+    src/GB/Game/StartSites.cpp
     src/GB/Game/ClansPlayer.cpp
     src/GB/Game/PlayerMember.cpp
     src/GB/Game/TribePlayer.cpp

@@ -2,6 +2,8 @@
 //
 //   GBSim --seed=7 --years=2 --stop=clan_dead --stop=stagnant:6 --clans=3 ...   (a year of age is 4 simulated days; --days=N instead of --years=N)
 //   GBSim --seed=7 --days=30 --clans=3 --members=6 --biome=temperate --telemetry=run.db [--every=60] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text] [--pack=id] [--know=tech,tech]
+//   GBSim --graph=assets/data/terrain_graphs/highland_valley_settle.json --seed=5 --days=3 --clans=3 --members=6 ...   (T118: a world made by a terrain graph,
+//         3000 m and 1025 samples with 40000 trees and 900 rocks unless --size, --resolution, --trees, --rocks say otherwise: the editor's valley)
 //
 // Writes one SQLite file with the telemetry of the run. Ctrl+C stops it cleanly: the file is closed and passes the integrity check.
 #include "GB/Game/GameContent.h"
@@ -25,6 +27,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <string>
@@ -126,7 +129,9 @@ int main(int argc, char** argv)
 	bool stopClanDead = false, stopExtinct = false;
 	int clans = 1, members = 4;
 	bool combat = false, hostile = false, content = true, forests = false, report = false;
-	std::string biome = "temperate", path, profile, note, pack;
+	std::string biome = "temperate", path, profile, note, pack, graph;
+	float size = 0.0f;
+	int resolution = 0, trees = -1, rocks = -1;
 	std::vector<std::string> know;
 	for (int i = 1; i < argc; ++i)
 	{
@@ -149,6 +154,11 @@ int main(int argc, char** argv)
 		else if (Arg(argv[i], "--profile", v)) profile = v;
 		else if (Arg(argv[i], "--note", v)) note = v;
 		else if (Arg(argv[i], "--know", v)) { for (size_t s = 0, e; s <= v.size(); s = e + 1) { e = v.find(',', s); if (e == std::string::npos) e = v.size(); if (e > s) know.push_back(v.substr(s, e - s)); } }   // V5: --know=smelting,... every clan starts knowing them
+		else if (Arg(argv[i], "--graph", v)) graph = v;   // T118: the world of a terrain graph (a .json of assets/data/terrain_graphs)
+		else if (Arg(argv[i], "--size", v)) size = static_cast<float>(std::atof(v.c_str()));
+		else if (Arg(argv[i], "--resolution", v)) resolution = std::atoi(v.c_str());
+		else if (Arg(argv[i], "--trees", v)) trees = std::atoi(v.c_str());
+		else if (Arg(argv[i], "--rocks", v)) rocks = std::atoi(v.c_str());
 		else if (Arg(argv[i], "--pack", v)) pack = v;   // V5: the content pack to play (default the game's, GamePack(); "era2" adds the Bronze Age)
 		else if (!std::strcmp(argv[i], "--forest")) forests = true;
 		else if (!std::strcmp(argv[i], "--report")) report = true;   // at the end, each clan's settlement, fields, economy and goals
@@ -170,7 +180,38 @@ int main(int argc, char** argv)
 	desc.Resolution = clans > 1 ? 257 : 129;
 	desc.TreeBudget = 120 * clans;
 	desc.RockBudget = 30 * clans;
+	if (!graph.empty())   // T118: as `terrain_graph preset <graph> <type> <seed> - 3000 1025 40000 900` in the editor
+	{
+		std::ifstream in(graph, std::ios::binary);
+		const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+		if (text.empty()) { std::fprintf(stderr, "the terrain graph '%s' does not read\n", graph.c_str()); return 2; }
+		if (const std::string error = GB::SetWorldGraphJson(desc, text); !error.empty()) { std::fprintf(stderr, "%s\n", error.c_str()); return 2; }
+		desc.GeneratorVersion = GB::kWorldGeneratorLatest;
+		desc.Size = 3000.0f;
+		desc.Resolution = 1025;
+		desc.TreeBudget = 40000;
+		desc.RockBudget = 900;
+	}
+	if (size > 0.0f) desc.Size = std::max(32.0f, size);
+	if (resolution > 0) desc.Resolution = static_cast<uint32_t>(std::clamp(resolution, 65, 2049));
+	if (trees >= 0) desc.TreeBudget = trees;
+	if (rocks >= 0) desc.RockBudget = rocks;
+	const auto made = std::chrono::steady_clock::now();
 	const GB::GeneratedWorld world = GB::WorldGenerator::GenerateData(desc);
+	if (!graph.empty())
+	{
+		std::fprintf(stderr, "world of the terrain graph %s: %.0f m, %u samples, %zu trees, %zu rocks, %zu settlement sites, %zu trails (%.1f s)\n", graph.c_str(), static_cast<double>(desc.Extent()),
+			desc.Resolution, world.Trees.size(), world.Rocks.size(), world.Settlements.size(), world.Trails.size(), std::chrono::duration<double>(std::chrono::steady_clock::now() - made).count());
+		double length = 0.0, tread = 0.0;
+		for (const GB::Trail& t : world.Trails) length += static_cast<double>(t.Length);
+		const GB::TgField& path = world.PathField;
+		for (float v : path.Values) tread += v > 0.5f ? 1.0 : 0.0;
+		const double cell = static_cast<double>(path.Spacing());
+		std::fprintf(stderr, "trails %.0f m; path field %u x %u, %.0f m2 over 0.5 (%.1f m wide on average): the navigation's trodden ground\n", length, path.N, path.N, tread * cell * cell, length > 0.0 ? tread * cell * cell / length : 0.0);
+		for (const GB::SettlementSite& s : world.Settlements)
+			std::fprintf(stderr, "site %d at (%.0f, %.0f): water %.0f m (the graph's), %.0f m (the baked map's: BiomeMap::WaterDistance)\n", s.Rank, static_cast<double>(s.Position.x), static_cast<double>(s.Position.y),
+				static_cast<double>(s.WaterDistance), static_cast<double>(world.WaterDistanceAt(s.Position.x, s.Position.y)));
+	}
 
 	GB::TelemetrySink sink;
 	if (!path.empty())
@@ -221,6 +262,22 @@ int main(int argc, char** argv)
 	setup.TelemetryEvery = every;
 	GB::SimRun run(setup);
 	if (!run.Ok()) { std::fprintf(stderr, "the run could not start: %s\n", run.Error().c_str()); sink.Stop(); return 1; }
+	if (!graph.empty())   // T118: where each clan settled, and on which of the graph's sites
+	{
+		std::vector<std::pair<std::string, const GB::Tribe*>> camps;
+		if (run.Clans().Count() > 1) for (const auto& c : run.Clans().All()) camps.emplace_back(c->Name, c->Folk);
+		else camps.emplace_back("Clan 1", &run.Brain());
+		for (const auto& [name, folk] : camps)
+		{
+			const glm::vec2 camp = folk->Config.Economy.Camp;
+			int site = -1;
+			float off = 1e9f;
+			for (const GB::SettlementSite& s : world.Settlements) if (glm::distance(s.Position, camp) <= s.Radius && glm::distance(s.Position, camp) < off) { off = glm::distance(s.Position, camp); site = s.Rank; }
+			const std::string where = site >= 0 ? "graph site " + std::to_string(site) + ", " + std::to_string(static_cast<int>(off)) + " m from its centre" : std::string("not on a graph site");
+			std::fprintf(stderr, "camp of %s at (%.1f, %.1f), ground %.2f (terrain %.2f): %s\n", name.c_str(), static_cast<double>(camp.x), static_cast<double>(camp.y), static_cast<double>(folk->Config.Economy.CampY),
+				static_cast<double>(world.TerrainRef->GetHeight(camp.x, camp.y)), where.c_str());
+		}
+	}
 
 	constexpr double kDay = 1200.0;
 	constexpr double kYearDays = 4.0;   // Life.DaysPerYear

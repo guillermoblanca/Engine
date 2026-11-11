@@ -2,6 +2,7 @@
 // tribe) and the `region` command. The regions are never saved: a loaded game builds them again from its world.
 #include "EditorApp.h"
 #include "GB/Gameplay/WorldResources.h"
+#include "GB/Game/StartSites.h"
 #include <cstdlib>
 
 namespace GB::Editor
@@ -13,6 +14,7 @@ namespace GB::Editor
 			for (const auto& c : m_Clans.All()) if (c->Folk->Regions()) { c->Folk->SetRegions(nullptr); c->Folk->SetSiteChooser({}); }   // (H8's chooser reads the world that went)
 			m_Clans.SetRegions(nullptr);
 			m_Clans.SetSiteChooser({});
+			m_Clans.SetGraphSites({});
 			m_RegionsKey.clear();
 			m_Regions = RegionMap();
 			return;
@@ -37,7 +39,10 @@ namespace GB::Editor
 				c->Folk->SetSiteChooser(SettlementSiteChooser(*c->Folk, ResourceGroundOf(m_World.World())));   // H8: a migrating clan chooses its new camp with the site scoring of `tribe build`
 			}
 		if (m_Clans.Regions() != &m_Regions)   // H8: and a new clan settles where the same scoring says, with every resource node of the scene
+		{
 			m_Clans.SetSiteChooser(SettlementSiteChooser(m_Tribe, ResourceGroundOf(m_World.World()), [this] { return SceneResources(m_SceneEditor.World(), m_Gameplay, m_NodeDefs); }));
+			m_Clans.SetGraphSites(GraphCampSites(m_World.World()));   // T118: first on the terrain graph's free sites, in their order (none: as before)
+		}
 		m_Clans.SetRegions(&m_Regions);
 		if (--m_RegionTicks > 0) return;
 		m_RegionTicks = 600;   // the predators move: their count per region every ten simulated seconds

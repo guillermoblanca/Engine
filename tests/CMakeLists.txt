@@ -227,6 +227,7 @@ gb_test(navigation navigation_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapid
 gb_test(exploration exploration_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lento;sim" DEFS ${gb_assets} JSON)
 # H13: several clans in one world, territory, relations between clans, trade, knowledge exchange, marriages and pacts (Clans, Diplomacy, Territory)
 gb_test(clans clans_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} JSON)
+gb_test(start_sites start_sites_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 gb_test(anim_usage anim_usage_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_asset})
 # Animation bindings (docs/EDITOR_ANIMACIONES.md): JSON, validation, resolution with fallbacks, trim / loop / blend on an animation clock, headless
 gb_test(anim_bindings anim_bindings_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_asset} ${gb_data})

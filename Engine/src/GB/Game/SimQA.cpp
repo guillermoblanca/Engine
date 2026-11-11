@@ -1,5 +1,6 @@
 #include "GB/Game/SimQA.h"
 #include "GB/Game/GameSeeds.h"
+#include "GB/Game/StartSites.h"
 #include "GB/AI/Needs.h"
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/World/Terrain.h"
@@ -857,20 +858,24 @@ namespace GB
 		const GeneratedWorld* w = &world;
 		nav.Vegetation = [w](float x, float z)
 		{
+			float undergrowth = 0.0f;
 			switch (w->BiomeAt(x, z))
 			{
-			case Biome::Forest: return 1.0f;
-			case Biome::Shore: return 0.3f;
-			case Biome::Meadow: return 0.15f;
-			default: return 0.0f;
+			case Biome::Forest: undergrowth = 1.0f; break;
+			case Biome::Shore: undergrowth = 0.3f; break;
+			case Biome::Meadow: undergrowth = 0.15f; break;
+			default: break;
 			}
+			return TrailUndergrowth(*w, x, z, undergrowth);   // T118: a trail of the terrain graph is trodden ground (the editor's PlayerMode::SyncNavigation too)
 		};
 		if (!m_Nav.Build(m_Ground, nav, &m_Error)) return;
 
 		// The camp: the one given, or the flattest dry place near the middle of the map (the editor's spawn), clear of trunks and rocks. Clear for 3.5 m:
 		// the campfire stands 1.5 m off the camp (Tribe::FirePos) and who stokes it stands a metre beyond (with 2 m a trunk could be where the stoker
 		// stands; the editor's own choice of a site keeps 4 m clear, SiteWeights::ClearRadius).
-		const glm::vec2 camp = setup.HasCamp ? setup.Camp : FindFreeSpot(m_Ground, world.Spawn, 3.5f);
+		// T118: on a world whose terrain graph published settlement sites, the first clan settles on the best of them (Rank 0)
+		const std::vector<glm::vec2> graphCamp = GraphStartCamps(world.Settlements, 1);
+		const glm::vec2 camp = setup.HasCamp ? setup.Camp : FindFreeSpot(m_Ground, graphCamp.empty() ? world.Spawn : graphCamp.front(), 3.5f);
 		if (setup.Scene)
 		{
 			m_Entities = *setup.Scene;
@@ -964,7 +969,7 @@ namespace GB
 		const Terrain* terrain = world.TerrainRef;
 		m_Tribe.SetRegions(setup.Regions ? setup.Regions : &m_Regions, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
 		m_Tribe.Config.Economy.Camp = camp;
-		m_Tribe.Config.Economy.CampY = world.TerrainRef->GetHeight(camp.x, camp.y);
+		m_Tribe.Config.Economy.CampY = CampGround(world, camp);   // (the terrain's height; a graph site's platform level)
 		if (setup.Store.empty() || !m_Tribe.Store().FromJson(setup.Store))
 		{
 			const int n = static_cast<int>(roster.size());
@@ -993,6 +998,7 @@ namespace GB
 			m_Clans.Values.Seed = world.Desc.Seed;   // V4: the cultures of this world
 			if (setup.GameSeeds) m_Clans.Rules.Seed = StreamSeed(master, SeedStream::Diplomacy);   // T0 (the further clans copy the first's config, seeded above)
 			m_Clans.Add("Clan 1", &m_Tribe);
+			m_Clans.SetGraphSites(GraphCampSites(world));   // T118: the further clans settle on the graph's next sites (none: as before)
 			if (setup.ThinkPerFrame >= 0) m_Clans.ThinkPerFrame = setup.ThinkPerFrame;
 			size_t named = roster.size();
 			const int each = std::max(1, setup.Members / setup.Clans);
@@ -1121,7 +1127,7 @@ namespace GB
 		if (m_Setup.Buildings) { t.SetBuildings(&m_Builds.Defs); t.SetGround([terrain](float x, float z) { return terrain->GetHeight(x, z); }); }   // (H8, as the first clan)
 		t.SetRegions(m_Setup.Regions ? m_Setup.Regions : &m_Regions, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
 		t.Config.Economy.Camp = home;
-		t.Config.Economy.CampY = terrain->GetHeight(home.x, home.y);
+		t.Config.Economy.CampY = CampGround(*m_Setup.World, home);
 		t.SetSpawner([this](const std::string& who, const glm::vec2& at, float) -> ITribeBody*
 		{
 			AbilitySystemComponent* asc = m_Gameplay.Create(who);

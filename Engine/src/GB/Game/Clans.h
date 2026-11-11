@@ -125,8 +125,13 @@ namespace GB
 		const RegionMap* Regions() const { return m_Regions; }
 		// Who chooses where a new clan settles (the settlement work, H8, can give its own); without one, ChooseHome's own choice.
 		void SetSiteChooser(CampSiteChooser chooser) { m_SiteChooser = std::move(chooser); }
-		// Where a new clan should set its camp: the dry anchor of a region at least `minApart` from every camp, with the most wild nodes and water and
-		// the least danger, on land nobody holds (or the site chooser's, when it gives one that far). `usable`: can a camp be there (reachable ground).
+		// T118: the settlement sites of the world's terrain graph, best first (GraphCampSites, GB/Game/StartSites.h); empty, the default: none.
+		void SetGraphSites(std::vector<CampSite> sites) { m_GraphSites = std::move(sites); }
+		const std::vector<CampSite>& GraphSites() const { return m_GraphSites; }
+		// Where a new clan should set its camp: the first of the graph's sites (in their order) at least `minApart` from every camp that `usable`
+		// takes, with no test of its ground (the graph levelled its platform and measured its slope, water and walls); else the dry anchor of a region
+		// at least `minApart` from every camp, with the most wild nodes and water and the least danger, on land nobody holds (or the site chooser's,
+		// when it gives one that far). `usable`: can a camp be there (reachable ground; a split's: near enough and free).
 		bool ChooseHome(float minApart, const std::function<bool(const glm::vec2&)>& usable, CampSite& out) const;
 		// The camera and the clock, for every tribe (members far from the viewer are abstract agents).
 		void SetViewer(const glm::vec2& pos);
@@ -269,6 +274,7 @@ namespace GB
 		ClanId m_NextId = 0;
 		const RegionMap* m_Regions = nullptr;
 		CampSiteChooser m_SiteChooser;
+		std::vector<CampSite> m_GraphSites;   // T118 (not saved: the world's graph makes them again)
 		std::map<PairKey, ClanRelation> m_Relations;
 		std::map<std::pair<std::string, std::string>, CrossBond> m_Bonds;   // (a, b) with a < b: members of different clans who met
 		std::map<std::pair<std::string, std::string>, double> m_Greeted;    // when two members last greeted each other
