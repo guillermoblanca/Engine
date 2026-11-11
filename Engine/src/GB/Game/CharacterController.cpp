@@ -93,11 +93,7 @@ namespace GB
 		CharacterWorld world;
 		const Terrain* t = &terrain;
 		world.GroundHeight = [t](float x, float z) { return t->GetHeight(x, z); };
-		world.WaterLevel = [t](float x, float z)
-		{
-			const float lake = t->HasLake() && t->GetHeight(x, z) < t->GetWaterLevel() ? t->GetWaterLevel() : -1e9f;
-			return std::max(lake, t->GetRiverLevelAt(x, z));
-		};
+		world.WaterLevel = [t](float x, float z) { return t->GetWaterLevelAt(x, z); };   // every lake (the main one and a terrain graph's others) and the river
 		world.BoundsMin = t->GetHeightmap().GetMin() + 1.0f;
 		world.BoundsMax = t->GetHeightmap().GetMax() - 1.0f;
 		return world;

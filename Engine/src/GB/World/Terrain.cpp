@@ -125,6 +125,14 @@ namespace GB
 		const RiverSample s = m_Water.NearestRiverInBand(x, z);   // (the same answer as NearestRiver here: only the band is wanted)
 		return m_Water.InRiverBand(s) && m_Heightmap.GetHeight(x, z) < s.Level ? s.Level : kNoWaterLevel;
 	}
+
+	float Terrain::GetLakeLevelAt(float x, float z) const
+	{
+		const float ground = m_Heightmap.GetHeight(x, z);
+		if (!m_Water.MoreLakes().empty())
+			if (const LakeBody* lake = m_Water.MoreLakeAt(x, z); lake && ground < lake->Level) return lake->Level;
+		return m_Water.HasLake() && ground < m_Water.LakeLevel() ? m_Water.LakeLevel() : kNoWaterLevel;
+	}
 	// ------------------------------------------------------------------ shore refinement
 	// The grid is uniform, so where the water meets the ground (lake shore, river banks) the waterline follows its
 	// ~0.5 m cells and looks stepped. Cells there are split N x N and the new vertices sit on a smooth cubic surface
@@ -216,6 +224,27 @@ namespace GB
 					const float lowest = std::min(std::min(a, b), std::min(c, d)), highest = std::max(std::max(a, b), std::max(c, d));
 					if (lowest <= m_Water.LakeLevel() + 0.6f && highest >= m_Water.LakeLevel() - 0.6f)
 						cellAt(ci, cj) = 1;
+				}
+		}
+		for (const LakeBody& lake : m_Water.MoreLakes())   // a lake a terrain graph filled: the cells straddling its level, near its water
+		{
+			if (!lake.Present || lake.Mask.Empty()) continue;
+			const LakeMask& m = lake.Mask;
+			const float reach = 2.0f * std::max(m.Spacing, s);   // (the shore is the mask's edge: a cell two samples off it can still straddle the level)
+			const glm::vec2 bmin = m.Origin - reach, bmax = m.Origin + glm::vec2(static_cast<float>(m.W - 1), static_cast<float>(m.H - 1)) * m.Spacing + reach;
+			const int c0 = std::max(0, static_cast<int>((bmin.x - lo.x) / s)), c1 = std::min(cells - 1, static_cast<int>((bmax.x - lo.x) / s));
+			const int r0 = std::max(0, static_cast<int>((bmin.y - lo.y) / s)), r1 = std::min(cells - 1, static_cast<int>((bmax.y - lo.y) / s));
+			for (int cj = r0; cj <= r1; ++cj)
+				for (int ci = c0; ci <= c1; ++ci)
+				{
+					const float a = hm.At(ci, cj), b = hm.At(ci + 1, cj), c = hm.At(ci, cj + 1), d = hm.At(ci + 1, cj + 1);
+					const float lowest = std::min(std::min(a, b), std::min(c, d)), highest = std::max(std::max(a, b), std::max(c, d));
+					if (lowest > lake.Level + 0.6f || highest < lake.Level - 0.6f) continue;
+					const glm::vec2 q = center(ci, cj);
+					bool wet = false;   // the mask, at the cell's centre or a reach away from it (a neighbouring valley at the same height is not its shore)
+					for (int dj = -1; dj <= 1 && !wet; ++dj)
+						for (int di = -1; di <= 1 && !wet; ++di) wet = m.Contains(q.x + static_cast<float>(di) * reach, q.y + static_cast<float>(dj) * reach);
+					if (wet) cellAt(ci, cj) = 1;
 				}
 		}
 		if (const RiverData* river = m_Water.River())   // the bank zone on both sides of the river axis
@@ -784,6 +813,17 @@ namespace GB
 	std::function<float(float, float)> Terrain::MakeGroundFunction(bool waterIsGround) const
 	{
 		const Heightmap* hm = &m_Heightmap;
+		if (waterIsGround && !m_Water.MoreLakes().empty())   // every lake is ground: the main one over the whole map, as below, the others where they cover
+		{
+			const WaterField* water = &m_Water;
+			return [hm, water](float x, float z)
+			{
+				float h = hm->GetHeight(x, z);
+				if (water->HasLake()) h = std::max(h, water->LakeLevel());
+				if (const LakeBody* lake = water->MoreLakeAt(x, z)) h = std::max(h, lake->Level);
+				return h;
+			};
+		}
 		if (waterIsGround && m_Water.HasLake())
 		{
 			const float level = m_Water.LakeLevel();

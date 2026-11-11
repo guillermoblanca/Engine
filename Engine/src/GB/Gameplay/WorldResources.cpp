@@ -462,7 +462,7 @@ namespace GB
 		g.WaterDistance = [w, t](float x, float z)
 		{
 			const float ground = t->GetHeight(x, z);
-			if ((t->HasLake() && ground < t->GetWaterLevel()) || t->GetRiverLevelAt(x, z) > ground) return 0.0f;
+			if (t->GetWaterLevelAt(x, z) > ground) return 0.0f;   // under any lake or the river, as the walkers see it
 			return w->WaterDistanceAt(x, z);
 		};
 		for (const TreePlacement& tree : world.Trees) g.Blockers.push_back({ glm::vec2(tree.Position.x, tree.Position.z), 1.2f * tree.Scale });

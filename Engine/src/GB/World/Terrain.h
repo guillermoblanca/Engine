@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Scene/Image.h"
 #include "GB/Scene/Vertex.h"
+#include <algorithm>
 #include <cstdint>
 #include <functional>
 #include <glm/glm.hpp>
@@ -118,10 +119,18 @@ namespace GB
 		float GetRiverLevelAt(float x, float z) const;   // water level, or -1e9 outside the water
 		float GetRiverSurfaceLevel(float x, float z) const { return m_Water.RiverSurfaceLevel(x, z); }   // water level at the nearest river point (even on land); -1e9 without a river
 		float DistanceToRiver(float x, float z) const { return m_Water.DistanceToRiver(x, z); }   // meters to the river axis; 1e9 when there is none
+		// The main lake (the one a world of generators 1-4 has): what GetWaterLevel, GetLakeCenter and GetLakeRadius describe.
 		bool HasLake() const { return m_Water.HasLake(); }
 		float GetWaterLevel() const { return m_Water.LakeLevel(); }
 		glm::vec2 GetLakeCenter() const { return m_Water.LakeCenter(); }
 		float GetLakeRadius() const { return m_Water.LakeRadius(); }
+		// The surface of the lake water standing over the ground at (x, z), or kNoWaterLevel (-1e9) where there is none. Every lake counts: one of
+		// the lakes a terrain graph filled (WaterField::MoreLakes) where it covers the point and the ground is below its level, else the main
+		// lake, whose level counts wherever the ground is below it, over the whole map, as it always has for the walkers (a hollow under its
+		// level is water to them). A world with only its main lake gets exactly the answer of before. Cheap: a box test per extra lake.
+		float GetLakeLevelAt(float x, float z) const;
+		// Lake or river: the higher of GetLakeLevelAt and GetRiverLevelAt, kNoWaterLevel on dry ground. "Is there water here, and how high?"
+		float GetWaterLevelAt(float x, float z) const { return std::max(GetLakeLevelAt(x, z), GetRiverLevelAt(x, z)); }
 		// Smooth ground normal (Catmull-Rom surface through the heightmap, like the refined shore and the normal map).
 		glm::vec3 GetSmoothNormal(float x, float z) const;
 		float GetSmoothHeight(float x, float z) const { return SmoothHeight(x, z); }

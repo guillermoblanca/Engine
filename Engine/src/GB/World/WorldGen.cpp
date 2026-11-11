@@ -449,10 +449,31 @@ namespace GB
 		return glm::mix(glm::mix(G(i0, j0), G(i0 + 1, j0), tx), glm::mix(G(i0, j0 + 1), G(i0 + 1, j0 + 1), tx), tz);
 	}
 
+	namespace
+	{
+		// 0..1: how much grass the lakes a terrain graph filled (WaterField::MoreLakes, lake_fill) leave at (x, z). None under one, nor on its wet
+		// rim -- a point within one grid sample of its water and less than 0.2 m above its level --, full from 0.5 m above. The biome of a graph
+		// may not know these lakes (a frozen biome_classify sees only the main lake: TERRENO_V5 §12.5), so the grass asks the water itself.
+		float MoreLakesLeaveGrass(const Terrain& t, float x, float z)
+		{
+			const WaterField& water = t.Water();
+			const float sp = t.GetHeightmap().GetSpacing();
+			const LakeBody* lake = water.MoreLakeAt(x, z);
+			for (int k = 0; k < 8 && !lake; ++k)
+			{
+				static constexpr int kDi[8] = { 1, -1, 0, 0, 1, 1, -1, -1 }, kDj[8] = { 0, 0, 1, -1, 1, -1, 1, -1 };
+				lake = water.MoreLakeAt(x + static_cast<float>(kDi[k]) * sp, z + static_cast<float>(kDj[k]) * sp);
+			}
+			if (!lake) return 1.0f;
+			return std::clamp((t.GetHeight(x, z) - lake->Level - 0.2f) / 0.3f, 0.0f, 1.0f);
+		}
+	}
+
 	float GeneratedWorld::GrassDensityAt(float x, float z) const
 	{
 		// the baked cover is a soft blend of the biomes around the point (water stays bare: the blend of water and meadow fades out toward the bank)
-		const float grass = !Maps.Empty() && !Maps.Grass.empty() && BiomeAt(x, z) != Biome::Water ? Maps.GrassAt(x, z) : BiomeGrass(BiomeAt(x, z));
+		float grass = !Maps.Empty() && !Maps.Grass.empty() && BiomeAt(x, z) != Biome::Water ? Maps.GrassAt(x, z) : BiomeGrass(BiomeAt(x, z));
+		if (TerrainRef && !TerrainRef->Water().MoreLakes().empty()) grass *= MoreLakesLeaveGrass(*TerrainRef, x, z);
 		if (!TerrainRef || !TerrainRef->SurfaceLayersArePartition()) return grass;
 		// a world painted with material layers (GRAFO_TERRENO §13) keeps no grass on bare ground: none where the path, gravel, mud, cliff
 		// and scree (dried mud counts half) cover half the sample, and it thins toward that

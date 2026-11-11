@@ -106,10 +106,42 @@ namespace GB
 		return all;
 	}
 
+	void WaterField::AddLake(LakeBody lake)
+	{
+		// the box of what Covers can say yes to: the mask's samples and half a spacing around them (Contains rounds to the nearest), or the
+		// outline's widest radius for a lake that is its disc (a little wider: the box only has to hold it)
+		glm::vec4 box;
+		if (!lake.Mask.Empty())
+		{
+			const LakeMask& m = lake.Mask;
+			const float half = 0.5f * m.Spacing + 1e-3f;
+			box = { m.Origin.x - half, m.Origin.y - half, m.Origin.x + static_cast<float>(m.W - 1) * m.Spacing + half, m.Origin.y + static_cast<float>(m.H - 1) * m.Spacing + half };
+		}
+		else
+		{
+			const float r = lake.Radius * (1.0f + std::abs(lake.Outline.Irregularity)) * 1.01f + 1e-3f;
+			box = { lake.Center.x - r, lake.Center.y - r, lake.Center.x + r, lake.Center.y + r };
+		}
+		m_MoreBoxes.push_back(box);
+		m_MoreLakes.push_back(std::move(lake));
+	}
+
+	const LakeBody* WaterField::MoreLakeAt(float x, float z) const
+	{
+		for (size_t k = 0; k < m_MoreLakes.size(); ++k)
+		{
+			const glm::vec4& b = m_MoreBoxes[k];
+			if (x < b.x || z < b.y || x > b.z || z > b.w) continue;
+			if (m_MoreLakes[k].Covers({ x, z })) return &m_MoreLakes[k];
+		}
+		return nullptr;
+	}
+
 	float WaterField::LakeLevelAt(float x, float z) const
 	{
-		for (const LakeBody* lake : Lakes())
-			if (lake->Covers({ x, z })) return lake->Level;
-		return kNoWaterLevel;
+		// (Lakes() in order -- the main lake, then the others -- without building the list)
+		if (m_Lake.Covers({ x, z })) return m_Lake.Level;
+		const LakeBody* lake = MoreLakeAt(x, z);
+		return lake ? lake->Level : kNoWaterLevel;
 	}
 }

@@ -193,6 +193,7 @@ gb_test(items items_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${g
 gb_test(packs packs_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_assets})
 gb_test(resources resources_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 gb_test(world_resources world_resources_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
+gb_test(lake_consumers lake_consumers_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_assets})   # T104: walkers, rain, grass, nodes and shore see every lake of a graph
 # Forests, stony ground, flowers and wild food over a generated world (WorldResources patches, bosques.json), and the soft grass between zones
 gb_test(forest forest_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_assets})
 gb_test(tribe tribe_test.cpp POOL GBSimTests LINK GB::Sim sqlite3 LABELS "lento;sim" DEFS ${gb_assets})

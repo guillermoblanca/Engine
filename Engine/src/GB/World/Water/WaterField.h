@@ -87,12 +87,16 @@ namespace GB
 		void SetLake(const LakeBody& lake) { m_Lake = lake; }
 		// Another lake (lake_fill). It does not become Lake(): what asks for "the lake" (the level a character swims at, the rain's ground) keeps
 		// the one SetLake gave, so a world with no main lake still has none (HasLake() false) however many of these it has.
-		void AddLake(LakeBody lake) { m_MoreLakes.push_back(std::move(lake)); }
+		void AddLake(LakeBody lake);
 		const std::vector<LakeBody>& MoreLakes() const { return m_MoreLakes; }
 		// Every lake: Lake() first when there is one, then MoreLakes().
 		std::vector<const LakeBody*> Lakes() const;
 		// The level of the lake whose water covers (x, z) (LakeBody::Covers), the main lake first; kNoWaterLevel when none does.
 		float LakeLevelAt(float x, float z) const;
+		// The first of MoreLakes() whose water covers (x, z), or null. Every character asks it every tick, and the navigation grid of a 3 km map
+		// tens of millions of times: each lake is first tested against the box of its mask (four compares), so a point away from them all
+		// costs a few compares per lake and allocates nothing.
+		const LakeBody* MoreLakeAt(float x, float z) const;
 		void SetRiver(RiverData river) { m_River = std::move(river); BuildRiverIndex(); }
 
 		bool HasLake() const { return m_Lake.Present; }
@@ -127,6 +131,7 @@ namespace GB
 
 		LakeBody m_Lake;
 		std::vector<LakeBody> m_MoreLakes;
+		std::vector<glm::vec4> m_MoreBoxes;   // per lake of m_MoreLakes: min x, min z, max x, max z of the water it can cover
 		RiverData m_River;
 		// The river's segments filed by square cells: each in every cell within m_IndexReach (1.2 of the widest half-width) of it, in order.
 		float m_IndexCell = 16.0f, m_IndexReach = 0.0f;
