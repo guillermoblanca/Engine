@@ -23,6 +23,7 @@ layout(std140, binding = 0) uniform FrameBlock
 in vec3 vPos;
 in vec4 vRiver;
 in vec2 vFlowDir;
+in vec3 vBody;
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 layout(binding = 1) uniform sampler2D uSceneDepth;
@@ -39,7 +40,9 @@ uniform vec4 uRippleRect;     // window center x, z, size, texel size (size 0 = 
 uniform float uSSR;           // 0 = sky only, 1 = screen-space reflections
 uniform float uOriginY;
 uniform vec3 uOriginXZ;     // water center
-uniform float uMask;          // > 0: discard beyond this radius
+uniform float uMask;          // > 0: discard beyond this radius (a lake drawn as a disc)
+uniform int uLakeMesh;        // 1: a lake drawn from its mesh (vBody: the depth and the distance to the shore of the vertices)
+uniform float uLakeSpacing;   // m between the samples of the grid the lake mesh lies on
 
 
 layout(binding = 9) uniform sampler2D uEnvMap;
@@ -207,7 +210,10 @@ vec2 WaveSlope(vec2 p, inout float lost)
 		float k = 6.2831853 / (uWaveLength * kLen[i]);
 		float amp = uWaveHeight * kAmp[i] * (i == 0 ? 1.0 : uChop);
 		float ph = k * dot(d, p) - k * sqrt(9.81 / k) * uTime;
-		float w = Band(uWaveLength * kLen[i]);
+		// T138: filtered as half its wavelength. The slow warp the shading reads the swell through squeezes a wave by up to
+		// about twice in places, and the sun's highlight sharpens what is left into stripes: on a lake 1 km away the four straight
+		// trains drew bands across the glitter patch (aerial_1000) at the plain footprint
+		float w = Band(uWaveLength * kLen[i] * 0.5);
 		slope += d * (amp * k * cos(ph) * w);
 		lost += 0.5 * (amp * k) * (amp * k) * (1.0 - w * w);
 	}
@@ -233,6 +239,17 @@ void main()
 {
 	if (uMask > 0.0 && length(vPos.xz - uOriginXZ.xz) > uMask)
 		discard;
+	// T138: a lake mesh ends a little past where its depth (linear between the ground's samples) crosses zero: near the shore
+	// of the heightmap, not at the edge of a triangle of its skirt. The skirt lies under the ground the grid describes, but the
+	// terrain is drawn simplified (mesh detail) and can sag under the level between samples, where the skirt would show as a
+	// straight edge. The margin (30 cm of negative depth) leaves the water to the drawn ground wherever it is close to the grid,
+	// so the waterline and its foam stay where the eye sees the bank.
+	float wet = 1.0;
+	if (uLakeMesh != 0)
+	{
+		wet = clamp((vBody.x + 0.12) / max(fwidth(vBody.x), 1e-4) + 0.5, 0.0, 1.0);
+		if (wet <= 0.0) discard;
+	}
 	vec3 V = normalize(uCamPos - vPos);
 	float camDist = length(uCamPos - vPos);
 	// the footprint: the longer side of the pixel on the surface (grazing views stretch it along the view)
@@ -285,8 +302,10 @@ void main()
 		// follows the bends, and advected by the speed of each point (faster in the middle). Two copies half a cycle apart
 		// take turns (each fades out as it jumps back), with the cycle's phase shifted by a slow noise so the river does
 		// not pulse all at once.
-		const float across = 3.0;   // meters per unit of `across` (the ribbon's half-width is a few meters)
-		vec2 rc = vec2(vRiver.x, vRiver.y * across);
+		// T138: in metres both ways: `across` (-1..1) times the ribbon's half-width at this row (widened at the mouth), so the
+		// pattern keeps its size on a brook and on a wide river (clamped, not capped at a fixed range: rivers can be wider)
+		float halfWidth = clamp(vBody.z, 0.5, 60.0);
+		vec2 rc = vec2(vRiver.x, vRiver.y * halfWidth);
 		const float cycle = 4.0;   // long enough that a patch is seen to travel before it fades
 		float offset = Noise(rc * vec2(0.07, 0.25) + 3.0);
 		float p0 = fract(t / cycle + offset), p1 = fract(p0 + 0.5);
@@ -362,6 +381,19 @@ void main()
 	// How far the shore is, across the surface: the depth over how fast it changes (a flat shallow shelf is not all shore).
 	float shelf = max(length(vec2(dFdx(vdepth), dFdy(vdepth))) / gFootprint, 0.03);
 	float shoreDist = vdepth / shelf;
+	if (uLakeMesh != 0)
+	{
+		// T138: a lake drawn from its mesh knows its depth and how far its shore is at every vertex (the ground's samples, exact,
+		// whatever the distance). Up close the scene's depth is finer (it is the bed as drawn, per pixel, a vertex's is linear over a
+		// whole cell of the grid), so it stays; as a pixel grows toward a cell the vertices take over, and the depth's derivative
+		// (noise once a pixel spans meters of a shelf) stops deciding where the shore is. The distance crosses half a spacing at the
+		// waterline (a cell's neighbour is one spacing away), so that is its zero.
+		float meshDepth = max(vBody.x, 0.0);
+		float meshShore = max(vBody.y - 0.5 * uLakeSpacing, 0.0);
+		float far = smoothstep(0.08, 0.4, gFootprint / max(uLakeSpacing, 0.1));
+		vdepth = mix(vdepth, meshDepth, far);
+		shoreDist = mix(shoreDist, meshShore, far);
+	}
 	// Where the depth buffer cannot tell the bed from the surface (meters of view depth per step), nothing that hangs on
 	// the exact depth (the foam line, a hard edge) is drawn: the water there is only its colour. T137: with float depth
 	// that is never the case in perspective, but the shore's foam band (at most ~1.5 m across) still falls under a pixel
@@ -462,7 +494,13 @@ void main()
 	{
 		// on a river: white water carried by the current where it is fast, and along its banks (less tied to the foam
 		// amount, which is the shore's)
-		float bank = smoothstep(0.75, 1.0, abs(vRiver.y)) * smoothstep(0.8, 2.6, speed) * foamBank;
+		// T138: the banks' white water in metres from the waterline. The ribbon is 1.5 times as wide as the river (MakeRiverGeometry),
+		// so the water meets the ground about a third of the way in from its edge; the band is half a metre on a brook and grows
+		// slowly with the river's width (about a metre on one 9 m wide), not with the ribbon's share of it
+		float halfWidth = clamp(vBody.z, 0.5, 60.0);
+		float fromWater = (1.0 - abs(vRiver.y)) * halfWidth - halfWidth / 3.0;
+		float bankBand = clamp(0.5 + 0.06 * (halfWidth / 0.75), 0.5, 1.6);
+		float bank = (1.0 - smoothstep(bankBand * 0.4, bankBand, fromWater)) * smoothstep(0.8, 2.6, speed) * foamBank;
 		float rapids = smoothstep(1.4, 3.4, speed) * foamRapids;
 		foam = max(foam, max(bank, rapids) * flowing * (0.5 + 0.4 * min(uFoam, 1.0)));
 	}
@@ -476,6 +514,7 @@ void main()
 	float opacity = smoothstep(0.3 * dz, 0.05 + 1.5 * dz, thickSigned);
 	opacity = max(opacity, foam * smoothstep(0.0, 0.01, thick));
 	opacity *= vRiver.w;   // a river dissolves into the lake it flows into
+	opacity *= wet;
 
 	if (uFogDensity > 0.0)
 	{

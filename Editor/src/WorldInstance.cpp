@@ -19,6 +19,7 @@ namespace GB::Editor
 		scene.Objects.clear();
 		scene.Grass.clear();
 		scene.Water.clear();
+		scene.Lakes.reset();
 		scene.Ripples = nullptr;
 		scene.Ground = nullptr;
 		m_Lake.reset(); m_MoreLakes.clear(); m_LakeMesh.reset(); m_River.reset(); m_GrassGpu.reset(); m_Grass.reset();
@@ -174,6 +175,7 @@ namespace GB::Editor
 			const double ms = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0).count();
 			GB_CLIENT_INFO("lake mesh: {} lakes, {} vertices, {} triangles in {:.1f} ms", lakeMesh->Bodies.size(), lakeMesh->Vertices.size(), lakeMesh->TriangleCount(), ms);
 			m_LakeMesh = std::move(lakeMesh);
+			scene.Lakes = m_LakeMesh;   // T138: the renderer draws the lakes from it (and skips their discs)
 		}
 		scene.Env.ShadowRadius = 70.0f;
 		GB_CLIENT_INFO("World built: {} trees, {} rocks, {} grass blades{}{}{}", world->Trees.size(), world->Rocks.size(), GrassBlades(),

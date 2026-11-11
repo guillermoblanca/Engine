@@ -21,14 +21,19 @@ layout(std140, binding = 0) uniform FrameBlock
 	vec4 uPointColor[32];                     // rgb color * intensity
 };
 layout(location = 0) in vec3 aPos;
-layout(location = 1) in vec3 aNormal;    // rivers: x = opacity (fades out where the river runs into a lake)
+layout(location = 1) in vec3 aNormal;    // rivers: x = opacity (fades out where the river runs into a lake), z = half-width (m)
 layout(location = 2) in vec2 aUV;        // rivers: x = across (-1..1), y = arc length / 4 (m)
 layout(location = 3) in vec4 aTangent;   // rivers: xy = flow direction, z = speed (m/s, slower at the banks), w = |across|
+// T138, the lake mesh (LakeVertex, GB/World/Water/LakeMesh.h; location 4 is its lake index, drawn one lake per call so unread here):
+layout(location = 5) in float aDepth;    // m, the lake's level minus the ground at this sample (signed: <= 0 on the skirt)
+layout(location = 6) in float aShore;    // m from this sample to the nearest one that is not the lake's (0 on the skirt)
 uniform vec3 uOrigin;
 uniform int uRiver;
+uniform int uLakeMesh;   // 1: a lake drawn from its mesh (aDepth, aShore are set)
 out vec3 vPos;
 out vec4 vRiver;     // rivers: x = along (m), y = across (-1..1), z = speed (m/s), w = opacity; lakes: 0, 0, 0, 1
 out vec2 vFlowDir;   // rivers: the direction of the current (xz)
+out vec3 vBody;      // lake mesh: x = depth (m), y = distance to the shore (m); rivers: z = half-width (m); otherwise 0
 
 uniform vec2 uWaveDir;
 uniform float uWaveHeight;
@@ -72,6 +77,7 @@ void main()
 	vPos = world;
 	vRiver = uRiver != 0 ? vec4(aUV.y * 4.0, aUV.x, aTangent.z, aNormal.x) : vec4(0.0, 0.0, 0.0, 1.0);
 	vFlowDir = uRiver != 0 ? aTangent.xy : vec2(1.0, 0.0);
+	vBody = uLakeMesh != 0 ? vec3(aDepth, aShore, 0.0) : vec3(0.0, 0.0, uRiver != 0 ? aNormal.z : 0.0);
 	gl_Position = uViewProj * vec4(world, 1.0);
 	// (T137: no depth bias. The 24-bit buffer of before had steps meters deep far away, and a shallow bed that rounded to
 	// the water's own depth hid it; reversed float depth resolves under a millimetre at 2 km.)

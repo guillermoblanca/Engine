@@ -11,6 +11,7 @@
 #include "GB/World/Rocks.h"
 #include "GB/World/Trees.h"
 #include "GB/World/Terrain.h"
+#include "GB/World/Water/LakeMesh.h"
 #include "GB/World/Water/WaterPresets.h"
 #include "GB/World/Graph/TerrainGraphLibrary.h"
 #include "GB/World/WorldGen.h"
@@ -40,9 +41,15 @@ namespace
 	// frame. The time runs (the shader's animation is part of the cost). GB_WATER_BENCH_INFO=1 also prints the river (points, speeds,
 	// mouth) and the lakes, with an editor `camera` command for the river shot. Two builds are compared by running each one's GBGLTests
 	// in turn: the shaders are compiled into the executable. GB_WATER_BENCH_OUT=<dir>: a picture of each view.
+	// T138: the lakes are drawn from their mesh (BuildLakeMesh, Scene::Lakes), as the editor does once it hands it over;
+	// GB_WATER_BENCH_DISCS=1 draws them as discs instead (the path of before, for comparing in one build). GB_WATER_BENCH_GRAPH=<id>
+	// another graph of assets/data/terrain_graphs (e.g. highland_valley_e1); GB_WATER_BENCH_VIEWS="name,yaw,pitch,dist,x,y,z;..." more
+	// views with the editor's `camera` numbers (y absolute).
 	int WaterBench(int rounds)
 	{
-		const std::string graphPath = (std::filesystem::path(__FILE__).parent_path().parent_path() / "assets" / "data" / "terrain_graphs" / "highland_valley_showcase.json").string();
+		const char* graphEnv = std::getenv("GB_WATER_BENCH_GRAPH");
+		const std::string graphName = std::string(graphEnv && *graphEnv ? graphEnv : "highland_valley_showcase") + ".json";
+		const std::string graphPath = (std::filesystem::path(__FILE__).parent_path().parent_path() / "assets" / "data" / "terrain_graphs" / graphName).string();
 		GB::TerrainGraphLibrary library;
 		std::string id;
 		const std::string error = library.LoadFile(graphPath, &id);
@@ -108,16 +115,34 @@ namespace
 		for (auto& lake : GB::MakeMoreLakeSurfaces(field)) surfaces.push_back(std::move(lake));
 		if (auto r = GB::MakeRiverSurface(field)) surfaces.push_back(std::move(r));
 		GB::TerrainGpu gpu(terrain);
+		std::shared_ptr<const GB::LakeMesh> lakeMesh;
+		if (!std::getenv("GB_WATER_BENCH_DISCS") && !field.Lakes().empty())
+			lakeMesh = std::make_shared<const GB::LakeMesh>(GB::BuildLakeMesh(field, terrain.GetHeightmap()));
 
 		constexpr uint32_t BW = 1920, BH = 1080;
 		GB::Renderer renderer(BW, BH, 4, 2048);
 		if (!renderer.IsValid()) { std::fprintf(stderr, "FAIL: water bench: the renderer does not compile\n"); return 1; }
 		GB::Framebuffer fb(BW, BH);
-		struct View { const char* Name; GB::Camera Cam; };
-		const View views[] = {
+		struct View { std::string Name; GB::Camera Cam; };
+		std::vector<View> views = {
 			{ "lake_oblique", orbit(35.0f, 30.0f, 260.0f, { -234.0f, -30.1f, 0.0f }) },
 			{ "river_eye", orbit(eyeYaw, eyePitch, eyeDist, eyeTarget) },
 		};
+		if (const char* more = std::getenv("GB_WATER_BENCH_VIEWS"))
+		{
+			std::string list = more;
+			size_t start = 0;
+			while (start < list.size())
+			{
+				const size_t end = std::min(list.find(';', start), list.size());
+				const std::string item = list.substr(start, end - start);
+				start = end + 1;
+				char name[64] = {};
+				float yaw = 0.0f, pitch = 0.0f, dist = 0.0f, x = 0.0f, y = 0.0f, z = 0.0f;
+				if (std::sscanf(item.c_str(), "%63[^,],%f,%f,%f,%f,%f,%f", name, &yaw, &pitch, &dist, &x, &y, &z) == 7)
+					views.push_back({ name, orbit(yaw, pitch, dist, { x, y, z }) });
+			}
+		}
 		// the world's trees and rocks as the editor draws them (WorldInstance: the far trees beyond 70 m, none beyond 340 m)
 		GB::TreesGpu treesGpu;
 		std::vector<std::unique_ptr<GB::TreeGpu>> trees, treesFar;
@@ -130,7 +155,8 @@ namespace
 		}
 		std::vector<std::unique_ptr<GB::RockGpu>> rocks;
 		for (const GB::RockParams& rp : world.RockRecipes) rocks.push_back(GB::RocksGpu::Create(rp));
-		std::printf("water bench: %ux%u MSAA 4, %zu surfaces, terrain, trees and rocks, %d rounds of 30 frames (ms)\n", BW, BH, surfaces.size(), rounds);
+		std::printf("water bench: %ux%u MSAA 4, %zu surfaces, lakes %s, terrain, trees and rocks, %d rounds of 30 frames (ms)\n", BW, BH, surfaces.size(),
+			lakeMesh ? ("mesh (" + std::to_string(lakeMesh->TriangleCount()) + " triangles)").c_str() : "as discs", rounds);
 		float time = 0.0f;
 		for (const View& view : views)
 		{
@@ -146,6 +172,7 @@ namespace
 				if (glm::distance(rk.Position, view.Cam.Position) < 340.0f && rk.Variant >= 0 && static_cast<size_t>(rk.Variant) < rocks.size())
 					rocks[static_cast<size_t>(rk.Variant)]->AddToScene(sc, rk.Position, rk.Yaw, rk.Scale, 0.12f * rk.Scale);
 			for (const auto& s : surfaces) sc.Water.push_back(s.get());
+			sc.Lakes = lakeMesh;
 			sc.Sun.Direction = glm::normalize(glm::vec3(-0.35f, -0.8f, -0.45f));
 			sc.Env.ShadowRadius = 80.0f;
 			sc.Env.ShadowCenter = view.Cam.Target;
@@ -169,7 +196,7 @@ namespace
 				water.push_back(sw / n); total.push_back(st / n); waterMin.push_back(lw); totalMin.push_back(lt);
 			}
 			auto median = [](std::vector<double> x) { std::sort(x.begin(), x.end()); return x[x.size() / 2]; };
-			std::printf("  view %-12s water median %.3f min %.3f | total median %.3f min %.3f\n", view.Name, median(water), *std::min_element(waterMin.begin(), waterMin.end()),
+			std::printf("  view %-12s water median %.3f min %.3f | total median %.3f min %.3f\n", view.Name.c_str(), median(water), *std::min_element(waterMin.begin(), waterMin.end()),
 				median(total), *std::min_element(totalMin.begin(), totalMin.end()));
 			if (const char* outDir = std::getenv("GB_WATER_BENCH_OUT"))
 				fb.SavePNG((std::string(outDir) + "/water_bench_" + view.Name + ".png").c_str());
@@ -348,6 +375,52 @@ int GBTest_water(int, char**)
 		water.Radius = 8.0f;
 		const glm::ivec3 rippled = center(scene);
 		Check(rippled.x + rippled.y + rippled.z > 0, "a rippled, masked surface renders");
+		scene.Ripples = nullptr;
+		water.Radius = 0.0f;
+
+		// T138: a lake drawn from its mesh (Scene::Lakes). A square of the grid at the surface's level over the floor 4 m down: it tints
+		// the floor as the grid did, and the surface of Water that stands for the same lake (same centre and level) is not drawn on top.
+		{
+			scene.Objects[0].Transform = glm::translate(glm::mat4(1.0f), { 0.0f, -4.0f, 0.0f });
+			auto lakes = std::make_shared<GB::LakeMesh>();
+			const int n = 8;
+			const float spacing = 2.5f, half = spacing * static_cast<float>(n) * 0.5f;
+			for (int j = 0; j <= n; ++j)
+				for (int i = 0; i <= n; ++i)
+				{
+					GB::LakeVertex v;
+					v.Position = { -half + spacing * static_cast<float>(i), 0.0f, -half + spacing * static_cast<float>(j) };
+					v.Depth = 4.0f;
+					const int ring = std::min(std::min(i, j), std::min(n - i, n - j));
+					v.ShoreDistance = static_cast<float>(ring) * spacing;
+					lakes->Vertices.push_back(v);
+				}
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+				{
+					const uint32_t a = static_cast<uint32_t>(j * (n + 1) + i), b = a + 1, c = a + static_cast<uint32_t>(n + 1), d = c + 1;
+					lakes->Indices.insert(lakes->Indices.end(), { a, c, b, b, c, d });
+				}
+			GB::WaterBodyParams body;
+			body.Level = 0.0f;
+			body.Look = water.Params;
+			body.Radius = half;
+			lakes->Bodies.push_back(body);
+			lakes->Ranges.push_back({ 0, static_cast<uint32_t>(lakes->Vertices.size()), 0, static_cast<uint32_t>(lakes->Indices.size()) });
+
+			scene.Water.clear();
+			const glm::ivec3 floorOnly = center(scene);
+			scene.Lakes = lakes;
+			const glm::ivec3 mesh = center(scene);
+			scene.Water.push_back(&water);   // the disc of the same lake: skipped
+			const glm::ivec3 both = center(scene);
+			std::fprintf(stderr, "info: lake mesh over 4 m of water %d %d %d (floor %d %d %d, with its disc %d %d %d)\n", mesh.x, mesh.y, mesh.z,
+				floorOnly.x, floorOnly.y, floorOnly.z, both.x, both.y, both.z);
+			Check(std::abs(mesh.x - floorOnly.x) + std::abs(mesh.y - floorOnly.y) + std::abs(mesh.z - floorOnly.z) > 40, "the lake mesh hides and tints the floor");
+			Check(mesh.z + mesh.y > mesh.x * 2, "the lake mesh's deep water is blue-green");
+			Check(both == mesh, "the disc of a lake the mesh draws is skipped");
+			scene.Lakes.reset();
+		}
 	}
 	return failures;
 }
