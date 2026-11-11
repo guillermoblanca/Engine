@@ -223,6 +223,7 @@ namespace
 
 #include "terrain_graph_probe.inl"
 #include "surface_layers_probe.inl"
+#include "snow_probe.inl"
 
 int GBTest_terrain_graph_cache(int argc, char** argv)
 {
@@ -236,6 +237,7 @@ int GBTest_terrain_graph_cache(int argc, char** argv)
 	if (argc > 1 && std::string(argv[1]) == "settle_tune") return SettleTune(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "dem") return Dem(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "layers") return Layers(argc, argv);
+	if (argc > 1 && std::string(argv[1]) == "snow") return Snow(argc, argv);
 	if (const char* bench = std::getenv("GB_TGRAPH_BENCH"); bench && bench[0] != 0 && bench[0] != '0')
 	{
 		// 1: everything; preview: only the quick preview; budget[=MB]: only the full cache with a byte budget

@@ -21,6 +21,35 @@ namespace GB
 			if (falloff <= 0.0f) return v >= lo && v <= hi ? 1.0f : 0.0f;
 			return Smoothstep(lo - falloff, lo, v) * (1.0f - Smoothstep(hi, hi + falloff, v));
 		}
+
+		// Separable Gaussian blur of `sigma` samples (3 sigma each way), clamped at the border. Isotropic, unlike FieldMath::BoxBlur.
+		void GaussianBlur(TgField& f, float sigma)
+		{
+			if (sigma <= 0.0f || f.N < 2) return;
+			const int n = static_cast<int>(f.N), r = std::max(1, static_cast<int>(std::ceil(3.0f * sigma)));
+			std::vector<float> k(static_cast<size_t>(2 * r + 1));
+			float sum = 0.0f;
+			for (int t = -r; t <= r; ++t) sum += k[static_cast<size_t>(t + r)] = std::exp(-0.5f * static_cast<float>(t * t) / (sigma * sigma));
+			for (float& v : k) v /= sum;
+			std::vector<float> tmp(f.Values.size());
+			for (int j = 0; j < n; ++j)
+			{
+				const float* row = f.Values.data() + static_cast<size_t>(j) * f.N;
+				for (int i = 0; i < n; ++i)
+				{
+					float a = 0.0f;
+					for (int t = -r; t <= r; ++t) a += k[static_cast<size_t>(t + r)] * row[std::clamp(i + t, 0, n - 1)];
+					tmp[static_cast<size_t>(j) * f.N + static_cast<size_t>(i)] = a;
+				}
+			}
+			for (int j = 0; j < n; ++j)
+				for (int i = 0; i < n; ++i)
+				{
+					float a = 0.0f;
+					for (int t = -r; t <= r; ++t) a += k[static_cast<size_t>(t + r)] * tmp[static_cast<size_t>(std::clamp(j + t, 0, n - 1)) * f.N + static_cast<size_t>(i)];
+					f.Values[static_cast<size_t>(j) * f.N + static_cast<size_t>(i)] = a;
+				}
+		}
 	}
 
 	// ------------------------------------------------------------------ mask_height
@@ -228,28 +257,71 @@ namespace GB
 
 		const auto [lo, hi] = std::minmax_element(in->Values.begin(), in->Values.end());
 		const float low = *lo, range = std::max(*hi - *lo, 1e-6f);
-		float flowMax = 1.0f;
-		if (flow) flowMax = std::max(*std::max_element(flow->Values.begin(), flow->Values.end()), 2.0f);
+		const float spacing = in->Spacing();
+
+		// Every measure is taken so that it favours no direction of the grid (T112). Taken raw, the slope by central differences of the bare
+		// height turned its sample-to-sample roughness into speckle and diamonds, the concavity from a 3x3 ring of samples Radius cells away drew
+		// stars along the 8 grid directions, and a breakup finer than the grid aliased (the D8 flow's one-sample lines are barely felt, but
+		// they are blurred too):
+		//  - slope and concavity are measured on the height blurred by a Gaussian of 1 sample;
+		//  - the concavity is the mean of a circle of 24 bilinear samples Radius cells away minus the centre, over the distance (the old ring's
+		//    measure without its corners: over a paraboloid it gives 2/3 of the ring's, whose aliasing in rough ground added hollows that offset
+		//    the crests' loss; with this one the cover of the graphs that use the node stays within 6 % of what it was);
+		//  - the channel term is blurred (1.5 samples) and the breakup's wavelength is kept at 4 samples or more (its finer octaves fade out);
+		//  - the clamped result is blurred by 1 sample, which keeps its mean (the cover) and softens what is left at the grid's scale (wider, it
+		//    spreads the snow over the steep faces next to the gentle ground: terrain_graph's alpine_peaks check).
+		constexpr float kPreBlur = 1.0f, kChannelBlur = 1.5f, kFinalBlur = 1.0f, kBreakupMinSamples = 4.0f;
+		constexpr int kCircle = 24;
+		TgField smooth = *in;
+		GaussianBlur(smooth, kPreBlur);
+		TgField channel;
+		if (flow)
+		{
+			const float flowMax = std::max(*std::max_element(flow->Values.begin(), flow->Values.end()), 2.0f);
+			channel.Resize(in->N, in->Size, in->Center);
+			for (uint32_t j = 0; j < in->N; ++j)
+				for (uint32_t i = 0; i < in->N; ++i)
+				{
+					const glm::vec2 p = in->SamplePosition(i, j);
+					const float f = std::log(std::max(flow->Sample(p.x, p.y), 1.0f)) / std::log(flowMax);   // 0 on a crest .. 1 at the outlet
+					channel.At(i, j) = Smoothstep(0.25f, 0.6f, f) * flowBoost;
+				}
+			GaussianBlur(channel, kChannelBlur);
+		}
+		glm::vec2 ring[kCircle];
+		const float ringRadius = static_cast<float>(radius) * spacing;
+		for (int k = 0; k < kCircle; ++k)
+		{
+			const float a = 6.2831853f * (static_cast<float>(k) + 0.5f) / static_cast<float>(kCircle);
+			ring[k] = { ringRadius * std::cos(a), ringRadius * std::sin(a) };
+		}
+		const float breakupWave = std::max(breakupScale, kBreakupMinSamples * spacing);
 
 		out.Resize(in->N, in->Size, in->Center);
 		for (uint32_t j = 0; j < in->N; ++j)
 			for (uint32_t i = 0; i < in->N; ++i)
 			{
 				const glm::vec2 p = in->SamplePosition(i, j);
-				const float concavity = Concavity(*in, i, j, radius);   // m/m: > 0 hollow, < 0 crest
+				float around = 0.0f;
+				for (const glm::vec2& d : ring) around += smooth.Sample(p.x + d.x, p.y + d.y);
+				const float concavity = (around / static_cast<float>(kCircle) - smooth.At(i, j)) / (static_cast<float>(radius) * spacing);   // m/m: > 0 hollow, < 0 crest
 				// a hollow holds snow on steeper ground than an open slope: shift the slope at which it sheds
 				const float shift = std::clamp(concavity * 40.0f, -1.0f, 1.0f) * (bare - full) * 0.5f;
-				float snow = 1.0f - Smoothstep(full + shift, bare + shift, SlopeDegrees(*in, i, j));
+				float snow = 1.0f - Smoothstep(full + shift, bare + shift, SlopeDegrees(smooth, i, j));
 				snow += std::max(concavity, 0.0f) * 30.0f * hollowBoost - std::max(-concavity, 0.0f) * 30.0f * ridgeLoss;
-				if (flow)
+				if (flow) snow += channel.At(i, j);
+				// TerrainNoise::Fbm with 3 octaves, each faded out as its wavelength nears kBreakupMinSamples / 2
+				float noise = 0.0f, amp = 0.5f, norm = 0.0f, x = p.x / breakupWave, y = p.y / breakupWave, wave = breakupWave / spacing;
+				for (int o = 0; o < 3; ++o, amp *= 0.5f, x *= 2.0f, y *= 2.0f, wave *= 0.5f)
 				{
-					const float f = std::log(std::max(flow->Sample(p.x, p.y), 1.0f)) / std::log(flowMax);   // 0 on a crest .. 1 at the outlet
-					snow += Smoothstep(0.25f, 0.6f, f) * flowBoost;
+					noise += amp * Smoothstep(kBreakupMinSamples * 0.5f, kBreakupMinSamples, wave) * (TerrainNoise::ValueNoise(x, y, seed + static_cast<uint32_t>(o) * 101u) - 0.5f);
+					norm += amp;
 				}
-				snow += (TerrainNoise::Fbm(p.x / breakupScale, p.y / breakupScale, 3, seed) - 0.5f) * 2.0f * breakup;
+				snow += noise / norm * 2.0f * breakup;
 				snow *= Smoothstep(minRelative - 0.04f, minRelative + 0.04f, (in->At(i, j) - low) / range);
 				out.At(i, j) = std::clamp(snow, 0.0f, 1.0f);
 			}
+		GaussianBlur(out, kFinalBlur);
 		return true;
 	}
 
