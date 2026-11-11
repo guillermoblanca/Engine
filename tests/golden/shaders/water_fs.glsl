@@ -111,9 +111,8 @@ vec3 Waves(vec2 p, float fade, out vec2 slope)
 
 float LinearDepth(float d)
 {
-	if (uOrtho != 0) return uNearFar.x + d * (uNearFar.y - uNearFar.x);
-	float z = d * 2.0 - 1.0;
-	return 2.0 * uNearFar.x * uNearFar.y / (uNearFar.y + uNearFar.x - z * (uNearFar.y - uNearFar.x));
+	if (uOrtho != 0) return uNearFar.y - d * (uNearFar.y - uNearFar.x);
+	return uNearFar.x * uNearFar.y / (uNearFar.x + d * (uNearFar.y - uNearFar.x));
 }
 
 // Screen-space reflection: march the reflected ray through the depth buffer. Returns rgb + confidence.
@@ -131,7 +130,7 @@ vec4 TraceReflection(vec3 origin, vec3 dir, float jitter)
 		vec2 uv = ndc.xy * 0.5 + 0.5;
 		if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) break;
 		float sceneZ = LinearDepth(texture(uSceneDepth, uv).r);
-		float rayZ = LinearDepth(ndc.z * 0.5 + 0.5);
+		float rayZ = LinearDepth(ndc.z);   // (reversed Z in [0, 1]: ndc z is the depth, T137)
 		float diff = rayZ - sceneZ;
 		if (diff > 0.0 && diff < stepLen * 2.5 + 0.3)
 		{
@@ -143,7 +142,7 @@ vec4 TraceReflection(vec3 origin, vec3 dir, float jitter)
 				vec4 cm = uViewProj * vec4(m, 1.0);
 				vec2 uvm = cm.xy / cm.w * 0.5 + 0.5;
 				float z = LinearDepth(texture(uSceneDepth, uvm).r);
-				if (LinearDepth(cm.z / cm.w * 0.5 + 0.5) > z) b = m; else a = m;
+				if (LinearDepth(cm.z / cm.w) > z) b = m; else a = m;
 			}
 			vec4 ch = uViewProj * vec4(b, 1.0);
 			vec2 uvh = ch.xy / ch.w * 0.5 + 0.5;
@@ -187,36 +186,14 @@ vec3 NoiseD(vec2 p)
 float gFootprint;
 float Band(float lambda) { return smoothstep(3.0, 8.0, lambda / gFootprint); }
 
-// The depth of the opaque scene in view space, and how coarse the 24-bit depth buffer is there (one step, in meters of
-// view depth: z^2 (f - n) / (n f) / 2^24). Far away the steps are meters deep and run across the screen in rows; the
-// samples above and below are averaged, which turns the staircase back into the slope of the bed.
+// How coarse the depth buffer is at view depth z (one step, in meters). T137: reversed Z in 32-bit float stores about
+// n / z, with a relative step of at most 2^-23, so a step is z * 2^-23 of view depth: 0.27 mm at 2.25 km. (The 24-bit
+// buffer of before had z^2 (f - n) / (n f) / 2^24, meters far away, and SceneDepth averaged the pixels around in four or
+// eight gathers to smooth the staircase it drew on a shallow bed; with steps this fine one sample is the bed.)
 float DepthStep(float z)
 {
 	if (uOrtho != 0) return (uNearFar.y - uNearFar.x) * 5.9604645e-8;
-	return z * z * (uNearFar.y - uNearFar.x) / (uNearFar.x * uNearFar.y) * 5.9604645e-8;
-}
-float SceneDepth(vec2 uv, float dz)
-{
-	float z = LinearDepth(texture(uSceneDepth, uv).r);
-	if (dz < 0.06)   // (closer than ~300 m: one sample is fine)
-		return z;
-	// the 4 x 4 pixels around (four gathers; 4 x 8 where the steps are coarser than 0.3 m), only those within two steps of
-	// this one (an edge filter: a tree in front or the deep bed beside is another surface)
-	vec2 texel = 1.0 / vec2(textureSize(uSceneDepth, 0));
-	float sum = z, n = 1.0;
-	int gathers = dz > 0.3 ? 8 : 4;
-	for (int k = 0; k < gathers; ++k)
-	{
-		vec2 o = vec2((k & 1) == 0 ? -1.0 : 1.0, float(k >> 1) * 2.0 - (gathers == 8 ? 3.0 : 1.0)) * texel;
-		vec4 g = textureGather(uSceneDepth, uv + o, 0);
-		for (int c = 0; c < 4; ++c)
-		{
-			float zk = LinearDepth(g[c]);
-			float w = step(abs(zk - z), 2.0 * dz);   // the steps next to this one: a deeper bed nearby must not pull the shore under
-			sum += zk * w; n += w;
-		}
-	}
-	return mix(z, sum / n, smoothstep(0.06, 0.15, dz));
+	return z * 1.1920929e-7;
 }
 
 // Slope of the Gerstner set (the waves of lib/water_waves), band-limited; `lost` gathers the slope variance filtered out.
@@ -374,10 +351,10 @@ void main()
 
 	// Thickness of the water: the scene's depth behind the surface along the view ray, turned into the vertical depth.
 	vec2 uv = gl_FragCoord.xy / vec2(textureSize(uSceneDepth, 0));
-	// the surface's own view depth from its position (gl_FragCoord.z is as coarse as the depth buffer far away, and biased)
+	// the surface's own view depth from its position (exact: no depth buffer rounding)
 	float surfZ = dot(vPos - uCamPos, normalize(cross(uCamUp, uCamRight)));
 	float dz = DepthStep(surfZ);
-	float sceneZ = SceneDepth(uv, dz);
+	float sceneZ = LinearDepth(texture(uSceneDepth, uv).r);
 	float thickSigned = sceneZ - surfZ;
 	float thick = max(thickSigned, 0.0);
 	float rayLen = thick * camDist / max(surfZ, 1e-3);   // view z to distance along the ray
@@ -385,9 +362,11 @@ void main()
 	// How far the shore is, across the surface: the depth over how fast it changes (a flat shallow shelf is not all shore).
 	float shelf = max(length(vec2(dFdx(vdepth), dFdy(vdepth))) / gFootprint, 0.03);
 	float shoreDist = vdepth / shelf;
-	// Where the depth buffer cannot tell the bed from the surface (meters of view depth per step, far away), nothing that
-	// hangs on the exact depth (the foam line, a hard edge) is drawn: the water there is only its colour.
-	float certain = 1.0 - smoothstep(0.1, 0.6, dz);
+	// Where the depth buffer cannot tell the bed from the surface (meters of view depth per step), nothing that hangs on
+	// the exact depth (the foam line, a hard edge) is drawn: the water there is only its colour. T137: with float depth
+	// that is never the case in perspective, but the shore's foam band (at most ~1.5 m across) still falls under a pixel
+	// far away and would draw a dotted line: it fades out as the pixel's footprint grows past a meter.
+	float certain = (1.0 - smoothstep(0.1, 0.6, dz)) * (1.0 - smoothstep(0.8, 1.6, gFootprint));
 
 	// Light reaching the bed and coming back: down through the depth, then up along the view ray, refracted (n = 1.33).
 	float cosT = sqrt(1.0 - (1.0 - V.y * V.y) / 1.7689);

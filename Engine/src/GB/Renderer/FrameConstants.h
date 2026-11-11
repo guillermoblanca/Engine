@@ -19,9 +19,9 @@ namespace GB
 		static constexpr uint32_t Binding = 0;          // layout(std140, binding = 0) uniform FrameBlock
 		static constexpr uint32_t MaxPointLights = 32;  // the arrays of the block (Renderer::MaxPointLights)
 
-		glm::mat4 ViewProj{ 1.0f };
+		glm::mat4 ViewProj{ 1.0f };    // T137: reversed Z, depth in [0, 1] (Camera::GetReversedZProjection): ndc z 1 near, 0 far
 		glm::mat4 InvViewProj{ 1.0f };
-		glm::mat4 LightVP{ 1.0f };
+		glm::mat4 LightVP{ 1.0f };     // GL's convention ([-1, 1]): the shadow map keeps it
 		glm::vec3 CamPos{ 0.0f };      float EnvIntensity = 0.0f;
 		glm::vec3 SunDir{ 0.0f };      float Time = 0.0f;           // SunDir: normalized, the direction the light travels
 		glm::vec3 SunColor{ 0.0f };    float ShadowTexel = 0.0f;    // SunColor: color * intensity; ShadowTexel: world size of a shadow map texel

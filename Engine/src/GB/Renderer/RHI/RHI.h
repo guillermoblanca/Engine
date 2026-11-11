@@ -53,7 +53,7 @@ namespace GB::RHI
 	{
 		None,
 		RGBA8, SRGB8A8, RGBA16F, RGB16F, R11G11B10F,   // color
-		Depth24,                                       // depth
+		Depth24, Depth32F,                             // depth (Depth32F: the scene's reversed Z, T137)
 		// Block-compressed (T71): 4x4 texels in 16 bytes, uploaded with UploadCompressed, never rendered to. BC7 for albedo (sRGB) and ORM,
 		// BC5 (two channels, red and green) for normals.
 		BC7, BC7SRGB, BC5
@@ -175,9 +175,12 @@ namespace GB::RHI
 		uint32_t Samples = 1;
 		Format Color = Format::RGBA8;      // None: depth only
 		Format Extra = Format::None;       // second color attachment, same samples
-		bool Depth = true;                 // 24-bit depth
+		bool Depth = true;                 // 24-bit depth (32-bit float with ReversedZ)
 		bool DepthAsTexture = false;       // depth in a texture (sampled later) instead of a buffer
 		bool DepthCompare = true;          // with DepthAsTexture: comparison sampler (true) or a plain one with nearest filtering
+		// T137: depth for reversed Z (PassDesc::ReversedZ): 32-bit float, and a depth texture's border is 0 (the far plane) instead of 1.
+		// Depth blits need the same format on both sides: a target blitted into another has the same setting.
+		bool ReversedZ = false;
 		// T101: mip levels of the color attachments (single-sample only; a multisampled target keeps 1). The target draws into level 0;
 		// GenerateMips fills the rest. With more than one level the color is sampled with trilinear filtering (Filter::LinearMipLinear).
 		uint32_t Levels = 1;
@@ -247,12 +250,17 @@ namespace GB::RHI
 	};
 
 	// The start of a pass: where it draws (none = the window's back buffer), the viewport (the target's size) and what it clears.
+	// T137: and its depth convention. GL's by default: clip-space z in [-1, 1], depth cleared to 1, a fragment passes when nearer (LESS).
+	// ReversedZ (the scene): clip-space z in [0, 1] (glClipControl GL_ZERO_TO_ONE) with the near plane at 1, depth cleared to 0, a fragment
+	// passes when greater (GREATER, the mirror of LESS). Every pass sets its convention, so one never leaks into the next (the shadow map
+	// keeps GL's).
 	struct PassDesc
 	{
 		RenderTargetHandle Target;
 		uint32_t Width = 1, Height = 1;
 		std::optional<glm::vec4> ClearColor;
-		bool ClearDepth = false;            // clears to 1 (writes depth on: the pass starts with depth writes enabled)
+		bool ClearDepth = false;            // clears to 1, or to 0 with ReversedZ (writes depth on: the pass starts with depth writes enabled)
+		bool ReversedZ = false;
 		const char* Name = "";
 	};
 

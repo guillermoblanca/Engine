@@ -73,8 +73,6 @@ void main()
 	vRiver = uRiver != 0 ? vec4(aUV.y * 4.0, aUV.x, aTangent.z, aNormal.x) : vec4(0.0, 0.0, 0.0, 1.0);
 	vFlowDir = uRiver != 0 ? aTangent.xy : vec2(1.0, 0.0);
 	gl_Position = uViewProj * vec4(world, 1.0);
-	// Two steps of the 24-bit depth buffer toward the camera: far away a step is meters deep (near plane 0.1 m: 3 m at
-	// 2 km), and a shallow bed that rounds to the water's own depth would hide it in a lattice of dry pixels. The FS
-	// decides with the scene depth whether the water is really there (its opacity), so the bias shows no water on land.
-	if (uOrtho == 0) gl_Position.z -= 2.0 * 1.1920929e-7 * gl_Position.w;
+	// (T137: no depth bias. The 24-bit buffer of before had steps meters deep far away, and a shallow bed that rounded to
+	// the water's own depth hid it; reversed float depth resolves under a millimetre at 2 km.)
 }

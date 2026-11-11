@@ -92,7 +92,7 @@ float Clouds(vec3 d, out float lit)
 }
 void main()
 {
-	vec4 w = uInvViewProj * vec4(vUV * 2.0 - 1.0, 1.0, 1.0);
+	vec4 w = uInvViewProj * vec4(vUV * 2.0 - 1.0, 0.0, 1.0);   // a point on the far plane (reversed Z: depth 0, T137)
 	vec3 d = normalize(w.xyz / w.w - uCamPos);
 	vec3 col = SkyColor(d) * uEnvIntensity;
 	// Stars (and a moon) where it is dark.

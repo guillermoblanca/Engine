@@ -72,6 +72,7 @@ namespace GB::RHI
 			case Format::RGB16F: return GL_RGB16F;
 			case Format::R11G11B10F: return GL_R11F_G11F_B10F;
 			case Format::Depth24: return GL_DEPTH_COMPONENT24;
+			case Format::Depth32F: return GL_DEPTH_COMPONENT32F;
 			case Format::BC7: return GL_COMPRESSED_RGBA_BPTC_UNORM;
 			case Format::BC7SRGB: return GL_COMPRESSED_SRGB_ALPHA_BPTC_UNORM;
 			case Format::BC5: return GL_COMPRESSED_RG_RGTC2;
@@ -178,6 +179,10 @@ namespace GB::RHI
 		ForgetState();   // (GL state may have been changed outside the RHI since the last pass: ImGui, the editor)
 		glBindFramebuffer(GL_FRAMEBUFFER, pass.Target.Id);
 		glViewport(0, 0, static_cast<GLsizei>(pass.Width), static_cast<GLsizei>(pass.Height));
+		// T137: the pass's depth convention (PassDesc), set by every pass: clip control, depth function and clear value are global state.
+		glClipControl(GL_LOWER_LEFT, pass.ReversedZ ? GL_ZERO_TO_ONE : GL_NEGATIVE_ONE_TO_ONE);
+		glDepthFunc(pass.ReversedZ ? GL_GREATER : GL_LESS);
+		glClearDepth(pass.ReversedZ ? 0.0 : 1.0);   // (also for glClear calls outside the RHI after this pass: the editor's window)
 		GLbitfield bits = 0;
 		if (pass.ClearColor)
 		{
@@ -448,6 +453,9 @@ namespace GB::RHI
 		read(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, m_Limits.StorageBufferAlignment);
 		read(GL_MAX_UNIFORM_BLOCK_SIZE, m_Limits.MaxUniformBlockBytes);
 		read(GL_MAX_ARRAY_TEXTURE_LAYERS, m_Limits.MaxArrayLayers);
+		// T137: the scene's reversed Z needs glClipControl (core in 4.5, the version the window asks for, hidden or not)
+		if (!GLAD_GL_VERSION_4_5)
+			GB_CORE_ERROR("RHI GL: the context is not OpenGL 4.5: no glClipControl, the scene's reversed depth will not work");
 	}
 
 	std::unique_ptr<UploadRing> GLDevice::CreateUploadRing(size_t regionBytes, uint32_t regions)
@@ -674,11 +682,11 @@ namespace GB::RHI
 				TextureDesc td;
 				td.Width = desc.Width;
 				td.Height = desc.Height;
-				td.Fmt = Format::Depth24;
+				td.Fmt = desc.ReversedZ ? Format::Depth32F : Format::Depth24;
 				rt.DepthTexture = CreateTexture(td);
 				SamplerDesc s;
 				s.WrapS = s.WrapT = Wrap::ClampToBorder;
-				s.BorderColor = glm::vec4(1.0f);
+				s.BorderColor = glm::vec4(desc.ReversedZ ? 0.0f : 1.0f);   // the far plane, in either convention
 				if (desc.DepthCompare)
 					s.DepthCompare = true;
 				else
@@ -690,10 +698,11 @@ namespace GB::RHI
 			{
 				GLuint rb = 0;
 				glCreateRenderbuffers(1, &rb);
+				const GLenum depthFormat = desc.ReversedZ ? GL_DEPTH_COMPONENT32F : GL_DEPTH_COMPONENT24;
 				if (multisampled)
-					glNamedRenderbufferStorageMultisample(rb, static_cast<GLsizei>(desc.Samples), GL_DEPTH_COMPONENT24, w, h);
+					glNamedRenderbufferStorageMultisample(rb, static_cast<GLsizei>(desc.Samples), depthFormat, w, h);
 				else
-					glNamedRenderbufferStorage(rb, GL_DEPTH_COMPONENT24, w, h);
+					glNamedRenderbufferStorage(rb, depthFormat, w, h);
 				glNamedFramebufferRenderbuffer(fbo, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rb);
 				m_DepthBuffers[fbo] = rb;
 			}

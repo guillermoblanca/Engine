@@ -198,11 +198,11 @@ vec3 WindOffset(vec3 localPos, vec3 worldPos, vec3 origin)
 	// lib/depth: LinearDepth() from a depth-buffer value (perspective or ortho). Needs uNearFar and uOrtho (lib/frame in Particle and Water,
 	// its own uniforms in Composite).
 	// Composite, Particle and Water FS. AOBlur's Lin() has no ortho branch: it stays apart (M8).
+	// T137: the scene depth is reversed Z in [0, 1] (Camera::GetReversedZProjection): d = 1 at the near plane, 0 at the far plane.
 	inline constexpr const char* Depth = R"GLSL(float LinearDepth(float d)
 {
-	if (uOrtho != 0) return uNearFar.x + d * (uNearFar.y - uNearFar.x);
-	float z = d * 2.0 - 1.0;
-	return 2.0 * uNearFar.x * uNearFar.y / (uNearFar.y + uNearFar.x - z * (uNearFar.y - uNearFar.x));
+	if (uOrtho != 0) return uNearFar.y - d * (uNearFar.y - uNearFar.x);
+	return uNearFar.x * uNearFar.y / (uNearFar.x + d * (uNearFar.y - uNearFar.x));
 }
 )GLSL";
 

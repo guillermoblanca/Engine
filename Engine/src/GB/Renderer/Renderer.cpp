@@ -107,10 +107,12 @@ namespace GB
 		spec.Format = ColorFormat::RGBA16F;
 		spec.Samples = m_Samples;
 		spec.Extra = ColorFormat::R11G11B10F;   // location 1: the ambient light (no alpha needed: the blends weigh by the source alpha)
+		spec.ReversedZ = true;   // T137: the scene draws with reversed Z into 32-bit float depth (Camera::GetReversedZProjection)
 		m_SceneMSAA = std::make_unique<Framebuffer>(spec);
 
 		spec.Samples = 1;
 		spec.Depth = false;
+		spec.ReversedZ = false;
 		spec.Extra = ColorFormat::None;
 		m_SceneResolved = std::make_unique<Framebuffer>(spec);
 		FramebufferSpec ambientSpec = spec;
@@ -125,6 +127,7 @@ namespace GB
 		depthSpec.Depth = true;
 		depthSpec.DepthAsTexture = true;
 		depthSpec.DepthCompare = false;
+		depthSpec.ReversedZ = true;   // (the same 32-bit float format as the scene's: depth blits need it)
 		m_SceneDepth = std::make_unique<Framebuffer>(depthSpec);
 
 		m_SceneTransmission.reset();   // T101: made again at the new size the next time a transmissive surface is in view
@@ -503,7 +506,11 @@ namespace GB
 		// Its CPU time goes into CpuObjectsMs, which held the scene pass's own culling before.
 		const auto cullStart = std::chrono::steady_clock::now();
 		const float aspect = static_cast<float>(m_Width) / static_cast<float>(m_Height);
-		const glm::mat4 viewProj = camera.GetProjection(aspect) * camera.GetView();
+		// T137: the GPU draws with reversed Z (gpuViewProj, in the frame block); the culling planes come from GL's projection (MakeFrustum
+		// reads them in that convention), the same frustum.
+		const glm::mat4 view = camera.GetView();
+		const glm::mat4 viewProj = camera.GetProjection(aspect) * view;
+		const glm::mat4 gpuViewProj = camera.GetReversedZProjection(aspect) * view;
 		if (shadows)
 			lightVP = ShadowViewProj(scene.Env.ShadowCenter, scene.Sun.Direction, scene.Env.ShadowRadius, m_ShadowSize);   // snapped to texels
 		const Frustum cameraFrustum = MakeFrustum(viewProj), lightFrustum = MakeFrustum(lightVP);
@@ -522,7 +529,7 @@ namespace GB
 			m_Materials.Flush();
 		}
 		const float cullMs = static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - cullStart).count());
-		UploadFrame(scene, camera, viewProj, lightVP, shadows);
+		UploadFrame(scene, camera, gpuViewProj, lightVP, shadows);
 
 		const auto shadowStart = std::chrono::steady_clock::now();
 		if (shadows)

@@ -10,6 +10,9 @@
 // BC5/BC7 (glCompressedTextureSubImage2D/3D) and the upload ring (glNamedBufferStorage, persistent and coherent, one glFenceSync per region).
 // The calls of before keep their GL calls: an indexed instanced draw with no offsets is still glDrawElementsInstanced, and a texture with one
 // layer and no Array flag is still GL_TEXTURE_2D.
+//
+// T137: BeginPass sets the pass's depth convention (glClipControl, glDepthFunc, glClearDepth; PassDesc::ReversedZ), and a ReversedZ
+// render target has GL_DEPTH_COMPONENT32F depth.
 #include "GB/Renderer/RHI/RHI.h"
 #include "GB/Renderer/RHI/UniformCache.h"
 #include <unordered_map>

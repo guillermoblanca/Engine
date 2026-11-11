@@ -5,7 +5,7 @@ layout(binding = 0) uniform sampler2D uAO;
 layout(binding = 1) uniform sampler2D uDepth;
 uniform vec2 uTexel;       // of the AO texture
 uniform vec2 uNearFar;
-float Lin(float d) { float z = d * 2.0 - 1.0; return 2.0 * uNearFar.x * uNearFar.y / (uNearFar.y + uNearFar.x - z * (uNearFar.y - uNearFar.x)); }
+float Lin(float d) { return uNearFar.x * uNearFar.y / (uNearFar.x + d * (uNearFar.y - uNearFar.x)); }   // reversed Z (T137)
 void main()
 {
 	float c = Lin(texture(uDepth, vUV).r);

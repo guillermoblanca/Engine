@@ -27,6 +27,19 @@ namespace GB
 			}
 			return glm::perspective(glm::radians(FovYDegrees), aspect, NearPlane, FarPlane);
 		}
+		// T137: the projection the renderer draws the scene with. Reversed Z with clip-space depth in [0, 1] (glClipControl
+		// GL_ZERO_TO_ONE): the near plane at depth 1, the far plane at 0, so a 32-bit float depth buffer keeps its precision far away
+		// (a step at 2 km is under a millimetre; 24 bits from 0.1 m had 3 m). The same frustum as GetProjection (near and far swapped,
+		// the far plane kept: it still clips). GetProjection stays GL's convention for the CPU: culling planes, picking rays, overlays.
+		glm::mat4 GetReversedZProjection(float aspect) const
+		{
+			if (Orthographic)
+			{
+				const float h = OrthoHalfHeight, w = h * aspect;
+				return glm::orthoRH_ZO(-w, w, -h, h, FarPlane, NearPlane);
+			}
+			return glm::perspectiveRH_ZO(glm::radians(FovYDegrees), aspect, FarPlane, NearPlane);
+		}
 
 		glm::vec3 GetForward() const { return glm::normalize(Target - Position); }
 

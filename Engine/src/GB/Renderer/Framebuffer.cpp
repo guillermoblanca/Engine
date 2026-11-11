@@ -33,6 +33,7 @@ namespace GB
 		desc.Depth = m_Spec.Depth;
 		desc.DepthAsTexture = m_Spec.DepthAsTexture;
 		desc.DepthCompare = m_Spec.DepthCompare;
+		desc.ReversedZ = m_Spec.ReversedZ;
 		desc.Levels = m_Spec.Levels;
 		m_Target = RHI::GetDevice().CreateRenderTarget(desc);
 		m_Complete = m_Target.Complete;
@@ -50,6 +51,7 @@ namespace GB
 		pass.Width = m_Spec.Width;
 		pass.Height = m_Spec.Height;
 		pass.Name = name;
+		pass.ReversedZ = m_Spec.ReversedZ;
 		return pass;
 	}
 

@@ -31,9 +31,8 @@ uniform float uSoft;            // soft particle fade distance (world units), 0 
 
 float LinearDepth(float d)
 {
-	if (uOrtho != 0) return uNearFar.x + d * (uNearFar.y - uNearFar.x);
-	float z = d * 2.0 - 1.0;
-	return 2.0 * uNearFar.x * uNearFar.y / (uNearFar.y + uNearFar.x - z * (uNearFar.y - uNearFar.x));
+	if (uOrtho != 0) return uNearFar.y - d * (uNearFar.y - uNearFar.x);
+	return uNearFar.x * uNearFar.y / (uNearFar.x + d * (uNearFar.y - uNearFar.x));
 }
 
 void main()

@@ -557,7 +557,7 @@ vec3 Transmitted(vec3 N, vec3 V, float roughness, float thickness)
 	vec4 clip = uViewProj * vec4(vPos + r * thickness, 1.0);
 	vec2 size = vec2(textureSize(uSceneColor, 0));
 	vec2 uv = clamp(clip.xy / max(clip.w, 1e-4) * 0.5 + 0.5, vec2(0.0), vec2(1.0));
-	if (textureLod(uSceneDepth, uv, 0.0).r < gl_FragCoord.z)
+	if (textureLod(uSceneDepth, uv, 0.0).r > gl_FragCoord.z)   // (reversed Z, T137: greater is nearer)
 		uv = gl_FragCoord.xy / size;
 	float radius = roughness * roughness * 0.3 / max(clip.w, 0.25);   // in screen heights: frosted ice blurs ~0.1 of the screen at 1 m
 	float pixels = radius * size.y;

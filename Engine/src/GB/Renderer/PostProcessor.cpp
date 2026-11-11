@@ -151,7 +151,7 @@ namespace GB
 	void PostProcessor::AmbientOcclusionPass(const Framebuffer& sceneDepth, const PostSettings& post, const Camera& camera)
 	{
 		const float aspect = static_cast<float>(m_Width) / static_cast<float>(m_Height);
-		const glm::mat4 proj = camera.GetProjection(aspect);
+		const glm::mat4 proj = camera.GetReversedZProjection(aspect);   // T137: the convention of the scene depth it reads
 		RHI::CommandList& cmd = RHI::GetDevice().Commands();
 		cmd.BindPipeline(m_AOPipe);
 		cmd.BindVertexLayout(m_EmptyVAO);

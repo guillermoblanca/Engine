@@ -11,7 +11,7 @@ uniform int uOrtho;
 vec3 ViewPos(vec2 uv)
 {
 	float d = texture(uDepth, uv).r;
-	vec4 clip = vec4(uv * 2.0 - 1.0, d * 2.0 - 1.0, 1.0);
+	vec4 clip = vec4(uv * 2.0 - 1.0, d, 1.0);   // (reversed Z in [0, 1], and uInvProj its inverse: T137)
 	vec4 v = uInvProj * clip;
 	return v.xyz / v.w;
 }
@@ -21,7 +21,7 @@ float IGN(vec2 p) { return fract(52.9829189 * fract(dot(p, vec2(0.06711056, 0.00
 void main()
 {
 	float d0 = texture(uDepth, vUV).r;
-	if (d0 >= 0.99999) { outAO = vec4(1.0); return; }
+	if (d0 <= 0.00001) { outAO = vec4(1.0); return; }   // the sky and the farthest ground (reversed Z: 1 - the 0.99999 of before)
 	vec3 P = ViewPos(vUV);
 	vec2 texel = 1.0 / vec2(textureSize(uDepth, 0));
 	// normal from the neighbours with the smaller depth difference (avoids smearing across edges)
