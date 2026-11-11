@@ -5,6 +5,7 @@
 #include "GB/World/Graph/Nodes/DrainageNodes.h"
 #include "GB/World/Graph/Nodes/FluvialErosionNode.h"
 #include "GB/World/Graph/Nodes/TalusNode.h"
+#include "GB/World/Graph/Nodes/DepositNode.h"
 #include "GB/World/Graph/Nodes/ErosionNode.h"
 #include "GB/World/Graph/Nodes/FieldNodes.h"
 #include "GB/World/Graph/Nodes/FlowAccumulationNode.h"
@@ -67,6 +68,8 @@ namespace GB
 		registry.Register("fluvial_erosion", [] { return std::make_unique<FluvialErosionNode>(); });
 		// generator 5, phase E4: talus with hardness, cliffs and scree (Nodes/TalusNode.h)
 		registry.Register("talus", [] { return std::make_unique<TalusNode>(); });
+		// generator 5, phase E3: the deposit, valleys filled part of the way and fans (Nodes/DepositNode.h)
+		registry.Register("deposit", [] { return std::make_unique<DepositNode>(); });
 		// masks and the snow cover (Nodes/MaskNodes.h)
 		registry.Register("mask_height", [] { return std::make_unique<HeightMaskNode>(); });
 		registry.Register("mask_slope", [] { return std::make_unique<SlopeMaskNode>(); });

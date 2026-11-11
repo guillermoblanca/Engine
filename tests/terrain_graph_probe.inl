@@ -8,6 +8,8 @@
 // E1 at the end; "e2v:" keeps the drawn valley, "e2x:" makes no lake, "e2w:" puts it after the water, in place of the droplets. GB_E2_PARAMS="Name=value ..." sets fluvial_erosion's parameters.
 // "e4:<preset>" adds TERRENO_V5 E4 (AppendE4): talus right after fluvial_erosion (E1 and E2 appended first unless the graph has an
 // "e2_fluvial" already, as the *_e2.json graphs do). GB_E4_PARAMS="Name=value ..." sets talus's parameters.
+// "e3:<preset>" adds TERRENO_V5 E3 (AppendE3): deposit right after talus (E4, and E1 and E2 before it, appended first unless the graph has
+// an "e4_talus" already, as the *_e4.json graphs do). GB_E3_PARAMS="Name=value ..." sets deposit's parameters.
 //   GBSimTests terrain_graph_cache hausdorff <a_river.f32> <b_river.f32>   (the probe writes <tag>_river.f32 with an out_dir)
 //   GBSimTests terrain_graph_cache dem <height.f32> <n> <size> [lakes.f32|-] [out_dir] [tag]
 // the same measures on a bare height field, a real DEM crop or one of ours resampled (tools/dem_ref.py; see Dem below).
@@ -20,6 +22,7 @@
 #include "GB/World/FlowAccumulation.h"
 #include "GB/World/StreamPower.h"
 #include "GB/World/Talus.h"
+#include "GB/World/Deposit.h"
 #include "GB/World/Graph/TerrainGraphIO.h"
 #include "GB/World/Water/LakeMesh.h"
 #include "GB/World/Water/WaterRaster.h"
@@ -208,6 +211,22 @@ namespace
 		return true;
 	}
 
+	// TERRENO_V5 E3 on a graph with E4: "e3_deposit" (deposit) right after "e4_talus", with its hardness, so everything that read the talus'
+	// ground reads it after the deposit. Its parameters come from GB_E3_PARAMS ("Name=value ..."); the defaults otherwise.
+	bool AppendE3(TerrainGraph& g, std::string& error)
+	{
+		const TgNode* e4 = g.FindNode("e4_talus");
+		if (!e4) { error = "e3: no e4_talus to put deposit after"; return false; }
+		for (TgEdge& e : g.Edges) if (e.From == "e4_talus" && e.FromPort == "height") { e.From = "e3_deposit"; }
+		TgNode n;
+		n.Id = "e3_deposit"; n.Type = "deposit"; n.Label = "e3_deposit"; n.Params = EnvParams("GB_E3_PARAMS");
+		n.X = e4->X + 120.0f; n.Y = e4->Y + 120.0f;
+		g.Nodes.push_back(std::move(n));
+		g.Edges.push_back({ "e4_talus", "e3_deposit", "height", "height" });
+		g.Edges.push_back({ "e4_talus", "e3_deposit", "hardness", "hardness" });
+		return true;
+	}
+
 	//   GBSimTests terrain_graph_cache e4bench <height.f32> <n> <size> [key=value ...] [out=<height.f32>]
 	// TERRENO_V5 E4 on a height field (the probe's <tag>_e2height.f32, fluvial_erosion's ground): TalusErode with its own hardness, timed by
 	// phase, its volumes, the hollows it makes (the level of the water over the ground grows) and the slopes in and out of the hard rock.
@@ -274,6 +293,202 @@ namespace
 		if (kv.count("out")) WriteF32(kv["out"], r.Heights);
 		if (kv.count("outHard")) WriteF32(kv["outHard"], hard);
 		if (kv.count("outScree")) WriteF32(kv["outScree"], r.Scree);
+		return 0;
+	}
+
+	// Block means of an N*N field (`size` metres) onto the grid of `spacing` metres, as tools/dem_ref.py resample does: each sample is the mean of
+	// the samples within half a spacing of it. `m` receives the new side.
+	std::vector<float> BlockMean(const std::vector<float>& v, uint32_t n, float size, float spacing, uint32_t& m)
+	{
+		m = static_cast<uint32_t>(std::lround(size / spacing)) + 1;
+		const float sp = size / static_cast<float>(m - 1), sp0 = size / static_cast<float>(n - 1);
+		std::vector<float> out(static_cast<size_t>(m) * m, 0.0f);
+		for (uint32_t J = 0; J < m; ++J)
+			for (uint32_t I = 0; I < m; ++I)
+			{
+				const float x0 = (static_cast<float>(I) - 0.5f) * sp, z0 = (static_cast<float>(J) - 0.5f) * sp;
+				const int i0 = std::max(0, static_cast<int>(std::ceil(x0 / sp0))), i1 = std::min(static_cast<int>(n) - 1, static_cast<int>(std::floor((x0 + sp) / sp0)));
+				const int j0 = std::max(0, static_cast<int>(std::ceil(z0 / sp0))), j1 = std::min(static_cast<int>(n) - 1, static_cast<int>(std::floor((z0 + sp) / sp0)));
+				double a = 0.0; int k = 0;
+				for (int j = j0; j <= j1; ++j) for (int i = i0; i <= i1; ++i) { a += v[static_cast<size_t>(j) * n + static_cast<size_t>(i)]; ++k; }
+				out[static_cast<size_t>(J) * m + I] = k ? static_cast<float>(a / k) : 0.0f;
+			}
+		return out;
+	}
+
+	// The mountain cells of an M*M grid: over 100 m of relief (max - min) in the square of +-300 m around them (the rule of `dem`).
+	std::vector<uint8_t> MountainMask(const std::vector<float>& h, uint32_t n, float sp)
+	{
+		const size_t count = h.size();
+		std::vector<float> lo = h, hi = h;
+		const int rc = std::max(1, static_cast<int>(std::lround(300.0f / sp)));
+		for (int pass = 0; pass < 2; ++pass)
+		{
+			std::vector<float> tlo(count), thi(count);
+			for (uint32_t a = 0; a < n; ++a)
+				for (uint32_t b = 0; b < n; ++b)
+				{
+					float mn = 1e30f, mx = -1e30f;
+					const int k0 = std::max(0, static_cast<int>(b) - rc), k1 = std::min(static_cast<int>(n) - 1, static_cast<int>(b) + rc);
+					for (int k = k0; k <= k1; ++k)
+					{
+						const size_t c = pass == 0 ? static_cast<size_t>(a) * n + static_cast<size_t>(k) : static_cast<size_t>(k) * n + a;
+						mn = std::min(mn, lo[c]); mx = std::max(mx, hi[c]);
+					}
+					const size_t c = pass == 0 ? static_cast<size_t>(a) * n + b : static_cast<size_t>(b) * n + a;
+					tlo[c] = mn; thi[c] = mx;
+				}
+			lo.swap(tlo); hi.swap(thi);
+		}
+		std::vector<uint8_t> m(count, 0);
+		for (size_t c = 0; c < count; ++c) m[c] = hi[c] - lo[c] >= 100.0f;
+		return m;
+	}
+
+	//   GBSimTests terrain_graph_cache e3feas <talus_height.f32> <e2_height.f32|-> <n> <size>
+	// TERRENO_V5 E3, before writing it: where the 30-40 degree ground of the talus (E4) sits. At 10 m (block means, the mountain rule of `dem`)
+	// every 30-40 degree cell is followed at full resolution down its drainage to the channel (2000 m2 and 18000 m2) and up to its divide (the
+	// longest flow path into it): how far each is, how high it stands over the channel (HAND), and the mean gradient of its hillslope from the
+	// top of that path to the channel. A cell whose hillslope is steeper than 30 degrees on average cannot go under 30 degrees while the crest
+	// and the channel stay where they are: that share is the floor of what easing the slopes alone can do.
+	int E3Feasibility(int argc, char** argv)
+	{
+		if (argc < 6) { std::fprintf(stderr, "e3feas <talus_height.f32> <e2_height.f32|-> <n> <size>\n"); return 2; }
+		const uint32_t n = static_cast<uint32_t>(std::atoi(argv[4]));
+		const float size = static_cast<float>(std::atof(argv[5])), sp = size / static_cast<float>(n - 1);
+		const size_t count = static_cast<size_t>(n) * n;
+		auto load = [&](const char* p, std::vector<float>& v) { v.assign(count, 0.0f); FILE* f = std::fopen(p, "rb"); if (!f) return false; const size_t got = std::fread(v.data(), sizeof(float), count, f); std::fclose(f); return got == count; };
+		std::vector<float> h, e2;
+		if (!load(argv[2], h)) { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
+		const bool haveE2 = std::string(argv[3]) != "-" && load(argv[3], e2);
+		DrainageResult d = ComputeDrainage(h.data(), n, sp);
+		AccumulateMultipleFlowArea(d, nullptr);
+		const float areas[2] = { 2000.0f, 18000.0f };
+		// down: the flow distance and the channel each cell reaches (per threshold); up: the longest flow path into each cell and its top
+		std::vector<float> down[2], upLen(count, 0.0f), upTop(h);
+		std::vector<int32_t> chan[2];
+		for (int t = 0; t < 2; ++t) { down[t].assign(count, 0.0f); chan[t].assign(count, -1); }
+		auto stepLen = [&](size_t a, size_t b) { return ((a % n) != (b % n) && (a / n) != (b / n) ? 1.41421356f : 1.0f) * sp; };
+		for (const uint32_t c : d.Order)
+		{
+			const int32_t r = d.Receiver[c];
+			for (int t = 0; t < 2; ++t)
+			{
+				if (d.Area[c] >= areas[t] || r < 0) { chan[t][c] = static_cast<int32_t>(c); down[t][c] = 0.0f; }
+				else { chan[t][c] = chan[t][static_cast<size_t>(r)]; down[t][c] = down[t][static_cast<size_t>(r)] + stepLen(c, static_cast<size_t>(r)); }
+			}
+		}
+		for (auto it = d.Order.rbegin(); it != d.Order.rend(); ++it)   // donors before receivers
+		{
+			const uint32_t c = *it;
+			const int32_t r = d.Receiver[c];
+			if (r < 0) continue;
+			const float L = upLen[c] + stepLen(c, static_cast<size_t>(r));
+			if (L > upLen[static_cast<size_t>(r)]) { upLen[static_cast<size_t>(r)] = L; upTop[static_cast<size_t>(r)] = upTop[c]; }
+		}
+		uint32_t m = 0;
+		const std::vector<float> h10 = BlockMean(h, n, size, 10.0f, m);
+		const float sp10 = size / static_cast<float>(m - 1);
+		const std::vector<uint8_t> mount = MountainMask(h10, m, sp10);
+		size_t mountCells = 0, c3040 = 0, cut = 0;
+		size_t gradBin[2][4] = {}, distBin[2][5] = {}, divBin[5] = {};
+		double handSum[2] = {};
+		for (uint32_t J = 1; J + 1 < m; ++J)
+			for (uint32_t I = 1; I + 1 < m; ++I)
+			{
+				const size_t C = static_cast<size_t>(J) * m + I;
+				if (!mount[C]) continue;
+				++mountCells;
+				const float gx = (h10[C + 1] - h10[C - 1]) / (2.0f * sp10), gz = (h10[C + m] - h10[C - m]) / (2.0f * sp10);
+				const float deg = glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz)));
+				if (deg < 30.0f || deg >= 40.0f) continue;
+				++c3040;
+				const uint32_t i = std::min(n - 1, static_cast<uint32_t>(std::lround(static_cast<float>(I) * sp10 / sp)));
+				const uint32_t j = std::min(n - 1, static_cast<uint32_t>(std::lround(static_cast<float>(J) * sp10 / sp)));
+				const size_t c = static_cast<size_t>(j) * n + i;
+				if (haveE2 && e2[c] - h[c] > 0.01f) ++cut;
+				const float dv = upLen[c];
+				divBin[dv < 15.0f ? 0 : dv < 30.0f ? 1 : dv < 60.0f ? 2 : dv < 120.0f ? 3 : 4]++;
+				for (int t = 0; t < 2; ++t)
+				{
+					const size_t e = static_cast<size_t>(chan[t][c]);
+					const float run = down[t][c] + upLen[c];
+					const float grad = run > 0.0f ? (upTop[c] - h[e]) / run : 0.0f;
+					const float gdeg = glm::degrees(std::atan(grad));
+					gradBin[t][gdeg < 20.0f ? 0 : gdeg < 25.0f ? 1 : gdeg < 30.0f ? 2 : 3]++;
+					const float dd = down[t][c];
+					distBin[t][dd < 15.0f ? 0 : dd < 30.0f ? 1 : dd < 60.0f ? 2 : dd < 120.0f ? 3 : 4]++;
+					handSum[t] += h[c] - h[e];
+				}
+			}
+		std::printf("e3feas: %u^2 at 10 m, mountain %zu cells; 30-40 deg %.1f %% of the mountain; cut by the talus %.1f %% of them\n", m, mountCells, Pct(c3040, mountCells), Pct(cut, c3040));
+		std::printf("  distance to the divide (longest flow path in): < 15 m %.1f, 15-30 %.1f, 30-60 %.1f, 60-120 %.1f, > 120 %.1f %%\n",
+			Pct(divBin[0], c3040), Pct(divBin[1], c3040), Pct(divBin[2], c3040), Pct(divBin[3], c3040), Pct(divBin[4], c3040));
+		for (int t = 0; t < 2; ++t)
+		{
+			std::printf("  channels > %.0f m2: flow distance to it < 15 m %.1f, 15-30 %.1f, 30-60 %.1f, 60-120 %.1f, > 120 %.1f %%; mean HAND %.1f m\n", areas[t],
+				Pct(distBin[t][0], c3040), Pct(distBin[t][1], c3040), Pct(distBin[t][2], c3040), Pct(distBin[t][3], c3040), Pct(distBin[t][4], c3040), handSum[t] / std::max<size_t>(c3040, 1));
+			std::printf("    mean gradient of the hillslope (top of the longest path to the channel): < 20 deg %.1f, 20-25 %.1f, 25-30 %.1f, >= 30 %.1f %%  -> floor with crest and channel fixed: %.1f %% of the mountain\n",
+				Pct(gradBin[t][0], c3040), Pct(gradBin[t][1], c3040), Pct(gradBin[t][2], c3040), Pct(gradBin[t][3], c3040), Pct(gradBin[t][3], mountCells));
+		}
+		return 0;
+	}
+
+	//   GBSimTests terrain_graph_cache e3bench <height.f32> <n> <size> [key=value ...] [out=<height.f32>] [outFan=<f32>] [outAlluvium=<f32>]
+	// TERRENO_V5 E3 on a height field (the talus' ground: e4bench's out=): DepositSediment, timed by phase, its volumes and the hollows it
+	// makes (the level of the water over the ground grows), with the talus' own hardness (cover, scale, seed, edge as e4bench).
+	// keys: fill, radius (FillRadius), fanArea, fan (FanAngle), apex (FanApexAngle), reach, depth (FanDepth), ease (EaseAngle), repose, hard,
+	// start, full, area (ChannelArea)
+	int E3Bench(int argc, char** argv)
+	{
+		if (argc < 5) { std::fprintf(stderr, "e3bench <height.f32> <n> <size> [key=value ...]\n"); return 2; }
+		const uint32_t n = static_cast<uint32_t>(std::atoi(argv[3]));
+		const float size = static_cast<float>(std::atof(argv[4])), sp = size / static_cast<float>(n - 1);
+		const size_t count = static_cast<size_t>(n) * n;
+		std::vector<float> h(count);
+		if (FILE* f = std::fopen(argv[2], "rb")) { const size_t got = std::fread(h.data(), sizeof(float), h.size(), f); std::fclose(f); if (got != h.size()) { std::fprintf(stderr, "short file\n"); return 2; } }
+		else { std::fprintf(stderr, "cannot read %s\n", argv[2]); return 2; }
+		std::map<std::string, std::string> kv;
+		for (int a = 5; a < argc; ++a) { const std::string t = argv[a]; const size_t eq = t.find('='); if (eq != std::string::npos) kv[t.substr(0, eq)] = t.substr(eq + 1); }
+		auto num = [&](const char* k, double d) { const auto it = kv.find(k); return it == kv.end() ? d : std::atof(it->second.c_str()); };
+		TalusHardnessParams hp;
+		hp.Cover = static_cast<float>(num("cover", 0.08)); hp.NoiseScale = static_cast<float>(num("scale", 250)); hp.Seed = static_cast<uint32_t>(num("seed", 0)); hp.Edge = static_cast<float>(num("edge", 0.08));
+		const std::vector<float> hard = TalusHardness(h.data(), n, sp, -0.5f * size, -0.5f * size, hp);
+		DepositOptions o;
+		o.Hardness = num("hardness", 1) >= 0.5 ? hard.data() : nullptr;
+		o.Fill = static_cast<float>(num("fill", 0.3)); o.FillRadius = static_cast<float>(num("radius", 50));
+		o.FanArea = static_cast<float>(num("fanArea", 20000)); o.FanAngle = static_cast<float>(num("fan", 5)); o.FanApexAngle = static_cast<float>(num("apex", 8));
+		o.FanReach = static_cast<float>(num("reach", 60)); o.FanDepth = static_cast<float>(num("depth", 1));
+		o.EaseAngle = static_cast<float>(num("ease", 0)); o.ReposeAngle = static_cast<float>(num("repose", 36)); o.HardAngle = static_cast<float>(num("hard", 55));
+		o.EaseStart = static_cast<float>(num("start", 15)); o.EaseFull = static_cast<float>(num("full", 60)); o.ChannelArea = static_cast<float>(num("area", 2000));
+		const auto t0 = std::chrono::steady_clock::now();
+		const DepositResult r = DepositSediment(h.data(), n, sp, o);
+		const double ms = Seconds(t0) * 1000.0;
+		const DepositStats& st = r.Stats;
+		std::printf("e3bench %u^2 (%.2f m): %.0f ms (drainage %.0f, ease %.0f, fill %.0f, fans %.0f in %d passes, apex factor %.2f, outputs %.0f)\n", n, sp, ms, st.DrainageMs, st.EaseMs, st.FillMs, st.FanMs,
+			st.FitPasses, st.ApexFactor, st.KeepMs);
+		std::printf("  eased %.3g m3; fill %.3g m3 on %zu cells; %zu apexes asking %.3g m3, fans %.3g m3 on %zu cells; drainage took back %.3g m3; %zu cells held still\n",
+			st.EaseVolume, st.FillVolume, st.FillCells, st.Apexes, st.FanTarget, st.FanVolume, st.FanCells, st.DrainVolume, st.HeldCells);
+		const DrainageResult before = ComputeDrainage(h.data(), n, sp), after = ComputeDrainage(r.Heights.data(), n, sp);
+		size_t grew = 0, grew50 = 0, minima = 0;
+		float deepest = 0.0f; size_t at = 0;
+		for (size_t c = 0; c < count; ++c)
+		{
+			const float g = (after.Level[c] - r.Heights[c]) - (before.Level[c] - h[c]);
+			grew += g > 0.05f; grew50 += g > 0.5f;
+			if (g > deepest) { deepest = g; at = c; }
+			const uint32_t i = static_cast<uint32_t>(c % n), j = static_cast<uint32_t>(c / n);
+			if (i == 0 || j == 0 || i + 1 == n || j + 1 == n || before.Level[c] > h[c] + 1e-4f) continue;
+			bool lower = false;
+			for (int dj = -1; dj <= 1; ++dj) for (int di = -1; di <= 1; ++di) if ((di || dj) && r.Heights[c + static_cast<size_t>(static_cast<int>(n) * dj + di)] < r.Heights[c]) lower = true;
+			minima += !lower;
+		}
+		const auto [lo, hi] = std::minmax_element(r.Heights.begin(), r.Heights.end());
+		std::printf("  new hollows > 0.05 m on %.3f %% of the cells, > 0.5 m on %.3f %%, deepest %.2f m at (%zu, %zu); %zu local minima outside the hollows; ground %.1f..%.1f m (was ..%.1f)\n",
+			Pct(grew, count), Pct(grew50, count), deepest, at % n, at / n, minima, *lo, *hi, *std::max_element(h.begin(), h.end()));
+		if (kv.count("out")) WriteF32(kv["out"], r.Heights);
+		if (kv.count("outFan")) WriteF32(kv["outFan"], r.Fan);
+		if (kv.count("outAlluvium")) WriteF32(kv["outAlluvium"], r.Alluvium);
 		return 0;
 	}
 
@@ -450,7 +665,8 @@ namespace
 	// (anything but plain gen4, which the world builds by itself).
 	bool ProbeGraph(std::string name, const WorldDesc& desc, TerrainGraph& g, bool& own, std::string& error)
 	{
-		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false, e4 = false;
+		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false, e4 = false, e3 = false;
+		if (name.rfind("e3:", 0) == 0) { e3 = true; name = name.substr(3); }
 		if (name.rfind("e4:", 0) == 0) { e4 = true; name = name.substr(3); }
 		bool settle = false;
 		if (name.rfind("settle:", 0) == 0) { settle = true; name = name.substr(7); }
@@ -471,11 +687,13 @@ namespace
 			if (!error.empty()) return false;
 		}
 		else if (!MakeTerrainGraphPreset(name, g)) { error = "unknown preset " + name; return false; }
+		if (e3 && !g.FindNode("e4_talus")) e4 = true;
 		if (e4 && !g.FindNode("e2_fluvial")) e1 = e2 = true;
-		own = own || e4;
+		own = own || e4 || e3;
 		if (e2 && !AppendE2(g, keepValley, afterWater, error)) return false;
 		if (e1 && !AppendE1(g, lakes, error)) return false;
 		if (e4 && !AppendE4(g, error)) return false;
+		if (e3 && !AppendE3(g, error)) return false;
 		return !settle || AppendSettle(g, error);
 	}
 
@@ -694,7 +912,7 @@ namespace
 
 	// The channel network of a filled ground, the probe's (TERR0): D8 (FlowAccumulation) on it, the cells draining over `netCells` cells, their
 	// Strahler order and confluences (a channel cell with two or more channel cells draining into it).
-	struct FilledNetworkStats { int Strahler = 0; size_t Confluences = 0, Cells = 0; FlowAccumulationResult Acc; };
+	struct FilledNetworkStats { int Strahler = 0; size_t Confluences = 0, Cells = 0; FlowAccumulationResult Acc; std::vector<uint8_t> Junction; };
 	FilledNetworkStats FilledNetwork(const std::vector<float>& filled, uint32_t n, float netCells)
 	{
 		FilledNetworkStats s;
@@ -710,7 +928,7 @@ namespace
 			if (s.Acc.Accumulation[c] < netCells) continue;
 			++s.Cells;
 			order[c] = topIn[c] == 0 ? 1 : static_cast<uint8_t>(topIn[c] + (topCount[c] >= 2 ? 1 : 0));
-			if (ins[c] >= 2) ++s.Confluences;
+			if (ins[c] >= 2) { ++s.Confluences; if (s.Junction.empty()) s.Junction.assign(count, 0); s.Junction[c] = 1; }
 			s.Strahler = std::max(s.Strahler, static_cast<int>(order[c]));
 			const int d = fdown[c];
 			if (d < 0) continue;
@@ -730,7 +948,11 @@ namespace
 		return v[static_cast<size_t>(q * static_cast<double>(v.size() - 1))];
 	}
 
-	//   GBSimTests terrain_graph_cache dem <height.f32> <n> <size> [lakes.f32|-] [out_dir] [tag]
+	//   GBSimTests terrain_graph_cache dem <height.f32> <n> <size> [lakes.f32|-] [out_dir] [tag] [window]
+	// [window] (TERRENO_V5 E3): a mask (<n>^2 float32, > 0.5 inside) or "piedmont:<m>", the dry cells off the mountain within <m> metres of it
+	// -- the same rule for a real crop and ours. In it: the slopes, and the confluences of the probe's network per km of the drainage's
+	// network inside it (the fan of Death Valley: few confluences, the channels spread). The channel floors under 3 degrees are also split
+	// into the mountain and the rest.
 	// TERRENO_V5 "Referencias reales": the same measures as the probe on a bare height field -- a real DEM crop that tools/dem_ref.py made
 	// metric, or one of our worlds (the probe's <tag>_height.f32) resampled by it to the DEM's spacing. No graph is evaluated. Lakes: the cells
 	// of `lakes.f32` equal to 1 (the probe's water kinds or dem_ref's resample), else the flat surfaces of the DEM itself (a reservoir or a tarn
@@ -750,7 +972,7 @@ namespace
 		const uint32_t n = static_cast<uint32_t>(std::atoi(argv[3]));
 		const float size = static_cast<float>(std::atof(argv[4]));
 		const size_t count = static_cast<size_t>(n) * n;
-		const std::string lakesPath = argc > 5 ? argv[5] : "-", outDir = argc > 6 ? argv[6] : "", tag = argc > 7 ? argv[7] : "dem";
+		const std::string lakesPath = argc > 5 ? argv[5] : "-", outDir = argc > 6 ? argv[6] : "", tag = argc > 7 ? argv[7] : "dem", windowArg = argc > 8 ? argv[8] : "";
 		TgField h;
 		h.N = n; h.Size = size; h.Center = glm::vec2(0.0f);
 		h.Values.assign(count, 0.0f);
@@ -873,7 +1095,7 @@ namespace
 		glm::vec2 basinAt(0.0f);
 		const double basin = BiggestBasin(h, filled, basinAt);
 		const FilledNetworkStats fnet = FilledNetwork(filled, n, 0.002f * static_cast<float>(count));
-		size_t floorCells = 0, floorFlat = 0;
+		size_t floorCells = 0, floorFlat = 0, floorCellsM = 0, floorFlatM = 0;
 		for (uint32_t j = 1; j + 1 < n; ++j)
 			for (uint32_t i = 1; i + 1 < n; ++i)
 			{
@@ -881,7 +1103,9 @@ namespace
 				if (fnet.Acc.Accumulation[c] < 0.0005f * static_cast<float>(count) || wet[c] != 0.0f) continue;
 				++floorCells;
 				const float gx = (h.At(i + 1, j) - h.At(i - 1, j)) / (2.0f * sp), gz = (h.At(i, j + 1) - h.At(i, j - 1)) / (2.0f * sp);
-				floorFlat += glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz))) < 3.0f;
+				const bool flat = glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz))) < 3.0f;
+				floorFlat += flat;
+				if (hi[c] - lo[c] >= 100.0f) { ++floorCellsM; floorFlatM += flat; }
 			}
 
 		// the drainage of E1, the lakes as outlets
@@ -927,6 +1151,64 @@ namespace
 				if (dist >= 0.75f * dists[k] && dist <= 1.25f * dists[k]) { handAt[k].push_back(hand); if (trunk) handTrunkAt[k].push_back(hand); }
 		}
 		const double mapKm2 = static_cast<double>(size) * size / 1e6;
+		// the window
+		std::vector<uint8_t> window;
+		if (windowArg.rfind("piedmont:", 0) == 0)
+		{
+			const float reach = static_cast<float>(std::atof(windowArg.c_str() + 9));
+			const int rc = static_cast<int>(std::ceil(reach / sp));
+			window.assign(count, 0);
+			for (uint32_t j = 1; j + 1 < n; ++j)
+				for (uint32_t i = 1; i + 1 < n; ++i)
+				{
+					const size_t c = static_cast<size_t>(j) * n + i;
+					if (wet[c] != 0.0f || hi[c] - lo[c] >= 100.0f) continue;
+					bool near = false;
+					for (int dj = -rc; dj <= rc && !near; ++dj)
+						for (int di = -rc; di <= rc && !near; ++di)
+						{
+							const int ii = static_cast<int>(i) + di, jj = static_cast<int>(j) + dj;
+							if (ii < 0 || jj < 0 || ii >= static_cast<int>(n) || jj >= static_cast<int>(n) || static_cast<float>(di * di + dj * dj) * sp * sp > reach * reach) continue;
+							const size_t m = static_cast<size_t>(jj) * n + static_cast<size_t>(ii);
+							near = hi[m] - lo[m] >= 100.0f;
+						}
+					window[c] = near;
+				}
+		}
+		else if (!windowArg.empty())
+		{
+			std::vector<float> w(count, 0.0f);
+			FILE* f = std::fopen(windowArg.c_str(), "rb");
+			if (!f || std::fread(w.data(), sizeof(float), count, f) != count) { std::fprintf(stderr, "cannot read %u^2 floats from %s\n", n, windowArg.c_str()); if (f) std::fclose(f); return 1; }
+			std::fclose(f);
+			window.assign(count, 0);
+			for (size_t c = 0; c < count; ++c) window[c] = w[c] > 0.5f && wet[c] == 0.0f;
+		}
+		size_t winBin[5] = {}, winCells = 0, winJunctions = 0;
+		double winNetLength = 0.0;
+		if (!window.empty())
+		{
+			for (uint32_t j = 1; j + 1 < n; ++j)
+				for (uint32_t i = 1; i + 1 < n; ++i)
+				{
+					const size_t c = static_cast<size_t>(j) * n + i;
+					if (!window[c]) continue;
+					const float gx = (h.At(i + 1, j) - h.At(i - 1, j)) / (2.0f * sp), gz = (h.At(i, j + 1) - h.At(i, j - 1)) / (2.0f * sp);
+					const float deg = glm::degrees(std::atan(std::sqrt(gx * gx + gz * gz)));
+					++winCells;
+					int b = 0;
+					while (deg >= bins[b]) ++b;
+					++winBin[b];
+					if (!fnet.Junction.empty() && fnet.Junction[c]) ++winJunctions;
+				}
+			for (const uint32_t c : d.Order)
+			{
+				const int32_t r = d.Receiver[c];
+				if (r < 0 || !window[c] || d.Area[c] < netArea || wet[c] != 0.0f) continue;
+				const bool diag = (c % n) != (static_cast<uint32_t>(r) % n) && (c / n) != (static_cast<uint32_t>(r) / n);
+				winNetLength += (diag ? 1.41421356 : 1.0) * sp;
+			}
+		}
 		const double width2 = trunkLength > 0.0 ? static_cast<double>(floor2) * cellArea / trunkLength : 0.0;
 		const double width5 = trunkLength > 0.0 ? static_cast<double>(floor5) * cellArea / trunkLength : 0.0;
 
@@ -944,6 +1226,12 @@ namespace
 			Percentile(handAt[0], 0.5), Percentile(handAt[1], 0.5), Percentile(handAt[2], 0.5), Percentile(handAt[3], 0.5), trunkLength,
 			Percentile(handTrunkAt[0], 0.5), Percentile(handTrunkAt[1], 0.5), Percentile(handTrunkAt[2], 0.5), Percentile(handTrunkAt[3], 0.5), Percentile(handAll, 0.5), Percentile(handAll, 0.9));
 		std::printf("  valley floor of the trunks: %.0f m wide within 2 m of their level, %.0f m within 5 m\n", width2, width5);
+		std::printf("  channel floors under 3 deg: mountain %.1f %% of %zu cells, the rest %.1f %% of %zu cells\n", Pct(floorFlatM, floorCellsM), floorCellsM,
+			Pct(floorFlat - floorFlatM, floorCells - floorCellsM), floorCells - floorCellsM);
+		if (!window.empty())
+			std::printf("  window (%s): %.1f %% of the map; slopes < 3 deg %.1f %%, 3-14 %.1f %%, 14-30 %.1f %%, 30-40 %.1f %%, > 40 %.1f %%; %zu confluences over %.2f km of network: %.2f per km\n",
+				windowArg.c_str(), Pct(winCells, count), Pct(winBin[0], winCells), Pct(winBin[1], winCells), Pct(winBin[2], winCells), Pct(winBin[3], winCells), Pct(winBin[4], winCells),
+				winJunctions, winNetLength / 1000.0, winNetLength > 0.0 ? static_cast<double>(winJunctions) / (winNetLength / 1000.0) : 0.0);
 		if (!outDir.empty())
 		{
 			ProbeJson js;
@@ -965,6 +1253,13 @@ namespace
 			}
 			js.Num("hand_p50", Percentile(handAll, 0.5)); js.Num("hand_p90", Percentile(handAll, 0.9)); js.Num("trunk_length", trunkLength);
 			js.Num("floor_width_2", width2); js.Num("floor_width_5", width5);
+			js.Num("floor_flat_mountain", Pct(floorFlatM, floorCellsM)); js.Num("floor_flat_plain", Pct(floorFlat - floorFlatM, floorCells - floorCellsM));
+			if (!window.empty())
+			{
+				js.Num("win_frac", Pct(winCells, count)); js.Num("win_lt3", Pct(winBin[0], winCells)); js.Num("win_3_14", Pct(winBin[1], winCells));
+				js.Num("win_14_30", Pct(winBin[2], winCells)); js.Num("win_30_40", Pct(winBin[3], winCells)); js.Num("win_gt40", Pct(winBin[4], winCells));
+				js.Num("win_confl_per_km", winNetLength > 0.0 ? static_cast<double>(winJunctions) / (winNetLength / 1000.0) : 0.0); js.Num("win_net_km", winNetLength / 1000.0);
+			}
 			if (js.File) { std::fprintf(js.File, "\n}\n"); std::fclose(js.File); }
 			WriteF32(outDir + "/" + tag + "_flow.f32", d.Area);
 			WriteF32(outDir + "/" + tag + "_water.f32", wet);
@@ -1688,6 +1983,43 @@ namespace
 				WriteF32(outDir + "/" + tag + "_e4hardness.f32", hardV);
 				WriteF32(outDir + "/" + tag + "_e4scree.f32", screeV);
 				WriteF32(outDir + "/" + tag + "_e4cut.f32", cutV);
+			}
+		}
+		if (const auto e3 = r.Nodes.find("e3_deposit"); e3 != r.Nodes.end() && e3->second.count("height"))
+		{
+			// the deposit against its input (the talus' ground): the hollows it makes that were not there, and what it laid down
+			const TgField& dh = e3->second.at("height").Field;
+			const auto in = r.Nodes.find("e4_talus");
+			const TgField& din = in != r.Nodes.end() ? in->second.at("height").Field : dh;
+			const DrainageResult before = ComputeDrainage(din.Values.data(), din.N, din.Spacing());
+			const DrainageResult after = ComputeDrainage(dh.Values.data(), dh.N, dh.Spacing());
+			const size_t tc = dh.Values.size();
+			size_t newHollow = 0, newHollow50 = 0, fanCells = 0, fillCells = 0;
+			float deepestNew = 0.0f, thickest = 0.0f, fanThickest = 0.0f;
+			const std::vector<float>& alluvium = e3->second.at("alluvium").Field.Values;
+			const std::vector<float>& fan = e3->second.at("fan").Field.Values;
+			const std::vector<float>& eased = e3->second.at("eased").Field.Values;
+			const float dsp = dh.Spacing(), cellA = dsp * dsp;
+			double fillVol = 0.0, fanVol = 0.0, easeVol = 0.0;
+			for (size_t c = 0; c < tc; ++c)
+			{
+				const float grew = (after.Level[c] - dh.Values[c]) - (before.Level[c] - din.Values[c]);
+				newHollow += grew > 0.05f; newHollow50 += grew > 0.5f;
+				deepestNew = std::max(deepestNew, grew);
+				fanVol += fan[c] * cellA; fillVol += (alluvium[c] - fan[c]) * cellA; easeVol += eased[c] * cellA;
+				fanCells += fan[c] > 0.5f; fillCells += alluvium[c] - fan[c] > 0.5f;
+				thickest = std::max(thickest, alluvium[c]); fanThickest = std::max(fanThickest, fan[c]);
+			}
+			std::printf("  E3 deposit: fill %.3g m3 (> 0.5 m on %.1f %% of the map), fans %.3g m3 (> 0.5 m on %.1f %%, %.1f m thick at most), alluvium %.1f m at most, eased %.3g m3; new hollows > 0.05 m on %.3f %% of the cells, > 0.5 m on %.3f %%, deepest %.2f m\n",
+				fillVol, Pct(fillCells, tc), fanVol, Pct(fanCells, tc), fanThickest, thickest, easeVol, Pct(newHollow, tc), Pct(newHollow50, tc), deepestNew);
+			js.Num("e3_fill_m3", fillVol); js.Num("e3_fan_m3", fanVol); js.Num("e3_eased_m3", easeVol); js.Num("e3_fan_frac", Pct(fanCells, tc)); js.Num("e3_fill_frac", Pct(fillCells, tc));
+			js.Num("e3_alluvium_max", thickest); js.Num("e3_fan_max", fanThickest);
+			js.Num("e3_new_hollow_005", Pct(newHollow, tc)); js.Num("e3_new_hollow_05", Pct(newHollow50, tc)); js.Num("e3_new_hollow_max", deepestNew);
+			if (!outDir.empty())
+			{
+				WriteF32(outDir + "/" + tag + "_e3alluvium.f32", alluvium);
+				WriteF32(outDir + "/" + tag + "_e3fan.f32", fan);
+				WriteF32(outDir + "/" + tag + "_e3in.f32", din.Values);
 			}
 		}
 		if (world.Desc.Extent() > 1000.0f || r.Nodes.count("settle_grade")) ProbeSettle(r, h, &world, wetKinds, stats, js, outDir, tag);

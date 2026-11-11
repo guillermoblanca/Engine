@@ -267,6 +267,9 @@ gb_test(fluvial_erosion fluvial_erosion_test.cpp POOL GBWorldGenTests LINK GB::W
 # TERRENO_V5 E4: the talus with hardness (a step: the hard wall keeps a cliff, the soft one is cut to its angle, scree at the foot, the volume
 # kept; lakes still, no new hollows, the same twice) and the node talus; GB_WorldGen alone.
 gb_test(talus talus_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS rapido)
+# TERRENO_V5 E3: the deposit (a sierra front: the gullies filled part of the way, the crests and the hard rock still, a fan at every mouth;
+# the lake and the border still, no new hollows, the same twice) and the node deposit; GB_WorldGen alone.
+gb_test(deposit deposit_test.cpp POOL GBWorldGenTests LINK GB::WorldGen LABELS rapido)
 # The material layers and the trees of the new terrain (GRAFO_TERRENO.md): the layer nodes on a synthetic map (normalised, masks, Revision),
 # tree_species keeping trees off the water, cliffs and paths, and a world from a graph keeping the species and the six layer kinds of before.
 gb_test(surface_layers surface_layers_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
