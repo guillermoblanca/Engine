@@ -5,9 +5,24 @@
 #include "GB/Platform/Window.h"
 #include "GB/World/Water.h"
 #include "GB/Renderer/WaterRipples.h"
+#include "GB/Renderer/TerrainGpu.h"
+#include "GB/Renderer/RocksGpu.h"
+#include "GB/Renderer/TreesGpu.h"
+#include "GB/World/Rocks.h"
+#include "GB/World/Trees.h"
+#include "GB/World/Terrain.h"
+#include "GB/World/Water/WaterPresets.h"
+#include "GB/World/Graph/TerrainGraphLibrary.h"
+#include "GB/World/WorldGen.h"
+#include <glad/gl.h>
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
+#include <memory>
+#include <string>
+#include <vector>
 #include <glm/gtc/matrix_transform.hpp>
 
 namespace
@@ -16,6 +31,150 @@ namespace
 	void Check(bool ok, const char* what)
 	{
 		if (!ok) { std::fprintf(stderr, "FAIL: %s\n", what); ++failures; }
+	}
+
+	// T135: GB_WATER_BENCH=<rounds>: the GPU cost of the water pass (GpuWaterMs) and of the whole frame (GpuTotalMs) on the editor's
+	// showcase world (highland_valley_showcase, temperate, seed 5, 3 km at 1025, mesh detail 0.3), terrain and water only, 1920x1080
+	// MSAA 4, in the views of the water shots: the main lake seen obliquely from ~260 m, and the river at eye height on its fastest
+	// stretch. Each view is drawn `rounds` times 40 frames (10 of warm-up); reported: the median of the per-round means and the minimum
+	// frame. The time runs (the shader's animation is part of the cost). GB_WATER_BENCH_INFO=1 also prints the river (points, speeds,
+	// mouth) and the lakes, with an editor `camera` command for the river shot. Two builds are compared by running each one's GBGLTests
+	// in turn: the shaders are compiled into the executable. GB_WATER_BENCH_OUT=<dir>: a picture of each view.
+	int WaterBench(int rounds)
+	{
+		const std::string graphPath = (std::filesystem::path(__FILE__).parent_path().parent_path() / "assets" / "data" / "terrain_graphs" / "highland_valley_showcase.json").string();
+		GB::TerrainGraphLibrary library;
+		std::string id;
+		const std::string error = library.LoadFile(graphPath, &id);
+		if (!error.empty() || !library.Find(id)) { std::fprintf(stderr, "FAIL: water bench: cannot load %s (%s)\n", graphPath.c_str(), error.c_str()); return 1; }
+		GB::WorldDesc desc;
+		desc.Type = GB::WorldType::Temperate;
+		desc.Seed = 5;
+		desc.MeshDetail = 0.3f;
+		desc.Size = 3000.0f;
+		desc.Resolution = 1025;
+		desc.TreeBudget = 40000;
+		desc.RockBudget = 900;
+		desc.TerrainGraphDefinition = std::make_shared<const GB::TerrainGraph>(*library.Find(id));
+		GB::GeneratedWorld world = GB::WorldGenerator::GenerateData(desc);
+		if (!world.TerrainPtr) { std::fprintf(stderr, "FAIL: water bench: no terrain\n"); return 1; }
+		GB::Terrain& terrain = *world.TerrainPtr;
+		const GB::WaterField& field = terrain.Water();
+		const GB::RiverData* river = field.River();
+		if (!river || river->Points.size() < 12) { std::fprintf(stderr, "FAIL: water bench: the world has no river\n"); return 1; }
+
+		// the editor's orbit camera: yaw, pitch (degrees), distance, target
+		auto orbit = [](float yawDeg, float pitchDeg, float distance, glm::vec3 target)
+		{
+			GB::Camera cam;
+			cam.FarPlane = 4500.0f;
+			const float yaw = glm::radians(yawDeg), pitch = glm::radians(pitchDeg);
+			cam.Position = target + distance * glm::vec3(std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch));
+			cam.Target = target;
+			return cam;
+		};
+		// the river's fastest stretch in the lowland (its last third, before the mouth), looked at from upstream at eye height over the water
+		const size_t first = river->Points.size() * 2 / 3;
+		size_t fast = first;
+		for (size_t i = first; i + 40 < river->Points.size(); ++i)
+			if (river->Speed[i] > river->Speed[fast] + 0.01f) fast = i;
+		const glm::vec3 at = river->Points[fast], ahead = river->Points[std::min(fast + 3, river->Points.size() - 1)];
+		glm::vec2 flow(ahead.x - at.x, ahead.z - at.z);
+		flow = glm::length(flow) > 1e-4f ? glm::normalize(flow) : glm::vec2(1.0f, 0.0f);
+		const glm::vec3 eyeTarget(at.x + flow.x * 6.0f, at.y + 0.3f, at.z + flow.y * 6.0f);
+		const float eyeYaw = glm::degrees(std::atan2(-flow.x, -flow.y)), eyeDist = 14.0f;
+		const float eyePitch = glm::degrees(std::asin(std::clamp(1.6f / eyeDist, -1.0f, 1.0f)));
+
+		if (std::getenv("GB_WATER_BENCH_INFO"))
+		{
+			std::printf("river: %zu points, half width %.1f, mouth %.1f m\n", river->Points.size(), static_cast<double>(river->HalfWidth), static_cast<double>(river->MouthLength));
+			const size_t stride = std::max<size_t>(1, river->Points.size() / 24);
+			for (size_t i = 0; i < river->Points.size(); i += stride)
+			{
+				const glm::vec3& p = river->Points[i];
+				std::printf("  point %zu: %.1f %.2f %.1f speed %.2f half %.1f\n", i, static_cast<double>(p.x), static_cast<double>(p.y), static_cast<double>(p.z),
+					static_cast<double>(river->Speed[i]), static_cast<double>(river->HalfWidthAt(std::min(i, river->Points.size() - 2), 0.0f)));
+			}
+			const glm::vec3& last = river->Points.back();
+			std::printf("  last point: %.1f %.2f %.1f\n", static_cast<double>(last.x), static_cast<double>(last.y), static_cast<double>(last.z));
+			std::printf("fastest at point %zu (%.2f m/s): camera %.1f %.1f %.1f %.1f %.2f %.1f\n", fast, static_cast<double>(river->Speed[fast]),
+				static_cast<double>(eyeYaw), static_cast<double>(eyePitch), static_cast<double>(eyeDist), static_cast<double>(eyeTarget.x), static_cast<double>(eyeTarget.y), static_cast<double>(eyeTarget.z));
+			for (const GB::LakeBody* lake : field.Lakes())
+				std::printf("lake at %.0f %.0f r %.0f level %.2f\n", static_cast<double>(lake->Center.x), static_cast<double>(lake->Center.y), static_cast<double>(lake->Radius), static_cast<double>(lake->Level));
+		}
+
+		std::vector<std::unique_ptr<GB::WaterSurface>> surfaces;
+		if (auto lake = GB::MakeLakeSurface(field)) surfaces.push_back(std::move(lake));
+		for (auto& lake : GB::MakeMoreLakeSurfaces(field)) surfaces.push_back(std::move(lake));
+		if (auto r = GB::MakeRiverSurface(field)) surfaces.push_back(std::move(r));
+		GB::TerrainGpu gpu(terrain);
+
+		constexpr uint32_t BW = 1920, BH = 1080;
+		GB::Renderer renderer(BW, BH, 4, 2048);
+		if (!renderer.IsValid()) { std::fprintf(stderr, "FAIL: water bench: the renderer does not compile\n"); return 1; }
+		GB::Framebuffer fb(BW, BH);
+		struct View { const char* Name; GB::Camera Cam; };
+		const View views[] = {
+			{ "lake_oblique", orbit(35.0f, 30.0f, 260.0f, { -234.0f, -30.1f, 0.0f }) },
+			{ "river_eye", orbit(eyeYaw, eyePitch, eyeDist, eyeTarget) },
+		};
+		// the world's trees and rocks as the editor draws them (WorldInstance: the far trees beyond 70 m, none beyond 340 m)
+		GB::TreesGpu treesGpu;
+		std::vector<std::unique_ptr<GB::TreeGpu>> trees, treesFar;
+		for (const GB::TreeParams& tp : world.TreeRecipes)
+		{
+			trees.push_back(treesGpu.Create(tp));
+			GB::TreeParams far = tp;
+			far.Detail = 0;
+			treesFar.push_back(treesGpu.Create(far));
+		}
+		std::vector<std::unique_ptr<GB::RockGpu>> rocks;
+		for (const GB::RockParams& rp : world.RockRecipes) rocks.push_back(GB::RocksGpu::Create(rp));
+		std::printf("water bench: %ux%u MSAA 4, %zu surfaces, terrain, trees and rocks, %d rounds of 30 frames (ms)\n", BW, BH, surfaces.size(), rounds);
+		float time = 0.0f;
+		for (const View& view : views)
+		{
+			GB::Scene sc;
+			gpu.AddToScene(sc);
+			for (const GB::TreePlacement& tr : world.Trees)
+			{
+				const float d = glm::distance(tr.Position, view.Cam.Position);
+				if (d > 340.0f || tr.Variant < 0 || static_cast<size_t>(tr.Variant) >= trees.size()) continue;
+				(d > 70.0f ? treesFar : trees)[static_cast<size_t>(tr.Variant)]->AddToScene(sc, tr.Position, tr.Yaw, tr.Scale, 340.0f);
+			}
+			for (const GB::RockPlacement& rk : world.Rocks)
+				if (glm::distance(rk.Position, view.Cam.Position) < 340.0f && rk.Variant >= 0 && static_cast<size_t>(rk.Variant) < rocks.size())
+					rocks[static_cast<size_t>(rk.Variant)]->AddToScene(sc, rk.Position, rk.Yaw, rk.Scale, 0.12f * rk.Scale);
+			for (const auto& s : surfaces) sc.Water.push_back(s.get());
+			sc.Sun.Direction = glm::normalize(glm::vec3(-0.35f, -0.8f, -0.45f));
+			sc.Env.ShadowRadius = 80.0f;
+			sc.Env.ShadowCenter = view.Cam.Target;
+			std::vector<double> water, total, waterMin, totalMin;
+			for (int r = 0; r < rounds; ++r)
+			{
+				double sw = 0.0, st = 0.0, lw = 1e9, lt = 1e9;
+				int n = 0;
+				for (int i = 0; i < 40; ++i)
+				{
+					time += 1.0f / 60.0f;
+					sc.Env.Time = time;
+					renderer.Render(sc, view.Cam, &fb);
+					glFinish();
+					if (i < 10) continue;
+					const GB::RenderStats& s = renderer.GetStats();
+					sw += s.GpuWaterMs; st += s.GpuTotalMs;
+					lw = std::min(lw, static_cast<double>(s.GpuWaterMs)); lt = std::min(lt, static_cast<double>(s.GpuTotalMs));
+					++n;
+				}
+				water.push_back(sw / n); total.push_back(st / n); waterMin.push_back(lw); totalMin.push_back(lt);
+			}
+			auto median = [](std::vector<double> x) { std::sort(x.begin(), x.end()); return x[x.size() / 2]; };
+			std::printf("  view %-12s water median %.3f min %.3f | total median %.3f min %.3f\n", view.Name, median(water), *std::min_element(waterMin.begin(), waterMin.end()),
+				median(total), *std::min_element(totalMin.begin(), totalMin.end()));
+			if (const char* outDir = std::getenv("GB_WATER_BENCH_OUT"))
+				fb.SavePNG((std::string(outDir) + "/water_bench_" + view.Name + ".png").c_str());
+		}
+		return 0;
 	}
 }
 
@@ -54,6 +213,8 @@ int GBTest_water(int, char**)
 		std::fprintf(stderr, "SKIP (GL part): no OpenGL 4.5 context\n");
 		return failures ? failures : 77;
 	}
+	if (const char* benchEnv = std::getenv("GB_WATER_BENCH"))
+		return failures + WaterBench(std::max(1, std::atoi(benchEnv)));
 
 	{
 		GB::WaterRipplesDesc desc;

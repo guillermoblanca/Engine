@@ -21,8 +21,8 @@ layout(std140, binding = 0) uniform FrameBlock
 	vec4 uPointColor[32];                     // rgb color * intensity
 };
 in vec3 vPos;
-in vec2 vFlow;
-in float vBlend;
+in vec4 vRiver;
+in vec2 vFlowDir;
 layout(location = 0) out vec4 outColor;
 layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of outColor, for the SSAO (Renderer::m_SceneAmbient)
 layout(binding = 1) uniform sampler2D uSceneDepth;
@@ -148,26 +148,102 @@ vec4 TraceReflection(vec3 origin, vec3 dir, float jitter)
 			vec4 ch = uViewProj * vec4(b, 1.0);
 			vec2 uvh = ch.xy / ch.w * 0.5 + 0.5;
 			if (LinearDepth(texture(uSceneDepth, uvh).r) > uNearFar.y * 0.95) return vec4(0.0);   // that is the sky: use the environment instead
+			// fade at the screen's edges and smoothly toward the end of the march (a step index would draw bands)
 			float edge = smoothstep(0.0, 0.08, min(min(uvh.x, 1.0 - uvh.x), min(uvh.y, 1.0 - uvh.y)));
-			return vec4(texture(uSceneColor, uvh).rgb, edge * (1.0 - float(i) / 40.0));
+			float reach = 1.0 - smoothstep(0.55, 1.0, (float(i) + jitter) / 40.0);
+			return vec4(texture(uSceneColor, uvh).rgb, edge * reach);
 		}
 	}
 	return vec4(0.0);
 }
 
-float Hash(vec2 p) { p = fract(p * vec2(123.34, 456.21)); p += dot(p, p + 45.32); return fract(p.x * p.y); }
+// Integer lattice hash (stable at world coordinates of thousands of meters, where a fract-of-product hash goes regular).
+float Hash(vec2 p)
+{
+	uvec2 q = uvec2(ivec2(floor(p))) * uvec2(1597334673u, 3812015801u);
+	uint n = (q.x ^ q.y) * 1597334673u;
+	return float(n) * (1.0 / 4294967295.0);
+}
 float Noise(vec2 p)
 {
 	vec2 i = floor(p), f = fract(p);
 	f = f * f * (3.0 - 2.0 * f);
 	return mix(mix(Hash(i), Hash(i + vec2(1, 0)), f.x), mix(Hash(i + vec2(0, 1)), Hash(i + vec2(1, 1)), f.x), f.y);
 }
-
-vec2 Detail(vec2 q, float t)
+// Value noise and its gradient (x: value 0..1, yz: d/dp), quintic: the gradient is continuous, so normals made of it are.
+vec3 NoiseD(vec2 p)
 {
-	vec2 n1 = vec2(Noise(q * 1.7 + vec2(t * 0.35, t * 0.2)), Noise(q * 1.7 + 17.0 + vec2(-t * 0.25, t * 0.3))) - 0.5;
-	vec2 n2 = vec2(Noise(q * 4.3 + vec2(-t * 0.5, t * 0.4)), Noise(q * 4.3 + 31.0 + vec2(t * 0.45, -t * 0.35))) - 0.5;
-	return n1 * 0.14 + n2 * 0.07;
+	vec2 i = floor(p), f = fract(p);
+	vec2 u = f * f * f * (f * (f * 6.0 - 15.0) + 10.0);
+	vec2 du = 30.0 * f * f * (f * (f - 2.0) + 1.0);
+	float a = Hash(i), b = Hash(i + vec2(1, 0)), c = Hash(i + vec2(0, 1)), d = Hash(i + vec2(1, 1));
+	float k1 = b - a, k2 = c - a, k4 = a - b - c + d;
+	return vec3(a + k1 * u.x + k2 * u.y + k4 * u.x * u.y, du * vec2(k1 + k4 * u.y, k2 + k4 * u.x));
+}
+
+// The pixel's footprint on the water (m) and how much of a band of wavelength `lambda` it can still show: all of it from
+// eight pixels a wavelength, none under three (value noise and sharp crests hold detail finer than their period, and the
+// sun's highlight turns any of it that aliases into glints).
+float gFootprint;
+float Band(float lambda) { return smoothstep(3.0, 8.0, lambda / gFootprint); }
+
+// The depth of the opaque scene in view space, and how coarse the 24-bit depth buffer is there (one step, in meters of
+// view depth: z^2 (f - n) / (n f) / 2^24). Far away the steps are meters deep and run across the screen in rows; the
+// samples above and below are averaged, which turns the staircase back into the slope of the bed.
+float DepthStep(float z)
+{
+	if (uOrtho != 0) return (uNearFar.y - uNearFar.x) * 5.9604645e-8;
+	return z * z * (uNearFar.y - uNearFar.x) / (uNearFar.x * uNearFar.y) * 5.9604645e-8;
+}
+float SceneDepth(vec2 uv, float dz)
+{
+	float z = LinearDepth(texture(uSceneDepth, uv).r);
+	if (dz < 0.06)   // (closer than ~300 m: one sample is fine)
+		return z;
+	// the 4 x 4 pixels around (four gathers; 4 x 8 where the steps are coarser than 0.3 m), only those within two steps of
+	// this one (an edge filter: a tree in front or the deep bed beside is another surface)
+	vec2 texel = 1.0 / vec2(textureSize(uSceneDepth, 0));
+	float sum = z, n = 1.0;
+	int gathers = dz > 0.3 ? 8 : 4;
+	for (int k = 0; k < gathers; ++k)
+	{
+		vec2 o = vec2((k & 1) == 0 ? -1.0 : 1.0, float(k >> 1) * 2.0 - (gathers == 8 ? 3.0 : 1.0)) * texel;
+		vec4 g = textureGather(uSceneDepth, uv + o, 0);
+		for (int c = 0; c < 4; ++c)
+		{
+			float zk = LinearDepth(g[c]);
+			float w = step(abs(zk - z), 2.0 * dz);   // the steps next to this one: a deeper bed nearby must not pull the shore under
+			sum += zk * w; n += w;
+		}
+	}
+	return mix(z, sum / n, smoothstep(0.06, 0.15, dz));
+}
+
+// Slope of the Gerstner set (the waves of lib/water_waves), band-limited; `lost` gathers the slope variance filtered out.
+vec2 WaveSlope(vec2 p, inout float lost)
+{
+	vec2 slope = vec2(0.0);
+	for (int i = 0; i < 4; ++i)
+	{
+		float c = cos(kAngle[i]), s = sin(kAngle[i]);
+		vec2 d = vec2(uWaveDir.x * c - uWaveDir.y * s, uWaveDir.x * s + uWaveDir.y * c);
+		float k = 6.2831853 / (uWaveLength * kLen[i]);
+		float amp = uWaveHeight * kAmp[i] * (i == 0 ? 1.0 : uChop);
+		float ph = k * dot(d, p) - k * sqrt(9.81 / k) * uTime;
+		float w = Band(uWaveLength * kLen[i]);
+		slope += d * (amp * k * cos(ph) * w);
+		lost += 0.5 * (amp * k) * (amp * k) * (1.0 - w * w);
+	}
+	return slope;
+}
+
+// One band of noise slope: `g` the gradient of NoiseD in its own coordinates, `scale` meters per unit of each coordinate,
+// `gain` the slope it stands for. Returns the slope (in those axes) band-limited by its smallest scale.
+vec2 NoiseBand(vec2 g, vec2 scale, float gain, inout float lost)
+{
+	float w = Band(min(scale.x, scale.y));
+	lost += gain * gain * 0.3 * (1.0 - w * w);   // value noise: mean square gradient ~0.3 per unit
+	return g / scale * gain * w;
 }
 
 float RippleAt(vec2 xz)
@@ -182,27 +258,99 @@ void main()
 		discard;
 	vec3 V = normalize(uCamPos - vPos);
 	float camDist = length(uCamPos - vPos);
-	float fade = 1.0 - smoothstep(30.0, 120.0, length(vPos.xz - uCamPos.xz));
-	vec2 slope;
-	Waves(vPos.xz - vec2(0.0), fade, slope);   // slope of the wave sum (position offsets are tiny for shading)
-	vec3 N = normalize(vec3(-slope.x, 1.0, -slope.y));
-
-	// Fine detail: two noise layers, fading with distance. Still water scrolls them slowly; a current advects
-	// them along the flow (two phases cross-faded so the pattern never visibly resets).
+	// the footprint: the longer side of the pixel on the surface (grazing views stretch it along the view)
+	vec2 dpx = dFdx(vPos.xz), dpy = dFdy(vPos.xz);
+	gFootprint = max(max(length(dpx), length(dpy)), 1e-4);
 	vec2 q = vPos.xz;
 	float t = uTime;
-	float speed = length(vFlow);
-	// The two are cross-faded by the current's speed (no seam where a river slows down into the still water of a lake).
+	float lost = 0.0;   // slope variance the filtering removed (goes into the roughness)
+
+	float speed = vRiver.z;
+	// A current and still water are cross-faded by the speed (no seam where a river slows down into a lake).
 	float flowing = smoothstep(0.0, 0.35, speed);
-	vec2 detail = Detail(q, t) * uChop * fade * (1.0 - flowing);
+
+	// Wind: its direction steers the ripples; slow patches of gusts (tens of meters, drifting downwind) make some water
+	// rougher than the rest, so no pattern repeats over a lake.
+	float windSpeed = length(uWind.xz);
+	vec2 wd = windSpeed > 0.01 ? uWind.xz / windSpeed : normalize(uWaveDir + vec2(1e-4));
+	vec2 ws = vec2(-wd.y, wd.x);
+	float wind = clamp(windSpeed / 2.0, 0.35, 1.6);
+	vec2 drift = wd * t * 0.9;
+	float gust = Noise((q - drift) / 47.0) * 0.65 + Noise((q - drift * 1.3) / 17.0 + 13.0) * 0.35;
+	gust = mix(0.35, 1.35, smoothstep(0.2, 0.8, gust));
+
+	// Swell: the Gerstner set, gentler on a current. Its shading reads it through a slow warp of a few meters, so the four
+	// straight wave trains do not draw a regular lattice of highlights from a hundred meters (the geometry keeps them
+	// straight: its heights are the CPU's, WaterSurface::HeightAt).
+	vec2 warp = NoiseD(q / 23.0 + 3.0).yz * uWaveLength * 0.3;
+	vec2 slope = WaveSlope(q + warp, lost) * mix(0.75 + 0.35 * gust, 0.3, flowing);
+	lost *= mix(1.0, 0.1, flowing);
+
+	float foamRapids = 0.0, foamBank = 0.0;   // rivers: the white water carried by the current (in the rapids, along the banks)
+	if (flowing < 1.0)
+	{
+		// wind ripples: crests across the wind, travelling downwind at about the speed of waves that long
+		vec2 c = vec2(dot(q, wd), dot(q, ws));
+		// (a band the pixel cannot show is not sampled: only its variance is kept)
+		float l = 0.0;
+		vec2 rs = NoiseBand(NoiseD(vec2(c.x - t * 1.25, c.y * 0.55) / 1.6).yz, vec2(1.6, 1.6 / 0.55), 0.10, l);
+		if (Band(0.55) > 0.0) rs += NoiseBand(NoiseD(vec2(c.x - t * 0.85, c.y * 0.6 + 7.0) / 0.55 + 31.0).yz, vec2(0.55, 0.55 / 0.6), 0.07, l);
+		else l += 0.07 * 0.07 * 0.3;
+		if (Band(0.21) > 0.0) rs += NoiseBand(NoiseD(vec2(c.x * 0.9 + c.y * 0.45 - t * 0.6, c.y * 0.9 - c.x * 0.45) / 0.21 + 57.0).yz, vec2(0.21), 0.05, l);
+		else l += 0.05 * 0.05 * 0.3;
+		float amount = uChop * wind * gust * (1.0 - flowing);
+		slope += (wd * rs.x + ws * rs.y) * amount;
+		lost += l * amount * amount;
+	}
 	if (flowing > 0.0)
 	{
-		float p0 = fract(t * 0.55), p1 = fract(t * 0.55 + 0.5);
-		float wgt = abs(2.0 * p0 - 1.0);
-		vec2 da = Detail(q - vFlow * p0 * 1.8, 0.0), db = Detail(q - vFlow * p1 * 1.8, 0.0);
-		detail += mix(da, db, wgt) * (1.0 + speed * 0.5) * 2.2 * uChop * fade * flowing;
+		// The current: a pattern stretched along the river, drawn in the ribbon's own coordinates (arc length, across) so it
+		// follows the bends, and advected by the speed of each point (faster in the middle). Two copies half a cycle apart
+		// take turns (each fades out as it jumps back), with the cycle's phase shifted by a slow noise so the river does
+		// not pulse all at once.
+		const float across = 3.0;   // meters per unit of `across` (the ribbon's half-width is a few meters)
+		vec2 rc = vec2(vRiver.x, vRiver.y * across);
+		const float cycle = 4.0;   // long enough that a patch is seen to travel before it fades
+		float offset = Noise(rc * vec2(0.07, 0.25) + 3.0);
+		float p0 = fract(t / cycle + offset), p1 = fract(p0 + 0.5);
+		float w0 = 1.0 - abs(2.0 * p0 - 1.0), w1 = 1.0 - w0;
+		float norm = inversesqrt(w0 * w0 + w1 * w1);   // keeps the contrast of the normals steady through the blend
+		float fine = Band(0.4);
+		vec2 fs = vec2(0.0);
+		float l = 0.0;
+		for (int k = 0; k < 2; ++k)
+		{
+			float ph = k == 0 ? p0 : p1;
+			float wk = k == 0 ? w0 : w1;
+			vec2 pc = rc - vec2(speed * cycle * (ph - 0.5), 0.0) + float(k) * vec2(17.3, 5.1);
+			vec3 a = NoiseD(pc / vec2(3.2, 1.1));
+			vec3 b = NoiseD(pc / vec2(1.1, 0.42) + 41.0);
+			float lk = 0.0;
+			vec2 fk = NoiseBand(a.yz, vec2(3.2, 1.1), 0.09, lk) + NoiseBand(b.yz, vec2(1.1, 0.42), 0.06, lk);
+			if (Band(0.28) > 0.0) fk += NoiseBand(NoiseD(pc / vec2(0.36, 0.28) + 77.0).yz, vec2(0.36, 0.28), 0.03, lk);
+			else lk += 0.03 * 0.03 * 0.3;
+			fs += wk * norm * fk;
+			l += wk * wk * norm * norm * lk;
+			// the white water of this copy: thresholded here, so each copy's patches drift with it and fade, and the blend
+			// never grows or shrinks a patch in place
+			float s = a.x * 0.55 + b.x * 0.45;
+			// ridged, turned off the axes (value noise lines up with its lattice): a net of bubbles
+			float net = 0.6;
+			if (fine > 0.0)
+			{
+				vec2 pn = mat2(0.8, -0.6, 0.6, 0.8) * (pc / vec2(0.3, 0.22));
+				float r = 1.0 - abs(Noise(pn + 13.0) + Noise(pn * 1.9 + 29.0) * 0.6 - 0.8) * 1.25;
+				net = mix(0.6, mix(0.3, 1.0, smoothstep(0.35, 0.85, r)), fine);
+			}
+			foamRapids += wk * smoothstep(0.55, 0.8, s) * net;
+			foamBank += wk * smoothstep(0.45, 0.72, s) * net;
+		}
+		float rough = clamp(0.45 + speed * 0.35, 0.45, 1.6) * uChop * flowing;
+		vec2 side = vec2(-vFlowDir.y, vFlowDir.x);
+		slope += (vFlowDir * fs.x + side * fs.y) * rough;
+		lost += l * rough * rough;
 	}
-	N = normalize(N + vec3(detail.x, 0.0, detail.y));
+	vec3 N = normalize(vec3(-slope.x, 1.0, -slope.y));
 
 	// Ripples from rain, feet and swimmers.
 	float ripple = 0.0, ringLight = 0.0;
@@ -212,25 +360,44 @@ void main()
 		float hL = RippleAt(vPos.xz - vec2(e, 0.0)), hR = RippleAt(vPos.xz + vec2(e, 0.0));
 		float hD = RippleAt(vPos.xz - vec2(0.0, e)), hU = RippleAt(vPos.xz + vec2(0.0, e));
 		vec2 g = vec2(hR - hL, hU - hD) / (2.0 * e);
-		N = normalize(N + vec3(-g.x, 0.0, -g.y) * (uRippleStrength * 4.0));
-		ripple = RippleAt(vPos.xz);
-		ringLight = clamp(length(g) * uRippleStrength * 5.0, 0.0, 1.0);
+		float wr = Band(e * 8.0);   // the rings are a few texels wide
+		N = normalize(N + vec3(-g.x, 0.0, -g.y) * (uRippleStrength * 4.0 * wr));
+		lost += dot(g, g) * (uRippleStrength * 4.0) * (uRippleStrength * 4.0) * (1.0 - wr * wr);
+		ripple = RippleAt(vPos.xz) * wr;
+		ringLight = clamp(length(g) * uRippleStrength * 5.0, 0.0, 1.0) * wr;
 	}
 	if (dot(N, V) < 0.0) N = reflect(N, vec3(0, 1, 0)); // keeps the horizon from flipping
 
-	// Thickness of the water along the view ray.
-	vec2 uv = gl_FragCoord.xy / vec2(textureSize(uSceneDepth, 0));
-	float sceneZ = LinearDepth(texture(uSceneDepth, uv).r);
-	float surfZ = LinearDepth(gl_FragCoord.z);
-	float thick = max(sceneZ - surfZ, 0.0);
-	// Vertical depth is what colors the water; the slanted view ray only changes how hidden the bottom is.
-	float vdepth = thick * clamp(V.y, 0.05, 1.0);
+	// Toksvig: the slope the pixel could not show widens the highlight instead of glittering.
+	float a2 = uRoughness * uRoughness + lost;
+	float alpha = sqrt(a2);
 
-	float absorb = 1.0 - exp(-vdepth / max(uClarity, 0.05));
-	vec3 body = mix(uShallow, uDeep, pow(absorb, 0.8));
+	// Thickness of the water: the scene's depth behind the surface along the view ray, turned into the vertical depth.
+	vec2 uv = gl_FragCoord.xy / vec2(textureSize(uSceneDepth, 0));
+	// the surface's own view depth from its position (gl_FragCoord.z is as coarse as the depth buffer far away, and biased)
+	float surfZ = dot(vPos - uCamPos, normalize(cross(uCamUp, uCamRight)));
+	float dz = DepthStep(surfZ);
+	float sceneZ = SceneDepth(uv, dz);
+	float thickSigned = sceneZ - surfZ;
+	float thick = max(thickSigned, 0.0);
+	float rayLen = thick * camDist / max(surfZ, 1e-3);   // view z to distance along the ray
+	float vdepth = rayLen * clamp(V.y, 0.0, 1.0);
+	// How far the shore is, across the surface: the depth over how fast it changes (a flat shallow shelf is not all shore).
+	float shelf = max(length(vec2(dFdx(vdepth), dFdy(vdepth))) / gFootprint, 0.03);
+	float shoreDist = vdepth / shelf;
+	// Where the depth buffer cannot tell the bed from the surface (meters of view depth per step, far away), nothing that
+	// hangs on the exact depth (the foam line, a hard edge) is drawn: the water there is only its colour.
+	float certain = 1.0 - smoothstep(0.1, 0.6, dz);
+
+	// Light reaching the bed and coming back: down through the depth, then up along the view ray, refracted (n = 1.33).
+	float cosT = sqrt(1.0 - (1.0 - V.y * V.y) / 1.7689);
+	float path = vdepth * (1.0 + 1.0 / max(cosT, 0.25));
 	vec3 L = normalize(-uSunDir);
 	vec3 amb = SkyIrradiance(vec3(0, 1, 0)) * uEnvIntensity * 0.55;
-	body *= amb + uSunColor * max(dot(vec3(0, 1, 0), L), 0.0) * 0.06;
+	// What the water scatters back: its shallow colour where it is thin, the deep colour where it is deep (fine silt
+	// and plankton keep it from being a black hole).
+	float absorb = 1.0 - exp(-vdepth / max(uClarity, 0.05));
+	vec3 body = mix(uShallow, uDeep, pow(absorb, 0.8)) * (amb + uSunColor * max(L.y, 0.0) * 0.06);
 
 	// Refraction: look through the surface along a bent ray. Only take samples that lie behind the water
 	// (objects in front of the surface must not smear into it); the bend grows with the water depth.
@@ -239,27 +406,31 @@ void main()
 	float zR = LinearDepth(texture(uSceneDepth, uvR).r);
 	if (zR < surfZ) uvR = uv;
 	vec3 seen = texture(uSceneColor, uvR).rgb;
-	// Beer-Lambert: red goes first, then green, blue survives longest; what is lost is replaced by scattered body color.
-	vec3 T = exp(-vec3(0.9, 0.25, 0.12) * vdepth / max(uClarity, 0.05));
-	vec3 transmitted = seen * T + body * (1.0 - dot(T, vec3(0.3333)));
+	// Beer-Lambert along that path: red goes first, then green, blue survives longest; what is lost is replaced by the
+	// light the water itself scatters toward the eye.
+	vec3 T = exp(-vec3(0.9, 0.25, 0.12) * path / max(uClarity, 0.05));
+	vec3 transmitted = seen * T + body * (1.0 - T);
 
-	// Fresnel sky reflection with a sharp sun glint.
-	float cosT = clamp(dot(N, V), 0.0, 1.0);
-	float F = 0.02 + 0.98 * pow(1.0 - cosT, 5.0);
-	F = clamp(F, 0.0, 1.0);
+	// Fresnel (F0 = 0.02, water), a little less at grazing angles on rough water; the sky prefiltered by the roughness.
+	float cosV = clamp(dot(N, V), 0.0, 1.0);
+	float F = 0.02 + (max(1.0 - alpha, 0.02) - 0.02) * pow(1.0 - cosV, 5.0);
 	vec3 R = reflect(-V, N);
 	R.y = abs(R.y);
-	vec3 refl = SkyPrefiltered(R, uRoughness * 3.0) * uEnvIntensity;
+	vec3 refl = SkyPrefiltered(R, min(alpha * 3.0, 1.0)) * uEnvIntensity;
 	if (uSSR > 0.0)
 	{
 		vec4 hit = TraceReflection(vPos + N * 0.02, R, Hash(gl_FragCoord.xy));
-		refl = mix(refl, hit.rgb, hit.a * uSSR);
+		refl = mix(refl, hit.rgb, hit.a * uSSR * (1.0 - smoothstep(0.2, 0.5, alpha)));
 	}
+	// The sun: GGX at the filtered roughness, so a far lake shows a broad glitter patch rather than single glints.
 	vec3 H = normalize(L + V);
-	float a2 = max(uRoughness * uRoughness, 1e-3);
+	float nl = max(dot(N, L), 0.0), nv = max(cosV, 1e-3);
 	float nh = max(dot(N, H), 0.0);
-	float spec = min(pow(nh, 2.0 / a2 - 1.0) * (2.0 / a2) * 0.05, 60.0);
-	vec3 glint = uSunColor * spec * step(0.0, L.y) * F;
+	float dd = nh * nh * (a2 - 1.0) + 1.0;
+	float D = a2 / (3.14159265 * dd * dd);
+	float vis = 0.5 / (nl * sqrt(nv * nv * (1.0 - a2) + a2) + nv * sqrt(nl * nl * (1.0 - a2) + a2) + 1e-5);
+	float Fh = 0.02 + 0.98 * pow(1.0 - max(dot(V, H), 0.0), 5.0);
+	vec3 glint = uSunColor * min(D * vis * nl * Fh, 40.0) * step(0.0, L.y);
 	// Lamps and torches glitter on the surface too.
 	for (int i = 0; i < uPointCount; ++i)
 	{
@@ -269,43 +440,69 @@ void main()
 		float w = 1.0;
 		if (uPointPosRadius[i].w > 0.0) { float r = d2 / (uPointPosRadius[i].w * uPointPosRadius[i].w); w = clamp(1.0 - r * r, 0.0, 1.0); w *= w; }
 		float nhp = max(dot(N, normalize(Lp + V)), 0.0);
-		float sp = min(pow(nhp, 2.0 / a2 - 1.0) * (2.0 / a2) * 0.05, 40.0);
+		float dp = nhp * nhp * (a2 - 1.0) + 1.0;
+		float sp = min(a2 / (3.14159265 * dp * dp) * 0.25 * max(dot(N, Lp), 0.0), 40.0);
 		glint += uPointColor[i].rgb * (sp * w / (d2 + 0.01)) * F * step(0.0, Lp.y);
 	}
 
-	// Foam at the shore, on crests and where ripples are strong.
+	// Foam. At the shore: a broken, bubbly line where the water is shallow, with bands lapping in toward the land, and
+	// whole stretches without it. On a river: white water in the rapids, and along the banks where the current is fast.
 	float foam = 0.0;
-	if (uFoam > 0.0)
+	// (the noise is only worth sampling near a shore, on a crest or a ripple; the rest of a lake skips it)
+	float foamy = (1.0 - smoothstep(0.0, uFoamWidth * 1.4, vdepth)) * (1.0 - smoothstep(0.4, 1.5, shoreDist)) * certain
+		+ step(0.8, (vPos.y - uOriginY) / max(uWaveHeight * 2.2, 1e-3)) * (1.0 - flowing) + step(0.015, abs(ripple));
+	if (uFoam > 0.0 && foamy > 0.0)
 	{
-		float nz = Noise(q * 3.0 + vec2(t * 0.3, -t * 0.2)) * 0.6 + Noise(q * 9.0 - t * 0.5) * 0.4;
-		float shore = 1.0 - smoothstep(0.0, uFoamWidth * (0.6 + 0.8 * nz), vdepth);
-		float wave = 0.5 + 0.5 * sin(vdepth * 7.0 - t * 1.6 + nz * 5.0);   // lapping bands
-		shore *= mix(0.55, 1.0, wave);
-		float crest = smoothstep(0.8, 1.0, (vPos.y - uOriginY) / max(uWaveHeight * 2.2, 1e-3)) * smoothstep(0.45, 0.9, nz);
+		float fine = Band(0.4);
+		float bubbles = Noise(q * 2.3 + vec2(t * 0.21, -t * 0.17)) * mix(1.0, 0.6, fine) + (Noise(q * 6.1 - t * 0.33) - 0.5) * 0.4 * fine + 0.2 * (1.0 - fine);
+		bubbles = clamp(bubbles, 0.0, 1.0);
+		// inside the foam, a net of bubbles with the water showing between them
+		vec2 pn = mat2(0.8, -0.6, 0.6, 0.8) * (q * 4.0) + vec2(-t * 0.5, t * 0.35);
+		float net = 1.0 - abs(Noise(pn + 21.0) + Noise(pn * 1.9 + 37.0) * 0.6 - 0.8) * 1.25;
+		float gaps = smoothstep(0.38, 0.6, Noise(q / 9.0 + t * 0.015 + 5.0));
+		float width = uFoamWidth * (0.5 + 0.9 * gaps);
+		// bands lapping in toward the land (their phase falls with the depth as time runs)
+		float lap = 0.5 + 0.5 * sin(6.2831853 * (vdepth / max(uFoamWidth * 1.4, 0.05) + t * 0.22) + bubbles * 2.5);
+		lap = mix(0.5, lap, Band(uFoamWidth * 1.4));
+		// the shore: shallow, and near the waterline across the surface too (at most ~1.5 m of a flat shelf)
+		float shore = (1.0 - smoothstep(0.0, width, vdepth)) * (1.0 - smoothstep(0.4, 1.5, shoreDist));
+		// (on a current the still-water bubbles would not move with it: the banks' white water below stands in for them)
+		float cover = shore * mix(0.55, 1.0, lap) * mix(0.1, 1.0, gaps) * certain * (1.0 - 0.7 * flowing);
+		// crests of still water only: a river's ribbon lies in world space (its origin is 0), its height is not a wave's
+		float crest = smoothstep(0.8, 1.0, (vPos.y - uOriginY) / max(uWaveHeight * 2.2, 1e-3)) * smoothstep(0.45, 0.9, bubbles) * Band(uWaveLength * 0.6) * (1.0 - flowing);
 		float rip = smoothstep(0.015, 0.06, abs(ripple)) * 0.5;
-		if (speed > 0.02)
-		{
-			float p0 = fract(t * 0.55), p1 = fract(t * 0.55 + 0.5);
-			float fa = Noise((q - vFlow * p0 * 1.8) * vec2(2.2, 2.2)), fb = Noise((q - vFlow * p1 * 1.8) * 2.2);
-			float streak = mix(fa, fb, abs(2.0 * p0 - 1.0));
-			rip += smoothstep(1.7, 3.6, speed) * smoothstep(0.55, 0.85, streak) * 0.9;   // white water in the rapids
-		}
-		foam = clamp((shore + crest * 0.6 + rip) * uFoam, 0.0, 1.0) * smoothstep(0.35, 0.65, nz + shore * 0.5);
+		cover = clamp((cover + crest * 0.6 + rip) * uFoam, 0.0, 1.0);
+		// the foam shows where the bubbles rise over what the cover leaves: a ragged edge, softer as the pixel grows
+		float soft = 0.25 + 0.3 * (1.0 - fine);
+		foam = smoothstep(1.0 - cover, 1.0 - cover + soft, bubbles + 0.2 * cover) * smoothstep(0.0, 0.1, cover);
+		// foam is a lace of bubbles, not a sheet: the water shows through it, less where it is thick
+		foam *= mix(0.6, 0.95, smoothstep(0.4, 0.9, cover)) * mix(1.0, mix(0.25, 1.0, smoothstep(0.35, 0.85, net)), fine);
+		foam *= clamp(uFoamWidth * 3.0 / gFootprint, 0.0, 1.0);   // a line thinner than a pixel covers part of it
 	}
+	if (uFoam > 0.0 && flowing > 0.0)
+	{
+		// on a river: white water carried by the current where it is fast, and along its banks (less tied to the foam
+		// amount, which is the shore's)
+		float bank = smoothstep(0.75, 1.0, abs(vRiver.y)) * smoothstep(0.8, 2.6, speed) * foamBank;
+		float rapids = smoothstep(1.4, 3.4, speed) * foamRapids;
+		foam = max(foam, max(bank, rapids) * flowing * (0.5 + 0.4 * min(uFoam, 1.0)));
+	}
+	foam = clamp(foam, 0.0, 1.0);
 	vec3 foamColor = (amb + uSunColor * max(L.y, 0.0) * 0.1) * vec3(1.6);
 
 	vec3 color = mix(transmitted, refl, F) + glint;
 	color += (uSkyHorizon * uEnvIntensity * 0.8 + 0.06) * ringLight * 0.8;   // rings catch the light of the sky
 	color = mix(color, foamColor, foam);
-	float alpha = smoothstep(0.0, 0.05, thick);   // no hard edge where the water meets the shore
-	alpha = max(alpha, foam * smoothstep(0.0, 0.01, thick));
-	alpha *= vBlend;   // a river dissolves into the lake it flows into
+	// no hard edge where the water meets the shore; far away the edge is as soft as the depth buffer is coarse
+	float opacity = smoothstep(0.3 * dz, 0.05 + 1.5 * dz, thickSigned);
+	opacity = max(opacity, foam * smoothstep(0.0, 0.01, thick));
+	opacity *= vRiver.w;   // a river dissolves into the lake it flows into
 
 	if (uFogDensity > 0.0)
 	{
 		float density = uFogDensity * exp(-uFogHeight * max(vPos.y, 0.0));
 		color = mix(uFogColor * uEnvIntensity, color, exp(-density * density * camDist * camDist));
 	}
-	outColor = vec4(min(color, vec3(64.0)), alpha);
-	outAmbient = vec4(0.0, 0.0, 0.0, alpha);   // no SSAO on the water: it hides the ambient of the bed behind it
+	outColor = vec4(min(color, vec3(64.0)), opacity);
+	outAmbient = vec4(0.0, 0.0, 0.0, opacity);   // no SSAO on the water: it hides the ambient of the bed behind it
 }

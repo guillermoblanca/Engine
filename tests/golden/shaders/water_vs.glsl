@@ -22,12 +22,13 @@ layout(std140, binding = 0) uniform FrameBlock
 };
 layout(location = 0) in vec3 aPos;
 layout(location = 1) in vec3 aNormal;    // rivers: x = opacity (fades out where the river runs into a lake)
-layout(location = 3) in vec4 aTangent;   // rivers: xy = flow direction, z = speed
+layout(location = 2) in vec2 aUV;        // rivers: x = across (-1..1), y = arc length / 4 (m)
+layout(location = 3) in vec4 aTangent;   // rivers: xy = flow direction, z = speed (m/s, slower at the banks), w = |across|
 uniform vec3 uOrigin;
 uniform int uRiver;
 out vec3 vPos;
-out vec2 vFlow;
-out float vBlend;
+out vec4 vRiver;     // rivers: x = along (m), y = across (-1..1), z = speed (m/s), w = opacity; lakes: 0, 0, 0, 1
+out vec2 vFlowDir;   // rivers: the direction of the current (xz)
 
 uniform vec2 uWaveDir;
 uniform float uWaveHeight;
@@ -69,7 +70,11 @@ void main()
 	vec3 w = Waves(world.xz, fade, slope);
 	world += vec3(w.x, w.y, w.z);
 	vPos = world;
-	vFlow = uRiver != 0 ? aTangent.xy * aTangent.z : vec2(0.0);
-	vBlend = uRiver != 0 ? aNormal.x : 1.0;
+	vRiver = uRiver != 0 ? vec4(aUV.y * 4.0, aUV.x, aTangent.z, aNormal.x) : vec4(0.0, 0.0, 0.0, 1.0);
+	vFlowDir = uRiver != 0 ? aTangent.xy : vec2(1.0, 0.0);
 	gl_Position = uViewProj * vec4(world, 1.0);
+	// Two steps of the 24-bit depth buffer toward the camera: far away a step is meters deep (near plane 0.1 m: 3 m at
+	// 2 km), and a shallow bed that rounds to the water's own depth would hide it in a lattice of dry pixels. The FS
+	// decides with the scene depth whether the water is really there (its opacity), so the bias shows no water on land.
+	if (uOrtho == 0) gl_Position.z -= 2.0 * 1.1920929e-7 * gl_Position.w;
 }
