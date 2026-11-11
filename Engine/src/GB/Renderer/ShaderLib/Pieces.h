@@ -175,14 +175,17 @@ mat4 SkinMatrix()
 )GLSL";
 
 	// lib/tree_wind: tree and foliage sway, WindOffset(). Shadow and PBR VS. The grass wind is another formula (Grass VS).
-	// The material's MATERIAL.Wind: x sway (0 = rigid; meters at the top of the object per unit of wind), y the object-space height at which
-	// the sway is full, z flutter (small fast leaf motion, meters).
+	// The material's MATERIAL.Wind: x sway (0 = rigid; meters at the top of the object per unit of wind), y how far above w (object space)
+	// the sway is full, z flutter (small fast leaf motion, meters), w the object-space height where the sway starts (0: the plants' ground).
+	// A11: a negative y grows the sway downward from w (a kit piece's thatch, tied at the top, free at the eave: VisualCache). With w = 0 and
+	// y > 0 the weight is the one before A11.
 	inline constexpr const char* TreeWind = R"GLSL(// Tree / foliage sway: bend grows with height, a travelling gust wave, and high-frequency flutter.
 #include "lib/material"
 #include "lib/frame"
 vec3 WindOffset(vec3 localPos, vec3 worldPos, vec3 origin)
 {
-	float hw = clamp(localPos.y / max(MATERIAL.Wind.y, 1e-3), 0.0, 1.0);
+	float span = MATERIAL.Wind.y < 0.0 ? min(MATERIAL.Wind.y, -1e-3) : max(MATERIAL.Wind.y, 1e-3);
+	float hw = clamp((localPos.y - MATERIAL.Wind.w) / span, 0.0, 1.0);
 	hw *= hw;
 	float ws = length(uWind.xz);
 	vec2 wd = ws > 0.01 ? uWind.xz / ws : vec2(1.0, 0.0);

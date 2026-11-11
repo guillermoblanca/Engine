@@ -80,6 +80,8 @@ namespace GB
 	// (-1: none). The render turns it into a GB::Material with its textures (GB/Renderer/ModelGpu.h). The defaults are GB::Material's.
 	struct ModelMaterial
 	{
+		std::string Name;                // as the file names it ("" when it does not; the FBX loader leaves it empty). A modular kit piece's
+		                                 // material named like a visuals material takes that material's surface (VisualCache, A11)
 		glm::vec3 Albedo{ 1.0f };
 		float Opacity = 1.0f;
 		float Metallic = 0.0f;

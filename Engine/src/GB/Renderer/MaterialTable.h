@@ -93,7 +93,7 @@ namespace GB
 		if (m.DoubleSided) flags |= D::FlagDoubleSided;
 		d.Flags = glm::uvec4(layers, 0u, static_cast<uint32_t>(m.Alpha), flags);
 
-		d.Wind = glm::vec4(m.WindSway, m.WindHeight, m.WindFlutter, 0.0f);
+		d.Wind = glm::vec4(m.WindSway, m.WindHeight, m.WindFlutter, m.WindBase);
 		d.ModelParams = glm::vec4(m.HeightScale, m.CavityStrength, transmission ? m.Ior : 0.0f, transmission ? m.Transmission : 0.0f);
 		d.Layer[D::SlotGrain] = glm::vec4(m.Grain, m.GrainScale, 0.0f, 0.0f);
 		d.Layer[D::SlotMoss] = glm::vec4(m.MossColor, m.Moss);

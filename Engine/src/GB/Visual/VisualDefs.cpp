@@ -313,7 +313,11 @@ namespace GB
 					m.Metallic = j.value("metallic", 0.0f);
 					m.Grain = j.value("grain", 0.0f);
 					m.Wind = j.value("wind", 0.0f);
+					m.WindRoot = j.value("windRoot", m.WindRoot);
+					if (m.WindRoot != "bottom" && m.WindRoot != "top") return "material '" + id + "': unknown windRoot '" + m.WindRoot + "' (bottom, top)";
 					m.Seasonal = j.value("seasonal", false);
+					m.SeasonTint = j.value("seasonTint", 0.0f);
+					if (!(m.SeasonTint >= 0.0f && m.SeasonTint <= 1.0f)) return "material '" + id + "': seasonTint is 0..1";
 					m.DoubleSided = j.value("doubleSided", false);
 					m.Surface = j.value("surface", m.Surface);
 					if (m.Surface != "opaque" && m.Surface != "cutout" && m.Surface != "translucent") return "material '" + id + "': unknown surface '" + m.Surface + "' (opaque, cutout, translucent)";
@@ -502,7 +506,9 @@ namespace GB
 			if (m.Emissive != glm::vec3(0.0f)) j["emissive"] = Vec(m.Emissive);
 			if (m.Grain != 0.0f) j["grain"] = m.Grain;
 			if (m.Wind != 0.0f) j["wind"] = m.Wind;
+			if (m.WindRoot != "bottom") j["windRoot"] = m.WindRoot;
 			if (m.Seasonal) j["seasonal"] = true;
+			if (m.SeasonTint != 0.0f) j["seasonTint"] = m.SeasonTint;
 			if (m.DoubleSided) j["doubleSided"] = true;
 			if (m.Surface != "opaque") j["surface"] = m.Surface;
 			if (!m.Layers.empty()) j["layers"] = LayersToJson(m.Layers);
@@ -716,5 +722,23 @@ namespace GB
 		size_t n = 0;
 		for (const VisualPiece& p : pieces) n += p.Mesh.Triangles();
 		return n;
+	}
+
+	glm::vec3 SeasonTint(const glm::vec3& foliage, float amount)
+	{
+		const float k = std::clamp(amount, 0.0f, 1.0f);
+		const float luminance = glm::dot(foliage, glm::vec3(0.2126f, 0.7152f, 0.0722f));   // (Rec. 709, linear)
+		if (k <= 0.0f || luminance <= 1e-4f) return glm::vec3(1.0f);
+		return glm::mix(glm::vec3(1.0f), foliage / luminance, k);
+	}
+
+	std::string KitMaterialId(const std::string& gltfName)
+	{
+		// Blender names a copy "thatch.001": the digits after the last dot go
+		const size_t dot = gltfName.rfind('.');
+		if (dot == std::string::npos || dot == 0 || dot + 1 == gltfName.size()) return gltfName;
+		for (size_t i = dot + 1; i < gltfName.size(); ++i)
+			if (gltfName[i] < '0' || gltfName[i] > '9') return gltfName;
+		return gltfName.substr(0, dot);
 	}
 }

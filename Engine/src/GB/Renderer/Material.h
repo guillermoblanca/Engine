@@ -55,9 +55,12 @@ namespace GB
 		glm::vec3 TrailTint{ 1.0f };
 		float TrailNormalBoost = 1.0f;
 
+		// Sway in the wind (lib/tree_wind): a vertex moves by its height in the mesh, from nothing at WindBase to all of it WindHeight above
+		// (a negative WindHeight: below, for what hangs from where it is tied, as a thatch's eave). WindBase 0 is the plants' ground.
 		float WindSway = 0.0f;
 		float WindHeight = 1.0f;
 		float WindFlutter = 0.0f;
+		float WindBase = 0.0f;
 		bool FoliageNormals = false;   // the cards keep their (crown) normal on back faces instead of flipping it to the viewer
 
 		// T46: foliage (leaves, bushes, grass cards; opaque or masked). All 0: off, the material packs as before (MATERIALES.md, "Follaje").

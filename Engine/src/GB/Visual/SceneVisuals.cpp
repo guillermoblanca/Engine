@@ -40,10 +40,29 @@ namespace GB
 		m.WindSway = v.Wind;
 		m.WindHeight = v.Wind > 0.0f ? 3.0f : 1.0f;
 		m.WindFlutter = v.Wind * 0.5f;
+		if (v.SeasonTint > 0.0f) m.Albedo *= SeasonTint(Foliage, v.SeasonTint);
 		m.DoubleSided = v.DoubleSided;
 		m.Alpha = v.Surface == "translucent" ? AlphaMode::Blend : v.Surface == "cutout" ? AlphaMode::Mask : AlphaMode::Opaque;
 		ApplyMaterialLayers(v.Layers, m);
 		return m;
+	}
+
+	void VisualCache::ApplyKitSurface(const VisualMaterial& v, const glm::vec3& foliage, float minY, float maxY, Material& m)
+	{
+		m.Roughness = v.Roughness;
+		m.Metallic = v.Metallic;
+		if (v.Seasonal) m.Albedo *= foliage;
+		if (v.SeasonTint > 0.0f) m.Albedo *= SeasonTint(foliage, v.SeasonTint);
+		if (v.Wind > 0.0f)
+		{
+			// the same sway and flutter as a procedural part (MaterialFor), over the primitive's own height instead of 3 m from the ground
+			const float span = std::max(maxY - minY, 0.05f);
+			const bool top = v.WindRoot == "top";
+			m.WindSway = v.Wind;
+			m.WindFlutter = v.Wind * 0.5f;
+			m.WindBase = top ? maxY : minY;
+			m.WindHeight = top ? -span : span;
+		}
 	}
 
 	VisualCache::Entry& VisualCache::EntryFor(const std::string& key, const VisualModel& model, const std::vector<bool>& visible, int variant)
@@ -66,7 +85,7 @@ namespace GB
 				const std::string& path = KitModel(model.Parts[part], variant);
 				if (const KitPiece* kit = Kit(path))
 				{
-					entry.Kit.push_back({ path, at, model.Parts[part].Material });
+					entry.Kit.push_back({ path, at, model.Parts[part].Material, kit, {} });
 					for (int c = 0; c < 8; ++c)
 					{
 						const glm::vec3 corner((c & 1) ? kit->Max.x : kit->Min.x, (c & 2) ? kit->Max.y : kit->Min.y, (c & 4) ? kit->Max.z : kit->Min.z);
@@ -96,6 +115,23 @@ namespace GB
 		{
 			entry.PieceMaterials.clear();
 			for (const auto& piece : entry.Pieces) entry.PieceMaterials.push_back(MaterialFor(piece.second));
+			// the kit pieces' materials: the glTF's, with what the visuals material of the same name lends (A11) and the part material's
+			// layers (moss...) on every primitive; made here once, not for every building every frame
+			for (KitDraw& k : entry.Kit)
+			{
+				k.Materials.clear();
+				const auto layered = k.Material.empty() ? m_Library.Materials.end() : m_Library.Materials.find(k.Material);
+				const MaterialLayers* layers = layered != m_Library.Materials.end() && !layered->second.Layers.empty() ? &layered->second.Layers : nullptr;
+				for (size_t i = 0; i < k.Piece->Objects.size(); ++i)
+				{
+					Material mat = k.Piece->Objects[i].Mat;
+					const KitPiece::Surface& s = k.Piece->Surfaces[i];
+					if (const auto named = s.Material.empty() ? m_Library.Materials.end() : m_Library.Materials.find(s.Material); named != m_Library.Materials.end())
+						ApplyKitSurface(named->second, Foliage, s.MinY, s.MaxY, mat);
+					if (layers) ApplyMaterialLayers(*layers, mat);
+					k.Materials.push_back(mat);
+				}
+			}
 			entry.MaterialStamp = m_MaterialStamp;
 		}
 		for (size_t i = 0; i < entry.Pieces.size(); ++i)
@@ -111,20 +147,14 @@ namespace GB
 			scene.Objects.push_back(std::move(obj));
 		}
 		for (const KitDraw& k : entry.Kit)   // kit pieces: every wall of every house is one draw per mesh
-			if (const KitPiece* kit = Kit(k.Path))
+			for (size_t i = 0; i < k.Piece->Objects.size(); ++i)
 			{
-				// the part's material lends its layers (moss...) to every primitive of the piece; the glTF's own surface and maps stay
-				const auto layered = k.Material.empty() ? m_Library.Materials.end() : m_Library.Materials.find(k.Material);
-				const MaterialLayers* layers = layered != m_Library.Materials.end() && !layered->second.Layers.empty() ? &layered->second.Layers : nullptr;
-				for (const RenderObject& o : kit->Objects)
-				{
-					RenderObject obj = o;
-					if (layers) ApplyMaterialLayers(*layers, obj.Mat);
-					obj.Transform = world * k.At * o.Transform;
-					obj.MaxDistance = maxDistance;
-					obj.Instanced = true;
-					scene.Objects.push_back(std::move(obj));
-				}
+				RenderObject obj = k.Piece->Objects[i];
+				obj.Mat = k.Materials[i];
+				obj.Transform = world * k.At * obj.Transform;
+				obj.MaxDistance = maxDistance;
+				obj.Instanced = true;
+				scene.Objects.push_back(std::move(obj));
 			}
 	}
 
@@ -154,6 +184,26 @@ namespace GB
 					o.BoundingRadius = std::max(piece.Source->GetBoundsRadius(), 0.05f);
 					piece.Objects.push_back(o);
 				}
+				// A11: each object's glTF material name and its primitive's height range, in AddToScene's order (node order, then primitives)
+				const Model& source = *piece.Source;
+				for (int n : source.GetNodeOrder())
+				{
+					const int mesh = source.GetNodes()[static_cast<size_t>(n)].MeshIndex;
+					if (mesh < 0) continue;
+					for (const Model::Primitive& prim : source.GetPrimitives(mesh))
+					{
+						KitPiece::Surface s;
+						const std::vector<ModelMaterial>& materials = source.GetMaterials();
+						if (prim.MaterialIndex >= 0 && prim.MaterialIndex < static_cast<int>(materials.size()))
+							s.Material = KitMaterialId(materials[static_cast<size_t>(prim.MaterialIndex)].Name);
+						s.MinY = 1e9f;
+						s.MaxY = -1e9f;
+						for (const Vertex& v : prim.Geometry.Vertices) { s.MinY = std::min(s.MinY, v.Position.y); s.MaxY = std::max(s.MaxY, v.Position.y); }
+						if (s.MinY > s.MaxY) s.MinY = s.MaxY = 0.0f;
+						piece.Surfaces.push_back(std::move(s));
+					}
+				}
+				if (piece.Surfaces.size() != piece.Objects.size()) piece.Surfaces.assign(piece.Objects.size(), {});   // (cannot happen: the same walk)
 			}
 			it = m_Kits.emplace(path, std::move(piece)).first;
 		}

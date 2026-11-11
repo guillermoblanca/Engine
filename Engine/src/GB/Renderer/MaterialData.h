@@ -79,7 +79,7 @@ namespace GB
 		glm::vec4 Uv{ 0.0f };            // x uv scale, y normal strength, zw normal map sign per axis (+-1)
 		glm::uvec4 Tex{ 0u };            // x Tex* bits; yzw: M6
 		glm::uvec4 Flags{ 0u };          // x Layer* bits, y shading model (0: standard), z alpha mode (0 opaque, 1 mask, 2 blend), w Flag* bits
-		glm::vec4 Wind{ 0.0f };          // x sway, y height of full sway, z flutter, w unused
+		glm::vec4 Wind{ 0.0f };          // x sway, y height of full sway above w (negative: below), z flutter, w height where it starts (A11)
 		glm::vec4 ModelParams{ 0.0f };   // standard: x height (displacement) scale, y cavity strength, z index of refraction and w transmission
 		                                 // amount (T34; both 0 without LayerTransmission)
 		glm::vec4 Layer[LayerSlots] = {};

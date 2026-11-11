@@ -207,6 +207,66 @@ int GBTest_visuals(int, char**)
 		refused(R"({ "name": "x", "shape": "model", "model": "a.glb", "material": "nope" })", "a kit piece naming an unknown material");
 	}
 
+	// ---- A11: a kit piece's glTF materials named like visuals materials take their roughness, wind and season tint
+	{
+		VisualLibrary l;
+		const std::string why = LoadVisuals(R"({ "visuals": { "materials": {
+			"thatch": { "color": [1, 1, 1], "roughness": 0.9, "wind": 0.3, "windRoot": "top", "seasonTint": 0.35 },
+			"mud": { "color": [0.48, 0.38, 0.3], "roughness": 0.85 },
+			"leaves": { "roughness": 0.75, "wind": 0.25, "seasonal": true } } } })", l);
+		Check(why.empty(), "materials with windRoot and seasonTint load: " + why);
+		if (why.empty())
+		{
+			const VisualMaterial& thatch = l.Materials.at("thatch");
+			Check(thatch.WindRoot == "top" && thatch.SeasonTint == 0.35f && l.Materials.at("mud").WindRoot == "bottom" && l.Materials.at("mud").SeasonTint == 0.0f,
+				"windRoot and seasonTint are read, with their defaults");
+			VisualLibrary back;
+			Check(LoadVisuals(VisualsToJson(l), back).empty() && back == l, "windRoot and seasonTint go through JSON and back");
+			VisualLibrary copy = l;
+			Check(!LoadVisuals(R"({ "visuals": { "materials": { "x": { "windRoot": "middle" } } } })", copy).empty() && copy == l, "an unknown windRoot is refused");
+			Check(!LoadVisuals(R"({ "visuals": { "materials": { "x": { "seasonTint": 1.5 } } } })", copy).empty() && copy == l, "a seasonTint out of 0..1 is refused");
+
+			// the names: Blender's duplicate suffix goes, anything else stays
+			Check(KitMaterialId("thatch") == "thatch" && KitMaterialId("thatch.001") == "thatch" && KitMaterialId("bark_pale") == "bark_pale" &&
+				KitMaterialId("v1.5a") == "v1.5a" && KitMaterialId("").empty() && KitMaterialId(".001") == ".001", "KitMaterialId strips only a .NNN suffix");
+
+			// the tint: neutral without it, the season's hue at the same luminance with it
+			const glm::vec3 autumn(0.78f, 0.42f, 0.1f), frost(0.7f, 0.74f, 0.78f);
+			const glm::vec3 warm = SeasonTint(autumn, 0.35f), cold = SeasonTint(frost, 0.35f);
+			const glm::vec3 lum(0.2126f, 0.7152f, 0.0722f);
+			Check(SeasonTint(autumn, 0.0f) == glm::vec3(1.0f) && SeasonTint(glm::vec3(0.0f), 1.0f) == glm::vec3(1.0f), "no season tint: white");
+			Check(std::fabs(glm::dot(warm, lum) - 1.0f) < 1e-3f && warm.r > 1.05f && warm.b < 0.9f, "autumn warms the straw at the same brightness");
+			Check(glm::length(cold - glm::vec3(1.0f)) < 0.05f, "a grey (frosted) season barely tints");
+
+			// the glTF of the hut's thatch: its materials are named like the visuals ids
+			const std::unique_ptr<Model> roof = Model::Load(ResolveAssetPath("models/era1/hut/hut_thatch.gltf", GB_ASSET_DIR));
+			Check(roof != nullptr, "the hut's thatch glTF loads");
+			if (roof)
+			{
+				bool named = false;
+				for (const ModelMaterial& m : roof->GetMaterials()) named = named || m.Name == "thatch";
+				Check(named, "the glTF loader keeps the material names (thatch)");
+			}
+
+			// what the visuals material lends: its roughness wins over the glTF's; the colour and the painted texture stay
+			Material gltf;
+			gltf.Albedo = glm::vec3(0.8f);
+			gltf.Roughness = 0.45f;
+			Material mud = gltf;
+			VisualCache::ApplyKitSurface(l.Materials.at("mud"), autumn, 0.0f, 1.6f, mud);
+			Check(mud.Roughness == 0.85f && mud.Albedo == gltf.Albedo && mud.WindSway == 0.0f, "mud: the engine's roughness, the glTF's colour, no wind");
+			Material straw = gltf;
+			VisualCache::ApplyKitSurface(thatch, autumn, 1.064f, 3.404f, straw);
+			Check(straw.WindSway == 0.3f && straw.WindFlutter == 0.15f && straw.WindBase == 3.404f && std::fabs(straw.WindHeight + 2.34f) < 1e-4f,
+				"thatch tied at the top: still at the ridge, full sway at the eave (a negative height)");
+			Check(glm::length(straw.Albedo - gltf.Albedo * SeasonTint(autumn, 0.35f)) < 1e-5f, "thatch takes the season's tint on its own colour");
+			Material leaf = gltf;
+			VisualCache::ApplyKitSurface(l.Materials.at("leaves"), autumn, 0.0f, 2.0f, leaf);
+			Check(leaf.WindBase == 0.0f && leaf.WindHeight == 2.0f && glm::length(leaf.Albedo - gltf.Albedo * autumn) < 1e-5f,
+				"leaves: sway from the bottom of the primitive, the leaves' colour as a procedural crown");
+		}
+	}
+
 	// ---- procedural textures: deterministic, distinct, tileable, small for quality minimum
 	{
 		std::set<uint64_t> hashes;

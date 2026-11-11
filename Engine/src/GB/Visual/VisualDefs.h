@@ -24,7 +24,14 @@ namespace GB
 		glm::vec3 Emissive{ 0.0f };
 		float Grain = 0.0f;               // the renderer's noise bump (rocks)
 		float Wind = 0.0f;                // sway in the wind (crowns, grass)
+		// A11: where a kit piece (shape "model") of this material is held still: "bottom" (the plants: it sways more the higher) or "top" (a
+		// thatch, tied at the ridge and free at the eave). Measured on each glTF primitive's own height; the procedural parts sway from the
+		// model's ground up, as before.
+		std::string WindRoot = "bottom";
 		bool Seasonal = false;            // takes the season's foliage colour (crowns, bushes)
+		// A11: 0..1, how much of the season's hue it takes, at the same brightness (straw that greens in spring and browns in autumn): the
+		// colour (or a kit piece's painted texture) times mix(1, foliage / luminance(foliage), SeasonTint). 0: none. See SeasonTint().
+		float SeasonTint = 0.0f;
 		bool DoubleSided = false;         // blades of grass and straw
 		std::string Surface = "opaque";   // "opaque", "cutout" (alpha-tested) or "translucent" (blended); see MATERIALES.md
 		MaterialLayers Layers;            // procedural layers ("moss", "grain"...) and their parameters (GB/Renderer/MaterialLayers.h)
@@ -49,7 +56,9 @@ namespace GB
 		glm::vec3 Rotation{ 0.0f };       // degrees: pitch (x), yaw (y), roll (z)
 		std::string Material;
 		std::string Model;                // shape "model": a piece of a modular kit (a glTF/GLB under the assets, drawn as it is; Size scales it).
-		                                  // Its Material, if any, only lends its layers (moss...): the glTF keeps its own surface and textures
+		                                  // Its Material, if any, only lends its layers (moss...) to the whole piece. A11: each glTF material
+		                                  // named like a visuals material (KitMaterialId) takes that material's roughness, metallic, wind and
+		                                  // season (Seasonal, SeasonTint); its painted textures and colour stay the glTF's
 		std::vector<std::string> Models;  // shape "model": one piece per variant (copy of variant v uses Models[v % size]); overrides Model
 		int Sides = 8;                    // cylinder
 		float Bend = 0.0f;                // cylinder: the top leans this far (metres)
@@ -230,6 +239,12 @@ namespace GB
 	VisualModel BuildingModel(const BuildingVisual& building, int phase, float progress, std::vector<bool>& visible);
 	// How many copies of the current phase are up at `progress` (and of all the phase): the adapter's report and the tests' measure.
 	int BuildingCopies(const BuildingVisual& building, int phase, float progress, int* total = nullptr);
+
+	// A11: what a material with a SeasonTint multiplies its colour by in a season whose leaves are `foliage` (VisualCache::Foliage): the
+	// season's hue at the same luminance, mixed with white by `amount` (0..1). Neutral (1, 1, 1) at 0 and for a grey foliage.
+	glm::vec3 SeasonTint(const glm::vec3& foliage, float amount);
+	// A11: the visuals material id a glTF material name stands for: the name without a Blender duplicate suffix (".001"), "" for "".
+	std::string KitMaterialId(const std::string& gltfName);
 
 	// Triangles of a set of pieces (the budget checks).
 	size_t VisualTriangles(const std::vector<VisualPiece>& pieces);

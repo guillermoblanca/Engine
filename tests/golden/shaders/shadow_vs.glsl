@@ -92,7 +92,8 @@ out vec2 vUV;
 // Tree / foliage sway: bend grows with height, a travelling gust wave, and high-frequency flutter.
 vec3 WindOffset(vec3 localPos, vec3 worldPos, vec3 origin)
 {
-	float hw = clamp(localPos.y / max(MATERIAL.Wind.y, 1e-3), 0.0, 1.0);
+	float span = MATERIAL.Wind.y < 0.0 ? min(MATERIAL.Wind.y, -1e-3) : max(MATERIAL.Wind.y, 1e-3);
+	float hw = clamp((localPos.y - MATERIAL.Wind.w) / span, 0.0, 1.0);
 	hw *= hw;
 	float ws = length(uWind.xz);
 	vec2 wd = ws > 0.01 ? uWind.xz / ws : vec2(1.0, 0.0);

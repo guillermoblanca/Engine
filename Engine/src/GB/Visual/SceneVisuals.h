@@ -25,7 +25,7 @@ namespace GB
 		std::string AssetDir;   // where the kit pieces' paths start (the visuals' asset folder)
 
 		// Forgets every mesh and texture (after the library was reloaded, or the quality changed).
-		void Clear() { m_Meshes.clear(); m_Textures.clear(); }
+		void Clear() { m_Meshes.clear(); m_Textures.clear(); ++m_MaterialStamp; }
 		void SetLowRes(bool lowRes) { if (lowRes != m_LowRes) { m_LowRes = lowRes; m_Textures.clear(); ++m_MaterialStamp; } }
 		bool LowRes() const { return m_LowRes; }
 		// The colour of the season's leaves: seasonal materials (crowns, bushes) multiply their colour by it.
@@ -38,15 +38,23 @@ namespace GB
 		bool AddBuilding(const std::string& building, int phase, float progress, const glm::mat4& world, Scene& scene);
 		Material MaterialFor(const std::string& id) const;
 		const Texture2D* TextureFor(const std::string& kind) const;
+		// A11: what a visuals material lends to a glTF material of a kit piece named like it (KitMaterialId): its roughness and metallic (they
+		// win over the glTF's factors, so a change in visuals.json shows on every model without exporting it again), its wind (held still at
+		// the bottom of the primitive, its local heights minY..maxY, or at the top with WindRoot "top") and its season (Seasonal: times the
+		// leaves' colour; SeasonTint), multiplied on the glTF's colour and painted texture, which stay.
+		static void ApplyKitSurface(const VisualMaterial& v, const glm::vec3& foliage, float minY, float maxY, Material& m);
 		size_t CachedMeshes() const { return m_Meshes.size(); }
 		size_t CachedTextures() const { return m_Textures.size(); }
 
 	private:
+		struct KitPiece;
 		struct KitDraw
 		{
 			std::string Path;                                                     // the glTF (the variant's, KitModel)
 			glm::mat4 At{ 1.0f };                                                 // where in the model
 			std::string Material;                                                 // the part's material: its layers go on the piece ("" = none)
+			const KitPiece* Piece = nullptr;                                      // (m_Kits never forgets one: the pointer stays good)
+			std::vector<GB::Material> Materials;                                  // per object of the piece, with the stamp of Entry::MaterialStamp
 		};
 		struct Entry
 		{
@@ -69,6 +77,13 @@ namespace GB
 		{
 			std::shared_ptr<Model> Source;
 			std::vector<RenderObject> Objects;
+			// per object: the visuals material its glTF material stands for ("" = none) and its primitive's local height range (A11)
+			struct Surface
+			{
+				std::string Material;
+				float MinY = 0.0f, MaxY = 0.0f;
+			};
+			std::vector<Surface> Surfaces;
 			glm::vec3 Min{ 0.0f }, Max{ 0.0f };
 			bool Failed = false;
 		};

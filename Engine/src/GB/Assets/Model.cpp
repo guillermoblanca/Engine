@@ -200,6 +200,7 @@ namespace GB
 		ModelMaterial ConvertMaterial(const cgltf_material& src)
 		{
 			ModelMaterial m;
+			m.Name = src.name ? src.name : "";
 			if (src.has_pbr_metallic_roughness)
 			{
 				const cgltf_pbr_metallic_roughness& pbr = src.pbr_metallic_roughness;
