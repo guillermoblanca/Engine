@@ -151,8 +151,9 @@ namespace GB
 		s.Color = kLayer;
 		s.Inputs = { { "height", TgPortKind::Field },
 			{ "cliff", TgPortKind::Field, true, "0..1: E4's cliff mask (used as it comes; unconnected: the slope around CliffDegrees)" },
-			{ "scree", TgPortKind::Field, true, "0..1: E4's scree mask (unconnected: the foot of the cliffs)" } };
-		s.Outputs = { { "cliff", TgPortKind::Field }, { "scree", TgPortKind::Field } };
+			{ "scree", TgPortKind::Field, true, "0..1: E4's scree mask (unconnected: the foot of the cliffs)" },
+			{ "hardness", TgPortKind::Field, true, "0..1: E4's rock hardness, passed through for the material (unconnected: 0)" } };
+		s.Outputs = { { "cliff", TgPortKind::Field }, { "scree", TgPortKind::Field }, { "hardness", TgPortKind::Field } };
 		s.Params = {
 			{ "CliffDegrees", 50, 30, 80, false, "without a cliff input: the slope where a face is half cliff" },
 			{ "CliffFalloff", 6, 0, 20, false, "degrees across the cliff's edge" },
@@ -172,10 +173,14 @@ namespace GB
 		const TgValue* height = Input(inputs, 0, TgPortKind::Field);
 		const TgValue* cliffIn = Input(inputs, 1, TgPortKind::Field);
 		const TgValue* screeIn = Input(inputs, 2, TgPortKind::Field);
+		const TgValue* hardIn = Input(inputs, 3, TgPortKind::Field);
 		if (!height || height->Field.N == 0) { error = Who(node) + ": input 'height' is not connected"; return false; }
 		const TgField& h = height->Field;
-		if (!SameSize(cliffIn, h, node, "cliff", error) || !SameSize(screeIn, h, node, "scree", error)) return false;
+		if (!SameSize(cliffIn, h, node, "cliff", error) || !SameSize(screeIn, h, node, "scree", error) || !SameSize(hardIn, h, node, "hardness", error))
+			return false;
 		const size_t count = h.Values.size();
+		TgField& hard = FieldOut(outputs, "hardness", h);
+		for (size_t c = 0; c < count; ++c) hard.Values[c] = hardIn ? Clamp01(hardIn->Field.Values[c]) : 0.0f;
 		const std::vector<float> slope = Slopes(h);
 
 		TgField& cliff = FieldOut(outputs, "cliff", h);

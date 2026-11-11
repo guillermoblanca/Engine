@@ -151,6 +151,10 @@ int GBTest_surface_layers(int, char**)
 		auto e4 = RunNode(registry, "layer_cliff_scree", { { "height", &height }, { "cliff", &e4Cliff }, { "scree", &e4Scree } }, {}, ok, error);
 		Check(ok && e4["cliff"].Field.Values[At(25.0f, 0.0f)] == 0.3f && e4["scree"].Field.Values[At(0.0f, 0.0f)] == 0.7f,
 			"cliff/scree: E4's masks are used as they come (clamped, scree under what the cliff covers)");
+		const TgValue e4Hard = Constant(0.4f);
+		auto hard = RunNode(registry, "layer_cliff_scree", { { "height", &height }, { "hardness", &e4Hard } }, {}, ok, error);
+		Check(ok && hard["hardness"].Field.Values[At(25.0f, 0.0f)] == 0.4f && e4["hardness"].Field.Values[At(25.0f, 0.0f)] == 0.0f,
+			"cliff/scree: E4's hardness passes through (0 unconnected)");
 	}
 
 	// ---------------------------------------------------------------- layer_wet
@@ -342,6 +346,21 @@ int GBTest_surface_layers(int, char**)
 			kept += it != given.end() && it->second == t.Variant;
 		}
 		Check(!world.Trees.empty() && kept == world.Trees.size(), "every tree keeps the species tree_species gave it (" + std::to_string(kept) + " of " + std::to_string(world.Trees.size()) + ")");
+		// the grass the editor scatters: none on bare ground once the layers are a partition
+		Check(world.TerrainRef->SurfaceLayersArePartition(), "the new layers make the terrain's layers a partition");
+		const Heightmap& hm = world.TerrainRef->GetHeightmap();
+		size_t bareSamples = 0, bareGrass = 0, grassy = 0;
+		for (uint32_t j = 0; j < kN; ++j)
+			for (uint32_t i = 0; i < kN; ++i)
+			{
+				const float x = hm.GetMin().x + static_cast<float>(i) * hm.GetSpacing(), z = hm.GetMin().y + static_cast<float>(j) * hm.GetSpacing();
+				const float g = world.GrassDensityAt(x, z);
+				const float bare = world.TerrainRef->SurfaceLayerWeight(SurfaceLayerKind::Cliff, x, z) + world.TerrainRef->SurfaceLayerWeight(SurfaceLayerKind::Scree, x, z);
+				if (bare >= 0.5f) { ++bareSamples; bareGrass += g > 0.0f; }
+				else grassy += g > 0.0f;
+			}
+		Check(bareSamples > 0 && bareGrass == 0 && grassy > 0, "no grass on cliff or scree (" + std::to_string(bareGrass) + " of " + std::to_string(bareSamples) +
+			" bare samples), grass elsewhere (" + std::to_string(grassy) + ")");
 	}
 
 	if (failures == 0) std::printf("surface_layers_test: OK\n");

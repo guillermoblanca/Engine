@@ -226,6 +226,19 @@ namespace
 			std::printf("  cliff > 0.5: %.2f %% of the map (slope > 50 deg: %.2f %%), mean slope %.1f deg, %zu under 40 deg; scree > 0.5: %.2f %%, mean slope %.1f deg, %.1f %% within 70 m of a cliff\n",
 				Pct(cliffN, count), Pct(slope50, count), cliffN ? cliffSlope / static_cast<double>(cliffN) : 0.0, cliffUnder40, Pct(screeN, count),
 				screeN ? screeSlope / static_cast<double>(screeN) : 0.0, Pct(screeNear, screeN));
+			// with E4, scree is what the talus cut let fall: at the foot of the slope it trimmed, which need not be a cliff
+			if (const TgNode* talus = NodeOfType(g, "talus"))
+				if (const auto it = r.Nodes.find(talus->Id); it != r.Nodes.end() && it->second.count("cut") && it->second.at("cut").Field.N == n)
+				{
+					const TgField& cut = it->second.at("cut").Field;
+					std::vector<uint8_t> cutSeeds(count, 0);
+					size_t cutN = 0;
+					for (size_t c = 0; c < count; ++c) { cutSeeds[c] = cut.Values[c] > 0.5f; cutN += cutSeeds[c]; }
+					const std::vector<float> toCut = ChamferDistance(cutSeeds, n, sp);
+					size_t screeNearCut = 0;
+					for (size_t c = 0; c < count; ++c) screeNearCut += scree->Values[c] > 0.5f && toCut[c] <= 70.0f;
+					std::printf("  E4: the talus cut > 0.5 m on %.2f %% of the map; scree > 0.5 within 70 m of it: %.1f %%\n", Pct(cutN, count), Pct(screeNearCut, screeN));
+				}
 		}
 
 		// the trees of the finished world
@@ -235,7 +248,7 @@ namespace
 		const float highTop = species ? static_cast<float>(TgParam(*species, "HighTop", 0.44)) : 0.44f;
 		const auto [minIt, maxIt] = std::minmax_element(h.Values.begin(), h.Values.end());
 		const float hMin = *minIt, hRange = std::max(*maxIt - *minIt, 1e-3f);
-		size_t inWet = 0, wetAround = 0, onCliff = 0, onScree = 0, onPath = 0, onWaterBiome = 0;
+		size_t inWet = 0, wetAround = 0, onCliff = 0, onScree = 0, onPath = 0, onGravel = 0, onMud = 0, onWaterBiome = 0;
 		std::map<std::string, size_t> bySpecies, byRiver;
 		size_t nearRiver = 0;
 		std::map<std::string, std::map<std::string, size_t>> byBand;
@@ -257,6 +270,8 @@ namespace
 			onCliff += cliff && cliff->Sample(x, z) > exclude;
 			onScree += scree && scree->Sample(x, z) > exclude;
 			onPath += path && path->Sample(x, z) > exclude;
+			onGravel += gravel && gravel->Sample(x, z) > exclude;
+			onMud += mud && mud->Sample(x, z) > exclude;
 			const Biome b = world.BiomeAt(x, z);
 			onWaterBiome += b == Biome::Water || b == Biome::Shore;
 			const TreeParams& tp = world.TreeRecipes[static_cast<size_t>(t.Variant)];
@@ -269,8 +284,33 @@ namespace
 			treeOut.push_back(x); treeOut.push_back(z); treeOut.push_back(static_cast<float>(t.Variant));
 		}
 		const size_t placed = r.PlacementOutputs.count("trees") ? r.PlacementOutputs.at("trees").Items.size() : 0;
-		std::printf("  trees: %zu in the world (%zu published by the graph, budget %d); in the water %zu (a wet sample around: %zu), on cliff %zu, on scree %zu, on a path %zu, on a Water/Shore biome %zu\n",
-			world.Trees.size(), placed, desc.TreeBudget, inWet, wetAround, onCliff, onScree, onPath, onWaterBiome);
+		std::printf("  trees: %zu in the world (%zu published by the graph, budget %d); in the water %zu (a wet sample around: %zu), on cliff %zu, on scree %zu, on a path %zu, on gravel %zu, on mud %zu, on a Water/Shore biome %zu (layer > %.2f)\n",
+			world.Trees.size(), placed, desc.TreeBudget, inWet, wetAround, onCliff, onScree, onPath, onGravel, onMud, onWaterBiome, exclude);
+
+		// the grass the editor scatters (GeneratedWorld::GrassDensityAt) on the bare layers: none where one covers half a sample
+		{
+			const char* bareNames[] = { "path", "gravel", "mud", "cliff", "scree" };
+			const TgField* bare[] = { path, gravel, mud, cliff, scree };
+			size_t on[5] = {}, withGrass[5] = {}, dry = 0;
+			double grassSum = 0.0, onSum[5] = {};
+			for (uint32_t j = 0; j < n; j += 2)
+				for (uint32_t i = 0; i < n; i += 2)
+				{
+					const size_t c = static_cast<size_t>(j) * n + i;
+					if (!raster.Kinds.empty() && raster.Wet(c)) continue;
+					const float x = h.Min().x + static_cast<float>(i) * sp, z = h.Min().y + static_cast<float>(j) * sp;
+					const float g = world.GrassDensityAt(x, z);
+					++dry;
+					grassSum += g;
+					for (int k = 0; k < 5; ++k)
+						if (bare[k] && bare[k]->Values[c] >= 0.5f) { ++on[k]; onSum[k] += g; withGrass[k] += g > 0.0f; }
+				}
+			std::printf("  grass (every other dry sample, %zu): mean density %.3f, partition %s;", dry, dry ? grassSum / static_cast<double>(dry) : 0.0,
+				world.TerrainRef && world.TerrainRef->SurfaceLayersArePartition() ? "yes" : "no");
+			for (int k = 0; k < 5; ++k)
+				std::printf(" %s >= 0.5: %zu samples, %zu with grass (mean %.3f),", bareNames[k], on[k], withGrass[k], on[k] ? onSum[k] / static_cast<double>(on[k]) : 0.0);
+			std::printf("\n");
+		}
 		std::printf("  trees by species:");
 		for (const auto& [name, k] : bySpecies) std::printf(" %s %zu (%.1f %%),", name.c_str(), k, Pct(k, world.Trees.size()));
 		std::printf("\n");

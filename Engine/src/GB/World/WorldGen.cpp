@@ -452,8 +452,15 @@ namespace GB
 	float GeneratedWorld::GrassDensityAt(float x, float z) const
 	{
 		// the baked cover is a soft blend of the biomes around the point (water stays bare: the blend of water and meadow fades out toward the bank)
-		if (!Maps.Empty() && !Maps.Grass.empty() && BiomeAt(x, z) != Biome::Water) return Maps.GrassAt(x, z);
-		return BiomeGrass(BiomeAt(x, z));
+		const float grass = !Maps.Empty() && !Maps.Grass.empty() && BiomeAt(x, z) != Biome::Water ? Maps.GrassAt(x, z) : BiomeGrass(BiomeAt(x, z));
+		if (!TerrainRef || !TerrainRef->SurfaceLayersArePartition()) return grass;
+		// a world painted with material layers (GRAFO_TERRENO §13) keeps no grass on bare ground: none where the path, gravel, mud, cliff
+		// and scree (dried mud counts half) cover half the sample, and it thins toward that
+		const Terrain& t = *TerrainRef;
+		const float bare = t.SurfaceLayerWeight(SurfaceLayerKind::Path, x, z) + t.SurfaceLayerWeight(SurfaceLayerKind::Gravel, x, z)
+			+ t.SurfaceLayerWeight(SurfaceLayerKind::Mud, x, z) + t.SurfaceLayerWeight(SurfaceLayerKind::Cliff, x, z)
+			+ t.SurfaceLayerWeight(SurfaceLayerKind::Scree, x, z) + 0.5f * t.SurfaceLayerWeight(SurfaceLayerKind::MudDry, x, z);
+		return grass * std::clamp(1.0f - 2.0f * bare, 0.0f, 1.0f);
 	}
 
 	std::vector<float> GeneratedWorld::BiomeShares(int samples) const
