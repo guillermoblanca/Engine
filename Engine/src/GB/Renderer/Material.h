@@ -5,6 +5,21 @@
 
 namespace GB
 {
+	// T115 (render.md, "Terreno por capas de material"): what the GB_TERRAIN_LAYERS program draws a partition terrain with (TerrainGpu makes
+	// it; Material::TerrainLayers points at it). The splat array holds the 13 layer weights of every heightmap sample (layer k in channel
+	// k % 4 of array layer k / 4; channel 13 is the rock hardness, 0 while the terrain does not carry it); the albedo and surface arrays hold
+	// one tiling material per layer kind (TerrainLayerTextures.h).
+	struct TerrainLayerMaps
+	{
+		static constexpr int kKinds = 13;
+		const TextureArray* Splat = nullptr;
+		const TextureArray* Albedo = nullptr;    // rgb albedo (sRGB), a height
+		const TextureArray* Surface = nullptr;   // rg normal xy, b roughness, a occlusion
+		glm::vec4 SplatRect{ 0.0f };             // x, y the first sample's position; z the spacing; w the resolution
+		glm::vec4 Params[kKinds]{};              // per kind: x 1 / metres per tile, y triplanar (1), z blend contrast, w unused
+		glm::vec4 MacroColor[kKinds]{};          // per kind: rgb the flat colour the macro map paints for it, linear
+	};
+
 	// Metallic/roughness PBR material (constant parameters; textures come with the glTF importer).
 	struct Material
 	{
@@ -32,6 +47,9 @@ namespace GB
 		const Texture2D* MacroMap = nullptr;
 		glm::vec4 MacroRect{ 0.0f, 0.0f, 1.0f, 1.0f };
 		const Texture2D* SurfaceNormalMap = nullptr;
+		// T115: a partition terrain drawn by its material layers (the Renderer's GB_TERRAIN_LAYERS program); null for every other material.
+		// Not packed into MaterialData: the program, not the material block, says the layers are on.
+		const TerrainLayerMaps* TerrainLayers = nullptr;
 
 		float TrailDepth = 0.0f;
 		glm::vec3 TrailTint{ 1.0f };

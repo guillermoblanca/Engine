@@ -33,6 +33,7 @@ namespace GB
 		void SetVec3(std::string_view name, const glm::vec3& value);
 		void SetVec4(std::string_view name, const glm::vec4& value);
 		void SetVec3Array(std::string_view name, const glm::vec3* values, int count);
+		void SetVec4Array(std::string_view name, const glm::vec4* values, int count);   // T115
 		void SetFloatArray(std::string_view name, const float* values, int count);
 		void SetMat4(std::string_view name, const glm::mat4& value);
 

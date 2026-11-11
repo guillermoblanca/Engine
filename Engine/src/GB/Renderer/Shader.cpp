@@ -47,6 +47,7 @@ namespace GB
 	void Shader::SetVec3(std::string_view name, const glm::vec3& v) { m_Device.Commands().SetUniformFloats(m_Program, Location(name), 3, 1, glm::value_ptr(v)); }
 	void Shader::SetVec4(std::string_view name, const glm::vec4& v) { m_Device.Commands().SetUniformFloats(m_Program, Location(name), 4, 1, glm::value_ptr(v)); }
 	void Shader::SetVec3Array(std::string_view name, const glm::vec3* v, int count) { m_Device.Commands().SetUniformFloats(m_Program, Location(name), 3, static_cast<uint32_t>(count), glm::value_ptr(*v)); }
+	void Shader::SetVec4Array(std::string_view name, const glm::vec4* v, int count) { m_Device.Commands().SetUniformFloats(m_Program, Location(name), 4, static_cast<uint32_t>(count), glm::value_ptr(*v)); }
 	void Shader::SetFloatArray(std::string_view name, const float* v, int count) { m_Device.Commands().SetUniformFloats(m_Program, Location(name), 1, static_cast<uint32_t>(count), v); }
 	void Shader::SetMat4(std::string_view name, const glm::mat4& v) { m_Device.Commands().SetUniformMat4(m_Program, Location(name), v); }
 }

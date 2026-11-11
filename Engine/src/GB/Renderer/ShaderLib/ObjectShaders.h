@@ -111,6 +111,9 @@ void main()
 	// MaterialTable.h) it adds the crown normal blend, the alpha mip scale, the per-instance colour and the light through the leaf. In the
 	// base program those blocks are compiled out: as branches on the layer bit they cost every object ~6% of the opaque pass on the
 	// reference scene (register pressure; measured, MATERIALES.md "Follaje"), even with no foliage in view.
+	// T115: compiled a third time with GB_TERRAIN_LAYERS (the Renderer's terrain program, for a material with Material::TerrainLayers: a
+	// partition terrain): the colour, normal, roughness and occlusion come from the terrain's material layers (lib/terrain_layers), and the
+	// transmission is compiled out. The other two programs compile none of it.
 	inline constexpr const char* PBRFS = R"GLSL(#version 450 core
 #include "lib/frame"
 #include "lib/material"
@@ -174,6 +177,9 @@ vec3 ShadeSpecScaled(vec3 N, vec3 V, vec3 L, vec3 radiance, vec3 albedo, vec3 F0
 #include "lib/noise_pbr"
 #ifdef GB_FOLIAGE
 #include "lib/foliage"
+#endif
+#ifdef GB_TERRAIN_LAYERS
+#include "lib/terrain_layers"
 #endif
 
 // Rain rings on a puddle: one expanding ring per random cell, two layers.
@@ -291,6 +297,12 @@ void main()
 #endif
 	if (HasTex(TEX_MACRO))
 		albedo *= texture(uMacroMap, (vPos.xz - MATERIAL.Layer[SLOT_MACRO].xy) / MATERIAL.Layer[SLOT_MACRO].zw).rgb;
+#ifdef GB_TERRAIN_LAYERS
+	// T115: a partition terrain: its material layers, modulated by the macro colour above (lib/terrain_layers)
+	TerrainSurface terrainLayers = TerrainLayersAt(vPos, N, albedo);
+	albedo = terrainLayers.Albedo;
+	N = terrainLayers.N;
+#endif
 	albedo *= mix(vec3(1.0), MATERIAL.Layer[SLOT_TRAIL_TINT].rgb, clamp(trailT * 1.3, 0.0, 1.0));   // compacted / wetter ground
 	if (MATERIAL.Flags.z == 1u)
 	{
@@ -379,6 +391,10 @@ void main()
 		roughness *= mr.g;
 		metallic *= mr.b;
 	}
+#ifdef GB_TERRAIN_LAYERS
+	roughness = terrainLayers.Roughness;
+	ao *= terrainLayers.AO;
+#endif
 	metallic = clamp(metallic, 0.0, 1.0);
 	metallic *= 1.0 - snow;
 	roughness = mix(roughness, roughness * 0.25, uWetness * (1.0 - metallic) * (1.0 - snow));   // ...and glossier
@@ -390,7 +406,11 @@ void main()
 	float a = roughness * roughness;
 	vec3 F0 = mix(vec3(0.04), albedo, metallic);
 	// T34: a transmissive surface reflects like a dielectric of its index of refraction and does not diffuse the light that goes through.
+#ifdef GB_TERRAIN_LAYERS
+	float transmission = 0.0;   // T115: a terrain is opaque (and the transmission's three samplers stay out of this program)
+#else
 	float transmission = (MATERIAL.Flags.x & LAYER_TRANSMISSION) != 0u ? MATERIAL.ModelParams.w : 0.0;
+#endif
 	if (transmission > 0.0)
 	{
 		float f0 = (MATERIAL.ModelParams.z - 1.0) / (MATERIAL.ModelParams.z + 1.0);

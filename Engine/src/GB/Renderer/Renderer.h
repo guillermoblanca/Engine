@@ -58,6 +58,9 @@ namespace GB
 		// T46: the PBR program with GB_FOLIAGE, for the opaque and masked materials with the foliage layer (FoliageOn, MaterialTable.h): its
 		// terms are compiled out of the base program, which they made ~6% slower on every object even when not taken (ObjectShaders.h).
 		std::unique_ptr<Shader> m_PBRFoliageShader;
+		// T115: the PBR program with GB_TERRAIN_LAYERS, for a partition terrain drawn by its material layers (Material::TerrainLayers,
+		// TerrainGpu): the layers' lookups and blend are compiled into this program only.
+		std::unique_ptr<Shader> m_PBRTerrainShader;
 		std::unique_ptr<class ParticleRenderer> m_ParticleRenderer;
 		std::unique_ptr<GrassRenderer> m_GrassRenderer;
 		std::unique_ptr<WaterRenderer> m_WaterRenderer;
@@ -75,6 +78,7 @@ namespace GB
 		RHI::BufferHandle m_InstanceBuffer;   // the matrices of one instanced draw (RenderObject::Instanced)
 		// The state of the scene pass: the sky (no depth), the objects (depth, back faces culled).
 		RHI::PipelineHandle m_SkyPipeline, m_PBRPipeline, m_PBRFoliagePipeline;   // (the foliage one: the same state, the GB_FOLIAGE program)
+		RHI::PipelineHandle m_PBRTerrainPipeline;   // T115: the same state, the GB_TERRAIN_LAYERS program
 		// T69 (render M3): the per-frame block and the ring it is written into, one region per frame in flight. m_Frame is kept between
 		// frames: the ground marks window and the environment map's values are only rewritten when there are marks or a map, as the loose
 		// uniforms they replace kept their last value.

@@ -50,4 +50,53 @@ namespace GB
 	{
 		RHI::GetDevice().Commands().BindTexture(unit, m_Texture);
 	}
+
+	TextureArray::TextureArray(const std::vector<const Image*>& layers, TextureEncoding encoding, bool repeat)
+	{
+		if (layers.empty() || !layers[0] || !layers[0]->IsValid())
+		{
+			GB_CORE_ERROR("TextureArray created without layers");
+			return;
+		}
+		const uint32_t width = layers[0]->Width, height = layers[0]->Height;
+		for (const Image* image : layers)
+			if (!image || !image->IsValid() || image->Width != width || image->Height != height)
+			{
+				GB_CORE_ERROR("TextureArray: the layers are not valid images of one size");
+				return;
+			}
+		m_Width = width;
+		m_Height = height;
+		m_Layers = static_cast<uint32_t>(layers.size());
+
+		RHI::Device& device = RHI::GetDevice();
+		RHI::TextureDesc desc;
+		desc.Width = width;
+		desc.Height = height;
+		desc.Levels = RHI::FullMipLevels(width, height);
+		desc.Fmt = encoding == TextureEncoding::SRGB ? RHI::Format::SRGB8A8 : RHI::Format::RGBA8;
+		desc.Layers = m_Layers;
+		desc.Array = true;
+		m_Texture = device.CreateTexture(desc);
+		for (uint32_t layer = 0; layer < m_Layers; ++layer)
+			device.UploadTextureLayer(m_Texture, 0, layer, 0, 0, width, height, RHI::PixelData::RGBA8, layers[layer]->Pixels.data());
+		device.GenerateMips(m_Texture);
+
+		RHI::SamplerDesc sampler;
+		sampler.Min = RHI::Filter::LinearMipLinear;
+		sampler.Mag = RHI::Filter::Linear;
+		sampler.WrapS = sampler.WrapT = repeat ? RHI::Wrap::Repeat : RHI::Wrap::ClampToEdge;
+		sampler.MaxAnisotropy = 16.0f;
+		device.SetSampler(m_Texture, sampler);
+	}
+
+	TextureArray::~TextureArray()
+	{
+		if (m_Texture) RHI::GetDevice().DestroyTexture(m_Texture);
+	}
+
+	void TextureArray::Bind(uint32_t unit) const
+	{
+		RHI::GetDevice().Commands().BindTexture(unit, m_Texture);
+	}
 }

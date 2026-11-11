@@ -4,6 +4,7 @@
 #include "Visibility.h"
 #include "Shaders.h"
 #include "ShadowView.h"
+#include "TerrainLayerTextures.h"
 #include "GB/Log.h"
 #include <algorithm>
 #include <chrono>
@@ -25,6 +26,10 @@ namespace GB
 		{
 			const std::string_view foliage[] = { "GB_FOLIAGE" };   // T46
 			m_PBRFoliageShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS), Shaders::Assemble(Shaders::PBRFS, foliage));
+			const std::string_view terrain[] = { "GB_TERRAIN_LAYERS" };   // T115
+			m_PBRTerrainShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS), Shaders::Assemble(Shaders::PBRFS, terrain));
+			// its layer maps, made in the background from now on: a world load then finds them ready
+			TerrainLayerTextures::Prefetch(TerrainLayerTextures::Size(false));
 		}
 
 		RHI::Device& device = RHI::GetDevice();
@@ -51,6 +56,8 @@ namespace GB
 			m_PBRPipeline = device.CreatePipeline(pbr);
 			pbr.Program = m_PBRFoliageShader->GetHandle();
 			m_PBRFoliagePipeline = device.CreatePipeline(pbr);
+			pbr.Program = m_PBRTerrainShader->GetHandle();
+			m_PBRTerrainPipeline = device.CreatePipeline(pbr);
 		}
 
 		m_ParticleRenderer = std::make_unique<ParticleRenderer>();
@@ -67,7 +74,7 @@ namespace GB
 		m_WaterRenderer = std::make_unique<WaterRenderer>();
 		m_ShadowRenderer = std::make_unique<ShadowRenderer>();
 
-		m_Valid = m_FrameRing && m_ShadowRenderer->IsValid() && m_PBRShader->IsValid() && m_PBRFoliageShader->IsValid() && m_SkyShader->IsValid() &&
+		m_Valid = m_FrameRing && m_ShadowRenderer->IsValid() && m_PBRShader->IsValid() && m_PBRFoliageShader->IsValid() && m_PBRTerrainShader->IsValid() && m_SkyShader->IsValid() &&
 			m_ParticleRenderer->IsValid() && m_GrassRenderer->IsValid() && m_WaterRenderer->IsValid() &&
 			m_ShadowMap->IsComplete() && m_SceneMSAA->IsComplete() && m_SceneResolved->IsComplete() &&
 			m_SceneDepth->IsComplete() && m_SceneAmbient->IsComplete() && m_PostProcessor->IsValid();
@@ -87,6 +94,7 @@ namespace GB
 		device.DestroyPipeline(m_SkyPipeline);
 		device.DestroyPipeline(m_PBRPipeline);
 		device.DestroyPipeline(m_PBRFoliagePipeline);
+		device.DestroyPipeline(m_PBRTerrainPipeline);
 		m_FrameRing.reset();
 	}
 
@@ -277,19 +285,31 @@ namespace GB
 		// T36 (render M4): the material's values are in the material buffer (lib/material, bound by MaterialBuffer::BeginFrame); the draw sets
 		// its entry, uMaterialId, and binds the material's maps (still loose until M6). uModel, uInstanced and uSkinned are the object's (M5).
 		// T46: the foliage materials draw with the GB_FOLIAGE program; the pipeline is switched only when the kind changes (the pipeline sets
-		// the cull, so it goes first). foliageBound: the foliage program is the one bound.
-		bool foliageBound = false;
+		// the cull, so it goes first).
+		// T115: a material with terrain layers draws with the GB_TERRAIN_LAYERS program the same way. bound: the program bound (0 base,
+		// 1 foliage, 2 terrain layers).
+		int bound = 0;
 		auto drawObject = [&](const RenderObject& obj, uint32_t copies = 0)
 		{
 			const auto drawStart = Clock::now();
 			const Material& m = obj.Mat;
-			const bool foliage = FoliageOn(m);
-			if (foliage != foliageBound)
+			const TerrainLayerMaps* layers = m.TerrainLayers;
+			const int kind = layers ? 2 : FoliageOn(m) ? 1 : 0;
+			if (kind != bound)
 			{
-				cmd.BindPipeline(foliage ? m_PBRFoliagePipeline : m_PBRPipeline);
-				foliageBound = foliage;
+				cmd.BindPipeline(kind == 2 ? m_PBRTerrainPipeline : kind == 1 ? m_PBRFoliagePipeline : m_PBRPipeline);
+				bound = kind;
 			}
-			Shader& program = foliage ? *m_PBRFoliageShader : pbr;
+			Shader& program = kind == 2 ? *m_PBRTerrainShader : kind == 1 ? *m_PBRFoliageShader : pbr;
+			if (layers)
+			{
+				layers->Splat->Bind(14);
+				layers->Albedo->Bind(15);
+				layers->Surface->Bind(16);
+				program.SetVec4("uSplatRect", layers->SplatRect);
+				program.SetVec4Array("uLayerParams", layers->Params, TerrainLayerMaps::kKinds);
+				program.SetVec4Array("uLayerMacro", layers->MacroColor, TerrainLayerMaps::kKinds);
+			}
 			cmd.SetCull(m.DoubleSided ? RHI::Cull::None : RHI::Cull::Back);
 
 			program.SetMat4("uModel", obj.Transform);
@@ -427,7 +447,7 @@ namespace GB
 			// The grass and the water bind programs of their own: the translucent objects need the PBR one back (and its shadow map and ground
 			// marks units, which the grass binds too).
 			cmd.BindPipeline(m_PBRPipeline);
-			foliageBound = false;   // (no translucent material is foliage: FoliageOn)
+			bound = 0;   // (no translucent material is foliage, FoliageOn, nor a terrain)
 			cmd.BindTexture(0, m_ShadowMap->DepthTexture());
 			if (scene.Ground && scene.Ground->IsValid())
 				cmd.BindTexture(8, { scene.Ground->GetTexture() });

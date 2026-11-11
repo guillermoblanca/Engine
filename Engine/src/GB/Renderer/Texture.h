@@ -2,6 +2,7 @@
 #include "GB/Renderer/RHI/RHI.h"
 #include "GB/Scene/Image.h"
 #include <cstdint>
+#include <vector>
 
 namespace GB
 {
@@ -32,5 +33,28 @@ namespace GB
 	private:
 		RHI::TextureHandle m_Texture;
 		uint32_t m_Width = 0, m_Height = 0;
+	};
+
+	// T115: a 2D array of RGBA8 layers of one size, with mipmaps and anisotropic filtering (GLSL sampler2DArray). Repeat wrapping for
+	// tiling maps, clamp to the edge for data laid over a rectangle (a terrain's splat weights). Every image must be valid and of the size of
+	// the first; otherwise the array is not made (IsValid() is false).
+	class TextureArray
+	{
+	public:
+		TextureArray(const std::vector<const Image*>& layers, TextureEncoding encoding, bool repeat);
+		~TextureArray();
+		TextureArray(const TextureArray&) = delete;
+		TextureArray& operator=(const TextureArray&) = delete;
+
+		bool IsValid() const { return static_cast<bool>(m_Texture); }
+		RHI::TextureHandle GetHandle() const { return m_Texture; }
+		uint32_t GetWidth() const { return m_Width; }
+		uint32_t GetHeight() const { return m_Height; }
+		uint32_t GetLayers() const { return m_Layers; }
+		void Bind(uint32_t unit) const;
+
+	private:
+		RHI::TextureHandle m_Texture;
+		uint32_t m_Width = 0, m_Height = 0, m_Layers = 0;
 	};
 }

@@ -48,6 +48,7 @@ namespace GB::Shaders
 		{ "lib/noise_pbr", Lib::NoisePbr },
 		{ "lib/foliage", Lib::Foliage },
 		{ "lib/water_waves", Lib::WaterWaves },
+		{ "lib/terrain_layers", Lib::TerrainLayers },   // T115 (PBR FS with GB_TERRAIN_LAYERS)
 	};
 	inline std::span<const ShaderPiece> Library() { return kLibrary; }
 

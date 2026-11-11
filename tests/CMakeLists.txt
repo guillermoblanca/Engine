@@ -170,6 +170,7 @@ gb_test(audio_device audio_device_test.cpp POOL GBSimTests LINK GB::Sim LABELS r
 gb_test(fbx fbx_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_data})
 gb_test(character character_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 gb_test(vegetation vegetation_test.cpp POOL GBGLTests LINK GB::GB LABELS gl SKIP77)
+gb_test(terrain_layers terrain_layers_test.cpp POOL GBGLTests LINK GB::GB LABELS gl SKIP77)   # T115: a partition terrain drawn by its material layers, every other as before
 gb_test(locomotion locomotion_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_data})
 gb_test(turn_layer turn_layer_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_data})
 gb_test(character_layer character_layer_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_data})

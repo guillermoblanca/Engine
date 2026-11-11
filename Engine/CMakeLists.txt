@@ -266,6 +266,7 @@ add_library(GB_Render STATIC
     src/GB/Renderer/RocksGpu.cpp
     src/GB/Renderer/ModelGpu.cpp
     src/GB/Renderer/TerrainGpu.cpp
+    src/GB/Renderer/TerrainLayerTextures.cpp
     src/GB/Renderer/TreesGpu.cpp
     src/GB/Renderer/WaterRenderer.cpp
     src/GB/Renderer/WaterRipples.cpp
