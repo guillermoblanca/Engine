@@ -619,25 +619,20 @@
         ]
       },
       "longhouse": {
-        "footprint": [7.2, 4.2], "note": "a long timber hall: stone footings, two rows of posts and a ridge beam, wattle walls daubed with clay, a pitched roof of reed and mats",
+        "footprint": [7.2, 4.2], "note": "a long timber hall: stone footings, two rows of posts and a ridge beam, wattle walls daubed with clay, a pitched roof of reed and mats. Modelled in Blender (art-book/models/src/era1_building_longhouse.py), two pieces per phase, shown in order",
         "phases": [
           { "name": "footings", "parts": [
-            { "name": "Footing", "shape": "blob", "pos": [0, 0.08, -1.7], "size": [0.22, 0.14, 0.2], "material": "stone", "count": 6, "layout": "row", "spacing": 1.2, "detail": 1, "rough": 0.3 },
-            { "name": "Footing Back", "shape": "blob", "pos": [0, 0.08, 1.7], "size": [0.22, 0.14, 0.2], "material": "stone", "count": 6, "layout": "row", "spacing": 1.2, "detail": 1, "rough": 0.3 },
-            { "name": "Floor", "shape": "box", "pos": [0, 0.02, 0], "size": [6.8, 0.04, 3.6], "material": "mud" } ] },
+            { "name": "Floor", "shape": "model", "model": "models/era1/longhouse/longhouse_floor.gltf" },
+            { "name": "Footing", "shape": "model", "model": "models/era1/longhouse/longhouse_footing.gltf" } ] },
           { "name": "frame", "parts": [
-            { "name": "Post", "shape": "cylinder", "pos": [0, 0, -1.7], "size": [0.16, 2.0, 0.14], "material": "bark", "sides": 7, "count": 6, "layout": "row", "spacing": 1.2 },
-            { "name": "Post Back", "shape": "cylinder", "pos": [0, 0, 1.7], "size": [0.16, 2.0, 0.14], "material": "bark", "sides": 7, "count": 6, "layout": "row", "spacing": 1.2 },
-            { "name": "King Post", "shape": "cylinder", "pos": [0, 0, 0], "size": [0.18, 3.3, 0.16], "material": "bark_dark", "sides": 7, "count": 2, "layout": "row", "spacing": 6.0 },
-            { "name": "Ridge", "shape": "cylinder", "pos": [3.4, 3.25, 0], "rot": [0, 0, 90], "size": [0.14, 6.8, 0.12], "material": "bark_dark", "sides": 7 } ] },
+            { "name": "Post", "shape": "model", "model": "models/era1/longhouse/longhouse_posts.gltf" },
+            { "name": "Ridge", "shape": "model", "model": "models/era1/longhouse/longhouse_ridge.gltf" } ] },
           { "name": "walls", "parts": [
-            { "name": "Wall", "shape": "box", "pos": [0, 0.95, -1.72], "size": [6.6, 1.9, 0.12], "material": "mud" },
-            { "name": "Wall Back", "shape": "box", "pos": [0, 0.95, 1.72], "size": [6.6, 1.9, 0.12], "material": "mud" },
-            { "name": "Gable", "shape": "box", "pos": [0, 0.95, 0], "size": [0.12, 1.9, 3.3], "material": "wicker", "count": 2, "layout": "row", "spacing": 6.64, "face": false } ] },
+            { "name": "Wattle", "shape": "model", "model": "models/era1/longhouse/longhouse_wattle.gltf" },
+            { "name": "Wall", "shape": "model", "model": "models/era1/longhouse/longhouse_daub.gltf" } ] },
           { "name": "roof", "parts": [
-            { "name": "Roof", "shape": "box", "pos": [0, 2.65, -1.0], "rot": [-38, 0, 0], "size": [7.4, 0.16, 2.6], "material": "thatch" },
-            { "name": "Roof Back", "shape": "box", "pos": [0, 2.65, 1.0], "rot": [38, 0, 0], "size": [7.4, 0.16, 2.6], "material": "thatch" },
-            { "name": "Mat", "shape": "box", "pos": [0, 3.3, 0], "size": [1.2, 0.05, 0.5], "material": "wicker", "count": 3, "layout": "row", "spacing": 2.4 } ] }
+            { "name": "Roof", "shape": "model", "model": "models/era1/longhouse/longhouse_thatch.gltf" },
+            { "name": "Mat", "shape": "model", "model": "models/era1/longhouse/longhouse_mats.gltf" } ] }
         ]
       },
       "cache_pit": {
@@ -668,16 +663,12 @@
         ]
       },
       "hearth": {
-        "footprint": [2.4, 2.4], "note": "the communal hearth: a wide ring of stones, logs on the embers, a spit and stones to sit on",
+        "footprint": [2.4, 2.4], "note": "the communal hearth: a wide ring of stones, logs on the embers, a spit and stones to sit on. Modelled in Blender (art-book/models/src/era1_building_hearth.py), one piece per phase",
         "phases": [
           { "name": "ring", "parts": [
-            { "name": "Ring", "shape": "blob", "pos": [0, 0.1, 0], "size": [0.2, 0.14, 0.17], "material": "stone", "count": 14, "radius": 0.85, "detail": 1, "rough": 0.3, "jitter": 0.3 },
-            { "name": "Seat", "shape": "blob", "pos": [0, 0.15, 0], "size": [0.3, 0.2, 0.26], "material": "stone_dark", "count": 4, "radius": 1.55, "detail": 1, "rough": 0.25 } ] },
+            { "name": "Ring", "shape": "model", "model": "models/era1/hearth/hearth_ring.gltf" } ] },
           { "name": "fire", "parts": [
-            { "name": "Embers", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.6, 0.06, 0.6], "material": "embers", "detail": 1, "rough": 0.3 },
-            { "name": "Log", "shape": "cylinder", "pos": [0, 0.08, 0], "rot": [0, 0, 80], "size": [0.12, 0.8, 0.1], "material": "bark", "sides": 6, "count": 4, "radius": 0.12 },
-            { "name": "Spit Post", "shape": "cylinder", "pos": [0, 0, 0], "size": [0.06, 1.0, 0.05], "material": "bark_pale", "sides": 6, "count": 2, "layout": "row", "spacing": 1.5 },
-            { "name": "Spit", "shape": "cylinder", "pos": [0.8, 0.95, 0], "rot": [0, 0, 90], "size": [0.04, 1.6, 0.04], "material": "bark_pale", "sides": 6 } ] }
+            { "name": "Embers", "shape": "model", "model": "models/era1/hearth/hearth_fire.gltf" } ] }
         ]
       },
       "smoking_rack": {
