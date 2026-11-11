@@ -1053,6 +1053,12 @@
     {
       "from": "e4_talus",
       "fromPort": "scree",
+      "port": "in",
+      "to": "look_scree"
+    },
+    {
+      "from": "look_scree",
+      "fromPort": "out",
       "port": "scree",
       "to": "look_slopes"
     },
@@ -1070,13 +1076,31 @@
     },
     {
       "from": "settle_grade",
-      "fromPort": "path",
-      "port": "path",
-      "to": "look_layers"
+      "fromPort": "platform",
+      "port": "in",
+      "to": "look_platform"
     },
     {
       "from": "settle_grade",
       "fromPort": "path",
+      "port": "a",
+      "to": "look_trodden"
+    },
+    {
+      "from": "look_platform",
+      "fromPort": "out",
+      "port": "b",
+      "to": "look_trodden"
+    },
+    {
+      "from": "look_trodden",
+      "fromPort": "out",
+      "port": "path",
+      "to": "look_layers"
+    },
+    {
+      "from": "look_trodden",
+      "fromPort": "out",
       "port": "path",
       "to": "look_trees"
     },
@@ -2194,12 +2218,48 @@
       "y": 2400.0
     },
     {
+      "id": "look_scree",
+      "label": "look_scree",
+      "params": {
+        "InMax": 3.0,
+        "InMin": 1.0,
+        "OutMax": 1.0,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 6550.0,
+      "y": 2480.0
+    },
+    {
       "id": "out_hardness",
       "label": "out_hardness",
       "source": "splat_hardness",
       "type": "output",
       "x": 6900.0,
       "y": 2760.0
+    },
+    {
+      "id": "look_platform",
+      "label": "look_platform",
+      "params": {
+        "InMax": 1.0,
+        "InMin": 0.0,
+        "OutMax": 0.7,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 6400.0,
+      "y": 2700.0
+    },
+    {
+      "id": "look_trodden",
+      "label": "look_trodden",
+      "params": {
+        "Mode": 4.0
+      },
+      "type": "combine",
+      "x": 6550.0,
+      "y": 2700.0
     },
     {
       "id": "look_wet_bare",

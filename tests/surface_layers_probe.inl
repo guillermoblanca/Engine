@@ -213,7 +213,20 @@ namespace
 					if (cliff->Values[c] > 0.5f) { ++cliffN; cliffSlope += s; cliffUnder40 += s < 40.0f; cliffSeeds[c] = 1; }
 					if (cliff->Values[c] > 0.5f && s > 50.0f) ++c50;
 				}
-			const std::vector<float> toCliff = ChamferDistance(cliffSeeds, n, sp);
+			// scree lies at the foot of what it fell from: a cliff, or with E4 the slope the talus cut back (which need not be a cliff any more)
+			std::vector<uint8_t> footSeeds = cliffSeeds;
+			const char* foot = "a cliff";
+			double cutShare = -1.0;
+			if (const TgNode* talus = NodeOfType(g, "talus"))
+				if (const auto it = r.Nodes.find(talus->Id); it != r.Nodes.end() && it->second.count("cut") && it->second.at("cut").Field.N == n)
+				{
+					const TgField& cut = it->second.at("cut").Field;
+					size_t cutN = 0;
+					for (size_t c = 0; c < count; ++c) { footSeeds[c] = cut.Values[c] > 0.5f; cutN += footSeeds[c]; }
+					foot = "the talus cut (> 0.5 m)";
+					cutShare = Pct(cutN, count);
+				}
+			const std::vector<float> toFoot = ChamferDistance(footSeeds, n, sp);
 			size_t screeNear = 0;
 			for (uint32_t j = 0; j < n; ++j)
 				for (uint32_t i = 0; i < n; ++i)
@@ -221,24 +234,12 @@ namespace
 					const size_t c = static_cast<size_t>(j) * n + i;
 					if (scree->Values[c] <= 0.5f) continue;
 					++screeN; screeSlope += slopeAt(i, j);
-					screeNear += toCliff[c] <= 70.0f;
+					screeNear += toFoot[c] <= 70.0f;
 				}
-			std::printf("  cliff > 0.5: %.2f %% of the map (slope > 50 deg: %.2f %%), mean slope %.1f deg, %zu under 40 deg; scree > 0.5: %.2f %%, mean slope %.1f deg, %.1f %% within 70 m of a cliff\n",
+			std::printf("  cliff > 0.5: %.2f %% of the map (slope > 50 deg: %.2f %%), mean slope %.1f deg, %zu under 40 deg; scree > 0.5: %.2f %%, mean slope %.1f deg, %.1f %% within 70 m of %s\n",
 				Pct(cliffN, count), Pct(slope50, count), cliffN ? cliffSlope / static_cast<double>(cliffN) : 0.0, cliffUnder40, Pct(screeN, count),
-				screeN ? screeSlope / static_cast<double>(screeN) : 0.0, Pct(screeNear, screeN));
-			// with E4, scree is what the talus cut let fall: at the foot of the slope it trimmed, which need not be a cliff
-			if (const TgNode* talus = NodeOfType(g, "talus"))
-				if (const auto it = r.Nodes.find(talus->Id); it != r.Nodes.end() && it->second.count("cut") && it->second.at("cut").Field.N == n)
-				{
-					const TgField& cut = it->second.at("cut").Field;
-					std::vector<uint8_t> cutSeeds(count, 0);
-					size_t cutN = 0;
-					for (size_t c = 0; c < count; ++c) { cutSeeds[c] = cut.Values[c] > 0.5f; cutN += cutSeeds[c]; }
-					const std::vector<float> toCut = ChamferDistance(cutSeeds, n, sp);
-					size_t screeNearCut = 0;
-					for (size_t c = 0; c < count; ++c) screeNearCut += scree->Values[c] > 0.5f && toCut[c] <= 70.0f;
-					std::printf("  E4: the talus cut > 0.5 m on %.2f %% of the map; scree > 0.5 within 70 m of it: %.1f %%\n", Pct(cutN, count), Pct(screeNearCut, screeN));
-				}
+				screeN ? screeSlope / static_cast<double>(screeN) : 0.0, Pct(screeNear, screeN), foot);
+			if (cutShare >= 0.0) std::printf("  E4: the talus cut > 0.5 m on %.2f %% of the map\n", cutShare);
 		}
 
 		// the trees of the finished world
