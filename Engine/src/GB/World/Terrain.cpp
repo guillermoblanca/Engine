@@ -734,8 +734,8 @@ namespace GB
 			case SurfaceLayerKind::Scree:   // broken blocks of a brownish debris grey, half a metre across: darker than the wall, far from snow
 				color = glm::vec3(0.40f, 0.37f, 0.32f) * (0.72f + 0.45f * ValueNoise(x / 0.55f, z / 0.55f, 241)) * (0.92f + 0.16f * fine);
 				break;
-			case SurfaceLayerKind::Gravel:   // rounded pebbles, pale and speckled
-				color = glm::vec3(0.62f, 0.58f, 0.50f) * (0.80f + 0.35f * ValueNoise(x / 0.3f, z / 0.3f, 251)) * (0.94f + 0.12f * fine);
+			case SurfaceLayerKind::Gravel:   // rounded pebbles, a speckled stone grey a shade lighter than the scree (T133: pale 0.62 read as snow from afar)
+				color = glm::vec3(0.48f, 0.45f, 0.39f) * (0.80f + 0.35f * ValueNoise(x / 0.3f, z / 0.3f, 251)) * (0.94f + 0.12f * fine);
 				break;
 			case SurfaceLayerKind::Mud: color = glm::vec3(0.26f, 0.21f, 0.16f) * (0.9f + 0.2f * fine); break;
 			case SurfaceLayerKind::MudDry: color = glm::mix(glm::vec3(0.50f, 0.43f, 0.33f), glm::vec3(0.43f, 0.37f, 0.29f), patch) * (0.85f + 0.3f * fine); break;
