@@ -351,6 +351,21 @@ namespace
 		}
 		node("settle_out_cols", "output", {}, "cols");
 		g.Edges.push_back({ "settle_routes", "settle_out_cols", "in", "cols" });
+		// T126: the biome with every lake of the water the sites read (E1's too), through biome_water, unless the graph has one already:
+		// biome_classify (frozen) knows only the main lake and the river, so the baked distance to the water (BiomeMap::WaterDistance, the
+		// regions' and the game's) and the shore did not see E1's lakes
+		bool hasBiomeWater = false;
+		for (const TgNode& nd : g.Nodes) hasBiomeWater |= nd.Type == "biome_water";
+		std::string classify;
+		for (const TgNode& nd : g.Nodes) if (nd.Type == "biome_classify" && classify.empty()) classify = nd.Id;
+		if (!hasBiomeWater && !classify.empty())
+		{
+			for (TgEdge& e : g.Edges) if (e.From == classify && e.FromPort == "biome") e.From = "settle_biome";
+			node("settle_biome", "biome_water", { { "ShoreReach", 6 }, { "ShoreRise", 0.8 } });
+			g.Edges.push_back({ classify, "settle_biome", "biome", "biome" });
+			g.Edges.push_back({ water, "settle_biome", "water", waterPort });
+			g.Edges.push_back({ "settle_grade", "settle_biome", "height", "height" });
+		}
 		// a stand-in so the treads and platforms show in the editor until the terrain has a Path layer: the valley publishes no sand, and
 		// sand is painted last, over the other five
 		bool sand = false;

@@ -433,13 +433,13 @@
       "to": "biomes"
     },
     {
-      "from": "biomes",
+      "from": "settle_biome",
       "fromPort": "biome",
       "port": "in",
       "to": "out_biome"
     },
     {
-      "from": "biomes",
+      "from": "settle_biome",
       "fromPort": "biome",
       "port": "biome",
       "to": "tree_chance"
@@ -469,7 +469,7 @@
       "to": "out_trees"
     },
     {
-      "from": "biomes",
+      "from": "settle_biome",
       "fromPort": "biome",
       "port": "biome",
       "to": "rock_chance"
@@ -505,7 +505,7 @@
       "to": "out_dry"
     },
     {
-      "from": "biomes",
+      "from": "settle_biome",
       "fromPort": "biome",
       "port": "biome",
       "to": "meadow"
@@ -535,7 +535,7 @@
       "to": "out_grass"
     },
     {
-      "from": "biomes",
+      "from": "settle_biome",
       "fromPort": "biome",
       "port": "biome",
       "to": "canopy"
@@ -827,6 +827,24 @@
       "fromPort": "cols",
       "port": "in",
       "to": "settle_out_cols"
+    },
+    {
+      "from": "biomes",
+      "fromPort": "biome",
+      "port": "biome",
+      "to": "settle_biome"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "water",
+      "port": "water",
+      "to": "settle_biome"
+    },
+    {
+      "from": "settle_grade",
+      "fromPort": "height",
+      "port": "height",
+      "to": "settle_biome"
     },
     {
       "from": "settle_worked",
@@ -1804,12 +1822,23 @@
       "y": 1160.0
     },
     {
+      "id": "settle_biome",
+      "label": "settle_biome",
+      "params": {
+        "ShoreReach": 6.0,
+        "ShoreRise": 0.8
+      },
+      "type": "biome_water",
+      "x": 5700.0,
+      "y": 1320.0
+    },
+    {
       "id": "settle_out_sand",
       "label": "settle_out_sand",
       "source": "splat_sand",
       "type": "output",
-      "x": 5700.0,
-      "y": 1320.0
+      "x": 5200.0,
+      "y": 1480.0
     }
   ],
   "version": 2
