@@ -1,5 +1,6 @@
 #include "GB/World/Graph/Nodes/BiomeClassifyNode.h"
 #include "GB/World/Graph/TerrainGraph.h"
+#include "GB/World/SegmentGrid.h"
 #include <algorithm>
 #include <cmath>
 
@@ -53,6 +54,25 @@ namespace GB
 			const float forestMoisture = static_cast<float>(TgParam(node, "ForestMoisture", 0.5));
 			const uint32_t seed = ctx.Seed + static_cast<uint32_t>(TgParam(node, "Seed", 0.0)) * 97u;
 
+			// The river near each sample (T125: walking the whole river for every sample was most of the valley's time). Only a sample whose
+			// nearest axis point is within 1.8 half-widths of it can be the river's water or shore (the two tests below); so the sample takes
+			// the nearest of the segments filed near it, which is NearestRiver's own (the same segment, the first of equals) when it is within
+			// 1.8 of the widest half-width (a hair more, for the rounding of HalfWidthAt), and none past that, where neither test can pass on
+			// the true one either. The grid's reach has a metre of slack over that.
+			const RiverData* river = water ? water->River() : nullptr;
+			float riverReach = 0.0f;
+			SegmentGrid riverGrid;
+			if (river)
+			{
+				float widest = river->HalfWidth;
+				for (const float w : river->HalfWidths) widest = std::max(widest, w);
+				riverReach = 1.8f * widest * 1.001f;
+				std::vector<glm::vec2> axis;
+				axis.reserve(river->Points.size());
+				for (const glm::vec3& q : river->Points) axis.push_back({ q.x, q.z });
+				riverGrid.Build(axis, riverReach + 1.0f);
+			}
+
 			out.Resize(height.N, height.Size, height.Center);
 			const float spacing = height.Spacing();
 			for (uint32_t j = 0; j < height.N; ++j)
@@ -85,9 +105,15 @@ namespace GB
 							if (c.Height < lake.Level - 0.02f && d < lake.Radius * 1.3f) c.InWater = true;
 							if (d <= lake.Radius * 1.8f) above = std::min(above, std::max(c.Height - lake.Level, 0.0f));
 						}
-						if (water->River())
+						if (river)
 						{
-							const RiverSample r = water->NearestRiver(p.x, p.y);
+							RiverSample r;
+							for (const uint32_t k : riverGrid.Candidates(p.x, p.y))
+							{
+								const RiverSample s = ProbeRiverSegment(*river, k, p.x, p.y);
+								if (s.Distance < r.Distance) r = s;
+							}
+							if (r.Distance > riverReach) r = RiverSample{};
 							if (water->InRiverBand(r) && c.Height < r.Level) c.InWater = true;
 							if (r.Found && r.Distance < r.HalfWidth * 1.8f) above = std::min(above, std::max(c.Height - r.Level, 0.0f));
 						}

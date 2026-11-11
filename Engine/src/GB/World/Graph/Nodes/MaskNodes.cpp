@@ -1,6 +1,7 @@
 #include "GB/World/Graph/Nodes/MaskNodes.h"
 #include "GB/World/Graph/Nodes/FieldMath.h"
 #include "GB/World/Graph/TerrainGraph.h"
+#include "GB/World/SegmentGrid.h"
 #include "GB/World/TerrainNoise.h"
 #include <algorithm>
 #include <cmath>
@@ -173,6 +174,26 @@ namespace GB
 		TgValue& value = outputs["mask"];
 		value.Kind = TgPortKind::Field;
 		value.Field.Resize(footprint.N, footprint.Size, footprint.Center);
+		// The river lowers the mask only within 1 + Reach + Falloff of its half-width; past that its term is 1 and changes nothing. So a sample
+		// needs the nearest segment only when that is within so many of the widest half-widths (a hair more, for the rounding of HalfWidthAt):
+		// the nearest of the segments filed near it, which is then NearestRiver's own (the same segment, the first of equals; SegmentGrid.h).
+		// T125: walking the whole river for every sample was ~18 s on the 3 km valley. (Odd parameters -- a negative falloff -- keep the walk.)
+		const RiverData* river = w.River();
+		float riverReach = -1.0f;
+		SegmentGrid riverGrid;
+		if (river && falloff >= 0.0f && 1.0f + reach + falloff > 0.0f)
+		{
+			float widest = river->HalfWidth;
+			for (const float hw : river->HalfWidths) widest = std::max(widest, hw);
+			if (widest > 0.0f)
+			{
+				riverReach = (1.0f + reach + falloff) * widest * 1.001f;
+				std::vector<glm::vec2> axis;
+				axis.reserve(river->Points.size());
+				for (const glm::vec3& q : river->Points) axis.push_back({ q.x, q.z });
+				riverGrid.Build(axis, riverReach + 1.0f);
+			}
+		}
 		for (uint32_t j = 0; j < footprint.N; ++j)
 			for (uint32_t i = 0; i < footprint.N; ++i)
 			{
@@ -184,9 +205,19 @@ namespace GB
 					const float past = (lake.Outline.EffectiveDistance(p, lake.Center) - lake.Radius);
 					m = std::min(m, Smoothstep(reach, reach + falloff, past));
 				}
-				if (w.River())
+				if (river)
 				{
-					const RiverSample r = w.NearestRiver(p.x, p.y);
+					RiverSample r;
+					if (riverReach < 0.0f) r = w.NearestRiver(p.x, p.y);
+					else
+					{
+						for (const uint32_t k : riverGrid.Candidates(p.x, p.y))
+						{
+							const RiverSample s = ProbeRiverSegment(*river, k, p.x, p.y);
+							if (s.Distance < r.Distance) r = s;
+						}
+						if (r.Distance > riverReach) r = RiverSample{};
+					}
 					if (r.Found && r.HalfWidth > 0.0f) m = std::min(m, Smoothstep(1.0f + reach, 1.0f + reach + falloff, r.Distance / r.HalfWidth));
 				}
 				value.Field.At(i, j) = m;

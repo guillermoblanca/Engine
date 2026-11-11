@@ -228,6 +228,7 @@ namespace
 int GBTest_terrain_graph_cache(int argc, char** argv)
 {
 	if (argc > 1 && std::string(argv[1]) == "probe") return Probe(argc, argv);
+	if (argc > 1 && std::string(argv[1]) == "probe_hash") return ProbeHash(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "probe_export") return ProbeExport(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "e2bench") return E2Bench(argc, argv);
 	if (argc > 1 && std::string(argv[1]) == "e4bench") return E4Bench(argc, argv);

@@ -37,6 +37,17 @@ def into(to, port):
     return [e for e in edges if e["to"] == to and e["port"] == port]
 
 
+# 0. the dry branch the valley inherited from highland_valley (dry -> gentle_dry and smoothed: the mask that kept the old rain and rockfall
+# off the water) feeds nothing since E2 replaced them, and dry alone cost ~18 s a world at 3 km (T125): out, if the source still has it
+dead = ("dry", "gentle", "gentle_dry", "smoothed")
+for e in edges:
+    assert e["to"] in dead or e["from"] not in dead, f"{e['from']} feeds {e['to']}: the dry branch is not dead"
+g["nodes"] = [n for n in g["nodes"] if n["id"] not in dead]
+for id_ in dead:
+    nodes.pop(id_, None)
+drop(lambda e: e["to"] in dead or e["from"] in dead)
+
+
 # 1. E4: talus right after the incision (as highland_valley_e4.json); everything that read the incised height reads the trimmed one
 node("e4_talus", "talus", {"HardAngle": 55, "HardCover": 0.08, "SoftAngle": 36}, x=1500, y=300)
 for e in edges:

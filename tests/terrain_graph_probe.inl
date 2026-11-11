@@ -1521,6 +1521,119 @@ namespace
 		return 0;
 	}
 
+	//   GBSimTests terrain_graph_cache probe_hash <graph> <type> <seed> <size> <resolution> [tree_budget rock_budget]
+	// T125: the time of every node and a hash of everything a world takes from its graph -- each output, each node's every port (so a node
+	// that is still in the graph can be compared before and after a change), and what GenerateData makes of them (heights, material layers,
+	// water, baked biomes and water distance, biome and moisture fields, path mask, trees, rocks, sites, trails, fords). One line per item, sorted.
+	int ProbeHash(int argc, char** argv)
+	{
+		if (argc < 7) { std::fprintf(stderr, "probe_hash <graph> <type> <seed> <size> <resolution> [tree_budget rock_budget]\n"); return 2; }
+		const std::string preset = argv[2], type = argv[3];
+		WorldDesc desc = ProbeDesc(type, static_cast<uint32_t>(std::atoi(argv[4])), static_cast<float>(std::atof(argv[5])), static_cast<uint32_t>(std::atoi(argv[6])));
+		if (argc > 8) { desc.TreeBudget = std::atoi(argv[7]); desc.RockBudget = std::atoi(argv[8]); }
+		{
+			TerrainGraph g;
+			bool own = false;
+			std::string why;
+			if (!ProbeGraph(preset, desc, g, own, why)) { std::fprintf(stderr, "%s\n", why.c_str()); return 2; }
+			if (own) desc.TerrainGraphDefinition = std::make_shared<const TerrainGraph>(g);
+		}
+		desc.GraphCache = std::make_shared<TerrainGraphCache>();
+		TgResult r;
+		std::string error;
+		auto t0 = std::chrono::steady_clock::now();
+		if (!EvaluateWorldGraph(desc, r, error)) { std::fprintf(stderr, "evaluation failed: %s\n", error.c_str()); return 1; }
+		const double graphS = Seconds(t0);
+		const TerrainGraphCache::Stats stats = desc.GraphCache->LastStats();
+		t0 = std::chrono::steady_clock::now();
+		const GeneratedWorld world = WorldGenerator::GenerateData(desc);
+		const double worldS = Seconds(t0);
+		std::printf("time graph %.2f s, world adds %.2f s, total %.2f s\n", graphS, worldS, graphS + worldS);
+		std::vector<std::pair<double, std::string>> slow;
+		for (const auto& [id, ms] : stats.RunMs) slow.push_back({ ms, id });
+		std::sort(slow.rbegin(), slow.rend());
+		for (const auto& [ms, id] : slow) if (ms >= 1.0) std::printf("time node %s %.0f ms\n", id.c_str(), ms);
+
+		const uint64_t seed = kTgHashSeed;
+		auto bytes = [](const void* p, size_t n, uint64_t h) { return TgHashBytes(p, n, h); };
+		auto f32 = [&](float v, uint64_t h) { return bytes(&v, sizeof v, h); };
+		auto i32 = [&](int v, uint64_t h) { return bytes(&v, sizeof v, h); };
+		auto floats = [&](const std::vector<float>& v, uint64_t h) { return v.empty() ? h : bytes(v.data(), v.size() * sizeof(float), h); };
+		auto field = [&](const TgField& f) { uint64_t h = i32(static_cast<int>(f.N), seed); h = f32(f.Size, h); h = f32(f.Center.x, h); h = f32(f.Center.y, h); return floats(f.Values, h); };
+		auto placements = [&](const TgPlacements& p) { uint64_t h = seed; for (const TgPlacement& q : p.Items) { h = f32(q.Position.x, h); h = f32(q.Position.y, h); h = f32(q.Yaw, h); h = f32(q.Scale, h); h = i32(q.Variant, h); } return h; };
+		auto paths = [&](const TgPaths& p) { uint64_t h = seed; for (const TgPath& q : p.Items) { h = i32(static_cast<int>(q.Points.size()), h); for (const glm::vec2& v : q.Points) { h = f32(v.x, h); h = f32(v.y, h); } h = floats(q.Values, h); } return h; };
+		auto lake = [&](const LakeBody& l, uint64_t h) {
+			h = i32(l.Present ? 1 : 0, h); h = f32(l.Center.x, h); h = f32(l.Center.y, h); h = f32(l.Radius, h); h = f32(l.Level, h);
+			h = f32(l.Mask.Origin.x, h); h = f32(l.Mask.Origin.y, h); h = f32(l.Mask.Spacing, h); h = i32(l.Mask.W, h); h = i32(l.Mask.H, h);
+			if (!l.Mask.Cells.empty()) h = bytes(l.Mask.Cells.data(), l.Mask.Cells.size(), h);
+			h = f32(l.Outlet.x, h); h = f32(l.Outlet.y, h); h = f32(l.Area, h); h = f32(l.Volume, h); return f32(l.MaxDepth, h); };
+		auto water = [&](const WaterField& w) {
+			uint64_t h = lake(w.Lake(), seed);
+			for (const LakeBody& l : w.MoreLakes()) h = lake(l, h);
+			if (const RiverData* rv = w.River())
+			{
+				for (const glm::vec3& p : rv->Points) { h = f32(p.x, h); h = f32(p.y, h); h = f32(p.z, h); }
+				h = f32(rv->HalfWidth, h); h = floats(rv->HalfWidths, h); h = floats(rv->Speed, h);
+			}
+			return h; };
+		auto value = [&](const TgValue& v) {
+			switch (v.Kind)
+			{
+			case TgPortKind::Field: return field(v.Field);
+			case TgPortKind::Placements: return placements(v.Placements);
+			case TgPortKind::Paths: return paths(v.Paths);
+			case TgPortKind::Water: return water(v.Water);
+			default: return uint64_t{ 0 };
+			}
+		};
+		std::vector<std::string> lines;
+		char buf[512];
+		auto line = [&](const std::string& key, uint64_t h) { std::snprintf(buf, sizeof buf, "hash %s %016llx", key.c_str(), static_cast<unsigned long long>(h)); lines.push_back(buf); };
+		for (const auto& [k, f] : r.Outputs) line("output.field." + k, field(f));
+		for (const auto& [k, p] : r.PlacementOutputs) line("output.placements." + k, placements(p));
+		for (const auto& [k, p] : r.PathOutputs) line("output.paths." + k, paths(p));
+		for (const auto& [k, w] : r.WaterOutputs) line("output.water." + k, water(w));
+		for (const auto& [id, ports] : r.Nodes)
+			for (const auto& [port, v] : ports) line("node." + id + "." + port, value(v));
+		{
+			const Heightmap& hm = world.TerrainRef->GetHeightmap();
+			uint64_t h = seed;
+			for (uint32_t j = 0; j < hm.GetResolution(); ++j)
+				for (uint32_t i = 0; i < hm.GetResolution(); ++i) h = f32(hm.At(i, j), h);
+			line("world.heights", h);
+			for (const SurfaceLayer& l : world.TerrainRef->GetSurfaceLayers()) line("world.layer." + std::to_string(static_cast<int>(l.Kind)), floats(l.Weights, seed));
+			line("world.water", water(world.TerrainRef->Water()));
+		}
+		line("world.biomes", world.Maps.Biomes.empty() ? 0 : bytes(world.Maps.Biomes.data(), world.Maps.Biomes.size(), seed));
+		line("world.water_distance", floats(world.Maps.WaterDistance, seed));
+		line("world.grass", floats(world.Maps.Grass, seed));
+		line("world.biome_field", field(world.BiomeField));
+		line("world.moisture_field", field(world.MoistureField));
+		line("world.path_field", field(world.PathField));
+		{
+			uint64_t h = seed;
+			for (const TreePlacement& t : world.Trees) { h = i32(t.Variant, h); h = f32(t.Position.x, h); h = f32(t.Position.y, h); h = f32(t.Position.z, h); h = f32(t.Yaw, h); h = f32(t.Scale, h); }
+			line("world.trees." + std::to_string(world.Trees.size()), h);
+			h = seed;
+			for (const RockPlacement& t : world.Rocks) { h = i32(t.Variant, h); h = f32(t.Position.x, h); h = f32(t.Position.y, h); h = f32(t.Position.z, h); h = f32(t.Yaw, h); h = f32(t.Scale, h); }
+			line("world.rocks." + std::to_string(world.Rocks.size()), h);
+			h = seed;
+			for (const SettlementSite& s : world.Settlements) { h = f32(s.Position.x, h); h = f32(s.Position.y, h); h = i32(s.Rank, h); h = f32(s.PlatformLevel, h); h = f32(s.Score, h); h = f32(s.WaterDistance, h); }
+			line("world.settlements." + std::to_string(world.Settlements.size()), h);
+			h = seed;
+			for (const Trail& t : world.Trails) { h = i32(t.From, h); h = i32(t.To, h); for (const glm::vec3& p : t.Points) { h = f32(p.x, h); h = f32(p.y, h); h = f32(p.z, h); } }
+			line("world.trails." + std::to_string(world.Trails.size()), h);
+			h = seed;
+			for (const Ford& f : world.Fords) { h = f32(f.Position.x, h); h = f32(f.Position.y, h); h = f32(f.Level, h); h = f32(f.Depth, h); }
+			line("world.fords." + std::to_string(world.Fords.size()), h);
+			h = f32(world.Spawn.x, seed); h = f32(world.Spawn.y, h); h = f32(world.SnowLine, h);
+			line("world.spawn_snowline", h);
+		}
+		std::sort(lines.begin(), lines.end());
+		for (const std::string& l : lines) std::printf("%s\n", l.c_str());
+		return 0;
+	}
+
 	int Probe(int argc, char** argv)
 	{
 		if (argc < 7) { std::fprintf(stderr, "probe <preset|gen4|file.json|e1:...> <temperate|alpine|desert> <seed> <size> <resolution> [out_dir]\n"); return 2; }

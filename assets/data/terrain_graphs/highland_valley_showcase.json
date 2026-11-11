@@ -199,42 +199,6 @@
       "to": "out_water"
     },
     {
-      "from": "e1_lakes",
-      "fromPort": "height",
-      "port": "height",
-      "to": "dry"
-    },
-    {
-      "from": "river",
-      "fromPort": "water",
-      "port": "water",
-      "to": "dry"
-    },
-    {
-      "from": "e1_lakes",
-      "fromPort": "height",
-      "port": "in",
-      "to": "smoothed"
-    },
-    {
-      "from": "e1_lakes",
-      "fromPort": "height",
-      "port": "height",
-      "to": "gentle"
-    },
-    {
-      "from": "gentle",
-      "fromPort": "mask",
-      "port": "a",
-      "to": "gentle_dry"
-    },
-    {
-      "from": "dry",
-      "fromPort": "mask",
-      "port": "b",
-      "to": "gentle_dry"
-    },
-    {
       "from": "settle_grade",
       "fromPort": "height",
       "port": "in",
@@ -1561,50 +1525,6 @@
       "type": "output",
       "x": 3040.0,
       "y": 40.0
-    },
-    {
-      "id": "dry",
-      "label": "dry",
-      "params": {
-        "Falloff": 8.0,
-        "Reach": 3.0
-      },
-      "type": "mask_water",
-      "x": 2790.0,
-      "y": 520.0
-    },
-    {
-      "id": "smoothed",
-      "label": "smoothed",
-      "params": {
-        "Passes": 3.0,
-        "Radius": 4.0
-      },
-      "type": "blur",
-      "x": 3290.0,
-      "y": 200.0
-    },
-    {
-      "id": "gentle",
-      "label": "gentle",
-      "params": {
-        "Falloff": 8.0,
-        "MaxDegrees": 20.0,
-        "MinDegrees": 0.0
-      },
-      "type": "mask_slope",
-      "x": 3290.0,
-      "y": 520.0
-    },
-    {
-      "id": "gentle_dry",
-      "label": "gentle_dry",
-      "params": {
-        "Mode": 2.0
-      },
-      "type": "combine",
-      "x": 3540.0,
-      "y": 520.0
     },
     {
       "id": "out_height",

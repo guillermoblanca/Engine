@@ -1,6 +1,7 @@
 #include "GB/World/Water/WaterCarver.h"
 #include "GB/World/Water/RiverHydraulics.h"
 #include "GB/World/PathGeometry.h"
+#include "GB/World/SegmentGrid.h"
 #include <algorithm>
 #include <cmath>
 
@@ -115,6 +116,12 @@ namespace GB
 		const float widest = river.HalfWidth, farthest = widest * 6.0f;
 		glm::vec2 lo(1e9f), hi(-1e9f);
 		for (const glm::vec2& q : pts) { lo = glm::min(lo, q); hi = glm::max(hi, q); }
+		// Only a sample within 6 half-widths of the axis is carved (`reach` below), so it needs the nearest segment only when that is within 6
+		// of the widest half-width (a hair more, for the rounding of the interpolated widths): the nearest of the segments filed near it, which
+		// is then the whole walk's (the same segment, the first of equals; SegmentGrid.h). Past that the sample is left alone, as the walk would
+		// leave it. T125: walking every dense point for every sample of the box was a second of the 3 km valley's time.
+		const float carveReach = farthest * 1.001f;
+		const SegmentGrid grid(pts, carveReach + 1.0f);
 		for (uint32_t j = 0; j < hm.GetResolution(); ++j)
 		{
 			for (uint32_t i = 0; i < hm.GetResolution(); ++i)
@@ -122,7 +129,7 @@ namespace GB
 				const glm::vec2 pos = hm.SamplePosition(i, j);
 				if (pos.x < lo.x - farthest || pos.x > hi.x + farthest || pos.y < lo.y - farthest || pos.y > hi.y + farthest) continue;
 				float bestD = 1e9f, bestLevel = 0.0f, w = widest, bestDepth = shape.Depth;
-				for (int k = 0; k + 1 < n; ++k)
+				for (const uint32_t k : grid.Candidates(pos.x, pos.y))
 				{
 					const glm::vec2 a = pts[static_cast<size_t>(k)], ab = pts[static_cast<size_t>(k) + 1] - a;
 					const float tt = SegmentParameter(pos, a, ab);
@@ -137,6 +144,7 @@ namespace GB
 						}
 					}
 				}
+				if (bestD > carveReach) continue;
 				const float reach = w * 6.0f;
 				if (bestD > reach) continue;
 				const float bed = bestLevel - bestDepth;

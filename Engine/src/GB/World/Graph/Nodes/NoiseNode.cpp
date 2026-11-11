@@ -1,5 +1,6 @@
 #include "GB/World/Graph/Nodes/NoiseNode.h"
 #include "GB/World/Graph/TerrainGraph.h"
+#include "GB/World/ParallelRows.h"
 #include <algorithm>
 #include <cmath>
 
@@ -135,7 +136,10 @@ namespace GB
 		const uint32_t seed = ctx.Seed + static_cast<uint32_t>(TgParam(node, "Seed", 0.0)) * 97u;
 
 		out.Resize(ctx.Resolution, ctx.Size, ctx.Center);
-		for (uint32_t j = 0; j < out.N; ++j)
+		// every sample is a pure function of its position: the rows go to a few threads, the same values bit for bit (ParallelRows.h; T125:
+		// the valley's 9-octave warped crests were over a second of its 3 km world)
+		ParallelRows(out.N, [&](uint32_t j)
+		{
 			for (uint32_t i = 0; i < out.N; ++i)
 			{
 				glm::vec2 p = out.SamplePosition(i, j);
@@ -153,6 +157,7 @@ namespace GB
 				}
 				out.At(i, j) = v * amplitude;
 			}
+		});
 		return true;
 	}
 }
