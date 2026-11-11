@@ -48,6 +48,9 @@ namespace GB
 		// T115: whether the terrain is drawn by its material layers (a partition terrain with surface maps: Terrain::SurfaceLayersArePartition).
 		// The splat weights are uploaded once: an edit of the heights does not move them (Sync keeps the mesh and normals only).
 		bool HasLayerMaterials() const { return m_Material.TerrainLayers != nullptr; }
+		// T132: the material as the terrain is drawn without its layers (the grain map over the macro colours, as before T115): what the
+		// layers' cost is measured against (terrain_layers_test, GB_TERRAIN_BENCH). The same as GetMaterial() on a terrain without layers.
+		const Material& GetPlainMaterial() const { return m_PlainMaterial; }
 
 	private:
 		void MakeLayerMaterials(const Terrain& terrain);   // T115: the splat arrays and the layers' maps, and m_LayerMaps pointing at them
@@ -59,5 +62,6 @@ namespace GB
 		std::unique_ptr<TextureArray> m_Splat, m_LayerAlbedo, m_LayerSurface;   // T115 (partition terrains only)
 		TerrainLayerMaps m_LayerMaps;
 		Material m_Material;
+		Material m_PlainMaterial;   // T132 (GetPlainMaterial)
 	};
 }

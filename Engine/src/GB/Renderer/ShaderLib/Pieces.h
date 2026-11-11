@@ -398,11 +398,15 @@ vec3 Waves(vec2 p, float fade, out vec2 slope)
 	// lib/terrain_layers (T115, render.md "Terreno por capas de material"): the material layers of a partition terrain, for the PBR FS of the
 	// Renderer's terrain program (GB_TERRAIN_LAYERS; TerrainGpu makes the maps, Material::TerrainLayers). TerrainLayersAt reads the 13 weights
 	// at the point (through a gentle warp, so the grid of the samples draws no straight edges), keeps the three largest, looks each kind's
-	// material up (from above, or along the three axes for the walls: cliff, rock; a second lookup, turned and scaled, mixed in by a
-	// low-frequency noise so the tiles do not repeat), and blends them by weight and height: the higher parts of a material win the edge (the
-	// pebbles over the mud, the rock through the snow), harder the higher the layers' contrast. What the macro map adds beyond the layers'
-	// flat colours (the CPU's patches, a trail the editor tinted in) modulates the result inside a layer, never across an edge. Cost by
-	// distance: up to 50 m three layers, up to 90 m the anti-tiling; to 280 m two layers, one lookup each; beyond 340 m the macro map alone.
+	// material up (from above, or along the three axes for the walls: cliff, rock), and blends them by weight and height: the higher parts of
+	// a material win the edge (the pebbles over the mud, the rock through the snow), harder the higher the layers' contrast. What the macro map
+	// adds beyond the layers' flat colours (the CPU's patches, a trail the editor tinted in) modulates the result inside a layer, never across
+	// an edge. Cost by distance: up to 50 m three layers; to 340 m two; beyond 340 m the macro map alone.
+	// T132: the kinds seen from above whose tiles show a lattice (scree, gravel: flag 2 of uLayerParams.y) are broken at every distance: a
+	// smooth noise of ~2.5 tiles cut into 8 levels gives each level its own offset and turn, and a pixel reads two variants only in the band
+	// where the level changes (the higher one wins the middle, as the blocks lie on each other). Every other kind reads one lookup (the
+	// triplanar ones too: the variants there, three projections of them, slowed the whole program by half; measured). The kinds of little
+	// relief (flag 4: grass, dry grass, forest floor, wet grass) read no surface map: flat, at their mean roughness (uLayerParams.w).
 	// Units 14-16: the base PBR program binds 0-13; this program compiles the transmission out (three samplers fewer).
 	inline constexpr const char* TerrainLayers = R"GLSL(#include "lib/frame"
 #include "lib/noise_pbr"
@@ -410,13 +414,12 @@ layout(binding = 14) uniform sampler2DArray uSplat;          // the weights by h
 layout(binding = 15) uniform sampler2DArray uLayerAlbedo;    // by kind: rgb albedo, a height
 layout(binding = 16) uniform sampler2DArray uLayerSurface;   // by kind: rg normal xy, b roughness, a occlusion
 uniform vec4 uSplatRect;          // xy the first sample's position, z the spacing, w the resolution
-uniform vec4 uLayerParams[13];    // by kind: x 1 / metres per tile, y triplanar (1), z edge contrast
+uniform vec4 uLayerParams[13];    // by kind: x 1 / metres per tile, y flags (1 triplanar, 2 broken tiles, 4 no surface map), z edge contrast, w roughness without a surface map
 uniform vec4 uLayerMacro[13];     // by kind: rgb the flat colour the macro map paints for it (linear)
 
 struct TerrainSurface { vec3 Albedo; vec3 N; float Roughness; float AO; };
 
-const mat2 TL_TURN = mat2(0.8, 0.6, -0.6, 0.8);   // the second lookup: turned ~37 degrees...
-const float TL_SCALE = 0.73;                       // ...and scaled
+bool TlFlag(int kind, int flag) { return (int(uLayerParams[kind].y + 0.5) & flag) != 0; }
 
 // A surface texel's normal as the height's slopes along its u and v (-dh/du, -dh/dv)
 vec2 TlSlope(vec4 s)
@@ -425,33 +428,58 @@ vec2 TlSlope(vec4 s)
 	return n / max(sqrt(max(1.0 - dot(n, n), 0.0)), 0.2);
 }
 
+// One lookup of a kind's maps at uv (tiles; dx, dy its screen derivatives), the uv moved and turned by variant `level` (level < 0: as it
+// is). slope: along the uv given.
+void TlRead(float layer, vec2 uv, vec2 dx, vec2 dy, float level, bool bare, float rough, out vec4 albedo, out vec4 surface, out vec2 slope)
+{
+	mat2 R = mat2(1.0);
+	if (level >= 0.0)
+	{
+		uv += fract(sin(vec2(12.9898, 78.233) * (level + 1.0) + layer) * 43758.5453);
+		float a = level * 2.39996323;   // (the golden angle: no two of the 8 alike)
+		float c = cos(a), s = sin(a);
+		R = mat2(c, s, -s, c);
+		uv = R * uv; dx = R * dx; dy = R * dy;
+	}
+	albedo = textureGrad(uLayerAlbedo, vec3(uv, layer), dx, dy);
+	if (bare) { surface = vec4(0.5, 0.5, rough, 1.0); slope = vec2(0.0); return; }
+	surface = textureGrad(uLayerSurface, vec3(uv, layer), dx, dy);
+	slope = transpose(R) * TlSlope(surface);
+}
+
+// A kind's maps at uv, its tiles broken when `vary` (see above): the variant of the noise's level, two of them in the band between levels
+void TlLookup(int kind, vec2 uv, vec2 dx, vec2 dy, bool vary, out vec4 albedo, out vec4 surface, out vec2 slope)
+{
+	float layer = float(kind);
+	bool bare = TlFlag(kind, 4);   // (no surface map)
+	float rough = uLayerParams[kind].w;
+	// (two call sites of TlRead only: every one more is inlined and the registers it takes slow the whole program, not just the pixels
+	// that read it; measured, T132)
+	float level = -1.0, t = 0.0;
+	if (vary)
+	{
+		float k = PNoise(uv * 0.4 + layer * 7.13) * 8.0;
+		level = floor(k);
+		t = smoothstep(0.35, 0.65, k - level);
+	}
+	TlRead(layer, uv, dx, dy, t >= 1.0 ? level + 1.0 : level, bare, rough, albedo, surface, slope);
+	if (t <= 0.0 || t >= 1.0) return;
+	vec4 a1, s1;
+	vec2 l1;
+	TlRead(layer, uv, dx, dy, level + 1.0, bare, rough, a1, s1, l1);
+	// the higher of the two takes the middle of the band (0 and 1 at its ends: no seam where one lookup takes over)
+	float b = clamp(t + (a1.a - albedo.a) * 4.0 * t * (1.0 - t), 0.0, 1.0);
+	albedo = mix(albedo, a1, b);
+	surface = mix(surface, s1, b);
+	slope = mix(slope, l1, b);
+}
+
 // One kind from above at world xz (gx, gy: the screen derivatives of xz): albedo and height, surface, and slopes along world x and z
-void TlPlanar(int kind, vec2 xz, vec2 gx, vec2 gy, bool closeUp, out vec4 albedo, out vec4 surface, out vec3 pert)
+void TlPlanar(int kind, vec2 xz, vec2 gx, vec2 gy, out vec4 albedo, out vec4 surface, out vec3 pert)
 {
 	float scale = uLayerParams[kind].x;
-	float layer = float(kind);
-	// (far away a tile is a few pixels and its repetition cannot be seen: one lookup)
-	// (a narrow band: both lookups are paid only where the two cross over)
-	float m = closeUp ? smoothstep(0.42, 0.58, PNoise(xz * 0.07 + float(kind) * 7.13) * 0.7 + PNoise(xz * 0.23 + float(kind) * 3.1) * 0.3) : 0.0;
-	albedo = vec4(0.0); surface = vec4(0.0);
-	vec2 slope = vec2(0.0);
-	if (m < 0.999)
-	{
-		vec2 uv = xz * scale;
-		vec4 s = textureGrad(uLayerSurface, vec3(uv, layer), gx * scale, gy * scale);
-		albedo += textureGrad(uLayerAlbedo, vec3(uv, layer), gx * scale, gy * scale) * (1.0 - m);
-		surface += s * (1.0 - m);
-		slope += TlSlope(s) * (1.0 - m);
-	}
-	if (m > 0.001)
-	{
-		float k = scale * TL_SCALE;
-		vec2 uv = TL_TURN * (xz * k) + vec2(0.37, 0.61);
-		vec4 s = textureGrad(uLayerSurface, vec3(uv, layer), TL_TURN * (gx * k), TL_TURN * (gy * k));
-		albedo += textureGrad(uLayerAlbedo, vec3(uv, layer), TL_TURN * (gx * k), TL_TURN * (gy * k)) * m;
-		surface += s * m;
-		slope += transpose(TL_TURN) * TlSlope(s) * (TL_SCALE * m);
-	}
+	vec2 slope;
+	TlLookup(kind, xz * scale, gx * scale, gy * scale, TlFlag(kind, 2), albedo, surface, slope);
 	pert = vec3(slope.x, 0.0, slope.y);
 }
 
@@ -459,41 +487,35 @@ void TlPlanar(int kind, vec2 xz, vec2 gx, vec2 gy, bool closeUp, out vec4 albedo
 void TlTriplanar(int kind, vec3 p, vec3 n, vec3 gx, vec3 gy, out vec4 albedo, out vec4 surface, out vec3 pert)
 {
 	float scale = uLayerParams[kind].x;
-	float layer = float(kind);
-	vec3 w = pow(abs(n), vec3(4.0));
+	// (T132: a sharper blend than pow(|n|, 4): most pixels read one or two projections)
+	vec3 w = max(abs(n) - 0.3, 0.0);
+	w *= w;
 	w /= dot(w, vec3(1.0));
 	albedo = vec4(0.0); surface = vec4(0.0); pert = vec3(0.0);
 	float sx = n.x < 0.0 ? -1.0 : 1.0, sz = n.z < 0.0 ? -1.0 : 1.0;
 	float used = 0.0;
-	if (w.x > 0.02)
+	vec4 a, s;
+	vec2 sl;
+	if (w.x > 0.03)
 	{
-		vec2 uv = vec2(p.z * sx, p.y) * scale;
-		vec2 dx = vec2(gx.z * sx, gx.y) * scale, dy = vec2(gy.z * sx, gy.y) * scale;
-		vec4 s = textureGrad(uLayerSurface, vec3(uv, layer), dx, dy);
-		vec2 sl = TlSlope(s);
-		albedo += textureGrad(uLayerAlbedo, vec3(uv, layer), dx, dy) * w.x;
+		TlLookup(kind, vec2(p.z * sx, p.y) * scale, vec2(gx.z * sx, gx.y) * scale, vec2(gy.z * sx, gy.y) * scale, false, a, s, sl);
+		albedo += a * w.x;
 		surface += s * w.x;
 		pert += (vec3(0.0, 0.0, sx) * sl.x + vec3(0.0, 1.0, 0.0) * sl.y) * w.x;
 		used += w.x;
 	}
-	if (w.z > 0.02)
+	if (w.z > 0.03)
 	{
-		vec2 uv = vec2(-p.x * sz, p.y) * scale;
-		vec2 dx = vec2(-gx.x * sz, gx.y) * scale, dy = vec2(-gy.x * sz, gy.y) * scale;
-		vec4 s = textureGrad(uLayerSurface, vec3(uv, layer), dx, dy);
-		vec2 sl = TlSlope(s);
-		albedo += textureGrad(uLayerAlbedo, vec3(uv, layer), dx, dy) * w.z;
+		TlLookup(kind, vec2(-p.x * sz, p.y) * scale, vec2(-gx.x * sz, gx.y) * scale, vec2(-gy.x * sz, gy.y) * scale, false, a, s, sl);
+		albedo += a * w.z;
 		surface += s * w.z;
 		pert += (vec3(-sz, 0.0, 0.0) * sl.x + vec3(0.0, 1.0, 0.0) * sl.y) * w.z;
 		used += w.z;
 	}
-	if (w.y > 0.02)
+	if (w.y > 0.03)
 	{
-		vec2 uv = p.xz * scale;
-		vec2 dx = gx.xz * scale, dy = gy.xz * scale;
-		vec4 s = textureGrad(uLayerSurface, vec3(uv, layer), dx, dy);
-		vec2 sl = TlSlope(s);
-		albedo += textureGrad(uLayerAlbedo, vec3(uv, layer), dx, dy) * w.y;
+		TlLookup(kind, p.xz * scale, gx.xz * scale, gy.xz * scale, false, a, s, sl);
+		albedo += a * w.y;
 		surface += s * w.y;
 		pert += vec3(sl.x, 0.0, sl.y) * w.y;
 		used += w.y;
@@ -562,8 +584,8 @@ TerrainSurface TerrainLayersAt(vec3 pos, vec3 N, vec3 macro)
 		A[i] = vec4(0.0); S[i] = vec4(0.0); P[i] = vec3(0.0); score[i] = -1e9;
 		if (ws[i] <= 0.003 || (i == 2 && (dist > 50.0 || ws[2] < 0.1))) continue;   // (the third only within 50 m and where it shows)
 		int kind = ids[i];
-		if (uLayerParams[kind].y > 0.5) TlTriplanar(kind, pos, N, gx, gy, A[i], S[i], P[i]);
-		else TlPlanar(kind, pos.xz, gx.xz, gy.xz, closeUp, A[i], S[i], P[i]);
+		if (TlFlag(kind, 1)) TlTriplanar(kind, pos, N, gx, gy, A[i], S[i], P[i]);
+		else TlPlanar(kind, pos.xz, gx.xz, gy.xz, A[i], S[i], P[i]);
 		score[i] = ws[i] + (A[i].a - 0.5) * 0.6 * min(ws[i] * 4.0, 1.0);
 		best = max(best, score[i]);
 	}

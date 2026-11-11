@@ -28,6 +28,13 @@ namespace GB
 			const char* Pattern;      // the pattern its maps are generated from (TerrainLayerTextures.cpp)
 			float TileMetres;         // the size of one tile of its maps on the ground
 			bool Triplanar;           // projected along the three axes (walls: cliff, rock), else from above
+			// T132: its tiles broken by the shader (variants moved and turned by a noise, lib/terrain_layers): for the kinds seen from above
+			// whose tile shows a lattice from tens of metres (the scree's blocks, the pebbles); the others pay one lookup. Planar kinds only: the
+			// triplanar ones (rock, cliff) ignore it (lib/terrain_layers: the variants of three projections cost too much).
+			bool BrokenTiles;
+			// T132: no surface map read (the relief of grass or sand is a few centimetres, under the 3D grass): the shader draws it flat, at the
+			// map's mean roughness, and its occlusion is baked into the albedo. One lookup fewer where most of the ground is.
+			bool Flat;
 			float Contrast;           // how hard its edges are in the height blend (0 soft .. 1 hard): hard rock cuts its edge
 			float ReliefMetres;       // the relief of its normal map: metres between the lowest and the highest point of its height
 			glm::vec3 MeanColor;      // the mean albedo (sRGB 0..1) its map is normalised to
@@ -47,6 +54,7 @@ namespace GB
 			uint32_t Size = 0;
 			std::vector<Image> Albedo, Surface;
 			std::array<glm::vec3, kKinds> MeanLinear{};   // the mean of each albedo map in linear colour
+			std::array<float, kKinds> MeanRoughness{};    // T132: the mean of each roughness (what a Flat kind is drawn with)
 		};
 
 		// Generates the maps (one thread per kind). `size` is a power of two from 16 to 1024. Deterministic.

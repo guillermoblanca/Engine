@@ -48,6 +48,7 @@ namespace GB
 		m_Material.MacroMap = m_Macro.get();
 		m_Material.SurfaceNormalMap = m_NormalMap.get();
 		m_Material.MacroRect = { hm.GetMin().x, hm.GetMin().y, hm.GetSize(), hm.GetSize() };
+		m_PlainMaterial = m_Material;
 
 		if (terrain.SurfaceLayersArePartition() && m_Macro && m_NormalMap)
 			MakeLayerMaterials(terrain);
@@ -105,11 +106,13 @@ namespace GB
 		}
 		// T112: the snow of a terrain graph (snow_accumulate) has samples that stand alone against their neighbours (its slope, hollow and
 		// flow terms are measured on the grid), and a lone sample read bilinearly is a diamond: the partial snow came out as rows of rhombi.
-		// The snow is low-passed over ~1.2 samples (a round blob, not a diamond) and the other layers share what it gave up or took in their
+		// The snow is low-passed over ~0.7 samples (a round blob, not a diamond) and the other layers share what it gave up or took in their
 		// own proportions (the partition still sums to 1); where there was only snow, they share it as their own weights blurred the same way
 		// around that sample (only there, at the snow's edge: under deep snow they get nothing either way).
 		const size_t snow = static_cast<size_t>(SurfaceLayerKind::Snow);
-		constexpr float kSnowSigma = 1.2f;
+		// T132: with T112's smooth field (65de0e0) there are no rhombi without the blur either, but the snow's edge then follows the grid (straight
+		// runs and square corners of the samples, C:/gb-build/t132-snow); sigma 0.7 keeps it round on a 5-sample kernel (1.2: 7).
+		constexpr float kSnowSigma = 0.7f;
 		std::vector<float> softSnow;
 		if (weights[snow]) softSnow = Blur(*weights[snow], n, kSnowSigma);
 		const int radius = static_cast<int>(std::ceil(kSnowSigma * 2.5f));
@@ -192,7 +195,8 @@ namespace GB
 		for (int k = 0; k < kKinds; ++k)
 		{
 			const TerrainLayerTextures::Look& look = TerrainLayerTextures::Looks()[static_cast<size_t>(k)];
-			m_LayerMaps.Params[k] = { 1.0f / look.TileMetres, look.Triplanar ? 1.0f : 0.0f, look.Contrast, 0.0f };
+			const float flags = (look.Triplanar ? 1.0f : 0.0f) + (look.BrokenTiles ? 2.0f : 0.0f) + (look.Flat ? 4.0f : 0.0f);
+			m_LayerMaps.Params[k] = { 1.0f / look.TileMetres, flags, look.Contrast, maps->MeanRoughness[static_cast<size_t>(k)] };
 			m_LayerMaps.MacroColor[k] = { Linear(look.MacroColor.r), Linear(look.MacroColor.g), Linear(look.MacroColor.b), 0.0f };
 		}
 		// The layers carry the colour, the relief and the roughness: the grain and the ripples of the style are not drawn under them.

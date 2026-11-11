@@ -392,7 +392,7 @@ namespace GB::TerrainLayerTextures
 
 		// One kind's maps: the pattern at every texel centre, its colour scaled (in linear) to the kind's mean, its height stretched to 0..1,
 		// and the normal from the height's slopes in metres.
-		void MakeKind(int kind, uint32_t size, Image& albedo, Image& surface, vec3& meanLinear)
+		void MakeKind(int kind, uint32_t size, Image& albedo, Image& surface, vec3& meanLinear, float& meanRough)
 		{
 			const Look& look = Looks()[static_cast<size_t>(kind)];
 			const Pattern fn = FindPattern(look.Pattern);
@@ -402,15 +402,22 @@ namespace GB::TerrainLayerTextures
 			for (uint32_t y = 0; y < size; ++y)
 				for (uint32_t x = 0; x < size; ++x)
 					texels[static_cast<size_t>(y) * size + x] = fn((static_cast<float>(x) + 0.5f) / static_cast<float>(size), (static_cast<float>(y) + 0.5f) / static_cast<float>(size), seed);
+			// T132: a Flat kind's surface map is not read: its occlusion goes into the colour (half of it: the sun lights the hollows too); the
+			// mean below scales it back to the kind's mean colour
+			if (look.Flat)
+				for (Texel& t : texels) t.Color *= 0.5f + 0.5f * t.AO;
 
 			glm::dvec3 sum(0.0);
+			double roughSum = 0.0;
 			float lo = 1e9f, hi = -1e9f;
 			for (const Texel& t : texels)
 			{
 				sum += glm::dvec3(ToLinear(t.Color.r), ToLinear(t.Color.g), ToLinear(t.Color.b));
+				roughSum += t.Rough;
 				lo = std::min(lo, t.Height);
 				hi = std::max(hi, t.Height);
 			}
+			meanRough = static_cast<float>(roughSum / static_cast<double>(count));
 			const vec3 mean = vec3(sum / static_cast<double>(count));
 			const vec3 target(ToLinear(look.MeanColor.r), ToLinear(look.MeanColor.g), ToLinear(look.MeanColor.b));
 			const vec3 scale = target / glm::max(mean, vec3(1e-4f));
@@ -456,19 +463,21 @@ namespace GB::TerrainLayerTextures
 	{
 		// By SurfaceLayerKind. MacroColor: Terrain::PaintPartition's flat colours (their mean over its noise), for the macro map's modulation.
 		static const std::array<Look, kKinds> table = { {
-			{ "rock",      "rock",           6.0f, true,  0.70f, 0.30f, { 0.44f, 0.34f, 0.28f }, { 0.44f, 0.34f, 0.28f } },
-			{ "snow",      "snow",          10.0f, false, 0.45f, 0.06f, { 0.92f, 0.94f, 0.98f }, { 0.92f, 0.94f, 0.98f } },
-			{ "grass",     "grass",          4.0f, false, 0.20f, 0.02f, { 0.30f, 0.40f, 0.17f }, { 0.32f, 0.44f, 0.18f } },
-			{ "sand",      "sand",           4.0f, false, 0.30f, 0.02f, { 0.80f, 0.66f, 0.45f }, { 0.80f, 0.66f, 0.45f } },
-			{ "dry",       "dry_grass",      4.0f, false, 0.20f, 0.02f, { 0.47f, 0.47f, 0.23f }, { 0.47f, 0.47f, 0.23f } },
-			{ "forest",    "forest_floor",   4.0f, false, 0.25f, 0.025f, { 0.24f, 0.20f, 0.12f }, { 0.12f, 0.17f, 0.07f } },
-			{ "cliff",     "cliff_strata",  12.0f, true,  0.85f, 0.60f, { 0.38f, 0.36f, 0.34f }, { 0.37f, 0.36f, 0.34f } },
-			{ "scree",     "scree_blocks",   6.0f, false, 0.65f, 0.85f, { 0.40f, 0.37f, 0.33f }, { 0.38f, 0.35f, 0.30f } },
-			{ "gravel",    "gravel_pebbles", 1.6f, false, 0.55f, 0.05f, { 0.60f, 0.56f, 0.48f }, { 0.60f, 0.56f, 0.48f } },
-			{ "mud",       "mud",            5.0f, false, 0.35f, 0.04f, { 0.22f, 0.17f, 0.13f }, { 0.26f, 0.21f, 0.16f } },
-			{ "mud_dry",   "mud_dry",        4.0f, false, 0.50f, 0.03f, { 0.47f, 0.40f, 0.31f }, { 0.47f, 0.40f, 0.31f } },
-			{ "grass_wet", "grass_wet",      4.0f, false, 0.25f, 0.02f, { 0.17f, 0.31f, 0.12f }, { 0.17f, 0.33f, 0.12f } },
-			{ "path",      "path_earth",     5.0f, false, 0.45f, 0.03f, { 0.50f, 0.42f, 0.31f }, { 0.50f, 0.42f, 0.31f } },
+			// T132: gravel at PaintPartition's T133 grey (0.48, 0.45, 0.39, times its noise's mean), near and far, so the 280-340 m fade does not jump.
+			//   name          pattern          tile   triplanar broken flat  contrast relief  mean colour              macro colour
+			{ "rock",      "rock",           6.0f, true,  false, false, 0.70f, 0.30f, { 0.44f, 0.34f, 0.28f }, { 0.44f, 0.34f, 0.28f } },
+			{ "snow",      "snow",          10.0f, false, false, false, 0.45f, 0.06f, { 0.92f, 0.94f, 0.98f }, { 0.92f, 0.94f, 0.98f } },
+			{ "grass",     "grass",          4.0f, false, false, true,  0.20f, 0.02f, { 0.30f, 0.40f, 0.17f }, { 0.32f, 0.44f, 0.18f } },
+			{ "sand",      "sand",           4.0f, false, false, false, 0.30f, 0.02f, { 0.80f, 0.66f, 0.45f }, { 0.80f, 0.66f, 0.45f } },
+			{ "dry",       "dry_grass",      4.0f, false, false, true,  0.20f, 0.02f, { 0.47f, 0.47f, 0.23f }, { 0.47f, 0.47f, 0.23f } },
+			{ "forest",    "forest_floor",   4.0f, false, false, true,  0.25f, 0.025f, { 0.24f, 0.20f, 0.12f }, { 0.12f, 0.17f, 0.07f } },
+			{ "cliff",     "cliff_strata",  12.0f, true,  false, false, 0.85f, 0.60f, { 0.38f, 0.36f, 0.34f }, { 0.37f, 0.36f, 0.34f } },
+			{ "scree",     "scree_blocks",   6.0f, false, true,  false, 0.65f, 0.85f, { 0.40f, 0.37f, 0.33f }, { 0.38f, 0.35f, 0.30f } },
+			{ "gravel",    "gravel_pebbles", 1.6f, false, true,  false, 0.55f, 0.05f, { 0.465f, 0.436f, 0.378f }, { 0.465f, 0.436f, 0.378f } },
+			{ "mud",       "mud",            5.0f, false, false, false, 0.35f, 0.04f, { 0.22f, 0.17f, 0.13f }, { 0.26f, 0.21f, 0.16f } },
+			{ "mud_dry",   "mud_dry",        4.0f, false, false, false, 0.50f, 0.03f, { 0.47f, 0.40f, 0.31f }, { 0.47f, 0.40f, 0.31f } },
+			{ "grass_wet", "grass_wet",      4.0f, false, false, true,  0.25f, 0.02f, { 0.17f, 0.31f, 0.12f }, { 0.17f, 0.33f, 0.12f } },
+			{ "path",      "path_earth",     5.0f, false, false, false, 0.45f, 0.03f, { 0.50f, 0.42f, 0.31f }, { 0.50f, 0.42f, 0.31f } },
 		} };
 		return table;
 	}
@@ -483,7 +492,8 @@ namespace GB::TerrainLayerTextures
 		std::vector<std::thread> threads;
 		threads.reserve(kKinds);
 		for (int kind = 0; kind < kKinds; ++kind)
-			threads.emplace_back([&maps, kind, size] { MakeKind(kind, size, maps.Albedo[static_cast<size_t>(kind)], maps.Surface[static_cast<size_t>(kind)], maps.MeanLinear[static_cast<size_t>(kind)]); });
+			threads.emplace_back([&maps, kind, size] { MakeKind(kind, size, maps.Albedo[static_cast<size_t>(kind)], maps.Surface[static_cast<size_t>(kind)], maps.MeanLinear[static_cast<size_t>(kind)],
+				maps.MeanRoughness[static_cast<size_t>(kind)]); });
 		for (std::thread& t : threads) t.join();
 		return maps;
 	}
