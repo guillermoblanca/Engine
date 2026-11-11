@@ -437,7 +437,6 @@ namespace
 	{
 		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false, e4 = false;
 		if (name.rfind("e4:", 0) == 0) { e4 = true; name = name.substr(3); }
-		bool e1 = false, lakes = true, e2 = false, keepValley = false, afterWater = false;
 		bool settle = false;
 		if (name.rfind("settle:", 0) == 0) { settle = true; name = name.substr(7); }
 		if (name.rfind("e1:", 0) == 0) { e1 = true; name = name.substr(3); }
@@ -461,7 +460,7 @@ namespace
 		own = own || e4;
 		if (e2 && !AppendE2(g, keepValley, afterWater, error)) return false;
 		if (e1 && !AppendE1(g, lakes, error)) return false;
-		return !e4 || AppendE4(g, error);
+		if (e4 && !AppendE4(g, error)) return false;
 		return !settle || AppendSettle(g, error);
 	}
 
