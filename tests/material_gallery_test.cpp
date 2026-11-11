@@ -140,7 +140,7 @@ namespace
 	// and a 2x2 repeat of the albedo at half scale (the tiling check; a card shows its bleed colour around it). v up, as on a ProcMesh wall.
 	bool WriteTextureSheetV3(const std::string& path)
 	{
-		const std::vector<std::string> left = { "mud", "mud_dry", "wood_planks2", "wood_log2", "bark2", "wood_old" };
+		const std::vector<std::string> left = { "mud", "mud_dry", "wood_planks2", "wood_log2", "bark2", "wood_old", "split_wood" };   // MAT1: split_wood
 		const std::vector<std::string> right = { "leaf_broad", "leaf_small", "leaf_needle", "grass_short", "grass_medium", "grass_tall", "grass_dry" };
 		constexpr uint32_t T = 256, Gap = 6, Cols = 5, PanelGap = 30;
 		const uint32_t panelW = Cols * T + (Cols + 1) * Gap;

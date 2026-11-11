@@ -34,6 +34,7 @@
       "bark_spruce":   { "color": [0.70, 0.64, 0.60], "texture": "bark2",         "uvScale": 1.6, "roughness": 0.95 },
       "bark_birch":    { "color": [1.0, 1.0, 1.0],    "texture": "bark_birch",    "uvScale": 1.0, "roughness": 0.9 },
       "wood_end":      { "color": [1.0, 1.0, 1.0],    "texture": "wood_end",      "uvScale": 1.0, "roughness": 0.95 },
+      "split_wood":    { "color": [1.0, 1.0, 1.0],    "texture": "split_wood",    "uvScale": 1.0, "roughness": 0.85 },
       "mud":           { "color": [0.95, 0.95, 0.95], "texture": "mud",           "uvScale": 1.0, "roughness": 0.95 },
       "mud_dry":       { "color": [0.95, 0.95, 0.95], "texture": "mud_dry",       "uvScale": 1.0, "roughness": 0.95 },
       "grass_short":   { "color": [1.0, 1.0, 1.0],    "texture": "grass_short",   "roughness": 0.85, "surface": "cutout", "doubleSided": true,
@@ -63,7 +64,7 @@
       { "name": "roca",     "materials": [ "rock", "stone_cut", "stone" ] },
       { "name": "ladrillo", "materials": [ "brick_new", "brick_worn" ] },
       { "name": "barro",    "materials": [ "mud", "mud_dry" ], "shape": "slab" },
-      { "name": "madera",   "materials": [ "wood_planks", "wood_log", "wood_bark", "wood_planks2", "wood_log2", "bark2", "wood_old" ], "band": 1 },
+      { "name": "madera",   "materials": [ "wood_planks", "wood_log", "wood_bark", "wood_planks2", "wood_log2", "bark2", "wood_old", "split_wood" ], "band": 1 },
       { "name": "vegetacion", "materials": [ "grass_short", "grass_medium", "grass_tall", "grass_dry", "shrub_small" ], "shape": "tufts", "band": 1 },
       { "name": "hojas",    "materials": [ "leaf_broad", "leaf_small", "leaf_needle" ], "shape": "cards", "band": 1 },
       { "name": "cortezas", "materials": [ "bark_oak", "bark_pine", "bark_spruce", "bark_birch", "wood_end" ], "shape": "log", "band": 1 }

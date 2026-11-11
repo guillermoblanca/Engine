@@ -997,6 +997,78 @@ namespace GB
 			return o;
 		}
 
+		Surface SplitWood(float u, float v, uint32_t s)
+		{
+			// MAT1: half logs split by hand (era 1 has no saw), set side by side across u, the grain along v (upright on a ProcMesh box's walls,
+			// as the storehouse's walls of split logs). Five logs a tile (20 cm at UVScale 1) whose seams wander and whose widths vary, no
+			// straight line anywhere; the split face is a coarse fibre torn along the grain with the growth rings as wavy streaks, long
+			// drying checks dark inside and a few branch knots; each log keeps ragged strips of bark along its edges, here wide, there
+			// peeled off, with the reddish inner bark between bark and wood. Painted light that does not move (R1): occlusion in the gaps
+			// between the logs and toward them (the rounded backs meet there), beside the checks; nothing directional.
+			constexpr int kLogs = 5;
+			constexpr float kWidth = 1.0f / kLogs;   // metres at UVScale 1
+			const float warp = 0.36f * (NoiseXY(u, v, 3, 2, s + 1) - 0.5f) + 0.10f * (NoiseXY(u, v, 9, 5, s + 2) - 0.5f);
+			const float fr = u * kLogs + 0.5f + warp;   // the tile's edge runs down the middle of a log, not along a seam
+			const int col = static_cast<int>(std::floor(fr));
+			const float fx = fr - static_cast<float>(col);
+			const int id = Wrap(col, kLogs);
+			const uint32_t ls = s + static_cast<uint32_t>(id) * 131u;
+			const float e = std::min(fx, 1.0f - fx) * kWidth;   // metres to the nearest seam
+			const int side = fx < 0.5f ? 0 : 1;
+			// the gap between two logs: 2 to 8 mm, wider where they do not touch
+			const float gapW = 0.0015f + 0.0045f * NoiseXY(u, v, 10, 7, s + 3);
+			const float gap = Smooth(gapW, gapW * 0.5f, e);
+			// the bark strips: their width wanders along the log and in places the bark has come off; a fine ragged edge
+			const float barkRun = NoiseXY(u, v, 4, 5, ls + 11u * static_cast<uint32_t>(side) + 4);
+			const float barkW = kWidth * (0.03f + 0.24f * Smooth(0.3f, 0.75f, barkRun)) * (0.85f + 0.3f * NoiseXY(u, v, 40, 90, s + 5));
+			const float bark = Smooth(barkW, barkW * 0.8f, e) * Smooth(0.25f, 0.4f, barkRun);
+			const float inner = Smooth(barkW * 1.35f, barkW, e) * (1.0f - bark) * Smooth(0.25f, 0.4f, barkRun);
+			const float fissure = 1.0f - std::fabs(NoiseXY(u, v, 90, 7, s + 6) - 0.5f) * 2.0f;
+			const float barkFine = Fbm(u, v, 16, 3, s + 7);
+			// the split face: the rings as streaks along the grain that wander, fibre at several scales, the broad undulation of the split
+			const float across = fx * kWidth;
+			const float rings = across * 38.0f + 2.8f * (NoiseXY(u, v, 5, 2, ls + 8) - 0.5f) + 1.1f * (NoiseXY(u, v, 16, 7, ls + 9) - 0.5f) + 7.0f * Hash01(id, 1, s);
+			const float late = LateWood(rings) * (0.45f + 0.55f * NoiseXY(u, v, 8, 3, ls + 20));   // the rings fade in and out along the split
+			const float fibre = NoiseXY(u, v, 160, 6, s + 10) * 0.5f + NoiseXY(u, v, 60, 3, s + 11) * 0.3f + NoiseXY(u, v, 320, 12, s + 12) * 0.2f;
+			const float streak = NoiseXY(u, v, 45, 2, s + 21);   // coarse torn fibre, a few millimetres to a centimetre wide
+			const float torn = NoiseXY(u, v, kLogs * 3, 4, s + 13);   // the split is not flat: long shallow ridges and hollows
+			// drying checks: long cracks along the grain, tapered, in some stretches only
+			const float checkLine = std::fabs(NoiseXY(u, v, kLogs * 3, 2, ls + 14) - 0.5f);
+			const float checkOn = Smooth(0.55f, 0.72f, NoiseXY(u, v, kLogs, 3, ls + 15));
+			const float check = Smooth(0.016f, 0.0f, checkLine) * checkOn * (1.0f - bark);
+			const float checkRim = Smooth(0.05f, 0.0f, checkLine) * checkOn * (1.0f - bark);
+			// knots: few, elongated along the grain
+			const Voronoi k = VoronoiAt(u * 3.0f, v * 3.0f, 3, s + 16, 0.8f);
+			const bool knotOn = Hash01(k.Id1, 1, s + 17) < 0.4f;
+			const glm::vec2 kd((k.X.x - k.P1.x) / 3.0f, (k.X.y - k.P1.y) / 3.0f / 2.2f);
+			const float kdist = knotOn ? glm::length(kd) : 1.0f;
+			const float kr = 0.007f + 0.008f * Hash01(k.Id1, 2, s + 17);
+			const float knot = Smooth(kr, kr * 0.7f, kdist) * (1.0f - bark), eye = Smooth(kr * 0.45f, kr * 0.2f, kdist) * (1.0f - bark);
+			const float tone = Hash01(id, 2, s);
+			Surface o;
+			glm::vec3 c = Mix(glm::vec3(0.60f, 0.48f, 0.35f), glm::vec3(0.72f, 0.59f, 0.44f), 0.6f * tone + 0.4f * Fbm(u, v, 3, 3, ls + 18));
+			c = Mix(c, c * glm::vec3(0.70f, 0.65f, 0.60f), 0.65f * late);
+			c *= 0.86f + 0.2f * fibre;
+			c *= 0.88f + 0.22f * streak;
+			c *= 0.94f + 0.12f * torn;
+			c = Mix(c, glm::vec3(0.50f, 0.48f, 0.45f), 0.35f * Smooth(0.5f, 0.8f, Fbm(u, v, 3, 4, s + 19)));   // grey weathering in patches
+			c = Mix(c, glm::vec3(0.33f, 0.22f, 0.14f), knot * 0.8f);
+			c = Mix(c, glm::vec3(0.15f, 0.10f, 0.07f), eye);
+			c *= 1.0f - 0.25f * checkRim;   // painted occlusion beside the checks (R1)
+			c = Mix(c, glm::vec3(0.12f, 0.08f, 0.06f), check * 0.9f);
+			c = Mix(c, glm::vec3(0.46f, 0.28f, 0.18f), inner * 0.8f);   // the reddish inner bark
+			const glm::vec3 barkC = Mix(glm::vec3(0.30f, 0.25f, 0.21f), glm::vec3(0.48f, 0.41f, 0.34f), 0.5f * barkFine + 0.5f * fissure);
+			c = Mix(c, barkC, bark);
+			c *= 0.80f + 0.20f * Smooth(0.0f, 0.4f * kWidth, e);   // painted occlusion toward the seams, where the rounded backs meet (R1)
+			o.Albedo = Mix(c, glm::vec3(0.07f, 0.05f, 0.04f), gap);
+			const float round = std::sqrt(Smooth(0.0f, 0.5f * kWidth, e));
+			o.Height = (0.35f + 0.35f * round + 0.08f * (torn - 0.5f) + 0.04f * late + 0.04f * fibre + 0.05f * streak + 0.05f * knot - 0.4f * check) * (1.0f - bark)
+				+ (0.5f + 0.3f * round + 0.12f * fissure) * bark;
+			o.Height *= 1.0f - gap;
+			o.Rough = Lerp(Lerp(0.82f + 0.18f * fibre, 1.0f, std::max(check, bark)), 0.75f, knot);
+			return o;
+		}
+
 		// ---- T103 cards: leaves, twigs and grass on an alpha-masked card (u, v 0..1 over the whole card, v up: the stem or the grass's
 		// base at v ~ 0). A card is a list of primitives in drawing order (capsules for twigs, needles, blades and stems; leaves; seed heads),
 		// binned on a grid; a sample takes the topmost primitive under it. Cards do not tile: the silhouette stays inside the card's borders
@@ -1528,7 +1600,8 @@ namespace GB
 				{ "rock", Rock, 0.03f }, { "wood", Wood, 0.006f }, { "ice", Ice, 0.004f }, { "ice_frost", IceFrost, 0.006f },
 				{ "glass_frosted", GlassFrosted, 0.0015f }, { "ice_faceted", IceFaceted, 0.15f }, { "glass_wet", GlassWet, 0.025f },
 				{ "mud", Mud, 0.03f }, { "mud_dry", MudDry, 0.02f }, { "wood_planks2", WoodPlanks2, 0.006f }, { "wood_log2", WoodLog2, 0.006f },
-				{ "bark2", Bark2, 0.03f }, { "wood_old", WoodOld, 0.008f }, { "bark_birch", BarkBirch, 0.01f }, { "wood_end", WoodEnd, 0.008f } };
+				{ "bark2", Bark2, 0.03f }, { "wood_old", WoodOld, 0.008f }, { "bark_birch", BarkBirch, 0.01f }, { "wood_end", WoodEnd, 0.008f },
+				{ "split_wood", SplitWood, 0.012f } };
 			return table;
 		}
 

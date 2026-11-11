@@ -5,7 +5,7 @@
       "bark_dark":   { "color": [0.42, 0.34, 0.28], "texture": "bark", "uvScale": 1.2, "roughness": 0.92 },
       "bark_pale":   { "color": [0.78, 0.68, 0.55], "texture": "bark", "uvScale": 2.5, "roughness": 0.85 },
       "wood_cut":    { "color": [0.95, 0.82, 0.62], "texture": "planks", "uvScale": 3.0, "roughness": 0.8 },
-      "planks":      { "color": [0.9, 0.82, 0.7], "texture": "planks", "uvScale": 0.8, "roughness": 0.8 },
+      "planks":      { "color": [1.0, 0.97, 0.92], "texture": "split_wood", "uvScale": 1.0, "roughness": 0.85 },
       "handle":      { "color": [0.85, 0.7, 0.5], "texture": "planks", "uvScale": 6.0, "roughness": 0.7 },
       "leaves":      { "color": [1.05, 1.05, 1.05], "texture": "leaves", "uvScale": 1.2, "roughness": 0.75, "wind": 0.25, "seasonal": true },
       "leaves_dark": { "color": [0.72, 0.78, 0.72], "texture": "leaves", "uvScale": 0.9, "roughness": 0.8, "wind": 0.2, "seasonal": true },

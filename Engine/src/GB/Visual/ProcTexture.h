@@ -26,6 +26,7 @@ namespace GB
 		// double-sided, on quads mapped 0..1 (ProcMesh::Card).
 		// T109: bark_birch (a white birch bark: lenticels and black patches across the stem, u round it) and wood_end (the end grain of a
 		// cut log, one log centred on the tile: map a cut face of radius r onto 0.5 +- 0.49 of the tile) are surfaces too.
+		// MAT1: split_wood (half logs split by hand, side by side across u with the grain along v, bark left on their edges) is a surface.
 		bool IsCard(const std::string& kind);
 		// The texture; an unknown kind gives a flat mid-grey image (so a newer content file still draws).
 		Image Generate(const std::string& kind, uint32_t size, uint32_t seed = 0);
