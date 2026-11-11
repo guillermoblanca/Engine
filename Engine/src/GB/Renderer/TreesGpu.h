@@ -49,8 +49,15 @@ namespace GB
 		// TreeFactory::Create and Upload in one go.
 		std::unique_ptr<TreeGpu> Create(const TreeParams& params) const { return Upload(*TreeFactory::Create(params)); }
 		const Texture2D* GetTexture(TreeTexture texture) const { return m_Textures[static_cast<size_t>(texture)].get(); }
+		// T128: the bark's normal, height (cavity) and metallic-roughness maps (Linear); null for the textures without them (the cards).
+		const Texture2D* GetNormalMap(TreeTexture texture) const { return m_NormalMaps[static_cast<size_t>(texture)].get(); }
+		const Texture2D* GetHeightMap(TreeTexture texture) const { return m_HeightMaps[static_cast<size_t>(texture)].get(); }
+		const Texture2D* GetRoughnessMap(TreeTexture texture) const { return m_RoughnessMaps[static_cast<size_t>(texture)].get(); }
 
 	private:
 		std::unique_ptr<Texture2D> m_Textures[static_cast<size_t>(TreeTexture::Count)];
+		std::unique_ptr<Texture2D> m_NormalMaps[static_cast<size_t>(TreeTexture::Count)];
+		std::unique_ptr<Texture2D> m_HeightMaps[static_cast<size_t>(TreeTexture::Count)];
+		std::unique_ptr<Texture2D> m_RoughnessMaps[static_cast<size_t>(TreeTexture::Count)];
 	};
 }

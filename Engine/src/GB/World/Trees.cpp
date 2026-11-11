@@ -309,27 +309,86 @@ namespace GB
 		}
 
 		// ------------------------------------------------------------ procedural textures
-		Image MakeBark(bool rings)
+		// The bark: its albedo and (T128) the relief, cavity and shine of the same pattern, from the one height field that paints the
+		// colour (the furrows dark and low, the plates light and high).
+		struct BarkMaps
+		{
+			Image Albedo, Normal, Height, Roughness;
+		};
+
+		// T128: the bark of the broadleaf, conifer and bare trees: fissured plates. The furrows are the 0.5 isolines of a value noise stretched
+		// along the stem (12 cells round the 0.8 m tile, 2 along it: plates ~7 cm wide and up to ~40 cm long), meandering by a low warp of
+		// u; a finer, shallower set (24 x 3) cracks the plates, and a grain roughens their faces. Height 0 in a furrow, ~1 on a plate.
+		float BarkHeight(float u, float v)
+		{
+			const float w = u + 0.035f * (Noise(u * 6.0f, v * 3.0f, 13, 6, 3) - 0.5f) * 2.0f;
+			const float major = std::fabs(2.0f * Noise(w * 12.0f, v * 2.0f, 7, 12, 2) - 1.0f);
+			const float minor = std::fabs(2.0f * Noise(w * 24.0f, v * 3.0f, 9, 24, 3) - 1.0f);
+			const float grain = Noise(u * 48.0f, v * 8.0f, 11, 48, 8);
+			return 0.6f * glm::smoothstep(0.04f, 0.6f, major) + 0.25f * glm::smoothstep(0.02f, 0.45f, minor) + 0.15f * grain;
+		}
+
+		BarkMaps MakeBark(bool rings)
 		{
 			constexpr uint32_t W = 128, H = 256;
-			Image img = Image::Solid(W, H, 80, 60, 45);
+			BarkMaps maps;
+			Image& img = maps.Albedo;
+			img = Image::Solid(W, H, 80, 60, 45);
+			std::vector<float> height(static_cast<size_t>(W) * H);
 			for (uint32_t y = 0; y < H; ++y)
 				for (uint32_t x = 0; x < W; ++x)
 				{
 					const float u = static_cast<float>(x) / W, v = static_cast<float>(y) / H;
-					float n;
+					glm::vec3 c;
+					float h;
 					if (rings)   // palm: horizontal ridges
-						n = 0.55f + 0.35f * std::sin(v * 2.0f * kPi * 9.0f + 2.0f * Noise(u * 8.0f, v * 4.0f, 3, 8, 4)) + 0.2f * (Noise(u * 16.0f, v * 32.0f, 5, 16, 32) - 0.5f);   // T110: 9 ridges a tile (UV in metres, UVScale 1)
-					else         // vertical furrows
-						n = 0.45f * Noise(u * 12.0f, v * 1.0f, 7, 12, 1) + 0.35f * Noise(u * 24.0f, v * 2.0f, 9, 24, 2) + 0.3f * Noise(u * 48.0f, v * 4.0f, 11, 48, 4);   // T110: a square tile in metres (UVScale 1.25: 0.8 m), furrows ~0.8 m long
-					const float f = glm::clamp(0.35f + 0.9f * n, 0.0f, 1.3f);
-					const glm::vec3 c = rings ? glm::vec3(0.50f, 0.40f, 0.30f) * f : glm::vec3(0.36f, 0.27f, 0.20f) * f;
+					{
+						const float n = 0.55f + 0.35f * std::sin(v * 2.0f * kPi * 9.0f + 2.0f * Noise(u * 8.0f, v * 4.0f, 3, 8, 4)) + 0.2f * (Noise(u * 16.0f, v * 32.0f, 5, 16, 32) - 0.5f);   // T110: 9 ridges a tile (UV in metres, UVScale 1)
+						c = glm::vec3(0.50f, 0.40f, 0.30f) * glm::clamp(0.35f + 0.9f * n, 0.0f, 1.3f);
+						h = n;
+					}
+					else         // fissured plates (T128; T110: a square tile in metres, UVScale 1.25: 0.8 m)
+					{
+						h = BarkHeight(u, v);
+						// the furrows deep brown and dark, the plates' faces a little greyer (weathered) and lighter
+						const glm::vec3 furrow(0.10f, 0.065f, 0.045f), plate(0.40f, 0.31f, 0.24f), worn(0.46f, 0.40f, 0.34f);
+						c = glm::mix(furrow, plate, glm::smoothstep(0.05f, 0.6f, h));
+						c = glm::mix(c, worn, 0.6f * glm::smoothstep(0.7f, 1.0f, h) * Noise(u * 8.0f, v * 4.0f, 17, 8, 4));
+					}
+					height[static_cast<size_t>(y) * W + x] = h;
 					uint8_t* p = &img.Pixels[(static_cast<size_t>(y) * W + x) * 4];
 					p[0] = static_cast<uint8_t>(glm::clamp(c.r, 0.0f, 1.0f) * 255.0f);
 					p[1] = static_cast<uint8_t>(glm::clamp(c.g, 0.0f, 1.0f) * 255.0f);
 					p[2] = static_cast<uint8_t>(glm::clamp(c.b, 0.0f, 1.0f) * 255.0f);
 				}
-			return img;
+
+			// T128: a tangent-space normal map (+X along u, +Y along v: TreeFactory's tangents are +dP/du since T110; Z out), a height map
+			// (R = G = B: the material's cavity darkens the ambient light in the furrows, Material::CavityStrength; no displacement) and a
+			// glTF metallic-roughness map (G multiplies the material's roughness). The slopes are in metres at the tile TreesGpu maps the bark
+			// to (0.8 m square; the palm's 1 m), by central differences across the wrapped edges (the noise tiles), u and v steps apart (the
+			// image is 128 x 256 over a square tile). The furrows sink `depth` metres under the plates (height 0..1).
+			const float tile = rings ? 1.0f : 0.8f;
+			const float depth = rings ? 0.04f : 0.05f;
+			const float kx = depth / (2.0f * tile / static_cast<float>(W)), ky = depth / (2.0f * tile / static_cast<float>(H));
+			maps.Normal = Image::Solid(W, H, 128, 128, 255);
+			maps.Height = Image::Solid(W, H, 255, 255, 255);
+			maps.Roughness = Image::Solid(W, H, 255, 255, 255);
+			const auto at = [&](uint32_t x, uint32_t y) { return height[static_cast<size_t>(y % H) * W + x % W]; };
+			const auto byte = [](float c) { return static_cast<uint8_t>(glm::clamp(c, 0.0f, 1.0f) * 255.0f + 0.5f); };
+			for (uint32_t y = 0; y < H; ++y)
+				for (uint32_t x = 0; x < W; ++x)
+				{
+					const float gx = (at(x + 1, y) - at(x + W - 1, y)) * kx, gy = (at(x, y + 1) - at(x, y + H - 1)) * ky;
+					const glm::vec3 nrm = glm::normalize(glm::vec3(-gx, -gy, 1.0f));
+					const size_t i = (static_cast<size_t>(y) * W + x) * 4;
+					maps.Normal.Pixels[i + 0] = byte(0.5f + 0.5f * nrm.x);
+					maps.Normal.Pixels[i + 1] = byte(0.5f + 0.5f * nrm.y);
+					maps.Normal.Pixels[i + 2] = byte(0.5f + 0.5f * nrm.z);
+					maps.Height.Pixels[i + 0] = maps.Height.Pixels[i + 1] = maps.Height.Pixels[i + 2] = byte(at(x, y));
+					// the worn tops of the plates a little smoother than the furrows (0.78..1 of the material's roughness)
+					maps.Roughness.Pixels[i + 1] = byte(glm::mix(1.0f, 0.78f, glm::smoothstep(0.45f, 0.95f, at(x, y))));
+				}
+			return maps;
 		}
 
 		// Alpha-masked cards, drawn at 3x3 samples per texel so the leaf edges carry real partial coverage (the renderer
@@ -757,8 +816,15 @@ namespace GB
 		static const TreeImages images = []
 		{
 			TreeImages t;
-			t.Images[static_cast<size_t>(TreeTexture::Bark)] = MakeBark(false);
-			t.Images[static_cast<size_t>(TreeTexture::BarkPalm)] = MakeBark(true);
+			for (const TreeTexture bark : { TreeTexture::Bark, TreeTexture::BarkPalm })
+			{
+				BarkMaps maps = MakeBark(bark == TreeTexture::BarkPalm);
+				const size_t k = static_cast<size_t>(bark);
+				t.Images[k] = std::move(maps.Albedo);
+				t.Normals[k] = std::move(maps.Normal);       // T128
+				t.Heights[k] = std::move(maps.Height);
+				t.Roughness[k] = std::move(maps.Roughness);
+			}
 			t.Images[static_cast<size_t>(TreeTexture::Leaf)] = MakeFoliage(0);
 			t.Images[static_cast<size_t>(TreeTexture::Needle)] = MakeFoliage(1);
 			t.Images[static_cast<size_t>(TreeTexture::Frond)] = MakeFoliage(2);

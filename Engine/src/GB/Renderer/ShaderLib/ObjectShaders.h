@@ -75,6 +75,11 @@ out vec3 vNormal;
 out vec4 vTangent;
 out vec2 vUV;
 flat out vec3 vOrigin;   // T46: the object's (or the instance's) origin in the world: the foliage's per-instance hash and crown centre
+#ifdef GB_FOLIAGE
+#include "lib/foliage"
+flat out mat3 vFoliageInstance;   // T128: the per-instance colour (lib/foliage, FoliageInstanceMatrix), applied in the FS
+out vec3 vFoliagePatch;           // T128: the macro patch's tint (FoliagePatchTint)
+#endif
 #include "lib/tree_wind"
 void main()
 {
@@ -102,6 +107,10 @@ void main()
 	vTangent = vec4(mat3(model) * tng, aTangent.w);
 	vUV = aUV * MATERIAL.Uv.x;
 	vOrigin = model[3].xyz;
+#ifdef GB_FOLIAGE
+	vFoliageInstance = FoliageInstanceMatrix(model[3].xyz, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].x);
+	vFoliagePatch = FoliagePatchTint(world.xyz, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].z);
+#endif
 	gl_Position = uViewProj * world;
 }
 )GLSL";
@@ -123,6 +132,10 @@ in vec3 vNormal;
 in vec4 vTangent;
 in vec2 vUV;
 flat in vec3 vOrigin;   // T46 (LAYER_FOLIAGE only)
+#ifdef GB_FOLIAGE
+flat in mat3 vFoliageInstance;   // T128: the per-instance colour and the macro patch, from the VS (lib/foliage)
+in vec3 vFoliagePatch;
+#endif
 #include "lib/scene_targets"
 
 layout(binding = 1) uniform sampler2D uAlbedoMap;
@@ -292,8 +305,8 @@ void main()
 #endif
 	}
 #ifdef GB_FOLIAGE
-	// T46: per-instance colour (a hash of the instance's origin) and the world's macro patches
-	albedo = FoliageVary(albedo, vOrigin, vPos, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].x, MATERIAL.Layer[SLOT_FOLIAGE_EXTRA].z);
+	// T46: per-instance colour (a hash of the instance's origin) and the world's macro patches; T128: worked out in the VS as a matrix
+	albedo = max(vFoliagePatch * (vFoliageInstance * albedo), vec3(0.0));
 #endif
 	if (HasTex(TEX_MACRO))
 		albedo *= texture(uMacroMap, (vPos.xz - MATERIAL.Layer[SLOT_MACRO].xy) / MATERIAL.Layer[SLOT_MACRO].zw).rgb;
@@ -461,7 +474,15 @@ void main()
 	}
 
 	vec3 Ls = normalize(-uSunDir);
+#ifdef GB_FOLIAGE
+	// T128: one shadow lookup for the sun on the face and through the leaf, offset along the side of the card that faces the sun (on a
+	// back-lit face, -N): the face toward the sun gets the offset it always had, and the back-lit one no longer shadows itself. With 9
+	// taps (lib/shadow, Shadow9): the crowns' overdraw made the 25 taps most of their cost.
+	float sunShadow = Shadow9(vPos, dot(N, Ls) < 0.0 ? -N : N, Ls);
+	float leafShadow = sunShadow;
+#else
 	float sunShadow = Shadow(vPos, N, Ls);
+#endif
 #ifdef GB_FOLIAGE
 	// T107: occlusion from the pivot, no maps: dark where the plant meets the ground, fading out by `height` over the pivot, and in its core,
 	// near the vertical axis (within `height` of it, fading out by three times `height` up). It dims the ambient and the light through the
@@ -492,8 +513,8 @@ void main()
 			Lo += Shade(N, V, Ls, uSunColor, albedo, F0, a, metallic) * sunShadow;
 	}
 #ifdef GB_FOLIAGE
-	// T46: the sun through the leaf (diffuse transmission), tinted by the albedo times the transmission tint. Its shadow is looked up
-	// offset toward the sun, not along N: on the face away from the sun N points away from it and the leaf would shadow itself; the
+	// T46: the sun through the leaf (diffuse transmission), tinted by the albedo times the transmission tint. Its shadow is the sun's
+	// lookup (T128), before the occlusion scales it, offset to the sun's side of the card: the leaf does not shadow itself, and the
 	// leaves between this one and the sun still do (a leaf in the shadow of another does not glow).
 	float leafT = MATERIAL.Layer[SLOT_FOLIAGE].w;
 	vec3 leafTint = MATERIAL.Layer[SLOT_FOLIAGE].rgb * albedo * leafT;
@@ -511,7 +532,7 @@ void main()
 		}
 		else
 			through = FoliageThrough(N, V, Ls);
-		Lo += uSunColor / PI * Shadow(vPos, Ls, Ls) * through * leafTint * leafOcc;
+		Lo += uSunColor / PI * leafShadow * through * leafTint * leafOcc;
 	}
 #endif
 

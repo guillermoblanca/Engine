@@ -39,6 +39,7 @@ uniform float uTranslucency;
 uniform vec3 uTransmissionTint;
 uniform float uColorVariation;
 uniform float uMacroVariation;
+uniform vec4 uFoliageShade;   // T128: base occlusion, its height (m; 0: no occlusion), interior occlusion, backlight spread (GrassGpu::Look)
 
 
 layout(binding = 9) uniform sampler2D uEnvMap;
@@ -102,6 +103,30 @@ vec3 FoliageVary(vec3 c, vec3 origin, vec3 world, float amount, float macro)
 	}
 	return max(c, vec3(0.0));
 }
+// T128: FoliageVary in two parts the PBR VS works out, so the FS only multiplies:
+// max(FoliagePatchTint(world, macro) * (FoliageInstanceMatrix(origin, amount) * c), 0) == FoliageVary(c, origin, world, amount, macro).
+// The hue turn, the saturation and the brightness are linear in the colour and depend only on the origin: one matrix per instance (flat).
+// The macro patch depends only on the world position, at the scale of tens of metres: per vertex.
+mat3 FoliageInstanceMatrix(vec3 origin, float amount)
+{
+	if (amount <= 0.0)
+		return mat3(1.0);
+	float h1 = FHash3(origin * 1.37 + 0.11), h2 = FHash3(origin.zxy * 2.11 + 5.3), h3 = FHash3(origin.yzx * 3.07 + 9.1);
+	float a = (0.3 - h1) * amount * 0.55;
+	const vec3 k = vec3(0.57735027);
+	float ca = cos(a), sa = sin(a);
+	mat3 R = ca * mat3(1.0) + sa * mat3(0.0, k.z, -k.y, -k.z, 0.0, k.x, k.y, -k.x, 0.0) + (1.0 - ca) * outerProduct(k, k);   // cross(k, c) as a matrix
+	float s = 1.0 + (0.4 - h2) * amount * 0.6;
+	mat3 S = s * mat3(1.0) + (1.0 - s) * outerProduct(vec3(1.0), vec3(0.2126, 0.7152, 0.0722));   // mix(vec3(lum), c, s)
+	return (1.0 + (h3 - 0.5) * amount * 0.7) * S * R;
+}
+vec3 FoliagePatchTint(vec3 world, float macro)
+{
+	if (macro <= 0.0)
+		return vec3(1.0);
+	float m = FNoise2(world.xz * 0.07) * 0.65 + FNoise2(world.xz * 0.19 + 7.0) * 0.35;
+	return mix(vec3(1.0), mix(vec3(1.16, 1.06, 0.62), vec3(0.78, 0.84, 0.62), smoothstep(0.3, 0.7, m)), macro);
+}
 float FoliageThrough(vec3 N, vec3 V, vec3 L)
 {
 	return pow(clamp(dot(V, -L), 0.0, 1.0), 4.0) * 3.0 + clamp(dot(-N, L), 0.0, 1.0);
@@ -143,11 +168,38 @@ void main()
 	wrap *= wrap;
 	float trans = pow(clamp(dot(V, -L), 0.0, 1.0), 3.0) * 0.55 * vT;   // sun shining through the blades
 	float shadow = GrassShadow(vWorld);
-	vec3 direct = uSunColor * (wrap * 0.9 + trans) * shadow / 3.14159;
-	vec3 ambient = SkyIrradiance(N) * uEnvIntensity * (0.4 + 0.6 * vT);   // darker at the root (occlusion)
+	// T128: the PBR foliage's occlusion from the pivot (ObjectShaders.h, T107), the blade's root as the pivot: dark where it meets the
+	// ground, fading out by `height` up, and near the root's vertical; it replaces the blade's own darker root, dims the ambient and the light
+	// through the blade fully and the sun half. Without it (height 0) the grass is as before.
+	float ambientOcc = 0.4 + 0.6 * vT;   // darker at the root
+	float leafOcc = 1.0;
+	if (uFoliageShade.y > 0.0)
+	{
+		vec3 rel = vWorld - vRoot;
+		float up = clamp(rel.y / uFoliageShade.y, 0.0, 1.0);
+		float baseOcc = 1.0 - up * up * (3.0 - 2.0 * up);
+		float core = (1.0 - smoothstep(0.0, uFoliageShade.y, length(rel.xz))) * (1.0 - smoothstep(uFoliageShade.y, 3.0 * uFoliageShade.y, rel.y));
+		leafOcc = (1.0 - uFoliageShade.x * baseOcc) * (1.0 - uFoliageShade.z * core);
+		ambientOcc = leafOcc;
+	}
+	vec3 direct = uSunColor * (wrap * 0.9 + trans) * (shadow * (0.5 + 0.5 * leafOcc)) / 3.14159;
+	vec3 ambient = SkyIrradiance(N) * uEnvIntensity * ambientOcc;
 	vec3 color = col * (direct + ambient);
 	if (uTranslucency > 0.0)   // T46: the PBR foliage's diffuse transmission, on top of the blades' own `trans`, stronger toward the tip
-		color += col * uTransmissionTint * (uTranslucency * vT) * uSunColor * (shadow / 3.14159) * FoliageThrough(N, V, L);
+	{
+		float through;
+		if (uFoliageShade.w > 0.0)
+		{
+			// T128: the PBR foliage's spread (T107): the sun's direction bent by the normal and a wider lobe, and the grazing edges
+			float spread = uFoliageShade.w;
+			vec3 Lb = normalize(L + N * (0.6 * spread));
+			float edge = pow(1.0 - abs(dot(N, V)), 3.0) * (0.5 + 0.5 * dot(V, -L));
+			through = pow(clamp(dot(V, -Lb), 0.0, 1.0), 4.0 - 2.5 * spread) * 3.0 + clamp(dot(-N, L), 0.0, 1.0) + edge * 1.5 * spread;
+		}
+		else
+			through = FoliageThrough(N, V, L);
+		color += col * uTransmissionTint * (uTranslucency * vT * leafOcc) * uSunColor * (shadow / 3.14159) * through;
+	}
 
 	float fogKeep = 1.0;
 	if (uFogDensity > 0.0)

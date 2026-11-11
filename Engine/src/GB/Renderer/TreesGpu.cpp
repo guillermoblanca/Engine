@@ -8,7 +8,15 @@ namespace GB
 	{
 		const TreeImages& images = TreeFactory::Textures();
 		for (size_t t = 0; t < static_cast<size_t>(TreeTexture::Count); ++t)
+		{
 			m_Textures[t] = std::make_unique<Texture2D>(images.Images[t], TextureEncoding::SRGB);
+			if (images.Normals[t].IsValid())   // T128: the bark's relief and shine (data maps)
+				m_NormalMaps[t] = std::make_unique<Texture2D>(images.Normals[t], TextureEncoding::Linear);
+			if (images.Heights[t].IsValid())
+				m_HeightMaps[t] = std::make_unique<Texture2D>(images.Heights[t], TextureEncoding::Linear);
+			if (images.Roughness[t].IsValid())
+				m_RoughnessMaps[t] = std::make_unique<Texture2D>(images.Roughness[t], TextureEncoding::Linear);
+		}
 	}
 
 	TreesGpu::~TreesGpu() = default;
@@ -28,11 +36,16 @@ namespace GB
 		Material trunk;
 		trunk.Albedo = p.Species == TreeSpecies::Bare ? glm::vec3(0.8f, 0.75f, 0.7f) : glm::vec3(1.0f);
 		trunk.AlbedoMap = GetTexture(TreeFactory::TrunkTexture(p));
+		// T128: the bark's relief, cavity and shine, painted from the albedo's pattern (TreeImages); their slopes are drawn for the tile
+		// below. The height map only darkens the ambient light in the furrows (CavityStrength; HeightScale 0: no displacement).
+		trunk.NormalMap = GetNormalMap(TreeFactory::TrunkTexture(p));
+		trunk.HeightMap = GetHeightMap(TreeFactory::TrunkTexture(p));
+		trunk.MetallicRoughnessMap = GetRoughnessMap(TreeFactory::TrunkTexture(p));
 		// T110: the bark's UVs are metres; the bark tile is 0.8 m (about what it was round a trunk before), the palm's 1 m
 		trunk.UVScale = p.Species == TreeSpecies::Palm ? 1.0f : 1.25f;
 		trunk.Roughness = 0.95f;
 		trunk.HeightScale = 0.0f;
-		trunk.CavityStrength = 0.0f;
+		trunk.CavityStrength = 0.8f;
 		trunk.WindSway = p.Part != TreePart::Standing ? 0.0f : (p.Species == TreeSpecies::Palm ? 0.9f : 0.5f);   // (T113: a felled piece lies still)
 		trunk.WindHeight = H;
 		tree->TrunkMaterial = trunk;
@@ -78,6 +91,26 @@ namespace GB
 			foliage.WindSway = p.Species == TreeSpecies::Conifer ? 0.45f : (p.Species == TreeSpecies::Palm ? 1.0f : 0.8f);
 			foliage.WindHeight = H;
 			foliage.WindFlutter = p.Species == TreeSpecies::Conifer ? 0.03f : 0.09f;
+			// T128: the PBR foliage layer (GB_FOLIAGE; MATERIALES.md, "Follaje" and T107), with the values the material gallery dresses its
+			// tree crowns with (tests/data/material_gallery.json, leaf_broad / leaf_small and leaf_needle, and material_gallery_test's addTree):
+			// - the light through the leaves, warm (the red over the green: with the leaf's albedo a greener tint glows lime), a little less
+			//   through the needles;
+			// - colour per tree (a hash of its origin) and world patches;
+			// - the alpha raised by mip, so the far cards keep their fill;
+			// - no sphere blend (NormalBlend 0) and no occlusion at the foot: the crown normal is baked in the mesh (FoliageNormals). The core
+			//   within a quarter of the tree's height of the trunk darkens (measured from the instance's origin, the foot of the tree, in world
+			//   metres: a tree placed at scale s keeps its unscaled height here).
+			// The palm is not in the gallery (not of era 1): it takes the broadleaf's values.
+			const bool needles = p.Species == TreeSpecies::Conifer;
+			foliage.Translucency = needles ? 0.8f : 1.0f;
+			foliage.TransmissionTint = glm::vec3(1.45f, 1.35f, 0.45f);
+			foliage.ColorVariation = needles ? 0.3f : 0.4f;
+			foliage.MacroVariation = needles ? 0.2f : 0.25f;
+			foliage.AlphaMipScale = needles ? 0.2f : 0.25f;
+			foliage.BacklightSpread = needles ? 0.5f : 0.6f;			foliage.NormalBlend = 0.0f;
+			foliage.BaseOcclusion = 0.0f;
+			foliage.OcclusionHeight = 0.25f * H;
+			foliage.InteriorOcclusion = 0.3f;
 			tree->FoliageMaterial = foliage;
 		}
 		return tree;

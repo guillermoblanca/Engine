@@ -256,6 +256,24 @@ vec3 EnvBRDFApprox(vec3 F0, float roughness, float NoV)
 			sum += texture(uShadowMap, vec3(c.xy + vec2(x, y) * texel, c.z));
 	return sum / 25.0;
 }
+// T128: Shadow with 9 taps two texels apart instead of 25 one apart. The comparison sampler filters 2x2 texels per tap, so the footprint
+// is about the same 5x5. For the foliage program (the crowns' overdraw makes the taps most of their cost); the others keep Shadow.
+float Shadow9(vec3 worldPos, vec3 N, vec3 L)
+{
+	if (uShadowsOn == 0) return 1.0;
+	float NoL = max(dot(N, L), 0.0);
+	vec3 p = worldPos + N * uShadowTexel * (1.0 + 2.0 * (1.0 - NoL));
+	vec4 lp = uLightVP * vec4(p, 1.0);
+	vec3 c = lp.xyz / lp.w * 0.5 + 0.5;
+	if (c.z > 1.0 || c.x < 0.0 || c.x > 1.0 || c.y < 0.0 || c.y > 1.0) return 1.0;
+	c.z -= 0.0004;
+	vec2 texel = 2.0 / vec2(textureSize(uShadowMap, 0));
+	float sum = 0.0;
+	for (int x = -1; x <= 1; ++x)
+		for (int y = -1; y <= 1; ++y)
+			sum += texture(uShadowMap, vec3(c.xy + vec2(x, y) * texel, c.z));
+	return sum / 9.0;
+}
 )GLSL";
 
 	// lib/noise_pbr: value noise 2D/3D and FBM3 with PBR's names (PHash, PNoise, PHash3, PNoise3). PBR FS.
@@ -311,6 +329,30 @@ vec3 FoliageVary(vec3 c, vec3 origin, vec3 world, float amount, float macro)
 		c *= mix(vec3(1.0), patchTint, macro);
 	}
 	return max(c, vec3(0.0));
+}
+// T128: FoliageVary in two parts the PBR VS works out, so the FS only multiplies:
+// max(FoliagePatchTint(world, macro) * (FoliageInstanceMatrix(origin, amount) * c), 0) == FoliageVary(c, origin, world, amount, macro).
+// The hue turn, the saturation and the brightness are linear in the colour and depend only on the origin: one matrix per instance (flat).
+// The macro patch depends only on the world position, at the scale of tens of metres: per vertex.
+mat3 FoliageInstanceMatrix(vec3 origin, float amount)
+{
+	if (amount <= 0.0)
+		return mat3(1.0);
+	float h1 = FHash3(origin * 1.37 + 0.11), h2 = FHash3(origin.zxy * 2.11 + 5.3), h3 = FHash3(origin.yzx * 3.07 + 9.1);
+	float a = (0.3 - h1) * amount * 0.55;
+	const vec3 k = vec3(0.57735027);
+	float ca = cos(a), sa = sin(a);
+	mat3 R = ca * mat3(1.0) + sa * mat3(0.0, k.z, -k.y, -k.z, 0.0, k.x, k.y, -k.x, 0.0) + (1.0 - ca) * outerProduct(k, k);   // cross(k, c) as a matrix
+	float s = 1.0 + (0.4 - h2) * amount * 0.6;
+	mat3 S = s * mat3(1.0) + (1.0 - s) * outerProduct(vec3(1.0), vec3(0.2126, 0.7152, 0.0722));   // mix(vec3(lum), c, s)
+	return (1.0 + (h3 - 0.5) * amount * 0.7) * S * R;
+}
+vec3 FoliagePatchTint(vec3 world, float macro)
+{
+	if (macro <= 0.0)
+		return vec3(1.0);
+	float m = FNoise2(world.xz * 0.07) * 0.65 + FNoise2(world.xz * 0.19 + 7.0) * 0.35;
+	return mix(vec3(1.0), mix(vec3(1.16, 1.06, 0.62), vec3(0.78, 0.84, 0.62), smoothstep(0.3, 0.7, m)), macro);
 }
 float FoliageThrough(vec3 N, vec3 V, vec3 L)
 {

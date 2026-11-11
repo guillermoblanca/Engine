@@ -40,16 +40,21 @@ namespace GB
 
 	// An instanced object waiting for its batch: the batches are drawn by mesh address, and inside one in scene order (what the std::map
 	// keyed by mesh pointer gave before T78, so the draw order and the image are the same).
+	// T128: first by Program, the PBR program the scene pass draws it with (0 base, 1 foliage, 2 terrain layers; the shadow pass leaves it
+	// at 0): all the trunks, then all the crowns. A forest drawn tree by tree switched program twice per kind of tree, and measured ~5% of
+	// the objects pass slower than with the crowns together (GB_TREE_BENCH, vegetation_test).
 	struct BatchEntry
 	{
 		const Mesh* MeshPtr = nullptr;
 		uint32_t Object = 0;
+		uint32_t Program = 0;
 	};
 
 	inline void SortBatches(std::vector<BatchEntry>& entries)
 	{
 		std::sort(entries.begin(), entries.end(), [](const BatchEntry& a, const BatchEntry& b)
 		{
+			if (a.Program != b.Program) return a.Program < b.Program;
 			if (a.MeshPtr != b.MeshPtr) return std::less<const Mesh*>()(a.MeshPtr, b.MeshPtr);
 			return a.Object < b.Object;
 		});

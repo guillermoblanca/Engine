@@ -25,7 +25,8 @@ namespace GB
 		m_PBRShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS), Shaders::Assemble(Shaders::PBRFS));
 		{
 			const std::string_view foliage[] = { "GB_FOLIAGE" };   // T46
-			m_PBRFoliageShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS), Shaders::Assemble(Shaders::PBRFS, foliage));
+			// T128: the VS too, for the per-instance colour matrix (vFoliageColor)
+			m_PBRFoliageShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS, foliage), Shaders::Assemble(Shaders::PBRFS, foliage));
 			const std::string_view terrain[] = { "GB_TERRAIN_LAYERS" };   // T115
 			m_PBRTerrainShader = std::make_unique<Shader>(Shaders::Assemble(Shaders::PBRVS), Shaders::Assemble(Shaders::PBRFS, terrain));
 			// its layer maps, made in the background from now on: a world load then finds them ready
@@ -285,16 +286,17 @@ namespace GB
 		// T36 (render M4): the material's values are in the material buffer (lib/material, bound by MaterialBuffer::BeginFrame); the draw sets
 		// its entry, uMaterialId, and binds the material's maps (still loose until M6). uModel, uInstanced and uSkinned are the object's (M5).
 		// T46: the foliage materials draw with the GB_FOLIAGE program; the pipeline is switched only when the kind changes (the pipeline sets
-		// the cull, so it goes first).
+		// the cull, so it goes first). T128: the instanced batches are sorted by it (BatchEntry::Program), so a forest switches once.
 		// T115: a material with terrain layers draws with the GB_TERRAIN_LAYERS program the same way. bound: the program bound (0 base,
 		// 1 foliage, 2 terrain layers).
-		int bound = 0;
+		uint32_t bound = 0;
+		const auto programOf = [](const Material& m) -> uint32_t { return m.TerrainLayers ? 2u : FoliageOn(m) ? 1u : 0u; };
 		auto drawObject = [&](const RenderObject& obj, uint32_t copies = 0)
 		{
 			const auto drawStart = Clock::now();
 			const Material& m = obj.Mat;
 			const TerrainLayerMaps* layers = m.TerrainLayers;
-			const int kind = layers ? 2 : FoliageOn(m) ? 1 : 0;
+			const uint32_t kind = programOf(m);
 			if (kind != bound)
 			{
 				cmd.BindPipeline(kind == 2 ? m_PBRTerrainPipeline : kind == 1 ? m_PBRFoliagePipeline : m_PBRPipeline);
@@ -359,7 +361,7 @@ namespace GB
 			if (item.Has(RenderItem::Blend))
 				translucent.push_back(&obj);
 			else if (item.Has(RenderItem::Batched))
-				m_Batches.push_back({ obj.MeshPtr, item.Object });
+				m_Batches.push_back({ obj.MeshPtr, item.Object, programOf(obj.Mat) });
 			else
 				drawObject(obj);
 		}

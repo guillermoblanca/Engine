@@ -672,7 +672,7 @@ int main()
 			for (int i = 0; i < 9; ++i)
 				place(tuft, grassCard, { (static_cast<float>(i) - 4.0f) * 0.75f + 0.2f * Rand(i, 1, 81), 0.0f, 0.35f + 0.5f * Rand(i, 2, 81) }, 47.0f * static_cast<float>(i),
 					0.85f + 0.35f * Rand(i, 3, 81), true);
-			fieldGpu.Shading = {};
+			fieldGpu.Shading = GB::GrassGpu::Look::Off();   // (T128: the defaults are the game's now; this scene keeps T46's values)
 			if (on) { fieldGpu.Shading.Translucency = 0.7f; fieldGpu.Shading.ColorVariation = 0.4f; fieldGpu.Shading.MacroVariation = 0.25f; }
 			sc.Grass.push_back(&fieldGpu);
 			sc.Sun.Direction = backLit ? glm::vec3(0.2f, -0.3f, 0.93f) : glm::vec3(-0.3f, -0.55f, -0.78f);

@@ -72,6 +72,7 @@ namespace GB
 			m_Shader.SetVec3("uTransmissionTint", look.TransmissionTint);
 			m_Shader.SetFloat("uColorVariation", look.ColorVariation);
 			m_Shader.SetFloat("uMacroVariation", look.MacroVariation);
+			m_Shader.SetVec4("uFoliageShade", glm::vec4(look.BaseOcclusion, look.OcclusionHeight, look.InteriorOcclusion, look.BacklightSpread));   // T128
 			for (const GrassChunk& chunk : field->GetChunks())
 			{
 				const glm::vec3 d = chunk.Center - camera.Position;

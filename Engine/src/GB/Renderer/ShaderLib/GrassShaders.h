@@ -115,6 +115,7 @@ uniform float uTranslucency;
 uniform vec3 uTransmissionTint;
 uniform float uColorVariation;
 uniform float uMacroVariation;
+uniform vec4 uFoliageShade;   // T128: base occlusion, its height (m; 0: no occlusion), interior occlusion, backlight spread (GrassGpu::Look)
 #include "lib/sky"
 #include "lib/foliage"
 
@@ -154,11 +155,38 @@ void main()
 	wrap *= wrap;
 	float trans = pow(clamp(dot(V, -L), 0.0, 1.0), 3.0) * 0.55 * vT;   // sun shining through the blades
 	float shadow = GrassShadow(vWorld);
-	vec3 direct = uSunColor * (wrap * 0.9 + trans) * shadow / 3.14159;
-	vec3 ambient = SkyIrradiance(N) * uEnvIntensity * (0.4 + 0.6 * vT);   // darker at the root (occlusion)
+	// T128: the PBR foliage's occlusion from the pivot (ObjectShaders.h, T107), the blade's root as the pivot: dark where it meets the
+	// ground, fading out by `height` up, and near the root's vertical; it replaces the blade's own darker root, dims the ambient and the light
+	// through the blade fully and the sun half. Without it (height 0) the grass is as before.
+	float ambientOcc = 0.4 + 0.6 * vT;   // darker at the root
+	float leafOcc = 1.0;
+	if (uFoliageShade.y > 0.0)
+	{
+		vec3 rel = vWorld - vRoot;
+		float up = clamp(rel.y / uFoliageShade.y, 0.0, 1.0);
+		float baseOcc = 1.0 - up * up * (3.0 - 2.0 * up);
+		float core = (1.0 - smoothstep(0.0, uFoliageShade.y, length(rel.xz))) * (1.0 - smoothstep(uFoliageShade.y, 3.0 * uFoliageShade.y, rel.y));
+		leafOcc = (1.0 - uFoliageShade.x * baseOcc) * (1.0 - uFoliageShade.z * core);
+		ambientOcc = leafOcc;
+	}
+	vec3 direct = uSunColor * (wrap * 0.9 + trans) * (shadow * (0.5 + 0.5 * leafOcc)) / 3.14159;
+	vec3 ambient = SkyIrradiance(N) * uEnvIntensity * ambientOcc;
 	vec3 color = col * (direct + ambient);
 	if (uTranslucency > 0.0)   // T46: the PBR foliage's diffuse transmission, on top of the blades' own `trans`, stronger toward the tip
-		color += col * uTransmissionTint * (uTranslucency * vT) * uSunColor * (shadow / 3.14159) * FoliageThrough(N, V, L);
+	{
+		float through;
+		if (uFoliageShade.w > 0.0)
+		{
+			// T128: the PBR foliage's spread (T107): the sun's direction bent by the normal and a wider lobe, and the grazing edges
+			float spread = uFoliageShade.w;
+			vec3 Lb = normalize(L + N * (0.6 * spread));
+			float edge = pow(1.0 - abs(dot(N, V)), 3.0) * (0.5 + 0.5 * dot(V, -L));
+			through = pow(clamp(dot(V, -Lb), 0.0, 1.0), 4.0 - 2.5 * spread) * 3.0 + clamp(dot(-N, L), 0.0, 1.0) + edge * 1.5 * spread;
+		}
+		else
+			through = FoliageThrough(N, V, L);
+		color += col * uTransmissionTint * (uTranslucency * vT * leafOcc) * uSunColor * (shadow / 3.14159) * through;
+	}
 
 	float fogKeep = 1.0;
 	if (uFogDensity > 0.0)

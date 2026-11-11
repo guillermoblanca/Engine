@@ -84,7 +84,17 @@ namespace GB
 
 	// The procedural bark / leaf / needle / frond images every tree's materials sample, painted once in the process.
 	enum class TreeTexture { Bark, BarkPalm, Leaf, LeafRound, LeafMaple, Needle, Frond, Count };
-	struct TreeImages { Image Images[static_cast<size_t>(TreeTexture::Count)]; const Image& Get(TreeTexture t) const { return Images[static_cast<size_t>(t)]; } };
+	// T128: the barks (Bark, BarkPalm) also carry their relief and shine, painted from the same pattern: a tangent-space normal map (+X along
+	// u, +Y along v, as TreeFactory's tangents), a height map (R = G = B, 0 in the furrows, ~1 on the plates: the cavity) and a glTF
+	// metallic-roughness map (G the roughness factor). Data maps: upload them Linear. Empty (0 x 0) for the cards.
+	struct TreeImages
+	{
+		Image Images[static_cast<size_t>(TreeTexture::Count)];
+		Image Normals[static_cast<size_t>(TreeTexture::Count)];
+		Image Heights[static_cast<size_t>(TreeTexture::Count)];
+		Image Roughness[static_cast<size_t>(TreeTexture::Count)];
+		const Image& Get(TreeTexture t) const { return Images[static_cast<size_t>(t)]; }
+	};
 
 	// Generates trees on the CPU (deterministic by TreeParams).
 	class TreeFactory
