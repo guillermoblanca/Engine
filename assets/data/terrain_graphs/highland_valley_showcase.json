@@ -67,13 +67,13 @@
       "to": "ground"
     },
     {
-      "from": "e4_talus",
+      "from": "e3_deposit",
       "fromPort": "height",
       "port": "height",
       "to": "basin"
     },
     {
-      "from": "e4_talus",
+      "from": "e3_deposit",
       "fromPort": "height",
       "port": "height",
       "to": "basin_fill"
@@ -109,7 +109,7 @@
       "to": "course"
     },
     {
-      "from": "e4_talus",
+      "from": "e3_deposit",
       "fromPort": "height",
       "port": "height",
       "to": "valley"
@@ -121,13 +121,13 @@
       "to": "valley"
     },
     {
-      "from": "e4_talus",
+      "from": "e3_deposit",
       "fromPort": "height",
       "port": "height",
       "to": "site"
     },
     {
-      "from": "e4_talus",
+      "from": "e3_deposit",
       "fromPort": "height",
       "port": "height",
       "to": "lake"
@@ -427,12 +427,6 @@
       "to": "biomes"
     },
     {
-      "from": "forest_ok",
-      "fromPort": "out",
-      "port": "forest",
-      "to": "biomes"
-    },
-    {
       "from": "look_biome",
       "fromPort": "biome",
       "port": "in",
@@ -703,12 +697,6 @@
       "to": "look_layers"
     },
     {
-      "from": "look_wet",
-      "fromPort": "grass_wet",
-      "port": "grass_wet",
-      "to": "look_layers"
-    },
-    {
       "from": "look_layers",
       "fromPort": "rock",
       "port": "in",
@@ -851,6 +839,18 @@
       "fromPort": "height",
       "port": "height",
       "to": "e4_talus"
+    },
+    {
+      "from": "e4_talus",
+      "fromPort": "height",
+      "port": "height",
+      "to": "e3_deposit"
+    },
+    {
+      "from": "e4_talus",
+      "fromPort": "hardness",
+      "port": "hardness",
+      "to": "e3_deposit"
     },
     {
       "from": "e1_lakes",
@@ -1121,11 +1121,179 @@
       "fromPort": "out",
       "port": "exclude",
       "to": "look_trees"
+    },
+    {
+      "from": "e3_deposit",
+      "fromPort": "fan",
+      "port": "in",
+      "to": "al_apex"
+    },
+    {
+      "from": "e3_deposit",
+      "fromPort": "fan",
+      "port": "in",
+      "to": "al_on_fan"
+    },
+    {
+      "from": "e2_fluvial",
+      "fromPort": "area",
+      "port": "in",
+      "to": "al_channel"
+    },
+    {
+      "from": "al_channel",
+      "fromPort": "out",
+      "port": "a",
+      "to": "al_fan_channel"
+    },
+    {
+      "from": "al_on_fan",
+      "fromPort": "out",
+      "port": "b",
+      "to": "al_fan_channel"
+    },
+    {
+      "from": "al_apex",
+      "fromPort": "out",
+      "port": "a",
+      "to": "al_gravel"
+    },
+    {
+      "from": "al_fan_channel",
+      "fromPort": "out",
+      "port": "b",
+      "to": "al_gravel"
+    },
+    {
+      "from": "al_gravel",
+      "fromPort": "out",
+      "port": "alluvium",
+      "to": "look_wet"
+    },
+    {
+      "from": "e3_deposit",
+      "fromPort": "alluvium",
+      "port": "a",
+      "to": "al_fill_m"
+    },
+    {
+      "from": "e3_deposit",
+      "fromPort": "fan",
+      "port": "b",
+      "to": "al_fill_m"
+    },
+    {
+      "from": "al_fill_m",
+      "fromPort": "out",
+      "port": "in",
+      "to": "al_fill"
+    },
+    {
+      "from": "settle_grade",
+      "fromPort": "height",
+      "port": "height",
+      "to": "al_flat"
+    },
+    {
+      "from": "e3_deposit",
+      "fromPort": "fan",
+      "port": "in",
+      "to": "al_off_fan"
+    },
+    {
+      "from": "al_fill",
+      "fromPort": "out",
+      "port": "a",
+      "to": "al_fill_flat"
+    },
+    {
+      "from": "al_flat",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "al_fill_flat"
+    },
+    {
+      "from": "al_fill_flat",
+      "fromPort": "out",
+      "port": "a",
+      "to": "al_floor"
+    },
+    {
+      "from": "al_off_fan",
+      "fromPort": "out",
+      "port": "b",
+      "to": "al_floor"
+    },
+    {
+      "from": "look_wet",
+      "fromPort": "grass_wet",
+      "port": "a",
+      "to": "al_grass_wet"
+    },
+    {
+      "from": "al_floor",
+      "fromPort": "out",
+      "port": "b",
+      "to": "al_grass_wet"
+    },
+    {
+      "from": "al_grass_wet",
+      "fromPort": "out",
+      "port": "grass_wet",
+      "to": "look_layers"
+    },
+    {
+      "from": "e3_deposit",
+      "fromPort": "alluvium",
+      "port": "in",
+      "to": "al_all"
+    },
+    {
+      "from": "al_all",
+      "fromPort": "out",
+      "port": "a",
+      "to": "al_open"
+    },
+    {
+      "from": "al_flat_e1",
+      "fromPort": "mask",
+      "port": "b",
+      "to": "al_open"
+    },
+    {
+      "from": "e1_lakes",
+      "fromPort": "height",
+      "port": "height",
+      "to": "al_flat_e1"
+    },
+    {
+      "from": "al_open",
+      "fromPort": "out",
+      "port": "in",
+      "to": "al_keep_forest"
+    },
+    {
+      "from": "forest_ok",
+      "fromPort": "out",
+      "port": "a",
+      "to": "al_forest"
+    },
+    {
+      "from": "al_keep_forest",
+      "fromPort": "out",
+      "port": "b",
+      "to": "al_forest"
+    },
+    {
+      "from": "al_forest",
+      "fromPort": "out",
+      "port": "forest",
+      "to": "biomes"
     }
   ],
   "id": "highland_valley_showcase",
   "kind": "terrain_graph",
-  "name": "Highland valley showcase: E2, talus, E1, settlements, material layers and trees (TERRENO_V5)",
+  "name": "Highland valley showcase: E2, talus, deposit, E1, settlements, material layers and trees (TERRENO_V5)",
   "nodes": [
     {
       "id": "rolling",
@@ -2066,6 +2234,23 @@
       "y": 300.0
     },
     {
+      "id": "e3_deposit",
+      "label": "e3_deposit",
+      "params": {
+        "FanAngle": 5.0,
+        "FanApexAngle": 8.0,
+        "FanArea": 20000.0,
+        "FanDepth": 1.0,
+        "FanReach": 60.0,
+        "Fill": 0.3,
+        "FillRadius": 50.0,
+        "Revision": 1.0
+      },
+      "type": "deposit",
+      "x": 1650.0,
+      "y": 420.0
+    },
+    {
       "id": "settle_sites",
       "label": "settle_sites",
       "type": "settlement_sites",
@@ -2270,6 +2455,203 @@
       "type": "combine",
       "x": 6700.0,
       "y": 2500.0
+    },
+    {
+      "id": "al_apex",
+      "label": "al_apex",
+      "params": {
+        "InMax": 7.0,
+        "InMin": 3.0,
+        "OutMax": 1.0,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 6400.0,
+      "y": 3000.0
+    },
+    {
+      "id": "al_on_fan",
+      "label": "al_on_fan",
+      "params": {
+        "InMax": 0.5,
+        "InMin": 0.1,
+        "OutMax": 1.0,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 6400.0,
+      "y": 3080.0
+    },
+    {
+      "id": "al_channel",
+      "label": "al_channel",
+      "params": {
+        "InMax": 100000.0,
+        "InMin": 30000.0,
+        "OutMax": 1.0,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 6400.0,
+      "y": 3160.0
+    },
+    {
+      "id": "al_fan_channel",
+      "label": "al_fan_channel",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 6550.0,
+      "y": 3120.0
+    },
+    {
+      "id": "al_gravel",
+      "label": "al_gravel",
+      "params": {
+        "Mode": 4.0
+      },
+      "type": "combine",
+      "x": 6700.0,
+      "y": 3060.0
+    },
+    {
+      "id": "al_fill_m",
+      "label": "al_fill_m",
+      "params": {
+        "Mode": 1.0
+      },
+      "type": "combine",
+      "x": 6400.0,
+      "y": 3260.0
+    },
+    {
+      "id": "al_fill",
+      "label": "al_fill",
+      "params": {
+        "InMax": 1.5,
+        "InMin": 0.3,
+        "OutMax": 1.0,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 6550.0,
+      "y": 3260.0
+    },
+    {
+      "id": "al_flat",
+      "label": "al_flat",
+      "params": {
+        "Falloff": 4.0,
+        "MaxDegrees": 8.0,
+        "MinDegrees": 0.0
+      },
+      "type": "mask_slope",
+      "x": 6400.0,
+      "y": 3340.0
+    },
+    {
+      "id": "al_off_fan",
+      "label": "al_off_fan",
+      "params": {
+        "InMax": 0.5,
+        "InMin": 0.1,
+        "OutMax": 0.0,
+        "OutMin": 1.0
+      },
+      "type": "remap",
+      "x": 6550.0,
+      "y": 3340.0
+    },
+    {
+      "id": "al_fill_flat",
+      "label": "al_fill_flat",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 6700.0,
+      "y": 3300.0
+    },
+    {
+      "id": "al_floor",
+      "label": "al_floor",
+      "params": {
+        "Mode": 2.0,
+        "WeightB": 1.0
+      },
+      "type": "combine",
+      "x": 6850.0,
+      "y": 3300.0
+    },
+    {
+      "id": "al_grass_wet",
+      "label": "al_grass_wet",
+      "params": {
+        "Mode": 4.0,
+        "WeightB": 0.85
+      },
+      "type": "combine",
+      "x": 7000.0,
+      "y": 3300.0
+    },
+    {
+      "id": "al_all",
+      "label": "al_all",
+      "params": {
+        "InMax": 1.5,
+        "InMin": 0.3,
+        "OutMax": 1.0,
+        "OutMin": 0.0
+      },
+      "type": "remap",
+      "x": 6400.0,
+      "y": 3440.0
+    },
+    {
+      "id": "al_open",
+      "label": "al_open",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 6550.0,
+      "y": 3440.0
+    },
+    {
+      "id": "al_flat_e1",
+      "label": "al_flat_e1",
+      "params": {
+        "Falloff": 4.0,
+        "MaxDegrees": 8.0,
+        "MinDegrees": 0.0
+      },
+      "type": "mask_slope",
+      "x": 6400.0,
+      "y": 3520.0
+    },
+    {
+      "id": "al_keep_forest",
+      "label": "al_keep_forest",
+      "params": {
+        "InMax": 1.0,
+        "InMin": 0.0,
+        "OutMax": 0.3,
+        "OutMin": 1.0
+      },
+      "type": "remap",
+      "x": 6700.0,
+      "y": 3440.0
+    },
+    {
+      "id": "al_forest",
+      "label": "al_forest",
+      "params": {
+        "Mode": 2.0
+      },
+      "type": "combine",
+      "x": 6850.0,
+      "y": 3440.0
     }
   ],
   "version": 2

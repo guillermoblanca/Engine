@@ -1,5 +1,6 @@
-"""Writes highland_valley_showcase.json from highland_valley_look.json: E4's talus after E2, the settlement nodes after E1 and the layers on
-the graded ground (GRAFO_TERRENO §15). Standard library only.
+"""Writes highland_valley_showcase.json from highland_valley_look.json: E4's talus and E3's deposit after E2, the settlement nodes after E1
+and the layers on the graded ground, with the alluvium in the gravel, the wet grass and the meadows (GRAFO_TERRENO §15). Standard library
+only.
     python -I tools/make_showcase.py assets/data/terrain_graphs/highland_valley_look.json assets/data/terrain_graphs/highland_valley_showcase.json
 """
 import json
@@ -8,7 +9,7 @@ import sys
 src, dst = sys.argv[1], sys.argv[2]
 g = json.load(open(src, encoding="utf-8"))
 g["id"] = "highland_valley_showcase"
-g["name"] = "Highland valley showcase: E2, talus, E1, settlements, material layers and trees (TERRENO_V5)"
+g["name"] = "Highland valley showcase: E2, talus, deposit, E1, settlements, material layers and trees (TERRENO_V5)"
 nodes = {n["id"]: n for n in g["nodes"]}
 edges = g["edges"]
 
@@ -42,6 +43,16 @@ for e in edges:
     if e["from"] == "e2_fluvial" and e["fromPort"] == "height":
         e["from"] = "e4_talus"
 edge("e2_fluvial", "height", "e4_talus", "height")
+
+# 1b. E3: the deposit right after the talus (as highland_valley_e3.json), before the valley, the lakes and the river of E1 see the ground; the
+# talus' masks (cliff, scree, hardness) still come from the talus
+node("e3_deposit", "deposit", {"Fill": 0.3, "FillRadius": 50, "FanArea": 20000, "FanAngle": 5, "FanApexAngle": 8, "FanReach": 60,
+                               "FanDepth": 1, "Revision": 1}, x=1650, y=420)
+for e in edges:
+    if e["from"] == "e4_talus" and e["fromPort"] == "height":
+        e["from"] = "e3_deposit"
+edge("e4_talus", "height", "e3_deposit", "height")
+edge("e4_talus", "hardness", "e3_deposit", "hardness")
 
 # 2. the settlements on the final ground of E1 (as highland_valley_settle.json); path_grade's sites are route_network's (the reach filter)
 node("settle_sites", "settlement_sites", x=5200, y=2600)
@@ -118,6 +129,64 @@ node("look_wet_bare", "combine", {"Mode": 4}, x=6700, y=2500)
 edge("look_wet", "gravel", "look_wet_bare", "a")
 edge("look_wet", "mud", "look_wet_bare", "b")
 edge("look_wet_bare", "out", "look_trees", "exclude")
+
+# 4. what E3 laid down shows (TERRENO_V5 sec. 17, GRAFO_TERRENO sec. 15.7). The deposit's `alluvium` and `fan` are metres laid down:
+#  - gravel on the fans: full where the fan is thick (its apex, where the channel leaves the mountain) and along the channels that cross it;
+#    layer_wet's `alluvium` port takes it (0..1, kept to gentle ground);
+#  - wet grass on the fine fill of the valley floors (the fill without the fan, where the final ground is flat);
+#  - meadow rather than dense forest on the flat alluvium: the forest suitability the biomes read is lowered there (the settlements keep
+#    forest_ok, the forest they look for around them).
+node("al_apex", "remap", {"InMin": 3, "InMax": 7, "OutMin": 0, "OutMax": 1}, x=6400, y=3000)
+edge("e3_deposit", "fan", "al_apex", "in")
+node("al_on_fan", "remap", {"InMin": 0.1, "InMax": 0.5, "OutMin": 0, "OutMax": 1}, x=6400, y=3080)
+edge("e3_deposit", "fan", "al_on_fan", "in")
+node("al_channel", "remap", {"InMin": 30000, "InMax": 100000, "OutMin": 0, "OutMax": 1}, x=6400, y=3160)
+edge("e2_fluvial", "area", "al_channel", "in")
+node("al_fan_channel", "combine", {"Mode": 2}, x=6550, y=3120)
+edge("al_channel", "out", "al_fan_channel", "a")
+edge("al_on_fan", "out", "al_fan_channel", "b")
+node("al_gravel", "combine", {"Mode": 4}, x=6700, y=3060)
+edge("al_apex", "out", "al_gravel", "a")
+edge("al_fan_channel", "out", "al_gravel", "b")
+edge("al_gravel", "out", "look_wet", "alluvium")
+# the fine fill: the alluvium that is not fan, thick enough, on flat final ground, off the fans
+node("al_fill_m", "combine", {"Mode": 1}, x=6400, y=3260)
+edge("e3_deposit", "alluvium", "al_fill_m", "a")
+edge("e3_deposit", "fan", "al_fill_m", "b")
+node("al_fill", "remap", {"InMin": 0.3, "InMax": 1.5, "OutMin": 0, "OutMax": 1}, x=6550, y=3260)
+edge("al_fill_m", "out", "al_fill", "in")
+node("al_flat", "mask_slope", {"MinDegrees": 0, "MaxDegrees": 8, "Falloff": 4}, x=6400, y=3340)
+edge("settle_grade", "height", "al_flat", "height")
+node("al_off_fan", "remap", {"InMin": 0.1, "InMax": 0.5, "OutMin": 1, "OutMax": 0}, x=6550, y=3340)
+edge("e3_deposit", "fan", "al_off_fan", "in")
+node("al_fill_flat", "combine", {"Mode": 2}, x=6700, y=3300)
+edge("al_fill", "out", "al_fill_flat", "a")
+edge("al_flat", "mask", "al_fill_flat", "b")
+node("al_floor", "combine", {"Mode": 2, "WeightB": 1}, x=6850, y=3300)
+edge("al_fill_flat", "out", "al_floor", "a")
+edge("al_off_fan", "out", "al_floor", "b")
+node("al_grass_wet", "combine", {"Mode": 4, "WeightB": 0.85}, x=7000, y=3300)
+[gw] = into("look_layers", "grass_wet")
+edge(gw["from"], gw["fromPort"], "al_grass_wet", "a")
+drop(lambda e: e["to"] == "look_layers" and e["port"] == "grass_wet")
+edge("al_floor", "out", "al_grass_wet", "b")
+edge("al_grass_wet", "out", "look_layers", "grass_wet")
+# meadow on the flat alluvium (fill or fan): the biomes' forest suitability times 1 - 0.7 * that
+node("al_all", "remap", {"InMin": 0.3, "InMax": 1.5, "OutMin": 0, "OutMax": 1}, x=6400, y=3440)
+edge("e3_deposit", "alluvium", "al_all", "in")
+node("al_open", "combine", {"Mode": 2}, x=6550, y=3440)
+edge("al_all", "out", "al_open", "a")
+edge("al_flat_e1", "mask", "al_open", "b")
+node("al_flat_e1", "mask_slope", {"MinDegrees": 0, "MaxDegrees": 8, "Falloff": 4}, x=6400, y=3520)
+edge("e1_lakes", "height", "al_flat_e1", "height")
+node("al_keep_forest", "remap", {"InMin": 0, "InMax": 1, "OutMin": 1, "OutMax": 0.3}, x=6700, y=3440)
+edge("al_open", "out", "al_keep_forest", "in")
+node("al_forest", "combine", {"Mode": 2}, x=6850, y=3440)
+[fo] = into("biomes", "forest")
+edge(fo["from"], fo["fromPort"], "al_forest", "a")
+drop(lambda e: e["to"] == "biomes" and e["port"] == "forest")
+edge("al_keep_forest", "out", "al_forest", "b")
+edge("al_forest", "out", "biomes", "forest")
 
 with open(dst, "w", encoding="utf-8", newline="\n") as f:
     json.dump(g, f, indent=2, sort_keys=True)
