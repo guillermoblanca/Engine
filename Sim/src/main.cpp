@@ -3,7 +3,8 @@
 //   GBSim --seed=7 --years=2 --stop=clan_dead --stop=stagnant:6 --clans=3 ...   (a year of age is 4 simulated days; --days=N instead of --years=N)
 //   GBSim --seed=7 --days=30 --clans=3 --members=6 --biome=temperate --telemetry=run.db [--every=60] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text] [--pack=id] [--know=tech,tech]
 //   GBSim --graph=assets/data/terrain_graphs/highland_valley_settle.json --seed=5 --days=3 --clans=3 --members=6 ...   (T118: a world made by a terrain graph,
-//         3000 m and 1025 samples with 40000 trees and 900 rocks unless --size, --resolution, --trees, --rocks say otherwise: the editor's valley)
+//         3000 m and 1025 samples with 40000 trees and 900 rocks unless --size, --resolution, --trees, --rocks say otherwise: the editor's valley;
+//         and as the editor's `village` there, a patch of resources by each starting camp and no wild nodes: --no-patches keeps the wild nodes)
 //
 // Writes one SQLite file with the telemetry of the run. Ctrl+C stops it cleanly: the file is closed and passes the integrity check.
 #include "GB/Game/GameContent.h"
@@ -128,7 +129,7 @@ int main(int argc, char** argv)
 	double days = 3.0, every = 60.0, years = 0.0, stagnantDays = 0.0;
 	bool stopClanDead = false, stopExtinct = false;
 	int clans = 1, members = 4;
-	bool combat = false, hostile = false, content = true, forests = false, report = false;
+	bool combat = false, hostile = false, content = true, forests = false, report = false, patches = true;
 	std::string biome = "temperate", path, profile, note, pack, graph;
 	float size = 0.0f;
 	int resolution = 0, trees = -1, rocks = -1;
@@ -161,6 +162,7 @@ int main(int argc, char** argv)
 		else if (Arg(argv[i], "--rocks", v)) rocks = std::atoi(v.c_str());
 		else if (Arg(argv[i], "--pack", v)) pack = v;   // V5: the content pack to play (default the game's, GamePack(); "era2" adds the Bronze Age)
 		else if (!std::strcmp(argv[i], "--forest")) forests = true;
+		else if (!std::strcmp(argv[i], "--no-patches")) patches = false;   // T118: a graph's world with the wild nodes instead of a patch by each camp
 		else if (!std::strcmp(argv[i], "--report")) report = true;   // at the end, each clan's settlement, fields, economy and goals
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
 		else if (!std::strcmp(argv[i], "--no-content")) content = false;   // the bare engine: no buildings, no technologies (the old runs)
@@ -248,6 +250,7 @@ int main(int argc, char** argv)
 	}
 	if (forests && era) setup.Nature = &era->Nature;   // --forest: the patches of bosques.json (docs/BOSQUES.md); the game's pack already has the forest nodes
 	setup.Members = members * clans;
+	setup.CampPatches = !graph.empty() && patches && era;   // T118 (the patches need the content's node definitions)
 	setup.Clans = clans;
 	setup.Combat = combat;
 	setup.HostileClans = hostile;

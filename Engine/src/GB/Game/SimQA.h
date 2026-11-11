@@ -255,6 +255,9 @@ namespace GB
 		std::vector<std::pair<std::string, std::string>> Roster;   // name, role (empty: Members members named by the data, trades from Tribe::PlanRoles as `tribe build`)
 		float ResourceDensity = 1.0f;             // of the wild nodes PlanWorldResources spreads (when there is no Scene)
 		const NatureConfig* Nature = nullptr;     // forests, stony ground and flower beds on top of them (PlanWorldNature, which then takes its density from Nature->Abundance); null = none
+		// T118: no wild nodes but a patch of resources by each starting camp (the first and the terrain graph's next sites), as the editor's `village`
+		// founds the clans of a world of kilometres; GBSim sets it for a world of a terrain graph (--graph). False: the wild nodes, as before.
+		bool CampPatches = false;
 		bool Abstract = false;                    // the viewer far away: every member is an abstract agent (H6 level of detail)
 		float Step = 0.1f;                        // seconds per simulation step
 		int CheckEvery = 1;                       // run the invariants every this many steps (the metrics are sampled at every one)

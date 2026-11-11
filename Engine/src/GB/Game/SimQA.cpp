@@ -881,6 +881,24 @@ namespace GB
 			m_Entities = *setup.Scene;
 			if (const EntityId fire = m_Entities.FindByName("Campfire"); fire != NullEntity) m_Entities.Destroy(fire);   // the new tribe lights its own
 		}
+		else if (setup.CampPatches)
+		{
+			// T118: as the editor's `village` on a world of kilometres (EditorApp::VillageCommand): no wild nodes, a patch of resources 34 m east and 20 m
+			// south of each starting camp, for its members (`resources build`). The camps beyond the first are the graph's next sites (the ones
+			// ChooseHome gives them below); a clan beyond the sites gets none. Before the systems are loaded: the resource system binds the nodes then.
+			const int clans = std::max(1, setup.Clans);
+			std::vector<glm::vec2> camps{ camp };
+			for (const glm::vec2& at : GraphStartCamps(world.Settlements, clans - 1, { camp }, setup.ClanApart)) camps.push_back(at);
+			const Terrain* terrain = world.TerrainRef;
+			for (size_t i = 0; i < camps.size(); ++i)
+			{
+				const int workers = i == 0 ? std::max(1, setup.Members / clans + setup.Members % clans) : std::max(1, setup.Members / clans);
+				const glm::vec2 at = camps[i] + glm::vec2(34.0f, 20.0f);
+				const ResourceLayout layout = BuildResourcePatch(m_Entities, { at.x, terrain->GetHeight(at.x, at.y), at.y }, m_Defs, workers);
+				SnapToGround(m_Entities, layout, [terrain](float x, float z) { return terrain->GetHeight(x, z); });
+				if (const EntityId root = m_Entities.FindByName(layout.Root); root != NullEntity) m_Entities.Rename(root, "Village resources " + std::to_string(i + 1));   // (the next patch replaces "Resources")
+			}
+		}
 		else
 		{
 			m_Spots = setup.Nature ? PlanWorldNature(ResourceGroundOf(world), m_Defs, *setup.Nature, world.Desc.Seed)
