@@ -89,10 +89,8 @@
 - **Arquitectura (prioritario, ver «Revisión de arquitectura»)**: revisión del 2026-11-03 en `../documentation/02_tecnico/arquitectura/ARQUITECTURA_REVISION.md` (dos ciclos de módulos,
   datos con recursos de GPU, `GB` enlaza glad/glfw PUBLIC; plan por pasos y la vía para backends Vulkan/D3D). Sin código aún: empezar por el paso 1
   (`GB/Scene/`) y responder las preguntas de §8.
-- **IA de las tribus** (2026-11-04): evaluación medida en `../documentation/04_produccion/qa/REVISION_IA_TRIBUS.md`. Primero F1 (los pozos de los clanes extra de `SimQA.cpp`
-  no tienen sistema de gameplay: invalida los barridos con varios clanes) y F3 (no hay forma de buscar agua; la sed no entra en Maslow). Luego F2
-  (la exploración busca tipos de nodo que no existen), F4 (las obras esperan materiales durante días) y F5 (casi no se experimenta). El `GBSim`
-  Release del 2026-11-04 se cae al arrancar: las medidas se hicieron con el Debug del 11-02.
+- **IA de las tribus**: los fallos medidos F1–F7 y su estado (2026-11-12) están en `../documentation/04_produccion/qa/QA_SIMULACION.md`
+  («Fallos medidos de la IA de los clanes»). F1, F6 y F7 hechos; F3 programada sin medir (T3); F2 a medias; F4 y F5 sin medir (D2).
 - **Murallas en spline con puertas por clan y área reclamada**: diseño en `../documentation/01_diseno/MURALLAS.md` (decidido: trazado por IA y a mano; el área da defensa
   solo dentro, robo agravado, suelo de territorio y subáreas por uso; las puertas abren al clan y a los aliados y cierran en incursión). Sin código:
   empezar por la fase M1 (§12).

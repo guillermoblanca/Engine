@@ -85,7 +85,7 @@ namespace GB
 	{
 		int MaxSites = 3;
 		int MembersPerSite = 4;                  // 0: always MaxSites
-		// A phase that waits for materials is worth more with time (F4 of REVISION_IA_TRIBUS: shelters waited days for reeds or one stone): the
+		// A phase that waits for materials is worth more with time (F4 in documentation/04_produccion/qa/QA_SIMULACION.md: shelters waited days for reeds or one stone): the
 		// options that carry to it, work it and gather for it are multiplied by 1 + min(AgeMax, waiting / AgeSeconds)
 		float AgeSeconds = 300.0f;
 		float AgeMax = 2.0f;

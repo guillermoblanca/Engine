@@ -68,7 +68,7 @@ namespace GB
 		// (Older scenes carry these regrowth effects; new nodes regrow through ResourceSystem::Update, which a season can slow down.)
 		// Montages (checked frame by frame in the editor): a tool swing for the tree and the rock (the "tool" prop in the hand), the arm at the
 		// height of a bush for berries and a bend down for the tufts. They are stand-ins until the artist makes chopping, mining and gathering
-		// clips of their own (docs/ANIMACIONES_PENDIENTES.md).
+		// clips of their own (documentation/02_tecnico/animacion/ANIMACIONES_USO.md).
 		AbilityDef chop = GatherAbility("Chop", "sword_slash_1", "chop", "Resource.Wood", "Item.Tool.Axe");
 		chop.Montages = { "sword_slash_1", "sword_slash_3" };   // two swings in turn
 		chop.EquipProp = "tool";

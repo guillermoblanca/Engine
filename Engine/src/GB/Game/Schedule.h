@@ -1,6 +1,6 @@
 #pragma once
 // The hours of the day (H6): which part of the day it is for someone, and what the agenda makes of an option then. Apart from the Tribe so that the
-// whole timetable (work blocks, shifts, school and rest of the children, F5 of docs/PLAN_JUGABILIDAD.md) grows here and is tested alone: it takes the
+// whole timetable (work blocks, shifts, school and rest of the children, backlog T152) grows here and is tested alone: it takes the
 // shape of the day (DayShape) and the factors by value or pointer, and knows nothing of members, jobs or the scene.
 #include "GB/Gameplay/Ecology.h"
 #include <map>

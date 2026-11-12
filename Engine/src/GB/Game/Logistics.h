@@ -1,8 +1,8 @@
 #pragma once
 // Who goes where to fetch what (the first piece of the logistics apart from the Tribe): the claims on the nodes. A member that sets out to a node (or to
 // the campfire) claims it so that two never walk to the same one; the claim goes when the job ends, the member leaves or is taken from the tribe.
-// Header only and free of the Tribe, so the hauler role (F3 of docs/PLAN_JUGABILIDAD.md) can claim stockpiles and sites with the same rule.
-// The demands for materials and the deposits (TribeEconomy.cpp) stay in the Tribe for now: they read its store, board and bags (see PLAN_JUGABILIDAD.md, section 6).
+// Header only and free of the Tribe, so the hauler role (backlog D19) can claim stockpiles and sites with the same rule.
+// The demands for materials and the deposits (TribeEconomy.cpp) stay in the Tribe for now: they read its store, board and bags (the split is backlog T10).
 #include <map>
 #include <string>
 

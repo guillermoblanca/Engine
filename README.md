@@ -96,7 +96,7 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 
 - **`master`** es lo único que se considera estable: compila con avisos como errores y pasa `ctest`. Todo lo demás es trabajo en curso.
 - **`integracion/novedades`** es la rama de trabajo actual: progresión, vida social, telemetría, GBSim y laboratorio. Se fusiona a `master` cuando la suite está en verde.
-- Los documentos de `../documentation/` describen sistemas; el estado de la planificación vigente está en [../documentation/01_diseno/PLAN_JUGABILIDAD.md](../documentation/01_diseno/PLAN_JUGABILIDAD.md). Si un documento y el código discrepan, manda el código y el documento es un fallo a corregir.
+- Los documentos de `../documentation/` describen sistemas; el estado de la planificación vigente está en [../documentation/04_produccion/estado/SUBSISTEMAS.md](../documentation/04_produccion/estado/SUBSISTEMAS.md) y [BACKLOG.md](../documentation/04_produccion/estado/BACKLOG.md). Si un documento y el código discrepan, manda el código y el documento es un fallo a corregir.
 - Las carpetas de `build*`, `lab_runs/`, `anim_check/` y capturas son salidas locales y no se versionan.
 - Una rama o *worktree* no listado aquí es de otra persona o sesión: no lo borres sin preguntar.
 
@@ -106,10 +106,8 @@ Opciones habituales del Sandbox: `--scene=<nombre>`, `--frames=N`, `--screenshot
 |---|---|
 | Render, luz, cielo, reflejos, postproceso y demo | [../documentation/02_tecnico/motor/render.md](../documentation/02_tecnico/motor/render.md) |
 | glTF, FBX, animación y cámaras | [../documentation/02_tecnico/animacion/modelos-y-animacion.md](../documentation/02_tecnico/animacion/modelos-y-animacion.md) |
-| Locomoción: estudio del pack Mixamo | [../documentation/02_tecnico/animacion/ANIMACION_LOCOMOCION.md](../documentation/02_tecnico/animacion/ANIMACION_LOCOMOCION.md) |
-| Arquitectura del sistema de animación completo (investigación) | [../documentation/02_tecnico/animacion/ANIMACION_SISTEMA_COMPLETO.md](../documentation/02_tecnico/animacion/ANIMACION_SISTEMA_COMPLETO.md) |
 | Habilidades de juego tipo GAS y escenario del huerto (`garden build`, `ability ...`) | [../documentation/02_tecnico/gameplay/habilidades.md](../documentation/02_tecnico/gameplay/habilidades.md) |
-| Animaciones que faltan en los packs y qué se usa mientras tanto | [../documentation/02_tecnico/animacion/ANIMACIONES_PENDIENTES.md](../documentation/02_tecnico/animacion/ANIMACIONES_PENDIENTES.md) |
+| Animaciones que faltan en los packs y qué se usa mientras tanto | [../documentation/02_tecnico/animacion/ANIMACIONES_USO.md](../documentation/02_tecnico/animacion/ANIMACIONES_USO.md#lista-para-el-artista) |
 | Qué clip hace cada habilidad y cada trabajo de la tribu (datos del manifiesto), clips sin usar y lista para el artista | [../documentation/02_tecnico/animacion/ANIMACIONES_USO.md](../documentation/02_tecnico/animacion/ANIMACIONES_USO.md) |
 | Capa visual por datos: nodos que cambian con su cantidad, props en las manos, edificios por fases, texturas procedurales, zorro y conejo (`visuals`, `building`) | [../documentation/02_tecnico/gameplay/VISUALES.md](../documentation/02_tecnico/gameplay/VISUALES.md) |
 | Partidas guardadas, migraciones, guardado diferencial y repeticiones (`save`, `load`, `replay`) | [../documentation/02_tecnico/motor/GUARDADO.md](../documentation/02_tecnico/motor/GUARDADO.md) |

@@ -42,16 +42,12 @@ def find_doc(name):
 DOC_LIST = [
     ('GDD.md', 'GDD'),
     ('VISION_MUNDO_VIVO.md', 'GDD'),
-    ('PLAN_GAMEPLAY.md', 'GDD'),
     ('JUGAR.md', 'Jugar'),
     ('PLAN_SOCIEDAD_VIVA.md', 'Plan'),
     ('PROPUESTA_HABILIDADES_Y_ECONOMIA.md', 'Plan'),
-    ('PLAN_IA_ENTRENABLE.md', 'Plan'),
-    ('PLAN_JUGABILIDAD.md', 'Plan'),
     ('ESTUDIO_ERA1.md', 'Plan'),
     ('INFORME_CALIDAD.md', 'Plan'),
     ('PLAN_SIMULACION_NATURAL.md', 'Plan'),
-    ('REVISION_IA_TRIBUS.md', 'Plan'),
     ('FEEDBACK.md', 'Plan'),
     ('SUBSISTEMAS.md', 'Producción'),
     ('DEPENDENCIAS.md', 'Producción'),
@@ -87,10 +83,6 @@ DOC_LIST = [
     ('EDITOR_ANIMACIONES.md', 'Animación'),
     ('habilidades.md', 'Sistemas'),
     ('COSTE_ACTOR.md', 'Sistemas'),
-    ('ANIMACIONES_PENDIENTES.md', 'Animación'),
-    ('ANIMACION_LOCOMOCION.md', 'Animación'),
-    ('ANIMACION_SISTEMA_COMPLETO.md', 'Animación'),
-    ('AUDITORIA_ANIMACION.md', 'Animación'),
     ('modelos-y-animacion.md', 'Animación'),
     ('editor.md', 'Motor'),
     ('render.md', 'Motor'),
@@ -104,10 +96,7 @@ DOC_LIST = [
     ('MURALLAS.md', 'Motor'),
     ('ARQUITECTURA_REVISION.md', 'Arquitectura'),
     ('CICLO_VIDA_ACTOR_ASSET.md', 'Arquitectura'),
-    ('unity-renderer-study.md', 'Arquitectura'),
     ('EDITORGAMEPLAY_REFACTOR.md', 'Editor'),
-    ('REFACTOR_EDITOR.md', 'Editor'),
-    ('TAREAS_EDITOR.md', 'Editor'),
 ]
 
 e = html.escape

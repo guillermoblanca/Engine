@@ -4,7 +4,7 @@
 // from a SitePlacement. Neither knows the Tribe, so both run (and are tested) alone; Tribe keeps BuildingNeeds / PlanSettlement as the facade.
 //
 // Made to grow into "several works at once with a priority": the answer is already a ranked list, and the caller decides how many it starts
-// (SettlementFacts::MaxOpenSites). See docs/PLAN_JUGABILIDAD.md, section 6.
+// (SettlementFacts::MaxOpenSites). Pending: backlog T153 and T10.
 #include "GB/Gameplay/Buildings.h"
 #include <functional>
 #include <glm/glm.hpp>

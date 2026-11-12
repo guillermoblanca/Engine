@@ -1739,7 +1739,7 @@ namespace GB
 					if (starve > want) { want = starve; what = kind; }
 				}
 			}
-			// thirsty and it knows no well: it goes to look for water (F3 of REVISION_IA_TRIBUS: with no well in its memory there was no option
+			// thirsty and it knows no well: it goes to look for water (F3 in documentation/04_produccion/qa/QA_SIMULACION.md: with no well in its memory there was no option
 			// for water at all, and members died of thirst with food in the store)
 			const auto wellSearch = m_Searches.find("well");
 			if (const float dry = Urgency(thirst, 60.0f); dry > 0.0f && !known.count("well") && (wellSearch == m_Searches.end() || wellSearch->second.second <= now))

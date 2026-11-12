@@ -106,7 +106,7 @@ namespace GB
 		lib.AddEffect(Cost("Cost.Dump", { { "Crops", 1.0f } }));
 
 		// abilities. The montage names are those of MixamoMontages(); where the pack has no clip for the action, the closest one is used (see
-		// docs/ANIMACIONES_PENDIENTES.md).
+		// documentation/02_tecnico/animacion/ANIMACIONES_USO.md).
 		AbilityDef dig = Work("Dig", "dig_plant", "dig", 0.6f, "Event.Soil.Dig", 2.5f);
 		dig.TargetRequiredTags = { "State.Soil.Grass" };
 		dig.Cost = "Cost.Dig";

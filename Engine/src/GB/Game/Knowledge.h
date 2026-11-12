@@ -96,7 +96,7 @@ namespace GB
 		// The technology the agent would experiment with now ("" = none): the first by id that it can learn, can be found by trying, it is not waiting
 		// to try again and one of whose recipes has its inputs in `store` and `bag` together. `recipe` gets that recipe.
 		std::string NextExperiment(const std::string& name, double now, const Inventory& store, const Inventory& bag, const RecipeBook& book, std::string* recipe = nullptr) const;
-		// The clan's next steps (F5 of REVISION_IA_TRIBUS: the experiments went to whatever came first by id, trapping, and basketry, which opens the
+		// The clan's next steps (F5 in documentation/04_produccion/qa/QA_SIMULACION.md: the experiments went to whatever came first by id, trapping, and basketry, which opens the
 		// cabin, came on day 4 or never): NextExperiment tries these first, in this order. The tribe sets them (Tribe::UpdateGoals).
 		void SetGoals(std::vector<std::string> goals) { m_Goals = std::move(goals); }
 		const std::vector<std::string>& Goals() const { return m_Goals; }
