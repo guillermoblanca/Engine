@@ -1,5 +1,6 @@
 #include "GB/Visual/VisualDefs.h"
 #include "GB/Visual/ProcTexture.h"
+#include "GB/Log.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -307,14 +308,23 @@ namespace GB
 					VisualMaterial m;
 					if (!ReadVec(j, "color", m.Color) || !ReadVec(j, "emissive", m.Emissive)) return "material '" + id + "': color and emissive are [r, g, b]";
 					m.Texture = j.value("texture", "");
-					if (!m.Texture.empty() && !ProcTexture::Known(m.Texture)) return "material '" + id + "': unknown procedural texture '" + m.Texture + "'";
+					// a texture this build does not know (newer data, older binary) leaves the material flat instead of refusing the whole file
+					if (!m.Texture.empty() && !ProcTexture::Known(m.Texture))
+					{
+						GB_CORE_WARN("visuals: material '{}' uses the unknown procedural texture '{}': it is drawn with its flat colour", id, m.Texture);
+						m.Texture.clear();
+					}
 					m.UVScale = j.value("uvScale", 1.0f);
 					m.Roughness = j.value("roughness", 0.8f);
 					m.Metallic = j.value("metallic", 0.0f);
 					m.Grain = j.value("grain", 0.0f);
 					m.Wind = j.value("wind", 0.0f);
 					m.WindRoot = j.value("windRoot", m.WindRoot);
-					if (m.WindRoot != "bottom" && m.WindRoot != "top") return "material '" + id + "': unknown windRoot '" + m.WindRoot + "' (bottom, top)";
+					if (m.WindRoot != "bottom" && m.WindRoot != "top")
+					{
+						GB_CORE_WARN("visuals: material '{}' has the unknown windRoot '{}' (bottom, top): it sways from the bottom", id, m.WindRoot);
+						m.WindRoot = "bottom";
+					}
 					m.Seasonal = j.value("seasonal", false);
 					m.SeasonTint = j.value("seasonTint", 0.0f);
 					if (!(m.SeasonTint >= 0.0f && m.SeasonTint <= 1.0f)) return "material '" + id + "': seasonTint is 0..1";

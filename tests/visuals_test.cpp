@@ -223,7 +223,13 @@ int GBTest_visuals(int, char**)
 			VisualLibrary back;
 			Check(LoadVisuals(VisualsToJson(l), back).empty() && back == l, "windRoot and seasonTint go through JSON and back");
 			VisualLibrary copy = l;
-			Check(!LoadVisuals(R"({ "visuals": { "materials": { "x": { "windRoot": "middle" } } } })", copy).empty() && copy == l, "an unknown windRoot is refused");
+			// names this build does not know (newer data on an older binary) degrade the one material, never the whole file
+			Check(LoadVisuals(R"({ "visuals": { "materials": { "x": { "windRoot": "middle" } } } })", copy).empty() && copy.Materials.at("x").WindRoot == "bottom",
+				"an unknown windRoot falls back to bottom");
+			copy = l;
+			Check(LoadVisuals(R"({ "visuals": { "materials": { "y": { "texture": "from_the_future" } } } })", copy).empty() && copy.Materials.at("y").Texture.empty()
+				&& copy.Materials.count("thatch") == 1, "an unknown procedural texture leaves the material flat and the rest loaded");
+			copy = l;
 			Check(!LoadVisuals(R"({ "visuals": { "materials": { "x": { "seasonTint": 1.5 } } } })", copy).empty() && copy == l, "a seasonTint out of 0..1 is refused");
 
 			// the names: Blender's duplicate suffix goes, anything else stays
