@@ -649,18 +649,20 @@
         ]
       },
       "granary": {
-        "footprint": [2.8, 2.8], "note": "a granary on stilts with stone caps against the mice, wattle walls and a thatched cone",
+        "footprint": [2.8, 2.8], "note": "a granary on stilts with stone caps against the mice, a woven wicker drum with a hide hatch and a two-tier thatched cone. Modelled in Blender (art-book/models/src/era1_building_granary.py), two pieces per phase, shown in order",
         "phases": [
           { "name": "stilts", "parts": [
-            { "name": "Stilt", "shape": "cylinder", "size": [0.16, 1.0, 0.14], "material": "bark", "sides": 7, "count": 6, "radius": 1.05 },
-            { "name": "Cap", "shape": "cylinder", "pos": [0, 1.0, 0], "size": [0.4, 0.08, 0.34], "material": "stone_dark", "sides": 10, "count": 6, "radius": 1.05 } ] },
+            { "name": "Stilt", "shape": "model", "model": "models/era1/granary/granary_stilts.gltf" },
+            { "name": "Cap", "shape": "model", "model": "models/era1/granary/granary_caps.gltf" } ] },
           { "name": "floor", "parts": [
-            { "name": "Floor", "shape": "cylinder", "pos": [0, 1.08, 0], "size": [2.5, 0.1, 2.5], "material": "planks", "sides": 14 },
-            { "name": "Ladder", "shape": "box", "pos": [0, 0.55, 1.45], "rot": [20, 0, 0], "size": [0.4, 1.2, 0.06], "material": "bark_pale" } ] },
+            { "name": "Floor", "shape": "model", "model": "models/era1/granary/granary_floor.gltf" },
+            { "name": "Ladder", "shape": "model", "model": "models/era1/granary/granary_ladder.gltf" } ] },
           { "name": "walls", "parts": [
-            { "name": "Wall", "shape": "cylinder", "pos": [0, 1.18, 0], "size": [2.2, 1.2, 2.3], "material": "wicker", "sides": 14 } ] },
+            { "name": "Wall", "shape": "model", "model": "models/era1/granary/granary_wall.gltf" },
+            { "name": "Hatch Frame", "shape": "model", "model": "models/era1/granary/granary_hatch.gltf" } ] },
           { "name": "roof", "parts": [
-            { "name": "Thatch", "shape": "cylinder", "pos": [0, 2.3, 0], "size": [2.9, 1.3, 0.15], "material": "thatch", "sides": 14 } ] }
+            { "name": "Thatch", "shape": "model", "model": "models/era1/granary/granary_thatch.gltf" },
+            { "name": "Tuft", "shape": "model", "model": "models/era1/granary/granary_tuft.gltf" } ] }
         ]
       },
       "hearth": {
