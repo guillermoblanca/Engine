@@ -700,17 +700,17 @@
         ]
       },
       "healer_hut": {
-        "footprint": [2.6, 2.6], "note": "a small reed hut with bundles of herbs hung at the door and a bench of remedies",
+        "footprint": [2.6, 2.6], "note": "a small reed hut: a pale sage drum of reeds tied with three cords, a short tied top from which seven poles stick out, bundles of herbs hung at the door and a bench with gourds and a grinding bowl. Modelled in Blender (art-book/models/src/era1_building_healer_hut.py), two pieces per phase, shown in order",
         "phases": [
           { "name": "frame", "parts": [
-            { "name": "Pole", "shape": "cylinder", "rot": [0, 0, 30], "size": [0.08, 2.2, 0.05], "material": "bark_pale", "sides": 6, "count": 7, "radius": 1.1 },
-            { "name": "Floor", "shape": "blob", "size": [1.15, 0.03, 1.15], "material": "mud", "detail": 2, "rough": 0.1, "flat": -0.2 } ] },
+            { "name": "Floor", "shape": "model", "model": "models/era1/healer_hut/healer_hut_floor.gltf" },
+            { "name": "Pole", "shape": "model", "model": "models/era1/healer_hut/healer_hut_poles.gltf" } ] },
           { "name": "walls", "parts": [
-            { "name": "Reeds", "shape": "cylinder", "pos": [0, 0, 0], "size": [2.4, 2.0, 0.3], "material": "thatch", "sides": 12 },
-            { "name": "Herbs", "shape": "blob", "pos": [0, 1.3, 0], "size": [0.08, 0.16, 0.08], "material": "leaves_young", "count": 5, "radius": 1.25, "arc": 70, "detail": 1, "rough": 0.4 } ] },
+            { "name": "Reeds", "shape": "model", "model": "models/era1/healer_hut/healer_hut_reeds.gltf" },
+            { "name": "Herbs", "shape": "model", "model": "models/era1/healer_hut/healer_hut_herbs.gltf" } ] },
           { "name": "remedies", "parts": [
-            { "name": "Bench", "shape": "box", "pos": [0.9, 0.35, 1.25], "size": [0.9, 0.08, 0.4], "material": "planks" },
-            { "name": "Pot", "shape": "cylinder", "pos": [0.6, 0.39, 1.25], "size": [0.14, 0.14, 0.11], "material": "wood_cut", "sides": 10, "count": 3, "layout": "row", "spacing": 0.28 } ] }
+            { "name": "Bench", "shape": "model", "model": "models/era1/healer_hut/healer_hut_bench.gltf" },
+            { "name": "Bowl", "shape": "model", "model": "models/era1/healer_hut/healer_hut_remedies.gltf" } ] }
         ]
       },
       "totem": {
