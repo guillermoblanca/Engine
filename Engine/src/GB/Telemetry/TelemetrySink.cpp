@@ -8,7 +8,7 @@ namespace GB
 {
 	namespace
 	{
-		enum Table { kIndividuals = 0, kSamples, kClanSamples, kEvents, kTasks, kDecisions, kRelations, kClanRelations, kClanDays, kWorldNodes, kTableCount };
+		enum Table { kIndividuals = 0, kSamples, kClanSamples, kEvents, kTasks, kDecisions, kRelations, kClanRelations, kClanDays, kWorldNodes, kSocietyDays, kTableCount };
 
 		struct Column { const char* Name; const char* Type; };
 		struct TableSpec { const char* Name; std::vector<Column> Columns; };
@@ -33,6 +33,12 @@ namespace GB
 						{ "marriages", "INTEGER" }, { "pacts", "INTEGER" } } },
 					{ "clan_days", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "day", "INTEGER" }, { "members", "INTEGER" }, { "buildings", "INTEGER" }, { "techs", "TEXT" }, { "beliefs", "TEXT" }, { "rites", "TEXT" }, { "mood", "REAL" } } },
 					{ "world_nodes", { { "t", "REAL" }, { "kind", "TEXT" }, { "count", "INTEGER" }, { "empty", "INTEGER" }, { "amount", "REAL" } } },
+					// T204 (schema 5): a table of its own, so a file of schema 4 still takes new runs (its clan_days keeps its columns)
+					{ "society_days", { { "clan_id", "INTEGER" }, { "t", "REAL" }, { "day", "INTEGER" }, { "alive", "INTEGER" }, { "qol", "REAL" }, { "needs", "REAL" }, { "shelter", "REAL" },
+						{ "food", "REAL" }, { "tools", "REAL" }, { "health", "REAL" }, { "longevity", "REAL" }, { "life_techs", "REAL" }, { "generations", "INTEGER" }, { "lineages", "INTEGER" },
+						{ "trail_cells", "INTEGER" }, { "path_cells", "INTEGER" }, { "splits", "INTEGER" }, { "splits_world", "INTEGER" }, { "trades", "INTEGER" }, { "trades_in", "INTEGER" },
+						{ "trades_out", "INTEGER" }, { "gifts", "INTEGER" }, { "roles", "INTEGER" }, { "skill_entropy", "REAL" }, { "techs", "INTEGER" }, { "inventors", "INTEGER" },
+						{ "births", "INTEGER" }, { "deaths", "INTEGER" } } },
 			};
 			return specs;
 		}
@@ -96,7 +102,7 @@ namespace GB
 		if (sqlite3_exec(db->Handle, schema.c_str(), nullptr, nullptr, nullptr) != SQLITE_OK) return fail("schema");
 		{
 			sqlite3_stmt* s = nullptr;
-			if (sqlite3_prepare_v2(db->Handle, "INSERT INTO runs (schema_version, started, seed, commit_hash, profile, note, closed) VALUES (4, ?, ?, ?, ?, ?, 0)", -1, &s, nullptr) != SQLITE_OK) return fail("run");
+			if (sqlite3_prepare_v2(db->Handle, "INSERT INTO runs (schema_version, started, seed, commit_hash, profile, note, closed) VALUES (5, ?, ?, ?, ?, ?, 0)", -1, &s, nullptr) != SQLITE_OK) return fail("run");
 			const std::string now = Now();
 			sqlite3_bind_text(s, 1, now.c_str(), -1, SQLITE_TRANSIENT);
 			sqlite3_bind_int64(s, 2, info.Seed);
@@ -245,6 +251,14 @@ namespace GB
 	{
 		if (!m_Active.load()) return;
 		Push({ kWorldNodes, { V(r.Time), V(r.Kind), V(r.Count), V(r.Empty), V(r.Amount) } }, false);
+	}
+
+	void TelemetrySink::SocietyDay(const TelemetrySocietyDay& r)
+	{
+		if (!m_Active.load()) return;
+		Push({ kSocietyDays, { V(r.Clan), V(r.Time), V(r.Day), V(r.Alive), V(r.Qol), V(r.Needs), V(r.Shelter), V(r.Food), V(r.Tools), V(r.Health), V(r.Longevity), V(r.LifeTechs),
+			V(r.Generations), V(r.Lineages), V(r.TrailCells), V(r.PathCells), V(r.Splits), V(r.SplitsWorld), V(r.Trades), V(r.TradesIn), V(r.TradesOut), V(r.Gifts), V(r.Roles),
+			V(r.SkillEntropy), V(r.Techs), V(r.Inventors), V(r.Births), V(r.Deaths) } }, false);
 	}
 
 	void TelemetrySink::Run()

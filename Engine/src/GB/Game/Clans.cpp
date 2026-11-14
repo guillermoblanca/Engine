@@ -1289,6 +1289,7 @@ namespace GB
 	void ClanWorld::Day()
 	{
 		++m_Days;
+		if (m_Telemetry) WriteSocietyDays(*this, *m_Telemetry, m_Time, m_Days);   // T204: only reads (GB/Game/SocietyMetrics.h)
 		if (m_Telemetry)
 			for (const auto& [key, r] : m_Relations)
 			{

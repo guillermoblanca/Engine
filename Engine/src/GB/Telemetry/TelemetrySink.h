@@ -117,6 +117,19 @@ namespace GB
 		double Mood = 0.0;
 	};
 
+	// T204: how a clan's society stands, once a day (GB/Game/SocietyMetrics.h): its quality of life and the parts of it (-1: cannot be told yet),
+	// generations, lineages, worn paths, splits, barters, trades, technologies and inventors. Schema 5.
+	struct TelemetrySocietyDay
+	{
+		int Clan = 0;
+		double Time = 0.0;
+		int Day = 0, Alive = 0;
+		double Qol = 0.0, Needs = -1.0, Shelter = -1.0, Food = -1.0, Tools = -1.0, Health = -1.0, Longevity = -1.0, LifeTechs = -1.0;
+		int Generations = 0, Lineages = 0, TrailCells = 0, PathCells = 0, Splits = 0, SplitsWorld = 0, Trades = 0, TradesIn = 0, TradesOut = 0, Gifts = 0, Roles = 0;
+		double SkillEntropy = 0.0;
+		int Techs = 0, Inventors = 0, Births = 0, Deaths = 0;
+	};
+
 	// The flora and resources of the world by kind (at the start, and then each day): how many nodes, what is left in them and how many are empty.
 	struct TelemetryWorldNodes
 	{
@@ -163,6 +176,7 @@ namespace GB
 		void WorldNodes(const TelemetryWorldNodes& row);
 		void ClanRelation(const TelemetryClanRelation& row);
 		void Decision(const TelemetryDecision& row);
+		void SocietyDay(const TelemetrySocietyDay& row);   // T204
 
 	private:
 		struct Item

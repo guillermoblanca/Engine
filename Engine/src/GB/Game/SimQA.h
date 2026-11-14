@@ -274,6 +274,7 @@ namespace GB
 		const TribeConfig* Config = nullptr;     // roles, work rules (H7), agenda and economy of the clan (null: the built-in ones)
 		const DiplomacyRules* Diplomacy = nullptr;   // the content's "diplomacy" (null: the built-in rules; the long runs read theirs, as the editor does)
 		const CombatRules* CombatRules = nullptr;    // the content's "combat" (null: the built-in rules)
+		const SocietyMetricRules* Metrics = nullptr; // T204: the content's "metrics" (null: the built-in weights; only the measure of the society reads them)
 		// with Combat: the species of the content; the game of social.hunting.wildlife is let loose round each camp (as the editor does), so the
 		// clans hunt (meat and hides: cooking, hide working, the way to the later eras). Null: no animals, as before
 		const std::map<std::string, SpeciesDef>* Species = nullptr;

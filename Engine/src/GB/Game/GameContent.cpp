@@ -173,5 +173,6 @@ namespace GB
 		static ClimateRules unreadClimate;
 		if (to.Climate || (to.Interactives && to.Species))
 			packs.AddSection(StagedSection("climate", { "climate" }, [](const std::string& json, ClimateRules& r) { return LoadClimate(json, r); }, nullptr, to.Climate ? *to.Climate : unreadClimate));
+		if (to.Metrics) packs.AddSection(StagedSection("metrics", { "metrics" }, [](const std::string& json, SocietyMetricRules& r) { return LoadSocietyMetricRules(json, r); }, nullptr, *to.Metrics));   // T204
 	}
 }

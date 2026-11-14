@@ -170,6 +170,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/ClansPolity.cpp
     src/GB/Game/DataNeeds.cpp
     src/GB/Game/History.cpp
+    src/GB/Game/SocietyMetrics.cpp
     src/GB/Game/Values.cpp
     src/GB/Game/GameSeeds.cpp
     src/GB/Game/Requests.cpp

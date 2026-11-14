@@ -1168,5 +1168,13 @@
       "maxSeconds": 600.0
     },
     "hostile": []
+  },
+  "metrics": {
+    "qol": {
+      "weights": { "needs": 0.20, "shelter": 0.15, "food": 0.15, "tools": 0.05, "health": 0.10, "longevity": 0.10, "techs": 0.25 },
+      "needs": [ "Hunger", "Thirst", "Rest", "Warmth", "Company" ],
+      "foodDays": 10.0,
+      "bedsPerPerson": 1.0
+    }
   }
 }

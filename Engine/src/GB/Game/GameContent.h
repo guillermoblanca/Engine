@@ -2,6 +2,7 @@
 #include "GB/Gameplay/ContentPack.h"
 #include "GB/Game/Diplomacy.h"
 #include "GB/Game/GameCamera.h"
+#include "GB/Game/SocietyMetrics.h"
 #include "GB/Game/Tribe.h"
 
 namespace GB
@@ -112,6 +113,7 @@ namespace GB
 		// T14: the "climate" section (assets/data/world.json) into the tribe's clock (TribeConfig::Seasons.Climate). Without it, the world sections still
 		// read and check it (a mistake stops the load) and the clock keeps DefaultClimate(), which is the same data.
 		ClimateRules* Climate = nullptr;
+		SocietyMetricRules* Metrics = nullptr;   // T204: the "metrics" section (how the quality of life is weighed; SocietyMetrics.h): ClanWorld::Metrics
 	};
 	void AddContentSections(ContentPacks& packs, const ContentTargets& to);
 }

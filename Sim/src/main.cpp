@@ -10,6 +10,7 @@
 #include "GB/Game/GameContent.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Game/SimQA.h"
+#include "GB/Game/SocietyMetrics.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/ContentPack.h"
 #include "GB/Gameplay/Items.h"
@@ -24,6 +25,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cmath>
 #include <csignal>
 #include <cstdio>
 #include <cstdlib>
@@ -96,6 +98,7 @@ namespace
 		GB::ControlRules Controls;
 		GB::ContentPacks Packs;
 		GB::NatureConfig Nature;
+		GB::SocietyMetricRules Metrics;   // T204: the "metrics" section (how the quality of life is weighed)
 		std::string Error;
 
 		explicit EraContent(const std::string& assets, const std::string& pack)
@@ -107,6 +110,7 @@ namespace
 			to.Social = &Config.Social; to.Society = &Config.Society; to.Nature = &Nature; to.Diplomacy = &Diplomacy; to.Species = &Species; to.Interactives = &Interactives;
 			to.Needs = &Config.DataNeeds;   // V5
 			to.Climate = &Config.Seasons.Climate;   // T14
+			to.Metrics = &Metrics;          // T204
 			GB::AddContentSections(Packs, to);
 			GB::ContentReport report;
 			Error = Packs.Load(pack.empty() ? std::string(GB::GamePack()) : pack, assets + "/data", &report);
@@ -248,6 +252,7 @@ int main(int argc, char** argv)
 		setup.Diplomacy = &era->Diplomacy;
 		setup.CombatRules = &era->Combat;
 		setup.Species = &era->Species;
+		setup.Metrics = &era->Metrics;
 	}
 	if (forests && era) setup.Nature = &era->Nature;   // --forest: the patches of bosques.json (docs/BOSQUES.md); the game's pack already has the forest nodes
 	setup.Members = members * clans;
@@ -314,6 +319,9 @@ int main(int argc, char** argv)
 	}
 	run.Finish();
 	if (setup.Telemetry) WriteWorld(run, sink, done);
+	// T204: the society of the last day, when the clan world's clock stopped short of closing it (one clan: the clan world does not run, no rows)
+	if (setup.Telemetry && run.Clans().Count() > 1 && run.Clans().Days() < static_cast<int>(std::lround(done / kDay)))
+		GB::WriteSocietyDays(run.Clans(), sink, run.Clans().Time(), static_cast<int>(std::lround(done / kDay)));
 	sink.Stop(done);
 	const GB::TelemetryStats st = sink.Stats();
 	std::fprintf(stderr, "%s after %.2f days: %llu samples, %llu dropped, %llu events, %d violations\n", g_Stop ? "stopped" : "finished", done / kDay,
@@ -384,6 +392,15 @@ int main(int argc, char** argv)
 		for (double d : told) sum += d;
 		std::fprintf(stderr, "history: rumours %d heard, %d of another clan's events; %zu told across clans, %.2f days after the event on average (median %.2f, quickest %.2f)\n", heard, crossed,
 			told.size(), told.empty() ? 0.0 : sum / static_cast<double>(told.size()) / kDay, told.empty() ? 0.0 : told[told.size() / 2] / kDay, told.empty() ? 0.0 : told.front() / kDay);
+		// T204 (S1): how each society stands (GB/Game/SocietyMetrics.h; only reads), and the world
+		std::fprintf(stderr, "\n");
+		if (run.Clans().Count() > 1)
+		{
+			const std::vector<GB::SocietyMeasure> societies = GB::MeasureSocieties(run.Clans());
+			for (const GB::SocietyMeasure& m : societies) std::fprintf(stderr, "%s\n", GB::SocietyLine(m).c_str());
+			std::fprintf(stderr, "%s\n", GB::SocietyWorldLine(GB::MeasureWorld(run.Clans(), societies)).c_str());
+		}
+		else std::fprintf(stderr, "%s\n", GB::SocietyLine(GB::MeasureSociety(run.Brain(), era ? era->Metrics : GB::SocietyMetricRules{}, 0)).c_str());
 	}
 	for (const GB::SimFinding& f : run.Monitor().Findings())   // what broke an invariant, so a run left alone says it
 		std::fprintf(stderr, "violation %s: %s: %s (x%d, %.0f..%.0f s)\n", f.Check.c_str(), f.Subject.c_str(), f.What.c_str(), f.Count, f.First, f.Last);

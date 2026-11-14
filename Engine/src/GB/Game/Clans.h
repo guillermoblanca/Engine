@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Game/Diplomacy.h"
 #include "GB/Game/Requests.h"
+#include "GB/Game/SocietyMetrics.h"
 #include "GB/Game/Territory.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Game/Values.h"
@@ -60,6 +61,8 @@ namespace GB
 		// V4: what the cultures value (GB/Game/Values.h): each clan's culture comes from its id and the world's seed; SetCultureSeed gives it to
 		// every clan again (the host calls it with the world's seed).
 		ValueRules Values = DefaultValueRules();
+		// T204: how the quality of life is weighed (the "metrics" section; GB/Game/SocietyMetrics.h). Only the measure reads it, never the simulation.
+		SocietyMetricRules Metrics;
 		void SetCultureSeed(unsigned seed);
 		// V6: every clan lives `years` in aggregate (Tribe::Leap), in id order; one line per clan of what happened
 		std::vector<std::string> Leap(float years);
@@ -142,6 +145,7 @@ namespace GB
 		// Only what lies between the clans: encounters, territory, trade and meetings, weddings, pacts and the days.
 		void StepDiplomacy(float dt);
 		double Time() const { return m_Time; }
+		int Days() const { return m_Days; }   // the days the clan world has closed (Day)
 		float DaySeconds() const;
 
 		// ---- relations (any order of a and b)

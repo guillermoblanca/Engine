@@ -1014,6 +1014,7 @@ namespace GB
 		{
 			m_Clans.SetRegions(setup.Regions ? setup.Regions : &m_Regions);
 			if (setup.Diplomacy) m_Clans.Rules = *setup.Diplomacy;
+			if (setup.Metrics) m_Clans.Metrics = *setup.Metrics;   // T204 (only the measure reads it)
 			m_Clans.Values.Seed = world.Desc.Seed;   // V4: the cultures of this world
 			if (setup.GameSeeds) m_Clans.Rules.Seed = StreamSeed(master, SeedStream::Diplomacy);   // T0 (the further clans copy the first's config, seeded above)
 			m_Clans.Add("Clan 1", &m_Tribe);

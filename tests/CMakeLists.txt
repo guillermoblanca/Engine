@@ -250,6 +250,8 @@ gb_test(gbobject gbobject_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 gb_test(terrain_graph terrain_graph_test.cpp POOL GBRenderTests LINK GB::Render LABELS rapido)
 # V1 (docs/VISION_MUNDO_VIVO.md): the world's history and each person's memory of it
 gb_test(history history_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
+# T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food
+gb_test(society_metrics society_metrics_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # V5: eras as packs (needs and eras that a later pack adds, what a building provides)
 gb_test(era_pack era_pack_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 # T0: the master seed of a game (GB/Core/Seed.h, GB/Game/GameSeeds.h): pinned derivation, and the same master mounts the same game.
