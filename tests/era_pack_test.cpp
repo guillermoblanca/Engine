@@ -1,6 +1,6 @@
-// V5 (docs/VISION_MUNDO_VIVO.md): eras as packs. A later pack adds needs and eras without repeating the first: needs merge by id and refuse a verb
-// the engine already uses (or two needs with one verb); a new era goes right after the eras it follows, so the order still says which era a clan
-// that knows the keys of two is in; and a building says what it provides to a need. CPU only.
+// V5 (docs/VISION_MUNDO_VIVO.md) + T181: needs in data. A later file adds needs without repeating the first: needs merge by id and refuse a verb
+// the engine already uses (or two needs with one verb); there are no eras (a need says when it counts by the clan's technology and size, and an
+// "era" anywhere is refused); and a building says what it provides to a need. CPU only.
 #include "GB/Game/DataNeeds.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Techs.h"
@@ -22,8 +22,16 @@ int GBTest_era_pack(int, char**)
 {
 	// needs: read, merged by id, checked
 	NeedBook book;
-	Check(LoadNeeds(R"({ "needs": [ { "id": "faith", "verb": "pray", "provision": "faith", "era": "bronze", "threshold": 45 } ] })", book).empty(), "a need is read");
-	Check(book.Needs.size() == 1 && book.Find("faith") && book.ByVerb("pray") && book.Find("faith")->Threshold == 45.0f && book.Find("faith")->Era == "bronze", "its fields are kept");
+	Check(LoadNeeds(R"({ "needs": [ { "id": "faith", "verb": "pray", "provision": "faith", "tech": "ritual", "members": 20, "threshold": 45 } ] })", book).empty(), "a need is read");
+	Check(book.Needs.size() == 1 && book.Find("faith") && book.ByVerb("pray") && book.Find("faith")->Threshold == 45.0f && book.Find("faith")->Tech == "ritual"
+		&& book.Find("faith")->Members == 20, "its fields are kept (when it counts: the rites and 20 living)");
+	{
+		NeedBook back;
+		Check(LoadNeeds(NeedsToJson(book), back).empty() && back == book, "the needs round-trip");
+		NeedBook keep = book;
+		Check(!LoadNeeds(R"({ "needs": [ { "id": "faith", "verb": "pray", "provision": "faith", "era": "bronze" } ] })", keep).empty() && keep == book, "T181: a need with an era is refused");
+		Check(!LoadNeeds(R"({ "needs": [ { "id": "faith", "verb": "pray", "provision": "faith", "members": -1 } ] })", keep).empty(), "a negative size is refused");
+	}
 	Check(LoadNeeds(R"({ "needs": [ { "id": "faith", "verb": "pray", "provision": "faith", "threshold": 30 }, { "id": "fun", "verb": "play", "item": "ball" } ] })", book).empty(), "a later pack adds and replaces");
 	Check(book.Needs.size() == 2 && book.Find("faith")->Threshold == 30.0f && book.ByVerb("play"), "the same id is replaced, a new one added");
 	const NeedBook before = book;
@@ -33,14 +41,11 @@ int GBTest_era_pack(int, char**)
 	Check(!LoadNeeds(R"({ "needs": [ { "id": "joy", "verb": "dance", "item": "x", "colour": 1 } ] })", book).empty(), "an unknown field is refused");
 	Check(LoadNeeds(R"({ "items": [] })", book).empty() && book == before, "a document without needs changes nothing");
 
-	// eras: a later file inserts its era after the eras it follows
+	// T181: there are no eras, in the knowledge rules, at the top of a file or on a technology
 	TechTree tree;
-	Check(LoadTechs(R"({ "knowledge": { "eras": [ { "id": "stone", "key": [] }, { "id": "copper", "key": [ "smelting" ], "from": [ "stone" ] }, { "id": "medieval", "key": [ "masonry" ], "from": [ "copper" ] } ] } })", tree).empty(), "the eras of the first pack");
-	Check(LoadTechs(R"({ "eras": [ { "id": "bronze", "name": "Bronze Age", "key": [ "alloying" ], "from": [ "copper" ] } ] })", tree).empty(), "a second pack adds an era");
-	const std::vector<EraDef>& eras = tree.Rules.Eras;
-	Check(eras.size() == 4 && eras[2].Id == "bronze" && eras[3].Id == "medieval", "the new era goes right after the one it follows");
-	Check(LoadTechs(R"({ "eras": [ { "id": "bronze", "name": "Age of Bronze", "key": [ "alloying" ], "from": [ "copper" ] } ] })", tree).empty() && tree.Rules.Eras.size() == 4 && tree.Rules.Eras[2].Name == "Age of Bronze", "the same id is replaced in place");
-	Check(!LoadTechs(R"({ "eras": [ { "id": "x" }, { "id": "x" } ] })", tree).empty(), "two eras of one id in a file are refused");
+	Check(!LoadTechs(R"({ "knowledge": { "eras": [ { "id": "stone", "key": [] } ] } })", tree).empty(), "eras in the knowledge rules are refused");
+	Check(!LoadTechs(R"({ "eras": [ { "id": "bronze", "key": [ "alloying" ] } ] })", tree).empty(), "eras at the top of a file are refused");
+	Check(!LoadTechs(R"({ "techs": [ { "id": "alloying", "era": 3 } ] })", tree).empty() && tree.Techs.empty(), "a technology with an era is refused");
 
 	// buildings: what one provides
 	std::map<std::string, BuildingDef> defs;

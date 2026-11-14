@@ -7,6 +7,7 @@
 #include "GB/Game/Knowledge.h"
 #include "GB/Save/SaveGame.h"
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <fstream>
 #include <sstream>
@@ -47,8 +48,9 @@ static void TestData()
 	const TechTree defaults = DefaultTechs();
 	TechTree fromFile;
 	fromFile.Techs.clear();
-	Check(LoadTechs(ReadFile(std::string(GB_ASSETS_DIR) + "/data/era1.json"), fromFile).empty() && LoadTechs(ReadFile(std::string(GB_ASSETS_DIR) + "/data/social.json"), fromFile).empty(),
-		"era1.json and social.json have readable techs");
+	bool readable = !ShippedDocuments().empty();   // T181: one tree, every file of the game's pack (era1.json ... era9.json, social.json)
+	for (const std::string& doc : ShippedDocuments()) readable = readable && LoadTechs(doc, fromFile).empty();
+	Check(readable, "every file of the game's pack has readable techs");
 	Check(fromFile == defaults, "DefaultTechs() is what the game's data says (there is no tree in the code)");
 	Check(defaults.Starting() == std::vector<std::string>({ "cordage", "fire_making", "stone_tools" }), "stone tools, fire making and cordage are known from the start");
 	Check(defaults.ForRecipe("flint_axe") == std::vector<std::string>({ "flint_knapping" }) && defaults.ForRecipe("plank").empty(), "a recipe no technology names is common knowledge");
@@ -85,7 +87,12 @@ static void TestGating()
 	k.Join("Ana");
 	Check(k.CanMake("Ana", "stone_axe") && k.CanMake("Ana", "campfire") && k.CanMake("Ana", "plank"), "the technologies of the start (and what no technology locks) are known");
 	Check(!k.CanMake("Ana", "flint_axe") && !k.CanMake("Ana", "basket_wicker"), "flint tools and baskets are not");
-	Check(k.CanLearn("Ana", "flint_knapping") && !k.CanLearn("Ana", "smelting"), "flint knapping can be learnt; smelting needs it first");
+	Check(k.CanLearn("Ana", "flint_knapping") && k.CanLearn("Ana", "smelting"), "T181: what a technology requires does not lock it ...");
+	Check(PrereqFactor(techs, "smelting", k.Of("Ana")->Known) < 1.0f && PrereqFactor(techs, "flint_knapping", k.Of("Ana")->Known) >= 1.0f,
+		"... it only slows it: smelting without pottery and flint knapping goes slower, flint knapping (all it requires known) does not");
+	k.SetPhysical([](const std::string& tech) { return tech != "smelting"; });
+	Check(!k.CanLearn("Ana", "smelting") && k.CanLearn("Ana", "flint_knapping"), "what a technology needs in the world (copper and a kiln) is a hard gate");
+	k.SetPhysical(nullptr);
 
 	Inventory store(40, 0.0f);
 	store.Add(items, "branch", 4);
@@ -177,8 +184,9 @@ static void TestExperiment()
 	Check(k.Knows("Ana", "basketry") || k.NextExperiment("Ana", 5.0, store, bag, recipes).empty(), "after a failed try it waits the technology's seconds");
 	store.Add(items, "flint", 3);
 	store.Add(items, "cordage", 1);
+	k.SetPhysical([](const std::string& tech) { return tech != "smelting"; });   // no copper found: smelting cannot be tried, whatever is known
 	k.Experiment("Ana", 1000.0, store, bag, recipes);
-	Check(!k.Knows("Ana", "smelting") && k.NextExperiment("Ana", 1e6, store, bag, recipes) != "smelting", "smelting is never tried before flint knapping is known");
+	Check(!k.Knows("Ana", "smelting") && k.NextExperiment("Ana", 1e6, store, bag, recipes) != "smelting", "smelting is never tried without what it needs in the world");
 }
 
 static std::vector<KnowledgeAgent> Camp(bool anaAlive = true)
@@ -201,9 +209,11 @@ static void TestSpread()
 
 	// observation: Ana makes a flint axe; Biel and Dan are near, Cleo is not
 	std::vector<KnowledgeEvent> events = k.WitnessRecipe("Ana", "flint_axe", { 0.0f, 0.0f }, Camp());
-	Check(k.Of("Biel")->Progress.at("flint_knapping") > 0.33f && k.Of("Dan")->Progress.count("flint_knapping") && !k.Of("Cleo")->Progress.count("flint_knapping"),
-		"those within the observe radius understand a third of it; who is far does not");
-	Check(Said(events, "understands 34% of Flint knapping by watching Ana"), "and the log says so");
+	// (T181: what is understood is the technology's share times PrereqFactor: Biel knows cordage and stone tools, each a bonus of prereqBonus)
+	const float watched = 0.34f * PrereqFactor(techs, "flint_knapping", k.Of("Biel")->Known);
+	Check(watched > 0.34f && std::abs(k.Of("Biel")->Progress.at("flint_knapping") - watched) < 1e-4f && k.Of("Dan")->Progress.count("flint_knapping")
+		&& !k.Of("Cleo")->Progress.count("flint_knapping"), "those within the observe radius understand a third of it (more knowing what it requires); who is far does not");
+	Check(Said(events, "% of Flint knapping by watching Ana"), "and the log says so");
 	k.WitnessRecipe("Ana", "flint_axe", { 0.0f, 0.0f }, Camp());
 	events = k.WitnessRecipe("Ana", "flint_pickaxe", { 0.0f, 0.0f }, Camp());
 	Check(k.Knows("Biel", "flint_knapping") && k.Knows("Dan", "flint_knapping") && !k.Knows("Cleo", "flint_knapping"), "three sightings and they know it: observation spreads knowledge");
@@ -217,9 +227,9 @@ static void TestSpread()
 	t.Grant("Ana", "basketry");
 	Check(!t.Tick(19.0f) && t.Tick(1.5f), "a lesson every 20 s");
 	events = t.Lesson(Camp());
-	Check(t.Of("Biel")->Progress.at("basketry") == 0.25f && !t.Of("Dan")->Progress.count("basketry") && !t.Of("Cleo")->Progress.count("basketry"),
+	Check(std::abs(t.Of("Biel")->Progress.at("basketry") - 0.25f * PrereqFactor(techs, "basketry", t.Of("Biel")->Known)) < 1e-4f && !t.Of("Dan")->Progress.count("basketry") && !t.Of("Cleo")->Progress.count("basketry"),
 		"only the idle learner at the camp gets the lesson");
-	Check(Said(events, "understands 25% of Basketry from Ana at the camp"), "the lesson is in the log");
+	Check(Said(events, "% of Basketry from Ana at the camp"), "the lesson is in the log");
 	for (int i = 0; i < 3; ++i) t.Lesson(Camp());
 	Check(t.Knows("Biel", "basketry"), "four lessons and Biel knows it");
 
@@ -359,7 +369,7 @@ static void TestReachability()
 	ContentPacks p3;
 	p3.AddSection(ItemContentSection(i3, r3, n3, t3));
 	const TechTree before = t3;
-	Check(!p3.LoadText(R"({ "items": [ { "id": "thing" } ], "techs": [ { "id": "bad", "era": -1 } ] })").empty() && t3 == before && !i3.Find("thing"), "a bad tech refuses the items of the same document too");
+	Check(!p3.LoadText(R"({ "items": [ { "id": "thing" } ], "techs": [ { "id": "bad", "era": 2 } ] })").empty() && t3 == before && !i3.Find("thing"), "a bad tech refuses the items of the same document too");
 	Check(p3.LoadText(R"({ "items": [ { "id": "thing" } ], "techs": [ { "id": "good", "recipes": [] } ] })").empty() && t3.Find("good") && i3.Find("thing"), "a good one loads both");
 }
 

@@ -580,7 +580,7 @@ namespace GB::Editor
 			const std::vector<std::string>& goals = t.Knowledge().Goals();
 			int housed = 0;
 			for (const Tribe::Household& h : t.Households()) if (!h.Home.empty()) ++housed;
-			std::snprintf(line, sizeof line, "\n    %s | knows %zu technologies | %zu fields, %d harvested | %zu households, %d with a house | next step: %s", t.EraName().empty() ? "no eras" : t.EraName().c_str(), t.Knowledge().Clan().size(), t.Economy().Fields.size(), harvested,
+			std::snprintf(line, sizeof line, "\n    knows %zu technologies | %zu fields, %d harvested | %zu households, %d with a house | next step: %s", t.Knowledge().Clan().size(), t.Economy().Fields.size(), harvested,
 				t.Households().size(), housed, goals.empty() ? "-" : goals.front().c_str());
 			s += line;
 		}

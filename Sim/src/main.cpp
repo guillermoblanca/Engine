@@ -79,7 +79,7 @@ namespace
 		return out;
 	}
 
-	// The content of the era the Editor loads (assets/data/era1.pack.json), so the clans of a run know the buildings and the technologies:
+	// The content the Editor loads (assets/data/era1.pack.json: every file, one tree, no eras), so the clans of a run know the buildings and the technologies:
 	// without it they build nothing. The sections go over the same objects the Editor uses (EditorApp.cpp), and the pack must outlive the run.
 	struct EraContent
 	{
@@ -328,7 +328,7 @@ int main(int argc, char** argv)
 			for (const GB::TribeMember& m : t->Members()) if (!m.Dead) ++alive;
 			std::string goals;
 			for (const std::string& g : t->Knowledge().Goals()) goals += g + " ";
-			std::fprintf(stderr, "\n==== %d alive, era %s, %zu households, %zu fields (wants %d), store %d slots used; goals: %s\n%s\n%s\n%s\n", alive, t->EraName().c_str(),
+			std::fprintf(stderr, "\n==== %d alive, knows %zu technologies, %zu households, %zu fields (wants %d), store %d slots used; goals: %s\n%s\n%s\n%s\n", alive, t->Knowledge().Clan().size(),
 				t->Households().size(), t->Economy().Fields.size(), t->Config.Econ.Farming.FieldsFor(alive), t->Store().UsedSlots(), goals.c_str(), t->SettlementReport().c_str(),
 				t->FieldReport().c_str(), t->EconomyReport().c_str());
 			for (const GB::BuildingNeed& n : t->PublicBuildingNeeds()) std::fprintf(stderr, "  needs %s (%.2f): %s\n", n.Building.c_str(), n.Urgency, n.Why.c_str());

@@ -10,6 +10,7 @@
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
+#include <functional>
 #include <imgui.h>
 #include <optional>
 #include <set>
@@ -47,7 +48,7 @@ namespace GB::Editor
 			}
 		}
 
-		// A small rounded label in line with the text (an era, a stance, a pact): `fill` behind, `ink` for the letters.
+		// A small rounded label in line with the text (what the clan knows, a stance, a pact): `fill` behind, `ink` for the letters.
 		void Chip(const std::string& text, ImU32 fill, ImU32 ink = T::Ink)
 		{
 			const ImVec2 size = ImGui::CalcTextSize(text.c_str());
@@ -118,33 +119,14 @@ namespace GB::Editor
 			elders += stage == Society::Stage::Elder ? 1 : 0;
 		}
 
-		// the era and the ladder of the eras
-		const std::string era = t.Era();
+		// what the clan knows (T181: there are no eras: a clan is as far as what it has found let it go)
 		ImGui::AlignTextToFramePadding();
-		ImGui::TextUnformatted(L.Text("Era").c_str());
+		ImGui::TextUnformatted(L.Text("Knowledge").c_str());
 		ImGui::SameLine(120.0f);
-		Chip(L.Name("eraname", t.EraName().empty() ? std::string("Stone Age") : t.EraName(), t.EraName().empty() ? std::string("Stone Age") : t.EraName()), T::Ochre);
+		if (const TechTree* tree = t.Knowledge().Techs())
+			Chip(L.Text("What the clan knows ({0} of {1})", static_cast<int>(t.Knowledge().Clan().size()), static_cast<int>(tree->Techs.size())), T::Ochre);
 		ImGui::SameLine();
 		ImGui::TextDisabled("%s", L.Text("{0} households", static_cast<int>(t.Households().size())).c_str());
-		if (const TechTree* tree = t.Knowledge().Techs(); tree && !tree->Rules.Eras.empty())
-		{
-			ImGui::SetCursorPosX(120.0f);
-			bool reached = true;
-			for (size_t i = 0; i < tree->Rules.Eras.size(); ++i)
-			{
-				const EraDef& e = tree->Rules.Eras[i];
-				if (i) { ImGui::SameLine(0.0f, 2.0f); ImGui::TextDisabled(">"); ImGui::SameLine(0.0f, 2.0f); }
-				const bool here = e.Id == era || (era.empty() && i == 0);
-				Chip(L.Name("era", e.Id, e.Name), here ? T::Ochre : reached ? T::Good : T::HideRaised, here || reached ? T::Ink : T::BoneDim);
-				if (here) reached = false;
-				if (ImGui::IsItemHovered())
-				{
-					std::string keys;
-					for (const std::string& k : e.Key) keys += (keys.empty() ? "" : ", ") + L.Name("tech", k, t.Knowledge().Name(k));
-					ImGui::SetTooltip("%s", (L.Name("era", e.Id, e.Name) + ": " + (keys.empty() ? L.Text("where every clan starts") : L.Text("opened by {0}", keys))).c_str());
-				}
-			}
-		}
 
 		Heading(L.Text("How the village is"));
 		// people
@@ -501,8 +483,7 @@ namespace GB::Editor
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextUnformatted(L.Name("clan", c->Name, c->Name).c_str());
 			ImGui::SameLine();
-			const std::string eraName = c->Folk->EraName().empty() ? std::string("Stone Age") : c->Folk->EraName();
-			ImGui::TextDisabled("%s", L.Text("{0} people, {1}", alive, L.Name("eraname", eraName, eraName)).c_str());
+			ImGui::TextDisabled("%s", L.Text("{0} people", alive).c_str());   // (T181: no eras)
 			if (!m_Clans.Met(mine, c->Id)) ImGui::TextDisabled("%s", L.Text("not met yet").c_str());
 			else
 			{
@@ -549,20 +530,30 @@ namespace GB::Editor
 		Heading(L.Text("Being worked out"));
 		DrawResearch(k);
 
-		// every technology by era: known (green, +), being learnt (ochre, ~), open to find (light: what it needs is known) or locked (dim, with what
+		// every technology by step (what it requires): known (green, +), being learnt (ochre, ~), open to find (light: what it needs is known) or locked (dim, with what
 		// it still needs); the mark says it as well as the colour; the hover says what it opens
 		std::set<std::string> learning;
 		for (const ClanKnowledge::ResearchLine& r : k.Research()) learning.insert(r.Tech);
-		std::map<int, std::vector<const TechDef*>> byEra;
-		for (const auto& [id, def] : tree->Techs) byEra[def.Era].push_back(&def);
+		// (T181: no eras: the technologies go in steps by what they require, the first those that require nothing)
+		std::map<std::string, int> step;
+		std::function<int(const std::string&, int)> depth = [&](const std::string& id, int guard) -> int
+		{
+			if (const auto s = step.find(id); s != step.end()) return s->second;
+			const TechDef* d = tree->Find(id);
+			int n = 0;
+			if (d && guard < 32) for (const std::string& r : d->Requires) n = std::max(n, 1 + depth(r, guard + 1));
+			return step[id] = n;
+		};
+		std::map<int, std::vector<const TechDef*>> byStep;
+		for (const auto& [id, def] : tree->Techs) byStep[depth(id, 0)].push_back(&def);
 		int done = 0;
 		for (const auto& [id, def] : tree->Techs) done += known.count(id) ? 1 : 0;
 		Heading(L.Text("What the clan knows ({0} of {1})", done, static_cast<int>(tree->Techs.size())));
 		Dim(L.Text("+ known, ~ being learnt, light: can be found now, dim: needs others first. Hover one to see what it opens."));
-		for (const auto& [era, defs] : byEra)
+		for (const auto& entry : byStep)
 		{
+			const std::vector<const TechDef*>& defs = entry.second;
 			ImGui::Spacing();
-			ImGui::TextDisabled("%s", L.Text("Era {0}", era).c_str());
 			float line = 0.0f;
 			const float width = ImGui::GetContentRegionAvail().x;
 			for (const TechDef* d : defs)
@@ -710,7 +701,7 @@ namespace GB::Editor
 			if (k == "birth" || k == "pair" || k == "marriage") return "birth";
 			if (k == "death" || k == "killed") return "death";
 			if (k == "built" || k == "camp_moved") return "build";
-			if (k == "discovery" || k == "era" || k == "tradition" || k == "shaman") return "know";
+			if (k == "discovery" || k == "tradition" || k == "shaman") return "know";
 			if (k == "raid" || k == "wounded" || k == "theft") return "fight";
 			if (k == "contact" || k == "found" || k == "alliance" || k == "truce" || k == "pact" || k == "break" || k == "move") return "clans";
 			return {};

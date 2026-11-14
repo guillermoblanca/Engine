@@ -116,7 +116,7 @@
     {
       "id": "computing",
       "name": "Computing",
-      "era": 15,
+      "complexity": 0.9,
       "requires": [
         "electricity",
         "writing"
@@ -129,6 +129,14 @@
       "buildings": [
         "office"
       ],
+      "physical": {
+        "materials": [
+          "sand"
+        ],
+        "stations": [
+          "factory"
+        ]
+      },
       "discovery": {
         "experiment": 0.04,
         "observe": 0.15,
@@ -191,27 +199,6 @@
       "aura": 3.0
     }
   },
-  "eras": [
-    {
-      "id": "information",
-      "name": "Information Age",
-      "key": [
-        "computing"
-      ],
-      "from": [
-        "electric"
-      ],
-      "pull": 0.4,
-      "interest": [
-        "sand"
-      ],
-      "progression": [
-        "electricity",
-        "computing"
-      ],
-      "leap": 5
-    }
-  ],
   "diplomacy": {
     "trade": {
       "values": {

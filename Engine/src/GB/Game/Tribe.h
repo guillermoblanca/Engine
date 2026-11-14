@@ -337,6 +337,7 @@ namespace GB
 
 	class Tribe
 	{
+		friend class UseLearning;   // T181: learning by use and curiosity (GB/Game/UseLearning.h), out of this class
 	public:
 		TribeConfig Config;
 
@@ -438,9 +439,6 @@ namespace GB
 		std::map<std::string, int> NextStepNeeds() const { return GoalInputs(); }   // N5: what the clan's next experiment lacks (it trades for it)
 		std::map<std::string, int> ForeignNeeds() const;   // V5: what its production chains want and it knows nowhere to gather (the tin of bronze: it trades for it)
 		float HouseholdWorkAt(const Household& h, const glm::vec2& at) const { return HouseholdWork(h, at); }   // N7: where a household would go
-		// N6: the era the clan is in (the last of the knowledge rules' eras whose key technologies it knows; "" = no eras), and its name
-		std::string Era() const;
-		std::string EraName() const;
 		// N1b: what a household keeps in its house (its food, by the clan's Property); nullptr = nothing yet
 		const Inventory* Pantry(const std::string& household) const { const auto it = m_Econ.Pantries.find(household); return it != m_Econ.Pantries.end() ? &it->second : nullptr; }
 		// A station is there: the camp's (Config.Econ.Production.CampStations) or a finished building's.
@@ -588,7 +586,8 @@ namespace GB
 
 		// ---- knowledge and technology (H11, GB/Game/Knowledge.h): what each member knows, what the clan knows, and how it is found. Without
 		// technologies (the default) nothing is gated. The technologies must outlive the tribe (the editor's content).
-		void SetTechs(const TechTree* techs) { m_Knowledge.SetTechs(techs); }
+		// (T181: and the physical gate of the technologies: what the clan has found and the stations it has, UseLearning::Physical)
+		void SetTechs(const TechTree* techs);
 		ClanKnowledge& Knowledge() { return m_Knowledge; }
 		const ClanKnowledge& Knowledge() const { return m_Knowledge; }
 
@@ -705,10 +704,11 @@ namespace GB
 		// V3: a member dies now of `cause` (a test, the host); false when there is none alive of that name. A player dies too.
 		bool Kill(const std::string& name, const std::string& cause);
 		// V6: the years between two lives, lived in aggregate (TribeLeap.cpp): the society's days (at most a generation of them) and a next step
-		// learnt every so many years; written to the history as one event the clan knows. EraLeap: the years the clan's era leaps (its data, 0: none).
+		// learnt every so many years (only what the world lets it learn); written to the history as one event the clan knows. LeapYears: the years
+		// a leap lasts, fewer the more the clan knows (the knowledge rules' "leap"; 0: none).
 		struct LeapResult { float Years = 0.0f; int Born = 0; int Died = 0; std::vector<std::string> Learnt; };
 		LeapResult Leap(float years);
-		float EraLeap() const;
+		float LeapYears() const;
 		PlayerAct PlayerTeach(const std::string& player, const std::string& other, const std::string& tech = std::string());
 		PlayerAct PlayerLearn(const std::string& player, const std::string& other, const std::string& tech = std::string());
 		// Marriage with a member that likes the player enough (Society::Marry).
@@ -868,6 +868,7 @@ namespace GB
 		void Ate(TribeMember& m, const std::string& item);
 		void ChooseMeal(const TribeMember& m, std::string& carried, std::string& stored) const;
 		void SocialDied(const TribeMember& m);
+		void SocialLeft(const std::string& name);   // a member leaves the clan: out of the rite's circle at once (TribeSocial.cpp)
 		void SocialHears(const SocietyEvent& e);
 		void CallRites(const std::string& event, const std::string& subject);
 		bool CallRite(const std::string& rite, const std::string& subject, float delay, std::string* why = nullptr);
@@ -930,7 +931,7 @@ namespace GB
 		float SettlementJobScore(const TribeMember& m, const Job& job) const;
 		bool SiteWorkable(const std::string& site) const;                 // a site whose current phase can still be worked (Build after it moved on is no fault)
 		// V5: the needs of the content packs (TribeNeeds.cpp)
-		bool DataNeedActive(const NeedDef& n) const;   // its era (if any) is the clan's or one listed before it
+		bool DataNeedActive(const NeedDef& n) const;   // T181: the clan knows its tech and has its members (no eras)
 		float DataNeedLevel(const TribeMember& m, const NeedDef& n) const;
 		void StepDataNeeds(TribeMember& m, AbilitySystemComponent& asc, float dt);
 		void DataNeedOptions(TribeMember& m, std::vector<UtilityOption>& opts);
@@ -1014,7 +1015,6 @@ namespace GB
 		float VillageReach() const;                    // how far from the fire the clan builds now (grows with its people and buildings)
 		int FieldsWanted() const;                      // G2: the fields the clan marks out now (FarmRules::FieldsFor its living members)
 		bool KnowsNearHome(const TribeMember& m, const std::string& item) const;   // a node of `item`, not empty, on the home ground (its memory or the clan's)
-		std::string m_Era;                             // N6: the era the clan was in at the last plan (to tell when it changes)
 		int ToPantry(TribeMember& m, const std::string& item, int count);   // N1b: what of `count` goes to its household's pantry (and is moved there)
 		// F2: the searches that found nothing, by item: how many in a row and until when it does not look for it again (120 s, doubling, up to an hour)
 		std::map<std::string, std::pair<int, double>> m_Searches;

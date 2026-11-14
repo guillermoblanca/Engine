@@ -425,9 +425,9 @@ int GBTest_social(int, char**)
 		for (int i = 0; i < 1000 && !held; ++i) { w.Run(1.0); held = Held(clan, "solstice") > 0; }
 		Check(held && w.Logged(clan, "calls everyone to Winter solstice"), "the clan calls everyone to the winter solstice");
 		if (!held) w.Dump(clan);
-		const std::string& h = clan.Social().History.back();
+		const std::string h = clan.Social().History.empty() ? std::string() : clan.Social().History.back();   // (none held: the check fails, the test goes on)
 		int there = 0, of = 0;
-		std::sscanf(h.substr(h.find(": ") + 2).c_str(), "%d of %d", &there, &of);
+		if (h.find(": ") != std::string::npos) std::sscanf(h.substr(h.find(": ") + 2).c_str(), "%d of %d", &there, &of);
 		Check(h.find("Winter solstice") != std::string::npos && of == 5 && there >= 3, "most of the clan stands in the circle");
 		Check(MeanMood(clan) > before, "and the festival lifts the mood");
 		Check(w.Broken("social") == 0, "the social invariants hold through the festival");
@@ -579,6 +579,45 @@ int GBTest_social(int, char**)
 		bool held = false;
 		for (int i = 0; i < 120 && !held; ++i) { w.Run(1.0); held = Held(clan, "naming") > 0; }
 		Check(held, "and the rite is held after the load");
+	}
+
+	std::fprintf(stderr, "-- %s\n", "a rite in course: one who leaves the clan leaves the circle a");
+	// ---- a rite in course: one who leaves the clan (a marriage, a split) leaves the circle at once; a clan that dies out ends its rite
+	// (T181: GBSim found both, "X is called and is not a member" in the seconds before the next look at the rites, and the funeral of a clan
+	// whose last members died that never ended, because the social step stopped at a clan with nobody alive)
+	{
+		World w;
+		w.Patch({ 0.0f, 0.0f, 0.0f }, 4);
+		Tribe& clan = w.AddClan("Clan", 4, { 0.0f, -8.0f }, "");
+		Quiet(clan, false, true);
+		clan.Store().Add(w.Items, "berry", 20);
+		w.Run(2.0);
+		std::string why;
+		Check(clan.StartRite("naming", "Ana", &why), "(a rite is called by hand)");
+		for (int i = 0; i < 40 && !clan.Social().Rite.Active(); ++i) w.Run(0.5);
+		const std::vector<std::string> called = clan.Social().Rite.Called;
+		Check(clan.Social().Rite.Active() && called.size() >= 2, "(the rite is under way with its circle)");
+		const std::string leaver = called.empty() ? std::string() : called.back();
+		MemberTransfer out;
+		Check(clan.Detach(leaver, out), "(one of the circle leaves the clan)");
+		const auto& now = clan.Social().Rite.Called;
+		Check(std::find(now.begin(), now.end(), leaver) == now.end() && now.size() + 1 == called.size(), "it leaves the circle at once, the others stay");
+		w.Run(3.0);
+		Check(w.Broken("social") == 0, "and the social invariants hold");
+
+		for (int i = 0; i < 40 && !clan.Social().Rite.Active(); ++i) w.Run(0.5);
+		if (!clan.Social().Rite.Active()) Check(clan.StartRite("naming", "Ana", &why), "(another rite is called)");
+		for (int i = 0; i < 40 && !clan.Social().Rite.Active(); ++i) w.Run(0.5);
+		Check(clan.Social().Rite.Active(), "(a rite is under way again)");
+		std::vector<std::string> living;
+		for (const TribeMember& m : clan.Members()) if (!m.Dead) living.push_back(m.Name);
+		for (const std::string& n : living) clan.Kill(n, "Wounds");
+		Check(std::none_of(clan.Members().begin(), clan.Members().end(), [](const TribeMember& m) { return !m.Dead; }), "(the whole clan dies in the middle of it)");
+		w.Run(4.0);
+		Check(!clan.Social().Rite.Active() && clan.Social().Agenda.empty(), "a clan that dies out ends its rite, and its agenda (their funerals) with it");
+		const auto& d = clan.Config.Social.Rites.at("naming");
+		w.Run(static_cast<double>(d.GatherSeconds + d.Seconds) + 30.0);
+		Check(!clan.Social().Rite.Active() && w.Broken("social") == 0, "and no rite of a dead clan goes on for too long");
 	}
 
 	std::fprintf(stderr, "-- %s\n", "a snare: with no food the clan sets one where rabbits are, a");

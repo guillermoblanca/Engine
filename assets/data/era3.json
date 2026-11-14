@@ -125,7 +125,7 @@
     {
       "id": "forging",
       "name": "Forging",
-      "era": 6,
+      "complexity": 0.7,
       "requires": [
         "alloying"
       ],
@@ -137,6 +137,14 @@
       "buildings": [
         "smithy"
       ],
+      "physical": {
+        "materials": [
+          "iron_ore"
+        ],
+        "stations": [
+          "forge"
+        ]
+      },
       "discovery": {
         "experiment": 0.04,
         "observe": 0.15,
@@ -195,27 +203,6 @@
       "station": "forge"
     }
   },
-  "eras": [
-    {
-      "id": "iron",
-      "name": "Iron Age",
-      "key": [
-        "forging"
-      ],
-      "from": [
-        "bronze"
-      ],
-      "pull": 0.4,
-      "interest": [
-        "iron_ore"
-      ],
-      "progression": [
-        "alloying",
-        "forging"
-      ],
-      "leap": 300
-    }
-  ],
   "diplomacy": {
     "trade": {
       "values": {

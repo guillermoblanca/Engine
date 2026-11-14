@@ -24,7 +24,7 @@ namespace GB
 		ValueRules r;
 		r.Kinds = {
 			{ "birth", { "family", 1.0f } }, { "pair", { "family", 1.0f } }, { "marriage", { "family", 1.0f } }, { "death", { "family", -1.0f } },
-			{ "discovery", { "knowledge", 1.0f } }, { "learnt", { "knowledge", 1.0f } }, { "era", { "knowledge", 1.0f } },
+			{ "discovery", { "knowledge", 1.0f } }, { "learnt", { "knowledge", 1.0f } },
 			{ "built", { "craft", 1.0f } },
 			{ "tradition", { "tradition", 1.0f } }, { "shaman", { "tradition", 1.0f } }, { "norm", { "tradition", 1.0f } },
 			{ "raid", { "peace", -1.0f } }, { "killed", { "peace", -1.0f } }, { "wounded", { "peace", -1.0f } }, { "theft", { "peace", -1.0f } },

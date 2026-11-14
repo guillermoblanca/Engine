@@ -96,7 +96,7 @@
     {
       "id": "steam_power",
       "name": "Steam power",
-      "era": 11,
+      "complexity": 0.8,
       "requires": [
         "printing",
         "forging"
@@ -108,6 +108,15 @@
       "buildings": [
         "factory"
       ],
+      "physical": {
+        "materials": [
+          "coal",
+          "iron_ore"
+        ],
+        "stations": [
+          "forge"
+        ]
+      },
       "discovery": {
         "experiment": 0.04,
         "observe": 0.15,
@@ -167,28 +176,6 @@
       "station": "factory"
     }
   },
-  "eras": [
-    {
-      "id": "industrial",
-      "name": "Industrial Age",
-      "key": [
-        "steam_power"
-      ],
-      "from": [
-        "renaissance"
-      ],
-      "pull": 0.4,
-      "interest": [
-        "coal",
-        "iron_ore"
-      ],
-      "progression": [
-        "printing",
-        "steam_power"
-      ],
-      "leap": 25
-    }
-  ],
   "diplomacy": {
     "trade": {
       "values": {

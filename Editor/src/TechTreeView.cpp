@@ -1,6 +1,5 @@
 // The tree of knowledge (K, `game tech`; the observer's "Tree of knowledge" button): every technology of the world as a graph, as management games
-// show their research, over the whole window with the world dimmed behind. Columns go left to right by what each requires (an era starts after the
-// last column of the one before it), so a line always runs from what is needed to what it opens. Each node says its state with its colour and a mark
+// show their research, over the whole window with the world dimmed behind. Columns go left to right by what each requires (T181: no eras), so a line always runs from what is needed to what it opens. Each node says its state with its colour and a mark
 // (+ known, ~ being learnt with its bar, light: can be found now, dim: needs others first), the player's aim has an ochre frame and the way to it is
 // lit. A click shows its card at the bottom: who is on it, what it needs, what it opens and, for the player, "Seek this" (`game research <tech>`).
 // Nothing here decides: the button queues the command. Every word goes through Lang.
@@ -39,10 +38,6 @@ namespace GB::Editor
 
 		// ---- the layout: a column per step of what is required, eras one after the other; rows ordered by where their requirements stand
 		std::map<std::string, int> col;
-		std::map<int, int> eraLast;   // the last column of each era
-		std::vector<int> eras;
-		for (const auto& [id, d] : tree->Techs) if (std::find(eras.begin(), eras.end(), d.Era) == eras.end()) eras.push_back(d.Era);
-		std::sort(eras.begin(), eras.end());
 		std::function<int(const std::string&, int)> column = [&](const std::string& id, int guard) -> int
 		{
 			if (const auto it = col.find(id); it != col.end()) return it->second;
@@ -53,27 +48,7 @@ namespace GB::Editor
 			col[id] = c;
 			return c;
 		};
-		for (const auto& [id, d] : tree->Techs) column(id, 0);
-		// an era begins after the last column of the eras before it (and the techs after it move along)
-		int start = 0;
-		for (const int era : eras)
-		{
-			bool moved = true;
-			while (moved)
-			{
-				moved = false;
-				for (const auto& [id, d] : tree->Techs)
-				{
-					int c = d.Era == era ? std::max(col[id], start) : col[id];
-					for (const std::string& r : d.Requires) if (col.count(r)) c = std::max(c, col[r] + 1);
-					if (c != col[id]) { col[id] = c; moved = true; }
-				}
-			}
-			int last = start;
-			for (const auto& [id, d] : tree->Techs) if (d.Era == era) last = std::max(last, col[id]);
-			eraLast[era] = last;
-			start = last + 1;
-		}
+		for (const auto& [id, d] : tree->Techs) column(id, 0);   // (T181: no eras: the columns are only what each requires)
 		int columns = 0;
 		std::map<int, std::vector<std::string>> byCol;
 		for (const auto& [id, c] : col) { byCol[c].push_back(id); columns = std::max(columns, c + 1); }
@@ -143,16 +118,6 @@ namespace GB::Editor
 			const float contentH = kHeader + kPad * 2.0f + static_cast<float>(rows) * (kNodeH + kRowGap) - kRowGap;
 			ImDrawList* dl = ImGui::GetWindowDrawList();
 			auto nodeMin = [&](const std::string& id) { return ImVec2(o.x + kPad + static_cast<float>(col[id]) * (kNodeW + kColGap), o.y + kHeader + kPad + row[id] * (kNodeH + kRowGap)); };
-			// the eras as bands behind their columns, named on top
-			for (const int era : eras)
-			{
-				int first = columns;
-				for (const auto& [id, d] : tree->Techs) if (d.Era == era) first = std::min(first, col[id]);
-				const float x0 = o.x + kPad * 0.5f + static_cast<float>(first) * (kNodeW + kColGap), x1 = o.x + kPad * 1.5f + static_cast<float>(eraLast[era] + 1) * (kNodeW + kColGap) - kColGap;
-				const bool odd = (std::find(eras.begin(), eras.end(), era) - eras.begin()) % 2 == 1;
-				dl->AddRectFilled(ImVec2(x0, o.y), ImVec2(x1, o.y + contentH), odd ? IM_COL32(255, 240, 210, 10) : IM_COL32(0, 0, 0, 30), 6.0f);
-				dl->AddText(ImVec2(x0 + 8.0f, o.y + 6.0f), T::Ochre, L.Text("Era {0}", era).c_str());
-			}
 			// the lines: from the right of what is required to the left of what it opens; known ways green, the lit way ochre
 			for (const auto& [id, d] : tree->Techs)
 				for (const std::string& r : d.Requires)
@@ -244,7 +209,7 @@ namespace GB::Editor
 					for (const std::string& n : line->second->Who) who += (who.empty() ? "" : ", ") + n;
 					state += " (" + L.Num(line->second->Progress * 100.0f, 0) + " %" + (who.empty() ? std::string() : "; " + L.Text("on it: {0}", who)) + ")";
 				}
-				ImGui::TextDisabled("%s  -  %s", L.Text("Era {0}", d->Era).c_str(), state.c_str());
+				ImGui::TextDisabled("%s", state.c_str());
 				// what it opens: the recipes' outputs and the buildings, with their icons
 				ImGui::AlignTextToFramePadding();
 				ImGui::TextUnformatted(L.Text("Opens:").c_str());

@@ -1,21 +1,19 @@
-# V5 (docs/VISION_MUNDO_VIVO.md): an era is a pack of data. era2.pack.json adds to era1 the Bronze Age (its key technology, alloying), tin, bronze,
-# a need of the age (faith) and its verb (pray), done at a building that provides it (the temple): no code knows any of them. The clan is given
-# smelting and alloying, so it is in the Bronze Age; its people lose faith (a test's copy of the need that falls in seconds) and go to pray at the
-# temple. The era is state: it is saved and loaded with the clan.
-pack load era2 strict
+# V5 + T181: a need a content file adds (faith) and its verb (pray), done at a building that provides it (the temple): no code knows any of them.
+# There are no eras (T181): a need counts once the society is there (in the game's data, era2.json, faith needs the rites and 20 living; the
+# test's copy, v5_faith_fast.json, falls in seconds and asks only the rites). The clan is given the rites, its people lose faith and go to pray at
+# the temple; the game is saved and loaded with it.
 generate temperate 5
 resources world
 site best
 tribe build fox
 content load v5_faith_fast.json
-knowledge grant clan smelting
-knowledge grant clan alloying
+knowledge grant clan ritual
 settlement raise temple
 wait 600
-qa expect "village report" "Bronze Age"
+qa expect "village report" "knows [0-9]+ technologies"
 wait 1200
 qa expect "tribe log 80" "prays at Temple 1 \(Faith\)"
 save v5_bronze
 load v5_bronze
-qa expect "village report" "Bronze Age"
+qa expect "knowledge status clan" "knows: .*ritual"
 quit

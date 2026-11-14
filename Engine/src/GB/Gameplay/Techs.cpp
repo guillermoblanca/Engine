@@ -42,6 +42,28 @@ namespace GB
 		return Shipped().Techs;   // what the data says ("techs" and "knowledge" of the game's pack)
 	}
 
+	float PrereqFactor(const TechTree& tree, const std::string& tech, const std::set<std::string>& known)
+	{
+		const TechDef* t = tree.Find(tech);
+		if (!t) return 1.0f;
+		float f = 1.0f;
+		for (const std::string& r : t->Requires) f *= known.count(r) ? tree.Rules.PrereqBonus : tree.Rules.MissingPrereqFactor;
+		return f;
+	}
+
+	float Complexity(const TechTree& tree, const std::string& tech)
+	{
+		const TechDef* t = tree.Find(tech);
+		if (!t) return 0.0f;
+		return t->Complexity >= 0.0f ? t->Complexity : tree.Rules.DefaultComplexity;
+	}
+
+	float GraspFactor(const TechTree& tree, const std::string& tech, float intellect)
+	{
+		const float gap = std::max(0.0f, Complexity(tree, tech) - intellect);
+		return std::max(tree.Rules.GraspFloor, 1.0f - tree.Rules.GraspSlope * gap);
+	}
+
 	namespace
 	{
 		double Round3(float v) { return std::round(static_cast<double>(v) * 1000.0) / 1000.0; }
@@ -75,50 +97,55 @@ namespace GB
 
 	namespace
 	{
-		// The eras of a list: into `eras`, which may already hold some (merge: the same id is replaced; otherwise two of one id are a mistake)
-		std::string ReadEras(const Json& list, std::vector<EraDef>& eras, bool merge)
+		// T181: "use" of the knowledge rules (learning by using a material; UseLearning.h)
+		std::string ReadUse(const Json& o, UseRules& u)
 		{
-			if (!list.is_array()) return "eras must be a list";
-			auto ids = [](const Json& o, const char* key, std::vector<std::string>& out)
+			if (!o.is_object()) return "use must be an object";
+			for (const auto& [key, v] : o.items())
+				if (key != "materials" && key != "effect" && key != "pull" && key != "enough" && key != "near" && key != "damp" && key != "basics" && key != "paceMin" && key != "paceMax" && key != "fireStation") return "use has no " + key;
+			if (const auto m = o.find("materials"); m != o.end())
 			{
-				if (const auto l = o.find(key); l != o.end())
+				if (!m->is_object()) return "use: materials must be an object of item -> { tech: rate }";
+				for (const auto& [item, techs] : m->items())
 				{
-					if (!l->is_array()) return false;
-					for (const Json& s : *l) { if (!s.is_string()) return false; out.push_back(s.get<std::string>()); }
+					if (!techs.is_object()) return "use: materials of " + item + " must be an object of tech -> rate";
+					for (const auto& [tech, rate] : techs.items())
+					{
+						if (!rate.is_number() || rate.get<float>() < 0.0f || rate.get<float>() > 1.0f) return "use: the rate of " + item + " -> " + tech + " must be a number from 0 to 1";
+						u.Materials[item][tech] = rate.get<float>();
+					}
 				}
-				return true;
-			};
-			std::vector<std::string> read;
-			for (const Json& o : list)
+			}
+			if (const auto e = o.find("effect"); e != o.end())
 			{
-				if (!o.is_object()) return "an era must be an object";
-				EraDef era;
-				era.Id = o.value("id", std::string());
-				era.Name = o.value("name", era.Id);
-				era.Pull = o.value("pull", 0.5f);
-				era.Leap = o.value("leap", 0.0f);
-				if (era.Id.empty()) return "an era has no id";
-				if (!ids(o, "key", era.Key) || !ids(o, "from", era.From) || !ids(o, "progression", era.Progression) || !ids(o, "interest", era.Interest))
-					return "era " + era.Id + ": key, from, progression and interest are lists of ids";
-				if (std::find(read.begin(), read.end(), era.Id) != read.end()) return "two eras called " + era.Id;
-				read.push_back(era.Id);
-				const auto same = std::find_if(eras.begin(), eras.end(), [&](const EraDef& e) { return e.Id == era.Id; });
-				if (same == eras.end() && merge)
+				if (!e->is_string()) return "use: effect must be an option key";
+				u.Effect = e->get<std::string>();
+			}
+			if (const auto f = o.find("fireStation"); f != o.end())
+			{
+				if (!f->is_string()) return "use: fireStation must be a station id (\"\" = none)";
+				u.FireStation = f->get<std::string>();
+			}
+			for (std::string error : { Number(o, "pull", u.Pull, 0.0f, 10.0f), Number(o, "enough", u.Enough, 0.0f, 100000.0f, true), Number(o, "near", u.Near, 0.0f, 100000.0f, true),
+				Number(o, "damp", u.Damp, 0.0f, 1.0f), Number(o, "paceMin", u.PaceMin, 0.0f, 10.0f), Number(o, "paceMax", u.PaceMax, 0.0f, 10.0f) })
+				if (!error.empty()) return "use: " + error;
+			if (u.PaceMin > u.PaceMax) return "use: paceMin is above paceMax";
+			if (const auto b = o.find("basics"); b != o.end())
+			{
+				if (!b->is_object()) return "use: basics must be an object";
+				for (const auto& [key, v] : b->items())
+					if (key != "food" && key != "fire" && key != "beds") return "use: basics has no " + key;
+				for (std::string error : { Number(*b, "food", u.BasicsFood, 0.0f, 1000.0f), Number(*b, "beds", u.BasicsBeds, 0.0f, 10.0f) })
+					if (!error.empty()) return "use: basics " + error;
+				if (const auto f = b->find("fire"); f != b->end())
 				{
-					// a new era goes right after the last of the eras it follows (the order says which era a clan that knows the keys of two is in:
-					// the bronze after the copper age, not after the middle ages)
-					auto at = eras.begin();
-					for (auto e = eras.begin(); e != eras.end(); ++e)
-						if (std::find(era.From.begin(), era.From.end(), e->Id) != era.From.end()) at = e + 1;
-					if (at == eras.begin()) at = eras.end();   // (it follows none of them: at the end)
-					eras.insert(at, std::move(era));
+					if (!f->is_boolean()) return "use: basics fire must be true or false";
+					u.BasicsFire = f->get<bool>();
 				}
-				else if (same == eras.end()) eras.push_back(std::move(era));
-				else if (merge) *same = std::move(era);
-				else return "two eras called " + era.Id;
 			}
 			return {};
 		}
+
 	}
 
 	std::string LoadTechs(const std::string& text, TechTree& tree)
@@ -142,10 +169,14 @@ namespace GB
 					if (!n->is_string()) return "tech '" + t.Id + "': name must be a text";
 					t.Name = n->get<std::string>();
 				}
-				if (const auto e = o.find("era"); e != o.end())
+				if (o.contains("era")) return "tech '" + t.Id + "': there are no eras (T181): what it needs goes in requires and physical";
+				if (const auto ph = o.find("physical"); ph != o.end())
 				{
-					if (!e->is_number_integer() || e->get<long long>() < 0 || e->get<long long>() > 100) return "tech '" + t.Id + "': era must be a whole number from 0 to 100";
-					t.Era = e->get<int>();
+					if (!ph->is_object()) return "tech '" + t.Id + "': physical must be an object";
+					for (const auto& [key, v] : ph->items())
+						if (key != "materials" && key != "stations") return "tech '" + t.Id + "': physical has no " + key;
+					for (std::string error : { Names(*ph, "materials", t.Physical.Materials), Names(*ph, "stations", t.Physical.Stations) })
+						if (!error.empty()) return "tech '" + t.Id + "': physical " + error;
 				}
 				if (const auto k = o.find("known"); k != o.end())
 				{
@@ -155,6 +186,7 @@ namespace GB
 				for (std::string error : { Names(o, "requires", t.Requires), Names(o, "recipes", t.Recipes), Names(o, "nodes", t.Nodes), Names(o, "buildings", t.Buildings) })
 					if (!error.empty()) return "tech '" + t.Id + "': " + error;
 				if (std::find(t.Requires.begin(), t.Requires.end(), t.Id) != t.Requires.end()) return "tech '" + t.Id + "' requires itself";
+				if (std::string error = Number(o, "complexity", t.Complexity, 0.0f, 1.0f); !error.empty()) return "tech '" + t.Id + "': " + error;
 				if (const auto d = o.find("discovery"); d != o.end())
 				{
 					if (!d->is_object()) return "tech '" + t.Id + "': discovery must be an object";
@@ -173,8 +205,16 @@ namespace GB
 			if (!it->is_object()) return "knowledge: expected an object";
 			KnowledgeRules r;
 			for (std::string error : { Number(*it, "lessonSeconds", r.LessonSeconds, 0.0f, 86400.0f, true), Number(*it, "observeRadius", r.ObserveRadius, 0.0f, 1000.0f),
-				Number(*it, "growth", r.Growth, 0.0f, 100.0f), Number(*it, "experimentProgress", r.ExperimentProgress, 0.0f, 100.0f) })
+				Number(*it, "growth", r.Growth, 0.0f, 100.0f), Number(*it, "experimentProgress", r.ExperimentProgress, 0.0f, 100.0f),
+				Number(*it, "prereqBonus", r.PrereqBonus, 0.0f, 10.0f), Number(*it, "missingPrereqFactor", r.MissingPrereqFactor, 0.0f, 1.0f),
+				Number(*it, "leapYears", r.LeapYears, 0.0f, 100000.0f), Number(*it, "defaultComplexity", r.DefaultComplexity, 0.0f, 1.0f),
+				Number(*it, "graspFloor", r.GraspFloor, 0.0f, 1.0f), Number(*it, "graspSlope", r.GraspSlope, 0.0f, 100.0f) })
 				if (!error.empty()) return "knowledge: " + error;
+			if (const auto g = it->find("intellectGene"); g != it->end())
+			{
+				if (!g->is_string()) return "knowledge: intellectGene must be the id of a gene (\"\" = none)";
+				r.IntellectGene = g->get<std::string>();
+			}
 			if (const auto s = it->find("seed"); s != it->end())
 			{
 				if (!s->is_number_integer() || s->get<long long>() < 0 || s->get<long long>() > 0xffffffffLL) return "knowledge: seed must be a whole number of 0 or more";
@@ -189,14 +229,12 @@ namespace GB
 					r.Progression.push_back(id.get<std::string>());
 				}
 			}
-			if (const auto e = it->find("eras"); e != it->end())   // N6
-				if (std::string error = ReadEras(*e, r.Eras, false); !error.empty()) return "knowledge: " + error;
+			if (it->contains("eras")) return "knowledge: there are no eras (T181)";
+			if (const auto u = it->find("use"); u != it->end())
+				if (std::string error = ReadUse(*u, r.Use); !error.empty()) return "knowledge: " + error;
 			rules = r;
 		}
-		// V5: "eras" at the top of a file adds eras to those already read (or replaces the one of the same id): a later pack opens a new era without
-		// repeating the knowledge rules of the first
-		if (const auto e = j.find("eras"); e != j.end())
-			if (std::string error = ReadEras(*e, rules.Eras, true); !error.empty()) return "eras: " + error;
+		if (j.contains("eras")) return "eras: there are no eras (T181)";
 		for (TechDef& t : read) tree.Techs[t.Id] = std::move(t);
 		tree.Rules = rules;
 		return {};
@@ -208,8 +246,10 @@ namespace GB
 		const TechDiscovery none;
 		for (const auto& [id, t] : tree.Techs)
 		{
-			Json o = { { "id", t.Id }, { "name", t.Name }, { "era", t.Era }, { "requires", t.Requires }, { "recipes", t.Recipes } };
+			Json o = { { "id", t.Id }, { "name", t.Name }, { "requires", t.Requires }, { "recipes", t.Recipes } };
 			if (t.Known) o["known"] = true;
+			if (t.Complexity >= 0.0f) o["complexity"] = Round3(t.Complexity);
+			if (!t.Physical.Empty()) o["physical"] = { { "materials", t.Physical.Materials }, { "stations", t.Physical.Stations } };
 			if (!t.Nodes.empty()) o["nodes"] = t.Nodes;
 			if (!t.Buildings.empty()) o["buildings"] = t.Buildings;
 			if (!(t.Discovery == none))
@@ -218,14 +258,16 @@ namespace GB
 			techs.push_back(o);
 		}
 		const KnowledgeRules& r = tree.Rules;
-		Json out = { { "techs", techs }, { "knowledge", { { "lessonSeconds", Round3(r.LessonSeconds) }, { "observeRadius", Round3(r.ObserveRadius) }, { "growth", Round3(r.Growth) }, { "experimentProgress", Round3(r.ExperimentProgress) }, { "seed", r.Seed }, { "progression", r.Progression } } } };
-		if (!r.Eras.empty())
-		{
-			Json eras = Json::array();
-			for (const EraDef& e : r.Eras)
-				eras.push_back({ { "id", e.Id }, { "name", e.Name }, { "key", e.Key }, { "from", e.From }, { "progression", e.Progression }, { "interest", e.Interest }, { "pull", Round3(e.Pull) }, { "leap", Round3(e.Leap) } });
-			out["knowledge"]["eras"] = eras;
-		}
+		Json out = { { "techs", techs }, { "knowledge", { { "lessonSeconds", Round3(r.LessonSeconds) }, { "observeRadius", Round3(r.ObserveRadius) }, { "growth", Round3(r.Growth) }, { "experimentProgress", Round3(r.ExperimentProgress) }, { "seed", r.Seed }, { "progression", r.Progression },
+			{ "prereqBonus", Round3(r.PrereqBonus) }, { "missingPrereqFactor", Round3(r.MissingPrereqFactor) },
+			{ "intellectGene", r.IntellectGene }, { "defaultComplexity", Round3(r.DefaultComplexity) }, { "graspFloor", Round3(r.GraspFloor) }, { "graspSlope", Round3(r.GraspSlope) } } } };
+		const UseRules& u = r.Use;
+		Json materials = Json::object();
+		for (const auto& [item, leads] : u.Materials)
+			for (const auto& [tech, rate] : leads) materials[item][tech] = Round3(rate);
+		out["knowledge"]["use"] = { { "materials", materials }, { "effect", u.Effect }, { "pull", Round3(u.Pull) }, { "enough", Round3(u.Enough) }, { "near", Round3(u.Near) },
+			{ "damp", Round3(u.Damp) }, { "basics", { { "food", Round3(u.BasicsFood) }, { "fire", u.BasicsFire }, { "beds", Round3(u.BasicsBeds) } } }, { "paceMin", Round3(u.PaceMin) }, { "paceMax", Round3(u.PaceMax) }, { "fireStation", u.FireStation } };
+		if (r.LeapYears > 0.0f) out["knowledge"]["leapYears"] = Round3(r.LeapYears);
 		return out.dump(2);
 	}
 }

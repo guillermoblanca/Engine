@@ -15,13 +15,10 @@ namespace GB
 
 	bool Tribe::DataNeedActive(const NeedDef& n) const
 	{
-		if (n.Era.empty()) return true;
-		const TechTree* tree = m_Knowledge.Techs();
-		if (!tree || m_Era.empty()) return false;
-		const std::vector<EraDef>& eras = tree->Rules.Eras;
-		auto at = [&](const std::string& id) { return std::find_if(eras.begin(), eras.end(), [&](const EraDef& e) { return e.Id == id; }) - eras.begin(); };
-		const auto need = at(n.Era), here = at(m_Era);
-		return need < static_cast<std::ptrdiff_t>(eras.size()) && here < static_cast<std::ptrdiff_t>(eras.size()) && here >= need;   // (the eras in the order the packs list them)
+		// T181: no eras: the society is there (it knows the need's technology and is big enough)
+		if (!n.Tech.empty() && m_Knowledge.Gated() && !m_Knowledge.Clan().count(n.Tech)) return false;
+		if (n.Members > 0 && std::count_if(m_Members.begin(), m_Members.end(), [](const TribeMember& m) { return !m.Dead; }) < n.Members) return false;
+		return true;
 	}
 
 	float Tribe::DataNeedLevel(const TribeMember& m, const NeedDef& n) const

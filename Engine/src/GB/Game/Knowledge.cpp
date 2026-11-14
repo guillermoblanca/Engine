@@ -97,7 +97,20 @@ namespace GB
 		if (!m_Techs) return false;
 		const TechDef* t = m_Techs->Find(tech);
 		if (!t || Knows(name, tech)) return false;
-		return std::all_of(t->Requires.begin(), t->Requires.end(), [&](const std::string& q) { return Knows(name, q); });
+		return Physical(tech);   // T181: what it requires only speeds or slows it (Pace)
+	}
+
+	bool ClanKnowledge::CanInvent(const std::string& name, const std::string& tech) const
+	{
+		return CanLearn(name, tech) && Intellect(name) >= Complexity(*m_Techs, tech) - 1e-6f;   // T181 (2): working it out alone takes the intellect
+	}
+
+	float ClanKnowledge::Pace(const std::string& name, const std::string& tech) const
+	{
+		if (!m_Techs) return 1.0f;
+		const AgentKnowledge* k = Of(name);
+		static const std::set<std::string> none;
+		return PrereqFactor(*m_Techs, tech, k ? k->Known : none);
 	}
 
 	bool ClanKnowledge::CanMake(const std::string& name, const std::string& recipe) const
@@ -179,7 +192,7 @@ namespace GB
 		for (const std::string& id : m_Goals)
 		{
 			const TechDef* t = m_Techs->Find(id);
-			if (!t || t->Discovery.Experiment <= 0.0f || !CanLearn(name, id)) continue;
+			if (!t || t->Discovery.Experiment <= 0.0f || !CanInvent(name, id)) continue;
 			for (const std::string& rid : t->Recipes)
 				if (const Recipe* r = book.Find(rid); r && std::all_of(r->Inputs.begin(), r->Inputs.end(), [&](const auto& in) { return store.Count(in.first) + bag.Count(in.first) >= in.second; }))
 				{
@@ -190,9 +203,10 @@ namespace GB
 		}
 		std::string idea;
 		int ideaTries = 0;
+		float ideaReady = 0.0f;
 		for (const auto& [id, t] : m_Techs->Techs)
 		{
-			if (t.Discovery.Experiment <= 0.0f || !CanLearn(name, id)) continue;
+			if (t.Discovery.Experiment <= 0.0f || !CanInvent(name, id)) continue;
 			for (const std::string& rid : t.Recipes)
 			{
 				const Recipe* r = book.Find(rid);
@@ -202,18 +216,19 @@ namespace GB
 				if (recipe) *recipe = rid;
 				return id;
 			}
-			if (t.Recipes.empty())
+			if (t.Recipes.empty())   // (T181: the idea it is readiest for, by what it requires; then the least tried)
 			{
 				const auto tried = k->Tries.find(id);
 				const int n = tried == k->Tries.end() ? 0 : tried->second;
-				if (idea.empty() || n < ideaTries) { idea = id; ideaTries = n; }
+				const float ready = PrereqFactor(*m_Techs, id, k->Known);
+				if (idea.empty() || ready > ideaReady + 1e-6f || (ready > ideaReady - 1e-6f && n < ideaTries)) { idea = id; ideaTries = n; ideaReady = ready; }
 			}
 		}
 		if (!idea.empty() && recipe) recipe->clear();
 		return idea;
 	}
 
-	std::vector<KnowledgeEvent> ClanKnowledge::Experiment(const std::string& name, double now, Inventory& store, Inventory& bag, const RecipeBook& book)
+	std::vector<KnowledgeEvent> ClanKnowledge::Experiment(const std::string& name, double now, Inventory& store, Inventory& bag, const RecipeBook& book, float curiosity)
 	{
 		std::vector<KnowledgeEvent> out;
 		std::string rid;
@@ -222,25 +237,27 @@ namespace GB
 		AgentKnowledge& k = m_Agents[name];
 		const TechDef& t = *m_Techs->Find(tech);
 		const int tries = k.Tries[tech];   // failures so far
-		const double chance = std::min(1.0, static_cast<double>(t.Discovery.Experiment) * (1.0 + static_cast<double>(m_Techs->Rules.Growth) * tries));
+		const double prereq = static_cast<double>(PrereqFactor(*m_Techs, tech, k.Known));   // T181: what it requires, known or not, speeds or slows it
+		const double chance = std::min(1.0, static_cast<double>(t.Discovery.Experiment) * prereq * (1.0 + static_cast<double>(m_Techs->Rules.Growth) * tries));
 		k.NextTry = now + static_cast<double>(t.Discovery.Seconds);
 		const std::string with = rid.empty() ? std::string() : " with the materials of the " + rid;
 		if (Roll(name, tech, 1, tries) < chance)
 		{
 			Learn(name, k, tech);
-			out.push_back({ name, "discovers " + Name(tech) + " by experimenting" + with + " (try " + std::to_string(tries + 1) + ")" });
+			out.push_back({ name, "discovers " + Name(tech) + " by experimenting" + with + " (try " + std::to_string(tries + 1) + ")", std::string(), tech });
 			return out;
 		}
 		k.Tries[tech] = tries + 1;
 		// U6: a failed try is not lost: what it was worth goes to the agent's understanding, and with enough work it is found for sure
-		if (const float step = static_cast<float>(chance) * m_Techs->Rules.ExperimentProgress; step > 0.0f)
+		// (T181: the more curious, the more a try teaches)
+		if (const float step = static_cast<float>(chance) * m_Techs->Rules.ExperimentProgress * std::max(0.0f, curiosity); step > 0.0f)
 		{
 			float& p = k.Progress[tech];
 			p = std::min(1.0f, p + step);
 			if (p >= 1.0f - 1e-5f)
 			{
 				Learn(name, k, tech);
-				out.push_back({ name, "discovers " + Name(tech) + " by experimenting" + with + " (worked out after " + std::to_string(tries + 1) + " tries)" });
+				out.push_back({ name, "discovers " + Name(tech) + " by experimenting" + with + " (worked out after " + std::to_string(tries + 1) + " tries)", std::string(), tech });
 				return out;
 			}
 		}
@@ -259,11 +276,12 @@ namespace GB
 	void ClanKnowledge::Understand(const std::string& name, AgentKnowledge& k, const std::string& tech, float amount, const std::string& how, std::vector<KnowledgeEvent>& out)
 	{
 		float& p = k.Progress[tech];
-		p = std::min(1.0f, p + amount);
+		// T181: watched, taught or used: what it requires speeds or slows it; (2) and so does the intellect it lacks for the technology's complexity
+		p = std::min(1.0f, p + amount * PrereqFactor(*m_Techs, tech, k.Known) * GraspFactor(*m_Techs, tech, Intellect(name)));
 		if (p >= 1.0f - 1e-5f)
 		{
 			Learn(name, k, tech);
-			out.push_back({ name, "learns " + Name(tech) + " " + how });
+			out.push_back({ name, "learns " + Name(tech) + " " + how, std::string(), tech });
 		}
 		else out.push_back({ name, "understands " + Percent(p) + " of " + Name(tech) + " " + how });
 	}
@@ -329,9 +347,16 @@ namespace GB
 			if (!learner.Alive || !learner.AtCamp || !learner.Idle) continue;
 			const auto me = m_Agents.find(learner.Name);
 			if (me == m_Agents.end()) continue;
+			// T181: what it requires is no gate, so the lesson is the one it is readiest for (the best PrereqFactor; by id among equals): the
+			// next step before something far ahead
+			std::vector<std::pair<float, std::string>> order;
 			for (const auto& [id, t] : m_Techs->Techs)
+				if (t.Discovery.Teach > 0.0f && CanLearn(learner.Name, id)) order.emplace_back(-PrereqFactor(*m_Techs, id, me->second.Known), id);
+			std::stable_sort(order.begin(), order.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+			for (const auto& entry : order)
 			{
-				if (t.Discovery.Teach <= 0.0f || !CanLearn(learner.Name, id)) continue;
+				const std::string& id = entry.second;
+				const TechDef& t = *m_Techs->Find(id);
 				auto canTeach = [&](const KnowledgeAgent& a) { return a.Alive && a.AtCamp && a.Name != learner.Name && Knows(a.Name, id) && m_Agents.count(a.Name); };
 				// its mentors first (H10: parents, then those it likes best), in their order; else the first who can
 				auto teacher = agents.end();

@@ -50,7 +50,7 @@
     {
       "id": "printing",
       "name": "Printing",
-      "era": 9,
+      "complexity": 0.75,
       "requires": [
         "writing",
         "masonry",
@@ -70,6 +70,12 @@
         "teach": 0.1,
         "seconds": 90.0,
         "waste": 0.4
+      },
+      "physical": {
+        "materials": [
+          "plank",
+          "leather"
+        ]
       }
     }
   ],
@@ -172,27 +178,6 @@
       "aura": 3.0
     }
   },
-  "eras": [
-    {
-      "id": "renaissance",
-      "name": "Renaissance",
-      "key": [
-        "printing"
-      ],
-      "from": [
-        "medieval"
-      ],
-      "pull": 0.4,
-      "interest": [
-        "paper"
-      ],
-      "progression": [
-        "masonry",
-        "printing"
-      ],
-      "leap": 60
-    }
-  ],
   "diplomacy": {
     "trade": {
       "values": {

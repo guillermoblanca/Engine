@@ -49,7 +49,7 @@
     {
       "id": "writing",
       "name": "Writing",
-      "era": 7,
+      "complexity": 0.65,
       "requires": [
         "forging",
         "pottery"
@@ -67,12 +67,20 @@
         "teach": 0.1,
         "seconds": 90.0,
         "waste": 0.4
+      },
+      "physical": {
+        "materials": [
+          "clay"
+        ],
+        "stations": [
+          "kiln"
+        ]
       }
     },
     {
       "id": "masonry",
       "name": "Masonry",
-      "era": 8,
+      "complexity": 0.55,
       "requires": [
         "carpentry",
         "pottery",
@@ -89,6 +97,14 @@
         "teach": 0.1,
         "seconds": 90.0,
         "waste": 0.4
+      },
+      "physical": {
+        "materials": [
+          "stone"
+        ],
+        "stations": [
+          "forge"
+        ]
       }
     }
   ],
@@ -144,55 +160,11 @@
       "aura": 3.0
     }
   },
-  "eras": [
-    {
-      "id": "classical",
-      "name": "Classical Age",
-      "key": [
-        "writing"
-      ],
-      "from": [
-        "iron"
-      ],
-      "pull": 0.4,
-      "interest": [
-        "clay"
-      ],
-      "progression": [
-        "forging",
-        "writing"
-      ],
-      "leap": 200
-    },
-    {
-      "id": "medieval",
-      "name": "Middle Ages",
-      "key": [
-        "masonry"
-      ],
-      "from": [
-        "classical"
-      ],
-      "pull": 0.3,
-      "interest": [
-        "stone",
-        "fired_brick"
-      ],
-      "progression": [
-        "timber_framing",
-        "pottery",
-        "smelting",
-        "carpentry",
-        "masonry"
-      ],
-      "leap": 100
-    }
-  ],
   "needs": [
     {
       "id": "learning",
       "name": "Learning",
-      "era": "classical",
+      "tech": "writing",
       "verb": "study",
       "provision": "learning",
       "decayPerDay": 30.0,

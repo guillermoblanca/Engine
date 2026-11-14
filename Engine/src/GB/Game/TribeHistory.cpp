@@ -84,7 +84,6 @@ namespace GB
 		// what a player does for others (a person's deeds are what people talk about: V2): a gift, a good load for the store
 		else if (m.Player && Starts(text, "gives ", &rest) && rest.find(" to ") != std::string::npos) Happen("gift", me, rest.substr(rest.rfind(" to ") + 4), line);
 		else if (m.Player && Starts(text, "leaves ", &rest) && rest.find(" in the store") != std::string::npos && std::atoi(rest.c_str()) >= 5) Happen("help", me, std::string(), line);
-		else if (me.empty() && Starts(text, "enters the ")) Happen("era", std::string(), std::string(), line);
 		else if (me.empty() && Starts(text, "moves its camp from ")) Happen("camp_moved", std::string(), std::string(), line);
 	}
 

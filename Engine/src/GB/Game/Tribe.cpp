@@ -1,5 +1,6 @@
 #include "GB/Game/Tribe.h"
 #include "GB/Game/TribePriorities.h"
+#include "GB/Game/UseLearning.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -498,7 +499,6 @@ namespace GB
 		m_Homes.clear();
 		m_Apprentices.clear();
 		m_Upgrades.clear();
-		m_Era.clear();
 		m_Econ.Pantries.clear();
 		ReplaceTrails(TrailState());   // T5c
 		m_Searches.clear();
@@ -871,6 +871,7 @@ namespace GB
 			m_Society.Leave(name);
 			m_Conflict.Members.erase(name);
 			if (m_Combat) m_Combat->Leave(name);
+			SocialLeft(name);   // (out of the circle of a rite in course)
 			if (m_Cursor > i) --m_Cursor;
 
 			return true;
@@ -1380,6 +1381,7 @@ namespace GB
 		for (const KnowledgeEvent& e : events)
 		{
 			if (!e.Other.empty()) Relate(e.Who, e.Other, "teach");   // a lesson brings teacher and learner closer (H10)
+			UseLearning::Noted(*this, e);   // T181: the telemetry of what was learnt without its requirements
 			if (e.Text.rfind("learns ", 0) == 0 || e.Text.rfind("discovers ", 0) == 0) ClanEvent("learn");
 			const auto m = std::find_if(m_Members.begin(), m_Members.end(), [&](const TribeMember& x) { return x.Name == e.Who; });
 			if (m != m_Members.end()) { Say(*m, e.Text); continue; }
@@ -1396,6 +1398,13 @@ namespace GB
 		const std::vector<KnowledgeAgent> view = KnowledgeView();
 		if (!recipe.empty()) Tell(m_Knowledge.WitnessRecipe(m.Name, recipe, Where(m), view));
 		if (!node.empty()) Tell(m_Knowledge.WitnessNode(m.Name, node, Where(m), view));
+		Tell(UseLearning::Used(*this, m, recipe, node));   // T181: and the member itself learns by using the materials
+	}
+
+	void Tribe::SetTechs(const TechTree* techs)
+	{
+		m_Knowledge.SetTechs(techs);
+		UseLearning::Bind(*this);   // T181: the world (physical gate) and the people (intellect) behind what can be learnt
 	}
 
 	// How much the role likes an option: by the node's id, then by its kind from the most specific up ("Resource.Stone.Flint", "Resource.Stone"),
@@ -1780,6 +1789,7 @@ namespace GB
 				o.Score = want * reach;
 				Factor(o, trade ? "needs it for its tool" : step ? "the clan's next step" : "curiosity", want);
 				Factor(o, "distance", reach);
+				if (const float room = UseLearning::Room(*this, m); room < 1.0f) { o.Score *= room; Factor(o, "survival first", room); }   // T181: a priority, not a block
 				o.Note = "has what the " + (recipe.empty() ? tech : recipe) + " needs and does not know " + m_Knowledge.Name(tech);
 				opts.push_back(o);
 			}
@@ -2167,7 +2177,7 @@ namespace GB
 		{
 			if (!HasFailed(m))
 			{
-				Tell(m_Knowledge.Experiment(m.Name, m_Time, m_Store, bag, *m_Recipes));
+				Tell(m_Knowledge.Experiment(m.Name, m_Time, m_Store, bag, *m_Recipes, UseLearning::Pace(*this, m)));   // T181: curiosity speeds it
 				Practise(m, "craft", "craft", 1.0f);   // trying a recipe is crafting practice (H7)
 			}
 			Share(m);
@@ -2360,7 +2370,6 @@ namespace GB
 		j["needTimer"] = m_NeedTimer;
 		if (m_LodTimer != 0.0f) j["lod"] = m_LodTimer;   // the clock of the level of detail: abstract members walk otherwise, so a load must look at the viewer when the run did
 		if (m_PlanTimer != 0.0f) j["plan"] = m_PlanTimer;   // the settlement planner's clock (its sites are entities, saved with the scene)
-		if (!m_Era.empty()) j["era"] = m_Era;   // V5: the era the clan is in is state (the rules of an era pack follow it)
 		j["fire"] = m_Fire ? 1 : 0;   // its state is the interactive's (tags and attributes, saved with the gameplay)
 		j["camp"] = Json::array({ Config.Economy.Camp.x, Config.Economy.Camp.y, Config.Economy.CampY });
 		j["store"] = Json::parse(m_Store.ToJson());
@@ -2471,7 +2480,7 @@ namespace GB
 		if (j.contains("lastWorker") && j["lastWorker"].is_object())
 			for (const auto& [node, who] : j["lastWorker"].items()) if (who.is_string()) m_LastWorker[node] = who.get<std::string>();
 		m_PlanTimer = j.value("plan", 0.0f);   // (H8; a save from before has none)
-		m_Era = j.value("era", std::string());
+		// (T181: an older save's "era" is ignored: there are no eras)
 		m_Fire = j.value("fire", 0) != 0;
 		if (j.contains("camp") && j["camp"].is_array() && j["camp"].size() == 3)
 		{

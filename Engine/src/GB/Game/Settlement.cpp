@@ -3,6 +3,7 @@
 // the orders from Execute, what a finished job leaves from Finish and the shelter from the needs. Without buildings (Tribe::SetBuildings) every one of
 // them does nothing, so a tribe without them behaves exactly as before. See docs/ASENTAMIENTOS.md.
 #include "GB/Game/Tribe.h"
+#include "GB/Game/UseLearning.h"
 #include "GB/World/Regions.h"
 #include <algorithm>
 #include <cmath>
@@ -869,24 +870,6 @@ namespace GB
 		return std::clamp(reach, 30.0f, std::max(30.0f, Config.SettlementRadius - 4.0f));
 	}
 
-	std::string Tribe::Era() const
-	{
-		const TechTree* tree = m_Knowledge.Techs();
-		if (!tree) return {};
-		std::string era;
-		for (const EraDef& e : tree->Rules.Eras)
-			if (std::all_of(e.Key.begin(), e.Key.end(), [&](const std::string& t) { return m_Knowledge.Clan().count(t) > 0; })) era = e.Id;
-		return era;
-	}
-
-	std::string Tribe::EraName() const
-	{
-		const TechTree* tree = m_Knowledge.Techs();
-		const std::string era = Era();
-		if (tree) for (const EraDef& e : tree->Rules.Eras) if (e.Id == era) return e.Name;
-		return era;
-	}
-
 	float Tribe::SiteAge(const std::string& site) const
 	{
 		const ConstructionRules& c = Config.Econ.Construction;
@@ -940,57 +923,9 @@ namespace GB
 		}
 		const FarmRules& farm = Config.Econ.Farming;
 		if (!farm.Tech.empty() && static_cast<int>(m_Econ.Fields.size()) < FieldsWanted()) add(farm.Tech, 0);   // the way to the fields
-		// P1/N6: the next rung of a ladder the clan climbs on its own. Without eras, knowledge.progression; with them, the ladder of its era (pull 1)
-		// or of an era it can go on to, pulled by what of that era's interest the clan has in the store and knows of round it (the nearer, the
-		// more) and by the era's bias: a clan with copper near goes for smelting, one with grain and clay for the fields
-		const std::vector<EraDef>& eras = tree->Rules.Eras;
-		const std::string era = Era();
-		if (era != m_Era)
-		{
-			if (!m_Era.empty())
-			{
-				char t[48];
-				std::snprintf(t, sizeof t, "%6.1f ", m_Time);
-				m_Log.push_back(std::string(t) + "the clan enters the " + EraName());
-				TellClan("enters the " + EraName());
-			}
-			m_Era = era;
-		}
-		auto firstUnknown = [&](const std::vector<std::string>& ladder) -> std::string
-		{
-			for (const std::string& id : ladder) if (!known.count(id) && tree->Find(id)) return id;
-			return {};
-		};
-		std::string rung = firstUnknown(tree->Rules.Progression);
-		if (!eras.empty())
-		{
-			float best = -1.0f;
-			rung.clear();
-			for (const EraDef& e : eras)
-			{
-				const bool current = e.Id == era;
-				const bool next = !current && std::find(e.From.begin(), e.From.end(), era) != e.From.end();
-				if (!current && !next) continue;
-				const std::string id = firstUnknown(e.Progression);
-				if (id.empty()) continue;
-				float pull = current ? 1.0f : e.Pull;
-				if (next && !e.Interest.empty())
-				{
-					float interest = 0.0f;
-					for (const std::string& item : e.Interest)
-					{
-						float have = static_cast<float>(m_Store.Count(item));
-						for (const auto& [name, mem] : m_Clan.All())
-							if (const auto d = m_Defs.find(mem.Kind); d != m_Defs.end() && d->second.Item == item)
-								have += static_cast<float>(mem.Amount >= 0 ? mem.Amount : d->second.Capacity) * Falloff(glm::distance(mem.Pos, Config.Economy.Camp), 300.0f);
-						interest += std::min(1.0f, have / 20.0f);
-					}
-					pull += 2.0f * interest / static_cast<float>(e.Interest.size());
-				}
-				if (pull > best) { best = pull; rung = id; }
-			}
-		}
-		if (!rung.empty()) add(rung, 0);
+		// P1 + T181: the next rung the clan reaches for on its own, with no eras: the basics ladder (knowledge.progression) or what the materials it
+		// has found pull it to (a clan with copper near goes for smelting, one with grain seed for the fields): UseLearning::NextStep
+		if (const std::string rung = UseLearning::NextStep(*this); !rung.empty()) add(rung, 0);
 		m_Knowledge.SetGoals(std::move(goals));
 	}
 
@@ -1138,6 +1073,7 @@ namespace GB
 		if (!HasFailed(m))
 		{
 			Practise(m, "build", "build", 1.0f);
+			Tell(UseLearning::Built(*this, m, *def, s.Phase));   // T181: building with a material teaches what it leads to
 			if (const Job* held = m_Board.ClaimOf(m.Name); held && held->Kind == "build" && held->Target == m.Detail) m_Board.Progress(m.Name, 1.0f, m_Time);
 		}
 		if (s.Done && m_Announced.insert(m.Detail).second)

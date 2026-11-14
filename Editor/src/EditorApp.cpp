@@ -1178,7 +1178,7 @@ namespace GB::Editor
 			return { true, std::to_string(m_Items.Ids().size()) + " items, " + std::to_string(m_Recipes.Ids().size()) + " recipes, " + std::to_string(m_NodeDefs.size()) + " resource nodes, "
 				+ std::to_string(m_Interactives.Defs.size()) + " interactives, " + std::to_string(m_Ecology.Species.size()) + " species" };
 		});
-		c.Register("pack", "pack list | load <id|manifest.json> [strict] | check: the eras as data packs (assets/data/<id>.pack.json: its content files, the packs it depends on, what is given, the stations, the known gaps). load loads the missing dependencies first, all or nothing, and checks that every item and recipe can be had (strict: a problem refuses the load); era1 is loaded at start", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("pack", "pack list | load <id|manifest.json> [strict] | check: the content as data packs (assets/data/<id>.pack.json: its content files, the packs it depends on, what is given, the stations, the known gaps). load loads the missing dependencies first, all or nothing, and checks that every item and recipe can be had (strict: a problem refuses the load); era1 is loaded at start", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			const std::string sub = a.empty() ? "list" : a[0];
 			const std::string dir = m_AssetRoot + "/data";
@@ -1186,7 +1186,7 @@ namespace GB::Editor
 			{
 				std::string out;
 				for (const PackManifest& m : ContentPacks::Available(dir))
-					out += (m_Packs.IsLoaded(m.Id) ? "* " : "  ") + m.Id + " (era " + std::to_string(m.Era) + ", v" + m.Version + "): " + m.Name
+					out += (m_Packs.IsLoaded(m.Id) ? "* " : "  ") + m.Id + " (v" + m.Version + "): " + m.Name
 						+ (m.Depends.empty() ? std::string() : ", needs " + [&] { std::string d; for (const std::string& x : m.Depends) d += (d.empty() ? "" : " ") + x; return d; }()) + "\n";
 				for (const PackManifest& m : m_Packs.Loaded())
 					if (std::filesystem::path(m.Path).parent_path() != std::filesystem::path(dir)) out += "* " + m.Id + " (" + m.Path + ")\n";

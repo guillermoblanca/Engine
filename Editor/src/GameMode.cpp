@@ -514,9 +514,9 @@ namespace GB::Editor
 		// V3: a life ends; the game goes on with an heir the player chooses (its lineage first), and is over only when nobody is left
 		if (me->Dead && !m_Game.Over && !m_Game.Heir)
 		{
-			// V6: between two lives the world leaps the years of its era (its data); then the heir is chosen among those living after them
-			// (the dead's grandchildren born in those years are its lineage), who lived them and remember them
-			if (const float years = PlayTribe().EraLeap(); years > 0.0f)
+			// V6: between two lives the world leaps the years of the data (knowledge.leapYears; T181: no eras); then the heir is chosen among those
+			// living after them (the dead's grandchildren born in those years are its lineage), who lived them and remember them
+			if (const float years = PlayTribe().LeapYears(); years > 0.0f)
 			{
 				std::string told = std::to_string(static_cast<int>(years)) + " years pass";
 				for (const std::string& l : m_Clans.Leap(years)) told += " | " + l;
@@ -922,10 +922,10 @@ namespace GB::Editor
 			if (r.Ok) GameNote("You carry on as " + name + " (" + pick->Tie + "), who remembers what " + dead + " told.");
 			return r;
 		}
-		if (sub == "leap")   // V6: the world lives some years in aggregate now (the years of the era when none are given)
+		if (sub == "leap")   // V6: the world lives some years in aggregate now (the years of the data when none are given)
 		{
-			const float years = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : PlayTribe().EraLeap();
-			if (years <= 0.0f) return { false, "usage: game leap <years> (this era leaps none)" };
+			const float years = a.size() > 1 ? static_cast<float>(std::atof(a[1].c_str())) : PlayTribe().LeapYears();
+			if (years <= 0.0f) return { false, "usage: game leap <years> (the data leaps none)" };
 			std::string s = std::to_string(static_cast<int>(years)) + " years pass";
 			for (const std::string& l : m_Clans.Leap(years)) s += " | " + l;
 			SyncNewGameplay();

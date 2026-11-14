@@ -47,7 +47,17 @@ namespace GB
 			if (std::find(read.begin(), read.end(), n.Id) != read.end()) return "needs: two needs called " + n.Id;
 			read.push_back(n.Id);
 			n.Name = o.value("name", n.Id);
-			n.Era = o.value("era", std::string());
+			if (o.contains("era")) return "need " + n.Id + ": there are no eras (T181): say when it counts with tech and members";
+			if (const auto t = o.find("tech"); t != o.end())
+			{
+				if (!t->is_string()) return "need " + n.Id + ": tech must be a technology id";
+				n.Tech = t->get<std::string>();
+			}
+			if (const auto c = o.find("members"); c != o.end())
+			{
+				if (!c->is_number_integer() || c->get<long long>() < 0 || c->get<long long>() > 100000) return "need " + n.Id + ": members must be a whole number of 0 or more";
+				n.Members = c->get<int>();
+			}
 			n.Verb = o.value("verb", std::string());
 			n.Provision = o.value("provision", std::string());
 			n.Item = o.value("item", std::string());
@@ -60,7 +70,7 @@ namespace GB
 				*field = v->get<float>();
 			}
 			for (const auto& [key, v] : o.items())
-				if (key != "id" && key != "name" && key != "era" && key != "verb" && key != "provision" && key != "item" && key != "decayPerDay" && key != "threshold" && key != "weight" && key != "seconds" && key != "amount")
+				if (key != "id" && key != "name" && key != "tech" && key != "members" && key != "verb" && key != "provision" && key != "item" && key != "decayPerDay" && key != "threshold" && key != "weight" && key != "seconds" && key != "amount")
 					return "need " + n.Id + " has no " + key;
 			if (n.Verb.empty()) return "need " + n.Id + ": it has no verb (what a member does about it)";
 			if (ReservedVerb(n.Verb)) return "need " + n.Id + ": the verb " + n.Verb + " is one the engine already uses";
@@ -83,7 +93,8 @@ namespace GB
 		{
 			Json o = { { "id", n.Id }, { "name", n.Name }, { "verb", n.Verb }, { "decayPerDay", n.DecayPerDay }, { "threshold", n.Threshold }, { "weight", n.Weight },
 				{ "seconds", n.Seconds }, { "amount", n.Amount } };
-			if (!n.Era.empty()) o["era"] = n.Era;
+			if (!n.Tech.empty()) o["tech"] = n.Tech;
+			if (n.Members > 0) o["members"] = n.Members;
 			if (!n.Provision.empty()) o["provision"] = n.Provision;
 			if (!n.Item.empty()) o["item"] = n.Item;
 			list.push_back(o);

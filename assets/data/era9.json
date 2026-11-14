@@ -29,7 +29,7 @@
     {
       "id": "artificial_intelligence",
       "name": "Artificial intelligence",
-      "era": 17,
+      "complexity": 0.95,
       "requires": [
         "computing"
       ],
@@ -40,6 +40,14 @@
         "datacenter",
         "commons"
       ],
+      "physical": {
+        "materials": [
+          "chip"
+        ],
+        "stations": [
+          "factory"
+        ]
+      },
       "discovery": {
         "experiment": 0.04,
         "observe": 0.15,
@@ -148,32 +156,11 @@
       "aura": 3.0
     }
   },
-  "eras": [
-    {
-      "id": "ai",
-      "name": "Age of AI",
-      "key": [
-        "artificial_intelligence"
-      ],
-      "from": [
-        "information"
-      ],
-      "pull": 0.4,
-      "interest": [
-        "computer"
-      ],
-      "progression": [
-        "computing",
-        "artificial_intelligence"
-      ],
-      "leap": 2
-    }
-  ],
   "needs": [
     {
       "id": "purpose",
       "name": "Purpose",
-      "era": "ai",
+      "tech": "artificial_intelligence",
       "verb": "reflect",
       "provision": "purpose",
       "decayPerDay": 40.0,

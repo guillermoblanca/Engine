@@ -50,7 +50,7 @@
     {
       "id": "electricity",
       "name": "Electricity",
-      "era": 13,
+      "complexity": 0.85,
       "requires": [
         "steam_power"
       ],
@@ -61,6 +61,14 @@
       "buildings": [
         "power_station"
       ],
+      "physical": {
+        "materials": [
+          "copper_ingot"
+        ],
+        "stations": [
+          "factory"
+        ]
+      },
       "discovery": {
         "experiment": 0.04,
         "observe": 0.15,
@@ -119,27 +127,6 @@
       ]
     }
   },
-  "eras": [
-    {
-      "id": "electric",
-      "name": "Electric Age",
-      "key": [
-        "electricity"
-      ],
-      "from": [
-        "industrial"
-      ],
-      "pull": 0.4,
-      "interest": [
-        "copper_ore"
-      ],
-      "progression": [
-        "steam_power",
-        "electricity"
-      ],
-      "leap": 10
-    }
-  ],
   "diplomacy": {
     "trade": {
       "values": {

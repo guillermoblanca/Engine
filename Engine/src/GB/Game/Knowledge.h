@@ -2,6 +2,7 @@
 #include "GB/Gameplay/Items.h"
 #include "GB/Gameplay/Techs.h"
 #include <glm/glm.hpp>
+#include <functional>
 #include <map>
 #include <set>
 #include <string>
@@ -16,8 +17,9 @@ namespace GB
 	//   before technologies existed.
 	// - The CLAN knows what its members have told it at the camp (Share, like the clan's spatial memory) and loses a technology when nobody alive knows it.
 	// - Discovery, all three deterministic (a hash of the seed, the names and the counters; no global random number generator):
-	//   EXPERIMENTING: an agent with the materials of a recipe of a technology it does not know (in the store or its bag) and that knows what that
-	//     technology requires tries it; each try succeeds with the chance Discovery.Experiment, which grows with each failure (Rules.Growth), takes
+	//   (T181: what a technology requires is no gate: each requirement known speeds every way below by KnowledgeRules::PrereqBonus, each one missing
+	//   slows it by MissingPrereqFactor. The gate is physical: TechDef::Physical, checked by the tribe through SetPhysical.)
+	//   EXPERIMENTING: an agent with the materials of a recipe of a technology it does not know (in the store or its bag) tries it; each try succeeds with the chance Discovery.Experiment, which grows with each failure (Rules.Growth), takes
 	//     Discovery.Seconds and may spoil one unit of material (Discovery.Waste).
 	//   OBSERVING: whoever is within Rules.ObserveRadius of someone who uses a technology (makes one of its recipes, works one of its nodes) gains
 	//     Discovery.Observe of understanding.
@@ -55,6 +57,7 @@ namespace GB
 		std::string Who;
 		std::string Text;
 		std::string Other;   // the teacher of a lesson ("" otherwise): the tribe makes them closer (H10)
+		std::string Tech;    // T181: the technology learnt, when the event is that it was learnt ("" otherwise)
 	};
 
 	class ClanKnowledge
@@ -64,6 +67,15 @@ namespace GB
 		void SetTechs(const TechTree* techs);
 		const TechTree* Techs() const { return m_Techs; }
 		bool Gated() const { return m_Techs != nullptr; }
+		// T181: whether the world lets the clan learn a technology now (its TechDef::Physical: the material found, the station there). The tribe
+		// sets it (UseLearning::Physical); unset, everything physical is there. It is the only gate: `requires` only speeds or slows (PrereqFactor).
+		void SetPhysical(std::function<bool(const std::string& tech)> physical) { m_Physical = std::move(physical); }
+		bool Physical(const std::string& tech) const { return !m_Physical || m_Physical(tech); }
+		// T181 (2): an agent's intellect (0..1; the tribe sets it from the society's gene, UseLearning::Intellect). Unset: 1, every idea within reach.
+		void SetIntellect(std::function<float(const std::string& name)> intellect) { m_Intellect = std::move(intellect); }
+		float Intellect(const std::string& name) const { return m_Intellect ? m_Intellect(name) : 1.0f; }
+		// It can learn it and has the intellect to work it out alone: intellect >= the technology's complexity (the gate of experimenting).
+		bool CanInvent(const std::string& name, const std::string& tech) const;
 		// Forgets every agent and what the clan knows (the clan starts again with the technologies of the start).
 		void Clear();
 
@@ -81,8 +93,10 @@ namespace GB
 
 		// ---- queries (all true without technologies)
 		bool Knows(const std::string& name, const std::string& tech) const;
-		// It does not know it yet and knows everything it requires.
+		// It does not know it yet and the world lets the clan learn it (Physical). What it requires is not a gate any more (T181): see Pace.
 		bool CanLearn(const std::string& name, const std::string& tech) const;
+		// T181: how fast `name` learns `tech` by what it knows of what it requires (PrereqFactor of the tree; 1 without technologies).
+		float Pace(const std::string& name, const std::string& tech) const;
 		bool CanMake(const std::string& name, const std::string& recipe) const;
 		bool CanGather(const std::string& name, const std::string& node) const;
 		// The recipes of `book` the agent knows how to make, for RecipeBook::WhyNot / Craft (an unknown agent knows the common ones only).
@@ -102,7 +116,10 @@ namespace GB
 		const std::vector<std::string>& Goals() const { return m_Goals; }
 		// One try with that technology at `now` (the agent has spent its Seconds already): it finds it or not, and may spoil a unit of material (from the
 		// store first). Nothing happens when there is nothing to try.
-		std::vector<KnowledgeEvent> Experiment(const std::string& name, double now, Inventory& store, Inventory& bag, const RecipeBook& book);
+		// T181: `curiosity` scales what a failed try adds to the understanding (UseLearning::Pace); what it requires scales the chance and that too.
+		// T181 (2): only what it CanInvent is chosen or tried (intellect >= complexity); what it learns from others (watching, lessons, talk, use,
+		// another clan) goes at GraspFactor of its intellect.
+		std::vector<KnowledgeEvent> Experiment(const std::string& name, double now, Inventory& store, Inventory& bag, const RecipeBook& book, float curiosity = 1.0f);
 		// `doer` made `recipe` / worked `node` at `where`: those around who do not know the technology it used understand a bit more of it.
 		std::vector<KnowledgeEvent> WitnessRecipe(const std::string& doer, const std::string& recipe, const glm::vec2& where, const std::vector<KnowledgeAgent>& agents);
 		std::vector<KnowledgeEvent> WitnessNode(const std::string& doer, const std::string& node, const glm::vec2& where, const std::vector<KnowledgeAgent>& agents);
@@ -138,6 +155,8 @@ namespace GB
 		void Understand(const std::string& name, AgentKnowledge& k, const std::string& tech, float amount, const std::string& how, std::vector<KnowledgeEvent>& out);
 
 		const TechTree* m_Techs = nullptr;
+		std::function<bool(const std::string&)> m_Physical;   // T181 (not saved: the tribe sets it again)
+		std::function<float(const std::string&)> m_Intellect;   // T181 (2) (not saved: the gene is the society's)
 		std::map<std::string, AgentKnowledge> m_Agents;
 		std::set<std::string> m_Clan;
 		std::vector<std::string> m_ClanOther;   // names of a save that are not technologies, kept

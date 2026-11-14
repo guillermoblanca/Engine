@@ -1,8 +1,8 @@
 {
   "id": "era1",
-  "name": "Era 1 · Recolección y caza",
+  "name": "GB · todo el contenido (un solo árbol, sin eras)",
   "era": 1,
-  "version": "1.0",
+  "version": "2.0",
   "depends": [],
   "files": [
     "era1.json",
@@ -13,7 +13,15 @@
     "social.json",
     "bosques.json",
     "medieval.json",
-    "trails.json"
+    "trails.json",
+    "era2.json",
+    "era3.json",
+    "era4.json",
+    "era5.json",
+    "era6.json",
+    "era7.json",
+    "era8.json",
+    "era9.json"
   ],
   "given": {
     "wood": "the camp starts with the wood found lying around on the first day (tribe build)",

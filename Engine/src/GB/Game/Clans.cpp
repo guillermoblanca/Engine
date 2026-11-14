@@ -3,6 +3,7 @@
 // carry it out, and to hear of every gather (whose land it was on). The rest it does on its own clocks: encounters, territory, trade, weddings,
 // pacts and the days. Deterministic: clans in id order, pairs (a < b), members and regions in order, maps by key; the only chance is a hash.
 #include "GB/Game/Clans.h"
+#include "GB/Game/UseLearning.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include <algorithm>
 #include <chrono>
@@ -256,7 +257,7 @@ namespace GB
 			const Tribe::LeapResult r = c->Folk->Leap(years);
 			std::string line = c->Name + ": " + std::to_string(r.Born) + " born, " + std::to_string(r.Died) + " died";
 			for (const std::string& t : r.Learnt) line += ", learns " + t;
-			out.push_back(line + " (now " + (c->Folk->EraName().empty() ? std::string("no eras") : c->Folk->EraName()) + ")");
+			out.push_back(line + " (knows " + std::to_string(c->Folk->Knowledge().Clan().size()) + " technologies)");   // (T181: no eras)
 		}
 		return out;
 	}
@@ -1039,7 +1040,7 @@ namespace GB
 				if (!TechToShow(*side[s], envoy[s]->Name, *side[1 - s], envoy[1 - s]->Name, tech)) continue;
 				const std::vector<KnowledgeEvent> events = side[1 - s]->Folk->Knowledge().Instruct(envoy[1 - s]->Name, tech, Rules.Exchange.Teach,
 					"from " + envoy[s]->Name + " of the " + side[s]->Name);
-				for (const KnowledgeEvent& e : events) side[1 - s]->Folk->Note(*envoy[1 - s], e.Text);
+				for (const KnowledgeEvent& e : events) { side[1 - s]->Folk->Note(*envoy[1 - s], e.Text); UseLearning::Noted(*side[1 - s]->Folk, e); }
 				if (!events.empty())
 				{
 					const std::string name = side[1 - s]->Folk->Knowledge().Name(tech);

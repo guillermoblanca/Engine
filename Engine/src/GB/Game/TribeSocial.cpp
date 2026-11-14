@@ -113,8 +113,14 @@ namespace GB
 	{
 		const SocialRules& R = Config.Social;
 		if (!R.On) return;
-		int alive = 0;
-		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) ++alive;
+		int alive = 0, living = 0;
+		for (const TribeMember& m : m_Members) if (!m.Dead) { ++living; if (m.Body) ++alive; }
+		if (living == 0 && (m_Social.Rite.Active() || !m_Social.Agenda.empty()))
+		{
+			// the clan is gone: the rite it was holding (its last funeral) ends and nobody is left to call the ones on its agenda
+			m_Social.Agenda.clear();
+			if (m_Social.Rite.Active()) EndRite("nobody is left to hold it");
+		}
 		if (alive == 0) return;
 		// the clan's beliefs, drawn once from the seed and its name
 		if (m_Social.Beliefs.empty())
@@ -292,6 +298,14 @@ namespace GB
 			MoveMood(m.Name, R.Grief.Mood - 0.2f * grief);
 		}
 		CallRites("death", dead.Name);
+	}
+
+	// A member leaves the clan (a marriage, a migration, a split): it leaves the circle at once, as the dead do, and not at the next look at the rites.
+	void Tribe::SocialLeft(const std::string& name)
+	{
+		std::vector<std::string>& called = m_Social.Rite.Called;
+		called.erase(std::remove(called.begin(), called.end(), name), called.end());
+		if (m_Social.Rite.Leader == name) m_Social.Rite.Leader = called.empty() ? std::string() : called.front();
 	}
 
 	void Tribe::SocialHears(const SocietyEvent& e)

@@ -5,18 +5,20 @@
 namespace GB
 {
 	// V5 (docs/VISION_MUNDO_VIVO.md): needs that a content pack adds in data, beside the six the engine knows (AI/Needs.h). A pack says
-	//   "needs": [ { "id": "faith", "name": "Faith", "era": "bronze", "decayPerDay": 40, "threshold": 45, "weight": 1.2,
+	//   "needs": [ { "id": "faith", "name": "Faith", "tech": "ritual", "members": 20, "decayPerDay": 40, "threshold": 45, "weight": 1.2,
 	//                "verb": "pray", "provision": "faith", "item": "", "seconds": 8, "amount": 60 } ]
 	// Each is a level of 0..100 on every member (an attribute of its ability system, so it is saved with it) that falls `decayPerDay` a day.
 	// Below `threshold` the member wants to do the need's VERB: walk to a finished building that provides it (BuildingDef::Provides[provision]),
 	// or take one `item` from the store, and spend `seconds` there; done, the level rises by `amount` (x the building's provision). The verb is
-	// an option of the utility AI like any other: the agenda, the mood and the back-off read it by its name. A need with an `era` only counts
-	// for a clan that has reached that era or one listed after it (the eras of the knowledge rules). It never kills: the six built in do.
+	// an option of the utility AI like any other: the agenda, the mood and the back-off read it by its name. T181: there are no eras; a need
+	// counts for a clan once its society is there: it knows `tech` ("" = any clan) and has at least `members` living (0 = any size). It never
+	// kills: the six built in do.
 	struct NeedDef
 	{
 		std::string Id;
 		std::string Name;
-		std::string Era;             // "" = from the start
+		std::string Tech;            // the clan knows this technology ("" = any clan)
+		int Members = 0;             // ... and has this many living (0 = any size)
 		float DecayPerDay = 30.0f;   // level lost per day of game
 		float Threshold = 40.0f;     // below it the member wants the verb
 		float Weight = 1.0f;         // how much the verb is worth at its most urgent (a meal when starving is about 3)

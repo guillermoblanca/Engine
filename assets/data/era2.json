@@ -1,5 +1,5 @@
 {
-  "note": "Era 2, the Bronze Age (V5, docs/VISION_MUNDO_VIVO.md). It adds to era1 and repeats none of it: tin, which only a few places have, so a clan without it has to trade for it; bronze, alloyed from copper and tin at the forge; the era that knowing how opens; and a need of the age, faith, with its verb (pray) and the temple where it is done. None of it needs code: the sections merge into the first pack's by id.",
+  "note": "Bronze (V5, docs/VISION_MUNDO_VIVO.md; T181: one file of the game's one pack, no eras). Tin, which only a few places have, so a clan without it has to trade for it; bronze, alloyed from copper and tin at the forge; and a need of a grown society, faith (a clan that knows rites and has 20 living), with its verb (pray) and the temple where it is done. None of it needs code.",
   "items": [
     { "category": "resource", "id": "tin_ore", "name": "Tin ore", "stack": 10, "tags": [ "Item.Resource.Ore.Tin" ], "weight": 2.0 },
     { "category": "resource", "id": "bronze_ingot", "name": "Bronze ingot", "stack": 10, "tags": [ "Item.Resource.Metal.Bronze" ], "weight": 1.5 },
@@ -14,14 +14,12 @@
     { "ability": "Craft", "count": 1, "id": "bronze_axe", "inputs": { "bronze_ingot": 2, "branch": 2, "cordage": 1 }, "output": "bronze_axe", "station": "forge" }
   ],
   "techs": [
-    { "id": "alloying", "name": "Alloying", "era": 3, "requires": [ "smelting" ], "recipes": [ "bronze_ingot", "bronze_axe" ],
+    { "id": "alloying", "name": "Alloying", "complexity": 0.65, "requires": [ "smelting" ], "recipes": [ "bronze_ingot", "bronze_axe" ],
+      "physical": { "materials": [ "copper_ore", "tin_ore" ], "stations": [ "forge" ] },
       "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.1, "seconds": 60.0, "waste": 0.5 } }
   ],
-  "eras": [
-    { "id": "bronze", "name": "Bronze Age", "key": [ "alloying" ], "from": [ "copper" ], "pull": 0.4, "leap": 300, "interest": [ "tin_ore" ], "progression": [ "smelting", "alloying" ] }
-  ],
   "needs": [
-    { "id": "faith", "name": "Faith", "era": "bronze", "verb": "pray", "provision": "faith", "decayPerDay": 60.0, "threshold": 45.0, "weight": 1.0, "seconds": 8.0, "amount": 60.0 }
+    { "id": "faith", "name": "Faith", "tech": "ritual", "members": 20, "verb": "pray", "provision": "faith", "decayPerDay": 60.0, "threshold": 45.0, "weight": 1.0, "seconds": 8.0, "amount": 60.0 }
   ],
   "buildings": {
     "temple": { "name": "Temple", "provides": { "faith": 1.5 }, "zone": "craft", "footprint": [ 3.0, 3.0 ], "aura": 3.0,

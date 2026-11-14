@@ -147,6 +147,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/Skills.cpp
     src/GB/Game/JobBoard.cpp
     src/GB/Game/Knowledge.cpp
+    src/GB/Game/UseLearning.cpp
     src/GB/Game/Society.cpp
     src/GB/Game/SocietyRules.cpp
     src/GB/Game/TribeSociety.cpp

@@ -1,6 +1,7 @@
 // Items, inventories, resource nodes and recipes (H2): stacking and weight, transfers, save/load of an inventory, regrowing nodes, and a whole
 // gather-and-craft loop (chop, mine, pick fibre, make an axe) that gives the same result in two runs. CPU only.
 #include "GB/Gameplay/Items.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <cstdio>
 #include <map>
 #include <string>
@@ -213,8 +214,9 @@ int GBTest_items(int, char**)
 		ItemLibrary fileItems;
 		RecipeBook fileRecipes;
 		std::map<std::string, ResourceNodeDef> fileNodes;
-		const std::string error = LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", fileItems, fileRecipes, fileNodes);
-		Check(error.empty() && LoadContentFile(std::string(GB_ASSETS_DIR) + "/data/social.json", fileItems, fileRecipes, fileNodes).empty(), "assets/data/era1.json and social.json load");
+		bool loads = !ShippedDocuments().empty();   // T181: one tree, every file of the game's pack (era1.json ... era9.json, social.json)
+		for (const std::string& doc : ShippedDocuments()) loads = loads && LoadContent(doc, fileItems, fileRecipes, fileNodes).empty();
+		Check(loads, "every file of the game's pack loads");
 		Check(ContentToJson(fileItems, fileRecipes, fileNodes) == text, "and RegisterEraOneItems gives what they define (there is no catalogue in the code)");
 	}
 

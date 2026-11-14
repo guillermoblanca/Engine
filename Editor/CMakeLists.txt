@@ -110,7 +110,8 @@ gb_editor_script_test(editor_replay_same_world replay_same_world.txt "replay ide
 # `qa expect` and `qa check` (the invariants of the simulation, GB/Game/SimQA.h) and writes a `shot_ui` capture to the build directory (not versioned).
 gb_editor_script_test(editor_demo_h2 h2_gather_craft.txt "qa sim 1 day.*: 0 violation")
 configure_file(tests/h3_hungry_fox.json ${CMAKE_CURRENT_BINARY_DIR}/h3_hungry_fox.json COPYONLY)   # (read by the script from the working directory)
-gb_editor_script_test(editor_demo_h3 h3_fire_fox.txt "qa expect: 'ecology status' says")
+# (--step=60: the same game time per `wait` on any machine; without it a fast idle machine reached ~16 s of game before the fire is lit at ~45 s)
+gb_editor_script_test(editor_demo_h3 h3_fire_fox.txt "qa expect: 'ecology status' says" --step=60)
 gb_editor_script_test(editor_demo_h5_h6 h5_h6_agents.txt "says /.*live checks, 0 violation")
 gb_editor_script_test(editor_clans clans.txt "the Tribe panel and the tribe reports show the Blue")   # H13: two clans saved and loaded
 gb_editor_script_test(editor_demo_h8 h8_settlement.txt "says /.*live checks, 0 violation")   # H8: site choice, a construction site worked, saved and loaded, the invariants
@@ -121,11 +122,11 @@ gb_editor_script_test(editor_play play.txt "says /.*live checks, 0 violation" --
 gb_editor_script_test(editor_become v0_become.txt "says /.*live checks, 0 violation" --step=60)
 # V1: the world's history and the members' memories are written while the clans live, shown in the story sheet and kept by save and load
 gb_editor_script_test(editor_history v1_history.txt "says /.*live checks, 0 violation" --step=60)
-# V5: the Bronze Age is a pack of data (era2): its era, and a need with its verb (faith, pray at the temple) that no code knows
+# V5 + T181: a need of the data with its verb (faith, pray at the temple) that no code knows, counted once the society knows the rites (no eras)
 configure_file(tests/v5_faith_fast.json ${CMAKE_CURRENT_BINARY_DIR}/v5_faith_fast.json COPYONLY)
 gb_editor_script_test(editor_bronze v5_bronze.txt "prays at Temple 1" --step=60)
-# V8: a pack per era up to AI, loaded strictly; a clan that learns each key is in that era, in order
-gb_editor_script_test(editor_eras v8_eras.txt "Age of AI" --step=60)
+# V8 + T181: every content file is one pack and one tree (no eras), loaded strictly with no id twice
+gb_editor_script_test(editor_eras v8_eras.txt "every invariant holds" --step=60)
 # V6: the leap of years between two lives (aggregate society, history the heir remembers)
 gb_editor_script_test(editor_leap v6_leap.txt "every invariant holds" --step=60)
 # V7: ranks of settlements and polities of allied clans, both history

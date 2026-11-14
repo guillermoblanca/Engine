@@ -467,8 +467,11 @@ int GBTest_economy(int, char**)
 		k.Run(120.0);
 		const Stockpile* p = k.Tribe_.FindStockpile("north pile");
 		Check(k.Posted["haul north pile"], "the board asks to haul it");
-		Check(p->Store.Count("flint") == 0 && k.Tribe_.Store().Count("flint") >= before + 9 - 2 && k.Tribe_.Economy().Hauled >= 9, "and it is carried to the main store (two trips or more)");
-		if (p->Store.Count("flint") != 0 || k.Tribe_.Store().Count("flint") < before + 9 - 2)
+		// (T181: flint found pulls the clan to flint knapping, which may work it once it is in the store: then the haul is told by what was carried)
+		const bool knapper = std::any_of(k.Tribe_.Members().begin(), k.Tribe_.Members().end(), [&](const TribeMember& m) { return k.Tribe_.Knowledge().Knows(m.Name, "flint_knapping"); });
+		const bool kept = k.Tribe_.Store().Count("flint") >= before + 9 - 2 || knapper;
+		Check(p->Store.Count("flint") == 0 && kept && k.Tribe_.Economy().Hauled >= 9, "and it is carried to the main store (two trips or more)");
+		if (p->Store.Count("flint") != 0 || !kept)
 			std::fprintf(stderr, "  flint: before %d, now %d, pile %d, hauled %d\n%s\n%s\n", before, k.Tribe_.Store().Count("flint"), p->Store.Count("flint"), k.Tribe_.Economy().Hauled,
 				k.Tribe_.Report().c_str(), k.Tribe_.EconomyReport().c_str());
 		Check(k.Tribe_.Stored("flint") == k.Tribe_.Store().Count("flint") + p->Store.Count("flint"), "the clan counts both stores");

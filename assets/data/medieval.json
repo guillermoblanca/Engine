@@ -1,10 +1,10 @@
 {
-  "note": "The medieval era (docs/PLAN_SIMULACION_NATURAL.md §9): its technologies and its buildings, drawn with the Medieval Village MegaKit (assets/models/medieval_kit; visuals written by tools/make_kit_buildings.py). The era itself is in era1.json (knowledge.eras).",
+  "note": "The medieval technologies and buildings (docs/PLAN_SIMULACION_NATURAL.md §9), drawn with the Medieval Village MegaKit (assets/models/medieval_kit; visuals written by tools/make_kit_buildings.py). T181: there are no eras; masonry is in era4.json (with writing).",
   "techs": [
     {
       "id": "carpentry",
       "name": "Carpentry",
-      "era": 4,
+      "complexity": 0.5,
       "requires": [
         "timber_framing",
         "smelting"
@@ -20,27 +20,14 @@
         "teach": 0.1,
         "seconds": 90.0,
         "waste": 0.2
-      }
-    },
-    {
-      "id": "masonry",
-      "name": "Masonry",
-      "era": 5,
-      "requires": [
-        "carpentry",
-        "pottery"
-      ],
-      "recipes": [],
-      "buildings": [
-        "stone_house",
-        "townhouse"
-      ],
-      "discovery": {
-        "experiment": 0.03,
-        "observe": 0.15,
-        "teach": 0.1,
-        "seconds": 90.0,
-        "waste": 0.2
+      },
+      "physical": {
+        "materials": [
+          "plank"
+        ],
+        "stations": [
+          "forge"
+        ]
       }
     }
   ],

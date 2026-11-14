@@ -1,4 +1,5 @@
 #include "GB/Game/Tribe.h"
+#include "GB/Game/UseLearning.h"
 #include <algorithm>
 #include <cstdio>
 
@@ -15,13 +16,7 @@ namespace GB
 		constexpr float kYearTogether = 6.0f;       // a year of the leap is worth this many evenings at the camp to the bonds
 	}
 
-	float Tribe::EraLeap() const
-	{
-		const TechTree* tree = m_Knowledge.Techs();
-		const std::string era = m_Era.empty() ? Era() : m_Era;
-		if (tree) for (const EraDef& e : tree->Rules.Eras) if (e.Id == era) return e.Leap;
-		return 0.0f;
-	}
+	float Tribe::LeapYears() const { return UseLearning::LeapYears(*this); }
 
 	Tribe::LeapResult Tribe::Leap(float years)
 	{
@@ -53,11 +48,11 @@ namespace GB
 		{
 			UpdateGoals();
 			const std::vector<std::string> goals = m_Knowledge.Goals();
-			const auto next = std::find_if(goals.begin(), goals.end(), [&](const std::string& t) { return !m_Knowledge.Clan().count(t); });
+			const auto next = std::find_if(goals.begin(), goals.end(), [&](const std::string& t) { return !m_Knowledge.Clan().count(t) && UseLearning::Physical(*this, t); });   // (T181: what the world lets it learn)
 			if (next == goals.end() || !m_Knowledge.GrantClan(*next).empty()) break;
 			r.Learnt.push_back(m_Knowledge.Name(*next));
 		}
-		UpdateGoals();   // (and the era it is in now)
+		UpdateGoals();
 		char text[160];
 		std::snprintf(text, sizeof text, "%.0f years pass: %d born, %d died", static_cast<double>(r.Years), r.Born, r.Died);
 		std::string line = text;

@@ -213,6 +213,8 @@ gb_test(combat combat_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" 
 # Social life: conversations, rites, beliefs, diet, more game and traps (Social, TribeSocial, ClansBeliefs; docs/VIDA_SOCIAL.md)
 gb_test(social social_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lento;sim" DEFS ${gb_assets})
 gb_test(knowledge knowledge_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T181: no eras; knowledge won by using materials, sped by curiosity, gated by what the world gives (UseLearning)
+gb_test(use_learning use_learning_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # H9 + H10: demography, inheritance, relations, personality and culture (Society, TribeSociety)
 gb_test(society society_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lento;sim" DEFS ${gb_assets})
 gb_test(perception perception_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")

@@ -1155,7 +1155,7 @@ namespace GB::Editor
 			std::string s = std::to_string(m_Techs.Techs.size()) + " technologies:";
 			for (const auto& [id, t] : m_Techs.Techs)
 			{
-				s += " | " + id + " (" + t.Name + ", era " + std::to_string(t.Era) + (t.Known ? ", known from the start" : "") + ")";
+				s += " | " + id + " (" + t.Name + (t.Known ? ", known from the start" : "") + ")";
 				if (!t.Requires.empty()) { s += " needs"; for (const std::string& q : t.Requires) s += " " + q; }
 				if (!t.Recipes.empty()) { s += " unlocks"; for (const std::string& r : t.Recipes) s += " " + r; }
 			}
@@ -1605,7 +1605,7 @@ namespace GB::Editor
 						if (a.Known.count(id)) ++knowers;
 						else if (const auto p = a.Progress.find(id); p != a.Progress.end()) best = std::max(best, p->second);
 					}
-					if (k.Clan().count(id)) ImGui::Text("%s  (era %d): known by the clan, %d member%s", t.Name.c_str(), t.Era, knowers, knowers == 1 ? "" : "s");
+					if (k.Clan().count(id)) ImGui::Text("%s: known by the clan, %d member%s", t.Name.c_str(), knowers, knowers == 1 ? "" : "s");
 					else if (knowers > 0) ImGui::TextColored(ImVec4(0.95f, 0.8f, 0.35f, 1.0f), "%s: %d know%s it, not shown at the camp yet", t.Name.c_str(), knowers, knowers == 1 ? "s" : "");
 					else if (best > 0.0f)
 					{
