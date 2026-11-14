@@ -184,7 +184,7 @@ namespace GB
 			}
 		}
 		// the storm of the season, once per season it comes in
-		if (std::string(SeasonClock::Weather(season, progress)) == "storm")
+		if (std::string(Config.Seasons.WeatherAt(WorldSeconds())) == "storm")   // T14: the day's weather, from the game's seed
 		{
 			int& seen = m_Social.Years["omen.storm." + std::string(SeasonClock::Name(season))];
 			if (seen != year + 1) { seen = year + 1; Omen("storm"); }

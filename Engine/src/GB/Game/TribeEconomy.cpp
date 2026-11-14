@@ -834,9 +834,8 @@ namespace GB
 			if (!m.Dead && m.Body) tell(AgeInventory(m.Body->Bag(), *m_Items, step, econ.Spoilage.Bag * cold), m.Name + "'s bag");
 		for (auto& [id, pantry] : m_Econ.Pantries) tell(AgeInventory(pantry, *m_Items, step, econ.Main().SpoilRate * cold), id + "'s pantry");   // N1b: a house keeps as the store does
 
-		// E7: the fields grow with the season and the rain of the season (SeasonClock::Weather), and the frost ruins what winter finds in them
-		const std::string weather = SeasonClock::Weather(season, Config.Seasons.Progress(now));
-		const bool rain = weather == "rain" || weather == "lightrain" || weather == "storm";
+		// E7: the fields grow with the season and the rain of the day (T14: SeasonClock::WeatherAt, from the game's seed), and the frost ruins what winter finds in them
+		const bool rain = SeasonClock::Rains(Config.Seasons.WeatherAt(now));
 		for (Field& field : m_Econ.Fields)
 		{
 			const FieldEvents ev = field.Update(step, season, rain, econ.Farming.MoistureSeconds, econ.Crops);

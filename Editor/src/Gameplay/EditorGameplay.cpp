@@ -582,11 +582,11 @@ namespace GB::Editor
 	// Only the properties that changed are written, and only when a scene with seasons in it asked for it (`ecology visuals`).
 	void EditorApp::ApplySeasonLook(double clock)
 	{
-		const SeasonClock seasons;
+		const SeasonClock& seasons = m_Tribe.Config.Seasons;   // T14: the simulation's sky (the game's seed; every clan shares it)
 		const Season season = seasons.At(clock);
 		const float progress = seasons.Progress(clock);
 
-		const std::string weather = SeasonClock::Weather(season, progress);
+		const std::string weather = seasons.WeatherAt(clock);
 		if (weather != m_AutoWeather) { m_AutoWeather = weather; m_Props.Set("weather.preset", weather); }
 
 		const float snow = SeasonClock::SnowCover(season, progress);

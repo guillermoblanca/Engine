@@ -31,6 +31,7 @@ namespace GB
 		inline constexpr std::string_view Combat = "combat";         // CombatRules::Seed: hits, damage, wounds, the morale of the defender (CombatRoll)
 		inline constexpr std::string_view Ecology = "ecology";       // EcologySystem::Seed: where the animals wander
 		inline constexpr std::string_view Weather = "weather";       // Weather::Reseed: rain, snow, dust, sand, the tornado and the lightning
+		inline constexpr std::string_view Climate = "climate";       // ClimateRules::Seed (SeasonClock::WeatherAt): the simulation's weather of each day, dry and wet years
 	}
 
 	// The master seed of a game whose world has this seed (the identity: the world's seed is the game's).
@@ -43,12 +44,12 @@ namespace GB
 	struct GameSeedTargets
 	{
 		KnowledgeRules* Knowledge = nullptr;   // TechTree::Rules
-		TribeConfig* Tribe = nullptr;          // its Society, Social and Explore (the first tribe; the config new clans copy)
+		TribeConfig* Tribe = nullptr;          // its Society, Social, Explore and climate (the first tribe; the config new clans copy)
 		ClanWorld* Clans = nullptr;            // its diplomacy and the config of every clan's tribe
 		CombatRules* Combat = nullptr;
 		EcologySystem* Ecology = nullptr;
 	};
 	void ApplyGameSeeds(uint64_t master, const GameSeedTargets& to);
-	// The tribe's part alone: Society, Social and Explore.
+	// The tribe's part alone: Society, Social, Explore and the weather of its seasons (T14: every clan of a world has the same sky).
 	void ApplyTribeSeeds(uint64_t master, TribeConfig& config);
 }

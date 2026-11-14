@@ -1,4 +1,5 @@
 #include "GB/Gameplay/Ecology.h"
+#include "GB/Core/Seed.h"
 #include "GB/Gameplay/ShippedContent.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -94,6 +95,135 @@ namespace GB
 		case Season::Autumn: return progress > 0.65f ? "rain" : "clear";
 		default: return progress < 0.9f ? "snow" : "clear";
 		}
+	}
+
+	namespace
+	{
+		// T14: a number in [0, 1) from a seed, a stream and an index (T0: from the game's seed, never rand() nor the clock).
+		double ClimateDraw(uint64_t parent, std::string_view stream, uint64_t index)
+		{
+			return static_cast<double>(DeriveSeed(parent, stream, index) >> 11) * (1.0 / 9007199254740992.0);
+		}
+		double Clamp01(double v) { return std::max(0.0, std::min(1.0, v)); }
+	}
+
+	float SeasonClock::WetnessAt(double seconds) const
+	{
+		const SeasonWeather& w = Climate.Seasons[static_cast<size_t>(At(seconds))];
+		if (Climate.Seed == 0u || !(SeasonSeconds > 0.0f)) return w.Wet;
+		const double s = seconds < 0.0 ? 0.0 : seconds;
+		const uint64_t season = static_cast<uint64_t>(s / static_cast<double>(SeasonSeconds));   // the seasons since the start (four a year)
+		const double year = 2.0 * ClimateDraw(Climate.Seed, "climate.year", season / 4u) - 1.0;      // -1 a dry year .. +1 a wet one
+		const double own = 2.0 * ClimateDraw(Climate.Seed, "climate.season", season) - 1.0;
+		return static_cast<float>(Clamp01(static_cast<double>(w.Wet) * (1.0 + static_cast<double>(Climate.YearSpread) * year) * (1.0 + static_cast<double>(Climate.SeasonSpread) * own)));
+	}
+
+	const char* SeasonClock::WeatherAt(double seconds) const
+	{
+		if (Climate.Seed == 0u || !(SeasonSeconds > 0.0f) || !(Climate.DaySeconds > 0.0f)) return Weather(At(seconds), Progress(seconds));
+		const double s = seconds < 0.0 ? 0.0 : seconds;
+		const uint64_t season = static_cast<uint64_t>(s / static_cast<double>(SeasonSeconds));
+		const double into = s - static_cast<double>(season) * static_cast<double>(SeasonSeconds);
+		const int day = std::max(0, static_cast<int>(into / static_cast<double>(Climate.DaySeconds)));   // the day of the season
+		const SeasonWeather& w = Climate.Seasons[static_cast<size_t>(season % 4u)];
+		const double p = static_cast<double>(WetnessAt(seconds));
+		const double keep = Clamp01(static_cast<double>(w.Persist));
+		// the days of the season as a chain from its first: a wet day makes the next wetter, a dry one drier, and over the season p of them are wet
+		const uint64_t days = DeriveSeed(Climate.Seed, "climate.day", season);
+		bool wet = ClimateDraw(days, "wet", 0) < p;
+		for (int d = 1; d <= day; ++d)
+			wet = ClimateDraw(days, "wet", static_cast<uint64_t>(d)) < (wet ? p + keep * (1.0 - p) : p * (1.0 - keep));
+		if (!wet) return "clear";
+		const uint64_t d = static_cast<uint64_t>(day);
+		const bool snow = ClimateDraw(days, "snow", d) < static_cast<double>(w.Snow);
+		if (ClimateDraw(days, "storm", d) < static_cast<double>(w.Storm)) return snow ? "blizzard" : "storm";
+		if (snow) return "snow";
+		return ClimateDraw(days, "heavy", d) < static_cast<double>(w.Heavy) ? "rain" : "lightrain";
+	}
+
+	bool SeasonClock::Rains(const std::string& weather)
+	{
+		return weather == "rain" || weather == "lightrain" || weather == "storm";
+	}
+
+	namespace
+	{
+		const char* const kSeasonNames[4] = { "spring", "summer", "autumn", "winter" };
+
+		std::string Share(const nlohmann::json& o, const char* key, float& out)
+		{
+			const auto it = o.find(key);
+			if (it == o.end()) return {};
+			if (!it->is_number() || it->get<double>() < 0.0 || it->get<double>() > 1.0) return std::string(key) + " must be a number from 0 to 1";
+			out = it->get<float>();
+			return {};
+		}
+	}
+
+	std::string LoadClimate(const std::string& json, ClimateRules& rules)
+	{
+		using Json = nlohmann::json;
+		const Json j = Json::parse(json, nullptr, false);
+		if (j.is_discarded() || !j.is_object()) return "the content is not a JSON object";
+		const auto section = j.find("climate");
+		if (section == j.end()) return {};
+		if (!section->is_object()) return "climate: expected an object";
+		ClimateRules read = rules;
+		for (const auto& [key, v] : section->items())
+		{
+			if (key == "note") continue;
+			if (key == "daySeconds")
+			{
+				if (!v.is_number() || v.get<double>() <= 0.0) return "climate: daySeconds must be a number above 0";
+				read.DaySeconds = v.get<float>();
+			}
+			else if (key == "yearSpread" || key == "seasonSpread")
+			{
+				if (const std::string e = Share(*section, key.c_str(), key == "yearSpread" ? read.YearSpread : read.SeasonSpread); !e.empty()) return "climate: " + e;
+			}
+			else if (key == "seasons")
+			{
+				if (!v.is_object()) return "climate: seasons must be an object of season -> weather";
+				for (const auto& [name, o] : v.items())
+				{
+					const auto at = std::find_if(std::begin(kSeasonNames), std::end(kSeasonNames), [&](const char* n) { return name == n; });
+					if (at == std::end(kSeasonNames)) return "climate: '" + name + "' is not a season (spring, summer, autumn, winter)";
+					if (!o.is_object()) return "climate: " + name + " must be an object";
+					SeasonWeather& w = read.Seasons[static_cast<size_t>(at - std::begin(kSeasonNames))];
+					for (const auto& [field, x] : o.items())
+					{
+						(void)x;
+						if (field == "note") continue;
+						float* target = field == "wet" ? &w.Wet : field == "persist" ? &w.Persist : field == "storm" ? &w.Storm : field == "snow" ? &w.Snow : field == "heavy" ? &w.Heavy : nullptr;
+						if (!target) return "climate: " + name + ": unknown field '" + field + "' (wet, persist, storm, snow, heavy)";
+						if (const std::string e = Share(o, field.c_str(), *target); !e.empty()) return "climate: " + name + ": " + e;
+					}
+				}
+			}
+			else return "climate: unknown field '" + key + "' (daySeconds, yearSpread, seasonSpread, seasons)";
+		}
+		read.Seed = rules.Seed;   // (the seed is the game's, not the data's)
+		rules = read;
+		return {};
+	}
+
+	std::string ClimateToJson(const ClimateRules& rules)
+	{
+		using Json = nlohmann::json;
+		auto round3 = [](float v) { return std::round(static_cast<double>(v) * 1000.0) / 1000.0; };
+		Json seasons = Json::object();
+		for (size_t i = 0; i < 4; ++i)
+		{
+			const SeasonWeather& w = rules.Seasons[i];
+			seasons[kSeasonNames[i]] = { { "wet", round3(w.Wet) }, { "persist", round3(w.Persist) }, { "storm", round3(w.Storm) }, { "snow", round3(w.Snow) }, { "heavy", round3(w.Heavy) } };
+		}
+		return Json{ { "daySeconds", round3(rules.DaySeconds) }, { "yearSpread", round3(rules.YearSpread) }, { "seasonSpread", round3(rules.SeasonSpread) }, { "seasons", seasons } }.dump(2);
+	}
+
+	ClimateRules DefaultClimate()
+	{
+		static const ClimateRules rules = ShippedSection<ClimateRules>([](const std::string& doc, ClimateRules& r) { return LoadClimate(doc, r); });
+		return rules;
 	}
 
 	namespace

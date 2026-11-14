@@ -981,6 +981,7 @@ namespace GB
 		}
 		// H12: the regions of the world (the editor's, or cut here with the clan's rules and the nodes planned on it), so expeditions and moves can happen
 		if (setup.Config) { m_Tribe.Config.Explore = setup.Config->Explore; m_Tribe.Config.Society = setup.Config->Society; m_Tribe.Config.Econ = setup.Config->Econ; }
+		if (setup.Config) m_Tribe.Config.Seasons = setup.Config->Seasons;   // T14: the climate of the content (seeded below with the game's seeds)
 		const uint64_t master = MasterSeedOf(world.Desc.Seed);   // T0: (with GameSeeds) the seeds of this game, before the first member joins
 		if (setup.GameSeeds) { ApplyGameSeeds(master, { &m_Techs.Rules, &m_Tribe.Config, nullptr, nullptr, nullptr }); m_Clans.Rules.Seed = StreamSeed(master, SeedStream::Diplomacy); }
 		if (!setup.Regions) m_Regions = RegionMap::Build(world, m_Tribe.Config.Explore.Regions, RegionThingsOf(m_Spots));

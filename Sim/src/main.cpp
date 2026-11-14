@@ -106,6 +106,7 @@ namespace
 			to.Explore = &Config.Explore; to.Econ = &Config.Econ; to.Combat = &Combat; to.Player = &Config.Player; to.Controls = &Controls;
 			to.Social = &Config.Social; to.Society = &Config.Society; to.Nature = &Nature; to.Diplomacy = &Diplomacy; to.Species = &Species; to.Interactives = &Interactives;
 			to.Needs = &Config.DataNeeds;   // V5
+			to.Climate = &Config.Seasons.Climate;   // T14
 			GB::AddContentSections(Packs, to);
 			GB::ContentReport report;
 			Error = Packs.Load(pack.empty() ? std::string(GB::GamePack()) : pack, assets + "/data", &report);
@@ -319,6 +320,31 @@ int main(int argc, char** argv)
 		static_cast<unsigned long long>(st.SamplesWritten), static_cast<unsigned long long>(st.SamplesDropped), static_cast<unsigned long long>(st.EventsWritten), run.Monitor().Violations());
 	if (report)
 	{
+		// T14: the weather of the run, day by day (the clans share it: the first clan's clock), and the wet days of each season
+		{
+			const GB::SeasonClock& sky = run.Brain().Config.Seasons;
+			std::map<std::string, std::map<std::string, int>> bySeason;
+			std::string days;
+			for (int d = 0; static_cast<double>(d) * kDay < done; ++d)
+			{
+				const double at = (static_cast<double>(d) + 0.5) * kDay;
+				const std::string w = sky.WeatherAt(at);
+				const std::string season = GB::SeasonClock::Name(sky.At(at));
+				++bySeason[season][w];
+				++bySeason[season]["days"];
+				days += w == "clear" ? '.' : w == "lightrain" ? 'l' : w == "rain" ? 'r' : w == "storm" ? 's' : w == "snow" ? 'n' : w == "blizzard" ? 'b' : '?';
+			}
+			std::fprintf(stderr, "\nclimate: seed %u, days %s (. clear, l light rain, r rain, s storm, n snow, b blizzard)\n", sky.Climate.Seed, days.c_str());
+			for (const char* season : { "spring", "summer", "autumn", "winter" })
+			{
+				const auto it = bySeason.find(season);
+				if (it == bySeason.end()) continue;
+				const std::map<std::string, int>& n = it->second;
+				auto of = [&](const char* k) { const auto f = n.find(k); return f == n.end() ? 0 : f->second; };
+				std::fprintf(stderr, "climate: %s %d days: %d wet (%d rain on the fields: %d light, %d rain, %d storm; %d snow, %d blizzard)\n", season, of("days"),
+					of("days") - of("clear"), of("lightrain") + of("rain") + of("storm"), of("lightrain"), of("rain"), of("storm"), of("snow"), of("blizzard"));
+			}
+		}
 		std::vector<const GB::Tribe*> tribes;
 		if (run.Clans().Count() > 1) for (const auto& c : run.Clans().All()) tribes.push_back(c->Folk);
 		else tribes.push_back(&run.Brain());

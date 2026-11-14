@@ -1,6 +1,8 @@
 #pragma once
 #include "GB/Scene/Entity.h"
 #include "GB/Gameplay/GameplayWorld.h"
+#include <array>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <string>
@@ -11,9 +13,40 @@ namespace GB
 	// The seasons, from the simulation clock alone (so a saved game has the right season with nothing extra to store).
 	enum class Season { Spring, Summer, Autumn, Winter };
 
+	// T14: the weather a season brings, as data (the "climate" section, assets/data/world.json). Each day of the season is wet or dry; a wet day is
+	// a storm, snow, rain or a light rain. The shares are over many years: a given year is wetter or drier (ClimateRules::YearSpread).
+	struct SeasonWeather
+	{
+		float Wet = 0.0f;       // 0..1: the share of the season's days that are wet (rain, storm or snow), over many years
+		float Persist = 0.0f;   // 0..1: how much a day keeps the weather of the day before (0 = every day apart; more = longer spells, wet and dry)
+		float Storm = 0.0f;     // 0..1: the share of the wet days that are storms (a blizzard when it falls as snow)
+		float Snow = 0.0f;      // 0..1: the share of the wet days that fall as snow (the cold of the season: snow does not water the fields)
+		float Heavy = 0.0f;     // 0..1: the share of the other wet days that are "rain" rather than "lightrain"
+		bool operator==(const SeasonWeather&) const = default;
+	};
+
+	struct ClimateRules
+	{
+		float DaySeconds = 1200.0f;   // the length of a day of weather (NeedsConfig::DaySeconds)
+		float YearSpread = 0.0f;      // 0..1: each year is wetter or drier than the mean by up to this part (one draw a year: a dry year, a wet year)
+		float SeasonSpread = 0.0f;    // 0..1: the same for each season of each year, on top of its year's
+		std::array<SeasonWeather, 4> Seasons{};   // by Season
+		// T0: the seed of the weather, from the game's master seed (GB/Game/GameSeeds.h, stream "climate"); not in the data. 0 = the fixed calendar
+		// of before (SeasonClock::Weather): the clock of the tests and tools that mount no game.
+		uint32_t Seed = 0;
+		bool operator==(const ClimateRules&) const = default;
+	};
+	// What the data says (the "climate" section of the game's pack), read once.
+	ClimateRules DefaultClimate();
+	// Reads the "climate" section: { "climate": { "daySeconds": s, "yearSpread": f, "seasonSpread": f, "seasons": { "<season>": { "wet": f, "persist": f,
+	// "storm": f, "snow": f, "heavy": f } } } }. A season given in part keeps the rest. No section changes nothing; on a mistake it says why and changes nothing.
+	std::string LoadClimate(const std::string& json, ClimateRules& rules);
+	std::string ClimateToJson(const ClimateRules& rules);   // the section's object
+
 	struct SeasonClock
 	{
 		float SeasonSeconds = 16800.0f;   // one season: two weeks of 1200 s days (NeedsConfig::DaySeconds); a year is four of them, 56 days
+		ClimateRules Climate = DefaultClimate();   // T14: the weather of each day (WeatherAt)
 
 		Season At(double seconds) const;
 		float Progress(double seconds) const;           // 0..1 through the current season
@@ -25,7 +58,16 @@ namespace GB
 		// What the season looks like. All of it a function of the season and how far through it we are, so there is nothing to save.
 		static float SnowCover(Season s, float progress);        // 0..1 on the ground: it falls early in winter and melts in early spring
 		static glm::vec3 Foliage(Season s, float progress);      // colour of crowns and bushes, blending into the next season's near the end
-		static const char* Weather(Season s, float progress);    // "clear", "lightrain", "rain", "storm" or "snow": the weather the season brings
+		static const char* Weather(Season s, float progress);    // "clear", "lightrain", "rain", "storm" or "snow": the fixed calendar of before (seed 0)
+		// T14: the weather of the day `seconds` falls in: "clear", "lightrain", "rain", "storm", "snow" or "blizzard". A function of the seed, the data and
+		// the clock alone (nothing to save: a loaded game, seeded again from its world, has the same sky). Each season of each year draws how wet it is
+		// (the year's and the season's spread around Wet), and its days follow one another as a chain (Persist) from the first day of the season.
+		// Climate.Seed 0 gives Weather(At(seconds), Progress(seconds)).
+		const char* WeatherAt(double seconds) const;
+		// The share of wet days the season of `seconds` has in its year (Wet with the year's and the season's draw); the data's Wet with seed 0.
+		float WetnessAt(double seconds) const;
+		// Rain that waters the fields: "lightrain", "rain" or "storm" (not snow).
+		static bool Rains(const std::string& weather);
 	};
 
 	// Basic ecology (H3): animals that wander, eat, breed when well fed and starve when there is nothing to eat. An animal is an entity with an

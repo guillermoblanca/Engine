@@ -169,5 +169,9 @@ namespace GB
 		if (to.Nature) AddNatureContentSection(packs, *to.Nature);
 		if (to.Needs) packs.AddSection(StagedSection("needs", { "needs" }, [](const std::string& json, NeedBook& b) { return LoadNeeds(json, b); }, nullptr, *to.Needs));   // V5
 		if (to.Trails) packs.AddSection(StagedSection("trails", { "trails" }, [](const std::string& json, TrailRules& r) { return LoadTrailRules(json, r); }, nullptr, *to.Trails));   // T5c
+		// T14: the climate (an application with the world sections and no climate target still reads and checks it, into nothing)
+		static ClimateRules unreadClimate;
+		if (to.Climate || (to.Interactives && to.Species))
+			packs.AddSection(StagedSection("climate", { "climate" }, [](const std::string& json, ClimateRules& r) { return LoadClimate(json, r); }, nullptr, to.Climate ? *to.Climate : unreadClimate));
 	}
 }

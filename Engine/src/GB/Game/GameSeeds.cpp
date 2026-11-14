@@ -12,6 +12,7 @@ namespace GB
 		config.Society.Seed = StreamSeed(master, SeedStream::Society);
 		config.Social.Seed = StreamSeed(master, SeedStream::Social);
 		config.Explore.Seed = StreamSeed(master, SeedStream::Explore);
+		config.Seasons.Climate.Seed = StreamSeed(master, SeedStream::Climate);   // T14: the weather of each day
 	}
 
 	void ApplyGameSeeds(uint64_t master, const GameSeedTargets& to)

@@ -73,6 +73,18 @@
       ]
     }
   },
+  "climate": {
+    "note": "T14: the weather of each day comes from the game's seed (stream climate) within these numbers. wet: share of wet days over many years; persist: how much a day repeats the one before (spells); storm, snow: share of the wet days; heavy: share of the other wet days that are rain, not light rain. Each year is wetter or drier by up to yearSpread, each season by up to seasonSpread more. Only lightrain, rain and storm water the fields.",
+    "daySeconds": 1200.0,
+    "yearSpread": 0.4,
+    "seasonSpread": 0.25,
+    "seasons": {
+      "spring": { "wet": 0.2, "persist": 0.35, "storm": 0.05, "snow": 0.0, "heavy": 0.3 },
+      "summer": { "wet": 0.12, "persist": 0.3, "storm": 0.4, "snow": 0.0, "heavy": 0.5 },
+      "autumn": { "wet": 0.35, "persist": 0.4, "storm": 0.1, "snow": 0.0, "heavy": 0.6 },
+      "winter": { "wet": 0.6, "persist": 0.5, "storm": 0.15, "snow": 1.0, "heavy": 0.5 }
+    }
+  },
   "species": {
     "fox": {
       "name": "Fox",

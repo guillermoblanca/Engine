@@ -225,6 +225,8 @@ gb_test(ai_crowd_full ai_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lento;sim
 gb_test(ai_crowd_lod ai_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lento;sim" ARGS crowd_lod)
 gb_test(interactives interactives_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 gb_test(ecology ecology_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T14: the weather of each day from the game's seed within the climate of each season ("climate", assets/data/world.json)
+gb_test(climate climate_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 gb_test(scale scale_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 gb_test(navigation navigation_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 # H12: regions of the generated world, the clan's map, expeditions and migration (Regions, Exploration, TribeExplore)

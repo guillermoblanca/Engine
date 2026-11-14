@@ -109,6 +109,9 @@ namespace GB
 		NatureConfig* Nature = nullptr;
 		TrailRules* Trails = nullptr;   // T5c: the "trails" section (assets/data/trails.json)
 		NeedBook* Needs = nullptr;      // V5: the "needs" section (the needs and verbs a pack adds; DataNeeds.h)
+		// T14: the "climate" section (assets/data/world.json) into the tribe's clock (TribeConfig::Seasons.Climate). Without it, the world sections still
+		// read and check it (a mistake stops the load) and the clock keeps DefaultClimate(), which is the same data.
+		ClimateRules* Climate = nullptr;
 	};
 	void AddContentSections(ContentPacks& packs, const ContentTargets& to);
 }

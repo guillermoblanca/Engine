@@ -111,7 +111,7 @@ int GBTest_seed(int, char**)
 	// --- different names, different seeds (and every stream of a game has its own)
 	{
 		const std::string_view streams[] = { GB::SeedStream::Knowledge, GB::SeedStream::Society, GB::SeedStream::Social, GB::SeedStream::Explore,
-			GB::SeedStream::Diplomacy, GB::SeedStream::Combat, GB::SeedStream::Ecology, GB::SeedStream::Weather };
+			GB::SeedStream::Diplomacy, GB::SeedStream::Combat, GB::SeedStream::Ecology, GB::SeedStream::Weather, GB::SeedStream::Climate };
 		for (const uint64_t master : { 0ull, 1ull, 5ull, 7ull, 0xFFFFFFFFull })
 		{
 			std::set<uint64_t> seen;
