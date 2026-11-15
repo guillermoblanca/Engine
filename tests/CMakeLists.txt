@@ -231,6 +231,8 @@ gb_test(ecology ecology_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim
 gb_test(climate climate_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 gb_test(scale scale_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 gb_test(navigation navigation_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
+# T214: walkers do not get stuck at the river of the editor's world (temperate seed 5)
+gb_test(river_stuck river_stuck_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 # H12: regions of the generated world, the clan's map, expeditions and migration (Regions, Exploration, TribeExplore)
 gb_test(exploration exploration_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lento;sim" DEFS ${gb_assets} JSON)
 # H13: several clans in one world, territory, relations between clans, trade, knowledge exchange, marriages and pacts (Clans, Diplomacy, Territory)

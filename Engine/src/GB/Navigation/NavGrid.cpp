@@ -126,10 +126,20 @@ namespace GB
 			for (int i = i0; i < i1; ++i)
 			{
 				const glm::vec2 p = CellCenter(i, j);
-				const float gx = (m_Ground(p.x + half, p.y) - m_Ground(p.x - half, p.y)) / cs;
-				const float gz = (m_Ground(p.x, p.y + half) - m_Ground(p.x, p.y - half)) / cs;
+				// The steepest of the four quarters of the cell (the centre against the middles of two sides that meet), not the mean over the whole
+				// cell: a bank whose step falls between two cell centres read about 0.85 in both cells with the mean, the walk from one centre to the
+				// other climbs 1.2, and the controller (which refuses every step steeper than its MaxSlope) stood at its foot for good, in the water
+				// (T214: the river of temperate seed 5). Every bit of the way between two centres is in one of their quarters, so a step the walker
+				// cannot climb walls one of the two cells. On an even slope the four quarters read what the mean read.
+				const float h = m_Ground(p.x, p.y);
+				const float east = m_Ground(p.x + half, p.y) - h, west = h - m_Ground(p.x - half, p.y);
+				const float north = m_Ground(p.x, p.y + half) - h, south = h - m_Ground(p.x, p.y - half);
+				float steepest = 0.0f;
+				for (const float gx : { east, west })
+					for (const float gz : { north, south })
+						steepest = std::max(steepest, gx * gx + gz * gz);
 				const size_t k = static_cast<size_t>(Index(i, j));
-				m_Slope[k] = Quantize(std::sqrt(gx * gx + gz * gz), 100.0f);
+				m_Slope[k] = Quantize(std::sqrt(steepest) / half, 100.0f);
 				// the deepest water of the cell (its centre and the middles of its sides), not only the centre's: on a steep bank the centre could be
 				// wadeable while a walker crossing the cell steps into water deeper than it can wade (found by the H20 sweep: alpine seed 3, 1.1 m)
 				float deepest = -1e9f;

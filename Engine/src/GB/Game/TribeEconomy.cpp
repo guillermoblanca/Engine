@@ -21,8 +21,16 @@ namespace GB
 		// (20 s) and gave up (the golden angle spreads any number of them round the circle)
 		constexpr float kReachStore = 4.0f;   // what a stockpile holds is picked up within this of it
 
-		glm::vec2 Around(const glm::vec2& at, size_t index, float radius)
+		// T214: with a body, a place it can stand on: a station by the river put some members' places in the water, where the way failed trip
+		// after trip ("no way to 34.2 17.7", temperate seed 77, 18 times). The next places round the circle are tried; none: its own, as before.
+		glm::vec2 Around(const glm::vec2& at, size_t index, float radius, const ITribeBody* body = nullptr)
 		{
+			for (size_t k = 0; k < 8; ++k)
+			{
+				const float a = static_cast<float>(index + k) * 2.3999632f;
+				const glm::vec2 p = at + glm::vec2(std::cos(a), std::sin(a)) * radius;
+				if (!body || body->CanStandAt(p)) return p;
+			}
 			const float a = static_cast<float>(index) * 2.3999632f;
 			return at + glm::vec2(std::cos(a), std::sin(a)) * radius;
 		}
@@ -494,7 +502,7 @@ namespace GB
 			const Recipe* r = m_Recipes->Find(o.Target);
 			glm::vec2 at;
 			if (!r || !StationAt(r->Station, &at)) return false;
-			const glm::vec2 spot = at == Config.Economy.Camp ? CampSpot(m) : Around(at, IndexOf(m), 1.2f);
+			const glm::vec2 spot = at == Config.Economy.Camp ? CampSpot(m) : Around(at, IndexOf(m), 1.2f, m.Body);
 			if (!Order(m, Go(spot, Seconds(econ.Production.Seconds)))) return false;
 			m.Job = "make";
 			m.Detail = r->Id;
@@ -505,7 +513,7 @@ namespace GB
 		{
 			const Stockpile* pile = FindStockpile(o.Target);
 			if (!pile) return false;
-			if (!Order(m, Go(Around(pile->Pos, IndexOf(m), 0.9f), "wait 1"))) return false;
+			if (!Order(m, Go(Around(pile->Pos, IndexOf(m), 0.9f, m.Body), "wait 1"))) return false;
 			m.Job = "haul";
 			m.Detail = pile->Name;
 			Say(m, "goes to fetch what " + pile->Name + " holds");
@@ -731,7 +739,7 @@ namespace GB
 			if (kind == Config.Econ.Logistics.Stores.end() || !room(p.Store, &kind->second)) continue;
 			if (main && kind->second.Haul) continue;   // L1: what is left at a hauled stockpile is carried again to the main store: only when that is full
 			const float d = glm::distance(pos, p.Pos);
-			if (d < best) { best = d; place = p.Name; where = Around(p.Pos, IndexOf(m), 0.9f); }
+			if (d < best) { best = d; place = p.Name; where = Around(p.Pos, IndexOf(m), 0.9f, m.Body); }
 		}
 		return place;
 	}
