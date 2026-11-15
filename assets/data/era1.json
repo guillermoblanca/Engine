@@ -1171,10 +1171,16 @@
   },
   "metrics": {
     "qol": {
-      "weights": { "needs": 0.20, "shelter": 0.15, "food": 0.15, "tools": 0.05, "health": 0.10, "longevity": 0.10, "techs": 0.25 },
+      "weights": { "needs": 0.10, "shelter": 0.15, "food": 0.10, "tools": 0.10, "health": 0.05, "longevity": 0.10, "techs": 0.40 },
       "needs": [ "Hunger", "Thirst", "Rest", "Warmth", "Company" ],
-      "foodDays": 10.0,
-      "bedsPerPerson": 1.0
+      "needsFloor": 0.6,
+      "foodHalf": 5.0,
+      "bedsPerPerson": 1.0,
+      "bedComfort": 0.9,
+      "toolPower": 2.0,
+      "techsHalf": 20.0,
+      "lossDays": 5.0,
+      "lossScale": 1.5
     }
   }
 }

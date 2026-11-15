@@ -23,6 +23,26 @@ namespace GB
 		return parts;
 	}
 
+	namespace
+	{
+		// The numbers of the section: key, field, lowest (allowed itself or not) and highest.
+		struct MetricNumber { const char* Key; float SocietyMetricRules::* Field; double Min; bool MinIn; double Max; };
+		const std::vector<MetricNumber>& MetricNumbers()
+		{
+			static const std::vector<MetricNumber> numbers = {
+				{ "needsFloor", &SocietyMetricRules::NeedsFloor, 0.0, true, 0.99 },
+				{ "foodHalf", &SocietyMetricRules::FoodHalf, 0.0, false, 1000.0 },
+				{ "bedsPerPerson", &SocietyMetricRules::BedsPerPerson, 0.0, false, 1000.0 },
+				{ "bedComfort", &SocietyMetricRules::BedComfort, 0.0, false, 1000.0 },
+				{ "toolPower", &SocietyMetricRules::ToolPower, 0.0, false, 1000.0 },
+				{ "techsHalf", &SocietyMetricRules::TechsHalf, 0.0, false, 10000.0 },
+				{ "lossDays", &SocietyMetricRules::LossDays, 0.0, false, 1000.0 },
+				{ "lossScale", &SocietyMetricRules::LossScale, 0.0, true, 100.0 },
+			};
+			return numbers;
+		}
+	}
+
 	std::string LoadSocietyMetricRules(const std::string& json, SocietyMetricRules& live)
 	{
 		const Json doc = Json::parse(json, nullptr, false);
@@ -65,12 +85,20 @@ namespace GB
 					}
 					r.Needs = std::move(needs);
 				}
-				else if (k == "foodDays" || k == "bedsPerPerson")
+				else
 				{
-					if (!v.is_number() || v.get<double>() <= 0.0 || v.get<double>() > 1000.0) return where + "expected a number over 0";
-					(k == "foodDays" ? r.FoodDays : r.BedsPerPerson) = v.get<float>();
+					const auto& numbers = MetricNumbers();
+					const auto n = std::find_if(numbers.begin(), numbers.end(), [&](const MetricNumber& m) { return k == m.Key; });
+					if (n == numbers.end()) return "metrics: qol: unknown key '" + k + "'";
+					const double x = v.is_number() ? v.get<double>() : -1.0;
+					if (!v.is_number() || x > n->Max || (n->MinIn ? x < n->Min : x <= n->Min))
+					{
+						char range[96];
+						std::snprintf(range, sizeof range, "expected a number %s %g up to %g", n->MinIn ? "from" : "over", n->Min, n->Max);
+						return where + range;
+					}
+					r.*(n->Field) = static_cast<float>(x);
 				}
-				else return "metrics: qol: unknown key '" + k + "'";
 			}
 		}
 		live = std::move(r);
@@ -81,8 +109,17 @@ namespace GB
 	{
 		Json weights = Json::object();
 		for (const auto& [part, w] : r.Weights) weights[part] = std::round(static_cast<double>(w) * 10000.0) / 10000.0;
-		Json qol = { { "weights", weights }, { "needs", r.Needs }, { "foodDays", static_cast<double>(r.FoodDays) }, { "bedsPerPerson", static_cast<double>(r.BedsPerPerson) } };
+		Json qol = { { "weights", weights }, { "needs", r.Needs } };
+		for (const MetricNumber& n : MetricNumbers()) qol[n.Key] = static_cast<double>(r.*(n.Field));
 		return Json{ { "qol", qol } }.dump();
+	}
+
+	float Saturate(float n, float half) { return n > 0.0f ? n / (n + std::max(half, 1e-6f)) : 0.0f; }
+
+	float Losses(float youngDead, int alive, const SocietyMetricRules& rules)
+	{
+		if (youngDead <= 0.0f) return 0.0f;
+		return std::clamp(rules.LossScale * youngDead / (static_cast<float>(std::max(alive, 0)) + youngDead), 0.0f, 1.0f);
 	}
 
 	float Qol(const std::map<std::string, float>& parts, const SocietyMetricRules& rules)
@@ -136,10 +173,11 @@ namespace GB
 				|| !b.Provides.empty();
 		}
 
-		// What an item made does: food (not drink) or a container.
+		// What an item made does: food (not drink), a container or a tool (D33: a better axe, hoe or fish trap spares toil: the use of materials).
 		bool BettersLife(const ItemDef& d, const TribeEconomy& econ)
 		{
 			if (d.BagSlots > 0) return true;
+			for (const std::string& t : d.Tags) if (Under(t, "Item.Tool")) return true;
 			for (const std::string& t : d.Tags) if (Under(t, econ.FoodTag) && !Under(t, econ.DrinkTag)) return true;
 			return false;
 		}
@@ -209,8 +247,8 @@ namespace GB
 		out.Deaths = society.Deaths();
 
 		// ---- the living: needs, health, trades, tools, aptitudes, generations
-		double needs = 0.0, health = 0.0;
-		int withNeeds = 0, withHealth = 0, toolsHeld = 0, toolsWanted = 0, adultsWithSkills = 0;
+		double needs = 0.0, health = 0.0, toolsHeld = 0.0;
+		int withNeeds = 0, withHealth = 0, toolsWanted = 0, adultsWithSkills = 0;
 		double entropy = 0.0;
 		std::set<std::string> roles;
 		const ItemLibrary* items = t.Items();
@@ -231,7 +269,15 @@ namespace GB
 			if (const auto role = t.Config.Roles.find(m.Role); role != t.Config.Roles.end() && !role->second.ToolTag.empty() && !m.Player)
 			{
 				++toolsWanted;
-				if (items && m.Body && m.Body->Bag().CountTagged(*items, role->second.ToolTag) > 0) ++toolsHeld;
+				// the best tool of its trade it carries: (1 + Power) / (1 + ToolPower), none 0
+				int best = -1;
+				if (items && m.Body)
+					for (const ItemSlot& s : m.Body->Bag().Stacks())
+					{
+						const ItemDef* d = s.Count > 0 ? items->Find(s.Id) : nullptr;
+						if (d && std::any_of(d->Tags.begin(), d->Tags.end(), [&](const std::string& tag) { return Under(tag, role->second.ToolTag); })) best = std::max(best, std::max(d->Power, 0));
+					}
+				if (best >= 0) toolsHeld += std::min(1.0, (1.0 + best) / (1.0 + static_cast<double>(rules.ToolPower)));
 			}
 			double total = 0.0;
 			for (const auto& [family, level] : m.Skills) if (level > 0.0f) total += static_cast<double>(level);
@@ -247,24 +293,68 @@ namespace GB
 		out.Roles = static_cast<int>(roles.size());
 		out.SkillEntropy = adultsWithSkills ? static_cast<float>(entropy / adultsWithSkills) : 0.0f;
 
-		// ---- the dead: the age they reached
+		// ---- the dead: the age each reached, as a share of an elder's (at most 1)
+		const float elder = std::max(1.0f, t.Config.Society.Life.ElderFrom);
 		double deathAge = 0.0;
 		int dead = 0;
-		for (const auto& [name, p] : society.People()) if (p.Dead) { deathAge += static_cast<double>(p.Age); ++dead; }
+		for (const auto& [name, p] : society.People()) if (p.Dead) { deathAge += std::min(1.0, static_cast<double>(p.Age) / elder); ++dead; }
+
+		// ---- the beds: the best first, each worth its comfort
+		std::vector<std::pair<float, int>> beds;   // (comfort 0..1, beds)
+		if (const std::map<std::string, BuildingDef>* defs = t.Buildings())
+		{
+			std::map<std::string, const BuildingDef*> byName;   // (a site says its building's name)
+			for (const auto& [id, def] : *defs) byName.emplace(def.Name, &def);
+			for (const Tribe::SettlementSite& s : t.SettlementSites())
+			{
+				if (!s.State.Done || s.Beds <= 0) continue;
+				const auto it = byName.find(s.Building);
+				const float comfort = it == byName.end() ? 1.0f : (it->second->Rest + it->second->Warmth) / std::max(rules.BedComfort, 1e-6f);
+				beds.push_back({ std::clamp(comfort, 0.0f, 1.0f), s.Beds });
+			}
+		}
+		std::sort(beds.begin(), beds.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+		const float wanted = rules.BedsPerPerson * static_cast<float>(out.Alive);
+		float slept = 0.0f, room = wanted;
+		for (const auto& [comfort, n] : beds)
+		{
+			const float take = std::min(room, static_cast<float>(n));
+			slept += take * comfort;
+			room -= take;
+			if (room <= 0.0f) break;
+		}
+
+		// ---- the young dead of the last days (the history: "death", or "killed" for who died in a fight), the later the more each weighs
+		const WorldHistory* past = world ? &world->Past() : t.History();
+		if (past && rules.LossDays > 0.0f)
+		{
+			const float daySeconds = t.Config.Society.Life.DaySeconds > 0.0f ? t.Config.Society.Life.DaySeconds : t.Config.Needs.DaySeconds;
+			const double now = past->HasClock() ? past->Clock() : t.WorldSeconds(), span = static_cast<double>(rules.LossDays) * std::max(1.0f, daySeconds);
+			std::set<std::string> counted;
+			for (auto e = past->Events().rbegin(); e != past->Events().rend(); ++e)
+			{
+				if (e->At < now - span || e->Clan != clan || (e->Kind != "death" && e->Kind != "killed") || e->Whom.empty() || e->At > now) continue;
+				const Person* p = society.Find(e->Whom);
+				if (!p || !p->Dead || p->Age >= elder || !counted.insert(e->Whom).second) continue;
+				out.YoungDead += static_cast<float>(1.0 - (now - e->At) / span);
+			}
+		}
+		out.Losses = Losses(out.YoungDead, out.Alive, rules);
 
 		// ---- the parts of qol
 		auto& parts = out.Parts;
-		parts["needs"] = withNeeds ? static_cast<float>(needs / withNeeds) : -1.0f;
-		parts["shelter"] = out.Alive ? std::min(1.0f, static_cast<float>(t.Beds()) / (rules.BedsPerPerson * static_cast<float>(out.Alive))) : -1.0f;
-		parts["food"] = out.Alive ? std::min(1.0f, t.FoodDays() / rules.FoodDays) : -1.0f;
-		parts["tools"] = toolsWanted ? static_cast<float>(toolsHeld) / static_cast<float>(toolsWanted) : -1.0f;
+		parts["needs"] = withNeeds ? std::clamp((static_cast<float>(needs / withNeeds) - rules.NeedsFloor) / std::max(1.0f - rules.NeedsFloor, 1e-6f), 0.0f, 1.0f) : -1.0f;
+		parts["shelter"] = wanted > 0.0f ? std::min(1.0f, slept / wanted) : -1.0f;
+		parts["food"] = out.Alive ? Saturate(t.FoodDays(), rules.FoodHalf) : -1.0f;
+		parts["tools"] = toolsWanted ? static_cast<float>(toolsHeld / toolsWanted) : -1.0f;
 		parts["health"] = withHealth ? static_cast<float>(health / withHealth) : -1.0f;
-		parts["longevity"] = dead ? std::min(1.0f, static_cast<float>(deathAge / dead) / std::max(1.0f, t.Config.Society.Life.ElderFrom)) : -1.0f;
+		parts["longevity"] = dead ? static_cast<float>(deathAge / dead) : -1.0f;
 		const std::vector<std::string> life = LifeTechs(t);
 		const std::set<std::string>& known = t.Knowledge().Clan();
 		const auto knownLife = std::count_if(life.begin(), life.end(), [&](const std::string& id) { return known.count(id) > 0; });
-		parts["techs"] = life.empty() ? -1.0f : static_cast<float>(knownLife) / static_cast<float>(life.size());
-		out.Qol = out.Alive ? Qol(parts, rules) : 0.0f;
+		out.LifeTechs = static_cast<int>(knownLife);
+		parts["techs"] = t.Knowledge().Techs() ? Saturate(static_cast<float>(knownLife), rules.TechsHalf) : -1.0f;
+		out.Qol = out.Alive ? Qol(parts, rules) * (1.0f - out.Losses) : 0.0f;
 
 		// ---- the rest
 		out.Lineages = static_cast<int>(Lineages(PeopleOf(t, world), LivingOf(t)).size());
@@ -276,7 +366,6 @@ namespace GB
 			out.PathCells = trail + worn + paved;
 		}
 		out.Techs = static_cast<int>(known.size());
-		const WorldHistory* past = world ? &world->Past() : t.History();
 		if (past)
 		{
 			std::set<std::string> living;
@@ -359,9 +448,9 @@ namespace GB
 			else std::snprintf(b, sizeof b, " %s %.2f", p.c_str(), static_cast<double>(it->second));
 			parts += b;
 		}
-		char line[512];
-		std::snprintf(line, sizeof line, "society: %s qol %.3f (%s ) alive %d births %d deaths %d generations %d lineages %d trail_cells %d path_cells %d splits %d trades %d trades_in %d trades_out %d gifts %d roles %d skill_entropy %.2f techs %d inventors %d",
-			m.Name.c_str(), static_cast<double>(m.Qol), parts.c_str() + 1, m.Alive, m.Births, m.Deaths, m.Generations, m.Lineages, m.TrailCells, m.PathCells, m.Splits, m.Trades, m.TradesIn, m.TradesOut,
+		char line[768];
+		std::snprintf(line, sizeof line, "society: %s qol %.3f (%s losses %.2f ) young_dead %.2f life_techs %d alive %d births %d deaths %d generations %d lineages %d trail_cells %d path_cells %d splits %d trades %d trades_in %d trades_out %d gifts %d roles %d skill_entropy %.2f techs %d inventors %d",
+			m.Name.c_str(), static_cast<double>(m.Qol), parts.c_str() + 1, static_cast<double>(m.Losses), static_cast<double>(m.YoungDead), m.LifeTechs, m.Alive, m.Births, m.Deaths, m.Generations, m.Lineages, m.TrailCells, m.PathCells, m.Splits, m.Trades, m.TradesIn, m.TradesOut,
 			m.Gifts, m.Roles, static_cast<double>(m.SkillEntropy), m.Techs, m.Inventors);
 		return line;
 	}

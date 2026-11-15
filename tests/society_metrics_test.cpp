@@ -3,7 +3,10 @@
 //  * a clan with no food, no beds and nothing met is low, one with beds, food and its needs met is high;
 //  * the "metrics" section reads and writes back, refuses what it does not know, and the game's data says the built-in weights;
 //  * lineages are the founders with living descendants, through both parents and across clans;
-//  * on a real clan (a SimRun): emptying the store and the bags makes the food part 0, filling the store makes it 1 and the index rises.
+//  * on a real clan (a SimRun): emptying the store and the bags makes the food part 0, filling the store raises it and the index;
+//  * D33: the curves that never fill (techs, food), the losses of the recent young dead (an elder's death or an old one takes nothing off; two
+//    young ones today make the index fall visibly, and it comes back up as they fade).
+#include "GB/Game/History.h"
 #include "GB/Game/SimQA.h"
 #include "GB/Game/Society.h"
 #include "GB/Game/SocietyMetrics.h"
@@ -55,11 +58,22 @@ int GBTest_society_metrics(int, char**)
 	over["food"] = 7.0f;
 	Check(Near(Qol(over, rules), high), "a part over 1 counts as 1");
 
+	// ---- D33: the curves that never fill and the losses
+	Check(Saturate(0.0f, 10.0f) == 0.0f && Near(Saturate(10.0f, 10.0f), 0.5f) && Near(Saturate(30.0f, 10.0f), 0.75f), "n / (n + half): 0, a half at half, 3/4 at three halves");
+	Check(Saturate(41.0f, 10.0f) - Saturate(40.0f, 10.0f) < Saturate(11.0f, 10.0f) - Saturate(10.0f, 10.0f) && Saturate(200.0f, 10.0f) < 1.0f,
+		"each one more adds less than the one before, and it never fills (a tree of 200 does not saturate it)");
+	Check(Losses(0.0f, 10, rules) == 0.0f, "no young dead: nothing taken off");
+	Check(Near(Losses(1.0f, 9, rules), 0.1f * rules.LossScale), "one young dead today in a clan left with 9: a tenth (times LossScale)");
+	Check(Near(Losses(6.0f, 4, rules), std::min(1.0f, 0.6f * rules.LossScale)), "six young dead and four alive (clan III of seed 5): six tenths, so it does not read as a well-off clan");
+	Check(Losses(0.5f, 9, rules) < Losses(1.0f, 9, rules), "a death of some days ago weighs less than today's");
+
 	// ---- the section
 	{
 		SocietyMetricRules r;
-		const std::string error = LoadSocietyMetricRules(R"({ "metrics": { "qol": { "weights": { "needs": 1, "food": 1 }, "needs": [ "Hunger" ], "foodDays": 5, "bedsPerPerson": 0.5 } } })", r);
-		Check(error.empty() && r.Weights.size() == 2 && r.Needs == std::vector<std::string>{ "Hunger" } && r.FoodDays == 5.0f && r.BedsPerPerson == 0.5f, "the section reads" + (error.empty() ? std::string() : ": " + error));
+		const std::string error = LoadSocietyMetricRules(R"({ "metrics": { "qol": { "weights": { "needs": 1, "food": 1 }, "needs": [ "Hunger" ], "needsFloor": 0.4, "foodHalf": 3,
+			"bedsPerPerson": 0.5, "bedComfort": 0.6, "toolPower": 3, "techsHalf": 25, "lossDays": 4, "lossScale": 2 } } })", r);
+		Check(error.empty() && r.Weights.size() == 2 && r.Needs == std::vector<std::string>{ "Hunger" } && r.NeedsFloor == 0.4f && r.FoodHalf == 3.0f && r.BedsPerPerson == 0.5f
+			&& r.BedComfort == 0.6f && r.ToolPower == 3.0f && r.TechsHalf == 25.0f && r.LossDays == 4.0f && r.LossScale == 2.0f, "the section reads" + (error.empty() ? std::string() : ": " + error));
 		Check(Near(Qol({ { "needs", 1.0f }, { "food", 0.0f }, { "shelter", 1.0f } }, r), 0.5f), "only the parts it weighs count");
 		SocietyMetricRules back;
 		const std::string again = LoadSocietyMetricRules("{ \"metrics\": " + SocietyMetricRulesToJson(r) + " }", back);
@@ -68,6 +82,11 @@ int GBTest_society_metrics(int, char**)
 		Check(!LoadSocietyMetricRules(R"({ "metrics": { "qol": { "weights": { "beauty": 1 } } } })", same).empty() && same == r, "an unknown part is a mistake and changes nothing");
 		Check(!LoadSocietyMetricRules(R"({ "metrics": { "qol": { "weights": { "needs": 0 } } } })", same).empty() && same == r, "weights adding up to 0 are a mistake");
 		Check(!LoadSocietyMetricRules(R"({ "metrics": { "comfort": {} } })", same).empty() && same == r, "an unknown key is a mistake");
+		Check(!LoadSocietyMetricRules(R"({ "metrics": { "qol": { "foodDays": 10 } } })", same).empty() && same == r, "and so is the old foodDays (the food part is a curve now: foodHalf)");
+		Check(!LoadSocietyMetricRules(R"({ "metrics": { "qol": { "needsFloor": 1 } } })", same).empty() && same == r, "a needs floor of 1 is a mistake (nothing over it)");
+		Check(!LoadSocietyMetricRules(R"({ "metrics": { "qol": { "techsHalf": 0 } } })", same).empty() && same == r, "a half of 0 is a mistake");
+		SocietyMetricRules off = r;
+		Check(LoadSocietyMetricRules(R"({ "metrics": { "qol": { "lossScale": 0 } } })", off).empty() && off.LossScale == 0.0f && Losses(3.0f, 5, off) == 0.0f, "a loss scale of 0 turns the losses off");
 		Check(LoadSocietyMetricRules(R"({ "items": [] })", same).empty() && same == r, "a file without the section changes nothing");
 	}
 	{
@@ -117,10 +136,44 @@ int GBTest_society_metrics(int, char**)
 			const ItemLibrary* items = t.Items();
 			Check(items && t.Store().Add(*items, "berry", 200) > 0, "berries for the store");
 			const SocietyMeasure fed = MeasureSociety(t, rules);
-			Check(Near(fed.Parts.at("food"), std::min(1.0f, t.FoodDays() / rules.FoodDays)) && fed.Parts.at("food") > 0.25f, "with food for days the food part is the days over FoodDays (" + std::to_string(fed.Parts.at("food")) + ")");
+			Check(Near(fed.Parts.at("food"), Saturate(t.FoodDays(), rules.FoodHalf)) && fed.Parts.at("food") > 0.25f, "with food for days the food part is days / (days + FoodHalf) (" + std::to_string(fed.Parts.at("food")) + ")");
 			Check(fed.Qol > hungry.Qol + 0.04f, "and the quality of life rises (" + std::to_string(hungry.Qol) + " -> " + std::to_string(fed.Qol) + ")");
 			const std::string line = SocietyLine(fed);
 			Check(line.rfind("society: ", 0) == 0 && line.find(" qol ") != std::string::npos && line.find(" lineages 0") != std::string::npos, "and it reads as a line: " + line);
+
+			// D33: the young dead of the last days take off the index (read from the history: "death" or "killed", the dead in Whom)
+			WorldHistory past;
+			past.SetClock(t.WorldSeconds());
+			t.SetHistory(&past, 0);
+			const SocietyMeasure calm = MeasureSociety(t, rules);
+			Check(calm.Losses == 0.0f && Near(calm.Qol, fed.Qol), "a history with no deaths takes nothing off");
+			const float day = t.Config.Society.Life.DaySeconds > 0.0f ? t.Config.Society.Life.DaySeconds : t.Config.Needs.DaySeconds;
+			auto bury = [&](const std::string& name, float age, double ago, const char* kind)
+			{
+				Society& people = t.People();
+				people.Join(t.Config.Society, name);
+				people.SetAge(name, age);
+				people.Died(t.Config.Society, name, "Hunger");
+				HistoryEvent e;
+				e.At = t.WorldSeconds() - ago * day;
+				e.Kind = kind;
+				e.Whom = name;
+				e.Clan = 0;
+				past.Add(e);
+			};
+			bury("Old Una", t.Config.Society.Life.ElderFrom + 10.0f, 0.0, "death");             // an elder: that is longevity, not a loss
+			bury("Long Gone", 20.0f, static_cast<double>(rules.LossDays) + 1.0, "death");      // too long ago
+			const SocietyMeasure elders = MeasureSociety(t, rules);
+			Check(elders.Losses == 0.0f, "an elder's death and a young one of long ago take nothing off (" + std::to_string(elders.YoungDead) + ")");
+			bury("Young Ria", 20.0f, 0.0, "death");
+			bury("Young Teo", 25.0f, 0.0, "killed");                                          // killed in a fight: its own kind of event
+			const SocietyMeasure mourning = MeasureSociety(t, rules);
+			Check(Near(mourning.YoungDead, 2.0f, 1e-3f) && Near(mourning.Losses, Losses(2.0f, 4, rules)), "two young dead today, one of hunger and one killed, both count (" + std::to_string(mourning.YoungDead) + ")");
+			Check(mourning.Qol < 0.8f * elders.Qol, "and the index falls visibly (" + std::to_string(elders.Qol) + " -> " + std::to_string(mourning.Qol) + ")");
+			past.SetClock(t.WorldSeconds() + 0.5 * static_cast<double>(rules.LossDays) * day);
+			const SocietyMeasure later = MeasureSociety(t, rules);
+			Check(later.YoungDead > 0.9f && later.YoungDead < 1.1f && later.Qol > mourning.Qol, "half the window later they weigh half and the index comes back up (" + std::to_string(later.Qol) + ")");
+			t.SetHistory(nullptr, -1);
 		}
 	}
 
