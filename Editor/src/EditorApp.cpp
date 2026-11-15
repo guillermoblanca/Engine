@@ -150,6 +150,7 @@ namespace GB::Editor
 		content.Nature = &m_Nature;
 		content.Trails = &m_Tribe.Config.Trails;   // T5c
 		content.Needs = &m_Tribe.Config.DataNeeds;   // V5
+		content.Metrics = &m_Clans.Metrics;   // U2: how the quality of life is weighed, as GBSim weighs it (only the measure reads it)
 		AddContentSections(m_Packs, content);
 		AddVisualContentSection(m_Packs, m_Visuals.Library);   // the "visuals" section is the visual layer's (the simulation does not read it)
 		{
@@ -1486,6 +1487,7 @@ namespace GB::Editor
 			if (m_Player.IsActive()) m_Actors.Update(dt);   // (with no player the actors move in the fixed tick: EditorSaveHost::Step)
 		}
 		m_CpuSimMs = m_CpuSimMs * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - simStart).count());
+		TrackQol();     // U2: each clan's quality of life once a day, for the god's list's trend (the editor's, never read by the simulation)
 		StepGame(dt);   // H15: the player's body, camera, quality and news (nothing when not playing)
 		m_NavSyncTimer -= dt;
 		if (m_NavSyncTimer <= 0.0f)   // trees felled or planted, a building: the grid redoes only the cells around them

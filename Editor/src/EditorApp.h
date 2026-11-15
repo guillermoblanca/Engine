@@ -397,7 +397,7 @@ namespace GB::Editor
 		struct ObserverState
 		{
 			bool On = false;                // `observer on|off`, the Clans button over the viewport, View > Observe the clans
-			std::string Tab = "members";    // the sheet of the observed clan's book shown ...
+			std::string Tab = "clan";       // the sheet of the observed clan's book shown ...
 			std::string Ask;                // ... and one a command asked for (selected on the next frame)
 			bool Folded = false;
 			bool Tree = false;              // the tree of knowledge of the observed clan (`observer tree`)
@@ -412,7 +412,29 @@ namespace GB::Editor
 			// the boxes the god's screen drew last frame over the world (x0, y0, x1, y1; all 0 = not drawn), for `observer status`'s layout: line
 			struct Box { float X0 = 0.0f, Y0 = 0.0f, X1 = 0.0f, Y1 = 0.0f; };
 			Box BarBox, CardBox, BookBox, ViewBox;
+			// U2: the clans' list of the god's screen (in the card's place) and the clan whose quality of life tooltip `observer tip <clan>` holds
+			// open (a script has no mouse: -1 = none)
+			Box ClansBox;
+			int Tip = -1;
 		} m_Observer;
+		// U2: the quality of life of every clan (MeasureSocieties, SocietyMetrics.h), measured by the editor (GB stores none of it). The list, the
+		// clan's sheet and `observer clans` read the same measure, refreshed when the world's clock has moved a few seconds (or `force`), so a
+		// frame never shows two. Once a day (TrackQol, every frame) each clan's qol is kept for its trend.
+		const std::vector<SocietyMeasure>& Societies(bool force = false);
+		void TrackQol();
+		struct QolTrend { bool Known = false; float Delta = 0.0f; int Days = 0; float Ago1 = -1.0f, Ago3 = -1.0f; };
+		QolTrend TrendOf(int clan, float qol) const;   // the change against 3 days ago (or the oldest day kept), and the qol 1 and 3 days ago
+		const SocietyMeasure* MeasureOf(int clan);
+		std::string ObserverClansText();               // `observer clans`: a line per clan with what its row shows, and its SocietyLine
+		void DrawClanList(float ox, float top);        // the god's screen's list of clans (ObserverView.cpp)
+		void DrawClanSheet(const Clan& clan);          // the clan's sheet of the book
+		void DrawQolTip(const SocietyMeasure& m);      // the inside of the tooltip: the 7 parts and the losses
+		std::vector<SocietyMeasure> m_Societies;
+		double m_SocietiesAt = -1.0;
+		size_t m_SocietiesClans = 0;
+		int m_SocietiesFrame = -1;
+		std::map<int, std::map<int, float>> m_QolDays;   // clan -> day -> its qol on the first frame of that day
+		int m_QolDay = 0;
 		void DrawGodBar(float ox, float oy, float w);   // the god's bar (ObserverView.cpp)
 		std::string ObserverTimeLine() const;          // `observer status`'s "time: day N, HH:MM, <season>, <weather>; speed xN[, paused]" (GameMode.cpp)
 		int GameDay() const;                           // the day of the world's clock, from 1, as the game's clock counts it (GameMode.cpp)
