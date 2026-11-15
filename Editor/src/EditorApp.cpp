@@ -1234,8 +1234,17 @@ namespace GB::Editor
 		c.Register("nav", "nav status | debug on|off | rebuild | sync | path <x1 z1 x2 z2> [load 0-1]: navigation over the terrain: the grid the characters plan their paths on (trunks, rocks, deep water and cliffs are walls; wading and slopes cost), the paths they follow and what the planning has cost", [this](const std::vector<std::string>& a) { return NavCommand(a); });
 		c.Register("economy", "economy status | plan | give <item> [n] | stockpile <name> [x z] [kind] | demand <source> <item> <n>: the clan's economy (H18): what it makes from what (production chains), what spoils, its stores and stockpiles, what it hauls and how much food it brings in; give puts things in the main store", [this](const std::vector<std::string>& a) { return EconomyCommand(a); });
 		c.Register("field", "field status | mark [x z]: the clan's fields (H18, E7): plots grass, tilled, sown, sprouting or ripe, what needs water and what the season allows; mark lays out a field (the clan does it by itself once it knows tillage and has seeds)", [this](const std::vector<std::string>& a) { return FieldCommand(a); });
-		c.Register("overlay", "overlay [on|off]: draws the clan's fields (one colour per plot state), stockpiles and, over each member, its name, trade and what it is doing", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("overlay", "overlay [on|off] | labels [hover|selection|all]: draws the clan's fields (one colour per plot state), stockpiles and, over each member, its name, trade and what it is doing; labels: which labels the god's screen and the observer show (controls.hud.labels of player.json, for this run)", [this](const std::vector<std::string>& a) -> CommandResult
 		{
+			if (!a.empty() && a[0] == "labels")   // T230
+			{
+				if (a.size() > 1)
+				{
+					if (a[1] != "hover" && a[1] != "selection" && a[1] != "all") return { false, "overlay labels: hover, selection or all" };
+					m_Controls.Hud.Labels = a[1];
+				}
+				return { true, "overlay labels " + m_Controls.Hud.Labels };
+			}
 			if (!a.empty()) m_ClanOverlay = a[0] == "on" || a[0] == "1" || a[0] == "true";
 			else m_ClanOverlay = !m_ClanOverlay;
 			return { true, std::string("overlay ") + (m_ClanOverlay ? "on" : "off") };
@@ -2032,7 +2041,7 @@ namespace GB::Editor
 			if (m_TgUi && m_World.IsBuilt() && m_World.World().TerrainRef)   // the terrain graph's previewed port (TerrainGraphUi::SetPreview)
 				m_TgUi->DrawViewportOverlay(ImGui::GetWindowDrawList(), m_Camera.GetProjection(static_cast<float>(m_ViewportW) / std::max(static_cast<float>(m_ViewportH), 1.0f)) * m_Camera.GetView(),
 					origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), *m_World.World().TerrainRef);
-			DrawBubble(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_Game.Active ? m_Game.Selected : m_FreeSelected);   // over the selected character
+			DrawBubble(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_Game.Active ? m_Game.Selected : !m_FreeSelected.empty() ? m_FreeSelected : m_GameView.Following());   // over the selected character (or, with none, the followed one: T230)
 			if (!m_Game.Active && !god) DrawMapPanel();   // (in a game the map is a sheet of the clan book; the god's screen will have its layers: U9)
 			if (!m_Game.Active)
 			{

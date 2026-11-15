@@ -94,7 +94,7 @@ namespace GB
 		}
 		std::vector<Field> HudFields(HudRules& h)
 		{
-			return { I("notifications", h.Notifications), F("notifySeconds", h.NotifySeconds), L("needs", h.Needs), B("clock", h.Clock), B("prompt", h.Prompt) };
+			return { I("notifications", h.Notifications), F("notifySeconds", h.NotifySeconds), L("needs", h.Needs), B("clock", h.Clock), B("prompt", h.Prompt), S("labels", h.Labels) };
 		}
 		std::vector<Field> GameFields(GameSetup& g)
 		{
@@ -177,6 +177,7 @@ namespace GB
 			else return "controls: unknown key '" + key + "'";
 		}
 		if (read.Hud.Notifications < 0) return "controls.hud.notifications: must not be negative";
+		if (read.Hud.Labels != "hover" && read.Hud.Labels != "selection" && read.Hud.Labels != "all") return "controls.hud.labels: expected hover, selection or all";
 		if (read.Game.Members < 0 || read.Game.Clans < 1) return "controls.game: members must not be negative and there is at least one clan";
 		controls = std::move(read);
 		return {};

@@ -79,6 +79,9 @@ namespace GB
 		std::vector<std::string> Needs = { "Hunger", "Thirst", "Rest", "Warmth", "Health" };   // the bars, in this order
 		bool Clock = true;                     // day, hour and season
 		bool Prompt = true;                    // what the interact key would do now
+		// T230: the text over the world on the god's screen (and the observer's): "hover" names what the mouse is over and what is selected or
+		// followed, "selection" only what is selected or followed, "all" every label as before (the editor and a game keep their own)
+		std::string Labels = "hover";
 		bool operator==(const HudRules&) const = default;
 	};
 
@@ -115,7 +118,7 @@ namespace GB
 	// on a mistake (an unknown key, a wrong type) it returns why and changes nothing.
 	std::string LoadPlayerRules(const std::string& json, PlayerRules& rules);
 	std::string PlayerRulesToJson(const PlayerRules& rules);   // the whole "player" section (one JSON document)
-	// { "controls": { "keys": { "<action>": "<key>" }, "hud": { "notifications", "notifySeconds", "needs": [], "clock", "prompt" },
+	// { "controls": { "keys": { "<action>": "<key>" }, "hud": { "notifications", "notifySeconds", "needs": [], "clock", "prompt", "labels" },
 	//   "game": { "world", "seed", "resources", "members", "clans", "model", "fallback", "name", "quality", "autoMs", "timeScale" } } }: "keys" replaces
 	// the bindings it names (an empty string unbinds), the rest as above.
 	std::string LoadControls(const std::string& json, ControlRules& controls);

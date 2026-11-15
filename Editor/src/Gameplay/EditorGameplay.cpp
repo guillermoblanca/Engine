@@ -1,11 +1,13 @@
 // The editor's side of the Gameplay Ability System: the `garden` and `ability` commands and the Abilities panel.
 #include "EditorApp.h"
 #include "EditorGameplayParsing.h"
+#include "GameTheme.h"
 #include "GB/Log.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/SiteChoice.h"
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/Game/StartSites.h"
+#include <cfloat>
 #include <chrono>
 #include <algorithm>
 #include <fstream>
@@ -1367,8 +1369,16 @@ namespace GB::Editor
 
 	// What the clan has in the world, so it can be followed without the console: every field plot painted by state (the inner square grows with the
 	// crop, a blue dot is moist soil), the stockpiles, and over each member its name, trade and what it is doing.
+	// T230: on the god's screen (and the observer's) the world stays clean: the shapes on the ground stay, but a label shows only over what is
+	// selected or followed and, with controls.hud.labels "hover" (the default), over the one thing under the mouse; a camp whose fire is out keeps
+	// a small red mark. "all" brings every label back. The player's hints (press E, your clan's camp, leave what you gather here) are a game's only.
 	void EditorApp::DrawClanOverlay(ImDrawList* dl, const glm::mat4& viewProj, const glm::vec2& size, float ox, float oy)
 	{
+		namespace T = GameTheme;
+		const bool god = !m_Game.Active && (m_Observer.On || m_Observer.Screen);
+		const bool quiet = god && m_Controls.Hud.Labels != "all";
+		const std::string followed = m_GameView.Following();
+		auto focused = [&](const std::string& name) { return !name.empty() && (name == m_FreeSelected || name == followed || name == m_Observer.Person); };
 		auto ground = [&](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; };
 		auto screen = [&](const glm::vec3& p, ImVec2& out)
 		{
@@ -1389,13 +1399,73 @@ namespace GB::Editor
 			dl->AddConvexPolyFilled(q, 4, fill);
 			if (edge) dl->AddPolyline(q, 4, edge, ImDrawFlags_Closed, 1.0f);
 		};
+		// a quiet label (T230): a little smaller, on the panels' hide, and never under the god's panels (they would show through)
+		auto underPanel = [&](const ImVec2& p)
+		{
+			for (const ObserverState::Box* b : { &m_Observer.BookBox, &m_Observer.ClansBox, &m_Observer.BarBox, &m_Observer.FollowBox })
+				if (b->X1 > b->X0 && p.x >= b->X0 && p.x <= b->X1 && p.y >= b->Y0 && p.y <= b->Y1) return true;
+			return false;
+		};
+		const float quietSize = ImGui::GetFontSize() * 0.9f;
+		const float step = (quiet ? quietSize : ImGui::GetTextLineHeight()) + 3.0f;   // from one line of a label to the next
 		auto label = [&](const ImVec2& at, const std::string& text, ImU32 color)
 		{
+			if (quiet)
+			{
+				if (underPanel(at)) return;
+				ImFont* font = ImGui::GetFont();
+				const ImVec2 ts = font->CalcTextSizeA(quietSize, FLT_MAX, 0.0f, text.c_str());
+				const ImVec2 a(at.x - ts.x * 0.5f, at.y - ts.y);
+				dl->AddRectFilled(ImVec2(a.x - 4.0f, a.y - 1.0f), ImVec2(a.x + ts.x + 4.0f, a.y + ts.y + 1.0f), T::Faded(T::Hide, 0.8f), 3.0f);
+				dl->AddText(font, quietSize, a, color, text.c_str());
+				return;
+			}
 			const ImVec2 ts = ImGui::CalcTextSize(text.c_str());
 			const ImVec2 a(at.x - ts.x * 0.5f, at.y - ts.y);
 			dl->AddRectFilled(ImVec2(a.x - 3.0f, a.y - 1.0f), ImVec2(a.x + ts.x + 3.0f, a.y + ts.y + 1.0f), IM_COL32(10, 12, 16, 170), 3.0f);
 			dl->AddText(a, color, text.c_str());
 		};
+
+		std::string own;   // the first clan's name, out of a game (in one, it is the player's: "your clan")
+		if (!m_Game.Active)
+			for (const auto& c : m_Clans.All())
+				if (c->Folk == &m_Tribe) own = c->Name;
+		std::vector<std::pair<const Tribe*, std::string>> tribes{ { &m_Tribe, own } };
+		for (const auto& c : m_Clans.All())
+			if (c->Folk && c->Folk != &m_Tribe) tribes.emplace_back(c->Folk, c->Name);
+		auto memberAt = [&](const TribeMember& m, glm::vec2& at)
+		{
+			if (const Actor* actor = m_Actors.Find(m.Name)) at = glm::vec2(actor->GetPosition().x, actor->GetPosition().z);
+			else if (m.Body) at = m.Body->Position();
+			else return false;
+			return true;
+		};
+
+		// T230: the one thing under the mouse (a member, a building, a camp, a field, a stockpile or a grave), the nearest on the screen
+		const void* hovered = nullptr;
+		if (quiet && m_Controls.Hud.Labels == "hover" && m_ViewportHovered)
+		{
+			const ImVec2 mouse = ImGui::GetMousePos();
+			float best = 0.0f;
+			auto consider = [&](const void* what, const glm::vec2& at, float lift, float radius)
+			{
+				const glm::vec3 p(at.x, ground(at.x, at.y) + lift, at.y);
+				ImVec2 s;
+				if (glm::distance(m_Camera.Position, p) > 140.0f || !screen(p, s)) return;
+				const float d = std::hypot(s.x - mouse.x, s.y - mouse.y);
+				if (d < radius && (!hovered || d < best)) { hovered = what; best = d; }
+			};
+			for (const auto& [name, g] : m_Graves) consider(&g, g.Pos, 0.7f, 20.0f);
+			for (const auto& [tribe, clanName] : tribes)
+			{
+				consider(tribe, tribe->Config.Economy.Camp, 1.5f, 40.0f);
+				for (const Tribe::SettlementSite& b : tribe->SettlementSites()) consider(&b, b.Pos, 1.0f, 36.0f);
+				for (const Field& f : tribe->Economy().Fields) consider(&f, f.Centre(), 0.3f, 40.0f);
+				for (const Stockpile& st : tribe->Economy().Stockpiles) consider(&st, st.Pos, 0.5f, 20.0f);
+				for (const TribeMember& m : tribe->Members())
+					if (glm::vec2 at; memberAt(m, at)) consider(&m, at, 1.0f, 26.0f);
+			}
+		}
 
 		// the dead: a cross where each one fell, with its name and what killed it
 		for (const auto& [name, g] : m_Graves)
@@ -1404,16 +1474,13 @@ namespace GB::Editor
 			if (glm::distance(m_Camera.Position, glm::vec3(g.Pos.x, ground(g.Pos.x, g.Pos.y), g.Pos.y)) > 90.0f || !screen(glm::vec3(g.Pos.x, ground(g.Pos.x, g.Pos.y) + 1.4f, g.Pos.y), s)) continue;
 			dl->AddLine(ImVec2(s.x, s.y - 14.0f), ImVec2(s.x, s.y + 6.0f), IM_COL32(235, 235, 225, 235), 3.0f);
 			dl->AddLine(ImVec2(s.x - 7.0f, s.y - 8.0f), ImVec2(s.x + 7.0f, s.y - 8.0f), IM_COL32(235, 235, 225, 235), 3.0f);
-			label(ImVec2(s.x, s.y + 22.0f), name + " (" + g.Cause + ")", IM_COL32(210, 205, 195, 235));
+			if (!quiet || hovered == &g) label(ImVec2(s.x, s.y + 22.0f), name + " (" + g.Cause + ")", quiet ? T::BoneDim : IM_COL32(210, 205, 195, 235));
 		}
-		std::vector<std::pair<const Tribe*, std::string>> tribes{ { &m_Tribe, std::string() } };
-		for (const auto& c : m_Clans.All())
-			if (c->Folk && c->Folk != &m_Tribe) tribes.emplace_back(c->Folk, c->Name);
 		for (const auto& [tribe, clanName] : tribes)
 		{
 		const Tribe& t = *tribe;
-		const bool mine = tribe == &m_Tribe;
-		const ImU32 tint = mine ? IM_COL32(255, 220, 120, 240) : IM_COL32(150, 200, 255, 240);
+		const bool mine = m_Game.Active && tribe == &m_Tribe;   // (out of a game no clan is "yours": the first one is named like the others)
+		const ImU32 tint = quiet ? T::Bone : mine ? IM_COL32(255, 220, 120, 240) : IM_COL32(150, 200, 255, 240);
 
 		// the camp: where the clan lives, with what it has in store and whether the fire is lit
 		{
@@ -1421,10 +1488,18 @@ namespace GB::Editor
 			ImVec2 s;
 			if (glm::distance(m_Camera.Position, glm::vec3(camp.x, ground(camp.x, camp.y), camp.y)) < 140.0f && screen(glm::vec3(camp.x, ground(camp.x, camp.y) + 3.2f, camp.y), s))
 			{
+				if (quiet && t.HasFire() && !t.FireBurning())   // the one mark a quiet world keeps: a camp without fire (its label says so on hover)
+				{
+					dl->AddCircleFilled(s, 6.0f, T::Shade);
+					dl->AddCircleFilled(s, 4.5f, T::Bad);
+				}
+			}
+			if ((!quiet || hovered == tribe) && glm::distance(m_Camera.Position, glm::vec3(camp.x, ground(camp.x, camp.y), camp.y)) < 140.0f && screen(glm::vec3(camp.x, ground(camp.x, camp.y) + 3.2f, camp.y), s))
+			{
 				std::string head = (clanName.empty() ? m_Lang.Text("Your clan's camp") : m_Lang.Text("Camp of the {0}", m_Lang.Name("clan", clanName, clanName))) + " - " + m_Lang.Text("{0} people", static_cast<int>(t.Members().size()));
 				if (t.HasFire()) head += ", " + m_Lang.Text(t.FireBurning() ? "fire lit" : "fire OUT");
 				if (const int beds = t.Beds(); beds > 0) head += ", " + m_Lang.Text("{0} beds", beds);
-				label(ImVec2(s.x, s.y - 2.0f * ImGui::GetTextLineHeight() - 6.0f), head, tint);
+				label(ImVec2(s.x, s.y - 2.0f * step), head, tint);
 				std::string store;
 				int shown = 0;
 				for (const std::string& id : m_Items.Ids())
@@ -1435,8 +1510,8 @@ namespace GB::Editor
 					store += (store.empty() ? "" : ", ") + m_Lang.Name("item", id, def ? def->Name : std::string()) + " " + std::to_string(n);
 					++shown;
 				}
-				label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), m_Lang.Text("Store: {0}", store.empty() ? m_Lang.Text("empty") : store), IM_COL32(230, 200, 150, 235));
-				label(s, m_Lang.Text("(the store is the camp's: leave what you gather here)"), IM_COL32(180, 180, 180, 200));
+				label(ImVec2(s.x, s.y - step), m_Lang.Text("Store: {0}", store.empty() ? m_Lang.Text("empty") : store), quiet ? T::BoneDim : IM_COL32(230, 200, 150, 235));
+				if (m_Game.Active) label(s, m_Lang.Text("(the store is the camp's: leave what you gather here)"), IM_COL32(180, 180, 180, 200));   // (a hint for the player)
 			}
 		}
 		// the buildings: a finished one says what it is for, a site how far it is and what it still lacks
@@ -1446,6 +1521,7 @@ namespace GB::Editor
 			if (glm::distance(m_Camera.Position, glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y), b.Pos.y)) > 120.0f) continue;
 			const bool done = b.State.Done;
 			quad(b.Pos, 1.4f, done ? IM_COL32(200, 160, 90, 70) : IM_COL32(120, 160, 230, 70), done ? IM_COL32(220, 180, 100, 220) : IM_COL32(130, 170, 240, 220));
+			if (quiet && hovered != &b && !focused(b.Name)) continue;
 			if (!screen(glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y) + 2.6f, b.Pos.y), s)) continue;
 			std::string text = m_Lang.Entity(b.Name.empty() ? b.Building : b.Name);
 			if (done)
@@ -1453,15 +1529,17 @@ namespace GB::Editor
 				if (b.Beds > 0) text += " - " + m_Lang.Text("{0} beds", b.Beds);
 				if (!b.Station.empty()) text += " - " + m_Lang.Name("station", b.Station);
 				if (!b.Store.empty()) text += " - " + m_Lang.Text("store");
-				label(s, text, IM_COL32(235, 205, 140, 240));
+				label(s, text, quiet ? T::Bone : IM_COL32(235, 205, 140, 240));
 			}
 			else
 			{
 				text += " - " + m_Lang.Text("building {0} % ({1})", static_cast<int>(b.State.Progress * 100.0f), m_Lang.Name("phase", b.State.PhaseName));
-				label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), text, IM_COL32(150, 190, 250, 240));
+				label(ImVec2(s.x, s.y - step), text, quiet ? T::Bone : IM_COL32(150, 190, 250, 240));
 				std::string lacks;
 				for (const auto& [item, n] : b.State.Missing) lacks += (lacks.empty() ? "" : ", ") + std::to_string(n) + " " + m_Lang.Name("item", item);
-				label(s, b.State.Ready ? m_Lang.Text("needs work (press E beside it)") : lacks.empty() ? m_Lang.Text("waiting") : m_Lang.Text("needs {0}", lacks), IM_COL32(235, 235, 235, 230));
+				// (press E is the player's: out of a game the site only waits for hands)
+				const std::string ready = m_Game.Active ? m_Lang.Text("needs work (press E beside it)") : m_Lang.Text("needs hands");
+				label(s, b.State.Ready ? ready : lacks.empty() ? m_Lang.Text("waiting") : m_Lang.Text("needs {0}", lacks), quiet ? T::BoneDim : IM_COL32(235, 235, 235, 230));
 			}
 		}
 
@@ -1484,30 +1562,41 @@ namespace GB::Editor
 			}
 			ImVec2 s;
 			const glm::vec2 mid = f.Centre();
-			if (screen(glm::vec3(mid.x, ground(mid.x, mid.y) + 1.4f, mid.y), s)) label(s, f.Name + " (" + m_Lang.Text("{0} ripe", f.Count("grown")) + ")", IM_COL32(240, 220, 120, 235));
+			if ((!quiet || hovered == &f) && screen(glm::vec3(mid.x, ground(mid.x, mid.y) + 1.4f, mid.y), s)) label(s, f.Name + " (" + m_Lang.Text("{0} ripe", f.Count("grown")) + ")", quiet ? T::Bone : IM_COL32(240, 220, 120, 235));
 		}
 		for (const Stockpile& st : t.Economy().Stockpiles)
 		{
 			quad(st.Pos, 0.6f, IM_COL32(160, 120, 70, 220), IM_COL32(20, 20, 20, 200));
 			ImVec2 s;
-			if (screen(glm::vec3(st.Pos.x, ground(st.Pos.x, st.Pos.y) + 1.1f, st.Pos.y), s)) label(s, st.Name, IM_COL32(230, 200, 150, 235));
+			if ((!quiet || hovered == &st) && screen(glm::vec3(st.Pos.x, ground(st.Pos.x, st.Pos.y) + 1.1f, st.Pos.y), s)) label(s, st.Name, quiet ? T::Bone : IM_COL32(230, 200, 150, 235));
 		}
 
 		for (const TribeMember& m : t.Members())
 		{
 			glm::vec2 at;
-			if (const Actor* actor = m_Actors.Find(m.Name)) at = glm::vec2(actor->GetPosition().x, actor->GetPosition().z);
-			else if (m.Body) at = m.Body->Position();
-			else continue;
+			if (!memberAt(m, at)) continue;
 			const bool you = m_Game.Active && m.Name == m_Game.Player;
+			std::string task = m.Dead ? (m.Cause.empty() ? m_Lang.Text("dead") : m_Lang.Text("dead of {0}", m_Lang.Name("need", m.Cause))) : m_Lang.Doing(m.Job, m.Detail);
+			const std::string title = (you ? m_Lang.Text("YOU") + " - " : std::string()) + m.Name + " - " + m_Lang.Name("role", m.Role) + (clanName.empty() ? std::string() : " (" + m_Lang.Name("clan", clanName, clanName) + ")");
+			if (quiet)
+			{
+				// the one selected or followed (from any height, like you in a game): its name and what it does, under its feet so the bubble over its
+				// head stays clear; the one under the mouse: its name
+				const bool focus = focused(m.Name);
+				if (!focus && hovered != &m) continue;
+				ImVec2 s;
+				if (!screen(glm::vec3(at.x, ground(at.x, at.y), at.y), s)) continue;
+				label(ImVec2(s.x, s.y + 6.0f + step), title, focus ? T::Ochre : T::Bone);
+				if (focus) label(ImVec2(s.x, s.y + 6.0f + 2.0f * step), task, T::BoneDim);
+				continue;
+			}
 			if (!you && glm::distance(m_Camera.Position, glm::vec3(at.x, ground(at.x, at.y), at.y)) > 90.0f) continue;   // (you are marked from any height: from above the camera is far)
 			ImVec2 s;
 			if (!screen(glm::vec3(at.x, ground(at.x, at.y) + 2.5f, at.y), s)) continue;
 			if (you) dl->AddCircle(s, 14.0f, IM_COL32(255, 235, 90, 255), 20, 2.5f);
 			const ImU32 color = you ? IM_COL32(255, 235, 90, 255) : m.Dead ? IM_COL32(150, 150, 150, 220) : m.Role == "forager" ? IM_COL32(150, 235, 120, 255) : m.Role == "miner" ? IM_COL32(150, 200, 255, 255)
 				: m.Role == "woodcutter" ? IM_COL32(235, 180, 110, 255) : IM_COL32(255, 255, 255, 255);
-			std::string task = m.Dead ? (m.Cause.empty() ? m_Lang.Text("dead") : m_Lang.Text("dead of {0}", m_Lang.Name("need", m.Cause))) : m_Lang.Doing(m.Job, m.Detail);
-			label(ImVec2(s.x, s.y - ImGui::GetTextLineHeight() - 3.0f), (you ? m_Lang.Text("YOU") + " - " : std::string()) + m.Name + " - " + m_Lang.Name("role", m.Role) + (clanName.empty() ? std::string() : " (" + m_Lang.Name("clan", clanName, clanName) + ")"), color);
+			label(ImVec2(s.x, s.y - step), title, color);
 			label(s, task, IM_COL32(235, 235, 235, 235));
 		}
 		// the thing the interact key would use: its prompt under it, in the world, with the key
