@@ -54,6 +54,7 @@ namespace GB
 		std::string Zone;
 		// Generic provisions (docs/PROGRESION.md): numbers any building may carry, read by the systems that care, never per-building code.
 		int StoreCap = 0;                       // more units of each item the clan's main store takes (H18: Tribe::StoreCap)
+		int FoodCap = 0;                        // W5: more units of each food (Tribe::IsFood) on top of StoreCap; water, fibre and the rest do not get it
 		float Keep = 1.0f;                      // multiplies how fast the main store's food goes off (the lowest of the standing buildings counts)
 		float Defense = 0.0f;                   // a raider weighs it against its motive; defenders at the camp fight harder (H14)
 		float Healing = 0.0f;                   // wounds heal (1 + this) times as fast within its reach (H14)

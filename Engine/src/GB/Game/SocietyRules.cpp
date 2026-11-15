@@ -22,7 +22,7 @@ namespace GB
 			{ "elderFrom", &LifeRules::ElderFrom }, { "maxAge", &LifeRules::MaxAge }, { "longevity", &LifeRules::Longevity }, { "oldAge", &LifeRules::OldAge },
 			{ "founderMin", &LifeRules::FounderMin }, { "founderMax", &LifeRules::FounderMax }, { "childWork", &LifeRules::ChildWork }, { "elderWork", &LifeRules::ElderWork },
 			{ "childLearn", &LifeRules::ChildLearn }, { "childTeach", &LifeRules::ChildTeach }, { "elderTeach", &LifeRules::ElderTeach }, { "childPace", &LifeRules::ChildPace },
-			{ "elderPace", &LifeRules::ElderPace }, { "childHeight", &LifeRules::ChildHeight } };
+			{ "elderPace", &LifeRules::ElderPace }, { "childHeight", &LifeRules::ChildHeight }, { "starveDamage", &LifeRules::StarveDamage } };
 		struct BirthField { const char* Key; float BirthRules::*Field; };
 		constexpr BirthField kBirthFields[] = { { "pairAge", &BirthRules::PairAge }, { "ageGap", &BirthRules::AgeGap }, { "minAge", &BirthRules::MinAge },
 			{ "maxAge", &BirthRules::MaxAge }, { "spacing", &BirthRules::Spacing }, { "chance", &BirthRules::Chance }, { "foodPerMember", &BirthRules::FoodPerMember } };
@@ -136,6 +136,7 @@ namespace GB
 			if (!(life.ChildUntil < life.ElderFrom && life.ElderFrom < life.MaxAge)) return "society: life must have childUntil < elderFrom < maxAge";
 			if (life.FounderMin > life.FounderMax) return "society: life founderMin must not be above founderMax";
 			if (life.ChildHeight <= 0.0f || life.ChildHeight > 1.0f) return "society: life childHeight must be above 0 and at most 1";
+			if (life.StarveDamage <= 0.0f || life.StarveDamage > 100.0f) return "society: life starveDamage must be above 0 and at most 100";
 		}
 
 		if (const auto b = s.find("births"); b != s.end())

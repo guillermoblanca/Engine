@@ -204,6 +204,8 @@ gb_test(settlement_planner settlement_planner_test.cpp POOL GBSimTests LINK GB::
 gb_test(schedule schedule_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 # The claims on nodes alone (first piece of the logistics)
 gb_test(logistics logistics_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
+# W1: the food laid by for the winter (Economy.h WinterStockDays and the "winterStock" part of the economy section)
+gb_test(winter_stock winter_stock_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 # H7: aptitudes by practice, the job board and the trades of the clan (TribeWork, Skills, JobBoard)
 gb_test(work work_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lento;sim" DEFS ${gb_assets})
 # H18: production chains, spoilage and preservation, fields, stockpiles and hauling (Production, Spoilage, Farming, Economy, TribeEconomy)

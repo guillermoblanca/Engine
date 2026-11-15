@@ -142,7 +142,8 @@ namespace GB
 		EconomyRules rules = live;
 		std::string e;
 		for (const auto& [key, v] : section->items())
-			if (key != "production" && key != "spoilage" && key != "farming" && key != "crops" && key != "logistics" && key != "construction") return "economy: unknown part " + key;
+			if (key != "production" && key != "spoilage" && key != "winterStock" && key != "farming" && key != "crops" && key != "logistics" && key != "construction")
+				return "economy: unknown part " + key;
 		try
 		{
 			if (const auto p = section->find("production"); p != section->end())
@@ -187,6 +188,15 @@ namespace GB
 						x.Seasons[season] = f.get<float>();
 					}
 				}
+				if (!(e = r.Unknown()).empty()) return e;
+			}
+			if (const auto p = section->find("winterStock"); p != section->end())
+			{
+				if (!p->is_object()) return "economy: winterStock must be an object";
+				WinterStockRules& x = rules.WinterStock;
+				x = WinterStockRules();
+				Reader r{ *p, "winterStock", {} };
+				if (!(e = r.Float("days", x.Days, 0.0f, 365.0f)).empty() || !(e = r.Float("from", x.From, 0.0f, 1.0f)).empty()) return e;
 				if (!(e = r.Unknown()).empty()) return e;
 			}
 			if (const auto p = section->find("farming"); p != section->end())
@@ -324,7 +334,40 @@ namespace GB
 		l["fieldStore"] = r.Logistics.FieldStore;
 		const Json k = { { "maxSites", r.Construction.MaxSites }, { "membersPerSite", r.Construction.MembersPerSite }, { "ageSeconds", Rounded(r.Construction.AgeSeconds) },
 			{ "ageMax", Rounded(r.Construction.AgeMax) } };
-		return Json{ { "production", p }, { "spoilage", s }, { "farming", f }, { "crops", c }, { "logistics", l }, { "construction", k } }.dump();
+		const Json w = { { "days", Rounded(r.WinterStock.Days) }, { "from", Rounded(r.WinterStock.From) } };
+		return Json{ { "production", p }, { "spoilage", s }, { "winterStock", w }, { "farming", f }, { "crops", c }, { "logistics", l }, { "construction", k } }.dump();
+	}
+
+	float WinterStockDays(const EconomyRules& rules, const SeasonClock& clock, double now, const ItemDef& food, float storeRate)
+	{
+		const WinterStockRules& w = rules.WinterStock;
+		if (w.Days <= 0.0f || !(clock.SeasonSeconds > 0.0f)) return 0.0f;
+		const Season season = clock.At(now);
+		const Season next = static_cast<Season>((static_cast<int>(season) + 1) % 4);
+		const float p = clock.Progress(now);
+		const float length = clock.SeasonSeconds;
+		auto cold = [&](Season s)
+		{
+			const auto f = rules.Spoilage.Seasons.find(SeasonClock::Name(s));
+			return f != rules.Spoilage.Seasons.end() ? f->second : 1.0f;
+		};
+		// in the lean season itself nothing is to be found: gathering for the reserve only sent people to empty bushes in the snow
+		if (SeasonClock::GrowthRate(season) <= 0.0f || SeasonClock::GrowthRate(next) > 0.0f || p < w.From) return 0.0f;
+		const float rate = std::max(0.0f, storeRate);
+		const float ageing = (1.0f - p) * length * rate * cold(season) + length * rate * cold(next);   // what a fresh unit ages until growth returns
+		if (food.Perishable() && food.ShelfLife <= ageing) return 0.0f;   // (it would go off before spring: laid by, it is lost)
+		return w.Days;
+	}
+
+	float WinterReserveDays(const EconomyRules& rules, const SeasonClock& clock, double now)
+	{
+		const WinterStockRules& w = rules.WinterStock;
+		if (w.Days <= 0.0f || !(clock.SeasonSeconds > 0.0f)) return 0.0f;
+		const Season season = clock.At(now);
+		const float p = clock.Progress(now);
+		if (SeasonClock::GrowthRate(season) <= 0.0f) return w.Days * (1.0f - p);   // in the lean season: what is left of it
+		const Season next = static_cast<Season>((static_cast<int>(season) + 1) % 4);
+		return SeasonClock::GrowthRate(next) <= 0.0f && p >= w.From ? w.Days : 0.0f;
 	}
 
 	std::string CheckEconomy(const EconomyRules& rules, const ItemLibrary& items)

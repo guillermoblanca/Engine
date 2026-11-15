@@ -578,8 +578,8 @@ namespace GB
 	std::string Tribe::WhyNot(const TribeMember& m, const std::string& kind) const
 	{
 		const auto def = m_Defs.find(kind);
-		if (def != m_Defs.end() && m_Store.Count(def->second.Item) >= StoreCap())
-			return "the store has enough " + def->second.Item + " (" + std::to_string(m_Store.Count(def->second.Item)) + "/" + std::to_string(StoreCap()) + ")";
+		if (def != m_Defs.end() && m_Store.Count(def->second.Item) >= StoreCap(def->second.Item))
+			return "the store has enough " + def->second.Item + " (" + std::to_string(m_Store.Count(def->second.Item)) + "/" + std::to_string(StoreCap(def->second.Item)) + ")";
 		// what it remembers of that kind: it decides on its memory, not on what the world has (at the start it knows nothing)
 		int known = 0, empty = 0, claimed = 0, away = 0;
 		for (const auto& [name, e] : m.Mind.Memory.All())
@@ -1115,7 +1115,8 @@ namespace GB
 		for (const TribeMember& o : m_Members)
 			if (&o != &m && !o.Dead && o.Body && glm::distance(pos, Where(o)) < Config.Community.CompanyRadius) ctx.WithOthers = true;
 		if (m.Player) GuardPlayer(m, *asc);   // H15: unless the rules make it mortal, hunger and cold weaken a player and then knock it down, not kill it
-		UpdateNeeds(*asc, Config.Needs, ctx, dt);
+		NeedsConfig needs = Config.Needs; needs.StarveDamage = Config.Society.Life.StarveDamage;   // W5: how fast hunger kills is data (society.life)
+		UpdateNeeds(*asc, needs, ctx, dt);
 		ShelterNeeds(m, dt);   // asleep under a roof (H8): more rest and warmth
 		StepDataNeeds(m, *asc, dt);   // V5: the needs of the content packs (TribeNeeds.cpp)
 		m.Hungry = asc->Attribute(NeedName::Hunger) < 35.0f;
@@ -1458,8 +1459,10 @@ namespace GB
 		const int foodHeld = berries + storeBerries + pantryFood;
 		const float hungerUrgency = Urgency(hunger, 60.0f);
 
-		// eat: from the bag, else from the store at the camp
-		if (foodHeld > 0)
+		// eat: from the bag, else from the store at the camp (W1: only when hungry at all: an option of score 0 that was chosen is held by the
+		// chooser while nothing beats it by the margin, and a sated member ate 4 more units at hunger 100. W5 fixed that in the chooser;
+		// this stays because with every option at 0 the first one wins, and that must not be a meal)
+		if (foodHeld > 0 && hungerUrgency > 0.0f)
 		{
 			UtilityOption o;
 			o.Kind = "eat";
@@ -1596,7 +1599,7 @@ namespace GB
 		bool lacksFood = foodHeld == 0;
 		for (const auto& [kind, def] : m_Defs)
 		{
-			if (m_Store.Count(def.Item) >= StoreCap()) continue;   // enough of that for now
+			if (m_Store.Count(def.Item) >= StoreCap(def.Item)) continue;   // enough of that for now
 			if (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0) continue;
 			if (!m_Knowledge.CanGather(m.Name, kind)) continue;   // a node only those who know a technology work (H11)
 			float distance = 0.0f;
@@ -1732,7 +1735,7 @@ namespace GB
 			// stone of a campfire still to light (with the first fix the searches went to acorns and logs, which nothing of era 1 asks for: 54% of the time)
 			for (const auto& [kind, def] : m_Defs)
 			{
-				if (m_Store.Count(def.Item) >= StoreCap()) continue;
+				if (m_Store.Count(def.Item) >= StoreCap(def.Item)) continue;
 				if (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0) continue;
 				if (!m_Knowledge.CanGather(m.Name, kind)) continue;
 				if (within.count(def.Item) || !NeededNow(def.Item, lacksFood)) continue;

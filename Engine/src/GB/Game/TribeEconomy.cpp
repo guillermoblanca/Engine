@@ -105,7 +105,7 @@ namespace GB
 		}
 	}
 
-	int Tribe::StoreCap() const { return Config.Econ.Main().Cap + StoreBonus(); }   // (a cache pit or a granary adds to it, H8)
+	int Tribe::StoreCap(const std::string& item) const { return Config.Econ.Main().Cap + StoreBonus(!item.empty() && IsFood(item)); }   // (a cache pit or a granary adds to it, H8; to food more, W5)
 
 	int Tribe::Stored(const std::string& item) const
 	{
@@ -322,7 +322,7 @@ namespace GB
 				}
 				// (a store full of what keeps: no more of it; 2000 dried berries in twelve days filled every slot). The same test the maker makes (a
 				// batch past the cap is not made): with "below the cap" a store at 79 of 80 planned a batch the maker refused, 2800 times in 12 days
-				if (best && m_Store.Count(best->Output) + std::max(1, best->OutputCount) <= StoreCap())
+				if (best && m_Store.Count(best->Output) + std::max(1, best->OutputCount) <= StoreCap(best->Output))
 				{
 					const int batches = surplus / std::max(1, best->Inputs.at(food));
 					if (batches >= 1)
@@ -569,7 +569,7 @@ namespace GB
 			if (!r) return true;
 			const std::set<std::string> known = m_Knowledge.KnownRecipes(m.Name, *m_Recipes);
 			const std::set<std::string>* gate = m_Knowledge.Gated() ? &known : nullptr;
-			if (m_Store.Count(r->Output) > 0 && m_Store.Count(r->Output) + r->OutputCount > StoreCap())   // (a batch past the cap: 102 dried berries in a store of 100)
+			if (m_Store.Count(r->Output) > 0 && m_Store.Count(r->Output) + r->OutputCount > StoreCap(r->Output))   // (a batch past the cap: 102 dried berries in a store of 100)
 			{
 				Say(m, "does not make " + r->Output + ": the store is full of it");
 				return true;
@@ -775,7 +775,7 @@ namespace GB
 			{
 				// the main store takes each thing up to its cap; what is past it is left (else 900 grain in a store of 100 filled every slot, and
 				// the stone of the building sites and the wood of the fire found no room: the clans stopped building and having children)
-				const int room = std::max(0, StoreCap() - to.Count(s.Id));
+				const int room = std::max(0, StoreCap(s.Id) - to.Count(s.Id));
 				if (count > room)
 				{
 					const int over = count - room;

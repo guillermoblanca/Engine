@@ -39,6 +39,7 @@ namespace GB
 			if (!d.Store.empty()) add("a " + d.Store + " of the economy");
 			if (!d.Station.empty()) add("station " + d.Station);
 			if (d.StoreCap) add("+" + std::to_string(d.StoreCap) + " store cap");
+			if (d.FoodCap) add("+" + std::to_string(d.FoodCap) + " store cap of food");
 			if (d.Keep < 1.0f) { std::snprintf(b, sizeof b, "food keeps x%.2f", static_cast<double>(1.0f / d.Keep)); add(b); }
 			if (d.Defense > 0.0f) { std::snprintf(b, sizeof b, "defense %.1f", static_cast<double>(d.Defense)); add(b); }
 			if (d.Healing > 0.0f) { std::snprintf(b, sizeof b, "wounds heal x%.1f", static_cast<double>(1.0f + d.Healing)); add(b); }
@@ -385,11 +386,11 @@ namespace GB
 		return CampSpot(m);
 	}
 
-	int Tribe::StoreBonus() const
+	int Tribe::StoreBonus(bool food) const
 	{
 		int n = 0;
 		if (!m_Buildings) return n;
-		for (const Placed& p : Placements()) if (p.State.Done) n += p.Def->StoreCap;
+		for (const Placed& p : Placements()) if (p.State.Done) n += p.Def->StoreCap + (food ? p.Def->FoodCap : 0);
 		return n;
 	}
 
@@ -456,7 +457,7 @@ namespace GB
 				if (const EntityId id = m_Entities->FindByName(*w.Name); id != NullEntity)   // (where it stands in the world: the scene's first well is a child)
 					if (const glm::vec3 at = m_Entities->WorldMatrix(id)[3]; glm::distance(glm::vec2(at.x, at.z), Config.Economy.Camp) <= VillageReach()) ++facts.Wells;
 		for (const ItemSlot& s : m_Store.Stacks())
-			if (m_Store.Count(s.Id) >= facts.StoreCap - 2 && (facts.FullItem.empty() || s.Id < facts.FullItem)) facts.FullItem = s.Id;
+			if (m_Store.Count(s.Id) >= StoreCap(s.Id) - 2 && (facts.FullItem.empty() || s.Id < facts.FullItem)) facts.FullItem = s.Id;
 		if (facts.FullItem.empty() && m_Store.UsedSlots() >= m_Store.Slots() - 2)   // every slot taken: as full as an item at its cap (the planner wants a storage)
 			for (const ItemSlot& s : m_Store.Stacks())
 				if (facts.FullItem.empty() || m_Store.Count(s.Id) > m_Store.Count(facts.FullItem)) facts.FullItem = s.Id;

@@ -73,6 +73,7 @@ namespace GB
 		float ChildPace = 0.7f, ElderPace = 0.75f;
 		float ChildHeight = 0.55f;       // a newborn is this much of an adult's height and grows to 1 at ChildUntil (ITribeBody::SetGrowth)
 		std::string ChildRole = "forager";   // the trade a child is given (the review of the trades leaves children alone)
+		float StarveDamage = 0.33f;      // W5: health lost per second at hunger 0 (replaces NeedsConfig::StarveDamage; 0.05 = 2000 s to die)
 		bool operator==(const LifeRules&) const = default;
 	};
 
@@ -182,6 +183,7 @@ namespace GB
 		float Food = 0.0f;
 		int Alive = 0;
 		bool Shelter = false;
+		float BirthCost = 0.0f;          // W5: food each newborn will eat before more comes (the rest of the winter), taken from Food per birth
 	};
 
 	class Society

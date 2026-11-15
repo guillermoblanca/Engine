@@ -93,10 +93,20 @@ namespace GB
 		int SitesFor(int alive) const { return MembersPerSite > 0 ? std::clamp(alive / MembersPerSite, 1, std::max(1, MaxSites)) : std::max(1, MaxSites); }
 	};
 
+	// W1: the food laid by for a season in which nothing grows (winter: SeasonClock::GrowthRate 0; the wild nodes do not regrow, the fields freeze,
+	// the animals do not breed). One rule for every source of food (gathering now; the hunt of CAZA.md §3.3 is to read the same WinterStockDays).
+	struct WinterStockRules
+	{
+		float Days = 0.0f;                       // days of food per member the clan wants in hand, of each food that keeps until growth returns (0 = none)
+		float From = 0.0f;                       // how far (0..1) through the season before the lean one it starts to lay it by
+		bool operator==(const WinterStockRules&) const = default;
+	};
+
 	struct EconomyRules
 	{
 		ProductionRules Production;
 		SpoilageRules Spoilage;
+		WinterStockRules WinterStock;
 		FarmRules Farming;
 		std::map<std::string, CropDef> Crops;    // by id: the crops a field can grow (a later file adds to them)
 		LogisticsRules Logistics;
@@ -121,6 +131,15 @@ namespace GB
 	std::string EconomyRulesToJson(const EconomyRules& rules);   // one JSON object, as the section reads it back
 	// Problems of the rules against the items they name (a crop's seed and yield, the stock of an intermediate): "" = none.
 	std::string CheckEconomy(const EconomyRules& rules, const ItemLibrary& items);
+
+	// W1: the days of `food` (per member) the clan wants to lay by at `now`: WinterStock.Days from WinterStock.From of the way through the season before a
+	// lean one, 0 otherwise (in the lean season itself there is nothing to gather); and 0 for a food that, fresh, would go off before growth returns in a store
+	// that ages things at `storeRate` (its spoilRate times the best keep of its buildings) and at the season's factor (spoilage.seasons). Pure: a
+	// function of the clock, so there is nothing to save.
+	float WinterStockDays(const EconomyRules& rules, const SeasonClock& clock, double now, const ItemDef& food, float storeRate);
+	// The days of food per member laid by for the lean season at `now`, whatever the food (WinterStockDays without its test of what keeps): the
+	// part of the store that is not to spare (a couple has a child on what is left over, not on the winter's food).
+	float WinterReserveDays(const EconomyRules& rules, const SeasonClock& clock, double now);
 
 	// A stockpile: a store away from the camp (by a work site, at the field) with its own kind (capacity, what it takes, how fast it ages things).
 	struct Stockpile

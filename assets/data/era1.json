@@ -41,7 +41,7 @@
     { "id": "salt", "name": "Salt", "category": "resource", "weight": 0.5, "stack": 20, "tags": [ "Item.Resource.Salt" ] },
     { "id": "grain_seed", "name": "Grain seed", "category": "seed", "weight": 0.02, "stack": 50, "tags": [ "Item.Seed.Grain" ] },
     { "id": "acorn", "name": "Acorn", "category": "seed", "weight": 0.05, "stack": 20, "tags": [ "Item.Seed.Tree" ] },
-    { "id": "grain", "name": "Grain", "category": "food", "weight": 0.1, "stack": 30, "tags": [ "Item.Food", "Item.Food.Grain" ], "ability": "Eat", "shelfLife": 7200 },
+    { "id": "grain", "name": "Grain", "category": "food", "weight": 0.1, "stack": 30, "tags": [ "Item.Food", "Item.Food.Grain" ], "ability": "Eat", "shelfLife": 28800 },
     { "id": "dried_berry", "name": "Dried berry", "category": "food", "weight": 0.05, "stack": 30, "tags": [ "Item.Food", "Item.Food.Preserved" ], "ability": "Eat", "shelfLife": 14400 },
     { "id": "copper_axe", "name": "Copper axe", "category": "tool", "weight": 2.4, "stack": 1, "tags": [ "Item.Tool.Axe.Copper" ], "ability": "Chop", "socket": "RightHand", "power": 2, "speed": 1.25 },
     { "id": "bone_pickaxe", "name": "Bone pickaxe", "category": "tool", "weight": 2.0, "stack": 1, "tags": [ "Item.Tool.Pickaxe.Bone" ], "ability": "Mine", "socket": "RightHand", "power": 1, "speed": 1.1 },
@@ -198,6 +198,7 @@
         { "name": "lining", "work": 6.0, "needs": { "reed": 4, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
       ],
       "storeCap": 10,
+      "foodCap": 60,
       "keep": 0.75,
       "color": [ 0.42, 0.34, 0.24 ]
     },
@@ -212,6 +213,7 @@
         { "name": "roof", "work": 8.0, "needs": { "reed": 6 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
       ],
       "storeCap": 20,
+      "foodCap": 300,
       "keep": 0.5,
       "color": [ 0.55, 0.42, 0.26 ]
     },
@@ -339,6 +341,7 @@
         { "name": "jars", "work": 8.0, "needs": { "fired_brick": 4, "clay": 4 }, "part": "table" }
       ],
       "storeCap": 30,
+      "foodCap": 400,
       "keep": 0.35,
       "color": [ 0.6, 0.44, 0.32 ]
     },
@@ -529,6 +532,7 @@
       "preserveAbove": 1.0
     },
     "spoilage": { "step": 10.0, "bag": 1.0, "seasons": { "winter": 0.5 } },
+    "winterStock": { "days": 17.0, "from": 0.0 },
     "farming": {
       "tech": "tillage",
       "tool": "Item.Tool.Hoe",
@@ -544,11 +548,11 @@
       "membersPerField": 4
     },
     "crops": [
-      { "id": "grain", "seed": "grain_seed", "yield": { "grain": 3, "grain_seed": 2 }, "stageSeconds": 90, "sow": [ "spring", "summer" ] }
+      { "id": "grain", "seed": "grain_seed", "yield": { "grain": 3, "grain_seed": 2 }, "stageSeconds": 90, "sow": [ "spring", "summer", "autumn" ] }
     ],
     "logistics": {
       "stores": {
-        "main": { "cap": 40, "slots": 160, "spoilRate": 1.0, "accepts": [], "haul": false },
+        "main": { "cap": 40, "slots": 320, "spoilRate": 1.0, "accepts": [], "haul": false },
         "stockpile": { "cap": 20, "slots": 12, "spoilRate": 1.0, "accepts": [], "haul": true }
       },
       "perBagSlot": 1.0,
@@ -646,6 +650,7 @@
       "childPace": 0.7,
       "elderPace": 0.75,
       "childHeight": 0.55,
+      "starveDamage": 0.05,
       "childRole": "forager"
     },
     "births": {

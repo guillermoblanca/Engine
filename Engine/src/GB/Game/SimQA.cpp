@@ -190,21 +190,25 @@ namespace GB
 			if (!v.Clan) return;
 			int bags = 0;
 			for (const TribeMember& m : v.Clan->Members()) if (m.Body && !m.Dead) bags += m.Body->Bag().Slots();
-			auto check = [&](const std::string& name, const Inventory& store, int cap)
+			auto check = [&](const std::string& name, const Inventory& store, int pileCap, const Tribe* main)
 			{
 				if (store.UsedSlots() > store.Slots()) r.Add(name, std::to_string(store.UsedSlots()) + " stacks in " + std::to_string(store.Slots()) + " slots");
 				std::map<std::string, int> units;
 				for (const ItemSlot& s : store.Stacks()) units[s.Id] += s.Count;
-				for (const auto& [id, n] : units) if (n > cap + bags) r.Add(name, id + " " + std::to_string(n) + " over the bound " + std::to_string(cap + bags) + " (cap " + std::to_string(cap) + ")");
+				for (const auto& [id, n] : units)
+				{
+					const int cap = main ? main->StoreCap(id) : pileCap;   // (W5: the main store takes more of each food)
+					if (n > cap + bags) r.Add(name, id + " " + std::to_string(n) + " over the bound " + std::to_string(cap + bags) + " (cap " + std::to_string(cap) + ")");
+				}
 			};
-			check("store", v.Clan->Store(), v.Clan->StoreCap());
+			check("store", v.Clan->Store(), 0, v.Clan);
 			const auto& kinds = v.Clan->Config.Econ.Logistics.Stores;
 			for (const Stockpile& pile : v.Clan->Economy().Stockpiles)
 			{
 				const auto kind = kinds.find(pile.Kind);
 				if (kind == kinds.end()) { r.Add(pile.Name, "is a stockpile of an unknown kind '" + pile.Kind + "'"); continue; }
 				for (const ItemSlot& s : pile.Store.Stacks()) if (s.Count <= 0) r.Add(pile.Name, s.Id + " x" + std::to_string(s.Count));
-				check(pile.Name, pile.Store, kind->second.Cap);
+				check(pile.Name, pile.Store, kind->second.Cap, nullptr);
 			}
 		}
 

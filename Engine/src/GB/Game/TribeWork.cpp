@@ -322,7 +322,7 @@ namespace GB
 				if (const ItemDef* d = m_Items->Find(item); d && IsFuel(*d) && (d->Fuel > 0 ? d->Fuel : 2) > heat) { heat = d->Fuel > 0 ? d->Fuel : 2; fuel = item; }
 			for (const auto& [item, kind] : kindOf)
 			{
-				if (m_Store.Count(item) >= StoreCap()) continue;
+				if (m_Store.Count(item) >= StoreCap(item)) continue;
 				float wanted = StockFor(item, m_Members.size());
 				std::string extra;
 				if (const auto raw = m_Plan.Raw.find(item); raw != m_Plan.Raw.end() && static_cast<float>(m_Store.Count(item) + raw->second) > wanted)
@@ -337,7 +337,8 @@ namespace GB
 				{
 					const NeedsConfig& nc = Config.Needs;
 					const float perDay = (nc.DaySeconds / std::max(nc.HungerSeconds, 1.0f)) * (100.0f / static_cast<float>(std::max(nc.FoodHunger, 1)));
-					const float days = std::min(rules.SurvivalDays * perDay * static_cast<float>(alive), static_cast<float>(StoreCap()));
+					const float winter = m_Items->Find(item) ? WinterStockDays(Config.Econ, Config.Seasons, WorldSeconds(), *m_Items->Find(item), Config.Econ.Main().SpoilRate * StoreKeep()) : 0.0f;   // W1
+					const float days = std::min((rules.SurvivalDays + winter) * perDay * static_cast<float>(alive), static_cast<float>(StoreCap(item)));
 					if (days > wanted) { wanted = days; extra += " (the days of food the clan lives on)"; }
 				}
 				const float have = static_cast<float>(Stored(item) + carried[item]);   // (H18: the stockpiles count too)
@@ -389,7 +390,7 @@ namespace GB
 		Inventory& bag = m.Body->Bag();
 		if (job.Kind == "gather")
 		{
-			if (m_Store.Count(job.Target) >= StoreCap()) return 0.0f;
+			if (m_Store.Count(job.Target) >= StoreCap(job.Target)) return 0.0f;
 			float liking = 0.0f, distance = 1e30f;
 			bool any = false;
 			for (const auto& [kind, def] : m_Defs)

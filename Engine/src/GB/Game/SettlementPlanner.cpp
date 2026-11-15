@@ -43,7 +43,7 @@ namespace GB
 				need.Why = why;
 			}
 			// (one more for every 25 living while the store stays full: a big village keeps more than one granary)
-			if ((!def.Store.empty() || def.StoreCap > 0) && !f.FullItem.empty() && count[id] < std::max(1, alive / 25))
+			if ((!def.Store.empty() || def.StoreCap > 0 || def.FoodCap > 0) && !f.FullItem.empty() && count[id] < std::max(1, alive / 25))
 				want(2.0f, "the store is full of " + f.FullItem + " (" + std::to_string(f.FullCount) + "/" + std::to_string(f.StoreCap) + ")");
 			// the generic provisions (docs/PROGRESION.md), each only for the first of its kind
 			if (count[id] == 0)

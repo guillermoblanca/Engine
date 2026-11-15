@@ -33,6 +33,7 @@ namespace GB
 		if (held < 0 || held == best) return best;
 		const UtilityOption& rival = options[static_cast<size_t>(best)];
 		const UtilityOption& mine = options[static_cast<size_t>(held)];
+		if (mine.Score <= 0.0f && rival.Score > mine.Score) return best;   // W5: nothing left to want in it (a sated member kept eating)
 		if (rival.Score >= cfg.CriticalScore && rival.Score > mine.Score) return best;   // an emergency
 		const float hold = std::max(cfg.MinCommit, current.Hold);
 		if (now - current.Since < static_cast<double>(hold)) return held;               // still committed

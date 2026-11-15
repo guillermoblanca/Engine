@@ -362,6 +362,7 @@ namespace GB
 			if (!enough || members >= births.MaxMembers) break;
 			if (p.Dead || !p.Female || p.Partner.empty() || p.Age < births.MinAge || p.Age > births.MaxAge || p.Age - p.LastBirth < births.Spacing) continue;
 			if (Roll(rules, name, kBirth, day) >= static_cast<double>(births.Chance)) continue;
+			if (clan.BirthCost > 0.0f && clan.Alive > 0 && (clan.Food - clan.BirthCost * static_cast<float>(members - clan.Alive + 1)) / static_cast<float>(clan.Alive) < births.FoodPerMember) break;   // W5: and for the child's own winter
 			p.LastBirth = p.Age;
 			++members;
 			out.push_back({ "birth", name, p.Partner, "" });

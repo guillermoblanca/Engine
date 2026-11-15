@@ -454,7 +454,7 @@ int GBTest_economy(int, char**)
 		Check(g.Plots[0].State == "sown" && g.Plots[0].Growth == 0.0f, "a dry plot does not grow");
 		g.Update(60.0f, Season::Spring, true, 120.0f, crops);
 		Check(g.Plots[0].Growth > 0.0f, "the rain waters it");
-		Check(crops.at("grain").SowsIn(Season::Spring) && !crops.at("grain").SowsIn(Season::Autumn), "grain is sown in spring and summer, not in autumn");
+		Check(crops.at("grain").SowsIn(Season::Spring) && crops.at("grain").SowsIn(Season::Autumn) && !crops.at("grain").SowsIn(Season::Winter), "grain is sown from spring to autumn (W5: a harvest for the winter), not in winter");
 	}
 
 	// ---- logistics: what is left at a stockpile is hauled to the main store; a basket lets a member carry more

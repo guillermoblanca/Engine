@@ -124,7 +124,7 @@ namespace GB
 					if (!v->is_number() || v->get<float>() < 0.0f) return std::string(key) + " must be a number of 0 or more";
 					*field = v->get<float>();
 				}
-			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, int*>>{ { "shelter", &d.Shelter }, { "storeCap", &d.StoreCap } })
+			for (const auto& [key, field] : std::initializer_list<std::pair<const char*, int*>>{ { "shelter", &d.Shelter }, { "storeCap", &d.StoreCap }, { "foodCap", &d.FoodCap } })
 				if (const auto v = o.find(key); v != o.end())
 				{
 					if (!v->is_number_integer() || v->get<int>() < 0) return std::string(key) + " must be a whole number of 0 or more";
@@ -298,6 +298,7 @@ namespace GB
 			if (!d.Station.empty()) o["station"] = d.Station;
 			if (!d.Tech.empty()) o["tech"] = d.Tech;
 			if (d.StoreCap) o["storeCap"] = d.StoreCap;
+			if (d.FoodCap) o["foodCap"] = d.FoodCap;
 			if (d.Keep != 1.0f) o["keep"] = Round(d.Keep);
 			if (d.Well) o["well"] = true;
 			if (d.Defense != 0.0f) o["defense"] = Round(d.Defense);

@@ -497,7 +497,7 @@ namespace GB
 		float Defense() const;
 		float HealingAt(const glm::vec2& at) const;
 		glm::vec2 RecoverSpot(const TribeMember& m) const;
-		int StoreBonus() const;
+		int StoreBonus(bool food = false) const;   // (W5: with food, the buildings' foodCap too)
 		float StoreKeep() const;
 
 		// ---- H12: regions, expeditions and migration (TribeExplore.cpp). Without regions none of it runs (the members still explore around the camp).
@@ -574,8 +574,9 @@ namespace GB
 		Stockpile* FindStockpile(const std::string& name);
 		// Marks out a field (the farm rules' plots, columns and spacing) with its first plot at `origin`; with a field store kind, a stockpile beside it.
 		Field& MarkField(const glm::vec2& origin);
-		// Units of one item after which nobody gathers more of it into the main store (EconomyRules::Main().Cap, 40 by default).
-		int StoreCap() const;
+		// Units of one item after which nobody gathers more of it into the main store (EconomyRules::Main().Cap, 40 by default). Given an item that
+		// is food, the buildings' foodCap is added (W5); without one, the cap of any item.
+		int StoreCap(const std::string& item = {}) const;
 		// Units of an item in the main store and every stockpile.
 		int Stored(const std::string& item) const;
 		// Things a member carries before it goes to a store: DepositAt plus what its best container adds (PerBagSlot per extra slot).

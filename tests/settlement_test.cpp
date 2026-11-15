@@ -538,7 +538,8 @@ int GBTest_settlement(int, char**)
 		const int cap = v.Tribe_.StoreCap();
 		Check(v.Tribe_.Defense() == 0.0f && v.Tribe_.StoreBonus() == 0 && v.Tribe_.StoreKeep() == 1.0f && v.Tribe_.HealingAt(camp) == 1.0f, "a camp without them: no defense, no bonus, no healer");
 		Check(!raise(v, "cache_pit", camp + glm::vec2(-10.0f, 0.0f)).empty() && !raise(v, "granary", camp + glm::vec2(-10.0f, 8.0f)).empty(), "a cache pit and a granary stand");
-		Check(v.Tribe_.StoreCap() == cap + 30 && v.Tribe_.StoreKeep() == 0.5f, "they add to the main store's cap (+10, +20) and the best of them halves its spoilage");
+		Check(v.Tribe_.StoreCap() == cap + v.Builds.Defs.at("cache_pit").StoreCap + v.Builds.Defs.at("granary").StoreCap && v.Builds.Defs.at("granary").StoreCap > 0
+			&& v.Tribe_.StoreKeep() == 0.5f, "they add their storeCap to the main store's cap and the best of them halves its spoilage");
 		// the berries of the store keep twice as long: the same old stack goes off in the plain camp and not in this one
 		{
 			Settlement plain(true, true);

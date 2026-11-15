@@ -680,9 +680,9 @@ namespace GB
 		StoreView v;
 		const Tribe& t = *c.Folk;
 		for (const ItemSlot& s : t.Store().Stacks()) v.Have[s.Id] += s.Count;
-		const float cap = static_cast<float>(t.StoreCap());
 		auto want = [&](const std::string& item)
 		{
+			const float cap = static_cast<float>(t.StoreCap(item));   // (W5: food has its own)
 			const float held = static_cast<float>(t.Stored(item));
 			const int main = v.Have.count(item) ? v.Have.at(item) : 0;
 			// (the units in stockpiles cover part of the target: the need is what neither the store nor the stockpiles have)
