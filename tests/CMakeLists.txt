@@ -252,6 +252,9 @@ gb_test(terrain_graph terrain_graph_test.cpp POOL GBRenderTests LINK GB::Render 
 gb_test(history history_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 # T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food
 gb_test(society_metrics society_metrics_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# K0 of the refactor of Tribe (TRIBE_REFACTOR.md section 4): a clan's save after half a day is the golden tests/data/saves/tribe_k0.json and
+# loads and saves again the same text. Regenerate after an intended change of the save: GB_UPDATE_GOLDEN=1 ctest -C Release -R "^tribe_roundtrip$"
+gb_test(tribe_roundtrip tribe_roundtrip_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_data} JSON)
 # V5: eras as packs (needs and eras that a later pack adds, what a building provides)
 gb_test(era_pack era_pack_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 # T0: the master seed of a game (GB/Core/Seed.h, GB/Game/GameSeeds.h): pinned derivation, and the same master mounts the same game.
