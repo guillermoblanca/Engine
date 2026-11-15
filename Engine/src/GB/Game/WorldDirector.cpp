@@ -72,7 +72,44 @@ namespace GB
 		DirectorRules r = live;
 		std::string e;
 		const std::string w = "director: ";
-		if (!KnownKeys(d, { "start", "max", "minFaith", "faith", "sandboxPerDay", "costs", "waits", "pressure", "logMax", "daySeconds" }, w, e)) return e;
+		if (!KnownKeys(d, { "start", "max", "minFaith", "faith", "sandboxPerDay", "costs", "waits", "pressure", "logMax", "daySeconds", "vote", "messenger", "sign" }, w, e)) return e;
+		if (const auto it = d.find("vote"); it != d.end())   // T236
+		{
+			if (!it->is_object()) return w + "vote: expected an object";
+			const std::string wv = w + "vote: ";
+			if (!KnownKeys(*it, { "base", "faith", "affinity", "shaman", "survival", "majority", "doubtBand", "retries", "culture" }, wv, e)) return e;
+			DirectorVoteRules& v = r.Vote;
+			if (!ReadNumber(*it, "base", v.Base, -10.0f, 10.0f, wv, e) || !ReadNumber(*it, "faith", v.Faith, 0.0f, 10.0f, wv, e) || !ReadNumber(*it, "affinity", v.Affinity, 0.0f, 10.0f, wv, e)
+				|| !ReadNumber(*it, "shaman", v.Shaman, 0.0f, 10.0f, wv, e) || !ReadNumber(*it, "survival", v.Survival, 0.0f, 10.0f, wv, e) || !ReadNumber(*it, "majority", v.Majority, 0.0f, 1.0f, wv, e)
+				|| !ReadNumber(*it, "doubtBand", v.DoubtBand, 0.0f, 1.0f, wv, e) || !ReadMap(*it, "culture", v.Culture, wv, e)) return e;
+			if (const auto n = it->find("retries"); n != it->end())
+			{
+				if (!n->is_number_integer() || n->get<int>() < 0 || n->get<int>() > 10) return wv + "retries: expected an integer in 0..10";
+				v.Retries = n->get<int>();
+			}
+			if (v.DoubtBand > v.Majority) return wv + "doubtBand: more than majority";
+		}
+		if (const auto it = d.find("messenger"); it != d.end())   // T237
+		{
+			if (!it->is_object()) return w + "messenger: expected an object";
+			if (!KnownKeys(*it, { "radius" }, w + "messenger: ", e) || !ReadNumber(*it, "radius", r.MessengerRadius, 1.0f, 1000.0f, w + "messenger: ", e)) return e;
+		}
+		if (const auto it = d.find("sign"); it != d.end())   // T237
+		{
+			if (!it->is_object()) return w + "sign: expected an object";
+			const std::string ws = w + "sign: ";
+			if (!KnownKeys(*it, { "refundUnseen", "signDays", "voteDays", "buildCost", "missing", "reach", "fulfilled", "keep", "traits" }, ws, e)) return e;
+			DirectorSignRules& s = r.Sign;
+			if (!ReadNumber(*it, "refundUnseen", s.RefundUnseen, 0.0f, 1000.0f, ws, e) || !ReadNumber(*it, "signDays", s.SignDays, 0.01f, 100.0f, ws, e)
+				|| !ReadNumber(*it, "voteDays", s.VoteDays, 0.0f, 10.0f, ws, e) || !ReadNumber(*it, "buildCost", s.BuildCost, 0.0f, 10.0f, ws, e)
+				|| !ReadNumber(*it, "missing", s.Missing, 0.0f, 10.0f, ws, e) || !ReadNumber(*it, "reach", s.Reach, 0.0f, 1000.0f, ws, e)
+				|| !ReadNumber(*it, "fulfilled", s.FulfilledGain, 0.0f, 1000.0f, ws, e) || !ReadMap(*it, "traits", s.Traits, ws, e)) return e;
+			if (const auto n = it->find("keep"); n != it->end())
+			{
+				if (!n->is_number_integer() || n->get<int>() < 0 || n->get<int>() > 1000) return ws + "keep: expected an integer in 0..1000";
+				s.Keep = n->get<int>();
+			}
+		}
 		if (!ReadNumber(d, "start", r.Start, 0.0f, 1000.0f, w, e) || !ReadNumber(d, "max", r.Max, 1.0f, 1000.0f, w, e) || !ReadNumber(d, "minFaith", r.MinFaith, 0.0f, 1.0f, w, e)
 			|| !ReadNumber(d, "sandboxPerDay", r.SandboxPerDay, 0.0f, 1000.0f, w, e) || !ReadNumber(d, "daySeconds", r.DaySeconds, 1.0f, 100000.0f, w, e)) return e;
 		if (const auto it = d.find("logMax"); it != d.end())
@@ -117,10 +154,13 @@ namespace GB
 
 	float WorldDirector::FaithOf(int clan) const
 	{
-		if (m_Sandbox)
-			if (const auto it = m_FaithSet.find(clan); it != m_FaithSet.end()) return it->second;
 		const Clan* c = ClanIn(m_To.Clans, clan);
 		if (!c) return 0.0f;
+		if (m_Sandbox)   // the lab: the faith set, or every clan believes (MODO_DIOS_DECISIONES §3.0)
+		{
+			const auto it = m_FaithSet.find(clan);
+			return it != m_FaithSet.end() ? it->second : 1.0f;
+		}
 		const SocialState& s = c->Folk->Social();
 		const std::string dominant = s.Dominant();
 		if (dominant.empty()) return 0.0f;
@@ -185,6 +225,7 @@ namespace GB
 	{
 		if (!m_To.Clans) return;
 		const double now = Now();
+		UpdateSigns();   // T237 (nothing without signs)
 		Look(m_Looked);
 		if (!m_Looked) { m_Looked = true; m_Day = static_cast<int>(std::floor(now / static_cast<double>(Rules.DaySeconds))); m_SandboxAt = now; return; }
 		if (m_Sandbox)
@@ -395,6 +436,7 @@ namespace GB
 			return { true, "director faith " + NameOf(*c) + " " + Num(v, 2) };
 		}
 		if (sub == "omen") return Omen(a);
+		if (sub == "sign" || sub == "signs") return SignCommand(a);
 		if (sub == "log")
 		{
 			std::string s = "director log: " + std::to_string(m_Book.size()) + " entries";
@@ -406,7 +448,7 @@ namespace GB
 			}
 			return { true, s };
 		}
-		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | log" };
+		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | log" };
 	}
 
 	// ------------------------------------------------------------------ saving
@@ -423,6 +465,8 @@ namespace GB
 		m_Seen.clear();
 		m_Book.clear();
 		m_Gained = 0.0;
+		m_Signs.clear();
+		m_NextSign = 1;
 	}
 
 	std::string WorldDirector::ToJson() const
@@ -445,6 +489,16 @@ namespace GB
 		Json book = Json::array();
 		for (const DirectorEntry& e : m_Book) book.push_back({ { "at", e.At }, { "action", e.Action }, { "target", e.Target }, { "cost", e.Cost }, { "text", e.Text } });
 		j["book"] = book;
+		if (!m_Signs.empty())   // T237 (a save without signs stays as it was)
+		{
+			Json signs = Json::array();
+			for (const DirectorSign& s : m_Signs)
+				signs.push_back({ { "id", s.Id }, { "clan", s.Clan }, { "building", s.Building }, { "x", s.X }, { "z", s.Z }, { "yaw", s.Yaw }, { "posted", s.Posted },
+					{ "seenAt", s.SeenAt }, { "votedAt", s.VotedAt }, { "status", s.Status }, { "messenger", s.Messenger }, { "site", s.Site }, { "why", s.Why },
+					{ "paid", s.Paid }, { "tries", s.Tries }, { "yes", s.Yes }, { "voters", s.Voters } });
+			j["signs"] = signs;
+			j["nextSign"] = m_NextSign;
+		}
 		return j.dump();
 	}
 
@@ -470,6 +524,30 @@ namespace GB
 			if (const auto it = j.find("book"); it != j.end())
 				for (const Json& e : *it)
 					d.m_Book.push_back({ e.value("at", 0.0), e.value("action", std::string()), e.value("target", std::string()), e.value("text", std::string()), e.value("cost", 0.0f) });
+			if (const auto it = j.find("signs"); it != j.end())   // T237
+				for (const Json& e : *it)
+				{
+					DirectorSign s;
+					s.Id = e.value("id", 0);
+					s.Clan = e.value("clan", -1);
+					s.Building = e.value("building", std::string());
+					s.X = e.value("x", 0.0f);
+					s.Z = e.value("z", 0.0f);
+					s.Yaw = e.value("yaw", 0.0f);
+					s.Posted = e.value("posted", 0.0);
+					s.SeenAt = e.value("seenAt", 0.0);
+					s.VotedAt = e.value("votedAt", 0.0);
+					s.Status = e.value("status", std::string("waiting"));
+					s.Messenger = e.value("messenger", std::string());
+					s.Site = e.value("site", std::string());
+					s.Why = e.value("why", std::string());
+					s.Paid = e.value("paid", 0.0f);
+					s.Tries = e.value("tries", 0);
+					s.Yes = e.value("yes", 0);
+					s.Voters = e.value("voters", 0);
+					d.m_Signs.push_back(s);
+				}
+			d.m_NextSign = j.value("nextSign", 1);
 			*this = std::move(d);
 			return true;
 		}

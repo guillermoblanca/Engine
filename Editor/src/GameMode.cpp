@@ -1636,7 +1636,7 @@ namespace GB::Editor
 			"person <name>|sample|off: a person's sheet (any clan) and its fields; follow [name]|off: the game camera follows the person of the sheet (status: follow: and go: lines with the camera's distance)",
 			[this](const std::vector<std::string>& a) { return ObserverCommand(a); });
 		// T195: the god's director (GB/Game/WorldDirector.h), the same orders GBSim runs with --director=<day>:<order>
-		c.Register("director", "director status | sandbox on|off | faith <clan> <0..1> (sandbox only) | omen <id> [clan <c>|all] | log: the god of the world: its influence comes from the faith of the clans "
+		c.Register("director", "director status | sandbox on|off | faith <clan> <0..1> (sandbox only) | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | log: the god of the world: its influence comes from the faith of the clans "
 			"(rites, omens, devotion); the hand reaches only a clan with faith >= minFaith (assets/data/director.json); an omen (social.json) is read as the natural one",
 			[this](const std::vector<std::string>& a) -> CommandResult { const DirectorReply r = m_Director.Command(a); return { r.Ok, r.Text }; });
 		c.Register("game", "game <action>: what the keys of the game do (status, village, homes, clans, tech, map, story, interact, eat, drink, deposit, take, sleep, claim, give, talk, teach, learn, marry, propose, craft, attack, block, flee, trade, clan, jobs, pause, faster, slower, save, load, help, quality [low|medium|high|auto])",

@@ -1,4 +1,5 @@
 #pragma once
+#include "GB/Game/DirectorVote.h"
 #include <functional>
 #include <map>
 #include <string>
@@ -19,6 +20,52 @@ namespace GB
 {
 	class ClanWorld;   // (no forward declaration of Clan here: tests that include GameContent.h have a Clan of their own)
 
+	// T237 (MODO_DIOS_DECISIONES.md §3.a): the sign. Its cost is "sign" in the costs ("sign_site" when the clan already wanted that building:
+	// the sign only fixes the place).
+	struct DirectorSignRules
+	{
+		float RefundUnseen = 10.0f;        // influence back when nobody saw the sign in SignDays
+		float SignDays = 1.0f;             // the sign stays this long waiting for someone to see it (half of it: the shaman dreams of it)
+		float VoteDays = 0.25f;            // from the sign seen to the clan's vote at the fire (a doubt: the same again)
+		float BuildCost = 0.15f;           // the cost of a building in the vote (as player.proposals.buildCost)
+		float Missing = 0.3f;              // x the share of its material the store lacks
+		float Reach = 30.0f;               // the camp's own ground: always the clan's (beyond it, a region the clan holds)
+		float FulfilledGain = 10.0f;       // influence when the building stands (Fulfilled)
+		int Keep = 20;                     // closed signs kept for `director signs`
+		std::map<std::string, float> Traits = { { "diligence", 0.2f } };
+		bool operator==(const DirectorSignRules&) const = default;
+	};
+
+	// A sign of the god (`director sign`) and where it is: "waiting" (nobody saw it yet), "seen" (the messenger saw it: the clan votes it at the
+	// fire), "accepted" (the site is open), "built", or closed with no building: "refused", "unseen", "dropped".
+	struct DirectorSign
+	{
+		int Id = 0, Clan = -1;
+		std::string Building;
+		float X = 0.0f, Z = 0.0f, Yaw = 0.0f;
+		double Posted = 0.0, SeenAt = 0.0, VotedAt = 0.0;
+		std::string Status = "waiting", Messenger, Site, Why;
+		float Paid = 0.0f;
+		int Tries = 0, Yes = 0, Voters = 0;
+		bool Open() const { return Status == "waiting" || Status == "seen"; }
+		bool operator==(const DirectorSign&) const = default;
+	};
+
+	// What `director sign preview` answers (and the UI paints: a green or red footprint): whether the sign can go there, why not, what it costs,
+	// who would likely carry it and the vote foreseen. Changes nothing.
+	struct DirectorSignPreview
+	{
+		bool Ok = false;
+		std::string Why;                   // why not ("" when it can)
+		std::string Warning;               // it can, but... ("the store lacks 3 reed": the site will wait for it)
+		float Cost = 0.0f;
+		bool SiteOnly = false;             // the clan already wanted it: the sign only fixes the place
+		std::string Messenger;             // the probable one
+		int Yes = 0, Voters = 0;
+		std::string Outcome;               // "obey", "doubt", "resist"
+		float X = 0.0f, Z = 0.0f;
+	};
+
 	// assets/data/director.json, the "director" section.
 	struct DirectorRules
 	{
@@ -30,8 +77,8 @@ namespace GB
 		float DailyGain = 0.5f;            // influence a day per living member x its devotion
 		float ShamanDevotion = 0.2f;       // what being the clan's shaman adds to a person's devotion
 		float SandboxPerDay = 20.0f;       // `director sandbox on`: the fixed clock that refills the influence
-		std::map<std::string, float> Costs = { { "omen", 10.0f } };        // action -> influence it costs
-		std::map<std::string, float> Waits = { { "omen", 1.0f } };         // action -> days before it can fall on the same clan again
+		std::map<std::string, float> Costs = { { "omen", 10.0f }, { "sign", 20.0f }, { "sign_site", 10.0f } };   // action -> influence it costs
+		std::map<std::string, float> Waits = { { "omen", 1.0f }, { "sign", 0.0f }, { "sign_site", 0.0f } };      // action -> days before it can fall on the same clan again (a sign: one open per clan instead)
 		// the pressure on a clan (§4.4): only counted for now; G4-6 gives it its consequences
 		float PressureDecision = 1.0f;     // a decision of the hand on the clan
 		float PressureInsist = 2.0f;       // the same decision asked again within InsistDays after a refusal (the caller says it)
@@ -42,12 +89,17 @@ namespace GB
 		float InsistDays = 3.0f;
 		float DaySeconds = 1200.0f;
 		int LogMax = 200;
+		DirectorVoteRules Vote;            // T236: how a clan votes an idea of the god ("vote")
+		float MessengerRadius = 40.0f;     // T237: who is this near a sign can see it ("messenger": { "radius" })
+		DirectorSignRules Sign;            // T237: the sign ("sign")
 		bool operator==(const DirectorRules&) const = default;
 	};
 	DirectorRules DefaultDirectorRules();   // assets/data/director.json says the same
 	// { "director": { "start", "max", "minFaith", "faith": { "rite", "omen", "daily", "shaman" }, "sandboxPerDay", "costs": {}, "waits": {},
-	//   "pressure": { "decision", "insist", "contradict", "decay", "tired", "heresy", "insistDays" }, "logMax" } }. What it does not say keeps its
-	// value; a file without the section changes nothing; on a mistake it returns why and changes nothing.
+	//   "pressure": { "decision", "insist", "contradict", "decay", "tired", "heresy", "insistDays" }, "logMax",
+	//   "vote": { "base", "faith", "affinity", "shaman", "survival", "majority", "doubtBand", "retries", "culture": {} }, "messenger": { "radius" },
+	//   "sign": { "refundUnseen", "signDays", "voteDays", "buildCost", "missing", "reach", "fulfilled", "keep", "traits": {} } } }. What it does not
+	// say keeps its value; a file without the section changes nothing; on a mistake it returns why and changes nothing.
 	std::string LoadDirectorRules(const std::string& json, DirectorRules& rules);
 
 	// Where the director acts: the hosts fill it the same way (SimRun, EditorApp), as ContentTargets. The clans and the clock of the world.
@@ -102,6 +154,23 @@ namespace GB
 		std::string PressureLevel(int clan) const;                        // "low", "tired", "heresy" (only named, no consequence yet)
 		double WaitLeft(const std::string& action, int clan) const;        // seconds until `action` can fall on the clan again (0 = now)
 
+		// ---- T236: the vote of a clan on an idea one of its people brings (`messenger`): every living adult but the players, the children and
+		// the messenger, with its devotion and its bond with the messenger (read only).
+		DirectorBallot BallotFor(int clan, const std::string& messenger, const std::map<std::string, float>& traits, float cost) const;
+		DirectorVoteResult ForeseeVote(int clan, const std::string& messenger, const std::map<std::string, float>& traits, float cost) const
+		{
+			return CountDirectorVote(Rules.Vote, BallotFor(clan, messenger, traits, cost));
+		}
+
+		// ---- T237: the sign (`director sign`). PreviewSign changes nothing; PlaceSign pays it and leaves it waiting for a messenger; Update
+		// carries it on (seen, voted, the site opened, the building standing, or refused, unseen, dropped with their refunds).
+		DirectorSignPreview PreviewSign(int clan, const std::string& building, float x, float z) const;
+		DirectorReply PlaceSign(int clan, const std::string& building, float x, float z, float yaw = 0.0f);
+		const std::vector<DirectorSign>& Signs() const { return m_Signs; }
+		const DirectorSign* OpenSign(int clan) const;                      // the clan's sign still waiting or being voted (null: none)
+		// Where `camp dx dz` is for this clan (its camp + the offset), so one line of orders holds on any seed; false without the clan.
+		bool CampOffset(int clan, float dx, float dz, float& x, float& z) const;
+
 		float Influence() const { return m_Influence; }
 		bool Sandbox() const { return m_Sandbox; }
 		const std::vector<DirectorEntry>& Book() const { return m_Book; }
@@ -117,6 +186,11 @@ namespace GB
 		void Write(const std::string& action, const std::string& target, float cost, const std::string& text, int clan);
 		void Look(bool count);                                             // reads the clans' counters (count: their deltas become influence)
 		DirectorReply Omen(const std::vector<std::string>& args);
+		DirectorReply SignCommand(const std::vector<std::string>& args);   // T237: sign [preview] ..., signs
+		void UpdateSigns();                                                // T237: nothing to do without signs
+		void Refund(int clan, float amount, const std::string& text);      // influence back (not counted as gained from faith)
+		std::string PickMessenger(int clan, float x, float z, bool nearOnly) const;
+		std::string SignText(const DirectorSign& s) const;
 
 		DirectorTargets m_To;
 		float m_Influence = 50.0f;
@@ -130,5 +204,7 @@ namespace GB
 		std::map<int, std::pair<int, int>> m_Seen;                         // clan -> (attendances, omens) last seen
 		std::vector<DirectorEntry> m_Book;
 		double m_Gained = 0.0;                                             // influence gained from faith over the game (for the status)
+		std::vector<DirectorSign> m_Signs;                                 // T237: open ones and the last closed ones (saved only when there are any)
+		int m_NextSign = 1;
 	};
 }

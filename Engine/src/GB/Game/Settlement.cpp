@@ -542,6 +542,20 @@ namespace GB
 		return {};
 	}
 
+	// T237: the planner's view of a spot (the same as the rebuild's below), read only: the sights as they were last refreshed
+	SitePlacement Tribe::SitePlacementFor(const BuildingDef& def) const
+	{
+		SitePlacement where;
+		where.Camp = Config.Economy.Camp;
+		where.Fire = FirePos();
+		where.SiteRadius = Config.SiteRadius;
+		where.Def = &def;
+		for (const Placed& p : Placements()) where.Others.push_back({ p.Def, p.Pos, p.State.Done });
+		for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
+		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { const ITribeBody* body = m.Body; where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); }; break; }
+		return where;
+	}
+
 	std::string Tribe::RaiseBuilding(const std::string& building, const glm::vec2& at, float yawDegrees, std::string* name)
 	{
 		std::string n;

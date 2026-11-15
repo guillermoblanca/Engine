@@ -87,26 +87,30 @@ namespace GB
 		return out;
 	}
 
+	std::string SiteFits(const SitePlacement& s, const glm::vec2& p)
+	{
+		if (!s.Def) return "no building";
+		const BuildingDef& def = *s.Def;
+		const float r = def.Radius();
+		if (glm::distance(p, s.Camp) < r + 2.5f) return "too near the camp";
+		if (glm::distance(p, s.Fire) < r + 2.5f) return "too near the fire";
+		for (const PlannerSite& o : s.Others) if (glm::distance(p, o.Pos) < r + o.Def->Radius() + 1.5f) return "too near " + o.Def->Name;
+		for (const glm::vec2& o : s.Obstacles) if (glm::distance(p, o) < r + 1.2f) return "something stands there";
+		if (!s.CanStand) return {};
+		if (!s.CanStand(p)) return "nobody can stand there";
+		for (int k = 0; k < 4; ++k)   // the corners too: not half in the lake
+		{
+			const glm::vec2 c = p + glm::vec2((k & 1) ? 0.5f : -0.5f, (k & 2) ? 0.5f : -0.5f) * def.Footprint;
+			if (!s.CanStand(c)) return "a corner is on ground nobody can stand on";
+		}
+		if (!s.CanStand(SiteFront(p, def))) return "its front is on ground nobody can stand on";
+		return {};
+	}
+
 	std::optional<glm::vec2> PlaceSite(const SitePlacement& s)
 	{
-		const BuildingDef& def = *s.Def;
 		const float start = 0.6f + 1.1f * static_cast<float>(s.Others.size());
-		const auto stand = [&](const glm::vec2& p) { return !s.CanStand || s.CanStand(p); };
-		auto fits = [&](const glm::vec2& p)
-		{
-			const float r = def.Radius();
-			if (glm::distance(p, s.Camp) < r + 2.5f || glm::distance(p, s.Fire) < r + 2.5f) return false;
-			for (const PlannerSite& o : s.Others) if (glm::distance(p, o.Pos) < r + o.Def->Radius() + 1.5f) return false;
-			for (const glm::vec2& o : s.Obstacles) if (glm::distance(p, o) < r + 1.2f) return false;
-			if (!s.CanStand) return true;
-			if (!stand(p)) return false;
-			for (int k = 0; k < 4; ++k)   // the corners too: not half in the lake
-			{
-				const glm::vec2 c = p + glm::vec2((k & 1) ? 0.5f : -0.5f, (k & 2) ? 0.5f : -0.5f) * def.Footprint;
-				if (!stand(c)) return false;
-			}
-			return stand(SiteFront(p, def));
-		};
+		auto fits = [&](const glm::vec2& p) { return SiteFits(s, p).empty(); };
 		if (s.Prefer)
 		{
 			std::optional<glm::vec2> best;

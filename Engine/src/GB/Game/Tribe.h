@@ -453,6 +453,7 @@ namespace GB
 		std::string SettlementReport() const;
 		std::vector<BuildingNeed> PublicBuildingNeeds() const { return BuildingNeeds(); }   // (for reports: what the planner wants now)
 		bool CanBuild(const std::string& building) const;   // the clan knows how: no technology locks it, or a living member knows one that unlocks it (H11)
+		SitePlacement SitePlacementFor(const BuildingDef& def) const;   // T237: what a new site of it must clear now (SiteFits), as the planner sees it
 		// The same as data, for an interface that draws them: where each is, how far it is built and what it gives once done.
 		struct SettlementSite { std::string Name, Building; glm::vec2 Pos{ 0.0f }; SiteState State; int Beds = 0; std::string Station, Store; };
 		std::vector<SettlementSite> SettlementSites() const;

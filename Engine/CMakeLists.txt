@@ -172,6 +172,8 @@ add_library(GB_Sim STATIC
     src/GB/Game/History.cpp
     src/GB/Game/SocietyMetrics.cpp
     src/GB/Game/WorldDirector.cpp
+    src/GB/Game/DirectorVote.cpp
+    src/GB/Game/DirectorSign.cpp
     src/GB/Game/Values.cpp
     src/GB/Game/GameSeeds.cpp
     src/GB/Game/Requests.cpp

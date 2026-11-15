@@ -11,10 +11,14 @@
     },
     "sandboxPerDay": 20,
     "costs": {
-      "omen": 10
+      "omen": 10,
+      "sign": 20,
+      "sign_site": 10
     },
     "waits": {
-      "omen": 1
+      "omen": 1,
+      "sign": 0,
+      "sign_site": 0
     },
     "pressure": {
       "decision": 1,
@@ -25,6 +29,29 @@
       "heresy": 12,
       "insistDays": 3
     },
-    "logMax": 200
+    "logMax": 200,
+    "vote": {
+      "base": -0.1,
+      "faith": 0.8,
+      "affinity": 0.6,
+      "shaman": 0.3,
+      "survival": 0.6,
+      "majority": 0.5,
+      "doubtBand": 0.35,
+      "retries": 1,
+      "culture": { "sharing": 0.2 }
+    },
+    "messenger": { "radius": 40 },
+    "sign": {
+      "refundUnseen": 10,
+      "signDays": 1.0,
+      "voteDays": 0.25,
+      "buildCost": 0.15,
+      "missing": 0.3,
+      "reach": 30,
+      "fulfilled": 10,
+      "keep": 20,
+      "traits": { "diligence": 0.2 }
+    }
   }
 }

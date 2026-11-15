@@ -140,6 +140,85 @@ int GBTest_director(int, char**)
 	};
 	Check(play() == play(), "two runs of the same orders end the same");
 
+	// ---- T236: the vote of a clan (pure): a synthetic clan of 7 voters and the messenger
+	{
+		auto ballot = [&](float faith)
+		{
+			DirectorBallot b;
+			b.Messenger = "Ama";
+			b.Cost = rules.Sign.BuildCost;
+			b.Traits = rules.Sign.Traits;
+			b.Norms = { { "sharing", 0.5f } };
+			int k = 0;
+			for (const char* n : { "Ama", "Gil", "Bo", "Cai", "Dun", "Eda", "Fen", "Hal" })   // (out of order: counted by name)
+			{
+				const float attendance = static_cast<float>(k++ % 3) / 2.0f;
+				b.Voters.push_back({ n, faith * (0.5f + 0.5f * attendance), 0.0f, { { "diligence", 0.5f } } });   // DevotionOf's formula
+			}
+			return b;
+		};
+		const DirectorVoteResult high = CountDirectorVote(rules.Vote, ballot(0.9f));
+		const DirectorVoteResult low = CountDirectorVote(rules.Vote, ballot(0.1f));
+		Check(high.Voters == 7 && low.Voters == 7, "the messenger does not vote (7 of the 8 listed)");
+		Check(high.Accepted() && high.Yes == 7, "a clan of 7 with faith 0.9 obeys");
+		Check(!low.Accepted() && low.Outcome == "resist" && low.Yes == 0, "with faith 0.1 it resists");
+		Check(low.Against.size() == 7 && low.Against.front() == "Bo", "the voters against, in name order");
+		DirectorBallot shaman = ballot(0.3f);
+		const DirectorVoteResult plain = CountDirectorVote(rules.Vote, shaman);
+		shaman.MessengerIsShaman = true;
+		Check(CountDirectorVote(rules.Vote, shaman).Yes > plain.Yes, "the shaman as messenger weighs more");
+		Check(high.Text() == "vote 7 of 7", "the count reads 'vote a of b'");
+	}
+
+	// ---- T236 / T237 over a clan of the clan world: the ballot, the preview and the sign's checks
+	{
+		World v(rules);
+		Tribe& ash = v.Folk(0);
+		for (const char* n : { "Messa", "Ona", "Pim", "Quel", "Rua", "Sol", "Tor", "Ula" }) ash.AddMember(n, "forager", nullptr);
+		std::map<std::string, BuildingDef> defs;
+		defs["shelter"] = DefaultBuildings().at("shelter");
+		ash.SetBuildings(&defs);
+		ash.Social().Beliefs = { { "sky", 0.9f } };
+		v.Step(1.0);
+		const DirectorVoteResult yes = v.Director.ForeseeVote(v.Id(0), "Messa", rules.Sign.Traits, rules.Sign.BuildCost);
+		Check(yes.Voters == 7 && yes.Accepted(), "a clan of 7 adults with faith 0.9 accepts a sign (BallotFor: the messenger out)");
+		ash.Social().Beliefs = { { "sky", 0.1f } };
+		Check(!v.Director.ForeseeVote(v.Id(0), "Messa", rules.Sign.Traits, rules.Sign.BuildCost).Accepted(), "with faith 0.1 it rejects it");
+		ash.Social().Beliefs = { { "sky", 0.9f } };
+		const std::string before = v.Director.ToJson();
+		const size_t book = v.Director.Book().size();
+		const glm::vec2 camp = ash.Config.Economy.Camp;
+		const DirectorSignPreview far = v.Director.PreviewSign(v.Id(0), "shelter", camp.x + 500.0f, camp.y);
+		Check(!far.Ok && far.Why.find("outside the land") != std::string::npos, "a sign outside the clan's land is refused, with why");
+		const DirectorSignPreview near = v.Director.PreviewSign(v.Id(0), "shelter", camp.x + 14.0f, camp.y - 6.0f);
+		Check(near.Ok && near.Voters == 7 && !near.Messenger.empty() && Near(near.Cost, rules.Costs["sign"]), "a sign on the camp's ground can be: its cost, its messenger and the vote foreseen");
+		Check(near.Outcome == "resist" && near.Warning.find("the store lacks") != std::string::npos, "an empty store in survival weighs against it (missing + survival in the cost)");
+		Check(!v.Director.PreviewSign(v.Id(0), "palace", camp.x + 14.0f, camp.y).Ok, "a building that does not exist cannot");
+		const DirectorReply said = Run(v.Director, "sign preview Ash shelter camp 14 -6");
+		Check(said.Ok && said.Text.find("vote 0 of 7") != std::string::npos, "the preview order says the vote foreseen");
+		Check(v.Director.ToJson() == before && v.Director.Book().size() == book && v.Director.Signs().empty(), "a preview changes nothing");
+		const DirectorReply far2 = Run(v.Director, "sign Ash shelter camp 500 0");
+		Check(!far2.Ok && far2.Text.rfind("cannot: outside the land", 0) == 0 && v.Director.ToJson() == before, "the sign order outside the land: cannot, and nothing changes");
+		ash.Social().Beliefs = { { "sky", 0.1f } };
+		Check(!Run(v.Director, "sign Ash shelter camp 14 -6").Ok, "a clan with faith under minFaith cannot be given a sign");
+		ash.Social().Beliefs = { { "sky", 0.9f } };
+		const float influence = v.Director.Influence();
+		const DirectorReply sign = Run(v.Director, "sign Ash shelter camp 14 -6");
+		Check(sign.Ok && sign.Text.rfind("sign 1 for Ash", 0) == 0 && v.Director.OpenSign(v.Id(0)), "the sign is placed and waits");
+		Check(Near(v.Director.Influence(), influence - rules.Costs["sign"]), "and costs its influence");
+		Check(!Run(v.Director, "sign Ash shelter camp -14 6").Ok, "one open sign per clan");
+		WorldDirector back;   // saving keeps the open sign
+		back.Rules = rules;
+		back.SetTargets(v.Director.Targets());
+		Check(back.FromJson(v.Director.ToJson()) && back.Signs() == v.Director.Signs() && back.OpenSign(v.Id(0)), "saving and loading keeps the open sign");
+		// nobody has a body here, so nobody is near: after half a day the most devout dreams of it, then the clan votes at the fire
+		v.Step(rules.DaySeconds * 0.5);
+		Check(v.Director.Signs().front().Status == "seen" && !v.Director.Signs().front().Messenger.empty(), "with nobody near, after half a day someone dreams of the sign");
+		v.Step(rules.DaySeconds * rules.Sign.VoteDays + 1.0);
+		Check(v.Director.Signs().front().Voters == 7 && v.Director.Signs().front().Status != "seen", "the clan votes the sign at the fire (7 voters)");   // (no scene: the site cannot open, dropped)
+		Check(Run(v.Director, "signs").Text.find("sign 1 Ash shelter") != std::string::npos, "director signs lists it");
+	}
+
 	if (failures == 0) std::printf("director: all checks passed\n");
 	return failures == 0 ? 0 : 1;
 }

@@ -1523,6 +1523,22 @@
    "to": "ha aprendido {techname:1}, como pidió {2}"
   },
   {
+   "re": "^(\\S+) \\([^)]*\\) sees a sign at (-?\\d+), (-?\\d+): a (\\S+) should stand there$",
+   "to": "{1} ve una señal: allí debería alzarse {building:4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) speaks of the sign at the fire; the clan cannot decide \\(vote (\\d+) of (\\d+)\\)$",
+   "to": "{1} habla de la señal junto al fuego; el clan no se decide ({2} de {3})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) speaks of the sign at the fire; the clan will not raise a (\\S+) there \\(vote (\\d+) of (\\d+)\\)$",
+   "to": "{1} habla de la señal junto al fuego; el clan no levantará {building:2} allí ({3} de {4})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) speaks of the sign at the fire; the clan agrees to raise a (\\S+) there \\(vote (\\d+) of (\\d+)\\)$",
+   "to": "{1} habla de la señal junto al fuego; el clan acuerda levantar {building:2} allí ({3} de {4})"
+  },
+  {
    "re": "^the clan has learnt (.+), as (\\S+) asked$",
    "to": "el clan ha aprendido {techname:1}, como pidió {2}"
   },

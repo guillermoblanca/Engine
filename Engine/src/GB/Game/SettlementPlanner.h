@@ -76,6 +76,10 @@ namespace GB
 		int Rings = 5;
 	};
 
+	// Whether the site fits at this spot (off the camp and the fire, off the other sites and the obstacles, every corner and its front on ground
+	// a member can stand on): "" when it fits, else why ("too near the camp"...). PlaceSite tries its spots with it; T237's sign checks the god's.
+	std::string SiteFits(const SitePlacement& placement, const glm::vec2& at);
+
 	// Rings round the camp, each building at its own angle: the first spot that fits, or nothing. The same scene gives the same place.
 	std::optional<glm::vec2> PlaceSite(const SitePlacement& placement);
 }
