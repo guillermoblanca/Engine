@@ -4,6 +4,7 @@
 #include "GB/Game/ClanHostility.h"
 #include "GB/Game/Clans.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/WorldDirector.h"
 #include "GB/Gameplay/Combat.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/GameplayWorld.h"
@@ -275,6 +276,7 @@ namespace GB
 		const DiplomacyRules* Diplomacy = nullptr;   // the content's "diplomacy" (null: the built-in rules; the long runs read theirs, as the editor does)
 		const CombatRules* CombatRules = nullptr;    // the content's "combat" (null: the built-in rules)
 		const SocietyMetricRules* Metrics = nullptr; // T204: the content's "metrics" (null: the built-in weights; only the measure of the society reads them)
+		const DirectorRules* Director = nullptr;     // T195: the content's "director" (null: the built-in rules; the director only reads until it is given an order)
 		// with Combat: the species of the content; the game of social.hunting.wildlife is let loose round each camp (as the editor does), so the
 		// clans hunt (meat and hides: cooking, hide working, the way to the later eras). Null: no animals, as before
 		const std::map<std::string, SpeciesDef>* Species = nullptr;
@@ -326,6 +328,9 @@ namespace GB
 		glm::vec2 Camp() const { return m_Tribe.Config.Economy.Camp; }
 		// H16: the clan world (its clans, when the setup asked for more than one; the first is Brain()) and what the last step cost.
 		const ClanWorld& Clans() const { return m_Clans; }
+		// T195: the director of the run (GBSim --director=<day>:<order> runs its Command between steps)
+		WorldDirector& Director() { return m_Director; }
+		const WorldDirector& Director() const { return m_Director; }
 		const CombatSystem& Combat() const { return m_Combat; }
 		size_t Bodies() const { return m_Bodies.size(); }
 		struct StepCost
@@ -368,6 +373,7 @@ namespace GB
 		long m_Frames = 0;
 		size_t m_NodeCount = 0;
 		ClanWorld m_Clans;   // (declared after the tribe: destroyed first, so it unhooks m_Tribe while it lives)
+		WorldDirector m_Director;   // T195: the god of the run (its clans are m_Clans: a run of one clan has none for it)
 		StepCost m_Cost;
 	};
 

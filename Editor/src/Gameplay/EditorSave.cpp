@@ -32,6 +32,7 @@ namespace GB::Editor
 		constexpr const char* kKnowledgeSection = "knowledge-clan";    // H11: what the clan knows, what is half learnt, the tries (each member's own is in its actor)
 		constexpr const char* kHistorySection = "history";           // V1: what the world lived through and what each person remembers of it
 		constexpr const char* kRequestsSection = "requests";         // V3: what people asked of the player
+		constexpr const char* kDirectorSection = "director";         // T195: the god's influence, waits, pressure and book (WorldDirector)
 
 		// `wild`: the density of the resource nodes spread over the world (`resources world`), 0 when there are none; they are part of the baseline.
 		WorldParams ParamsOf(const WorldDesc& d, bool generated, float wild)
@@ -91,7 +92,7 @@ namespace GB::Editor
 		bool IsSimCommand(const std::string& word)
 		{
 			static const std::set<std::string> names = { "garden", "resources", "ability", "add", "delete", "duplicate", "move", "rotate", "scale", "color", "emissive",
-				"light", "drop", "set", "time", "weather", "entity", "select", "generate", "actor", "ecology", "interactives", "tribe", "content", "knowledge" };
+				"light", "drop", "set", "time", "weather", "entity", "select", "generate", "actor", "ecology", "interactives", "tribe", "content", "knowledge", "director" };
 			return names.count(word) != 0;
 		}
 
@@ -308,6 +309,7 @@ namespace GB::Editor
 		if (m_App.m_Clans.Count() > 1) out.push_back({ kClansSection, 1, m_App.m_Clans.ToJson() });   // H13 (a game of one clan writes what it wrote before)
 		if (!m_App.m_Clans.Past().Events().empty()) out.push_back({ kHistorySection, 1, m_App.m_Clans.Past().ToJson() });   // V1
 		if (!m_App.m_Clans.Requests().All().empty()) out.push_back({ kRequestsSection, 1, m_App.m_Clans.Requests().ToJson() });   // V3
+		out.push_back({ kDirectorSection, 1, m_App.m_Director.ToJson() });   // T195 (always: the influence grows from the faith from the first day)
 		return out;
 	}
 
@@ -397,6 +399,10 @@ namespace GB::Editor
 		app.m_Clans.Past().Clear();
 		for (const SectionBlob& s : game.Sections)
 			if (s.Name == kHistorySection && !app.m_Clans.Past().FromJson(s.Json)) GB_CLIENT_WARN("the history of the save could not be read: it starts again");
+		// T195: the director (a save from before has none: the start influence, an empty book)
+		app.m_Director.Clear();
+		for (const SectionBlob& s : game.Sections)
+			if (s.Name == kDirectorSection && !app.m_Director.FromJson(s.Json)) GB_CLIENT_WARN("the director of the save could not be read: it starts again");
 		app.m_Clans.Requests().Clear();
 		for (const SectionBlob& s : game.Sections)
 			if (s.Name == kRequestsSection && !app.m_Clans.Requests().FromJson(s.Json)) GB_CLIENT_WARN("the requests of the save could not be read: they are gone");
@@ -460,6 +466,7 @@ namespace GB::Editor
 		m_App.m_Clans.SetWorldClock(static_cast<double>(m_App.m_SimTick) / 60.0);
 		m_App.SyncRegions();   // H12: the tribes know the world by regions (rebuilt only when the world or its wild nodes change)
 		m_App.m_Clans.Update(static_cast<float>(kSimDt));   // H13: every clan (the first is m_Tribe), then what lies between them
+		m_App.m_Director.Update();   // T195: the god reads the rites and omens of the tick (changes nothing of the clans)
 		lap(6);
 		m_App.StepQa();   // the invariants of the simulation, every half second (QA panel)
 		m_App.StepVillageReport();

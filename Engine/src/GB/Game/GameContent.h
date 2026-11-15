@@ -4,6 +4,7 @@
 #include "GB/Game/GameCamera.h"
 #include "GB/Game/SocietyMetrics.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/WorldDirector.h"
 
 namespace GB
 {
@@ -114,6 +115,7 @@ namespace GB
 		// read and check it (a mistake stops the load) and the clock keeps DefaultClimate(), which is the same data.
 		ClimateRules* Climate = nullptr;
 		SocietyMetricRules* Metrics = nullptr;   // T204: the "metrics" section (how the quality of life is weighed; SocietyMetrics.h): ClanWorld::Metrics
+		DirectorRules* Director = nullptr;       // T195: the "director" section (assets/data/director.json: the god's faith and influence; WorldDirector.h)
 	};
 	void AddContentSections(ContentPacks& packs, const ContentTargets& to);
 }

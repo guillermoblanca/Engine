@@ -5,6 +5,7 @@
 //   GBSim --graph=assets/data/terrain_graphs/highland_valley_settle.json --seed=5 --days=3 --clans=3 --members=6 ...   (T118: a world made by a terrain graph,
 //         3000 m and 1025 samples with 40000 trees and 900 rocks unless --size, --resolution, --trees, --rocks say otherwise: the editor's valley;
 //         and as the editor's `village` there, a patch of resources by each starting camp and no wild nodes: --no-patches keeps the wild nodes)
+//   GBSim ... --director="2:omen eclipse all" --director="3.5:status"   (T195: an order of the god's director at that day, repeatable; its reply is printed)
 //
 // Writes one SQLite file with the telemetry of the run. Ctrl+C stops it cleanly: the file is closed and passes the integrity check.
 #include "GB/Game/GameContent.h"
@@ -99,6 +100,7 @@ namespace
 		GB::ContentPacks Packs;
 		GB::NatureConfig Nature;
 		GB::SocietyMetricRules Metrics;   // T204: the "metrics" section (how the quality of life is weighed)
+		GB::DirectorRules Director;       // T195: the "director" section (the god's faith and influence)
 		std::string Error;
 
 		explicit EraContent(const std::string& assets, const std::string& pack)
@@ -111,6 +113,7 @@ namespace
 			to.Needs = &Config.DataNeeds;   // V5
 			to.Climate = &Config.Seasons.Climate;   // T14
 			to.Metrics = &Metrics;          // T204
+			to.Director = &Director;        // T195
 			GB::AddContentSections(Packs, to);
 			GB::ContentReport report;
 			Error = Packs.Load(pack.empty() ? std::string(GB::GamePack()) : pack, assets + "/data", &report);
@@ -139,10 +142,19 @@ int main(int argc, char** argv)
 	float size = 0.0f;
 	int resolution = 0, trees = -1, rocks = -1;
 	std::vector<std::string> know;
+	std::vector<std::pair<double, std::string>> orders;   // T195: --director=<day>:<order>
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string v;
-		if (Arg(argv[i], "--seed", v)) seed = static_cast<uint32_t>(std::strtoul(v.c_str(), nullptr, 10));
+		if (Arg(argv[i], "--director", v))
+		{
+			const size_t colon = v.find(':');
+			char* end = nullptr;
+			const double at = colon == std::string::npos ? -1.0 : std::strtod(v.c_str(), &end);
+			if (colon == std::string::npos || end != v.c_str() + colon || at < 0.0 || colon + 1 >= v.size()) { std::fprintf(stderr, "--director expects <day>:<order>, as --director=\"2:omen eclipse all\"\n"); return 2; }
+			orders.emplace_back(at, v.substr(colon + 1));
+		}
+		else if (Arg(argv[i], "--seed", v)) seed = static_cast<uint32_t>(std::strtoul(v.c_str(), nullptr, 10));
 		else if (Arg(argv[i], "--days", v)) days = std::atof(v.c_str());
 		else if (Arg(argv[i], "--years", v)) years = std::atof(v.c_str());
 		else if (Arg(argv[i], "--stop", v))
@@ -172,7 +184,7 @@ int main(int argc, char** argv)
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
 		else if (!std::strcmp(argv[i], "--no-content")) content = false;   // the bare engine: no buildings, no technologies (the old runs)
 		else if (!std::strcmp(argv[i], "--hostile")) hostile = combat = true;
-		else { std::fprintf(stderr, "unknown argument '%s'\nusage: GBSim --seed=N --days=D --clans=N --members=N --biome=temperate|alpine|desert --telemetry=run.db [--every=S] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text]\n", argv[i]); return 2; }
+		else { std::fprintf(stderr, "unknown argument '%s'\nusage: GBSim --seed=N --days=D --clans=N --members=N --biome=temperate|alpine|desert --telemetry=run.db [--every=S] [--combat] [--hostile] [--years=Y] [--stop=clan_dead|extinct|stagnant:D] [--profile=x] [--note=text] [--director=<day>:<order>]\n", argv[i]); return 2; }
 	}
 	std::signal(SIGINT, OnSignal);
 	std::signal(SIGTERM, OnSignal);
@@ -253,6 +265,7 @@ int main(int argc, char** argv)
 		setup.CombatRules = &era->Combat;
 		setup.Species = &era->Species;
 		setup.Metrics = &era->Metrics;
+		setup.Director = &era->Director;
 	}
 	if (forests && era) setup.Nature = &era->Nature;   // --forest: the patches of bosques.json (docs/BOSQUES.md); the game's pack already has the forest nodes
 	setup.Members = members * clans;
@@ -298,9 +311,30 @@ int main(int argc, char** argv)
 	double done = 0.0;
 	int lastDay = 0;
 	if (setup.Telemetry) WriteWorld(run, sink, 0.0);
+	// T195: the director's orders, in the order of their day (two on the same day keep the order of the line); each runs between steps, at its
+	// exact time, and its reply is printed
+	std::stable_sort(orders.begin(), orders.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+	size_t nextOrder = 0;
+	auto runOrders = [&]()
+	{
+		for (; nextOrder < orders.size() && orders[nextOrder].first * kDay <= done + 1e-6; ++nextOrder)
+		{
+			std::vector<std::string> words;
+			for (size_t s = 0, e; s < orders[nextOrder].second.size(); s = e + 1)
+			{
+				e = orders[nextOrder].second.find(' ', s);
+				if (e == std::string::npos) e = orders[nextOrder].second.size();
+				if (e > s) words.push_back(orders[nextOrder].second.substr(s, e - s));
+			}
+			const GB::DirectorReply reply = run.Director().Command(words);
+			std::fprintf(stderr, "director (day %.2f) %s: %s %s\n", done / kDay, orders[nextOrder].second.c_str(), reply.Ok ? "ok" : "refused", reply.Text.c_str());
+		}
+	};
 	while (done < total && !g_Stop)
 	{
-		const double chunk = std::min(60.0, total - done);
+		runOrders();
+		double chunk = std::min(60.0, total - done);
+		if (nextOrder < orders.size() && orders[nextOrder].first * kDay > done) chunk = std::min(chunk, orders[nextOrder].first * kDay - done);
 		run.Run(chunk);
 		done += chunk;
 		const std::vector<int> alive = AliveByClan(run);
@@ -401,6 +435,7 @@ int main(int argc, char** argv)
 			std::fprintf(stderr, "%s\n", GB::SocietyWorldLine(GB::MeasureWorld(run.Clans(), societies)).c_str());
 		}
 		else std::fprintf(stderr, "%s\n", GB::SocietyLine(GB::MeasureSociety(run.Brain(), era ? era->Metrics : GB::SocietyMetricRules{}, 0)).c_str());
+		if (!orders.empty()) std::fprintf(stderr, "\n%s\n", run.Director().Status().c_str());   // T195 (only a run with orders: the report of one without stays as it was)
 	}
 	for (const GB::SimFinding& f : run.Monitor().Findings())   // what broke an invariant, so a run left alone says it
 		std::fprintf(stderr, "violation %s: %s: %s (x%d, %.0f..%.0f s)\n", f.Check.c_str(), f.Subject.c_str(), f.What.c_str(), f.Count, f.First, f.Last);

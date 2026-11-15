@@ -1,0 +1,30 @@
+{
+  "director": {
+    "start": 50,
+    "max": 100,
+    "minFaith": 0.2,
+    "faith": {
+      "rite": 0.5,
+      "omen": 1.0,
+      "daily": 0.5,
+      "shaman": 0.2
+    },
+    "sandboxPerDay": 20,
+    "costs": {
+      "omen": 10
+    },
+    "waits": {
+      "omen": 1
+    },
+    "pressure": {
+      "decision": 1,
+      "insist": 2,
+      "contradict": 2,
+      "decay": 1,
+      "tired": 6,
+      "heresy": 12,
+      "insistDays": 3
+    },
+    "logMax": 200
+  }
+}

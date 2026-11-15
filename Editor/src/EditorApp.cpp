@@ -154,6 +154,7 @@ namespace GB::Editor
 		content.Trails = &m_Tribe.Config.Trails;   // T5c
 		content.Needs = &m_Tribe.Config.DataNeeds;   // V5
 		content.Metrics = &m_Clans.Metrics;   // U2: how the quality of life is weighed, as GBSim weighs it (only the measure reads it)
+		content.Director = &m_Director.Rules;   // T195: the god's faith and influence, as GBSim reads them
 		AddContentSections(m_Packs, content);
 		AddVisualContentSection(m_Packs, m_Visuals.Library);   // the "visuals" section is the visual layer's (the simulation does not read it)
 		// G2: the "session" section of player.json (how GB.exe records a game: GameShell.h) is the shell's; the simulation does not read it
@@ -167,6 +168,8 @@ namespace GB::Editor
 		m_Tribe.SetInteractives(&m_Interactives.Defs);   // the tribe's campfire is the fire pit of the data
 		m_Tribe.SetTechs(&m_Techs);   // H11: the members know the technologies of the start and find, watch and teach the rest
 		m_Clans.Add("", &m_Tribe);   // H13: the first tribe is clan 0 (the others come with `clan new`)
+		m_Director.Clear();   // T195: over the clan world and the fixed tick's clock (as SimRun's over its own)
+		m_Director.SetTargets({ &m_Clans, [this] { return static_cast<double>(m_SimTick) / 60.0; } });
 		m_Clans.FoundClan = [this](ClanId parent, const glm::vec2& camp, const std::string& name) { return FoundClan(parent, camp, name); };   // N7: a split founds a clan
 		m_Tribe.SetBuildings(&m_Buildings.Defs);         // and it builds what the data says (H8)
 		m_Tribe.SetGround([this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });

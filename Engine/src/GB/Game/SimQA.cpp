@@ -1109,6 +1109,10 @@ namespace GB
 			if (m_Clans.Count() > 1) m_Clans.SetTelemetry(setup.Telemetry, setup.TelemetryEvery);
 			else m_Tribe.SetTelemetry(setup.Telemetry, 0, setup.TelemetryEvery);
 		}
+		// T195: the director of the run, over the clan world and the run's clock (as the editor's: EditorApp)
+		if (setup.Director) m_Director.Rules = *setup.Director;
+		m_Director.Clear();
+		m_Director.SetTargets({ &m_Clans, [this] { return m_Clock; } });
 		// V5: every clan starts knowing these and everything they require (a run that starts at the door of an era)
 		for (const auto& c : m_Clans.All())
 		{
@@ -1221,6 +1225,7 @@ namespace GB
 			m_Cost.Thinks = m_Tribe.LastCost().Thinks;
 			m_Cost.Due = m_Tribe.LastCost().Due;
 		}
+		m_Director.Update();   // T195: reads the rites and omens of the step (changes nothing of the clans)
 		m_Cost.BodiesMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
 		m_Cost.Plans = m_Nav.FrameStats();
 		m_Cost.Ms = std::chrono::duration<double, std::milli>(Clock::now() - t0).count();

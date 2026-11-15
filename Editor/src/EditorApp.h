@@ -381,6 +381,7 @@ namespace GB::Editor
 		// H13 (EditorClans.cpp): every clan of the world; clan 0 is m_Tribe (the first tribe, saved in the "ai" section as before), the others are
 		// kept by the clan world (`clan new`) and saved in the "clans" section. `clan select` chooses the one the Tribe panel and `tribe` reports show.
 		ClanWorld m_Clans;
+		WorldDirector m_Director;                                // T195: the god of the world (GB/Game/WorldDirector.h): `director ...`, saved in the "director" section
 		ValueRules m_Values = DefaultValueRules();               // V2: what people value (GB/Game/Values.h)
 		TelemetrySink m_Telemetry;                               // the telemetry of the run (`telemetry start <file>`, --telemetry=<file>): see docs/DATOS_INDIVIDUO.md
 		ClanHostility m_ClanHostility;                           // H14: the hostility of the fights from the clans' diplomacy (the table for the rest)
