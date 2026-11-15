@@ -148,6 +148,7 @@ namespace GB::Editor
 		content.Player = &m_Tribe.Config.Player; content.Controls = &m_Controls; content.Interactives = &m_Interactives.Defs; content.Species = &m_Ecology.Species;
 		content.Cameras = &m_GameView.Params; content.Social = &m_Tribe.Config.Social; content.Society = &m_Tribe.Config.Society; content.Diplomacy = &m_Clans.Rules;
 		content.Nature = &m_Nature;
+		m_GameView.Locate = [this](const std::string& name, glm::vec3& at) { return MemberWhere(name, at); };   // U6: a member is where the simulation has it
 		content.Trails = &m_Tribe.Config.Trails;   // T5c
 		content.Needs = &m_Tribe.Config.DataNeeds;   // V5
 		content.Metrics = &m_Clans.Metrics;   // U2: how the quality of life is weighed, as GBSim weighs it (only the measure reads it)
@@ -2019,7 +2020,9 @@ namespace GB::Editor
 			if (!m_Game.Active)
 			{
 				DrawObserver(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
-				if (m_Observer.On) { const GameTheme::Scope theme; DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected); }
+				// (on the god's screen a character's card is the book's Person sheet, U6: DrawObserver opens it; things keep their card)
+				if (m_Observer.On && !(god && AnyMember(m_FreeSelected))) { const GameTheme::Scope theme; DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected); }
+				else if (m_Observer.On) m_Observer.SelectionBox = {};
 				else DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected);
 			}
 			if (m_Game.Active) DrawGameHud(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // H15

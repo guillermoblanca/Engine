@@ -5,6 +5,7 @@
 // short. Every word goes through Lang (Lang.h); values sit beside their bars, never over them (dark-on-colour reads, light-on-colour does not).
 #include "EditorApp.h"
 #include "GameTheme.h"
+#include "StoryKinds.h"
 #include "GB/Gameplay/WorldResources.h"
 #include <algorithm>
 #include <cfloat>
@@ -704,23 +705,10 @@ namespace GB::Editor
 	void EditorApp::DrawStorySheet()
 	{
 		const Lang& L = m_Lang;
-		struct Kind { const char* Id; const char* Label; const char* Icon; ImU32 Colour; };
-		static const Kind kinds[] = {
-			{ "birth", "births", "state.birth", T::Good }, { "death", "deaths", "state.death", T::Bad }, { "build", "buildings", "build", T::Ochre },
-			{ "know", "discoveries", "state.discovery", T::News }, { "clans", "between clans", "trade", T::Warn }, { "fight", "fights", "fight", T::Bad },
-		};
+		using Kind = StoryKind;   // (the groups and SheetKind are shared with the god's world chronicle: StoryKinds.h)
+		const Kind* kinds = StoryKinds();
 		static std::set<std::string> hidden;   // (what the player chose not to see; it is the sheet's own view, not the game's state)
 		// V1: the story is the clan's part of the world's history (saved with the game), read as log lines; the last 400 of what mattered
-		auto SheetKind = [](const std::string& k) -> std::string   // the history's kinds as the sheet groups them ("" = not in the story)
-		{
-			if (k == "birth" || k == "pair" || k == "marriage") return "birth";
-			if (k == "death" || k == "killed") return "death";
-			if (k == "built" || k == "camp_moved") return "build";
-			if (k == "discovery" || k == "tradition" || k == "shaman") return "know";
-			if (k == "raid" || k == "wounded" || k == "theft") return "fight";
-			if (k == "contact" || k == "found" || k == "alliance" || k == "truce" || k == "pact" || k == "break" || k == "move") return "clans";
-			return {};
-		};
 		std::deque<GameModeState::Event> story;
 		const double daySeconds = std::max(1.0, static_cast<double>(PlayTribe().Config.Needs.DaySeconds));
 		for (const HistoryEvent* e : m_Clans.Past().OfClan(PlayTribe().HistoryClan()))
@@ -731,14 +719,15 @@ namespace GB::Editor
 			}
 		std::map<std::string, int> counts;
 		for (const GameModeState::Event& e : story) ++counts[e.Kind];
-		for (const Kind& k : kinds)
+		for (int i = 0; i < StoryKindCount; ++i)
 		{
+			const Kind& k = kinds[i];
 			bool on = !hidden.count(k.Id);
 			ImGui::PushStyleColor(ImGuiCol_CheckMark, ImGui::ColorConvertU32ToFloat4(k.Colour));
 			const std::string label = L.Text(k.Label) + " (" + std::to_string(counts[k.Id]) + ")###" + k.Id;
 			if (ImGui::Checkbox(label.c_str(), &on)) { if (on) hidden.erase(k.Id); else hidden.insert(k.Id); }
 			ImGui::PopStyleColor();
-			if (&k != &kinds[2] && &k != &kinds[5]) ImGui::SameLine();
+			if (i != 2 && i != 5) ImGui::SameLine();
 		}
 		ImGui::Separator();
 		if (story.empty()) { ImGui::TextDisabled("%s", L.Text("nothing has happened yet").c_str()); return; }
@@ -755,8 +744,7 @@ namespace GB::Editor
 				ImGui::TextUnformatted(L.Text("Day {0}", day).c_str());
 				ImGui::PopStyleColor();
 			}
-			const Kind* kind = nullptr;
-			for (const Kind& k : kinds) if (it->Kind == k.Id) kind = &k;
+			const Kind* kind = FindStoryKind(it->Kind);
 			const ImVec2 at = ImGui::GetCursorScreenPos();
 			ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(at.x, at.y + 2.0f), ImVec2(at.x + 3.0f, at.y + ImGui::GetTextLineHeight() + 2.0f), kind ? kind->Colour : T::BoneDim);
 			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 8.0f);

@@ -6,12 +6,18 @@
 // the same. Every word goes through Lang (Lang.h).
 // U1 (`observer screen on`): the god's screen, the observer over the whole window with no editor panel (EditorApp::DrawUI draws it like the game's
 // screen), with the god's bar on top (DrawGodBar: the clock and its own pause and speed, the season, the weather) and the card and the book under it.
+// U5/U6: the book's tabs in four groups (Clan, Person, Chronicle, More), the world's chronicle of every clan with its filters and [go], the news
+// of the god's screen, a person's sheet and the chip of whom the camera follows.
 #include "EditorApp.h"
 #include "GameTheme.h"
+#include "StoryKinds.h"
 #include <algorithm>
+#include <cfloat>
 #include <cmath>
+#include <cstdio>
 #include <imgui.h>
 #include <optional>
+#include <set>
 #include <sstream>
 
 namespace GB::Editor
@@ -217,7 +223,7 @@ namespace GB::Editor
 
 	CommandResult EditorApp::ObserverCommand(const std::vector<std::string>& a)
 	{
-		static const char* kSheets = "clan|members|village|board|homes|sites|knowledge|relations|log";
+		static const char* kSheets = "clan|person|members|chronicle|village|board|homes|sites|knowledge|relations|log";
 		// the observer going off takes its screen and its pause with it (a frozen editor with nothing that says so)
 		auto off = [&]() { m_Observer.On = m_Observer.Screen = m_Observer.Paused = false; return CommandResult{ true, "observer off" }; };
 		if (a.empty() || a[0] == "on" || a[0] == "toggle")
@@ -237,7 +243,7 @@ namespace GB::Editor
 			if (m_Observer.Screen && v.X1 > v.X0 && v.Y1 > v.Y0)
 			{
 				const std::pair<const char*, const ObserverState::Box*> boxes[] = { { "bar", &m_Observer.BarBox }, { "card", &m_Observer.CardBox }, { "clans", &m_Observer.ClansBox },
-					{ "book", &m_Observer.BookBox } };
+					{ "book", &m_Observer.BookBox }, { "follow", &m_Observer.FollowBox }, { "news", &m_Observer.NewsBox }, { "selection", &m_Observer.SelectionBox } };
 				auto area = [](const ObserverState::Box& b) { return std::max(0.0f, b.X1 - b.X0) * std::max(0.0f, b.Y1 - b.Y0); };
 				float covered = 0.0f;
 				std::string parts, overlaps;
@@ -261,6 +267,33 @@ namespace GB::Editor
 				std::snprintf(text, sizeof text, "layout: %.0fx%.0f, world %.0f %% uncovered; ", static_cast<double>(v.X1 - v.X0), static_cast<double>(v.Y1 - v.Y0),
 					100.0 * (1.0 - static_cast<double>(covered / area(v))));
 				s += std::string("\n") + text + parts + "; overlaps " + (overlaps.empty() ? "none" : overlaps);
+			}
+			char line[200];
+			if (m_Observer.TabsRoom > 0.0f)   // (U5/U6: the group tabs against the book's width: they never scroll)
+			{
+				std::snprintf(line, sizeof line, "\ntabs: 4 groups want %.0f of %.0f px (%s); more: 7 sheets in %d row(s)", static_cast<double>(m_Observer.TabsNeed), static_cast<double>(m_Observer.TabsRoom),
+					m_Observer.TabsNeed <= m_Observer.TabsRoom ? "fit" : "narrowed", m_Observer.MoreRows);
+				s += line;
+			}
+			const glm::vec3 focus = m_GameView.Focus();
+			if (const std::string who = m_GameView.Following(); !who.empty())   // (U6: where the followed member is in the simulation and how far the camera looks from it)
+			{
+				const Tribe* clan = ClanOfMember(who);
+				const TribeMember* m = clan ? clan->FindMember(who) : nullptr;
+				if (m && !m->Dead)   // (the simulation's own place of the member, Tribe::Position: not the camera's subject, which may be its actor's feet)
+				{
+					const glm::vec2 at = clan->Position(*m);
+					std::snprintf(line, sizeof line, "\nfollow: %s at (%.1f, %.1f), camera focus (%.1f, %.1f), %.1f m away", who.c_str(), static_cast<double>(at.x), static_cast<double>(at.y),
+						static_cast<double>(focus.x), static_cast<double>(focus.z), static_cast<double>(glm::distance(at, glm::vec2(focus.x, focus.z))));
+					s += line;
+				}
+				else s += "\nfollow: " + who + " (not a member)";
+			}
+			if (const HistoryEvent* e = m_Observer.GoEvent > 0 ? m_Clans.Past().Find(m_Observer.GoEvent) : nullptr; e && e->HasWhere && m_GameView.Active() && m_GameView.Mode() == GameCameraMode::Overview)   // (U5: the last [go], while its view lasts)
+			{
+				std::snprintf(line, sizeof line, "\ngo: event #%d at (%.1f, %.1f), camera focus (%.1f, %.1f), %.1f m away", e->Id, static_cast<double>(e->Where.x), static_cast<double>(e->Where.y),
+					static_cast<double>(focus.x), static_cast<double>(focus.z), static_cast<double>(glm::distance(e->Where, glm::vec2(focus.x, focus.z))));
+				s += line;
 			}
 			return { true, s };
 		}
@@ -310,6 +343,92 @@ namespace GB::Editor
 			m_Observer.Tip = c->Id;
 			return { true, "tip on the clan " + std::to_string(c->Id) };
 		}
+		// U5: the world's chronicle: sets the sheet's filters (the clan, the groups, the least weight) and lists what it shows
+		if (a[0] == "chronicle")
+		{
+			size_t i = 1;
+			if (i < a.size() && a[i] != "weight" && !FindStoryKind(a[i]))
+			{
+				if (a[i] == "all") m_Observer.ChronicleClan = -1;
+				else if (const Clan* c = m_Clans.Find(a[i])) m_Observer.ChronicleClan = c->Id;
+				else return { false, "observer chronicle [all|<clan>] [birth|death|build|know|clans|fight...] [weight <1-5>]: no clan " + a[i] };
+				++i;
+			}
+			std::set<std::string> shown;
+			for (; i < a.size(); ++i)
+			{
+				if (a[i] == "weight" && i + 1 < a.size()) { m_Observer.ChronicleWeight = std::clamp(std::atoi(a[++i].c_str()), 1, 5); continue; }
+				if (!FindStoryKind(a[i])) return { false, "observer chronicle: no kind " + a[i] + " (birth|death|build|know|clans|fight)" };
+				shown.insert(a[i]);
+			}
+			if (!shown.empty())
+			{
+				m_Observer.ChronicleHidden.clear();
+				for (int k = 0; k < StoryKindCount; ++k) if (!shown.count(StoryKinds()[k].Id)) m_Observer.ChronicleHidden.insert(StoryKinds()[k].Id);
+			}
+			m_Observer.On = true;
+			m_Observer.Folded = false;
+			m_Observer.Ask = "chronicle";
+			return { true, ObserverChronicleText() };
+		}
+		// U5: the camera to where an event happened (the chronicle's and the news' [go]): the clan's view from above over its place
+		if (a[0] == "go")
+		{
+			const HistoryEvent* e = nullptr;
+			if (a.size() > 1 && a[1] == "newest")   // (for a script: the newest event the chronicle's filters show that has a place)
+			{
+				const std::vector<HistoryEvent>& all = m_Clans.Past().Events();
+				for (auto it = all.rbegin(); it != all.rend() && !e; ++it) if (it->HasWhere && ChronicleShows(*it)) e = &*it;
+			}
+			else if (a.size() > 1) e = m_Clans.Past().Find(std::atoi(a[1].c_str()));
+			if (!e) return { false, "observer go <event id>|newest (observer chronicle lists them)" };
+			if (!e->HasWhere) return { false, "the event #" + std::to_string(e->Id) + " has no place" };
+			m_Observer.GoEvent = e->Id;
+			char x[32], z[32];
+			std::snprintf(x, sizeof x, "%.2f", static_cast<double>(e->Where.x));
+			std::snprintf(z, sizeof z, "%.2f", static_cast<double>(e->Where.y));
+			const CommandResult r = m_GameView.Command({ "overview", x, z, "45" }, m_Actors, m_Player, m_World, m_Camera);
+			return { r.Ok, "event #" + std::to_string(e->Id) + ": " + r.Message };
+		}
+		// U6: the game camera follows a member (the person's sheet's [Follow]: the one on the sheet by default), or lets it go
+		if (a[0] == "follow")
+		{
+			const std::string name = a.size() > 1 ? a[1] : m_Observer.Person;
+			if (name == "off") { m_GameView.Command({ "off" }, m_Actors, m_Player, m_World, m_Camera); return { true, "nobody followed" }; }
+			if (name.empty()) return { false, "observer follow <name>|off (or open a person's sheet first)" };
+			const CommandResult r = m_GameView.Command({ "follow", name }, m_Actors, m_Player, m_World, m_Camera);
+			return { r.Ok, r.Message };
+		}
+		// U6: a person's sheet in the book (any clan's member: its clan becomes the observed one), and its fields as text
+		if (a[0] == "person")
+		{
+			if (a.size() < 2) return { false, "observer person <name>|off" };
+			if (a[1] == "off") { m_Observer.Person.clear(); m_Observer.Ask = "members"; return { true, "person sheet closed" }; }
+			std::string name = a[1];
+			if (name == "sample")   // (for a script: a living member of the observed clan that fills the sheet: 3 memories, then known parents, then more memories)
+			{
+				const Clan* c = m_Clans.Find(m_ActiveClan);
+				if (!c || !c->Folk) return { false, "no clan observed" };
+				int best = -1;
+				for (const TribeMember& m : c->Folk->Members())
+				{
+					if (m.Dead) continue;
+					const Person* p = c->Folk->People().Find(m.Name);
+					const int memories = static_cast<int>(m_Clans.Past().Recall(m.Name, 100).size());
+					const int score = (memories >= 3 ? 2000 : 0) + (p && !p->Mother.empty() ? 1000 : 0) + memories;
+					if (score > best) { best = score; name = m.Name; }
+				}
+				if (best < 0) return { false, "nobody alive in the clan " + std::to_string(m_ActiveClan) };
+			}
+			const Tribe* t = ClanOfMember(name);
+			if (!t) return { false, "nobody called " + name + " in any clan" };
+			for (const auto& c : m_Clans.All()) if (c->Folk == t) m_ActiveClan = c->Id;
+			m_Observer.Person = name;
+			m_Observer.On = true;
+			m_Observer.Folded = false;
+			m_Observer.Ask = "person";
+			return { true, ObserverPersonText(name) };
+		}
 		if (a[0] == "next" || a[0] == "prev")
 		{
 			const auto& all = m_Clans.All();
@@ -319,7 +438,7 @@ namespace GB::Editor
 			m_ActiveClan = all[i]->Id;
 		}
 		else if (const Clan* c = m_Clans.Find(a[0])) m_ActiveClan = c->Id;
-		else return { false, std::string("observer on|off|toggle|status|next|prev|sheet <") + kSheets + ">|screen on|off|pause [on|off]|resume|speed <1-20>|faster|slower|clans|tip <clan>|off|<clan id or name>" };
+		else return { false, std::string("observer on|off|toggle|status|next|prev|sheet <") + kSheets + ">|screen on|off|pause [on|off]|resume|speed <1-20>|faster|slower|clans|tip <clan>|off|chronicle [all|<clan>] [kind...] [weight <n>]|go <event>|newest|person <name>|sample|off|follow [name]|off|<clan id or name>" };
 		m_Observer.On = true;
 		const Clan* c = m_Clans.Find(m_ActiveClan);
 		return { true, "observing the clan " + std::to_string(m_ActiveClan) + (c ? " " + c->Name : std::string()) };
@@ -331,6 +450,7 @@ namespace GB::Editor
 		m_Observer.CardBottom = 0.0f;
 		m_Observer.BarBottom = 0.0f;
 		m_Observer.BarBox = m_Observer.CardBox = m_Observer.BookBox = m_Observer.ClansBox = {};
+		m_Observer.NewsBox = m_Observer.FollowBox = m_Observer.SelectionBox = {};
 		m_Observer.ViewBox = { ox, oy, ox + w, oy + h };
 		if (!m_Observer.On) return;
 		namespace T = GameTheme;
@@ -338,6 +458,12 @@ namespace GB::Editor
 		// U1: on the god's screen the god's bar goes over the whole width at the top and the rest under it; in the editor's viewport the card goes
 		// under the camera buttons and the book from the top
 		const bool god = m_Observer.Screen && !m_Game.Active;
+		// U6: on the god's screen a character picked in the world opens its sheet in the book (its card is not drawn there)
+		if (m_FreeSelected != m_Observer.SelectionSeen)
+		{
+			m_Observer.SelectionSeen = m_FreeSelected;
+			if (god && !m_FreeSelected.empty() && m_FreeSelected != m_Observer.Person && AnyMember(m_FreeSelected)) m_UiCommands.push_back("observer person " + m_FreeSelected);
+		}
 		if (god) DrawGodBar(ox, oy, w);
 		const float cardTop = god ? m_Observer.BarBottom + T::Gap : oy + 52.0f, bookTop = god ? m_Observer.BarBottom + T::Gap : oy + 8.0f;
 		if (m_Clans.Count() == 0) return;
@@ -450,19 +576,63 @@ namespace GB::Editor
 		const std::string title = L.Name("clan", clan.Name, clan.Name) + "###observerbook";
 		const bool bookOpen = ImGui::Begin(title.c_str(), nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking);
 		m_Observer.BookBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
-		if (bookOpen && ImGui::BeginTabBar("sheets", ImGuiTabBarFlags_FittingPolicyScroll))   // (whole names, scrolled, in a narrow viewport)
+		// U5/U6: four group tabs, so that none scrolls even in the 1280 wide window (H15): the clan, a person (the members until one is picked),
+		// the world's chronicle and More, whose sheets are a row of buttons that wraps. A sheet asked for by a command selects its group's tab.
+		static const char* kGroups[][2] = { { "clan", "Clan" }, { "person", "Person" }, { "chronicle", "Chronicle" }, { "more", "More" } };
+		static const char* kMoreSheets[][2] = { { "village", "Village" }, { "board", "Job board" }, { "homes", "Homes" }, { "sites", "Sites" }, { "knowledge", "Knowledge" },
+			{ "relations", "Clans" }, { "log", "Log" } };
+		auto groupOf = [](const std::string& sheet) -> std::string
 		{
-			static const char* kSheets[][2] = { { "clan", "Clan" }, { "members", "Members" }, { "village", "Village" }, { "board", "Job board" }, { "homes", "Homes" }, { "sites", "Sites" },
-				{ "knowledge", "Knowledge" }, { "relations", "Clans" }, { "log", "Log" } };
-			for (const auto& sheet : kSheets)
+			if (sheet == "clan" || sheet == "chronicle") return sheet;
+			if (sheet == "members" || sheet == "person") return "person";
+			return "more";
+		};
+		if (!m_Observer.Ask.empty())
+		{
+			if (m_Observer.Ask == "members") m_Observer.Person.clear();
+			if (groupOf(m_Observer.Ask) == "more") m_Observer.More = m_Observer.Ask;
+		}
+		if (bookOpen)
+		{
+			const ImGuiStyle& style = ImGui::GetStyle();
+			float need = 0.0f;
+			for (const auto& g : kGroups) need += ImGui::CalcTextSize(L.Text(g[1]).c_str()).x + style.FramePadding.x * 2.0f + style.ItemInnerSpacing.x;
+			m_Observer.TabsNeed = need;
+			m_Observer.TabsRoom = ImGui::GetContentRegionAvail().x;
+		}
+		if (bookOpen && ImGui::BeginTabBar("sheets", ImGuiTabBarFlags_FittingPolicyResizeDown))   // (never scrolled: narrower tabs before that)
+		{
+			for (const auto& group : kGroups)
 			{
-				const std::string id = sheet[0];
-				const ImGuiTabItemFlags flags = m_Observer.Ask == id ? ImGuiTabItemFlags_SetSelected : 0;
-				if (!ImGui::BeginTabItem((L.Text(sheet[1]) + "###" + id).c_str(), nullptr, flags)) continue;
+				const std::string gid = group[0];
+				const ImGuiTabItemFlags flags = !m_Observer.Ask.empty() && groupOf(m_Observer.Ask) == gid ? ImGuiTabItemFlags_SetSelected : 0;
+				if (!ImGui::BeginTabItem((L.Text(group[1]) + "###" + gid).c_str(), nullptr, flags)) continue;
+				const TribeMember* person = nullptr;
+				if (gid == "person" && !m_Observer.Person.empty()) person = t.FindMember(m_Observer.Person);
+				std::string id = gid == "person" ? (person ? "person" : "members") : gid == "more" ? m_Observer.More : gid;
 				m_Observer.Tab = id;
 				if (m_Observer.Folded) { ImGui::EndTabItem(); continue; }   // (folded: the tabs only; a click on one unfolds it below)
+				if (gid == "more")   // More's sheets: a button each, the one shown lit, wrapping to a new row rather than scrolling
+				{
+					float x = 0.0f;
+					const float room = ImGui::GetContentRegionAvail().x;
+					m_Observer.MoreRows = 1;
+					for (size_t i = 0; i < std::size(kMoreSheets); ++i)
+					{
+						const std::string label = L.Text(kMoreSheets[i][1]);
+						const float bw2 = ImGui::CalcTextSize(label.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+						if (i > 0 && x + ImGui::GetStyle().ItemSpacing.x + bw2 <= room) { ImGui::SameLine(); x += ImGui::GetStyle().ItemSpacing.x + bw2; }
+						else { if (i > 0) ++m_Observer.MoreRows; x = bw2; }
+						std::optional<T::PrimaryScope> lit;
+						if (m_Observer.More == kMoreSheets[i][0]) lit.emplace();
+						if (ImGui::Button((label + "###more" + kMoreSheets[i][0]).c_str())) run(std::string("observer sheet ") + kMoreSheets[i][0]);
+					}
+					ImGui::Separator();
+				}
 				ImGui::BeginChild("sheet");
 				if (id == "clan") DrawClanSheet(clan);
+				else if (id == "chronicle") DrawChronicleSheet();
+				else if (id == "person") DrawPersonSheet(t, *person);
 				else if (id == "members")
 				{
 					if (ImGui::BeginTable("members", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingStretchProp))
@@ -478,8 +648,12 @@ namespace GB::Editor
 								ImGui::TableNextRow();
 								ImGui::TableNextColumn();
 								if (m.Dead) ImGui::TextDisabled("%s", m.Name.c_str());
-								else if (ImGui::Selectable((m.Name + "###" + m.Name).c_str(), m_FreeSelected == m.Name, ImGuiSelectableFlags_SpanAllColumns)) m_FreeSelected = m.Name;
-								if (!m.Dead && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Select {0} (its card goes under the clan's)", m.Name).c_str());
+								else if (ImGui::Selectable((m.Name + "###" + m.Name).c_str(), m_FreeSelected == m.Name, ImGuiSelectableFlags_SpanAllColumns))
+								{
+									m_FreeSelected = m.Name;   // (its bubble over it in the world)
+									run("observer person " + m.Name);
+								}
+								if (!m.Dead && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Open the sheet of {0}", m.Name).c_str());
 								ImGui::TextDisabled("%s", L.Name("role", m.Role).c_str());
 								ImGui::TableNextColumn();
 								if (m.Dead) ImGui::TextDisabled("%s", (m.Cause.empty() ? L.Text("dead") : L.Text("dead of {0}", L.Name("need", m.Cause))).c_str());
@@ -555,6 +729,12 @@ namespace GB::Editor
 		ImGui::End();
 		m_Observer.Ask.clear();
 		m_Observer.BookWidth = bw + T::Margin;
+		// U5/U6: on the god's screen, between the list and the book under the bar: whom the camera follows, and under it the news
+		if (god)
+		{
+			DrawFollowChip(ox, w);
+			DrawObserverNews(ox, w);
+		}
 	}
 
 	// U2: the inside of the quality of life tooltip: the index, then each of its 7 parts with its bar, its value and its weight ("-" when it cannot
@@ -926,5 +1106,509 @@ namespace GB::Editor
 		}
 		ImGui::End();
 		ImGui::PopStyleVar();
+	}
+
+	// ------------------------------------------------------------------ U5: the world's chronicle and its news
+	int EditorApp::EventDay(double at) const
+	{
+		const Tribe& t = m_Tribe;   // (the world's clock and its day, as DayOf counts them for the god's bar)
+		return static_cast<int>(at / std::max(1.0, static_cast<double>(t.Config.Needs.DaySeconds)) + static_cast<double>(t.Config.Needs.StartHour) / 24.0) + 1;
+	}
+
+	bool EditorApp::ChronicleShows(const HistoryEvent& e) const
+	{
+		const std::string kind = SheetKind(e.Kind);
+		return !kind.empty() && !m_Observer.ChronicleHidden.count(kind) && (m_Observer.ChronicleClan < 0 || e.Clan == m_Observer.ChronicleClan) && e.Weight >= m_Observer.ChronicleWeight;
+	}
+
+	std::string EditorApp::ObserverChronicleText()
+	{
+		std::string kinds;
+		for (int k = 0; k < StoryKindCount; ++k)
+			if (!m_Observer.ChronicleHidden.count(StoryKinds()[k].Id)) kinds += (kinds.empty() ? "" : " ") + std::string(StoryKinds()[k].Id);
+		std::vector<const HistoryEvent*> shown;
+		for (const HistoryEvent& e : m_Clans.Past().Events()) if (ChronicleShows(e)) shown.push_back(&e);
+		const std::string clan = m_Observer.ChronicleClan < 0 ? std::string("all") : std::to_string(m_Observer.ChronicleClan);
+		char line[200];
+		std::snprintf(line, sizeof line, "chronicle: clan %s, kinds %s, weight >= %d: %zu events", clan.c_str(), kinds.empty() ? "none" : kinds.c_str(), m_Observer.ChronicleWeight, shown.size());
+		std::string out = line;
+		const size_t from = shown.size() > 40 ? shown.size() - 40 : 0;   // (the newest 40, oldest first, like the log)
+		if (from) out += " (the newest 40)";
+		for (size_t i = from; i < shown.size(); ++i)
+		{
+			const HistoryEvent& e = *shown[i];
+			char where[48] = "-";
+			if (e.HasWhere) std::snprintf(where, sizeof where, "%.1f,%.1f", static_cast<double>(e.Where.x), static_cast<double>(e.Where.y));
+			std::snprintf(line, sizeof line, "\n#%d day %d clan %d kind %s (%s) w%d at %s: ", e.Id, EventDay(e.At), e.Clan, SheetKind(e.Kind).c_str(), e.Kind.c_str(), e.Weight, where);
+			out += line + e.Text;
+		}
+		return out;
+	}
+
+	// U5: the chronicle of every clan (MODO_DIOS_UX 3.6): its filters on top (a box per group with its count, the clan, the least weight), then the
+	// events newest first under their day, each with its group's colour and icon, its clan and a [go] that sends the camera there. The filters are
+	// the view's (ObserverState) and its boxes only queue `observer chronicle ...`, so a script sees the same sheet.
+	void EditorApp::DrawChronicleSheet()
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		const int clanFilter = m_Observer.ChronicleClan, weight = m_Observer.ChronicleWeight;
+		auto filterCommand = [&](int clan, const std::set<std::string>& hidden, int least)
+		{
+			std::string c = "observer chronicle " + (clan < 0 ? std::string("all") : std::to_string(clan));
+			for (int k = 0; k < StoryKindCount; ++k) if (!hidden.count(StoryKinds()[k].Id)) c += std::string(" ") + StoryKinds()[k].Id;
+			return c + " weight " + std::to_string(least);
+		};
+		auto clanName = [&](int id) { const Clan* c = m_Clans.Find(static_cast<ClanId>(id)); return c ? L.Name("clan", c->Name, c->Name) : std::string(); };
+		std::map<std::string, int> counts;
+		std::vector<const HistoryEvent*> shown;
+		for (const HistoryEvent& e : m_Clans.Past().Events())
+		{
+			const std::string kind = SheetKind(e.Kind);
+			if (kind.empty() || (clanFilter >= 0 && e.Clan != clanFilter) || e.Weight < weight) continue;
+			++counts[kind];
+			if (!m_Observer.ChronicleHidden.count(kind)) shown.push_back(&e);
+		}
+		// the groups (one at least stays shown), wrapping to a new row when the next would not fit the book
+		const float room = ImGui::GetContentRegionAvail().x;
+		float x = 0.0f;
+		for (int k = 0; k < StoryKindCount; ++k)
+		{
+			const StoryKind& kind = StoryKinds()[k];
+			const std::string text = L.Text(kind.Label) + " (" + std::to_string(counts[kind.Id]) + ")";
+			const float cw = ImGui::GetFrameHeight() + ImGui::GetStyle().ItemInnerSpacing.x + ImGui::CalcTextSize(text.c_str()).x;
+			if (k > 0 && x + ImGui::GetStyle().ItemSpacing.x + cw <= room) { ImGui::SameLine(); x += ImGui::GetStyle().ItemSpacing.x + cw; }
+			else x = cw;
+			bool on = !m_Observer.ChronicleHidden.count(kind.Id);
+			ImGui::PushStyleColor(ImGuiCol_CheckMark, ImGui::ColorConvertU32ToFloat4(kind.Colour));
+			if (ImGui::Checkbox((text + "###" + kind.Id).c_str(), &on))
+			{
+				std::set<std::string> hidden = m_Observer.ChronicleHidden;
+				if (on) hidden.erase(kind.Id); else hidden.insert(kind.Id);
+				if (static_cast<int>(hidden.size()) < StoryKindCount) run(filterCommand(clanFilter, hidden, weight));
+			}
+			ImGui::PopStyleColor();
+		}
+		// the clan and the least weight
+		ImGui::AlignTextToFramePadding();
+		ImGui::TextDisabled("%s", L.Text("Clan").c_str());
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(130.0f);
+		if (ImGui::BeginCombo("###chronicleclan", clanFilter < 0 ? L.Text("all").c_str() : clanName(clanFilter).c_str()))
+		{
+			if (ImGui::Selectable((L.Text("all") + "###all").c_str(), clanFilter < 0)) run(filterCommand(-1, m_Observer.ChronicleHidden, weight));
+			for (const auto& c : m_Clans.All())
+				if (ImGui::Selectable((L.Name("clan", c->Name, c->Name) + "###clan" + std::to_string(c->Id)).c_str(), clanFilter == c->Id))
+					run(filterCommand(c->Id, m_Observer.ChronicleHidden, weight));
+			ImGui::EndCombo();
+		}
+		ImGui::SameLine();
+		ImGui::TextDisabled("%s", L.Text("Weight").c_str());
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("How much the clans remember it: 1 a small thing, 5 something never forgotten").c_str());
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(110.0f);
+		auto weightText = [&](int n) { return n <= 1 ? L.Text("any") : L.Text("{0} or more", n); };
+		if (ImGui::BeginCombo("###chronicleweight", weightText(weight).c_str()))
+		{
+			for (int n = 1; n <= 5; ++n)
+				if (ImGui::Selectable((weightText(n) + "###w" + std::to_string(n)).c_str(), weight == n)) run(filterCommand(clanFilter, m_Observer.ChronicleHidden, n));
+			ImGui::EndCombo();
+		}
+		ImGui::Separator();
+		if (shown.empty())
+		{
+			ImGui::TextDisabled("%s", (counts.empty() ? L.Text("nothing has happened yet") : L.Text("nothing passes these filters")).c_str());
+			return;
+		}
+		// newest first, under the day it happened (the newest 300: a long game would make the sheet slow)
+		int day = -1, drawn = 0;
+		for (auto it = shown.rbegin(); it != shown.rend() && drawn < 300; ++it, ++drawn)
+		{
+			const HistoryEvent& e = **it;
+			if (const int d = EventDay(e.At); d != day)
+			{
+				day = d;
+				ImGui::Spacing();
+				ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(T::Ochre));
+				ImGui::TextUnformatted(L.Text("Day {0}", day).c_str());
+				ImGui::PopStyleColor();
+			}
+			ImGui::PushID(e.Id);
+			const StoryKind* kind = FindStoryKind(SheetKind(e.Kind));
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(at.x, at.y + 2.0f), ImVec2(at.x + 3.0f, at.y + ImGui::GetTextLineHeight() + 2.0f), kind ? kind->Colour : T::BoneDim);
+			ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 8.0f);
+			// [go]: the camera to its place (disabled, with why, when it has none)
+			if (!e.HasWhere) ImGui::BeginDisabled();
+			if (ImGui::SmallButton((L.Text("go") + "###go").c_str())) run("observer go " + std::to_string(e.Id));
+			if (!e.HasWhere) ImGui::EndDisabled();
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", (e.HasWhere ? L.Text("The camera to where it happened") : L.Text("It has no place to go to")).c_str());
+			ImGui::SameLine();
+			if (kind && Icon(kind->Icon, ImGui::GetTextLineHeight())) ImGui::SameLine();
+			if (e.Clan >= 0)
+			{
+				Swatch(ClanColour(m_Clans, static_cast<ClanId>(e.Clan)));
+				ImGui::TextDisabled("%s", clanName(e.Clan).c_str());
+				ImGui::SameLine();
+			}
+			ImGui::TextWrapped("%s", Lang::Cap(L.Line(e.Text)).c_str());
+			ImGui::PopID();
+		}
+		if (shown.size() > 300) ImGui::TextDisabled("%s", L.Text("(and {0} older)", static_cast<int>(shown.size()) - 300).c_str());
+	}
+
+	// U5: the news of the god's screen (MODO_DIOS_UX 3.6): the weighty events of every clan (a death, a birth, a couple, a discovery, a raid, a new
+	// clan...) as cards under the bar and left of the book, newest on top; they fade out as the player's news do (controls.hud: how many, how long),
+	// a line said again shows its count, danger has a red edge and a discovery an ochre one. A click on a card sends the camera there.
+	void EditorApp::DrawObserverNews(float ox, float w)
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		const std::vector<HistoryEvent>& events = m_Clans.Past().Events();
+		const int newest = events.empty() ? 0 : events.back().Id;
+		const double now = ImGui::GetTime();
+		if (m_Observer.NewsSeen < 0 || newest < m_Observer.NewsSeen) { m_Observer.NewsSeen = newest; m_Observer.NewsList.clear(); }   // (the screen just opened, or a new world)
+		std::vector<int> fresh;
+		for (auto it = events.rbegin(); it != events.rend() && it->Id > m_Observer.NewsSeen; ++it)
+			if (!SheetKind(it->Kind).empty() && it->Weight >= 4) fresh.push_back(it->Id);
+		for (auto it = fresh.rbegin(); it != fresh.rend(); ++it) m_Observer.NewsList.push_back({ *it, now });
+		m_Observer.NewsSeen = newest;
+		while (m_Observer.NewsList.size() > 40) m_Observer.NewsList.pop_front();
+		struct Shown { std::string Text; const HistoryEvent* Event; float Alpha; int Count; };
+		std::vector<Shown> shown;
+		const double life = static_cast<double>(m_Controls.Hud.NotifySeconds);
+		for (auto it = m_Observer.NewsList.rbegin(); it != m_Observer.NewsList.rend() && static_cast<int>(shown.size()) < m_Controls.Hud.Notifications; ++it)
+		{
+			const double age = now - it->At;
+			if (age > life) break;
+			const HistoryEvent* e = m_Clans.Past().Find(it->Event);
+			if (!e) continue;
+			const Clan* c = e->Clan >= 0 ? m_Clans.Find(static_cast<ClanId>(e->Clan)) : nullptr;
+			const std::string text = (c ? L.Name("clan", c->Name, c->Name) + ": " : std::string()) + Lang::Cap(L.Line(e->Text));
+			bool same = false;
+			for (Shown& s : shown) if (s.Text == text) { ++s.Count; same = true; }
+			if (!same) shown.push_back({ text, e, std::clamp(static_cast<float>(life - age) / 1.5f, 0.0f, 1.0f), 1 });
+		}
+		if (shown.empty()) return;
+		// between the clans' list and the book, under the bar and the follow chip
+		const float left = m_Observer.ClansBox.X1 > m_Observer.ClansBox.X0 ? m_Observer.ClansBox.X1 + T::Gap : ox + T::Margin;
+		const float right = m_Observer.BookBox.X1 > m_Observer.BookBox.X0 ? m_Observer.BookBox.X0 - T::Gap : ox + w - T::Margin;
+		const float top = std::max(m_Observer.BarBottom, m_Observer.FollowBox.Y1) + T::Gap;
+		const float card = std::min(380.0f, right - left), wrap = card - 2.0f * T::Pad - 4.0f;
+		if (wrap < 80.0f) return;   // (no room: the window is too narrow for news)
+		ImGui::SetNextWindowPos(ImVec2(right, top), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 4.0f));
+		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+			| ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBackground;
+		if (ImGui::Begin("News##observer", nullptr, flags))
+		{
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			for (const Shown& s : shown)
+			{
+				const StoryKind* kind = FindStoryKind(SheetKind(s.Event->Kind));
+				const ImU32 accent = kind && kind->Colour == T::Bad ? T::Bad : kind && std::string(kind->Id) == "know" ? T::Ochre : 0u;
+				const std::string text = s.Count > 1 ? s.Text + "  x" + std::to_string(s.Count) : s.Text;
+				const ImVec2 size = ImGui::CalcTextSize(text.c_str(), nullptr, false, wrap);
+				const ImVec2 min = ImGui::GetCursorScreenPos();
+				ImGui::PushID(s.Event->Id);
+				if (ImGui::InvisibleButton("news", ImVec2(card, size.y + 12.0f)) && s.Event->HasWhere) m_UiCommands.push_back("observer go " + std::to_string(s.Event->Id));
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", (s.Event->HasWhere ? L.Text("The camera to where it happened") : L.Text("It has no place to go to")).c_str());
+				ImGui::PopID();
+				const ImVec2 max(min.x + card, min.y + size.y + 12.0f);
+				T::Card(dl, min, max, accent, s.Alpha);
+				dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(min.x + T::Pad + 4.0f, min.y + 6.0f), T::Faded(T::News, s.Alpha), text.c_str(), nullptr, wrap);
+			}
+			m_Observer.NewsBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
+		}
+		ImGui::End();
+		ImGui::PopStyleVar(2);
+	}
+
+	// ------------------------------------------------------------------ U6: a person
+	const Tribe* EditorApp::ClanOfMember(const std::string& name) const
+	{
+		if (name.empty()) return nullptr;
+		if (m_Tribe.FindMember(name)) return &m_Tribe;
+		for (const auto& c : m_Clans.All()) if (c->Folk && c->Folk->FindMember(name)) return c->Folk;
+		return nullptr;
+	}
+
+	bool EditorApp::MemberWhere(const std::string& name, glm::vec3& at) const
+	{
+		const Tribe* t = ClanOfMember(name);
+		const TribeMember* m = t ? t->FindMember(name) : nullptr;
+		if (!m || m->Dead) return false;
+		const glm::vec2 p = t->Position(*m);
+		// its body where the simulation has it: its feet; else (simulated without it, its actor left behind) the ground under that place
+		if (const Actor* a = m_Actors.Find(name); a && glm::distance(glm::vec2(a->GetPosition().x, a->GetPosition().z), p) < 2.0f) { at = a->GetPosition(); return true; }
+		float y = 0.0f;
+		if (m_World.IsBuilt())
+			if (const std::function<float(float, float)> ground = m_World.GroundFunction()) y = ground(p.x, p.y);
+		at = glm::vec3(p.x, y, p.y);
+		return true;
+	}
+
+	namespace
+	{
+		// a parent or a partner: whether any clan knows it, whether it lives and its clan
+		struct Kin { bool Found = false, Dead = false; int Clan = -1; std::string Cause; };
+		Kin FindKin(const ClanWorld& clans, const std::string& name)
+		{
+			Kin k;
+			for (const auto& c : clans.All())
+				if (c->Folk)
+					if (const Person* p = c->Folk->People().Find(name))
+					{
+						k.Found = true;
+						k.Dead = p->Dead;
+						k.Clan = c->Id;
+						k.Cause = p->Cause;
+						if (!p->Dead) break;   // (one who moved clan is kept dead in the old one: the living entry wins)
+					}
+			return k;
+		}
+	}
+
+	std::string EditorApp::ObserverPersonText(const std::string& name)
+	{
+		const Tribe* t = ClanOfMember(name);
+		const TribeMember* m = t ? t->FindMember(name) : nullptr;
+		if (!m) return "nobody called " + name;
+		int clanId = -1;
+		std::string clanName;
+		for (const auto& c : m_Clans.All()) if (c->Folk == t) { clanId = c->Id; clanName = c->Name; }
+		const Person* p = t->People().Find(name);
+		char line[256];
+		std::snprintf(line, sizeof line, "person %s, clan %d %s: %s, %.1f years, %s, %s", name.c_str(), clanId, clanName.c_str(), p && p->Female ? "female" : "male", static_cast<double>(p ? p->Age : 0.0f),
+			m->Role.c_str(), m->Dead ? ("dead of " + (m->Cause.empty() ? std::string("?") : m->Cause)).c_str() : "alive");
+		std::string out = line;
+		auto kin = [&](const char* tie, const std::string& who)
+		{
+			if (who.empty()) return std::string(tie) + " unknown";
+			const Kin k = FindKin(m_Clans, who);
+			return std::string(tie) + " " + who + " (" + (!k.Found ? std::string("not known") : (k.Dead ? "dead" : "alive") + std::string(", clan ") + std::to_string(k.Clan)) + ")";
+		};
+		out += "\nparents: " + kin("mother", p ? p->Mother : std::string()) + ", " + kin("father", p ? p->Father : std::string()) + (p && !p->Partner.empty() ? "; " + kin("partner", p->Partner) : std::string());
+		out += "\ndoing: " + (m->Job.empty() ? std::string("idle") : m->Job) + (m->Detail.empty() ? std::string() : " " + m->Detail);
+		std::string needs = "needs:";
+		const std::map<std::string, float> levels = t->NeedLevels(*m);
+		for (const std::string& n : m_Controls.Hud.Needs)
+			if (const auto it = levels.find(n); it != levels.end()) { std::snprintf(line, sizeof line, " %s %.0f", n.c_str(), static_cast<double>(it->second)); needs += line; }
+		out += "\n" + needs;
+		std::snprintf(line, sizeof line, "\nmood %.2f, grief %.2f", static_cast<double>(t->Mood(name)), static_cast<double>(t->Grief(name)));
+		out += line;
+		std::string learning;
+		const AgentKnowledge* k = t->Knowledge().Of(name);
+		if (k)
+			for (const auto& [tech, v] : k->Progress) { std::snprintf(line, sizeof line, "%s%s %.0f %%", learning.empty() ? "" : ", ", tech.c_str(), static_cast<double>(v * 100.0f)); learning += line; }
+		out += "\nlearning: " + (learning.empty() ? std::string("nothing now") : learning);
+		out += "\nknows: " + std::to_string(k ? k->Known.size() : 0) + " technologies";
+		std::string memories;
+		for (const HistoryEvent* e : m_Clans.Past().Recall(name, 3)) memories += (memories.empty() ? "" : "; ") + std::string("day ") + std::to_string(EventDay(e->At)) + " [" + e->Kind + "] " + e->Text;
+		out += "\nremembers: " + (memories.empty() ? std::string("nothing yet") : memories);
+		std::string genes;
+		if (p)
+			for (const auto& [g, v] : p->Genes) { std::snprintf(line, sizeof line, "%s%s %.2f", genes.empty() ? "" : ", ", g.c_str(), static_cast<double>(v)); genes += line; }
+		out += "\ngenes: " + (genes.empty() ? std::string("none") : genes);
+		glm::vec3 at(0.0f);
+		if (MemberWhere(name, at)) { std::snprintf(line, sizeof line, "\nat (%.1f, %.1f)", static_cast<double>(at.x), static_cast<double>(at.z)); out += line; }
+		return out;
+	}
+
+	// U6: a person's sheet (MODO_DIOS_UX 3.5), the Person tab: who it is (age, trade, clan), its parents and partner, what it does, its needs with
+	// their number and colour, its mood, what it is learning with how far, what it knows, the three things it remembers most and its genes. Its
+	// buttons follow it with the game camera, send the camera to it, or go back to the members (`camera game ...`, `observer ...`).
+	void EditorApp::DrawPersonSheet(const Tribe& t, const TribeMember& m)
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		auto label = [&](const std::string& text) { ImGui::TextDisabled("%s", text.c_str()); ImGui::SameLine(110.0f); };
+		auto value = [](const std::string& text, ImU32 colour = T::Bone) { ImGui::PushStyleColor(ImGuiCol_Text, colour); ImGui::TextWrapped("%s", text.c_str()); ImGui::PopStyleColor(); };
+		auto clanName = [&](int id) { const Clan* c = m_Clans.Find(static_cast<ClanId>(id)); return c ? L.Name("clan", c->Name, c->Name) : std::string(); };
+		int clanId = -1;
+		for (const auto& c : m_Clans.All()) if (c->Folk == &t) clanId = c->Id;
+		const Person* p = t.People().Find(m.Name);
+		// who: the name, the age, the trade and the clan
+		if (ImGui::SmallButton((L.Text("< Members") + "###members").c_str())) run("observer person off");
+		ImGui::SameLine();
+		if (clanId >= 0) Swatch(ClanColour(m_Clans, static_cast<ClanId>(clanId)));
+		ImGui::PushStyleColor(ImGuiCol_Text, ImGui::ColorConvertU32ToFloat4(m.Dead ? T::BoneDim : T::Ochre));
+		ImGui::TextUnformatted(m.Name.c_str());
+		ImGui::PopStyleColor();
+		ImGui::SameLine();
+		std::string who = p ? (std::lround(p->Age) == 1 ? L.Text("1 year") : L.Text("{0} years", L.Num(p->Age, 0))) + ", " : std::string();
+		who += L.Name("role", m.Role) + (clanId >= 0 ? " (" + clanName(clanId) + ")" : std::string());
+		ImGui::TextDisabled("%s", who.c_str());
+		// follow it, or the camera to it once
+		if (m.Dead) value(m.Cause.empty() ? L.Text("dead") : L.Text("dead of {0}", L.Name("need", m.Cause)), T::Bad);
+		else
+		{
+			const bool following = m_GameView.Following() == m.Name;
+			{
+				std::optional<T::PrimaryScope> lit;
+				if (following) lit.emplace();
+				if (ImGui::Button((L.Text(following ? "Following" : "Follow") + "###follow").c_str())) run(following ? std::string("observer follow off") : "observer follow " + m.Name);
+			}
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text(following ? "The camera follows {0}: click to let go" : "The camera follows {0} wherever it goes", m.Name).c_str());
+			ImGui::SameLine();
+			glm::vec3 at(0.0f);
+			if (ImGui::Button((L.Text("Go to") + "###goto").c_str()) && MemberWhere(m.Name, at))
+			{
+				char x[32], z[32];
+				std::snprintf(x, sizeof x, "%.2f", static_cast<double>(at.x));
+				std::snprintf(z, sizeof z, "%.2f", static_cast<double>(at.z));
+				run(std::string("camera game overview ") + x + " " + z + " 30");
+			}
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The camera to where {0} is now", m.Name).c_str());
+		}
+		ImGui::Separator();
+		// kin
+		auto kinText = [&](const std::string& name) -> std::pair<std::string, ImU32>
+		{
+			if (name.empty()) return { L.Text("unknown"), T::BoneDim };
+			const Kin k = FindKin(m_Clans, name);
+			std::string s = name;
+			if (k.Found && k.Clan != clanId) s += " (" + clanName(k.Clan) + ")";
+			if (k.Dead) s += " (" + L.Text("dead") + ")";
+			return { s, k.Dead ? T::BoneDim : T::Bone };
+		};
+		if (p)
+		{
+			label(L.Text("Mother"));
+			const auto mother = kinText(p->Mother);
+			value(mother.first, mother.second);
+			label(L.Text("Father"));
+			const auto father = kinText(p->Father);
+			value(father.first, father.second);
+			if (!p->Partner.empty())
+			{
+				label(L.Text("Partner"));
+				const auto partner = kinText(p->Partner);
+				value(partner.first, partner.second);
+			}
+		}
+		if (m.Dead) return;
+		label(L.Text("Doing"));
+		value(L.Doing(m.Job, m.Detail));
+		// needs: the HUD's, each a bar with its number and its colour (good, warning, bad) and the danger mark at 25
+		ImGui::Separator();
+		const std::map<std::string, float> levels = t.NeedLevels(m);
+		for (const std::string& n : m_Controls.Hud.Needs)
+		{
+			const auto it = levels.find(n);
+			if (it == levels.end()) continue;
+			const float v = it->second, v01 = std::clamp(v / 100.0f, 0.0f, 1.0f);
+			label(Lang::Cap(L.Name("need", n, n)));
+			const ImVec2 b0 = ImGui::GetCursorScreenPos();
+			SmallBar(v01, 110.0f, T::Level(v01));
+			const float mark = b0.x + 110.0f * 0.25f, h = ImGui::GetTextLineHeight();
+			ImGui::GetWindowDrawList()->AddLine(ImVec2(mark, b0.y + (h - 10.0f) * 0.5f), ImVec2(mark, b0.y + (h + 10.0f) * 0.5f + 2.0f), T::Outline, 2.0f);
+			ImGui::SameLine();
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Level(v01)), "%s", L.Num(v, 0).c_str());
+			if (v01 <= 0.25f) { ImGui::SameLine(); ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", L.Text("danger").c_str()); }
+		}
+		label(L.Text("Mood"));
+		const float mood = t.Mood(m.Name), grief = t.Grief(m.Name);
+		value(L.Num(mood, 2) + (grief > 0.01f ? "   " + L.Text("grief {0}", L.Num(grief, 2)) : std::string()), mood < 0.0f ? T::Warn : T::Bone);
+		// what it is learning (and how far), and what it knows
+		ImGui::Separator();
+		const AgentKnowledge* k = t.Knowledge().Of(m.Name);
+		std::vector<std::pair<float, std::string>> learning;
+		if (k) for (const auto& [tech, v] : k->Progress) learning.push_back({ v, tech });
+		std::sort(learning.rbegin(), learning.rend());
+		label(L.Text("Learning"));
+		if (learning.empty()) value(L.Text("nothing now"), T::BoneDim);
+		else
+		{
+			ImGui::NewLine();
+			for (const auto& [v, tech] : learning)
+			{
+				ImGui::Indent(12.0f);
+				SmallBar(v, 80.0f, T::News);
+				ImGui::SameLine();
+				ImGui::TextUnformatted((L.Num(v * 100.0f, 0) + " %  " + Lang::Cap(L.Name("tech", tech, t.Knowledge().Name(tech)))).c_str());
+				ImGui::Unindent(12.0f);
+			}
+		}
+		label(L.Text("Knows"));
+		value(L.Text("{0} technologies", k ? static_cast<int>(k->Known.size()) : 0));
+		// what it remembers most (the weightiest, then the newest)
+		ImGui::Separator();
+		label(L.Text("Remembers"));
+		const std::vector<const HistoryEvent*> memories = m_Clans.Past().Recall(m.Name, 3);
+		if (memories.empty()) value(L.Text("nothing yet"), T::BoneDim);
+		else
+		{
+			ImGui::NewLine();
+			for (const HistoryEvent* e : memories)
+			{
+				ImGui::Indent(12.0f);
+				ImGui::TextDisabled("%s", L.Text("Day {0}", EventDay(e->At)).c_str());
+				ImGui::SameLine();
+				ImGui::TextWrapped("%s", Lang::Cap(L.Line(e->Text)).c_str());
+				ImGui::Unindent(12.0f);
+			}
+		}
+		// genes (0..1, the mean is a half), two to a row
+		ImGui::Separator();
+		ImGui::TextDisabled("%s", L.Text("Genes").c_str());
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("What it was born with, 0 to 1 (a half is the usual); its children inherit them").c_str());
+		if (p && ImGui::BeginTable("genes", 4, ImGuiTableFlags_SizingFixedFit))
+		{
+			int i = 0;
+			for (const auto& [g, v] : p->Genes)
+			{
+				if (i++ % 2 == 0) ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+				ImGui::TextDisabled("%s", Lang::Cap(L.Name("gene", g, g)).c_str());
+				ImGui::TableNextColumn();
+				SmallBar(v, 50.0f, T::Ochre);
+				ImGui::SameLine();
+				ImGui::TextUnformatted(L.Num(v, 2).c_str());
+				ImGui::SameLine(0.0f, 0.0f);
+				ImGui::Dummy(ImVec2(10.0f, 1.0f));
+			}
+			ImGui::EndTable();
+		}
+	}
+
+	// U6: whom the camera follows, under the god's bar between the list and the book: its name and clan, its sheet and the way to let it go
+	void EditorApp::DrawFollowChip(float ox, float w)
+	{
+		namespace T = GameTheme;
+		const std::string who = m_GameView.Following();
+		if (who.empty()) return;
+		const Lang& L = m_Lang;
+		const Tribe* t = ClanOfMember(who);
+		std::string clan;
+		for (const auto& c : m_Clans.All()) if (t && c->Folk == t) clan = L.Name("clan", c->Name, c->Name);
+		const float left = m_Observer.ClansBox.X1 > m_Observer.ClansBox.X0 ? m_Observer.ClansBox.X1 + T::Gap : ox + T::Margin;
+		const float right = m_Observer.BookBox.X1 > m_Observer.BookBox.X0 ? m_Observer.BookBox.X0 - T::Gap : ox + w - T::Margin;
+		ImGui::SetNextWindowPos(ImVec2((left + right) * 0.5f, m_Observer.BarBottom + T::Gap), ImGuiCond_Always, ImVec2(0.5f, 0.0f));
+		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(std::max(right - left, 60.0f), FLT_MAX));   // (centred and never wider than the gap: it cannot reach the list nor the book)
+		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+			| ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoScrollbar;
+		if (ImGui::Begin("Follow##observer", nullptr, flags))
+		{
+			// an eye: a ring and its pupil (the font has no icons), then the name in ochre
+			const float s = ImGui::GetTextLineHeight();
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(s, s));
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			dl->AddEllipse(ImVec2(at.x + s * 0.5f, at.y + s * 0.5f + 1.0f), ImVec2(s * 0.5f, s * 0.3f), T::Ochre, 0.0f, 0, 1.6f);
+			dl->AddCircleFilled(ImVec2(at.x + s * 0.5f, at.y + s * 0.5f + 1.0f), s * 0.17f, T::Ochre);
+			ImGui::SameLine();
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", (L.Text("Following {0}", who) + (clan.empty() ? std::string() : " (" + clan + ")")).c_str());
+			ImGui::SameLine();
+			if (ImGui::SmallButton((L.Text("Sheet") + "###sheet").c_str())) m_UiCommands.push_back("observer person " + who);
+			ImGui::SameLine();
+			if (ImGui::SmallButton((L.Text("Let go") + "###letgo").c_str())) m_UiCommands.push_back("observer follow off");
+			m_Observer.FollowBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
+		}
+		ImGui::End();
 	}
 }

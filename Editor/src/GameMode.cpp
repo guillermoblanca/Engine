@@ -1630,7 +1630,9 @@ namespace GB::Editor
 			});
 		c.Register("observer", "observer [on|off|toggle|status|next|prev|<clan id or name>|sheet <members|board|store|buildings|knowledge|relations|log>]: the free mode's observer: the clans one by one with the game's look over the viewport (a card to pick the clan, its book on the right); the clan is the one the Tribe panel shows. "
 			"screen on|off: the god's screen (the observer over the whole window, no editor panel, the god's bar with the clock, the season and the weather; Esc goes back); "
-			"pause [on|off] | resume: the observer's own pause of the free mode's simulation; speed <1-20> | faster | slower: its speed (timescale); status ends with a time: line",
+			"pause [on|off] | resume: the observer's own pause of the free mode's simulation; speed <1-20> | faster | slower: its speed (timescale); status ends with a time: line; "
+			"chronicle [all|<clan>] [birth|death|build|know|clans|fight...] [weight <1-5>]: the world's chronicle with those filters, and its events (#id); go <event id>|newest: the camera to where it happened; "
+			"person <name>|sample|off: a person's sheet (any clan) and its fields; follow [name]|off: the game camera follows the person of the sheet (status: follow: and go: lines with the camera's distance)",
 			[this](const std::vector<std::string>& a) { return ObserverCommand(a); });
 		c.Register("game", "game <action>: what the keys of the game do (status, village, homes, clans, tech, map, story, interact, eat, drink, deposit, take, sleep, claim, give, talk, teach, learn, marry, propose, craft, attack, block, flee, trade, clan, jobs, pause, faster, slower, save, load, help, quality [low|medium|high|auto])",
 			[this](const std::vector<std::string>& a) { return GameCommand(a); });

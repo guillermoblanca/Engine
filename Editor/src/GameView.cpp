@@ -28,6 +28,11 @@ namespace GB::Editor
 		{
 			const std::string& name = m_Follow.empty() ? player.ControlledName() : m_Follow;
 			const Actor* a = name.empty() ? nullptr : actors.Find(name);
+			if (glm::vec3 at(0.0f); !m_Follow.empty() && Locate && Locate(m_Follow, at))   // (where it really is: its actor may have stayed behind)
+			{
+				m_Rig.SetFollowSubject(at, a ? a->GetYaw() : 0.0f);
+				return true;
+			}
 			if (!a) return false;
 			m_Rig.SetFollowSubject(a->GetPosition(), a->GetYaw());
 			if (name == player.ControlledName() && player.IsActive()) m_Rig.SetFollowView(player.CameraYaw(), player.CameraPitch());
@@ -62,7 +67,8 @@ namespace GB::Editor
 		{
 			const std::string name = a.size() > 1 ? a[1] : "";
 			if (name.empty() && !player.IsActive()) return { false, "nobody to follow: camera game follow <actor> (or start the player)" };
-			if (!name.empty() && !actors.Find(name)) return { false, "no actor called '" + name + "' (actor list)" };
+			glm::vec3 at(0.0f);
+			if (!name.empty() && !actors.Find(name) && !(Locate && Locate(name, at))) return { false, "no actor called '" + name + "' (actor list)" };
 			m_Follow = name == player.ControlledName() ? "" : name;
 			m_Rig.SetMode(GameCameraMode::Follow, current, false);   // set the mode first so Subjects feeds the follow camera...
 			Subjects(actors, player);

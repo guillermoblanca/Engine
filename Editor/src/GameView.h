@@ -3,6 +3,7 @@
 #include "GB/Game/ActorWorld.h"
 #include "GB/Game/GameCamera.h"
 #include "GB/Renderer/Camera.h"
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -20,6 +21,9 @@ namespace GB::Editor
 	public:
 		GameCameraParams Params;   // the "cameras" content section reads into this (assets/data/cameras.json through era1)
 		bool QeTurns = true;       // Q / E turn the camera (the game mode of H15 frees them: E interacts)
+		// U6: where a named subject really is, when its actor does not say it (the editor: a clan member simulated without its body leaves its
+		// actor behind); unset, or false for that name: its actor's place. Only a named follow asks it (the player's own camera never does).
+		std::function<bool(const std::string&, glm::vec3&)> Locate;
 
 		bool Active() const { return m_Active; }
 		GameCameraMode Mode() const { return m_Rig.Mode(); }
@@ -31,6 +35,8 @@ namespace GB::Editor
 		// One frame: the subjects from the actors, the input (when `acceptInput`), the rig; writes `camera`. Nothing when not active.
 		void Update(const IInputSource& source, float dt, bool acceptInput, const ActorWorld& actors, const PlayerMode& player, WorldInstance& world, Camera& camera);
 		glm::vec3 Focus() const { return m_Rig.Focus(); }
+		// who the follow camera follows by name ("" = nobody, or the player's own camera, or another mode)
+		std::string Following() const { return m_Active && m_Rig.Mode() == GameCameraMode::Follow ? m_Follow : std::string(); }
 		std::string Describe() const;
 
 	private:

@@ -48,6 +48,7 @@
 #include <future>
 #include <functional>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -416,7 +417,38 @@ namespace GB::Editor
 			// open (a script has no mouse: -1 = none)
 			Box ClansBox;
 			int Tip = -1;
+			// U5/U6: the book's tabs in groups, so they fit without scrolling (MODO_DIOS_UX 3.0): Clan, Person (the members, and one person's
+			// sheet), Chronicle, and More (the clan's other sheets, a wrapping row of buttons). Tab keeps the sheet shown (`observer status`);
+			// More is the one More shows. TabsNeed/TabsRoom: the width the group tabs want and have, MoreRows the rows of More's buttons
+			std::string More = "village";
+			float TabsNeed = 0.0f, TabsRoom = 0.0f;
+			int MoreRows = 0;
+			// U5: the world chronicle's filters (`observer chronicle <clan|all> [kind...] [weight <n>]`): the clan (-1 all), the groups hidden
+			// (StoryKinds.h) and the least weight; the event the camera was last sent to (`observer go <event>`, the [go] buttons)
+			int ChronicleClan = -1, ChronicleWeight = 1;
+			std::set<std::string> ChronicleHidden;
+			int GoEvent = 0;
+			// U5: the news of the god's screen: the weighty events of the world since the screen opened (the history's ids), with the real time
+			// they came; NewsSeen is the newest id looked at (-1: not yet, set to the newest when the screen first draws: no flood of the past)
+			struct News { int Event = 0; double At = 0.0; };
+			std::deque<News> NewsList;
+			int NewsSeen = -1;
+			Box NewsBox, FollowBox, SelectionBox;
+			// U6: the person the Person tab shows (`observer person <name>`; "" = the members' table) and the selection last turned into it
+			std::string Person, SelectionSeen;
 		} m_Observer;
+		// U5/U6 (ObserverView.cpp): the world chronicle sheet and its text, a person's sheet and its text, the news and the follow chip of the
+		// god's screen, and where a member of any clan is in the simulation (its actor stays behind while it is simulated without its body)
+		bool ChronicleShows(const HistoryEvent& e) const;
+		int EventDay(double at) const;                 // the day of a world time, from 1, as GameDay counts it
+		std::string ObserverChronicleText();
+		void DrawChronicleSheet();
+		std::string ObserverPersonText(const std::string& name);
+		void DrawPersonSheet(const Tribe& t, const TribeMember& m);
+		void DrawObserverNews(float ox, float w);
+		void DrawFollowChip(float ox, float w);
+		const Tribe* ClanOfMember(const std::string& name) const;
+		bool MemberWhere(const std::string& name, glm::vec3& at) const;
 		// U2: the quality of life of every clan (MeasureSocieties, SocietyMetrics.h), measured by the editor (GB stores none of it). The list, the
 		// clan's sheet and `observer clans` read the same measure, refreshed when the world's clock has moved a few seconds (or `force`), so a
 		// frame never shows two. Once a day (TrackQol, every frame) each clan's qol is kept for its trend.

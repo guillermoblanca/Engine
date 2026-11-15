@@ -276,7 +276,10 @@ namespace GB::Editor
 		}
 		const Lang& L = m_Lang;
 		auto itemName = [&](const std::string& id) { const ItemDef* d = m_Items.Find(id); return L.Name("item", id, d && !d->Name.empty() ? d->Name : std::string()); };
-		if (ImGui::Begin((L.Entity(name) + "###sel").c_str(), &open))
+		const bool shown = ImGui::Begin((L.Entity(name) + "###sel").c_str(), &open);
+		if (m_Observer.Screen && !m_Game.Active)   // (the god's screen counts it in `observer status`'s layout: line)
+			m_Observer.SelectionBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
+		if (shown)
 		{
 			if (who)
 			{
