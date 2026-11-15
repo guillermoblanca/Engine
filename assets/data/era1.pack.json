@@ -21,7 +21,8 @@
     "era6.json",
     "era7.json",
     "era8.json",
-    "era9.json"
+    "era9.json",
+    "tree_neolithic.json"
   ],
   "given": {
     "wood": "the camp starts with the wood found lying around on the first day (tribe build)",
