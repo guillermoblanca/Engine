@@ -86,7 +86,55 @@
    "silicon": "silicio",
    "chip": "chip",
    "computer": "ordenador",
-   "model": "modelo entrenado"
+   "model": "modelo entrenado",
+   "flint_blade": "hoja de sílex",
+   "flint_knife": "cuchillo de sílex",
+   "arrows": "flechas",
+   "polished_axe": "hacha de piedra pulida",
+   "bone_needle": "aguja de hueso",
+   "harpoon": "arpón de hueso",
+   "atlatl": "propulsor",
+   "dried_fish": "pescado seco",
+   "salted_meat": "carne salada",
+   "acorn_meal": "harina de bellota",
+   "baked_roots": "raíces asadas",
+   "beeswax": "cera de abeja",
+   "beer": "cerveza",
+   "flail": "mayal",
+   "flour": "harina",
+   "flatbread": "torta",
+   "bread": "pan",
+   "ard": "arado",
+   "clay_figurine": "figurilla de barro",
+   "storage_jar": "tinaja",
+   "glazed_jar": "tinaja vidriada",
+   "lime": "cal viva",
+   "oil_lamp": "lámpara de aceite",
+   "yarn": "hilo",
+   "cloth": "tela",
+   "woven_belt": "cinturón tejido",
+   "dye": "tinte",
+   "dyed_cloth": "tela teñida",
+   "tunic": "túnica",
+   "hide_clothing": "ropa de piel",
+   "mortar": "argamasa",
+   "sledge": "trineo de arrastre",
+   "dugout": "piragua",
+   "cart_wheel": "rueda de carro",
+   "copper_awl": "punzón de cobre",
+   "copper_beads": "cuentas de cobre",
+   "charcoal": "carbón vegetal",
+   "bellows_bag": "fuelle",
+   "clay_mould": "molde de barro",
+   "copper_dagger": "puñal de cobre",
+   "bronze_pickaxe": "pico de bronce",
+   "bronze_sickle": "hoz de bronce",
+   "ochre_paint": "pintura de ocre",
+   "bone_beads": "cuentas de hueso",
+   "bone_flute": "flauta de hueso",
+   "tally_stick": "palo de muescas",
+   "clay_token": "ficha de barro",
+   "splint": "férula"
   },
   "building": {
    "shelter": "refugio",
@@ -130,7 +178,14 @@
    "office": "oficina",
    "datacenter": "centro de datos",
    "commons": "lugar común",
-   "town_hall": "casa del concejo"
+   "town_hall": "casa del concejo",
+   "loom_frame": "telar",
+   "quern": "molino de mano",
+   "bread_oven": "horno de pan",
+   "potter_wheel": "torno de alfarero",
+   "cellar": "bodega de tinajas",
+   "mudbrick_house": "casa de adobe",
+   "stone_circle": "círculo de piedras"
   },
   "phase": {
    "foundation": "cimientos",
@@ -164,7 +219,10 @@
    "jars": "tinajas",
    "stones": "piedras",
    "posts": "postes",
-   "awning": "toldo"
+   "awning": "toldo",
+   "wheel": "rueda",
+   "warp": "urdimbre",
+   "pivot": "eje"
   },
   "station": {
    "workbench": "banco de trabajo",
@@ -173,7 +231,11 @@
    "smoking_rack": "ahumadero",
    "tannery": "curtiduría",
    "kiln": "horno",
-   "forge": "fragua"
+   "forge": "fragua",
+   "quern": "molino de mano",
+   "oven": "horno de pan",
+   "loom": "telar",
+   "wheel": "torno de alfarero"
   },
   "tech": {
    "stone_tools": "herramientas de piedra",
@@ -211,7 +273,57 @@
    "steam_power": "vapor",
    "electricity": "electricidad",
    "computing": "computación",
-   "artificial_intelligence": "inteligencia artificial"
+   "artificial_intelligence": "inteligencia artificial",
+   "blade_cores": "núcleos de láminas",
+   "pressure_flaking": "retoque a presión",
+   "microliths": "microlitos y flechas",
+   "ground_stone": "piedra pulida",
+   "eyed_needles": "agujas con ojo",
+   "harpoons": "arpones dentados",
+   "spear_thrower": "propulsor",
+   "game_drives": "ojeos de caza",
+   "fish_drying": "secar pescado",
+   "salting": "salazón",
+   "acorn_leaching": "lavar bellotas",
+   "earth_oven": "horno de tierra",
+   "honey_harvest": "recoger miel",
+   "fermentation": "fermentación",
+   "threshing": "trilla",
+   "seed_selection": "escoger semillas",
+   "grinding": "piedras de moler",
+   "baking": "hornear",
+   "ard_plough": "arado",
+   "irrigation": "acequias",
+   "crop_rotation": "barbecho y rotación",
+   "clay_figurines": "figurillas de barro",
+   "potters_wheel": "torno de alfarero",
+   "glazing": "vidriado",
+   "lime_burning": "quemar cal",
+   "lamps": "lámparas de aceite",
+   "spinning": "hilar",
+   "weaving_loom": "tejer en telar",
+   "dyeing": "teñir",
+   "sewing": "ropa cosida",
+   "mudbrick_building": "construir con adobe",
+   "megaliths": "megalitos",
+   "sledges": "trineos de arrastre",
+   "dugout_canoes": "piraguas",
+   "the_wheel": "la rueda",
+   "cold_hammering": "cobre martillado en frío",
+   "annealing": "recocido",
+   "prospecting": "buscar menas",
+   "charcoal_burning": "hacer carbón vegetal",
+   "bellows": "fuelles",
+   "mould_casting": "fundir en molde",
+   "bronze_working": "trabajo del bronce",
+   "cave_painting": "pintura rupestre",
+   "personal_ornaments": "adornos",
+   "music": "música",
+   "burial_rites": "ritos funerarios",
+   "tally_marks": "marcas de cuenta",
+   "clay_tokens": "fichas de barro",
+   "calendar": "calendario",
+   "splinting": "entablillar huesos"
   },
   "techname": {
    "Stone tools": "herramientas de piedra",
@@ -249,7 +361,57 @@
    "Steam power": "vapor",
    "Electricity": "electricidad",
    "Computing": "computación",
-   "Artificial intelligence": "inteligencia artificial"
+   "Artificial intelligence": "inteligencia artificial",
+   "Blade cores": "núcleos de láminas",
+   "Pressure flaking": "retoque a presión",
+   "Microliths and arrows": "microlitos y flechas",
+   "Ground stone tools": "piedra pulida",
+   "Eyed needles": "agujas con ojo",
+   "Barbed harpoons": "arpones dentados",
+   "Spear-thrower": "propulsor",
+   "Game drives": "ojeos de caza",
+   "Fish drying": "secar pescado",
+   "Salting": "salazón",
+   "Acorn leaching": "lavar bellotas",
+   "Earth oven": "horno de tierra",
+   "Honey harvest": "recoger miel",
+   "Fermentation": "fermentación",
+   "Threshing": "trilla",
+   "Seed selection": "escoger semillas",
+   "Grinding stones": "piedras de moler",
+   "Baking": "hornear",
+   "Ard plough": "arado",
+   "Irrigation ditches": "acequias",
+   "Fallow and rotation": "barbecho y rotación",
+   "Clay figurines": "figurillas de barro",
+   "Potter's wheel": "torno de alfarero",
+   "Glazing": "vidriado",
+   "Lime burning": "quemar cal",
+   "Oil lamps": "lámparas de aceite",
+   "Spinning": "hilar",
+   "Loom weaving": "tejer en telar",
+   "Dyeing": "teñir",
+   "Sewn clothing": "ropa cosida",
+   "Mud-brick building": "construir con adobe",
+   "Megaliths": "megalitos",
+   "Sledges": "trineos de arrastre",
+   "Dugout canoes": "piraguas",
+   "The wheel": "la rueda",
+   "Cold-hammered copper": "cobre martillado en frío",
+   "Annealing": "recocido",
+   "Prospecting": "buscar menas",
+   "Charcoal burning": "hacer carbón vegetal",
+   "Bellows": "fuelles",
+   "Mould casting": "fundir en molde",
+   "Bronze working": "trabajo del bronce",
+   "Cave painting": "pintura rupestre",
+   "Personal ornaments": "adornos",
+   "Music": "música",
+   "Burial rites": "ritos funerarios",
+   "Tally marks": "marcas de cuenta",
+   "Clay tokens": "fichas de barro",
+   "Calendar": "calendario",
+   "Bone setting": "entablillar huesos"
   },
   "role": {
    "crafter": "artesano",
@@ -329,7 +491,11 @@
    "envoy": "embajada a",
    "pray": "reza",
    "study": "estudia",
-   "reflect": "reflexiona"
+   "reflect": "reflexiona",
+   "pave": "empiedra",
+   "snare": "pone lazos",
+   "recover": "se recupera",
+   "raid": "asalta"
   },
   "kind": {
    "gather": "recoger",
@@ -438,7 +604,26 @@
    "Green": "Verde",
    "Gold": "Oro",
    "Ash": "Ceniza",
-   "Clan 1": "Clan 1"
+   "Reed": "Junco",
+   "Elk": "Alce",
+   "Fern": "Helecho",
+   "Otter": "Nutria",
+   "Flint": "Pedernal",
+   "Clan 1": "Roble",
+   "Clan 1 II": "Roble II",
+   "Clan 1 III": "Roble III",
+   "Ash II": "Ceniza II",
+   "Ash III": "Ceniza III",
+   "Reed II": "Junco II",
+   "Reed III": "Junco III",
+   "Elk II": "Alce II",
+   "Elk III": "Alce III",
+   "Fern II": "Helecho II",
+   "Fern III": "Helecho III",
+   "Otter II": "Nutria II",
+   "Otter III": "Nutria III",
+   "Flint II": "Pedernal II",
+   "Flint III": "Pedernal III"
   },
   "animal": {
    "Rabbit": "conejo",
@@ -603,6 +788,45 @@
    "diligence": "diligencia",
    "curiosity": "curiosidad",
    "boldness": "audacia"
+  },
+  "tradition": {
+   "Fire vigil": "la vela del fuego",
+   "Naming feast": "la fiesta del nombre",
+   "Mourning": "el luto",
+   "Lore circle": "el corro del saber",
+   "Toolmakers' pride": "el orgullo de los artesanos"
+  },
+  "farmdo": {
+   "till": "labrar",
+   "sow": "sembrar",
+   "tend": "regar",
+   "harvest": "cosechar"
+  },
+  "meet": {
+   "trade": "trueque",
+   "gift": "regalo",
+   "visit": "visita",
+   "parley": "parlamento"
+  },
+  "regiondir": {
+   "Central": "del centro",
+   "East": "del este",
+   "Southeast": "del sureste",
+   "South": "del sur",
+   "Southwest": "del suroeste",
+   "West": "del oeste",
+   "Northwest": "del noroeste",
+   "North": "del norte",
+   "Northeast": "del noreste"
+  },
+  "regionkind": {
+   "Lake": "el lago",
+   "Shore": "la orilla",
+   "Meadows": "las praderas",
+   "Woods": "los bosques",
+   "Crags": "los riscos",
+   "Snowfields": "los neveros",
+   "Dunes": "las dunas"
   }
  },
  "entity": {
@@ -695,9 +919,429 @@
   "Office": "Oficina",
   "Data centre": "Centro de datos",
   "Commons": "Lugar común",
-  "Town hall": "Casa del concejo"
+  "Town hall": "Casa del concejo",
+  "loom": "Telar",
+  "quern": "Molino de mano",
+  "bread oven": "Horno de pan",
+  "potter's wheel": "Torno de alfarero",
+  "jar cellar": "Bodega de tinajas",
+  "mud-brick house": "Casa de adobe",
+  "stone circle": "Círculo de piedras",
+  "path": "el camino"
  },
  "phrases": [
+  {
+   "re": "^(\\S+) \\([^)]*\\) goes to (till|sow|tend|harvest) (\\d+) plots of field (\\d+)$",
+   "to": "{1} va a {farmdo:2} {3} parcelas del campo {4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) tills (\\d+) plots of field (\\d+)$",
+   "to": "{1} labra {2} parcelas del campo {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) sows (\\d+) plots of field (\\d+) with (\\S+)$",
+   "to": "{1} siembra {item:4} en {2} parcelas del campo {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) waters (\\d+) plots of field (\\d+)$",
+   "to": "{1} riega {2} parcelas del campo {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) harvests (\\d+) plots of field (\\d+): (.+)$",
+   "to": "{1} cosecha {2} parcelas del campo {3}: {line:4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) harvests (\\d+) plots of field (\\d+)$",
+   "to": "{1} cosecha {2} parcelas del campo {3}"
+  },
+  {
+   "re": "^the clan sees (\\d+) plots of field (\\d+) ripen$",
+   "to": "el clan ve madurar {1} parcelas del campo {2}"
+  },
+  {
+   "re": "^the clan loses (\\d+) plots of field (\\d+) to the frost$",
+   "to": "la helada echa a perder {1} parcelas del campo {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes a (\\S+) from the store: it can carry more$",
+   "to": "{1} coge {item:2} del almacén: así carga más"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) leaves (\\d+) (\\S+): the store has all it can keep of it$",
+   "to": "{1} deja {2} de {item:3}: en el almacén ya no cabe más"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the (\\S+) from the store and leaves its (\\S+)$",
+   "to": "{1} coge {item:2} del almacén y deja {item:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the (\\S+) from the store$",
+   "to": "{1} coge {item:2} del almacén"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) finds (.+) empty$",
+   "to": "{1} encuentra vacío {ent:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is cross with (\\S+): (\\S+) emptied (.+)$",
+   "to": "{1} se enfada con {2}: dejó vacío {ent:4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) cannot get to \\([^)]*\\) in (.+): it goes on to the next place$",
+   "to": "{1} no puede llegar a un punto de {line:2}: sigue hacia el siguiente"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) cannot get to (.+) ground: (.+)$",
+   "to": "{1} no puede llegar a {ent:2}"
+  },
+  {
+   "re": "^the store is full of (\\S+) \\((\\d+)/(\\d+)\\)$",
+   "to": "el almacén está lleno de {item:1} ({2} de {3})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) does not make (\\S+): the store is full of it$",
+   "to": "{1} no hace {item:2}: el almacén ya está lleno"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is the clan's shaman now: it presides over the rites$",
+   "to": "{1} es ahora el chamán del clan: preside los ritos"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) has a child: (\\S+) \\(with (\\S+)\\)$",
+   "to": "{1} y {3} tienen un bebé: {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) has a child: (\\S+)(.*)$",
+   "to": "{1} tiene un bebé: {2}"
+  },
+  {
+   "re": "^(\\S+) pairs with (\\S+)$",
+   "to": "{1} y {2} se emparejan"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) leaves the clan$",
+   "to": "{1} deja el clan"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) empty-handed$",
+   "to": "{1} vuelve del asalto a {clan:2} con las manos vacías"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) with (\\d+) things for the store$",
+   "to": "{1} vuelve del asalto a {clan:2} con {3} cosas para el almacén"
+  },
+  {
+   "re": "^the clan is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): nothing taken$",
+   "to": "el clan vuelve del asalto a {clan:1} sin botín"
+  },
+  {
+   "re": "^the clan is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (.+)$",
+   "to": "el clan vuelve del asalto a {clan:1} con {line:2}"
+  },
+  {
+   "re": "^the clan turns back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "to": "el clan se retira del asalto a {clan:1}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is killed by (.+?) \\(it bled to death\\)$",
+   "to": "{1} muere desangrado ({ent:2})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is killed by (.+)$",
+   "to": "{1} muere a manos de {ent:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is killed \\(it bled to death\\)$",
+   "to": "{1} muere desangrado"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is killed$",
+   "to": "{1} muere en una pelea"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is wounded \\((.+?), by (.+)\\)$",
+   "to": "{1} sale herido por {ent:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is wounded \\((.+)\\)$",
+   "to": "{1} sale herido"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) shares its first kill \\((.+?)\\) with the clan: (\\d+) things to the store \\((.+)\\)$",
+   "to": "{1} comparte con el clan su primera caza ({ent:2}): {3} cosas al almacén"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) sets off for (.+) to look for (\\S+)$",
+   "to": "{1} parte hacia {line:2} a buscar {item:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) has seen what it could of (.+) and heads home$",
+   "to": "{1} ya ha visto lo que podía de {line:2} y vuelve a casa"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is back from (.+) and tells the clan what it saw$",
+   "to": "{1} vuelve de {line:2} y cuenta al clan lo que ha visto"
+  },
+  {
+   "re": "^the clan knows nowhere (\\S+) grows: it calls for an expedition to (.+?) \\((.*)\\)$",
+   "to": "el clan no sabe dónde hay {item:1}: organiza una expedición a {line:2}"
+  },
+  {
+   "re": "^the clan hears from the expedition to (.+?): no (\\S+) there$",
+   "to": "vuelve la expedición a {line:1}: allí no hay {item:2}"
+  },
+  {
+   "re": "^the clan hears from the expedition to (.+?): no (\\S+) there, but it now knows where some grows$",
+   "to": "vuelve la expedición a {line:1}: allí no hay {item:2}, pero ya sabe dónde encontrarlo"
+  },
+  {
+   "re": "^the clan hears from the expedition to (.+?): (.+) \\((\\S+)\\)$",
+   "to": "vuelve la expedición a {line:1}: ha encontrado {item:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) goes to look for (\\S+) at -?\\d+, -?\\d+$",
+   "to": "{1} va a buscar {ent:2}"
+  },
+  {
+   "re": "^the clan moves its camp from \\([^)]*\\) to \\([^)]*\\) in (.+?): (.+)$",
+   "to": "el clan traslada su campamento a {line:1}"
+  },
+  {
+   "re": "^the clan moves its camp from \\([^)]*\\) to \\([^)]*\\): (.+)$",
+   "to": "el clan traslada su campamento"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) paves (\\d+) cells of the path with (\\S+)$",
+   "to": "{1} empiedra {2} tramos del camino con {item:3}"
+  },
+  {
+   "re": "^the clan marks (\\d+) cells of its most worn path to pave with (\\S+), from \\([^)]*\\)$",
+   "to": "el clan marca {1} tramos de su camino más pisado para empedrarlos con {item:2}"
+  },
+  {
+   "re": "^the clan marks out field (\\d+) at -?\\d+, -?\\d+ \\((\\d+) plots\\)$",
+   "to": "el clan traza el campo {1} ({2} parcelas)"
+  },
+  {
+   "re": "^the clan paves its most worn path: (\\d+) cells left, with (\\S+)$",
+   "to": "el clan empiedra su camino más pisado con {item:2}: faltan {1} tramos"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) discovers (.+?) by experimenting with the materials of the (\\S+) \\(worked out after (\\d+) tries\\)$",
+   "to": "{1} descubre {techname:2} experimentando con {item:3} (tras {4} intentos)"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) discovers (.+?) by experimenting \\(worked out after (\\d+) tries\\)$",
+   "to": "{1} descubre {techname:2} experimentando (tras {3} intentos)"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) learns (.+) talking with (\\S+)$",
+   "to": "{1} aprende {techname:2} hablando con {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) learns (.+) by watching (\\S+)$",
+   "to": "{1} aprende {techname:2} mirando a {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) by watching (\\S+)$",
+   "to": "{1} entiende el {2} % de {techname:3} mirando a {4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) learns (.+) a story of (\\S+)$",
+   "to": "{1} aprende {techname:2} con una historia de {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) a story of (\\S+)$",
+   "to": "{1} entiende el {2} % de {techname:3} con una historia de {4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) learns (.+) a lesson from (\\S+)$",
+   "to": "{1} aprende {techname:2} con una lección de {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) a lesson from (\\S+)$",
+   "to": "{1} entiende el {2} % de {techname:3} con una lección de {4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) learns (.+) by working (\\S+)$",
+   "to": "{1} aprende {techname:2} trabajando con {item:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) by working (\\S+)$",
+   "to": "{1} entiende el {2} % de {techname:3} trabajando con {item:4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) learns (.+) from (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "to": "{1} aprende {techname:2} de {3} ({clan:4})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) from (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "to": "{1} entiende el {2} % de {techname:3} gracias a {4} ({clan:5})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) greets (\\S+) of ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "to": "{1} saluda a {2} ({clan:3})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) greets (\\S+)(?: \\(.+\\))?$",
+   "to": "{1} saluda a {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) chats with (\\S+) \\(.+\\)$",
+   "to": "{1} charla con {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) tells a story to (\\S+)(?: \\(.+\\))?$",
+   "to": "{1} cuenta una historia a {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) gossips with (\\S+)(?: \\(.+\\))?$",
+   "to": "{1} cotillea con {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) consoles (\\S+)(?: \\(.+\\))?$",
+   "to": "{1} consuela a {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) makes peace with (\\S+)(?: \\(.+\\))?$",
+   "to": "{1} hace las paces con {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) shares food with (\\S+)(?: \\(.+\\))?$",
+   "to": "{1} comparte comida con {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) grooms (\\S+)(?: \\(.+\\))?$",
+   "to": "{1} acicala a {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) plays with (\\S+)(?: \\(.+\\))?$",
+   "to": "{1} juega con {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is at the meeting point \\([^)]*\\) and waits for the envoy of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "to": "{1} espera en el lugar del encuentro al enviado de {clan:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) cannot find a way to the meeting point \\([^)]*\\): it goes home$",
+   "to": "{1} no encuentra el camino al lugar del encuentro y vuelve a casa"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) gives up the errand to the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): it cannot get where it is going$",
+   "to": "{1} abandona el encargo para {clan:2}: no puede llegar"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) packs (.+) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "to": "{1} prepara {line:2} para {clan:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) puts (.+) in the store \\(from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)\\)$",
+   "to": "{1} guarda en el almacén {line:2} (de {clan:3})"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) puts (.+) in the store again$",
+   "to": "{1} vuelve a guardar {line:2} en el almacén"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(trade: (.+) for (.+)\\)$",
+   "to": "{1} se encuentra con {2} ({clan:3}): cambian {line:4} por {line:5}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(gift: (.+) from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)\\)$",
+   "to": "{1} se encuentra con {2} ({clan:3}): {clan:5} regala {line:4}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)(?: \\((visit|parley)\\))?$",
+   "to": "{1} se encuentra con {2} ({clan:3})"
+  },
+  {
+   "re": "^the clan meets the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) for the first time$",
+   "to": "el clan conoce a {clan:1}"
+  },
+  {
+   "re": "^the clan sends (\\S+) to meet the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) at \\([^)]*\\): (trade|gift) \\((?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) give (.+); (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) give (.+)\\)$",
+   "to": "el clan envía a {1} a encontrarse con {clan:2}: {meet:3} (da {line:4}; recibe {line:5})"
+  },
+  {
+   "re": "^the clan sends (\\S+) to meet the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) at \\([^)]*\\): (\\S+)$",
+   "to": "el clan envía a {1} a encontrarse con {clan:2}: {meet:3}"
+  },
+  {
+   "re": "^the clan sends (.+?) to (.+) to look for (\\S+)$",
+   "to": "el clan envía a {line:1} a {line:2} a buscar {item:3}"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): first contact: (\\S+) of (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) meets (\\S+) of (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) at \\([^)]*\\)$",
+   "to": "primer contacto entre {clan:1} y {clan:2}: {3} se encuentra con {4}"
+  },
+  {
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) agree an alliance for (\\d+)(?:\\.\\d+)? days$",
+   "to": "{1} de {clan:2} y {3} de {clan:4} sellan una alianza por {5} días"
+  },
+  {
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) agree a truce for (\\d+)(?:\\.\\d+)? days$",
+   "to": "{1} de {clan:2} y {3} de {clan:4} sellan una tregua por {5} días"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) agree an alliance$",
+   "to": "{clan:1} y {clan:2} sellan una alianza"
+  },
+  {
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) weds (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and moves to them$",
+   "to": "{1} de {clan:2} se casa con {3} de {clan:4} y se va a vivir con ellos"
+  },
+  {
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) visits the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "to": "{1} de {clan:2} visita a {clan:3}"
+  },
+  {
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) meet: trade: (.+) for (.+)$",
+   "to": "{1} de {clan:2} y {3} de {clan:4} se encuentran: cambian {line:5} por {line:6}"
+  },
+  {
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) meet: gift: (.+) from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "to": "{1} de {clan:2} y {3} de {clan:4} se encuentran: {clan:6} regala {line:5}"
+  },
+  {
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) meet: (\\S+)$",
+   "to": "{1} de {clan:2} y {3} de {clan:4} se encuentran: {meet:5}"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) shows (\\S+) how (.+) is done$",
+   "to": "{3} enseña {techname:5} a {4} ({clan:1} y {clan:2})"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): the (\\S+) came to nothing \\((.*)\\)$",
+   "to": "{clan:1} y {clan:2}: {meet:3} se queda en nada"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) are (\\S+) now \\(were (\\S+)\\)$",
+   "to": "{clan:1} y {clan:2}: ahora {stance:3} (antes {stance:4})"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) send (\\S+) and (\\S+) to meet at \\([^)]*\\): (trade|gift) \\((?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) give (.+); (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) give (.+)\\)$",
+   "to": "{clan:1} y {clan:2} envían a {3} y {4} a encontrarse: {meet:5} ({clan:1} da {line:6}; {clan:2} da {line:7})"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) send (\\S+) and (\\S+) to meet at \\([^)]*\\): (\\S+)$",
+   "to": "{clan:1} y {clan:2} envían a {3} y {4} a encontrarse: {meet:5}"
+  },
+  {
+   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(marries (\\S+)\\)$",
+   "to": "{1} deja {clan:2} por {clan:3}: se casa con {4}"
+  },
+  {
+   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(goes with its household to found the .+\\)$",
+   "to": "{1} deja {clan:2} con su familia para fundar {clan:3}"
+  },
+  {
+   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)(?: \\(.*\\))?$",
+   "to": "{1} deja {clan:2} por {clan:3}"
+  },
+  {
+   "re": "^(\\d+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (.+)$",
+   "to": "{1} de {clan:2} se marchan a fundar {clan:3}"
+  },
   {
    "re": "^the hall of a (.+)$",
    "to": "la casa de una {1}"
@@ -884,7 +1528,7 @@
   },
   {
    "re": "^the clan starts (.+) at [^(]+ \\(([^)]*)\\)$",
-   "to": "el clan empieza {ent:1} ({2})"
+   "to": "el clan empieza {ent:1} ({line:2})"
   },
   {
    "re": "^(\\S+) \\([^)]*\\) proposes to build (\\S+): the clan says no, but the player builds it \\((\\d+) of (\\d+) agree(.*)\\)$",
@@ -927,6 +1571,14 @@
    "to": "{1} coge el trabajo: {kind:2}"
   },
   {
+   "re": "^(\\S+) \\([^)]*\\) takes the job expedition (\\S+) from the board$",
+   "to": "{1} coge el trabajo: expedición en busca de {item:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the job (farm|pray|study|reflect|explore) (.*)from the board$",
+   "to": "{1} coge el trabajo: {kind:2}"
+  },
+  {
    "re": "^(\\S+) \\([^)]*\\) takes the job (.+) from the board$",
    "to": "{1} coge el trabajo: {2}"
   },
@@ -947,8 +1599,12 @@
    "to": "{1} lleva {2} cosas al almacén"
   },
   {
+   "re": "^(\\S+) \\([^)]*\\) carries (.+) to pave (\\d+) cells of the path$",
+   "to": "{1} lleva {line:2} para empedrar {3} tramos del camino"
+  },
+  {
    "re": "^(\\S+) \\([^)]*\\) carries (.+) to (.+)$",
-   "to": "{1} lleva {2} a {ent:3}"
+   "to": "{1} lleva {line:2} a {ent:3}"
   },
   {
    "re": "^(\\S+) \\([^)]*\\) leaves (\\d+) in the store$",
@@ -971,12 +1627,16 @@
    "to": "{ent:1} está en pie: {2} camas"
   },
   {
+   "re": "^(.+) stands: (.+)$",
+   "to": "{ent:1} está en pie: {line:2}"
+  },
+  {
    "re": "^(.+) stands(.*)$",
    "to": "{ent:1} está en pie{2}"
   },
   {
    "re": "^the clan starts (.+) at [^(]+ \\(([^)]*)\\): (.+)$",
-   "to": "el clan empieza {ent:1} ({2}): {line:3}"
+   "to": "el clan empieza {ent:1} ({line:2}): {line:3}"
   },
   {
    "re": "^beds for (\\d+) of (\\d+) \\(the house of (\\S+)'s household\\)$",
@@ -1036,7 +1696,7 @@
   },
   {
    "re": "^(\\S+) \\([^)]*\\) kills (\\S+) (\\d+): (.+)$",
-   "to": "{1} caza un {animal:2}: {4}"
+   "to": "{1} caza un {animal:2}: {line:4}"
   },
   {
    "re": "^the clan celebrates its first kill: (\\S+) brought it home$",
@@ -1160,7 +1820,7 @@
   },
   {
    "re": "^clan \\(all\\) the clan keeps a new tradition: (.+) \\((\\d+) times (\\S+)\\)$",
-   "to": "el clan tiene una tradición nueva: {1}"
+   "to": "el clan tiene una tradición nueva: {tradition:1}"
   },
   {
    "re": "^(\\S+) \\([^)]*\\) dies of (\\S+)(.*)$",
@@ -1344,11 +2004,91 @@
   },
   {
    "re": "^the clan keeps a new tradition: (.+) \\(([^)]*)\\)$",
-   "to": "El clan adopta una tradición nueva: {1}"
+   "to": "El clan adopta una tradición nueva: {tradition:1}"
   },
   {
    "re": "^(.+) and (.+): (\\S+) of (.+) takes from (.+) in (.+), which the (.+) hold$",
-   "to": "{3} de {4} toma {ent:5} en {6}, tierra de {7}"
+   "to": "{3} de {clan:4} toma {ent:5} en {line:6}, tierra de {clan:7}"
+  },
+  {
+   "re": "^(Central|East|Southeast|South|Southwest|West|Northwest|North|Northeast) (Lake|Shore|Meadows|Woods|Crags|Snowfields|Dunes)( \\d+)?$",
+   "to": "{regionkind:2} {regiondir:1}{3}"
+  },
+  {
+   "re": "^([A-Z][a-z]+\\d*) and ([A-Z][a-z]+\\d*)$",
+   "to": "{1} y {2}"
+  },
+  {
+   "re": "^([A-Z][a-z]+\\d*), (.+ and .+)$",
+   "to": "{1}, {line:2}"
+  },
+  {
+   "re": "^nothing$",
+   "to": "nada"
+  },
+  {
+   "re": "^their land$",
+   "to": "sus tierras"
+  },
+  {
+   "re": "^(\\d+ beds|station \\S+|\\+\\d+ store cap|food keeps x\\S+|defense \\S+|wounds heal x\\S+|a place to meet|warmth around it|a well|a \\S+ of the economy), (.+)$",
+   "to": "{line:1}, {line:2}"
+  },
+  {
+   "re": "^(\\d+) beds$",
+   "to": "{1} camas"
+  },
+  {
+   "re": "^station (\\S+)$",
+   "to": "sirve de {station:1}"
+  },
+  {
+   "re": "^\\+(\\d+) store cap$",
+   "to": "+{1} de capacidad en el almacén"
+  },
+  {
+   "re": "^food keeps x\\S+$",
+   "to": "la comida dura más"
+  },
+  {
+   "re": "^defense \\S+$",
+   "to": "defiende el campamento"
+  },
+  {
+   "re": "^wounds heal x\\S+$",
+   "to": "las heridas curan antes"
+  },
+  {
+   "re": "^a place to meet$",
+   "to": "un lugar de reunión"
+  },
+  {
+   "re": "^warmth around it$",
+   "to": "da calor alrededor"
+  },
+  {
+   "re": "^a well$",
+   "to": "un pozo"
+  },
+  {
+   "re": "^a \\S+ of the economy$",
+   "to": "un almacén del clan"
+  },
+  {
+   "re": "^nothing yet$",
+   "to": "nada todavía"
+  },
+  {
+   "re": "^(\\d+) ([a-z][a-z_]*)$",
+   "to": "{1} {item:2}"
+  },
+  {
+   "re": "^(\\d+) ([a-z][a-z_]*), (.+)$",
+   "to": "{1} {item:2}, {line:3}"
+  },
+  {
+   "re": "^(\\d+) ([a-z][a-z_]*) and (.+)$",
+   "to": "{1} {item:2} y {line:3}"
   }
  ],
  "ui": {
