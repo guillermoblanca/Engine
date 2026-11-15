@@ -5,10 +5,38 @@ play temperate 5 4 2
 timescale 20
 wait 1500
 timescale 1
+# T214: the player runs to Ana and stays by her (`game approach` follows her until she is within reach). Scripts have no loop, so it asks again
+# every 100 frames for long enough to cross the valley (she may be 40 m off, round the river), not for a time that fits only one run
 game approach Ana
-wait 300
+wait 100
 game approach Ana
-wait 200
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
+game approach Ana
+wait 100
 qa expect "game talk Ana" "tells you"
 qa expect "tribe history of Player" "heard from Ana"
 qa expect "game ask Ana where berry" "says there is|does not know"
