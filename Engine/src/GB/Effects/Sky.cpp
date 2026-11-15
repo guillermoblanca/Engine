@@ -44,7 +44,9 @@ namespace GB
 		st.Env.FogColor = glm::mix(horizon * 0.85f, glm::vec3(0.02f, 0.03f, 0.06f), st.NightFactor * 0.5f);
 		st.Env.Stars = st.NightFactor * (1.0f - d.CloudCover * 0.8f);
 		st.Env.CloudCover = d.CloudCover;
-		st.Env.Exposure = glm::mix(base.Exposure * 1.9f, base.Exposure, glm::smoothstep(-0.1f, 0.3f, h));   // eyes adapt to the dark
+		// Eyes adapt to the dark, but only once the sun's light fades (it is full down to h 0.22 and a third at h 0.05): the boost began at h 0.3
+		// with the sun still at full strength, and at 17:30 the scene took 1.36 times the noon exposure under 0.78 of the sun, burnt white on snow (T235).
+		st.Env.Exposure = glm::mix(base.Exposure * 1.9f, base.Exposure, glm::smoothstep(-0.15f, 0.05f, h));
 
 		// The directional light: the sun by day, tinted warm near the horizon; the moon at night.
 		if (day > 0.02f || st.NightFactor < 0.5f)

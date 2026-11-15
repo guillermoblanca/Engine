@@ -3,6 +3,7 @@
 // camps; `clan select` chooses the clan the Tribe panel and the `tribe` reports show. The clans besides the first are saved in the "clans" section.
 #include "EditorApp.h"
 #include "GB/Log.h"
+#include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/Game/StartSites.h"
 #include <chrono>
@@ -91,7 +92,9 @@ namespace GB::Editor
 	{
 		const auto def = m_Interactives.Defs.find("well");
 		const InteractiveDef well = def != m_Interactives.Defs.end() ? def->second : DefaultInteractives().at("well");
-		BuildInteractive(m_SceneEditor.World(), well, name, NullEntity, { at.x, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(at.x, at.y) : 0.0f, at.y });
+		// on the lowest ground under its wall (T235: on a slope the downhill side hung in the air)
+		const float y = m_World.IsBuilt() ? GroundUnder([this](float x, float z) { return m_World.GetTerrain().GetHeight(x, z); }, at, InteractiveFootprintRadius(well)) : 0.0f;
+		BuildInteractive(m_SceneEditor.World(), well, name, NullEntity, { at.x, y, at.y });
 		SyncNewGameplay();
 	}
 
@@ -179,12 +182,8 @@ namespace GB::Editor
 			Tribe& t = *c.Folk;
 			// a well by the camp (its own name: the interactives are found by name)
 			{
-				const auto def = m_Interactives.Defs.find("well");
-				const InteractiveDef well = def != m_Interactives.Defs.end() ? def->second : DefaultInteractives().at("well");
 				const glm::vec2 raw = camp + glm::vec2(4.0f, -6.0f);   // on dry ground clear of trunks and rocks, as GBSim digs it (SimRun::SetUpClan)
-				const glm::vec2 at = m_World.IsBuilt() ? FindFreeSpot(m_Actors.Host().World, raw, 1.5f) : raw;
-				BuildInteractive(m_SceneEditor.World(), well, "Well " + name, NullEntity, { at.x, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(at.x, at.y) : 0.0f, at.y });
-				SyncNewGameplay();
+				PlaceWell("Well " + name, m_World.IsBuilt() ? FindFreeSpot(m_Actors.Host().World, raw, 1.5f) : raw);
 			}
 			std::vector<std::string> names;
 			for (size_t k = 0; static_cast<int>(names.size()) < members; ++k)   // the names of the data, skipping those any clan or actor uses

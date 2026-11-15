@@ -295,6 +295,13 @@ namespace GB
 			for (const InteractiveAbility& a : d.Abilities) lib.AddAbility(Use(a, InteractiveKindTag(d.Kind)));
 	}
 
+	float InteractiveFootprintRadius(const InteractiveDef& def)
+	{
+		if (def.Kind == "well") return 0.92f;       // the 1.3 m square wall below
+		if (def.Kind == "campfire") return 0.6f;    // the stones at 0.45 m
+		return 0.0f;
+	}
+
 	EntityId BuildInteractive(EntityWorld& w, const InteractiveDef& def, const std::string& name, EntityId parent, const glm::vec3& pos)
 	{
 		const EntityId id = w.Create(name, parent);

@@ -57,9 +57,8 @@ namespace GB
 		const float p = std::max(0.0f, std::min(1.0f, progress));
 		switch (s)
 		{
-		case Season::Winter: return 0.95f * std::min(1.0f, p / 0.15f);
-		case Season::Spring: return 0.95f * std::max(0.0f, 1.0f - p / 0.25f);
-		case Season::Autumn: return p > 0.9f ? (p - 0.9f) / 0.1f * 0.3f : 0.0f;   // a first dusting just before winter
+		// it falls over the first 15% of winter and melts over its last 25%: spring starts green (T235: the game starts on spring's first day)
+		case Season::Winter: return 0.95f * std::min(1.0f, p / 0.15f) * std::min(1.0f, (1.0f - p) / 0.25f);		case Season::Autumn: return p > 0.9f ? (p - 0.9f) / 0.1f * 0.3f : 0.0f;   // a first dusting just before winter
 		default: return 0.0f;
 		}
 	}

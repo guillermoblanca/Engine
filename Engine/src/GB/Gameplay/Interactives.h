@@ -94,6 +94,9 @@ namespace GB
 	// One interactive: the entity (named `name`, under `parent`, at `pos` in the parent's space) with its interaction point, its gameplay component
 	// (the def's tags and attributes) and the parts its kind looks like (the flame and light of a campfire start off). Returns the entity.
 	EntityId BuildInteractive(EntityWorld& world, const InteractiveDef& def, const std::string& name, EntityId parent, const glm::vec3& pos);
+	// T235: half the diagonal of what BuildInteractive puts on the ground for the def's kind (a well's 1.3 m wall, a campfire's ring of stones; 0 a
+	// door): with GroundUnder (Buildings.h), the height that leaves none of it in the air on a slope.
+	float InteractiveFootprintRadius(const InteractiveDef& def);
 	// Every interactive of `defs` at its place from `origin`, under "Interactives" (an older one is replaced): campfires first, then wells, doors
 	// and the rest, so the built-in ones come out as they always did (a campfire, a well and a door in a fence).
 	InteractiveLayout BuildInteractives(EntityWorld& world, const glm::vec3& origin, const std::map<std::string, InteractiveDef>& defs = DefaultInteractives());

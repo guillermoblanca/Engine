@@ -35,6 +35,8 @@ int GBTest_sky(int, char**)
 	Check(night.Sun.Intensity < 0.5f && night.Sun.Intensity > 0.05f && night.Sun.Color.b > night.Sun.Color.r, "the moon is weak and bluish");
 	Check(night.Sun.Direction.y < 0.0f, "the moon light travels downward");
 	Check(night.Env.Exposure > noon.Env.Exposure, "exposure rises in the dark");
+	Check(At(17.0f).Env.Exposure < noon.Env.Exposure * 1.01f && At(17.5f).Env.Exposure * At(17.5f).Sun.Intensity <= noon.Env.Exposure * noon.Sun.Intensity,
+		"but not while the sun still shines: the late afternoon is never brighter than noon (T235)");
 	Check(night.Env.SkyTop.b < noon.Env.SkyTop.b * 0.2f, "the night sky is much darker");
 	Check(dusk.Env.SkyHorizon.r > dusk.Env.SkyHorizon.b * 1.3f, "the horizon turns orange at sunset");
 	Check(dusk.Sun.Color.r > dusk.Sun.Color.b * 1.5f, "the low sun is warm");

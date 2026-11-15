@@ -527,7 +527,7 @@ namespace GB
 			const std::string candidate = def->second.Name + " " + std::to_string(i);
 			if (m_Entities->FindByName(candidate) == NullEntity && !m_Gameplay->Find(candidate)) n = candidate;
 		}
-		const float y = m_Ground ? m_Ground(at.x, at.y) : Config.Economy.CampY;
+		const float y = m_Ground ? GroundUnder(m_Ground, at, def->second.Radius()) : Config.Economy.CampY;   // (no corner in the air on a slope)
 		const EntityId id = BuildSite(*m_Entities, def->second, n, { at.x, y, at.y });
 		AbilitySystemComponent* a = m_Gameplay->Create(n);
 		a->FromComponent(*m_Entities->Find(id)->Gameplay);

@@ -398,6 +398,18 @@ namespace GB
 		return true;
 	}
 
+	float GroundUnder(const std::function<float(float, float)>& ground, const glm::vec2& at, float radius)
+	{
+		float lowest = ground(at.x, at.y);
+		for (const float r : { radius, radius * 0.5f })
+			for (int i = 0; i < 8; ++i)
+			{
+				const float a = static_cast<float>(i) * 0.785398163f;   // every 45 degrees: the corners of a square footprint at any yaw fall near one
+				lowest = std::min(lowest, ground(at.x + r * std::cos(a), at.y + r * std::sin(a)));
+			}
+		return lowest;
+	}
+
 	EntityId BuildSite(EntityWorld& w, const BuildingDef& def, const std::string& name, const glm::vec3& pos, float yaw)
 	{
 		const EntityId id = w.Create(name);

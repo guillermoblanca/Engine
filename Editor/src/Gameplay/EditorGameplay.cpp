@@ -2,6 +2,7 @@
 #include "EditorApp.h"
 #include "EditorGameplayParsing.h"
 #include "GB/Log.h"
+#include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/SiteChoice.h"
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/Game/StartSites.h"
@@ -438,6 +439,14 @@ namespace GB::Editor
 				const glm::vec3 wellOrigin(camp.x + 4.0f, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x + 4.0f, camp.y - 6.0f) : 0.0f, camp.y - 6.0f);
 				const InteractiveLayout made = BuildInteractives(world, wellOrigin, m_Interactives.Defs);
 				for (const char* extra : { "Fire Pit", "Gate" }) if (const EntityId id = world.FindByName(extra); id != NullEntity) world.Destroy(id);
+				// the well stands at its own offset from the group's origin: on the lowest ground under its wall there (T235: not the origin's height)
+				if (Entity* well = made.Well.empty() ? nullptr : world.Find(world.FindByName(made.Well)); well && m_World.IsBuilt())
+				{
+					const auto def = m_Interactives.Defs.find("well");
+					const float radius = InteractiveFootprintRadius(def != m_Interactives.Defs.end() ? def->second : DefaultInteractives().at("well"));
+					const glm::vec2 at(wellOrigin.x + well->Transform.Position.x, wellOrigin.z + well->Transform.Position.z);
+					well->Transform.Position.y = GroundUnder([this](float x, float z) { return m_World.GetTerrain().GetHeight(x, z); }, at, radius) - wellOrigin.y;
+				}
 				// the old group went with BuildInteractives: its systems go, and the new well gets a fresh one (not a reload of the tens of thousands of the world's)
 				for (const std::string& n : { std::string("Fire Pit"), std::string("Gate"), made.Campfire, made.Well, made.Door })
 					if (!n.empty() && m_Gameplay.Find(n)) m_Gameplay.Remove(n);

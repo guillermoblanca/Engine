@@ -2,6 +2,7 @@
 #include "GB/Scene/Entity.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include <glm/glm.hpp>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -122,6 +123,9 @@ namespace GB
 	// its interaction point "work" in front, its gameplay component (phase 0, nothing delivered) and one part per phase, hidden until its phase starts.
 	// The caller makes its ability system (GameplayWorld::Create + FromComponent, or a scene load). Returns the entity.
 	EntityId BuildSite(EntityWorld& world, const BuildingDef& def, const std::string& name, const glm::vec3& pos, float yaw = 0.0f);
+	// T235: the height to set a footprint of `radius` metres (half its diagonal: any yaw) at `at` on a slope: the lowest ground under it (the centre and
+	// sixteen points on two rings), so no corner hangs in the air; the uphill side sinks into the ground instead. The one rule for buildings and wells.
+	float GroundUnder(const std::function<float(float, float)>& ground, const glm::vec2& at, float radius);
 	// Shows a site as its state says: the parts of the phases done at full size, the current one growing with its progress, the later ones hidden.
 	// Only writes what changed.
 	void SyncSiteVisuals(EntityWorld& world, const std::string& name, const BuildingDef& def, const SiteState& state);

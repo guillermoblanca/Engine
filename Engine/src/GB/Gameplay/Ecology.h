@@ -56,7 +56,7 @@ namespace GB
 		// How much faster animals get hungry (food is scarce in winter).
 		static float HungerRate(Season s);
 		// What the season looks like. All of it a function of the season and how far through it we are, so there is nothing to save.
-		static float SnowCover(Season s, float progress);        // 0..1 on the ground: it falls early in winter and melts in early spring
+		static float SnowCover(Season s, float progress);        // 0..1 on the ground: it falls early in winter and melts at winter's end
 		static glm::vec3 Foliage(Season s, float progress);      // colour of crowns and bushes, blending into the next season's near the end
 		static const char* Weather(Season s, float progress);    // "clear", "lightrain", "rain", "storm" or "snow": the fixed calendar of before (seed 0)
 		// T14: the weather of the day `seconds` falls in: "clear", "lightrain", "rain", "storm", "snow" or "blizzard". A function of the seed, the data and
