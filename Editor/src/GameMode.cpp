@@ -624,7 +624,7 @@ namespace GB::Editor
 	{
 		if (!m_Observer.Screen || m_Game.Active || ImGui::GetIO().WantTextInput) return;
 		for (const char* action : { "pause", "faster", "slower", "quit" })
-			if (const auto it = m_Controls.Keys.find(action); it != m_Controls.Keys.end())
+			if (const auto it = m_Controls.Keys.find(action); it != m_Controls.Keys.end() && !(m_Shell.On && std::string(action) == "quit"))   // (GB.exe: Esc is its pause menu, ShellKeys)
 				if (const ImGuiKey k = KeyNamed(it->second); k != ImGuiKey_None && ImGui::IsKeyPressed(k, false))
 					m_UiCommands.push_back(std::string(action) != "quit" ? std::string("observer ") + action
 						: m_Observer.Tree ? std::string("observer tree") : std::string("observer screen off"));   // (Esc closes the tree first, as in the game)

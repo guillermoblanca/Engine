@@ -1,0 +1,47 @@
+# G1/G2: GB.exe's shell headless (GameShell.cpp): the start menu and its pages, a new god's game, the pause menu, a save, back to the menu, the load
+# of that save (the same day, clans and living), the director's note and a capture in the session folder, and every text of these screens translated.
+# Run by ctest as GB.exe --hidden with saves of its own (build/Editor/shell_test); the captures go to the build directory.
+shell status
+qa expect "shell status" "shell: menu, page main.*editor menus hidden"
+wait 3
+shot_ui game_shell_menu.png
+shell page new
+wait 3
+shot_ui game_shell_new.png
+shell page settings
+wait 3
+shell page load
+wait 3
+shell page main
+shell new temperate 5 2 3
+wait 30
+qa expect "shell status" "shell: god, .*observer screen on.*clans 2, alive 6.*session .*telemetry"
+shot_ui game_shell_god.png
+shell pause on
+wait 3
+shot_ui game_shell_pause.png
+shell page settings
+wait 3
+shell page load
+wait 3
+shell page main
+shell save shell_test
+shell mark
+shell resume
+shell note begin
+wait 3
+shell note save
+shell note text the clan by the river has no food
+shell shot
+wait 3
+shell menu
+wait 3
+qa expect "shell status" "shell: menu, .*observer screen off.*session none"
+shell load shell_test
+wait 5
+shell same
+qa expect "shell status" "shell: god, .*observer screen on"
+qa expect "telemetry status" "the telemetry writes to .*telemetry.db"
+qa check
+qa expect "lang missing" "^0 texts of the interface without translation"
+shell quit

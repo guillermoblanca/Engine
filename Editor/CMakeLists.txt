@@ -53,7 +53,19 @@ add_library(GBEditor STATIC
     src/Animation/EditorAnimInteraction.cpp
     src/EditorPriorityGraph.cpp
     src/TerrainGraphUi.cpp
+    src/GameShell.cpp
     src/EditorApp.cpp)
+# G2: the session.json of a game of GB.exe names the build it was played with (the commit at configure time; "-dirty" with local changes)
+find_package(Git QUIET)
+set(GB_GIT_HASH "unknown")
+if(GIT_FOUND)
+    execute_process(COMMAND ${GIT_EXECUTABLE} describe --always --dirty WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+                    OUTPUT_VARIABLE GB_GIT_HASH OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET RESULT_VARIABLE GB_GIT_RESULT)
+    if(NOT GB_GIT_RESULT EQUAL 0 OR GB_GIT_HASH STREQUAL "")
+        set(GB_GIT_HASH "unknown")
+    endif()
+endif()
+set_source_files_properties(src/GameShell.cpp PROPERTIES COMPILE_DEFINITIONS "GB_GIT_HASH=\"${GB_GIT_HASH}\"")
 target_include_directories(GBEditor PUBLIC src)
 target_link_libraries(GBEditor PUBLIC GB::GB imgui)
 target_include_directories(GBEditor SYSTEM PRIVATE ${json_SOURCE_DIR}/include)   # (H14: EditorConflict.cpp reads the "combat" section of a save)
@@ -82,6 +94,25 @@ target_link_libraries(Editor PRIVATE GBEditor)
 gb_parallel_compile(Editor)
 if(MSVC)
     target_link_options(Editor PRIVATE /MAP)   # Editor.map: what the crash trace in the log (main.cpp) points at
+endif()
+
+# G1: the game, GB.exe: the same library started as the game (GameMain.cpp, GameShell.cpp). The target is GBGame because GB is the engine's
+# library; the file is GB.exe. A window program (no console behind it on a double click); run from a terminal or by ctest it still prints.
+add_executable(GBGame src/GameMain.cpp)
+set_target_properties(GBGame PROPERTIES OUTPUT_NAME GB)
+target_link_libraries(GBGame PRIVATE GBEditor)
+gb_parallel_compile(GBGame)
+if(MSVC)
+    target_compile_options(GBGame PRIVATE /W4 /permissive-)
+    if(GB_WARNINGS_AS_ERRORS)
+        target_compile_options(GBGame PRIVATE /WX)
+    endif()
+    target_link_options(GBGame PRIVATE /MAP /SUBSYSTEM:WINDOWS /ENTRY:mainCRTStartup)   # GB.map for the crash trace
+else()
+    target_compile_options(GBGame PRIVATE -Wall -Wextra -Wpedantic)
+    if(GB_WARNINGS_AS_ERRORS)
+        target_compile_options(GBGame PRIVATE -Werror)
+    endif()
 endif()
 
 # Logic tests (no window, no GL).
@@ -135,6 +166,12 @@ gb_editor_script_test(editor_polity v7_polity.txt "Clan 1 and Blue form the conf
 gb_editor_script_test(editor_talk v2_talk.txt "says /.*live checks, 0 violation" --step=60)
 # V3: people ask the player for help with their real problems; a life ends and the player chooses who carries on; saved and loaded
 gb_editor_script_test(editor_adventure v3_adventure.txt "says /.*live checks, 0 violation" --step=60)
+# G1/G2: GB.exe (the game) headless: start menu, new god's game, pause menu, save, back to the menu, load (the same day, clans and living), the
+# director's note and the session folder, every text translated. Its saves and sessions go to a folder of its own in the build directory.
+add_test(NAME editor_game_shell COMMAND GBGame --hidden --quality=low --strict=1 --step=60 --settings=${CMAKE_CURRENT_BINARY_DIR}/test_settings/editor_game_shell.json
+         --saves=${CMAKE_CURRENT_BINARY_DIR}/shell_test --script=${CMAKE_CURRENT_SOURCE_DIR}/tests/game_shell.txt WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+set_tests_properties(editor_game_shell PROPERTIES LABELS "editor;gl;lento" PASS_REGULAR_EXPRESSION "shell same: day" FAIL_REGULAR_EXPRESSION "REPLAY DIFFERS|script line failed|Could not read the script"
+                     SKIP_REGULAR_EXPRESSION "GLFW error|does not appear to support OpenGL|Failed to create|Could not create")
 
 # In parallel (T51): the runs write to this directory, but each with names of its own (saves/<script>, replays/<script>, <script>.png), so they
 # can go several at a time: `ctest -C Release -L editor -j 4` (T51: 4 to 6 min instead of 14 at -j 1, the same failures). COST (the seconds one takes at -j 1) makes ctest start the longest first, even

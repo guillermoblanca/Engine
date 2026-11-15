@@ -49,5 +49,12 @@
       "world": "temperate", "seed": 5, "resources": 2.0, "members": 4, "clans": 2,
       "model": "packs/full/X Bot.fbx", "fallback": "fox", "name": "Player", "quality": "auto", "autoMs": 40.0, "timeScale": 1
     }
+  },
+  "session": {
+    "_doc": "G2: how GB.exe records each game in <saves>/sessions/<date>_<biome>_<seed>/ (Editor/src/GameShell.h): a save every autosaveDays days of game (0: only the one on leaving), the telemetry (the table GBSim writes) every telemetryEvery simulation seconds, and the keys of the director's note, the capture and the quick save and load of the god's game.",
+    "autosaveDays": 1,
+    "telemetry": true,
+    "telemetryEvery": 60,
+    "keys": { "note": "F8", "shot": "F12", "quicksave": "F5", "quickload": "F9" }
   }
 }

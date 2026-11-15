@@ -223,8 +223,16 @@ namespace GB::Editor
 					ImGui::TextDisabled("%s", L.Text("In use: {0}", inUse).c_str());
 				}
 				ImGui::Separator();
-				if (ImGui::Button((L.Text("Back to the editor") + "###editor").c_str(), full)) run("play off");
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The world and the clans stay: `play resume` (or the editor's button) comes back here").c_str());
+				if (m_Shell.On)   // GB.exe (G1): no editor behind the game, its start menu
+				{
+					if (ImGui::Button((L.Text("Main menu") + "###editor").c_str(), full)) run("shell menu");
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The game is saved in its session folder on leaving").c_str());
+				}
+				else
+				{
+					if (ImGui::Button((L.Text("Back to the editor") + "###editor").c_str(), full)) run("play off");
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The world and the clans stay: `play resume` (or the editor's button) comes back here").c_str());
+				}
 			}
 			ImGui::End();
 		}

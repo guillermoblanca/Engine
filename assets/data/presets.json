@@ -1,0 +1,8 @@
+{
+  "_doc": "G1: the starts the menu of GB.exe offers for a new god's game (Editor/src/GameShell.cpp). label and tip are English; the interface translates them (assets/ui/lang/es.json, ui). biome: temperate, alpine or desert; 1 to 6 clans of 2 to 40 people; bare: the clans start with their land and a well and raise their villages themselves; speed: the clock's speed at the start (1 to 20). Not part of the content pack: the simulation never reads it. G5 adds the custom maps.",
+  "presets": [
+    { "id": "valley", "label": "Living valley", "tip": "Three clans with their villages standing, in a temperate valley", "biome": "temperate", "seed": 5, "clans": 3, "members": 6, "speed": 1, "bare": false },
+    { "id": "beginnings", "label": "From nothing", "tip": "Three clans with nothing built: watch them raise their villages", "biome": "temperate", "seed": 7, "clans": 3, "members": 6, "speed": 4, "bare": true },
+    { "id": "mountains", "label": "Hard mountains", "tip": "Two clans in the mountains: cold winters and little food", "biome": "alpine", "seed": 11, "clans": 2, "members": 8, "speed": 1, "bare": false }
+  ]
+}

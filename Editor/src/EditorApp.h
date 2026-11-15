@@ -8,6 +8,7 @@
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GameView.h"
 #include "GameMode.h"
+#include "GameShell.h"
 #include "Lang.h"
 #include "Properties.h"
 #include "SceneEditor.h"
@@ -165,6 +166,8 @@ namespace GB::Editor
 		void DrawSaveMenu();
 		CommandResult SaveSlot(const std::string& name);
 		CommandResult LoadSlot(const std::string& name);
+		CommandResult SaveFile(const std::string& path, const std::string& label);   // the same, to and from any path (the shell's sessions: G2)
+		CommandResult LoadFile(const std::string& path, const std::string& label);
 		CommandResult ReplayCommand(const std::vector<std::string>& a);
 		void BindResources();                                    // resource nodes of the scene: what is gathered goes to the actor's bag
 		void StepResources();                                    // tools as tags and depleted nodes, once per simulation step
@@ -471,6 +474,39 @@ namespace GB::Editor
 		std::string ObserverTimeLine() const;          // `observer status`'s "time: day N, HH:MM, <season>, <weather>; speed xN[, paused]" (GameMode.cpp)
 		int GameDay() const;                           // the day of the world's clock, from 1, as the game's clock counts it (GameMode.cpp)
 		void ObserverKeys();                           // the god's screen's keys (pause, faster, slower, Esc): they queue `observer ...` (GameMode.cpp)
+
+		// G1/G2 (GameShell.cpp): GB.exe (`--shell`): the start menu, the god's game with its pause menu, the player mode for tests and the sessions
+		ShellState m_Shell;
+		void StartShell();                             // from the constructor: the menu, the full screen, the presets
+		void RegisterShellCommands();
+		CommandResult ShellCommand(const std::vector<std::string>& a);
+		CommandResult ShellNew(const std::string& biome, int seed, int clans, int members, bool bare, int speed, const std::string& preset);
+		CommandResult ShellPlayer(const std::vector<std::string>& a);
+		CommandResult ShellSave(const std::string& path, const std::string& label);   // the game and its god's file (<path minus .gbsave>.god.json)
+		CommandResult ShellLoad(const std::string& path);
+		CommandResult ShellToMenu();
+		bool ResetForNewGame(std::string& error);      // an empty game applied like a load: no clans, actors, history, buildings
+		void BeginSession(const std::string& mode, const std::string& loadedFrom);
+		void EndSession(const std::string& why);
+		void WriteSessionJson(const std::string& state);
+		CommandResult ShellNote(const std::string& text);
+		CommandResult ShellShot();
+		std::string ShellStatus();
+		struct ShellCounts { int Day = 0, Clans = 0, Alive = 0; };
+		ShellCounts Counts() const;
+		void SetFullscreen(bool on);
+		bool ShellHoldsTime() const;                   // a menu of the shell is open: the world waits
+		void ShellTick();                              // each frame of a game: the session's autosave and its log's flush
+		void ShellKeys();
+		void ShellToast(const std::string& english);
+		void DrawShell();
+		void DrawShellMenu();
+		void DrawShellNewPage();
+		void DrawShellLoadPage(bool inGame);
+		void DrawShellSettingsPage();
+		void DrawShellPause();
+		void DrawShellNote();
+		void DrawShellOverlay();
 
 		Tribe& ActiveTribe();
 		// V0: the clan the player's character belongs to (any clan, not only the first); the first tribe when nobody plays

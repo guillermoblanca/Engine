@@ -514,9 +514,13 @@ namespace GB::Editor
 	CommandResult EditorApp::SaveSlot(const std::string& name)
 	{
 		if (!IsValidSlotName(name)) return { false, "'" + name + "' is not a name for a save (letters, digits, - _ .)" };
+		return SaveFile(SlotPath(m_SaveDir, name), name);
+	}
+
+	CommandResult EditorApp::SaveFile(const std::string& path, const std::string& name)
+	{
 		CaptureResult c = CaptureGame(*m_SaveHost);
 		for (const std::string& w : c.Warnings) GB_CLIENT_WARN("{}", w);
-		const std::string path = SlotPath(m_SaveDir, name);
 		const Result r = SaveGameToFile(c.Game, path);
 		if (!r.Ok) return { false, r.Error };
 		std::error_code ec;
@@ -527,9 +531,14 @@ namespace GB::Editor
 	CommandResult EditorApp::LoadSlot(const std::string& name)
 	{
 		if (!IsValidSlotName(name)) return { false, "'" + name + "' is not the name of a save" };
+		return LoadFile(SlotPath(m_SaveDir, name), name);
+	}
+
+	CommandResult EditorApp::LoadFile(const std::string& path, const std::string& name)
+	{
 		if (m_Recorder.Active()) return { false, "a replay is being recorded: replay stop <file> first" };
 		SaveGame game;
-		Result r = LoadSaveGameFromFile(SlotPath(m_SaveDir, name), game);
+		Result r = LoadSaveGameFromFile(path, game);
 		if (!r.Ok) return { false, "cannot load '" + name + "': " + r.Error };
 		std::vector<std::string> notes = r.Warnings;
 		r = ApplyGame(*m_SaveHost, game);

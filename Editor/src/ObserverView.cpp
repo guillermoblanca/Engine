@@ -1094,13 +1094,14 @@ namespace GB::Editor
 			}
 			ImGui::EndGroup();
 			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", wetTip.c_str());
-			// the way back to the editor, at the right end (or right after the rest, in a narrow window)
-			const std::string back = L.Text("Editor") + "###editor";
-			const float bw = ImGui::CalcTextSize(L.Text("Editor").c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+			// the way back to the editor, at the right end (or right after the rest, in a narrow window); in GB.exe (G1) there is no editor: its menu
+			const char* backLabel = m_Shell.On ? "Menu" : "Editor";
+			const std::string back = L.Text(backLabel) + "###editor";
+			const float bw = ImGui::CalcTextSize(L.Text(backLabel).c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f;
 			const float after = ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x + 14.0f;
 			ImGui::SameLine(std::max(after, ImGui::GetWindowContentRegionMax().x - bw));
-			if (ImGui::Button(back.c_str())) run("observer screen off");
-			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s [%s]", L.Text("Back to the editor").c_str(), keyOf("quit").c_str());
+			if (ImGui::Button(back.c_str())) run(m_Shell.On ? "shell pause on" : "observer screen off");
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s [%s]", L.Text(m_Shell.On ? "Pause menu: save, load, settings, main menu" : "Back to the editor").c_str(), keyOf("quit").c_str());
 			m_Observer.BarBottom = ImGui::GetWindowPos().y + ImGui::GetWindowSize().y;
 			m_Observer.BarBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, m_Observer.BarBottom };
 		}

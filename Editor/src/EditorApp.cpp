@@ -37,7 +37,7 @@ namespace GB::Editor
 		{
 			ApplicationConfig c;
 			c.Launch = launch;
-			c.Title = "GB Editor";
+			c.Title = launch.HasFlag("shell") ? "GB" : "GB Editor";   // (G1: GB.exe is the editor's code started as the game, GameMain.cpp)
 			// --width=/--height=: a bigger (or smaller) window for a screenshot/record session (--hidden); the panel layout keeps its
 			// proportions (MakeDockLayout), so the viewport grows with it. Unset: the usual 1600x900.
 			c.Width = static_cast<uint32_t>(std::max(320, std::atoi(launch.GetValue("width", "1600").c_str())));
@@ -95,7 +95,8 @@ namespace GB::Editor
 		m_LogSink = GB::Log::AddSink([log = m_Log.get()](GB::Log::Channel, GB::Log::Level level, std::string_view text) { log->Sink(level, text); });
 
 		const bool headless = options.Hidden || !options.RecordDir.empty();
-		m_Ui = std::make_unique<ImGuiLayer>(*GetWindow(), headless ? "" : "editor_layout.ini");
+		const bool shell = options.HasFlag("shell");   // G1: GB.exe (GameShell.cpp): no editor, no layout of its docks
+		m_Ui = std::make_unique<ImGuiLayer>(*GetWindow(), headless || shell ? "" : "editor_layout.ini");
 		m_Renderer = std::make_unique<Renderer>(m_ViewportW, m_ViewportH, 4, 2048);
 		if (!m_Renderer->IsValid())
 		{
@@ -104,7 +105,8 @@ namespace GB::Editor
 			return;
 		}
 		m_ViewportFb = std::make_unique<Framebuffer>(m_ViewportW, m_ViewportH);
-		m_AssetRoot = GB_ASSET_DIR;
+		// --assets=<dir>: GB.exe passes the assets beside it (GameMain.cpp, which also points the data's readers there); else the source tree's
+		m_AssetRoot = options.GetValue("assets", GB_ASSET_DIR);
 		m_SceneEditor.SetAssetRoot(m_AssetRoot);
 		m_Lang.Load(m_AssetRoot + "/ui/lang", "es");   // the game's interface in Spanish (`lang en` for the code's English)
 		m_SceneEditor.OnNewScene = [this]() { ResetWorld(); };   // File > New Scene also drops the generated world
@@ -121,7 +123,7 @@ namespace GB::Editor
 			AudioConfig audio;
 			audio.Device = !headless;   // headless: no output at all; the editor mixes in step with the simulation (audio_record)
 			m_Audio = std::make_unique<AudioEngine>(audio);
-			m_Audio->Library().SetAssetDir(GB_ASSET_DIR);
+			m_Audio->Library().SetAssetDir(m_AssetRoot);
 			m_Steps = std::make_unique<FootstepSounds>(*m_Audio);
 			m_Steps->SetSurfaceFunction([this](const glm::vec3& p) -> Surface
 			{
@@ -154,6 +156,8 @@ namespace GB::Editor
 		content.Metrics = &m_Clans.Metrics;   // U2: how the quality of life is weighed, as GBSim weighs it (only the measure reads it)
 		AddContentSections(m_Packs, content);
 		AddVisualContentSection(m_Packs, m_Visuals.Library);   // the "visuals" section is the visual layer's (the simulation does not read it)
+		// G2: the "session" section of player.json (how GB.exe records a game: GameShell.h) is the shell's; the simulation does not read it
+		m_Packs.AddSection(StagedSection("session", { "session" }, [](const std::string& json, SessionRules& r) { return LoadSessionRules(json, r); }, nullptr, m_Shell.Rules));
 		{
 			ContentReport report;
 			if (const std::string error = m_Packs.Load(GamePack(), m_AssetRoot + "/data", &report); !error.empty()) GB_CLIENT_WARN("content not loaded: {}", error);
@@ -193,6 +197,8 @@ namespace GB::Editor
 		BuildWorld(m_WorldDesc);
 		RegisterProperties();
 
+		RegisterShellCommands();   // G1/G2: `shell` (GameShell.cpp)
+		if (const std::string saves = options.GetValue("saves"); !saves.empty()) m_SaveDir = saves;   // (GB.exe: the saves folder beside it, GameMain.cpp)
 		m_StrictScript = !options.GetValue("strict").empty();
 		const std::string quality = options.GetValue("quality");
 		if (!quality.empty()) { SetQuality(quality); m_LaunchQuality = quality; }
@@ -202,6 +208,7 @@ namespace GB::Editor
 		ApplyUserSettings();
 		const std::string telemetry = options.GetValue("telemetry");
 		if (!telemetry.empty()) { const CommandResult r = TelemetryCommand({ "start", telemetry }); if (!r.Ok) GB_CLIENT_ERROR("{}", r.Message); }
+		if (shell) StartShell();   // the start menu (before any script: a test drives it with `shell ...`)
 		const std::string exec = options.GetValue("exec");
 		if (!exec.empty()) RunScript(exec);
 		const std::string script = options.GetValue("script");
@@ -218,6 +225,8 @@ namespace GB::Editor
 
 	EditorApp::~EditorApp()
 	{
+		// G2: GB.exe closed with its window (or quit): the session's save on leaving and its session.json, while the world is still there
+		if (m_Shell.On) EndSession("closed");
 		// the scene's GPU objects must go before the context does
 		m_Instance.reset();
 		m_World.Clear(m_Scene);
@@ -1478,7 +1487,8 @@ namespace GB::Editor
 			m_SimBudgetSet = true;
 			if (Options().Hidden || !Options().RecordDir.empty() || Options().StepFps > 0.0f) m_SimBudgetMs = 0.0;
 		}
-		const bool paused = m_Game.Paused || m_Game.Menu || (!m_Game.Active && m_Observer.Paused);   // (a game's pause, or the observer's in the free mode: U1)
+		// (a game's pause, or the observer's in the free mode: U1; GB.exe's menus too, G1: the start menu, the pause menu and the note box)
+		const bool paused = m_Game.Paused || m_Game.Menu || (!m_Game.Active && m_Observer.Paused) || ShellHoldsTime();
 		for (int step = 0; step < (paused ? 0 : m_TimeScale); ++step)   // `timescale n` runs the simulation n times per frame (the tribe's day in a minute); a paused game none
 		{
 			m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
@@ -1521,7 +1531,7 @@ namespace GB::Editor
 			if (!m_Player.IsActive()) m_Orbit.Target = m_GameView.Focus();
 		}
 		// while playing, the sky follows the clan's clock (a clock at 00:01 under a noon sun reads wrong); the editor's own setting comes back after
-		if (m_Game.Active)
+		if (m_Game.Active || (m_Shell.On && m_Shell.Now == ShellState::Screen::God))   // (GB.exe's god's game too: its bar's clock and the sky agree)
 		{
 			if (!m_Tod.Enabled) { m_TodBaseEnv = m_Weather->BaseEnvironment(); m_TodBaseSun = m_Weather->BaseSun(); m_Tod.Enabled = true; m_TodByGame = true; }
 			m_Tod.Hours = m_Tribe.Hour();
@@ -1677,6 +1687,13 @@ namespace GB::Editor
 			m_UiPartMs[which] = m_UiPartMs[which] * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(now - lap).count());
 			lap = now;
 		};
+		if (m_Shell.On)
+		{   // G1: GB.exe draws only the game's screens (GameShell.cpp): the start menu, the god's screen or the player's game, and their menus; never a
+			// dock, the editor's menu or a gizmo
+			DrawShell();
+			mark(kUiGame);
+			return;
+		}
 		if (m_Game.Active)
 		{   // the game: only its view, over the whole window. The editor's dock layout is kept alive (not shown) so `play off` finds it as it was; no
 			// docked window is drawn meanwhile (it would land in the hidden node). The console is the game's own window (`game console`).
