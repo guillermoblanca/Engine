@@ -403,7 +403,20 @@ namespace GB::Editor
 			bool Tree = false;              // the tree of knowledge of the observed clan (`observer tree`)
 			std::string TreePick;            // the book shows only its tabs (`observer fold`, the card's button)
 			float CardBottom = 0.0f, BookWidth = 0.0f;   // where the clan card ended and how wide the book was, last frame (the selection goes between)
+			// U1: the god's screen (`observer screen on|off`): the observer over the whole window, like the game's screen, with no editor panel; the
+			// god's bar on top (the clock, the season, the weather, the speed) and the observer's own pause (`observer pause`), which stops the
+			// simulation of the free mode (never a game's: that one has `game pause`)
+			bool Screen = false;
+			bool Paused = false;
+			float BarBottom = 0.0f;       // where the god's bar ended last frame (the card and the book go under it)
+			// the boxes the god's screen drew last frame over the world (x0, y0, x1, y1; all 0 = not drawn), for `observer status`'s layout: line
+			struct Box { float X0 = 0.0f, Y0 = 0.0f, X1 = 0.0f, Y1 = 0.0f; };
+			Box BarBox, CardBox, BookBox, ViewBox;
 		} m_Observer;
+		void DrawGodBar(float ox, float oy, float w);   // the god's bar (ObserverView.cpp)
+		std::string ObserverTimeLine() const;          // `observer status`'s "time: day N, HH:MM, <season>, <weather>; speed xN[, paused]" (GameMode.cpp)
+		int GameDay() const;                           // the day of the world's clock, from 1, as the game's clock counts it (GameMode.cpp)
+		void ObserverKeys();                           // the god's screen's keys (pause, faster, slower, Esc): they queue `observer ...` (GameMode.cpp)
 
 		Tribe& ActiveTribe();
 		// V0: the clan the player's character belongs to (any clan, not only the first); the first tribe when nobody plays

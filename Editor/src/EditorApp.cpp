@@ -1476,7 +1476,8 @@ namespace GB::Editor
 			m_SimBudgetSet = true;
 			if (Options().Hidden || !Options().RecordDir.empty() || Options().StepFps > 0.0f) m_SimBudgetMs = 0.0;
 		}
-		for (int step = 0; step < (m_Game.Paused || m_Game.Menu ? 0 : m_TimeScale); ++step)   // `timescale n` runs the simulation n times per frame (the tribe's day in a minute); a paused game none
+		const bool paused = m_Game.Paused || m_Game.Menu || (!m_Game.Active && m_Observer.Paused);   // (a game's pause, or the observer's in the free mode: U1)
+		for (int step = 0; step < (paused ? 0 : m_TimeScale); ++step)   // `timescale n` runs the simulation n times per frame (the tribe's day in a minute); a paused game none
 		{
 			m_Actors.PrepareAbilities();   // abilities first: what they ask of the characters is this frame's input
 			StepSimulation(dt);            // gameplay and the garden in fixed ticks (and the autosave timer)
@@ -1684,6 +1685,18 @@ namespace GB::Editor
 			mark(kUiCommands);
 			return;
 		}
+		if (m_Observer.Screen)
+		{   // U1: the god's screen, the same way: the observer over the whole window, the editor's layout kept alive and hidden (`observer screen off`
+			// or Esc go back to it)
+			ImGui::DockSpaceOverViewport(0, vp, ImGuiDockNodeFlags_PassthruCentralNode | ImGuiDockNodeFlags_KeepAliveOnly);
+			ObserverKeys();
+			DrawGameScreen();
+			mark(kUiGame);
+			for (const std::string& line : m_UiCommands) Execute(line);
+			m_UiCommands.clear();
+			mark(kUiCommands);
+			return;
+		}
 		DrawMenu();
 		mark(kUiMenu);
 		const ImGuiID dock = ImGui::DockSpaceOverViewport(0, vp, ImGuiDockNodeFlags_PassthruCentralNode);
@@ -1837,6 +1850,7 @@ namespace GB::Editor
 			if (ImGui::MenuItem("Play as fox (WASD)", nullptr, m_Player.IsActive())) Execute(m_Player.IsActive() ? "player off" : "player fox");
 			if (ImGui::MenuItem("Play the game (H15)", nullptr, m_Game.Active)) m_UiCommands.push_back(m_Game.Active ? "play off" : "play");
 			if (ImGui::MenuItem("Observe the clans", nullptr, m_Observer.On)) m_UiCommands.push_back("observer toggle");
+			if (ImGui::MenuItem("God's screen (observer, full window)")) m_UiCommands.push_back("observer screen on");   // (Esc comes back)
 			ImGui::Separator();
 			ImGui::MenuItem("Hierarchy", nullptr, &m_Panels.Hierarchy);
 			ImGui::MenuItem("Inspector", nullptr, &m_Panels.Inspector);
@@ -1960,7 +1974,8 @@ namespace GB::Editor
 				const ImVec2 mp = ImGui::GetIO().MousePos;
 				m_CursorNorm = { (mp.x - origin.x) / std::max(static_cast<float>(m_ViewportW), 1.0f), (mp.y - origin.y) / std::max(static_cast<float>(m_ViewportH), 1.0f) };
 			}
-			if (!m_Game.Active)
+			const bool god = m_Observer.Screen && !m_Game.Active;   // U1: the god's screen: none of the editor's tools over the view
+			if (!m_Game.Active && !god)
 			{   // camera mode buttons over the viewport corner (they take the mouse: no picking or orbiting through them; a game has its own camera)
 				const char* names[3] = { "Free", "Top", "Follow" };
 				const CamMode modes[3] = { CamMode::Free, CamMode::TopDown, CamMode::Follow };
@@ -1998,7 +2013,7 @@ namespace GB::Editor
 				m_TgUi->DrawViewportOverlay(ImGui::GetWindowDrawList(), m_Camera.GetProjection(static_cast<float>(m_ViewportW) / std::max(static_cast<float>(m_ViewportH), 1.0f)) * m_Camera.GetView(),
 					origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), *m_World.World().TerrainRef);
 			DrawBubble(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_Game.Active ? m_Game.Selected : m_FreeSelected);   // over the selected character
-			if (!m_Game.Active) DrawMapPanel();   // (in a game the map is a sheet of the clan book)
+			if (!m_Game.Active && !god) DrawMapPanel();   // (in a game the map is a sheet of the clan book; the god's screen will have its layers: U9)
 			if (!m_Game.Active)
 			{
 				DrawObserver(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
@@ -2006,12 +2021,12 @@ namespace GB::Editor
 				else DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected);
 			}
 			if (m_Game.Active) DrawGameHud(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // H15
-			else if (!m_Game.Player.empty() && m_Tribe.FindMember(m_Game.Player))   // a game left with Esc: one click goes back to it (`play resume`)
+			else if (!god && !m_Game.Player.empty() && m_Tribe.FindMember(m_Game.Player))   // a game left with Esc: one click goes back to it (`play resume`)
 			{
 				ImGui::SetCursorScreenPos(ImVec2(origin.x + 12.0f, origin.y + 12.0f));
 				if (ImGui::Button("Back to the game")) m_UiCommands.push_back("play resume");
 			}
-			if (m_Game.Active) return;   // (in a game the frame rate and the draw calls are in its console: `game console`)
+			if (m_Game.Active || god) return;   // (in a game the frame rate and the draw calls are in its console: `game console`; `drawcalls` on the god's screen)
 			char info[96];
 			std::snprintf(info, sizeof info, "%.0f fps   %ux%u", 1000.0 / static_cast<double>(std::max(m_FrameMsSmooth, 0.01f)), m_ViewportW, m_ViewportH);
 			ImGui::GetWindowDrawList()->AddText(ImVec2(origin.x + 8.0f, origin.y + 6.0f), IM_COL32(255, 255, 255, 200), info);
@@ -2131,7 +2146,10 @@ namespace GB::Editor
 		glm::vec3 origin(0.0f);
 		float len = 0.0f;
 		int hover = -1;
-		if (sel != NullEntity)
+		// a game camera (`camera game ...`) or the god's screen shows the world, not the scene being edited: no axes to draw or drag there (H10);
+		// the clan overlay and the click that picks stay
+		const bool handles = !m_GameView.Active() && !m_Observer.Screen;
+		if (sel != NullEntity && handles)
 		{
 			origin = glm::vec3(world.WorldMatrix(sel)[3]);
 			len = glm::distance(m_Camera.Position, origin) * 0.16f;

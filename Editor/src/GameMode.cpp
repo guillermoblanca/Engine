@@ -304,6 +304,7 @@ namespace GB::Editor
 			Execute("camera game follow");
 			Execute("visuals on");
 			m_Game = GameModeState{ true, name, model };
+			m_Observer.Screen = m_Observer.Paused = false;   // (the god's screen and its pause are the free mode's: a game has its own)
 			m_Game.AutoQuality = false;
 			m_GameView.QeTurns = false;
 			m_Player.SetTurnWithQE(false);
@@ -389,6 +390,7 @@ namespace GB::Editor
 		Execute("visuals on");   // the visual layer: the player's props, sets and work montages are chosen like an NPC's (TribeVisuals)
 
 		m_Game = GameModeState{ true, name, model };
+		m_Observer.Screen = m_Observer.Paused = false;   // (the god's screen and its pause are the free mode's: a game has its own)
 		m_Game.AutoQuality = setup.Quality == "auto";
 		m_GameView.QeTurns = false;      // E interacts: only the arrows turn the camera
 		m_Player.SetTurnWithQE(false);
@@ -614,6 +616,32 @@ namespace GB::Editor
 			if (m_Game.View == "top" && (action == "interact" || action == "eat" || action == "drink" || action == "deposit" || action == "sleep" || action == "claim" || action == "attack" || action == "block" || action == "inventory" || action == "people")) continue;
 			if (k != ImGuiKey_None && ImGui::IsKeyPressed(k, false)) m_UiCommands.push_back("game " + action);
 		}
+	}
+
+	// U1: the god's screen takes the clock's keys of the game (controls.keys: pause, faster, slower) and quit (Esc), which goes back to the editor; the
+	// editor's shortcuts (undo, delete, F, T) are not read meanwhile
+	void EditorApp::ObserverKeys()
+	{
+		if (!m_Observer.Screen || m_Game.Active || ImGui::GetIO().WantTextInput) return;
+		for (const char* action : { "pause", "faster", "slower", "quit" })
+			if (const auto it = m_Controls.Keys.find(action); it != m_Controls.Keys.end())
+				if (const ImGuiKey k = KeyNamed(it->second); k != ImGuiKey_None && ImGui::IsKeyPressed(k, false))
+					m_UiCommands.push_back(std::string(action) != "quit" ? std::string("observer ") + action
+						: m_Observer.Tree ? std::string("observer tree") : std::string("observer screen off"));   // (Esc closes the tree first, as in the game)
+	}
+
+	int EditorApp::GameDay() const { return DayOf(m_Tribe); }
+
+	// the observer's clock as a line (`observer status`), in the words of `game status`'s time line plus the weather; the clock is the first tribe's,
+	// the world's (EditorSaveHost sets every clan's to the simulation's ticks), and the weather the one the sky shows (ApplySeasonLook)
+	std::string EditorApp::ObserverTimeLine() const
+	{
+		const Tribe& t = m_Tribe;
+		const float hour = t.Hour();
+		char line[160];
+		std::snprintf(line, sizeof line, "time: day %d, %02d:%02d, %s, %s; speed x%d%s", DayOf(t), static_cast<int>(hour), static_cast<int>((hour - std::floor(hour)) * 60.0f),
+			SeasonText(t.CurrentSeason()), t.Config.Seasons.WeatherAt(t.WorldSeconds()), m_TimeScale, m_Observer.Paused ? ", paused" : "");
+		return line;
 	}
 
 	// ------------------------------------------------------------------ the state the interface shows, as lines (also `game status`)
@@ -1600,7 +1628,9 @@ namespace GB::Editor
 				if (!a.empty()) m_Lang.Load(m_AssetRoot + "/ui/lang", a[0]);
 				return { true, "lang " + m_Lang.Code() + (m_Lang.On() || m_Lang.Code() == "en" ? std::string() : " (not found: English)") };
 			});
-		c.Register("observer", "observer [on|off|toggle|status|next|prev|<clan id or name>|sheet <members|board|store|buildings|knowledge|relations|log>]: the free mode's observer: the clans one by one with the game's look over the viewport (a card to pick the clan, its book on the right); the clan is the one the Tribe panel shows",
+		c.Register("observer", "observer [on|off|toggle|status|next|prev|<clan id or name>|sheet <members|board|store|buildings|knowledge|relations|log>]: the free mode's observer: the clans one by one with the game's look over the viewport (a card to pick the clan, its book on the right); the clan is the one the Tribe panel shows. "
+			"screen on|off: the god's screen (the observer over the whole window, no editor panel, the god's bar with the clock, the season and the weather; Esc goes back); "
+			"pause [on|off] | resume: the observer's own pause of the free mode's simulation; speed <1-20> | faster | slower: its speed (timescale); status ends with a time: line",
 			[this](const std::vector<std::string>& a) { return ObserverCommand(a); });
 		c.Register("game", "game <action>: what the keys of the game do (status, village, homes, clans, tech, map, story, interact, eat, drink, deposit, take, sleep, claim, give, talk, teach, learn, marry, propose, craft, attack, block, flee, trade, clan, jobs, pause, faster, slower, save, load, help, quality [low|medium|high|auto])",
 			[this](const std::vector<std::string>& a) { return GameCommand(a); });

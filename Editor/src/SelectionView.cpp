@@ -297,10 +297,27 @@ namespace GB::Editor
 				for (const auto& c : m_Clans.All()) if (!clan && c->Folk && c->Folk->FindMember(name)) clan = c->Folk;
 				if (clan)
 				{
+					// every need on its 0..100 scale (NeedLevels, the data needs too): its number and its colour (good, warning, bad) besides the bar, and
+					// the danger mark at 25 as on the player's HUD; the HUD's needs first and in its order (H8). Vigor is the one apart: a factor of
+					// the body's pace (1 = whole, the moods lower it: GB/Gameplay/Vitals.h), shown as a percentage
 					const std::map<std::string, float> levels = clan->NeedLevels(*who);
-					for (const auto& [n, v] : levels)
+					std::vector<std::string> order;
+					for (const std::string& n : m_Controls.Hud.Needs) if (levels.count(n)) order.push_back(n);
+					for (const auto& [n, v] : levels) if (std::find(order.begin(), order.end(), n) == order.end()) order.push_back(n);
+					for (const std::string& n : order)
 					{
-						ImGui::ProgressBar(std::clamp(v / 100.0f, 0.0f, 1.0f), ImVec2(150.0f, 10.0f), "");
+						const float v = levels.at(n) * (n == "Vigor" ? 100.0f : 1.0f), v01 = std::clamp(v / 100.0f, 0.0f, 1.0f);
+						ImGui::PushStyleColor(ImGuiCol_PlotHistogram, GameTheme::Level(v01));
+						ImGui::ProgressBar(v01, ImVec2(150.0f, 10.0f), "");
+						ImGui::PopStyleColor();
+						const ImVec2 b0 = ImGui::GetItemRectMin(), b1 = ImGui::GetItemRectMax();
+						const float mark = b0.x + (b1.x - b0.x) * 0.25f;
+						ImGui::GetWindowDrawList()->AddLine(ImVec2(mark, b0.y - 1.0f), ImVec2(mark, b1.y + 1.0f), GameTheme::Outline, 2.0f);
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Below the mark (25) it is a danger.").c_str());
+						ImGui::SameLine();
+						std::string number = L.Num(v, 0);
+						if (number.size() < 3) number.insert(0, 3 - number.size(), ' ');   // (the font is monospaced: the numbers line up)
+						ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(GameTheme::Level(v01)), "%s", number.c_str());
 						ImGui::SameLine();
 						ImGui::TextUnformatted(Lang::Cap(L.Name("need", n, n)).c_str());
 					}

@@ -267,6 +267,8 @@
    "Warmth": "calor",
    "Health": "salud",
    "Vigor": "vigor",
+   "Safety": "seguridad",
+   "Company": "compañía",
    "faith": "fe",
    "learning": "saber",
    "purpose": "propósito"
@@ -581,6 +583,14 @@
    "village": "aldea",
    "town": "villa",
    "city": "ciudad"
+  },
+  "weather": {
+   "clear": "despejado",
+   "lightrain": "llovizna",
+   "rain": "lluvia",
+   "storm": "tormenta",
+   "snow": "nieve",
+   "blizzard": "ventisca"
   }
  },
  "entity": {
@@ -1330,6 +1340,21 @@
   }
  ],
  "ui": {
+  "lately (today): {0}": "lo último (hoy): {0}",
+  "lately (yesterday): {0}": "lo último (ayer): {0}",
+  "lately ({0} days ago): {1}": "lo último (hace {0} días): {1}",
+  "Time stopped (observer pause)": "Tiempo detenido (pausa del observador)",
+  "Time runs {0} times as fast [{1} {2}]": "El tiempo corre {0} veces más rápido [{1} {2}]",
+  "PAUSED": "PAUSA",
+  "Year {0}, day {1} of {2}": "Año {0}, día {1} de {2}",
+  "{0} of {1}": "{0} de {1}",
+  "The {0} begins tomorrow": "Último día de la estación; mañana, {0}",
+  "{0} days left until the {1}": "Quedan {0} días de la estación; después, {1}",
+  "The weather of the day.": "El tiempo que hace hoy.",
+  "This season {0} % of the days are wet; usually {1} %.": "Esta estación llueve o nieva {0} % de los días; lo normal es {1} %.",
+  "dry season": "estación seca",
+  "wet season": "estación húmeda",
+  "Editor": "Editor",
   "(not known yet)": "(aún no se sabe)",
   "(the clan's next step)": "(el siguiente paso del clan)",
   "(the store is the camp's: leave what you gather here)": "(el almacén es del campamento: deja aquí lo que recojas)",

@@ -500,7 +500,22 @@ namespace GB::Editor
 					ImGui::TextWrapped("%s", L.Text("met {0} times: {1} trades, {2} gifts, {3} lessons, {4} marriages; {5} thefts, {6} raids", r->Encounters, r->Trades, r->Gifts, r->Lessons,
 						r->Marriages, r->Thefts, r->Raids).c_str());
 					ImGui::PopStyleColor();
-					if (!r->Recent.empty()) Dim(L.Text("lately: {0}", L.Line(r->Recent.back())));
+					if (!r->Recent.empty())
+					{
+						// a line of Recent is "<the clans' clock in seconds> <event>: <what happened>" (ClanWorld::Record): the seconds are told as how long
+						// ago, on the same clock, and the event's id is left out (H13)
+						const std::string& last = r->Recent.back();
+						char* end = nullptr;
+						const double at = std::strtod(last.c_str(), &end);
+						const bool stamped = end != nullptr && end != last.c_str();
+						std::string what = stamped ? std::string(end) : last;
+						what.erase(0, std::min(what.size(), what.find_first_not_of(' ')));
+						if (const size_t colon = what.find(": "); colon != std::string::npos && what.find(' ') > colon) what = what.substr(colon + 2);
+						what = L.Line(what);
+						const int ago = stamped ? static_cast<int>(std::max(0.0, m_Clans.Time() - at) / std::max(1.0, static_cast<double>(t.Config.Needs.DaySeconds))) : -1;
+						Dim(ago < 0 ? L.Text("lately: {0}", what) : ago == 0 ? L.Text("lately (today): {0}", what) : ago == 1 ? L.Text("lately (yesterday): {0}", what)
+							: L.Text("lately ({0} days ago): {1}", ago, what));
+					}
 				}
 			}
 			ImGui::Unindent(T::Pad);
