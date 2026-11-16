@@ -155,6 +155,7 @@ namespace GB::Editor
 		content.Needs = &m_Tribe.Config.DataNeeds;   // V5
 		content.Metrics = &m_Clans.Metrics;   // U2: how the quality of life is weighed, as GBSim weighs it (only the measure reads it)
 		content.Director = &m_Director.Rules;   // T195: the god's faith and influence, as GBSim reads them
+		content.Alerts = &m_AlertRules;   // T220: the thresholds of the god's alerts, as GBSim reads them
 		AddContentSections(m_Packs, content);
 		AddVisualContentSection(m_Packs, m_Visuals.Library);   // the "visuals" section is the visual layer's (the simulation does not read it)
 		// G2: the "session" section of player.json (how GB.exe records a game: GameShell.h) is the shell's; the simulation does not read it
@@ -182,6 +183,7 @@ namespace GB::Editor
 		RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 		RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
 		RegisterNeedContent(m_Gameplay.Library);   // a saved agent may carry Need.* effects: the library must know them before any load
+		RegisterCombatContent(m_Gameplay.Library, m_Combat.Rules);   // T257: and Combat.Wounded.* (a load from the menu comes before any world binds the combat)
 		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
 		m_Player.Attach(&m_Actors);
 		m_Actors.Bind(&m_SceneEditor.World(), &m_Gameplay);
@@ -1183,6 +1185,7 @@ namespace GB::Editor
 				m_Visuals.Cache().Clear();   // (the looks may have changed)
 				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
+				RegisterCombatContent(m_Gameplay.Library, m_Combat.Rules);   // T257: (the wounds a save may carry, as the file's combat says)
 				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // the wild nodes of the baseline are planned with this data
 				ApplyGameSeeds();   // T0: (a section may have read a seed from the file)
 				ApplyUserSettings();   // T88: (a section may have read player.json's controls again)
@@ -1215,6 +1218,7 @@ namespace GB::Editor
 				m_Visuals.Cache().Clear();   // (the looks may have changed)
 				RegisterResourceContent(m_Gameplay.Library, m_NodeDefs);
 				RegisterInteractiveContent(m_Gameplay.Library, m_Interactives.Defs);
+				RegisterCombatContent(m_Gameplay.Library, m_Combat.Rules);   // T257: (see content load)
 				if (m_SaveHost) m_SaveHost->ForgetBaseline();   // (see content load)
 				ApplyGameSeeds();   // T0: (see content load)
 				ApplyUserSettings();   // T88: (a section may have read player.json's controls again)
@@ -1511,6 +1515,7 @@ namespace GB::Editor
 		}
 		m_CpuSimMs = m_CpuSimMs * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - simStart).count());
 		TrackQol();     // U2: each clan's quality of life once a day, for the god's list's trend (the editor's, never read by the simulation)
+		TrackAlerts();  // T220: the god's alerts, once a second of game (they only read the clans)
 		StepGame(dt);   // H15: the player's body, camera, quality and news (nothing when not playing)
 		m_NavSyncTimer -= dt;
 		if (m_NavSyncTimer <= 0.0f)   // trees felled or planted, a building: the grid redoes only the cells around them

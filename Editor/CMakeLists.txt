@@ -144,6 +144,11 @@ configure_file(tests/h3_hungry_fox.json ${CMAKE_CURRENT_BINARY_DIR}/h3_hungry_fo
 # (--step=60: the same game time per `wait` on any machine; without it a fast idle machine reached ~16 s of game before the fire is lit at ~45 s)
 gb_editor_script_test(editor_demo_h3 h3_fire_fox.txt "qa expect: 'ecology status' says" --step=60)
 gb_editor_script_test(editor_demo_h5_h6 h5_h6_agents.txt "says /.*live checks, 0 violation")
+# T257: a save with a wounded member, loaded as the first thing of a fresh editor (two runs: the second needs the first's save)
+gb_editor_script_test(editor_wound_save t257_wound_save.txt "saved 't257_wound'")
+gb_editor_script_test(editor_wound_load t257_wound_load.txt "says /effects")
+set_tests_properties(editor_wound_save PROPERTIES FIXTURES_SETUP t257_wound)
+set_tests_properties(editor_wound_load PROPERTIES FIXTURES_REQUIRED t257_wound)
 gb_editor_script_test(editor_clans clans.txt "the Tribe panel and the tribe reports show the Blue")   # H13: two clans saved and loaded
 gb_editor_script_test(editor_demo_h8 h8_settlement.txt "says /.*live checks, 0 violation")   # H8: site choice, a construction site worked, saved and loaded, the invariants
 # H15: the game mode headless: play, the player's actions, save and load, the HUD. In the game the characters follow the frame time (a player drives one),

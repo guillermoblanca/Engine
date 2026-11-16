@@ -1,0 +1,9 @@
+# T257: a clan with a wounded member (Combat.Wounded.Light) is saved. editor_wound_load loads it in a fresh editor, whose gameplay library has only
+# what the editor registers at start (before T257 the combat's effects came only when a world bound the combat, and the load was refused:
+# "unknown effect 'Combat.Wounded.Light' on Kira3").
+generate temperate 5
+tribe build fox 0 0 3
+combat hurt Ana 10 0.2
+qa expect "ability status Ana" "effects: .*Combat.Wounded.Light"
+save t257_wound
+quit

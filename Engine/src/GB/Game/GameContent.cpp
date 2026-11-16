@@ -175,5 +175,6 @@ namespace GB
 			packs.AddSection(StagedSection("climate", { "climate" }, [](const std::string& json, ClimateRules& r) { return LoadClimate(json, r); }, nullptr, to.Climate ? *to.Climate : unreadClimate));
 		if (to.Metrics) packs.AddSection(StagedSection("metrics", { "metrics" }, [](const std::string& json, SocietyMetricRules& r) { return LoadSocietyMetricRules(json, r); }, nullptr, *to.Metrics));   // T204
 		if (to.Director) packs.AddSection(StagedSection("director", { "director" }, [](const std::string& json, DirectorRules& r) { return LoadDirectorRules(json, r); }, nullptr, *to.Director));   // T195
+		if (to.Alerts) packs.AddSection(StagedSection("alerts", { "alerts" }, [](const std::string& json, AlertRules& r) { return LoadAlertRules(json, r); }, nullptr, *to.Alerts));   // T220
 	}
 }

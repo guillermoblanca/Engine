@@ -448,6 +448,8 @@ namespace GB::Editor
 			std::deque<News> NewsList;
 			int NewsSeen = -1;
 			Box NewsBox, FollowBox, SelectionBox;
+			Box AlertsBox;                  // T220: the alerts' stack (top right, left of the book) ...
+			bool AlertsFolded = false;      // ... folded by the counter of the god's bar (`observer alerts fold`)
 			// U6: the person the Person tab shows (`observer person <name>`; "" = the members' table) and the selection last turned into it
 			std::string Person, SelectionSeen;
 		} m_Observer;
@@ -516,6 +518,23 @@ namespace GB::Editor
 		int m_SocietiesFrame = -1;
 		std::map<int, std::map<int, float>> m_QolDays;   // clan -> day -> its qol on the first frame of that day
 		int m_QolDay = 0;
+		// T220 (U4, ObserverView.cpp): the god's alerts (GB/Game/WorldAlerts.h): the thresholds of the data (the "alerts" section, as GBSim reads
+		// them) and the board the editor keeps, looked at once a second of game while there are clans (never read by the simulation). A world made
+		// anew or loaded starts an empty board after the history it brings. AlertShown: when each alert was first drawn (real seconds: an important
+		// one goes after AlertSeconds); AlertPauseOff: `observer alert pause off` (a script's way round player.json's alertPause)
+		AlertRules m_AlertRules;
+		AlertBoard m_Alerts;
+		std::map<std::string, std::pair<double, double>> m_AlertShown;   // key -> (real seconds it appeared, its Last then: a new discovery shows it again)
+		uint64_t m_AlertTick = 0;
+		bool m_AlertStarted = false;
+		int m_AlertNewest = 0;
+		bool m_AlertPauseOff = false;
+		static constexpr double AlertSeconds = 8.0;
+		void TrackAlerts();
+		std::vector<const Alert*> VisibleAlerts() const;   // the board's shown ones the player chose to see (controls.hud.alerts), the important ones only for AlertSeconds
+		std::string AlertText(const Alert& a) const;        // in the player's language, with the clans' names
+		std::string ObserverAlertsText() const;             // `observer alerts`
+		void DrawObserverAlerts(float ox, float w);
 		void DrawGodBar(float ox, float oy, float w);   // the god's bar (ObserverView.cpp)
 		std::string ObserverTimeLine() const;          // `observer status`'s "time: day N, HH:MM, <season>, <weather>; speed xN[, paused]" (GameMode.cpp)
 		int GameDay() const;                           // the day of the world's clock, from 1, as the game's clock counts it (GameMode.cpp)

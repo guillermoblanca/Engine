@@ -4,6 +4,7 @@
 #include "GB/Game/GameCamera.h"
 #include "GB/Game/SocietyMetrics.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/WorldAlerts.h"
 #include "GB/Game/WorldDirector.h"
 
 namespace GB
@@ -116,6 +117,7 @@ namespace GB
 		ClimateRules* Climate = nullptr;
 		SocietyMetricRules* Metrics = nullptr;   // T204: the "metrics" section (how the quality of life is weighed; SocietyMetrics.h): ClanWorld::Metrics
 		DirectorRules* Director = nullptr;       // T195: the "director" section (assets/data/director.json: the god's faith and influence; WorldDirector.h)
+		AlertRules* Alerts = nullptr;            // T220: the "alerts" section (assets/data/director.json: the thresholds of the god's alerts; WorldAlerts.h)
 	};
 	void AddContentSections(ContentPacks& packs, const ContentTargets& to);
 }

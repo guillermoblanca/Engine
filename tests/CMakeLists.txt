@@ -264,6 +264,8 @@ gb_test(director_focus director_focus_test.cpp POOL GBSimTests LINK GB::Sim LABE
 gb_test(director_vision director_vision_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food
 gb_test(society_metrics society_metrics_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T219 + T220 (U3, U4 of MODO_DIOS_UX): the winter's outlook, the god's alerts (hunger, winter, war, extinct, inventor, split), grouped over time; the "alerts" section
+gb_test(world_alerts world_alerts_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # K0 of the refactor of Tribe (TRIBE_REFACTOR.md section 4): a clan's save after half a day is the golden tests/data/saves/tribe_k0.json and
 # loads and saves again the same text. Regenerate after an intended change of the save: GB_UPDATE_GOLDEN=1 ctest -C Release -R "^tribe_roundtrip$"
 gb_test(tribe_roundtrip tribe_roundtrip_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_data} JSON)

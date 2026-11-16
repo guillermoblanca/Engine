@@ -89,5 +89,14 @@
       "keep": 20,
       "traits": { "curiosity": 0.3 }
     }
+  },
+  "alerts": {
+    "_doc": "T220: the thresholds of the god's alerts (Engine/src/GB/Game/WorldAlerts.h; MODO_DIOS_UX 3.7): hunger under hungerDays days of food (or in survival with hungerOnSurvival) once the world is graceDays old (every clan starts with an empty store), the winter within winterWithinDays days and its outlook short, a war alert kept warDays days after the last clash, an inventor or a split eventDays days. Which ones the player sees and which pause is player.json controls.hud.",
+    "hungerDays": 3,
+    "hungerOnSurvival": true,
+    "graceDays": 0.5,
+    "winterWithinDays": 7,
+    "warDays": 2,
+    "eventDays": 1
   }
 }

@@ -82,6 +82,9 @@ namespace GB
 		// T230: the text over the world on the god's screen (and the observer's): "hover" names what the mouse is over and what is selected or
 		// followed, "selection" only what is selected or followed, "all" every label as before (the editor and a game keep their own)
 		std::string Labels = "hover";
+		// T220: the god's alerts (WorldAlerts.h) the player sees, and those that pause the god's game when they are first raised (critical ones only)
+		std::vector<std::string> Alerts = { "hunger", "winter", "war", "extinct", "inventor", "split" };
+		std::vector<std::string> AlertPause = { "hunger", "winter" };
 		bool operator==(const HudRules&) const = default;
 	};
 

@@ -1,6 +1,7 @@
 // H15: the data of the player inside the society (the "player" and "controls" sections) and the state a clan keeps of its players. The rules a
 // tribe applies to them are in TribePlayer.cpp.
 #include "GB/Game/PlayerMember.h"
+#include "GB/Game/WorldAlerts.h"
 #include <algorithm>
 #include <cmath>
 #include <nlohmann/json.hpp>
@@ -94,7 +95,8 @@ namespace GB
 		}
 		std::vector<Field> HudFields(HudRules& h)
 		{
-			return { I("notifications", h.Notifications), F("notifySeconds", h.NotifySeconds), L("needs", h.Needs), B("clock", h.Clock), B("prompt", h.Prompt), S("labels", h.Labels) };
+			return { I("notifications", h.Notifications), F("notifySeconds", h.NotifySeconds), L("needs", h.Needs), B("clock", h.Clock), B("prompt", h.Prompt), S("labels", h.Labels),
+				L("alerts", h.Alerts), L("alertPause", h.AlertPause) };
 		}
 		std::vector<Field> GameFields(GameSetup& g)
 		{
@@ -178,6 +180,10 @@ namespace GB
 		}
 		if (read.Hud.Notifications < 0) return "controls.hud.notifications: must not be negative";
 		if (read.Hud.Labels != "hover" && read.Hud.Labels != "selection" && read.Hud.Labels != "all") return "controls.hud.labels: expected hover, selection or all";
+		for (const std::vector<std::string>* list : { &read.Hud.Alerts, &read.Hud.AlertPause })   // T220
+			for (const std::string& k : *list)
+				if (std::find(AlertKinds().begin(), AlertKinds().end(), k) == AlertKinds().end())
+					return std::string("controls.hud.") + (list == &read.Hud.Alerts ? "alerts" : "alertPause") + ": no alert '" + k + "' (hunger, winter, war, extinct, inventor, split)";
 		if (read.Game.Members < 0 || read.Game.Clans < 1) return "controls.game: members must not be negative and there is at least one clan";
 		controls = std::move(read);
 		return {};

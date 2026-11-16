@@ -1,0 +1,4 @@
+# T257: the first thing a fresh editor does is load the save of editor_wound_save (a clan with Ana wounded): it loads, and Ana keeps the wound.
+load t257_wound
+qa expect "ability status Ana" "effects: .*Combat.Wounded.Light"
+quit

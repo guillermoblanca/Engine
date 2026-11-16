@@ -11,7 +11,10 @@
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include "StoryKinds.h"
+#include "GB/Game/WinterOutlook.h"
+#include "GB/Game/WorldAlerts.h"
 #include <algorithm>
+#include <cctype>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
@@ -52,26 +55,11 @@ namespace GB::Editor
 		}
 		ImU32 TierColour(const std::string& tier) { return tier == "survival" ? GameTheme::Bad : tier == "growth" ? GameTheme::Good : GameTheme::Warn; }
 
-		// TODO(U3): the winter's outlook will be WinterOutlook's (a pure function in GB/Game, MODO_DIOS_UX 3.4). Until it lands, the same definition
-		// here, only to draw the provisional mark: the days until the spring (those to the winter plus the winter's own, or in the winter what is
-		// left of it) against the days of food the clan has in hand today (Tribe::FoodDays: no births or deaths guessed). Short 0 = covered.
-		struct WinterGuess { float ToWinter = 0.0f, UntilSpring = 0.0f, Short = 0.0f, SeasonDays = 14.0f; bool In = false; };
-		WinterGuess GuessWinter(const Tribe& t)
-		{
-			const SeasonClock& s = t.Config.Seasons;
-			const double now = t.WorldSeconds();
-			const float daySeconds = std::max(1.0f, t.Config.Needs.DaySeconds);
-			const float seasonDays = static_cast<float>(std::max(1, static_cast<int>(std::lround(s.SeasonSeconds / daySeconds))));   // (as the god's bar counts them)
-			const Season season = s.At(now);
-			const float left = (1.0f - std::clamp(s.Progress(now), 0.0f, 1.0f)) * seasonDays;
-			WinterGuess g;
-			g.SeasonDays = seasonDays;
-			g.In = season == Season::Winter;
-			g.ToWinter = g.In ? 0.0f : left + static_cast<float>(2 - static_cast<int>(season)) * seasonDays;   // (the whole seasons between this one and the winter)
-			g.UntilSpring = g.In ? left : g.ToWinter + seasonDays;
-			g.Short = std::max(0.0f, g.UntilSpring - t.FoodDays());
-			return g;
-		}
+		// T219 (U3): the winter's outlook is GB's (GB/Game/WinterOutlook.h, the one definition the list, the sheet, the alerts and GBSim read): the
+		// days until the spring against the days of food the clan has in hand today. Short 0 = covered.
+		bool IsConditionKind(const std::string& kind) { return kind == "hunger" || kind == "winter" || kind == "extinct"; }   // (T220: the alerts that are a state, not an event)
+		using WinterGuess = WinterOutlook;
+		WinterGuess GuessWinter(const Tribe& t) { return ForecastWinter(t); }
 		// covered: good; short in the winter or 3 days before it: bad; short with the winter the next season: warn; short with the winter further off
 		// (in the spring every clan is short of a whole summer and autumn): only a note
 		ImU32 WinterColour(const WinterGuess& g)
@@ -244,7 +232,7 @@ namespace GB::Editor
 			if (m_Observer.Screen && v.X1 > v.X0 && v.Y1 > v.Y0)
 			{
 				const std::pair<const char*, const ObserverState::Box*> boxes[] = { { "bar", &m_Observer.BarBox }, { "card", &m_Observer.CardBox }, { "clans", &m_Observer.ClansBox },
-					{ "book", &m_Observer.BookBox }, { "follow", &m_Observer.FollowBox }, { "news", &m_Observer.NewsBox }, { "selection", &m_Observer.SelectionBox } };
+					{ "book", &m_Observer.BookBox }, { "follow", &m_Observer.FollowBox }, { "news", &m_Observer.NewsBox }, { "selection", &m_Observer.SelectionBox }, { "alerts", &m_Observer.AlertsBox } };
 				auto area = [](const ObserverState::Box& b) { return std::max(0.0f, b.X1 - b.X0) * std::max(0.0f, b.Y1 - b.Y0); };
 				float covered = 0.0f;
 				std::string parts, overlaps;
@@ -331,6 +319,49 @@ namespace GB::Editor
 			}
 			else m_TimeScale = steps[a[0] == "faster" ? std::min(3, i + (steps[i] == m_TimeScale ? 1 : 0)) : std::max(0, i - 1)];
 			return { true, "speed x" + std::to_string(m_TimeScale) };
+		}
+		// T220 (U4): the god's alerts as text (what the stack draws, in its order), dismissing one or going to it (by its number in that list or its
+		// key, as the stack's buttons do), and whether a new critical one may pause the god's game (a script's switch over player.json's alertPause)
+		if (a[0] == "alerts" && a.size() > 1 && a[1] == "fold")
+		{
+			m_Observer.AlertsFolded = a.size() > 2 ? a[2] == "on" : !m_Observer.AlertsFolded;
+			return { true, m_Observer.AlertsFolded ? "alerts folded (the counter of the god's bar shows them again)" : "alerts shown" };
+		}
+		if (a[0] == "alerts") return { true, ObserverAlertsText() };
+		if (a[0] == "alert")
+		{
+			const std::string usage = "observer alert dismiss <n|key> | go <n|key> | pause on|off";
+			if (a.size() > 2 && a[1] == "pause")
+			{
+				if (a[2] != "on" && a[2] != "off") return { false, usage };
+				m_AlertPauseOff = a[2] == "off";
+				return { true, m_AlertPauseOff ? "alerts never pause" : "the critical alerts of controls.hud.alertPause pause the god's game" };
+			}
+			if (a.size() < 3 || (a[1] != "dismiss" && a[1] != "go")) return { false, usage };
+			const std::vector<const Alert*> shown = VisibleAlerts();
+			const Alert* pick = nullptr;
+			int n = 0;
+			if (!a[2].empty() && std::all_of(a[2].begin(), a[2].end(), [](unsigned char ch) { return std::isdigit(ch) != 0; }))
+			{
+				n = std::atoi(a[2].c_str());
+				if (n >= 1 && n <= static_cast<int>(shown.size())) pick = shown[static_cast<size_t>(n - 1)];
+			}
+			else
+				for (size_t i = 0; i < shown.size(); ++i)
+					if (shown[i]->Key == a[2]) { pick = shown[i]; n = static_cast<int>(i) + 1; }
+			if (!pick) return { false, "no alert " + a[2] + " (" + std::to_string(shown.size()) + " shown: observer alerts)" };
+			const std::string text = pick->Text, key = pick->Key;
+			if (a[1] == "dismiss")
+			{
+				m_Alerts.DismissKey(key);
+				return { true, "alert " + std::to_string(n) + " dismissed: " + text };
+			}
+			if (!pick->HasWhere) return { false, "the alert " + std::to_string(n) + " has no place" };
+			char x[32], z[32];
+			std::snprintf(x, sizeof x, "%.2f", static_cast<double>(pick->Where.x));
+			std::snprintf(z, sizeof z, "%.2f", static_cast<double>(pick->Where.y));
+			const CommandResult r = m_GameView.Command({ "overview", x, z, "45" }, m_Actors, m_Player, m_World, m_Camera);
+			return { r.Ok, "alert " + std::to_string(n) + " (" + text + "): " + r.Message };
 		}
 		if (m_Clans.Count() == 0) return { false, "no clans (tribe build, clan new)" };
 		// U2: what the god's list shows of each clan, and its SocietyLine (the measure the list draws in this same frame)
@@ -439,7 +470,7 @@ namespace GB::Editor
 			m_ActiveClan = all[i]->Id;
 		}
 		else if (const Clan* c = m_Clans.Find(a[0])) m_ActiveClan = c->Id;
-		else return { false, std::string("observer on|off|toggle|status|next|prev|sheet <") + kSheets + ">|screen on|off|pause [on|off]|resume|speed <1-20>|faster|slower|clans|tip <clan>|off|chronicle [all|<clan>] [kind...] [weight <n>]|go <event>|newest|person <name>|sample|off|follow [name]|off|<clan id or name>" };
+		else return { false, std::string("observer on|off|toggle|status|next|prev|sheet <") + kSheets + ">|screen on|off|pause [on|off]|resume|speed <1-20>|faster|slower|clans|tip <clan>|off|chronicle [all|<clan>] [kind...] [weight <n>]|go <event>|newest|person <name>|sample|off|follow [name]|off|alerts|alert dismiss|go <n>|alert pause on|off|<clan id or name>" };
 		m_Observer.On = true;
 		const Clan* c = m_Clans.Find(m_ActiveClan);
 		return { true, "observing the clan " + std::to_string(m_ActiveClan) + (c ? " " + c->Name : std::string()) };
@@ -451,7 +482,7 @@ namespace GB::Editor
 		m_Observer.CardBottom = 0.0f;
 		m_Observer.BarBottom = 0.0f;
 		m_Observer.BarBox = m_Observer.CardBox = m_Observer.BookBox = m_Observer.ClansBox = {};
-		m_Observer.NewsBox = m_Observer.FollowBox = m_Observer.SelectionBox = {};
+		m_Observer.NewsBox = m_Observer.FollowBox = m_Observer.SelectionBox = m_Observer.AlertsBox = {};
 		m_Observer.ViewBox = { ox, oy, ox + w, oy + h };
 		if (!m_Observer.On) return;
 		namespace T = GameTheme;
@@ -734,6 +765,7 @@ namespace GB::Editor
 		if (god)
 		{
 			DrawFollowChip(ox, w);
+			DrawObserverAlerts(ox, w);   // T220: the alerts first, the news under them
 			DrawObserverNews(ox, w);
 		}
 		DrawHandBar(ox, oy, w, h);   // T201: the god's hand, at the bottom between the list and the book
@@ -1096,6 +1128,23 @@ namespace GB::Editor
 			}
 			ImGui::EndGroup();
 			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", wetTip.c_str());
+			// T220: the alerts' counter (red with a critical one, ochre with only important ones; none: nothing drawn); a click folds the stack
+			{
+				const std::vector<const Alert*> alerts = VisibleAlerts();
+				if (!alerts.empty())
+				{
+					const bool critical = std::any_of(alerts.begin(), alerts.end(), [](const Alert* x) { return x->Level == AlertLevel::Critical; });
+					divider();
+					ImGui::PushStyleColor(ImGuiCol_Text, critical ? T::Bad : T::Ochre);
+					ImGui::PushStyleColor(ImGuiCol_Border, critical ? T::Bad : T::Ochre);
+					ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 1.5f);
+					if (ImGui::Button(("(!) " + std::to_string(alerts.size()) + "###alerts").c_str())) run("observer alerts fold");
+					ImGui::PopStyleVar();
+					ImGui::PopStyleColor(2);
+					if (ImGui::IsItemHovered())
+						ImGui::SetTooltip("%s", (L.Text("{0} alerts need your attention", static_cast<int>(alerts.size())) + "\n" + L.Text(m_Observer.AlertsFolded ? "Click to show them" : "Click to hide them")).c_str());
+				}
+			}
 			// the way back to the editor, at the right end (or right after the rest, in a narrow window); in GB.exe (G1) there is no editor: its menu
 			const char* backLabel = m_Shell.On ? "Menu" : "Editor";
 			const std::string back = L.Text(backLabel) + "###editor";
@@ -1273,8 +1322,16 @@ namespace GB::Editor
 		const double now = ImGui::GetTime();
 		if (m_Observer.NewsSeen < 0 || newest < m_Observer.NewsSeen) { m_Observer.NewsSeen = newest; m_Observer.NewsList.clear(); }   // (the screen just opened, or a new world)
 		std::vector<int> fresh;
+		// T220: a discovery or a split the alerts' stack tells (the player sees those alerts and the stack is not folded) is not told again as news
+		const std::vector<std::string>& alerted = m_Controls.Hud.Alerts;
+		auto told = [&](const std::string& kind)
+		{
+			if (m_Observer.AlertsFolded) return false;
+			const char* alert = kind == "discovery" ? "inventor" : kind == "found" ? "split" : nullptr;
+			return alert && std::find(alerted.begin(), alerted.end(), alert) != alerted.end();
+		};
 		for (auto it = events.rbegin(); it != events.rend() && it->Id > m_Observer.NewsSeen; ++it)
-			if (!SheetKind(it->Kind).empty() && it->Weight >= 4) fresh.push_back(it->Id);
+			if (!SheetKind(it->Kind).empty() && it->Weight >= 4 && !told(it->Kind)) fresh.push_back(it->Id);
 		for (auto it = fresh.rbegin(); it != fresh.rend(); ++it) m_Observer.NewsList.push_back({ *it, now });
 		m_Observer.NewsSeen = newest;
 		while (m_Observer.NewsList.size() > 40) m_Observer.NewsList.pop_front();
@@ -1297,7 +1354,7 @@ namespace GB::Editor
 		// between the clans' list and the book, under the bar and the follow chip
 		const float left = m_Observer.ClansBox.X1 > m_Observer.ClansBox.X0 ? m_Observer.ClansBox.X1 + T::Gap : ox + T::Margin;
 		const float right = m_Observer.BookBox.X1 > m_Observer.BookBox.X0 ? m_Observer.BookBox.X0 - T::Gap : ox + w - T::Margin;
-		const float top = std::max(m_Observer.BarBottom, m_Observer.FollowBox.Y1) + T::Gap;
+		const float top = std::max({ m_Observer.BarBottom, m_Observer.FollowBox.Y1, m_Observer.AlertsBox.Y1 }) + T::Gap;   // (T220: under the alerts)
 		const float card = std::min(380.0f, right - left), wrap = card - 2.0f * T::Pad - 4.0f;
 		if (wrap < 80.0f) return;   // (no room: the window is too narrow for news)
 		ImGui::SetNextWindowPos(ImVec2(right, top), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
@@ -1324,6 +1381,163 @@ namespace GB::Editor
 				dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(min.x + T::Pad + 4.0f, min.y + 6.0f), T::Faded(T::News, s.Alpha), text.c_str(), nullptr, wrap);
 			}
 			m_Observer.NewsBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
+		}
+		ImGui::End();
+		ImGui::PopStyleVar(2);
+	}
+
+	// ------------------------------------------------------------------ T220 (U4): the god's alerts
+	void EditorApp::TrackAlerts()
+	{
+		if (m_Clans.Count() == 0)
+		{
+			if (!m_Alerts.All().empty()) { m_Alerts.Clear(); m_AlertShown.clear(); }
+			m_AlertStarted = false;
+			return;
+		}
+		const std::vector<HistoryEvent>& events = m_Clans.Past().Events();
+		const int newest = events.empty() ? 0 : events.back().Id;
+		if (!m_AlertStarted || newest < m_AlertNewest || m_SimTick < m_AlertTick)   // a world made anew or loaded: what its history brings is not news
+		{
+			m_Alerts.Clear();
+			m_Alerts.SkipHistory(m_Clans);
+			m_AlertShown.clear();
+			m_AlertStarted = true;
+		}
+		else if (m_SimTick < m_AlertTick + 60) { m_AlertNewest = newest; return; }   // (a look a second of game)
+		m_AlertNewest = newest;
+		m_AlertTick = m_SimTick;
+		const std::vector<std::string> raised = m_Alerts.Look(m_Clans, m_AlertRules);
+		const double now = ImGui::GetTime();
+		for (const Alert& a : m_Alerts.All())   // (when it first appeared, or last changed by a new event: an important one goes after AlertSeconds)
+		{
+			auto [it, fresh] = m_AlertShown.emplace(a.Key, std::make_pair(now, a.Last));
+			if (!fresh && !IsConditionKind(a.Kind) && it->second.second != a.Last) it->second = { now, a.Last };
+		}
+		for (auto it = m_AlertShown.begin(); it != m_AlertShown.end();)
+		{
+			const bool live = std::any_of(m_Alerts.All().begin(), m_Alerts.All().end(), [&](const Alert& a) { return a.Key == it->first; });
+			it = live ? std::next(it) : m_AlertShown.erase(it);
+		}
+		// a critical alert the player sees and chose to pause on pauses the god's game when it is first raised (never again until it clears and
+		// comes back; the player resumes as always)
+		if (m_AlertPauseOff || m_Game.Active || !m_Observer.Screen || m_Observer.Paused) return;
+		const HudRules& hud = m_Controls.Hud;
+		for (const std::string& key : raised)
+			for (const Alert& a : m_Alerts.All())
+				if (a.Key == key && a.Level == AlertLevel::Critical && std::find(hud.Alerts.begin(), hud.Alerts.end(), a.Kind) != hud.Alerts.end()
+					&& std::find(hud.AlertPause.begin(), hud.AlertPause.end(), a.Kind) != hud.AlertPause.end())
+				{
+					m_Observer.Paused = true;
+					m_Observer.AlertsFolded = false;
+					GB_CLIENT_INFO("alert: {}: the god's game pauses (observer pause to go on; controls.hud.alertPause says which pause)", a.Text);
+					return;
+				}
+	}
+
+	std::vector<const Alert*> EditorApp::VisibleAlerts() const
+	{
+		std::vector<const Alert*> out;
+		const double now = ImGui::GetTime();
+		const std::vector<std::string>& kinds = m_Controls.Hud.Alerts;
+		for (const Alert* a : m_Alerts.Shown())
+		{
+			if (std::find(kinds.begin(), kinds.end(), a->Kind) == kinds.end()) continue;
+			if (a->Level == AlertLevel::Important)   // (an important one goes by itself after AlertSeconds; a critical one stays until it is dismissed)
+				if (const auto it = m_AlertShown.find(a->Key); it != m_AlertShown.end() && now - it->second.first > AlertSeconds) continue;
+			out.push_back(a);
+		}
+		return out;
+	}
+
+	std::string EditorApp::AlertText(const Alert& a) const
+	{
+		const Lang& L = m_Lang;
+		const std::string clan = L.Name("clan", a.ClanName, a.ClanName), other = L.Name("clan", a.OtherName, a.OtherName);
+		if (a.Kind == "hunger") return L.Text("{0}: {1} days of food ({2} people)", clan, L.Num(a.Value, 1), static_cast<int>(a.Value2));
+		if (a.Kind == "winter")
+		{
+			const std::string spring = L.Num(a.Value2 + a.Value, 0);
+			return a.Value3 <= 0.0f ? L.Text("{0}: in the winter; has {1} d of food of {2}", clan, L.Num(a.Value2, 0), spring)
+				: L.Text("{0}: winter in {1} d; has {2} d of food of {3}", clan, L.Num(a.Value3, 0), L.Num(a.Value2, 0), spring);
+		}
+		if (a.Kind == "war") return a.Value > 1.0f ? L.Text("{0} attacks {1} ({2} clashes)", clan, other, static_cast<int>(a.Value)) : L.Text("{0} attacks {1}", clan, other);
+		if (a.Kind == "extinct") return L.Text("{0} has died out", clan);
+		if (a.Kind == "inventor")
+			return a.Value > 1.0f ? L.Text("Inventor ({0}): {1} ({2} discoveries)", clan, Lang::Cap(L.Line(a.What)), static_cast<int>(a.Value)) : L.Text("Inventor ({0}): {1}", clan, Lang::Cap(L.Line(a.What)));
+		if (a.Kind == "split") return L.Text("{0} splits: {1} is founded", clan, other);
+		return a.Text;
+	}
+
+	std::string EditorApp::ObserverAlertsText() const
+	{
+		const std::vector<const Alert*> shown = VisibleAlerts();
+		std::string s = shown.empty() ? std::string("no alerts") : std::to_string(shown.size()) + " alert(s):";
+		int n = 0;
+		char where[64];
+		for (const Alert* a : shown)
+		{
+			std::snprintf(where, sizeof where, " at (%.1f, %.1f)", static_cast<double>(a->Where.x), static_cast<double>(a->Where.y));
+			s += "\n" + std::to_string(++n) + ". " + AlertLevelName(a->Level) + " " + a->Kind + " [" + a->Key + "]: " + a->Text + (a->HasWhere ? where : "");
+		}
+		return s + "\nraised so far: " + m_Alerts.RaisedLine() + (m_AlertPauseOff ? "; they never pause" : "");
+	}
+
+	void EditorApp::DrawObserverAlerts(float ox, float w)
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		const std::vector<const Alert*> shown = VisibleAlerts();
+		if (shown.empty() || m_Observer.AlertsFolded) return;   // (nothing to say: nothing drawn)
+		// top right, left of the book, under the bar and the follow chip (the news go under it)
+		const float left = m_Observer.ClansBox.X1 > m_Observer.ClansBox.X0 ? m_Observer.ClansBox.X1 + T::Gap : ox + T::Margin;
+		const float right = m_Observer.BookBox.X1 > m_Observer.BookBox.X0 ? m_Observer.BookBox.X0 - T::Gap : ox + w - T::Margin;
+		const float top = std::max(m_Observer.BarBottom, m_Observer.FollowBox.Y1) + T::Gap;
+		const float card = std::min(400.0f, right - left);
+		const ImGuiStyle& style = ImGui::GetStyle();
+		const std::string goLabel = L.Text("go"), xLabel = "x";
+		const float goW = ImGui::CalcTextSize(goLabel.c_str()).x + style.FramePadding.x * 2.0f, xW = ImGui::CalcTextSize(xLabel.c_str()).x + style.FramePadding.x * 2.0f;
+		const float wrap = card - 2.0f * T::Pad - 8.0f - goW - xW - 2.0f * style.ItemSpacing.x;
+		if (wrap < 80.0f) return;   // (no room: the window is too narrow)
+		ImGui::SetNextWindowPos(ImVec2(right, top), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4.0f, 4.0f));
+		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+			| ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoBackground;
+		if (ImGui::Begin("Alerts##observer", nullptr, flags))
+		{
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			const size_t most = 6;   // (more than six: the rest are counted, the bar's counter says how many)
+			for (size_t i = 0; i < shown.size() && i < most; ++i)
+			{
+				const Alert& a = *shown[i];
+				const bool critical = a.Level == AlertLevel::Critical;
+				const ImU32 accent = critical ? T::Bad : T::Ochre;
+				const std::string text = std::string(a.Kind == "inventor" || a.Kind == "split" ? "* " : "! ") + AlertText(a);
+				const ImVec2 size = ImGui::CalcTextSize(text.c_str(), nullptr, false, wrap);
+				const float h = std::max(size.y, ImGui::GetFrameHeight()) + 12.0f;
+				const ImVec2 min = ImGui::GetCursorScreenPos(), max(min.x + card, min.y + h);
+				T::Card(dl, min, max, accent);
+				dl->AddRect(min, max, accent, T::Radius, 0, critical ? 2.0f : 1.5f);   // (the border says the level: bad for critical, ochre for important)
+				dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(min.x + T::Pad + 4.0f, min.y + 6.0f), T::Bone, text.c_str(), nullptr, wrap);
+				ImGui::PushID(a.Key.c_str());
+				const float by = min.y + (h - ImGui::GetFrameHeight()) * 0.5f;
+				ImGui::SetCursorScreenPos(ImVec2(max.x - T::Pad - xW - style.ItemSpacing.x - goW, by));
+				if (a.HasWhere)
+				{
+					if (ImGui::Button((goLabel + "###go").c_str())) m_UiCommands.push_back("observer alert go " + a.Key);
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The camera to where it happens").c_str());
+				}
+				else ImGui::Dummy(ImVec2(goW, ImGui::GetFrameHeight()));
+				ImGui::SameLine();
+				if (ImGui::Button((xLabel + "###dismiss").c_str())) m_UiCommands.push_back("observer alert dismiss " + a.Key);
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text(critical ? "Dismiss it (it stays until you do)" : "Dismiss it (it goes by itself in a few seconds)").c_str());
+				ImGui::PopID();
+				ImGui::SetCursorScreenPos(ImVec2(min.x, max.y + 4.0f));
+				ImGui::Dummy(ImVec2(card, 0.0f));
+			}
+			if (shown.size() > most) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::BoneDim), "%s", L.Text("and {0} more", static_cast<int>(shown.size() - most)).c_str());
+			m_Observer.AlertsBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
 		}
 		ImGui::End();
 		ImGui::PopStyleVar(2);

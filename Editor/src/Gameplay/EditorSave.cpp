@@ -550,6 +550,7 @@ namespace GB::Editor
 		std::vector<std::string> notes = r.Warnings;
 		r = ApplyGame(*m_SaveHost, game);
 		if (!r.Ok) return { false, "cannot load '" + name + "': " + r.Error + " (nothing changed)" };
+		m_AlertStarted = false;   // T220: the god's alerts start again after the history the save brings (it is not news)
 		for (const std::string& w : notes) GB_CLIENT_WARN("{}", w);
 		for (const std::string& w : r.Warnings) GB_CLIENT_WARN("{}", w);
 		return { true, "loaded '" + name + "' (tick " + std::to_string(game.Clock.Tick) + ", format " + std::to_string(game.Format) + ")" };

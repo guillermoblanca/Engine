@@ -14,6 +14,7 @@
 #include "GB/Game/SocietyMetrics.h"
 #include "GB/Game/StoreLayout.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/WorldAlerts.h"
 #include "GB/Gameplay/ContentPack.h"
 #include "GB/Gameplay/Items.h"
 #include "GB/Gameplay/Ecology.h"
@@ -102,6 +103,7 @@ namespace
 		GB::NatureConfig Nature;
 		GB::SocietyMetricRules Metrics;   // T204: the "metrics" section (how the quality of life is weighed)
 		GB::DirectorRules Director;       // T195: the "director" section (the god's faith and influence)
+		GB::AlertRules Alerts;            // T220: the "alerts" section (the thresholds of the god's alerts; only --report counts them)
 		std::string Error;
 
 		explicit EraContent(const std::string& assets, const std::string& pack)
@@ -115,6 +117,7 @@ namespace
 			to.Climate = &Config.Seasons.Climate;   // T14
 			to.Metrics = &Metrics;          // T204
 			to.Director = &Director;        // T195
+			to.Alerts = &Alerts;            // T220
 			GB::AddContentSections(Packs, to);
 			GB::ContentReport report;
 			Error = Packs.Load(pack.empty() ? std::string(GB::GamePack()) : pack, assets + "/data", &report);
@@ -316,6 +319,8 @@ int main(int argc, char** argv)
 	// exact time, and its reply is printed
 	std::stable_sort(orders.begin(), orders.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
 	size_t nextOrder = 0;
+	GB::AlertBoard alerts;   // T220 (--report: how many of each the god would have seen)
+	const GB::AlertRules alertRules = era ? era->Alerts : GB::AlertRules{};
 	auto runOrders = [&]()
 	{
 		for (; nextOrder < orders.size() && orders[nextOrder].first * kDay <= done + 1e-6; ++nextOrder)
@@ -338,6 +343,7 @@ int main(int argc, char** argv)
 		if (nextOrder < orders.size() && orders[nextOrder].first * kDay > done) chunk = std::min(chunk, orders[nextOrder].first * kDay - done);
 		run.Run(chunk);
 		done += chunk;
+		if (report && run.Clans().Count() > 0) alerts.Look(run.Clans(), alertRules);   // T220: the god's alerts, read off the clans (nothing in the run reads them)
 		const std::vector<int> alive = AliveByClan(run);
 		peakAlive.resize(alive.size(), 0);
 		for (size_t i = 0; i < alive.size(); ++i) if (alive[i] > peakAlive[i]) { peakAlive[i] = alive[i]; lastGrowth = done; }
@@ -443,6 +449,8 @@ int main(int argc, char** argv)
 			std::fprintf(stderr, "%s\n", GB::SocietyWorldLine(GB::MeasureWorld(run.Clans(), societies)).c_str());
 		}
 		else std::fprintf(stderr, "%s\n", GB::SocietyLine(GB::MeasureSociety(run.Brain(), era ? era->Metrics : GB::SocietyMetricRules{}, 0)).c_str());
+		// T220: the god's alerts raised over the run (looked at once a minute of game, as WorldAlerts.h; a dismissal is the player's: none here)
+		std::fprintf(stderr, "alerts raised: %s; still up at the end: %zu\n", alerts.RaisedLine().c_str(), alerts.Shown().size());
 		if (!orders.empty()) std::fprintf(stderr, "\n%s\n", run.Director().Status().c_str());   // T195 (only a run with orders: the report of one without stays as it was)
 	}
 	for (const GB::SimFinding& f : run.Monitor().Findings())   // what broke an invariant, so a run left alone says it
