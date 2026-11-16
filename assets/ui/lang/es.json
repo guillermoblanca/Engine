@@ -2169,6 +2169,26 @@
   {
    "re": "^not enough influence: ([0-9.]+) of ([0-9.]+)$",
    "to": "no hay influencia bastante: {1} de {2}"
+  },
+  {
+   "re": "^(.+) is hungry \\(survival\\): only the focus on food$",
+   "to": "{1} pasa hambre (supervivencia): solo puede volcarse en la comida"
+  },
+  {
+   "re": "^(\\S+) is already a (\\S+)$",
+   "to": "ya tiene ese oficio"
+  },
+  {
+   "re": "^(\\S+) is one of the last hands the clan keeps as (\\S+)$",
+   "to": "el clan no puede quedarse sin sus últimas manos de {role:2}"
+  },
+  {
+   "re": "^(\\S+) is a child$",
+   "to": "es un niño"
+  },
+  {
+   "re": "^the clan is too small to change trades \\(([0-9]+) of ([0-9]+)\\)$",
+   "to": "el clan es demasiado pequeño para cambiar de oficio ({1} de {2})"
   }
  ],
  "ui": {
@@ -2758,6 +2778,49 @@
   "Omens for the {0}": "Presagios para el clan {0}",
   "({0} influence)": "({0} de influencia)",
   "The {0} read no omens": "El clan {0} no lee presagios",
-  "The world sends it to the {0}: their mood and beliefs move, maybe a rite": "El mundo se lo envía al clan {0}: mueve su ánimo y sus creencias, quizá un rito"
+  "The world sends it to the {0}: their mood and beliefs move, maybe a rite": "El mundo se lo envía al clan {0}: mueve su ánimo y sus creencias, quizá un rito",
+  "The {0} put their effort on one thing for a few days: the believers follow it more than the rest": "El clan {0} se vuelca unos días en una cosa: los creyentes lo siguen más que el resto",
+  "Focus: {0} ({1} days left)": "Foco: {0} (quedan {1} días)",
+  "paused: they are hungry": "en pausa: pasan hambre",
+  "Remove": "Quitar",
+  "The {0} go back to their own way (what was paid is not given back)": "El clan {0} vuelve a lo suyo (lo pagado no se devuelve)",
+  "Where the {0} put their effort": "En qué se vuelca el clan {0}",
+  "(3 days; soft x{0}: {1} + {2} a day; strong x{3}: {4} + {5} a day)": "(3 días; suave x{0}: {1} + {2} al día; fuerte x{3}: {4} + {5} al día)",
+  "Now the {0} are hungry (survival): only the focus on food": "Ahora el clan {0} pasa hambre (supervivencia): solo puede volcarse en la comida",
+  "Soft": "Suave",
+  "Strong": "Fuerte",
+  "{0} influence; {1} of {2} would follow it": "{0} de influencia; lo seguirían {1} de {2}",
+  "gathering food": "recolectar comida",
+  "gathering wood, stone and fibre": "recoger madera, piedra y fibra",
+  "food": "comida",
+  "works": "obras",
+  "lore": "saber",
+  "defense": "defensa",
+  "faith": "fe",
+  "experiment": "experimentar",
+  "learn": "aprender",
+  "teach": "enseñar",
+  "explore": "explorar",
+  "hunt": "cazar",
+  "snare": "trampas",
+  "farm": "cultivar",
+  "haul": "acarrear",
+  "build": "construir",
+  "deliver": "llevar material",
+  "pave": "empedrar",
+  "make": "fabricar",
+  "craft": "herramientas",
+  "regroup": "reagruparse",
+  "gear": "equiparse",
+  "care": "cuidar heridos",
+  "rite": "ritos",
+  "talk": "hablar",
+  "socialize": "convivir",
+  "Calling": "Vocación",
+  "{0} dreams of a trade: if it believes, it takes it up at the next review ({1} influence)": "{0} sueña con un oficio: si cree, lo toma en la siguiente revisión ({1} de influencia)",
+  "Calling: {0}": "Vocación: {0}",
+  "Which trade does {0} dream of?": "¿Con qué oficio sueña {0}?",
+  "would accept (devotion {0}, skill {1} against {2})": "aceptaría (devoción {0}, aptitud {1} frente a {2})",
+  "would not: it does not believe enough (devotion {0})": "no aceptaría: no cree lo bastante (devoción {0})"
  }
 }

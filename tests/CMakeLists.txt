@@ -256,6 +256,8 @@ gb_test(terrain_graph terrain_graph_test.cpp POOL GBRenderTests LINK GB::Render 
 gb_test(history history_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 # T195 (documentation/01_diseno/MODO_DIOS.md §3.4): the god's director: faith, influence, the hand, the omen, saving
 gb_test(director director_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T238 + T239 (MODO_DIOS_DECISIONES.md §3.b): the focus of a clan and the calling of a person
+gb_test(director_focus director_focus_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food
 gb_test(society_metrics society_metrics_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # K0 of the refactor of Tribe (TRIBE_REFACTOR.md section 4): a clan's save after half a day is the golden tests/data/saves/tribe_k0.json and

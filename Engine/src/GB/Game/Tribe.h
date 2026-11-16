@@ -20,6 +20,7 @@
 #include "GB/Game/Society.h"
 #include "GB/Game/Social.h"
 #include "GB/Game/Trails.h"
+#include "GB/Game/TribeBias.h"
 #include "GB/Game/Production.h"
 #include "GB/Game/Schedule.h"
 #include "GB/Game/SettlementPlanner.h"
@@ -613,6 +614,7 @@ namespace GB
 		// ---- H13: the clans around (GB/Game/Clans.h; TribeClans.cpp). What they add to the members' lives, and what they need of the tribe to do it.
 		// PRIORITY-GRAPH HOOK (1/2): graphs that rescore the options of Decide, per role or member (GB/AI/PriorityLibrary.h, docs/GRAFO_PRIORIDADES.md). Empty = none.
 		std::shared_ptr<PriorityLibrary> Priorities;
+		TribeBias Bias;   // T238/T239: the god's focus and callings (GB/Game/TribeBias.h; WorldDirector writes it, the tribe does not save it)
 		void SetOutside(TribeOutside outside) { m_Outside = std::move(outside); }
 		// Names other clans already use: a child is not given one (members' names are the actors' and must be unique in the world).
 		void SetNameTaken(std::function<bool(const std::string&)> taken) { m_NameTaken = std::move(taken); }

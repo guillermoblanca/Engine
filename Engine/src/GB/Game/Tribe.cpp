@@ -1838,6 +1838,7 @@ namespace GB
 			const auto it = m.Unreachable.find("job:" + o.Kind);
 			return it != m.Unreachable.end() && it->second.first > now;
 		}), opts.end());
+		if (Bias.Focus.Active()) ApplyFocusBias(*this, m, opts);   // T238: the god's focus of the clan pushes one group of options (TribeBias.cpp)
 
 		// PRIORITY-GRAPH HOOK (2/2): the graph of its role or of itself rescores the options (only when a library is set; GB/Game/TribePriorities.cpp)
 		if (Priorities) ApplyPriorityGraphs(*this, m, *Priorities, opts);

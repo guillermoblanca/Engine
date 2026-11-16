@@ -447,7 +447,8 @@ namespace GB::Editor
 		// `director hand ...` and `director ghost ...` drive the same without a mouse (HandCommand).
 		struct HandState
 		{
-			std::string Menu;                    // "" | "build" | "omen": what is open over the bar
+			std::string Menu;                    // "" | "build" | "omen" | "focus": what is open over the bar
+			std::string Calling;                 // T239: the person whose sheet shows the menu of callings ("" = closed)
 			std::string Building;                // the building being placed ("" = none)
 			float Yaw = 0.0f;                    // degrees, passed to the sign (the site does not turn yet)
 			bool Pinned = false;                 // `director ghost`: the ghost stands at PinX, PinZ as if the cursor were there

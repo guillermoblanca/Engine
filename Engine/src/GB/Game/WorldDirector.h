@@ -66,6 +66,63 @@ namespace GB
 		float X = 0.0f, Z = 0.0f;
 	};
 
+	// T238 (MODO_DIOS_DECISIONES.md §3.b): a group of the focus: the utility options it pushes, the trait that follows it and the norm it leaves.
+	struct DirectorFocusGroup
+	{
+		std::vector<std::string> Kinds;
+		bool FoodGather = false, OtherGather = false;   // a "gather" of food / of anything else is of the group
+		std::string Trait, Norm;
+		bool operator==(const DirectorFocusGroup&) const = default;
+	};
+	// "focus": m(p) = 1 + (M - 1) x clamp(Faith x devotion(p) + Trait x (2 trait(p) - 1), 0, 1); M is Soft or Strong. The cost is "focus" or
+	// "focus_strong" in the costs; Upkeep a day after; each day the group's norm moves Drift towards 1. In "survival" only "food" works.
+	struct DirectorFocusRules
+	{
+		float Soft = 1.25f, Strong = 1.5f;
+		float UpkeepSoft = 3.0f, UpkeepStrong = 5.0f;
+		int MaxDays = 7;
+		float Faith = 0.7f, Trait = 0.3f, Drift = 0.01f;
+		std::map<std::string, DirectorFocusGroup> Groups = {
+			{ "food", { { "hunt", "snare", "farm", "haul" }, true, false, "diligence", "industry" } },
+			{ "build", { { "build", "deliver", "pave", "make", "craft" }, false, true, "diligence", "industry" } },
+			{ "lore", { { "experiment", "learn", "teach", "explore" }, false, false, "curiosity", "inquiry" } },
+			{ "defense", { { "regroup", "gear", "care" }, false, false, "boldness", "daring" } },
+			{ "faith", { { "rite", "talk", "socialize" }, false, false, "sociability", "sharing" } } };
+		bool operator==(const DirectorFocusRules&) const = default;
+	};
+	// T239: "calling": the cost is "calling" in the costs; Days long; Skill points more in the review of the trades; Traits weigh in the
+	// person's disposition (DirectorDisposition, with no messenger); with a disposition <= 0 it does not take it and Refund of the cost comes back.
+	struct DirectorCallingRules
+	{
+		float Days = 14.0f, Skill = 30.0f, Refund = 0.5f;
+		std::map<std::string, float> Traits;
+		bool operator==(const DirectorCallingRules&) const = default;
+	};
+	struct DirectorFocus                   // the focus of a clan now
+	{
+		int Clan = -1;
+		std::string Group;
+		bool Strong = false;
+		double Since = 0.0, Until = 0.0;
+		int PaidDay = 0;                   // the last day whose upkeep was paid (and whose drift was given)
+		bool Paused = false;               // the clan is in "survival" and the group is not food
+		bool operator==(const DirectorFocus&) const = default;
+	};
+	struct DirectorCalling                 // a calling of one person
+	{
+		int Clan = -1, Order = 0;
+		std::string Person, Role;
+		double Since = 0.0, Until = 0.0;
+		bool operator==(const DirectorCalling&) const = default;
+	};
+	struct DirectorCallingPreview
+	{
+		bool Ok = false;                   // it can be given
+		bool Accepts = false;              // and the person would take it (disposition > 0)
+		std::string Why, Person, Role, Current;
+		float Disposition = 0.0f, Cost = 0.0f, Skill = 0.0f, Own = 0.0f;
+	};
+
 	// assets/data/director.json, the "director" section.
 	struct DirectorRules
 	{
@@ -77,8 +134,8 @@ namespace GB
 		float DailyGain = 0.5f;            // influence a day per living member x its devotion
 		float ShamanDevotion = 0.2f;       // what being the clan's shaman adds to a person's devotion
 		float SandboxPerDay = 20.0f;       // `director sandbox on`: the fixed clock that refills the influence
-		std::map<std::string, float> Costs = { { "omen", 10.0f }, { "sign", 20.0f }, { "sign_site", 10.0f } };   // action -> influence it costs
-		std::map<std::string, float> Waits = { { "omen", 1.0f }, { "sign", 0.0f }, { "sign_site", 0.0f } };      // action -> days before it can fall on the same clan again (a sign: one open per clan instead)
+		std::map<std::string, float> Costs = { { "omen", 10.0f }, { "sign", 20.0f }, { "sign_site", 10.0f }, { "focus", 10.0f }, { "focus_strong", 20.0f }, { "calling", 15.0f } };   // action -> influence it costs
+		std::map<std::string, float> Waits = { { "omen", 1.0f }, { "sign", 0.0f }, { "sign_site", 0.0f }, { "focus", 0.0f }, { "focus_strong", 0.0f }, { "calling", 0.0f } };      // action -> days before it can fall on the same clan again (a sign: one open per clan instead)
 		// the pressure on a clan (§4.4): only counted for now; G4-6 gives it its consequences
 		float PressureDecision = 1.0f;     // a decision of the hand on the clan
 		float PressureInsist = 2.0f;       // the same decision asked again within InsistDays after a refusal (the caller says it)
@@ -92,6 +149,8 @@ namespace GB
 		DirectorVoteRules Vote;            // T236: how a clan votes an idea of the god ("vote")
 		float MessengerRadius = 40.0f;     // T237: who is this near a sign can see it ("messenger": { "radius" })
 		DirectorSignRules Sign;            // T237: the sign ("sign")
+		DirectorFocusRules Focus;          // T238: the focus of a clan ("focus")
+		DirectorCallingRules Calling;      // T239: the calling of a person ("calling")
 		bool operator==(const DirectorRules&) const = default;
 	};
 	DirectorRules DefaultDirectorRules();   // assets/data/director.json says the same
@@ -171,6 +230,17 @@ namespace GB
 		// Where `camp dx dz` is for this clan (its camp + the offset), so one line of orders holds on any seed; false without the clan.
 		bool CampOffset(int clan, float dx, float dz, float& x, float& z) const;
 
+		// ---- T238: the focus of a clan (`director focus <clan> <group>|off [soft|strong] [days]`; DirectorFocus.cpp). CanFocus changes nothing.
+		DirectorCheck CanFocus(int clan, const std::string& group, bool strong) const;
+		DirectorReply SetFocus(int clan, const std::string& group, bool strong, int days);
+		DirectorReply EndFocus(int clan, const std::string& why);
+		const DirectorFocus* FocusOf(int clan) const;                      // null: none
+		float FocusMultiplier(int clan, const std::string& person, bool strong, const std::string& group) const;   // m(p) of §3.b
+		// ---- T239: the calling of a person (`director calling [preview] <person> <role>`). PreviewCalling changes nothing.
+		DirectorCallingPreview PreviewCalling(const std::string& person, const std::string& role) const;
+		DirectorReply GiveCalling(const std::string& person, const std::string& role);
+		const std::vector<DirectorCalling>& Callings() const { return m_Callings; }
+
 		float Influence() const { return m_Influence; }
 		bool Sandbox() const { return m_Sandbox; }
 		const std::vector<DirectorEntry>& Book() const { return m_Book; }
@@ -191,6 +261,13 @@ namespace GB
 		void Refund(int clan, float amount, const std::string& text);      // influence back (not counted as gained from faith)
 		std::string PickMessenger(int clan, float x, float z, bool nearOnly) const;
 		std::string SignText(const DirectorSign& s) const;
+		DirectorReply FocusCommand(const std::vector<std::string>& args);  // T238
+		DirectorReply CallingCommand(const std::vector<std::string>& args);   // T239
+		void UpdateFocus();                                                // T238/T239: upkeep, drift, the end; and writes the tribes' Bias
+		void PushBias();                                                   // writes every clan's TribeBias from m_Focus and m_Callings
+		bool FindPerson(const std::string& person, int& clan) const;       // the clan of a living member (by name, or "clan:name")
+		std::string FocusToJson() const;                                   // "" with no focus and no calling
+		bool FocusFromJson(const std::string& json);
 
 		DirectorTargets m_To;
 		float m_Influence = 50.0f;
@@ -206,5 +283,9 @@ namespace GB
 		double m_Gained = 0.0;                                             // influence gained from faith over the game (for the status)
 		std::vector<DirectorSign> m_Signs;                                 // T237: open ones and the last closed ones (saved only when there are any)
 		int m_NextSign = 1;
+		std::vector<DirectorFocus> m_Focus;                                // T238: one per clan at most (saved only when there are any)
+		std::vector<DirectorCalling> m_Callings;                           // T239: the callings still running (saved only when there are any)
+		int m_NextCalling = 1;
+		std::vector<int> m_Biased;                                         // the clans whose TribeBias was written last (to clear them after)
 	};
 }

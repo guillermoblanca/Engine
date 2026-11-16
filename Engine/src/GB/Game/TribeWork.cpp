@@ -194,7 +194,7 @@ namespace GB
 		auto skillOf = [&](const TribeMember& m, const std::string& role)
 		{
 			const auto r = Config.Roles.find(role);
-			return r == Config.Roles.end() || r->second.Skill.empty() ? 0.0f : SkillLevel(m.Skills, r->second.Skill);
+			return (r == Config.Roles.end() || r->second.Skill.empty() ? 0.0f : SkillLevel(m.Skills, r->second.Skill)) + Bias.CallingSkill(m.Name, role);   // (T239: a calling's points)
 		};
 		auto canTake = [&](const TribeMember& m, const std::string& role)
 		{
@@ -208,6 +208,10 @@ namespace GB
 			Say(m, "takes up the trade of " + role + " (" + why + ")");
 			m.Role = role;
 		};
+
+		// T239: a calling goes first (the oldest one), with the review's gates: its tool, and the last hands of an essential trade stay (TribeBias.h)
+		if (TribeMember* called = Bias.Callings.empty() ? nullptr : PickCalling(Bias, flexible, [&](const TribeMember& m, const std::string& role)
+			{ const auto own = Config.Roles.find(m.Role); return canTake(m, role) && actual[m.Role] > (own == Config.Roles.end() ? 0 : own->second.Min); })) { change(*called, Bias.Callings.at(called->Name).Role, "a calling: it dreamt of it"); return true; }
 
 		// N3: a young member takes up its household's trade, from its mother (else its father), with a part of what the parent knows of it
 		for (TribeMember* m : flexible)
@@ -256,7 +260,7 @@ namespace GB
 			float value = -1e9f;
 			for (TribeMember* m : flexible)
 			{
-				if (m->Role == shortRole || actual[m->Role] <= ideal[m->Role] || !canTake(*m, shortRole)) continue;
+				if (m->Role == shortRole || actual[m->Role] <= ideal[m->Role] || !canTake(*m, shortRole) || HeldByCalling(Bias, m->Name, m->Role)) continue;   // (T239: a calling holds it)
 				const std::map<std::string, float> near = nearHome(*m);
 				auto at = [&](const std::string& role) { const auto it = near.find(role); return it == near.end() ? 0.0f : it->second; };
 				const float v = skillOf(*m, shortRole) - rules.Inertia * skillOf(*m, m->Role) + 15.0f * (at(shortRole) - at(m->Role));   // (N3: its home ground's work)
@@ -276,7 +280,7 @@ namespace GB
 		auto minOf = [&](const std::string& role) { const auto r = Config.Roles.find(role); return r == Config.Roles.end() ? 0 : r->second.Min; };
 		for (TribeMember* m : flexible)
 		{
-			if (actual[m->Role] <= minOf(m->Role)) continue;   // the last hands of an essential trade stay in it
+			if (actual[m->Role] <= minOf(m->Role) || HeldByCalling(Bias, m->Name, m->Role)) continue;   // the last hands of an essential trade stay in it (and a called one, T239)
 			const float own = skillOf(*m, m->Role);
 			for (const auto& [role, r] : Config.Roles)
 			{

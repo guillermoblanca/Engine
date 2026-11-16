@@ -13,12 +13,18 @@
     "costs": {
       "omen": 10,
       "sign": 20,
-      "sign_site": 10
+      "sign_site": 10,
+      "focus": 10,
+      "focus_strong": 20,
+      "calling": 15
     },
     "waits": {
       "omen": 1,
       "sign": 0,
-      "sign_site": 0
+      "sign_site": 0,
+      "focus": 0,
+      "focus_strong": 0,
+      "calling": 0
     },
     "pressure": {
       "decision": 1,
@@ -52,6 +58,28 @@
       "fulfilled": 10,
       "keep": 20,
       "traits": { "diligence": 0.2 }
+    },
+    "focus": {
+      "soft": 1.25,
+      "strong": 1.5,
+      "upkeep": { "soft": 3, "strong": 5 },
+      "maxDays": 7,
+      "faith": 0.7,
+      "trait": 0.3,
+      "drift": 0.01,
+      "groups": {
+        "food": { "kinds": ["hunt", "snare", "farm", "haul"], "foodGather": true, "trait": "diligence", "norm": "industry" },
+        "build": { "kinds": ["build", "deliver", "pave", "make", "craft"], "otherGather": true, "trait": "diligence", "norm": "industry" },
+        "lore": { "kinds": ["experiment", "learn", "teach", "explore"], "trait": "curiosity", "norm": "inquiry" },
+        "defense": { "kinds": ["regroup", "gear", "care"], "trait": "boldness", "norm": "daring" },
+        "faith": { "kinds": ["rite", "talk", "socialize"], "trait": "sociability", "norm": "sharing" }
+      }
+    },
+    "calling": {
+      "days": 14,
+      "skill": 30,
+      "refund": 0.5,
+      "traits": {}
     }
   }
 }

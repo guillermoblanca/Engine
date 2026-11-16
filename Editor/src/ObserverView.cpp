@@ -1465,6 +1465,46 @@ namespace GB::Editor
 				run(std::string("camera game overview ") + x + " " + z + " 30");
 			}
 			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The camera to where {0} is now", m.Name).c_str());
+			// [Calling] (T239): the god sends it a dream of a trade; the menu says, trade by trade, whether it would take it
+			if (clanId >= 0 && !m.Player)
+			{
+				ImGui::SameLine();
+				const bool open = m_Hand.Calling == m.Name;
+				const DirectorCheck hand = m_Director.CanSpend("calling", clanId, true);
+				ImGui::BeginDisabled(!hand.Ok && !open);
+				{
+					std::optional<T::PrimaryScope> lit;
+					if (open) lit.emplace();
+					if (ImGui::Button((L.Text("Calling") + "###calling").c_str())) run(open ? "director hand calling off" : "director hand calling " + m.Name);
+				}
+				ImGui::EndDisabled();
+				if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+					ImGui::SetTooltip("%s", hand.Ok ? L.Text("{0} dreams of a trade: if it believes, it takes it up at the next review ({1} influence)", m.Name, L.Num(hand.Cost, 0)).c_str() : Lang::Cap(L.Line(hand.Why)).c_str());
+				for (const DirectorCalling& c : m_Director.Callings())
+					if (c.Person == m.Name) value(L.Text("Calling: {0}", L.Name("role", c.Role)), T::Ochre);
+				if (open)
+				{
+					ImGui::Indent(12.0f);
+					ImGui::TextDisabled("%s", L.Text("Which trade does {0} dream of?", m.Name).c_str());
+					for (const auto& [role, def] : t.Config.Roles)
+					{
+						if (def.Fixed || def.Skill.empty()) continue;
+						const DirectorCallingPreview cp = m_Director.PreviewCalling(m.Name, role);   // (changes nothing)
+						ImGui::BeginDisabled(!cp.Ok);
+						if (ImGui::SmallButton((Lang::Cap(L.Name("role", role)) + "###call" + role).c_str()))
+						{
+							run("director calling " + m.Name + " " + role);
+							run("director hand calling off");
+						}
+						ImGui::EndDisabled();
+						ImGui::SameLine(130.0f);
+						if (!cp.Ok) ImGui::TextDisabled("%s", Lang::Cap(L.Line(cp.Why)).c_str());
+						else if (cp.Accepts) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", L.Text("would accept (devotion {0}, skill {1} against {2})", L.Num(m_Director.DevotionOf(clanId, m.Name), 2), L.Num(cp.Skill, 0), L.Num(cp.Own, 0)).c_str());
+						else ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", L.Text("would not: it does not believe enough (devotion {0})", L.Num(m_Director.DevotionOf(clanId, m.Name), 2)).c_str());
+					}
+					ImGui::Unindent(12.0f);
+				}
+			}
 		}
 		ImGui::Separator();
 		// kin
@@ -1656,6 +1696,16 @@ namespace GB::Editor
 			return T::Bad;
 		}
 
+		const char* FocusGroupText(const std::string& group)   // T238 (the text of the group, through Lang)
+		{
+			if (group == "food") return "food";
+			if (group == "build") return "works";
+			if (group == "lore") return "lore";
+			if (group == "defense") return "defense";
+			if (group == "faith") return "faith";
+			return group.c_str();
+		}
+
 		const char* OutcomeText(const std::string& outcome)
 		{
 			if (outcome == "obey") return "they would agree";
@@ -1690,10 +1740,18 @@ namespace GB::Editor
 			return { true, "ghost " + a[2] + " at " + Fixed(x) + " " + Fixed(z) + " yaw " + Fixed(yaw) + " for the clan " + std::to_string(c->Id) };
 		}
 		const std::string sub = a.size() > 1 ? a[1] : "status";
-		const char* usage = "director hand status|build|omen|place <building>|turn [degrees]|tip <sign>|off";
+		const char* usage = "director hand status|build|omen|focus|calling <person>|off|place <building>|turn [degrees]|tip <sign>";
 		if (sub == "status") return { true, HandStatus() };
+		if (sub == "calling")   // T239: the menu of callings on a person's sheet (`calling off` closes it)
+		{
+			if (a.size() < 3) return { false, usage };
+			if (a[2] == "off") { m_Hand.Calling.clear(); return { true, "hand: calling menu closed" }; }
+			m_Hand.Calling = a[2];
+			return { true, "hand: calling menu for " + a[2] };
+		}
 		if (sub == "off")
 		{
+			m_Hand.Calling.clear();
 			m_Hand.Menu.clear();
 			m_Hand.Building.clear();
 			m_Hand.Pinned = false;
@@ -1703,7 +1761,7 @@ namespace GB::Editor
 		if (m_Clans.Count() == 0) return { false, "no clans (shell new, or tribe build and clan new)" };
 		const Clan* c = m_Clans.Find(m_ActiveClan);
 		if (!c || !c->Folk) return { false, "no clan under the hand" };
-		if (sub == "build" || sub == "omen")
+		if (sub == "build" || sub == "omen" || sub == "focus")
 		{
 			m_Hand.Menu = sub;
 			m_Hand.Building.clear();
@@ -2042,14 +2100,35 @@ namespace GB::Editor
 			}
 			ImGui::EndDisabled();
 			tip(!omenWhy.empty() ? omenWhy : L.Text("Send the {0} a sign of the sky or the earth: they read it as a natural one", name));
-			// what the hand will do next, greyed until it can
-			for (const char* soon : { "Focus", "Vision" })
+			// [Focus] (T238): the menu of the groups; the hand still reaches only a believing clan
+			ImGui::SameLine();
+			const DirectorCheck focusHand = m_Director.CanSpend("focus", clan->Id, true);
+			const std::string focusWhy = focusHand.Ok ? std::string() : Lang::Cap(L.Line(focusHand.Why));
+			const bool focusing = m_Hand.Menu == "focus";
+			ImGui::BeginDisabled(!focusWhy.empty() && !focusing);
 			{
+				std::optional<T::PrimaryScope> lit;
+				if (focusing) lit.emplace();
+				if (ImGui::Button((L.Text("Focus") + "###handFocus").c_str())) run(focusing ? "director hand off" : "director hand focus");
+			}
+			ImGui::EndDisabled();
+			tip(!focusWhy.empty() ? focusWhy : L.Text("The {0} put their effort on one thing for a few days: the believers follow it more than the rest", name));
+			// what the hand will do next, greyed until it can
+			ImGui::SameLine();
+			ImGui::BeginDisabled();
+			ImGui::Button((L.Text("Vision") + "###handVision").c_str());
+			ImGui::EndDisabled();
+			tip(L.Text("Soon: a vision teaches the clan what it does not know"));
+			// the focus the clan follows now: its group, the days left and [Remove]
+			if (const DirectorFocus* f = m_Director.FocusOf(clan->Id))
+			{
+				const double now = m_Director.Targets().Now ? m_Director.Targets().Now() : 0.0;
+				const float daysLeft = static_cast<float>(std::max(0.0, f->Until - now) / static_cast<double>(R.DaySeconds));
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(f->Paused ? T::Warn : T::Ochre), "%s", (L.Text("Focus: {0} ({1} days left)", L.Text(FocusGroupText(f->Group)), L.Num(daysLeft, 1))
+					+ (f->Paused ? "  " + L.Text("paused: they are hungry") : std::string())).c_str());
 				ImGui::SameLine();
-				ImGui::BeginDisabled();
-				ImGui::Button((L.Text(soon) + "###hand" + soon).c_str());
-				ImGui::EndDisabled();
-				tip(L.Text(std::string(soon) == "Focus" ? "Soon: the clan puts its effort on one thing" : "Soon: a vision teaches the clan what it does not know"));
+				if (ImGui::SmallButton((L.Text("Remove") + "###focusoff").c_str())) run("director focus " + std::to_string(clan->Id) + " off");
+				tip(L.Text("The {0} go back to their own way (what was paid is not given back)", name));
 			}
 			if (!m_Hand.Building.empty())
 			{
@@ -2113,6 +2192,50 @@ namespace GB::Editor
 					}
 					ImGui::EndDisabled();
 					ImGui::TreePop();
+				}
+			}
+			else if (m_Hand.Menu == "focus")   // T238: the groups, soft and strong, with their cost or why not
+			{
+				ImGui::TextUnformatted(L.Text("Where the {0} put their effort", name).c_str());
+				ImGui::SameLine();
+				ImGui::TextDisabled("%s", L.Text("(3 days; soft x{0}: {1} + {2} a day; strong x{3}: {4} + {5} a day)", L.Num(R.Focus.Soft, 2), L.Num(cost("focus"), 0), L.Num(R.Focus.UpkeepSoft, 0),
+					L.Num(R.Focus.Strong, 2), L.Num(cost("focus_strong"), 0), L.Num(R.Focus.UpkeepStrong, 0)).c_str());
+				if (clan->Folk->MaslowTier() == "survival")   // (why the other groups are greyed, without a hover)
+					ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Warn), "%s", L.Text("Now the {0} are hungry (survival): only the focus on food", name).c_str());
+				else if (const DirectorCheck hand = m_Director.CanSpend("focus", clan->Id, true); !hand.Ok)
+					ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", Lang::Cap(L.Line(hand.Why)).c_str());
+				ImGui::Separator();
+				const DirectorFocus* active = m_Director.FocusOf(clan->Id);
+				int alive = 0;
+				for (const TribeMember& m : clan->Folk->Members()) if (!m.Dead) ++alive;
+				for (const auto& [group, def] : R.Focus.Groups)
+				{
+					ImGui::PushID(group.c_str());
+					const bool on = active && active->Group == group;
+					ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(on ? T::Ochre : T::Bone), "%s", Lang::Cap(L.Text(FocusGroupText(group))).c_str());
+					ImGui::SameLine(130.0f);
+					for (const bool strong : { false, true })
+					{
+						const DirectorCheck can = m_Director.CanFocus(clan->Id, group, strong);
+						int follow = 0;
+						for (const TribeMember& m : clan->Folk->Members())
+							if (!m.Dead && m_Director.FocusMultiplier(clan->Id, m.Name, strong, group) > 1.1f) ++follow;
+						ImGui::BeginDisabled(!can.Ok);
+						if (ImGui::Button((L.Text(strong ? "Strong" : "Soft") + (strong ? "###strong" : "###soft")).c_str()))
+						{
+							run("director focus " + std::to_string(clan->Id) + " " + group + (strong ? " strong" : " soft") + " 3");
+							run("director hand off");
+						}
+						ImGui::EndDisabled();
+						tip(can.Ok ? L.Text("{0} influence; {1} of {2} would follow it", L.Num(can.Cost, 0), follow, alive) : Lang::Cap(L.Line(can.Why)));
+						ImGui::SameLine();
+					}
+					std::string kinds;
+					for (const std::string& k : def.Kinds) kinds += (kinds.empty() ? "" : ", ") + L.Text(k);
+					if (def.FoodGather) kinds = L.Text("gathering food") + (kinds.empty() ? "" : ", ") + kinds;
+					if (def.OtherGather) kinds += (kinds.empty() ? "" : ", ") + L.Text("gathering wood, stone and fibre");
+					ImGui::TextDisabled("%s", kinds.c_str());
+					ImGui::PopID();
 				}
 			}
 			else
