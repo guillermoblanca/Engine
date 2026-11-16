@@ -61,6 +61,7 @@ namespace GB
 
 	DirectorRules DefaultDirectorRules() { return DirectorRules{}; }
 	std::string ReadDirectorFocusRules(const nlohmann::json& d, DirectorRules& r);   // T238/T239: "focus" and "calling" (DirectorFocus.cpp)
+	std::string ReadDirectorVisionRules(const nlohmann::json& d, DirectorRules& r);  // T240: "vision" (DirectorVision.cpp)
 
 	std::string LoadDirectorRules(const std::string& json, DirectorRules& live)
 	{
@@ -73,8 +74,9 @@ namespace GB
 		DirectorRules r = live;
 		std::string e;
 		const std::string w = "director: ";
-		if (!KnownKeys(d, { "start", "max", "minFaith", "faith", "sandboxPerDay", "costs", "waits", "pressure", "logMax", "daySeconds", "vote", "messenger", "sign", "focus", "calling" }, w, e)) return e;
+		if (!KnownKeys(d, { "start", "max", "minFaith", "faith", "sandboxPerDay", "costs", "waits", "pressure", "logMax", "daySeconds", "vote", "messenger", "sign", "focus", "calling", "vision" }, w, e)) return e;
 		if (e = ReadDirectorFocusRules(d, r); !e.empty()) return e;
+		if (e = ReadDirectorVisionRules(d, r); !e.empty()) return e;   // T240
 		if (const auto it = d.find("vote"); it != d.end())   // T236
 		{
 			if (!it->is_object()) return w + "vote: expected an object";
@@ -229,6 +231,7 @@ namespace GB
 		const double now = Now();
 		UpdateSigns();   // T237 (nothing without signs)
 		UpdateFocus();   // T238/T239 (nothing without a focus or a calling)
+		UpdateVisions();   // T240 (nothing without visions)
 		Look(m_Looked);
 		if (!m_Looked) { m_Looked = true; m_Day = static_cast<int>(std::floor(now / static_cast<double>(Rules.DaySeconds))); m_SandboxAt = now; return; }
 		if (m_Sandbox)
@@ -442,6 +445,7 @@ namespace GB
 		if (sub == "sign" || sub == "signs") return SignCommand(a);
 		if (sub == "focus") return FocusCommand(a);
 		if (sub == "calling") return CallingCommand(a);
+		if (sub == "vision" || sub == "visions") return VisionCommand(a);
 		if (sub == "log")
 		{
 			std::string s = "director log: " + std::to_string(m_Book.size()) + " entries";
@@ -453,7 +457,7 @@ namespace GB
 			}
 			return { true, s };
 		}
-		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | focus [preview] <clan> <group>|off [soft|strong] [days] | calling [preview] <person> <role> | log" };
+		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | focus [preview] <clan> <group>|off [soft|strong] [days] | calling [preview] <person> <role> | vision [preview] <clan> <tech>|none | visions | log" };
 	}
 
 	// ------------------------------------------------------------------ saving
@@ -475,6 +479,8 @@ namespace GB
 		m_Focus.clear();   // (the tribes of a new world start without a bias)
 		m_Callings.clear();
 		m_NextCalling = 1;
+		m_Visions.clear();   // T240
+		m_NextVision = 1;
 		m_Biased.clear();
 	}
 
@@ -499,6 +505,7 @@ namespace GB
 		for (const DirectorEntry& e : m_Book) book.push_back({ { "at", e.At }, { "action", e.Action }, { "target", e.Target }, { "cost", e.Cost }, { "text", e.Text } });
 		j["book"] = book;
 		if (const std::string focus = FocusToJson(); !focus.empty()) j["focus"] = Json::parse(focus);   // T238/T239 (only when there is any)
+		if (const std::string visions = VisionsToJson(); !visions.empty()) j["visions"] = Json::parse(visions);   // T240 (only when there is any)
 		if (!m_Signs.empty())   // T237 (a save without signs stays as it was)
 		{
 			Json signs = Json::array();
@@ -559,6 +566,7 @@ namespace GB
 				}
 			d.m_NextSign = j.value("nextSign", 1);
 			if (const auto it = j.find("focus"); it != j.end() && !d.FocusFromJson(it->dump())) return false;   // T238/T239
+			if (const auto it = j.find("visions"); it != j.end() && !d.VisionsFromJson(it->dump())) return false;   // T240
 			d.m_Biased = m_Biased;
 			*this = std::move(d);
 			if (!m_Focus.empty() || !m_Callings.empty() || !m_Biased.empty()) PushBias();   // (the tribes do not save it: written again now)

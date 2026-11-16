@@ -572,9 +572,7 @@ namespace GB
 		if (!me || !me->Player || me->Dead) return { false, "no player called " + player + " in the clan" };
 		if (tech.empty() || tech == "none")
 		{
-			m_Players.Aim.clear();
-			m_Players.AimBy.clear();
-			UpdateGoals();
+			SetAim("", "");
 			return { true, "the clan chooses what to seek again" };
 		}
 		const TechTree* tree = m_Knowledge.Techs();
@@ -582,9 +580,7 @@ namespace GB
 		const TechDef* t = tree->Find(tech);
 		if (!t) return { false, "no technology '" + tech + "'" };
 		if (m_Knowledge.Clan().count(tech)) return { false, "the clan already knows " + t->Name };
-		m_Players.Aim = tech;
-		m_Players.AimBy = player;
-		UpdateGoals();   // (the goals now lead to it: what it requires first)
+		SetAim(tech, player);   // (the goals now lead to it: what it requires first)
 		Say(*me, "asks the clan to seek " + t->Name);
 		std::string path;
 		for (const std::string& g : m_Knowledge.Goals()) { if (const TechDef* d = tree->Find(g)) path += (path.empty() ? "" : ", ") + d->Name; if (g == tech) break; }

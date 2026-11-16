@@ -233,6 +233,7 @@ namespace GB::Editor
 			return { true, "observer on: the clan " + std::to_string(m_ActiveClan) + " (observer <clan> | next | off)" };
 		}
 		if (a[0] == "off") return off();
+		if (a[0] == "tree" && a.size() >= 2) { m_Observer.Tree = m_Observer.On = true; m_Observer.TreePick = a[1]; return { true, "tree of knowledge open on " + a[1] }; }   // T242: open on a technology
 		if (a[0] == "tree") { m_Observer.Tree = !m_Observer.Tree; m_Observer.On = true; return { true, m_Observer.Tree ? "tree of knowledge open" : "tree of knowledge closed" }; }
 		if (a[0] == "fold") { m_Observer.Folded = !m_Observer.Folded; m_Observer.On = true; return { true, m_Observer.Folded ? "book folded" : "book open" }; }
 		if (a[0] == "status")   // (the first line as it was; the clock under it and, on the god's screen, what its panels cover of the world)
@@ -2113,12 +2114,24 @@ namespace GB::Editor
 			}
 			ImGui::EndDisabled();
 			tip(!focusWhy.empty() ? focusWhy : L.Text("The {0} put their effort on one thing for a few days: the believers follow it more than the rest", name));
-			// what the hand will do next, greyed until it can
+			// [Vision] (T242): opens the tree of knowledge of the clan under the hand, where each technology has its [Vision]
 			ImGui::SameLine();
-			ImGui::BeginDisabled();
-			ImGui::Button((L.Text("Vision") + "###handVision").c_str());
+			const DirectorCheck visionHand = m_Director.CanSpend("vision", clan->Id, true);
+			const std::string visionWhy = visionHand.Ok ? std::string() : Lang::Cap(L.Line(visionHand.Why));
+			ImGui::BeginDisabled(!visionWhy.empty() && !m_Observer.Tree);
+			{
+				std::optional<T::PrimaryScope> lit;
+				if (m_Observer.Tree) lit.emplace();
+				if (ImGui::Button((L.Text("Vision") + "###handVision").c_str())) run("observer tree");
+			}
 			ImGui::EndDisabled();
-			tip(L.Text("Soon: a vision teaches the clan what it does not know"));
+			{
+				const DirectorVision* held = m_Director.VisionOf(clan->Id);
+				const TechTree* techs = clan->Folk->Knowledge().Techs();
+				const TechDef* dreamt = held && techs ? techs->Find(held->Tech) : nullptr;
+				tip(!visionWhy.empty() ? visionWhy : held ? L.Text("The {0} seek {1}, as {2} dreamt", name, Lang::Cap(L.Name("tech", held->Tech, dreamt ? dreamt->Name : held->Tech)), held->Dreamer)
+					: L.Text("Someone of the {0} dreams of a technology of the tree: the clan seeks it ({1} influence). Pick it in the tree of knowledge", name, L.Num(cost("vision"), 0)));
+			}
 			// the focus the clan follows now: its group, the days left and [Remove]
 			if (const DirectorFocus* f = m_Director.FocusOf(clan->Id))
 			{

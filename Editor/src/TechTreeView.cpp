@@ -11,6 +11,7 @@
 #include <functional>
 #include <imgui.h>
 #include <map>
+#include <optional>
 #include <set>
 
 namespace GB::Editor
@@ -110,7 +111,7 @@ namespace GB::Editor
 			else ImGui::TextDisabled("%s", L.Text(playing ? "The clan chooses what to seek: pick one and press Seek this" : "The clan chooses what to seek").c_str());
 
 			// the canvas, scrolled when the tree does not fit; drag it with the mouse
-			const float cardH = 118.0f;
+			const float cardH = playing ? 118.0f : 146.0f;   // (the god's card has the vision's line too)
 			const ImVec2 canvasSize(ImGui::GetContentRegionAvail().x, std::max(120.0f, ImGui::GetContentRegionAvail().y - cardH));
 			ImGui::BeginChild("canvas", canvasSize, ImGuiChildFlags_Borders, ImGuiWindowFlags_HorizontalScrollbar);
 			const ImVec2 o = ImGui::GetCursorScreenPos();
@@ -255,6 +256,48 @@ namespace GB::Editor
 						const GameTheme::PrimaryScope primary;
 						if (ImGui::Button((L.Text("Seek this") + "###aim").c_str())) run("game research " + pick);
 						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The clan works out what it needs first and then this; no vote, no cost").c_str());
+					}
+				}
+				// T242: for the god (the observer): [Vision] sends a dream of it to the clan (`director vision`), with its cost, why not, and the
+				// warning of the material or of the inventor the clan lacks; the vision the clan holds says who dreamt it, with [Let it go]
+				if (!playing && !have)
+				{
+					const Clan* clan = m_Clans.Find(m_ActiveClan);
+					const std::string id = std::to_string(m_ActiveClan);
+					const std::string clanName = clan ? L.Name("clan", clan->Name, clan->Name) : id;
+					const DirectorVision* held = clan ? m_Director.VisionOf(clan->Id) : nullptr;
+					if (held && held->Tech == pick)
+					{
+						ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", L.Text("{0} dreamt of it: the {1} seek it", held->Dreamer, clanName).c_str());
+						ImGui::SameLine();
+						if (ImGui::SmallButton((L.Text("Let it go") + "###visionoff").c_str())) run("director vision " + id + " none");
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The {0} choose what to seek again (what was paid is not given back)", clanName).c_str());
+					}
+					else if (clan)
+					{
+						const DirectorVisionPreview p = m_Director.PreviewVision(clan->Id, pick);
+						std::string why;
+						if (!p.Ok) why = held ? L.Text("A vision already guides the {0} ({1}): let it go first", clanName, techName(held->Tech)) : Lang::Cap(L.Line(p.Why));
+						ImGui::BeginDisabled(!p.Ok);
+						{
+							std::optional<T::PrimaryScope> primary;
+							if (p.Ok) primary.emplace();
+							if (ImGui::Button((L.Text("Vision ({0})", L.Num(p.Cost, 0)) + "###vision").c_str())) run("director vision " + id + " " + pick);
+						}
+						ImGui::EndDisabled();
+						if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+							ImGui::SetTooltip("%s", (!why.empty() ? why : L.Text("{0} dreams of it and tells it at the fire: the {1} seek it and what it needs first ({2} of {3} would agree)", p.Dreamer, clanName, p.Yes, p.Voters)
+								+ "\n" + L.Text("It orients, it does not teach: they still have to work it out")).c_str());
+						ImGui::SameLine();
+						if (!p.Missing.empty())
+						{
+							std::string lack;
+							for (const std::string& m : p.Missing) lack += (lack.empty() ? "" : ", ") + L.Name("item", m, m);
+							ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Warn), "%s", L.Text("They lack {0}: they will not learn it until they find it", lack).c_str());
+						}
+						else if (!p.Dreamer.empty() && !p.Inventor) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Warn), "%s", L.Text("Nobody of the {0} can work it out: only from another clan", clanName).c_str());
+						else if (!why.empty()) ImGui::TextDisabled("%s", why.c_str());
+						else ImGui::TextDisabled("%s", L.Text("Dreamer: {0}", p.Dreamer).c_str());
 					}
 				}
 				ImGui::EndGroup();

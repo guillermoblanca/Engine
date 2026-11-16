@@ -16,7 +16,8 @@
       "sign_site": 10,
       "focus": 10,
       "focus_strong": 20,
-      "calling": 15
+      "calling": 15,
+      "vision": 10
     },
     "waits": {
       "omen": 1,
@@ -24,7 +25,8 @@
       "sign_site": 0,
       "focus": 0,
       "focus_strong": 0,
-      "calling": 0
+      "calling": 0,
+      "vision": 0
     },
     "pressure": {
       "decision": 1,
@@ -80,6 +82,12 @@
       "skill": 30,
       "refund": 0.5,
       "traits": {}
+    },
+    "vision": {
+      "days": 3,
+      "fulfilled": 5,
+      "keep": 20,
+      "traits": { "curiosity": 0.3 }
     }
   }
 }

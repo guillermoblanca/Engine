@@ -688,6 +688,9 @@ namespace GB
 		// requires (Tribe::UpdateGoals), with no vote and no cost; it is kept with the game and dropped once the clan knows it.
 		PlayerAct PlayerResearch(const std::string& player, const std::string& tech);
 		const std::string& ResearchAim() const { return m_Players.Aim; }
+		const std::string& ResearchAimBy() const { return m_Players.AimBy; }
+		// T240: sets the clan's aim with no player ("" = the clan chooses again): PlayerResearch and the god's vision (WorldDirector) both use it.
+		void SetAim(const std::string& tech, const std::string& by) { m_Players.Aim = tech; m_Players.AimBy = tech.empty() ? std::string() : by; UpdateGoals(); }
 		// How the clan would vote a proposal now, without making it (the same count Propose makes: it is deterministic): the adults that would
 		// vote, those for, the names against (in the members' order) and whether it would pass.
 		struct ProposalForecast

@@ -98,6 +98,42 @@ namespace GB
 		std::map<std::string, float> Traits;
 		bool operator==(const DirectorCallingRules&) const = default;
 	};
+	// T240 (MODO_DIOS_DECISIONES.md §3.c): the vision. Its cost is "vision" in the costs. A dreamer of the clan dreams the technology and the clan
+	// takes it as its aim (Tribe::SetAim, as `game research`); the aim lapses after Days with no step forward on its way. It orients, never
+	// grants: without its material the clan never learns it (the physical gate of T181 holds). Traits weigh in the vote at the fire.
+	struct DirectorVisionRules
+	{
+		float Days = 3.0f;                 // days with no step forward on the way before the aim lapses
+		float FulfilledGain = 5.0f;        // influence when the clan learns it while the vision holds (Fulfilled)
+		int Keep = 20;                     // closed visions kept for `director visions`
+		std::map<std::string, float> Traits = { { "curiosity", 0.3f } };
+		bool operator==(const DirectorVisionRules&) const = default;
+	};
+	// A vision and where it is: "aim" (the clan seeks it), "learnt", "lapsed" (no step forward in Days), "replaced" (the aim changed), "refused".
+	struct DirectorVision
+	{
+		int Id = 0, Clan = -1;
+		std::string Tech, Dreamer, Status = "aim";
+		double Since = 0.0, Advanced = 0.0;   // when it was dreamt, and the last step forward on the way
+		float Progress = 0.0f;                // the way's progress last seen (techs of the way known + the best understanding of each)
+		float Paid = 0.0f;
+		bool operator==(const DirectorVision&) const = default;
+	};
+	// What `director vision preview` answers (and the tree paints): changes nothing.
+	struct DirectorVisionPreview
+	{
+		bool Ok = false;                   // it can be dreamt now
+		std::string Why;                   // why not ("" when it can)
+		std::string Name;                  // the technology's name
+		float Cost = 0.0f;
+		std::vector<std::string> Way;      // what the clan does not know yet, in the order it would seek it (the tech last)
+		std::vector<std::string> Missing;  // the materials (and the stations) the clan lacks: without them it is never learnt
+		std::string Dreamer;               // who would dream it
+		bool Inventor = false;             // somebody of the clan has the intellect to work it out (else only from another clan)
+		int Yes = 0, Voters = 0;
+		std::string Outcome;               // "obey", "doubt", "resist"
+	};
+
 	struct DirectorFocus                   // the focus of a clan now
 	{
 		int Clan = -1;
@@ -134,8 +170,8 @@ namespace GB
 		float DailyGain = 0.5f;            // influence a day per living member x its devotion
 		float ShamanDevotion = 0.2f;       // what being the clan's shaman adds to a person's devotion
 		float SandboxPerDay = 20.0f;       // `director sandbox on`: the fixed clock that refills the influence
-		std::map<std::string, float> Costs = { { "omen", 10.0f }, { "sign", 20.0f }, { "sign_site", 10.0f }, { "focus", 10.0f }, { "focus_strong", 20.0f }, { "calling", 15.0f } };   // action -> influence it costs
-		std::map<std::string, float> Waits = { { "omen", 1.0f }, { "sign", 0.0f }, { "sign_site", 0.0f }, { "focus", 0.0f }, { "focus_strong", 0.0f }, { "calling", 0.0f } };      // action -> days before it can fall on the same clan again (a sign: one open per clan instead)
+		std::map<std::string, float> Costs = { { "omen", 10.0f }, { "sign", 20.0f }, { "sign_site", 10.0f }, { "focus", 10.0f }, { "focus_strong", 20.0f }, { "calling", 15.0f }, { "vision", 10.0f } };   // action -> influence it costs
+		std::map<std::string, float> Waits = { { "omen", 1.0f }, { "sign", 0.0f }, { "sign_site", 0.0f }, { "focus", 0.0f }, { "focus_strong", 0.0f }, { "calling", 0.0f }, { "vision", 0.0f } };      // action -> days before it can fall on the same clan again (a sign: one open per clan instead)
 		// the pressure on a clan (§4.4): only counted for now; G4-6 gives it its consequences
 		float PressureDecision = 1.0f;     // a decision of the hand on the clan
 		float PressureInsist = 2.0f;       // the same decision asked again within InsistDays after a refusal (the caller says it)
@@ -151,6 +187,7 @@ namespace GB
 		DirectorSignRules Sign;            // T237: the sign ("sign")
 		DirectorFocusRules Focus;          // T238: the focus of a clan ("focus")
 		DirectorCallingRules Calling;      // T239: the calling of a person ("calling")
+		DirectorVisionRules Vision;        // T240: the vision ("vision")
 		bool operator==(const DirectorRules&) const = default;
 	};
 	DirectorRules DefaultDirectorRules();   // assets/data/director.json says the same
@@ -240,6 +277,12 @@ namespace GB
 		DirectorCallingPreview PreviewCalling(const std::string& person, const std::string& role) const;
 		DirectorReply GiveCalling(const std::string& person, const std::string& role);
 		const std::vector<DirectorCalling>& Callings() const { return m_Callings; }
+		// ---- T240: the vision (`director vision [preview] <clan> <tech>|none`, `director visions`; DirectorVision.cpp). PreviewVision changes nothing.
+		DirectorVisionPreview PreviewVision(int clan, const std::string& tech) const;
+		DirectorReply GiveVision(int clan, const std::string& tech);
+		DirectorReply EndVision(int clan, const std::string& why);
+		const DirectorVision* VisionOf(int clan) const;                    // the clan's vision still held as its aim (null: none)
+		const std::vector<DirectorVision>& Visions() const { return m_Visions; }
 
 		float Influence() const { return m_Influence; }
 		bool Sandbox() const { return m_Sandbox; }
@@ -268,6 +311,10 @@ namespace GB
 		bool FindPerson(const std::string& person, int& clan) const;       // the clan of a living member (by name, or "clan:name")
 		std::string FocusToJson() const;                                   // "" with no focus and no calling
 		bool FocusFromJson(const std::string& json);
+		DirectorReply VisionCommand(const std::vector<std::string>& args);    // T240
+		void UpdateVisions();                                              // T240: nothing to do without visions
+		std::string VisionsToJson() const;                                 // "" with no vision
+		bool VisionsFromJson(const std::string& json);
 
 		DirectorTargets m_To;
 		float m_Influence = 50.0f;
@@ -286,6 +333,8 @@ namespace GB
 		std::vector<DirectorFocus> m_Focus;                                // T238: one per clan at most (saved only when there are any)
 		std::vector<DirectorCalling> m_Callings;                           // T239: the callings still running (saved only when there are any)
 		int m_NextCalling = 1;
-		std::vector<int> m_Biased;                                         // the clans whose TribeBias was written last (to clear them after)
+		std::vector<DirectorVision> m_Visions;                             // T240: the held ones and the last closed ones (saved only when there are any)
+		int m_NextVision = 1;
+		std::vector<int> m_Biased;                                        // the clans whose TribeBias was written last (to clear them after)
 	};
 }

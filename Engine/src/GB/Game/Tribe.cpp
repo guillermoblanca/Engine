@@ -2406,7 +2406,7 @@ namespace GB
 				{ "mind", Json::parse(m.Mind.ToJson()) }, { "skills", Json::parse(SkillsToJson(m.Skills)) }, { "workKind", m.WorkKind }, { "workStart", m.WorkStart } });
 		for (size_t i = 0; i < m_Members.size(); ++i) if (m_Members[i].Player) members[i]["player"] = 1;   // H15 (only a player's says so)
 		j["members"] = members;
-		if (!m_Players.Players.empty() || !m_Players.Proposals.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
+		if (!m_Players.Players.empty() || !m_Players.Proposals.empty() || !m_Players.Aim.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
 		return j.dump();
 	}
 

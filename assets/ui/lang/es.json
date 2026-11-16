@@ -2821,6 +2821,18 @@
   "Calling: {0}": "Vocación: {0}",
   "Which trade does {0} dream of?": "¿Con qué oficio sueña {0}?",
   "would accept (devotion {0}, skill {1} against {2})": "aceptaría (devoción {0}, aptitud {1} frente a {2})",
-  "would not: it does not believe enough (devotion {0})": "no aceptaría: no cree lo bastante (devoción {0})"
+  "would not: it does not believe enough (devotion {0})": "no aceptaría: no cree lo bastante (devoción {0})",
+  "{0} dreamt of it: the {1} seek it": "{0} soñó con ella: el clan {1} la busca",
+  "Let it go": "Dejarla",
+  "The {0} choose what to seek again (what was paid is not given back)": "El clan {0} vuelve a elegir qué buscar (lo pagado no se devuelve)",
+  "A vision already guides the {0} ({1}): let it go first": "Ya guía al clan {0} una visión ({1}): déjala antes",
+  "Vision ({0})": "Visión ({0})",
+  "{0} dreams of it and tells it at the fire: the {1} seek it and what it needs first ({2} of {3} would agree)": "{0} sueña con ella y lo cuenta junto al fuego: el clan {1} la busca, y antes lo que necesita (estarían de acuerdo {2} de {3})",
+  "It orients, it does not teach: they still have to work it out": "Orienta, no enseña: aún tienen que descubrirla",
+  "They lack {0}: they will not learn it until they find it": "Les falta {0}: no la aprenderán hasta que lo encuentren",
+  "Nobody of the {0} can work it out: only from another clan": "Nadie del clan {0} puede descubrirla: solo de otro clan",
+  "Dreamer: {0}": "Soñador: {0}",
+  "The {0} seek {1}, as {2} dreamt": "El clan {0} busca {1}, como soñó {2}",
+  "Someone of the {0} dreams of a technology of the tree: the clan seeks it ({1} influence). Pick it in the tree of knowledge": "Alguien del clan {0} sueña con una técnica del árbol: el clan la busca ({1} de influencia). Elígela en el árbol del saber"
  }
 }
