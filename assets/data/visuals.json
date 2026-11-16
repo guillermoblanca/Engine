@@ -715,6 +715,41 @@
             { "name": "Bowl", "shape": "model", "model": "models/era1/healer_hut/healer_hut_remedies.gltf" } ] }
         ]
       },
+      "family_hall": {
+        "footprint": [4.0, 3.2], "note": "the family's house: a rounded rectangle of wattle and daub on a stone footing, a thick hipped thatch with two smoke vents at the ends of a tied ridge roll, a hide curtain at the door, a hearth glowing inside, firewood under the eave, a quern and basket by the door and a hide stretched on a frame. Modelled in Blender (art-book/models/src/era1_building_family_hall.py), two pieces per phase, shown in order",
+        "phases": [
+          { "name": "foundation", "parts": [
+            { "name": "Floor", "shape": "model", "model": "models/era1/family_hall/family_hall_floor.gltf" },
+            { "name": "Footing", "shape": "model", "model": "models/era1/family_hall/family_hall_footing.gltf" } ] },
+          { "name": "frame", "parts": [
+            { "name": "Post", "shape": "model", "model": "models/era1/family_hall/family_hall_posts.gltf" },
+            { "name": "Wall", "shape": "model", "model": "models/era1/family_hall/family_hall_walls.gltf" } ] },
+          { "name": "roof", "parts": [
+            { "name": "Roof", "shape": "model", "model": "models/era1/family_hall/family_hall_thatch.gltf" },
+            { "name": "Firewood", "shape": "model", "model": "models/era1/family_hall/family_hall_goods.gltf" } ] }
+        ]
+      },
+      "temple": {
+        "footprint": [3.0, 3.0], "note": "an open timber shrine: a packed-earth platform with a kerb of stones and a stone altar, four dark carved posts with ochre bands under a tall square thatched pyramid, a mast with aurochs horns on top, offerings and a small fire on the altar. Modelled in Blender (art-book/models/src/era1_building_temple.py), two pieces per phase, shown in order",
+        "phases": [
+          { "name": "base", "parts": [
+            { "name": "Platform", "shape": "model", "model": "models/era1/temple/temple_platform.gltf" },
+            { "name": "Altar", "shape": "model", "model": "models/era1/temple/temple_altar.gltf" } ] },
+          { "name": "roof", "parts": [
+            { "name": "Post", "shape": "model", "model": "models/era1/temple/temple_posts.gltf" },
+            { "name": "Roof", "shape": "model", "model": "models/era1/temple/temple_thatch.gltf" } ] }
+        ]
+      },
+      "dug_well": {
+        "footprint": [2.2, 2.2], "note": "a dug well: a low uneven curb of fieldstones round dark water, two forked posts with a tied crossbar, a rope down to a sewn hide bucket and a second bucket on the trodden mud. Modelled in Blender (art-book/models/src/era1_building_dug_well.py)",
+        "phases": [
+          { "name": "shaft", "parts": [
+            { "name": "Water", "shape": "model", "model": "models/era1/dug_well/dug_well_shaft.gltf" } ] },
+          { "name": "curb", "parts": [
+            { "name": "Curb", "shape": "model", "model": "models/era1/dug_well/dug_well_curb.gltf" },
+            { "name": "Crossbar", "shape": "model", "model": "models/era1/dug_well/dug_well_winch.gltf" } ] }
+        ]
+      },
       "totem": {
         "footprint": [3.0, 3.0], "note": "the clan's meeting place: a circle of stones round a carved, painted pole",
         "phases": [
