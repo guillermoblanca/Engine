@@ -1713,6 +1713,77 @@ namespace GB::Editor
 			if (outcome == "doubt") return "they would doubt";
 			return "they would refuse";
 		}
+
+		// T254: the grid's categories, worked out from what a building does (the data has no category of its own): the first rule that holds wins
+		const char* const kBuildTabs[] = { "all", "homes", "food", "crafts", "fire_water", "worship", "defense", "community" };
+
+		std::string BuildingTab(const BuildingDef& d)
+		{
+			if (d.Well || d.Station == "hearth") return "fire_water";
+			if (d.Shelter > 0) return "homes";
+			if (d.Defense >= 0.3f || d.Healing > 0.0f) return "defense";
+			if (!d.Station.empty()) return d.Zone == "food" ? "food" : "crafts";
+			if (!d.Store.empty() || d.StoreCap > 0 || d.FoodCap > 0) return "food";
+			if (!d.Rank.empty()) return "community";
+			if (d.Culture > 0.0f || d.Provides.count("faith")) return "worship";
+			return "community";
+		}
+
+		const char* BuildTabText(const std::string& tab)
+		{
+			if (tab == "homes") return "Homes";
+			if (tab == "food") return "Food and stores";
+			if (tab == "crafts") return "Crafts";
+			if (tab == "fire_water") return "Fire and water";
+			if (tab == "worship") return "Worship";
+			if (tab == "defense") return "Defence and healing";
+			if (tab == "community") return "Community";
+			return "All";
+		}
+
+		// T254: why a clan cannot raise a building yet (Tribe::ClanKnowsBuilding's rules, read back): the rank it lacks, the value of its culture,
+		// the technologies that would open it (any one of them)
+		struct BuildLock
+		{
+			std::string Rank, Value;
+			bool TooMuch = false;
+			std::vector<std::string> Techs;
+		};
+
+		BuildLock LockOf(const Tribe& t, const BuildingDef& d)
+		{
+			BuildLock k;
+			if (!d.Rank.empty() && !t.Ranks().count(d.Rank)) k.Rank = d.Rank;
+			for (const auto& [value, threshold] : d.Values)
+			{
+				const auto it = t.Culture().find(value);
+				const int have = it != t.Culture().end() ? it->second : 0;
+				if (it == t.Culture().end() || (threshold > 0 ? have < threshold : have > threshold)) { k.Value = value; k.TooMuch = threshold < 0; }
+			}
+			if (!d.Tech.empty()) k.Techs.push_back(d.Tech);
+			if (const TechTree* tree = t.Knowledge().Techs())
+				for (const auto& [id, tech] : tree->Techs)
+					if ((std::find(tech.Buildings.begin(), tech.Buildings.end(), d.Id) != tech.Buildings.end() || std::find(tech.Buildings.begin(), tech.Buildings.end(), d.Name) != tech.Buildings.end())
+						&& std::find(k.Techs.begin(), k.Techs.end(), id) == k.Techs.end())
+						k.Techs.push_back(id);
+			return k;
+		}
+
+		std::string LockText(const BuildLock& k)   // (the order's answer, in English like every answer)
+		{
+			std::string s;
+			if (!k.Rank.empty()) s += "the clan must be a " + k.Rank + " first";
+			if (!k.Value.empty()) s += (s.empty() ? "" : "; ") + std::string(k.TooMuch ? "its culture values " : "its culture does not value ") + k.Value + (k.TooMuch ? " too much" : " enough");
+			if (!k.Techs.empty())
+			{
+				std::string techs;
+				for (const std::string& id : k.Techs) techs += (techs.empty() ? "" : " or ") + id;
+				s += (s.empty() ? "" : "; ") + std::string("it needs ") + techs;
+			}
+			return s.empty() ? std::string("unknown") : s;
+		}
+
+		ImTextureID ThumbId(const Texture2D& t) { return static_cast<ImTextureID>(static_cast<intptr_t>(t.GetID())); }
 	}
 
 	CommandResult EditorApp::HandCommand(const std::vector<std::string>& a)
@@ -1741,7 +1812,7 @@ namespace GB::Editor
 			return { true, "ghost " + a[2] + " at " + Fixed(x) + " " + Fixed(z) + " yaw " + Fixed(yaw) + " for the clan " + std::to_string(c->Id) };
 		}
 		const std::string sub = a.size() > 1 ? a[1] : "status";
-		const char* usage = "director hand status|build|omen|focus|calling <person>|off|place <building>|turn [degrees]|tip <sign>";
+		const char* usage = "director hand status|build [all|homes|food|crafts|fire_water|worship|defense|community]|omen|focus|calling <person>|off|place <building>|turn [degrees]|tip <sign>|peek <building>";
 		if (sub == "status") return { true, HandStatus() };
 		if (sub == "calling")   // T239: the menu of callings on a person's sheet (`calling off` closes it)
 		{
@@ -1757,23 +1828,37 @@ namespace GB::Editor
 			m_Hand.Building.clear();
 			m_Hand.Pinned = false;
 			m_Hand.Tip = 0;
+			m_Hand.Peek.clear();
 			return { true, "hand: empty" };
+		}
+		if (sub == "peek")   // T254: the card of a grid cell held open, as if the mouse were over it (`peek off` lets it go)
+		{
+			if (a.size() < 3) return { false, usage };
+			m_Hand.Peek = a[2] == "off" ? std::string() : a[2];
+			return { true, m_Hand.Peek.empty() ? std::string("hand: peek off") : "hand: the card of " + a[2] + " held open" };
 		}
 		if (m_Clans.Count() == 0) return { false, "no clans (shell new, or tribe build and clan new)" };
 		const Clan* c = m_Clans.Find(m_ActiveClan);
 		if (!c || !c->Folk) return { false, "no clan under the hand" };
 		if (sub == "build" || sub == "omen" || sub == "focus")
 		{
+			if (sub == "build" && a.size() > 2)   // T254: the grid's category
+			{
+				if (std::find_if(std::begin(kBuildTabs), std::end(kBuildTabs), [&](const char* t) { return a[2] == t; }) == std::end(kBuildTabs)) return { false, usage };
+				m_Hand.Tab = a[2];
+			}
 			m_Hand.Menu = sub;
 			m_Hand.Building.clear();
 			m_Hand.Pinned = false;
 			m_Observer.On = true;
-			return { true, "hand: " + sub + " menu for the clan " + std::to_string(c->Id) };
+			return { true, "hand: " + sub + " menu for the clan " + std::to_string(c->Id) + (sub == "build" ? ", category " + m_Hand.Tab : std::string()) };
 		}
 		if (sub == "place")
 		{
 			if (a.size() < 3) return { false, usage };
 			if (!c->Folk->Buildings() || !c->Folk->Buildings()->count(a[2])) return { false, "no building " + a[2] };
+			if (!c->Folk->CanBuild(a[2])) return { false, "the clan " + std::to_string(c->Id) + " cannot raise " + a[2] + " yet: " + LockText(LockOf(*c->Folk, c->Folk->Buildings()->at(a[2]))) };
+			m_Hand.Peek.clear();
 			m_Hand.Menu.clear();
 			m_Hand.Building = a[2];
 			m_Hand.Pinned = false;
@@ -2159,7 +2244,8 @@ namespace GB::Editor
 
 		// the menu over the bar: the palette of buildings or the omens
 		ImGui::SetNextWindowPos(ImVec2((left + right) * 0.5f, m_Hand.Box.Y0 - T::Gap), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
-		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(room, std::max(h * 0.45f, 160.0f)));
+		const float menuMaxH = std::max(h * (m_Hand.Menu == "build" ? 0.40f : 0.45f), 160.0f);   // (T254: the grid never covers more than 40 % of the view)
+		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(room, menuMaxH));
 		if (ImGui::Begin("HandMenu##observer", nullptr, fixed & ~ImGuiWindowFlags_NoScrollbar))
 		{
 			const float width = std::min(room, 620.0f) - 2.0f * T::Pad;
@@ -2168,45 +2254,8 @@ namespace GB::Editor
 				if (!first && x + ImGui::GetStyle().ItemSpacing.x + bw <= width) { ImGui::SameLine(); x += ImGui::GetStyle().ItemSpacing.x + bw; }
 				else x = bw;
 			};
-			if (m_Hand.Menu == "build")
-			{
-				ImGui::TextUnformatted(L.Text("What the {0} know how to raise", name).c_str());
-				ImGui::SameLine();
-				ImGui::TextDisabled("%s", L.Text("(a sign: {0} influence)", L.Num(cost("sign"), 0)).c_str());
-				ImGui::Separator();
-				struct Entry { std::string Id, Label; const BuildingDef* Def; };
-				std::vector<Entry> known, unknown;
-				if (const auto* defs = clan->Folk->Buildings())
-					for (const auto& [id, def] : *defs) (clan->Folk->CanBuild(id) ? known : unknown).push_back({ id, Lang::Cap(L.Name("building", id, def.Name)), &def });
-				auto byName = [](const Entry& a, const Entry& b) { return a.Label < b.Label; };
-				std::sort(known.begin(), known.end(), byName);
-				std::sort(unknown.begin(), unknown.end(), byName);
-				float x = 0.0f;
-				for (size_t i = 0; i < known.size(); ++i)
-				{
-					const Entry& e = known[i];
-					wrapped(x, ImGui::CalcTextSize(e.Label.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f, i == 0);
-					if (ImGui::Button((e.Label + "###b" + e.Id).c_str())) run("director hand place " + e.Id);
-					std::string does;
-					for (const std::string& line : BuildingDoes(*e.Def)) does += "\n" + line;
-					tip(L.Text("Place its sign on the ground ({0} x {1} m)", L.Num(e.Def->Footprint.x, 0), L.Num(e.Def->Footprint.y, 0)) + does);
-				}
-				if (known.empty()) ImGui::TextDisabled("%s", L.Text("They know how to raise nothing yet").c_str());
-				if (!unknown.empty() && ImGui::TreeNodeEx("unknown", ImGuiTreeNodeFlags_None, "%s", L.Text("They do not know how ({0})", static_cast<int>(unknown.size())).c_str()))
-				{
-					x = 0.0f;
-					ImGui::BeginDisabled();
-					for (size_t i = 0; i < unknown.size(); ++i)
-					{
-						const Entry& e = unknown[i];
-						wrapped(x, ImGui::CalcTextSize(e.Label.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f, i == 0);
-						ImGui::Button((e.Label + "###u" + e.Id).c_str());
-						tip(L.Text("The {0} do not know how to raise it yet: a vision first", name));
-					}
-					ImGui::EndDisabled();
-					ImGui::TreePop();
-				}
-			}
+			if (m_Hand.Menu == "build")   // T254: every building of the content in a grid, Black & White's way
+				DrawHandGrid(*clan, room, menuMaxH);
 			else if (m_Hand.Menu == "focus")   // T238: the groups, soft and strong, with their cost or why not
 			{
 				ImGui::TextUnformatted(L.Text("Where the {0} put their effort", name).c_str());
@@ -2280,5 +2329,232 @@ namespace GB::Editor
 			m_Hand.MenuBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
 		}
 		ImGui::End();
+	}
+
+	// T254: the grid of [Build]. Every building of the content, by category: its picture (assets/ui/thumbs, `thumbs build`), its name and the cost of
+	// the sign; what the clan cannot raise yet is greyed with a lock and its card says why (the rank, the culture, the technologies that open it).
+	// A click or the keys 1-9 choose a cell (`director hand place`), Tab moves through the categories (`director hand build <category>`), Esc closes.
+	// The vote is not foreseen here: PreviewSign needs a place, and the ghost shows it as soon as the building follows the mouse.
+	void EditorApp::DrawHandGrid(const Clan& clan, float room, float maxH)
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		const Tribe& folk = *clan.Folk;
+		const std::string name = L.Name("clan", clan.Name, clan.Name);
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		const auto signCost = m_Director.Rules.Costs.find("sign");
+		const float cost = signCost == m_Director.Rules.Costs.end() ? 0.0f : signCost->second;
+		const TechTree* tree = folk.Knowledge().Techs();
+		auto techName = [&](const std::string& id) { const TechDef* d = tree ? tree->Find(id) : nullptr; return L.Name("tech", id, d ? d->Name : id); };
+
+		struct Cell { std::string Id, Label, Tab; const BuildingDef* Def = nullptr; bool Known = false; int Have = 0; BuildLock Lock; };
+		std::vector<Cell> cells;
+		std::map<std::string, int> have, count;
+		int known = 0;
+		for (const Tribe::SettlementSite& s : folk.SettlementSites())
+			if (s.State.Done) ++have[s.Building];
+		if (const auto* defs = folk.Buildings())
+			for (const auto& [id, def] : *defs)
+			{
+				Cell c;
+				c.Id = id;
+				c.Label = Lang::Cap(L.Name("building", id, def.Name));
+				c.Tab = BuildingTab(def);
+				c.Def = &def;
+				c.Known = folk.CanBuild(id);
+				c.Have = have.count(id) ? have[id] : 0;
+				if (!c.Known) c.Lock = LockOf(folk, def);
+				else ++known;
+				++count[c.Tab];
+				++count["all"];
+				if (m_Hand.Tab == "all" || m_Hand.Tab == c.Tab) cells.push_back(std::move(c));
+			}
+		std::stable_sort(cells.begin(), cells.end(), [](const Cell& a, const Cell& b) { return a.Known != b.Known ? a.Known : a.Label < b.Label; });
+
+		// the header: whose hand it is, what a sign costs and how much of the content the clan knows
+		ImGui::TextUnformatted(L.Text("Build for the {0}", name).c_str());
+		ImGui::SameLine();
+		ImGui::TextDisabled("%s", (L.Text("(a sign: {0} influence)", L.Num(cost, 0)) + "  " + L.Text("they know {0} of {1}", known, count["all"])).c_str());
+		// the categories: buttons of their own (the lit one is the open one), only those with something in them
+		std::vector<std::string> tabs;
+		for (const char* t : kBuildTabs)
+			if (std::string(t) == "all" || count[t] > 0 || m_Hand.Tab == t) tabs.push_back(t);
+		const float width = std::min(room, 1000.0f) - 2.0f * T::Pad;
+		float x = 0.0f;
+		for (size_t i = 0; i < tabs.size(); ++i)
+		{
+			const std::string label = L.Text(BuildTabText(tabs[i])) + " " + std::to_string(count[tabs[i]]);
+			const float bw = ImGui::CalcTextSize(label.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+			if (i > 0 && x + ImGui::GetStyle().ItemSpacing.x + bw <= width) { ImGui::SameLine(); x += ImGui::GetStyle().ItemSpacing.x + bw; }
+			else x = bw;
+			std::optional<T::PrimaryScope> lit;
+			if (tabs[i] == m_Hand.Tab) lit.emplace();
+			if (ImGui::Button((label + "###tab" + tabs[i]).c_str())) run("director hand build " + tabs[i]);
+		}
+		ImGui::Separator();
+
+		// the cells: a picture on parchment, the name (two lines at most) and the cost, or the lock and what is missing
+		const float img = 68.0f, cellW = 124.0f, gap = T::Gap, line = ImGui::GetTextLineHeight();
+		const float cellH = 5.0f + img + 3.0f + 2.0f * line + 2.0f + line + 5.0f;
+		const int cols = std::max(1, static_cast<int>((width - ImGui::GetStyle().ScrollbarSize + gap) / (cellW + gap)));
+		const int rows = (static_cast<int>(cells.size()) + cols - 1) / cols;
+		const float hint = line + ImGui::GetStyle().ItemSpacing.y * 2.0f + T::Pad;
+		const float spare = maxH - (ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y) - hint - T::Pad;
+		const float fullH = static_cast<float>(std::max(rows, 1)) * (cellH + gap);
+		// (whole rows: a row cut in half reads as a broken grid; the rest scrolls)
+		const float gridH = fullH <= spare ? fullH : std::max(std::floor((spare + gap) / (cellH + gap)), 1.0f) * (cellH + gap);
+		const float gridW = static_cast<float>(cols) * (cellW + gap) + ImGui::GetStyle().ScrollbarSize;
+		auto shortWhy = [&](const Cell& c)
+		{
+			if (!c.Lock.Rank.empty()) return Lang::Cap(L.Name("rank", c.Lock.Rank, c.Lock.Rank));
+			if (!c.Lock.Value.empty()) return L.Text("Other ways");
+			if (!c.Lock.Techs.empty()) return Lang::Cap(techName(c.Lock.Techs.front()));
+			return L.Text("Not known yet");
+		};
+		auto choose = [&](const Cell& c)
+		{
+			if (c.Known) run("director hand place " + c.Id);
+			else ShellToastShown(L.Text("The {0} cannot raise it yet: {1}", name, c.Label) + " (" + shortWhy(c) + ")");
+		};
+		// the card of a cell: what it does, what it asks, and why not when it cannot be raised
+		auto card = [&](const Cell& c)
+		{
+			ImGui::PushTextWrapPos(ImGui::GetFontSize() * 26.0f);
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", c.Label.c_str());
+			if (c.Known) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", L.Text("Place its sign on the ground ({0} x {1} m)", L.Num(c.Def->Footprint.x, 0), L.Num(c.Def->Footprint.y, 0)).c_str());
+			else
+			{
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", L.Text("The {0} do not know how to raise it yet", name).c_str());
+				if (!c.Lock.Rank.empty()) ImGui::TextUnformatted(L.Text("The clan must be a {0} first", L.Name("rank", c.Lock.Rank, c.Lock.Rank)).c_str());
+				if (!c.Lock.Value.empty())
+					ImGui::TextUnformatted(L.Text(c.Lock.TooMuch ? "Their culture values {0} too much" : "Their culture does not value {0} enough", L.Name("value", c.Lock.Value)).c_str());
+				if (!c.Lock.Techs.empty())
+				{
+					std::string techs;
+					for (const std::string& t : c.Lock.Techs) techs += (techs.empty() ? "" : ", ") + techName(t);
+					ImGui::TextUnformatted((c.Lock.Techs.size() > 1 ? L.Text("It needs one of these: {0}", techs) : L.Text("It needs {0}", techs)).c_str());
+					ImGui::TextDisabled("%s", L.Text("A vision of the tree of knowledge can lead them to it").c_str());
+				}
+				ImGui::TextDisabled("%s", L.Text("Size: {0} x {1} m", L.Num(c.Def->Footprint.x, 0), L.Num(c.Def->Footprint.y, 0)).c_str());
+			}
+			for (const std::string& does : BuildingDoes(*c.Def)) ImGui::TextUnformatted(("- " + does).c_str());
+			std::string needs;
+			for (const auto& [item, n] : c.Def->TotalNeeds()) needs += (needs.empty() ? "" : ", ") + std::to_string(n) + " " + L.Name("item", item);
+			if (!needs.empty()) ImGui::TextDisabled("%s", L.Text("Asks for {0}", needs).c_str());
+			if (c.Have > 0) ImGui::TextDisabled("%s", L.Text("The {0} have {1} standing", name, c.Have).c_str());
+			if (c.Known) ImGui::TextDisabled("%s", L.Text("The vote is foreseen when you place it").c_str());
+			ImGui::PopTextWrapPos();
+		};
+		glm::vec2 lockUv0(0.0f), lockUv1(0.0f);
+		const bool fallback = IconUv("building.shelter", lockUv0, lockUv1);
+		const Cell* peek = nullptr;
+		ImVec2 peekAt;
+		ImGui::BeginChild("grid", ImVec2(gridW, gridH), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
+		{
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			if (cells.empty()) ImGui::TextDisabled("%s", L.Text("Nothing in this category").c_str());
+			for (size_t i = 0; i < cells.size(); ++i)
+			{
+				const Cell& c = cells[i];
+				if (i % static_cast<size_t>(cols) != 0) ImGui::SameLine(0.0f, gap);
+				ImGui::PushID(c.Id.c_str());
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				if (ImGui::InvisibleButton("cell", ImVec2(cellW, cellH))) choose(c);
+				const bool hovered = ImGui::IsItemHovered();
+				if (m_Hand.Peek == c.Id && !ImGui::IsItemVisible()) ImGui::SetScrollHereY(0.5f);   // (a held card's cell comes into view)
+				const ImVec2 to(at.x + cellW, at.y + cellH);
+				dl->AddRectFilled(at, to, c.Known ? (hovered ? T::HideHover : T::HideRaised) : T::Hide, T::Radius);
+				dl->AddRect(at, to, hovered && c.Known ? T::Ochre : T::HideLine, T::Radius, 0, hovered ? 2.0f : 1.0f);
+				// the picture on its parchment (grey with a lock when they cannot raise it)
+				const ImVec2 p0(at.x + (cellW - img) * 0.5f, at.y + 6.0f), p1(p0.x + img, p0.y + img);
+				dl->AddRectFilled(p0, p1, c.Known ? T::Parchment : T::Faded(T::BoneDim, 0.55f), 4.0f);
+				if (const BuildingThumb* th = BuildingThumbOf(c.Id))
+					dl->AddImage(ThumbId(c.Known ? *th->Colour : *th->Grey), ImVec2(p0.x + 2.0f, p0.y + 2.0f), ImVec2(p1.x - 2.0f, p1.y - 2.0f));
+				else if (fallback)
+					dl->AddImage(ThumbId(*m_IconTexture), ImVec2(p0.x + 10.0f, p0.y + 10.0f), ImVec2(p1.x - 10.0f, p1.y - 10.0f), ImVec2(lockUv0.x, lockUv0.y), ImVec2(lockUv1.x, lockUv1.y),
+						c.Known ? IM_COL32_WHITE : T::Faded(T::BoneDim, 0.6f));
+				if (!c.Known)
+				{
+					const ImVec2 k(p1.x - 13.0f, p1.y - 13.0f);
+					dl->AddCircleFilled(k, 11.0f, T::Outline);
+					dl->PathArcTo(ImVec2(k.x, k.y - 1.5f), 3.6f, 3.14159265f, 6.28318531f);
+					dl->PathStroke(T::Bone, ImDrawFlags_None, 2.0f);
+					dl->AddLine(ImVec2(k.x - 3.6f, k.y - 1.5f), ImVec2(k.x - 3.6f, k.y + 0.5f), T::Bone, 2.0f);
+					dl->AddLine(ImVec2(k.x + 3.6f, k.y - 1.5f), ImVec2(k.x + 3.6f, k.y + 0.5f), T::Bone, 2.0f);
+					dl->AddRectFilled(ImVec2(k.x - 5.5f, k.y), ImVec2(k.x + 5.5f, k.y + 6.5f), T::Bone, 1.5f);
+				}
+				if (i < 9) T::KeyCap(dl, ImVec2(at.x + 4.0f, at.y + 4.0f), std::to_string(i + 1).c_str(), 17.0f);
+				if (c.Have > 0)
+				{
+					const std::string n = "x" + std::to_string(c.Have);
+					const ImVec2 s = ImGui::CalcTextSize(n.c_str());
+					const ImVec2 b0(to.x - s.x - 12.0f, at.y + 4.0f);
+					dl->AddRectFilled(b0, ImVec2(to.x - 4.0f, b0.y + s.y + 4.0f), T::Outline, 4.0f);
+					dl->AddText(ImVec2(b0.x + 4.0f, b0.y + 2.0f), T::Ochre, n.c_str());
+				}
+				// the name, centred, in two lines at most (cut at a word)
+				dl->PushClipRect(ImVec2(at.x + 3.0f, at.y), ImVec2(to.x - 3.0f, to.y), true);
+				{
+					std::string first = c.Label, second;
+					const float room1 = cellW - 8.0f;
+					if (ImGui::CalcTextSize(first.c_str()).x > room1)
+					{
+						size_t cut = first.size();
+						while (cut != std::string::npos && cut > 0)
+						{
+							cut = first.rfind(' ', cut - 1);
+							if (cut != std::string::npos && ImGui::CalcTextSize(first.substr(0, cut).c_str()).x <= room1) break;
+						}
+						if (cut != std::string::npos && cut > 0) { second = first.substr(cut + 1); first = first.substr(0, cut); }
+					}
+					float y = p1.y + 4.0f;
+					for (const std::string* s : { &first, &second })
+					{
+						if (s->empty()) continue;
+						const float tw = ImGui::CalcTextSize(s->c_str()).x;
+						dl->AddText(ImVec2(at.x + std::max((cellW - tw) * 0.5f, 4.0f), y), c.Known ? T::Bone : T::BoneDim, s->c_str());
+						y += line;
+					}
+					const std::string under = c.Known ? L.Text("Sign: {0}", L.Num(cost, 0)) : shortWhy(c);
+					const float uw = ImGui::CalcTextSize(under.c_str()).x;
+					dl->AddText(ImVec2(at.x + std::max((cellW - uw) * 0.5f, 4.0f), p1.y + 4.0f + 2.0f * line + 2.0f), c.Known ? T::Ochre : T::BoneDim, under.c_str());
+				}
+				dl->PopClipRect();
+				if (hovered)
+				{
+					ImGui::PushStyleColor(ImGuiCol_PopupBg, T::HidePanel);   // (solid: the cells under it must not show through the text)
+					ImGui::BeginTooltip();
+					card(c);
+					ImGui::EndTooltip();
+					ImGui::PopStyleColor();
+				}
+				else if (m_Hand.Peek == c.Id) { peek = &c; peekAt = ImVec2(to.x + T::Gap, at.y); }
+				ImGui::PopID();
+			}
+		}
+		ImGui::EndChild();
+		ImGui::TextDisabled("%s", L.Text("[Click] or [1-9] choose  [Tab] category  [Esc] close").c_str());
+		if (peek)   // `director hand peek`: the card held open beside its cell, as the mouse would show it
+		{
+			const ImVec2 screen = ImGui::GetIO().DisplaySize;   // (beside its cell, or on its left near the right edge)
+			const bool flip = peekAt.x > screen.x * 0.66f;
+			ImGui::SetNextWindowPos(ImVec2(flip ? peekAt.x - cellW - 2.0f * T::Gap : peekAt.x, std::min(peekAt.y, screen.y * 0.55f)), ImGuiCond_Always, ImVec2(flip ? 1.0f : 0.0f, 0.0f));
+			ImGui::PushStyleColor(ImGuiCol_PopupBg, T::HidePanel);
+			ImGui::BeginTooltip();
+			card(*peek);
+			ImGui::EndTooltip();
+			ImGui::PopStyleColor();
+		}
+		// the keys: 1-9 the cells of the open category, Tab (Shift+Tab) the next (previous) category
+		const ImGuiIO& io = ImGui::GetIO();
+		if (io.WantTextInput) return;
+		for (int k = 0; k < 9 && k < static_cast<int>(cells.size()); ++k)
+			if (ImGui::IsKeyPressed(static_cast<ImGuiKey>(ImGuiKey_1 + k), false)) choose(cells[static_cast<size_t>(k)]);
+		if (ImGui::IsKeyPressed(ImGuiKey_Tab, false) && !tabs.empty())
+		{
+			const auto it = std::find(tabs.begin(), tabs.end(), m_Hand.Tab);
+			const int at = it == tabs.end() ? 0 : static_cast<int>(it - tabs.begin()), n = static_cast<int>(tabs.size());
+			run("director hand build " + tabs[static_cast<size_t>((at + (io.KeyShift ? n - 1 : 1)) % n)]);
+		}
 	}
 }

@@ -393,6 +393,16 @@ namespace GB::Editor
 		void UpdateVisuals(float dt);
 		void AddVisualsToScene();
 		void RegisterVisualCommands();
+		// T254 (EditorVisuals.cpp): `thumbs build [id...] | status`, the picture of every building of the content, finished, seen from three
+		// quarters above, rendered offscreen by a renderer of its own to assets/ui/thumbs/<id>.png (transparent background); the hand's grid
+		// (ObserverView.cpp) loads them once, a colour and a grey copy, and falls back to the atlas's building icon when one is missing.
+		CommandResult ThumbsCommand(const std::vector<std::string>& a);
+		struct BuildingThumb
+		{
+			std::unique_ptr<Texture2D> Colour, Grey;   // (the grey one for what the clan cannot raise yet)
+		};
+		std::map<std::string, BuildingThumb> m_BuildingThumbs;   // loaded on first use; an entry without textures: no file
+		const BuildingThumb* BuildingThumbOf(const std::string& id);
 		// T5c (TrailsView.cpp): the clans' trails on the ground (the terrain's colour, the grass) and in the navigation, and `trails`
 		struct TrailsView;
 		std::shared_ptr<TrailsView> m_TrailsView;
@@ -463,6 +473,8 @@ namespace GB::Editor
 			DirectorSignPreview Preview;
 			std::map<int, std::string> SignSeen;  // sign id -> the state last drawn (a toast when it changes)
 			int Tip = 0;                         // `director hand tip <id>`: the sign whose marker's card is held open (0 none)
+			std::string Tab = "all";             // T254: the grid's category ("all", "homes", "food", "crafts", "fire_water", "worship", "defense", "community")
+			std::string Peek;                    // T254: `director hand peek <building>`: the grid cell whose card is held open (for captures)
 			ObserverState::Box Box, MenuBox;
 			glm::vec2 PressL{ 0.0f }, PressR{ 0.0f };
 			bool DownL = false, DownR = false;
@@ -470,6 +482,7 @@ namespace GB::Editor
 		CommandResult HandCommand(const std::vector<std::string>& a);
 		std::string HandStatus() const;
 		void DrawHandBar(float ox, float oy, float w, float h);     // the bar and its menus (inside the observer's theme)
+		void DrawHandGrid(const Clan& clan, float room, float maxH);   // T254: the [Build] menu's grid of buildings (inside the menu's window)
 		void DrawHandWorld(float ox, float oy, float w, float h);   // the ghost, the signs' markers and the clicks on the ground
 		const DirectorSignPreview& HandPreview(int clan, float x, float z);
 		void HandToasts();
