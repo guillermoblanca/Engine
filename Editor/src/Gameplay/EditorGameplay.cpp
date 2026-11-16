@@ -83,6 +83,7 @@ namespace GB::Editor
 				return a->RunTasks(tasks, error);
 			}
 			bool CanStandAt(const glm::vec2& p) const override { const NavGrid& nav = m_Actors.Navigation(); return !nav.Ready() || nav.Walkable(p, m_Profile); }
+			float WaterDepthAt(const glm::vec2& p) const override { return SimWaterDepth(m_Actors.Host().World, p); }   // T245 (as the QA's "buildings" check reads it)
 			bool CanReach(const glm::vec2& p) const override
 			{
 				const Actor* a = m_Actors.Find(m_Name);

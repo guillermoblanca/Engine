@@ -69,6 +69,7 @@ namespace GB
 		// Optional (a body that cannot say answers as if everything were fine):
 		virtual bool CanStandAt(const glm::vec2&) const { return true; }   // can it be sent to this point (not a wall, deep water...)
 		virtual bool CanReach(const glm::vec2& to) const { return CanStandAt(to); }   // ... and is there a way from where it is
+		virtual float WaterDepthAt(const glm::vec2&) const { return 0.0f; }   // T245: metres of water over the ground there (a site never stands in it)
 		virtual void Teleport(const glm::vec2&) {}                          // put it there (the abstract agent hands its place back to the body)
 		virtual void SetSuspended(bool) {}                                  // stop animating and drawing it while the tribe simulates it abstractly
 		// How it values the terrain from now on (its role's profile and how loaded it is): its next paths, CanReach and Route use it.

@@ -438,6 +438,8 @@ namespace GB
 						const glm::vec4 at = v.Entities->WorldMatrix(id)[3];
 						const std::string wrong = v.Ground({ at.x, at.z });
 						if (wrong.find("water") != std::string::npos) r.Add(name, "it stands " + wrong);
+						// T245: nor shallow water under any part of it (a river a member wades is no ground to build on), unless its def allows it
+						else if (const std::string wet = SiteInWater(*def, { at.x, at.z }, v.WaterDepth); !wet.empty()) r.Add(name, "it stands where " + wet);
 					}
 			}
 			// the progression (docs/PROGRESION.md): never more sites open than the construction rules allow, and the provisions of what stands in range
@@ -772,7 +774,20 @@ namespace GB
 		return {};
 	}
 
+	float SimWaterDepth(const CharacterWorld& world, const glm::vec2& p)
+	{
+		if (!world.WaterLevel || !world.GroundHeight) return 0.0f;
+		return std::max(0.0f, world.WaterLevel(p.x, p.y) - world.GroundHeight(p.x, p.y));
+	}
+
 	// ---------------------------------------------------------------- SimBody
+
+	float SimBody::WaterDepthAt(const glm::vec2& p) const
+	{
+		if (m_Obstacles) return SimWaterDepth(*m_Obstacles, p);
+		int i = 0, j = 0;
+		return m_Nav.Ready() && m_Nav.CellAt(p, i, j) ? m_Nav.Depth(i, j) : 0.0f;
+	}
 
 	SimBody::SimBody(std::string name, GameplayWorld& gameplay, const EntityWorld& entities, const NavGrid& nav, const ItemLibrary& items, glm::vec2 start)
 		: m_Name(std::move(name)), m_Gameplay(gameplay), m_Entities(entities), m_Nav(nav), m_Items(items)
@@ -1179,6 +1194,7 @@ namespace GB
 		v.Clock = m_Clock;
 		const CharacterWorld* ground = &m_Ground;
 		v.Ground = [ground](const glm::vec2& p) { return SimGroundAt(*ground, p); };
+		v.WaterDepth = [ground](const glm::vec2& p) { return SimWaterDepth(*ground, p); };
 		return v;
 	}
 

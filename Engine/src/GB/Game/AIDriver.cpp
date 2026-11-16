@@ -11,6 +11,7 @@ namespace GB
 		constexpr float kWindowSeconds = 1.0f;            // the time over which progress is judged
 		constexpr float kMaxJudgedStep = 0.1f;            // s of one frame that count towards that judgement
 		constexpr float kMinProgress = 0.3f;              // m moved in that window below which the walker is not getting anywhere
+		constexpr float kCrowdArrive = 3.0f;              // T246: stalled by people this near its goal, a walker has arrived
 
 		// Steers `dir` around the characters ahead: each one in the way pushes to the side away from it (always the right one when it is head-on,
 		// so two that meet pass each other), one too close pushes straight away, and the speed drops when someone is right in front.
@@ -151,6 +152,9 @@ namespace GB
 		if (world.DynamicFrom < world.Obstacles.size())
 			for (size_t k = world.DynamicFrom; k < world.Obstacles.size() && !crowd; ++k)
 				crowd = glm::distance(world.Obstacles[k].Center, here) < world.Obstacles[k].Radius + c.Config.Radius + 0.9f;
+		// T246: held up by people within a few steps of the goal (two walkers that meet head-on on their way to swap places stood face to face
+		// for the 20 s of patience and both failed, "no headway ... nearest character 1.0 m"; a crowd round the fire): that is as near as it gets
+		if (crowd && glm::distance(here, m_Goal) < kCrowdArrive) { m_Arrived = true; m_Path.clear(); m_Index = 0; m_NeedPlan = false; return; }
 		if (crowd && m_CrowdSeconds < CrowdPatience)
 		{
 			m_CrowdSeconds += kWindowSeconds;

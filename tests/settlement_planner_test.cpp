@@ -153,6 +153,45 @@ int GBTest_settlement_planner(int, char**)
 		const auto onEast = GB::PlaceSite(east);
 		Check(onEast && onEast->x > p.Camp.x, "a spot only where a member can stand");
 		Check(std::fabs(GB::SiteFront({ 0.0f, 0.0f }, d, 0.6f).x - 0.6f) < 1e-6f && GB::SiteFront({ 0.0f, 0.0f }, d).y > 0.5f * d.Footprint.y, "members work in front of the site");
+
+		// T245: a shallow river a member can wade is no ground to build on, whatever part of the footprint it runs under
+		GB::SitePlacement river = p;
+		river.CanStand = [](const glm::vec2&) { return true; };   // (wadeable everywhere)
+		const float bank = p.Camp.x + 7.0f;   // a 1 m wide stream, x in [bank - 0.5, bank + 0.5], under the middle of the first spot east of the camp
+		river.WaterDepth = [bank](const glm::vec2& at) { return std::fabs(at.x - bank) <= 0.5f ? 0.4f : 0.0f; };
+		const glm::vec2 overRiver(bank, p.Camp.y);
+		Check(GB::SiteFits(p, overRiver).empty(), "without water the spot over the stream fits");
+		const std::string wet = GB::SiteFits(river, overRiver);
+		std::printf("   a site over a stream: %s\n", wet.c_str());
+		Check(wet.find("water under it") != std::string::npos, "a site with a stream under its middle (centre and corners dry) does not fit");
+		Check(!GB::SiteFits(river, overRiver + glm::vec2(1.2f, 0.0f)).empty(), "nor with the stream under one side");
+		Check(GB::SiteFits(river, overRiver + glm::vec2(0.0f, 6.0f) + glm::vec2(0.5f * d.Footprint.x + 0.6f, 0.0f)).empty(), "a spot clear of the stream fits");
+		const auto drySpot = GB::PlaceSite(river);
+		Check(drySpot && GB::SiteInWater(d, *drySpot, river.WaterDepth).empty(), "the planner picks a dry spot");
+		GB::BuildingDef jetty = d;
+		jetty.AllowWater = true;
+		GB::SitePlacement dock = river;
+		dock.Def = &jetty;
+		Check(GB::SiteInWater(jetty, overRiver, river.WaterDepth).empty() && GB::SiteFits(dock, overRiver).empty(), "a building that allows water (allowWater) may stand over it");
+		Check(GB::SiteInWater(d, overRiver, nullptr).empty(), "with no depth to ask, nothing is wet");
+	}
+
+	// T215: a field's plots never on a rock (the member sent to till it walked to a point it never reached and starved)
+	{
+		const glm::vec2 wanted(20.0f, 4.0f);
+		const int plots = 6, columns = 3;
+		const float spacing = 2.0f;
+		Check(GB::PlaceField(wanted, plots, columns, spacing, nullptr) == wanted, "with nothing to ask, the field goes where it is wanted");
+		Check(GB::PlaceField(wanted, plots, columns, spacing, [](const glm::vec2&) { return true; }) == wanted, "on free ground too");
+		const glm::vec2 rock = wanted + glm::vec2(2.0f, 2.0f);   // under plot 4
+		auto free = [&](const glm::vec2& p) { return glm::distance(p, rock) > 1.2f; };
+		const auto moved = GB::PlaceField(wanted, plots, columns, spacing, free);
+		bool clear = moved.has_value() && free(*moved + glm::vec2(-spacing, 0.0f));
+		for (int i = 0; moved && i < plots; ++i) clear = clear && free(*moved + glm::vec2(static_cast<float>(i % columns), static_cast<float>(i / columns)) * spacing);
+		Check(moved && *moved != wanted && clear, "a rock under a plot moves the field to where every plot and its store are free");
+		Check(moved && glm::distance(*moved, wanted) <= 8.0f * spacing + 1e-3f, "and not far");
+		Check(GB::PlaceField(wanted, plots, columns, spacing, free) == moved, "the same ground gives the same field");
+		Check(!GB::PlaceField(wanted, plots, columns, spacing, [](const glm::vec2&) { return false; }).has_value(), "no free ground: no field there");
 	}
 
 	if (failures == 0) std::printf("settlement planner: all checks passed\n");

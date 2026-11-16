@@ -171,6 +171,16 @@ namespace GB
 		return m_Ragdoll->Start(motion.Velocity + glm::vec3(0.0f, motion.VerticalSpeed, 0.0f) + extraVelocity);
 	}
 
+	bool Actor::FallDead()
+	{
+		AutoGetUp = false;
+		if (Ragdolled()) return true;
+		if (!m_Ragdoll || !Anim()) return false;   // (no body to drop yet: it tries again)
+		if (m_FellDead) return false;              // it tried with its body and the rig cannot fall: not every frame
+		m_FellDead = true;
+		return StartRagdoll();
+	}
+
 	bool Actor::Blast(const glm::vec2& xz, float radius, float speed)
 	{
 		if (!m_Ragdoll || !Anim()) return false;

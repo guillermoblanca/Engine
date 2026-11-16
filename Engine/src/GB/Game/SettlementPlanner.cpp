@@ -118,6 +118,7 @@ namespace GB
 		if (glm::distance(p, s.Fire) < r + 2.5f) return "too near the fire";
 		for (const PlannerSite& o : s.Others) if (glm::distance(p, o.Pos) < r + o.Def->Radius() + 1.5f) return "too near " + o.Def->Name;
 		for (const glm::vec2& o : s.Obstacles) if (glm::distance(p, o) < r + 1.2f) return "something stands there";
+		if (std::string wet = SiteInWater(def, p, s.WaterDepth); !wet.empty()) return wet;
 		if (!s.CanStand) return {};
 		if (!s.CanStand(p)) return "nobody can stand there";
 		for (int k = 0; k < 4; ++k)   // the corners too: not half in the lake
@@ -127,6 +128,49 @@ namespace GB
 		}
 		if (!s.CanStand(SiteFront(p, def))) return "its front is on ground nobody can stand on";
 		return {};
+	}
+
+	std::string SiteInWater(const BuildingDef& def, const glm::vec2& at, const std::function<float(const glm::vec2&)>& waterDepth)
+	{
+		if (def.AllowWater || !waterDepth) return {};
+		// a grid over the whole footprint (edges and corners included), then the spot in front where its builders stand
+		const int nx = std::max(1, static_cast<int>(std::ceil(def.Footprint.x / kWetStep)));
+		const int nz = std::max(1, static_cast<int>(std::ceil(def.Footprint.y / kWetStep)));
+		float deepest = 0.0f;
+		for (int i = 0; i <= nx; ++i)
+			for (int j = 0; j <= nz; ++j)
+			{
+				const glm::vec2 q = at + glm::vec2((static_cast<float>(i) / static_cast<float>(nx) - 0.5f) * def.Footprint.x, (static_cast<float>(j) / static_cast<float>(nz) - 0.5f) * def.Footprint.y);
+				deepest = std::max(deepest, waterDepth(q));
+			}
+		const float front = waterDepth(SiteFront(at, def));
+		if (deepest <= kWetDepth && front <= kWetDepth) return {};
+		char why[96];
+		if (deepest > kWetDepth) std::snprintf(why, sizeof why, "there is water under it (%.2f m deep)", static_cast<double>(deepest));
+		else std::snprintf(why, sizeof why, "its front is in the water (%.2f m deep)", static_cast<double>(front));
+		return why;
+	}
+
+	std::optional<glm::vec2> PlaceField(const glm::vec2& wanted, int plots, int columns, float spacing, const std::function<bool(const glm::vec2&)>& free, int rings)
+	{
+		if (!free) return wanted;
+		const int c = std::max(1, columns);
+		auto fits = [&](const glm::vec2& origin)
+		{
+			if (!free(origin + glm::vec2(-spacing, 0.0f))) return false;   // (its store, beside the first plot: Tribe::MarkField)
+			for (int i = 0; i < std::max(0, plots); ++i)
+				if (!free(origin + glm::vec2(static_cast<float>(i % c), static_cast<float>(i / c)) * spacing)) return false;
+			return true;
+		};
+		if (fits(wanted)) return wanted;
+		for (int ring = 1; ring <= rings; ++ring)
+			for (int k = 0; k < 12; ++k)
+			{
+				const float a = static_cast<float>(k) * 0.5236f;
+				const glm::vec2 p = wanted + glm::vec2(std::cos(a), std::sin(a)) * (spacing * static_cast<float>(ring));
+				if (fits(p)) return p;
+			}
+		return std::nullopt;
 	}
 
 	std::optional<glm::vec2> PlaceSite(const SitePlacement& s)

@@ -239,7 +239,7 @@ namespace GB
 		start.reserve(m_Actors.size());
 		for (const auto& [name, actor] : m_Actors)
 		{
-			if (actor->Paused()) continue;
+			if (actor->Paused() || actor->Ragdolled()) continue;   // T246: a body on the ground (the dead lie for good now) is stepped over, not walked round
 			const glm::vec3 p = actor->GetPosition();
 			start.push_back({ name, { { p.x, p.z }, actor->Radius() } });
 		}

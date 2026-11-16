@@ -92,6 +92,7 @@ public:
 				s.Walking = true;
 			}
 		}
+		if (Stall && s.Kind == "goto") return;   // (a goal inside a rock: it never gets there)
 		if (s.Kind == "goto" || (s.Kind == "ability" && s.Walking))
 		{
 			const glm::vec2 to = m_Target - m_Pos;
@@ -111,6 +112,8 @@ public:
 		m_Started = false;
 	}
 	const ItemLibrary* m_Items = nullptr;
+	bool Stall = false;   // T226: its walks never arrive
+	bool Walking() const { return !m_Steps.empty() && m_Steps.front().Kind == "goto"; }
 private:
 	struct Step { std::string Kind, Ability, Node; float X = 0, Z = 0, Seconds = 0; bool Walking = false; };
 	std::string m_Name;
@@ -641,6 +644,35 @@ int GBTest_combat(int, char**)
 		}
 		Check(!w.Bad, "nobody's position is broken by the chase");
 		Check(w.Broken("combat") == 0, "the combat invariants hold through the hunt");
+	}
+
+	// ---- T226: the prey dies while the hunter charges at a point it never reaches (inside a rock): the hunt still ends
+	{
+		World w;
+		w.Patch({ 0.0f, 0.0f, 0.0f }, 4);
+		w.Ecology.Bind(w.Entities, w.Gameplay);
+		Tribe& clan = w.AddClan("Clan", 4, { 0.0f, -8.0f }, "");
+		clan.Store().Add(w.Items, "wood", 10);
+		clan.Store().Add(w.Items, "stone", 12);
+		w.Ecology.Spawn({ 14.0f, 0.0f, -14.0f }, 1, "rabbit");
+		const TribeMember* hunter = nullptr;
+		for (int i = 0; i < 20 * 240 && !hunter; ++i)
+		{
+			w.Run(dt);
+			for (const TribeMember& m : clan.Members())
+				if (m.Job == "hunt" && w.Body(m.Name)->Walking() && clan.Conflict().Members.count(m.Name) && clan.Conflict().Members.at(m.Name).Ordered) hunter = &m;
+		}
+		Check(hunter != nullptr, "a member charges at a rabbit");
+		if (hunter)
+		{
+			const std::string name = hunter->Name, prey = hunter->Detail;
+			w.Body(name)->Stall = true;
+			Check(w.Combat.Hurt(prey, 1000.0f, "cut", 1.0f, "Stranger"), "someone else kills the rabbit");
+			w.Run(5.0);
+			const TribeMember* m = clan.FindMember(name);
+			std::printf("   T226: after the kill %s does '%s %s', busy %d\n", name.c_str(), m->Job.c_str(), m->Detail.c_str(), w.Body(name)->Busy() ? 1 : 0);
+			Check(m && !(m->Job == "hunt" && m->Detail == prey), "the hunt of a dead prey is closed (the hunter is free for its next job)");
+		}
 	}
 
 	// ---- a raid: a hostile clan's store is robbed, the raiders come home, the victim holds a grievance and notices it

@@ -193,6 +193,9 @@ namespace GB
 		bool StartRagdoll(const glm::vec3& extraVelocity = glm::vec3(0.0f));
 		void GetUp() { if (m_Ragdoll) m_Ragdoll->GetUp(); }
 		bool Ragdolled() const { return m_Ragdoll && m_Ragdoll->Ragdolled(); }
+		// T246: dead for good: it falls as a ragdoll that never gets up by itself (AutoGetUp off; before, a dead member stood up again after 1.5 s at
+		// rest and stayed on its feet). Cheap to call every frame: it tries to fall once (a body with no humanoid rig cannot). True when it lies.
+		bool FallDead();
 		// Level of detail of the animation for the next Update (H16, see AnimInstance::SetDetail): presentation only, the movement, the abilities
 		// and their montages go exactly as at full detail. ActorWorld sets it from the distance to the viewer.
 		// `props` false: its props are not drawn (far away they are a few pixels; they stay attached and come back when it is nearer).
@@ -228,6 +231,7 @@ namespace GB
 		bool StartAbility(const std::string& ability, const std::string& entity, std::string& error);
 
 		bool m_Built = false;
+		bool m_FellDead = false;   // FallDead tried its fall (it does not try again every frame)
 		int m_AnimLevel = 0;
 		TaskRunner::Resolver m_Interactions;
 		FootstepSounds* m_Steps = nullptr;

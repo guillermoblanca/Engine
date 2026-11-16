@@ -77,6 +77,9 @@ namespace GB
 		std::vector<PlannerSite> Others;          // the sites and buildings already there
 		std::vector<glm::vec2> Obstacles;         // resource nodes and the like (a site keeps 1.2 m off them)
 		std::function<bool(const glm::vec2&)> CanStand;   // ground a member can stand on (null: all of it)
+		// T245: metres of water over the ground here (0: dry; null: no water anywhere). A building never stands with water under any part of its
+		// footprint unless its def allows it (BuildingDef::AllowWater): a shallow river is ground a member can wade, not ground to build on.
+		std::function<float(const glm::vec2&)> WaterDepth;
 		// N1: how good a spot is for this building (a household's house: its work near, its kin near). Null: the first spot that fits, ring by ring
 		// (as always); set: every spot of `Rings` rings x 24 angles is weighed and the best that fits wins (ties: the first).
 		std::function<float(const glm::vec2&)> Prefer;
@@ -87,6 +90,17 @@ namespace GB
 	// a member can stand on): "" when it fits, else why ("too near the camp"...). PlaceSite tries its spots with it; T237's sign checks the god's.
 	std::string SiteFits(const SitePlacement& placement, const glm::vec2& at);
 
+	// T245: whether any part of the footprint (a grid of points at most kWetStep apart over it, its corners and its front) has water deeper than
+	// kWetDepth: "" when dry (or the def allows water, or there is no depth to ask), else why ("the river runs under it, 0.4 m deep").
+	inline constexpr float kWetDepth = 0.05f;
+	inline constexpr float kWetStep = 0.75f;
+	std::string SiteInWater(const BuildingDef& def, const glm::vec2& at, const std::function<float(const glm::vec2&)>& waterDepth);
+
 	// Rings round the camp, each building at its own angle: the first spot that fits, or nothing. The same scene gives the same place.
 	std::optional<glm::vec2> PlaceSite(const SitePlacement& placement);
+
+	// T215: where a field of `plots` plots (`columns` a row, `spacing` m apart, the first at the origin: Field::PlotPos) is marked out. The wanted
+	// origin when every plot is on free ground (`free`: a member can stand there, no rock, trunk or water); else the nearest origin that has it, on
+	// rings of `spacing` m round the wanted one (up to `rings`, 12 angles each, in a fixed order). Null `free`: the wanted one. Nothing: no room.
+	std::optional<glm::vec2> PlaceField(const glm::vec2& wanted, int plots, int columns, float spacing, const std::function<bool(const glm::vec2&)>& free, int rings = 8);
 }

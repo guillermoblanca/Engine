@@ -287,6 +287,27 @@ namespace
 			Check(w.Count() == 0, "clear takes them all");
 		}
 
+		// ---- T246: a fall gets up by itself once at rest; a death stays down (the dead stood again after 1.5 s at rest)
+		{
+			ActorWorld w;
+			w.SetHost(FlatHost());
+			ActorSpawn s;
+			s.Shared = model;
+			Actor* fall = w.Spawn("knocked", s, error);
+			s.Position = { 6.0f, 0.0f };
+			Actor* dead = w.Spawn("dead", s, error);
+			if (fall && dead)
+			{
+				for (int i = 0; i < 30; ++i) w.Update(kDt);
+				Check(fall->StartRagdoll() && dead->FallDead(), "both fall");
+				for (int i = 0; i < 60 * 8; ++i) w.Update(kDt);
+				Check(!fall->Ragdolled(), "a knocked down actor gets up by itself");
+				Check(dead->Ragdolled() && !dead->AutoGetUp, "a dead one is still lying after 8 s");
+				Check(dead->FallDead(), "and asking again keeps it down");
+			}
+			else Check(false, "two actors for the fall");
+		}
+
 		// ---- an actor does not go through another
 		{
 			ActorWorld w;

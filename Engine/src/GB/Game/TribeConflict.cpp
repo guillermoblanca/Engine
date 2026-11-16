@@ -405,12 +405,16 @@ namespace GB
 		Combatant* c = cs.Find(m.Name);
 		if (!c || c->Mode == FightMode::Dead) return false;
 		const std::string threat = SeeThreat(m);
+		MemberConflict& mc = m_Conflict.Members[m.Name];
 		if (c->Mode == FightMode::Engage || c->Mode == FightMode::Flee)
 		{
 			if (SteerFight(m)) return true;
 			if (threat.empty()) return false;   // (out of the fight: it may face another threat at once)
 		}
-		MemberConflict& mc = m_Conflict.Members[m.Name];
+		// T226: the fight ended under it (its prey or its foe died, by its hand or another's: CombatSystem::Kill sets it free): the charge it was
+		// running ends too. A charge aims past the foe (kChaseLead) and that point can fall inside a rock, where a walk never arrives; only the next
+		// SteerFight replaced it, and none comes now, so it stood there busy until it died of thirst. A short wait lets Finish close the job.
+		else if (mc.Ordered && (m.Job == "hunt" || m.Job == "fight") && Order(m, "wait 0.2")) mc.Ordered = false;
 		if (threat.empty())
 		{
 			// a raid it is on

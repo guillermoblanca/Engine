@@ -32,6 +32,7 @@ namespace GB::Editor
 		{
 			const ActorWorld* actors = &m_Actors;
 			v.Ground = [actors](const glm::vec2& p) { return SimGroundAt(actors->Host().World, p); };
+			v.WaterDepth = [actors](const glm::vec2& p) { return SimWaterDepth(actors->Host().World, p); };   // T245
 		}
 		return v;
 	}

@@ -2139,6 +2139,14 @@
    "to": "algo ocupa ese sitio"
   },
   {
+   "re": "^there is water under it \\(([0-9.]+) m deep\\)$",
+   "to": "quedaría sobre el agua ({1} m de hondo)"
+  },
+  {
+   "re": "^its front is in the water \\(([0-9.]+) m deep\\)$",
+   "to": "su entrada quedaría en el agua ({1} m de hondo)"
+  },
+  {
    "re": "^nobody can stand there$",
    "to": "nadie puede pisar ahí"
   },

@@ -5,6 +5,7 @@
 // and Finish hand "make", "farm" and "haul" here, and the deposit goes through DepositPlace / DepositAt. Deterministic like the rest: maps in id
 // order, ties to the first, no randomness (the rain on the fields comes from the season, not from dice).
 #include "GB/Game/Tribe.h"
+#include "GB/Game/FieldPlacement.h"
 #include "GB/Gameplay/GameplayTag.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Gameplay/Spoilage.h"
@@ -391,7 +392,7 @@ namespace GB
 			for (const auto& [id, crop] : econ.Crops) seeds = seeds || Stored(crop.Seed) > 0;
 			for (const TribeMember& m : m_Members) can = can || (!m.Dead && m.Body && CanFarm(m));
 			if (seeds && can)
-				MarkField(Config.Economy.Camp + f.Offset + glm::vec2(0.0f, static_cast<float>(m_Econ.Fields.size()) * (static_cast<float>((f.Plots + f.Columns - 1) / f.Columns) + 1.0f) * f.Spacing));
+				MarkField(FieldOriginFor(*this, Config.Economy.Camp + f.Offset + glm::vec2(0.0f, static_cast<float>(m_Econ.Fields.size()) * (static_cast<float>((f.Plots + f.Columns - 1) / f.Columns) + 1.0f) * f.Spacing)));   // T215: on free ground (FieldPlacement.h)
 		}
 		if (!m_Econ.Fields.empty())
 		{
@@ -591,7 +592,8 @@ namespace GB
 		std::string orders, detail = action + " " + std::to_string(fieldIndex) + " " + crop;
 		for (size_t i : plots)
 		{
-			orders += (orders.empty() ? "" : " | ") + Go(field.PlotPos(i), Seconds(f.WorkSeconds));
+			const glm::vec2 plot = field.PlotPos(i);   // T215: a plot on a rock or a trunk (a field of an older save) is worked from beside it
+			orders += (orders.empty() ? "" : " | ") + Go(m.Body->CanStandAt(plot) ? plot : Around(plot, 0, 0.9f, m.Body), Seconds(f.WorkSeconds));
 			detail += " " + std::to_string(i);
 		}
 		if (!Order(m, orders)) return false;

@@ -44,6 +44,8 @@ namespace GB
 		double Clock = 0.0;   // seconds of simulation
 		// Whether a point can be stood on: "" when it can, else what is wrong ("in water 1.6 m deep", "inside an obstacle", "off the map").
 		std::function<std::string(const glm::vec2&)> Ground;
+		// T245: metres of water over the ground at a point (0 dry; null: not checked). The "buildings" check looks under every footprint with it.
+		std::function<float(const glm::vec2&)> WaterDepth;
 	};
 
 	// Where a member is: its abstract agent's place when the tribe simulates it without its body, else its body's.
@@ -222,6 +224,7 @@ namespace GB
 		bool Do(const std::string& tasks, std::string& error) override { return m_Agent.Do(tasks, error); }
 		Inventory& Bag() override { return m_Bag; }
 		bool CanStandAt(const glm::vec2& p) const override { return !m_Nav.Ready() || m_Nav.Walkable(p, m_Profile); }
+		float WaterDepthAt(const glm::vec2& p) const override;   // T245: the world's water over its ground there (as the "buildings" check reads it)
 		bool CanReach(const glm::vec2& to) const override;
 		void Teleport(const glm::vec2& p) override { m_Agent.Place(p); }
 		void SetSuspended(bool on) override { m_Suspended = on; }
@@ -379,4 +382,6 @@ namespace GB
 
 	// "" when a point of a CharacterWorld can be stood on (dry or wadeable, not inside a static obstacle, on the map), else what is wrong.
 	std::string SimGroundAt(const CharacterWorld& world, const glm::vec2& p, float maxWade = 1.0f);
+	// T245: metres of water over the ground of a CharacterWorld at a point (0: dry, or a world with no water).
+	float SimWaterDepth(const CharacterWorld& world, const glm::vec2& p);
 }

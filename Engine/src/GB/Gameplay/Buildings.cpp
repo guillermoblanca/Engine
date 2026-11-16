@@ -159,6 +159,11 @@ namespace GB
 				if (!v->is_boolean()) return "well must be true or false";
 				d.Well = v->get<bool>();
 			}
+			if (const auto v = o.find("allowWater"); v != o.end())
+			{
+				if (!v->is_boolean()) return "allowWater must be true or false";
+				d.AllowWater = v->get<bool>();
+			}
 			if (const auto v = o.find("keep"); v != o.end())
 			{
 				if (!v->is_number() || v->get<float>() <= 0.0f || v->get<float>() > 1.0f) return "keep must be a number more than 0 and at most 1";
@@ -301,6 +306,7 @@ namespace GB
 			if (d.FoodCap) o["foodCap"] = d.FoodCap;
 			if (d.Keep != 1.0f) o["keep"] = Round(d.Keep);
 			if (d.Well) o["well"] = true;
+			if (d.AllowWater) o["allowWater"] = true;
 			if (d.Defense != 0.0f) o["defense"] = Round(d.Defense);
 			if (d.Healing != 0.0f) o["healing"] = Round(d.Healing);
 			if (d.Culture != 0.0f) o["culture"] = Round(d.Culture);

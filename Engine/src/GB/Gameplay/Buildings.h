@@ -70,6 +70,7 @@ namespace GB
 		std::map<std::string, float> Provides;
 		std::vector<std::string> Supersedes;    // buildings the clan stops planning for beds once it can plan this one (the hut over the shelter)
 		bool Well = false;                      // once done the host puts a well there (Tribe::SetWellDigger): a big village digs more ("well")
+		bool AllowWater = false;                // T245: it may stand with water under its footprint (a jetty, a fish weir); every other one never does ("allowWater")
 		glm::vec3 Color{ 0.45f, 0.32f, 0.18f }; // the colour of its parts
 		bool operator==(const BuildingDef&) const = default;
 

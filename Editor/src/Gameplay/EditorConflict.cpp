@@ -41,20 +41,20 @@ namespace GB::Editor
 		{
 			m_CombatSeq = e.Seq;
 			if (e.Kind != "death") continue;
-			if (Actor* actor = m_Actors.Find(e.Other)) actor->StartRagdoll();
+			if (Actor* actor = m_Actors.Find(e.Other)) actor->FallDead();   // T246: and it stays down
 		}
-		// anyone dead of any cause (hunger, thirst, cold, wounds) falls as a ragdoll too, once, and leaves a cross on the map
+		// anyone dead of any cause (hunger, thirst, cold, wounds) falls as a ragdoll too and leaves a cross on the map, once; T246: it never gets
+		// up again (a ragdoll got up by itself after 1.5 s at rest, and the dead stood), nor stands after a load (the actors come back standing)
 		for (const auto& c : m_Clans.All())
 		{
 			if (!c->Folk) continue;
 			for (const TribeMember& m : c->Folk->Members())
 			{
-				if (!m.Dead || m_Graves.count(m.Name)) continue;
+				if (!m.Dead) continue;
 				Actor* actor = m_Actors.Find(m.Name);
 				if (!actor) continue;
-				const glm::vec3 p = actor->GetPosition();
-				m_Graves[m.Name] = { m.Name, m.Cause, { p.x, p.z } };
-				if (!actor->Ragdolled()) actor->StartRagdoll();
+				if (!m_Graves.count(m.Name)) { const glm::vec3 p = actor->GetPosition(); m_Graves[m.Name] = { m.Name, m.Cause, { p.x, p.z } }; }
+				actor->FallDead();
 			}
 		}
 		for (auto g = m_Graves.begin(); g != m_Graves.end();)   // (a new world or a loaded game forgets the crosses of the old one)
