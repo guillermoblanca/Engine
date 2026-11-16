@@ -2105,6 +2105,70 @@
   {
    "re": "^(\\d+) ([a-z][a-z_]*) and (.+)$",
    "to": "{1} {item:2} y {line:3}"
+  },
+  {
+   "re": "^(.+) does not know how to raise a (.+) \\(a vision first\\)$",
+   "to": "{1} no sabe levantar {ent:2} (antes, una visión)"
+  },
+  {
+   "re": "^a sign already waits on (.+) \\(#(\\d+)\\)$",
+   "to": "ya hay una señal esperando a {1} (#{2})"
+  },
+  {
+   "re": "^outside the land of (.+) \\((\\d+) m from its camp\\)$",
+   "to": "fuera de las tierras de {1} (a {2} m de su campamento)"
+  },
+  {
+   "re": "^a (.+) does not fit there: (.+)$",
+   "to": "{ent:1} no cabe ahí: {line:2}"
+  },
+  {
+   "re": "^too near the camp$",
+   "to": "demasiado cerca del campamento"
+  },
+  {
+   "re": "^too near the fire$",
+   "to": "demasiado cerca del fuego"
+  },
+  {
+   "re": "^too near (.+)$",
+   "to": "demasiado cerca de {ent:1}"
+  },
+  {
+   "re": "^something stands there$",
+   "to": "algo ocupa ese sitio"
+  },
+  {
+   "re": "^nobody can stand there$",
+   "to": "nadie puede pisar ahí"
+  },
+  {
+   "re": "^a corner is on ground nobody can stand on$",
+   "to": "una esquina cae en suelo que nadie puede pisar"
+  },
+  {
+   "re": "^its front is on ground nobody can stand on$",
+   "to": "su entrada da a suelo que nadie puede pisar"
+  },
+  {
+   "re": "^the store lacks (.+): the site will wait for it$",
+   "to": "al almacén le faltan {line:1}: la obra los esperará"
+  },
+  {
+   "re": "^(.+) does not believe enough: faith ([0-9.]+) under ([0-9.]+)$",
+   "to": "{1} no cree lo bastante: fe {2}, por debajo de {3}"
+  },
+  {
+   "re": "^(\\S+) must wait ([0-9.]+) days on (.+)$",
+   "to": "hay que esperar {2} días para volver a hacerlo con {3}"
+  },
+  {
+   "re": "^(\\S+) must wait ([0-9.]+) days$",
+   "to": "hay que esperar {2} días"
+  },
+  {
+   "re": "^not enough influence: ([0-9.]+) of ([0-9.]+)$",
+   "to": "no hay influencia bastante: {1} de {2}"
   }
  ],
  "ui": {
@@ -2638,6 +2702,62 @@
   "Faith": "Fe",
   "{0}, {1} %": "{0}, {1} %",
   "{0} technologies, {1} that better life": "{0} técnicas, {1} que mejoran la vida",
-  "{0} generations, {1} lineages, {2} inventors": "{0} generaciones, {1} linajes, {2} inventores"
+  "{0} generations, {1} lineages, {2} inventors": "{0} generaciones, {1} linajes, {2} inventores",
+  "Waiting for someone of the clan to see it": "Esperando a que alguien del clan la vea",
+  "Seen: the clan talks it over at the fire": "Vista: el clan la habla junto al fuego",
+  "Accepted: the site is open": "Aceptada: la obra está abierta",
+  "It stands": "Ya está en pie",
+  "Refused by the clan": "El clan la rechaza",
+  "Nobody saw it": "Nadie la vio",
+  "It came to nothing": "Quedó en nada",
+  "they would agree": "aceptarían",
+  "they would doubt": "dudarían",
+  "they would refuse": "se negarían",
+  "{0}: the sign is up ({1}); someone of the clan must see it": "{0}: la señal está puesta ({1}); alguien del clan tiene que verla",
+  "{0}: {1} saw the sign ({2})": "{0}: {1} ha visto la señal ({2})",
+  "{0} agree to raise it: {1} ({2} of {3})": "{0} acepta levantarlo: {1} ({2} de {3})",
+  "{0} refuse the sign: {1} ({2} of {3})": "{0} rechaza la señal: {1} ({2} de {3})",
+  "{0}: the sign stands ({1})": "{0}: la señal se ha cumplido ({1})",
+  "{0}: nobody saw the sign ({1})": "{0}: nadie vio la señal ({1})",
+  "{0}: the sign came to nothing ({1})": "{0}: la señal quedó en nada ({1})",
+  "Sign of the god: {0}": "Señal del dios: {0}",
+  "Who will likely see it: {0}": "Quien seguramente la verá: {0}",
+  "Messenger: {0}": "Mensajero: {0}",
+  "Vote at the fire: {0} of {1}": "Voto junto al fuego: {0} de {1}",
+  "A sign here: {0} influence": "Una señal aquí: {0} de influencia",
+  "(they wanted it: only the place)": "(ya lo querían: solo el sitio)",
+  "Vote foreseen: {0} of {1}, {2}": "Voto previsto: {0} de {1}, {2}",
+  "[Click] place the sign  [R] turn  [Right click] cancel": "[Clic] poner la señal  [R] girar  [Clic derecho] cancelar",
+  "[Right click] or [Esc] cancel": "[Clic derecho] o [Esc] cancelar",
+  "Influence": "Influencia",
+  "What the god can spend. It comes from the faith of the clans: their rites, the omens they read and their devotion every day.": "Lo que el dios puede gastar. Sale de la fe de los clanes: sus ritos, los presagios que leen y su devoción de cada día.",
+  "A sign costs {0}, an omen {1}.": "Una señal cuesta {0}; un presagio, {1}.",
+  "Sandbox: it refills on a fixed clock": "Caja de arena: se rellena con un reloj fijo",
+  "How much the {0} believe in the god. Under {1} % the hand does not reach them (an omen still does). Pick another clan in the list.": "Cuánto cree en el dios el clan {0}. Por debajo del {1} % la mano no lo alcanza (un presagio sí). Elige otro clan en la lista.",
+  "Pressure": "Presión",
+  "heresy": "herejía",
+  "tired": "hartazgo",
+  "low": "baja",
+  "How hard the god has pressed on the {0} ({1}): it fades a little every day. Tired at {2}, heresy at {3}.": "Cuánto ha presionado el dios al clan {0} ({1}): baja un poco cada día. Hartazgo a {2}, herejía a {3}.",
+  "A sign already waits on the {0}: see what they make of it first": "Ya hay una señal esperando al clan {0}: mira antes qué hace con ella",
+  "Show the {0} where to raise a building: someone of the clan may see the sign, and the clan votes it at the fire": "Muestra al clan {0} dónde levantar un edificio: alguien del clan puede ver la señal y el clan la vota junto al fuego",
+  "Omen": "Presagio",
+  "Send the {0} a sign of the sky or the earth: they read it as a natural one": "Envía al clan {0} una señal del cielo o de la tierra: la lee como una natural",
+  "Focus": "Foco",
+  "Vision": "Visión",
+  "Soon: the clan puts its effort on one thing": "Pronto: el clan pone su esfuerzo en una cosa",
+  "Soon: a vision teaches the clan what it does not know": "Pronto: una visión enseña al clan lo que no sabe",
+  "Placing: {0}": "Colocando: {0}",
+  "[Click] on the ground  [R] turn ({0} degrees)  [Right click] or [Esc] cancel": "[Clic] en el suelo  [R] girar ({0} grados)  [Clic derecho] o [Esc] cancelar",
+  "What the {0} know how to raise": "Lo que el clan {0} sabe levantar",
+  "(a sign: {0} influence)": "(una señal: {0} de influencia)",
+  "Place its sign on the ground ({0} x {1} m)": "Pon su señal en el suelo ({0} x {1} m)",
+  "They know how to raise nothing yet": "Aún no saben levantar nada",
+  "They do not know how ({0})": "No saben hacerlo ({0})",
+  "The {0} do not know how to raise it yet: a vision first": "El clan {0} aún no sabe levantarlo: antes, una visión",
+  "Omens for the {0}": "Presagios para el clan {0}",
+  "({0} influence)": "({0} de influencia)",
+  "The {0} read no omens": "El clan {0} no lee presagios",
+  "The world sends it to the {0}: their mood and beliefs move, maybe a rite": "El mundo se lo envía al clan {0}: mueve su ánimo y sus creencias, quizá un rito"
  }
 }

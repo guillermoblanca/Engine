@@ -735,6 +735,7 @@ namespace GB::Editor
 			DrawFollowChip(ox, w);
 			DrawObserverNews(ox, w);
 		}
+		DrawHandBar(ox, oy, w, h);   // T201: the god's hand, at the bottom between the list and the book
 	}
 
 	// U2: the inside of the quality of life tooltip: the index, then each of its 7 parts with its bar, its value and its weight ("-" when it cannot
@@ -1609,6 +1610,538 @@ namespace GB::Editor
 			ImGui::SameLine();
 			if (ImGui::SmallButton((L.Text("Let go") + "###letgo").c_str())) m_UiCommands.push_back("observer follow off");
 			m_Observer.FollowBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
+		}
+		ImGui::End();
+	}
+
+	// ------------------------------------------------------------------ T201: the god's hand (MODO_DIOS_DECISIONES 3.a, MODO_DIOS_UX 5)
+	// The bar at the bottom (the influence as a number and a bar, the faith and the pressure of the clan under the hand, [Build], [Omen] and the
+	// hand's next decisions greyed with "soon"), the palette of what the clan knows how to raise, and the building chosen as a ghost footprint over
+	// the ground that follows the mouse, Black & White's way: green where the sign can go, with its cost and the vote foreseen, red with why not.
+	// A click queues `director sign <clan> <building> <x> <z> <yaw>` (the replay keeps it); the right click or Esc lets it go. Each sign has a ring
+	// and a stake on its place with its state, and a toast when it changes (GB.exe's shell draws the toasts).
+	namespace
+	{
+		std::string Fixed(float v)   // (a number inside an order: a point, never the Spanish comma of Lang::Num)
+		{
+			char s[32];
+			std::snprintf(s, sizeof s, "%.2f", static_cast<double>(v));
+			return s;
+		}
+
+		bool Number(const std::string& w, float& out)
+		{
+			char* end = nullptr;
+			out = std::strtof(w.c_str(), &end);
+			return end != w.c_str() && *end == '\0' && std::isfinite(out);
+		}
+
+		const char* SignStateText(const std::string& status)
+		{
+			if (status == "waiting") return "Waiting for someone of the clan to see it";
+			if (status == "seen") return "Seen: the clan talks it over at the fire";
+			if (status == "accepted") return "Accepted: the site is open";
+			if (status == "built") return "It stands";
+			if (status == "refused") return "Refused by the clan";
+			if (status == "unseen") return "Nobody saw it";
+			return "It came to nothing";
+		}
+
+		ImU32 SignColour(const std::string& status)
+		{
+			namespace T = GameTheme;
+			if (status == "waiting") return T::Ochre;
+			if (status == "seen") return T::Warn;
+			if (status == "accepted" || status == "built") return T::Good;
+			return T::Bad;
+		}
+
+		const char* OutcomeText(const std::string& outcome)
+		{
+			if (outcome == "obey") return "they would agree";
+			if (outcome == "doubt") return "they would doubt";
+			return "they would refuse";
+		}
+	}
+
+	CommandResult EditorApp::HandCommand(const std::vector<std::string>& a)
+	{
+		if (a[0] == "ghost")   // director ghost <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | ghost off: the ghost as if the cursor were there
+		{
+			const char* usage = "director ghost <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | ghost off";
+			if (a.size() > 1 && a[1] == "off") { m_Hand.Pinned = false; m_Hand.Building.clear(); return { true, "ghost off" }; }
+			if (a.size() < 5) return { false, usage };
+			const Clan* c = m_Clans.Find(a[1]);
+			if (!c || !c->Folk) return { false, "no clan " + a[1] };
+			if (!c->Folk->Buildings() || !c->Folk->Buildings()->count(a[2])) return { false, "no building " + a[2] };
+			const bool camp = a[3] == "camp";
+			const size_t n = camp ? 4 : 3;
+			float x = 0.0f, z = 0.0f, yaw = m_Hand.Yaw;
+			if (a.size() < n + 2 || !Number(a[n], x) || !Number(a[n + 1], z) || (a.size() > n + 2 && !Number(a[n + 2], yaw))) return { false, usage };
+			if (camp) m_Director.CampOffset(c->Id, x, z, x, z);
+			m_ActiveClan = c->Id;
+			m_Observer.On = true;
+			m_Hand.Menu.clear();
+			m_Hand.Building = a[2];
+			m_Hand.Pinned = true;
+			m_Hand.PinX = x;
+			m_Hand.PinZ = z;
+			m_Hand.Yaw = yaw;
+			return { true, "ghost " + a[2] + " at " + Fixed(x) + " " + Fixed(z) + " yaw " + Fixed(yaw) + " for the clan " + std::to_string(c->Id) };
+		}
+		const std::string sub = a.size() > 1 ? a[1] : "status";
+		const char* usage = "director hand status|build|omen|place <building>|turn [degrees]|tip <sign>|off";
+		if (sub == "status") return { true, HandStatus() };
+		if (sub == "off")
+		{
+			m_Hand.Menu.clear();
+			m_Hand.Building.clear();
+			m_Hand.Pinned = false;
+			m_Hand.Tip = 0;
+			return { true, "hand: empty" };
+		}
+		if (m_Clans.Count() == 0) return { false, "no clans (shell new, or tribe build and clan new)" };
+		const Clan* c = m_Clans.Find(m_ActiveClan);
+		if (!c || !c->Folk) return { false, "no clan under the hand" };
+		if (sub == "build" || sub == "omen")
+		{
+			m_Hand.Menu = sub;
+			m_Hand.Building.clear();
+			m_Hand.Pinned = false;
+			m_Observer.On = true;
+			return { true, "hand: " + sub + " menu for the clan " + std::to_string(c->Id) };
+		}
+		if (sub == "place")
+		{
+			if (a.size() < 3) return { false, usage };
+			if (!c->Folk->Buildings() || !c->Folk->Buildings()->count(a[2])) return { false, "no building " + a[2] };
+			m_Hand.Menu.clear();
+			m_Hand.Building = a[2];
+			m_Hand.Pinned = false;
+			return { true, "hand: placing " + a[2] + " for the clan " + std::to_string(c->Id) + " (click on the ground)" };
+		}
+		if (sub == "turn")
+		{
+			float step = 45.0f;
+			if (a.size() > 2 && !Number(a[2], step)) return { false, usage };
+			m_Hand.Yaw = std::fmod(m_Hand.Yaw + step + 3600.0f, 360.0f);
+			return { true, "hand: yaw " + Fixed(m_Hand.Yaw) };
+		}
+		if (sub == "tip")
+		{
+			if (a.size() < 3) return { false, usage };
+			m_Hand.Tip = a[2] == "off" ? 0 : std::atoi(a[2].c_str());
+			return { true, m_Hand.Tip ? "hand: the card of the sign " + std::to_string(m_Hand.Tip) + " held open" : std::string("hand: tip off") };
+		}
+		return { false, usage };
+	}
+
+	std::string EditorApp::HandStatus() const
+	{
+		std::string s = "hand: clan " + std::to_string(m_ActiveClan) + ", menu " + (m_Hand.Menu.empty() ? std::string("none") : m_Hand.Menu);
+		if (m_Hand.Building.empty()) return s + ", placing nothing";
+		s += ", placing " + m_Hand.Building + " yaw " + Fixed(m_Hand.Yaw) + (m_Hand.Pinned ? " (pinned)" : "");
+		if (!m_Hand.Has) return s + ", off the ground";
+		const DirectorSignPreview& p = m_Hand.Preview;
+		s += " at " + Fixed(m_Hand.X) + " " + Fixed(m_Hand.Z) + ": ";
+		if (!p.Ok) return s + "red: " + p.Why;
+		return s + "green, cost " + Fixed(p.Cost) + ", vote " + std::to_string(p.Yes) + " of " + std::to_string(p.Voters) + " (" + p.Outcome + ")" + (p.Warning.empty() ? std::string() : "; " + p.Warning);
+	}
+
+	const DirectorSignPreview& EditorApp::HandPreview(int clan, float x, float z)
+	{
+		const DirectorSign* open = m_Director.OpenSign(clan);
+		const int kx = static_cast<int>(std::floor(x)), kz = static_cast<int>(std::floor(z));
+		const int ko = open ? open->Id : 0, ki = static_cast<int>(std::floor(m_Director.Influence()));
+		if (!m_Hand.Cached || kx != m_Hand.KeyX || kz != m_Hand.KeyZ || clan != m_Hand.KeyClan || ko != m_Hand.KeyOpen || ki != m_Hand.KeyInfluence || m_Hand.Building != m_Hand.KeyBuilding)
+		{
+			m_Hand.Preview = m_Director.PreviewSign(clan, m_Hand.Building, x, z);   // (once per change of the key, never every frame: it touches the clan's caches)
+			m_Hand.Cached = true;
+			m_Hand.KeyX = kx;
+			m_Hand.KeyZ = kz;
+			m_Hand.KeyClan = clan;
+			m_Hand.KeyOpen = ko;
+			m_Hand.KeyInfluence = ki;
+			m_Hand.KeyBuilding = m_Hand.Building;
+		}
+		return m_Hand.Preview;
+	}
+
+	void EditorApp::HandToasts()
+	{
+		const Lang& L = m_Lang;
+		const double now = m_Director.Targets().Now ? m_Director.Targets().Now() : 0.0;
+		std::set<int> alive;
+		for (const DirectorSign& s : m_Director.Signs())
+		{
+			alive.insert(s.Id);
+			const auto it = m_Hand.SignSeen.find(s.Id);
+			const bool fresh = it == m_Hand.SignSeen.end();
+			if (!fresh && it->second == s.Status) continue;
+			m_Hand.SignSeen[s.Id] = s.Status;
+			if (fresh && !(s.Status == "waiting" && now - s.Posted < 5.0)) continue;   // (a loaded world's signs: no toast for what was already so)
+			const Clan* c = m_Clans.Find(static_cast<ClanId>(s.Clan));
+			const std::string clan = c ? L.Name("clan", c->Name, c->Name) : std::to_string(s.Clan);
+			const std::string b = L.Name("building", s.Building, s.Building);
+			std::string text;
+			if (s.Status == "waiting") text = L.Text("{0}: the sign is up ({1}); someone of the clan must see it", clan, b);
+			else if (s.Status == "seen") text = L.Text("{0}: {1} saw the sign ({2})", clan, s.Messenger, b);
+			else if (s.Status == "accepted") text = L.Text("{0} agree to raise it: {1} ({2} of {3})", clan, b, s.Yes, s.Voters);
+			else if (s.Status == "refused") text = L.Text("{0} refuse the sign: {1} ({2} of {3})", clan, b, s.Yes, s.Voters);
+			else if (s.Status == "built") text = L.Text("{0}: the sign stands ({1})", clan, b);
+			else if (s.Status == "unseen") text = L.Text("{0}: nobody saw the sign ({1})", clan, b);
+			else text = L.Text("{0}: the sign came to nothing ({1})", clan, b);
+			ShellToastShown(text);
+		}
+		for (auto it = m_Hand.SignSeen.begin(); it != m_Hand.SignSeen.end();) it = alive.count(it->first) ? std::next(it) : m_Hand.SignSeen.erase(it);
+	}
+
+	void EditorApp::DrawHandWorld(float ox, float oy, float w, float h)
+	{
+		namespace T = GameTheme;
+		HandToasts();
+		m_Hand.Has = false;
+		if (!m_World.IsBuilt() || m_Clans.Count() == 0) return;
+		const Lang& L = m_Lang;
+		const ImGuiIO& io = ImGui::GetIO();
+		ImDrawList* dl = ImGui::GetWindowDrawList();   // (the viewport's: the panels drawn after it come over the ghost)
+		const T::Scope theme;
+		const Terrain& terrain = m_World.GetTerrain();
+		const glm::mat4 viewProj = m_Camera.GetProjection(w / std::max(h, 1.0f)) * m_Camera.GetView();
+		auto screen = [&](float x, float z, float lift, ImVec2& out)
+		{
+			glm::vec2 s;
+			if (!ProjectToScreen(viewProj, glm::vec3(x, terrain.GetHeight(x, z) + lift, z), glm::vec2(w, h), s)) return false;
+			out = ImVec2(ox + s.x, oy + s.y);
+			return true;
+		};
+		const ImGuiWindowFlags card = ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoSavedSettings
+			| ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking;
+		const ImVec2 mouse = io.MousePos;
+
+		// ---- the signs on their places: a ring on the ground and a stake, in the colour of their state (a refused one for a day after the vote)
+		const double now = m_Director.Targets().Now ? m_Director.Targets().Now() : 0.0;
+		const DirectorSign* tip = nullptr;
+		ImVec2 tipAt;
+		for (const DirectorSign& s : m_Director.Signs())
+		{
+			const bool recent = s.Status == "refused" && now - s.VotedAt < static_cast<double>(m_Director.Rules.DaySeconds);
+			if (!s.Open() && s.Status != "accepted" && !recent) continue;
+			const ImU32 col = SignColour(s.Status);
+			ImVec2 ring[24], foot, top;
+			bool ok = screen(s.X, s.Z, 0.0f, foot) && screen(s.X, s.Z, 2.4f, top);
+			for (int i = 0; i < 24 && ok; ++i)
+			{
+				const float t = static_cast<float>(i) * 6.2831853f / 24.0f;
+				ok = screen(s.X + 1.8f * std::cos(t), s.Z + 1.8f * std::sin(t), 0.15f, ring[i]);
+			}
+			if (!ok) continue;
+			dl->AddPolyline(ring, 24, T::Outline, ImDrawFlags_Closed, 4.0f);
+			dl->AddPolyline(ring, 24, col, ImDrawFlags_Closed, 2.0f);
+			dl->AddLine(foot, top, T::Outline, 5.0f);
+			dl->AddLine(foot, top, col, 2.5f);
+			dl->AddCircleFilled(top, 5.0f, col);
+			dl->AddCircle(top, 5.0f, T::Outline, 0, 1.5f);
+			const float dx = mouse.x - top.x, dy = mouse.y - (top.y + foot.y) * 0.5f;
+			if (m_Hand.Tip == s.Id || (m_ViewportHovered && dx * dx + dy * dy < 400.0f)) { tip = &s; tipAt = top; }
+		}
+		if (tip)
+		{
+			const Clan* c = m_Clans.Find(static_cast<ClanId>(tip->Clan));
+			ImGui::SetNextWindowPos(ImVec2(tipAt.x + 14.0f, tipAt.y - 8.0f), ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+			if (ImGui::Begin("Sign##hand", nullptr, card))
+			{
+				ImGui::TextUnformatted(L.Text("Sign of the god: {0}", L.Name("building", tip->Building, tip->Building)).c_str());
+				if (c) ImGui::TextDisabled("%s", L.Name("clan", c->Name, c->Name).c_str());
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(SignColour(tip->Status)), "%s", L.Text(SignStateText(tip->Status)).c_str());
+				if (!tip->Messenger.empty())
+					ImGui::TextUnformatted((tip->Status == "waiting" ? L.Text("Who will likely see it: {0}", tip->Messenger) : L.Text("Messenger: {0}", tip->Messenger)).c_str());
+				if (tip->Voters > 0) ImGui::TextUnformatted(L.Text("Vote at the fire: {0} of {1}", tip->Yes, tip->Voters).c_str());
+			}
+			ImGui::End();
+		}
+
+		// ---- the ghost of the building being placed
+		if (m_Hand.Building.empty()) { m_Hand.DownL = m_Hand.DownR = false; return; }
+		auto press = [&](int button, bool& down, glm::vec2& at)   // a click that did not drag the camera
+		{
+			if (m_ViewportHovered && ImGui::IsMouseClicked(button)) { down = true; at = { mouse.x, mouse.y }; }
+			if (!down || !ImGui::IsMouseReleased(button)) return false;
+			down = false;
+			return m_ViewportHovered && glm::distance(at, glm::vec2(mouse.x, mouse.y)) < 5.0f;
+		};
+		if (press(1, m_Hand.DownR, m_Hand.PressR)) { m_UiCommands.push_back("director hand off"); return; }
+		if (m_ViewportHovered && !io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_R, false)) m_UiCommands.push_back(io.KeyShift ? "director hand turn -45" : "director hand turn 45");
+		const Clan* clan = m_Clans.Find(m_ActiveClan);
+		if (!clan || !clan->Folk || !clan->Folk->Buildings()) return;
+		const auto def = clan->Folk->Buildings()->find(m_Hand.Building);
+		if (def == clan->Folk->Buildings()->end()) return;
+		glm::vec3 ground(m_Hand.PinX, 0.0f, m_Hand.PinZ);
+		if (!m_Hand.Pinned && !GroundUnderCursor(ground)) return;
+		// on the metre's grid: what is shown green is where the sign goes
+		const float x = m_Hand.Pinned ? m_Hand.PinX : std::floor(ground.x) + 0.5f, z = m_Hand.Pinned ? m_Hand.PinZ : std::floor(ground.z) + 0.5f;
+		m_Hand.Has = true;
+		m_Hand.X = x;
+		m_Hand.Z = z;
+		const DirectorSignPreview& p = HandPreview(clan->Id, x, z);
+		const ImU32 col = p.Ok ? T::Good : T::Bad;
+		const float yaw = glm::radians(m_Hand.Yaw), cy = std::cos(yaw), sy = std::sin(yaw);
+		const glm::vec2 half = def->second.Footprint * 0.5f;
+		auto turned = [&](float lx, float lz) { return glm::vec2(x + lx * cy + lz * sy, z - lx * sy + lz * cy); };
+		const glm::vec2 corner[4] = { { -half.x, -half.y }, { half.x, -half.y }, { half.x, half.y }, { -half.x, half.y } };
+		ImVec2 outline[24], roof[4];
+		bool ok = true;
+		for (int k = 0; k < 4 && ok; ++k)
+		{
+			for (int i = 0; i < 6 && ok; ++i)   // (6 points an edge: the footprint lies on the slope)
+			{
+				const glm::vec2 l = glm::mix(corner[k], corner[(k + 1) % 4], static_cast<float>(i) / 6.0f);
+				const glm::vec2 g = turned(l.x, l.y);
+				ok = screen(g.x, g.y, 0.15f, outline[k * 6 + i]);
+			}
+			const glm::vec2 g = turned(corner[k].x, corner[k].y);
+			ok = ok && screen(g.x, g.y, 2.4f, roof[k]);   // (a ghost of its walls: the size reads at any distance)
+		}
+		ImVec2 centre, front;
+		const glm::vec2 f = turned(0.0f, half.y + 0.8f);
+		if (ok && screen(x, z, 0.15f, centre) && screen(f.x, f.y, 0.15f, front))
+		{
+			for (int k = 0; k < 4; ++k)
+			{
+				const ImVec2 wall[4] = { outline[k * 6], outline[((k + 1) % 4) * 6], roof[(k + 1) % 4], roof[k] };
+				dl->AddConvexPolyFilled(wall, 4, T::Faded(col, 0.12f));
+				dl->AddLine(outline[k * 6], roof[k], T::Faded(col, 0.8f), 1.5f);
+			}
+			dl->AddPolyline(roof, 4, T::Faded(col, 0.8f), ImDrawFlags_Closed, 1.5f);
+			dl->AddConvexPolyFilled(outline, 24, T::Faded(col, 0.30f));
+			dl->AddPolyline(outline, 24, T::Outline, ImDrawFlags_Closed, 4.5f);
+			dl->AddPolyline(outline, 24, col, ImDrawFlags_Closed, 2.5f);
+			dl->AddLine(centre, front, col, 2.5f);   // (its front: where the door would face)
+			dl->AddCircleFilled(front, 4.0f, col);
+		}
+		else centre = mouse;
+		// beside the cursor (or the pinned ghost): what it costs and the vote foreseen, or why not
+		const ImVec2 at = m_Hand.Pinned ? centre : mouse;
+		const bool flipX = at.x > ox + w * 0.62f, flipY = at.y > oy + h * 0.7f;   // (the card turns to the side with room: it never leaves the window)
+		ImGui::SetNextWindowPos(ImVec2(at.x + (flipX ? -22.0f : 22.0f), at.y + (flipY ? -18.0f : 18.0f)), ImGuiCond_Always, ImVec2(flipX ? 1.0f : 0.0f, flipY ? 1.0f : 0.0f));
+		if (ImGui::Begin("Ghost##hand", nullptr, card))
+		{
+			ImGui::TextUnformatted(Lang::Cap(L.Name("building", def->first, def->second.Name)).c_str());
+			if (p.Ok)
+			{
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", (L.Text("A sign here: {0} influence", L.Num(p.Cost, 0)) + (p.SiteOnly ? " " + L.Text("(they wanted it: only the place)") : std::string())).c_str());
+				if (p.Voters > 0) ImGui::TextUnformatted(L.Text("Vote foreseen: {0} of {1}, {2}", p.Yes, p.Voters, L.Text(OutcomeText(p.Outcome))).c_str());
+				if (!p.Messenger.empty()) ImGui::TextDisabled("%s", L.Text("Who will likely see it: {0}", p.Messenger).c_str());
+				if (!p.Warning.empty()) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Warn), "%s", Lang::Cap(L.Line(p.Warning)).c_str());
+				ImGui::TextDisabled("%s", L.Text("[Click] place the sign  [R] turn  [Right click] cancel").c_str());
+			}
+			else
+			{
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", Lang::Cap(L.Line(p.Why)).c_str());
+				ImGui::TextDisabled("%s", L.Text("[Right click] or [Esc] cancel").c_str());
+			}
+		}
+		ImGui::End();
+		if (m_Hand.Pinned) return;   // (a pinned ghost is a script's: its sign is `director sign`)
+		if (press(0, m_Hand.DownL, m_Hand.PressL))
+		{
+			if (p.Ok)
+			{
+				m_UiCommands.push_back("director sign " + std::to_string(clan->Id) + " " + m_Hand.Building + " " + Fixed(x) + " " + Fixed(z) + " " + Fixed(m_Hand.Yaw));
+				m_UiCommands.push_back("director hand off");
+			}
+			else ShellToastShown(Lang::Cap(L.Line(p.Why)));
+		}
+	}
+
+	void EditorApp::DrawHandBar(float ox, float oy, float w, float h)
+	{
+		namespace T = GameTheme;
+		m_Hand.Box = m_Hand.MenuBox = {};
+		if (m_Clans.Count() == 0) return;
+		const Clan* clan = m_Clans.Find(m_ActiveClan);
+		if (!clan || !clan->Folk) return;
+		const Lang& L = m_Lang;
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		auto divider = [&]() { ImGui::SameLine(0.0f, 12.0f); ImGui::TextDisabled("|"); ImGui::SameLine(0.0f, 12.0f); };
+		auto tip = [&](const std::string& text) { if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", text.c_str()); };
+		const std::string name = L.Name("clan", clan->Name, clan->Name);
+		const DirectorRules& R = m_Director.Rules;
+		// at the bottom, between the clans' list and the book when they reach down that far (a folded book or a short list leave the width free)
+		const float bottomZone = oy + h - 90.0f;
+		const ObserverState::Box& list = m_Observer.ClansBox.X1 > m_Observer.ClansBox.X0 ? m_Observer.ClansBox : m_Observer.CardBox;
+		const float left = list.X1 > list.X0 && list.Y1 > bottomZone ? list.X1 + T::Gap : ox + T::Margin;
+		const float right = m_Observer.BookBox.X1 > m_Observer.BookBox.X0 && m_Observer.BookBox.Y1 > bottomZone ? m_Observer.BookBox.X0 - T::Gap : ox + w - T::Margin;
+		const float room = std::max(right - left, 120.0f);
+		const ImGuiWindowFlags fixed = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+			| ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoScrollbar;
+		auto cost = [&](const char* action) { const auto it = R.Costs.find(action); return it == R.Costs.end() ? 0.0f : it->second; };
+		const DirectorCheck omen = m_Director.CanSpend("omen", clan->Id, false);   // (an omen is a phenomenon of the world: no faith needed)
+		ImGui::SetNextWindowPos(ImVec2((left + right) * 0.5f, oy + h - T::Margin), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(room, FLT_MAX));
+		if (ImGui::Begin("Hand##observer", nullptr, fixed))
+		{
+			// the influence: what the god can spend, as a number and a bar
+			const float influence = m_Director.Influence(), most = std::max(R.Max, 1.0f);
+			ImGui::BeginGroup();
+			ImGui::TextDisabled("%s", L.Text("Influence").c_str());
+			ImGui::SameLine();
+			SmallBar(influence / most, 90.0f, T::Ochre);
+			ImGui::SameLine();
+			ImGui::TextUnformatted(L.Text("{0} of {1}", L.Num(influence, 0), L.Num(most, 0)).c_str());
+			ImGui::EndGroup();
+			tip(L.Text("What the god can spend. It comes from the faith of the clans: their rites, the omens they read and their devotion every day.") + "\n"
+				+ L.Text("A sign costs {0}, an omen {1}.", L.Num(cost("sign"), 0), L.Num(cost("omen"), 0)) + (m_Director.Sandbox() ? "\n" + L.Text("Sandbox: it refills on a fixed clock") : std::string()));
+			divider();
+			// the clan under the hand: its faith and the pressure the god has put on it
+			ImGui::BeginGroup();
+			Swatch(ClanColour(m_Clans, clan->Id));
+			ImGui::TextUnformatted(name.c_str());
+			ImGui::SameLine(0.0f, 10.0f);
+			const float faith = m_Director.FaithOf(clan->Id);
+			const bool low = faith < R.MinFaith;
+			ImGui::TextDisabled("%s", L.Text("Faith").c_str());
+			ImGui::SameLine();
+			SmallBar(faith, 70.0f, low ? T::Bad : T::Ochre);
+			ImGui::SameLine();
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(low ? T::Bad : T::Bone), "%s", (L.Num(faith * 100.0f, 0) + " %").c_str());
+			ImGui::EndGroup();
+			tip(L.Text("How much the {0} believe in the god. Under {1} % the hand does not reach them (an omen still does). Pick another clan in the list.", name, L.Num(R.MinFaith * 100.0f, 0)));
+			ImGui::SameLine(0.0f, 10.0f);
+			const std::string level = m_Director.PressureLevel(clan->Id);
+			const ImU32 levelColour = level == "heresy" ? T::Bad : level == "tired" ? T::Warn : T::Good;
+			ImGui::BeginGroup();
+			ImGui::TextDisabled("%s", L.Text("Pressure").c_str());
+			ImGui::SameLine();
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(levelColour), "%s", L.Text(level == "heresy" ? "heresy" : level == "tired" ? "tired" : "low").c_str());
+			ImGui::EndGroup();
+			tip(L.Text("How hard the god has pressed on the {0} ({1}): it fades a little every day. Tired at {2}, heresy at {3}.", name, L.Num(m_Director.PressureOf(clan->Id), 1), L.Num(R.PressureTired, 0), L.Num(R.PressureHeresy, 0)));
+			if (room >= 900.0f) divider();   // (one line when there is room; else the buttons under the numbers)
+			// [Build]: why not, when not
+			const DirectorCheck sign = m_Director.CanSpend("sign", clan->Id, true);
+			const DirectorSign* open = m_Director.OpenSign(clan->Id);
+			const std::string buildWhy = open ? L.Text("A sign already waits on the {0}: see what they make of it first", name) : sign.Ok ? std::string() : Lang::Cap(L.Line(sign.Why));
+			const bool building = m_Hand.Menu == "build" || !m_Hand.Building.empty();
+			ImGui::BeginDisabled(!buildWhy.empty() && !building);
+			{
+				std::optional<T::PrimaryScope> lit;
+				if (building) lit.emplace();
+				if (ImGui::Button((L.Text("Build") + "###handbuild").c_str())) run(building ? "director hand off" : "director hand build");
+			}
+			ImGui::EndDisabled();
+			tip(!buildWhy.empty() ? buildWhy : L.Text("Show the {0} where to raise a building: someone of the clan may see the sign, and the clan votes it at the fire", name));
+			ImGui::SameLine();
+			// [Omen]
+			const std::string omenWhy = omen.Ok ? std::string() : Lang::Cap(L.Line(omen.Why));
+			const bool omening = m_Hand.Menu == "omen";
+			ImGui::BeginDisabled(!omenWhy.empty() && !omening);
+			{
+				std::optional<T::PrimaryScope> lit;
+				if (omening) lit.emplace();
+				if (ImGui::Button((L.Text("Omen") + "###handomen").c_str())) run(omening ? "director hand off" : "director hand omen");
+			}
+			ImGui::EndDisabled();
+			tip(!omenWhy.empty() ? omenWhy : L.Text("Send the {0} a sign of the sky or the earth: they read it as a natural one", name));
+			// what the hand will do next, greyed until it can
+			for (const char* soon : { "Focus", "Vision" })
+			{
+				ImGui::SameLine();
+				ImGui::BeginDisabled();
+				ImGui::Button((L.Text(soon) + "###hand" + soon).c_str());
+				ImGui::EndDisabled();
+				tip(L.Text(std::string(soon) == "Focus" ? "Soon: the clan puts its effort on one thing" : "Soon: a vision teaches the clan what it does not know"));
+			}
+			if (!m_Hand.Building.empty())
+			{
+				std::string what = m_Hand.Building;
+				if (const auto* defs = clan->Folk->Buildings())
+					if (const auto def = defs->find(m_Hand.Building); def != defs->end()) what = Lang::Cap(L.Name("building", def->first, def->second.Name));
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", L.Text("Placing: {0}", what).c_str());
+				ImGui::SameLine();
+				ImGui::TextDisabled("%s", L.Text("[Click] on the ground  [R] turn ({0} degrees)  [Right click] or [Esc] cancel", L.Num(m_Hand.Yaw, 0)).c_str());
+			}
+			m_Hand.Box = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
+		}
+		ImGui::End();
+		if (m_Hand.Menu.empty() || m_Hand.Box.Y1 <= m_Hand.Box.Y0) return;
+
+		// the menu over the bar: the palette of buildings or the omens
+		ImGui::SetNextWindowPos(ImVec2((left + right) * 0.5f, m_Hand.Box.Y0 - T::Gap), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(room, std::max(h * 0.45f, 160.0f)));
+		if (ImGui::Begin("HandMenu##observer", nullptr, fixed & ~ImGuiWindowFlags_NoScrollbar))
+		{
+			const float width = std::min(room, 620.0f) - 2.0f * T::Pad;
+			auto wrapped = [&](float& x, float bw, bool first)   // a row of buttons that wraps instead of growing wide
+			{
+				if (!first && x + ImGui::GetStyle().ItemSpacing.x + bw <= width) { ImGui::SameLine(); x += ImGui::GetStyle().ItemSpacing.x + bw; }
+				else x = bw;
+			};
+			if (m_Hand.Menu == "build")
+			{
+				ImGui::TextUnformatted(L.Text("What the {0} know how to raise", name).c_str());
+				ImGui::SameLine();
+				ImGui::TextDisabled("%s", L.Text("(a sign: {0} influence)", L.Num(cost("sign"), 0)).c_str());
+				ImGui::Separator();
+				struct Entry { std::string Id, Label; const BuildingDef* Def; };
+				std::vector<Entry> known, unknown;
+				if (const auto* defs = clan->Folk->Buildings())
+					for (const auto& [id, def] : *defs) (clan->Folk->CanBuild(id) ? known : unknown).push_back({ id, Lang::Cap(L.Name("building", id, def.Name)), &def });
+				auto byName = [](const Entry& a, const Entry& b) { return a.Label < b.Label; };
+				std::sort(known.begin(), known.end(), byName);
+				std::sort(unknown.begin(), unknown.end(), byName);
+				float x = 0.0f;
+				for (size_t i = 0; i < known.size(); ++i)
+				{
+					const Entry& e = known[i];
+					wrapped(x, ImGui::CalcTextSize(e.Label.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f, i == 0);
+					if (ImGui::Button((e.Label + "###b" + e.Id).c_str())) run("director hand place " + e.Id);
+					std::string does;
+					for (const std::string& line : BuildingDoes(*e.Def)) does += "\n" + line;
+					tip(L.Text("Place its sign on the ground ({0} x {1} m)", L.Num(e.Def->Footprint.x, 0), L.Num(e.Def->Footprint.y, 0)) + does);
+				}
+				if (known.empty()) ImGui::TextDisabled("%s", L.Text("They know how to raise nothing yet").c_str());
+				if (!unknown.empty() && ImGui::TreeNodeEx("unknown", ImGuiTreeNodeFlags_None, "%s", L.Text("They do not know how ({0})", static_cast<int>(unknown.size())).c_str()))
+				{
+					x = 0.0f;
+					ImGui::BeginDisabled();
+					for (size_t i = 0; i < unknown.size(); ++i)
+					{
+						const Entry& e = unknown[i];
+						wrapped(x, ImGui::CalcTextSize(e.Label.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f, i == 0);
+						ImGui::Button((e.Label + "###u" + e.Id).c_str());
+						tip(L.Text("The {0} do not know how to raise it yet: a vision first", name));
+					}
+					ImGui::EndDisabled();
+					ImGui::TreePop();
+				}
+			}
+			else
+			{
+				const SocialRules& S = clan->Folk->Config.Social;
+				ImGui::TextUnformatted(L.Text("Omens for the {0}", name).c_str());
+				ImGui::SameLine();
+				ImGui::TextDisabled("%s", L.Text("({0} influence)", L.Num(cost("omen"), 0)).c_str());
+				ImGui::Separator();
+				if (!S.On || S.Beliefs.Omens.empty()) ImGui::TextDisabled("%s", L.Text("The {0} read no omens", name).c_str());
+				float x = 0.0f;
+				bool first = true;
+				for (const auto& [id, def] : S.Beliefs.Omens)
+				{
+					if (!S.On) break;
+					const std::string label = Lang::Cap(L.Name("omen", def.Name, def.Name));
+					wrapped(x, ImGui::CalcTextSize(label.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f, first);
+					first = false;
+					ImGui::BeginDisabled(!omen.Ok);
+					if (ImGui::Button((label + "###o" + id).c_str()))
+					{
+						run("director omen " + id + " " + std::to_string(clan->Id));
+						run("director hand off");
+					}
+					ImGui::EndDisabled();
+					tip(omen.Ok ? L.Text("The world sends it to the {0}: their mood and beliefs move, maybe a rite", name) : Lang::Cap(L.Line(omen.Why)));
+				}
+			}
+			m_Hand.MenuBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
 		}
 		ImGui::End();
 	}

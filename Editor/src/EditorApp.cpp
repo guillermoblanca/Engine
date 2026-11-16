@@ -2048,6 +2048,7 @@ namespace GB::Editor
 			if (!m_Game.Active && !god) DrawMapPanel();   // (in a game the map is a sheet of the clan book; the god's screen will have its layers: U9)
 			if (!m_Game.Active)
 			{
+				if (m_Observer.On) DrawHandWorld(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // T201: under the panels
 				DrawObserver(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
 				// (on the god's screen a character's card is the book's Person sheet, U6: DrawObserver opens it; things keep their card)
 				if (m_Observer.On && !(god && AnyMember(m_FreeSelected))) { const GameTheme::Scope theme; DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected); }
@@ -2212,7 +2213,7 @@ namespace GB::Editor
 		if (m_ClanOverlay) DrawClanOverlay(dl, viewProj, size, ox, oy);
 		if (m_AiDebug) DrawAiDebug(dl, viewProj, size, ox, oy);
 
-		if (m_ViewportHovered && ImGui::IsMouseClicked(0))
+		if (m_ViewportHovered && ImGui::IsMouseClicked(0) && m_Hand.Building.empty())   // (T201: while a ghost is placed the click is the hand's: DrawHandWorld)
 		{
 			m_PressPos = mouse;
 			m_PressedInViewport = true;

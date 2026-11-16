@@ -628,6 +628,7 @@ namespace GB::Editor
 			if (const auto it = m_Controls.Keys.find(action); it != m_Controls.Keys.end() && !(m_Shell.On && std::string(action) == "quit"))   // (GB.exe: Esc is its pause menu, ShellKeys)
 				if (const ImGuiKey k = KeyNamed(it->second); k != ImGuiKey_None && ImGui::IsKeyPressed(k, false))
 					m_UiCommands.push_back(std::string(action) != "quit" ? std::string("observer ") + action
+						: !m_Hand.Building.empty() || !m_Hand.Menu.empty() ? std::string("director hand off")   // (T201: the ghost or the hand's menu first)
 						: m_Observer.Tree ? std::string("observer tree") : std::string("observer screen off"));   // (Esc closes the tree first, as in the game)
 	}
 
@@ -1637,8 +1638,14 @@ namespace GB::Editor
 			[this](const std::vector<std::string>& a) { return ObserverCommand(a); });
 		// T195: the god's director (GB/Game/WorldDirector.h), the same orders GBSim runs with --director=<day>:<order>
 		c.Register("director", "director status | sandbox on|off | faith <clan> <0..1> (sandbox only) | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | log: the god of the world: its influence comes from the faith of the clans "
-			"(rites, omens, devotion); the hand reaches only a clan with faith >= minFaith (assets/data/director.json); an omen (social.json) is read as the natural one",
-			[this](const std::vector<std::string>& a) -> CommandResult { const DirectorReply r = m_Director.Command(a); return { r.Ok, r.Text }; });
+			"(rites, omens, devotion); the hand reaches only a clan with faith >= minFaith (assets/data/director.json); an omen (social.json) is read as the natural one; "
+			"T201, the hand's interface (editor and GB.exe only): hand status|build|omen|place <building>|turn [degrees]|tip <sign>|off, ghost <clan> <building> <x> <z>|camp <dx> <dz> [yaw]|off",
+			[this](const std::vector<std::string>& a) -> CommandResult
+			{
+				if (!a.empty() && (a[0] == "hand" || a[0] == "ghost")) return HandCommand(a);   // (the UI's state, not the director's: GBSim has none)
+				const DirectorReply r = m_Director.Command(a);
+				return { r.Ok, r.Text };
+			});
 		c.Register("game", "game <action>: what the keys of the game do (status, village, homes, clans, tech, map, story, interact, eat, drink, deposit, take, sleep, claim, give, talk, teach, learn, marry, propose, craft, attack, block, flee, trade, clan, jobs, pause, faster, slower, save, load, help, quality [low|medium|high|auto])",
 			[this](const std::vector<std::string>& a) { return GameCommand(a); });
 	}

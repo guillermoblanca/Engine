@@ -441,6 +441,37 @@ namespace GB::Editor
 			// U6: the person the Person tab shows (`observer person <name>`; "" = the members' table) and the selection last turned into it
 			std::string Person, SelectionSeen;
 		} m_Observer;
+		// T201 (ObserverView.cpp): the god's hand under the observer: its bar (the influence, the faith and the pressure of the clan under the hand,
+		// [Build], [Omen]), the palette or the omens' menu over it, and the building being placed as a ghost footprint that follows the mouse over the
+		// ground (green where the sign can go, red with why not). A click queues `director sign ...` (the UI never calls PlaceSign: the replay has it).
+		// `director hand ...` and `director ghost ...` drive the same without a mouse (HandCommand).
+		struct HandState
+		{
+			std::string Menu;                    // "" | "build" | "omen": what is open over the bar
+			std::string Building;                // the building being placed ("" = none)
+			float Yaw = 0.0f;                    // degrees, passed to the sign (the site does not turn yet)
+			bool Pinned = false;                 // `director ghost`: the ghost stands at PinX, PinZ as if the cursor were there
+			float PinX = 0.0f, PinZ = 0.0f;
+			bool Has = false;                    // the ghost is on the ground this frame, at X, Z
+			float X = 0.0f, Z = 0.0f;
+			// PreviewSign touches the clan's caches: it is asked only when its key changes (the clan, the building, the metre cell, the open sign,
+			// the whole influence), at most once a frame
+			bool Cached = false;
+			int KeyClan = -1, KeyX = 0, KeyZ = 0, KeyOpen = 0, KeyInfluence = 0;
+			std::string KeyBuilding;
+			DirectorSignPreview Preview;
+			std::map<int, std::string> SignSeen;  // sign id -> the state last drawn (a toast when it changes)
+			int Tip = 0;                         // `director hand tip <id>`: the sign whose marker's card is held open (0 none)
+			ObserverState::Box Box, MenuBox;
+			glm::vec2 PressL{ 0.0f }, PressR{ 0.0f };
+			bool DownL = false, DownR = false;
+		} m_Hand;
+		CommandResult HandCommand(const std::vector<std::string>& a);
+		std::string HandStatus() const;
+		void DrawHandBar(float ox, float oy, float w, float h);     // the bar and its menus (inside the observer's theme)
+		void DrawHandWorld(float ox, float oy, float w, float h);   // the ghost, the signs' markers and the clicks on the ground
+		const DirectorSignPreview& HandPreview(int clan, float x, float z);
+		void HandToasts();
 		// U5/U6 (ObserverView.cpp): the world chronicle sheet and its text, a person's sheet and its text, the news and the follow chip of the
 		// god's screen, and where a member of any clan is in the simulation (its actor stays behind while it is simulated without its body)
 		bool ChronicleShows(const HistoryEvent& e) const;
@@ -500,6 +531,7 @@ namespace GB::Editor
 		void ShellTick();                              // each frame of a game: the session's autosave and its log's flush
 		void ShellKeys();
 		void ShellToast(const std::string& english);
+		void ShellToastShown(const std::string& shown);   // T201: a toast already in the player's words (a sentence built from names)
 		void DrawShell();
 		void DrawShellMenu();
 		void DrawShellNewPage();

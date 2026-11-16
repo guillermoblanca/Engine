@@ -589,9 +589,11 @@ namespace GB::Editor
 		return { true, "note " + std::to_string(s.Notes) + " in " + s.Dir + "/notes.md" };
 	}
 
-	void EditorApp::ShellToast(const std::string& english)
+	void EditorApp::ShellToast(const std::string& english) { ShellToastShown(m_Lang.Text(english)); }
+
+	void EditorApp::ShellToastShown(const std::string& shown)
 	{
-		m_Shell.Toast = english;
+		m_Shell.Toast = shown;   // (kept translated: a toast of the hand is built from names, no English key to look up when drawn)
 		m_Shell.ToastAt = ImGui::GetTime();
 	}
 
@@ -774,6 +776,7 @@ namespace GB::Editor
 		{
 			if (m_Shell.NoteOpen) run("shell note cancel");
 			else if (m_Shell.Pause) run(m_Shell.PausePage != "main" ? "shell page main" : "shell resume");
+			else if (!m_Hand.Building.empty() || !m_Hand.Menu.empty()) run("director hand off");   // (T201: Esc lets go of the ghost or the hand's menu first)
 			else if (m_Observer.Tree) run("observer tree");   // (Esc closes the tree of knowledge first, as in the game)
 			else run("shell pause on");
 		}
@@ -1138,7 +1141,7 @@ namespace GB::Editor
 		const double age = ImGui::GetTime() - m_Shell.ToastAt;
 		if (!m_Shell.Toast.empty() && age >= 0.0 && age < 2.5)
 		{
-			const std::string text = L.Text(m_Shell.Toast);
+			const std::string& text = m_Shell.Toast;
 			const ImVec2 size = ImGui::CalcTextSize(text.c_str());
 			const float alpha = static_cast<float>(std::min(1.0, (2.5 - age) / 0.5));
 			const ImVec2 at(vp->Pos.x + (vp->Size.x - size.x) * 0.5f, vp->Pos.y + std::max(m_Observer.BarBottom - vp->Pos.y, 0.0f) + 48.0f);
