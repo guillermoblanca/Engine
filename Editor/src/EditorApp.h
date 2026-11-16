@@ -514,6 +514,9 @@ namespace GB::Editor
 		void RegisterShellCommands();
 		CommandResult ShellCommand(const std::vector<std::string>& a);
 		CommandResult ShellNew(const std::string& biome, int seed, int clans, int members, bool bare, int speed, const std::string& preset);
+		void LoadUserPresets();                        // G5: <saves>/presets.json after the shipped ones (assets/data/presets.json)
+		CommandResult ShellPresetSave(const std::string& id, const std::string& label);   // G5: the custom form as a preset of the player's
+		void ChooseShellPreset(int index);             // G5: the new game's form takes a preset (-1: custom, the form as it is)
 		CommandResult ShellPlayer(const std::vector<std::string>& a);
 		CommandResult ShellSave(const std::string& path, const std::string& label);   // the game and its god's file (<path minus .gbsave>.god.json)
 		CommandResult ShellLoad(const std::string& path);

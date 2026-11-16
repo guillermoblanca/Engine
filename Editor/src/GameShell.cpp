@@ -14,6 +14,7 @@
 #include <imgui.h>
 #include <nlohmann/json.hpp>
 #include <algorithm>
+#include <cctype>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
@@ -183,14 +184,75 @@ namespace GB::Editor
 			ss << in.rdbuf();
 			if (const std::string error = LoadGamePresets(ss.str(), m_Shell.Presets); !error.empty()) GB_CLIENT_WARN("shell: {} ignored: {}", presets, error);
 		}
-		if (!m_Shell.Presets.empty())
-		{
-			const GamePreset& p = m_Shell.Presets.front();
-			m_Shell.Biome = std::max(0, BiomeIndex(p.Biome)); m_Shell.Seed = p.Seed; m_Shell.Clans = p.Clans; m_Shell.Members = p.Members; m_Shell.Speed = p.Speed; m_Shell.Bare = p.Bare;
-		}
+		LoadUserPresets();
+		ChooseShellPreset(m_Shell.Presets.empty() ? -1 : 0);
 		// the world behind the menu waits; the window takes the whole screen unless asked not to (or hidden: a test, a capture)
 		if (!Options().Hidden && !Options().HasFlag("windowed")) SetFullscreen(true);
 		GB_CLIENT_INFO("GB shell: assets {}, data {}, saves {}", m_AssetRoot, ContentDir(), m_SaveDir);
+	}
+
+	// G5: the player's presets, <saves>/presets.json (the same format as assets/data/presets.json; the shipped file is never written). They go after
+	// the shipped ones; one with the id of a shipped one is skipped (the shipped one wins).
+	void EditorApp::LoadUserPresets()
+	{
+		m_Shell.Presets.erase(std::remove_if(m_Shell.Presets.begin(), m_Shell.Presets.end(), [](const GamePreset& p) { return p.User; }), m_Shell.Presets.end());
+		const std::string path = (fs::path(m_SaveDir) / "presets.json").generic_string();
+		std::ifstream in(path, std::ios::binary);
+		if (!in) return;
+		std::stringstream ss;
+		ss << in.rdbuf();
+		std::vector<GamePreset> mine;
+		if (const std::string error = LoadGamePresets(ss.str(), mine); !error.empty()) { GB_CLIENT_WARN("shell: {} ignored: {}", path, error); return; }
+		for (GamePreset& p : mine)
+		{
+			if (std::any_of(m_Shell.Presets.begin(), m_Shell.Presets.end(), [&](const GamePreset& q) { return q.Id == p.Id; })) continue;
+			p.User = true;
+			m_Shell.Presets.push_back(std::move(p));
+		}
+	}
+
+	void EditorApp::ChooseShellPreset(int index)
+	{
+		if (index < 0 || index >= static_cast<int>(m_Shell.Presets.size())) { m_Shell.Preset = -1; return; }
+		const GamePreset& p = m_Shell.Presets[static_cast<size_t>(index)];
+		m_Shell.Preset = index;
+		m_Shell.Biome = std::max(0, BiomeIndex(p.Biome)); m_Shell.Seed = p.Seed; m_Shell.Clans = p.Clans; m_Shell.Members = p.Members; m_Shell.Speed = p.Speed; m_Shell.Bare = p.Bare;
+	}
+
+	// G5: the form as it is, kept as a preset of the player's in <saves>/presets.json (a preset of his with the same id is replaced)
+	CommandResult EditorApp::ShellPresetSave(const std::string& id, const std::string& label)
+	{
+		if (!Save::IsValidSlotName(id) || id == "custom") return { false, "'" + id + "' is not a name for a preset (letters, digits, - _ .; not custom)" };
+		for (const GamePreset& p : m_Shell.Presets)
+			if (p.Id == id && !p.User) return { false, "'" + id + "' is a shipped preset: choose another name" };
+		const std::string path = (fs::path(m_SaveDir) / "presets.json").generic_string();
+		Json doc = Json::object();
+		if (std::ifstream in(path, std::ios::binary); in)
+		{
+			doc = Json::parse(in, nullptr, false);
+			if (doc.is_discarded() || !doc.is_object()) doc = Json::object();
+		}
+		if (!doc.contains("presets") || !doc["presets"].is_array()) doc["presets"] = Json::array();
+		doc["_doc"] = "G5: the presets the player saved from GB.exe's new game (custom). Same format as assets/data/presets.json.";
+		Json& list = doc["presets"];
+		for (auto it = list.begin(); it != list.end();)
+			it = it->is_object() && it->value("id", std::string()) == id ? list.erase(it) : it + 1;
+		const std::string biome = kBiomes[std::clamp(m_Shell.Biome, 0, 2)];
+		char tip[160];
+		std::snprintf(tip, sizeof tip, "%s %d, %d x %d%s, x%d", biome.c_str(), m_Shell.Seed, m_Shell.Clans, m_Shell.Members, m_Shell.Bare ? ", bare" : "", m_Shell.Speed);
+		list.push_back({ { "id", id }, { "label", label.empty() ? id : label }, { "tip", tip }, { "biome", biome }, { "seed", m_Shell.Seed }, { "clans", m_Shell.Clans },
+			{ "members", m_Shell.Members }, { "speed", m_Shell.Speed }, { "bare", m_Shell.Bare } });
+		std::error_code ec;
+		fs::create_directories(m_SaveDir, ec);
+		std::ofstream out(path, std::ios::binary);
+		if (!out) return { false, "cannot write " + path };
+		out << doc.dump(2);
+		out.close();
+		LoadUserPresets();
+		for (size_t i = 0; i < m_Shell.Presets.size(); ++i)
+			if (m_Shell.Presets[i].Id == id) m_Shell.Preset = static_cast<int>(i);
+		ShellToast("Preset saved");
+		return { true, "preset " + id + " saved in " + path + " (" + tip + ")" };
 	}
 
 	void EditorApp::SetFullscreen(bool on)
@@ -509,6 +571,10 @@ namespace GB::Editor
 		j["updated"] = Now(false);
 		j["seconds"] = std::chrono::duration<double>(std::chrono::steady_clock::now() - s.Clock).count();
 		j["setup"] = { { "preset", s.Preset }, { "biome", s.Biome }, { "seed", s.Seed }, { "clans", s.Clans }, { "members", s.Members }, { "bare", s.Bare }, { "speed", s.Speed } };
+		// G5: where the start came from: a shipped preset, one of the player's (<saves>/presets.json), the custom form, a load or the player's mode
+		const auto chosen = std::find_if(m_Shell.Presets.begin(), m_Shell.Presets.end(), [&](const GamePreset& p) { return p.Id == s.Preset; });
+		j["setup"]["source"] = chosen != m_Shell.Presets.end() ? (chosen->User ? "user preset" : "preset") : s.Preset == "custom" ? "custom" : s.Preset;
+		if (chosen != m_Shell.Presets.end()) j["setup"]["label"] = chosen->Label;
 		j["loadedFrom"] = s.LoadedFrom;
 		j["days"] = { { "start", s.DayStart }, { "now", c.Day } };
 		j["now"] = { { "clans", c.Clans }, { "alive", c.Alive }, { "speed", m_TimeScale }, { "tick", m_SimTick } };
@@ -618,8 +684,17 @@ namespace GB::Editor
 		if (sub == "presets")
 		{
 			std::string s = std::to_string(m_Shell.Presets.size()) + " preset(s):";
-			for (const GamePreset& p : m_Shell.Presets) s += " " + p.Id + " (" + p.Biome + " " + std::to_string(p.Seed) + ", " + std::to_string(p.Clans) + "x" + std::to_string(p.Members) + (p.Bare ? ", bare" : "") + ")";
+			for (const GamePreset& p : m_Shell.Presets) s += " " + p.Id + " (" + p.Biome + " " + std::to_string(p.Seed) + ", " + std::to_string(p.Clans) + "x" + std::to_string(p.Members) + (p.Bare ? ", bare" : "") + (p.User ? ", user" : "") + ")";
+			const bool custom = m_Shell.Preset < 0 || m_Shell.Preset >= static_cast<int>(m_Shell.Presets.size());
+			s += "; chosen " + (custom ? std::string("custom") : m_Shell.Presets[static_cast<size_t>(m_Shell.Preset)].Id);
 			return { true, s };
+		}
+		if (sub == "console")   // the console of commands over a game (the `console` key of controls.keys): for testing, never on the screen by itself
+		{
+			if (m_Shell.Now == ShellState::Screen::Menu) return { false, "the console is a game's (start or load one)" };
+			if (m_Shell.Now == ShellState::Screen::Player) return Execute("game console");
+			m_Game.Console = a.size() > 1 ? a[1] == "on" : !m_Game.Console;
+			return { true, m_Game.Console ? "console open" : "console closed" };
 		}
 		if (sub == "page")   // the start menu's pages, or the pause menu's in a game
 		{
@@ -629,7 +704,25 @@ namespace GB::Editor
 			else m_Shell.Page = page;
 			return { true, "page " + page };
 		}
-		if (sub == "new")   // shell new [preset <id>] [temperate|alpine|desert] [seed] [clans] [members] [bare] [speed <n>]
+		if (sub == "preset")   // G5: shell preset select <id|custom> | save <id> [label words]: the new game's form, as its buttons
+		{
+			const std::string what = a.size() > 1 ? a[1] : "";
+			if (what == "select" && a.size() > 2)
+			{
+				if (a[2] == "custom") { ChooseShellPreset(-1); return { true, "custom game" }; }
+				for (size_t i = 0; i < m_Shell.Presets.size(); ++i)
+					if (m_Shell.Presets[i].Id == a[2]) { ChooseShellPreset(static_cast<int>(i)); return { true, "preset " + a[2] }; }
+				return { false, "no preset " + a[2] + " (shell presets)" };
+			}
+			if (what == "save" && a.size() > 2)
+			{
+				std::string label;
+				for (size_t i = 3; i < a.size(); ++i) label += (i > 3 ? " " : "") + a[i];
+				return ShellPresetSave(a[2], label);
+			}
+			return { false, "shell preset select <id|custom> | save <id> [label]" };
+		}
+		if (sub == "new")   // shell new [preset <id> | custom] [temperate|alpine|desert] [seed|random] [clans] [members] [bare|village] [speed <n>]
 		{
 			std::string biome = kBiomes[std::clamp(m_Shell.Biome, 0, 2)], preset = "custom";
 			int seed = m_Shell.Seed, clans = m_Shell.Clans, members = m_Shell.Members, speed = m_Shell.Speed;
@@ -644,8 +737,11 @@ namespace GB::Editor
 					biome = it->Biome; seed = it->Seed; clans = it->Clans; members = it->Members; speed = it->Speed; bare = it->Bare; preset = it->Id;
 					++i;
 				}
+				else if (a[i] == "custom") preset = "custom";   // (G5: the form's values, whatever preset was chosen)
 				else if (a[i] == "speed" && i + 1 < a.size()) speed = std::atoi(a[++i].c_str());
 				else if (a[i] == "bare") bare = true;
+				else if (a[i] == "village") bare = false;
+				else if (a[i] == "random") { static std::mt19937 dice{ std::random_device{}() }; numbers.push_back(static_cast<int>(dice() % 100000u)); }   // (in the seed's place)
 				else if (BiomeIndex(a[i]) >= 0) biome = a[i];
 				else numbers.push_back(std::atoi(a[i].c_str()));
 			}
@@ -744,12 +840,12 @@ namespace GB::Editor
 			}
 			return { false, "shell note [begin|save|cancel|text <words>]" };
 		}
-		return { false, "shell status|presets|page <main|new|load|settings>|new [preset <id>] [biome] [seed] [clans] [members] [bare] [speed <n>]|player [play's args]|save [name]|load <save>|quicksave|quickload|pause [on|off]|resume|note [begin|save|cancel|text <words>]|shot|mark|same|fullscreen [on|off]|menu|quit" };
+		return { false, "shell status|presets|preset select <id|custom>|preset save <id> [label]|page <main|new|load|settings>|new [preset <id>|custom] [biome] [seed|random] [clans] [members] [bare|village] [speed <n>]|console [on|off]|player [play's args]|save [name]|load <save>|quicksave|quickload|pause [on|off]|resume|note [begin|save|cancel|text <words>]|shot|mark|same|fullscreen [on|off]|menu|quit" };
 	}
 
 	void EditorApp::RegisterShellCommands()
 	{
-		m_Commands.Register("shell", "shell status|presets|page|new|player|save|load|quicksave|quickload|pause|resume|note|shot|mark|same|fullscreen|menu|quit: GB.exe's start menu, the god's game and its session folder (G1/G2, GameShell.cpp); the menus' buttons run these",
+		m_Commands.Register("shell", "shell status|presets|preset|page|new|console|player|save|load|quicksave|quickload|pause|resume|note|shot|mark|same|fullscreen|menu|quit: GB.exe's start menu, the god's game and its session folder (G1/G2, GameShell.cpp); the menus' buttons run these",
 			[this](const std::vector<std::string>& a) { return ShellCommand(a); });
 	}
 
@@ -771,10 +867,12 @@ namespace GB::Editor
 		}
 		if (pressed(m_Shell.Rules.Keys, "note") && !m_Shell.NoteOpen) run("shell note begin");
 		if (pressed(m_Shell.Rules.Keys, "shot")) run("shell shot");
-		if (m_Shell.Now != ShellState::Screen::God) return;   // (the player's game has its own Esc, F5 and F9: GameKeys)
+		if (m_Shell.Now != ShellState::Screen::God) return;   // (the player's game has its own Esc, F5, F9 and console: GameKeys)
+		if (pressed(m_Controls.Keys, "console") && !m_Shell.Pause && !m_Shell.NoteOpen) run("shell console");   // (T233: the commands, by key only)
 		if (pressed(m_Controls.Keys, "quit"))
 		{
 			if (m_Shell.NoteOpen) run("shell note cancel");
+			else if (m_Game.Console) run("shell console off");
 			else if (m_Shell.Pause) run(m_Shell.PausePage != "main" ? "shell page main" : "shell resume");
 			else if (!m_Hand.Building.empty() || !m_Hand.Menu.empty()) run("director hand off");   // (T201: Esc lets go of the ghost or the hand's menu first)
 			else if (m_Observer.Tree) run("observer tree");   // (Esc closes the tree of knowledge first, as in the game)
@@ -814,6 +912,14 @@ namespace GB::Editor
 			if (m_Shell.Now == ShellState::Screen::God && !m_Shell.Pause && !m_Shell.NoteOpen) ObserverKeys();
 			DrawGameScreen();
 			const GameTheme::Scope theme;
+			if (m_Shell.Now == ShellState::Screen::God && m_Game.Console)
+			{   // T233: the console of commands over the god's screen (the `console` key or `shell console`), under the clan card and left of the book
+				const ImGuiViewport* gv = ImGui::GetMainViewport();
+				m_Game.HudRight = 0.0f;
+				m_Game.ClockBottom = m_Observer.CardBottom;
+				m_Game.BookWidth = m_Observer.BookWidth;
+				DrawGameConsole(gv->Pos.x, gv->Pos.y, gv->Size.x, gv->Size.y);
+			}
 			DrawShellPause();
 			DrawShellNote();
 			DrawShellOverlay();
@@ -827,7 +933,7 @@ namespace GB::Editor
 		const Lang& L = m_Lang;
 		const ImGuiViewport* vp = ImGui::GetMainViewport();
 		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
-		const float width = m_Shell.Page == "load" ? std::min(760.0f, vp->Size.x - 40.0f) : 420.0f;
+		const float width = m_Shell.Page == "load" ? std::min(760.0f, vp->Size.x - 40.0f) : m_Shell.Page == "new" ? 540.0f : 420.0f;
 		ImGui::SetNextWindowPos(ImVec2(vp->Pos.x + vp->Size.x * 0.5f, vp->Pos.y + vp->Size.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 		ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
 		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking
@@ -881,66 +987,124 @@ namespace GB::Editor
 		ImGui::TextUnformatted(L.Text("New game").c_str());
 		ImGui::Spacing();
 		const float gap = ImGui::GetStyle().ItemSpacing.x;
-		// the presets (assets/data/presets.json): a choice fills the form, which can still be changed
-		if (!m_Shell.Presets.empty())
+		const bool custom = m_Shell.Preset < 0 || m_Shell.Preset >= static_cast<int>(m_Shell.Presets.size());
+		// G5: a row of choices, at most four a row: the shipped presets (assets/data/presets.json), "Custom" (the form), then the player's own
+		// (<saves>/presets.json, under "Yours"). Choosing a preset fills the form; "Custom" keeps what it holds, so a preset can be the start of one.
+		auto row = [&](const std::vector<int>& items, bool withCustom)
 		{
-			ImGui::TextDisabled("%s", L.Text("Start").c_str());
-			const float each = (ImGui::GetContentRegionAvail().x - gap * static_cast<float>(m_Shell.Presets.size() - 1)) / static_cast<float>(m_Shell.Presets.size());
-			for (size_t i = 0; i < m_Shell.Presets.size(); ++i)
+			const size_t n = items.size() + (withCustom ? 1u : 0u);
+			for (size_t k = 0; k < n; k += 4)
 			{
-				const GamePreset& p = m_Shell.Presets[i];
-				if (i > 0) ImGui::SameLine();
-				if (Choice(L.Text(p.Label) + "###preset" + p.Id, m_Shell.Preset == static_cast<int>(i), each))
+				const size_t inRow = std::min<size_t>(4, n - k);
+				const float each = (ImGui::GetContentRegionAvail().x - gap * static_cast<float>(inRow - 1)) / static_cast<float>(inRow);
+				for (size_t j = 0; j < inRow; ++j)
 				{
-					m_Shell.Preset = static_cast<int>(i);
-					m_Shell.Biome = std::max(0, BiomeIndex(p.Biome)); m_Shell.Seed = p.Seed; m_Shell.Clans = p.Clans; m_Shell.Members = p.Members; m_Shell.Speed = p.Speed; m_Shell.Bare = p.Bare;
+					if (j > 0) ImGui::SameLine();
+					const size_t at = k + j;
+					if (at == items.size())   // the custom choice, last
+					{
+						if (Choice(L.Text("Custom") + "###custom", custom, each)) m_UiCommands.push_back("shell preset select custom");
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Your own game: biome, seed, clans, people and how they start").c_str());
+						continue;
+					}
+					const int i = items[at];
+					const GamePreset& p = m_Shell.Presets[static_cast<size_t>(i)];
+					if (Choice((p.User ? p.Label : L.Text(p.Label)) + "###preset" + p.Id, m_Shell.Preset == i, each)) m_UiCommands.push_back("shell preset select " + p.Id);
 				}
-				if (ImGui::IsItemHovered() && !p.Tip.empty()) ImGui::SetTooltip("%s", L.Text(p.Tip).c_str());
 			}
-			// G5 will add the custom map here
-			ImGui::BeginDisabled();
-			ImGui::Button((L.Text("Custom map") + "###custom").c_str(), ImVec2(-FLT_MIN, 24.0f));
-			ImGui::EndDisabled();
-			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", L.Text("Not yet: a map of your own will come later").c_str());
+		};
+		std::vector<int> shipped, mine;
+		for (size_t i = 0; i < m_Shell.Presets.size(); ++i) (m_Shell.Presets[i].User ? mine : shipped).push_back(static_cast<int>(i));
+		ImGui::TextDisabled("%s", L.Text("Start").c_str());
+		row(shipped, true);
+		if (!mine.empty())
+		{
+			ImGui::TextDisabled("%s", L.Text("Yours").c_str());
+			row(mine, false);
+		}
+		ImGui::Spacing();
+		// what the chosen start is: the preset's words (a shipped one's tip) and its numbers in a line; the form only for a custom game
+		auto summary = [&]()
+		{
+			const std::string start = L.Text(m_Shell.Bare ? "nothing built" : "villages standing");
+			return L.Text("{0}, seed {1}; {2} clans of {3} people, {4}; speed x{5}", L.Text(kBiomeLabels[std::clamp(m_Shell.Biome, 0, 2)]), m_Shell.Seed, m_Shell.Clans,
+				m_Shell.Members, start, m_Shell.Speed);
+		};
+		if (!custom)
+		{
+			const GamePreset& p = m_Shell.Presets[static_cast<size_t>(m_Shell.Preset)];
+			ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+			if (!p.User && !p.Tip.empty()) ImGui::TextUnformatted(L.Text(p.Tip).c_str());
+			ImGui::PushStyleColor(ImGuiCol_Text, GameTheme::BoneDim);
+			ImGui::TextUnformatted(summary().c_str());
+			ImGui::PopStyleColor();
+			ImGui::PopTextWrapPos();
 			ImGui::Spacing();
+			ImGui::TextDisabled("%s", L.Text("Custom changes it: the form keeps these values").c_str());
 		}
-		// any change of the form makes it a game of its own (no preset chosen)
-		bool changed = false;
-		ImGui::TextDisabled("%s", L.Text("Biome").c_str());
+		else
 		{
-			const float each = (ImGui::GetContentRegionAvail().x - gap * 2.0f) / 3.0f;
-			for (int i = 0; i < 3; ++i)
+			ImGui::TextDisabled("%s", L.Text("Biome").c_str());
 			{
-				if (i > 0) ImGui::SameLine();
-				if (Choice(L.Text(kBiomeLabels[i]) + "###biome" + kBiomes[i], m_Shell.Biome == i, each)) { m_Shell.Biome = i; changed = true; }
+				const float each = (ImGui::GetContentRegionAvail().x - gap * 2.0f) / 3.0f;
+				for (int i = 0; i < 3; ++i)
+				{
+					if (i > 0) ImGui::SameLine();
+					if (Choice(L.Text(kBiomeLabels[i]) + "###biome" + kBiomes[i], m_Shell.Biome == i, each)) m_Shell.Biome = i;
+				}
 			}
+			ImGui::TextDisabled("%s", L.Text("Seed").c_str());
+			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 110.0f);
+			if (ImGui::InputInt("##seed", &m_Shell.Seed)) m_Shell.Seed = std::max(0, m_Shell.Seed);
+			ImGui::SameLine();
+			if (ImGui::Button((L.Text("Random") + "###random").c_str(), ImVec2(-FLT_MIN, 0.0f)))
+			{
+				static std::mt19937 dice{ std::random_device{}() };
+				m_Shell.Seed = static_cast<int>(dice() % 100000u);
+			}
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The same seed makes the same world").c_str());
+			ImGui::TextDisabled("%s", L.Text("Clans").c_str());
+			ImGui::SetNextItemWidth(-FLT_MIN);
+			ImGui::SliderInt("##clans", &m_Shell.Clans, 1, 6);
+			ImGui::TextDisabled("%s", L.Text("People per clan").c_str());
+			ImGui::SetNextItemWidth(-FLT_MIN);
+			ImGui::SliderInt("##members", &m_Shell.Members, 2, 40);
+			ImGui::TextDisabled("%s", L.Text("How they start").c_str());
+			{
+				const float each = (ImGui::GetContentRegionAvail().x - gap) * 0.5f;
+				if (Choice(L.Text("Villages standing") + "###village", !m_Shell.Bare, each)) m_Shell.Bare = false;
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Each clan starts with its village built").c_str());
+				ImGui::SameLine();
+				if (Choice(L.Text("Nothing built") + "###bare", m_Shell.Bare, each)) m_Shell.Bare = true;
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Each clan gets its land and a well, and raises its village itself").c_str());
+			}
+			ImGui::TextDisabled("%s", L.Text("Speed at the start").c_str());
+			ImGui::SetNextItemWidth(-FLT_MIN);
+			ImGui::SliderInt("##speed", &m_Shell.Speed, 1, 20, "x%d");
+			// the form kept as a preset of the player's (<saves>/presets.json): its name, then the button (`shell preset save <id> <name>`)
+			ImGui::Spacing();
+			ImGui::TextDisabled("%s", L.Text("Keep this game as a start of yours").c_str());
+			ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 110.0f);
+			ImGui::InputTextWithHint("##preset_name", L.Text("Name").c_str(), m_Shell.PresetName, sizeof m_Shell.PresetName);
+			ImGui::SameLine();
+			std::string id;   // the file's id from the name: letters and digits kept, the rest '_'
+			for (const char c : std::string(m_Shell.PresetName)) id += std::isalnum(static_cast<unsigned char>(c)) ? static_cast<char>(std::tolower(static_cast<unsigned char>(c))) : '_';
+			ImGui::BeginDisabled(id.empty());
+			if (ImGui::Button((L.Text("Save") + "###preset_save").c_str(), ImVec2(-FLT_MIN, 0.0f))) m_UiCommands.push_back("shell preset save " + id + " " + m_Shell.PresetName);
+			ImGui::EndDisabled();
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", L.Text(id.empty() ? "Write a name first" : "It will be under Yours, next time too").c_str());
+			ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x);
+			ImGui::PushStyleColor(ImGuiCol_Text, GameTheme::BoneDim);
+			ImGui::TextUnformatted(summary().c_str());
+			ImGui::PopStyleColor();
+			ImGui::PopTextWrapPos();
 		}
-		ImGui::TextDisabled("%s", L.Text("Seed").c_str());
-		ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 110.0f);
-		if (ImGui::InputInt("##seed", &m_Shell.Seed)) { m_Shell.Seed = std::max(0, m_Shell.Seed); changed = true; }
-		ImGui::SameLine();
-		if (ImGui::Button((L.Text("Random") + "###random").c_str(), ImVec2(-FLT_MIN, 0.0f)))
-		{
-			static std::mt19937 dice{ std::random_device{}() };
-			m_Shell.Seed = static_cast<int>(dice() % 100000u);
-			changed = true;
-		}
-		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The same seed makes the same world").c_str());
-		ImGui::TextDisabled("%s", L.Text("Clans").c_str());
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		changed = ImGui::SliderInt("##clans", &m_Shell.Clans, 1, 6) || changed;
-		ImGui::TextDisabled("%s", L.Text("People per clan").c_str());
-		ImGui::SetNextItemWidth(-FLT_MIN);
-		changed = ImGui::SliderInt("##members", &m_Shell.Members, 2, 40) || changed;
-		changed = ImGui::Checkbox((L.Text("They start with nothing built") + "###bare").c_str(), &m_Shell.Bare) || changed;
-		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Each clan gets its land and a well, and raises its village itself").c_str());
-		if (changed) m_Shell.Preset = -1;
 		ImGui::Spacing();
 		ImGui::Separator();
 		ImGui::Spacing();
 		if (MenuButton(L.Text("Start") + "###start", true))
 		{
-			const std::string preset = m_Shell.Preset >= 0 && m_Shell.Preset < static_cast<int>(m_Shell.Presets.size()) ? " preset " + m_Shell.Presets[static_cast<size_t>(m_Shell.Preset)].Id : std::string();
+			const std::string preset = !custom ? " preset " + m_Shell.Presets[static_cast<size_t>(m_Shell.Preset)].Id : std::string(" custom");
 			m_Shell.Pending = "shell new" + preset + " " + kBiomes[std::clamp(m_Shell.Biome, 0, 2)] + " " + std::to_string(m_Shell.Seed) + " " + std::to_string(m_Shell.Clans) + " "
 				+ std::to_string(m_Shell.Members) + (m_Shell.Bare ? " bare" : "") + " speed " + std::to_string(m_Shell.Speed);
 			m_Shell.PendingFrames = 2;

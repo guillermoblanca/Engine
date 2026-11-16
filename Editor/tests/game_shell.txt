@@ -8,15 +8,25 @@ shot_ui game_shell_menu.png
 shell page new
 wait 3
 shot_ui game_shell_new.png
+qa expect "shell presets" "valley .*; chosen valley"
+shell preset select custom
+wait 3
+shot_ui game_shell_custom.png
+qa expect "shell presets" "; chosen custom"
+shell preset save shell_test_preset Shell test
+qa expect "shell presets" "shell_test_preset \(temperate 5, 3x6, user\); chosen shell_test_preset"
+shell preset select valley
 shell page settings
 wait 3
 shell page load
 wait 3
 shell page main
-shell new temperate 5 2 3
+shell new custom temperate 5 2 3
 wait 30
 qa expect "shell status" "shell: god, .*observer screen on.*clans 2, alive 6.*session .*telemetry"
 shot_ui game_shell_god.png
+qa expect "shell console on" "console open"
+qa expect "shell console off" "console closed"
 shell pause on
 wait 3
 shot_ui game_shell_pause.png

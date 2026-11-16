@@ -1820,10 +1820,8 @@ namespace GB::Editor
 		if (!ImGui::BeginMainMenuBar()) return;
 		if (ImGui::BeginMenu("File"))
 		{
-			if (ImGui::MenuItem("New Scene", "empty: camera and sun only")) Execute("new_scene");
-			if (ImGui::MenuItem("Open scene (scene.json)")) Execute("scene_load scene.json");
-			if (ImGui::MenuItem("Save scene (scene.json)")) Execute("scene_save scene.json");
-			ImGui::Separator();
+			// (T233: "New Scene", "Open scene (scene.json)" and "Save scene (scene.json)" are gone: the first doubled "New scene" below, the other two
+			// ran scene_load and scene_save, which no command registers)
 			if (ImGui::BeginMenu("New world"))
 			{
 				if (ImGui::MenuItem("Temperate")) Execute("generate temperate");
@@ -1831,7 +1829,7 @@ namespace GB::Editor
 				if (ImGui::MenuItem("Desert")) Execute("generate desert");
 				ImGui::EndMenu();
 			}
-			if (ImGui::MenuItem("New scene")) Execute("scene new");
+			if (ImGui::MenuItem("New scene", "empty: camera and sun only")) Execute("scene new");
 			if (ImGui::MenuItem("Save scene", "Ctrl+S")) Execute("scene save scene.json");
 			if (ImGui::MenuItem("Load scene")) Execute("scene load scene.json");
 			ImGui::Separator();
@@ -1873,9 +1871,7 @@ namespace GB::Editor
 		{
 			for (const TestScenario& s : TestScenarios())
 				if (ImGui::MenuItem(s.Name.c_str(), s.Approximate ? "approx." : nullptr)) Execute("test " + s.Name);
-			ImGui::Separator();
-			ImGui::MenuItem("Tests panel", nullptr, &m_Panels.Tests);
-			ImGui::EndMenu();
+			ImGui::EndMenu();   // (T233: the Tests panel's toggle is View's, with the other panels)
 		}
 		if (ImGui::BeginMenu("View"))
 		{

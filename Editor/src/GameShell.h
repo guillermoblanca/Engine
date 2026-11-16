@@ -27,13 +27,15 @@ namespace GB::Editor
 	// "" or what is wrong; a document without "session" changes nothing.
 	std::string LoadSessionRules(const std::string& json, SessionRules& rules);
 
-	// A start of a game the menu offers (assets/data/presets.json): its words, the world and the clans. The custom map of G5 will add a map here.
+	// A start of a game the menu offers (assets/data/presets.json, then the player's own in <saves>/presets.json, G5): its words, the world and the
+	// clans. A shipped preset's label and tip are English keys of Lang; a player's are his own words, shown as they are.
 	struct GamePreset
 	{
 		std::string Id, Label, Tip;
 		std::string Biome = "temperate";
 		int Seed = 5, Clans = 3, Members = 6, Speed = 1;
 		bool Bare = false;                 // the clans start with nothing built (`village ... bare`)
+		bool User = false;                 // saved by the player (<saves>/presets.json), not shipped
 	};
 	// "" or what is wrong (then `out` is left as it was).
 	std::string LoadGamePresets(const std::string& json, std::vector<GamePreset>& out);
@@ -47,11 +49,12 @@ namespace GB::Editor
 		bool Pause = false;                // the pause menu of a game (Esc)
 		std::string PausePage = "main";    // its page: main, load, settings
 		// the new game's form (the widgets edit it; the button runs `shell new ...` with it)
-		int Preset = 0;
+		int Preset = 0;                    // the chosen one of Presets, -1 custom (the form below)
 		int Biome = 0;                     // 0 temperate, 1 alpine, 2 desert
 		int Seed = 5, Clans = 3, Members = 6, Speed = 1;
 		bool Bare = false;
-		std::vector<GamePreset> Presets;
+		std::vector<GamePreset> Presets;   // the shipped ones first, then the player's (User)
+		char PresetName[48] = {};          // the name the custom form is saved with as a preset of the player's
 		// a long order (a new world) waits a couple of frames so the "generating" card is drawn first
 		std::string Pending;
 		int PendingFrames = 0;
