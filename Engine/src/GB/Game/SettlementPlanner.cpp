@@ -30,6 +30,15 @@ namespace GB
 		std::set<std::string> superseded;
 		for (const auto& [id, def] : *f.Buildings)
 			if (!def.Supersedes.empty() && known(def) && payable(def)) superseded.insert(def.Supersedes.begin(), def.Supersedes.end());
+		// T256: the best food store the clan knows and can pay (the lowest keep, then the most room for food, then the id), and the food stores it has
+		const BuildingDef* bestFood = nullptr;
+		for (const auto& [id, def] : *f.Buildings)
+			if (def.FoodCap > 0 && def.Keep < 1.0f && known(def) && payable(def)
+				&& (!bestFood || def.Keep < bestFood->Keep - 1e-4f || (std::abs(def.Keep - bestFood->Keep) <= 1e-4f && def.FoodCap > bestFood->FoodCap))) bestFood = &def;
+		int foodStores = 0;
+		bool foodSiteOpen = false;
+		for (const PlannerSite& p : f.Sites)
+			if (p.Def->FoodCap > 0) { ++foodStores; foodSiteOpen = foodSiteOpen || !p.Done; }
 		for (const auto& [id, def] : *f.Buildings)
 		{
 			if (!known(def) || !payable(def)) continue;   // H11 decides what is known
@@ -49,7 +58,15 @@ namespace GB
 			// (the food's pile asks for a building that keeps food, the rest's for one that keeps anything)
 			if (const int pile = def.FoodCap > 0 ? f.CampFood : (!def.Store.empty() || def.StoreCap > 0) ? f.CampPile - f.CampFood : 0;
 				pile >= 120 && count[id] < std::max(1, alive / 25) + std::min(pile / 120, std::max(1, alive / 6)))
-				want(1.5f, std::to_string(pile) + " things lie by the fire: the stores are full");
+				if (!(def.FoodCap > 0 && superseded.count(id))) want(1.5f, std::to_string(pile) + " things lie by the fire: the stores are full");   // (T256: not a store the clan knows a better one of)
+			// T256: food that went off lately and food by the fire with no room ask for the best food store the clan knows, one at a time (above the
+			// pile's rule; under beds for all)
+			if (&def == bestFood && f.FoodStoreAt > 0 && !foodSiteOpen)
+				if (const int pressure = f.SpoiledLately + f.CampFood; pressure >= f.FoodStoreAt && foodStores < std::max(1, alive / std::max(1, f.FoodStoresPer)))
+				{
+					std::snprintf(why, sizeof why, "%d food went off lately and %d lies by the fire with no room", f.SpoiledLately, f.CampFood);
+					want(std::min(2.5f, 1.6f + 0.25f * static_cast<float>(pressure) / static_cast<float>(f.FoodStoreAt)), why);
+				}
 			// the generic provisions (docs/PROGRESION.md), each only for the first of its kind
 			if (count[id] == 0)
 			{

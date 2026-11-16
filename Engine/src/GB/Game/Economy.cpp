@@ -240,7 +240,8 @@ namespace GB
 				Reader r{ *p, "logistics", {} };
 				if (!(e = r.Float("perBagSlot", x.PerBagSlot, 0.0f, 100.0f)).empty() || !(e = r.Float("priority", x.Priority, 0.0f, 100.0f)).empty()
 					|| !(e = r.Int("haulAt", x.HaulAt, 1, 1000)).empty() || !(e = r.Text("fieldStore", x.FieldStore)).empty()
-					|| !(e = r.Float("keepBestBelow", x.KeepBestBelow, 0.0f, 1e7f)).empty()) return e;
+					|| !(e = r.Float("keepBestBelow", x.KeepBestBelow, 0.0f, 1e7f)).empty() || !(e = r.Int("foodStoreAt", x.FoodStoreAt, 0, 100000)).empty()
+					|| !(e = r.Int("foodStoresPer", x.FoodStoresPer, 1, 1000)).empty() || !(e = r.Float("spoilMemory", x.SpoilMemory, 1.0f, 1e7f)).empty()) return e;
 				if (r.Has("stores"))
 				{
 					const Json& s = (*p)["stores"];
@@ -345,6 +346,12 @@ namespace GB
 		l["fieldStore"] = r.Logistics.FieldStore;
 		if (!r.Logistics.CampReserve.empty()) l["campReserve"] = r.Logistics.CampReserve;   // T255
 		l["keepBestBelow"] = Rounded(r.Logistics.KeepBestBelow);
+		if (r.Logistics.FoodStoreAt > 0)   // T256
+		{
+			l["foodStoreAt"] = r.Logistics.FoodStoreAt;
+			l["foodStoresPer"] = r.Logistics.FoodStoresPer;
+			l["spoilMemory"] = Rounded(r.Logistics.SpoilMemory);
+		}
 		const Json k = { { "maxSites", r.Construction.MaxSites }, { "membersPerSite", r.Construction.MembersPerSite }, { "ageSeconds", Rounded(r.Construction.AgeSeconds) },
 			{ "ageMax", Rounded(r.Construction.AgeMax) } };
 		const Json w = { { "days", Rounded(r.WinterStock.Days) }, { "from", Rounded(r.WinterStock.From) } };

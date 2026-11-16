@@ -317,36 +317,73 @@ namespace GB
 				if (ctx.Season == "winter" && plot.State != "grass") cache.AddModel("plot_frost", 1.0f, static_cast<int>(i), m, scene, 150.0f);
 			}
 
-		// the piles of a store, side by side along its front: how much of each kind, as full as the pile model says
-		auto piles = [&](const std::map<std::string, int>& things, const glm::vec2& centre)
+		// how much of each kind of pile a place holds, the fullest first (ties by the pile's name)
+		auto kinds = [&](const std::map<std::string, int>& things)
 		{
-			if (!ctx.Items) return;
+			std::vector<std::pair<std::string, int>> out;
+			if (!ctx.Items) return out;
 			std::map<std::string, int> units;
 			for (const auto& [id, count] : things)
+				if (const std::string pile = PileOf(lib, *ctx.Items, id); !pile.empty() && count > 0) units[pile] += count;
+			out.assign(units.begin(), units.end());
+			std::stable_sort(out.begin(), out.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+			return out;
+		};
+		// T256: a pile in the open (what lies by the fire, a field's stockpile): a compact heap of its kinds, rows of three round its centre
+		auto heap = [&](const std::map<std::string, int>& things, const glm::vec2& centre)
+		{
+			const auto list = kinds(things);
+			const int n = static_cast<int>(list.size()), rows = (n + 2) / 3;
+			for (int i = 0; i < n; ++i)
 			{
-				const std::string pile = PileOf(lib, *ctx.Items, id);
-				if (!pile.empty()) units[pile] += count;
-			}
-			const float spacing = 1.1f;
-			int i = 0;
-			const int n = static_cast<int>(units.size());
-			for (const auto& [pile, count] : units)
-			{
-				const PileVisual& p = lib.Piles.at(pile);
-				const glm::vec2 spot = centre + glm::vec2((static_cast<float>(i) - static_cast<float>(n - 1) * 0.5f) * spacing, 0.0f);
-				cache.AddModel(p.Model, std::clamp(static_cast<float>(count) / static_cast<float>(p.Full), 0.0f, 1.0f), 0, at(spot), scene, 150.0f);
-				++i;
+				const PileVisual& p = lib.Piles.at(list[static_cast<size_t>(i)].first);
+				const int row = i / 3, inRow = std::min(3, n - row * 3);
+				const glm::vec2 spot = centre + glm::vec2((static_cast<float>(i % 3) - 0.5f * static_cast<float>(inRow - 1)) * 0.95f, (static_cast<float>(row) - 0.5f * static_cast<float>(rows - 1)) * 0.95f);
+				cache.AddModel(p.Model, std::clamp(static_cast<float>(list[static_cast<size_t>(i)].second) / static_cast<float>(p.Full), 0.0f, 1.0f), 0, at(spot, 0.35f * static_cast<float>(i)), scene, 150.0f);
 			}
 		};
-		// T255: by the fire what lies there; at the door of each store building what it holds (ClanStores' ledger, StoreLayout::Of)
+		// T256: what a store building holds is drawn inside it, at the spots its look gives (visuals.json storeSlots: under the raised floor of a
+		// granary or a storage, in the ring of a cache pit), in its own frame. A slot is full at the building's room shared among its slots (an empty
+		// building shows nothing, a full one every slot full); each kind takes the slots its units fill, leaving one for each kind after it.
+		auto inside = [&](const StoreLayout::Place& p)
+		{
+			const auto list = kinds(p.Held);
+			if (list.empty()) return;
+			std::vector<StoreSlot> slots;
+			if (const auto look = lib.Buildings.find(p.Kind); look != lib.Buildings.end()) slots = look->second.StoreSlots;
+			if (slots.empty()) slots.push_back(StoreSlot{});
+			glm::mat4 base = at(p.Pos);
+			if (ctx.Entities)
+				if (const EntityId id = ctx.Entities->FindByName(p.Name); id != NullEntity) base = ctx.Entities->WorldMatrix(id);
+			const int perSlot = std::max(1, (p.FoodRoom + p.Room + static_cast<int>(slots.size()) - 1) / static_cast<int>(slots.size()));
+			size_t s = 0;
+			for (size_t k = 0; k < list.size() && s < slots.size(); ++k)
+			{
+				const PileVisual& pile = lib.Piles.at(list[k].first);
+				const int full = std::max(pile.Full, perSlot);
+				const size_t most = slots.size() - s - std::min(slots.size() - s - 1, list.size() - k - 1);   // (one slot kept for each kind after it)
+				int left = list[k].second;
+				for (size_t used = 0; left > 0 && used < most; ++used, ++s)
+				{
+					const int here = used + 1 == most ? left : std::min(left, full);
+					const StoreSlot& slot = slots[s];
+					glm::mat4 m = glm::scale(glm::rotate(glm::translate(base, slot.Pos), glm::radians(slot.Yaw), glm::vec3(0, 1, 0)), glm::vec3(slot.Scale));
+					// a building on a slope stands on its lowest corner (Tribe::StartSite): a pile is set on the ground under it, not buried in it
+					if (ctx.Ground) m[3].y = std::max(m[3].y, ctx.Ground(m[3].x, m[3].z) + slot.Pos.y);
+					cache.AddModel(pile.Model, std::clamp(static_cast<float>(here) / static_cast<float>(full), 0.2f, 1.0f), 0, m, scene, 150.0f);
+					left -= here;
+				}
+			}
+		};
+		// T255: by the fire what lies there; T256: inside each store building what it holds (ClanStores' ledger, StoreLayout::Of)
 		const StoreLayout layout = StoreLayout::Of(tribe);
-		piles(layout.AtCamp(), tribe.Config.Economy.Camp + kStore);
-		for (const StoreLayout::Place& p : layout.Places()) piles(p.Held, p.Door);
+		heap(layout.AtCamp(), tribe.Config.Economy.Camp + kStore);
+		for (const StoreLayout::Place& p : layout.Places()) inside(p);
 		for (const Stockpile& s : tribe.Economy().Stockpiles)
 		{
 			std::map<std::string, int> things;
 			for (const ItemSlot& it : s.Store.Stacks()) things[it.Id] += it.Count;
-			piles(things, s.Pos);
+			heap(things, s.Pos);
 		}
 
 		// the camp's workbench (where "make" and "craft" are done); once the clan has built one (H8) that building is the bench, drawn with the

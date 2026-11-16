@@ -22,6 +22,7 @@
 namespace GB
 {
 	class Tribe;
+	struct TribeMember;
 
 	class ClanStores
 	{
@@ -64,11 +65,35 @@ namespace GB
 		// How the store's food keeps: the mean of where its food lies (the fire at 1, each building at its Keep), for the spoilage.
 		float Keep(const Tribe& tribe) const;
 
+		// T256: the food the store lost lately: what went off, fading over economy.logistics.spoilMemory (the planner answers it with a better
+		// food store, SettlementFacts::SpoiledLately).
+		void NoteSpoiled(int units, double now, float memory);
+		int SpoiledLately(double now, float memory) const;
+
+		// T256: the fire's reserve filled again from the buildings. A "haul" job of the fire's reserve (kRestock) while the fire is short of it and
+		// a building holds some: the hauler walks to the building that holds it, takes what the fire lacks and leaves it by the fire (a "hauled"
+		// deposit, which the fire takes up to its reserve). The haul of the camp's pile only carries what is past the reserve: the two never cross.
+		static const char* const kRestock;
+		void PostRestock(Tribe& tribe) const;
+		bool StartRestock(Tribe& tribe, TribeMember& m) const;    // ExecuteEconomy of the job: false when there is nothing to fetch
+		bool FinishRestock(Tribe& tribe, TribeMember& m);         // at the building's door: what it takes, and the walk to the fire
+
+		// T256: a food store rebuilt into a better one the clan knows (the data's "supersedes": the granary over the cache pit), when food goes off
+		// or lies by the fire with no room: the better one is raised beside it as an ordinary site; when it stands, what the old one held moves into
+		// it (up to its room, the rest lies by the fire) and the old one is pulled down. One at a time. Called with the settlement's plan.
+		void PlanUpgrade(Tribe& tribe);
+		int Upgraded() const { return m_Upgraded; }
+		const std::map<std::string, std::string>& Upgrades() const { return m_Upgrades; }   // new site -> the store it replaces
+
+		bool Empty() const { return m_Held.empty() && m_Upgrades.empty() && m_Spoiled <= 0.0 && m_Upgraded == 0; }
 		std::string ToJson() const;
 		bool FromJson(const std::string& json);
-		void Clear() { m_Held.clear(); }
+		void Clear() { m_Held.clear(); m_Upgrades.clear(); m_Spoiled = 0.0; m_SpoiledAt = 0.0; m_Upgraded = 0; }
 
 	private:
 		std::map<std::string, Items> m_Held;   // building -> item -> units
+		std::map<std::string, std::string> m_Upgrades;   // T256: new site -> the store it replaces
+		double m_Spoiled = 0.0, m_SpoiledAt = 0.0;       // T256: food lost lately, as of this time
+		int m_Upgraded = 0;                              // T256: stores rebuilt into better ones
 	};
 }

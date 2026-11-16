@@ -360,6 +360,18 @@ namespace GB
 					BuildingVisual b;
 					if (!ReadVec2(j, "footprint", b.Footprint)) return "building '" + id + "': footprint is [x, z]";
 					b.Note = j.value("note", "");
+					if (const auto slots = j.find("storeSlots"); slots != j.end())
+					{
+						if (!slots->is_array()) return "building '" + id + "': storeSlots is a list of { pos, scale, yaw }";
+						for (const Json& s : *slots)
+						{
+							StoreSlot slot;
+							if (!s.is_object() || !ReadVec(s, "pos", slot.Pos)) return "building '" + id + "': a store slot is { \"pos\": [x, y, z], \"scale\": s, \"yaw\": degrees }";
+							slot.Scale = std::clamp(s.value("scale", 0.5f), 0.05f, 4.0f);
+							slot.Yaw = s.value("yaw", 0.0f);
+							b.StoreSlots.push_back(slot);
+						}
+					}
 					if (!j.contains("phases") || !j["phases"].is_array() || j["phases"].empty()) return "building '" + id + "' has no phases";
 					for (const Json& ph : j["phases"])
 					{
@@ -542,6 +554,12 @@ namespace GB
 			Json j;
 			j["footprint"] = Vec(b.Footprint);
 			if (!b.Note.empty()) j["note"] = b.Note;
+			if (!b.StoreSlots.empty())
+			{
+				Json slots = Json::array();
+				for (const StoreSlot& s : b.StoreSlots) slots.push_back({ { "pos", Vec(s.Pos) }, { "scale", s.Scale }, { "yaw", s.Yaw } });
+				j["storeSlots"] = slots;
+			}
 			Json phases = Json::array();
 			for (const BuildingVisualPhase& ph : b.Phases) phases.push_back({ { "name", ph.Name }, { "parts", PartsToJson(ph.Parts) } });
 			j["phases"] = phases;

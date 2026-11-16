@@ -446,6 +446,7 @@ namespace GB
 			if (units >= econ.Logistics.HaulAt)
 				m_Board.Post("haul", kCampPile, "", static_cast<float>(units), econ.Logistics.Priority, units >= 4 * econ.Logistics.HaulAt ? 2 : 1,
 					"the pile by the fire holds " + std::to_string(units) + " things for the store buildings", m_Time, rules);
+			m_Stores.PostRestock(*this);   // T256: and the fire's reserve is filled again from the buildings
 		}
 	}
 
@@ -478,7 +479,7 @@ namespace GB
 		{
 			const Stockpile* pile = nullptr;
 			for (const Stockpile& p : m_Econ.Stockpiles) if (p.Name == job.Target) pile = &p;
-			const bool camp = job.Target == kCampPile;   // T255
+			const bool camp = job.Target == kCampPile || job.Target == ClanStores::kRestock;   // T255, T256
 			if ((!pile && !camp) || Carried(*m_Items, bag) > 0) return 0.0f;   // it goes with an empty bag
 			const float load = std::clamp(static_cast<float>(CarryLimit(m)) / static_cast<float>(std::max(1, Config.Economy.DepositAt)), 1.0f, 3.0f) / 3.0f;   // L3: who carries more (a basket) hauls
 			return job.Priority * liking("haul") * Falloff(glm::distance(pos, camp ? Config.Economy.Camp : pile->Pos), 60.0f) * vigor * (0.5f + 0.5f * load);
@@ -537,6 +538,7 @@ namespace GB
 		}
 		if (o.Kind == "haul")
 		{
+			if (o.Target == ClanStores::kRestock) return m_Stores.StartRestock(*this, m);   // T256: to a store building for the fire's reserve
 			if (o.Target == kCampPile)   // T255: to the pile by the fire
 			{
 				if (!Order(m, Go(CampSpot(m), "wait 1"))) return false;
@@ -641,6 +643,7 @@ namespace GB
 			const glm::vec2 spot = shed.empty() ? CampSpot(m) : Around(to.Door, IndexOf(m), 0.9f, m.Body);
 			if (Order(m, Go(spot, "wait 1"))) { m.Job = "deposit"; m.Detail = shed.empty() ? std::string("hauled") : "hauled@" + shed; }
 		};
+		if (job == "haul" && m.Detail.rfind(ClanStores::kRestock, 0) == 0) return m_Stores.FinishRestock(*this, m);   // T256
 		if (job == "haul" && m.Detail == kCampPile)
 		{
 			if (glm::distance(Where(m), Config.Economy.Camp) > 9.0f) { Say(m, "could not get to the pile by the fire"); return true; }
@@ -954,6 +957,7 @@ namespace GB
 			for (const SpoilEvent& e : events)
 			{
 				m_Econ.Spoiled[e.Item] += e.Count;
+				if (IsFood(e.Item)) m_Stores.NoteSpoiled(e.Count, m_Time, econ.Logistics.SpoilMemory);   // T256: the planner answers it
 				TellClan("loses " + std::to_string(e.Count) + " " + e.Item + " in " + where + ": they went off" + (e.Into.empty() ? std::string() : " (now " + e.Into + ")"));
 			}
 		};

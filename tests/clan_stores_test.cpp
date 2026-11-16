@@ -5,11 +5,13 @@
 // ledger; the totals the clan reads (Store, game status) are the same wherever the things lie. CPU only, stand-in bodies as in settlement_test.
 #include "GB/Log.h"
 #include "GB/Game/ClanStores.h"
+#include "GB/Game/SettlementPlanner.h"
 #include "GB/Game/StoreLayout.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <memory>
@@ -286,6 +288,99 @@ int GBTest_clan_stores(int, char**)
 		const int reed = v.Tribe_.Store().Count("reed");
 		v.Step();
 		Check(v.Tribe_.Store().Count("reed") >= reed + 5 - 1 && v.Tribe_.Stores().Held(storage, "reed") >= 4 && !v.Tribe_.FindStockpile(storage), "moves into the store and the storage's ledger");
+	}
+
+	// ---- T256: food that goes off asks for the best food store the clan knows (the planner alone)
+	{
+		std::map<std::string, BuildingDef> defs;
+		const std::map<std::string, BuildingDef> shipped = DefaultBuildings();
+		for (const char* id : { "cache_pit", "granary", "storage" }) if (shipped.count(id)) defs[id] = shipped.at(id);
+		Check(defs.size() == 3 && defs["granary"].FoodCap > defs["cache_pit"].FoodCap && defs["granary"].Keep < defs["cache_pit"].Keep, "the shipped cache pit and granary");
+		SettlementFacts f;
+		f.Buildings = &defs;
+		f.Alive = 8;
+		f.MaxOpenSites = 2;
+		f.FoodStoreAt = 40;
+		f.FoodStoresPer = 4;
+		f.SpoiledLately = 60;
+		f.Sites.push_back({ &defs["cache_pit"], { 10.0f, 0.0f }, true });
+		auto first = [](const std::vector<BuildingNeed>& n) { return n.empty() ? std::string() : n.front().Building; };
+		const std::vector<BuildingNeed> needs = PlanBuildingNeeds(f);
+		Check(first(needs) == "granary" && needs.front().Why.find("went off lately") != std::string::npos, "60 food lost lately: the clan wants a granary (its best food store)");
+		Check(needs.front().Urgency > 1.5f && needs.front().Urgency < 3.0f, "above the pile's rule, under beds for all");
+		SettlementFacts calm = f;
+		calm.SpoiledLately = 10;
+		Check(first(PlanBuildingNeeds(calm)) != "granary", "10 lost lately: no food store for it");
+		SettlementFacts pile = calm;
+		pile.CampFood = 35;
+		Check(first(PlanBuildingNeeds(pile)) == "granary", "but 10 lost and 35 by the fire with no room: one");
+		SettlementFacts open = f;
+		open.Sites.push_back({ &defs["granary"], { -10.0f, 0.0f }, false });
+		const std::vector<BuildingNeed> openNeeds = PlanBuildingNeeds(open);
+		Check(std::none_of(openNeeds.begin(), openNeeds.end(), [](const BuildingNeed& n) { return n.Why.find("went off lately") != std::string::npos; }), "one food store at a time (one is being built)");
+		SettlementFacts many = f;
+		many.Sites.push_back({ &defs["granary"], { -10.0f, 0.0f }, true });
+		const std::vector<BuildingNeed> manyNeeds = PlanBuildingNeeds(many);
+		Check(std::none_of(manyNeeds.begin(), manyNeeds.end(), [](const BuildingNeed& n) { return n.Why.find("went off lately") != std::string::npos; }), "at most one food store for every 4 living");
+	}
+
+	// ---- T256: what goes off is remembered lately (fading) and saved
+	{
+		ClanStores s;
+		s.NoteSpoiled(100, 0.0, 1200.0f);
+		Check(s.SpoiledLately(0.0, 1200.0f) == 100 && s.SpoiledLately(1200.0, 1200.0f) == 37, "food lost lately fades (a day: to 37 of 100)");
+		ClanStores back;
+		Check(back.FromJson(s.ToJson()) && back.SpoiledLately(600.0, 1200.0f) == s.SpoiledLately(600.0, 1200.0f) && back.ToJson() == s.ToJson(), "and saves and loads");
+		Check(back.FromJson("{\"version\":1,\"held\":{\"Storage 1\":{\"wood\":3}}}") && back.Held("Storage 1", "wood") == 3 && back.SpoiledLately(0.0, 1200.0f) == 0 && back.Upgrades().empty(),
+			"a version 1 ledger loads (nothing lost lately, nothing being rebuilt)");
+	}
+
+	// ---- T256: the fire's reserve is filled again from the buildings; a cache pit is rebuilt into a granary when food goes off
+	{
+		Village v;
+		const std::map<std::string, BuildingDef> shipped = DefaultBuildings();
+		for (const char* id : { "cache_pit", "granary" }) v.Builds.Defs[id] = shipped.at(id);
+		v.Tribe_.SetTechCheck([](const std::string&) { return true; });
+		v.Tribe_.Config.Econ.Logistics.CampReserve = { { "wood", 6 }, { "food", 10 } };
+		v.Tribe_.Config.Econ.Logistics.FoodStoreAt = 40;
+		std::string storage, pit;
+		Check(v.Tribe_.RaiseBuilding("storage", v.Camp + glm::vec2(14.0f, 0.0f), 0.0f, &storage).empty(), "a storage");
+		Check(v.Tribe_.RaiseBuilding("cache_pit", v.Camp + glm::vec2(-12.0f, 4.0f), 0.0f, &pit).empty(), "and a cache pit");
+		bool restocked = false, within = true;
+		v.Tribe_.Store().Add(v.Items, "wood", 20);   // (past the fire's reserve: carried to the storage)
+		for (int i = 0; i < static_cast<int>(600.0f / dt) && v.Tribe_.Stores().Held(storage, "wood") < 8; ++i) { v.Step(); within = within && v.LedgerWithinStore(); }
+		Check(v.Tribe_.Stores().Held(storage, "wood") >= 8, "the wood past the fire's reserve is carried to the storage");
+		v.Tribe_.Store().Remove("wood", v.Tribe_.Stores().AtCamp(v.Tribe_, "wood"));   // the fire burns its share: it is short of its reserve
+		for (int i = 0; i < static_cast<int>(900.0f / dt) && !restocked; ++i)
+		{
+			v.Step();
+			restocked = v.Logged("to the fire");
+			within = within && v.LedgerWithinStore();
+		}
+		Check(restocked, "a member fetches what the fire is short of from a store building");
+		for (int i = 0; i < static_cast<int>(60.0f / dt); ++i) v.Step();
+		Check(v.Tribe_.Stores().AtCamp(v.Tribe_, "wood") > 0, "and leaves it by the fire");
+		Check(within, "the ledger within the store all the while");
+
+		// food goes off in quantity: the clan rebuilds its cache pit into a granary beside it, and the pit's things move in
+		v.Tribe_.Store().Add(v.Items, "berry", 120);
+		v.Tribe_.Config.PlanSeconds = 5.0f;   // (the plan runs now)
+		bool started = false, done = false;
+		for (int i = 0; i < static_cast<int>(2400.0f / dt) && !done; ++i)
+		{
+			v.Step();
+			started = started || !v.Tribe_.Stores().Upgrades().empty();
+			done = v.Tribe_.Stores().Upgraded() > 0;
+			within = within && v.LedgerWithinStore();
+		}
+		Check(started, "food went off: a granary site is started to replace the cache pit");
+		Check(done && v.Logged("pulls " + pit + " down"), "it stands and the cache pit is pulled down");
+		bool pitGone = true, granary = false;
+		for (const StoreLayout::Place& p : StoreLayout::Buildings(v.Tribe_)) { pitGone = pitGone && p.Name != pit; granary = granary || p.Kind == "granary"; }
+		Check(pitGone && granary, "the clan keeps its food in a granary now");
+		Check(within, "the ledger within the store through the rebuild");
+		const std::string json = v.Tribe_.ToJson();
+		Check(v.Tribe_.FromJson(json, false) && v.Tribe_.Stores().Upgraded() == 1 && v.Tribe_.ToJson() == json, "the rebuilds save and load");
 	}
 
 	std::printf("clan_stores: %s\n", failures ? "FAILED" : "ok");

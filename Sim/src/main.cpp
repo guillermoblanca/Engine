@@ -406,6 +406,8 @@ int main(int argc, char** argv)
 			std::string lay;
 			for (const GB::StoreLayout::Place& p : layout.Places()) lay += " " + p.Name + " " + std::to_string(p.Units()) + "/" + std::to_string(p.FoodRoom + p.Room) + ";";
 			std::fprintf(stderr, "  store layout: %d in buildings, %d by the fire;%s\n", layout.InBuildings(), layout.AtCampUnits(), lay.c_str());
+			std::fprintf(stderr, "  store upgrades %d (%zu being built); food lost lately %d\n", t->Stores().Upgraded(), t->Stores().Upgrades().size(),
+				t->Stores().SpoiledLately(t->Time(), t->Config.Econ.Logistics.SpoilMemory));   // T256
 		}
 		// V1: how big the world's history and its memories grew (bounded: GB/Game/History.h)
 		const GB::WorldHistory& past = run.Clans().Past();

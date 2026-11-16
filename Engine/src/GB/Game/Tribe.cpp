@@ -2397,7 +2397,7 @@ namespace GB
 		j["fire"] = m_Fire ? 1 : 0;   // its state is the interactive's (tags and attributes, saved with the gameplay)
 		j["camp"] = Json::array({ Config.Economy.Camp.x, Config.Economy.Camp.y, Config.Economy.CampY });
 		j["store"] = Json::parse(m_Store.ToJson());
-		if (!m_Stores.Ledger().empty()) j["stores"] = Json::parse(m_Stores.ToJson());   // T255 (an older save has none: everything lies by the fire)
+		if (!m_Stores.Empty()) j["stores"] = Json::parse(m_Stores.ToJson());   // T255 (an older save has none: everything lies by the fire)
 		j["clan"] = Json::parse(m_Clan.ToJson());
 		j["soundSeq"] = m_Sounds.LastSeq();
 		Json claims = Json::object();

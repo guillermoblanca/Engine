@@ -534,7 +534,11 @@
         ]
       },
       "storage": {
-        "footprint": [2.6, 2.2], "note": "a raised store: posts, a platform, plank walls, a pitched thatch roof",
+        "footprint": [2.6, 2.2], "note": "a raised store: posts, a platform, plank walls, a pitched thatch roof. What it keeps is drawn under its raised floor, between the posts (T256)",
+        "storeSlots": [
+          { "pos": [-0.72, 0.0, 0.0], "scale": 0.72, "yaw": 90 }, { "pos": [0.72, 0.0, 0.0], "scale": 0.72, "yaw": 90 },
+          { "pos": [-0.24, 0.0, 0.0], "scale": 0.72, "yaw": 90 }, { "pos": [0.24, 0.0, 0.0], "scale": 0.72, "yaw": 90 }
+        ],
         "phases": [
           { "name": "foundation", "parts": [
             { "name": "Post", "shape": "cylinder", "pos": [0, 0, -0.8], "size": [0.16, 0.8, 0.14], "material": "bark", "sides": 7, "count": 2, "layout": "row", "spacing": 2.0 },
@@ -637,7 +641,11 @@
         ]
       },
       "cache_pit": {
-        "footprint": [2.0, 2.0], "note": "a pit dug in the ground, ringed with stones, lined and covered with a woven reed lid",
+        "footprint": [2.0, 2.0], "note": "a pit dug in the ground, ringed with stones, lined and covered with a woven reed lid. What it keeps is drawn in the ring, on the lid (T256)",
+        "storeSlots": [
+          { "pos": [-0.25, 0.06, 0.25], "scale": 0.42 }, { "pos": [0.25, 0.06, 0.25], "scale": 0.42, "yaw": 90 },
+          { "pos": [-0.25, 0.06, -0.25], "scale": 0.42, "yaw": 90 }, { "pos": [0.25, 0.06, -0.25], "scale": 0.42 }
+        ],
         "phases": [
           { "name": "pit", "parts": [
             { "name": "Spoil", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.3, 0.12, 0.25], "material": "mud", "count": 5, "radius": 0.95, "detail": 1, "rough": 0.3 },
@@ -649,7 +657,10 @@
         ]
       },
       "granary": {
-        "footprint": [2.8, 2.8], "note": "a granary on stilts with stone caps against the mice, a woven wicker drum with a hide hatch and a two-tier thatched cone. Modelled in Blender (art-book/models/src/era1_building_granary.py), two pieces per phase, shown in order",
+        "footprint": [2.8, 2.8], "note": "a granary on stilts with stone caps against the mice, a woven wicker drum with a hide hatch and a two-tier thatched cone. Modelled in Blender (art-book/models/src/era1_building_granary.py), two pieces per phase, shown in order. What it keeps is drawn under its floor on stilts (T256)",
+        "storeSlots": [
+          { "pos": [-0.5, 0.0, 0.0], "scale": 0.72, "yaw": 90 }, { "pos": [0.0, 0.0, 0.0], "scale": 0.72, "yaw": 90 }, { "pos": [0.5, 0.0, 0.0], "scale": 0.72, "yaw": 90 }
+        ],
         "phases": [
           { "name": "stilts", "parts": [
             { "name": "Stilt", "shape": "model", "model": "models/era1/granary/granary_stilts.gltf" },
@@ -805,7 +816,11 @@
         ]
       },
       "jar_store": {
-        "footprint": [3.0, 2.6], "note": "a squat daub house on a floor of fired brick, a steep thatched gable, and big sealed jars at the door",
+        "footprint": [3.0, 2.6], "note": "a squat daub house on a floor of fired brick, a steep thatched gable, and big sealed jars at the door. What it keeps is drawn on its floor, inside the walls (T256)",
+        "storeSlots": [
+          { "pos": [-0.62, 0.14, 0.45], "scale": 0.45 }, { "pos": [0.62, 0.14, 0.45], "scale": 0.45 },
+          { "pos": [-0.62, 0.14, -0.45], "scale": 0.45 }, { "pos": [0.62, 0.14, -0.45], "scale": 0.45 }
+        ],
         "phases": [
           { "name": "floor", "parts": [
             { "name": "Floor", "shape": "box", "pos": [0, 0.07, 0], "size": [2.9, 0.14, 2.5], "material": "brick" },

@@ -215,6 +215,7 @@
       "storeCap": 20,
       "foodCap": 300,
       "keep": 0.5,
+      "supersedes": [ "cache_pit" ],
       "color": [ 0.55, 0.42, 0.26 ]
     },
     "dug_well": {
@@ -343,6 +344,7 @@
       "storeCap": 30,
       "foodCap": 400,
       "keep": 0.35,
+      "supersedes": [ "cache_pit" ],
       "color": [ 0.6, 0.44, 0.32 ]
     },
     "ancestor_shrine": {
@@ -560,7 +562,10 @@
       "haulAt": 8,
       "fieldStore": "stockpile",
       "campReserve": { "wood": 6, "food": 10 },
-      "keepBestBelow": 4800
+      "keepBestBelow": 4800,
+      "foodStoreAt": 40,
+      "foodStoresPer": 4,
+      "spoilMemory": 1200
     },
     "construction": { "maxSites": 3, "membersPerSite": 4 }
   },

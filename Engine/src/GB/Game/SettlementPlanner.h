@@ -46,6 +46,11 @@ namespace GB
 		int StoreCap = 0;                 // ... of this cap
 		int CampPile = 0;                 // T255: units by the fire past its reserve that no store building has room for (more stores are wanted)
 		int CampFood = 0;                 // ... of them food
+		// T256: food lost lately (ClanStores::SpoiledLately) and the rule that answers it with the best food store the clan knows
+		// (economy.logistics.foodStoreAt: 0 none; one food store for every foodStoresPer living at most)
+		int SpoiledLately = 0;
+		int FoodStoreAt = 0;
+		int FoodStoresPer = 5;
 		int Wells = 0;                    // wells the clan draws from on its home ground
 		int MembersPerWell = 0;           // a well dug for every this many living (0: none dug)
 		std::map<std::string, float> Wanting;   // V5: a provision the needs of the packs ask (BuildingDef::Provides) -> how short the clan is of it, 0..1

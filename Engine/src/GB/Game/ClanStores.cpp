@@ -1,7 +1,11 @@
 // T255: the clan's store buildings as the place its things are kept (see ClanStores.h).
 #include "GB/Game/ClanStores.h"
+#include "GB/Game/SettlementPlanner.h"
 #include "GB/Game/Tribe.h"
 #include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <optional>
 #include <nlohmann/json.hpp>
 
 namespace GB
@@ -256,7 +260,11 @@ namespace GB
 			for (const auto& [id, n] : items) if (n > 0) j[id] = n;
 			if (!j.empty()) held[b] = j;
 		}
-		return Json{ { "version", 1 }, { "held", held } }.dump();
+		Json j{ { "version", 2 }, { "held", held } };
+		if (!m_Upgrades.empty()) j["upgrades"] = m_Upgrades;   // T256
+		if (m_Spoiled > 0.0) { j["spoiled"] = m_Spoiled; j["spoiledAt"] = m_SpoiledAt; }
+		if (m_Upgraded > 0) j["upgraded"] = m_Upgraded;
+		return j.dump();
 	}
 
 	bool ClanStores::FromJson(const std::string& json)
@@ -273,7 +281,255 @@ namespace GB
 				if (n.get<int>() > 0) held[b][id] = n.get<int>();
 			}
 		}
+		// T256 (version 2): the stores being rebuilt, the food lost lately and how many were rebuilt (a version 1 save has none of them)
+		std::map<std::string, std::string> upgrades;
+		if (j.contains("upgrades"))
+		{
+			if (!j["upgrades"].is_object()) return false;
+			for (const auto& [site, old] : j["upgrades"].items())
+			{
+				if (!old.is_string()) return false;
+				upgrades[site] = old.get<std::string>();
+			}
+		}
+		const double spoiled = j.value("spoiled", 0.0), spoiledAt = j.value("spoiledAt", 0.0);
+		const int upgraded = j.value("upgraded", 0);
 		m_Held = std::move(held);
+		m_Upgrades = std::move(upgrades);
+		m_Spoiled = std::max(0.0, spoiled);
+		m_SpoiledAt = spoiledAt;
+		m_Upgraded = std::max(0, upgraded);
 		return true;
+	}
+
+	// ------------------------------------------------------------------ T256: food lost lately
+	void ClanStores::NoteSpoiled(int units, double now, float memory)
+	{
+		if (units <= 0) return;
+		m_Spoiled = static_cast<double>(SpoiledLately(now, memory)) + static_cast<double>(units);
+		m_SpoiledAt = now;
+	}
+
+	int ClanStores::SpoiledLately(double now, float memory) const
+	{
+		if (m_Spoiled <= 0.0) return 0;
+		const double age = std::max(0.0, now - m_SpoiledAt);
+		return static_cast<int>(std::lround(m_Spoiled * std::exp(-age / std::max(1.0, static_cast<double>(memory)))));
+	}
+
+	// ------------------------------------------------------------------ T256: the fire's reserve filled from the buildings
+	const char* const ClanStores::kRestock = "the fire's reserve";
+
+	namespace
+	{
+		std::string GoTo(const glm::vec2& at, const std::string& tail)
+		{
+			char b[64];
+			std::snprintf(b, sizeof b, "goto %.2f %.2f | ", static_cast<double>(at.x), static_cast<double>(at.y));
+			return b + tail;
+		}
+
+		// a member's own spot round a door (the golden angle, as the economy's), on ground it can stand on
+		glm::vec2 Beside(const glm::vec2& at, size_t index, const ITribeBody* body)
+		{
+			for (size_t k = 0; k < 8; ++k)
+			{
+				const float a = static_cast<float>(index + k) * 2.3999632f;
+				const glm::vec2 p = at + glm::vec2(std::cos(a), std::sin(a)) * 0.9f;
+				if (!body || body->CanStandAt(p)) return p;
+			}
+			return at;
+		}
+
+		// what the fire lacks of each item of its reserve that the buildings (or one) hold ("food": the foods they hold, the lack shared out)
+		std::map<std::string, int> Lacking(const Tribe& tribe, const ClanStores& stores, const std::string& building = std::string())
+		{
+			std::map<std::string, int> out;
+			for (const auto& [key, units] : tribe.Config.Econ.Logistics.CampReserve)
+			{
+				if (key == "food")
+				{
+					int lack = -1;
+					for (const auto& [b, items] : stores.Ledger())
+						if (building.empty() || b == building)
+							for (const auto& [id, n] : items)
+							{
+								if (!tribe.IsFood(id) || n <= 0) continue;
+								if (lack < 0) lack = stores.ReserveShort(tribe, id);
+								if (const int k = std::min(lack, n); k > 0) { out[id] += k; lack -= k; }
+							}
+					continue;
+				}
+				const int lack = stores.ReserveShort(tribe, key);
+				int held = 0;
+				for (const auto& [b, items] : stores.Ledger())
+					if (building.empty() || b == building)
+						if (const auto i = items.find(key); i != items.end()) held += i->second;
+				if (const int k = std::min(lack, held); k > 0) out[key] = k;
+			}
+			return out;
+		}
+	}
+
+	void ClanStores::PostRestock(Tribe& tribe) const
+	{
+		if (!tribe.m_Items || !Active(tribe) || m_Held.empty()) return;
+		int units = 0;
+		bool low = false;   // (a fire short of half of some reserve: a trip worth making)
+		const std::map<std::string, int> lack = Lacking(tribe, *this);
+		for (const auto& [id, n] : lack) units += n;
+		for (const auto& [key, want] : tribe.Config.Econ.Logistics.CampReserve)
+		{
+			int shortBy = 0;
+			if (key == "food") { for (const auto& [id, n] : lack) if (tribe.IsFood(id)) shortBy += n; }
+			else if (const auto it = lack.find(key); it != lack.end()) shortBy = it->second;
+			low = low || (want > 0 && 2 * shortBy >= want);
+		}
+		if (units <= 0 || !low) return;
+		tribe.m_Board.Post("haul", kRestock, "", static_cast<float>(units), tribe.Config.Econ.Logistics.Priority * 1.2f, 1,
+			"the fire is short of " + std::to_string(units) + " things of its reserve: they are in the store buildings", tribe.m_Time, tribe.Config.Work.Jobs);
+	}
+
+	bool ClanStores::StartRestock(Tribe& tribe, TribeMember& m) const
+	{
+		if (!m.Body) return false;
+		// the building that holds the most of what the fire lacks (ties: the nearest)
+		const glm::vec2 from = tribe.Where(m);
+		const std::vector<StoreLayout::Place> places = StoreLayout::Buildings(tribe);
+		const StoreLayout::Place* best = nullptr;
+		int bestUnits = 0;
+		float bestDistance = 0.0f;
+		for (const StoreLayout::Place& p : places)
+		{
+			int units = 0;
+			for (const auto& [id, n] : Lacking(tribe, *this, p.Name)) units += n;
+			const float d = glm::distance(from, p.Door);
+			if (units > 0 && (!best || units > bestUnits || (units == bestUnits && d < bestDistance))) { best = &p; bestUnits = units; bestDistance = d; }
+		}
+		if (!best) return false;
+		if (!tribe.Order(m, GoTo(Beside(best->Door, tribe.IndexOf(m), m.Body), "wait 1"))) return false;
+		m.Job = "haul";
+		m.Detail = std::string(kRestock) + "@" + best->Name;
+		tribe.Say(m, "goes to " + best->Name + " for what the fire is short of");
+		return true;
+	}
+
+	bool ClanStores::FinishRestock(Tribe& tribe, TribeMember& m)
+	{
+		const size_t at = m.Detail.find('@');
+		const std::string building = at == std::string::npos ? std::string() : m.Detail.substr(at + 1);
+		StoreLayout::Place place;
+		if (building.empty() || !m.Body || !tribe.m_Items || !Find(tribe, building, place)) return true;
+		if (glm::distance(tribe.Where(m), place.Door) > place.Reach) { tribe.Say(m, "could not get to " + building); return true; }
+		Inventory& bag = m.Body->Bag();
+		int room = tribe.CarryLimit(m), moved = 0;
+		for (const auto& [id, n] : Lacking(tribe, *this, building))
+		{
+			if (room <= 0) break;
+			const int k = tribe.m_Store.Transfer(*tribe.m_Items, bag, id, std::min(room, n));
+			Take(building, id, k);
+			room -= k;
+			moved += k;
+		}
+		if (moved == 0) return true;
+		tribe.m_Econ.Hauled += moved;
+		if (const Job* held = tribe.m_Board.ClaimOf(m.Name); held && held->Kind == "haul") tribe.m_Board.Progress(m.Name, static_cast<float>(moved), tribe.m_Time);
+		tribe.Say(m, "takes " + std::to_string(moved) + " things from " + building + " to the fire");
+		if (tribe.Order(m, GoTo(tribe.CampSpot(m), "wait 1"))) { m.Job = "deposit"; m.Detail = "hauled"; }
+		return true;
+	}
+
+	// ------------------------------------------------------------------ T256: a food store rebuilt into a better one
+	void ClanStores::PlanUpgrade(Tribe& tribe)
+	{
+		if (!tribe.m_Buildings || !tribe.m_Entities || !tribe.m_Gameplay) return;
+		// a better store that stands takes what the old one held; the old one comes down
+		for (auto it = m_Upgrades.begin(); it != m_Upgrades.end();)
+		{
+			bool standing = false, gone = true, oldThere = false;
+			for (const Tribe::Placed& p : tribe.Placements())
+			{
+				if (p.Name == it->first) { gone = false; standing = p.State.Done; }
+				if (p.Name == it->second) oldThere = true;
+			}
+			if (gone || !oldThere) { it = m_Upgrades.erase(it); continue; }
+			if (!standing) { ++it; continue; }
+			const std::string site = it->first, old = it->second;
+			StoreLayout::Place to;
+			int moved = 0;
+			if (Find(tribe, site, to))
+				if (const auto held = m_Held.find(old); held != m_Held.end())
+					for (const auto& [id, n] : Items(held->second))
+					{
+						const auto now = m_Held.find(site);
+						to.Held = now != m_Held.end() ? now->second : Items();
+						const int k = std::min(n, StoreLayout::Free(tribe, to, id));
+						if (k <= 0) continue;
+						Put(site, id, Take(old, id, k));
+						moved += k;
+					}
+			m_Held.erase(old);   // (what did not fit lies by the fire)
+			if (const EntityId e = tribe.m_Entities->FindByName(old); e != NullEntity) tribe.m_Entities->Destroy(e);
+			tribe.m_Gameplay->Remove(old);
+			tribe.ForgetPlacements();
+			++m_Upgraded;
+			char t[48];
+			std::snprintf(t, sizeof t, "%6.1f ", tribe.m_Time);
+			tribe.m_Log.push_back(std::string(t) + "the clan moves " + std::to_string(moved) + " things from " + old + " into " + site + " and pulls " + old + " down: a better store");
+			it = m_Upgrades.erase(it);
+		}
+		// one at a time, while food goes off or lies by the fire with no room, and a site is free
+		const LogisticsRules& rules = tribe.Config.Econ.Logistics;
+		if (rules.FoodStoreAt <= 0 || !m_Upgrades.empty() || !tribe.HasFire()) return;
+		int open = 0, alive = 0;
+		bool foodSite = false;   // (a food store being raised already answers the food: one at a time, as the planner)
+		for (const Tribe::Placed& p : tribe.Placements()) if (!p.State.Done) { ++open; foodSite = foodSite || (p.Def && p.Def->FoodCap > 0); }
+		for (const TribeMember& m : tribe.m_Members) if (!m.Dead) ++alive;
+		if (alive == 0 || foodSite || open >= tribe.Config.Econ.Construction.SitesFor(alive)) return;
+		int campFood = 0;
+		for (const ItemSlot& s : tribe.m_Store.Stacks())
+			if (tribe.IsFood(s.Id))
+				if (const int n = Surplus(tribe, s.Id); n > 0 && Destination(tribe, s.Id, tribe.Config.Economy.Camp).empty()) campFood += n;
+		if (SpoiledLately(tribe.m_Time, rules.SpoilMemory) + campFood < rules.FoodStoreAt) return;
+		auto payable = [&](const BuildingDef& def)
+		{
+			for (const auto& [item, n] : def.TotalNeeds())
+			{
+				bool from = tribe.m_Store.Count(item) > 0;
+				for (const auto& [kind, node] : tribe.m_Defs) from = from || node.Item == item;
+				if (!from) return false;
+			}
+			return true;
+		};
+		// the worst-keeping food store that a better one the clan knows and can pay supersedes
+		const Tribe::Placed* old = nullptr;
+		const BuildingDef* better = nullptr;
+		const auto placed = tribe.Placements();   // (kept while `old` points into it)
+		for (const Tribe::Placed& p : placed)
+		{
+			if (!p.State.Done || !p.Def || p.Def->FoodCap <= 0) continue;
+			if (old && p.Def->Keep <= old->Def->Keep) continue;
+			const BuildingDef* best = nullptr;
+			for (const auto& [id, def] : *tribe.m_Buildings)
+			{
+				if (def.FoodCap <= p.Def->FoodCap || def.Keep >= p.Def->Keep) continue;
+				if (std::find(def.Supersedes.begin(), def.Supersedes.end(), p.Def->Id) == def.Supersedes.end()) continue;
+				if (!tribe.ClanKnowsBuilding(def) || !payable(def)) continue;
+				if (!best || def.Keep < best->Keep) best = &def;
+			}
+			if (best) { old = &p; better = best; }
+		}
+		if (!old) return;
+		SitePlacement where = tribe.SitePlacementFor(*better);
+		const glm::vec2 near = old->Pos;
+		where.Rings = std::max(5, static_cast<int>((tribe.VillageReach() - where.SiteRadius) / 3.0f));
+		where.Prefer = [near](const glm::vec2& p) { return -glm::distance(p, near); };   // as near the old store as it fits
+		const std::optional<glm::vec2> spot = PlaceSite(where);
+		if (!spot) return;
+		const std::string oldName = old->Name;
+		std::string site;
+		if (!tribe.StartSite(better->Id, *spot, &site).empty() || site.empty()) return;
+		m_Upgrades[site] = oldName;
+		tribe.m_Log.back() += ": a better store for the clan's food than " + oldName;
 	}
 }

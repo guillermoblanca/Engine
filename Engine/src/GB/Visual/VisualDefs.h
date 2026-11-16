@@ -95,10 +95,21 @@ namespace GB
 		bool operator==(const BuildingVisualPhase&) const = default;
 	};
 
+	// T256: a spot inside a store building where one pile of what it keeps is drawn (in the building's own frame, under its roof or its raised
+	// floor), the pile model scaled down to fit.
+	struct StoreSlot
+	{
+		glm::vec3 Pos{ 0.0f };
+		float Scale = 0.5f;
+		float Yaw = 0.0f;                 // degrees
+		bool operator==(const StoreSlot&) const = default;
+	};
+
 	struct BuildingVisual
 	{
 		std::vector<BuildingVisualPhase> Phases;
 		glm::vec2 Footprint{ 3.0f };      // metres (x, z): what H8 clears and reserves
+		std::vector<StoreSlot> StoreSlots;   // T256: where what a store building holds is drawn, the fullest kind first (none: in the middle)
 		std::string Note;
 		bool operator==(const BuildingVisual&) const = default;
 	};

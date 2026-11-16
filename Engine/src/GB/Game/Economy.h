@@ -82,6 +82,12 @@ namespace GB
 		// T255: food that keeps less than this (its shelf life, s) goes to the store building that keeps best; food that keeps longer to the one
 		// that keeps worst with room (it leaves the good keepers to what goes off soon)
 		float KeepBestBelow = 4800.0f;
+		// T256: the clan answers food that goes off and food that finds no room: when the food it lost lately (fading over SpoilMemory s) and the
+		// food by the fire that no building takes reach FoodStoreAt units, it raises its best food store (the lowest keep it knows), up to one
+		// for every FoodStoresPer living; and it rebuilds a food store into a better one it knows (BuildingDef::Supersedes). 0: none of this
+		int FoodStoreAt = 0;
+		int FoodStoresPer = 5;
+		float SpoilMemory = 1200.0f;
 		bool operator==(const LogisticsRules&) const = default;
 	};
 

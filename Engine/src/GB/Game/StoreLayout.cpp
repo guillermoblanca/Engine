@@ -43,6 +43,7 @@ namespace GB
 			if (!p.State.Done || !p.Def) continue;
 			Place place;
 			place.Name = p.Name;
+			place.Kind = p.Def->Id;
 			place.Pos = p.Pos;
 			place.Door = SiteFront(p.Pos, *p.Def);
 			place.Reach = p.Def->Radius() + 3.0f;

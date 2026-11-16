@@ -457,6 +457,7 @@ namespace GB
 				if (const Combatant* c = m.Dead ? nullptr : m_Combat->Find(m.Name); c && !c->Wounds.empty()) ++facts.Wounded;
 		for (const auto& [item, n] : m_Econ.Spoiled) if (IsFood(item)) facts.Spoiled += n;   // H18: food the store lost to spoilage
 		facts.Raided = m_Conflict.Raided;
+		facts.SpoiledLately = m_Stores.SpoiledLately(m_Time, Config.Econ.Logistics.SpoilMemory), facts.FoodStoreAt = Config.Econ.Logistics.FoodStoreAt, facts.FoodStoresPer = Config.Econ.Logistics.FoodStoresPer;   // T256
 		facts.StoreCap = StoreCap();
 		facts.MembersPerWell = m_DigWell ? Config.Economy.MembersPerWell : 0;
 		if (facts.MembersPerWell > 0 && m_Gameplay && m_Entities)
@@ -673,6 +674,7 @@ namespace GB
 		}
 		UpdateGoals();   // F5
 		UpdateHouseholds();   // N1
+		m_Stores.PlanUpgrade(*this);   // T256: a food store rebuilt into a better one (GB/Game/ClanStores.h)
 		// the log tells once when a building stands (whoever gave it its last Build)
 		for (const Placed& p : Placements())
 			if (p.State.Done && m_Announced.insert(p.Name).second)

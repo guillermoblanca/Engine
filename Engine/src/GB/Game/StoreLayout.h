@@ -22,6 +22,7 @@ namespace GB
 		struct Place
 		{
 			std::string Name;                   // the building's name (as in Tribe::SettlementSites)
+			std::string Kind;                   // its BuildingDef id (T256: where its things are drawn inside it, visuals.json storeSlots)
 			glm::vec2 Pos{ 0.0f };              // its centre
 			glm::vec2 Door{ 0.0f };             // where people stand to leave and take things (its front)
 			float Reach = 4.0f;                 // a deposit or a take counts within this of its centre

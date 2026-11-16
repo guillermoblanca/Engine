@@ -258,7 +258,7 @@ namespace GB::Editor
 				}
 			out.push_back(made.empty() ? L.Text("a workshop ({0})", L.Name("station", def.Station)) : L.Text("a workshop: here the clan makes {0}", made));
 		}
-		if (!def.Store.empty()) out.push_back(L.Text("a second store: what is gathered nearby is kept here"));
+		if (!def.Store.empty()) out.push_back(L.Text("keeps the clan's things: people bring them here and take them from here"));   // T256 (T255 made it so)
 		if (def.StoreCap > 0) out.push_back(L.Text("the clan's store holds {0} more of each thing", def.StoreCap));
 		if (def.Keep < 1.0f) out.push_back(L.Text("the food in the store goes off {0} % slower", static_cast<int>(std::lround((1.0f - def.Keep) * 100.0f))));
 		if (def.Defense > 0.0f) out.push_back(L.Text("defence {0}: raiders think twice and the camp's defenders fight harder", L.Num(def.Defense, def.Defense == std::floor(def.Defense) ? 0 : 1)));
@@ -272,7 +272,8 @@ namespace GB::Editor
 		{
 			std::string old;
 			for (const std::string& b : def.Supersedes) old += (old.empty() ? "" : ", ") + name(b);
-			out.push_back(L.Text("once the clan can raise it, it stops planning {0}", old));
+			out.push_back(def.FoodCap > 0 ? L.Text("when food goes off, the clan rebuilds its {0} into this one", old)   // T256: a better food store
+				: L.Text("once the clan can raise it, it stops planning {0}", old));
 		}
 		if (out.empty()) out.push_back(L.Text("no lasting effect"));
 		return out;
