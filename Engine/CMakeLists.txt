@@ -137,6 +137,8 @@ add_library(GB_Sim STATIC
     src/GB/Game/TribeWork.cpp
     src/GB/Game/TribeExplore.cpp
     src/GB/Game/TribeEconomy.cpp
+    src/GB/Game/StoreLayout.cpp
+    src/GB/Game/ClanStores.cpp
     src/GB/Game/TribeConflict.cpp
     src/GB/Game/Trails.cpp
     src/GB/Game/Conflict.cpp

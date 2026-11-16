@@ -45,6 +45,11 @@ namespace GB
 			// (one more for every 25 living while the store stays full: a big village keeps more than one granary)
 			if ((!def.Store.empty() || def.StoreCap > 0 || def.FoodCap > 0) && !f.FullItem.empty() && count[id] < std::max(1, alive / 25))
 				want(2.0f, "the store is full of " + f.FullItem + " (" + std::to_string(f.FullCount) + "/" + std::to_string(f.StoreCap) + ")");
+			// T255: a pile by the fire that no store building has room for: one more store for every 120 units of it (at most one for every 6 living)
+			// (the food's pile asks for a building that keeps food, the rest's for one that keeps anything)
+			if (const int pile = def.FoodCap > 0 ? f.CampFood : (!def.Store.empty() || def.StoreCap > 0) ? f.CampPile - f.CampFood : 0;
+				pile >= 120 && count[id] < std::max(1, alive / 25) + std::min(pile / 120, std::max(1, alive / 6)))
+				want(1.5f, std::to_string(pile) + " things lie by the fire: the stores are full");
 			// the generic provisions (docs/PROGRESION.md), each only for the first of its kind
 			if (count[id] == 0)
 			{

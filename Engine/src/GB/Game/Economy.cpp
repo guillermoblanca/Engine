@@ -239,7 +239,8 @@ namespace GB
 				x = LogisticsRules();
 				Reader r{ *p, "logistics", {} };
 				if (!(e = r.Float("perBagSlot", x.PerBagSlot, 0.0f, 100.0f)).empty() || !(e = r.Float("priority", x.Priority, 0.0f, 100.0f)).empty()
-					|| !(e = r.Int("haulAt", x.HaulAt, 1, 1000)).empty() || !(e = r.Text("fieldStore", x.FieldStore)).empty()) return e;
+					|| !(e = r.Int("haulAt", x.HaulAt, 1, 1000)).empty() || !(e = r.Text("fieldStore", x.FieldStore)).empty()
+					|| !(e = r.Float("keepBestBelow", x.KeepBestBelow, 0.0f, 1e7f)).empty()) return e;
 				if (r.Has("stores"))
 				{
 					const Json& s = (*p)["stores"];
@@ -250,6 +251,16 @@ namespace GB
 						StoreKind k;
 						if (!(e = ReadStore(o, name, k)).empty()) return e;
 						x.Stores[name] = k;
+					}
+				}
+				if (r.Has("campReserve"))   // T255
+				{
+					const Json& c = (*p)["campReserve"];
+					if (!c.is_object()) return "economy: logistics campReserve must be an object of item -> units";
+					for (const auto& [item, n] : c.items())
+					{
+						if (!n.is_number_integer() || n.get<int>() < 0 || n.get<int>() > 10000) return "economy: logistics campReserve " + item + " must be a whole number from 0 to 10000";
+						x.CampReserve[item] = n.get<int>();
 					}
 				}
 				if (!x.Stores.count("main")) x.Stores["main"] = StoreKind();
@@ -332,6 +343,8 @@ namespace GB
 		l["priority"] = Rounded(r.Logistics.Priority);
 		l["haulAt"] = r.Logistics.HaulAt;
 		l["fieldStore"] = r.Logistics.FieldStore;
+		if (!r.Logistics.CampReserve.empty()) l["campReserve"] = r.Logistics.CampReserve;   // T255
+		l["keepBestBelow"] = Rounded(r.Logistics.KeepBestBelow);
 		const Json k = { { "maxSites", r.Construction.MaxSites }, { "membersPerSite", r.Construction.MembersPerSite }, { "ageSeconds", Rounded(r.Construction.AgeSeconds) },
 			{ "ageMax", Rounded(r.Construction.AgeMax) } };
 		const Json w = { { "days", Rounded(r.WinterStock.Days) }, { "from", Rounded(r.WinterStock.From) } };

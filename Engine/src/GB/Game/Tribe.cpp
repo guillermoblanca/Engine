@@ -482,6 +482,7 @@ namespace GB
 		m_TelemetryKnown.clear();
 		m_TelemetryNext = 0.0;
 		m_Store = Inventory(StoreSlots(), 0.0f);
+		m_Stores.Clear();
 		m_Time = 0.0;
 		m_Clock = 0.0;
 		m_ClockSet = false;
@@ -1304,6 +1305,7 @@ namespace GB
 		m_Cost.Thinks = m_Cost.Budget - budget;
 		m_Cost.ThinkMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - thinkStart).count();
 		m_Cursor = last;
+		m_Stores.Reconcile(*this);   // T255: after this frame's takes, the store buildings' ledger follows the store again (GB/Game/ClanStores.h)
 	}
 
 	// What the member remembers, in one pass: for each kind the nearest place worth going to (trusted, not claimed by another) and whether it knows any at all.
@@ -1468,6 +1470,16 @@ namespace GB
 			o.Kind = "eat";
 			o.Target = berries > 0 ? "bag" : pantryFood > 0 ? "pantry" : "store";
 			o.Where = berries > 0 ? pos : CampSpot(m);
+			if (o.Target == "store" && ClanStores::Active(*this))   // T255: at the nearest place that holds food (the fire's reserve, or a store building)
+			{
+				StoreLayout::Place shed;
+				if (const std::string from = m_Stores.FoodSource(*this, pos, &shed); from != "-" && !from.empty())
+				{
+					o.Target = "store@" + from;
+					const float a = static_cast<float>(IndexOf(m)) * 2.3999632f;   // (each its own place at the door)
+					o.Where = shed.Door + 0.9f * glm::vec2(std::cos(a), std::sin(a));
+				}
+			}
 			if (o.Target == "pantry")   // at home: in front of its house (or at the camp while it has none)
 				for (const Placed& p : Placements()) if (p.Name == household->Home && p.State.Done) o.Where = SiteFront(p.Pos, *p.Def);
 			const float reach = Falloff(glm::distance(pos, o.Where), 60.0f);
@@ -1926,7 +1938,7 @@ namespace GB
 			if (!Order(m, go)) return false;
 			m.Job = o.Kind;
 			m.Detail = o.Kind == "deposit" ? o.Target : std::string();   // (H18: "" = the main store, else a stockpile)
-			if (o.Kind == "deposit") Say(m, "carries " + std::to_string(Carried(*m_Items, bag)) + " things to " + (o.Target.empty() ? std::string("the store") : o.Target));
+			if (o.Kind == "deposit") Say(m, "carries " + std::to_string(Carried(*m_Items, bag)) + " things to " + (o.Target.empty() ? std::string("the store") : o.Target[0] == '@' ? "the store at " + o.Target.substr(1) : o.Target));
 			else Say(m, "goes to light the campfire");
 			return true;
 		}
@@ -2054,9 +2066,12 @@ namespace GB
 		if (carried.empty() && pantry != m_Econ.Pantries.end())
 			if (const std::string home = FirstFood(pantry->second); !home.empty() && pantry->second.RemoveOldest(home, 1) == 1) carried = home;   // (eaten: taken now, as from the bag)
 		const bool fromHome = !carried.empty() && FirstFood(m.Body->Bag()) != carried;
-		std::string stored = carried.empty() ? FirstFood(m_Store) : std::string();
-		if (!fromHome) ChooseMeal(m, carried, stored);   // social life: a varied meal from the store when it can (TribeSocial.cpp)
+		// T255: the store's food where it went to eat ("store@<building>": that building's; else the fire's, the whole store while it has none)
+		const std::string shed = m.Detail.rfind("store@", 0) == 0 ? m.Detail.substr(6) : std::string();
+		std::string stored = carried.empty() ? FirstFood(m_Stores.At(*this, shed)) : std::string();
+		if (!fromHome && shed.empty()) ChooseMeal(m, carried, stored);   // social life: a varied meal from the store when it can (TribeSocial.cpp)
 		const bool ate = fromHome || (!carried.empty() && m.Body->Bag().RemoveOldest(carried, 1) == 1) || (!stored.empty() && m_Store.RemoveOldest(stored, 1) == 1);   // the oldest (E6)
+		if (ate && carried.empty() && !shed.empty()) m_Stores.Take(shed, stored, 1);
 		if (ate)
 		{
 			++m.Meals;
@@ -2205,16 +2220,21 @@ namespace GB
 		else if (job == "deposit")
 		{
 			const bool atCamp = m.Detail.empty() || m.Detail == "hauled";
-			const Stockpile* pile = atCamp ? nullptr : FindStockpile(m.Detail);
-			// only where it got to: a trip that failed left the things in the store all the same, from wherever the member stood
-			if (glm::distance(Where(m), pile ? pile->Pos : Config.Economy.Camp) > (pile ? kReachStore : 9.0f))
-				Say(m, "could not get to " + (atCamp ? std::string("the store") : m.Detail) + ": it keeps what it carries");
+			const std::string shed = m.Detail.find('@') == std::string::npos ? std::string() : m.Detail.substr(m.Detail.find('@') + 1);   // T255: a store building
+			StoreLayout::Place building;
+			const bool inShed = !shed.empty() && ClanStores::Find(*this, shed, building);
+			const Stockpile* pile = atCamp || !shed.empty() ? nullptr : FindStockpile(m.Detail);
+			// only where it got to: a trip that failed left the things in the store all the same, from wherever the member stood (T255: at the
+			// store building it was carried to, not 9 m from the fire)
+			const glm::vec2 there = inShed ? building.Pos : pile ? pile->Pos : Config.Economy.Camp;
+			if ((!shed.empty() && !inShed) || glm::distance(Where(m), there) > (inShed ? building.Reach : pile ? kReachStore : 9.0f))
+				Say(m, "could not get to " + (atCamp ? std::string("the store") : inShed ? shed : m.Detail) + ": it keeps what it carries");
 			else
 			{
 				const int moved = DepositAt(m, m.Detail);   // H18: the main store or a stockpile (TribeEconomy.cpp)
 				m.Deposited += moved;
-				Say(m, "leaves " + std::to_string(moved) + " in " + (atCamp ? std::string("the store") : m.Detail));
-				if (atCamp) HandOut(m);   // at the camp: a better tool or a basket from the store
+				Say(m, "leaves " + std::to_string(moved) + " in " + (atCamp ? std::string("the store") : inShed ? "the store at " + shed : m.Detail));
+				if (atCamp || inShed) HandOut(m, shed);   // at the camp or a store building: a better tool or a basket from what lies there
 			}
 			Share(m);
 		}
@@ -2377,6 +2397,7 @@ namespace GB
 		j["fire"] = m_Fire ? 1 : 0;   // its state is the interactive's (tags and attributes, saved with the gameplay)
 		j["camp"] = Json::array({ Config.Economy.Camp.x, Config.Economy.Camp.y, Config.Economy.CampY });
 		j["store"] = Json::parse(m_Store.ToJson());
+		if (!m_Stores.Ledger().empty()) j["stores"] = Json::parse(m_Stores.ToJson());   // T255 (an older save has none: everything lies by the fire)
 		j["clan"] = Json::parse(m_Clan.ToJson());
 		j["soundSeq"] = m_Sounds.LastSeq();
 		Json claims = Json::object();
@@ -2427,6 +2448,8 @@ namespace GB
 		Inventory store;
 		SpatialMemory clan;
 		if (!store.FromJson(j["store"].dump()) || !clan.FromJson(j["clan"].dump())) return false;
+		ClanStores stores;   // T255 (an older save has none)
+		if (j.contains("stores") && !stores.FromJson(j["stores"].dump())) return false;
 		JobBoard board;
 		if (j.contains("board") && !board.FromJson(j["board"].dump())) return false;
 		ExplorationState explore;
@@ -2457,6 +2480,7 @@ namespace GB
 		}
 		// all checked: nothing above changed the tribe
 		m_Store = store;
+		m_Stores = std::move(stores);
 		m_Clan = clan;
 		m_Time = j.value("time", 0.0);
 		m_Clock = j.value("clock", 0.0);

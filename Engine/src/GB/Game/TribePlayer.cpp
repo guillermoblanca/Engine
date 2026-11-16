@@ -352,16 +352,19 @@ namespace GB
 	{
 		TribeMember* m = MemberNamed(player);
 		if (!m || !m->Player || m->Dead || !m->Body) return { false, "no player called " + player + " in the clan" };
-		if (!NearCampForPlayer(*m)) return { false, "the store is at the camp (" + Fixed(glm::distance(Where(*m), Config.Economy.Camp)) + " m away)" };
+		std::string shed;   // T255: at a store building of the clan, it leaves things in it; by the fire, by the fire (the clan carries them in)
+		for (const StoreLayout::Place& p : StoreLayout::Buildings(*this)) if (shed.empty() && glm::distance(Where(*m), p.Pos) <= p.Reach) shed = p.Name;
+		if (shed.empty() && !NearCampForPlayer(*m)) return { false, "the store is at the camp (" + Fixed(glm::distance(Where(*m), Config.Economy.Camp)) + " m away)" };
 		Inventory& bag = m->Body->Bag();
 		const Job* held = m_Board.ClaimOf(player);
 		const std::string jobItem = held && held->Kind == "gather" ? held->Target : std::string();
 		const int jobBefore = jobItem.empty() ? 0 : bag.Count(jobItem);
 		int moved = 0;
-		if (item.empty()) moved = DepositAt(*m, std::string());   // everything that is not a tool, as a member does (with the board and the food counted)
+		if (item.empty()) moved = DepositAt(*m, shed.empty() ? std::string() : "@" + shed);   // everything that is not a tool, as a member does (with the board and the food counted)
 		else
 		{
 			moved = bag.Transfer(*m_Items, m_Store, item, count > 0 ? count : bag.Count(item));
+			m_Stores.Put(shed, item, moved);
 			if (moved > 0 && item == jobItem) m_Board.Progress(player, static_cast<float>(moved), m_Time);
 			if (moved > 0 && IsFood(item)) { m_Econ.FoodToday += moved; m_FoodBy = player; }
 		}

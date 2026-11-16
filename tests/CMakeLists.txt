@@ -198,6 +198,8 @@ gb_test(lake_consumers lake_consumers_test.cpp POOL GBSimTests LINK GB::Sim LABE
 gb_test(forest forest_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_assets})
 gb_test(tribe tribe_test.cpp POOL GBSimTests LINK GB::Sim sqlite3 LABELS "lento;sim" DEFS ${gb_assets})
 gb_test(settlement settlement_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lento;sim" DEFS ${gb_assets})
+# T255: the store buildings keep the clan's things (deposits walk to them, takes come from them, the ledger saves and loads)
+gb_test(clan_stores clan_stores_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # The settlement planner alone (needs and sites from plain facts, no Tribe)
 gb_test(settlement_planner settlement_planner_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 # The timetable alone (parts of the day, shifts, agenda factors)

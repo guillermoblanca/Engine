@@ -44,6 +44,8 @@ namespace GB
 		std::string FullItem;             // the lowest-id item the main store holds to within 2 of its cap ("" = none)
 		int FullCount = 0;                // ... and how many it holds
 		int StoreCap = 0;                 // ... of this cap
+		int CampPile = 0;                 // T255: units by the fire past its reserve that no store building has room for (more stores are wanted)
+		int CampFood = 0;                 // ... of them food
 		int Wells = 0;                    // wells the clan draws from on its home ground
 		int MembersPerWell = 0;           // a well dug for every this many living (0: none dug)
 		std::map<std::string, float> Wanting;   // V5: a provision the needs of the packs ask (BuildingDef::Provides) -> how short the clan is of it, 0..1

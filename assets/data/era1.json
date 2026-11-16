@@ -558,7 +558,9 @@
       "perBagSlot": 1.0,
       "priority": 0.9,
       "haulAt": 8,
-      "fieldStore": "stockpile"
+      "fieldStore": "stockpile",
+      "campReserve": { "wood": 6, "food": 10 },
+      "keepBestBelow": 4800
     },
     "construction": { "maxSites": 3, "membersPerSite": 4 }
   },

@@ -12,6 +12,7 @@
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Game/SimQA.h"
 #include "GB/Game/SocietyMetrics.h"
+#include "GB/Game/StoreLayout.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/ContentPack.h"
 #include "GB/Gameplay/Items.h"
@@ -400,6 +401,11 @@ int main(int argc, char** argv)
 				t->Households().size(), t->Economy().Fields.size(), t->Config.Econ.Farming.FieldsFor(alive), t->Store().UsedSlots(), goals.c_str(), t->SettlementReport().c_str(),
 				t->FieldReport().c_str(), t->EconomyReport().c_str());
 			for (const GB::BuildingNeed& n : t->PublicBuildingNeeds()) std::fprintf(stderr, "  needs %s (%.2f): %s\n", n.Building.c_str(), n.Urgency, n.Why.c_str());
+			// T248: where the store's things lie (in its store buildings or by the fire)
+			const GB::StoreLayout layout = GB::StoreLayout::Of(*t);
+			std::string lay;
+			for (const GB::StoreLayout::Place& p : layout.Places()) lay += " " + p.Name + " " + std::to_string(p.Units()) + "/" + std::to_string(p.FoodRoom + p.Room) + ";";
+			std::fprintf(stderr, "  store layout: %d in buildings, %d by the fire;%s\n", layout.InBuildings(), layout.AtCampUnits(), lay.c_str());
 		}
 		// V1: how big the world's history and its memories grew (bounded: GB/Game/History.h)
 		const GB::WorldHistory& past = run.Clans().Past();

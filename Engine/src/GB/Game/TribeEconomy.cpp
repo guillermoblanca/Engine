@@ -20,6 +20,7 @@ namespace GB
 		// Each member's own place around a stockpile or a station: one point for all of them was a queue, and the ones behind waited for the crowd
 		// (20 s) and gave up (the golden angle spreads any number of them round the circle)
 		constexpr float kReachStore = 4.0f;   // what a stockpile holds is picked up within this of it
+		const std::string kCampPile = "the pile by the fire";   // T255: the target of a haul from the camp to the store buildings
 
 		// T214: with a body, a place it can stand on: a station by the river put some members' places in the water, where the way failed trip
 		// after trip ("no way to 34.2 17.7", temperate seed 77, 18 times). The next places round the circle are tried; none: its own, as before.
@@ -427,11 +428,24 @@ namespace GB
 			bool fits = false;   // L2: no haul while the main store has no room for any of it (the hauler would carry it back and forth)
 			for (const ItemSlot& s : p.Store.Stacks())
 			{
+				if (m_Store.Count(s.Id) >= StoreCap(s.Id)) continue;   // T248: past the main store's cap it stays where it is (it would be thrown away there)
 				units += s.Count;
 				if (!fits) { Inventory probe = m_Store; fits = probe.Add(*m_Items, s.Id, 1) > 0; }
 			}
 			if (fits && units >= econ.Logistics.HaulAt)
 				m_Board.Post("haul", p.Name, "", static_cast<float>(units), econ.Logistics.Priority, 1, p.Name + " holds " + std::to_string(units) + " things for the store", m_Time, rules);
+		}
+		// T255: the pile by the fire past its reserve is carried to the store buildings with room for it (the first one built empties the old pile)
+		if (ClanStores::Active(*this))
+		{
+			int units = 0;
+			std::set<std::string> seen;
+			for (const ItemSlot& s : m_Store.Stacks())
+				if (seen.insert(s.Id).second)
+					if (const int n = m_Stores.Surplus(*this, s.Id); n > 0 && !m_Stores.Destination(*this, s.Id, Config.Economy.Camp).empty()) units += n;
+			if (units >= econ.Logistics.HaulAt)
+				m_Board.Post("haul", kCampPile, "", static_cast<float>(units), econ.Logistics.Priority, units >= 4 * econ.Logistics.HaulAt ? 2 : 1,
+					"the pile by the fire holds " + std::to_string(units) + " things for the store buildings", m_Time, rules);
 		}
 	}
 
@@ -464,9 +478,10 @@ namespace GB
 		{
 			const Stockpile* pile = nullptr;
 			for (const Stockpile& p : m_Econ.Stockpiles) if (p.Name == job.Target) pile = &p;
-			if (!pile || Carried(*m_Items, bag) > 0) return 0.0f;   // it goes with an empty bag
+			const bool camp = job.Target == kCampPile;   // T255
+			if ((!pile && !camp) || Carried(*m_Items, bag) > 0) return 0.0f;   // it goes with an empty bag
 			const float load = std::clamp(static_cast<float>(CarryLimit(m)) / static_cast<float>(std::max(1, Config.Economy.DepositAt)), 1.0f, 3.0f) / 3.0f;   // L3: who carries more (a basket) hauls
-			return job.Priority * liking("haul") * Falloff(glm::distance(pos, pile->Pos), 60.0f) * vigor * (0.5f + 0.5f * load);
+			return job.Priority * liking("haul") * Falloff(glm::distance(pos, camp ? Config.Economy.Camp : pile->Pos), 60.0f) * vigor * (0.5f + 0.5f * load);
 		}
 		return 0.0f;
 	}
@@ -503,7 +518,18 @@ namespace GB
 			glm::vec2 at;
 			if (!r || !StationAt(r->Station, &at)) return false;
 			const glm::vec2 spot = at == Config.Economy.Camp ? CampSpot(m) : Around(at, IndexOf(m), 1.2f, m.Body);
-			if (!Order(m, Go(spot, Seconds(econ.Production.Seconds)))) return false;
+			// T255: what the fire lacks of the inputs it fetches on the way from the store building that holds them (they are made with by the fire's share)
+			std::string fetch;
+			if (ClanStores::Active(*this))
+				for (const auto& [id, n] : r->Inputs)
+				{
+					const int lack = n - m_Stores.AtCamp(*this, id);
+					StoreLayout::Place from;
+					if (lack <= 0) continue;
+					if (const std::string source = m_Stores.Source(*this, id, lack, Where(m), &from); !source.empty() && source != "-" && m_Stores.Take(source, id, lack) > 0 && fetch.empty())
+						fetch = Go(Around(from.Door, IndexOf(m), 0.9f, m.Body), "wait 1") + " | ";
+				}
+			if (!Order(m, fetch + Go(spot, Seconds(econ.Production.Seconds)))) return false;
 			m.Job = "make";
 			m.Detail = r->Id;
 			Say(m, "goes to make " + r->Output + (r->Station.empty() ? std::string() : " at the " + r->Station));
@@ -511,6 +537,14 @@ namespace GB
 		}
 		if (o.Kind == "haul")
 		{
+			if (o.Target == kCampPile)   // T255: to the pile by the fire
+			{
+				if (!Order(m, Go(CampSpot(m), "wait 1"))) return false;
+				m.Job = "haul";
+				m.Detail = kCampPile;
+				Say(m, "goes to carry the pile by the fire to the store");
+				return true;
+			}
 			const Stockpile* pile = FindStockpile(o.Target);
 			if (!pile) return false;
 			if (!Order(m, Go(Around(pile->Pos, IndexOf(m), 0.9f, m.Body), "wait 1"))) return false;
@@ -596,6 +630,43 @@ namespace GB
 			Share(m);
 			return true;
 		}
+		// T255: where a hauler carries what it picked up: the store building the first of it goes to ("hauled@<building>"), else the fire
+		auto carryOn = [&]()
+		{
+			StoreLayout::Place to;
+			std::string shed;
+			if (ClanStores::Active(*this))
+				for (const ItemSlot& s : bag.Stacks())
+					if (shed.empty() && !Kept(*m_Items, s.Id)) shed = m_Stores.Destination(*this, s.Id, Where(m), &to);
+			const glm::vec2 spot = shed.empty() ? CampSpot(m) : Around(to.Door, IndexOf(m), 0.9f, m.Body);
+			if (Order(m, Go(spot, "wait 1"))) { m.Job = "deposit"; m.Detail = shed.empty() ? std::string("hauled") : "hauled@" + shed; }
+		};
+		if (job == "haul" && m.Detail == kCampPile)
+		{
+			if (glm::distance(Where(m), Config.Economy.Camp) > 9.0f) { Say(m, "could not get to the pile by the fire"); return true; }
+			// the most of one building's things, past the fire's reserve
+			int room = CarryLimit(m), moved = 0;
+			std::string shed;
+			std::set<std::string> seen;
+			for (const ItemSlot& s : std::vector<ItemSlot>(m_Store.Stacks()))
+			{
+				if (room <= 0 || !seen.insert(s.Id).second) continue;
+				const int surplus = m_Stores.Surplus(*this, s.Id);
+				StoreLayout::Place place;
+				const std::string to = surplus > 0 ? m_Stores.Destination(*this, s.Id, Config.Economy.Camp, &place) : std::string();
+				if (to.empty() || (!shed.empty() && to != shed)) continue;
+				shed = to;
+				const int n = m_Store.Transfer(*m_Items, bag, s.Id, std::min({ room, surplus, StoreLayout::Free(*this, place, s.Id) }));
+				room -= n;
+				moved += n;
+			}
+			if (moved == 0) return true;
+			m_Econ.Hauled += moved;
+			if (const Job* held = m_Board.ClaimOf(m.Name); held && held->Kind == "haul") m_Board.Progress(m.Name, static_cast<float>(moved), m_Time);
+			Say(m, "picks up " + std::to_string(moved) + " things from the pile by the fire for the store at " + shed);
+			carryOn();
+			return true;
+		}
 		if (job == "haul")
 		{
 			Stockpile* pile = FindStockpile(m.Detail);
@@ -605,7 +676,9 @@ namespace GB
 			for (const ItemSlot& s : std::vector<ItemSlot>(pile->Store.Stacks()))
 			{
 				if (room <= 0) break;
-				const int n = pile->Store.Transfer(*m_Items, bag, s.Id, std::min(room, s.Count));
+				const int wanted = std::min(s.Count, StoreCap(s.Id) - m_Store.Count(s.Id) - bag.Count(s.Id));   // T248: only what the main store still takes
+				if (wanted <= 0) continue;
+				const int n = pile->Store.Transfer(*m_Items, bag, s.Id, std::min(room, wanted));
 				room -= n;
 				moved += n;
 			}
@@ -613,11 +686,8 @@ namespace GB
 			m_Econ.Hauled += moved;
 			if (const Job* held = m_Board.ClaimOf(m.Name); held && held->Kind == "haul") m_Board.Progress(m.Name, static_cast<float>(moved), m_Time);
 			Say(m, "picks up " + std::to_string(moved) + " things at " + pile->Name + " for the store");
-			// and carries them straight to the main store (a deposit whose place is not a stockpile: the main store)
-			char go[96];
-			const glm::vec2 spot = CampSpot(m);
-			std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(spot.x), static_cast<double>(spot.y));
-			if (Order(m, go)) { m.Job = "deposit"; m.Detail = "hauled"; }
+			// and carries them straight to the main store (a deposit whose place is not a stockpile: the main store; T255: its store building)
+			carryOn();
 			return true;
 		}
 		// farm: "<action> <field> <crop|-> <plot> <plot>..."
@@ -680,26 +750,35 @@ namespace GB
 	}
 
 	// At the camp: a better tool of its trade than the one it carries, and a container if it has none, are taken from the store (the old tool goes back).
-	void Tribe::HandOut(TribeMember& m)
+	void Tribe::HandOut(TribeMember& m, const std::string& at)
 	{
 		if (!m.Body || !m_Items) return;
 		Inventory& bag = m.Body->Bag();
 		bool changed = false;
+		// T255: only what lies where it stands: the fire's share at the camp, a building's in it (the whole store while the clan has none)
+		const Inventory here = m_Stores.At(*this, at);
+		auto take = [&](const std::string& id)
+		{
+			if (here.Count(id) <= 0 || m_Store.Transfer(*m_Items, bag, id, 1) != 1) return false;
+			m_Stores.Take(at, id, 1);
+			return true;
+		};
+		auto leave = [&](const std::string& id) { if (bag.Transfer(*m_Items, m_Store, id, 1) == 1) m_Stores.Put(at, id, 1); };
 		if (const auto role = Config.Roles.find(m.Role); role != Config.Roles.end() && !role->second.ToolTag.empty())
 		{
 			const std::string& tag = role->second.ToolTag;
-			const ItemDef* best = m_Store.BestTool(*m_Items, tag);
+			const ItemDef* best = here.BestTool(*m_Items, tag);
 			const ItemDef* mine = bag.BestTool(*m_Items, tag);
-			if (best && (!mine || best->Power > mine->Power || (best->Power == mine->Power && best->Speed > mine->Speed)) && m_Store.Transfer(*m_Items, bag, best->Id, 1) == 1)
+			if (best && (!mine || best->Power > mine->Power || (best->Power == mine->Power && best->Speed > mine->Speed)) && take(best->Id))
 			{
 				const std::string old = mine ? mine->Id : std::string();
-				if (!old.empty()) bag.Transfer(*m_Items, m_Store, old, 1);
+				if (!old.empty()) leave(old);
 				Say(m, "takes the " + best->Id + " from the store" + (old.empty() ? std::string() : " and leaves its " + old));
 				changed = true;
 			}
 		}
 		if (!bag.BestContainer(*m_Items))
-			if (const ItemDef* c = m_Store.BestContainer(*m_Items); c && m_Store.Transfer(*m_Items, bag, c->Id, 1) == 1)
+			if (const ItemDef* c = here.BestContainer(*m_Items); c && take(c->Id))
 			{
 				Say(m, "takes a " + c->Id + " from the store: it can carry more");
 				changed = true;
@@ -719,13 +798,14 @@ namespace GB
 	{
 		if (!m.Body || !m_Items) return {};
 		const glm::vec2 pos = Where(m);
-		auto room = [&](const Inventory& to, const StoreKind* kind)   // a copy is tried: the slots, the stacks and a stockpile's caps decide
+		auto room = [&](const Inventory& to, const StoreKind* kind, bool capped = true)   // a copy is tried: the slots, the stacks and the caps decide
 		{
 			Inventory probe = to;
 			for (const ItemSlot& s : m.Body->Bag().Stacks())
 			{
 				if (Kept(*m_Items, s.Id)) continue;
 				if (kind && (!Takes(*kind, m_Items->Find(s.Id)) || to.Count(s.Id) >= kind->Cap)) continue;
+				if (!kind && capped && to.Count(s.Id) >= StoreCap(s.Id)) continue;   // T248: the main store's cap too (else 539 units thrown away in 3 days, the storage empty)
 				if (probe.Add(*m_Items, s.Id, 1) > 0) return true;
 			}
 			return false;
@@ -733,6 +813,23 @@ namespace GB
 		const bool main = room(m_Store, nullptr);
 		float best = main ? glm::distance(pos, Config.Economy.Camp) - 1.0f : 1e30f;
 		std::string place = main ? std::string() : std::string("-");
+		// T255: with store buildings the main store is them: each thing goes to its building (ClanStores::Destination), or to the fire while the
+		// fire is short of its reserve or no building has room for it; the trip is to the nearest of those places ("@<building>" or "")
+		if (main && ClanStores::Active(*this))
+		{
+			best = 1e30f;
+			for (const ItemSlot& s : m.Body->Bag().Stacks())
+			{
+				if (Kept(*m_Items, s.Id) || m_Store.Count(s.Id) >= StoreCap(s.Id)) continue;
+				StoreLayout::Place building;
+				const std::string to = m_Stores.ReserveShort(*this, s.Id) > 0 ? std::string() : m_Stores.Destination(*this, s.Id, pos, &building);
+				const float d = to.empty() ? glm::distance(pos, Config.Economy.Camp) - 1.0f : glm::distance(pos, building.Door);
+				if (d >= best) continue;
+				best = d;
+				place = to.empty() ? std::string() : "@" + to;
+				where = to.empty() ? CampSpot(m) : Around(building.Door, IndexOf(m), 0.9f, m.Body);
+			}
+		}
 		for (const Stockpile& p : m_Econ.Stockpiles)
 		{
 			const auto kind = Config.Econ.Logistics.Stores.find(p.Kind);
@@ -741,6 +838,7 @@ namespace GB
 			const float d = glm::distance(pos, p.Pos);
 			if (d < best) { best = d; place = p.Name; where = Around(p.Pos, IndexOf(m), 0.9f, m.Body); }
 		}
+		if (place == "-" && room(m_Store, nullptr, false)) place.clear();   // no store has room under its cap: to the main store all the same (it leaves what is past the cap; a bag never clogs)
 		return place;
 	}
 
@@ -759,15 +857,40 @@ namespace GB
 	int Tribe::DepositAt(TribeMember& m, const std::string& place)
 	{
 		Inventory& bag = m.Body->Bag();
-		Stockpile* pile = place.empty() ? nullptr : FindStockpile(place);
+		// T255: "" or "hauled" the fire; "@<building>" or "hauled@<building>" a store building of the main store; else a stockpile
+		const size_t at = place.find('@');
+		const std::string building = at == std::string::npos ? std::string() : place.substr(at + 1);
+		const bool hauled = place.rfind("hauled", 0) == 0;
+		Stockpile* pile = place.empty() || hauled || !building.empty() ? nullptr : FindStockpile(place);
 		const StoreKind* kind = nullptr;
 		if (pile)
 			if (const auto k = Config.Econ.Logistics.Stores.find(pile->Kind); k != Config.Econ.Logistics.Stores.end()) kind = &k->second;
 		Inventory& to = pile && kind ? pile->Store : m_Store;
-		const bool hauled = place == "hauled";
+		StoreLayout::Place shed;   // the store building it leaves things in (T255)
+		const bool inShed = !building.empty() && ClanStores::Find(*this, building, shed);
+		const bool sorted = !pile && !m.Player && ClanStores::Active(*this);   // the fire takes only its reserve and what no building has room for (a player leaves all)
+		auto mainTakes = [&](const std::string& id, int count)
+		{
+			if (inShed)
+			{
+				const auto held = m_Stores.Ledger().find(building);
+				shed.Held = held != m_Stores.Ledger().end() ? held->second : ClanStores::Items();
+				return std::min(count, StoreLayout::Free(*this, shed, id));
+			}
+			if (!sorted) return count;
+			if (const int reserve = m_Stores.ReserveShort(*this, id); reserve > 0) return std::min(count, reserve);
+			return m_Stores.Destination(*this, id, Where(m)).empty() ? count : 0;
+		};
 		int moved = 0;
 		const Job* held = m_Board.ClaimOf(m.Name);
 		const std::string jobItem = held && held->Kind == "gather" ? held->Target : std::string();
+		auto PileTakes = [&](const std::string& id)   // T248: a stockpile with room for it (the main store's surplus is kept there, not thrown away)
+		{
+			for (const Stockpile& p : m_Econ.Stockpiles)
+				if (const auto k = Config.Econ.Logistics.Stores.find(p.Kind); k != Config.Econ.Logistics.Stores.end() && Takes(k->second, m_Items->Find(id)) && p.Store.Count(id) < k->second.Cap)
+					if (Inventory probe = p.Store; probe.Add(*m_Items, id, 1) > 0) return true;
+			return false;
+		};
 		for (const ItemSlot& s : std::vector<ItemSlot>(bag.Stacks()))
 		{
 			if (Kept(*m_Items, s.Id)) continue;
@@ -787,12 +910,13 @@ namespace GB
 				if (count > room)
 				{
 					const int over = count - room;
-					bag.Remove(s.Id, over);
-					Say(m, "leaves " + std::to_string(over) + " " + s.Id + ": the store has all it can keep of it");
-					count = room;
+					if (!PileTakes(s.Id)) { bag.Remove(s.Id, over); Say(m, "leaves " + std::to_string(over) + " " + s.Id + ": the store has all it can keep of it"); }
+					count = room;   // T248: what a stockpile (a storage) still takes stays in the bag and goes there on the next trip
 				}
+				count = mainTakes(s.Id, count);   // T255: what this building (or the fire) does not take stays in the bag for the next trip
 			}
 			const int n = count > 0 ? bag.Transfer(*m_Items, to, s.Id, count) : 0;
+			if (n > 0 && inShed) m_Stores.Put(building, s.Id, n);
 			moved += n;
 			if (n > 0 && s.Id == jobItem) m_Board.Progress(m.Name, static_cast<float>(n), m_Time);   // delivered: the claim is alive
 			if (n > 0 && !hauled && IsFood(s.Id)) { m_Econ.FoodToday += n; m_FoodBy = m.Name; }   // (hauled food was counted where it was first left; who feeds the others, H10)
@@ -804,6 +928,7 @@ namespace GB
 	void Tribe::StepEconomy(float dt)
 	{
 		if (!m_Items) return;
+		m_Stores.Reconcile(*this);   // T255: the ledger of the store buildings follows the store (GB/Game/ClanStores.h)
 		const EconomyRules& econ = Config.Econ;
 		// the day's food (the clan's carrying capacity: how many it feeds)
 		const double now = WorldSeconds();
@@ -832,7 +957,7 @@ namespace GB
 				TellClan("loses " + std::to_string(e.Count) + " " + e.Item + " in " + where + ": they went off" + (e.Into.empty() ? std::string() : " (now " + e.Into + ")"));
 			}
 		};
-		tell(AgeInventory(m_Store, *m_Items, step, econ.Main().SpoilRate * StoreKeep() * cold), "the store");
+		tell(AgeInventory(m_Store, *m_Items, step, econ.Main().SpoilRate * m_Stores.Keep(*this) * cold), "the store");   // T255: as well as where its food lies keeps it
 		for (Stockpile& p : m_Econ.Stockpiles)
 		{
 			const auto k = econ.Logistics.Stores.find(p.Kind);

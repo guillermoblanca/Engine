@@ -1,5 +1,6 @@
 #include "GB/Visual/TribeVisuals.h"
 #include "GB/Animation/ReachLayer.h"
+#include "GB/Game/StoreLayout.h"
 #include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
@@ -317,14 +318,14 @@ namespace GB
 			}
 
 		// the piles of a store, side by side along its front: how much of each kind, as full as the pile model says
-		auto piles = [&](const Inventory& store, const glm::vec2& centre)
+		auto piles = [&](const std::map<std::string, int>& things, const glm::vec2& centre)
 		{
 			if (!ctx.Items) return;
 			std::map<std::string, int> units;
-			for (const ItemSlot& s : store.Stacks())
+			for (const auto& [id, count] : things)
 			{
-				const std::string pile = PileOf(lib, *ctx.Items, s.Id);
-				if (!pile.empty()) units[pile] += s.Count;
+				const std::string pile = PileOf(lib, *ctx.Items, id);
+				if (!pile.empty()) units[pile] += count;
 			}
 			const float spacing = 1.1f;
 			int i = 0;
@@ -337,8 +338,16 @@ namespace GB
 				++i;
 			}
 		};
-		piles(tribe.Store(), tribe.Config.Economy.Camp + kStore);
-		for (const Stockpile& s : tribe.Economy().Stockpiles) piles(s.Store, s.Pos);
+		// T255: by the fire what lies there; at the door of each store building what it holds (ClanStores' ledger, StoreLayout::Of)
+		const StoreLayout layout = StoreLayout::Of(tribe);
+		piles(layout.AtCamp(), tribe.Config.Economy.Camp + kStore);
+		for (const StoreLayout::Place& p : layout.Places()) piles(p.Held, p.Door);
+		for (const Stockpile& s : tribe.Economy().Stockpiles)
+		{
+			std::map<std::string, int> things;
+			for (const ItemSlot& it : s.Store.Stacks()) things[it.Id] += it.Count;
+			piles(things, s.Pos);
+		}
 
 		// the camp's workbench (where "make" and "craft" are done); once the clan has built one (H8) that building is the bench, drawn with the
 		// buildings, and the camp's is not drawn too

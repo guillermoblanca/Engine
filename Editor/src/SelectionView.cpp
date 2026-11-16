@@ -5,6 +5,7 @@
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include "SceneEditor.h"
+#include "GB/Game/StoreLayout.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Log.h"
 #include <algorithm>
@@ -389,17 +390,27 @@ namespace GB::Editor
 						for (const auto& c : m_Clans.All()) if (c->Folk && c->Folk != &m_Tribe) scan(*c->Folk);
 						ImGui::TextWrapped("%s", L.Text("working here: {0}", workers.empty() ? L.Text("nobody now") : workers).c_str());
 					}
-					if (!def->Store.empty())
+					if (!def->Store.empty() || def->StoreCap > 0 || def->FoodCap > 0)
 					{
-						// U3: what the store holds (the stockpile of its clan's economy)
+						// U3: what the store holds (the stockpile of its clan's economy), and T248: the share of the clan's main store kept in it
 						const Stockpile* pile = nullptr;
-						auto find = [&](const Tribe& t) { for (const Stockpile& p : t.Economy().Stockpiles) if (p.Name == name) pile = &p; };
+						const Tribe* clan = nullptr;
+						auto find = [&](const Tribe& t)
+						{
+							for (const Stockpile& p : t.Economy().Stockpiles) if (p.Name == name) pile = &p;
+							for (const auto& site : t.SettlementSites()) if (!clan && site.Name == name) clan = &t;
+						};
 						find(m_Tribe);
-						for (const auto& c : m_Clans.All()) if (!pile && c->Folk) find(*c->Folk);
+						for (const auto& c : m_Clans.All()) if (!clan && c->Folk) find(*c->Folk);
+						Inventory held(64, 0.0f);
+						if (pile) for (const ItemSlot& it : pile->Store.Stacks()) held.Add(m_Items, it.Id, it.Count);
+						if (clan)
+							if (const StoreLayout layout = StoreLayout::Of(*clan); const StoreLayout::Place* place = layout.Find(name))
+								for (const auto& [id, count] : place->Held) held.Add(m_Items, id, count);
 						int units = 0;
-						if (pile) for (const ItemSlot& it : pile->Store.Stacks()) units += it.Count;
+						for (const ItemSlot& it : held.Stacks()) units += it.Count;
 						ImGui::TextUnformatted(L.Text("store: {0} things", units).c_str());
-						if (pile) DrawItems(pile->Store);
+						if (units > 0) DrawItems(held);
 					}
 				}
 				else

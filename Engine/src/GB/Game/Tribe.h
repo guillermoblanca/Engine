@@ -6,6 +6,7 @@
 #include "GB/AI/Perception.h"
 #include "GB/AI/Utility.h"
 #include "GB/Game/Chronicle.h"
+#include "GB/Game/ClanStores.h"
 #include "GB/Game/Conflict.h"
 #include "GB/Game/DataNeeds.h"
 #include "GB/Game/Economy.h"
@@ -339,6 +340,8 @@ namespace GB
 	class Tribe
 	{
 		friend class UseLearning;   // T181: learning by use and curiosity (GB/Game/UseLearning.h), out of this class
+		friend class StoreLayout;   // T248: where the main store's things lie (GB/Game/StoreLayout.h), out of this class
+		friend class ClanStores;    // T255: the store buildings' ledger (GB/Game/ClanStores.h), out of this class
 	public:
 		TribeConfig Config;
 
@@ -521,6 +524,7 @@ namespace GB
 
 		Inventory& Store() { return m_Store; }
 		const Inventory& Store() const { return m_Store; }
+		const ClanStores& Stores() const { return m_Stores; }   // T255: where the store's things lie (its buildings, the fire)
 		const std::vector<TribeMember>& Members() const { return m_Members; }
 		std::vector<TribeMember>& Members() { return m_Members; }
 		// The defs the campfire is built from (the editor's InteractiveSystem::Defs); without them the built-in ones.
@@ -858,7 +862,7 @@ namespace GB
 		void EconomyOptions(TribeMember& m, std::vector<UtilityOption>& options);
 		bool ExecuteEconomy(TribeMember& m, const UtilityOption& option);
 		bool FinishEconomy(TribeMember& m, const std::string& job);
-		void HandOut(TribeMember& m);
+		void HandOut(TribeMember& m, const std::string& at = std::string());   // T255: from what lies where it stands ("" the fire, a store building)
 		std::vector<ProductionWant> Wants() const;
 		bool ClanKnows(const Recipe& r) const;
 		bool CanFarm(const TribeMember& m) const;
@@ -972,6 +976,7 @@ namespace GB
 		std::vector<TribeMember> m_Members;
 		NodeClaims m_Claims;   // node -> worker that goes there (Logistics.h)
 		Inventory m_Store{ Config.Economy.StoreCapacity, 0.0f };
+		ClanStores m_Stores;   // T255: which store building holds what of m_Store (the rest lies by the fire)
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;
 		TelemetrySink* m_Telemetry = nullptr;   // not owned

@@ -36,7 +36,7 @@ namespace GB
 			char b[64];
 			auto add = [&](const std::string& part) { s += (s.empty() ? "" : ", ") + part; };
 			if (d.Shelter) add(std::to_string(d.Shelter) + " beds");
-			if (!d.Store.empty()) add("a " + d.Store + " of the economy");
+			if (!d.Store.empty()) add("keeps the clan's things (a " + d.Store + ")");   // T255: a store building of the clan's store (ClanStores)
 			if (!d.Station.empty()) add("station " + d.Station);
 			if (d.StoreCap) add("+" + std::to_string(d.StoreCap) + " store cap");
 			if (d.FoodCap) add("+" + std::to_string(d.FoodCap) + " store cap of food");
@@ -390,7 +390,14 @@ namespace GB
 	{
 		int n = 0;
 		if (!m_Buildings) return n;
-		for (const Placed& p : Placements()) if (p.State.Done) n += p.Def->StoreCap + (food ? p.Def->FoodCap : 0);
+		for (const Placed& p : Placements())
+			if (p.State.Done)
+			{
+				n += p.Def->StoreCap + (food ? p.Def->FoodCap : 0);
+				// T255: a storage keeps the clan's things (no stockpile of its own): its kind's cap adds to the cap of each item
+				if (!p.Def->Store.empty() && p.Def->Store != "main")
+					if (const auto k = Config.Econ.Logistics.Stores.find(p.Def->Store); k != Config.Econ.Logistics.Stores.end()) n += std::max(0, k->second.Cap);
+			}
 		return n;
 	}
 
@@ -458,6 +465,17 @@ namespace GB
 					if (const glm::vec3 at = m_Entities->WorldMatrix(id)[3]; glm::distance(glm::vec2(at.x, at.z), Config.Economy.Camp) <= VillageReach()) ++facts.Wells;
 		for (const ItemSlot& s : m_Store.Stacks())
 			if (m_Store.Count(s.Id) >= StoreCap(s.Id) - 2 && (facts.FullItem.empty() || s.Id < facts.FullItem)) facts.FullItem = s.Id;
+		if (ClanStores::Active(*this))   // T255: the pile by the fire that no store building has room for (the planner wants more stores)
+		{
+			std::set<std::string> seen;
+			for (const ItemSlot& s : m_Store.Stacks())
+				if (seen.insert(s.Id).second)
+					if (const int n = m_Stores.Surplus(*this, s.Id); n > 0 && m_Stores.Destination(*this, s.Id, Config.Economy.Camp).empty())
+					{
+						facts.CampPile += n;
+						if (IsFood(s.Id)) facts.CampFood += n;
+					}
+		}
 		if (facts.FullItem.empty() && m_Store.UsedSlots() >= m_Store.Slots() - 2)   // every slot taken: as full as an item at its cap (the planner wants a storage)
 			for (const ItemSlot& s : m_Store.Stacks())
 				if (facts.FullItem.empty() || m_Store.Count(s.Id) > m_Store.Count(facts.FullItem)) facts.FullItem = s.Id;
@@ -627,9 +645,7 @@ namespace GB
 		m_PlanTimer += dt;
 		if (m_PlanTimer < Config.PlanSeconds) return;
 		m_PlanTimer = 0.0f;
-		// a finished store becomes a stockpile of the economy (H18; once: the economy saves its stockpiles)
-		for (const Placed& p : Placements())
-			if (p.State.Done && !p.Def->Store.empty() && !FindStockpile(p.Name)) AddStockpile(p.Name, FrontOf(p.Pos, *p.Def), p.Def->Store);
+		// T255: a finished store building keeps the clan's things itself (ClanStores: no stockpile of its own, as H18 made; an older save's moves in)
 		// what the open sites still lack goes to the economy as a demand (its plan makes what it can, its gather jobs ask for the rest)
 		{
 			std::map<std::string, std::map<std::string, int>> now;
@@ -1014,6 +1030,8 @@ namespace GB
 			std::string what;
 			int left = Config.HaulAt;
 			std::vector<std::string> taken;   // (to give back if the trip cannot start)
+			const bool sheds = ClanStores::Active(*this);
+			StoreLayout::Place via;   // T255: the store building it fetches them from on the way (the first that holds them)
 			for (const auto& [item, n] : state.Missing)
 			{
 				int k = std::min({ n - InFlight(o.Target, item), WithSubstitutes(m_Store, state, item), left });
@@ -1022,8 +1040,12 @@ namespace GB
 				for (const std::string& what_ : choices)
 				{
 					if (k <= 0) break;
-					const int moved = m_Store.Transfer(*m_Items, bag, what_, std::min(k, m_Store.Count(what_)));
+					const int want = std::min(k, m_Store.Count(what_));
+					StoreLayout::Place from;
+					const std::string source = sheds && want > 0 ? m_Stores.Source(*this, what_, want, Where(m), &from) : std::string();
+					const int moved = m_Store.Transfer(*m_Items, bag, what_, want);
 					if (moved <= 0) continue;
+					if (!source.empty() && source != "-" && m_Stores.Take(source, what_, moved) > 0 && via.Name.empty()) via = from;
 					k -= moved;
 					left -= moved;
 					taken.push_back(what_);
@@ -1032,6 +1054,9 @@ namespace GB
 			}
 			if (what.empty()) return 0;
 			std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1", static_cast<double>(o.Where.x), static_cast<double>(o.Where.y));
+			if (!via.Name.empty())   // T255: by the store building first, where it takes them
+				std::snprintf(go, sizeof go, "goto %.2f %.2f | wait 1 | goto %.2f %.2f | wait 1", static_cast<double>(via.Door.x), static_cast<double>(via.Door.y),
+					static_cast<double>(o.Where.x), static_cast<double>(o.Where.y));
 			if (!Order(m, go))
 			{
 				for (const std::string& item : taken) bag.Transfer(*m_Items, m_Store, item, bag.Count(item));   // gives them back
@@ -1039,7 +1064,7 @@ namespace GB
 			}
 			m.Job = "deliver";
 			m.Detail = o.Target;
-			Say(m, "carries " + what + " to " + o.Target);
+			Say(m, "carries " + what + " to " + o.Target + (via.Name.empty() ? std::string() : " from the store at " + via.Name));
 			return 1;
 		}
 		// build: a few uses of Build, like the swings at a node (not more than the phase still needs, counting 2 s of work a use)

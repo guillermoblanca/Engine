@@ -76,6 +76,12 @@ namespace GB
 		float Priority = 0.9f;                   // base priority of a "haul" job
 		int HaulAt = 1;                          // a stockpile with this many units of things to haul posts a haul job
 		std::string FieldStore = "stockpile";    // the kind of stockpile put beside a new field ("" = none: the harvest goes to the main store)
+		// T255: what the fire keeps at hand once the clan has store buildings (item -> units; "food" = any food together): deposits fill it
+		// first, the rest goes to the buildings (GB/Game/ClanStores.h)
+		std::map<std::string, int> CampReserve;
+		// T255: food that keeps less than this (its shelf life, s) goes to the store building that keeps best; food that keeps longer to the one
+		// that keeps worst with room (it leaves the good keepers to what goes off soon)
+		float KeepBestBelow = 4800.0f;
 		bool operator==(const LogisticsRules&) const = default;
 	};
 
