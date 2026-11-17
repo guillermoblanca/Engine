@@ -1,5 +1,6 @@
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/ShippedContent.h"
+#include "GB/Navigation/NavGrid.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
@@ -472,6 +473,29 @@ namespace GB
 			}
 			if (g->Active != shown) g->Active = shown;
 			if (g->Transform.Scale.y != height) g->Transform.Scale.y = height;
+		}
+	}
+
+	void BuildingObstacles(const EntityWorld& world, const GameplayWorld& gameplay, const std::map<std::string, BuildingDef>& defs, std::vector<CircleObstacle>& out)
+	{
+		for (const GameplayWorld::Tagged& t : gameplay.WithTag("Building"))
+		{
+			const BuildingDef* def = BuildingOf(*t.System, defs);
+			if (!def || def->Well || def->AllowWater) continue;
+			const EntityId id = world.FindByName(*t.Name);
+			if (id == NullEntity || !world.IsActive(id)) continue;
+			int walls = -1;
+			for (size_t i = 0; i < def->Phases.size() && walls < 0; ++i) if (def->Phases[i].Part == "walls") walls = static_cast<int>(i);
+			const bool house = def->Shelter > 0 || walls >= 0;
+			const int phases = static_cast<int>(def->Phases.size());
+			const int phase = std::clamp(PhaseOf(*t.System), 0, phases);
+			const bool done = phase >= phases || t.System->HasTag(kDone);
+			if (!(done || (house && walls >= 0 && phase >= walls))) continue;
+			const glm::mat4 m = world.WorldMatrix(id);
+			glm::vec2 ax(m[0].x, m[0].z), az(m[2].x, m[2].z);
+			ax = glm::length(ax) > 1e-4f ? glm::normalize(ax) : glm::vec2(1.0f, 0.0f);
+			az = glm::length(az) > 1e-4f ? glm::normalize(az) : glm::vec2(0.0f, 1.0f);
+			FootprintObstacles({ m[3].x, m[3].z }, ax, az, def->Footprint, house ? FootprintShape::Open : FootprintShape::Solid, out);
 		}
 	}
 

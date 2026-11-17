@@ -3,6 +3,7 @@
 #include "WorldInstance.h"
 #include "GB/Game/Interaction.h"
 #include "GB/Game/StartSites.h"
+#include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Log.h"
 #include <algorithm>
@@ -19,7 +20,8 @@ namespace GB::Editor
 		return kind.size() > 4 && (kind.substr(kind.size() - 4) == ".fbx" || kind.substr(kind.size() - 4) == ".FBX");
 	}
 
-	ActorHost PlayerMode::MakeHost(WorldInstance& world, const SceneEditor& edit, FootstepSounds* steps, const GameplayWorld* gameplay)
+	ActorHost PlayerMode::MakeHost(WorldInstance& world, const SceneEditor& edit, FootstepSounds* steps, const GameplayWorld* gameplay,
+		const std::map<std::string, BuildingDef>* buildings)
 	{
 		ActorHost host;
 		if (world.IsBuilt())
@@ -58,6 +60,7 @@ namespace GB::Editor
 			}
 		}
 		if (gameplay) DoorObstacles(edit.World(), *gameplay, host.World.Obstacles);   // a shut door is a wall
+		if (gameplay && buildings) BuildingObstacles(edit.World(), *gameplay, *buildings, host.World.Obstacles);   // T6: and so are the buildings
 		const SceneEditor* scene = &edit;
 		host.Interactions = [scene](const std::string& entity, const std::string& point, InteractionTarget& out, std::string* err)
 		{
@@ -69,7 +72,7 @@ namespace GB::Editor
 	bool PlayerMode::SyncNavigation(WorldInstance& world, const SceneEditor& edit, FootstepSounds* steps, std::string* error)
 	{
 		if (!m_Actors || !world.IsBuilt()) { if (error) *error = "generate a world first (generate temperate 5)"; return false; }
-		m_Actors->SetHost(MakeHost(world, edit, steps, m_Gameplay));
+		m_Actors->SetHost(MakeHost(world, edit, steps, m_Gameplay, m_Buildings));
 		// Undergrowth by biome (NavProfile::VegetationWeight): the forest floor is slow, the reeds of the shore a little, a meadow hardly. Read once per cell
 		// when the grid is built or a region is redone (BiomeAt reads the biome map baked with the world: one grid cell, H16).
 		NavConfig config;
@@ -207,7 +210,7 @@ namespace GB::Editor
 		const bool isFbx = IsFbx(kind);
 		const bool fox = kind != "cesium" && !isFbx;
 		m_Actors->SetAssetRoot(assetRoot);
-		m_Actors->SetHost(MakeHost(world, edit, steps, m_Gameplay));
+		m_Actors->SetHost(MakeHost(world, edit, steps, m_Gameplay, m_Buildings));
 		m_Actors->SyncNavigation();   // (the actors plan their paths over the terrain; a world without bounds just walks straight)
 		// the manifest the assets ship (the packs' sets, turns and montages as data) replaces the built-in lists when it is there
 		const std::string shipped = assetRoot + "/animation/mixamo.manifest.json";

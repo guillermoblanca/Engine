@@ -500,6 +500,8 @@ int main(int argc, char** argv)
 		else std::fprintf(stderr, "%s\n", GB::SocietyLine(GB::MeasureSociety(run.Brain(), era ? era->Metrics : GB::SocietyMetricRules{}, 0)).c_str());
 		// T220: the god's alerts raised over the run (looked at once a minute of game, as WorldAlerts.h; a dismissal is the player's: none here)
 		std::fprintf(stderr, "alerts raised: %s; still up at the end: %zu\n", alerts.RaisedLine().c_str(), alerts.Shown().size());
+		std::fprintf(stderr, "building walls: %zu circles, grid redone %d times, %d members moved out of a new wall; paths %ld, failed %ld\n", run.Walls().Circles,
+			run.Walls().Syncs, run.Walls().Evicted, run.Navigation().Stats().Paths, run.Navigation().Stats().Failed);   // T6
 		std::fprintf(stderr, "\n%s\n", run.Director().ReportLine().c_str());   // D43/T241/§6.2: the faith of each clan, the votes, the skeptics, the defeat (only the director's)
 		std::fprintf(stderr, "%s\n", run.Director().StageReport().c_str());   // D48: the stage of the legacy, its goals and the day it was won
 		if (!orders.empty()) std::fprintf(stderr, "\n%s\n", run.Director().Status().c_str());   // T195 (only a run with orders: the report of one without stays as it was)

@@ -10,6 +10,11 @@
 #include <string>
 #include <vector>
 
+namespace GB
+{
+	struct BuildingDef;   // GB/Gameplay/Buildings.h
+}
+
 namespace GB::Editor
 {
 	class SceneEditor;
@@ -32,7 +37,9 @@ namespace GB::Editor
 
 		// What a new actor gets from the generated world: its ground and water, and as obstacles the trees (trunks), the rocks and the bodies
 		// the user gave to entities. `scene` is where interaction points are looked up.
-		static ActorHost MakeHost(WorldInstance& world, const SceneEditor& scene, FootstepSounds* steps, const GameplayWorld* gameplay = nullptr);
+		// T6: with `buildings` (the defs of the scene's sites) the buildings are walls too (GB::BuildingObstacles, as GBSim's SimRun).
+		static ActorHost MakeHost(WorldInstance& world, const SceneEditor& scene, FootstepSounds* steps, const GameplayWorld* gameplay = nullptr,
+			const std::map<std::string, BuildingDef>* buildings = nullptr);
 		// The navigation grid of the actors (GB/Navigation): built from the generated world on the first call, then only the cells around trees that went
 		// or appeared are redone. False (and `error`) when there is no world.
 		bool SyncNavigation(WorldInstance& world, const SceneEditor& scene, FootstepSounds* steps, std::string* error = nullptr);
@@ -120,6 +127,7 @@ namespace GB::Editor
 
 		// Abilities: the controlled actor is the ability system called AbilityActor() of the gameplay world (when there is one).
 		void SetAbilities(GameplayWorld* gameplay, const std::string& actor = "Gardener") { m_Gameplay = gameplay; m_AbilityActor = actor; }
+		void SetBuildings(const std::map<std::string, BuildingDef>* defs) { m_Buildings = defs; }   // T6: the buildings are walls of the navigation (MakeHost)
 		void PrepareAbilities() { if (m_Actors) m_Actors->PrepareAbilities(); }
 		const std::string& AbilityActor() const { return m_AbilityActor; }
 		bool UseAbility(const std::string& ability, const std::string& entity, std::string& error);
@@ -154,6 +162,7 @@ namespace GB::Editor
 		std::string m_Controlled;
 		std::string m_Owned;              // the actor Start made (removed by Stop)
 		GameplayWorld* m_Gameplay = nullptr;
+		const std::map<std::string, BuildingDef>* m_Buildings = nullptr;
 		std::string m_AbilityActor = "Gardener";
 		FootstepSounds* m_Steps = nullptr;
 		bool m_LookCamera = false;

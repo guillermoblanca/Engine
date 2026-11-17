@@ -93,6 +93,20 @@ namespace GB
 		uint32_t Era = 0;   // the queue it waits in (NavGrid::ResetQueue voids older tickets)
 	};
 
+	// T6: a footprint on the ground (a building; later a palisade or a wall, MURALLAS) as the small circles the grid and the bodies already know.
+	// The circles are thin (FootprintWallRadius) and close together: the grid makes each one AgentRadius + Margin bigger, so the line of them is a
+	// wall a path cannot cross, and the character controller cannot squeeze between them either.
+	//   Open    three walls on the edges, the back (local -z), the left and the right; the front (local +z, where the "work" point and the door of
+	//           every building are: SiteFront) is open, so the inside can be walked into (the beds of a house) and nobody is ever shut in.
+	//   Solid   the whole footprint, a little smaller (FootprintSolidInset) so the cell in front of it stays clear: a bench, a rack, a kiln.
+	// `axisX` and `axisZ` are the footprint's local x and z on the ground (unit vectors: its yaw); `size` is its x and z in metres.
+	enum class FootprintShape { Open, Solid };
+	constexpr float FootprintWallRadius = 0.05f;
+	constexpr float FootprintWallSpacing = 0.25f;
+	constexpr float FootprintSolidInset = 0.15f;
+	void FootprintObstacles(const glm::vec2& center, const glm::vec2& axisX, const glm::vec2& axisZ, const glm::vec2& size, FootprintShape shape,
+		std::vector<CircleObstacle>& out);
+
 	class NavGrid
 	{
 	public:
@@ -121,6 +135,9 @@ namespace GB
 		bool Blocked(int i, int j) const { return m_Flags[Index(i, j)] != 0; }   // by an obstacle or the edge, for everyone
 		bool Walkable(const glm::vec2& p, const NavProfile& profile = NavProfile()) const;
 		float Depth(int i, int j) const { return static_cast<float>(m_Depth[Index(i, j)]) * 0.01f; }
+		// T6: the centre of the nearest cell `profile` can walk, looking up to `rings` cells out from p's own cell (p's own cell first). False when there
+		// is none that close. What a host uses to get someone out of a wall that went up where it stood (a building finished around it).
+		bool NearestOpen(const glm::vec2& p, glm::vec2& out, const NavProfile& profile = NavProfile(), int rings = 10) const;
 
 		// ---- paths
 		// Cost-weighted shortest path from `from` to `to`. `extra` are temporary obstacles (other walkers in the way) that only this search sees.

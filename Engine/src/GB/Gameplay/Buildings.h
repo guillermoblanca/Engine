@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Scene/Entity.h"
+#include "GB/Scene/CharacterTypes.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include <glm/glm.hpp>
 #include <functional>
@@ -130,6 +131,12 @@ namespace GB
 	// Shows a site as its state says: the parts of the phases done at full size, the current one growing with its progress, the later ones hidden.
 	// Only writes what changed.
 	void SyncSiteVisuals(EntityWorld& world, const std::string& name, const BuildingDef& def, const SiteState& state);
+	// T6: the buildings as walls for the navigation and the bodies (as DoorObstacles is for the doors), appended to `out`, in name order. A house (beds,
+	// or a "walls" phase) is three walls with its front open (FootprintShape::Open: who sleeps inside walks in by the front, where its "work" point is),
+	// standing from the day its walls phase starts, or once done when it has none; anything else is solid once done (FootprintShape::Solid). A well
+	// (Well: the well interactive stands in the middle) and a building over water (AllowWater) are never walls. The entity's transform places them.
+	// What a host calls whenever it gathers its static obstacles: the editor's PlayerMode::MakeHost, GBSim's SimRun.
+	void BuildingObstacles(const EntityWorld& world, const GameplayWorld& gameplay, const std::map<std::string, BuildingDef>& defs, std::vector<CircleObstacle>& out);
 
 	// The buildings of a scene at run time: listens to Build on every site (also those a load or the tribe made after Bind), moves the work forward and
 	// keeps the parts in step with the progress.

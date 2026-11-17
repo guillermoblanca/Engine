@@ -233,6 +233,8 @@ gb_test(ecology ecology_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim
 gb_test(climate climate_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 gb_test(scale scale_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 gb_test(navigation navigation_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
+# T6: the buildings are walls of the navigation, with their front (door) open; taking one away frees its cells
+gb_test(building_nav building_nav_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 # T214: walkers do not get stuck at the river of the editor's world (temperate seed 5)
 gb_test(river_stuck river_stuck_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido)
 # H12: regions of the generated world, the clan's map, expeditions and migration (Regions, Exploration, TribeExplore)

@@ -185,6 +185,7 @@ namespace GB::Editor
 		RegisterNeedContent(m_Gameplay.Library);   // a saved agent may carry Need.* effects: the library must know them before any load
 		RegisterCombatContent(m_Gameplay.Library, m_Combat.Rules);   // T257: and Combat.Wounded.* (a load from the menu comes before any world binds the combat)
 		m_Player.SetAbilities(&m_Gameplay, m_AbilityActor);
+		m_Player.SetBuildings(&m_Buildings.Defs);   // T6: the buildings are walls of the actors' navigation
 		m_Player.Attach(&m_Actors);
 		m_Actors.Bind(&m_SceneEditor.World(), &m_Gameplay);
 		RegisterCommands();
