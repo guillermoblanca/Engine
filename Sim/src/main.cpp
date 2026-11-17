@@ -288,6 +288,7 @@ int main(int argc, char** argv)
 	setup.TelemetryEvery = every;
 	GB::SimRun run(setup);
 	if (!run.Ok()) { std::fprintf(stderr, "the run could not start: %s\n", run.Error().c_str()); sink.Stop(); return 1; }
+	run.Director().SetStakes(true);   // §6.2 A: a run is the god's game (only the director reads it: --report says the day of the defeat)
 	if (!graph.empty())   // T118: where each clan settled, and on which of the graph's sites
 	{
 		std::vector<std::pair<std::string, const GB::Tribe*>> camps;
@@ -451,6 +452,7 @@ int main(int argc, char** argv)
 		else std::fprintf(stderr, "%s\n", GB::SocietyLine(GB::MeasureSociety(run.Brain(), era ? era->Metrics : GB::SocietyMetricRules{}, 0)).c_str());
 		// T220: the god's alerts raised over the run (looked at once a minute of game, as WorldAlerts.h; a dismissal is the player's: none here)
 		std::fprintf(stderr, "alerts raised: %s; still up at the end: %zu\n", alerts.RaisedLine().c_str(), alerts.Shown().size());
+		std::fprintf(stderr, "\n%s\n", run.Director().ReportLine().c_str());   // D43/T241/§6.2: the faith of each clan, the votes, the skeptics, the defeat (only the director's)
 		if (!orders.empty()) std::fprintf(stderr, "\n%s\n", run.Director().Status().c_str());   // T195 (only a run with orders: the report of one without stays as it was)
 	}
 	for (const GB::SimFinding& f : run.Monitor().Findings())   // what broke an invariant, so a run left alone says it

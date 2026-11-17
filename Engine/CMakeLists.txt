@@ -181,6 +181,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/DirectorSign.cpp
     src/GB/Game/DirectorFocus.cpp
     src/GB/Game/DirectorVision.cpp
+    src/GB/Game/DirectorFaith.cpp
     src/GB/Game/TribeBias.cpp
     src/GB/Game/Values.cpp
     src/GB/Game/GameSeeds.cpp

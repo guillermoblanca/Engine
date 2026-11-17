@@ -168,6 +168,8 @@ namespace GB
 		const Clan* c = ClanAt(m_To.Clans, clan);
 		days = std::clamp(days, 1, Rules.Focus.MaxDays);
 		const std::string name = NameOf(*c);
+		if (const DirectorFocus* was = FocusOf(clan); was && was->Group != group && Now() - was->Since < static_cast<double>(Rules.DaySeconds))   // T241: an order against the last within a day
+			AddPressure(clan, Rules.PressureContradict, "the god turns " + name + " from " + was->Group + " to " + group + " within a day");
 		const DirectorCheck paid = Spend(strong ? "focus_strong" : "focus", clan, true, name + " turns to " + group + " (" + Strength(strong) + ", " + std::to_string(days) + " days)");
 		if (!paid.Ok) return { false, "director focus: cannot: " + paid.Why };
 		m_Focus.erase(std::remove_if(m_Focus.begin(), m_Focus.end(), [&](const DirectorFocus& f) { return f.Clan == clan; }), m_Focus.end());

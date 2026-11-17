@@ -43,6 +43,42 @@ namespace GB
 		}
 	}
 
+	// D43: what a sign weighs in the vote, part by part (one place for the forecast and the vote at the fire): its work, the material the store
+	// lacks, that the clan did not want it, and hunger
+	namespace
+	{
+		struct SignWeight
+		{
+			float Build = 0.0f, Missing = 0.0f, Unwanted = 0.0f, Survival = 0.0f;
+			float Total() const { return Build + Missing + Unwanted + Survival; }
+		};
+		SignWeight WeighSign(const DirectorRules& R, const Tribe& t, const BuildingDef& d, const std::string& building)
+		{
+			SignWeight w;
+			w.Build = R.Sign.BuildCost;
+			w.Missing = R.Sign.Missing * MissingShare(t, d, nullptr);
+			bool wanted = false;
+			for (const BuildingNeed& n : t.PublicBuildingNeeds()) if (n.Building == building) wanted = true;
+			w.Unwanted = wanted ? 0.0f : R.Sign.Unwanted;
+			w.Survival = t.MaslowTier() == "survival" ? R.Vote.Survival : 0.0f;
+			return w;
+		}
+		// what weighs most against it, as the clan says it at the fire ("" when nobody is against)
+		std::string AgainstWhy(const DirectorRules& R, const DirectorVoteResult& vote, const SignWeight& w)
+		{
+			if (vote.Against.empty()) return {};
+			if (vote.Skeptics > 0 && 2 * vote.Skeptics >= static_cast<int>(vote.Against.size())) return "the skeptics laugh at it";
+			const float top = std::max({ w.Survival, w.Unwanted, w.Missing });
+			if (top >= R.Sign.BuildCost)
+			{
+				if (top == w.Survival) return "they are hungry";
+				if (top == w.Unwanted) return "they do not need it";
+				return "the store lacks its material";
+			}
+			return "they hardly believe in the dream";
+		}
+	}
+
 	// ------------------------------------------------------------------ T236: the vote
 	DirectorBallot WorldDirector::BallotFor(int clan, const std::string& messenger, const std::map<std::string, float>& traits, float cost) const
 	{
@@ -50,6 +86,7 @@ namespace GB
 		b.Messenger = messenger;
 		b.Cost = cost;
 		b.Traits = traits;
+		b.FaithScale = !m_Sandbox && Tired(clan) ? Rules.Faith.Tired : 1.0f;   // T241: a tired clan listens half
 		const Clan* c = ClanOf(m_To.Clans, clan);
 		if (!c) return b;
 		const Tribe& t = *c->Folk;
@@ -63,6 +100,7 @@ namespace GB
 			v.Devotion = DevotionOf(clan, m.Name);
 			v.Bond = messenger.empty() ? 0.0f : t.People().Affinity(t.Config.Society, m.Name, messenger);
 			if (const Person* p = t.People().Find(m.Name)) v.Traits = p->Traits;
+			v.Skeptic = !m_Skeptics.empty() && IsSkeptic(clan, m.Name);   // T241
 			b.Voters.push_back(std::move(v));
 		}
 		return b;
@@ -137,14 +175,15 @@ namespace GB
 		p.Cost = paid.Cost;
 		if (!paid.Ok) { p.Why = paid.Why; return p; }
 		std::string lacks;
-		const float missing = MissingShare(t, d, &lacks);
+		MissingShare(t, d, &lacks);
 		if (!lacks.empty()) p.Warning = "the store lacks " + lacks + ": the site will wait for it";
 		p.Messenger = PickMessenger(clan, x, z, false);
-		const float cost = Rules.Sign.BuildCost + Rules.Sign.Missing * missing + (t.MaslowTier() == "survival" ? Rules.Vote.Survival : 0.0f);
-		const DirectorVoteResult vote = ForeseeVote(clan, p.Messenger, Rules.Sign.Traits, cost);
+		const SignWeight weight = WeighSign(Rules, t, d, building);
+		const DirectorVoteResult vote = ForeseeVote(clan, p.Messenger, Rules.Sign.Traits, weight.Total());
 		p.Yes = vote.Yes;
 		p.Voters = vote.Voters;
 		p.Outcome = vote.Outcome;
+		p.Against = AgainstWhy(Rules, vote, weight);
 		p.Ok = true;
 		return p;
 	}
@@ -178,7 +217,7 @@ namespace GB
 		s.Messenger = p.Messenger;   // the probable one until someone sees it
 		m_Signs.push_back(s);
 		return { true, "sign " + std::to_string(s.Id) + " for " + name + ": " + building + " at " + where + "; messenger " + (p.Messenger.empty() ? std::string("nobody yet") : p.Messenger)
-			+ " (forecast " + std::to_string(p.Yes) + "/" + std::to_string(p.Voters) + ", " + p.Outcome + "), cost " + Num(paid.Cost) + (p.SiteOnly ? " (the clan wanted it: only the place)" : "")
+			+ " (forecast " + std::to_string(p.Yes) + "/" + std::to_string(p.Voters) + ", " + p.Outcome + (p.Against.empty() || p.Outcome == "obey" ? std::string() : ": " + p.Against) + "), cost " + Num(paid.Cost) + (p.SiteOnly ? " (the clan wanted it: only the place)" : "")
 			+ (p.Warning.empty() ? std::string() : "; " + p.Warning) };
 	}
 
@@ -227,8 +266,8 @@ namespace GB
 			if (s.Status == "seen")
 			{
 				if (now - s.SeenAt < static_cast<double>(Rules.Sign.VoteDays) * day) continue;
-				const float cost = Rules.Sign.BuildCost + Rules.Sign.Missing * MissingShare(t, *d, nullptr) + (t.MaslowTier() == "survival" ? Rules.Vote.Survival : 0.0f);
-				const DirectorVoteResult vote = ForeseeVote(s.Clan, s.Messenger, Rules.Sign.Traits, cost);
+				const SignWeight weight = WeighSign(Rules, t, *d, s.Building);
+				const DirectorVoteResult vote = ForeseeVote(s.Clan, s.Messenger, Rules.Sign.Traits, weight.Total());
 				s.Yes = vote.Yes;
 				s.Voters = vote.Voters;
 				s.VotedAt = now;
@@ -240,12 +279,16 @@ namespace GB
 					if (m) t.Note(*m, "speaks of the sign at the fire; the clan cannot decide (" + vote.Text() + ")");
 					continue;
 				}
+				Voted();   // (D43: counted for the report)
 				if (!vote.Accepted())
 				{
+					const std::string against = AgainstWhy(Rules, vote, weight);
 					s.Status = "refused";
-					s.Why = "the clan says no (" + vote.Text() + ")";
+					s.Against = against;
+					s.Why = "the clan says no (" + vote.Text() + ")" + (against.empty() ? std::string() : ": " + against);
 					if (m) t.Note(*m, "speaks of the sign at the fire; the clan will not raise a " + s.Building + " there (" + vote.Text() + ")");
-					Refund(s.Clan, 0.5f * s.Paid, "the clan resists the sign #" + std::to_string(s.Id) + " (" + vote.Text() + ")");
+					Refund(s.Clan, 0.5f * s.Paid, "the clan resists the sign #" + std::to_string(s.Id) + " (" + vote.Text() + ")" + (against.empty() ? std::string() : ": " + against));
+					Refused(s.Clan, "sign", "a " + d->Name + (against.empty() ? std::string() : " (" + against + ")"));   // D43/T241: the faith drops, the clan murmurs
 					continue;
 				}
 				std::string site;
@@ -304,14 +347,33 @@ namespace GB
 			for (const DirectorSign& sign : m_Signs) s += "\n" + SignText(sign);
 			return { true, s };
 		}
-		const char* usage = "usage: director sign [preview] <clan> <building> <x> <z> [yaw] | sign [preview] <clan> <building> camp <dx> <dz> [yaw] | signs";
+		const char* usage = "usage: director sign [preview] <clan> <building> <x> <z> [yaw] | sign [preview] <clan> <building> camp <dx> <dz> [yaw] | sign [preview] <clan> <building> near | signs";
 		size_t i = 1;
 		const bool preview = a.size() > 1 && a[1] == "preview";
 		if (preview) ++i;
-		if (a.size() < i + 4 || !m_To.Clans) return { false, usage };
+		if (a.size() < i + 3 || !m_To.Clans || (a.size() < i + 4 && a[i + 2] != "near")) return { false, usage };
 		const Clan* c = m_To.Clans->Find(a[i]);
 		if (!c || !c->Folk) return { false, "cannot: no clan '" + a[i] + "'" };
 		const std::string building = a[i + 1];
+		if (a[i + 2] == "near")   // D43: the first spot round the camp where it fits (rings of 10..26 m, 12 bearings): one line of orders on any seed
+		{
+			const Clan* folk = ClanOf(m_To.Clans, c->Id);
+			const glm::vec2 home = folk->Folk->Config.Economy.Camp;
+			std::string last = "no spot round the camp";
+			for (float r = 10.0f; r <= 26.0f && r <= Rules.Sign.Reach; r += 4.0f)
+				for (int k = 0; k < 12; ++k)
+				{
+					const float t = static_cast<float>(k) * 6.2831853f / 12.0f;
+					const float x = home.x + r * std::cos(t), z = home.y + r * std::sin(t);
+					const DirectorSignPreview p = PreviewSign(c->Id, building, x, z);
+					if (!p.Ok && (p.Why.find("does not fit") != std::string::npos || p.Why.find("outside the land") != std::string::npos)) { last = p.Why; continue; }
+					std::vector<std::string> at = { preview ? std::string("preview") : std::string(), a[i], building, Num(x, 2), Num(z, 2) };
+					if (!preview) at.erase(at.begin());
+					at.insert(at.begin(), "sign");
+					return SignCommand(at);
+				}
+			return { false, "cannot: " + last };
+		}
 		const bool camp = a[i + 2] == "camp";
 		if (camp && a.size() < i + 5) return { false, usage };
 		const size_t n = camp ? i + 3 : i + 2;
@@ -324,7 +386,7 @@ namespace GB
 		const std::string where = Num(x, 1) + " " + Num(z, 1);
 		if (!p.Ok) return { true, "sign preview " + building + " at " + where + ": cannot: " + p.Why + (p.Cost > 0.0f ? " (cost " + Num(p.Cost) + ")" : std::string()) };
 		return { true, "sign preview " + building + " at " + where + ": can, cost " + Num(p.Cost) + (p.SiteOnly ? " (only the place)" : "") + ", messenger "
-			+ (p.Messenger.empty() ? std::string("nobody") : p.Messenger) + ", vote " + std::to_string(p.Yes) + " of " + std::to_string(p.Voters) + " (" + p.Outcome + ")"
+			+ (p.Messenger.empty() ? std::string("nobody") : p.Messenger) + ", vote " + std::to_string(p.Yes) + " of " + std::to_string(p.Voters) + " (" + p.Outcome + (p.Against.empty() || p.Outcome == "obey" ? std::string() : ": " + p.Against) + ")"
 			+ (p.Warning.empty() ? std::string() : "; " + p.Warning) };
 	}
 }

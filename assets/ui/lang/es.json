@@ -1339,6 +1339,34 @@
    "to": "{1} deja {clan:2} por {clan:3}"
   },
   {
+   "re": "^(\\d+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): heresy(.*)$",
+   "to": "{1} de {clan:2} reniegan de los sueños del dios y se marchan a fundar {clan:3}"
+  },
+  {
+   "re": "^the clan (\\d+) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(heresy(.*)\\)$",
+   "to": "{1} del clan reniegan de los sueños del dios y se marchan a fundar {clan:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) laughs at the dream of (\\S+)$",
+   "to": "{1} se ríe del sueño de {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) laughs at the god's dreams$",
+   "to": "{1} se ríe de los sueños del dios"
+  },
+  {
+   "re": "^the clan no longer listens so closely to the dreams$",
+   "to": "el clan ya no escucha tanto los sueños"
+  },
+  {
+   "re": "^the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) no longer listen so closely to the dreams$",
+   "to": "{clan:1} ya no escucha tanto los sueños"
+  },
+  {
+   "re": "^nobody believes in you any more$",
+   "to": "ya nadie cree en ti"
+  },
+  {
    "re": "^(\\d+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (.+)$",
    "to": "{1} de {clan:2} se marchan a fundar {clan:3}"
   },
@@ -2900,6 +2928,26 @@
   "The vote is foreseen when you place it": "El voto se prevé al colocarlo en el suelo",
   "Nothing in this category": "Nada en esta categoría",
   "Sign: {0}": "Señal: {0}",
-  "[Click] or [1-9] choose  [Tab] category  [Esc] close": "[Clic] o [1-9] elegir  [Tab] categoría  [Esc] cerrar"
+  "[Click] or [1-9] choose  [Tab] category  [Esc] close": "[Clic] o [1-9] elegir  [Tab] categoría  [Esc] cerrar",
+  "Believers": "Creyentes",
+  "{0} clan": "{0} clan",
+  "{0} clans": "{0} clanes",
+  "{0} person": "{0} persona",
+  "Nobody believes in you any more: you only watch the world": "Ya nadie cree en ti: solo miras el mundo",
+  "The clans whose faith reaches {0} % and their people. If none is left, the game is lost.": "Los clanes cuya fe llega al {0} % y su gente. Si no queda ninguno, la partida se pierde.",
+  "Nobody believes in you any more": "Ya nadie cree en ti",
+  "Days played: {0}": "Días jugados: {0}",
+  "The last of the chronicle": "Lo último de la crónica",
+  "day {0}": "día {0}",
+  "Watch the world": "Ver el mundo",
+  "The world goes on: you watch it, without the hand": "El mundo sigue: lo miras, sin la mano",
+  "Why not: {0}": "Por qué no: {0}",
+  "they do not need it": "no lo necesitan",
+  "they are hungry": "pasan hambre",
+  "the store lacks its material": "al almacén le falta el material",
+  "they hardly believe in the dream": "apenas creen en el sueño",
+  "the skeptics laugh at it": "los escépticos se ríen de él",
+  "Skeptic: laughs at the god's dreams": "Escéptico: se ríe de los sueños del dios",
+  "Its vote against the god's ideas weighs double, and the rites no longer raise its devotion": "Su voto contra las ideas del dios cuenta doble, y los ritos ya no le suben la devoción"
  }
 }

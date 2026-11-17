@@ -488,6 +488,7 @@ namespace GB::Editor
 		void DrawHandWorld(float ox, float oy, float w, float h);   // the ghost, the signs' markers and the clicks on the ground
 		const DirectorSignPreview& HandPreview(int clan, float x, float z);
 		void HandToasts();
+		void DrawDefeat(float ox, float oy, float w, float h);      // §6.2 A: the end of the god's game ("Nobody believes in you any more")
 		// U5/U6 (ObserverView.cpp): the world chronicle sheet and its text, a person's sheet and its text, the news and the follow chip of the
 		// god's screen, and where a member of any clan is in the simulation (its actor stays behind while it is simulated without its body)
 		bool ChronicleShows(const HistoryEvent& e) const;

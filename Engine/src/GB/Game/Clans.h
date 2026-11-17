@@ -44,6 +44,15 @@ namespace GB
 		bool Kept() const { return Own != nullptr; }
 	};
 
+	// T241: a split for a reason the caller gives (the god's heresy, MODO_DIOS_DECISIONES.md §4.4; generic: any cause that names who wants to go).
+	// The households of Members go first (whole), then any of Members in no household; half the clan still stays and at least two go. The size
+	// thresholds of a natural split do not apply; the new home is chosen as for a big clan's. Why is told after "leave to found the X: ".
+	struct SplitCause
+	{
+		std::string Why;                  // "heresy: ..."
+		std::vector<std::string> Members; // who wants to go
+	};
+
 	// Something worth telling between clans, for the log, the editor and the conflict work (H14): "contact", "stance", "trade", "gift", "visit",
 	// "teach", "pact", "break", "theft", "marriage", "move", "refuse" ... with the two clans and a sentence.
 	struct DiplomacyEvent
@@ -114,7 +123,7 @@ namespace GB
 		// N7: the host founds a clan for a split (its camp, its well, its tribe bound to the world, no members yet: they move in); -1 = it cannot
 		std::function<ClanId(ClanId parent, const glm::vec2& camp, const std::string& name)> FoundClan;
 		// N7: splits a clan now if it has a reason and a place (`force`: whatever its size), "" or why not
-		std::string Split(ClanId clan, bool force = false);
+		std::string Split(ClanId clan, bool force = false, const SplitCause* cause = nullptr);
 		// U1/U4: a clan's colour: its own, else one of a palette of eight by its id (-1 or an unknown clan: grey).
 		glm::vec3 ColorOf(ClanId id) const;
 		const std::vector<std::unique_ptr<Clan>>& All() const { return m_Clans; }

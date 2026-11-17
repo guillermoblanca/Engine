@@ -195,8 +195,15 @@ namespace GB
 		Clan* c = ClanAt(m_To.Clans, clan);
 		Tribe& t = *c->Folk;
 		const std::string name = NameOf(*c);
+		for (const DirectorVision& old : m_Visions)   // T241: the god insists on a dream the clan refused within InsistDays
+			if (old.Clan == clan && old.Tech == tech && old.Status == "refused" && Now() - old.Since < static_cast<double>(Rules.InsistDays * Rules.DaySeconds))
+			{
+				AddPressure(clan, Rules.PressureInsist, "the god insists on the dream of " + p.Name + " after the clan said no");
+				break;
+			}
 		const DirectorCheck paid = Spend("vision", clan, true, p.Dreamer + " of " + name + " dreams of " + p.Name);
 		if (!paid.Ok) return { false, "director vision: cannot: " + paid.Why };
+		Voted();   // (D43: counted for the report)
 		DirectorVision v;
 		v.Id = m_NextVision++;
 		v.Clan = clan;
@@ -211,6 +218,7 @@ namespace GB
 			v.Status = "refused";
 			if (m) t.Note(*m, "dreams of " + p.Name + "; the clan will not seek it (" + vote + ")");
 			Refund(clan, 0.5f * paid.Cost, "the clan resists the vision #" + std::to_string(v.Id) + " (" + vote + ")");
+			Refused(clan, "vision", p.Name);   // D43/T241: the faith drops, the clan murmurs
 			m_Visions.push_back(v);
 			return { true, "director vision: " + p.Dreamer + " dreams of " + p.Name + ", but " + name + " will not seek it (" + vote + "); "
 				+ Num(0.5f * paid.Cost) + " back (influence " + Num(m_Influence) + ")" };

@@ -62,6 +62,7 @@ namespace GB
 	DirectorRules DefaultDirectorRules() { return DirectorRules{}; }
 	std::string ReadDirectorFocusRules(const nlohmann::json& d, DirectorRules& r);   // T238/T239: "focus" and "calling" (DirectorFocus.cpp)
 	std::string ReadDirectorVisionRules(const nlohmann::json& d, DirectorRules& r);  // T240: "vision" (DirectorVision.cpp)
+	std::string ReadDirectorFaithRules(const nlohmann::json& d, DirectorRules& r);   // D43/T241/§6.2: "faith.clan", "skeptic", "defeat" (DirectorFaith.cpp)
 
 	std::string LoadDirectorRules(const std::string& json, DirectorRules& live)
 	{
@@ -74,9 +75,10 @@ namespace GB
 		DirectorRules r = live;
 		std::string e;
 		const std::string w = "director: ";
-		if (!KnownKeys(d, { "start", "max", "minFaith", "faith", "sandboxPerDay", "costs", "waits", "pressure", "logMax", "daySeconds", "vote", "messenger", "sign", "focus", "calling", "vision" }, w, e)) return e;
+		if (!KnownKeys(d, { "start", "max", "minFaith", "faith", "sandboxPerDay", "costs", "waits", "pressure", "logMax", "daySeconds", "vote", "messenger", "sign", "focus", "calling", "vision", "skeptic", "defeat" }, w, e)) return e;
 		if (e = ReadDirectorFocusRules(d, r); !e.empty()) return e;
 		if (e = ReadDirectorVisionRules(d, r); !e.empty()) return e;   // T240
+		if (e = ReadDirectorFaithRules(d, r); !e.empty()) return e;    // D43, T241, §6.2
 		if (const auto it = d.find("vote"); it != d.end())   // T236
 		{
 			if (!it->is_object()) return w + "vote: expected an object";
@@ -102,9 +104,9 @@ namespace GB
 		{
 			if (!it->is_object()) return w + "sign: expected an object";
 			const std::string ws = w + "sign: ";
-			if (!KnownKeys(*it, { "refundUnseen", "signDays", "voteDays", "buildCost", "missing", "reach", "fulfilled", "keep", "traits" }, ws, e)) return e;
+			if (!KnownKeys(*it, { "refundUnseen", "signDays", "voteDays", "buildCost", "missing", "unwanted", "reach", "fulfilled", "keep", "traits" }, ws, e)) return e;
 			DirectorSignRules& s = r.Sign;
-			if (!ReadNumber(*it, "refundUnseen", s.RefundUnseen, 0.0f, 1000.0f, ws, e) || !ReadNumber(*it, "signDays", s.SignDays, 0.01f, 100.0f, ws, e)
+			if (!ReadNumber(*it, "refundUnseen", s.RefundUnseen, 0.0f, 1000.0f, ws, e) || !ReadNumber(*it, "signDays", s.SignDays, 0.01f, 100.0f, ws, e) || !ReadNumber(*it, "unwanted", s.Unwanted, 0.0f, 10.0f, ws, e)
 				|| !ReadNumber(*it, "voteDays", s.VoteDays, 0.0f, 10.0f, ws, e) || !ReadNumber(*it, "buildCost", s.BuildCost, 0.0f, 10.0f, ws, e)
 				|| !ReadNumber(*it, "missing", s.Missing, 0.0f, 10.0f, ws, e) || !ReadNumber(*it, "reach", s.Reach, 0.0f, 1000.0f, ws, e)
 				|| !ReadNumber(*it, "fulfilled", s.FulfilledGain, 0.0f, 1000.0f, ws, e) || !ReadMap(*it, "traits", s.Traits, ws, e)) return e;
@@ -125,7 +127,7 @@ namespace GB
 		{
 			if (!it->is_object()) return w + "faith: expected an object";
 			const std::string wf = w + "faith: ";
-			if (!KnownKeys(*it, { "rite", "omen", "daily", "shaman" }, wf, e)) return e;
+			if (!KnownKeys(*it, { "rite", "omen", "daily", "shaman", "clan" }, wf, e)) return e;   // ("clan": DirectorFaith.cpp)
 			if (!ReadNumber(*it, "rite", r.RiteGain, 0.0f, 100.0f, wf, e) || !ReadNumber(*it, "omen", r.OmenGain, 0.0f, 100.0f, wf, e)
 				|| !ReadNumber(*it, "daily", r.DailyGain, 0.0f, 100.0f, wf, e) || !ReadNumber(*it, "shaman", r.ShamanDevotion, 0.0f, 1.0f, wf, e)) return e;
 		}
@@ -134,8 +136,8 @@ namespace GB
 		{
 			if (!it->is_object()) return w + "pressure: expected an object";
 			const std::string wp = w + "pressure: ";
-			if (!KnownKeys(*it, { "decision", "insist", "contradict", "decay", "tired", "heresy", "insistDays" }, wp, e)) return e;
-			if (!ReadNumber(*it, "decision", r.PressureDecision, 0.0f, 100.0f, wp, e) || !ReadNumber(*it, "insist", r.PressureInsist, 0.0f, 100.0f, wp, e)
+			if (!KnownKeys(*it, { "decision", "insist", "contradict", "murmur", "decay", "tired", "heresy", "insistDays" }, wp, e)) return e;
+			if (!ReadNumber(*it, "decision", r.PressureDecision, 0.0f, 100.0f, wp, e) || !ReadNumber(*it, "insist", r.PressureInsist, 0.0f, 100.0f, wp, e) || !ReadNumber(*it, "murmur", r.PressureMurmur, 0.0f, 100.0f, wp, e)
 				|| !ReadNumber(*it, "contradict", r.PressureContradict, 0.0f, 100.0f, wp, e) || !ReadNumber(*it, "decay", r.PressureDecay, 0.0f, 100.0f, wp, e)
 				|| !ReadNumber(*it, "tired", r.PressureTired, 0.0f, 1000.0f, wp, e) || !ReadNumber(*it, "heresy", r.PressureHeresy, 0.0f, 1000.0f, wp, e)
 				|| !ReadNumber(*it, "insistDays", r.InsistDays, 0.0f, 100.0f, wp, e)) return e;
@@ -165,12 +167,22 @@ namespace GB
 			const auto it = m_FaithSet.find(clan);
 			return it != m_FaithSet.end() ? it->second : 1.0f;
 		}
+		const auto it = m_Faith.find(clan);   // D43: the director's own (a clan not looked at yet: the start)
+		return it == m_Faith.end() ? Rules.Faith.Start : it->second;
+	}
+
+	float WorldDirector::BeliefOf(int clan) const
+	{
+		const Clan* c = ClanIn(m_To.Clans, clan);
+		if (!c) return 0.0f;
 		const SocialState& s = c->Folk->Social();
 		const std::string dominant = s.Dominant();
 		if (dominant.empty()) return 0.0f;
 		const auto it = s.Beliefs.find(dominant);
 		return it == s.Beliefs.end() ? 0.0f : std::clamp(it->second, 0.0f, 1.0f);
 	}
+
+	void WorldDirector::SetFaith(int clan, float faith) { m_Faith[clan] = std::clamp(faith, 0.0f, 1.0f); }
 
 	float WorldDirector::DevotionOf(int clan, const std::string& person) const
 	{
@@ -182,7 +194,11 @@ namespace GB
 		const SocialMember* m = s.Find(person);
 		const float attendance = held > 0 && m ? std::min(1.0f, static_cast<float>(m->Rites) / static_cast<float>(held)) : 0.0f;
 		const float shaman = !s.Shaman.empty() && s.Shaman == person ? Rules.ShamanDevotion : 0.0f;
-		return std::clamp(FaithOf(clan) * (0.5f + 0.5f * attendance) + shaman, 0.0f, 1.0f);
+		const float devotion = std::clamp(FaithOf(clan) * (0.5f + 0.5f * attendance) + shaman, 0.0f, 1.0f);
+		if (!m_Skeptics.empty())   // T241: a skeptic's devotion does not rise again
+			for (const DirectorSkeptic& k : m_Skeptics)
+				if (k.Clan == clan && k.Person == person) return std::min(devotion, k.Devotion);
+		return devotion;
 	}
 
 	float WorldDirector::MeanDevotion(int clan) const
@@ -215,12 +231,29 @@ namespace GB
 			for (const auto& [name, m] : s.Members) attended += m.Rites;
 			for (const auto& [k, n] : s.Counts) if (k.rfind("omen.", 0) == 0) omens += n;
 			const auto seen = m_Seen.find(c->Id);
-			if (count && seen != m_Seen.end() && !m_Sandbox)
+			if (count && seen != m_Seen.end())
 			{
-				const float faith = FaithOf(c->Id);
-				const int rites = std::max(0, attended - seen->second.first), read = std::max(0, omens - seen->second.second);
-				Gain(Rules.RiteGain * static_cast<float>(rites) * faith + Rules.OmenGain * static_cast<float>(read) * (0.5f + faith));
+				const int rites = std::max(0, attended - seen->second.first), seen_ = std::max(0, omens - seen->second.second);
+				// D43: one omen a day counts (a good harvest is read at every field: 30 a day filled the influence and the faith in two days)
+				int& today = m_OmenDay[c->Id];
+				const int read = std::min(seen_, std::max(0, 1 - today));
+				today += seen_;
+				if (!m_Sandbox)
+				{
+					const float faith = FaithOf(c->Id);
+					Gain(Rules.RiteGain * static_cast<float>(rites) * faith + Rules.OmenGain * static_cast<float>(read) * (0.5f + faith));
+				}
+				// D43: the clan's own faith: an omen read now; the rites by the share of the living who went, gathered over the day (the day
+				// counts at most one rite of the whole clan: a growing clan holds many, and they filled the faith up in a week)
+				if (rites > 0)
+				{
+					int alive = 0;
+					for (const TribeMember& m : c->Folk->Members()) if (!m.Dead) ++alive;
+					if (alive > 0) m_RiteShare[c->Id] += static_cast<float>(rites) / static_cast<float>(alive);
+				}
+				if (read > 0) FaithGain(c->Id, Rules.Faith.Omen * static_cast<float>(read));
 			}
+			if (!m_Faith.count(c->Id)) m_Faith[c->Id] = Rules.Faith.Start;   // (a clan seen for the first time: a new world's, or a split's)
 			m_Seen[c->Id] = { attended, omens };
 		}
 	}
@@ -252,12 +285,15 @@ namespace GB
 					for (const TribeMember& m : c->Folk->Members()) if (!m.Dead) ++alive;
 					Gain(Rules.DailyGain * static_cast<float>(alive) * MeanDevotion(c->Id));
 				}
+			UpdateFaith(days);   // D43 (before the pressure fades: a tired day gains at half)
 			for (auto it = m_Pressure.begin(); it != m_Pressure.end();)
 			{
 				it->second = std::max(0.0f, it->second - Rules.PressureDecay * static_cast<float>(days));
 				it = it->second <= 0.0f ? m_Pressure.erase(it) : std::next(it);
 			}
 		}
+		UpdateAbuse();   // T241 (nothing without pressure or skeptics)
+		CheckDefeat();   // §6.2 A (nothing without the stakes)
 	}
 
 	// ------------------------------------------------------------------ paying
@@ -275,6 +311,7 @@ namespace GB
 		c.Cost = cost == Rules.Costs.end() ? 0.0f : cost->second;
 		const Clan* target = clan >= 0 ? ClanIn(m_To.Clans, clan) : nullptr;
 		if (clan >= 0 && !target) { c.Why = "no clan " + std::to_string(clan); return c; }
+		if (Defeated()) { c.Why = "nobody believes in you any more"; return c; }   // §6.2 A: the god only watches
 		if (hand && clan >= 0 && FaithOf(clan) < Rules.MinFaith)
 		{
 			c.Why = NameOf(*target) + " does not believe enough: faith " + Num(FaithOf(clan), 2) + " under " + Num(Rules.MinFaith, 2);
@@ -297,7 +334,11 @@ namespace GB
 		m_Influence = std::max(0.0f, m_Influence - c.Cost);
 		if (const auto wait = Rules.Waits.find(action); wait != Rules.Waits.end() && wait->second > 0.0f)
 			m_Waits[WaitKey(action, clan)] = Now() + static_cast<double>(wait->second * Rules.DaySeconds);
-		if (hand && clan >= 0) m_Pressure[clan] += Rules.PressureDecision;
+		if (hand && clan >= 0)
+		{
+			m_Pressure[clan] += Rules.PressureDecision;
+			if (!m_Sandbox) m_Faith[clan] = std::max(0.0f, FaithOf(clan) - Rules.Faith.Hand);   // D43: the hand wears the faith
+		}
 		const Clan* target = clan >= 0 ? ClanIn(m_To.Clans, clan) : nullptr;
 		Write(action, target ? NameOf(*target) : std::string("world"), c.Cost, text, clan);
 		return c;
@@ -306,6 +347,7 @@ namespace GB
 	void WorldDirector::Fulfilled(int clan, float influence, const std::string& text)
 	{
 		Gain(influence);
+		FaithGain(clan, Rules.Faith.Fulfilled);   // D43: "the dream was true"
 		const Clan* target = ClanIn(m_To.Clans, clan);
 		Write("fulfilled", target ? NameOf(*target) : std::string("world"), -influence, text, clan);
 	}
@@ -376,7 +418,13 @@ namespace GB
 				s += "\nclan " + std::to_string(c->Id) + " " + (c->Name.empty() ? c->Folk->ClanName() : c->Name) + ": faith " + Num(faith, 2) + (dominant.empty() ? std::string() : " (" + dominant + ")")
 					+ (m_Sandbox && m_FaithSet.count(c->Id) ? " [set]" : "") + ", devotion " + Num(MeanDevotion(c->Id), 2) + " over " + std::to_string(alive) + " living, pressure "
 					+ Num(PressureOf(c->Id)) + " (" + PressureLevel(c->Id) + "), hand " + (faith >= Rules.MinFaith ? "yes" : "no") + ", waits:" + (waits.empty() ? std::string(" none") : waits);
+				int skeptics = 0;
+				for (const DirectorSkeptic& k : m_Skeptics) if (k.Clan == c->Id) ++skeptics;
+				if (skeptics > 0) s += ", skeptics " + std::to_string(skeptics);
 			}
+		const DirectorBelievers b = Believers();   // §6.2 A
+		s += "\nbelievers: " + std::to_string(b.Clans) + " clans, " + std::to_string(b.People) + " people";
+		if (Defeated()) s += "; defeat on day " + Num(m_DefeatAt / static_cast<double>(Rules.DaySeconds), 2) + ": nobody believes in you any more";
 		return s;
 	}
 
@@ -446,6 +494,7 @@ namespace GB
 		if (sub == "focus") return FocusCommand(a);
 		if (sub == "calling") return CallingCommand(a);
 		if (sub == "vision" || sub == "visions") return VisionCommand(a);
+		if (sub == "defeat" || sub == "believers") return DefeatCommand(a);   // §6.2 A (DirectorFaith.cpp)
 		if (sub == "log")
 		{
 			std::string s = "director log: " + std::to_string(m_Book.size()) + " entries";
@@ -457,7 +506,7 @@ namespace GB
 			}
 			return { true, s };
 		}
-		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | focus [preview] <clan> <group>|off [soft|strong] [days] | calling [preview] <person> <role> | vision [preview] <clan> <tech>|none | visions | log" };
+		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | focus [preview] <clan> <group>|off [soft|strong] [days] | calling [preview] <person> <role> | vision [preview] <clan> <tech>|none | visions | believers | defeat [watch] | log" };
 	}
 
 	// ------------------------------------------------------------------ saving
@@ -482,6 +531,15 @@ namespace GB
 		m_Visions.clear();   // T240
 		m_NextVision = 1;
 		m_Biased.clear();
+		m_Faith.clear();   // D43, T241, §6.2 (the stakes stay the host's: it puts them on for the god's game)
+		m_RiteShare.clear();
+		m_OmenDay.clear();
+		m_Skeptics.clear();
+		m_HeresySince.clear();
+		m_Level.clear();
+		m_HeresySplits = m_Refusals = m_Votes = 0;
+		m_DefeatAt = -1.0;
+		m_DefeatSeen = false;
 	}
 
 	std::string WorldDirector::ToJson() const
@@ -506,13 +564,14 @@ namespace GB
 		j["book"] = book;
 		if (const std::string focus = FocusToJson(); !focus.empty()) j["focus"] = Json::parse(focus);   // T238/T239 (only when there is any)
 		if (const std::string visions = VisionsToJson(); !visions.empty()) j["visions"] = Json::parse(visions);   // T240 (only when there is any)
+		if (const std::string clans = FaithToJson(); !clans.empty()) j["faith"] = Json::parse(clans);   // D43, T241, §6.2
 		if (!m_Signs.empty())   // T237 (a save without signs stays as it was)
 		{
 			Json signs = Json::array();
 			for (const DirectorSign& s : m_Signs)
 				signs.push_back({ { "id", s.Id }, { "clan", s.Clan }, { "building", s.Building }, { "x", s.X }, { "z", s.Z }, { "yaw", s.Yaw }, { "posted", s.Posted },
 					{ "seenAt", s.SeenAt }, { "votedAt", s.VotedAt }, { "status", s.Status }, { "messenger", s.Messenger }, { "site", s.Site }, { "why", s.Why },
-					{ "paid", s.Paid }, { "tries", s.Tries }, { "yes", s.Yes }, { "voters", s.Voters } });
+					{ "paid", s.Paid }, { "tries", s.Tries }, { "yes", s.Yes }, { "voters", s.Voters }, { "against", s.Against } });
 			j["signs"] = signs;
 			j["nextSign"] = m_NextSign;
 		}
@@ -562,11 +621,13 @@ namespace GB
 					s.Tries = e.value("tries", 0);
 					s.Yes = e.value("yes", 0);
 					s.Voters = e.value("voters", 0);
+					s.Against = e.value("against", std::string());
 					d.m_Signs.push_back(s);
 				}
 			d.m_NextSign = j.value("nextSign", 1);
 			if (const auto it = j.find("focus"); it != j.end() && !d.FocusFromJson(it->dump())) return false;   // T238/T239
 			if (const auto it = j.find("visions"); it != j.end() && !d.VisionsFromJson(it->dump())) return false;   // T240
+			if (const auto it = j.find("faith"); it != j.end() && !d.FaithFromJson(it->dump())) return false;      // D43, T241, §6.2 (an old save: each clan starts again at the start)
 			d.m_Biased = m_Biased;
 			*this = std::move(d);
 			if (!m_Focus.empty() || !m_Callings.empty() || !m_Biased.empty()) PushBias();   // (the tribes do not save it: written again now)

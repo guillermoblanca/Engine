@@ -25,7 +25,7 @@ namespace GB::Editor
 		if (k == "birth" || k == "pair" || k == "marriage") return "birth";
 		if (k == "death" || k == "killed") return "death";
 		if (k == "built" || k == "camp_moved") return "build";
-		if (k == "discovery" || k == "tradition" || k == "shaman") return "know";
+		if (k == "discovery" || k == "tradition" || k == "shaman" || k == "skeptic" || k == "tired") return "know";   // (T241: the faith's, with the shaman's)
 		if (k == "raid" || k == "wounded" || k == "theft") return "fight";
 		if (k == "contact" || k == "found" || k == "alliance" || k == "truce" || k == "pact" || k == "break" || k == "move") return "clans";
 		return {};

@@ -452,6 +452,11 @@ namespace GB::Editor
 				}
 				if (best < 0) return { false, "nobody alive in the clan " + std::to_string(m_ActiveClan) };
 			}
+			if (name == "skeptic")   // (for a script: the first skeptic of the world, T241)
+			{
+				if (m_Director.Skeptics().empty()) return { false, "nobody laughs at the god's dreams" };
+				name = m_Director.Skeptics().front().Person;
+			}
 			const Tribe* t = ClanOfMember(name);
 			if (!t) return { false, "nobody called " + name + " in any clan" };
 			for (const auto& c : m_Clans.All()) if (c->Folk == t) m_ActiveClan = c->Id;
@@ -769,6 +774,7 @@ namespace GB::Editor
 			DrawObserverNews(ox, w);
 		}
 		DrawHandBar(ox, oy, w, h);   // T201: the god's hand, at the bottom between the list and the book
+		if (god && m_Director.Defeated() && !m_Director.DefeatSeen()) DrawDefeat(ox, oy, w, h);   // §6.2 A (never in the player's game)
 	}
 
 	// U2: the inside of the quality of life tooltip: the index, then each of its 7 parts with its bar, its value and its weight ("-" when it cannot
@@ -1697,6 +1703,11 @@ namespace GB::Editor
 					ImGui::SetTooltip("%s", hand.Ok ? L.Text("{0} dreams of a trade: if it believes, it takes it up at the next review ({1} influence)", m.Name, L.Num(hand.Cost, 0)).c_str() : Lang::Cap(L.Line(hand.Why)).c_str());
 				for (const DirectorCalling& c : m_Director.Callings())
 					if (c.Person == m.Name) value(L.Text("Calling: {0}", L.Name("role", c.Role)), T::Ochre);
+				if (m_Director.IsSkeptic(clanId, m.Name))   // T241: the mark of a skeptic (in the director's book)
+				{
+					value(L.Text("Skeptic: laughs at the god's dreams"), T::Bad);
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Its vote against the god's ideas weighs double, and the rites no longer raise its devotion").c_str());
+				}
 				if (open)
 				{
 					ImGui::Indent(12.0f);
@@ -2145,7 +2156,7 @@ namespace GB::Editor
 			if (s.Status == "waiting") text = L.Text("{0}: the sign is up ({1}); someone of the clan must see it", clan, b);
 			else if (s.Status == "seen") text = L.Text("{0}: {1} saw the sign ({2})", clan, s.Messenger, b);
 			else if (s.Status == "accepted") text = L.Text("{0} agree to raise it: {1} ({2} of {3})", clan, b, s.Yes, s.Voters);
-			else if (s.Status == "refused") text = L.Text("{0} refuse the sign: {1} ({2} of {3})", clan, b, s.Yes, s.Voters);
+			else if (s.Status == "refused") text = L.Text("{0} refuse the sign: {1} ({2} of {3})", clan, b, s.Yes, s.Voters) + (s.Against.empty() ? std::string() : ": " + L.Text(s.Against));
 			else if (s.Status == "built") text = L.Text("{0}: the sign stands ({1})", clan, b);
 			else if (s.Status == "unseen") text = L.Text("{0}: nobody saw the sign ({1})", clan, b);
 			else text = L.Text("{0}: the sign came to nothing ({1})", clan, b);
@@ -2215,6 +2226,8 @@ namespace GB::Editor
 				if (!tip->Messenger.empty())
 					ImGui::TextUnformatted((tip->Status == "waiting" ? L.Text("Who will likely see it: {0}", tip->Messenger) : L.Text("Messenger: {0}", tip->Messenger)).c_str());
 				if (tip->Voters > 0) ImGui::TextUnformatted(L.Text("Vote at the fire: {0} of {1}", tip->Yes, tip->Voters).c_str());
+				if (tip->Status == "refused" && !tip->Against.empty())   // D43: why they said no
+					ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", L.Text("Why not: {0}", L.Text(tip->Against)).c_str());
 			}
 			ImGui::End();
 		}
@@ -2289,6 +2302,8 @@ namespace GB::Editor
 			{
 				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", (L.Text("A sign here: {0} influence", L.Num(p.Cost, 0)) + (p.SiteOnly ? " " + L.Text("(they wanted it: only the place)") : std::string())).c_str());
 				if (p.Voters > 0) ImGui::TextUnformatted(L.Text("Vote foreseen: {0} of {1}, {2}", p.Yes, p.Voters, L.Text(OutcomeText(p.Outcome))).c_str());
+				if (p.Voters > 0 && p.Outcome != "obey" && !p.Against.empty())   // D43: why they would not
+					ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Warn), "%s", L.Text("Why not: {0}", L.Text(p.Against)).c_str());
 				if (!p.Messenger.empty()) ImGui::TextDisabled("%s", L.Text("Who will likely see it: {0}", p.Messenger).c_str());
 				if (!p.Warning.empty()) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Warn), "%s", Lang::Cap(L.Line(p.Warning)).c_str());
 				ImGui::TextDisabled("%s", L.Text("[Click] place the sign  [R] turn  [Right click] cancel").c_str());
@@ -2310,6 +2325,59 @@ namespace GB::Editor
 			}
 			else ShellToastShown(Lang::Cap(L.Line(p.Why)));
 		}
+	}
+
+	// §6.2 A: the end of the god's game, over the world: nobody believes any more. The days played and the last lines of the world's chronicle;
+	// [Watch the world] goes on looking without the hand (`director defeat watch`), [Main menu] leaves (`shell menu`).
+	void EditorApp::DrawDefeat(float ox, float oy, float w, float h)
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		ImGui::GetForegroundDrawList()->AddRectFilled(ImVec2(ox, oy), ImVec2(ox + w, oy + h), IM_COL32(0, 0, 0, 120));
+		const float width = std::min(560.0f, w - 40.0f);
+		ImGui::SetNextWindowPos(ImVec2(ox + w * 0.5f, oy + h * 0.45f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+		ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
+		ImGui::SetNextWindowFocus();
+		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse
+			| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+		if (ImGui::Begin("Defeat##observer", nullptr, flags))
+		{
+			const std::string title = L.Text("Nobody believes in you any more");
+			ImGui::SetCursorPosX(std::max(0.0f, (width - ImGui::CalcTextSize(title.c_str()).x) * 0.5f));
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", title.c_str());
+			const double day = m_Director.DefeatAt() / static_cast<double>(m_Director.Rules.DaySeconds);
+			const std::string days = L.Text("Days played: {0}", L.Num(static_cast<float>(day), 1));
+			ImGui::SetCursorPosX(std::max(0.0f, (width - ImGui::CalcTextSize(days.c_str()).x) * 0.5f));
+			ImGui::TextUnformatted(days.c_str());
+			ImGui::Separator();
+			ImGui::TextDisabled("%s", L.Text("The last of the chronicle").c_str());
+			const std::vector<HistoryEvent>& past = m_Clans.Past().Events();
+			int shown = 0;
+			for (auto it = past.rbegin(); it != past.rend() && shown < 6; ++it)
+			{
+				if (it->Weight < 3) continue;   // (the weighty ones: births, deaths, splits, skeptics...; a lesson learnt weighs 2 and filled the list)
+				const Clan* c = m_Clans.Find(static_cast<ClanId>(it->Clan));
+				const std::string when = L.Text("day {0}", L.Num(static_cast<float>(it->At / static_cast<double>(m_Director.Rules.DaySeconds)), 1));
+				ImGui::TextDisabled("%s", (when + (c ? "  " + L.Name("clan", c->Name, c->Name) : std::string())).c_str());
+				ImGui::SameLine(150.0f);
+				ImGui::PushTextWrapPos(width - 12.0f);
+				ImGui::TextWrapped("%s", Lang::Cap(L.Line(it->Text)).c_str());
+				ImGui::PopTextWrapPos();
+				++shown;
+			}
+			if (shown == 0) ImGui::TextDisabled("%s", L.Text("nothing yet").c_str());
+			ImGui::Separator();
+			const float bw = (width - 3.0f * T::Gap) * 0.5f;
+			{
+				T::PrimaryScope lit;
+				if (ImGui::Button((L.Text("Watch the world") + "###defeat_watch").c_str(), ImVec2(bw, 28.0f))) run("director defeat watch");
+			}
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The world goes on: you watch it, without the hand").c_str());
+			ImGui::SameLine();
+			if (ImGui::Button((L.Text("Main menu") + "###defeat_menu").c_str(), ImVec2(bw, 28.0f))) run("shell menu");
+		}
+		ImGui::End();
 	}
 
 	void EditorApp::DrawHandBar(float ox, float oy, float w, float h)
@@ -2351,6 +2419,19 @@ namespace GB::Editor
 			tip(L.Text("What the god can spend. It comes from the faith of the clans: their rites, the omens they read and their devotion every day.") + "\n"
 				+ L.Text("A sign costs {0}, an omen {1}.", L.Num(cost("sign"), 0), L.Num(cost("omen"), 0)) + (m_Director.Sandbox() ? "\n" + L.Text("Sandbox: it refills on a fixed clock") : std::string()));
 			divider();
+			// §6.2 A: the believers (the clans whose faith reaches the hand, and their people): at none, the god's game is lost
+			{
+				const DirectorBelievers b = m_Director.Believers();
+				ImGui::BeginGroup();
+				ImGui::TextDisabled("%s", L.Text("Believers").c_str());
+				ImGui::SameLine();
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(b.Clans == 0 ? T::Bad : b.Clans == 1 ? T::Warn : T::Bone), "%s",
+					(L.Text(b.Clans == 1 ? "{0} clan" : "{0} clans", b.Clans) + " \xC2\xB7 " + L.Text(b.People == 1 ? "{0} person" : "{0} people", b.People)).c_str());
+				ImGui::EndGroup();
+				tip(m_Director.Defeated() ? L.Text("Nobody believes in you any more: you only watch the world")
+					: L.Text("The clans whose faith reaches {0} % and their people. If none is left, the game is lost.", L.Num(R.MinFaith * 100.0f, 0)));
+				divider();
+			}
 			// the clan under the hand: its faith and the pressure the god has put on it
 			ImGui::BeginGroup();
 			Swatch(ClanColour(m_Clans, clan->Id));

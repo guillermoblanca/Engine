@@ -7,7 +7,8 @@
       "rite": 0.5,
       "omen": 1.0,
       "daily": 0.5,
-      "shaman": 0.2
+      "shaman": 0.2,
+      "clan": { "start": 0.3, "grow": 0.06, "decay": 0.07, "rite": 0.04, "omen": 0.02, "fulfilled": 0.06, "hand": 0.02, "refused": 0.04, "tired": 0.5 }
     },
     "sandboxPerDay": 20,
     "costs": {
@@ -30,8 +31,9 @@
     },
     "pressure": {
       "decision": 1,
-      "insist": 2,
+      "insist": 3,
       "contradict": 2,
+      "murmur": 2,
       "decay": 1,
       "tired": 6,
       "heresy": 12,
@@ -41,7 +43,7 @@
     "vote": {
       "base": -0.1,
       "faith": 0.8,
-      "affinity": 0.6,
+      "affinity": 0.3,
       "shaman": 0.3,
       "survival": 0.6,
       "majority": 0.5,
@@ -56,17 +58,18 @@
       "voteDays": 0.25,
       "buildCost": 0.15,
       "missing": 0.3,
+      "unwanted": 0.35,
       "reach": 30,
       "fulfilled": 10,
       "keep": 20,
       "traits": { "diligence": 0.2 }
     },
     "focus": {
-      "soft": 1.25,
-      "strong": 1.5,
+      "soft": 2.0,
+      "strong": 3.0,
       "upkeep": { "soft": 3, "strong": 5 },
       "maxDays": 7,
-      "faith": 0.7,
+      "faith": 1.4,
       "trait": 0.3,
       "drift": 0.01,
       "groups": {
@@ -88,7 +91,9 @@
       "fulfilled": 5,
       "keep": 20,
       "traits": { "curiosity": 0.3 }
-    }
+    },
+    "skeptic": { "devotion": 0.3, "boldness": 0.6, "share": 0.334, "days": 1, "faith": 0.05, "ease": 0.02 },
+    "defeat": { "graceDays": 3 }
   },
   "alerts": {
     "_doc": "T220: the thresholds of the god's alerts (Engine/src/GB/Game/WorldAlerts.h; MODO_DIOS_UX 3.7): hunger under hungerDays days of food (or in survival with hungerOnSurvival) once the world is graceDays old (every clan starts with an empty store), the winter within winterWithinDays days and its outlook short, a war alert kept warDays days after the last clash, an inventor or a split eventDays days. Which ones the player sees and which pause is player.json controls.hud.",

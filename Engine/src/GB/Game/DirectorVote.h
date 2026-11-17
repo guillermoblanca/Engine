@@ -15,7 +15,7 @@ namespace GB
 	{
 		float Base = -0.1f;
 		float Faith = 0.8f;             // x the voter's devotion 0..1
-		float Affinity = 0.6f;          // x its bond with the messenger -1..1
+		float Affinity = 0.3f;          // x its bond with the messenger -1..1 (D43: at 0.6 the bonds of a clan a few days old carried every vote)
 		float Shaman = 0.3f;            // the messenger is the clan's shaman
 		float Survival = 0.6f;          // a cost more while the clan lives in "survival" (Tribe::MaslowTier)
 		float Majority = 0.5f;          // more than this share in favour: the clan obeys
@@ -31,6 +31,7 @@ namespace GB
 		float Devotion = 0.0f;                    // 0..1 (WorldDirector::DevotionOf)
 		float Bond = 0.0f;                        // with the messenger (Society::Affinity)
 		std::map<std::string, float> Traits;      // personality 0..1 (Person::Traits)
+		bool Skeptic = false;                     // T241: laughs at the god's dreams: always against, and its no counts twice
 	};
 
 	// What is voted: who brings it, what it weighs and who votes.
@@ -39,6 +40,7 @@ namespace GB
 		std::string Messenger;                    // does not vote (even if listed among the voters)
 		bool MessengerIsShaman = false;
 		float Cost = 0.0f;                        // the decision's cost (a sign: buildCost + missing x the share of material missing; + Survival)
+		float FaithScale = 1.0f;                  // T241: x rules.Faith (a tired clan listens half: 0.5)
 		std::map<std::string, float> Traits;      // trait -> weight x (2 trait - 1) (per decision, in the data: a sign weighs diligence)
 		std::map<std::string, float> Norms;       // the clan's norms 0..1 (Society::Norm)
 		std::vector<DirectorVoter> Voters;
@@ -47,6 +49,7 @@ namespace GB
 	struct DirectorVoteResult
 	{
 		int Voters = 0, Yes = 0;
+		int Skeptics = 0;                         // T241: voters who are skeptics (each no of theirs weighs two in the share)
 		std::string Outcome;                      // "obey", "doubt" or "resist" (no voters: "resist")
 		std::vector<std::string> Against;         // in name order
 		bool Accepted() const { return Outcome == "obey"; }

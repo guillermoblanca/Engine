@@ -1095,14 +1095,15 @@ namespace GB
 		}
 	}
 
-	std::string ClanWorld::Split(ClanId id, bool force)
+	std::string ClanWorld::Split(ClanId id, bool force, const SplitCause* cause)
 	{
 		Clan* c = Find(id);
 		if (!c || !c->Folk) return "no such clan";
 		Tribe& t = *c->Folk;
 		const int alive = Alive(*c);
 		const std::vector<Tribe::Household>& households = t.Households();
-		if (households.size() < 2) return "the " + c->Name + " are one household: there is nobody to go";
+		if (!cause && households.size() < 2) return "the " + c->Name + " are one household: there is nobody to go";
+		if (cause) force = true;   // T241: a cause is its own reason, whatever the clan's size
 		const glm::vec2 camp = t.Config.Economy.Camp;
 		auto nearestCamp = [&](const glm::vec2& p)
 		{
@@ -1113,7 +1114,7 @@ namespace GB
 		// where: an outpost by what its next step needs and it knows only far away; else, a big clan, a home of their own
 		glm::vec2 target(0.0f);
 		std::string why;
-		if (force || alive >= Rules.Fission.OutpostMembers)
+		if (!cause && (force || alive >= Rules.Fission.OutpostMembers))   // (T241: a cause goes to a home of its own, not an outpost)
 			for (const auto& [item, n] : t.NextStepNeeds())
 			{
 				const MemoryEntry* best = nullptr;
@@ -1136,19 +1137,39 @@ namespace GB
 			auto free = [this, camp, far](const glm::vec2& p) { return glm::distance(p, camp) <= far && (!m_Regions || OwnerOf(m_Regions->RegionAt(p)) < 0); };
 			if (!ChooseHome(Rules.Fission.MinApart, free, site)) return "no free land for a new home near enough";
 			target = site.At;
-			why = site.Why;
+			why = cause ? cause->Why : site.Why;
 		}
 		// who: the households whose work is best there, whole, up to Share of the clan; at least two stay
-		std::vector<const Tribe::Household*> order;
-		for (const Tribe::Household& h : households) order.push_back(&h);
-		std::stable_sort(order.begin(), order.end(), [&](const Tribe::Household* x, const Tribe::Household* y) { return t.HouseholdWorkAt(*x, target) > t.HouseholdWorkAt(*y, target); });
 		std::vector<std::string> leaving;
-		const size_t share = std::max<size_t>(2, static_cast<size_t>(std::ceil(Rules.Fission.Share * static_cast<float>(alive))));
-		for (const Tribe::Household* h : order)
+		if (cause)   // T241: the households of those who want to go, whole, then the rest of them alone; half the clan stays
 		{
-			if (leaving.size() >= share) break;
-			if (alive - static_cast<int>(leaving.size() + h->Members.size()) < std::max(2, (alive + 1) / 2)) continue;   // (half the clan stays: one of 11 sent 8 away)
-			for (const std::string& m : h->Members) if (!IsEnvoy(m)) leaving.push_back(m);
+			const int stay = std::max(2, (alive + 1) / 2);
+			auto wants = [&](const std::string& m) { return std::find(cause->Members.begin(), cause->Members.end(), m) != cause->Members.end(); };
+			auto gone = [&](const std::string& m) { return std::find(leaving.begin(), leaving.end(), m) != leaving.end(); };
+			auto alivePerson = [&](const std::string& m) { const TribeMember* x = t.FindMember(m); return x && !x->Dead && !IsEnvoy(m); };
+			for (const Tribe::Household& h : households)
+			{
+				if (std::none_of(h.Members.begin(), h.Members.end(), wants)) continue;
+				std::vector<std::string> go;
+				for (const std::string& m : h.Members) if (alivePerson(m) && !gone(m)) go.push_back(m);
+				if (alive - static_cast<int>(leaving.size() + go.size()) < stay) continue;
+				leaving.insert(leaving.end(), go.begin(), go.end());
+			}
+			for (const std::string& m : cause->Members)
+				if (alivePerson(m) && !gone(m) && alive - static_cast<int>(leaving.size() + 1) >= stay) leaving.push_back(m);
+		}
+		else
+		{
+			std::vector<const Tribe::Household*> order;
+			for (const Tribe::Household& h : households) order.push_back(&h);
+			std::stable_sort(order.begin(), order.end(), [&](const Tribe::Household* x, const Tribe::Household* y) { return t.HouseholdWorkAt(*x, target) > t.HouseholdWorkAt(*y, target); });
+			const size_t share = std::max<size_t>(2, static_cast<size_t>(std::ceil(Rules.Fission.Share * static_cast<float>(alive))));
+			for (const Tribe::Household* h : order)
+			{
+				if (leaving.size() >= share) break;
+				if (alive - static_cast<int>(leaving.size() + h->Members.size()) < std::max(2, (alive + 1) / 2)) continue;   // (half the clan stays: one of 11 sent 8 away)
+				for (const std::string& m : h->Members) if (!IsEnvoy(m)) leaving.push_back(m);
+			}
 		}
 		if (leaving.size() < 2) return "too few could go";
 		if (!FoundClan) return "the host cannot found a clan";

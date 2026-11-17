@@ -343,6 +343,7 @@ namespace GB::Editor
 		m_Orbit.Distance = 70.0f;
 		m_Orbit.Pitch = 0.55f;
 		m_Shell.Now = ShellState::Screen::God;
+		m_Director.SetStakes(true);   // §6.2 A: the god's game can be lost (saved with it; the editor and the player's game never)
 		m_Shell.Pause = false;
 		m_Shell.Page = m_Shell.PausePage = "main";
 		ShellState::Session& s = m_Shell.Run;
@@ -366,6 +367,7 @@ namespace GB::Editor
 		const CommandResult r = Execute("play" + args);
 		if (!r.Ok) return r;
 		m_Shell.Now = ShellState::Screen::Player;
+		m_Director.SetStakes(false);   // §6.2 A: never in the player's game
 		m_Shell.Pause = false;
 		ShellState::Session& s = m_Shell.Run;
 		s = ShellState::Session{};

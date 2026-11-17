@@ -29,6 +29,7 @@ namespace GB
 		float VoteDays = 0.25f;            // from the sign seen to the clan's vote at the fire (a doubt: the same again)
 		float BuildCost = 0.15f;           // the cost of a building in the vote (as player.proposals.buildCost)
 		float Missing = 0.3f;              // x the share of its material the store lacks
+		float Unwanted = 0.35f;            // D43: the clan did not want that building (it is not among its needs)
 		float Reach = 30.0f;               // the camp's own ground: always the clan's (beyond it, a region the clan holds)
 		float FulfilledGain = 10.0f;       // influence when the building stands (Fulfilled)
 		int Keep = 20;                     // closed signs kept for `director signs`
@@ -45,6 +46,7 @@ namespace GB
 		float X = 0.0f, Z = 0.0f, Yaw = 0.0f;
 		double Posted = 0.0, SeenAt = 0.0, VotedAt = 0.0;
 		std::string Status = "waiting", Messenger, Site, Why;
+		std::string Against;               // D43: a refused sign: what weighed most against it ("they do not need it"...)
 		float Paid = 0.0f;
 		int Tries = 0, Yes = 0, Voters = 0;
 		bool Open() const { return Status == "waiting" || Status == "seen"; }
@@ -63,6 +65,7 @@ namespace GB
 		std::string Messenger;             // the probable one
 		int Yes = 0, Voters = 0;
 		std::string Outcome;               // "obey", "doubt", "resist"
+		std::string Against;               // D43: what weighs most against it ("" when nobody is against)
 		float X = 0.0f, Z = 0.0f;
 	};
 
@@ -78,10 +81,10 @@ namespace GB
 	// "focus_strong" in the costs; Upkeep a day after; each day the group's norm moves Drift towards 1. In "survival" only "food" works.
 	struct DirectorFocusRules
 	{
-		float Soft = 1.25f, Strong = 1.5f;
+		float Soft = 2.0f, Strong = 3.0f;  // D43: x1.25 on the score moved the time in lore +25 % in 1 seed of 3 (the choice is nearly an argmax)
 		float UpkeepSoft = 3.0f, UpkeepStrong = 5.0f;
 		int MaxDays = 7;
-		float Faith = 0.7f, Trait = 0.3f, Drift = 0.01f;
+		float Faith = 1.4f, Trait = 0.3f, Drift = 0.01f;   // (Faith x devotion: with the clan's faith ~0.5 a devotion ~0.35 follows it by half)
 		std::map<std::string, DirectorFocusGroup> Groups = {
 			{ "food", { { "hunt", "snare", "farm", "haul" }, true, false, "diligence", "industry" } },
 			{ "build", { { "build", "deliver", "pave", "make", "craft" }, false, true, "diligence", "industry" } },
@@ -159,6 +162,42 @@ namespace GB
 		float Disposition = 0.0f, Cost = 0.0f, Skill = 0.0f, Own = 0.0f;
 	};
 
+	// D43: the faith of a clan in the god, kept by the director (the clan's beliefs are the simulation's and fill up in a day and a half; this one
+	// is only the god's, so nothing of the clans changes with it). A day: F += (Grow x dominant belief + Rite x min(1, rites)) x (1 - F) - Decay x F,
+	// `rites` the attendances of the day over the living (one rite of the whole clan = 1); it settles at (Grow + Rite) / (Grow + Rite + Decay) with
+	// a rite a day and the belief full, at Grow / (Grow + Decay) with none. An omen read adds Omen x (1 - F) at once, a sign or a vision that comes
+	// true Fulfilled x (1 - F). The hand wears it: each decision on the clan takes Hand, a refusal of the clan Refused. A tired clan (pressure >=
+	// PressureTired) gains at Tired x the sources.
+	struct DirectorFaithRules
+	{
+		float Start = 0.3f, Grow = 0.06f, Decay = 0.07f, Rite = 0.04f, Omen = 0.02f, Fulfilled = 0.06f, Hand = 0.02f, Refused = 0.04f, Tired = 0.5f;
+		bool operator==(const DirectorFaithRules&) const = default;
+	};
+	// T241 (MODO_DIOS_DECISIONES.md §4.4): at the heresy pressure the adults with devotion under Devotion and boldness over Boldness turn skeptics;
+	// when at least Share of the clan's adults are skeptics for Days (a season: a day), the clan splits with them (ClanWorld::Split, cause
+	// "heresy"), and the new clan starts with faith Faith.
+	struct DirectorSkepticRules
+	{
+		float Devotion = 0.3f, Boldness = 0.6f, Share = 0.334f, Days = 1.0f, Faith = 0.05f;
+		float Ease = 0.02f;   // the boldness asked falls by this for each point of pressure over heresy (a god who keeps pushing makes laughing easy)
+		bool operator==(const DirectorSkepticRules&) const = default;
+	};
+	// §6.2 A: the god's game is lost when no clan believes any more (faith >= MinFaith), once GraceDays have gone by.
+	struct DirectorDefeatRules
+	{
+		float GraceDays = 3.0f;
+		bool operator==(const DirectorDefeatRules&) const = default;
+	};
+	struct DirectorSkeptic                 // a skeptic (T241): in the director's book, never in the Tribe
+	{
+		int Clan = -1;
+		std::string Person;
+		double Since = 0.0;
+		float Devotion = 0.0f;             // its devotion when it turned: it does not rise again
+		bool operator==(const DirectorSkeptic&) const = default;
+	};
+	struct DirectorBelievers { int Clans = 0, People = 0; };
+
 	// assets/data/director.json, the "director" section.
 	struct DirectorRules
 	{
@@ -172,10 +211,11 @@ namespace GB
 		float SandboxPerDay = 20.0f;       // `director sandbox on`: the fixed clock that refills the influence
 		std::map<std::string, float> Costs = { { "omen", 10.0f }, { "sign", 20.0f }, { "sign_site", 10.0f }, { "focus", 10.0f }, { "focus_strong", 20.0f }, { "calling", 15.0f }, { "vision", 10.0f } };   // action -> influence it costs
 		std::map<std::string, float> Waits = { { "omen", 1.0f }, { "sign", 0.0f }, { "sign_site", 0.0f }, { "focus", 0.0f }, { "focus_strong", 0.0f }, { "calling", 0.0f }, { "vision", 0.0f } };      // action -> days before it can fall on the same clan again (a sign: one open per clan instead)
-		// the pressure on a clan (§4.4): only counted for now; G4-6 gives it its consequences
+		// the pressure on a clan (§4.4): tired (the faith's sources and its weight in the vote at Faith.Tired), heresy (skeptics; T241)
 		float PressureDecision = 1.0f;     // a decision of the hand on the clan
-		float PressureInsist = 2.0f;       // the same decision asked again within InsistDays after a refusal (the caller says it)
+		float PressureInsist = 3.0f;       // the same decision asked again within InsistDays after a refusal (the caller says it)
 		float PressureContradict = 2.0f;   // an order against the last one within a day (the caller says it)
+		float PressureMurmur = 2.0f;       // T241: the clan says no to an idea of the god (it murmurs)
 		float PressureDecay = 1.0f;        // a day
 		float PressureTired = 6.0f;
 		float PressureHeresy = 12.0f;
@@ -188,6 +228,9 @@ namespace GB
 		DirectorFocusRules Focus;          // T238: the focus of a clan ("focus")
 		DirectorCallingRules Calling;      // T239: the calling of a person ("calling")
 		DirectorVisionRules Vision;        // T240: the vision ("vision")
+		DirectorFaithRules Faith;          // D43: the clan's faith in the god ("faith": { "start", "grow", "decay", "riteFaith", ... })
+		DirectorSkepticRules Skeptic;      // T241 ("skeptic")
+		DirectorDefeatRules Defeat;        // §6.2 A ("defeat")
 		bool operator==(const DirectorRules&) const = default;
 	};
 	DirectorRules DefaultDirectorRules();   // assets/data/director.json says the same
@@ -235,7 +278,9 @@ namespace GB
 		DirectorReply Command(const std::vector<std::string>& args);
 
 		// ---- what the clans believe (read only)
-		float FaithOf(int clan) const;                                     // the clan's faith 0..1: its dominant belief (or the sandbox's value)
+		float FaithOf(int clan) const;                                     // the clan's faith in the god 0..1 (D43: the director's own; or the sandbox's value)
+		float BeliefOf(int clan) const;                                    // its dominant belief 0..1 (the simulation's: what the faith grows from)
+		void SetFaith(int clan, float faith);                              // (a test, a heresy split's new clan)
 		float DevotionOf(int clan, const std::string& person) const;       // a person's 0..1 (MODO_DIOS_DECISIONES §4.1)
 		float MeanDevotion(int clan) const;                                // of its living members (0 with none)
 
@@ -246,8 +291,27 @@ namespace GB
 		DirectorCheck Spend(const std::string& action, int clan, bool hand, const std::string& text);
 		void Fulfilled(int clan, float influence, const std::string& text);   // a sign or a vision came true: the god gains (G4-2)
 		void AddPressure(int clan, float amount, const std::string& why);     // an insistence, a contradiction, a murmur (the caller decides)
+		// D43/T241: the clan said no to an idea of the god (`what`: "sign", "vision"...): its faith drops, it murmurs (PressureMurmur); counted
+		void Refused(int clan, const std::string& what, const std::string& text);
+		void Voted() { ++m_Votes; }                                        // a vote of a clan on an idea of the god closed (counted for the report)
 		float PressureOf(int clan) const;
-		std::string PressureLevel(int clan) const;                        // "low", "tired", "heresy" (only named, no consequence yet)
+		std::string PressureLevel(int clan) const;                        // "low", "tired", "heresy"
+		bool Tired(int clan) const { return PressureOf(clan) >= Rules.PressureTired; }
+		// ---- T241: the skeptics (in the director's book): a skeptic votes against with a no that weighs two, and its devotion does not rise
+		bool IsSkeptic(int clan, const std::string& person) const;
+		const std::vector<DirectorSkeptic>& Skeptics() const { return m_Skeptics; }
+		int HeresySplits() const { return m_HeresySplits; }
+		int Refusals() const { return m_Refusals; }
+		int Votes() const { return m_Votes; }
+		// ---- §6.2 A: the believers and the defeat. Only a host that plays the god's game puts the stakes on (GB.exe's `shell new`, GBSim): with
+		// them off (the editor, the player's game) there is no defeat.
+		DirectorBelievers Believers() const;                               // the clans with faith >= MinFaith and their living
+		void SetStakes(bool on) { m_Stakes = on; }
+		bool Stakes() const { return m_Stakes; }
+		bool Defeated() const { return m_DefeatAt >= 0.0; }
+		double DefeatAt() const { return m_DefeatAt; }                     // world seconds (-1: none)
+		bool DefeatSeen() const { return m_DefeatSeen; }                   // the player chose to go on watching the world
+		std::string ReportLine() const;                                    // GBSim --report: the faith, the votes, the skeptics, the defeat
 		double WaitLeft(const std::string& action, int clan) const;        // seconds until `action` can fall on the clan again (0 = now)
 
 		// ---- T236: the vote of a clan on an idea one of its people brings (`messenger`): every living adult but the players, the children and
@@ -315,6 +379,14 @@ namespace GB
 		void UpdateVisions();                                              // T240: nothing to do without visions
 		std::string VisionsToJson() const;                                 // "" with no vision
 		bool VisionsFromJson(const std::string& json);
+		void UpdateFaith(int days);                                        // D43: a day of the clans' faith (DirectorFaith.cpp)
+		void UpdateAbuse();                                                // T241: tired, skeptics, the heresy split (nothing under the pressure)
+		void CheckDefeat();                                                // §6.2 A (only with the stakes on)
+		void FaithGain(int clan, float amount);                            // a source of faith: x (1 - F), at Faith.Tired when tired
+		DirectorReply DefeatCommand(const std::vector<std::string>& args);
+		std::string FaithToJson() const;                                   // the faith, the skeptics, the defeat ("" before the first look)
+		bool FaithFromJson(const std::string& json);
+		void Chronicle(int clan, const std::string& kind, const std::string& who, const std::string& text);   // an event of the world's history
 
 		DirectorTargets m_To;
 		float m_Influence = 50.0f;
@@ -336,5 +408,15 @@ namespace GB
 		std::vector<DirectorVision> m_Visions;                             // T240: the held ones and the last closed ones (saved only when there are any)
 		int m_NextVision = 1;
 		std::vector<int> m_Biased;                                        // the clans whose TribeBias was written last (to clear them after)
+		std::map<int, float> m_Faith;                                      // D43: each clan's faith in the god
+		std::map<int, float> m_RiteShare;                                  // D43: the share of the clan at its rites since the day turned
+		std::map<int, int> m_OmenDay;                                      // D43: the omens each clan read since the day turned (one counts)
+		std::vector<DirectorSkeptic> m_Skeptics;                           // T241
+		std::map<int, double> m_HeresySince;                               // T241: since when a third of the clan are skeptics
+		std::map<int, std::string> m_Level;                                // T241: the pressure level last told ("tired", "heresy")
+		int m_HeresySplits = 0, m_Refusals = 0, m_Votes = 0;
+		bool m_Stakes = false;                                             // §6.2 A: the god's game can be lost
+		double m_DefeatAt = -1.0;
+		bool m_DefeatSeen = false;
 	};
 }

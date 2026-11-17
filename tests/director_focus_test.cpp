@@ -106,6 +106,10 @@ int GBTest_director_focus(int, char**)
 	bool above = !bias.Mult.empty();
 	for (const auto& [who, m] : bias.Mult) above = above && m > 1.0f && m <= rules.Focus.Soft + 1e-4f;
 	Check(above && bias.Mult.size() == 6, "every believer follows it: 1 < m(p) <= soft");
+	float mean = 0.0f;
+	for (const auto& [who, m] : bias.Mult) mean += m / static_cast<float>(bias.Mult.size());
+	std::fprintf(stderr, "  (mean m(p) of the believers %.2f)\n", mean);
+	Check(mean >= 1.25f, "D43: the focus shows (a soft focus pushes a believer more than x1.25 on average: less barely moved the time in lore)");
 	Check(!w.Folk(1).Bias.Focus.Active(), "the other clan has no bias");
 	const float inquiry = w.Folk(0).People().Norm(w.Folk(0).Config.Society, "inquiry");
 	w.Step(rules.DaySeconds);   // a day turns
