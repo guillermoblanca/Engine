@@ -72,7 +72,7 @@ int GBTest_director_focus(int, char**)
 	ss << f.rdbuf();
 	DirectorRules rules;
 	Check(!ss.str().empty() && LoadDirectorRules(ss.str(), rules).empty(), "assets/data/director.json loads with its focus and calling");
-	Check(rules == DefaultDirectorRules(), "and says what DefaultDirectorRules says");
+	Check([&] { DirectorRules r = rules; r.Stages = {}; return r; }() == DefaultDirectorRules(), "and says what DefaultDirectorRules says (D48: but the stages, only data)");
 	Check(Near(rules.Costs["focus"], 10.0f) && Near(rules.Costs["focus_strong"], 20.0f) && Near(rules.Costs["calling"], 15.0f), "the focus costs 10 (strong 20), the calling 15");
 	Check(rules.Focus.Groups.size() == 5 && Has(rules.Focus.Groups["lore"].Kinds, "experiment") && rules.Focus.Groups["food"].FoodGather, "five groups; lore pushes experiment, food the gathering of food");
 	DirectorRules bad = rules;

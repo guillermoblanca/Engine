@@ -88,7 +88,7 @@ int GBTest_director_vision(int, char**)
 	ss << f.rdbuf();
 	DirectorRules rules;
 	Check(!ss.str().empty() && LoadDirectorRules(ss.str(), rules).empty(), "assets/data/director.json loads with its vision");
-	Check(rules == DefaultDirectorRules(), "and says what DefaultDirectorRules says");
+	Check([&] { DirectorRules r = rules; r.Stages = {}; return r; }() == DefaultDirectorRules(), "and says what DefaultDirectorRules says (D48: but the stages, only data)");
 	Check(Near(rules.Costs["vision"], 10.0f) && rules.Waits.count("vision") && Near(rules.Vision.Days, 3.0f), "the vision costs 10 and lapses in 3 days");
 	DirectorRules bad = rules;
 	Check(!LoadDirectorRules("{\"director\":{\"vision\":{\"dream\":1}}}", bad).empty() && bad == rules, "an unknown key of the vision is refused");

@@ -73,10 +73,16 @@ namespace GB
 		{
 			const std::string w = "director: skeptic: ";
 			if (!it->is_object()) return w + "expected an object";
-			if (!Known(*it, { "devotion", "boldness", "share", "days", "faith", "ease" }, w, e)) return e;
+			if (!Known(*it, { "devotion", "boldness", "share", "days", "faith", "ease", "minGroup", "gapDays" }, w, e)) return e;
 			DirectorSkepticRules& s = r.Skeptic;
 			if (!Number(*it, "devotion", s.Devotion, 0.0f, 1.0f, w, e) || !Number(*it, "boldness", s.Boldness, 0.0f, 1.0f, w, e) || !Number(*it, "share", s.Share, 0.0f, 1.0f, w, e)
-				|| !Number(*it, "days", s.Days, 0.0f, 100.0f, w, e) || !Number(*it, "faith", s.Faith, 0.0f, 1.0f, w, e) || !Number(*it, "ease", s.Ease, 0.0f, 1.0f, w, e)) return e;
+				|| !Number(*it, "days", s.Days, 0.0f, 100.0f, w, e) || !Number(*it, "faith", s.Faith, 0.0f, 1.0f, w, e) || !Number(*it, "ease", s.Ease, 0.0f, 1.0f, w, e)
+				|| !Number(*it, "gapDays", s.GapDays, 0.0f, 1000.0f, w, e)) return e;
+			if (const auto n = it->find("minGroup"); n != it->end())   // D49
+			{
+				if (!n->is_number_integer() || n->get<int>() < 2 || n->get<int>() > 100) return w + "minGroup: expected an integer in 2..100";
+				s.MinGroup = n->get<int>();
+			}
 		}
 		if (const auto it = d.find("defeat"); it != d.end())
 		{
@@ -214,11 +220,16 @@ namespace GB
 					Write("skeptic", name, 0.0f, m->Name + " of " + name + " turns skeptic (devotion " + Num(devotion, 2) + ")", id);
 				}
 			}
-			// the split: a third of the adults skeptic for a season
+			// the split: a third of the adults skeptic for a season; D49: a group of MinGroup at least (and a clan big enough that they can go
+			// with half of it staying, as ClanWorld::Split keeps it), and GapDays since the clan's last heresy
 			int adults = 0, skeptics = 0;
 			for (const TribeMember& m : t.Members())
 				if (Adult(t, m)) { ++adults; if (IsSkeptic(id, m.Name)) ++skeptics; }
-			if (skeptics >= 2 && adults > 0 && static_cast<float>(skeptics) >= Rules.Skeptic.Share * static_cast<float>(adults))
+			const int alive = Living(t);
+			const int canGo = alive - std::max(2, (alive + 1) / 2);
+			const auto last = m_HeresyLast.find(id);
+			const bool rested = last == m_HeresyLast.end() || now - last->second >= static_cast<double>(Rules.Skeptic.GapDays * Rules.DaySeconds);
+			if (skeptics >= Rules.Skeptic.MinGroup && canGo >= Rules.Skeptic.MinGroup && rested && adults > 0 && static_cast<float>(skeptics) >= Rules.Skeptic.Share * static_cast<float>(adults))
 			{
 				if (!m_HeresySince.count(id)) m_HeresySince[id] = now;
 				else if (now - m_HeresySince[id] >= static_cast<double>(Rules.Skeptic.Days * Rules.DaySeconds)) split.push_back(id);
@@ -234,6 +245,7 @@ namespace GB
 			SplitCause cause;
 			cause.Why = "heresy: they laugh at the god's dreams";
 			for (const DirectorSkeptic& k : m_Skeptics) if (k.Clan == id) cause.Members.push_back(k.Person);
+			cause.MinGroup = Rules.Skeptic.MinGroup;   // D49
 			std::vector<int> before;
 			for (const auto& o : m_To.Clans->All()) before.push_back(o->Id);
 			const std::string why = m_To.Clans->Split(id, true, &cause);
@@ -244,11 +256,13 @@ namespace GB
 				continue;
 			}
 			m_HeresySince.erase(id);
+			m_HeresyLast[id] = now;   // D49: the clan rests GapDays before another heresy
 			++m_HeresySplits;
 			int founded = -1;
 			for (const auto& o : m_To.Clans->All()) if (std::find(before.begin(), before.end(), o->Id) == before.end()) founded = o->Id;
 			if (founded >= 0)
 			{
+				m_HeresyLast[founded] = now;   // (and so does the clan of the heretics)
 				m_Faith[founded] = Rules.Skeptic.Faith;   // the heretics hardly believe
 				const Clan* nc = ClanAt(m_To.Clans, founded);
 				Write("heresy", name, 0.0f, "the skeptics of " + name + " leave to found the " + (nc ? NameOf(*nc) : std::string("new clan")), id);
@@ -337,6 +351,12 @@ namespace GB
 		for (const auto& [c, n] : m_OmenDay) omens[std::to_string(c)] = n;
 		j["omens"] = omens;
 		for (const auto& [c, t] : m_HeresySince) since[std::to_string(c)] = t;
+		if (!m_HeresyLast.empty())   // D49 (a save with no heresy stays as it was)
+		{
+			Json last = Json::object();
+			for (const auto& [c, t] : m_HeresyLast) last[std::to_string(c)] = t;
+			j["heresyLast"] = last;
+		}
 		for (const auto& [c, l] : m_Level) level[std::to_string(c)] = l;
 		for (const DirectorSkeptic& k : m_Skeptics) skeptics.push_back({ { "clan", k.Clan }, { "person", k.Person }, { "since", k.Since }, { "devotion", k.Devotion } });
 		j["clans"] = faith;
@@ -367,6 +387,8 @@ namespace GB
 		m_OmenDay.clear();
 		if (const auto it = j.find("omens"); it != j.end()) for (const auto& [k, v] : it->items()) m_OmenDay[std::stoi(k)] = v.get<int>();
 		if (const auto it = j.find("heresySince"); it != j.end()) for (const auto& [k, v] : it->items()) m_HeresySince[std::stoi(k)] = v.get<double>();
+		m_HeresyLast.clear();
+		if (const auto it = j.find("heresyLast"); it != j.end()) for (const auto& [k, v] : it->items()) m_HeresyLast[std::stoi(k)] = v.get<double>();   // D49
 		if (const auto it = j.find("level"); it != j.end()) for (const auto& [k, v] : it->items()) m_Level[std::stoi(k)] = v.get<std::string>();
 		if (const auto it = j.find("skeptics"); it != j.end())
 			for (const Json& e : *it) m_Skeptics.push_back({ e.value("clan", -1), e.value("person", std::string()), e.value("since", 0.0), e.value("devotion", 0.0f) });

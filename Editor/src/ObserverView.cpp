@@ -368,8 +368,9 @@ namespace GB::Editor
 		if (a[0] == "clans") return { true, ObserverClansText() };
 		if (a[0] == "tip")   // (a script has no mouse: holds the quality of life tooltip of a clan's row open, for a capture)
 		{
-			if (a.size() < 2) return { false, "observer tip <clan id or name>|off" };
-			if (a[1] == "off") { m_Observer.Tip = -1; return { true, "tip off" }; }
+			if (a.size() < 2) return { false, "observer tip <clan id or name>|stage|off" };
+			if (a[1] == "off") { m_Observer.Tip = -1; m_Observer.StageTip = false; return { true, "tip off" }; }
+			if (a[1] == "stage") { m_Observer.StageTip = true; return { true, "tip on the stage" }; }   // D48: the stage's goals of the god's bar
 			const Clan* c = m_Clans.Find(a[1]);
 			if (!c) return { false, "no clan " + a[1] };
 			m_Observer.Tip = c->Id;
@@ -775,6 +776,7 @@ namespace GB::Editor
 		}
 		DrawHandBar(ox, oy, w, h);   // T201: the god's hand, at the bottom between the list and the book
 		if (god && m_Director.Defeated() && !m_Director.DefeatSeen()) DrawDefeat(ox, oy, w, h);   // §6.2 A (never in the player's game)
+		else if (god && m_Director.StageWon() && !m_Director.Defeated()) DrawStageWon(ox, oy, w, h);   // D48 (the defeat goes first)
 	}
 
 	// U2: the inside of the quality of life tooltip: the index, then each of its 7 parts with its bar, its value and its weight ("-" when it cannot
@@ -2380,6 +2382,153 @@ namespace GB::Editor
 		ImGui::End();
 	}
 
+	// D48: the goals of a stage, one per row: a mark (a filled circle with a tick when met, a ring when not: the font has no such glyphs), what it
+	// asks and how far it is ("14/20", the clan nearest to it). The tooltip of the god's bar and the screen of a stage won draw it.
+	void EditorApp::DrawStageGoals(const DirectorStageDef& stage, float width)
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		const double day = static_cast<double>(m_Director.Rules.DaySeconds);
+		const int need = m_Director.GoalsNeeded();
+		ImGui::TextUnformatted((L.Text("Stage {0}", m_Director.StageNumber()) + ": " + L.Text(stage.Name)).c_str());
+		ImGui::TextDisabled("%s", L.Text("Fulfil {0} of these {1} goals", need, static_cast<int>(stage.Goals.size())).c_str());
+		ImGui::Separator();
+		auto clanName = [&](int id) -> std::string
+		{
+			const Clan* c = id >= 0 ? m_Clans.Find(static_cast<ClanId>(id)) : nullptr;
+			return c ? L.Name("clan", c->Name, c->Name) : std::string();
+		};
+		for (const DirectorGoalDef& g : stage.Goals)
+		{
+			const DirectorGoalState s = m_Director.GoalOf(g.Id);
+			// the mark
+			const float size = ImGui::GetTextLineHeight();
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(size, size));
+			ImDrawList* draw = ImGui::GetWindowDrawList();
+			const ImVec2 centre(at.x + size * 0.5f, at.y + size * 0.5f);
+			const float r = size * 0.42f;
+			if (s.Done)
+			{
+				draw->AddCircleFilled(centre, r, T::Good, 16);
+				const ImVec2 tick[3] = { ImVec2(centre.x - r * 0.5f, centre.y), ImVec2(centre.x - r * 0.12f, centre.y + r * 0.42f), ImVec2(centre.x + r * 0.55f, centre.y - r * 0.4f) };
+				draw->AddPolyline(tick, 3, IM_COL32(30, 26, 20, 255), ImDrawFlags_None, 2.0f);
+			}
+			else draw->AddCircle(centre, r, T::BoneDim, 16, 1.5f);
+			ImGui::SameLine(0.0f, 8.0f);
+			// what it asks
+			std::string what, progress;
+			const std::string count = std::to_string(s.Value) + "/" + std::to_string(g.Type == "tech" ? g.Clans : g.Count);
+			const std::string leader = clanName(s.Leader);
+			if (g.Type == "population")
+			{
+				what = g.Clans == 1 ? L.Text("A believing clan of {0} people", g.Count) : L.Text("{0} believing clans of {1} people", g.Clans, g.Count);
+				progress = count + (leader.empty() ? std::string() : "  (" + leader + ")");
+			}
+			else if (g.Type == "tech")
+			{
+				const TechTree* techs = nullptr;
+				for (const auto& c : m_Clans.All()) if (c->Folk && (techs = c->Folk->Knowledge().Techs())) break;
+				const TechDef* t = techs ? techs->Find(g.Tech) : nullptr;
+				const std::string tech = L.Name("tech", g.Tech, t ? t->Name : g.Tech);
+				what = g.Clans == 1 ? L.Text("A believing clan learns {0}", tech) : L.Text("{0} believing clans learn {1}", g.Clans, tech);
+				progress = g.Clans > 1 ? count : s.Done ? leader : L.Text("not yet");
+			}
+			else if (g.Type == "techs")
+			{
+				what = g.Clans == 1 ? L.Text("A believing clan knows {0} technologies", g.Count) : L.Text("{0} believing clans know {1} technologies", g.Clans, g.Count);
+				progress = count + (leader.empty() ? std::string() : "  (" + leader + ")");
+			}
+			else if (g.Type == "believers") { what = L.Text("{0} clans believe in you", g.Count); progress = count; }
+			else if (g.Type == "signs_built") { what = L.Text("{0} signs of the god standing", g.Count); progress = count; }
+			else if (g.Type == "peace") { what = L.Text("{0} days of peace among the clans", g.Count); progress = count; }
+			else if (g.Type == "no_hunger_winter")
+			{
+				what = g.Count == 1 ? L.Text("No believing clan goes hungry for a whole winter") : L.Text("No believing clan goes hungry for {0} whole winters", g.Count);
+				if (s.Done) progress = L.Text("done");
+				else if (s.Year >= 0) progress = s.Hungry ? L.Text("this winter: hunger ({0})", leader) : s.Whole ? L.Text("this winter: nobody hungry yet") : L.Text("this winter came before the stage");
+				else if (!m_Clans.All().empty() && m_Clans.All().front()->Folk)
+					progress = L.Text("the winter comes in {0} days", L.Num(ForecastWinter(*m_Clans.All().front()->Folk).ToWinter, 0));
+				if (g.Count > 1) progress = count + "  " + progress;
+			}
+			else what = g.Id;
+			if (s.Done && s.DoneAt >= 0.0) progress += (progress.empty() ? "" : "  ") + L.Text("day {0}", L.Num(static_cast<float>(s.DoneAt / day), 1));
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(s.Done ? T::Bone : T::BoneDim), "%s", what.c_str());
+			if (!progress.empty())
+			{
+				const float after = ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x + 16.0f;   // (never over what it asks)
+				const float room = width - ImGui::CalcTextSize(progress.c_str()).x - 8.0f;
+				if (after <= room) ImGui::SameLine(room);
+				else ImGui::SetCursorPosX(std::max(ImGui::GetCursorPosX(), room));   // (no room on the line: under it, to the right)
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(s.Done ? T::Good : T::Bone), "%s", progress.c_str());
+			}
+		}
+		if (stage.Draft) ImGui::TextDisabled("%s", L.Text("(a draft: its numbers may change)").c_str());
+	}
+
+	// D48: a stage fulfilled, over the world, in the style of the defeat: the days played, the goals, the chronicle of the stage (its weighty events)
+	// and [Go on] (`director stage next`: the next stage, or the world kept with no more) or [Main menu] (`shell menu`).
+	void EditorApp::DrawStageWon(float ox, float oy, float w, float h)
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		const DirectorStageDef* stage = m_Director.Stage();
+		if (!stage) return;
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		const double day = static_cast<double>(m_Director.Rules.DaySeconds);
+		ImGui::GetForegroundDrawList()->AddRectFilled(ImVec2(ox, oy), ImVec2(ox + w, oy + h), IM_COL32(0, 0, 0, 120));
+		const float width = std::min(600.0f, w - 40.0f);
+		ImGui::SetNextWindowPos(ImVec2(ox + w * 0.5f, oy + h * 0.45f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+		ImGui::SetNextWindowSize(ImVec2(width, 0.0f), ImGuiCond_Always);
+		ImGui::SetNextWindowFocus();
+		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse
+			| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
+		if (ImGui::Begin("StageWon##observer", nullptr, flags))
+		{
+			auto centred = [&](const std::string& text, ImU32 colour)
+			{
+				ImGui::SetCursorPosX(std::max(0.0f, (width - ImGui::CalcTextSize(text.c_str()).x) * 0.5f));
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(colour), "%s", text.c_str());
+			};
+			centred(L.Text("Stage fulfilled"), T::Good);
+			centred(L.Text("Stage {0}", m_Director.StageNumber()) + ": " + L.Text(stage->Name), T::Bone);
+			centred(L.Text("Days played: {0}", L.Num(static_cast<float>(m_Director.StageWonAt() / day), 1)), T::BoneDim);
+			ImGui::Separator();
+			DrawStageGoals(*stage, width - 16.0f);
+			ImGui::Separator();
+			ImGui::TextDisabled("%s", L.Text("The chronicle of the stage").c_str());
+			const std::vector<HistoryEvent>& past = m_Clans.Past().Events();
+			int shown = 0;
+			for (auto it = past.rbegin(); it != past.rend() && shown < 7; ++it)
+			{
+				if (it->Weight < 3 || it->At > m_Director.StageWonAt() + 1.0 || it->At < m_Director.StageSince()) continue;   // (the weighty ones of the stage)
+				const Clan* c = m_Clans.Find(static_cast<ClanId>(it->Clan));
+				const std::string when = L.Text("day {0}", L.Num(static_cast<float>(it->At / day), 1));
+				ImGui::TextDisabled("%s", (when + (c ? "  " + L.Name("clan", c->Name, c->Name) : std::string())).c_str());
+				ImGui::SameLine(150.0f);
+				ImGui::PushTextWrapPos(width - 12.0f);
+				ImGui::TextWrapped("%s", Lang::Cap(L.Line(it->Text)).c_str());
+				ImGui::PopTextWrapPos();
+				++shown;
+			}
+			if (shown == 0) ImGui::TextDisabled("%s", L.Text("nothing yet").c_str());
+			ImGui::Separator();
+			const float bw = (width - 3.0f * T::Gap) * 0.5f;
+			const std::vector<DirectorStageDef>& all = m_Director.Rules.Stages.List;
+			const int next = m_Director.StageNumber();   // (the next one's index)
+			{
+				T::PrimaryScope lit;
+				if (ImGui::Button((L.Text("Go on") + "###stage_next").c_str(), ImVec2(bw, 28.0f))) run("director stage next");
+			}
+			if (ImGui::IsItemHovered())
+				ImGui::SetTooltip("%s", next < static_cast<int>(all.size()) ? L.Text("Opens the stage {0}: {1}", next + 1, L.Text(all[static_cast<size_t>(next)].Name)).c_str()
+					: L.Text("There are no more stages: the world goes on and the god keeps it").c_str());
+			ImGui::SameLine();
+			if (ImGui::Button((L.Text("Main menu") + "###stage_menu").c_str(), ImVec2(bw, 28.0f))) run("shell menu");
+		}
+		ImGui::End();
+	}
+
 	void EditorApp::DrawHandBar(float ox, float oy, float w, float h)
 	{
 		namespace T = GameTheme;
@@ -2430,6 +2579,23 @@ namespace GB::Editor
 				ImGui::EndGroup();
 				tip(m_Director.Defeated() ? L.Text("Nobody believes in you any more: you only watch the world")
 					: L.Text("The clans whose faith reaches {0} % and their people. If none is left, the game is lost.", L.Num(R.MinFaith * 100.0f, 0)));
+				divider();
+			}
+			// D48: the stage of the legacy ("Stage 1 · 2 of 4"); over it, its goals and what each one lacks (only in the god's game: the stakes)
+			if (const DirectorStageDef* stage = m_Director.Stage(); stage && m_Director.Stakes())
+			{
+				const int done = m_Director.GoalsDone(), need = m_Director.GoalsNeeded();
+				ImGui::BeginGroup();
+				ImGui::TextDisabled("%s", L.Text("Stage {0}", m_Director.StageNumber()).c_str());
+				ImGui::SameLine();
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(done >= need ? T::Good : T::Bone), "%s", ("\xC2\xB7 " + L.Text("{0} of {1}", done, static_cast<int>(stage->Goals.size()))).c_str());
+				ImGui::EndGroup();
+				if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) || m_Observer.StageTip)
+				{
+					ImGui::BeginTooltip();
+					DrawStageGoals(*stage, 420.0f);
+					ImGui::EndTooltip();
+				}
 				divider();
 			}
 			// the clan under the hand: its faith and the pressure the god has put on it

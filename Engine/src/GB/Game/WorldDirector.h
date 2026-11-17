@@ -180,6 +180,10 @@ namespace GB
 	{
 		float Devotion = 0.3f, Boldness = 0.6f, Share = 0.334f, Days = 1.0f, Faith = 0.05f;
 		float Ease = 0.02f;   // the boldness asked falls by this for each point of pressure over heresy (a god who keeps pushing makes laughing easy)
+		// D49 (MODO_DIOS_DECISIONES §6.3): only a group of MinGroup or more leaves (fewer skeptics, or a clan too small to let them go with half of
+		// it staying: no split), and GapDays pass between two heresies of the same clan (the clan that stayed)
+		int MinGroup = 3;
+		float GapDays = 10.0f;
 		bool operator==(const DirectorSkepticRules&) const = default;
 	};
 	// §6.2 A: the god's game is lost when no clan believes any more (faith >= MinFaith), once GraceDays have gone by.
@@ -197,6 +201,55 @@ namespace GB
 		bool operator==(const DirectorSkeptic&) const = default;
 	};
 	struct DirectorBelievers { int Clans = 0, People = 0; };
+
+	// D48 (MODO_DIOS_DECISIONES §6.2 B, §6.3): the god's legacy, in stages. A stage is a list of goals and how many of them win it (Need; 0 = all).
+	// The goals are generic, so a new stage is data only ("stages" of assets/data/director.json). Every goal looks at the believing clans (faith >=
+	// MinFaith) at that moment:
+	//   population        Clans believing clans have Count living people
+	//   tech              Clans believing clans know Tech (the clan's knowledge, ClanKnowledge::Clan)
+	//   techs             Clans believing clans know Count technologies
+	//   believers         Count clans believe
+	//   signs_built       Count signs of the god stand (built since the world began; DirectorSign "built")
+	//   no_hunger_winter  Count whole winters (SeasonClock, watched from their start) in which no believing clan went hungry: fewer than FoodDays
+	//                     days of food (Tribe::FoodDays), the survival tier when Survival, or somebody dead of hunger
+	//   peace             Count days with no raid nor a death or wound between clans (the world's history) since the stage opened
+	// A goal met stays met (the tick does not go away when a clan falls back). Only with the stakes on (GB.exe's god's game, GBSim) do they count.
+	struct DirectorGoalDef
+	{
+		std::string Id, Type, Tech;
+		int Count = 1, Clans = 1;
+		float FoodDays = 3.0f;
+		bool Survival = false;
+		bool operator==(const DirectorGoalDef&) const = default;
+	};
+	struct DirectorStageDef
+	{
+		std::string Id, Name;              // Name in English (the UI translates it: es.json)
+		int Need = 0;                      // goals that win it (0: all)
+		bool Draft = false;                // its numbers are not tuned yet
+		std::vector<DirectorGoalDef> Goals;
+		bool operator==(const DirectorStageDef&) const = default;
+	};
+	struct DirectorStageRules
+	{
+		float LookSeconds = 30.0f;         // how often the goals are looked at (the deaths of hunger are counted, never missed)
+		std::vector<DirectorStageDef> List;
+		bool operator==(const DirectorStageRules&) const = default;
+	};
+	// What a goal stands at (the director's book: saved with it).
+	struct DirectorGoalState
+	{
+		bool Done = false;
+		int Value = 0;                     // the progress towards its Count (tech: believing clans that know it, towards Clans)
+		int Leader = -1;                   // the clan nearest to it (population, tech, techs; -1: none)
+		double DoneAt = -1.0;
+		// no_hunger_winter: the winter watched (its year; -1 none), whether it was watched from its start, whether a believing clan went hungry in it
+		// and the dead of hunger of each clan when it began
+		int Year = -1;
+		bool Whole = false, Hungry = false;
+		std::map<int, int> Starved;
+		bool operator==(const DirectorGoalState&) const = default;
+	};
 
 	// assets/data/director.json, the "director" section.
 	struct DirectorRules
@@ -231,9 +284,10 @@ namespace GB
 		DirectorFaithRules Faith;          // D43: the clan's faith in the god ("faith": { "start", "grow", "decay", "riteFaith", ... })
 		DirectorSkepticRules Skeptic;      // T241 ("skeptic")
 		DirectorDefeatRules Defeat;        // §6.2 A ("defeat")
+		DirectorStageRules Stages;         // D48: the top-level "stages" of the same file (content, not tuning: the code has none of its own)
 		bool operator==(const DirectorRules&) const = default;
 	};
-	DirectorRules DefaultDirectorRules();   // assets/data/director.json says the same
+	DirectorRules DefaultDirectorRules();   // assets/data/director.json says the same (but the stages, which only the data has)
 	// { "director": { "start", "max", "minFaith", "faith": { "rite", "omen", "daily", "shaman" }, "sandboxPerDay", "costs": {}, "waits": {},
 	//   "pressure": { "decision", "insist", "contradict", "decay", "tired", "heresy", "insistDays" }, "logMax",
 	//   "vote": { "base", "faith", "affinity", "shaman", "survival", "majority", "doubtBand", "retries", "culture": {} }, "messenger": { "radius" },
@@ -312,6 +366,19 @@ namespace GB
 		double DefeatAt() const { return m_DefeatAt; }                     // world seconds (-1: none)
 		bool DefeatSeen() const { return m_DefeatSeen; }                   // the player chose to go on watching the world
 		std::string ReportLine() const;                                    // GBSim --report: the faith, the votes, the skeptics, the defeat
+		// ---- D48: the stages of the legacy (DirectorStage.cpp). Stage() is null when there are none or all were fulfilled.
+		const DirectorStageDef* Stage() const;
+		int StageNumber() const { return m_Stage + 1; }                    // 1-based
+		DirectorGoalState GoalOf(const std::string& goal) const;           // (a goal not looked at yet: the default)
+		int GoalsDone() const;
+		int GoalsNeeded() const;                                           // Need, or every goal
+		bool StageWon() const { return m_StageWonAt >= 0.0; }              // the stage is fulfilled and the player has not moved on yet
+		double StageWonAt() const { return m_StageWonAt; }
+		double StageSince() const { return m_StageSince; }
+		bool StagesEnded() const { return m_StagesEnded; }                 // every stage fulfilled: the god only keeps the world
+		int SignsBuilt() const { return m_SignsBuilt; }
+		std::string StageText() const;                                     // `director stage`: the goals and their progress (a contract of the tests)
+		std::string StageReport() const;                                   // GBSim --report: "stage: 1, goals 2/4, won on day 21.30" (or "none")
 		double WaitLeft(const std::string& action, int clan) const;        // seconds until `action` can fall on the clan again (0 = now)
 
 		// ---- T236: the vote of a clan on an idea one of its people brings (`messenger`): every living adult but the players, the children and
@@ -387,6 +454,12 @@ namespace GB
 		std::string FaithToJson() const;                                   // the faith, the skeptics, the defeat ("" before the first look)
 		bool FaithFromJson(const std::string& json);
 		void Chronicle(int clan, const std::string& kind, const std::string& who, const std::string& text);   // an event of the world's history
+		void UpdateStage();                                                // D48 (only with the stakes on; reads, never writes the clans nor the history)
+		void LookGoal(const DirectorGoalDef& g, DirectorGoalState& s, double now);
+		void OpenStage(int index, double now);
+		DirectorReply StageCommand(const std::vector<std::string>& args);
+		std::string StageToJson() const;                                   // "" before any stage was looked at and with no sign built
+		bool StageFromJson(const std::string& json);
 
 		DirectorTargets m_To;
 		float m_Influence = 50.0f;
@@ -413,10 +486,20 @@ namespace GB
 		std::map<int, int> m_OmenDay;                                      // D43: the omens each clan read since the day turned (one counts)
 		std::vector<DirectorSkeptic> m_Skeptics;                           // T241
 		std::map<int, double> m_HeresySince;                               // T241: since when a third of the clan are skeptics
+		std::map<int, double> m_HeresyLast;                                // D49: the clan's last heresy split (it and the heretics' clan)
 		std::map<int, std::string> m_Level;                                // T241: the pressure level last told ("tired", "heresy")
 		int m_HeresySplits = 0, m_Refusals = 0, m_Votes = 0;
 		bool m_Stakes = false;                                             // §6.2 A: the god's game can be lost
 		double m_DefeatAt = -1.0;
 		bool m_DefeatSeen = false;
+		// D48: the stage open (its index in Rules.Stages.List), its goals by id, when it opened, when it was won (-1: not yet), all of them ended
+		int m_Stage = 0;
+		bool m_StageOpen = false;                                          // the stage's goals are being looked at (set at the first look)
+		std::map<std::string, DirectorGoalState> m_Goals;
+		double m_StageSince = 0.0, m_StageWonAt = -1.0, m_StageLook = -1.0;
+		bool m_StagesEnded = false;
+		int m_StageEvent = 0;                                              // the last event of the world's history looked at (peace)
+		double m_LastClash = -1.0;                                         // the last clash between clans seen (peace)
+		int m_SignsBuilt = 0;                                              // signs of the god that came to stand (T237 "built")
 	};
 }

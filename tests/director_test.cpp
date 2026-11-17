@@ -15,6 +15,7 @@
 #include <cmath>
 #include <cstdio>
 #include <fstream>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 
@@ -65,9 +66,15 @@ int GBTest_director(int, char**)
 	ss << f.rdbuf();
 	DirectorRules rules;
 	Check(!ss.str().empty() && LoadDirectorRules(ss.str(), rules).empty(), "assets/data/director.json loads");
-	Check(rules == DefaultDirectorRules(), "and says what DefaultDirectorRules says");
-	Check(Near(rules.MinFaith, 0.2f) && Near(rules.Costs["omen"], 10.0f), "minFaith 0.2, the omen costs 10");
+	Check([&] { DirectorRules r = rules; r.Stages = {}; return r; }() == DefaultDirectorRules(), "and says what DefaultDirectorRules says (D48: but the stages, only data)");
+	Check(rules.Skeptic.MinGroup == 3 && Near(rules.Skeptic.GapDays, 10.0f), "D49: a heresy takes 3 people at least, 10 days apart");
 	DirectorRules bad = rules;
+	Check(!LoadDirectorRules("{\"director\":{\"skeptic\":{\"minGroup\":1}}}", bad).empty() && bad == rules, "D49: a group of one is refused");
+	Check(rules.Stages.List.size() >= 2 && rules.Stages.List[0].Id == "shared_fire" && rules.Stages.List[0].Need == 3 && rules.Stages.List[0].Goals.size() == 4 && rules.Stages.List[1].Draft,
+		"D48: the stages: the first, the shared fire, 3 of 4; the second a draft");
+	Check(!LoadDirectorRules("{\"stages\":{\"list\":[{\"id\":\"x\",\"goals\":[{\"id\":\"a\",\"type\":\"glory\"}]}]}}", bad).empty() && bad == rules, "D48: an unknown type of goal is refused whole");
+	Check(!LoadDirectorRules("{\"stages\":{\"list\":[{\"id\":\"x\",\"need\":3,\"goals\":[{\"id\":\"a\",\"type\":\"believers\"}]}]}}", bad).empty() && bad == rules, "D48: a stage that needs more goals than it has is refused");
+	Check(Near(rules.MinFaith, 0.2f) && Near(rules.Costs["omen"], 10.0f), "minFaith 0.2, the omen costs 10");
 	Check(!LoadDirectorRules("{\"director\":{\"minFaith\":2}}", bad).empty() && bad == rules, "a faith out of 0..1 is refused and changes nothing");
 	Check(!LoadDirectorRules("{\"director\":{\"faith\":{\"prayer\":1}}}", bad).empty() && bad == rules, "an unknown key is refused");
 
@@ -323,6 +330,7 @@ int GBTest_director(int, char**)
 			const size_t clans = run.Clans().Count();
 			Check(god.Skeptics().empty() && god.HeresySplits() == 0, "no order, no skeptic");
 			god.SetFaith(ash, 0.1f);
+			god.Rules.Skeptic.MinGroup = 50;   // D49: no group that big could leave
 			god.AddPressure(ash, lab.PressureHeresy + 8.0f, "a test presses the clan");
 			run.Run(2.0);
 			Check(god.Tired(ash) && god.PressureLevel(ash) == "heresy" && !god.Skeptics().empty(), "at the heresy pressure the adults of little devotion turn skeptics");
@@ -335,8 +343,39 @@ int GBTest_director(int, char**)
 			back.SetTargets(god.Targets());
 			Check(back.FromJson(saved) && back.Skeptics() == god.Skeptics() && back.ToJson() == saved, "saving and loading keeps the skeptics");
 			run.Run(lab.DaySeconds * 0.05);
+			Check(god.HeresySplits() == 0 && run.Clans().Count() == clans, "D49: a season of skeptics, but fewer than minGroup could go: no split");
+			god.Rules.Skeptic.MinGroup = lab.Skeptic.MinGroup;
+			run.Run(lab.DaySeconds * 0.05);
 			Check(god.HeresySplits() == 1 && run.Clans().Count() == clans + 1, "a third skeptic for a season: the clan splits (heresy)");
-			if (god.HeresySplits() != 1)
+			{
+				int gone = 0;
+				for (const auto& c : run.Clans().All())
+					if (c->Id != ash && c->Id != run.Clans().All()[1]->Id) for (const TribeMember& m : c->Folk->Members()) if (!m.Dead) ++gone;
+				Check(gone >= lab.Skeptic.MinGroup, "D49: the heretics who leave are minGroup at least");
+				SplitCause tiny;
+				tiny.Why = "heresy: a test";
+				tiny.MinGroup = 50;
+				for (const TribeMember& m : run.Clans().All()[1]->Folk->Members()) tiny.Members.push_back(m.Name);
+				Check(god.Targets().Clans->Split(run.Clans().All()[1]->Id, true, &tiny) == "too few could go", "D49: ClanWorld::Split refuses a cause whose group is under its MinGroup");
+			}
+			// D49: GapDays between two heresies of the same clan (the second clan is told it had one now, through a save)
+			{
+				const int reed = run.Clans().All()[1]->Id;
+				nlohmann::json j = nlohmann::json::parse(god.ToJson());
+				j["faith"]["heresyLast"][std::to_string(reed)] = god.Targets().Now();
+				Check(god.FromJson(j.dump()), "the director reads its heresies back");
+				god.SetFaith(reed, 0.1f);
+				god.AddPressure(reed, lab.PressureHeresy + 8.0f, "a test presses the second clan");
+				run.Run(lab.DaySeconds * 0.1);
+				int skeptics = 0;
+				for (const DirectorSkeptic& k : god.Skeptics()) if (k.Clan == reed) ++skeptics;
+				Check(skeptics >= lab.Skeptic.MinGroup && god.HeresySplits() == 1, "D49: skeptics enough, but within gapDays of its last heresy the clan does not split");
+				god.Rules.Skeptic.GapDays = 0.0f;
+				run.Run(lab.DaySeconds * 0.05);
+				Check(god.HeresySplits() == 2, "D49: once the gap is over it can");
+				god.Rules.Skeptic.GapDays = lab.Skeptic.GapDays;
+			}
+			if (god.HeresySplits() != 2)
 			{
 				std::fprintf(stderr, "skeptics %zu\n", god.Skeptics().size());
 				for (const DirectorEntry& e : god.Book()) std::fprintf(stderr, "  %s %s: %s\n", e.Action.c_str(), e.Target.c_str(), e.Text.c_str());
@@ -368,6 +407,93 @@ int GBTest_director(int, char**)
 		Check(!Run(s.Director, "defeat").Ok, "director defeat only in the sandbox");
 		Run(s.Director, "sandbox on");
 		Check(Run(s.Director, "defeat").Ok && s.Director.Defeated(), "in the sandbox director defeat ends the god's game (to try the screen)");
+	}
+
+	// ---- D48: the stages of the legacy over a real world: every type of goal, a stage won and the next one, saving, and no stakes no count
+	{
+		WorldDesc d;
+		d.Type = WorldType::Temperate;
+		d.Seed = 3;
+		d.Resolution = 129;
+		const GeneratedWorld world = WorldGenerator::GenerateData(d);
+		DirectorRules lab = rules;
+		const std::string stages = R"({ "stages": { "lookSeconds": 20, "list": [
+			{ "id": "test", "name": "The test", "need": 6, "goals": [
+				{ "id": "people", "type": "population", "count": 8 },
+				{ "id": "crowd", "type": "population", "count": 9999 },
+				{ "id": "pottery", "type": "tech", "tech": "pottery" },
+				{ "id": "lore", "type": "techs", "count": 1, "clans": 2 },
+				{ "id": "faith", "type": "believers", "count": 2 },
+				{ "id": "peace", "type": "peace", "count": 1 },
+				{ "id": "winter", "type": "no_hunger_winter", "foodDays": 0 },
+				{ "id": "hungry", "type": "no_hunger_winter", "foodDays": 100 } ] },
+			{ "id": "after", "name": "After", "goals": [ { "id": "signs", "type": "signs_built", "count": 3 } ] } ] } })";
+		const std::string loaded = LoadDirectorRules(stages, lab);
+		if (!loaded.empty()) std::fprintf(stderr, "the stages: %s\n", loaded.c_str());
+		Check(loaded.empty() && lab.Stages.List.size() == 2 && lab.Stages.List[0].Goals.size() == 8, "D48: a stage of every type of goal loads");
+		SimSetup setup;
+		setup.World = &world;
+		setup.Members = 16;
+		setup.Clans = 2;
+		setup.Director = &lab;
+		setup.Know = { "stone_tools" };   // (techs: every clan knows one at least)
+		SimRun run(setup);
+		Check(run.Ok(), "a world of two clans of eight (stages)");
+		if (run.Ok())
+		{
+			WorldDirector& god = run.Director();
+			const float season = 300.0f;   // (a short year: the winter at 900..1200 s)
+			for (const auto& c : run.Clans().All()) c->Folk->Config.Seasons.SeasonSeconds = season;
+			for (const auto& c : run.Clans().All()) god.SetFaith(c->Id, 0.9f);
+			run.Run(60.0);
+			Check(god.GoalsDone() == 0 && !god.StageWon() && Run(god, "stage").Text.find("no stakes") != std::string::npos, "D48: no stakes (the editor, the player's game): the goals do not count");
+			god.SetStakes(true);
+			for (const auto& c : run.Clans().All()) god.SetFaith(c->Id, 0.9f);
+			run.Run(60.0);
+			Check(god.GoalOf("people").Done && god.GoalOf("people").Value == 8 && !god.GoalOf("crowd").Done && god.GoalOf("crowd").Value == 8, "population: a believing clan of 8 (and not of 9999: 8/9999)");
+			Check(god.GoalOf("lore").Done && god.GoalOf("faith").Done && god.GoalOf("faith").Value == 2, "techs: two clans know one; believers: two clans");
+			Check(!god.GoalOf("pottery").Done, "tech: nobody knows the pottery yet");
+			run.Clans().All()[1]->Folk->Knowledge().GrantClan("pottery");
+			run.Run(60.0);
+			Check(god.GoalOf("pottery").Done && god.GoalOf("pottery").Leader == run.Clans().All()[1]->Id, "tech: the second clan learns it (and leads it)");
+			Check(god.GoalsDone() == 4 && !god.StageWon(), "4 of 8: not yet");
+			const std::string text = Run(god, "stage").Text;
+			Check(text.find("director stage 1 of 2 (test, The test): 4 of 8 goals, needs 6") == 0 && text.find("[x] people population: 8/8") != std::string::npos
+				&& text.find("[ ] crowd population: 8/9999") != std::string::npos, "director stage says the goals and their progress");
+			// saving and loading in the middle of the stage
+			{
+				const std::string saved = god.ToJson();
+				WorldDirector back;
+				back.Rules = lab;
+				back.SetTargets(god.Targets());
+				Check(back.FromJson(saved) && back.ToJson() == saved && back.GoalsDone() == 4 && back.Stakes(), "saving and loading keeps the stage and its goals");
+			}
+			run.Run(1100.0 - god.Targets().Now());   // the winter at 900..1200 s
+			Check(!god.GoalOf("hungry").Done && god.GoalOf("hungry").Year >= 0 && god.GoalOf("hungry").Hungry, "no_hunger_winter: under 100 days of food a clan is hungry in the winter");
+			run.Run(1260.0 - god.Targets().Now());
+			Check(god.GoalOf("winter").Done && god.GoalOf("winter").Value == 1 && !god.GoalOf("hungry").Done, "no_hunger_winter: a whole winter with nobody hungry nor dead of hunger");
+			for (double t = 0.0; t < 600.0 && !god.GoalOf("peace").Done; t += 60.0) run.Run(60.0);
+			Check(god.GoalOf("peace").Done, "peace: a day with no clash between the clans");
+			Check(god.StageWon() && god.GoalsDone() == 6, "6 of 8: the stage is won");
+			bool told = false;
+			for (const DirectorEntry& e : god.Book()) told = told || (e.Action == "stage" && e.Text.find("fulfilled") != std::string::npos);
+			Check(told && god.StageReport().find("stage: 1, goals 6/8 (needs 6), won on day") == 0, "the book says it, and the report the day");
+			Check(!Run(god, "stage win").Ok, "director stage win only in the sandbox");
+			// the next stage; signs_built from the director's book (a save that has three signs built)
+			Check(Run(god, "stage next").Ok && god.StageNumber() == 2 && !god.StageWon() && god.GoalsDone() == 0, "[Go on]: the second stage opens, nothing done");
+			nlohmann::json j = nlohmann::json::parse(god.ToJson());
+			j["stage"]["signsBuilt"] = 3;
+			Check(god.FromJson(j.dump()), "a save with three signs built");
+			god.SetStakes(true);
+			run.Run(60.0);
+			Check(god.GoalOf("signs").Done && god.StageWon() && god.SignsBuilt() == 3, "signs_built: three signs of the god standing win the second");
+			Check(Run(god, "stage next").Ok && god.StagesEnded() && !god.Stage() && Run(god, "stage").Text == "director stage: every stage fulfilled", "after the last stage: every stage fulfilled");
+		}
+		World s(lab);
+		s.Director.SetStakes(true);
+		s.Step(1.0);
+		Run(s.Director, "sandbox on");
+		Check(Run(s.Director, "stage win").Ok && s.Director.StageWon(), "in the sandbox director stage win wins it (to try the screen)");
 	}
 
 	if (failures == 0) std::printf("director: all checks passed\n");

@@ -51,6 +51,7 @@ namespace GB
 	{
 		std::string Why;                  // "heresy: ..."
 		std::vector<std::string> Members; // who wants to go
+		int MinGroup = 2;                 // D49: fewer than this could go (half the clan stays): no split ("too few could go")
 	};
 
 	// Something worth telling between clans, for the log, the editor and the conflict work (H14): "contact", "stance", "trade", "gift", "visit",

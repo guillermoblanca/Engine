@@ -92,8 +92,38 @@
       "keep": 20,
       "traits": { "curiosity": 0.3 }
     },
-    "skeptic": { "devotion": 0.3, "boldness": 0.6, "share": 0.334, "days": 1, "faith": 0.05, "ease": 0.02 },
+    "skeptic": { "devotion": 0.3, "boldness": 0.6, "share": 0.334, "days": 1, "faith": 0.05, "ease": 0.02, "minGroup": 3, "gapDays": 10 },
     "defeat": { "graceDays": 3 }
+  },
+  "stages": {
+    "_doc": "D48 (MODO_DIOS_DECISIONES 6.2 B, 6.3): the god's legacy by stages (Engine/src/GB/Game/DirectorStage.cpp). Need of the goals win a stage (0: all); [Go on] opens the next. Goal types: population (clans believing clans of count people), tech (clans believing clans know tech), techs (clans believing clans know count technologies), believers (count believing clans), signs_built (count signs of the god built), no_hunger_winter (count whole winters with no believing clan under foodDays days of food, in survival when survival, nor dead of hunger), peace (count days with no clash between clans). A goal met stays met. Only in the god's game (the stakes): GB.exe shell new and GBSim.",
+    "lookSeconds": 30,
+    "list": [
+      {
+        "id": "shared_fire",
+        "name": "The shared fire",
+        "need": 3,
+        "goals": [
+          { "id": "people", "type": "population", "count": 20 },
+          { "id": "pottery", "type": "tech", "tech": "pottery" },
+          { "id": "winter", "type": "no_hunger_winter", "foodDays": 3 },
+          { "id": "signs", "type": "signs_built", "count": 3 }
+        ]
+      },
+      {
+        "id": "villages",
+        "name": "The villages",
+        "draft": true,
+        "need": 4,
+        "goals": [
+          { "id": "people", "type": "population", "count": 25, "clans": 2 },
+          { "id": "lore", "type": "techs", "count": 18 },
+          { "id": "believers", "type": "believers", "count": 3 },
+          { "id": "signs", "type": "signs_built", "count": 5 },
+          { "id": "peace", "type": "peace", "count": 56 }
+        ]
+      }
+    ]
   },
   "alerts": {
     "_doc": "T220: the thresholds of the god's alerts (Engine/src/GB/Game/WorldAlerts.h; MODO_DIOS_UX 3.7): hunger under hungerDays days of food (or in survival with hungerOnSurvival) once the world is graceDays old (every clan starts with an empty store), the winter within winterWithinDays days and its outlook short, a war alert kept warDays days after the last clash, an inventor or a split eventDays days. Which ones the player sees and which pause is player.json controls.hud.",

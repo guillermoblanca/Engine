@@ -63,17 +63,22 @@ namespace GB
 	std::string ReadDirectorFocusRules(const nlohmann::json& d, DirectorRules& r);   // T238/T239: "focus" and "calling" (DirectorFocus.cpp)
 	std::string ReadDirectorVisionRules(const nlohmann::json& d, DirectorRules& r);  // T240: "vision" (DirectorVision.cpp)
 	std::string ReadDirectorFaithRules(const nlohmann::json& d, DirectorRules& r);   // D43/T241/§6.2: "faith.clan", "skeptic", "defeat" (DirectorFaith.cpp)
+	std::string ReadDirectorStages(const nlohmann::json& s, DirectorStageRules& r);  // D48: the top-level "stages" (DirectorStage.cpp)
 
 	std::string LoadDirectorRules(const std::string& json, DirectorRules& live)
 	{
 		const Json doc = Json::parse(json, nullptr, false);
 		if (doc.is_discarded() || !doc.is_object()) return "the content is not a JSON object";
 		const auto section = doc.find("director");
-		if (section == doc.end()) return {};
-		if (!section->is_object()) return "director: expected an object";
-		const Json& d = *section;
+		const auto stages = doc.find("stages");   // D48: the top-level "stages" (DirectorStage.cpp)
+		if (section == doc.end() && stages == doc.end()) return {};
 		DirectorRules r = live;
 		std::string e;
+		if (stages != doc.end())
+			if (e = ReadDirectorStages(*stages, r.Stages); !e.empty()) return e;
+		if (section == doc.end()) { live = std::move(r); return {}; }
+		if (!section->is_object()) return "director: expected an object";
+		const Json& d = *section;
 		const std::string w = "director: ";
 		if (!KnownKeys(d, { "start", "max", "minFaith", "faith", "sandboxPerDay", "costs", "waits", "pressure", "logMax", "daySeconds", "vote", "messenger", "sign", "focus", "calling", "vision", "skeptic", "defeat" }, w, e)) return e;
 		if (e = ReadDirectorFocusRules(d, r); !e.empty()) return e;
@@ -294,6 +299,7 @@ namespace GB
 		}
 		UpdateAbuse();   // T241 (nothing without pressure or skeptics)
 		CheckDefeat();   // §6.2 A (nothing without the stakes)
+		UpdateStage();   // D48 (nothing without the stakes; only reads)
 	}
 
 	// ------------------------------------------------------------------ paying
@@ -495,6 +501,7 @@ namespace GB
 		if (sub == "calling") return CallingCommand(a);
 		if (sub == "vision" || sub == "visions") return VisionCommand(a);
 		if (sub == "defeat" || sub == "believers") return DefeatCommand(a);   // §6.2 A (DirectorFaith.cpp)
+		if (sub == "stage") return StageCommand(a);   // D48 (DirectorStage.cpp)
 		if (sub == "log")
 		{
 			std::string s = "director log: " + std::to_string(m_Book.size()) + " entries";
@@ -506,7 +513,7 @@ namespace GB
 			}
 			return { true, s };
 		}
-		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | focus [preview] <clan> <group>|off [soft|strong] [days] | calling [preview] <person> <role> | vision [preview] <clan> <tech>|none | visions | believers | defeat [watch] | log" };
+		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | focus [preview] <clan> <group>|off [soft|strong] [days] | calling [preview] <person> <role> | vision [preview] <clan> <tech>|none | visions | believers | defeat [watch] | stage [win|next] | log" };
 	}
 
 	// ------------------------------------------------------------------ saving
@@ -536,10 +543,18 @@ namespace GB
 		m_OmenDay.clear();
 		m_Skeptics.clear();
 		m_HeresySince.clear();
+		m_HeresyLast.clear();   // D49
 		m_Level.clear();
 		m_HeresySplits = m_Refusals = m_Votes = 0;
 		m_DefeatAt = -1.0;
 		m_DefeatSeen = false;
+		m_Stage = 0;   // D48: a new world starts at the first stage
+		m_StageOpen = m_StagesEnded = false;
+		m_Goals.clear();
+		m_StageSince = 0.0;
+		m_StageWonAt = m_StageLook = m_LastClash = -1.0;
+		m_StageEvent = 0;
+		m_SignsBuilt = 0;
 	}
 
 	std::string WorldDirector::ToJson() const
@@ -565,6 +580,7 @@ namespace GB
 		if (const std::string focus = FocusToJson(); !focus.empty()) j["focus"] = Json::parse(focus);   // T238/T239 (only when there is any)
 		if (const std::string visions = VisionsToJson(); !visions.empty()) j["visions"] = Json::parse(visions);   // T240 (only when there is any)
 		if (const std::string clans = FaithToJson(); !clans.empty()) j["faith"] = Json::parse(clans);   // D43, T241, §6.2
+		if (const std::string stage = StageToJson(); !stage.empty()) j["stage"] = Json::parse(stage);   // D48 (only once looked at)
 		if (!m_Signs.empty())   // T237 (a save without signs stays as it was)
 		{
 			Json signs = Json::array();
@@ -628,6 +644,7 @@ namespace GB
 			if (const auto it = j.find("focus"); it != j.end() && !d.FocusFromJson(it->dump())) return false;   // T238/T239
 			if (const auto it = j.find("visions"); it != j.end() && !d.VisionsFromJson(it->dump())) return false;   // T240
 			if (const auto it = j.find("faith"); it != j.end() && !d.FaithFromJson(it->dump())) return false;      // D43, T241, §6.2 (an old save: each clan starts again at the start)
+			if (const auto it = j.find("stage"); it != j.end() && !d.StageFromJson(it->dump())) return false;      // D48 (an old save: the first stage, from the next look)
 			d.m_Biased = m_Biased;
 			*this = std::move(d);
 			if (!m_Focus.empty() || !m_Callings.empty() || !m_Biased.empty()) PushBias();   // (the tribes do not save it: written again now)

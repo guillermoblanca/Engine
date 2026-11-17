@@ -315,6 +315,7 @@ namespace GB
 					if (site.State.Done)
 					{
 						s.Status = "built";
+						++m_SignsBuilt;   // D48: a sign of the god stands (kept apart: the closed signs are trimmed to Keep)
 						Fulfilled(s.Clan, Rules.Sign.FulfilledGain, "the sign #" + std::to_string(s.Id) + " stands: " + s.Site);
 					}
 					break;

@@ -431,6 +431,7 @@ namespace GB::Editor
 			// open (a script has no mouse: -1 = none)
 			Box ClansBox;
 			int Tip = -1;
+			bool StageTip = false;          // D48: `observer tip stage` holds the stage's tooltip of the god's bar open (for a capture)
 			// U5/U6: the book's tabs in groups, so they fit without scrolling (MODO_DIOS_UX 3.0): Clan, Person (the members, and one person's
 			// sheet), Chronicle, and More (the clan's other sheets, a wrapping row of buttons). Tab keeps the sheet shown (`observer status`);
 			// More is the one More shows. TabsNeed/TabsRoom: the width the group tabs want and have, MoreRows the rows of More's buttons
@@ -489,6 +490,8 @@ namespace GB::Editor
 		const DirectorSignPreview& HandPreview(int clan, float x, float z);
 		void HandToasts();
 		void DrawDefeat(float ox, float oy, float w, float h);      // §6.2 A: the end of the god's game ("Nobody believes in you any more")
+		void DrawStageWon(float ox, float oy, float w, float h);    // D48: a stage of the legacy fulfilled ([Go on], [Main menu])
+		void DrawStageGoals(const DirectorStageDef& stage, float width);   // D48: its goals with their marks and progress
 		// U5/U6 (ObserverView.cpp): the world chronicle sheet and its text, a person's sheet and its text, the news and the follow chip of the
 		// god's screen, and where a member of any clan is in the simulation (its actor stays behind while it is simulated without its body)
 		bool ChronicleShows(const HistoryEvent& e) const;

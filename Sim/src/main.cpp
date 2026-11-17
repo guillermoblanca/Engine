@@ -453,6 +453,7 @@ int main(int argc, char** argv)
 		// T220: the god's alerts raised over the run (looked at once a minute of game, as WorldAlerts.h; a dismissal is the player's: none here)
 		std::fprintf(stderr, "alerts raised: %s; still up at the end: %zu\n", alerts.RaisedLine().c_str(), alerts.Shown().size());
 		std::fprintf(stderr, "\n%s\n", run.Director().ReportLine().c_str());   // D43/T241/§6.2: the faith of each clan, the votes, the skeptics, the defeat (only the director's)
+		std::fprintf(stderr, "%s\n", run.Director().StageReport().c_str());   // D48: the stage of the legacy, its goals and the day it was won
 		if (!orders.empty()) std::fprintf(stderr, "\n%s\n", run.Director().Status().c_str());   // T195 (only a run with orders: the report of one without stays as it was)
 	}
 	for (const GB::SimFinding& f : run.Monitor().Findings())   // what broke an invariant, so a run left alone says it

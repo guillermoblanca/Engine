@@ -1171,7 +1171,7 @@ namespace GB
 				for (const std::string& m : h->Members) if (!IsEnvoy(m)) leaving.push_back(m);
 			}
 		}
-		if (leaving.size() < 2) return "too few could go";
+		if (leaving.size() < 2 || (cause && static_cast<int>(leaving.size()) < cause->MinGroup)) return "too few could go";
 		if (!FoundClan) return "the host cannot found a clan";
 		static const char* const kNumbers[] = { "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X" };
 		const int n = m_Splits[id]++;
