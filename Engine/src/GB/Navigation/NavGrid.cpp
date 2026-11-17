@@ -27,6 +27,48 @@ namespace GB
 		}
 	}
 
+	void FootprintObstacles(const glm::vec2& center, const glm::vec2& axisX, const glm::vec2& axisZ, const glm::vec2& size, FootprintShape shape,
+		std::vector<CircleObstacle>& out)
+	{
+		const float hx = 0.5f * std::max(size.x, 0.0f), hz = 0.5f * std::max(size.y, 0.0f);
+		auto put = [&](float x, float z) { out.push_back({ center + axisX * x + axisZ * z, FootprintWallRadius }); };
+		if (shape == FootprintShape::Open)
+		{
+			// a line of circles from a to b (local), both ends included
+			auto wall = [&](glm::vec2 a, glm::vec2 b)
+			{
+				const int n = std::max(1, static_cast<int>(std::ceil(glm::distance(a, b) / FootprintWallSpacing)));
+				for (int k = 0; k <= n; ++k)
+				{
+					const glm::vec2 p = a + (b - a) * (static_cast<float>(k) / static_cast<float>(n));
+					put(p.x, p.y);
+				}
+			};
+			wall({ -hx, -hz }, { hx, -hz });                          // back
+			wall({ -hx, -hz + FootprintWallSpacing }, { -hx, hz });   // left (its corner is the back's)
+			wall({ hx, -hz + FootprintWallSpacing }, { hx, hz });     // right
+			return;
+		}
+		// a grid of circles over the footprint less the inset, at most 0.5 m apart: with the grid's growth (0.45 m) the cells between them close too
+		const float ex = std::max(hx - FootprintSolidInset, 0.0f), ez = std::max(hz - FootprintSolidInset, 0.0f);
+		const int nx = ex > 0.0f ? std::max(1, static_cast<int>(std::ceil(2.0f * ex / 0.5f))) : 0;
+		const int nz = ez > 0.0f ? std::max(1, static_cast<int>(std::ceil(2.0f * ez / 0.5f))) : 0;
+		for (int b = 0; b <= nz; ++b)
+			for (int a = 0; a <= nx; ++a)
+				put(nx ? -ex + 2.0f * ex * static_cast<float>(a) / static_cast<float>(nx) : 0.0f, nz ? -ez + 2.0f * ez * static_cast<float>(b) / static_cast<float>(nz) : 0.0f);
+	}
+
+	bool NavGrid::NearestOpen(const glm::vec2& p, glm::vec2& out, const NavProfile& profile, int rings) const
+	{
+		int i, j;
+		if (!Ready() || !CellAt(p, i, j)) return false;
+		int cell = Index(i, j);
+		if (m_Flags[static_cast<size_t>(cell)] || CostAt(cell, profile) < 0.0f) cell = NearestWalkable(i, j, profile, nullptr, rings);
+		if (cell < 0) return false;
+		out = CellCenter(cell % m_Width, cell / m_Width);
+		return true;
+	}
+
 	size_t NavGrid::MemoryBytes(size_t* regions) const
 	{
 		const size_t graph = m_ChunkCost.capacity() * sizeof(float);

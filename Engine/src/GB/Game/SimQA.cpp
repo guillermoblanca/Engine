@@ -888,6 +888,7 @@ namespace GB
 			return TrailUndergrowth(*w, x, z, undergrowth);   // T118: a trail of the terrain graph is trodden ground (the editor's PlayerMode::SyncNavigation too)
 		};
 		if (!m_Nav.Build(m_Ground, nav, &m_Error)) return;
+		m_GroundStatics = m_Ground.Obstacles.size();
 
 		// The camp: the one given, or the flattest dry place near the middle of the map (the editor's spawn), clear of trunks and rocks. Clear for 3.5 m:
 		// the campfire stands 1.5 m off the camp (Tribe::FirePos) and who stokes it stands a metre beyond (with 2 m a trunk could be where the stoker
@@ -1231,6 +1232,7 @@ namespace GB
 		m_Resources.SyncVisuals(m_Gameplay, m_Entities);
 		m_Rules.Update(dt, &m_Entities);
 		if (m_Setup.Buildings) m_Builds.Update(dt, &m_Entities);   // H8
+		if (m_Setup.Buildings && m_Frames % std::max(1L, std::lround(1.0 / static_cast<double>(m_Setup.Step))) == 0) SyncBuildingWalls();   // T6: once a second, as the editor
 		if (m_Setup.Combat)   // H14: the fights of every clan, before their brains read them (as the editor)
 		{
 			const auto c0 = Clock::now();
@@ -1266,6 +1268,37 @@ namespace GB
 		const SimView v = View();
 		if (m_Frames % std::max(1, m_Setup.CheckEvery) == 0) m_Monitor.Step(v);
 		m_Monitor.Sample(v);
+	}
+
+	// T6: the buildings are walls (as the editor's PlayerMode::MakeHost and ActorWorld::SyncNavigation): when they changed, the ground's obstacles
+	// are the world's own plus theirs and the grid redoes the cells around what changed. A member a new wall caught where it stood goes to the
+	// nearest open cell (an Open house never shuts anyone in, but its walls can go up on top of someone).
+	void SimRun::SyncBuildingWalls()
+	{
+		std::vector<CircleObstacle> walls;
+		BuildingObstacles(m_Entities, m_Gameplay, m_Builds.Defs, walls);
+		const bool same = walls.size() == m_BuildingWalls.size() && std::equal(walls.begin(), walls.end(), m_BuildingWalls.begin(),
+			[](const CircleObstacle& a, const CircleObstacle& b) { return a.Center == b.Center && a.Radius == b.Radius; });
+		if (same) return;
+		m_Ground.Obstacles.resize(m_GroundStatics);
+		m_Ground.Obstacles.insert(m_Ground.Obstacles.end(), walls.begin(), walls.end());
+		m_Nav.SyncObstacles(m_Ground.Obstacles);
+		++m_Walls.Syncs;
+		m_Walls.Circles = walls.size();
+		const float reach = FootprintWallRadius + m_Nav.Config().AgentRadius + m_Nav.Config().Margin + m_Nav.CellSize();
+		for (auto& b : m_Bodies)
+		{
+			if (b->Suspended()) continue;
+			const glm::vec2 at = b->Position();
+			int i, j;
+			if (!m_Nav.CellAt(at, i, j) || !m_Nav.Blocked(i, j)) continue;
+			// only a wall that is new here (a trunk it was squeezed against is not this sync's business)
+			const bool caught = std::any_of(walls.begin(), walls.end(), [&](const CircleObstacle& w) { return glm::distance(w.Center, at) < reach; })
+				&& std::none_of(m_BuildingWalls.begin(), m_BuildingWalls.end(), [&](const CircleObstacle& w) { return glm::distance(w.Center, at) < reach; });
+			glm::vec2 open;
+			if (caught && m_Nav.NearestOpen(at, open)) { b->Nudge(open); ++m_Walls.Evicted; }
+		}
+		m_BuildingWalls = std::move(walls);
 	}
 
 	void SimRun::Run(double seconds)

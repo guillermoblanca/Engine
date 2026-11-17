@@ -235,6 +235,7 @@ namespace GB
 		// The walls this body cannot stand in (the world's trunks and rocks): the abstract agent walks straight lines and routes, and a work point
 		// can fall inside a rock's circle, so after each step it is pushed out to the edge, as the character controller of a real actor does.
 		void SetObstacles(const CharacterWorld* world) { m_Obstacles = world; }
+		void Nudge(const glm::vec2& p) { m_Agent.Push(p); }   // T6: out of a wall that went up where it stood (its tasks go on)
 		bool Suspended() const { return m_Suspended; }
 		const Inventory& Carried() const { return m_Bag; }
 	private:
@@ -347,9 +348,14 @@ namespace GB
 			NavFrameStats Plans;
 		};
 		const StepCost& LastCost() const { return m_Cost; }
+		// T6: the buildings as walls of the grid (BuildingObstacles, as the editor's PlayerMode::MakeHost): the circles standing now, how many times
+		// the grid was redone for them, and how many members a new wall caught where they stood (moved to the nearest open cell).
+		struct WallStats { size_t Circles = 0; int Syncs = 0; int Evicted = 0; };
+		const WallStats& Walls() const { return m_Walls; }
 
 	private:
 		void Frame();
+		void SyncBuildingWalls();
 		void SetUpClan(Tribe& t, const std::string& name, const glm::vec2& home);
 		void DigWell(const std::string& name, const glm::vec2& at);
 
@@ -373,6 +379,9 @@ namespace GB
 		Tribe m_Tribe;
 		CharacterWorld m_Ground;
 		NavGrid m_Nav;
+		size_t m_GroundStatics = 0;                  // T6: the world's own trunks and rocks in m_Ground.Obstacles; the building walls come after them
+		std::vector<CircleObstacle> m_BuildingWalls; // T6: as last synced
+		WallStats m_Walls;
 		std::vector<std::unique_ptr<SimBody>> m_Bodies;
 		std::map<std::string, size_t> m_Index;
 		SimMonitor m_Monitor;
