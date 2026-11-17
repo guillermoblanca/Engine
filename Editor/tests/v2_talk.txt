@@ -2,6 +2,12 @@
 # real fact of the game (an event of the world's history she remembers and the player does not), with what she makes of it, and the player
 # remembers it as heard from her. Rumours also pass in the members' own talks; `tribe reputation` says who knows of a person and its values.
 play temperate 5 4 2
+# The player stands apart while the clan lives (it sets off towards the Blue and stops some 35 m from the fire: past the 25 m a witness sees
+# from, inside the 50 m of full detail), so what Ana sees and does at home is news to it whatever the run: standing by the fire the player
+# saw all Ana saw, and in some runs she had nothing to tell
+game approach Eli
+wait 800
+game stop
 timescale 20
 wait 1500
 timescale 1

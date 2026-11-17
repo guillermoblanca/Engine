@@ -485,7 +485,9 @@ namespace GB
 		bool foodSite = false;   // (a food store being raised already answers the food: one at a time, as the planner)
 		for (const Tribe::Placed& p : tribe.Placements()) if (!p.State.Done) { ++open; foodSite = foodSite || (p.Def && p.Def->FoodCap > 0); }
 		for (const TribeMember& m : tribe.m_Members) if (!m.Dead) ++alive;
-		if (alive == 0 || foodSite || open >= tribe.Config.Econ.Construction.SitesFor(alive)) return;
+		// (D47: one site past the limit: with the food stores capped the rebuild is the only way to a better one, and a storage waiting for its stone
+		// held the one site of a small clan while its food went off)
+		if (alive == 0 || foodSite || open > tribe.Config.Econ.Construction.SitesFor(alive)) return;
 		int campFood = 0;
 		for (const ItemSlot& s : tribe.m_Store.Stacks())
 			if (tribe.IsFood(s.Id))
@@ -497,6 +499,13 @@ namespace GB
 			{
 				bool from = tribe.m_Store.Count(item) > 0;
 				for (const auto& [kind, node] : tribe.m_Defs) from = from || node.Item == item;
+				// or made by a recipe it knows, as the planner pays (D47: the daub of a granary was only there when a granary had been raised beside)
+				for (const std::string& rid : tribe.m_Recipes->Ids())
+				{
+					if (from) break;
+					const Recipe& r = *tribe.m_Recipes->Find(rid);
+					from = r.Output == item && tribe.ClanKnows(r) && tribe.StationAvailable(r.Station);
+				}
 				if (!from) return false;
 			}
 			return true;

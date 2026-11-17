@@ -180,6 +180,46 @@ static void AbstractOnTheGrid()
 		"but a goal it cannot reach fails at once, as the full actor's would, and it stays on the shore");
 }
 
+// GB.exe "From nothing", seed 7: a route ended 0.7 m from a reed bed and the work point was put 1.6 m out from it in a straight line, through a thin
+// wall of the grid, in a pocket with no way out; four of the clan failed every trip from there and died of thirst. Here the ground x < -1 is the
+// pocket (a route from it fails); the route to the node at 0 0 comes up from the south and ends 0.6 m west of it, on ground with a way out.
+static void AbstractNoPocket()
+{
+	auto pocket = [](const glm::vec2& p) { return p.x < -1.0f; };
+	int fromPocket = 0;
+	AbstractAgent::Route route = [&](const glm::vec2& from, const glm::vec2& to, float, std::vector<glm::vec2>& points)
+	{
+		if (pocket(from) != pocket(to)) { if (pocket(from)) ++fromPocket; return false; }
+		points.clear();
+		if (glm::distance(to, glm::vec2(0.0f)) < 0.01f) points = { { -0.6f, -6.0f }, { -0.6f, 0.0f }, to };   // by the south, then up beside the node
+		else points.push_back(to);
+		return true;
+	};
+	GameplayWorld gameplay;
+	auto locate = [](const std::string& entity, glm::vec2& pos) { if (entity != "reed") return false; pos = { 0.0f, 0.0f }; return true; };
+	std::string error;
+
+	AbstractAgent agent;
+	agent.Place({ -0.6f, -12.0f });
+	Check(agent.Do("ability Gather reed", error), "the agent takes a gather");
+	for (int i = 0; i < 2000 && agent.Busy(); ++i) agent.Update(dt, nullptr, gameplay, locate, 3.0f, route);
+	// (with no ability system the gather itself fails: what matters is where the walk ended)
+	Check(!pocket(agent.Position()) && std::fabs(glm::distance(agent.Position(), glm::vec2(0.0f)) - 1.6f) < 0.05f,
+		"it works the node from 1.6 m back along the way it came, not pushed straight out through the wall into the pocket");
+	Check(agent.Do("goto -0.6 -12", error), "and it goes home");
+	for (int i = 0; i < 4000 && agent.Busy(); ++i) agent.Update(dt, nullptr, gameplay, locate, 3.0f, route);
+	Check(!agent.Failed() && glm::distance(agent.Position(), glm::vec2(-0.6f, -12.0f)) < 0.01f, "from where it stood");
+
+	// pushed into the pocket anyway (a collision): it hops back to the last ground of a route it stood on, and goes on from there
+	AbstractAgent pushed;
+	pushed.Place({ -0.5f, 0.0f });
+	pushed.Push({ -1.4f, 0.0f });
+	Check(pushed.Do("goto -0.6 -12", error), "the pushed agent takes a goto");
+	for (int i = 0; i < 4000 && pushed.Busy(); ++i) pushed.Update(dt, nullptr, gameplay, locate, 3.0f, route);
+	Check(fromPocket > 0 && !pushed.Failed() && glm::distance(pushed.Position(), glm::vec2(-0.6f, -12.0f)) < 0.01f,
+		"shut in the pocket, it steps back to the ground of its route and gets home");
+}
+
 struct Village
 {
 	Village()
@@ -479,6 +519,7 @@ int GBTest_tribe(int, char**)
 	}
 
 	AbstractOnTheGrid();
+	AbstractNoPocket();
 
 	// Limits: a tribe nobody built, a tribe with no one in it, and a tribe in a land with nothing to gather (everyone goes hungry and says why).
 	{

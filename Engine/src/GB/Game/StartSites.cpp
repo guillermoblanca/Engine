@@ -1,4 +1,5 @@
 #include "GB/Game/StartSites.h"
+#include "GB/Game/CharacterController.h"
 #include "GB/World/WorldGen.h"
 #include <algorithm>
 #include <cstdio>
@@ -64,4 +65,8 @@ namespace GB
 		if (world.PathField.N > 1 && world.PathField.Sample(x, z) > 0.5f) return 0.0f;
 		return undergrowth;
 	}
+
+	// (GB.exe's `tribe build`, `clan new` and splits, and GBSim's SimRun, call these: one rule for both, so a run is the game's)
+	glm::vec2 StartWellSpot(const CharacterWorld& ground, const glm::vec2& camp) { return FindFreeSpot(ground, camp + glm::vec2(4.0f, -6.0f), 1.5f); }
+	glm::vec2 ClanHomeSpot(const CharacterWorld& ground, const glm::vec2& site) { return FindFreeSpot(ground, site, 2.0f); }
 }

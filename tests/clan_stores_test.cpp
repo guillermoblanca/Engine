@@ -322,6 +322,24 @@ int GBTest_clan_stores(int, char**)
 		many.Sites.push_back({ &defs["granary"], { -10.0f, 0.0f }, true });
 		const std::vector<BuildingNeed> manyNeeds = PlanBuildingNeeds(many);
 		Check(std::none_of(manyNeeds.begin(), manyNeeds.end(), [](const BuildingNeed& n) { return n.Why.find("went off lately") != std::string::npos; }), "at most one food store for every 4 living");
+
+		// D47: one store that keeps food for every FoodStoresPer living, whichever rule asks (the pile by the fire, the full store, the first of
+		// its kind): with 17 and one for every 8, two; a third never comes beside them (seed 7, 20 days: 11 food stores for 19 before)
+		SettlementFacts d47 = f;
+		d47.Alive = 17;
+		d47.FoodStoresPer = 8;
+		d47.CampFood = 600;
+		d47.CampPile = 900;
+		d47.Spoiled = 50;
+		d47.FullItem = "berry";
+		d47.FullCount = 40;
+		d47.StoreCap = 40;
+		auto keeps = [&](const std::vector<BuildingNeed>& n) { return std::any_of(n.begin(), n.end(), [&](const BuildingNeed& x) { return defs.count(x.Building) && (defs[x.Building].FoodCap > 0 || defs[x.Building].Keep < 1.0f); }); };
+		Check(keeps(PlanBuildingNeeds(d47)), "17 living, one cache pit and 600 food by the fire: a second store for food is wanted");
+		d47.Sites.push_back({ &defs["granary"], { -10.0f, 0.0f }, true });
+		const std::vector<BuildingNeed> capped = PlanBuildingNeeds(d47);
+		Check(!keeps(capped), "with two (the cap) no third, though the pile, the full store and the food that went off all ask");
+		Check(std::any_of(capped.begin(), capped.end(), [](const BuildingNeed& n) { return n.Building == "storage"; }), "the rest of the pile still gets a storage");
 	}
 
 	// ---- T256: what goes off is remembered lately (fading) and saved

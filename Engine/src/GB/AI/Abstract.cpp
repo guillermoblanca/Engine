@@ -7,6 +7,7 @@ namespace GB
 	namespace
 	{
 		constexpr float kReach = 1.6f;   // an actor works a target from about this far (its work point)
+		constexpr float kStepBack = 3.0f;   // the longest hop back to the last ground of a route, out of a pocket (Plan)
 	}
 
 	bool AbstractAgent::Do(const std::string& text, std::string& error)
@@ -27,10 +28,24 @@ namespace GB
 	{
 		m_Path.clear();
 		m_Next = 0;
-		m_Safe = m_Pos;
+		m_From = m_Pos;
+		m_Routed = false;
+		if (!route) m_Safe = m_Pos;
 		if (route && glm::distance(m_Pos, to) > reach + 1e-3f)
 		{
-			if (!route(m_Pos, to, reach, m_Path) || m_Path.empty()) { m_Path.clear(); return false; }
+			bool found = route(m_Pos, to, reach, m_Path) && !m_Path.empty();
+			if (found) m_Safe = m_Pos;   // (there is a way out of here: ground of a route)
+			else if (glm::distance(m_Safe, m_Pos) > 1e-3f && glm::distance(m_Safe, m_Pos) <= kStepBack)
+			{
+				// Shut in a pocket of the grid (pushed there, or the world changed round it): no way out from where it stands, and it would fail every
+				// trip until it died of thirst (GB.exe, "From nothing", seed 7: four of a clan by a reed bed). It hops back to the last ground of a route
+				// it stood on, a short step, and goes from there.
+				m_Path.clear();
+				found = route(m_Safe, to, reach, m_Path) && !m_Path.empty();
+				if (found) { m_Path.insert(m_Path.begin(), m_Safe); m_From = m_Safe; }
+			}
+			if (!found) { m_Path.clear(); return false; }
+			m_Routed = true;
 			// A route that ends short of the goal, but within its reach (the nearest ground to a node that is itself an obstacle), used to leave the
 			// member exactly where the route ended -- which can be inside the node's own obstacle circle, nearer than the work point. Ending the walk
 			// at the goal, with its reach, stands it at the work point instead.
@@ -39,6 +54,29 @@ namespace GB
 		else m_Path.push_back(to);
 		m_EndReach = m_Path.back() == to ? reach : 0.0f;
 		return true;
+	}
+
+	// Back along the route walked (from where it stands to the waypoints passed, the last first, and where the route began) to the first point r
+	// from `target`: ground of the route all of it. A route that never went r away from the target gives its start.
+	glm::vec2 AbstractAgent::BackAlongRoute(const glm::vec2& target, float r) const
+	{
+		glm::vec2 at = m_Pos;
+		for (size_t k = m_Next + 1; k-- > 0;)
+		{
+			const glm::vec2 next = k > 0 ? m_Path[k - 1] : m_From;
+			if (glm::distance(next, target) >= r)
+			{
+				glm::vec2 near = at, far = next;   // the distance to the target grows from near to far past r: halve the segment
+				for (int i = 0; i < 24; ++i)
+				{
+					const glm::vec2 mid = (near + far) * 0.5f;
+					if (glm::distance(mid, target) < r) near = mid; else far = mid;
+				}
+				return far;
+			}
+			at = next;
+		}
+		return at;
 	}
 
 	// One step along the waypoints. The last one is reached at `m_EndReach` from it (the work point of a target), the others are passed through
@@ -61,8 +99,13 @@ namespace GB
 				// circle (the `ground` invariant of tests/settlement_test.cpp caught it once erosion moved a gather target for one seed): with a reach
 				// it now always ends exactly r from the target, the work point. A GoTo (r == 0) is untouched: it is how the camp moves (MoveCamp), and
 				// there arriving exactly at the point is the whole job.
-				if (r > 0.0f) { if (len > 1e-4f) m_Pos = target - d / len * r; }
-				else if (len > r) m_Pos = target - d / len * r;				m_Safe = r > 0.0f ? m_Safe : m_Pos;
+				// After a route, a member already closer than r goes back along the way it came until it is r away: pushed straight out it went
+				// through a thin wall of the grid into a pocket with no way out (GB.exe "From nothing", seed 7: the reed bed 16 of Ash, four dead of
+				// thirst). Only with no route walked (the task started within reach) is it pushed straight out, as before.
+				if (r > 0.0f && len <= r && m_Routed) m_Pos = BackAlongRoute(target, r);
+				else if (r > 0.0f) { if (len > 1e-4f) m_Pos = target - d / len * r; }
+				else if (len > r) m_Pos = target - d / len * r;
+				m_Safe = r > 0.0f ? m_Safe : m_Pos;
 				return true;
 			}
 			m_Pos = m_Safe = target;

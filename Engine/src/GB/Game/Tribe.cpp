@@ -1249,13 +1249,18 @@ namespace GB
 			if (m.Dead || !m.Body || m.Player) continue;
 			const std::string seen = m.Job + "|" + m.Detail;
 			if (seen != m.Watched) { m.Watched = seen; m.WatchedSince = m_Time; continue; }
-			if (m.Job == "talk" && m_Time - m.WatchedSince > 120.0)
+			// (and a walk to look at a node: at the edge of the viewer's detail radius the full body and the abstract agent went opposite ways, each
+			// switch gave the orders again from the start, and a member walked to and fro for 1100 s until it died of thirst: GB.exe seed 77, Tea)
+			const double overdue = m.Job == "talk" ? 120.0 : m.Job == "approach" ? 300.0 : 0.0;
+			if (overdue > 0.0 && m_Time - m.WatchedSince > overdue)
 			{
+				const bool talk = m.Job == "talk";
+				if (!talk) m_Claims.Release(m.Detail);   // (the node it went to look at)
 				m.Job.clear();
 				m.Detail.clear();
 				std::string error;
 				if (Run(m, "wait 0.2", error)) m.Mind.Orders = "wait 0.2";
-				Say(m, "leaves off talking: it has gone on too long");
+				Say(m, talk ? "leaves off talking: it has gone on too long" : "gives up the walk: it has gone on too long");
 				m.Watched.clear();
 			}
 		}

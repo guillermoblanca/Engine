@@ -7,6 +7,7 @@ namespace GB
 {
 	struct GeneratedWorld;
 	struct SettlementSite;
+	struct CharacterWorld;
 
 	// T118 (docs GRAFO_TERRENO 14.6): the game on a world whose terrain graph published settlement sites and trails (GeneratedWorld::Settlements,
 	// Trails, PathField; GB/World/Settle.h). The clans that start settle on the sites in the order of their Rank, one each, and the camp's ground is
@@ -31,4 +32,10 @@ namespace GB
 	// The undergrowth the navigation should see at x,z (NavConfig::Vegetation): none on a levelled trail (PathField over 0.5, the tread), so the
 	// walkers prefer it (NavProfile::VegetationWeight); elsewhere `undergrowth`, as given.
 	float TrailUndergrowth(const GeneratedWorld& world, float x, float z, float undergrowth);
+
+	// Where a starting or newly founded clan digs its first well: dry ground clear of trunks and rocks for 1.5 m, by camp + (4, -6). GB.exe and
+	// GBSim both call it, so a run has the game's wells.
+	glm::vec2 StartWellSpot(const CharacterWorld& ground, const glm::vec2& camp);
+	// A new clan's camp at the place it chose (ClanWorld::ChooseHome, a split's place): the nearest spot clear for 2 m.
+	glm::vec2 ClanHomeSpot(const CharacterWorld& ground, const glm::vec2& site);
 }

@@ -894,7 +894,7 @@ namespace GB
 		// stands; the editor's own choice of a site keeps 4 m clear, SiteWeights::ClearRadius).
 		// T118: on a world whose terrain graph published settlement sites, the first clan settles on the best of them (Rank 0)
 		const std::vector<glm::vec2> graphCamp = GraphStartCamps(world.Settlements, 1);
-		const glm::vec2 camp = setup.HasCamp ? setup.Camp : FindFreeSpot(m_Ground, graphCamp.empty() ? world.Spawn : graphCamp.front(), 3.5f);
+		glm::vec2 camp = setup.HasCamp ? setup.Camp : FindFreeSpot(m_Ground, graphCamp.empty() ? world.Spawn : graphCamp.front(), 3.5f);
 		if (setup.Scene)
 		{
 			m_Entities = *setup.Scene;
@@ -923,10 +923,25 @@ namespace GB
 			m_Spots = setup.Nature ? PlanWorldNature(ResourceGroundOf(world), m_Defs, *setup.Nature, world.Desc.Seed)
 				: PlanWorldResources(ResourceGroundOf(world), m_Defs, world.Desc.Seed, setup.ResourceDensity);
 			BuildWorldResources(m_Entities, m_Spots, m_Defs);
+			if (setup.GameStart && !setup.HasCamp && graphCamp.empty() && setup.Config)
+			{
+				// GB.exe's `tribe build` with no place given: the best site for the trades of the clan, over the wild nodes just planted
+				// (EditorApp::TribeCommand: BestSite with SceneResources and ClanSiteWeights); its spot as it is (the editor does not move it)
+				m_Tribe.Config.Roles = setup.Config->Roles;   // (as below: the trades and what they want)
+				m_Tribe.Config.Work = setup.Config->Work;
+				m_Tribe.Config.Agenda = setup.Config->Agenda;
+				m_Tribe.Config.Economy = setup.Config->Economy;
+				m_Tribe.Config.Social = setup.Config->Social;
+				m_Tribe.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
+				const int clans = std::max(1, setup.Clans);
+				const int n = std::max(1, setup.Members / clans + setup.Members % clans);
+				const SiteRating best = BestSite(ResourceGroundOf(world), SpotResources(m_Spots), ClanSiteWeights(m_Tribe, m_Tribe.PlanRoles(n)));
+				if (best.Ok) camp = best.At;
+			}
 		}
 		if (m_Entities.FindByName("Well") == NullEntity)   // a well near the camp (the members get thirsty), as `tribe build` puts one
 		{
-			const glm::vec2 well = FindFreeSpot(m_Ground, camp + glm::vec2(4.0f, -6.0f), 1.5f);
+			const glm::vec2 well = StartWellSpot(m_Ground, camp);
 			const InteractiveDef& def = m_Rules.Defs.at("well");
 			const glm::vec2 origin = well - glm::vec2(def.At.x, def.At.z);
 			BuildInteractives(m_Entities, glm::vec3(origin.x, world.TerrainRef->GetHeight(well.x, well.y), origin.y), m_Rules.Defs);
@@ -1038,6 +1053,8 @@ namespace GB
 			if (setup.GameSeeds) m_Clans.Rules.Seed = StreamSeed(master, SeedStream::Diplomacy);   // T0 (the further clans copy the first's config, seeded above)
 			m_Clans.Add("Clan 1", &m_Tribe);
 			m_Clans.SetGraphSites(GraphCampSites(world));   // T118: the further clans settle on the graph's next sites (none: as before)
+			// GB.exe's `clan new`: the site scoring of `tribe build` over every node of the scene (EditorApp::SyncRegions)
+			if (setup.GameStart) m_Clans.SetSiteChooser(SettlementSiteChooser(m_Tribe, ResourceGroundOf(world), [spots = &m_Spots] { return SpotResources(*spots); }));
 			if (setup.ThinkPerFrame >= 0) m_Clans.ThinkPerFrame = setup.ThinkPerFrame;
 			size_t named = roster.size();
 			const int each = std::max(1, setup.Members / setup.Clans);
@@ -1053,7 +1070,7 @@ namespace GB
 				const std::string name = "Clan " + std::to_string(c + 1);
 				Clan& clan = m_Clans.Add(name, nullptr, -1, &m_Tribe.Config);
 				Tribe& t = *clan.Folk;
-				const glm::vec2 home = FindFreeSpot(m_Ground, site.At, 2.0f);
+				const glm::vec2 home = ClanHomeSpot(m_Ground, site.At);
 				SetUpClan(t, name, home);
 				t.Store().Add(m_Items, "wood", 2 + 2 * each);
 				t.Store().Add(m_Items, "stone", 3 * each);
@@ -1077,7 +1094,7 @@ namespace GB
 			{
 				if (m_Clans.Find(name)) return -1;
 				Clan& clan = m_Clans.Add(name, nullptr, -1, &m_Tribe.Config);
-				SetUpClan(*clan.Folk, name, FindFreeSpot(m_Ground, at, 2.0f));
+				SetUpClan(*clan.Folk, name, ClanHomeSpot(m_Ground, at));
 				if (m_Setup.Combat) { clan.Folk->SetClanName(name); clan.Folk->SetCombat(&m_Combat, &m_ClanHostility); }
 				return clan.Id;
 			};
@@ -1162,7 +1179,7 @@ namespace GB
 	void SimRun::SetUpClan(Tribe& t, const std::string& name, const glm::vec2& home)
 	{
 		const Terrain* terrain = m_Setup.World->TerrainRef;
-		DigWell("Well " + name, FindFreeSpot(m_Ground, home + glm::vec2(4.0f, -6.0f), 1.5f));
+		DigWell("Well " + name, StartWellSpot(m_Ground, home));
 		t.SetWellDigger([this](const std::string& well, const glm::vec2& at) { DigWell(well, at); });
 		t.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
 		t.SetInteractives(&m_Rules.Defs);

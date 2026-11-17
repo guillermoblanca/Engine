@@ -439,7 +439,13 @@ namespace GB::Editor
 			{
 				// a well near the camp (the members get thirsty); the fire pit and the gate of the interactives are not wanted here
 				EntityWorld& world = m_SceneEditor.World();
-				const glm::vec3 wellOrigin(camp.x + 4.0f, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(camp.x + 4.0f, camp.y - 6.0f) : 0.0f, camp.y - 6.0f);
+				// the well itself on dry ground clear of trunks and rocks, by camp + (4, -6), as every clan's and GBSim's (StartWellSpot); the group's
+				// origin is where that puts it. With no world built the host is a 24 m sandbox: the raw spot, as before
+				const auto wellDef = m_Interactives.Defs.find("well");
+				const glm::vec3 wellAt = wellDef != m_Interactives.Defs.end() ? wellDef->second.At : glm::vec3(0.0f);
+				const glm::vec2 wellSpot = m_World.IsBuilt() ? StartWellSpot(m_Actors.Host().World, camp) : camp + glm::vec2(4.0f, -6.0f) + glm::vec2(wellAt.x, wellAt.z);
+				const glm::vec2 groupAt = wellSpot - glm::vec2(wellAt.x, wellAt.z);
+				const glm::vec3 wellOrigin(groupAt.x, m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(groupAt.x, groupAt.y) : 0.0f, groupAt.y);
 				const InteractiveLayout made = BuildInteractives(world, wellOrigin, m_Interactives.Defs);
 				for (const char* extra : { "Fire Pit", "Gate" }) if (const EntityId id = world.FindByName(extra); id != NullEntity) world.Destroy(id);
 				// the well stands at its own offset from the group's origin: on the lowest ground under its wall there (T235: not the origin's height)

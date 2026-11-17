@@ -99,14 +99,15 @@ namespace GB::Editor
 	}
 
 	// N7: a clan founded by a split: its camp and well, its tribe bound to the world; the members move in (ClanWorld::Split)
-	ClanId EditorApp::FoundClan(ClanId parent, const glm::vec2& camp, const std::string& name)
+	ClanId EditorApp::FoundClan(ClanId parent, const glm::vec2& place, const std::string& name)
 	{
 		(void)parent;
 		if (m_Clans.Find(name)) return -1;
 		Clan& c = m_Clans.Add(name, nullptr, -1, &m_Tribe.Config);
-		// on dry ground clear of trunks and rocks, as GBSim digs it (SimRun::SetUpClan); with no world built the host is a 24 m sandbox, so the raw spot
-		const glm::vec2 wellAt = camp + glm::vec2(4.0f, -6.0f);
-		PlaceWell("Well " + name, m_World.IsBuilt() ? FindFreeSpot(m_Actors.Host().World, wellAt, 1.5f) : wellAt);
+		// the camp and its well on dry ground clear of trunks and rocks, as GBSim's (SimRun's FoundClan and SetUpClan: ClanHomeSpot, StartWellSpot);
+		// with no world built the host is a 24 m sandbox, so the raw spots
+		const glm::vec2 camp = m_World.IsBuilt() ? ClanHomeSpot(m_Actors.Host().World, place) : place;
+		PlaceWell("Well " + name, m_World.IsBuilt() ? StartWellSpot(m_Actors.Host().World, camp) : camp + glm::vec2(4.0f, -6.0f));
 		Tribe& t = *c.Folk;
 		PrepareClanTribe(t);
 		t.Config.Economy.Camp = camp;
@@ -172,19 +173,19 @@ namespace GB::Editor
 				// the site chooser (H8's when it gives one; otherwise the best dry anchor of a region away from every other camp)
 				SyncRegions();
 				m_Clans.SetRegions(&m_Regions);
+				// on ground the members can stand on, and the camp itself clear of trunks and rocks: GBSim's further clans (SimRun, ClanHomeSpot)
 				CampSite site;
-				if (!m_Clans.ChooseHome(90.0f, nullptr, site)) return { false, "no place for a new clan: give x z (a generated world lets the site chooser pick a region)" };
-				camp = site.At;
+				const NavGrid* grid = &m_Actors.Navigation();
+				if (!m_Clans.ChooseHome(90.0f, [grid](const glm::vec2& p) { return !grid->Ready() || grid->Walkable(p); }, site))
+					return { false, "no place for a new clan: give x z (a generated world lets the site chooser pick a region)" };
+				camp = m_World.IsBuilt() ? ClanHomeSpot(m_Actors.Host().World, site.At) : site.At;
 				where = site.Why;
 			}
 			const SpawnBatch crew(*this);   // (its actors without reloading the scene's systems each)
 			Clan& c = m_Clans.Add(name, nullptr, -1, &m_Tribe.Config);
 			Tribe& t = *c.Folk;
-			// a well by the camp (its own name: the interactives are found by name)
-			{
-				const glm::vec2 raw = camp + glm::vec2(4.0f, -6.0f);   // on dry ground clear of trunks and rocks, as GBSim digs it (SimRun::SetUpClan)
-				PlaceWell("Well " + name, m_World.IsBuilt() ? FindFreeSpot(m_Actors.Host().World, raw, 1.5f) : raw);
-			}
+			// a well by the camp (its own name: the interactives are found by name), on dry ground clear of trunks and rocks, as GBSim digs it (StartWellSpot)
+			PlaceWell("Well " + name, m_World.IsBuilt() ? StartWellSpot(m_Actors.Host().World, camp) : camp + glm::vec2(4.0f, -6.0f));
 			std::vector<std::string> names;
 			for (size_t k = 0; static_cast<int>(names.size()) < members; ++k)   // the names of the data, skipping those any clan or actor uses
 				if (const std::string n = MemberName(t.Config.Work, k); !m_Clans.NameTaken(n) && !m_Actors.Find(n)) names.push_back(n);

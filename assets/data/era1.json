@@ -198,7 +198,7 @@
         { "name": "lining", "work": 6.0, "needs": { "reed": 4, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
       ],
       "storeCap": 10,
-      "foodCap": 60,
+      "foodCap": 150,
       "keep": 0.75,
       "color": [ 0.42, 0.34, 0.24 ]
     },
@@ -213,7 +213,7 @@
         { "name": "roof", "work": 8.0, "needs": { "reed": 6 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
       ],
       "storeCap": 20,
-      "foodCap": 300,
+      "foodCap": 1500,
       "keep": 0.5,
       "supersedes": [ "cache_pit" ],
       "color": [ 0.55, 0.42, 0.26 ]
@@ -342,9 +342,9 @@
         { "name": "jars", "work": 8.0, "needs": { "fired_brick": 4, "clay": 4 }, "part": "table" }
       ],
       "storeCap": 30,
-      "foodCap": 400,
+      "foodCap": 2000,
       "keep": 0.35,
-      "supersedes": [ "cache_pit" ],
+      "supersedes": [ "cache_pit", "granary" ],
       "color": [ 0.6, 0.44, 0.32 ]
     },
     "ancestor_shrine": {
@@ -564,7 +564,7 @@
       "campReserve": { "wood": 6, "food": 10 },
       "keepBestBelow": 4800,
       "foodStoreAt": 40,
-      "foodStoresPer": 4,
+      "foodStoresPer": 8,
       "spoilMemory": 1200
     },
     "construction": { "maxSites": 3, "membersPerSite": 4 }

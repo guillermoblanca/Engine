@@ -262,7 +262,11 @@ namespace GB
 		// T118: no wild nodes but a patch of resources by each starting camp (the first and the terrain graph's next sites), as the editor's `village`
 		// founds the clans of a world of kilometres; GBSim sets it for a world of a terrain graph (--graph). False: the wild nodes, as before.
 		bool CampPatches = false;
-		bool Abstract = false;                    // the viewer far away: every member is an abstract agent (H6 level of detail)
+		// GB.exe's start (`village` on a generated world: `tribe build` and `clan new`): the first camp where the site choice says (BestSite over the
+		// scene's nodes, as `tribe build`), the further clans with the editor's site chooser (SettlementSiteChooser) at least ClanApart apart. With
+		// GBSim --game (the editor's world and its wild nodes) the clans settle where GB.exe settles them. False: the old run's camps.
+		bool GameStart = false;
+		bool Abstract = false;                   // the viewer far away: every member is an abstract agent (H6 level of detail)
 		float Step = 0.1f;                        // seconds per simulation step
 		int CheckEvery = 1;                       // run the invariants every this many steps (the metrics are sampled at every one)
 		// Optional: a scene to start from (the editor's current one, with its nodes, well and members' entities) instead of planting the world's

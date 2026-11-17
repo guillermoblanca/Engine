@@ -35,13 +35,25 @@ namespace GB
 		for (const auto& [id, def] : *f.Buildings)
 			if (def.FoodCap > 0 && def.Keep < 1.0f && known(def) && payable(def)
 				&& (!bestFood || def.Keep < bestFood->Keep - 1e-4f || (std::abs(def.Keep - bestFood->Keep) <= 1e-4f && def.FoodCap > bestFood->FoodCap))) bestFood = &def;
-		int foodStores = 0;
+		// D47: the stores that keep food (room for food, or a store that slows its spoiling: a cache pit, a granary, a jar store, a cellar) are one
+		// for every FoodStoresPer living at most, whichever rule asks for them (with T256 on: FoodStoreAt > 0). A better one comes by rebuilding an
+		// old one (ClanStores::PlanUpgrade), not beside it. Before, the pile's, the full store's and T256's rules each added their own: 11 for 19.
+		const auto keepsFood = [](const BuildingDef& d) { return d.FoodCap > 0 || (d.Keep < 1.0f && (d.StoreCap > 0 || !d.Store.empty())); };
+		int foodStores = 0, foodStoresDone = 0;
 		bool foodSiteOpen = false;
 		for (const PlannerSite& p : f.Sites)
-			if (p.Def->FoodCap > 0) { ++foodStores; foodSiteOpen = foodSiteOpen || !p.Done; }
+			if (keepsFood(*p.Def)) { ++foodStores; foodStoresDone += p.Done ? 1 : 0; foodSiteOpen = foodSiteOpen || !p.Done; }
+		// A clan with no food store standing yet may raise the plain one beside the better one it waits for: "payable" only says where the things
+		// come from, not that they come (GBSim seed 77: a granary waited 20 days for its stone and the clan of 20 had no food store at all, food days 3)
+		const bool noFoodStore = foodStoresDone == 0;
+		const bool foodStoresFull = f.FoodStoreAt > 0 && foodStores >= std::max(1, alive / std::max(1, f.FoodStoresPer)) + (noFoodStore && foodSiteOpen ? 1 : 0);
+		const auto passedOver = [&](const std::string& id) { return superseded.count(id) > 0 && !noFoodStore; };
 		for (const auto& [id, def] : *f.Buildings)
 		{
 			if (!known(def) || !payable(def)) continue;   // H11 decides what is known
+			// D47 (a home that keeps food is still a home); nor a food store the clan knows a better one of (a cache pit pulled down for a granary was
+			// raised again at once for the full store)
+			if (keepsFood(def) && def.Shelter == 0 && (foodStoresFull || passedOver(id))) continue;
 			BuildingNeed need;
 			need.Building = id;
 			auto want = [&](float urgency, const std::string& text) { if (urgency > need.Urgency) { need.Urgency = urgency; need.Why = text; } };
@@ -58,11 +70,11 @@ namespace GB
 			// (the food's pile asks for a building that keeps food, the rest's for one that keeps anything)
 			if (const int pile = def.FoodCap > 0 ? f.CampFood : (!def.Store.empty() || def.StoreCap > 0) ? f.CampPile - f.CampFood : 0;
 				pile >= 120 && count[id] < std::max(1, alive / 25) + std::min(pile / 120, std::max(1, alive / 6)))
-				if (!(def.FoodCap > 0 && superseded.count(id))) want(1.5f, std::to_string(pile) + " things lie by the fire: the stores are full");   // (T256: not a store the clan knows a better one of)
+				if (!(def.FoodCap > 0 && passedOver(id))) want(1.5f, std::to_string(pile) + " things lie by the fire: the stores are full");   // (T256: not a store the clan knows a better one of)
 			// T256: food that went off lately and food by the fire with no room ask for the best food store the clan knows, one at a time (above the
 			// pile's rule; under beds for all)
 			if (&def == bestFood && f.FoodStoreAt > 0 && !foodSiteOpen)
-				if (const int pressure = f.SpoiledLately + f.CampFood; pressure >= f.FoodStoreAt && foodStores < std::max(1, alive / std::max(1, f.FoodStoresPer)))
+				if (const int pressure = f.SpoiledLately + f.CampFood; pressure >= f.FoodStoreAt && !foodStoresFull)
 				{
 					std::snprintf(why, sizeof why, "%d food went off lately and %d lies by the fire with no room", f.SpoiledLately, f.CampFood);
 					want(std::min(2.5f, 1.6f + 0.25f * static_cast<float>(pressure) / static_cast<float>(f.FoodStoreAt)), why);

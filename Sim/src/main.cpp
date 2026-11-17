@@ -141,7 +141,7 @@ int main(int argc, char** argv)
 	double days = 3.0, every = 60.0, years = 0.0, stagnantDays = 0.0;
 	bool stopClanDead = false, stopExtinct = false;
 	int clans = 1, members = 4;
-	bool combat = false, hostile = false, content = true, forests = false, report = false, patches = true;
+	bool combat = false, hostile = false, content = true, forests = false, report = false, patches = true, game = false;
 	std::string biome = "temperate", path, profile, note, pack, graph;
 	float size = 0.0f;
 	int resolution = 0, trees = -1, rocks = -1;
@@ -183,6 +183,9 @@ int main(int argc, char** argv)
 		else if (Arg(argv[i], "--rocks", v)) rocks = std::atoi(v.c_str());
 		else if (Arg(argv[i], "--pack", v)) pack = v;   // V5: the content pack to play (default the game's, GamePack(); "era2" adds the Bronze Age)
 		else if (!std::strcmp(argv[i], "--forest")) forests = true;
+		// GB.exe's new game (`shell new`: `generate <biome> <seed>` and `village <clans> <members>`): its world, its wild nodes (the content's
+		// nature, --forest), its camps and wells, its game animals (--combat); the run is then the menu's start with the same seed
+		else if (!std::strcmp(argv[i], "--game")) game = forests = combat = true;
 		else if (!std::strcmp(argv[i], "--no-patches")) patches = false;   // T118: a graph's world with the wild nodes instead of a patch by each camp
 		else if (!std::strcmp(argv[i], "--report")) report = true;   // at the end, each clan's settlement, fields, economy and goals
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
@@ -214,6 +217,15 @@ int main(int argc, char** argv)
 		desc.Resolution = 1025;
 		desc.TreeBudget = 40000;
 		desc.RockBudget = 900;
+	}
+	else if (game)   // GB.exe's `generate <biome> <seed>`: the default world (its size, samples and budgets) with the newest generator
+	{
+		const GB::WorldDesc made;
+		desc.Size = made.Size;
+		desc.Resolution = made.Resolution;
+		desc.TreeBudget = made.TreeBudget;
+		desc.RockBudget = made.RockBudget;
+		desc.GeneratorVersion = GB::kWorldGeneratorLatest;
 	}
 	if (size > 0.0f) desc.Size = std::max(32.0f, size);
 	if (resolution > 0) desc.Resolution = static_cast<uint32_t>(std::clamp(resolution, 65, 2049));
@@ -286,8 +298,21 @@ int main(int argc, char** argv)
 	}
 	setup.Telemetry = path.empty() ? nullptr : &sink;
 	setup.TelemetryEvery = every;
+	if (game) { setup.GameStart = true; setup.ClanApart = 90.0f; }   // (`clan new` asks ClanWorld::ChooseHome for 90 m apart)
 	GB::SimRun run(setup);
 	if (!run.Ok()) { std::fprintf(stderr, "the run could not start: %s\n", run.Error().c_str()); sink.Stop(); return 1; }
+	if (game)   // where each clan settled and dug its well: GB.exe's `clan list` and `entity info "Well <clan>"` say the same
+	{
+		const GB::SimView view = run.View();
+		size_t k = 0;
+		for (const auto& c : run.Clans().All())
+		{
+			const glm::vec2 camp = c->Folk->Config.Economy.Camp;
+			const GB::EntityId well = view.Entities->FindByName(k++ == 0 ? std::string("Well") : "Well " + c->Name);
+			const glm::vec4 at = well != GB::NullEntity ? view.Entities->WorldMatrix(well)[3] : glm::vec4(0.0f);
+			std::fprintf(stderr, "game start: %s camp (%.1f, %.1f), well (%.1f, %.1f)\n", c->Name.c_str(), static_cast<double>(camp.x), static_cast<double>(camp.y), static_cast<double>(at.x), static_cast<double>(at.z));
+		}
+	}
 	run.Director().SetStakes(true);   // §6.2 A: a run is the god's game (only the director reads it: --report says the day of the defeat)
 	if (!graph.empty())   // T118: where each clan settled, and on which of the graph's sites
 	{
@@ -321,6 +346,7 @@ int main(int argc, char** argv)
 	std::stable_sort(orders.begin(), orders.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
 	size_t nextOrder = 0;
 	GB::AlertBoard alerts;   // T220 (--report: how many of each the god would have seen)
+	std::map<const GB::Tribe*, std::pair<double, long>> foodIn;   // D47 (--report): each clan's day start and the food it brought in before it
 	const GB::AlertRules alertRules = era ? era->Alerts : GB::AlertRules{};
 	auto runOrders = [&]()
 	{
@@ -344,6 +370,17 @@ int main(int argc, char** argv)
 		if (nextOrder < orders.size() && orders[nextOrder].first * kDay > done) chunk = std::min(chunk, orders[nextOrder].first * kDay - done);
 		run.Run(chunk);
 		done += chunk;
+		if (report)   // D47: the food each clan brought in over the run (the tribe keeps only today's and yesterday's): yesterday's, at each new day of its
+		{
+			std::vector<const GB::Tribe*> now;
+			if (run.Clans().Count() > 1) for (const auto& c : run.Clans().All()) now.push_back(c->Folk);
+			else now.push_back(&run.Brain());
+			for (const GB::Tribe* t : now)
+			{
+				auto [it, fresh] = foodIn.try_emplace(t, t->Economy().DayStart, 0L);
+				if (!fresh && it->second.first != t->Economy().DayStart) { it->second.second += t->Economy().FoodYesterday; it->second.first = t->Economy().DayStart; }
+			}
+		}
 		if (report && run.Clans().Count() > 0) alerts.Look(run.Clans(), alertRules);   // T220: the god's alerts, read off the clans (nothing in the run reads them)
 		const std::vector<int> alive = AliveByClan(run);
 		peakAlive.resize(alive.size(), 0);
@@ -415,6 +452,17 @@ int main(int argc, char** argv)
 			std::fprintf(stderr, "  store layout: %d in buildings, %d by the fire;%s\n", layout.InBuildings(), layout.AtCampUnits(), lay.c_str());
 			std::fprintf(stderr, "  store upgrades %d (%zu being built); food lost lately %d\n", t->Stores().Upgraded(), t->Stores().Upgrades().size(),
 				t->Stores().SpoiledLately(t->Time(), t->Config.Econ.Logistics.SpoilMemory));   // T256
+			// D47: the food stores standing and how full they are; the food brought in over the run, what of it went off and what is kept now
+			int foodStores = 0, held = 0, room = 0;
+			for (const GB::StoreLayout::Place& p : layout.Places()) if (p.FoodRoom > 0) { ++foodStores; held += p.Units(); room += p.FoodRoom + p.Room; }
+			long brought = 0;
+			if (const auto f = foodIn.find(t); f != foodIn.end()) brought = f->second.second;
+			brought += t->Economy().FoodToday;
+			int spoiled = 0, kept = 0;
+			for (const auto& [item, n] : t->Economy().Spoiled) if (t->IsFood(item)) spoiled += n;
+			for (const GB::ItemSlot& s : t->Store().Stacks()) if (t->IsFood(s.Id)) kept += s.Count;
+			std::fprintf(stderr, "  food stores %d, %d%% full; food brought in %ld, went off %d (%.1f%%), kept %d; food days %.1f\n", foodStores, room > 0 ? 100 * held / room : 0, brought, spoiled,
+				brought > 0 ? 100.0 * spoiled / static_cast<double>(brought) : 0.0, kept, static_cast<double>(t->FoodDays()));
 		}
 		// V1: how big the world's history and its memories grew (bounded: GB/Game/History.h)
 		const GB::WorldHistory& past = run.Clans().Past();

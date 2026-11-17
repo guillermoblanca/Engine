@@ -49,6 +49,7 @@ namespace GB
 		void Fail(const std::string& why) { m_Failed = true; m_Error = "failed: " + why; m_Tasks.clear(); m_Index = 0; m_Path.clear(); }
 		bool Plan(const glm::vec2& to, float reach, const Route& route);
 		bool Walk(float step);   // along m_Path; true on arrival
+		glm::vec2 BackAlongRoute(const glm::vec2& target, float r) const;
 
 		std::vector<Task> m_Tasks;
 		size_t m_Index = 0;
@@ -57,8 +58,9 @@ namespace GB
 		size_t m_Next = 0;
 		float m_EndReach = 0.0f;   // how near the last waypoint is near enough (the reach when it is the goal itself, 0 when it is a place beside it)
 		glm::vec2 m_Pos{ 0.0f }, m_Goal{ 0.0f }, m_Safe{ 0.0f };
+		glm::vec2 m_From{ 0.0f };   // where m_Path begins (BackAlongRoute)
 		float m_Timer = 0.0f;
-		bool m_Failed = false, m_Started = false;
+		bool m_Failed = false, m_Started = false, m_Routed = false;   // m_Routed: m_Path is the owner's route, not the straight line
 		std::string m_Error;
 	};
 }
