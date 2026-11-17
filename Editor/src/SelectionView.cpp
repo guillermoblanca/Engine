@@ -6,11 +6,16 @@
 #include "GameTheme.h"
 #include "SceneEditor.h"
 #include "GB/Game/StoreLayout.h"
+#include "GB/Assets/AssetPath.h"
+#include "GB/Assets/Model.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Log.h"
+#include "GB/Visual/VisualDefs.h"
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <fstream>
+#include <sstream>
 #include <glm/gtc/quaternion.hpp>
 #include <imgui.h>
 #include <nlohmann/json.hpp>
@@ -139,8 +144,14 @@ namespace GB::Editor
 	std::string EditorApp::PickSelectable(const Ray& ray) const
 	{
 		std::string picked = PickActor(ray);
-		if (picked.empty()) picked = PickArea(ray);   // U2
-		if (picked.empty()) picked = PickNode(ray);
+		if (picked.empty())
+		{
+			// U2, T261: the nearest along the ray of a building's box, an animal and a node's look: a node in front of a building is the node (a
+			// building's box is 3 m high over its whole footprint, more than a pit or a low shelter shows)
+			float areaAt = 1e30f, nodeAt = 1e30f;
+			const std::string area = PickArea(ray, &areaAt), node = PickNode(ray, &nodeAt);
+			picked = !node.empty() && (area.empty() || nodeAt <= areaAt) ? node : area;
+		}
 		if (picked.empty())
 			if (const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.Pick(ray)))
 			{
@@ -152,7 +163,7 @@ namespace GB::Editor
 	}
 
 	// U2: a building by the box over its footprint (turned with it, 3 m high), an animal by a ball of its size: the nearest along the ray
-	std::string EditorApp::PickArea(const Ray& ray) const
+	std::string EditorApp::PickArea(const Ray& ray, float* hitAt) const
 	{
 		std::string best;
 		float bestT = 1e30f;
@@ -188,7 +199,353 @@ namespace GB::Editor
 					break;
 				}
 		}
+		if (hitAt) *hitAt = bestT;
 		return best;
+	}
+
+	// ------------------------------------------------------------------ T261: what a click on a resource node hits
+	namespace
+	{
+		// T261: where a ray (o + t v, in the box's frame) enters and leaves a box
+		bool RayBox(const glm::vec3& o, const glm::vec3& v, const glm::vec3& lo, const glm::vec3& hi, float& t, float& tOut)
+		{
+			float t0 = 0.0f, t1 = 1e30f;
+			for (int i = 0; i < 3; ++i)
+			{
+				if (std::abs(v[i]) < 1e-7f) { if (o[i] < lo[i] || o[i] > hi[i]) return false; continue; }
+				float a = (lo[i] - o[i]) / v[i], b = (hi[i] - o[i]) / v[i];
+				if (a > b) std::swap(a, b);
+				t0 = std::max(t0, a);
+				t1 = std::min(t1, b);
+				if (t0 > t1) return false;
+			}
+			t = t0;
+			tOut = t1;
+			return true;
+		}
+	}
+
+	bool EditorApp::KitBounds(const std::string& path, glm::vec3& lo, glm::vec3& hi) const
+	{
+		auto it = m_KitBoxes.find(path);
+		if (it == m_KitBoxes.end())
+		{
+			std::pair<glm::vec3, glm::vec3> box(glm::vec3(1.0f), glm::vec3(-1.0f));   // (min > max: not loaded, not tried again)
+			if (const std::unique_ptr<Model> model = Model::Load(ResolveAssetPath(path, m_AssetRoot))) box = { model->GetBoundsMin(), model->GetBoundsMax() };
+			it = m_KitBoxes.emplace(path, box).first;
+		}
+		lo = it->second.first;
+		hi = it->second.second;
+		return lo.x <= hi.x;
+	}
+
+	bool EditorApp::NodeBox(EntityId id, glm::mat4& world, glm::vec3& lo, glm::vec3& hi) const
+	{
+		const GB::Entity* e = m_SceneEditor.World().Find(id);
+		const AbilitySystemComponent* asc = e ? m_Gameplay.Find(e->Name) : nullptr;
+		if (!asc) return false;
+		bool node = false;
+		for (const auto& [kind, def] : m_NodeDefs) if (asc->HasTag("Resource.Node." + kind)) { node = true; break; }
+		if (!node) return false;
+		world = m_SceneEditor.World().WorldMatrix(id);   // (the frame EntityRenderer hands the visual hook: the same walk up the parents)
+		lo = glm::vec3(-0.4f, 0.0f, -0.4f);
+		hi = glm::vec3(0.4f, 1.6f, 0.4f);
+		SceneVisuals::Look look;
+		if (!m_Visuals.Enabled || !m_Visuals.Describe(*e, look) || look.Kind != "node") return true;
+		const auto model = m_Visuals.Library.Models.find(look.Model);
+		if (model == m_Visuals.Library.Models.end()) return true;
+		// what SceneVisuals draws: the copies its Amount shows, of its variant (the same cache key as VisualCache, the bounds instead of the meshes)
+		const std::vector<bool> visible = VisibleCopies(model->second, look.Fraction);
+		const std::string key = look.Model + "#" + std::to_string(look.Variant) + "#" + MaskKey(visible);
+		auto it = m_LookBoxes.find(key);
+		if (it == m_LookBoxes.end())
+		{
+			std::vector<std::pair<glm::vec3, glm::vec3>> boxes(1, { glm::vec3(1e9f), glm::vec3(-1e9f) });   // [0]: the whole
+			auto add = [&](const glm::vec3& a, const glm::vec3& b)
+			{
+				boxes.emplace_back(a, b);
+				boxes[0].first = glm::min(boxes[0].first, a);
+				boxes[0].second = glm::max(boxes[0].second, b);
+			};
+			for (const VisualPiece& piece : BuildVisual(model->second, visible, look.Variant))   // (a mesh per material: the bark, the leaves, the berries)
+				if (!piece.Mesh.Vertices.empty())
+				{
+					glm::vec3 pa, pb;
+					piece.Mesh.Bounds(pa, pb);
+					add(pa, pb);
+				}
+			for (const auto& [part, at] : ModelPieces(model->second, visible, look.Variant))   // the glTF kit pieces (the rocks)
+			{
+				glm::vec3 ka, kb, a(1e9f), b(-1e9f);
+				if (!KitBounds(KitModel(model->second.Parts[part], look.Variant), ka, kb)) continue;
+				for (int c = 0; c < 8; ++c)
+				{
+					const glm::vec3 p(at * glm::vec4((c & 1) ? kb.x : ka.x, (c & 2) ? kb.y : ka.y, (c & 4) ? kb.z : ka.z, 1.0f));
+					a = glm::min(a, p);
+					b = glm::max(b, p);
+				}
+				add(a, b);
+			}
+			if (boxes.size() == 1) boxes = { { lo, hi }, { lo, hi } };   // (nothing shows: an emptied node keeps a box to click)
+			it = m_LookBoxes.emplace(key, std::move(boxes)).first;
+		}
+		lo = it->second[0].first;
+		hi = it->second[0].second;
+		return true;
+	}
+
+	bool EditorApp::NodeRay(EntityId id, const Ray& ray, bool padded, float& tIn, float& tOut, float& volume) const
+	{
+		constexpr float kSlack = 0.12f, kLeastHalf = 0.35f, kLeastHeight = 0.6f;
+		glm::mat4 world;
+		glm::vec3 lo, hi;
+		if (!NodeBox(id, world, lo, hi)) return false;   // (it fills m_LookBoxes for the look it has now)
+		const GB::Entity* e = m_SceneEditor.World().Find(id);
+		SceneVisuals::Look look;
+		std::vector<std::pair<glm::vec3, glm::vec3>> fallback;
+		const std::vector<std::pair<glm::vec3, glm::vec3>>* boxes = nullptr;
+		if (m_Visuals.Enabled && m_Visuals.Describe(*e, look) && look.Kind == "node")
+			if (const auto model = m_Visuals.Library.Models.find(look.Model); model != m_Visuals.Library.Models.end())
+			{
+				const auto it = m_LookBoxes.find(look.Model + "#" + std::to_string(look.Variant) + "#" + MaskKey(VisibleCopies(model->second, look.Fraction)));
+				if (it != m_LookBoxes.end()) boxes = &it->second;
+			}
+		if (!boxes) { fallback = { { lo, hi }, { lo, hi } }; boxes = &fallback; }
+		// the ray in the node's frame (affine: t means the same in both)
+		const glm::mat4 back = glm::inverse(world);
+		const glm::vec3 o(back * glm::vec4(ray.Origin, 1.0f)), v(back * glm::vec4(glm::normalize(ray.Dir), 0.0f));
+		bool any = false;
+		auto test = [&](const glm::vec3& a, const glm::vec3& b)
+		{
+			float t0 = 0.0f, t1 = 0.0f;
+			if (!RayBox(o, v, a, b, t0, t1) || (any && t0 >= tIn)) return;
+			any = true;
+			tIn = t0;
+			tOut = t1;
+			const glm::vec3 s(world * glm::vec4(b - a, 0.0f));
+			volume = std::abs(s.x * s.y * s.z);
+		};
+		const glm::vec3 slack(padded ? kSlack : 0.0f);
+		for (size_t i = 1; i < boxes->size(); ++i) test((*boxes)[i].first - slack, (*boxes)[i].second + slack);
+		if (padded)
+		{
+			// a least box round the foot of a small look (a tuft of herbs, a fallen branch): the whole, grown to a size a cursor finds
+			const glm::vec3 c = (lo + hi) * 0.5f;
+			const glm::vec3 half = glm::max((hi - lo) * 0.5f, glm::vec3(kLeastHalf, 0.0f, kLeastHalf));
+			const float floor = std::min(lo.y, 0.0f) - kSlack;
+			const glm::vec3 a(c.x - half.x, floor, c.z - half.z), b(c.x + half.x, std::max(hi.y, floor + kLeastHeight), c.z + half.z);
+			if (a.x < lo.x - kSlack || a.z < lo.z - kSlack || b.y > hi.y + kSlack) test(a, b);   // (only when it is bigger than the look)
+		}
+		return any;
+	}
+
+	std::string EditorApp::PickNode(const Ray& ray, float* hitAt) const
+	{
+		// T261: the boxes of what is drawn (NodeRay), with a hand's width of slack and a least size (a tuft of herbs is still a target), in the
+		// frame the renderer draws them in. (It was a point 0.75 m up with 1.1 m round it: a tree's crown, a wide clay bank or a boulder were
+		// missed from most sides.) What the ray meets as drawn wins over a slack hit; then the nearest, except that a much smaller node the ray
+		// meets while still inside a bigger one's box (a branch or a tuft under a crown, a bush against a boulder) is the one: the bigger box is
+		// the looser fit.
+		constexpr float kWidest = 12.0f;
+		struct Hit { std::string Name; float In = 0.0f, Out = 0.0f, Volume = 0.0f; bool Exact = false; };
+		std::vector<Hit> hits;
+		const glm::vec3 d = glm::normalize(ray.Dir);
+		const EntityWorld& w = m_SceneEditor.World();
+		for (const auto& [id, e] : w.All())
+		{
+			if (!e.Gameplay) continue;   // (a node of the scene carries its gameplay component: the cheap test first)
+			// no look is wider than kWidest: a node whose foot is farther from the ray is not tried (thousands of them on a map)
+			const glm::vec3 foot = e.Parent == NullEntity ? e.Transform.Position : glm::vec3(w.WorldMatrix(id)[3]);
+			const float s = glm::max(0.0f, glm::dot(foot - ray.Origin, d));
+			if (glm::length(ray.Origin + d * s - foot) > kWidest || !w.IsActive(id)) continue;
+			Hit h{ e.Name };
+			if (NodeRay(id, ray, false, h.In, h.Out, h.Volume)) { h.Exact = true; hits.push_back(h); }
+			else if (NodeRay(id, ray, true, h.In, h.Out, h.Volume)) hits.push_back(h);
+		}
+		if (hits.empty()) { if (hitAt) *hitAt = 1e30f; return {}; }
+		// what the ray meets as drawn before what it only meets in the slack round a look; then the nearest
+		std::sort(hits.begin(), hits.end(), [](const Hit& a, const Hit& b) { return a.Exact != b.Exact ? a.Exact : a.In < b.In; });
+		const Hit* best = &hits[0];
+		for (const Hit& h : hits)
+			if (h.Exact == hits[0].Exact && h.In < best->Out && h.Volume < 0.25f * best->Volume) best = &h;
+		if (hitAt) *hitAt = best->In;
+		return best->Name;
+	}
+
+	void EditorApp::ClickSelect(const Ray& ray)
+	{
+		m_FreeSelected = PickSelectable(ray);   // the card and the bubble of the free mode (SelectionView.cpp)
+		const std::string actor = PickActor(ray);   // a character under the cursor wins over the scene behind it
+		if (!actor.empty()) SelectActor(actor, false);
+		else if (m_Observer.On) m_SceneEditor.Select(NullEntity);   // T261: the god's screen and the observer pick as the game does: what has a card, with its ring (DrawArea); the editor's glow (and Delete) stays off the scenery's rocks and trees
+		else
+		{
+			m_SceneEditor.Select(m_SceneEditor.Pick(ray));
+			if (const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.Selected()); e && m_Gameplay.Find(e->Name)) m_AbilityActor = e->Name;   // a plot, a tree or a bush shows its abilities too
+		}
+	}
+
+	CommandResult EditorApp::PickCommand(const std::vector<std::string>& a)
+	{
+		std::string& selected = m_Game.Active ? m_Game.Selected : m_FreeSelected;
+		if (a.empty() || a[0] == "off") { selected.clear(); return { true, "nothing selected" }; }
+		const glm::vec2 size(static_cast<float>(std::max(m_ViewportW, 1u)), static_cast<float>(std::max(m_ViewportH, 1u)));
+		const float aspect = size.x / size.y;
+		auto highlighted = [this]() { const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.Selected()); return e ? e->Name : std::string("nothing"); };
+		if (a[0] == "at" && a.size() >= 3)   // a left click at a pixel of the viewport, as the mouse makes it
+		{
+			const glm::vec2 px(static_cast<float>(std::atof(a[1].c_str())), static_cast<float>(std::atof(a[2].c_str())));
+			const Ray ray = ScreenRay(m_Camera, px / size, aspect);
+			if (m_Game.Active) m_Game.Selected = PickSelectable(ray);
+			else ClickSelect(ray);
+			return { true, "picked " + (selected.empty() ? std::string("nothing") : selected) + "; highlighted " + highlighted() };
+		}
+		if (a[0] == "probe")
+		{
+			// A click on the middle of the box of every node near what the camera looks at, whose middle is on the screen and not behind the ground,
+			// and one on every rock and tree of the scenery there: what each click picks (and, outside a game, what the editor lights up)
+			const float reach = a.size() >= 2 ? static_cast<float>(std::atof(a[1].c_str())) : 40.0f;
+			const glm::mat4 viewProj = m_Camera.GetProjection(aspect) * m_Camera.GetView();
+			const bool ground = m_World.IsBuilt();
+			auto underground = [&](const glm::vec3& from, const glm::vec3& to)   // the ground cuts the line of sight (the last half metre is the thing's)
+			{
+				if (!ground) return false;
+				const float len = glm::distance(from, to);
+				for (float t = 0.5f; t < len - 0.5f; t += 0.5f)
+				{
+					const glm::vec3 p = from + (to - from) * (t / len);
+					if (p.y < m_World.GetTerrain().GetHeight(p.x, p.z) - 0.05f) return true;
+				}
+				return false;
+			};
+			glm::vec3 focus = m_Orbit.Target;
+			{
+				const Ray mid = ScreenRay(m_Camera, glm::vec2(0.5f), aspect);
+				for (float t = 1.0f; ground && t < 2000.0f; t += 1.0f)
+				{
+					const glm::vec3 p = mid.Origin + mid.Dir * t;
+					if (p.y < m_World.GetTerrain().GetHeight(p.x, p.z)) { focus = p; break; }
+				}
+			}
+			auto onScreen = [&](const glm::vec3& p, glm::vec2& px)
+			{
+				return ProjectToScreen(viewProj, p, size, px) && px.x > 2.0f && px.y > 2.0f && px.x < size.x - 2.0f && px.y < size.y - 2.0f;
+			};
+			const std::string keepSelected = m_FreeSelected;
+			const EntityId keepLit = m_SceneEditor.Selected();
+			const std::string keepActor = m_AbilityActor;
+			// per sample: the middle of the box, then four points halfway to its sides and one above the middle (all inside what a blob shows)
+			struct Tally { int Clicks = 0, Hit = 0, Covered = 0, Person = 0, Wrong = 0, Nothing = 0; };
+			Tally middle, all;
+			int nodes = 0, hidden = 0, props = 0, propPicked = 0, propLit = 0;
+			std::map<std::string, std::pair<int, int>> kinds;   // kind -> middles hit, nodes
+			std::map<std::string, std::string> sample;            // kind -> "name (x, y)"
+			std::vector<std::string> misses, scenery;
+			for (const auto& [id, e] : m_SceneEditor.World().All())
+			{
+				glm::mat4 world;
+				glm::vec3 lo, hi;
+				bool part = false;   // (a node's own primitives are props too: its Crown, its Rock; they are the node's, not scenery)
+				for (const GB::Entity* up = &e; up && !part; up = up->Parent != NullEntity ? m_SceneEditor.World().Find(up->Parent) : nullptr) part = m_Gameplay.Find(up->Name) != nullptr;
+				if (e.Prop && !part)
+				{
+					// the scenery: aim at a little above its foot
+					const glm::vec3 at = glm::vec3(m_SceneEditor.World().WorldMatrix(id) * glm::vec4(0.0f, 0.5f, 0.0f, 1.0f));
+					glm::vec2 px;
+					if (!m_SceneEditor.World().IsActive(id) || glm::distance(glm::vec2(at.x, at.z), glm::vec2(focus.x, focus.z)) > reach || !onScreen(at, px) || underground(m_Camera.Position, at)) continue;
+					const Ray ray = ScreenRay(m_Camera, px / size, aspect);
+					++props;
+					std::string picked;
+					bool lit = false;
+					if (m_Game.Active) picked = PickSelectable(ray);
+					else
+					{
+						ClickSelect(ray);
+						picked = m_FreeSelected;
+						lit = m_SceneEditor.Selected() == id;
+					}
+					propPicked += picked.empty() ? 0 : 1;
+					propLit += lit ? 1 : 0;
+					char where[64];
+					std::snprintf(where, sizeof where, " (%.0f, %.0f) at %.1f %.1f", static_cast<double>(px.x), static_cast<double>(px.y), static_cast<double>(at.x), static_cast<double>(at.z));
+					if (scenery.size() < 8) scenery.push_back(e.Name + where + " -> " + (picked.empty() ? std::string("nothing") : picked) + (lit ? " (lit)" : ""));
+					continue;
+				}
+				if (!NodeBox(id, world, lo, hi)) continue;
+				const glm::vec3 c = (lo + hi) * 0.5f, half = (hi - lo) * 0.5f;
+				const glm::vec3 centre = glm::vec3(world * glm::vec4(c, 1.0f));
+				glm::vec2 px;
+				if (glm::distance(glm::vec2(centre.x, centre.z), glm::vec2(focus.x, focus.z)) > reach || !m_SceneEditor.World().IsActive(id) || !onScreen(centre, px)) continue;
+				if (underground(m_Camera.Position, centre)) { ++hidden; continue; }
+				std::string kind;
+				for (const auto& [k, def] : m_NodeDefs) if (m_Gameplay.Find(e.Name)->HasTag("Resource.Node." + k)) { kind = k; break; }
+				++nodes;
+				++kinds[kind].second;
+				const glm::vec3 offsets[] = { glm::vec3(0.0f), { 0.5f * half.x, 0.0f, 0.0f }, { -0.5f * half.x, 0.0f, 0.0f }, { 0.0f, 0.0f, 0.5f * half.z }, { 0.0f, 0.0f, -0.5f * half.z }, { 0.0f, 0.4f * half.y, 0.0f }, { -c.x, 0.3f - c.y, -c.z } };   // (the last: 0.3 m over the node's own origin, the foot of a trunk or a blob)
+				for (int k = 0; k < 7; ++k)
+				{
+					const glm::vec3 p = glm::vec3(world * glm::vec4(c + offsets[k], 1.0f));
+					if (!onScreen(p, px) || underground(m_Camera.Position, p)) continue;
+					const Ray ray = ScreenRay(m_Camera, px / size, aspect);
+					const std::string picked = PickSelectable(ray);
+					char where[48];
+					std::snprintf(where, sizeof where, " (%.0f, %.0f)", static_cast<double>(px.x), static_cast<double>(px.y));
+					if (k == 0 && !sample.count(kind))
+					{
+						char spot[48];
+						std::snprintf(spot, sizeof spot, " at %.1f %.1f", static_cast<double>(centre.x), static_cast<double>(centre.z));
+						sample[kind] = e.Name + where + spot;
+					}
+					Tally* tallies[] = { &all, k == 0 ? &middle : nullptr };
+					// what it picked instead: another node whose box the ray meets first covers this one (a click there is right to take it), as
+					// a person in front does; anything else is a miss
+					std::string verdict = "hit";
+					if (picked != e.Name)
+					{
+						float mine = 0.0f, theirs = 0.0f, out = 0.0f, volume = 0.0f;
+						const EntityId oid = picked.empty() ? NullEntity : m_SceneEditor.World().FindByName(picked);
+						if (picked.empty()) verdict = "nothing";
+						else if (AnyMember(picked) || m_Actors.Find(picked)) verdict = "person";
+						else if (oid != NullEntity && NodeRay(oid, ray, false, theirs, out, volume) && (!NodeRay(id, ray, false, mine, out, volume) || theirs < mine)) verdict = "covered";
+						else verdict = "wrong";
+					}
+					for (Tally* t : tallies)
+						if (t)
+						{
+							++t->Clicks;
+							(verdict == "hit" ? t->Hit : verdict == "covered" ? t->Covered : verdict == "person" ? t->Person : verdict == "nothing" ? t->Nothing : t->Wrong) += 1;
+						}
+					if (k == 0 && verdict == "hit") ++kinds[kind].first;
+					if ((verdict == "wrong" || verdict == "nothing") && misses.size() < 12) misses.push_back(e.Name + where + (k == 0 ? " middle" : " side") + " -> " + (picked.empty() ? std::string("nothing") : picked));
+				}
+			}
+			m_FreeSelected = keepSelected;
+			m_SceneEditor.Select(keepLit);
+			m_AbilityActor = keepActor;
+			auto line = [](const char* what, const Tally& t)
+			{
+				const int fair = t.Clicks - t.Covered - t.Person;   // the clicks whose point no other thing hides
+				std::ostringstream o;
+				o << what << " " << t.Clicks << " clicks: " << t.Hit << " hit (" << (fair > 0 ? 100 * t.Hit / fair : 0) << " % of the " << fair << " not covered), "
+					<< t.Covered << " covered by another node, " << t.Person << " by a person, " << t.Wrong << " wrong, " << t.Nothing << " nothing";
+				return o.str();
+			};
+			std::ostringstream out;
+			out << "pick probe: " << nodes << " nodes on screen within " << reach << " m (" << hidden << " behind the ground)\n  " << line("middles:", middle) << "\n  " << line("all points:", all)
+				<< "\n  scenery: " << props << " rocks and trees clicked, " << propPicked << " selected, " << propLit << " highlighted";
+			out << "\n  middles by kind:";
+			for (const auto& [k, n] : kinds) out << " " << k << " " << n.first << "/" << n.second;
+			out << "\n  one of each:";
+			for (const auto& [k, s] : sample) out << " " << s << ";";
+			for (const std::string& m : misses) out << "\n  miss: " << m;
+			for (const std::string& s : scenery) out << "\n  scenery: " << s;
+			return { true, out.str() };
+		}
+		std::string name;
+		for (const std::string& w : a) name += (name.empty() ? "" : " ") + w;
+		if (!m_Gameplay.Find(name)) return { false, "nothing called '" + name + "' has abilities (a character, a node, a building)" };
+		selected = name;
+		return { true, "selected " + name };
 	}
 
 	// U2: the selection's area on the ground: a building's footprint, a ring round an animal
@@ -199,11 +556,30 @@ namespace GB::Editor
 		if (!asc) return;
 		std::vector<glm::vec3> ring;
 		const glm::vec3 at = e->Transform.Position + glm::vec3(0.0f, 0.08f, 0.0f);
+		glm::mat4 nodeWorld;
+		glm::vec3 lo, hi;
+		bool node = false;
 		if (const BuildingDef* def = BuildingOf(*asc, m_Buildings.Defs))
 		{
 			const glm::mat3 turn = glm::mat3_cast(glm::quat(glm::radians(e->Transform.Rotation)));
 			const float x = 0.5f * def->Footprint.x, z = 0.5f * def->Footprint.y;
 			for (const glm::vec2 c : { glm::vec2(-x, -z), glm::vec2(x, -z), glm::vec2(x, z), glm::vec2(-x, z) }) ring.push_back(at + turn * glm::vec3(c.x, 0.0f, c.y));
+		}
+		else if (NodeBox(e->Id, nodeWorld, lo, hi))
+		{
+			// T261: a resource node: a ring on the ground round what is drawn (its box's widest half and a hand's width more), following the
+			// ground, so the node selected (and how far it spreads) shows from any side
+			node = true;
+			const glm::vec3 c(nodeWorld * glm::vec4((lo + hi) * 0.5f, 1.0f));
+			const glm::vec3 ax(nodeWorld * glm::vec4(0.5f * (hi.x - lo.x), 0.0f, 0.0f, 0.0f)), az(nodeWorld * glm::vec4(0.0f, 0.0f, 0.5f * (hi.z - lo.z), 0.0f));
+			const float r = std::max(0.6f, std::max(glm::length(glm::vec2(ax.x, ax.z)), glm::length(glm::vec2(az.x, az.z)))) + 0.25f;
+			const bool ground = m_World.IsBuilt();
+			for (int i = 0; i < 40; ++i)
+			{
+				const float a = 6.2831853f * static_cast<float>(i) / 40.0f;
+				const float x = c.x + r * std::cos(a), z = c.z + r * std::sin(a);
+				ring.push_back(glm::vec3(x, (ground ? m_World.GetTerrain().GetHeight(x, z) : at.y - 0.08f) + 0.08f, z));
+			}
 		}
 		else
 		{
@@ -221,6 +597,14 @@ namespace GB::Editor
 			points.push_back(ImVec2(ox + s.x, oy + s.y));
 		}
 		ImDrawList* dl = ImGui::GetWindowDrawList();   // (the viewport: under the cards)
+		if (node)
+		{
+			// the era's selection border (estilo_era1.md: ochre over a dark outline), a faint wash of it inside
+			dl->AddConvexPolyFilled(points.data(), static_cast<int>(points.size()), GameTheme::Faded(GameTheme::Ochre, 0.14f));
+			dl->AddPolyline(points.data(), static_cast<int>(points.size()), GameTheme::Outline, ImDrawFlags_Closed, 5.0f);
+			dl->AddPolyline(points.data(), static_cast<int>(points.size()), GameTheme::Ochre, ImDrawFlags_Closed, 2.5f);
+			return;
+		}
 		dl->AddPolyline(points.data(), static_cast<int>(points.size()), IM_COL32(0, 0, 0, 150), ImDrawFlags_Closed, 4.0f);
 		dl->AddPolyline(points.data(), static_cast<int>(points.size()), IM_COL32(255, 220, 90, 255), ImDrawFlags_Closed, 2.0f);
 	}

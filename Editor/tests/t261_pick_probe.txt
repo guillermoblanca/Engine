@@ -1,0 +1,22 @@
+# T261: picking resource nodes on the god's screen, headless (Editor --shell --hidden --step=60 --script=<this>). 'pick probe' clicks the middle of every
+# node near the camera's focus and points halfway to its sides, and the scenery's rocks and trees; on the god's screen none of these may light up.
+shell new custom temperate 5 3 7
+wait 30
+shell status
+observer status
+camera 30 40 30
+wait 3
+qa expect "pick probe 40" "0 highlighted"
+camera 120 30 22
+wait 3
+qa expect "pick probe 35" "0 highlighted"
+camera 210 50 18
+wait 3
+qa expect "pick probe 30" "0 highlighted"
+camera 300 25 26
+wait 3
+qa expect "pick probe 35" "0 highlighted"
+camera 45 60 45
+wait 3
+qa expect "pick probe 45" "0 highlighted"
+quit

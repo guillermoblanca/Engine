@@ -1408,16 +1408,9 @@ namespace GB::Editor
 		{
 			return MapAreasCommand(a);
 		});
-		c.Register("pick", "pick <name>|off: picks a character, a resource node or a building as a click does (the card and the bubble of SelectionView.cpp); in a game, the game's selection", [this](const std::vector<std::string>& a) -> CommandResult
-		{
-			std::string& selected = m_Game.Active ? m_Game.Selected : m_FreeSelected;
-			if (a.empty() || a[0] == "off") { selected.clear(); return { true, "nothing selected" }; }
-			std::string name;
-			for (const std::string& w : a) name += (name.empty() ? "" : " ") + w;
-			if (!m_Gameplay.Find(name)) return { false, "nothing called '" + name + "' has abilities (a character, a node, a building)" };
-			selected = name;
-			return { true, "selected " + name };
-		});
+		c.Register("pick", "pick <name>|off|at <x> <y>|probe [metres]: picks a character, a resource node or a building as a click does (the card and the bubble of SelectionView.cpp); in a game, the game's selection. "
+			"at: a left click at that pixel of the viewport; probe: a click on the middle of every resource node within that distance of what the camera looks at (40 m) and on the scenery's rocks and trees, and how many it picks (T261)",
+			[this](const std::vector<std::string>& a) { return PickCommand(a); });
 		c.Register("stats", "stats [ai|sim]: frame time, objects drawn/culled and world counts; `stats sim`: the milliseconds of each part of the gameplay tick; `stats ai`: the cost of the AI (H16): thinks, plans and the queue, ms per system, animation LOD", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			if (!a.empty() && a[0] == "ai") return { true, AiStatsLine() };
@@ -2243,15 +2236,7 @@ namespace GB::Editor
 			m_PressedInViewport = false;
 			if (glm::distance(mouse, m_PressPos) < 4.0f && m_ViewportHovered)
 			{
-				const Ray ray = ScreenRay(m_Camera, mouse / size, aspect);
-				m_FreeSelected = PickSelectable(ray);   // the card and the bubble of the free mode (SelectionView.cpp)
-				const std::string actor = PickActor(ray);   // a character under the cursor wins over the scene behind it
-				if (!actor.empty()) SelectActor(actor, false);
-				else
-				{
-					m_SceneEditor.Select(m_SceneEditor.Pick(ray));
-					if (const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.Selected()); e && m_Gameplay.Find(e->Name)) m_AbilityActor = e->Name;   // a plot, a tree or a bush shows its abilities too
-				}
+				ClickSelect(ScreenRay(m_Camera, mouse / size, aspect));
 			}
 		}
 	}

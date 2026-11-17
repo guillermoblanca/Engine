@@ -155,7 +155,7 @@ namespace GB::Editor
 		void StepWorld(double clock);
 		void ApplySeasonLook(double clock);                      // weather, snow and foliage colour of the season                            // seasons, rain on the plots and the animals, once per simulation step
 		void DrawBag(const std::string& actorName);                // the inventory of a character, as a table
-		std::string PickNode(const struct Ray& ray) const;        // the resource node nearest to a viewport click ("" = none): a generous tolerance, nodes are small and thin
+		std::string PickNode(const struct Ray& ray, float* hitAt = nullptr) const;   // the resource node nearest to a viewport click ("" = none): the box of its look (T261); hitAt = how far along the ray
 		std::string PickActor(const struct Ray& ray) const;       // the character under a viewport click ("" = none)
 		void SelectActor(const std::string& name, bool focus);   // the character the Abilities and Tribe panels show
 		// saved games and replays (EditorSave.cpp)
@@ -248,7 +248,19 @@ namespace GB::Editor
 		void DrawMapOverlay(float ox, float oy, float w, float h);
 		void DrawMapPanel();
 		CommandResult MapAreasCommand(const std::vector<std::string>& a);
-		std::string PickArea(const struct Ray& ray) const;          // U2: a building by its footprint, an animal by its size ("" = none)
+		std::string PickArea(const struct Ray& ray, float* hitAt = nullptr) const;   // U2: a building by its footprint, an animal by its size ("" = none)
+		// T261: a resource node's box: the bounds of the look it is drawn with now (its model, variant and how full it is), in the entity's frame, and
+		// that frame (the renderer's). False when it is not a node. Without a look, a box the size of a person.
+		bool NodeBox(EntityId id, glm::mat4& world, glm::vec3& lo, glm::vec3& hi) const;
+		// Where a ray meets a node's look: the boxes of its pieces (a tree's trunk and its crown apart, not one box with the air under the crown),
+		// with a hand's width of slack and a least size when `padded` (a click), as drawn when not (the probe's judge). tIn/tOut along the ray and
+		// the volume of the piece it met first.
+		bool NodeRay(EntityId id, const struct Ray& ray, bool padded, float& tIn, float& tOut, float& volume) const;
+		bool KitBounds(const std::string& path, glm::vec3& lo, glm::vec3& hi) const;   // a kit piece's glTF bounds, loaded once
+		void ClickSelect(const struct Ray& ray);                    // the free mode's left click in the viewport (the god's screen, the observer, the editor)
+		CommandResult PickCommand(const std::vector<std::string>& a);   // `pick <name>|off|at <x> <y>|probe [metres]`
+		mutable std::map<std::string, std::vector<std::pair<glm::vec3, glm::vec3>>> m_LookBoxes;   // T261: model#variant#mask -> local bounds: the whole, then each piece
+		mutable std::map<std::string, std::pair<glm::vec3, glm::vec3>> m_KitBoxes;    // glTF path -> bounds (min > max: it could not be loaded)
 		void DrawArea(float ox, float oy, float w, float h, const std::string& name);   // U2: the selection's area on the ground
 		void DrawItems(const Inventory& items);                     // the grid of what a bag or a store holds    // a character, else a node, else a building or anything with abilities ("" = nothing)
 		bool IconButton(const char* id, const std::string& icon, float size);   // an image button of the atlas; false (and nothing drawn) without that icon
