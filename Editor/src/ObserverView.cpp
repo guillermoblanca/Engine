@@ -209,6 +209,27 @@ namespace GB::Editor
 		return out.empty() ? std::string("no clans measured") : out;
 	}
 
+	// [go] of the alerts and the chronicle: the god's own camera (the editor orbit, free or top) slides its look point to the place and keeps
+	// its heading, tilt and zoom, so Q/E and the mouse still turn it afterwards. Only when a game camera is already on (the player's view)
+	// does the game overview take the place, as before.
+	CommandResult EditorApp::ObserverLookAt(const glm::vec2& where)
+	{
+		if (m_GameView.Active())
+		{
+			char x[32], z[32];
+			std::snprintf(x, sizeof x, "%.2f", static_cast<double>(where.x));
+			std::snprintf(z, sizeof z, "%.2f", static_cast<double>(where.y));
+			return m_GameView.Command({ "overview", x, z, "45" }, m_Actors, m_Player, m_World, m_Camera);
+		}
+		if (m_CamMode == CamMode::Follow) SetCamMode(CamMode::Free);
+		const float y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(where.x, where.y) : m_Orbit.Target.y;
+		m_Orbit.Target = { where.x, y, where.y };
+		m_Orbit.Distance = std::clamp(m_Orbit.Distance, 20.0f, 60.0f);
+		char buf[96];
+		std::snprintf(buf, sizeof buf, "camera over (%.1f, %.1f)", static_cast<double>(where.x), static_cast<double>(where.y));
+		return { true, buf };
+	}
+
 	CommandResult EditorApp::ObserverCommand(const std::vector<std::string>& a)
 	{
 		static const char* kSheets = "clan|person|members|chronicle|village|board|homes|sites|knowledge|relations|log";
@@ -357,10 +378,7 @@ namespace GB::Editor
 				return { true, "alert " + std::to_string(n) + " dismissed: " + text };
 			}
 			if (!pick->HasWhere) return { false, "the alert " + std::to_string(n) + " has no place" };
-			char x[32], z[32];
-			std::snprintf(x, sizeof x, "%.2f", static_cast<double>(pick->Where.x));
-			std::snprintf(z, sizeof z, "%.2f", static_cast<double>(pick->Where.y));
-			const CommandResult r = m_GameView.Command({ "overview", x, z, "45" }, m_Actors, m_Player, m_World, m_Camera);
+			const CommandResult r = ObserverLookAt(pick->Where);
 			return { r.Ok, "alert " + std::to_string(n) + " (" + text + "): " + r.Message };
 		}
 		if (m_Clans.Count() == 0) return { false, "no clans (tribe build, clan new)" };
@@ -424,10 +442,7 @@ namespace GB::Editor
 			if (!e) return { false, "observer go <event id>|newest (observer chronicle lists them)" };
 			if (!e->HasWhere) return { false, "the event #" + std::to_string(e->Id) + " has no place" };
 			m_Observer.GoEvent = e->Id;
-			char x[32], z[32];
-			std::snprintf(x, sizeof x, "%.2f", static_cast<double>(e->Where.x));
-			std::snprintf(z, sizeof z, "%.2f", static_cast<double>(e->Where.y));
-			const CommandResult r = m_GameView.Command({ "overview", x, z, "45" }, m_Actors, m_Player, m_World, m_Camera);
+			const CommandResult r = ObserverLookAt(e->Where);
 			return { r.Ok, "event #" + std::to_string(e->Id) + ": " + r.Message };
 		}
 		// U6: the game camera follows a member (the person's sheet's [Follow]: the one on the sheet by default), or lets it go

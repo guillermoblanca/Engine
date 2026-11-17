@@ -206,6 +206,7 @@ namespace GB::Editor
 		void DrawGameHud(float ox, float oy, float w, float h);
 		// the observer of the free mode (ObserverView.cpp): the clans one by one with the game's look, inside the editor's viewport
 		CommandResult ObserverCommand(const std::vector<std::string>& a);
+		CommandResult ObserverLookAt(const glm::vec2& where);   // [go]: the god's camera over a place, keeping its turn and tilt
 		void DrawObserver(float ox, float oy, float w, float h);
 		// the tree of knowledge (TechTreeView.cpp): t's technologies as a graph over the window; `playing`: its card may set the player's aim
 		void DrawTechTree(const Tribe& t, bool playing, float ox, float oy, float w, float h, bool& open, std::string& pick);
