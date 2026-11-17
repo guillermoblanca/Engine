@@ -290,6 +290,7 @@ namespace GB
 		std::function<bool(Tribe&, TribeMember&, const UtilityOption&)> Execute;   // false: the orders could not be given
 		std::function<void(Tribe&, TribeMember&, const std::string& job)> Finish;
 		std::function<void(Tribe&, const TribeMember&, const std::string& node, int units)> Gathered;
+		std::function<void(const Tribe&, std::vector<GroundRect>&)> Ground;   // T260: adds the ground the other clans' fields take (GroundFootprint.h)
 	};
 
 	// A member as it leaves one clan for another (H13: a marriage, a move): the member itself (its body, mind, aptitudes), its person in the society
@@ -621,6 +622,7 @@ namespace GB
 		std::shared_ptr<PriorityLibrary> Priorities;
 		TribeBias Bias;   // T238/T239: the god's focus and callings (GB/Game/TribeBias.h; WorldDirector writes it, the tribe does not save it)
 		void SetOutside(TribeOutside outside) { m_Outside = std::move(outside); }
+		const TribeOutside& Outside() const { return m_Outside; }
 		// Names other clans already use: a child is not given one (members' names are the actors' and must be unique in the world).
 		void SetNameTaken(std::function<bool(const std::string&)> taken) { m_NameTaken = std::move(taken); }
 		glm::vec2 Position(const TribeMember& m) const { return Where(m); }

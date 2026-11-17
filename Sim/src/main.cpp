@@ -11,6 +11,7 @@
 #include "GB/Game/GameContent.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Game/SimQA.h"
+#include "GB/Game/GroundFootprint.h"
 #include "GB/Game/SocietyMetrics.h"
 #include "GB/Game/StoreLayout.h"
 #include "GB/Game/Tribe.h"
@@ -463,6 +464,18 @@ int main(int argc, char** argv)
 			for (const GB::ItemSlot& s : t->Store().Stacks()) if (t->IsFood(s.Id)) kept += s.Count;
 			std::fprintf(stderr, "  food stores %d, %d%% full; food brought in %ld, went off %d (%.1f%%), kept %d; food days %.1f\n", foodStores, room > 0 ? 100 * held / room : 0, brought, spoiled,
 				brought > 0 ? 100.0 * spoiled / static_cast<double>(brought) : 0.0, kept, static_cast<double>(t->FoodDays()));
+		}
+		// T260: footprints that overlap at the end (sites, buildings and fields of every clan: GB/Game/GroundFootprint.h)
+		{
+			const GB::SimView view = run.View();
+			const auto* defs = run.Brain().Buildings();
+			if (view.Entities && view.Gameplay && defs)
+			{
+				const std::vector<GB::GroundRect> ground = GB::WorldGround(*view.Entities, *view.Gameplay, *defs, run.Clans().Count() > 0 ? &run.Clans() : nullptr, &run.Brain());
+				const auto pairs = GB::OverlappingPairs(ground);
+				std::fprintf(stderr, "\nfootprints: %zu, %zu overlapping pairs\n", ground.size(), pairs.size());
+				for (const auto& [a, b] : pairs) std::fprintf(stderr, "  overlap: %s / %s\n", ground[a].What.c_str(), ground[b].What.c_str());
+			}
 		}
 		// V1: how big the world's history and its memories grew (bounded: GB/Game/History.h)
 		const GB::WorldHistory& past = run.Clans().Past();

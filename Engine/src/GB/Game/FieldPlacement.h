@@ -4,12 +4,15 @@
 // reached and starved (GBSim, temperate seed 7). Now the plots, and the store beside the first, go on ground a member can stand on, dry, off
 // the other fields and the buildings: the wanted origin when it is all free, else the nearest that is (PlaceField). Only the public face of the
 // Tribe is read; Tribe::PostEconomyJobs calls it in one line.
+// T260: "off the other fields and the buildings" is the footprints' (GroundFootprint.h), any clan's; and with no room there is no field (it was
+// marked on the wanted spot anyway, on top of whatever stood there).
 #include <glm/glm.hpp>
+#include <optional>
 
 namespace GB
 {
 	class Tribe;
 
-	// The origin for the next field (the wanted one when it has room, or no other has), deterministic for the same scene.
-	glm::vec2 FieldOriginFor(const Tribe& tribe, const glm::vec2& wanted);
+	// The origin for the next field, deterministic for the same scene; nothing when no spot near the wanted one is free.
+	std::optional<glm::vec2> FieldOriginFor(const Tribe& tribe, const glm::vec2& wanted);
 }

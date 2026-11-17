@@ -541,6 +541,7 @@ namespace GB
 		const auto def = m_Buildings->find(building);
 		if (def == m_Buildings->end()) return "no building '" + building + "'";
 		if (const std::string wet = SiteInWater(def->second, at, SitePlacementFor(def->second).WaterDepth); !wet.empty()) return "a " + def->second.Name + " cannot stand there: " + wet;   // T245 (the player's and the god's too)
+		if (const std::string on = GroundFreeFor(*this, def->second, at); !on.empty()) return "a " + def->second.Name + " cannot stand there: " + on;   // T260 (nobody builds on another footprint)
 		std::string n;
 		for (int i = 1; n.empty(); ++i)
 		{
@@ -572,6 +573,7 @@ namespace GB
 		where.Def = &def;
 		for (const Placed& p : Placements()) where.Others.push_back({ p.Def, p.Pos, p.State.Done });
 		for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
+		where.Taken = TakenGround(*this);   // T260
 		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { const ITribeBody* body = m.Body; where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); }; where.WaterDepth = [body](const glm::vec2& p) { return body->WaterDepthAt(p); }; break; }
 		return where;
 	}
@@ -701,6 +703,7 @@ namespace GB
 		for (const Placed& p : Placements()) where.Others.push_back({ p.Def, p.Pos, p.State.Done });
 		if (m_Sights.empty()) RefreshSights();
 		for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
+		where.Taken = TakenGround(*this);   // T260
 		if (body) where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); };
 		if (body) where.WaterDepth = [body](const glm::vec2& p) { return body->WaterDepthAt(p); };   // T245
 		// F6: the most urgent that has a place (a long house with no room left every other building waiting); "no place" is told once a building
@@ -832,6 +835,7 @@ namespace GB
 					for (const Placed& p : Placements()) where.Others.push_back({ p.Def, p.Pos, p.State.Done });
 					if (m_Sights.empty()) RefreshSights();
 					for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
+					where.Taken = TakenGround(*this);   // T260
 					for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { const ITribeBody* body = m.Body; where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); }; where.WaterDepth = [body](const glm::vec2& p) { return body->WaterDepthAt(p); }; break; }
 					const Household home = *homeless;
 					const float reach = std::max(Config.Exploration.HomeRadius, 20.0f);
@@ -874,6 +878,7 @@ namespace GB
 		for (const Placed& p : Placements()) where.Others.push_back({ p.Def, p.Pos, p.State.Done });
 		if (m_Sights.empty()) RefreshSights();
 		for (const Sight& sight : m_Sights) where.Obstacles.push_back(sight.Pos);
+		where.Taken = TakenGround(*this);   // T260
 		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) { const ITribeBody* body = m.Body; where.CanStand = [body](const glm::vec2& p) { return body->CanStandAt(p); }; where.WaterDepth = [body](const glm::vec2& p) { return body->WaterDepthAt(p); }; break; }
 		const glm::vec2 old = house->Pos;
 		where.Rings = std::max(5, static_cast<int>((VillageReach() - where.SiteRadius) / 3.0f));

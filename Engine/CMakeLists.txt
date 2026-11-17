@@ -164,6 +164,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/Settlement.cpp
     src/GB/Game/SettlementPlanner.cpp
     src/GB/Game/FieldPlacement.cpp
+    src/GB/Game/GroundFootprint.cpp
     src/GB/Game/Schedule.cpp
     src/GB/Game/GameContent.cpp
     src/GB/Game/TribeClans.cpp
