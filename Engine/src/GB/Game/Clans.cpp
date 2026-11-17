@@ -108,6 +108,12 @@ namespace GB
 		o.Execute = [this, id](Tribe& t, TribeMember& m, const UtilityOption& option) { return EnvoyExecute(id, t, m, option); };
 		o.Finish = [this, id](Tribe& t, TribeMember& m, const std::string&) { EnvoyFinish(id, t, m); };
 		o.Gathered = [this, id](Tribe& t, const TribeMember& m, const std::string& node, int) { Gathered(id, t, m, node); };
+		o.Ground = [this, id](const Tribe&, std::vector<GroundRect>& out)   // T260: the fields of the other clans (a shared start site has them near)
+		{
+			for (const auto& other : m_Clans)
+				if (other->Id != id && other->Folk)
+					for (const Field& f : other->Folk->Economy().Fields) out.push_back(FieldGround(f));
+		};
 		c.Folk->SetOutside(std::move(o));
 		c.Folk->SetNameTaken([this](const std::string& n) { return NameTaken(n); });
 		if (m_Telemetry) c.Folk->SetTelemetry(m_Telemetry, id, m_TelemetryEvery);

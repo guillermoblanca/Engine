@@ -130,6 +130,7 @@ namespace GB
 		if (glm::distance(p, s.Fire) < r + 2.5f) return "too near the fire";
 		for (const PlannerSite& o : s.Others) if (glm::distance(p, o.Pos) < r + o.Def->Radius() + 1.5f) return "too near " + o.Def->Name;
 		for (const glm::vec2& o : s.Obstacles) if (glm::distance(p, o) < r + 1.2f) return "something stands there";
+		if (std::string on = GroundFree(BuildingGround(def, p), s.Taken, kFieldGap); !on.empty()) return on;   // T260 (a field has no circle in Others)
 		if (std::string wet = SiteInWater(def, p, s.WaterDepth); !wet.empty()) return wet;
 		if (!s.CanStand) return {};
 		if (!s.CanStand(p)) return "nobody can stand there";
@@ -163,12 +164,15 @@ namespace GB
 		return why;
 	}
 
-	std::optional<glm::vec2> PlaceField(const glm::vec2& wanted, int plots, int columns, float spacing, const std::function<bool(const glm::vec2&)>& free, int rings)
+	std::optional<glm::vec2> PlaceField(const glm::vec2& wanted, int plots, int columns, float spacing, const std::function<bool(const glm::vec2&)>& free, int rings,
+		const std::function<bool(const glm::vec2&)>& room)
 	{
-		if (!free) return wanted;
+		if (!free && !room) return wanted;
 		const int c = std::max(1, columns);
 		auto fits = [&](const glm::vec2& origin)
 		{
+			if (room && !room(origin)) return false;
+			if (!free) return true;
 			if (!free(origin + glm::vec2(-spacing, 0.0f))) return false;   // (its store, beside the first plot: Tribe::MarkField)
 			for (int i = 0; i < std::max(0, plots); ++i)
 				if (!free(origin + glm::vec2(static_cast<float>(i % c), static_cast<float>(i / c)) * spacing)) return false;

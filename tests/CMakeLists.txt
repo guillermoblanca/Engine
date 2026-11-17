@@ -202,6 +202,8 @@ gb_test(settlement settlement_test.cpp POOL GBSimTests LINK GB::Sim LABELS "lent
 gb_test(clan_stores clan_stores_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # The settlement planner alone (needs and sites from plain facts, no Tribe)
 gb_test(settlement_planner settlement_planner_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
+# T260: no site, building or field on another's footprint (the query, StartSite, the planner, the fields, two clans)
+gb_test(ground_footprint ground_footprint_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # The timetable alone (parts of the day, shifts, agenda factors)
 gb_test(schedule schedule_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim")
 # The claims on nodes alone (first piece of the logistics)

@@ -360,6 +360,7 @@ namespace GB::Editor
 		{
 			glm::vec2 at = ActiveTribe().Config.Economy.Camp + glm::vec2(ActiveTribe().Config.SiteRadius, 0.0f);
 			if (a.size() >= 4) at = { static_cast<float>(std::atof(a[2].c_str())), static_cast<float>(std::atof(a[3].c_str())) };
+			else at = FreeSiteSpot(ActiveTribe(), a[1], at);   // T260: not on top of the last one
 			std::string name;
 			if (const std::string error = ActiveTribe().StartSite(a[1], at, &name); !error.empty()) return { false, error };
 			return { true, name + " started at " + std::to_string(static_cast<int>(at.x)) + ", " + std::to_string(static_cast<int>(at.y)) };
@@ -368,6 +369,7 @@ namespace GB::Editor
 		{
 			glm::vec2 at = ActiveTribe().Config.Economy.Camp + glm::vec2(ActiveTribe().Config.SiteRadius, 0.0f);
 			if (a.size() >= 4) at = { static_cast<float>(std::atof(a[2].c_str())), static_cast<float>(std::atof(a[3].c_str())) };
+			else at = FreeSiteSpot(ActiveTribe(), a[1], at);   // T260: not on top of the last one
 			std::string name;
 			if (const std::string error = ActiveTribe().RaiseBuilding(a[1], at, 0.0f, &name); !error.empty()) return { false, error };
 			SyncNewGameplay();

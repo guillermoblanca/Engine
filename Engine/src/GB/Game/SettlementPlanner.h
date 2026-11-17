@@ -5,6 +5,7 @@
 //
 // Made to grow into "several works at once with a priority": the answer is already a ranked list, and the caller decides how many it starts
 // (SettlementFacts::MaxOpenSites). Pending: backlog T153 and T10.
+#include "GB/Game/GroundFootprint.h"
 #include "GB/Gameplay/Buildings.h"
 #include <functional>
 #include <glm/glm.hpp>
@@ -76,6 +77,7 @@ namespace GB
 		float SiteRadius = 7.0f;                  // the first ring round the camp
 		std::vector<PlannerSite> Others;          // the sites and buildings already there
 		std::vector<glm::vec2> Obstacles;         // resource nodes and the like (a site keeps 1.2 m off them)
+		std::vector<GroundRect> Taken;            // T260: the footprints of the sites, buildings and fields round it (TakenGround): kFieldGap off them
 		std::function<bool(const glm::vec2&)> CanStand;   // ground a member can stand on (null: all of it)
 		// T245: metres of water over the ground here (0: dry; null: no water anywhere). A building never stands with water under any part of its
 		// footprint unless its def allows it (BuildingDef::AllowWater): a shallow river is ground a member can wade, not ground to build on.
@@ -102,5 +104,7 @@ namespace GB
 	// T215: where a field of `plots` plots (`columns` a row, `spacing` m apart, the first at the origin: Field::PlotPos) is marked out. The wanted
 	// origin when every plot is on free ground (`free`: a member can stand there, no rock, trunk or water); else the nearest origin that has it, on
 	// rings of `spacing` m round the wanted one (up to `rings`, 12 angles each, in a fixed order). Null `free`: the wanted one. Nothing: no room.
-	std::optional<glm::vec2> PlaceField(const glm::vec2& wanted, int plots, int columns, float spacing, const std::function<bool(const glm::vec2&)>& free, int rings = 8);
+	// T260: `room` (null: always), asked of each origin whose plots are free, says whether the whole field's footprint is off everything taken.
+	std::optional<glm::vec2> PlaceField(const glm::vec2& wanted, int plots, int columns, float spacing, const std::function<bool(const glm::vec2&)>& free, int rings = 8,
+		const std::function<bool(const glm::vec2&)>& room = {});
 }

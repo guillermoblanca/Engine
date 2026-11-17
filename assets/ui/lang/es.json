@@ -2199,6 +2199,18 @@
    "to": "algo ocupa ese sitio"
   },
   {
+   "re": "^it would stand on a field$",
+   "to": "quedaría encima de un campo"
+  },
+  {
+   "re": "^it would stand on (.+)$",
+   "to": "quedaría encima de {ent:1}"
+  },
+  {
+   "re": "^a (.+) cannot stand there: (.+)$",
+   "to": "{ent:1} no cabe ahí: {line:2}"
+  },
+  {
    "re": "^there is water under it \\(([0-9.]+) m deep\\)$",
    "to": "quedaría sobre el agua ({1} m de hondo)"
   },

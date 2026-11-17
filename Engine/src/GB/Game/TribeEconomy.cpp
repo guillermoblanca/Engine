@@ -392,7 +392,7 @@ namespace GB
 			for (const auto& [id, crop] : econ.Crops) seeds = seeds || Stored(crop.Seed) > 0;
 			for (const TribeMember& m : m_Members) can = can || (!m.Dead && m.Body && CanFarm(m));
 			if (seeds && can)
-				MarkField(FieldOriginFor(*this, Config.Economy.Camp + f.Offset + glm::vec2(0.0f, static_cast<float>(m_Econ.Fields.size()) * (static_cast<float>((f.Plots + f.Columns - 1) / f.Columns) + 1.0f) * f.Spacing)));   // T215: on free ground (FieldPlacement.h)
+				if (const auto at = FieldOriginFor(*this, Config.Economy.Camp + f.Offset + glm::vec2(0.0f, static_cast<float>(m_Econ.Fields.size()) * (static_cast<float>((f.Plots + f.Columns - 1) / f.Columns) + 1.0f) * f.Spacing))) MarkField(*at);   // T215/T260: on free ground (FieldPlacement.h)
 		}
 		if (!m_Econ.Fields.empty())
 		{
