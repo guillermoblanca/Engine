@@ -136,6 +136,14 @@
    "clay_token": "ficha de barro",
    "splint": "férula"
   },
+  "building_a": {
+   "longhouse": "una casa larga",
+   "granary": "un granero elevado",
+   "jar_store": "una despensa de tinajas",
+   "watchtower": "una atalaya",
+   "storage": "un almacén",
+   "hut": "una choza de zarzo"
+  },
   "building": {
    "shelter": "refugio",
    "storage": "almacén",
@@ -1023,23 +1031,23 @@
    "to": "{1} deja el clan"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) empty-handed$",
+   "re": "^(\\S+) \\([^)]*\\) is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) empty-handed$",
    "to": "{1} vuelve del asalto a {clan:2} con las manos vacías"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) with (\\d+) things for the store$",
+   "re": "^(\\S+) \\([^)]*\\) is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) with (\\d+) things for the store$",
    "to": "{1} vuelve del asalto a {clan:2} con {3} cosas para el almacén"
   },
   {
-   "re": "^the clan is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): nothing taken$",
+   "re": "^the clan is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): nothing taken$",
    "to": "el clan vuelve del asalto a {clan:1} sin botín"
   },
   {
-   "re": "^the clan is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (.+)$",
+   "re": "^the clan is back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (.+)$",
    "to": "el clan vuelve del asalto a {clan:1} con {line:2}"
   },
   {
-   "re": "^the clan turns back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "re": "^the clan turns back from the raid on ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)$",
    "to": "el clan se retira del asalto a {clan:1}"
   },
   {
@@ -1171,15 +1179,15 @@
    "to": "{1} entiende el {2} % de {techname:3} trabajando con {item:4}"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) learns (.+) from (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "re": "^(\\S+) \\([^)]*\\) learns (.+) from (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)$",
    "to": "{1} aprende {techname:2} de {3} ({clan:4})"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) from (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "re": "^(\\S+) \\([^)]*\\) understands (\\d+)% of (.+) from (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)$",
    "to": "{1} entiende el {2} % de {techname:3} gracias a {4} ({clan:5})"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) greets (\\S+) of ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "re": "^(\\S+) \\([^)]*\\) greets (\\S+) of ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)$",
    "to": "{1} saluda a {2} ({clan:3})"
   },
   {
@@ -1219,7 +1227,7 @@
    "to": "{1} juega con {2}"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) is at the meeting point \\([^)]*\\) and waits for the envoy of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "re": "^(\\S+) \\([^)]*\\) is at the meeting point \\([^)]*\\) and waits for the envoy of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)$",
    "to": "{1} espera en el lugar del encuentro al enviado de {clan:2}"
   },
   {
@@ -1227,15 +1235,15 @@
    "to": "{1} no encuentra el camino al lugar del encuentro y vuelve a casa"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) gives up the errand to the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): it cannot get where it is going$",
+   "re": "^(\\S+) \\([^)]*\\) gives up the errand to the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): it cannot get where it is going$",
    "to": "{1} abandona el encargo para {clan:2}: no puede llegar"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) packs (.+) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "re": "^(\\S+) \\([^)]*\\) packs (.+) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)$",
    "to": "{1} prepara {line:2} para {clan:3}"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) puts (.+) in the store \\(from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)\\)$",
+   "re": "^(\\S+) \\([^)]*\\) puts (.+) in the store \\(from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)\\)$",
    "to": "{1} guarda en el almacén {line:2} (de {clan:3})"
   },
   {
@@ -1243,27 +1251,27 @@
    "to": "{1} vuelve a guardar {line:2} en el almacén"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(trade: (.+) for (.+)\\)$",
+   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) \\(trade: (.+) for (.+)\\)$",
    "to": "{1} se encuentra con {2} ({clan:3}): cambian {line:4} por {line:5}"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(gift: (.+) from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)\\)$",
+   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) \\(gift: (.+) from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)\\)$",
    "to": "{1} se encuentra con {2} ({clan:3}): {clan:5} regala {line:4}"
   },
   {
-   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)(?: \\((visit|parley)\\))?$",
+   "re": "^(\\S+) \\([^)]*\\) meets (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)(?: \\((visit|parley)\\))?$",
    "to": "{1} se encuentra con {2} ({clan:3})"
   },
   {
-   "re": "^the clan meets the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) for the first time$",
+   "re": "^the clan meets the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) for the first time$",
    "to": "el clan conoce a {clan:1}"
   },
   {
-   "re": "^the clan sends (\\S+) to meet the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) at \\([^)]*\\): (trade|gift) \\((?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) give (.+); (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) give (.+)\\)$",
+   "re": "^the clan sends (\\S+) to meet the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) at \\([^)]*\\): (trade|gift) \\((?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) give (.+); (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) give (.+)\\)$",
    "to": "el clan envía a {1} a encontrarse con {clan:2}: {meet:3} (da {line:4}; recibe {line:5})"
   },
   {
-   "re": "^the clan sends (\\S+) to meet the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) at \\([^)]*\\): (\\S+)$",
+   "re": "^the clan sends (\\S+) to meet the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) at \\([^)]*\\): (\\S+)$",
    "to": "el clan envía a {1} a encontrarse con {clan:2}: {meet:3}"
   },
   {
@@ -1271,79 +1279,87 @@
    "to": "el clan envía a {line:1} a {line:2} a buscar {item:3}"
   },
   {
-   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): first contact: (\\S+) of (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) meets (\\S+) of (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) at \\([^)]*\\)$",
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): first contact: (\\S+) of (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) meets (\\S+) of (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) at \\([^)]*\\)$",
    "to": "primer contacto entre {clan:1} y {clan:2}: {3} se encuentra con {4}"
   },
   {
-   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) agree an alliance for (\\d+)(?:\\.\\d+)? days$",
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) agree an alliance for (\\d+)(?:\\.\\d+)? days$",
    "to": "{1} de {clan:2} y {3} de {clan:4} sellan una alianza por {5} días"
   },
   {
-   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) agree a truce for (\\d+)(?:\\.\\d+)? days$",
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) agree a truce for (\\d+)(?:\\.\\d+)? days$",
    "to": "{1} de {clan:2} y {3} de {clan:4} sellan una tregua por {5} días"
   },
   {
-   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) agree an alliance$",
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) agree an alliance$",
    "to": "{clan:1} y {clan:2} sellan una alianza"
   },
   {
-   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) weds (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and moves to them$",
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) weds (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and moves to them$",
    "to": "{1} de {clan:2} se casa con {3} de {clan:4} y se va a vivir con ellos"
   },
   {
-   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) visits the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) visits the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)$",
    "to": "{1} de {clan:2} visita a {clan:3}"
   },
   {
-   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) meet: trade: (.+) for (.+)$",
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) meet: trade: (.+) for (.+)$",
    "to": "{1} de {clan:2} y {3} de {clan:4} se encuentran: cambian {line:5} por {line:6}"
   },
   {
-   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) meet: gift: (.+) from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)$",
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) meet: gift: (.+) from the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)$",
    "to": "{1} de {clan:2} y {3} de {clan:4} se encuentran: {clan:6} regala {line:5}"
   },
   {
-   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) meet: (\\S+)$",
+   "re": "^(?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and (\\S+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) meet: (\\S+)$",
    "to": "{1} de {clan:2} y {3} de {clan:4} se encuentran: {meet:5}"
   },
   {
-   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (\\S+) shows (\\S+) how (.+) is done$",
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (\\S+) shows (\\S+) how (.+) is done$",
    "to": "{3} enseña {techname:5} a {4} ({clan:1} y {clan:2})"
   },
   {
-   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): the (\\S+) came to nothing \\((.*)\\)$",
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): the (\\S+) came to nothing \\((.*)\\)$",
    "to": "{clan:1} y {clan:2}: {meet:3} se queda en nada"
   },
   {
-   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) are (\\S+) now \\(were (\\S+)\\)$",
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): the (\\S+) breaks \\(attitude [^)]*\\)$",
+   "to": "{clan:1} y {clan:2}: se rompe la {pact:3}"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): the (\\S+) ends$",
+   "to": "{clan:1} y {clan:2}: termina la {pact:3}"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) are (\\S+) now \\(were (\\S+)\\)$",
    "to": "{clan:1} y {clan:2}: ahora {stance:3} (antes {stance:4})"
   },
   {
-   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) send (\\S+) and (\\S+) to meet at \\([^)]*\\): (trade|gift) \\((?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) give (.+); (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) give (.+)\\)$",
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) send (\\S+) and (\\S+) to meet at \\([^)]*\\): (trade|gift) \\((?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) give (.+); (?:(?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) give (.+)\\)$",
    "to": "{clan:1} y {clan:2} envían a {3} y {4} a encontrarse: {meet:5} ({clan:1} da {line:6}; {clan:2} da {line:7})"
   },
   {
-   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) send (\\S+) and (\\S+) to meet at \\([^)]*\\): (\\S+)$",
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) and ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) send (\\S+) and (\\S+) to meet at \\([^)]*\\): (\\S+)$",
    "to": "{clan:1} y {clan:2} envían a {3} y {4} a encontrarse: {meet:5}"
   },
   {
-   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(marries (\\S+)\\)$",
+   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) \\(marries (\\S+)\\)$",
    "to": "{1} deja {clan:2} por {clan:3}: se casa con {4}"
   },
   {
-   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(goes with its household to found the .+\\)$",
+   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) \\(goes with its household to found the .+\\)$",
    "to": "{1} deja {clan:2} con su familia para fundar {clan:3}"
   },
   {
-   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?)(?: \\(.*\\))?$",
+   "re": "^(\\S+) leaves the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) for the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*)(?: \\(.*\\))?$",
    "to": "{1} deja {clan:2} por {clan:3}"
   },
   {
-   "re": "^(\\d+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): heresy(.*)$",
+   "re": "^(\\d+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): heresy(.*)$",
    "to": "{1} de {clan:2} reniegan de los sueños del dios y se marchan a fundar {clan:3}"
   },
   {
-   "re": "^the clan (\\d+) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) \\(heresy(.*)\\)$",
+   "re": "^the clan (\\d+) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) \\(heresy(.*)\\)$",
    "to": "{1} del clan reniegan de los sueños del dios y se marchan a fundar {clan:2}"
   },
   {
@@ -1359,7 +1375,7 @@
    "to": "el clan ya no escucha tanto los sueños"
   },
   {
-   "re": "^the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) no longer listen so closely to the dreams$",
+   "re": "^the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) no longer listen so closely to the dreams$",
    "to": "{clan:1} ya no escucha tanto los sueños"
   },
   {
@@ -1367,7 +1383,7 @@
    "to": "ya nadie cree en ti"
   },
   {
-   "re": "^(\\d+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)?): (.+)$",
+   "re": "^(\\d+) of the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) leave to found the ((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*): (.+)$",
    "to": "{1} de {clan:2} se marchan a fundar {clan:3}"
   },
   {
@@ -1384,11 +1400,19 @@
   },
   {
    "re": "^(.+) form the confederation of the (.+)$",
-   "to": "{1} forman la confederación de los {2}"
+   "to": "{clans:1} forman la confederación de los {clan:2}"
   },
   {
-   "re": "^(.+) become a (village|town|city)$",
-   "to": "{1} pasan a ser una {2}"
+   "re": "^(.+) become a village$",
+   "to": "{clan:1} pasa a ser una aldea"
+  },
+  {
+   "re": "^(.+) become a town$",
+   "to": "{clan:1} pasa a ser un pueblo"
+  },
+  {
+   "re": "^(.+) become a city$",
+   "to": "{clan:1} pasa a ser una ciudad"
   },
   {
    "re": "^(\\d+) years pass: (\\d+) born, (\\d+) died$",
@@ -1669,6 +1693,14 @@
   {
    "re": "^(.+) stands: (\\d+) beds$",
    "to": "{ent:1} está en pie: {2} camas"
+  },
+  {
+   "re": "^the sign #(\\d+) stands: (.+)$",
+   "to": "la señal del dios está en pie: {ent:2}"
+  },
+  {
+   "re": "^((?:Clan \\d+|[A-Z]\\S*)(?: [IVX]+)*) has learnt (\\S+), as (\\S+) dreamt$",
+   "to": "{clan:1} aprende {tech:2}, como soñó {3}"
   },
   {
    "re": "^(.+) stands: (.+)$",
@@ -2767,6 +2799,12 @@
   "Winter": "Invierno",
   "covered": "cubierto",
   "{0} d short": "faltan {0} d",
+  "food ok": "comida ok",
+  "-{0} d food": "-{0} d comida",
+  "The winter is here: {0} days until the spring": "Ya es invierno: faltan {0} días para la primavera",
+  "The winter comes in {0} days and lasts {1}": "El invierno llega en {0} días y dura {1} días",
+  "Food stored for {0} days: enough to reach the spring": "Comida guardada para {0} días: basta hasta la primavera",
+  "Food stored for {0} days; it lacks {1} days to reach the spring": "Comida guardada para {0} días; le faltan {1} días para llegar a la primavera",
   "Winter in {0} days: {1} days until the spring": "Invierno en {0} días: {1} días hasta la primavera",
   "Winter: {0} days until the spring": "Invierno: {0} días hasta la primavera",
   "It has {0} days of food in hand": "Tiene {0} días de comida a mano",
@@ -2970,6 +3008,13 @@
   "this winter: nobody hungry yet": "este invierno: nadie pasa hambre aún",
   "this winter came before the stage": "este invierno empezó antes de la etapa",
   "the winter comes in {0} days": "el invierno llega en {0} días",
+  "the winter comes in {0} day": "el invierno llega en {0} día",
+  "the winter comes within a day": "el invierno llega en menos de un día",
+  "A believing clan raises {0}": "Un clan creyente levanta {0}",
+  "{0} believing clans raise {1}": "{0} clanes creyentes levantan {1}",
+  "A believing clan raises {0} of: {1}": "Un clan creyente levanta {0} de: {1}",
+  "{0} believing clans raise {1} of: {2}": "{0} clanes creyentes levantan {1} de: {2}",
+  "{0} and {1}": "{0} y {1}",
   "(a draft: its numbers may change)": "(borrador: sus números pueden cambiar)",
   "Stage fulfilled": "Etapa cumplida",
   "The chronicle of the stage": "La crónica de la etapa",

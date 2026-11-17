@@ -75,6 +75,7 @@ namespace GB::Editor
 		struct Phrase { std::regex Re; std::string To; };
 		static std::string Fill(std::string pattern, const std::string* values, size_t count);
 		std::string Apply(const Phrase& p, const std::smatch& m) const;
+		std::string ClanList(const std::string& english) const;   // {clans:n}: "Clan 1, Ash and Reed" -> "Roble, Ceniza y Junco"
 
 		std::string m_Code = "en";
 		bool m_On = false;

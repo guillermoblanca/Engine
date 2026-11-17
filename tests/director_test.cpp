@@ -74,6 +74,13 @@ int GBTest_director(int, char**)
 		"D48: the stages: the first, the shared fire, 3 of 4; the second a draft");
 	Check(!LoadDirectorRules("{\"stages\":{\"list\":[{\"id\":\"x\",\"goals\":[{\"id\":\"a\",\"type\":\"glory\"}]}]}}", bad).empty() && bad == rules, "D48: an unknown type of goal is refused whole");
 	Check(!LoadDirectorRules("{\"stages\":{\"list\":[{\"id\":\"x\",\"need\":3,\"goals\":[{\"id\":\"a\",\"type\":\"believers\"}]}]}}", bad).empty() && bad == rules, "D48: a stage that needs more goals than it has is refused");
+	Check(!LoadDirectorRules("{\"stages\":{\"list\":[{\"id\":\"x\",\"goals\":[{\"id\":\"a\",\"type\":\"building\"}]}]}}", bad).empty() && bad == rules, "D48: a building goal with no building is refused");
+	Check(!LoadDirectorRules("{\"stages\":{\"list\":[{\"id\":\"x\",\"goals\":[{\"id\":\"a\",\"type\":\"building\",\"building\":3}]}]}}", bad).empty() && bad == rules, "D48: a building goal whose building is not an id is refused");
+	{
+		const DirectorGoalDef* house = nullptr;
+		for (const DirectorGoalDef& g : rules.Stages.List[0].Goals) if (g.Type == "building") house = &g;
+		Check(rules.Stages.List[0].Goals[0].Count == 25 && house && house->Building == "longhouse" && house->Count == 1, "D48: the shared fire asks for 25 people and a longhouse (not the pottery, which comes by itself)");
+	}
 	Check(Near(rules.MinFaith, 0.2f) && Near(rules.Costs["omen"], 10.0f), "minFaith 0.2, the omen costs 10");
 	Check(!LoadDirectorRules("{\"director\":{\"minFaith\":2}}", bad).empty() && bad == rules, "a faith out of 0..1 is refused and changes nothing");
 	Check(!LoadDirectorRules("{\"director\":{\"faith\":{\"prayer\":1}}}", bad).empty() && bad == rules, "an unknown key is refused");
@@ -494,6 +501,54 @@ int GBTest_director(int, char**)
 		s.Step(1.0);
 		Run(s.Director, "sandbox on");
 		Check(Run(s.Director, "stage win").Ok && s.Director.StageWon(), "in the sandbox director stage win wins it (to try the screen)");
+	}
+
+	// ---- D48: the building goal (a believing clan has Count finished buildings of an id): its progress, met, and an id the clans do not have
+	{
+		WorldDesc d;
+		d.Type = WorldType::Temperate;
+		d.Seed = 3;
+		d.Resolution = 129;
+		const GeneratedWorld world = WorldGenerator::GenerateData(d);
+		DirectorRules lab = rules;
+		const std::string stages = R"({ "stages": { "lookSeconds": 20, "list": [
+			{ "id": "build", "name": "Build", "need": 1, "goals": [
+				{ "id": "granary", "type": "building", "building": "granary", "count": 1 },
+				{ "id": "palace", "type": "building", "building": "palace", "count": 1 } ] } ] } })";
+		const std::string loaded = LoadDirectorRules(stages, lab);
+		if (!loaded.empty()) std::fprintf(stderr, "the building stage: %s\n", loaded.c_str());
+		Check(loaded.empty() && lab.Stages.List.size() == 1 && lab.Stages.List[0].Goals[0].Building == "granary", "D48: a stage of building goals loads");
+		static const std::map<std::string, BuildingDef> defs = DefaultBuildings();
+		SimSetup setup;
+		setup.World = &world;
+		setup.Members = 12;
+		setup.Clans = 2;   // (a clan world: the director looks at its clans)
+		setup.Director = &lab;
+		setup.Buildings = &defs;
+		SimRun run(setup);
+		Check(run.Ok(), "a world of two clans of six, with buildings");
+		if (run.Ok())
+		{
+			WorldDirector& god = run.Director();
+			Tribe& clan = *run.Clans().All()[0]->Folk;
+			god.SetStakes(true);
+			god.SetFaith(run.Clans().All()[0]->Id, 0.9f);
+			run.Run(30.0);
+			int granaries = 0;
+			for (const Tribe::SettlementSite& s : clan.SettlementSites()) if (s.State.Done && s.Building == defs.at("granary").Name) ++granaries;
+			Check(granaries == 0 && !god.GoalOf("granary").Done && god.GoalOf("granary").Value == 0 && god.GoalOf("granary").Leader == -1, "building: no granary yet (0/1, nobody leads it)");
+			const std::string text = Run(god, "stage").Text;
+			Check(text.find("[ ] granary building granary: 0/1") != std::string::npos, "director stage says the building goal and its progress (0/1)");
+			Check(text.find("palace building palace (unknown building: it never counts): 0/1") != std::string::npos, "an id the clans' buildings do not have is refused: it never counts, and the stage says so");
+			bool told = false;
+			for (const DirectorEntry& e : god.Book()) told = told || (e.Action == "stage" && e.Text.find("building palace, which the clans do not have") != std::string::npos);
+			Check(told, "and the director's book says it once");
+			Check(clan.RaiseBuilding("granary", clan.Config.Economy.Camp + glm::vec2(14.0f, 0.0f)).empty(), "a granary stands by the camp");
+			run.Run(30.0);
+			Check(god.GoalOf("granary").Done && god.GoalOf("granary").Value == 1 && god.GoalOf("granary").Leader == run.Clans().All()[0]->Id && god.StageWon(),
+				"building: a believing clan has its granary: 1/1, met (and it leads it); one of two wins the stage");
+			Check(!god.GoalOf("palace").Done && god.GoalOf("palace").Value == 0, "the unknown building never counts");
+		}
 	}
 
 	if (failures == 0) std::printf("director: all checks passed\n");

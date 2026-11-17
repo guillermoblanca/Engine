@@ -96,7 +96,7 @@
     "defeat": { "graceDays": 3 }
   },
   "stages": {
-    "_doc": "D48 (MODO_DIOS_DECISIONES 6.2 B, 6.3): the god's legacy by stages (Engine/src/GB/Game/DirectorStage.cpp). Need of the goals win a stage (0: all); [Go on] opens the next. Goal types: population (clans believing clans of count people), tech (clans believing clans know tech), techs (clans believing clans know count technologies), believers (count believing clans), signs_built (count signs of the god built), no_hunger_winter (count whole winters with no believing clan under foodDays days of food, in survival when survival, nor dead of hunger), peace (count days with no clash between clans). A goal met stays met. Only in the god's game (the stakes): GB.exe shell new and GBSim.",
+    "_doc": "D48 (MODO_DIOS_DECISIONES 6.2 B, 6.3): the god's legacy by stages (Engine/src/GB/Game/DirectorStage.cpp). Need of the goals win a stage (0: all); [Go on] opens the next. Goal types: population (clans believing clans of count people), tech (clans believing clans know tech), techs (clans believing clans know count technologies), believers (count believing clans), signs_built (count signs of the god built), no_hunger_winter (count whole winters with no believing clan under foodDays days of food, in survival when survival, nor dead of hunger), peace (count days with no clash between clans), building (clans believing clans have count finished buildings of the id building). A goal met stays met. Only in the god's game (the stakes): GB.exe shell new and GBSim.",
     "lookSeconds": 30,
     "list": [
       {
@@ -104,8 +104,8 @@
         "name": "The shared fire",
         "need": 3,
         "goals": [
-          { "id": "people", "type": "population", "count": 20 },
-          { "id": "pottery", "type": "tech", "tech": "pottery" },
+          { "id": "people", "type": "population", "count": 25 },
+          { "id": "longhouse", "type": "building", "building": "longhouse", "count": 1 },
           { "id": "winter", "type": "no_hunger_winter", "foodDays": 3 },
           { "id": "signs", "type": "signs_built", "count": 3 }
         ]

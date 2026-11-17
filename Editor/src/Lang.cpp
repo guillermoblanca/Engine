@@ -84,7 +84,17 @@ namespace GB::Editor
 	{
 		if (m_On)
 			if (const auto table = m_Names.find(kind); table != m_Names.end())
+			{
 				if (const auto it = table->second.find(id); it != table->second.end()) return it->second;
+				// a clan of a clan of a clan ("Clan 1 II II"): its first name by the table, its numbers as they are ("Roble II II")
+				if (kind == "clan")
+					for (size_t end = id.size(), sp = id.rfind(' '); sp != std::string::npos && sp > 0; end = sp, sp = id.rfind(' ', sp - 1))
+					{
+						const std::string tail = id.substr(sp + 1, end - sp - 1);   // (the last word not yet looked at)
+						if (tail.empty() || tail.find_first_not_of("IVX") != std::string::npos) break;
+						if (const auto base = table->second.find(id.substr(0, sp)); base != table->second.end()) return base->second + id.substr(sp);
+					}
+			}
 		return fallback.empty() ? Spaced(id) : fallback;
 	}
 
@@ -161,8 +171,38 @@ namespace GB::Editor
 			if (kind.empty()) out += g;
 			else if (kind == "ent") out += Entity(g);
 			else if (kind == "line") out += Line(g);
+			else if (kind == "clans") out += ClanList(g);
 			else out += Name(kind, g);
 			i = close + 1;
+		}
+		return out;
+	}
+
+	std::string Lang::ClanList(const std::string& english) const
+	{
+		// "Clan 1, Ash and Reed": each name by the "clan" names, joined as the language joins a list ("{0} and {1}": "{0} y {1}")
+		std::vector<std::string> names;
+		std::string rest = english;
+		if (const size_t last = rest.rfind(" and "); last != std::string::npos)
+		{
+			names.push_back(rest.substr(last + 5));
+			rest = rest.substr(0, last);
+		}
+		std::vector<std::string> head;
+		for (size_t at = 0; at <= rest.size();)
+		{
+			const size_t comma = std::min(rest.find(", ", at), rest.size());
+			head.push_back(rest.substr(at, comma - at));
+			at = comma + 2;
+		}
+		names.insert(names.begin(), head.begin(), head.end());
+		std::string out;
+		for (size_t i = 0; i < names.size(); ++i)
+		{
+			const std::string n = Name("clan", names[i], names[i]);
+			if (i == 0) out = n;
+			else if (i + 1 == names.size()) out = Text("{0} and {1}", out, n);
+			else out += ", " + n;
 		}
 		return out;
 	}

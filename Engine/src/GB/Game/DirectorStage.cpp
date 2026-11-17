@@ -38,7 +38,7 @@ namespace GB
 			for (const TribeMember& m : t.Members()) if (m.Dead && m.Cause == NeedName::Hunger) ++n;
 			return n;
 		}
-		const char* kTypes[] = { "population", "tech", "techs", "believers", "signs_built", "no_hunger_winter", "peace" };
+		const char* kTypes[] = { "population", "tech", "techs", "believers", "signs_built", "no_hunger_winter", "peace", "building" };
 		bool KnownType(const std::string& t) { return std::any_of(std::begin(kTypes), std::end(kTypes), [&](const char* k) { return t == k; }); }
 		bool Int(const Json& o, const char* key, int& out, int lo, int hi, const std::string& where, std::string& e)
 		{
@@ -54,11 +54,22 @@ namespace GB
 				if (std::none_of(keys.begin(), keys.end(), [&](const char* known) { return k == known; })) { e = where + "unknown key '" + k + "'"; return false; }
 			return true;
 		}
+		// the finished buildings of the id in a clan's settlement (0 when its defs do not have it)
+		int BuiltOf(const Tribe& t, const std::string& id)
+		{
+			const std::map<std::string, BuildingDef>* defs = t.Buildings();
+			if (!defs) return 0;
+			const auto def = defs->find(id);
+			if (def == defs->end()) return 0;
+			int n = 0;
+			for (const Tribe::SettlementSite& s : t.SettlementSites()) if (s.State.Done && s.Building == def->second.Name) ++n;
+			return n;
+		}
 		// the target of a goal: what its Value climbs to
 		int Target(const DirectorGoalDef& g) { return g.Type == "tech" ? g.Clans : g.Count; }
 	}
 
-	// { "stages": { "lookSeconds": s, "list": [ { "id", "name", "need", "draft", "goals": [ { "id", "type", "tech", "count", "clans", "foodDays",
+	// { "stages": { "lookSeconds": s, "list": [ { "id", "name", "need", "draft", "goals": [ { "id", "type", "tech", "building", "count", "clans", "foodDays",
 	//   "survival" } ] } ] } }. All or nothing: on a mistake it says why and the stages stay as they were.
 	std::string ReadDirectorStages(const Json& s, DirectorStageRules& live)
 	{
@@ -95,13 +106,15 @@ namespace GB
 					DirectorGoalDef g;
 					g.Id = go.value("id", std::string());
 					const std::string wg = ws + (g.Id.empty() ? std::string("a goal") : g.Id) + ": ";
-					if (!Known(go, { "_doc", "id", "type", "tech", "count", "clans", "foodDays", "survival" }, wg, e)) return e;
+					if (!Known(go, { "_doc", "id", "type", "tech", "building", "count", "clans", "foodDays", "survival" }, wg, e)) return e;
 					if (g.Id.empty()) return wg + "id: required";
 					for (const DirectorGoalDef& o : d.Goals) if (o.Id == g.Id) return wg + "id: twice";
 					g.Type = go.value("type", std::string());
-					if (!KnownType(g.Type)) return wg + "type: expected population, tech, techs, believers, signs_built, no_hunger_winter or peace";
+					if (!KnownType(g.Type)) return wg + "type: expected population, tech, techs, believers, signs_built, no_hunger_winter, peace or building";
 					if (const auto t = go.find("tech"); t != go.end()) { if (!t->is_string()) return wg + "tech: expected a technology id"; g.Tech = t->get<std::string>(); }
 					if (g.Type == "tech" && g.Tech.empty()) return wg + "tech: required by the type tech";
+					if (const auto b = go.find("building"); b != go.end()) { if (!b->is_string() || b->get<std::string>().empty()) return wg + "building: expected a building id"; g.Building = b->get<std::string>(); }
+					if (g.Type == "building" && g.Building.empty()) return wg + "building: required by the type building";
 					if (!Int(go, "count", g.Count, 1, 100000, wg, e) || !Int(go, "clans", g.Clans, 1, 100, wg, e)) return e;
 					if (const auto f = go.find("foodDays"); f != go.end())
 					{
@@ -158,6 +171,9 @@ namespace GB
 		m_StageLook = -1.0;
 		m_LastClash = -1.0;
 		m_StageOpen = Stage() != nullptr;
+		if (const DirectorStageDef* st = Stage())   // (a building goal the data names wrongly: said once, and it never counts)
+			for (const DirectorGoalDef& g : st->Goals)
+				if (!GoalBuildingKnown(g)) m_Book.push_back({ now, "stage", "world", "the goal " + g.Id + " asks for the building " + g.Building + ", which the clans do not have: it never counts", 0.0f });
 		if (m_To.Clans)   // (peace counts from now: what was before is not this stage's)
 			for (const HistoryEvent& e : m_To.Clans->Past().Events()) m_StageEvent = std::max(m_StageEvent, e.Id);
 	}
@@ -187,6 +203,11 @@ namespace GB
 			s.Leader = -1;
 			for (const Clan* c : believers)
 				if (c->Folk->Knowledge().Clan().count(g.Tech)) { ++s.Value; if (s.Leader < 0) s.Leader = c->Id; }
+		}
+		else if (g.Type == "building")
+		{
+			nth([&](const Clan& c) { return BuiltOf(*c.Folk, g.Building); });
+			if (s.Value == 0 && std::none_of(believers.begin(), believers.end(), [&](const Clan* c) { return BuiltOf(*c->Folk, g.Building) > 0; })) s.Leader = -1;   // (nobody has one yet)
 		}
 		else if (g.Type == "believers") s.Value = static_cast<int>(believers.size());
 		else if (g.Type == "signs_built") s.Value = m_SignsBuilt;
@@ -270,7 +291,8 @@ namespace GB
 		{
 			const DirectorGoalState v = GoalOf(g.Id);
 			const Clan* leader = v.Leader >= 0 && m_To.Clans ? m_To.Clans->Find(v.Leader) : nullptr;
-			s += "\n[" + std::string(v.Done ? "x" : " ") + "] " + g.Id + " " + g.Type + (g.Tech.empty() ? std::string() : " " + g.Tech) + ": " + std::to_string(v.Value) + "/" + std::to_string(Target(g))
+			s += "\n[" + std::string(v.Done ? "x" : " ") + "] " + g.Id + " " + g.Type + (g.Tech.empty() ? std::string() : " " + g.Tech) + (g.Building.empty() ? std::string() : " " + g.Building)
+				+ (GoalBuildingKnown(g) ? std::string() : " (unknown building: it never counts)") + ": " + std::to_string(v.Value) + "/" + std::to_string(Target(g))
 				+ (leader ? " (" + NameOf(*leader) + ")" : std::string()) + (v.Done ? ", done on day " + Num(v.DoneAt / day, 2) : std::string())
 				+ (g.Type == "no_hunger_winter" && v.Year >= 0 ? std::string(", in a winter") + (v.Hungry ? " with hunger" : v.Whole ? " with no hunger yet" : " (watched from its middle)") : std::string());
 		}
@@ -290,6 +312,19 @@ namespace GB
 			s += " " + g.Id + " " + std::to_string(v.Value) + "/" + std::to_string(Target(g)) + (v.Done ? " (day " + Num(v.DoneAt / day, 1) + ")" : std::string()) + ";";
 		}
 		return s;
+	}
+
+	bool WorldDirector::GoalBuildingKnown(const DirectorGoalDef& g) const
+	{
+		if (g.Type != "building" || !m_To.Clans) return true;
+		bool anyDefs = false;
+		for (const auto& c : m_To.Clans->All())
+			if (c->Folk && c->Folk->Buildings())
+			{
+				anyDefs = true;
+				if (c->Folk->Buildings()->count(g.Building)) return true;
+			}
+		return !anyDefs;   // (clans with no buildings at all cannot tell)
 	}
 
 	// director stage | stage win (the sandbox: wins it now) | stage next (after a win: opens the next one)

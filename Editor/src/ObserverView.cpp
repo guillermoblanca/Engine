@@ -368,9 +368,16 @@ namespace GB::Editor
 		if (a[0] == "clans") return { true, ObserverClansText() };
 		if (a[0] == "tip")   // (a script has no mouse: holds the quality of life tooltip of a clan's row open, for a capture)
 		{
-			if (a.size() < 2) return { false, "observer tip <clan id or name>|stage|off" };
-			if (a[1] == "off") { m_Observer.Tip = -1; m_Observer.StageTip = false; return { true, "tip off" }; }
+			if (a.size() < 2) return { false, "observer tip <clan id or name>|stage|winter <clan>|off" };
+			if (a[1] == "off") { m_Observer.Tip = -1; m_Observer.StageTip = false; m_Observer.WinterTip = -1; return { true, "tip off" }; }
 			if (a[1] == "stage") { m_Observer.StageTip = true; return { true, "tip on the stage" }; }   // D48: the stage's goals of the god's bar
+			if (a[1] == "winter" && a.size() > 2)   // the winter's column of a clan's row: its food against the winter
+			{
+				const Clan* c = m_Clans.Find(a[2]);
+				if (!c) return { false, "no clan " + a[2] };
+				m_Observer.WinterTip = c->Id;
+				return { true, "tip on the winter of the clan " + std::to_string(c->Id) };
+			}
 			const Clan* c = m_Clans.Find(a[1]);
 			if (!c) return { false, "no clan " + a[1] };
 			m_Observer.Tip = c->Id;
@@ -906,12 +913,13 @@ namespace GB::Editor
 					const ImVec2 wa = ImGui::GetCursorScreenPos();
 					Flake(WinterColour(w));
 					ImGui::SameLine(0.0f, 3.0f);
-					if (w.Short <= 0.0f) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", L.Text("covered").c_str());
-					else ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(WinterColour(w)), "%s", L.Text("{0} d short", L.Num(w.Short, 0)).c_str());
-					if (m_Observer.Tip < 0 && hovered(wa, ImGui::GetItemRectMax()))
-						ImGui::SetTooltip("%s", (w.In ? L.Text("Winter: {0} days until the spring", L.Num(w.UntilSpring, 0)) : L.Text("Winter in {0} days: {1} days until the spring", L.Num(w.ToWinter, 0), L.Num(w.UntilSpring, 0)))
-							.append("\n").append(L.Text("It has {0} days of food in hand", L.Num(t.FoodDays(), 1))).append("\n")
-							.append(w.Short <= 0.0f ? L.Text("The winter is covered") : L.Text("It is {0} days of food short", L.Num(w.Short, 0))).c_str());
+					// (what the clan's food lacks to reach the spring, not the days to the winter: "-20 d food", "food ok")
+					if (w.Short <= 0.0f) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", L.Text("food ok").c_str());
+					else ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(WinterColour(w) == T::BoneDim ? T::Warn : WinterColour(w)), "%s", L.Text("-{0} d food", L.Num(w.Short, 0)).c_str());
+					if (m_Observer.WinterTip == c->Id || (m_Observer.Tip < 0 && hovered(wa, ImGui::GetItemRectMax())))
+						ImGui::SetTooltip("%s", (w.In ? L.Text("The winter is here: {0} days until the spring", L.Num(w.UntilSpring, 0)) : L.Text("The winter comes in {0} days and lasts {1}", L.Num(w.ToWinter, 0), L.Num(w.SeasonDays, 0)))
+							.append("\n").append(w.Short <= 0.0f ? L.Text("Food stored for {0} days: enough to reach the spring", L.Num(t.FoodDays(), 1))
+								: L.Text("Food stored for {0} days; it lacks {1} days to reach the spring", L.Num(t.FoodDays(), 1), L.Num(w.Short, 0))).c_str());
 					ImGui::PopID();
 				}
 				ImGui::EndTable();
@@ -2329,6 +2337,49 @@ namespace GB::Editor
 		}
 	}
 
+	namespace
+	{
+		// a line of the chronicle of a screen of the end (a stage won, the defeat): when, the clan's English name, the English line
+		struct WeightyLine { double At = 0.0; std::string Clan, Text; };
+
+		// D48: only what matters for the screens of the end, never a gather nor a theft of a node: the history's heavy kinds (weight 4 or more:
+		// discoveries, births, deaths, marriages, alliances, ranks, polities, new clans, raids...), the buildings finished, the skeptics and the tired
+		// clans, and the god's own book (a sign or a vision fulfilled). At most `most`, the heaviest first, two at most of a kind (the births would fill it),
+		// then in the order they happened.
+		std::vector<WeightyLine> WeightyChronicle(const ClanWorld& clans, const WorldDirector& god, double from, double to, size_t most)
+		{
+			struct Pick { int Weight; WeightyLine Line; std::string Kind; };
+			std::vector<Pick> all;
+			for (const HistoryEvent& e : clans.Past().Events())
+			{
+				if (e.At < from || e.At > to) continue;
+				const bool kept = e.Kind == "built" || e.Kind == "skeptic" || e.Kind == "tired";   // (weight 3, but what the player wants told)
+				if (SheetKind(e.Kind).empty() && e.Kind != "rank" && e.Kind != "polity" && e.Kind != "leap") continue;   // (the story's kinds only)
+				if (e.Weight < 4 && !kept) continue;
+				const Clan* c = clans.Find(static_cast<ClanId>(e.Clan));
+				all.push_back({ kept ? 3 : e.Weight, { e.At, c ? c->Name : std::string(), e.Text }, e.Kind });
+			}
+			static const std::map<std::string, int> kBook = { { "fulfilled", 4 } };   // (a heresy is told by the history: the new clan it founds)
+			for (const DirectorEntry& e : god.Book())
+			{
+				const auto w = kBook.find(e.Action);
+				if (w == kBook.end() || e.At < from || e.At > to) continue;
+				all.push_back({ w->second, { e.At, e.Target == "world" ? std::string() : e.Target, e.Text }, "god " + e.Action });
+			}
+			std::stable_sort(all.begin(), all.end(), [](const Pick& a, const Pick& b) { return a.Weight != b.Weight ? a.Weight > b.Weight : a.Line.At > b.Line.At; });
+			std::vector<WeightyLine> out;
+			std::map<std::string, int> perKind;
+			for (const Pick& p : all)
+			{
+				if (out.size() >= most) break;
+				if (++perKind[p.Kind] > 2) continue;
+				out.push_back(p.Line);
+			}
+			std::sort(out.begin(), out.end(), [](const WeightyLine& a, const WeightyLine& b) { return a.At < b.At; });
+			return out;
+		}
+	}
+
 	// §6.2 A: the end of the god's game, over the world: nobody believes any more. The days played and the last lines of the world's chronicle;
 	// [Watch the world] goes on looking without the hand (`director defeat watch`), [Main menu] leaves (`shell menu`).
 	void EditorApp::DrawDefeat(float ox, float oy, float w, float h)
@@ -2354,17 +2405,15 @@ namespace GB::Editor
 			ImGui::TextUnformatted(days.c_str());
 			ImGui::Separator();
 			ImGui::TextDisabled("%s", L.Text("The last of the chronicle").c_str());
-			const std::vector<HistoryEvent>& past = m_Clans.Past().Events();
+			const double daySeconds = static_cast<double>(m_Director.Rules.DaySeconds);
 			int shown = 0;
-			for (auto it = past.rbegin(); it != past.rend() && shown < 6; ++it)
+			for (const WeightyLine& l : WeightyChronicle(m_Clans, m_Director, std::max(0.0, m_Director.DefeatAt() - 5.0 * daySeconds), m_Director.DefeatAt() + 1.0, 6))   // (the last days' weighty ones)
 			{
-				if (it->Weight < 3) continue;   // (the weighty ones: births, deaths, splits, skeptics...; a lesson learnt weighs 2 and filled the list)
-				const Clan* c = m_Clans.Find(static_cast<ClanId>(it->Clan));
-				const std::string when = L.Text("day {0}", L.Num(static_cast<float>(it->At / static_cast<double>(m_Director.Rules.DaySeconds)), 1));
-				ImGui::TextDisabled("%s", (when + (c ? "  " + L.Name("clan", c->Name, c->Name) : std::string())).c_str());
+				const std::string when = L.Text("day {0}", L.Num(static_cast<float>(l.At / daySeconds), 1));
+				ImGui::TextDisabled("%s", (when + (l.Clan.empty() ? std::string() : "  " + L.Name("clan", l.Clan, l.Clan))).c_str());
 				ImGui::SameLine(150.0f);
 				ImGui::PushTextWrapPos(width - 12.0f);
-				ImGui::TextWrapped("%s", Lang::Cap(L.Line(it->Text)).c_str());
+				ImGui::TextWrapped("%s", Lang::Cap(L.Line(l.Text)).c_str());
 				ImGui::PopTextWrapPos();
 				++shown;
 			}
@@ -2439,6 +2488,19 @@ namespace GB::Editor
 				what = g.Clans == 1 ? L.Text("A believing clan knows {0} technologies", g.Count) : L.Text("{0} believing clans know {1} technologies", g.Clans, g.Count);
 				progress = count + (leader.empty() ? std::string() : "  (" + leader + ")");
 			}
+			else if (g.Type == "building")
+			{
+				// the building's name with its article where the language has one ("building_a": "una casa larga"), else its plain name
+				const BuildingDef* def = nullptr;
+				for (const auto& c : m_Clans.All())
+					if (c->Folk && c->Folk->Buildings())
+						if (const auto it = c->Folk->Buildings()->find(g.Building); it != c->Folk->Buildings()->end()) { def = &it->second; break; }
+				const std::string plain = L.Name("building", g.Building, def ? def->Name : g.Building);
+				const std::string one = L.Name("building_a", g.Building, L.On() ? plain : "a " + plain);
+				if (g.Count == 1) what = g.Clans == 1 ? L.Text("A believing clan raises {0}", one) : L.Text("{0} believing clans raise {1}", g.Clans, one);
+				else what = g.Clans == 1 ? L.Text("A believing clan raises {0} of: {1}", g.Count, plain) : L.Text("{0} believing clans raise {1} of: {2}", g.Clans, g.Count, plain);
+				progress = count + (leader.empty() ? std::string() : "  (" + leader + ")");
+			}
 			else if (g.Type == "believers") { what = L.Text("{0} clans believe in you", g.Count); progress = count; }
 			else if (g.Type == "signs_built") { what = L.Text("{0} signs of the god standing", g.Count); progress = count; }
 			else if (g.Type == "peace") { what = L.Text("{0} days of peace among the clans", g.Count); progress = count; }
@@ -2448,7 +2510,10 @@ namespace GB::Editor
 				if (s.Done) progress = L.Text("done");
 				else if (s.Year >= 0) progress = s.Hungry ? L.Text("this winter: hunger ({0})", leader) : s.Whole ? L.Text("this winter: nobody hungry yet") : L.Text("this winter came before the stage");
 				else if (!m_Clans.All().empty() && m_Clans.All().front()->Folk)
-					progress = L.Text("the winter comes in {0} days", L.Num(ForecastWinter(*m_Clans.All().front()->Folk).ToWinter, 0));
+				{
+					const int days = static_cast<int>(std::lround(ForecastWinter(*m_Clans.All().front()->Folk).ToWinter));
+					progress = days <= 0 ? L.Text("the winter comes within a day") : L.Text(days == 1 ? "the winter comes in {0} day" : "the winter comes in {0} days", days);
+				}
 				if (g.Count > 1) progress = count + "  " + progress;
 			}
 			else what = g.Id;
@@ -2497,17 +2562,14 @@ namespace GB::Editor
 			DrawStageGoals(*stage, width - 16.0f);
 			ImGui::Separator();
 			ImGui::TextDisabled("%s", L.Text("The chronicle of the stage").c_str());
-			const std::vector<HistoryEvent>& past = m_Clans.Past().Events();
 			int shown = 0;
-			for (auto it = past.rbegin(); it != past.rend() && shown < 7; ++it)
+			for (const WeightyLine& l : WeightyChronicle(m_Clans, m_Director, m_Director.StageSince(), m_Director.StageWonAt() + 1.0, 8))   // (the weighty ones of the stage)
 			{
-				if (it->Weight < 3 || it->At > m_Director.StageWonAt() + 1.0 || it->At < m_Director.StageSince()) continue;   // (the weighty ones of the stage)
-				const Clan* c = m_Clans.Find(static_cast<ClanId>(it->Clan));
-				const std::string when = L.Text("day {0}", L.Num(static_cast<float>(it->At / day), 1));
-				ImGui::TextDisabled("%s", (when + (c ? "  " + L.Name("clan", c->Name, c->Name) : std::string())).c_str());
+				const std::string when = L.Text("day {0}", L.Num(static_cast<float>(l.At / day), 1));
+				ImGui::TextDisabled("%s", (when + (l.Clan.empty() ? std::string() : "  " + L.Name("clan", l.Clan, l.Clan))).c_str());
 				ImGui::SameLine(150.0f);
 				ImGui::PushTextWrapPos(width - 12.0f);
-				ImGui::TextWrapped("%s", Lang::Cap(L.Line(it->Text)).c_str());
+				ImGui::TextWrapped("%s", Lang::Cap(L.Line(l.Text)).c_str());
 				ImGui::PopTextWrapPos();
 				++shown;
 			}
@@ -2592,6 +2654,8 @@ namespace GB::Editor
 				ImGui::EndGroup();
 				if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) || m_Observer.StageTip)
 				{
+					// (wide enough from its first frame for the progress put on the right: else the end of "40 días" was cut)
+					ImGui::SetNextWindowSizeConstraints(ImVec2(420.0f + 2.0f * ImGui::GetStyle().WindowPadding.x, 0.0f), ImVec2(FLT_MAX, FLT_MAX));
 					ImGui::BeginTooltip();
 					DrawStageGoals(*stage, 420.0f);
 					ImGui::EndTooltip();

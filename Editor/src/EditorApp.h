@@ -432,6 +432,7 @@ namespace GB::Editor
 			Box ClansBox;
 			int Tip = -1;
 			bool StageTip = false;          // D48: `observer tip stage` holds the stage's tooltip of the god's bar open (for a capture)
+			int WinterTip = -1;             // `observer tip winter <clan>`: holds the winter's tooltip of that clan's row open (for a capture)
 			// U5/U6: the book's tabs in groups, so they fit without scrolling (MODO_DIOS_UX 3.0): Clan, Person (the members, and one person's
 			// sheet), Chronicle, and More (the clan's other sheets, a wrapping row of buttons). Tab keeps the sheet shown (`observer status`);
 			// More is the one More shows. TabsNeed/TabsRoom: the width the group tabs want and have, MoreRows the rows of More's buttons

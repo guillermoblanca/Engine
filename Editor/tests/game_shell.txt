@@ -8,13 +8,13 @@ shot_ui game_shell_menu.png
 shell page new
 wait 3
 shot_ui game_shell_new.png
-qa expect "shell presets" "valley .*; chosen valley"
+qa expect "shell presets" "beginnings .*valley .*; chosen beginnings"
 shell preset select custom
 wait 3
 shot_ui game_shell_custom.png
 qa expect "shell presets" "; chosen custom"
 shell preset save shell_test_preset Shell test
-qa expect "shell presets" "shell_test_preset \(temperate 5, 3x6, user\); chosen shell_test_preset"
+qa expect "shell presets" "shell_test_preset \(temperate 7, 3x6, bare, user\); chosen shell_test_preset"
 shell preset select valley
 shell page settings
 wait 3

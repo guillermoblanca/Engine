@@ -213,10 +213,12 @@ namespace GB
 	//   no_hunger_winter  Count whole winters (SeasonClock, watched from their start) in which no believing clan went hungry: fewer than FoodDays
 	//                     days of food (Tribe::FoodDays), the survival tier when Survival, or somebody dead of hunger
 	//   peace             Count days with no raid nor a death or wound between clans (the world's history) since the stage opened
+	//   building          Clans believing clans have Count finished buildings of the id Building (a building the clans' defs do not have never
+	//                     counts: `director stage` says "unknown building")
 	// A goal met stays met (the tick does not go away when a clan falls back). Only with the stakes on (GB.exe's god's game, GBSim) do they count.
 	struct DirectorGoalDef
 	{
-		std::string Id, Type, Tech;
+		std::string Id, Type, Tech, Building;
 		int Count = 1, Clans = 1;
 		float FoodDays = 3.0f;
 		bool Survival = false;
@@ -241,7 +243,7 @@ namespace GB
 	{
 		bool Done = false;
 		int Value = 0;                     // the progress towards its Count (tech: believing clans that know it, towards Clans)
-		int Leader = -1;                   // the clan nearest to it (population, tech, techs; -1: none)
+		int Leader = -1;                   // the clan nearest to it (population, tech, techs, building; -1: none)
 		double DoneAt = -1.0;
 		// no_hunger_winter: the winter watched (its year; -1 none), whether it was watched from its start, whether a believing clan went hungry in it
 		// and the dead of hunger of each clan when it began
@@ -379,6 +381,7 @@ namespace GB
 		int SignsBuilt() const { return m_SignsBuilt; }
 		std::string StageText() const;                                     // `director stage`: the goals and their progress (a contract of the tests)
 		std::string StageReport() const;                                   // GBSim --report: "stage: 1, goals 2/4, won on day 21.30" (or "none")
+		bool GoalBuildingKnown(const DirectorGoalDef& g) const;            // a building goal's id is a building of the clans' defs (true for the other types)
 		double WaitLeft(const std::string& action, int clan) const;        // seconds until `action` can fall on the clan again (0 = now)
 
 		// ---- T236: the vote of a clan on an idea one of its people brings (`messenger`): every living adult but the players, the children and
