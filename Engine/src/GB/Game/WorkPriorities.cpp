@@ -150,8 +150,7 @@ namespace GB
 
 	bool WorkPriorities::Claim(Tribe& tribe, TribeMember& m, const std::function<float(const Job&)>& score)
 	{
-		if (!m_Active || m.Player || m.Dead || CategoriesOf(tribe).Empty()) return false;
-		TableFor(tribe, m);   // a person new to the clan: its trade's suggestion
+		if (!Rules(m) || CategoriesOf(tribe).Empty()) return false;   // (no table set: the usual claim)
 		const JobRules& rules = tribe.Config.Work.Jobs;
 		const Job* held = tribe.m_Board.ClaimOf(m.Name);
 		std::vector<Candidate> candidates;
@@ -236,7 +235,7 @@ namespace GB
 	{
 		const TribeMember* m = tribe.FindMember(member);
 		if (!m || m->Dead) return { false, "there is nobody called " + member + " in the clan" };
-		m_Tables[member] = Suggested(tribe, *m);
+		m_Tables.erase(member);   // (no table: it decides as the clan's AI does, and is shown its trade's suggestion)
 		return { true, member + ": back to what a " + m->Role + " is suggested" };
 	}
 
