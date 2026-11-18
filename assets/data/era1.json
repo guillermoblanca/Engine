@@ -271,7 +271,7 @@
       "phases": [
         { "name": "frame", "work": 8.0, "needs": { "branch": 6 }, "substitutes": { "branch": [ "wood" ] }, "part": "posts" },
         { "name": "walls", "work": 8.0, "needs": { "reed": 6, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "walls" },
-        { "name": "remedies", "work": 4.0, "needs": { "poultice": 2 }, "part": "table" }
+        { "name": "remedies", "work": 4.0, "needs": { "poultice": 2 }, "substitutes": { "poultice": [ "splint" ] }, "part": "table" }
       ],
       "healing": 1.0,
       "aura": 5.0,
@@ -328,7 +328,7 @@
       "footprint": [ 2.2, 2.0 ],
       "phases": [
         { "name": "hearth", "work": 12.0, "needs": { "stone": 6, "fired_brick": 6 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
-        { "name": "bellows", "work": 8.0, "needs": { "hide": 2, "wood": 2 }, "part": "table" }
+        { "name": "bellows", "work": 8.0, "needs": { "hide": 2, "wood": 2 }, "substitutes": { "hide": [ "bellows_bag" ] }, "part": "table" }
       ],
       "station": "forge",
       "color": [ 0.5, 0.3, 0.24 ]
@@ -798,28 +798,28 @@
     }
   },
   "techs": [
-    { "id": "stone_tools", "name": "Stone tools", "complexity": 0.05, "known": true, "requires": [], "recipes": [ "stone_axe", "stone_pickaxe" ] },
-    { "id": "fire_making", "name": "Fire making", "complexity": 0.1, "known": true, "requires": [], "recipes": [ "campfire" ] },
-    { "id": "cordage", "name": "Cordage", "complexity": 0.05, "known": true, "requires": [], "recipes": [ "cordage" ] },
-    { "id": "flint_knapping", "name": "Flint knapping", "complexity": 0.15, "requires": [ "cordage", "stone_tools" ], "recipes": [ "flint_axe", "flint_pickaxe" ], "physical": { "materials": [ "flint" ] }, "discovery": { "experiment": 0.15, "observe": 0.34, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "basketry", "name": "Basketry", "complexity": 0.15, "requires": [ "cordage" ], "recipes": [ "basket_wicker" ], "physical": { "materials": [ "fiber" ] }, "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.25, "seconds": 15.0, "waste": 0.3 } },
-    { "id": "spear_making", "name": "Hafted spears", "complexity": 0.25, "requires": [ "flint_knapping" ], "recipes": [ "flint_spear", "flint_sword", "hunting_bow" ], "physical": { "materials": [ "flint" ] }, "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "hide_working", "name": "Hide working", "complexity": 0.3, "requires": [ "flint_knapping" ], "recipes": [ "leather", "leather_bag" ], "buildings": [ "hide_frame" ], "physical": { "materials": [ "hide" ] }, "discovery": { "experiment": 0.1, "observe": 0.3, "teach": 0.25, "seconds": 25.0, "waste": 0.3 } },
-    { "id": "cooking", "name": "Cooking", "complexity": 0.15, "physical": { "stations": [ "campfire" ] }, "requires": [ "fire_making" ], "recipes": [ "cooked_meat" ], "buildings": [ "hearth" ], "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.3, "seconds": 15.0, "waste": 0.2 } },
-    { "id": "smoking", "name": "Smoking", "complexity": 0.3, "physical": { "materials": [ "meat" ], "stations": [ "campfire" ] }, "requires": [ "cooking" ], "recipes": [ "smoked_meat" ], "buildings": [ "smoking_rack" ], "discovery": { "experiment": 0.1, "observe": 0.3, "teach": 0.25, "seconds": 25.0, "waste": 0.3 } },
-    { "id": "weaving", "name": "Weaving", "complexity": 0.2, "requires": [ "basketry" ], "recipes": [ "reed_mat" ], "physical": { "materials": [ "reed" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.2 } },
-    { "id": "wattle_and_daub", "name": "Wattle and daub", "complexity": 0.3, "requires": [ "basketry" ], "recipes": [ "daub" ], "buildings": [ "hut" ], "physical": { "materials": [ "clay" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.2 } },
-    { "id": "timber_framing", "name": "Timber framing", "complexity": 0.45, "physical": { "materials": [ "log" ] }, "requires": [ "flint_knapping", "wattle_and_daub", "weaving" ], "recipes": [], "buildings": [ "longhouse", "watchtower" ], "discovery": { "experiment": 0.04, "observe": 0.0, "teach": 0.2, "seconds": 60.0, "waste": 0.0 } },
-    { "id": "palisade_building", "name": "Palisades", "complexity": 0.25, "physical": { "materials": [ "wood", "flint_axe" ] }, "requires": [ "flint_knapping" ], "recipes": [ "stakes" ], "buildings": [ "palisade" ], "discovery": { "experiment": 0.08, "observe": 0.3, "teach": 0.2, "seconds": 30.0, "waste": 0.1 } },
-    { "id": "food_storage", "name": "Food storage", "complexity": 0.2, "requires": [ "basketry" ], "recipes": [], "buildings": [ "cache_pit" ], "discovery": { "experiment": 0.1, "observe": 0.0, "teach": 0.25, "seconds": 20.0, "waste": 0.0 } },
-    { "id": "herb_lore", "name": "Herb lore", "complexity": 0.25, "requires": [ "basketry" ], "recipes": [ "poultice" ], "buildings": [ "healer_hut" ], "physical": { "materials": [ "herbs" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "ritual", "name": "Rites", "complexity": 0.3, "requires": [ "fire_making" ], "recipes": [], "buildings": [ "totem" ], "discovery": { "experiment": 0.06, "observe": 0.0, "teach": 0.3, "seconds": 30.0, "waste": 0.0 } },
-    { "id": "pottery", "name": "Pottery", "complexity": 0.35, "requires": [ "fire_making", "wattle_and_daub" ], "recipes": [ "fired_brick" ], "buildings": [ "kiln", "jar_store" ], "physical": { "materials": [ "clay" ] }, "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.15, "seconds": 60.0, "waste": 0.4 } },
-    { "id": "smelting", "name": "Smelting", "complexity": 0.6, "requires": [ "pottery", "flint_knapping" ], "recipes": [ "copper_ingot" ], "buildings": [ "forge" ], "physical": { "materials": [ "copper_ore" ], "stations": [ "kiln", "forge" ] }, "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.1, "seconds": 60.0, "waste": 0.5 } },
-    { "id": "bone_working", "name": "Bone working", "complexity": 0.15, "requires": [ "cordage", "stone_tools" ], "recipes": [ "bone_pickaxe" ], "physical": { "materials": [ "bone" ] }, "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "tillage", "name": "Tillage", "complexity": 0.35, "requires": [ "basketry" ], "recipes": [ "digging_stick" ], "physical": { "materials": [ "grain_seed" ] }, "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.3 } },
-    { "id": "reaping", "name": "Reaping", "complexity": 0.25, "requires": [ "tillage" ], "recipes": [ "flint_sickle" ], "physical": { "materials": [ "grain" ] }, "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.3 } },
-    { "id": "granaries", "name": "Granaries", "complexity": 0.3, "requires": [ "tillage", "food_storage" ], "recipes": [], "buildings": [ "granary" ], "physical": { "materials": [ "grain" ] }, "discovery": { "experiment": 0.1, "observe": 0.0, "teach": 0.25, "seconds": 30.0, "waste": 0.3 } }
+    { "id": "stone_tools", "name": "Stone tools", "tier": 0, "complexity": 0.05, "known": true, "requires": [], "recipes": [ "stone_axe", "stone_pickaxe" ] },
+    { "id": "fire_making", "name": "Fire making", "tier": 0, "complexity": 0.1, "known": true, "requires": [], "recipes": [ "campfire" ] },
+    { "id": "cordage", "name": "Cordage", "tier": 0, "complexity": 0.05, "known": true, "requires": [], "recipes": [ "cordage" ] },
+    { "id": "flint_knapping", "name": "Flint knapping", "tier": 1, "complexity": 0.15, "requires": [ "cordage", "stone_tools" ], "recipes": [ "flint_axe", "flint_pickaxe" ], "physical": { "materials": [ "flint" ] }, "discovery": { "experiment": 0.15, "observe": 0.34, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "basketry", "name": "Basketry", "tier": 1, "complexity": 0.15, "requires": [ "cordage" ], "recipes": [ "basket_wicker" ], "physical": { "materials": [ "fiber" ] }, "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.25, "seconds": 15.0, "waste": 0.3 } },
+    { "id": "spear_making", "name": "Hafted spears", "tier": 1, "complexity": 0.25, "requires": [ "flint_knapping" ], "recipes": [ "flint_spear", "flint_sword", "hunting_bow" ], "physical": { "materials": [ "flint" ] }, "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "hide_working", "name": "Hide working", "tier": 1, "complexity": 0.3, "requires": [ "flint_knapping" ], "recipes": [ "leather", "leather_bag" ], "buildings": [ "hide_frame" ], "physical": { "materials": [ "hide" ] }, "discovery": { "experiment": 0.1, "observe": 0.3, "teach": 0.25, "seconds": 25.0, "waste": 0.3 } },
+    { "id": "cooking", "name": "Cooking", "tier": 1, "complexity": 0.15, "physical": { "stations": [ "campfire" ] }, "requires": [ "fire_making" ], "recipes": [ "cooked_meat", "baked_roots" ], "buildings": [ "hearth" ], "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.3, "seconds": 15.0, "waste": 0.2 } },
+    { "id": "smoking", "name": "Smoking", "tier": 2, "complexity": 0.3, "physical": { "materials": [ "meat" ], "stations": [ "campfire" ] }, "requires": [ "cooking" ], "recipes": [ "smoked_meat", "salted_meat" ], "buildings": [ "smoking_rack" ], "discovery": { "experiment": 0.1, "observe": 0.3, "teach": 0.25, "seconds": 25.0, "waste": 0.3 } },
+    { "id": "weaving", "name": "Weaving", "tier": 1, "complexity": 0.2, "requires": [ "basketry" ], "recipes": [ "reed_mat" ], "physical": { "materials": [ "reed" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.2 } },
+    { "id": "wattle_and_daub", "name": "Wattle and daub", "tier": 1, "complexity": 0.3, "requires": [ "basketry" ], "recipes": [ "daub" ], "buildings": [ "hut" ], "physical": { "materials": [ "clay" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.2 } },
+    { "id": "timber_framing", "name": "Timber framing", "tier": 1, "complexity": 0.45, "physical": { "materials": [ "log" ] }, "requires": [ "flint_knapping", "wattle_and_daub", "weaving" ], "recipes": [], "buildings": [ "longhouse", "watchtower" ], "discovery": { "experiment": 0.04, "observe": 0.0, "teach": 0.2, "seconds": 60.0, "waste": 0.0 } },
+    { "id": "palisade_building", "name": "Palisades", "tier": 2, "complexity": 0.25, "physical": { "materials": [ "wood", "flint_axe" ] }, "requires": [ "flint_knapping" ], "recipes": [ "stakes" ], "buildings": [ "palisade" ], "discovery": { "experiment": 0.08, "observe": 0.3, "teach": 0.2, "seconds": 30.0, "waste": 0.1 } },
+    { "id": "food_storage", "name": "Food storage", "tier": 1, "complexity": 0.2, "requires": [ "basketry" ], "recipes": [], "buildings": [ "cache_pit" ], "discovery": { "experiment": 0.1, "observe": 0.0, "teach": 0.25, "seconds": 20.0, "waste": 0.0 } },
+    { "id": "herb_lore", "name": "Herb lore", "tier": 1, "complexity": 0.25, "requires": [ "basketry" ], "recipes": [ "poultice", "splint" ], "buildings": [ "healer_hut" ], "physical": { "materials": [ "herbs" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "ritual", "name": "Rites", "tier": 1, "complexity": 0.3, "requires": [ "fire_making" ], "recipes": [], "buildings": [ "totem" ], "discovery": { "experiment": 0.06, "observe": 0.0, "teach": 0.3, "seconds": 30.0, "waste": 0.0 } },
+    { "id": "pottery", "name": "Pottery", "tier": 2, "complexity": 0.35, "requires": [ "fire_making", "wattle_and_daub" ], "recipes": [ "fired_brick", "oil_lamp" ], "buildings": [ "kiln", "jar_store" ], "physical": { "materials": [ "clay" ] }, "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.15, "seconds": 60.0, "waste": 0.4 } },
+    { "id": "smelting", "name": "Smelting", "tier": 4, "complexity": 0.6, "requires": [ "pottery", "flint_knapping" ], "recipes": [ "copper_ingot" ], "buildings": [ "forge" ], "physical": { "materials": [ "copper_ore" ], "stations": [ "kiln", "forge" ] }, "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.1, "seconds": 60.0, "waste": 0.5 } },
+    { "id": "bone_working", "name": "Bone working", "tier": 1, "complexity": 0.15, "requires": [ "cordage", "stone_tools" ], "recipes": [ "bone_pickaxe" ], "physical": { "materials": [ "bone" ] }, "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
+    { "id": "tillage", "name": "Tillage", "tier": 1, "complexity": 0.35, "requires": [ "basketry" ], "recipes": [ "digging_stick" ], "physical": { "materials": [ "grain_seed" ] }, "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.3 } },
+    { "id": "reaping", "name": "Reaping", "tier": 1, "complexity": 0.25, "requires": [ "tillage" ], "recipes": [ "flint_sickle" ], "physical": { "materials": [ "grain" ] }, "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.3 } },
+    { "id": "granaries", "name": "Granaries", "tier": 2, "complexity": 0.3, "requires": [ "tillage", "food_storage" ], "recipes": [], "buildings": [ "granary" ], "physical": { "materials": [ "grain" ] }, "discovery": { "experiment": 0.1, "observe": 0.0, "teach": 0.25, "seconds": 30.0, "waste": 0.3 } }
   ],
   "knowledge": { "lessonSeconds": 20.0, "observeRadius": 12.0, "growth": 0.5,
     "progression": [ "fire_making", "stone_tools", "cordage", "basketry", "tillage", "food_storage", "wattle_and_daub", "cooking", "hide_working", "spear_making" ],
