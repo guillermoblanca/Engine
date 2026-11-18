@@ -8,6 +8,24 @@ namespace GB
 {
 	glm::vec2 SiteFront(const glm::vec2& pos, const BuildingDef& def, float side) { return pos + glm::vec2(side, 0.5f * def.Footprint.y + 0.8f); }
 
+	namespace
+	{
+		// T269: an offset in the building's own axes (x, z) on the ground, turned `yawDegrees` as GroundRect and Transform.Rotation.y turn it.
+		// At yaw 0 it is the offset itself (the planner's sites, never turned, take the same numbers as before).
+		glm::vec2 Turned(const glm::vec2& local, float yawDegrees)
+		{
+			if (yawDegrees == 0.0f) return local;
+			const float a = glm::radians(yawDegrees), c = std::cos(a), s = std::sin(a);
+			return { local.x * c + local.y * s, -local.x * s + local.y * c };
+		}
+	}
+
+	glm::vec2 SiteFrontTurned(const glm::vec2& pos, const BuildingDef& def, float yawDegrees)
+	{
+		if (yawDegrees == 0.0f) return SiteFront(pos, def);
+		return pos + Turned({ 0.0f, 0.5f * def.Footprint.y + 0.8f }, yawDegrees);
+	}
+
 	std::vector<BuildingNeed> PlanBuildingNeeds(const SettlementFacts& f)
 	{
 		std::vector<BuildingNeed> out;
@@ -130,20 +148,20 @@ namespace GB
 		if (glm::distance(p, s.Fire) < r + 2.5f) return "too near the fire";
 		for (const PlannerSite& o : s.Others) if (glm::distance(p, o.Pos) < r + o.Def->Radius() + 1.5f) return "too near " + o.Def->Name;
 		for (const glm::vec2& o : s.Obstacles) if (glm::distance(p, o) < r + 1.2f) return "something stands there";
-		if (std::string on = GroundFree(BuildingGround(def, p), s.Taken, kFieldGap); !on.empty()) return on;   // T260 (a field has no circle in Others)
-		if (std::string wet = SiteInWater(def, p, s.WaterDepth); !wet.empty()) return wet;
+		if (std::string on = GroundFree(BuildingGround(def, p, s.Yaw), s.Taken, kFieldGap); !on.empty()) return on;   // T260 (a field has no circle in Others); T269 turned
+		if (std::string wet = SiteInWater(def, p, s.WaterDepth, s.Yaw); !wet.empty()) return wet;
 		if (!s.CanStand) return {};
 		if (!s.CanStand(p)) return "nobody can stand there";
 		for (int k = 0; k < 4; ++k)   // the corners too: not half in the lake
 		{
-			const glm::vec2 c = p + glm::vec2((k & 1) ? 0.5f : -0.5f, (k & 2) ? 0.5f : -0.5f) * def.Footprint;
+			const glm::vec2 c = p + Turned(glm::vec2((k & 1) ? 0.5f : -0.5f, (k & 2) ? 0.5f : -0.5f) * def.Footprint, s.Yaw);
 			if (!s.CanStand(c)) return "a corner is on ground nobody can stand on";
 		}
-		if (!s.CanStand(SiteFront(p, def))) return "its front is on ground nobody can stand on";
+		if (!s.CanStand(SiteFrontTurned(p, def, s.Yaw))) return "its front is on ground nobody can stand on";
 		return {};
 	}
 
-	std::string SiteInWater(const BuildingDef& def, const glm::vec2& at, const std::function<float(const glm::vec2&)>& waterDepth)
+	std::string SiteInWater(const BuildingDef& def, const glm::vec2& at, const std::function<float(const glm::vec2&)>& waterDepth, float yawDegrees)
 	{
 		if (def.AllowWater || !waterDepth) return {};
 		// a grid over the whole footprint (edges and corners included), then the spot in front where its builders stand
@@ -153,10 +171,10 @@ namespace GB
 		for (int i = 0; i <= nx; ++i)
 			for (int j = 0; j <= nz; ++j)
 			{
-				const glm::vec2 q = at + glm::vec2((static_cast<float>(i) / static_cast<float>(nx) - 0.5f) * def.Footprint.x, (static_cast<float>(j) / static_cast<float>(nz) - 0.5f) * def.Footprint.y);
+				const glm::vec2 q = at + Turned(glm::vec2((static_cast<float>(i) / static_cast<float>(nx) - 0.5f) * def.Footprint.x, (static_cast<float>(j) / static_cast<float>(nz) - 0.5f) * def.Footprint.y), yawDegrees);
 				deepest = std::max(deepest, waterDepth(q));
 			}
-		const float front = waterDepth(SiteFront(at, def));
+		const float front = waterDepth(SiteFrontTurned(at, def, yawDegrees));
 		if (deepest <= kWetDepth && front <= kWetDepth) return {};
 		char why[96];
 		if (deepest > kWetDepth) std::snprintf(why, sizeof why, "there is water under it (%.2f m deep)", static_cast<double>(deepest));

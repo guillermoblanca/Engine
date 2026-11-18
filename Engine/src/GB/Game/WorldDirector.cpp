@@ -267,6 +267,7 @@ namespace GB
 	{
 		if (!m_To.Clans) return;
 		const double now = Now();
+		if (m_Colony && m_ColonyClan < 0) m_ColonyClan = ColonyClan();   // T269: the player's clan is the first one there is, for good (a split or an end never moves it)
 		UpdateSigns();   // T237 (nothing without signs)
 		UpdateFocus();   // T238/T239 (nothing without a focus or a calling)
 		UpdateVisions();   // T240 (nothing without visions)
@@ -317,7 +318,7 @@ namespace GB
 		c.Cost = cost == Rules.Costs.end() ? 0.0f : cost->second;
 		const Clan* target = clan >= 0 ? ClanIn(m_To.Clans, clan) : nullptr;
 		if (clan >= 0 && !target) { c.Why = "no clan " + std::to_string(clan); return c; }
-		if (Defeated()) { c.Why = "nobody believes in you any more"; return c; }   // §6.2 A: the god only watches
+		if (Defeated()) { c.Why = m_Colony ? "your clan is gone" : "nobody believes in you any more"; return c; }   // §6.2 A: the god only watches (T269: the colony's end)
 		if (hand && clan >= 0 && FaithOf(clan) < Rules.MinFaith)
 		{
 			c.Why = NameOf(*target) + " does not believe enough: faith " + Num(FaithOf(clan), 2) + " under " + Num(Rules.MinFaith, 2);
@@ -430,7 +431,14 @@ namespace GB
 			}
 		const DirectorBelievers b = Believers();   // §6.2 A
 		s += "\nbelievers: " + std::to_string(b.Clans) + " clans, " + std::to_string(b.People) + " people";
-		if (Defeated()) s += "; defeat on day " + Num(m_DefeatAt / static_cast<double>(Rules.DaySeconds), 2) + ": nobody believes in you any more";
+		if (Defeated()) s += "; defeat on day " + Num(m_DefeatAt / static_cast<double>(Rules.DaySeconds), 2) + ": " + (m_Colony ? "your clan is gone" : "nobody believes in you any more");
+		if (m_Colony)   // T269 (a line more: the ones above stay)
+		{
+			const Clan* mine = ClanIn(m_To.Clans, ColonyClan());
+			int alive = 0;
+			if (mine) for (const TribeMember& m : mine->Folk->Members()) if (!m.Dead) ++alive;
+			s += "\ncolony: the player's clan " + (mine ? std::to_string(mine->Id) + " " + NameOf(*mine) + ", " + std::to_string(alive) + " living" : std::string("gone")) + "; no influence, no votes";
+		}
 		return s;
 	}
 
@@ -495,6 +503,9 @@ namespace GB
 			Write("faith", NameOf(*c), 0.0f, "faith set to " + Num(v, 2), c->Id);
 			return { true, "director faith " + NameOf(*c) + " " + Num(v, 2) };
 		}
+		if (sub == "colony" || sub == "build" || sub == "research" || sub == "role") return ColonyCommand(a);   // T269 (DirectorSign.cpp)
+		if (m_Colony && (sub == "omen" || sub == "sign" || sub == "focus" || sub == "calling" || sub == "vision"))   // T269: the god's hand is not the colony's
+			return { false, "director " + sub + ": not in the colony game (director build, research and role instead; director colony off for the god's game)" };
 		if (sub == "omen") return Omen(a);
 		if (sub == "sign" || sub == "signs") return SignCommand(a);
 		if (sub == "focus") return FocusCommand(a);
@@ -513,7 +524,7 @@ namespace GB
 			}
 			return { true, s };
 		}
-		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | focus [preview] <clan> <group>|off [soft|strong] [days] | calling [preview] <person> <role> | vision [preview] <clan> <tech>|none | visions | believers | defeat [watch] | stage [win|next] | log" };
+		return { false, "usage: director status | sandbox on|off | faith <clan> <0..1> | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | colony [on [clan]|off] | build [preview] <clan> <building> <x> <z>|camp <dx> <dz>|near [yaw] | research <clan> <tech>|none | role <person> <role>|auto | focus [preview] <clan> <group>|off [soft|strong] [days] | calling [preview] <person> <role> | vision [preview] <clan> <tech>|none | visions | believers | defeat [watch] | stage [win|next] | log" };
 	}
 
 	// ------------------------------------------------------------------ saving
@@ -555,6 +566,7 @@ namespace GB
 		m_StageWonAt = m_StageLook = m_LastClash = -1.0;
 		m_StageEvent = 0;
 		m_SignsBuilt = 0;
+		m_ColonyClan = -1;   // T269: the colony stays the host's; its clan is the first of the new world
 	}
 
 	std::string WorldDirector::ToJson() const
@@ -591,6 +603,7 @@ namespace GB
 			j["signs"] = signs;
 			j["nextSign"] = m_NextSign;
 		}
+		if (m_Colony) j["colony"] = { { "clan", m_ColonyClan } };   // T269 (only in the colony: a god's save stays as it was)
 		return j.dump();
 	}
 
@@ -641,6 +654,9 @@ namespace GB
 					d.m_Signs.push_back(s);
 				}
 			d.m_NextSign = j.value("nextSign", 1);
+			// T269: a colony save is the colony again with its clan; a save without it keeps the host's mode, its clan the first one again
+			d.m_Colony = j.contains("colony") || m_Colony;
+			d.m_ColonyClan = j.contains("colony") ? j["colony"].value("clan", -1) : -1;
 			if (const auto it = j.find("focus"); it != j.end() && !d.FocusFromJson(it->dump())) return false;   // T238/T239
 			if (const auto it = j.find("visions"); it != j.end() && !d.VisionsFromJson(it->dump())) return false;   // T240
 			if (const auto it = j.find("faith"); it != j.end() && !d.FaithFromJson(it->dump())) return false;      // D43, T241, §6.2 (an old save: each clan starts again at the start)

@@ -260,7 +260,24 @@ namespace GB::Editor
 				}
 				// T242: for the god (the observer): [Vision] sends a dream of it to the clan (`director vision`), with its cost, why not, and the
 				// warning of the material or of the inventor the clan lacks; the vision the clan holds says who dreamt it, with [Let it go]
-				if (!playing && !have)
+				// T269 (MODO_COLONIA C-6): in the colony the player chooses the project, with no vote and no cost (`director research`)
+				const Clan* mine = !playing && m_Director.Colony() ? m_Clans.Find(HandClan()) : nullptr;
+				if (mine && mine->Folk == &t && !have)
+				{
+					const std::string id = std::to_string(mine->Id);
+					if (pick == mine->Folk->ResearchAim())
+					{
+						if (ImGui::Button((L.Text("Stop seeking it") + "###unaim").c_str())) run("director research " + id + " none");
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The clan chooses what to seek again").c_str());
+					}
+					else
+					{
+						const GameTheme::PrimaryScope primary;
+						if (ImGui::Button((L.Text("Seek this") + "###aim").c_str())) run("director research " + id + " " + pick);
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The clan works out what it needs first and then this; no vote, no cost").c_str());
+					}
+				}
+				else if (!playing && !have && !m_Director.Colony())
 				{
 					const Clan* clan = m_Clans.Find(m_ActiveClan);
 					const std::string id = std::to_string(m_ActiveClan);

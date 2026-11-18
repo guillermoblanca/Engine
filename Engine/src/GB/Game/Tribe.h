@@ -496,7 +496,9 @@ namespace GB
 		// Writes an event of this clan to the history: `who` did it, `whom` suffered it; the members near `where` saw it (TribeHistory.cpp).
 		int Happen(const std::string& kind, const std::string& who, const std::string& whom, const std::string& text, const glm::vec2* where = nullptr);   // (its id; 0: no history)
 		// Starts a site of a building at a place (the planner does this by itself); "" or why not. The name is "<Name> <n>".
-		std::string StartSite(const std::string& building, const glm::vec2& at, std::string* name = nullptr);
+		std::string StartSite(const std::string& building, const glm::vec2& at, std::string* name = nullptr, float yawDegrees = 0.0f);   // (T269: turned, the player's)
+		// T276: the player calls off an open site of the clan: it comes down and what was brought for it goes back to the store (`returned`: what came back; `left`: what the store could not take); "" or why not
+		std::string CancelSite(const std::string& site, std::map<std::string, int>* returned = nullptr, std::map<std::string, int>* left = nullptr);
 		// A building that already stands: its site started at a place, turned `yawDegrees`, with every phase's materials delivered and its work done
 		// (a clan founded with its village, not one that has yet to build it). No technology is asked for: the caller decides what the village has.
 		std::string RaiseBuilding(const std::string& building, const glm::vec2& at, float yawDegrees = 0.0f, std::string* name = nullptr);

@@ -316,7 +316,8 @@ namespace GB
 					{
 						s.Status = "built";
 						++m_SignsBuilt;   // D48: a sign of the god stands (kept apart: the closed signs are trimmed to Keep)
-						Fulfilled(s.Clan, Rules.Sign.FulfilledGain, "the sign #" + std::to_string(s.Id) + " stands: " + s.Site);
+						if (m_Colony) Write("built", name, 0.0f, "the plan #" + std::to_string(s.Id) + " stands: " + s.Site, s.Clan);   // T269: no faith, no influence
+						else Fulfilled(s.Clan, Rules.Sign.FulfilledGain, "the sign #" + std::to_string(s.Id) + " stands: " + s.Site);
 					}
 					break;
 				}
@@ -389,5 +390,188 @@ namespace GB
 		return { true, "sign preview " + building + " at " + where + ": can, cost " + Num(p.Cost) + (p.SiteOnly ? " (only the place)" : "") + ", messenger "
 			+ (p.Messenger.empty() ? std::string("nobody") : p.Messenger) + ", vote " + std::to_string(p.Yes) + " of " + std::to_string(p.Voters) + " (" + p.Outcome + (p.Against.empty() || p.Outcome == "obey" ? std::string() : ": " + p.Against) + ")"
 			+ (p.Warning.empty() ? std::string() : "; " + p.Warning) };
+	}
+
+	// ------------------------------------------------------------------ T269: the colony (MODO_COLONIA.md C-1, C-2, §4.4, §6)
+	int WorldDirector::ColonyClan() const
+	{
+		if (!m_To.Clans) return -1;
+		if (m_ColonyClan >= 0) return ClanOf(m_To.Clans, m_ColonyClan) ? m_ColonyClan : -1;
+		for (const auto& c : m_To.Clans->All()) if (c->Folk) return c->Id;
+		return -1;
+	}
+
+	bool WorldDirector::TradeFixed(const std::string& person) const
+	{
+		for (const DirectorCalling& c : m_Callings) if (c.Fixed && c.Person == person) return true;
+		return false;
+	}
+
+	DirectorSignPreview WorldDirector::PreviewBuild(int clan, const std::string& building, float x, float z, float yaw) const
+	{
+		DirectorSignPreview p;
+		p.X = x;
+		p.Z = z;
+		const Clan* c = ClanOf(m_To.Clans, clan);
+		if (!c) { p.Why = "no clan " + std::to_string(clan); return p; }
+		if (m_Colony && clan != ColonyClan()) { p.Why = "that clan is not yours"; return p; }
+		const Tribe& t = *c->Folk;
+		const std::string name = NameOf(*c);
+		const auto* defs = t.Buildings();
+		if (!defs || !defs->count(building)) { p.Why = "no building '" + building + "'"; return p; }
+		const BuildingDef& d = defs->at(building);
+		if (!t.CanBuild(building)) { p.Why = name + " does not know how to raise a " + d.Name + " yet"; return p; }
+		// the land: the camp's own ground, or a region the clan holds (as the sign's)
+		const glm::vec2 at(x, z);
+		bool inside = glm::distance(at, t.Config.Economy.Camp) <= Rules.Sign.Reach;
+		if (!inside && m_To.Clans->Regions())
+			if (const int region = m_To.Clans->Regions()->RegionAt(at); region >= 0) inside = m_To.Clans->OwnerOf(region) == clan;
+		if (!inside) { p.Why = "outside the land of " + name + " (" + Num(glm::distance(at, t.Config.Economy.Camp), 0) + " m from its camp)"; return p; }
+		SitePlacement where = t.SitePlacementFor(d);
+		where.Yaw = yaw;   // the footprint as it will stand (T260's ground, turned)
+		if (const std::string fits = SiteFits(where, at); !fits.empty()) { p.Why = "a " + d.Name + " does not fit there: " + fits; return p; }
+		std::string lacks;
+		MissingShare(t, d, &lacks);
+		if (!lacks.empty()) p.Warning = "the store lacks " + lacks + ": the site will wait for it";
+		p.Ok = true;
+		return p;
+	}
+
+	DirectorReply WorldDirector::PlaceBuild(int clan, const std::string& building, float x, float z, float yaw)
+	{
+		const DirectorSignPreview p = PreviewBuild(clan, building, x, z, yaw);
+		if (!p.Ok) return { false, "cannot: " + p.Why };
+		const Clan* c = ClanOf(m_To.Clans, clan);
+		Tribe& t = *c->Folk;
+		const std::string name = NameOf(*c);
+		std::string site;
+		if (const std::string error = t.StartSite(building, { x, z }, &site, yaw); !error.empty() || site.empty()) return { false, "cannot: " + error };
+		DirectorSign s;   // (kept as a sign already accepted: the book follows it to "built", and signs_built counts it)
+		s.Id = m_NextSign++;
+		s.Clan = clan;
+		s.Building = building;
+		s.X = x;
+		s.Z = z;
+		s.Yaw = yaw;
+		s.Posted = s.SeenAt = s.VotedAt = Now();
+		s.Status = "accepted";
+		s.Site = site;
+		s.Why = "the player's plan";
+		m_Signs.push_back(s);
+		const std::string where = Num(x, 1) + " " + Num(z, 1);
+		Write("build", name, 0.0f, "a plan of " + t.Buildings()->at(building).Name + " at " + where + ", turned " + Num(yaw, 0) + ": " + site, clan);
+		return { true, "build " + std::to_string(s.Id) + " for " + name + ": " + building + " at " + where + " yaw " + Num(yaw, 1) + "; site " + site + (p.Warning.empty() ? std::string() : "; " + p.Warning) };
+	}
+
+	DirectorReply WorldDirector::SetResearch(int clan, const std::string& tech)
+	{
+		Clan* c = m_To.Clans ? m_To.Clans->Find(clan) : nullptr;
+		if (!c || !c->Folk) return { false, "director research: no clan " + std::to_string(clan) };
+		if (m_Colony && clan != ColonyClan()) return { false, "director research: that clan is not yours" };
+		Tribe& t = *c->Folk;
+		const std::string name = NameOf(*c);
+		if (tech.empty() || tech == "none")
+		{
+			if (VisionOf(clan)) EndVision(clan, "replaced");
+			t.SetAim("", "");
+			Write("research", name, 0.0f, "no project: the clan chooses what to seek", clan);
+			return { true, "director research: " + name + " choose what to seek again" };
+		}
+		const DirectorVisionPreview p = PreviewVision(clan, tech);   // (the way and what the world must give first; its cost is not asked)
+		if (!p.Ok && p.Way.empty()) return { false, "director research: cannot: " + p.Why };
+		if (VisionOf(clan)) EndVision(clan, "replaced");
+		t.SetAim(tech, "the player");
+		Write("research", name, 0.0f, "the project: " + p.Name, clan);
+		std::string text = "director research: " + name + " now seek " + p.Name + " (the way:";
+		for (const std::string& w : p.Way) text += " " + w;
+		text += ")";
+		if (!p.Missing.empty())
+		{
+			text += "; they lack";
+			for (const std::string& m : p.Missing) text += " " + m;
+			text += ": they will not learn it until they find it";
+		}
+		return { true, text };
+	}
+
+	// director colony [on [clan]|off] | build [preview] <clan> <building> <x> <z>|camp <dx> <dz>|near [yaw] | research <clan> <tech>|none | role <person> <role>|auto
+	DirectorReply WorldDirector::ColonyCommand(const std::vector<std::string>& a)
+	{
+		auto number = [](const std::string& w, float& out) { char* end = nullptr; out = std::strtof(w.c_str(), &end); return end != w.c_str() && *end == '\0' && std::isfinite(out); };
+		if (a[0] == "colony")
+		{
+			if (a.size() > 1 && (a[1] == "on" || a[1] == "off"))
+			{
+				int clan = -1;
+				if (a[1] == "on" && a.size() > 2)
+				{
+					const Clan* c = m_To.Clans ? m_To.Clans->Find(a[2]) : nullptr;
+					if (!c || !c->Folk) return { false, "director colony: no clan '" + a[2] + "'" };
+					clan = c->Id;
+				}
+				SetColony(a[1] == "on", clan);
+				if (m_Colony && m_ColonyClan < 0) m_ColonyClan = ColonyClan();
+			}
+			if (!m_Colony) return { true, "director colony: off (the god's game: faith, influence and votes)" };
+			const int id = ColonyClan();
+			const Clan* c = ClanOf(m_To.Clans, id);
+			int alive = 0;
+			if (c) for (const TribeMember& m : c->Folk->Members()) if (!m.Dead) ++alive;
+			return { true, "director colony: on, the player's clan " + (c ? std::to_string(id) + " " + NameOf(*c) + ", " + std::to_string(alive) + " living" : std::string("none")) + "; no influence, no votes" };
+		}
+		if (a[0] == "research")
+		{
+			if (a.size() < 3 || !m_To.Clans) return { false, "usage: director research <clan> <tech>|none" };
+			const Clan* c = m_To.Clans->Find(a[1]);
+			if (!c) return { false, "director research: no clan '" + a[1] + "'" };
+			return SetResearch(c->Id, a[2]);
+		}
+		if (a[0] == "role")
+		{
+			if (a.size() < 3) return { false, "usage: director role <person> <role>|auto" };
+			return ChangeTrade(a[1], a[2]);
+		}
+		// build
+		const char* usage = "usage: director build [preview] <clan> <building> <x> <z> [yaw] | build [preview] <clan> <building> camp <dx> <dz> [yaw] | build [preview] <clan> <building> near [yaw]";
+		size_t i = 1;
+		const bool preview = a.size() > 1 && a[1] == "preview";
+		if (preview) ++i;
+		if (a.size() < i + 3 || !m_To.Clans) return { false, usage };
+		const Clan* c = m_To.Clans->Find(a[i]);
+		if (!c || !c->Folk) return { false, "cannot: no clan '" + a[i] + "'" };
+		const std::string building = a[i + 1];
+		float x = 0.0f, z = 0.0f, yaw = 0.0f;
+		if (a[i + 2] == "near")   // the first spot round the camp where it fits (as the sign's): one line of orders on any seed
+		{
+			if (a.size() > i + 3 && !number(a[i + 3], yaw)) return { false, usage };
+			const glm::vec2 home = c->Folk->Config.Economy.Camp;
+			std::string last = "no spot round the camp";
+			bool found = false;
+			for (float r = 10.0f; r <= 26.0f && r <= Rules.Sign.Reach && !found; r += 4.0f)
+				for (int k = 0; k < 12 && !found; ++k)
+				{
+					const float t = static_cast<float>(k) * 6.2831853f / 12.0f;
+					x = home.x + r * std::cos(t);
+					z = home.y + r * std::sin(t);
+					const DirectorSignPreview p = PreviewBuild(c->Id, building, x, z, yaw);
+					if (p.Ok) found = true;
+					else if (p.Why.find("does not fit") != std::string::npos || p.Why.find("outside the land") != std::string::npos) last = p.Why;
+					else return { false, "cannot: " + p.Why };
+				}
+			if (!found) return { false, "cannot: " + last };
+		}
+		else
+		{
+			const bool camp = a[i + 2] == "camp";
+			if (camp && a.size() < i + 5) return { false, usage };
+			const size_t n = camp ? i + 3 : i + 2;
+			if (a.size() < n + 2 || !number(a[n], x) || !number(a[n + 1], z) || (a.size() > n + 2 && !number(a[n + 2], yaw))) return { false, usage };
+			if (camp) CampOffset(c->Id, x, z, x, z);
+		}
+		if (!preview) return PlaceBuild(c->Id, building, x, z, yaw);
+		const DirectorSignPreview p = PreviewBuild(c->Id, building, x, z, yaw);
+		const std::string where = Num(x, 1) + " " + Num(z, 1) + " yaw " + Num(yaw, 0);
+		if (!p.Ok) return { true, "build preview " + building + " at " + where + ": cannot: " + p.Why };
+		return { true, "build preview " + building + " at " + where + ": can" + (p.Warning.empty() ? std::string() : "; " + p.Warning) };
 	}
 }

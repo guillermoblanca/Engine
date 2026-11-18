@@ -67,6 +67,8 @@ namespace GB
 
 	// Where a member stands to work a site: in front of it (the "work" point of BuildSite), a little to the side for each builder.
 	glm::vec2 SiteFront(const glm::vec2& pos, const BuildingDef& def, float side = 0.0f);
+	// T269: the same point for a building turned `yawDegrees` (as Transform.Rotation.y; 0 is SiteFront exactly).
+	glm::vec2 SiteFrontTurned(const glm::vec2& pos, const BuildingDef& def, float yawDegrees);
 
 	// What a spot for a new site has to clear.
 	struct SitePlacement
@@ -86,6 +88,7 @@ namespace GB
 		// (as always); set: every spot of `Rings` rings x 24 angles is weighed and the best that fits wins (ties: the first).
 		std::function<float(const glm::vec2&)> Prefer;
 		int Rings = 5;
+		float Yaw = 0.0f;                         // T269: the building turned this many degrees (the player's; the planner's are never turned)
 	};
 
 	// Whether the site fits at this spot (off the camp and the fire, off the other sites and the obstacles, every corner and its front on ground
@@ -96,7 +99,7 @@ namespace GB
 	// kWetDepth: "" when dry (or the def allows water, or there is no depth to ask), else why ("the river runs under it, 0.4 m deep").
 	inline constexpr float kWetDepth = 0.05f;
 	inline constexpr float kWetStep = 0.75f;
-	std::string SiteInWater(const BuildingDef& def, const glm::vec2& at, const std::function<float(const glm::vec2&)>& waterDepth);
+	std::string SiteInWater(const BuildingDef& def, const glm::vec2& at, const std::function<float(const glm::vec2&)>& waterDepth, float yawDegrees = 0.0f);   // (T269: turned)
 
 	// Rings round the camp, each building at its own angle: the first spot that fits, or nothing. The same scene gives the same place.
 	std::optional<glm::vec2> PlaceSite(const SitePlacement& placement);

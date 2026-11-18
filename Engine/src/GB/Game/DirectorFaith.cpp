@@ -293,6 +293,15 @@ namespace GB
 	{
 		if (!m_Stakes || Defeated() || !m_Looked || !m_To.Clans) return;
 		const double now = Now();
+		if (m_Colony)   // T269 (C-4): the colony is lost when the player's clan has nobody alive, or is no more; faith has nothing to do with it
+		{
+			if (m_ColonyClan < 0) return;   // (no clan was ever the player's yet: a world still empty)
+			const Clan* mine = m_To.Clans->Find(m_ColonyClan);
+			if (mine && mine->Folk && Living(*mine->Folk) > 0) return;
+			m_DefeatAt = now;
+			m_Book.push_back({ now, "defeat", "world", "your clan is gone: nobody of it is alive", 0.0f });
+			return;
+		}
 		if (now < static_cast<double>(Rules.Defeat.GraceDays * Rules.DaySeconds)) return;
 		if (Believers().Clans > 0) return;
 		m_DefeatAt = now;
@@ -306,14 +315,14 @@ namespace GB
 		if (a[0] == "believers") return { true, believers };
 		const std::string day = Num(m_DefeatAt / static_cast<double>(Rules.DaySeconds), 2);
 		if (a.size() > 1 && a[1] == "status")
-			return { true, "director defeat: " + (Defeated() ? "on day " + day + ": nobody believes in you any more" : std::string("none")) + (m_Stakes ? "" : " (no stakes: this game cannot be lost)") + "; " + believers };
+			return { true, "director defeat: " + (Defeated() ? "on day " + day + ": " + (m_Colony ? "your clan is gone" : "nobody believes in you any more") : std::string("none")) + (m_Stakes ? "" : " (no stakes: this game cannot be lost)") + "; " + believers };
 		if (a.size() > 1 && a[1] == "watch")   // [Watch the world]: the god goes on looking, without the hand
 		{
 			if (!Defeated()) return { false, "director defeat watch: the game is not lost" };
 			m_DefeatSeen = true;
 			return { true, "director defeat: the god watches the world, without the hand" };
 		}
-		if (Defeated()) return { true, "director defeat: on day " + day + ": nobody believes in you any more" };
+		if (Defeated()) return { true, "director defeat: on day " + day + ": " + (m_Colony ? "your clan is gone" : "nobody believes in you any more") };
 		if (!m_Sandbox) return { false, "director defeat: only in the sandbox (director sandbox on); status: " + believers };
 		m_DefeatAt = Now();
 		m_Book.push_back({ m_DefeatAt, "defeat", "world", "nobody believes in you any more (the sandbox)", 0.0f });

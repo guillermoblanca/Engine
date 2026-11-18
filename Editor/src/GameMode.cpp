@@ -696,6 +696,51 @@ namespace GB::Editor
 	}
 
 	// ------------------------------------------------------------------ game <action>
+	bool EditorApp::SiteInfoOf(const std::string& site, SiteInfo& out) const
+	{
+		const Clan* c = m_Clans.Find(HandClan());
+		if (!c || !c->Folk || !c->Folk->Buildings()) return false;
+		const AbilitySystemComponent* asc = m_Gameplay.Find(site);
+		const BuildingDef* def = asc ? BuildingOf(*asc, *c->Folk->Buildings()) : nullptr;
+		if (!def) return false;
+		out = SiteInfo{};
+		out.Clan = c->Folk;
+		out.Def = def;
+		out.State = ReadSite(*asc, *def);
+		// all that is in it: the needs of the phases already done and what has come for this one (what `game site cancel` gives back)
+		for (int i = 0; i < out.State.Phase && i < static_cast<int>(def->Phases.size()); ++i)
+			for (const auto& [item, n] : def->Phases[static_cast<size_t>(i)].Needs) out.Brought[item] += n;
+		for (const auto& at : asc->Attributes().All())
+			if (at.Name.rfind("Delivered.", 0) == 0)
+				if (const int n = static_cast<int>(std::lround(at.Base)); n > 0) out.Brought[at.Name.substr(10)] += n;
+		bool mine = false;
+		for (const Tribe::SettlementSite& s : c->Folk->SettlementSites())
+		{
+			if (s.Name == site) mine = true;
+			if (s.State.Done) continue;
+			++out.Queued;
+			if (s.Name == site) out.Queue = out.Queued;
+		}
+		if (!mine) return false;
+		for (const TribeMember& m : c->Folk->Members())
+			if (!m.Dead && (m.Job == "build" || m.Job == "deliver") && m.Detail == site) out.Workers.push_back(m.Name + (m.Job == "build" ? " (builds)" : " (brings)"));
+		return true;
+	}
+
+	std::string EditorApp::SiteText(const std::string& site) const
+	{
+		SiteInfo i;
+		if (!SiteInfoOf(site, i)) return "no site of your clan called '" + site + "'";
+		const SiteState& s = i.State;
+		if (s.Done) return "site " + site + " (" + i.Def->Id + "): it stands";
+		auto list = [](const std::map<std::string, int>& m) { std::string r; for (const auto& [k, n] : m) r += (r.empty() ? "" : ", ") + std::to_string(n) + " " + k; return r.empty() ? std::string("nothing") : r; };
+		std::string workers;
+		for (const std::string& w : i.Workers) workers += (workers.empty() ? "" : ", ") + w;
+		return "site " + site + " (" + i.Def->Id + "): " + std::to_string(static_cast<int>(s.Progress * 100.0f)) + " % done, phase " + std::to_string(s.Phase + 1) + " of " + std::to_string(s.Phases)
+			+ "; brought " + list(i.Brought) + "; lacks " + list(s.Missing) + "; working on it: " + (workers.empty() ? std::string("nobody") : workers)
+			+ "; queue " + std::to_string(i.Queue) + " of " + std::to_string(i.Queued);
+	}
+
 	CommandResult EditorApp::GameCommand(const std::vector<std::string>& a)
 	{
 		const std::string sub = a.empty() ? "status" : a[0];
@@ -734,6 +779,31 @@ namespace GB::Editor
 			if (!error.empty()) return { false, "graphics " + named(level) + " applied but not saved: " + error };
 			m_SavedQuality = level;
 			return { true, "graphics " + named(level) + ", saved in " + m_SettingsPath };
+		}
+		// T276 (MODO_COLONIA §4.4): a site of the player's clan (also on the colony's screen, with no character): `game site <name>` its sheet in a line,
+		// `game site cancel <name>` calls it off (what was brought goes back to the store). Names with _ for their spaces, or in several words.
+		if (sub == "site")
+		{
+			const bool cancel = a.size() > 1 && a[1] == "cancel";
+			std::string name;
+			for (size_t i = cancel ? 2 : 1; i < a.size(); ++i) name += (name.empty() ? "" : " ") + a[i];
+			name = Spaced(name);
+			if (name.empty()) return { false, "usage: game site <name> | game site cancel <name>" };
+			if (!cancel) { const std::string s = SiteText(name); return { s.rfind("no site", 0) != 0, s }; }
+			const Clan* c = m_Clans.Find(HandClan());
+			if (!c || !c->Folk) return { false, "no clan of yours" };
+			std::map<std::string, int> back, left;
+			if (const std::string error = c->Folk->CancelSite(name, &back, &left); !error.empty()) return { false, "cannot: " + error };
+			if (m_FreeSelected == name) m_FreeSelected.clear();
+			if (m_Game.Selected == name) m_Game.Selected.clear();
+			std::string s = "site " + name + " called off";
+			std::string list;
+			for (const auto& [item, n] : back) list += (list.empty() ? "" : ", ") + std::to_string(n) + " " + item;
+			s += list.empty() ? std::string("; nothing had been brought") : "; back to the store: " + list;
+			list.clear();
+			for (const auto& [item, n] : left) list += (list.empty() ? "" : ", ") + std::to_string(n) + " " + item;
+			if (!list.empty()) s += "; the store had no room for " + list;
+			return { true, s };
 		}
 		if (!m_Game.Active) return { false, "not playing: play [temperate|alpine|desert] [seed] [members] [clans]" };
 		const std::string& me = m_Game.Player;

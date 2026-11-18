@@ -171,6 +171,7 @@ namespace GB::Editor
 		m_Clans.Add("", &m_Tribe);   // H13: the first tribe is clan 0 (the others come with `clan new`)
 		m_Director.Clear();   // T195: over the clan world and the fixed tick's clock (as SimRun's over its own)
 		m_Director.SetTargets({ &m_Clans, [this] { return static_cast<double>(m_SimTick) / 60.0; } });
+		m_Director.SetColony(true);   // T269 (MODO_COLONIA C-1, C-2): the player's game is the colony: its first clan, no faith, no influence, no votes (`director colony off`: the god's)
 		m_Clans.FoundClan = [this](ClanId parent, const glm::vec2& camp, const std::string& name) { return FoundClan(parent, camp, name); };   // N7: a split founds a clan
 		m_Tribe.SetBuildings(&m_Buildings.Defs);         // and it builds what the data says (H8)
 		m_Tribe.SetGround([this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });

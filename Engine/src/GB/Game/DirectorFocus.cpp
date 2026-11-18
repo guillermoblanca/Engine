@@ -288,6 +288,54 @@ namespace GB
 			+ " with the calling against " + Num(p.Own, 0) + " as " + p.Current + "; cost " + Num(paid.Cost) + ", influence " + Num(m_Influence) + ")" };
 	}
 
+	// T269 (MODO_COLONIA §6): "change trade", the colony's calling: at once, with no cost and no disposition, and fixed (an endless calling holds
+	// it against the review of the trades, TribeBias HeldByCalling) until the player sets it free (`auto`). The gates kept are the ones that make
+	// it no trade at all: a dead or unknown person, a child, a player's character, an unknown or fixed trade. In the colony, only the player's clan.
+	DirectorReply WorldDirector::ChangeTrade(const std::string& person, const std::string& role)
+	{
+		int clan = -1;
+		if (!FindPerson(person, clan)) return { false, "director role: nobody alive called '" + person + "'" };
+		if (m_Colony && clan != ColonyClan()) return { false, "director role: " + person + " is not of your clan" };
+		Clan* c = ClanAt(m_To.Clans, clan);
+		Tribe& t = *c->Folk;
+		const std::string name = person.find(':') == std::string::npos ? person : person.substr(person.find(':') + 1);
+		TribeMember* m = nullptr;
+		for (TribeMember& o : t.Members()) if (!o.Dead && o.Name == name) m = &o;
+		if (!m) return { false, "director role: nobody alive called '" + person + "'" };
+		const bool release = role == "auto" || role == "free";
+		const auto held = std::find_if(m_Callings.begin(), m_Callings.end(), [&](const DirectorCalling& k) { return k.Person == m->Name; });
+		if (release)
+		{
+			if (held == m_Callings.end() || !held->Fixed) return { false, "director role: " + m->Name + " has no trade fixed by the player" };
+			m_Callings.erase(held);
+			PushBias();
+			Write("role", NameOf(*c), 0.0f, m->Name + " is free to change trade again", clan);
+			return { true, "director role: " + m->Name + " keeps the trade of " + m->Role + " but the clan may change it again" };
+		}
+		const auto r = t.Config.Roles.find(role);
+		if (r == t.Config.Roles.end() || r->second.Fixed || r->second.Skill.empty()) return { false, "director role: no trade '" + role + "'" };
+		if (m->Player) return { false, "director role: " + m->Name + " is a player: it chooses its own trade" };
+		if (t.People().IsChild(t.Config.Society, m->Name)) return { false, "director role: " + m->Name + " is a child" };
+		const std::string was = m->Role;
+		if (was != role)
+		{
+			m->Role = role;   // (the review's own change: Tribe::ReviewRoles sets the role and says it)
+			t.Note(*m, "takes up the trade of " + role + " (the player's choice)");
+		}
+		if (held != m_Callings.end()) m_Callings.erase(held);
+		DirectorCalling k;
+		k.Clan = clan;
+		k.Order = m_NextCalling++;
+		k.Person = m->Name;
+		k.Role = role;
+		k.Since = k.Until = Now();
+		k.Fixed = true;
+		m_Callings.push_back(k);
+		PushBias();
+		Write("role", NameOf(*c), 0.0f, m->Name + (was == role ? " keeps the trade of " : " takes up the trade of ") + role + ", fixed", clan);
+		return { true, "director role: " + m->Name + (was == role ? " keeps the trade of " + role : " was a " + was + " and is a " + role + " now") + ", fixed (director role " + m->Name + " auto lets the clan change it)" };
+	}
+
 	// ------------------------------------------------------------------ every update
 	void WorldDirector::UpdateFocus()
 	{
@@ -323,7 +371,7 @@ namespace GB
 		{
 			const DirectorCalling& c = m_Callings[i];
 			int clan = -1;
-			if (now >= c.Until || !FindPerson(c.Person, clan) || clan != c.Clan) { m_Callings.erase(m_Callings.begin() + static_cast<long>(i)); changed = true; continue; }
+			if ((!c.Fixed && now >= c.Until) || !FindPerson(c.Person, clan) || clan != c.Clan) { m_Callings.erase(m_Callings.begin() + static_cast<long>(i)); changed = true; continue; }
 			++i;
 		}
 		if (changed) PushBias();
@@ -418,7 +466,7 @@ namespace GB
 		{
 			std::string s = "director calling: " + std::to_string(m_Callings.size()) + " running";
 			for (const DirectorCalling& c : m_Callings)
-				s += "\n" + c.Person + " -> " + c.Role + ", " + Num(std::max(0.0, c.Until - Now()) / static_cast<double>(Rules.DaySeconds), 2) + " days left";
+				s += "\n" + c.Person + " -> " + c.Role + ", " + (c.Fixed ? std::string("fixed by the player") : Num(std::max(0.0, c.Until - Now()) / static_cast<double>(Rules.DaySeconds), 2) + " days left");
 			return { true, s };
 		}
 		const bool preview = a[1] == "preview";
@@ -459,7 +507,10 @@ namespace GB
 		for (const DirectorFocus& f : m_Focus)
 			focus.push_back({ { "clan", f.Clan }, { "group", f.Group }, { "strong", f.Strong }, { "since", f.Since }, { "until", f.Until }, { "paidDay", f.PaidDay }, { "paused", f.Paused } });
 		for (const DirectorCalling& c : m_Callings)
+		{
 			callings.push_back({ { "clan", c.Clan }, { "order", c.Order }, { "person", c.Person }, { "role", c.Role }, { "since", c.Since }, { "until", c.Until } });
+			if (c.Fixed) callings.back()["fixed"] = true;   // T269 (only then: a god's calling saves as before)
+		}
 		j["clans"] = focus;
 		j["callings"] = callings;
 		j["nextCalling"] = m_NextCalling;
@@ -495,6 +546,7 @@ namespace GB
 				c.Role = e.value("role", std::string());
 				c.Since = e.value("since", 0.0);
 				c.Until = e.value("until", 0.0);
+				c.Fixed = e.value("fixed", false);   // T269
 				m_Callings.push_back(c);
 			}
 		m_NextCalling = j.value("nextCalling", 1);
