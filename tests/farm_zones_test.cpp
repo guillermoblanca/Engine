@@ -365,6 +365,7 @@ int GBTest_farm_zones(int, char**)
 		Clan b(6, true);
 		b.Tribe_.SetWorldClock(0.0);
 		b.Tribe_.Store().Add(b.Items, "grain_seed", 40);
+		b.Tribe_.Config.Econ.Farming.PlotsPerMember = 0;   // the published data has the zone rule (A1); this checks the old one
 		const FarmRules& old = b.Tribe_.Config.Econ.Farming;
 		Check(old.PlotsPerMember == 0 && b.Tribe_.Zones().FieldsWanted(b.Tribe_) == old.FieldsFor(6), "without plotsPerMember the old rule");
 		b.Clock(10.0);

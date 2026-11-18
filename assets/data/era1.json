@@ -549,10 +549,12 @@
       "plotsPerTrip": 3,
       "priority": 1.2,
       "fields": 24,
-      "membersPerField": 4
+      "membersPerField": 4,
+      "plotsPerMember": 5,
+      "zonePlots": [ 20, 40 ]
     },
     "crops": [
-      { "id": "grain", "seed": "grain_seed", "yield": { "grain": 10, "grain_seed": 2 }, "stageSeconds": 4200, "sow": [ "spring", "summer", "autumn" ] }
+      { "id": "grain", "seed": "grain_seed", "yield": { "grain": 10, "grain_seed": 2 }, "stageSeconds": 4200, "sow": [ "spring", "summer", "autumn" ], "seasons": { "spring": 1.2, "summer": 1.0, "autumn": 0.6 } }
     ],
     "logistics": {
       "stores": {
