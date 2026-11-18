@@ -478,6 +478,8 @@ namespace GB
 		m_Members.clear();
 		m_Orders.Clear();   // T268
 		m_Designations.Clear();   // T270
+		m_Work.Clear();   // T306
+		m_Goals.Clear();   // T307
 		m_Claims.Clear();
 		m_Log.clear();
 		m_Chronicle.Clear();
@@ -1865,6 +1867,8 @@ namespace GB
 
 		// PRIORITY-GRAPH HOOK (2/2): the graph of its role or of itself rescores the options (only when a library is set; GB/Game/TribePriorities.cpp)
 		if (Priorities) ApplyPriorityGraphs(*this, m, *Priorities, opts);
+		m_Work.Options(*this, m, opts);   // T306: the person's table of work priorities, in the colony (WorkPriorities.h)
+		m_Goals.Options(*this, m, opts);   // T307: no make past a stock goal met (StockGoals.h)
 
 		// choose, and fall back on the next best when the orders cannot be given
 		Commitment current = mind.Current;
@@ -2441,6 +2445,8 @@ namespace GB
 		j["members"] = members;
 		if (!m_Orders.Empty()) j["orders"] = Json::parse(m_Orders.ToJson());   // T268 (only with a direct order in course)
 		if (!m_Designations.Empty()) j["designations"] = Json::parse(m_Designations.ToJson());   // T270 (only with a mark or a queue of sites)
+		if (!m_Work.Empty()) j["priorities"] = Json::parse(m_Work.ToJson());   // T306 (only with a table)
+		if (!m_Goals.Empty()) j["stock"] = Json::parse(m_Goals.ToJson());   // T307 (only with a goal)
 		if (!m_Players.Players.empty() || !m_Players.Proposals.empty() || !m_Players.Aim.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
 		return j.dump();
 	}
@@ -2484,6 +2490,10 @@ namespace GB
 		if (j.contains("orders") && !orders.FromJson(j["orders"].dump())) return false;
 		ColonyDesignations designations;   // T270 (a save with no mark nor queue has none)
 		if (j.contains("designations") && !designations.FromJson(j["designations"].dump())) return false;
+		WorkPriorities work;   // T306 (a save with no table has none)
+		if (j.contains("priorities") && !work.FromJson(j["priorities"].dump())) return false;
+		StockGoals goals;   // T307 (a save with no goal has none)
+		if (j.contains("stock") && !goals.FromJson(j["stock"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
 		std::vector<bool> found(m_Members.size(), false);
 		for (const Json& jm : j["members"])
@@ -2519,6 +2529,9 @@ namespace GB
 		m_Players = std::move(players);
 		m_Orders = std::move(orders);
 		m_Designations = std::move(designations);   // T270
+		work.SetActive(m_Work.Active());   // T306 (the host's switch is not saved)
+		m_Work = std::move(work);
+		m_Goals = std::move(goals);   // T307
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);
 		m_Society = std::move(society);

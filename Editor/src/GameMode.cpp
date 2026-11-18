@@ -678,6 +678,7 @@ namespace GB::Editor
 		out.push_back(jobLine);
 		if (const std::string orders = t.Colony().Line(); !orders.empty()) out.push_back("orders: " + orders);   // T268 (only while someone holds one)
 		if (const std::string marks = t.Designations().Line(); !marks.empty()) out.push_back("designations: " + marks);   // T270 (only with a mark or a queue)
+		if (const std::string stock = t.Goals().Line(t); !stock.empty()) out.push_back("stock: " + stock);   // T307 (only with a goal)
 		if (me->Job == "sleep") out.push_back("asleep (move to wake up)");
 		if (m_Controls.Hud.Clock)
 		{
@@ -807,6 +808,7 @@ namespace GB::Editor
 		// T276 (MODO_COLONIA §4.4): a site of the player's clan (also on the colony's screen, with no character): `game site <name>` its sheet in a line,
 		// `game site cancel <name>` calls it off (what was brought goes back to the store). Names with _ for their spaces, or in several words.
 		if (sub == "founding") return FoundingCommand(std::vector<std::string>(a.begin() + 1, a.end()));   // T310 (Gameplay/EditorFounding.cpp)
+		if (sub == "priority" || sub == "stock") return (sub == "priority" ? PriorityCommand(std::vector<std::string>(a.begin() + 1, a.end())) : StockCommand(std::vector<std::string>(a.begin() + 1, a.end())));   // T306/T307 (Gameplay/EditorColonyWork.cpp)
 		if (sub == "site")
 		{
 			const bool cancel = a.size() > 1 && a[1] == "cancel";

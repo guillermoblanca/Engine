@@ -302,6 +302,8 @@ namespace GB
 		for (const auto& [source, items] : m_Demand)
 			for (const auto& [item, n] : items) out.push_back({ item, n, source + " needs " + std::to_string(n) + " " + item });
 
+		m_Goals.Wants(*this, out);   // T307: the stock goals of the player (StockGoals.h)
+
 		// 6) the intermediates the store keeps (cordage: so that what needs it can be made, or tried, at once)
 		for (const auto& [item, n] : p.Stock)
 			if (n > 0) out.push_back({ item, n, "the store keeps " + std::to_string(n) + " " + item });

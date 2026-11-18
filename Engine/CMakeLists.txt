@@ -140,6 +140,9 @@ add_library(GB_Sim STATIC
     src/GB/Game/StoreLayout.cpp
     src/GB/Game/ClanStores.cpp
     src/GB/Game/ColonyDesignations.cpp
+    src/GB/Game/WorkCategories.cpp
+    src/GB/Game/WorkPriorities.cpp
+    src/GB/Game/StockGoals.cpp
     src/GB/Game/ColonyOrders.cpp
     src/GB/Game/TribeConflict.cpp
     src/GB/Game/Trails.cpp

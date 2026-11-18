@@ -272,6 +272,8 @@ gb_test(colony_mode colony_mode_test.cpp POOL GBSimTests LINK GB::Sim LABELS "ra
 gb_test(colony_designations colony_designations_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T310 (ARRANQUE_Y_LLEGADAS §2): the founding: colony.json, the kit by people, the candidates (roll, lock, pick), a clan of one for two days, save and load
 gb_test(founding founding_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T306 + T307 (MODO_COLONIA C2): the table of work priorities of each person and the stock goals of the colony
+gb_test(colony_priorities colony_priorities_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T240 (MODO_DIOS_DECISIONES.md §3.c): the vision: the dreamer, the clan's aim, the lapse, the material the clan lacks
 gb_test(director_vision director_vision_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food
