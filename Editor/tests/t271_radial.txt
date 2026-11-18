@@ -1,0 +1,23 @@
+# T271 (MODO_COLONIA §4.2): the colony's selection and its right-click radial, headless (Editor --shell --hidden --step=60 --script=<this>).
+# Two people selected are sent to the clay with the radial's bubble (the same code as its click): both go, both bring clay and both finish the order.
+shell new custom temperate 5 2 3
+wait 30
+qa expect "colony status" "^colony screen; selected 0"
+qa expect "colony select Ana,Biel" "selected 2: Ana, Biel"
+qa expect "colony select add Cleo" "selected 3: Ana, Biel, Cleo"
+qa expect "colony select add Cleo" "selected 2: Ana, Biel"
+qa expect "colony radial ground 2 6" "goto \[goto\] Go here -> game order sel goto 2.0 6.0"
+qa expect "colony radial Cleo" "talk \[talk\] Talk -> game order Ana,Biel talk Cleo"
+qa expect "colony radial wild_clay_bank_8" "use \[collect\] Collect -> game order sel use wild_clay_bank_8"
+observer speed 20
+qa expect "colony radial do use" "use: game order Ana,Biel use wild_clay_bank_8 -> Ana goes to use wild clay bank 8; Biel goes to use wild clay bank 8"
+qa expect "colony status" "no radial open"
+wait 500
+qa expect "tribe log 80" "Ana \(forager\) has done the order: use wild clay bank 8"
+qa expect "tribe log 80" "Biel \(woodcutter\) has done the order: use wild clay bank 8"
+qa expect "tribe status" "clay x[1-9]"
+qa expect "colony radial Family_hall_1" "cancel_plan \[state.cannot\] Cancel the plan -> game site cancel Family_hall_1"
+qa expect "colony radial off" "radial closed"
+qa expect "lang missing" "^0 texts of the interface without translation"
+echo colony radial: two people sent to the clay
+quit

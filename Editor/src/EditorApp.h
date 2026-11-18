@@ -11,6 +11,7 @@
 #include "GameShell.h"
 #include "Lang.h"
 #include "Properties.h"
+#include "RadialMenu.h"
 #include "SceneEditor.h"
 #include "TestScenarios.h"
 #include "WorldInstance.h"
@@ -577,6 +578,24 @@ namespace GB::Editor
 		std::string ObserverTimeLine() const;          // `observer status`'s "time: day N, HH:MM, <season>, <weather>; speed xN[, paused]" (GameMode.cpp)
 		int GameDay() const;                           // the day of the world's clock, from 1, as the game's clock counts it (GameMode.cpp)
 		void ObserverKeys();                           // the god's screen's keys (pause, faster, slower, Esc): they queue `observer ...` (GameMode.cpp)
+
+		// T271 (MODO_COLONIA §4.2, RadialMenu.cpp): the colony's selection of several people and its right-click radial
+		ColonyUiState m_Colony;
+		bool ColonyScreen() const;                     // the god's screen of the colony (not the editor, not the player's game): where both live
+		const Tribe* ColonyTribe() const;              // the player's clan in the colony (nullptr: none)
+		void PruneColonySelection();                   // the dead, the gone and the strangers leave the selection
+		void ColonyClicked(const std::string& before, bool shift);   // after a left click picked m_FreeSelected: a person of the clan joins, leaves or replaces the selection
+		void ColonyBoxSelect(glm::vec2 a, glm::vec2 b, bool add);    // the people of the clan inside a box of the view (pixels of the viewport)
+		RadialTarget RadialTargetOf(const std::string& name, const glm::vec3& ground) const;
+		std::vector<RadialOption> RadialOptions(const RadialTarget& t) const;
+		CommandResult RunRadial(const std::string& id);   // a bubble of the open radial, by its id: queues its commands and closes it
+		void OpenRadial(const RadialTarget& t);
+		void DrawColonyWorld(float ox, float oy, float w, float h);   // the rings of the selection, the badges of the orders, the box and the radial
+		void ColonyKeys();                             // Esc closes the radial before anything else (the pause menu, the editor)
+		void ColonyNotices();                          // the orders of the clan that were cut, as news of the god's screen
+		bool ColonyMasksLeft() const;                  // a box is being drawn: the camera does not take the left button
+		const IInputSource& ColonyInput() const;      // the window's input without the left button (the camera's, while ColonyMasksLeft)
+		CommandResult ColonyCommand(const std::vector<std::string>& a);
 
 		// G1/G2 (GameShell.cpp): GB.exe (`--shell`): the start menu, the god's game with its pause menu, the player mode for tests and the sessions
 		ShellState m_Shell;
