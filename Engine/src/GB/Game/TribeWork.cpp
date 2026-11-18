@@ -380,6 +380,7 @@ namespace GB
 		if (alive > 0) PostEconomyJobs();   // H18: make, farm and haul (TribeEconomy.cpp)
 		PostExpedition();   // H12: a party forming or out (TribeExplore.cpp)
 		if (alive > 0) PostConflictJobs();   // H14: hunts (TribeConflict.cpp)
+		m_Designations.Post(*this);   // T270: the nodes the player marked (ColonyDesignations.h)
 		for (const std::string& gone : m_Board.End(m_Time, rules)) (void)gone;   // (met needs and lapsed claims: the member chooses again when it next decides)
 	}
 
@@ -413,6 +414,7 @@ namespace GB
 		}
 		if (job.Kind == "expedition") return ExpeditionJobScore(m, job);   // H12
 		if (job.Kind == "hunt") return ConflictJobScore(m, job);   // H14
+		if (job.Kind == "designate") return m_Designations.JobScore(*this, m, job);   // T270 (ColonyDesignations.h)
 
 		if (job.Kind == "make" || job.Kind == "farm" || job.Kind == "haul") return EconomyJobScore(m, job);   // H18
 		if (job.Kind == "deliver" || job.Kind == "build") return SettlementJobScore(m, job) * vigor;   // H8 (Settlement.cpp)
@@ -621,6 +623,7 @@ namespace GB
 						if (const auto def = m_Defs.find(e->Kind); def != m_Defs.end()) match = def->second.Item == held->Target;
 			}
 			else if (held->Kind == "craft") match = o.Kind == "tool" && o.Target == held->Target;
+			else if (held->Kind == "designate") match = o.Kind == "gather" && o.Target == held->Target;   // T270: the node the player marked
 			else if (held->Kind == "deliver" || held->Kind == "build") match = o.Kind == held->Kind && o.Target == held->Target;   // that site (H8)
 			else match = o.Kind == held->Kind;   // "fire", "stoke"
 			if (!match) continue;

@@ -677,6 +677,7 @@ namespace GB::Editor
 			for (const JobClaim& c : job->Claims) if (c.Member == me->Name) jobLine += ", done " + Fixed(c.Done);
 		out.push_back(jobLine);
 		if (const std::string orders = t.Colony().Line(); !orders.empty()) out.push_back("orders: " + orders);   // T268 (only while someone holds one)
+		if (const std::string marks = t.Designations().Line(); !marks.empty()) out.push_back("designations: " + marks);   // T270 (only with a mark or a queue)
 		if (me->Job == "sleep") out.push_back("asleep (move to wake up)");
 		if (m_Controls.Hud.Clock)
 		{
@@ -714,14 +715,12 @@ namespace GB::Editor
 			if (at.Name.rfind("Delivered.", 0) == 0)
 				if (const int n = static_cast<int>(std::lround(at.Base)); n > 0) out.Brought[at.Name.substr(10)] += n;
 		bool mine = false;
-		for (const Tribe::SettlementSite& s : c->Folk->SettlementSites())
-		{
-			if (s.Name == site) mine = true;
-			if (s.State.Done) continue;
-			++out.Queued;
-			if (s.Name == site) out.Queue = out.Queued;
-		}
+		for (const Tribe::SettlementSite& s : c->Folk->SettlementSites()) mine = mine || s.Name == site;
 		if (!mine) return false;
+		// T270: its place in the queue the clan really works by (ColonyDesignations: the player's plans in the order it set, then the others)
+		const std::vector<std::string> order = c->Folk->Designations().SiteOrder(*c->Folk);
+		out.Queued = static_cast<int>(order.size());
+		for (size_t i = 0; i < order.size(); ++i) if (order[i] == site) out.Queue = static_cast<int>(i) + 1;
 		for (const TribeMember& m : c->Folk->Members())
 			if (!m.Dead && (m.Job == "build" || m.Job == "deliver") && m.Detail == site) out.Workers.push_back(m.Name + (m.Job == "build" ? " (builds)" : " (brings)"));
 		return true;
@@ -780,18 +779,46 @@ namespace GB::Editor
 			m_SavedQuality = level;
 			return { true, "graphics " + named(level) + ", saved in " + m_SettingsPath };
 		}
+		// T270 (MODO_COLONIA §4.2): work for the clan with nobody chosen (also on the colony's screen, with no character). `game designate <node>
+		// [priority]` marks a node to gather first (priority 1 first .. 10 last, 1 by default); `game designate <node> all [priority]` marks its whole
+		// stand or deposit; `game designate <node> off` (or `all off`) lifts it. Whoever can do it takes it from the board (GB/Game/ColonyDesignations.h).
+		if (sub == "designate")
+		{
+			std::vector<std::string> words(a.begin() + 1, a.end());
+			bool off = false, all = false;
+			int priority = ColonyDesignations::kDefaultPriority;
+			auto joined = [&]() { std::string n; for (const std::string& w : words) n += (n.empty() ? "" : " ") + w; return Spaced(n); };
+			if (!words.empty() && words.back() == "off") { off = true; words.pop_back(); }
+			// a node's name ends in its number ("wild clay bank 15"): a trailing number is the priority only when the words without it still name something
+			else if (words.size() > 1 && !words.back().empty() && words.back().find_first_not_of("0123456789") == std::string::npos && !m_Gameplay.Find(joined()))
+			{
+				priority = std::atoi(words.back().c_str());
+				words.pop_back();
+			}
+			if (!words.empty() && words.back() == "all") { all = true; words.pop_back(); }
+			const std::string node = joined();
+			if (node.empty()) return { false, "usage: game designate <node> [all] [priority 1-10 | off]" };
+			const Clan* c = m_Clans.Find(HandClan());
+			if (!c || !c->Folk) return { false, "no clan of yours" };
+			Tribe& t = *c->Folk;
+			const ColonyDesignations::Reply r = off ? t.Designations().Undesignate(t, node, all) : all ? t.Designations().DesignateAll(t, node, priority) : t.Designations().Designate(t, node, priority);
+			return { r.Ok, r.Text };
+		}
 		// T276 (MODO_COLONIA §4.4): a site of the player's clan (also on the colony's screen, with no character): `game site <name>` its sheet in a line,
 		// `game site cancel <name>` calls it off (what was brought goes back to the store). Names with _ for their spaces, or in several words.
 		if (sub == "site")
 		{
 			const bool cancel = a.size() > 1 && a[1] == "cancel";
+			// T270: `game site <name> up|down|top|bottom` moves it in the queue the clan works by
+			const std::string move = !cancel && a.size() > 2 && (a.back() == "up" || a.back() == "down" || a.back() == "top" || a.back() == "bottom") ? a.back() : std::string();
 			std::string name;
-			for (size_t i = cancel ? 2 : 1; i < a.size(); ++i) name += (name.empty() ? "" : " ") + a[i];
+			for (size_t i = cancel ? 2 : 1; i < a.size() - (move.empty() ? 0 : 1); ++i) name += (name.empty() ? "" : " ") + a[i];
 			name = Spaced(name);
-			if (name.empty()) return { false, "usage: game site <name> | game site cancel <name>" };
-			if (!cancel) { const std::string s = SiteText(name); return { s.rfind("no site", 0) != 0, s }; }
+			if (name.empty()) return { false, "usage: game site <name> [up|down|top|bottom] | game site cancel <name>" };
+			if (!cancel && move.empty()) { const std::string s = SiteText(name); return { s.rfind("no site", 0) != 0, s }; }
 			const Clan* c = m_Clans.Find(HandClan());
 			if (!c || !c->Folk) return { false, "no clan of yours" };
+			if (!move.empty()) { const ColonyDesignations::Reply r = c->Folk->Designations().MoveSite(*c->Folk, name, move); return { r.Ok, r.Text }; }
 			std::map<std::string, int> back, left;
 			if (const std::string error = c->Folk->CancelSite(name, &back, &left); !error.empty()) return { false, "cannot: " + error };
 			if (m_FreeSelected == name) m_FreeSelected.clear();
