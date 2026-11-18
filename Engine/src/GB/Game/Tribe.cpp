@@ -477,6 +477,7 @@ namespace GB
 	{
 		m_Members.clear();
 		m_Orders.Clear();   // T268
+		m_Designations.Clear();   // T270
 		m_Claims.Clear();
 		m_Log.clear();
 		m_Chronicle.Clear();
@@ -1847,6 +1848,7 @@ namespace GB
 		ExploreOptions(m, opts);   // H12: going on with an expedition, walking to the new camp
 		if (m_Outside.Options) m_Outside.Options(*this, m, opts);   // H13: what the clans around ask of it (an envoy to a meeting; Clans.cpp)
 		SocialOptions(m, opts);   // social life: the mood on every option, talking, the rite of the clan, traps (TribeSocial.cpp)
+		m_Designations.Options(*this, m, opts);   // T270: the node the player marked, when it holds its job (ColonyDesignations.h)
 		JobBonus(m, opts);   // H7: what does the job it claimed is worth more (a factor on the options, not a new chooser)
 		SocietyFactors(m, opts);   // H9 + H10: its genes, personality, stage of life and the clan's culture (and the companion it likes best)
 		MaslowOptions(m, hunger, thirst, berries, foodHeld > 0, opts);   // the pyramid: staying alive before anything above it (TribeWork.cpp)
@@ -2194,6 +2196,7 @@ namespace GB
 					Worked(m);   // side by side with others: closer to them (H10)
 					if (m_Outside.Gathered) m_Outside.Gathered(*this, m, m.Detail, gathered);   // H13: whose land it was on
 					if (const Job* held = m_Board.ClaimOf(m.Name); held && held->Kind == "gather" && held->Target == def->second.Item) m_Board.Progress(m.Name, 0.0f, m_Time);
+					m_Designations.Gathered(*this, m);   // T270: a mark's claim stays alive
 				}
 			}
 			m.WorkKind.clear();
@@ -2437,6 +2440,7 @@ namespace GB
 		for (size_t i = 0; i < m_Members.size(); ++i) if (m_Members[i].Player) members[i]["player"] = 1;   // H15 (only a player's says so)
 		j["members"] = members;
 		if (!m_Orders.Empty()) j["orders"] = Json::parse(m_Orders.ToJson());   // T268 (only with a direct order in course)
+		if (!m_Designations.Empty()) j["designations"] = Json::parse(m_Designations.ToJson());   // T270 (only with a mark or a queue of sites)
 		if (!m_Players.Players.empty() || !m_Players.Proposals.empty() || !m_Players.Aim.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
 		return j.dump();
 	}
@@ -2478,6 +2482,8 @@ namespace GB
 		if (j.contains("player") && !players.FromJson(j["player"].dump())) return false;
 		ColonyOrders orders;   // T268 (a save with no order in course has none)
 		if (j.contains("orders") && !orders.FromJson(j["orders"].dump())) return false;
+		ColonyDesignations designations;   // T270 (a save with no mark nor queue has none)
+		if (j.contains("designations") && !designations.FromJson(j["designations"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
 		std::vector<bool> found(m_Members.size(), false);
 		for (const Json& jm : j["members"])
@@ -2512,6 +2518,7 @@ namespace GB
 		ReplaceTrails(std::move(trails));
 		m_Players = std::move(players);
 		m_Orders = std::move(orders);
+		m_Designations = std::move(designations);   // T270
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);
 		m_Society = std::move(society);

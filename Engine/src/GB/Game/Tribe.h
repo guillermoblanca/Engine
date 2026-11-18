@@ -7,6 +7,7 @@
 #include "GB/AI/Utility.h"
 #include "GB/Game/Chronicle.h"
 #include "GB/Game/ClanStores.h"
+#include "GB/Game/ColonyDesignations.h"
 #include "GB/Game/ColonyOrders.h"
 #include "GB/Game/Conflict.h"
 #include "GB/Game/DataNeeds.h"
@@ -346,6 +347,7 @@ namespace GB
 		friend class StoreLayout;   // T248: where the main store's things lie (GB/Game/StoreLayout.h), out of this class
 		friend class ClanStores;    // T255: the store buildings' ledger (GB/Game/ClanStores.h), out of this class
 		friend class ColonyOrders;  // T268: direct orders and their mandate (GB/Game/ColonyOrders.h), out of this class
+		friend class ColonyDesignations;  // T270: the marks of the player and the queue of sites (GB/Game/ColonyDesignations.h), out of this class
 	public:
 		TribeConfig Config;
 
@@ -635,6 +637,9 @@ namespace GB
 		// T268: the player's direct orders to its members (GB/Game/ColonyOrders.h): Colony().Give(*this, name, verb, args)
 		ColonyOrders& Colony() { return m_Orders; }
 		const ColonyOrders& Colony() const { return m_Orders; }
+		// T270: the nodes the player marked for the clan and the order of its sites (GB/Game/ColonyDesignations.h)
+		ColonyDesignations& Designations() { return m_Designations; }
+		const ColonyDesignations& Designations() const { return m_Designations; }
 		glm::vec2 CampSpotOf(const TribeMember& m) const { return CampSpot(m); }
 		// Gives a member orders (with its navigation profile) and the job and detail they stand for. False: they could not be given (it says why).
 		bool Send(TribeMember& m, const std::string& orders, const std::string& job, const std::string& detail);
@@ -988,6 +993,7 @@ namespace GB
 		Inventory m_Store{ Config.Economy.StoreCapacity, 0.0f };
 		ClanStores m_Stores;   // T255: which store building holds what of m_Store (the rest lies by the fire)
 		ColonyOrders m_Orders; // T268: who holds a direct order (saved under "orders" when someone does)
+		ColonyDesignations m_Designations;   // T270: the player's marks and site queue (saved under "designations" when there is one)
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;
 		TelemetrySink* m_Telemetry = nullptr;   // not owned

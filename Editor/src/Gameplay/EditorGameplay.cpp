@@ -1591,6 +1591,33 @@ namespace GB::Editor
 			label(ImVec2(s.x, s.y - step), title, color);
 			label(s, task, IM_COL32(235, 235, 235, 235));
 		}
+		// T270 (MODO_COLONIA §4.2): the nodes the player marked for its clan: an ochre ring and the icon of the work over each (from any height)
+		for (const auto& marked : tribes)
+			for (const auto& [node, mark] : marked.first->Designations().Marks())
+			{
+				const EntityId id = m_SceneEditor.World().FindByName(node);
+				if (id == NullEntity) continue;
+				const glm::vec4 p = m_SceneEditor.World().WorldMatrix(id)[3];
+				ImVec2 s;
+				if (!screen(glm::vec3(p.x, p.y + 2.2f, p.z), s)) continue;
+				std::string icon = "gather";
+				if (const AbilitySystemComponent* asc = m_Gameplay.Find(node))
+					for (const auto& [kind, d] : m_NodeDefs)
+						if (asc->HasTag("Resource.Node." + kind))
+						{
+							const std::string& ability = d.Ability.empty() ? std::string(kind == "tree" ? "Chop" : kind == "rock" ? "Mine" : "Gather") : d.Ability;
+							icon = ability == "Chop" ? "chop" : ability == "Mine" ? "mine" : ability == "Collect" ? "collect" : "gather";
+							break;
+						}
+				const float r = 15.0f;
+				dl->AddCircleFilled(s, r, T::Faded(T::Hide, 0.85f), 24);
+				dl->AddCircle(s, r, T::Shade, 24, 5.0f);
+				dl->AddCircle(s, r, T::Ochre, 24, 2.5f);
+				glm::vec2 uv0, uv1;
+				if (m_IconTexture && IconUv(icon, uv0, uv1))
+					dl->AddImage(static_cast<ImTextureID>(static_cast<intptr_t>(m_IconTexture->GetID())), ImVec2(s.x - r * 0.75f, s.y - r * 0.75f), ImVec2(s.x + r * 0.75f, s.y + r * 0.75f), ImVec2(uv0.x, uv0.y), ImVec2(uv1.x, uv1.y));
+				if (mark.Priority != 1) dl->AddText(ImVec2(s.x + r * 0.6f, s.y - r - 4.0f), T::Ochre, std::to_string(mark.Priority).c_str());
+			}
 		// the thing the interact key would use: its prompt under it, in the world, with the key
 		if (m_Game.Active && m_Game.HasPromptPos && !m_Game.Prompt.empty())
 		{

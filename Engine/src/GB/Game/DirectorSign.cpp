@@ -446,6 +446,7 @@ namespace GB
 		const std::string name = NameOf(*c);
 		std::string site;
 		if (const std::string error = t.StartSite(building, { x, z }, &site, yaw); !error.empty() || site.empty()) return { false, "cannot: " + error };
+		t.Designations().QueueSite(t, site);   // T270: the player's plans are worked in the order of its queue (ColonyDesignations.h)
 		DirectorSign s;   // (kept as a sign already accepted: the book follows it to "built", and signs_built counts it)
 		s.Id = m_NextSign++;
 		s.Clan = clan;

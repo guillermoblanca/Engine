@@ -836,6 +836,16 @@ namespace GB::Editor
 						ImGui::TextDisabled("%s", L.Text("Plan {0} of {1} in the queue", info.Queue, info.Queued).c_str());
 						std::string under = name;
 						for (char& ch : under) if (ch == ' ') ch = '_';
+						// T270: its place in the queue the clan works by (the first gets the people first)
+						ImGui::BeginDisabled(info.Queue <= 1);
+						if (ImGui::Button((L.Text("Move up") + "###siteup").c_str())) m_UiCommands.push_back("game site " + under + " up");
+						ImGui::EndDisabled();
+						if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", L.Text("The clan works on the first plans of the queue first").c_str());
+						ImGui::SameLine();
+						ImGui::BeginDisabled(info.Queue >= info.Queued);
+						if (ImGui::Button((L.Text("Move down") + "###sitedown").c_str())) m_UiCommands.push_back("game site " + under + " down");
+						ImGui::EndDisabled();
+						ImGui::SameLine();
 						if (ImGui::Button((L.Text("Cancel the plan") + "###sitecancel").c_str())) m_UiCommands.push_back("game site cancel " + under);
 						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("It comes down; what was brought for it goes back to the store").c_str());
 					}
@@ -883,6 +893,23 @@ namespace GB::Editor
 					}
 					ImGui::TextUnformatted(L.Text("needs: {0}", needs).c_str());
 					ImGui::TextUnformatted((d.RegenSeconds > 0.0f ? L.Text("regrows {0} every {1} s", d.Regen, static_cast<int>(d.RegenSeconds)) : L.Text("does not regrow")).c_str());
+					// T270 (MODO_COLONIA §4.2): the clan gathers it first, whoever can (the UI only queues `game designate`)
+					if (const Clan* hand = m_Clans.Find(HandClan()); hand && hand->Folk && left > 0)
+					{
+						std::string under = name;
+						for (char& ch : under) if (ch == ' ') ch = '_';
+						if (const ColonyDesignations::Mark* mark = hand->Folk->Designations().MarkOf(name))
+						{
+							ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(GameTheme::Ochre), "%s", L.Text("Marked to gather (priority {0})", mark->Priority).c_str());
+							if (ImGui::Button((L.Text("Remove the mark") + "###unmark").c_str())) m_UiCommands.push_back("game designate " + under + " off");
+						}
+						else
+						{
+							if (ImGui::Button((L.Text("Gather with priority") + "###designate").c_str())) m_UiCommands.push_back("game designate " + under);
+							if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Whoever of the clan can do it goes first to this node").c_str());
+							if (ImGui::Button((L.Text("Mark the whole deposit") + "###designateall").c_str())) m_UiCommands.push_back("game designate " + under + " all");
+						}
+					}
 				}
 				if (ImGui::CollapsingHeader((L.Text("Details") + "###attributes").c_str()))
 					for (const auto& at : asc->Attributes().All()) ImGui::Text("%-14s %.1f / %.1f", at.Name.c_str(), static_cast<double>(at.Current), static_cast<double>(at.Max));

@@ -983,6 +983,34 @@
    "to": "{1} obedece: sigue a {2}"
   },
   {
+   "re": "^the clan is asked to gather the stand of (.+) first \\((\\d+) (\\S+), priority (\\d+)\\)$",
+   "to": "se pide al clan recoger primero el rodal de {ent:1} ({2}, prioridad {4})"
+  },
+  {
+   "re": "^the clan is asked to gather (.+) first \\(priority (\\d+)\\)$",
+   "to": "se pide al clan recoger primero {ent:1} (prioridad {2})"
+  },
+  {
+   "re": "^the mark on (.+) is lifted: it is spent$",
+   "to": "se quita la marca de {ent:1}: se ha agotado"
+  },
+  {
+   "re": "^the mark on (.+) is lifted: it is gone$",
+   "to": "se quita la marca de {ent:1}: ya no está"
+  },
+  {
+   "re": "^the mark on (.+) and its stand is lifted$",
+   "to": "se quita la marca de {ent:1} y de su rodal"
+  },
+  {
+   "re": "^the mark on (.+) is lifted$",
+   "to": "se quita la marca de {ent:1}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) takes the job designate (.+) from the board$",
+   "to": "{1} coge el trabajo: recoger {ent:2} (marcado por ti)"
+  },
+  {
    "re": "^(\\S+) \\([^)]*\\) goes to (till|sow|tend|harvest) (\\d+) plots of field (\\d+)$",
    "to": "{1} va a {farmdo:2} {3} parcelas del campo {4}"
   },
@@ -1721,6 +1749,14 @@
   {
    "re": "^(\\S+) \\([^)]*\\) leaves (\\d+) in the store$",
    "to": "{1} deja {2} en el almacén"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) leaves (\\d+) in the store at (.+)$",
+   "to": "{1} deja {2} en el almacén {ent:3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is attacked by (.+)$",
+   "to": "{1} sufre el ataque de {ent:2}"
   },
   {
    "re": "^(\\S+) \\([^)]*\\) brings (\\d+) to (.+): the (\\S+) can be built$",
@@ -3158,6 +3194,14 @@
   "working on it: {0}": "trabajando en ella: {0}",
   "Plan {0} of {1} in the queue": "Plano {0} de {1} en la cola",
   "Cancel the plan": "Cancelar el plano",
-  "It comes down; what was brought for it goes back to the store": "Se deshace; lo que se trajo vuelve al almacén"
+  "It comes down; what was brought for it goes back to the store": "Se deshace; lo que se trajo vuelve al almacén",
+  "Move up": "Subir",
+  "Move down": "Bajar",
+  "The clan works on the first plans of the queue first": "El clan trabaja antes en los primeros planos de la cola",
+  "Marked to gather (priority {0})": "Marcado para recoger (prioridad {0})",
+  "Remove the mark": "Quitar marca",
+  "Gather with priority": "Recoger con prioridad",
+  "Whoever of the clan can do it goes first to this node": "Quien del clan pueda hacerlo va antes a este nodo",
+  "Mark the whole deposit": "Marcar todo el depósito"
  }
 }

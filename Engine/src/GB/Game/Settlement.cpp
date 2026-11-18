@@ -596,6 +596,7 @@ namespace GB
 		}
 		if (const EntityId e = m_Entities->FindByName(site); e != NullEntity) m_Entities->Destroy(e);
 		m_Gameplay->Remove(site);
+		m_Designations.SiteGone(site);   // T270
 		m_PlacedAt = -1.0;   // look again
 		ForgetPlacements();
 		char t[48];
@@ -1037,6 +1038,7 @@ namespace GB
 				o.Where = front;
 				const float age = SiteAge(p.Name);   // F4: it has waited for this long
 				o.Score = 0.85f * bw * reach * day * age;
+				if (const float q = m_Designations.SiteFactor(*this, p.Name, "deliver", &m); q != 1.0f) { o.Score *= q; Factor(o, "later in the queue", q); }   // T270
 				if (age > 1.0f) Factor(o, "waiting", age);
 				Factor(o, "role", bw);
 				Factor(o, "distance", reach);
@@ -1054,6 +1056,7 @@ namespace GB
 				o.Target = p.Name;
 				o.Where = front;
 				o.Score = 1.0f * bw * reach * day;
+				if (const float q = m_Designations.SiteFactor(*this, p.Name, "build", &m); q != 1.0f) { o.Score *= q; Factor(o, "later in the queue", q); }   // T270
 				Factor(o, "role", bw);
 				Factor(o, "distance", reach);
 				if (day != 1.0f) Factor(o, "agenda", day);
@@ -1191,13 +1194,13 @@ namespace GB
 			if (bring > 0)
 			{
 				const int slots = std::clamp((bring + Config.HaulAt - 1) / std::max(1, Config.HaulAt), 1, std::max(1, rules.MaxSlots));
-				m_Board.Post("deliver", p.Name, SkillFamilyOf("deliver"), static_cast<float>(bring), priority("deliver"), slots, p.Name + " lacks " + what + " and the store has it", m_Time, rules);
+				m_Board.Post("deliver", p.Name, SkillFamilyOf("deliver"), static_cast<float>(bring), priority("deliver") * m_Designations.SiteFactor(*this, p.Name, "deliver", nullptr), slots, p.Name + " lacks " + what + " and the store has it", m_Time, rules);
 			}
 			if (p.State.Ready)
 			{
 				char why[128];
 				std::snprintf(why, sizeof why, "the %s of %s has its materials (%.0f/%.0f s of work)", p.State.PhaseName.c_str(), p.Name.c_str(), static_cast<double>(p.State.Work), static_cast<double>(p.State.WorkNeeded));
-				m_Board.Post("build", p.Name, SkillFamilyOf("build"), std::max(0.0f, p.State.WorkNeeded - p.State.Work), priority("build"), std::max(1, Config.Builders), why, m_Time, rules);
+				m_Board.Post("build", p.Name, SkillFamilyOf("build"), std::max(0.0f, p.State.WorkNeeded - p.State.Work), priority("build") * m_Designations.SiteFactor(*this, p.Name, "build", nullptr), std::max(1, Config.Builders), why, m_Time, rules);
 			}
 		}
 	}
