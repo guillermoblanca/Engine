@@ -363,10 +363,12 @@ namespace GB::Editor
 
 	void EditorApp::ColonyKeys()
 	{
-		if (!m_Colony.Open || ImGui::GetIO().WantTextInput) return;
+		const bool tab = !m_Colony.Tab.empty() && ColonyScreen() && !m_Observer.Tree;   // (a tab hidden under the tree of knowledge does not take the Esc)
+		if ((!m_Colony.Open && !tab) || ImGui::GetIO().WantTextInput) return;
 		if (!ImGui::IsKeyPressed(ImGuiKey_Escape, false)) return;
-		m_Colony.Open = false;
-		// Esc only closes the radial this frame: the shell's pause menu and the god's screen's "back to the editor" do not see it
+		if (m_Colony.Open) m_Colony.Open = false;
+		else m_Colony.Tab.clear();   // T308: then the tab Work or Stock (only reached when it is drawn)
+		// Esc only closes the radial (or the tab) this frame: the shell's pause menu and the god's screen's "back to the editor" do not see it
 		ImGui::SetKeyOwner(ImGuiKey_Escape, ImHashStr("colony_radial"), ImGuiInputFlags_LockThisFrame);
 	}
 
@@ -603,6 +605,7 @@ namespace GB::Editor
 		};
 		if (sub == "status")
 			return { true, std::string(ColonyScreen() ? "colony screen" : "not the colony's screen") + "; " + selection() + "; " + (m_Colony.Open ? list() : std::string("no radial open")) };
+		if (sub == "tab" || sub == "work" || sub == "stock") return ColonyTabCommand(a);   // T308 (ColonyTabs.cpp)
 		if (!t) return { false, "no colony: director colony on, and a world with clans" };
 		if (sub == "select")
 		{
@@ -665,6 +668,6 @@ namespace GB::Editor
 			if (!m_Colony.Open) return { false, "nothing to do there" };
 			return { true, list() };
 		}
-		return { false, "usage: colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off]" };
+		return { false, "usage: colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off] | tab [work|stock|off] | work fold|unfold <category> | work step <person> <what> up|down | work reset <person> | stock pick|set|off ..." };
 	}
 }

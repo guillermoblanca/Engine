@@ -1778,7 +1778,9 @@ namespace GB::Editor
 		// T271 (RadialMenu.cpp): the colony's selection and its radial, as the mouse makes them (the tests and the captures)
 		c.Register("colony", "colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off]: "
 			"on the colony's screen, the people of the player's clan selected (a click, Shift+click, a box: `game order sel ...` gives them the order) and the right click's radial "
-			"over a target (its bubbles: id, icon, label and the commands it queues, or why it is off); `do <id>` runs a bubble as its click does",
+			"over a target (its bubbles: id, icon, label and the commands it queues, or why it is off); `do <id>` runs a bubble as its click does; "
+			"T308: tab [work|stock|off] opens the panel Work or Stock over the god's bar; work fold|unfold <category>; work step <person> <category|job> up|down and work reset <person> "
+			"run what a click on the Work table runs (`game priority`); stock pick <item|tag> [n] | set <item|tag> <n> | off <item|tag> what the Stock panel runs (`game stock`)",
 			[this](const std::vector<std::string>& a) { return ColonyCommand(a); });
 		// T195: the god's director (GB/Game/WorldDirector.h), the same orders GBSim runs with --director=<day>:<order>
 		c.Register("director", "director status | sandbox on|off | faith <clan> <0..1> (sandbox only) | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | log: the god of the world: its influence comes from the faith of the clans "

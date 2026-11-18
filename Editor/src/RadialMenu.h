@@ -5,6 +5,7 @@
 // `colony select` and `colony radial` drive the same code without a mouse (the tests and the captures).
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -54,5 +55,14 @@ namespace GB::Editor
 		std::string NoticeKey;
 		struct Note { std::string Text; double At = 0.0; };
 		std::vector<Note> Notes;
+		// T308 (ColonyTabs.cpp): the panel open over the god's bar ("work", "stock"; "": none), the categories unfolded into their jobs in the Work
+		// table, the thing and the number a new stock goal is being made of, and where the panel was drawn
+		std::string Tab;
+		std::set<std::string> Unfolded;
+		std::string StockPick;
+		int StockCount = 5;
+		bool OpenPicker = false;   // `colony stock picker`: the picker of things opens on the next frame, as its click opens it
+		struct Box { float X0 = 0.0f, Y0 = 0.0f, X1 = 0.0f, Y1 = 0.0f; };
+		Box TabBox;
 	};
 }

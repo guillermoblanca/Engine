@@ -22,6 +22,7 @@
 #include <optional>
 #include <set>
 #include <sstream>
+#include <tuple>
 
 namespace GB::Editor
 {
@@ -797,6 +798,7 @@ namespace GB::Editor
 			DrawObserverNews(ox, w);
 		}
 		DrawHandBar(ox, oy, w, h);   // T201: the god's hand, at the bottom between the list and the book
+		if (god) DrawColonyTabs(ox, oy, w, h);   // T308: the colony's Work or Stock over that bar
 		if (god && m_Director.Defeated() && !m_Director.DefeatSeen()) DrawDefeat(ox, oy, w, h);   // §6.2 A (never in the player's game)
 		else if (god && m_Director.StageWon() && !m_Director.Defeated()) DrawStageWon(ox, oy, w, h);   // D48 (the defeat goes first)
 	}
@@ -1844,15 +1846,34 @@ namespace GB::Editor
 		if (m.Dead) return;
 		label(L.Text("Doing"));
 		value(L.Doing(m.Job, m.Detail));
-		// needs: the HUD's, each a bar with its number and its colour (good, warning, bad) and the danger mark at 25
+		// T308: and why (its order, the reason of its decision); in the colony, whether it follows the player's table and its row of priorities
+		if (const std::string why = PersonWhy(t, m); !why.empty())
+		{
+			label(L.Text("Why"));
+			value(why, T::BoneDim);
+		}
+		const bool colonyOwn = ColonyScreen() && clanId >= 0 && clanId == m_Director.ColonyClan() && !m.Player && !t.Config.Work.Categories.Empty();
+		if (colonyOwn) DrawPersonWork(t, m);
+		// needs: the HUD's, each with its icon, a bar with its number and its colour (good, warning, bad) and the danger mark at 25
 		ImGui::Separator();
 		const std::map<std::string, float> levels = t.NeedLevels(m);
+		auto needLabel = [&](const char* icon, const std::string& text)
+		{
+			const ImVec2 at = ImGui::GetCursorPos();
+			if (Icon(icon, ImGui::GetTextLineHeight())) ImGui::SameLine(0.0f, 4.0f);
+			ImGui::TextDisabled("%s", text.c_str());
+			ImGui::SameLine(at.x + 110.0f);
+		};
+		static const std::pair<const char*, const char*> kNeedIcons[] = { { "Hunger", "state.hungry" }, { "Thirst", "state.thirsty" }, { "Rest", "state.tired" },
+			{ "Warmth", "state.cold" }, { "Health", "state.wounded" } };
 		for (const std::string& n : m_Controls.Hud.Needs)
 		{
 			const auto it = levels.find(n);
 			if (it == levels.end()) continue;
 			const float v = it->second, v01 = std::clamp(v / 100.0f, 0.0f, 1.0f);
-			label(Lang::Cap(L.Name("need", n, n)));
+			const char* icon = "";
+			for (const auto& [need, id] : kNeedIcons) if (n == need) icon = id;
+			needLabel(icon, Lang::Cap(L.Name("need", n, n)));
 			const ImVec2 b0 = ImGui::GetCursorScreenPos();
 			SmallBar(v01, 110.0f, T::Level(v01));
 			const float mark = b0.x + 110.0f * 0.25f, h = ImGui::GetTextLineHeight();
@@ -1861,9 +1882,19 @@ namespace GB::Editor
 			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Level(v01)), "%s", L.Num(v, 0).c_str());
 			if (v01 <= 0.25f) { ImGui::SameLine(); ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", L.Text("danger").c_str()); }
 		}
-		label(L.Text("Mood"));
-		const float mood = t.Mood(m.Name), grief = t.Grief(m.Name);
-		value(L.Num(mood, 2) + (grief > 0.01f ? "   " + L.Text("grief {0}", L.Num(grief, 2)) : std::string()), mood < 0.0f ? T::Warn : T::Bone);
+		// the mood (0..1) as a bar too, its low line (the log's) marked
+		needLabel("state.happy", L.Text("Mood"));
+		const float mood = t.Mood(m.Name), grief = t.Grief(m.Name), low = t.Config.Social.Mood.Low;
+		const ImU32 moodColour = mood < low ? T::Bad : mood < 0.5f ? T::Warn : T::Good;
+		{
+			const ImVec2 b0 = ImGui::GetCursorScreenPos();
+			SmallBar(std::clamp(mood, 0.0f, 1.0f), 110.0f, moodColour);
+			const float mark = b0.x + 110.0f * std::clamp(low, 0.0f, 1.0f), lh = ImGui::GetTextLineHeight();
+			ImGui::GetWindowDrawList()->AddLine(ImVec2(mark, b0.y + (lh - 10.0f) * 0.5f), ImVec2(mark, b0.y + (lh + 10.0f) * 0.5f + 2.0f), T::Outline, 2.0f);
+		}
+		ImGui::SameLine();
+		ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(moodColour), "%s", (L.Num(mood * 100.0f, 0) + (grief > 0.01f ? "   " + L.Text("grief {0}", L.Num(grief, 2)) : std::string())).c_str());
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Mood, 0 to 100; under {0} it is low, and low spirits make it drop an order", L.Num(low * 100.0f, 0)).c_str());
 		// what it is learning (and how far), and what it knows
 		ImGui::Separator();
 		const AgentKnowledge* k = t.Knowledge().Of(m.Name);
@@ -2800,6 +2831,19 @@ namespace GB::Editor
 					const TechDef* def = !aim.empty() && techs ? techs->Find(aim) : nullptr;
 					tip(aim.empty() ? L.Text("Choose what the {0} seek in the tree of knowledge (they also find things out by themselves)", name)
 						: L.Text("The {0} seek {1}", name, Lang::Cap(L.Name("tech", aim, def ? def->Name : aim))));
+				}
+				// T308 (MODO_COLONIA §4.3): [Work] the table of priorities, [Stock] the goals of what the clan keeps (ColonyTabs.cpp)
+				for (const auto& [tab, label, help] : { std::tuple<const char*, const char*, const char*>{ "work", "Work", "Who does what first: the priorities of each person" },
+					std::tuple<const char*, const char*, const char*>{ "stock", "Stock", "What the clan keeps in store: N of a thing, made or gathered when it lacks" } })
+				{
+					ImGui::SameLine();
+					const bool open = m_Colony.Tab == tab;
+					{
+						std::optional<T::PrimaryScope> lit;
+						if (open) lit.emplace();
+						if (ImGui::Button((L.Text(label) + "###hand" + tab).c_str())) run(open ? std::string("colony tab off") : std::string("colony tab ") + tab);
+					}
+					tip(L.Text(help));
 				}
 			}
 			else

@@ -1,0 +1,34 @@
+# T308 (MODO_COLONIA §4.3): the colony's tabs Work and Stock, headless (Editor --shell --hidden --step=60 --script=<this>). The clicks on the Work
+# table and the Stock panel queue `colony work step|reset` and `colony stock set|off`, which run the same code as the click (ColonyTabs.cpp):
+# a priority and a stock goal set that way are read back with `game priority` and `game stock`.
+shell new custom temperate 5 2 3
+wait 30
+qa expect "game priority Ana" "Ana \(forager, suggested\): food 1"
+qa expect "colony tab work" "tab work open"
+qa expect "colony work step Ana food down" "game priority Ana food 2 -> Ana: food 2"
+qa expect "game priority Ana" "Ana \(forager\): food 2"
+qa expect "game priority Biel" "Biel \(woodcutter, suggested\)"
+qa expect "colony work unfold construction" "construction unfolded"
+qa expect "colony work step Ana haul down" "game priority Ana haul 3"
+qa expect "game priority Ana" "construction 2 \[build 2, haul 3, repair 2"
+qa expect "colony work step Ana food up" "game priority Ana food 1"
+qa expect "colony work step Ana food up" "no change: Ana food"
+qa expect "colony work step Ana knowledge down" "game priority Ana knowledge 3"
+wait 2
+qa expect "colony work reset Ana" "game priority Ana reset ->"
+qa expect "game priority Ana" "Ana \(forager, suggested\)"
+qa expect "colony tab stock" "tab stock open"
+qa expect "colony stock pick stone_axe 3" "picked stone_axe x3"
+qa expect "colony stock set stone_axe 3" "game stock stone_axe 3 -> keep 3 stone_axe"
+qa expect "colony stock set Item.Food.Preserved 10" "keep 10 Item.Food.Preserved"
+qa expect "game stock" "stone_axe 0 / 3"
+wait 2
+qa expect "colony stock off stone_axe" "game stock stone_axe off"
+qa expect "colony stock off Item.Food.Preserved" "game stock Item.Food.Preserved off"
+qa expect "game stock" "no stock goals"
+qa expect "colony tab off" "tab closed"
+observer person Ana
+wait 2
+qa expect "lang missing" "^0 texts of the interface without translation"
+echo colony work: a priority and a stock goal set through the tabs
+quit
