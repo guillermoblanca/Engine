@@ -148,6 +148,7 @@ int main(int argc, char** argv)
 	int resolution = 0, trees = -1, rocks = -1;
 	std::vector<std::string> know;
 	std::vector<std::pair<double, std::string>> orders;   // T195: --director=<day>:<order>
+	bool noFarming = false;   // T277: --no-farming
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string v;
@@ -189,6 +190,7 @@ int main(int argc, char** argv)
 		else if (!std::strcmp(argv[i], "--game")) game = forests = combat = true;
 		else if (!std::strcmp(argv[i], "--no-patches")) patches = false;   // T118: a graph's world with the wild nodes instead of a patch by each camp
 		else if (!std::strcmp(argv[i], "--report")) report = true;   // at the end, each clan's settlement, fields, economy and goals
+		else if (!std::strcmp(argv[i], "--no-farming")) noFarming = true;   // T277: no crops (the content's economy.crops emptied): clans that never sow
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
 		else if (!std::strcmp(argv[i], "--no-content")) content = false;   // the bare engine: no buildings, no technologies (the old runs)
 		else if (!std::strcmp(argv[i], "--hostile")) hostile = combat = true;
@@ -265,6 +267,7 @@ int main(int argc, char** argv)
 	{
 		era = std::make_unique<EraContent>(GB_ASSETS_DIR, pack);
 		if (!era->Error.empty()) { std::fprintf(stderr, "the content of the era did not load: %s\n", era->Error.c_str()); return 1; }
+		if (noFarming) era->Config.Econ.Crops.clear();   // T277: no crop, so no seed sows a field (TribeEconomy: "no crops in the loaded content")
 	}
 	GB::SimSetup setup;
 	setup.World = &world;
@@ -348,6 +351,7 @@ int main(int argc, char** argv)
 	size_t nextOrder = 0;
 	GB::AlertBoard alerts;   // T220 (--report: how many of each the god would have seen)
 	std::map<const GB::Tribe*, std::pair<double, long>> foodIn;   // D47 (--report): each clan's day start and the food it brought in before it
+	std::map<const GB::Tribe*, double> livedFor;   // T277 (--report): each clan's member-seconds alive (the person-days the meals are divided by)
 	const GB::AlertRules alertRules = era ? era->Alerts : GB::AlertRules{};
 	auto runOrders = [&]()
 	{
@@ -380,6 +384,7 @@ int main(int argc, char** argv)
 			{
 				auto [it, fresh] = foodIn.try_emplace(t, t->Economy().DayStart, 0L);
 				if (!fresh && it->second.first != t->Economy().DayStart) { it->second.second += t->Economy().FoodYesterday; it->second.first = t->Economy().DayStart; }
+				for (const GB::TribeMember& m : t->Members()) if (!m.Dead) livedFor[t] += chunk;   // T277
 			}
 		}
 		if (report && run.Clans().Count() > 0) alerts.Look(run.Clans(), alertRules);   // T220: the god's alerts, read off the clans (nothing in the run reads them)
@@ -464,6 +469,58 @@ int main(int argc, char** argv)
 			for (const GB::ItemSlot& s : t->Store().Stacks()) if (t->IsFood(s.Id)) kept += s.Count;
 			std::fprintf(stderr, "  food stores %d, %d%% full; food brought in %ld, went off %d (%.1f%%), kept %d; food days %.1f\n", foodStores, room > 0 ? 100 * held / room : 0, brought, spoiled,
 				brought > 0 ? 100.0 * spoiled / static_cast<double>(brought) : 0.0, kept, static_cast<double>(t->FoodDays()));
+			// T277: what its people ate (GB/Game/MealLog.h): the meals, where they came from, and the nutrition a person had a day on average
+			{
+				const GB::MealLog& meals = t->Meals();
+				const double personDays = livedFor.count(t) ? livedFor[t] / kDay : 0.0;
+				std::string from, foods;
+				for (const auto& [source, n] : meals.BySource()) from += " " + source + " " + std::to_string(n.Units) + ";";
+				for (const auto& [item, n] : meals.ByItem()) foods += " " + item + " " + std::to_string(n.Units) + " (" + std::to_string(std::lround(n.Nutrition)) + ");";
+				std::fprintf(stderr, "  meals %ld, nutrition %.0f over %.1f person-days: %.1f a person a day, %.2f meals; from:%s\n  meals by food (units (nutrition)):%s\n", meals.Total().Units,
+					meals.Total().Nutrition, personDays, personDays > 0.0 ? meals.Total().Nutrition / personDays : 0.0, personDays > 0.0 ? static_cast<double>(meals.Total().Units) / personDays : 0.0,
+					from.c_str(), foods.c_str());
+			}
+		}
+		// T277: the table of meals, food by clan (units / nutrition), and the nutrition a person had a day
+		{
+			std::map<std::string, std::vector<GB::MealLog::Tally>> table;
+			for (size_t k = 0; k < tribes.size(); ++k)
+				for (const auto& [item, n] : tribes[k]->Meals().ByItem()) { auto& row = table[item]; row.resize(tribes.size()); row[k] = n; }
+			std::string head = "\nmeals (units / nutrition)    ";
+			for (size_t k = 0; k < tribes.size(); ++k) head += "      clan " + std::to_string(k + 1) + "   ";
+			std::fprintf(stderr, "%s         all\n", head.c_str());
+			std::vector<GB::MealLog::Tally> sum(tribes.size());
+			auto line = [&](const std::string& what, const std::vector<GB::MealLog::Tally>& row)
+			{
+				GB::MealLog::Tally all;
+				std::string s;
+				char b[64];
+				for (size_t k = 0; k < tribes.size(); ++k)
+				{
+					const GB::MealLog::Tally n = k < row.size() ? row[k] : GB::MealLog::Tally{};
+					std::snprintf(b, sizeof b, " %6ld / %6.0f", n.Units, n.Nutrition);
+					s += b;
+					all.Units += n.Units;
+					all.Nutrition += n.Nutrition;
+				}
+				std::snprintf(b, sizeof b, " %6ld / %6.0f", all.Units, all.Nutrition);
+				std::fprintf(stderr, "  %-26s%s%s\n", what.c_str(), s.c_str(), b);
+			};
+			for (const auto& [item, row] : table)
+			{
+				line(item, row);
+				for (size_t k = 0; k < row.size(); ++k) { sum[k].Units += row[k].Units; sum[k].Nutrition += row[k].Nutrition; }
+			}
+			line("total", sum);
+			std::string per = "  nutrition a person a day    ";
+			for (const GB::Tribe* t : tribes)
+			{
+				char b[32];
+				const double personDays = livedFor.count(t) ? livedFor[t] / kDay : 0.0;
+				std::snprintf(b, sizeof b, " %15.1f", personDays > 0.0 ? t->Meals().Total().Nutrition / personDays : 0.0);
+				per += b;
+			}
+			std::fprintf(stderr, "%s\n", per.c_str());
 		}
 		// T260: footprints that overlap at the end (sites, buildings and fields of every clan: GB/Game/GroundFootprint.h)
 		{

@@ -2090,6 +2090,10 @@ namespace GB
 				SatisfyNeed(*asc, NeedName::Thirst, static_cast<float>(Config.Needs.FoodThirst));
 			}
 			Ate(m, carried.empty() ? stored : carried);   // social life: what it sates and the variety of the diet (TribeSocial.cpp)
+			const std::string eaten = carried.empty() ? stored : carried, from = MealLog::Source(fromHome, !carried.empty(), shed);   // T277 (GB/Game/MealLog.h)
+			const float sated = MealLog::Nutrition(Config.Social.Diet, Config.Social.On, Config.Needs.FoodHunger, eaten);
+			m_Meals.Record(eaten, from, sated);
+			if (m_Telemetry) EmitEvent("ate", m.Name, eaten, from, "eats " + eaten + " from the " + from + " (" + std::to_string(static_cast<int>(std::lround(sated))) + " nutrition)");
 			if (m.Hungry) Say(m, "eats again");
 			if (carried.empty()) SharedFood(m);   // what another brought (H10)
 		}

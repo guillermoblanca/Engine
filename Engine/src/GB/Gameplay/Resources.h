@@ -2,9 +2,11 @@
 #include "GB/Scene/Entity.h"
 #include "GB/Gameplay/GameplayWorld.h"
 #include "GB/Gameplay/Items.h"
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace GB
@@ -62,6 +64,12 @@ namespace GB
 		static std::string PowerAttribute(const std::string& toolTag);
 		static std::string SpeedAttribute(const std::string& toolTag);
 		static int Amount(const AbilitySystemComponent& node);
+		// P-F12: whether the roll number `roll` of the node named `node` gives its extra, with that chance (1 = always, 0 = never). Deterministic:
+		// the same node and roll give the same answer in every run (a hash, no generator, no clock).
+		static bool ExtraFalls(std::string_view node, uint64_t roll, float chance);
+		// A gather's roll for the extra of `node`: with a chance under 1 it counts the node's rolls in its attribute "ExtraRolls" (made on its first
+		// roll; saved with the node's attributes), so a loaded game goes on with the same rolls. A chance of 1 rolls nothing and keeps no count.
+		static bool ExtraRoll(AbilitySystemComponent& node, const ResourceNodeDef& def);
 	private:
 		std::map<std::string, ResourceNodeDef> m_Defs;
 		mutable TaggedSystems m_Nodes{ { "Resource.Node" } };   // (walked every tick: kept until the scene's systems change)

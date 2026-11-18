@@ -8,6 +8,7 @@
 #include "GB/Game/Chronicle.h"
 #include "GB/Game/ClanStores.h"
 #include "GB/Game/ColonyOrders.h"
+#include "GB/Game/MealLog.h"
 #include "GB/Game/Conflict.h"
 #include "GB/Game/DataNeeds.h"
 #include "GB/Game/Economy.h"
@@ -633,6 +634,8 @@ namespace GB
 		// T268: the player's direct orders to its members (GB/Game/ColonyOrders.h): Colony().Give(*this, name, verb, args)
 		ColonyOrders& Colony() { return m_Orders; }
 		const ColonyOrders& Colony() const { return m_Orders; }
+		// T277: what its people ate since the run began, by food and by source (GB/Game/MealLog.h; GBSim --report)
+		const MealLog& Meals() const { return m_Meals; }
 		glm::vec2 CampSpotOf(const TribeMember& m) const { return CampSpot(m); }
 		// Gives a member orders (with its navigation profile) and the job and detail they stand for. False: they could not be given (it says why).
 		bool Send(TribeMember& m, const std::string& orders, const std::string& job, const std::string& detail);
@@ -986,6 +989,7 @@ namespace GB
 		Inventory m_Store{ Config.Economy.StoreCapacity, 0.0f };
 		ClanStores m_Stores;   // T255: which store building holds what of m_Store (the rest lies by the fire)
 		ColonyOrders m_Orders; // T268: who holds a direct order (saved under "orders" when someone does)
+		MealLog m_Meals;       // T277: what was eaten (only counts; not saved)
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;
 		TelemetrySink* m_Telemetry = nullptr;   // not owned

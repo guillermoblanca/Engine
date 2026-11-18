@@ -1,4 +1,5 @@
 #include "GB/Game/Production.h"
+#include "GB/Gameplay/GameplayTag.h"
 #include <algorithm>
 
 namespace GB
@@ -87,6 +88,33 @@ namespace GB
 		for (const ProductionWant& w : wants)
 			if (!w.Item.empty() && w.Units > 0) p.Want(w.Item, w.Units, 0, w.Why, w.Make);
 		return std::move(p.Plan);
+	}
+
+	const Recipe* BestToolRecipe(const RecipeBook& recipes, const ItemLibrary& items, const std::string& tag, int above, const ToolRecipeQuery& query, bool& known)
+	{
+		auto tagged = [&](const ItemDef& d) { return !tag.empty() && std::any_of(d.Tags.begin(), d.Tags.end(), [&](const std::string& t) { return GameplayTag::TagMatches(tag, t); }); };
+		auto ready = [&](const Recipe& r) { return query.Have && std::all_of(r.Inputs.begin(), r.Inputs.end(), [&](const auto& in) { return query.Have(in.first) >= in.second; }); };
+		const Recipe* best = nullptr;
+		const ItemDef* bestDef = nullptr;
+		bool bestReady = false;
+		known = false;
+		for (int pass = 0; pass < 2 && !best; ++pass)
+			for (const std::string& id : recipes.Ids())
+			{
+				const Recipe* r = recipes.Find(id);
+				const ItemDef* d = r ? items.Find(r->Output) : nullptr;
+				if (!d || !tagged(*d) || d->Power <= above || (query.Station && !query.Station(r->Station))) continue;
+				if (pass == 0 && query.Known && !query.Known(*r)) continue;
+				const bool isReady = pass == 0 && ready(*r);   // (P-F10: only among the known; a recipe to try stays the best one)
+				if (!best || (isReady && !bestReady) || (isReady == bestReady && (d->Power > bestDef->Power || (d->Power == bestDef->Power && d->Speed > bestDef->Speed))))
+				{
+					best = r;
+					bestDef = d;
+					bestReady = isReady;
+				}
+			}
+		known = best && (!query.Known || query.Known(*best));
+		return best;
 	}
 
 	std::string PlanReport(const ProductionPlan& plan)

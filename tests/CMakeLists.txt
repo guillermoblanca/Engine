@@ -266,6 +266,10 @@ gb_test(director director_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;s
 gb_test(director_focus director_focus_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T268: direct orders to any member of a clan, the mandate and what cuts it (GB/Game/ColonyOrders.h)
 gb_test(colony_orders colony_orders_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T277/T278/T279 (AGRICULTURA §5, ALIMENTACION §10.2): the farm tool asked for by what is at hand, the chance of a node's extra, the meals counted
+gb_test(tool_recipe food_base_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} ARGS tool_recipe)
+gb_test(node_extra_chance food_base_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} ARGS node_extra_chance)
+gb_test(meal_log food_base_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} ARGS meal_log)
 # T240 (MODO_DIOS_DECISIONES.md §3.c): the vision: the dreamer, the clan's aim, the lapse, the material the clan lacks
 gb_test(director_vision director_vision_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food

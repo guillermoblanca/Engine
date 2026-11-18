@@ -201,24 +201,16 @@ namespace GB
 		if (!m_Items || !m_Recipes) return out;
 		const ProductionRules& p = Config.Econ.Production;
 		const std::vector<std::string> ids = m_Recipes->Ids();
-		// The best recipe (by power of its output, then speed, then id) whose output carries `tag`: known first, else one to try (E5).
-		auto bestMaking = [&](const std::string& tag, int above, bool& known) -> const Recipe*
+		// The recipe of a tool whose output carries `tag`: known first (P-F10: one with its inputs in the store or the bags before a better one
+		// without), else one to try (E5). GB/Game/Production.h BestToolRecipe.
+		std::map<std::string, int> atHand;   // (counted once per plan: the upgrade asks once per member)
+		const ToolRecipeQuery toolQuery{ [&](const Recipe& r) { return ClanKnows(r); }, [&](const std::string& s) { return StationAt(s); }, [&](const std::string& item)
 		{
-			const Recipe* best = nullptr;
-			const ItemDef* bestDef = nullptr;
-			known = false;
-			for (int pass = 0; pass < 2 && !best; ++pass)
-				for (const std::string& id : ids)
-				{
-					const Recipe* r = m_Recipes->Find(id);
-					const ItemDef* d = r ? m_Items->Find(r->Output) : nullptr;
-					if (!d || !Tagged(*d, tag) || d->Power <= above || !StationAt(r->Station)) continue;
-					if (pass == 0 && !ClanKnows(*r)) continue;
-					if (!best || d->Power > bestDef->Power || (d->Power == bestDef->Power && d->Speed > bestDef->Speed)) { best = r; bestDef = d; }
-				}
-			known = best && ClanKnows(*best);
-			return best;
-		};
+			auto [it, fresh] = atHand.try_emplace(item, 0);
+			if (fresh) { it->second = Stored(item); for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) it->second += m.Body->Bag().Count(item); }
+			return it->second;
+		} };
+		auto bestMaking = [&](const std::string& tag, int above, bool& known) { return BestToolRecipe(*m_Recipes, *m_Items, tag, above, toolQuery, known); };
 
 		// 1) the tool of a trade a member lacks: the member makes it itself ("craft" job), but what it is made of is planned here
 		std::map<std::string, int> lacking;
