@@ -13,9 +13,11 @@
 // critical hunger or thirst (JobRules::CriticalHunger), never to the clan's shortage; and a direct order (T268) does not go through the
 // decision at all. The marks of T270 ask it too (ColonyDesignations::MemberPriority).
 //
-// Whose. Only the player's clan in the colony mode: the host (WorldDirector::Update) turns it on (SetActive) for that clan's tribe. A person with
-// no table when it is on is given the one its trade suggests (C-5: "suggest" of each category, else its "default"). Off, or with no categories
-// in the data, nothing here runs: the clans of the AI and GBSim are the same as before.
+// Whose. Only the player's clan in the colony mode: the host (WorldDirector::Update) turns it on (SetActive) for that clan's tribe; and in it
+// only the people whose table the player has touched (`game priority`). The first number set on a person starts its table from what its trade
+// suggests (C-5: "suggest" of each category, else its "default"); until then, and again after `reset`, the person decides as the clans of the
+// AI do (the table it is shown is that suggestion). So the colony with no table set lights its fire, talks and crafts its tools as before.
+// Off, or with no categories in the data, nothing here runs: the clans of the AI and GBSim are the same as before.
 //
 // The tribe owns one (Tribe::WorkTable()) and calls it from one line in each place: ClaimJob (TribeWork.cpp) and Decide's options (Tribe.cpp).
 // Saved under "priorities" when there is a table. CPU only, deterministic (every list in name or data order).

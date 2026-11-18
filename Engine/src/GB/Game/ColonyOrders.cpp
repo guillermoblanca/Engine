@@ -301,6 +301,20 @@ namespace GB
 		Inventory probe = bag;
 		const bool room = probe.Add(*tribe.m_Items, item, std::max(1, def->PerGather)) > 0;
 		if (d.Fails >= kMostFails || d.Waits > kMostWaits) { why = "cannot work " + d.Target; return Outcome::Failed; }
+		// someone else of the clan is working the node now: it waits its turn, never two at one node (SimQA's claims). Two sent to the same node
+		// take turns (one swings while the other carries to the store) for as long as the node lasts; behind a member's own gather it waits a little
+		if (amount > 0 && room && !d.Spent)
+			for (const TribeMember& o : tribe.m_Members)
+				if (&o != &m && !o.Dead && (o.Job == "gather" || o.Job == "approach") && o.Detail == d.Target)
+				{
+					const auto other = m_Mandates.find(o.Name);
+					const bool ordered = other != m_Mandates.end() && other->second.Verb == "use" && other->second.Target == d.Target;
+					if (!ordered && ++d.Waits > kMostWaits) { why = o.Name + " works " + d.Target; return Outcome::Failed; }
+					if (!tribe.Order(m, "wait 3")) { why = "cannot wait"; return Outcome::Failed; }
+					m.Job = "goto";   // (a wait of the order's own: no claim on the node)
+					m.Detail = d.Target;
+					return Outcome::Going;
+				}
 		if (amount > 0 && room && !d.Spent)
 		{
 			// a trip of swings at the node, as the tribe's own gather (Tribe::Execute): its ability, its claim, what it held before

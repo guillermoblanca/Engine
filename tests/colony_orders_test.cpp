@@ -302,6 +302,30 @@ int GBTest_colony_orders(int, char**)
 		Check(worked && def && ReadSite(*a, *def).Progress > 0.0f, "build: Ana carries the materials and works on the site");
 	}
 
+	// ---- (g) two orders to the same node (`game order Ana,Biel use <node>`): both are taken, they take turns, and never are two members at
+	// one node (SimQA's claims); the node spent, both orders are done
+	{
+		Village v;
+		v.Run(2.0f);
+		const std::string node = v.NodeOf("fiber_grass");
+		Check(v.Order("Ana", "use", { node }).Ok && v.Order("Biel", "use", { node }).Ok, "(g) Ana and Biel are both sent to the tuft");
+		bool twice = false;
+		for (int i = 0; i < static_cast<int>(180.0f / dt) && (v.Tribe_.Colony().Has("Ana") || v.Tribe_.Colony().Has("Biel")); ++i)
+		{
+			v.Step();
+			std::map<std::string, std::string> at;
+			for (const TribeMember& m : v.Tribe_.Members())
+				if (!m.Dead && (m.Job == "gather" || m.Job == "approach") && !m.Detail.empty() && !at.emplace(m.Detail, m.Name).second)
+				{
+					if (!twice) std::printf("colony_orders: (g) %s claimed twice\n", m.Detail.c_str());
+					twice = true;
+				}
+		}
+		std::printf("colony_orders: (g) Ana done %d, Biel done %d\n", v.Logged("Ana (forager) has done the order: use " + node) ? 1 : 0, v.Logged("has done the order: use " + node) ? 1 : 0);
+		Check(!twice, "(g) no two members gather at one node");
+		Check(!v.Tribe_.Colony().Has("Ana") && !v.Tribe_.Colony().Has("Biel") && !v.Logged("drops the order"), "(g) the tuft spent, both orders end without a cut");
+	}
+
 	if (failures == 0) std::printf("colony_orders: all checks passed\n");
 	return failures == 0 ? 0 : 1;
 }
