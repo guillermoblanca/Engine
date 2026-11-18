@@ -223,6 +223,16 @@ namespace GB
 		return job;
 	}
 
+	void JobBoard::Withdraw(const std::function<bool(const Job&)>& drop)
+	{
+		for (auto it = m_Posted.begin(); it != m_Posted.end();)
+		{
+			const auto job = m_Jobs.find(it->first);
+			if (job != m_Jobs.end() && drop(job->second)) it = m_Posted.erase(it);
+			else ++it;
+		}
+	}
+
 	std::vector<std::string> JobBoard::End(double now, const JobRules& rules)
 	{
 		std::vector<std::string> gone;

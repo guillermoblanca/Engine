@@ -2,6 +2,7 @@
 #include "GB/Game/FieldPlacement.h"
 #include "GB/Game/GroundFootprint.h"
 #include "GB/Game/SettlementPlanner.h"
+#include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
 #include <algorithm>
 #include <cmath>
@@ -82,6 +83,7 @@ namespace GB
 	{
 		const FarmRules& f = tribe.Config.Econ.Farming;
 		if (outline.size() < 3) return { false, "a zone needs 3 points or more" };
+		if (const std::string why = TechVerbs::WhyNot(tribe, "farm", "till"); !why.empty()) return { false, "cannot paint a farm zone: the clan " + why };   // T322
 		if (!crop.empty() && !tribe.Config.Econ.Crops.count(crop)) return { false, "no crop called " + crop + " in the loaded content" };
 		const float sp = std::max(0.5f, f.Spacing);
 		glm::vec2 lo = outline[0], hi = outline[0];
@@ -332,7 +334,7 @@ namespace GB
 		// till, sow (in its season), water and harvest
 		const FarmRules& f = econ.Farming;
 		const Season season = tribe.CurrentSeason();
-		if (!m_Player && static_cast<int>(state.Fields.size()) < tribe.FieldsWanted() && season != Season::Winter)
+		if (!m_Player && static_cast<int>(state.Fields.size()) < tribe.FieldsWanted() && season != Season::Winter && TechVerbs::Allows(tribe, "farm", "till"))   // (T322)
 		{
 			bool seeds = false, can = false;
 			for (const auto& [id, crop] : econ.Crops) seeds = seeds || tribe.Stored(crop.Seed) > 0;

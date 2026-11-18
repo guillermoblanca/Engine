@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Game/Skills.h"
 #include "GB/Game/WorkCategories.h"
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -106,6 +107,9 @@ namespace GB
 		// A refresh: Begin, Post every job the clan needs now, End. A job posted again keeps its claims and its age; one not posted again goes.
 		void Begin();
 		Job& Post(const std::string& kind, const std::string& target, const std::string& family, float amount, float base, int slots, const std::string& why, double now, const JobRules& rules);
+		// T322: takes back what was posted in this refresh that `drop` says (a verb the clan does not know: TechVerbs::Withdraw); End then drops
+		// those jobs and their claims as if they had not been posted.
+		void Withdraw(const std::function<bool(const Job&)>& drop);
 		// Drops the jobs that were not posted again, the claims that lapsed and the claims over a job's slots. Returns "<member> <job id>" for each claim that went.
 		std::vector<std::string> End(double now, const JobRules& rules);
 

@@ -9,6 +9,7 @@
 #include "GameTheme.h"
 #include "SceneEditor.h"
 #include "UserSettings.h"
+#include "GB/Game/TechVerbs.h"
 #include "GB/Input/InputSource.h"
 #include "GB/Log.h"
 #include <algorithm>
@@ -810,6 +811,7 @@ namespace GB::Editor
 		// `game site cancel <name>` calls it off (what was brought goes back to the store). Names with _ for their spaces, or in several words.
 		if (sub == "founding") return FoundingCommand(std::vector<std::string>(a.begin() + 1, a.end()));   // T310 (Gameplay/EditorFounding.cpp)
 		if (sub == "zone" || sub == "zones") { const Clan* zc = m_Clans.Find(HandClan()); return FarmZoneCommand(zc ? zc->Folk : nullptr, sub, std::vector<std::string>(a.begin() + 1, a.end())); }   // T280 (Gameplay/EditorFarmZones.cpp)
+		if (sub == "verbs") { const Clan* vc = m_Clans.Find(HandClan()); if (!vc || !vc->Folk) return { false, "no clan of yours" }; const std::string r = TechVerbs::Report(*vc->Folk); return { true, r.empty() ? std::string("no technology unlocks a verb: every work is free") : r }; }   // T322 (GB/Game/TechVerbs.h)
 		if (sub == "priority" || sub == "stock") return (sub == "priority" ? PriorityCommand(std::vector<std::string>(a.begin() + 1, a.end())) : StockCommand(std::vector<std::string>(a.begin() + 1, a.end())));   // T306/T307 (Gameplay/EditorColonyWork.cpp)
 		if (sub == "site")
 		{

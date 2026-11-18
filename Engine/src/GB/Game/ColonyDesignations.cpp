@@ -1,5 +1,6 @@
 // T270: the work the player designates to the clan and the order of its sites (see ColonyDesignations.h).
 #include "GB/Game/ColonyDesignations.h"
+#include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -71,6 +72,7 @@ namespace GB
 		if (priority < 1 || priority > 10) return { false, "the priority goes from 1 (first) to 10 (last)" };
 		if (!tribe.m_Gameplay || !tribe.m_Gameplay->Find(node) || !tribe.m_Gameplay->Find(node)->HasTag("Resource.Node")) return { false, "there is no node called " + node };
 		if (KindOf(tribe, node).empty()) return { false, node + " is not a node the clan can work" };
+		if (const std::string why = TechVerbs::WhyNot(tribe, "designate", KindOf(tribe, node)); !why.empty()) return { false, "the clan " + why };   // T322
 		if (AmountOf(tribe, node) <= 0) return { false, node + " is empty" };
 		const bool again = m_Marks.count(node) != 0;
 		Mark& mark = m_Marks[node];

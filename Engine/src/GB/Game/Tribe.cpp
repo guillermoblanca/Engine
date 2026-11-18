@@ -1,4 +1,5 @@
 #include "GB/Game/Tribe.h"
+#include "GB/Game/TechVerbs.h"
 #include "GB/Game/TribePriorities.h"
 #include "GB/Game/UseLearning.h"
 #include "GB/Telemetry/TelemetrySink.h"
@@ -1870,6 +1871,7 @@ namespace GB
 		if (Priorities) ApplyPriorityGraphs(*this, m, *Priorities, opts);
 		m_Work.Options(*this, m, opts);   // T306: the person's table of work priorities, in the colony (WorkPriorities.h)
 		m_Goals.Options(*this, m, opts);   // T307: no make past a stock goal met (StockGoals.h)
+		TechVerbs::Options(*this, opts);   // T322: nothing of a verb the clan does not know (TechVerbs.h)
 
 		// choose, and fall back on the next best when the orders cannot be given
 		Commitment current = mind.Current;
