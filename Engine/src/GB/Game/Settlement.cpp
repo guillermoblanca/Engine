@@ -939,9 +939,7 @@ namespace GB
 	// SettlementRadius, past which a building is not the clan's any more).
 	int Tribe::FieldsWanted() const
 	{
-		int alive = 0;
-		for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
-		return Config.Econ.Farming.FieldsFor(alive);
+		return m_Zones.FieldsWanted(*this);   // T280: FarmRules::FieldsFor, or the plots per member of the zones (FarmZones.h)
 	}
 
 	float Tribe::VillageReach() const

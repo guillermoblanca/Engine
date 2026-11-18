@@ -1,0 +1,113 @@
+#pragma once
+// T280 (A1 of documentation/01_diseno/AGRICULTURA.md, P-F1 and P-F2 for the player; MODO_COLONIA.md §4.4): the farm zones the player paints for
+// the clan in the colony.
+//
+// A zone is a field (GB/Gameplay/Farming.h: plots 2 m apart) the player marks out on the ground with `game zone farm x0 z0 x1 z1 [crop]` (a
+// rectangle) or `game zone farm poly x0 z0 x1 z1 x2 z2 ... [crop]` (a perimeter of points: the plots are the cells whose middle falls inside,
+// Field::Cells), with a crop and a plan of its own. The perimeter is kept (Zone::Outline) for the fences and gates it will carry (MURALLAS.md). It is kept with the clan's other fields (EconomyState::Fields: it grows, is drawn, saved and keeps
+// its ground like them) and this class keeps what is the player's on top: which fields are painted zones, their crop and their plan.
+//   crop  the crop it is sown with ("" = any the clan can sow now: the first by id with seed in the store)
+//   auto  the clan chooses the crop each time it sows (AutoCrop: the one whose produce the store has least of), not its size nor its place
+//   plan  "sow": the whole cycle (till, sow, water, harvest); "harvest": what grows is watered and harvested, nothing new is tilled or sown;
+//         "fallow": the ground rests (only what is ripe is harvested)
+// The work of every field goes on the clan's job board as before: one "farm" job per action (till, sow, tend, harvest) for all its fields, so
+// the table of priorities of T306 (category "field") and its marks rule it as any other work. A bigger zone has more plots: more work.
+//
+// Who paints (decision A-4). In the colony the player's clan (SetPlayer, from WorldDirector::Update as the table of T306) only gets the fields
+// the player paints: it marks out no field of its own (the ones it marked before the colony started are still worked). The clans of the AI and
+// GBSim mark out their own zones (Post): with farming.plotsPerMember in the data, that many plots per living member in zones of
+// farming.zonePlots [min, max] plots (a new one while what they have falls short by half a smallest zone or more); without it, the old rule
+// (FarmRules::FieldsFor fields of `plots` plots), so a run is the same as before. Their fields are in "auto" (AutoCrop). With no zone of the
+// player nothing here is saved.
+//
+// The tribe owns one (Tribe::Zones()) and calls it from one line in each place: PostEconomyJobs (Post), EconomyJobScore and EconomyOptions
+// (WorkPlace), ExecuteEconomy (Pick). Saved under "farmzones" when there is a zone. CPU only, deterministic.
+#include "GB/Gameplay/Ecology.h"
+#include <glm/glm.hpp>
+#include <map>
+#include <string>
+#include <vector>
+
+namespace GB
+{
+	class Tribe;
+	class Field;
+
+	class FarmZones
+	{
+	public:
+		static constexpr int kMostPlots = 400;      // the largest zone (20 x 20 plots, 40 m a side)
+		static constexpr const char* kPrefix = "zone ";
+
+		struct Zone
+		{
+			std::string Crop;            // "" = any the clan can sow now
+			std::string Plan = "sow";    // "sow", "harvest" or "fallow"
+			bool Auto = false;           // the clan chooses the crop (AutoCrop)
+			std::vector<glm::vec2> Outline;   // the perimeter painted (x, z points; a rectangle is its 4 corners): the fences of tomorrow (MURALLAS.md)
+			bool operator==(const Zone&) const = default;
+		};
+		struct Reply
+		{
+			bool Ok = false;
+			std::string Text;   // English (the commands' answers and the tests read it)
+		};
+
+		// The player's clan in the colony: it marks out no field of its own.
+		void SetPlayer(bool on) { m_Player = on; }
+		bool Player() const { return m_Player; }
+
+		// ---- the player's zones
+		// Paints a zone over the rectangle of corners a and b (x, z; the plots' middles, 2 m apart), with a crop or "" for any. Refused: a crop the
+		// data has not, more than kMostPlots plots, ground taken (a building, a site, a field) or a plot in the water or on a rock.
+		Reply Paint(Tribe& tribe, const glm::vec2& a, const glm::vec2& b, const std::string& crop);
+		// A zone of any shape: the perimeter's points (3 or more, in order); its plots are the cells of the grid (2 m, from the lowest x and z of
+		// the points) whose middle falls inside it (or on its edge). The same refusals as Paint.
+		Reply PaintOutline(Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop);
+		Reply SetCrop(Tribe& tribe, const std::string& zone, const std::string& crop);
+		Reply SetPlan(Tribe& tribe, const std::string& zone, const std::string& plan);
+		Reply SetAuto(Tribe& tribe, const std::string& zone, bool on);
+		// The zone and its plots go (what grows in it is lost; its store stays until it is emptied).
+		Reply Remove(Tribe& tribe, const std::string& zone);
+		// Every field of the clan in a line each: the zones with their crop and plan, the others "(the clan's)".
+		std::string List(const Tribe& tribe) const;
+		// The field a zone id names: "3" or "zone 3" (or a field's name, with _ for its spaces); nullptr: none.
+		static const Field* Find(const Tribe& tribe, const std::string& zone, size_t* index = nullptr);
+		const Zone* Of(const std::string& field) const;
+		const std::map<std::string, Zone>& All() const { return m_Zones; }
+
+		// ---- the rule of the AI
+		// The fields the clan wants now (Tribe::FieldsWanted): FieldsFor its living members, or with plotsPerMember one more than it has while its
+		// plots fall short (see above).
+		int FieldsWanted(const Tribe& tribe) const;
+		// The plots of the next field the clan marks out itself.
+		static int NextPlots(const Tribe& tribe);
+		// The crop the clan chooses for a field in "auto": of the crops it can sow now (its season, seed in the store), the one whose produce (the
+		// item it yields most of, not its seed) the store has least of; then the one that yields more; then by id. "" = none.
+		static std::string AutoCrop(const Tribe& tribe);
+
+		// ---- the tribe's hooks
+		// PostEconomyJobs: marks out a new field of the clan's own (not for the player's clan in the colony) and posts the farm jobs.
+		void Post(Tribe& tribe) const;
+		// The crop sown in a field now ("" = none can be: no seed, not its season, its plan sows nothing).
+		std::string CropFor(const Tribe& tribe, const Field& field) const;
+		// Whether a field's plan has work of an action ("till", "sow", "tend", "harvest").
+		bool Works(const Field& field, const std::string& action) const;
+		// ExecuteEconomy: up to `most` plots of the first field with work of `action`, and the crop to sow. False: none.
+		bool Pick(const Tribe& tribe, const std::string& action, size_t most, size_t& fieldIndex, std::vector<size_t>& plots, std::string& crop) const;
+		// Where a farm job is done, for the score and the option: the field Pick would choose (the first field while there is no zone, as before).
+		glm::vec2 WorkPlace(const Tribe& tribe, const std::string& action) const;
+
+		bool Empty() const { return m_Zones.empty(); }
+		void Clear() { m_Zones.clear(); }
+		std::string ToJson() const;
+		bool FromJson(const std::string& json);   // false (and nothing changed) on a mistake
+
+	private:
+		static void Logged(Tribe& tribe, const std::string& text);
+		Zone* Edit(const Tribe& tribe, const std::string& zone, std::string& name);
+
+		std::map<std::string, Zone> m_Zones;   // field name -> the player's settings
+		bool m_Player = false;                  // the host's switch (not saved)
+	};
+}

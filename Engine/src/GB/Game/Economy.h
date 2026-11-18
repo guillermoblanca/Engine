@@ -55,6 +55,14 @@ namespace GB
 		int Fields = 1;                          // fields the clan marks out (one is enough for era 1): with MembersPerField, the most it marks out
 		int MembersPerField = 0;                 // a field for every this many living members (0: always Fields), so a growing village feeds itself
 		int FieldsFor(int alive) const { return MembersPerField > 0 ? std::clamp((alive + MembersPerField - 1) / MembersPerField, 1, std::max(1, Fields)) : Fields; }
+		// T280 (A1 of documentation/01_diseno/AGRICULTURA.md §2.4, §7.1): the zones the clans of the AI mark out themselves. With PlotsPerMember > 0
+		// a clan wants that many plots per living member, in zones of ZonePlotsMin..ZonePlotsMax plots (Columns a row), in place of Fields and
+		// MembersPerField; 0 (the default, data without "plotsPerMember") keeps the old rule of FieldsFor fields of Plots plots. A zone bound of 0
+		// is Plots.
+		int PlotsPerMember = 0;
+		int ZonePlotsMin = 0, ZonePlotsMax = 0;
+		int ZoneMin() const { return ZonePlotsMin > 0 ? ZonePlotsMin : Plots; }
+		int ZoneMax() const { return std::max(ZoneMin(), ZonePlotsMax > 0 ? ZonePlotsMax : Plots); }
 		bool operator==(const FarmRules&) const = default;
 	};
 
@@ -131,7 +139,7 @@ namespace GB
 	// { "economy": { "production": { "depth", "maxBatches", "seconds", "priority", "stock": { "cordage": 2 }, "campStations": [ "workbench" ], "upgrade",
 	//   "experiment", "containersPerMember", "preserveAbove" }, "spoilage": { "step", "bag", "seasons": { "winter": 0.5 } }, "farming": { "tech", "tool",
 	//   "plots", "columns", "spacing", "offset": [ x, z ], "moistureSeconds", "workSeconds", "plotsPerTrip", "priority", "fields" },
-	//   "crops": [ { "id", "seed", "yield": { "grain": 3 }, "stageSeconds", "sow": [ "spring" ] } ],
+	//   "crops": [ { "id", "seed", "yield": { "grain": 3 }, "stageSeconds", "sow": [ "spring" ], "seasons": { "spring": 1.2 } } ],
 	//   "logistics": { "stores": { "main": { "cap", "slots", "spoilRate", "accepts": [], "haul" } }, "perBagSlot", "priority", "haulAt", "fieldStore" },
 	//   "construction": { "maxSites", "membersPerSite" } } }.
 	// Each of "production", "spoilage", "farming" and "logistics" replaces that part whole (what it does not say is the default, and a map or a list it

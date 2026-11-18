@@ -24,8 +24,12 @@ namespace GB
 		std::map<std::string, int> Yield;        // what a ripe plot gives at harvest ({"grain": 3, "grain_seed": 2})
 		float StageSeconds = 90.0f;              // seconds of moist growth at rate 1 from sown to sprout and from sprout to grown
 		std::vector<std::string> Sow;            // seasons it can be sown in ("spring", "summer"); empty = any but winter
+		// T280 (P-F4 of documentation/01_diseno/AGRICULTURA.md §4.1): the crop's own pace by season ("spring": 1.2, ...), in place of the common
+		// curve of SeasonClock::GrowthRate; a season it does not list grows at that curve's rate. Empty = the common curve (as before).
+		std::map<std::string, float> Seasons;
 		bool operator==(const CropDef&) const = default;
 		bool SowsIn(Season s) const;
+		float Rate(Season s) const;              // its growth rate in a season (Seasons, else SeasonClock::GrowthRate)
 	};
 
 	struct FieldPlot
@@ -51,12 +55,16 @@ namespace GB
 		int Columns = 3;
 		float Spacing = 2.0f;
 		std::vector<FieldPlot> Plots;
+		// T280: the cell of the grid (row x Columns + column, ascending) of each plot, for a field of any shape (a zone painted as a polygon);
+		// empty = plot i is cell i (a rectangle, as every field before)
+		std::vector<int> Cells;
 
 		Field() = default;
 		Field(const std::string& name, const glm::vec2& origin, int plots, int columns, float spacing);
 		glm::vec2 PlotPos(size_t i) const;
+		int GridCells() const { return Cells.empty() ? static_cast<int>(Plots.size()) : Cells.back() + 1; }   // the cells of its bounding grid
 		glm::vec2 Centre() const;
-		// Grows what is moist (StageSeconds per stage at the season's rate), dries the soil, and in winter the frost ruins what is in the ground.
+		// Grows what is moist (StageSeconds per stage at the crop's rate of the season, CropDef::Rate), dries the soil, and in winter the frost ruins what is in the ground.
 		// `rain`: it rains, so every plot is watered (as the garden does). Unknown crops do not grow.
 		FieldEvents Update(float dt, Season season, bool rain, float moistureSeconds, const std::map<std::string, CropDef>& crops);
 		// How many plots are in a state ("grass", "dug", ...), and which ones (in order) up to `most`.

@@ -45,7 +45,7 @@ namespace GB
 
 	GroundRect FieldGround(const Field& field)
 	{
-		return FieldGround(field.Origin, static_cast<int>(field.Plots.size()), field.Columns, field.Spacing);
+		return FieldGround(field.Origin, field.GridCells(), field.Columns, field.Spacing);   // T280: a shaped field takes its bounding grid
 	}
 
 	bool GroundOverlaps(const GroundRect& a, const GroundRect& b, float gap)

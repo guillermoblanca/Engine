@@ -151,17 +151,20 @@ namespace GB
 		return &m_Econ.Stockpiles.back();
 	}
 
-	Field& Tribe::MarkField(const glm::vec2& origin)
+	Field& Tribe::MarkField(const glm::vec2& origin, int plots)
 	{
 		const FarmRules& f = Config.Econ.Farming;
-		const std::string name = "field " + std::to_string(m_Econ.Fields.size() + 1);
-		m_Econ.Fields.emplace_back(name, origin, f.Plots, f.Columns, f.Spacing);
+		if (plots <= 0) plots = f.Plots;
+		size_t n = m_Econ.Fields.size() + 1;   // T280: the first number no field has (one the player removed may have left a gap)
+		while (std::any_of(m_Econ.Fields.begin(), m_Econ.Fields.end(), [&](const Field& x) { return x.Name == "field " + std::to_string(n); })) ++n;
+		const std::string name = "field " + std::to_string(n);
+		m_Econ.Fields.emplace_back(name, origin, plots, f.Columns, f.Spacing);
 		Field& field = m_Econ.Fields.back();
 		if (!Config.Econ.Logistics.FieldStore.empty())   // the harvest is left beside the field and hauled to the camp (E11)
 			AddStockpile(name + " store", field.Origin + glm::vec2(-f.Spacing, 0.0f), Config.Econ.Logistics.FieldStore);
 		char at[64];
 		std::snprintf(at, sizeof at, " at %.0f, %.0f", static_cast<double>(origin.x), static_cast<double>(origin.y));
-		TellClan("marks out " + name + at + " (" + std::to_string(f.Plots) + " plots)");
+		TellClan("marks out " + name + at + " (" + std::to_string(plots) + " plots)");
 		return field;
 	}
 
@@ -377,42 +380,7 @@ namespace GB
 				"make " + st.Output + ": " + st.Why, m_Time, rules);
 		}
 
-		// farm: mark out a field once the clan knows how and has seeds; then till, sow (in its season), water and harvest
-		const FarmRules& f = econ.Farming;
-		const Season season = CurrentSeason();
-		if (static_cast<int>(m_Econ.Fields.size()) < FieldsWanted() && season != Season::Winter)
-		{
-			bool seeds = false, can = false;
-			for (const auto& [id, crop] : econ.Crops) seeds = seeds || Stored(crop.Seed) > 0;
-			for (const TribeMember& m : m_Members) can = can || (!m.Dead && m.Body && CanFarm(m));
-			if (seeds && can)
-				if (const auto at = FieldOriginFor(*this, Config.Economy.Camp + f.Offset + glm::vec2(0.0f, static_cast<float>(m_Econ.Fields.size()) * (static_cast<float>((f.Plots + f.Columns - 1) / f.Columns) + 1.0f) * f.Spacing))) MarkField(*at);   // T215/T260: on free ground (FieldPlacement.h)
-		}
-		if (!m_Econ.Fields.empty())
-		{
-			int grass = 0, dug = 0, dry = 0, grown = 0;
-			for (const Field& field : m_Econ.Fields)
-			{
-				grass += field.Count("grass");
-				dug += field.Count("dug");
-				dry += static_cast<int>(field.Dry(field.Plots.size()).size());
-				grown += field.Count("grown");
-			}
-			int hoes = f.ToolTag.empty() ? 1 : m_Store.CountTagged(*m_Items, f.ToolTag);
-			for (const TribeMember& m : m_Members) if (!m.Dead && m.Body && !f.ToolTag.empty()) hoes += m.Body->Bag().CountTagged(*m_Items, f.ToolTag);
-			std::string sowable;
-			for (const auto& [id, crop] : econ.Crops) if (sowable.empty() && crop.SowsIn(season) && m_Store.Count(crop.Seed) > 0) sowable = id;
-			const int trip = std::max(1, f.PlotsPerTrip);
-			auto slots = [&](int plots) { return std::clamp((plots + trip - 1) / trip, 1, 2); };
-			if (grass > 0 && hoes > 0 && season != Season::Winter)
-				m_Board.Post("farm", "till", "", static_cast<float>(grass), f.Priority, slots(grass), std::to_string(grass) + " plots of the field are still grass", m_Time, rules);
-			if (dug > 0 && !sowable.empty())
-				m_Board.Post("farm", "sow", "", static_cast<float>(dug), f.Priority * 1.1f, slots(dug), std::to_string(dug) + " plots are tilled and it is the season to sow " + sowable, m_Time, rules);
-			if (dry > 0)
-				m_Board.Post("farm", "tend", "", static_cast<float>(dry), f.Priority, slots(dry), std::to_string(dry) + " plots of growing crops are dry", m_Time, rules);
-			if (grown > 0)
-				m_Board.Post("farm", "harvest", "", static_cast<float>(grown), f.Priority * 1.3f, slots(grown), std::to_string(grown) + " plots are ripe", m_Time, rules);
-		}
+		m_Zones.Post(*this);   // farm: the clan's fields and the player's zones (T280: FarmZones.h)
 
 		// haul: a stockpile whose kind is hauled holds things: someone carries them to the main store
 		for (const Stockpile& p : m_Econ.Stockpiles)
@@ -468,7 +436,7 @@ namespace GB
 			const std::string& tag = Config.Econ.Farming.ToolTag;
 			if (job.Target == "till" && !tag.empty() && bag.CountTagged(*m_Items, tag) == 0 && m_Store.CountTagged(*m_Items, tag) == 0) return 0.0f;
 			if (job.Target == "harvest" && Carried(*m_Items, bag) >= CarryLimit(m)) return 0.0f;   // no room for the harvest
-			return job.Priority * liking("farm") * Falloff(glm::distance(pos, m_Econ.Fields.front().Centre()), 60.0f) * vigor;
+			return job.Priority * liking("farm") * Falloff(glm::distance(pos, m_Zones.WorkPlace(*this, job.Target)), 60.0f) * vigor;   // T280
 		}
 		if (job.Kind == "haul")
 		{
@@ -493,7 +461,7 @@ namespace GB
 		o.Target = held->Target;
 		o.Where = Config.Economy.Camp;
 		if (held->Kind == "make") { if (const Recipe* r = m_Recipes->Find(held->Target)) StationAt(r->Station, &o.Where); }
-		else if (held->Kind == "farm") o.Where = m_Econ.Fields.front().Centre();
+		else if (held->Kind == "farm") o.Where = m_Zones.WorkPlace(*this, held->Target);   // T280
 		else for (const Stockpile& p : m_Econ.Stockpiles) if (p.Name == held->Target) o.Where = p.Pos;
 		const float reach = Falloff(glm::distance(Where(m), o.Where), 100.0f);
 		o.Score = 0.9f * reach;
@@ -550,20 +518,14 @@ namespace GB
 			Say(m, "goes to fetch what " + pile->Name + " holds");
 			return true;
 		}
-		// farm: up to PlotsPerTrip plots of the first field with that work
+		// farm: up to PlotsPerTrip plots of the first field with that work (T280: whose plan has it; to sow, the crop of the field: FarmZones.h)
 		const FarmRules& f = econ.Farming;
 		const std::string& action = o.Target;
 		const size_t most = static_cast<size_t>(std::max(1, f.PlotsPerTrip));
 		size_t fieldIndex = 0;
 		std::vector<size_t> plots;
-		for (size_t i = 0; i < m_Econ.Fields.size() && plots.empty(); ++i)
-		{
-			const Field& field = m_Econ.Fields[i];
-			plots = action == "till" ? field.Find("grass", most) : action == "sow" ? field.Find("dug", most) : action == "tend" ? field.Dry(most) : field.Find("grown", most);
-			fieldIndex = i;
-		}
-		if (plots.empty()) return false;
 		std::string crop = "-";
+		if (!m_Zones.Pick(*this, action, most, fieldIndex, plots, crop)) return false;
 		if (action == "till" && !f.ToolTag.empty() && bag.CountTagged(*m_Items, f.ToolTag) == 0)
 		{
 			// it takes the hoe from the store (and keeps it: the farmer's tool)
@@ -573,9 +535,6 @@ namespace GB
 		}
 		if (action == "sow")
 		{
-			const Season season = CurrentSeason();
-			for (const auto& [id, c] : econ.Crops) if (crop == "-" && c.SowsIn(season) && m_Store.Count(c.Seed) > 0) crop = id;
-			if (crop == "-") return false;
 			const std::string& seed = econ.Crops.at(crop).Seed;
 			const int have = bag.Count(seed);
 			if (have < static_cast<int>(plots.size())) m_Store.Transfer(*m_Items, bag, seed, static_cast<int>(plots.size()) - have);

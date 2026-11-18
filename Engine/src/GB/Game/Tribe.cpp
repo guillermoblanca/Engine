@@ -480,6 +480,7 @@ namespace GB
 		m_Designations.Clear();   // T270
 		m_Work.Clear();   // T306
 		m_Goals.Clear();   // T307
+		m_Zones.Clear();   // T280
 		m_Claims.Clear();
 		m_Log.clear();
 		m_Chronicle.Clear();
@@ -2451,6 +2452,7 @@ namespace GB
 		if (!m_Designations.Empty()) j["designations"] = Json::parse(m_Designations.ToJson());   // T270 (only with a mark or a queue of sites)
 		if (!m_Work.Empty()) j["priorities"] = Json::parse(m_Work.ToJson());   // T306 (only with a table)
 		if (!m_Goals.Empty()) j["stock"] = Json::parse(m_Goals.ToJson());   // T307 (only with a goal)
+		if (!m_Zones.Empty()) j["farmzones"] = Json::parse(m_Zones.ToJson());   // T280 (only with a zone)
 		if (!m_Players.Players.empty() || !m_Players.Proposals.empty() || !m_Players.Aim.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
 		return j.dump();
 	}
@@ -2498,6 +2500,8 @@ namespace GB
 		if (j.contains("priorities") && !work.FromJson(j["priorities"].dump())) return false;
 		StockGoals goals;   // T307 (a save with no goal has none)
 		if (j.contains("stock") && !goals.FromJson(j["stock"].dump())) return false;
+		FarmZones zones;   // T280 (a save with no zone has none)
+		if (j.contains("farmzones") && !zones.FromJson(j["farmzones"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
 		std::vector<bool> found(m_Members.size(), false);
 		for (const Json& jm : j["members"])
@@ -2536,6 +2540,8 @@ namespace GB
 		work.SetActive(m_Work.Active());   // T306 (the host's switch is not saved)
 		m_Work = std::move(work);
 		m_Goals = std::move(goals);   // T307
+		zones.SetPlayer(m_Zones.Player());   // T280 (the host's switch is not saved)
+		m_Zones = std::move(zones);
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);
 		m_Society = std::move(society);
