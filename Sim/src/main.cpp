@@ -150,6 +150,7 @@ int main(int argc, char** argv)
 	std::vector<std::string> know;
 	std::vector<std::pair<double, std::string>> orders;   // T195: --director=<day>:<order>
 	bool noFarming = false;   // T277: --no-farming
+	int zonePlots[4] = { 0, 0, 0, 0 };   // T280: --zones=<plotsPerMember>,<min>,<max>[,<columns>]
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string v;
@@ -192,6 +193,7 @@ int main(int argc, char** argv)
 		else if (!std::strcmp(argv[i], "--game")) game = forests = combat = true;
 		else if (!std::strcmp(argv[i], "--no-patches")) patches = false;   // T118: a graph's world with the wild nodes instead of a patch by each camp
 		else if (!std::strcmp(argv[i], "--report")) report = true;   // at the end, each clan's settlement, fields, economy and goals
+		else if (Arg(argv[i], "--zones", v)) std::sscanf(v.c_str(), "%d,%d,%d,%d", &zonePlots[0], &zonePlots[1], &zonePlots[2], &zonePlots[3]);   // T280: the AI's zones by plots per member (FarmZones.h), as farming.plotsPerMember/zonePlots would
 		else if (!std::strcmp(argv[i], "--no-farming")) noFarming = true;   // T277: no crops (the content's economy.crops emptied): clans that never sow
 		else if (!std::strcmp(argv[i], "--combat")) combat = true;
 		else if (!std::strcmp(argv[i], "--no-content")) content = false;   // the bare engine: no buildings, no technologies (the old runs)
@@ -269,6 +271,14 @@ int main(int argc, char** argv)
 	{
 		era = std::make_unique<EraContent>(GB_ASSETS_DIR, pack);
 		if (!era->Error.empty()) { std::fprintf(stderr, "the content of the era did not load: %s\n", era->Error.c_str()); return 1; }
+		if (zonePlots[0] > 0)   // T280
+		{
+			GB::FarmRules& f = era->Config.Econ.Farming;
+			f.PlotsPerMember = zonePlots[0];
+			f.ZonePlotsMin = zonePlots[1];
+			f.ZonePlotsMax = zonePlots[2];
+			if (zonePlots[3] > 0) f.Columns = zonePlots[3];
+		}
 		if (noFarming) era->Config.Econ.Crops.clear();   // T277: no crop, so no seed sows a field (TribeEconomy: "no crops in the loaded content")
 	}
 	GB::SimSetup setup;
@@ -451,7 +461,7 @@ int main(int argc, char** argv)
 			std::string goals;
 			for (const std::string& g : t->Knowledge().Goals()) goals += g + " ";
 			std::fprintf(stderr, "\n==== %d alive, knows %zu technologies, %zu households, %zu fields (wants %d), store %d slots used; goals: %s\n%s\n%s\n%s\n", alive, t->Knowledge().Clan().size(),
-				t->Households().size(), t->Economy().Fields.size(), t->Config.Econ.Farming.FieldsFor(alive), t->Store().UsedSlots(), goals.c_str(), t->SettlementReport().c_str(),
+				t->Households().size(), t->Economy().Fields.size(), t->Zones().FieldsWanted(*t), t->Store().UsedSlots(), goals.c_str(), t->SettlementReport().c_str(),
 				t->FieldReport().c_str(), t->EconomyReport().c_str());
 			for (const GB::BuildingNeed& n : t->PublicBuildingNeeds()) std::fprintf(stderr, "  needs %s (%.2f): %s\n", n.Building.c_str(), n.Urgency, n.Why.c_str());
 			// T248: where the store's things lie (in its store buildings or by the fire)

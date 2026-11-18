@@ -268,7 +268,7 @@ namespace GB
 		if (!m_To.Clans) return;
 		const double now = Now();
 		if (m_Colony && m_ColonyClan < 0) m_ColonyClan = ColonyClan();   // T269: the player's clan is the first one there is, for good (a split or an end never moves it)
-		for (const auto& c : m_To.Clans->All()) if (c->Folk) c->Folk->WorkTable().SetActive(m_Colony && c->Id == ColonyClan());   // T306: the tables of priorities rule only the player's clan
+		for (const auto& c : m_To.Clans->All()) if (c->Folk) { c->Folk->WorkTable().SetActive(m_Colony && c->Id == ColonyClan()); c->Folk->Zones().SetPlayer(m_Colony && c->Id == ColonyClan()); }   // T306: the tables of priorities rule only the player's clan; T280: and it only farms the zones the player paints
 		UpdateSigns();   // T237 (nothing without signs)
 		UpdateFocus();   // T238/T239 (nothing without a focus or a calling)
 		UpdateVisions();   // T240 (nothing without visions)

@@ -114,6 +114,17 @@ namespace GB
 				}
 			}
 			if (c.Yield.empty()) return "economy: crop " + c.Id + " yields nothing";
+			if (r.Has("seasons"))   // T280 (P-F4): the crop's pace by season
+			{
+				const Json& ss = o["seasons"];
+				if (!ss.is_object()) return "economy: crop " + c.Id + " seasons must be an object of season -> rate";
+				for (const auto& [season, v] : ss.items())
+				{
+					if (!IsSeason(season)) return "economy: crop " + c.Id + " has a rate for an unknown season " + season;
+					if (!v.is_number() || v.get<float>() < 0.0f || v.get<float>() > 10.0f) return "economy: crop " + c.Id + " seasons " + season + " must be a rate of 0 to 10";
+					c.Seasons[season] = v.get<float>();
+				}
+			}
 			return r.Unknown();
 		}
 	}
@@ -209,7 +220,16 @@ namespace GB
 					|| !(e = r.Int("columns", x.Columns, 1, 100)).empty() || !(e = r.Float("spacing", x.Spacing, 0.5f, 20.0f)).empty()
 					|| !(e = r.Float("moistureSeconds", x.MoistureSeconds, 1.0f, 1e6f)).empty() || !(e = r.Float("workSeconds", x.WorkSeconds, 0.0f, 600.0f)).empty()
 					|| !(e = r.Int("plotsPerTrip", x.PlotsPerTrip, 1, 100)).empty() || !(e = r.Float("priority", x.Priority, 0.0f, 100.0f)).empty()
-					|| !(e = r.Int("fields", x.Fields, 0, 64)).empty() || !(e = r.Int("membersPerField", x.MembersPerField, 0, 1000)).empty()) return e;
+					|| !(e = r.Int("fields", x.Fields, 0, 64)).empty() || !(e = r.Int("membersPerField", x.MembersPerField, 0, 1000)).empty()
+					|| !(e = r.Int("plotsPerMember", x.PlotsPerMember, 0, 100)).empty()) return e;
+				if (r.Has("zonePlots"))   // T280: a number, or [min, max]
+				{
+					const Json& z = (*p)["zonePlots"];
+					auto ok = [](const Json& v) { return v.is_number_integer() && v.get<int>() >= 1 && v.get<int>() <= 400; };
+					if (ok(z)) x.ZonePlotsMin = x.ZonePlotsMax = z.get<int>();
+					else if (z.is_array() && z.size() == 2 && ok(z[0]) && ok(z[1]) && z[0].get<int>() <= z[1].get<int>()) { x.ZonePlotsMin = z[0].get<int>(); x.ZonePlotsMax = z[1].get<int>(); }
+					else return "economy: farming zonePlots must be a whole number from 1 to 400 or [min, max]";
+				}
 				if (!x.ToolTag.empty() && !GameplayTag::IsValidTagName(x.ToolTag)) return "economy: farming tool is a bad tag " + x.ToolTag;
 				if (r.Has("offset"))
 				{
@@ -330,11 +350,19 @@ namespace GB
 		f["priority"] = Rounded(m.Priority);
 		f["fields"] = m.Fields;
 		f["membersPerField"] = m.MembersPerField;
+		if (m.PlotsPerMember > 0) f["plotsPerMember"] = m.PlotsPerMember;   // T280 (only when the data says so)
+		if (m.ZonePlotsMin > 0 || m.ZonePlotsMax > 0) f["zonePlots"] = Json::array({ m.ZonePlotsMin, m.ZonePlotsMax });
 		for (const auto& [id, crop] : r.Crops)
 		{
 			Json y = Json::object();
 			for (const auto& [item, n] : crop.Yield) y[item] = n;
 			c.push_back(Json{ { "id", crop.Id }, { "seed", crop.Seed }, { "yield", y }, { "stageSeconds", Rounded(crop.StageSeconds) }, { "sow", crop.Sow } });
+			if (!crop.Seasons.empty())   // T280 (only a crop with its own pace)
+			{
+				Json ss = Json::object();
+				for (const auto& [season, k] : crop.Seasons) ss[season] = Rounded(k);
+				c.back()["seasons"] = ss;
+			}
 		}
 		Json stores = Json::object();
 		for (const auto& [name, k] : r.Logistics.Stores)

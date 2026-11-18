@@ -15,6 +15,7 @@
 #include "GB/Game/Economy.h"
 #include "GB/Game/Entity.h"
 #include "GB/Game/Exploration.h"
+#include "GB/Game/FarmZones.h"
 #include "GB/Game/History.h"
 #include "GB/Game/JobBoard.h"
 #include "GB/Game/Skills.h"
@@ -355,6 +356,7 @@ namespace GB
 		friend class ColonyDesignations;  // T270: the marks of the player and the queue of sites (GB/Game/ColonyDesignations.h), out of this class
 		friend class WorkPriorities;  // T306: the table of work priorities of each person (GB/Game/WorkPriorities.h), out of this class
 		friend class StockGoals;      // T307: the stock goals of the clan (GB/Game/StockGoals.h), out of this class
+		friend class FarmZones;       // T280: the farm zones the player paints (GB/Game/FarmZones.h), out of this class
 	public:
 		TribeConfig Config;
 
@@ -594,7 +596,7 @@ namespace GB
 		Stockpile* AddStockpile(const std::string& name, const glm::vec2& pos, const std::string& kind = "stockpile");
 		Stockpile* FindStockpile(const std::string& name);
 		// Marks out a field (the farm rules' plots, columns and spacing) with its first plot at `origin`; with a field store kind, a stockpile beside it.
-		Field& MarkField(const glm::vec2& origin);
+		Field& MarkField(const glm::vec2& origin, int plots = 0);   // T280: `plots` 0 = FarmRules::Plots
 		// Units of one item after which nobody gathers more of it into the main store (EconomyRules::Main().Cap, 40 by default). Given an item that
 		// is food, the buildings' foodCap is added (W5); without one, the cap of any item.
 		int StoreCap(const std::string& item = {}) const;
@@ -651,6 +653,8 @@ namespace GB
 		WorkPriorities& WorkTable() { return m_Work; }
 		const WorkPriorities& WorkTable() const { return m_Work; }
 		StockGoals& Goals() { return m_Goals; }
+		FarmZones& Zones() { return m_Zones; }   // T280: the farm zones the player paints (GB/Game/FarmZones.h)
+		const FarmZones& Zones() const { return m_Zones; }
 		const StockGoals& Goals() const { return m_Goals; }
 		// T277: what its people ate since the run began, by food and by source (GB/Game/MealLog.h; GBSim --report)
 		const MealLog& Meals() const { return m_Meals; }
@@ -1010,6 +1014,7 @@ namespace GB
 		ColonyDesignations m_Designations;   // T270: the player's marks and site queue (saved under "designations" when there is one)
 		WorkPriorities m_Work;   // T306: the people's tables of work priorities (saved under "priorities" when there is one)
 		StockGoals m_Goals;      // T307: the stock goals (saved under "stock" when there is one)
+		FarmZones m_Zones;       // T280: the player's farm zones (saved under "farmzones" when there is one)
 		MealLog m_Meals;       // T277: what was eaten (only counts; not saved)
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;

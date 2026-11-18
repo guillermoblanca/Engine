@@ -14,5 +14,6 @@ namespace GB
 	class Tribe;
 
 	// The origin for the next field, deterministic for the same scene; nothing when no spot near the wanted one is free.
-	std::optional<glm::vec2> FieldOriginFor(const Tribe& tribe, const glm::vec2& wanted);
+	// T280: `plots` 0 = FarmRules::Plots (a zone of the AI can be bigger).
+	std::optional<glm::vec2> FieldOriginFor(const Tribe& tribe, const glm::vec2& wanted, int plots = 0);
 }

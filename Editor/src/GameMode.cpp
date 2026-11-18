@@ -5,6 +5,7 @@
 // knowledge, other clans). The rules of what the player does are the tribe's (GB/Game/TribePlayer.cpp): this file only reads keys and the scene.
 // See docs/JUGAR.md.
 #include "EditorApp.h"
+#include "Gameplay/EditorFarmZones.h"
 #include "GameTheme.h"
 #include "SceneEditor.h"
 #include "UserSettings.h"
@@ -808,6 +809,7 @@ namespace GB::Editor
 		// T276 (MODO_COLONIA §4.4): a site of the player's clan (also on the colony's screen, with no character): `game site <name>` its sheet in a line,
 		// `game site cancel <name>` calls it off (what was brought goes back to the store). Names with _ for their spaces, or in several words.
 		if (sub == "founding") return FoundingCommand(std::vector<std::string>(a.begin() + 1, a.end()));   // T310 (Gameplay/EditorFounding.cpp)
+		if (sub == "zone" || sub == "zones") { const Clan* zc = m_Clans.Find(HandClan()); return FarmZoneCommand(zc ? zc->Folk : nullptr, sub, std::vector<std::string>(a.begin() + 1, a.end())); }   // T280 (Gameplay/EditorFarmZones.cpp)
 		if (sub == "priority" || sub == "stock") return (sub == "priority" ? PriorityCommand(std::vector<std::string>(a.begin() + 1, a.end())) : StockCommand(std::vector<std::string>(a.begin() + 1, a.end())));   // T306/T307 (Gameplay/EditorColonyWork.cpp)
 		if (sub == "site")
 		{

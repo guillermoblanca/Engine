@@ -14,6 +14,12 @@ namespace GB
 		return std::find(Sow.begin(), Sow.end(), name) != Sow.end();
 	}
 
+	float CropDef::Rate(Season s) const
+	{
+		const auto it = Seasons.find(SeasonClock::Name(s));
+		return it != Seasons.end() ? it->second : SeasonClock::GrowthRate(s);
+	}
+
 	Field::Field(const std::string& name, const glm::vec2& origin, int plots, int columns, float spacing)
 		: Name(name), Origin(origin), Columns(std::max(1, columns)), Spacing(spacing), Plots(static_cast<size_t>(std::max(0, plots)))
 	{
@@ -22,7 +28,8 @@ namespace GB
 	glm::vec2 Field::PlotPos(size_t i) const
 	{
 		const int c = std::max(1, Columns);
-		return Origin + glm::vec2(static_cast<float>(static_cast<int>(i) % c), static_cast<float>(static_cast<int>(i) / c)) * Spacing;
+		const int cell = Cells.empty() || i >= Cells.size() ? static_cast<int>(i) : Cells[i];
+		return Origin + glm::vec2(static_cast<float>(cell % c), static_cast<float>(cell / c)) * Spacing;
 	}
 
 	glm::vec2 Field::Centre() const
@@ -34,7 +41,6 @@ namespace GB
 	FieldEvents Field::Update(float dt, Season season, bool rain, float moistureSeconds, const std::map<std::string, CropDef>& crops)
 	{
 		FieldEvents ev;
-		const float rate = SeasonClock::GrowthRate(season);
 		for (FieldPlot& p : Plots)
 		{
 			const bool growing = p.State == "sown" || p.State == "sprout" || p.State == "grown";
@@ -51,7 +57,7 @@ namespace GB
 			if (crop == crops.end()) continue;
 			if (p.Moisture > 0.0f)
 			{
-				p.Growth += dt * rate / std::max(crop->second.StageSeconds, 0.01f);
+				p.Growth += dt * crop->second.Rate(season) / std::max(crop->second.StageSeconds, 0.01f);
 				if (p.Growth >= 1.0f)
 				{
 					p.Growth = 0.0f;
@@ -114,6 +120,7 @@ namespace GB
 			Json plots = Json::array();
 			for (const FieldPlot& p : f.Plots) plots.push_back(Json::array({ p.State, p.Crop, p.Growth, p.Moisture }));
 			a.push_back(Json{ { "name", f.Name }, { "origin", Json::array({ f.Origin.x, f.Origin.y }) }, { "columns", f.Columns }, { "spacing", f.Spacing }, { "plots", plots } });
+			if (!f.Cells.empty()) a.back()["cells"] = f.Cells;   // T280 (only a shaped field)
 		}
 		return a.dump();
 	}
@@ -139,6 +146,15 @@ namespace GB
 					FieldPlot plot{ p[0].get<std::string>(), p[1].get<std::string>(), p[2].get<float>(), p[3].get<float>() };
 					if (plot.State != "grass" && plot.State != "dug" && plot.State != "sown" && plot.State != "sprout" && plot.State != "grown") return false;
 					f.Plots.push_back(plot);
+				}
+				if (o.contains("cells"))   // T280: a shaped field: one cell per plot, ascending
+				{
+					if (!o["cells"].is_array() || o["cells"].size() != f.Plots.size()) return false;
+					for (const Json& c : o["cells"])
+					{
+						if (!c.is_number_integer() || c.get<int>() < 0 || (!f.Cells.empty() && c.get<int>() <= f.Cells.back())) return false;
+						f.Cells.push_back(c.get<int>());
+					}
 				}
 				fields.push_back(std::move(f));
 			}

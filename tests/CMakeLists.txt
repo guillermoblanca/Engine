@@ -274,6 +274,8 @@ gb_test(colony_designations colony_designations_test.cpp POOL GBSimTests LINK GB
 gb_test(founding founding_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T306 + T307 (MODO_COLONIA C2): the table of work priorities of each person and the stock goals of the colony
 gb_test(colony_priorities colony_priorities_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T280 (AGRICULTURA A1): the farm zones the player paints (crop, plan, auto, remove, save) and the zones the AI marks out by plotsPerMember
+gb_test(farm_zones farm_zones_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T277/T278/T279 (AGRICULTURA §5, ALIMENTACION §10.2): the farm tool asked for by what is at hand, the chance of a node's extra, the meals counted
 gb_test(tool_recipe food_base_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} ARGS tool_recipe)
 gb_test(node_extra_chance food_base_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} ARGS node_extra_chance)
