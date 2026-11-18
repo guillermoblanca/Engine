@@ -596,6 +596,18 @@ namespace GB::Editor
 		bool ColonyMasksLeft() const;                  // a box is being drawn: the camera does not take the left button
 		const IInputSource& ColonyInput() const;      // the window's input without the left button (the camera's, while ColonyMasksLeft)
 		CommandResult ColonyCommand(const std::vector<std::string>& a);
+		// T308 (ColonyTabs.cpp): the colony's tabs Work and Stock over the god's bar, and the person's priorities in its sheet
+		CommandResult ColonyTabCommand(const std::vector<std::string>& a);   // `colony tab|work|stock ...`
+		std::string WorkStep(const std::string& person, const std::string& what, bool up) const;   // the `game priority` a click on a cell queues ("" = no change)
+		void DrawColonyTabs(float ox, float oy, float w, float h);
+		void ColonyTabTitle(const std::string& title, const std::string& help);
+		void DrawWorkTab(const Tribe& t, float width, float maxH);
+		void DrawStockTab(const Tribe& t, float width, float maxH);
+		void DrawPersonWork(const Tribe& t, const TribeMember& m);
+		std::string PersonWhy(const Tribe& t, const TribeMember& m) const;
+		std::string WorkLabel(const std::string& id) const;
+		std::string GoalLabel(const Tribe& t, const std::string& what) const;
+		std::pair<std::string, unsigned> StockStatusText(const std::string& status) const;   // (the text and its ImU32 colour)
 
 		// G1/G2 (GameShell.cpp): GB.exe (`--shell`): the start menu, the god's game with its pause menu, the player mode for tests and the sessions
 		ShellState m_Shell;

@@ -835,6 +835,46 @@
    "Crags": "los riscos",
    "Snowfields": "los neveros",
    "Dunes": "las dunas"
+  },
+  "work": {
+   "food": "alimento",
+   "construction": "construcción",
+   "crafting": "artesanía",
+   "field": "campo",
+   "materials": "materiales",
+   "care": "cuidado",
+   "knowledge": "saber",
+   "hunt": "cazar",
+   "fish": "pescar",
+   "forage": "recolectar",
+   "cook": "cocinar",
+   "preserve": "conservar",
+   "build": "construir",
+   "haul": "acarrear",
+   "repair": "reparar",
+   "pave": "pavimentar",
+   "tools": "herramientas",
+   "make": "fabricar",
+   "till": "labrar",
+   "sow": "sembrar",
+   "tend": "atender",
+   "harvest": "cosechar",
+   "wood": "leña",
+   "stone": "piedra",
+   "clay": "arcilla",
+   "fiber": "fibra",
+   "other": "otros",
+   "heal": "curar",
+   "fire": "fuego",
+   "research": "investigar",
+   "teach": "enseñar"
+  },
+  "tag": {
+   "Item.Food": "comida",
+   "Item.Food.Preserved": "comida conservada",
+   "Item.Tool": "herramientas",
+   "Item.Weapon": "armas",
+   "Item.Container": "recipientes"
   }
  },
  "entity": {
@@ -2417,6 +2457,70 @@
   {
    "re": "^(\\S+) is gone$",
    "to": "{1} ya no está"
+  },
+  {
+   "re": "^hunger (\\d+)/100, (\\d+) food in the (\\S+)$",
+   "to": "hambre {1}/100; hay {2} de comida"
+  },
+  {
+   "re": "^thirst (\\d+)/100, water in the bag$",
+   "to": "sed {1}/100; lleva agua en la bolsa"
+  },
+  {
+   "re": "^thirst (\\d+)/100, knows a well$",
+   "to": "sed {1}/100; conoce un pozo"
+  },
+  {
+   "re": "^rest (\\d+)/100, it is night$",
+   "to": "descanso {1}/100; es de noche"
+  },
+  {
+   "re": "^rest (\\d+)/100$",
+   "to": "descanso {1}/100"
+  },
+  {
+   "re": "^warmth (\\d+)/100$",
+   "to": "calor {1}/100"
+  },
+  {
+   "re": "^safety (\\d+)/100$",
+   "to": "seguridad {1}/100"
+  },
+  {
+   "re": "^company (\\d+)/100$",
+   "to": "compañía {1}/100"
+  },
+  {
+   "re": "^(\\S+): the store has (\\d+) (\\S+)$",
+   "to": "el almacén tiene {2} de {item:3}"
+  },
+  {
+   "re": "^(\\d+) things in the bag$",
+   "to": "lleva {1} cosas en la bolsa"
+  },
+  {
+   "re": "^the campfire has ([\\d.]+) fuel$",
+   "to": "a la hoguera le quedan {1} de leña"
+  },
+  {
+   "re": "^has no (\\S+) and the store can pay for one$",
+   "to": "no tiene {item:1} y el almacén puede pagarla"
+  },
+  {
+   "re": "^nothing to do$",
+   "to": "nada que hacer"
+  },
+  {
+   "re": "^(.+): marked by you to gather \\(priority (\\d+)\\)$",
+   "to": "{ent:1}: lo marcaste para recoger (prioridad {2})"
+  },
+  {
+   "re": "^you keep (\\d+) (\\S+)$",
+   "to": "tu meta: guardar {1} de {item:2}"
+  },
+  {
+   "re": "^(.+); job: (.+)$",
+   "to": "{line:1}"
   }
  ],
  "ui": {
@@ -3281,6 +3385,77 @@
   "in a fight": "está peleando",
   "fleeing": "está huyendo",
   "on a raid": "está en una incursión",
-  "away from the camp": "está lejos del campamento"
+  "away from the camp": "está lejos del campamento",
+  "enough": "suficiente",
+  "making it": "haciéndolo",
+  "gathering it": "recogiéndolo",
+  "hunting for it": "cazándolo",
+  "does not know how to make it": "no sabe hacerlo",
+  "no animal to hunt": "no hay animales que cazar",
+  "no way to get it": "no hay forma de conseguirlo",
+  "gathering {0}": "recogiendo {0}",
+  "hunting for {0}": "cazando para sacar {0}",
+  "making {0}": "haciendo {0}",
+  "lacks {0}: nothing it knows gives it": "le falta {0}: nada de lo que conoce lo da",
+  "no {0} to make it at": "no hay {0} donde hacerlo",
+  "Work": "Trabajo",
+  "1 first, 10 last, - never.  Click: sooner   Right click: later   Wheel: either way": "1 primero, 10 último, - nunca.  Clic: antes   Clic derecho: después   Rueda: ajustar",
+  "The data has no categories of work": "Los datos no tienen categorías de trabajo",
+  "Nobody in the clan": "No hay nadie en el clan",
+  "As the AI": "Como la IA",
+  "as the AI": "como la IA",
+  "{0} follows your table": "{0} sigue tu tabla",
+  "{0} decides as the AI. The numbers are what its trade ({1}) suggests: the first one you change starts its table from them": "{0} decide como la IA. Los números son lo que sugiere su oficio ({1}): el primero que cambies le crea su tabla a partir de ellos",
+  "Off because {0} is at -": "Apagado porque {0} está en -",
+  "The number of {0} (it has none of its own)": "El número de {0} (no tiene uno propio)",
+  "Aptitude in {0}: {1} of 100": "Aptitud para {0}: {1} de 100",
+  "No aptitude is measured for it; trade: {0}": "No se mide aptitud para esto; oficio: {0}",
+  "Decides as the AI: this is what its trade suggests": "Decide como la IA: esto es lo que sugiere su oficio",
+  "Click: sooner   Right click: later   Wheel: either way": "Clic: antes   Clic derecho: después   Rueda: ajustar",
+  "Drop the table of {0}: it decides again as the AI does": "Borra la tabla de {0}: vuelve a decidir como la IA",
+  "{0} has no table of yours: change any number to give it one": "{0} no tiene tabla tuya: cambia cualquier número para darle una",
+  "Stock": "Existencias",
+  "What the clan keeps: when it has less, it makes, gathers or hunts the rest": "Lo que guarda el clan: si tiene menos, fabrica, recoge o caza lo que falta",
+  "No goals yet: add one below": "Aún no hay metas: añade una abajo",
+  "Keep": "Guardar",
+  "Have / want": "Tiene / quiere",
+  "What the clan does": "Qué hace el clan",
+  "Any of this kind; the clan has no way to get one yet": "Cualquiera de esta clase; el clan aún no puede conseguir ninguno",
+  "Any of this kind; now it goes for {0}": "Cualquiera de esta clase; ahora va a por {0}",
+  "{0} / {1}": "{0} / {1}",
+  "The store and the bags of the clan hold {0}; you want {1}": "El almacén y las bolsas del clan tienen {0}; quieres {1}",
+  "Keep one less": "Guardar uno menos",
+  "Keep one more": "Guardar uno más",
+  "The clan stops keeping {0}": "El clan deja de guardar {0}",
+  "New goal": "Nueva meta",
+  "Choose what": "Elige qué",
+  "The thing (or the kind of thing) the clan keeps": "La cosa (o la clase de cosa) que guarda el clan",
+  "Add": "Añadir",
+  "Choose what first": "Elige qué primero",
+  "The clan keeps {0} of {1}": "El clan guarda {0} de {1}",
+  "A kind of thing": "Una clase de cosa",
+  "A thing": "Una cosa",
+  "Priorities": "Prioridades",
+  "follows your table": "sigue tu tabla",
+  "decides as the AI": "decide como la IA",
+  "{0} takes the work of its lowest number first": "{0} coge antes el trabajo de número más bajo",
+  "Change": "Cambiar",
+  "Open the Work table": "Abre la tabla de Trabajo",
+  "your order: {0}": "orden tuya: {0}",
+  "Fold {0}": "Plegar {0}",
+  "Unfold {0} into its jobs": "Desplegar {0} en sus trabajos",
+  "Close the panel (Esc)": "Cierra el panel (Esc)",
+  "Who does what first: the priorities of each person": "Quién hace qué antes: las prioridades de cada persona",
+  "What the clan keeps in store: N of a thing, made or gathered when it lacks": "Lo que el clan guarda en el almacén: N de una cosa, que fabrica o recoge cuando falta",
+  "Why": "Por qué",
+  "Mood, 0 to 100; under {0} it is low, and low spirits make it drop an order": "Ánimo, de 0 a 100; por debajo de {0} está bajo, y con el ánimo bajo deja las órdenes",
+  "your table": "tu tabla",
+  "Decides by": "Decide por",
+  "go there": "ir allí",
+  "gather at {0}": "recoger en {0}",
+  "build {0}": "construir {0}",
+  "carry material to {0}": "llevar material a {0}",
+  "talk to {0}": "hablar con {0}",
+  "follow {0}": "seguir a {0}"
  }
 }
