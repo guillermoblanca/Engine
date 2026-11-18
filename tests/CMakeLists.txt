@@ -264,6 +264,8 @@ gb_test(history history_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim
 gb_test(director director_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T238 + T239 (MODO_DIOS_DECISIONES.md §3.b): the focus of a clan and the calling of a person
 gb_test(director_focus director_focus_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T268: direct orders to any member of a clan, the mandate and what cuts it (GB/Game/ColonyOrders.h)
+gb_test(colony_orders colony_orders_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T240 (MODO_DIOS_DECISIONES.md §3.c): the vision: the dreamer, the clan's aim, the lapse, the material the clan lacks
 gb_test(director_vision director_vision_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food

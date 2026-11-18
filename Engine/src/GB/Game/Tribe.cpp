@@ -476,6 +476,7 @@ namespace GB
 	void Tribe::Clear()
 	{
 		m_Members.clear();
+		m_Orders.Clear();   // T268
 		m_Claims.Clear();
 		m_Log.clear();
 		m_Chronicle.Clear();
@@ -867,6 +868,7 @@ namespace GB
 			if (m_Members[i].Abstract) SetDetail(m_Members[i], true);
 			m_Claims.ReleaseBy(name);
 			m_Board.Release(name);
+			m_Orders.Drop(name);   // T268
 			m_Members.erase(m_Members.begin() + static_cast<std::ptrdiff_t>(i));
 			m_Knowledge.Leave(name);
 			m_Society.Leave(name);
@@ -1133,6 +1135,7 @@ namespace GB
 		m.Cause = !cause.empty() ? cause : asc ? CauseOfDeath(*asc) : "Unknown";
 		m_Claims.ReleaseBy(m.Name);
 		m_Board.Release(m.Name);
+		m_Orders.Drop(m.Name);   // T268
 		m.Job = "dead";
 		m.Detail.clear();
 		std::string error;
@@ -1299,7 +1302,8 @@ namespace GB
 					m_Sounds.Emit("chop", m.Name, node->Name, node->Pos, 28.0f, m_Time);
 			Listen(m);
 			if (m.Player) StepPlayer(m);   // H15: a person decides for it (fights too); the clan only hears of it
-			else if (ConflictTurn(m)) { m.Mind.NextThink = m_Time + static_cast<double>(Config.Simulation.DecisionSeconds) * 0.5; continue; }   // H14: a threat, a fight, a flight or a raid steers it
+			else if (ConflictTurn(m)) { m_Orders.Threat(*this, m); m.Mind.NextThink = m_Time + static_cast<double>(Config.Simulation.DecisionSeconds) * 0.5; continue; }   // H14: a threat, a fight, a flight or a raid steers it
+			else if (m_Orders.Turn(*this, m)) {}   // T268: a direct order drives it, or is cut by a need (ColonyOrders.h)
 			else if (!IsBusy(m))
 			{
 				if (!m.Job.empty()) Finish(m);
@@ -2432,6 +2436,7 @@ namespace GB
 				{ "mind", Json::parse(m.Mind.ToJson()) }, { "skills", Json::parse(SkillsToJson(m.Skills)) }, { "workKind", m.WorkKind }, { "workStart", m.WorkStart } });
 		for (size_t i = 0; i < m_Members.size(); ++i) if (m_Members[i].Player) members[i]["player"] = 1;   // H15 (only a player's says so)
 		j["members"] = members;
+		if (!m_Orders.Empty()) j["orders"] = Json::parse(m_Orders.ToJson());   // T268 (only with a direct order in course)
 		if (!m_Players.Players.empty() || !m_Players.Proposals.empty() || !m_Players.Aim.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
 		return j.dump();
 	}
@@ -2471,6 +2476,8 @@ namespace GB
 		if (j.contains("trails") && !trails.FromJson(j["trails"].dump(), Config.Trails)) return false;
 		PlayerSociety players;   // H15 (an older save has none)
 		if (j.contains("player") && !players.FromJson(j["player"].dump())) return false;
+		ColonyOrders orders;   // T268 (a save with no order in course has none)
+		if (j.contains("orders") && !orders.FromJson(j["orders"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
 		std::vector<bool> found(m_Members.size(), false);
 		for (const Json& jm : j["members"])
@@ -2504,6 +2511,7 @@ namespace GB
 		m_Social = std::move(social);
 		ReplaceTrails(std::move(trails));
 		m_Players = std::move(players);
+		m_Orders = std::move(orders);
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);
 		m_Society = std::move(society);

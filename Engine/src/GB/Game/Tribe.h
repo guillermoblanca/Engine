@@ -7,6 +7,7 @@
 #include "GB/AI/Utility.h"
 #include "GB/Game/Chronicle.h"
 #include "GB/Game/ClanStores.h"
+#include "GB/Game/ColonyOrders.h"
 #include "GB/Game/Conflict.h"
 #include "GB/Game/DataNeeds.h"
 #include "GB/Game/Economy.h"
@@ -344,6 +345,7 @@ namespace GB
 		friend class UseLearning;   // T181: learning by use and curiosity (GB/Game/UseLearning.h), out of this class
 		friend class StoreLayout;   // T248: where the main store's things lie (GB/Game/StoreLayout.h), out of this class
 		friend class ClanStores;    // T255: the store buildings' ledger (GB/Game/ClanStores.h), out of this class
+		friend class ColonyOrders;  // T268: direct orders and their mandate (GB/Game/ColonyOrders.h), out of this class
 	public:
 		TribeConfig Config;
 
@@ -628,6 +630,9 @@ namespace GB
 		glm::vec2 Position(const TribeMember& m) const { return Where(m); }
 		const ItemLibrary* Items() const { return m_Items; }
 		bool MemberBusy(const TribeMember& m) const { return IsBusy(m); }
+		// T268: the player's direct orders to its members (GB/Game/ColonyOrders.h): Colony().Give(*this, name, verb, args)
+		ColonyOrders& Colony() { return m_Orders; }
+		const ColonyOrders& Colony() const { return m_Orders; }
 		glm::vec2 CampSpotOf(const TribeMember& m) const { return CampSpot(m); }
 		// Gives a member orders (with its navigation profile) and the job and detail they stand for. False: they could not be given (it says why).
 		bool Send(TribeMember& m, const std::string& orders, const std::string& job, const std::string& detail);
@@ -980,6 +985,7 @@ namespace GB
 		NodeClaims m_Claims;   // node -> worker that goes there (Logistics.h)
 		Inventory m_Store{ Config.Economy.StoreCapacity, 0.0f };
 		ClanStores m_Stores;   // T255: which store building holds what of m_Store (the rest lies by the fire)
+		ColonyOrders m_Orders; // T268: who holds a direct order (saved under "orders" when someone does)
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;
 		TelemetrySink* m_Telemetry = nullptr;   // not owned
