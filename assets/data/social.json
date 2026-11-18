@@ -201,6 +201,10 @@
           "group": "fish",
           "nutrition": 30.0
         },
+        "bread": {
+          "group": "dish",
+          "nutrition": 35.0
+        },
         "flatbread": {
           "group": "dish",
           "nutrition": 40.0
