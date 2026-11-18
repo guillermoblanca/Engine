@@ -60,6 +60,19 @@ namespace GB
 	// The recipes that make `item`, by id.
 	std::vector<const Recipe*> RecipesFor(const RecipeBook& recipes, const std::string& item);
 
+	// The recipe of a tool to ask for (the tool of a trade, a better one, the farm tool): of the recipes whose output carries `tag` with a power
+	// above `above`, at a station the clan has, a known one first, else one to try (E5). Among the known ones, P-F10: those whose every input is
+	// at hand (`Have`: the store and the bags) come first, so that the clan asks for the tool it can make now and not for a better one it has
+	// nothing to make with (a copper hoe without copper); when none has its inputs, the best as always (the power of its output, then its speed,
+	// then the id). `known` says whether the one returned is known.
+	struct ToolRecipeQuery
+	{
+		std::function<bool(const Recipe&)> Known;        // nullptr = it knows all
+		std::function<bool(const std::string&)> Station; // nullptr = it has them all
+		std::function<int(const std::string&)> Have;     // units of an item at hand; nullptr = the inputs are not looked at (the old choice)
+	};
+	const Recipe* BestToolRecipe(const RecipeBook& recipes, const ItemLibrary& items, const std::string& tag, int above, const ToolRecipeQuery& query, bool& known);
+
 	// For people: one line per step, then the raw shortages and what is blocked.
 	std::string PlanReport(const ProductionPlan& plan);
 }

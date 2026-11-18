@@ -1,5 +1,6 @@
 #include "GB/Gameplay/Resources.h"
 #include "GB/Gameplay/WorldResources.h"
+#include "GB/Core/Seed.h"
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -406,6 +407,24 @@ namespace GB
 		}
 	}
 
+	bool ResourceSystem::ExtraFalls(std::string_view node, uint64_t roll, float chance)
+	{
+		if (chance >= 1.0f) return true;
+		if (chance <= 0.0f) return false;
+		const uint64_t h = DeriveSeed(Fnv1a64(node), "extra", roll);
+		return static_cast<double>(h >> 11) * (1.0 / 9007199254740992.0) < static_cast<double>(chance);   // (the top 53 bits: a number in [0, 1))
+	}
+
+	bool ResourceSystem::ExtraRoll(AbilitySystemComponent& node, const ResourceNodeDef& def)
+	{
+		if (def.ExtraChance >= 1.0f) return true;   // (no roll, no state: the nodes without a chance stay as they always were)
+		AttributeSet& at = node.Attributes();
+		if (!at.Has("ExtraRolls")) at.Define("ExtraRolls", 0.0f);
+		const uint64_t roll = static_cast<uint64_t>(at.Base("ExtraRolls"));
+		at.SetBase("ExtraRolls", static_cast<float>(roll + 1));
+		return ExtraFalls(node.Name(), roll, def.ExtraChance);
+	}
+
 	void ResourceSystem::Bind(GameplayWorld& gameplay, const std::map<std::string, ResourceNodeDef>& nodes, Yield onYield)
 	{
 		m_Defs = nodes;
@@ -429,7 +448,7 @@ namespace GB
 				if (take <= 0) return;
 				node->Attributes().SetBase("Amount", static_cast<float>(have - take));
 				if (m_Yield && e.Instigator) m_Yield(e.Instigator->Name(), def->Item, take);
-				if (m_Yield && e.Instigator && !def->ExtraItem.empty()) m_Yield(e.Instigator->Name(), def->ExtraItem, def->ExtraPerGather);   // (a tree's branches)
+				if (m_Yield && e.Instigator && !def->ExtraItem.empty() && ExtraRoll(*node, *def)) m_Yield(e.Instigator->Name(), def->ExtraItem, def->ExtraPerGather);   // (a tree's branches)
 			});
 		}
 	}

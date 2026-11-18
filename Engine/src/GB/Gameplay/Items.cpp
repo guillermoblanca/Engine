@@ -461,10 +461,12 @@ namespace GB
 					d.Decor = o.value("decor", false);
 					if (auto ex = o.find("extra"); ex != o.end())
 					{
-						if (!ex->is_object()) return "node '" + d.Id + "': extra must be an object { item, perGather }";
+						if (!ex->is_object()) return "node '" + d.Id + "': extra must be an object { item, perGather, chance }";
 						str(*ex, "item", d.ExtraItem);
 						d.ExtraPerGather = ex->value("perGather", 1);
+						d.ExtraChance = ex->value("chance", 1.0f);
 						if (d.ExtraItem.empty() || d.ExtraPerGather < 1) return "node '" + d.Id + "': extra needs an item and a perGather of at least 1";
+						if (!(d.ExtraChance >= 0.0f && d.ExtraChance <= 1.0f)) return "node '" + d.Id + "': the chance of its extra must be between 0 and 1";
 					}
 					if (!d.Kind.empty() && !GameplayTag::IsValidTagName("Resource." + d.Kind)) return "node '" + d.Id + "': bad kind " + d.Kind;
 					if (auto pt = o.find("patch"); pt != o.end())
@@ -601,7 +603,11 @@ namespace GB
 			if (!d.Kind.empty()) o["kind"] = d.Kind;
 			if (!d.Model.empty()) o["model"] = d.Model;
 			if (d.Decor) o["decor"] = true;
-			if (!d.ExtraItem.empty()) o["extra"] = { { "item", d.ExtraItem }, { "perGather", d.ExtraPerGather } };
+			if (!d.ExtraItem.empty())
+			{
+				o["extra"] = { { "item", d.ExtraItem }, { "perGather", d.ExtraPerGather } };
+				if (d.ExtraChance < 1.0f) o["extra"]["chance"] = Round3(d.ExtraChance);   // (written only when it rolls: the old data reads back the same)
+			}
 			if (d.Patch.Count != 0 || d.Patch.PerWorker != 0)
 			{
 				Json pt = { { "count", d.Patch.Count }, { "perWorker", d.Patch.PerWorker }, { "spacing", Round3(d.Patch.Spacing) }, { "shape", d.Patch.Shape } };

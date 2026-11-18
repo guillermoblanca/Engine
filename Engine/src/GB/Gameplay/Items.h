@@ -186,6 +186,9 @@ namespace GB
 		// take from the node's Amount: the node is worked for its Item
 		std::string ExtraItem;
 		int ExtraPerGather = 0;
+		// P-F12: the chance (0..1) that a gather gives the extra at all ("extra": { ..., "chance": 0.2 }); 1 = every gather, with no roll
+		// (ResourceSystem::ExtraRoll: deterministic, a hash of the node's name and its count of rolls)
+		float ExtraChance = 1.0f;
 		int Capacity = 5;
 		int PerGather = 1;
 		float RegenSeconds = 0.0f;          // 0 = never regrows

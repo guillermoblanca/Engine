@@ -144,6 +144,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/WorkPriorities.cpp
     src/GB/Game/StockGoals.cpp
     src/GB/Game/ColonyOrders.cpp
+    src/GB/Game/MealLog.cpp
     src/GB/Game/TribeConflict.cpp
     src/GB/Game/Trails.cpp
     src/GB/Game/Conflict.cpp
