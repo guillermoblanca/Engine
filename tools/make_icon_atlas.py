@@ -65,6 +65,59 @@ SHEETS = {
 }
 
 
+# Sheets on a flat chroma green (#00FF00) with no captions (art-book lote 12, 2026-11-18): the green is keyed out everywhere in the cell
+# (the icons' greens are darker and yellower than the key) and the green spill on the rim is removed. keep = the fraction of each row's
+# cell height kept (one value, or a (top, bottom) pair per row: plot_states.jpg came with captions under its two last rows, and the
+# captions of the third row run into the top of the fourth).
+CHROMA = {
+    "farm_items.jpg": (4, 1.0, [
+        "emmer_seed", "emmer", "barley_seed", "barley",
+        "lentil_seed", "lentils", "pea_seed", "peas",
+        "flax_seed", "flax", "hay", "dung",
+        "milk", "wool", "seed_reserve", "fodder_bundle"]),
+    "plot_states.jpg": (4, [(0.0, 1.0), (0.0, 1.0), (0.0, 0.87), (0.07, 0.87)], [
+        "plot.grass", "plot.tilled", "plot.sown", "plot.sprout",
+        "plot.growing", "plot.ripe", "plot.dry", "plot.watered",
+        "plot.lost", "plot.fallow", "risk.pest", "risk.birds",
+        "risk.frost", "risk.drought", "fertility.high", "fertility.low"]),
+    "traits.jpg": (4, 1.0, [
+        "trait.yield", "trait.cycle", "trait.frost", "trait.drought",
+        "trait.pest", "trait.size", "trait.milk", "trait.wool",
+        "trait.tame", "trait.fertility", "variety.new", "variety.wild",
+        "select.seed", "select.breed", "animal.wild", "animal.tame"]),
+    "animals.jpg": (4, 1.0, [
+        "animal.wolf", "animal.dog", "animal.puppy", "animal.ibex",
+        "animal.goat", "animal.kid", "animal.mouflon", "animal.sheep",
+        "animal.lamb", "animal.boar", "animal.pig", "animal.piglet",
+        "herd.goats", "herd.sheep", "animal.male", "animal.female"]),
+}
+
+
+def is_key(p):
+    r, g, b = p[0], p[1], p[2]
+    return g > 150 and g - max(r, b) > 90   # the chroma green and its JPEG noise
+
+
+def clean_chroma(sheet, box):
+    cell = sheet.crop(box).convert("RGBA")
+    w, h = cell.size
+    px = cell.load()
+    for y in range(h):
+        for x in range(w):
+            if is_key(px[x, y]):
+                px[x, y] = (0, 0, 0, 0)
+    # the rim: green-tinted pixels next to a cleared one lose the spill and fade with how green they were
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = px[x, y]
+            if not a or g <= max(r, b) + 20:
+                continue
+            if any(0 <= x + dx < w and 0 <= y + dy < h and px[x + dx, y + dy][3] == 0 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                spill = g - max(r, b)
+                px[x, y] = (r, max(r, b), b, max(0, 255 - 2 * spill))
+    return cell
+
+
 # icons that are themselves white and grey (a heap of salt): only the pure neutral tones of the checkerboard are background there
 STRICT = {"salt"}
 
@@ -160,6 +213,20 @@ def main():
             col, row = k % grid, k // grid
             box = (round(col * step), round(row * step + step * top), round((col + 1) * step), round(row * step + step * keep))
             icons.append((id_, fit(clean_cell(sheet, box, 7 if id_ in STRICT else 26))))
+    for name, (grid, keep, ids) in CHROMA.items():
+        path = os.path.join(folder, name)
+        if not os.path.exists(path):
+            print("missing sheet", path)
+            continue
+        sheet = Image.open(path).convert("RGB")
+        step = sheet.size[0] / grid
+        for k, id_ in enumerate(ids):
+            if not id_:
+                continue
+            col, row = k % grid, k // grid
+            kt, kr = keep[row] if isinstance(keep, list) else (0.0, keep)
+            box = (round(col * step), round(row * step + step * kt), round((col + 1) * step), round(row * step + step * kr))
+            icons.append((id_, fit(clean_chroma(sheet, box))))
     rows = (len(icons) + COLUMNS - 1) // COLUMNS
     atlas = Image.new("RGBA", (COLUMNS * CELL, rows * CELL), (0, 0, 0, 0))
     index = {"cell": CELL, "columns": COLUMNS, "icons": {}}
