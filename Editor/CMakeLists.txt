@@ -36,6 +36,7 @@ add_library(GBEditor STATIC
     src/Gameplay/EditorExplore.cpp
     src/Gameplay/EditorClans.cpp
     src/Gameplay/EditorFounding.cpp
+    src/Gameplay/EditorColonyWork.cpp
     src/EditorVisuals.cpp
     src/Gameplay/EditorEconomy.cpp
     src/Gameplay/EditorConflict.cpp

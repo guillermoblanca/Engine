@@ -1,5 +1,6 @@
 #pragma once
 #include "GB/Game/Skills.h"
+#include "GB/Game/WorkCategories.h"
 #include <map>
 #include <string>
 #include <vector>
@@ -56,14 +57,16 @@ namespace GB
 		SkillRules Skills;
 		JobRules Jobs;
 		RoleRules Roles;
+		WorkCategories Categories;   // T306: the categories of work and their jobs, which the colony's table of priorities numbers (WorkCategories.h)
 		bool operator==(const WorkRules&) const = default;
 	};
 
 	WorkRules DefaultWorkRules();   // assets/data/era1.json says the same in its "work" section
 	// { "work": { "names": [ ... ], "skills": { "families": { "<key>": "<family>" }, "practice": { "gather": 1 }, "gain", "decayPerDay", "max", "yield", "speed",
 	//   "weight", "profession" }, "jobs": { "every", "bonus", "slotUnits", "maxSlots", "claimSeconds", "ageBoost", "ageSeconds", "maxAge", "minScore", "switch",
-	//   "priority": { "<kind>": p }, "upkeep": { "<item>": perMember }, "fireWood" }, "roles": { "review", "inertia", "skillSwitch", "minClan", "fireDemand" } } }.
-	// Each of "names", "skills", "jobs" and "roles" replaces that part whole (what it does not say is the default); a file without the section changes
+	//   "priority": { "<kind>": p }, "upkeep": { "<item>": perMember }, "fireWood" }, "roles": { "review", "inertia", "skillSwitch", "minClan", "fireDemand" },
+	//   "categories": { "list", "aliases", "free" } (T306, WorkCategories.h) } }.
+	// Each of "names", "skills", "jobs", "roles" and "categories" replaces that part whole (what it does not say is the default); a file without the section changes
 	// nothing; on a mistake it returns why and changes nothing.
 	std::string LoadWorkRules(const std::string& json, WorkRules& rules);
 	std::string LoadWorkRulesFile(const std::string& path, WorkRules& rules);

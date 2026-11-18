@@ -91,7 +91,7 @@ namespace GB
 		const Json& w = *section;
 		WorkRules rules = live;
 		for (const auto& [key, v] : w.items())
-			if (key != "names" && key != "skills" && key != "jobs" && key != "roles") return "work: unknown part " + key;
+			if (key != "names" && key != "skills" && key != "jobs" && key != "roles" && key != "categories") return "work: unknown part " + key;
 		if (const auto n = w.find("names"); n != w.end())
 		{
 			if (!n->is_array()) return "work: names must be an array of names";
@@ -148,6 +148,8 @@ namespace GB
 			}
 			if (rules.Roles.Review <= 0.0f) return "work: roles review must be above 0";
 		}
+		if (const auto c = w.find("categories"); c != w.end())   // T306
+			if (std::string e = LoadWorkCategories(c->dump(), rules.Categories); !e.empty()) return e;
 		live = std::move(rules);
 		return {};
 	}
@@ -183,6 +185,7 @@ namespace GB
 		for (const RoleField& f : kRoleFields) r[f.Key] = Rounded(rules.Roles.*(f.Field));
 		r["minClan"] = rules.Roles.MinClan;
 		out["roles"] = r;
+		out["categories"] = Json::parse(WorkCategoriesToJson(rules.Categories));   // T306
 		return out.dump(2);
 	}
 

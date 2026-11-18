@@ -634,7 +634,44 @@
       "survivalDamp": 0.25,
       "criticalHunger": 55.0
     },
-    "roles": { "review": 900.0, "inertia": 0.3, "skillSwitch": 25.0, "minClan": 3, "fireDemand": 6.0 }
+    "roles": { "review": 900.0, "inertia": 0.3, "skillSwitch": 25.0, "minClan": 3, "fireDemand": 6.0 },
+    "categories": {
+      "list": [
+        { "id": "food", "default": 2, "suggest": { "forager": 1 }, "jobs": [
+          { "id": "hunt", "match": [ "hunt", "snare" ] },
+          { "id": "fish", "match": [ "gather:Item.Food.Fish", "fish" ] },
+          { "id": "forage", "match": [ "gather:Item.Food" ] },
+          { "id": "cook", "match": [ "make:Item.Food" ] },
+          { "id": "preserve", "match": [ "make:Item.Food.Preserved", "make:Item.Food.Meat.Smoked" ] } ] },
+        { "id": "construction", "default": 2, "suggest": { "builder": 1 }, "jobs": [
+          { "id": "build", "match": [ "build" ] },
+          { "id": "haul", "match": [ "deliver", "haul" ] },
+          { "id": "repair", "match": [ "repair" ] },
+          { "id": "pave", "match": [ "pave" ] } ] },
+        { "id": "crafting", "default": 2, "suggest": { "crafter": 1 }, "jobs": [
+          { "id": "tools", "match": [ "craft", "tool", "make:Item.Tool", "make:Item.Weapon", "make:Item.Container" ] },
+          { "id": "make", "match": [ "make" ] } ] },
+        { "id": "field", "default": 2, "suggest": { "farmer": 1 }, "jobs": [
+          { "id": "till", "match": [ "farm:till" ] },
+          { "id": "sow", "match": [ "farm:sow" ] },
+          { "id": "tend", "match": [ "farm:tend", "farm" ] },
+          { "id": "harvest", "match": [ "farm:harvest" ] } ] },
+        { "id": "materials", "default": 2, "suggest": { "woodcutter": 1, "miner": 1 }, "jobs": [
+          { "id": "wood", "match": [ "gather:Item.Resource.Wood" ] },
+          { "id": "stone", "match": [ "gather:Item.Resource.Stone", "gather:Item.Resource.Ore" ] },
+          { "id": "clay", "match": [ "gather:Item.Resource.Clay" ] },
+          { "id": "fiber", "match": [ "gather:Item.Resource.Fiber", "gather:Item.Resource.Herb", "gather:Item.Resource.Resin" ] },
+          { "id": "other", "match": [ "gather" ] } ] },
+        { "id": "care", "default": 1, "jobs": [
+          { "id": "heal", "match": [ "care" ] },
+          { "id": "fire", "match": [ "fire", "stoke" ] } ] },
+        { "id": "knowledge", "default": 2, "jobs": [
+          { "id": "research", "match": [ "experiment" ] },
+          { "id": "teach", "match": [ "teach" ] } ] }
+      ],
+      "aliases": { "designate": "gather", "explore": "gather", "expedition": "gather" },
+      "free": [ "explore:well", "eat", "drink", "sleep", "warm", "rest", "regroup", "recover", "deposit", "talk", "socialize", "rite", "migrate", "gear", "envoy" ]
+    }
   },
   "society": {
     "mutation": 0.06,

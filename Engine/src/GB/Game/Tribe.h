@@ -28,6 +28,8 @@
 #include "GB/Game/Production.h"
 #include "GB/Game/Schedule.h"
 #include "GB/Game/SettlementPlanner.h"
+#include "GB/Game/StockGoals.h"
+#include "GB/Game/WorkPriorities.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Ecology.h"
 #include "GB/Gameplay/GameplayWorld.h"
@@ -350,6 +352,8 @@ namespace GB
 		friend class ClanStores;    // T255: the store buildings' ledger (GB/Game/ClanStores.h), out of this class
 		friend class ColonyOrders;  // T268: direct orders and their mandate (GB/Game/ColonyOrders.h), out of this class
 		friend class ColonyDesignations;  // T270: the marks of the player and the queue of sites (GB/Game/ColonyDesignations.h), out of this class
+		friend class WorkPriorities;  // T306: the table of work priorities of each person (GB/Game/WorkPriorities.h), out of this class
+		friend class StockGoals;      // T307: the stock goals of the clan (GB/Game/StockGoals.h), out of this class
 	public:
 		TribeConfig Config;
 
@@ -642,6 +646,11 @@ namespace GB
 		// T270: the nodes the player marked for the clan and the order of its sites (GB/Game/ColonyDesignations.h)
 		ColonyDesignations& Designations() { return m_Designations; }
 		const ColonyDesignations& Designations() const { return m_Designations; }
+		// T306: the table of work priorities of each person (GB/Game/WorkPriorities.h); T307: the stock goals (GB/Game/StockGoals.h)
+		WorkPriorities& WorkTable() { return m_Work; }
+		const WorkPriorities& WorkTable() const { return m_Work; }
+		StockGoals& Goals() { return m_Goals; }
+		const StockGoals& Goals() const { return m_Goals; }
 		glm::vec2 CampSpotOf(const TribeMember& m) const { return CampSpot(m); }
 		// Gives a member orders (with its navigation profile) and the job and detail they stand for. False: they could not be given (it says why).
 		bool Send(TribeMember& m, const std::string& orders, const std::string& job, const std::string& detail);
@@ -996,6 +1005,8 @@ namespace GB
 		ClanStores m_Stores;   // T255: which store building holds what of m_Store (the rest lies by the fire)
 		ColonyOrders m_Orders; // T268: who holds a direct order (saved under "orders" when someone does)
 		ColonyDesignations m_Designations;   // T270: the player's marks and site queue (saved under "designations" when there is one)
+		WorkPriorities m_Work;   // T306: the people's tables of work priorities (saved under "priorities" when there is one)
+		StockGoals m_Goals;      // T307: the stock goals (saved under "stock" when there is one)
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;
 		TelemetrySink* m_Telemetry = nullptr;   // not owned

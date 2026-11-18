@@ -42,6 +42,11 @@ namespace GB
 		tribe.m_Log.push_back(std::string(t) + text);
 	}
 
+	float ColonyDesignations::MemberPriority(const Tribe& tribe, const TribeMember& m, const std::string& node)
+	{
+		return tribe.WorkTable().MarkFactor(tribe, m, node);   // T306
+	}
+
 	float ColonyDesignations::PriorityFactor(int priority)
 	{
 		return std::clamp(1.1f - 0.1f * static_cast<float>(priority), 0.1f, 1.0f);
@@ -263,7 +268,7 @@ namespace GB
 		const AbilitySystemComponent* asc = tribe.m_Gameplay->Find(m.Name);
 		const float vigor = asc && asc->Attributes().Has(NeedName::Vigor) ? asc->Attribute(NeedName::Vigor) : 1.0f;
 		const float liking = std::max(0.6f, tribe.MemberWeight(m, kind));   // anyone helps; its trade, more
-		return job.Priority * liking * Falloff(glm::distance(tribe.Where(m), at), 80.0f) * vigor * MemberPriority(tribe, m, kind);
+		return job.Priority * liking * Falloff(glm::distance(tribe.Where(m), at), 80.0f) * vigor * MemberPriority(tribe, m, job.Target);
 	}
 
 	void ColonyDesignations::Options(Tribe& tribe, TribeMember& m, std::vector<UtilityOption>& options) const

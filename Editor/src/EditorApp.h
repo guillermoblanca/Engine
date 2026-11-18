@@ -201,6 +201,8 @@ namespace GB::Editor
 		CommandResult PlayCommand(const std::vector<std::string>& a);
 		CommandResult GameCommand(const std::vector<std::string>& a);
 		CommandResult FoundingCommand(const std::vector<std::string>& a);   // T310: `game founding ...` (Gameplay/EditorFounding.cpp)
+		CommandResult PriorityCommand(const std::vector<std::string>& a);   // T306: `game priority ...` (Gameplay/EditorColonyWork.cpp)
+		CommandResult StockCommand(const std::vector<std::string>& a);      // T307: `game stock ...` (Gameplay/EditorColonyWork.cpp)
 		void StepGame(float dt);
 		void GameKeys();
 		void RefreshPrompt();

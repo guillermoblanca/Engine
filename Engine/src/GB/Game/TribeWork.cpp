@@ -381,6 +381,7 @@ namespace GB
 		PostExpedition();   // H12: a party forming or out (TribeExplore.cpp)
 		if (alive > 0) PostConflictJobs();   // H14: hunts (TribeConflict.cpp)
 		m_Designations.Post(*this);   // T270: the nodes the player marked (ColonyDesignations.h)
+		m_Goals.Post(*this);   // T307: the hunts of a stock goal (StockGoals.h)
 		for (const std::string& gone : m_Board.End(m_Time, rules)) (void)gone;   // (met needs and lapsed claims: the member chooses again when it next decides)
 	}
 
@@ -444,6 +445,7 @@ namespace GB
 	// hysteresis on top of the chooser's), and with none it takes the best one with room, if it is worth MinScore.
 	void Tribe::ClaimJob(TribeMember& m, const std::map<std::string, Nearest>& known)
 	{
+		if (m_Work.Claim(*this, m, [&](const Job& j) { return JobScore(m, j, known) * SurvivalFactor(j); })) return;   // T306: the table of priorities, in the colony
 		const JobRules& rules = Config.Work.Jobs;
 		const Job* held = m_Board.ClaimOf(m.Name);
 		float heldScore = held ? JobScore(m, *held, known) * SurvivalFactor(*held) : 0.0f;

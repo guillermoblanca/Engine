@@ -94,7 +94,8 @@ namespace GB
 		// What the mark's priority gives its job: 1 at priority 1, 0.1 at 10.
 		static float PriorityFactor(int priority);
 		// C2 (WorkPriorities): a member's own priority for the work of a mark. 1 today: the table is not there yet.
-		static float MemberPriority(const Tribe& tribe, const TribeMember& m, const std::string& kind) { (void)tribe; (void)m; (void)kind; return 1.0f; }
+		// T306: 0 when the person's table has the gather of `node` at "-" (WorkPriorities::MarkFactor), else 1.
+		static float MemberPriority(const Tribe& tribe, const TribeMember& m, const std::string& node);
 
 		bool Empty() const { return m_Marks.empty() && m_Sites.empty(); }
 		void Clear() { m_Marks.clear(); m_Sites.clear(); }
