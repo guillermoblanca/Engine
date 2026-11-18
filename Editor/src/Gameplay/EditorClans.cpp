@@ -202,8 +202,7 @@ namespace GB::Editor
 			PrepareClanTribe(t);
 			t.Config.Economy.Camp = camp;
 			t.Config.Economy.CampY = m_World.IsBuilt() ? CampGround(m_World.World(), camp) : 0.0f;   // (T118: a graph site's platform level)
-			t.Store().Add(m_Items, "wood", 2 + 2 * members);    // what they found lying around on the first day (as `tribe build`)
-			t.Store().Add(m_Items, "stone", 3 * members);
+			AddFoundingKit(t.Store(), m_Items, t.Config.Founding, members, false);   // what they found lying around on the first day (as `tribe build`; T310: colony.json's kit)
 			const std::vector<std::string> roles = t.PlanRoles(members);
 			for (int i = 0; i < members; ++i)
 				t.AddMember(names[static_cast<size_t>(i)], static_cast<size_t>(i) < roles.size() ? roles[static_cast<size_t>(i)] : std::string("forager"), bodies[static_cast<size_t>(i)]);
@@ -465,7 +464,13 @@ namespace GB::Editor
 		// `bare`: the clans are founded with their patch and their well, but nothing built: they have to raise their village themselves
 		std::vector<std::string> a;
 		bool bare = false;
-		for (const std::string& s : args) { if (s == "bare") bare = true; else a.push_back(s); }
+		int party = 0;   // T310: `party <n>`: the first clan (the player's) founded with n people of the founding (`tribe build ... party <n>`); the others keep `members`
+		for (size_t i = 0; i < args.size(); ++i)
+		{
+			if (args[i] == "bare") bare = true;
+			else if (args[i] == "party" && i + 1 < args.size()) party = std::clamp(std::atoi(args[++i].c_str()), 1, 40);
+			else a.push_back(args[i]);
+		}
 		if (!m_World.IsBuilt()) return { false, "no world (generate ... or terrain_graph preset ...)" };
 		const SpawnBatch crew(*this);
 		const int clans = a.size() > 0 ? std::clamp(std::atoi(a[0].c_str()), 1, 6) : 3;
@@ -504,7 +509,7 @@ namespace GB::Editor
 		if (m_Tribe.Members().empty())
 		{
 			patch(0);
-			if (const CommandResult r = Execute("tribe build " + quoted + at(0) + " " + std::to_string(members)); !r.Ok) return r;
+			if (const CommandResult r = Execute("tribe build " + quoted + at(0) + " " + std::to_string(party > 0 ? party : members) + (party > 0 ? " party " + std::to_string(party) : std::string())); !r.Ok) return r;
 			villages.push_back({ &m_Tribe, "the first tribe" });
 			lap("tribe");
 		}

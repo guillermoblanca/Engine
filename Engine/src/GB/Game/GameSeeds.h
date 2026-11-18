@@ -32,6 +32,7 @@ namespace GB
 		inline constexpr std::string_view Ecology = "ecology";       // EcologySystem::Seed: where the animals wander
 		inline constexpr std::string_view Weather = "weather";       // Weather::Reseed: rain, snow, dust, sand, the tornado and the lightning
 		inline constexpr std::string_view Climate = "climate";       // ClimateRules::Seed (SeasonClock::WeatherAt): the simulation's weather of each day, dry and wet years
+		inline constexpr std::string_view Founding = "founding";     // T310: the candidates of the player's clan (ColonyFounding, GB/Game/Founding.h)
 	}
 
 	// The master seed of a game whose world has this seed (the identity: the world's seed is the game's).

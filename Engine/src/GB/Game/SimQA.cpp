@@ -1,5 +1,6 @@
 #include "GB/Game/SimQA.h"
 #include "GB/Game/GameSeeds.h"
+#include "GB/Game/Founding.h"
 #include "GB/Game/StartSites.h"
 #include "GB/AI/Needs.h"
 #include "GB/Gameplay/WorldResources.h"
@@ -935,7 +936,7 @@ namespace GB
 				m_Tribe.Config.Social = setup.Config->Social;
 				m_Tribe.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
 				const int clans = std::max(1, setup.Clans);
-				const int n = std::max(1, setup.Members / clans + setup.Members % clans);
+				const int n = setup.Party > 0 ? setup.Party : std::max(1, setup.Members / clans + setup.Members % clans);   // (T310: the player's party)
 				const SiteRating best = BestSite(ResourceGroundOf(world), SpotResources(m_Spots), ClanSiteWeights(m_Tribe, m_Tribe.PlanRoles(n)));
 				if (best.Ok) camp = best.At;
 			}
@@ -956,9 +957,21 @@ namespace GB
 			m_Tribe.Config.Agenda = setup.Config->Agenda;
 			m_Tribe.Config.Economy = setup.Config->Economy;
 			m_Tribe.Config.Social = setup.Config->Social;   // (social life: on when the clan's content has it, docs/VIDA_SOCIAL.md)
+			m_Tribe.Config.Founding = setup.Config->Founding;   // T310: the start kit (colony.json)
 		}
 		m_Tribe.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);   // (bound again below, once the members' ability systems exist)
 		std::vector<std::pair<std::string, std::string>> roster = setup.Roster;
+		// T310: the first clan founded with a party (GBSim --party): the founding's choice of the game's seed (as GB.exe's `tribe build ... party`)
+		ColonyFounding founding;
+		std::vector<int> party;
+		if (roster.empty() && setup.Party > 0)
+		{
+			founding.Start(setup.Config ? *setup.Config : m_Tribe.Config, world.Desc.Seed);
+			party = founding.PartyOf(std::min(setup.Party, founding.Rules().PartyMax));
+			const std::vector<std::string> roles = m_Tribe.PlanRoles(static_cast<int>(party.size()));
+			for (size_t i = 0; i < party.size(); ++i)
+				roster.emplace_back(founding.Candidates()[static_cast<size_t>(party[i])].Name, i < roles.size() ? roles[i] : std::string("forager"));
+		}
 		if (roster.empty())
 		{
 			// as `tribe build` (H7): the names from the data and the trades from the clan's needs
@@ -1026,11 +1039,11 @@ namespace GB
 		m_Tribe.Config.Economy.CampY = CampGround(world, camp);   // (the terrain's height; a graph site's platform level)
 		if (setup.Store.empty() || !m_Tribe.Store().FromJson(setup.Store))
 		{
-			const int n = static_cast<int>(roster.size());
-			m_Tribe.Store().Add(m_Items, "wood", 2 + 2 * n);   // what they found lying around on the first day (as `tribe build`)
-			m_Tribe.Store().Add(m_Items, "stone", 3 * n);
+			// what they found lying around on the first day (as `tribe build`; T310: the kit of the data, with a party's extra)
+			AddFoundingKit(m_Tribe.Store(), m_Items, m_Tribe.Config.Founding, static_cast<int>(roster.size()), !party.empty());
 		}
 		for (size_t i = 0; i < roster.size(); ++i) m_Tribe.AddMember(roster[i].first, roster[i].second, m_Bodies[i].get());
+		for (const int slot : party) ColonyFounding::Seat(m_Tribe, founding.Candidates()[static_cast<size_t>(slot)], true);   // T310: the people drawn, with their trade
 		// H9: a newborn gets a stand-in body like the founders' (its ability system, its place in the bags' index)
 		m_Tribe.SetSpawner([this](const std::string& name, const glm::vec2& at, float) -> ITribeBody*
 		{
@@ -1073,12 +1086,12 @@ namespace GB
 				Tribe& t = *clan.Folk;
 				const glm::vec2 home = ClanHomeSpot(m_Ground, site.At);
 				SetUpClan(t, name, home);
-				t.Store().Add(m_Items, "wood", 2 + 2 * each);
-				t.Store().Add(m_Items, "stone", 3 * each);
+				AddFoundingKit(t.Store(), m_Items, t.Config.Founding, each, false);
 				const std::vector<std::string> roles = t.PlanRoles(each);
 				for (int i = 0; i < each; ++i)
 				{
-					const std::string who = MemberName(t.Config.Work, named++);
+					std::string who = MemberName(t.Config.Work, named++);
+					while (!party.empty() && m_Index.count(who)) who = MemberName(t.Config.Work, named++);   // (T310: a party's names are not in a row)
 					AbilitySystemComponent* asc = m_Gameplay.Create(who);
 					for (const char* work : { "Chop", "Mine", "Gather", "PullFiber", "Collect", "Stoke", "DrawWater", "Build" }) asc->Grant(work);
 					const size_t col = static_cast<size_t>(i) % 8, row = static_cast<size_t>(i) / 8;
