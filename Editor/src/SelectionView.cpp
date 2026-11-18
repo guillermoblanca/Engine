@@ -818,6 +818,27 @@ namespace GB::Editor
 								else if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("{0} can stand in for {1}", itemName(other), itemName(item)).c_str());
 							}
 					}
+					// T276 (MODO_COLONIA §4.4): a plan of the player's clan: what was brought, who works on it, its place in the queue and [Cancel]
+					if (SiteInfo info; SiteInfoOf(name, info))
+					{
+						if (!info.Brought.empty())
+						{
+							ImGui::TextUnformatted(L.Text("brought:").c_str());
+							for (const auto& [item, n] : info.Brought)
+							{
+								if (Icon(item, 28.0f)) ImGui::SameLine();
+								ImGui::Text("%d %s", n, itemName(item).c_str());
+							}
+						}
+						std::string workers;
+						for (const std::string& wk : info.Workers) workers += (workers.empty() ? "" : ", ") + wk.substr(0, wk.find(" ("));
+						ImGui::TextWrapped("%s", L.Text("working on it: {0}", workers.empty() ? L.Text("nobody now") : workers).c_str());
+						ImGui::TextDisabled("%s", L.Text("Plan {0} of {1} in the queue", info.Queue, info.Queued).c_str());
+						std::string under = name;
+						for (char& ch : under) if (ch == ' ') ch = '_';
+						if (ImGui::Button((L.Text("Cancel the plan") + "###sitecancel").c_str())) m_UiCommands.push_back("game site cancel " + under);
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("It comes down; what was brought for it goes back to the store").c_str());
+					}
 				}
 			}
 			else

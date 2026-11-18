@@ -535,13 +535,15 @@ namespace GB
 		return needs;
 	}
 
-	std::string Tribe::StartSite(const std::string& building, const glm::vec2& at, std::string* name)
+	std::string Tribe::StartSite(const std::string& building, const glm::vec2& at, std::string* name, float yawDegrees)
 	{
 		if (!m_Buildings || !m_Entities || !m_Gameplay) return "the tribe has no buildings";
 		const auto def = m_Buildings->find(building);
 		if (def == m_Buildings->end()) return "no building '" + building + "'";
-		if (const std::string wet = SiteInWater(def->second, at, SitePlacementFor(def->second).WaterDepth); !wet.empty()) return "a " + def->second.Name + " cannot stand there: " + wet;   // T245 (the player's and the god's too)
-		if (const std::string on = GroundFreeFor(*this, def->second, at); !on.empty()) return "a " + def->second.Name + " cannot stand there: " + on;   // T260 (nobody builds on another footprint)
+		if (const std::string wet = SiteInWater(def->second, at, SitePlacementFor(def->second).WaterDepth, yawDegrees); !wet.empty()) return "a " + def->second.Name + " cannot stand there: " + wet;   // T245 (the player's and the god's too)
+		// T260 (nobody builds on another footprint); T269: the footprint turned as it will stand
+		if (const std::string on = yawDegrees == 0.0f ? GroundFreeFor(*this, def->second, at) : GroundFree(BuildingGround(def->second, at, yawDegrees), TakenGround(*this)); !on.empty())
+			return "a " + def->second.Name + " cannot stand there: " + on;
 		std::string n;
 		for (int i = 1; n.empty(); ++i)
 		{
@@ -549,7 +551,7 @@ namespace GB
 			if (m_Entities->FindByName(candidate) == NullEntity && !m_Gameplay->Find(candidate)) n = candidate;
 		}
 		const float y = m_Ground ? GroundUnder(m_Ground, at, def->second.Radius()) : Config.Economy.CampY;   // (no corner in the air on a slope)
-		const EntityId id = BuildSite(*m_Entities, def->second, n, { at.x, y, at.y });
+		const EntityId id = BuildSite(*m_Entities, def->second, n, { at.x, y, at.y }, yawDegrees);   // (T269: the site and the building it becomes keep the turn)
 		AbilitySystemComponent* a = m_Gameplay->Create(n);
 		a->FromComponent(*m_Entities->Find(id)->Gameplay);
 		m_PlacedAt = -1.0;   // look again
@@ -560,6 +562,45 @@ namespace GB
 		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
 		m_Log.push_back(std::string(t) + "the clan starts " + n + " at " + std::to_string(static_cast<int>(at.x)) + ", " + std::to_string(static_cast<int>(at.y)) + " (" + needs + ")");
 		if (name) *name = n;
+		return {};
+	}
+
+	// T276: an open site called off. The materials of the phases it finished and what lies there for the phase in course go back to the store (a
+	// substitute that stood in counts as the material it was brought for); the site and its parts are gone, so whoever was bringing or building
+	// for it finds nothing and goes on with its life (a direct order to it ends as an order whose target is gone).
+	std::string Tribe::CancelSite(const std::string& site, std::map<std::string, int>* returned, std::map<std::string, int>* left)
+	{
+		if (!m_Buildings || !m_Entities || !m_Gameplay || !m_Items) return "the tribe has no buildings";
+		const PlacedList placed = Placements();   // (kept: `found` points into it)
+		const Placed* found = nullptr;
+		for (const Placed& p : placed) if (p.Name == site) found = &p;
+		if (!found) return "no site of the clan called '" + site + "'";
+		if (found->State.Done) return site + " already stands: it is no site any more";
+		const BuildingDef& def = *found->Def;
+		AbilitySystemComponent* a = m_Gameplay->Find(site);
+		if (!a) return "no site called '" + site + "'";
+		std::map<std::string, int> back;
+		const SiteState s = ReadSite(*a, def);
+		for (int i = 0; i < s.Phase && i < static_cast<int>(def.Phases.size()); ++i)
+			for (const auto& [item, n] : def.Phases[static_cast<size_t>(i)].Needs) back[item] += n;
+		for (const AttributeSet::Attribute& at : a->Attributes().All())
+			if (at.Name.rfind("Delivered.", 0) == 0)
+				if (const int n = static_cast<int>(std::lround(at.Base)); n > 0) back[at.Name.substr(10)] += n;
+		std::string text;
+		for (const auto& [item, n] : back)
+		{
+			const int in = m_Items->Find(item) ? m_Store.Add(*m_Items, item, n) : 0;
+			if (in > 0 && returned) (*returned)[item] += in;
+			if (n - in > 0 && left) (*left)[item] += n - in;
+			text += (text.empty() ? "" : ", ") + std::to_string(n) + " " + item;
+		}
+		if (const EntityId e = m_Entities->FindByName(site); e != NullEntity) m_Entities->Destroy(e);
+		m_Gameplay->Remove(site);
+		m_PlacedAt = -1.0;   // look again
+		ForgetPlacements();
+		char t[48];
+		std::snprintf(t, sizeof t, "%6.1f ", m_Time);
+		m_Log.push_back(std::string(t) + "the clan calls off " + site + (text.empty() ? std::string(" (nothing had been brought)") : " (back to the store: " + text + ")"));
 		return {};
 	}
 

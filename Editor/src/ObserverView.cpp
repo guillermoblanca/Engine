@@ -1711,8 +1711,45 @@ namespace GB::Editor
 				run(std::string("camera game overview ") + x + " " + z + " 30");
 			}
 			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The camera to where {0} is now", m.Name).c_str());
+			// T269 (MODO_COLONIA §6): in the colony, [Change trade]: the player picks it, it takes it up now and keeps it (`director role`)
+			if (m_Director.Colony() && clanId >= 0 && clanId == m_Director.ColonyClan() && !m.Player)
+			{
+				ImGui::SameLine();
+				const bool open = m_Hand.Calling == m.Name;
+				{
+					std::optional<T::PrimaryScope> lit;
+					if (open) lit.emplace();
+					if (ImGui::Button((L.Text("Change trade") + "###trade").c_str())) run(open ? "director hand calling off" : "director hand calling " + m.Name);
+				}
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Pick the trade of {0}: it takes it up now and keeps it until you set it free", m.Name).c_str());
+				const bool fixed = m_Director.TradeFixed(m.Name);
+				if (fixed) value(L.Text("Trade fixed by you: {0}", L.Name("role", m.Role)), T::Ochre);
+				if (open)
+				{
+					ImGui::Indent(12.0f);
+					for (const auto& [role, def] : t.Config.Roles)
+					{
+						if (def.Fixed || def.Skill.empty()) continue;
+						std::optional<T::PrimaryScope> lit;
+						if (role == m.Role) lit.emplace();
+						if (ImGui::SmallButton((Lang::Cap(L.Name("role", role)) + "###trade" + role).c_str()))
+						{
+							run("director role " + m.Name + " " + role);
+							run("director hand calling off");
+						}
+						ImGui::SameLine();
+					}
+					ImGui::NewLine();
+					if (fixed && ImGui::SmallButton((L.Text("Let the clan choose") + "###tradeauto").c_str()))
+					{
+						run("director role " + m.Name + " auto");
+						run("director hand calling off");
+					}
+					ImGui::Unindent(12.0f);
+				}
+			}
 			// [Calling] (T239): the god sends it a dream of a trade; the menu says, trade by trade, whether it would take it
-			if (clanId >= 0 && !m.Player)
+			else if (clanId >= 0 && !m.Player && !m_Director.Colony())
 			{
 				ImGui::SameLine();
 				const bool open = m_Hand.Calling == m.Name;
@@ -2088,10 +2125,11 @@ namespace GB::Editor
 			return { true, m_Hand.Peek.empty() ? std::string("hand: peek off") : "hand: the card of " + a[2] + " held open" };
 		}
 		if (m_Clans.Count() == 0) return { false, "no clans (shell new, or tribe build and clan new)" };
-		const Clan* c = m_Clans.Find(m_ActiveClan);
+		const Clan* c = m_Clans.Find(HandClan());   // (T269: the player's own in the colony)
 		if (!c || !c->Folk) return { false, "no clan under the hand" };
 		if (sub == "build" || sub == "omen" || sub == "focus")
 		{
+			if (sub != "build" && m_Director.Colony()) return { false, "hand: no " + sub + " in the colony game" };   // T269
 			if (sub == "build" && a.size() > 2)   // T254: the grid's category
 			{
 				if (std::find_if(std::begin(kBuildTabs), std::end(kBuildTabs), [&](const char* t) { return a[2] == t; }) == std::end(kBuildTabs)) return { false, usage };
@@ -2132,13 +2170,14 @@ namespace GB::Editor
 
 	std::string EditorApp::HandStatus() const
 	{
-		std::string s = "hand: clan " + std::to_string(m_ActiveClan) + ", menu " + (m_Hand.Menu.empty() ? std::string("none") : m_Hand.Menu);
+		std::string s = "hand: clan " + std::to_string(HandClan()) + ", menu " + (m_Hand.Menu.empty() ? std::string("none") : m_Hand.Menu);
 		if (m_Hand.Building.empty()) return s + ", placing nothing";
 		s += ", placing " + m_Hand.Building + " yaw " + Fixed(m_Hand.Yaw) + (m_Hand.Pinned ? " (pinned)" : "");
 		if (!m_Hand.Has) return s + ", off the ground";
 		const DirectorSignPreview& p = m_Hand.Preview;
 		s += " at " + Fixed(m_Hand.X) + " " + Fixed(m_Hand.Z) + ": ";
 		if (!p.Ok) return s + "red: " + p.Why;
+		if (m_Director.Colony()) return s + "green" + (p.Warning.empty() ? std::string() : "; " + p.Warning);   // T269: no cost, no vote
 		return s + "green, cost " + Fixed(p.Cost) + ", vote " + std::to_string(p.Yes) + " of " + std::to_string(p.Voters) + " (" + p.Outcome + ")" + (p.Warning.empty() ? std::string() : "; " + p.Warning);
 	}
 
@@ -2146,10 +2185,14 @@ namespace GB::Editor
 	{
 		const DirectorSign* open = m_Director.OpenSign(clan);
 		const int kx = static_cast<int>(std::floor(x)), kz = static_cast<int>(std::floor(z));
-		const int ko = open ? open->Id : 0, ki = static_cast<int>(std::floor(m_Director.Influence()));
-		if (!m_Hand.Cached || kx != m_Hand.KeyX || kz != m_Hand.KeyZ || clan != m_Hand.KeyClan || ko != m_Hand.KeyOpen || ki != m_Hand.KeyInfluence || m_Hand.Building != m_Hand.KeyBuilding)
+		const int ko = m_Director.Colony() ? (m_Director.Signs().empty() ? 0 : m_Director.Signs().back().Id) : open ? open->Id : 0;   // (T269: a plan placed takes the spot)
+		const int ki = static_cast<int>(std::floor(m_Director.Influence()));
+		const int ky = static_cast<int>(std::lround(m_Hand.Yaw * 10.0f));   // (T269: the turn changes the footprint)
+		if (!m_Hand.Cached || kx != m_Hand.KeyX || kz != m_Hand.KeyZ || clan != m_Hand.KeyClan || ko != m_Hand.KeyOpen || ki != m_Hand.KeyInfluence || ky != m_Hand.KeyYaw || m_Hand.Building != m_Hand.KeyBuilding)
 		{
-			m_Hand.Preview = m_Director.PreviewSign(clan, m_Hand.Building, x, z);   // (once per change of the key, never every frame: it touches the clan's caches)
+			// (once per change of the key, never every frame: it touches the clan's caches). T269: the colony's [Build] has no cost and no vote
+			m_Hand.Preview = m_Director.Colony() ? m_Director.PreviewBuild(clan, m_Hand.Building, x, z, m_Hand.Yaw) : m_Director.PreviewSign(clan, m_Hand.Building, x, z);
+			m_Hand.KeyYaw = ky;
 			m_Hand.Cached = true;
 			m_Hand.KeyX = kx;
 			m_Hand.KeyZ = kz;
@@ -2174,6 +2217,15 @@ namespace GB::Editor
 			if (!fresh && it->second == s.Status) continue;
 			m_Hand.SignSeen[s.Id] = s.Status;
 			if (fresh && !(s.Status == "waiting" && now - s.Posted < 5.0)) continue;   // (a loaded world's signs: no toast for what was already so)
+			if (m_Director.Colony())   // T269: the player's plans: only when one stands (no messenger, no vote to tell)
+			{
+				if (s.Status == "built")
+				{
+					const Clan* c = m_Clans.Find(static_cast<ClanId>(s.Clan));
+					ShellToastShown(L.Text("{0}: the {1} is built", c ? L.Name("clan", c->Name, c->Name) : std::to_string(s.Clan), L.Name("building", s.Building, s.Building)));
+				}
+				continue;
+			}
 			const Clan* c = m_Clans.Find(static_cast<ClanId>(s.Clan));
 			const std::string clan = c ? L.Name("clan", c->Name, c->Name) : std::to_string(s.Clan);
 			const std::string b = L.Name("building", s.Building, s.Building);
@@ -2219,6 +2271,7 @@ namespace GB::Editor
 		ImVec2 tipAt;
 		for (const DirectorSign& s : m_Director.Signs())
 		{
+			if (m_Director.Colony()) break;   // T269: no signs in the colony (a plan is its site, drawn as one)
 			const bool recent = s.Status == "refused" && now - s.VotedAt < static_cast<double>(m_Director.Rules.DaySeconds);
 			if (!s.Open() && s.Status != "accepted" && !recent) continue;
 			const ImU32 col = SignColour(s.Status);
@@ -2268,7 +2321,7 @@ namespace GB::Editor
 		};
 		if (press(1, m_Hand.DownR, m_Hand.PressR)) { m_UiCommands.push_back("director hand off"); return; }
 		if (m_ViewportHovered && !io.WantTextInput && ImGui::IsKeyPressed(ImGuiKey_R, false)) m_UiCommands.push_back(io.KeyShift ? "director hand turn -45" : "director hand turn 45");
-		const Clan* clan = m_Clans.Find(m_ActiveClan);
+		const Clan* clan = m_Clans.Find(HandClan());   // (T269: the player's own in the colony)
 		if (!clan || !clan->Folk || !clan->Folk->Buildings()) return;
 		const auto def = clan->Folk->Buildings()->find(m_Hand.Building);
 		if (def == clan->Folk->Buildings()->end()) return;
@@ -2323,7 +2376,13 @@ namespace GB::Editor
 		if (ImGui::Begin("Ghost##hand", nullptr, card))
 		{
 			ImGui::TextUnformatted(Lang::Cap(L.Name("building", def->first, def->second.Name)).c_str());
-			if (p.Ok)
+			if (p.Ok && m_Director.Colony())   // T269: a plan, at once: no cost, no vote
+			{
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", L.Text("The clan raises it here with its own material").c_str());
+				if (!p.Warning.empty()) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Warn), "%s", Lang::Cap(L.Line(p.Warning)).c_str());
+				ImGui::TextDisabled("%s", L.Text("[Click] place it  [R] turn  [Right click] stop").c_str());
+			}
+			else if (p.Ok)
 			{
 				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", (L.Text("A sign here: {0} influence", L.Num(p.Cost, 0)) + (p.SiteOnly ? " " + L.Text("(they wanted it: only the place)") : std::string())).c_str());
 				if (p.Voters > 0) ImGui::TextUnformatted(L.Text("Vote foreseen: {0} of {1}, {2}", p.Yes, p.Voters, L.Text(OutcomeText(p.Outcome))).c_str());
@@ -2343,7 +2402,11 @@ namespace GB::Editor
 		if (m_Hand.Pinned) return;   // (a pinned ghost is a script's: its sign is `director sign`)
 		if (press(0, m_Hand.DownL, m_Hand.PressL))
 		{
-			if (p.Ok)
+			if (p.Ok && m_Director.Colony())   // T269: the site at once, turned; T276: the tool stays for the next one (right click or Esc lets it go)
+			{
+				m_UiCommands.push_back("director build " + std::to_string(clan->Id) + " " + m_Hand.Building + " " + Fixed(x) + " " + Fixed(z) + " " + Fixed(m_Hand.Yaw));
+			}
+			else if (p.Ok)
 			{
 				m_UiCommands.push_back("director sign " + std::to_string(clan->Id) + " " + m_Hand.Building + " " + Fixed(x) + " " + Fixed(z) + " " + Fixed(m_Hand.Yaw));
 				m_UiCommands.push_back("director hand off");
@@ -2411,7 +2474,7 @@ namespace GB::Editor
 			| ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoDocking;
 		if (ImGui::Begin("Defeat##observer", nullptr, flags))
 		{
-			const std::string title = L.Text("Nobody believes in you any more");
+			const std::string title = L.Text(m_Director.Colony() ? "Your clan is gone" : "Nobody believes in you any more");   // (T269: the colony's end)
 			ImGui::SetCursorPosX(std::max(0.0f, (width - ImGui::CalcTextSize(title.c_str()).x) * 0.5f));
 			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", title.c_str());
 			const double day = m_Director.DefeatAt() / static_cast<double>(m_Director.Rules.DaySeconds);
@@ -2439,7 +2502,7 @@ namespace GB::Editor
 				T::PrimaryScope lit;
 				if (ImGui::Button((L.Text("Watch the world") + "###defeat_watch").c_str(), ImVec2(bw, 28.0f))) run("director defeat watch");
 			}
-			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The world goes on: you watch it, without the hand").c_str());
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text(m_Director.Colony() ? "The world goes on without your clan: you watch it" : "The world goes on: you watch it, without the hand").c_str());
 			ImGui::SameLine();
 			if (ImGui::Button((L.Text("Main menu") + "###defeat_menu").c_str(), ImVec2(bw, 28.0f))) run("shell menu");
 		}
@@ -2454,6 +2517,7 @@ namespace GB::Editor
 		const Lang& L = m_Lang;
 		const double day = static_cast<double>(m_Director.Rules.DaySeconds);
 		const int need = m_Director.GoalsNeeded();
+		const bool colony = m_Director.Colony();   // T269 (C-4): the goals are the player's clan's
 		ImGui::TextUnformatted((L.Text("Stage {0}", m_Director.StageNumber()) + ": " + L.Text(stage.Name)).c_str());
 		ImGui::TextDisabled("%s", L.Text("Fulfil {0} of these {1} goals", need, static_cast<int>(stage.Goals.size())).c_str());
 		ImGui::Separator();
@@ -2486,7 +2550,7 @@ namespace GB::Editor
 			const std::string leader = clanName(s.Leader);
 			if (g.Type == "population")
 			{
-				what = g.Clans == 1 ? L.Text("A believing clan of {0} people", g.Count) : L.Text("{0} believing clans of {1} people", g.Clans, g.Count);
+				what = colony ? L.Text("Your clan reaches {0} people", g.Count) : g.Clans == 1 ? L.Text("A believing clan of {0} people", g.Count) : L.Text("{0} believing clans of {1} people", g.Clans, g.Count);
 				progress = count + (leader.empty() ? std::string() : "  (" + leader + ")");
 			}
 			else if (g.Type == "tech")
@@ -2495,12 +2559,12 @@ namespace GB::Editor
 				for (const auto& c : m_Clans.All()) if (c->Folk && (techs = c->Folk->Knowledge().Techs())) break;
 				const TechDef* t = techs ? techs->Find(g.Tech) : nullptr;
 				const std::string tech = L.Name("tech", g.Tech, t ? t->Name : g.Tech);
-				what = g.Clans == 1 ? L.Text("A believing clan learns {0}", tech) : L.Text("{0} believing clans learn {1}", g.Clans, tech);
+				what = colony ? L.Text("Your clan learns {0}", tech) : g.Clans == 1 ? L.Text("A believing clan learns {0}", tech) : L.Text("{0} believing clans learn {1}", g.Clans, tech);
 				progress = g.Clans > 1 ? count : s.Done ? leader : L.Text("not yet");
 			}
 			else if (g.Type == "techs")
 			{
-				what = g.Clans == 1 ? L.Text("A believing clan knows {0} technologies", g.Count) : L.Text("{0} believing clans know {1} technologies", g.Clans, g.Count);
+				what = colony ? L.Text("Your clan knows {0} technologies", g.Count) : g.Clans == 1 ? L.Text("A believing clan knows {0} technologies", g.Count) : L.Text("{0} believing clans know {1} technologies", g.Clans, g.Count);
 				progress = count + (leader.empty() ? std::string() : "  (" + leader + ")");
 			}
 			else if (g.Type == "building")
@@ -2512,16 +2576,18 @@ namespace GB::Editor
 						if (const auto it = c->Folk->Buildings()->find(g.Building); it != c->Folk->Buildings()->end()) { def = &it->second; break; }
 				const std::string plain = L.Name("building", g.Building, def ? def->Name : g.Building);
 				const std::string one = L.Name("building_a", g.Building, L.On() ? plain : "a " + plain);
-				if (g.Count == 1) what = g.Clans == 1 ? L.Text("A believing clan raises {0}", one) : L.Text("{0} believing clans raise {1}", g.Clans, one);
+				if (colony) what = g.Count == 1 ? L.Text("Your clan raises {0}", one) : L.Text("Your clan raises {0} of: {1}", g.Count, plain);
+				else if (g.Count == 1) what = g.Clans == 1 ? L.Text("A believing clan raises {0}", one) : L.Text("{0} believing clans raise {1}", g.Clans, one);
 				else what = g.Clans == 1 ? L.Text("A believing clan raises {0} of: {1}", g.Count, plain) : L.Text("{0} believing clans raise {1} of: {2}", g.Clans, g.Count, plain);
 				progress = count + (leader.empty() ? std::string() : "  (" + leader + ")");
 			}
-			else if (g.Type == "believers") { what = L.Text("{0} clans believe in you", g.Count); progress = count; }
-			else if (g.Type == "signs_built") { what = L.Text("{0} signs of the god standing", g.Count); progress = count; }
+			else if (g.Type == "believers") { what = colony ? L.Text("Your clan lives on") : L.Text("{0} clans believe in you", g.Count); progress = count; }
+			else if (g.Type == "signs_built") { what = colony ? L.Text("{0} buildings of your plans standing", g.Count) : L.Text("{0} signs of the god standing", g.Count); progress = count; }
 			else if (g.Type == "peace") { what = L.Text("{0} days of peace among the clans", g.Count); progress = count; }
 			else if (g.Type == "no_hunger_winter")
 			{
-				what = g.Count == 1 ? L.Text("No believing clan goes hungry for a whole winter") : L.Text("No believing clan goes hungry for {0} whole winters", g.Count);
+				if (colony) what = g.Count == 1 ? L.Text("Your clan goes through a whole winter without hunger") : L.Text("Your clan goes through {0} whole winters without hunger", g.Count);
+				else what = g.Count == 1 ? L.Text("No believing clan goes hungry for a whole winter") : L.Text("No believing clan goes hungry for {0} whole winters", g.Count);
 				if (s.Done) progress = L.Text("done");
 				else if (s.Year >= 0) progress = s.Hungry ? L.Text("this winter: hunger ({0})", leader) : s.Whole ? L.Text("this winter: nobody hungry yet") : L.Text("this winter came before the stage");
 				else if (!m_Clans.All().empty() && m_Clans.All().front()->Folk)
@@ -2611,8 +2677,9 @@ namespace GB::Editor
 		namespace T = GameTheme;
 		m_Hand.Box = m_Hand.MenuBox = {};
 		if (m_Clans.Count() == 0) return;
-		const Clan* clan = m_Clans.Find(m_ActiveClan);
+		const Clan* clan = m_Clans.Find(HandClan());   // (T269: the player's own in the colony)
 		if (!clan || !clan->Folk) return;
+		const bool colony = m_Director.Colony();   // T269 (MODO_COLONIA §4.1): no influence, no faith, no omen, no focus; [Build] and [Research]
 		const Lang& L = m_Lang;
 		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
 		auto divider = [&]() { ImGui::SameLine(0.0f, 12.0f); ImGui::TextDisabled("|"); ImGui::SameLine(0.0f, 12.0f); };
@@ -2633,6 +2700,8 @@ namespace GB::Editor
 		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(room, FLT_MAX));
 		if (ImGui::Begin("Hand##observer", nullptr, fixed))
 		{
+			if (!colony)   // (T269: the god's game only: the influence and the believers)
+			{
 			// the influence: what the god can spend, as a number and a bar
 			const float influence = m_Director.Influence(), most = std::max(R.Max, 1.0f);
 			ImGui::BeginGroup();
@@ -2658,6 +2727,7 @@ namespace GB::Editor
 					: L.Text("The clans whose faith reaches {0} % and their people. If none is left, the game is lost.", L.Num(R.MinFaith * 100.0f, 0)));
 				divider();
 			}
+			}
 			// D48: the stage of the legacy ("Stage 1 · 2 of 4"); over it, its goals and what each one lacks (only in the god's game: the stakes)
 			if (const DirectorStageDef* stage = m_Director.Stage(); stage && m_Director.Stakes())
 			{
@@ -2678,6 +2748,41 @@ namespace GB::Editor
 				divider();
 			}
 			// the clan under the hand: its faith and the pressure the god has put on it
+			if (colony)   // T269: the player's clan and its people; then [Build] and [Research]
+			{
+				int alive = 0;
+				for (const TribeMember& m : clan->Folk->Members()) if (!m.Dead) ++alive;
+				ImGui::BeginGroup();
+				Swatch(ClanColour(m_Clans, clan->Id));
+				ImGui::TextUnformatted(name.c_str());
+				ImGui::SameLine(0.0f, 10.0f);
+				ImGui::TextDisabled("%s", L.Text(alive == 1 ? "{0} person" : "{0} people", alive).c_str());
+				ImGui::EndGroup();
+				tip(L.Text("Your clan. If nobody of it is left alive, the game is lost."));
+				divider();
+				const bool building = m_Hand.Menu == "build" || !m_Hand.Building.empty();
+				{
+					std::optional<T::PrimaryScope> lit;
+					if (building) lit.emplace();
+					if (ImGui::Button((L.Text("Build") + "###handbuild").c_str())) run(building ? "director hand off" : "director hand build");
+				}
+				tip(L.Text("Choose a building and where it goes: the {0} raise it with their own material", name));
+				ImGui::SameLine();
+				{
+					std::optional<T::PrimaryScope> lit;
+					if (m_Observer.Tree) lit.emplace();
+					if (ImGui::Button((L.Text("Research") + "###handResearch").c_str())) run("observer tree");
+				}
+				{
+					const std::string& aim = clan->Folk->ResearchAim();
+					const TechTree* techs = clan->Folk->Knowledge().Techs();
+					const TechDef* def = !aim.empty() && techs ? techs->Find(aim) : nullptr;
+					tip(aim.empty() ? L.Text("Choose what the {0} seek in the tree of knowledge (they also find things out by themselves)", name)
+						: L.Text("The {0} seek {1}", name, Lang::Cap(L.Name("tech", aim, def ? def->Name : aim))));
+				}
+			}
+			else
+			{
 			ImGui::BeginGroup();
 			Swatch(ClanColour(m_Clans, clan->Id));
 			ImGui::TextUnformatted(name.c_str());
@@ -2768,6 +2873,7 @@ namespace GB::Editor
 				if (ImGui::SmallButton((L.Text("Remove") + "###focusoff").c_str())) run("director focus " + std::to_string(clan->Id) + " off");
 				tip(L.Text("The {0} go back to their own way (what was paid is not given back)", name));
 			}
+			}   // (T269: the god's game's hand)
 			if (!m_Hand.Building.empty())
 			{
 				std::string what = m_Hand.Building;
@@ -2914,7 +3020,7 @@ namespace GB::Editor
 		// the header: whose hand it is, what a sign costs and how much of the content the clan knows
 		ImGui::TextUnformatted(L.Text("Build for the {0}", name).c_str());
 		ImGui::SameLine();
-		ImGui::TextDisabled("%s", (L.Text("(a sign: {0} influence)", L.Num(cost, 0)) + "  " + L.Text("they know {0} of {1}", known, count["all"])).c_str());
+		ImGui::TextDisabled("%s", ((m_Director.Colony() ? std::string() : L.Text("(a sign: {0} influence)", L.Num(cost, 0)) + "  ") + L.Text("they know {0} of {1}", known, count["all"])).c_str());   // (T269: no cost in the colony)
 		// the categories: buttons of their own (the lit one is the open one), only those with something in them
 		std::vector<std::string> tabs;
 		for (const char* t : kBuildTabs)
@@ -2961,7 +3067,7 @@ namespace GB::Editor
 		{
 			ImGui::PushTextWrapPos(ImGui::GetFontSize() * 26.0f);
 			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", c.Label.c_str());
-			if (c.Known) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", L.Text("Place its sign on the ground ({0} x {1} m)", L.Num(c.Def->Footprint.x, 0), L.Num(c.Def->Footprint.y, 0)).c_str());
+			if (c.Known) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Good), "%s", (m_Director.Colony() ? L.Text("Place it on the ground ({0} x {1} m)", L.Num(c.Def->Footprint.x, 0), L.Num(c.Def->Footprint.y, 0)) : L.Text("Place its sign on the ground ({0} x {1} m)", L.Num(c.Def->Footprint.x, 0), L.Num(c.Def->Footprint.y, 0))).c_str());
 			else
 			{
 				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bad), "%s", L.Text("The {0} do not know how to raise it yet", name).c_str());
@@ -2973,7 +3079,7 @@ namespace GB::Editor
 					std::string techs;
 					for (const std::string& t : c.Lock.Techs) techs += (techs.empty() ? "" : ", ") + techName(t);
 					ImGui::TextUnformatted((c.Lock.Techs.size() > 1 ? L.Text("It needs one of these: {0}", techs) : L.Text("It needs {0}", techs)).c_str());
-					ImGui::TextDisabled("%s", L.Text("A vision of the tree of knowledge can lead them to it").c_str());
+					ImGui::TextDisabled("%s", L.Text(m_Director.Colony() ? "Research it in the tree of knowledge" : "A vision of the tree of knowledge can lead them to it").c_str());
 				}
 				ImGui::TextDisabled("%s", L.Text("Size: {0} x {1} m", L.Num(c.Def->Footprint.x, 0), L.Num(c.Def->Footprint.y, 0)).c_str());
 			}
@@ -2982,7 +3088,7 @@ namespace GB::Editor
 			for (const auto& [item, n] : c.Def->TotalNeeds()) needs += (needs.empty() ? "" : ", ") + std::to_string(n) + " " + L.Name("item", item);
 			if (!needs.empty()) ImGui::TextDisabled("%s", L.Text("Asks for {0}", needs).c_str());
 			if (c.Have > 0) ImGui::TextDisabled("%s", L.Text("The {0} have {1} standing", name, c.Have).c_str());
-			if (c.Known) ImGui::TextDisabled("%s", L.Text("The vote is foreseen when you place it").c_str());
+			if (c.Known && !m_Director.Colony()) ImGui::TextDisabled("%s", L.Text("The vote is foreseen when you place it").c_str());   // (T269: no vote in the colony)
 			ImGui::PopTextWrapPos();
 		};
 		glm::vec2 lockUv0(0.0f), lockUv1(0.0f);
@@ -3055,7 +3161,7 @@ namespace GB::Editor
 						dl->AddText(ImVec2(at.x + std::max((cellW - tw) * 0.5f, 4.0f), y), c.Known ? T::Bone : T::BoneDim, s->c_str());
 						y += line;
 					}
-					const std::string under = c.Known ? L.Text("Sign: {0}", L.Num(cost, 0)) : shortWhy(c);
+					const std::string under = c.Known ? (m_Director.Colony() ? L.Text("Size: {0} x {1} m", L.Num(c.Def->Footprint.x, 0), L.Num(c.Def->Footprint.y, 0)) : L.Text("Sign: {0}", L.Num(cost, 0))) : shortWhy(c);
 					const float uw = ImGui::CalcTextSize(under.c_str()).x;
 					dl->AddText(ImVec2(at.x + std::max((cellW - uw) * 0.5f, 4.0f), p1.y + 4.0f + 2.0f * line + 2.0f), c.Known ? T::Ochre : T::BoneDim, under.c_str());
 				}

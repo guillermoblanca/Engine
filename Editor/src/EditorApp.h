@@ -477,7 +477,7 @@ namespace GB::Editor
 			std::string Menu;                    // "" | "build" | "omen" | "focus": what is open over the bar
 			std::string Calling;                 // T239: the person whose sheet shows the menu of callings ("" = closed)
 			std::string Building;                // the building being placed ("" = none)
-			float Yaw = 0.0f;                    // degrees, passed to the sign (the site does not turn yet)
+			float Yaw = 0.0f;                    // degrees, passed to the sign (T269: in the colony the site and its building turn with it)
 			bool Pinned = false;                 // `director ghost`: the ghost stands at PinX, PinZ as if the cursor were there
 			float PinX = 0.0f, PinZ = 0.0f;
 			bool Has = false;                    // the ghost is on the ground this frame, at X, Z
@@ -485,7 +485,7 @@ namespace GB::Editor
 			// PreviewSign touches the clan's caches: it is asked only when its key changes (the clan, the building, the metre cell, the open sign,
 			// the whole influence), at most once a frame
 			bool Cached = false;
-			int KeyClan = -1, KeyX = 0, KeyZ = 0, KeyOpen = 0, KeyInfluence = 0;
+			int KeyClan = -1, KeyX = 0, KeyZ = 0, KeyOpen = 0, KeyInfluence = 0, KeyYaw = 0;   // (T269: the turn changes the footprint)
 			std::string KeyBuilding;
 			DirectorSignPreview Preview;
 			std::map<int, std::string> SignSeen;  // sign id -> the state last drawn (a toast when it changes)
@@ -503,6 +503,21 @@ namespace GB::Editor
 		void DrawHandWorld(float ox, float oy, float w, float h);   // the ghost, the signs' markers and the clicks on the ground
 		const DirectorSignPreview& HandPreview(int clan, float x, float z);
 		void HandToasts();
+		// T269 (MODO_COLONIA C-1): the clan under the hand: the player's own in the colony (the clans' list only picks what the book shows), else the one picked
+		int HandClan() const { return m_Director.Colony() && m_Director.ColonyClan() >= 0 ? m_Director.ColonyClan() : m_ActiveClan; }
+		// T276 (MODO_COLONIA §4.4): a site of the player's clan as its sheet shows it (GameMode.cpp): what it raises, its state, what was brought for the
+		// phase in course, who brings or builds for it now and its place among the clan's open sites (1-based, the order they were placed in)
+		struct SiteInfo
+		{
+			Tribe* Clan = nullptr;
+			const BuildingDef* Def = nullptr;
+			SiteState State;
+			std::map<std::string, int> Brought;
+			std::vector<std::string> Workers;
+			int Queue = 0, Queued = 0;
+		};
+		bool SiteInfoOf(const std::string& site, SiteInfo& out) const;
+		std::string SiteText(const std::string& site) const;   // `game site <name>`: the sheet in a line (English: the tests read it)
 		void DrawDefeat(float ox, float oy, float w, float h);      // §6.2 A: the end of the god's game ("Nobody believes in you any more")
 		void DrawStageWon(float ox, float oy, float w, float h);    // D48: a stage of the legacy fulfilled ([Go on], [Main menu])
 		void DrawStageGoals(const DirectorStageDef& stage, float width);   // D48: its goals with their marks and progress

@@ -1377,13 +1377,14 @@ namespace GB::Editor
 			out = ImVec2(ox + s.x, oy + s.y);
 			return true;
 		};
-		auto quad = [&](const glm::vec2& c, float half, ImU32 fill, ImU32 edge)
+		auto quad = [&](const glm::vec2& c, float half, ImU32 fill, ImU32 edge, float yawDegrees = 0.0f)
 		{
 			ImVec2 q[4];
 			const glm::vec2 corner[4] = { { -half, -half }, { half, -half }, { half, half }, { -half, half } };
+			const float cy = std::cos(glm::radians(yawDegrees)), sy = std::sin(glm::radians(yawDegrees));
 			for (int i = 0; i < 4; ++i)
 			{
-				const glm::vec2 p = c + corner[i];
+				const glm::vec2 p = c + glm::vec2(corner[i].x * cy + corner[i].y * sy, -corner[i].x * sy + corner[i].y * cy);   // (T269: turned as the building)
 				if (!screen(glm::vec3(p.x, ground(p.x, p.y) + 0.06f, p.y), q[i])) return;
 			}
 			dl->AddConvexPolyFilled(q, 4, fill);
@@ -1510,7 +1511,8 @@ namespace GB::Editor
 			ImVec2 s;
 			if (glm::distance(m_Camera.Position, glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y), b.Pos.y)) > 120.0f) continue;
 			const bool done = b.State.Done;
-			quad(b.Pos, 1.4f, done ? IM_COL32(200, 160, 90, 70) : IM_COL32(120, 160, 230, 70), done ? IM_COL32(220, 180, 100, 220) : IM_COL32(130, 170, 240, 220));
+			const GB::Entity* be = m_SceneEditor.World().Find(m_SceneEditor.World().FindByName(b.Name));
+			quad(b.Pos, 1.4f, done ? IM_COL32(200, 160, 90, 70) : IM_COL32(120, 160, 230, 70), done ? IM_COL32(220, 180, 100, 220) : IM_COL32(130, 170, 240, 220), be ? be->Transform.Rotation.y : 0.0f);
 			if (quiet && hovered != &b && !focused(b.Name)) continue;
 			if (!screen(glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y) + 2.6f, b.Pos.y), s)) continue;
 			std::string text = m_Lang.Entity(b.Name.empty() ? b.Building : b.Name);

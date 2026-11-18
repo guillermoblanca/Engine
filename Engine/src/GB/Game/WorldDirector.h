@@ -152,6 +152,7 @@ namespace GB
 		int Clan = -1, Order = 0;
 		std::string Person, Role;
 		double Since = 0.0, Until = 0.0;
+		bool Fixed = false;                // T269: the player's "change trade": it never ends (Until is not looked at) until `director role <p> auto`
 		bool operator==(const DirectorCalling&) const = default;
 	};
 	struct DirectorCallingPreview
@@ -418,6 +419,24 @@ namespace GB
 		const DirectorVision* VisionOf(int clan) const;                    // the clan's vision still held as its aim (null: none)
 		const std::vector<DirectorVision>& Visions() const { return m_Visions; }
 
+		// ---- T269 (MODO_COLONIA.md C-1, C-2, C-4, §4.4, §6): the colony mode, the player's game (the editor and GB.exe put it on; GBSim and the
+		// tests do not, so a run without it is the god's game as before). The player leads one clan (its id; -1: the first clan of the world). In
+		// it nothing costs influence and nothing is voted: [Build] raises a site at once with the turn chosen (`director build`), the research is
+		// chosen in the tree (`director research`), the trade of a person changes at once and stays (`director role`); there are no omens, no
+		// focus and no visions of the hand. The game is lost when the player's clan has nobody alive (with the stakes on), and the stages count
+		// that clan alone, whatever its faith. Saved with the director (only when on: a save without it stays as it was).
+		void SetColony(bool on, int clan = -1) { m_Colony = on; m_ColonyClan = clan; }
+		bool Colony() const { return m_Colony; }
+		int ColonyClan() const;                                            // the player's clan (resolved; -1: none or gone)
+		// What [Build] answers at a spot (the ghost paints it): the land, the footprint turned `yaw` degrees (T260), the water. Changes nothing.
+		DirectorSignPreview PreviewBuild(int clan, const std::string& building, float x, float z, float yaw) const;
+		// Starts the site there at once, turned (Tribe::StartSite): the clan brings its material and raises it as any site. Kept as a "sign" already
+		// accepted (no messenger, no vote, no cost) so the book follows it to "built" and the stages count it (signs_built).
+		DirectorReply PlaceBuild(int clan, const std::string& building, float x, float z, float yaw);
+		DirectorReply SetResearch(int clan, const std::string& tech);       // C-6: the clan's research project ("none": it chooses again); no cost
+		DirectorReply ChangeTrade(const std::string& person, const std::string& role);   // "change trade" (DirectorFocus.cpp); role "auto" frees it
+		bool TradeFixed(const std::string& person) const;                  // the player fixed its trade
+
 		float Influence() const { return m_Influence; }
 		bool Sandbox() const { return m_Sandbox; }
 		const std::vector<DirectorEntry>& Book() const { return m_Book; }
@@ -445,6 +464,8 @@ namespace GB
 		bool FindPerson(const std::string& person, int& clan) const;       // the clan of a living member (by name, or "clan:name")
 		std::string FocusToJson() const;                                   // "" with no focus and no calling
 		bool FocusFromJson(const std::string& json);
+		DirectorReply ColonyCommand(const std::vector<std::string>& args);   // T269: colony, build, research, role
+		bool Counted(int clan) const;                                      // T269: a clan the stages count (the player's in the colony; else a believing one)
 		DirectorReply VisionCommand(const std::vector<std::string>& args);    // T240
 		void UpdateVisions();                                              // T240: nothing to do without visions
 		std::string VisionsToJson() const;                                 // "" with no vision
@@ -504,5 +525,7 @@ namespace GB
 		int m_StageEvent = 0;                                              // the last event of the world's history looked at (peace)
 		double m_LastClash = -1.0;                                         // the last clash between clans seen (peace)
 		int m_SignsBuilt = 0;                                              // signs of the god that came to stand (T237 "built")
+		bool m_Colony = false;                                             // T269: the colony mode (the host's: Clear keeps it)
+		int m_ColonyClan = -1;                                             // T269: the player's clan (-1: the first of the world)
 	};
 }

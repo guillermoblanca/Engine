@@ -178,13 +178,18 @@ namespace GB
 			for (const HistoryEvent& e : m_To.Clans->Past().Events()) m_StageEvent = std::max(m_StageEvent, e.Id);
 	}
 
+	bool WorldDirector::Counted(int clan) const
+	{
+		return m_Colony ? clan == ColonyClan() : FaithOf(clan) >= Rules.MinFaith;   // T269 (C-4): the stages count the player's clan, with no filter of faith
+	}
+
 	void WorldDirector::LookGoal(const DirectorGoalDef& g, DirectorGoalState& s, double now)
 	{
 		const double day = static_cast<double>(Rules.DaySeconds);
 		// the believing clans, in id order
 		std::vector<const Clan*> believers;
 		for (const auto& c : m_To.Clans->All())
-			if (c->Folk && Living(*c->Folk) > 0 && FaithOf(c->Id) >= Rules.MinFaith) believers.push_back(c.get());
+			if (c->Folk && Living(*c->Folk) > 0 && Counted(c->Id)) believers.push_back(c.get());   // (T269: in the colony, the player's clan alone)
 		// the Clans-th best of a number over the believing clans (and who leads it)
 		auto nth = [&](auto value)
 		{
