@@ -19,13 +19,12 @@
 
 ## Edificios y tecnologías (contenido por datos)
 
-- Un edificio nuevo se escribe en **tres sitios que los tests obligan a coincidir**: `assets/data/era1.json` (`buildings`) = `DefaultBuildings()` en
-  `Engine/src/GB/Gameplay/Buildings.cpp` (packs_test, settlement_test); la tecnología que lo abre en `era1.json` (`techs[].buildings`) = `builds(...)` en
-  `Engine/src/GB/Gameplay/Techs.cpp` (knowledge_test); y su modelo por fases en `assets/data/visuals.json` (`buildings.<id>`; el test de visuales pide uno
-  por cada id de `DefaultBuildings()`, presupuesto 20 000 triángulos).
+- Un edificio nuevo se escribe en **dos sitios**: `assets/data/era1.json` (`buildings`, y la tecnología que lo abre en `techs[].buildings`) y su modelo
+  por fases en `assets/data/visuals.json` (`buildings.<id>`; el test de visuales pide uno por cada id de `DefaultBuildings()`, presupuesto 20 000
+  triángulos). Ya no hay copias en C++: `DefaultBuildings()` y `DefaultTechs()` devuelven lo publicado (`Shipped()`, Buildings.cpp y Techs.cpp).
 - Varias tecnologías que nombran un edificio son un **O**, no un Y (`Tribe::ClanKnowsBuilding`: basta con saber una). Para exigir dos sin tecnología nueva,
   que una lo abra y que sus fases pidan un intermedio de la otra (la atalaya pide estacas de `palisade_building`): el planificador solo cuenta como pagable
-  lo que da una receta conocida. Una tecnología nueva también hay que duplicarla en `DefaultTechs()`.
+  lo que da una receta conocida. Cada técnica lleva su escalón (`tier`, ARBOL_TECNICO §11) y debe abrir algo que se use.
 - Los efectos son solo provisiones genéricas (`shelter`, `rest`, `warmth`, `station`, `store`, `storeCap`, `keep`, `defense`, `healing`, `culture`, `aura`,
   `supersedes`); nada de código por edificio. `defense` se suma entre edificios; `keep` cuenta el menor de los que están en pie (> 0).
 - Objetos y recetas de `era1.json` no tienen copia en C++, pero uno nuevo arrastra reachability, montones y props: evitarlos si un intermedio existente sirve.
