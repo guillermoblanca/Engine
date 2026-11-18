@@ -1526,7 +1526,7 @@ namespace GB::Editor
 		}
 		else if (!m_GameView.Active())
 		{
-			if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt, GetInput());
+			if (m_ViewportHovered && !io.WantTextInput && m_GizmoAxis < 0) m_Orbit.Update(dt, ColonyMasksLeft() ? ColonyInput() : GetInput());   // (T271: not while a box is drawn)
 			if (m_CamMode == CamMode::Follow)   // the target eases to the member; dragging still orbits it
 			{
 				const Actor* actor = m_Actors.Find(m_FollowMember);
@@ -1539,7 +1539,7 @@ namespace GB::Editor
 		}
 		if (m_GameView.Active())   // a game camera (camera game ...) owns the view; shadows and weather centre on what it looks at
 		{
-			m_GameView.Update(GetInput(), dt, m_ViewportHovered && !io.WantTextInput, m_Actors, m_Player, m_World, m_Camera);
+			m_GameView.Update(ColonyMasksLeft() ? ColonyInput() : GetInput(), dt, m_ViewportHovered && !io.WantTextInput, m_Actors, m_Player, m_World, m_Camera);
 			if (!m_Player.IsActive()) m_Orbit.Target = m_GameView.Focus();
 		}
 		// while playing, the sky follows the clan's clock (a clock at 00:01 under a noon sun reads wrong); the editor's own setting comes back after
@@ -1699,6 +1699,7 @@ namespace GB::Editor
 			m_UiPartMs[which] = m_UiPartMs[which] * 0.9f + 0.1f * static_cast<float>(std::chrono::duration<double, std::milli>(now - lap).count());
 			lap = now;
 		};
+		ColonyKeys();   // T271: Esc closes the colony's radial first (before the shell's pause menu and the god's screen's way back)
 		if (m_Shell.On)
 		{   // G1: GB.exe draws only the game's screens (GameShell.cpp): the start menu, the god's screen or the player's game, and their menus; never a
 			// dock, the editor's menu or a gizmo
@@ -2045,6 +2046,7 @@ namespace GB::Editor
 			if (!m_Game.Active)
 			{
 				if (m_Observer.On) DrawHandWorld(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // T201: under the panels
+				DrawColonyWorld(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // T271: the selection's rings, the orders' badges, the box and the radial
 				DrawObserver(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
 				// (on the god's screen a character's card is the book's Person sheet, U6: DrawObserver opens it; things keep their card)
 				if (m_Observer.On && !(god && AnyMember(m_FreeSelected))) { const GameTheme::Scope theme; DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected); }
@@ -2209,7 +2211,8 @@ namespace GB::Editor
 		if (m_ClanOverlay) DrawClanOverlay(dl, viewProj, size, ox, oy);
 		if (m_AiDebug) DrawAiDebug(dl, viewProj, size, ox, oy);
 
-		if (m_ViewportHovered && ImGui::IsMouseClicked(0) && m_Hand.Building.empty())   // (T201: while a ghost is placed the click is the hand's: DrawHandWorld)
+		if (m_ViewportHovered && ImGui::IsMouseClicked(0) && m_Colony.Open) m_Colony.Open = false;   // T271: a click off the radial only closes it
+		else if (m_ViewportHovered && ImGui::IsMouseClicked(0) && m_Hand.Building.empty())   // (T201: while a ghost is placed the click is the hand's: DrawHandWorld)
 		{
 			m_PressPos = mouse;
 			m_PressedInViewport = true;
@@ -2236,9 +2239,16 @@ namespace GB::Editor
 		else if (m_PressedInViewport && ImGui::IsMouseReleased(0))
 		{
 			m_PressedInViewport = false;
-			if (glm::distance(mouse, m_PressPos) < 4.0f && m_ViewportHovered)
+			if (m_Colony.Boxing)   // T271: the colony's box: the people of the clan inside it (Shift adds them to the selection)
 			{
+				m_Colony.Boxing = false;
+				ColonyBoxSelect(m_Colony.BoxFrom, mouse, io.KeyShift);
+			}
+			else if (glm::distance(mouse, m_PressPos) < 4.0f && m_ViewportHovered)
+			{
+				const std::string before = m_FreeSelected;
 				ClickSelect(ScreenRay(m_Camera, mouse / size, aspect));
+				if (ColonyScreen()) ColonyClicked(before, io.KeyShift);   // T271: Shift+click adds or takes away a person of the clan
 			}
 		}
 	}

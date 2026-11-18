@@ -22,6 +22,7 @@ add_library(GBEditor STATIC
     src/GamePanels.cpp
     src/GameSheets.cpp
     src/SelectionView.cpp
+    src/RadialMenu.cpp
     src/MapOverlay.cpp
     src/ObserverView.cpp
     src/TechTreeView.cpp
@@ -171,6 +172,8 @@ gb_editor_script_test(editor_polity v7_polity.txt "Clan 1 and Blue form the conf
 gb_editor_script_test(editor_talk v2_talk.txt "says /.*live checks, 0 violation" --step=60)
 # V3: people ask the player for help with their real problems; a life ends and the player chooses who carries on; saved and loaded
 gb_editor_script_test(editor_adventure v3_adventure.txt "says /.*live checks, 0 violation" --step=60)
+# T271: the colony's selection and its right-click radial (RadialMenu.cpp): two people sent to the clay with a bubble
+gb_editor_script_test(editor_colony_radial t271_radial.txt "colony radial: two people sent to the clay" --shell --step=60)
 # G1/G2: GB.exe (the game) headless: start menu, new god's game, pause menu, save, back to the menu, load (the same day, clans and living), the
 # director's note and the session folder, every text translated. Its saves and sessions go to a folder of its own in the build directory.
 add_test(NAME editor_game_shell COMMAND GBGame --hidden --quality=low --strict=1 --step=60 --settings=${CMAKE_CURRENT_BINARY_DIR}/test_settings/editor_game_shell.json

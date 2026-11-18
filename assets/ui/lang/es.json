@@ -2401,6 +2401,22 @@
   {
    "re": "^cannot keep up with (.+)$",
    "to": "no puede seguir a {1}"
+  },
+  {
+   "re": "^the node is gone$",
+   "to": "el nodo ya no está"
+  },
+  {
+   "re": "^cannot wait$",
+   "to": "no puede esperar más"
+  },
+  {
+   "re": "^(.+) is not there$",
+   "to": "{1} no está allí"
+  },
+  {
+   "re": "^(\\S+) is gone$",
+   "to": "{1} ya no está"
   }
  ],
  "ui": {
@@ -3202,6 +3218,69 @@
   "Remove the mark": "Quitar marca",
   "Gather with priority": "Recoger con prioridad",
   "Whoever of the clan can do it goes first to this node": "Quien del clan pueda hacerlo va antes a este nodo",
-  "Mark the whole deposit": "Marcar todo el depósito"
+  "Mark the whole deposit": "Marcar todo el depósito",
+  "Go here": "Ir aquí",
+  "Build here...": "Construir aquí...",
+  "Fell": "Talar",
+  "Quarry": "Picar",
+  "Dig": "Cavar",
+  "Collect": "Recoger",
+  "Gather": "Recolectar",
+  "Mark the whole stand": "Marcar toda la arboleda",
+  "Priority up": "Subir prioridad",
+  "Priority down": "Bajar prioridad",
+  "Go": "Ir",
+  "Cancel the order": "Cancelar la orden",
+  "Invite to join": "Invitar a unirse",
+  "Hunt": "Cazar",
+  "Build / help": "Construir / ayudar",
+  "Bring material": "Llevar material",
+  "Repair": "Reparar",
+  "Improve": "Mejorar",
+  "Move": "Mover",
+  "Pull down": "Derribar",
+  "Here": "Aquí",
+  "Later in the game": "Más adelante",
+  "The people selected walk here": "Los seleccionados van andando hasta aquí",
+  "The buildings, to place one here": "Los edificios, para poner uno aquí",
+  "The people selected go and do it now": "Los seleccionados van y lo hacen ya",
+  "For the clan: whoever can do it takes it": "Para el clan: lo coge quien pueda hacerlo",
+  "Every one of its kind around it, for the clan": "Todos los de su clase alrededor, para el clan",
+  "The clan does it before the rest": "El clan lo hace antes que lo demás",
+  "The clan stops doing it": "El clan deja de hacerlo",
+  "The people selected walk to it": "Los seleccionados van andando hasta ahí",
+  "The people selected go and talk to this person": "Los seleccionados van a hablar con esta persona",
+  "The people selected follow this person": "Los seleccionados siguen a esta persona",
+  "Its sheet, to pick its trade": "Su ficha, para elegir su oficio",
+  "It goes back to its own life": "Vuelve a su vida",
+  "Your people go and talk to this person": "Tu gente va a hablar con esta persona",
+  "Exchange goods with its clan": "Intercambiar bienes con su clan",
+  "Your people attack this person": "Tu gente ataca a esta persona",
+  "Ask this person to join your clan": "Pedir a esta persona que se una a tu clan",
+  "The people selected hunt it": "Los seleccionados lo cazan",
+  "The people selected follow it": "Los seleccionados lo siguen",
+  "The people selected bring what it lacks and build it": "Los seleccionados traen lo que falta y la construyen",
+  "The people selected only carry what it lacks": "Los seleccionados solo llevan lo que falta",
+  "The clan works on it before the others": "El clan trabaja en ella antes que en las demás",
+  "The clan works on it after the others": "El clan trabaja en ella después de las demás",
+  "What was brought goes back to the store": "Lo que se trajo vuelve al almacén",
+  "Mend what is worn": "Arreglar lo gastado",
+  "Make it a better building": "Hacerlo un edificio mejor",
+  "Take it somewhere else": "Llevarlo a otro sitio",
+  "Take it down and keep the material": "Tirarlo y guardar el material",
+  "Choose someone first: a click, Shift+click or a box": "Elige antes a alguien: clic, Mayús+clic o un recuadro",
+  "There is nothing left in it": "No le queda nada",
+  "It is already the first": "Ya es la primera",
+  "It is already the last": "Ya es la última",
+  "Choose someone else first": "Elige antes a otra persona",
+  "Only with the people of your clan, for now": "Por ahora, solo con la gente de tu clan",
+  "{0} selected: {1}": "{0} seleccionadas: {1}",
+  "Right click on something: the order goes to all of them": "Clic derecho sobre algo: la orden va a todas",
+  "Nobody selected can now": "Ahora no puede ninguno de los seleccionados",
+  "{0} will not go: {1}": "{0} no irá: {1}",
+  "in a fight": "está peleando",
+  "fleeing": "está huyendo",
+  "on a raid": "está en una incursión",
+  "away from the camp": "está lejos del campamento"
  }
 }

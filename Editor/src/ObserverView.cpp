@@ -1369,6 +1369,10 @@ namespace GB::Editor
 		struct Shown { std::string Text; const HistoryEvent* Event; float Alpha; int Count; };
 		std::vector<Shown> shown;
 		const double life = static_cast<double>(m_Controls.Hud.NotifySeconds);
+		// T271: an order of the colony that was cut ("Biel dejó la orden: mucha hambre"), newest first, before the chronicle's news
+		if (ColonyScreen())
+			for (auto it = m_Colony.Notes.rbegin(); it != m_Colony.Notes.rend() && static_cast<int>(shown.size()) < m_Controls.Hud.Notifications; ++it)
+				if (const double age = now - it->At; age <= life) shown.push_back({ Lang::Cap(L.Line(it->Text)), nullptr, std::clamp(static_cast<float>(life - age) / 1.5f, 0.0f, 1.0f), 1 });
 		for (auto it = m_Observer.NewsList.rbegin(); it != m_Observer.NewsList.rend() && static_cast<int>(shown.size()) < m_Controls.Hud.Notifications; ++it)
 		{
 			const double age = now - it->At;
@@ -1398,6 +1402,15 @@ namespace GB::Editor
 			ImDrawList* dl = ImGui::GetWindowDrawList();
 			for (const Shown& s : shown)
 			{
+				if (!s.Event)   // T271: a cut order (no place to go to: the person moves on)
+				{
+					const ImVec2 size = ImGui::CalcTextSize(s.Text.c_str(), nullptr, false, wrap);
+					const ImVec2 min = ImGui::GetCursorScreenPos();
+					ImGui::Dummy(ImVec2(card, size.y + 12.0f));
+					T::Card(dl, min, ImVec2(min.x + card, min.y + size.y + 12.0f), T::Warn, s.Alpha);
+					dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(min.x + T::Pad + 4.0f, min.y + 6.0f), T::Faded(T::News, s.Alpha), s.Text.c_str(), nullptr, wrap);
+					continue;
+				}
 				const StoryKind* kind = FindStoryKind(SheetKind(s.Event->Kind));
 				const ImU32 accent = kind && kind->Colour == T::Bad ? T::Bad : kind && std::string(kind->Id) == "know" ? T::Ochre : 0u;
 				const std::string text = s.Count > 1 ? s.Text + "  x" + std::to_string(s.Count) : s.Text;
@@ -1690,6 +1703,14 @@ namespace GB::Editor
 		std::string who = p ? (std::lround(p->Age) == 1 ? L.Text("1 year") : L.Text("{0} years", L.Num(p->Age, 0))) + ", " : std::string();
 		who += L.Name("role", m.Role) + (clanId >= 0 ? " (" + clanName(clanId) + ")" : std::string());
 		ImGui::TextDisabled("%s", who.c_str());
+		// T271: several people of the colony selected: how many and who (a right click gives them all the order)
+		if (ColonyScreen() && m_Colony.Selection.size() > 1 && std::find(m_Colony.Selection.begin(), m_Colony.Selection.end(), m.Name) != m_Colony.Selection.end())
+		{
+			std::string names;
+			for (const std::string& n : m_Colony.Selection) names += (names.empty() ? "" : ", ") + n;
+			value(L.Text("{0} selected: {1}", m_Colony.Selection.size(), names), T::Ochre);
+			ImGui::TextDisabled("%s", L.Text("Right click on something: the order goes to all of them").c_str());
+		}
 		// follow it, or the camera to it once
 		if (m.Dead) value(m.Cause.empty() ? L.Text("dead") : L.Text("dead of {0}", L.Name("need", m.Cause)), T::Bad);
 		else

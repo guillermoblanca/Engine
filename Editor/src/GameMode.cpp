@@ -832,6 +832,43 @@ namespace GB::Editor
 			if (!list.empty()) s += "; the store had no room for " + list;
 			return { true, s };
 		}
+		// T268 (MODO_COLONIA C1-a): a direct order to any person of the clan, or several (comma-separated; `sel` is the one selected). It is carried
+		// out by GB/Game/ColonyOrders.h: the person obeys at once and its brain leaves it alone until the order is done or a need cuts it.
+		// T271: also on the colony's screen, with no character (the player's clan, HandClan); there `sel` is every person of the colony's selection
+		// (RadialMenu.cpp: a click, Shift+click or a box), as the radial gives it.
+		if (sub == "order")
+		{
+			if (a.size() < 3) return { false, "usage: game order <name[,name...]|sel> goto <x> <z> | use <node> | build <site> | deliver <site> | talk <name> | follow <name> | cancel" };
+			if (!m_Game.Active && !ColonyTribe()) return { false, "not playing: play [temperate|alpine|desert] [seed] [members] [clans]" };
+			if (m_Game.Active && (m_Game.Heir || m_Game.Over)) return { false, m_Game.Heir ? "choose who carries on first: game heir" : "the game is over: game load, or play again" };
+			if (!m_Game.Active) PruneColonySelection();
+			std::vector<std::string> who;
+			std::stringstream names(a[1]);
+			for (std::string n; std::getline(names, n, ',');)
+				if (n == "sel" && !m_Game.Active) for (const std::string& s : m_Colony.Selection) who.push_back(s);
+				else if (!n.empty()) who.push_back(n == "sel" ? m_Game.Selected : Spaced(n));
+			const std::string& verb = a[2];
+			std::vector<std::string> args;
+			if (verb == "goto") args.assign(a.begin() + 3, a.end());
+			else if (a.size() > 3)   // (a node, a site or a person: the rest of the line, with _ for the spaces of a scene name)
+			{
+				std::string target;
+				for (size_t i = 3; i < a.size(); ++i) target += (target.empty() ? "" : " ") + a[i];
+				args.push_back(Spaced(target));
+			}
+			Tribe& clan = m_Game.Active ? PlayTribe() : *m_Clans.Find(static_cast<ClanId>(HandClan()))->Folk;
+			bool ok = false;
+			std::string text;
+			for (const std::string& name : who)
+			{
+				const ColonyOrders::Reply r = name.empty() ? ColonyOrders::Reply{ false, "nobody is selected" } : clan.Colony().Give(clan, name, verb, args);
+				ok = ok || r.Ok;
+				text += (text.empty() ? "" : "; ") + r.Text;
+			}
+			if (who.empty()) text = "nobody to order";
+			if (!ok && m_Game.Active) GameNote(text);   // (what was taken the log tells: "Ana (forager) is ordered to ...")
+			return { ok, text };
+		}
 		if (!m_Game.Active) return { false, "not playing: play [temperate|alpine|desert] [seed] [members] [clans]" };
 		const std::string& me = m_Game.Player;
 		auto act = [&](const Tribe::PlayerAct& r) { GameNote(r.Text); return CommandResult{ r.Ok, r.Text }; };
@@ -1073,37 +1110,6 @@ namespace GB::Editor
 			RefreshPrompt();
 			if (m_Game.PromptCommand.empty()) return { false, "nothing to do here" };
 			return Execute(m_Game.PromptCommand);
-		}
-		// T268 (MODO_COLONIA C1-a): a direct order to any person of the clan, or several (comma-separated; `sel` is the one selected). It is carried
-		// out by GB/Game/ColonyOrders.h: the person obeys at once and its brain leaves it alone until the order is done or a need cuts it.
-		if (sub == "order")
-		{
-			if (a.size() < 3) return { false, "usage: game order <name[,name...]|sel> goto <x> <z> | use <node> | build <site> | deliver <site> | talk <name> | follow <name> | cancel" };
-			std::vector<std::string> who;
-			std::stringstream names(a[1]);
-			for (std::string n; std::getline(names, n, ',');)
-				if (!n.empty()) who.push_back(n == "sel" ? m_Game.Selected : Spaced(n));
-			const std::string& verb = a[2];
-			std::vector<std::string> args;
-			if (verb == "goto") args.assign(a.begin() + 3, a.end());
-			else if (a.size() > 3)   // (a node, a site or a person: the rest of the line, with _ for the spaces of a scene name)
-			{
-				std::string target;
-				for (size_t i = 3; i < a.size(); ++i) target += (target.empty() ? "" : " ") + a[i];
-				args.push_back(Spaced(target));
-			}
-			Tribe& clan = PlayTribe();
-			bool ok = false;
-			std::string text;
-			for (const std::string& name : who)
-			{
-				const ColonyOrders::Reply r = name.empty() ? ColonyOrders::Reply{ false, "nobody is selected" } : clan.Colony().Give(clan, name, verb, args);
-				ok = ok || r.Ok;
-				text += (text.empty() ? "" : "; ") + r.Text;
-			}
-			if (who.empty()) text = "nobody to order";
-			if (!ok) GameNote(text);   // (what was taken the log tells: "Ana (forager) is ordered to ...")
-			return { ok, text };
 		}
 		if (sub == "use" && a.size() > 1)
 		{
@@ -1766,6 +1772,11 @@ namespace GB::Editor
 			"chronicle [all|<clan>] [birth|death|build|know|clans|fight...] [weight <1-5>]: the world's chronicle with those filters, and its events (#id); go <event id>|newest: the camera to where it happened; "
 			"person <name>|sample|off: a person's sheet (any clan) and its fields; follow [name]|off: the game camera follows the person of the sheet (status: follow: and go: lines with the camera's distance)",
 			[this](const std::vector<std::string>& a) { return ObserverCommand(a); });
+		// T271 (RadialMenu.cpp): the colony's selection and its radial, as the mouse makes them (the tests and the captures)
+		c.Register("colony", "colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off]: "
+			"on the colony's screen, the people of the player's clan selected (a click, Shift+click, a box: `game order sel ...` gives them the order) and the right click's radial "
+			"over a target (its bubbles: id, icon, label and the commands it queues, or why it is off); `do <id>` runs a bubble as its click does",
+			[this](const std::vector<std::string>& a) { return ColonyCommand(a); });
 		// T195: the god's director (GB/Game/WorldDirector.h), the same orders GBSim runs with --director=<day>:<order>
 		c.Register("director", "director status | sandbox on|off | faith <clan> <0..1> (sandbox only) | omen <id> [clan <c>|all] | sign [preview] <clan> <building> <x> <z>|camp <dx> <dz> [yaw] | signs | log: the god of the world: its influence comes from the faith of the clans "
 			"(rites, omens, devotion); the hand reaches only a clan with faith >= minFaith (assets/data/director.json); an omen (social.json) is read as the natural one; "
