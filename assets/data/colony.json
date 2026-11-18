@@ -1,0 +1,19 @@
+{
+  "_doc": "D58 (documentation/01_diseno/ARRANQUE_Y_LLEGADAS.md): the player's start (founding), the settlement's pull (attraction) and the people who come to join (arrivals). The C4 storyteller adds its own block here. founding (T310, GB/Game/FoundingRules.h): the candidates the screen 'Your people' offers, how many may be picked, the aptitude of their suggested trade (gene -> role) and the kit: the base every clan finds lying around on the first day (fixed + perMember x people) and, only for the clan founded with a party (the player's: shell new ... party <n>, GBSim --party), the extra of its number of people. With 6 people there is no extra: a game without a party is as before.",
+  "founding": {
+    "candidates": 8,
+    "party": { "min": 1, "max": 6, "group": 4 },
+    "startSkill": { "min": 20, "max": 35, "neighbours": false },
+    "trades": { "strength": "woodcutter", "dexterity": "crafter", "perception": "forager", "endurance": "builder" },
+    "kit": {
+      "base": { "wood": { "fixed": 2, "perMember": 2 }, "stone": { "perMember": 3 } },
+      "extra": {
+        "1": { "wood": 4, "stone": 3, "dried_berry": 12, "stone_axe": 1, "cordage": 2, "flint": 4, "hide": 2, "herbs": 3 },
+        "2": { "wood": 3, "stone": 2, "dried_berry": 10, "stone_axe": 1, "cordage": 2, "flint": 3, "hide": 1, "herbs": 2 },
+        "3": { "wood": 2, "stone": 1, "dried_berry": 8, "stone_axe": 1, "cordage": 1, "flint": 2, "herbs": 1 },
+        "4": { "wood": 1, "dried_berry": 6, "cordage": 1, "flint": 1 },
+        "5": { "dried_berry": 3 }
+      }
+    }
+  }
+}

@@ -176,5 +176,6 @@ namespace GB
 		if (to.Metrics) packs.AddSection(StagedSection("metrics", { "metrics" }, [](const std::string& json, SocietyMetricRules& r) { return LoadSocietyMetricRules(json, r); }, nullptr, *to.Metrics));   // T204
 		if (to.Director) packs.AddSection(StagedSection("director", { "director", "stages" }, [](const std::string& json, DirectorRules& r) { return LoadDirectorRules(json, r); }, nullptr, *to.Director));   // T195
 		if (to.Alerts) packs.AddSection(StagedSection("alerts", { "alerts" }, [](const std::string& json, AlertRules& r) { return LoadAlertRules(json, r); }, nullptr, *to.Alerts));   // T220
+		if (to.Founding) packs.AddSection(StagedSection("founding", { "founding" }, [](const std::string& json, FoundingRules& r) { return LoadFoundingRules(json, r); }, nullptr, *to.Founding));   // T310
 	}
 }

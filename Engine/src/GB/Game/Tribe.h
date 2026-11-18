@@ -20,6 +20,7 @@
 #include "GB/Game/Logistics.h"
 #include "GB/Game/PlayerMember.h"
 #include "GB/Game/Society.h"
+#include "GB/Game/FoundingRules.h"
 #include "GB/Game/Social.h"
 #include "GB/Game/Trails.h"
 #include "GB/Game/TribeBias.h"
@@ -276,6 +277,7 @@ namespace GB
 		float SettlementRadius = 70.0f;   // the buildings that count as the clan's: within this of the camp (a clan that migrates leaves the others behind; the
 		                                  // houses and workshops spread out to VillageReach, at most this less 4 m)
 		PlayerRules Player = DefaultPlayerRules();   // H15: standing, proposals, gifts... (the "player" section of a content file)
+		FoundingRules Founding = DefaultFoundingRules();   // T310: the start kit and the player's candidates (the "founding" block of colony.json; GB/Game/Founding.h)
 	};
 
 	class Tribe;

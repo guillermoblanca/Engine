@@ -315,11 +315,12 @@ namespace GB::Editor
 		return true;
 	}
 
-	CommandResult EditorApp::ShellNew(const std::string& biome, int seed, int clans, int members, bool bare, int speed, const std::string& preset)
+	CommandResult EditorApp::ShellNew(const std::string& biome, int seed, int clans, int members, bool bare, int speed, const std::string& preset, int party)
 	{
 		if (BiomeIndex(biome) < 0) return { false, "unknown biome '" + biome + "' (temperate, alpine, desert)" };
 		clans = std::clamp(clans, 1, 6);
-		members = std::clamp(members, 2, 40);
+		members = std::clamp(members, 2, 40);   // (the neighbours; T310: the player's clan may be smaller, `party`)
+		if (party > 0) party = std::clamp(party, m_Tribe.Config.Founding.PartyMin, m_Tribe.Config.Founding.PartyMax);
 		EndSession("new game");
 		std::string error;
 		if (!ResetForNewGame(error)) return { false, error };
@@ -331,7 +332,7 @@ namespace GB::Editor
 		std::error_code ec;
 		const fs::path xbot = fs::path(m_AssetRoot) / ".." / "packs" / "full" / "X Bot.fbx";
 		const std::string model = fs::exists(xbot, ec) ? fs::weakly_canonical(xbot, ec).generic_string() : std::string("cesium");
-		r = Execute("village " + std::to_string(clans) + " " + std::to_string(members) + " " + Quoted(model) + (bare ? " bare" : ""));
+		r = Execute("village " + std::to_string(clans) + " " + std::to_string(members) + " " + Quoted(model) + (bare ? " bare" : "") + (party > 0 ? " party " + std::to_string(party) : std::string()));
 		if (!r.Ok) return r;
 		Execute("observer screen on");
 		m_Observer.Paused = false;
@@ -348,12 +349,12 @@ namespace GB::Editor
 		m_Shell.Page = m_Shell.PausePage = "main";
 		ShellState::Session& s = m_Shell.Run;
 		s = ShellState::Session{};
-		s.Biome = biome; s.Seed = static_cast<uint32_t>(std::max(0, seed)); s.Clans = clans; s.Members = members; s.Bare = bare; s.Speed = m_TimeScale; s.Preset = preset;
+		s.Biome = biome; s.Seed = static_cast<uint32_t>(std::max(0, seed)); s.Clans = clans; s.Members = members; s.Bare = bare; s.Speed = m_TimeScale; s.Preset = preset; s.Party = party;
 		BeginSession("god", "");
 		const double took = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
 		char text[64];
 		std::snprintf(text, sizeof text, " (%.1f s)", took);
-		return { true, "new god's game: " + biome + " " + std::to_string(seed) + ", " + std::to_string(clans) + " clans of " + std::to_string(members) + (bare ? ", bare" : "") + text
+		return { true, "new god's game: " + biome + " " + std::to_string(seed) + ", " + std::to_string(clans) + " clans of " + std::to_string(members) + (party > 0 ? ", yours of " + std::to_string(party) : std::string()) + (bare ? ", bare" : "") + text
 			+ "; session " + m_Shell.Run.Dir };
 	}
 
@@ -573,6 +574,7 @@ namespace GB::Editor
 		j["updated"] = Now(false);
 		j["seconds"] = std::chrono::duration<double>(std::chrono::steady_clock::now() - s.Clock).count();
 		j["setup"] = { { "preset", s.Preset }, { "biome", s.Biome }, { "seed", s.Seed }, { "clans", s.Clans }, { "members", s.Members }, { "bare", s.Bare }, { "speed", s.Speed } };
+		if (s.Party > 0) j["setup"]["party"] = s.Party;   // T310
 		// G5: where the start came from: a shipped preset, one of the player's (<saves>/presets.json), the custom form, a load or the player's mode
 		const auto chosen = std::find_if(m_Shell.Presets.begin(), m_Shell.Presets.end(), [&](const GamePreset& p) { return p.Id == s.Preset; });
 		j["setup"]["source"] = chosen != m_Shell.Presets.end() ? (chosen->User ? "user preset" : "preset") : s.Preset == "custom" ? "custom" : s.Preset;
@@ -724,11 +726,12 @@ namespace GB::Editor
 			}
 			return { false, "shell preset select <id|custom> | save <id> [label]" };
 		}
-		if (sub == "new")   // shell new [preset <id> | custom] [temperate|alpine|desert] [seed|random] [clans] [members] [bare|village] [speed <n>]
+		if (sub == "new")   // shell new [preset <id> | custom] [temperate|alpine|desert] [seed|random] [clans] [members] [bare|village] [speed <n>] [party <n>]
 		{
 			std::string biome = kBiomes[std::clamp(m_Shell.Biome, 0, 2)], preset = "custom";
 			int seed = m_Shell.Seed, clans = m_Shell.Clans, members = m_Shell.Members, speed = m_Shell.Speed;
 			bool bare = m_Shell.Bare;
+			int party = 0;   // T310: the player's clan of 1-6 (the founding's people: `game founding`)
 			std::vector<int> numbers;
 			for (size_t i = 1; i < a.size(); ++i)
 			{
@@ -741,6 +744,7 @@ namespace GB::Editor
 				}
 				else if (a[i] == "custom") preset = "custom";   // (G5: the form's values, whatever preset was chosen)
 				else if (a[i] == "speed" && i + 1 < a.size()) speed = std::atoi(a[++i].c_str());
+				else if (a[i] == "party" && i + 1 < a.size()) party = std::max(1, std::atoi(a[++i].c_str()));
 				else if (a[i] == "bare") bare = true;
 				else if (a[i] == "village") bare = false;
 				else if (a[i] == "random") { static std::mt19937 dice{ std::random_device{}() }; numbers.push_back(static_cast<int>(dice() % 100000u)); }   // (in the seed's place)
@@ -750,7 +754,7 @@ namespace GB::Editor
 			if (numbers.size() > 0) seed = numbers[0];
 			if (numbers.size() > 1) clans = numbers[1];
 			if (numbers.size() > 2) members = numbers[2];
-			return ShellNew(biome, seed, clans, members, bare, speed, preset);
+			return ShellNew(biome, seed, clans, members, bare, speed, preset, party);
 		}
 		if (sub == "player") return ShellPlayer(std::vector<std::string>(a.begin() + 1, a.end()));
 		if (sub == "load")

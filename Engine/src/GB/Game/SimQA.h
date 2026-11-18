@@ -257,6 +257,9 @@ namespace GB
 	{
 		const GeneratedWorld* World = nullptr;   // required; must outlive the run
 		int Members = 4;                          // when Roster is empty: that many
+		// T310: the first clan (the player's) founded with this many people chosen by the founding (GB/Game/Founding.h) with its kit's extra, as GB.exe's
+		// `shell new ... party <n>`; the further clans keep their share of Members. 0: as before (the first clan's share of Members, the base kit).
+		int Party = 0;
 		std::vector<std::pair<std::string, std::string>> Roster;   // name, role (empty: Members members named by the data, trades from Tribe::PlanRoles as `tribe build`)
 		float ResourceDensity = 1.0f;             // of the wild nodes PlanWorldResources spreads (when there is no Scene)
 		const NatureConfig* Nature = nullptr;     // forests, stony ground and flower beds on top of them (PlanWorldNature, which then takes its density from Nature->Abundance); null = none

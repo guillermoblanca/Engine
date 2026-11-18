@@ -390,9 +390,11 @@ namespace GB::Editor
 			const SpawnBatch crew(*this);   // (its workers without reloading the scene's systems each)
 			std::string model = "fox";
 			std::vector<float> numbers;
+			int party = 0;   // T310: `party <n>`: the clan founded with n people of the founding (ColonyFounding: `game founding`), with the kit's extra
 			for (size_t i = 1; i < a.size(); ++i)
 			{
 				if (PlayerMode::IsFbx(a[i]) || a[i] == "fox" || a[i] == "cesium") model = a[i];
+				else if (a[i] == "party" && i + 1 < a.size()) party = std::max(1, std::atoi(a[++i].c_str()));
 				else numbers.push_back(static_cast<float>(std::atof(a[i].c_str())));
 			}
 			glm::vec3 origin = m_Orbit.Target;
@@ -400,6 +402,13 @@ namespace GB::Editor
 			if (numbers.size() >= 2) { origin.x = numbers[0]; origin.z = numbers[1]; }
 			if (numbers.size() >= 3) workers = std::max(1, std::min(200, static_cast<int>(numbers[2])));   // (no fixed crew: the names and trades come from the data)
 			else if (numbers.size() == 1) workers = std::max(1, std::min(200, static_cast<int>(numbers[0])));   // `tribe build <model> <n>`: n workers where the site choice says (H15: `play`)
+			std::vector<int> picked;   // T310: the founding's slots (the pool of this world's seed: the one `game founding` showed, else a new one)
+			if (party > 0)
+			{
+				if (!m_Founding.Started() || m_Founding.WorldSeed() != m_WorldDesc.Seed) m_Founding.Start(m_Tribe.Config, m_WorldDesc.Seed);
+				picked = m_Founding.PartyOf(std::clamp(party, m_Founding.Rules().PartyMin, m_Founding.Rules().PartyMax));
+				workers = static_cast<int>(picked.size());
+			}
 			// H8: with no place given, on a generated world the clan settles where the site choice says (by the water, near what its trades want, on flat
 			// ground); the camp is 8 m south of the origin, as always. Without a world (a test scene) it is the orbit camera's target, as before.
 			std::string chosen;
@@ -424,6 +433,7 @@ namespace GB::Editor
 			m_SimQA.Reset();   // a new tribe: the live checks start again
 			m_QaWarned = false;
 			std::vector<std::string> names;
+			for (const int slot : picked) names.push_back(m_Founding.Candidates()[static_cast<size_t>(slot)].Name);   // T310
 			for (size_t k = 0; static_cast<int>(names.size()) < workers; ++k)   // (a name another clan uses is skipped: the actors' names are unique)
 				if (const std::string n = MemberName(m_Tribe.Config.Work, k); !m_Clans.NameTaken(n)) names.push_back(n);
 			for (const std::string& n : names) if (m_Actors.Find(n)) m_Actors.Remove(n);
@@ -482,8 +492,8 @@ namespace GB::Editor
 			SelectActor(names.front(), false);   // the panel shows its mind at once
 			m_Tribe.Config.Economy.Camp = camp;
 			m_Tribe.Config.Economy.CampY = m_World.IsBuilt() ? CampGround(m_World.World(), camp) : 0.0f;   // (T118: a graph site's platform level)
-			m_Tribe.Store().Add(m_Items, "wood", 2 + 2 * workers);    // what they found lying around on the first day
-			m_Tribe.Store().Add(m_Items, "stone", 3 * workers);
+			// what they found lying around on the first day (T310: the kit of colony.json, with a party's extra)
+			if (const std::string missed = AddFoundingKit(m_Tribe.Store(), m_Items, m_Tribe.Config.Founding, workers, party > 0); !missed.empty()) GB_CLIENT_WARN("tribe build: the kit did not fit in the store: {}", missed);
 			const std::vector<std::string> roles = m_Tribe.PlanRoles(workers);
 			std::map<std::string, int> shares;
 			for (int i = 0; i < workers; ++i)
@@ -492,10 +502,11 @@ namespace GB::Editor
 				m_Tribe.AddMember(names[static_cast<size_t>(i)], role, bodies[static_cast<size_t>(i)]);
 				++shares[role];
 			}
+			for (const int slot : picked) ColonyFounding::Seat(m_Tribe, m_Founding.Candidates()[static_cast<size_t>(slot)], true);   // T310: the people drawn, with their trade
 			const std::string game = m_Tribe.Config.Social.On ? "; " + SpawnWildlife(m_Tribe) : std::string();   // social life: deer, boar, grouse, rabbits around the camp
 			std::string trades;
 			for (const auto& [role, n] : shares) trades += (trades.empty() ? "" : ", ") + std::to_string(n) + " " + role;
-			return { true, std::to_string(workers) + " workers at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + "): " + trades + "; " + built.Message + chosen + game + "; they act on their own: tribe status | tribe jobs | tribe log | settlement status" };
+			return { true, std::to_string(workers) + (party > 0 ? " founders (party " + std::to_string(workers) + ")" : " workers") + " at the camp (" + std::to_string(static_cast<int>(camp.x)) + ", " + std::to_string(static_cast<int>(camp.y)) + "): " + trades + "; " + built.Message + chosen + game + "; they act on their own: tribe status | tribe jobs | tribe log | settlement status" };
 		}
 		if (sub == "remove" && a.size() > 1)
 		{

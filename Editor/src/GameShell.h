@@ -76,6 +76,7 @@ namespace GB::Editor
 			std::string Dir, Mode, Biome, Preset, LoadedFrom;
 			uint32_t Seed = 0;
 			int Clans = 0, Members = 0, Speed = 1;
+			int Party = 0;                 // T310: the player's clan founded with this many (`shell new ... party <n>`); 0: `members` as the others
 			bool Bare = false;
 			std::string Started;           // "2026-11-15 10:42:07"
 			std::chrono::steady_clock::time_point Clock{};

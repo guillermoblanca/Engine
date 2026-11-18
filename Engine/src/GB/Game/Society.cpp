@@ -87,6 +87,24 @@ namespace GB
 		return m_People.emplace(name, std::move(p)).first->second;
 	}
 
+	Person Society::Draft(const SocietyRules& rules, const std::string& name, uint32_t roll, int female, float minAge, float maxAge) const
+	{
+		const std::string key = name + "#" + std::to_string(roll);   // (Join's draws use the bare name: a draft is never a founder's twin)
+		const float lo = minAge >= 0.0f ? minAge : rules.Life.FounderMin;
+		const float hi = maxAge >= 0.0f ? std::max(lo, maxAge) : std::max(lo, rules.Life.FounderMax);
+		Person p;
+		p.Age = lo + (hi - lo) * static_cast<float>(Roll(rules, key, kAge, 0));
+		p.Female = female < 0 ? Roll(rules, key, kSex, 0) < 0.5 : female != 0;
+		int64_t i = 0;
+		for (const auto& [id, g] : rules.Genes) p.Genes[id] = Clamp01(g.Mean + g.Spread * static_cast<float>(Bell(rules, key + "/" + id, kGene, i++)));
+		for (const auto& [id, t] : rules.Traits)
+		{
+			p.Genes[id] = Clamp01(t.Mean + t.Spread * static_cast<float>(Bell(rules, key + "/" + id, kTrait, i++)));
+			p.Traits[id] = p.Genes[id];   // (as a founder: its nature is all it has)
+		}
+		return p;
+	}
+
 	const Person& Society::Bear(const SocietyRules& rules, const std::string& child, const std::string& mother, const std::string& father)
 	{
 		const Person* m = Find(mother);

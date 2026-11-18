@@ -268,6 +268,8 @@ gb_test(director_focus director_focus_test.cpp POOL GBSimTests LINK GB::Sim LABE
 gb_test(colony_orders colony_orders_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T269 + T276 (MODO_COLONIA C1-c): the colony mode: build turned with no vote nor cost, the defeat, the stages of the player's clan, plans called off
 gb_test(colony_mode colony_mode_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T310 (ARRANQUE_Y_LLEGADAS §2): the founding: colony.json, the kit by people, the candidates (roll, lock, pick), a clan of one for two days, save and load
+gb_test(founding founding_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T240 (MODO_DIOS_DECISIONES.md §3.c): the vision: the dreamer, the clan's aim, the lapse, the material the clan lacks
 gb_test(director_vision director_vision_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food

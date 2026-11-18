@@ -203,6 +203,10 @@ namespace GB
 		std::vector<SocietyEvent> Died(const SocietyRules& rules, const std::string& name, const std::string& cause);
 		// H13: a member from another clan joins as it was (age, sex, genes, traits; its bonds stayed behind). Nothing happens when the name is here.
 		void Admit(const std::string& name, const Person& person);
+		// T310: a person made up for `name` WITHOUT joining (the founding's candidates, GB/Game/Founding.h): genes and traits from the seed, the name and
+		// `roll` (another roll of the same name is another person), its age between `minAge` and `maxAge` (below 0: FounderMin / FounderMax) and its
+		// sex `female` (-1: drawn). Changes nothing; it joins later with Admit (before AddMember, whose Join then finds it).
+		Person Draft(const SocietyRules& rules, const std::string& name, uint32_t roll, int female = -1, float minAge = -1.0f, float maxAge = -1.0f) const;
 		// H13: two members of this society become partners (a marriage across clans, once both are here); old partners are free. False when either
 		// is not here, is dead, or they are the same.
 		bool Marry(const SocietyRules& rules, const std::string& a, const std::string& b);

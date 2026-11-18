@@ -118,6 +118,7 @@ namespace GB
 		SocietyMetricRules* Metrics = nullptr;   // T204: the "metrics" section (how the quality of life is weighed; SocietyMetrics.h): ClanWorld::Metrics
 		DirectorRules* Director = nullptr;       // T195: the "director" section (assets/data/director.json: the god's faith and influence; WorldDirector.h)
 		AlertRules* Alerts = nullptr;            // T220: the "alerts" section (assets/data/director.json: the thresholds of the god's alerts; WorldAlerts.h)
+		FoundingRules* Founding = nullptr;       // T310: the "founding" block (assets/data/colony.json: the start kit and the player's candidates; FoundingRules.h)
 	};
 	void AddContentSections(ContentPacks& packs, const ContentTargets& to);
 }

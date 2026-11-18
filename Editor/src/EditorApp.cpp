@@ -156,6 +156,7 @@ namespace GB::Editor
 		content.Metrics = &m_Clans.Metrics;   // U2: how the quality of life is weighed, as GBSim weighs it (only the measure reads it)
 		content.Director = &m_Director.Rules;   // T195: the god's faith and influence, as GBSim reads them
 		content.Alerts = &m_AlertRules;   // T220: the thresholds of the god's alerts, as GBSim reads them
+		content.Founding = &m_Tribe.Config.Founding;   // T310: colony.json's founding (the start kit, the candidates), as GBSim reads it
 		AddContentSections(m_Packs, content);
 		AddVisualContentSection(m_Packs, m_Visuals.Library);   // the "visuals" section is the visual layer's (the simulation does not read it)
 		// G2: the "session" section of player.json (how GB.exe records a game: GameShell.h) is the shell's; the simulation does not read it

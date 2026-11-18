@@ -782,6 +782,7 @@ namespace GB::Editor
 		}
 		// T276 (MODO_COLONIA §4.4): a site of the player's clan (also on the colony's screen, with no character): `game site <name>` its sheet in a line,
 		// `game site cancel <name>` calls it off (what was brought goes back to the store). Names with _ for their spaces, or in several words.
+		if (sub == "founding") return FoundingCommand(std::vector<std::string>(a.begin() + 1, a.end()));   // T310 (Gameplay/EditorFounding.cpp)
 		if (sub == "site")
 		{
 			const bool cancel = a.size() > 1 && a[1] == "cancel";

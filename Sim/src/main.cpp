@@ -119,6 +119,7 @@ namespace
 			to.Metrics = &Metrics;          // T204
 			to.Director = &Director;        // T195
 			to.Alerts = &Alerts;            // T220
+			to.Founding = &Config.Founding; // T310: colony.json's founding (the start kit)
 			GB::AddContentSections(Packs, to);
 			GB::ContentReport report;
 			Error = Packs.Load(pack.empty() ? std::string(GB::GamePack()) : pack, assets + "/data", &report);
@@ -141,7 +142,7 @@ int main(int argc, char** argv)
 	uint32_t seed = 1;
 	double days = 3.0, every = 60.0, years = 0.0, stagnantDays = 0.0;
 	bool stopClanDead = false, stopExtinct = false;
-	int clans = 1, members = 4;
+	int clans = 1, members = 4, party = 0;
 	bool combat = false, hostile = false, content = true, forests = false, report = false, patches = true, game = false;
 	std::string biome = "temperate", path, profile, note, pack, graph;
 	float size = 0.0f;
@@ -171,6 +172,7 @@ int main(int argc, char** argv)
 		}
 		else if (Arg(argv[i], "--clans", v)) clans = std::max(1, std::atoi(v.c_str()));
 		else if (Arg(argv[i], "--members", v)) members = std::max(1, std::atoi(v.c_str()));
+		else if (Arg(argv[i], "--party", v)) party = std::clamp(std::atoi(v.c_str()), 1, 6);   // T310: the player's clan (the first) founded with 1-6 people (Founding.h)
 		else if (Arg(argv[i], "--biome", v)) biome = v;
 		else if (Arg(argv[i], "--telemetry", v)) path = v;
 		else if (Arg(argv[i], "--every", v)) every = std::atof(v.c_str());
@@ -286,6 +288,7 @@ int main(int argc, char** argv)
 	}
 	if (forests && era) setup.Nature = &era->Nature;   // --forest: the patches of bosques.json (docs/BOSQUES.md); the game's pack already has the forest nodes
 	setup.Members = members * clans;
+	setup.Party = party;   // T310
 	setup.CampPatches = !graph.empty() && patches && era;   // T118 (the patches need the content's node definitions)
 	setup.Clans = clans;
 	setup.Combat = combat;

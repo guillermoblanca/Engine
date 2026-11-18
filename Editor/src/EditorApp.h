@@ -31,6 +31,7 @@
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/Game/ClanHostility.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/Founding.h"
 #include "GB/Game/SimQA.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Gameplay/ShippedContent.h"
@@ -199,6 +200,7 @@ namespace GB::Editor
 		void RegisterGameCommands();
 		CommandResult PlayCommand(const std::vector<std::string>& a);
 		CommandResult GameCommand(const std::vector<std::string>& a);
+		CommandResult FoundingCommand(const std::vector<std::string>& a);   // T310: `game founding ...` (Gameplay/EditorFounding.cpp)
 		void StepGame(float dt);
 		void GameKeys();
 		void RefreshPrompt();
@@ -394,6 +396,7 @@ namespace GB::Editor
 		// H13 (EditorClans.cpp): every clan of the world; clan 0 is m_Tribe (the first tribe, saved in the "ai" section as before), the others are
 		// kept by the clan world (`clan new`) and saved in the "clans" section. `clan select` chooses the one the Tribe panel and `tribe` reports show.
 		ClanWorld m_Clans;
+		ColonyFounding m_Founding;                               // T310: the candidates of the player's clan (`game founding`; `tribe build ... party <n>` seats them)
 		WorldDirector m_Director;                                // T195: the god of the world (GB/Game/WorldDirector.h): `director ...`, saved in the "director" section
 		ValueRules m_Values = DefaultValueRules();               // V2: what people value (GB/Game/Values.h)
 		TelemetrySink m_Telemetry;                               // the telemetry of the run (`telemetry start <file>`, --telemetry=<file>): see docs/DATOS_INDIVIDUO.md
@@ -578,7 +581,7 @@ namespace GB::Editor
 		void StartShell();                             // from the constructor: the menu, the full screen, the presets
 		void RegisterShellCommands();
 		CommandResult ShellCommand(const std::vector<std::string>& a);
-		CommandResult ShellNew(const std::string& biome, int seed, int clans, int members, bool bare, int speed, const std::string& preset);
+		CommandResult ShellNew(const std::string& biome, int seed, int clans, int members, bool bare, int speed, const std::string& preset, int party = 0);
 		void LoadUserPresets();                        // G5: <saves>/presets.json after the shipped ones (assets/data/presets.json)
 		CommandResult ShellPresetSave(const std::string& id, const std::string& label);   // G5: the custom form as a preset of the player's
 		void ChooseShellPreset(int index);             // G5: the new game's form takes a preset (-1: custom, the form as it is)
