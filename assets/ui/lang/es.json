@@ -939,6 +939,50 @@
  },
  "phrases": [
   {
+   "re": "^(\\S+) \\([^)]*\\) drops the order: (.+)$",
+   "to": "{1} dejó la orden: {line:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) refuses the order: (.+)$",
+   "to": "{1} se niega a obedecer: {line:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) cannot carry out the order: (.+)$",
+   "to": "{1} no puede cumplir la orden: {line:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) has done the order: (.+)$",
+   "to": "{1} cumplió la orden"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is let off the order to (.+)$",
+   "to": "{1} queda libre de la orden"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is ordered to go to (\\S+), (\\S+)$",
+   "to": "{1} obedece: va a {2}, {3}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is ordered to use (.+)$",
+   "to": "{1} obedece: va a trabajar en {ent:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is ordered to build (.+)$",
+   "to": "{1} obedece: va a construir {ent:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is ordered to deliver (.+)$",
+   "to": "{1} obedece: lleva material a {ent:2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is ordered to talk (.+)$",
+   "to": "{1} obedece: va a hablar con {2}"
+  },
+  {
+   "re": "^(\\S+) \\([^)]*\\) is ordered to follow (.+)$",
+   "to": "{1} obedece: sigue a {2}"
+  },
+  {
    "re": "^(\\S+) \\([^)]*\\) goes to (till|sow|tend|harvest) (\\d+) plots of field (\\d+)$",
    "to": "{1} va a {farmdo:2} {3} parcelas del campo {4}"
   },
@@ -2269,6 +2313,58 @@
   {
    "re": "^the clan is too small to change trades \\(([0-9]+) of ([0-9]+)\\)$",
    "to": "el clan es demasiado pequeño para cambiar de oficio ({1} de {2})"
+  },
+  {
+   "re": "^very hungry$",
+   "to": "tiene mucha hambre"
+  },
+  {
+   "re": "^very thirsty$",
+   "to": "tiene mucha sed"
+  },
+  {
+   "re": "^exhausted$",
+   "to": "no puede más de sueño"
+  },
+  {
+   "re": "^in low spirits$",
+   "to": "tiene el ánimo hundido"
+  },
+  {
+   "re": "^a threat$",
+   "to": "hay una amenaza"
+  },
+  {
+   "re": "^cannot get there$",
+   "to": "no puede llegar"
+  },
+  {
+   "re": "^its bag is full$",
+   "to": "lleva la bolsa llena"
+  },
+  {
+   "re": "^cannot work on (.+)$",
+   "to": "no puede trabajar en {ent:1}"
+  },
+  {
+   "re": "^cannot work (.+)$",
+   "to": "no puede trabajar {ent:1}"
+  },
+  {
+   "re": "^(.+) lacks materials$",
+   "to": "a {ent:1} le faltan materiales"
+  },
+  {
+   "re": "^cannot carry it to the store$",
+   "to": "no puede llevarlo al almacén"
+  },
+  {
+   "re": "^they have nothing to talk about now$",
+   "to": "ahora no tienen de qué hablar"
+  },
+  {
+   "re": "^cannot keep up with (.+)$",
+   "to": "no puede seguir a {1}"
   }
  ],
  "ui": {

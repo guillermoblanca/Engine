@@ -93,7 +93,8 @@ namespace GB::Editor
 		bool Newsworthy(const std::string& line, const std::string& player)
 		{
 			if (line.find(" " + player + " ") != std::string::npos || line.find(player + " (") != std::string::npos) return true;
-			for (const char* k : { "dies", "is born", "raid", "attacked", "killed", "takes up the trade", "tradition", "has done what", "agrees", "lights the campfire", "finishes" })
+			for (const char* k : { "dies", "is born", "raid", "attacked", "killed", "takes up the trade", "tradition", "has done what", "agrees", "lights the campfire", "finishes",
+				"the order", "is ordered to" })   // (T268: a direct order taken, done, refused or dropped, ColonyOrders.h)
 				if (line.find(k) != std::string::npos) return true;
 			return false;
 		}
@@ -675,6 +676,7 @@ namespace GB::Editor
 		if (job)
 			for (const JobClaim& c : job->Claims) if (c.Member == me->Name) jobLine += ", done " + Fixed(c.Done);
 		out.push_back(jobLine);
+		if (const std::string orders = t.Colony().Line(); !orders.empty()) out.push_back("orders: " + orders);   // T268 (only while someone holds one)
 		if (me->Job == "sleep") out.push_back("asleep (move to wake up)");
 		if (m_Controls.Hud.Clock)
 		{
@@ -974,6 +976,37 @@ namespace GB::Editor
 			RefreshPrompt();
 			if (m_Game.PromptCommand.empty()) return { false, "nothing to do here" };
 			return Execute(m_Game.PromptCommand);
+		}
+		// T268 (MODO_COLONIA C1-a): a direct order to any person of the clan, or several (comma-separated; `sel` is the one selected). It is carried
+		// out by GB/Game/ColonyOrders.h: the person obeys at once and its brain leaves it alone until the order is done or a need cuts it.
+		if (sub == "order")
+		{
+			if (a.size() < 3) return { false, "usage: game order <name[,name...]|sel> goto <x> <z> | use <node> | build <site> | deliver <site> | talk <name> | follow <name> | cancel" };
+			std::vector<std::string> who;
+			std::stringstream names(a[1]);
+			for (std::string n; std::getline(names, n, ',');)
+				if (!n.empty()) who.push_back(n == "sel" ? m_Game.Selected : Spaced(n));
+			const std::string& verb = a[2];
+			std::vector<std::string> args;
+			if (verb == "goto") args.assign(a.begin() + 3, a.end());
+			else if (a.size() > 3)   // (a node, a site or a person: the rest of the line, with _ for the spaces of a scene name)
+			{
+				std::string target;
+				for (size_t i = 3; i < a.size(); ++i) target += (target.empty() ? "" : " ") + a[i];
+				args.push_back(Spaced(target));
+			}
+			Tribe& clan = PlayTribe();
+			bool ok = false;
+			std::string text;
+			for (const std::string& name : who)
+			{
+				const ColonyOrders::Reply r = name.empty() ? ColonyOrders::Reply{ false, "nobody is selected" } : clan.Colony().Give(clan, name, verb, args);
+				ok = ok || r.Ok;
+				text += (text.empty() ? "" : "; ") + r.Text;
+			}
+			if (who.empty()) text = "nobody to order";
+			if (!ok) GameNote(text);   // (what was taken the log tells: "Ana (forager) is ordered to ...")
+			return { ok, text };
 		}
 		if (sub == "use" && a.size() > 1)
 		{

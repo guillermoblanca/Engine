@@ -673,6 +673,7 @@ namespace GB
 			for (const TribeMember& o : m_Members)
 			{
 				if (&o == &m || o.Dead || !o.Body || o.Player || !(Idle(o) || EveningFree(o, eveningNow)) || o.Abstract != m.Abstract) continue;
+				if (m_Orders.Has(o.Name)) continue;   // T268: someone under an order is not called to talk
 				const float d = glm::distance(pos, Where(o));
 				if (d > T.Radius * (eveningNow ? 3.0f : 1.0f)) continue;   // (in the evening the clan comes together: those further out are called too)
 				const float s = 1.0f + m_Society.Affinity(Config.Society, m.Name, o.Name) + (Grief(o.Name) > T.ConsoleAbove ? 1.0f : 0.0f) - 0.5f * d / T.Radius;
@@ -834,7 +835,7 @@ namespace GB
 		if (!Order(m, GoTo(o.Where - dir * 0.6f, WaitFor(k.Seconds)))) return false;
 		m.Job = "talk";
 		m.Detail = kind + " " + other->Name + (about.empty() ? std::string() : " " + about);
-		if (Idle(*other) || EveningFree(*other, IsEvening(Day(), Hour()))) Send(*other, GoTo(o.Where + dir * 0.6f, WaitFor(k.Seconds + 1.5f)), "talk", kind + " " + m.Name + " listening");
+		if ((Idle(*other) || EveningFree(*other, IsEvening(Day(), Hour()))) && !m_Orders.Has(other->Name)) Send(*other, GoTo(o.Where + dir * 0.6f, WaitFor(k.Seconds + 1.5f)), "talk", kind + " " + m.Name + " listening");
 		return true;
 	}
 
