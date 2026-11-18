@@ -419,6 +419,17 @@ int GBTest_economy(int, char**)
 	// ---- in play: a field over a season: marked out, tilled with the hoe, sown with seeds, watered, ripe and harvested into its store, then hauled
 	{
 		Clan k(4, true);   // (no technologies: everyone may farm)
+		const std::map<std::string, CropDef> published = k.Tribe_.Config.Econ.Crops;   // (given back after the field: the frost below reads the data's)
+		// a quick crop of the test's own (the published grain takes a season, D60: stageSeconds 4200), so 400 s see a whole cycle whatever the data say
+		{
+			CropDef& quick = k.Tribe_.Config.Econ.Crops["grain"];
+			quick.Id = "grain";
+			quick.Seed = "grain_seed";
+			quick.Yield = { { "grain", 3 }, { "grain_seed", 2 } };
+			quick.StageSeconds = 60.0f;
+			quick.Sow = { "spring", "summer", "autumn" };
+			quick.Seasons.clear();
+		}
 		k.Tribe_.SetWorldClock(0.0);   // the first day of spring
 		k.Tribe_.Store().Add(k.Items, "grain_seed", 6);
 		k.Tribe_.Store().Add(k.Items, "stone_hoe", 1);
@@ -440,6 +451,7 @@ int GBTest_economy(int, char**)
 		Check(e.Hauled > 0 && k.Tribe_.Store().Count("grain") + e.Stockpiles[0].Store.Count("grain") > 0, "the harvest is left at the field's store and hauled to the camp");
 		if (!e.Harvested.count("grain")) { std::fprintf(stderr, "%s\n", k.Tribe_.FieldReport().c_str()); k.Dump("field"); }
 		std::fprintf(stderr, "  field: %s\n", k.Tribe_.FieldReport().c_str());
+		k.Tribe_.Config.Econ.Crops = published;
 
 		// the frost: winter ruins what is in the ground
 		std::map<std::string, CropDef> crops = k.Tribe_.Config.Econ.Crops;

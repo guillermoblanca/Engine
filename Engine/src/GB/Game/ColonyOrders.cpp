@@ -2,6 +2,7 @@
 // "deposit", "build", "deliver", "talk") or a walk of the order's own ("goto", "follow"), given through the tribe's Order, Execute and
 // ExecuteSettlement, so the body, the abstract agent, the log and the telemetry see an order as they see any other work.
 #include "GB/Game/ColonyOrders.h"
+#include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -147,6 +148,12 @@ namespace GB
 			d.At = tribe.Where(*other);
 		}
 		else return { false, "unknown order " + verb + " (goto, use, build, deliver, talk, follow, cancel)" };
+		// T322: a verb some technology unlocks needs the clan to know one of them ("use" is matched as use:<kind of node>)
+		std::string what;
+		if (verb == "use")
+			if (const AbilitySystemComponent* node = tribe.m_Gameplay->Find(d.Target))
+				for (const auto& [id, def] : tribe.m_Defs) if (node->HasTag("Resource.Node." + id)) { what = id; break; }
+		if (const std::string why = TechVerbs::WhyNot(tribe, verb, what); !why.empty()) return { false, member + " " + why };
 
 		// it drops what it was doing: its claims and its job on the board go, the job it was on ends here (no Finish: it did not get there)
 		if (const auto old = m_Mandates.find(member); old != m_Mandates.end())

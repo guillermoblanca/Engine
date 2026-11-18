@@ -49,6 +49,9 @@ namespace GB
 		std::vector<std::string> Recipes;      // recipes it unlocks
 		std::vector<std::string> Nodes;        // resource nodes (ids of their defs) that only those who know it work
 		std::vector<std::string> Buildings;    // buildings it unlocks (ids of the "buildings" section, H8)
+		// T322: the verbs it unlocks (CheckVerb below: "farm:till", "reap", "tame"...): a verb some technology names exists only for a clan that knows one
+		// of them (as the buildings); a verb no technology names is free, as before.
+		std::vector<std::string> Verbs;
 		TechPhysical Physical;                 // T181: the hard gate (the material and the process it needs)
 		// T181 (2): how hard it is to work out (0..1; < 0 = KnowledgeRules::DefaultComplexity). Only who has the intellect for it invents it; who has
 		// less still learns it from someone who knows it, slower (KnowledgeRules::GraspFloor, GraspSlope).
@@ -115,6 +118,9 @@ namespace GB
 		// The technologies that unlock a recipe / a node (empty: everyone may make or work it), in id order.
 		std::vector<std::string> ForRecipe(const std::string& recipe) const;
 		std::vector<std::string> ForNode(const std::string& node) const;
+		// T322: the technologies that unlock a verb (empty: it is free), in id order; and every verb some technology names, in id order.
+		std::vector<std::string> ForVerb(const std::string& verb) const;
+		std::vector<std::string> Verbs() const;
 		// The technologies known from the start (TechDef::Known).
 		std::vector<std::string> Starting() const;
 		bool operator==(const TechTree&) const = default;
@@ -130,8 +136,18 @@ namespace GB
 	// T181 (2): how fast someone of `intellect` learns `tech` from others: max(GraspFloor, 1 - GraspSlope x max(0, complexity - intellect)).
 	float GraspFactor(const TechTree& tree, const std::string& tech, float intellect);
 
+	// T322 (documentation/01_diseno/ARBOL_TECNICO.md §11.3): a verb is a kind of work or order a technology can unlock: "kind" (every work of
+	// that kind) or "kind:what" (the work of that kind on `what`: "farm:till"), the patterns of WorkCategories, matched on a job of the board, an
+	// option of the brain or an order of the player (GB/Game/TechVerbs.h). The kinds the code knows are the work and orders of today (gather, farm,
+	// make, hunt, goto, use...) and the verbs to come (reap, transplant, tame, dig_ditch...), so a verb in the data is never a typo.
+	const std::vector<std::string>& VerbKinds();
+	// "" when `verb` is a verb the code knows (a kind of VerbKinds, and for "farm" one of its actions), else why not.
+	std::string CheckVerb(const std::string& verb);
+	// The verb for people, in English: "farm:till" -> "till", "dig_ditch" -> "dig a ditch", "gather:wood" -> "gather wood".
+	std::string VerbWord(const std::string& verb);
+
 	// Reads the "techs" and "knowledge" sections of a content file:
-	//   { "techs": [ { "id", "name", "known", "requires": [], "recipes": [], "nodes": [], "buildings": [],
+	//   { "techs": [ { "id", "name", "known", "requires": [], "recipes": [], "nodes": [], "buildings": [], "verbs": [],
 	//                  "physical": { "materials": [], "stations": [] }, "complexity",
 	//                  "discovery": { "experiment", "observe", "teach", "seconds", "waste" } } ],
 	//     "knowledge": { "lessonSeconds", "observeRadius", "growth", "seed", "progression": [], "prereqBonus", "missingPrereqFactor",
@@ -141,7 +157,7 @@ namespace GB
 	//                    "leapYears" } }
 	// A technology is added or replaced whole by id; "knowledge" replaces the rules. A file without them changes nothing. Values are checked (chances
 	// 0..1, seconds above 0); names that point elsewhere (a recipe, a required technology) are checked by CheckReachability, since they may come in a
-	// later file. On a mistake it returns why and changes nothing.
+	// later file. "verbs" are checked here (CheckVerb; a verb twice in one technology is a mistake). On a mistake it returns why and changes nothing.
 	std::string LoadTechs(const std::string& json, TechTree& tree);
 	// The tree as the sections read it back (one JSON object with "techs" and "knowledge"; only the discovery numbers that are not the defaults).
 	std::string TechsToJson(const TechTree& tree);

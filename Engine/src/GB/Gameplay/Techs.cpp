@@ -30,6 +30,68 @@ namespace GB
 		return out;
 	}
 
+	std::vector<std::string> TechTree::ForVerb(const std::string& verb) const
+	{
+		std::vector<std::string> out;
+		for (const auto& [id, t] : Techs)
+			if (std::find(t.Verbs.begin(), t.Verbs.end(), verb) != t.Verbs.end()) out.push_back(id);
+		return out;
+	}
+
+	std::vector<std::string> TechTree::Verbs() const
+	{
+		std::set<std::string> all;
+		for (const auto& [id, t] : Techs) all.insert(t.Verbs.begin(), t.Verbs.end());
+		return { all.begin(), all.end() };
+	}
+
+	// ------------------------------------------------------------------ T322: verbs
+	namespace
+	{
+		// The kinds of work and orders of today, and the verbs to come (ARBOL_TECNICO.md §11.5), with their word for people ("" = the kind itself).
+		struct VerbKind { const char* Kind; const char* Word; };
+		constexpr VerbKind kVerbKinds[] = {
+			// the work of the clan (the kinds of the job board and of the brain's options)
+			{ "gather", "" }, { "craft", "" }, { "make", "" }, { "farm", "farm" }, { "haul", "" }, { "hunt", "" }, { "build", "" }, { "deliver", "" },
+			{ "stoke", "" }, { "fire", "light a fire" }, { "designate", "gather what is marked" }, { "expedition", "go on an expedition" },
+			// the player's direct orders (ColonyOrders.h)
+			{ "goto", "go" }, { "use", "" }, { "talk", "" }, { "follow", "" },
+			// the verbs to come
+			{ "reap", "" }, { "transplant", "" }, { "transplant_tree", "transplant a tree" }, { "select_seed", "select seed" }, { "dig_ditch", "dig a ditch" },
+			{ "tame", "" }, { "drive", "drive game" },
+		};
+		constexpr const char* kFarmActions[] = { "till", "sow", "tend", "harvest" };   // FarmZones: the actions of a field
+	}
+
+	const std::vector<std::string>& VerbKinds()
+	{
+		static const std::vector<std::string> kinds = [] { std::vector<std::string> v; for (const VerbKind& k : kVerbKinds) v.push_back(k.Kind); return v; }();
+		return kinds;
+	}
+
+	std::string CheckVerb(const std::string& verb)
+	{
+		if (verb.empty()) return "a verb has no id";
+		const size_t colon = verb.find(':');
+		const std::string kind = verb.substr(0, colon), what = colon == std::string::npos ? std::string() : verb.substr(colon + 1);
+		const std::vector<std::string>& kinds = VerbKinds();
+		if (std::find(kinds.begin(), kinds.end(), kind) == kinds.end()) return "'" + verb + "' is not a verb the game knows (a kind of work or order: farm:till, reap, tame...)";
+		if (colon != std::string::npos && (what.empty() || what.find(':') != std::string::npos)) return "'" + verb + "' must be kind or kind:what";
+		if (kind == "farm" && colon != std::string::npos && std::none_of(std::begin(kFarmActions), std::end(kFarmActions), [&](const char* a) { return what == a; }))
+			return "'" + verb + "': a field's work is farm:till, farm:sow, farm:tend or farm:harvest";
+		return {};
+	}
+
+	std::string VerbWord(const std::string& verb)
+	{
+		const size_t colon = verb.find(':');
+		const std::string kind = verb.substr(0, colon), what = colon == std::string::npos ? std::string() : verb.substr(colon + 1);
+		if (kind == "farm" && !what.empty()) return what == "tend" ? "water" : what;   // "till", "sow", "harvest"
+		std::string word = kind;
+		for (const VerbKind& k : kVerbKinds) if (kind == k.Kind && *k.Word) word = k.Word;
+		return what.empty() ? word : word + " " + what;
+	}
+
 	std::vector<std::string> TechTree::Starting() const
 	{
 		std::vector<std::string> out;
@@ -185,6 +247,18 @@ namespace GB
 				}
 				for (std::string error : { Names(o, "requires", t.Requires), Names(o, "recipes", t.Recipes), Names(o, "nodes", t.Nodes), Names(o, "buildings", t.Buildings) })
 					if (!error.empty()) return "tech '" + t.Id + "': " + error;
+				if (const auto v = o.find("verbs"); v != o.end())   // T322: checked here (a verb is no name of another section)
+				{
+					if (!v->is_array()) return "tech '" + t.Id + "': verbs must be a list of verbs";
+					for (const Json& x : *v)
+					{
+						if (!x.is_string()) return "tech '" + t.Id + "': verbs must be a list of verbs";
+						const std::string verb = x.get<std::string>();
+						if (std::string error = CheckVerb(verb); !error.empty()) return "tech '" + t.Id + "': verbs: " + error;
+						if (std::find(t.Verbs.begin(), t.Verbs.end(), verb) != t.Verbs.end()) return "tech '" + t.Id + "': the verb '" + verb + "' is twice in verbs";
+						t.Verbs.push_back(verb);
+					}
+				}
 				if (std::find(t.Requires.begin(), t.Requires.end(), t.Id) != t.Requires.end()) return "tech '" + t.Id + "' requires itself";
 				if (std::string error = Number(o, "complexity", t.Complexity, 0.0f, 1.0f); !error.empty()) return "tech '" + t.Id + "': " + error;
 				if (const auto d = o.find("discovery"); d != o.end())
@@ -252,6 +326,7 @@ namespace GB
 			if (!t.Physical.Empty()) o["physical"] = { { "materials", t.Physical.Materials }, { "stations", t.Physical.Stations } };
 			if (!t.Nodes.empty()) o["nodes"] = t.Nodes;
 			if (!t.Buildings.empty()) o["buildings"] = t.Buildings;
+			if (!t.Verbs.empty()) o["verbs"] = t.Verbs;   // T322
 			if (!(t.Discovery == none))
 				o["discovery"] = { { "experiment", Round3(t.Discovery.Experiment) }, { "observe", Round3(t.Discovery.Observe) }, { "teach", Round3(t.Discovery.Teach) },
 					{ "seconds", Round3(t.Discovery.Seconds) }, { "waste", Round3(t.Discovery.Waste) } };
