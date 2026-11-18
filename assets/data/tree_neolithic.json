@@ -116,7 +116,7 @@
       "discovery": { "experiment": 0.07, "observe": 0.2, "teach": 0.2, "seconds": 40.0, "waste": 0.2 } },
     { "id": "microliths", "name": "Microliths and arrows", "complexity": 0.45, "requires": [ "pressure_flaking", "spear_making" ], "recipes": [ "arrows" ], "physical": { "materials": [ "flint", "feather" ] },
       "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.15, "seconds": 40.0, "waste": 0.1 } },
-    { "id": "ground_stone", "name": "Ground stone tools", "complexity": 0.4, "requires": [ "flint_knapping" ], "recipes": [ "polished_axe" ], "physical": { "materials": [ "granite", "flint_axe" ] },
+    { "id": "ground_stone", "name": "Ground stone tools", "complexity": 0.4, "requires": [ "flint_knapping" ], "recipes": [ "polished_axe", "stone_hoe" ], "physical": { "materials": [ "granite", "flint_axe" ] },
       "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.15, "seconds": 45.0, "waste": 0.1 } },
     { "id": "eyed_needles", "name": "Eyed needles", "complexity": 0.3, "requires": [ "bone_working" ], "recipes": [ "bone_needle" ], "physical": { "materials": [ "bone" ] },
       "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.2 } },

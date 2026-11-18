@@ -45,7 +45,8 @@
     { "id": "dried_berry", "name": "Dried berry", "category": "food", "weight": 0.05, "stack": 30, "tags": [ "Item.Food", "Item.Food.Preserved" ], "ability": "Eat", "shelfLife": 14400 },
     { "id": "copper_axe", "name": "Copper axe", "category": "tool", "weight": 2.4, "stack": 1, "tags": [ "Item.Tool.Axe.Copper" ], "ability": "Chop", "socket": "RightHand", "power": 2, "speed": 1.25 },
     { "id": "bone_pickaxe", "name": "Bone pickaxe", "category": "tool", "weight": 2.0, "stack": 1, "tags": [ "Item.Tool.Pickaxe.Bone" ], "ability": "Mine", "socket": "RightHand", "power": 1, "speed": 1.1 },
-    { "id": "stone_hoe", "name": "Stone hoe", "category": "tool", "weight": 2.0, "stack": 1, "tags": [ "Item.Tool.Hoe" ], "ability": "Dig", "socket": "RightHand" },
+    { "id": "stone_hoe", "name": "Stone hoe", "category": "tool", "weight": 2.0, "stack": 1, "tags": [ "Item.Tool.Hoe" ], "ability": "Dig", "socket": "RightHand", "power": 1 },
+    { "id": "digging_stick", "name": "Digging stick", "category": "tool", "weight": 1.0, "stack": 1, "tags": [ "Item.Tool.Hoe" ], "ability": "Dig", "socket": "RightHand" },
     { "id": "copper_hoe", "name": "Copper hoe", "category": "tool", "weight": 2.2, "stack": 1, "tags": [ "Item.Tool.Hoe.Copper" ], "ability": "Dig", "socket": "RightHand", "power": 1, "speed": 1.2 },
     { "id": "flint_sickle", "name": "Flint sickle", "category": "tool", "weight": 0.8, "stack": 1, "tags": [ "Item.Tool.Sickle" ], "ability": "Gather", "socket": "RightHand" },
     { "id": "bone", "name": "Bone", "category": "resource", "weight": 0.5, "stack": 20, "tags": [ "Item.Resource.Bone" ] }
@@ -103,6 +104,7 @@
     { "ability": "Craft", "count": 1, "id": "stone_pickaxe", "inputs": { "fiber": 3, "stone": 3, "wood": 2 }, "output": "stone_pickaxe", "station": "workbench" },
     { "id": "plank", "inputs": { "log": 1 }, "output": "plank", "count": 2, "tool": "Item.Tool.Axe", "station": "workbench", "ability": "Craft" },
     { "id": "bone_pickaxe", "inputs": { "bone": 3, "branch": 2, "cordage": 1 }, "output": "bone_pickaxe", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "digging_stick", "inputs": { "wood": 1 }, "output": "digging_stick", "count": 1, "ability": "Craft" },
     { "id": "stone_hoe", "inputs": { "stone": 2, "branch": 2, "cordage": 1 }, "output": "stone_hoe", "count": 1, "station": "workbench", "ability": "Craft" },
     { "id": "flint_sickle", "inputs": { "flint": 1, "branch": 1, "cordage": 1 }, "output": "flint_sickle", "count": 1, "station": "workbench", "ability": "Craft" },
     { "id": "dried_berry", "inputs": { "berry": 3 }, "output": "dried_berry", "count": 2, "station": "drying_rack", "ability": "Craft" },
@@ -461,7 +463,7 @@
     "farmer": {
       "weights": { "farm": 1.0, "Resource.Plant": 0.6, "Resource.Loose": 0.3, "fire": 0.0 },
       "skill": "farming",
-      "tool": "stone_hoe",
+      "tool": "digging_stick",
       "toolTag": "Item.Tool.Hoe"
     },
     "forager": {
@@ -538,11 +540,11 @@
     "farming": {
       "tech": "tillage",
       "tool": "Item.Tool.Hoe",
-      "plots": 6,
-      "columns": 3,
+      "plots": 20,
+      "columns": 5,
       "spacing": 2.0,
       "offset": [ 9.0, 4.0 ],
-      "moistureSeconds": 120.0,
+      "moistureSeconds": 2400.0,
       "workSeconds": 2.0,
       "plotsPerTrip": 3,
       "priority": 1.2,
@@ -550,7 +552,7 @@
       "membersPerField": 4
     },
     "crops": [
-      { "id": "grain", "seed": "grain_seed", "yield": { "grain": 3, "grain_seed": 2 }, "stageSeconds": 90, "sow": [ "spring", "summer", "autumn" ] }
+      { "id": "grain", "seed": "grain_seed", "yield": { "grain": 10, "grain_seed": 2 }, "stageSeconds": 4200, "sow": [ "spring", "summer", "autumn" ] }
     ],
     "logistics": {
       "stores": {
@@ -805,7 +807,7 @@
     { "id": "smoking", "name": "Smoking", "complexity": 0.3, "physical": { "materials": [ "meat" ], "stations": [ "campfire" ] }, "requires": [ "cooking" ], "recipes": [ "smoked_meat" ], "buildings": [ "smoking_rack" ], "discovery": { "experiment": 0.1, "observe": 0.3, "teach": 0.25, "seconds": 25.0, "waste": 0.3 } },
     { "id": "weaving", "name": "Weaving", "complexity": 0.2, "requires": [ "basketry" ], "recipes": [ "reed_mat" ], "physical": { "materials": [ "reed" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.2 } },
     { "id": "wattle_and_daub", "name": "Wattle and daub", "complexity": 0.3, "requires": [ "basketry" ], "recipes": [ "daub" ], "buildings": [ "hut" ], "physical": { "materials": [ "clay" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.2 } },
-    { "id": "timber_framing", "name": "Timber framing", "complexity": 0.45, "physical": { "materials": [ "log" ] }, "requires": [ "flint_knapping", "wattle_and_daub", "weaving" ], "recipes": [], "buildings": [ "longhouse", "granary", "watchtower" ], "discovery": { "experiment": 0.04, "observe": 0.0, "teach": 0.2, "seconds": 60.0, "waste": 0.0 } },
+    { "id": "timber_framing", "name": "Timber framing", "complexity": 0.45, "physical": { "materials": [ "log" ] }, "requires": [ "flint_knapping", "wattle_and_daub", "weaving" ], "recipes": [], "buildings": [ "longhouse", "watchtower" ], "discovery": { "experiment": 0.04, "observe": 0.0, "teach": 0.2, "seconds": 60.0, "waste": 0.0 } },
     { "id": "palisade_building", "name": "Palisades", "complexity": 0.25, "physical": { "materials": [ "wood", "flint_axe" ] }, "requires": [ "flint_knapping" ], "recipes": [ "stakes" ], "buildings": [ "palisade" ], "discovery": { "experiment": 0.08, "observe": 0.3, "teach": 0.2, "seconds": 30.0, "waste": 0.1 } },
     { "id": "food_storage", "name": "Food storage", "complexity": 0.2, "requires": [ "basketry" ], "recipes": [], "buildings": [ "cache_pit" ], "discovery": { "experiment": 0.1, "observe": 0.0, "teach": 0.25, "seconds": 20.0, "waste": 0.0 } },
     { "id": "herb_lore", "name": "Herb lore", "complexity": 0.25, "requires": [ "basketry" ], "recipes": [ "poultice" ], "buildings": [ "healer_hut" ], "physical": { "materials": [ "herbs" ] }, "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
@@ -813,7 +815,9 @@
     { "id": "pottery", "name": "Pottery", "complexity": 0.35, "requires": [ "fire_making", "wattle_and_daub" ], "recipes": [ "fired_brick" ], "buildings": [ "kiln", "jar_store" ], "physical": { "materials": [ "clay" ] }, "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.15, "seconds": 60.0, "waste": 0.4 } },
     { "id": "smelting", "name": "Smelting", "complexity": 0.6, "requires": [ "pottery", "flint_knapping" ], "recipes": [ "copper_ingot" ], "buildings": [ "forge" ], "physical": { "materials": [ "copper_ore" ], "stations": [ "kiln", "forge" ] }, "discovery": { "experiment": 0.06, "observe": 0.2, "teach": 0.1, "seconds": 60.0, "waste": 0.5 } },
     { "id": "bone_working", "name": "Bone working", "complexity": 0.15, "requires": [ "cordage", "stone_tools" ], "recipes": [ "bone_pickaxe" ], "physical": { "materials": [ "bone" ] }, "discovery": { "experiment": 0.2, "observe": 0.34, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "tillage", "name": "Tillage", "complexity": 0.4, "requires": [ "flint_knapping" ], "recipes": [ "stone_hoe", "flint_sickle" ], "physical": { "materials": [ "grain_seed" ] }, "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.3 } }
+    { "id": "tillage", "name": "Tillage", "complexity": 0.35, "requires": [ "basketry" ], "recipes": [ "digging_stick" ], "physical": { "materials": [ "grain_seed" ] }, "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.3 } },
+    { "id": "reaping", "name": "Reaping", "complexity": 0.25, "requires": [ "tillage" ], "recipes": [ "flint_sickle" ], "physical": { "materials": [ "grain" ] }, "discovery": { "experiment": 0.1, "observe": 0.25, "teach": 0.2, "seconds": 30.0, "waste": 0.3 } },
+    { "id": "granaries", "name": "Granaries", "complexity": 0.3, "requires": [ "tillage", "food_storage" ], "recipes": [], "buildings": [ "granary" ], "physical": { "materials": [ "grain" ] }, "discovery": { "experiment": 0.1, "observe": 0.0, "teach": 0.25, "seconds": 30.0, "waste": 0.3 } }
   ],
   "knowledge": { "lessonSeconds": 20.0, "observeRadius": 12.0, "growth": 0.5,
     "progression": [ "fire_making", "stone_tools", "cordage", "basketry", "tillage", "food_storage", "wattle_and_daub", "cooking", "hide_working", "spear_making" ],
@@ -826,6 +830,7 @@
       "materials": {
         "clay": { "wattle_and_daub": 0.12, "pottery": 0.06, "writing": 0.01 },
         "grain_seed": { "tillage": 0.12 },
+        "grain": { "reaping": 0.1 },
         "copper_ore": { "smelting": 0.04 },
         "tin_ore": { "alloying": 0.04 },
         "iron_ore": { "forging": 0.03 },
