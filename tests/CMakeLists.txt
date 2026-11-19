@@ -280,6 +280,8 @@ gb_test(farm_zones farm_zones_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapi
 gb_test(research_queue research_queue_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T322 (ARBOL_TECNICO §11.7.1): technique -> verb: the board, the brain, the orders, the marks and the zones without the verb; KnowsVerb and its list
 gb_test(tech_verbs tech_verbs_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T323 (ARBOL_TECNICO §11.4, §11.7.5): the steps of the tree: inventing needs the open step, the longhouse opens step 2, another clan skips it, saving
+gb_test(tech_tiers tech_tiers_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T325 (ARBOL_TECNICO §11.5, §11.7.2): transplant: a node dug up, carried and planted; the verb gates it; it gives again there; saving
 gb_test(transplant transplant_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T277/T278/T279 (AGRICULTURA §5, ALIMENTACION §10.2): the farm tool asked for by what is at hand, the chance of a node's extra, the meals counted

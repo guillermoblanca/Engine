@@ -26,7 +26,7 @@ namespace GB
 		const ClanKnowledge& k = tribe.Knowledge();
 		const TechTree* tree = k.Techs();
 		const TechDef* t = tree ? tree->Find(tech) : nullptr;
-		if (!t || k.Clan().count(tech) || t->Discovery.Experiment <= 0.0f || !k.Physical(tech)) return false;
+		if (!t || k.Clan().count(tech) || t->Discovery.Experiment <= 0.0f || !k.Physical(tech) || !k.TierOpen(tech)) return false;   // (T323: its step open)
 		return std::all_of(t->Requires.begin(), t->Requires.end(), [&](const std::string& r) { return k.Clan().count(r) != 0; });
 	}
 
@@ -67,6 +67,7 @@ namespace GB
 			if (!k.Clan().count(r)) return "waits for " + r;
 		if (t->Discovery.Experiment <= 0.0f) return "cannot be found by trying";
 		if (!k.Physical(tech)) return "the world does not let it";
+		if (!k.TierOpen(tech)) return "needs tier " + std::to_string(k.TierOf(tech));   // T323 (GB/Game/TechTiers.h)
 		return current ? "researching" : "next";
 	}
 

@@ -46,6 +46,7 @@ namespace GB
 		m_Clan.clear();
 		m_ClanOther.clear();
 		m_LessonTimer = 0.0f;
+		m_Tier = 0;
 		if (m_Techs)
 			for (const std::string& t : m_Techs->Starting()) m_Clan.insert(t);
 	}
@@ -102,7 +103,29 @@ namespace GB
 
 	bool ClanKnowledge::CanInvent(const std::string& name, const std::string& tech) const
 	{
-		return CanLearn(name, tech) && Intellect(name) >= Complexity(*m_Techs, tech) - 1e-6f;   // T181 (2): working it out alone takes the intellect
+		return CanLearn(name, tech) && Intellect(name) >= Complexity(*m_Techs, tech) - 1e-6f && TierOpen(tech);   // T181 (2): working it out alone takes the intellect; T323: and the step
+	}
+
+	int ClanKnowledge::OpenTier() const
+	{
+		if (!m_Techs || m_Techs->Rules.Tiers.empty()) return kNoTierGate;
+		return m_Tier;
+	}
+
+	int ClanKnowledge::TierOf(const std::string& tech) const
+	{
+		const TechDef* t = m_Techs ? m_Techs->Find(tech) : nullptr;
+		if (!t) return 0;
+		// a technology the data gave no step (the later eras: writing, forging...) is beyond the last step while the tree has steps
+		if (t->Tier < 0) return m_Techs->Rules.Tiers.empty() ? 0 : kMaxTier;
+		return t->Tier;
+	}
+
+	bool ClanKnowledge::RaiseTier(int tier)
+	{
+		if (tier <= m_Tier) return false;
+		m_Tier = tier;
+		return true;
 	}
 
 	float ClanKnowledge::Pace(const std::string& name, const std::string& tech) const
@@ -487,6 +510,7 @@ namespace GB
 		Json j = { { "known", known }, { "lesson", m_LessonTimer } };
 		if (!agents.empty()) j["agents"] = agents;
 		if (!m_Goals.empty()) j["goals"] = m_Goals;   // (the experiments read them before the next plan sets them again: a load must try what the run tried)
+		if (m_Tier > 0) j["tier"] = m_Tier;   // T323 (an older save has none: 0, and the clan's goals open it again at the next plan)
 		return j.dump();
 	}
 
@@ -498,6 +522,7 @@ namespace GB
 		std::vector<std::string> other;
 		float lesson = 0.0f;
 		std::vector<std::string> goals;
+		int tier = 0;
 		std::map<std::string, AgentKnowledge> agents = m_Agents;
 		for (auto& [name, k] : agents) { k.Progress.clear(); k.Tries.clear(); k.NextTry = 0.0; }   // only what the section says is half done
 		try
@@ -524,6 +549,11 @@ namespace GB
 				if (!it->is_array()) return false;
 				for (const Json& g : *it) { if (!g.is_string()) return false; goals.push_back(g.get<std::string>()); }
 			}
+			if (const auto it = j.find("tier"); it != j.end())   // T323
+			{
+				if (!it->is_number_integer() || it->get<int>() < 0) return false;
+				tier = it->get<int>();
+			}
 			if (const auto it = j.find("agents"); it != j.end())
 			{
 				if (!it->is_object()) return false;
@@ -545,6 +575,7 @@ namespace GB
 			for (const std::string& t : m_Techs->Starting()) m_Clan.insert(t);   // never forgotten (and a save from before the technologies has none)
 		m_LessonTimer = lesson;
 		m_Goals = std::move(goals);
+		m_Tier = tier;
 		m_Agents = std::move(agents);
 		return true;
 	}

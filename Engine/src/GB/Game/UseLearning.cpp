@@ -43,7 +43,7 @@ namespace GB
 			if (leads == use->Materials.end()) continue;
 			for (const auto& [tech, rate] : leads->second)
 			{
-				if (rate <= 0.0f || !t.Knowledge().CanLearn(m.Name, tech)) continue;   // (CanLearn: the physical gate)
+				if (rate <= 0.0f || !t.Knowledge().CanLearn(m.Name, tech) || !t.Knowledge().TierOpen(tech)) continue;   // (CanLearn: the physical gate; T323: finding it by use is inventing: its step open)
 				if (pace < 0.0f) pace = Pace(t, m);
 				for (KnowledgeEvent& e : t.Knowledge().Instruct(m.Name, tech, rate * pace, "by working " + item))
 					if (!e.Tech.empty()) out.push_back(std::move(e));   // (the small steps stay quiet: one a trip would flood the log)
@@ -158,7 +158,7 @@ namespace GB
 		const std::set<std::string>& known = t.Knowledge().Clan();
 		std::string rung;
 		for (const std::string& id : tree->Rules.Progression)   // the basics: gathering, the fire, a roof, the first tools
-			if (!known.count(id) && tree->Find(id)) { rung = id; break; }
+			if (!known.count(id) && tree->Find(id) && t.Knowledge().TierOpen(id)) { rung = id; break; }   // (T323: within the open step)
 		const UseRules& use = tree->Rules.Use;
 		if (use.Materials.empty() || !Basics(t)) return rung;   // survival first: what the clan found pulls once it eats and sleeps under a roof
 		float best = rung.empty() ? -1.0f : 1.0f;   // (the ladder of the basics pulls 1)
@@ -168,7 +168,7 @@ namespace GB
 			if (have <= 0.0f) continue;
 			const float pull = use.Pull + 2.0f * std::min(1.0f, have / std::max(1.0f, use.Enough));
 			for (const auto& [tech, rate] : techs)
-				if (rate > 0.0f && !known.count(tech) && tree->Find(tech) && Physical(t, tech) && pull > best) { best = pull; rung = tech; }
+				if (rate > 0.0f && !known.count(tech) && tree->Find(tech) && Physical(t, tech) && t.Knowledge().TierOpen(tech) && pull > best) { best = pull; rung = tech; }
 		}
 		return rung;
 	}

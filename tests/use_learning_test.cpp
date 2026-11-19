@@ -67,6 +67,7 @@ int GBTest_use_learning(int, char**)
 	t.AddMember("Biel", "forager", &biel);
 	t.AddMember("Cleo", "forager", &cleo);
 	t.SetTechs(&techs);
+	t.Knowledge().RaiseTier(2);   // T323: pottery is of step 2 (a clan with its longhouse; this one has no plan to open it)
 	t.People().SetTrait("Ana", "curiosity", 0.0f);
 	t.People().SetTrait("Biel", "curiosity", 1.0f);
 	t.People().SetTrait("Cleo", "curiosity", 1.0f);
@@ -130,6 +131,7 @@ int GBTest_use_learning(int, char**)
 		u.AddMember("Dull2", "forager", &dull2);
 		u.AddMember("Bright2", "forager", &bright2);
 		u.SetTechs(&techs);
+		u.Knowledge().RaiseTier(1);   // T323: storytelling is of step 1
 		for (const char* n : { "Dull", "Dull2" }) u.People().SetGene(n, "intellect", 0.05f);
 		for (const char* n : { "Bright", "Bright2" }) u.People().SetGene(n, "intellect", 0.95f);
 		Check(std::abs(UseLearning::Intellect(u, "Dull") - 0.05f) < 1e-4f && std::abs(u.Knowledge().Intellect("Bright") - 0.95f) < 1e-4f, "the intellect is the society's gene");

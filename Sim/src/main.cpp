@@ -14,6 +14,7 @@
 #include "GB/Game/GroundFootprint.h"
 #include "GB/Game/SocietyMetrics.h"
 #include "GB/Game/StoreLayout.h"
+#include "GB/Game/TechTiers.h"
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Game/WorldAlerts.h"
@@ -466,6 +467,7 @@ int main(int argc, char** argv)
 				t->FieldReport().c_str(), t->EconomyReport().c_str());
 			for (const GB::BuildingNeed& n : t->PublicBuildingNeeds()) std::fprintf(stderr, "  needs %s (%.2f): %s\n", n.Building.c_str(), n.Urgency, n.Why.c_str());
 			if (const std::string verbs = GB::TechVerbs::Report(*t); !verbs.empty()) std::fprintf(stderr, "  %s\n", verbs.c_str());   // T322 (only with "verbs" in the data)
+			std::fprintf(stderr, "  tiers: %s\n", GB::TechTiers::Text(*t).c_str());   // T323: the open step of the tree and what the next one waits for
 			// T248: where the store's things lie (in its store buildings or by the fire)
 			const GB::StoreLayout layout = GB::StoreLayout::Of(*t);
 			std::string lay;
