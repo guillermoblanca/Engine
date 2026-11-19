@@ -95,7 +95,7 @@ namespace GB
 
 	CombatRules DefaultCombatRules()
 	{
-		// the "combat" section of the game's data (era1.json): weapons, blows, wounds, morale, threats, predators, hunts and raids
+		// the "combat" section of the game's data (the era1 pack): weapons, blows, wounds, morale, threats, predators, hunts and raids
 		static const CombatRules rules = ShippedSection<CombatRules>([](const std::string& doc, CombatRules& r) { return LoadCombatRules(doc, r); });
 		return rules;
 	}

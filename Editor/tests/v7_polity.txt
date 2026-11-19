@@ -1,4 +1,4 @@
-# V7 (docs/VISION_MUNDO_VIVO.md): settlements climb ranks and clans form polities. The ranks are data (era1.json, diplomacy.ranks: camp, village,
+# V7 (docs/VISION_MUNDO_VIVO.md): settlements climb ranks and clans form polities. The ranks are data (the era1 pack, diplomacy.ranks: camp, village,
 # town, city, by people and finished buildings); a rank reached is history ("Clan 1 become a village"); a building may ask for a rank (the town
 # hall of a town). Clans bound by alliances are a polity, named after the biggest; one that forms is history too. No player: nobody's death
 # sets off the leap between lives.

@@ -1,4 +1,4 @@
-// Construction and settlements (H8, E9): the buildings as data (era1.json says what the code says, round-trip, a mistake changes nothing), a site
+// Construction and settlements (H8, E9): the buildings as data (the era1 pack says what the code says, round-trip, a mistake changes nothing), a site
 // built phase by phase with the ability Build, the choice of the camp on generated worlds (deterministic, by the water but not in it, on flat ground,
 // near what the clan wants), a tribe that builds its shelter by itself, and a site saved and loaded in the middle of its work. CPU only.
 #include "GB/Gameplay/ShippedContent.h"
@@ -196,7 +196,7 @@ int GBTest_settlement(int, char**)
 {
 	Log::Init();
 
-	// ---- the data: era1.json says what the code says; round-trip; mistakes change nothing
+	// ---- the data: the era1 pack says what the code says; round-trip; mistakes change nothing
 	{
 		std::map<std::string, BuildingDef> file;
 		Check(LoadShippedSection(file, [](const std::string& doc, std::map<std::string, BuildingDef>& b) { return LoadBuildings(doc, b); }).empty(),

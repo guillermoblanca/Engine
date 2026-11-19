@@ -18,7 +18,7 @@ namespace GB
 	//
 	// QUALITY OF LIFE (qol, 0..1): how far a people has come from a bare survival, read as "how much this people has progressed" (it is what the
 	// clan's bar shows instead of an era). It is the weighted mean of parts, each 0..1 (the weights and every number below are data, the "metrics"
-	// section of assets/data/era1.json; documentation/02_tecnico/herramientas/LABORATORIO.md, "Indice de calidad de vida", says why each is what it
+	// section of the era1 pack (assets/data/era1.pack.json); documentation/02_tecnico/herramientas/LABORATORIO.md, "Indice de calidad de vida", says why each is what it
 	// is), times what the clan lost lately:
 	//   needs      how far above NeedsFloor the mean level of the listed needs (Hunger, Thirst, Rest, Warmth, Company; 100 = met) of the living is
 	//              (a camp that only gets by sits at the floor: there it is 0, everything met is 1)

@@ -389,7 +389,7 @@ def section_roles(rules):
     kinds = sorted({k for w in roles.values() for k in w})
     out = ['<h1>Roles de la tribu</h1>',
            '<p class="lead">Un rol son <b>pesos</b> sobre las opciones de trabajo (1 = le encanta, 0 = no lo hace por gusto), por id de nodo o por tipo (<code>Resource.Stone</code> vale para el sílex y el cobre); '
-           '<code>default</code> es lo que da a lo que no nombra. Están en la sección <code>roles</code> de <code>era1.json</code>. Sobre ellos se suman las aptitudes por práctica de cada miembro, '
+           '<code>default</code> es lo que da a lo que no nombra. Están en la sección <code>roles</code> de <code>rules/tribe.json</code>. Sobre ellos se suman las aptitudes por práctica de cada miembro, '
            'y el clan reparte los oficios según lo que necesita (ver TRIBU.md). Cualquiera ayuda con lo que falta y come, bebe y duerme cuando debe.</p>',
            '<table class="grid heat"><tr><th>Rol</th>' + ''.join(f'<th>{e(k)}</th>' for k in kinds) + '</tr>']
     for role, w in roles.items():
@@ -525,7 +525,7 @@ def section_techs(content, extra_techs, recipes, buildings):
     stations = station_buildings(buildings)
     out = ['<h1>Árbol de tecnologías</h1>',
            '<p class="lead">Cada flecha va de un requisito a lo que abre. Las verdes se saben desde el principio; las demás se descubren experimentando, observando a quien '
-           'ya sabe o en las lecciones del campamento (ver CONOCIMIENTO.md). Datos: sección <code>techs</code> de <code>era1.json</code> y del paquete ampliado.</p>',
+           'ya sabe o en las lecciones del campamento (ver CONOCIMIENTO.md). Datos: sección <code>techs</code> de <code>techs/tree.json</code> y del paquete ampliado.</p>',
            '<div class="treewrap">' + tech_tree_svg(techs, extra_ids) + '</div>',
            '<p class="muted">Verde: se sabe desde el principio · azul: se descubre · gris: era siguiente. Pulsa una caja para ver qué desbloquea.</p>',
            '<h2>Qué desbloquea cada una</h2>']
@@ -561,7 +561,7 @@ def section_buildings(buildings, techs, recipes):
         for b in t.get('buildings', []):
             gate.setdefault(b, []).append(t.get('name', t['id']))
     out = ['<h1>Edificios</h1>',
-           '<p class="lead">Sección <code>buildings</code> de <code>era1.json</code>. El clan decide qué le hace falta (camas, almacén lleno, estaciones), los miembros llevan el '
+           '<p class="lead">Fichero <code>buildings.json</code>. El clan decide qué le hace falta (camas, almacén lleno, estaciones), los miembros llevan el '
            'material (<code>deliver</code>) y trabajan cada fase (<code>build</code>) desde el tablón. Ver ASENTAMIENTOS.md.</p>']
     for bid, b in buildings.items():
         gives = []

@@ -307,7 +307,7 @@ struct Village
 
 int GBTest_tribe(int, char**)
 {
-	// Roles are data (assets/data/era1.json, "roles"): the file says what the code says, and a node the code never named is weighed by its kind.
+	// Roles are data (the era1 pack (assets/data/era1.pack.json), "roles"): the file says what the code says, and a node the code never named is weighed by its kind.
 	{
 		std::map<std::string, TribeRole> fileRoles;
 		Check(LoadShippedSection(fileRoles, [](const std::string& doc, std::map<std::string, TribeRole>& r) { return LoadRoles(doc, r); }).empty(), "the roles of the game's pack load (T347: every file of it)");
@@ -344,7 +344,7 @@ int GBTest_tribe(int, char**)
 			"a new node and a new role need no code");
 	}
 
-	// The rest of the tribe's data: the "tribe" section (agenda, food, stock) of era1.json says what the code says, and a role's own agenda and way of walking.
+	// The rest of the tribe's data: the "tribe" section (agenda, food, stock) of the era1 pack says what the code says, and a role's own agenda and way of walking.
 	{
 		TribeConfig file;
 		file.Agenda = TribeAgenda();

@@ -3,7 +3,7 @@
 // of herbs, a young tree) is dug up as a portable thing (a cutting, a clump, a sapling), carried and planted somewhere else, where it grows back
 // as it always did.
 //
-// What can be moved is data: a node type whose definition has "transplant": { "item", "verb", "work" } (ResourceTransplantDef, era1.json). The
+// What can be moved is data: a node type whose definition has "transplant": { "item", "verb", "work" } (ResourceTransplantDef, the era1 pack). The
 // verb ("transplant" for bushes and herbs, plant_care; "transplant_tree" for trees, arboriculture) is gated by TechVerbs: without it the order
 // does not exist for that clan ("does not know how to transplant a tree").
 //

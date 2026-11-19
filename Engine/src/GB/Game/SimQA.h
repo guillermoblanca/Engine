@@ -291,7 +291,7 @@ namespace GB
 		// with Combat: the species of the content; the game of social.hunting.wildlife is let loose round each camp (as the editor does), so the
 		// clans hunt (meat and hides: cooking, hide working, the way to the later eras). Null: no animals, as before
 		const std::map<std::string, SpeciesDef>* Species = nullptr;
-		const TechTree* Techs = nullptr;         // H11: the technologies (null: the built-in DefaultTechs(), what era1.json says)
+		const TechTree* Techs = nullptr;         // H11: the technologies (null: the built-in DefaultTechs(), what the era1 pack says)
 		const RegionMap* Regions = nullptr;      // H12: the regions (null: cut from the world with the clan's rules and the planned nodes); must outlive the run
 		const std::map<std::string, BuildingDef>* Buildings = nullptr;   // H8: with them the clan builds (null: it builds nothing, as before); must outlive the run
 		// H16, scale: several clans on the world (a ClanWorld; the first is the tribe of the run, Brain()). Members are shared out among them and each

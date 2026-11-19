@@ -1,4 +1,4 @@
-// Roles and the work of the clan (H7: E3 aptitudes by practice, E8 job board). Checked: the "work" section of assets/data/era1.json says what the code
+// Roles and the work of the clan (H7: E3 aptitudes by practice, E8 job board). Checked: the "work" section of the era1 pack (assets/data/era1.pack.json) says what the code
 // says, round-trips and is refused whole on a mistake; skills rise with practice (with diminishing returns), fall slowly without it and the trade
 // boosts them; the board posts the clan's needs, ages what nobody takes, lets claims lapse and round-trips; the trades of a new clan come from its
 // needs; a clan that works gets better at what it does, posts and claims jobs, saves and loads its skills and its board (and an old save loads with
@@ -185,7 +185,7 @@ struct Clan
 
 int GBTest_work(int, char**)
 {
-	// ---- the data: the "work" section of era1.json says what the code says, round-trips, and a mistake changes nothing
+	// ---- the data: the "work" section of the era1 pack says what the code says, round-trips, and a mistake changes nothing
 	{
 		WorkRules file;
 		Check(LoadShippedSection(file, [](const std::string& doc, WorkRules& r) { return LoadWorkRules(doc, r); }).empty(), "the work section of the game's pack loads (T347: every file of it)");

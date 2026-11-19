@@ -105,7 +105,7 @@ int GBTest_visuals(int, char**)
 		Check(!LoadVisuals("{ \"visuals\": { \"props\": { \"items\": { \"stone_axe\": \"ghost\" } } } }", copy).empty() && copy == lib, "an item shown with an unknown look is refused");
 		Check(!LoadVisuals("not json", copy).empty() && copy == lib, "garbage is refused");
 		Check(LoadVisuals("{ \"buildings\": { \"drying_rack\": { \"phases\": [ { \"name\": \"frame\", \"work\": 6 } ] } } }", copy).empty() && copy == lib,
-			"another file of the pack (H8's buildings in era1.json) is not read as visuals");
+			"another file of the pack (H8's buildings in the era1 pack) is not read as visuals");
 		Check(LoadVisuals("{ \"visuals\": { \"models\": { \"tree\": { \"variants\": 1, \"parts\": [ { \"name\": \"Trunk\", \"shape\": \"box\", \"material\": \"bark\" } ] } } } }", copy).empty()
 			&& copy.Models.at("tree").Parts.size() == 1 && copy.Models.size() == lib.Models.size(), "a pack can redraw one model by id, keeping the rest");
 	}

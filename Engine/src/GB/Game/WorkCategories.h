@@ -1,6 +1,6 @@
 #pragma once
 // T306 (C2 of documentation/01_diseno/MODO_COLONIA.md §4.3): the categories of work and the jobs inside each one, as data ("work.categories" of
-// era1.json). The table of priorities of each person (WorkPriorities.h) numbers them; this part only says what they are and which work of the
+// the era1 pack). The table of priorities of each person (WorkPriorities.h) numbers them; this part only says what they are and which work of the
 // clan (a job of the board or an option of the brain, by its kind and what it is about) falls under each job.
 //
 // A job matches by patterns: "kind" (any work of that kind) or "kind:what", where `what` is the work's target, the item it is about or a tag

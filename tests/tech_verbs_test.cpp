@@ -2,7 +2,7 @@
 // read, save and are validated (a verb the game does not know, one twice, a bad farm action); a verb no technology names stays free; without the
 // technology that names it the board posts no job of the verb (farm:till), the brain drops its options, an order (goto), a mark (designate) and
 // a farm zone are refused with "does not know how to ..."; with it everything is back; KnowsVerb and the list for the UI. Data in memory only
-// (the published era1.json is not read for the verbs). CPU only, the stand-ins of farm_zones_test.
+// (the published pack is not read for the verbs). CPU only, the stand-ins of farm_zones_test.
 #include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/TechVerbs.h"

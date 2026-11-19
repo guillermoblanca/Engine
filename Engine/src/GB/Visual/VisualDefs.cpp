@@ -302,7 +302,7 @@ namespace GB
 	{
 		const Json doc = Json::parse(json, nullptr, false);
 		if (doc.is_discarded() || !doc.is_object()) return "the visuals are not valid JSON";
-		// only the "visuals" object: the other files of a pack have keys of their own with the same names ("buildings" of H8 in era1.json)
+		// only the "visuals" object: the other files of a pack have keys of their own with the same names ("buildings" of H8 in the era1 pack)
 		if (!doc.contains("visuals")) return "";
 		const Json& root = doc["visuals"];
 		if (!root.is_object()) return "\"visuals\" must be an object";

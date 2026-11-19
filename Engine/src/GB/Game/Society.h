@@ -12,7 +12,7 @@ namespace GB
 	// what each one inherited and what kind of person it is, who likes whom, and what the clan as a whole has come to value. Plain CPU state kept by
 	// member name (like ClanKnowledge), deterministic (every "die" is a hash of the seed, a name and a counter; no global random number generator),
 	// and almost everything is data: the "society" section of a content file (SocietyRules, LoadSocietyRules; DefaultSocietyRules says the same as
-	// assets/data/era1.json).
+	// the era1 pack (assets/data/era1.pack.json)).
 	//
 	// - LIFE (H9): an age in years (a year is Life.DaysPerYear simulated days), three stages (child, adult, elder) with effects on the brain (a child
 	//   leaves heavy work and learns faster, an elder teaches better and works slower), pairing, births when the clan has a surplus of food and a fire

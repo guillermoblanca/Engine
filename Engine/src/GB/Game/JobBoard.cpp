@@ -68,7 +68,7 @@ namespace GB
 
 	WorkRules DefaultWorkRules()
 	{
-		// the "work" section of the game's data (era1.json): the names of the clan, the aptitudes, the job board and the review of the trades
+		// the "work" section of the game's data (the era1 pack): the names of the clan, the aptitudes, the job board and the review of the trades
 		static const WorkRules rules = ShippedSection<WorkRules>([](const std::string& doc, WorkRules& r) { return LoadWorkRules(doc, r); });
 		return rules;
 	}

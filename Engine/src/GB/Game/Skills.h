@@ -34,7 +34,7 @@ namespace GB
 	// The levels of one member: family -> level. A family it never practised is absent (level 0), so a save from before skills loads with none.
 	using SkillSet = std::map<std::string, float>;
 
-	// The built-in rules (assets/data/era1.json says the same in its "work" section).
+	// The built-in rules (the era1 pack (assets/data/era1.pack.json) says the same in its "work" section).
 	SkillRules DefaultSkillRules();
 
 	// The family of an activity: `key` is a node id or an option name; `defs` gives the node's kind when it is a node. "" = none.

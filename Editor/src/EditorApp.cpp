@@ -1170,7 +1170,7 @@ namespace GB::Editor
 			out << text;
 			return { true, "rules written to " + a[1] + " (" + std::to_string(m_Gameplay.Library.Abilities().size()) + " abilities, " + std::to_string(m_Gameplay.Library.Effects().size()) + " effects, " + std::to_string(m_Gameplay.Count()) + " entities read)" };
 		});
-		c.Register("content", "content status | export <file.json> | load <file.json>: the items, recipes, resource nodes and tribe roles, the interactives and the animal species as data (the pack era1, assets/data/era1.json and world.json, is read at start: see `pack`); load adds to or replaces by id, all sections or none", [this](const std::vector<std::string>& a) -> CommandResult
+		c.Register("content", "content status | export <file.json> | load <file.json>: the items, recipes, resource nodes and tribe roles, the interactives and the animal species as data (the pack era1, assets/data/era1.pack.json and world.json, is read at start: see `pack`); load adds to or replaces by id, all sections or none", [this](const std::vector<std::string>& a) -> CommandResult
 		{
 			const std::string sub = a.empty() ? "status" : a[0];
 			if (sub == "export" && a.size() > 1)

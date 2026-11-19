@@ -1,4 +1,4 @@
-// Conflict, combat and violence (H14). Checked: the "combat" section of assets/data/era1.json says what the code says, round-trips and is refused
+// Conflict, combat and violence (H14). Checked: the "combat" section of the era1 pack (assets/data/era1.pack.json) says what the code says, round-trips and is refused
 // whole on a mistake (also inside the era1 pack); a duel between two fighters is resolved through the Attack ability's event, is the same in two
 // runs and is won by the stronger (and by the other one when their stats are swapped); a block takes most of a blow; wounds bleed, slow the body,
 // heal with the days (faster resting and cared for) and too much of them kills; the choice between fighting and fleeing follows boldness, health
@@ -331,7 +331,7 @@ int GBTest_combat(int, char**)
 {
 	const std::string data = std::string(GB_ASSETS_DIR) + "/data";
 
-	// ---- the data: the "combat" section of era1.json says what the code says, round-trips, and a mistake changes nothing
+	// ---- the data: the "combat" section of the era1 pack says what the code says, round-trips, and a mistake changes nothing
 	{
 		CombatRules file;
 		Check(LoadShippedSection(file, [](const std::string& doc, CombatRules& r) { return LoadCombatRules(doc, r); }).empty(), "the combat section of the game's pack loads (T347: every file of it)");

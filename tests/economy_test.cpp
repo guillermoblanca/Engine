@@ -1,5 +1,5 @@
 // The economy of the clan (H18: production chains, E6 spoilage and preservation, E7 agriculture, E11 logistics). Checked: the "economy" section of
-// assets/data/era1.json says what the code says, round-trips and is refused whole on a mistake, and has the grain crop; the strict check of the
+// the era1 pack (assets/data/era1.pack.json) says what the code says, round-trips and is refused whole on a mistake, and has the grain crop; the strict check of the
 // packs still passes; the planner makes intermediates for what is wanted (and for what is only to be tried); stacks age, go off as a whole, take the mean
 // age when they mix and save their age; in play a clan makes cordage by itself so that flint knapping can be worked out and the flint axe made; food
 // goes off in the store at its pace and a surplus is dried at a drying rack (a station a building gives); a field is marked out, tilled, sown, watered,
@@ -229,7 +229,7 @@ int GBTest_economy(int, char**)
 {
 	const std::string data = std::string(GB_ASSETS_DIR) + "/data";
 
-	// ---- the data: the "economy" section of era1.json says what the code says, round-trips, and a mistake changes nothing
+	// ---- the data: the "economy" section of the era1 pack says what the code says, round-trips, and a mistake changes nothing
 	{
 		EconomyRules file;
 		Check(LoadShippedSection(file, [](const std::string& doc, EconomyRules& r) { return LoadEconomyRules(doc, r); }).empty(), "the economy section of the game's pack loads (T347: every file of it)");

@@ -1,5 +1,5 @@
 // The society of the clan (H9 demography and inheritance + H10 relations, personality and culture). Checked: the "society" section of
-// assets/data/era1.json says what the code says, round-trips and is refused whole on a mistake (also inside a pack); founders are deterministic;
+// the era1 pack (assets/data/era1.pack.json) says what the code says, round-trips and is refused whole on a mistake (also inside a pack); founders are deterministic;
 // a population of 30 grows, holds or dies out over 200 simulated years depending on its food, and saving it halfway and going on gives the same
 // people; inheritance follows the parents (regression to the mid-parent, mean and spread held over the generations, across seeds); relations move
 // with what happens, fade, stay sparse, and decide partners and teachers; a lesson prefers the parents and a child learns faster; personality
@@ -230,7 +230,7 @@ struct Population
 
 int GBTest_society(int, char**)
 {
-	// ---- the data: the section of era1.json says what the code says, round-trips, and a mistake changes nothing
+	// ---- the data: the section of the era1 pack says what the code says, round-trips, and a mistake changes nothing
 	{
 		SocietyRules file;
 		Check(LoadShippedSection(file, [](const std::string& doc, SocietyRules& r) { return LoadSocietyRules(doc, r); }).empty(), "the society section of the game's pack loads (T347: every file of it)");

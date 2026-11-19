@@ -1,5 +1,5 @@
 // Clans and diplomacy (H13). Checked, on the CPU and on a world the generator makes without GL:
-//  * the "diplomacy" section of assets/data/era1.json says what the code says, round-trips, and a mistake changes nothing (also inside a pack);
+//  * the "diplomacy" section of the era1 pack (assets/data/era1.pack.json) says what the code says, round-trips, and a mistake changes nothing (also inside a pack);
 //  * a barter takes what one clan lacks from what the other spares, balanced by value, and the same stores give the same deal;
 //  * the territory: claims grow with time and strength around each camp, are deterministic, and overlap when camps are close;
 //  * two clans on a generated world meet, send envoys who trade the surplus of one for the need of the other, the same in two runs;

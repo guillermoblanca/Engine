@@ -1,6 +1,6 @@
 # V6 (docs/VISION_MUNDO_VIVO.md §9): between two lives the world leaps years. Each clan lives them in aggregate: its society's days (ageing, old
 # age, couples, births: newborns get their bodies), a next step learnt every 50 years, all written to the history as one event that every member
-# knows. The player dies of old age and the world leaps the years of its era (era1.json: the Stone Age leaps 500); then an heir is chosen
+# knows. The player dies of old age and the world leaps the years of its era (the era1 pack: the Stone Age leaps 500); then an heir is chosen
 # among those living, who remembers them; the game is saved and loaded with them.
 play temperate 5 4 2
 wait 60

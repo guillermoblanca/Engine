@@ -214,7 +214,7 @@ int GBTest_items(int, char**)
 		ItemLibrary fileItems;
 		RecipeBook fileRecipes;
 		std::map<std::string, ResourceNodeDef> fileNodes;
-		bool loads = !ShippedDocuments().empty();   // T181: one tree, every file of the game's pack (era1.json ... era9.json, social.json)
+		bool loads = !ShippedDocuments().empty();   // T181: one tree, every file of the game's pack (era1.pack.json: items/*, recipes/*, rules/*, techs/* ... era9.json, social.json)
 		for (const std::string& doc : ShippedDocuments()) loads = loads && LoadContent(doc, fileItems, fileRecipes, fileNodes).empty();
 		Check(loads, "every file of the game's pack loads");
 		Check(ContentToJson(fileItems, fileRecipes, fileNodes) == text, "and RegisterEraOneItems gives what they define (there is no catalogue in the code)");

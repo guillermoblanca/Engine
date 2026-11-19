@@ -1,5 +1,5 @@
 // Exploration, expeditions and migration (H12). Checked, on the CPU and on worlds the generator makes without GL:
-//  * the "exploration" section of assets/data/era1.json says what the code says, round-trips, and a mistake changes nothing (also inside a pack);
+//  * the "exploration" section of the era1 pack (assets/data/era1.pack.json) says what the code says, round-trips, and a mistake changes nothing (also inside a pack);
 //  * the regions cover the map exactly once, are connected, named once, deterministic for a seed and different for another, and count every wild node;
 //  * a clan that lacks something nobody knows where to find sends an expedition that comes back having found it, and then gathers it;
 //  * a clan whose home has been stripped bare moves its camp (the campfire goes too) and a clan with a good home does not;

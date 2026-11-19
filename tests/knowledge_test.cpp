@@ -1,4 +1,4 @@
-// Knowledge and technology (H11, E4 + E5): the "techs" section (defaults identical to assets/data/era1.json, round trip, atomic load), recipes gated
+// Knowledge and technology (H11, E4 + E5): the "techs" section (defaults identical to the era1 pack (assets/data/era1.pack.json), round trip, atomic load), recipes gated
 // by what an agent knows, deterministic discovery by experimenting, observation and teaching that spread a technology, the clan forgetting what nobody
 // alive knows, saving (actor names and the "knowledge-clan" section, old saves without them) and the reachability check aware of technologies. CPU only.
 // The tribe itself working out a technology is in tests/tribe_test.cpp (KnowledgeInTheTribe).
@@ -48,7 +48,7 @@ static void TestData()
 	const TechTree defaults = DefaultTechs();
 	TechTree fromFile;
 	fromFile.Techs.clear();
-	bool readable = !ShippedDocuments().empty();   // T181: one tree, every file of the game's pack (era1.json ... era9.json, social.json)
+	bool readable = !ShippedDocuments().empty();   // T181: one tree, every file of the game's pack (era1.pack.json: items/*, recipes/*, rules/*, techs/* ... era9.json, social.json)
 	for (const std::string& doc : ShippedDocuments()) readable = readable && LoadTechs(doc, fromFile).empty();
 	Check(readable, "every file of the game's pack has readable techs");
 	Check(fromFile == defaults, "DefaultTechs() is what the game's data says (there is no tree in the code)");

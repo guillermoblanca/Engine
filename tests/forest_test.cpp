@@ -61,7 +61,7 @@ int GBTest_forest(int, char**)
 	ItemLibrary items;
 	RecipeBook recipes;
 	std::map<std::string, ResourceNodeDef> defs;
-	RegisterEraOneItems(items, recipes, defs);   // the game's catalogue (the forest nodes are in it: era1.json)
+	RegisterEraOneItems(items, recipes, defs);   // the game's catalogue (the forest nodes are in it: the era1 pack)
 	for (const char* id : { "tree", "old_tree", "young_tree", "rock", "rock_small", "boulder", "rock_pile", "loose_stones", "fallen_branch", "mushroom_ring", "root_patch",
 		"nut_tree", "bird_nest", "wild_greens", "flowers_red", "flowers_white" })
 		Check(defs.count(id) == 1, id);

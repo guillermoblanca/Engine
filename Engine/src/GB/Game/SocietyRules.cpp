@@ -89,7 +89,7 @@ namespace GB
 
 	SocietyRules DefaultSocietyRules()
 	{
-		// the "society" section of the game's data (era1.json): life, births, genes, personality, relations and culture
+		// the "society" section of the game's data (the era1 pack): life, births, genes, personality, relations and culture
 		static const SocietyRules rules = ShippedSection<SocietyRules>([](const std::string& doc, SocietyRules& r) { return LoadSocietyRules(doc, r); });
 		return rules;
 	}

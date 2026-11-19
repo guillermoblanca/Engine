@@ -29,7 +29,7 @@ namespace GB::Editor
 	{
 		ImTextureID TextureId(const Texture2D& t) { return static_cast<ImTextureID>(static_cast<intptr_t>(t.GetID())); }
 
-		// the icon of the atlas for a category or a job of era1.json's work.categories ("" = none: the label alone)
+		// the icon of the atlas for a category or a job of the era1 pack's work.categories ("" = none: the label alone)
 		const char* WorkIcon(const std::string& id)
 		{
 			static const std::pair<const char*, const char*> kIcons[] = {
