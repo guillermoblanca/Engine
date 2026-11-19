@@ -112,6 +112,9 @@ namespace GB
 				if (!items.Find(n.Transplant.Item)) report.Problems.push_back("node '" + id + "': its transplant item '" + n.Transplant.Item + "' is not an item");
 				if (const std::string bad = CheckVerb(n.Transplant.Verb); !bad.empty()) report.Problems.push_back("node '" + id + "': transplant " + bad);
 			}
+		if (techs && crops)   // T344: a crop's own technology is one of the tree
+			for (const auto& [id, c] : *crops)
+				if (!c.Tech.empty() && !techs->Techs.count(c.Tech)) report.Problems.push_back("crop '" + id + "': its tech '" + c.Tech + "' is not a technology");
 		std::set<std::string> have, made, worked, found, built, stations;   // items had, recipes made, nodes worked, technologies discovered, buildings that can be built (H8) and the stations they give
 		for (const auto& [id, why] : rules.Given)
 		{
@@ -172,9 +175,9 @@ namespace GB
 					if (!b.Station.empty()) stations.insert(b.Station);
 					changed = true;
 				}
-			if (crops)   // a field sown with a seed that can be had
+			if (crops)   // a field sown with a seed that can be had (T344: and the crop's own technology found)
 				for (const auto& [id, c] : *crops)
-					if (have.count(c.Seed))
+					if (have.count(c.Seed) && (!techs || c.Tech.empty() || found.count(c.Tech)))
 						for (const std::string& y : c.Yields)
 							if (items.Find(y) && have.insert(y).second) changed = true;
 			for (const std::string& id : recipeIds)
@@ -419,6 +422,7 @@ namespace GB
 								if (!crop.is_object() || !crop.contains("id") || !crop["id"].is_string()) continue;
 								CropSource source;
 								source.Seed = crop.value("seed", std::string());
+								if (const auto tech = crop.find("tech"); tech != crop.end() && tech->is_string()) source.Tech = tech->get<std::string>();
 								if (const auto y = crop.find("yield"); y != crop.end() && y->is_object())
 									for (auto it = y->begin(); it != y->end(); ++it) source.Yields.push_back(it.key());
 								c[crop["id"].get<std::string>()] = std::move(source);

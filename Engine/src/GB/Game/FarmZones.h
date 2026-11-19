@@ -7,7 +7,8 @@
 // Field::Cells), with a crop and a plan of its own. The perimeter is kept (Zone::Outline) for the fences and gates it will carry (MURALLAS.md). It is kept with the clan's other fields (EconomyState::Fields: it grows, is drawn, saved and keeps
 // its ground like them) and this class keeps what is the player's on top: which fields are painted zones, their crop and their plan.
 //   crop  the crop it is sown with ("" = any the clan can sow now: the first by id with seed in the store)
-//   auto  the clan chooses the crop each time it sows (AutoCrop: the one whose produce the store has least of), not its size nor its place
+//   auto  the clan chooses the crop each time it sows (AutoCrop: the one whose produce the store has least of; with farming.foodDays, food
+//         first), not its size nor its place. A crop with a technology of its own (crops[].tech) the clan does not know is never sown (T344)
 //   plan  "sow": the whole cycle (till, sow, water, harvest); "harvest": what grows is watered and harvested, nothing new is tilled or sown;
 //         "fallow": the ground rests (only what is ripe is harvested)
 // The work of every field goes on the clan's job board as before: one "farm" job per action (till, sow, tend, harvest) for all its fields, so
@@ -90,9 +91,15 @@ namespace GB
 		int FieldsWanted(const Tribe& tribe) const;
 		// The plots of the next field the clan marks out itself.
 		static int NextPlots(const Tribe& tribe);
-		// The crop the clan chooses for a field in "auto": of the crops it can sow now (its season, seed in the store), the one whose produce (the
-		// item it yields most of, not its seed) the store has least of; then the one that yields more; then by id. "" = none.
+		// The crop the clan chooses for a field in "auto": of the crops it can sow now (its season, seed in the store, its technology known), the one
+		// whose produce (the item it yields most of, not its seed) the store has least of; then the one that yields more; then by id. "" = none.
+		// T344 (P-F15): with farming.foodDays > 0 the food comes first: of the food crops, the one whose produce the clan has least nutrition of
+		// (in the store and in the bags, and what its sown plots will give); a crop that is no food (flax) only while the clan has foodDays days
+		// of food or more and lacks its produce (a stock goal, the production stock, or a shortage of the plan), counting what grows of it.
 		static std::string AutoCrop(const Tribe& tribe);
+		// T344 (P-F13): whether the clan may sow a crop: it knows the crop's own technology (CropDef::Tech; none = yes). The field's technology
+		// (FarmRules::Tech) is checked per member as before (Tribe::CanFarm). A crop the data has not: false.
+		static bool Knows(const Tribe& tribe, const std::string& crop);
 
 		// ---- the tribe's hooks
 		// PostEconomyJobs: marks out a new field of the clan's own (not for the player's clan in the colony) and posts the farm jobs.

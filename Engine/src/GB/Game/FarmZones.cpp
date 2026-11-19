@@ -1,6 +1,7 @@
 #include "GB/Game/FarmZones.h"
 #include "GB/Game/FieldPlacement.h"
 #include "GB/Game/GroundFootprint.h"
+#include "GB/Game/MealLog.h"
 #include "GB/Game/SettlementPlanner.h"
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
@@ -98,6 +99,7 @@ namespace GB
 			if (outline.size() < 3) return { false, "a zone needs 3 points or more" };
 			if (const std::string why = TechVerbs::WhyNot(tribe, "farm", "till"); !why.empty()) return { false, "cannot paint a farm zone: the clan " + why };   // T322
 			if (!crop.empty() && !tribe.Config.Econ.Crops.count(crop)) return { false, "no crop called " + crop + " in the loaded content" };
+			if (!crop.empty() && !FarmZones::Knows(tribe, crop)) return { false, "the clan does not know how to grow " + crop };   // T344
 			const float sp = std::max(0.5f, f.Spacing);
 			glm::vec2 lo = outline[0], hi = outline[0];
 			for (const glm::vec2& p : outline) { lo = glm::min(lo, p); hi = glm::max(hi, p); }
@@ -292,6 +294,7 @@ namespace GB
 	{
 		const std::string c = crop == "any" || crop == "-" ? std::string() : crop;
 		if (!c.empty() && !tribe.Config.Econ.Crops.count(c)) return { false, "no crop called " + c + " in the loaded content" };
+		if (!c.empty() && !Knows(tribe, c)) return { false, "the clan does not know how to grow " + c };   // T344
 		std::string name;
 		Zone* z = Edit(tribe, zone, name);
 		if (!z) return { false, "the clan has no zone " + zone };
@@ -406,24 +409,84 @@ namespace GB
 		return std::clamp(alive * f.PlotsPerMember - have, f.ZoneMin(), f.ZoneMax());
 	}
 
+	bool FarmZones::Knows(const Tribe& tribe, const std::string& crop)
+	{
+		const auto c = tribe.Config.Econ.Crops.find(crop);
+		return c != tribe.Config.Econ.Crops.end() && (c->second.Tech.empty() || tribe.ClanKnowsTech(c->second.Tech));
+	}
+
 	std::string FarmZones::AutoCrop(const Tribe& tribe)
 	{
 		const EconomyRules& econ = tribe.Config.Econ;
 		const Season season = tribe.CurrentSeason();
-		std::string best;
-		int bestStock = 0, bestYield = 0;
-		for (const auto& [id, crop] : econ.Crops)
+		// the item a crop yields most of (not its seed), and how many of it a plot gives
+		auto produceOf = [](const CropDef& crop, int& total, int& most)
 		{
-			if (!crop.SowsIn(season) || tribe.m_Store.Count(crop.Seed) <= 0) continue;
 			std::string produce;
-			int most = 0, yield = 0;
 			for (const auto& [item, n] : crop.Yield)
 			{
-				yield += n;
+				total += n;
 				if (item != crop.Seed && n > most) { most = n; produce = item; }
 			}
-			const int stock = produce.empty() ? 0 : tribe.Stored(produce);
-			if (best.empty() || stock < bestStock || (stock == bestStock && yield > bestYield)) { best = id; bestStock = stock; bestYield = yield; }
+			return produce;
+		};
+		const float foodDays = econ.Farming.FoodDays;
+		if (foodDays <= 0.0f)   // the old rule: the produce the store has least units of
+		{
+			std::string best;
+			int bestStock = 0, bestYield = 0;
+			for (const auto& [id, crop] : econ.Crops)
+			{
+				if (!crop.SowsIn(season) || tribe.m_Store.Count(crop.Seed) <= 0 || !Knows(tribe, id)) continue;
+				int yield = 0, most = 0;
+				const std::string produce = produceOf(crop, yield, most);
+				const int stock = produce.empty() ? 0 : tribe.Stored(produce);
+				if (best.empty() || stock < bestStock || (stock == bestStock && yield > bestYield)) { best = id; bestStock = stock; bestYield = yield; }
+			}
+			return best;
+		}
+		// T344 (P-F15): food first. What the clan has of an item: the store, the bags of the living, and what its sown plots of a crop will give.
+		std::map<std::string, int> growing;   // crop -> plots sown and growing
+		for (const Field& f : tribe.m_Econ.Fields)
+			for (const FieldPlot& p : f.Plots)
+				if (!p.Crop.empty() && p.State != "grass" && p.State != "dug") ++growing[p.Crop];
+		auto have = [&](const std::string& item)
+		{
+			int n = tribe.Stored(item);
+			for (const TribeMember& m : tribe.m_Members) if (!m.Dead && m.Body) n += m.Body->Bag().Count(item);
+			for (const auto& [id, plots] : growing)
+				if (const auto c = econ.Crops.find(id); c != econ.Crops.end() && item != c->second.Seed)
+					if (const auto y = c->second.Yield.find(item); y != c->second.Yield.end()) n += plots * y->second;
+			return n;
+		};
+		const bool fed = tribe.FoodDays() >= foodDays;
+		std::string best;
+		bool bestFood = true;
+		float bestHave = 0.0f, bestFeeds = 0.0f;
+		for (const auto& [id, crop] : econ.Crops)
+		{
+			if (!crop.SowsIn(season) || tribe.m_Store.Count(crop.Seed) <= 0 || !Knows(tribe, id)) continue;
+			int yield = 0, most = 0;
+			const std::string produce = produceOf(crop, yield, most);
+			if (produce.empty()) continue;
+			const int units = have(produce);
+			if (tribe.IsFood(produce))
+			{
+				const float nutrition = MealLog::Nutrition(tribe.Config.Social.Diet, tribe.Config.Social.On, tribe.Config.Needs.FoodHunger, produce);
+				const float had = static_cast<float>(units) * nutrition, feeds = static_cast<float>(most) * nutrition;
+				// among the food crops: the least nutrition had, then the most a plot feeds, then by id (a crop that is no food and lacks goes first)
+				if (best.empty() || (bestFood && (had < bestHave || (had == bestHave && feeds > bestFeeds)))) { best = id; bestFood = true; bestHave = had; bestFeeds = feeds; }
+				continue;
+			}
+			// a crop that is no food: only with the food covered and its produce lacking (a stock goal, the production stock, the plan's shortage)
+			if (!fed) continue;
+			int wanted = 0;
+			if (const auto g = tribe.Goals().All().find(produce); g != tribe.Goals().All().end()) wanted = std::max(wanted, g->second);
+			if (const auto s = econ.Production.Stock.find(produce); s != econ.Production.Stock.end()) wanted = std::max(wanted, s->second);
+			if (const auto r = tribe.Plan().Raw.find(produce); r != tribe.Plan().Raw.end()) wanted = std::max(wanted, tribe.Stored(produce) + r->second);
+			if (units >= wanted) continue;
+			const float lack = static_cast<float>(units - wanted);   // (negative: the one lacking most first)
+			if (best.empty() || bestFood || lack < bestHave) { best = id; bestFood = false; bestHave = lack; bestFeeds = 0.0f; }
 		}
 		return best;
 	}
@@ -439,9 +502,9 @@ namespace GB
 		if (!z->Crop.empty())
 		{
 			const auto c = econ.Crops.find(z->Crop);
-			return c != econ.Crops.end() && c->second.SowsIn(season) && tribe.m_Store.Count(c->second.Seed) > 0 ? z->Crop : std::string();
+			return c != econ.Crops.end() && c->second.SowsIn(season) && tribe.m_Store.Count(c->second.Seed) > 0 && Knows(tribe, z->Crop) ? z->Crop : std::string();
 		}
-		for (const auto& [id, crop] : econ.Crops) if (crop.SowsIn(season) && tribe.m_Store.Count(crop.Seed) > 0) return id;   // the first by id (as before)
+		for (const auto& [id, crop] : econ.Crops) if (crop.SowsIn(season) && tribe.m_Store.Count(crop.Seed) > 0 && Knows(tribe, id)) return id;   // the first by id (as before)
 		return {};
 	}
 
@@ -501,7 +564,7 @@ namespace GB
 		if (!m_Player && static_cast<int>(state.Fields.size()) < tribe.FieldsWanted() && season != Season::Winter && TechVerbs::Allows(tribe, "farm", "till"))   // (T322)
 		{
 			bool seeds = false, can = false;
-			for (const auto& [id, crop] : econ.Crops) seeds = seeds || tribe.Stored(crop.Seed) > 0;
+			for (const auto& [id, crop] : econ.Crops) seeds = seeds || (tribe.Stored(crop.Seed) > 0 && Knows(tribe, id));   // (T344: of a crop it may sow)
 			for (const TribeMember& m : tribe.m_Members) can = can || (!m.Dead && m.Body && tribe.CanFarm(m));
 			if (seeds && can)
 			{

@@ -69,6 +69,11 @@ namespace GB
 		// ... and how far from a plot nobody can stand on a node may be and still be taken as what walls it (a big rock's wall reaches over;
 		// a trunk's hardly): metres
 		float ClearReach = 3.0f;
+		// T344 (P-F15 of documentation/01_diseno/ALIMENTACION.md §16.3): with this > 0, the crop a field in "auto" gets (FarmZones::AutoCrop) is
+		// weighed in food, not in units: of the food crops the one whose produce the clan has least nutrition of (stored and growing), and a crop
+		// that is no food (flax) only while the clan has at least these days of food (Tribe::FoodDays) and lacks its produce. 0 = the old rule
+		// (the produce the store has least units of).
+		float FoodDays = 0.0f;
 		bool operator==(const FarmRules&) const = default;
 	};
 
@@ -144,8 +149,8 @@ namespace GB
 	EconomyRules DefaultEconomyRules();   // assets/data/era1.json says the same in its "economy" section
 	// { "economy": { "production": { "depth", "maxBatches", "seconds", "priority", "stock": { "cordage": 2 }, "campStations": [ "workbench" ], "upgrade",
 	//   "experiment", "containersPerMember", "preserveAbove" }, "spoilage": { "step", "bag", "seasons": { "winter": 0.5 } }, "farming": { "tech", "tool",
-	//   "plots", "columns", "spacing", "offset": [ x, z ], "moistureSeconds", "workSeconds", "plotsPerTrip", "priority", "fields" },
-	//   "crops": [ { "id", "seed", "yield": { "grain": 3 }, "stageSeconds", "sow": [ "spring" ], "seasons": { "spring": 1.2 } } ],
+	//   "plots", "columns", "spacing", "offset": [ x, z ], "moistureSeconds", "workSeconds", "plotsPerTrip", "priority", "fields", "foodDays" },
+	//   "crops": [ { "id", "seed", "yield": { "grain": 3 }, "stageSeconds", "sow": [ "spring" ], "seasons": { "spring": 1.2 }, "tech" } ],
 	//   "logistics": { "stores": { "main": { "cap", "slots", "spoilRate", "accepts": [], "haul" } }, "perBagSlot", "priority", "haulAt", "fieldStore" },
 	//   "construction": { "maxSites", "membersPerSite" } } }.
 	// Each of "production", "spoilage", "farming" and "logistics" replaces that part whole (what it does not say is the default, and a map or a list it
