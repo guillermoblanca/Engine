@@ -27,6 +27,9 @@ namespace GB
 		// T280 (P-F4 of documentation/01_diseno/AGRICULTURA.md §4.1): the crop's own pace by season ("spring": 1.2, ...), in place of the common
 		// curve of SeasonClock::GrowthRate; a season it does not list grows at that curve's rate. Empty = the common curve (as before).
 		std::map<std::string, float> Seasons;
+		// T344 (P-F13 of documentation/01_diseno/ALIMENTACION.md §16.3): the technology the clan must know to sow this crop, on top of the
+		// field's own (FarmRules::Tech); "" = only that one (as before). A crop whose technology the clan does not know is neither sown nor offered.
+		std::string Tech;
 		bool operator==(const CropDef&) const = default;
 		bool SowsIn(Season s) const;
 		float Rate(Season s) const;              // its growth rate in a season (Seasons, else SeasonClock::GrowthRate)

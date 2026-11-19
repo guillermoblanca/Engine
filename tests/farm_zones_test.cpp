@@ -3,7 +3,9 @@
 // the plan (fallow: nothing tilled) and auto (the crop the store has least of) change what is sown; a zone is removed; the zones save and load;
 // the clans of the AI mark out their zones by the data's rule (plotsPerMember, zonePlots) and by the old one without it; a crop's own pace by
 // season (CropDef::Seasons) reads, saves and grows. CPU only, the stand-ins of economy_test.
+#include "GB/Gameplay/ContentPack.h"
 #include "GB/Gameplay/ShippedContent.h"
+#include "GB/Gameplay/Techs.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Interactives.h"
@@ -272,9 +274,64 @@ int GBTest_farm_zones(int, char**)
 		Check(t.Zones().CropFor(t, zone1) == "grain", "a zone with its crop sows it");
 		Check(t.Zones().SetAuto(t, "1", true).Ok && t.Zones().Of("zone 1")->Auto, "auto on");
 		std::fprintf(stderr, "  auto: %s (grain %d, stone %d)\n", t.Zones().CropFor(t, zone1).c_str(), t.Stored("grain"), t.Stored("stone"));
+		const float dataFoodDays = t.Config.Econ.Farming.FoodDays;
+		t.Config.Econ.Farming.FoodDays = 0.0f;   // (the old rule, in units; T344's food first is checked below)
 		Check(t.Zones().CropFor(t, zone1) == (t.Stored("stone") < t.Stored("grain") ? "odd" : "grain"), "in auto the clan sows the crop whose produce the store has least of");
+		t.Config.Econ.Farming.FoodDays = dataFoodDays;
 		Check(t.Zones().SetCrop(t, "zone_1", "odd").Ok && !t.Zones().Of("zone 1")->Auto && t.Zones().CropFor(t, zone1) == "odd", "a crop given turns auto off");
 		t.Zones().SetCrop(t, "1", "grain");
+
+		// ---- T344: a crop's own technology (P-F13) and auto by days of food (P-F15)
+		{
+			Check(shippedCrops.count("flax") && !shippedCrops.at("flax").Tech.empty() && dataFoodDays > 0.0f, "the data: flax asks for a technology of its own, auto weighs the food");
+			const std::string flaxTech = shippedCrops.count("flax") ? shippedCrops.at("flax").Tech : std::string("weaving_loom");
+			CropDef flax = shippedCrops.count("flax") ? shippedCrops.at("flax") : CropDef();
+			flax.Sow.clear();   // (any season but winter, as odd: this checks the technology, not the season)
+			flax.Seasons.clear();
+			t.Config.Econ.Crops.erase("odd");
+			t.Config.Econ.Crops["flax"] = flax;
+			t.Store().Add(k.Items, "flax_seed", 5);
+			const int grainSeed = t.Store().Count("grain_seed");
+			t.Store().Remove("grain_seed", grainSeed);   // only flax has seed
+			t.SetTechCheck([flaxTech](const std::string& tech) { return tech != flaxTech; });
+			Check(!FarmZones::Knows(t, "flax") && FarmZones::Knows(t, "grain"), "a crop whose technology the clan does not know is not known (one without its own is)");
+			Check(FarmZones::AutoCrop(t).empty(), "auto never sows it");
+			const FarmZones::Reply refused = t.Zones().SetCrop(t, "1", "flax");
+			Check(!refused.Ok && refused.Text.find("does not know") != std::string::npos, "nor can a zone be given it");
+			Check(!FarmZones::Check(t, { { 40.0f, 40.0f }, { 44.0f, 40.0f }, { 44.0f, 44.0f }, { 40.0f, 44.0f } }, "flax").Ok, "nor painted with it");
+			Check(t.Zones().SetCrop(t, "1", "any").Ok && t.Zones().CropFor(t, zone1).empty(), "and a zone of any crop does not take it");
+			t.SetTechCheck(nullptr);
+			t.Store().Remove("fiber", t.Store().Count("fiber"));   // (the clan gathered fiber: none in the store, so the old rule sows flax)
+			t.Config.Econ.Farming.FoodDays = 0.0f;   // ("any" is auto: the old rule here; food first below)
+			Check(FarmZones::Knows(t, "flax") && t.Zones().CropFor(t, zone1) == "flax", "once known it is sown");
+			t.Config.Econ.Farming.FoodDays = dataFoodDays;
+			t.Store().Add(k.Items, "grain_seed", std::max(1, grainSeed));
+
+			// little food: auto sows food, not flax, though the store has more grain than fiber; with the food covered, flax only while fiber lacks
+			t.Zones().SetAuto(t, "1", true);
+			t.Config.Econ.Farming.FoodDays = 1000.0f;
+			std::fprintf(stderr, "  food days %.2f; grain %d, fiber %d\n", static_cast<double>(t.FoodDays()), t.Stored("grain"), t.Stored("fiber"));
+			Check(t.Stored("grain") > t.Stored("fiber") && t.Zones().CropFor(t, zone1) == "grain", "with little food auto sows a food crop");
+			t.Config.Econ.Farming.FoodDays = 0.0f;
+			Check(t.Zones().CropFor(t, zone1) == "flax", "(where the old rule, in units, sowed flax)");
+			t.Config.Econ.Farming.FoodDays = 0.001f;   // (covered: there is grain)
+			Check(t.Goals().Set(t, "fiber", t.Stored("fiber") + 50).Ok && t.Zones().CropFor(t, zone1) == "flax", "food covered and fiber lacking (a stock goal): flax");
+			t.Goals().Off("fiber");
+			t.Store().Add(k.Items, "fiber", 50);
+			const int fiberWanted = std::max(t.Plan().Raw.count("fiber") ? t.Stored("fiber") + t.Plan().Raw.at("fiber") : 0,
+				t.Config.Econ.Production.Stock.count("fiber") ? t.Config.Econ.Production.Stock.at("fiber") : 0);
+			std::fprintf(stderr, "  fiber %d, wanted by the plan or the stock %d\n", t.Stored("fiber"), fiberWanted);
+			Check(t.Stored("fiber") >= fiberWanted && t.Zones().CropFor(t, zone1) == "grain", "food covered and fiber not lacking: food");
+			// among the food crops: the one the clan has least of (here barley, none of it)
+			t.Store().Remove("flax_seed", t.Store().Count("flax_seed"));
+			CropDef barley = shippedCrops.count("barley") ? shippedCrops.at("barley") : CropDef();
+			barley.Sow.clear();
+			t.Config.Econ.Crops["barley"] = barley;
+			t.Store().Add(k.Items, "barley_seed", 3);
+			Check(t.Stored("barley") == 0 && t.Zones().CropFor(t, zone1) == "barley", "of the food crops, the one with least food stored");
+			t.Config.Econ.Farming.FoodDays = dataFoodDays;
+			t.Zones().SetCrop(t, "1", "grain");
+		}
 		t.Config.Econ.Crops = shippedCrops;
 		Check(t.Zones().SetPlan(t, "1", "harvest").Ok && t.Zones().CropFor(t, zone1).empty() && !t.Zones().Works(zone1, "till") && t.Zones().Works(zone1, "harvest"), "plan harvest: nothing new is sown");
 		t.Zones().SetPlan(t, "1", "sow");
@@ -494,6 +551,26 @@ int GBTest_farm_zones(int, char**)
 		Check(notch.Ok, "a zone in its notch is painted (its plots and its store off the L's)");
 		Check(!t.Zones().Paint(t, { 62.0f, 6.0f }, { 66.0f, 8.0f }, "grain").Ok, "one over the L's plots is still refused");
 		Check(!FarmZones::Check(t, { { 66.0f, 6.0f }, { 66.0f, 12.0f }, { 66.5f, 12.0f }, { 66.5f, 6.0f } }, "grain").Ok, "and one on the notch zone's store too");
+	}
+
+	// ---- T344: the pack check of a crop's own technology (CheckReachability): one the tree has not is a problem
+	{
+		ItemLibrary items;
+		RecipeBook recipes;
+		std::map<std::string, ResourceNodeDef> nodes;
+		RegisterEraOneItems(items, recipes, nodes);
+		PackRules rules;
+		rules.Given["flax_seed"] = "the test";
+		TechTree tree;
+		TechDef loom;
+		loom.Id = "weaving_loom";
+		tree.Techs[loom.Id] = loom;
+		std::map<std::string, CropSource> crops{ { "flax", CropSource{ "flax_seed", { "fiber", "flax_seed" }, "weaving_loom" } } };
+		auto names = [](const ContentReport& r, const std::string& what) { for (const std::string& p : r.Problems) if (p.find(what) != std::string::npos) return true; return false; };
+		Check(!names(CheckReachability(items, recipes, nodes, rules, &tree, nullptr, &crops), "crop 'flax'"), "a crop's technology of the tree: no problem");
+		crops["flax"].Tech = "flax_magic";
+		const ContentReport bad = CheckReachability(items, recipes, nodes, rules, &tree, nullptr, &crops);
+		Check(names(bad, "crop 'flax': its tech 'flax_magic' is not a technology"), "a crop's unknown technology is a problem of the pack");
 	}
 
 	if (failures) std::fprintf(stderr, "%d check(s) failed\n", failures);

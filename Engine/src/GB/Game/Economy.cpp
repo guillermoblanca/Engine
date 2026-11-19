@@ -100,7 +100,7 @@ namespace GB
 			Reader r{ o, "crop", {} };
 			std::string e;
 			if (!(e = r.Text("id", c.Id)).empty() || !(e = r.Text("seed", c.Seed)).empty() || !(e = r.Float("stageSeconds", c.StageSeconds, 1.0f, 1e6f)).empty()
-				|| !(e = r.Words("sow", c.Sow)).empty()) return e;
+				|| !(e = r.Words("sow", c.Sow)).empty() || !(e = r.Text("tech", c.Tech)).empty()) return e;   // (T344: tech, checked against the tree by the pack)
 			if (c.Id.empty() || c.Seed.empty()) return "economy: a crop needs an id and a seed";
 			for (const std::string& s : c.Sow) if (!IsSeason(s)) return "economy: crop " + c.Id + " is sown in an unknown season " + s;
 			if (r.Has("yield"))
@@ -222,7 +222,7 @@ namespace GB
 					|| !(e = r.Int("plotsPerTrip", x.PlotsPerTrip, 1, 100)).empty() || !(e = r.Float("priority", x.Priority, 0.0f, 100.0f)).empty()
 					|| !(e = r.Int("fields", x.Fields, 0, 64)).empty() || !(e = r.Int("membersPerField", x.MembersPerField, 0, 1000)).empty()
 					|| !(e = r.Int("plotsPerMember", x.PlotsPerMember, 0, 100)).empty() || !(e = r.Int("clearPriority", x.ClearPriority, 1, 10)).empty()
-					|| !(e = r.Float("clearReach", x.ClearReach, 0.0f, 50.0f)).empty()) return e;
+					|| !(e = r.Float("clearReach", x.ClearReach, 0.0f, 50.0f)).empty() || !(e = r.Float("foodDays", x.FoodDays, 0.0f, 365.0f)).empty()) return e;
 				if (r.Has("zonePlots"))   // T280: a number, or [min, max]
 				{
 					const Json& z = (*p)["zonePlots"];
@@ -355,6 +355,7 @@ namespace GB
 		if (m.ZonePlotsMin > 0 || m.ZonePlotsMax > 0) f["zonePlots"] = Json::array({ m.ZonePlotsMin, m.ZonePlotsMax });
 		if (m.ClearPriority != FarmRules().ClearPriority) f["clearPriority"] = m.ClearPriority;   // T337 (only when not the default)
 		if (m.ClearReach != FarmRules().ClearReach) f["clearReach"] = Rounded(m.ClearReach);
+		if (m.FoodDays > 0.0f) f["foodDays"] = Rounded(m.FoodDays);   // T344 (only when the data says so)
 		for (const auto& [id, crop] : r.Crops)
 		{
 			Json y = Json::object();
@@ -366,6 +367,7 @@ namespace GB
 				for (const auto& [season, k] : crop.Seasons) ss[season] = Rounded(k);
 				c.back()["seasons"] = ss;
 			}
+			if (!crop.Tech.empty()) c.back()["tech"] = crop.Tech;   // T344 (only a crop with its own technology)
 		}
 		Json stores = Json::object();
 		for (const auto& [name, k] : r.Logistics.Stores)

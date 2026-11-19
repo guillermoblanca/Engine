@@ -431,8 +431,8 @@ namespace GB::Editor
 		ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + std::max(width, 320.0f));
 		const bool sows = TechVerbs::Allows(t, "farm", "sow");
 
-		// the crops as chips (Auto first): the ones the clan cannot sow now are dimmed with why; a crop is never hidden by a technology (the data
-		// gives none), but with sowing still unknown no crop is named: one "?" instead (T327)
+		// the crops as chips (Auto first): the ones the clan cannot sow now are dimmed with why; a crop with a technology of its own the clan does
+		// not know is not listed (T344, FarmZones::Knows), and with sowing still unknown no crop is named: one "?" instead (T327)
 		auto crops = [&](const std::string& chosen, const std::string& command)
 		{
 			ImGui::TextDisabled("%s", L.Text("Crop").c_str());
@@ -451,6 +451,7 @@ namespace GB::Editor
 			const Season season = t.CurrentSeason();
 			for (const auto& [id, crop] : t.Config.Econ.Crops)
 			{
+				if (!FarmZones::Knows(t, id)) continue;   // T344
 				const bool seed = t.Store().Count(crop.Seed) > 0, now = crop.SowsIn(season);
 				ImGui::SameLine();
 				std::string icon = id;
@@ -666,6 +667,7 @@ namespace GB::Editor
 		{
 			const std::string c = a[2] == "auto" || a[2] == "any" ? std::string() : a[2];
 			if (!c.empty() && !t->Config.Econ.Crops.count(c)) return { false, "no crop called " + c + " in the loaded content" };
+			if (!c.empty() && !FarmZones::Knows(*t, c)) return { false, "the clan does not know how to grow " + c };   // T344
 			z.Crop = c;
 			return { true, "crop " + (c.empty() ? std::string("auto") : c) };
 		}

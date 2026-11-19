@@ -74,7 +74,7 @@ namespace GB
 	// or its own `tech`), once one of those can be discovered; then its station is there too (a drying rack gives "drying_rack"). A building that can
 	// never be built is a problem (a note when deferred). Without technologies a building's `tech` is only noted.
 	// With crops (the "crops" of the economy section): a field sown with a seed that can be had gives what the crop yields (grain).
-	struct CropSource { std::string Seed; std::vector<std::string> Yields; };
+	struct CropSource { std::string Seed; std::vector<std::string> Yields; std::string Tech; };   // (T344: Tech, the crop's own technology: a technology of the tree, and it locks the crop)
 	ContentReport CheckReachability(const ItemLibrary& items, const RecipeBook& recipes, const std::map<std::string, ResourceNodeDef>& nodes, const PackRules& rules,
 		const TechTree* techs, const std::map<std::string, BuildingDef>* buildings = nullptr, const std::map<std::string, CropSource>* crops = nullptr);
 
