@@ -19,7 +19,10 @@
 
 ## Edificios y tecnologías (contenido por datos)
 
-- Un edificio nuevo se escribe en **dos sitios**: `assets/data/era1.json` (`buildings`, y la tecnología que lo abre en `techs[].buildings`) y su modelo
+- Los datos de la era 1 están partidos (T347, manifiesto `assets/data/era1.pack.json`): objetos en `items/*.json`, nodos en `nodes.json`, recetas en
+  `recipes/*.json`, cultivos en `crops.json`, edificios en `buildings.json`, técnicas en `techs/tree.json` (con escalón) y `techs/later.json`, y reglas en
+  `rules/*.json`. El test `content_dump` comprueba que el contenido cargado no cambia al mover datos de fichero.
+- Un edificio nuevo se escribe en **dos sitios**: `assets/data/buildings.json`, con la tecnología que lo abre en `techs/tree.json` (`buildings`), y su modelo
   por fases en `assets/data/visuals.json` (`buildings.<id>`; el test de visuales pide uno por cada id de `DefaultBuildings()`, presupuesto 20 000
   triángulos). Ya no hay copias en C++: `DefaultBuildings()` y `DefaultTechs()` devuelven lo publicado (`Shipped()`, Buildings.cpp y Techs.cpp).
 - Varias tecnologías que nombran un edificio son un **O**, no un Y (`Tribe::ClanKnowsBuilding`: basta con saber una). Para exigir dos sin tecnología nueva,
@@ -27,7 +30,7 @@
   lo que da una receta conocida. Cada técnica lleva su escalón (`tier`, ARBOL_TECNICO §11) y debe abrir algo que se use.
 - Los efectos son solo provisiones genéricas (`shelter`, `rest`, `warmth`, `station`, `store`, `storeCap`, `keep`, `defense`, `healing`, `culture`, `aura`,
   `supersedes`); nada de código por edificio. `defense` se suma entre edificios; `keep` cuenta el menor de los que están en pie (> 0).
-- Objetos y recetas de `era1.json` no tienen copia en C++, pero uno nuevo arrastra reachability, montones y props: evitarlos si un intermedio existente sirve.
+- Objetos y recetas no tienen copia en C++, pero uno nuevo arrastra reachability, montones y props: evitarlos si un intermedio existente sirve.
 - Al añadir o cambiar edificios, actualizar `../documentation/01_diseno/PROGRESION.md` (§3 tabla y árbol, §4 tabla y recuento) y el recuento de `../documentation/02_tecnico/gameplay/ASENTAMIENTOS.md`.
 
 ## Piezas visuales (`visuals.json`)
@@ -81,7 +84,7 @@
 - **Atalaya (`watchtower`) y despensa de tinajas (`jar_store`)** (2026-11-03, ../documentation/01_diseno/PROGRESION.md §4.1): datos, C++ y visuales escritos y renders en
   `../documentation/img/edificios/`. Compila en Release y `ctest -C Release` pasa salvo los fallos ya conocidos (`editor_*`, `golden_images hills_grass_trees`).
   Falta: compilar con `-DGB_WARNINGS_AS_ERRORS=ON` y la Debug, y ver en una partida larga (o QA de simulación) que el planificador los levanta.
-- `settlement_test` comprueba el número exacto de edificios (`file.size() == 18`): subirlo al añadir uno.
+- `settlement_test` comprueba el número exacto de edificios (`file.size() == 49`): subirlo al añadir uno.
 - Vasijas como objeto (contenedor del almacén) hechas en el horno: hoy las tinajas de la despensa son ladrillo cocido y arcilla.
 - Huecos del árbol sin edificio: `fishing`, `trapping`, `butchery`, `shamanism`, `storytelling` (../documentation/01_diseno/PROGRESION.md §6.8). Corral (sin animales de cría) y pozo de piedra.
 - Los edificios no son obstáculos de navegación; la empalizada con puerta espera a que la navegación sepa de puertas.
