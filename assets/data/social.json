@@ -39,17 +39,17 @@
       "spawn": { "biomes": [ "Shore", "Meadow", "Forest" ], "waterWithin": 4.0, "perHectare": 2.0, "spacing": 10.0, "maxSlope": 20.0, "max": 20 } }
   ],
   "techs": [
-    { "id": "storytelling", "name": "Storytelling", "tier": 1, "complexity": 0.2, "requires": [], "recipes": [],
+    { "id": "storytelling", "name": "Storytelling", "tier": 1, "branch": "lore", "complexity": 0.2, "requires": [], "recipes": [],
       "discovery": { "experiment": 0.08, "observe": 0.0, "teach": 0.3, "seconds": 30.0, "waste": 0.0 } },
-    { "id": "shamanism", "name": "Shamanism", "tier": 2, "complexity": 0.45, "requires": [ "ritual", "herb_lore" ], "recipes": [],
+    { "id": "shamanism", "name": "Shamanism", "tier": 2, "branch": "lore", "complexity": 0.45, "requires": [ "ritual", "herb_lore" ], "recipes": [],
       "discovery": { "experiment": 0.05, "observe": 0.0, "teach": 0.25, "seconds": 40.0, "waste": 0.0 } },
-    { "id": "trapping", "name": "Trapping", "tier": 2, "complexity": 0.15, "physical": { "materials": [ "cordage" ] }, "requires": [ "cordage" ], "recipes": [ "snare" ],
+    { "id": "trapping", "name": "Trapping", "tier": 2, "branch": "hunt", "complexity": 0.15, "physical": { "materials": [ "cordage" ] }, "requires": [ "cordage" ], "recipes": [ "snare" ],
       "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "fishing", "name": "Fishing", "tier": 1, "complexity": 0.2, "physical": { "materials": [ "fish" ] }, "requires": [ "basketry" ], "recipes": [ "fish_trap", "harpoon", "dried_fish" ],
+    { "id": "fishing", "name": "Fishing", "tier": 1, "branch": "hunt", "complexity": 0.2, "physical": { "materials": [ "fish" ] }, "requires": [ "basketry" ], "recipes": [ "fish_trap", "harpoon", "dried_fish" ],
       "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "butchery", "name": "Butchery", "tier": 1, "complexity": 0.2, "physical": { "materials": [ "meat" ] }, "requires": [ "flint_knapping" ], "recipes": [ "sinew_cordage" ],
+    { "id": "butchery", "name": "Butchery", "tier": 1, "branch": "hunt", "complexity": 0.2, "physical": { "materials": [ "meat" ] }, "requires": [ "flint_knapping" ], "recipes": [ "sinew_cordage" ],
       "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "cuisine", "name": "Cuisine", "tier": 2, "complexity": 0.35, "physical": { "stations": [ "campfire" ] }, "requires": [ "cooking" ], "recipes": [ "stew", "roast" ],
+    { "id": "cuisine", "name": "Cuisine", "tier": 2, "branch": "food", "complexity": 0.35, "physical": { "stations": [ "campfire" ] }, "requires": [ "cooking" ], "recipes": [ "stew", "roast" ],
       "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.3, "seconds": 20.0, "waste": 0.2 } }
   ],
   "species": {
