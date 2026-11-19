@@ -11,6 +11,7 @@
     "visuals.json",
     "player.json",
     "social.json",
+    "food.json",
     "bosques.json",
     "medieval.json",
     "trails.json",
@@ -35,7 +36,11 @@
     "bone": "the butchering of a hunt (social.json: the yields of the deer and the boar)",
     "sinew": "the butchering of a hunt (social.json: the yields of the deer)",
     "fat": "the butchering of a hunt (social.json: the yields of the deer and the boar)",
-    "feather": "the butchering of a hunt (social.json: the yields of the grouse)"
+    "feather": "the butchering of a hunt (social.json: the yields of the grouse)",
+    "barley_seed": "the wild seed: the extra of wild_grain (chance 0.5, era1.json)",
+    "lentil_seed": "the wild seed: the extra of wild_greens (chance 0.2, social.json)",
+    "pea_seed": "the wild seed: the extra of berry_bush (chance 0.05, era1.json)",
+    "flax_seed": "the wild seed: the extra of fiber_grass (chance 0.1, era1.json)"
   },
   "stations": [
     "workbench"

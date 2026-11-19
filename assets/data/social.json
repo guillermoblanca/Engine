@@ -7,8 +7,6 @@
     { "id": "eggs", "name": "Eggs", "category": "food", "weight": 0.1, "stack": 12, "tags": [ "Item.Food.Egg" ], "ability": "Eat", "shelfLife": 2400.0 },
     { "id": "honey", "name": "Honey", "category": "food", "weight": 0.3, "stack": 10, "tags": [ "Item.Food.Sweet" ], "ability": "Eat" },
     { "id": "fish", "name": "Fish", "category": "food", "weight": 0.4, "stack": 10, "tags": [ "Item.Food.Fish" ], "ability": "Eat", "shelfLife": 900.0 },
-    { "id": "stew", "name": "Stew", "category": "food", "weight": 0.5, "stack": 10, "tags": [ "Item.Food.Dish" ], "ability": "Eat", "shelfLife": 3600.0 },
-    { "id": "roast", "name": "Roast", "category": "food", "weight": 0.4, "stack": 10, "tags": [ "Item.Food.Dish" ], "ability": "Eat", "shelfLife": 2400.0 },
     { "id": "sinew", "name": "Sinew", "category": "resource", "weight": 0.1, "stack": 20, "tags": [ "Item.Resource.Sinew" ] },
     { "id": "fat", "name": "Fat", "category": "resource", "weight": 0.3, "stack": 20, "tags": [ "Item.Resource.Fat" ], "fuel": 1 },
     { "id": "feather", "name": "Feathers", "category": "resource", "weight": 0.02, "stack": 40, "tags": [ "Item.Resource.Feather" ] },
@@ -18,9 +16,7 @@
   "recipes": [
     { "id": "snare", "inputs": { "cordage": 2 }, "output": "snare", "count": 1, "ability": "Craft" },
     { "id": "fish_trap", "inputs": { "reed": 4, "cordage": 1 }, "output": "fish_trap", "count": 1, "station": "workbench", "ability": "Craft" },
-    { "id": "sinew_cordage", "inputs": { "sinew": 2 }, "output": "cordage", "count": 2, "ability": "Craft" },
-    { "id": "stew", "inputs": { "meat": 1, "roots": 2, "greens": 1 }, "output": "stew", "count": 3, "station": "hearth", "ability": "Craft" },
-    { "id": "roast", "inputs": { "meat": 2, "fat": 1 }, "output": "roast", "count": 2, "station": "hearth", "ability": "Craft" }
+    { "id": "sinew_cordage", "inputs": { "sinew": 2 }, "output": "cordage", "count": 2, "ability": "Craft" }
   ],
   "nodes": [
     { "id": "root_patch", "item": "roots", "kind": "Plant.Root", "ability": "Gather", "capacity": 8, "perGather": 1, "regen": 2, "regenSeconds": 90.0,
@@ -32,7 +28,7 @@
     { "id": "mushroom_ring", "item": "mushrooms", "kind": "Loose.Fungus", "ability": "Collect", "capacity": 6, "perGather": 1, "regen": 2, "regenSeconds": 120.0,
       "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
       "spawn": { "biomes": [ "Forest" ], "perHectare": 2.0, "spacing": 8.0, "maxSlope": 30.0, "clump": 0.6, "max": 20 } },
-    { "id": "wild_greens", "item": "greens", "kind": "Plant.Green", "ability": "Gather", "capacity": 8, "perGather": 1, "regen": 2, "regenSeconds": 45.0,
+    { "id": "wild_greens", "extra": { "item": "lentil_seed", "perGather": 1, "chance": 0.2 }, "item": "greens", "kind": "Plant.Green", "ability": "Gather", "capacity": 8, "perGather": 1, "regen": 2, "regenSeconds": 45.0,
       "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
       "spawn": { "biomes": [ "Meadow" ], "perHectare": 3.0, "spacing": 6.0, "maxSlope": 25.0, "clump": 0.4, "max": 30 } },
     { "id": "bird_nest", "item": "eggs", "kind": "Loose.Egg", "ability": "Collect", "capacity": 4, "perGather": 1, "regen": 2, "regenSeconds": 300.0,
@@ -177,83 +173,6 @@
         }
       },
       "trust": 0.04
-    },
-    "diet": {
-      "bonus": 0.03,
-      "foods": {
-        "berry": {
-          "group": "fruit",
-          "nutrition": 25.0
-        },
-        "cooked_meat": {
-          "group": "meat",
-          "nutrition": 45.0
-        },
-        "dried_berry": {
-          "group": "fruit",
-          "nutrition": 22.0
-        },
-        "eggs": {
-          "group": "egg",
-          "nutrition": 25.0
-        },
-        "fish": {
-          "group": "fish",
-          "nutrition": 30.0
-        },
-        "bread": {
-          "group": "dish",
-          "nutrition": 35.0
-        },
-        "flatbread": {
-          "group": "dish",
-          "nutrition": 40.0
-        },
-        "grain": {
-          "group": "grain",
-          "nutrition": 20.0
-        },
-        "greens": {
-          "group": "green",
-          "nutrition": 15.0
-        },
-        "honey": {
-          "group": "sweet",
-          "nutrition": 20.0
-        },
-        "meat": {
-          "group": "meat",
-          "nutrition": 35.0
-        },
-        "mushrooms": {
-          "group": "fungus",
-          "nutrition": 18.0
-        },
-        "nuts": {
-          "group": "nut",
-          "nutrition": 28.0
-        },
-        "roast": {
-          "group": "dish",
-          "nutrition": 50.0
-        },
-        "roots": {
-          "group": "root",
-          "nutrition": 30.0
-        },
-        "smoked_meat": {
-          "group": "meat",
-          "nutrition": 40.0
-        },
-        "stew": {
-          "group": "dish",
-          "nutrition": 55.0
-        }
-      },
-      "health": 1.0,
-      "monotony": -0.02,
-      "varied": 3,
-      "window": 6
     },
     "grief": {
       "decayPerDay": 0.2,

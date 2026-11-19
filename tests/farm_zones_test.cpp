@@ -240,6 +240,8 @@ int GBTest_farm_zones(int, char**)
 
 		// ---- crop, plan, auto
 		Check(!t.Zones().SetCrop(t, "1", "nope").Ok && !t.Zones().SetCrop(t, "9", "grain").Ok && !t.Zones().SetPlan(t, "1", "dance").Ok, "a bad crop, zone or plan is refused");
+		const auto shippedCrops = t.Config.Econ.Crops;   // the published data has more crops (barley, lentils, peas, flax): this checks the rule with grain and a test crop only
+		for (auto it = t.Config.Econ.Crops.begin(); it != t.Config.Econ.Crops.end();) it = it->first == "grain" ? std::next(it) : t.Config.Econ.Crops.erase(it);
 		CropDef odd;
 		odd.Id = "odd";
 		odd.Seed = "flint";
@@ -254,7 +256,7 @@ int GBTest_farm_zones(int, char**)
 		Check(t.Zones().CropFor(t, zone1) == (t.Stored("stone") < t.Stored("grain") ? "odd" : "grain"), "in auto the clan sows the crop whose produce the store has least of");
 		Check(t.Zones().SetCrop(t, "zone_1", "odd").Ok && !t.Zones().Of("zone 1")->Auto && t.Zones().CropFor(t, zone1) == "odd", "a crop given turns auto off");
 		t.Zones().SetCrop(t, "1", "grain");
-		t.Config.Econ.Crops.erase("odd");
+		t.Config.Econ.Crops = shippedCrops;
 		Check(t.Zones().SetPlan(t, "1", "harvest").Ok && t.Zones().CropFor(t, zone1).empty() && !t.Zones().Works(zone1, "till") && t.Zones().Works(zone1, "harvest"), "plan harvest: nothing new is sown");
 		t.Zones().SetPlan(t, "1", "sow");
 		const FarmZones::Reply z2 = t.Zones().Paint(t, { 10.0f, 12.0f }, { 14.0f, 14.0f }, "grain");
