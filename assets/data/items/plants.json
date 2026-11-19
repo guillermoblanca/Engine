@@ -1,0 +1,14 @@
+{
+  "note": "Seeds, cuttings and saplings (Item.Seed.*, Item.Plant.*) (T347). Every item file loads before nodes.json and recipes/: a file is checked as it loads, so what a node or a recipe names must be known by then.",
+  "items": [
+    { "id": "grain_seed", "name": "Grain seed", "category": "seed", "weight": 0.02, "stack": 50, "tags": [ "Item.Seed.Grain" ] },
+    { "id": "barley_seed", "name": "Barley seed", "category": "seed", "weight": 0.02, "stack": 50, "tags": [ "Item.Seed.Barley" ] },
+    { "id": "lentil_seed", "name": "Lentil seed", "category": "seed", "weight": 0.02, "stack": 50, "tags": [ "Item.Seed.Lentil" ] },
+    { "id": "pea_seed", "name": "Pea seed", "category": "seed", "weight": 0.02, "stack": 50, "tags": [ "Item.Seed.Pea" ] },
+    { "id": "flax_seed", "name": "Flax seed", "category": "seed", "weight": 0.02, "stack": 50, "tags": [ "Item.Seed.Flax" ] },
+    { "id": "acorn", "name": "Acorn", "category": "seed", "weight": 0.05, "stack": 20, "tags": [ "Item.Seed.Tree" ] },
+    { "id": "bush_cutting", "name": "Bush cutting", "category": "seed", "weight": 1.0, "stack": 4, "tags": [ "Item.Plant.Cutting" ] },
+    { "id": "herb_clump", "name": "Herb clump", "category": "seed", "weight": 0.5, "stack": 4, "tags": [ "Item.Plant.Clump" ] },
+    { "id": "sapling", "name": "Sapling", "category": "seed", "weight": 3.0, "stack": 2, "tags": [ "Item.Plant.Sapling" ] }
+  ]
+}

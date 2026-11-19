@@ -3,6 +3,7 @@
 // range) read and written by the same code, as the "combat" section does (GB/Gameplay/Combat.cpp); the entries of a map (talk kinds, rites,
 // belief systems, taboos, omens, foods, traps) are parts of their own.
 #include "GB/Game/Social.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -16,85 +17,10 @@ namespace GB
 
 	SocialRules DefaultSocialRules()
 	{
-		SocialRules r;
-		r.On = true;
-		r.Mood.Effects = { { "gather", 0.15f }, { "rest", -0.15f }, { "experiment", 0.2f }, { "talk", 0.15f } };
-		auto talk = [](float seconds, float relation, float mood, float company, float grief = 0.0f, float teach = 0.0f, float third = 0.0f, const char* event = "")
-		{
-			TalkKind k;
-			k.Seconds = seconds; k.Relation = relation; k.Mood = mood; k.Company = company; k.Grief = grief; k.Teach = teach; k.Third = third; k.Event = event;
-			return k;
-		};
-		r.Talk.Kinds["chat"] = talk(8.0f, 0.03f, 0.02f, 20.0f);
-		r.Talk.Kinds["story"] = talk(14.0f, 0.03f, 0.05f, 25.0f, 0.0f, 0.08f);
-		r.Talk.Kinds["story"].Tech = "storytelling";
-		r.Talk.Kinds["gossip"] = talk(10.0f, 0.05f, 0.02f, 20.0f, 0.0f, 0.0f, -0.03f);
-		r.Talk.Kinds["teach"] = talk(12.0f, 0.04f, 0.01f, 15.0f, 0.0f, 0.25f);
-		r.Talk.Kinds["console"] = talk(12.0f, 0.08f, 0.04f, 25.0f, -0.25f);
-		r.Talk.Kinds["settle"] = talk(10.0f, 0.15f, 0.02f, 10.0f);
-		r.Talk.Kinds["greet"] = talk(3.0f, 0.02f, 0.01f, 10.0f);
-		r.Talk.Kinds["share"] = talk(4.0f, 0.04f, 0.02f, 10.0f, 0.0f, 0.0f, 0.0f, "food");
-		r.Talk.Kinds["groom"] = talk(10.0f, 0.05f, 0.03f, 35.0f);
-		r.Talk.Kinds["play"] = talk(10.0f, 0.04f, 0.06f, 25.0f);
-
-		auto rite = [](const char* name, const char* event, const char* season, float at, const char* place, float seconds, float gather, float quorum,
-			std::map<std::string, int> cost, float mood, float relation, std::map<std::string, float> beliefs, std::map<std::string, float> norms = {}, const char* tech = "")
-		{
-			RiteDef d;
-			d.Name = name; d.Event = event; d.Season = season; d.At = at; d.Place = place; d.Seconds = seconds; d.GatherSeconds = gather; d.Quorum = quorum;
-			d.Cost = std::move(cost); d.Mood = mood; d.Relation = relation; d.Beliefs = std::move(beliefs); d.Norms = std::move(norms); d.Tech = tech;
-			return d;
-		};
-		r.Rites["naming"] = rite("Naming", "birth", "", 0.5f, "fire", 20.0f, 40.0f, 0.5f, {}, 0.06f, 0.02f, { { "ancestors", 1.0f } }, { { "sharing", 0.01f } });
-		r.Rites["coming_of_age"] = rite("Coming of age", "adult", "", 0.5f, "totem", 25.0f, 45.0f, 0.5f, {}, 0.05f, 0.03f, { { "animism", 1.0f } }, { { "daring", 0.01f } });
-		r.Rites["pairing"] = rite("Pairing", "pair", "", 0.5f, "fire", 25.0f, 45.0f, 0.5f, { { "food", 2 } }, 0.08f, 0.03f, { { "ancestors", 0.5f } });
-		r.Rites["funeral"] = rite("Funeral", "death", "", 0.5f, "sacred", 30.0f, 60.0f, 0.5f, {}, 0.03f, 0.04f, { { "ancestors", 1.5f } });
-		r.Rites["funeral"].Grief = -0.3f;
-		r.Rites["solstice"] = rite("Winter solstice", "", "winter", 0.5f, "fire", 40.0f, 60.0f, 0.6f, { { "wood", 2 } }, 0.1f, 0.02f, { { "sky", 1.5f } }, { { "sharing", 0.01f } }, "ritual");
-		r.Rites["spring_feast"] = rite("Spring feast", "", "spring", 0.3f, "totem", 35.0f, 60.0f, 0.6f, { { "food", 3 } }, 0.08f, 0.02f, { { "sky", 1.0f }, { "animism", 0.5f } }, {}, "ritual");
-		r.Rites["harvest_feast"] = rite("Harvest feast", "", "autumn", 0.85f, "fire", 35.0f, 60.0f, 0.6f, { { "food", 4 } }, 0.1f, 0.03f, { { "sky", 1.0f } }, { { "industry", 0.01f } }, "ritual");
-		r.Rites["first_hunt"] = rite("First hunt", "first_kill", "", 0.5f, "fire", 20.0f, 40.0f, 0.4f, {}, 0.05f, 0.02f, { { "animism", 1.5f } }, { { "daring", 0.01f } });
-		r.Rites["healing"] = rite("Healing", "wounded", "", 0.5f, "camp", 20.0f, 20.0f, 0.2f, { { "herbs", 1 } }, 0.03f, 0.02f, { { "animism", 1.0f } }, {}, "shamanism");
-		r.Rites["healing"].Shaman = true;
-		r.Rites["healing"].Heal = 20.0f;
-		r.Rites["tradition"] = rite("Kept tradition", "tradition", "", 0.5f, "fire", 25.0f, 45.0f, 0.5f, {}, 0.05f, 0.02f, { { "ancestors", 0.5f } });
-		r.Rites["tradition"].Every = 2.0f;
-		r.Rites["appeasement"] = rite("Appeasement", "omen", "", 0.5f, "sacred", 25.0f, 45.0f, 0.5f, {}, 0.06f, 0.02f, { { "sky", 1.0f }, { "animism", 0.5f } });
-
-		auto system = [](const char* name, float start) { BeliefSystem s; s.Name = name; s.Start = start; return s; };
-		r.Beliefs.Systems["animism"] = system("Animism (the spirits of animals and places)", 0.45f);
-		r.Beliefs.Systems["ancestors"] = system("Ancestor spirits", 0.45f);
-		r.Beliefs.Systems["sky"] = system("The sky and the seasons", 0.4f);
-		auto taboo = [](const char* name, const char* sys, const char* kind, float radius) { TabooDef t; t.Name = name; t.System = sys; t.Kind = kind; t.Radius = radius; return t; };
-		r.Beliefs.Taboos["sacred_hunt"] = taboo("No hunting near the sacred place", "animism", "sacred_hunt", 25.0f);
-		r.Beliefs.Taboos["share_kill"] = taboo("The first kill is shared", "ancestors", "share_kill", 0.0f);
-		auto omen = [](const char* name, const char* event, float chance, float mood, std::map<std::string, float> beliefs, const char* rite)
-		{
-			OmenDef o;
-			o.Name = name; o.Event = event; o.Chance = chance; o.Mood = mood; o.Beliefs = std::move(beliefs); o.Rite = rite;
-			return o;
-		};
-		r.Beliefs.Omens["storm"] = omen("A storm", "storm", 0.0f, -0.04f, { { "sky", 0.05f } }, "");
-		r.Beliefs.Omens["eclipse"] = omen("The sun goes dark", "eclipse", 0.03f, -0.08f, { { "sky", 0.08f } }, "appeasement");
-		r.Beliefs.Omens["good_harvest"] = omen("A good harvest", "harvest", 0.0f, 0.05f, { { "sky", 0.03f } }, "");
-		r.Beliefs.Omens["big_kill"] = omen("A great kill", "big_kill", 0.0f, 0.04f, { { "animism", 0.04f } }, "");
-		r.Beliefs.Omens["two_deaths"] = omen("Two deaths in a day", "two_deaths", 0.0f, -0.08f, { { "ancestors", 0.05f } }, "appeasement");
-
-		r.Shaman.Traits = { { "curiosity", 0.6f }, { "sociability", 0.4f } };
-
-		// T346 (P-A16): no foods here. What each food sates and its group is data only (food.json, "social" > "diet" > "foods"); without it
-		// every food sates NeedsConfig::FoodHunger and is a group of its own (MealLog::Nutrition).
-
-		r.Hunting.Wildlife = { { "rabbit", 6 }, { "deer", 3 }, { "boar", 2 }, { "grouse", 4 } };
-		TrapDef snare;
-		snare.Name = "Snare"; snare.Tag = "Animal.Rabbit"; snare.Cost = { { "snare", 1 } }; snare.Tech = "trapping"; snare.Arm = 60.0f; snare.Radius = 6.0f;
-		snare.Seconds = 4.0f; snare.Max = 2; snare.Priority = 0.6f; snare.Yields = { { "meat", 2 }, { "hide", 1 } };
-		r.Hunting.Traps["snare"] = snare;
-		TrapDef pit;
-		pit.Name = "Pit trap"; pit.Tag = "Animal.Boar"; pit.Cost = { { "wood", 2 } }; pit.Tech = "trapping"; pit.Arm = 120.0f; pit.Radius = 4.0f;
-		pit.Seconds = 10.0f; pit.Max = 1; pit.Priority = 0.5f; pit.Yields = { { "meat", 3 }, { "hide", 1 }, { "bone", 1 }, { "fat", 2 } };
-		r.Hunting.Traps["pit"] = pit;
-		return r;
+		// the "social" section of the game's data (rules/social.json: mood, talk, rites, beliefs, the shaman, hunting and traps, and the diet). Not
+		// a second copy here (T347: the copy's diet had 16 foods of the data's 29 until T346, and its rites, talk and beliefs reached only the tests).
+		static const SocialRules rules = ShippedSection<SocialRules>([](const std::string& doc, SocialRules& r) { return LoadSocialRules(doc, r); });
+		return rules;
 	}
 
 	// ---- JSON
@@ -303,7 +229,7 @@ namespace GB
 		for (const auto& [key, v] : s.items())
 			if (std::find_if(std::begin(kKeys), std::end(kKeys), [&](const char* k) { return key == k; }) == std::end(kKeys)) return "social: unknown part " + key;
 		SocialRules r = live;
-		const SocialRules def = DefaultSocialRules();
+		const SocialRules def{};   // (what a part does not say is the value of the structure: T347, the data gives every field it uses)
 		r.On = true;   // (a content file with the section turns the social life on, unless it says "on": false)
 		if (s.contains("on"))
 		{

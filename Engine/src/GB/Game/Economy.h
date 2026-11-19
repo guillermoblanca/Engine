@@ -152,7 +152,7 @@ namespace GB
 		const StoreKind& Main() const;
 	};
 
-	EconomyRules DefaultEconomyRules();   // assets/data/era1.json says the same in its "economy" section
+	EconomyRules DefaultEconomyRules();   // the "economy" section of the game's data (assets/data/rules/economy.json and crops.json)
 	// { "economy": { "production": { "depth", "maxBatches", "seconds", "priority", "stock": { "cordage": 2 }, "campStations": [ "workbench" ], "upgrade",
 	//   "experiment", "containersPerMember", "preserveAbove" }, "spoilage": { "step", "bag", "seasons": { "winter": 0.5 } }, "farming": { "tech", "tool",
 	//   "plots", "columns", "spacing", "offset": [ x, z ], "moistureSeconds", "workSeconds", "plotsPerTrip", "priority", "fields", "foodDays" },

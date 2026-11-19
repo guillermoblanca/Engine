@@ -5,6 +5,7 @@
 //  * a clan whose home has been stripped bare moves its camp (the campfire goes too) and a clan with a good home does not;
 //  * a save in the middle of an expedition loads with it, and the loaded clan brings it home; a save from before H12 loads with none.
 // Stand-in bodies as in work_test (they walk in straight lines at 3 m/s).
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Interactives.h"
@@ -282,7 +283,8 @@ int GBTest_exploration(int, char**)
 	// ---- the data
 	{
 		ExplorationRules file;
-		Check(LoadExplorationRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty() && file == defaults, "the exploration section of era1.json says what DefaultExplorationRules says");
+		Check(LoadShippedSection(file, [](const std::string& doc, ExplorationRules& r) { return LoadExplorationRules(doc, r); }).empty() && file == defaults,
+			"the exploration section of the game's pack says what DefaultExplorationRules says");
 		ExplorationRules back;
 		Check(LoadExplorationRules("{ \"exploration\": " + ExplorationRulesToJson(defaults) + " }", back).empty() && back == defaults, "the exploration section round-trips");
 		ExplorationRules keep = defaults;

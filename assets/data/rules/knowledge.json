@@ -1,0 +1,42 @@
+{
+  "note": "How clans learn (T347, from era1.json): lessons, observation, the steps of the tree (tiers) and learning by use. The technologies are in techs/.",
+  "knowledge": { "lessonSeconds": 20.0, "observeRadius": 12.0, "growth": 0.5,
+    "progression": [ "fire_making", "stone_tools", "cordage", "basketry", "tillage", "food_storage", "wattle_and_daub", "cooking", "hide_working", "spear_making" ],
+    "prereqBonus": 1.1, "missingPrereqFactor": 0.25,
+    "intellectGene": "intellect", "defaultComplexity": 0.3, "graspFloor": 0.25, "graspSlope": 2.0,
+    "leapYears": 500,
+    "tiers": [
+      { "tier": 1, "_doc": "T323 (ARBOL_TECNICO 11.4): the camp: the clan is there (it opens at the first plan)", "goals": [ { "type": "population", "count": 1 } ] },
+      { "tier": 2, "_doc": "the longhouse, or a camp of 14 buildings (the planner seldom builds a longhouse: GBSim 5 on master, the first on day 19.8)", "need": 1, "goals": [ { "type": "building", "building": "longhouse" }, { "type": "buildings", "count": 14 } ] },
+      { "tier": 3, "_doc": "11.4 says: a winter lived; the clock starts in spring and the first winter ends on day 56, so until the director decides it is the first season lived (day 14) and 18 buildings", "goals": [ { "type": "seasons", "count": 1 }, { "type": "buildings", "count": 18 } ] },
+      { "tier": 4, "_doc": "era 2 (signs, the village): people and buildings", "goals": [ { "type": "population", "count": 30 }, { "type": "buildings", "count": 25 } ] }
+    ],
+    "use": {
+      "effect": "learn", "pull": 0.5, "enough": 20.0, "near": 300.0, "damp": 0.15, "paceMin": 0.5, "paceMax": 1.5, "fireStation": "campfire",
+      "basics": { "food": 1.0, "fire": true, "beds": 0.5 },
+      "materials": {
+        "clay": { "wattle_and_daub": 0.12, "pottery": 0.06, "writing": 0.01 },
+        "grain_seed": { "tillage": 0.12 },
+        "grain": { "reaping": 0.1 },
+        "copper_ore": { "smelting": 0.04 },
+        "tin_ore": { "alloying": 0.04 },
+        "iron_ore": { "forging": 0.03 },
+        "flint": { "flint_knapping": 0.2, "spear_making": 0.05 },
+        "fiber": { "basketry": 0.2 },
+        "reed": { "weaving": 0.15 },
+        "hide": { "hide_working": 0.12 },
+        "herbs": { "herb_lore": 0.15 },
+        "meat": { "cooking": 0.2, "smoking": 0.06, "butchery": 0.1 },
+        "bone": { "bone_working": 0.2 },
+        "cordage": { "trapping": 0.1 },
+        "fish": { "fishing": 0.15 },
+        "wood": { "palisade_building": 0.03 },
+        "log": { "timber_framing": 0.03, "carpentry": 0.01 },
+        "plank": { "carpentry": 0.03 },
+        "stone": { "masonry": 0.01 },
+        "fired_brick": { "masonry": 0.02 },
+        "coal": { "steam_power": 0.01 },
+        "sand": { "computing": 0.005 }
+      }
+    } }
+}

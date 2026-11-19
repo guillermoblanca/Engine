@@ -1,0 +1,627 @@
+{
+  "note": "Social life (T347, from social.json; the diet from food.json): mood, talk, rites, beliefs, grief, the shaman, hunting and traps, and the diet (what each food sates).",
+  "social": {
+    "beliefs": {
+      "drift": 0.03,
+      "holdAbove": 0.45,
+      "omens": {
+        "big_kill": {
+          "beliefs": {
+            "animism": 0.04
+          },
+          "chance": 0.0,
+          "event": "big_kill",
+          "mood": 0.04,
+          "name": "A great kill",
+          "rite": ""
+        },
+        "eclipse": {
+          "beliefs": {
+            "sky": 0.08
+          },
+          "chance": 0.03,
+          "event": "eclipse",
+          "mood": -0.08,
+          "name": "The sun goes dark",
+          "rite": "appeasement"
+        },
+        "good_harvest": {
+          "beliefs": {
+            "sky": 0.03
+          },
+          "chance": 0.0,
+          "event": "harvest",
+          "mood": 0.05,
+          "name": "A good harvest",
+          "rite": ""
+        },
+        "storm": {
+          "beliefs": {
+            "sky": 0.05
+          },
+          "chance": 0.0,
+          "event": "storm",
+          "mood": -0.04,
+          "name": "A storm",
+          "rite": ""
+        },
+        "two_deaths": {
+          "beliefs": {
+            "ancestors": 0.05
+          },
+          "chance": 0.0,
+          "event": "two_deaths",
+          "mood": -0.08,
+          "name": "Two deaths in a day",
+          "rite": "appeasement"
+        }
+      },
+      "sacredDistance": 24.0,
+      "spread": 0.04,
+      "systems": {
+        "ancestors": {
+          "name": "Ancestor spirits",
+          "spread": 0.25,
+          "start": 0.45
+        },
+        "animism": {
+          "name": "Animism (the spirits of animals and places)",
+          "spread": 0.25,
+          "start": 0.45
+        },
+        "sky": {
+          "name": "The sky and the seasons",
+          "spread": 0.25,
+          "start": 0.4
+        }
+      },
+      "taboos": {
+        "sacred_hunt": {
+          "kind": "sacred_hunt",
+          "name": "No hunting near the sacred place",
+          "radius": 25.0,
+          "system": "animism"
+        },
+        "share_kill": {
+          "kind": "share_kill",
+          "name": "The first kill is shared",
+          "radius": 0.0,
+          "system": "ancestors"
+        }
+      },
+      "trust": 0.04
+    },
+    "grief": {
+      "decayPerDay": 0.2,
+      "friend": 0.5,
+      "kin": 0.7,
+      "mood": -0.15
+    },
+    "hunting": {
+      "short": 3.0,
+      "traps": {
+        "pit": {
+          "arm": 120.0,
+          "cost": {
+            "wood": 2
+          },
+          "max": 1,
+          "name": "Pit trap",
+          "priority": 0.5,
+          "radius": 4.0,
+          "seconds": 10.0,
+          "tag": "Animal.Boar",
+          "tech": "trapping",
+          "yields": {
+            "bone": 1,
+            "fat": 2,
+            "hide": 1,
+            "meat": 3
+          }
+        },
+        "snare": {
+          "arm": 60.0,
+          "cost": {
+            "snare": 1
+          },
+          "max": 2,
+          "name": "Snare",
+          "priority": 0.6,
+          "radius": 6.0,
+          "seconds": 4.0,
+          "tag": "Animal.Rabbit",
+          "tech": "trapping",
+          "yields": {
+            "hide": 1,
+            "meat": 2
+          }
+        }
+      },
+      "wildlife": {
+        "boar": 2,
+        "deer": 3,
+        "grouse": 4,
+        "rabbit": 6
+      }
+    },
+    "mood": {
+      "effects": {
+        "experiment": 0.2,
+        "gather": 0.15,
+        "rest": -0.15,
+        "talk": 0.15
+      },
+      "grief": 0.5,
+      "high": 0.75,
+      "low": 0.3,
+      "rest": 0.5,
+      "return": 0.3,
+      "start": 0.5
+    },
+    "on": true,
+    "rites": {
+      "appeasement": {
+        "at": 0.5,
+        "beliefs": {
+          "animism": 0.5,
+          "sky": 1.0
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "omen",
+        "every": 0.0,
+        "gatherSeconds": 45.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.06,
+        "name": "Appeasement",
+        "norms": {},
+        "place": "sacred",
+        "quorum": 0.5,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 25.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "coming_of_age": {
+        "at": 0.5,
+        "beliefs": {
+          "animism": 1.0
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "adult",
+        "every": 0.0,
+        "gatherSeconds": 45.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.05,
+        "name": "Coming of age",
+        "norms": {
+          "daring": 0.01
+        },
+        "place": "totem",
+        "quorum": 0.5,
+        "relation": 0.03,
+        "season": "",
+        "seconds": 25.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "first_hunt": {
+        "at": 0.5,
+        "beliefs": {
+          "animism": 1.5
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "first_kill",
+        "every": 0.0,
+        "gatherSeconds": 40.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.05,
+        "name": "First hunt",
+        "norms": {
+          "daring": 0.01
+        },
+        "place": "fire",
+        "quorum": 0.4,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 20.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "funeral": {
+        "at": 0.5,
+        "beliefs": {
+          "ancestors": 1.5
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "death",
+        "every": 0.0,
+        "gatherSeconds": 60.0,
+        "gesture": "",
+        "grief": -0.3,
+        "heal": 0.0,
+        "mood": 0.03,
+        "name": "Funeral",
+        "norms": {},
+        "place": "sacred",
+        "quorum": 0.5,
+        "relation": 0.04,
+        "season": "",
+        "seconds": 30.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "harvest_feast": {
+        "at": 0.85,
+        "beliefs": {
+          "sky": 1.0
+        },
+        "cost": {
+          "food": 4
+        },
+        "delay": 5.0,
+        "event": "",
+        "every": 2.0,
+        "gatherSeconds": 60.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.1,
+        "name": "Harvest feast",
+        "norms": {
+          "industry": 0.01
+        },
+        "place": "fire",
+        "quorum": 0.6,
+        "relation": 0.03,
+        "season": "autumn",
+        "seconds": 35.0,
+        "shaman": false,
+        "tech": "ritual"
+      },
+      "healing": {
+        "at": 0.5,
+        "beliefs": {
+          "animism": 1.0
+        },
+        "cost": {
+          "herbs": 1
+        },
+        "delay": 5.0,
+        "event": "wounded",
+        "every": 0.0,
+        "gatherSeconds": 20.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 20.0,
+        "mood": 0.03,
+        "name": "Healing",
+        "norms": {},
+        "place": "camp",
+        "quorum": 0.2,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 20.0,
+        "shaman": true,
+        "tech": "shamanism"
+      },
+      "naming": {
+        "at": 0.5,
+        "beliefs": {
+          "ancestors": 1.0
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "birth",
+        "every": 0.0,
+        "gatherSeconds": 40.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.06,
+        "name": "Naming",
+        "norms": {
+          "sharing": 0.01
+        },
+        "place": "fire",
+        "quorum": 0.5,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 20.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "pairing": {
+        "at": 0.5,
+        "beliefs": {
+          "ancestors": 0.5
+        },
+        "cost": {
+          "food": 2
+        },
+        "delay": 5.0,
+        "event": "pair",
+        "every": 0.0,
+        "gatherSeconds": 45.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.08,
+        "name": "Pairing",
+        "norms": {},
+        "place": "fire",
+        "quorum": 0.5,
+        "relation": 0.03,
+        "season": "",
+        "seconds": 25.0,
+        "shaman": false,
+        "tech": ""
+      },
+      "solstice": {
+        "at": 0.5,
+        "beliefs": {
+          "sky": 1.5
+        },
+        "cost": {
+          "wood": 2
+        },
+        "delay": 5.0,
+        "event": "",
+        "every": 3.0,
+        "gatherSeconds": 60.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.1,
+        "name": "Winter solstice",
+        "norms": {
+          "sharing": 0.01
+        },
+        "place": "fire",
+        "quorum": 0.6,
+        "relation": 0.02,
+        "season": "winter",
+        "seconds": 40.0,
+        "shaman": false,
+        "tech": "ritual"
+      },
+      "spring_feast": {
+        "at": 0.3,
+        "beliefs": {
+          "animism": 0.5,
+          "sky": 1.0
+        },
+        "cost": {
+          "food": 3
+        },
+        "delay": 5.0,
+        "event": "",
+        "every": 0.0,
+        "gatherSeconds": 60.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.08,
+        "name": "Spring feast",
+        "norms": {},
+        "place": "totem",
+        "quorum": 0.6,
+        "relation": 0.02,
+        "season": "spring",
+        "seconds": 35.0,
+        "shaman": false,
+        "tech": "ritual"
+      },
+      "tradition": {
+        "at": 0.5,
+        "beliefs": {
+          "ancestors": 0.5
+        },
+        "cost": {},
+        "delay": 5.0,
+        "event": "tradition",
+        "every": 2.0,
+        "gatherSeconds": 45.0,
+        "gesture": "",
+        "grief": 0.0,
+        "heal": 0.0,
+        "mood": 0.05,
+        "name": "Kept tradition",
+        "norms": {},
+        "place": "fire",
+        "quorum": 0.5,
+        "relation": 0.02,
+        "season": "",
+        "seconds": 25.0,
+        "shaman": false,
+        "tech": ""
+      }
+    },
+    "shaman": {
+      "age": 0.01,
+      "bonus": 0.5,
+      "minAge": 20.0,
+      "rites": 0.03,
+      "traits": {
+        "curiosity": 0.6,
+        "sociability": 0.4
+      }
+    },
+    "stepSeconds": 2.0,
+    "talk": {
+      "consoleAbove": 0.15,
+      "cooldown": 40.0,
+      "gossipSociability": 0.55,
+      "greetAfter": 600.0,
+      "groomAbove": 0.35,
+      "hungerBelow": 55.0,
+      "evening": 3.0,
+      "kinds": {
+        "chat": {
+          "company": 20.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.02,
+          "relation": 0.03,
+          "seconds": 8.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "console": {
+          "company": 25.0,
+          "event": "",
+          "grief": -0.25,
+          "mood": 0.04,
+          "relation": 0.08,
+          "seconds": 12.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "gossip": {
+          "company": 20.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.02,
+          "relation": 0.05,
+          "seconds": 10.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": -0.03
+        },
+        "greet": {
+          "company": 10.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.01,
+          "relation": 0.02,
+          "seconds": 3.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "groom": {
+          "company": 35.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.03,
+          "relation": 0.05,
+          "seconds": 10.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "play": {
+          "company": 25.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.06,
+          "relation": 0.04,
+          "seconds": 10.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "settle": {
+          "company": 10.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.02,
+          "relation": 0.15,
+          "seconds": 10.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "share": {
+          "company": 10.0,
+          "event": "food",
+          "grief": 0.0,
+          "mood": 0.02,
+          "relation": 0.04,
+          "seconds": 4.0,
+          "teach": 0.0,
+          "tech": "",
+          "third": 0.0
+        },
+        "story": {
+          "company": 25.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.05,
+          "relation": 0.03,
+          "seconds": 14.0,
+          "teach": 0.08,
+          "tech": "storytelling",
+          "third": 0.0
+        },
+        "teach": {
+          "company": 15.0,
+          "event": "",
+          "grief": 0.0,
+          "mood": 0.01,
+          "relation": 0.04,
+          "seconds": 12.0,
+          "teach": 0.25,
+          "tech": "",
+          "third": 0.0
+        }
+      },
+      "radius": 12.0,
+      "score": 0.9,
+      "settleBelow": -0.05,
+      "storyAge": 45.0,
+      "storySociability": 0.75,
+      "want": 85.0
+    },
+    "diet": {
+      "bonus": 0.03,
+      "health": 1.0,
+      "monotony": -0.02,
+      "varied": 3,
+      "window": 6,
+      "foods": {
+        "berry": { "group": "fruit", "nutrition": 25.0 },
+        "cooked_meat": { "group": "meat", "nutrition": 45.0 },
+        "dried_berry": { "group": "fruit", "nutrition": 28.0 },
+        "eggs": { "group": "egg", "nutrition": 25.0 },
+        "fish": { "group": "fish", "nutrition": 30.0 },
+        "cooked_fish": { "group": "fish", "nutrition": 38.0 },
+        "dried_fish": { "group": "fish", "nutrition": 40.0 },
+        "bread": { "group": "grain", "nutrition": 35.0 },
+        "flatbread": { "group": "grain", "nutrition": 32.0 },
+        "grain": { "group": "grain", "nutrition": 12.0 },
+        "barley": { "group": "grain", "nutrition": 12.0 },
+        "parched_grain": { "group": "grain", "nutrition": 22.0 },
+        "porridge": { "group": "grain", "nutrition": 24.0 },
+        "lentils": { "group": "legume", "nutrition": 12.0 },
+        "peas": { "group": "legume", "nutrition": 12.0 },
+        "pottage": { "group": "legume", "nutrition": 40.0 },
+        "greens": { "group": "green", "nutrition": 15.0 },
+        "honey": { "group": "sweet", "nutrition": 20.0 },
+        "meat": { "group": "meat", "nutrition": 35.0 },
+        "mushrooms": { "group": "fungus", "nutrition": 18.0 },
+        "nuts": { "group": "nut", "nutrition": 28.0 },
+        "acorn_meal": { "group": "nut", "nutrition": 30.0 },
+        "roast": { "group": "meat", "nutrition": 50.0 },
+        "roots": { "group": "root", "nutrition": 30.0 },
+        "baked_roots": { "group": "root", "nutrition": 35.0 },
+        "smoked_meat": { "group": "meat", "nutrition": 35.0 },
+        "salted_meat": { "group": "meat", "nutrition": 33.0 },
+        "stew": { "group": "meat", "nutrition": 45.0 },
+        "beer": { "group": "drink", "nutrition": 15.0 }
+      }
+    }
+  }
+}

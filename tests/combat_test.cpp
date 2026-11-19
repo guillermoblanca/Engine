@@ -6,6 +6,7 @@
 // child runs; the clan hunts rabbits and gets meat when its store has no food; a raid steals from a hostile clan's store, comes back and leaves a
 // grievance (and the raided clan notices it); the fights save and load in the middle; nobody ends with a position that is not a number or stuck
 // in a fight. CPU only, stand-in bodies as in tribe_test and economy_test.
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/ClanHostility.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/SimQA.h"
@@ -333,7 +334,7 @@ int GBTest_combat(int, char**)
 	// ---- the data: the "combat" section of era1.json says what the code says, round-trips, and a mistake changes nothing
 	{
 		CombatRules file;
-		Check(LoadCombatRulesFile(data + "/era1.json", file).empty(), "the combat section of assets/data/era1.json loads");
+		Check(LoadShippedSection(file, [](const std::string& doc, CombatRules& r) { return LoadCombatRules(doc, r); }).empty(), "the combat section of the game's pack loads (T347: every file of it)");
 		Check(file == DefaultCombatRules(), "and says what DefaultCombatRules says");
 		CombatRules back;
 		Check(LoadCombatRules("{ \"combat\": " + CombatRulesToJson(DefaultCombatRules()) + " }", back).empty() && back == DefaultCombatRules(), "the combat section round-trips");
@@ -379,8 +380,8 @@ int GBTest_combat(int, char**)
 		const std::string loadError = packs.Load("era1", data, &report, strict);
 		Check(loadError.empty() && report.Clean(), "the era1 pack loads strictly with the combat section (the meat is given by the hunt)");
 		if (!loadError.empty() || !report.Clean()) std::fprintf(stderr, "  %s\n  %s\n", loadError.c_str(), report.Text().c_str());
-		CombatRules expected = DefaultCombatRules();   // (social.json, a file of era1, adds the deer, the boar and the grouse: docs/VIDA_SOCIAL.md)
-		Check(LoadCombatRulesFile(data + "/social.json", expected).empty() && live == expected, "and the section it read is the default one, with the hunts of social.json");
+		const CombatRules expected = DefaultCombatRules();   // (T347: the pack's section, social.json's deer, boar and grouse among the hunts: docs/VIDA_SOCIAL.md)
+		Check(live == expected && expected.Hunts.count("deer") && expected.Hunts.count("boar") && expected.Hunts.count("grouse"), "and the section it read is the default one, with the hunts of social.json");
 	}
 
 	// ---- the montages of the combat abilities are those of the delivered animation manifest (the X Bot packs, packs/full)

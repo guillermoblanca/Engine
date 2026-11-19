@@ -1,4 +1,5 @@
 #include "GB/Game/Diplomacy.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -100,15 +101,10 @@ namespace GB
 
 	DiplomacyRules DefaultDiplomacyRules()
 	{
-		DiplomacyRules r;
-		r.Relations.Events = { { "meet", 0.03f }, { "trade", 0.12f }, { "gift", 0.1f }, { "visit", 0.05f }, { "teach", 0.04f }, { "marriage", 0.15f }, { "pact", 0.05f },
-			{ "overlap", -0.01f }, { "theft", -0.08f }, { "refuse", -0.03f }, { "raid", -0.5f } };
-		r.Relations.Grievances = { { "theft", 0.25f }, { "raid", 1.0f } };
-		r.Relations.Openness = { { "sharing", 0.5f }, { "sociability", 0.4f }, { "boldness", -0.2f } };
-		r.Relations.Aggression = { { "boldness", 0.6f }, { "daring", 0.4f }, { "sharing", -0.3f } };
-		r.Trade.Values = { { "berry", 1.0f }, { "branch", 0.5f }, { "clay", 1.0f }, { "copper_ore", 3.0f }, { "cordage", 2.0f }, { "dried_berry", 2.0f }, { "fiber", 0.5f },
-			{ "flint", 2.0f }, { "grain", 1.5f }, { "reed", 0.5f }, { "stone", 1.0f }, { "wood", 1.0f } };
-		return r;
+		// the "diplomacy" section of the game's data (rules/diplomacy.json: relations, ranks, trade and the trade value of every item). Not a
+		// second copy here (T347: the copy had 12 prices of the data's 131, and a value the data dropped stayed in the game from the copy).
+		static const DiplomacyRules rules = ShippedSection<DiplomacyRules>([](const std::string& doc, DiplomacyRules& r) { return LoadDiplomacyRules(doc, r); });
+		return rules;
 	}
 
 	std::string LoadDiplomacyRules(const std::string& json, DiplomacyRules& live)

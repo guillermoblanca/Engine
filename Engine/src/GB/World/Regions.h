@@ -39,7 +39,7 @@ namespace GB
 		std::map<std::string, std::string> Names;   // biome name -> what a region of it is called ("Forest" -> "Woods")
 		bool operator==(const RegionRules&) const = default;
 	};
-	RegionRules DefaultRegionRules();   // assets/data/era1.json says the same (the "regions" part of its "exploration" section)
+	RegionRules DefaultRegionRules();   // the built-in regions of a world made without the game's data (the game's are in assets/data/rules/exploration.json, "regions")
 
 	// Something placed in the world that a region counts: a wild resource node by its type ("clay_bank").
 	struct RegionThing

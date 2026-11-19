@@ -82,7 +82,7 @@ namespace GB
 		float Reach() const { return Radius() + Aura; }   // how far from its centre its effects on people go
 	};
 
-	// The built-in era-1 buildings (assets/data/era1.json says the same in its "buildings" section): shelter, storage, workbench and drying rack, known
+	// The built-in era-1 buildings (the "buildings" section of the game's data, assets/data/buildings.json): shelter, storage, workbench and drying rack, known
 	// to all; hut, longhouse, cache pit, granary, hearth, smoking rack, hide frame, healer's hut, totem, palisade and watchtower behind the technologies
 	// of era 1; kiln, forge and jar store of era 2 (docs/PROGRESION.md).
 	std::map<std::string, BuildingDef> DefaultBuildings();

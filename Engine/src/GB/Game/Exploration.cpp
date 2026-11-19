@@ -1,4 +1,5 @@
 #include "GB/Game/Exploration.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -71,9 +72,10 @@ namespace GB
 
 	ExplorationRules DefaultExplorationRules()
 	{
-		ExplorationRules r;
-		r.Regions = DefaultRegionRules();
-		return r;
+		// the "exploration" section of the game's data (rules/exploration.json: regions, expeditions, migration). Not a second copy here (T347;
+		// DefaultRegionRules, in GB/World, stays the built-in regions of a world made without the game's data).
+		static const ExplorationRules rules = ShippedSection<ExplorationRules>([](const std::string& doc, ExplorationRules& r) { return LoadExplorationRules(doc, r); });
+		return rules;
 	}
 
 	std::string LoadExplorationRules(const std::string& json, ExplorationRules& live)

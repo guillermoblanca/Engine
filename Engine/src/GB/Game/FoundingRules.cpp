@@ -1,6 +1,7 @@
 // T310: the "founding" block of assets/data/colony.json (see FoundingRules.h).
 #include "GB/Game/FoundingRules.h"
 #include "GB/Gameplay/Items.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <nlohmann/json.hpp>
 
@@ -10,15 +11,9 @@ namespace GB
 
 	FoundingRules DefaultFoundingRules()
 	{
-		FoundingRules r;
-		r.Trades = { { "strength", "woodcutter" }, { "dexterity", "crafter" }, { "perception", "forager" }, { "endurance", "builder" } };
-		r.Base = { { "wood", 2, 2 }, { "stone", 0, 3 } };
-		r.Extra[1] = { { "wood", 4 }, { "stone", 3 }, { "dried_berry", 12 }, { "stone_axe", 1 }, { "cordage", 2 }, { "flint", 4 }, { "hide", 2 }, { "herbs", 3 } };
-		r.Extra[2] = { { "wood", 3 }, { "stone", 2 }, { "dried_berry", 10 }, { "stone_axe", 1 }, { "cordage", 2 }, { "flint", 3 }, { "hide", 1 }, { "herbs", 2 } };
-		r.Extra[3] = { { "wood", 2 }, { "stone", 1 }, { "dried_berry", 8 }, { "stone_axe", 1 }, { "cordage", 1 }, { "flint", 2 }, { "herbs", 1 } };
-		r.Extra[4] = { { "wood", 1 }, { "dried_berry", 6 }, { "cordage", 1 }, { "flint", 1 } };
-		r.Extra[5] = { { "dried_berry", 3 } };
-		return r;
+		// the "founding" block of the game's data (colony.json: the trades, the kit). Not a second copy here (T347).
+		static const FoundingRules rules = ShippedSection<FoundingRules>([](const std::string& doc, FoundingRules& r) { return LoadFoundingRules(doc, r); });
+		return rules;
 	}
 
 	namespace

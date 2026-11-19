@@ -52,4 +52,13 @@ namespace GB
 		for (const std::string& doc : ShippedDocuments()) if (!load(doc, value).empty()) break;
 		return value;
 	}
+	// T347: one section read from every document of the game's pack over `value`, in the manifest's order, whatever file of the pack has it: the
+	// first error ("" when every document read). A test that checks the shipped data reads it this way, never one file by its path.
+	template <class T, class Load>
+	std::string LoadShippedSection(T& value, Load load)
+	{
+		if (ShippedDocuments().empty()) return "the game's pack has no documents (" + ContentDir() + ")";
+		for (const std::string& doc : ShippedDocuments()) if (std::string error = load(doc, value); !error.empty()) return error;
+		return {};
+	}
 }

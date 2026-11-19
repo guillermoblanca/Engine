@@ -2,6 +2,7 @@
 // tribe applies to them are in TribePlayer.cpp.
 #include "GB/Game/PlayerMember.h"
 #include "GB/Game/WorldAlerts.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include <algorithm>
 #include <cmath>
 #include <nlohmann/json.hpp>
@@ -107,21 +108,16 @@ namespace GB
 
 	PlayerRules DefaultPlayerRules()
 	{
-		PlayerRules r;
-		r.Credit = { { "deposit", 0.5f }, { "job", 1.0f }, { "gift", 1.0f }, { "teach", 6.0f }, { "craft", 3.0f }, { "stoke", 2.0f }, { "build", 1.5f },
-			{ "trade", 5.0f }, { "proposal", 2.0f }, { "take", -0.3f }, { "hunt", 3.0f }, { "defend", 5.0f }, { "fall", -5.0f } };
-		r.Proposals.Culture = { { "sharing", 0.3f }, { "industry", 0.1f } };
-		return r;
+		// the "player" section of the game's data (player.json). Not a second copy here (T347).
+		static const PlayerRules rules = ShippedSection<PlayerRules>([](const std::string& doc, PlayerRules& r) { return LoadPlayerRules(doc, r); });
+		return rules;
 	}
 
 	ControlRules DefaultControls()
 	{
-		ControlRules c;
-		c.Keys = { { "interact", "E" }, { "eat", "F" }, { "drink", "R" }, { "deposit", "G" }, { "sleep", "Z" }, { "clan", "Tab" }, { "jobs", "J" }, { "claim", "C" },
-			{ "pause", "P" }, { "faster", "Equal" }, { "slower", "Minus" }, { "save", "F5" }, { "load", "F9" }, { "help", "H" }, { "view", "V" }, { "quit", "Escape" },
-			{ "inventory", "I" }, { "people", "T" }, { "build", "B" }, { "attack", "X" }, { "block", "Q" }, { "console", "GraveAccent" },
-			{ "village", "U" }, { "homes", "Y" }, { "clans", "O" }, { "tech", "K" }, { "map", "M" }, { "story", "N" } };
-		return c;
+		// the "controls" section of the game's data (player.json). Not a second copy here (T347).
+		static const ControlRules controls = ShippedSection<ControlRules>([](const std::string& doc, ControlRules& c) { return LoadControls(doc, c); });
+		return controls;
 	}
 
 	std::string LoadPlayerRules(const std::string& json, PlayerRules& rules)

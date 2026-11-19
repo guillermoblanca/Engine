@@ -1,0 +1,123 @@
+{
+  "note": "Society (T347, from era1.json): life, births, genes, personality, relations and culture.",
+  "society": {
+    "mutation": 0.06,
+    "life": {
+      "daySeconds": 0.0,
+      "daysPerYear": 1.0,
+      "childUntil": 14.0,
+      "elderFrom": 52.0,
+      "maxAge": 72.0,
+      "longevity": 8.0,
+      "oldAge": 0.35,
+      "founderMin": 16.0,
+      "founderMax": 40.0,
+      "heavy": [ "woodcutting", "mining", "firekeeping", "tool", "fire", "stoke" ],
+      "childWork": 0.15,
+      "elderWork": 0.6,
+      "childLearn": 1.6,
+      "childTeach": 0.5,
+      "elderTeach": 1.5,
+      "childPace": 0.7,
+      "elderPace": 0.75,
+      "childHeight": 0.55,
+      "starveDamage": 0.05,
+      "childRole": "forager"
+    },
+    "births": {
+      "pairAge": 16.0,
+      "ageGap": 15.0,
+      "pairMin": -0.1,
+      "minAge": 16.0,
+      "maxAge": 42.0,
+      "spacing": 1.0,
+      "chance": 0.35,
+      "foodPerMember": 1.5,
+      "needsFire": true,
+      "maxMembers": 200
+    },
+    "genes": {
+      "strength": {
+        "mean": 0.5,
+        "spread": 0.2,
+        "effects": { "woodcutting": 0.25, "mining": 0.25 },
+        "pace": { "woodcutting": 0.2, "mining": 0.2 }
+      },
+      "endurance": { "mean": 0.5, "spread": 0.2, "effects": { "sleep": -0.2, "explore": 0.2 } },
+      "perception": {
+        "mean": 0.5,
+        "spread": 0.2,
+        "effects": { "explore": 0.3, "experiment": 0.15 },
+        "learn": { "foraging": 0.3 }
+      },
+      "dexterity": {
+        "mean": 0.5,
+        "spread": 0.2,
+        "effects": { "crafting": 0.2 },
+        "learn": { "crafting": 0.4, "foraging": 0.2 },
+        "pace": { "crafting": 0.2, "foraging": 0.15 }
+      },
+      "longevity": { "mean": 0.5, "spread": 0.2 },
+      "intellect": { "mean": 0.5, "spread": 0.3 }
+    },
+    "traits": {
+      "sociability": {
+        "mean": 0.5,
+        "spread": 0.25,
+        "heritability": 0.5,
+        "effects": { "socialize": 0.8, "regroup": 0.2, "warm": 0.1 }
+      },
+      "diligence": {
+        "mean": 0.5,
+        "spread": 0.25,
+        "heritability": 0.5,
+        "effects": { "gather": 0.35, "deposit": 0.2, "tool": 0.2, "rest": -0.7 }
+      },
+      "curiosity": { "mean": 0.5, "spread": 0.25, "heritability": 0.5, "effects": { "experiment": 0.8, "explore": 0.5, "learn": 0.8 } },
+      "boldness": { "mean": 0.5, "spread": 0.25, "heritability": 0.5, "effects": { "explore": 0.4, "regroup": -0.5 } }
+    },
+    "relations": {
+      "events": {
+        "work": 0.02,
+        "food": 0.03,
+        "camp": 0.015,
+        "conflict": -0.12,
+        "teach": 0.04,
+        "pair": 0.3,
+        "birth": 0.4,
+        "help": 0.1,
+        "theft": -0.4,
+        "rescue": 0.4,
+        "care": 0.15
+      },
+      "decayPerDay": 0.03,
+      "keep": 0.02,
+      "maxPerMember": 12,
+      "kin": 0.3,
+      "campSeconds": 30.0,
+      "campRadius": 6.0,
+      "campNearest": 2,
+      "workRadius": 10.0
+    },
+    "culture": {
+      "drift": 0.05,
+      "norms": {
+        "sharing": { "start": 0.5, "trait": "sociability", "effects": { "socialize": 0.3, "deposit": 0.2, "warm": 0.1 } },
+        "industry": { "start": 0.5, "trait": "diligence", "effects": { "gather": 0.2, "rest": -0.3, "sleep": -0.1 } },
+        "inquiry": { "start": 0.5, "trait": "curiosity", "effects": { "experiment": 0.4, "explore": 0.2, "learn": 0.4 } },
+        "daring": {
+          "start": 0.5,
+          "trait": "boldness",
+          "effects": { "explore": 0.2, "regroup": -0.2, "fight": 0.3, "flee": -0.2 }
+        }
+      },
+      "traditions": {
+        "fire_vigil": { "name": "Fire vigil", "event": "stoke", "count": 30, "effects": { "warm": 0.15, "socialize": 0.1 } },
+        "naming_feast": { "name": "Naming feast", "event": "birth", "count": 3, "effects": { "socialize": 0.15 } },
+        "mourning": { "name": "Mourning", "event": "death", "count": 3, "effects": { "regroup": 0.15 } },
+        "lore_circle": { "name": "Lore circle", "event": "learn", "count": 5, "effects": { "experiment": 0.2 } },
+        "toolmakers": { "name": "Toolmakers' pride", "event": "craft", "count": 20, "effects": { "tool": 0.2 } }
+      }
+    }
+  }
+}

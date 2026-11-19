@@ -1,0 +1,30 @@
+{
+  "note": "The needs of a grown society and their verbs (T347, from era2.json, era4.json and era9.json, in that order; DataNeeds.h).",
+  "needs": [
+    { "id": "faith", "name": "Faith", "tech": "ritual", "members": 20, "verb": "pray", "provision": "faith", "decayPerDay": 60.0, "threshold": 45.0, "weight": 1.0, "seconds": 8.0, "amount": 60.0 },
+    {
+      "id": "learning",
+      "name": "Learning",
+      "tech": "writing",
+      "verb": "study",
+      "provision": "learning",
+      "decayPerDay": 30.0,
+      "threshold": 35.0,
+      "weight": 0.8,
+      "seconds": 10.0,
+      "amount": 50.0
+    },
+    {
+      "id": "purpose",
+      "name": "Purpose",
+      "tech": "artificial_intelligence",
+      "verb": "reflect",
+      "provision": "purpose",
+      "decayPerDay": 40.0,
+      "threshold": 40.0,
+      "weight": 1.0,
+      "seconds": 10.0,
+      "amount": 50.0
+    }
+  ]
+}

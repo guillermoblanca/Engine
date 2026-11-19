@@ -158,7 +158,7 @@ namespace GB
 		bool operator==(const DiplomacyRules&) const = default;
 	};
 
-	DiplomacyRules DefaultDiplomacyRules();   // assets/data/era1.json says the same in its "diplomacy" section
+	DiplomacyRules DefaultDiplomacyRules();   // the "diplomacy" section of the game's data (assets/data/rules/diplomacy.json; T347: read from the pack, no copy)
 	// { "diplomacy": { "seed": 1, "territory": { "every", "reach", ... }, "encounters": { ... }, "relations": { "events": {}, "grievances": {}, "openness": {},
 	//   "aggression": {}, ... }, "trade": { ..., "values": {} }, "exchange": { ... }, "marriage": { ... }, "pacts": { ... } } }. What a part says goes
 	// onto what was loaded before it (V5: a later pack changes only the values it gives, and adds to the maps); a file without the section changes

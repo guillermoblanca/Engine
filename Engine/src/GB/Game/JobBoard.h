@@ -62,7 +62,7 @@ namespace GB
 		bool operator==(const WorkRules&) const = default;
 	};
 
-	WorkRules DefaultWorkRules();   // assets/data/era1.json says the same in its "work" section
+	WorkRules DefaultWorkRules();   // the "work" section of the game's data (assets/data/rules/tribe.json)
 	// { "work": { "names": [ ... ], "skills": { "families": { "<key>": "<family>" }, "practice": { "gather": 1 }, "gain", "decayPerDay", "max", "yield", "speed",
 	//   "weight", "profession" }, "jobs": { "every", "bonus", "slotUnits", "maxSlots", "claimSeconds", "ageBoost", "ageSeconds", "maxAge", "minScore", "switch",
 	//   "priority": { "<kind>": p }, "upkeep": { "<item>": perMember }, "fireWood" }, "roles": { "review", "inertia", "skillSwitch", "minClan", "fireDemand" },

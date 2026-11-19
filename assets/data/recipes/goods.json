@@ -1,0 +1,13 @@
+{
+  "note": "The recipes whose output is in items/goods.json (T347). After every item file (D8): a recipe asks for items of any family.",
+  "recipes": [
+    { "id": "poultice", "inputs": { "herbs": 2, "fiber": 1 }, "output": "poultice", "count": 1, "ability": "Craft" },
+    { "ability": "Craft", "count": 1, "id": "campfire", "inputs": { "stone": 3, "wood": 4 }, "output": "campfire", "tool": "Item.Tool.Axe" },
+    { "id": "tunic", "inputs": { "cloth": 2, "yarn": 1, "bone_needle": 1 }, "output": "tunic", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "hide_clothing", "inputs": { "hide": 2, "sinew": 1, "bone_needle": 1 }, "output": "hide_clothing", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "sledge", "inputs": { "cordage": 2, "wood": 3 }, "output": "sledge", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "dugout", "inputs": { "log": 2, "resin": 1 }, "output": "dugout", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "cart_wheel", "inputs": { "log": 1, "wood": 2 }, "output": "cart_wheel", "count": 1, "station": "wheel", "ability": "Craft" },
+    { "id": "splint", "inputs": { "branch": 2, "cordage": 1 }, "output": "splint", "count": 1, "ability": "Craft" }
+  ]
+}

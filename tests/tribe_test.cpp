@@ -2,6 +2,7 @@
 // stand-in bodies that run the same task text a real actor runs. Checked: it reaches the goals, no count goes negative, nothing is claimed twice,
 // and two runs end identically. Also the data of the tribe (roles with their way of walking and their agenda, the agenda and the stock of the
 // "tribe" section) and the abstract agent on a navigation grid: it goes round a lake and never stands in it (H5). CPU only.
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
@@ -309,7 +310,7 @@ int GBTest_tribe(int, char**)
 	// Roles are data (assets/data/era1.json, "roles"): the file says what the code says, and a node the code never named is weighed by its kind.
 	{
 		std::map<std::string, TribeRole> fileRoles;
-		Check(LoadRolesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", fileRoles).empty(), "the roles of assets/data/era1.json load");
+		Check(LoadShippedSection(fileRoles, [](const std::string& doc, std::map<std::string, TribeRole>& r) { return LoadRoles(doc, r); }).empty(), "the roles of the game's pack load (T347: every file of it)");
 		Check(fileRoles == DefaultRoles(), "and say what DefaultRoles says");
 		std::map<std::string, TribeRole> back;
 		Check(LoadRoles("{ \"roles\": " + RolesToJson(DefaultRoles()) + " }", back).empty() && back == DefaultRoles(), "the roles round-trip");
@@ -348,7 +349,7 @@ int GBTest_tribe(int, char**)
 		TribeConfig file;
 		file.Agenda = TribeAgenda();
 		file.Economy = TribeEconomy();
-		Check(LoadTribeRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty(), "the tribe section of assets/data/era1.json loads");
+		Check(LoadShippedSection(file, [](const std::string& doc, TribeConfig& c) { return LoadTribeRules(doc, c); }).empty(), "the tribe section of the game's pack loads (T347: every file of it)");
 		Check(file.Agenda == DefaultAgenda() && file.Economy == DefaultEconomy(), "and says what DefaultAgenda and DefaultEconomy say");
 		TribeConfig back;
 		back.Agenda = TribeAgenda();

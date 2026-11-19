@@ -3,6 +3,7 @@
 // boosts them; the board posts the clan's needs, ages what nobody takes, lets claims lapse and round-trips; the trades of a new clan come from its
 // needs; a clan that works gets better at what it does, posts and claims jobs, saves and loads its skills and its board (and an old save loads with
 // none), and two runs end identically; a review of the trades moves a hand to where the clan lacks it. CPU only, stand-in bodies as in tribe_test.
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Interactives.h"
@@ -187,7 +188,7 @@ int GBTest_work(int, char**)
 	// ---- the data: the "work" section of era1.json says what the code says, round-trips, and a mistake changes nothing
 	{
 		WorkRules file;
-		Check(LoadWorkRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty(), "the work section of assets/data/era1.json loads");
+		Check(LoadShippedSection(file, [](const std::string& doc, WorkRules& r) { return LoadWorkRules(doc, r); }).empty(), "the work section of the game's pack loads (T347: every file of it)");
 		Check(file == DefaultWorkRules(), "and says what DefaultWorkRules says");
 		WorkRules back;
 		Check(LoadWorkRules("{ \"work\": " + WorkRulesToJson(DefaultWorkRules()) + " }", back).empty() && back == DefaultWorkRules(), "the work section round-trips");

@@ -65,7 +65,7 @@ namespace GB
 		bool operator==(const ExplorationRules&) const = default;
 	};
 
-	ExplorationRules DefaultExplorationRules();   // assets/data/era1.json says the same in its "exploration" section
+	ExplorationRules DefaultExplorationRules();   // the "exploration" section of the game's data (assets/data/rules/exploration.json; T347: read from the pack, no copy)
 	// { "exploration": { "regions": { "tile", "blockTiles", "minTiles", "waterShare", "scoutCell", "nearWater", "predatorDanger", "danger": { "<biome>": d },
 	//   "names": { "<biome>": "<word>" } }, "expeditions": { "every", "scarcity", "minParty", "maxParty", ... }, "migration": { "every", "homeRadius", ... } } }.
 	// Each of the three parts replaces that part whole (what it does not say is the default); a file without the section changes nothing; on a mistake

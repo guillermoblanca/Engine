@@ -249,6 +249,8 @@ gb_test(anim_usage anim_usage_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapid
 gb_test(anim_bindings anim_bindings_test.cpp POOL GBSimTests LINK GB::Sim LABELS rapido DEFS ${gb_asset} ${gb_data})
 # The visual layer as data (GB/Visual): procedural meshes, textures, node looks by Amount, props by bag and job, buildings by phase
 gb_test(visuals visuals_test.cpp POOL GBRenderTests LINK GB::Render LABELS rapido DEFS ${gb_asset})
+# T347: the canonical dump of the content the game loads (GBRenderTests content_dump <out.json>): moving data between files must leave it identical
+gb_test(content_dump content_dump_test.cpp POOL GBRenderTests LINK GB::Render LABELS rapido DEFS ${gb_assets} JSON)
 # H15: the player inside the society (PlayerMember, TribePlayer, ClansPlayer)
 gb_test(player player_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # The priority graph: editable decision priorities per role or character, JSON library, validation, subgraphs, and the tribe unchanged with the builtin graph

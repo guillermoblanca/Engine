@@ -1,0 +1,218 @@
+{
+  "note": "Raw materials and intermediates (Item.Resource.*) (T347). Every item file loads before nodes.json and recipes/: a file is checked as it loads, so what a node or a recipe names must be known by then.",
+  "items": [
+    { "id": "herbs", "name": "Healing herbs", "category": "resource", "weight": 0.1, "stack": 20, "tags": [ "Item.Resource.Herb" ] },
+    { "id": "hide", "name": "Hide", "category": "resource", "weight": 0.8, "stack": 10, "tags": [ "Item.Resource.Hide" ] },
+    { "id": "leather", "name": "Leather", "category": "resource", "weight": 0.6, "stack": 10, "tags": [ "Item.Resource.Leather" ] },
+    { "id": "daub", "name": "Daub", "category": "resource", "weight": 2.0, "stack": 10, "tags": [ "Item.Resource.Daub" ] },
+    { "id": "reed_mat", "name": "Reed mat", "category": "resource", "weight": 1.0, "stack": 10, "tags": [ "Item.Resource.Mat" ] },
+    { "id": "stake", "name": "Stake", "category": "resource", "weight": 1.5, "stack": 10, "tags": [ "Item.Resource.Wood.Stake" ], "fuel": 1 },
+    { "id": "fired_brick", "name": "Fired brick", "category": "resource", "weight": 2.5, "stack": 10, "tags": [ "Item.Resource.Brick.Fired" ] },
+    { "category": "resource", "fuel": 1, "id": "branch", "name": "Branch", "stack": 20, "tags": [ "Item.Resource.Wood.Branch" ], "weight": 0.6 },
+    { "category": "resource", "id": "clay", "name": "Clay", "stack": 10, "tags": [ "Item.Resource.Clay" ], "weight": 2.5 },
+    { "category": "resource", "id": "copper_ingot", "name": "Copper ingot", "stack": 10, "tags": [ "Item.Resource.Metal.Copper" ], "weight": 1.5 },
+    { "category": "resource", "id": "copper_ore", "name": "Copper ore", "stack": 10, "tags": [ "Item.Resource.Ore.Copper" ], "weight": 2.0 },
+    { "category": "resource", "id": "cordage", "name": "Cordage", "stack": 20, "tags": [ "Item.Resource.Cordage" ], "weight": 0.3 },
+    { "category": "resource", "id": "fiber", "name": "Plant fiber", "stack": 20, "tags": [ "Item.Resource.Fiber" ], "weight": 0.2 },
+    { "category": "resource", "id": "flint", "name": "Flint", "stack": 10, "tags": [ "Item.Resource.Stone.Flint" ], "weight": 1.0 },
+    { "category": "resource", "id": "reed", "name": "Reed", "stack": 20, "tags": [ "Item.Resource.Fiber.Reed" ], "weight": 0.2 },
+    { "category": "resource", "id": "stone", "name": "Stone", "stack": 10, "tags": [ "Item.Resource.Stone" ], "weight": 3.0 },
+    { "category": "resource", "fuel": 2, "id": "wood", "name": "Wood", "stack": 10, "tags": [ "Item.Resource.Wood" ], "weight": 2.0 },
+    { "id": "log", "name": "Log", "category": "resource", "weight": 6.0, "stack": 4, "tags": [ "Item.Resource.Wood.Log" ], "fuel": 4 },
+    { "id": "plank", "name": "Plank", "category": "resource", "weight": 2.0, "stack": 10, "tags": [ "Item.Resource.Wood.Plank" ] },
+    { "id": "resin", "name": "Resin", "category": "resource", "weight": 0.3, "stack": 20, "tags": [ "Item.Resource.Resin" ] },
+    { "id": "granite", "name": "Granite block", "category": "resource", "weight": 5.0, "stack": 6, "tags": [ "Item.Resource.Stone.Granite" ] },
+    { "id": "mud_brick", "name": "Mud brick", "category": "resource", "weight": 3.0, "stack": 8, "tags": [ "Item.Resource.Brick" ] },
+    { "id": "salt", "name": "Salt", "category": "resource", "weight": 0.5, "stack": 20, "tags": [ "Item.Resource.Salt" ] },
+    { "id": "bone", "name": "Bone", "category": "resource", "weight": 0.5, "stack": 20, "tags": [ "Item.Resource.Bone" ] },
+    { "id": "sinew", "name": "Sinew", "category": "resource", "weight": 0.1, "stack": 20, "tags": [ "Item.Resource.Sinew" ] },
+    { "id": "fat", "name": "Fat", "category": "resource", "weight": 0.3, "stack": 20, "tags": [ "Item.Resource.Fat" ], "fuel": 1 },
+    { "id": "feather", "name": "Feathers", "category": "resource", "weight": 0.02, "stack": 40, "tags": [ "Item.Resource.Feather" ] },
+    { "id": "flour", "name": "Flour", "category": "resource", "weight": 0.2, "stack": 30, "tags": [ "Item.Resource.Flour" ], "shelfLife": 6000.0 },
+    {
+      "category": "resource",
+      "id": "iron_ore",
+      "name": "Iron ore",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Ore.Iron"
+      ],
+      "weight": 2.5
+    },
+    {
+      "category": "resource",
+      "id": "iron_ingot",
+      "name": "Iron ingot",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Metal.Iron"
+      ],
+      "weight": 2.0
+    },
+    {
+      "category": "resource",
+      "id": "tablet",
+      "name": "Clay tablet",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Writing.Tablet"
+      ],
+      "weight": 0.6
+    },
+    {
+      "category": "resource",
+      "id": "scroll",
+      "name": "Scroll",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Writing.Scroll"
+      ],
+      "weight": 0.2
+    },
+    {
+      "category": "resource",
+      "id": "paper",
+      "name": "Paper",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Writing.Paper"
+      ],
+      "weight": 0.1
+    },
+    {
+      "category": "resource",
+      "id": "book",
+      "name": "Book",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Writing.Book"
+      ],
+      "weight": 0.5
+    },
+    {
+      "category": "resource",
+      "id": "coal",
+      "name": "Coal",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Fuel.Coal"
+      ],
+      "weight": 1.5
+    },
+    {
+      "category": "resource",
+      "id": "steel_ingot",
+      "name": "Steel ingot",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Metal.Steel"
+      ],
+      "weight": 2.0
+    },
+    {
+      "category": "resource",
+      "id": "engine",
+      "name": "Steam engine",
+      "stack": 2,
+      "tags": [
+        "Item.Resource.Machine.Engine"
+      ],
+      "weight": 8.0
+    },
+    {
+      "category": "resource",
+      "id": "copper_wire",
+      "name": "Copper wire",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Electric.Wire"
+      ],
+      "weight": 0.5
+    },
+    {
+      "category": "resource",
+      "id": "dynamo",
+      "name": "Dynamo",
+      "stack": 2,
+      "tags": [
+        "Item.Resource.Machine.Dynamo"
+      ],
+      "weight": 6.0
+    },
+    {
+      "category": "resource",
+      "id": "sand",
+      "name": "Sand",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Sand"
+      ],
+      "weight": 1.0
+    },
+    {
+      "category": "resource",
+      "id": "silicon",
+      "name": "Silicon",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Silicon"
+      ],
+      "weight": 0.5
+    },
+    {
+      "category": "resource",
+      "id": "chip",
+      "name": "Chip",
+      "stack": 10,
+      "tags": [
+        "Item.Resource.Electric.Chip"
+      ],
+      "weight": 0.05
+    },
+    {
+      "category": "resource",
+      "id": "computer",
+      "name": "Computer",
+      "stack": 2,
+      "tags": [
+        "Item.Resource.Machine.Computer"
+      ],
+      "weight": 5.0
+    },
+    {
+      "category": "resource",
+      "id": "model",
+      "name": "Trained model",
+      "stack": 5,
+      "tags": [
+        "Item.Resource.Machine.Model"
+      ],
+      "weight": 0.01
+    },
+    { "id": "flint_blade", "name": "Flint blade", "category": "resource", "weight": 0.2, "stack": 20, "tags": [ "Item.Resource.Stone.Flint.Blade" ] },
+    { "id": "bone_needle", "name": "Bone needle", "category": "resource", "weight": 0.05, "stack": 20, "tags": [ "Item.Resource.Bone.Needle" ] },
+    { "id": "clay_figurine", "name": "Clay figurine", "category": "resource", "weight": 0.3, "stack": 10, "tags": [ "Item.Resource.Craft.Figurine" ] },
+    { "id": "storage_jar", "name": "Storage jar", "category": "resource", "weight": 2.0, "stack": 6, "tags": [ "Item.Resource.Pottery.Jar" ] },
+    { "id": "glazed_jar", "name": "Glazed jar", "category": "resource", "weight": 2.0, "stack": 6, "tags": [ "Item.Resource.Pottery.Glazed" ] },
+    { "id": "lime", "name": "Quicklime", "category": "resource", "weight": 1.5, "stack": 10, "tags": [ "Item.Resource.Lime" ] },
+    { "id": "oil_lamp", "name": "Oil lamp", "category": "resource", "weight": 0.4, "stack": 10, "tags": [ "Item.Resource.Pottery.Lamp" ] },
+    { "id": "yarn", "name": "Yarn", "category": "resource", "weight": 0.1, "stack": 30, "tags": [ "Item.Resource.Fiber.Yarn" ] },
+    { "id": "cloth", "name": "Cloth", "category": "resource", "weight": 0.4, "stack": 20, "tags": [ "Item.Resource.Cloth" ] },
+    { "id": "dye", "name": "Dye", "category": "resource", "weight": 0.2, "stack": 20, "tags": [ "Item.Resource.Dye" ], "shelfLife": 1200.0 },
+    { "id": "dyed_cloth", "name": "Dyed cloth", "category": "resource", "weight": 0.4, "stack": 20, "tags": [ "Item.Resource.Cloth.Dyed" ] },
+    { "id": "mortar", "name": "Mortar", "category": "resource", "weight": 2.0, "stack": 10, "tags": [ "Item.Resource.Mortar" ] },
+    { "id": "copper_awl", "name": "Copper awl", "category": "resource", "weight": 0.2, "stack": 10, "tags": [ "Item.Resource.Metal.Copper.Awl" ] },
+    { "id": "copper_beads", "name": "Copper beads", "category": "resource", "weight": 0.1, "stack": 30, "tags": [ "Item.Resource.Metal.Copper.Beads" ] },
+    { "id": "charcoal", "name": "Charcoal", "category": "resource", "weight": 0.6, "stack": 20, "tags": [ "Item.Resource.Fuel.Charcoal" ], "fuel": 3 },
+    { "id": "bellows_bag", "name": "Bellows", "category": "resource", "weight": 1.5, "stack": 4, "tags": [ "Item.Resource.Tool.Bellows" ] },
+    { "id": "clay_mould", "name": "Clay mould", "category": "resource", "weight": 1.0, "stack": 10, "tags": [ "Item.Resource.Pottery.Mould" ] },
+    { "id": "copper_dagger", "name": "Copper dagger", "category": "resource", "weight": 0.6, "stack": 5, "tags": [ "Item.Resource.Metal.Copper.Dagger" ] },
+    { "category": "resource", "id": "tin_ore", "name": "Tin ore", "stack": 10, "tags": [ "Item.Resource.Ore.Tin" ], "weight": 2.0 },
+    { "category": "resource", "id": "bronze_ingot", "name": "Bronze ingot", "stack": 10, "tags": [ "Item.Resource.Metal.Bronze" ], "weight": 1.5 },
+    { "id": "ochre_paint", "name": "Ochre paint", "category": "resource", "weight": 0.2, "stack": 20, "tags": [ "Item.Resource.Pigment" ] },
+    { "id": "bone_beads", "name": "Bone beads", "category": "resource", "weight": 0.05, "stack": 40, "tags": [ "Item.Resource.Ornament.Beads" ] },
+    { "id": "bone_flute", "name": "Bone flute", "category": "resource", "weight": 0.1, "stack": 5, "tags": [ "Item.Resource.Ornament.Flute" ] },
+    { "id": "tally_stick", "name": "Tally stick", "category": "resource", "weight": 0.2, "stack": 20, "tags": [ "Item.Resource.Writing.Tally" ] },
+    { "id": "clay_token", "name": "Clay token", "category": "resource", "weight": 0.05, "stack": 40, "tags": [ "Item.Resource.Writing.Token" ] }
+  ]
+}

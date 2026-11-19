@@ -131,7 +131,7 @@ struct Clan
 		}
 		for (const char* far : { "oak_acorns", "granite_rock", "pine_resin", "wild_grain", "salt_flat", "old_bones", "fallen_trunk" }) Defs.erase(far);   // (not placed here)
 		if (extended)
-			Check(LoadEconomyRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", Tribe_.Config.Econ).empty(), "and the economy section of the game, with its crops");
+			Check(LoadShippedSection(Tribe_.Config.Econ, [](const std::string& doc, EconomyRules& r) { return LoadEconomyRules(doc, r); }).empty(), "and the economy section of the game, with its crops");
 		RegisterResourceContent(Gameplay.Library, Defs);
 		RegisterInteractiveContent(Gameplay.Library);
 		const ResourceCounts c = ScaledResources(n);
@@ -584,8 +584,11 @@ int GBTest_farm_zones(int, char**)
 		Tribe& t = k.Tribe_;
 		t.SetWorldClock(0.0);
 		const float plain = [&] { t.Store().Add(k.Items, "berry", 40); const float d = t.FoodDays(); t.Store().Remove("berry", 40); return d; }();
-		Check(LoadSocialRulesFile(std::string(GB_ASSETS_DIR) + "/data/food.json", t.Config.Social).empty() && t.Config.Social.On && !t.Config.Social.Diet.Foods.empty(),
-			"the diet of food.json (its foods' nutrition)");
+		SocialRules pack;   // T347: the diet as the game's pack gives it (rules/social.json), and only the diet, as food.json gave it
+		const bool read = LoadShippedSection(pack, [](const std::string& doc, SocialRules& r) { return LoadSocialRules(doc, r); }).empty();
+		t.Config.Social.On = true;
+		t.Config.Social.Diet = pack.Diet;
+		Check(read && t.Config.Social.On && !t.Config.Social.Diet.Foods.empty(), "the diet of the game's data (its foods' nutrition)");
 		const float grainN = FoodStock::Nutrition(t, "grain"), meatN = FoodStock::Nutrition(t, "cooked_meat");
 		std::fprintf(stderr, "  nutrition: grain %.1f, cooked meat %.1f, plain meal %d\n", static_cast<double>(grainN), static_cast<double>(meatN), t.Config.Needs.FoodHunger);
 		Check(t.IsFood("grain") && t.IsFood("cooked_meat") && grainN > 0.0f && grainN < meatN, "raw grain sates less than cooked meat");

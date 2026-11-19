@@ -1,6 +1,6 @@
 """T204 (S1 of VISION_MUNDO_VIVO section 13): how each society of a run progressed, from its telemetry (GBSim --telemetry=run.db).
 
-    python -I tools/society_report.py run.db [--run N] [--days 1,5,10,20,35,60] [--content assets/data/era1.json]
+    python -I tools/society_report.py run.db [--run N] [--days 1,5,10,20,35,60] [--content assets/data/rules/metrics.json]
 
 Reads the table society_days (schema 5: one row per clan and day, written by ClanWorld::Day; GB/Game/SocietyMetrics.h) and prints, per clan,
 the curve of its quality of life and its parts, technologies, population, generations, lineages, worn paths, barters with other clans and
@@ -104,7 +104,7 @@ def main():
     ap.add_argument("db")
     ap.add_argument("--run", type=int, default=None)
     ap.add_argument("--days", default="", help="only these days (comma separated), e.g. 1,5,10,20,35,60")
-    ap.add_argument("--content", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "data", "era1.json"),
+    ap.add_argument("--content", default=os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "assets", "data", "rules", "metrics.json"),
                     help="the content whose \"metrics\" weights the run used (for the loss column)")
     a = ap.parse_args()
     weights = weights_of(a.content)

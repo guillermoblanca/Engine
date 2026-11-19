@@ -212,7 +212,7 @@ int GBTest_colony_priorities(int, char**)
 	// ---- (0) every kind of work is in a category, or free
 	{
 		const WorkCategories& cats = DefaultWorkRules().Categories;
-		Check(!cats.Empty(), "(0) era1.json has work.categories");
+		Check(!cats.Empty(), "(0) the game's pack has work.categories");
 		const char* kinds[] = { "build", "craft", "deliver", "designate", "expedition", "farm", "fire", "gather", "haul", "hunt", "make", "stoke",   // the board's
 			"talk", "snare", "deposit", "warm", "tool", "teach", "socialize", "sleep", "rite", "rest", "regroup", "recover", "pave", "migrate", "gear",
 			"explore", "experiment", "envoy", "eat", "drink", "care" };   // the brain's options

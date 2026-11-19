@@ -34,12 +34,10 @@ namespace GB
 	struct TechTree;
 	class ClanWorld;
 
-	// The `tier` of each technology, read from the "techs" sections of content files (later files override, as LoadTechs does).
+	// The `tier` of each technology of a tree (TechDef::Tier: LoadTechs reads it; T347 took out the second reader of the files).
 	class TechTierMap
 	{
 	public:
-		// Reads "techs": [ { "id", "tier" } ] of one content file; a file without them, or not JSON, adds nothing. False when it is not JSON.
-		bool Read(const std::string& json);
 		// The tiers of a tree (TechDef::Tier, T323).
 		static TechTierMap FromTree(const TechTree& tree);
 		void Clear() { m_Of.clear(); }

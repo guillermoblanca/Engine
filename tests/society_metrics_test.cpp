@@ -6,6 +6,7 @@
 //  * on a real clan (a SimRun): emptying the store and the bags makes the food part 0, filling the store raises it and the index;
 //  * D33: the curves that never fill (techs, food), the losses of the recent young dead (an elder's death or an old one takes nothing off; two
 //    young ones today make the index fall visibly, and it comes back up as they fade).
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/History.h"
 #include "GB/Game/SimQA.h"
 #include "GB/Game/Society.h"
@@ -90,12 +91,10 @@ int GBTest_society_metrics(int, char**)
 		Check(LoadSocietyMetricRules(R"({ "items": [] })", same).empty() && same == r, "a file without the section changes nothing");
 	}
 	{
-		std::ifstream in(std::string(GB_ASSETS_DIR) + "/data/era1.json", std::ios::binary);
-		const std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-		SocietyMetricRules data;
+		SocietyMetricRules data;   // T347: the section as the game's pack gives it (whatever file has it)
 		data.Weights.clear();
-		const std::string error = LoadSocietyMetricRules(text, data);
-		Check(error.empty() && data == SocietyMetricRules{}, "era1.json's \"metrics\" says the built-in weights (the editor, which does not read it yet, weighs the same)" + (error.empty() ? std::string() : ": " + error));
+		const std::string error = LoadShippedSection(data, [](const std::string& doc, SocietyMetricRules& r) { return LoadSocietyMetricRules(doc, r); });
+		Check(error.empty() && data == SocietyMetricRules{}, "the pack's \"metrics\" says the built-in weights (the editor, which does not read it yet, weighs the same)" + (error.empty() ? std::string() : ": " + error));
 	}
 
 	// ---- lineages

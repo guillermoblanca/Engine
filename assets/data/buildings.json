@@ -1,0 +1,1106 @@
+{
+  "note": "Every building of the game (T347, from era1.json, tree_neolithic.json, medieval.json and era2..era9.json): its phases, its footprint and its generic provisions (PROGRESION.md). The technology that opens one names it in techs[].buildings; its model is in visuals.json.",
+  "buildings": {
+    "town_hall": { "name": "Town hall", "rank": "town", "zone": "craft", "footprint": [ 3.6, 3.0 ], "culture": 0.6, "aura": 4.0,
+      "phases": [ { "name": "base", "work": 12.0, "needs": { "stone": 10 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+                  { "name": "walls", "work": 12.0, "needs": { "wood": 8, "daub": 4 }, "substitutes": { "wood": [ "log", "plank" ] }, "part": "walls" },
+                  { "name": "roof", "work": 8.0, "needs": { "wood": 4, "reed": 6 }, "substitutes": { "wood": [ "log", "plank" ] }, "part": "roof" } ],
+      "color": [ 0.58, 0.46, 0.34 ] },
+    "shelter": {
+      "name": "Shelter",
+      "footprint": [ 3.0, 3.0 ],
+      "phases": [
+        { "name": "foundation", "work": 6.0, "needs": { "stone": 3 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "frame", "work": 12.0, "needs": { "branch": 6 }, "substitutes": { "branch": [ "wood" ] }, "part": "posts" },
+        { "name": "roof", "work": 10.0, "needs": { "reed": 4, "fiber": 3 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "shelter": 3,
+      "rest": 0.2,
+      "warmth": 0.3,
+      "color": [ 0.42, 0.3, 0.17 ]
+    },
+    "storage": {
+      "name": "Storage",
+      "footprint": [ 3.0, 2.5 ],
+      "phases": [
+        { "name": "floor", "work": 8.0, "needs": { "stone": 4, "wood": 2 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "walls", "work": 10.0, "needs": { "branch": 6 }, "substitutes": { "branch": [ "wood" ] }, "part": "walls" },
+        { "name": "roof", "work": 8.0, "needs": { "reed": 4 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "store": "stockpile",
+      "color": [ 0.5, 0.36, 0.2 ]
+    },
+    "workbench": {
+      "name": "Workbench",
+      "zone": "craft",
+      "footprint": [ 2.0, 1.2 ],
+      "phases": [ { "name": "bench", "work": 8.0, "needs": { "wood": 3, "stone": 2 }, "substitutes": { "stone": [ "granite" ] }, "part": "table" } ],
+      "station": "workbench",
+      "color": [ 0.55, 0.4, 0.22 ]
+    },
+    "drying_rack": {
+      "name": "Drying rack",
+      "zone": "food",
+      "footprint": [ 2.5, 1.5 ],
+      "phases": [
+        { "name": "frame", "work": 6.0, "needs": { "branch": 4 }, "substitutes": { "branch": [ "wood" ] }, "part": "posts" },
+        { "name": "rack", "work": 6.0, "needs": { "fiber": 3 }, "part": "rack" }
+      ],
+      "station": "drying_rack",
+      "color": [ 0.5, 0.38, 0.22 ]
+    },
+    "hut": {
+      "name": "Wattle hut",
+      "footprint": [ 3.6, 3.6 ],
+      "phases": [
+        { "name": "foundation", "work": 8.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "frame", "work": 12.0, "needs": { "branch": 6, "wood": 2 }, "part": "posts" },
+        { "name": "walls", "work": 14.0, "needs": { "branch": 6, "daub": 6 }, "substitutes": { "branch": [ "wood" ], "daub": [ "clay" ] }, "part": "walls" },
+        { "name": "roof", "work": 10.0, "needs": { "reed": 8, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "shelter": 4,
+      "rest": 0.3,
+      "warmth": 0.45,
+      "supersedes": [ "shelter" ],
+      "color": [ 0.5, 0.38, 0.26 ]
+    },
+    "longhouse": {
+      "name": "Longhouse",
+      "footprint": [ 7.0, 4.0 ],
+      "phases": [
+        { "name": "footings", "work": 10.0, "needs": { "stone": 8 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "frame", "work": 18.0, "needs": { "wood": 10, "cordage": 3 }, "part": "posts" },
+        { "name": "walls", "work": 18.0, "needs": { "branch": 10, "daub": 8 }, "substitutes": { "branch": [ "wood" ], "daub": [ "clay" ] }, "part": "walls" },
+        { "name": "roof", "work": 14.0, "needs": { "reed": 10, "reed_mat": 3 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "shelter": 8,
+      "rest": 0.35,
+      "warmth": 0.55,
+      "supersedes": [ "hut", "shelter" ],
+      "color": [ 0.46, 0.34, 0.22 ]
+    },
+    "cache_pit": {
+      "name": "Cache pit",
+      "near": "field", "zone": "farm",
+      "footprint": [ 2.0, 2.0 ],
+      "phases": [
+        { "name": "pit", "work": 12.0, "needs": { "stone": 2 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "lining", "work": 6.0, "needs": { "reed": 4, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "storeCap": 10,
+      "foodCap": 150,
+      "keep": 0.75,
+      "color": [ 0.42, 0.34, 0.24 ]
+    },
+    "granary": {
+      "name": "Raised granary",
+      "near": "field", "zone": "farm",
+      "footprint": [ 2.6, 2.6 ],
+      "phases": [
+        { "name": "stilts", "work": 10.0, "needs": { "wood": 4, "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "posts" },
+        { "name": "floor", "work": 8.0, "needs": { "wood": 3, "branch": 4 }, "part": "slab" },
+        { "name": "walls", "work": 10.0, "needs": { "branch": 6, "daub": 4 }, "substitutes": { "branch": [ "wood" ], "daub": [ "clay" ] }, "part": "walls" },
+        { "name": "roof", "work": 8.0, "needs": { "reed": 6 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "storeCap": 20,
+      "foodCap": 1500,
+      "keep": 0.5,
+      "supersedes": [ "cache_pit" ],
+      "color": [ 0.55, 0.42, 0.26 ]
+    },
+    "dug_well": {
+      "name": "Dug well",
+      "footprint": [ 2.2, 2.2 ],
+      "phases": [
+        { "name": "shaft", "work": 20.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "curb", "work": 10.0, "needs": { "stone": 4, "wood": 2 }, "substitutes": { "stone": [ "granite" ] }, "part": "rack" }
+      ],
+      "well": true,
+      "color": [ 0.45, 0.42, 0.38 ]
+    },
+    "hearth": {
+      "name": "Communal hearth",
+      "footprint": [ 2.4, 2.4 ],
+      "phases": [
+        { "name": "ring", "work": 8.0, "needs": { "stone": 6 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "fire", "work": 6.0, "needs": { "wood": 3 }, "part": "rack" }
+      ],
+      "station": "hearth",
+      "warmth": 0.4,
+      "culture": 0.15,
+      "aura": 6.0,
+      "color": [ 0.45, 0.4, 0.36 ]
+    },
+    "smoking_rack": {
+      "name": "Smoking rack",
+      "zone": "food",
+      "footprint": [ 2.2, 1.6 ],
+      "phases": [
+        { "name": "frame", "work": 8.0, "needs": { "branch": 6 }, "substitutes": { "branch": [ "wood" ] }, "part": "posts" },
+        { "name": "cover", "work": 8.0, "needs": { "reed": 4, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "station": "smoking_rack",
+      "color": [ 0.4, 0.3, 0.2 ]
+    },
+    "hide_frame": {
+      "name": "Hide frame",
+      "zone": "craft",
+      "footprint": [ 2.0, 1.2 ],
+      "phases": [
+        { "name": "pit", "work": 6.0, "needs": { "stone": 2 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "frame", "work": 8.0, "needs": { "branch": 4, "cordage": 2 }, "substitutes": { "branch": [ "wood" ] }, "part": "rack" }
+      ],
+      "station": "tannery",
+      "color": [ 0.52, 0.4, 0.28 ]
+    },
+    "healer_hut": {
+      "name": "Healer's hut",
+      "footprint": [ 2.6, 2.6 ],
+      "phases": [
+        { "name": "frame", "work": 8.0, "needs": { "branch": 6 }, "substitutes": { "branch": [ "wood" ] }, "part": "posts" },
+        { "name": "walls", "work": 8.0, "needs": { "reed": 6, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "walls" },
+        { "name": "remedies", "work": 4.0, "needs": { "poultice": 2 }, "substitutes": { "poultice": [ "splint" ] }, "part": "table" }
+      ],
+      "healing": 1.0,
+      "aura": 5.0,
+      "color": [ 0.4, 0.42, 0.28 ]
+    },
+    "totem": {
+      "name": "Totem",
+      "footprint": [ 3.0, 3.0 ],
+      "phases": [
+        { "name": "circle", "work": 8.0, "needs": { "stone": 6 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "pole", "work": 12.0, "needs": { "wood": 2 }, "part": "posts" }
+      ],
+      "culture": 0.25,
+      "aura": 9.0,
+      "color": [ 0.5, 0.32, 0.2 ]
+    },
+    "palisade": {
+      "name": "Palisade",
+      "footprint": [ 6.0, 0.8 ],
+      "phases": [
+        { "name": "stakes", "work": 14.0, "needs": { "stake": 12 }, "substitutes": { "stake": [ "wood" ] }, "part": "posts" },
+        { "name": "rails", "work": 10.0, "needs": { "branch": 6, "cordage": 3 }, "substitutes": { "branch": [ "wood" ] }, "part": "rack" }
+      ],
+      "defense": 1.0,
+      "color": [ 0.45, 0.33, 0.2 ]
+    },
+    "watchtower": {
+      "name": "Watchtower",
+      "footprint": [ 2.4, 2.4 ],
+      "phases": [
+        { "name": "footings", "work": 8.0, "needs": { "stone": 6 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "legs", "work": 16.0, "needs": { "wood": 6, "cordage": 3 }, "part": "posts" },
+        { "name": "platform", "work": 12.0, "needs": { "wood": 3, "branch": 6 }, "part": "slab" },
+        { "name": "parapet", "work": 12.0, "needs": { "stake": 8, "reed": 4 }, "substitutes": { "stake": [ "wood" ], "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "defense": 1.0,
+      "color": [ 0.44, 0.32, 0.2 ]
+    },
+    "kiln": {
+      "name": "Kiln",
+      "near": "clay_bank", "zone": "craft",
+      "footprint": [ 1.8, 1.8 ],
+      "phases": [
+        { "name": "base", "work": 8.0, "needs": { "stone": 6 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "dome", "work": 12.0, "needs": { "clay": 8 }, "part": "roof" },
+        { "name": "chimney", "work": 4.0, "needs": { "clay": 2 }, "part": "posts" }
+      ],
+      "station": "kiln",
+      "color": [ 0.62, 0.42, 0.3 ]
+    },
+    "forge": {
+      "name": "Forge",
+      "zone": "craft",
+      "footprint": [ 2.2, 2.0 ],
+      "phases": [
+        { "name": "hearth", "work": 12.0, "needs": { "stone": 6, "fired_brick": 6 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "bellows", "work": 8.0, "needs": { "hide": 2, "wood": 2 }, "substitutes": { "hide": [ "bellows_bag" ] }, "part": "table" }
+      ],
+      "station": "forge",
+      "color": [ 0.5, 0.3, 0.24 ]
+    },
+    "jar_store": {
+      "name": "Jar store",
+      "zone": "food",
+      "footprint": [ 3.0, 2.6 ],
+      "phases": [
+        { "name": "floor", "work": 10.0, "needs": { "stone": 4, "fired_brick": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "walls", "work": 12.0, "needs": { "branch": 6, "daub": 6 }, "substitutes": { "branch": [ "wood" ], "daub": [ "clay" ] }, "part": "walls" },
+        { "name": "roof", "work": 10.0, "needs": { "reed": 8, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" },
+        { "name": "jars", "work": 8.0, "needs": { "fired_brick": 4, "clay": 4 }, "part": "table" }
+      ],
+      "storeCap": 30,
+      "foodCap": 2000,
+      "keep": 0.35,
+      "supersedes": [ "cache_pit", "granary" ],
+      "color": [ 0.6, 0.44, 0.32 ]
+    },
+    "ancestor_shrine": {
+      "name": "Ancestor shrine",
+      "values": { "tradition": 10 },
+      "tech": "ritual",
+      "footprint": [ 2.4, 2.4 ],
+      "phases": [
+        { "name": "stones", "work": 10.0, "needs": { "stone": 6 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "posts", "work": 8.0, "needs": { "wood": 2, "branch": 2 }, "part": "posts" }
+      ],
+      "culture": 0.15,
+      "aura": 5.0,
+      "color": [ 0.55, 0.5, 0.42 ]
+    },
+    "story_lodge": {
+      "name": "Story lodge",
+      "values": { "knowledge": 10 },
+      "footprint": [ 3.2, 3.2 ],
+      "phases": [
+        { "name": "frame", "work": 10.0, "needs": { "branch": 8 }, "substitutes": { "branch": [ "wood" ] }, "part": "posts" },
+        { "name": "roof", "work": 10.0, "needs": { "reed": 6, "fiber": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "culture": 0.12,
+      "aura": 4.0,
+      "rest": 0.1,
+      "color": [ 0.5, 0.38, 0.24 ]
+    },
+    "trade_post": {
+      "name": "Trade post",
+      "values": { "trade": 5 },
+      "footprint": [ 3.0, 2.4 ],
+      "phases": [
+        { "name": "posts", "work": 8.0, "needs": { "wood": 4 }, "substitutes": { "wood": [ "log" ] }, "part": "posts" },
+        { "name": "awning", "work": 8.0, "needs": { "branch": 6, "fiber": 3 }, "substitutes": { "branch": [ "wood" ] }, "part": "roof" }
+      ],
+      "store": "stockpile",
+      "trade": 1.0,
+      "color": [ 0.62, 0.48, 0.26 ]
+    },
+    "war_lodge": {
+      "name": "War lodge",
+      "values": { "peace": -10 },
+      "footprint": [ 3.0, 3.0 ],
+      "phases": [
+        { "name": "frame", "work": 10.0, "needs": { "wood": 6 }, "substitutes": { "wood": [ "log" ] }, "part": "posts" },
+        { "name": "roof", "work": 8.0, "needs": { "branch": 4, "fiber": 2 }, "substitutes": { "branch": [ "wood" ] }, "part": "roof" }
+      ],
+      "defense": 0.3,
+      "color": [ 0.4, 0.26, 0.2 ]
+    },
+    "family_hall": {
+      "name": "Family hall",
+      "values": { "family": 10 },
+      "footprint": [ 4.0, 3.2 ],
+      "phases": [
+        { "name": "foundation", "work": 8.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "frame", "work": 14.0, "needs": { "wood": 4, "branch": 6 }, "part": "posts" },
+        { "name": "roof", "work": 12.0, "needs": { "reed": 6, "fiber": 3 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "shelter": 5,
+      "rest": 0.25,
+      "warmth": 0.3,
+      "color": [ 0.46, 0.32, 0.2 ]
+    },
+    "craft_lodge": {
+      "name": "Craft lodge",
+      "values": { "craft": 10 },
+      "zone": "craft",
+      "footprint": [ 3.2, 2.6 ],
+      "phases": [
+        { "name": "floor", "work": 8.0, "needs": { "stone": 3 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "frame", "work": 10.0, "needs": { "wood": 3, "branch": 4 }, "part": "posts" }
+      ],
+      "station": "workbench",
+      "storeCap": 6,
+      "color": [ 0.52, 0.4, 0.3 ]
+    },
+    "chief_hall": {
+      "name": "Chief's hall",
+      "values": { "power": 10 },
+      "footprint": [ 3.6, 3.0 ],
+      "phases": [
+        { "name": "foundation", "work": 8.0, "needs": { "stone": 5 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+        { "name": "frame", "work": 12.0, "needs": { "wood": 5 }, "substitutes": { "wood": [ "log" ] }, "part": "posts" },
+        { "name": "roof", "work": 10.0, "needs": { "reed": 5, "hide": 2 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" }
+      ],
+      "culture": 0.08,
+      "aura": 3.0,
+      "defense": 0.1,
+      "color": [ 0.5, 0.3, 0.22 ]
+    },
+    "spirit_grove": {
+      "name": "Spirit grove",
+      "values": { "nature": 10 },
+      "footprint": [ 3.5, 3.5 ],
+      "phases": [
+        { "name": "ring", "work": 8.0, "needs": { "branch": 4, "fiber": 2 }, "substitutes": { "branch": [ "wood" ] }, "part": "posts" }
+      ],
+      "culture": 0.1,
+      "aura": 6.0,
+      "color": [ 0.3, 0.45, 0.25 ]
+    },
+    "timber_house": {
+      "name": "Timber house",
+      "footprint": [
+        4.4,
+        6.4
+      ],
+      "zone": "homes",
+      "phases": [
+        {
+          "name": "floor",
+          "work": 10.0,
+          "needs": {
+            "plank": 6,
+            "stone": 4
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ],
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 24.0,
+          "needs": {
+            "wood": 10,
+            "daub": 10
+          },
+          "substitutes": {
+            "daub": [
+              "clay"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "storey 2",
+          "work": 20.0,
+          "needs": {
+            "plank": 14,
+            "daub": 8
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ],
+            "daub": [
+              "clay"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 14.0,
+          "needs": {
+            "wood": 4,
+            "fired_brick": 10
+          },
+          "part": "roof"
+        }
+      ],
+      "tech": "carpentry",
+      "shelter": 6,
+      "rest": 0.4,
+      "warmth": 0.6,
+      "supersedes": [
+        "longhouse",
+        "hut",
+        "shelter"
+      ],
+      "color": [
+        0.8,
+        0.72,
+        0.58
+      ]
+    },
+    "townhouse": {
+      "name": "Townhouse",
+      "footprint": [
+        6.4,
+        6.4
+      ],
+      "zone": "homes",
+      "phases": [
+        {
+          "name": "floor",
+          "work": 12.0,
+          "needs": {
+            "plank": 9,
+            "stone": 6
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ],
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 30.0,
+          "needs": {
+            "wood": 12,
+            "daub": 12
+          },
+          "substitutes": {
+            "daub": [
+              "clay"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 18.0,
+          "needs": {
+            "wood": 6,
+            "fired_brick": 12
+          },
+          "part": "roof"
+        }
+      ],
+      "tech": "masonry",
+      "shelter": 8,
+      "rest": 0.45,
+      "warmth": 0.7,
+      "supersedes": [
+        "timber_house",
+        "longhouse",
+        "hut",
+        "shelter"
+      ],
+      "color": [
+        0.82,
+        0.76,
+        0.62
+      ]
+    },
+    "stone_house": {
+      "name": "Stone house",
+      "footprint": [
+        6.4,
+        8.4
+      ],
+      "zone": "homes",
+      "phases": [
+        {
+          "name": "floor",
+          "work": 14.0,
+          "needs": {
+            "stone": 12
+          },
+          "substitutes": {
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 36.0,
+          "needs": {
+            "stone": 20,
+            "fired_brick": 10
+          },
+          "substitutes": {
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "storey 2",
+          "work": 30.0,
+          "needs": {
+            "plank": 20,
+            "stone": 10
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ],
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 18.0,
+          "needs": {
+            "wood": 6,
+            "fired_brick": 16
+          },
+          "part": "roof"
+        }
+      ],
+      "tech": "masonry",
+      "shelter": 10,
+      "rest": 0.5,
+      "warmth": 0.8,
+      "defense": 0.3,
+      "supersedes": [
+        "townhouse",
+        "timber_house",
+        "longhouse",
+        "hut",
+        "shelter"
+      ],
+      "color": [
+        0.62,
+        0.58,
+        0.54
+      ]
+    },
+    "tavern": {
+      "name": "Tavern",
+      "footprint": [
+        8.4,
+        10.4
+      ],
+      "zone": "civic",
+      "phases": [
+        {
+          "name": "floor",
+          "work": 16.0,
+          "needs": {
+            "stone": 14
+          },
+          "substitutes": {
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 40.0,
+          "needs": {
+            "stone": 20,
+            "wood": 12
+          },
+          "substitutes": {
+            "stone": [
+              "granite"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "storey 2",
+          "work": 30.0,
+          "needs": {
+            "plank": 26
+          },
+          "substitutes": {
+            "plank": [
+              "wood"
+            ]
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 20.0,
+          "needs": {
+            "wood": 8,
+            "fired_brick": 20
+          },
+          "part": "roof"
+        }
+      ],
+      "tech": "carpentry",
+      "shelter": 4,
+      "warmth": 0.6,
+      "culture": 0.5,
+      "aura": 8.0,
+      "color": [
+        0.6,
+        0.5,
+        0.42
+      ]
+    },
+    "temple": { "name": "Temple", "provides": { "faith": 1.5 }, "zone": "craft", "footprint": [ 3.0, 3.0 ], "aura": 3.0,
+      "phases": [ { "name": "base", "work": 10.0, "needs": { "stone": 8 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+                  { "name": "roof", "work": 10.0, "needs": { "wood": 6 }, "substitutes": { "wood": [ "log" ] }, "part": "roof" } ],
+      "color": [ 0.72, 0.62, 0.42 ] },
+    "smithy": {
+      "name": "Smithy",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "iron_ingot": 2,
+            "wood": 4
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.35,
+        0.3,
+        0.28
+      ],
+      "station": "forge"
+    },
+    "school": {
+      "name": "School",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "fired_brick": 6,
+            "tablet": 2
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.7,
+        0.66,
+        0.55
+      ],
+      "provides": {
+        "learning": 1.5
+      },
+      "aura": 3.0
+    },
+    "print_shop": {
+      "name": "Print shop",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "plank": 6,
+            "iron_ingot": 2
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.55,
+        0.42,
+        0.3
+      ],
+      "station": "press"
+    },
+    "library": {
+      "name": "Library",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 10
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "plank": 6,
+            "book": 2
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.6,
+        0.5,
+        0.38
+      ],
+      "provides": {
+        "learning": 3.0
+      },
+      "aura": 3.0
+    },
+    "factory": {
+      "name": "Factory",
+      "zone": "craft",
+      "footprint": [
+        4.0,
+        3.5
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 12,
+            "fired_brick": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "steel_ingot": 4,
+            "plank": 6
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.4,
+        0.32,
+        0.3
+      ],
+      "station": "factory"
+    },
+    "power_station": {
+      "name": "Power station",
+      "zone": "craft",
+      "footprint": [
+        4.0,
+        3.5
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 12,
+            "fired_brick": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "dynamo": 1,
+            "copper_wire": 6
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.45,
+        0.45,
+        0.5
+      ]
+    },
+    "office": {
+      "name": "Office",
+      "zone": "craft",
+      "footprint": [
+        4.0,
+        3.5
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 10,
+            "fired_brick": 10
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "computer": 2,
+            "plank": 6
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.62,
+        0.64,
+        0.68
+      ],
+      "provides": {
+        "learning": 4.0
+      },
+      "aura": 3.0
+    },
+    "datacenter": {
+      "name": "Data centre",
+      "zone": "craft",
+      "footprint": [
+        4.0,
+        4.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 12,
+            "fired_brick": 10
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "computer": 4,
+            "copper_wire": 8
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.5,
+        0.55,
+        0.62
+      ],
+      "station": "datacenter"
+    },
+    "commons": {
+      "name": "Commons",
+      "zone": "craft",
+      "footprint": [
+        3.0,
+        3.0
+      ],
+      "phases": [
+        {
+          "name": "base",
+          "work": 10.0,
+          "needs": {
+            "stone": 8
+          },
+          "part": "slab"
+        },
+        {
+          "name": "walls",
+          "work": 12.0,
+          "needs": {
+            "plank": 6
+          },
+          "part": "walls"
+        },
+        {
+          "name": "roof",
+          "work": 8.0,
+          "needs": {
+            "wood": 4
+          },
+          "substitutes": {
+            "wood": [
+              "log",
+              "plank"
+            ]
+          },
+          "part": "roof"
+        }
+      ],
+      "color": [
+        0.55,
+        0.62,
+        0.45
+      ],
+      "provides": {
+        "purpose": 2.0
+      },
+      "aura": 3.0
+    },
+    "loom_frame": { "name": "Loom", "zone": "craft", "footprint": [ 2.0, 1.4 ],
+      "phases": [ { "name": "frame", "work": 8.0, "needs": { "branch": 6, "wood": 2 }, "part": "posts" },
+                  { "name": "warp", "work": 6.0, "needs": { "cordage": 2, "stone": 2 }, "part": "rack" } ],
+      "station": "loom", "color": [ 0.56, 0.44, 0.3 ] },
+    "quern": { "name": "Quern", "zone": "food", "footprint": [ 1.4, 1.4 ],
+      "phases": [ { "name": "stones", "work": 10.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" } ],
+      "station": "quern", "color": [ 0.5, 0.48, 0.44 ] },
+    "bread_oven": { "name": "Bread oven", "zone": "food", "footprint": [ 1.8, 1.8 ],
+      "phases": [ { "name": "base", "work": 8.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+                  { "name": "dome", "work": 10.0, "needs": { "clay": 6, "fired_brick": 2 }, "part": "roof" } ],
+      "station": "oven", "color": [ 0.64, 0.46, 0.34 ] },
+    "potter_wheel": { "name": "Potter's wheel", "near": "clay_bank", "zone": "craft", "footprint": [ 1.6, 1.6 ],
+      "phases": [ { "name": "pivot", "work": 8.0, "needs": { "stone": 2, "wood": 2 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+                  { "name": "wheel", "work": 6.0, "needs": { "clay": 2, "wood": 1 }, "part": "table" } ],
+      "station": "wheel", "color": [ 0.6, 0.45, 0.32 ] },
+    "cellar": { "name": "Jar cellar", "zone": "food", "footprint": [ 2.6, 2.4 ],
+      "phases": [ { "name": "pit", "work": 12.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+                  { "name": "jars", "work": 6.0, "needs": { "storage_jar": 4 }, "substitutes": { "storage_jar": [ "glazed_jar" ] }, "part": "table" },
+                  { "name": "cover", "work": 8.0, "needs": { "wood": 3, "reed": 4 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" } ],
+      "storeCap": 15, "keep": 0.4, "color": [ 0.5, 0.4, 0.3 ] },
+    "mudbrick_house": { "name": "Mud-brick house", "zone": "homes", "footprint": [ 4.0, 3.6 ],
+      "phases": [ { "name": "footings", "work": 8.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+                  { "name": "walls", "work": 16.0, "needs": { "mud_brick": 10, "mortar": 4 }, "substitutes": { "mortar": [ "clay", "lime" ] }, "part": "walls" },
+                  { "name": "roof", "work": 10.0, "needs": { "wood": 4, "reed": 6 }, "substitutes": { "reed": [ "branch" ] }, "part": "roof" } ],
+      "shelter": 5, "rest": 0.35, "warmth": 0.5, "color": [ 0.66, 0.52, 0.38 ] },
+    "stone_circle": { "name": "Stone circle", "footprint": [ 5.0, 5.0 ],
+      "phases": [ { "name": "stones", "work": 20.0, "needs": { "granite": 6, "stone": 6, "sledge": 1 }, "part": "slab" } ],
+      "culture": 0.3, "aura": 8.0, "color": [ 0.55, 0.53, 0.5 ] }
+  }
+}

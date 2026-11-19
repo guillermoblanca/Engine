@@ -213,7 +213,7 @@ namespace GB
 		HuntingRules Hunting;
 		bool operator==(const SocialRules&) const = default;
 	};
-	SocialRules DefaultSocialRules();   // assets/data/social.json says the same in its "social" section; the diet's foods are only in food.json (T346)
+	SocialRules DefaultSocialRules();   // the "social" section of the game's data (assets/data/rules/social.json, with the diet; T347: read from the pack, no copy)
 	// { "social": { "seed", "stepSeconds", "mood": {...}, "grief": {...}, "talk": { ..., "kinds": { "<kind>": {...} } }, "rites": { "<id>": {...} },
 	//   "beliefs": { ..., "systems": {}, "taboos": {}, "omens": {} }, "shaman": {...}, "diet": { ..., "foods": {} }, "hunting": { "wildlife": {},
 	//   "traps": {} } } }. "rites" adds or replaces rites by id; every other part replaces that part whole (what it does not say is the default); a
