@@ -138,7 +138,7 @@ namespace GB
 
 	EconomyRules DefaultEconomyRules()
 	{
-		// the "economy" section of the game's data (era1.json): production, spoilage, fields and crops, stores and hauling. Not a second copy here.
+		// the "economy" section of the game's data (rules/economy.json): production, spoilage, fields and crops, stores and hauling. Not a second copy here.
 		static const EconomyRules rules = ShippedSection<EconomyRules>([](const std::string& doc, EconomyRules& r) { return LoadEconomyRules(doc, r); });
 		return rules;
 	}
@@ -166,7 +166,15 @@ namespace GB
 				if (!(e = r.Int("depth", x.Depth, 0, 8)).empty() || !(e = r.Int("maxBatches", x.MaxBatches, 1, 100)).empty() || !(e = r.Float("seconds", x.Seconds, 0.0f, 3600.0f)).empty()
 					|| !(e = r.Float("priority", x.Priority, 0.0f, 100.0f)).empty() || !(e = r.Words("campStations", x.CampStations)).empty() || !(e = r.Bool("upgrade", x.Upgrade)).empty()
 					|| !(e = r.Bool("experiment", x.Experiment)).empty() || !(e = r.Float("containersPerMember", x.ContainersPerMember, 0.0f, 10.0f)).empty()
-					|| !(e = r.Float("preserveAbove", x.PreserveAbove, 0.0f, 100.0f)).empty()) return e;
+					|| !(e = r.Float("preserveAbove", x.PreserveAbove, 0.0f, 100.0f)).empty() || !(e = r.Float("preserveDays", x.PreserveDays, 0.0f, 365.0f)).empty()) return e;
+				if (r.Has("meals"))   // T300
+				{
+					const Json& m = (*p)["meals"];
+					if (!m.is_object()) return "economy: production meals must be an object";
+					Reader mr{ m, "production meals", {} };
+					if (!(e = mr.Float("perMember", x.Meals.PerMember, 0.0f, 100.0f)).empty() || !(e = mr.Float("rawSoon", x.Meals.RawSoon, 0.0f, 1e6f)).empty()
+						|| !(e = mr.Unknown()).empty()) return e;
+				}
 				if (r.Has("stock"))
 				{
 					const Json& s = (*p)["stock"];
@@ -334,6 +342,8 @@ namespace GB
 		p["experiment"] = x.Experiment;
 		p["containersPerMember"] = Rounded(x.ContainersPerMember);
 		p["preserveAbove"] = Rounded(x.PreserveAbove);
+		if (x.PreserveDays > 0.0f) p["preserveDays"] = Rounded(x.PreserveDays);   // T358 (only when the data says so)
+		if (x.Meals != ProductionRules::MealRules()) p["meals"] = Json{ { "perMember", Rounded(x.Meals.PerMember) }, { "rawSoon", Rounded(x.Meals.RawSoon) } };   // T300
 		s["step"] = Rounded(r.Spoilage.Step);
 		s["bag"] = Rounded(r.Spoilage.Bag);
 		Json seasons = Json::object();

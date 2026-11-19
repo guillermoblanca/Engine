@@ -583,7 +583,7 @@ int GBTest_farm_zones(int, char**)
 		Clan k(4, true);
 		Tribe& t = k.Tribe_;
 		t.SetWorldClock(0.0);
-		const float plain = [&] { t.Store().Add(k.Items, "berry", 40); const float d = t.FoodDays(); t.Store().Remove("berry", 40); return d; }();
+		const float plain = [&] { t.Store().Add(k.Items, "berry", 20); const float d = t.FoodDays(); t.Store().Remove("berry", 20); return d; }();   // T360: 20, eaten before they go off
 		SocialRules pack;   // T347: the diet as the game's pack gives it (rules/social.json), and only the diet, as food.json gave it
 		const bool read = LoadShippedSection(pack, [](const std::string& doc, SocialRules& r) { return LoadSocialRules(doc, r); }).empty();
 		t.Config.Social.On = true;
@@ -593,8 +593,8 @@ int GBTest_farm_zones(int, char**)
 		std::fprintf(stderr, "  nutrition: grain %.1f, cooked meat %.1f, plain meal %d\n", static_cast<double>(grainN), static_cast<double>(meatN), t.Config.Needs.FoodHunger);
 		Check(t.IsFood("grain") && t.IsFood("cooked_meat") && grainN > 0.0f && grainN < meatN, "raw grain sates less than cooked meat");
 		auto daysOf = [&](const char* food, int n) { t.Store().Add(k.Items, food, n); const float d = t.FoodDays(); const float s = t.FoodShortage(); t.Store().Remove(food, n); return std::make_pair(d, s); };
-		const auto [grainDays, grainShort] = daysOf("grain", 40);
-		const auto [meatDays, meatShort] = daysOf("cooked_meat", 40);
+		const auto [grainDays, grainShort] = daysOf("grain", 20);   // T360: 20, eaten before they go off (forty cooked meat outlast its two days)
+		const auto [meatDays, meatShort] = daysOf("cooked_meat", 20);
 		std::fprintf(stderr, "  40 units: grain %.2f days (short %.2f), cooked meat %.2f days (short %.2f); berries without the diet %.2f\n", static_cast<double>(grainDays),
 			static_cast<double>(grainShort), static_cast<double>(meatDays), static_cast<double>(meatShort), static_cast<double>(plain));
 		Check(grainDays > 0.0f && grainDays < meatDays && std::abs(grainDays / meatDays - grainN / meatN) < 1e-3f, "the same units are fewer days of grain than of meat, in the ratio of their nutrition");
@@ -607,7 +607,7 @@ int GBTest_farm_zones(int, char**)
 		const float grainWant = FoodStock::UnitsFor(t, "grain", 3.0f, 4.0f), meatWant = FoodStock::UnitsFor(t, "cooked_meat", 3.0f, 4.0f);
 		Check(grainWant > meatWant && std::abs(grainWant * grainN - meatWant * meatN) < 1e-2f, "the stock wanted for the days of food is more units of grain than of meat");
 		t.Config.Social.On = false;
-		const auto [offDays, offShort] = daysOf("grain", 40);
+		const auto [offDays, offShort] = daysOf("grain", 20);
 		Check(std::abs(offDays - plain) < 1e-5f, "with the social life off every food is a plain meal (the old count)");
 		(void)offShort;
 		t.Config.Social.On = true;

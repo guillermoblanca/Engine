@@ -297,6 +297,10 @@ gb_test(wild_plants wild_plants_test.cpp POOL GBSimTests LINK GB::Sim LABELS "ra
 gb_test(tool_recipe food_base_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} ARGS tool_recipe)
 gb_test(node_extra_chance food_base_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} ARGS node_extra_chance)
 gb_test(meal_log food_base_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets} ARGS meal_log)
+# T358 (N1) and T300 (N3): what keeps food and what cooks it, and how much the clan of the AI asks for (GB/Game/ClanCooking.h)
+gb_test(cooking cooking_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T359 (N2), T360 (N4) and the eating order of T300: the ceiling of food gathering, food days by what lasts, cooked meals first
+gb_test(food_ceiling food_ceiling_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T240 (MODO_DIOS_DECISIONES.md §3.c): the vision: the dreamer, the clan's aim, the lapse, the material the clan lacks
 gb_test(director_vision director_vision_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T204 (S1, VISION_MUNDO_VIVO section 13): the measure of a society: quality of life, lineages, the "metrics" section, a real clan with and without food

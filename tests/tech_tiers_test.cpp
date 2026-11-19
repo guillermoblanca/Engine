@@ -173,7 +173,7 @@ struct Camp
 		Tribe_.Config.PlanSeconds = 5.0f;              // (the clan's next steps are set again often)
 		Tribe_.Store().Add(Items, "wood", 10);
 		Tribe_.Store().Add(Items, "stone", 12);
-		Tribe_.Store().Add(Items, "berry", 200);
+		Tribe_.Store().Add(Items, "nuts", 200);   // T360: food for days that lasts them (200 berries are the day and a half they keep)
 		for (size_t i = 0; i < 4; ++i) Tribe_.AddMember(names[i], roles[i], bodies[i].get());
 	}
 	void Step()

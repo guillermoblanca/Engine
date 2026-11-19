@@ -156,6 +156,8 @@ add_library(GB_Sim STATIC
     src/GB/Game/BushKeeper.cpp
     src/GB/Game/MealLog.cpp
     src/GB/Game/FoodStock.cpp
+    src/GB/Game/ClanCooking.cpp
+    src/GB/Game/FoodCeiling.cpp
     src/GB/Game/TribeConflict.cpp
     src/GB/Game/Trails.cpp
     src/GB/Game/Conflict.cpp

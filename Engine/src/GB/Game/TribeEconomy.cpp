@@ -5,6 +5,8 @@
 // and Finish hand "make", "farm" and "haul" here, and the deposit goes through DepositPlace / DepositAt. Deterministic like the rest: maps in id
 // order, ties to the first, no randomness (the rain on the fields comes from the season, not from dice).
 #include "GB/Game/Tribe.h"
+#include "GB/Game/ClanCooking.h"
+#include "GB/Game/FoodStock.h"
 #include "GB/Game/TechModifiers.h"
 #include "GB/Game/FieldPlacement.h"
 #include "GB/Gameplay/GameplayTag.h"
@@ -85,6 +87,92 @@ namespace GB
 			if (!d) return false;
 			for (const std::string& tag : kind.Accepts) if (Tagged(*d, tag)) return true;
 			return false;
+		}
+
+		// T358, T300: what ClanCooking reads of a clan: its items and recipes, what is food, the diet (nutrition and group) and its stations
+		ClanCooking::Query CookingQuery(const Tribe& tribe, const ItemLibrary& items, const RecipeBook& recipes, std::function<bool(const Recipe&)> known)
+		{
+			ClanCooking::Query q;
+			q.Items = &items;
+			q.Recipes = &recipes;
+			q.IsFood = [&tribe](const std::string& item) { return tribe.IsFood(item); };
+			q.Nutrition = [&tribe](const std::string& item) { return FoodStock::Nutrition(tribe, item); };
+			q.Group = [&tribe](const std::string& item)
+			{
+				if (!tribe.Config.Social.On) return std::string();
+				const auto f = tribe.Config.Social.Diet.Foods.find(item);
+				return f != tribe.Config.Social.Diet.Foods.end() ? f->second.Group : std::string();
+			};
+			q.Known = std::move(known);
+			q.Station = [&tribe](const std::string& s) { return tribe.StationAt(s); };
+			q.MaxBatches = tribe.Config.Econ.Production.MaxBatches;
+			return q;
+		}
+
+		// T300 (N3, P-A8): the cooking of the clan of the AI (GB/Game/ClanCooking.h). Raw food about to go off (meals.rawSoon) is cooked when a
+		// recipe keeps it; then the clan keeps meals.perMember cooked meals a living member, of the best recipes it knows with their station
+		// standing and their inputs stored. A recipe whose inputs are all in the store comes back as a step that can start now (the planner would
+		// make an item by its first recipe, porridge of grain for a clan with barley only, and ask for the grain it lacks); one with an input to
+		// be made first (bread: flour from the quern) goes into `wants`, so the planner makes the chain.
+		std::vector<ProductionStep> MealSteps(const Tribe& tribe, const ItemLibrary& items, const RecipeBook& recipes, std::function<bool(const Recipe&)> known, std::vector<ProductionWant>& wants)
+		{
+			std::vector<ProductionStep> out;
+			const ProductionRules& p = tribe.Config.Econ.Production;
+			// (the player's clan in the colony cooks what the player asks for: its stock goals, T307; its menus are T302)
+			if ((p.Meals.PerMember <= 0.0f && p.Meals.RawSoon <= 0.0f) || tribe.Zones().Player()) return out;
+			const ClanCooking::Query q = CookingQuery(tribe, items, recipes, std::move(known));
+			const Inventory& store = tribe.Store();
+			std::map<std::string, int> stock;
+			for (const ItemSlot& s : store.Stacks()) stock[s.Id] += s.Count;
+			// the cooked meals in hand: the store, the bags of the living and the pantries
+			std::map<std::string, int> held;
+			int alive = 0;
+			for (const TribeMember& m : tribe.Members()) if (!m.Dead) ++alive;
+			for (const std::string& meal : ClanCooking::MealFoods(q))
+			{
+				int n = store.Count(meal);
+				for (const TribeMember& m : tribe.Members()) if (!m.Dead && m.Body) n += m.Body->Bag().Count(meal);
+				for (const auto& [house, pantry] : tribe.Economy().Pantries) n += pantry.Count(meal);
+				if (n > 0) held[meal] = n;
+			}
+			std::vector<ClanCooking::Cook> cooks;
+			if (p.Meals.RawSoon > 0.0f)
+			{
+				std::map<std::string, ClanCooking::Soon> soon;
+				for (const ItemSlot& s : store.Stacks())
+				{
+					const ItemDef* d = items.Find(s.Id);
+					if (!d || !d->Perishable() || s.Count <= 0 || !tribe.IsFood(s.Id)) continue;
+					const float left = LifeLeft(items, s);
+					if (left >= p.Meals.RawSoon) continue;
+					const auto it = soon.try_emplace(s.Id, ClanCooking::Soon{ 0, left }).first;
+					it->second.Units += s.Count;
+					it->second.Left = std::min(it->second.Left, left);
+				}
+				if (!soon.empty()) cooks = ClanCooking::RawSoon(q, stock, held, soon);
+			}
+			if (p.Meals.PerMember > 0.0f && alive > 0)
+			{
+				const int wanted = static_cast<int>(std::ceil(p.Meals.PerMember * static_cast<float>(alive) - 1e-4f));
+				for (const ClanCooking::Cook& c : ClanCooking::Meals(q, stock, held, wanted))
+				{
+					const auto same = std::find_if(cooks.begin(), cooks.end(), [&](const ClanCooking::Cook& x) { return x.Use == c.Use; });
+					if (same == cooks.end()) cooks.push_back(c);
+					else { same->Batches += c.Batches; same->Chain = same->Chain || c.Chain; }
+				}
+			}
+			const int most = std::max(1, p.MaxBatches);
+			for (const ClanCooking::Cook& c : cooks)
+			{
+				const int batches = std::min(c.Batches, most);
+				if (!c.Use || batches <= 0) continue;
+				if (!c.Chain) { out.push_back({ c.Use->Id, c.Use->Output, batches, 0, true, c.Why }); continue; }
+				const int units = store.Count(c.Use->Output) + batches * std::max(1, c.Use->OutputCount);
+				const auto w = std::find_if(wants.begin(), wants.end(), [&](const ProductionWant& x) { return x.Item == c.Use->Output && x.Make; });
+				if (w == wants.end()) wants.push_back({ c.Use->Output, units, c.Why });
+				else w->Units = std::max(w->Units, units);   // (one want of an item: two would each set the stock aside and add up)
+			}
+			return out;
 		}
 	}
 
@@ -185,8 +273,11 @@ namespace GB
 	}
 
 	// The food eaten first from a bag or a store: what goes off soonest (the least life left; what never spoils last), then the lowest id.
+	// T300: a clan that keeps cooked meals eats them first, unless something is about to go off (ClanCooking::EatFirst)
 	std::string Tribe::FoodToEat(const Inventory& inv) const
 	{
+		if (const ProductionRules::MealRules& meals = Config.Econ.Production.Meals; meals.PerMember > 0.0f && m_Items && m_Recipes)
+			if (std::string meal = ClanCooking::EatFirst(CookingQuery(*this, *m_Items, *m_Recipes, nullptr), inv, meals.RawSoon); !meal.empty()) return meal;
 		std::string best;
 		float left = 0.0f;
 		for (const ItemSlot& s : inv.Stacks())
@@ -305,9 +396,15 @@ namespace GB
 			if (n > 0) out.push_back({ item, n, "the store keeps " + std::to_string(n) + " " + item });
 
 		// 7) preserving (E6): perishable food above PreserveAbove x its stock target is turned into something that keeps longer, when a known recipe
-		// and its station allow (berries -> dried berries at the drying rack); of several, the one whose output keeps longest (meat: smoked before cooked)
+		// and its station allow (berries -> dried berries at the drying rack); of several, the one whose output keeps longest (meat: smoked before
+		// cooked). T358 (N1): only by a recipe none of whose other perishable inputs outlives its output (ClanCooking::Keeps: two lentils were spent
+		// to save one leaf, and two thirds of that pottage went off), and with PreserveDays only up to that many days of what the clan eats of the
+		// output's group, with the winter stock on top in the season before the lean one (thousands of dried berries filled the jars in spring)
 		if (p.PreserveAbove > 0.0f)
 		{
+			const ClanCooking::Query cooking = CookingQuery(*this, *m_Items, *m_Recipes, [this](const Recipe& r) { return ClanKnows(r); });
+			int alive = 0;
+			for (const TribeMember& m : m_Members) if (!m.Dead) ++alive;
 			std::vector<std::string> foods;
 			for (const ItemSlot& s : m_Store.Stacks()) if (std::find(foods.begin(), foods.end(), s.Id) == foods.end()) foods.push_back(s.Id);
 			std::sort(foods.begin(), foods.end());
@@ -323,19 +420,43 @@ namespace GB
 				{
 					const Recipe* r = m_Recipes->Find(id);
 					const ItemDef* out_ = r ? m_Items->Find(r->Output) : nullptr;
-					const auto in = r ? r->Inputs.find(food) : std::map<std::string, int>::const_iterator();
-					if (!out_ || in == r->Inputs.end() || (out_->Perishable() && out_->ShelfLife <= d->ShelfLife) || !ClanKnows(*r) || !StationAt(r->Station)) continue;
-					const float life = out_->Perishable() ? out_->ShelfLife : 1e30f;   // (what never goes off keeps longest)
+					if (!out_ || !ClanCooking::Keeps(cooking, *r, food) || !ClanKnows(*r) || !StationAt(r->Station)) continue;
+					const float life = ClanCooking::Life(*out_);   // (what never goes off keeps longest)
 					if (!best || life > bestLife) { best = r; bestLife = life; }
 				}
+				if (!best) continue;
+				const int per = std::max(1, best->OutputCount);
 				// (a store full of what keeps: no more of it; 2000 dried berries in twelve days filled every slot). The same test the maker makes (a
 				// batch past the cap is not made): with "below the cap" a store at 79 of 80 planned a batch the maker refused, 2800 times in 12 days
-				if (best && m_Store.Count(best->Output) + std::max(1, best->OutputCount) <= StoreCap(best->Output))
+				const int room = (StoreCap(best->Output) - m_Store.Count(best->Output)) / per;
+				int batches = std::min(surplus / std::max(1, best->Inputs.at(food)), room);
+				if (p.PreserveDays > 0.0f && batches >= 1)
 				{
-					const int batches = surplus / std::max(1, best->Inputs.at(food));
-					if (batches >= 1)
-						out.push_back({ best->Output, m_Store.Count(best->Output) + batches * std::max(1, best->OutputCount), "keeps " + std::to_string(surplus) + " " + food + " from spoiling" });
+					// what the clan eats of the group a day: its plain meals over the diet's groups (a varied diet eats from Varied of them)
+					const ItemDef& kept = *m_Items->Find(best->Output);
+					const std::string group = cooking.Group(best->Output);
+					const float share = group.empty() ? 1.0f : 1.0f / static_cast<float>(std::max(1, Config.Social.Diet.Varied));
+					const float days = p.PreserveDays + WinterStockDays(Config.Econ, Config.Seasons, WorldSeconds(), kept, Config.Econ.Main().SpoilRate * StoreKeep());
+					const float wanted = days * FoodStock::PerDay(Config.Needs) * static_cast<float>(alive) * share;
+					// what the clan already keeps of it: the food of that group (or that food) that keeps as long, in the store and the pantries
+					float held = 0.0f;
+					auto count = [&](const Inventory& inv)
+					{
+						for (const ItemSlot& s : inv.Stacks())
+						{
+							const ItemDef* k = m_Items->Find(s.Id);
+							if (!k || !IsFood(s.Id) || ClanCooking::Life(*k) < ClanCooking::Life(kept)) continue;
+							if (group.empty() ? s.Id == best->Output : cooking.Group(s.Id) == group) held += static_cast<float>(s.Count) * FoodStock::Meals(*this, s.Id);
+						}
+					};
+					count(m_Store);
+					for (const auto& [house, pantry] : m_Econ.Pantries) count(pantry);
+					const float each = std::max(1e-3f, FoodStock::Meals(*this, best->Output));
+					const int units = static_cast<int>(std::ceil((wanted - held) / each - 1e-4f));
+					batches = units > 0 ? std::min(batches, (units + per - 1) / per) : 0;
 				}
+				if (batches >= 1)
+					out.push_back({ best->Output, m_Store.Count(best->Output) + batches * per, "keeps " + std::to_string(surplus) + " " + food + " from spoiling" });
 			}
 		}
 		return out;
@@ -363,7 +484,16 @@ namespace GB
 			return false;
 		};
 		q.Station = [this](const std::string& s) { return StationAt(s); };
-		return PlanProduction(Wants(), stock, *m_Recipes, q);
+		std::vector<ProductionWant> wants = Wants();
+		const std::vector<ProductionStep> cooked = MealSteps(*this, *m_Items, *m_Recipes, [this](const Recipe& r) { return ClanKnows(r); }, wants);   // T300
+		ProductionPlan plan = PlanProduction(wants, stock, *m_Recipes, q);
+		for (const ProductionStep& c : cooked)   // (the planner may have the same recipe for a want of its own: the larger of the two)
+		{
+			const auto st = std::find_if(plan.Steps.begin(), plan.Steps.end(), [&](const ProductionStep& x) { return x.Recipe == c.Recipe; });
+			if (st == plan.Steps.end()) plan.Steps.push_back(c);
+			else { st->Batches = std::max(st->Batches, c.Batches); st->Ready = true; }
+		}
+		return plan;
 	}
 
 	void Tribe::PlanEconomy() { m_Plan = PlanNow(); }

@@ -430,12 +430,12 @@ int GBTest_tribe(int, char**)
 		Check(t.FoodDays() == 0.0f && t.FoodShortage() == 1.0f && t.MaslowTier() == "survival", "no food at all: zero days, as short as can be, the tier is survival");
 		Check(t.SurvivalFactor(food) == 1.0f + t.Config.Work.Jobs.SurvivalBoost, "then a food job is worth (1 + boost) times");
 		Check(std::abs(t.SurvivalFactor(craft) - t.Config.Work.Jobs.SurvivalDamp) < 1e-5f && t.SurvivalFactor(fire) == 1.0f, "and a tool waits (damp) while the fire is still staying alive");
-		t.Store().Add(items, "berry", 40);
+		t.Store().Add(items, "nuts", 40);   // T360: food that lasts until it is eaten (forty berries go off in a day and a half: 1.5 days, not 2.5)
 		const float days = t.FoodDays();
-		Check(days > t.Config.Work.Jobs.SurvivalDays && t.FoodShortage() == 0.0f, "forty berries are more days than the clan wants for three members");
+		Check(days > t.Config.Work.Jobs.SurvivalDays && t.FoodShortage() == 0.0f, "forty nuts are more days than the clan wants for three members");
 		Check(t.MaslowTier() != "survival" && t.SurvivalFactor(food) == 1.0f && t.SurvivalFactor(craft) == 1.0f, "with them the pyramid steps aside: the tier moves up and every job is worth its own");
-		t.Store().Remove("berry", 30);
-		Check(t.FoodShortage() > 0.0f && t.FoodShortage() < 1.0f && t.SurvivalFactor(craft) < 1.0f && t.SurvivalFactor(craft) > t.Config.Work.Jobs.SurvivalDamp, "ten berries: partly short, partly damped (the pressure is continuous)");
+		t.Store().Remove("nuts", 30);
+		Check(t.FoodShortage() > 0.0f && t.FoodShortage() < 1.0f && t.SurvivalFactor(craft) < 1.0f && t.SurvivalFactor(craft) > t.Config.Work.Jobs.SurvivalDamp, "ten nuts: partly short, partly damped (the pressure is continuous)");
 		a.Bag().Add(items, "berry", 5);
 		Check(t.FoodDays() > days * 0.0f && t.FoodDays() > 10.0f / 16.0f, "what the members carry counts as food in hand");
 		t.Record().Every = 10.0;

@@ -133,7 +133,7 @@ int GBTest_society_metrics(int, char**)
 			Check(Near(hungry.Parts.at("food"), 0.0f) && Near(hungry.Parts.at("shelter"), 0.0f), "with nothing in the store and no buildings: no food, no shelter");
 			Check(hungry.Parts.at("needs") > 0.0f && hungry.Parts.at("longevity") < 0.0f, "its needs are told and its longevity is not (nobody died)");
 			const ItemLibrary* items = t.Items();
-			Check(items && t.Store().Add(*items, "berry", 200) > 0, "berries for the store");
+			Check(items && t.Store().Add(*items, "nuts", 200) > 0, "nuts for the store");   // T360: food for days that lasts them (berries keep a day and a half)
 			const SocietyMeasure fed = MeasureSociety(t, rules);
 			Check(Near(fed.Parts.at("food"), Saturate(t.FoodDays(), rules.FoodHalf)) && fed.Parts.at("food") > 0.25f, "with food for days the food part is days / (days + FoodHalf) (" + std::to_string(fed.Parts.at("food")) + ")");
 			Check(fed.Qol > hungry.Qol + 0.04f, "and the quality of life rises (" + std::to_string(hungry.Qol) + " -> " + std::to_string(fed.Qol) + ")");
