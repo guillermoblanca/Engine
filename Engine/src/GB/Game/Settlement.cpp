@@ -982,6 +982,7 @@ namespace GB
 			for (const std::string& r : t->Requires) add(r, depth + 1);   // what it requires first
 			goals.push_back(id);
 		};
+		m_Research.Lead(*this, goals);   // T324: the researchable entries of the player's queue first, in its order (ResearchQueue.h)
 		// the player's aim first (and what it requires before it); once known the aim is spent
 		if (!m_Players.Aim.empty())
 		{

@@ -276,6 +276,8 @@ gb_test(founding founding_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;s
 gb_test(colony_priorities colony_priorities_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T280 (AGRICULTURA A1): the farm zones the player paints (crop, plan, auto, remove, save) and the zones the AI marks out by plotsPerMember
 gb_test(farm_zones farm_zones_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T324 (ARBOL_TECNICO §11.2.4): the research queue of the player's clan: refusals, the order of the experiments, a learnt entry leaves, a run, save
+gb_test(research_queue research_queue_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T322 (ARBOL_TECNICO §11.7.1): technique -> verb: the board, the brain, the orders, the marks and the zones without the verb; KnowsVerb and its list
 gb_test(tech_verbs tech_verbs_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T277/T278/T279 (AGRICULTURA §5, ALIMENTACION §10.2): the farm tool asked for by what is at hand, the chance of a node's extra, the meals counted

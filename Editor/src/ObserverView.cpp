@@ -2835,7 +2835,8 @@ namespace GB::Editor
 				}
 				// T308 (MODO_COLONIA §4.3): [Work] the table of priorities, [Stock] the goals of what the clan keeps (ColonyTabs.cpp)
 				for (const auto& [tab, label, help] : { std::tuple<const char*, const char*, const char*>{ "work", "Work", "Who does what first: the priorities of each person" },
-					std::tuple<const char*, const char*, const char*>{ "stock", "Stock", "What the clan keeps in store: N of a thing, made or gathered when it lacks" } })
+					std::tuple<const char*, const char*, const char*>{ "stock", "Stock", "What the clan keeps in store: N of a thing, made or gathered when it lacks" },
+					std::tuple<const char*, const char*, const char*>{ "research", "Knowledge", "What the clan studies, in order: the research queue" } })   // T324
 				{
 					ImGui::SameLine();
 					const bool open = m_Colony.Tab == tab;
