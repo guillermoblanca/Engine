@@ -7,6 +7,7 @@
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include "SceneEditor.h"
+#include "GB/Game/TechVerbs.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Input/InputSource.h"
@@ -55,6 +56,14 @@ namespace GB::Editor
 
 		// the icon of an order's verb over the person that holds it (ColonyOrders::Mandate)
 		std::string VerbIcon(const std::string& verb) { return verb == "use" ? "gather" : verb == "follow" ? "expedition" : verb; }
+
+		// T327: how many verbs the clan has still to discover, for the radial's "?" bubble: only over what the people act on (the ground, a node,
+		// one of the clan); 0 draws none
+		int UnknownVerbs(const Tribe* t, RadialTarget::Kind what)
+		{
+			using K = RadialTarget::Kind;
+			return t && (what == K::Ground || what == K::Node || what == K::Own) ? TechVerbs::Unknown(*t) : 0;
+		}
 
 		// the camera does not take the left button while a box is drawn (the rest of the input is the window's)
 		class WithoutLeft : public IInputSource
@@ -218,27 +227,35 @@ namespace GB::Editor
 			return out.size() - 1;
 		};
 		auto off = [&](size_t i, const std::string& why) { out[i].Off = true; out[i].Why = why; };
+		// T327 (ARBOL_TECNICO §11.2.5): a work of a verb the clan does not know is not offered at all (no name, no dimmed bubble): the radial draws
+		// one "?" bubble instead, with how many verbs are left to discover (DrawColonyWorld)
+		auto knows = [&](const std::string& kind, const std::string& what = std::string()) { return TechVerbs::Allows(*t, kind, what); };
 		const std::string at = Num(target.At.x) + " " + Num(target.At.z);
 		const std::string name = Word(target.Name);
 		switch (target.What)
 		{
 		case K::Ground:
-			add("goto", "goto", "Go here", "The people selected walk here", { "game order sel goto " + at }, true);
+			if (knows("goto")) add("goto", "goto", "Go here", "The people selected walk here", { "game order sel goto " + at }, true);
 			add("build_here", "build", "Build here...", "The buildings, to place one here", { "director hand build" }, false);
 			break;
 		case K::Node:
 		{
 			const AbilitySystemComponent* asc = m_Gameplay.Find(target.Name);
-			std::string ability;
-			for (const auto& [kind, def] : m_NodeDefs) if (asc && asc->HasTag("Resource.Node." + kind)) ability = def.Ability;
+			std::string ability, nodeKind;
+			for (const auto& [kind, def] : m_NodeDefs) if (asc && asc->HasTag("Resource.Node." + kind)) { ability = def.Ability; nodeKind = kind; }
 			std::string label, icon;
 			NodeWork(ability, label, icon);
 			const ColonyDesignations::Mark* mark = t->Designations().MarkOf(target.Name);
-			const size_t use = add("use", icon, label, any ? "The people selected go and do it now" : "For the clan: whoever can do it takes it",
-				{ any ? "game order sel use " + name : "game designate " + name }, false);
-			if (asc && ResourceSystem::Amount(*asc) <= 0) off(use, "There is nothing left in it");
-			add("mark_all", "explore", ability == "Chop" || ability == "Gather" ? "Mark the whole stand" : "Mark the whole deposit",
-				"Every one of its kind around it, for the clan", { "game designate " + name + " all" }, false);
+			const bool mayMark = knows("designate", nodeKind);
+			if (any ? knows("use", nodeKind) : mayMark)
+			{
+				const size_t use = add("use", icon, label, any ? "The people selected go and do it now" : "For the clan: whoever can do it takes it",
+					{ any ? "game order sel use " + name : "game designate " + name }, false);
+				if (asc && ResourceSystem::Amount(*asc) <= 0) off(use, "There is nothing left in it");
+			}
+			if (mayMark)
+				add("mark_all", "explore", ability == "Chop" || ability == "Gather" ? "Mark the whole stand" : "Mark the whole deposit",
+					"Every one of its kind around it, for the clan", { "game designate " + name + " all" }, false);
 			if (mark)
 			{
 				const size_t up = add("priority_up", icon, "Priority up", "The clan does it before the rest", { "game designate " + name + " " + std::to_string(std::max(1, mark->Priority - 1)) }, false);
@@ -246,7 +263,7 @@ namespace GB::Editor
 				if (mark->Priority <= 1) off(up, "It is already the first");
 				add("unmark", "state.cannot", "Remove the mark", "The clan stops doing it", { "game designate " + name + " off" }, false);
 			}
-			add("goto", "goto", "Go", "The people selected walk to it", { "game order sel goto " + at }, true);
+			if (knows("goto")) add("goto", "goto", "Go", "The people selected walk to it", { "game order sel goto " + at }, true);
 			break;
 		}
 		case K::Own:
@@ -254,9 +271,14 @@ namespace GB::Editor
 			std::vector<std::string> others;
 			for (const std::string& n : sel) if (n != target.Name) others.push_back(n);
 			const std::string who = Joined(others, ",");
-			const size_t talk = add("talk", "talk", "Talk", "The people selected go and talk to this person", { "game order " + who + " talk " + name }, true);
-			const size_t follow = add("follow", "expedition", "Follow", "The people selected follow this person", { "game order " + who + " follow " + name }, true);
-			if (any && others.empty()) { off(talk, "Choose someone else first"); off(follow, "Choose someone else first"); }
+			for (const char* verb : { "talk", "follow" })
+			{
+				if (!knows(verb)) continue;
+				const bool talks = std::string(verb) == "talk";
+				const size_t i = add(verb, talks ? "talk" : "expedition", talks ? "Talk" : "Follow", talks ? "The people selected go and talk to this person" : "The people selected follow this person",
+					{ "game order " + who + " " + verb + " " + name }, true);
+				if (any && others.empty()) off(i, "Choose someone else first");
+			}
 			add("trade", "make", "Change trade", "Its sheet, to pick its trade", { "observer person " + name, "director hand calling " + name }, false);
 			if (t->Colony().Has(target.Name)) add("cancel", "state.cannot", "Cancel the order", "It goes back to its own life", { "game order " + name + " cancel" }, false);
 			break;
@@ -273,8 +295,8 @@ namespace GB::Editor
 			break;
 		case K::Site:
 		{
-			add("build", "build", "Build / help", "The people selected bring what it lacks and build it", { "game order sel build " + name }, true);
-			add("deliver", "deliver", "Bring material", "The people selected only carry what it lacks", { "game order sel deliver " + name }, true);
+			if (knows("build")) add("build", "build", "Build / help", "The people selected bring what it lacks and build it", { "game order sel build " + name }, true);
+			if (knows("deliver")) add("deliver", "deliver", "Bring material", "The people selected only carry what it lacks", { "game order sel deliver " + name }, true);
 			const std::vector<std::string> order = t->Designations().SiteOrder(*t);
 			const auto it = std::find(order.begin(), order.end(), target.Name);
 			const size_t up = add("priority_up", "build", "Priority up", "The clan works on it before the others", { "game site " + name + " up" }, false);
@@ -319,7 +341,7 @@ namespace GB::Editor
 
 	void EditorApp::OpenRadial(const RadialTarget& t)
 	{
-		m_Colony.Open = t.What != RadialTarget::Kind::None && !RadialOptions(t).empty();
+		m_Colony.Open = t.What != RadialTarget::Kind::None && (!RadialOptions(t).empty() || UnknownVerbs(ColonyTribe(), t.What) > 0);
 		m_Colony.Target = t;
 		m_Colony.Hover.clear();
 	}
@@ -481,7 +503,8 @@ namespace GB::Editor
 		// ---- the radial: bubbles round what it was opened over
 		if (!m_Colony.Open) return;
 		const std::vector<RadialOption> options = RadialOptions(m_Colony.Target);
-		if (options.empty() || (!m_Colony.Target.Name.empty() && m_Colony.Target.What != RadialTarget::Kind::Ground && !m_Gameplay.Find(m_Colony.Target.Name) && !AnyMember(m_Colony.Target.Name)))
+		const int unknown = UnknownVerbs(&t, m_Colony.Target.What);   // T327: the "?" bubble, after the real ones
+		if ((options.empty() && unknown == 0) || (!m_Colony.Target.Name.empty() && m_Colony.Target.What != RadialTarget::Kind::Ground && !m_Gameplay.Find(m_Colony.Target.Name) && !AnyMember(m_Colony.Target.Name)))
 		{
 			m_Colony.Open = false;   // (what it was over is gone)
 			return;
@@ -490,7 +513,7 @@ namespace GB::Editor
 		if (target.What == RadialTarget::Kind::Own || target.What == RadialTarget::Kind::Stranger) MemberWhere(target.Name, target.At);   // (it follows a person that walks)
 		ImVec2 centre;
 		if (!screen(target.At + glm::vec3(0.0f, target.What == RadialTarget::Kind::Ground ? 0.0f : 1.0f, 0.0f), centre)) { m_Colony.Open = false; return; }
-		const int n = static_cast<int>(options.size());
+		const int real = static_cast<int>(options.size()), n = real + (unknown > 0 ? 1 : 0);
 		// what it is over, in the middle on a card: the bubbles go round it, clear of the card
 		std::string what;
 		switch (target.What)
@@ -525,9 +548,30 @@ namespace GB::Editor
 			int hovered = -1;
 			for (int i = 0; i < n; ++i)
 			{
-				const RadialOption& o = options[static_cast<size_t>(i)];
 				const float a = -1.5707963f + 6.2831853f * static_cast<float>(i) / static_cast<float>(n);   // (the first at the top, clockwise)
 				const ImVec2 c(centre.x + ring * std::cos(a), centre.y + ring * std::sin(a));
+				if (i == real)   // T327: what the clan does not know yet: a "?" and how many, never their names; a click does nothing
+				{
+					ImGui::SetCursorScreenPos(ImVec2(c.x - bubble, c.y - bubble));
+					ImGui::InvisibleButton("unknown", ImVec2(2.0f * bubble, 2.0f * bubble));
+					const bool hover = ImGui::IsItemHovered() || m_Colony.Hover == "unknown";
+					if (hover) hovered = i;
+					rl->AddLine(ImVec2(centre.x + (ts.x * 0.5f + T::Pad) * std::cos(a), centre.y + (ts.y * 0.5f + 4.0f) * std::sin(a)), ImVec2(c.x - bubble * std::cos(a), c.y - bubble * std::sin(a)), T::Faded(T::Outline, 0.6f), 2.0f);
+					rl->AddCircleFilled(c, bubble + 2.5f, T::Outline, 28);
+					rl->AddCircleFilled(c, bubble, hover ? T::HideHover : T::HideRaised, 28);
+					rl->AddCircle(c, bubble, hover ? T::OchreHover : T::Ochre, 28, hover ? 3.0f : 2.0f);
+					const float fs = ImGui::GetFontSize() * 2.0f;
+					const ImVec2 qs = ImGui::GetFont()->CalcTextSizeA(fs, FLT_MAX, 0.0f, "?");
+					rl->AddText(ImGui::GetFont(), fs, ImVec2(c.x - qs.x * 0.5f, c.y - qs.y * 0.5f), T::Ochre, "?");
+					const std::string count = std::to_string(unknown);   // (the number on a dark tab at the bubble's lower right)
+					const ImVec2 cs = ImGui::CalcTextSize(count.c_str());
+					const ImVec2 b0(c.x + bubble * 0.45f, c.y + bubble * 0.35f), b1(b0.x + cs.x + 8.0f, b0.y + cs.y + 4.0f);
+					rl->AddRectFilled(b0, b1, T::Outline, 4.0f);
+					rl->AddRect(b0, b1, T::Ochre, 4.0f, 0, 1.0f);
+					rl->AddText(ImVec2(b0.x + 4.0f, b0.y + 2.0f), T::Bone, count.c_str());
+					continue;
+				}
+				const RadialOption& o = options[static_cast<size_t>(i)];
 				ImGui::SetCursorScreenPos(ImVec2(c.x - bubble, c.y - bubble));
 				ImGui::PushID(o.Id.c_str());
 				const bool pressed = ImGui::InvisibleButton("bubble", ImVec2(2.0f * bubble, 2.0f * bubble));
@@ -560,10 +604,16 @@ namespace GB::Editor
 			// the label of the bubble under the mouse, on a card beside it (on the side away from the middle): what it does and, when it cannot, why
 			if (hovered >= 0)
 			{
-				const RadialOption& o = options[static_cast<size_t>(hovered)];
+				static const RadialOption kUnknown;
+				const bool isUnknown = hovered == real;
+				const RadialOption& o = isUnknown ? kUnknown : options[static_cast<size_t>(hovered)];
 				const float a = -1.5707963f + 6.2831853f * static_cast<float>(hovered) / static_cast<float>(n);
 				const ImVec2 c(centre.x + ring * std::cos(a), centre.y + ring * std::sin(a));
-				std::vector<std::pair<std::string, ImU32>> lines{ { L.Text(o.Label), T::Ochre }, { L.Text(o.Tip), T::Bone } };
+				std::vector<std::pair<std::string, ImU32>> lines;
+				if (isUnknown)
+					lines = { { L.Text("To discover"), T::Ochre }, { unknown == 1 ? L.Text("1 action to discover") : L.Text("{0} actions to discover", unknown), T::Bone },
+						{ L.Text("The clan learns them with new knowledge"), T::BoneDim } };
+				else lines = { { L.Text(o.Label), T::Ochre }, { L.Text(o.Tip), T::Bone } };
 				if (!o.Commands.empty() && !o.Off && o.Commands.front().rfind("game order sel ", 0) == 0) lines.push_back({ Joined(m_Colony.Selection, ", "), T::BoneDim });
 				if (o.Off) lines.push_back({ L.Text(o.Why), T::Warn });
 				for (const auto& [who, why] : o.Unfit)   // (who of the selection would not go, and why)
@@ -601,6 +651,7 @@ namespace GB::Editor
 				s += "\n  " + o.Id + " [" + o.Icon + "] " + o.Label + (o.Off ? " (off: " + o.Why + ")" : " -> " + Joined(o.Commands, "; "));
 				for (const auto& [who, why] : o.Unfit) s += "; " + who + " will not go: " + why;
 			}
+			if (const int unknown = UnknownVerbs(t, m_Colony.Target.What); unknown > 0) s += "\n  unknown [?] " + std::to_string(unknown) + " to discover (does nothing)";   // T327
 			return s;
 		};
 		if (sub == "status")

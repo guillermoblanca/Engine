@@ -11,6 +11,7 @@
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include "StoryKinds.h"
+#include "UnknownTech.h"
 #include "GB/Game/WinterOutlook.h"
 #include "GB/Game/WorldAlerts.h"
 #include <algorithm>
@@ -3043,7 +3044,8 @@ namespace GB::Editor
 	}
 
 	// T254: the grid of [Build]. Every building of the content, by category: its picture (assets/ui/thumbs, `thumbs build`), its name and the cost of
-	// the sign; what the clan cannot raise yet is greyed with a lock and its card says why (the rank, the culture, the technologies that open it).
+	// the sign; what the clan cannot raise yet is greyed with a lock and its card says why (the rank, the culture). T327: what only a technology
+	// the clan does not know opens is not shown: the grid ends in a "?" cell with how many there are (`director hand peek unknown` holds its card).
 	// A click or the keys 1-9 choose a cell (`director hand place`), Tab moves through the categories (`director hand build <category>`), Esc closes.
 	// The vote is not foreseen here: PreviewSign needs a place, and the ghost shows it as soon as the building follows the mouse.
 	void EditorApp::DrawHandGrid(const Clan& clan, float room, float maxH)
@@ -3060,7 +3062,7 @@ namespace GB::Editor
 
 		struct Cell { std::string Id, Label, Tab; const BuildingDef* Def = nullptr; bool Known = false; int Have = 0; BuildLock Lock; };
 		std::vector<Cell> cells;
-		std::map<std::string, int> have, count;
+		std::map<std::string, int> have, count, hidden;   // (hidden: T327, per category and "all")
 		int known = 0;
 		for (const Tribe::SettlementSite& s : folk.SettlementSites())
 			if (s.State.Done) ++have[s.Building];
@@ -3076,6 +3078,8 @@ namespace GB::Editor
 				c.Have = have.count(id) ? have[id] : 0;
 				if (!c.Known) c.Lock = LockOf(folk, def);
 				else ++known;
+				if (!c.Known && BuildingUnknown(folk, def)) {   // T327 (UnknownTech.h): not shown; the "?" cell counts it
+					 ++hidden[c.Tab]; ++hidden["all"]; continue; }
 				++count[c.Tab];
 				++count["all"];
 				if (m_Hand.Tab == "all" || m_Hand.Tab == c.Tab) cells.push_back(std::move(c));
@@ -3108,7 +3112,8 @@ namespace GB::Editor
 		const float img = 68.0f, cellW = 124.0f, gap = T::Gap, line = ImGui::GetTextLineHeight();
 		const float cellH = 5.0f + img + 3.0f + 2.0f * line + 2.0f + line + 5.0f;
 		const int cols = std::max(1, static_cast<int>((width - ImGui::GetStyle().ScrollbarSize + gap) / (cellW + gap)));
-		const int rows = (static_cast<int>(cells.size()) + cols - 1) / cols;
+		const int toFind = hidden.count(m_Hand.Tab) ? hidden[m_Hand.Tab] : 0;   // T327: the "?" cell after the rest
+		const int rows = (static_cast<int>(cells.size()) + (toFind > 0 ? 1 : 0) + cols - 1) / cols;
 		const float hint = line + ImGui::GetStyle().ItemSpacing.y * 2.0f + T::Pad;
 		const float spare = maxH - (ImGui::GetCursorScreenPos().y - ImGui::GetWindowPos().y) - hint - T::Pad;
 		const float fullH = static_cast<float>(std::max(rows, 1)) * (cellH + gap);
@@ -3163,7 +3168,7 @@ namespace GB::Editor
 		ImGui::BeginChild("grid", ImVec2(gridW, gridH), ImGuiChildFlags_None, ImGuiWindowFlags_NoBackground);
 		{
 			ImDrawList* dl = ImGui::GetWindowDrawList();
-			if (cells.empty()) ImGui::TextDisabled("%s", L.Text("Nothing in this category").c_str());
+			if (cells.empty() && toFind == 0) ImGui::TextDisabled("%s", L.Text("Nothing in this category").c_str());
 			for (size_t i = 0; i < cells.size(); ++i)
 			{
 				const Cell& c = cells[i];
@@ -3241,6 +3246,37 @@ namespace GB::Editor
 				}
 				else if (m_Hand.Peek == c.Id) { peek = &c; peekAt = ImVec2(to.x + T::Gap, at.y); }
 				ImGui::PopID();
+			}
+			if (toFind > 0)   // T327: what they do not know yet: a "?" and how many, never their names or pictures; not a choice (no key, no click)
+			{
+				if (cells.size() % static_cast<size_t>(cols) != 0) ImGui::SameLine(0.0f, gap);
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				ImGui::InvisibleButton("unknown", ImVec2(cellW, cellH));
+				const bool held = m_Hand.Peek == "unknown" && !ImGui::IsItemHovered(), hovered = ImGui::IsItemHovered() || held;
+				if (held && !ImGui::IsItemVisible()) ImGui::SetScrollHereY(0.5f);   // (`director hand peek unknown`: into view, its card beside it)
+				const ImVec2 to(at.x + cellW, at.y + cellH);
+				dl->AddRectFilled(at, to, T::Hide, T::Radius);
+				dl->AddRect(at, to, hovered ? T::Ochre : T::HideLine, T::Radius, 0, hovered ? 2.0f : 1.0f);
+				const ImVec2 p0(at.x + (cellW - img) * 0.5f, at.y + 6.0f), p1(p0.x + img, p0.y + img);
+				dl->AddRectFilled(p0, p1, T::HideRaised, 4.0f);
+				dl->AddRect(p0, p1, T::Ochre, 4.0f, 0, 1.5f);
+				const float fs = ImGui::GetFontSize() * 3.0f;
+				const ImVec2 qs = ImGui::GetFont()->CalcTextSizeA(fs, FLT_MAX, 0.0f, "?");
+				dl->AddText(ImGui::GetFont(), fs, ImVec2((p0.x + p1.x - qs.x) * 0.5f, (p0.y + p1.y - qs.y) * 0.5f), T::Ochre, "?");
+				const std::string more = toFind == 1 ? L.Text("1 to discover") : L.Text("{0} to discover", toFind);
+				const float mw = ImGui::CalcTextSize(more.c_str()).x;
+				dl->AddText(ImVec2(at.x + std::max((cellW - mw) * 0.5f, 4.0f), p1.y + 4.0f), T::Bone, more.c_str());
+				if (hovered)
+				{
+					if (held) ImGui::SetNextWindowPos(ImVec2(to.x + T::Gap, at.y));
+					ImGui::PushStyleColor(ImGuiCol_PopupBg, T::HidePanel);
+					ImGui::BeginTooltip();
+					ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", L.Text("To discover").c_str());
+					ImGui::TextUnformatted((toFind == 1 ? L.Text("1 building to discover") : L.Text("{0} buildings to discover", toFind)).c_str());
+					ImGui::TextDisabled("%s", L.Text("The clan learns them with new knowledge").c_str());
+					ImGui::EndTooltip();
+					ImGui::PopStyleColor();
+				}
 			}
 		}
 		ImGui::EndChild();

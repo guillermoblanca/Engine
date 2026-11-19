@@ -5,6 +5,7 @@
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include "SceneEditor.h"
+#include "UnknownTech.h"
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
@@ -65,6 +66,24 @@ namespace GB::Editor
 		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
 		auto itemName = [&](const std::string& id) { const ItemDef* d = m_Items.Find(id); return Lang::Cap(L.Name("item", id, d && !d->Name.empty() ? d->Name : std::string())); };
 		auto dimText = [&](const std::string& s) { ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled)); ImGui::TextWrapped("%s", s.c_str()); ImGui::PopStyleColor(); };
+		// T327 (ARBOL_TECNICO §11.2.5): the row that stands for what the clan does not know yet: a "?" in a box and how many, never their names;
+		// it does nothing (its tooltip says where they come from)
+		auto unknownRow = [&](const std::string& howMany)
+		{
+			ImGui::Separator();
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(26.0f, 26.0f));
+			ImDrawList* dl = ImGui::GetWindowDrawList();
+			dl->AddRectFilled(at, ImVec2(at.x + 26.0f, at.y + 26.0f), T::HideRaised, 4.0f);
+			dl->AddRect(at, ImVec2(at.x + 26.0f, at.y + 26.0f), T::Ochre, 4.0f, 0, 1.5f);
+			const float fs = ImGui::GetFontSize() * 1.5f;
+			const ImVec2 qs = ImGui::GetFont()->CalcTextSizeA(fs, FLT_MAX, 0.0f, "?");
+			dl->AddText(ImGui::GetFont(), fs, ImVec2(at.x + 13.0f - qs.x * 0.5f, at.y + 13.0f - qs.y * 0.5f), T::Ochre, "?");
+			ImGui::SameLine();
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted(howMany.c_str());
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The clan learns them with new knowledge").c_str());
+		};
 
 		// ---- the action bar, at the bottom in the middle: an icon per action with its key in the corner, in groups (living, work, the clan book and
 		// the view). The book's three buttons open its groups. From above the character is not at hand, so its actions are greyed with the reason.
@@ -285,11 +304,12 @@ namespace GB::Editor
 			ImGui::SeparatorText(L.Text("What you can make").c_str());
 			static bool all = false;   // (the sheet's own view: the recipes you cannot make yet too)
 			ImGui::Checkbox((L.Text("Also the ones you cannot make yet") + "###all").c_str(), &all);
-			int shown = 0;
+			int shown = 0, toFind = 0;
 			for (const std::string& id : m_Recipes.Ids())
 			{
 				const Recipe* r = m_Recipes.Find(id);
 				if (!r) continue;
+				if (RecipeUnknown(PlayTribe(), id)) { ++toFind; continue; }   // T327 (UnknownTech.h): not shown, not even greyed; the "?" counts it
 				bool can = true;
 				for (const auto& [item, n] : r->Inputs) can = can && bag.Count(item) + (atCamp ? PlayTribe().Store().Count(item) : 0) >= n;
 				if (!can && !all) continue;
@@ -329,6 +349,7 @@ namespace GB::Editor
 				ImGui::PopID();
 			}
 			if (shown == 0) ImGui::TextDisabled("%s", L.Text("nothing with what you have: tick the box to see what each recipe asks").c_str());
+			if (toFind > 0) unknownRow(toFind == 1 ? L.Text("1 recipe to discover") : L.Text("{0} recipes to discover", toFind));
 
 			ImGui::Spacing();
 			ImGui::SeparatorText(L.Text("The clan's store").c_str());
@@ -462,11 +483,13 @@ namespace GB::Editor
 			ImGui::PopStyleColor();
 			if (!vote.Accepted && !vote.Leader)
 				dimText(L.Text("Your standing is {0}; at {1} you lead and the clan follows you more readily.", L.Num(vote.Standing, 0), L.Num(PlayTribe().Config.Player.Leader, 0)));
+			int toFind = 0;   // T327: the buildings only an unknown technology opens (UnknownTech.h): not listed; the "?" row counts them
 			for (const bool knownPass : { true, false })
 				for (const auto& [id, def] : m_Buildings.Defs)
 				{
 					const bool known = PlayTribe().CanBuild(id);
 					if (known != knownPass) continue;
+					if (!known && BuildingUnknown(PlayTribe(), def)) { ++toFind; continue; }
 					ImGui::PushID(id.c_str());
 					ImGui::Separator();
 					const std::string name = Lang::Cap(L.Name("building", id, def.Name));
@@ -520,6 +543,7 @@ namespace GB::Editor
 					}
 					ImGui::PopID();
 				}
+			if (toFind > 0) unknownRow(toFind == 1 ? L.Text("1 building to discover") : L.Text("{0} buildings to discover", toFind));
 			ImGui::Spacing();
 			ImGui::SeparatorText(L.Text("The clan's sites").c_str());
 			const auto sites = PlayTribe().SettlementSites();
