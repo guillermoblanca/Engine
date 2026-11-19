@@ -2,7 +2,8 @@
 // T268 (C1-a of documentation/01_diseno/MODO_COLONIA.md): direct orders to any person of a clan, the "mandate" they hold and what cuts it.
 //
 // An order is a verb and its target given to one member: `goto x z`, `use <node>` (gather, fell, dig: the node's own ability), `build <site>` (work
-// on an open site, carrying what its phase lacks first), `deliver <site>` (only carry), `talk <member>`, `follow <member>`, and `cancel`. While the
+// on an open site, carrying what its phase lacks first), `deliver <site>` (only carry), `talk <member>`, `follow <member>`, `transplant <node|x z>
+// to <x> <z>` (T325: dig a plant up and plant it there, GB/Game/Transplant.h), and `cancel`. While the
 // member holds the order (its mandate) its brain does not decide for it, the board does not hand it a job and nobody pulls it into a talk; it
 // carries the order out step by step from here (each step is one of the tribe's own jobs, so its accounting, its log and its telemetry are the
 // usual ones) and goes back to its own life when the order is done. C-3: the order is cut, with a line in the log ("drops the order: very
@@ -35,6 +36,7 @@ namespace GB
 			int Fails = 0;               // steps that came to nothing (a few in a row cut the order)
 			int Waits = 0;               // build: turns it waited for materials (too many cut the order)
 			bool Spent = false;          // use: the node was found empty (what it carries goes to the store, and the order is done)
+			std::string Carry;           // T325 transplant: the node type dug up and carried ("" = not dug up yet; saved only when set)
 			bool operator==(const Mandate&) const = default;
 		};
 		struct Notice

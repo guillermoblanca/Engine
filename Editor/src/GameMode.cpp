@@ -10,6 +10,7 @@
 #include "SceneEditor.h"
 #include "UserSettings.h"
 #include "GB/Game/TechVerbs.h"
+#include "GB/Game/Transplant.h"
 #include "GB/Input/InputSource.h"
 #include "GB/Log.h"
 #include <algorithm>
@@ -875,6 +876,18 @@ namespace GB::Editor
 			if (who.empty()) text = "nobody to order";
 			if (!ok && m_Game.Active) GameNote(text);   // (what was taken the log tells: "Ana (forager) is ordered to ...")
 			return { ok, text };
+		}
+		// T325 (GB/Game/Transplant.h): `game transplant <node|x z> to <x> <z>`: the nearest person of the clan free to do it digs the plant up and
+		// plants it there (`game order <name> transplant ...` sends someone in particular)
+		if (sub == "transplant")
+		{
+			if (!m_Game.Active && !ColonyTribe()) return { false, "not playing: play [temperate|alpine|desert] [seed] [members] [clans]" };
+			std::string text;
+			for (size_t i = 1; i < a.size(); ++i) text += (text.empty() ? "" : " ") + a[i];
+			Tribe& clan = m_Game.Active ? PlayTribe() : *m_Clans.Find(static_cast<ClanId>(HandClan()))->Folk;
+			const ColonyOrders::Reply r = Transplant::Assign(clan, Spaced(text));
+			if (!r.Ok && m_Game.Active) GameNote(r.Text);
+			return { r.Ok, r.Text };
 		}
 		if (!m_Game.Active) return { false, "not playing: play [temperate|alpine|desert] [seed] [members] [clans]" };
 		const std::string& me = m_Game.Player;

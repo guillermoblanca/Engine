@@ -178,6 +178,17 @@ namespace GB
 		bool Placed() const { return PerHectare > 0.0f && !Biomes.empty(); }
 	};
 
+	// T325 (documentation/01_diseno/ARBOL_TECNICO.md §11.5, §11.7.2): the node can be moved (GB/Game/Transplant.h): dug up as a portable thing
+	// (Item: a cutting, a clump, a sapling), carried and planted somewhere else, where it starts empty and grows back as it always does.
+	// "transplant": { "item": "bush_cutting", "verb": "transplant", "work": 6 }. Item "" = it cannot be moved.
+	struct ResourceTransplantDef
+	{
+		std::string Item;                   // what is carried (an item of the catalogue; ContentPack's check counts it as had from the node)
+		std::string Verb = "transplant";    // the verb the clan must know (TechVerbs: "transplant", "transplant_tree")
+		float Work = 6.0f;                  // seconds of work at each end: digging it up, planting it
+		bool operator==(const ResourceTransplantDef&) const = default;
+	};
+
 	struct ResourceNodeDef
 	{
 		std::string Id;                     // "tree", "rock", "berry_bush"
@@ -203,6 +214,7 @@ namespace GB
 		std::string Model;                  // the primitives it is drawn with ("" = the node's id; an unknown model is a plain grey blob)
 		ResourcePatchDef Patch;
 		ResourceSpawnDef Spawn;
+		ResourceTransplantDef Transplant;   // T325
 	};
 
 	class ResourceNode

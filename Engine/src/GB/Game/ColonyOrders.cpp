@@ -3,6 +3,7 @@
 // ExecuteSettlement, so the body, the abstract agent, the log and the telemetry see an order as they see any other work.
 #include "GB/Game/ColonyOrders.h"
 #include "GB/Game/TechVerbs.h"
+#include "GB/Game/Transplant.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -42,7 +43,7 @@ namespace GB
 			std::snprintf(b, sizeof b, "goto %.2f %.2f | %s", static_cast<double>(at.x), static_cast<double>(at.y), tail);
 			return b;
 		}
-		bool OwnJob(const std::string& job) { return job == "goto" || job == "follow"; }   // the order's own walks (the tribe's Finish knows nothing of them)
+		bool OwnJob(const std::string& job) { return job == "goto" || job == "follow" || Transplant::OwnJob(job); }   // the order's own walks (the tribe's Finish knows nothing of them)
 	}
 
 	const ColonyOrders::Mandate* ColonyOrders::Of(const std::string& member) const
@@ -54,6 +55,7 @@ namespace GB
 	std::string ColonyOrders::Describe(const Mandate& d)
 	{
 		if (d.Verb == "goto") return "go to " + Fixed1(d.At.x) + ", " + Fixed1(d.At.y);
+		if (d.Verb == "transplant") return Transplant::Describe(d);   // T325
 		return d.Verb + " " + d.Target;
 	}
 
@@ -61,7 +63,7 @@ namespace GB
 	{
 		std::string s;
 		for (const auto& [name, d] : m_Mandates)
-			s += (s.empty() ? "" : ", ") + name + " " + (d.Verb == "goto" ? "goto " + Fixed1(d.At.x) + " " + Fixed1(d.At.y) : d.Verb + " " + d.Target);
+			s += (s.empty() ? "" : ", ") + name + " " + (d.Verb == "goto" ? "goto " + Fixed1(d.At.x) + " " + Fixed1(d.At.y) : d.Verb == "transplant" ? Transplant::Describe(d) : d.Verb + " " + d.Target);
 		return s;
 	}
 
@@ -86,6 +88,7 @@ namespace GB
 		if (!m || !Has(member)) return { false, member + " has no order" };
 		const Mandate d = m_Mandates[member];
 		CloseJob(tribe, *m);
+		if (d.Verb == "transplant") Transplant::Abandon(tribe, *m, d);   // T325: what it carries goes back in the ground
 		m_Mandates.erase(member);
 		if (const auto held = tribe.m_Claims.All().find(d.Target); held != tribe.m_Claims.All().end() && held->second == member) tribe.m_Claims.Release(d.Target);
 		tribe.Say(*m, "is let off the order to " + Describe(d));
@@ -147,17 +150,26 @@ namespace GB
 			if (other->Dead || !other->Body) return { false, d.Target + " is dead" };
 			d.At = tribe.Where(*other);
 		}
+		else if (verb == "transplant")   // T325: the node and the place, and its own verb (transplant, transplant_tree) in the node's data
+		{
+			if (const std::string why = Transplant::Prepare(tribe, m, joined(), d); !why.empty())
+				return { false, why.rfind("does not know", 0) == 0 || why.rfind("cannot get", 0) == 0 ? member + " " + why : why };
+		}
 		else return { false, "unknown order " + verb + " (goto, use, build, deliver, talk, follow, cancel)" };
 		// T322: a verb some technology unlocks needs the clan to know one of them ("use" is matched as use:<kind of node>)
 		std::string what;
 		if (verb == "use")
 			if (const AbilitySystemComponent* node = tribe.m_Gameplay->Find(d.Target))
 				for (const auto& [id, def] : tribe.m_Defs) if (node->HasTag("Resource.Node." + id)) { what = id; break; }
-		if (const std::string why = TechVerbs::WhyNot(tribe, verb, what); !why.empty()) return { false, member + " " + why };
+		if (verb != "transplant")   // (transplant asked its own verb in Prepare: a tree's is transplant_tree)
+			if (const std::string why = TechVerbs::WhyNot(tribe, verb, what); !why.empty()) return { false, member + " " + why };
 
 		// it drops what it was doing: its claims and its job on the board go, the job it was on ends here (no Finish: it did not get there)
 		if (const auto old = m_Mandates.find(member); old != m_Mandates.end())
+		{
+			if (old->second.Verb == "transplant") Transplant::Abandon(tribe, m, old->second);   // T325
 			if (const auto held = tribe.m_Claims.All().find(old->second.Target); held != tribe.m_Claims.All().end() && held->second == member) tribe.m_Claims.Release(old->second.Target);
+		}
 		if (m.Job == "gather" || m.Job == "approach" || m.Job == "stoke") tribe.m_Claims.Release(m.Detail);
 		tribe.m_Board.Release(member);
 		m.Job.clear();
@@ -206,6 +218,7 @@ namespace GB
 		if (it == m_Mandates.end()) return;
 		const Mandate d = it->second;
 		m_Mandates.erase(it);
+		if (d.Verb == "transplant") Transplant::Abandon(tribe, m, d);   // T325: cut with the plant in the bag: it goes back in the ground
 		if (const auto held = tribe.m_Claims.All().find(d.Target); held != tribe.m_Claims.All().end() && held->second == m.Name) tribe.m_Claims.Release(d.Target);
 		if (reason.empty()) tribe.Say(m, "has done the order: " + Describe(d));
 		else
@@ -258,6 +271,7 @@ namespace GB
 		if (d.Verb == "build" || d.Verb == "deliver") return StepSite(tribe, m, d, why);
 		if (d.Verb == "talk") return StepTalk(tribe, m, d, why);
 		if (d.Verb == "follow") return StepFollow(tribe, m, d, why);
+		if (d.Verb == "transplant") { const Transplant::Outcome o = Transplant::Step(tribe, m, d, why); return o == Transplant::Outcome::Going ? Outcome::Going : o == Transplant::Outcome::Done ? Outcome::Done : Outcome::Failed; }   // T325
 		why = "unknown order";
 		return Outcome::Failed;
 	}
@@ -448,7 +462,10 @@ namespace GB
 		j["version"] = 1;
 		Json all = Json::object();
 		for (const auto& [name, d] : m_Mandates)
+		{
 			all[name] = Json{ { "verb", d.Verb }, { "target", d.Target }, { "at", Json::array({ d.At.x, d.At.y }) }, { "since", d.Since }, { "steps", d.Steps }, { "fails", d.Fails }, { "waits", d.Waits }, { "spent", d.Spent ? 1 : 0 } };
+			if (!d.Carry.empty()) all[name]["carry"] = d.Carry;   // T325 (only while something is carried: older saves read the same)
+		}
 		j["mandates"] = all;
 		return j.dump();
 	}
@@ -470,6 +487,7 @@ namespace GB
 			d.Fails = jm.value("fails", 0);
 			d.Waits = jm.value("waits", 0);
 			d.Spent = jm.value("spent", 0) != 0;
+			d.Carry = jm.value("carry", std::string());   // T325
 			read[name] = d;
 		}
 		m_Mandates = std::move(read);
