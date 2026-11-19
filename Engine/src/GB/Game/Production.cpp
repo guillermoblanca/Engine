@@ -42,9 +42,11 @@ namespace GB
 				const Recipe* use = nullptr;
 				const Recipe* unknown = nullptr;
 				std::string station;
+				const Recipe* forbidden = nullptr;   // TL4 (prototype): the player forbids it at every building of its station
 				for (const Recipe* r : makers)
 				{
 					if (!HasStation(r->Station)) { if (station.empty()) station = r->Station; continue; }
+					if (Query.Allowed && !Query.Allowed(*r)) { if (!forbidden) forbidden = r; continue; }
 					if (!Known(*r)) { if (!unknown) unknown = r; continue; }
 					use = r;
 					break;
@@ -58,6 +60,7 @@ namespace GB
 						if (Query.Experiment && depth < Query.Depth && (!Query.Learnable || Query.Learnable(*unknown)))
 							for (const auto& [input, n] : unknown->Inputs) Want(input, n, depth + 1, input + " to try " + unknown->Id);
 					}
+					else if (forbidden) Blocked(item + ": the player forbids " + forbidden->Id);
 					else Blocked(item + ": no " + station + " to make it at");
 					return;
 				}

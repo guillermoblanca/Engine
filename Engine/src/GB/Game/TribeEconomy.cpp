@@ -484,8 +484,9 @@ namespace GB
 			return false;
 		};
 		q.Station = [this](const std::string& s) { return StationAt(s); };
+		if (!m_RecipeChoices.Empty()) q.Allowed = [this](const Recipe& r) { return m_RecipeChoices.Allows(*this, r); };   // TL4 (prototype: RecipeChoices.h)
 		std::vector<ProductionWant> wants = Wants();
-		const std::vector<ProductionStep> cooked = MealSteps(*this, *m_Items, *m_Recipes, [this](const Recipe& r) { return ClanKnows(r); }, wants);   // T300
+		const std::vector<ProductionStep> cooked = MealSteps(*this, *m_Items, *m_Recipes, [this](const Recipe& r) { return ClanKnows(r) && m_RecipeChoices.Allows(*this, r); }, wants);   // T300 (TL4: not a forbidden one)
 		ProductionPlan plan = PlanProduction(wants, stock, *m_Recipes, q);
 		for (const ProductionStep& c : cooked)   // (the planner may have the same recipe for a want of its own: the larger of the two)
 		{
@@ -612,7 +613,8 @@ namespace GB
 			const Recipe* r = m_Recipes->Find(o.Target);
 			glm::vec2 at;
 			if (!r || !StationAt(r->Station, &at)) return false;
-			const glm::vec2 spot = at == Config.Economy.Camp ? CampSpot(m) : Around(at, IndexOf(m), 1.2f, m.Body);
+			glm::vec2 spot = at == Config.Economy.Camp ? CampSpot(m) : Around(at, IndexOf(m), 1.2f, m.Body);
+			m_RecipeChoices.Spot(*this, *r, Where(m), spot);   // TL4 / TALLERES 10 (prototype): a building that allows it, at its module's work point (RecipeChoices.h)
 			// T255: what the fire lacks of the inputs it fetches on the way from the store building that holds them (they are made with by the fire's share)
 			std::string fetch;
 			if (ClanStores::Active(*this))

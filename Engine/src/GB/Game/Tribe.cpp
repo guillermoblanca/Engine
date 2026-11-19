@@ -473,6 +473,7 @@ namespace GB
 		m_Goals.Clear();   // T307
 		m_Zones.Clear();   // T280
 		m_Research.Reset();   // T324
+		m_Modules.Clear(); m_RecipeChoices.Clear();   // TALLERES 10, TL4 (prototype)
 		m_Claims.Clear();
 		m_Log.clear();
 		m_Chronicle.Clear();
@@ -1196,6 +1197,7 @@ namespace GB
 		Upkeep(dt);
 		StepEconomy(dt);   // H18: spoilage and the fields (TribeEconomy.cpp)
 		PlanSettlement(dt);   // what to build next (H8; nothing without buildings)
+		m_Modules.Step(*this);   // TALLERES 10 (prototype): the yards' modules and fences (HouseModules.h; nothing with no module)
 		KnowHome(dt);         // the nodes round the camp are on the clan's map
 		lap(m_Cost.EconomyMs);
 		m_NeedTimer += dt;
@@ -2451,6 +2453,8 @@ namespace GB
 		if (!m_Goals.Empty()) j["stock"] = Json::parse(m_Goals.ToJson());   // T307 (only with a goal)
 		if (!m_Zones.Empty()) j["farmzones"] = Json::parse(m_Zones.ToJson());   // T280 (only with a zone)
 		if (!m_Research.Empty()) j["research"] = Json::parse(m_Research.ToJson());   // T324 (only with a queue)
+		if (!m_Modules.Empty()) j["modules"] = Json::parse(m_Modules.ToJson());   // TALLERES 10, prototype (only with a module)
+		if (!m_RecipeChoices.Empty()) j["recipeChoices"] = Json::parse(m_RecipeChoices.ToJson());   // TL4, prototype (only with a choice)
 		if (!m_Players.Players.empty() || !m_Players.Proposals.empty() || !m_Players.Aim.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
 		return j.dump();
 	}
@@ -2502,6 +2506,10 @@ namespace GB
 		if (j.contains("farmzones") && !zones.FromJson(j["farmzones"].dump())) return false;
 		ResearchQueue research;   // T324 (a save with no queue has none)
 		if (j.contains("research") && !research.FromJson(j["research"].dump())) return false;
+		HouseModules modules;   // TALLERES 10, prototype (a save with no module has none)
+		if (j.contains("modules") && !modules.FromJson(j["modules"].dump())) return false;
+		RecipeChoices choices;   // TL4, prototype (a save with no choice: every recipe allowed)
+		if (j.contains("recipeChoices") && !choices.FromJson(j["recipeChoices"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());
 		std::vector<bool> found(m_Members.size(), false);
 		for (const Json& jm : j["members"])
@@ -2543,6 +2551,7 @@ namespace GB
 		zones.SetPlayer(m_Zones.Player());   // T280 (the host's switch is not saved)
 		m_Zones = std::move(zones);
 		m_Research = std::move(research);   // T324
+		m_Modules = std::move(modules); m_RecipeChoices = std::move(choices);   // TALLERES 10, TL4 (prototype)
 		m_BoardTimer = j.value("boardTimer", 0.0f);
 		m_ReviewTimer = j.value("reviewTimer", 0.0f);
 		m_Society = std::move(society);

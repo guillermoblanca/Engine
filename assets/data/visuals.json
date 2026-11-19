@@ -966,6 +966,59 @@
             { "name": "Seal", "shape": "blob", "pos": [0, 0.77, 1.55], "size": [0.14, 0.04, 0.14], "material": "mud", "count": 2, "layout": "row", "spacing": 2.0, "detail": 1, "rough": 0.2 },
             { "name": "Small Jar", "shape": "blob", "pos": [2.0, 0.18, 1.2], "size": [0.17, 0.21, 0.17], "material": "terracotta", "count": 3, "layout": "row", "spacing": 0.42, "detail": 2, "rough": 0.05, "flat": -0.85 } ] }
         ]
+      },
+      "quern": {
+        "footprint": [1.4, 1.4],
+        "note": "PROTOTYPE pieces (TALLERES 10.9 asks a model): a saddle quern of granite, its rubbing stone, a hide in front (+z: who grinds kneels there) and a basket of grain",
+        "phases": [
+          { "name": "stones", "parts": [
+            { "name": "Slab", "shape": "blob", "pos": [0, 0.1, -0.1], "size": [0.4, 0.11, 0.26], "material": "granite", "detail": 1, "rough": 0.25, "flat": 0.4 },
+            { "name": "Rubber", "shape": "blob", "pos": [0, 0.24, -0.05], "size": [0.17, 0.06, 0.08], "material": "stone", "detail": 1, "rough": 0.2 },
+            { "name": "Hide", "shape": "box", "pos": [0, 0.01, 0.45], "size": [0.6, 0.02, 0.4], "material": "hide" },
+            { "name": "Basket", "shape": "cylinder", "pos": [0.5, 0, -0.35], "size": [0.3, 0.22, 0.34], "material": "wicker", "sides": 10 },
+            { "name": "Grain", "shape": "blob", "pos": [0.5, 0.22, -0.35], "size": [0.13, 0.04, 0.13], "material": "grain", "detail": 1, "rough": 0.3 } ] }
+        ]
+      },
+      "yard_hearth": {
+        "footprint": [1.6, 1.6],
+        "note": "PROTOTYPE pieces (TALLERES 10.9): the kitchen hearth of a house's yard, a small ring of stones with embers and a spit on two forked sticks; its cook squats in front (+z)",
+        "phases": [
+          { "name": "ring", "parts": [
+            { "name": "Stone", "shape": "blob", "pos": [0, 0.07, 0], "size": [0.13, 0.1, 0.11], "material": "stone", "count": 10, "layout": "ring", "radius": 0.42, "face": true, "detail": 1, "rough": 0.3 },
+            { "name": "Embers", "shape": "blob", "pos": [0, 0.04, 0], "size": [0.3, 0.05, 0.3], "material": "embers", "detail": 1, "rough": 0.3, "flat": 0.5 },
+            { "name": "Log", "shape": "cylinder", "pos": [0.15, 0.06, 0.0], "rot": [0, 30, 90], "size": [0.08, 0.5, 0.07], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 0.2 } ] },
+          { "name": "spit", "parts": [
+            { "name": "Fork", "shape": "cylinder", "pos": [0, 0, 0], "size": [0.05, 0.75, 0.04], "material": "bark_pale", "sides": 6, "count": 2, "layout": "row", "spacing": 0.95 },
+            { "name": "Spit", "shape": "cylinder", "pos": [0.5, 0.7, 0], "rot": [0, 0, 90], "size": [0.03, 1.0, 0.03], "material": "bark_pale", "sides": 6 } ] }
+        ]
+      },
+      "lean_to_bench": {
+        "footprint": [1.8, 1.2],
+        "note": "PROTOTYPE pieces (TALLERES 10.9): a split-log bench under a thatched lean-to set against the house's wall (-z: the wall; +z: who works stands there)",
+        "phases": [
+          { "name": "bench", "parts": [
+            { "name": "Leg", "shape": "cylinder", "pos": [0, 0, -0.1], "size": [0.1, 0.7, 0.09], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.2 },
+            { "name": "Top", "shape": "box", "pos": [0, 0.74, -0.1], "size": [1.5, 0.08, 0.5], "material": "planks" },
+            { "name": "Anvil", "shape": "blob", "pos": [0.4, 0.84, -0.1], "size": [0.14, 0.08, 0.12], "material": "stone", "detail": 1, "rough": 0.3 },
+            { "name": "Flakes", "shape": "box", "pos": [-0.25, 0.79, -0.1], "size": [0.05, 0.01, 0.04], "material": "flint", "count": 6, "layout": "scatter", "radius": 0.22, "jitter": 1.0 } ] },
+          { "name": "roof", "parts": [
+            { "name": "Post", "shape": "cylinder", "pos": [0, 0, 0.55], "size": [0.1, 1.85, 0.09], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.7 },
+            { "name": "Beam", "shape": "cylinder", "pos": [0.9, 1.85, 0.55], "rot": [0, 0, 90], "size": [0.09, 1.8, 0.09], "material": "bark", "sides": 6 },
+            { "name": "Thatch", "shape": "box", "pos": [0, 2.0, -0.05], "rot": [-14, 0, 0], "size": [2.0, 0.14, 1.5], "material": "thatch" } ] }
+        ]
+      },
+      "yard_store": {
+        "footprint": [1.6, 1.0],
+        "note": "PROTOTYPE pieces (TALLERES 10.9): a small drying rack of poles with strips hung, and two or three wicker baskets with a hide bundle in front (+z)",
+        "phases": [
+          { "name": "rack", "parts": [
+            { "name": "Post", "shape": "cylinder", "pos": [0, 0, -0.25], "size": [0.08, 1.4, 0.07], "material": "bark", "sides": 6, "count": 2, "layout": "row", "spacing": 1.4 },
+            { "name": "Bar", "shape": "cylinder", "pos": [0.72, 1.05, -0.25], "rot": [0, 0, 90], "size": [0.05, 1.45, 0.05], "material": "bark_pale", "sides": 6, "count": 2, "layout": "stack", "columns": 1, "spacing": 0.32 },
+            { "name": "Strip", "shape": "box", "pos": [0, 0.85, -0.25], "size": [0.1, 0.3, 0.02], "material": "hide", "count": 5, "layout": "row", "spacing": 0.26 } ] },
+          { "name": "baskets", "parts": [
+            { "name": "Basket", "shape": "cylinder", "pos": [0, 0, 0.2], "size": [0.42, 0.38, 0.48], "material": "wicker", "sides": 10, "count": 3, "layout": "row", "spacing": 0.5 },
+            { "name": "Berries", "shape": "blob", "pos": [0, 0.38, 0.2], "size": [0.17, 0.05, 0.17], "material": "berry", "count": 3, "layout": "row", "spacing": 0.5, "detail": 1, "rough": 0.3 } ] }
+        ]
       }
     },
 

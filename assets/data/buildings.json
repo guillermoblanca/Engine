@@ -17,7 +17,8 @@
       "shelter": 3,
       "rest": 0.2,
       "warmth": 0.3,
-      "color": [ 0.42, 0.3, 0.17 ]
+      "color": [ 0.42, 0.3, 0.17 ],
+      "yard": { "margin": 2.3, "marginBack": 1.4, "marginFront": 2.9, "eave": 0.35, "cornerR": 1.4, "gateW": 1.4, "slotStep": 2.4, "maxModules": 2 }
     },
     "storage": {
       "name": "Storage",
@@ -62,7 +63,8 @@
       "rest": 0.3,
       "warmth": 0.45,
       "supersedes": [ "shelter" ],
-      "color": [ 0.5, 0.38, 0.26 ]
+      "color": [ 0.5, 0.38, 0.26 ],
+      "yard": { "margin": 2.5, "marginBack": 1.5, "marginFront": 3.1, "eave": 0.45, "cornerR": 1.5, "gateW": 1.4, "slotStep": 2.4, "maxModules": 3 }
     },
     "longhouse": {
       "name": "Longhouse",
@@ -77,7 +79,8 @@
       "rest": 0.35,
       "warmth": 0.55,
       "supersedes": [ "hut", "shelter" ],
-      "color": [ 0.46, 0.34, 0.22 ]
+      "color": [ 0.46, 0.34, 0.22 ],
+      "yard": { "margin": 2.5, "marginBack": 1.5, "marginFront": 3.1, "eave": 0.5, "cornerR": 1.5, "gateW": 1.6, "slotStep": 2.4, "maxModules": 5 }
     },
     "cache_pit": {
       "name": "Cache pit",
@@ -1080,7 +1083,23 @@
       "station": "loom", "color": [ 0.56, 0.44, 0.3 ] },
     "quern": { "name": "Quern", "zone": "food", "footprint": [ 1.4, 1.4 ],
       "phases": [ { "name": "stones", "work": 10.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" } ],
-      "station": "quern", "color": [ 0.5, 0.48, 0.44 ] },
+      "station": "quern", "color": [ 0.5, 0.48, 0.44 ],
+      "module": { "slots": [ "wall", "corner", "gate", "front" ], "standalone": true, "category": "mill" } },
+    "yard_hearth": { "name": "Kitchen hearth", "zone": "food", "footprint": [ 1.6, 1.6 ],
+      "phases": [ { "name": "ring", "work": 6.0, "needs": { "stone": 5 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
+                  { "name": "spit", "work": 3.0, "needs": { "branch": 3 }, "substitutes": { "branch": [ "wood" ] }, "part": "rack" } ],
+      "station": "hearth", "warmth": 0.15, "aura": 2.0, "color": [ 0.45, 0.4, 0.36 ],
+      "module": { "slots": [ "corner", "wall" ], "standalone": false, "category": "kitchen" } },
+    "lean_to_bench": { "name": "Lean-to bench", "zone": "craft", "footprint": [ 1.8, 1.2 ],
+      "phases": [ { "name": "bench", "work": 6.0, "needs": { "wood": 3, "stone": 2 }, "substitutes": { "stone": [ "granite" ] }, "part": "table" },
+                  { "name": "roof", "work": 8.0, "needs": { "branch": 4, "reed": 6, "cordage": 1 }, "substitutes": { "branch": [ "wood" ] }, "part": "roof" } ],
+      "station": "workbench", "color": [ 0.55, 0.4, 0.22 ],
+      "module": { "slots": [ "lean_to" ], "standalone": false, "category": "craft" } },
+    "yard_store": { "name": "Basket store", "zone": "food", "footprint": [ 1.6, 1.0 ],
+      "phases": [ { "name": "rack", "work": 5.0, "needs": { "branch": 4, "fiber": 2 }, "substitutes": { "branch": [ "wood" ] }, "part": "rack" },
+                  { "name": "baskets", "work": 2.0, "needs": { "basket_wicker": 2 }, "part": "slab" } ],
+      "station": "drying_rack", "storeCap": 3, "foodCap": 40, "keep": 0.8, "color": [ 0.6, 0.48, 0.3 ],
+      "module": { "slots": [ "gate", "front", "wall" ], "standalone": false, "category": "store" } },
     "bread_oven": { "name": "Bread oven", "zone": "food", "footprint": [ 1.8, 1.8 ],
       "phases": [ { "name": "base", "work": 8.0, "needs": { "stone": 4 }, "substitutes": { "stone": [ "granite" ] }, "part": "slab" },
                   { "name": "dome", "work": 10.0, "needs": { "clay": 6, "fired_brick": 2 }, "part": "roof" } ],

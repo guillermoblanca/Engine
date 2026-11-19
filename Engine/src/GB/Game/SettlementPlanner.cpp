@@ -40,7 +40,8 @@ namespace GB
 		}
 		const int alive = f.Alive;
 		if (alive == 0 || open >= f.MaxOpenSites) return out;
-		const auto known = [&](const BuildingDef& d) { return !f.Known || f.Known(d); };
+		// (TALLERES 10, prototype: a module that is not "standalone" only stands in a house's yard, by `game module`: never planned on its own)
+		const auto known = [&](const BuildingDef& d) { return (!d.Module.Any() || d.Module.Standalone) && (!f.Known || f.Known(d)); };
 		const auto payable = [&](const BuildingDef& d) { return !f.Payable || f.Payable(d); };
 
 		char why[160];

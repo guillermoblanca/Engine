@@ -1,5 +1,6 @@
 #include "GB/Game/GameContent.h"
 #include "GB/Gameplay/WorldResources.h"
+#include "GB/Game/Yard.h"
 
 namespace GB
 {
@@ -177,5 +178,8 @@ namespace GB
 		if (to.Director) packs.AddSection(StagedSection("director", { "director", "stages" }, [](const std::string& json, DirectorRules& r) { return LoadDirectorRules(json, r); }, nullptr, *to.Director));   // T195
 		if (to.Alerts) packs.AddSection(StagedSection("alerts", { "alerts" }, [](const std::string& json, AlertRules& r) { return LoadAlertRules(json, r); }, nullptr, *to.Alerts));   // T220
 		if (to.Founding) packs.AddSection(StagedSection("founding", { "founding" }, [](const std::string& json, FoundingRules& r) { return LoadFoundingRules(json, r); }, nullptr, *to.Founding));   // T310
+		// TALLERES section 10 (prototype): the yards of the houses; read and checked here, used from DefaultYardRules (GB/Game/Yard.h)
+		static YardRules unreadYards;
+		if (to.Buildings) packs.AddSection(StagedSection("yards", { "yards" }, [](const std::string& json, YardRules& r) { return LoadYardRules(json, r); }, nullptr, unreadYards));
 	}
 }
