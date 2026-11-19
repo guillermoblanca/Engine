@@ -1,6 +1,7 @@
 #include "GB/Game/Tribe.h"
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/TribePriorities.h"
+#include "GB/Game/TechTiers.h"
 #include "GB/Game/UseLearning.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GB/Gameplay/Resources.h"
@@ -1234,7 +1235,7 @@ namespace GB
 		StepAbstract(dt);
 		StepTrails(dt);   // T5c: the walks wear the trails, they fade, the clan marks a stretch to pave (Trails.cpp)
 		lap(m_Cost.AbstractMs);
-		if (m_Knowledge.Tick(dt)) Tell(m_Knowledge.Lesson(KnowledgeView(true)));   // a lesson at the camp, and what the clan forgets (H11)
+		if (m_Knowledge.Tick(dt)) { TechTiers::Raise(*this); Tell(m_Knowledge.Lesson(KnowledgeView(true))); }   // a lesson at the camp, and what the clan forgets (H11); T323: the steps its goals open
 		m_LodTimer += dt;
 		if (m_LodTimer >= Config.Simulation.LodUpdateSeconds)   // the level of detail follows the viewer
 		{

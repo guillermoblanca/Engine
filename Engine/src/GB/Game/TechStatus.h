@@ -17,10 +17,9 @@
 // ones whose prerequisites are known (the approved mock-up a1 shows "Flint knapping: no flint at hand").
 //
 // Tiers (D6, K-a): only the technologies with a `tier` are drawn and counted (the 54 of the Neolithic tree; tier 4 = era 2, one block); the 9
-// without one (era3, era4, medieval) are left out. Until T323 reads `tier` into TechDef, TechTiers reads it from the pack's files: a second,
-// temporary reader of that one field, to become one line when TechDef::Tier exists. A tree none of whose technologies has a tier (the tests'
+// without one (era3, era4, medieval) are left out. The tiers come from TechDef::Tier (T323) through TechTierMap::FromTree. A tree none of whose technologies has a tier (the tests'
 // trees in memory) shows every technology.
-// OpenTier() is T323's seam: the highest open tier, 99 (everything open) until T323 says otherwise.
+// OpenTier() is the clan's open step (GB::TechTiers::Open, T323; 99 when the data has no steps).
 //
 // CPU only (no ImGui), deterministic, built on the fly from the tribe: the UI makes one per frame it draws.
 #include <functional>
@@ -32,16 +31,17 @@
 namespace GB
 {
 	class Tribe;
+	struct TechTree;
 	class ClanWorld;
 
 	// The `tier` of each technology, read from the "techs" sections of content files (later files override, as LoadTechs does).
-	class TechTiers
+	class TechTierMap
 	{
 	public:
 		// Reads "techs": [ { "id", "tier" } ] of one content file; a file without them, or not JSON, adds nothing. False when it is not JSON.
 		bool Read(const std::string& json);
-		// The tiers of the game's pack (ShippedDocuments, read once).
-		static const TechTiers& Shipped();
+		// The tiers of a tree (TechDef::Tier, T323).
+		static TechTierMap FromTree(const TechTree& tree);
 		void Clear() { m_Of.clear(); }
 		int Of(const std::string& tech) const;   // -1: no tier
 		bool Any() const { return !m_Of.empty(); }
@@ -85,7 +85,7 @@ namespace GB
 
 		struct Input
 		{
-			const TechTiers* Tiers = nullptr;      // nullptr: TechTiers::Shipped()
+			const TechTierMap* Tiers = nullptr;    // nullptr: TechTierMap::FromTree(the clan's tree)
 			std::vector<TechNeighbour> Neighbours;
 			int OpenTier = -1;                      // < 0: OpenTier(tribe)
 		};
@@ -93,7 +93,7 @@ namespace GB
 		TechStatus() = default;
 		TechStatus(const Tribe& tribe, const Input& input);
 
-		// T323's seam: the highest tier the clan has opened. 99 (every tier open) until T323 reads tiers into the knowledge.
+		// The highest tier the clan has opened (GB::TechTiers::Open; 99 when the data has no steps).
 		static int OpenTier(const Tribe& tribe);
 		// The clans the player's has dealings with: met, not hostile, and friendly, at a truce, allied, or that have traded or taught each other.
 		static bool Dealings(const ClanWorld& world, int a, int b);

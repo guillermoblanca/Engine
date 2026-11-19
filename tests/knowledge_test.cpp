@@ -129,6 +129,7 @@ static std::string Experiments(uint32_t seed, int& tries, int& spoilt)
 	RegisterEraOneItems(items, recipes, nodes);
 	ClanKnowledge k;
 	k.SetTechs(&techs);
+	k.RaiseTier(1);   // T323: a clan at its camp (step 1: the shipped basketry, rites... are step 1; ClanKnowledge alone stays at 0)
 	k.Join("Ana");
 	Inventory store(40, 0.0f), bag(12, 0.0f);
 	store.Add(items, "branch", 20);
@@ -170,6 +171,7 @@ static void TestExperiment()
 	RegisterEraOneItems(items, recipes, nodes);
 	ClanKnowledge k;
 	k.SetTechs(&techs);
+	k.RaiseTier(1);   // T323: step 1 (see above)
 	k.Join("Ana");
 	Inventory store(40, 0.0f), bag(12, 0.0f);
 	{

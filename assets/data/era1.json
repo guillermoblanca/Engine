@@ -831,6 +831,12 @@
     "prereqBonus": 1.1, "missingPrereqFactor": 0.25,
     "intellectGene": "intellect", "defaultComplexity": 0.3, "graspFloor": 0.25, "graspSlope": 2.0,
     "leapYears": 500,
+    "tiers": [
+      { "tier": 1, "_doc": "T323 (ARBOL_TECNICO 11.4): the camp: the clan is there (it opens at the first plan)", "goals": [ { "type": "population", "count": 1 } ] },
+      { "tier": 2, "_doc": "the longhouse, or a camp of 14 buildings (the planner seldom builds a longhouse: GBSim 5 on master, the first on day 19.8)", "need": 1, "goals": [ { "type": "building", "building": "longhouse" }, { "type": "buildings", "count": 14 } ] },
+      { "tier": 3, "_doc": "11.4 says: a winter lived; the clock starts in spring and the first winter ends on day 56, so until the director decides it is the first season lived (day 14) and 18 buildings", "goals": [ { "type": "seasons", "count": 1 }, { "type": "buildings", "count": 18 } ] },
+      { "tier": 4, "_doc": "era 2 (signs, the village): people and buildings", "goals": [ { "type": "population", "count": 30 }, { "type": "buildings", "count": 25 } ] }
+    ],
     "use": {
       "effect": "learn", "pull": 0.5, "enough": 20.0, "near": 300.0, "damp": 0.15, "paceMin": 0.5, "paceMax": 1.5, "fireStation": "campfire",
       "basics": { "food": 1.0, "fire": true, "beds": 0.5 },

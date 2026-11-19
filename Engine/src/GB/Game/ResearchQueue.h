@@ -49,7 +49,7 @@ namespace GB
 		static int Hidden(const Tribe& tribe, const std::function<bool(const std::string&)>& shown = {});
 		// "research queue: 1. pottery 34% researching; 2. weaving waits for spinning | can research: ...; ? 12 more" (`game research`).
 		std::string List(const Tribe& tribe, const std::function<bool(const std::string&)>& shown = {}) const;
-		// What an entry is doing: "researching", "next", "waits for <tech>", "cannot be found by trying", "the world does not let it", "known".
+		// What an entry is doing: "researching", "next", "waits for <tech>", "cannot be found by trying", "the world does not let it", "needs tier <n>" (T323), "known".
 		static std::string Status(const Tribe& tribe, const std::string& tech, bool current);
 
 		// ---- the tribe's hook

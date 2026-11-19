@@ -74,8 +74,17 @@ namespace GB
 		// T181 (2): an agent's intellect (0..1; the tribe sets it from the society's gene, UseLearning::Intellect). Unset: 1, every idea within reach.
 		void SetIntellect(std::function<float(const std::string& name)> intellect) { m_Intellect = std::move(intellect); }
 		float Intellect(const std::string& name) const { return m_Intellect ? m_Intellect(name) : 1.0f; }
-		// It can learn it and has the intellect to work it out alone: intellect >= the technology's complexity (the gate of experimenting).
+		// It can learn it and has the intellect to work it out alone: intellect >= the technology's complexity (the gate of experimenting); T323:
+		// and its tier is open to the clan (TierOpen).
 		bool CanInvent(const std::string& name, const std::string& tech) const;
+
+		// ---- T323 (ARBOL_TECNICO.md §11.4): the steps of the tree. The open step only grows (GB/Game/TechTiers.h works it out from the clan's
+		// goals and calls RaiseTier). Without steps in the rules (or without technologies) it is kNoTierGate: nothing is held back.
+		int OpenTier() const;
+		int TierOf(const std::string& tech) const;            // the technology's step (0 not in the tree; one with no tier: kMaxTier while the tree has steps, else 0)
+		bool TierOpen(const std::string& tech) const { return TierOf(tech) <= OpenTier(); }
+		// Opens the steps up to `tier` (never closes one): true when it went up.
+		bool RaiseTier(int tier);
 		// Forgets every agent and what the clan knows (the clan starts again with the technologies of the start).
 		void Clear();
 
@@ -161,6 +170,7 @@ namespace GB
 		std::set<std::string> m_Clan;
 		std::vector<std::string> m_ClanOther;   // names of a save that are not technologies, kept
 		std::vector<std::string> m_Goals;       // SetGoals (saved: the experiments read them before the next plan sets them again)
+		int m_Tier = 0;                          // T323: the highest step opened (saved as "tier" when above 0)
 		float m_LessonTimer = 0.0f;
 	};
 }

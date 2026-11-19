@@ -56,7 +56,14 @@ namespace GB
 		// T181 (2): how hard it is to work out (0..1; < 0 = KnowledgeRules::DefaultComplexity). Only who has the intellect for it invents it; who has
 		// less still learns it from someone who knows it, slower (KnowledgeRules::GraspFloor, GraspSlope).
 		float Complexity = -1.0f;
+		// T323 (documentation/01_diseno/ARBOL_TECNICO.md §11.4): the step of the tree it belongs to (0..kMaxTier; -1 = none given, as 0). Inventing
+		// it (experimenting, learning it by use, the player's research) needs the clan's open step (KnowledgeRules::Tiers, GB/Game/TechTiers.h) to
+		// be at least this; learning it from someone who knows it (a lesson, watching, talk, another clan, trade) skips the step.
+		int Tier = -1;
+		// D77: the branch of the tree it is drawn in (one of TechBranches(); "" = none). Required when it has a tier.
+		std::string Branch;
 		TechDiscovery Discovery;
+		int TierOrZero() const { return Tier < 0 ? 0 : Tier; }
 		bool operator==(const TechDef&) const = default;
 	};
 
@@ -80,6 +87,34 @@ namespace GB
 		bool operator==(const UseRules&) const = default;
 	};
 
+
+	// T323 (ARBOL_TECNICO.md §11.4): what opens a step of the tree for a clan. A goal is one fact of the clan (all read by GB/Game/TechTiers.cpp):
+	//   population  Count living members or more        building  Count finished buildings of the id Building
+	//   buildings   Count finished buildings of any kind  techs     Count technologies known by the clan
+	//   fire        a lit campfire                        seasons   Count seasons ended since the clan was founded
+	//   winters     Count winters ended since the clan was founded
+	struct TierGoal
+	{
+		std::string Type;
+		std::string Building;
+		int Count = 1;
+		bool operator==(const TierGoal&) const = default;
+	};
+	// Step `Tier` opens once the step before it is open and Need of its goals are met (0 = all). Once open it stays open (the clan's knowledge
+	// keeps it: ClanKnowledge::OpenTier).
+	struct TierStep
+	{
+		int Tier = 1;
+		int Need = 0;
+		std::vector<TierGoal> Goals;
+		bool operator==(const TierStep&) const = default;
+	};
+	constexpr int kMaxTier = 4;
+	constexpr int kNoTierGate = 99;   // the open step when the rules have no steps: nothing is held back
+	// D77: the branches of the tree (TechDef::Branch).
+	const std::vector<std::string>& TechBranches();
+	// The goal types TierGoal knows.
+	const std::vector<std::string>& TierGoalTypes();
 
 	// The pace of knowledge for the whole clan (JSON "knowledge" beside "techs").
 	struct KnowledgeRules
@@ -106,6 +141,8 @@ namespace GB
 		// V6: the years the world leaps between two lives (0: none). T181 left one value where each era had its own: the player's death and its
 		// tests still go through a leap; taking the leap out is a task of its own.
 		float LeapYears = 0.0f;
+		// T323: the steps of the tree in order (1, 2, ...). Empty: no step holds anything back (kNoTierGate), as before.
+		std::vector<TierStep> Tiers;
 		bool operator==(const KnowledgeRules&) const = default;
 	};
 
@@ -147,14 +184,14 @@ namespace GB
 	std::string VerbWord(const std::string& verb);
 
 	// Reads the "techs" and "knowledge" sections of a content file:
-	//   { "techs": [ { "id", "name", "known", "requires": [], "recipes": [], "nodes": [], "buildings": [], "verbs": [],
+	//   { "techs": [ { "id", "name", "known", "tier", "branch", "requires": [], "recipes": [], "nodes": [], "buildings": [], "verbs": [],
 	//                  "physical": { "materials": [], "stations": [] }, "complexity",
 	//                  "discovery": { "experiment", "observe", "teach", "seconds", "waste" } } ],
 	//     "knowledge": { "lessonSeconds", "observeRadius", "growth", "seed", "progression": [], "prereqBonus", "missingPrereqFactor",
 	//                    "intellectGene", "defaultComplexity", "graspFloor", "graspSlope",
 	//                    "use": { "materials": { "<item>": { "<tech>": rate } }, "effect", "pull", "enough", "near", "damp",
 	//                             "basics": { "food", "fire", "beds" }, "paceMin", "paceMax" },
-	//                    "leapYears" } }
+	//                    "leapYears", "tiers": [ { "tier", "need", "goals": [ { "type", "building", "count" } ] } ] } }
 	// A technology is added or replaced whole by id; "knowledge" replaces the rules. A file without them changes nothing. Values are checked (chances
 	// 0..1, seconds above 0); names that point elsewhere (a recipe, a required technology) are checked by CheckReachability, since they may come in a
 	// later file. "verbs" are checked here (CheckVerb; a verb twice in one technology is a mistake). On a mistake it returns why and changes nothing.

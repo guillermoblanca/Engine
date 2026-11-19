@@ -64,7 +64,7 @@ namespace
 		}
 		TechTree Tree;
 		Tribe Folk;
-		TechTiers Tiers;
+		TechTierMap Tiers;
 	};
 
 	bool Is(const TechStatus& s, const std::string& tech, TechState state) { return s.Of(tech).State == state; }
@@ -130,7 +130,7 @@ int GBTest_tech_status(int, char**)
 	// ---- (d) no tiers: everything shown
 	{
 		Camp d;
-		const TechTiers none;
+		const TechTierMap none;
 		TechStatus::Input in2;
 		in2.Tiers = &none;
 		const TechStatus s2(d.Folk, in2);

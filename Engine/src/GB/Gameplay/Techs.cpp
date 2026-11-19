@@ -157,8 +157,74 @@ namespace GB
 		}
 	}
 
+	const std::vector<std::string>& TechBranches()
+	{
+		static const std::vector<std::string> branches = { "tools", "hunt", "field", "food", "crafts", "homes", "lore" };
+		return branches;
+	}
+
+	const std::vector<std::string>& TierGoalTypes()
+	{
+		static const std::vector<std::string> types = { "population", "building", "buildings", "techs", "fire", "seasons", "winters" };
+		return types;
+	}
+
 	namespace
 	{
+		// T323: "tiers" of the knowledge rules: the steps in order, each one above the one before
+		std::string ReadTiers(const Json& o, std::vector<TierStep>& out)
+		{
+			if (!o.is_array()) return "tiers must be a list of steps";
+			int last = 0;
+			for (const Json& x : o)
+			{
+				if (!x.is_object()) return "tiers: every step is an object";
+				for (const auto& [key, v] : x.items())
+					if (key != "tier" && key != "need" && key != "goals" && key != "_doc") return "tiers has no " + key;
+				TierStep step;
+				const auto t = x.find("tier");
+				if (t == x.end() || !t->is_number_integer() || t->get<int>() < 1 || t->get<int>() > kMaxTier) return "tiers: tier must be a whole number from 1 to " + std::to_string(kMaxTier);
+				step.Tier = t->get<int>();
+				if (step.Tier != last + 1) return "tiers: the steps go in order from 1 (" + std::to_string(step.Tier) + " after " + std::to_string(last) + ")";
+				last = step.Tier;
+				const std::string w = "tiers: step " + std::to_string(step.Tier) + ": ";
+				if (const auto n = x.find("need"); n != x.end())
+				{
+					if (!n->is_number_integer() || n->get<int>() < 0) return w + "need must be a whole number of 0 or more (0 = all)";
+					step.Need = n->get<int>();
+				}
+				const auto g = x.find("goals");
+				if (g == x.end() || !g->is_array() || g->empty()) return w + "goals must be a list of one goal or more";
+				for (const Json& gj : *g)
+				{
+					if (!gj.is_object()) return w + "every goal is an object";
+					for (const auto& [key, v] : gj.items())
+						if (key != "type" && key != "building" && key != "count") return w + "a goal has no " + key;
+					TierGoal goal;
+					const auto ty = gj.find("type");
+					if (ty == gj.end() || !ty->is_string()) return w + "a goal has no type";
+					goal.Type = ty->get<std::string>();
+					const auto& types = TierGoalTypes();
+					if (std::find(types.begin(), types.end(), goal.Type) == types.end()) return w + "no goal type '" + goal.Type + "'";
+					if (const auto b = gj.find("building"); b != gj.end())
+					{
+						if (!b->is_string() || b->get<std::string>().empty()) return w + "building must be a building id";
+						goal.Building = b->get<std::string>();
+					}
+					if (goal.Type == "building" && goal.Building.empty()) return w + "a goal of type building needs its building";
+					if (const auto c = gj.find("count"); c != gj.end())
+					{
+						if (!c->is_number_integer() || c->get<int>() < 0) return w + "count must be a whole number of 0 or more";
+						goal.Count = c->get<int>();
+					}
+					step.Goals.push_back(goal);
+				}
+				if (step.Need > static_cast<int>(step.Goals.size())) return w + "need is above the number of goals";
+				out.push_back(std::move(step));
+			}
+			return {};
+		}
+
 		// T181: "use" of the knowledge rules (learning by using a material; UseLearning.h)
 		std::string ReadUse(const Json& o, UseRules& u)
 		{
@@ -245,6 +311,23 @@ namespace GB
 					if (!k->is_boolean()) return "tech '" + t.Id + "': known must be true or false";
 					t.Known = k->get<bool>();
 				}
+				if (const auto tier = o.find("tier"); tier != o.end())   // T323
+				{
+					if (!tier->is_number_integer() || tier->get<int>() < 0 || tier->get<int>() > kMaxTier) return "tech '" + t.Id + "': tier must be a whole number from 0 to " + std::to_string(kMaxTier);
+					t.Tier = tier->get<int>();
+				}
+				if (const auto br = o.find("branch"); br != o.end())   // D77
+				{
+					const auto& branches = TechBranches();
+					if (!br->is_string() || std::find(branches.begin(), branches.end(), br->get<std::string>()) == branches.end())
+					{
+						std::string list;
+						for (const std::string& b : branches) list += (list.empty() ? "" : ", ") + b;
+						return "tech '" + t.Id + "': branch must be one of " + list;
+					}
+					t.Branch = br->get<std::string>();
+				}
+				if (t.Tier >= 0 && t.Branch.empty()) return "tech '" + t.Id + "': a technology with a tier needs its branch";
 				for (std::string error : { Names(o, "requires", t.Requires), Names(o, "recipes", t.Recipes), Names(o, "nodes", t.Nodes), Names(o, "buildings", t.Buildings) })
 					if (!error.empty()) return "tech '" + t.Id + "': " + error;
 				if (const auto v = o.find("verbs"); v != o.end())   // T322: checked here (a verb is no name of another section)
@@ -306,6 +389,8 @@ namespace GB
 			if (it->contains("eras")) return "knowledge: there are no eras (T181)";
 			if (const auto u = it->find("use"); u != it->end())
 				if (std::string error = ReadUse(*u, r.Use); !error.empty()) return "knowledge: " + error;
+			if (const auto ts = it->find("tiers"); ts != it->end())   // T323
+				if (std::string error = ReadTiers(*ts, r.Tiers); !error.empty()) return "knowledge: " + error;
 			rules = r;
 		}
 		if (j.contains("eras")) return "eras: there are no eras (T181)";
@@ -322,6 +407,8 @@ namespace GB
 		{
 			Json o = { { "id", t.Id }, { "name", t.Name }, { "requires", t.Requires }, { "recipes", t.Recipes } };
 			if (t.Known) o["known"] = true;
+			if (t.Tier >= 0) o["tier"] = t.Tier;          // T323
+			if (!t.Branch.empty()) o["branch"] = t.Branch;   // D77
 			if (t.Complexity >= 0.0f) o["complexity"] = Round3(t.Complexity);
 			if (!t.Physical.Empty()) o["physical"] = { { "materials", t.Physical.Materials }, { "stations", t.Physical.Stations } };
 			if (!t.Nodes.empty()) o["nodes"] = t.Nodes;
@@ -343,6 +430,24 @@ namespace GB
 		out["knowledge"]["use"] = { { "materials", materials }, { "effect", u.Effect }, { "pull", Round3(u.Pull) }, { "enough", Round3(u.Enough) }, { "near", Round3(u.Near) },
 			{ "damp", Round3(u.Damp) }, { "basics", { { "food", Round3(u.BasicsFood) }, { "fire", u.BasicsFire }, { "beds", Round3(u.BasicsBeds) } } }, { "paceMin", Round3(u.PaceMin) }, { "paceMax", Round3(u.PaceMax) }, { "fireStation", u.FireStation } };
 		if (r.LeapYears > 0.0f) out["knowledge"]["leapYears"] = Round3(r.LeapYears);
+		if (!r.Tiers.empty())   // T323
+		{
+			Json tiers = Json::array();
+			for (const TierStep& step : r.Tiers)
+			{
+				Json goals = Json::array();
+				for (const TierGoal& g : step.Goals)
+				{
+					Json gj = { { "type", g.Type }, { "count", g.Count } };
+					if (!g.Building.empty()) gj["building"] = g.Building;
+					goals.push_back(gj);
+				}
+				Json sj = { { "tier", step.Tier }, { "goals", goals } };
+				if (step.Need > 0) sj["need"] = step.Need;
+				tiers.push_back(sj);
+			}
+			out["knowledge"]["tiers"] = tiers;
+		}
 		return out.dump(2);
 	}
 }

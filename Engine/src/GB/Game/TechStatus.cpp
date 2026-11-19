@@ -2,9 +2,9 @@
 #include "GB/Game/TechStatus.h"
 #include "GB/Game/Clans.h"
 #include "GB/Game/ResearchQueue.h"
+#include "GB/Game/TechTiers.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Game/UseLearning.h"
-#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Gameplay/Techs.h"
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -13,7 +13,7 @@ namespace GB
 {
 	using Json = nlohmann::json;
 
-	bool TechTiers::Read(const std::string& json)
+	bool TechTierMap::Read(const std::string& json)
 	{
 		const Json doc = Json::parse(json, nullptr, false);
 		if (doc.is_discarded()) return false;
@@ -30,26 +30,22 @@ namespace GB
 		return true;
 	}
 
-	const TechTiers& TechTiers::Shipped()
+	TechTierMap TechTierMap::FromTree(const TechTree& tree)
 	{
-		static const TechTiers tiers = []
-		{
-			TechTiers t;
-			for (const std::string& doc : ShippedDocuments()) t.Read(doc);
-			return t;
-		}();
-		return tiers;
+		TechTierMap t;
+		for (const auto& [id, def] : tree.Techs) if (def.Tier >= 0) t.Set(id, def.Tier);
+		return t;
 	}
 
-	int TechTiers::Of(const std::string& tech) const
+	int TechTierMap::Of(const std::string& tech) const
 	{
 		const auto it = m_Of.find(tech);
 		return it == m_Of.end() ? -1 : it->second;
 	}
 
-	int TechStatus::OpenTier(const Tribe&)
+	int TechStatus::OpenTier(const Tribe& tribe)
 	{
-		return 99;   // T323 replaces this with the tier the clan has opened
+		return TechTiers::Open(tribe);   // T323
 	}
 
 	bool TechStatus::Dealings(const ClanWorld& world, int a, int b)
@@ -80,7 +76,8 @@ namespace GB
 		const ResearchQueue& queue = tribe.Research();
 		const std::string current = queue.Current(tribe);
 		const int open = input.OpenTier >= 0 ? input.OpenTier : OpenTier(tribe);
-		const TechTiers& tiers = input.Tiers ? *input.Tiers : TechTiers::Shipped();
+		const TechTierMap fromTree = input.Tiers ? TechTierMap{} : TechTierMap::FromTree(*tree);
+		const TechTierMap& tiers = input.Tiers ? *input.Tiers : fromTree;
 		const bool tiered = std::any_of(tree->Techs.begin(), tree->Techs.end(), [&](const auto& t) { return tiers.Of(t.first) >= 0; });
 		std::map<std::string, const ClanKnowledge::ResearchLine*> lines;
 		const std::vector<ClanKnowledge::ResearchLine> research = k.Research();

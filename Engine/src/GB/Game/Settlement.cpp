@@ -3,6 +3,7 @@
 // the orders from Execute, what a finished job leaves from Finish and the shelter from the needs. Without buildings (Tribe::SetBuildings) every one of
 // them does nothing, so a tribe without them behaves exactly as before. See docs/ASENTAMIENTOS.md.
 #include "GB/Game/Tribe.h"
+#include "GB/Game/TechTiers.h"
 #include "GB/Game/UseLearning.h"
 #include "GB/World/Regions.h"
 #include <algorithm>
@@ -1007,6 +1008,7 @@ namespace GB
 		// P1 + T181: the next rung the clan reaches for on its own, with no eras: the basics ladder (knowledge.progression) or what the materials it
 		// has found pull it to (a clan with copper near goes for smelting, one with grain seed for the fields): UseLearning::NextStep
 		if (const std::string rung = UseLearning::NextStep(*this); !rung.empty()) add(rung, 0);
+		TechTiers::Update(*this, goals);   // T323: the steps the clan's goals open; goals above them wait (GB/Game/TechTiers.h)
 		m_Knowledge.SetGoals(std::move(goals));
 	}
 
