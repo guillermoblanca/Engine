@@ -2,6 +2,7 @@
 // from Tribe.cpp (the senses, the needs and the decision of each member) so the two grow without stepping on each other; the hooks there are few:
 // Decide calls ClaimJob and JobBonus, Execute reads the aptitude for the gathers of a trip, Finish calls Practise, and Update runs PostJobs and
 // ReviewRoles on their clocks. Deterministic like the rest: maps in id order, ties to the first, no randomness.
+#include "GB/Game/BushKeeper.h"
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
 #include <algorithm>
@@ -383,6 +384,7 @@ namespace GB
 		if (alive > 0) PostConflictJobs();   // H14: hunts (TribeConflict.cpp)
 		m_Designations.Post(*this);   // T270: the nodes the player marked (ColonyDesignations.h)
 		m_Goals.Post(*this);   // T307: the hunts of a stock goal (StockGoals.h)
+		BushKeeper::Post(*this);   // T335: a berry bush moved by the camp when there is none (BushKeeper.h)
 		TechVerbs::Withdraw(*this, m_Board);   // T322: no job of a verb the clan does not know (TechVerbs.h)
 		for (const std::string& gone : m_Board.End(m_Time, rules)) (void)gone;   // (met needs and lapsed claims: the member chooses again when it next decides)
 	}

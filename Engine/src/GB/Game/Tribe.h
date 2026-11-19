@@ -360,6 +360,8 @@ namespace GB
 		friend class ResearchQueue;   // T324: the player's research queue (GB/Game/ResearchQueue.h), out of this class
 		friend class FarmZones;       // T280: the farm zones the player paints (GB/Game/FarmZones.h), out of this class
 		friend class Transplant;      // T325: moving a resource node (GB/Game/Transplant.h), out of this class
+		friend class WildSeeds;       // T328: wild seed from afar when the clan may till and has none (GB/Game/WildSeeds.h), out of this class
+		friend class BushKeeper;      // T335: a berry bush moved by the camp (GB/Game/BushKeeper.h), out of this class
 	public:
 		TribeConfig Config;
 
