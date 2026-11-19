@@ -36,3 +36,4 @@ editor_layout.ini
 
 # Laboratory runs (telemetry files)
 /lab_runs/
+__pycache__/
