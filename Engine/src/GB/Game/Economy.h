@@ -63,6 +63,12 @@ namespace GB
 		int ZonePlotsMin = 0, ZonePlotsMax = 0;
 		int ZoneMin() const { return ZonePlotsMin > 0 ? ZonePlotsMin : Plots; }
 		int ZoneMax() const { return std::max(ZoneMin(), ZonePlotsMax > 0 ? ZonePlotsMax : Plots); }
+		// T337: the priority (1 first .. 10 last, as a mark of the player: ColonyDesignations) of clearing what stands in a painted zone (trees,
+		// rocks, bushes): the zone's first work, before its plots are tilled (FarmZones)
+		int ClearPriority = 2;
+		// ... and how far from a plot nobody can stand on a node may be and still be taken as what walls it (a big rock's wall reaches over;
+		// a trunk's hardly): metres
+		float ClearReach = 3.0f;
 		bool operator==(const FarmRules&) const = default;
 	};
 

@@ -605,6 +605,18 @@ namespace GB::Editor
 		void DrawWorkTab(const Tribe& t, float width, float maxH);
 		void DrawStockTab(const Tribe& t, float width, float maxH);
 		void DrawResearchTab(const Tribe& t, float width, float maxH);   // T324: the research queue
+		// T281 (ColonyZones.cpp): the tool Field: a farm zone painted point by point on the ground, its crop and plan, and the zones of the clan
+		bool ZoneTakesClicks() const;                  // the tab Field is open: a left click on the ground is the tool's (no selection, no box)
+		bool ZonePainting() const;                     // ... and a perimeter is being drawn: the right click takes its last point away (no radial)
+		void ZoneEvaluate(const Tribe& t, const std::vector<glm::vec2>& outline);   // the cache of m_Colony.Zone: area, plots, crossing, why not
+		void DrawZoneWorld(float ox, float oy, float w, float h);   // the perimeter on the ground, its handles, its label and the zones' outlines
+		void DrawFieldTab(const Tribe& t, float width);   // over the bar: what to do now, the crop and the plan, a zone's card
+		void ZoneKeys();                               // Enter closes the perimeter, Backspace takes a point away, Esc cancels
+		CommandResult ZoneCommand(const std::vector<std::string>& a);   // `colony zone ...`
+		std::string ZoneStatus();                      // `colony zone status`
+		std::string ZoneLabel(const std::string& zone) const;            // "zone 3" -> "Field 3" (in the player's language)
+		std::string CropLabel(const Tribe& t, const std::string& crop) const;
+		bool IconLabelButton(const std::string& id, const std::string& icon, const std::string& label, bool lit, bool dim = false);   // an atlas icon and its word, lit ochre when chosen
 		void DrawPersonWork(const Tribe& t, const TribeMember& m);
 		std::string PersonWhy(const Tribe& t, const TribeMember& m) const;
 		std::string WorkLabel(const std::string& id) const;

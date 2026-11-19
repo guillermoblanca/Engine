@@ -48,6 +48,39 @@ namespace GB
 		return FieldGround(field.Origin, field.GridCells(), field.Columns, field.Spacing);   // T280: a shaped field takes its bounding grid
 	}
 
+	glm::vec2 FieldStoreSpot(const glm::vec2& origin, int columns, float spacing, const std::vector<int>& cells)
+	{
+		const int cols = std::max(1, columns);
+		const int first = cells.empty() ? 0 : cells.front();
+		return origin + glm::vec2(static_cast<float>(first % cols) - 1.0f, static_cast<float>(first / cols)) * spacing;
+	}
+
+	void FieldGrounds(const glm::vec2& origin, int columns, float spacing, const std::vector<int>& cells, std::vector<GroundRect>& out)
+	{
+		const int cols = std::max(1, columns);
+		bool whole = !cells.empty() && cells.back() + 1 == static_cast<int>(cells.size()) && static_cast<int>(cells.size()) % cols == 0;
+		if (cells.empty() || whole) { out.push_back(FieldGround(origin, cells.empty() ? 1 : static_cast<int>(cells.size()), cols, spacing)); return; }
+		const glm::vec2 store = FieldStoreSpot(origin, cols, spacing, cells);
+		out.push_back({ store, glm::vec2(0.5f * spacing), 0.0f, "a field" });
+		for (size_t i = 0; i < cells.size();)
+		{
+			const int row = cells[i] / cols, from = cells[i] % cols;
+			size_t j = i + 1;
+			while (j < cells.size() && cells[j] == cells[j - 1] + 1 && cells[j] / cols == row) ++j;
+			const int to = cells[j - 1] % cols;
+			const glm::vec2 lo = origin + glm::vec2((static_cast<float>(from) - 0.5f) * spacing, (static_cast<float>(row) - 0.5f) * spacing);
+			const glm::vec2 hi = origin + glm::vec2((static_cast<float>(to) + 0.5f) * spacing, (static_cast<float>(row) + 0.5f) * spacing);
+			out.push_back({ 0.5f * (lo + hi), 0.5f * (hi - lo), 0.0f, "a field" });
+			i = j;
+		}
+	}
+
+	void FieldGrounds(const Field& field, std::vector<GroundRect>& out)
+	{
+		if (field.Cells.empty()) { out.push_back(FieldGround(field)); return; }
+		FieldGrounds(field.Origin, field.Columns, field.Spacing, field.Cells, out);
+	}
+
 	bool GroundOverlaps(const GroundRect& a, const GroundRect& b, float gap)
 	{
 		glm::vec2 au, av, bu, bv;
@@ -78,7 +111,7 @@ namespace GB
 			for (const Tribe::SettlementSite& s : tribe.SettlementSites())   // (SettlementSite::Building is the def's name)
 				if (const BuildingDef* def = DefByName(*defs, s.Building)) out.push_back(BuildingGround(*def, s.Pos));
 		if (!fields) return out;
-		for (const Field& f : tribe.Economy().Fields) out.push_back(FieldGround(f));
+		for (const Field& f : tribe.Economy().Fields) FieldGrounds(f, out);   // T337: a shaped field plot by plot
 		if (tribe.Outside().Ground) tribe.Outside().Ground(tribe, out);
 		return out;
 	}
@@ -115,9 +148,9 @@ namespace GB
 		{
 			for (const Field& f : t.Economy().Fields)
 			{
-				GroundRect r = FieldGround(f);
-				r.What = clan + " " + f.Name;
-				out.push_back(r);
+				const size_t from = out.size();
+				FieldGrounds(f, out);   // T337 (a rectangle field: its one rectangle, as before)
+				for (size_t i = from; i < out.size(); ++i) out[i].What = clan + " " + f.Name;
 			}
 		};
 		if (clans && clans->Count() > 0)

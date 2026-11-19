@@ -318,7 +318,9 @@ int GBTest_tech_verbs(int, char**)
 		{
 			const ColonyDesignations::Reply d1 = t.Designations().Designate(t, trees.front());
 			std::fprintf(stderr, "  mark: %s\n", d1.Text.c_str());
-			Check(!d1.Ok && d1.Text.find("does not know how to") != std::string::npos && t.Designations().Marks().empty(), "a mark of an unknown verb is refused");
+			bool own = false;   // (T337: zone 1 lies over some nodes of the patch, which it marks to clear itself: only the player's own marks count here)
+			for (const auto& [node, mark] : t.Designations().Marks()) own = own || mark.Field.empty();
+			Check(!d1.Ok && d1.Text.find("does not know how to") != std::string::npos && !own, "a mark of an unknown verb is refused");
 		}
 		const std::vector<std::string> rocks = k.Gameplay.NamesWithTag("Resource.Node.rock");
 		if (!rocks.empty()) Check(t.Designations().Designate(t, rocks.front()).Ok, "a mark of a kind no verb names is free");

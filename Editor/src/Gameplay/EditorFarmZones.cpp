@@ -56,7 +56,9 @@ namespace GB::Editor
 			const Field* f = FarmZones::Find(*t, a[0]);
 			if (!f) return { false, "the clan has no zone " + a[0] };
 			const FarmZones::Zone* z = zones.Of(f->Name);
-			return { true, f->Report() + (z ? " [crop " + (z->Auto ? std::string("auto") : z->Crop.empty() ? std::string("any") : z->Crop) + ", plan " + z->Plan + "]" : std::string(" [the clan's, auto]")) };
+			const std::string clear = zones.Clearing(f->Name);   // T337: what still stands in it (only while something does)
+			return { true, f->Report() + (z ? " [crop " + (z->Auto ? std::string("auto") : z->Crop.empty() ? std::string("any") : z->Crop) + ", plan " + z->Plan + "]" : std::string(" [the clan's, auto]"))
+				+ (clear.empty() ? std::string() : "; " + clear) };
 		}
 		return { false, kUsage };
 	}

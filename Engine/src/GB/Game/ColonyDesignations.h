@@ -45,6 +45,7 @@ namespace GB
 		{
 			int Priority = kDefaultPriority;   // 1 (first) .. 10 (last), as the work table of C-5
 			double Since = 0.0;                // tribe seconds when it was marked
+			std::string Field;                 // T337: the farm zone that asked for it (a node in its way: FarmZones); "" = the player's own mark
 			bool operator==(const Mark&) const = default;
 		};
 		struct Reply
@@ -58,6 +59,9 @@ namespace GB
 		Reply Designate(Tribe& tribe, const std::string& node, int priority = kDefaultPriority);
 		// Marks every node of the node's kind in its stand or deposit (see above): the answer says how many.
 		Reply DesignateAll(Tribe& tribe, const std::string& node, int priority = kDefaultPriority);
+		// T337: the mark a farm zone asks for, of a node that stands in its way (FarmZones::Post): Designate's checks and refusals, the mark
+		// carrying the zone's name. Marking a node the player marked keeps the player's mark as it is.
+		Reply Clear(Tribe& tribe, const std::string& node, int priority, const std::string& field);
 		// Lifts the mark of a node (all: of its whole stand).
 		Reply Undesignate(Tribe& tribe, const std::string& node, bool all = false);
 		const Mark* MarkOf(const std::string& node) const;
@@ -99,7 +103,8 @@ namespace GB
 
 		bool Empty() const { return m_Marks.empty() && m_Sites.empty(); }
 		void Clear() { m_Marks.clear(); m_Sites.clear(); }
-		// "3 nodes marked (wild tree 4 p1, ...); sites in order: Hut 2, Hut 1" ("" with neither): the line `game status` adds.
+		// "3 nodes marked (wild tree 4 p1, ...); sites in order: Hut 2, Hut 1" ("" with neither): the line `game status` adds. The marks of
+		// the farm zones (T337) are not in it: `game zone` tells them.
 		std::string Line() const;
 
 		// Saving (the tribe's "designations" section, only written when there is something): the marks and the queue.

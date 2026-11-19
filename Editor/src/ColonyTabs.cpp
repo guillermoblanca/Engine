@@ -103,13 +103,13 @@ namespace GB::Editor
 	CommandResult EditorApp::ColonyTabCommand(const std::vector<std::string>& a)
 	{
 		const std::string sub = a[0];
-		const char* usage = "colony tab [work|stock|research|off] | colony work fold|unfold <category> | colony work step <person> <category|job> up|down | colony work reset <person> "
+		const char* usage = "colony tab [work|stock|research|field|off] | colony work fold|unfold <category> | colony work step <person> <category|job> up|down | colony work reset <person> "
 			"| colony stock picker | colony stock pick <item|tag> [n] | colony stock set <item|tag> <n> | colony stock off <item|tag>";
 		if (sub == "tab")
 		{
 			if (a.size() == 1) return { true, m_Colony.Tab.empty() ? std::string("no tab open") : "tab " + m_Colony.Tab + " open" };
 			if (a[1] == "off") { m_Colony.Tab.clear(); return { true, "tab closed" }; }
-			if (a[1] != "work" && a[1] != "stock" && a[1] != "research") return { false, usage };
+			if (a[1] != "work" && a[1] != "stock" && a[1] != "research" && a[1] != "field") return { false, usage };
 			if (!ColonyTribe()) return { false, "no colony: director colony on, and a world with clans" };
 			if (!m_Hand.Menu.empty() || !m_Hand.Building.empty()) Execute("director hand off");   // (one panel over the bar at a time)
 			m_Colony.Tab = a[1];
@@ -226,6 +226,7 @@ namespace GB::Editor
 		{
 			if (m_Colony.Tab == "work") DrawWorkTab(*t, room - 2.0f * T::Pad, maxH);
 			else if (m_Colony.Tab == "research") DrawResearchTab(*t, room - 2.0f * T::Pad, maxH);
+			else if (m_Colony.Tab == "field") DrawFieldTab(*t, room - 2.0f * T::Pad);   // T281 (ColonyZones.cpp)
 			else DrawStockTab(*t, room - 2.0f * T::Pad, maxH);
 			m_Colony.TabBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
 		}

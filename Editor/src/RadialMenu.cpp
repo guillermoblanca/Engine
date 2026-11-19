@@ -236,6 +236,7 @@ namespace GB::Editor
 		{
 		case K::Ground:
 			if (knows("goto")) add("goto", "goto", "Go here", "The people selected walk here", { "game order sel goto " + at }, true);
+			if (knows("farm", "till")) add("field_here", "till", "A field here...", "Mark out a field: this is its first point", { "colony zone start", "colony zone point " + at }, false);   // T281
 			add("build_here", "build", "Build here...", "The buildings, to place one here", { "director hand build" }, false);
 			break;
 		case K::Node:
@@ -385,6 +386,7 @@ namespace GB::Editor
 
 	void EditorApp::ColonyKeys()
 	{
+		ZoneKeys();   // T281: Enter, Backspace and Esc of the tool Field first (its Esc drops the perimeter before the tab closes)
 		const bool tab = !m_Colony.Tab.empty() && ColonyScreen() && !m_Observer.Tree;   // (a tab hidden under the tree of knowledge does not take the Esc)
 		if ((!m_Colony.Open && !tab) || ImGui::GetIO().WantTextInput) return;
 		if (!ImGui::IsKeyPressed(ImGuiKey_Escape, false)) return;
@@ -484,8 +486,12 @@ namespace GB::Editor
 			dl->AddRect(a, b, T::Ochre, 0.0f, 0, 1.5f);
 		}
 
-		// ---- the right button: a click (not a drag, which pans) opens the radial over what is under it; never while a building is being placed
-		if (m_ViewportHovered && ImGui::IsMouseClicked(1) && m_Hand.Building.empty()) { m_Colony.RightDown = true; m_Colony.RightAt = mouse; }
+		// ---- T281: the tool Field: the perimeter being drawn, its label and the outlines of the clan's zones (ColonyZones.cpp)
+		DrawZoneWorld(ox, oy, w, h);
+
+		// ---- the right button: a click (not a drag, which pans) opens the radial over what is under it; never while a building is being placed nor
+		// while a field is drawn (there it takes the last point away)
+		if (m_ViewportHovered && ImGui::IsMouseClicked(1) && m_Hand.Building.empty() && !ZonePainting()) { m_Colony.RightDown = true; m_Colony.RightAt = mouse; }
 		if (m_Colony.RightDown && ImGui::IsMouseReleased(1))
 		{
 			m_Colony.RightDown = false;
@@ -657,6 +663,7 @@ namespace GB::Editor
 		if (sub == "status")
 			return { true, std::string(ColonyScreen() ? "colony screen" : "not the colony's screen") + "; " + selection() + "; " + (m_Colony.Open ? list() : std::string("no radial open")) };
 		if (sub == "tab" || sub == "work" || sub == "stock") return ColonyTabCommand(a);   // T308 (ColonyTabs.cpp)
+		if (sub == "zone") return ZoneCommand(a);   // T281 (ColonyZones.cpp)
 		if (!t) return { false, "no colony: director colony on, and a world with clans" };
 		if (sub == "select")
 		{
@@ -719,6 +726,6 @@ namespace GB::Editor
 			if (!m_Colony.Open) return { false, "nothing to do there" };
 			return { true, list() };
 		}
-		return { false, "usage: colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off] | tab [work|stock|off] | work fold|unfold <category> | work step <person> <what> up|down | work reset <person> | stock pick|set|off ..." };
+		return { false, "usage: colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off] | tab [work|stock|research|field|off] | zone start|point <x> <z>|undo|close|cancel|crop <crop|auto>|plan <plan>|confirm|select <id|off>|cursor <x> <z> | work fold|unfold <category> | work step <person> <what> up|down | work reset <person> | stock pick|set|off ..." };
 	}
 }

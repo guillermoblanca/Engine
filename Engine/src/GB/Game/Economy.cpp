@@ -221,7 +221,8 @@ namespace GB
 					|| !(e = r.Float("moistureSeconds", x.MoistureSeconds, 1.0f, 1e6f)).empty() || !(e = r.Float("workSeconds", x.WorkSeconds, 0.0f, 600.0f)).empty()
 					|| !(e = r.Int("plotsPerTrip", x.PlotsPerTrip, 1, 100)).empty() || !(e = r.Float("priority", x.Priority, 0.0f, 100.0f)).empty()
 					|| !(e = r.Int("fields", x.Fields, 0, 64)).empty() || !(e = r.Int("membersPerField", x.MembersPerField, 0, 1000)).empty()
-					|| !(e = r.Int("plotsPerMember", x.PlotsPerMember, 0, 100)).empty()) return e;
+					|| !(e = r.Int("plotsPerMember", x.PlotsPerMember, 0, 100)).empty() || !(e = r.Int("clearPriority", x.ClearPriority, 1, 10)).empty()
+					|| !(e = r.Float("clearReach", x.ClearReach, 0.0f, 50.0f)).empty()) return e;
 				if (r.Has("zonePlots"))   // T280: a number, or [min, max]
 				{
 					const Json& z = (*p)["zonePlots"];
@@ -352,6 +353,8 @@ namespace GB
 		f["membersPerField"] = m.MembersPerField;
 		if (m.PlotsPerMember > 0) f["plotsPerMember"] = m.PlotsPerMember;   // T280 (only when the data says so)
 		if (m.ZonePlotsMin > 0 || m.ZonePlotsMax > 0) f["zonePlots"] = Json::array({ m.ZonePlotsMin, m.ZonePlotsMax });
+		if (m.ClearPriority != FarmRules().ClearPriority) f["clearPriority"] = m.ClearPriority;   // T337 (only when not the default)
+		if (m.ClearReach != FarmRules().ClearReach) f["clearReach"] = Rounded(m.ClearReach);
 		for (const auto& [id, crop] : r.Crops)
 		{
 			Json y = Json::object();

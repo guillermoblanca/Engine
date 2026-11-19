@@ -9,10 +9,12 @@
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Gameplay/Spoilage.h"
+#include "GB/Gameplay/WorldResources.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <memory>
+#include <set>
 #include <sstream>
 
 namespace
@@ -105,9 +107,23 @@ private:
 // crop and the fields).
 struct Clan
 {
-	explicit Clan(int n, bool extended = false)
+	// T337: `wild`, nodes of the world put in besides the patch ("wild tree 1"...); `noAxe`, no recipe makes an axe
+	explicit Clan(int n, bool extended = false, const std::vector<ResourceSpot>& wild = {}, bool noAxe = false)
 	{
 		RegisterEraOneItems(Items, Recipes, Defs);   // (the whole catalogue: seeds, grain, the hoe and dried berries are in it)
+		if (noAxe)
+		{
+			RecipeBook kept;
+			for (const std::string& id : Recipes.Ids())
+			{
+				const Recipe* r = Recipes.Find(id);
+				const ItemDef* out = Items.Find(r->Output);
+				bool axe = false;
+				if (out) for (const std::string& tag : out->Tags) axe = axe || tag.rfind("Item.Tool.Axe", 0) == 0;
+				if (!axe) kept.Add(*r);
+			}
+			Recipes = kept;
+		}
 		for (const char* far : { "oak_acorns", "granite_rock", "pine_resin", "wild_grain", "salt_flat", "old_bones", "fallen_trunk" }) Defs.erase(far);   // (not placed here)
 		if (extended)
 			Check(LoadEconomyRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", Tribe_.Config.Econ).empty(), "and the economy section of the game, with its crops");
@@ -115,6 +131,7 @@ struct Clan
 		RegisterInteractiveContent(Gameplay.Library);
 		const ResourceCounts c = ScaledResources(n);
 		BuildResources(Entities, glm::vec3(0.0f), Defs, c.Trees, c.Rocks, c.Bushes, c.Grass);
+		if (!wild.empty()) BuildWorldResources(Entities, wild, Defs);
 		Tribe_.Bind(Entities, Gameplay, Items, Recipes, Defs);
 		const std::vector<std::string> roles = Tribe_.PlanRoles(n);
 		const glm::vec2 camp(0.0f, -8.0f);
@@ -134,6 +151,7 @@ struct Clan
 		}
 		Resources.Bind(Gameplay, Defs, [this](const std::string& who, const std::string& item, int k)
 		{
+			Yields[item] += k;
 			for (size_t i = 0; i < Names.size(); ++i) if (Names[i] == who) bodies[i]->Bag().Add(Items, item, k);
 		});
 		Fires.Items = &Items;
@@ -195,6 +213,7 @@ struct Clan
 	std::vector<std::string> Names;
 	std::vector<std::unique_ptr<FakeBody>> bodies;
 	std::map<std::string, bool> Posted;
+	std::map<std::string, int> Yields;   // T337: what came out of the nodes, by item
 	std::map<std::string, std::string> Claimed;
 	bool bad = false;
 	void Clock(double seconds)
@@ -396,6 +415,85 @@ int GBTest_farm_zones(int, char**)
 		s.Update(100.0f, Season::Spring, false, 1000.0f, slow);
 		q.Update(100.0f, Season::Spring, false, 1000.0f, quick);
 		Check(std::fabs(q.Plots[0].Growth - 2.0f * s.Plots[0].Growth) < 1e-5f && s.Plots[0].Growth > 0.0f, "a crop grows at its own pace");
+	}
+
+	// ---- T337: a zone painted over trees and a rock is accepted; clearing them is its first work (the wood and the stone go to the store and
+	// the nodes go for good), then its plots are tilled and sown. Without an axe it says so and the free plots are worked all the same.
+	{
+		auto spot = [](const char* node, float x, float z) { ResourceSpot s; s.Node = node; s.Position = { x, 0.0f, z }; return s; };
+		const std::vector<ResourceSpot> wild{ spot("tree", 34.3f, 4.2f), spot("tree", 40.1f, 8.0f), spot("tree", 46.0f, 2.1f), spot("rock", 37.9f, 11.9f) };
+		for (const bool axe : { true, false })
+		{
+			Clan k(4, true, wild, !axe);
+			Tribe& t = k.Tribe_;
+			t.Zones().SetPlayer(true);
+			t.SetWorldClock(0.0);
+			t.Store().Add(k.Items, "grain_seed", 120);
+			t.Store().Add(k.Items, "stone_hoe", 1);
+			if (axe)   // (the woodcutter and the miner carry their tools)
+			{
+				k.bodies[k.Index("woodcutter")]->Bag().Add(k.Items, "stone_axe", 1);
+				k.bodies[k.Index("miner")]->Bag().Add(k.Items, "stone_pickaxe", 1);
+			}
+			int clearOut = 0;
+			std::vector<glm::vec2> clear;
+			const FarmZones::Reply checked = FarmZones::Check(t, { { 30.0f, 0.0f }, { 50.0f, 0.0f }, { 50.0f, 14.0f }, { 30.0f, 14.0f } }, "grain", &clearOut, &clear);
+			Check(checked.Ok && clearOut == 88 && clear.size() >= 4, "Check accepts a zone with trees and a rock in it and tells the plots to clear");
+			const FarmZones::Reply r = t.Zones().Paint(t, { 30.0f, 0.0f }, { 50.0f, 14.0f }, "grain");
+			std::fprintf(stderr, "  clear (%s axe): %s | %s\n", axe ? "with" : "no", r.Text.c_str(), t.Zones().Clearing("zone 1").c_str());
+			Check(r.Ok && r.Text.find("to clear first") != std::string::npos, "the zone is painted over the trees and the rock");
+			const std::set<size_t>* wait = t.Zones().Blocked("zone 1");
+			Check(wait && wait->size() >= 4, "the plots under them wait to be cleared");
+			const std::set<size_t> blocked = wait ? *wait : std::set<size_t>();
+			Check(t.Zones().Clearing("zone 1").find("3 tree") != std::string::npos && t.Zones().Clearing("zone 1").find("1 rock") != std::string::npos && t.Zones().List(t).find("to clear first") != std::string::npos, "the zone tells what is to clear");
+			Check(t.Designations().Marks().size() == 4u && t.Designations().Line().empty(), "its nodes are marked to clear (and not as the player's own marks)");
+			auto standing = [&]() { int n = 0; for (const char* node : { "wild tree 1", "wild tree 2", "wild tree 3", "wild rock 1" }) n += k.Gameplay.Find(node) ? 1 : 0; return n; };
+			auto tilled = [&](const std::set<size_t>& which, bool want)
+			{
+				int n = 0;
+				const Field& f = t.Economy().Fields[0];
+				for (size_t i = 0; i < f.Plots.size(); ++i) if ((which.count(i) != 0) == want && f.Plots[i].State != "grass") ++n;
+				return n;
+			};
+			if (axe)
+			{
+				for (int i = 0; i < 40 && standing() > 0; ++i) k.Clock(60.0);
+				std::fprintf(stderr, "  after clearing: %s; standing %d\n", t.Zones().List(t).c_str(), standing());
+				Check(standing() == 0 && k.Logged("zone 1: wild tree 1 is cleared away") && k.Logged("zone 1: wild rock 1 is cleared away"), "the trees are felled and the rock broken, and they go for good");
+				Check(k.Entities.FindByName("wild tree 2") == NullEntity, "(and from the scene)");
+				int deposited = 0;
+				for (const TribeMember& m : t.Members()) deposited += m.Deposited;
+				std::fprintf(stderr, "  gathered: wood %d, stone %d; deposited %d\n", k.Yields["wood"], k.Yields["stone"], deposited);
+				Check(k.Yields["wood"] >= 15 && k.Yields["stone"] >= 8 && deposited > 0, "their wood and stone were gathered and carried to the store (as any work)");
+				Check(!t.Zones().Blocked("zone 1") && t.Zones().Clearing("zone 1").empty() && t.Designations().Marks().empty(), "nothing waits and no mark is left");
+				for (int i = 0; i < 40 && tilled(blocked, true) < static_cast<int>(blocked.size()); ++i) k.Clock(60.0);
+				std::fprintf(stderr, "  then: %s\n", t.Zones().List(t).c_str());
+				Check(tilled(blocked, true) == static_cast<int>(blocked.size()), "then the cleared plots are tilled and sown");
+			}
+			else
+			{
+				k.Clock(600.0);
+				std::fprintf(stderr, "  no axe: %s\n", t.Zones().List(t).c_str());
+				Check(t.Zones().Clearing("zone 1").find("no axe for tree") != std::string::npos, "without an axe the zone says so");
+				const std::set<size_t> still = t.Zones().Blocked("zone 1") ? *t.Zones().Blocked("zone 1") : std::set<size_t>();
+				Check(tilled(blocked, false) > 0 && !still.empty() && tilled(still, true) == 0, "and is not stuck: its free plots are tilled, the ones to clear wait");
+				Check(k.Gameplay.Find("wild tree 1") && k.Gameplay.Find("wild tree 2") && k.Gameplay.Find("wild tree 3"), "the trees still stand");
+			}
+		}
+	}
+
+	// ---- T337: the ground is the plots, not the bounding box: a zone in the notch of an L beside it is painted
+	{
+		Clan k(4, true);
+		Tribe& t = k.Tribe_;
+		t.Zones().SetPlayer(true);
+		const FarmZones::Reply l = t.Zones().PaintOutline(t, { { 60.0f, 0.0f }, { 72.0f, 0.0f }, { 72.0f, 4.0f }, { 64.0f, 4.0f }, { 64.0f, 12.0f }, { 60.0f, 12.0f } }, "grain");
+		Check(l.Ok && !t.Economy().Fields.back().Cells.empty(), "an L");
+		const FarmZones::Reply notch = t.Zones().Paint(t, { 68.0f, 6.0f }, { 72.0f, 12.0f }, "grain");
+		std::fprintf(stderr, "  L: %s | notch: %s\n", l.Text.c_str(), notch.Text.c_str());
+		Check(notch.Ok, "a zone in its notch is painted (its plots and its store off the L's)");
+		Check(!t.Zones().Paint(t, { 62.0f, 6.0f }, { 66.0f, 8.0f }, "grain").Ok, "one over the L's plots is still refused");
+		Check(!FarmZones::Check(t, { { 66.0f, 6.0f }, { 66.0f, 12.0f }, { 66.5f, 12.0f }, { 66.5f, 6.0f } }, "grain").Ok, "and one on the notch zone's store too");
 	}
 
 	if (failures) std::fprintf(stderr, "%d check(s) failed\n", failures);

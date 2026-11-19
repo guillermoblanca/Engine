@@ -25,6 +25,7 @@
 #include "GB/Gameplay/Ecology.h"
 #include <glm/glm.hpp>
 #include <map>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -59,11 +60,18 @@ namespace GB
 
 		// ---- the player's zones
 		// Paints a zone over the rectangle of corners a and b (x, z; the plots' middles, 2 m apart), with a crop or "" for any. Refused: a crop the
-		// data has not, more than kMostPlots plots, ground taken (a building, a site, a field) or a plot in the water or on a rock.
+		// data has not, more than kMostPlots plots, ground taken (a building, a site, a field: plot by plot) or a plot in the water. T337: a tree, a rock or a bush in a plot
+		// is cleared first (see Blocked); a plot walled by what nobody can clear (a tree or a rock of the scenery, a cliff) is left out of it.
 		Reply Paint(Tribe& tribe, const glm::vec2& a, const glm::vec2& b, const std::string& crop);
 		// A zone of any shape: the perimeter's points (3 or more, in order); its plots are the cells of the grid (2 m, from the lowest x and z of
 		// the points) whose middle falls inside it (or on its edge). The same refusals as Paint.
 		Reply PaintOutline(Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop);
+		// T281: PaintOutline's refusals without painting (the UI's preview while the perimeter is drawn): Ok with the plots it would have in
+		// `plots`, else why (the same text PaintOutline answers). Changes nothing.
+		// T337: a tree, a rock or a bush standing in a plot no longer refuses the zone (clearing it is the zone's first work): `clear`, the
+		// middles of those plots; `walled`, the middles of the plots left out (nobody can stand there and nothing there can be cleared).
+		static Reply Check(const Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop, int* plots = nullptr, std::vector<glm::vec2>* clear = nullptr,
+			std::vector<glm::vec2>* walled = nullptr);
 		Reply SetCrop(Tribe& tribe, const std::string& zone, const std::string& crop);
 		Reply SetPlan(Tribe& tribe, const std::string& zone, const std::string& plan);
 		Reply SetAuto(Tribe& tribe, const std::string& zone, bool on);
@@ -98,16 +106,37 @@ namespace GB
 		// Where a farm job is done, for the score and the option: the field Pick would choose (the first field while there is no zone, as before).
 		glm::vec2 WorkPlace(const Tribe& tribe, const std::string& action) const;
 
+		// ---- T337: clearing a zone
+		// The plots of a zone that wait for what stands in them to be cleared (nullptr: none), and what is left to clear for people ("to clear
+		// first: 3 tree, 1 rock (6 plots wait); no axe for tree"; "" = nothing). Both from the last Post (or the painting).
+		const std::set<size_t>* Blocked(const std::string& field) const;
+		std::string Clearing(const std::string& field) const;
+
 		bool Empty() const { return m_Zones.empty(); }
-		void Clear() { m_Zones.clear(); }
+		void Clear() { m_Zones.clear(); m_Blocked.clear(); m_ClearText.clear(); m_Clean.clear(); }
 		std::string ToJson() const;
 		bool FromJson(const std::string& json);   // false (and nothing changed) on a mistake
 
 	private:
 		static void Logged(Tribe& tribe, const std::string& text);
 		Zone* Edit(const Tribe& tribe, const std::string& zone, std::string& name);
+		// T337: for each plot (a cell of the grid from `lo`), the nodes that stand in it: those whose foot is in its square and, where a member
+		// cannot stand (the body says), the nearest within farming.clearReach. Refused: a plot nobody can stand on with no node there (scenery).
+		static Reply Blockers(const Tribe& tribe, const glm::vec2& lo, int columns, float spacing, const std::vector<int>& cells, std::vector<std::vector<std::string>>& perCell,
+			std::vector<size_t>* stuck = nullptr);   // (`stuck`: such plots are listed there instead of refused)
+		// The zones' nodes in the way: marked to clear (ColonyDesignations::Clear, worked as any mark: the wood, stone or berries go to the
+		// store), and a spent one taken away for good (it would grow again in the field); the plots that still wait and the text.
+		void RefreshClearing(Tribe& tribe) const;
+		// Blockers for a zone being painted: the walled plots taken out of `cells` (and listed in `walled`); refused when none is left.
+		static Reply Plots(const Tribe& tribe, std::vector<int>& cells, const glm::vec2& lo, int columns, float spacing, std::vector<std::vector<std::string>>& perCell,
+			std::vector<glm::vec2>* walled);
+		static void ClearAway(Tribe& tribe, const std::string& node, const std::string& zone);
 
 		std::map<std::string, Zone> m_Zones;   // field name -> the player's settings
 		bool m_Player = false;                  // the host's switch (not saved)
+		// T337, not saved: worked out again from the world at the next Post (a cleared node is gone from the scene, which the save keeps)
+		mutable std::map<std::string, std::set<size_t>> m_Blocked;   // zone -> its plots that wait to be cleared
+		mutable std::map<std::string, std::string> m_ClearText;      // zone -> what is left to clear
+		mutable std::set<std::string> m_Clean;                       // zones with nothing left in them (nodes do not grow where there were none)
 	};
 }
