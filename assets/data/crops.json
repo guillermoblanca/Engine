@@ -1,0 +1,12 @@
+{
+  "note": "The crops a field can grow (economy.crops; T347, from era1.json): the seed, the yield, the seasons and the technology.",
+  "economy": {
+    "crops": [
+      { "id": "grain", "seed": "grain_seed", "yield": { "grain": 10, "grain_seed": 2 }, "stageSeconds": 4200, "sow": [ "spring", "summer", "autumn" ], "seasons": { "spring": 1.2, "summer": 1.0, "autumn": 0.6 } },
+      { "id": "barley", "seed": "barley_seed", "yield": { "barley": 9, "barley_seed": 2 }, "stageSeconds": 3600, "sow": [ "spring", "summer", "autumn" ], "seasons": { "spring": 1.2, "summer": 1.0, "autumn": 0.8 } },
+      { "id": "lentils", "seed": "lentil_seed", "yield": { "lentils": 7, "lentil_seed": 2 }, "stageSeconds": 3600, "sow": [ "spring", "summer" ], "seasons": { "spring": 1.2, "summer": 1.0, "autumn": 0.5 } },
+      { "id": "peas", "seed": "pea_seed", "yield": { "peas": 6, "pea_seed": 2 }, "stageSeconds": 3000, "sow": [ "spring", "autumn" ], "seasons": { "spring": 1.3, "summer": 0.6, "autumn": 1.0 } },
+      { "id": "flax", "seed": "flax_seed", "yield": { "fiber": 4, "flax_seed": 2 }, "stageSeconds": 4800, "sow": [ "spring" ], "seasons": { "spring": 1.2, "summer": 0.9 }, "tech": "weaving_loom" }
+    ]
+  }
+}

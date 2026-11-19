@@ -135,7 +135,7 @@ struct Clan
 		RegisterEraOneItems(Items, Recipes, Defs);   // (the whole catalogue: seeds, grain, the hoe and dried berries are in it)
 		for (const char* far : { "oak_acorns", "granite_rock", "pine_resin", "wild_grain", "salt_flat", "old_bones", "fallen_trunk" }) Defs.erase(far);   // (not placed here)
 		if (extended)
-			Check(LoadEconomyRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", Tribe_.Config.Econ).empty(), "and the economy section of the game, with its crops");
+			Check(LoadShippedSection(Tribe_.Config.Econ, [](const std::string& doc, EconomyRules& r) { return LoadEconomyRules(doc, r); }).empty(), "and the economy section of the game, with its crops");
 		RegisterResourceContent(Gameplay.Library, Defs);
 		RegisterInteractiveContent(Gameplay.Library);
 		const ResourceCounts c = ScaledResources(n);
@@ -232,7 +232,7 @@ int GBTest_economy(int, char**)
 	// ---- the data: the "economy" section of era1.json says what the code says, round-trips, and a mistake changes nothing
 	{
 		EconomyRules file;
-		Check(LoadEconomyRulesFile(data + "/era1.json", file).empty(), "the economy section of assets/data/era1.json loads");
+		Check(LoadShippedSection(file, [](const std::string& doc, EconomyRules& r) { return LoadEconomyRules(doc, r); }).empty(), "the economy section of the game's pack loads (T347: every file of it)");
 		Check(file == DefaultEconomyRules(), "and says what DefaultEconomyRules says");
 		EconomyRules back;
 		Check(LoadEconomyRules("{ \"economy\": " + EconomyRulesToJson(DefaultEconomyRules()) + " }", back).empty() && back == DefaultEconomyRules(), "the economy section round-trips");

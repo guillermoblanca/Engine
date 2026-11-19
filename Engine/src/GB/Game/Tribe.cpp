@@ -5,6 +5,7 @@
 #include "GB/Game/TechModifiers.h"
 #include "GB/Game/UseLearning.h"
 #include "GB/Game/WildSeeds.h"
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -134,26 +135,9 @@ namespace GB
 
 	std::map<std::string, TribeRole> DefaultRoles()
 	{
-		TribeRole forager;
-		forager.Weights = { { "Resource.Plant", 1.0f }, { "Resource.Plant.Herb", 0.4f }, { "fiber_grass", 0.9f }, { "Resource.Plant.Branch", 0.5f }, { "Resource.Loose", 0.6f },
-			{ "Resource.Wood", 0.25f }, { "Resource.Stone", 0.2f }, { "fire", 0.0f } };
-		forager.Nav.VegetationWeight = 0.8f;   // at home in the undergrowth
-		forager.Skill = "foraging";
-		TribeRole woodcutter;
-		woodcutter.Weights = { { "Resource.Wood", 1.0f }, { "Resource.Plant.Branch", 0.6f }, { "Resource.Plant", 0.35f }, { "Resource.Loose", 0.35f },
-			{ "Resource.Stone", 0.25f }, { "fire", 1.0f } };
-		woodcutter.Nav.LoadFactor = 2.5f;      // logs are heavy: loaded, it goes round the slopes
-		woodcutter.Tool = "stone_axe";
-		woodcutter.ToolTag = "Item.Tool.Axe";
-		woodcutter.Skill = "woodcutting";
-		woodcutter.Min = 1;                    // the fire needs wood: a clan always keeps one
-		TribeRole miner;
-		miner.Weights = { { "Resource.Stone", 1.0f }, { "Resource.Loose", 0.5f }, { "Resource.Plant", 0.35f }, { "Resource.Wood", 0.25f }, { "fire", 0.0f } };
-		miner.Nav.LoadFactor = 3.0f;           // and stone more so
-		miner.Tool = "stone_pickaxe";
-		miner.ToolTag = "Item.Tool.Pickaxe";
-		miner.Skill = "mining";
-		return { { "forager", forager }, { "woodcutter", woodcutter }, { "miner", miner } };
+		// the "roles" section of the game's data (rules/tribe.json). Not a second copy here (T347: the copy had 3 of the data's 6 roles).
+		static const std::map<std::string, TribeRole> roles = ShippedSection<std::map<std::string, TribeRole>>([](const std::string& doc, std::map<std::string, TribeRole>& r) { return LoadRoles(doc, r); });
+		return roles;
 	}
 
 	std::string LoadRoles(const std::string& json, std::map<std::string, TribeRole>& roles)
@@ -263,23 +247,25 @@ namespace GB
 		return out.dump(2);
 	}
 
-	TribeAgenda DefaultAgenda()
+	namespace
 	{
-		TribeAgenda a;
-		a.Factors["night"] = { { "sleep", 1.6f }, { "gather", 0.4f }, { "explore", 0.4f }, { "tool", 0.4f }, { "fire", 0.4f } };
-		a.Factors["dusk"] = { { "socialize", 2.5f }, { "warm", 1.5f }, { "deposit", 1.3f }, { "explore", 0.3f } };   // the evening is the clan's time together, not for the errands of the day
-		return a;
+		// the "tribe" section of the game's data (rules/tribe.json): the agenda and the economy (food, stock), read once. Not a second copy here (T347).
+		struct ShippedTribe { TribeAgenda Agenda; TribeEconomy Economy; };
+		const ShippedTribe& TribeSection()
+		{
+			static const ShippedTribe tribe = []
+			{
+				ShippedTribe t;
+				for (const std::string& doc : ShippedDocuments()) if (!LoadTribeRules(doc, t.Agenda, t.Economy).empty()) break;
+				return t;
+			}();
+			return tribe;
+		}
 	}
 
-	TribeEconomy DefaultEconomy()
-	{
-		TribeEconomy e;
-		e.Stock["berry"] = { 6.0f, 3.0f };
-		e.Stock["wood"] = { 10.0f, 0.0f };
-		e.Stock["stone"] = { 8.0f, 0.0f };
-		e.Stock["herbs"] = { 4.0f, 0.0f };   // a handful for the poultices (docs/PROGRESION.md): the foragers are not to spend their days on them
-		return e;
-	}
+	TribeAgenda DefaultAgenda() { return TribeSection().Agenda; }
+
+	TribeEconomy DefaultEconomy() { return TribeSection().Economy; }
 
 	std::string LoadTribeRules(const std::string& json, TribeConfig& config) { return LoadTribeRules(json, config.Agenda, config.Economy); }
 

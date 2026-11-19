@@ -1,0 +1,183 @@
+{
+  "note": "The recipes whose output is in items/materials.json (T347). After every item file (D8): a recipe asks for items of any family.",
+  "recipes": [
+    { "id": "leather", "inputs": { "hide": 2 }, "output": "leather", "count": 1, "station": "tannery", "ability": "Craft" },
+    { "id": "daub", "inputs": { "clay": 2, "fiber": 1 }, "output": "daub", "count": 2, "ability": "Craft" },
+    { "id": "reed_mat", "inputs": { "reed": 4, "cordage": 1 }, "output": "reed_mat", "count": 1, "ability": "Craft" },
+    { "id": "stakes", "inputs": { "wood": 1 }, "output": "stake", "count": 2, "tool": "Item.Tool.Axe", "ability": "Craft" },
+    { "id": "fired_brick", "inputs": { "clay": 2, "wood": 1 }, "output": "fired_brick", "count": 2, "station": "kiln", "ability": "Craft" },
+    { "ability": "Craft", "count": 1, "id": "copper_ingot", "inputs": { "copper_ore": 2 }, "output": "copper_ingot", "station": "forge" },
+    { "ability": "Craft", "count": 1, "id": "cordage", "inputs": { "fiber": 3 }, "output": "cordage" },
+    { "id": "plank", "inputs": { "log": 1 }, "output": "plank", "count": 2, "tool": "Item.Tool.Axe", "station": "workbench", "ability": "Craft" },
+    { "id": "mud_brick", "inputs": { "clay": 2, "fiber": 1 }, "output": "mud_brick", "count": 2, "station": "drying_rack", "ability": "Craft" },
+    { "id": "sinew_cordage", "inputs": { "sinew": 2 }, "output": "cordage", "count": 2, "ability": "Craft" },
+    { "id": "flour", "inputs": { "grain": 3 }, "output": "flour", "count": 2, "station": "quern", "ability": "Craft" },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "iron_ingot",
+      "inputs": {
+        "iron_ore": 2,
+        "wood": 2
+      },
+      "output": "iron_ingot",
+      "station": "forge"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "tablet",
+      "inputs": {
+        "clay": 2
+      },
+      "output": "tablet",
+      "station": "kiln"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "scroll",
+      "inputs": {
+        "fiber": 3,
+        "resin": 1
+      },
+      "output": "scroll",
+      "station": "workbench"
+    },
+    {
+      "ability": "Craft",
+      "count": 2,
+      "id": "paper",
+      "inputs": {
+        "plank": 1,
+        "water": 1
+      },
+      "output": "paper",
+      "station": "workbench"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "book",
+      "inputs": {
+        "paper": 4,
+        "leather": 1
+      },
+      "output": "book",
+      "station": "press"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "steel_ingot",
+      "inputs": {
+        "iron_ingot": 2,
+        "coal": 1
+      },
+      "output": "steel_ingot",
+      "station": "forge"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "engine",
+      "inputs": {
+        "steel_ingot": 4,
+        "coal": 2
+      },
+      "output": "engine",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 2,
+      "id": "copper_wire",
+      "inputs": {
+        "copper_ingot": 1
+      },
+      "output": "copper_wire",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "dynamo",
+      "inputs": {
+        "copper_wire": 4,
+        "steel_ingot": 2,
+        "engine": 1
+      },
+      "output": "dynamo",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "silicon",
+      "inputs": {
+        "sand": 3,
+        "coal": 1
+      },
+      "output": "silicon",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 2,
+      "id": "chip",
+      "inputs": {
+        "silicon": 1,
+        "copper_wire": 1
+      },
+      "output": "chip",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "computer",
+      "inputs": {
+        "chip": 4,
+        "steel_ingot": 1,
+        "copper_wire": 2
+      },
+      "output": "computer",
+      "station": "factory"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "model",
+      "inputs": {
+        "computer": 2,
+        "book": 2
+      },
+      "output": "model",
+      "station": "datacenter"
+    },
+    { "id": "flint_blade", "inputs": { "flint": 1 }, "output": "flint_blade", "count": 3, "station": "workbench", "ability": "Craft" },
+    { "id": "bone_needle", "inputs": { "bone": 1 }, "output": "bone_needle", "count": 3, "station": "workbench", "ability": "Craft" },
+    { "id": "clay_figurine", "inputs": { "clay": 1 }, "output": "clay_figurine", "count": 2, "station": "hearth", "ability": "Craft" },
+    { "id": "storage_jar", "inputs": { "clay": 3 }, "output": "storage_jar", "count": 1, "station": "wheel", "ability": "Craft" },
+    { "id": "glazed_jar", "inputs": { "clay": 3, "wood": 2 }, "output": "glazed_jar", "count": 1, "station": "kiln", "ability": "Craft" },
+    { "id": "lime", "inputs": { "stone": 3, "wood": 2 }, "output": "lime", "count": 2, "station": "kiln", "ability": "Craft" },
+    { "id": "oil_lamp", "inputs": { "clay": 1, "fat": 1 }, "output": "oil_lamp", "count": 1, "station": "kiln", "ability": "Craft" },
+    { "id": "yarn", "inputs": { "fiber": 3 }, "output": "yarn", "count": 2, "ability": "Craft" },
+    { "id": "cloth", "inputs": { "yarn": 3 }, "output": "cloth", "count": 1, "station": "loom", "ability": "Craft" },
+    { "id": "dye", "inputs": { "berry": 3, "herbs": 1 }, "output": "dye", "count": 2, "station": "hearth", "ability": "Craft" },
+    { "id": "dyed_cloth", "inputs": { "cloth": 1, "dye": 1 }, "output": "dyed_cloth", "count": 1, "station": "loom", "ability": "Craft" },
+    { "id": "mortar", "inputs": { "clay": 2, "reed": 1 }, "output": "mortar", "count": 2, "ability": "Craft" },
+    { "id": "copper_awl", "inputs": { "copper_ore": 1 }, "output": "copper_awl", "count": 2, "station": "workbench", "ability": "Craft" },
+    { "id": "copper_beads", "inputs": { "copper_ore": 1, "wood": 1 }, "output": "copper_beads", "count": 4, "station": "hearth", "ability": "Craft" },
+    { "id": "charcoal", "inputs": { "wood": 3 }, "output": "charcoal", "count": 2, "station": "kiln", "ability": "Craft" },
+    { "id": "bellows_bag", "inputs": { "hide": 2, "wood": 1 }, "output": "bellows_bag", "count": 1, "station": "tannery", "ability": "Craft" },
+    { "id": "clay_mould", "inputs": { "clay": 2 }, "output": "clay_mould", "count": 1, "station": "kiln", "ability": "Craft" },
+    { "id": "copper_dagger", "inputs": { "clay_mould": 1, "copper_ingot": 1 }, "output": "copper_dagger", "count": 1, "station": "forge", "ability": "Craft" },
+    { "ability": "Craft", "count": 1, "id": "bronze_ingot", "inputs": { "copper_ore": 2, "tin_ore": 1 }, "output": "bronze_ingot", "station": "forge" },
+    { "id": "ochre_paint", "inputs": { "fat": 1, "stone": 1 }, "output": "ochre_paint", "count": 2, "ability": "Craft" },
+    { "id": "bone_beads", "inputs": { "bone": 1, "cordage": 1 }, "output": "bone_beads", "count": 4, "ability": "Craft" },
+    { "id": "bone_flute", "inputs": { "bone": 1 }, "output": "bone_flute", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "tally_stick", "inputs": { "bone": 1 }, "output": "tally_stick", "count": 2, "station": "workbench", "ability": "Craft" },
+    { "id": "clay_token", "inputs": { "clay": 1 }, "output": "clay_token", "count": 4, "station": "kiln", "ability": "Craft" }
+  ]
+}

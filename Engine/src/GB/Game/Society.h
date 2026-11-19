@@ -145,7 +145,7 @@ namespace GB
 		bool operator==(const SocietyRules&) const = default;
 	};
 
-	SocietyRules DefaultSocietyRules();   // assets/data/era1.json says the same in its "society" section
+	SocietyRules DefaultSocietyRules();   // the "society" section of the game's data (assets/data/rules/society.json)
 	// { "society": { "seed", "mutation", "life": { ... }, "births": { ... }, "genes": { "<gene>": { "mean", "spread", "effects": {}, "learn": {}, "pace": {} } },
 	//   "traits": { "<trait>": { "mean", "spread", "heritability", "effects": {} } }, "relations": { "events": {}, ... }, "culture": { "drift", "norms": { "<norm>":
 	//   { "start", "trait", "effects": {} } }, "traditions": { "<id>": { "name", "event", "count", "effects": {} } } } } }. Each part ("life", "births", "genes",

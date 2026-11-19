@@ -1,0 +1,153 @@
+{
+  "note": "The resource nodes of the world (T347): what each gives, how it regrows, where it spawns, what a clan can transplant. After items/ (a node names its item), before recipes/.",
+  "nodes": [
+    { "ability": "Gather", "capacity": 4, "id": "herb_patch", "item": "herbs", "kind": "Plant.Herb", "transplant": { "item": "herb_clump", "verb": "transplant", "work": 4.0 }, "perGather": 1, "regen": 1, "regenSeconds": 60.0, "spawn": { "biomes": [ "Meadow", "Forest" ], "clump": 0.5, "max": 20, "maxSlope": 25.0, "perHectare": 2.0, "spacing": 7.0 } },
+    { "ability": "Gather", "capacity": 12, "id": "berry_bush", "extra": { "item": "pea_seed", "perGather": 1, "chance": 0.05 }, "item": "berry", "kind": "Plant", "transplant": { "item": "bush_cutting", "verb": "transplant", "work": 6.0 }, "patch": { "count": 2, "perWorker": 1, "shape": "row", "spacing": 4.0 }, "perGather": 2, "regen": 4, "regenSeconds": 20.0, "spawn": { "biomes": [ "Meadow", "Forest" ], "clump": 0.5, "maxSlope": 25.0, "perHectare": 6.0, "spacing": 5.0 } },
+    { "ability": "Collect", "capacity": 8, "id": "clay_bank", "item": "clay", "kind": "Loose.Clay", "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 }, "perGather": 2, "regen": 2, "regenSeconds": 60.0, "spawn": { "biomes": [ "Shore", "Meadow", "Forest" ], "clump": 0.2, "max": 30, "maxSlope": 15.0, "perHectare": 80.0, "spacing": 6.0, "waterWithin": 20.0, "zones": { "perKm2": 0.6, "min": 3, "max": 8, "radiusMin": 20.0, "radiusMax": 45.0 } } },
+    { "ability": "Mine", "capacity": 4, "id": "copper_vein", "item": "copper_ore", "kind": "Stone.Copper", "perGather": 1, "regen": 1, "regenSeconds": 1800.0, "requires": "Item.Tool.Pickaxe", "spawn": { "biomes": [ "Rock", "Snow" ], "max": 14, "maxSlope": 50.0, "perHectare": 12.0, "spacing": 8.0, "zones": { "perKm2": 0.2, "min": 1, "max": 3, "radiusMin": 20.0, "radiusMax": 40.0, "fallback": [ "Meadow", "Forest" ] } } },
+    { "ability": "PullFiber", "capacity": 8, "id": "fiber_grass", "extra": { "item": "flax_seed", "perGather": 1, "chance": 0.1 }, "item": "fiber", "kind": "Plant", "patch": { "count": 2, "perWorker": 1, "shape": "row", "spacing": 4.0 }, "perGather": 2, "regen": 2, "regenSeconds": 15.0, "spawn": { "biomes": [ "Meadow", "Shore" ], "clump": 0.3, "maxSlope": 25.0, "perHectare": 8.0, "spacing": 5.0 } },
+    { "ability": "Mine", "capacity": 5, "id": "flint_outcrop", "item": "flint", "kind": "Stone.Flint", "patch": { "count": 1, "perWorker": 1, "shape": "cluster", "spacing": 3.5 }, "perGather": 1, "regen": 1, "regenSeconds": 1200.0, "requires": "Item.Tool.Pickaxe", "spawn": { "biomes": [ "Rock", "Shore", "Dunes" ], "clump": 0.2, "max": 40, "maxSlope": 45.0, "perHectare": 14.0, "spacing": 6.0, "zones": { "perKm2": 0.5, "min": 2, "max": 6, "radiusMin": 25.0, "radiusMax": 55.0 } } },
+    { "id": "old_tree", "item": "wood", "extra": { "item": "branch", "perGather": 2 }, "capacity": 8, "perGather": 1, "regen": 1, "regenSeconds": 120.0, "kind": "Wood", "ability": "Chop", "requires": "Item.Tool.Axe", "patch": { "count": 1, "perWorker": 1, "shape": "cluster", "spacing": 7.0 }, "spawn": { "biomes": [ "Forest" ], "clump": 0.2, "maxSlope": 28.0, "perHectare": 8.0, "spacing": 9.0, "prop": "tree", "scaleMin": 1.2, "scaleMax": 1.6 } },
+    { "ability": "Collect", "capacity": 8, "id": "reed_bed", "item": "reed", "kind": "Loose.Reed", "patch": { "count": 3, "perWorker": 1, "shape": "cluster", "spacing": 3.0 }, "perGather": 2, "regen": 2, "regenSeconds": 20.0, "spawn": { "biomes": [ "Shore", "Meadow" ], "clump": 0.5, "max": 400, "maxSlope": 15.0, "perHectare": 80.0, "spacing": 4.0, "waterWithin": 10.0 } },
+    { "id": "rock", "item": "stone", "capacity": 8, "perGather": 1, "regen": 1, "regenSeconds": 900.0, "kind": "Stone", "ability": "Mine", "requires": "Item.Tool.Pickaxe", "patch": { "count": 3, "perWorker": 2, "shape": "row", "spacing": 4.0 }, "spawn": { "biomes": [ "Rock", "Meadow", "Shore", "Dunes" ], "maxSlope": 45.0, "perHectare": 4.0, "spacing": 7.0, "prop": "rock", "scaleMin": 0.7, "scaleMax": 1.4 } },
+    { "id": "tree", "item": "wood", "extra": { "item": "branch", "perGather": 1 }, "capacity": 5, "perGather": 1, "regen": 1, "regenSeconds": 30.0, "kind": "Wood", "ability": "Chop", "requires": "Item.Tool.Axe", "patch": { "count": 2, "perWorker": 2, "shape": "row", "spacing": 4.0 }, "spawn": { "biomes": [ "Forest", "Meadow" ], "clump": 0.3, "maxSlope": 30.0, "perHectare": 6.0, "spacing": 8.0, "prop": "tree", "scaleMin": 0.8, "scaleMax": 1.25 } },
+    { "id": "young_tree", "item": "branch", "capacity": 6, "perGather": 1, "regen": 2, "regenSeconds": 40.0, "kind": "Plant.Branch", "transplant": { "item": "sapling", "verb": "transplant_tree", "work": 10.0 }, "ability": "Gather", "patch": { "count": 1, "near": "old_tree", "perWorker": 1, "shape": "row", "spacing": 4.0 }, "spawn": { "biomes": [ "Forest", "Meadow" ], "clump": 0.35, "maxSlope": 30.0, "perHectare": 8.0, "spacing": 5.0, "prop": "tree", "scaleMin": 0.35, "scaleMax": 0.6 } },
+    { "id": "oak_acorns", "item": "acorn", "kind": "Plant", "capacity": 4, "perGather": 2, "regen": 2, "regenSeconds": 90.0, "ability": "Gather", "spawn": { "biomes": [ "Forest" ], "perHectare": 0.8, "spacing": 12.0, "maxSlope": 25.0, "clump": 0.5, "max": 16 } },
+    { "id": "granite_rock", "item": "granite", "kind": "Stone.Granite", "capacity": 8, "regen": 1, "regenSeconds": 1200.0, "perGather": 1, "requires": "Item.Tool.Pickaxe", "ability": "Mine", "spawn": { "biomes": [ "Rock", "Snow" ], "perHectare": 6.0, "spacing": 9.0, "maxSlope": 50.0, "clump": 0.2, "max": 20, "zones": { "perKm2": 0.3, "min": 1, "max": 4, "radiusMin": 25.0, "radiusMax": 50.0, "fallback": [ "Meadow", "Forest" ] } } },
+    { "id": "pine_resin", "item": "resin", "kind": "Plant", "capacity": 3, "perGather": 1, "regen": 1, "regenSeconds": 90.0, "ability": "Gather", "spawn": { "biomes": [ "Forest" ], "perHectare": 0.6, "spacing": 14.0, "maxSlope": 30.0, "clump": 0.5, "max": 12 } },
+    { "id": "wild_grain", "extra": { "item": "barley_seed", "perGather": 1, "chance": 0.5 }, "item": "grain_seed", "kind": "Plant", "capacity": 6, "perGather": 2, "regen": 2, "regenSeconds": 60.0, "ability": "Gather", "spawn": { "biomes": [ "Meadow" ], "perHectare": 8.0, "spacing": 6.0, "maxSlope": 20.0, "clump": 0.3, "max": 40, "zones": { "perKm2": 0.5, "min": 2, "max": 6, "radiusMin": 30.0, "radiusMax": 70.0 } }, "patch": { "count": 2, "perWorker": 0, "shape": "cluster", "spacing": 3.0 } },
+    { "id": "salt_flat", "item": "salt", "kind": "Loose.Salt", "capacity": 10, "perGather": 2, "ability": "Collect", "spawn": { "biomes": [ "Shore", "Dunes" ], "perHectare": 6.0, "spacing": 12.0, "maxSlope": 10.0, "max": 12, "waterWithin": 12.0, "zones": { "perKm2": 0.15, "min": 1, "max": 3, "radiusMin": 15.0, "radiusMax": 30.0 } } },
+    { "id": "old_bones", "item": "bone", "kind": "Loose.Bone", "capacity": 3, "perGather": 1, "ability": "Collect", "spawn": { "biomes": [ "Meadow", "Forest" ], "perHectare": 0.3, "spacing": 20.0, "maxSlope": 30.0, "max": 8 } },
+    { "id": "fallen_trunk", "item": "log", "kind": "Wood", "capacity": 2, "perGather": 1, "requires": "Item.Tool.Axe", "ability": "Chop", "spawn": { "biomes": [ "Forest" ], "perHectare": 1.0, "spacing": 10.0, "maxSlope": 25.0, "clump": 0.4, "max": 20 } },
+    { "id": "rock_small", "item": "stone", "capacity": 2, "perGather": 1, "regen": 1, "regenSeconds": 0.0, "kind": "Stone", "ability": "Mine", "requires": "Item.Tool.Pickaxe", "model": "rock_small", "spawn": { "prop": "rock", "scaleMin": 0.35, "scaleMax": 0.6 } },
+    { "id": "boulder", "item": "stone", "capacity": 12, "perGather": 1, "regen": 1, "regenSeconds": 900.0, "kind": "Stone", "ability": "Mine", "requires": "Item.Tool.Pickaxe", "model": "boulder", "spawn": { "prop": "rock", "scaleMin": 2.0, "scaleMax": 3.0 } },
+    { "id": "rock_pile", "item": "stone", "capacity": 8, "perGather": 1, "regen": 1, "regenSeconds": 900.0, "kind": "Stone", "ability": "Mine", "requires": "Item.Tool.Pickaxe", "model": "rock_pile", "spawn": { "prop": "rock", "scaleMin": 0.9, "scaleMax": 1.4, "stack": 3 } },
+    { "id": "loose_stones", "item": "stone", "capacity": 3, "perGather": 1, "regen": 1, "regenSeconds": 600.0, "kind": "Loose.Stone", "ability": "Collect", "model": "loose_stones", "spawn": { "prop": "rock", "scaleMin": 0.22, "scaleMax": 0.38 } },
+    { "id": "fallen_branch", "item": "branch", "capacity": 3, "perGather": 1, "regen": 1, "regenSeconds": 300.0, "kind": "Loose.Branch", "ability": "Collect", "model": "fallen_branch" },
+    { "id": "flowers_red", "item": "fiber", "capacity": 1, "perGather": 1, "regen": 1, "regenSeconds": 0.0, "kind": "Plant", "ability": "Gather", "model": "flowers_red", "decor": true },
+    { "id": "flowers_yellow", "item": "fiber", "capacity": 1, "perGather": 1, "regen": 1, "regenSeconds": 0.0, "kind": "Plant", "ability": "Gather", "model": "flowers_yellow", "decor": true },
+    { "id": "flowers_white", "item": "fiber", "capacity": 1, "perGather": 1, "regen": 1, "regenSeconds": 0.0, "kind": "Plant", "ability": "Gather", "model": "flowers_white", "decor": true },
+    { "id": "flowers_blue", "item": "fiber", "capacity": 1, "perGather": 1, "regen": 1, "regenSeconds": 0.0, "kind": "Plant", "ability": "Gather", "model": "flowers_blue", "decor": true },
+    { "id": "flowers_purple", "item": "fiber", "capacity": 1, "perGather": 1, "regen": 1, "regenSeconds": 0.0, "kind": "Plant", "ability": "Gather", "model": "flowers_purple", "decor": true },
+    { "id": "root_patch", "item": "roots", "kind": "Plant.Root", "ability": "Gather", "capacity": 8, "perGather": 1, "regen": 2, "regenSeconds": 90.0,
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
+      "spawn": { "biomes": [ "Meadow", "Forest" ], "perHectare": 3.0, "spacing": 7.0, "maxSlope": 25.0, "clump": 0.4, "max": 30 } },
+    { "id": "nut_tree", "item": "nuts", "kind": "Loose.Nut", "ability": "Collect", "capacity": 12, "perGather": 2, "regen": 4, "regenSeconds": 240.0,
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 5.0 },
+      "spawn": { "biomes": [ "Forest" ], "perHectare": 1.5, "spacing": 9.0, "maxSlope": 25.0, "clump": 0.5, "max": 20 } },
+    { "id": "mushroom_ring", "item": "mushrooms", "kind": "Loose.Fungus", "ability": "Collect", "capacity": 6, "perGather": 1, "regen": 2, "regenSeconds": 120.0,
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
+      "spawn": { "biomes": [ "Forest" ], "perHectare": 2.0, "spacing": 8.0, "maxSlope": 30.0, "clump": 0.6, "max": 20 } },
+    { "id": "wild_greens", "extra": { "item": "lentil_seed", "perGather": 1, "chance": 0.2 }, "item": "greens", "kind": "Plant.Green", "ability": "Gather", "capacity": 8, "perGather": 1, "regen": 2, "regenSeconds": 45.0,
+      "patch": { "count": 1, "perWorker": 0, "shape": "cluster", "spacing": 3.0 },
+      "spawn": { "biomes": [ "Meadow" ], "perHectare": 3.0, "spacing": 6.0, "maxSlope": 25.0, "clump": 0.4, "max": 30 } },
+    { "id": "bird_nest", "item": "eggs", "kind": "Loose.Egg", "ability": "Collect", "capacity": 4, "perGather": 1, "regen": 2, "regenSeconds": 300.0,
+      "spawn": { "biomes": [ "Forest", "Shore" ], "perHectare": 1.0, "spacing": 12.0, "maxSlope": 30.0, "clump": 0.5, "max": 12 } },
+    { "id": "bee_tree", "item": "honey", "kind": "Loose.Honey", "ability": "Collect", "capacity": 4, "perGather": 1, "regen": 2, "regenSeconds": 600.0,
+      "spawn": { "biomes": [ "Forest" ], "perHectare": 0.3, "spacing": 30.0, "maxSlope": 25.0, "clump": 0.7, "max": 6 } },
+    { "id": "fishing_spot", "item": "fish", "kind": "Loose.Fish", "ability": "Collect", "requires": "Item.Tool.Fishing", "capacity": 8, "perGather": 1, "regen": 2, "regenSeconds": 60.0,
+      "spawn": { "biomes": [ "Shore", "Meadow", "Forest" ], "waterWithin": 4.0, "perHectare": 2.0, "spacing": 10.0, "maxSlope": 20.0, "max": 20 } },
+    {
+      "ability": "Mine",
+      "capacity": 6,
+      "id": "iron_vein",
+      "item": "iron_ore",
+      "kind": "Stone.Iron",
+      "model": "copper_vein",
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 900.0,
+      "requires": "Item.Tool.Pickaxe",
+      "spawn": {
+        "biomes": [
+          "Rock",
+          "Snow",
+          "Forest"
+        ],
+        "max": 10,
+        "maxSlope": 50.0,
+        "perHectare": 8.0,
+        "spacing": 8.0,
+        "zones": {
+          "perKm2": 0.3,
+          "min": 1,
+          "max": 2,
+          "radiusMin": 15.0,
+          "radiusMax": 35.0,
+          "fallback": [
+            "Meadow",
+            "Forest"
+          ]
+        }
+      }
+    },
+    {
+      "ability": "Mine",
+      "capacity": 6,
+      "id": "coal_seam",
+      "item": "coal",
+      "kind": "Stone.Coal",
+      "model": "copper_vein",
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 900.0,
+      "requires": "Item.Tool.Pickaxe",
+      "spawn": {
+        "biomes": [
+          "Rock",
+          "Forest",
+          "Meadow"
+        ],
+        "max": 10,
+        "maxSlope": 50.0,
+        "perHectare": 8.0,
+        "spacing": 8.0,
+        "zones": {
+          "perKm2": 0.25,
+          "min": 1,
+          "max": 2,
+          "radiusMin": 15.0,
+          "radiusMax": 35.0,
+          "fallback": [
+            "Meadow",
+            "Forest"
+          ]
+        }
+      }
+    },
+    {
+      "ability": "Collect",
+      "capacity": 6,
+      "id": "sand_bank",
+      "item": "sand",
+      "kind": "Loose.Sand",
+      "perGather": 1,
+      "regen": 1,
+      "regenSeconds": 900.0,
+      "spawn": {
+        "biomes": [
+          "Shore",
+          "Dunes",
+          "Meadow"
+        ],
+        "max": 10,
+        "maxSlope": 50.0,
+        "perHectare": 8.0,
+        "spacing": 8.0,
+        "zones": {
+          "perKm2": 0.5,
+          "min": 1,
+          "max": 2,
+          "radiusMin": 15.0,
+          "radiusMax": 35.0,
+          "fallback": [
+            "Meadow",
+            "Forest"
+          ]
+        }
+      }
+    },
+    { "ability": "Mine", "capacity": 4, "id": "tin_vein", "item": "tin_ore", "kind": "Stone.Tin", "model": "copper_vein", "perGather": 1, "regen": 1, "regenSeconds": 1800.0, "requires": "Item.Tool.Pickaxe",
+      "spawn": { "biomes": [ "Rock", "Snow" ], "max": 8, "maxSlope": 50.0, "perHectare": 8.0, "spacing": 8.0, "zones": { "perKm2": 0.08, "min": 1, "max": 1, "radiusMin": 15.0, "radiusMax": 30.0, "fallback": [ "Meadow", "Forest" ] } } }
+  ]
+}

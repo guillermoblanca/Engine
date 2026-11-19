@@ -1,0 +1,24 @@
+{
+  "note": "The recipes whose output is in items/food.json (T347). After every item file (D8): a recipe asks for items of any family.",
+  "recipes": [
+    { "id": "cooked_meat", "inputs": { "meat": 1 }, "output": "cooked_meat", "count": 1, "station": "hearth", "ability": "Craft" },
+    { "id": "smoked_meat", "inputs": { "meat": 2, "wood": 1 }, "output": "smoked_meat", "count": 2, "station": "smoking_rack", "ability": "Craft" },
+    { "id": "dried_berry", "inputs": { "berry": 3 }, "output": "dried_berry", "count": 2, "station": "drying_rack", "ability": "Craft" },
+    { "id": "stew", "inputs": { "meat": 1, "roots": 2, "greens": 1 }, "output": "stew", "count": 3, "station": "hearth", "ability": "Craft" },
+    { "id": "roast", "inputs": { "meat": 2, "fat": 1 }, "output": "roast", "count": 2, "station": "hearth", "ability": "Craft" },
+    { "id": "dried_fish", "inputs": { "fish": 3 }, "output": "dried_fish", "count": 2, "station": "drying_rack", "ability": "Craft" },
+    { "id": "salted_meat", "inputs": { "meat": 2, "salt": 1 }, "output": "salted_meat", "count": 2, "ability": "Craft" },
+    { "id": "acorn_meal", "inputs": { "acorn": 4 }, "output": "acorn_meal", "count": 2, "station": "drying_rack", "ability": "Craft" },
+    { "id": "baked_roots", "inputs": { "roots": 3, "stone": 1 }, "output": "baked_roots", "count": 3, "station": "hearth", "ability": "Craft" },
+    { "id": "beer", "inputs": { "grain": 3, "water": 1 }, "output": "beer", "count": 2, "station": "kiln", "ability": "Craft" },
+    { "id": "beer_barley", "inputs": { "barley": 3, "water": 1 }, "output": "beer", "count": 2, "station": "kiln", "ability": "Craft" },
+    { "id": "flatbread", "inputs": { "grain": 3 }, "output": "flatbread", "count": 2, "station": "oven", "ability": "Craft" },
+    { "id": "bread", "inputs": { "flour": 2 }, "output": "bread", "count": 2, "station": "oven", "ability": "Craft" },
+    { "id": "parched_grain", "inputs": { "grain": 3 }, "output": "parched_grain", "count": 3, "station": "hearth", "ability": "Craft" },
+    { "id": "porridge", "inputs": { "grain": 2, "water": 1 }, "output": "porridge", "count": 2, "station": "hearth", "ability": "Craft" },
+    { "id": "porridge_barley", "inputs": { "barley": 2, "water": 1 }, "output": "porridge", "count": 2, "station": "hearth", "ability": "Craft" },
+    { "id": "pottage", "inputs": { "lentils": 2, "greens": 1, "roots": 1 }, "output": "pottage", "count": 3, "station": "hearth", "ability": "Craft" },
+    { "id": "pottage_peas", "inputs": { "peas": 2, "greens": 1, "roots": 1 }, "output": "pottage", "count": 3, "station": "hearth", "ability": "Craft" },
+    { "id": "cooked_fish", "inputs": { "fish": 1 }, "output": "cooked_fish", "count": 1, "station": "hearth", "ability": "Craft" }
+  ]
+}

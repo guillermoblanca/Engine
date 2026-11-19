@@ -210,7 +210,7 @@ namespace GB
 		const HuntRule* HuntFor(const AbilitySystemComponent& a) const;
 	};
 
-	CombatRules DefaultCombatRules();   // assets/data/era1.json says the same in its "combat" section
+	CombatRules DefaultCombatRules();   // the "combat" section of the game's data (assets/data/rules/combat.json)
 	// { "combat": { "seed", "unarmed", "weapons": { "<id>": { "tag", "damage", "reach", "seconds", "stamina", "wound", "woundKind", "power", "montages": [],
 	//   "hitAt" } }, "hits": { ... }, "injuries": { ... }, "morale": { ... }, "threats": { ... }, "predators": { "<id>": { "tag", "prey", ... } },
 	//   "hunts": { "<id>": { "tag", "item", "units", ... } }, "raids": { ... }, "hostile": [ [ "a", "b" ] ] } }.

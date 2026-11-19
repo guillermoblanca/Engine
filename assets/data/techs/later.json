@@ -1,0 +1,281 @@
+{
+  "note": "The technologies without a step of the tree yet (D7: apart until lot 2 of the tree; T347, from medieval.json and era3..era9.json). What their files said: medieval.json: The medieval technologies and buildings (docs/PLAN_SIMULACION_NATURAL.md §9), drawn with the Medieval Village MegaKit (assets/models/medieval_kit; visuals written by tools/make_kit_buildings.py). T181: there are no eras; masonry is in era4.json (with writing). era2.json: Faith (V5, docs/VISION_MUNDO_VIVO.md; T181: one file of the game's one pack, no eras): a need of a grown society (a clan that knows rites and has 20 living), with its verb (pray) and the temple where it is done. None of it needs code. D34: tin, bronze and alloying moved to tree_neolithic.json (the lot of the tree that holds the first metals). era3.json: Era 3, the Iron Age (V8): iron ore, which most lands have but deep, forged into tools for everyone. era4.json: Era 4, the classical age (V8): writing on clay tablets, a school where people study, and the need to learn. era5.json: Era 5, the Renaissance (V8): paper and the press; knowledge is copied and travels. Its era follows the Middle Ages (masonry, in era1). era6.json: Era 6, the industrial age (V8): coal, steel and steam; the factory makes what hands made. era7.json: Era 7, the electric age (V8): copper wire and dynamos; a power station lights the town. era8.json: Era 8, the information age (V8): sand made silicon, chips and computers; an office where people work with knowledge. era9.json: Era 9, the arrival of AI (V8): a data centre; machines do work and decide, and people need a purpose (what is left for them is a question each culture answers).",
+  "techs": [
+    {
+      "id": "carpentry",
+      "name": "Carpentry",
+      "complexity": 0.5,
+      "requires": [
+        "timber_framing",
+        "smelting"
+      ],
+      "recipes": [],
+      "buildings": [
+        "timber_house",
+        "tavern"
+      ],
+      "discovery": {
+        "experiment": 0.03,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.2
+      },
+      "physical": {
+        "materials": [
+          "plank"
+        ],
+        "stations": [
+          "forge"
+        ]
+      }
+    },
+    {
+      "id": "forging",
+      "name": "Forging",
+      "complexity": 0.7,
+      "requires": [
+        "alloying"
+      ],
+      "recipes": [
+        "iron_ingot",
+        "iron_axe",
+        "iron_pickaxe"
+      ],
+      "buildings": [
+        "smithy"
+      ],
+      "physical": {
+        "materials": [
+          "iron_ore"
+        ],
+        "stations": [
+          "forge"
+        ]
+      },
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    },
+    {
+      "id": "writing",
+      "name": "Writing",
+      "complexity": 0.65,
+      "requires": [
+        "forging",
+        "pottery"
+      ],
+      "recipes": [
+        "tablet",
+        "scroll"
+      ],
+      "buildings": [
+        "school"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      },
+      "physical": {
+        "materials": [
+          "clay"
+        ],
+        "stations": [
+          "kiln"
+        ]
+      }
+    },
+    {
+      "id": "masonry",
+      "name": "Masonry",
+      "complexity": 0.55,
+      "requires": [
+        "carpentry",
+        "pottery",
+        "writing"
+      ],
+      "recipes": [],
+      "buildings": [
+        "stone_house",
+        "townhouse"
+      ],
+      "discovery": {
+        "experiment": 0.03,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      },
+      "physical": {
+        "materials": [
+          "stone"
+        ],
+        "stations": [
+          "forge"
+        ]
+      }
+    },
+    {
+      "id": "printing",
+      "name": "Printing",
+      "complexity": 0.75,
+      "requires": [
+        "writing",
+        "masonry",
+        "carpentry"
+      ],
+      "recipes": [
+        "paper",
+        "book"
+      ],
+      "buildings": [
+        "print_shop",
+        "library"
+      ],
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      },
+      "physical": {
+        "materials": [
+          "plank",
+          "leather"
+        ]
+      }
+    },
+    {
+      "id": "steam_power",
+      "name": "Steam power",
+      "complexity": 0.8,
+      "requires": [
+        "printing",
+        "forging"
+      ],
+      "recipes": [
+        "steel_ingot",
+        "engine"
+      ],
+      "buildings": [
+        "factory"
+      ],
+      "physical": {
+        "materials": [
+          "coal",
+          "iron_ore"
+        ],
+        "stations": [
+          "forge"
+        ]
+      },
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    },
+    {
+      "id": "electricity",
+      "name": "Electricity",
+      "complexity": 0.85,
+      "requires": [
+        "steam_power"
+      ],
+      "recipes": [
+        "copper_wire",
+        "dynamo"
+      ],
+      "buildings": [
+        "power_station"
+      ],
+      "physical": {
+        "materials": [
+          "copper_ingot"
+        ],
+        "stations": [
+          "factory"
+        ]
+      },
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    },
+    {
+      "id": "computing",
+      "name": "Computing",
+      "complexity": 0.9,
+      "requires": [
+        "electricity",
+        "writing"
+      ],
+      "recipes": [
+        "silicon",
+        "chip",
+        "computer"
+      ],
+      "buildings": [
+        "office"
+      ],
+      "physical": {
+        "materials": [
+          "sand"
+        ],
+        "stations": [
+          "factory"
+        ]
+      },
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    },
+    {
+      "id": "artificial_intelligence",
+      "name": "Artificial intelligence",
+      "complexity": 0.95,
+      "requires": [
+        "computing"
+      ],
+      "recipes": [
+        "model"
+      ],
+      "buildings": [
+        "datacenter",
+        "commons"
+      ],
+      "physical": {
+        "materials": [
+          "chip"
+        ],
+        "stations": [
+          "factory"
+        ]
+      },
+      "discovery": {
+        "experiment": 0.04,
+        "observe": 0.15,
+        "teach": 0.1,
+        "seconds": 90.0,
+        "waste": 0.4
+      }
+    }
+  ]
+}

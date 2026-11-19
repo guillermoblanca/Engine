@@ -318,7 +318,7 @@ namespace GB
 		bool HasKnowledge = false;
 	};
 
-	// The built-in roles: "forager", "woodcutter", "miner" (assets/data/era1.json says the same in its "roles" section).
+	// The roles of the game's data (the "roles" section, assets/data/rules/tribe.json; T347: read from the pack, no copy).
 	std::map<std::string, TribeRole> DefaultRoles();
 	// Reads the "roles" section of a content file: { "roles": { "<name>": { "weights": { "<key>": w }, "default": w, "tool": "<item>", "toolTag": "<tag>" } } }.
 	// A role is added or replaced whole. Other sections are ignored, and a file without "roles" changes nothing. On a mistake it returns why and changes nothing.
@@ -327,7 +327,7 @@ namespace GB
 	// The roles as the "roles" section reads them back (one JSON object: name -> role).
 	std::string RolesToJson(const std::map<std::string, TribeRole>& roles);
 
-	// The built-in agenda and economy (assets/data/era1.json says the same in its "tribe" section).
+	// The agenda and economy of the game's data (the "tribe" section, assets/data/rules/tribe.json; T347: read from the pack, no copy).
 	TribeAgenda DefaultAgenda();
 	TribeEconomy DefaultEconomy();
 	// Reads the "tribe" section of a content file into an agenda and an economy (the content pack's "tribe" section, see GB/Game/GameContent.h):

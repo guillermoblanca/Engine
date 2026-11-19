@@ -243,7 +243,7 @@ namespace GB
 
 	std::map<std::string, BuildingDef> DefaultBuildings()
 	{
-		return Shipped().Buildings;   // what the data says (assets/data: era1.json, "buildings"): there is no second list in the code
+		return Shipped().Buildings;   // what the data says (assets/data/buildings.json): there is no second list in the code
 	}
 
 	std::string LoadBuildings(const std::string& json, std::map<std::string, BuildingDef>& defs)

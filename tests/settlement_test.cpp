@@ -1,6 +1,7 @@
 // Construction and settlements (H8, E9): the buildings as data (era1.json says what the code says, round-trip, a mistake changes nothing), a site
 // built phase by phase with the ability Build, the choice of the camp on generated worlds (deterministic, by the water but not in it, on flat ground,
 // near what the clan wants), a tribe that builds its shelter by itself, and a site saved and loaded in the middle of its work. CPU only.
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Log.h"
 #include "GB/Game/SceneIO.h"
 #include "GB/Game/SimQA.h"
@@ -198,10 +199,11 @@ int GBTest_settlement(int, char**)
 	// ---- the data: era1.json says what the code says; round-trip; mistakes change nothing
 	{
 		std::map<std::string, BuildingDef> file;
-		Check(LoadBuildingsFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty(), "the buildings of assets/data/era1.json load");
+		Check(LoadShippedSection(file, [](const std::string& doc, std::map<std::string, BuildingDef>& b) { return LoadBuildings(doc, b); }).empty(),
+			"the buildings of the game's pack load (T347: every file of it)");
 		Check(file == DefaultBuildings(), "and say what DefaultBuildings says");
-		Check(file.size() == 18 && file.count("shelter") && file.count("storage") && file.count("workbench") && file.count("drying_rack") && file.count("hut") && file.count("forge")
-			&& file.count("watchtower") && file.count("jar_store"), "shelter, storage, workbench and drying rack, and the fourteen of the Stone-Age progression (docs/PROGRESION.md)");
+		Check(file.size() == 49 && file.count("shelter") && file.count("storage") && file.count("workbench") && file.count("drying_rack") && file.count("hut") && file.count("forge")
+			&& file.count("watchtower") && file.count("jar_store"), "the 49 buildings of the pack: shelter, storage, workbench and drying rack, the Stone-Age progression (PROGRESION.md) and the later ones");
 		Check(file.at("hut").Supersedes == std::vector<std::string>{ "shelter" } && file.at("granary").Keep == 0.5f && file.at("palisade").Defense == 1.0f && file.at("totem").Aura == 9.0f,
 			"with their provisions");
 		std::map<std::string, BuildingDef> odd = DefaultBuildings();

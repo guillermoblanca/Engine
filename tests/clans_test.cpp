@@ -8,6 +8,7 @@
 //  * hostile clans may raid (the hook for H14) until they parley and agree a truce;
 //  * a clan world with two clans saves and loads the same, and a save of a single tribe (before H13) loads as clan 0.
 // Stand-in bodies as in exploration_test (they walk in straight lines at 3 m/s).
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/Clans.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/SimQA.h"
@@ -281,10 +282,11 @@ int GBTest_clans(int, char**)
 
 	// ---- the data
 	{
-		DiplomacyRules file;
-		if (LoadDiplomacyRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty() && !(file == defaults))
-			std::printf("era1.json: %s\ncode:      %s\n", DiplomacyRulesToJson(file).c_str(), DiplomacyRulesToJson(defaults).c_str());
-		Check(LoadDiplomacyRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty() && file == defaults, "the diplomacy section of era1.json says what DefaultDiplomacyRules says");
+		DiplomacyRules file;   // T347: the section as the game's pack gives it (whatever file has it), not one file by its path
+		const std::string read = LoadShippedSection(file, [](const std::string& doc, DiplomacyRules& r) { return LoadDiplomacyRules(doc, r); });
+		if (read.empty() && !(file == defaults))
+			std::printf("pack: %s\ncode: %s\n", DiplomacyRulesToJson(file).c_str(), DiplomacyRulesToJson(defaults).c_str());
+		Check(read.empty() && file == defaults, "the diplomacy section of the game's pack says what DefaultDiplomacyRules says");
 		DiplomacyRules back;
 		Check(LoadDiplomacyRules("{ \"diplomacy\": " + DiplomacyRulesToJson(defaults) + " }", back).empty() && back == defaults, "the diplomacy section round-trips");
 		DiplomacyRules keep = defaults;

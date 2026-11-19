@@ -1,0 +1,60 @@
+{
+  "note": "Tools, weapons, containers, traps and gear (T347). Every item file loads before nodes.json and recipes/: a file is checked as it loads, so what a node or a recipe names must be known by then.",
+  "items": [
+    { "id": "leather_bag", "name": "Leather bag", "category": "container", "weight": 1.0, "stack": 1, "tags": [ "Item.Container.Bag" ], "bagSlots": 9, "bagWeight": 12.0 },
+    { "id": "flint_spear", "name": "Flint spear", "category": "weapon", "weight": 1.8, "stack": 1, "tags": [ "Item.Weapon.Spear" ], "socket": "RightHand" },
+    { "id": "flint_sword", "name": "Flint sword", "category": "weapon", "weight": 2.0, "stack": 1, "tags": [ "Item.Weapon.Sword" ], "socket": "RightHand" },
+    { "id": "hunting_bow", "name": "Hunting bow", "category": "weapon", "weight": 1.2, "stack": 1, "tags": [ "Item.Weapon.Bow" ], "socket": "LeftHand" },
+    { "bagSlots": 6, "bagWeight": 8.0, "category": "container", "id": "basket_wicker", "name": "Wicker basket", "stack": 1, "tags": [ "Item.Container.Basket" ], "weight": 1.5 },
+    { "ability": "Chop", "category": "tool", "id": "flint_axe", "name": "Flint axe", "power": 1, "socket": "RightHand", "speed": 1.15, "stack": 1, "tags": [ "Item.Tool.Axe.Flint" ], "weight": 2.2 },
+    { "ability": "Mine", "category": "tool", "id": "flint_pickaxe", "name": "Flint pickaxe", "power": 1, "socket": "RightHand", "speed": 1.15, "stack": 1, "tags": [ "Item.Tool.Pickaxe.Flint" ], "weight": 2.6 },
+    { "ability": "Chop", "category": "tool", "id": "stone_axe", "name": "Stone axe", "socket": "RightHand", "stack": 1, "tags": [ "Item.Tool.Axe" ], "weight": 2.5 },
+    { "ability": "Mine", "category": "tool", "id": "stone_pickaxe", "name": "Stone pickaxe", "socket": "RightHand", "stack": 1, "tags": [ "Item.Tool.Pickaxe" ], "weight": 3.0 },
+    { "id": "copper_axe", "name": "Copper axe", "category": "tool", "weight": 2.4, "stack": 1, "tags": [ "Item.Tool.Axe.Copper" ], "ability": "Chop", "socket": "RightHand", "power": 2, "speed": 1.25 },
+    { "id": "bone_pickaxe", "name": "Bone pickaxe", "category": "tool", "weight": 2.0, "stack": 1, "tags": [ "Item.Tool.Pickaxe.Bone" ], "ability": "Mine", "socket": "RightHand", "power": 1, "speed": 1.1 },
+    { "id": "stone_hoe", "name": "Stone hoe", "category": "tool", "weight": 2.0, "stack": 1, "tags": [ "Item.Tool.Hoe" ], "ability": "Dig", "socket": "RightHand", "power": 1 },
+    { "id": "digging_stick", "name": "Digging stick", "category": "tool", "weight": 1.0, "stack": 1, "tags": [ "Item.Tool.Hoe" ], "ability": "Dig", "socket": "RightHand" },
+    { "id": "copper_hoe", "name": "Copper hoe", "category": "tool", "weight": 2.2, "stack": 1, "tags": [ "Item.Tool.Hoe.Copper" ], "ability": "Dig", "socket": "RightHand", "power": 1, "speed": 1.2 },
+    { "id": "flint_sickle", "name": "Flint sickle", "category": "tool", "weight": 0.8, "stack": 1, "tags": [ "Item.Tool.Sickle" ], "ability": "Gather", "socket": "RightHand" },
+    { "id": "snare", "name": "Snare", "category": "resource", "weight": 0.2, "stack": 10, "tags": [ "Item.Trap.Snare" ] },
+    { "id": "fish_trap", "name": "Fish trap (basket)", "category": "tool", "weight": 1.2, "stack": 1, "tags": [ "Item.Tool.Fishing" ] },
+    {
+      "id": "iron_axe",
+      "name": "Iron axe",
+      "category": "tool",
+      "weight": 2.0,
+      "stack": 1,
+      "tags": [
+        "Item.Tool.Axe.Iron"
+      ],
+      "ability": "Chop",
+      "socket": "RightHand",
+      "power": 4,
+      "speed": 1.6
+    },
+    {
+      "id": "iron_pickaxe",
+      "name": "Iron pickaxe",
+      "category": "tool",
+      "weight": 2.0,
+      "stack": 1,
+      "tags": [
+        "Item.Tool.Pickaxe.Iron"
+      ],
+      "ability": "Mine",
+      "socket": "RightHand",
+      "power": 4,
+      "speed": 1.6
+    },
+    { "id": "flint_knife", "name": "Flint knife", "category": "tool", "weight": 0.3, "stack": 1, "tags": [ "Item.Tool.Knife" ], "socket": "RightHand" },
+    { "id": "arrows", "name": "Arrows", "category": "resource", "weight": 0.1, "stack": 20, "tags": [ "Item.Ammo.Arrow" ] },
+    { "id": "polished_axe", "name": "Polished stone axe", "category": "tool", "weight": 2.4, "stack": 1, "tags": [ "Item.Tool.Axe.Polished" ], "ability": "Chop", "socket": "RightHand", "power": 1, "speed": 1.1 },
+    { "id": "harpoon", "name": "Bone harpoon", "category": "tool", "weight": 0.8, "stack": 1, "tags": [ "Item.Tool.Fishing.Harpoon" ], "socket": "RightHand" },
+    { "id": "atlatl", "name": "Spear-thrower", "category": "resource", "weight": 0.5, "stack": 5, "tags": [ "Item.Gear.Atlatl" ] },
+    { "id": "flail", "name": "Threshing flail", "category": "tool", "weight": 1.2, "stack": 1, "tags": [ "Item.Tool.Flail" ], "socket": "RightHand" },
+    { "id": "ard", "name": "Ard", "category": "tool", "weight": 3.0, "stack": 1, "tags": [ "Item.Tool.Hoe.Ard" ], "ability": "Dig", "socket": "RightHand", "power": 1, "speed": 1.15 },
+    { "id": "bronze_axe", "name": "Bronze axe", "category": "tool", "weight": 2.2, "stack": 1, "tags": [ "Item.Tool.Axe.Bronze" ], "ability": "Chop", "socket": "RightHand", "power": 3, "speed": 1.4 },
+    { "id": "bronze_pickaxe", "name": "Bronze pickaxe", "category": "tool", "weight": 2.4, "stack": 1, "tags": [ "Item.Tool.Pickaxe.Bronze" ], "ability": "Mine", "socket": "RightHand", "power": 3, "speed": 1.4 },
+    { "id": "bronze_sickle", "name": "Bronze sickle", "category": "tool", "weight": 0.8, "stack": 1, "tags": [ "Item.Tool.Sickle.Bronze" ], "ability": "Gather", "socket": "RightHand" }
+  ]
+}

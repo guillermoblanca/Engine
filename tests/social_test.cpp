@@ -5,6 +5,7 @@
 // group hunt kills a deer and its butchering gives bone, sinew and fat; hunting empties the rabbits near the camp where a quiet camp keeps them;
 // clans with shared beliefs come to trust each other (and opposed ones do not); a rite saved in the middle goes on after loading; a snare
 // catches a rabbit; and the QA invariants (social, combat, deaths) hold throughout. CPU only, stand-in bodies as in combat_test.
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/Clans.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/SimQA.h"
@@ -122,13 +123,15 @@ struct World
 	World()
 	{
 		RegisterEraOneItems(Items, Recipes, Defs);
-		Check(LoadContentFile(kData + "/social.json", Items, Recipes, Defs).empty(), "(the world: social.json's items, recipes and nodes load)");
+		Check(Items.Find("fish") && Items.Find("stew") && Defs.count("fishing_spot"), "(the world: the game's catalogue has social.json's items, recipes and nodes)");   // T347: no second load of a file of the pack
 		RegisterResourceContent(Gameplay.Library, Defs);
 		RegisterInteractiveContent(Gameplay.Library);
-		Check(LoadCombatRulesFile(kData + "/social.json", Combat.Rules).empty(), "(the world: social.json's hunts load)");
+		Combat.Rules = DefaultCombatRules();
+		Check(Combat.Rules.Hunts.count("deer") == 1, "(the world: the pack's hunts, social.json's deer among them)");
 		Combat.Bind(Entities, Gameplay);
 		Hostility.FromRules(Combat.Rules);
-		Check(LoadSpeciesFile(kData + "/social.json", Ecology.Species).empty(), "(the world: social.json's species load)");
+		Ecology.Species = DefaultSpecies();
+		Check(Ecology.Species.count("deer") == 1, "(the world: the pack's species, social.json's deer among them)");
 		Ecology.Bind(Entities, Gameplay);
 		Resources.Bind(Gameplay, Defs, [this](const std::string& who, const std::string& item, int k)
 		{
@@ -285,8 +288,8 @@ int GBTest_social(int, char**)
 	// ---- the data: the "social" section of social.json says what the code says, round-trips, and a mistake changes nothing
 	{
 		SocialRules file;
-		Check(LoadSocialRulesFile(kData + "/social.json", file).empty(), "the social section of assets/data/social.json loads");
-		Check(file == DefaultSocialRules(), "and says what DefaultSocialRules says");
+		Check(LoadShippedSection(file, [](const std::string& doc, SocialRules& r) { return LoadSocialRules(doc, r); }).empty(), "the social section of the game's pack loads (T347: every file of it)");
+		Check(file == DefaultSocialRules(), "and says what DefaultSocialRules says (T347: the default is the pack's section, no copy in the code)");
 		if (!(file == DefaultSocialRules())) std::fprintf(stderr, "  expected:\n{ \"social\": %s }\n", SocialRulesToJson(DefaultSocialRules()).c_str());
 		SocialRules back;
 		Check(LoadSocialRules("{ \"social\": " + SocialRulesToJson(DefaultSocialRules()) + " }", back).empty() && back == DefaultSocialRules(), "the social section round-trips");
@@ -301,8 +304,8 @@ int GBTest_social(int, char**)
 			&& more.Rites["funeral"] == DefaultSocialRules().Rites["funeral"], "a pack adds a rite (the others stay)");
 		SocialRules off;
 		Check(!off.On && DefaultSocialRules().On && TribeConfig().Social == SocialRules(), "a plain tribe has no social life; the rules of the content turn it on");
-		CombatRules hunts = DefaultCombatRules();
-		Check(LoadCombatRulesFile(kData + "/social.json", hunts).empty() && hunts.Hunts.count("deer") && hunts.Hunts["deer"].Group == 2 && hunts.Hunts["deer"].Yields.at("bone") == 2
+		CombatRules hunts = DefaultCombatRules();   // T347: the pack's hunts (social.json's are among them)
+		Check(hunts.Hunts.count("deer") && hunts.Hunts["deer"].Group == 2 && hunts.Hunts["deer"].Yields.at("bone") == 2
 			&& hunts.Hunts["rabbit"] == DefaultCombatRules().Hunts["rabbit"], "social.json adds deer (a group hunt that yields bone), boar and grouse to the hunts");
 		CombatRules hb;
 		Check(LoadCombatRules("{ \"combat\": " + CombatRulesToJson(hunts) + " }", hb).empty() && hb == hunts, "and the hunts with their butchering round-trip");
@@ -327,8 +330,8 @@ int GBTest_social(int, char**)
 		Check(error.empty() && report.Clean(), "the era1 pack loads strictly with social.json");
 		if (!error.empty() || !report.Clean()) std::fprintf(stderr, "  %s\n  %s\n", error.c_str(), report.Text().c_str());
 		SocialRules files = DefaultSocialRules();   // T346 (P-A16): the diet's foods are data only (food.json): the pack reads what the files say
-		Check(LoadSocialRulesFile(kData + "/social.json", files).empty() && LoadSocialRulesFile(kData + "/food.json", files).empty() && !files.Diet.Foods.empty()
-			&& DefaultSocialRules().Diet.Foods.empty(), "the diet's foods are in food.json, not in the code");
+		Check(LoadShippedSection(files, [](const std::string& doc, SocialRules& r) { return LoadSocialRules(doc, r); }).empty() && !files.Diet.Foods.empty()
+			&& DefaultSocialRules().Diet.Foods == files.Diet.Foods, "the diet's foods are data (rules/social.json), and the default is what the data says");
 		Check(live == files, "and the social section it read is what social.json and food.json say");
 		Check(pi.Find("stew") && pi.Find("fish") && pn.count("fishing_spot") && techs.Find("trapping") && species.count("deer") && combat.Hunts.count("boar"),
 			"with the new foods, the fishing spot, trapping, the deer and the boar hunt");

@@ -1,0 +1,54 @@
+{
+  "note": "The recipes whose output is in items/tools.json (T347). After every item file (D8): a recipe asks for items of any family.",
+  "recipes": [
+    { "id": "leather_bag", "inputs": { "leather": 2, "cordage": 1 }, "output": "leather_bag", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "flint_spear", "inputs": { "wood": 1, "flint": 1, "cordage": 1 }, "output": "flint_spear", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "flint_sword", "inputs": { "wood": 1, "flint": 2, "cordage": 1 }, "output": "flint_sword", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "hunting_bow", "inputs": { "wood": 2, "cordage": 2 }, "output": "hunting_bow", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "ability": "Craft", "count": 1, "id": "basket_wicker", "inputs": { "branch": 2, "reed": 5 }, "output": "basket_wicker" },
+    { "ability": "Craft", "count": 1, "id": "flint_axe", "inputs": { "branch": 2, "cordage": 1, "flint": 2 }, "output": "flint_axe", "station": "workbench" },
+    { "ability": "Craft", "count": 1, "id": "flint_pickaxe", "inputs": { "branch": 2, "cordage": 1, "flint": 3 }, "output": "flint_pickaxe", "station": "workbench" },
+    { "ability": "Craft", "count": 1, "id": "stone_axe", "inputs": { "fiber": 3, "stone": 2, "wood": 2 }, "output": "stone_axe", "station": "workbench" },
+    { "ability": "Craft", "count": 1, "id": "stone_pickaxe", "inputs": { "fiber": 3, "stone": 3, "wood": 2 }, "output": "stone_pickaxe", "station": "workbench" },
+    { "id": "bone_pickaxe", "inputs": { "bone": 3, "branch": 2, "cordage": 1 }, "output": "bone_pickaxe", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "digging_stick", "inputs": { "wood": 1 }, "output": "digging_stick", "count": 1, "ability": "Craft" },
+    { "id": "stone_hoe", "inputs": { "stone": 2, "branch": 2, "cordage": 1 }, "output": "stone_hoe", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "flint_sickle", "inputs": { "flint": 1, "branch": 1, "cordage": 1 }, "output": "flint_sickle", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "copper_axe", "inputs": { "copper_ingot": 2, "branch": 2, "cordage": 1 }, "output": "copper_axe", "count": 1, "station": "forge", "ability": "Craft" },
+    { "id": "copper_hoe", "inputs": { "copper_ingot": 2, "branch": 2, "cordage": 1 }, "output": "copper_hoe", "count": 1, "station": "forge", "ability": "Craft" },
+    { "id": "snare", "inputs": { "cordage": 2 }, "output": "snare", "count": 1, "ability": "Craft" },
+    { "id": "fish_trap", "inputs": { "reed": 4, "cordage": 1 }, "output": "fish_trap", "count": 1, "station": "workbench", "ability": "Craft" },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "iron_axe",
+      "inputs": {
+        "iron_ingot": 2,
+        "branch": 2
+      },
+      "output": "iron_axe",
+      "station": "forge"
+    },
+    {
+      "ability": "Craft",
+      "count": 1,
+      "id": "iron_pickaxe",
+      "inputs": {
+        "iron_ingot": 2,
+        "branch": 2
+      },
+      "output": "iron_pickaxe",
+      "station": "forge"
+    },
+    { "id": "flint_knife", "inputs": { "bone": 1, "flint_blade": 1 }, "output": "flint_knife", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "arrows", "inputs": { "branch": 2, "feather": 2, "flint_blade": 1 }, "output": "arrows", "count": 6, "station": "workbench", "ability": "Craft" },
+    { "id": "polished_axe", "inputs": { "cordage": 1, "granite": 1, "wood": 1 }, "output": "polished_axe", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "harpoon", "inputs": { "bone": 2, "cordage": 1 }, "output": "harpoon", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "atlatl", "inputs": { "bone": 1, "wood": 1 }, "output": "atlatl", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "flail", "inputs": { "branch": 2, "cordage": 1, "wood": 1 }, "output": "flail", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "id": "ard", "inputs": { "cordage": 2, "log": 1 }, "output": "ard", "count": 1, "station": "workbench", "ability": "Craft" },
+    { "ability": "Craft", "count": 1, "id": "bronze_axe", "inputs": { "bronze_ingot": 2, "branch": 2, "cordage": 1 }, "output": "bronze_axe", "station": "forge" },
+    { "id": "bronze_pickaxe", "inputs": { "bronze_ingot": 2, "branch": 2, "cordage": 1 }, "output": "bronze_pickaxe", "count": 1, "station": "forge", "ability": "Craft" },
+    { "id": "bronze_sickle", "inputs": { "bronze_ingot": 1, "branch": 1 }, "output": "bronze_sickle", "count": 1, "station": "forge", "ability": "Craft" }
+  ]
+}

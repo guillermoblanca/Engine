@@ -7,29 +7,9 @@
 #include "GB/Game/UseLearning.h"
 #include "GB/Gameplay/Techs.h"
 #include <algorithm>
-#include <nlohmann/json.hpp>
 
 namespace GB
 {
-	using Json = nlohmann::json;
-
-	bool TechTierMap::Read(const std::string& json)
-	{
-		const Json doc = Json::parse(json, nullptr, false);
-		if (doc.is_discarded()) return false;
-		if (!doc.is_object()) return true;
-		const auto techs = doc.find("techs");
-		if (techs == doc.end() || !techs->is_array()) return true;
-		for (const Json& t : *techs)
-		{
-			if (!t.is_object() || !t.contains("id") || !t["id"].is_string()) continue;
-			const std::string id = t["id"].get<std::string>();
-			if (const auto tier = t.find("tier"); tier != t.end() && tier->is_number_integer()) m_Of[id] = tier->get<int>();
-			else m_Of.erase(id);   // (a later definition without a tier has none, as the last definition wins in LoadTechs)
-		}
-		return true;
-	}
-
 	TechTierMap TechTierMap::FromTree(const TechTree& tree)
 	{
 		TechTierMap t;

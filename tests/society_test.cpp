@@ -5,6 +5,7 @@
 // with what happens, fade, stay sparse, and decide partners and teachers; a lesson prefers the parents and a child learns faster; personality
 // changes what the brain chooses; traditions are founded by repeated events; and a tribe with stand-in bodies has a child (a new body, small), loses
 // an elder to old age, makes bonds from shared work and the camp, and saves and loads (an old save without the society loads too). CPU only.
+#include "GB/Gameplay/ShippedContent.h"
 #include "GB/Game/GameContent.h"
 #include "GB/Game/Society.h"
 #include "GB/Game/Tribe.h"
@@ -232,7 +233,7 @@ int GBTest_society(int, char**)
 	// ---- the data: the section of era1.json says what the code says, round-trips, and a mistake changes nothing
 	{
 		SocietyRules file;
-		Check(LoadSocietyRulesFile(std::string(GB_ASSETS_DIR) + "/data/era1.json", file).empty(), "the society section of assets/data/era1.json loads");
+		Check(LoadShippedSection(file, [](const std::string& doc, SocietyRules& r) { return LoadSocietyRules(doc, r); }).empty(), "the society section of the game's pack loads (T347: every file of it)");
 		Check(file == DefaultSocietyRules(), "and says what DefaultSocietyRules says");
 		SocietyRules back;
 		Check(LoadSocietyRules("{ \"society\": " + SocietyRulesToJson(DefaultSocietyRules()) + " }", back).empty() && back == DefaultSocietyRules(), "the society section round-trips");

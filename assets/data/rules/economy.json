@@ -1,0 +1,56 @@
+{
+  "note": "The economy (T347, from era1.json): production chains, spoilage, winter stock, farming, logistics and construction. The crops are in crops.json.",
+  "economy": {
+    "production": {
+      "depth": 3,
+      "maxBatches": 3,
+      "seconds": 4.0,
+      "priority": 1.1,
+      "stock": { "cordage": 2 },
+      "campStations": [ "workbench" ],
+      "upgrade": true,
+      "experiment": true,
+      "containersPerMember": 1.0,
+      "preserveAbove": 1.0
+    },
+    "spoilage": { "step": 10.0, "bag": 1.0, "seasons": { "winter": 0.5 } },
+    "winterStock": { "days": 17.0, "from": 0.0 },
+    "farming": {
+      "tech": "tillage",
+      "tool": "Item.Tool.Hoe",
+      "plots": 20,
+      "columns": 5,
+      "spacing": 2.0,
+      "offset": [ 9.0, 4.0 ],
+      "moistureSeconds": 2400.0,
+      "workSeconds": 2.0,
+      "plotsPerTrip": 3,
+      "priority": 1.2,
+      "fields": 24,
+      "membersPerField": 4,
+      "plotsPerMember": 5,
+      "zonePlots": [ 20, 40 ],
+      "clearPriority": 2,
+      "clearReach": 3.0,
+      "foodDays": 3.0,
+      "wildSeedReach": 200.0,
+      "transplantNear": 20.0
+    },
+    "logistics": {
+      "stores": {
+        "main": { "cap": 40, "slots": 320, "spoilRate": 1.0, "accepts": [], "haul": false },
+        "stockpile": { "cap": 20, "slots": 12, "spoilRate": 1.0, "accepts": [], "haul": true }
+      },
+      "perBagSlot": 1.0,
+      "priority": 0.9,
+      "haulAt": 8,
+      "fieldStore": "stockpile",
+      "campReserve": { "wood": 6, "food": 10 },
+      "keepBestBelow": 4800,
+      "foodStoreAt": 40,
+      "foodStoresPer": 8,
+      "spoilMemory": 1200
+    },
+    "construction": { "maxSites": 3, "membersPerSite": 4 }
+  }
+}

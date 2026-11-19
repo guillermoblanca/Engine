@@ -135,6 +135,20 @@ def load_json(path, default=None):
         return default
 
 
+def pack_content(pack='era1'):
+    """The catalogue of the game's pack: the items, recipes, nodes and technologies of every file its manifest lists (T347: they are split by
+    kind, items/*, recipes/*, nodes.json, techs/*), and its buildings (buildings.json), as the game loads them."""
+    data = ROOT / 'assets' / 'data'
+    manifest = load_json(data / f'{pack}.pack.json', {})
+    out = {'items': [], 'recipes': [], 'nodes': [], 'techs': [], 'buildings': {}}
+    for f in manifest.get('files', []):
+        doc = load_json(data / f, {})
+        for k in ('items', 'recipes', 'nodes', 'techs'):
+            out[k] += doc.get(k, [])
+        out['buildings'].update(doc.get('buildings', {}))
+    return out
+
+
 def slug(text):
     return re.sub(r'[^a-z0-9]+', '-', text.lower()).strip('-')
 
@@ -410,7 +424,7 @@ def section_world(rules):
 
 def section_content(content, extra):
     out = ['<h1>Objetos, recetas y nodos de recurso</h1>',
-           '<p class="lead">Datos de <code>assets/data/era1.json</code> (la base) y de <code>era1_ampliado.json</code> (propuesta de economía; se carga con <code>content load</code>). Cambiarlos no requiere compilar.</p>']
+           '<p class="lead">Datos del paquete del juego (<code>assets/data</code>: <code>items/</code>, <code>recipes/</code>, <code>nodes.json</code>; la base) y de <code>era1_ampliado.json</code> (propuesta de economía; se carga con <code>content load</code>). Cambiarlos no requiere compilar.</p>']
 
     def items_table(items, title):
         rows = ''
@@ -592,24 +606,25 @@ def section_packs(packs):
 
 # data sections shown as they are written (the systems read them through the content section registry)
 DATA_SECTIONS = [
-    ('era1.json', 'tribe', 'Tribu: agenda del día y economía (comida, existencias objetivo)'),
-    ('era1.json', 'work', 'Trabajo: aptitudes por práctica y tablón de trabajos'),
-    ('era1.json', 'knowledge', 'Conocimiento: reglas del clan (lecciones, observación)'),
-    ('era1.json', 'exploration', 'Exploración: regiones, expediciones y migración'),
-    ('era1.json', 'buildings', 'Edificios por fases (asentamientos)'),
-    ('era1.json', 'economy', 'Economía: producción, caducidad, campos y almacenes'),
-    ('era1.json', 'society', 'Sociedad: edad, herencia, personalidad, relaciones y cultura'),
-    ('era1.json', 'diplomacy', 'Diplomacia entre clanes'),
-    ('era1.json', 'combat', 'Combate, caza e incursiones'),
+    ('rules/tribe.json', 'tribe', 'Tribu: agenda del día y economía (comida, existencias objetivo)'),
+    ('rules/tribe.json', 'work', 'Trabajo: aptitudes por práctica y tablón de trabajos'),
+    ('rules/knowledge.json', 'knowledge', 'Conocimiento: reglas del clan (lecciones, observación)'),
+    ('rules/exploration.json', 'exploration', 'Exploración: regiones, expediciones y migración'),
+    ('buildings.json', 'buildings', 'Edificios por fases (asentamientos)'),
+    ('rules/economy.json', 'economy', 'Economía: producción, caducidad, campos y almacenes'),
+    ('crops.json', 'economy', 'Cultivos de los campos'),
+    ('rules/society.json', 'society', 'Sociedad: edad, herencia, personalidad, relaciones y cultura'),
+    ('rules/diplomacy.json', 'diplomacy', 'Diplomacia entre clanes (con los precios de todo el paquete)'),
+    ('rules/combat.json', 'combat', 'Combate, caza (también ciervo, jabalí y urogallo, con su despiece) e incursiones'),
     ('player.json', 'player', 'Jugador: reglas dentro del clan'),
     ('player.json', 'controls', 'Controles y HUD del modo de juego'),
     ('visuals.json', 'visuals', 'Visuales procedurales de nodos, edificios y props'),
     ('world.json', 'interactives', 'Interactivos: hoguera, pozo, puerta'),
     ('world.json', 'species', 'Especies de la ecología'),
     ('cameras.json', 'cameras', 'Cámaras de juego'),
-    ('social.json', 'social', 'Vida social: ánimo, conversaciones, ritos, creencias, dieta y trampas'),
+    ('rules/social.json', 'social', 'Vida social: ánimo, conversaciones, ritos, creencias, dieta y trampas'),
+    ('rules/needs.json', 'needs', 'Necesidades de una sociedad crecida (fe, estudio, propósito)'),
     ('social.json', 'species', 'Especies de caza de la vida social (ciervo, jabalí, urogallo)'),
-    ('social.json', 'combat', 'Cacerías de la vida social (despiece, caza en grupo)'),
 ]
 
 
@@ -822,7 +837,7 @@ def main():
     rules = load_json(args.rules)
     if rules is None:
         sys.exit(f'No rules file at {args.rules}. In the editor (with the demos built): docs export {args.rules}')
-    content = load_json(ROOT / 'assets' / 'data' / 'era1.json', {'items': [], 'recipes': [], 'nodes': []})
+    content = pack_content()
     extra = load_json(ROOT / 'assets' / 'data' / 'era1_ampliado.json', {})
     base_techs = {t['id'] for t in content.get('techs', [])}
     extra_techs = [t for t in extra.get('techs', []) if t['id'] not in base_techs]
