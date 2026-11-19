@@ -8,14 +8,24 @@
 // `colony ...`, `game ...`, `director ...` or `observer ...` command.
 #include "EditorApp.h"
 #include "GameTheme.h"
+#include "SceneEditor.h"
+#include "StoryKinds.h"
+#include "GB/Game/StoreLayout.h"
+#include "GB/Game/TechVerbs.h"
+#include "GB/Game/Transplant.h"
 #include "GB/Game/WinterOutlook.h"
+#include "GB/Gameplay/Buildings.h"
+#include "GB/Gameplay/Resources.h"
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
 #include <cstdio>
 #include <functional>
 #include <imgui.h>
+#include <iterator>
+#include <map>
 #include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -107,6 +117,49 @@ namespace GB::Editor
 			}
 		}
 
+		// `s` cut to `width` with ".." (whole UTF-8 characters: the font has no ellipsis)
+		std::string FitText(std::string s, float width)
+		{
+			if (ImGui::CalcTextSize(s.c_str()).x <= width) return s;
+			while (!s.empty() && ImGui::CalcTextSize((s + "..").c_str()).x > width)
+			{
+				s.pop_back();
+				while (!s.empty() && (static_cast<unsigned char>(s.back()) & 0xC0) == 0x80) s.pop_back();
+				if (!s.empty() && (static_cast<unsigned char>(s.back()) & 0xC0) == 0xC0) s.pop_back();
+			}
+			while (!s.empty() && s.back() == ' ') s.pop_back();
+			return s + "..";
+		}
+
+		// `s` in lines of `width`, at most `most` (the last one cut with ".." when the rest does not fit)
+		std::vector<std::string> Lines(const std::string& s, float width, int most)
+		{
+			std::vector<std::string> words, lines;
+			for (size_t i = 0; i <= s.size();)
+			{
+				const size_t j = std::min(s.find(' ', i), s.size());
+				if (j > i) words.push_back(s.substr(i, j - i));
+				i = j + 1;
+			}
+			std::string line;
+			for (const std::string& w : words)
+			{
+				const std::string next = line.empty() ? w : line + " " + w;
+				if (line.empty() || ImGui::CalcTextSize(next.c_str()).x <= width) line = next;
+				else { lines.push_back(line); line = w; }
+			}
+			if (!line.empty()) lines.push_back(line);
+			if (static_cast<int>(lines.size()) > most)
+			{
+				std::string rest;
+				for (size_t i = static_cast<size_t>(most - 1); i < lines.size(); ++i) rest += (rest.empty() ? "" : " ") + lines[i];
+				lines.resize(static_cast<size_t>(most - 1));
+				lines.push_back(rest);
+			}
+			for (std::string& l : lines) l = FitText(l, width);
+			return lines;
+		}
+
 		// a part of the quality of life (0..1; < 0: not yet) as a word, its colour and its 5 segments: never a bare 0,46 (the number is in the tooltip).
 		// The techniques are low by nature at the start: "starting", never red (audit C1)
 		struct Level { const char* Word; ImU32 Colour; int Filled; };
@@ -168,25 +221,23 @@ namespace GB::Editor
 		if (!m_FreeSelected.empty())
 		{
 			const float pw = std::clamp(w * 0.27f, 340.0f, 430.0f), maxH = std::max(oy + h - top - T::Margin, 160.0f);
-			if (const TribeMember* m = AnyMember(m_FreeSelected))
+			const TribeMember* m = AnyMember(m_FreeSelected);
+			// T342: a node, a building or a site has its sheet as the person's (p1): the ring on the ground round it, the sheet on the right
+			if (!m && !m_Gameplay.Find(m_FreeSelected)) m_FreeSelected.clear();
+			else
 			{
-				const Tribe* own = ClanOfMember(m->Name);
+				if (!m) DrawArea(ox, oy, w, h, m_FreeSelected);
 				ImGui::SetNextWindowPos(ImVec2(ox + w - T::Margin, top), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
 				ImGui::SetNextWindowSizeConstraints(ImVec2(pw, 0.0f), ImVec2(pw, maxH));
 				const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
 					| ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking;
 				if (ImGui::Begin("Selected##colony", nullptr, flags))
 				{
-					if (own) DrawColonyPerson(*own, *m, pw - 2.0f * T::Pad);
+					if (m) { if (const Tribe* own = ClanOfMember(m->Name)) DrawColonyPerson(*own, *m, pw - 2.0f * T::Pad); }
+					else DrawColonyThing(m_FreeSelected, pw - 2.0f * T::Pad);
 					m_Observer.BookBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
 				}
 				ImGui::End();
-			}
-			else
-			{
-				DrawSelection(ox, oy, w, h, m_FreeSelected);   // (a node, a building, a site: its card, in the same place)
-				m_Observer.BookBox = m_Observer.SelectionBox;
-				m_Observer.SelectionBox = {};
 			}
 			if (m_Observer.BookBox.X1 > m_Observer.BookBox.X0) m_Observer.BookWidth = ox + w - m_Observer.BookBox.X0;
 		}
@@ -663,11 +714,11 @@ namespace GB::Editor
 			const std::string& tab = m_Colony.Tab;
 			const float room = ImGui::GetContentRegionAvail().x;
 			if (tab == "clan") DrawColonyClanTab(*clan, ImGui::GetContentRegionAvail().x);
-			else if (tab == "chronicle") DrawChronicleSheet();
+			else if (tab == "chronicle") DrawColonyChronicle(*clan, room);   // T342 (L10): the colony's own (the god's book keeps DrawChronicleSheet)
 			else if (tab == "board") { ImGui::PushItemWidth(room); DrawBoardSheet(t, false); ImGui::PopItemWidth(); }
 			else if (tab == "sites") DrawSitesSheet(t);
-			else if (tab == "homes") DrawHomesSheet(t, false);
-			else if (tab == "relations") DrawClansSheet(t);
+			else if (tab == "homes") DrawColonyHomes(t, room);
+			else if (tab == "relations") DrawColonyClans(t, room);
 			else if (tab == "research")
 			{
 				m_Colony.BareTitle = true;   // (the sheet has its close: the queue's title without its own)
@@ -772,7 +823,18 @@ namespace GB::Editor
 			cards.push_back({ "state.happy", "", L.Text("Mood"), L.Text(mood >= 0.5f ? "content" : mood >= t.Config.Social.Mood.Low ? "so-so" : "sad"),
 				sad == 0 ? L.Text("nobody sad") : sad == 1 ? L.Text("1 sad") : L.Text("{0} sad", sad), sad > 0 ? T::Warn : 0u, sad > 0, -1.0f, L.Text("The mean mood of the clan, and who is low") });
 			const int perRow = 3;
-			const float cw = (leftW - static_cast<float>(perRow - 1) * 8.0f) / static_cast<float>(perRow), ch = lh * 3.0f + 26.0f;
+			const float cw = (leftW - static_cast<float>(perRow - 1) * 8.0f) / static_cast<float>(perRow);
+			// T342: the small line under the value goes on two lines when it needs them (the winter's "lacks 51 days of food" was cut at 1600):
+			// every card of the row as tall as the tallest
+			std::vector<std::vector<std::string>> subs(cards.size());
+			int subLines = 1;
+			for (size_t i = 0; i < cards.size(); ++i)
+			{
+				if (cards[i].Bar >= 0.0f) continue;
+				subs[i] = Lines(cards[i].Sub, cw - 12.0f - (cards[i].Warn ? lh + 3.0f : 0.0f), 2);
+				subLines = std::max(subLines, static_cast<int>(subs[i].size()));
+			}
+			const float ch = lh * static_cast<float>(2 + subLines) + 26.0f;
 			for (size_t i = 0; i < cards.size(); ++i)
 			{
 				const Card& c = cards[i];
@@ -785,19 +847,17 @@ namespace GB::Editor
 				if (!IconAt(dl, c.Icon, at.x + 8.0f, at.y + 6.0f, lh + 4.0f)) DrawMark(dl, c.Mark, ImVec2(at.x + 8.0f, at.y + 6.0f), lh + 4.0f, T::Bone);
 				dl->AddText(ImVec2(at.x + 14.0f + lh + 4.0f, at.y + 8.0f), T::BoneDim, c.Title.c_str());
 				dl->AddText(ImGui::GetFont(), ImGui::GetFontSize() * 1.2f, ImVec2(at.x + 8.0f, at.y + 12.0f + lh + 2.0f), T::Bone, c.Value.c_str());
-				const float sy = at.y + ch - lh - 6.0f;
 				if (c.Bar >= 0.0f)
 				{
+					const float sy = at.y + ch - lh - 6.0f;
 					dl->AddRectFilled(ImVec2(at.x + 8.0f, sy + 3.0f), ImVec2(at.x + cw - 8.0f, sy + lh - 3.0f), T::Hide, 2.0f);
 					dl->AddRectFilled(ImVec2(at.x + 8.0f, sy + 3.0f), ImVec2(at.x + 8.0f + (cw - 16.0f) * std::clamp(c.Bar, 0.0f, 1.0f), sy + lh - 3.0f), T::Level(c.Bar), 2.0f);
 				}
 				else
 				{
-					float sx = at.x + 8.0f;
+					float sx = at.x + 8.0f, sy = at.y + 14.0f + lh * 2.2f + 4.0f;
 					if (c.Warn) { DrawMark(dl, "warn", ImVec2(sx, sy), lh, T::Warn); sx += lh + 3.0f; }
-					dl->PushClipRect(ImVec2(sx, sy), ImVec2(at.x + cw - 4.0f, sy + lh + 2.0f), true);
-					dl->AddText(ImVec2(sx, sy), T::BoneDim, c.Sub.c_str());
-					dl->PopClipRect();
+					for (const std::string& line : subs[i]) { dl->AddText(ImVec2(sx, sy), c.Warn ? T::Warn : T::BoneDim, line.c_str()); sy += lh; }
 				}
 			}
 		}
@@ -959,6 +1019,728 @@ namespace GB::Editor
 					ImGui::Unindent(lh + 10.0f);
 				}
 				ImGui::PopID();
+			}
+		}
+	}
+	// ------------------------------------------------------------------ T342 (L10): the chronicle of the colony
+	// The clan's own events first (audit CR2; "all the clans" shows the neighbours' too), the groups as chips of an icon and its count (a click shows
+	// or hides one; a group with nothing in it is not drawn: no zeros), and each event a row whose click sends the camera there (it was an [go] on
+	// every row, CR1). The filters are the god's book's (`observer chronicle ...`, `observer go ...`): a script sees the same.
+	void EditorApp::DrawColonyChronicle(const Clan& own, float width)
+	{
+		const Lang& L = m_Lang;
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		const float lh = ImGui::GetTextLineHeight();
+		const int clanFilter = m_Observer.ChronicleClan, weight = m_Observer.ChronicleWeight;
+		auto filterCommand = [&](int clan, const std::set<std::string>& hidden, int least)
+		{
+			std::string c = "observer chronicle " + (clan < 0 ? std::string("all") : std::to_string(clan));
+			for (int k = 0; k < StoryKindCount; ++k) if (!hidden.count(StoryKinds()[k].Id)) c += std::string(" ") + StoryKinds()[k].Id;
+			return c + " weight " + std::to_string(least);
+		};
+		// the first time the colony opens it: the player's own clan
+		if (!m_Colony.ChronicleOwn)
+		{
+			m_Colony.ChronicleOwn = true;
+			if (clanFilter < 0) run(filterCommand(own.Id, m_Observer.ChronicleHidden, weight));
+		}
+		auto clanName = [&](int id) { const Clan* c = m_Clans.Find(static_cast<ClanId>(id)); return c ? L.Name("clan", c->Name, c->Name) : std::string(); };
+		std::map<std::string, int> counts;
+		std::vector<const HistoryEvent*> shown;
+		for (const HistoryEvent& e : m_Clans.Past().Events())
+		{
+			const std::string kind = SheetKind(e.Kind);
+			if (kind.empty() || (clanFilter >= 0 && e.Clan != clanFilter) || e.Weight < weight) continue;
+			++counts[kind];
+			if (!m_Observer.ChronicleHidden.count(kind)) shown.push_back(&e);
+		}
+		// ---- the groups: an icon and its count in a chip, lit when shown (a group with nothing is left out, unless it is hidden)
+		{
+			const float chipH = lh + 10.0f, icon = lh + 4.0f;
+			float x = 0.0f;
+			bool first = true;
+			for (int k = 0; k < StoryKindCount; ++k)
+			{
+				const StoryKind& kind = StoryKinds()[k];
+				const int n = counts[kind.Id];
+				const bool on = !m_Observer.ChronicleHidden.count(kind.Id);
+				if (n == 0 && on) continue;
+				const std::string count = std::to_string(n);
+				const float cw = 8.0f + icon + 5.0f + ImGui::CalcTextSize(count.c_str()).x + 9.0f;
+				if (!first && x + 6.0f + cw <= width) { ImGui::SameLine(0.0f, 6.0f); x += 6.0f + cw; }
+				else x = cw;
+				first = false;
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				ImGui::PushID(kind.Id);
+				const bool pressed = ImGui::InvisibleButton("chip", ImVec2(cw, chipH));
+				const bool hovered = ImGui::IsItemHovered();
+				ImGui::PopID();
+				if (hovered) ImGui::SetTooltip("%s", (Lang::Cap(L.Text(kind.Label)) + ": " + count + "\n" + L.Text(on ? "Click: hide them" : "Click: show them")).c_str());
+				if (pressed)
+				{
+					std::set<std::string> hidden = m_Observer.ChronicleHidden;
+					if (on) hidden.insert(kind.Id); else hidden.erase(kind.Id);
+					if (static_cast<int>(hidden.size()) < StoryKindCount) run(filterCommand(clanFilter, hidden, weight));
+				}
+				dl->AddRectFilled(at, ImVec2(at.x + cw, at.y + chipH), on ? (hovered ? T::HideHover : T::HideActive) : T::Hide, chipH * 0.5f);
+				dl->AddRect(at, ImVec2(at.x + cw, at.y + chipH), on ? kind.Colour : T::HideLine, chipH * 0.5f, 0, on ? 1.5f : 1.0f);
+				IconAt(dl, kind.Icon, at.x + 8.0f, at.y + (chipH - icon) * 0.5f, icon, on ? 0xFFFFFFFFu : IM_COL32(255, 255, 255, 90));
+				dl->AddText(ImVec2(at.x + 8.0f + icon + 5.0f, at.y + (chipH - lh) * 0.5f), on ? T::Bone : T::BoneDim, count.c_str());
+			}
+			if (first) ImGui::TextDisabled("%s", L.Text("nothing has happened yet").c_str());
+		}
+		// ---- whose: the clan's own, or every clan's; and how weighty
+		if (m_Clans.Count() > 1)
+		{
+			const std::string mineWord = L.Text("Only the {0}", clanName(own.Id)), allWord = L.Text("Every clan");
+			{
+				std::optional<T::PrimaryScope> lit;
+				if (clanFilter >= 0) lit.emplace();
+				if (ImGui::SmallButton((mineWord + "###chronown").c_str()) && clanFilter < 0) run(filterCommand(own.Id, m_Observer.ChronicleHidden, weight));
+			}
+			ImGui::SameLine(0.0f, 4.0f);
+			{
+				std::optional<T::PrimaryScope> lit;
+				if (clanFilter < 0) lit.emplace();
+				if (ImGui::SmallButton((allWord + "###chronall").c_str()) && clanFilter >= 0) run(filterCommand(-1, m_Observer.ChronicleHidden, weight));
+			}
+			ImGui::SameLine(0.0f, 16.0f);
+		}
+		ImGui::AlignTextToFramePadding();
+		ImGui::TextDisabled("%s", L.Text("Weight").c_str());
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("How much the clans remember it: 1 a small thing, 5 something never forgotten").c_str());
+		ImGui::SameLine();
+		ImGui::SetNextItemWidth(110.0f);
+		auto weightText = [&](int n) { return n <= 1 ? L.Text("any") : L.Text("{0} or more", n); };
+		if (ImGui::BeginCombo("###chronweight", weightText(weight).c_str()))
+		{
+			for (int n = 1; n <= 5; ++n)
+				if (ImGui::Selectable((weightText(n) + "###w" + std::to_string(n)).c_str(), weight == n)) run(filterCommand(clanFilter, m_Observer.ChronicleHidden, n));
+			ImGui::EndCombo();
+		}
+		ImGui::Separator();
+		if (shown.empty())
+		{
+			if (!counts.empty()) ImGui::TextDisabled("%s", L.Text("nothing passes these filters").c_str());
+			return;
+		}
+		// ---- the events, newest first under their day (the newest 300): a click on one sends the camera there
+		int day = -1, drawn = 0;
+		for (auto it = shown.rbegin(); it != shown.rend() && drawn < 300; ++it, ++drawn)
+		{
+			const HistoryEvent& e = **it;
+			if (const int d = EventDay(e.At); d != day)
+			{
+				day = d;
+				ImGui::Spacing();
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", L.Text("Day {0}", day).c_str());
+			}
+			const StoryKind* kind = FindStoryKind(SheetKind(e.Kind));
+			const std::string text = Lang::Cap(L.Line(e.Text));
+			const bool stranger = e.Clan >= 0 && e.Clan != own.Id;   // (another clan's: its colour and its name before the line)
+			const std::string tag = stranger ? clanName(e.Clan) : std::string();
+			const float textX = 12.0f + lh + 6.0f + (stranger ? lh + ImGui::CalcTextSize(tag.c_str()).x + 10.0f : 0.0f);
+			const float wrap = std::max(80.0f, width - textX - 6.0f);
+			const ImVec2 ts = ImGui::CalcTextSize(text.c_str(), nullptr, false, wrap);
+			const float rowH = std::max(lh, ts.y) + 4.0f;
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::PushID(e.Id);
+			const bool pressed = ImGui::InvisibleButton("row", ImVec2(width, rowH));
+			const bool hovered = ImGui::IsItemHovered();
+			ImGui::PopID();
+			if (pressed && e.HasWhere) run("observer go " + std::to_string(e.Id));
+			if (hovered)
+			{
+				if (e.HasWhere) ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
+				ImGui::SetTooltip("%s", (e.HasWhere ? L.Text("Click: the camera to where it happened") : L.Text("It has no place to go to")).c_str());
+				dl->AddRectFilled(at, ImVec2(at.x + width, at.y + rowH), T::HideHover, 3.0f);
+			}
+			dl->AddRectFilled(ImVec2(at.x, at.y + 2.0f), ImVec2(at.x + 3.0f, at.y + rowH - 2.0f), kind ? kind->Colour : T::BoneDim);
+			if (kind) IconAt(dl, kind->Icon, at.x + 10.0f, at.y + 2.0f, lh);
+			float x = at.x + 12.0f + lh + 6.0f;
+			if (stranger)
+			{
+				dl->AddRectFilled(ImVec2(x, at.y + 4.0f), ImVec2(x + lh - 4.0f, at.y + lh), ClanColourOf(m_Clans, static_cast<ClanId>(e.Clan)), 2.0f);
+				dl->AddText(ImVec2(x + lh, at.y + 2.0f), T::BoneDim, tag.c_str());
+			}
+			dl->AddText(ImGui::GetFont(), ImGui::GetFontSize(), ImVec2(at.x + textX, at.y + 2.0f), T::Bone, text.c_str(), nullptr, wrap);
+		}
+		if (shown.size() > 300) ImGui::TextDisabled("%s", L.Text("(and {0} older)", static_cast<int>(shown.size()) - 300).c_str());
+	}
+
+	// ------------------------------------------------------------------ T342 (L10): the households of the colony
+	// A row per family: its house (or "no house"), its name and its people with their trade in their gender ("Ana, recolectora"); a family of more
+	// than one gets its card, with a line per member and its pantry. A click on the house opens its sheet (`colony inspect`).
+	void EditorApp::DrawColonyHomes(const Tribe& t, float width)
+	{
+		const Lang& L = m_Lang;
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		const float lh = ImGui::GetTextLineHeight();
+		const auto& households = t.Households();
+		if (households.empty()) { ImGui::TextDisabled("%s", L.Text("no households yet: they form as couples pair and children are born").c_str()); return; }
+		int housed = 0;
+		for (const Tribe::Household& h : households) housed += h.Home.empty() ? 0 : 1;
+		{
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(lh + 4.0f, lh + 4.0f));
+			IconAt(dl, "building.shelter", at.x, at.y, lh + 4.0f);
+			ImGui::SameLine(0.0f, 8.0f);
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextUnformatted(L.Text(households.size() == 1 ? "1 family" : "{0} families", static_cast<int>(households.size())).c_str());
+			ImGui::SameLine(0.0f, 4.0f);
+			ImGui::TextDisabled("%s", (" \xC2\xB7 " + L.Text(housed == 1 ? "1 with a house of its own" : "{0} with a house of their own", housed)).c_str());
+			ImGui::SameLine(0.0f, 4.0f);
+			ImGui::TextDisabled("%s", (" \xC2\xB7 " + L.Text("property: {0}", L.Name("property", t.Config.Economy.Property))).c_str());
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Whose the food of the houses is: the clan's, the family's or each one's").c_str());
+		}
+		ImGui::Separator();
+		auto person = [&](const std::string& name)
+		{
+			const TribeMember* m = t.FindMember(name);
+			if (!m || !t.People().Find(name)) return name;
+			const Society::Stage stage = t.People().StageOf(t.Config.Society, name);
+			return name + ", " + (stage == Society::Stage::Child ? L.Text("child") : stage == Society::Stage::Elder ? L.Text("elder") + " " + RoleName(t, *m) : RoleName(t, *m));
+		};
+		const float nameX = lh + 12.0f, homeX = std::max(nameX + 200.0f, width * 0.40f), peopleX = std::max(homeX + 170.0f, width * 0.66f);
+		for (const Tribe::Household& h : households)
+		{
+			ImGui::PushID(h.Id.c_str());
+			const bool card = h.Members.size() > 1;
+			const ImVec2 top = ImGui::GetCursorScreenPos();
+			if (card) { ImGui::Dummy(ImVec2(1.0f, 3.0f)); }
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			const float rowH = lh + 8.0f;
+			ImGui::Dummy(ImVec2(width, rowH));
+			// the house: its icon (faded without one), the family's name, the house's name (a click: its sheet) or "no house"
+			IconAt(dl, "building.shelter", at.x + 4.0f, at.y + 3.0f, lh + 2.0f, h.Home.empty() ? IM_COL32(255, 255, 255, 70) : 0xFFFFFFFFu);
+			dl->AddText(ImVec2(at.x + nameX, at.y + 4.0f), T::Bone, L.Text("The {0} family", h.Id).c_str());
+			if (h.Home.empty())
+			{
+				DrawMark(dl, "warn", ImVec2(at.x + homeX, at.y + 4.0f), lh, T::Warn);
+				dl->AddText(ImVec2(at.x + homeX + lh + 4.0f, at.y + 4.0f), T::Warn, L.Text("no house").c_str());
+			}
+			else
+			{
+				const std::string home = L.Entity(h.Home);
+				const ImVec2 hs = ImGui::CalcTextSize(home.c_str());
+				ImGui::SetCursorScreenPos(ImVec2(at.x + homeX, at.y + 2.0f));
+				if (ImGui::InvisibleButton("home", ImVec2(hs.x + 4.0f, lh + 4.0f)))
+				{
+					std::string under = h.Home;
+					for (char& c : under) if (c == ' ') c = '_';
+					run("colony inspect " + under);
+				}
+				const bool hovered = ImGui::IsItemHovered();
+				if (hovered) { ImGui::SetMouseCursor(ImGuiMouseCursor_Hand); ImGui::SetTooltip("%s", L.Text("Its sheet").c_str()); }
+				dl->AddText(ImVec2(at.x + homeX, at.y + 4.0f), hovered ? T::OchreHover : T::Good, home.c_str());
+				dl->AddLine(ImVec2(at.x + homeX, at.y + 5.0f + lh), ImVec2(at.x + homeX + hs.x, at.y + 5.0f + lh), T::Faded(T::Good, hovered ? 1.0f : 0.4f), 1.0f);
+				ImGui::SetCursorScreenPos(ImVec2(at.x, at.y + rowH));
+				ImGui::Dummy(ImVec2(0.0f, 0.0f));
+			}
+			if (!card)
+			{
+				// one person: the person on the same row
+				if (!h.Members.empty())
+				{
+					dl->PushClipRect(ImVec2(at.x + peopleX, at.y), ImVec2(at.x + width, at.y + rowH), true);
+					dl->AddText(ImVec2(at.x + peopleX, at.y + 4.0f), T::BoneDim, person(h.Members.front()).c_str());
+					dl->PopClipRect();
+				}
+			}
+			else
+			{
+				// a family: a line per member, then its pantry when the food is the family's
+				ImGui::Indent(nameX);
+				for (const std::string& name : h.Members) ImGui::TextDisabled("%s", person(name).c_str());
+				if (const Inventory* pantry = t.Pantry(h.Id); t.Config.Economy.Property != "communal" || (pantry && pantry->UsedSlots() > 0))
+				{
+					int food = 0;
+					if (pantry) for (const ItemSlot& s : pantry->Stacks()) if (s.Count > 0 && t.IsFood(s.Id)) food += s.Count;
+					const int room = std::max(1, t.Config.Economy.PantryPerMember * static_cast<int>(h.Members.size()));
+					ImGui::TextUnformatted(L.Text("Pantry").c_str());
+					ImGui::SameLine();
+					const ImVec2 b = ImGui::GetCursorScreenPos();
+					ImGui::Dummy(ImVec2(120.0f, lh));
+					const float v = std::clamp(static_cast<float>(food) / static_cast<float>(room), 0.0f, 1.0f);
+					dl->AddRectFilled(ImVec2(b.x, b.y + 3.0f), ImVec2(b.x + 120.0f, b.y + lh - 3.0f), T::HideRaised, 2.0f);
+					if (v > 0.0f) dl->AddRectFilled(ImVec2(b.x, b.y + 3.0f), ImVec2(b.x + 120.0f * v, b.y + lh - 3.0f), T::Level(v), 2.0f);
+					ImGui::SameLine();
+					ImGui::TextDisabled("%s", L.Text("{0} of {1} food", food, room).c_str());
+				}
+				ImGui::Unindent(nameX);
+				const ImVec2 bottom = ImGui::GetItemRectMax();
+				dl->AddRect(ImVec2(top.x, top.y), ImVec2(top.x + width, bottom.y + 4.0f), T::HideLine, T::Radius);
+				ImGui::Dummy(ImVec2(1.0f, 4.0f));
+			}
+			ImGui::PopID();
+		}
+	}
+
+	// ------------------------------------------------------------------ T342 (L10): the other clans, seen from the colony
+	// Only the clans met (one not met yet has no name: it is only counted); how they stand as a word with its colour, the feeling as a bar from
+	// enmity to friendship with a word (the numbers in the tooltip), and what passed between them as icons with their count, only those that are not 0
+	// (audit CL1: no lists of zeros; the whole list is in the tooltip).
+	void EditorApp::DrawColonyClans(const Tribe& t, float width)
+	{
+		const Lang& L = m_Lang;
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		const float lh = ImGui::GetTextLineHeight();
+		ClanId mine = -1;
+		for (const auto& c : m_Clans.All()) if (c->Folk == &t) mine = c->Id;
+		if (m_Clans.Count() < 2 || mine < 0) { ImGui::TextDisabled("%s", L.Text("the clan is alone in the world").c_str()); return; }
+		int unmet = 0, met = 0;
+		for (const auto& c : m_Clans.All())
+		{
+			if (!c->Folk || c->Id == mine) continue;
+			if (!m_Clans.Met(mine, c->Id)) { ++unmet; continue; }
+			++met;
+			ImGui::PushID(static_cast<int>(c->Id));
+			int alive = 0;
+			for (const TribeMember& m : c->Folk->Members()) alive += m.Dead ? 0 : 1;
+			const ImVec2 top = ImGui::GetCursorScreenPos();
+			ImGui::Indent(T::Pad);
+			ImGui::Dummy(ImVec2(1.0f, 2.0f));
+			// who: its colour, its name, its people; how they stand, on the right
+			{
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				ImGui::Dummy(ImVec2(lh, lh));
+				dl->AddRectFilled(ImVec2(at.x, at.y + 1.0f), ImVec2(at.x + lh - 2.0f, at.y + lh - 1.0f), ClanColourOf(m_Clans, c->Id), 2.0f);
+				ImGui::SameLine(0.0f, 6.0f);
+				ImGui::TextUnformatted(L.Name("clan", c->Name, c->Name).c_str());
+				ImGui::SameLine();
+				ImGui::TextDisabled("%s", L.Text(alive == 1 ? "{0} person" : "{0} people", alive).c_str());
+				const std::string stance = m_Clans.Stance(mine, c->Id);
+				std::string words = Lang::Cap(L.Name("stance", stance));
+				if (const ClanRelation* r = m_Clans.Relation(mine, c->Id)) for (const Pact& p : r->Pacts) words += " \xC2\xB7 " + L.Name("pact", p.Kind);
+				const float sw = ImGui::CalcTextSize(words.c_str()).x;
+				ImGui::SameLine(std::max(ImGui::GetCursorPosX() + 12.0f, width - sw - T::Pad));
+				const ImU32 sc = stance == "allied" || stance == "friendly" ? T::Good : stance == "hostile" ? T::Bad : stance == "wary" || stance == "truce" ? T::Warn : T::BoneDim;
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(sc), "%s", words.c_str());
+			}
+			// the feeling: a bar from enmity (left) to friendship (right), a word; the numbers in the tooltip
+			{
+				const float attitude = std::clamp(m_Clans.Attitude(mine, c->Id), -1.0f, 1.0f), trust = m_Clans.Trust(mine, c->Id);
+				ImGui::AlignTextToFramePadding();
+				ImGui::TextDisabled("%s", L.Text("Feeling").c_str());
+				ImGui::SameLine(110.0f);
+				const ImVec2 b = ImGui::GetCursorScreenPos();
+				const float bw = 160.0f;
+				ImGui::Dummy(ImVec2(bw, lh + 2.0f));
+				const bool hovered = ImGui::IsItemHovered();
+				const float mid = b.x + bw * 0.5f, end = mid + bw * 0.5f * attitude, y0 = b.y + 4.0f, y1 = b.y + lh - 2.0f;
+				const ImU32 fc = attitude > 0.15f ? T::Good : attitude < -0.15f ? T::Bad : T::Warn;
+				dl->AddRectFilled(ImVec2(b.x, y0), ImVec2(b.x + bw, y1), T::HideRaised, 2.0f);
+				dl->AddRectFilled(ImVec2(std::min(mid, end), y0), ImVec2(std::max(mid, end) + (std::abs(end - mid) < 2.0f ? 2.0f : 0.0f), y1), fc, 2.0f);
+				dl->AddRect(ImVec2(b.x, y0), ImVec2(b.x + bw, y1), T::HideLine, 2.0f);
+				dl->AddLine(ImVec2(mid, y0 - 2.0f), ImVec2(mid, y1 + 2.0f), T::BoneDim, 1.0f);
+				ImGui::SameLine(0.0f, 10.0f);
+				const char* feel = attitude > 0.5f ? "close friends" : attitude > 0.15f ? "friendly" : attitude < -0.5f ? "enemies" : attitude < -0.15f ? "unfriendly" : "neither friends nor foes";
+				const char* trustWord = trust >= 0.6f ? "much trust" : trust >= 0.25f ? "some trust" : "little trust yet";
+				ImGui::TextUnformatted((L.Text(feel) + " \xC2\xB7 " + L.Text(trustWord)).c_str());
+				if (hovered || ImGui::IsItemHovered())
+					ImGui::SetTooltip("%s", (L.Text("To the left enmity, to the right friendship") + "\n" + L.Text("{0}, trust {1}", (attitude >= 0.0f ? "+" : "") + L.Num(attitude, 2), L.Num(trust * 100.0f, 0) + " %")).c_str());
+			}
+			// what passed between them: only what happened (an icon and its count); the whole list in the tooltip
+			if (const ClanRelation* r = m_Clans.Relation(mine, c->Id))
+			{
+				struct Count { const char* Icon; const char* One; const char* Many; int N; ImU32 Ink; };
+				const Count counts[] = { { "talk", "met once", "met {0} times", r->Encounters, T::Bone }, { "trade", "1 trade", "{0} trades", r->Trades, T::Bone },
+					{ "deposit", "1 gift", "{0} gifts", r->Gifts, T::Bone }, { "experiment", "1 lesson", "{0} lessons", r->Lessons, T::Bone },
+					{ "state.love", "1 marriage", "{0} marriages", r->Marriages, T::Bone }, { "state.angry", "1 theft", "{0} thefts", r->Thefts, T::Bad },
+					{ "fight", "1 raid", "{0} raids", r->Raids, T::Bad } };
+				std::string all;
+				bool any = false;
+				for (size_t i = 0; i < std::size(counts); ++i)
+				{
+					const Count& k = counts[i];
+					const std::string word = L.Text(k.N == 1 ? k.One : k.Many, k.N);
+					all += (all.empty() ? "" : "\n") + word;
+					if (k.N <= 0) continue;
+					if (any) ImGui::SameLine(0.0f, 12.0f);
+					else { ImGui::Dummy(ImVec2(0.0f, 0.0f)); ImGui::SameLine(110.0f); }
+					any = true;
+					const ImVec2 at = ImGui::GetCursorScreenPos();
+					ImGui::Dummy(ImVec2(lh + 2.0f, lh + 2.0f));
+					if (!IconAt(dl, k.Icon, at.x, at.y, lh + 2.0f)) DrawMark(dl, "", at, lh + 2.0f, T::BoneDim);
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", word.c_str());
+					ImGui::SameLine(0.0f, 3.0f);
+					ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(k.Ink), "%s", (i == 0 ? word : std::to_string(k.N)).c_str());
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", all.c_str());
+				}
+				if (!r->Recent.empty())
+				{
+					// a line of Recent is "<the clans' clock in seconds> <event>: <what happened>" (ClanWorld::Record): how long ago, and what
+					const std::string& last = r->Recent.back();
+					char* end = nullptr;
+					const double at = std::strtod(last.c_str(), &end);
+					const bool stamped = end != nullptr && end != last.c_str();
+					std::string what = stamped ? std::string(end) : last;
+					what.erase(0, std::min(what.size(), what.find_first_not_of(' ')));
+					if (const size_t colon = what.find(": "); colon != std::string::npos && what.find(' ') > colon) what = what.substr(colon + 2);
+					what = L.Line(what);
+					const int ago = stamped ? static_cast<int>(std::max(0.0, m_Clans.Time() - at) / std::max(1.0, static_cast<double>(t.Config.Needs.DaySeconds))) : -1;
+					ImGui::PushTextWrapPos(top.x + width - T::Pad - ImGui::GetWindowPos().x);
+					ImGui::TextDisabled("%s", (ago < 0 ? L.Text("lately: {0}", what) : ago == 0 ? L.Text("lately (today): {0}", what) : ago == 1 ? L.Text("lately (yesterday): {0}", what)
+						: L.Text("lately ({0} days ago): {1}", ago, what)).c_str());
+					ImGui::PopTextWrapPos();
+				}
+			}
+			ImGui::Dummy(ImVec2(1.0f, 2.0f));
+			ImGui::Unindent(T::Pad);
+			const ImVec2 bottom = ImGui::GetItemRectMax();
+			dl->AddRect(ImVec2(top.x, top.y - 2.0f), ImVec2(top.x + width, bottom.y + 3.0f), T::HideLine, T::Radius);
+			ImGui::Dummy(ImVec2(1.0f, 6.0f));
+			ImGui::PopID();
+		}
+		// the clans not met yet: how many, never who (what the clan does not know does not show)
+		if (unmet > 0) ImGui::TextDisabled("%s", (met == 0 ? L.Text(unmet == 1 ? "There is another clan in the world: you have not met it yet" : "There are {0} other clans in the world: you have not met them yet", unmet)
+			: L.Text(unmet == 1 ? "And 1 clan you have not met yet" : "And {0} clans you have not met yet", unmet)).c_str());
+	}
+
+	// ------------------------------------------------------------------ T342 (L10, p1): the sheet of a node, a building or a site
+	// As the person's: a head (an icon in a ring, its name, what it is; go and close), a card with an ochre edge with what matters most (what is
+	// left of a node, what a building does, the phase of a site), then rows of an icon, a word and a value, then what the player can do with it as
+	// buttons of an icon and a word. Each button queues the command the old card queued (`game designate`, `game site`), and T333's Transplant
+	// (`colony transplant <node>`: then a click on the ground) only when the node can be moved and the clan knows its verb (T327: else no button).
+	void EditorApp::DrawColonyThing(const std::string& name, float width)
+	{
+		const Lang& L = m_Lang;
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		const ImGuiStyle& style = ImGui::GetStyle();
+		const float lh = ImGui::GetTextLineHeight();
+		const AbilitySystemComponent* asc = m_Gameplay.Find(name);
+		if (!asc) return;
+		const Tribe* own = ColonyTribe();
+		std::string under = name;
+		for (char& c : under) if (c == ' ') c = '_';
+		auto itemName = [&](const std::string& id) { const ItemDef* d = m_Items.Find(id); return L.Name("item", id, d && !d->Name.empty() ? d->Name : std::string()); };
+		// ---- the head
+		auto head = [&](const std::string& icon, const std::string& sub)
+		{
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			const float ring = 44.0f;
+			ImGui::Dummy(ImVec2(ring, ring));
+			dl->AddCircleFilled(ImVec2(at.x + ring * 0.5f, at.y + ring * 0.5f), ring * 0.5f, T::HideRaised, 24);
+			dl->AddCircle(ImVec2(at.x + ring * 0.5f, at.y + ring * 0.5f), ring * 0.5f, T::Ochre, 24, 2.0f);
+			if (!IconAt(dl, icon, at.x + 8.0f, at.y + 8.0f, ring - 16.0f)) DrawMark(dl, "", ImVec2(at.x + 8.0f, at.y + 8.0f), ring - 16.0f, T::BoneDim);
+			ImGui::SameLine(0.0f, 10.0f);
+			const float b = ImGui::GetFrameHeight() + 4.0f;
+			ImGui::BeginGroup();
+			ImGui::PushTextWrapPos(at.x + width - 2.0f * (b + style.ItemSpacing.x) - ImGui::GetWindowPos().x);
+			ImGui::SetWindowFontScale(1.3f);
+			ImGui::TextUnformatted(Lang::Cap(L.Entity(name)).c_str());
+			ImGui::SetWindowFontScale(1.0f);
+			ImGui::TextDisabled("%s", sub.c_str());
+			ImGui::PopTextWrapPos();
+			ImGui::EndGroup();
+			const float below = ImGui::GetItemRectMax().y;
+			// go and close, on the right of the head
+			ImGui::SetCursorScreenPos(ImVec2(at.x + width - 2.0f * b - style.ItemSpacing.x, at.y + 2.0f));
+			{
+				const ImVec2 bt = ImGui::GetCursorScreenPos();
+				if (ImGui::Button("###goto", ImVec2(b, b)))
+					if (const EntityId id = m_SceneEditor.World().FindByName(name); id != NullEntity)
+					{
+						const glm::vec3 p(m_SceneEditor.World().WorldMatrix(id)[3]);
+						char x[32], z[32];
+						std::snprintf(x, sizeof x, "%.2f", static_cast<double>(p.x));
+						std::snprintf(z, sizeof z, "%.2f", static_cast<double>(p.z));
+						run(std::string("camera game overview ") + x + " " + z + " 30");
+					}
+				IconAt(dl, "goto", bt.x + 4.0f, bt.y + 4.0f, b - 8.0f);
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The camera to it").c_str());
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("\xC3\x97###close", ImVec2(b, b))) run("colony inspect off");
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Close").c_str());
+			ImGui::SetCursorScreenPos(ImVec2(at.x, std::max(at.y + ring, below)));
+			ImGui::Dummy(ImVec2(0.0f, 0.0f));
+		};
+		// ---- a card with an ochre edge round what `body` draws
+		auto edged = [&](const std::function<void()>& body)
+		{
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			dl->ChannelsSplit(2);
+			dl->ChannelsSetCurrent(1);
+			ImGui::Indent(10.0f);
+			ImGui::Dummy(ImVec2(1.0f, 2.0f));
+			ImGui::PushTextWrapPos(at.x + width - 8.0f - ImGui::GetWindowPos().x);
+			body();
+			ImGui::PopTextWrapPos();
+			ImGui::Dummy(ImVec2(1.0f, 2.0f));
+			ImGui::Unindent(10.0f);
+			const ImVec2 end(at.x + width, ImGui::GetCursorScreenPos().y);
+			dl->ChannelsSetCurrent(0);
+			dl->AddRectFilled(at, end, T::HideRaised, T::Radius);
+			dl->AddRectFilled(at, ImVec2(at.x + 3.0f, end.y), T::Faded(T::Ochre, 0.7f), T::Radius, ImDrawFlags_RoundCornersLeft);
+			dl->ChannelsMerge();
+		};
+		// ---- a row: an icon, a word, its value (wrapped)
+		const float valueX = lh + 96.0f;
+		auto row = [&](const std::string& icon, const std::string& label, const std::string& value, ImU32 ink, const std::string& tip)
+		{
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(lh + 2.0f, lh));
+			if (!IconAt(dl, icon, at.x, at.y - 1.0f, lh + 2.0f)) DrawMark(dl, "", at, lh, T::BoneDim);
+			ImGui::SameLine(0.0f, 6.0f);
+			ImGui::TextDisabled("%s", label.c_str());
+			// (a word too long for its column puts the value on the next line, at the same column)
+			if (ImGui::GetItemRectMax().x + 6.0f > at.x + valueX) ImGui::SetCursorScreenPos(ImVec2(at.x + valueX, ImGui::GetCursorScreenPos().y));
+			else ImGui::SameLine(at.x - ImGui::GetWindowPos().x + valueX);
+			ImGui::PushTextWrapPos(at.x + width - ImGui::GetWindowPos().x);
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(ink), "%s", value.c_str());
+			ImGui::PopTextWrapPos();
+			if (!tip.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", tip.c_str());
+		};
+		// ---- things as icons with their number (what a site lacks, what was brought), the name in the tooltip
+		auto things = [&](const std::map<std::string, int>& list, const SiteState* site)
+		{
+			bool first = true;
+			for (const auto& [item, n] : list)
+			{
+				if (n <= 0) continue;
+				const float side = lh + 10.0f, cw = side + 4.0f + ImGui::CalcTextSize(std::to_string(n).c_str()).x + 6.0f;
+				if (!first) ImGui::SameLine(0.0f, 6.0f);
+				if (!first && ImGui::GetCursorScreenPos().x + cw > ImGui::GetWindowPos().x + style.WindowPadding.x + width) ImGui::NewLine();
+				first = false;
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				ImGui::Dummy(ImVec2(cw, side));
+				dl->AddRectFilled(at, ImVec2(at.x + cw, at.y + side), T::HideRaised, 3.0f);
+				dl->AddRect(at, ImVec2(at.x + cw, at.y + side), T::HideLine, 3.0f);
+				if (!IconAt(dl, item, at.x + 2.0f, at.y + 2.0f, side - 4.0f)) DrawMark(dl, "", ImVec2(at.x + 2.0f, at.y + 2.0f), side - 4.0f, T::BoneDim);
+				dl->AddText(ImVec2(at.x + side + 4.0f, at.y + (side - lh) * 0.5f), T::Bone, std::to_string(n).c_str());
+				if (ImGui::IsItemHovered())
+				{
+					std::string tip = Lang::Cap(itemName(item)) + " x" + std::to_string(n);
+					if (site)
+						if (const auto sub = site->Substitutes.find(item); sub != site->Substitutes.end())
+							for (const std::string& other : sub->second) tip += "\n" + L.Text("{0} can stand in for {1}", Lang::Cap(itemName(other)), itemName(item));
+					ImGui::SetTooltip("%s", tip.c_str());
+				}
+			}
+		};
+
+		// ================= a building or a site
+		if (const BuildingDef* def = BuildingOf(*asc, m_Buildings.Defs))
+		{
+			const SiteState s = ReadSite(*asc, *def);
+			if (s.Done)
+			{
+				std::string sub = L.Text("stands");
+				if (def->Shelter > 0) sub += " \xC2\xB7 " + L.Text("{0} beds", def->Shelter);
+				if (!def->Station.empty()) sub += " \xC2\xB7 " + L.Name("station", def->Station);
+				head(def->Shelter > 0 ? "building.shelter" : "build", sub);
+			}
+			else head("build", L.Text("a work under way") + " \xC2\xB7 " + L.Text("phase {0} of {1}", s.Phase + 1, s.Phases));
+			// what it does (or will do)
+			edged([&]()
+			{
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", (s.Done ? L.Text("What it does") : L.Text("When it stands")).c_str());
+				for (const std::string& line : BuildingDoes(*def)) { ImGui::Bullet(); ImGui::SameLine(); ImGui::TextUnformatted(line.c_str()); }
+			});
+			if (s.Done)
+			{
+				// whose house it is and who lives in it
+				if (def->Shelter > 0)
+				{
+					const Tribe::Household* home = nullptr;
+					const Tribe* owner = nullptr;
+					auto find = [&](const Tribe& tt) { if (!home) if (const Tribe::Household* hh = tt.HouseholdAt(name)) { home = hh; owner = &tt; } };
+					find(m_Tribe);
+					for (const auto& c : m_Clans.All()) if (c->Folk) find(*c->Folk);
+					if (!home) row("building.shelter", L.Text("Home of"), L.Text("nobody's yet: anyone may sleep in it"), T::BoneDim, std::string());
+					else
+					{
+						row("building.shelter", L.Text("Home of"), L.Text("The {0} family", home->Id), T::Bone, std::string());
+						const GB::Entity* e = m_SceneEditor.World().Find(m_SceneEditor.World().FindByName(name));
+						for (const std::string& dweller : home->Members)
+						{
+							const TribeMember* m = owner->FindMember(dweller);
+							const Actor* actor = m_Actors.Find(dweller);
+							const bool inside = actor && e && glm::distance(glm::vec2(actor->GetPosition().x, actor->GetPosition().z), glm::vec2(e->Transform.Position.x, e->Transform.Position.z)) < def->Radius() + 0.8f;
+							ImGui::SetCursorPosX(ImGui::GetCursorPosX() + valueX);
+							std::string line = dweller + (m ? ", " + RoleName(*owner, *m) : std::string());
+							if (inside) line += " \xC2\xB7 " + L.Text("inside");
+							else if (m) line += " \xC2\xB7 " + L.Doing(m->Job, m->Detail);
+							ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + width - valueX);
+							ImGui::TextDisabled("%s", line.c_str());
+							ImGui::PopTextWrapPos();
+						}
+					}
+				}
+				// who works at its station now
+				if (!def->Station.empty())
+				{
+					std::string workers;
+					auto scan = [&](const Tribe& tt)
+					{
+						for (const TribeMember& m : tt.Members())
+							if (!m.Dead && m.Job == "make")
+								if (const Recipe* r = m_Recipes.Find(m.Detail); r && r->Station == def->Station) workers += (workers.empty() ? "" : ", ") + m.Name + " (" + itemName(r->Output) + ")";
+					};
+					for (const auto& c : m_Clans.All()) if (c->Folk) scan(*c->Folk);
+					row("make", L.Text("Working here"), workers.empty() ? L.Text("nobody now") : workers, workers.empty() ? T::BoneDim : T::Bone, std::string());
+				}
+				// what its store holds (its clan's stockpile, and its share of the clan's main store)
+				if (!def->Store.empty() || def->StoreCap > 0 || def->FoodCap > 0)
+				{
+					const Stockpile* pile = nullptr;
+					const Tribe* clan = nullptr;
+					auto find = [&](const Tribe& tt)
+					{
+						for (const Stockpile& p : tt.Economy().Stockpiles) if (p.Name == name) pile = &p;
+						for (const auto& site : tt.SettlementSites()) if (!clan && site.Name == name) clan = &tt;
+					};
+					for (const auto& c : m_Clans.All()) if (!clan && c->Folk) find(*c->Folk);
+					std::map<std::string, int> held;
+					if (pile) for (const ItemSlot& it : pile->Store.Stacks()) held[it.Id] += it.Count;
+					if (clan)
+						if (const StoreLayout layout = StoreLayout::Of(*clan); const StoreLayout::Place* place = layout.Find(name))
+							for (const auto& [id, count] : place->Held) held[id] += count;
+					int units = 0;
+					for (const auto& [id, n] : held) units += n;
+					row("deposit", L.Text("Store"), units == 0 ? L.Text("empty") : L.Text("{0} things", units), units == 0 ? T::BoneDim : T::Bone, std::string());
+					if (units > 0) things(held, nullptr);
+				}
+				// T342: what the radial offers on it is still to come (repair, improve, move, pull down): not drawn here until it exists
+			}
+			else
+			{
+				// the site: its phase as a bar with its %, what it lacks and what was brought as icons, who works on it, its place in the queue
+				edged([&]()
+				{
+					ImGui::TextUnformatted(Lang::Cap(L.Name("phase", s.PhaseName)).c_str());
+					const ImVec2 b = ImGui::GetCursorScreenPos();
+					const float bw = width - 70.0f;
+					ImGui::Dummy(ImVec2(bw, lh));
+					const float v = std::clamp(s.Progress, 0.0f, 1.0f);
+					dl->AddRectFilled(ImVec2(b.x, b.y + 3.0f), ImVec2(b.x + bw, b.y + lh - 3.0f), T::Hide, 2.0f);
+					if (v > 0.0f) dl->AddRectFilled(ImVec2(b.x, b.y + 3.0f), ImVec2(b.x + bw * v, b.y + lh - 3.0f), T::Ochre, 2.0f);
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("{0} of {1} s of work in this phase", static_cast<int>(s.Work), static_cast<int>(s.WorkNeeded)).c_str());
+					ImGui::SameLine();
+					ImGui::TextUnformatted((L.Num(v * 100.0f, 0) + " %").c_str());
+				});
+				if (s.Missing.empty()) row("build", L.Text("Lacks"), L.Text("nothing: it can be built"), T::Good, std::string());
+				else { row("build", L.Text("Lacks"), std::string(), T::Bone, std::string()); things(s.Missing, &s); }
+				if (SiteInfo info; SiteInfoOf(name, info))
+				{
+					if (!info.Brought.empty()) { row("deliver", L.Text("Brought"), std::string(), T::Bone, std::string()); things(info.Brought, nullptr); }
+					std::string workers;
+					for (const std::string& wk : info.Workers) workers += (workers.empty() ? "" : ", ") + wk.substr(0, wk.find(" ("));
+					row("make", L.Text("Working on it"), workers.empty() ? L.Text("nobody now") : workers, workers.empty() ? T::BoneDim : T::Bone, std::string());
+					row("build", L.Text("Queue"), L.Text("Plan {0} of {1} in the queue", info.Queue, info.Queued), T::Bone, L.Text("The clan works on the first plans of the queue first"));
+					ImGui::Separator();
+					ImGui::BeginDisabled(info.Queue <= 1);
+					if (ImGui::Button((L.Text("Move up") + "###siteup").c_str())) run("game site " + under + " up");
+					ImGui::EndDisabled();
+					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", (info.Queue <= 1 ? L.Text("It is already the first") : L.Text("The clan works on it before the others")).c_str());
+					ImGui::SameLine();
+					ImGui::BeginDisabled(info.Queue >= info.Queued);
+					if (ImGui::Button((L.Text("Move down") + "###sitedown").c_str())) run("game site " + under + " down");
+					ImGui::EndDisabled();
+					if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", (info.Queue >= info.Queued ? L.Text("It is already the last") : L.Text("The clan works on it after the others")).c_str());
+					ImGui::SameLine();
+					if (IconLabelButton("sitecancel", "state.cannot", L.Text("Cancel the plan"), false)) run("game site cancel " + under);
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("It comes down; what was brought for it goes back to the store").c_str());
+				}
+			}
+			return;
+		}
+
+		// ================= an animal
+		for (const auto& [sid, sp] : m_Ecology.Species)
+			if (asc->HasTag(sp.Tag))
+			{
+				head("hunt", Lang::Cap(L.Name("animal", sp.Name, sp.Name)) + " \xC2\xB7 " + L.Text(sp.Hunts() ? "a hunter" : "grazes"));
+				for (const auto& at : asc->Attributes().All())
+					if (at.Max > 0.0f && (at.Name == "Food" || at.Name == "Health"))
+					{
+						const float v = std::clamp(at.Current / at.Max, 0.0f, 1.0f);
+						row(at.Name == "Food" ? "state.hungry" : "state.wounded", L.Text(at.Name == "Food" ? "Fed" : "Health"), L.Num(v * 100.0f, 0) + " %", T::Level(v), std::string());
+					}
+				std::string eats;
+				for (const std::string& e : sp.Eats) eats += (eats.empty() ? "" : ", ") + L.Name("item", e);
+				row("eat", L.Text("Eats"), eats, T::Bone, std::string());
+				return;
+			}
+
+		// ================= a resource node
+		std::string kind;
+		for (const auto& [id, d] : m_NodeDefs) if (asc->HasTag("Resource.Node." + id)) { kind = id; break; }
+		if (kind.empty()) { head("", std::string()); return; }
+		const ResourceNodeDef& d = m_NodeDefs.at(kind);
+		std::string needs = L.Text("bare hands");
+		if (!d.RequiresTag.empty())
+		{
+			const std::string tool = d.RequiresTag.substr(d.RequiresTag.find_last_of('.') + 1);
+			needs = L.Text(tool == "Axe" ? "an axe" : tool == "Pickaxe" ? "a pickaxe" : tool == "Hoe" ? "a hoe" : tool == "Sickle" ? "a sickle" : tool == "Spear" ? "a spear" : "a tool");
+		}
+		head(d.Item, Lang::Cap(itemName(d.Item)) + " \xC2\xB7 " + needs);
+		const int left = ResourceSystem::Amount(*asc);
+		edged([&]()
+		{
+			ImGui::TextUnformatted(L.Text("left: {0} of {1}", left, d.Capacity).c_str());
+			const ImVec2 b = ImGui::GetCursorScreenPos();
+			const float bw = width - 30.0f, v = d.Capacity > 0 ? std::clamp(static_cast<float>(left) / static_cast<float>(d.Capacity), 0.0f, 1.0f) : 0.0f;
+			ImGui::Dummy(ImVec2(bw, lh * 0.6f));
+			dl->AddRectFilled(ImVec2(b.x, b.y + 1.0f), ImVec2(b.x + bw, b.y + lh * 0.6f - 1.0f), T::Hide, 2.0f);
+			if (v > 0.0f) dl->AddRectFilled(ImVec2(b.x, b.y + 1.0f), ImVec2(b.x + bw * v, b.y + lh * 0.6f - 1.0f), T::Ochre, 2.0f);
+			ImGui::TextDisabled("%s", (d.RegenSeconds > 0.0f ? L.Text("regrows {0} every {1} s", d.Regen, static_cast<int>(d.RegenSeconds)) : L.Text("does not regrow")).c_str());
+		});
+		{
+			std::string gives = L.Text("{0} x{1} each time", itemName(d.Item), d.PerGather);
+			if (!d.ExtraItem.empty()) gives += ", " + L.Text("and {0} x{1}", itemName(d.ExtraItem), d.ExtraPerGather);
+			row(d.Item, L.Text("Gives"), gives, T::Bone, std::string());
+		}
+		std::string workIcon;
+		{
+			const std::string& a = d.Ability;
+			workIcon = a == "Chop" ? "chop" : a == "Mine" || a == "Dig" ? "mine" : a == "Collect" ? "collect" : "gather";
+		}
+		row(workIcon, L.Text("Needs"), needs, T::Bone, std::string());
+		// what the player can do with it: mark it for the clan (T270), and move it (T333), each only when the clan knows how (T327)
+		if (own)
+		{
+			const ColonyDesignations::Mark* mark = own->Designations().MarkOf(name);
+			if (mark)
+			{
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				ImGui::Dummy(ImVec2(lh, lh));
+				DrawMark(dl, "order", at, lh, T::Ochre);
+				ImGui::SameLine(0.0f, 6.0f);
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", L.Text("Marked to gather (priority {0})", mark->Priority).c_str());
+			}
+			ImGui::Separator();
+			bool any = false;
+			// (the next button on the same line only when it fits in the sheet)
+			const float right = ImGui::GetCursorScreenPos().x + width - 10.0f;
+			auto besideIfFits = [&](const std::string& label)
+			{
+				const float need = ImGui::CalcTextSize(label.c_str()).x + 2.0f * style.FramePadding.x + ImGui::GetFontSize() + 8.0f;
+				if (ImGui::GetItemRectMax().x + style.ItemSpacing.x + need <= right) ImGui::SameLine();
+			};
+			if (left > 0 && TechVerbs::Allows(*own, "designate", kind))
+			{
+				any = true;
+				if (mark) { if (IconLabelButton("unmark", "state.cannot", L.Text("Remove the mark"), false)) run("game designate " + under + " off"); }
+				else
+				{
+					if (IconLabelButton("designate", workIcon, L.Text("Gather with priority"), false)) run("game designate " + under);
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Whoever of the clan can do it goes first to this node").c_str());
+					besideIfFits(L.Text("Mark the whole deposit"));
+					if (IconLabelButton("designateall", "explore", L.Text("Mark the whole deposit"), false)) run("game designate " + under + " all");
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Every one of its kind around it, for the clan").c_str());
+				}
+			}
+			if (const ResourceNodeDef* movable = Transplant::DefOf(*own, name); movable && TechVerbs::Knows(*own, movable->Transplant.Verb))
+			{
+				const bool placing = m_Colony.Transplant == name;
+				if (any) besideIfFits(L.Text("Transplant..."));
+				if (IconLabelButton("transplant", "sow", L.Text("Transplant..."), placing)) run(placing ? std::string("colony transplant off") : "colony transplant " + under);
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", (placing ? L.Text("Click on the ground where it goes; Esc: leave it") : L.Text("Dig it up and plant it somewhere else: then a click on the ground")).c_str());
 			}
 		}
 	}

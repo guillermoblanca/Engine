@@ -2214,7 +2214,7 @@ namespace GB::Editor
 		if (m_AiDebug) DrawAiDebug(dl, viewProj, size, ox, oy);
 
 		if (m_ViewportHovered && ImGui::IsMouseClicked(0) && m_Colony.Open) m_Colony.Open = false;   // T271: a click off the radial only closes it
-		else if (m_ViewportHovered && ImGui::IsMouseClicked(0) && m_Hand.Building.empty() && !ZoneTakesClicks())   // (T201: while a ghost is placed the click is the hand's: DrawHandWorld; T281: the tool Field's, DrawZoneWorld)
+		else if (m_ViewportHovered && ImGui::IsMouseClicked(0) && m_Hand.Building.empty() && !ZoneTakesClicks() && m_Colony.Transplant.empty())   // (T201: while a ghost is placed the click is the hand's: DrawHandWorld; T281: the tool Field's, DrawZoneWorld)
 		{
 			m_PressPos = mouse;
 			m_PressedInViewport = true;

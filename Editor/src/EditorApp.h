@@ -633,6 +633,15 @@ namespace GB::Editor
 		void DrawColonySheet(const Tribe& t, float width, float height);
 		void DrawColonyClanTab(const Clan& clan, float width);
 		void DrawSitesSheet(const Tribe& t);
+		// T342 (L10): the colony's own Chronicle, Homes and Clans sheets (the god's book keeps the shared ones) and the sheet of a node, a building
+		// or a site on the right, as the person's (p1)
+		void DrawColonyChronicle(const Clan& own, float width);
+		void DrawColonyHomes(const Tribe& t, float width);
+		void DrawColonyClans(const Tribe& t, float width);
+		void DrawColonyThing(const std::string& name, float width);
+		// T333 (UI): the Transplant tool: the radial's bubble or the node's button starts it (`colony transplant <node>`), a click on the ground ends it
+		CommandResult TransplantCommand(const std::vector<std::string>& a);   // `colony transplant <node> | to <x> <z> | off`
+		void DrawTransplantWorld(float ox, float oy, float w, float h);       // the hint and the ring where it would go; the click that places it
 		std::string MemberTaskIcon(const TribeMember& m) const;   // the atlas icon of what a person is doing (SelectionView.cpp)
 		void DrawWorkTab(const Tribe& t, float width, float maxH);
 		void DrawStockTab(const Tribe& t, float width, float maxH);

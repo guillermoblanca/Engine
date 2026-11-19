@@ -678,7 +678,8 @@ namespace GB::Editor
 			{
 				// a character: who, what it does (icons), its needs, skills and bag
 				const Actor* actor = m_Actors.Find(name);
-				ImGui::TextUnformatted((who->Name + " - " + L.Name("role", who->Role) + (who->Dead ? " (" + L.Text("dead") + ")" : std::string())).c_str());
+				const Tribe* folk = ClanOfMember(who->Name);
+				ImGui::TextUnformatted((who->Name + " - " + (folk ? RoleName(*folk, *who) : L.Name("role", who->Role)) + (who->Dead ? " (" + L.Text("dead") + ")" : std::string())).c_str());
 				const std::string task = TaskIcon(*who, m_NodeDefs), item = TaskItem(*who, m_NodeDefs, m_Recipes, actor ? &actor->Bag() : nullptr);
 				if (Icon(task, 32.0f)) ImGui::SameLine();
 				if (!item.empty() && Icon(item, 32.0f)) ImGui::SameLine();
@@ -759,7 +760,7 @@ namespace GB::Editor
 								if (m)
 								{
 									ImGui::SameLine();
-									ImGui::TextDisabled("%s, %s", L.Name("role", m->Role).c_str(), L.Name("doing", m->Job.empty() ? std::string("idle") : m->Job).c_str());
+									ImGui::TextDisabled("%s, %s", RoleName(*owner, *m).c_str(), L.Name("doing", m->Job.empty() ? std::string("idle") : m->Job).c_str());
 								}
 							}
 							ImGui::TextUnformatted(L.Text("pantry ({0}):", L.Name("property", owner->Config.Economy.Property)).c_str());
