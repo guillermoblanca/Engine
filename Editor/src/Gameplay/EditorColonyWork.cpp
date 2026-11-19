@@ -6,6 +6,9 @@
 //   game priority <person|sel|all> reset             back to what its trade suggests
 //   game stock                                       the goals: "have / goal status"
 //   game stock <item|tag> <n>  |  game stock <item|tag> off
+// T324 (ARBOL_TECNICO §11.2.4): the research queue (GB/Game/ResearchQueue.h); the tab Knowledge (ColonyTabs.cpp) only queues these.
+//   game research                                    the queue, its progress and what the clan can research now
+//   game research add|remove|top <tech>  |  game research clear
 #include "EditorApp.h"
 #include <cstdlib>
 #include <string>
@@ -79,6 +82,21 @@ namespace GB::Editor
 		const long n = std::strtol(a[1].c_str(), &end, 10);
 		if (end == a[1].c_str() || *end != '\0') return { false, "usage: game stock [<item|tag> <n>|off]" };
 		const StockGoals::Reply r = goals.Set(t, a[0], static_cast<int>(n));
+		return { r.Ok, r.Text };
+	}
+
+	CommandResult EditorApp::ResearchCommand(const std::vector<std::string>& a)
+	{
+		const Clan* c = m_Clans.Find(HandClan());
+		if (!c || !c->Folk) return { false, "no clan of yours" };
+		Tribe& t = *c->Folk;
+		ResearchQueue& queue = t.Research();
+		const char* usage = "usage: game research [add|remove|top <tech> | clear]";
+		if (a.empty()) return { true, queue.List(t) };
+		if (a[0] == "clear" && a.size() == 1) { const ResearchQueue::Reply r = queue.Clear(t); return { r.Ok, r.Text }; }
+		if (a.size() != 2) return { false, usage };
+		const ResearchQueue::Reply r = a[0] == "add" ? queue.Add(t, a[1]) : a[0] == "remove" ? queue.Remove(t, a[1]) : a[0] == "top" ? queue.Top(t, a[1])
+			: ResearchQueue::Reply{ false, usage };
 		return { r.Ok, r.Text };
 	}
 }

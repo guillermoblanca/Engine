@@ -4,14 +4,18 @@
 //          cell puts it before (a lower number), a right click after, the wheel either way; "-" is never. A person whose table the player never
 //          touched decides as the clans of the AI: its row is dimmed and shows what its trade suggests. [As the AI] gives a table back.
 //   Stock: the clan's goals "keep N of X" (GB/Game/StockGoals.h): what it has against what it wants, and what it is doing about it.
+//   Knowledge (T324): the research queue (GB/Game/ResearchQueue.h): its entries with their progress (first, remove) and what the clan can
+//          research now to add; what it cannot yet is never named (ARBOL_TECNICO §11.2.5), only "? N more". It queues `game research ...`.
 // The UI decides nothing: every cell and button queues a `colony work ...` / `game stock ...` command, and `colony work step` runs the same
 // code as the click (the tests drive it headless, as `colony radial do` does for the radial).
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include <algorithm>
 #include <cfloat>
+#include <cmath>
 #include <cstdlib>
 #include <imgui.h>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -99,13 +103,13 @@ namespace GB::Editor
 	CommandResult EditorApp::ColonyTabCommand(const std::vector<std::string>& a)
 	{
 		const std::string sub = a[0];
-		const char* usage = "colony tab [work|stock|off] | colony work fold|unfold <category> | colony work step <person> <category|job> up|down | colony work reset <person> "
+		const char* usage = "colony tab [work|stock|research|off] | colony work fold|unfold <category> | colony work step <person> <category|job> up|down | colony work reset <person> "
 			"| colony stock picker | colony stock pick <item|tag> [n] | colony stock set <item|tag> <n> | colony stock off <item|tag>";
 		if (sub == "tab")
 		{
 			if (a.size() == 1) return { true, m_Colony.Tab.empty() ? std::string("no tab open") : "tab " + m_Colony.Tab + " open" };
 			if (a[1] == "off") { m_Colony.Tab.clear(); return { true, "tab closed" }; }
-			if (a[1] != "work" && a[1] != "stock") return { false, usage };
+			if (a[1] != "work" && a[1] != "stock" && a[1] != "research") return { false, usage };
 			if (!ColonyTribe()) return { false, "no colony: director colony on, and a world with clans" };
 			if (!m_Hand.Menu.empty() || !m_Hand.Building.empty()) Execute("director hand off");   // (one panel over the bar at a time)
 			m_Colony.Tab = a[1];
@@ -221,6 +225,7 @@ namespace GB::Editor
 		if (ImGui::Begin("ColonyTab##colony", nullptr, flags))
 		{
 			if (m_Colony.Tab == "work") DrawWorkTab(*t, room - 2.0f * T::Pad, maxH);
+			else if (m_Colony.Tab == "research") DrawResearchTab(*t, room - 2.0f * T::Pad, maxH);
 			else DrawStockTab(*t, room - 2.0f * T::Pad, maxH);
 			m_Colony.TabBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
 		}
@@ -399,6 +404,87 @@ namespace GB::Editor
 			ImGui::PopID();
 		}
 		ImGui::EndTable();
+	}
+
+	// T324: the research queue (ResearchQueue.h). The buttons only queue `game research ...`.
+	void EditorApp::DrawResearchTab(const Tribe& t, float width, float maxH)
+	{
+		namespace T = GameTheme;
+		const Lang& L = m_Lang;
+		const ResearchQueue& queue = t.Research();
+		const TechTree* tree = t.Knowledge().Techs();
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
+		auto name = [&](const std::string& id) { const TechDef* d = tree ? tree->Find(id) : nullptr; return Lang::Cap(L.Name("tech", id, d ? d->Name : id)); };
+		ColonyTabTitle(L.Text("Knowledge"), L.Text("What the clan studies, in order: whoever works on knowledge tries the first it can"));
+		if (!tree) { ImGui::TextDisabled("%s", L.Text("This world has no technologies").c_str()); return; }
+		const std::vector<std::string> open = ResearchQueue::Open(t);
+		if (queue.Empty()) ImGui::TextDisabled("%s", L.Text("The queue is empty: the clan chooses what to seek. Add one below").c_str());
+		else if (ImGui::BeginTable("research", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollY,
+			ImVec2(std::min(width, 760.0f), std::min((static_cast<float>(queue.All().size()) + 1.0f) * (ImGui::GetTextLineHeight() + 10.0f) + 4.0f, maxH - 110.0f))))
+		{
+			std::map<std::string, float> progress;
+			for (const ClanKnowledge::ResearchLine& l : t.Knowledge().Research()) progress[l.Tech] = l.Progress;
+			const std::string current = queue.Current(t);
+			ImGui::TableSetupColumn("tech", ImGuiTableColumnFlags_WidthFixed, 200.0f);
+			ImGui::TableSetupColumn("progress", ImGuiTableColumnFlags_WidthFixed, 70.0f);
+			ImGui::TableSetupColumn("status", ImGuiTableColumnFlags_WidthStretch);
+			ImGui::TableSetupColumn("top", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(L.Text("First").c_str()).x + 12.0f);
+			ImGui::TableSetupColumn("off", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(L.Text("Remove").c_str()).x + 12.0f);
+			for (size_t i = 0; i < queue.All().size(); ++i)
+			{
+				const std::string& id = queue.All()[i];
+				ImGui::PushID(id.c_str());
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+				ImGui::TextUnformatted((std::to_string(i + 1) + ". " + name(id)).c_str());
+				ImGui::TableNextColumn();
+				const auto p = progress.find(id);
+				ImGui::Text("%d%%", static_cast<int>(std::lround((p == progress.end() ? 0.0f : p->second) * 100.0f)));
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("How far the one furthest on it has worked it out").c_str());
+				ImGui::TableNextColumn();
+				// ResearchQueue::Status in the player's words; a prerequisite is named only when the clan could research it now
+				const std::string s = ResearchQueue::Status(t, id, id == current);
+				std::pair<std::string, unsigned> said{ s, T::Bone };
+				if (s == "researching") said = { L.Text("being studied"), T::Good };
+				else if (s == "next") said = { L.Text("next"), T::Bone };
+				else if (s == "cannot be found by trying") said = { L.Text("cannot be found by trying: it is learnt from others"), T::Warn };
+				else if (s == "the world does not let it") said = { L.Text("the world does not give what it needs yet"), T::Warn };
+				else if (s.rfind("waits for ", 0) == 0)
+				{
+					const std::string need = s.substr(10);
+					said = { std::find(open.begin(), open.end(), need) != open.end() ? L.Text("waits for {0}", name(need)) : L.Text("waits for something the clan does not know yet"), T::Warn };
+				}
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(said.second), "%s", said.first.c_str());
+				ImGui::TableNextColumn();
+				if (i > 0)
+				{
+					if (ImGui::SmallButton((L.Text("First") + "###top").c_str())) run("game research top " + id);
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Study {0} before the rest", name(id)).c_str());
+				}
+				ImGui::TableNextColumn();
+				if (ImGui::SmallButton((L.Text("Remove") + "###off").c_str())) run("game research remove " + id);
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Take {0} out of the queue", name(id)).c_str());
+				ImGui::PopID();
+			}
+			ImGui::EndTable();
+		}
+		ImGui::Spacing();
+		ImGui::TextDisabled("%s", L.Text("The clan can study now").c_str());
+		int shown = 0;
+		for (const std::string& id : open)
+		{
+			if (std::find(queue.All().begin(), queue.All().end(), id) != queue.All().end()) continue;
+			if (shown++ > 0) ImGui::SameLine();
+			if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(name(id).c_str()).x + 16.0f) ImGui::NewLine();
+			if (ImGui::SmallButton((name(id) + "###add" + id).c_str())) run("game research add " + id);
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Add {0} to the end of the queue", name(id)).c_str());
+		}
+		if (shown == 0) ImGui::TextDisabled("%s", L.Text("Nothing new: it must learn more first").c_str());
+		if (const int hidden = ResearchQueue::Hidden(t); hidden > 0)
+		{
+			ImGui::TextDisabled("%s", L.Text("? {0} more", hidden).c_str());
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("What the clan cannot study yet: it needs what it does not know").c_str());
+		}
 	}
 
 	void EditorApp::DrawStockTab(const Tribe& t, float width, float maxH)

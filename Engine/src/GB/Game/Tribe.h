@@ -31,6 +31,7 @@
 #include "GB/Game/Schedule.h"
 #include "GB/Game/SettlementPlanner.h"
 #include "GB/Game/StockGoals.h"
+#include "GB/Game/ResearchQueue.h"
 #include "GB/Game/WorkPriorities.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Ecology.h"
@@ -356,6 +357,7 @@ namespace GB
 		friend class ColonyDesignations;  // T270: the marks of the player and the queue of sites (GB/Game/ColonyDesignations.h), out of this class
 		friend class WorkPriorities;  // T306: the table of work priorities of each person (GB/Game/WorkPriorities.h), out of this class
 		friend class StockGoals;      // T307: the stock goals of the clan (GB/Game/StockGoals.h), out of this class
+		friend class ResearchQueue;   // T324: the player's research queue (GB/Game/ResearchQueue.h), out of this class
 		friend class FarmZones;       // T280: the farm zones the player paints (GB/Game/FarmZones.h), out of this class
 	public:
 		TribeConfig Config;
@@ -656,6 +658,8 @@ namespace GB
 		FarmZones& Zones() { return m_Zones; }   // T280: the farm zones the player paints (GB/Game/FarmZones.h)
 		const FarmZones& Zones() const { return m_Zones; }
 		const StockGoals& Goals() const { return m_Goals; }
+		ResearchQueue& Research() { return m_Research; }   // T324: the player's research queue (GB/Game/ResearchQueue.h)
+		const ResearchQueue& Research() const { return m_Research; }
 		// T277: what its people ate since the run began, by food and by source (GB/Game/MealLog.h; GBSim --report)
 		const MealLog& Meals() const { return m_Meals; }
 		glm::vec2 CampSpotOf(const TribeMember& m) const { return CampSpot(m); }
@@ -1015,6 +1019,7 @@ namespace GB
 		WorkPriorities m_Work;   // T306: the people's tables of work priorities (saved under "priorities" when there is one)
 		StockGoals m_Goals;      // T307: the stock goals (saved under "stock" when there is one)
 		FarmZones m_Zones;       // T280: the player's farm zones (saved under "farmzones" when there is one)
+		ResearchQueue m_Research;   // T324: the player's research queue (saved under "research" when there is one)
 		MealLog m_Meals;       // T277: what was eaten (only counts; not saved)
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;

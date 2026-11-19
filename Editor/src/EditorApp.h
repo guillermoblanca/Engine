@@ -204,6 +204,7 @@ namespace GB::Editor
 		CommandResult FoundingCommand(const std::vector<std::string>& a);   // T310: `game founding ...` (Gameplay/EditorFounding.cpp)
 		CommandResult PriorityCommand(const std::vector<std::string>& a);   // T306: `game priority ...` (Gameplay/EditorColonyWork.cpp)
 		CommandResult StockCommand(const std::vector<std::string>& a);      // T307: `game stock ...` (Gameplay/EditorColonyWork.cpp)
+		CommandResult ResearchCommand(const std::vector<std::string>& a);   // T324: `game research [add|remove|top <tech>|clear]` (Gameplay/EditorColonyWork.cpp)
 		void StepGame(float dt);
 		void GameKeys();
 		void RefreshPrompt();
@@ -603,6 +604,7 @@ namespace GB::Editor
 		void ColonyTabTitle(const std::string& title, const std::string& help);
 		void DrawWorkTab(const Tribe& t, float width, float maxH);
 		void DrawStockTab(const Tribe& t, float width, float maxH);
+		void DrawResearchTab(const Tribe& t, float width, float maxH);   // T324: the research queue
 		void DrawPersonWork(const Tribe& t, const TribeMember& m);
 		std::string PersonWhy(const Tribe& t, const TribeMember& m) const;
 		std::string WorkLabel(const std::string& id) const;
