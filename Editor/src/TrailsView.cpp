@@ -5,6 +5,7 @@
 // `trails` in the console.
 #include "EditorApp.h"
 #include "GB/Renderer/Texture.h"
+#include "GB/World/GroundClearing.h"
 #include <glad/gl.h>
 #include <algorithm>
 #include <chrono>
@@ -43,6 +44,14 @@ namespace GB::Editor
 		int Refreshes = 0, NavUpdates = 0, GrassRegrows = 0, Rects = 0;
 		long NavCells = 0, Texels = 0;
 		double LastMs = 0.0, TotalMs = 0.0, PeakMs = 0.0, TintMs = 0.0, GrassMs = 0.0, NavMs = 0.0;
+		// T332: the grass cleared under the fields and the buildings (WorldInstance::GroundCleared), looked at again every frame
+		GroundClearing Clear;
+		int ClearFrames = 0;
+		uint64_t ClearStructure = 0;                                  // the scene's Structure() the list below was made for
+		std::vector<std::pair<EntityId, glm::vec2>> ClearBuildings;   // the entities drawn as a building or a site, and their look's footprint
+		bool Cleared = false;
+		int ClearRegrows = 0;
+		double ClearMs = 0.0;
 
 		void Touch(const glm::vec2& lo, const glm::vec2& hi)
 		{
@@ -74,6 +83,7 @@ namespace GB::Editor
 					}
 				return best;
 			};
+			m_World.GroundCleared = [this](float x, float z) { return m_TrailsView ? m_TrailsView->Clear.At(x, z) : 0.0f; };
 			m_World.TrailEase = [this](float x, float z)
 			{
 				float best = 0.0f;
@@ -84,6 +94,73 @@ namespace GB::Editor
 			v.Hooked = true;
 		}
 		if (!m_World.IsBuilt()) { v.Macro = nullptr; v.Tiles.clear(); return; }
+
+		// T332: no wild grass on the clans' fields (each row of plots grown by fields.clearField) nor under the buildings and the sites (their
+		// footprint grown by fields.clearBuilding), fading over fields.clearFeather (a painted zone's rows only inside its perimeter); the grass grows again only where the patches changed
+		// (every frame: listing the patches is a few hundredths of a millisecond; the grass only grows again when they changed)
+		{
+			const auto t0 = Clock::now();
+			++v.ClearFrames;
+			const TilledLook& look = m_Visuals.Library.Fields;
+			std::vector<GroundClearing::Patch> patches;
+			for (const auto& clan : m_Clans.All())
+				if (clan->Folk)
+					for (const Field& f : clan->Folk->Economy().Fields)
+					{
+						const FarmZones::Zone* zone = clan->Folk->Zones().Of(f.Name);
+						const int cols = std::max(1, f.Columns);
+						std::set<int> cells;
+						for (size_t i = 0; i < f.Plots.size(); ++i) cells.insert(f.Cells.empty() || i >= f.Cells.size() ? static_cast<int>(i) : f.Cells[i]);
+						// the runs of plots along each row, one patch each
+						for (auto it = cells.begin(); it != cells.end();)
+						{
+							const int row = *it / cols, first = *it % cols;
+							int last = first;
+							auto next = std::next(it);
+							while (next != cells.end() && *next == row * cols + last + 1 && (*next / cols) == row) { ++last; ++next; }
+							const float sp = f.Spacing;
+							GroundClearing::Patch p;
+							p.Centre = f.Origin + glm::vec2(0.5f * static_cast<float>(first + last) * sp, static_cast<float>(row) * sp);
+							p.Half = glm::vec2(0.5f * static_cast<float>(last - first + 1) * sp + look.ClearField, 0.5f * sp + look.ClearField);
+							if (zone) { p.Clip = zone->Outline; p.ClipMargin = 0.5f * sp + look.ClearField; }   // a painted zone: not beyond its perimeter (as the sheet)
+							patches.push_back(std::move(p));
+							it = next;
+						}
+					}
+			// the buildings and sites as drawn (SceneVisuals: H8's sites, the clans' buildings, the editor's `building`), looked up again only when
+			// the scene's entities change; where they stand is read every frame
+			const EntityWorld& world = m_SceneEditor.World();
+			if (v.ClearStructure != world.Structure())
+			{
+				v.ClearStructure = world.Structure();
+				v.ClearBuildings.clear();
+				for (const auto& [id, e] : world.All())
+				{
+					SceneVisuals::Look seen;
+					if (!m_Visuals.Describe(e, seen) || seen.Kind != "building") continue;
+					if (const auto b = m_Visuals.Library.Buildings.find(seen.Model); b != m_Visuals.Library.Buildings.end()) v.ClearBuildings.emplace_back(id, b->second.Footprint);
+				}
+			}
+			for (const auto& [id, footprint] : v.ClearBuildings)
+			{
+				if (!world.Find(id) || !world.IsActive(id)) continue;
+				const glm::mat4 m = world.WorldMatrix(id);
+				GroundClearing::Patch p;
+				p.Centre = { m[3].x, m[3].z };
+				p.Half = 0.5f * footprint * glm::vec2(glm::length(glm::vec3(m[0])), glm::length(glm::vec3(m[2]))) + glm::vec2(look.ClearBuilding);
+				p.Yaw = glm::degrees(std::atan2(-m[0].z, m[0].x));   // (as WorldGround)
+				patches.push_back(std::move(p));
+			}
+			std::sort(patches.begin(), patches.end());
+			if (!v.Cleared || patches != v.Clear.Patches() || look.ClearFeather != v.Clear.Feather())
+			{
+				const std::vector<glm::vec4> rects = GroundClearing::Changed(v.Clear.Patches(), v.Clear.Feather(), patches, look.ClearFeather);
+				v.Clear.Set(std::move(patches), look.ClearFeather);
+				if (!rects.empty() && m_World.RegrowGrassAreas(rects)) ++v.ClearRegrows;
+			}
+			v.Cleared = true;
+			v.ClearMs += Ms(t0);
+		}
 
 		// what changed: the cells whose tier moved, a grid made anew (a new clan, a migration, a load) and a clan's trails switched on or off
 		for (const auto& clan : m_Clans.All())
@@ -247,14 +324,15 @@ namespace GB::Editor
 				return { true, TrailRulesToJson(r) + (r == DefaultTrailRules() ? "\n(the same as the defaults in code)" : "\n(differs from the defaults in code)") };
 			}
 			const TrailsView* v = m_TrailsView.get();
-			char line[600];
+			char line[900];
 			if (what == "view")
 			{
 				if (!v) return { true, "trails view: not drawn yet" };
 				std::snprintf(line, sizeof line, "trails view: %d refreshes (last %.2f ms, mean %.2f ms, peak %.2f ms; ground %.1f ms and grass %.1f ms in all), %d rectangles, %ld texels tinted, "
-					"%d grass regrows, %zu macro tiles kept; navigation: %d block reads, %ld cells, %.2f ms in all (%ld calls, %ld without a grid)",
+					"%d grass regrows, %zu macro tiles kept; navigation: %d block reads, %ld cells, %.2f ms in all (%ld calls, %ld without a grid); "
+					"cleared ground: %zu patches, %d regrows, %.1f ms in all over %d frames",
 					v->Refreshes, v->LastMs, v->Refreshes ? v->TotalMs / v->Refreshes : 0.0, v->PeakMs, v->TintMs, v->GrassMs, v->Rects, v->Texels, v->GrassRegrows, v->Tiles.size(),
-					v->NavUpdates, v->NavCells, v->NavMs, v->NavCalls, v->NavSkipped);
+					v->NavUpdates, v->NavCells, v->NavMs, v->NavCalls, v->NavSkipped, v->Clear.Patches().size(), v->ClearRegrows, v->ClearMs, v->ClearFrames);
 				return { true, line };
 			}
 			if (what == "probe" && args.size() >= 3 && m_World.IsBuilt())   // what the trails and the ground are at a place (a check of the drawing)
@@ -262,7 +340,7 @@ namespace GB::Editor
 				const glm::vec2 p(std::stof(args[1]), std::stof(args[2]));
 				std::ostringstream out;
 				out << "trails at (" << p.x << ", " << p.y << "): trodden " << (m_World.TrailTrodden ? m_World.TrailTrodden(p.x, p.y) : -1.0f) << ", ease "
-					<< (m_World.TrailEase ? m_World.TrailEase(p.x, p.y) : -1.0f) << ", grass trodden " << m_World.TroddenAt(p.x, p.y);
+					<< (m_World.TrailEase ? m_World.TrailEase(p.x, p.y) : -1.0f) << ", cleared " << (m_World.GroundCleared ? m_World.GroundCleared(p.x, p.y) : -1.0f) << ", grass trodden " << m_World.TroddenAt(p.x, p.y);
 				for (const auto& c : m_Clans.All())
 					if (c->Folk && c->Folk->Trails().Ready())
 					{

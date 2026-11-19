@@ -38,7 +38,7 @@ namespace GB
 		m.UVScale = v.UVScale;
 		m.Grain = v.Grain;
 		m.WindSway = v.Wind;
-		m.WindHeight = v.Wind > 0.0f ? 3.0f : 1.0f;
+		m.WindHeight = v.Wind > 0.0f ? v.WindHeight : 1.0f;
 		m.WindFlutter = v.Wind * 0.5f;
 		if (v.SeasonTint > 0.0f) m.Albedo *= SeasonTint(Foliage, v.SeasonTint);
 		m.DoubleSided = v.DoubleSided;

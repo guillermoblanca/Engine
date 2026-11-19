@@ -252,6 +252,8 @@ add_library(GB_Sim STATIC
     src/GB/World/Regions.cpp
     src/GB/World/WorldTiles.cpp
     src/GB/World/Grass.cpp
+    src/GB/World/TilledGround.cpp
+    src/GB/World/GroundClearing.cpp
     src/GB/World/Terrain.cpp
     src/GB/World/Trees.cpp
     src/GB/World/Physics.cpp

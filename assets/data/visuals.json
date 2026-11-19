@@ -26,18 +26,20 @@
       "mud":         { "color": [0.48, 0.38, 0.3], "texture": "clay", "uvScale": 0.5, "roughness": 0.85 },
       "soil":        { "color": [1.0, 1.0, 1.0], "texture": "tilled_soil", "uvScale": 0.6, "roughness": 0.95 },
       "seed":        { "color": [0.8, 0.68, 0.38], "roughness": 0.7 },
-      "sprout":      { "color": [0.36, 0.68, 0.24], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "doubleSided": true },
-      "grain":       { "color": [0.92, 0.76, 0.42], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.35, "doubleSided": true },
-      "emmer":       { "color": [0.66, 0.5, 0.22], "texture": "grass", "uvScale": 4.0, "roughness": 0.75, "wind": 0.35, "doubleSided": true },
-      "ear":         { "color": [0.6, 0.43, 0.16], "texture": "grass", "uvScale": 6.0, "roughness": 0.75, "wind": 0.35, "doubleSided": true },
-      "barley":      { "color": [0.6, 0.52, 0.26], "texture": "grass", "uvScale": 4.0, "roughness": 0.75, "wind": 0.35, "doubleSided": true },
-      "barley_leaf": { "color": [0.17, 0.35, 0.19], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "doubleSided": true },
-      "legume_green": { "color": [0.13, 0.27, 0.07], "texture": "leaves", "uvScale": 3.0, "roughness": 0.75, "wind": 0.25, "doubleSided": true },
-      "legume_dry":  { "color": [0.33, 0.28, 0.11], "texture": "leaves", "uvScale": 3.0, "roughness": 0.85, "wind": 0.15, "doubleSided": true },
+      "sprout":      { "color": [1.75, 1.6, 1.55], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "windHeight": 0.5, "seasonal": true, "doubleSided": true },
+      "trodden":     { "color": [0.25, 0.26, 0.25], "texture": "clay", "uvScale": 3.0, "roughness": 0.95 },
+      "clod":        { "color": [0.62, 0.47, 0.33], "texture": "tilled_soil", "uvScale": 2.0, "roughness": 0.95 },
+      "grain":       { "color": [0.92, 0.76, 0.42], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.35, "windHeight": 1.2, "doubleSided": true },
+      "emmer":       { "color": [0.72, 0.52, 0.2], "texture": "grass", "uvScale": 4.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.2, "doubleSided": true },
+      "ear":         { "color": [0.68, 0.46, 0.14], "texture": "grass", "uvScale": 6.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.2, "doubleSided": true },
+      "barley":      { "color": [0.64, 0.53, 0.25], "texture": "grass", "uvScale": 4.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.0, "doubleSided": true },
+      "barley_leaf": { "color": [0.77, 0.78, 1.19], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "windHeight": 0.8, "seasonal": true, "doubleSided": true },
+      "legume_green": { "color": [0.66, 0.64, 0.5], "texture": "leaves", "uvScale": 3.0, "roughness": 0.75, "wind": 0.25, "windHeight": 0.8, "seasonal": true, "doubleSided": true },
+      "legume_dry":  { "color": [0.33, 0.28, 0.11], "texture": "leaves", "uvScale": 3.0, "roughness": 0.85, "wind": 0.15, "windHeight": 0.5, "doubleSided": true },
       "pod":         { "color": [0.3, 0.19, 0.09], "roughness": 0.75, "wind": 0.15 },
-      "pod_green":   { "color": [0.27, 0.42, 0.12], "roughness": 0.6, "wind": 0.25 },
-      "flax":        { "color": [0.46, 0.42, 0.2], "texture": "grass", "uvScale": 4.0, "roughness": 0.8, "wind": 0.45, "doubleSided": true },
-      "flax_blue":   { "color": [0.36, 0.44, 0.7], "roughness": 0.6, "wind": 0.45 },
+      "pod_green":   { "color": [0.27, 0.42, 0.12], "roughness": 0.6, "wind": 0.25, "windHeight": 0.8 },
+      "flax":        { "color": [0.46, 0.42, 0.2], "texture": "grass", "uvScale": 4.0, "roughness": 0.8, "wind": 0.45, "windHeight": 1.0, "doubleSided": true },
+      "flax_blue":   { "color": [0.36, 0.44, 0.7], "roughness": 0.6, "wind": 0.45, "windHeight": 1.0 },
       "grass":       { "color": [0.62, 0.66, 0.32], "texture": "grass", "uvScale": 3.0, "roughness": 0.75, "wind": 0.35, "doubleSided": true },
       "grass_dry":   { "color": [0.66, 0.6, 0.36], "texture": "grass", "uvScale": 3.0, "roughness": 0.8, "wind": 0.2, "doubleSided": true },
       "reed":        { "color": [0.42, 0.58, 0.3], "texture": "grass", "uvScale": 2.0, "roughness": 0.7, "wind": 0.45, "doubleSided": true },
@@ -491,22 +493,27 @@
         ]
       },
       "plot_sown": {
-        "variants": 2,
+        "variants": 4,
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
-          { "name": "Seeds", "shape": "blob", "pos": [0, 0.075, 0], "size": [0.025, 0.012, 0.02], "material": "seed", "count": 9, "layout": "scatter", "radius": 0.65, "detail": 0, "rough": 0.1 }
+          { "name": "Clods", "shape": "blob", "pos": [0, 0.06, 0], "size": [0.13, 0.04, 0.09], "material": "clod", "count": 12, "layout": "scatter", "radius": 0.7, "detail": 0, "rough": 0.35, "flat": -0.2, "jitter": 0.5 },
+          { "name": "Seeds", "shape": "blob", "pos": [0, 0.085, 0], "size": [0.035, 0.018, 0.03], "material": "seed", "count": 18, "layout": "scatter", "radius": 0.68, "detail": 0, "rough": 0.1, "jitter": 0.4 }
         ]
       },
       "plot_sprout": {
-        "variants": 2, "note": "sprouts that rise through the stage",
+        "variants": 4, "note": "sprouts that rise through the stage",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
-          { "name": "Sprouts", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.05, 0.16, 0.04], "material": "sprout", "count": 12, "layout": "scatter", "radius": 0.68, "jitter": 0.4 },
-          { "name": "Sprouts Tall", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.05, 0.32, 0.08], "material": "sprout", "count": 12, "layout": "scatter", "radius": 0.68, "jitter": 0.4, "show": [0.5, 1] }
+          { "name": "Leaf A", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.07, 0.2, 0.1], "rot": [0, 0, 0], "material": "sprout", "count": 16, "layout": "scatter", "radius": 0.7, "face": true },
+          { "name": "Leaf B", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.07, 0.18, 0.1], "rot": [0, 120, 0], "material": "sprout", "count": 16, "layout": "scatter", "radius": 0.7, "face": true },
+          { "name": "Leaf C", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.07, 0.16, 0.1], "rot": [0, 240, 0], "material": "sprout", "count": 16, "layout": "scatter", "radius": 0.7, "face": true },
+          { "name": "Stem", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.03, 0.42, 0.06], "material": "sprout", "count": 16, "layout": "scatter", "radius": 0.7, "face": true, "show": [0.45, 1] },
+          { "name": "Leaf Tall A", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.09, 0.36, 0.2], "rot": [0, 60, 0], "material": "sprout", "count": 16, "layout": "scatter", "radius": 0.7, "face": true, "show": [0.45, 1] },
+          { "name": "Leaf Tall B", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.09, 0.32, 0.2], "rot": [0, 240, 0], "material": "sprout", "count": 16, "layout": "scatter", "radius": 0.7, "face": true, "show": [0.45, 1] }
         ]
       },
       "plot_grown": {
-        "variants": 2, "note": "a ripe crop (grain): golden stalks with heads",
+        "variants": 4, "note": "a ripe crop (grain): golden stalks with heads",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Stalks", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.04, 0.85, 0.12], "material": "grain", "count": 26, "layout": "scatter", "radius": 0.72, "jitter": 0.6 },
@@ -514,25 +521,29 @@
         ]
       },
       "plot_sprout_grain": {
-        "variants": 2, "note": "emmer shoots: narrow straight upright tufts, fresh green, taller through the stage",
+        "variants": 4, "note": "emmer shoots: narrow straight upright tufts, fresh green, taller through the stage",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
-          { "name": "Shoots", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.1, 0.22, 0.02], "material": "sprout", "count": 22, "layout": "scatter", "radius": 0.7, "jitter": 0.5, "face": true },
-          { "name": "Shoots Tall", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.12, 0.45, 0.03], "material": "sprout", "count": 20, "layout": "scatter", "radius": 0.68, "jitter": 0.4, "face": true, "show": [0.45, 1] }
+          { "name": "Leaf A", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.07, 0.2, 0.1], "rot": [0, 0, 0], "material": "sprout", "count": 20, "layout": "scatter", "radius": 0.7, "face": true },
+          { "name": "Leaf B", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.07, 0.18, 0.1], "rot": [0, 120, 0], "material": "sprout", "count": 20, "layout": "scatter", "radius": 0.7, "face": true },
+          { "name": "Leaf C", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.07, 0.16, 0.1], "rot": [0, 240, 0], "material": "sprout", "count": 20, "layout": "scatter", "radius": 0.7, "face": true },
+          { "name": "Stem", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.03, 0.42, 0.06], "material": "sprout", "count": 20, "layout": "scatter", "radius": 0.7, "face": true, "show": [0.45, 1] },
+          { "name": "Leaf Tall A", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.09, 0.36, 0.2], "rot": [0, 60, 0], "material": "sprout", "count": 20, "layout": "scatter", "radius": 0.7, "face": true, "show": [0.45, 1] },
+          { "name": "Leaf Tall B", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.09, 0.32, 0.2], "rot": [0, 240, 0], "material": "sprout", "count": 20, "layout": "scatter", "radius": 0.7, "face": true, "show": [0.45, 1] }
         ]
       },
       "plot_grown_grain": {
-        "variants": 2, "note": "ripe emmer: tall, dense, upright golden stalks with big upright ears (the awns are short: they do not show at game distance)",
+        "variants": 4, "note": "ripe emmer: tall, dense, upright golden stalks with big upright ears (the awns are short: they do not show at game distance)",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Leaves", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.16, 0.45, 0.08], "material": "emmer", "count": 10, "layout": "scatter", "radius": 0.7, "jitter": 0.7, "face": true },
-          { "name": "Stalks", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.2, 1.0, 0.03], "material": "emmer", "count": 22, "layout": "scatter", "radius": 0.72, "face": true },
-          { "name": "Ears", "shape": "blob", "pos": [0.03, 1.15, 0], "size": [0.06, 0.13, 0.045], "material": "ear", "count": 22, "layout": "scatter", "radius": 0.72, "detail": 0, "rough": 0.12, "face": true },
+          { "name": "Stalks", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.2, 1.0, 0.06], "material": "emmer", "count": 30, "layout": "scatter", "radius": 0.74, "face": true },
+          { "name": "Ears", "shape": "blob", "pos": [0.06, 1.15, 0], "size": [0.06, 0.13, 0.045], "material": "ear", "count": 30, "layout": "scatter", "radius": 0.74, "detail": 0, "rough": 0.12, "face": true },
           { "name": "Stalks Low", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.2, 0.86, 0.03], "material": "emmer", "count": 14, "layout": "scatter", "radius": 0.6, "jitter": 0.5, "face": true }
         ]
       },
       "plot_sprout_barley": {
-        "variants": 2, "note": "barley shoots: fewer, broad blue-green leaves arching outward",
+        "variants": 4, "note": "barley shoots: fewer, broad blue-green leaves arching outward",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Leaves", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.16, 0.22, 0.1], "material": "barley_leaf", "count": 12, "layout": "scatter", "radius": 0.68, "jitter": 0.5, "face": true },
@@ -540,7 +551,7 @@
         ]
       },
       "plot_grown_barley": {
-        "variants": 2, "note": "ripe barley: shorter, paler straw; the heads nod over on the stalk, with long awns trailing",
+        "variants": 4, "note": "ripe barley: shorter, paler straw; the heads nod over on the stalk, with long awns trailing",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Leaves", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.16, 0.32, 0.14], "material": "barley", "count": 8, "layout": "scatter", "radius": 0.7, "jitter": 0.7, "face": true },
@@ -553,7 +564,7 @@
         ]
       },
       "plot_sprout_lentils": {
-        "variants": 2, "note": "lentil shoots: many small low fresh-green clumps",
+        "variants": 4, "note": "lentil shoots: many small low fresh-green clumps",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Clumps", "shape": "blob", "pos": [0, 0.1, 0], "size": [0.1, 0.06, 0.1], "material": "sprout", "count": 14, "layout": "scatter", "radius": 0.68, "detail": 0, "rough": 0.3, "jitter": 0.5, "face": true },
@@ -561,7 +572,7 @@
         ]
       },
       "plot_grown_lentils": {
-        "variants": 2, "note": "ripe lentils: a low, tangled, yellowing olive mat (knee-low) with brown pods on top",
+        "variants": 4, "note": "ripe lentils: a low, tangled, yellowing olive mat (knee-low) with brown pods on top",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Mat", "shape": "blob", "pos": [0, 0.13, 0], "size": [0.32, 0.17, 0.32], "material": "legume_dry", "count": 6, "layout": "scatter", "radius": 0.5, "detail": 1, "rough": 0.35, "flat": -0.4, "jitter": 0.5, "face": true },
@@ -570,7 +581,7 @@
         ]
       },
       "plot_sprout_peas": {
-        "variants": 2, "note": "pea shoots: a few rounder leafy clumps with curling tendrils, bigger through the stage",
+        "variants": 4, "note": "pea shoots: a few rounder leafy clumps with curling tendrils, bigger through the stage",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Clumps", "shape": "blob", "pos": [0, 0.12, 0], "size": [0.12, 0.08, 0.12], "material": "legume_green", "count": 7, "layout": "scatter", "radius": 0.6, "detail": 0, "rough": 0.4, "jitter": 0.5, "face": true },
@@ -580,7 +591,7 @@
         ]
       },
       "plot_grown_peas": {
-        "variants": 2, "note": "ripe peas: a waist-low sprawling dark-green mound, tendrils reaching up and light green pods hanging",
+        "variants": 4, "note": "ripe peas: a waist-low sprawling dark-green mound, tendrils reaching up and light green pods hanging",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Mound", "shape": "blob", "pos": [0, 0.27, 0], "size": [0.34, 0.3, 0.34], "material": "legume_green", "count": 5, "layout": "scatter", "radius": 0.48, "detail": 1, "rough": 0.35, "flat": -0.6, "jitter": 0.5, "face": true },
@@ -589,7 +600,7 @@
         ]
       },
       "plot_sprout_flax": {
-        "variants": 2, "note": "flax shoots: many fine upright blue-green stems",
+        "variants": 4, "note": "flax shoots: many fine upright blue-green stems",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Stems", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.06, 0.24, 0.01], "material": "barley_leaf", "count": 22, "layout": "scatter", "radius": 0.7, "jitter": 0.5, "face": true },
@@ -597,7 +608,7 @@
         ]
       },
       "plot_grown_flax": {
-        "variants": 2, "note": "ripe flax: sparse, thin stems with golden seed capsules and a few pale blue flowers",
+        "variants": 4, "note": "ripe flax: sparse, thin stems with golden seed capsules and a few pale blue flowers",
         "parts": [
           { "name": "Soil", "shape": "box", "pos": [0, 0.03, 0], "size": [1.7, 0.08, 1.7], "material": "soil" },
           { "name": "Stems", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.08, 0.85, 0.05], "material": "flax", "count": 16, "layout": "scatter", "radius": 0.72, "face": true },
@@ -605,6 +616,12 @@
           { "name": "Stems Low", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.08, 0.72, 0.04], "material": "flax", "count": 12, "layout": "scatter", "radius": 0.64, "jitter": 0.6, "face": true },
           { "name": "Stems Flower", "shape": "blade", "pos": [0, 0.07, 0], "size": [0.08, 0.78, 0.04], "material": "flax", "count": 8, "layout": "scatter", "radius": 0.56, "face": true },
           { "name": "Flowers", "shape": "blob", "pos": [0.04, 0.86, 0], "size": [0.07, 0.025, 0.07], "material": "flax_blue", "count": 8, "layout": "scatter", "radius": 0.56, "detail": 0, "rough": 0.1, "face": true }
+        ]
+      },
+      "field_stone": {
+        "variants": 4, "note": "T332: a small stone on the margin of a field (fields.stoneModel)",
+        "parts": [
+          { "name": "Stone", "shape": "blob", "pos": [0, 0.03, 0], "size": [0.09, 0.055, 0.07], "material": "stone", "count": 2, "layout": "scatter", "radius": 0.07, "detail": 1, "rough": 0.4, "flat": -0.3, "jitter": 0.6 }
         ]
       },
       "plot_frost": {
@@ -986,6 +1003,28 @@
       "Build":     { "hand": "both",  "height": 0.7, "toward": 0.45, "from": 0.3, "to": 0.6, "weight": 0.4 },
       "make":      { "hand": "both",  "height": 0.85, "toward": 0.15, "from": 0.0, "to": 1.0, "weight": 0.55 },
       "craft":     { "hand": "both",  "height": 0.85, "toward": 0.15, "from": 0.0, "to": 1.0, "weight": 0.55 }
+    },
+
+    "fields": {
+      "note": "T332: the tilled ground of a field as one procedural sheet (GB/World/TilledGround.h): its edge on the outline (a painted zone's perimeter, or the cells), a rim of trodden earth with small stones, furrows along its longer side darkened at the bottom, a tint per plot state (darker where moist) with shade under the plants; the plot models' soil parts are not drawn on it, their plants are spread with jitter, turn, tilt and scale; and the grass cleared under fields and buildings",
+      "material": "soil", "frostMaterial": "frost", "groundParts": ["soil"],
+      "lift": 0.04, "sink": 0.08, "edgeNoise": 0.03,
+      "furrowSpacing": 0.45, "furrowDepth": 0.1, "furrowSamples": 4, "step": 0.3,
+      "texels": 8, "tintNoise": 0.12,
+      "tints": {
+        "grass":  [0.78, 0.98, 0.6],
+        "fallow": [0.62, 1.2, 0.45],
+        "dug":    [1.0, 0.97, 0.94],
+        "sown":   [0.92, 0.88, 0.84],
+        "sprout": [0.9, 0.88, 0.82],
+        "grown":  [0.95, 0.9, 0.8]
+      },
+      "wetTint": [0.72, 0.7, 0.68],
+      "rimWidth": 0.4, "rimMaterial": "trodden", "rimTint": [1.0, 1.0, 1.0],
+      "stoneModel": "field_stone", "stoneSpacing": 1.1, "stoneChance": 0.4, "stoneScale": [0.6, 1.4],
+      "furrowShade": 0.45, "plantShade": 0.4, "plantShadeRadius": 0.3, "shadeStates": ["sprout", "grown"],
+      "jitter": 0.18, "scale": [0.87, 1.13], "tilt": 5, "spread": 1.25, "plantDistance": 150,
+      "clearField": 0.3, "clearBuilding": 0.6, "clearFeather": 0.6
     },
 
     "props": {

@@ -320,6 +320,8 @@ namespace GB
 					m.Grain = j.value("grain", 0.0f);
 					m.Wind = j.value("wind", 0.0f);
 					m.WindRoot = j.value("windRoot", m.WindRoot);
+					m.WindHeight = j.value("windHeight", m.WindHeight);
+					if (!(m.WindHeight >= 0.1f && m.WindHeight <= 50.0f)) return "material '" + id + "': windHeight is 0.1..50";
 					if (m.WindRoot != "bottom" && m.WindRoot != "top")
 					{
 						GB_CORE_WARN("visuals: material '{}' has the unknown windRoot '{}' (bottom, top): it sways from the bottom", id, m.WindRoot);
@@ -474,6 +476,71 @@ namespace GB
 						r.Outfits[role] = outfit;
 					}
 			}
+			if (const auto it = root.find("fields"); it != root.end())   // T332: the tilled ground of the fields and the grass they clear
+			{
+				if (!it->is_object()) return "fields must be an object";
+				const Json& f = *it;
+				TilledLook& l = next.Fields;
+				static const char* const kKeys[] = { "material", "frostMaterial", "groundParts", "lift", "sink", "edgeNoise", "furrowSpacing", "furrowDepth",
+					"furrowSamples", "step", "texels", "tintNoise", "tints", "wetTint", "rimWidth", "rimMaterial", "rimTint", "stoneModel", "stoneSpacing", "stoneChance", "stoneScale",
+					"furrowShade", "plantShade", "plantShadeRadius", "shadeStates", "jitter", "scale", "tilt", "spread", "plantDistance", "clearField", "clearBuilding",
+					"clearFeather", "note" };
+				for (const auto& [key, value] : f.items())
+					if (!OneOf(key, kKeys)) return "fields: unknown key '" + key + "'";
+				l.Material = f.value("material", l.Material);
+				l.FrostMaterial = f.value("frostMaterial", l.FrostMaterial);
+				if (!next.Materials.count(l.Material)) return "fields: unknown material '" + l.Material + "'";
+				if (!next.Materials.count(l.FrostMaterial)) return "fields: unknown frost material '" + l.FrostMaterial + "'";
+				if (const auto g = f.find("groundParts"); g != f.end())
+				{
+					if (!g->is_array()) return "fields: groundParts is a list of material ids";
+					l.GroundParts.clear();
+					for (const Json& s : *g) l.GroundParts.push_back(s.get<std::string>());
+				}
+				auto num = [&](const char* key, float& v, float lo, float hi) -> bool
+				{
+					v = f.value(key, v);
+					return v >= lo && v <= hi;
+				};
+				if (!num("lift", l.Lift, 0.0f, 0.5f) || !num("sink", l.Sink, 0.0f, 0.5f) || !num("edgeNoise", l.EdgeNoise, 0.0f, 0.45f)
+					|| !num("furrowSpacing", l.FurrowSpacing, 0.1f, 2.0f) || !num("furrowDepth", l.FurrowDepth, 0.0f, 0.4f) || !num("step", l.Step, 0.1f, 2.0f)
+					|| !num("tintNoise", l.TintNoise, 0.0f, 1.0f) || !num("jitter", l.Jitter, 0.0f, 0.5f) || !num("spread", l.Spread, 0.5f, 2.0f)
+					|| !num("plantDistance", l.PlantDistance, 0.0f, 2000.0f) || !num("clearField", l.ClearField, 0.0f, 4.0f) || !num("clearBuilding", l.ClearBuilding, 0.0f, 8.0f)
+					|| !num("clearFeather", l.ClearFeather, 0.0f, 8.0f) || !num("rimWidth", l.RimWidth, 0.0f, 2.0f) || !num("stoneSpacing", l.StoneSpacing, 0.1f, 20.0f)
+					|| !num("stoneChance", l.StoneChance, 0.0f, 1.0f) || !num("furrowShade", l.FurrowShade, 0.0f, 1.0f) || !num("plantShade", l.PlantShade, 0.0f, 1.0f)
+					|| !num("plantShadeRadius", l.PlantShadeRadius, 0.0f, 2.0f) || !num("tilt", l.Tilt, 0.0f, 45.0f))
+					return "fields: a number is out of range (lift, sink 0..0.5; edgeNoise 0..0.45; furrowSpacing 0.1..2; furrowDepth 0..0.4; step 0.1..2; "
+						"tintNoise 0..1; jitter 0..0.5; spread 0.5..2; plantDistance 0..2000; clearField 0..4; clearBuilding, clearFeather 0..8; rimWidth 0..2; stoneSpacing 0.1..20; stoneChance, furrowShade, plantShade 0..1; "
+						"plantShadeRadius 0..2; tilt 0..45)";
+				l.FurrowSamples = f.value("furrowSamples", l.FurrowSamples);
+				l.Texels = f.value("texels", l.Texels);
+				if (l.FurrowSamples < 2 || l.FurrowSamples > 16) return "fields: furrowSamples is 2..16";
+				if (l.Texels < 1 || l.Texels > 16) return "fields: texels is 1..16";
+				if (!ReadVec2(f, "scale", l.Scale) || !(l.Scale.x > 0.0f && l.Scale.y >= l.Scale.x)) return "fields: scale is [min, max], 0 < min <= max";
+				if (!ReadVec2(f, "stoneScale", l.StoneScale) || !(l.StoneScale.x > 0.0f && l.StoneScale.y >= l.StoneScale.x)) return "fields: stoneScale is [min, max], 0 < min <= max";
+				if (!ReadVec(f, "wetTint", l.WetTint) || !ReadVec(f, "rimTint", l.RimTint)) return "fields: wetTint and rimTint are [r, g, b]";
+				l.StoneModel = f.value("stoneModel", l.StoneModel);
+				l.RimMaterial = f.value("rimMaterial", l.RimMaterial);
+				if (!next.Materials.count(l.RimMaterial)) return "fields: unknown rim material '" + l.RimMaterial + "'";
+				if (!l.StoneModel.empty() && !next.Models.count(l.StoneModel)) return "fields: unknown stone model '" + l.StoneModel + "'";
+				if (const auto g = f.find("shadeStates"); g != f.end())
+				{
+					if (!g->is_array()) return "fields: shadeStates is a list of states";
+					l.ShadeStates.clear();
+					for (const Json& st : *g) l.ShadeStates.push_back(st.get<std::string>());
+				}
+				if (const auto t = f.find("tints"); t != f.end())
+				{
+					if (!t->is_object()) return "fields: tints is { state: [r, g, b] }";
+					for (const auto& [state, c] : t->items())
+					{
+						glm::vec3 v(1.0f);
+						if (!c.is_array() || !ReadVec(*t, state.c_str(), v)) return "fields: tint '" + state + "' is [r, g, b]";
+						if (glm::any(glm::lessThan(v, glm::vec3(0.0f))) || glm::any(glm::greaterThan(v, glm::vec3(2.0f)))) return "fields: tint '" + state + "' is 0..2";
+						l.Tints[state] = v;
+					}
+				}
+			}
 		}
 		catch (const Json::exception& e)
 		{
@@ -529,6 +596,7 @@ namespace GB
 			if (m.Grain != 0.0f) j["grain"] = m.Grain;
 			if (m.Wind != 0.0f) j["wind"] = m.Wind;
 			if (m.WindRoot != "bottom") j["windRoot"] = m.WindRoot;
+			if (m.WindHeight != 3.0f) j["windHeight"] = m.WindHeight;
 			if (m.Seasonal) j["seasonal"] = true;
 			if (m.SeasonTint != 0.0f) j["seasonTint"] = m.SeasonTint;
 			if (m.DoubleSided) j["doubleSided"] = true;
@@ -622,6 +690,27 @@ namespace GB
 			props["outfits"] = outfits;
 		}
 		root["props"] = props;
+		if (lib.Fields != TilledLook{})   // (the defaults are not written: a library without the soil material reads back)
+		{
+			const TilledLook& l = lib.Fields;
+			Json f;
+			f["material"] = l.Material;
+			f["frostMaterial"] = l.FrostMaterial;
+			f["groundParts"] = l.GroundParts;
+			f["lift"] = l.Lift; f["sink"] = l.Sink; f["edgeNoise"] = l.EdgeNoise;
+			f["furrowSpacing"] = l.FurrowSpacing; f["furrowDepth"] = l.FurrowDepth; f["furrowSamples"] = l.FurrowSamples; f["step"] = l.Step;
+			f["texels"] = l.Texels; f["tintNoise"] = l.TintNoise;
+			Json tints = Json::object();
+			for (const auto& [state, c] : l.Tints) tints[state] = Vec(c);
+			f["tints"] = tints;
+			f["wetTint"] = Vec(l.WetTint); f["rimWidth"] = l.RimWidth; f["rimMaterial"] = l.RimMaterial; f["rimTint"] = Vec(l.RimTint); f["stoneModel"] = l.StoneModel;
+			f["stoneSpacing"] = l.StoneSpacing; f["stoneChance"] = l.StoneChance; f["stoneScale"] = Vec(l.StoneScale);
+			f["furrowShade"] = l.FurrowShade; f["plantShade"] = l.PlantShade; f["plantShadeRadius"] = l.PlantShadeRadius; f["shadeStates"] = l.ShadeStates;
+			f["tilt"] = l.Tilt;
+			f["jitter"] = l.Jitter; f["scale"] = Vec(l.Scale); f["spread"] = l.Spread; f["plantDistance"] = l.PlantDistance;
+			f["clearField"] = l.ClearField; f["clearBuilding"] = l.ClearBuilding; f["clearFeather"] = l.ClearFeather;
+			root["fields"] = f;
+		}
 		Json doc;
 		doc["visuals"] = root;
 		return doc.dump(2) + "\n";

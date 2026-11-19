@@ -74,6 +74,11 @@ namespace GB::Editor
 					<< m_Visuals.Library.Materials.size() << " materials; cache " << m_Visuals.Cache().CachedMeshes() << " meshes, " << m_Visuals.Cache().CachedTextures() << " textures"
 					<< (m_Visuals.Cache().LowRes() ? " (low-res)" : "") << "; tribe props " << (m_TribeVisuals.Props ? "on" : "off") << ", activities " << (m_TribeVisuals.Activities ? "on" : "off")
 					<< ", reach " << (m_TribeVisuals.Reach ? "on" : "off");
+				{
+					const TribeVisuals::FieldStats f = m_TribeVisuals.Fields();   // T332
+					out << "; fields " << f.Fields << " (" << f.Triangles << " ground triangles, " << f.Plants << " plant copies; " << f.MeshBuilds << " ground builds "
+						<< f.MeshMs << " ms, last " << f.LastMeshMs << " ms; " << f.TintBuilds << " tint maps " << f.TintMs << " ms)";
+				}
 				for (const auto& clan : m_Clans.All())
 					if (clan->Folk)
 						for (const TribeMember& m : clan->Folk->Members())

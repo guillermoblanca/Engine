@@ -1,6 +1,9 @@
 #include "GB/Visual/TribeVisuals.h"
 #include "GB/Animation/ReachLayer.h"
 #include "GB/Game/StoreLayout.h"
+#include "GB/World/TilledGround.h"
+#include <chrono>
+#include <set>
 #include <algorithm>
 #include <cmath>
 #include <glm/gtc/matrix_transform.hpp>
@@ -304,18 +307,8 @@ namespace GB
 			return glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(p.x, y, p.y)), yaw, glm::vec3(0, 1, 0));
 		};
 
-		// the fields: each plot by its state (and crop), growing through its stage; frost over what is in the ground in winter
-		for (const Field& field : tribe.Economy().Fields)
-			for (size_t i = 0; i < field.Plots.size(); ++i)
-			{
-				const FieldPlot& plot = field.Plots[i];
-				const glm::mat4 m = at(field.PlotPos(i));
-				const float growth = plot.State == "grown" ? 1.0f : std::clamp(plot.Growth, 0.0f, 1.0f);
-				const std::string own = "plot_" + plot.State + (plot.Crop.empty() ? "" : "_" + plot.Crop);
-				if (!cache.AddModel(own, std::max(growth, 0.05f), static_cast<int>(i), m, scene, 150.0f))
-					cache.AddModel("plot_" + plot.State, std::max(growth, 0.05f), static_cast<int>(i), m, scene, 150.0f);
-				if (ctx.Season == "winter" && plot.State != "grass") cache.AddModel("plot_frost", 1.0f, static_cast<int>(i), m, scene, 150.0f);
-			}
+		// the fields: the tilled ground of each (T332) and its plants by state and crop, growing through their stage
+		AddFields(tribe, ctx, scene);
 
 		// how much of each kind of pile a place holds, the fullest first (ties by the pile's name)
 		auto kinds = [&](const std::map<std::string, int>& things)
@@ -389,5 +382,202 @@ namespace GB
 		// the camp's workbench (where "make" and "craft" are done); once the clan has built one (H8) that building is the bench, drawn with the
 		// buildings, and the camp's is not drawn too
 		if (tribe.StationAt("workbench") && !tribe.BuiltStationAt("workbench")) cache.AddBuilding("workbench", 1000, 1.0f, at(tribe.Config.Economy.Camp + kBench, 0.4f), scene);
+	}
+
+	// T332: every field of the tribe as one sheet of tilled earth (GB/World/TilledGround.h) tinted by its plots' states, and the plants of each plot
+	// as copies of the plot models (plot_<state>_<crop>, else plot_<state>) without their soil parts, moved, turned and scaled by a hash of the
+	// field and the plot so the field reads as one sown ground and not as squares. In winter the whole sheet is the frost material.
+	void TribeVisuals::AddFields(const Tribe& tribe, const Context& ctx, Scene& scene)
+	{
+		VisualCache& cache = ctx.Visuals->Cache();
+		const VisualLibrary& lib = ctx.Visuals->Library;
+		const TilledLook& look = lib.Fields;
+		if (!(look == m_Look)) { m_Fields.clear(); m_Look = look; }   // the look was edited (a reload): every sheet is made again
+		const bool winter = ctx.Season == "winter";
+		const float campY = tribe.Config.Economy.CampY;
+		const HeightFn ground = [&](float x, float z) { return ctx.Ground ? ctx.Ground(x, z) : campY; };
+		using Clock = std::chrono::steady_clock;
+		auto ms = [](Clock::time_point t0) { return std::chrono::duration<double, std::milli>(Clock::now() - t0).count(); };
+		auto mixKey = [](uint64_t h, const void* p, size_t n)
+		{
+			const auto* b = static_cast<const unsigned char*>(p);
+			for (size_t i = 0; i < n; ++i) { h ^= b[i]; h *= 1099511628211ULL; }
+			return h;
+		};
+
+		std::set<std::string> seen;
+		std::vector<std::string> tints;
+		std::vector<uint8_t> wet;
+		for (const Field& field : tribe.Economy().Fields)
+		{
+			if (field.Plots.empty()) continue;
+			TilledShape shape;
+			shape.Origin = field.Origin;
+			shape.Columns = std::max(1, field.Columns);
+			shape.Spacing = field.Spacing;
+			shape.Plots = static_cast<int>(field.Plots.size());
+			shape.Cells = field.Cells;
+			const FarmZones::Zone* zone = tribe.Zones().Of(field.Name);
+			if (zone) shape.Outline = zone->Outline;
+			const uint32_t seed = TilledSeed(field.Name, field.Origin);
+			seen.insert(field.Name);
+			TilledDraw& d = m_Fields[{ &tribe, field.Name }];
+
+			// the sheet: made again when the cells move or the ground under them changes (a few heights of the bounding grid)
+			uint64_t shapeKey = shape.Hash();
+			const glm::vec2 far = field.Origin + glm::vec2(static_cast<float>(shape.Columns - 1), static_cast<float>(shape.Rows() - 1)) * field.Spacing;
+			for (const glm::vec2& q : { field.Origin, far, glm::vec2(field.Origin.x, far.y), glm::vec2(far.x, field.Origin.y), 0.5f * (field.Origin + far) })
+			{
+				const float h = ground(q.x, q.y);
+				shapeKey = mixKey(shapeKey, &h, sizeof h);
+			}
+			if (shapeKey != d.ShapeKey)
+			{
+				const auto t0 = Clock::now();
+				size_t rimIndices = 0;
+				const MeshData mesh = BuildTilledGround(shape, look, ground, seed, &rimIndices);
+				d.RimIndices = static_cast<uint32_t>(rimIndices);
+				d.Ground.reset();
+				d.Triangles = mesh.Triangles();
+				if (!mesh.Empty())
+				{
+					d.Ground = std::make_unique<Mesh>(mesh.Vertices, mesh.Indices);
+					glm::vec3 lo, hi;
+					mesh.Bounds(lo, hi);
+					d.Centre = 0.5f * (lo + hi);
+					d.Radius = 0.5f * glm::length(hi - lo);
+				}
+				d.Stones = TilledStones(shape, look, ground, seed);
+				d.ShapeKey = shapeKey;
+				m_FieldStats.LastMeshMs = ms(t0);
+				m_FieldStats.MeshMs += m_FieldStats.LastMeshMs;
+				++m_FieldStats.MeshBuilds;
+			}
+
+			// the tint of each plot: its state ("grass" not yet tilled); a field left fallow (the zone's plan) rests green
+			const bool fallow = zone && zone->Plan == "fallow";
+			tints.clear();
+			wet.clear();
+			uint64_t tintKey = mixKey(1469598103934665603ULL, &seed, sizeof seed);
+			for (const FieldPlot& plot : field.Plots)
+			{
+				tints.push_back(fallow && (plot.State == "grass" || plot.State == "dug") ? std::string("fallow") : plot.State);
+				wet.push_back(plot.State != "grass" && plot.Moisture > 0.0f ? 1 : 0);   // watered or rained on: darker earth
+				tintKey = mixKey(tintKey, tints.back().data(), tints.back().size() + 1);
+				tintKey = mixKey(tintKey, &wet.back(), 1);
+			}
+			if (!winter && (tintKey != d.TintKey || !d.Tints))
+			{
+				const auto t0 = Clock::now();
+				const Image map = BuildTilledTints(shape, tints, wet, look, seed, d.TintRect);
+				d.Tints = std::make_unique<Texture2D>(map, TextureEncoding::Linear);
+				d.TintKey = tintKey;
+				m_FieldStats.TintMs += ms(t0);
+				++m_FieldStats.TintBuilds;
+			}
+			if (d.Ground)
+			{
+				// two draws of the one mesh: the rim (its first RimIndices indices) with the rim material, the furrowed rest with the soil
+				const uint32_t all = d.Ground->GetIndexCount();
+				const uint32_t ranges[2][2] = { { 0, std::min(d.RimIndices, all) }, { std::min(d.RimIndices, all), all - std::min(d.RimIndices, all) } };
+				for (int part = 0; part < 2; ++part)
+				{
+					if (ranges[part][1] == 0) continue;
+					RenderObject obj;
+					obj.MeshPtr = d.Ground.get();
+					obj.IndexFirst = ranges[part][0];
+					obj.IndexCount = ranges[part][1];
+					obj.Mat = cache.MaterialFor(winter ? look.FrostMaterial : part == 0 ? look.RimMaterial : look.Material);
+					if (winter) obj.Mat.UVScale *= 2.0f;   // (the frost's texture over tiles of eight furrows)
+					else
+					{
+						if (part == 1) obj.Mat.UVScale = 1.0f;   // the UVs already put the texture's furrows on the ripple's
+						if (d.Tints && d.Tints->IsValid())
+						{
+							obj.Mat.MacroMap = d.Tints.get();
+							obj.Mat.MacroRect = d.TintRect;
+							obj.Mat.Albedo *= 2.0f;      // the map holds the tints halved
+						}
+					}
+					obj.BoundingCenter = d.Centre;
+					obj.BoundingRadius = std::max(d.Radius, 0.5f);
+					scene.Objects.push_back(std::move(obj));
+				}
+			}
+
+			// the stones of the margin
+			if (const auto stone = lib.Models.find(look.StoneModel); stone != lib.Models.end())
+				for (const glm::vec4& st : d.Stones)
+				{
+					const float sc = look.StoneScale.x + (look.StoneScale.y - look.StoneScale.x) * st.w;
+					glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(st.x, st.y - 0.02f, st.z));
+					m = glm::rotate(m, st.w * 40.0f, glm::vec3(0, 1, 0));
+					m = glm::scale(m, glm::vec3(sc));
+					cache.AddModel(look.StoneModel, 1.0f, static_cast<int>(st.w * 7.0f), m, scene, look.PlantDistance);
+				}
+
+			// the plants: each plot's model without its soil, spread round its middle
+			size_t plants = 0;
+			for (size_t i = 0; i < field.Plots.size(); ++i)
+			{
+				const FieldPlot& plot = field.Plots[i];
+				std::string id = "plot_" + plot.State + (plot.Crop.empty() ? "" : "_" + plot.Crop);
+				auto model = lib.Models.find(id);
+				if (model == lib.Models.end()) { id = "plot_" + plot.State; model = lib.Models.find(id); }
+				if (model == lib.Models.end()) continue;
+				const float growth = plot.State == "grown" ? 1.0f : std::clamp(plot.Growth, 0.0f, 1.0f);
+				std::vector<bool> mask = VisibleCopies(model->second, std::max(growth, 0.05f));
+				size_t k = 0;
+				bool any = false;
+				for (const VisualPart& part : model->second.Parts)
+				{
+					const bool soil = std::find(look.GroundParts.begin(), look.GroundParts.end(), part.Material) != look.GroundParts.end();
+					for (int c = 0; c < part.Count; ++c, ++k)
+					{
+						if (soil) mask[k] = false;
+						any = any || mask[k];
+					}
+				}
+				if (!any) continue;
+				TilledPlant p = PlantOf(look, field.Spacing, seed, static_cast<int>(i), model->second.Variants);
+				// near the painted perimeter the plants keep inside it: no jitter, and narrower as the edge comes closer
+				float spread = look.Spread;
+				if (shape.Outline.size() >= 3)
+				{
+					const float reach = 0.4f * field.Spacing * look.Spread * p.Scale;   // (the plot models scatter within ~0.36 of a plot of the middle)
+					const float edge = OutlineDistance(shape.Outline, field.PlotPos(i)) + 0.5f * field.Spacing;   // (where the sheet ends)
+					if (edge < reach + glm::length(p.Offset))
+					{
+						p.Offset = glm::vec2(0.0f);
+						spread *= std::clamp(edge / std::max(reach, 1e-3f), 0.45f, 1.0f);
+					}
+				}
+				const glm::vec2 at = field.PlotPos(i) + p.Offset;
+				glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(at.x, ground(at.x, at.y) + look.Lift, at.y));
+				if (p.Tilt > 0.0f) m = glm::rotate(m, p.Tilt, glm::vec3(std::cos(p.TiltAxis), 0.0f, std::sin(p.TiltAxis)));   // a slight lean, its own way
+				m = glm::rotate(m, p.Yaw, glm::vec3(0, 1, 0));
+				m = glm::scale(m, glm::vec3(p.Scale * spread, p.Scale, p.Scale * spread));
+				const std::string key = "t:" + id + "#" + std::to_string(p.Variant) + ":" + MaskKey(mask);
+				cache.Add(key, model->second, mask, p.Variant, m, scene, look.PlantDistance);
+				++plants;
+			}
+			d.Plants = plants;
+		}
+		// the fields of this tribe that are gone (removed zones, a migration) let their meshes go
+		for (auto it = m_Fields.begin(); it != m_Fields.end();)
+			if (it->first.first == &tribe && !seen.count(it->first.second)) it = m_Fields.erase(it);
+			else ++it;
+	}
+
+	TribeVisuals::FieldStats TribeVisuals::Fields() const
+	{
+		FieldStats s = m_FieldStats;
+		for (const auto& [key, d] : m_Fields)
+		{
+			++s.Fields;
+			s.Triangles += d.Triangles;
+			s.Plants += d.Plants;
+		}
+		return s;
 	}
 }
