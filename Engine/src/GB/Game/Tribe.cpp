@@ -3,6 +3,7 @@
 #include "GB/Game/TribePriorities.h"
 #include "GB/Game/TechTiers.h"
 #include "GB/Game/UseLearning.h"
+#include "GB/Game/WildSeeds.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -1829,6 +1830,7 @@ namespace GB
 		SettlementOptions(m, opts);
 		TrailOptions(m, opts);   // T5c: pave the stretch of path the clan marked (Trails.cpp; the agenda of work is applied there)
 		DataNeedOptions(m, opts);   // V5: the verbs of the needs the packs add (TribeNeeds.cpp)
+		WildSeeds::Options(*this, m, opts);   // T328: wild seed from afar when the clan may till and has none (WildSeeds.h)
 
 		// nothing better: stand by (and look around)
 		{

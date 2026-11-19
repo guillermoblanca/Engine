@@ -222,7 +222,8 @@ namespace GB
 					|| !(e = r.Int("plotsPerTrip", x.PlotsPerTrip, 1, 100)).empty() || !(e = r.Float("priority", x.Priority, 0.0f, 100.0f)).empty()
 					|| !(e = r.Int("fields", x.Fields, 0, 64)).empty() || !(e = r.Int("membersPerField", x.MembersPerField, 0, 1000)).empty()
 					|| !(e = r.Int("plotsPerMember", x.PlotsPerMember, 0, 100)).empty() || !(e = r.Int("clearPriority", x.ClearPriority, 1, 10)).empty()
-					|| !(e = r.Float("clearReach", x.ClearReach, 0.0f, 50.0f)).empty() || !(e = r.Float("foodDays", x.FoodDays, 0.0f, 365.0f)).empty()) return e;
+					|| !(e = r.Float("clearReach", x.ClearReach, 0.0f, 50.0f)).empty() || !(e = r.Float("foodDays", x.FoodDays, 0.0f, 365.0f)).empty()
+					|| !(e = r.Float("wildSeedReach", x.WildSeedReach, 0.0f, 2000.0f)).empty() || !(e = r.Float("transplantNear", x.TransplantNear, 0.0f, 500.0f)).empty()) return e;
 				if (r.Has("zonePlots"))   // T280: a number, or [min, max]
 				{
 					const Json& z = (*p)["zonePlots"];
@@ -356,6 +357,8 @@ namespace GB
 		if (m.ClearPriority != FarmRules().ClearPriority) f["clearPriority"] = m.ClearPriority;   // T337 (only when not the default)
 		if (m.ClearReach != FarmRules().ClearReach) f["clearReach"] = Rounded(m.ClearReach);
 		if (m.FoodDays > 0.0f) f["foodDays"] = Rounded(m.FoodDays);   // T344 (only when the data says so)
+		if (m.WildSeedReach > 0.0f) f["wildSeedReach"] = Rounded(m.WildSeedReach);    // T328 (only when the data says so)
+		if (m.TransplantNear > 0.0f) f["transplantNear"] = Rounded(m.TransplantNear);   // T335 (only when the data says so)
 		for (const auto& [id, crop] : r.Crops)
 		{
 			Json y = Json::object();

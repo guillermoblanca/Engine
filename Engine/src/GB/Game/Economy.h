@@ -74,6 +74,12 @@ namespace GB
 		// that is no food (flax) only while the clan has at least these days of food (Tribe::FoodDays) and lacks its produce. 0 = the old rule
 		// (the produce the store has least units of).
 		float FoodDays = 0.0f;
+		// T328: a clan of the AI that may till and holds no seed of a crop it may sow goes for wild seed it knows within this of its camp, past
+		// its home ground (WildSeeds.h): metres, 0 = off (the old rule: only the home ground's gathers and searches)
+		float WildSeedReach = 0.0f;
+		// T335: a clan of the AI with the verb of a berry bush's transplant and none within this of its camp moves one it knows there
+		// (BushKeeper.h): metres, 0 = off
+		float TransplantNear = 0.0f;
 		bool operator==(const FarmRules&) const = default;
 	};
 

@@ -594,10 +594,18 @@ int GBTest_settlement(int, char**)
 			std::fprintf(stderr, "  wound severity after 300 s: %.3f at the camp, %.3f by the healer\n", static_cast<double>(cleo), static_cast<double>(dan));
 			Check(dan < cleo, "the same wound heals faster by the healer's hut");
 		}
-		// company: a totem by the camp keeps the clan in better company than a camp without one
+		// company: a totem by the camp keeps the clan in better company than a camp without one. T330: measured on its own. Four members always
+		// together fill their company from each other (+0.3/s with another within CompanyRadius) and both camps sat at 100, so the totem was not
+		// measured: here nobody keeps anybody company (CompanyRadius 0, in both camps alike), everyone starts lonely (20), and what lifts the
+		// company of the clan with the totem above the other's is the meeting place's culture within its aura (Tribe::ShelterNeeds)
 		{
 			Settlement with(true, true), without(true, true);
 			Check(!raise(with, "totem", with.Tribe_.Config.Economy.Camp + glm::vec2(9.0f, 0.0f)).empty(), "a totem stands by the camp");
+			for (Settlement* s : { &with, &without })
+			{
+				s->Tribe_.Config.Community.CompanyRadius = 0.0f;   // (the company of the others: off in both)
+				for (const TribeMember& m : s->Tribe_.Members()) s->Gameplay.Find(m.Name)->Attributes().SetBase(NeedName::Company, 20.0f);
+			}
 			const float dt = 1.0f / 30.0f;
 			double sumWith = 0.0, sumWithout = 0.0;
 			for (int frame = 0; frame < static_cast<int>(600.0f / dt); ++frame)
@@ -608,8 +616,10 @@ int GBTest_settlement(int, char**)
 				for (const TribeMember& m : with.Tribe_.Members()) sumWith += with.Tribe_.NeedLevels(m)[NeedName::Company];
 				for (const TribeMember& m : without.Tribe_.Members()) sumWithout += without.Tribe_.NeedLevels(m)[NeedName::Company];
 			}
-			std::fprintf(stderr, "  mean company: %.1f with a totem, %.1f without\n", sumWith / 600.0 / 4.0, sumWithout / 600.0 / 4.0);
-			Check(sumWith > sumWithout, "the clan keeps better company with a meeting place");
+			const double meanWith = sumWith / 600.0 / 4.0, meanWithout = sumWithout / 600.0 / 4.0;
+			std::fprintf(stderr, "  mean company (nobody keeps company, from 20): %.1f with a totem, %.1f without\n", meanWith, meanWithout);
+			Check(meanWithout < 90.0, "(the measure is not saturated: without a meeting place the company stays low)");
+			Check(meanWith > meanWithout + 5.0, "the clan keeps better company with a meeting place");
 		}
 		Check(ConstructionRules().SitesFor(4) == 1 && ConstructionRules().SitesFor(8) == 2 && ConstructionRules().SitesFor(40) == 3 && ConstructionRules{ 2, 0 }.SitesFor(1) == 2,
 			"one site per four members, three at most (four members: one at a time, as before)");
