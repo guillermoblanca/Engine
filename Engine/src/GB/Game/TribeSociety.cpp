@@ -3,6 +3,7 @@
 // the society, Update runs StepSociety, Decide calls SocietyFactors, Execute reads WorkPace, Practise reads the learning rate, the lessons read who
 // teaches whom, and Finish/Eat/Tell report what happened between members (Worked, SharedFood, Quarrel, ClanEvent). Deterministic like the rest.
 #include "GB/Game/Tribe.h"
+#include "GB/Game/FoodStock.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -49,9 +50,10 @@ namespace GB
 		ClanState clan;
 		for (const TribeMember& m : m_Members) if (!m.Dead && m.Body) ++clan.Alive;
 		// W1: the food to spare, without what is laid by for the winter (a baby boom on the winter's food emptied the store before spring)
-		const float perDay = (Config.Needs.DaySeconds / std::max(Config.Needs.HungerSeconds, 1.0f)) * (100.0f / static_cast<float>(std::max(Config.Needs.FoodHunger, 1)));   // (as FoodDays)
+		// T346 (P-A1): counted in plain meals (what NeedsConfig::FoodHunger sates), so raw grain counts for less than a roast (GB/Game/FoodStock.h)
+		const float perDay = FoodStock::PerDay(Config.Needs);   // (as FoodDays)
 		const float reserve = WinterReserveDays(Config.Econ, Config.Seasons, WorldSeconds()) * perDay;   // (per mouth)
-		clan.Food = m_Items ? std::max(0.0f, static_cast<float>(FoodIn(m_Store)) - reserve * static_cast<float>(clan.Alive)) : 0.0f;
+		clan.Food = m_Items ? std::max(0.0f, FoodStock::MealsIn(*this, m_Store) - reserve * static_cast<float>(clan.Alive)) : 0.0f;
 		clan.BirthCost = reserve;   // W5: a newborn eats its share of what is left of the winter too
 		clan.Shelter = HasFire() || Beds() > 0;   // (H8: a finished shelter near the camp counts as shelter too)
 		if (m_Leaping && clan.Alive < m_LeapCap)   // V6: the years of a leap are lived in aggregate: the clan ate and kept its fire (nobody works in them, so the store says nothing), up to what its land fed

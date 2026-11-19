@@ -326,7 +326,10 @@ int GBTest_social(int, char**)
 		const std::string error = packs.Load("era1", kData, &report, strict);
 		Check(error.empty() && report.Clean(), "the era1 pack loads strictly with social.json");
 		if (!error.empty() || !report.Clean()) std::fprintf(stderr, "  %s\n  %s\n", error.c_str(), report.Text().c_str());
-		Check(live == DefaultSocialRules(), "and the social section it read is the default one");
+		SocialRules files = DefaultSocialRules();   // T346 (P-A16): the diet's foods are data only (food.json): the pack reads what the files say
+		Check(LoadSocialRulesFile(kData + "/social.json", files).empty() && LoadSocialRulesFile(kData + "/food.json", files).empty() && !files.Diet.Foods.empty()
+			&& DefaultSocialRules().Diet.Foods.empty(), "the diet's foods are in food.json, not in the code");
+		Check(live == files, "and the social section it read is what social.json and food.json say");
 		Check(pi.Find("stew") && pi.Find("fish") && pn.count("fishing_spot") && techs.Find("trapping") && species.count("deer") && combat.Hunts.count("boar"),
 			"with the new foods, the fishing spot, trapping, the deer and the boar hunt");
 		Check(CheckCombat(combat, pi).empty(), "every item a hunt yields is an item");

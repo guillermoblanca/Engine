@@ -153,6 +153,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/WildSeeds.cpp
     src/GB/Game/BushKeeper.cpp
     src/GB/Game/MealLog.cpp
+    src/GB/Game/FoodStock.cpp
     src/GB/Game/TribeConflict.cpp
     src/GB/Game/Trails.cpp
     src/GB/Game/Conflict.cpp

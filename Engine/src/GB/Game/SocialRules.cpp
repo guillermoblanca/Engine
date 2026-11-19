@@ -82,11 +82,8 @@ namespace GB
 
 		r.Shaman.Traits = { { "curiosity", 0.6f }, { "sociability", 0.4f } };
 
-		auto food = [](const char* group, float nutrition) { FoodDef f; f.Group = group; f.Nutrition = nutrition; return f; };
-		r.Diet.Foods = { { "berry", food("fruit", 25.0f) }, { "dried_berry", food("fruit", 22.0f) }, { "meat", food("meat", 35.0f) }, { "cooked_meat", food("meat", 45.0f) },
-			{ "smoked_meat", food("meat", 40.0f) }, { "grain", food("grain", 20.0f) }, { "roots", food("root", 30.0f) }, { "nuts", food("nut", 28.0f) },
-			{ "mushrooms", food("fungus", 18.0f) }, { "greens", food("green", 15.0f) }, { "eggs", food("egg", 25.0f) }, { "honey", food("sweet", 20.0f) },
-			{ "fish", food("fish", 30.0f) }, { "stew", food("dish", 55.0f) }, { "roast", food("dish", 50.0f) }, { "flatbread", food("dish", 40.0f) } };
+		// T346 (P-A16): no foods here. What each food sates and its group is data only (food.json, "social" > "diet" > "foods"); without it
+		// every food sates NeedsConfig::FoodHunger and is a group of its own (MealLog::Nutrition).
 
 		r.Hunting.Wildlife = { { "rabbit", 6 }, { "deer", 3 }, { "boar", 2 }, { "grouse", 4 } };
 		TrapDef snare;
