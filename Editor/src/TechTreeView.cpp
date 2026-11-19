@@ -14,6 +14,9 @@
 //   what it opens in ochre. The study queue is a strip at the bottom (the same component as the Knowledge sheet, small); the picked
 //   technology's card opens on the right, over the far tiers: what it opens (new actions, recipes, buildings with their picture), what it needs
 //   (what is missing at hand, with the shortcut of a stock goal: D7), how it is learnt (D5: three words) and who is on it.
+// T342: the god's view (every name) is laid out by the same rules as the player's, so it fits too (it scrolled at 1280x720 and cut names at
+//   1600): the tiers not open yet are small boxes (each with its icon, its name and state in the tooltip; a neutral frame unless the tier holds it
+//   back) and era 2 is one block with its count (the names in its tooltip). A name too long for its card is cut with ".." (its tooltip has it whole).
 #include "EditorApp.h"
 #include "GameTheme.h"
 #include "GB/Game/TechStatus.h"
@@ -269,7 +272,7 @@ namespace GB::Editor
 			if (!d) continue;
 			if (std::find(lanes.begin(), lanes.end(), d->Branch) == lanes.end()) lanes.push_back(d->Branch);   // (a branch the list has not, or none: a lane of its own)
 			const int tier = std::clamp(e.Tier, 0, eraTier);
-			if (tier >= eraTier && !reveal) { if (e.State == TechState::Known || named(id)) eraNamed.push_back(id); else ++eraHidden; continue; }
+			if (tier >= eraTier && (!reveal || tiers)) { if (reveal || e.State == TechState::Known || named(id)) eraNamed.push_back(id); else ++eraHidden; continue; }
 			maxTier = std::max(maxTier, tier);
 		}
 		// lanes no technology uses are left out (a test's tree, a pack with fewer branches)
@@ -281,7 +284,7 @@ namespace GB::Editor
 			const TechDef* d = tree->Find(id);
 			if (!d) continue;
 			const int tier = std::clamp(e.Tier, 0, eraTier);
-			if (tier >= eraTier && !reveal) continue;
+			if (tier >= eraTier && (!reveal || tiers)) continue;   // (era 2: its block)
 			cells[tier][laneOf(d->Branch)].push_back(id);
 		}
 		std::vector<size_t> usedLanes;
@@ -293,14 +296,15 @@ namespace GB::Editor
 		}
 		if (usedLanes.empty()) usedLanes.push_back(0);
 		const int columns = std::max(maxTier + 1, tiers ? eraTier : 1);   // tiers 0..3 always (a closed one shows what it keeps), more in the god's view
-		const bool eraBlock = !reveal && tiers && (eraHidden > 0 || !eraNamed.empty());
+		const bool eraBlock = tiers && (eraHidden > 0 || !eraNamed.empty());
 		// a card is "small" (a box) when its tier is not open and the clan cannot act on it: a "?" when it is unknown (the shape of what comes, not
 		// its name), its icon with the amber dashed frame when only the tier holds it back ("needs tier 2" in its tooltip); what is queued or another
 		// clan knows keeps its card
 		auto small = [&](const std::string& id)
 		{
 			const TechStatus::Entry& e = status.Of(id);
-			return tiers && !reveal && e.Tier > openTier && (!named(id) || (e.State == TechState::Blocked && e.Why == TechWhy::Tier));
+			// (the god's view the same: what the player could not name is a box too, with its icon; T342)
+			return tiers && e.Tier > openTier && (!status.Named(id) || (e.State == TechState::Blocked && e.Why == TechWhy::Tier));
 		};
 		for (auto& [c, byLane] : cells)
 			for (auto& [l, ids] : byLane)
@@ -641,20 +645,23 @@ namespace GB::Editor
 				{
 					dl->AddRectFilled(a, b, T::Hide, 3.0f);
 					glm::vec2 uv0(0.0f), uv1(0.0f);
+					const ImU32 frame = !reveal || e.State == TechState::Blocked ? T::Warn : T::HideLine;   // (the god sees every name: amber only for what the tier holds back)
 					if (named(id) && IconUv("tech." + id, uv0, uv1))
 					{
-						DashedRect(dl, a, b, T::Warn, 1.0f);
+						DashedRect(dl, a, b, frame, 1.0f);
 						dl->AddImage(static_cast<ImTextureID>(static_cast<intptr_t>(m_IconTexture->GetID())), ImVec2(a.x + 2.0f, a.y + 2.0f), ImVec2(b.x - 2.0f, b.y - 2.0f), ImVec2(uv0.x, uv0.y), ImVec2(uv1.x, uv1.y), IM_COL32(255, 255, 255, 150));
 					}
 					else
 					{
-						DashedRect(dl, a, b, named(id) ? T::Warn : T::HideLine, 1.0f);
-						const char* mark = named(id) ? "!" : "?";
-						const ImVec2 q = ImGui::CalcTextSize(mark);
-						dl->AddText(ImVec2((a.x + b.x - q.x) * 0.5f, (a.y + b.y - q.y) * 0.5f), named(id) ? T::Warn : T::BoneDim, mark);
+						DashedRect(dl, a, b, named(id) ? frame : T::HideLine, 1.0f);
+						// (no icon: "!" for the player, the first letters of its name for the god)
+						std::string mark = !named(id) ? std::string("?") : !reveal ? std::string("!") : techName(id).substr(0, 2);
+						if (mark.size() == 2 && (static_cast<unsigned char>(mark[1]) & 0x80)) mark = mark.substr(0, 1);
+						const ImVec2 q = ImGui::CalcTextSize(mark.c_str());
+						dl->AddText(ImVec2((a.x + b.x - q.x) * 0.5f, (a.y + b.y - q.y) * 0.5f), named(id) ? frame == T::Warn ? T::Warn : T::Bone : T::BoneDim, mark.c_str());
 					}
 					if (hovered || id == pick) dl->AddRect(ImVec2(a.x - 2.0f, a.y - 2.0f), ImVec2(b.x + 2.0f, b.y + 2.0f), id == pick ? T::Bone : T::OchreHover, 4.0f, 0, 1.5f);
-					if (hovered) ImGui::SetTooltip("%s", ((named(id) ? techName(id) : L.Text("Something the clan does not know yet")) + "\n" + L.Text("needs tier {0}", e.Tier)).c_str());
+					if (hovered) ImGui::SetTooltip("%s", ((named(id) ? techName(id) + (reveal ? ": " + TechStateText(status, id) : std::string()) : L.Text("Something the clan does not know yet")) + "\n" + L.Text("needs tier {0}", e.Tier)).c_str());
 					continue;
 				}
 				// the body and the frame: the shape says the state (thick, dashed, blue...), the colour backs it
@@ -788,16 +795,16 @@ namespace GB::Editor
 				const ImVec2 ba(a.x + 8.0f, laneY.front() + 8.0f), bb(b.x - 8.0f, gridBottom - 8.0f);
 				DashedRect(dl, ba, bb, T::HideLine, 1.0f);
 				const float big = ImGui::GetFontSize() * 2.0f;
-				const std::string n = "? " + std::to_string(eraHidden);
+				const std::string n = reveal ? std::to_string(eraNamed.size()) : "? " + std::to_string(eraHidden);   // (the god: how many, their names in the tooltip)
 				const float nw = ImGui::CalcTextSize(n.c_str()).x * 2.0f;
 				const float my = (ba.y + bb.y) * 0.5f;
 				dl->AddText(ImGui::GetFont(), big, ImVec2((ba.x + bb.x - nw) * 0.5f, my - big), T::BoneDim, n.c_str());
-				const std::vector<std::string> wl = Wrap(L.Text("to discover"), bb.x - ba.x - 8.0f, 2);
+				const std::vector<std::string> wl = Wrap(reveal ? L.Text("technologies") : L.Text("to discover"), bb.x - ba.x - 8.0f, 2);
 				float ty = my + 4.0f;
 				for (const std::string& l : wl) { dl->AddText(ImVec2((ba.x + bb.x - ImGui::CalcTextSize(l.c_str()).x) * 0.5f, ty), T::BoneDim, l.c_str()); ty += lineH; }
 				if (ImGui::IsWindowHovered() && ImGui::IsMouseHoveringRect(a, b))
 				{
-					std::string tip = L.Text("{0} technologies of the next age: they show once the village gets there", eraHidden);
+					std::string tip = reveal ? L.Text("{0} technologies of the next age", static_cast<int>(eraNamed.size())) : L.Text("{0} technologies of the next age: they show once the village gets there", eraHidden);
 					if (const std::string goals = TierGoalsText(t, eraTier, true); !goals.empty()) tip += "\n" + L.Text("Tier {0} opens with {1}", eraTier, goals);
 					for (const std::string& id : eraNamed) tip += "\n" + techName(id) + ": " + TechStateText(status, id);
 					ImGui::SetTooltip("%s", tip.c_str());

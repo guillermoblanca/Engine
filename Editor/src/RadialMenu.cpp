@@ -8,6 +8,7 @@
 #include "GameTheme.h"
 #include "SceneEditor.h"
 #include "GB/Game/TechVerbs.h"
+#include "GB/Game/Transplant.h"
 #include "GB/Gameplay/Buildings.h"
 #include "GB/Gameplay/Resources.h"
 #include "GB/Input/InputSource.h"
@@ -55,7 +56,7 @@ namespace GB::Editor
 		}
 
 		// the icon of an order's verb over the person that holds it (ColonyOrders::Mandate)
-		std::string VerbIcon(const std::string& verb) { return verb == "use" ? "gather" : verb == "follow" ? "expedition" : verb; }
+		std::string VerbIcon(const std::string& verb) { return verb == "use" ? "gather" : verb == "follow" ? "expedition" : verb == "transplant" ? "sow" : verb; }
 
 		// T327: how many verbs the clan has still to discover, for the radial's "?" bubble: only over what the people act on (the ground, a node,
 		// one of the clan); 0 draws none
@@ -264,6 +265,10 @@ namespace GB::Editor
 				if (mark->Priority <= 1) off(up, "It is already the first");
 				add("unmark", "state.cannot", "Remove the mark", "The clan stops doing it", { "game designate " + name + " off" }, false);
 			}
+			// T333: move it somewhere else (then a click on the ground: DrawTransplantWorld), only over a node that can be moved and whose verb the clan
+			// knows (T327: else no bubble, not even a dimmed one)
+			if (const ResourceNodeDef* movable = Transplant::DefOf(*t, target.Name); movable && TechVerbs::Knows(*t, movable->Transplant.Verb))
+				add("transplant", "sow", "Transplant...", "Dig it up and plant it somewhere else: then a click on the ground", { "colony transplant " + name }, false);
 			if (knows("goto")) add("goto", "goto", "Go", "The people selected walk to it", { "game order sel goto " + at }, true);
 			break;
 		}
@@ -387,6 +392,13 @@ namespace GB::Editor
 	void EditorApp::ColonyKeys()
 	{
 		ZoneKeys();   // T281: Enter, Backspace and Esc of the tool Field first (its Esc drops the perimeter before the tab closes)
+		// T333: Esc drops the transplant being placed before anything else
+		if (!m_Colony.Transplant.empty() && ColonyScreen() && !ImGui::GetIO().WantTextInput && ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+		{
+			m_UiCommands.push_back("colony transplant off");
+			ImGui::SetKeyOwner(ImGuiKey_Escape, ImHashStr("colony_radial"), ImGuiInputFlags_LockThisFrame);
+			return;
+		}
 		const bool tab = !m_Colony.Tab.empty() && ColonyScreen() && !m_Observer.Tree;   // (a tab hidden under the tree of knowledge does not take the Esc)
 		if ((!m_Colony.Open && !tab) || ImGui::GetIO().WantTextInput) return;
 		if (!ImGui::IsKeyPressed(ImGuiKey_Escape, false)) return;
@@ -488,10 +500,11 @@ namespace GB::Editor
 
 		// ---- T281: the tool Field: the perimeter being drawn, its label and the outlines of the clan's zones (ColonyZones.cpp)
 		DrawZoneWorld(ox, oy, w, h);
+		DrawTransplantWorld(ox, oy, w, h);   // T333
 
 		// ---- the right button: a click (not a drag, which pans) opens the radial over what is under it; never while a building is being placed nor
 		// while a field is drawn (there it takes the last point away)
-		if (m_ViewportHovered && ImGui::IsMouseClicked(1) && m_Hand.Building.empty() && !ZonePainting()) { m_Colony.RightDown = true; m_Colony.RightAt = mouse; }
+		if (m_ViewportHovered && ImGui::IsMouseClicked(1) && m_Hand.Building.empty() && !ZonePainting() && m_Colony.Transplant.empty()) { m_Colony.RightDown = true; m_Colony.RightAt = mouse; }
 		if (m_Colony.RightDown && ImGui::IsMouseReleased(1))
 		{
 			m_Colony.RightDown = false;
@@ -665,6 +678,7 @@ namespace GB::Editor
 		if (sub == "tab" || sub == "work" || sub == "stock") return ColonyTabCommand(a);   // T308 (ColonyTabs.cpp)
 		if (sub == "zone") return ZoneCommand(a);   // T281 (ColonyZones.cpp)
 		if (!t) return { false, "no colony: director colony on, and a world with clans" };
+		if (sub == "transplant") return TransplantCommand(a);   // T333
 		if (sub == "select")
 		{
 			if (a.size() == 1) return { true, selection() };
@@ -741,6 +755,136 @@ namespace GB::Editor
 			if (!m_Colony.Open) return { false, "nothing to do there" };
 			return { true, list() };
 		}
-		return { false, "usage: colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | inspect <thing>|off | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off] | tab [work|stock|field|clan|chronicle|board|sites|homes|research|relations|off] | zone start|point <x> <z>|undo|close|cancel|crop <crop|auto>|plan <plan>|confirm|select <id|off>|cursor <x> <z> | work fold|unfold <category> | work step <person> <what> up|down | work reset <person> | stock pick|set|off ..." };
+		return { false, "usage: colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | inspect <thing>|off | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off] | tab [work|stock|field|clan|chronicle|board|sites|homes|research|relations|off] | zone start|point <x> <z>|undo|close|cancel|crop <crop|auto>|plan <plan>|confirm|select <id|off>|cursor <x> <z> | transplant <node>|to <x> <z>|cursor <x> <z>|off | work fold|unfold <category> | work step <person> <what> up|down | work reset <person> | stock pick|set|off ..." };
+	}
+	// ------------------------------------------------------------------ T333 (UI): the Transplant tool
+	// The radial's bubble over a node (or the button of its sheet) runs `colony transplant <node>`: from then a left click on the ground runs
+	// `colony transplant to <x> <z>`, which gives the order (`game transplant <node> to <x> <z>`: the nearest one free; with people selected,
+	// `game order <them> transplant ...`). A right click or Esc drops it. Whether the node can be moved and the clan knows how is the game's
+	// (GB/Game/Transplant.h, TechVerbs): the UI only asks the same to show the bubble, and shows the game's reply when it refuses.
+	CommandResult EditorApp::TransplantCommand(const std::vector<std::string>& a)
+	{
+		ColonyUiState& c = m_Colony;
+		const Tribe* t = ColonyTribe();
+		if (!t) return { false, "no colony: director colony on, and a world with clans" };
+		if (a.size() < 2) return { true, c.Transplant.empty() ? std::string("no transplant being placed") : "transplant " + c.Transplant + ": a click on the ground where it goes" };
+		if (a[1] == "off")
+		{
+			c.Transplant.clear();
+			c.TransplantReply.clear();
+			c.TransplantHeld = false;
+			return { true, "transplant dropped" };
+		}
+		if (a[1] == "cursor")   // where the mouse would be (the captures): the ring follows it
+		{
+			if (a.size() < 4) { c.TransplantHeld = false; return { true, "the transplant follows the mouse" }; }
+			c.TransplantHeld = true;
+			c.TransplantCursor = { std::strtof(a[2].c_str(), nullptr), std::strtof(a[3].c_str(), nullptr) };
+			return { true, "transplant cursor at " + Num(c.TransplantCursor.x) + " " + Num(c.TransplantCursor.y) };
+		}
+		if (a[1] == "to")
+		{
+			if (c.Transplant.empty()) return { false, "no transplant being placed: colony transplant <node> first" };
+			if (a.size() < 4) return { false, "usage: colony transplant to <x> <z>" };
+			PruneColonySelection();
+			const std::string node = Word(c.Transplant), where = " to " + a[2] + " " + a[3];
+			const std::string command = c.Selection.empty() ? "game transplant " + node + where : "game order " + Joined(c.Selection, ",") + " transplant " + node + where;
+			const CommandResult r = Execute(command);
+			c.TransplantReply = r.Message;
+			c.TransplantFailed = !r.Ok;
+			if (r.Ok) { c.Transplant.clear(); c.TransplantHeld = false; }
+			return { r.Ok, command + " -> " + r.Message };
+		}
+		std::string name;
+		for (size_t i = 1; i < a.size(); ++i) name += (name.empty() ? "" : " ") + a[i];
+		for (char& ch : name) if (ch == '_') ch = ' ';
+		const ResourceNodeDef* def = Transplant::DefOf(*t, name);
+		if (!def) return { false, name + " cannot be transplanted" };
+		if (!TechVerbs::Knows(*t, def->Transplant.Verb)) return { false, "the clan does not know how to " + def->Transplant.Verb };
+		c.Transplant = name;
+		c.TransplantReply.clear();
+		c.TransplantFailed = false;
+		c.Open = false;
+		return { true, "transplant " + name + ": a click on the ground where it goes (colony transplant to <x> <z>)" };
+	}
+
+	void EditorApp::DrawTransplantWorld(float ox, float oy, float w, float h)
+	{
+		namespace T = GameTheme;
+		ColonyUiState& c = m_Colony;
+		if (c.Transplant.empty()) return;
+		const EntityWorld& world = m_SceneEditor.World();
+		const EntityId id = world.FindByName(c.Transplant);
+		if (id == NullEntity || !m_Gameplay.Find(c.Transplant)) { c.Transplant.clear(); return; }
+		const Lang& L = m_Lang;
+		const ImGuiIO& io = ImGui::GetIO();
+		const glm::vec2 size(w, h), mouse(io.MousePos.x - ox, io.MousePos.y - oy);
+		const glm::mat4 viewProj = m_Camera.GetProjection(w / std::max(h, 1.0f)) * m_Camera.GetView();
+		ImDrawList* dl = ImGui::GetWindowDrawList();   // (the viewport: under the cards)
+		auto screen = [&](const glm::vec3& p, ImVec2& s) { glm::vec2 v; if (!ProjectToScreen(viewProj, p, size, v)) return false; s = ImVec2(ox + v.x, oy + v.y); return true; };
+		const bool ground = m_World.IsBuilt();
+		auto height = [&](float x, float z) { return ground ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; };
+		// where it would go: the held cursor (a script), else the ground under the mouse
+		glm::vec3 to(0.0f);
+		bool hit = false;
+		if (c.TransplantHeld) { to = glm::vec3(c.TransplantCursor.x, height(c.TransplantCursor.x, c.TransplantCursor.y), c.TransplantCursor.y); hit = true; }
+		else if (m_ViewportHovered && ground) hit = GroundHit(m_World.GetTerrain(), ScreenRay(m_Camera, mouse / size, w / std::max(h, 1.0f)), to);
+		// a ring on the ground round where it is and where it would go, and a dashed line between them
+		auto ring = [&](const glm::vec3& at, float r, ImU32 colour)
+		{
+			ImVec2 pts[28];
+			for (int i = 0; i < 28; ++i)
+			{
+				const float an = 6.2831853f * static_cast<float>(i) / 28.0f, x = at.x + r * std::cos(an), z = at.z + r * std::sin(an);
+				if (!screen(glm::vec3(x, height(x, z) + 0.08f, z), pts[i])) return;
+			}
+			dl->AddConvexPolyFilled(pts, 28, T::Faded(colour, 0.16f));
+			dl->AddPolyline(pts, 28, T::Outline, ImDrawFlags_Closed, 4.5f);
+			dl->AddPolyline(pts, 28, colour, ImDrawFlags_Closed, 2.5f);
+		};
+		const glm::vec3 from(world.WorldMatrix(id)[3]);
+		ring(from, 0.9f, T::Faded(T::Ochre, 0.7f));
+		if (hit)
+		{
+			ring(to, 0.9f, T::Ochre);
+			ImVec2 a, b;
+			if (screen(from + glm::vec3(0.0f, 0.1f, 0.0f), a) && screen(to + glm::vec3(0.0f, 0.1f, 0.0f), b))
+			{
+				const float len = std::hypot(b.x - a.x, b.y - a.y);
+				for (float s = 0.0f; s < len; s += 12.0f)
+				{
+					const float e = std::min(s + 7.0f, len);
+					dl->AddLine(ImVec2(a.x + (b.x - a.x) * s / len, a.y + (b.y - a.y) * s / len), ImVec2(a.x + (b.x - a.x) * e / len, a.y + (b.y - a.y) * e / len), T::Ochre, 2.0f);
+				}
+			}
+		}
+		// the clicks: left on the ground places it, right drops it (neither while the mouse is over a panel)
+		if (m_ViewportHovered && !c.TransplantHeld)
+		{
+			if (ImGui::IsMouseClicked(0) && hit) m_UiCommands.push_back("colony transplant to " + Num(to.x) + " " + Num(to.z));
+			else if (ImGui::IsMouseClicked(1)) m_UiCommands.push_back("colony transplant off");
+		}
+		// the hint, under the bar in the middle: what to do, and the game's reply when it refused
+		const std::string what = L.Text("Transplant {0}", Lang::Cap(L.Entity(c.Transplant)));
+		const std::string how = L.Text("A click on the ground where it goes; right click or Esc: leave it");
+		ImGui::SetNextWindowPos(ImVec2(ox + w * 0.5f, m_Observer.BarBottom + T::Gap), ImGuiCond_Always, ImVec2(0.5f, 0.0f));
+		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+			| ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoInputs;
+		const T::Scope theme;
+		if (ImGui::Begin("Transplant##colony", nullptr, flags))
+		{
+			const float lh = ImGui::GetTextLineHeight();
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(lh * 2.0f, lh * 2.0f));
+			glm::vec2 uv0, uv1;
+			if (IconUv("sow", uv0, uv1)) ImGui::GetWindowDrawList()->AddImage(TextureOf(*m_IconTexture), at, ImVec2(at.x + lh * 2.0f, at.y + lh * 2.0f), ImVec2(uv0.x, uv0.y), ImVec2(uv1.x, uv1.y));
+			ImGui::SameLine(0.0f, 8.0f);
+			ImGui::BeginGroup();
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", what.c_str());
+			ImGui::TextDisabled("%s", how.c_str());
+			if (c.TransplantFailed && !c.TransplantReply.empty()) ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Warn), "%s", Lang::Cap(L.Line(c.TransplantReply)).c_str());
+			ImGui::EndGroup();
+		}
+		ImGui::End();
 	}
 }

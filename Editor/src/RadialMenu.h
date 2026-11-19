@@ -95,5 +95,13 @@ namespace GB::Editor
 		float DragX = 0.0f;
 		int DragFrom = 0, DragTo = 0;
 		bool BareTitle = false;   // T336: the research queue drawn inside the clan's sheet: its title without its own close
+		bool ChronicleOwn = false;   // T342: the colony's chronicle was set to the player's clan once (then the player chooses)
+		// T333 (UI): the node being transplanted ("": no tool): a left click on the ground sends it there (`colony transplant to <x> <z>`), a right
+		// click or Esc drops it; the reply of the last try (a refusal stays on the hint, as the game's notes do not show in the colony)
+		std::string Transplant;
+		std::string TransplantReply;
+		bool TransplantFailed = false;
+		bool TransplantHeld = false;      // `colony transplant cursor <x> <z>`: where the mouse would be (the captures)
+		glm::vec2 TransplantCursor{ 0.0f };
 	};
 }

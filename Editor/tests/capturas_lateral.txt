@@ -1,0 +1,83 @@
+# T342 (L11, documentation/02_tecnico/gameplay/AUDITORIA_LATERAL_2026-11-19.md): every view of the colony's side panel and big sheet, headless.
+# Not a test (it is not registered in CMake): a capture script. {OUT} is the folder (it must exist: shot_ui does not make it) and {R} the prefix of
+# the size (l = 1600x900, m = 1280x720). From the repo root:
+#   sed "s#{OUT}#<folder>#g; s#{R}#l#g" Editor/tests/capturas_lateral.txt > <scratch>/lateral_l.txt
+#   build/Editor/Release/Editor.exe --shell --hidden --quality=low --step=60 --script=<scratch>/lateral_l.txt
+#   (and with s#{R}#m#g and --width=1280 --height=720)
+# The game: seed 5, 2 clans of 3, at x20 until day 2 at 02:00 (rain and night: the worst scene for the contrast), as the audit's annex A.
+shell new custom temperate 5 2 3
+observer speed 20
+wait 2700
+observer speed 1
+observer fold
+wait 5
+# the clan's big sheet, tab by tab
+colony tab clan
+wait 3
+shot_ui {OUT}/{R}01_clan.png
+colony tab chronicle
+wait 3
+shot_ui {OUT}/{R}02_cronica.png
+colony tab board
+wait 3
+shot_ui {OUT}/{R}03_tablon.png
+colony tab sites
+wait 3
+shot_ui {OUT}/{R}04_obras.png
+colony tab homes
+wait 3
+shot_ui {OUT}/{R}05_hogares.png
+colony tab research
+wait 3
+shot_ui {OUT}/{R}06_saber.png
+colony tab relations
+wait 3
+shot_ui {OUT}/{R}07_clanes.png
+colony tab off
+# the sheet on the right: a person, a building, a site
+colony select Ana
+wait 3
+shot_ui {OUT}/{R}08_persona.png
+colony select clear
+colony inspect Family_hall_1
+wait 3
+shot_ui {OUT}/{R}09_edificio.png
+colony inspect Communal_hearth_2
+wait 3
+shot_ui {OUT}/{R}10_obra.png
+colony inspect off
+# the player's tree of knowledge
+observer tree
+wait 3
+shot_ui {OUT}/{R}11_arbol.png
+observer tree
+# a node that can be moved (T333): the clan learns plant care so that the verb "transplant" exists (without it there is no button nor bubble)
+knowledge grant clan plant_care
+camera game overview -5.7 33.9 30
+wait 2
+colony inspect wild_berry_bush_45
+wait 3
+shot_ui {OUT}/{R}12_nodo.png
+colony inspect off
+colony radial wild_berry_bush_45
+colony radial hover transplant
+wait 3
+shot_ui {OUT}/{R}13_radial_trasplantar.png
+colony radial do transplant
+colony transplant cursor -3 31
+wait 3
+shot_ui {OUT}/{R}14_trasplantar_donde.png
+colony transplant to -3 31
+colony transplant off
+colony status
+# the god's tree (the observer of the free mode: every name), last: it leaves the colony
+director colony off
+observer tree
+wait 3
+shot_ui {OUT}/{R}15_arbol_dios.png
+observer tree
+director colony on
+observer status
+lang missing
+lang check
+quit

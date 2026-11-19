@@ -739,7 +739,7 @@ namespace GB::Editor
 									run("observer person " + m.Name);
 								}
 								if (!m.Dead && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Open the sheet of {0}", m.Name).c_str());
-								ImGui::TextDisabled("%s", L.Name("role", m.Role).c_str());
+								ImGui::TextDisabled("%s", RoleName(t, m).c_str());
 								ImGui::TableNextColumn();
 								if (m.Dead) ImGui::TextDisabled("%s", (m.Cause.empty() ? L.Text("dead") : L.Text("dead of {0}", L.Name("need", m.Cause))).c_str());
 								else ImGui::TextWrapped("%s", L.Doing(m.Job, m.Detail).c_str());
@@ -1727,7 +1727,7 @@ namespace GB::Editor
 		ImGui::PopStyleColor();
 		ImGui::SameLine();
 		std::string who = p ? (std::lround(p->Age) == 1 ? L.Text("1 year") : L.Text("{0} years", L.Num(p->Age, 0))) + ", " : std::string();
-		who += L.Name("role", m.Role) + (clanId >= 0 ? " (" + clanName(clanId) + ")" : std::string());
+		who += RoleName(t, m) + (clanId >= 0 ? " (" + clanName(clanId) + ")" : std::string());
 		ImGui::TextDisabled("%s", who.c_str());
 		// T271: several people of the colony selected: how many and who (a right click gives them all the order)
 		if (ColonyScreen() && m_Colony.Selection.size() > 1 && std::find(m_Colony.Selection.begin(), m_Colony.Selection.end(), m.Name) != m_Colony.Selection.end())

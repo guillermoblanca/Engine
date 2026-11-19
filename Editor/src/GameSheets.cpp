@@ -290,7 +290,9 @@ namespace GB::Editor
 		if (j.Kind == "build" || j.Kind == "deliver") return L.Entity(j.Target) + " (" + L.Name("kind", j.Kind) + ")";
 		if (j.Kind == "hunt") return L.Text("Hunt {0}", L.Name("animal", j.Target.rfind("Animal.", 0) == 0 ? j.Target.substr(7) : j.Target));
 		if (j.Kind == "stoke" || j.Kind == "fire") return Lang::Cap(L.Name("kind", j.Kind));
-		return j.Id;
+		// T342: an expedition (H12) for what it looks for; any other kind by its word and its target, never the raw id ("expedition flint")
+		if (j.Kind == "expedition") return L.Text("Expedition for {0}", item);
+		return Lang::Cap(L.Name("kind", j.Kind, j.Kind)) + (j.Target.empty() ? std::string() : ": " + item);
 	}
 
 	// ------------------------------------------------------------------ the job board (J): by kind, an icon, have/want, who holds it
@@ -384,7 +386,7 @@ namespace GB::Editor
 				else if (j->Kind == "build" || j->Kind == "deliver") { icon = "build"; name = L.Entity(target) + " (" + L.Name("kind", j->Kind) + ")"; }
 				else if (j->Kind == "hunt") { icon = "hunt"; name = Lang::Cap(L.Name("animal", target.rfind("Animal.", 0) == 0 ? target.substr(7) : target)); }
 				else if (j->Kind == "stoke" || j->Kind == "fire") { icon = "fire"; name = Lang::Cap(L.Name("kind", j->Kind)); }
-				else name = j->Id;
+				else { icon = j->Kind == "expedition" ? "expedition" : target; name = JobName(*j); }   // T342: never the job's raw id ("expedition flint")
 				{
 					const ImVec2 at = ImGui::GetCursorScreenPos();
 					ImGui::Dummy(ImVec2(12.0f, 20.0f));
@@ -508,7 +510,7 @@ namespace GB::Editor
 				if (m && t.People().Find(name))
 				{
 					const Society::Stage stage = t.People().StageOf(t.Config.Society, name);
-					who += stage == Society::Stage::Child ? " (" + L.Text("child") + ")" : stage == Society::Stage::Elder ? " (" + L.Text("elder") + ", " + L.Name("role", m->Role) + ")" : " (" + L.Name("role", m->Role) + ")";
+					who += stage == Society::Stage::Child ? " (" + L.Text("child") + ")" : stage == Society::Stage::Elder ? " (" + L.Text("elder") + ", " + RoleName(t, *m) + ")" : " (" + RoleName(t, *m) + ")";   // T342: "recolectora"
 				}
 				people += (people.empty() ? "" : ", ") + who;
 			}

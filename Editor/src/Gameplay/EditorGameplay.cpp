@@ -1580,7 +1580,7 @@ namespace GB::Editor
 			if (!memberAt(m, at)) continue;
 			const bool you = m_Game.Active && m.Name == m_Game.Player;
 			std::string task = m.Dead ? (m.Cause.empty() ? m_Lang.Text("dead") : m_Lang.Text("dead of {0}", m_Lang.Name("need", m.Cause))) : m_Lang.Doing(m.Job, m.Detail);
-			const std::string title = (you ? m_Lang.Text("YOU") + " - " : std::string()) + m.Name + " - " + m_Lang.Name("role", m.Role) + (clanName.empty() ? std::string() : " (" + m_Lang.Name("clan", clanName, clanName) + ")");
+			const std::string title = (you ? m_Lang.Text("YOU") + " - " : std::string()) + m.Name + " - " + RoleName(t, m) + (clanName.empty() ? std::string() : " (" + m_Lang.Name("clan", clanName, clanName) + ")");
 			if (quiet)
 			{
 				// the one selected or followed (from any height, like you in a game): its name and what it does, under its feet so the bubble over its
