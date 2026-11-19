@@ -815,7 +815,7 @@ namespace GB::Editor
 		if (sub == "verbs") { const Clan* vc = m_Clans.Find(HandClan()); if (!vc || !vc->Folk) return { false, "no clan of yours" }; const std::string r = TechVerbs::Report(*vc->Folk); return { true, r.empty() ? std::string("no technology unlocks a verb: every work is free") : r }; }   // T322 (GB/Game/TechVerbs.h)
 		if (sub == "priority" || sub == "stock") return (sub == "priority" ? PriorityCommand(std::vector<std::string>(a.begin() + 1, a.end())) : StockCommand(std::vector<std::string>(a.begin() + 1, a.end())));   // T306/T307 (Gameplay/EditorColonyWork.cpp)
 		// T324: the research queue of the player's clan (Gameplay/EditorColonyWork.cpp); `game research <tech>|none` below is still the clan's aim
-		if (sub == "research" && (a.size() == 1 || a[1] == "add" || a[1] == "remove" || a[1] == "clear" || a[1] == "top")) return ResearchCommand(std::vector<std::string>(a.begin() + 1, a.end()));
+		if (sub == "research" && (a.size() == 1 || a[1] == "add" || a[1] == "remove" || a[1] == "clear" || a[1] == "top" || a[1] == "move")) return ResearchCommand(std::vector<std::string>(a.begin() + 1, a.end()));
 		if (sub == "site")
 		{
 			const bool cancel = a.size() > 1 && a[1] == "cancel";

@@ -9,6 +9,7 @@
 // ("research"), so the clans of the AI and GBSim are the same as before.
 //
 // The tribe owns one (Tribe::Research()) and calls it from one line in Tribe::UpdateGoals (Settlement.cpp). CPU only, deterministic.
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -33,6 +34,8 @@ namespace GB
 		Reply Clear(Tribe& tribe);
 		// To the head of the queue (added there when it was not in it).
 		Reply Top(Tribe& tribe, const std::string& tech);
+		// T339 (K-c): to place `place` of the queue (1-based, clamped to the queue), for the drag of the Knowledge tab (`game research move <tech> <n>`).
+		Reply Move(Tribe& tribe, const std::string& tech, int place);
 		const std::vector<std::string>& All() const { return m_Queue; }
 
 		// The clan can research it now (see above).
@@ -42,9 +45,10 @@ namespace GB
 		// What the clan can research now and is not queued, in id order (the UI's list to add from), and how many unknown technologies are not
 		// shown because it cannot yet (ARBOL_TECNICO §11.2.5: never by name).
 		static std::vector<std::string> Open(const Tribe& tribe, const std::vector<std::string>& except = {});
-		static int Hidden(const Tribe& tribe);
+		// T338 (D6): `shown` keeps only the technologies the views draw (TechStatus::ShownFilter: those with a tier); empty = all of them.
+		static int Hidden(const Tribe& tribe, const std::function<bool(const std::string&)>& shown = {});
 		// "research queue: 1. pottery 34% researching; 2. weaving waits for spinning | can research: ...; ? 12 more" (`game research`).
-		std::string List(const Tribe& tribe) const;
+		std::string List(const Tribe& tribe, const std::function<bool(const std::string&)>& shown = {}) const;
 		// What an entry is doing: "researching", "next", "waits for <tech>", "cannot be found by trying", "the world does not let it", "known".
 		static std::string Status(const Tribe& tribe, const std::string& tech, bool current);
 

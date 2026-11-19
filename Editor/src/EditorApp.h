@@ -32,6 +32,7 @@
 #include "GB/Gameplay/WorldResources.h"
 #include "GB/Game/ClanHostility.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/TechStatus.h"
 #include "GB/Game/Founding.h"
 #include "GB/Game/SimQA.h"
 #include "GB/Game/GameContent.h"
@@ -218,6 +219,11 @@ namespace GB::Editor
 		void DrawObserver(float ox, float oy, float w, float h);
 		// the tree of knowledge (TechTreeView.cpp): t's technologies as a graph over the window; `playing`: its card may set the player's aim
 		void DrawTechTree(const Tribe& t, bool playing, float ox, float oy, float w, float h, bool& open, std::string& pick);
+		// T341: the one state of every technology for t (GB/Game/TechStatus.h, with the clans t has dealings with), and it in the player's words:
+		// "being studied, 34 %", "no flint at hand", "after Tillage"... (TechTreeView.cpp; the tree, the Knowledge tab and the sheet read them)
+		TechStatus TechStatusOf(const Tribe& t) const;
+		std::string TechStateText(const TechStatus& s, const std::string& tech) const;
+		std::string TechWhyText(const TechStatus& s, const std::string& tech) const;
 		bool* BookFlag(const std::string& sheet);   // the flag of a sheet of the clan book (BookSheets(), GameMode.h); null when there is no such sheet
 		void DrawKeysSheet();        // the clan book's Keys sheet
 		// the sheets that look at the clan and the world (GameSheets.cpp)

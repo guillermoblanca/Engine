@@ -240,6 +240,10 @@ int GBTest_research_queue(int, char**)
 		Check(q.Top(t, "beta").Ok && q.All() == List{ "beta", "delta", "gamma" } && c.AllNext("beta"), "(b) top puts beta first, and they try it");
 		Check(q.Remove(t, "beta").Ok && q.All() == List{ "delta", "gamma" } && c.AllNext("gamma"), "(b) remove takes it out: gamma again");
 		Check(q.Top(t, "alpha").Ok && q.All().front() == "alpha" && c.AllNext("alpha"), "(b) top of one not queued adds it first");
+		// T339 (K-c): move to a place (1-based, clamped); the list's text does not change
+		Check(q.Move(t, "alpha", 3).Ok && q.All() == List{ "delta", "gamma", "alpha" } && c.AllNext("gamma"), "(b) move alpha to 3: gamma leads again");
+		Check(q.Move(t, "alpha", 1).Ok && q.All() == List{ "alpha", "delta", "gamma" } && c.AllNext("alpha"), "(b) move alpha back to 1");
+		Check(q.Move(t, "gamma", 99).Ok && q.All() == List{ "alpha", "delta", "gamma" } && !q.Move(t, "beta", 1).Ok, "(b) a place past the end is the last; one not queued is refused");
 
 		// ---- (c) a learnt entry leaves
 		Check(t.Knowledge().GrantClan("alpha").empty() && t.Knowledge().GrantClan("gamma").empty(), "(c) the clan learns alpha and gamma");

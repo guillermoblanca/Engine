@@ -4,8 +4,9 @@
 //          cell puts it before (a lower number), a right click after, the wheel either way; "-" is never. A person whose table the player never
 //          touched decides as the clans of the AI: its row is dimmed and shows what its trade suggests. [As the AI] gives a table back.
 //   Stock: the clan's goals "keep N of X" (GB/Game/StockGoals.h): what it has against what it wants, and what it is doing about it.
-//   Knowledge (T324): the research queue (GB/Game/ResearchQueue.h): its entries with their progress (first, remove) and what the clan can
-//          research now to add; what it cannot yet is never named (ARBOL_TECNICO §11.2.5), only "? N more". It queues `game research ...`.
+//   Knowledge (T324): the research queue (GB/Game/ResearchQueue.h): its entries with their progress (first, remove, drag to move) and what the
+//          clan can research now to add, with the states of GB/Game/TechStatus.h (T341); what it cannot name is never named (ARBOL_TECNICO
+//          §11.2.5), only "? N more". It queues `game research ...`.
 // The UI decides nothing: every cell and button queues a `colony work ...` / `game stock ...` command, and `colony work step` runs the same
 // code as the click (the tests drive it headless, as `colony radial do` does for the radial).
 #include "EditorApp.h"
@@ -552,6 +553,8 @@ namespace GB::Editor
 	}
 
 	// T324: the research queue (ResearchQueue.h). The buttons only queue `game research ...`.
+	// T341: every state and every reason is TechStatus's (the tree says the same); a row dragged onto another queues `game research move <tech> <n>`
+	// (T339); what the clan cannot study yet is named only when it could name it (D2), the rest is "? N more" (only the technologies with a tier, D6).
 	void EditorApp::DrawResearchTab(const Tribe& t, float width, float maxH)
 	{
 		namespace T = GameTheme;
@@ -562,14 +565,11 @@ namespace GB::Editor
 		auto name = [&](const std::string& id) { const TechDef* d = tree ? tree->Find(id) : nullptr; return Lang::Cap(L.Name("tech", id, d ? d->Name : id)); };
 		ColonyTabTitle(L.Text("Knowledge"), L.Text("What the clan studies, in order: whoever works on knowledge tries the first it can"));
 		if (!tree) { ImGui::TextDisabled("%s", L.Text("This world has no technologies").c_str()); return; }
-		const std::vector<std::string> open = ResearchQueue::Open(t);
-		if (queue.Empty()) ImGui::TextDisabled("%s", L.Text("The queue is empty: the clan chooses what to seek. Add one below").c_str());
+		const TechStatus status = TechStatusOf(t);
+		if (queue.Empty()) ImGui::TextDisabled("%s", L.Text("The study queue is empty: add one below or from the tree").c_str());
 		else if (ImGui::BeginTable("research", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollY,
 			ImVec2(std::min(width, 760.0f), std::min((static_cast<float>(queue.All().size()) + 1.0f) * (ImGui::GetTextLineHeight() + 10.0f) + 4.0f, maxH - 110.0f))))
 		{
-			std::map<std::string, float> progress;
-			for (const ClanKnowledge::ResearchLine& l : t.Knowledge().Research()) progress[l.Tech] = l.Progress;
-			const std::string current = queue.Current(t);
 			ImGui::TableSetupColumn("tech", ImGuiTableColumnFlags_WidthFixed, 200.0f);
 			ImGui::TableSetupColumn("progress", ImGuiTableColumnFlags_WidthFixed, 70.0f);
 			ImGui::TableSetupColumn("status", ImGuiTableColumnFlags_WidthStretch);
@@ -578,27 +578,36 @@ namespace GB::Editor
 			for (size_t i = 0; i < queue.All().size(); ++i)
 			{
 				const std::string& id = queue.All()[i];
+				const TechStatus::Entry& e = status.Of(id);
 				ImGui::PushID(id.c_str());
 				ImGui::TableNextRow();
 				ImGui::TableNextColumn();
-				ImGui::TextUnformatted((std::to_string(i + 1) + ". " + name(id)).c_str());
+				// the row's name is its handle: drag it onto another row to put it in that place
+				ImGui::Selectable((std::to_string(i + 1) + ". " + name(id) + "###row").c_str(), false, ImGuiSelectableFlags_None, ImVec2(0.0f, 0.0f));
+				if (ImGui::IsItemHovered() && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) ImGui::SetTooltip("%s", L.Text("Drag it onto another row to move it there").c_str());
+				if (ImGui::BeginDragDropSource())
+				{
+					ImGui::SetDragDropPayload("GB_RESEARCH", id.c_str(), id.size() + 1);
+					ImGui::TextUnformatted(name(id).c_str());
+					ImGui::EndDragDropSource();
+				}
+				if (ImGui::BeginDragDropTarget())
+				{
+					if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("GB_RESEARCH"))
+					{
+						const std::string moved(static_cast<const char*>(p->Data));
+						if (moved != id) run("game research move " + moved + " " + std::to_string(i + 1));
+					}
+					ImGui::EndDragDropTarget();
+				}
 				ImGui::TableNextColumn();
-				const auto p = progress.find(id);
-				ImGui::Text("%d%%", static_cast<int>(std::lround((p == progress.end() ? 0.0f : p->second) * 100.0f)));
+				ImGui::Text("%d%%", static_cast<int>(std::lround(e.Progress * 100.0f)));
 				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("How far the one furthest on it has worked it out").c_str());
 				ImGui::TableNextColumn();
-				// ResearchQueue::Status in the player's words; a prerequisite is named only when the clan could research it now
-				const std::string s = ResearchQueue::Status(t, id, id == current);
-				std::pair<std::string, unsigned> said{ s, T::Bone };
-				if (s == "researching") said = { L.Text("being studied"), T::Good };
-				else if (s == "next") said = { L.Text("next"), T::Bone };
-				else if (s == "cannot be found by trying") said = { L.Text("cannot be found by trying: it is learnt from others"), T::Warn };
-				else if (s == "the world does not let it") said = { L.Text("the world does not give what it needs yet"), T::Warn };
-				else if (s.rfind("waits for ", 0) == 0)
-				{
-					const std::string need = s.substr(10);
-					said = { std::find(open.begin(), open.end(), need) != open.end() ? L.Text("waits for {0}", name(need)) : L.Text("waits for something the clan does not know yet"), T::Warn };
-				}
+				// TechStatus in the player's words: being studied, next, or what it waits for (a prerequisite named only when the clan can name it)
+				std::pair<std::string, unsigned> said{ L.Text("next"), T::Bone };
+				if (e.State == TechState::Studying) said = { L.Text("being studied"), T::Good };
+				else if (e.Why != TechWhy::None) said = { TechWhyText(status, id), T::Warn };
 				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(said.second), "%s", said.first.c_str());
 				ImGui::TableNextColumn();
 				if (i > 0)
@@ -616,16 +625,34 @@ namespace GB::Editor
 		ImGui::Spacing();
 		ImGui::TextDisabled("%s", L.Text("The clan can study now").c_str());
 		int shown = 0;
-		for (const std::string& id : open)
+		for (const auto& [id, e] : status.All())
 		{
-			if (std::find(queue.All().begin(), queue.All().end(), id) != queue.All().end()) continue;
+			if (e.State != TechState::Studiable || !e.Shown) continue;
 			if (shown++ > 0) ImGui::SameLine();
 			if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(name(id).c_str()).x + 16.0f) ImGui::NewLine();
 			if (ImGui::SmallButton((name(id) + "###add" + id).c_str())) run("game research add " + id);
 			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Add {0} to the end of the queue", name(id)).c_str());
 		}
 		if (shown == 0) ImGui::TextDisabled("%s", L.Text("Nothing new: it must learn more first").c_str());
-		if (const int hidden = ResearchQueue::Hidden(t); hidden > 0)
+		// what it cannot study yet and can name: each with why (no flint at hand, only from others, another clan knows it)
+		std::vector<std::string> later;
+		for (const auto& [id, e] : status.All())
+			if (e.Shown && e.Queue == 0 && (e.State == TechState::Blocked || e.State == TechState::OtherClan)) later.push_back(id);
+		if (!later.empty())
+		{
+			ImGui::Spacing();
+			ImGui::TextDisabled("%s", L.Text("Not yet").c_str());
+			for (const std::string& id : later)
+			{
+				const TechStatus::Entry& e = status.Of(id);
+				ImGui::Bullet();
+				ImGui::SameLine();
+				ImGui::TextUnformatted(name(id).c_str());
+				ImGui::SameLine();
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(e.State == TechState::OtherClan ? T::News : T::Warn), "%s", TechStateText(status, id).c_str());
+			}
+		}
+		if (const int hidden = status.UnnamedCount(); hidden > 0)
 		{
 			ImGui::TextDisabled("%s", L.Text("? {0} more", hidden).c_str());
 			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("What the clan cannot study yet: it needs what it does not know").c_str());

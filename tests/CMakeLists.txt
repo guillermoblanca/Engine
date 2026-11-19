@@ -278,6 +278,8 @@ gb_test(colony_priorities colony_priorities_test.cpp POOL GBSimTests LINK GB::Si
 gb_test(farm_zones farm_zones_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T324 (ARBOL_TECNICO §11.2.4): the research queue of the player's clan: refusals, the order of the experiments, a learnt entry leaves, a run, save
 gb_test(research_queue research_queue_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+# T341 (PROPUESTA_ARBOL K-b): one state per technology for the tree, the queue and the sheet; tiers shown and counted (T338, D6)
+gb_test(tech_status tech_status_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T322 (ARBOL_TECNICO §11.7.1): technique -> verb: the board, the brain, the orders, the marks and the zones without the verb; KnowsVerb and its list
 gb_test(tech_verbs tech_verbs_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T325 (ARBOL_TECNICO §11.5, §11.7.2): transplant: a node dug up, carried and planted; the verb gates it; it gives again there; saving

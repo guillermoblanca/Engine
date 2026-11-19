@@ -2829,16 +2829,17 @@ namespace GB::Editor
 				ImDrawList* dl = ImGui::GetWindowDrawList();
 				const float bh = 50.0f, is = 24.0f;
 				const bool building = m_Hand.Menu == "build" || !m_Hand.Building.empty();
-				const std::string& aim = clan->Folk->ResearchAim();
+				// T339 (D1): the queue is the colony's only way to direct research: the button says what it studies now, not the old aim
+				const std::string studying = clan->Folk->Research().Current(*clan->Folk);
 				const TechTree* techs = clan->Folk->Knowledge().Techs();
-				const TechDef* def = !aim.empty() && techs ? techs->Find(aim) : nullptr;
+				const TechDef* def = !studying.empty() && techs ? techs->Find(studying) : nullptr;
 				struct Button { const char* Id; const char* Label; const char* Icon; bool On; std::string Command, Tip; };
 				std::vector<Button> buttons = {
 					{ "build", "Build", "build", building, building ? "director hand off" : "director hand build",
 						L.Text("Choose a building and where it goes: the {0} raise it with their own material", name) },
 					{ "research", "Knowledge", "experiment", m_Colony.Tab == "research", m_Colony.Tab == "research" ? "colony tab off" : "colony tab research",
-						L.Text("What the clan studies, in order: the research queue") + "\n" + (aim.empty() ? L.Text("Choose what the {0} seek in the tree of knowledge (they also find things out by themselves)", name)
-							: L.Text("The {0} seek {1}", name, Lang::Cap(L.Name("tech", aim, def ? def->Name : aim)))) },
+						L.Text("What the clan studies, in order: the research queue") + "\n" + (studying.empty() ? L.Text("The study queue is empty: the {0} find things out by themselves", name)
+							: L.Text("The {0} study {1}", name, Lang::Cap(L.Name("tech", studying, def ? def->Name : studying)))) },
 					{ "work", "Work", "", m_Colony.Tab == "work", m_Colony.Tab == "work" ? "colony tab off" : "colony tab work", L.Text("Who does what first: the priorities of each person") },
 					{ "stock", "Stock", "deposit", m_Colony.Tab == "stock", m_Colony.Tab == "stock" ? "colony tab off" : "colony tab stock",
 						L.Text("What the clan keeps in store: N of a thing, made or gathered when it lacks") },
