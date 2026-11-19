@@ -82,6 +82,7 @@ namespace GB::Editor
 	float WorldInstance::TroddenAt(float x, float z) const
 	{
 		float trodden = TrailTrodden ? std::clamp(TrailTrodden(x, z), 0.0f, 1.0f) : 0.0f;   // T5c: the clans' trails
+		if (GroundCleared) trodden = std::max(trodden, std::clamp(GroundCleared(x, z), 0.0f, 1.0f));   // T332: fields and buildings
 		const glm::vec2 p(x, z);
 		for (const Trodden& t : m_Trodden)
 		{

@@ -62,6 +62,8 @@ namespace GB::Editor
 		// T5c (TrailsView.cpp): the clans' trails, 0..1 at a place: how much grass they take away (TroddenAt) and how much of the undergrowth's cost
 		// they take away for the navigation (PlayerMode::SyncNavigation reads TrailEase). Unset: none.
 		std::function<float(float, float)> TrailTrodden, TrailEase;
+		// T332 (TrailsView.cpp): the ground under the clans' fields and under the buildings and sites, 0..1: no grass grows there (TroddenAt). Unset: none.
+		std::function<float(float, float)> GroundCleared;
 		bool RegrowGrassAreas(const std::vector<glm::vec4>& rects) { return m_Grass && m_Grass->RegrowAreas(rects); }
 
 	private:

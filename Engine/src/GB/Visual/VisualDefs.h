@@ -1,6 +1,7 @@
 #pragma once
 #include "GB/Renderer/MaterialLayers.h"
 #include "GB/Visual/ProcMesh.h"
+#include "GB/World/TilledGround.h"
 #include <glm/glm.hpp>
 #include <map>
 #include <string>
@@ -28,6 +29,9 @@ namespace GB
 		// thatch, tied at the ridge and free at the eave). Measured on each glTF primitive's own height; the procedural parts sway from the
 		// model's ground up, as before.
 		std::string WindRoot = "bottom";
+		// T332: the height (m, in the model) over which the procedural parts sway from nothing at the ground to all of Wind: low plants (a crop
+		// under a metre) sway at their tips with 1, the trees with the default 3
+		float WindHeight = 3.0f;
 		bool Seasonal = false;            // takes the season's foliage colour (crowns, bushes)
 		// A11: 0..1, how much of the season's hue it takes, at the same brightness (straw that greens in spring and browns in autumn): the
 		// colour (or a kit piece's painted texture) times mix(1, foliage / luminance(foliage), SeasonTint). 0: none. See SeasonTint().
@@ -207,11 +211,12 @@ namespace GB
 		std::map<std::string, PileVisual> Piles;                      // by item tag
 		std::map<std::string, ReachRule> Reach;                       // by ability or activity
 		PropRules Props;
+		TilledLook Fields;                                            // T332: the tilled ground of the fields ("fields", GB/World/TilledGround.h)
 		bool operator==(const VisualLibrary&) const = default;
 	};
 
 	// The "visuals" section: { "materials": {id: {...}}, "models": {id: {"variants", "note", "parts": [...]}}, "buildings": {id: {"footprint", "phases":
-	// [{"name", "parts"}]}}, "creatures", "piles", "reach", "props": {"looks", "items", "rest", "work", "hand", "carry", "carryJobs", "maxShown"} }.
+	// [{"name", "parts"}]}}, "creatures", "piles", "reach", "props": {"looks", "items", "rest", "work", "hand", "carry", "carryJobs", "maxShown"}, "fields": {...} (TilledLook) }.
 	// A material may say its "surface" (opaque, cutout, translucent) and switch on "layers" of the registry ({"moss": {"amount": 0.4, "color":
 	// [r, g, b]}}); an unknown layer or parameter, a value of the wrong type or out of range is a mistake. A model part may give "models": [one
 	// glTF per variant] instead of "model".

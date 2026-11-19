@@ -7,6 +7,7 @@
 #include "GB/Visual/SceneVisuals.h"
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 
 namespace GB
@@ -78,6 +79,36 @@ namespace GB
 
 	private:
 		void ApplyProps(Actor& actor, MemberState& st, const PropChoice& choice, const SceneVisuals* visuals);
+		void AddFields(const Tribe& tribe, const Context& ctx, Scene& scene);
 		std::map<std::string, MemberState> m_Members;
+
+		// T332: each field's tilled ground (GB/World/TilledGround.h), by tribe and field name: the mesh made again only when its cells or the
+		// ground under them change, the map of its plots' tints only when a state changes
+		struct TilledDraw
+		{
+			uint64_t ShapeKey = 0, TintKey = 0;
+			std::unique_ptr<Mesh> Ground;
+			std::unique_ptr<Texture2D> Tints;
+			glm::vec4 TintRect{ 0.0f };
+			glm::vec3 Centre{ 0.0f };
+			float Radius = 0.0f;
+			size_t Triangles = 0;
+			uint32_t RimIndices = 0;   // the rim's triangles come first (drawn with the rim material)
+			size_t Plants = 0;   // the plant copies drawn last time
+			std::vector<glm::vec4> Stones;   // the margin's stones (TilledStones), made with the sheet
+		};
+		std::map<std::pair<const Tribe*, std::string>, TilledDraw> m_Fields;
+	public:
+		// For `visuals status`: the fields kept, their triangles, the plant copies each drew last and the time spent building them.
+		struct FieldStats
+		{
+			size_t Fields = 0, Triangles = 0, Plants = 0;
+			int MeshBuilds = 0, TintBuilds = 0;
+			double MeshMs = 0.0, TintMs = 0.0, LastMeshMs = 0.0;
+		};
+		FieldStats Fields() const;
+	private:
+		FieldStats m_FieldStats;   // (the builds; Fields() adds the counts of the fields kept)
+		TilledLook m_Look;
 	};
 }
