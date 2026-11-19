@@ -36,6 +36,15 @@ namespace GB
 	// -x of the first included.
 	GroundRect FieldGround(const glm::vec2& origin, int plots, int columns, float spacing);
 	GroundRect FieldGround(const Field& field);
+	// T337: the ground a field takes, plot by plot: a rectangle field (no Cells) gives its one FieldGround, as before; a field of any shape (a
+	// zone painted as a polygon) a rectangle for each run of plots along a row and one for its store, one plot to the -x of its first plot
+	// (FieldStoreSpot). So a zone in the notch of an L beside another is not refused for the bounding box of the other.
+	void FieldGrounds(const Field& field, std::vector<GroundRect>& out);
+	// The same for a field not made yet: its first plot's middle at `origin`, `columns` a row, `spacing` apart, and its cells (ascending; all
+	// of the grid = a rectangle).
+	void FieldGrounds(const glm::vec2& origin, int columns, float spacing, const std::vector<int>& cells, std::vector<GroundRect>& out);
+	// Where the store of a field painted with these cells stands: one plot to the -x of its first plot (of the grid's first cell for a rectangle).
+	glm::vec2 FieldStoreSpot(const glm::vec2& origin, int columns, float spacing, const std::vector<int>& cells);
 
 	// Whether two footprints, each grown by `gap` / 2 on every side, overlap by more than kGroundTouch (separating axes).
 	bool GroundOverlaps(const GroundRect& a, const GroundRect& b, float gap = 0.0f);

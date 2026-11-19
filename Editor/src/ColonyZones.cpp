@@ -127,13 +127,15 @@ namespace GB::Editor
 		if (key == z.Key) return;
 		z.Key = key;
 		z.Cells.clear();
+		z.Clear.clear();
+		z.Walled.clear();
 		z.Area = outline.size() >= 3 ? Area(outline) : 0.0f;
 		z.Crosses = Crosses(outline);
 		z.Plots = 0;
 		z.Ok = false;
 		z.Why.clear();
 		if (outline.size() < 3) return;
-		const FarmZones::Reply r = FarmZones::Check(t, outline, std::string(), &z.Plots);
+		const FarmZones::Reply r = FarmZones::Check(t, outline, std::string(), &z.Plots, &z.Clear, &z.Walled);
 		z.Ok = r.Ok && !z.Crosses;
 		z.Why = r.Ok ? std::string() : r.Text;
 		// the plots' middles, as Check lays them (the grid from the lowest x and z, Spacing apart): only to draw them
@@ -283,6 +285,14 @@ namespace GB::Editor
 			const ImVec2 ts = ImGui::CalcTextSize(text.c_str());
 			label(ImVec2(at.x - ts.x * 0.5f - T::Pad, at.y - ts.y * 0.5f - T::Pad * 0.5f), { { text, chosen ? T::Ochre : T::Bone } }, chosen ? T::Ochre : 0);
 		}
+		// T337: the plots of the zones that wait for a tree, a rock or a bush to be cleared: an ochre dot on each
+		for (const Field& f : t.Economy().Fields)
+			if (const std::set<size_t>* wait = t.Zones().Blocked(f.Name))
+				for (const size_t i : *wait)
+				{
+					ImVec2 s;
+					if (i < f.Plots.size() && screen(f.PlotPos(i), s)) { dl->AddCircleFilled(s, 5.5f, T::Outline, 12); dl->AddCircleFilled(s, 4.0f, T::Ochre, 12); }
+				}
 
 		// ---- where the mouse is on the ground (or the point a script holds there)
 		glm::vec2 cursor(0.0f);
@@ -316,6 +326,18 @@ namespace GB::Editor
 				ImVec2 s;
 				if (screen(c, s)) dl->AddCircleFilled(s, 3.0f, T::Faded(colour, 0.85f), 8);
 			}
+			if (judged && z.Ok)   // T337: the plots with something to clear first (a tree, a rock, a bush): ochre, not refused
+				for (const glm::vec2& c : z.Clear)
+				{
+					ImVec2 s;
+					if (screen(c, s)) { dl->AddCircleFilled(s, 5.5f, T::Outline, 12); dl->AddCircleFilled(s, 4.0f, T::Ochre, 12); }
+				}
+			if (judged && z.Ok)   // ... and the ones left out (walled by a tree or a rock of the scenery): red
+				for (const glm::vec2& c : z.Walled)
+				{
+					ImVec2 s;
+					if (screen(c, s)) dl->AddCircleFilled(s, 3.5f, T::Bad, 8);
+				}
 			if (glm::vec2 bad; judged && !z.Ok && RefusedPlot(z.Why, bad))   // the plot that cannot be (water, a rock, a trunk): a red cross on it
 			{
 				ImVec2 s;
@@ -566,6 +588,8 @@ namespace GB::Editor
 			char area[32];
 			std::snprintf(area, sizeof area, "%.0f", static_cast<double>(z.Area));
 			s += std::string("; area ") + area + " m2; " + std::to_string(z.Plots) + " plots; " + (z.Crosses ? std::string("the edges cross") : z.Ok ? std::string("ok") : "refused: " + z.Why);
+			if (z.Ok && !z.Crosses && !z.Clear.empty()) s += "; " + std::to_string(z.Clear.size()) + " plots to clear first";   // T337
+			if (z.Ok && !z.Crosses && !z.Walled.empty()) s += "; " + std::to_string(z.Walled.size()) + " plots left out";
 		}
 		s += "; crop " + (z.Crop.empty() ? std::string("auto") : z.Crop) + "; plan " + z.Plan + "; selected " + (z.Selected.empty() ? std::string("none") : z.Selected);
 		return s;

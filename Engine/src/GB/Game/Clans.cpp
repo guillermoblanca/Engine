@@ -112,7 +112,7 @@ namespace GB
 		{
 			for (const auto& other : m_Clans)
 				if (other->Id != id && other->Folk)
-					for (const Field& f : other->Folk->Economy().Fields) out.push_back(FieldGround(f));
+					for (const Field& f : other->Folk->Economy().Fields) FieldGrounds(f, out);   // (T337: a shaped one plot by plot)
 		};
 		c.Folk->SetOutside(std::move(o));
 		c.Folk->SetNameTaken([this](const std::string& n) { return NameTaken(n); });

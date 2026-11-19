@@ -85,6 +85,8 @@ namespace GB::Editor
 			int Plots = 0;
 			float Area = 0.0f;
 			std::vector<glm::vec2> Cells;     // the middles of the plots it would have (drawn as dots)
+			std::vector<glm::vec2> Clear;     // T337: ... and of those with a tree, a rock or a bush to clear first (ochre dots)
+			std::vector<glm::vec2> Walled;    // ... and of those left out: walled by what nobody can clear (red dots)
 		};
 		ZoneTool Zone;
 	};

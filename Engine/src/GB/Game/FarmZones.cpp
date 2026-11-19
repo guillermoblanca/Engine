@@ -4,6 +4,8 @@
 #include "GB/Game/SettlementPlanner.h"
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Gameplay/Resources.h"
+#include <cctype>
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -113,9 +115,13 @@ namespace GB
 			grid.Rows = rows;
 			grid.Spacing = sp;
 			grid.Cells = cells;
-			// the ground: nothing standing there (any clan's site, building or field: its bounding grid), and every plot dry ground a member can stand on
-			const GroundRect want = FieldGround(lo, cells.back() + 1, columns, sp);
-			if (const std::string why = GroundFree(want, TakenGround(tribe), 0.0f); !why.empty()) return { false, "cannot paint there: " + why };
+			// the ground: nothing standing there (any clan's site, building or field: T337 plot by plot, so a zone in the notch of an L is not on
+			// it), and every plot dry ground (what stands in a plot, a tree or a rock, is the zone's first work: FarmZones::Blockers)
+			std::vector<GroundRect> want;
+			FieldGrounds(lo, columns, sp, cells, want);
+			const std::vector<GroundRect> taken = TakenGround(tribe);
+			for (const GroundRect& r : want)
+				if (const std::string why = GroundFree(r, taken, 0.0f); !why.empty()) return { false, "cannot paint there: " + why };
 			const ITribeBody* body = nullptr;
 			for (const TribeMember& m : tribe.Members()) if (!m.Dead && m.Body) { body = m.Body; break; }
 			if (body)
@@ -125,19 +131,112 @@ namespace GB
 					char at[48];
 					std::snprintf(at, sizeof at, "%.0f, %.0f", static_cast<double>(p.x), static_cast<double>(p.y));
 					if (body->WaterDepthAt(p) > kWetDepth) return { false, std::string("cannot paint there: the plot at ") + at + " is in the water" };
-					bool stand = body->CanStandAt(p);   // the plot's middle and its four quarters (a trunk between two middles)
-					for (const glm::vec2 d : { glm::vec2(0.5f, 0.5f), glm::vec2(-0.5f, 0.5f), glm::vec2(0.5f, -0.5f), glm::vec2(-0.5f, -0.5f) }) stand = stand && body->CanStandAt(p + d * sp * 0.5f);
-					if (!stand) return { false, std::string("cannot paint there: the plot at ") + at + " is on a rock or a trunk" };
 				}
 			return { true, std::string() };
 		}
 	}
 
-	FarmZones::Reply FarmZones::Check(const Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop, int* plots)
+	// ------------------------------------------------------------------ T337: what stands in a zone
+	FarmZones::Reply FarmZones::Blockers(const Tribe& tribe, const glm::vec2& lo, int columns, float sp, const std::vector<int>& cells, std::vector<std::vector<std::string>>& perCell,
+		std::vector<size_t>* stuck)
+	{
+		perCell.assign(cells.size(), {});
+		if (cells.empty()) return { true, std::string() };
+		const int cols = std::max(1, columns);
+		const float reach = std::max(0.0f, tribe.Config.Econ.Farming.ClearReach);
+		auto at = [&](int cell) { return lo + glm::vec2(static_cast<float>(cell % cols), static_cast<float>(cell / cols)) * sp; };
+		// the nodes round the zone's grid (its plots and a reach more), in the scene's order of names
+		glm::vec2 from = at(cells.front()), to = from;
+		for (const int c : cells) { from = glm::min(from, at(c)); to = glm::max(to, at(c)); }
+		from -= glm::vec2(std::max(sp, reach));
+		to += glm::vec2(std::max(sp, reach));
+		std::vector<std::pair<std::string, glm::vec2>> nodes;
+		if (tribe.m_Gameplay && tribe.m_Entities)
+			for (const GameplayWorld::Tagged& t : tribe.m_Gameplay->WithTag("Resource.Node"))
+			{
+				const EntityId id = tribe.m_Entities->FindByName(*t.Name);
+				if (id == NullEntity) continue;
+				const glm::vec4 p = tribe.m_Entities->WorldMatrix(id)[3];
+				if (p.x >= from.x && p.x <= to.x && p.z >= from.y && p.z <= to.y) nodes.push_back({ *t.Name, { p.x, p.z } });
+			}
+		const ITribeBody* body = nullptr;
+		for (const TribeMember& m : tribe.Members()) if (!m.Dead && m.Body) { body = m.Body; break; }
+		const float half = 0.5f * sp;
+		for (size_t i = 0; i < cells.size(); ++i)
+		{
+			const glm::vec2 p = at(cells[i]);
+			// a node whose foot is in the plot's square
+			for (const auto& [name, q] : nodes) if (std::abs(q.x - p.x) <= half && std::abs(q.y - p.y) <= half) perCell[i].push_back(name);
+			if (!body) continue;
+			bool stand = body->CanStandAt(p);   // the plot's middle and its four quarters (a trunk between two middles)
+			for (const glm::vec2 d : { glm::vec2(0.5f, 0.5f), glm::vec2(-0.5f, 0.5f), glm::vec2(0.5f, -0.5f), glm::vec2(-0.5f, -0.5f) }) stand = stand && body->CanStandAt(p + d * half);
+			if (stand) continue;
+			if (!perCell[i].empty()) continue;
+			// nobody can stand on it and no node stands in it: the nearest node within the reach is in the way (a trunk, a big rock whose wall
+			// reaches over; once it is gone the next one is, if the plot is still walled); with none, a tree or a rock of the scenery or a cliff,
+			// which nobody can clear
+			const std::string* nearest = nullptr;
+			float best = reach;
+			for (const auto& [name, q] : nodes) if (const float d = glm::distance(q, p); d <= best) { best = d; nearest = &name; }
+			if (nearest) { perCell[i].push_back(*nearest); continue; }
+			if (stuck) { stuck->push_back(i); continue; }
+			char where[48];
+			std::snprintf(where, sizeof where, "%.0f, %.0f", static_cast<double>(p.x), static_cast<double>(p.y));
+			return { false, std::string("cannot paint there: the plot at ") + where + " is on a rock or a trunk" };
+		}
+		return { true, std::string() };
+	}
+
+	// T337: the zone's plots without the walled ones (a tree or a rock of the scenery, a cliff: nobody can clear them, so the zone leaves them
+	// out, a hole in it) and what stands in each of the others. Refused when nothing is left.
+	FarmZones::Reply FarmZones::Plots(const Tribe& tribe, std::vector<int>& cells, const glm::vec2& lo, int columns, float sp, std::vector<std::vector<std::string>>& perCell,
+		std::vector<glm::vec2>* walled)
+	{
+		std::vector<size_t> stuck;
+		if (const Reply r = Blockers(tribe, lo, columns, sp, cells, perCell, &stuck); !r.Ok) return r;
+		if (walled) walled->clear();
+		if (stuck.empty()) return { true, std::string() };
+		std::vector<int> kept;
+		std::vector<std::vector<std::string>> keptNodes;
+		size_t s = 0;
+		for (size_t i = 0; i < cells.size(); ++i)
+		{
+			if (s < stuck.size() && stuck[s] == i)
+			{
+				++s;
+				if (walled) walled->push_back(lo + glm::vec2(static_cast<float>(cells[i] % columns), static_cast<float>(cells[i] / columns)) * sp);
+				continue;
+			}
+			kept.push_back(cells[i]);
+			keptNodes.push_back(std::move(perCell[i]));
+		}
+		if (kept.empty()) return { false, "cannot paint there: every plot is on a rock or a trunk that cannot be cleared" };
+		cells = std::move(kept);
+		perCell = std::move(keptNodes);
+		// with holes its store may stand elsewhere (beside its first plot left): the ground again, as it will be
+		std::vector<GroundRect> want;
+		FieldGrounds(lo, columns, sp, cells, want);
+		const std::vector<GroundRect> taken = TakenGround(tribe);
+		for (const GroundRect& r : want)
+			if (const std::string why = GroundFree(r, taken, 0.0f); !why.empty()) return { false, "cannot paint there: " + why };
+		return { true, std::string() };
+	}
+
+	FarmZones::Reply FarmZones::Check(const Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop, int* plots, std::vector<glm::vec2>* clear,
+		std::vector<glm::vec2>* walled)
 	{
 		OutlineGrid grid;
-		const Reply r = CheckOutline(tribe, outline, crop, grid);
+		Reply r = CheckOutline(tribe, outline, crop, grid);
+		std::vector<std::vector<std::string>> perCell;
+		if (r.Ok) r = Plots(tribe, grid.Cells, grid.Lo, grid.Columns, grid.Spacing, perCell, walled);
 		if (plots) *plots = r.Ok ? static_cast<int>(grid.Cells.size()) : 0;
+		if (clear)
+		{
+			clear->clear();
+			if (r.Ok)
+				for (size_t i = 0; i < grid.Cells.size(); ++i)
+					if (!perCell[i].empty()) clear->push_back(grid.Lo + glm::vec2(static_cast<float>(grid.Cells[i] % grid.Columns), static_cast<float>(grid.Cells[i] / grid.Columns)) * grid.Spacing);
+		}
 		return r;
 	}
 
@@ -145,6 +244,9 @@ namespace GB
 	{
 		OutlineGrid grid;
 		if (const Reply r = CheckOutline(tribe, outline, crop, grid); !r.Ok) return r;
+		std::vector<std::vector<std::string>> perCell;
+		std::vector<glm::vec2> walled;
+		if (const Reply r = Plots(tribe, grid.Cells, grid.Lo, grid.Columns, grid.Spacing, perCell, &walled); !r.Ok) return r;
 		const glm::vec2 lo = grid.Lo;
 		const int columns = grid.Columns, rows = grid.Rows;
 		const float sp = grid.Spacing;
@@ -160,7 +262,7 @@ namespace GB
 		if (plots != columns * rows) field.Cells = cells;   // (a rectangle keeps the plain grid)
 		tribe.m_Econ.Fields.push_back(std::move(field));
 		if (!tribe.Config.Econ.Logistics.FieldStore.empty())   // the harvest is left beside the zone and hauled to the camp (as Tribe::MarkField)
-			tribe.AddStockpile(name + " store", lo + glm::vec2(-sp, 0.0f), tribe.Config.Econ.Logistics.FieldStore);
+			tribe.AddStockpile(name + " store", FieldStoreSpot(lo, columns, sp, plots != columns * rows ? cells : std::vector<int>()), tribe.Config.Econ.Logistics.FieldStore);   // (T337: beside its first plot)
 		Zone zone{ crop, "sow", crop.empty() };   // with no crop the clan chooses it
 		zone.Outline = outline;
 		m_Zones[name] = zone;
@@ -172,7 +274,18 @@ namespace GB
 			std::snprintf(text, sizeof text, "%s painted at %.0f, %.0f: %d points, %d plots, crop %s", name.c_str(), static_cast<double>(lo.x), static_cast<double>(lo.y), static_cast<int>(outline.size()), plots,
 				crop.empty() ? "any" : crop.c_str());
 		Logged(tribe, std::string("the player paints ") + text);
-		return { true, text };
+		// T337: what stands in it is its first work (its nodes are marked to clear now, and its plots wait for them)
+		int waiting = 0;
+		for (const auto& c : perCell) waiting += c.empty() ? 0 : 1;
+		std::string reply = text;
+		if (waiting > 0)
+		{
+			RefreshClearing(tribe);
+			reply += "; " + std::to_string(waiting) + (waiting == 1 ? " plot" : " plots") + " to clear first";
+			if (const std::string c = Clearing(name); !c.empty()) Logged(tribe, name + ": " + c);
+		}
+		if (!walled.empty()) reply += "; " + std::to_string(walled.size()) + (walled.size() == 1 ? " plot" : " plots") + " left out (a rock or a tree that cannot be cleared)";
+		return { true, reply };
 	}
 
 	FarmZones::Reply FarmZones::SetCrop(Tribe& tribe, const std::string& zone, const std::string& crop)
@@ -246,6 +359,13 @@ namespace GB
 			if (at == index) { m.Detail = action + " " + std::to_string(fields.size() + 1000) + " " + crop; continue; }
 			if (at > index) m.Detail = action + " " + std::to_string(at - 1) + " " + crop + rest;
 		}
+		// T337: the nodes it asked to clear are no more its work (what was cleared stays cleared)
+		std::vector<std::string> marked;
+		for (const auto& [node, mark] : tribe.m_Designations.Marks()) if (mark.Field == name) marked.push_back(node);
+		for (const std::string& node : marked) tribe.m_Designations.Undesignate(tribe, node);
+		m_Blocked.erase(name);
+		m_ClearText.erase(name);
+		m_Clean.erase(name);
 		Logged(tribe, "the player removes " + name);
 		return { true, name + " removed" };
 	}
@@ -257,6 +377,7 @@ namespace GB
 		{
 			const Zone* z = Of(f.Name);
 			std::string head = z ? " [crop " + (z->Auto ? std::string("auto") : z->Crop.empty() ? std::string("any") : z->Crop) + ", plan " + z->Plan + "]" : std::string(" [the clan's, auto]");
+			if (const std::string c = Clearing(f.Name); !c.empty()) head += "; " + c;   // T337 (only while something stands in it)
 			s += (s.empty() ? "" : "\n") + f.Report() + head;
 		}
 		return s.empty() ? std::string("no zones") : s;
@@ -341,7 +462,13 @@ namespace GB
 			if (!Works(field, action)) continue;
 			std::string c;
 			if (action == "sow" && (c = CropFor(tribe, field)).empty()) continue;
-			plots = action == "till" ? field.Find("grass", most) : action == "sow" ? field.Find("dug", most) : action == "tend" ? field.Dry(most) : field.Find("grown", most);
+			if (action == "till" && Blocked(field.Name))   // T337: a plot with something standing in it waits to be cleared
+			{
+				const std::set<size_t>& wait = *Blocked(field.Name);
+				plots.clear();
+				for (const size_t p : field.Find("grass", field.Plots.size())) if (!wait.count(p) && plots.size() < most) plots.push_back(p);
+			}
+			else plots = action == "till" ? field.Find("grass", most) : action == "sow" ? field.Find("dug", most) : action == "tend" ? field.Dry(most) : field.Find("grown", most);
 			if (plots.empty()) continue;
 			fieldIndex = i;
 			crop = action == "sow" ? c : std::string("-");
@@ -389,12 +516,18 @@ namespace GB
 				if (const auto at = FieldOriginFor(tribe, tribe.Config.Economy.Camp + f.Offset + glm::vec2(0.0f, along), plots)) tribe.MarkField(*at, plots);   // T215/T260: on free ground (FieldPlacement.h)
 			}
 		}
+		if (!m_Zones.empty()) RefreshClearing(tribe);   // T337: clear what stands in the player's zones first (nothing for a clan of the AI)
 		if (state.Fields.empty()) return;
 		int grass = 0, dug = 0, dry = 0, grown = 0;
 		std::string sowable;
 		for (const Field& field : state.Fields)
 		{
-			if (Works(field, "till")) grass += field.Count("grass");
+			if (Works(field, "till"))
+			{
+				grass += field.Count("grass");
+				if (const std::set<size_t>* wait = Blocked(field.Name))
+					for (const size_t p : *wait) grass -= p < field.Plots.size() && field.Plots[p].State == "grass" ? 1 : 0;
+			}
 			if (Works(field, "sow"))
 				if (const std::string c = CropFor(tribe, field); !c.empty())
 				{
@@ -419,6 +552,104 @@ namespace GB
 			board.Post("farm", "tend", "", static_cast<float>(dry), f.Priority, slots(dry), std::to_string(dry) + " plots of growing crops are dry", now, rules);
 		if (grown > 0)
 			board.Post("farm", "harvest", "", static_cast<float>(grown), f.Priority * 1.3f, slots(grown), std::to_string(grown) + " plots are ripe", now, rules);
+	}
+
+	// ------------------------------------------------------------------ T337: clearing a zone
+	const std::set<size_t>* FarmZones::Blocked(const std::string& field) const
+	{
+		const auto it = m_Blocked.find(field);
+		return it != m_Blocked.end() && !it->second.empty() ? &it->second : nullptr;
+	}
+
+	std::string FarmZones::Clearing(const std::string& field) const
+	{
+		const auto it = m_ClearText.find(field);
+		return it != m_ClearText.end() ? it->second : std::string();
+	}
+
+	void FarmZones::ClearAway(Tribe& tribe, const std::string& node, const std::string& zone)
+	{
+		if (tribe.m_Entities)
+			if (const EntityId id = tribe.m_Entities->FindByName(node); id != NullEntity) tribe.m_Entities->Destroy(id);   // (its parts with it)
+		if (tribe.m_Gameplay) tribe.m_Gameplay->Remove(node);
+		tribe.m_Claims.Release(node);
+		tribe.m_PosCache.erase(node);
+		tribe.m_Clan.Forget(node);
+		for (TribeMember& m : tribe.m_Members) { m.Mind.Memory.Forget(node); m.Unreachable.erase(node); }
+		Logged(tribe, zone + ": " + node + " is cleared away");
+	}
+
+	void FarmZones::RefreshClearing(Tribe& tribe) const
+	{
+		const int priority = std::clamp(tribe.Config.Econ.Farming.ClearPriority, 1, 10);
+		std::map<std::string, std::set<size_t>> blocked;
+		std::map<std::string, std::string> texts;
+		for (const Field& field : tribe.m_Econ.Fields)
+		{
+			if (!m_Zones.count(field.Name) || m_Clean.count(field.Name)) continue;
+			std::vector<int> cells = field.Cells;
+			if (cells.empty()) for (int i = 0; i < static_cast<int>(field.Plots.size()); ++i) cells.push_back(i);
+			std::vector<std::vector<std::string>> perCell;
+			std::vector<size_t> stuck;   // (a plot walled by the scenery or a cliff: nobody can till it, so it is not asked to)
+			(void)Blockers(tribe, field.Origin, field.Columns, field.Spacing, cells, perCell, &stuck);
+			std::set<std::string> nodes;
+			for (const auto& c : perCell) nodes.insert(c.begin(), c.end());
+			if (nodes.empty() && stuck.empty()) { m_Clean.insert(field.Name); continue; }   // (nothing grows back in it: it is not looked at again)
+			std::set<std::string> gone;
+			std::map<std::string, int> kinds;          // node type -> how many still stand
+			std::map<std::string, std::string> tools;  // a tool tag the clan has none of -> the node type that asks for it
+			std::string cannot;
+			for (const std::string& node : nodes)
+			{
+				const AbilitySystemComponent* a = tribe.m_Gameplay ? tribe.m_Gameplay->Find(node) : nullptr;
+				if (!a) { gone.insert(node); continue; }
+				const int amount = ResourceSystem::Amount(*a);
+				if (amount <= 0)
+				{
+					// spent: it goes for good (it would grow again in the field), once nobody is still at work on it
+					bool busy = false;
+					for (const TribeMember& m : tribe.m_Members) busy = busy || (!m.Dead && m.Detail == node && (m.Job == "gather" || m.Job == "designate"));
+					if (!busy) { ClearAway(tribe, node, field.Name); gone.insert(node); continue; }
+				}
+				const std::string kind = ColonyDesignations::KindOf(tribe, node);
+				++kinds[kind.empty() ? std::string("node") : kind];
+				if (const auto def = tribe.m_Defs.find(kind); def != tribe.m_Defs.end() && !def->second.RequiresTag.empty() && tribe.m_Items)
+				{
+					int have = tribe.m_Store.CountTagged(*tribe.m_Items, def->second.RequiresTag);
+					for (const TribeMember& m : tribe.m_Members) if (!m.Dead && m.Body) have += m.Body->Bag().CountTagged(*tribe.m_Items, def->second.RequiresTag);
+					if (have == 0 && !tools.count(def->second.RequiresTag)) tools[def->second.RequiresTag] = kind;
+				}
+				if (amount > 0)
+					if (const ColonyDesignations::Reply r = tribe.m_Designations.Clear(tribe, node, priority, field.Name); !r.Ok && cannot.empty()) cannot = r.Text;
+			}
+			std::set<size_t> wait;
+			for (size_t i = 0; i < perCell.size(); ++i)
+				for (const std::string& node : perCell[i]) if (!gone.count(node)) { wait.insert(i); break; }
+			const size_t clearing = wait.size();
+			wait.insert(stuck.begin(), stuck.end());
+			if (wait.empty()) continue;
+			// "to clear first: 3 tree, 1 rock (6 plots wait); no axe for tree"
+			std::string text;
+			if (clearing > 0)
+			{
+				text = "to clear first: ";
+				bool first = true;
+				for (const auto& [kind, n] : kinds) { text += (first ? "" : ", ") + std::to_string(n) + " " + Spaced(kind); first = false; }
+				text += " (" + std::to_string(clearing) + (clearing == 1 ? " plot waits)" : " plots wait)");
+			}
+			if (!stuck.empty()) text += (text.empty() ? "" : "; ") + std::to_string(stuck.size()) + (stuck.size() == 1 ? " plot is" : " plots are") + " walled by what nobody can clear";
+			for (const auto& [tag, kind] : tools)
+			{
+				std::string tool = tag.substr(tag.rfind('.') + 1);
+				std::transform(tool.begin(), tool.end(), tool.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+				text += "; no " + tool + " for " + Spaced(kind);
+			}
+			if (!cannot.empty()) text += "; " + cannot;
+			blocked[field.Name] = std::move(wait);
+			texts[field.Name] = text;
+		}
+		m_Blocked = std::move(blocked);
+		m_ClearText = std::move(texts);
 	}
 
 	// ------------------------------------------------------------------ saving

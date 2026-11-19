@@ -82,6 +82,27 @@ namespace GB
 		return { true, node + (again ? " stays marked, now with priority " : " is marked to gather (priority ") + std::to_string(priority) + (again ? "" : ")") };
 	}
 
+	ColonyDesignations::Reply ColonyDesignations::Clear(Tribe& tribe, const std::string& node, int priority, const std::string& field)
+	{
+		if (const auto it = m_Marks.find(node); it != m_Marks.end())
+		{
+			if (!it->second.Field.empty()) it->second.Priority = std::clamp(priority, 1, 10);   // (the player's own mark stays the player's)
+			return { true, node + " is marked already" };
+		}
+		if (priority < 1 || priority > 10) return { false, "the priority goes from 1 (first) to 10 (last)" };
+		if (!tribe.m_Gameplay || !tribe.m_Gameplay->Find(node) || !tribe.m_Gameplay->Find(node)->HasTag("Resource.Node")) return { false, "there is no node called " + node };
+		const std::string kind = KindOf(tribe, node);
+		if (kind.empty()) return { false, node + " is not a node the clan can work" };
+		if (const std::string why = TechVerbs::WhyNot(tribe, "designate", kind); !why.empty()) return { false, "the clan " + why };
+		if (AmountOf(tribe, node) <= 0) return { false, node + " is empty" };
+		Mark& mark = m_Marks[node];
+		mark.Since = tribe.m_Time;
+		mark.Priority = priority;
+		mark.Field = field;
+		Logged(tribe, "the clan is to clear " + node + " out of " + field + " (priority " + std::to_string(priority) + ")");
+		return { true, node + " is marked to clear out of " + field };
+	}
+
 	std::vector<std::string> ColonyDesignations::Stand(const Tribe& tribe, const std::string& node)
 	{
 		const std::string kind = KindOf(tribe, node);
@@ -316,11 +337,15 @@ namespace GB
 		if (!m_Marks.empty())
 		{
 			std::string list;
-			int shown = 0;
+			int shown = 0, own = 0;
 			for (const auto& [node, mark] : m_Marks)
+			{
+				if (!mark.Field.empty()) continue;   // (T337: a farm zone's, told by `game zone`)
+				++own;
 				if (shown++ < 6) list += (list.empty() ? "" : ", ") + node + " p" + std::to_string(mark.Priority);
-			if (m_Marks.size() > 6) list += ", ...";
-			s = std::to_string(m_Marks.size()) + (m_Marks.size() == 1 ? " node" : " nodes") + " marked (" + list + ")";
+			}
+			if (own > 6) list += ", ...";
+			if (own > 0) s = std::to_string(own) + (own == 1 ? " node" : " nodes") + " marked (" + list + ")";
 		}
 		if (!m_Sites.empty())
 		{
@@ -336,7 +361,11 @@ namespace GB
 		Json j;
 		j["version"] = 1;
 		Json marks = Json::object();
-		for (const auto& [node, mark] : m_Marks) marks[node] = Json{ { "priority", mark.Priority }, { "since", mark.Since } };
+		for (const auto& [node, mark] : m_Marks)
+		{
+			marks[node] = Json{ { "priority", mark.Priority }, { "since", mark.Since } };
+			if (!mark.Field.empty()) marks[node]["field"] = mark.Field;   // T337
+		}
 		j["marks"] = marks;
 		j["sites"] = m_Sites;
 		return j.dump();
@@ -356,6 +385,7 @@ namespace GB
 				Mark mark;
 				mark.Priority = std::clamp(jm["priority"].get<int>(), 1, 10);
 				mark.Since = jm.value("since", 0.0);
+				if (jm.contains("field")) { if (!jm["field"].is_string()) return false; mark.Field = jm["field"].get<std::string>(); }   // T337
 				marks[node] = mark;
 			}
 		}

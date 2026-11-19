@@ -554,7 +554,9 @@
       "fields": 24,
       "membersPerField": 4,
       "plotsPerMember": 5,
-      "zonePlots": [ 20, 40 ]
+      "zonePlots": [ 20, 40 ],
+      "clearPriority": 2,
+      "clearReach": 3.0
     },
     "crops": [
       { "id": "grain", "seed": "grain_seed", "yield": { "grain": 10, "grain_seed": 2 }, "stageSeconds": 4200, "sow": [ "spring", "summer", "autumn" ], "seasons": { "spring": 1.2, "summer": 1.0, "autumn": 0.6 } }
