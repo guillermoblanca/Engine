@@ -42,6 +42,7 @@ namespace GB
 		m.WindFlutter = v.Wind * 0.5f;
 		if (v.SeasonTint > 0.0f) m.Albedo *= SeasonTint(Foliage, v.SeasonTint);
 		m.DoubleSided = v.DoubleSided;
+		m.Pushable = v.Push;
 		m.Alpha = v.Surface == "translucent" ? AlphaMode::Blend : v.Surface == "cutout" ? AlphaMode::Mask : AlphaMode::Opaque;
 		ApplyMaterialLayers(v.Layers, m);
 		return m;
@@ -62,6 +63,7 @@ namespace GB
 			m.WindFlutter = v.Wind * 0.5f;
 			m.WindBase = top ? maxY : minY;
 			m.WindHeight = top ? -span : span;
+			m.Pushable = v.Push;
 		}
 	}
 
@@ -334,9 +336,9 @@ namespace GB
 
 	bool SceneVisuals::DrawCreature(const Entity& e, EntityId id, const CreatureVisual& c, const glm::mat4& matrix, Scene& scene)
 	{
-		(void)e;
 		Creature& cr = m_Creatures[id];
 		const glm::vec3 at(matrix[3]);
+		if (CreatureDrawn) CreatureDrawn(e.Name, at);   // A45
 		if (!cr.Seen) { cr.Last = at; cr.Seen = true; }
 		if (m_Dt > 0.0f)
 		{

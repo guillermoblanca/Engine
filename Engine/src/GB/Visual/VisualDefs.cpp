@@ -39,6 +39,15 @@ namespace GB
 			return true;
 		}
 
+		bool ReadVec4(const Json& j, const char* key, glm::vec4& out)
+		{
+			const auto it = j.find(key);
+			if (it == j.end()) return true;
+			if (!it->is_array() || it->size() != 4) return false;
+			for (size_t i = 0; i < 4; ++i) { if (!(*it)[i].is_number()) return false; out[static_cast<int>(i)] = (*it)[i].get<float>(); }
+			return true;
+		}
+
 		bool ReadVec2(const Json& j, const char* key, glm::vec2& out)
 		{
 			const auto it = j.find(key);
@@ -331,6 +340,8 @@ namespace GB
 					m.SeasonTint = j.value("seasonTint", 0.0f);
 					if (!(m.SeasonTint >= 0.0f && m.SeasonTint <= 1.0f)) return "material '" + id + "': seasonTint is 0..1";
 					m.DoubleSided = j.value("doubleSided", false);
+					m.Push = j.value("push", false);
+					if (m.Push && m.Wind <= 0.0f) return "material '" + id + "': push needs wind (the lean is part of the sway)";
 					m.Surface = j.value("surface", m.Surface);
 					if (m.Surface != "opaque" && m.Surface != "cutout" && m.Surface != "translucent") return "material '" + id + "': unknown surface '" + m.Surface + "' (opaque, cutout, translucent)";
 					if (std::string why = LayersFromJson(j, m.Layers, m.InteriorMap); !why.empty()) return "material '" + id + "': " + why;
@@ -541,6 +552,76 @@ namespace GB
 					}
 				}
 			}
+			if (const auto it = root.find("workFx"); it != root.end())   // A45: the particles of the field work and the plants pushed by bodies
+			{
+				if (!it->is_object()) return "workFx must be an object";
+				const Json& f = *it;
+				static const char* const kKeys[] = { "note", "distance", "maxParticles", "push", "work" };
+				for (const auto& [key, value] : f.items())
+					if (!OneOf(key, kKeys)) return "workFx: unknown key '" + key + "'";
+				WorkFxLook& w = next.WorkFx;
+				w.Distance = f.value("distance", w.Distance);
+				w.MaxParticles = f.value("maxParticles", w.MaxParticles);
+				if (!(w.Distance >= 1.0f && w.Distance <= 1000.0f)) return "workFx: distance is 1..1000";
+				if (w.MaxParticles < 1 || w.MaxParticles > 20000) return "workFx: maxParticles is 1..20000";
+				if (const auto p = f.find("push"); p != f.end())
+				{
+					if (!p->is_object()) return "workFx: push is an object";
+					static const char* const kPush[] = { "radius", "bend", "down", "lag" };
+					for (const auto& [key, value] : p->items())
+						if (!OneOf(key, kPush)) return "workFx.push: unknown key '" + key + "'";
+					PushLook& u = w.Push;
+					u.Radius = p->value("radius", u.Radius);
+					u.Bend = p->value("bend", u.Bend);
+					u.Down = p->value("down", u.Down);
+					u.Lag = p->value("lag", u.Lag);
+					if (!(u.Radius >= 0.05f && u.Radius <= 5.0f) || !(u.Bend >= 0.0f && u.Bend <= 2.0f) || !(u.Down >= 0.0f && u.Down <= 1.0f) || !(u.Lag >= 0.0f && u.Lag <= 5.0f))
+						return "workFx.push: radius 0.05..5, bend 0..2, down 0..1, lag 0..5";
+				}
+				if (const auto wk = f.find("work"); wk != f.end())
+				{
+					if (!wk->is_object()) return "workFx: work is { activity: {...} }";
+					for (const auto& [activity, a] : wk->items())
+					{
+						const std::string where = "workFx.work." + activity;
+						if (!a.is_object()) return where + " is an object";
+						static const char* const kWork[] = { "cycle", "layers", "note" };
+						for (const auto& [key, value] : a.items())
+							if (!OneOf(key, kWork)) return where + ": unknown key '" + key + "'";
+						WorkFx fx;
+						fx.Cycle = a.value("cycle", fx.Cycle);
+						if (!(fx.Cycle >= 0.05f && fx.Cycle <= 30.0f)) return where + ": cycle is 0.05..30";
+						const auto ls = a.find("layers");
+						if (ls == a.end() || !ls->is_array()) return where + ": layers is a list";
+						for (const Json& j : *ls)
+						{
+							if (!j.is_object()) return where + ": a layer is an object";
+							static const char* const kLayer[] = { "note", "sprite", "color", "endColor", "size", "endSize", "life", "speed", "cone", "lean", "gravity",
+								"drag", "bounce", "spin", "rate", "window", "reach", "radius", "height" };
+							for (const auto& [key, value] : j.items())
+								if (!OneOf(key, kLayer)) return where + ": unknown layer key '" + key + "'";
+							WorkParticleLayer l;
+							l.Sprite = j.value("sprite", l.Sprite);
+							if (l.Sprite != "soft" && l.Sprite != "smoke" && l.Sprite != "chunk") return where + ": sprite is soft, smoke or chunk";
+							if (!ReadVec4(j, "color", l.Color) || !ReadVec4(j, "endColor", l.EndColor)) return where + ": color and endColor are [r, g, b, a]";
+							if (!ReadVec2(j, "size", l.Size) || !ReadVec2(j, "life", l.Life) || !ReadVec2(j, "speed", l.Speed) || !ReadVec2(j, "window", l.Window))
+								return where + ": size, life, speed and window are [min, max]";
+							auto num = [&](const char* key, float& v, float lo, float hi) { v = j.value(key, v); return v >= lo && v <= hi; };
+							if (!num("endSize", l.EndSize, 0.0f, 20.0f) || !num("cone", l.Cone, 0.0f, 180.0f) || !num("lean", l.Lean, 0.0f, 10.0f)
+								|| !num("gravity", l.Gravity, -2.0f, 4.0f) || !num("drag", l.Drag, 0.0f, 20.0f) || !num("bounce", l.Bounce, 0.0f, 1.0f)
+								|| !num("spin", l.Spin, 0.0f, 2000.0f) || !num("rate", l.Rate, 0.0f, 2000.0f) || !num("reach", l.Reach, -3.0f, 3.0f)
+								|| !num("radius", l.Radius, 0.0f, 3.0f) || !num("height", l.Height, -1.0f, 3.0f))
+								return where + ": a number is out of range (endSize 0..20, cone 0..180, lean 0..10, gravity -2..4, drag 0..20, bounce 0..1, spin 0..2000, "
+									"rate 0..2000, reach -3..3, radius 0..3, height -1..3)";
+							if (!(l.Size.x > 0.0f && l.Size.y >= l.Size.x) || !(l.Life.x > 0.0f && l.Life.y >= l.Life.x) || !(l.Speed.x >= 0.0f && l.Speed.y >= l.Speed.x))
+								return where + ": size, life and speed are [min, max] with 0 < min <= max";
+							if (l.Window.x < 0.0f || l.Window.x > 1.0f || l.Window.y < 0.0f || l.Window.y > 1.0f) return where + ": window is within 0..1";
+							fx.Layers.push_back(l);
+						}
+						w.Work[activity] = fx;
+					}
+				}
+			}
 		}
 		catch (const Json::exception& e)
 		{
@@ -600,6 +681,7 @@ namespace GB
 			if (m.Seasonal) j["seasonal"] = true;
 			if (m.SeasonTint != 0.0f) j["seasonTint"] = m.SeasonTint;
 			if (m.DoubleSided) j["doubleSided"] = true;
+			if (m.Push) j["push"] = true;
 			if (m.Surface != "opaque") j["surface"] = m.Surface;
 			if (!m.Layers.empty()) j["layers"] = LayersToJson(m.Layers);
 			if (!m.InteriorMap.empty()) j["layers"]["transmission"]["interior"]["map"] = m.InteriorMap;
@@ -710,6 +792,28 @@ namespace GB
 			f["jitter"] = l.Jitter; f["scale"] = Vec(l.Scale); f["spread"] = l.Spread; f["plantDistance"] = l.PlantDistance;
 			f["clearField"] = l.ClearField; f["clearBuilding"] = l.ClearBuilding; f["clearFeather"] = l.ClearFeather;
 			root["fields"] = f;
+		}
+		if (lib.WorkFx != WorkFxLook{})   // A45
+		{
+			const WorkFxLook& w = lib.WorkFx;
+			Json f;
+			f["distance"] = w.Distance;
+			f["maxParticles"] = w.MaxParticles;
+			f["push"] = Json{ { "radius", w.Push.Radius }, { "bend", w.Push.Bend }, { "down", w.Push.Down }, { "lag", w.Push.Lag } };
+			Json work = Json::object();
+			for (const auto& [activity, fx] : w.Work)
+			{
+				Json layers = Json::array();
+				for (const WorkParticleLayer& l : fx.Layers)
+					layers.push_back(Json{ { "sprite", l.Sprite }, { "color", Json::array({ l.Color.r, l.Color.g, l.Color.b, l.Color.a }) },
+						{ "endColor", Json::array({ l.EndColor.r, l.EndColor.g, l.EndColor.b, l.EndColor.a }) }, { "size", Vec(l.Size) }, { "endSize", l.EndSize },
+						{ "life", Vec(l.Life) }, { "speed", Vec(l.Speed) }, { "cone", l.Cone }, { "lean", l.Lean }, { "gravity", l.Gravity }, { "drag", l.Drag },
+						{ "bounce", l.Bounce }, { "spin", l.Spin }, { "rate", l.Rate }, { "window", Vec(l.Window) }, { "reach", l.Reach }, { "radius", l.Radius },
+						{ "height", l.Height } });
+				work[activity] = Json{ { "cycle", fx.Cycle }, { "layers", layers } };
+			}
+			f["work"] = work;
+			root["workFx"] = f;
 		}
 		Json doc;
 		doc["visuals"] = root;

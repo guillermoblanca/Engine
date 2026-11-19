@@ -1,5 +1,6 @@
 #include "GB/Visual/TribeVisuals.h"
 #include "GB/Animation/ReachLayer.h"
+#include "GB/Effects/WorkEffects.h"
 #include "GB/Game/StoreLayout.h"
 #include "GB/World/TilledGround.h"
 #include <chrono>
@@ -227,6 +228,12 @@ namespace GB
 			{
 				if (anim.Montages().IsPlaying(st.Montage)) anim.Montages().Stop(st.Montage);
 				st.Montage.clear();
+			}
+			// A45: the work's particles (the clods of the hoe, the straw of the harvest) while its montage plays, timed by the montage's run
+			if (ctx.Work && !st.Montage.empty() && anim.Montages().IsPlaying(st.Montage))
+			{
+				const float yaw = actor->GetYaw();
+				ctx.Work->Work(m.Name, st.Activity, actor->GetPosition(), glm::vec3(std::sin(yaw), 0.0f, std::cos(yaw)), anim.Montages().RunFraction(st.Montage), dt);
 			}
 
 			// ---- the hands on what they work
@@ -475,6 +482,7 @@ namespace GB
 				m_FieldStats.TintMs += ms(t0);
 				++m_FieldStats.TintBuilds;
 			}
+			if (ctx.Work && d.Ground) ctx.Work->PushArea(glm::vec3(d.Centre.x, d.Centre.z, d.Radius));   // A45: who walks here pushes the crop
 			if (d.Ground)
 			{
 				// two draws of the one mesh: the rim (its first RimIndices indices) with the rim material, the furrowed rest with the soil

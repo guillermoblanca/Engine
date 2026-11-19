@@ -13,6 +13,7 @@
 namespace GB
 {
 	class ReachLayer;
+	class WorkEffects;
 
 	// The scene side of a tribe: what its members show and how they move while they work, and the state that only the simulation holds drawn in
 	// the world. It reads the tribe (jobs, bags, the store, the fields), the actors and the gameplay world and never writes the simulation: the
@@ -41,6 +42,7 @@ namespace GB
 			std::string Season;                         // "spring", "summer", "autumn", "winter" (the frost on the fields)
 			glm::vec3 ClanColor{ -1.0f };               // U4: the clan's colour on its people (negative = none)
 			const glm::vec3* Viewer = nullptr;          // the camera: the outfits are put on only within OutfitDistance of it (null = everyone)
+			WorkEffects* Work = nullptr;                // A45: the particles of the work (GB/Effects/WorkEffects.h), told by Update; null = none
 		};
 
 		bool Enabled = true;

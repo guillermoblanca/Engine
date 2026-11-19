@@ -19,6 +19,8 @@ layout(std140, binding = 0) uniform FrameBlock
 	int uShadowsOn;    int uPointCount;  int uOrtho;  int uHasEnvMap;
 	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
 	vec4 uPointColor[32];                     // rgb color * intensity
+	int uPushCount;    float uPushBend;  float uPushDown;  float uPushPad;   // A45: the plants pushed by bodies (lib/tree_wind)
+	vec4 uPushers[16];                        // x, z, radius, strength (16 = FrameConstants::MaxPushers)
 };
 layout(location = 0) in vec4 aPosYaw;   // x, y, z of the root, yaw
 layout(location = 1) in vec4 aShape;    // height, width, seed, lean

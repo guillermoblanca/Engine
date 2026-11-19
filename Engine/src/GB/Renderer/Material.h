@@ -61,6 +61,7 @@ namespace GB
 		float WindHeight = 1.0f;
 		float WindFlutter = 0.0f;
 		float WindBase = 0.0f;
+		bool Pushable = false;         // A45: leans away from the bodies near it (Scene::Pushers), on top of the sway (needs WindSway > 0)
 		bool FoliageNormals = false;   // the cards keep their (crown) normal on back faces instead of flipping it to the viewer
 
 		// T46: foliage (leaves, bushes, grass cards; opaque or masked). All 0: off, the material packs as before (MATERIALES.md, "Follaje").

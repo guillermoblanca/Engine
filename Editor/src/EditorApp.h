@@ -21,6 +21,7 @@
 #include "GB/Assets/ModelInstance.h"
 #include "GB/Effects/Sky.h"
 #include "GB/Effects/Weather.h"
+#include "GB/Effects/WorkEffects.h"
 #include "GB/Visual/ActorRender.h"
 #include "GB/Visual/EntityRender.h"
 #include "GB/Visual/TribeVisuals.h"
@@ -417,6 +418,8 @@ namespace GB::Editor
 		// the packs) drawn by the EntityRenderer's hook, and the tribe director (props, activity montages, reach, fields and piles) for every clan.
 		SceneVisuals m_Visuals;
 		TribeVisuals m_TribeVisuals;
+		bool m_WorkFxGround = false;
+		WorkEffects m_WorkFx;   // A45: the field work's particles and the plants pushed by bodies (visuals.json "workFx"; `visuals workfx`)
 		void BindVisuals();
 		void UpdateVisuals(float dt);
 		void AddVisualsToScene();

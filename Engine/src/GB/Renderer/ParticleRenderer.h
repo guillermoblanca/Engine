@@ -29,7 +29,7 @@ namespace GB
 		void DrawBatch(const ParticleBatch& batch);
 
 		std::unique_ptr<class Shader> m_Shader;
-		std::unique_ptr<class Texture2D> m_SpriteSoft, m_SpriteSmoke, m_SpriteSpark, m_SpriteStreak;
+		std::unique_ptr<class Texture2D> m_SpriteSoft, m_SpriteSmoke, m_SpriteSpark, m_SpriteStreak, m_SpriteChunk;
 		RHI::VertexLayoutHandle m_VAO;
 		RHI::BufferHandle m_VBO;
 		RHI::PipelineHandle m_Pipeline;   // depth test without writes, no culling (the blend is set per batch)

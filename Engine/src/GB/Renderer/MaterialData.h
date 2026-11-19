@@ -42,6 +42,7 @@ namespace GB
 		static constexpr uint32_t FlagFoliageNormals = 1u << 0;   // the cards keep the crown normal on both faces (no flip on back faces)
 		static constexpr uint32_t FlagAlphaToCoverage = 1u << 1;  // masked alpha leaves as coverage (a mask on a multisampled target)
 		static constexpr uint32_t FlagDoubleSided = 1u << 2;      // drawn without culling (the cull is set per draw from it)
+		static constexpr uint32_t FlagPush = 1u << 3;             // A45: leans away from the bodies near it (FrameConstants::Pushers; lib/tree_wind)
 
 		// Flags.x: the layers the material has on (informative until M7 branches on it; the shader still tests the values, as before)
 		static constexpr uint32_t LayerGrain = 1u << 0;

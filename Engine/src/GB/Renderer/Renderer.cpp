@@ -226,6 +226,11 @@ namespace GB
 		}
 		if (scene.Ground && scene.Ground->IsValid())
 			f.TrailRect = scene.Ground->GetRect();
+		const uint32_t pushCount = static_cast<uint32_t>(std::min<size_t>(scene.Pushers.size(), FrameConstants::MaxPushers));
+		f.PushCount = scene.PushBend > 0.0f || scene.PushDown > 0.0f ? static_cast<int32_t>(pushCount) : 0;   // A45
+		f.PushBend = scene.PushBend;
+		f.PushDown = scene.PushDown;
+		for (uint32_t i = 0; i < pushCount; ++i) f.Pushers[i] = scene.Pushers[i];
 		const uint32_t pointCount = static_cast<uint32_t>(std::min<size_t>(scene.PointLights.size(), MaxPointLights));
 		f.PointCount = static_cast<int32_t>(pointCount);
 		for (uint32_t i = 0; i < pointCount; ++i)

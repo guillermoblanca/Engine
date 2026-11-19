@@ -9,7 +9,7 @@ namespace GB
 {
 	enum class ParticleShape { Point, Sphere, Cone, Box };
 	enum class ParticleBlend { Additive, Alpha };
-	enum class ParticleSprite { SoftCircle, Smoke, Spark, Streak, Custom };   // Streak: soft ribbon for rain, wind and bolts
+	enum class ParticleSprite { SoftCircle, Smoke, Spark, Streak, Custom, Chunk };   // Streak: soft ribbon for rain, wind and bolts; Chunk (A45): a solid, ragged bit (clods, straw)
 
 	struct ParticleBurst
 	{

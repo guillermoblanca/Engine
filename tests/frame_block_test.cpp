@@ -78,6 +78,7 @@ int GBTest_frame_block(int, char**)
 		GB_MEMBER("uNearFar", NearFar), GB_MEMBER("uStars", Stars), GB_MEMBER("uCloudCover", CloudCover),
 		GB_MEMBER("uShadowsOn", ShadowsOn), GB_MEMBER("uPointCount", PointCount), GB_MEMBER("uOrtho", Ortho), GB_MEMBER("uHasEnvMap", HasEnvMap),
 		GB_MEMBER("uPointPosRadius[0]", PointPosRadius), GB_MEMBER("uPointColor[0]", PointColor),
+		GB_MEMBER("uPushCount", PushCount), GB_MEMBER("uPushBend", PushBend), GB_MEMBER("uPushDown", PushDown), GB_MEMBER("uPushers[0]", Pushers),   // A45
 	};
 #undef GB_MEMBER
 	int placed = 0;

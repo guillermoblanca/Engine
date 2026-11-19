@@ -216,7 +216,7 @@ namespace
 			{ "TEX_ALBEDO", D::TexAlbedo }, { "TEX_NORMAL", D::TexNormal }, { "TEX_HEIGHT_MAP", D::TexHeightMap }, { "TEX_HEIGHT", D::TexHeight },
 			{ "TEX_MR", D::TexMR }, { "TEX_OCCLUSION", D::TexOcclusion }, { "TEX_EMISSIVE", D::TexEmissive }, { "TEX_MACRO", D::TexMacro },
 			{ "TEX_TERRAIN_NORMALS", D::TexTerrainNormals }, { "TEX_INTERIOR", D::TexInterior },
-			{ "FLAG_FOLIAGE_NORMALS", D::FlagFoliageNormals }, { "FLAG_ALPHA_TO_COVERAGE", D::FlagAlphaToCoverage }, { "FLAG_DOUBLE_SIDED", D::FlagDoubleSided },
+			{ "FLAG_FOLIAGE_NORMALS", D::FlagFoliageNormals }, { "FLAG_ALPHA_TO_COVERAGE", D::FlagAlphaToCoverage }, { "FLAG_DOUBLE_SIDED", D::FlagDoubleSided }, { "FLAG_PUSH", D::FlagPush },
 			{ "LAYER_GRAIN", D::LayerGrain }, { "LAYER_MOSS", D::LayerMoss }, { "LAYER_SAND", D::LayerSand }, { "LAYER_WATER_LINE", D::LayerWaterLine },
 			{ "LAYER_TRAIL", D::LayerTrail }, { "LAYER_MACRO", D::LayerMacro }, { "LAYER_TRANSMISSION", D::LayerTransmission },
 			{ "LAYER_FOLIAGE", D::LayerFoliage },

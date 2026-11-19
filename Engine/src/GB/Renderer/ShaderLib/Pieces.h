@@ -38,6 +38,8 @@ layout(location = 1) out vec4 outAmbient;   // the ambient (indirect) part of ou
 	int uShadowsOn;    int uPointCount;  int uOrtho;  int uHasEnvMap;
 	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
 	vec4 uPointColor[32];                     // rgb color * intensity
+	int uPushCount;    float uPushBend;  float uPushDown;  float uPushPad;   // A45: the plants pushed by bodies (lib/tree_wind)
+	vec4 uPushers[16];                        // x, z, radius, strength (16 = FrameConstants::MaxPushers)
 };
 )GLSL";
 
@@ -73,6 +75,7 @@ const uint TEX_INTERIOR = 512u;
 const uint FLAG_FOLIAGE_NORMALS = 1u;
 const uint FLAG_ALPHA_TO_COVERAGE = 2u;
 const uint FLAG_DOUBLE_SIDED = 4u;
+const uint FLAG_PUSH = 8u;
 const uint LAYER_GRAIN = 1u;
 const uint LAYER_MOSS = 2u;
 const uint LAYER_SAND = 4u;
@@ -194,6 +197,23 @@ vec3 WindOffset(vec3 localPos, vec3 worldPos, vec3 origin)
 	vec3 off = vec3(wd.x, 0.0, wd.y) * sway * MATERIAL.Wind.x * hw;
 	float fl = MATERIAL.Wind.z * (0.35 + 0.08 * ws) * hw;
 	off += vec3(sin(uTime * 4.1 + worldPos.z * 4.0), 0.4 * sin(uTime * 5.3 + worldPos.x * 3.0), sin(uTime * 3.7 + worldPos.y * 5.0)) * fl;
+	// A45: a pushable plant (FLAG_PUSH) leans away from the bodies near it (uPushers), more the higher, and sinks a little with it. The lean
+	// grows from nothing at the body to full at 0.4 of its radius and fades out at the radius: a smooth field, so the two sides of a blade
+	// that straddles the body are not torn apart
+	if (uPushCount > 0 && (MATERIAL.Flags.w & FLAG_PUSH) != 0u)
+	{
+		vec2 push = vec2(0.0);
+		for (int i = 0; i < uPushCount; ++i)
+		{
+			vec2 d = worldPos.xz - uPushers[i].xy;
+			float dist = length(d);
+			float r = max(uPushers[i].z, 1e-3);
+			push += d / max(0.4 * r, dist) * (1.0 - smoothstep(0.4 * r, r, dist)) * uPushers[i].w;
+		}
+		float amount = min(length(push), 1.0);
+		push = amount > 1e-4 ? normalize(push) * amount : vec2(0.0);
+		off += vec3(push.x * uPushBend, -amount * uPushDown, push.y * uPushBend) * hw;
+	}
 	return off;
 }
 )GLSL";

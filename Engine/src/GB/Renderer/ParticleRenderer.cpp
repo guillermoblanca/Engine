@@ -50,6 +50,13 @@ namespace GB
 						a = std::pow(std::max(1.0f - std::fabs(v), 0.0f), 2.6f) * (1.0f - glm::smoothstep(0.55f, 1.0f, std::fabs(u)));
 					else if (kind == ParticleSprite::Spark)
 						a = std::pow(std::max(1.0f - r, 0.0f), 2.2f);
+					else if (kind == ParticleSprite::Chunk)
+					{
+						// A45: solid inside a ragged edge (the radius wobbles with the angle), so a clod or a bit of straw reads as a thing, not a glow
+						const float angle = std::atan2(v, u);
+						const float edge = 0.78f + 0.12f * std::sin(3.0f * angle + 0.7f) + 0.07f * std::sin(5.0f * angle + 2.1f);
+						a = 1.0f - glm::smoothstep(edge - 0.1f, edge, r);
+					}
 					else
 						a = std::pow(std::max(1.0f - r, 0.0f), 1.6f);
 					image.Pixels[(static_cast<size_t>(y) * size + x) * 4 + 3] =
@@ -67,6 +74,7 @@ namespace GB
 		m_SpriteSmoke = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Smoke, 128), TextureEncoding::Linear);
 		m_SpriteSpark = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Spark, 32), TextureEncoding::Linear);
 		m_SpriteStreak = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Streak, 64), TextureEncoding::Linear);
+		m_SpriteChunk = std::make_unique<Texture2D>(MakeSprite(ParticleSprite::Chunk, 32), TextureEncoding::Linear);
 		RHI::Device& device = RHI::GetDevice();
 		m_VBO = device.CreateStreamBuffer();
 		RHI::VertexLayoutDesc layout;
@@ -113,6 +121,7 @@ namespace GB
 		if (batch.Sprite == ParticleSprite::Smoke) sprite = m_SpriteSmoke.get();
 		else if (batch.Sprite == ParticleSprite::Spark) sprite = m_SpriteSpark.get();
 		else if (batch.Sprite == ParticleSprite::Streak) sprite = m_SpriteStreak.get();
+		else if (batch.Sprite == ParticleSprite::Chunk) sprite = m_SpriteChunk.get();
 		else if (batch.Sprite == ParticleSprite::Custom && batch.CustomTexture) sprite = batch.CustomTexture;
 		sprite->Bind(0);
 

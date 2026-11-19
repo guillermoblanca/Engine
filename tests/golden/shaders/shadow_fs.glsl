@@ -27,6 +27,7 @@ const uint TEX_INTERIOR = 512u;
 const uint FLAG_FOLIAGE_NORMALS = 1u;
 const uint FLAG_ALPHA_TO_COVERAGE = 2u;
 const uint FLAG_DOUBLE_SIDED = 4u;
+const uint FLAG_PUSH = 8u;
 const uint LAYER_GRAIN = 1u;
 const uint LAYER_MOSS = 2u;
 const uint LAYER_SAND = 4u;
