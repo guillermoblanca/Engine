@@ -334,7 +334,7 @@
 			"why": "the store has 0 of 12 tin_ore"
 		},
 		{
-			"amount": 92.0,
+			"amount": 98.0,
 			"base": 0.8999999761581421,
 			"claims": [],
 			"family": "",
@@ -344,7 +344,7 @@
 			"slots": 2,
 			"target": "the pile by the fire",
 			"waiting": 499.80000744760036,
-			"why": "the pile by the fire holds 92 things for the store buildings"
+			"why": "the pile by the fire holds 98 things for the store buildings"
 		},
 		{
 			"amount": 3.0,
@@ -2456,10 +2456,10 @@
 		" 454.8 Ana (forager) tries to work out Tillage with the materials of the digging_stick and fails (try 4, 77% worked out)",
 		" 454.8 Ana (forager) goes to wild root patch 14 (Gather)",
 		" 458.3 Eli (forager) is better at foraging (42)",
-		" 458.3 Eli (forager) carries 8 things to the store at Storage 1",
+		" 458.3 Eli (forager) carries 9 things to the store at Storage 1",
 		" 460.0 Biel (forager) understands 33% of Rites from Fran at the camp",
 		" 460.0 Fran (woodcutter) understands 88% of Cooking from Ana at the camp",
-		" 463.4 Eli (forager) leaves 8 in the store at Storage 1",
+		" 463.4 Eli (forager) leaves 9 in the store at Storage 1",
 		" 463.4 Eli (forager) sits down at the camp to work out Tillage",
 		" 468.2 Ana (forager) carries 4 things to the store at Storage 1",
 		" 468.2 Biel (forager) tries to work out Tillage with the materials of the digging_stick and fails (try 3, 50% worked out); one wood is spoilt",
@@ -2486,10 +2486,10 @@
 		" 489.9 Ana (forager) takes the job build Totem 1 from the board",
 		" 489.9 Ana (forager) builds the circle of Totem 1",
 		" 490.0 Biel (forager) takes the job build Totem 1 from the board",
-		" 490.0 Biel (forager) carries 12 things to the store at Storage 1",
+		" 490.0 Biel (forager) carries 13 things to the store at Storage 1",
 		" 492.0 Fran (woodcutter) builds the circle of Totem 1",
 		" 494.4 Cleo (miner) picks up 4 things from the pile by the fire for the store at Storage 1",
-		" 495.1 Biel (forager) leaves 12 in the store at Storage 1",
+		" 495.1 Biel (forager) leaves 13 in the store at Storage 1",
 		" 497.2 Biel (forager) goes to wild berry bush 39 (Gather)",
 		" 497.6 Eli (forager) discovers Tillage by experimenting with the materials of the digging_stick (try 4)",
 		" 497.6 Eli (forager) is better at crafting (10)",
@@ -2580,7 +2580,7 @@
 		{
 			"cause": "",
 			"dead": 0,
-			"deposited": 85,
+			"deposited": 87,
 			"detail": "",
 			"failures": 0,
 			"hungry": 0,
@@ -3423,7 +3423,7 @@
 		{
 			"cause": "",
 			"dead": 0,
-			"deposited": 76,
+			"deposited": 79,
 			"detail": "wild berry bush 39",
 			"failures": 0,
 			"hungry": 0,
@@ -4266,7 +4266,7 @@
 		{
 			"cause": "",
 			"dead": 0,
-			"deposited": 50,
+			"deposited": 51,
 			"detail": "",
 			"failures": 0,
 			"hungry": 0,
@@ -5109,7 +5109,7 @@
 		{
 			"cause": "",
 			"dead": 0,
-			"deposited": 32,
+			"deposited": 33,
 			"detail": "dried_berry",
 			"failures": 0,
 			"hungry": 1,
@@ -5951,7 +5951,7 @@
 		{
 			"cause": "",
 			"dead": 0,
-			"deposited": 72,
+			"deposited": 78,
 			"detail": "wild berry bush 17",
 			"failures": 0,
 			"hungry": 0,
@@ -7746,6 +7746,10 @@
 				420.54
 			],
 			[
+				"pea_seed",
+				4
+			],
+			[
 				"roots",
 				20,
 				425.0
@@ -7753,6 +7757,10 @@
 			[
 				"fiber",
 				9
+			],
+			[
+				"flax_seed",
+				5
 			],
 			[
 				"cordage",
@@ -7770,6 +7778,14 @@
 			[
 				"grain_seed",
 				12
+			],
+			[
+				"barley_seed",
+				3
+			],
+			[
+				"lentil_seed",
+				1
 			],
 			[
 				"dried_berry",
@@ -7820,13 +7836,16 @@
 	"stores": {
 		"held": {
 			"Storage 1": {
+				"barley_seed": 3,
 				"berry": 57,
 				"branch": 31,
 				"grain_seed": 12,
 				"greens": 14,
+				"lentil_seed": 1,
 				"log": 3,
 				"mushrooms": 6,
 				"nuts": 12,
+				"pea_seed": 3,
 				"roots": 22,
 				"wood": 10
 			}
