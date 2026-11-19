@@ -8,8 +8,9 @@
 //   game stock <item|tag> <n>  |  game stock <item|tag> off
 // T324 (ARBOL_TECNICO §11.2.4): the research queue (GB/Game/ResearchQueue.h); the tab Knowledge (ColonyTabs.cpp) only queues these.
 //   game research                                    the queue, its progress and what the clan can research now
-//   game research add|remove|top <tech>  |  game research clear
+//   game research add|remove|top <tech>  |  game research move <tech> <n>  |  game research clear
 #include "EditorApp.h"
+#include "GB/Game/TechStatus.h"
 #include <cstdlib>
 #include <string>
 #include <vector>
@@ -91,9 +92,19 @@ namespace GB::Editor
 		if (!c || !c->Folk) return { false, "no clan of yours" };
 		Tribe& t = *c->Folk;
 		ResearchQueue& queue = t.Research();
-		const char* usage = "usage: game research [add|remove|top <tech> | clear]";
-		if (a.empty()) return { true, queue.List(t) };
+		const char* usage = "usage: game research [add|remove|top <tech> | move <tech> <n> | clear]";
+		// T338 (D6): "? N more" counts only the technologies the tree draws (those with a tier: TechStatus)
+		if (a.empty()) return { true, queue.List(t, TechStatus(t, {}).ShownFilter()) };
 		if (a[0] == "clear" && a.size() == 1) { const ResearchQueue::Reply r = queue.Clear(t); return { r.Ok, r.Text }; }
+		if (a[0] == "move")   // T339 (K-c): to place n of the queue (1-based), the drag of the Knowledge tab
+		{
+			if (a.size() != 3) return { false, usage };
+			char* end = nullptr;
+			const long n = std::strtol(a[2].c_str(), &end, 10);
+			if (end == a[2].c_str() || *end != '\0' || n < 1) return { false, usage };
+			const ResearchQueue::Reply r = queue.Move(t, a[1], static_cast<int>(n));
+			return { r.Ok, r.Text };
+		}
 		if (a.size() != 2) return { false, usage };
 		const ResearchQueue::Reply r = a[0] == "add" ? queue.Add(t, a[1]) : a[0] == "remove" ? queue.Remove(t, a[1]) : a[0] == "top" ? queue.Top(t, a[1])
 			: ResearchQueue::Reply{ false, usage };

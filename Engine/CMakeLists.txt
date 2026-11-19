@@ -146,6 +146,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/WorkPriorities.cpp
     src/GB/Game/StockGoals.cpp
     src/GB/Game/ResearchQueue.cpp
+    src/GB/Game/TechStatus.cpp
     src/GB/Game/ColonyOrders.cpp
     src/GB/Game/Transplant.cpp
     src/GB/Game/MealLog.cpp

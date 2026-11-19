@@ -46,14 +46,14 @@ namespace GB
 		return out;
 	}
 
-	int ResearchQueue::Hidden(const Tribe& tribe)
+	int ResearchQueue::Hidden(const Tribe& tribe, const std::function<bool(const std::string&)>& shown)
 	{
 		const ClanKnowledge& k = tribe.Knowledge();
 		const TechTree* tree = k.Techs();
 		if (!tree) return 0;
 		int n = 0;
 		for (const auto& [id, t] : tree->Techs)
-			if (!k.Clan().count(id) && !Researchable(tribe, id)) ++n;
+			if (!k.Clan().count(id) && !Researchable(tribe, id) && (!shown || shown(id))) ++n;
 		return n;
 	}
 
@@ -118,7 +118,19 @@ namespace GB
 		return { true, "research queue: " + tech + " first" };
 	}
 
-	std::string ResearchQueue::List(const Tribe& tribe) const
+	ResearchQueue::Reply ResearchQueue::Move(Tribe& tribe, const std::string& tech, int place)
+	{
+		const auto it = std::find(m_Queue.begin(), m_Queue.end(), tech);
+		if (it == m_Queue.end()) return { false, tech + " is not in the research queue" };
+		const int to = std::clamp(place, 1, static_cast<int>(m_Queue.size())) - 1;
+		const int from = static_cast<int>(it - m_Queue.begin());
+		if (from < to) std::rotate(m_Queue.begin() + from, m_Queue.begin() + from + 1, m_Queue.begin() + to + 1);
+		else if (from > to) std::rotate(m_Queue.begin() + to, m_Queue.begin() + from, m_Queue.begin() + from + 1);
+		tribe.UpdateGoals();
+		return { true, "research queue: " + tech + " moved to " + std::to_string(to + 1) };
+	}
+
+	std::string ResearchQueue::List(const Tribe& tribe, const std::function<bool(const std::string&)>& shown) const
 	{
 		std::string text;
 		if (m_Queue.empty()) text = "research queue empty: the clan chooses what to seek";
@@ -140,7 +152,7 @@ namespace GB
 		text += " | can research:";
 		if (open.empty()) text += " nothing now";
 		for (size_t i = 0; i < open.size(); ++i) text += (i == 0 ? " " : ", ") + open[i];
-		if (const int hidden = Hidden(tribe); hidden > 0) text += "; ? " + std::to_string(hidden) + " more";
+		if (const int hidden = Hidden(tribe, shown); hidden > 0) text += "; ? " + std::to_string(hidden) + " more";
 		return text;
 	}
 

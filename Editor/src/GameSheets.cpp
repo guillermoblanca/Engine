@@ -607,7 +607,6 @@ namespace GB::Editor
 		const ClanKnowledge& k = t.Knowledge();
 		const TechTree* tree = k.Techs();
 		if (!tree) { ImGui::TextDisabled("%s", L.Text("no technologies in this world").c_str()); return; }
-		const std::set<std::string>& known = k.Clan();
 		{   // the tree of knowledge: the same technologies as a graph, over the window (the player's clan in the game, the observed one in the free mode)
 			const GameTheme::PrimaryScope primary;
 			const bool mine = m_Game.Active && &t == &PlayTribe();
@@ -618,10 +617,11 @@ namespace GB::Editor
 		Heading(L.Text("Being worked out"));
 		DrawResearch(k);
 
-		// every technology by step (what it requires): known (green, +), being learnt (ochre, ~), open to find (light: what it needs is known) or locked (dim, with what
-		// it still needs); the mark says it as well as the colour; the hover says what it opens
-		std::set<std::string> learning;
-		for (const ClanKnowledge::ResearchLine& r : k.Research()) learning.insert(r.Tech);
+		// every technology by step (what it requires), with the state of TechStatus (T341, the same as the tree and the queue): known (green, +),
+		// being studied or queued (ochre, its place), on their own (~), studiable (light), something missing (amber, !) and unknown ("?", no name,
+		// D2). Only the technologies with a tier (D6); era 2 is one "?" chip. The god's view (the observer of the free mode) sees every name.
+		const TechStatus status = TechStatusOf(t);
+		const bool reveal = !m_Game.Active && !m_Director.Colony();
 		// (T181: no eras: the technologies go in steps by what they require, the first those that require nothing)
 		std::map<std::string, int> step;
 		std::function<int(const std::string&, int)> depth = [&](const std::string& id, int guard) -> int
@@ -629,15 +629,19 @@ namespace GB::Editor
 			if (const auto s = step.find(id); s != step.end()) return s->second;
 			const TechDef* d = tree->Find(id);
 			int n = 0;
-			if (d && guard < 32) for (const std::string& r : d->Requires) n = std::max(n, 1 + depth(r, guard + 1));
+			if (d && guard < 32) for (const std::string& r : d->Requires) if (status.Shown(r) && status.Of(r).Tier < TechStatus::kEraBlockTier) n = std::max(n, 1 + depth(r, guard + 1));
 			return step[id] = n;
 		};
 		std::map<int, std::vector<const TechDef*>> byStep;
-		for (const auto& [id, def] : tree->Techs) byStep[depth(id, 0)].push_back(&def);
-		int done = 0;
-		for (const auto& [id, def] : tree->Techs) done += known.count(id) ? 1 : 0;
-		Heading(L.Text("What the clan knows ({0} of {1})", done, static_cast<int>(tree->Techs.size())));
-		Dim(L.Text("+ known, ~ being learnt, light: can be found now, dim: needs others first. Hover one to see what it opens."));
+		int eraBlock = 0;
+		for (const auto& [id, def] : tree->Techs)
+		{
+			if (!status.Shown(id)) continue;
+			if (status.Of(id).Tier >= TechStatus::kEraBlockTier) { eraBlock += status.Of(id).State == TechState::Known ? 0 : 1; continue; }
+			byStep[depth(id, 0)].push_back(&def);
+		}
+		Heading(L.Text("What the clan knows ({0} of {1})", status.KnownCount(), status.Total()));
+		Dim(L.Text("+ known, a number: in the study queue, ~ on their own, light: can be studied now, ! something is missing, ?: not known yet. Hover one to see more."));
 		for (const auto& entry : byStep)
 		{
 			const std::vector<const TechDef*>& defs = entry.second;
@@ -646,17 +650,19 @@ namespace GB::Editor
 			const float width = ImGui::GetContentRegionAvail().x;
 			for (const TechDef* d : defs)
 			{
-				const bool have = known.count(d->Id) > 0, now = learning.count(d->Id) > 0;
-				std::string missing;
-				for (const std::string& r : d->Requires) if (!known.count(r)) missing += (missing.empty() ? "" : ", ") + L.Name("tech", r, k.Name(r));
-				const ImU32 fill = have ? T::Good : now ? T::Ochre : missing.empty() ? T::Bone : T::HideRaised;
-				const ImU32 ink = have || now || missing.empty() ? T::Ink : T::BoneDim;
-				const std::string name = (have ? "+ " : now ? "~ " : "") + Lang::Cap(L.Name("tech", d->Id, d->Name));
-				// its icon before the chip (dim while it needs others first), when the atlas has it
-				glm::vec2 uv0, uv1;
-				const bool icon = IconUv("tech." + d->Id, uv0, uv1);
+				const TechStatus::Entry& e = status.Of(d->Id);
+				const bool name = reveal || e.Named;
+				const bool have = e.State == TechState::Known, on = e.State == TechState::Studying || e.State == TechState::Queued;
+				const bool light = e.State == TechState::Studiable || e.State == TechState::OwnPace || e.State == TechState::OtherClan;
+				const ImU32 fill = have ? T::Good : on ? T::Ochre : e.State == TechState::Blocked ? T::Warn : light ? T::Bone : T::HideRaised;
+				const ImU32 ink = have || on || light || e.State == TechState::Blocked ? T::Ink : T::BoneDim;
+				const std::string mark = have ? "+ " : on ? std::to_string(e.Queue) + ". " : e.State == TechState::OwnPace ? "~ " : e.State == TechState::Blocked ? "! " : std::string();
+				const std::string label = name ? mark + Lang::Cap(L.Name("tech", d->Id, d->Name)) : std::string("?");
+				// its icon before the chip (dim while it cannot be studied), when the atlas has it and the clan can name it
+				glm::vec2 uv0(0.0f), uv1(0.0f);
+				const bool icon = name && IconUv("tech." + d->Id, uv0, uv1);
 				const float iconW = icon ? ImGui::GetFrameHeight() + 2.0f : 0.0f;
-				const float w = ImGui::CalcTextSize(name.c_str()).x + 10.0f + iconW;
+				const float w = ImGui::CalcTextSize(label.c_str()).x + 10.0f + iconW;
 				if (line > 0.0f && line + w + 4.0f < width) ImGui::SameLine(0.0f, 4.0f);
 				else line = 0.0f;
 				if (icon)
@@ -665,13 +671,16 @@ namespace GB::Editor
 					const ImVec2 at = ImGui::GetCursorScreenPos();
 					ImGui::Dummy(ImVec2(s, s));
 					ImGui::GetWindowDrawList()->AddImage(static_cast<ImTextureID>(static_cast<intptr_t>(m_IconTexture->GetID())), at, ImVec2(at.x + s, at.y + s), ImVec2(uv0.x, uv0.y), ImVec2(uv1.x, uv1.y),
-						have || now || missing.empty() ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 110));
+						have || on || light ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 110));
 					ImGui::SameLine(0.0f, 2.0f);
 				}
-				Chip(name, fill, ink);
+				ImGui::PushID(d->Id.c_str());
+				Chip(label, fill, ink);
+				ImGui::PopID();
 				line += w + 4.0f;
 				if (ImGui::IsItemHovered())
 				{
+					if (!name) { ImGui::SetTooltip("%s", (L.Text("Something the clan does not know yet") + "\n" + TechStateText(status, d->Id)).c_str()); continue; }
 					std::string opens;
 					for (const std::string& b : d->Buildings) { const auto def = m_Buildings.Defs.find(b); opens += (opens.empty() ? "" : ", ") + L.Name("building", b, def != m_Buildings.Defs.end() ? def->second.Name : std::string()); }
 					for (const std::string& r : d->Recipes)
@@ -680,11 +689,17 @@ namespace GB::Editor
 							const ItemDef* item = m_Items.Find(rec->Output);
 							opens += (opens.empty() ? "" : ", ") + L.Name("item", rec->Output, item && !item->Name.empty() ? item->Name : std::string());
 						}
-					std::string tip = name + ": " + (have ? L.Text("known") : now ? L.Text("being learnt") : missing.empty() ? L.Text("can be found now") : L.Text("needs {0}", missing));
+					std::string tip = Lang::Cap(L.Name("tech", d->Id, d->Name)) + ": " + TechStateText(status, d->Id);
 					if (!opens.empty()) tip += "\n" + L.Text("opens: {0}", opens);
 					ImGui::SetTooltip("%s", tip.c_str());
 				}
 			}
+		}
+		if (eraBlock > 0)
+		{
+			ImGui::Spacing();
+			Chip("? " + std::to_string(eraBlock) + "  " + L.Text("Era 2"), T::HideRaised, T::BoneDim);
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("{0} technologies of the next age: they show once the village gets there", eraBlock).c_str());
 		}
 	}
 
