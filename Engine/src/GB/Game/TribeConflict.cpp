@@ -4,6 +4,7 @@
 // walk with navigation), rests and tends its wounded, hunts for meat, and raids or is raided through IHostility (H13 plugs the real attitudes
 // of the clans in). Tribe.cpp only calls these hooks: StepConflict in Update, ConflictTurn in a member's turn, ConflictOptions in Decide,
 // ExecuteConflict and FinishConflict, PostConflictJobs and ConflictJobScore on the job board. Deterministic like the rest of the tribe.
+#include "GB/Game/TechModifiers.h"
 #include "GB/Game/Tribe.h"
 #include <algorithm>
 #include <cmath>
@@ -82,11 +83,11 @@ namespace GB
 		if (m_Buildings)
 			for (const Placed& p : Placements())
 				if (p.State.Done && p.Def->Healing > 0.0f) healers.push_back({ p.Pos, { p.Def->Reach(), p.Def->Healing } });
-		auto healingAt = [&healers](const glm::vec2& at)
+		auto healingAt = [&healers, craft = TechModifiers::Of(*this, "heal")](const glm::vec2& at)   // T331: what the clan knows of healing (a splint)
 		{
 			float h = 1.0f;
 			for (const auto& [pos, rh] : healers) if (glm::distance(at, pos) <= rh.first) h += rh.second;
-			return h;
+			return h * craft;
 		};
 		for (TribeMember& m : m_Members)
 		{
@@ -186,7 +187,7 @@ namespace GB
 				for (const auto& [id, rule] : cs.Rules.Hunts) if (rule.Tag == e.Side) h = &rule;
 				if (h && who->Body)
 				{
-					const int got = m_Items->Find(h->Item) ? who->Body->Bag().Add(*m_Items, h->Item, h->Units) : 0;
+					const int got = m_Items->Find(h->Item) ? who->Body->Bag().Add(*m_Items, h->Item, TechModifiers::Hunt(*this, h->Units)) : 0;   // T331: a knife, a spear-thrower: more meat
 					const int also = !h->Byproduct.empty() && m_Items->Find(h->Byproduct) ? who->Body->Bag().Add(*m_Items, h->Byproduct, h->ByproductUnits) : 0;
 					std::string yields;   // the butchering (social lane: bone, sinew, fat, feathers...)
 					for (const auto& [item, n] : h->Yields)

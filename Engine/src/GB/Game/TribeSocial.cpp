@@ -4,6 +4,7 @@
 // Update runs StepSocial, Decide calls SocialOptions (its options and the mood on every option), Execute and Finish hand "talk", "rite" and
 // "snare" here, Eat tells Ate what was eaten, Die tells SocialDied, the society's events go through SocialHears (TribeSociety.cpp), the hunts
 // of H14 call Hunted and HuntAllowed (TribeConflict.cpp), and the save has a "social" key. Deterministic like the rest: every die is SocialRoll.
+#include "GB/Game/TechModifiers.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Resources.h"
 #include <algorithm>
@@ -230,13 +231,14 @@ namespace GB
 	void Tribe::SocialDay()
 	{
 		const SocialRules& R = Config.Social;
+		const float mood = TechModifiers::Of(*this, "mood");   // T331
 		++m_Social.Day;
 		for (const TribeMember& m : m_Members)
 		{
 			if (m.Dead || !m.Body) continue;
 			SocialMember& s = SocialOf(m.Name);
 			s.Grief = std::max(0.0f, s.Grief - R.Grief.DecayPerDay);
-			const float rest = std::clamp(R.Mood.Rest - R.Mood.Grief * s.Grief, 0.0f, 1.0f);
+			const float rest = std::clamp(R.Mood.Rest * mood - R.Mood.Grief * s.Grief, 0.0f, 1.0f);   // T331: art and ornaments lift it
 			s.Mood = std::clamp(s.Mood + (rest - s.Mood) * R.Mood.Return, 0.0f, 1.0f);
 		}
 		if (m_Social.DeathsToday >= 2) Omen("two_deaths");
@@ -285,6 +287,7 @@ namespace GB
 		const SocialRules& R = Config.Social;
 		if (!R.On) return;
 		++m_Social.DeathsToday;
+		const float sorrow = TechModifiers::Of(*this, "grief");   // T331
 		std::vector<std::string>& called = m_Social.Rite.Called;   // (the dead leave the circle at once)
 		called.erase(std::remove(called.begin(), called.end(), dead.Name), called.end());
 		for (const TribeMember& m : m_Members)
@@ -294,6 +297,7 @@ namespace GB
 			float grief = 0.0f;
 			if (!m_Society.Kin(m.Name, dead.Name).empty()) grief = R.Grief.Kin;
 			else if (const float a = m_Society.Affinity(Config.Society, m.Name, dead.Name); a > 0.0f) grief = R.Grief.Friend * a;
+			grief *= sorrow;   // T331: a burial eases it
 			s.Grief = std::clamp(s.Grief + grief, 0.0f, 1.0f);
 			MoveMood(m.Name, R.Grief.Mood - 0.2f * grief);
 		}

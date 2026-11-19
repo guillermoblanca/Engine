@@ -82,6 +82,17 @@ namespace GB
 		return {};
 	}
 
+	void ColonyOrders::Drop(Tribe& tribe, TribeMember& m)
+	{
+		const auto it = m_Mandates.find(m.Name);
+		if (it == m_Mandates.end()) return;
+		const Mandate d = it->second;
+		m_Mandates.erase(it);
+		if (d.Verb == "transplant") Transplant::Abandon(tribe, m, d);   // T333: the cutting does not die with it nor leave with it
+		m_Notices.push_back({ m.Name, d.Verb, d.Target, m.Dead ? "died" : "left", tribe.m_Time });
+		if (m_Notices.size() > kNotices) m_Notices.erase(m_Notices.begin());
+	}
+
 	ColonyOrders::Reply ColonyOrders::Cancel(Tribe& tribe, const std::string& member)
 	{
 		TribeMember* m = tribe.MemberNamed(member);

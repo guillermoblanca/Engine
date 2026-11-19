@@ -5,6 +5,7 @@
 // and Finish hand "make", "farm" and "haul" here, and the deposit goes through DepositPlace / DepositAt. Deterministic like the rest: maps in id
 // order, ties to the first, no randomness (the rain on the fields comes from the season, not from dice).
 #include "GB/Game/Tribe.h"
+#include "GB/Game/TechModifiers.h"
 #include "GB/Game/FieldPlacement.h"
 #include "GB/Gameplay/GameplayTag.h"
 #include "GB/Gameplay/Resources.h"
@@ -905,6 +906,7 @@ namespace GB
 		const Season season = CurrentSeason();
 		const auto sf = econ.Spoilage.Seasons.find(SeasonClock::Name(season));
 		const float cold = sf != econ.Spoilage.Seasons.end() ? sf->second : 1.0f;
+		const float jars = TechModifiers::Of(*this, "spoil");   // T331: glazed jars keep the store's and the houses' food longer
 
 		// E6: everything perishable ages where it is; what goes off is gone (or turns into what it spoils into)
 		auto tell = [&](const std::vector<SpoilEvent>& events, const std::string& where)
@@ -916,7 +918,7 @@ namespace GB
 				TellClan("loses " + std::to_string(e.Count) + " " + e.Item + " in " + where + ": they went off" + (e.Into.empty() ? std::string() : " (now " + e.Into + ")"));
 			}
 		};
-		tell(AgeInventory(m_Store, *m_Items, step, econ.Main().SpoilRate * m_Stores.Keep(*this) * cold), "the store");   // T255: as well as where its food lies keeps it
+		tell(AgeInventory(m_Store, *m_Items, step, econ.Main().SpoilRate * m_Stores.Keep(*this) * cold * jars), "the store");   // T255: as well as where its food lies keeps it
 		for (Stockpile& p : m_Econ.Stockpiles)
 		{
 			const auto k = econ.Logistics.Stores.find(p.Kind);
@@ -924,7 +926,7 @@ namespace GB
 		}
 		for (TribeMember& m : m_Members)
 			if (!m.Dead && m.Body) tell(AgeInventory(m.Body->Bag(), *m_Items, step, econ.Spoilage.Bag * cold), m.Name + "'s bag");
-		for (auto& [id, pantry] : m_Econ.Pantries) tell(AgeInventory(pantry, *m_Items, step, econ.Main().SpoilRate * cold), id + "'s pantry");   // N1b: a house keeps as the store does
+		for (auto& [id, pantry] : m_Econ.Pantries) tell(AgeInventory(pantry, *m_Items, step, econ.Main().SpoilRate * cold * jars), id + "'s pantry");   // N1b: a house keeps as the store does
 
 		// E7: the fields grow with the season and the rain of the day (T14: SeasonClock::WeatherAt, from the game's seed), and the frost ruins what winter finds in them
 		const bool rain = SeasonClock::Rains(Config.Seasons.WeatherAt(now));

@@ -119,6 +119,7 @@ namespace GB
 		if (!TechVerbs::Knows(tribe, def->Transplant.Verb)) return "does not know how to " + VerbWord(def->Transplant.Verb);
 		if (const auto held = tribe.m_Claims.All().find(node); held != tribe.m_Claims.All().end() && held->second != m.Name) return held->second + " works " + node;
 		const glm::vec2 from = NodePos(tribe, node);
+		if (const std::string held = Held(tribe, node, from); !held.empty()) return held;   // T333
 		const std::string where = Fixed1(to.x) + ", " + Fixed1(to.y);
 		if (glm::distance(from, to) < kRoom) return node + " is there already";
 		// the ground: no site, building or field; dry; no other node too close
@@ -161,6 +162,7 @@ namespace GB
 		if (!def) return { false, node + " cannot be moved" };
 		if (!TechVerbs::Knows(tribe, def->Transplant.Verb)) return { false, "the clan does not know how to " + VerbWord(def->Transplant.Verb) };
 		const glm::vec2 from = NodePos(tribe, node);
+		if (const std::string held = Held(tribe, node, from); !held.empty()) return { false, "cannot: " + held };   // T333
 		const TribeMember* best = nullptr;
 		float bestD = std::numeric_limits<float>::max();
 		std::string lastWhy;
@@ -188,6 +190,7 @@ namespace GB
 		const ResourceNodeDef* def = DefOf(tribe, d.Target);
 		AbilitySystemComponent* node = tribe.m_Gameplay ? tribe.m_Gameplay->Find(d.Target) : nullptr;
 		if (!def || !node) { why = "the node is gone"; return false; }
+		if (const std::string held = Held(tribe, d.Target, NodePos(tribe, d.Target)); !held.empty()) { why = held; return false; }   // T333 (on the way there)
 		if (m.Body->Bag().Add(*tribe.m_Items, def->Transplant.Item, 1) < 1) { why = "its bag is full"; return false; }
 		AttributeSet& at = node->Attributes();
 		at.SetBase("Amount", 0.0f);   // (what grew on it is lost with the digging)
@@ -221,6 +224,7 @@ namespace GB
 		tribe.m_Clan.Refresh(d.Target, d.At, 0, tribe.m_Time);
 		for (TribeMember& o : tribe.m_Members) o.Mind.Memory.Refresh(d.Target, d.At, 0, tribe.m_Time);
 		if (const auto held = tribe.m_Claims.All().find(d.Target); held != tribe.m_Claims.All().end() && held->second == m.Name) tribe.m_Claims.Release(d.Target);
+		if (tribe.m_Outside.NodeMoved) tribe.m_Outside.NodeMoved(tribe, d.Target);   // T333: the other clans forget where it was
 		tribe.Say(m, "plants " + d.Target + " at " + Fixed1(d.At.x) + ", " + Fixed1(d.At.y));
 		d.Carry.clear();
 		return true;
@@ -252,6 +256,7 @@ namespace GB
 		if (d.Carry.empty())
 		{
 			if (const auto held = tribe.m_Claims.All().find(d.Target); held != tribe.m_Claims.All().end() && held->second != m.Name) { why = held->second + " works " + d.Target; return Outcome::Failed; }
+			if (const std::string held = Held(tribe, d.Target, from); !held.empty()) { why = held; return Outcome::Failed; }   // T333
 			if (!tribe.Order(m, GoTo(StandAt(here, from), def->Transplant.Work))) { why = "cannot get to " + d.Target; return Outcome::Failed; }
 			tribe.m_Claims.Claim(d.Target, m.Name);
 			m.Job = "uproot";
@@ -269,9 +274,33 @@ namespace GB
 
 	void Transplant::Abandon(Tribe& tribe, TribeMember& m, const ColonyOrders::Mandate& d)
 	{
-		if (d.Carry.empty() || m.Dead || !m.Body || !tribe.m_Items) return;
+		if (d.Carry.empty() || !m.Body || !tribe.m_Items) return;   // (T333: the dead too: the cutting does not stay in the body's bag)
 		const auto it = tribe.m_Defs.find(d.Carry);
 		if (it == tribe.m_Defs.end() || it->second.Transplant.Item.empty()) return;
-		if (m.Body->Bag().Remove(it->second.Transplant.Item, 1) > 0) tribe.Say(m, "puts " + d.Target + " back in the ground where it was");
+		if (m.Body->Bag().Remove(it->second.Transplant.Item, 1) < 1) return;
+		if (const auto held = tribe.m_Claims.All().find(d.Target); held != tribe.m_Claims.All().end() && held->second == m.Name) tribe.m_Claims.Release(d.Target);
+		if (m.Dead) tribe.TellClan("finds the " + it->second.Transplant.Item + " " + m.Name + " carried and puts " + d.Target + " back in the ground where it was");
+		else tribe.Say(m, "puts " + d.Target + " back in the ground where it was");
+	}
+
+	// ------------------------------------------------------------------ T333: the other clans
+	bool Transplant::Moving(const Tribe& tribe, const std::string& node)
+	{
+		for (const auto& [who, d] : tribe.m_Orders.All())
+			if (d.Verb == "transplant" && d.Target == node) return true;
+		return false;
+	}
+
+	std::string Transplant::Held(const Tribe& tribe, const std::string& node, const glm::vec2& at)
+	{
+		return tribe.m_Outside.NodeHeld ? tribe.m_Outside.NodeHeld(tribe, node, at) : std::string();
+	}
+
+	void Transplant::Forget(Tribe& tribe, const std::string& node)
+	{
+		tribe.m_PosCache.erase(node);
+		tribe.m_SightsWorld = nullptr;   // (its senses list the nodes again, with the place it has now)
+		tribe.m_Clan.Forget(node);
+		for (TribeMember& o : tribe.m_Members) { o.Mind.Memory.Forget(node); o.Unreachable.erase(node); }
 	}
 }

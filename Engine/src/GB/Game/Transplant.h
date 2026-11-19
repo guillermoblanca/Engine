@@ -18,7 +18,15 @@
 // so an old save, with no node moved, loads as before. An order in course is the mandate's (ColonyOrders: "carry" only when something is
 // carried). Nothing of the tribe's own JSON changes.
 //
-// The AI (a clan that plants a berry bush by its camp by itself) is not here yet: only the player's orders move nodes. CPU only, deterministic.
+// T333. Someone who dies or leaves the clan with the thing in its bag (ColonyOrders::Drop) does not take it to the grave nor to another clan: it
+// goes back in the ground where the node was (Abandon, as a cancelled order: the items of the dead stay with the body and nothing falls to the
+// ground in this game, so a cutting left there would be a plant lost for good and a node empty for ever). The order ends with a notice.
+// Other clans (TribeOutside::NodeHeld and NodeMoved, set by ClanWorld; none for a clan alone): a clan may not move a node another clan is
+// moving (a mandate "transplant" on it) nor one on the land another clan holds (not an ally: what ClanWorld::Gathered calls theft); and when a
+// node is planted elsewhere every other clan forgets what it knew of it (its senses' cache of places, its map, its people's memories: they did
+// not see it go, and the nodes are listed once on the belief that they never move), so none walks to where it was.
+//
+// The AI moves berry bushes by its camp (BushKeeper.h, T335). CPU only, deterministic.
 #include "GB/Game/ColonyOrders.h"
 #include <glm/vec2.hpp>
 #include <string>
@@ -57,10 +65,18 @@ namespace GB
 		static std::string Prepare(const Tribe& tribe, const TribeMember& m, const std::string& text, ColonyOrders::Mandate& d);
 		// Turn: the next step (dig, carry, plant).
 		static Outcome Step(Tribe& tribe, TribeMember& m, ColonyOrders::Mandate& d, std::string& why);
-		// End and Cancel: an order left with the thing in the bag puts it back (the node stays where it was).
+		// End, Cancel and Drop: an order left with the thing in the bag puts it back (the node stays where it was), also for the dead (T333).
 		static void Abandon(Tribe& tribe, TribeMember& m, const ColonyOrders::Mandate& d);
 		// "transplant wild berry bush 3 to 12.0, 4.0" (the line of `game status` and the log).
 		static std::string Describe(const ColonyOrders::Mandate& d);
+		// ---- T333: the other clans
+		// True when `tribe` has an order in course to move `node`.
+		static bool Moving(const Tribe& tribe, const std::string& node);
+		// "" when no other clan holds `node` (at `at`) for itself: it is moving it, or it grows on its land; else why (TribeOutside::NodeHeld).
+		static std::string Held(const Tribe& tribe, const std::string& node, const glm::vec2& at);
+		// `node` was planted at `at` by another clan: `tribe` forgets what it knew of it (TribeOutside::NodeMoved).
+		static void Forget(Tribe& tribe, const std::string& node);
+
 		// The member's own jobs of the order (ColonyOrders::CloseJob clears them; the tribe's Finish knows nothing of them).
 		static bool OwnJob(const std::string& job) { return job == "uproot" || job == "plant"; }
 

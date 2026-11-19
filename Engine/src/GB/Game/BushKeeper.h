@@ -8,7 +8,8 @@
 //   - a kind of node whose item is food and whose transplant's verb a technology of the tree names and the clan knows (with no tree, or no
 //     such verb in the data, nothing happens);
 //   - the clan's map (its shared memory) has no node of such a kind within transplantNear of the camp, and has one farther, on its home ground
-//     (HomeRadius + HomeFalloff): the nearest of them, nobody working it.
+//     (HomeRadius + HomeFalloff): the nearest of them, nobody working it and no other clan holding it (T333: moving it, or on its land;
+//     a node the clan remembers that is gone from the world counts for nothing).
 // Where. The first free spot (Transplant::WhyNot for a member that may go: dry, reachable, no building, site, field or other node there) on
 // rings round the camp inside transplantNear; then Transplant::Assign (the nearest member free to do it), and the log says so (a refusal is
 // not logged: it is tried again at the next posting).

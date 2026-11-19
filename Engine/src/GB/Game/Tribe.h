@@ -301,6 +301,10 @@ namespace GB
 		std::function<void(Tribe&, TribeMember&, const std::string& job)> Finish;
 		std::function<void(Tribe&, const TribeMember&, const std::string& node, int units)> Gathered;
 		std::function<void(const Tribe&, std::vector<GroundRect>&)> Ground;   // T260: adds the ground the other clans' fields take (GroundFootprint.h)
+		// T333 (GB/Game/Transplant.h): "" when no other clan holds the node at that place for itself (moving it, or on its land), else why; and a
+		// node this tribe planted elsewhere (the other clans forget where it was)
+		std::function<std::string(const Tribe&, const std::string& node, const glm::vec2& at)> NodeHeld;
+		std::function<void(const Tribe&, const std::string& node)> NodeMoved;
 	};
 
 	// A member as it leaves one clan for another (H13: a marriage, a move): the member itself (its body, mind, aptitudes), its person in the society
