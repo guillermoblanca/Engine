@@ -151,6 +151,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/ColonyOrders.cpp
     src/GB/Game/Transplant.cpp
     src/GB/Game/MealLog.cpp
+    src/GB/Game/FoodStock.cpp
     src/GB/Game/TribeConflict.cpp
     src/GB/Game/Trails.cpp
     src/GB/Game/Conflict.cpp

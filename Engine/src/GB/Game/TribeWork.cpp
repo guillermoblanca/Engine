@@ -4,6 +4,7 @@
 // ReviewRoles on their clocks. Deterministic like the rest: maps in id order, ties to the first, no randomness.
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
+#include "GB/Game/FoodStock.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -340,10 +341,8 @@ namespace GB
 				// the pyramid: a clan wants the days of food it lives on in hand, whatever the stock table says of it
 				if (IsFood(item))
 				{
-					const NeedsConfig& nc = Config.Needs;
-					const float perDay = (nc.DaySeconds / std::max(nc.HungerSeconds, 1.0f)) * (100.0f / static_cast<float>(std::max(nc.FoodHunger, 1)));
 					const float winter = m_Items->Find(item) ? WinterStockDays(Config.Econ, Config.Seasons, WorldSeconds(), *m_Items->Find(item), Config.Econ.Main().SpoilRate * StoreKeep()) : 0.0f;   // W1
-					const float days = std::min((rules.SurvivalDays + winter) * perDay * static_cast<float>(alive), static_cast<float>(StoreCap(item)));
+					const float days = std::min(FoodStock::UnitsFor(*this, item, rules.SurvivalDays + winter, static_cast<float>(alive)), static_cast<float>(StoreCap(item)));   // T346: in what it sates
 					if (days > wanted) { wanted = days; extra += " (the days of food the clan lives on)"; }
 				}
 				const float have = static_cast<float>(Stored(item) + carried[item]);   // (H18: the stockpiles count too)
@@ -474,18 +473,7 @@ namespace GB
 	// worth more; once the clan has the days of food it wants, the pyramid steps aside and the rest of the board (tools, buildings, knowledge) goes on.
 	float Tribe::FoodDays() const
 	{
-		int units = FoodIn(m_Store), alive = 0;
-		for (const TribeMember& m : m_Members)
-		{
-			if (m.Dead) continue;
-			++alive;
-			if (m.Body) units += FoodIn(m.Body->Bag());
-		}
-		if (alive == 0) return 0.0f;
-		const NeedsConfig& n = Config.Needs;
-		// what a member eats in a day: it empties in HungerSeconds, a unit of food gives back FoodHunger of 100
-		const float perDay = (n.DaySeconds / std::max(n.HungerSeconds, 1.0f)) * (100.0f / static_cast<float>(std::max(n.FoodHunger, 1)));
-		return static_cast<float>(units) / (perDay * static_cast<float>(alive));
+		return FoodStock::Days(*this);   // T346 (P-A1): by what the food sates, not by its units (GB/Game/FoodStock.h)
 	}
 
 	float Tribe::FoodShortage() const

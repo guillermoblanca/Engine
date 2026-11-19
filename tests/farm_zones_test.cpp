@@ -2,11 +2,14 @@
 // with its crop (and the player's clan marks out no field of its own); a zone on taken ground, of an unknown crop or too big is refused; the crop,
 // the plan (fallow: nothing tilled) and auto (the crop the store has least of) change what is sown; a zone is removed; the zones save and load;
 // the clans of the AI mark out their zones by the data's rule (plotsPerMember, zonePlots) and by the old one without it; a crop's own pace by
-// season (CropDef::Seasons) reads, saves and grows. CPU only, the stand-ins of economy_test.
+// season (CropDef::Seasons) reads, saves and grows; T346: the days of food by what the food sates (FoodStock), read by auto. CPU only, the
+// stand-ins of economy_test.
 #include "GB/Gameplay/ContentPack.h"
 #include "GB/Gameplay/ShippedContent.h"
 #include "GB/Gameplay/Techs.h"
+#include "GB/Game/FoodStock.h"
 #include "GB/Game/GameContent.h"
+#include "GB/Game/Social.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Interactives.h"
 #include "GB/Gameplay/Resources.h"
@@ -571,6 +574,58 @@ int GBTest_farm_zones(int, char**)
 		crops["flax"].Tech = "flax_magic";
 		const ContentReport bad = CheckReachability(items, recipes, nodes, rules, &tree, nullptr, &crops);
 		Check(names(bad, "crop 'flax': its tech 'flax_magic' is not a technology"), "a crop's unknown technology is a problem of the pack");
+	}
+
+	// ---- T346 (ALIMENTACION §16.3 P-A1): the days of food are what the food sates, not its units (GB/Game/FoodStock.h). The same forty units
+	// are fewer days of raw grain than of cooked meat, the clan is the shorter of food for it, wants more units of grain to have its days, and
+	// auto sows food on the grain where the meat lets it sow flax.
+	{
+		Clan k(4, true);
+		Tribe& t = k.Tribe_;
+		t.SetWorldClock(0.0);
+		const float plain = [&] { t.Store().Add(k.Items, "berry", 40); const float d = t.FoodDays(); t.Store().Remove("berry", 40); return d; }();
+		Check(LoadSocialRulesFile(std::string(GB_ASSETS_DIR) + "/data/food.json", t.Config.Social).empty() && t.Config.Social.On && !t.Config.Social.Diet.Foods.empty(),
+			"the diet of food.json (its foods' nutrition)");
+		const float grainN = FoodStock::Nutrition(t, "grain"), meatN = FoodStock::Nutrition(t, "cooked_meat");
+		std::fprintf(stderr, "  nutrition: grain %.1f, cooked meat %.1f, plain meal %d\n", static_cast<double>(grainN), static_cast<double>(meatN), t.Config.Needs.FoodHunger);
+		Check(t.IsFood("grain") && t.IsFood("cooked_meat") && grainN > 0.0f && grainN < meatN, "raw grain sates less than cooked meat");
+		auto daysOf = [&](const char* food, int n) { t.Store().Add(k.Items, food, n); const float d = t.FoodDays(); const float s = t.FoodShortage(); t.Store().Remove(food, n); return std::make_pair(d, s); };
+		const auto [grainDays, grainShort] = daysOf("grain", 40);
+		const auto [meatDays, meatShort] = daysOf("cooked_meat", 40);
+		std::fprintf(stderr, "  40 units: grain %.2f days (short %.2f), cooked meat %.2f days (short %.2f); berries without the diet %.2f\n", static_cast<double>(grainDays),
+			static_cast<double>(grainShort), static_cast<double>(meatDays), static_cast<double>(meatShort), static_cast<double>(plain));
+		Check(grainDays > 0.0f && grainDays < meatDays && std::abs(grainDays / meatDays - grainN / meatN) < 1e-3f, "the same units are fewer days of grain than of meat, in the ratio of their nutrition");
+		Check(std::abs(meatDays - plain * meatN / static_cast<float>(t.Config.Needs.FoodHunger)) < 1e-3f, "and a plain meal (FoodHunger) is a day's share as before");
+		Check(grainShort > meatShort && t.FoodDays() == 0.0f, "the clan is shorter of food on the grain (the survival pressure reads the days)");
+		auto tierOn = [&](const char* food) { t.Store().Add(k.Items, food, 40); const std::string tier = t.MaslowTier(); t.Store().Remove(food, 40); return tier; };
+		const std::string grainTier = tierOn("grain"), meatTier = tierOn("cooked_meat");
+		std::fprintf(stderr, "  tier on 40 grain: %s, on 40 cooked meat: %s\n", grainTier.c_str(), meatTier.c_str());
+		Check(grainTier == "survival" && meatTier != "survival", "on the grain the clan is in survival (what the hunger alert reads), on the meat it is not");
+		const float grainWant = FoodStock::UnitsFor(t, "grain", 3.0f, 4.0f), meatWant = FoodStock::UnitsFor(t, "cooked_meat", 3.0f, 4.0f);
+		Check(grainWant > meatWant && std::abs(grainWant * grainN - meatWant * meatN) < 1e-2f, "the stock wanted for the days of food is more units of grain than of meat");
+		t.Config.Social.On = false;
+		const auto [offDays, offShort] = daysOf("grain", 40);
+		Check(std::abs(offDays - plain) < 1e-5f, "with the social life off every food is a plain meal (the old count)");
+		(void)offShort;
+		t.Config.Social.On = true;
+
+		// AutoCrop: grain and flax; with the food days between the two, the grain is not enough to sow flax and the meat is
+		const auto shipped = t.Config.Econ.Crops;
+		t.Config.Econ.Crops.clear();
+		for (const char* id : { "grain", "flax" })
+			if (const auto c = shipped.find(id); c != shipped.end()) { CropDef d = c->second; d.Sow.clear(); d.Seasons.clear(); t.Config.Econ.Crops[id] = d; }
+		Check(t.Config.Econ.Crops.size() == 2, "the data has grain and flax");
+		for (const auto& [id, c] : t.Config.Econ.Crops) t.Store().Add(k.Items, c.Seed, 5);
+		Check(t.Goals().Set(t, "fiber", 50).Ok, "the clan wants fiber (a stock goal)");
+		t.Config.Econ.Farming.FoodDays = 0.5f * (grainDays + meatDays);
+		t.Store().Add(k.Items, "grain", 40);
+		const std::string onGrain = FarmZones::AutoCrop(t);
+		t.Store().Remove("grain", 40);
+		t.Store().Add(k.Items, "cooked_meat", 40);
+		const std::string onMeat = FarmZones::AutoCrop(t);
+		std::fprintf(stderr, "  auto at %.2f days: on 40 grain %s, on 40 cooked meat %s\n", static_cast<double>(t.Config.Econ.Farming.FoodDays), onGrain.c_str(), onMeat.c_str());
+		Check(onGrain == "grain", "auto: forty units of grain are not the food days wanted, so it sows food");
+		Check(onMeat == "flax", "forty of cooked meat are: it sows the fiber it lacks");
 	}
 
 	if (failures) std::fprintf(stderr, "%d check(s) failed\n", failures);
