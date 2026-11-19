@@ -28,6 +28,7 @@ namespace GB::Editor
 		});
 		m_EntityRenderer->SetEntityVisual([this](const EntityWorld& w, EntityId id, const glm::mat4& m, Scene& s) { return m_Visuals.Draw(w, id, m, s); });
 		m_ActorRenderer.SetPropDrawer(TribeVisuals::PropDrawer(&m_Visuals));   // the looks the tribe director attaches to the actors' hands and backs
+		m_Visuals.CreatureDrawn = [this](const std::string& name, const glm::vec3& at) { m_WorkFx.Touch(name, at); };   // A45: animals push the crops too
 	}
 
 	void EditorApp::UpdateVisuals(float dt)
@@ -40,12 +41,28 @@ namespace GB::Editor
 		ctx.Entities = &m_SceneEditor.World();
 		ctx.Visuals = &m_Visuals;
 		ctx.Viewer = &m_Camera.Position;   // U5: the outfits near the camera only
+		// A45: the work's particles are told by the tribes' members (TribeVisuals::Update); every character near the camera pushes the crops
+		m_WorkFx.Configure(m_Visuals.Library.WorkFx);
+		m_WorkFx.SetViewer(m_Camera.Position);
+		{
+			// the light falling on the ground dims the unlit particles toward night: the directional light's strength and height against the
+			// day's sun (at night the directional light is the moon, weak, so its height alone would not do); a little stays for the sky
+			const glm::vec3 sun = glm::length(m_Scene.Sun.Direction) > 1e-4f ? glm::normalize(m_Scene.Sun.Direction) : glm::vec3(0.0f, -1.0f, 0.0f);
+			const glm::vec3& c = m_Scene.Sun.Color;
+			const float lit = m_Scene.Sun.Intensity * std::max(-sun.y, 0.0f) * (0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b);
+			const float day = 0.4f * std::max(m_Tod.Enabled ? m_TodBaseSun.Intensity : m_Scene.Sun.Intensity, 0.1f);   // (full from ~25 degrees up)
+			m_WorkFx.SetLight(std::clamp(0.15f + 0.85f * lit / day, 0.15f, 1.0f));
+		}
+		ctx.Work = m_Visuals.Enabled ? &m_WorkFx : nullptr;
 		for (const auto& clan : m_Clans.All())   // every clan (H13), not only the first tribe
 			if (clan->Folk)
 			{
 				ctx.ClanColor = m_Clans.Count() > 0 ? m_Clans.ColorOf(clan->Id) : glm::vec3(-1.0f);   // U4
 				m_TribeVisuals.Update(*clan->Folk, ctx, dt);
 			}
+		for (const auto& [name, actor] : m_Actors.All())
+			if (!actor->Paused()) m_WorkFx.Touch(name, actor->GetPosition());
+		m_WorkFx.Update(dt);
 	}
 
 	void EditorApp::AddVisualsToScene()
@@ -56,14 +73,17 @@ namespace GB::Editor
 		ctx.Visuals = &m_Visuals;
 		if (m_World.IsBuilt()) ctx.Ground = [this](float x, float z) { return m_World.GetTerrain().GetHeight(x, z); };
 		ctx.Season = SeasonClock::Name(SeasonClock().At(static_cast<double>(m_SimTick) / 60.0));
+		ctx.Work = m_Visuals.Enabled ? &m_WorkFx : nullptr;   // A45: the fields tell where the pushable crops are
 		for (const auto& clan : m_Clans.All())
 			if (clan->Folk) m_TribeVisuals.AddToScene(*clan->Folk, ctx, m_Scene);
+		if (m_World.IsBuilt() && !m_WorkFxGround) { m_WorkFx.SetGround([this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; }); m_WorkFxGround = true; }
+		m_WorkFx.AddToScene(m_Scene);   // A45 (after every clan: the particles once, the pushers replaced)
 	}
 
 	void EditorApp::RegisterVisualCommands()
 	{
 		CommandRunner& c = m_Commands;
-		c.Register("visuals", "visuals [on|off|status|props on|off|activities on|off|reach on|off|nodes [x z]]: the procedural looks of nodes, buildings, creatures and the tribe's props (assets/data/visuals.json); `nodes` lays out every node model full, half and empty",
+		c.Register("visuals", "visuals [on|off|status|props on|off|activities on|off|reach on|off|nodes [x z]|workfx [<activity> <x> <z> [yaw] [seconds]]]: the procedural looks of nodes, buildings, creatures and the tribe's props (assets/data/visuals.json); `nodes` lays out every node model full, half and empty; `workfx` (A45) shows the work particles and the plant pushers, or plays an activity's particles at a place as if someone worked there",
 			[this](const std::vector<std::string>& a) -> CommandResult
 		{
 			auto flag = [](const std::string& v) { return v == "on" || v == "1" || v == "true"; };
@@ -90,6 +110,24 @@ namespace GB::Editor
 								if (!st->Montage.empty()) out << " montage " << st->Montage;
 								if (st->ReachWeight > 0.0f) out << " reach " << st->ReachWeight;
 							}
+				return { true, out.str() };
+			}
+			if (a[0] == "workfx")   // A45
+			{
+				if (a.size() >= 4)
+				{
+					const float x = static_cast<float>(std::atof(a[2].c_str())), z = static_cast<float>(std::atof(a[3].c_str()));
+					const float yaw = a.size() > 4 ? glm::radians(static_cast<float>(std::atof(a[4].c_str()))) : 0.0f;
+					const float seconds = a.size() > 5 ? static_cast<float>(std::atof(a[5].c_str())) : 3.0f;
+					if (!m_Visuals.Library.WorkFx.Work.count(a[1])) return { false, "no work effect '" + a[1] + "' (visuals.json workFx.work)" };
+					const float y = m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f;
+					m_WorkFx.Configure(m_Visuals.Library.WorkFx);
+					m_WorkFx.Pretend(a[1], { x, y, z }, { std::sin(yaw), 0.0f, std::cos(yaw) }, seconds);
+					return { true, a[1] + " particles at (" + a[2] + ", " + a[3] + ") for " + std::to_string(seconds) + " s" };
+				}
+				std::ostringstream out;
+				out << "workfx: " << m_WorkFx.Systems() << " particle systems (" << m_Visuals.Library.WorkFx.Work.size() << " activities), " << m_WorkFx.LiveParticles()
+					<< " particles alive, " << m_WorkFx.PusherCount() << " pushers sent";
 				return { true, out.str() };
 			}
 			if (a[0] == "on" || a[0] == "off") { m_Visuals.Enabled = m_TribeVisuals.Enabled = a[0] == "on"; return { true, "visuals " + a[0] }; }

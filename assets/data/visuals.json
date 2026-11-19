@@ -26,20 +26,20 @@
       "mud":         { "color": [0.48, 0.38, 0.3], "texture": "clay", "uvScale": 0.5, "roughness": 0.85 },
       "soil":        { "color": [1.0, 1.0, 1.0], "texture": "tilled_soil", "uvScale": 0.6, "roughness": 0.95 },
       "seed":        { "color": [0.8, 0.68, 0.38], "roughness": 0.7 },
-      "sprout":      { "color": [1.75, 1.6, 1.55], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "windHeight": 0.5, "seasonal": true, "doubleSided": true },
+      "sprout":      { "color": [1.75, 1.6, 1.55], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "windHeight": 0.5, "seasonal": true, "doubleSided": true, "push": true },
       "trodden":     { "color": [0.25, 0.26, 0.25], "texture": "clay", "uvScale": 3.0, "roughness": 0.95 },
       "clod":        { "color": [0.62, 0.47, 0.33], "texture": "tilled_soil", "uvScale": 2.0, "roughness": 0.95 },
-      "grain":       { "color": [0.92, 0.76, 0.42], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.35, "windHeight": 1.2, "doubleSided": true },
-      "emmer":       { "color": [0.72, 0.52, 0.2], "texture": "grass", "uvScale": 4.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.2, "doubleSided": true },
-      "ear":         { "color": [0.68, 0.46, 0.14], "texture": "grass", "uvScale": 6.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.2, "doubleSided": true },
-      "barley":      { "color": [0.64, 0.53, 0.25], "texture": "grass", "uvScale": 4.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.0, "doubleSided": true },
-      "barley_leaf": { "color": [0.77, 0.78, 1.19], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "windHeight": 0.8, "seasonal": true, "doubleSided": true },
-      "legume_green": { "color": [0.66, 0.64, 0.5], "texture": "leaves", "uvScale": 3.0, "roughness": 0.75, "wind": 0.25, "windHeight": 0.8, "seasonal": true, "doubleSided": true },
-      "legume_dry":  { "color": [0.33, 0.28, 0.11], "texture": "leaves", "uvScale": 3.0, "roughness": 0.85, "wind": 0.15, "windHeight": 0.5, "doubleSided": true },
-      "pod":         { "color": [0.3, 0.19, 0.09], "roughness": 0.75, "wind": 0.15 },
-      "pod_green":   { "color": [0.27, 0.42, 0.12], "roughness": 0.6, "wind": 0.25, "windHeight": 0.8 },
-      "flax":        { "color": [0.46, 0.42, 0.2], "texture": "grass", "uvScale": 4.0, "roughness": 0.8, "wind": 0.45, "windHeight": 1.0, "doubleSided": true },
-      "flax_blue":   { "color": [0.36, 0.44, 0.7], "roughness": 0.6, "wind": 0.45, "windHeight": 1.0 },
+      "grain":       { "color": [0.92, 0.76, 0.42], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.35, "windHeight": 1.2, "doubleSided": true, "push": true },
+      "emmer":       { "color": [0.72, 0.52, 0.2], "texture": "grass", "uvScale": 4.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.2, "doubleSided": true, "push": true },
+      "ear":         { "color": [0.68, 0.46, 0.14], "texture": "grass", "uvScale": 6.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.2, "doubleSided": true, "push": true },
+      "barley":      { "color": [0.64, 0.53, 0.25], "texture": "grass", "uvScale": 4.0, "roughness": 0.75, "wind": 0.35, "windHeight": 1.0, "doubleSided": true, "push": true },
+      "barley_leaf": { "color": [0.77, 0.78, 1.19], "texture": "grass", "uvScale": 4.0, "roughness": 0.7, "wind": 0.3, "windHeight": 0.8, "seasonal": true, "doubleSided": true, "push": true },
+      "legume_green": { "color": [0.66, 0.64, 0.5], "texture": "leaves", "uvScale": 3.0, "roughness": 0.75, "wind": 0.25, "windHeight": 0.8, "seasonal": true, "doubleSided": true, "push": true },
+      "legume_dry":  { "color": [0.33, 0.28, 0.11], "texture": "leaves", "uvScale": 3.0, "roughness": 0.85, "wind": 0.15, "windHeight": 0.5, "doubleSided": true, "push": true },
+      "pod":         { "color": [0.3, 0.19, 0.09], "roughness": 0.75, "wind": 0.15, "push": true },
+      "pod_green":   { "color": [0.27, 0.42, 0.12], "roughness": 0.6, "wind": 0.25, "windHeight": 0.8, "push": true },
+      "flax":        { "color": [0.46, 0.42, 0.2], "texture": "grass", "uvScale": 4.0, "roughness": 0.8, "wind": 0.45, "windHeight": 1.0, "doubleSided": true, "push": true },
+      "flax_blue":   { "color": [0.36, 0.44, 0.7], "roughness": 0.6, "wind": 0.45, "windHeight": 1.0, "push": true },
       "grass":       { "color": [0.62, 0.66, 0.32], "texture": "grass", "uvScale": 3.0, "roughness": 0.75, "wind": 0.35, "doubleSided": true },
       "grass_dry":   { "color": [0.66, 0.6, 0.36], "texture": "grass", "uvScale": 3.0, "roughness": 0.8, "wind": 0.2, "doubleSided": true },
       "reed":        { "color": [0.42, 0.58, 0.3], "texture": "grass", "uvScale": 2.0, "roughness": 0.7, "wind": 0.45, "doubleSided": true },
@@ -1025,6 +1025,25 @@
       "furrowShade": 0.45, "plantShade": 0.4, "plantShadeRadius": 0.3, "shadeStates": ["sprout", "grown"],
       "jitter": 0.18, "scale": [0.87, 1.13], "tilt": 5, "spread": 1.25, "plantDistance": 150,
       "clearField": 0.3, "clearBuilding": 0.6, "clearFeather": 0.6
+    },
+
+    "workFx": {
+      "note": "A45: the particles of the field work, by activity (GB/Visual/PropVisuals ActivityKey), shared by every worker and timed by the fraction of its work montage (window); and the crops (materials with push) leaning away from the people walking through them, recovering lag seconds after (GB/Effects/WorkEffects.h, lib/tree_wind). Earth: the mud and soil browns of the bible; straw: the thatch ochre, low saturation. The particles are unlit: the colour is what is seen",
+      "distance": 60, "maxParticles": 600,
+      "push": { "radius": 1.3, "bend": 0.4, "down": 0.15, "lag": 0.4 },
+      "work": {
+        "farm.till": { "cycle": 1.2, "layers": [
+          { "note": "clods thrown by the hoe", "sprite": "chunk", "color": [0.27, 0.18, 0.1, 1.0], "endColor": [0.24, 0.16, 0.09, 0.9], "size": [0.06, 0.11], "life": [0.6, 1.0], "speed": [1.8, 3.2], "cone": 25, "lean": 0.5, "gravity": 1.0, "drag": 0.3, "rate": 120, "window": [0.35, 0.6], "reach": 0.6, "radius": 0.15, "height": 0.05 },
+          { "note": "dust raised", "sprite": "smoke", "color": [0.2, 0.16, 0.12, 0.5], "endColor": [0.2, 0.16, 0.12, 0.0], "size": [0.3, 0.5], "endSize": 2.4, "life": [1.2, 2.0], "speed": [0.3, 0.8], "cone": 60, "lean": 0.3, "gravity": -0.02, "drag": 1.2, "rate": 24, "window": [0.35, 0.7], "reach": 0.6, "radius": 0.25, "height": 0.1 }
+        ] },
+        "farm.sow": { "cycle": 1.5, "layers": [
+          { "note": "a little dust where the seed is pressed in", "sprite": "smoke", "color": [0.42, 0.32, 0.22, 0.25], "endColor": [0.42, 0.32, 0.22, 0.0], "size": [0.15, 0.3], "endSize": 2.0, "life": [0.8, 1.4], "speed": [0.2, 0.5], "cone": 70, "lean": 0.2, "gravity": -0.02, "drag": 1.5, "rate": 8, "window": [0.5, 0.8], "reach": 0.45, "radius": 0.2, "height": 0.05 }
+        ] },
+        "farm.harvest": { "cycle": 1.4, "layers": [
+          { "note": "straw and leaf bits", "sprite": "chunk", "color": [0.5, 0.41, 0.24, 1.0], "endColor": [0.47, 0.39, 0.23, 0.0], "size": [0.04, 0.08], "life": [1.0, 1.8], "speed": [1.2, 2.4], "cone": 45, "lean": 0.3, "gravity": 0.25, "drag": 1.4, "spin": 400, "rate": 70, "window": [0.3, 0.7], "reach": 0.45, "radius": 0.25, "height": 0.8 },
+          { "note": "chaff dust", "sprite": "smoke", "color": [0.34, 0.3, 0.22, 0.22], "endColor": [0.34, 0.3, 0.22, 0.0], "size": [0.35, 0.6], "endSize": 2.2, "life": [1.5, 2.5], "speed": [0.3, 0.7], "cone": 60, "lean": 0.3, "gravity": -0.03, "drag": 1.0, "rate": 10, "window": [0.3, 0.8], "reach": 0.45, "radius": 0.3, "height": 0.7 }
+        ] }
+      }
     },
 
     "props": {

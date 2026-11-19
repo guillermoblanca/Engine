@@ -18,6 +18,7 @@ namespace GB
 	{
 		static constexpr uint32_t Binding = 0;          // layout(std140, binding = 0) uniform FrameBlock
 		static constexpr uint32_t MaxPointLights = 32;  // the arrays of the block (Renderer::MaxPointLights)
+		static constexpr uint32_t MaxPushers = 16;      // A45: the bodies that push the plants (Scene::Pushers), the nearest the camera
 
 		glm::mat4 ViewProj{ 1.0f };    // T137: reversed Z, depth in [0, 1] (Camera::GetReversedZProjection): ndc z 1 near, 0 far
 		glm::mat4 InvViewProj{ 1.0f };
@@ -37,6 +38,9 @@ namespace GB
 		int32_t ShadowsOn = 0;         int32_t PointCount = 0;      int32_t Ortho = 0;           int32_t HasEnvMap = 0;
 		glm::vec4 PointPosRadius[MaxPointLights] = {};              // xyz position, w radius
 		glm::vec4 PointColor[MaxPointLights] = {};                  // rgb color * intensity, w unused
+		// A45: the plants that lean away from a body (lib/tree_wind, materials with FlagPush): how many pushers, how far a tip moves and sinks
+		int32_t PushCount = 0;         float PushBend = 0.0f;       float PushDown = 0.0f;       float PushPad = 0.0f;
+		glm::vec4 Pushers[MaxPushers] = {};                         // x, z of the body, radius (m), strength 0..1
 	};
 
 	static_assert(sizeof(glm::vec3) == 12 && sizeof(glm::vec4) == 16 && sizeof(glm::mat4) == 64, "FrameConstants needs tightly packed glm types");
@@ -59,5 +63,7 @@ namespace GB
 		offsetof(FrameConstants, HasEnvMap) == 396);
 	static_assert(offsetof(FrameConstants, PointPosRadius) == 400);
 	static_assert(offsetof(FrameConstants, PointColor) == 912);
-	static_assert(sizeof(FrameConstants) == 1424, "3 x 64 + 13 x 16 + 64 x 16 B (std140)");
+	static_assert(offsetof(FrameConstants, PushCount) == 1424 && offsetof(FrameConstants, PushBend) == 1428 && offsetof(FrameConstants, PushDown) == 1432);
+	static_assert(offsetof(FrameConstants, Pushers) == 1440);
+	static_assert(sizeof(FrameConstants) == 1696, "3 x 64 + 14 x 16 + 80 x 16 B (std140)");
 }

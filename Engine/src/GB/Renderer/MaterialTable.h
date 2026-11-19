@@ -91,6 +91,7 @@ namespace GB
 		if (m.FoliageNormals) flags |= D::FlagFoliageNormals;
 		if (m.Alpha == AlphaMode::Mask && context.Multisample) flags |= D::FlagAlphaToCoverage;
 		if (m.DoubleSided) flags |= D::FlagDoubleSided;
+		if (m.Pushable && m.WindSway > 0.0f) flags |= D::FlagPush;   // (the push is part of the sway: WindOffset)
 		d.Flags = glm::uvec4(layers, 0u, static_cast<uint32_t>(m.Alpha), flags);
 
 		d.Wind = glm::vec4(m.WindSway, m.WindHeight, m.WindFlutter, m.WindBase);

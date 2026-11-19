@@ -112,6 +112,8 @@ namespace GB
 		// H16: resource nodes farther than this from the camera are not drawn (0: no limit). A procedural node is up to ~2900 triangles; a forest of
 		// them far away is the cost, not the look. The editor sets it from the quality preset.
 		float NodeDrawDistance = 0.0f;
+		// A45: told of every creature drawn (its entity's name and where it stands), so the crops it walks through lean (GB/Effects/WorkEffects.h)
+		std::function<void(const std::string& name, const glm::vec3& at)> CreatureDrawn;
 
 		// The node definitions (model and capacity of each kind); the attribute reader gives the live value of an entity's attribute (the gameplay
 		// world's), without it the entity's own GameplayComponent is read.

@@ -286,6 +286,7 @@ add_library(GB_Render STATIC
     src/GB/Effects/Lightning.cpp
     src/GB/Effects/SandSpray.cpp
     src/GB/Effects/Weather.cpp
+    src/GB/Effects/WorkEffects.cpp
     src/GB/Renderer/CameraController.cpp
     src/GB/Renderer/Framebuffer.cpp
     src/GB/Renderer/GrassRenderer.cpp

@@ -19,6 +19,8 @@ layout(std140, binding = 0) uniform FrameBlock
 	int uShadowsOn;    int uPointCount;  int uOrtho;  int uHasEnvMap;
 	vec4 uPointPosRadius[32];                 // xyz position, w radius (32 = Renderer::MaxPointLights)
 	vec4 uPointColor[32];                     // rgb color * intensity
+	int uPushCount;    float uPushBend;  float uPushDown;  float uPushPad;   // A45: the plants pushed by bodies (lib/tree_wind)
+	vec4 uPushers[16];                        // x, z, radius, strength (16 = FrameConstants::MaxPushers)
 };
 struct MaterialData
 {
@@ -48,6 +50,7 @@ const uint TEX_INTERIOR = 512u;
 const uint FLAG_FOLIAGE_NORMALS = 1u;
 const uint FLAG_ALPHA_TO_COVERAGE = 2u;
 const uint FLAG_DOUBLE_SIDED = 4u;
+const uint FLAG_PUSH = 8u;
 const uint LAYER_GRAIN = 1u;
 const uint LAYER_MOSS = 2u;
 const uint LAYER_SAND = 4u;

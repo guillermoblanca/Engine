@@ -25,6 +25,10 @@ namespace GB
 		std::vector<const ParticleSystem*> Particles;
 		std::vector<ParticleBatch> ParticleBatches;
 		const GroundInteraction* Ground = nullptr;
+		// A45: the bodies that push the pushable plants (Material::Pushable): x, z, radius (m), strength 0..1; the first
+		// FrameConstants::MaxPushers are sent (put the nearest the camera first). PushBend: metres a tip moves at full lean; PushDown: how much it sinks.
+		std::vector<glm::vec4> Pushers;
+		float PushBend = 0.0f, PushDown = 0.0f;
 		std::vector<const GrassGpu*> Grass;
 		std::vector<const WaterSurface*> Water;
 		// T138: the lakes as their real mesh (GB/World/Water/LakeMesh.h: the shore, the depth and the distance to the shore per vertex).
