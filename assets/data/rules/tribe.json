@@ -134,7 +134,8 @@
       "survivalDays": 1.5,
       "survivalBoost": 2.0,
       "survivalDamp": 0.25,
-      "criticalHunger": 55.0
+      "criticalHunger": 55.0,
+      "foodCeilingDays": 8.0
     },
     "roles": { "review": 900.0, "inertia": 0.3, "skillSwitch": 25.0, "minClan": 3, "fireDemand": 6.0 },
     "categories": {

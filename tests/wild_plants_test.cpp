@@ -226,11 +226,18 @@ int Seeds(const Tribe& t) { int n = 0; for (const std::string& s : kSeeds) n += 
 // came to the store (-1: never), the plots sown after `seconds` (the clan marks a field and sows what it brought), the farthest search for
 // wild grain from the camp, and the first line of the log about the node.
 struct SeedRun { double First = -1.0; int Sown = 0; float Search = 0.0f; float Reach = 0.0f; bool Wanted = false; std::string Line; };
-SeedRun RunSeeds(float reach, bool tillage, bool known, float seconds)
+SeedRun RunSeeds(float reach, bool tillage, bool known, float seconds, bool held = false)
 {
 	const glm::vec2 grain(0.0f, 142.0f);   // 150 m from the camp: past the home ground (HomeRadius + HomeFalloff)
 	Wilds w(GivesSeed, { Spot("wild_grain", grain.x, grain.y) });
 	if (reach >= 0.0f) w.Tribe_.Config.Econ.Farming.WildSeedReach = reach;
+	if (held)   // T366: everything past 60 m from the camp is the land of another clan
+	{
+		TribeOutside o;
+		const glm::vec2 camp = w.Camp;
+		o.NodeHeld = [camp](const Tribe&, const std::string& node, const glm::vec2& at) { return glm::distance(at, camp) > 60.0f ? node + " grows on the land of the others" : std::string(); };
+		w.Tribe_.SetOutside(std::move(o));
+	}
 	SeedRun out;
 	out.Reach = w.Tribe_.Config.Econ.Farming.WildSeedReach;
 	if (tillage) Check(w.Tribe_.Knowledge().GrantClan("tillage").empty(), "(the clan learns tillage)");
@@ -286,6 +293,11 @@ int GBTest_wild_plants(int, char**)
 		std::fprintf(stderr, "  not known: the farthest search %.0f m from the camp, first seed at %.0f s\n", static_cast<double>(search.Search), search.First);
 		Check(search.Search > 60.0f && search.Search <= search.Reach + 1.0f, "(seed) knowing of none, it searches for wild grain past the home ground, within the reach");
 
+		// T366: the wild grain on the land another clan holds is not taken (taking there is theft: the war of seed 7), nor looked for there
+		const SeedRun theirs = RunSeeds(-1.0f, true, true, 600.0f, true);
+		std::fprintf(stderr, "  on the land of another clan: wanted %d, first seed at %.0f s, farthest search %.0f m\n", theirs.Wanted ? 1 : 0, theirs.First, static_cast<double>(theirs.Search));
+		Check(theirs.Wanted && theirs.First < 0.0 && theirs.Search <= 60.0f, "(seed) the wild grain on another clan's land is neither taken nor looked for there");
+
 		const SeedRun again = RunSeeds(-1.0f, true, true, 600.0f);
 		Check(again.First == on.First && again.Sown == on.Sown && again.Line == on.Line, "(seed) the same run does the same (deterministic)");
 	}
@@ -293,10 +305,18 @@ int GBTest_wild_plants(int, char**)
 	// ---- (bush) T335
 	{
 		auto movable = [](const ResourceNodeDef& d) { return !d.Transplant.Item.empty(); };   // (no bush, herb or young tree in the patch)
-		auto run = [&](bool care, float near, int& orders, float& after, std::string& line)
+		auto run = [&](bool care, float near, int& orders, float& after, std::string& line, bool theirs = false)
 		{
 			Wilds w(movable, { Spot("berry_bush", 30.0f, 22.0f) });   // ~42 m from the camp: on the home ground, not by the camp
 			if (near >= 0.0f) w.Tribe_.Config.Econ.Farming.TransplantNear = near;
+			if (theirs)   // T366: the ground by the camp (where a moved bush would stand) is the land of another clan; the bush's own spot is not
+			{
+				TribeOutside o;
+				const glm::vec2 camp = w.Camp;
+				const float by = w.Tribe_.Config.Econ.Farming.TransplantNear + 2.0f;
+				o.NodeHeld = [camp, by](const Tribe&, const std::string&, const glm::vec2& at) { return glm::distance(at, camp) <= by ? std::string("the land of the others") : std::string(); };
+				w.Tribe_.SetOutside(std::move(o));
+			}
 			if (care) Check(w.Tribe_.Knowledge().GrantClan("plant_care").empty(), "(the clan learns plant care)");
 			const std::string bush = w.NodeOf("berry_bush");
 			orders = 0;
@@ -330,6 +350,10 @@ int GBTest_wild_plants(int, char**)
 		run(true, 0.0f, orders, after, line);
 		std::fprintf(stderr, "  transplantNear 0: %d order(s), the bush %.1f m from the camp\n", orders, static_cast<double>(after));
 		Check(orders == 0 && after > 40.0f, "(bush) with transplantNear 0 nothing is ordered (off)");
+
+		run(true, -1.0f, orders, after, line, true);
+		std::fprintf(stderr, "  the spots by the camp on another clan's land: %d order(s), the bush %.1f m from the camp\n", orders, static_cast<double>(after));
+		Check(orders == 0 && after > 40.0f, "(bush) no bush is moved to a spot on another clan's land (T366: picking it there would be theft)");
 	}
 
 	if (failures) std::fprintf(stderr, "%d check(s) failed\n", failures);

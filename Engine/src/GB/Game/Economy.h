@@ -27,6 +27,18 @@ namespace GB
 		bool Experiment = true;                  // the inputs of a recipe the clan does not know are wanted too, to try it (E5)
 		float ContainersPerMember = 1.0f;        // containers (Item.Container: baskets) wanted per member that carries none (E11); 0 = none
 		float PreserveAbove = 1.0f;              // perishable food above this many times its stock target is preserved when a recipe and a station allow (E6)
+		// T358 (N1): with this > 0, what is preserved stops at this many days of what the clan eats of the food's group (FoodStock::UnitsFor of
+		// the living, over the diet's Varied groups), plus the winter stock in the season before the lean one (WinterStockDays); 0 = the old
+		// rule (up to the store's cap)
+		float PreserveDays = 0.0f;
+		// T300 (N3, P-A8): the cooked meals the clan of the AI keeps (GB/Game/ClanCooking.h). PerMember: cooked meals in hand a living member
+		// (0 = none: no meal is cooked for its own sake); RawSoon: raw food with less than this left (s) is cooked when a recipe keeps it (0 = none)
+		struct MealRules
+		{
+			float PerMember = 0.0f;
+			float RawSoon = 0.0f;
+			bool operator==(const MealRules&) const = default;
+		} Meals;
 		bool operator==(const ProductionRules&) const = default;
 	};
 
@@ -154,7 +166,7 @@ namespace GB
 
 	EconomyRules DefaultEconomyRules();   // the "economy" section of the game's data (assets/data/rules/economy.json and crops.json)
 	// { "economy": { "production": { "depth", "maxBatches", "seconds", "priority", "stock": { "cordage": 2 }, "campStations": [ "workbench" ], "upgrade",
-	//   "experiment", "containersPerMember", "preserveAbove" }, "spoilage": { "step", "bag", "seasons": { "winter": 0.5 } }, "farming": { "tech", "tool",
+	//   "experiment", "containersPerMember", "preserveAbove", "preserveDays", "meals": { "perMember", "rawSoon" } }, "spoilage": { "step", "bag", "seasons": { "winter": 0.5 } }, "farming": { "tech", "tool",
 	//   "plots", "columns", "spacing", "offset": [ x, z ], "moistureSeconds", "workSeconds", "plotsPerTrip", "priority", "fields", "foodDays" },
 	//   "crops": [ { "id", "seed", "yield": { "grain": 3 }, "stageSeconds", "sow": [ "spring" ], "seasons": { "spring": 1.2 }, "tech" } ],
 	//   "logistics": { "stores": { "main": { "cap", "slots", "spoilRate", "accepts": [], "haul" } }, "perBagSlot", "priority", "haulAt", "fieldStore" },

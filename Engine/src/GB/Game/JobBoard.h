@@ -37,6 +37,9 @@ namespace GB
 		float SurvivalBoost = 2.0f;     // food jobs and food options score x (1 + this x how short of food the clan is)
 		float SurvivalDamp = 0.25f;     // what is not about staying alive scores this much (x) when the clan is as short of food as can be
 		float CriticalHunger = 55.0f;   // a member this hungry with no food in hand drops what it was doing for food (the same pressure, its own)
+		// T359 (N2): with this > 0, a clan with this many days of food in hand (Tribe::FoodDays), plus the winter reserve in the season before the
+		// lean one (WinterReserveDays), gathers no more food: neither the board nor its members (GB/Game/FoodCeiling.h). 0 = no ceiling
+		float FoodCeilingDays = 0.0f;
 		bool operator==(const JobRules&) const = default;
 	};
 

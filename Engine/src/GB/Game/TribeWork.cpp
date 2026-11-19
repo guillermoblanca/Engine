@@ -2,6 +2,7 @@
 // from Tribe.cpp (the senses, the needs and the decision of each member) so the two grow without stepping on each other; the hooks there are few:
 // Decide calls ClaimJob and JobBonus, Execute reads the aptitude for the gathers of a trip, Finish calls Practise, and Update runs PostJobs and
 // ReviewRoles on their clocks. Deterministic like the rest: maps in id order, ties to the first, no randomness.
+#include "GB/Game/FoodCeiling.h"
 #include "GB/Game/BushKeeper.h"
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
@@ -339,6 +340,7 @@ namespace GB
 				}
 				if (const auto u = rules.Upkeep.find(item); u != rules.Upkeep.end() && u->second > 0.0f) { wanted += u->second * static_cast<float>(alive); extra = " (with the upkeep of the camp)"; }
 				if (item == fuel && HasFire()) { wanted += rules.FireWood; extra += " (and the campfire)"; }
+				if (IsFood(item) && FoodCeiling::Reached(*this)) continue;   // T359 (N2): days of food enough: no food gathering (GB/Game/FoodCeiling.h)
 				// the pyramid: a clan wants the days of food it lives on in hand, whatever the stock table says of it
 				if (IsFood(item))
 				{

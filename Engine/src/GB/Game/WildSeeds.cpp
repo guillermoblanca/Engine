@@ -2,6 +2,7 @@
 #include "GB/Game/WildSeeds.h"
 #include "GB/Game/FarmZones.h"
 #include "GB/Game/TechVerbs.h"
+#include "GB/Game/Transplant.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Techs.h"
 #include <cmath>
@@ -116,6 +117,7 @@ namespace GB
 			if (def == tribe.m_Defs.end() || e.Amount == 0 || glm::distance(e.Pos, camp) > reach) continue;
 			const float y = Yield(def->second, seeds);
 			if (y < kMinYield || !tribe.m_Knowledge.CanGather(m.Name, e.Kind) || tribe.m_Claims.HeldByOther(name, m.Name)) continue;
+			if (!Transplant::Held(tribe, name, e.Pos).empty()) continue;   // T366: not on the land another clan holds (taking there is theft: war in seed 7)
 			if (!def->second.RequiresTag.empty() && bag.CountTagged(*tribe.m_Items, def->second.RequiresTag) == 0) continue;
 			const float cost = (glm::distance(pos, e.Pos) + 1.0f) / y;
 			if (!best || cost < bestCost) { best = &e; bestCost = cost; bestYield = y; }   // (name order breaks a tie)
@@ -145,9 +147,15 @@ namespace GB
 		UtilityOption o;
 		o.Kind = "explore";
 		o.Target = bestKind;
-		o.Where = camp + glm::vec2(std::cos(angle), std::sin(angle)) * radius;
-		for (int k = 1; k < 8 && !m.Body->CanReach(o.Where); ++k)   // not into a lake or up a cliff: the next bearing
+		// not into a lake or up a cliff, nor into the land another clan holds (T366: what it finds there it would take, and that is theft): the
+		// next bearing; none: it does not go
+		bool found = false;
+		for (int k = 0; k < 8 && !found; ++k)
+		{
 			o.Where = camp + glm::vec2(std::cos(angle + 0.7f * static_cast<float>(k)), std::sin(angle + 0.7f * static_cast<float>(k))) * radius;
+			found = m.Body->CanReach(o.Where) && Transplant::Held(tribe, std::string(), o.Where).empty();
+		}
+		if (!found) return;
 		o.Score = kExplore;
 		Factor(o, "no seed to sow", kExplore);
 		o.Note = "knows no " + bestKind + " within " + std::to_string(static_cast<int>(reach)) + " m and the clan has no seed to sow";

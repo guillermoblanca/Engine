@@ -24,7 +24,7 @@ namespace GB
 			{ "claimSeconds", &JobRules::ClaimSeconds }, { "ageBoost", &JobRules::AgeBoost }, { "ageSeconds", &JobRules::AgeSeconds }, { "maxAge", &JobRules::MaxAge },
 			{ "minScore", &JobRules::MinScore }, { "switch", &JobRules::Switch }, { "fireWood", &JobRules::FireWood },
 				{ "survivalDays", &JobRules::SurvivalDays }, { "survivalBoost", &JobRules::SurvivalBoost }, { "survivalDamp", &JobRules::SurvivalDamp },
-				{ "criticalHunger", &JobRules::CriticalHunger } };
+				{ "criticalHunger", &JobRules::CriticalHunger }, { "foodCeilingDays", &JobRules::FoodCeilingDays } };
 		struct RoleField { const char* Key; float RoleRules::*Field; };
 		constexpr RoleField kRoleFields[] = { { "review", &RoleRules::Review }, { "inertia", &RoleRules::Inertia }, { "skillSwitch", &RoleRules::SkillSwitch },
 			{ "fireDemand", &RoleRules::FireDemand } };

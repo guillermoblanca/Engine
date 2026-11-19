@@ -11,7 +11,9 @@
       "upgrade": true,
       "experiment": true,
       "containersPerMember": 1.0,
-      "preserveAbove": 1.0
+      "preserveAbove": 1.0,
+      "preserveDays": 6.0,
+      "meals": { "perMember": 2.0, "rawSoon": 600.0 }
     },
     "spoilage": { "step": 10.0, "bag": 1.0, "seasons": { "winter": 0.5 } },
     "winterStock": { "days": 17.0, "from": 0.0 },

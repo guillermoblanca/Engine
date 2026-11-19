@@ -48,7 +48,8 @@ namespace GB
 			{
 				const float a = 0.5f + 6.2831853f * static_cast<float>(k) / static_cast<float>(kBearings);
 				const glm::vec2 spot = camp + glm::vec2(std::cos(a), std::sin(a)) * r;
-				if (Transplant::WhyNot(tribe, *who, node, spot).empty()) { to = spot; return node; }
+				// T366: nor to a spot on the land another clan holds (a camp by the border: its bush there would be picked as theft)
+				if (Transplant::WhyNot(tribe, *who, node, spot).empty() && Transplant::Held(tribe, std::string(), spot).empty()) { to = spot; return node; }
 			}
 		}
 		return {};

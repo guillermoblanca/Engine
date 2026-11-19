@@ -1,4 +1,5 @@
 #include "GB/Game/Tribe.h"
+#include "GB/Game/FoodCeiling.h"
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/TribePriorities.h"
 #include "GB/Game/TechTiers.h"
@@ -1614,9 +1615,11 @@ namespace GB
 		const Recipe* wanted = !hasTool ? m_Recipes->Find(tool) : nullptr;
 		const std::map<std::string, int> siteDemand = SiteDemand();
 		bool lacksFood = foodHeld == 0;
+		const bool foodFull = FoodCeiling::Reached(*this);   // T359 (N2): days of food enough (GB/Game/FoodCeiling.h)
 		for (const auto& [kind, def] : m_Defs)
 		{
 			if (m_Store.Count(def.Item) >= StoreCap(def.Item)) continue;   // enough of that for now
+			if (foodFull && !lacksFood && IsFood(def.Item)) continue;   // T359: no more food (unless it has none at hand)
 			if (!def.RequiresTag.empty() && bag.CountTagged(*m_Items, def.RequiresTag) == 0) continue;
 			if (!m_Knowledge.CanGather(m.Name, kind)) continue;   // a node only those who know a technology work (H11)
 			float distance = 0.0f;

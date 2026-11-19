@@ -549,6 +549,7 @@ int GBTest_settlement(int, char**)
 			{
 				s->Tribe_.Store().Remove("berry", 1000);
 				s->Tribe_.Store().Add(s->Items, "berry", 30);
+				s->Tribe_.Store().Add(s->Items, "honey", 100);   // T360: days of food that do not go off (old berries alone are no days of food: the clan would fetch fresh ones)
 				for (ItemSlot& slot : const_cast<std::vector<ItemSlot>&>(s->Tribe_.Store().Stacks())) if (slot.Id == "berry") slot.Age = 1500.0f;
 			}
 			const float dt = 1.0f / 30.0f;
