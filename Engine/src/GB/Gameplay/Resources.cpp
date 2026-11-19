@@ -345,22 +345,16 @@ namespace GB
 		return out;
 	}
 
-	ResourceLayout BuildWorldResources(EntityWorld& w, const std::vector<ResourceSpot>& spots, const std::map<std::string, ResourceNodeDef>& nodes)
+	namespace
 	{
-		ResourceLayout out;
-		const EntityId root = MakeRoot(w, glm::vec3(0.0f), out, "World resources");
-		w.Find(root)->Tags.push_back("world");   // generated from the seed, like the groups of trees and rocks: part of the save's baseline, gone with the world
-		std::map<std::string, int> next;
-		for (const ResourceSpot& s : spots)
+		// A node of a planned spot: with a model of the world (a procedural tree or rock) it is drawn with it; without one (no world recipes, an
+		// old plan) with primitives.
+		EntityId MakeSpotNode(EntityWorld& w, EntityId root, const ResourceNodeDef& def, int index, const ResourceSpot& s, ResourceLayout& out, const std::string& prefix)
 		{
-			auto it = nodes.find(s.Node);
-			if (it == nodes.end()) continue;
-			const ResourceNodeDef& def = it->second;
-			// a node with a model of the world (a procedural tree or rock) is drawn with it; without one (no world recipes, an old plan) with primitives
 			const bool prop = !def.Spawn.Prop.empty() && s.Variant >= 0;
-			const EntityId id = MakeNode(w, root, def, ++next[s.Node], s.Position, out, "wild ", !prop);
+			const EntityId id = MakeNode(w, root, def, index, s.Position, out, prefix, !prop);
 			w.Find(id)->Transform.Rotation.y = s.Yaw;
-			if (!prop) continue;
+			if (!prop) return id;
 			const std::string name = w.Find(id)->Name;
 			const float k = s.Scale;
 			auto addProp = [&](const std::string& partName, PropKind kind, int variant, const glm::vec3& at, float scale)
@@ -386,8 +380,32 @@ namespace GB
 					addProp(name + " Rock " + std::to_string(i + 1), PropKind::Rock, s.Variant, glm::vec3(std::cos(a) * 0.35f * k, 0.55f * k * static_cast<float>(i), std::sin(a) * 0.35f * k), k * f);
 				}
 			}
+			return id;
+		}
+	}
+
+	ResourceLayout BuildWorldResources(EntityWorld& w, const std::vector<ResourceSpot>& spots, const std::map<std::string, ResourceNodeDef>& nodes)
+	{
+		ResourceLayout out;
+		const EntityId root = MakeRoot(w, glm::vec3(0.0f), out, "World resources");
+		w.Find(root)->Tags.push_back("world");   // generated from the seed, like the groups of trees and rocks: part of the save's baseline, gone with the world
+		std::map<std::string, int> next;
+		for (const ResourceSpot& s : spots)
+		{
+			auto it = nodes.find(s.Node);
+			if (it == nodes.end()) continue;
+			MakeSpotNode(w, root, it->second, ++next[s.Node], s, out, "wild ");
 		}
 		return out;
+	}
+
+	EntityId BuildNodeAt(EntityWorld& w, const ResourceSpot& spot, const ResourceNodeDef& def, int index, const std::string& prefix)
+	{
+		ResourceLayout out;
+		std::string label = prefix + def.Id;   // (MakeNode's name)
+		std::replace(label.begin(), label.end(), '_', ' ');
+		if (w.FindByName(label + " " + std::to_string(index)) != NullEntity) return NullEntity;
+		return MakeSpotNode(w, NullEntity, def, index, spot, out, prefix);
 	}
 
 	void SnapToGround(EntityWorld& w, const ResourceLayout& layout, const std::function<float(float, float)>& height)
@@ -429,32 +447,48 @@ namespace GB
 	{
 		m_Defs = nodes;
 		m_Yield = std::move(onYield);
+		m_Bound.clear();
 		for (const std::string& name : gameplay.Names())
 		{
 			AbilitySystemComponent* node = gameplay.Find(name);
-			if (!node->HasTag("Resource.Node")) continue;
-			node->AddListener("Event.Resource.Gather", [this, node](const GameplayEventData& e)
-			{
-				const ResourceNodeDef* def = nullptr;
-				for (const auto& [id, d] : m_Defs)
-					if (node->HasTag("Resource.Node." + id)) { def = &d; break; }
-				if (!def) return;
-				const int have = Amount(*node);
-				// The tool in the gatherer's hands: its family's power is the attribute SyncTools keeps on whoever carries it.
-				int bonus = 0;
-				if (e.Instigator && !def->RequiresTag.empty())
-					bonus = std::max(0, static_cast<int>(std::lround(e.Instigator->Attributes().Current(PowerAttribute(def->RequiresTag)))));
-				const int take = std::min(have, std::max(1, def->PerGather) + bonus);
-				if (take <= 0) return;
-				node->Attributes().SetBase("Amount", static_cast<float>(have - take));
-				if (m_Yield && e.Instigator) m_Yield(e.Instigator->Name(), def->Item, take);
-				if (m_Yield && e.Instigator && !def->ExtraItem.empty() && ExtraRoll(*node, *def)) m_Yield(e.Instigator->Name(), def->ExtraItem, def->ExtraPerGather);   // (a tree's branches)
-			});
+			if (node->HasTag("Resource.Node")) Attach(node);
 		}
+		m_BoundRevision = gameplay.Revision();
+	}
+
+	void ResourceSystem::Attach(AbilitySystemComponent* node) const
+	{
+		m_Bound[node] = node->Name();
+		node->AddListener("Event.Resource.Gather", [this, node](const GameplayEventData& e)
+		{
+			const ResourceNodeDef* def = nullptr;
+			for (const auto& [id, d] : m_Defs)
+				if (node->HasTag("Resource.Node." + id)) { def = &d; break; }
+			if (!def) return;
+			const int have = Amount(*node);
+			// The tool in the gatherer's hands: its family's power is the attribute SyncTools keeps on whoever carries it.
+			int bonus = 0;
+			if (e.Instigator && !def->RequiresTag.empty())
+				bonus = std::max(0, static_cast<int>(std::lround(e.Instigator->Attributes().Current(PowerAttribute(def->RequiresTag)))));
+			const int take = std::min(have, std::max(1, def->PerGather) + bonus);
+			if (take <= 0) return;
+			node->Attributes().SetBase("Amount", static_cast<float>(have - take));
+			if (m_Yield && e.Instigator) m_Yield(e.Instigator->Name(), def->Item, take);
+			if (m_Yield && e.Instigator && !def->ExtraItem.empty() && ExtraRoll(*node, *def)) m_Yield(e.Instigator->Name(), def->ExtraItem, def->ExtraPerGather);   // (a tree's branches)
+		});
+	}
+
+	void ResourceSystem::BindNew(GameplayWorld& gameplay) const
+	{
+		if (m_BoundRevision == gameplay.Revision() || (m_Defs.empty() && !m_Yield)) return;   // (not bound yet: Bind does them all)
+		m_BoundRevision = gameplay.Revision();
+		for (const TaggedSystems::Entry& entry : m_Nodes.Of(gameplay))
+			if (const auto it = m_Bound.find(entry.System); it == m_Bound.end() || it->second != *entry.Name) Attach(entry.System);
 	}
 
 	void ResourceSystem::Update(GameplayWorld& gameplay, float dt, float rate) const
 	{
+		BindNew(gameplay);   // T343: a node made after Bind (a tree of the scenery a farm zone clears) gives its yield too
 		if (rate <= 0.0f) return;
 		std::vector<std::pair<std::string, const ResourceNodeDef*>> kinds;   // the kind tags, made once a tick instead of once a node
 		kinds.reserve(m_Defs.size());

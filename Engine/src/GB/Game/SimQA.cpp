@@ -865,11 +865,18 @@ namespace GB
 		// The ground the members walk: the terrain's height and water, the world's trunks and rocks as walls (as the editor's actors see them:
 		// PlayerMode::MakeHost), and the undergrowth of each biome.
 		m_Ground = MakeTerrainCharacterWorld(*world.TerrainRef);
+		m_SceneryFirst = m_Ground.Obstacles.size();
 		for (const TreePlacement& tree : world.Trees) m_Ground.Obstacles.push_back({ { tree.Position.x, tree.Position.z }, 0.3f * tree.Scale });
 		for (const RockPlacement& rock : world.Rocks)
 		{
 			const float size = rock.Variant >= 0 && rock.Variant < static_cast<int>(world.RockRecipes.size()) ? world.RockRecipes[static_cast<size_t>(rock.Variant)].Size : 1.0f;
 			m_Ground.Obstacles.push_back({ { rock.Position.x, rock.Position.z }, 0.8f * size * rock.Scale });
+		}
+		m_SceneryGone.assign(world.Trees.size() + world.Rocks.size(), false);
+		for (size_t i = 0; i < m_SceneryGone.size(); ++i)   // (T343: the trees and rocks by cells, for the farm zones that clear them)
+		{
+			const glm::vec2 c = m_Ground.Obstacles[m_SceneryFirst + i].Center;
+			m_SceneryCells[{ static_cast<int>(std::floor(c.x / kSceneryCell)), static_cast<int>(std::floor(c.y / kSceneryCell)) }].push_back(i);
 		}
 		NavConfig nav;
 		if (setup.PlanBudget > 0) nav.MaxPlansPerFrame = setup.PlanBudget;
@@ -1017,6 +1024,7 @@ namespace GB
 
 		m_Tribe.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
 		m_Tribe.SetInteractives(&m_Rules.Defs);
+		m_Tribe.SetScenery(MakeScenery());   // T343: a farm zone clears the world's trees and rocks in it
 		m_Tribe.SetTechs(&m_Techs);   // H11: the members know the technologies of the start and find, watch and teach the rest (as the editor's tribe)
 		if (setup.Buildings)
 		{
@@ -1189,12 +1197,74 @@ namespace GB
 		if (const Entity* e = m_Entities.Find(id); e && e->Gameplay && !m_Gameplay.Find(e->Name)) m_Gameplay.Create(e->Name)->FromComponent(*e->Gameplay);
 	}
 
+	// T343: the world's trees and rocks as the editor has them (SceneEditor::PopulateEnvironment: "Tree N" is the N-th tree placement), for the
+	// farm zones that clear them (GB/Game/Scenery.h)
+	SceneryProp SimRun::SceneryAt(size_t i) const
+	{
+		const GeneratedWorld& world = *m_Setup.World;
+		SceneryProp p;
+		const bool tree = i < world.Trees.size();
+		const size_t k = tree ? i : i - world.Trees.size();
+		p.Kind = tree ? PropKind::Tree : PropKind::Rock;
+		p.Index = static_cast<int>(k) + 1;
+		p.Name = (tree ? "Tree " : "Rock ") + std::to_string(p.Index);
+		p.Variant = tree ? world.Trees[k].Variant : world.Rocks[k].Variant;
+		p.Position = tree ? world.Trees[k].Position : world.Rocks[k].Position;
+		p.Yaw = glm::degrees(tree ? world.Trees[k].Yaw : world.Rocks[k].Yaw);   // (the placements' yaw is in radians, an entity's in degrees)
+		p.Scale = tree ? world.Trees[k].Scale : world.Rocks[k].Scale;
+		size_t before = 0;   // its wall: the cleared ones before it are no longer in the list
+		for (size_t j = 0; j < i; ++j) before += m_SceneryGone[j] ? 1 : 0;
+		p.Radius = m_Ground.Obstacles[m_SceneryFirst + i - before].Radius;
+		return p;
+	}
+
+	SceneryHost SimRun::MakeScenery()
+	{
+		SceneryHost host;
+		host.Around = [this](const glm::vec2& lo, const glm::vec2& hi, std::vector<SceneryProp>& out)
+		{
+			out.clear();
+			std::vector<size_t> found;
+			for (int x = static_cast<int>(std::floor(lo.x / kSceneryCell)); x <= static_cast<int>(std::floor(hi.x / kSceneryCell)); ++x)
+				for (int z = static_cast<int>(std::floor(lo.y / kSceneryCell)); z <= static_cast<int>(std::floor(hi.y / kSceneryCell)); ++z)
+					if (const auto cell = m_SceneryCells.find({ x, z }); cell != m_SceneryCells.end())
+						for (const size_t i : cell->second)
+						{
+							if (m_SceneryGone[i]) continue;
+							const glm::vec3 at = i < m_Setup.World->Trees.size() ? m_Setup.World->Trees[i].Position : m_Setup.World->Rocks[i - m_Setup.World->Trees.size()].Position;
+							if (at.x >= lo.x && at.x <= hi.x && at.z >= lo.y && at.z <= hi.y) found.push_back(i);
+						}
+			std::sort(found.begin(), found.end());   // (trees then rocks, each by its number: the order of the names)
+			for (const size_t i : found) out.push_back(SceneryAt(i));
+		};
+		host.Remove = [this](const std::string& name) { return RemoveScenery(name); };
+		return host;
+	}
+
+	bool SimRun::RemoveScenery(const std::string& name)
+	{
+		PropKind kind;
+		int index = 0;
+		if (!ParseSceneryName(name, kind, index)) return false;
+		const size_t trees = m_Setup.World->Trees.size();
+		const size_t i = kind == PropKind::Tree ? static_cast<size_t>(index - 1) : trees + static_cast<size_t>(index - 1);
+		if ((kind == PropKind::Tree && static_cast<size_t>(index) > trees) || i >= m_SceneryGone.size() || m_SceneryGone[i]) return false;
+		size_t before = 0;
+		for (size_t j = 0; j < i; ++j) before += m_SceneryGone[j] ? 1 : 0;
+		m_Ground.Obstacles.erase(m_Ground.Obstacles.begin() + static_cast<std::ptrdiff_t>(m_SceneryFirst + i - before));
+		--m_GroundStatics;
+		m_SceneryGone[i] = true;
+		m_Nav.SyncObstacles(m_Ground.Obstacles);   // (the cells around it are redone: it can be stood on)
+		return true;
+	}
+
 	// A further clan's tribe (H16, N7): its well by the camp, bound to the run's world and content, and a stand-in body for each one born.
 	void SimRun::SetUpClan(Tribe& t, const std::string& name, const glm::vec2& home)
 	{
 		const Terrain* terrain = m_Setup.World->TerrainRef;
 		DigWell("Well " + name, StartWellSpot(m_Ground, home));
 		t.SetWellDigger([this](const std::string& well, const glm::vec2& at) { DigWell(well, at); });
+		t.SetScenery(MakeScenery());   // T343
 		t.Bind(m_Entities, m_Gameplay, m_Items, m_Recipes, m_Defs);
 		t.SetInteractives(&m_Rules.Defs);
 		t.SetTechs(&m_Techs);

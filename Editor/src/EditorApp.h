@@ -705,6 +705,7 @@ namespace GB::Editor
 		std::string SimStatsLine() const;
 		std::vector<glm::vec2> PickVillageSites(int count, std::vector<glm::vec2> sites = {}) const;   // after the given ones
 		void PrepareClanTribe(Tribe& tribe);                     // binds a kept clan's tribe to the scene, the content, the regions and a spawner
+		SceneryHost SceneScenery();                              // T343: the scene's trees and rocks "Tree N"/"Rock N" for the clans (walls as PlayerMode::MakeHost's)
 		void ClearKeptClans();                                   // the clans `clan new` made go (their actors stay)
 		void RestoreClans(const std::string& json);              // after a load: the kept clans with their members' actors, then the diplomacy
 		void DrawClansSection();

@@ -70,9 +70,15 @@ namespace GB
 		// A gather's roll for the extra of `node`: with a chance under 1 it counts the node's rolls in its attribute "ExtraRolls" (made on its first
 		// roll; saved with the node's attributes), so a loaded game goes on with the same rolls. A chance of 1 rolls nothing and keeps no count.
 		static bool ExtraRoll(AbilitySystemComponent& node, const ResourceNodeDef& def);
+		// T343: Update binds the nodes made since Bind (or since it last looked: the scene's systems changed), as Bind did the others.
+		void BindNew(GameplayWorld& gameplay) const;
 	private:
+		void Attach(AbilitySystemComponent* node) const;   // its listener of Event.Resource.Gather (the yield)
+
 		std::map<std::string, ResourceNodeDef> m_Defs;
 		mutable TaggedSystems m_Nodes{ { "Resource.Node" } };   // (walked every tick: kept until the scene's systems change)
 		Yield m_Yield;
+		mutable std::map<const AbilitySystemComponent*, std::string> m_Bound;   // T343: the nodes with the listener (and their name: a new one may take a freed address)
+		mutable uint64_t m_BoundRevision = 0;
 	};
 }

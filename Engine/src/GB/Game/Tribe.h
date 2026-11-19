@@ -28,6 +28,7 @@
 #include "GB/Game/Trails.h"
 #include "GB/Game/TribeBias.h"
 #include "GB/Game/Production.h"
+#include "GB/Game/Scenery.h"
 #include "GB/Game/Schedule.h"
 #include "GB/Game/SettlementPlanner.h"
 #include "GB/Game/StockGoals.h"
@@ -445,6 +446,9 @@ namespace GB
 		void SetGround(std::function<float(float, float)> height) { m_Ground = std::move(height); }
 		// Who puts a well where a dug well (BuildingDef::Well) stands: the host builds the interactive called `name` and its ability system.
 		void SetWellDigger(std::function<void(const std::string& name, const glm::vec2& at)> dig) { m_DigWell = std::move(dig); }
+		// T343: the trees and rocks of the scenery (GB/Game/Scenery.h): a farm zone painted over one clears it (FarmZones). None: they wall plots.
+		void SetScenery(SceneryHost scenery) { m_Scenery = std::move(scenery); }
+		const SceneryHost& Scenery() const { return m_Scenery; }
 		// Whether a tech is known, for a tribe without technologies (SetTechs); with them, what the members know decides (ClanKnowledge, H11).
 		void SetTechCheck(std::function<bool(const std::string&)> knows) { m_KnowsTech = std::move(knows); }
 		// Beds in the finished shelters of the camp (the society, H9, counts a roof as shelter for births).
@@ -1057,6 +1061,7 @@ namespace GB
 		const std::map<std::string, BuildingDef>* m_Buildings = nullptr;
 		std::function<float(float, float)> m_Ground;
 		std::function<void(const std::string&, const glm::vec2&)> m_DigWell;
+		SceneryHost m_Scenery;   // T343
 		std::function<bool(const std::string&)> m_KnowsTech;
 		float m_PlanTimer = 0.0f;
 		mutable std::vector<std::pair<std::string, glm::vec2>> m_Placed;   // the sites and buildings of the scene (name, x z), looked up once per tick

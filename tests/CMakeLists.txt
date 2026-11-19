@@ -276,6 +276,7 @@ gb_test(founding founding_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;s
 gb_test(colony_priorities colony_priorities_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T280 (AGRICULTURA A1): the farm zones the player paints (crop, plan, auto, remove, save) and the zones the AI marks out by plotsPerMember
 gb_test(farm_zones farm_zones_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
+gb_test(farm_zones_scenery farm_zones_scenery_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T324 (ARBOL_TECNICO §11.2.4): the research queue of the player's clan: refusals, the order of the experiments, a learnt entry leaves, a run, save
 gb_test(research_queue research_queue_test.cpp POOL GBSimTests LINK GB::Sim LABELS "rapido;sim" DEFS ${gb_assets})
 # T341 (PROPUESTA_ARBOL K-b): one state per technology for the tree, the queue and the sheet; tiers shown and counted (T338, D6)

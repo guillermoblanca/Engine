@@ -361,6 +361,12 @@ namespace GB
 		void SyncBuildingWalls();
 		void SetUpClan(Tribe& t, const std::string& name, const glm::vec2& home);
 		void DigWell(const std::string& name, const glm::vec2& at);
+		// T343: the world's trees and rocks for the clans (Tribe::SetScenery): "Tree N" is world.Trees[N - 1] and its wall, as the editor names
+		// them. Removing one takes its circle out of the ground's walls and redoes the grid around it.
+		SceneryHost MakeScenery();
+		bool RemoveScenery(const std::string& name);
+		SceneryProp SceneryAt(size_t index) const;
+		static constexpr float kSceneryCell = 16.0f;
 
 		SimSetup m_Setup;
 		std::string m_Error;
@@ -383,6 +389,9 @@ namespace GB
 		CharacterWorld m_Ground;
 		NavGrid m_Nav;
 		size_t m_GroundStatics = 0;                  // T6: the world's own trunks and rocks in m_Ground.Obstacles; the building walls come after them
+		size_t m_SceneryFirst = 0;                   // T343: where the world's trees (then its rocks) start in m_Ground.Obstacles
+		std::vector<bool> m_SceneryGone;             // T343: per tree, then per rock: cleared away (its wall is no longer in the list)
+		std::map<std::pair<int, int>, std::vector<size_t>> m_SceneryCells;   // T343: the trees and rocks by cells of kSceneryCell metres
 		std::vector<CircleObstacle> m_BuildingWalls; // T6: as last synced
 		WallStats m_Walls;
 		std::vector<std::unique_ptr<SimBody>> m_Bodies;
