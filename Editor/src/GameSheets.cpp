@@ -176,7 +176,7 @@ namespace GB::Editor
 					sown += p.State == "sown" || p.State == "sprout" ? 1 : 0;
 					ripe += p.State == "grown" ? 1 : 0;
 				}
-			const int wanted = t.Config.Econ.Farming.FieldsFor(alive);
+			const int wanted = t.Zones().FieldsWanted(t);   // T329: the number of the zones' rule (FarmZones::FieldsWanted), the one the clan acts on
 			Meter(L.Text("Fields"), wanted ? static_cast<float>(fields.size()) / static_cast<float>(wanted) : 1.0f,
 				L.Text("{0} of {1} ({2} growing, {3} ripe)", static_cast<int>(fields.size()), wanted, sown, ripe), fields.empty() ? T::BoneDim : T::Good,
 				fields.empty() ? L.Text("no fields yet: the clan needs tillage, seeds and a hoe") : std::string());
@@ -622,30 +622,25 @@ namespace GB::Editor
 		// D2). Only the technologies with a tier (D6); era 2 is one "?" chip. The god's view (the observer of the free mode) sees every name.
 		const TechStatus status = TechStatusOf(t);
 		const bool reveal = !m_Game.Active && !m_Director.Colony();
-		// (T181: no eras: the technologies go in steps by what they require, the first those that require nothing)
-		std::map<std::string, int> step;
-		std::function<int(const std::string&, int)> depth = [&](const std::string& id, int guard) -> int
-		{
-			if (const auto s = step.find(id); s != step.end()) return s->second;
-			const TechDef* d = tree->Find(id);
-			int n = 0;
-			if (d && guard < 32) for (const std::string& r : d->Requires) if (status.Shown(r) && status.Of(r).Tier < TechStatus::kEraBlockTier) n = std::max(n, 1 + depth(r, guard + 1));
-			return step[id] = n;
-		};
+		// T340: grouped by tier (T323, TechDef::Tier), as the tree's columns: each group says whether the clan has opened it
 		std::map<int, std::vector<const TechDef*>> byStep;
 		int eraBlock = 0;
 		for (const auto& [id, def] : tree->Techs)
 		{
 			if (!status.Shown(id)) continue;
 			if (status.Of(id).Tier >= TechStatus::kEraBlockTier) { eraBlock += status.Of(id).State == TechState::Known ? 0 : 1; continue; }
-			byStep[depth(id, 0)].push_back(&def);
+			byStep[std::max(0, status.Of(id).Tier)].push_back(&def);
 		}
+		const int openTier = TechStatus::OpenTier(t);
 		Heading(L.Text("What the clan knows ({0} of {1})", status.KnownCount(), status.Total()));
 		Dim(L.Text("+ known, a number: in the study queue, ~ on their own, light: can be studied now, ! something is missing, ?: not known yet. Hover one to see more."));
 		for (const auto& entry : byStep)
 		{
 			const std::vector<const TechDef*>& defs = entry.second;
 			ImGui::Spacing();
+			if (openTier < kNoTierGate)
+				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(entry.first <= openTier ? T::Ochre : T::BoneDim), "%s",
+					(L.Text("Tier {0}", entry.first) + "  \xC2\xB7  " + (entry.first <= openTier ? L.Text("open") : L.Text("closed"))).c_str());
 			float line = 0.0f;
 			const float width = ImGui::GetContentRegionAvail().x;
 			for (const TechDef* d : defs)

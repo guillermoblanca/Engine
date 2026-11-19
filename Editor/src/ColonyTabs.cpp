@@ -11,6 +11,7 @@
 // code as the click (the tests drive it headless, as `colony radial do` does for the radial).
 #include "EditorApp.h"
 #include "GameTheme.h"
+#include "GB/Game/TechTiers.h"
 #include <algorithm>
 #include <cfloat>
 #include <cmath>
@@ -554,109 +555,361 @@ namespace GB::Editor
 
 	// T324: the research queue (ResearchQueue.h). The buttons only queue `game research ...`.
 	// T341: every state and every reason is TechStatus's (the tree says the same); a row dragged onto another queues `game research move <tech> <n>`
-	// (T339); what the clan cannot study yet is named only when it could name it (D2), the rest is "? N more" (only the technologies with a tier, D6).
+	// (T339); what the clan cannot study yet is named only when it could name it (D2), the rest is "? N" (only the technologies with a tier, D6).
+	// T340 (K-g, mock-up a3): on the left the queue as rows (handle, number, icon, name and what it opens, its state in words, bar, [first] and
+	// [x]), what they learn on their own (with "+" to queue it) and who studies (their number for Knowledge in Work); on the right what can be
+	// studied now (a grid: a click adds it) and what cannot yet, by tier and without names ("tier 2: opens with the longhouse ? 12").
 	void EditorApp::DrawResearchTab(const Tribe& t, float width, float maxH)
 	{
 		namespace T = GameTheme;
+		(void)maxH;
 		const Lang& L = m_Lang;
 		const ResearchQueue& queue = t.Research();
 		const TechTree* tree = t.Knowledge().Techs();
 		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
 		auto name = [&](const std::string& id) { const TechDef* d = tree ? tree->Find(id) : nullptr; return Lang::Cap(L.Name("tech", id, d ? d->Name : id)); };
-		ColonyTabTitle(L.Text("Knowledge"), L.Text("What the clan studies, in order: whoever works on knowledge tries the first it can"));
+		const std::string treeLabel = L.Text("Open the tree of knowledge");
+		const float treeW = ImGui::CalcTextSize(treeLabel.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f;
+		ColonyTabTitle(L.Text("Knowledge"), L.Text("What the clan studies, in order: whoever works on knowledge tries the first it can"), width,
+			[&] { if (ImGui::Button((treeLabel + "###opentree").c_str())) run("observer tree"); }, treeW);
 		if (!tree) { ImGui::TextDisabled("%s", L.Text("This world has no technologies").c_str()); return; }
 		const TechStatus status = TechStatusOf(t);
-		if (queue.Empty()) ImGui::TextDisabled("%s", L.Text("The study queue is empty: add one below or from the tree").c_str());
-		else if (ImGui::BeginTable("research", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollY,
-			ImVec2(std::min(width, 760.0f), std::min((static_cast<float>(queue.All().size()) + 1.0f) * (ImGui::GetTextLineHeight() + 10.0f) + 4.0f, maxH - 110.0f))))
+		const int openTier = TechTiers::Open(t);
+		const bool tiers = !tree->Rules.Tiers.empty() && openTier < kNoTierGate;
 		{
-			ImGui::TableSetupColumn("tech", ImGuiTableColumnFlags_WidthFixed, 200.0f);
-			ImGui::TableSetupColumn("progress", ImGuiTableColumnFlags_WidthFixed, 70.0f);
-			ImGui::TableSetupColumn("status", ImGuiTableColumnFlags_WidthStretch);
-			ImGui::TableSetupColumn("top", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(L.Text("First").c_str()).x + 12.0f);
-			ImGui::TableSetupColumn("off", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(L.Text("Remove").c_str()).x + 12.0f);
-			for (size_t i = 0; i < queue.All().size(); ++i)
-			{
-				const std::string& id = queue.All()[i];
-				const TechStatus::Entry& e = status.Of(id);
-				ImGui::PushID(id.c_str());
-				ImGui::TableNextRow();
-				ImGui::TableNextColumn();
-				// the row's name is its handle: drag it onto another row to put it in that place
-				ImGui::Selectable((std::to_string(i + 1) + ". " + name(id) + "###row").c_str(), false, ImGuiSelectableFlags_None, ImVec2(0.0f, 0.0f));
-				if (ImGui::IsItemHovered() && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) ImGui::SetTooltip("%s", L.Text("Drag it onto another row to move it there").c_str());
-				if (ImGui::BeginDragDropSource())
-				{
-					ImGui::SetDragDropPayload("GB_RESEARCH", id.c_str(), id.size() + 1);
-					ImGui::TextUnformatted(name(id).c_str());
-					ImGui::EndDragDropSource();
-				}
-				if (ImGui::BeginDragDropTarget())
-				{
-					if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("GB_RESEARCH"))
-					{
-						const std::string moved(static_cast<const char*>(p->Data));
-						if (moved != id) run("game research move " + moved + " " + std::to_string(i + 1));
-					}
-					ImGui::EndDragDropTarget();
-				}
-				ImGui::TableNextColumn();
-				ImGui::Text("%d%%", static_cast<int>(std::lround(e.Progress * 100.0f)));
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("How far the one furthest on it has worked it out").c_str());
-				ImGui::TableNextColumn();
-				// TechStatus in the player's words: being studied, next, or what it waits for (a prerequisite named only when the clan can name it)
-				std::pair<std::string, unsigned> said{ L.Text("next"), T::Bone };
-				if (e.State == TechState::Studying) said = { L.Text("being studied"), T::Good };
-				else if (e.Why != TechWhy::None) said = { TechWhyText(status, id), T::Warn };
-				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(said.second), "%s", said.first.c_str());
-				ImGui::TableNextColumn();
-				if (i > 0)
-				{
-					if (ImGui::SmallButton((L.Text("First") + "###top").c_str())) run("game research top " + id);
-					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Study {0} before the rest", name(id)).c_str());
-				}
-				ImGui::TableNextColumn();
-				if (ImGui::SmallButton((L.Text("Remove") + "###off").c_str())) run("game research remove " + id);
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Take {0} out of the queue", name(id)).c_str());
-				ImGui::PopID();
-			}
-			ImGui::EndTable();
+			std::string head = L.Text("{0} of {1} known", status.KnownCount(), status.Total());
+			if (tiers) head += "  \xC2\xB7  " + L.Text("tier {0} of {1} open", std::min(openTier, TechStatus::kEraBlockTier - 1), TechStatus::kEraBlockTier - 1);
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Bone), "%s", head.c_str());
 		}
-		ImGui::Spacing();
-		ImGui::TextDisabled("%s", L.Text("The clan can study now").c_str());
-		int shown = 0;
-		for (const auto& [id, e] : status.All())
-		{
-			if (e.State != TechState::Studiable || !e.Shown) continue;
-			if (shown++ > 0) ImGui::SameLine();
-			if (ImGui::GetContentRegionAvail().x < ImGui::CalcTextSize(name(id).c_str()).x + 16.0f) ImGui::NewLine();
-			if (ImGui::SmallButton((name(id) + "###add" + id).c_str())) run("game research add " + id);
-			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Add {0} to the end of the queue", name(id)).c_str());
-		}
-		if (shown == 0) ImGui::TextDisabled("%s", L.Text("Nothing new: it must learn more first").c_str());
-		// what it cannot study yet and can name: each with why (no flint at hand, only from others, another clan knows it)
-		std::vector<std::string> later;
-		for (const auto& [id, e] : status.All())
-			if (e.Shown && e.Queue == 0 && (e.State == TechState::Blocked || e.State == TechState::OtherClan)) later.push_back(id);
-		if (!later.empty())
+		const float lineH = ImGui::GetTextLineHeight();
+		const bool two = width >= 760.0f;
+		const float leftW = two ? std::floor(width * 0.54f) : width;
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		auto heading = [&](const std::string& text, const std::string& note = std::string())
 		{
 			ImGui::Spacing();
-			ImGui::TextDisabled("%s", L.Text("Not yet").c_str());
-			for (const std::string& id : later)
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", text.c_str());
+			if (!note.empty()) { ImGui::SameLine(0.0f, 16.0f); ImGui::TextDisabled("%s", note.c_str()); }
+		};
+		// what a technology opens, short ("opens daub and the hut")
+		auto opensShort = [&](const std::string& id)
+		{
+			const TechDef* d = tree->Find(id);
+			if (!d) return std::string();
+			std::vector<std::string> what;
+			for (const std::string& b : d->Buildings) { const auto def = m_Buildings.Defs.find(b); what.push_back(L.Name("building", b, def != m_Buildings.Defs.end() ? def->second.Name : b)); }
+			for (const std::string& r : d->Recipes) if (const Recipe* rec = m_Recipes.Find(r)) { const ItemDef* item = m_Items.Find(rec->Output); what.push_back(L.Name("item", rec->Output, item && !item->Name.empty() ? item->Name : rec->Output)); }
+			if (what.empty()) return std::string();
+			std::string s = what[0];
+			if (what.size() > 1) s += L.Text(" and ") + what[1];
+			return L.Text("opens {0}", s);
+		};
+		auto icon = [&](const std::string& id, ImVec2 at, float size)
+		{
+			glm::vec2 uv0(0.0f), uv1(0.0f);
+			if (!IconUv("tech." + id, uv0, uv1)) return false;
+			dl->AddImage(static_cast<ImTextureID>(static_cast<intptr_t>(m_IconTexture->GetID())), at, ImVec2(at.x + size, at.y + size), ImVec2(uv0.x, uv0.y), ImVec2(uv1.x, uv1.y));
+			return true;
+		};
+		auto fit = [&](std::string s, float w)
+		{
+			if (ImGui::CalcTextSize(s.c_str()).x <= w) return s;
+			while (!s.empty() && ImGui::CalcTextSize((s + "..").c_str()).x > w)
+			{
+				s.pop_back();
+				while (!s.empty() && (static_cast<unsigned char>(s.back()) & 0xC0) == 0x80) s.pop_back();
+				if (!s.empty() && (static_cast<unsigned char>(s.back()) & 0xC0) == 0xC0) s.pop_back();
+			}
+			return s + "..";
+		};
+
+		ImGui::BeginGroup();
+		ImGui::PushItemWidth(leftW);
+		// ---- the queue
+		heading(L.Text("Study queue"), queue.Empty() ? std::string() : L.Text("drag to reorder"));
+		if (queue.Empty()) ImGui::TextDisabled("%s", L.Text("The study queue is empty: add one below or from the tree").c_str());
+		const float rowH = lineH * 2.0f + 16.0f, box = ImGui::GetFrameHeight();
+		for (size_t i = 0; i < queue.All().size(); ++i)
+		{
+			const std::string& id = queue.All()[i];
+			const TechStatus::Entry& e = status.Of(id);
+			const bool studying = e.State == TechState::Studying;
+			ImGui::PushID(id.c_str());
+			const ImVec2 a = ImGui::GetCursorScreenPos(), b(a.x + leftW - 4.0f, a.y + rowH);
+			const float buttons = (i > 0 ? box + 4.0f : 0.0f) + box + 8.0f;
+			ImGui::InvisibleButton("row", ImVec2(b.x - a.x - buttons, rowH));
+			const bool hovered = ImGui::IsItemHovered();
+			if (ImGui::BeginDragDropSource())
+			{
+				ImGui::SetDragDropPayload("GB_RESEARCH", id.c_str(), id.size() + 1);
+				ImGui::TextUnformatted(name(id).c_str());
+				ImGui::EndDragDropSource();
+			}
+			if (ImGui::BeginDragDropTarget())
+			{
+				if (const ImGuiPayload* p = ImGui::AcceptDragDropPayload("GB_RESEARCH"))
+				{
+					const std::string moved(static_cast<const char*>(p->Data));
+					if (moved != id) run("game research move " + moved + " " + std::to_string(i + 1));
+				}
+				ImGui::EndDragDropTarget();
+			}
+			dl->AddRectFilled(a, b, T::HideRaised, 6.0f);
+			dl->AddRect(a, b, studying ? T::Ochre : T::HideLine, 6.0f, 0, studying ? 2.0f : 1.0f);
+			if (studying) dl->AddRectFilled(ImVec2(a.x, a.y + 3.0f), ImVec2(a.x + 3.0f, b.y - 3.0f), T::Ochre);
+			for (int g = 0; g < 3; ++g) dl->AddCircleFilled(ImVec2(a.x + 9.0f, a.y + rowH * 0.5f - 5.0f + 5.0f * static_cast<float>(g)), 1.3f, T::BoneDim);
+			const ImVec2 nc(a.x + 25.0f, a.y + rowH * 0.5f);
+			dl->AddCircleFilled(nc, 10.0f, studying ? T::Ochre : T::HideLine, 16);
+			dl->AddCircle(nc, 10.0f, T::Ochre, 16, 1.0f);
+			const std::string n = std::to_string(i + 1);
+			dl->AddText(ImVec2(nc.x - ImGui::CalcTextSize(n.c_str()).x * 0.5f, nc.y - lineH * 0.5f), studying ? T::Ink : T::Bone, n.c_str());
+			float tx = a.x + 42.0f;
+			if (status.Named(id) && icon(id, ImVec2(tx, a.y + 7.0f), rowH - 14.0f)) tx += rowH - 8.0f;
+			const float right = b.x - buttons - 6.0f;
+			const std::string pct = e.Progress > 0.0f ? std::to_string(static_cast<int>(std::lround(e.Progress * 100.0f))) + " %" : std::string();
+			const float pw = pct.empty() ? 0.0f : ImGui::CalcTextSize(pct.c_str()).x;
+			const std::string nm = status.Named(id) ? name(id) : std::string("?");
+			dl->AddText(ImVec2(tx, a.y + 5.0f), T::Bone, nm.c_str());
+			const float nmW = ImGui::CalcTextSize(nm.c_str()).x;
+			if (const std::string what = opensShort(id); !what.empty() && tx + nmW + 14.0f < right - pw - 10.0f)
+				dl->AddText(ImVec2(tx + nmW + 14.0f, a.y + 5.0f), T::BoneDim, fit(what, right - pw - 10.0f - tx - nmW - 14.0f).c_str());
+			if (!pct.empty()) dl->AddText(ImVec2(right - pw, a.y + 5.0f), T::Bone, pct.c_str());
+			std::string who;
+			for (const std::string& m : e.Who) who += (who.empty() ? "" : ", ") + m;
+			const std::string state = studying ? (who.empty() ? L.Text("being studied") : L.Text("being studied: {0}", who))
+				: e.Why != TechWhy::None ? TechWhyText(status, id) : i == 0 || status.Of(queue.All()[i - 1]).State == TechState::Studying ? L.Text("next") : L.Text("after {0}", name(queue.All()[i - 1]));
+			dl->AddText(ImVec2(tx, a.y + 7.0f + lineH), studying ? T::Ochre : e.Why != TechWhy::None ? T::Warn : T::BoneDim, fit(state, right - tx).c_str());
+			if (e.Progress > 0.0f)
+			{
+				const float v = std::clamp(e.Progress, 0.0f, 1.0f);
+				dl->AddRectFilled(ImVec2(tx, b.y - 6.0f), ImVec2(right, b.y - 3.0f), T::Hide, 1.0f);
+				dl->AddRectFilled(ImVec2(tx, b.y - 6.0f), ImVec2(tx + (right - tx) * v, b.y - 3.0f), T::Ochre, 1.0f);
+			}
+			if (hovered && !ImGui::IsMouseDragging(ImGuiMouseButton_Left)) ImGui::SetTooltip("%s", (nm + ": " + state + "\n" + L.Text("Drag it onto another row to move it there")).c_str());
+			// [first] (a bar over a triangle, drawn: the font has no arrows) and [x]
+			float bx = b.x - buttons + 2.0f;
+			const float by = a.y + (rowH - box) * 0.5f;
+			if (i > 0)
+			{
+				ImGui::SetCursorScreenPos(ImVec2(bx, by));
+				if (ImGui::Button("###top", ImVec2(box, box))) run("game research top " + id);
+				const ImVec2 c((bx + bx + box) * 0.5f, by + box * 0.5f);
+				dl->AddLine(ImVec2(c.x - 5.0f, c.y - 5.0f), ImVec2(c.x + 5.0f, c.y - 5.0f), T::Bone, 1.5f);
+				dl->AddTriangleFilled(ImVec2(c.x, c.y - 2.0f), ImVec2(c.x - 5.0f, c.y + 4.0f), ImVec2(c.x + 5.0f, c.y + 4.0f), T::Bone);
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Study {0} before the rest", nm).c_str());
+				bx += box + 4.0f;
+			}
+			ImGui::SetCursorScreenPos(ImVec2(bx, by));
+			if (ImGui::Button("\xC3\x97###off", ImVec2(box, box))) run("game research remove " + id);
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Take {0} out of the queue", nm).c_str());
+			ImGui::SetCursorScreenPos(ImVec2(a.x, b.y + 5.0f));
+			ImGui::PopID();
+		}
+		// ---- what they learn on their own (not queued): who and how far, "+" puts it in the queue
+		std::vector<std::string> own;
+		for (const auto& [id, e] : status.All()) if (e.Shown && e.State == TechState::OwnPace) own.push_back(id);
+		if (!own.empty())
+		{
+			heading(L.Text("What they learn on their own"));
+			const float ownH = lineH * 2.0f + 14.0f;
+			for (const std::string& id : own)
 			{
 				const TechStatus::Entry& e = status.Of(id);
-				ImGui::Bullet();
-				ImGui::SameLine();
-				ImGui::TextUnformatted(name(id).c_str());
-				ImGui::SameLine();
-				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(e.State == TechState::OtherClan ? T::News : T::Warn), "%s", TechStateText(status, id).c_str());
+				ImGui::PushID(id.c_str());
+				const ImVec2 a = ImGui::GetCursorScreenPos(), b(a.x + leftW - 4.0f, a.y + ownH);
+				ImGui::Dummy(ImVec2(b.x - a.x, ownH));
+				dl->AddRectFilled(a, b, T::Hide, 6.0f);
+				const float dash = 6.0f;
+				for (float x = a.x; x < b.x; x += dash + 4.0f) { dl->AddLine(ImVec2(x, a.y), ImVec2(std::min(x + dash, b.x), a.y), T::HideLine); dl->AddLine(ImVec2(x, b.y), ImVec2(std::min(x + dash, b.x), b.y), T::HideLine); }
+				float tx = a.x + 8.0f;
+				if (icon(id, ImVec2(tx, a.y + 6.0f), ownH - 12.0f)) tx += ownH - 6.0f;
+				const float right = b.x - box - 12.0f;
+				const std::string pct = std::to_string(static_cast<int>(std::lround(e.Progress * 100.0f))) + " %";
+				dl->AddText(ImVec2(tx, a.y + 4.0f), T::Bone, name(id).c_str());
+				dl->AddText(ImVec2(right - ImGui::CalcTextSize(pct.c_str()).x, a.y + 4.0f), T::Bone, pct.c_str());
+				std::string who;
+				for (const std::string& m : e.Who) who += (who.empty() ? "" : ", ") + m;
+				dl->AddText(ImVec2(tx, a.y + 6.0f + lineH), T::BoneDim, fit((who.empty() ? L.Text("by luck, watching or lessons") : L.Text("{0}, on their own", who)) + "  \xC2\xB7  " + L.Text("not in the queue"), right - tx).c_str());
+				const float v = std::clamp(e.Progress, 0.0f, 1.0f);
+				dl->AddRectFilled(ImVec2(tx, b.y - 5.0f), ImVec2(right, b.y - 3.0f), T::HideLine, 1.0f);
+				dl->AddRectFilled(ImVec2(tx, b.y - 5.0f), ImVec2(tx + (right - tx) * v, b.y - 3.0f), T::BoneDim, 1.0f);
+				ImGui::SetCursorScreenPos(ImVec2(b.x - box - 6.0f, a.y + (ownH - box) * 0.5f));
+				if (ImGui::Button("+###ownadd", ImVec2(box, box))) run("game research add " + id);
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Add {0} to the end of the queue", name(id)).c_str());
+				ImGui::SetCursorScreenPos(ImVec2(a.x, b.y + 5.0f));
+				ImGui::PopID();
 			}
 		}
-		if (const int hidden = status.UnnamedCount(); hidden > 0)
+		// ---- who studies: their number for Knowledge in Work (WorkPriorities)
 		{
-			ImGui::TextDisabled("%s", L.Text("? {0} more", hidden).c_str());
-			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("What the clan cannot study yet: it needs what it does not know").c_str());
+			heading(L.Text("Who studies"));
+			const std::vector<std::pair<std::string, int>> people = StudyPeople(t);
+			const float chipW = std::min(170.0f, (leftW - 12.0f) / 3.0f), chipH = lineH * 2.0f + 10.0f;
+			const int perRow = std::max(1, static_cast<int>((leftW + 6.0f) / (chipW + 6.0f)));
+			int col = 0;
+			for (const auto& [person, n] : people)
+			{
+				if (col % perRow != 0) ImGui::SameLine(0.0f, 6.0f);
+				++col;
+				const ImVec2 a = ImGui::GetCursorScreenPos(), b(a.x + chipW, a.y + chipH);
+				ImGui::Dummy(ImVec2(chipW, chipH));
+				dl->AddRectFilled(a, b, T::HideRaised, 6.0f);
+				dl->AddRect(a, b, n > 0 ? T::HideLine : T::Faded(T::HideLine, 0.5f), 6.0f);
+				glm::vec2 uv0(0.0f), uv1(0.0f);
+				float tx = a.x + 6.0f;
+				if (IconUv("experiment", uv0, uv1))
+				{
+					dl->AddImage(static_cast<ImTextureID>(static_cast<intptr_t>(m_IconTexture->GetID())), ImVec2(tx, a.y + 5.0f), ImVec2(tx + chipH - 10.0f, a.y + chipH - 5.0f), ImVec2(uv0.x, uv0.y), ImVec2(uv1.x, uv1.y),
+						n > 0 ? IM_COL32(255, 255, 255, 255) : IM_COL32(255, 255, 255, 90));
+					tx += chipH - 4.0f;
+				}
+				dl->AddText(ImVec2(tx, a.y + 4.0f), n > 0 ? T::Bone : T::BoneDim, fit(person, b.x - tx - 4.0f).c_str());
+				dl->AddText(ImVec2(tx, a.y + 5.0f + lineH), T::BoneDim, fit(n > 0 ? L.Text("Knowledge: {0}", n) : L.Text("Knowledge: never"), b.x - tx - 4.0f).c_str());
+			}
+			if (people.empty()) ImGui::TextDisabled("%s", L.Text("nobody").c_str());
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextDisabled("%s", L.Text("The more people with Knowledge, the sooner it is learnt.").c_str());
+			if (m_Director.Colony())
+			{
+				ImGui::SameLine();
+				if (ImGui::SmallButton((L.Text("Adjust in Work") + "###worktab").c_str())) run("colony tab work");
+			}
 		}
+		ImGui::PopItemWidth();
+		ImGui::EndGroup();
+
+		// ---- on the right: what can be studied now, and what cannot yet by tier
+		if (two) ImGui::SameLine(0.0f, 24.0f);
+		ImGui::BeginGroup();
+		const float rightW = two ? width - leftW - 28.0f : width;
+		std::vector<std::string> now;
+		for (const auto& [id, e] : status.All()) if (e.Shown && e.State == TechState::Studiable) now.push_back(id);
+		heading(L.Text("Can be studied now ({0})", static_cast<int>(now.size())));
+		if (now.empty()) ImGui::TextDisabled("%s", L.Text("Nothing new: it must learn more first").c_str());
+		{
+			const float cellW = (rightW - 8.0f) * 0.5f, cellH = std::max(box + 8.0f, lineH * 2.0f + 8.0f);
+			for (size_t i = 0; i < now.size(); ++i)
+			{
+				const std::string& id = now[i];
+				if (i % 2 == 1) ImGui::SameLine(0.0f, 8.0f);
+				ImGui::PushID(id.c_str());
+				const ImVec2 a = ImGui::GetCursorScreenPos(), b(a.x + cellW, a.y + cellH);
+				if (ImGui::InvisibleButton("now", ImVec2(cellW, cellH))) run("game research add " + id);
+				const bool hov = ImGui::IsItemHovered();
+				dl->AddRectFilled(a, b, hov ? T::HideHover : T::HideRaised, 6.0f);
+				dl->AddRect(a, b, T::Bone, 6.0f, 0, 1.0f);
+				float tx = a.x + 6.0f;
+				if (icon(id, ImVec2(tx, a.y + 4.0f), cellH - 8.0f)) tx += cellH - 2.0f;
+				const ImVec2 pc(b.x - 14.0f, (a.y + b.y) * 0.5f);
+				dl->AddCircle(pc, 8.0f, T::Ochre, 16, 1.5f);
+				dl->AddLine(ImVec2(pc.x - 4.0f, pc.y), ImVec2(pc.x + 4.0f, pc.y), T::Ochre, 1.5f);
+				dl->AddLine(ImVec2(pc.x, pc.y - 4.0f), ImVec2(pc.x, pc.y + 4.0f), T::Ochre, 1.5f);
+				// the name on one line, or two when it is long
+				const std::string nm = name(id);
+				const float room = b.x - 28.0f - tx;
+				if (ImGui::CalcTextSize(nm.c_str()).x <= room) dl->AddText(ImVec2(tx, (a.y + b.y - lineH) * 0.5f), T::Bone, nm.c_str());
+				else
+				{
+					const size_t cut = nm.rfind(' ', nm.size() / 2 + 4);
+					const std::string l1 = cut == std::string::npos ? nm : nm.substr(0, cut), l2 = cut == std::string::npos ? std::string() : nm.substr(cut + 1);
+					dl->AddText(ImVec2(tx, a.y + 4.0f), T::Bone, fit(l1, room).c_str());
+					dl->AddText(ImVec2(tx, a.y + 4.0f + lineH), T::Bone, fit(l2, room).c_str());
+				}
+				if (hov)
+				{
+					const std::string what = opensShort(id);
+					ImGui::SetTooltip("%s", (L.Text("Add {0} to the end of the queue", nm) + (what.empty() ? std::string() : "\n" + Lang::Cap(what))).c_str());
+				}
+				ImGui::PopID();
+			}
+		}
+		// what cannot be studied yet: by tier and without names (the named blocked ones say what is missing)
+		{
+			struct Group { std::string Text, Right; ImU32 Ink = T::BoneDim; std::string Tip, Detail; };
+			std::vector<Group> groups;
+			int totalNot = 0;
+			std::map<int, std::vector<std::string>> lack, otherClan, others;
+			std::map<int, int> needs, closed;
+			int era = 0;
+			for (const auto& [id, e] : status.All())
+			{
+				if (!e.Shown || e.State == TechState::Known || e.State == TechState::Studiable || e.State == TechState::Studying || e.State == TechState::Queued || e.State == TechState::OwnPace) continue;
+				++totalNot;
+				const int tier = std::max(0, e.Tier);
+				if (tiers && tier >= TechStatus::kEraBlockTier) { ++era; continue; }
+				if (e.State == TechState::OtherClan) { otherClan[tier].push_back(id); continue; }
+				if (tiers && tier > openTier) { ++closed[tier]; continue; }
+				if (e.State == TechState::Blocked && (e.Why == TechWhy::Material || e.Why == TechWhy::Station)) lack[tier].push_back(id);
+				else if (e.State == TechState::Blocked && e.Why == TechWhy::NotByTrying) others[tier].push_back(id);
+				else ++needs[tier];
+			}
+			heading(L.Text("Cannot be studied yet ({0})", totalNot));
+			auto names = [&](const std::vector<std::string>& ids)
+			{
+				std::string s;
+				for (const std::string& id : ids) s += (s.empty() ? "" : ", ") + name(id);
+				return s;
+			};
+			for (const auto& [tier, ids] : lack)
+			{
+				std::string tip;
+				for (const std::string& id : ids) tip += (tip.empty() ? "" : "\n") + name(id) + ": " + TechWhyText(status, id);
+				groups.push_back({ L.Text("Tier {0}: something is missing at hand", tier), std::to_string(ids.size()), T::Warn, tip, names(ids) });
+			}
+			for (const auto& [tier, n] : needs) groups.push_back({ L.Text("Tier {0}: they need what you do not know yet", tier), "? " + std::to_string(n), T::BoneDim, std::string() });
+			for (const auto& [tier, ids] : others) groups.push_back({ L.Text("Tier {0}: only learnt from others", tier), std::to_string(ids.size()), T::BoneDim, std::string(), names(ids) });
+			for (const auto& [tier, ids] : otherClan)
+			{
+				std::string tip;
+				for (const std::string& id : ids) tip += (tip.empty() ? "" : "\n") + name(id) + ": " + TechStateText(status, id);
+				groups.push_back({ L.Text("Another clan knows it"), std::to_string(ids.size()), T::News, tip, names(ids) });
+			}
+			for (const auto& [tier, n] : closed)
+			{
+				const std::string goals = TierGoalsText(t, tier, false);
+				groups.push_back({ tier == openTier + 1 && !goals.empty() ? L.Text("Tier {0}: opens with {1}", tier, goals) : L.Text("Tier {0}: closed", tier), "? " + std::to_string(n), T::BoneDim,
+					goals.empty() ? std::string() : L.Text("Tier {0} opens with {1}", tier, TierGoalsText(t, tier, true)) });
+			}
+			if (era > 0) groups.push_back({ L.Text("Era 2: signs of a village"), "? " + std::to_string(era), T::BoneDim, L.Text("{0} technologies of the next age: they show once the village gets there", era) });
+			for (size_t i = 0; i < groups.size(); ++i)
+			{
+				const Group& g = groups[i];
+				ImGui::PushID(static_cast<int>(i));
+				// its words on one or two lines (never cut), the number on the right, and the names it can say under them
+				const float rw = ImGui::CalcTextSize(g.Right.c_str()).x;
+				std::vector<std::string> rows;
+				{
+					std::string line, word;
+					const float room = rightW - rw - 20.0f;
+					for (size_t c = 0; c <= g.Text.size(); ++c)
+					{
+						if (c < g.Text.size() && g.Text[c] != ' ') { word += g.Text[c]; continue; }
+						const std::string next = line.empty() ? word : line + " " + word;
+						if (!line.empty() && ImGui::CalcTextSize(next.c_str()).x > room) { rows.push_back(line); line = word; }
+						else line = next;
+						word.clear();
+					}
+					if (!line.empty()) rows.push_back(line);
+				}
+				const bool detail = !g.Detail.empty();
+				const float h = static_cast<float>(rows.size() + (detail ? 1 : 0)) * lineH + 8.0f;
+				const ImVec2 a = ImGui::GetCursorScreenPos();
+				ImGui::Dummy(ImVec2(rightW, h));
+				const bool hov = ImGui::IsItemHovered();
+				dl->AddLine(ImVec2(a.x, a.y + h - 1.0f), ImVec2(a.x + rightW, a.y + h - 1.0f), T::Faded(T::HideLine, 0.5f));
+				float ty = a.y + 4.0f;
+				for (const std::string& r : rows) { dl->AddText(ImVec2(a.x + 4.0f, ty), g.Ink, r.c_str()); ty += lineH; }
+				if (detail) dl->AddText(ImVec2(a.x + 16.0f, ty), T::BoneDim, fit(g.Detail, rightW - 20.0f).c_str());
+				dl->AddText(ImVec2(a.x + rightW - rw - 2.0f, a.y + 4.0f), T::BoneDim, g.Right.c_str());
+				if (hov) ImGui::SetTooltip("%s", (g.Text + "  " + g.Right + (g.Detail.empty() ? std::string() : "\n" + g.Detail) + (g.Tip.empty() ? std::string() : "\n" + g.Tip)).c_str());
+				ImGui::PopID();
+			}
+			ImGui::Spacing();
+			ImGui::PushTextWrapPos(ImGui::GetCursorPosX() + rightW);
+			ImGui::TextDisabled("%s", L.Text("What another clan knows can be learnt from it even when its tier is closed: meetings and trade.").c_str());
+			ImGui::PopTextWrapPos();
+		}
+		ImGui::EndGroup();
 	}
 
 	// T336 (L5, propuesta p3): the goals by kind (food, materials, tools, clothing), each kind folding with its summary; a goal is its icon and
