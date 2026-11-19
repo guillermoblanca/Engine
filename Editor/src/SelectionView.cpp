@@ -646,7 +646,14 @@ namespace GB::Editor
 		const TribeMember* who = AnyMember(name);
 		if (!who) DrawArea(ox, oy, w, h, name);
 		bool open = true;
-		if (m_Game.Active || m_Observer.On)
+		if (ColonyScreen())
+		{   // T336 (L9): in the colony every selection goes on the right, under the god's bar, as tall as it needs (the colony's sheet of a person)
+			namespace T = GameTheme;
+			const float pw = std::clamp(w * 0.27f, 340.0f, 430.0f), top = m_Observer.BarBottom + T::Gap;
+			ImGui::SetNextWindowPos(ImVec2(ox + w - T::Margin, top), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+			ImGui::SetNextWindowSizeConstraints(ImVec2(pw, 0.0f), ImVec2(pw, std::clamp(oy + h - top - 70.0f, 160.0f, 600.0f)));
+		}
+		else if (m_Game.Active || m_Observer.On)
 		{   // in the game the card goes under the needs, down to the prompt over the action bar; under the observer, under the clan card (the right
 			// side is the clan book's in both)
 			const float top = std::max(oy + 12.0f, (m_Game.Active ? m_Game.HudBottom : m_Observer.CardBottom) + 12.0f);
@@ -661,7 +668,8 @@ namespace GB::Editor
 		}
 		const Lang& L = m_Lang;
 		auto itemName = [&](const std::string& id) { const ItemDef* d = m_Items.Find(id); return L.Name("item", id, d && !d->Name.empty() ? d->Name : std::string()); };
-		const bool shown = ImGui::Begin((L.Entity(name) + "###sel").c_str(), &open);
+		const bool shown = ImGui::Begin((L.Entity(name) + "###sel").c_str(), &open,
+			ColonyScreen() ? ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings : 0);
 		if (m_Observer.Screen && !m_Game.Active)   // (the god's screen counts it in `observer status`'s layout: line)
 			m_Observer.SelectionBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
 		if (shown)
@@ -975,4 +983,6 @@ namespace GB::Editor
 			ImGui::EndGroup();
 		}
 	}
+	// T336: what a person is doing as its atlas icon, for the colony's sheet of the person (ColonyView.cpp)
+	std::string EditorApp::MemberTaskIcon(const TribeMember& m) const { return TaskIcon(m, m_NodeDefs); }
 }

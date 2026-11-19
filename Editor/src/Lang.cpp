@@ -146,7 +146,9 @@ namespace GB::Editor
 		}
 		if (job == "envoy") return what + " " + Name("clan", detail, detail);   // (the clan it goes to)
 		if (job == "rite") return what + " " + Name("rite", detail, detail);
-		return what + " " + Entity(detail);
+		// (a detail that is no thing of the scene may be a place the simulation names: "Northwest Woods" of an expedition, T336)
+		const std::string thing = Entity(detail);
+		return what + " " + (thing == detail ? Line(detail) : thing);
 	}
 
 	std::string Lang::Apply(const Phrase& p, const std::smatch& m) const

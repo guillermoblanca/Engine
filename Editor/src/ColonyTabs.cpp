@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <imgui.h>
 #include <map>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -24,6 +25,8 @@ namespace GB::Editor
 {
 	namespace
 	{
+		ImTextureID TextureId(const Texture2D& t) { return static_cast<ImTextureID>(static_cast<intptr_t>(t.GetID())); }
+
 		// the icon of the atlas for a category or a job of era1.json's work.categories ("" = none: the label alone)
 		const char* WorkIcon(const std::string& id)
 		{
@@ -81,6 +84,13 @@ namespace GB::Editor
 	}
 
 	// ------------------------------------------------------------------ the shared steps (the click and `colony work step` run these)
+	namespace { constexpr int kWorkLevels = 4; }   // T336: the levels the table offers (the data keeps 1..10: `game priority` takes any)
+
+	int EditorApp::WorkLevel(int number)
+	{
+		return number == WorkPriorities::kOff ? WorkPriorities::kOff : std::clamp(number, 1, kWorkLevels);
+	}
+
 	std::string EditorApp::WorkStep(const std::string& person, const std::string& what, bool up) const
 	{
 		const Tribe* t = ColonyTribe();
@@ -93,9 +103,11 @@ namespace GB::Editor
 		if (const WorkCategoryDef* c = cats.Category(what)) now = CategoryCell(tab, *c).Number;
 		else if (const WorkCategoryDef* c2 = cats.CategoryOfJob(what)) now = JobCell(tab, *c2, what).Number;
 		if (now < 0) return {};
-		// before: 10 .. 1 (1 stays 1; "-" comes back as 10); after: 1 .. 10, then "-" (which stays)
-		const int next = up ? (now == WorkPriorities::kOff ? WorkPriorities::kMax : std::max(1, now - 1))
-			: (now == WorkPriorities::kOff || now >= WorkPriorities::kMax ? WorkPriorities::kOff : now + 1);
+		// T336: the table shows 4 levels (a number over 4 of the data shows as 4): before: 4 .. 1 (1 stays 1; "-" comes back as 4); after:
+		// 1 .. 4, then "-" (which stays)
+		const int level = WorkLevel(now);
+		const int next = up ? (level == WorkPriorities::kOff ? kWorkLevels : std::max(1, level - 1))
+			: (level == WorkPriorities::kOff || level >= kWorkLevels ? WorkPriorities::kOff : level + 1);
 		if (next == now) return {};
 		return "game priority " + person + " " + what + " " + WorkPriorities::Text(next);
 	}
@@ -103,17 +115,19 @@ namespace GB::Editor
 	CommandResult EditorApp::ColonyTabCommand(const std::vector<std::string>& a)
 	{
 		const std::string sub = a[0];
-		const char* usage = "colony tab [work|stock|research|field|off] | colony work fold|unfold <category> | colony work step <person> <category|job> up|down | colony work reset <person> "
+		const char* usage = "colony tab [work|stock|field|clan|chronicle|board|sites|homes|research|relations|off] | colony work fold|unfold <category> | colony work step <person> <category|job> up|down | colony work reset <person> "
 			"| colony stock picker | colony stock pick <item|tag> [n] | colony stock set <item|tag> <n> | colony stock off <item|tag>";
 		if (sub == "tab")
 		{
 			if (a.size() == 1) return { true, m_Colony.Tab.empty() ? std::string("no tab open") : "tab " + m_Colony.Tab + " open" };
 			if (a[1] == "off") { m_Colony.Tab.clear(); return { true, "tab closed" }; }
-			if (a[1] != "work" && a[1] != "stock" && a[1] != "research" && a[1] != "field") return { false, usage };
+			// T336: the sheets of the clan's big sheet open by the same order (village and knowledge: the god's book's names)
+			const std::string tab = a[1] == "village" ? "clan" : a[1] == "knowledge" ? "research" : a[1];
+			if (tab != "work" && tab != "stock" && tab != "field" && !IsColonySheet(tab)) return { false, usage };
 			if (!ColonyTribe()) return { false, "no colony: director colony on, and a world with clans" };
 			if (!m_Hand.Menu.empty() || !m_Hand.Building.empty()) Execute("director hand off");   // (one panel over the bar at a time)
-			m_Colony.Tab = a[1];
-			return { true, "tab " + a[1] + " open" };
+			m_Colony.Tab = tab;
+			return { true, "tab " + tab + " open" };
 		}
 		const Tribe* t = ColonyTribe();
 		if (!t) return { false, "no colony: director colony on, and a world with clans" };
@@ -218,6 +232,23 @@ namespace GB::Editor
 		const float room = std::max(right - left, 240.0f);
 		const float bottom = m_Hand.Box.Y1 > m_Hand.Box.Y0 ? m_Hand.Box.Y0 - T::Gap : oy + h - T::Margin;
 		const float maxH = std::max(std::min(h * 0.5f, bottom - m_Observer.BarBottom - T::Gap), 160.0f);
+		// T336 (L8/L9, propuesta p4): the clan's sheets in a big sheet in the centre, with a column of icon tabs
+		if (IsColonySheet(m_Colony.Tab))
+		{
+			const float top = std::max(m_Observer.BarBottom, list.Y1) + T::Gap;
+			const float sheetW = std::min(room, 940.0f), sheetH = std::clamp(bottom - top, 200.0f, 600.0f);
+			ImGui::SetNextWindowPos(ImVec2((left + right) * 0.5f, bottom), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
+			ImGui::SetNextWindowSize(ImVec2(sheetW, sheetH), ImGuiCond_Always);
+			const ImGuiWindowFlags sheetFlags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
+				| ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse;
+			if (ImGui::Begin("ColonySheet##colony", nullptr, sheetFlags))
+			{
+				DrawColonySheet(*t, ImGui::GetContentRegionAvail().x, ImGui::GetContentRegionAvail().y);
+				m_Colony.TabBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
+			}
+			ImGui::End();
+			return;
+		}
 		ImGui::SetNextWindowPos(ImVec2((left + right) * 0.5f, bottom), ImGuiCond_Always, ImVec2(0.5f, 1.0f));
 		ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(room, maxH));
 		const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
@@ -225,7 +256,6 @@ namespace GB::Editor
 		if (ImGui::Begin("ColonyTab##colony", nullptr, flags))
 		{
 			if (m_Colony.Tab == "work") DrawWorkTab(*t, room - 2.0f * T::Pad, maxH);
-			else if (m_Colony.Tab == "research") DrawResearchTab(*t, room - 2.0f * T::Pad, maxH);
 			else if (m_Colony.Tab == "field") DrawFieldTab(*t, room - 2.0f * T::Pad);   // T281 (ColonyZones.cpp)
 			else DrawStockTab(*t, room - 2.0f * T::Pad, maxH);
 			m_Colony.TabBox = { ImGui::GetWindowPos().x, ImGui::GetWindowPos().y, ImGui::GetWindowPos().x + ImGui::GetWindowSize().x, ImGui::GetWindowPos().y + ImGui::GetWindowSize().y };
@@ -233,103 +263,173 @@ namespace GB::Editor
 		ImGui::End();
 	}
 
-	// the title of a tab: its name, a line of help and [Close]
-	void EditorApp::ColonyTabTitle(const std::string& title, const std::string& help)
+	// T336: the small pieces the colony's panels share
+	const char* EditorApp::WorkIconOf(const std::string& id) { return WorkIcon(id); }
+
+	bool EditorApp::IconAt(ImDrawList* dl, const std::string& id, float x, float y, float size, unsigned tint)
+	{
+		const ImVec2 min(x, y);
+		glm::vec2 a, b;
+		if (id.empty() || !IconUv(id, a, b)) return false;
+		dl->AddImage(TextureId(*m_IconTexture), min, ImVec2(min.x + size, min.y + size), ImVec2(a.x, a.y), ImVec2(b.x, b.y), tint);
+		return true;
+	}
+
+	std::string EditorApp::RoleName(const Tribe& t, const TribeMember& m) const
+	{
+		// the "role_f" names when the person is a woman and the language has one for that trade ("recolectora"), else the "role" ones
+		static const std::string kNone = "\x01";
+		if (const Person* p = t.People().Find(m.Name); p && p->Female)
+			if (const std::string f = m_Lang.Name("role_f", m.Role, kNone); f != kNone) return f;
+		return m_Lang.Name("role", m.Role);
+	}
+
+	std::string EditorApp::WorkShort(const std::string& id) const
+	{
+		static const std::string kNone = "\x01";
+		const std::string s = m_Lang.Name("workshort", id, kNone);
+		return s == kNone ? WorkLabel(id) : s;
+	}
+
+	// the title of a panel (T336): its name in ochre and a "?" whose tooltip is the help (the help lives in the control, not in a long line);
+	// then, at the right of `width` (0: right after the title), what `extra` draws and the close
+	void EditorApp::ColonyTabTitle(const std::string& title, const std::string& help, float width, const std::function<void()>& extra, float extraW)
 	{
 		namespace T = GameTheme;
+		const float x0 = ImGui::GetCursorPosX();
+		ImGui::AlignTextToFramePadding();
 		ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", title.c_str());
-		ImGui::SameLine(0.0f, 12.0f);
-		ImGui::TextDisabled("%s", help.c_str());
-		ImGui::SameLine(0.0f, 12.0f);
-		if (ImGui::SmallButton((m_Lang.Text("Close") + "###tabclose").c_str())) m_UiCommands.push_back("colony tab off");
-		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m_Lang.Text("Close the panel (Esc)").c_str());
+		ImGui::SameLine(0.0f, 10.0f);
+		const float box = ImGui::GetFrameHeight();
+		ImGui::Button("?###tabhelp", ImVec2(box, box));
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", help.c_str());
+		const float after = ImGui::GetItemRectMax().x - ImGui::GetWindowPos().x + ImGui::GetStyle().ItemSpacing.x;
+		const float right = x0 + width - box - (extra ? extraW + ImGui::GetStyle().ItemSpacing.x : 0.0f);
+		if (width > 0.0f && right > after + 12.0f) ImGui::SameLine(right);
+		else ImGui::SameLine(0.0f, 24.0f);
+		if (extra) { extra(); if (!m_Colony.BareTitle) ImGui::SameLine(); }
+		if (!m_Colony.BareTitle)   // (inside the clan's big sheet the sheet has the close)
+		{
+			if (ImGui::Button("\xC3\x97###tabclose", ImVec2(box, box))) m_UiCommands.push_back("colony tab off");
+			if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", m_Lang.Text("Close the panel (Esc)").c_str());
+		}
+		else if (!extra) ImGui::NewLine();
 		ImGui::Separator();
 	}
 
+	// T336 (L4, propuesta p2): a person x category table of 4 levels. The head of a column is the icon of its category with its short name under it
+	// (a click unfolds its jobs); a cell is its number over a bar of 4 segments (1 fills it, 4 leaves one, "-" is an empty cell with a dash); the
+	// dot before a name says whether it follows the player's table. A click puts a cell sooner, a right click later, the wheel either way: each
+	// queues `colony work step`; a drag sideways moves it along 1 2 3 4 - and queues one `game priority` when it is let go.
 	void EditorApp::DrawWorkTab(const Tribe& t, float width, float maxH)
 	{
 		namespace T = GameTheme;
 		const Lang& L = m_Lang;
 		const WorkCategories& cats = t.Config.Work.Categories;
 		const WorkPriorities& table = t.WorkTable();
-		ColonyTabTitle(L.Text("Work"), L.Text("1 first, 10 last, - never.  Click: sooner   Right click: later   Wheel: either way"));
-		if (cats.Empty()) { ImGui::TextDisabled("%s", L.Text("The data has no categories of work").c_str()); return; }
+		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
 		std::vector<const TribeMember*> people;
 		for (const TribeMember& m : t.Members()) if (!m.Dead && !m.Player) people.push_back(&m);
-		if (people.empty()) { ImGui::TextDisabled("%s", L.Text("Nobody in the clan").c_str()); return; }
+		int owned = 0;
+		for (const TribeMember* m : people) owned += table.Of(m->Name) ? 1 : 0;
 
-		// the columns: who, then each category (and its jobs when it is unfolded), then [As the AI]
+		// the columns: who, then each category (and its jobs when it is unfolded)
 		struct Column { const WorkCategoryDef* Cat; const WorkJobDef* Job; float W; };
 		std::vector<Column> columns;
 		const ImGuiStyle& style = ImGui::GetStyle();
-		const float icon = ImGui::GetTextLineHeight();
+		const float cellW = 42.0f, cellH = 36.0f, icon = 20.0f, lineH = ImGui::GetTextLineHeight();
 		for (const WorkCategoryDef& c : cats.List)
 		{
-			const float head = ImGui::CalcTextSize(("[+] " + WorkLabel(c.Id)).c_str()).x + icon + 8.0f;
-			columns.push_back({ &c, nullptr, std::max(head, 46.0f) });
+			columns.push_back({ &c, nullptr, std::max(cellW, ImGui::CalcTextSize(WorkShort(c.Id).c_str()).x + 6.0f) });
 			if (m_Colony.Unfolded.count(c.Id))
-				for (const WorkJobDef& j : c.Jobs) columns.push_back({ &c, &j, std::max(ImGui::CalcTextSize(WorkLabel(j.Id).c_str()).x + icon + 8.0f, 40.0f) });
+				for (const WorkJobDef& j : c.Jobs) columns.push_back({ &c, &j, std::max(cellW, ImGui::CalcTextSize(WorkShort(j.Id).c_str()).x + 6.0f) });
 		}
 		float whoW = 0.0f;
-		for (const TribeMember* m : people) whoW = std::max(whoW, ImGui::CalcTextSize((m->Name + "  " + L.Name("role", m->Role)).c_str()).x);
-		whoW += 8.0f;
-		const std::string asAi = L.Text("As the AI");
-		const std::string yours = L.Text("your table");
-		const float lastW = std::max(ImGui::CalcTextSize(yours.c_str()).x + 6.0f + ImGui::CalcTextSize(asAi.c_str()).x + style.FramePadding.x * 2.0f,
-			ImGui::CalcTextSize(L.Text("as the AI").c_str()).x) + 4.0f;
-		float need = whoW + lastW;
+		for (const TribeMember* m : people) whoW = std::max(whoW, ImGui::CalcTextSize((m->Name + " " + RoleName(t, *m)).c_str()).x);
+		whoW += 10.0f + 6.0f + 10.0f;   // (the dot, its gap and some air)
+		float need = whoW;
 		for (const Column& c : columns) need += c.W;
-		need += (static_cast<float>(columns.size()) + 2.0f) * (style.CellPadding.x * 2.0f + 1.0f) + style.ScrollbarSize;   // (room for the vertical bar: no horizontal one when it all fits)
-		const float rowH = ImGui::GetFrameHeight();
-		const float tableH = std::min((static_cast<float>(people.size()) + 2.0f) * (rowH + style.CellPadding.y * 2.0f) + 6.0f, maxH - ImGui::GetFrameHeightWithSpacing() * 3.0f);
-		const ImGuiTableFlags tflags = ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit;
-		if (!ImGui::BeginTable("work", static_cast<int>(columns.size()) + 2, tflags, ImVec2(std::min(need, width), std::max(tableH, rowH * 3.0f)))) return;
-		ImGui::TableSetupScrollFreeze(2, 2);   // (who and whether it follows a table stay in sight when the jobs scroll)
-		ImGui::TableSetupColumn("who", ImGuiTableColumnFlags_WidthFixed, whoW);
-		ImGui::TableSetupColumn("ai", ImGuiTableColumnFlags_WidthFixed, lastW);
-		for (size_t i = 0; i < columns.size(); ++i) ImGui::TableSetupColumn(columns[i].Job ? columns[i].Job->Id.c_str() : columns[i].Cat->Id.c_str(), ImGuiTableColumnFlags_WidthFixed, columns[i].W);
+		need += (static_cast<float>(columns.size()) + 1.0f) * (style.CellPadding.x * 2.0f + 1.0f) + 4.0f;
+		const float tableW = std::min(need, width);
 
-		auto iconText = [&](const std::string& id, const std::string& text, ImU32 colour)
+		const std::string help = L.Text("Who does what first. Each cell is the number of a work for a person: 1 first, 4 last, - never.") + "\n"
+			+ L.Text("Click: sooner   Right click: later   Wheel or a drag sideways: either way") + "\n"
+			+ L.Text("A click on the head of a column unfolds its jobs; a right click on a name gives it back to the AI");
+		const std::string allAi = L.Text("All as the AI");
+		const float allW = ImGui::CalcTextSize(allAi.c_str()).x + style.FramePadding.x * 2.0f;
+		ColonyTabTitle(L.Text("Work"), help, std::max(tableW, 360.0f), [&]()
 		{
-			if (Icon(WorkIcon(id), icon)) ImGui::SameLine(0.0f, 3.0f);
-			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(colour), "%s", text.c_str());
-		};
-		// header, first row: the categories (a click folds or unfolds one)
-		ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
+			ImGui::BeginDisabled(owned == 0);
+			if (ImGui::Button((allAi + "###allai").c_str()))
+				for (const TribeMember* m : people) if (table.Of(m->Name)) run("colony work reset " + m->Name);
+			ImGui::EndDisabled();
+			if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+				ImGui::SetTooltip("%s", owned == 0 ? L.Text("Everyone already decides as the AI").c_str() : L.Text("Drop every table of yours: they all decide again as the AI does").c_str());
+		}, allW);
+		if (cats.Empty()) { ImGui::TextDisabled("%s", L.Text("The data has no categories of work").c_str()); return; }
+		if (people.empty()) { ImGui::TextDisabled("%s", L.Text("Nobody in the clan").c_str()); return; }
+
+		const float headH = icon + lineH + 6.0f, rowH = cellH + 2.0f;
+		const float tableH = std::min(headH + style.CellPadding.y * 2.0f + static_cast<float>(people.size()) * (rowH + style.CellPadding.y * 2.0f) + 6.0f,
+			maxH - ImGui::GetFrameHeightWithSpacing() * 3.0f);
+		const ImGuiTableFlags tflags = ImGuiTableFlags_ScrollX | ImGuiTableFlags_ScrollY | ImGuiTableFlags_SizingFixedFit;
+		if (!ImGui::BeginTable("work", static_cast<int>(columns.size()) + 1, tflags, ImVec2(tableW, std::max(tableH, rowH * 2.0f)))) return;
+		ImGui::TableSetupScrollFreeze(1, 1);   // (who stays in sight when the jobs scroll)
+		ImGui::TableSetupColumn("who", ImGuiTableColumnFlags_WidthFixed, whoW);
+		for (size_t i = 0; i < columns.size(); ++i) ImGui::TableSetupColumn(columns[i].Job ? columns[i].Job->Id.c_str() : columns[i].Cat->Id.c_str(), ImGuiTableColumnFlags_WidthFixed, columns[i].W);
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+
+		// the head: an icon over its short name; the categories fold and unfold, their jobs follow under a line of the category's colour
+		ImGui::TableNextRow(ImGuiTableRowFlags_Headers, headH);
 		ImGui::TableNextColumn();
-		ImGui::TextDisabled("%s", L.Text("Who").c_str());
-		ImGui::TableNextColumn();
-		ImGui::TextDisabled("%s", L.Text("Decides by").c_str());
 		for (const Column& c : columns)
 		{
 			ImGui::TableNextColumn();
-			if (c.Job) continue;
-			const bool open = m_Colony.Unfolded.count(c.Cat->Id) != 0;
-			ImGui::PushID(c.Cat->Id.c_str());
+			const std::string id = c.Job ? c.Job->Id : c.Cat->Id;
+			const bool open = !c.Job && m_Colony.Unfolded.count(c.Cat->Id) != 0;
+			ImGui::PushID(id.c_str());
 			const ImVec2 at = ImGui::GetCursorScreenPos();
-			if (ImGui::InvisibleButton("fold", ImVec2(c.W, ImGui::GetTextLineHeight()))) m_UiCommands.push_back(std::string("colony work ") + (open ? "fold " : "unfold ") + c.Cat->Id);
-			const bool hovered = ImGui::IsItemHovered();
-			if (hovered)
+			bool hovered = false;
+			if (!c.Job)
 			{
-				std::string jobs;
-				for (const WorkJobDef& j : c.Cat->Jobs) jobs += (jobs.empty() ? "" : ", ") + L.Name("work", j.Id);
-				ImGui::SetTooltip("%s", (L.Text(open ? "Fold {0}" : "Unfold {0} into its jobs", WorkLabel(c.Cat->Id)) + "\n" + jobs).c_str());
+				if (ImGui::InvisibleButton("fold", ImVec2(c.W, headH))) run(std::string("colony work ") + (open ? "fold " : "unfold ") + c.Cat->Id);
+				hovered = ImGui::IsItemHovered();
+				if (hovered)
+				{
+					std::string jobs;
+					for (const WorkJobDef& j : c.Cat->Jobs) jobs += (jobs.empty() ? "" : ", ") + L.Name("work", j.Id);
+					ImGui::SetTooltip("%s", (L.Text(open ? "Fold {0}" : "Unfold {0} into its jobs", WorkLabel(c.Cat->Id)) + "\n" + jobs).c_str());
+				}
 			}
-			ImGui::SetCursorScreenPos(at);
-			iconText(c.Cat->Id, std::string(open ? "[-] " : "[+] ") + WorkLabel(c.Cat->Id), hovered ? T::OchreHover : open ? T::Ochre : T::Bone);
+			else ImGui::Dummy(ImVec2(c.W, headH));
+			if (hovered) dl->AddRectFilled(at, ImVec2(at.x + c.W, at.y + headH), T::HideHover, 3.0f);
+			if (c.Job) dl->AddLine(ImVec2(at.x + 2.0f, at.y), ImVec2(at.x + c.W - 2.0f, at.y), T::Faded(T::Ochre, 0.6f), 2.0f);   // (a job of an unfolded column)
+			if (!IconAt(dl, WorkIcon(id), at.x + (c.W - icon) * 0.5f, at.y + 2.0f, icon, c.Job ? T::Faded(IM_COL32_WHITE, 0.8f) : IM_COL32_WHITE))
+				dl->AddCircle(ImVec2(at.x + c.W * 0.5f, at.y + 2.0f + icon * 0.5f), icon * 0.35f, T::BoneDim, 12, 1.5f);   // (no icon: a ring)
+			if (!c.Job)   // the fold's arrow at the icon's right: right when folded, down when open
+			{
+				const ImVec2 p(at.x + (c.W + icon) * 0.5f + 3.0f, at.y + 6.0f);
+				const ImU32 ac = open ? T::Ochre : hovered ? T::OchreHover : T::BoneDim;
+				if (open) dl->AddTriangleFilled(ImVec2(p.x - 3.0f, p.y - 2.0f), ImVec2(p.x + 3.0f, p.y - 2.0f), ImVec2(p.x, p.y + 2.0f), ac);
+				else dl->AddTriangleFilled(ImVec2(p.x - 2.0f, p.y - 3.0f), ImVec2(p.x - 2.0f, p.y + 3.0f), ImVec2(p.x + 2.0f, p.y), ac);
+			}
+			const std::string label = WorkShort(id);
+			const ImVec2 ls = ImGui::CalcTextSize(label.c_str());
+			dl->AddText(ImVec2(at.x + (c.W - ls.x) * 0.5f, at.y + icon + 4.0f), open || hovered ? T::Ochre : c.Job ? T::BoneDim : T::Bone, label.c_str());
 			ImGui::PopID();
 		}
-		// header, second row: the jobs of the unfolded categories
-		ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-		ImGui::TableNextColumn();
-		ImGui::TableNextColumn();
-		for (const Column& c : columns)
-		{
-			ImGui::TableNextColumn();
-			if (c.Job) iconText(c.Job->Id, WorkLabel(c.Job->Id), T::BoneDim);
-			else if (m_Colony.Unfolded.count(c.Cat->Id)) ImGui::TextDisabled("%s", L.Text("all").c_str());
-		}
 
+		// a bar of 4 segments: `filled` of them lit
+		auto segments = [&](ImVec2 min, float w, int filled, ImU32 on)
+		{
+			const float gap = 2.0f, sw = (w - 3.0f * gap) / 4.0f, sh = 5.0f;
+			for (int i = 0; i < 4; ++i)
+			{
+				const ImVec2 a(min.x + static_cast<float>(i) * (sw + gap), min.y), b(a.x + sw, a.y + sh);
+				if (i < filled) dl->AddRectFilled(a, b, on, 1.5f);
+				else dl->AddRect(a, b, T::HideLine, 1.5f);
+			}
+		};
 		const ImGuiIO& io = ImGui::GetIO();
 		for (const TribeMember* m : people)
 		{
@@ -339,55 +439,79 @@ namespace GB::Editor
 			ImGui::PushID(m->Name.c_str());
 			ImGui::TableNextRow(0, rowH);
 			ImGui::TableNextColumn();
-			ImGui::AlignTextToFramePadding();
-			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(selected ? T::Ochre : own ? T::Bone : T::BoneDim), "%s", m->Name.c_str());
-			if (ImGui::IsItemHovered())
-				ImGui::SetTooltip("%s", own ? L.Text("{0} follows your table", m->Name).c_str()
-					: L.Text("{0} decides as the AI. The numbers are what its trade ({1}) suggests: the first one you change starts its table from them", m->Name, L.Name("role", m->Role)).c_str());
-			ImGui::SameLine(0.0f, 6.0f);
-			ImGui::TextDisabled("%s", L.Name("role", m->Role).c_str());
-			ImGui::TableNextColumn();
-			if (own)
 			{
-				ImGui::AlignTextToFramePadding();
-				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "%s", yours.c_str());
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("{0} follows your table", m->Name).c_str());
-				ImGui::SameLine(0.0f, 6.0f);
-				if (ImGui::SmallButton((asAi + "###reset").c_str())) m_UiCommands.push_back("colony work reset " + m->Name);
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Drop the table of {0}: it decides again as the AI does", m->Name).c_str());
-			}
-			else
-			{
-				ImGui::AlignTextToFramePadding();
-				ImGui::TextDisabled("%s", L.Text("as the AI").c_str());
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("{0} has no table of yours: change any number to give it one", m->Name).c_str());
+				// the dot (filled: your table; a ring: as the AI), the name and the trade; a right click gives the person back to the AI
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				ImGui::InvisibleButton("who", ImVec2(whoW, rowH), ImGuiButtonFlags_MouseButtonRight);
+				if (own && ImGui::IsItemClicked(ImGuiMouseButton_Right)) run("colony work reset " + m->Name);
+				const bool hovered = ImGui::IsItemHovered();
+				if (hovered)
+					ImGui::SetTooltip("%s", own ? (L.Text("{0} follows your table", m->Name) + "\n" + L.Text("Right click: as the AI")).c_str()
+						: L.Text("{0} decides as the AI. The numbers are what its trade ({1}) suggests: the first one you change starts its table from them", m->Name, RoleName(t, *m)).c_str());
+				const ImVec2 dot(at.x + 6.0f, at.y + rowH * 0.5f);
+				if (own) dl->AddCircleFilled(dot, 4.5f, T::Ochre, 12);
+				else dl->AddCircle(dot, 4.5f, T::BoneDim, 12, 1.5f);
+				const float ty = at.y + (rowH - lineH) * 0.5f;
+				dl->AddText(ImVec2(at.x + 16.0f, ty), selected || hovered ? T::Ochre : T::Bone, m->Name.c_str());
+				dl->AddText(ImVec2(at.x + 16.0f + ImGui::CalcTextSize((m->Name + " ").c_str()).x, ty), T::BoneDim, RoleName(t, *m).c_str());
 			}
 			for (const Column& c : columns)
 			{
 				ImGui::TableNextColumn();
 				const WorkCell cell = c.Job ? JobCell(tab, *c.Cat, c.Job->Id) : CategoryCell(tab, *c.Cat);
 				const std::string what = c.Job ? c.Job->Id : c.Cat->Id;
+				const std::string key = m->Name + " " + what;
 				ImGui::PushID(what.c_str());
 				const ImVec2 at = ImGui::GetCursorScreenPos();
-				ImGui::InvisibleButton("cell", ImVec2(c.W, rowH), ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
+				const bool pressed = ImGui::InvisibleButton("cell", ImVec2(c.W, cellH), ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight);
 				const bool hovered = ImGui::IsItemHovered();
+				const int shown = WorkLevel(cell.Number);
+				int value = shown;
 				int step = 0;   // -1: sooner (a lower number), +1: later
-				if (ImGui::IsItemClicked(ImGuiMouseButton_Left)) step = -1;
-				else if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) step = 1;
+				// the drag: along 1 2 3 4 - (18 px a step), shown while it lasts, queued once when let go
+				if (ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 4.0f))
+				{
+					if (m_Colony.Drag != key) { m_Colony.Drag = key; m_Colony.DragX = io.MouseClickedPos[0].x; m_Colony.DragFrom = shown; }
+					const int from = m_Colony.DragFrom == WorkPriorities::kOff ? kWorkLevels : m_Colony.DragFrom - 1;
+					const int index = std::clamp(from + static_cast<int>(std::lround((io.MousePos.x - m_Colony.DragX) / 18.0f)), 0, kWorkLevels);
+					m_Colony.DragTo = index == kWorkLevels ? WorkPriorities::kOff : index + 1;
+					value = m_Colony.DragTo;
+				}
+				if (ImGui::IsItemDeactivated() && m_Colony.Drag == key)
+				{
+					if (m_Colony.DragTo != m_Colony.DragFrom) run("game priority " + m->Name + " " + what + " " + WorkPriorities::Text(m_Colony.DragTo));
+					m_Colony.Drag.clear();
+				}
+				else if (pressed && ImGui::IsMouseReleased(ImGuiMouseButton_Left)) step = -1;
+				if (ImGui::IsItemClicked(ImGuiMouseButton_Right)) step = 1;
 				else if (hovered && io.MouseWheel != 0.0f) step = io.MouseWheel > 0.0f ? -1 : 1;
 				if (hovered) ImGui::SetItemKeyOwner(ImGuiKey_MouseWheelY);   // (the wheel sets the number: the table does not scroll under it)
-				if (step != 0) m_UiCommands.push_back("colony work step " + m->Name + " " + what + (step < 0 ? " up" : " down"));
-				ImDrawList* dl = ImGui::GetWindowDrawList();
-				if (hovered) dl->AddRectFilled(at, ImVec2(at.x + c.W, at.y + rowH), T::HideHover, 3.0f);
-				const std::string text = WorkPriorities::Text(cell.Number);
-				// own numbers bright (the first ochre), inherited ones and "-" dim; a person as the AI all dim
-				ImU32 colour = cell.Number == WorkPriorities::kOff || !cell.Own ? T::BoneDim : cell.Number == 1 ? T::Ochre : T::Bone;
-				if (!own) colour = T::Faded(T::BoneDim, 0.7f);
-				const ImVec2 ts = ImGui::CalcTextSize(text.c_str());
-				dl->AddText(ImVec2(at.x + (c.W - ts.x) * 0.5f, at.y + (rowH - ts.y) * 0.5f), colour, text.c_str());
-				if (hovered)
+				if (step != 0) run("colony work step " + m->Name + " " + what + (step < 0 ? " up" : " down"));
+				const bool dragging = m_Colony.Drag == key;
+				if (hovered || dragging) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);   // (the cell takes a drag sideways)
+				// the cell: a box, its number and its 4 segments; "-" an empty box with a dash. Your numbers bright (the first ochre), inherited
+				// ones dim; a person as the AI all dimmed
+				const float bx = at.x + (c.W - cellW) * 0.5f;   // (the box keeps its size in a wider column)
+				const ImVec2 b0(bx + 2.0f, at.y + 1.0f), b1(bx + cellW - 2.0f, at.y + cellH - 1.0f);
+				dl->AddRectFilled(b0, b1, hovered || dragging ? T::HideHover : T::HideRaised, 3.0f);
+				dl->AddRect(b0, b1, dragging ? T::Ochre : hovered ? T::OchreHover : T::HideLine, 3.0f, 0, dragging ? 2.0f : 1.0f);
+				const float mid = (b0.x + b1.x) * 0.5f;
+				if (value == WorkPriorities::kOff)
+					dl->AddLine(ImVec2(mid - 6.0f, (b0.y + b1.y) * 0.5f), ImVec2(mid + 6.0f, (b0.y + b1.y) * 0.5f), own ? T::BoneDim : T::Faded(T::BoneDim, 0.7f), 2.0f);
+				else
 				{
-					std::string tip = m->Name + ": " + (c.Job ? WorkLabel(c.Job->Id) + " (" + L.Name("work", c.Cat->Id) + ")" : WorkLabel(c.Cat->Id)) + " " + text;
+					const std::string text = std::to_string(value);
+					ImU32 colour = !cell.Own ? T::BoneDim : value == 1 ? T::Ochre : T::Bone;
+					if (!own) colour = T::Faded(T::BoneDim, 0.7f);
+					if (dragging) colour = T::OchreHover;
+					const ImVec2 ts = ImGui::CalcTextSize(text.c_str());
+					dl->AddText(ImVec2(mid - ts.x * 0.5f, b0.y + 3.0f), colour, text.c_str());
+					segments(ImVec2(b0.x + 5.0f, b1.y - 9.0f), b1.x - b0.x - 10.0f, kWorkLevels + 1 - value, own && cell.Own ? T::Ochre : T::Faded(T::Ochre, 0.55f));
+				}
+				if (hovered && !dragging)
+				{
+					std::string tip = m->Name + ": " + (c.Job ? WorkLabel(c.Job->Id) + " (" + L.Name("work", c.Cat->Id) + ")" : WorkLabel(c.Cat->Id)) + " " + WorkPriorities::Text(shown);
+					if (cell.Number > kWorkLevels) tip += "  " + L.Text("({0} in the data: the table shows it as 4)", cell.Number);
 					if (c.Job && !cell.Own) tip += "\n" + (cell.Number == WorkPriorities::kOff && CategoryCell(tab, *c.Cat).Number == WorkPriorities::kOff
 						? L.Text("Off because {0} is at -", L.Name("work", c.Cat->Id)) : L.Text("The number of {0} (it has none of its own)", L.Name("work", c.Cat->Id)));
 					// the aptitude in that work (the skills' family it trains), else the trade
@@ -395,9 +519,9 @@ namespace GB::Editor
 					if (c.Job) family = JobFamily(t, *c.Job);
 					else for (const WorkJobDef& j : c.Cat->Jobs) if (family.empty()) family = JobFamily(t, j);
 					if (!family.empty()) tip += "\n" + L.Text("Aptitude in {0}: {1} of 100", L.Name("skill", family), L.Num(SkillLevel(m->Skills, family), 0));
-					else tip += "\n" + L.Text("No aptitude is measured for it; trade: {0}", L.Name("role", m->Role));
+					else tip += "\n" + L.Text("No aptitude is measured for it; trade: {0}", RoleName(t, *m));
 					if (!own) tip += "\n" + L.Text("Decides as the AI: this is what its trade suggests");
-					tip += "\n" + L.Text("Click: sooner   Right click: later   Wheel: either way");
+					tip += "\n" + L.Text("Click: sooner   Right click: later   Wheel or a drag sideways: either way");
 					ImGui::SetTooltip("%s", tip.c_str());
 				}
 				ImGui::PopID();
@@ -405,6 +529,26 @@ namespace GB::Editor
 			ImGui::PopID();
 		}
 		ImGui::EndTable();
+		dl = ImGui::GetWindowDrawList();   // (the panel's again: the table's scrolling child clipped the cells)
+
+		// the legend, drawn with the same marks the cells use
+		{
+			auto mark = [&](float w, const std::function<void(ImVec2)>& draw, const std::string& text)
+			{
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				ImGui::Dummy(ImVec2(w, lineH));
+				draw(ImVec2(at.x, at.y + lineH * 0.5f));
+				ImGui::SameLine(0.0f, 4.0f);
+				ImGui::TextDisabled("%s", text.c_str());
+				ImGui::SameLine(0.0f, 14.0f);
+			};
+			mark(28.0f, [&](ImVec2 p) { segments(ImVec2(p.x, p.y - 2.5f), 28.0f, 4, T::Ochre); }, L.Text("1 first"));
+			mark(28.0f, [&](ImVec2 p) { segments(ImVec2(p.x, p.y - 2.5f), 28.0f, 1, T::Ochre); }, L.Text("4 last"));
+			mark(14.0f, [&](ImVec2 p) { dl->AddLine(ImVec2(p.x + 1.0f, p.y), ImVec2(p.x + 13.0f, p.y), T::BoneDim, 2.0f); }, L.Text("never"));
+			mark(10.0f, [&](ImVec2 p) { dl->AddCircleFilled(ImVec2(p.x + 5.0f, p.y), 4.5f, T::Ochre, 12); }, L.Text("your table"));
+			mark(10.0f, [&](ImVec2 p) { dl->AddCircle(ImVec2(p.x + 5.0f, p.y), 4.5f, T::BoneDim, 12, 1.5f); }, L.Text("follows the AI"));
+			ImGui::NewLine();
+		}
 	}
 
 	// T324: the research queue (ResearchQueue.h). The buttons only queue `game research ...`.
@@ -488,105 +632,195 @@ namespace GB::Editor
 		}
 	}
 
+	// T336 (L5, propuesta p3): the goals by kind (food, materials, tools, clothing), each kind folding with its summary; a goal is its icon and
+	// name, what the clan has, one piece that is the bar and the slider (the fill is what it has, the ochre handle what it wants: let go, it queues
+	// one `game stock <what> <n>`), what it is doing about it with an icon (a stuck one in red with why) and its removal. [Add a goal] opens the grid
+	// of things: a thing picked becomes a goal of the default number (`colony stock set`), set later on its row.
 	void EditorApp::DrawStockTab(const Tribe& t, float width, float maxH)
 	{
 		namespace T = GameTheme;
 		const Lang& L = m_Lang;
 		const StockGoals& goals = t.Goals();
 		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
-		ColonyTabTitle(L.Text("Stock"), L.Text("What the clan keeps: when it has less, it makes, gathers or hunts the rest"));
-		const float icon = ImGui::GetTextLineHeight() + 4.0f;
-		if (goals.All().empty()) ImGui::TextDisabled("%s", L.Text("No goals yet: add one below").c_str());
-		else if (ImGui::BeginTable("stock", 5, ImGuiTableFlags_RowBg | ImGuiTableFlags_SizingFixedFit | ImGuiTableFlags_ScrollY,
-			ImVec2(std::min(width, 820.0f), std::min((static_cast<float>(goals.All().size()) + 1.0f) * (icon + 6.0f) + 4.0f, maxH - 110.0f))))
+		const ImGuiStyle& style = ImGui::GetStyle();
+		const float panelW = std::min(width, 660.0f), lineH = ImGui::GetTextLineHeight();
+		ColonyTabTitle(L.Text("Stock"), L.Text("What the clan keeps: when it has less, it makes, gathers or hunts the rest") + "\n"
+			+ L.Text("The bar is what it has; drag the ochre handle to say how many it keeps (it is set when you let go)"), panelW);
+
+		// the kind of a goal: by its tag, or by the tags of its item
+		const ItemLibrary* items = t.Items();
+		auto kindOf = [&](const std::string& what)
 		{
-			ImGui::TableSetupColumn("item", ImGuiTableColumnFlags_WidthFixed, 170.0f);
-			ImGui::TableSetupColumn("have", ImGuiTableColumnFlags_WidthFixed, 140.0f);
-			ImGui::TableSetupColumn("status", ImGuiTableColumnFlags_WidthStretch);
-			ImGui::TableSetupColumn("n", ImGuiTableColumnFlags_WidthFixed, 60.0f);
-			ImGui::TableSetupColumn("off", ImGuiTableColumnFlags_WidthFixed, ImGui::CalcTextSize(L.Text("Remove").c_str()).x + 12.0f);
-			ImGui::TableSetupScrollFreeze(0, 1);
-			ImGui::TableNextRow(ImGuiTableRowFlags_Headers);
-			ImGui::TableNextColumn(); ImGui::TextDisabled("%s", L.Text("Keep").c_str());
-			ImGui::TableNextColumn(); ImGui::TextDisabled("%s", L.Text("Have / want").c_str());
-			ImGui::TableNextColumn(); ImGui::TextDisabled("%s", L.Text("What the clan does").c_str());
-			ImGui::TableNextColumn();
-			ImGui::TableNextColumn();
-			for (const auto& [what, n] : goals.All())
+			std::vector<std::string> tags;
+			if (what.rfind("Item.", 0) == 0) tags.push_back(what);
+			else if (const ItemDef* d = items ? items->Find(what) : nullptr) tags = d->Tags;
+			for (const std::string& tag : tags)
 			{
-				ImGui::PushID(what.c_str());
-				ImGui::TableNextRow(0, icon + 4.0f);
-				ImGui::TableNextColumn();
-				const std::string item = StockGoals::ItemFor(t, what);
-				if (!Icon(what, icon) && !Icon(item, icon)) ImGui::Dummy(ImVec2(icon, icon));
-				ImGui::SameLine();
-				ImGui::AlignTextToFramePadding();
-				ImGui::TextUnformatted(GoalLabel(t, what).c_str());
-				if (what.rfind("Item.", 0) == 0 && ImGui::IsItemHovered())
-					ImGui::SetTooltip("%s", (item.empty() ? L.Text("Any of this kind; the clan has no way to get one yet") : L.Text("Any of this kind; now it goes for {0}", L.Name("item", item))).c_str());
-				ImGui::TableNextColumn();
-				const int have = StockGoals::Have(t, what);
-				const float v01 = std::clamp(static_cast<float>(have) / static_cast<float>(std::max(n, 1)), 0.0f, 1.0f);
-				ImGui::AlignTextToFramePadding();
-				const ImVec2 at = ImGui::GetCursorScreenPos();
-				ImGui::Dummy(ImVec2(70.0f, ImGui::GetTextLineHeight()));
+				if (tag.rfind("Item.Food", 0) == 0) return 0;
+				if (tag.rfind("Item.Tool", 0) == 0 || tag.rfind("Item.Weapon", 0) == 0) return 2;
+				if (tag.rfind("Item.Clothing", 0) == 0) return 3;
+			}
+			return 1;
+		};
+		static const char* kKinds[][2] = { { "food", "Food" }, { "materials", "Materials" }, { "tools", "Tools" }, { "clothing", "Clothing and cover" } };
+		static const char* kIcons[] = { "smoked_meat", "log", "stone_axe", "clothing" };
+		std::vector<std::pair<std::string, int>> byKind[4];
+		for (const auto& [what, n] : goals.All()) byKind[kindOf(what)].push_back({ what, n });
+
+		if (goals.All().empty()) ImGui::TextDisabled("%s", L.Text("No goals yet: add one below").c_str());
+		else
+		{
+			const float rowH = 30.0f, headH = ImGui::GetFrameHeightWithSpacing();
+			float contentH = 0.0f;
+			for (const auto& list : byKind) if (!list.empty()) contentH += headH + static_cast<float>(list.size()) * (rowH + style.CellPadding.y * 2.0f);
+			ImGui::BeginChild("goals", ImVec2(panelW, std::min(contentH + 8.0f, std::max(maxH - 120.0f, 120.0f))));
+			const float iconS = 22.0f, nameW = 170.0f, haveW = 30.0f, barW = 220.0f, offW = ImGui::GetFrameHeight() + 4.0f;
+			for (int k = 0; k < 4; ++k)
+			{
+				if (byKind[k].empty()) continue;
+				ImGui::PushID(k);
+				// the kind's head: its icon and name, and on the right its summary (the food: its days; the rest: how many goals, "all well")
+				const ImVec2 hat = ImGui::GetCursorScreenPos();
+				const bool open = ImGui::TreeNodeEx("##kind", ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_NoTreePushOnOpen | ImGuiTreeNodeFlags_FramePadding);
 				ImDrawList* dl = ImGui::GetWindowDrawList();
-				const float y0 = at.y + (ImGui::GetTextLineHeight() - 10.0f) * 0.5f + 1.0f;
-				dl->AddRectFilled(ImVec2(at.x, y0), ImVec2(at.x + 70.0f, y0 + 10.0f), T::HideRaised, 3.0f);
-				if (v01 > 0.0f) dl->AddRectFilled(ImVec2(at.x, y0), ImVec2(at.x + 70.0f * v01, y0 + 10.0f), have >= n ? T::Good : T::Ochre, 3.0f);
-				dl->AddRect(ImVec2(at.x, y0), ImVec2(at.x + 70.0f, y0 + 10.0f), T::HideLine, 3.0f);
-				ImGui::SameLine();
-				ImGui::TextUnformatted(L.Text("{0} / {1}", have, n).c_str());
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The store and the bags of the clan hold {0}; you want {1}", have, n).c_str());
-				ImGui::TableNextColumn();
-				const auto [status, colour] = StockStatusText(StockGoals::Status(t, what, n));
-				ImGui::AlignTextToFramePadding();
-				ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(colour), "%s", status.c_str());
-				ImGui::TableNextColumn();
-				if (ImGui::SmallButton("-###less")) run(n > 1 ? "game stock " + what + " " + std::to_string(n - 1) : "game stock " + what + " off");
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Keep one less").c_str());
-				ImGui::SameLine(0.0f, 4.0f);
-				if (ImGui::SmallButton("+###more")) run("game stock " + what + " " + std::to_string(std::min(n + 1, StockGoals::kMost)));
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Keep one more").c_str());
-				ImGui::TableNextColumn();
-				if (ImGui::SmallButton((L.Text("Remove") + "###off").c_str())) run("colony stock off " + what);
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The clan stops keeping {0}", GoalLabel(t, what)).c_str());
+				const float tx = hat.x + ImGui::GetTreeNodeToLabelSpacing();
+				const float fy = hat.y + (ImGui::GetFrameHeight() - 18.0f) * 0.5f;
+				const float lx = IconAt(dl, kIcons[k], tx, fy, 18.0f) ? tx + 22.0f : tx;
+				dl->AddText(ImVec2(lx, hat.y + style.FramePadding.y), T::Bone, L.Text(kKinds[k][1]).c_str());
+				bool allOk = true;
+				for (const auto& [what, n] : byKind[k]) allOk = allOk && StockGoals::Have(t, what) >= n;
+				const int count = static_cast<int>(byKind[k].size());
+				std::string summary = k == 0 ? L.Text("for {0} days", L.Num(t.FoodDays(), 0)) : L.Text(count == 1 ? "{0} goal" : "{0} goals", count);
+				if (k != 0 && allOk) summary += " \xC2\xB7 " + L.Text("all well");
+				const ImVec2 ss = ImGui::CalcTextSize(summary.c_str());
+				dl->AddText(ImVec2(hat.x + ImGui::GetContentRegionAvail().x - ss.x - 4.0f, hat.y + style.FramePadding.y), T::BoneDim, summary.c_str());
+				if (open && ImGui::BeginTable("rows", 6, ImGuiTableFlags_SizingFixedFit))
+				{
+					ImGui::TableSetupColumn("item", ImGuiTableColumnFlags_WidthFixed, iconS + 6.0f + nameW);
+					ImGui::TableSetupColumn("have", ImGuiTableColumnFlags_WidthFixed, haveW);
+					ImGui::TableSetupColumn("bar", ImGuiTableColumnFlags_WidthFixed, barW);
+					ImGui::TableSetupColumn("status", ImGuiTableColumnFlags_WidthStretch);
+					ImGui::TableSetupColumn("info", ImGuiTableColumnFlags_WidthFixed, 0.0f);
+					ImGui::TableSetupColumn("off", ImGuiTableColumnFlags_WidthFixed, offW);
+					dl = ImGui::GetWindowDrawList();
+					for (const auto& [what, n] : byKind[k])
+					{
+						ImGui::PushID(what.c_str());
+						ImGui::TableNextRow(0, rowH);
+						const std::string item = StockGoals::ItemFor(t, what);
+						const std::string label = GoalLabel(t, what);
+						const int have = StockGoals::Have(t, what);
+						// the thing
+						ImGui::TableNextColumn();
+						{
+							const ImVec2 at = ImGui::GetCursorScreenPos();
+							ImGui::Dummy(ImVec2(iconS + 6.0f + nameW, rowH));
+							if (!IconAt(dl, what, at.x, at.y + (rowH - iconS) * 0.5f, iconS)) IconAt(dl, item, at.x, at.y + (rowH - iconS) * 0.5f, iconS);
+							dl->AddText(ImVec2(at.x + iconS + 6.0f, at.y + (rowH - lineH) * 0.5f), T::Bone, label.c_str());
+							if (what.rfind("Item.", 0) == 0 && ImGui::IsItemHovered())
+								ImGui::SetTooltip("%s", (item.empty() ? L.Text("Any of this kind; the clan has no way to get one yet") : L.Text("Any of this kind; now it goes for {0}", L.Name("item", item))).c_str());
+						}
+						// what it has
+						ImGui::TableNextColumn();
+						{
+							const ImVec2 at = ImGui::GetCursorScreenPos();
+							ImGui::Dummy(ImVec2(haveW, rowH));
+							const std::string h = std::to_string(have);
+							const ImVec2 hs = ImGui::CalcTextSize(h.c_str());
+							dl->AddText(ImVec2(at.x + haveW - hs.x, at.y + (rowH - lineH) * 0.5f), T::Bone, h.c_str());
+						}
+						// the bar and its handle, one piece: a drag moves the handle, the goal is queued once on letting go
+						ImGui::TableNextColumn();
+						{
+							const ImVec2 at = ImGui::GetCursorScreenPos();
+							ImGui::InvisibleButton("goal", ImVec2(barW, rowH));
+							const bool hovered = ImGui::IsItemHovered(), active = ImGui::IsItemActive();
+							const bool dragging = m_Colony.Drag == "stock " + what;
+							// the scale: up to twice the goal or what it has, in tens (fixed while the handle is held)
+							const int base = dragging ? m_Colony.DragFrom : n;
+							const int scale = std::clamp(((std::max({ 2 * base, have, 10 }) + 9) / 10) * 10, 10, StockGoals::kMost);
+							const float x0 = at.x + 4.0f, x1 = at.x + barW - 4.0f;
+							int goal = n;
+							if (active)
+							{
+								if (!dragging) { m_Colony.Drag = "stock " + what; m_Colony.DragFrom = n; }
+								const float f = std::clamp((ImGui::GetIO().MousePos.x - x0) / (x1 - x0), 0.0f, 1.0f);
+								m_Colony.DragTo = std::clamp(static_cast<int>(std::lround(f * static_cast<float>(scale))), 1, StockGoals::kMost);
+								goal = m_Colony.DragTo;
+							}
+							if (ImGui::IsItemDeactivated() && dragging)
+							{
+								if (m_Colony.DragTo != m_Colony.DragFrom) run("game stock " + what + " " + std::to_string(m_Colony.DragTo));
+								m_Colony.Drag.clear();
+							}
+							if (hovered || active) ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeEW);
+							const float by = at.y + 6.0f, bh = 10.0f;
+							const float fill = std::clamp(static_cast<float>(have) / static_cast<float>(scale), 0.0f, 1.0f);
+							const float hx = x0 + (x1 - x0) * std::clamp(static_cast<float>(goal) / static_cast<float>(scale), 0.0f, 1.0f);
+							dl->AddRectFilled(ImVec2(x0, by), ImVec2(x1, by + bh), T::HideRaised, 3.0f);
+							if (fill > 0.0f) dl->AddRectFilled(ImVec2(x0, by), ImVec2(x0 + (x1 - x0) * fill, by + bh), have >= goal ? T::Good : T::Warn, 3.0f);
+							dl->AddRect(ImVec2(x0, by), ImVec2(x1, by + bh), T::HideLine, 3.0f);
+							dl->AddRectFilled(ImVec2(hx - 4.0f, by - 4.0f), ImVec2(hx + 4.0f, by + bh + 4.0f), active ? T::OchreHover : T::Ochre, 2.0f);
+							dl->AddRect(ImVec2(hx - 4.0f, by - 4.0f), ImVec2(hx + 4.0f, by + bh + 4.0f), T::Outline, 2.0f);
+							const std::string g = L.Text("goal {0}", goal);
+							const ImVec2 gs = ImGui::CalcTextSize(g.c_str());
+							dl->AddText(ImVec2(std::clamp(hx - gs.x * 0.5f, at.x, at.x + barW - gs.x), by + bh + 2.0f), active ? T::OchreHover : T::Ochre, g.c_str());
+							if (hovered && !active)
+								ImGui::SetTooltip("%s", (label + " \xC2\xB7 " + L.Text("goal {0}", n) + "\n" + L.Text("Drag the handle: the goal is set when you let go") + "\n"
+									+ L.Text("The store and the bags of the clan hold {0}; you want {1}", have, n)).c_str());
+						}
+						// what the clan does about it: an icon and a word; stuck, a red cross and why
+						ImGui::TableNextColumn();
+						const std::string raw = StockGoals::Status(t, what, n);
+						const auto [status, colour] = StockStatusText(raw);
+						{
+							const ImVec2 at = ImGui::GetCursorScreenPos();
+							const float s = 18.0f, sy = at.y + (rowH - s) * 0.5f;
+							const char* icon = raw == "ok" ? "" : raw.rfind("making", 0) == 0 ? "make" : raw.rfind("gathering", 0) == 0 ? "gather" : raw.rfind("hunting", 0) == 0 ? "hunt" : "";
+							const bool stuck = colour == T::Bad || colour == T::Warn;
+							ImGui::Dummy(ImVec2(s, rowH));
+							if (stuck)   // (a cross: the colour is not the only sign)
+							{
+								dl->AddLine(ImVec2(at.x + 3.0f, sy + 3.0f), ImVec2(at.x + s - 3.0f, sy + s - 3.0f), colour, 2.5f);
+								dl->AddLine(ImVec2(at.x + s - 3.0f, sy + 3.0f), ImVec2(at.x + 3.0f, sy + s - 3.0f), colour, 2.5f);
+							}
+							else if (raw == "ok")   // (a tick)
+							{
+								dl->AddLine(ImVec2(at.x + 3.0f, sy + s * 0.55f), ImVec2(at.x + s * 0.42f, sy + s - 4.0f), T::Good, 2.5f);
+								dl->AddLine(ImVec2(at.x + s * 0.42f, sy + s - 4.0f), ImVec2(at.x + s - 3.0f, sy + 4.0f), T::Good, 2.5f);
+							}
+							else if (!IconAt(dl, icon, at.x, sy, s)) dl->AddCircle(ImVec2(at.x + s * 0.5f, sy + s * 0.5f), 4.0f, T::BoneDim, 10, 1.5f);
+							ImGui::SameLine(0.0f, 6.0f);
+							// (the words in bone: "bad" is no colour for text on the panel, its contrast is 4.4)
+							ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, at.y + (rowH - lineH) * 0.5f));
+							ImGui::TextUnformatted(status.c_str());
+							if (stuck && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The clan cannot keep it now: {0}", status).c_str());
+						}
+						ImGui::TableNextColumn();
+						// its removal (no trash can in the atlas yet, ART-1: a bone cross, not the red one of a stuck goal)
+						ImGui::TableNextColumn();
+						ImGui::SetCursorScreenPos(ImVec2(ImGui::GetCursorScreenPos().x, ImGui::GetCursorScreenPos().y + (rowH - ImGui::GetFrameHeight()) * 0.5f));
+						if (ImGui::Button("\xC3\x97###off", ImVec2(ImGui::GetFrameHeight(), 0.0f))) run("colony stock off " + what);
+						if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The clan stops keeping {0}", label).c_str());
+						ImGui::PopID();
+					}
+					ImGui::EndTable();
+				}
 				ImGui::PopID();
 			}
-			ImGui::EndTable();
+			ImGui::EndChild();
 		}
-		// add a goal: what (a grid of items with their icons, and a few kinds), how many, [Add]
+		// add a goal: the grid of things (a few kinds first); the thing picked becomes a goal of the default number, set later on its row
 		ImGui::Separator();
-		ImGui::AlignTextToFramePadding();
-		ImGui::TextDisabled("%s", L.Text("New goal").c_str());
-		ImGui::SameLine();
-		const std::string& pick = m_Colony.StockPick;
-		if (!pick.empty())
-		{
-			if (Icon(pick, ImGui::GetFrameHeight())) ImGui::SameLine(0.0f, 4.0f);
-		}
-		if (ImGui::Button(((pick.empty() ? L.Text("Choose what") : GoalLabel(t, pick)) + "###stockpick").c_str()) || m_Colony.OpenPicker) ImGui::OpenPopup("pick");
+		if (ImGui::Button(("+ " + L.Text("Add a goal") + "###stockpick").c_str()) || m_Colony.OpenPicker) ImGui::OpenPopup("pick");
 		m_Colony.OpenPicker = false;
-		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The thing (or the kind of thing) the clan keeps").c_str());
 		ImGui::SameLine();
-		ImGui::SetNextItemWidth(90.0f);
-		int count = m_Colony.StockCount;
-		if (ImGui::InputInt("###stockcount", &count)) m_Colony.StockCount = std::clamp(count, 1, StockGoals::kMost);   // (UI state only: nothing changes until [Add])
-		ImGui::SameLine();
-		ImGui::BeginDisabled(pick.empty());
-		{
-			std::optional<T::PrimaryScope> lit;
-			if (!pick.empty()) lit.emplace();
-			if (ImGui::Button((L.Text("Add") + "###stockadd").c_str())) run("colony stock set " + pick + " " + std::to_string(m_Colony.StockCount));
-		}
-		ImGui::EndDisabled();
-		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
-			ImGui::SetTooltip("%s", pick.empty() ? L.Text("Choose what first").c_str() : L.Text("The clan keeps {0} of {1}", m_Colony.StockCount, GoalLabel(t, pick)).c_str());
+		ImGui::TextDisabled("%s", L.Text("opens the grid of things").c_str());
 		if (ImGui::BeginPopup("pick"))
 		{
-			const ItemLibrary* items = t.Items();
+			auto choose = [&](const std::string& id) { run("colony stock pick " + id); run("colony stock set " + id + " " + std::to_string(m_Colony.StockCount)); ImGui::CloseCurrentPopup(); };
 			// the kinds first (any food that keeps, any tool...), then every item with its icon, by its name
-			static const char* kKinds[] = { "Item.Food", "Item.Food.Preserved", "Item.Tool", "Item.Weapon", "Item.Container" };
+			static const char* kTags[] = { "Item.Food", "Item.Food.Preserved", "Item.Tool", "Item.Weapon", "Item.Container" };
 			ImGui::TextDisabled("%s", L.Text("A kind of thing").c_str());
 			auto carried = [&](const std::string& kind)   // (some item of the data carries that tag or one under it)
 			{
@@ -596,10 +830,10 @@ namespace GB::Editor
 							for (const std::string& tag : d->Tags) if (tag.rfind(kind, 0) == 0) return true;
 				return false;
 			};
-			for (const char* kind : kKinds)
+			for (const char* kind : kTags)
 			{
 				if (!carried(kind)) continue;
-				if (ImGui::SmallButton((GoalLabel(t, kind) + "###k" + kind).c_str())) { run(std::string("colony stock pick ") + kind); ImGui::CloseCurrentPopup(); }
+				if (ImGui::SmallButton((GoalLabel(t, kind) + "###k" + kind).c_str())) choose(kind);
 				ImGui::SameLine();
 			}
 			ImGui::NewLine();
@@ -615,10 +849,10 @@ namespace GB::Editor
 			{
 				glm::vec2 a, b;
 				if (!IconUv(id, a, b)) continue;
-				if (x > 0.0f && x + cell + ImGui::GetStyle().ItemSpacing.x <= room) ImGui::SameLine();
+				if (x > 0.0f && x + cell + style.ItemSpacing.x <= room) ImGui::SameLine();
 				else x = 0.0f;
-				x += cell + ImGui::GetStyle().ItemSpacing.x;
-				if (IconButton(("###i" + id).c_str(), id, cell - 8.0f)) { run("colony stock pick " + id); ImGui::CloseCurrentPopup(); }
+				x += cell + style.ItemSpacing.x;
+				if (IconButton(("###i" + id).c_str(), id, cell - 8.0f)) choose(id);
 				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", label.c_str());
 			}
 			// the things the atlas has no picture of: their name
@@ -629,11 +863,11 @@ namespace GB::Editor
 				glm::vec2 a, b;
 				if (IconUv(id, a, b)) continue;
 				if (first) { ImGui::NewLine(); first = false; }
-				const float bw = ImGui::CalcTextSize(label.c_str()).x + ImGui::GetStyle().FramePadding.x * 2.0f;
-				if (x > 0.0f && x + bw + ImGui::GetStyle().ItemSpacing.x <= room) ImGui::SameLine();
+				const float bw = ImGui::CalcTextSize(label.c_str()).x + style.FramePadding.x * 2.0f;
+				if (x > 0.0f && x + bw + style.ItemSpacing.x <= room) ImGui::SameLine();
 				else x = 0.0f;
-				x += bw + ImGui::GetStyle().ItemSpacing.x;
-				if (ImGui::SmallButton((label + "###n" + id).c_str())) { run("colony stock pick " + id); ImGui::CloseCurrentPopup(); }
+				x += bw + style.ItemSpacing.x;
+				if (ImGui::SmallButton((label + "###n" + id).c_str())) choose(id);
 			}
 			ImGui::EndChild();
 			ImGui::EndPopup();
@@ -694,6 +928,17 @@ namespace GB::Editor
 		const AgentMind& mind = m.Mind;
 		if (mind.Chosen < 0 || static_cast<size_t>(mind.Chosen) >= mind.Options.size()) return {};
 		const UtilityOption& o = mind.Options[static_cast<size_t>(mind.Chosen)];
-		return o.Note.empty() ? std::string() : Lang::Cap(L.Line(o.Note));
+		if (o.Note.empty()) return {};
+		// T336 (L2): "... does not know Hide working" names the technology by its English name: its id, so that the phrase finds its name
+		std::string note = o.Note;
+		static const std::string kKnow = " does not know ";
+		if (const size_t k = note.find(kKnow); k != std::string::npos)
+			if (const TechTree* tree = t.Knowledge().Techs())
+			{
+				const size_t from = k + kKnow.size(), to = std::min(note.find(';', from), note.size());
+				const std::string name = note.substr(from, to - from);
+				for (const auto& [id, def] : tree->Techs) if (def.Name == name) { note.replace(from, to - from, id); break; }
+			}
+		return Lang::Cap(L.Line(note));
 	}
 }

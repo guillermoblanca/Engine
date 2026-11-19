@@ -294,13 +294,48 @@ namespace GB::Editor
 	}
 
 	// ------------------------------------------------------------------ the job board (J): by kind, an icon, have/want, who holds it
+	// T336 (L6): a head with the legend of its marks (the urgent flag, the store against what the clan wants, the places taken) and the help in its
+	// "?"; each group shows its 3 most pressing jobs and "... N more" with [see all]
 	void EditorApp::DrawBoardSheet(const Tribe& t, bool playing)
 	{
 		const Lang& L = m_Lang;
 		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
 		const std::vector<const Job*> jobs = t.Board().Ordered();
 		if (jobs.empty()) { ImGui::TextDisabled("%s", L.Text("the board is empty: the clan has all it wants for now").c_str()); return; }
-		Dim(L.Text("What the clan needs, the most pressing first in each group. Hover a job to see why."));
+		ImDrawList* dl = ImGui::GetWindowDrawList();
+		const float lineH = ImGui::GetTextLineHeight();
+		// the marks, drawn the same in the legend and in the rows
+		auto flag = [&](ImVec2 at, ImU32 colour)   // a pennant on its stick: one of the three most pressing jobs
+		{
+			dl->AddLine(ImVec2(at.x + 2.0f, at.y + 1.0f), ImVec2(at.x + 2.0f, at.y + lineH - 1.0f), colour, 1.5f);
+			dl->AddTriangleFilled(ImVec2(at.x + 2.5f, at.y + 1.0f), ImVec2(at.x + 10.0f, at.y + 4.0f), ImVec2(at.x + 2.5f, at.y + 7.0f), colour);
+		};
+		auto person = [&](ImVec2 at, ImU32 colour)   // a head and shoulders: the places
+		{
+			dl->AddCircleFilled(ImVec2(at.x + 5.0f, at.y + 4.0f), 2.8f, colour, 10);
+			dl->AddRectFilled(ImVec2(at.x + 1.0f, at.y + 8.0f), ImVec2(at.x + 9.0f, at.y + lineH - 1.0f), colour, 3.0f, ImDrawFlags_RoundCornersTop);
+		};
+		auto store = [&](ImVec2 at, ImU32 colour)   // a box: the store against what is wanted
+		{
+			if (!IconAt(dl, "deposit", at.x - 2.0f, at.y - 2.0f, lineH + 2.0f)) dl->AddRect(ImVec2(at.x, at.y + 2.0f), ImVec2(at.x + 10.0f, at.y + lineH - 2.0f), colour, 1.0f);
+		};
+		// the head: the help in the "?" and the legend
+		ImGui::Button("?###boardhelp", ImVec2(ImGui::GetFrameHeight(), 0.0f));
+		if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", (L.Text("What the clan needs, the most pressing first in each group. Hover a job to see why.") + "\n"
+			+ L.Text("The flag marks the three most pressing of the whole board.")).c_str());
+		auto legend = [&](const std::function<void(ImVec2)>& mark, float w, const std::string& text)
+		{
+			ImGui::SameLine(0.0f, 12.0f);
+			const ImVec2 at = ImGui::GetCursorScreenPos();
+			ImGui::Dummy(ImVec2(w, ImGui::GetFrameHeight()));
+			mark(ImVec2(at.x, at.y + (ImGui::GetFrameHeight() - lineH) * 0.5f));
+			ImGui::SameLine(0.0f, 4.0f);
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextDisabled("%s", text.c_str());
+		};
+		legend([&](ImVec2 p) { flag(p, T::Ochre); }, 11.0f, L.Text("urgent"));
+		legend([&](ImVec2 p) { store(p, T::BoneDim); }, lineH, L.Text("store / wants"));
+		legend([&](ImVec2 p) { person(p, T::BoneDim); }, 10.0f, L.Text("places"));
 		struct Group { const char* Id; const char* Label; };
 		static const Group groups[] = { { "food", "Food" }, { "materials", "Materials" }, { "craft", "To make" }, { "build", "Building" }, { "hunt", "Hunting" }, { "fire", "Fire" }, { "other", "Other" } };
 		auto groupOf = [&](const Job& j) -> std::string
@@ -315,25 +350,28 @@ namespace GB::Editor
 		// the columns as shares of the sheet; a narrow sheet (the observer's) drops the little bar and keeps the numbers
 		const float width = ImGui::GetContentRegionAvail().x;
 		const bool narrow = width < 380.0f;
-		const float barX = narrow ? width - 110.0f : std::max(150.0f, width * 0.48f), slotsX = barX + (narrow ? 50.0f : 90.0f);
+		const float barX = narrow ? width - 120.0f : std::max(170.0f, width * 0.48f), slotsX = barX + (narrow ? 60.0f : 100.0f);
 		std::set<const Job*> urgent;   // the three most pressing of the whole board
 		for (size_t i = 0; i < jobs.size() && i < 3; ++i) urgent.insert(jobs[i]);
+		constexpr int kShown = 3;
 		for (const Group& g : groups)
 		{
-			bool header = false;
-			for (const Job* j : jobs)
+			std::vector<const Job*> list;
+			for (const Job* j : jobs) if (groupOf(*j) == g.Id) list.push_back(j);
+			if (list.empty()) continue;
+			std::string title = L.Text(g.Label);
+			if (std::string(g.Id) == "food") title += "  " + L.Text("({0} days in hand)", Number(t.FoodDays(), "%.1f", L));
+			ImGui::Spacing();
+			ImGui::SeparatorText(title.c_str());
+			const bool whole = m_Observer.BoardOpen.count(g.Id) != 0;
+			int shown = 0;
+			for (const Job* j : list)
 			{
-				if (groupOf(*j) != g.Id) continue;
-				if (!header)
-				{
-					header = true;
-					std::string title = L.Text(g.Label);
-					if (std::string(g.Id) == "food") title += "  " + L.Text("({0} days in hand)", Number(t.FoodDays(), "%.1f", L));
-					ImGui::Spacing();
-					ImGui::SeparatorText(title.c_str());
-				}
+				// (an urgent job always shows, even past the first three of its group)
+				if (!whole && shown >= kShown && !urgent.count(j)) continue;
+				++shown;
 				ImGui::PushID(j->Id.c_str());
-				// the icon and the name of what it is about
+				// the flag, the icon and the name of what it is about
 				std::string icon, name;
 				const std::string target = j->Target;
 				if (j->Kind == "gather" || j->Kind == "craft" || j->Kind == "make")
@@ -347,10 +385,21 @@ namespace GB::Editor
 				else if (j->Kind == "hunt") { icon = "hunt"; name = Lang::Cap(L.Name("animal", target.rfind("Animal.", 0) == 0 ? target.substr(7) : target)); }
 				else if (j->Kind == "stoke" || j->Kind == "fire") { icon = "fire"; name = Lang::Cap(L.Name("kind", j->Kind)); }
 				else name = j->Id;
-				if (!Icon(icon, 20.0f)) ImGui::Dummy(ImVec2(20.0f, 20.0f));
+				{
+					const ImVec2 at = ImGui::GetCursorScreenPos();
+					ImGui::Dummy(ImVec2(12.0f, 20.0f));
+					if (urgent.count(j)) flag(ImVec2(at.x, at.y + (20.0f - lineH) * 0.5f), T::Ochre);
+					if (ImGui::IsItemHovered() && urgent.count(j)) ImGui::SetTooltip("%s", L.Text("One of the three most pressing jobs of the board").c_str());
+				}
+				ImGui::SameLine(0.0f, 2.0f);
+				if (!Icon(icon, 20.0f))   // (no picture of it yet: a ring, ART-1)
+				{
+					const ImVec2 at = ImGui::GetCursorScreenPos();
+					ImGui::Dummy(ImVec2(20.0f, 20.0f));
+					dl->AddCircle(ImVec2(at.x + 10.0f, at.y + 10.0f), 6.0f, T::BoneDim, 12, 1.5f);
+				}
 				ImGui::SameLine();
 				ImGui::AlignTextToFramePadding();
-				if (urgent.count(j)) { ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(T::Ochre), "!"); ImGui::SameLine(0.0f, 4.0f); }
 				ImGui::TextUnformatted(name.c_str());
 				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", Lang::Cap(L.Line(j->Why)).c_str());
 				// how far it is: the store against what the clan wants (gather), how many lack the tool (make)
@@ -362,13 +411,14 @@ namespace GB::Editor
 					{
 						const ImVec2 at = ImGui::GetCursorScreenPos();
 						const float v = want > 0 ? static_cast<float>(have) / static_cast<float>(want) : 1.0f, y = at.y + 5.0f;
-						ImDrawList* dl = ImGui::GetWindowDrawList();
 						dl->AddRectFilled(ImVec2(at.x, y), ImVec2(at.x + 40.0f, y + 8.0f), T::HideRaised, 2.0f);
 						dl->AddRectFilled(ImVec2(at.x, y), ImVec2(at.x + 40.0f * std::clamp(v, 0.0f, 1.0f), y + 8.0f), T::Level(v), 2.0f);
+						dl->AddRect(ImVec2(at.x, y), ImVec2(at.x + 40.0f, y + 8.0f), T::HideLine, 2.0f);
 						ImGui::Dummy(ImVec2(40.0f, 16.0f));
 						ImGui::SameLine(0.0f, 6.0f);
 					}
 					ImGui::TextDisabled("%d/%d", have, want);
+					if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The store has {0}; the clan wants {1}", have, want).c_str());
 				}
 				else if (j->Kind == "craft") ImGui::TextDisabled("%s", L.Text("{0} lack it", static_cast<int>(j->Amount)).c_str());
 				else ImGui::Dummy(ImVec2(80.0f, 1.0f));
@@ -378,8 +428,14 @@ namespace GB::Editor
 				bool mine = false;
 				for (const JobClaim& c : j->Claims) { who += (who.empty() ? "" : ", ") + c.Member; mine = mine || (playing && c.Member == m_Game.Player); }
 				const bool full = static_cast<int>(j->Claims.size()) >= j->Slots;
+				{
+					const ImVec2 at = ImGui::GetCursorScreenPos();
+					ImGui::Dummy(ImVec2(10.0f, lineH));
+					person(at, j->Claims.empty() ? T::BoneDim : T::Bone);
+				}
+				ImGui::SameLine(0.0f, 4.0f);
 				ImGui::TextDisabled("%d/%d", static_cast<int>(j->Claims.size()), j->Slots);
-				if (!who.empty() && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", who.c_str());
+				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", who.empty() ? L.Text("Nobody holds it yet: {0} places", j->Slots).c_str() : L.Text("Held by {0}", who).c_str());
 				if (playing)
 				{
 					ImGui::SameLine();
@@ -396,6 +452,21 @@ namespace GB::Editor
 						if (full && ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) ImGui::SetTooltip("%s", L.Text("No room: {0} already hold it", who).c_str());
 					}
 				}
+				ImGui::PopID();
+			}
+			// the rest of the group, folded; or the way back to the 3 first
+			const int rest = static_cast<int>(list.size()) - shown;
+			if (rest > 0 || whole)
+			{
+				ImGui::PushID(g.Id);
+				ImGui::Indent(14.0f);
+				if (rest > 0) { ImGui::AlignTextToFramePadding(); ImGui::TextDisabled("%s", L.Text("... {0} more", rest).c_str()); ImGui::SameLine(); }
+				if (ImGui::SmallButton((L.Text(whole ? "see less" : "see all") + "###boardall").c_str()))
+				{
+					if (whole) m_Observer.BoardOpen.erase(g.Id);
+					else m_Observer.BoardOpen.insert(g.Id);
+				}
+				ImGui::Unindent(14.0f);
 				ImGui::PopID();
 			}
 		}

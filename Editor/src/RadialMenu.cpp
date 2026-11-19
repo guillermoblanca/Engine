@@ -693,6 +693,21 @@ namespace GB::Editor
 			}
 			return { true, selection() };
 		}
+		// T336 (L1): what a left click on a thing does, for a script: a node, a building, a site or an animal goes to the selection's sheet
+		// ("_" for the spaces of its name, as the radial's targets); `off` lets it go (a person of the clan goes through `colony select`)
+		if (sub == "inspect")
+		{
+			if (a.size() < 2) return { true, m_FreeSelected.empty() ? std::string("nothing inspected") : "inspecting " + m_FreeSelected };
+			if (a[1] == "off" || a[1] == "clear") { if (!t->FindMember(m_FreeSelected)) m_FreeSelected.clear(); return { true, "nothing inspected" }; }
+			std::string name;
+			for (size_t i = 1; i < a.size(); ++i) name += (name.empty() ? "" : " ") + a[i];
+			for (char& c : name) if (c == '_') c = ' ';
+			if (!m_Gameplay.Find(name)) return { false, "nothing called " + name + " can be inspected" };
+			if (AnyMember(name)) return { false, name + " is a person: colony select " + name };
+			m_Colony.Selection.clear();
+			m_FreeSelected = name;
+			return { true, "inspecting " + name };
+		}
 		if (sub == "radial")
 		{
 			if (a.size() == 1) return { m_Colony.Open, m_Colony.Open ? list() : std::string("no radial open") };
@@ -726,6 +741,6 @@ namespace GB::Editor
 			if (!m_Colony.Open) return { false, "nothing to do there" };
 			return { true, list() };
 		}
-		return { false, "usage: colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off] | tab [work|stock|research|field|off] | zone start|point <x> <z>|undo|close|cancel|crop <crop|auto>|plan <plan>|confirm|select <id|off>|cursor <x> <z> | work fold|unfold <category> | work step <person> <what> up|down | work reset <person> | stock pick|set|off ..." };
+		return { false, "usage: colony status | select [<name[,name...]> | add <name> | box <x0> <y0> <x1> <y1> [add] | clear] | inspect <thing>|off | radial [<target> | ground <x> <z> | at <px> <py> | do <id> | hover [id] | off] | tab [work|stock|field|clan|chronicle|board|sites|homes|research|relations|off] | zone start|point <x> <z>|undo|close|cancel|crop <crop|auto>|plan <plan>|confirm|select <id|off>|cursor <x> <z> | work fold|unfold <category> | work step <person> <what> up|down | work reset <person> | stock pick|set|off ..." };
 	}
 }

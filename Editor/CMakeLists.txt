@@ -25,6 +25,7 @@ add_library(GBEditor STATIC
     src/RadialMenu.cpp
     src/ColonyTabs.cpp
     src/ColonyZones.cpp
+    src/ColonyView.cpp
     src/MapOverlay.cpp
     src/ObserverView.cpp
     src/TechTreeView.cpp

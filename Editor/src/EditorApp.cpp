@@ -2049,8 +2049,9 @@ namespace GB::Editor
 				if (m_Observer.On) DrawHandWorld(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // T201: under the panels
 				DrawColonyWorld(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));   // T271: the selection's rings, the orders' badges, the box and the radial
 				DrawObserver(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH));
-				// (on the god's screen a character's card is the book's Person sheet, U6: DrawObserver opens it; things keep their card)
-				if (m_Observer.On && !(god && AnyMember(m_FreeSelected))) { const GameTheme::Scope theme; DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected); }
+				// (on the god's screen a character's card is the book's Person sheet, U6: DrawObserver opens it; things keep their card. In the colony
+				// DrawObserver draws every selection on the right, T336)
+				if (m_Observer.On && !(god && (AnyMember(m_FreeSelected) || ColonyScreen()))) { const GameTheme::Scope theme; DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected); }
 				else if (m_Observer.On) m_Observer.SelectionBox = {};
 				else DrawSelection(origin.x, origin.y, static_cast<float>(m_ViewportW), static_cast<float>(m_ViewportH), m_FreeSelected);
 			}

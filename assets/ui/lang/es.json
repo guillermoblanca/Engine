@@ -900,6 +900,48 @@
    "Item.Tool": "herramientas",
    "Item.Weapon": "armas",
    "Item.Container": "recipientes"
+  },
+  "workshort": {
+   "food": "Alim.",
+   "construction": "Constr.",
+   "crafting": "Artes.",
+   "field": "Campo",
+   "materials": "Mater.",
+   "care": "Cuid.",
+   "knowledge": "Saber",
+   "hunt": "Cazar",
+   "fish": "Pescar",
+   "forage": "Recol.",
+   "cook": "Cocin.",
+   "preserve": "Conserv.",
+   "build": "Constr.",
+   "haul": "Acarr.",
+   "repair": "Reparar",
+   "pave": "Empedr.",
+   "tools": "Herram.",
+   "make": "Fabric.",
+   "till": "Labrar",
+   "sow": "Sembrar",
+   "tend": "Atender",
+   "harvest": "Cosech.",
+   "wood": "Leña",
+   "stone": "Piedra",
+   "clay": "Arcilla",
+   "fiber": "Fibra",
+   "other": "Otros",
+   "heal": "Curar",
+   "fire": "Fuego",
+   "research": "Invest.",
+   "teach": "Enseñar"
+  },
+  "role_f": {
+   "crafter": "artesana",
+   "builder": "constructora",
+   "farmer": "agricultora",
+   "forager": "recolectora",
+   "miner": "minera",
+   "woodcutter": "leñadora",
+   "player": "jugadora"
   }
  },
  "entity": {
@@ -2586,6 +2628,106 @@
   {
    "re": "^(.+); job: (.+)$",
    "to": "{line:1}"
+  },
+  {
+   "re": "^(.+); a building lacks it$",
+   "to": "{line:1}; le falta a una obra"
+  },
+  {
+   "re": "^(.+); the (\\S+) lacks it$",
+   "to": "{line:1}; le falta para {item:2}"
+  },
+  {
+   "re": "^has what the (\\S+) needs and does not know (.+)$",
+   "to": "tiene con qué hacer {ent:1}, pero aún no conoce la técnica: {tech:2}"
+  },
+  {
+   "re": "^knows no (\\S+)$",
+   "to": "no conoce ningún {ent:1}"
+  },
+  {
+   "re": "^the tools are ready and the store has 4 wood and 3 stone$",
+   "to": "las herramientas están listas y el almacén tiene 4 de madera y 3 de piedra"
+  },
+  {
+   "re": "^the campfire has ([\\d.]+) fuel and is out$",
+   "to": "la hoguera tiene {1} de leña y está apagada"
+  },
+  {
+   "re": "^it is (\\d+) points better at it than at its own$",
+   "to": "se le da {1} puntos mejor que lo suyo"
+  },
+  {
+   "re": "^(.+) lacks (\\S+) and the store has it$",
+   "to": "a {ent:1} le falta {item:2} y el almacén lo tiene"
+  },
+  {
+   "re": "^(.+): the (.+) has its materials \\((\\d+)/(\\d+) s of work\\)$",
+   "to": "{ent:1}: {phase:2} tiene sus materiales ({3} de {4} s de trabajo)"
+  },
+  {
+   "re": "^looks for (\\S+) in (.+) \\(place (\\d+) of (\\d+)\\)$",
+   "to": "busca {item:1} en {line:2} (sitio {3} de {4})"
+  },
+  {
+   "re": "^comes home from (.+) to tell the clan$",
+   "to": "vuelve de {line:1} para contárselo al clan"
+  },
+  {
+   "re": "^the clan moves its camp to \\((-?\\d+), (-?\\d+)\\)$",
+   "to": "el clan lleva su campamento a ({1}, {2})"
+  },
+  {
+   "re": "^takes up what the clan sends to the (.+)$",
+   "to": "recoge lo que el clan envía a {clan:1}"
+  },
+  {
+   "re": "^walks to meet the envoy of the (.+) at \\((-?\\d+), (-?\\d+)\\)$",
+   "to": "va al encuentro del enviado de {clan:1} en ({2}, {3})"
+  },
+  {
+   "re": "^waits for the envoy of the (.+)$",
+   "to": "espera al enviado de {clan:1}"
+  },
+  {
+   "re": "^brings home what it got from the (.+)$",
+   "to": "trae a casa lo que le dio {clan:1}"
+  },
+  {
+   "re": "^wounded \\(severity ([\\d.]+)\\)$",
+   "to": "herido (gravedad {1})"
+  },
+  {
+   "re": "^(\\S+) is wounded$",
+   "to": "{1} está herido"
+  },
+  {
+   "re": "^the clan holds (.+) for (.+)$",
+   "to": "el clan celebra {rite:1} por {2}"
+  },
+  {
+   "re": "^the clan holds (.+)$",
+   "to": "el clan celebra {rite:1}"
+  },
+  {
+   "re": "^(chat|story|gossip|teach|console|settle|greet|share|groom|play) with (\\S+) \\((.+)\\)$",
+   "to": "{talk:1} {2} ({ent:3})"
+  },
+  {
+   "re": "^(chat|story|gossip|teach|console|settle|greet|share|groom|play) with (\\S+)$",
+   "to": "{talk:1} {2}"
+  },
+  {
+   "re": "^takes the (\\S+) for (\\S+)$",
+   "to": "coge {item:1} para {doing:2}"
+  },
+  {
+   "re": "^(.+) has caught (\\S+)$",
+   "to": "{ent:1} ha cazado {item:2}"
+  },
+  {
+   "re": "^sets a (.+) where game was seen$",
+   "to": "pone {ent:1} donde se vio caza"
   }
  ],
  "ui": {
@@ -3602,6 +3744,111 @@
   "build {0}": "construir {0}",
   "carry material to {0}": "llevar material a {0}",
   "talk to {0}": "hablar con {0}",
-  "follow {0}": "seguir a {0}"
+  "follow {0}": "seguir a {0}",
+  "1 first": "1 primero",
+  "4 last": "4 último",
+  "never": "nunca",
+  "follows the AI": "sigue a la IA",
+  "All as the AI": "Todos como la IA",
+  "Everyone already decides as the AI": "Todos deciden ya como la IA",
+  "Drop every table of yours: they all decide again as the AI does": "Quitar todas tus tablas: todos vuelven a decidir como la IA",
+  "Who does what first. Each cell is the number of a work for a person: 1 first, 4 last, - never.": "Quién hace qué antes. Cada casilla es el número de un trabajo para una persona: 1 primero, 4 último, - nunca.",
+  "Click: sooner   Right click: later   Wheel or a drag sideways: either way": "Clic: antes   Clic derecho: después   Rueda o arrastrar a los lados: cualquiera de las dos",
+  "A click on the head of a column unfolds its jobs; a right click on a name gives it back to the AI": "Un clic en la cabecera de una columna despliega sus trabajos; un clic derecho en un nombre lo devuelve a la IA",
+  "Right click: as the AI": "Clic derecho: como la IA",
+  "({0} in the data: the table shows it as 4)": "({0} en los datos: la tabla lo muestra como 4)",
+  "Add a goal": "Añadir meta",
+  "opens the grid of things": "abre la rejilla de objetos",
+  "The bar is what it has; drag the ochre handle to say how many it keeps (it is set when you let go)": "La barra es lo que tiene; arrastra el tirador ocre para decir cuántos guarda (se fija al soltar)",
+  "for {0} days": "para {0} días",
+  "goal {0}": "meta {0}",
+  "{0} goal": "{0} meta",
+  "{0} goals": "{0} metas",
+  "all well": "todo bien",
+  "Clothing and cover": "Ropa y abrigo",
+  "Drag the handle: the goal is set when you let go": "Arrastra el tirador: la meta se fija al soltar",
+  "The clan cannot keep it now: {0}": "El clan no puede guardarlo ahora: {0}",
+  "The flag marks the three most pressing of the whole board.": "La bandera marca los tres más urgentes de todo el tablón.",
+  "urgent": "urgente",
+  "store / wants": "almacén / quiere",
+  "places": "plazas",
+  "One of the three most pressing jobs of the board": "Uno de los tres trabajos más urgentes del tablón",
+  "The store has {0}; the clan wants {1}": "El almacén tiene {0}; el clan quiere {1}",
+  "Nobody holds it yet: {0} places": "Nadie lo ha cogido aún: {0} plazas",
+  "Held by {0}": "Lo tiene {0}",
+  "... {0} more": "... {0} más",
+  "see all": "ver todo",
+  "see less": "ver menos",
+  "1 generation": "1 generación",
+  "{0} generations": "{0} generaciones",
+  "1 inventor": "1 inventor",
+  "{0} inventors": "{0} inventores",
+  "1 lineage": "1 linaje",
+  "{0} lineages": "{0} linajes",
+  "1 sad": "1 triste",
+  "{0} sad": "{0} tristes",
+  "1 well": "1 pozo",
+  "{0} wells": "{0} pozos",
+  "Adjust": "Ajustar",
+  "Because {0}": "Porque {0}",
+  "Being discovered now": "Se descubre ahora",
+  "Built": "En pie",
+  "Under way": "En obras",
+  "Every technology the clan knows or can study, and what each opens": "Cada técnica que el clan conoce o puede estudiar, y lo que abre cada una",
+  "Faith and rites": "Fe y ritos",
+  "Family": "Familia",
+  "Memories": "Recuerdos",
+  "How it lives": "Cómo vive",
+  "How it lives, in detail": "Cómo vive, en detalle",
+  "In danger: under 25": "En peligro: por debajo de 25",
+  "Its sheet: what it lacks, who works on it, its place in the queue": "Su ficha: lo que le falta, quién trabaja en ella y su lugar en la cola",
+  "Low at the start, as it should: it grows with every technique the clan knows": "Bajo al principio, como debe ser: crece con cada técnica que el clan conoce",
+  "Open the sheet of the {0}": "Abrir la hoja de {0}",
+  "People and lineages": "Gente y linajes",
+  "See": "Ver",
+  "The beds of the houses that stand, against the people of the clan": "Las camas de las casas en pie, frente a la gente del clan",
+  "The campfire warms the clan and cooks its food": "La hoguera calienta al clan y cocina su comida",
+  "The mean mood of the clan, and who is low": "El ánimo medio del clan, y quién está bajo",
+  "The wells that stand: without one the clan goes to the river or the lake": "Los pozos en pie: sin ninguno, el clan va al río o al lago",
+  "What is urgent": "Lo urgente",
+  "What it studies": "Qué estudia",
+  "What the clan knows and studies": "Lo que el clan sabe y estudia",
+  "Winter {0} d": "Invierno {0} d",
+  "discovering {0}": "descubriendo {0}",
+  "fixed by you": "fijado por ti",
+  "food enough": "comida de sobra",
+  "fuel: {0}": "leña: {0}",
+  "in {0} days": "en {0} días",
+  "it is here": "ya está aquí",
+  "knows {0} techniques": "sabe {0} técnicas",
+  "lacks": "falta",
+  "lacks {0} days of food": "faltan {0} días de comida",
+  "nobody sad": "nadie triste",
+  "parents unknown": "padres desconocidos",
+  "sad": "triste",
+  "so-so": "regular",
+  "content": "contento",
+  "shared": "compartida",
+  "weak": "débil",
+  "firm": "firme",
+  "starting": "empezando",
+  "steady": "estable",
+  "improving": "mejora",
+  "worsening": "empeora",
+  "they drink where they find it": "beben donde pueden",
+  "usual": "normal",
+  "high": "alto",
+  "no data yet": "sin datos aún",
+  "good": "bien",
+  "fair": "regular",
+  "poor": "mal",
+  "{0} (a half is the usual)": "{0} (la mitad es lo normal)",
+  "{0} for {1}": "{0} para {1}",
+  "{0} lack one": "a {0} les falta",
+  "{0} techniques": "{0} técnicas",
+  "{0} to spare": "sobran {0}",
+  "{0}: {1} % worked out": "{0}: {1} % resuelto",
+  "How the {0} live: what is urgent, their knowledge, faith and people, the board, the sites, the homes and the other clans": "Cómo vive {0}: lo urgente, su saber, su fe y su gente, el tablón, las obras, los hogares y los otros clanes",
+  "What has happened in the world, day by day": "Lo que ha pasado en el mundo, día a día"
  }
 }
