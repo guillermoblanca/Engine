@@ -12,6 +12,7 @@
 #include "GameTheme.h"
 #include "StoryKinds.h"
 #include "UnknownTech.h"
+#include "GB/Game/TechVerbs.h"
 #include "GB/Game/WinterOutlook.h"
 #include "GB/Game/WorldAlerts.h"
 #include <algorithm>
@@ -2820,6 +2821,14 @@ namespace GB::Editor
 					if (ImGui::Button((L.Text("Build") + "###handbuild").c_str())) run(building ? "director hand off" : "director hand build");
 				}
 				tip(L.Text("Choose a building and where it goes: the {0} raise it with their own material", name));
+				// T281: [Field] marks out a farm zone point by point (ColonyZones.cpp); not there at all while the clan does not know how to till (T327)
+				if (TechVerbs::Allows(*clan->Folk, "farm", "till"))
+				{
+					ImGui::SameLine();
+					const bool fielding = m_Colony.Tab == "field";
+					if (IconLabelButton("handfield", "till", L.Text("Field"), fielding)) run(fielding ? "colony tab off" : "colony zone start");
+					tip(L.Text("Mark out a field on the ground, point by point, and choose what the {0} sow in it", name));
+				}
 				ImGui::SameLine();
 				{
 					std::optional<T::PrimaryScope> lit;

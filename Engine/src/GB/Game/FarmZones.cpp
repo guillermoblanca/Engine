@@ -79,40 +79,77 @@ namespace GB
 		return PaintOutline(tribe, { lo, { hi.x, lo.y }, hi, { lo.x, hi.y } }, crop);
 	}
 
+	namespace
+	{
+		// the grid of a perimeter: its cells (2 m, from the lowest x and z of the points) whose middle falls inside it
+		struct OutlineGrid
+		{
+			glm::vec2 Lo{ 0.0f };
+			int Columns = 0, Rows = 0;
+			float Spacing = 2.0f;
+			std::vector<int> Cells;
+		};
+
+		FarmZones::Reply CheckOutline(const Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop, OutlineGrid& grid)
+		{
+			const FarmRules& f = tribe.Config.Econ.Farming;
+			if (outline.size() < 3) return { false, "a zone needs 3 points or more" };
+			if (const std::string why = TechVerbs::WhyNot(tribe, "farm", "till"); !why.empty()) return { false, "cannot paint a farm zone: the clan " + why };   // T322
+			if (!crop.empty() && !tribe.Config.Econ.Crops.count(crop)) return { false, "no crop called " + crop + " in the loaded content" };
+			const float sp = std::max(0.5f, f.Spacing);
+			glm::vec2 lo = outline[0], hi = outline[0];
+			for (const glm::vec2& p : outline) { lo = glm::min(lo, p); hi = glm::max(hi, p); }
+			const int columns = static_cast<int>(std::floor((hi.x - lo.x) / sp + 0.5f)) + 1;
+			const int rows = static_cast<int>(std::floor((hi.y - lo.y) / sp + 0.5f)) + 1;
+			if (static_cast<long long>(columns) * rows > 4LL * FarmZones::kMostPlots) return { false, "the zone is too big: at most " + std::to_string(FarmZones::kMostPlots) + " plots" };
+			std::vector<int> cells;
+			for (int c = 0; c < columns * rows; ++c)
+				if (Inside(outline, lo + glm::vec2(static_cast<float>(c % columns), static_cast<float>(c / columns)) * sp)) cells.push_back(c);
+			const int plots = static_cast<int>(cells.size());
+			if (plots == 0) return { false, "no plot falls inside the zone" };
+			if (plots > FarmZones::kMostPlots) return { false, "the zone would have " + std::to_string(plots) + " plots: at most " + std::to_string(FarmZones::kMostPlots) };
+			grid.Lo = lo;
+			grid.Columns = columns;
+			grid.Rows = rows;
+			grid.Spacing = sp;
+			grid.Cells = cells;
+			// the ground: nothing standing there (any clan's site, building or field: its bounding grid), and every plot dry ground a member can stand on
+			const GroundRect want = FieldGround(lo, cells.back() + 1, columns, sp);
+			if (const std::string why = GroundFree(want, TakenGround(tribe), 0.0f); !why.empty()) return { false, "cannot paint there: " + why };
+			const ITribeBody* body = nullptr;
+			for (const TribeMember& m : tribe.Members()) if (!m.Dead && m.Body) { body = m.Body; break; }
+			if (body)
+				for (const int cell : cells)
+				{
+					const glm::vec2 p = lo + glm::vec2(static_cast<float>(cell % columns), static_cast<float>(cell / columns)) * sp;
+					char at[48];
+					std::snprintf(at, sizeof at, "%.0f, %.0f", static_cast<double>(p.x), static_cast<double>(p.y));
+					if (body->WaterDepthAt(p) > kWetDepth) return { false, std::string("cannot paint there: the plot at ") + at + " is in the water" };
+					bool stand = body->CanStandAt(p);   // the plot's middle and its four quarters (a trunk between two middles)
+					for (const glm::vec2 d : { glm::vec2(0.5f, 0.5f), glm::vec2(-0.5f, 0.5f), glm::vec2(0.5f, -0.5f), glm::vec2(-0.5f, -0.5f) }) stand = stand && body->CanStandAt(p + d * sp * 0.5f);
+					if (!stand) return { false, std::string("cannot paint there: the plot at ") + at + " is on a rock or a trunk" };
+				}
+			return { true, std::string() };
+		}
+	}
+
+	FarmZones::Reply FarmZones::Check(const Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop, int* plots)
+	{
+		OutlineGrid grid;
+		const Reply r = CheckOutline(tribe, outline, crop, grid);
+		if (plots) *plots = r.Ok ? static_cast<int>(grid.Cells.size()) : 0;
+		return r;
+	}
+
 	FarmZones::Reply FarmZones::PaintOutline(Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop)
 	{
-		const FarmRules& f = tribe.Config.Econ.Farming;
-		if (outline.size() < 3) return { false, "a zone needs 3 points or more" };
-		if (const std::string why = TechVerbs::WhyNot(tribe, "farm", "till"); !why.empty()) return { false, "cannot paint a farm zone: the clan " + why };   // T322
-		if (!crop.empty() && !tribe.Config.Econ.Crops.count(crop)) return { false, "no crop called " + crop + " in the loaded content" };
-		const float sp = std::max(0.5f, f.Spacing);
-		glm::vec2 lo = outline[0], hi = outline[0];
-		for (const glm::vec2& p : outline) { lo = glm::min(lo, p); hi = glm::max(hi, p); }
-		const int columns = static_cast<int>(std::floor((hi.x - lo.x) / sp + 0.5f)) + 1;
-		const int rows = static_cast<int>(std::floor((hi.y - lo.y) / sp + 0.5f)) + 1;
-		if (static_cast<long long>(columns) * rows > 4LL * kMostPlots) return { false, "the zone is too big: at most " + std::to_string(kMostPlots) + " plots" };
-		std::vector<int> cells;
-		for (int c = 0; c < columns * rows; ++c)
-			if (Inside(outline, lo + glm::vec2(static_cast<float>(c % columns), static_cast<float>(c / columns)) * sp)) cells.push_back(c);
+		OutlineGrid grid;
+		if (const Reply r = CheckOutline(tribe, outline, crop, grid); !r.Ok) return r;
+		const glm::vec2 lo = grid.Lo;
+		const int columns = grid.Columns, rows = grid.Rows;
+		const float sp = grid.Spacing;
+		const std::vector<int>& cells = grid.Cells;
 		const int plots = static_cast<int>(cells.size());
-		if (plots == 0) return { false, "no plot falls inside the zone" };
-		if (plots > kMostPlots) return { false, "the zone would have " + std::to_string(plots) + " plots: at most " + std::to_string(kMostPlots) };
-		// the ground: nothing standing there (any clan's site, building or field: its bounding grid), and every plot dry ground a member can stand on
-		const GroundRect want = FieldGround(lo, cells.back() + 1, columns, sp);
-		if (const std::string why = GroundFree(want, TakenGround(tribe), 0.0f); !why.empty()) return { false, "cannot paint there: " + why };
-		const ITribeBody* body = nullptr;
-		for (const TribeMember& m : tribe.m_Members) if (!m.Dead && m.Body) { body = m.Body; break; }
-		if (body)
-			for (const int cell : cells)
-			{
-				const glm::vec2 p = lo + glm::vec2(static_cast<float>(cell % columns), static_cast<float>(cell / columns)) * sp;
-				char at[48];
-				std::snprintf(at, sizeof at, "%.0f, %.0f", static_cast<double>(p.x), static_cast<double>(p.y));
-				if (body->WaterDepthAt(p) > kWetDepth) return { false, std::string("cannot paint there: the plot at ") + at + " is in the water" };
-				bool stand = body->CanStandAt(p);   // the plot's middle and its four quarters (a trunk between two middles)
-				for (const glm::vec2 d : { glm::vec2(0.5f, 0.5f), glm::vec2(-0.5f, 0.5f), glm::vec2(0.5f, -0.5f), glm::vec2(-0.5f, -0.5f) }) stand = stand && body->CanStandAt(p + d * sp * 0.5f);
-				if (!stand) return { false, std::string("cannot paint there: the plot at ") + at + " is on a rock or a trunk" };
-			}
 		// a name of its own: "zone N", the first N no field of the clan has
 		std::set<std::string> taken;
 		for (const Field& x : tribe.m_Econ.Fields) taken.insert(x.Name);

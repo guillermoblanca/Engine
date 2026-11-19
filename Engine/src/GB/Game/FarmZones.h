@@ -64,6 +64,9 @@ namespace GB
 		// A zone of any shape: the perimeter's points (3 or more, in order); its plots are the cells of the grid (2 m, from the lowest x and z of
 		// the points) whose middle falls inside it (or on its edge). The same refusals as Paint.
 		Reply PaintOutline(Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop);
+		// T281: PaintOutline's refusals without painting (the UI's preview while the perimeter is drawn): Ok with the plots it would have in
+		// `plots`, else why (the same text PaintOutline answers). Changes nothing.
+		static Reply Check(const Tribe& tribe, const std::vector<glm::vec2>& outline, const std::string& crop, int* plots = nullptr);
 		Reply SetCrop(Tribe& tribe, const std::string& zone, const std::string& crop);
 		Reply SetPlan(Tribe& tribe, const std::string& zone, const std::string& plan);
 		Reply SetAuto(Tribe& tribe, const std::string& zone, bool on);

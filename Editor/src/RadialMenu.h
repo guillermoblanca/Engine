@@ -64,5 +64,28 @@ namespace GB::Editor
 		bool OpenPicker = false;   // `colony stock picker`: the picker of things opens on the next frame, as its click opens it
 		struct Box { float X0 = 0.0f, Y0 = 0.0f, X1 = 0.0f, Y1 = 0.0f; };
 		Box TabBox;
+		// T281 (ColonyZones.cpp): the tool Field, in the tab "field": the perimeter of a new farm zone drawn point by point on the ground, then its
+		// crop and plan; or a zone of the clan chosen to change. The clicks and keys only queue `colony zone ...`, which the scripts use as well.
+		struct ZoneTool
+		{
+			bool Painting = false;            // a left click on the ground puts a point
+			bool Closed = false;              // the perimeter is closed: its crop and plan are chosen, then confirmed
+			std::vector<glm::vec2> Points;    // x, z
+			std::string Crop;                 // "" = auto (the clan chooses)
+			std::string Plan = "sow";         // sow, harvest, fallow
+			std::string Selected;             // a zone of the clan chosen ("zone 3"; "": none)
+			bool HeldCursor = false;          // `colony zone cursor x z`: where the mouse would be (the captures)
+			glm::vec2 Cursor{ 0.0f };
+			bool DownL = false, DownR = false;   // a click that did not drag the camera
+			glm::vec2 PressL{ 0.0f }, PressR{ 0.0f };
+			// what the perimeter (with the cursor while painting) gives: FarmZones::Check, cached on its points
+			std::string Key;
+			bool Ok = false, Crosses = false;
+			std::string Why;
+			int Plots = 0;
+			float Area = 0.0f;
+			std::vector<glm::vec2> Cells;     // the middles of the plots it would have (drawn as dots)
+		};
+		ZoneTool Zone;
 	};
 }

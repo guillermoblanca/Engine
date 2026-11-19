@@ -1261,6 +1261,46 @@
    "to": "el clan traza el campo {1} ({2} parcelas)"
   },
   {
+   "re": "^the player paints zone (\\d+) painted at -?\\d+, -?\\d+: (?:\\d+ x \\d+ = |\\d+ points, )(\\d+) plots, crop any$",
+   "to": "el jugador marca el campo {1} ({2} parcelas; el clan elige el cultivo)"
+  },
+  {
+   "re": "^the player paints zone (\\d+) painted at -?\\d+, -?\\d+: (?:\\d+ x \\d+ = |\\d+ points, )(\\d+) plots, crop (\\S+)$",
+   "to": "el jugador marca el campo {1} ({2} parcelas de {item:3})"
+  },
+  {
+   "re": "^the player sows zone (\\d+) with any crop$",
+   "to": "el jugador deja que el clan elija el cultivo del campo {1}"
+  },
+  {
+   "re": "^the player sows zone (\\d+) with (\\S+)$",
+   "to": "el jugador siembra el campo {1} con {item:2}"
+  },
+  {
+   "re": "^the player sets the plan of zone (\\d+) to sow$",
+   "to": "el jugador pone el campo {1} a sembrar y cosechar"
+  },
+  {
+   "re": "^the player sets the plan of zone (\\d+) to harvest$",
+   "to": "el jugador pone el campo {1} a solo cosechar"
+  },
+  {
+   "re": "^the player sets the plan of zone (\\d+) to fallow$",
+   "to": "el jugador deja el campo {1} en barbecho"
+  },
+  {
+   "re": "^the player sets zone (\\d+) to auto$",
+   "to": "el jugador deja que el clan elija el cultivo del campo {1}"
+  },
+  {
+   "re": "^the player sets zone (\\d+) to its own crop$",
+   "to": "el jugador fija el cultivo del campo {1}"
+  },
+  {
+   "re": "^the player removes zone (\\d+)$",
+   "to": "el jugador quita el campo {1}"
+  },
+  {
    "re": "^the clan paves its most worn path: (\\d+) cells left, with (\\S+)$",
    "to": "el clan empiedra su camino más pisado con {item:2}: faltan {1} tramos"
   },
@@ -2678,6 +2718,58 @@
   "Fed": "Alimentado",
   "Feeling": "Sentimiento",
   "Fields": "Campos",
+  "A field here...": "Un campo aquí...",
+  "A field needs 3 points or more": "Un campo necesita 3 puntos o más",
+  "A plot falls in the water": "Una parcela cae en el agua",
+  "A plot falls on a rock or a trunk": "Una parcela cae sobre una roca o un tronco",
+  "Change the edge": "Cambiar el borde",
+  "Click on the ground to put the points of its edge": "Haz clic en el suelo para poner los puntos de su borde",
+  "Click to put the first point": "Haz clic para poner el primer punto",
+  "Click: close the field": "Clic: cerrar el campo",
+  "Close the field": "Cerrar el campo",
+  "Crop": "Cultivo",
+  "Done": "Hecho",
+  "Drop it": "Descartar",
+  "Field": "Campo",
+  "Field {0}": "Campo {0}",
+  "Harvest only": "Solo cosechar",
+  "It takes ground already used: a building or another field": "Pisa suelo ya ocupado: un edificio u otro campo",
+  "Join the last point to the first": "Une el último punto con el primero",
+  "Mark out a field on the ground, point by point": "Marca un campo en el suelo, punto a punto",
+  "Mark out a field on the ground, point by point, and choose what the {0} sow in it": "Marca un campo en el suelo, punto a punto, y elige qué siembran en él los {0}",
+  "Mark out a field: this is its first point": "Marca un campo: este es su primer punto",
+  "Mark the field": "Marcar el campo",
+  "New field": "Campo nuevo",
+  "No point yet": "Aún no hay puntos",
+  "No seed in the store: it waits until there is": "No hay semilla en el almacén: espera a que la haya",
+  "Not its season to sow: it waits": "No es su época de siembra: espera",
+  "Plan": "Plan",
+  "Remove the field": "Quitar el campo",
+  "Rest": "Barbecho",
+  "Sow and harvest": "Sembrar y cosechar",
+  "The clan chooses each time it sows: what it has least of": "El clan elige cada vez que siembra: lo que menos tiene",
+  "The clan does not know how to till": "El clan no sabe labrar",
+  "The clan has no field of yours yet": "El clan aún no tiene campos tuyos",
+  "The clan learns its crops with new knowledge": "El clan conocerá sus cultivos con nuevos saberes",
+  "The clan tills it and sows it when it has hands and seed": "El clan lo labra y lo siembra cuando tiene manos y semilla",
+  "The clan's fields: click on one to change it": "Los campos del clan: haz clic en uno para cambiarlo",
+  "The edges cross": "Los bordes se cruzan",
+  "The field goes: what grows in it is lost": "El campo desaparece: se pierde lo que crece en él",
+  "The ground rests: only what is ripe is harvested": "La tierra descansa: solo se cosecha lo que está maduro",
+  "The whole cycle: till, sow, water and harvest": "El ciclo entero: labrar, sembrar, regar y cosechar",
+  "Too big: at most {0} plots": "Demasiado grande: como mucho {0} parcelas",
+  "Too small: no plot fits": "Demasiado pequeño: no cabe ninguna parcela",
+  "What grows is watered and harvested; nothing new is sown": "Lo que crece se riega y se cosecha; no se siembra nada nuevo",
+  "What is sown in it, and what the clan does with it": "Qué se siembra en él y qué hace el clan con él",
+  "[Click] a point  [Click on the first] or [Enter] close  [Right click] or [Backspace] take the last away  [Esc] drop it": "[Clic] un punto  [Clic en el primero] o [Intro] cerrar  [Clic derecho] o [Retroceso] quitar el último  [Esc] descartar",
+  "{0} growing, {1} ripe": "{0} creciendo, {1} maduras",
+  "{0} m²": "{0} m²",
+  "{0} plot": "{0} parcela",
+  "{0} plots": "{0} parcelas",
+  "{0} point": "{0} punto",
+  "{0} points": "{0} puntos",
+  "{0} points: put at least 3": "{0} puntos: pon al menos 3",
+  "{0} seeds in the store": "{0} semillas en el almacén",
   "Fire": "Fuego",
   "Food": "Comida",
   "Food. Eat [{0}]: what you carry or, at the camp, from the store.": "Comida. Come [{0}]: lo que llevas o, en el campamento, del almacén.",
