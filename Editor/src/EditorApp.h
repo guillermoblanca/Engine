@@ -57,6 +57,8 @@
 
 struct ImDrawList;
 
+struct ImDrawList;   // (imgui.h: the colony panels draw icons on a draw list, T336)
+
 namespace GB::Editor
 {
 	// What the animation commands answer when there is no animated character to act on.
@@ -474,6 +476,8 @@ namespace GB::Editor
 			bool AlertsFolded = false;      // ... folded by the counter of the god's bar (`observer alerts fold`)
 			// U6: the person the Person tab shows (`observer person <name>`; "" = the members' table) and the selection last turned into it
 			std::string Person, SelectionSeen;
+			// T336 (L6): the groups of the job board shown whole (the rest show their 3 most pressing and "... N more")
+			std::set<std::string> BoardOpen;
 		} m_Observer;
 		// T201 (ObserverView.cpp): the god's hand under the observer: its bar (the influence, the faith and the pressure of the clan under the hand,
 		// [Build], [Omen]), the palette or the omens' menu over it, and the building being placed as a ghost footprint that follows the mouse over the
@@ -601,7 +605,22 @@ namespace GB::Editor
 		CommandResult ColonyTabCommand(const std::vector<std::string>& a);   // `colony tab|work|stock ...`
 		std::string WorkStep(const std::string& person, const std::string& what, bool up) const;   // the `game priority` a click on a cell queues ("" = no change)
 		void DrawColonyTabs(float ox, float oy, float w, float h);
-		void ColonyTabTitle(const std::string& title, const std::string& help);
+		// the title of a panel: its name, a "?" with the help, then (at `width` from its left, when given) what `extra` draws and the close
+		void ColonyTabTitle(const std::string& title, const std::string& help, float width = 0.0f, const std::function<void()>& extra = {}, float extraW = 0.0f);
+		static const char* WorkIconOf(const std::string& id);   // T336: the atlas icon of a work category or job
+		static int WorkLevel(int number);              // T336: 1..10 as the 4 levels the Work table shows (1..4; 0 = "-")
+		bool IconAt(ImDrawList* dl, const std::string& id, float x, float y, float size, unsigned tint = 0xFFFFFFFF);   // T336: an icon of the atlas on a draw list; false without it
+		std::string RoleName(const Tribe& t, const TribeMember& m) const;   // T336: the trade in the player's words, agreeing with the person ("recolectora")
+		std::string WorkShort(const std::string& id) const;                 // T336: the short label of a category or a job under its icon ("Alim.")
+		// T336 (ColonyView.cpp, L7-L9): the colony's own screen: what is urgent (top left), the selection's sheet (right), the clan's big sheet
+		static bool IsColonySheet(const std::string& tab);   // clan, chronicle, board, sites, homes, research, relations
+		void DrawColonyScreen(float ox, float oy, float w, float h, const Clan& clan);
+		void DrawColonyUrgent(float ox, float top, const Clan& clan);
+		void DrawColonyPerson(const Tribe& t, const TribeMember& m, float width);
+		void DrawColonySheet(const Tribe& t, float width, float height);
+		void DrawColonyClanTab(const Clan& clan, float width);
+		void DrawSitesSheet(const Tribe& t);
+		std::string MemberTaskIcon(const TribeMember& m) const;   // the atlas icon of what a person is doing (SelectionView.cpp)
 		void DrawWorkTab(const Tribe& t, float width, float maxH);
 		void DrawStockTab(const Tribe& t, float width, float maxH);
 		void DrawResearchTab(const Tribe& t, float width, float maxH);   // T324: the research queue

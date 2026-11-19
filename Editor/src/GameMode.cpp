@@ -1783,7 +1783,31 @@ namespace GB::Editor
 						if (m_Lang.Covers(line)) ++covered;
 						else if (missing.size() < 1500) missing += "\n  " + line;
 					}
-					return { true, "lang " + m_Lang.Code() + ": " + std::to_string(covered) + " of " + std::to_string(lines) + " lines of the clan's log covered" + (missing.empty() ? std::string() : "; not covered:" + missing) };
+					std::string out = "lang " + m_Lang.Code() + ": " + std::to_string(covered) + " of " + std::to_string(lines) + " lines of the clan's log covered" + (missing.empty() ? std::string() : "; not covered:" + missing);
+					// T336 (L2): the notes of the people's choices (UtilityOption::Note, the "why" of the person's sheet) and the reasons of a rest,
+					// of every clan, each different one once: the sheet draws them through Lang::Line as the log
+					std::set<std::string> notes;
+					auto scan = [&](const Tribe& t)
+					{
+						for (const TribeMember& m : t.Members())
+						{
+							if (m.Dead) continue;
+							for (const UtilityOption& o : m.Mind.Options)
+								if (!o.Note.empty()) notes.insert(o.Note.substr(0, o.Note.find("; job: ")));   // (the job's id is dropped by its pattern: what is left is measured)
+							if (m.Job == "rest" && !m.Why.empty()) notes.insert(m.Why);
+						}
+					};
+					scan(PlayTribe());
+					for (const auto& c : m_Clans.All()) if (c->Folk && c->Folk != &PlayTribe()) scan(*c->Folk);
+					int noted = 0;
+					std::string unnoted;
+					for (const std::string& n : notes)
+					{
+						if (m_Lang.Covers(n)) ++noted;
+						else if (unnoted.size() < 1500) unnoted += "\n  " + n;
+					}
+					out += "\nlang " + m_Lang.Code() + ": " + std::to_string(noted) + " of " + std::to_string(notes.size()) + " notes of the people's choices covered" + (unnoted.empty() ? std::string() : "; not covered:" + unnoted);
+					return { true, out };
 				}
 				if (!a.empty()) m_Lang.Load(m_AssetRoot + "/ui/lang", a[0]);
 				return { true, "lang " + m_Lang.Code() + (m_Lang.On() || m_Lang.Code() == "en" ? std::string() : " (not found: English)") };

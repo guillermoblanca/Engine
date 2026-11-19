@@ -64,5 +64,11 @@ namespace GB::Editor
 		bool OpenPicker = false;   // `colony stock picker`: the picker of things opens on the next frame, as its click opens it
 		struct Box { float X0 = 0.0f, Y0 = 0.0f, X1 = 0.0f, Y1 = 0.0f; };
 		Box TabBox;
+		// T336 (L4/L5): a drag on a cell of Work or on a goal's bar of Stock: which ("person what" / the goal), where it started and the value it
+		// shows now; the order is queued once, when the button is let go
+		std::string Drag;
+		float DragX = 0.0f;
+		int DragFrom = 0, DragTo = 0;
+		bool BareTitle = false;   // T336: the research queue drawn inside the clan's sheet: its title without its own close
 	};
 }

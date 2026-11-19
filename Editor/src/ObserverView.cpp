@@ -254,8 +254,11 @@ namespace GB::Editor
 			const ObserverState::Box& v = m_Observer.ViewBox;
 			if (m_Observer.Screen && v.X1 > v.X0 && v.Y1 > v.Y0)
 			{
+				// T336 (L3): the colony's panel over the bar (Work, Stock, the clan's sheet) counts too
+				const ObserverState::Box tab{ m_Colony.TabBox.X0, m_Colony.TabBox.Y0, m_Colony.TabBox.X1, m_Colony.TabBox.Y1 };
 				const std::pair<const char*, const ObserverState::Box*> boxes[] = { { "bar", &m_Observer.BarBox }, { "card", &m_Observer.CardBox }, { "clans", &m_Observer.ClansBox },
-					{ "book", &m_Observer.BookBox }, { "follow", &m_Observer.FollowBox }, { "news", &m_Observer.NewsBox }, { "selection", &m_Observer.SelectionBox }, { "alerts", &m_Observer.AlertsBox } };
+					{ "book", &m_Observer.BookBox }, { "follow", &m_Observer.FollowBox }, { "news", &m_Observer.NewsBox }, { "selection", &m_Observer.SelectionBox }, { "alerts", &m_Observer.AlertsBox },
+					{ "tab", &tab }, { "hand", &m_Hand.Box } };
 				auto area = [](const ObserverState::Box& b) { return std::max(0.0f, b.X1 - b.X0) * std::max(0.0f, b.Y1 - b.Y0); };
 				float covered = 0.0f;
 				std::string parts, overlaps;
@@ -538,6 +541,25 @@ namespace GB::Editor
 			const float treeTop = god ? m_Observer.BarBottom : oy;
 			DrawTechTree(t, false, ox, treeTop, w, std::max(oy + h - treeTop, 160.0f), m_Observer.Tree, m_Observer.TreePick);
 			return;
+		}
+		// T336 (L9, option A): the colony has its own screen (ColonyView.cpp): what is urgent on the top left, the selection's sheet on the right
+		// and nothing there without one, the bar of icons at the bottom and the clan's big sheet in the centre. The god's book stays for the rest.
+		if (god && ColonyScreen())
+		{
+			const Clan* own = nullptr;
+			for (const auto& c : m_Clans.All()) if (c->Folk == ColonyTribe()) own = c.get();
+			if (own)
+			{
+				DrawColonyScreen(ox, oy, w, h, *own);
+				DrawFollowChip(ox, w);
+				DrawObserverAlerts(ox, w);
+				DrawObserverNews(ox, w);
+				DrawHandBar(ox, oy, w, h);
+				DrawColonyTabs(ox, oy, w, h);
+				if (m_Director.Defeated() && !m_Director.DefeatSeen()) DrawDefeat(ox, oy, w, h);
+				else if (m_Director.StageWon() && !m_Director.Defeated()) DrawStageWon(ox, oy, w, h);
+				return;
+			}
 		}
 		const Lang& L = m_Lang;
 		auto run = [&](const std::string& command) { m_UiCommands.push_back(command); };
@@ -2801,51 +2823,68 @@ namespace GB::Editor
 				divider();
 			}
 			// the clan under the hand: its faith and the pressure the god has put on it
-			if (colony)   // T269: the player's clan and its people; then [Build] and [Research]
+			if (colony)   // T336 (L9, propuesta p1): a bar of icons with their word under them: Build, Knowledge, Work, Stock, Clan, Chronicle
 			{
-				int alive = 0;
-				for (const TribeMember& m : clan->Folk->Members()) if (!m.Dead) ++alive;
-				ImGui::BeginGroup();
-				Swatch(ClanColour(m_Clans, clan->Id));
-				ImGui::TextUnformatted(name.c_str());
-				ImGui::SameLine(0.0f, 10.0f);
-				ImGui::TextDisabled("%s", L.Text(alive == 1 ? "{0} person" : "{0} people", alive).c_str());
-				ImGui::EndGroup();
-				tip(L.Text("Your clan. If nobody of it is left alive, the game is lost."));
-				divider();
+				ImDrawList* dl = ImGui::GetWindowDrawList();
+				const float bh = 50.0f, is = 24.0f;
 				const bool building = m_Hand.Menu == "build" || !m_Hand.Building.empty();
+				const std::string& aim = clan->Folk->ResearchAim();
+				const TechTree* techs = clan->Folk->Knowledge().Techs();
+				const TechDef* def = !aim.empty() && techs ? techs->Find(aim) : nullptr;
+				struct Button { const char* Id; const char* Label; const char* Icon; bool On; std::string Command, Tip; };
+				const Button buttons[] = {
+					{ "build", "Build", "build", building, building ? "director hand off" : "director hand build",
+						L.Text("Choose a building and where it goes: the {0} raise it with their own material", name) },
+					{ "research", "Knowledge", "experiment", m_Colony.Tab == "research", m_Colony.Tab == "research" ? "colony tab off" : "colony tab research",
+						L.Text("What the clan studies, in order: the research queue") + "\n" + (aim.empty() ? L.Text("Choose what the {0} seek in the tree of knowledge (they also find things out by themselves)", name)
+							: L.Text("The {0} seek {1}", name, Lang::Cap(L.Name("tech", aim, def ? def->Name : aim)))) },
+					{ "work", "Work", "", m_Colony.Tab == "work", m_Colony.Tab == "work" ? "colony tab off" : "colony tab work", L.Text("Who does what first: the priorities of each person") },
+					{ "stock", "Stock", "deposit", m_Colony.Tab == "stock", m_Colony.Tab == "stock" ? "colony tab off" : "colony tab stock",
+						L.Text("What the clan keeps in store: N of a thing, made or gathered when it lacks") },
+					{ "clan", "Clan", "", IsColonySheet(m_Colony.Tab) && m_Colony.Tab != "research" && m_Colony.Tab != "chronicle", m_Colony.Tab == "clan" ? "colony tab off" : "colony tab clan",
+						L.Text("How the {0} live: what is urgent, their knowledge, faith and people, the board, the sites, the homes and the other clans", name) },
+					{ "chronicle", "Chronicle", "", m_Colony.Tab == "chronicle", m_Colony.Tab == "chronicle" ? "colony tab off" : "colony tab chronicle", L.Text("What has happened in the world, day by day") } };
+				bool first = true;
+				for (const Button& bt : buttons)
 				{
-					std::optional<T::PrimaryScope> lit;
-					if (building) lit.emplace();
-					if (ImGui::Button((L.Text("Build") + "###handbuild").c_str())) run(building ? "director hand off" : "director hand build");
-				}
-				tip(L.Text("Choose a building and where it goes: the {0} raise it with their own material", name));
-				ImGui::SameLine();
-				{
-					std::optional<T::PrimaryScope> lit;
-					if (m_Observer.Tree) lit.emplace();
-					if (ImGui::Button((L.Text("Research") + "###handResearch").c_str())) run("observer tree");
-				}
-				{
-					const std::string& aim = clan->Folk->ResearchAim();
-					const TechTree* techs = clan->Folk->Knowledge().Techs();
-					const TechDef* def = !aim.empty() && techs ? techs->Find(aim) : nullptr;
-					tip(aim.empty() ? L.Text("Choose what the {0} seek in the tree of knowledge (they also find things out by themselves)", name)
-						: L.Text("The {0} seek {1}", name, Lang::Cap(L.Name("tech", aim, def ? def->Name : aim))));
-				}
-				// T308 (MODO_COLONIA §4.3): [Work] the table of priorities, [Stock] the goals of what the clan keeps (ColonyTabs.cpp)
-				for (const auto& [tab, label, help] : { std::tuple<const char*, const char*, const char*>{ "work", "Work", "Who does what first: the priorities of each person" },
-					std::tuple<const char*, const char*, const char*>{ "stock", "Stock", "What the clan keeps in store: N of a thing, made or gathered when it lacks" },
-					std::tuple<const char*, const char*, const char*>{ "research", "Knowledge", "What the clan studies, in order: the research queue" } })   // T324
-				{
-					ImGui::SameLine();
-					const bool open = m_Colony.Tab == tab;
+					if (!first) ImGui::SameLine(0.0f, 4.0f);
+					first = false;
+					const ImVec2 at = ImGui::GetCursorScreenPos();
+					const float bw = std::max(62.0f, ImGui::CalcTextSize(L.Text(bt.Label).c_str()).x + 14.0f);
+					ImGui::PushID(bt.Id);
+					const bool pressed = ImGui::InvisibleButton("bar", ImVec2(bw, bh));
+					const bool hovered = ImGui::IsItemHovered();
+					ImGui::PopID();
+					if (pressed) run(bt.Command);
+					tip(bt.Tip);
+					dl->AddRectFilled(at, ImVec2(at.x + bw, at.y + bh), bt.On ? T::HideActive : hovered ? T::HideHover : T::HideRaised, T::Radius);
+					dl->AddRect(at, ImVec2(at.x + bw, at.y + bh), bt.On ? T::Ochre : T::HideLine, T::Radius, 0, bt.On ? 2.0f : 1.0f);
+					const float ix = at.x + (bw - is) * 0.5f, iy = at.y + 5.0f;
+					if (!IconAt(dl, bt.Icon, ix, iy, is))
 					{
-						std::optional<T::PrimaryScope> lit;
-						if (open) lit.emplace();
-						if (ImGui::Button((L.Text(label) + "###hand" + tab).c_str())) run(open ? std::string("colony tab off") : std::string("colony tab ") + tab);
+						const ImU32 c = bt.On ? T::Ochre : T::Bone;   // (no icon in the atlas yet: a drawn mark, ART-1)
+						if (std::string(bt.Id) == "work")
+							for (int i = 0; i < 3; ++i)
+							{
+								const float y = iy + is * (0.25f + 0.25f * static_cast<float>(i));
+								dl->AddCircleFilled(ImVec2(ix + is * 0.2f, y), is * 0.07f, c, 6);
+								dl->AddLine(ImVec2(ix + is * 0.35f, y), ImVec2(ix + is * 0.9f, y), c, 1.8f);
+							}
+						else if (std::string(bt.Id) == "clan")
+						{
+							dl->AddLine(ImVec2(ix + is * 0.25f, iy + is * 0.1f), ImVec2(ix + is * 0.25f, iy + is * 0.95f), c, 2.0f);
+							dl->AddRectFilled(ImVec2(ix + is * 0.28f, iy + is * 0.12f), ImVec2(ix + is * 0.85f, iy + is * 0.55f), ClanColour(m_Clans, clan->Id), 1.0f);
+						}
+						else
+						{
+							dl->AddRect(ImVec2(ix + is * 0.2f, iy + is * 0.12f), ImVec2(ix + is * 0.8f, iy + is * 0.88f), c, 2.0f, 0, 1.6f);
+							for (int i = 0; i < 3; ++i)
+								dl->AddLine(ImVec2(ix + is * 0.32f, iy + is * (0.32f + 0.18f * static_cast<float>(i))), ImVec2(ix + is * 0.68f, iy + is * (0.32f + 0.18f * static_cast<float>(i))), c, 1.4f);
+						}
 					}
-					tip(L.Text(help));
+					const std::string label = L.Text(bt.Label);
+					const ImVec2 ls = ImGui::CalcTextSize(label.c_str());
+					dl->AddText(ImVec2(at.x + (bw - ls.x) * 0.5f, at.y + bh - ls.y - 4.0f), bt.On ? T::Ochre : T::Bone, label.c_str());
 				}
 			}
 			else
