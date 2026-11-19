@@ -17,6 +17,7 @@
     "recipes/goods.json",
     "crops.json",
     "buildings.json",
+    "yards.json",
     "techs/tree.json",
     "techs/later.json",
     "rules/tribe.json",

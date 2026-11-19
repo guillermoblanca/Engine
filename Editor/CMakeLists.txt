@@ -26,6 +26,7 @@ add_library(GBEditor STATIC
     src/ColonyTabs.cpp
     src/ColonyZones.cpp
     src/ColonyView.cpp
+    src/ColonyYard.cpp
     src/MapOverlay.cpp
     src/ObserverView.cpp
     src/TechTreeView.cpp
@@ -41,6 +42,7 @@ add_library(GBEditor STATIC
     src/Gameplay/EditorClans.cpp
     src/Gameplay/EditorFounding.cpp
     src/Gameplay/EditorColonyWork.cpp
+    src/Gameplay/EditorModules.cpp
     src/Gameplay/EditorFarmZones.cpp
     src/EditorVisuals.cpp
     src/Gameplay/EditorEconomy.cpp

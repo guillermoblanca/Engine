@@ -52,6 +52,7 @@ namespace GB
 		std::function<bool(const Recipe&)> Learnable;    // someone could find it now by trying (its technology's requirements are known; nullptr = yes):
 		                                                 // only then are its inputs wanted to try it (smelting's ore waits for pottery)
 		std::function<bool(const std::string&)> Station; // the clan has that station ("" is always had; nullptr = it has them all)
+		std::function<bool(const Recipe&)> Allowed;      // TL4 (prototype): the player allows it somewhere (RecipeChoices; nullptr = all): if not, another recipe
 	};
 
 	// Plans the wants against `stock` (item -> units at hand). Deterministic for the same input.

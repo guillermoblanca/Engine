@@ -32,6 +32,8 @@
 #include "GB/Game/Schedule.h"
 #include "GB/Game/SettlementPlanner.h"
 #include "GB/Game/StockGoals.h"
+#include "GB/Game/HouseModules.h"
+#include "GB/Game/RecipeChoices.h"
 #include "GB/Game/ResearchQueue.h"
 #include "GB/Game/WorkPriorities.h"
 #include "GB/Gameplay/Buildings.h"
@@ -368,6 +370,8 @@ namespace GB
 		friend class Transplant;      // T325: moving a resource node (GB/Game/Transplant.h), out of this class
 		friend class WildSeeds;       // T328: wild seed from afar when the clan may till and has none (GB/Game/WildSeeds.h), out of this class
 		friend class BushKeeper;      // T335: a berry bush moved by the camp (GB/Game/BushKeeper.h), out of this class
+		friend class HouseModules;    // TALLERES 10 (prototype): the modules of the houses' yards (GB/Game/HouseModules.h), out of this class
+		friend class RecipeChoices;   // TL4 (prototype): which recipes each building makes (GB/Game/RecipeChoices.h), out of this class
 	public:
 		TribeConfig Config;
 
@@ -670,6 +674,10 @@ namespace GB
 		FarmZones& Zones() { return m_Zones; }   // T280: the farm zones the player paints (GB/Game/FarmZones.h)
 		const FarmZones& Zones() const { return m_Zones; }
 		const StockGoals& Goals() const { return m_Goals; }
+		HouseModules& Modules() { return m_Modules; }   // TALLERES 10 (prototype): the modules of the houses' yards
+		const HouseModules& Modules() const { return m_Modules; }
+		RecipeChoices& Choices() { return m_RecipeChoices; }   // TL4 (prototype): which recipes each building makes
+		const RecipeChoices& Choices() const { return m_RecipeChoices; }
 		ResearchQueue& Research() { return m_Research; }   // T324: the player's research queue (GB/Game/ResearchQueue.h)
 		const ResearchQueue& Research() const { return m_Research; }
 		// T277: what its people ate since the run began, by food and by source (GB/Game/MealLog.h; GBSim --report)
@@ -1032,6 +1040,8 @@ namespace GB
 		StockGoals m_Goals;      // T307: the stock goals (saved under "stock" when there is one)
 		FarmZones m_Zones;       // T280: the player's farm zones (saved under "farmzones" when there is one)
 		ResearchQueue m_Research;   // T324: the player's research queue (saved under "research" when there is one)
+		HouseModules m_Modules;     // TALLERES 10 (prototype): the modules of the houses (saved under "modules" when there is one)
+		RecipeChoices m_RecipeChoices;   // TL4 (prototype): the recipes forbidden or kept per building (saved under "recipeChoices" when there is one)
 		MealLog m_Meals;       // T277: what was eaten (only counts; not saved)
 		std::vector<std::string> m_Log;
 		Chronicle m_Chronicle;

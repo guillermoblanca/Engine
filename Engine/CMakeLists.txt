@@ -146,6 +146,9 @@ add_library(GB_Sim STATIC
     src/GB/Game/WorkCategories.cpp
     src/GB/Game/WorkPriorities.cpp
     src/GB/Game/StockGoals.cpp
+    src/GB/Game/Yard.cpp
+    src/GB/Game/HouseModules.cpp
+    src/GB/Game/RecipeChoices.cpp
     src/GB/Game/ResearchQueue.cpp
     src/GB/Game/TechStatus.cpp
     src/GB/Game/TechTiers.cpp

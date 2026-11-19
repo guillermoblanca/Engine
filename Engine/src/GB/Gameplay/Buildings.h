@@ -36,6 +36,30 @@ namespace GB
 		bool operator==(const BuildingPhase&) const = default;
 	};
 
+	// Prototype of TALLERES.md section 10 (modules and yards): a module is a small building that stands in a slot of the yard of another (its host).
+	// `Slots` are the kinds of slot it fits ("corner", "gate", "front", "wall", "lean_to"); none = not a module. `Standalone`: the planner may still
+	// raise it on its own, as before (false: only in a slot, by `game module`). `Category` is only for the look ("kitchen", "craft", "store", "mill").
+	struct BuildingModule
+	{
+		std::vector<std::string> Slots;
+		bool Standalone = true;
+		std::string Category;
+		std::vector<std::string> Hosts;         // the host ids it may stand at (empty = any building with a yard)
+		bool Any() const { return !Slots.empty(); }
+		bool operator==(const BuildingModule&) const = default;
+	};
+
+	// The yard a house may have round it (TALLERES.md section 10.3): margins from its eave to the fence on the sides, at the back and at the front (its
+	// door, +z of the building), the radius of the fence's corners, the width of the gate, the step between the wall slots and how many modules it
+	// takes. MaxModules 0 = no yard.
+	struct BuildingYard
+	{
+		float Margin = 2.5f, MarginBack = 1.5f, MarginFront = 3.1f, Eave = 0.45f, CornerR = 1.5f, GateW = 1.4f, SlotStep = 2.4f;
+		int MaxModules = 0;
+		bool Any() const { return MaxModules > 0; }
+		bool operator==(const BuildingYard&) const = default;
+	};
+
 	struct BuildingDef
 	{
 		std::string Id;                         // "shelter"
@@ -73,6 +97,8 @@ namespace GB
 		bool Well = false;                      // once done the host puts a well there (Tribe::SetWellDigger): a big village digs more ("well")
 		bool AllowWater = false;                // T245: it may stand with water under its footprint (a jetty, a fish weir); every other one never does ("allowWater")
 		glm::vec3 Color{ 0.45f, 0.32f, 0.18f }; // the colour of its parts
+		BuildingModule Module;                  // TALLERES section 10: it may stand in a slot of a house's yard ("module")
+		BuildingYard Yard;                      // TALLERES section 10: a house with a yard for modules ("yard")
 		bool operator==(const BuildingDef&) const = default;
 
 		// All the materials of every phase, item -> units.

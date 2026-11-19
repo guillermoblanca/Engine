@@ -179,6 +179,54 @@ namespace GB
 					d.Supersedes.push_back(s.get<std::string>());
 				}
 			}
+			if (const auto v = o.find("module"); v != o.end())   // TALLERES section 10 (prototype): a module of a house's yard
+			{
+				if (!v->is_object()) return "module must be an object";
+				const auto slots = v->find("slots");
+				if (slots == v->end() || !slots->is_array() || slots->empty()) return "module.slots must be a list of slot kinds";
+				for (const Json& k : *slots)
+				{
+					if (!k.is_string() || k.get<std::string>().empty()) return "module.slots must be a list of slot kinds";
+					d.Module.Slots.push_back(k.get<std::string>());
+				}
+				if (const auto st = v->find("standalone"); st != v->end())
+				{
+					if (!st->is_boolean()) return "module.standalone must be true or false";
+					d.Module.Standalone = st->get<bool>();
+				}
+				if (const auto c = v->find("category"); c != v->end())
+				{
+					if (!c->is_string()) return "module.category must be a string";
+					d.Module.Category = c->get<std::string>();
+				}
+				if (const auto h = v->find("hosts"); h != v->end())
+				{
+					if (!h->is_array()) return "module.hosts must be a list of building ids";
+					for (const Json& k : *h)
+					{
+						if (!k.is_string() || k.get<std::string>().empty()) return "module.hosts must be a list of building ids";
+						d.Module.Hosts.push_back(k.get<std::string>());
+					}
+				}
+			}
+			if (const auto v = o.find("yard"); v != o.end())   // TALLERES section 10 (prototype): the yard of a house
+			{
+				if (!v->is_object()) return "yard must be an object";
+				for (const auto& [key, field] : std::initializer_list<std::pair<const char*, float*>>{ { "margin", &d.Yard.Margin }, { "marginBack", &d.Yard.MarginBack },
+					{ "marginFront", &d.Yard.MarginFront }, { "eave", &d.Yard.Eave }, { "cornerR", &d.Yard.CornerR }, { "gateW", &d.Yard.GateW }, { "slotStep", &d.Yard.SlotStep } })
+					if (const auto f = v->find(key); f != v->end())
+					{
+						if (!f->is_number() || f->get<float>() < 0.0f || f->get<float>() > 20.0f) return std::string("yard.") + key + " must be a number from 0 to 20";
+						*field = f->get<float>();
+					}
+				d.Yard.MaxModules = 3;
+				if (const auto m = v->find("maxModules"); m != v->end())
+				{
+					if (!m->is_number_integer() || m->get<int>() < 1 || m->get<int>() > 16) return "yard.maxModules must be a whole number from 1 to 16";
+					d.Yard.MaxModules = m->get<int>();
+				}
+				if (d.Yard.SlotStep < 0.5f) return "yard.slotStep must be at least 0.5";
+			}
 			const auto phases = o.find("phases");
 			if (phases == o.end() || !phases->is_array() || phases->empty()) return "phases must be a list of at least one phase";
 			for (const Json& p : *phases)
@@ -317,6 +365,16 @@ namespace GB
 			if (!d.Provides.empty()) { Json p = Json::object(); for (const auto& [k, v] : d.Provides) p[k] = Round(v); o["provides"] = p; }
 			if (!d.Supersedes.empty()) o["supersedes"] = d.Supersedes;
 			if (d.Color != plain.Color) o["color"] = Json::array({ Round(d.Color.r), Round(d.Color.g), Round(d.Color.b) });
+			if (d.Module.Any())   // TALLERES section 10 (prototype)
+			{
+				Json m = { { "slots", d.Module.Slots }, { "standalone", d.Module.Standalone } };
+				if (!d.Module.Category.empty()) m["category"] = d.Module.Category;
+				if (!d.Module.Hosts.empty()) m["hosts"] = d.Module.Hosts;
+				o["module"] = m;
+			}
+			if (d.Yard.Any())
+				o["yard"] = { { "margin", Round(d.Yard.Margin) }, { "marginBack", Round(d.Yard.MarginBack) }, { "marginFront", Round(d.Yard.MarginFront) }, { "eave", Round(d.Yard.Eave) },
+					{ "cornerR", Round(d.Yard.CornerR) }, { "gateW", Round(d.Yard.GateW) }, { "slotStep", Round(d.Yard.SlotStep) }, { "maxModules", d.Yard.MaxModules } };
 			out[id] = o;
 		}
 		return out.dump(2);

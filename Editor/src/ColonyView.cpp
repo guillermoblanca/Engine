@@ -226,7 +226,7 @@ namespace GB::Editor
 			if (!m && !m_Gameplay.Find(m_FreeSelected)) m_FreeSelected.clear();
 			else
 			{
-				if (!m) DrawArea(ox, oy, w, h, m_FreeSelected);
+				if (!m) { DrawArea(ox, oy, w, h, m_FreeSelected); DrawYardWorld(ox, oy, w, h, m_FreeSelected); }   // (prototype TALLERES 10: a house's slots)
 				ImGui::SetNextWindowPos(ImVec2(ox + w - T::Margin, top), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
 				ImGui::SetNextWindowSizeConstraints(ImVec2(pw, 0.0f), ImVec2(pw, maxH));
 				const ImGuiWindowFlags flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings
@@ -1605,6 +1605,7 @@ namespace GB::Editor
 					row("deposit", L.Text("Store"), units == 0 ? L.Text("empty") : L.Text("{0} things", units), units == 0 ? T::BoneDim : T::Bone, std::string());
 					if (units > 0) things(held, nullptr);
 				}
+				DrawYardSheet(name, *def, width);   // prototype TALLERES 10 / TL4: the yard of a house and the recipes of a station (ColonyYard.cpp)
 				// T342: what the radial offers on it is still to come (repair, improve, move, pull down): not drawn here until it exists
 			}
 			else

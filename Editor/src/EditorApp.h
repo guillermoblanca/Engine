@@ -208,6 +208,9 @@ namespace GB::Editor
 		CommandResult FoundingCommand(const std::vector<std::string>& a);   // T310: `game founding ...` (Gameplay/EditorFounding.cpp)
 		CommandResult PriorityCommand(const std::vector<std::string>& a);   // T306: `game priority ...` (Gameplay/EditorColonyWork.cpp)
 		CommandResult StockCommand(const std::vector<std::string>& a);      // T307: `game stock ...` (Gameplay/EditorColonyWork.cpp)
+		CommandResult ModuleCommand(const std::string& sub, const std::vector<std::string>& a);   // prototype TALLERES 10 / TL4: `game module|recipe ...` (Gameplay/EditorModules.cpp)
+		void DrawYardSheet(const std::string& name, const BuildingDef& def, float width);     // prototype: the "Yard" and "Recipes" sections of a building's sheet (ColonyYard.cpp)
+		void DrawYardWorld(float ox, float oy, float w, float h, const std::string& name);    // prototype: the slots and work points of the selected house on the ground (ColonyYard.cpp)
 		CommandResult ResearchCommand(const std::vector<std::string>& a);   // T324: `game research [add|remove|top <tech>|clear]` (Gameplay/EditorColonyWork.cpp)
 		void StepGame(float dt);
 		void GameKeys();

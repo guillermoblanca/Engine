@@ -206,9 +206,21 @@
    "potter_wheel": "torno de alfarero",
    "cellar": "bodega de tinajas",
    "mudbrick_house": "casa de adobe",
-   "stone_circle": "círculo de piedras"
+   "stone_circle": "círculo de piedras",
+   "yard_hearth": "hogar de cocina",
+   "lean_to_bench": "banco bajo alero",
+   "yard_store": "almacén de cestos"
+  },
+  "slot": {
+   "corner": "esquina",
+   "gate": "junto a la entrada",
+   "front": "frente",
+   "wall": "contra la cerca",
+   "lean_to": "anexo a la casa"
   },
   "phase": {
+   "spit": "espetón",
+   "baskets": "cestos",
    "foundation": "cimientos",
    "frame": "armazón",
    "roof": "tejado",
@@ -1065,6 +1077,9 @@
   "jar cellar": "Bodega de tinajas",
   "mud-brick house": "Casa de adobe",
   "stone circle": "Círculo de piedras",
+  "kitchen hearth": "Hogar de cocina",
+  "lean-to bench": "Banco bajo alero",
+  "basket store": "Almacén de cestos",
   "path": "el camino"
  },
  "phrases": [
@@ -4079,6 +4094,28 @@
   "A click on the ground where it goes; right click or Esc: leave it": "Clic en el suelo donde va; clic derecho o Esc: dejarlo",
   "technologies": "técnicas",
   "{0} technologies of the next age": "{0} técnicas de la siguiente edad",
-  "{0} x{1} each time": "{0} x{1} cada vez"
+  "{0} x{1} each time": "{0} x{1} cada vez",
+  "Yard": "Recinto",
+  "Modules {0}/{1}": "Módulos {0}/{1}",
+  "· fence of stakes, {0} m": "· cerca de varas, {0} m",
+  "· the fence goes up with the first module": "· la cerca se levanta con el primer módulo",
+  "Free slots: {0}": "Plazas libres: {0}",
+  "none": "ninguna",
+  "Close the list": "Cerrar la lista",
+  "Add a module": "Añadir módulo",
+  "The house has all the modules it takes": "La casa ya tiene todos los módulos que admite",
+  "? needs {0}": "? necesita {0}",
+  "no free slot of its kind": "no queda plaza libre de su tipo",
+  "The clan brings its materials and builds it in a free slot of the yard": "El clan trae los materiales y lo levanta en una plaza libre del recinto",
+  "It comes down; all it cost goes back to the store": "Se desmonta; todo lo que costó vuelve al almacén",
+  "Recipes": "Recetas",
+  "The clan knows no recipe of this station yet": "El clan aún no sabe ninguna receta de esta estación",
+  "No": "No",
+  "Keep {0}": "Mantener {0}",
+  "Keep some": "Mantener",
+  "The clan makes it here when it needs it": "El clan la hace aquí cuando la necesita",
+  "Never made here": "Aquí no se hace nunca",
+  "The clan keeps that many in the store and makes more when it has fewer": "El clan guarda esa cantidad en el almacén y hace más cuando tiene menos",
+  "And {0} more the clan has not discovered yet": "Y {0} más que el clan aún no ha descubierto"
  }
 }
