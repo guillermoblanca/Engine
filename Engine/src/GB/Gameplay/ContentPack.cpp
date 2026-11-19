@@ -106,6 +106,12 @@ namespace GB
 		const TechTree* techs, const std::map<std::string, BuildingDef>* buildings, const std::map<std::string, CropSource>* crops)
 	{
 		ContentReport report;
+		for (const auto& [id, n] : nodes)   // T325: what a node is dug up as is an item, and its verb is a verb
+			if (!n.Transplant.Item.empty())
+			{
+				if (!items.Find(n.Transplant.Item)) report.Problems.push_back("node '" + id + "': its transplant item '" + n.Transplant.Item + "' is not an item");
+				if (const std::string bad = CheckVerb(n.Transplant.Verb); !bad.empty()) report.Problems.push_back("node '" + id + "': transplant " + bad);
+			}
 		std::set<std::string> have, made, worked, found, built, stations;   // items had, recipes made, nodes worked, technologies discovered, buildings that can be built (H8) and the stations they give
 		for (const auto& [id, why] : rules.Given)
 		{
@@ -153,6 +159,7 @@ namespace GB
 				{
 					worked.insert(id);
 					have.insert(n.Item);
+					if (!n.Transplant.Item.empty() && items.Find(n.Transplant.Item)) have.insert(n.Transplant.Item);   // T325: the cutting dug up from it
 					changed = true;
 				}
 			if (buildings)

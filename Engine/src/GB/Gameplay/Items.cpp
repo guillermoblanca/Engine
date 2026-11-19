@@ -469,6 +469,15 @@ namespace GB
 						if (!(d.ExtraChance >= 0.0f && d.ExtraChance <= 1.0f)) return "node '" + d.Id + "': the chance of its extra must be between 0 and 1";
 					}
 					if (!d.Kind.empty() && !GameplayTag::IsValidTagName("Resource." + d.Kind)) return "node '" + d.Id + "': bad kind " + d.Kind;
+					if (auto tp = o.find("transplant"); tp != o.end())   // T325
+					{
+						if (!tp->is_object()) return "node '" + d.Id + "': transplant must be an object { item, verb, work }";
+						str(*tp, "item", d.Transplant.Item);
+						str(*tp, "verb", d.Transplant.Verb);
+						d.Transplant.Work = tp->value("work", 6.0f);
+						if (d.Transplant.Item.empty() || d.Transplant.Verb.empty()) return "node '" + d.Id + "': transplant needs an item and a verb";
+						if (!(d.Transplant.Work >= 0.0f && d.Transplant.Work <= 600.0f)) return "node '" + d.Id + "': the transplant work must be between 0 and 600 seconds";
+					}
 					if (auto pt = o.find("patch"); pt != o.end())
 					{
 						if (!pt->is_object()) return "node '" + d.Id + "': patch must be an object";
@@ -608,6 +617,7 @@ namespace GB
 				o["extra"] = { { "item", d.ExtraItem }, { "perGather", d.ExtraPerGather } };
 				if (d.ExtraChance < 1.0f) o["extra"]["chance"] = Round3(d.ExtraChance);   // (written only when it rolls: the old data reads back the same)
 			}
+			if (!d.Transplant.Item.empty()) o["transplant"] = { { "item", d.Transplant.Item }, { "verb", d.Transplant.Verb }, { "work", Round3(d.Transplant.Work) } };   // T325
 			if (d.Patch.Count != 0 || d.Patch.PerWorker != 0)
 			{
 				Json pt = { { "count", d.Patch.Count }, { "perWorker", d.Patch.PerWorker }, { "spacing", Round3(d.Patch.Spacing) }, { "shape", d.Patch.Shape } };
