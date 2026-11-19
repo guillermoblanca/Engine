@@ -6,6 +6,7 @@
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/Tribe.h"
 #include "GB/Gameplay/Resources.h"
+#include "GB/Gameplay/WorldResources.h"
 #include <cctype>
 #include <algorithm>
 #include <cmath>
@@ -140,8 +141,9 @@ namespace GB
 
 	// ------------------------------------------------------------------ T337: what stands in a zone
 	FarmZones::Reply FarmZones::Blockers(const Tribe& tribe, const glm::vec2& lo, int columns, float sp, const std::vector<int>& cells, std::vector<std::vector<std::string>>& perCell,
-		std::vector<size_t>* stuck)
+		std::vector<size_t>* stuck, std::map<std::string, SceneryProp>* scenery)
 	{
+		if (scenery) scenery->clear();
 		perCell.assign(cells.size(), {});
 		if (cells.empty()) return { true, std::string() };
 		const int cols = std::max(1, columns);
@@ -161,6 +163,24 @@ namespace GB
 				const glm::vec4 p = tribe.m_Entities->WorldMatrix(id)[3];
 				if (p.x >= from.x && p.x <= to.x && p.z >= from.y && p.z <= to.y) nodes.push_back({ *t.Name, { p.x, p.z } });
 			}
+		// T343: the trees and rocks of the scenery round it that the data has a node for, each under the name of the node it becomes (a rock's
+		// wall reaches further than its foot: a wider box, and its reach counted from the wall)
+		struct Prop { std::string Node; glm::vec2 At; float Radius; };
+		std::vector<Prop> props;
+		if (tribe.m_Scenery)
+		{
+			constexpr float kWiderBox = 4.0f;
+			std::vector<SceneryProp> found;
+			tribe.m_Scenery.Around(from - glm::vec2(kWiderBox), to + glm::vec2(kWiderBox), found);
+			for (SceneryProp& s : found)
+				if (const ResourceNodeDef* def = SceneryDef(tribe, s.Kind))
+				{
+					std::string node = SceneryNode(*def, s.Index);
+					if (tribe.m_Gameplay && tribe.m_Gameplay->Find(node)) continue;   // (already one)
+					props.push_back({ node, { s.Position.x, s.Position.z }, std::max(0.0f, s.Radius) });
+					if (scenery) (*scenery)[node] = std::move(s);
+				}
+		}
 		const ITribeBody* body = nullptr;
 		for (const TribeMember& m : tribe.Members()) if (!m.Dead && m.Body) { body = m.Body; break; }
 		const float half = 0.5f * sp;
@@ -169,6 +189,7 @@ namespace GB
 			const glm::vec2 p = at(cells[i]);
 			// a node whose foot is in the plot's square
 			for (const auto& [name, q] : nodes) if (std::abs(q.x - p.x) <= half && std::abs(q.y - p.y) <= half) perCell[i].push_back(name);
+			for (const Prop& q : props) if (std::abs(q.At.x - p.x) <= half && std::abs(q.At.y - p.y) <= half) perCell[i].push_back(q.Node);   // (T343)
 			if (!body) continue;
 			bool stand = body->CanStandAt(p);   // the plot's middle and its four quarters (a trunk between two middles)
 			for (const glm::vec2 d : { glm::vec2(0.5f, 0.5f), glm::vec2(-0.5f, 0.5f), glm::vec2(0.5f, -0.5f), glm::vec2(-0.5f, -0.5f) }) stand = stand && body->CanStandAt(p + d * half);
@@ -180,6 +201,7 @@ namespace GB
 			const std::string* nearest = nullptr;
 			float best = reach;
 			for (const auto& [name, q] : nodes) if (const float d = glm::distance(q, p); d <= best) { best = d; nearest = &name; }
+			for (const Prop& q : props) if (const float d = std::max(0.0f, glm::distance(q.At, p) - q.Radius); d <= best) { best = d; nearest = &q.Node; }   // (T343)
 			if (nearest) { perCell[i].push_back(*nearest); continue; }
 			if (stuck) { stuck->push_back(i); continue; }
 			char where[48];
@@ -642,6 +664,37 @@ namespace GB
 		Logged(tribe, zone + ": " + node + " is cleared away");
 	}
 
+	const ResourceNodeDef* FarmZones::SceneryDef(const Tribe& tribe, PropKind kind)
+	{
+		const auto it = tribe.m_Defs.find(kind == PropKind::Tree ? "tree" : "rock");
+		return it != tribe.m_Defs.end() ? &it->second : nullptr;
+	}
+
+	std::string FarmZones::SceneryNode(const ResourceNodeDef& def, int index)
+	{
+		return "scenery " + Spaced(def.Id) + " " + std::to_string(index);   // (BuildNodeAt's name with the prefix "scenery ")
+	}
+
+	AbilitySystemComponent* FarmZones::Convert(Tribe& tribe, const SceneryProp& prop, const std::string& node, const std::string& zone)
+	{
+		const ResourceNodeDef* def = SceneryDef(tribe, prop.Kind);
+		if (!def || !tribe.m_Entities || !tribe.m_Gameplay || !tribe.m_Scenery || SceneryNode(*def, prop.Index) != node) return nullptr;
+		if (tribe.m_Entities->FindByName(node) != NullEntity || tribe.m_Gameplay->Find(node)) return nullptr;
+		if (!tribe.m_Scenery.Remove(prop.Name)) return nullptr;
+		ResourceSpot spot;
+		spot.Node = def->Id;
+		spot.Position = prop.Position;
+		spot.Yaw = prop.Yaw;
+		spot.Scale = prop.Scale;
+		spot.Variant = prop.Variant;
+		const Entity* e = tribe.m_Entities->Find(BuildNodeAt(*tribe.m_Entities, spot, *def, prop.Index, "scenery "));
+		if (!e || !e->Gameplay) return nullptr;
+		AbilitySystemComponent* a = tribe.m_Gameplay->Create(e->Name);
+		a->FromComponent(*e->Gameplay);
+		Logged(tribe, zone + ": " + prop.Name + " of the scenery is in the way: " + node + " to clear");
+		return a;
+	}
+
 	void FarmZones::RefreshClearing(Tribe& tribe) const
 	{
 		const int priority = std::clamp(tribe.Config.Econ.Farming.ClearPriority, 1, 10);
@@ -653,8 +706,9 @@ namespace GB
 			std::vector<int> cells = field.Cells;
 			if (cells.empty()) for (int i = 0; i < static_cast<int>(field.Plots.size()); ++i) cells.push_back(i);
 			std::vector<std::vector<std::string>> perCell;
-			std::vector<size_t> stuck;   // (a plot walled by the scenery or a cliff: nobody can till it, so it is not asked to)
-			(void)Blockers(tribe, field.Origin, field.Columns, field.Spacing, cells, perCell, &stuck);
+			std::vector<size_t> stuck;   // (a plot walled by a cliff: nobody can till it, so it is not asked to)
+			std::map<std::string, SceneryProp> scenery;   // (T343: the scenery in the way, by the name of the node it becomes)
+			(void)Blockers(tribe, field.Origin, field.Columns, field.Spacing, cells, perCell, &stuck, &scenery);
 			std::set<std::string> nodes;
 			for (const auto& c : perCell) nodes.insert(c.begin(), c.end());
 			if (nodes.empty() && stuck.empty()) { m_Clean.insert(field.Name); continue; }   // (nothing grows back in it: it is not looked at again)
@@ -665,6 +719,8 @@ namespace GB
 			for (const std::string& node : nodes)
 			{
 				const AbilitySystemComponent* a = tribe.m_Gameplay ? tribe.m_Gameplay->Find(node) : nullptr;
+				if (!a)
+					if (const auto prop = scenery.find(node); prop != scenery.end()) a = Convert(tribe, prop->second, node, field.Name);   // T343: a node now
 				if (!a) { gone.insert(node); continue; }
 				const int amount = ResourceSystem::Amount(*a);
 				if (amount <= 0)

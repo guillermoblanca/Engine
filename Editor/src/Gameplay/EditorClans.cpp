@@ -29,6 +29,21 @@ namespace GB::Editor
 
 	Tribe& EditorApp::PlayTribe() { return const_cast<Tribe&>(static_cast<const EditorApp*>(this)->PlayTribe()); }
 
+	// T343: the scene's trees and rocks for the farm zones that clear them (GB/Game/Scenery.h). A prop's wall is the one the actors' host gives it
+	// (PlayerMode::MakeHost): a trunk 0.3 m at scale 1, a rock a little less than its bounding sphere. Removed, the grid follows within a second
+	// (EditorApp's navigation sync) and the save keeps it as a change of the world's baseline.
+	SceneryHost EditorApp::SceneScenery()
+	{
+		return EntityScenery(m_SceneEditor.World(), [this](const Entity& e, float scale)
+		{
+			glm::vec3 centre(0.0f);
+			float radius = 0.0f;
+			if (!e.Prop) return 0.0f;
+			if (e.Prop->Kind == PropKind::Tree) return 0.3f * scale;
+			return m_World.IsBuilt() && m_World.PropBounds(*e.Prop, centre, radius) ? radius * scale * 0.65f : 0.0f;
+		});
+	}
+
 	void EditorApp::PrepareClanTribe(Tribe& t)
 	{
 		t.Bind(m_SceneEditor.World(), m_Gameplay, m_Items, m_Recipes, m_NodeDefs);
@@ -37,6 +52,7 @@ namespace GB::Editor
 		t.SetBuildings(&m_Buildings.Defs);   // H8: every clan builds
 		t.SetGround([this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });
 		t.SetWellDigger([this](const std::string& name, const glm::vec2& at) { PlaceWell(name, at); });   // a big village digs more wells
+		t.SetScenery(SceneScenery());   // T343
 		if (!m_Regions.Empty()) t.SetRegions(&m_Regions, [this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });
 		if (!m_Regions.Empty() && m_World.IsBuilt()) t.SetSiteChooser(SettlementSiteChooser(t, ResourceGroundOf(m_World.World())));   // H8: where it moves to
 		// its children get actors of the clan's model (that of the first tribe: the editor keeps one)

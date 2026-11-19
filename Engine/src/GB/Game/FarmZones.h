@@ -23,6 +23,7 @@
 //
 // The tribe owns one (Tribe::Zones()) and calls it from one line in each place: PostEconomyJobs (Post), EconomyJobScore and EconomyOptions
 // (WorkPlace), ExecuteEconomy (Pick). Saved under "farmzones" when there is a zone. CPU only, deterministic.
+#include "GB/Game/Scenery.h"
 #include "GB/Gameplay/Ecology.h"
 #include <glm/glm.hpp>
 #include <map>
@@ -34,6 +35,8 @@ namespace GB
 {
 	class Tribe;
 	class Field;
+	class AbilitySystemComponent;
+	struct ResourceNodeDef;
 
 	class FarmZones
 	{
@@ -62,7 +65,8 @@ namespace GB
 		// ---- the player's zones
 		// Paints a zone over the rectangle of corners a and b (x, z; the plots' middles, 2 m apart), with a crop or "" for any. Refused: a crop the
 		// data has not, more than kMostPlots plots, ground taken (a building, a site, a field: plot by plot) or a plot in the water. T337: a tree, a rock or a bush in a plot
-		// is cleared first (see Blocked); a plot walled by what nobody can clear (a tree or a rock of the scenery, a cliff) is left out of it.
+		// is cleared first (see Blocked); a plot walled by what nobody can clear (a cliff) is left out of it. T343: a tree or a rock of the
+		// scenery (Tribe::Scenery) is cleared too: the zone turns it into a node of the data ("tree", "rock") where it stood, worked as the others.
 		Reply Paint(Tribe& tribe, const glm::vec2& a, const glm::vec2& b, const std::string& crop);
 		// A zone of any shape: the perimeter's points (3 or more, in order); its plots are the cells of the grid (2 m, from the lowest x and z of
 		// the points) whose middle falls inside it (or on its edge). The same refusals as Paint.
@@ -129,8 +133,10 @@ namespace GB
 		Zone* Edit(const Tribe& tribe, const std::string& zone, std::string& name);
 		// T337: for each plot (a cell of the grid from `lo`), the nodes that stand in it: those whose foot is in its square and, where a member
 		// cannot stand (the body says), the nearest within farming.clearReach. Refused: a plot nobody can stand on with no node there (scenery).
+		// T343: a tree or a rock of the scenery (Tribe::Scenery) counts as a node: under the name of the node it becomes (SceneryNode), kept with
+		// the prop in `scenery`; a plot is walled only by what is neither (a cliff) or by scenery the data has no node for.
 		static Reply Blockers(const Tribe& tribe, const glm::vec2& lo, int columns, float spacing, const std::vector<int>& cells, std::vector<std::vector<std::string>>& perCell,
-			std::vector<size_t>* stuck = nullptr);   // (`stuck`: such plots are listed there instead of refused)
+			std::vector<size_t>* stuck = nullptr, std::map<std::string, SceneryProp>* scenery = nullptr);   // (`stuck`: such plots are listed there instead of refused)
 		// The zones' nodes in the way: marked to clear (ColonyDesignations::Clear, worked as any mark: the wood, stone or berries go to the
 		// store), and a spent one taken away for good (it would grow again in the field); the plots that still wait and the text.
 		void RefreshClearing(Tribe& tribe) const;
@@ -138,6 +144,12 @@ namespace GB
 		static Reply Plots(const Tribe& tribe, std::vector<int>& cells, const glm::vec2& lo, int columns, float spacing, std::vector<std::vector<std::string>>& perCell,
 			std::vector<glm::vec2>* walled);
 		static void ClearAway(Tribe& tribe, const std::string& node, const std::string& zone);
+		// T343: the node type a tree or a rock of the scenery becomes ("tree", "rock": nullptr when the data has none) and its name ("scenery tree 12").
+		static const ResourceNodeDef* SceneryDef(const Tribe& tribe, PropKind kind);
+		static std::string SceneryNode(const ResourceNodeDef& def, int index);
+		// T343: the prop goes from the scenery (and its wall from the navigation) and a node of its type stands where it stood, with its ability
+		// system: nullptr when it cannot (no node type, the name taken, the host has no such prop).
+		static AbilitySystemComponent* Convert(Tribe& tribe, const SceneryProp& prop, const std::string& node, const std::string& zone);
 
 		std::map<std::string, Zone> m_Zones;   // field name -> the player's settings
 		bool m_Player = false;                  // the host's switch (not saved)

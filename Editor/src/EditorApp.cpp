@@ -177,6 +177,7 @@ namespace GB::Editor
 		m_Tribe.SetBuildings(&m_Buildings.Defs);         // and it builds what the data says (H8)
 		m_Tribe.SetGround([this](float x, float z) { return m_World.IsBuilt() ? m_World.GetTerrain().GetHeight(x, z) : 0.0f; });
 		m_Tribe.SetWellDigger([this](const std::string& name, const glm::vec2& at) { PlaceWell(name, at); });   // a big village digs more wells
+		m_Tribe.SetScenery(SceneScenery());   // T343: a farm zone clears the trees and rocks of the scenery in it
 		RegisterBuildingContent(m_Gameplay.Library);     // the ability Build
 		m_Hostility.FromRules(m_Combat.Rules);
 		m_ClanHostility.Bind(&m_Clans, &m_Hostility);   // H14: hostility between clans is the diplomacy's (H13); predators and the table are the rest

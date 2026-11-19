@@ -111,6 +111,10 @@ namespace GB
 	// patch's "tree 1". The nodes behave like any other: the ResourceSystem, the tribe and the abilities find them by their tags. The root is tagged
 	// "world": the nodes come from the seed, so a saved game rebuilds them with the world (its baseline) and keeps only the ones that changed.
 	ResourceLayout BuildWorldResources(EntityWorld& world, const std::vector<ResourceSpot>& spots, const std::map<std::string, ResourceNodeDef>& nodes);
+	// T343: one node of type `def` on a spot, at the top of the scene, named as BuildWorldResources names them (`prefix` + its type with spaces + " " +
+	// `index`: "scenery tree 12") and drawn the same way (the spot's tree or rock of the world, or primitives). NullEntity when that name is taken.
+	// Its ability system is the caller's to make (GameplayWorld::Create + FromComponent), as for any entity made after the scene was loaded.
+	EntityId BuildNodeAt(EntityWorld& world, const ResourceSpot& spot, const ResourceNodeDef& def, int index, const std::string& prefix);
 
 	// Sets every node of a layout on the ground (the patch is laid out flat around its origin; on a hillside its nodes would float or sink).
 	void SnapToGround(EntityWorld& world, const ResourceLayout& layout, const std::function<float(float, float)>& height);
