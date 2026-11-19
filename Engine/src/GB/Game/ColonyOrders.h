@@ -57,10 +57,11 @@ namespace GB
 		Reply Cancel(Tribe& tribe, const std::string& member);
 
 		// The tribe's hooks. Turn: the member's turn while it holds an order (true: handled here, it does not decide as usual). Threat: a fight,
-		// a flight or a raid took the member (ConflictTurn): its order is cut. Drop: it died or left.
+		// a flight or a raid took the member (ConflictTurn): its order is cut. Drop: it died or left (T333: what a transplant carried goes back in
+		// the ground where the node was, with a notice "died" or "left").
 		bool Turn(Tribe& tribe, TribeMember& m);
 		void Threat(Tribe& tribe, TribeMember& m);
-		void Drop(const std::string& member) { m_Mandates.erase(member); }
+		void Drop(Tribe& tribe, TribeMember& m);
 		void Clear() { m_Mandates.clear(); m_Notices.clear(); }
 
 		bool Has(const std::string& member) const { return m_Mandates.count(member) != 0; }

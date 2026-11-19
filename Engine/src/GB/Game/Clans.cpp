@@ -3,6 +3,7 @@
 // carry it out, and to hear of every gather (whose land it was on). The rest it does on its own clocks: encounters, territory, trade, weddings,
 // pacts and the days. Deterministic: clans in id order, pairs (a < b), members and regions in order, maps by key; the only chance is a hash.
 #include "GB/Game/Clans.h"
+#include "GB/Game/Transplant.h"
 #include "GB/Game/UseLearning.h"
 #include "GB/Telemetry/TelemetrySink.h"
 #include <algorithm>
@@ -113,6 +114,20 @@ namespace GB
 			for (const auto& other : m_Clans)
 				if (other->Id != id && other->Folk)
 					for (const Field& f : other->Folk->Economy().Fields) FieldGrounds(f, out);   // (T337: a shaped one plot by plot)
+		};
+		o.NodeHeld = [this, id](const Tribe&, const std::string& node, const glm::vec2& at) -> std::string   // T333: moving it, or on their land
+		{
+			for (const auto& other : m_Clans)
+				if (other->Id != id && other->Folk && Transplant::Moving(*other->Folk, node)) return "the " + other->Name + " are moving " + node;
+			const int region = m_Regions ? m_Regions->RegionAt(at) : -1;
+			const ClanId owner = region >= 0 ? OwnerOf(region) : -1;
+			if (owner >= 0 && owner != id && !HasPact(id, owner, "alliance")) return node + " grows on the land of the " + ClanName(owner);
+			return {};
+		};
+		o.NodeMoved = [this, id](const Tribe&, const std::string& node)   // T333: the others did not see it go
+		{
+			for (const auto& other : m_Clans)
+				if (other->Id != id && other->Folk) Transplant::Forget(*other->Folk, node);
 		};
 		c.Folk->SetOutside(std::move(o));
 		c.Folk->SetNameTaken([this](const std::string& n) { return NameTaken(n); });

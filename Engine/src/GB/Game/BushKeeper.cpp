@@ -29,10 +29,11 @@ namespace GB
 		float best = 0.0f;
 		for (const auto& [name, e] : tribe.m_Clan.All())
 		{
-			if (!kinds.count(e.Kind)) continue;
+			if (!kinds.count(e.Kind) || !tribe.m_Gameplay->Find(name)) continue;   // (T333: a node gone from the world is no bush by the camp)
 			const float d = glm::distance(e.Pos, camp);
 			if (d <= near) return {};
-			if (d > home || tribe.m_Claims.All().count(name) || !tribe.m_Gameplay->Find(name)) continue;
+			if (d > home || tribe.m_Claims.All().count(name)) continue;
+			if (!Transplant::Held(tribe, name, e.Pos).empty()) continue;   // T333: another clan moves it, or it grows on another clan's land
 			if (node.empty() || d < best) { node = name; best = d; }   // (name order breaks a tie)
 		}
 		if (node.empty()) return {};

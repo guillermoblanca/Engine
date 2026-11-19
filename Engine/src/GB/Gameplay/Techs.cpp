@@ -163,6 +163,12 @@ namespace GB
 		return branches;
 	}
 
+	const std::vector<std::string>& TechModifierKeys()
+	{
+		static const std::vector<std::string> keys = { "hunt", "heal", "grief", "mood", "night", "spoil", "carry" };
+		return keys;
+	}
+
 	const std::vector<std::string>& TierGoalTypes()
 	{
 		static const std::vector<std::string> types = { "population", "building", "buildings", "techs", "fire", "seasons", "winters" };
@@ -342,6 +348,22 @@ namespace GB
 						t.Verbs.push_back(verb);
 					}
 				}
+				if (const auto mo = o.find("modifiers"); mo != o.end())   // T331: a known key and a factor above 0
+				{
+					if (!mo->is_object()) return "tech '" + t.Id + "': modifiers must be an object of key -> factor";
+					const auto& keys = TechModifierKeys();
+					for (const auto& [key, v] : mo->items())
+					{
+						if (std::find(keys.begin(), keys.end(), key) == keys.end())
+						{
+							std::string list;
+							for (const std::string& k : keys) list += (list.empty() ? "" : ", ") + k;
+							return "tech '" + t.Id + "': modifiers has no " + key + " (one of " + list + ")";
+						}
+						if (!v.is_number() || !std::isfinite(v.get<float>()) || v.get<float>() <= 0.0f || v.get<float>() > 10.0f) return "tech '" + t.Id + "': modifiers " + key + " must be a factor above 0 and up to 10";
+						t.Modifiers[key] = v.get<float>();
+					}
+				}
 				if (std::find(t.Requires.begin(), t.Requires.end(), t.Id) != t.Requires.end()) return "tech '" + t.Id + "' requires itself";
 				if (std::string error = Number(o, "complexity", t.Complexity, 0.0f, 1.0f); !error.empty()) return "tech '" + t.Id + "': " + error;
 				if (const auto d = o.find("discovery"); d != o.end())
@@ -414,6 +436,7 @@ namespace GB
 			if (!t.Nodes.empty()) o["nodes"] = t.Nodes;
 			if (!t.Buildings.empty()) o["buildings"] = t.Buildings;
 			if (!t.Verbs.empty()) o["verbs"] = t.Verbs;   // T322
+			if (!t.Modifiers.empty()) { Json mo = Json::object(); for (const auto& [key, f] : t.Modifiers) mo[key] = Round3(f); o["modifiers"] = mo; }   // T331
 			if (!(t.Discovery == none))
 				o["discovery"] = { { "experiment", Round3(t.Discovery.Experiment) }, { "observe", Round3(t.Discovery.Observe) }, { "teach", Round3(t.Discovery.Teach) },
 					{ "seconds", Round3(t.Discovery.Seconds) }, { "waste", Round3(t.Discovery.Waste) } };

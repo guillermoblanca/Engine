@@ -47,7 +47,7 @@
       "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
     { "id": "fishing", "name": "Fishing", "tier": 1, "branch": "hunt", "complexity": 0.2, "physical": { "materials": [ "fish" ] }, "requires": [ "basketry" ], "recipes": [ "fish_trap", "harpoon", "dried_fish" ],
       "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
-    { "id": "butchery", "name": "Butchery", "tier": 1, "branch": "hunt", "complexity": 0.2, "physical": { "materials": [ "meat" ] }, "requires": [ "flint_knapping" ], "recipes": [ "sinew_cordage" ],
+    { "id": "butchery", "name": "Butchery", "tier": 1, "branch": "hunt", "modifiers": { "hunt": 1.25 }, "complexity": 0.2, "physical": { "materials": [ "meat" ] }, "requires": [ "flint_knapping" ], "recipes": [ "sinew_cordage" ],
       "discovery": { "experiment": 0.15, "observe": 0.3, "teach": 0.25, "seconds": 20.0, "waste": 0.3 } },
     { "id": "cuisine", "name": "Cuisine", "tier": 2, "branch": "food", "complexity": 0.35, "physical": { "stations": [ "campfire" ] }, "requires": [ "cooking" ], "recipes": [ "stew", "roast" ],
       "discovery": { "experiment": 0.12, "observe": 0.3, "teach": 0.3, "seconds": 20.0, "waste": 0.2 } }

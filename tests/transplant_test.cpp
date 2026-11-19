@@ -5,8 +5,13 @@
 //   (b) with plant_care a member digs the bush up (a cutting in its bag), carries it and plants it: the node stands at the new place, empty,
 //       and after its regrowth time it has berries again, which a `use` order gathers there;
 //   (c) an order in course with the cutting carried is saved ("carry") and loads the same; cancelled, the cutting goes back in the ground;
-//   (d) the scene's save (DiffEntities/PatchEntities over the unmoved village) keeps the node at its new place with its amount.
+//   (d) the scene's save (DiffEntities/PatchEntities over the unmoved village) keeps the node at its new place with its amount;
+//   (e) T333: the member carrying the cutting dies: the order ends with a notice, the cutting does not stay in the body's bag, the bush stays
+//       where it was, nobody holds it, and another member moves it; (f) the same for a member that leaves the clan with it;
+//   (g) T333: two clans on the same land (a ClanWorld): one may not move the bush the other is moving, and once it is planted elsewhere the
+//       other clan's map and memories have nothing of where it was.
 #include "GB/Log.h"
+#include "GB/Game/Clans.h"
 #include "GB/Game/ColonyOrders.h"
 #include "GB/Game/Transplant.h"
 #include "GB/Game/Tribe.h"
@@ -122,7 +127,7 @@ struct Garden
 		RegisterBuildingContent(Gameplay.Library);
 		BuildResourcePatch(Entities, glm::vec3(0.0f), Defs, 4);
 		BuildInteractive(Entities, DefaultInteractives().at("well"), "Well", NullEntity, { 4.0f, 0.0f, -14.0f });
-		const char* names[] = { "Ana", "Biel", "Cleo", "Dan" };
+		const char* names[] = { "Ana", "Biel", "Cleo", "Dan", "Eva", "Finn" };   // (Eva and Finn: no member of this clan; the other clan of (g))
 		const char* roles[] = { "forager", "woodcutter", "miner", "forager" };
 		for (const char* n : names)
 		{
@@ -168,7 +173,7 @@ struct Garden
 		return false;
 	}
 	const TribeMember& Member(const std::string& name) const { return *Tribe_.FindMember(name); }
-	PlantBody& Body(const std::string& name) { for (size_t i = 0; i < Tribe_.Members().size(); ++i) if (Tribe_.Members()[i].Name == name) return *bodies[i]; return *bodies[0]; }
+	PlantBody& Body(const std::string& name) { for (size_t i = 0; i < Tribe_.Members().size(); ++i) if (Tribe_.Members()[i].Name == name) return *bodies[i]; return name == "Eva" ? *bodies[4] : name == "Finn" ? *bodies[5] : *bodies[0]; }
 	void Need(const std::string& name, const char* need, float value) { Gameplay.Find(name)->Attributes().SetBase(need, value); }
 	ColonyOrders::Reply Order(const std::string& who, const std::string& verb, std::vector<std::string> args = {}) { return Tribe_.Colony().Give(Tribe_, who, verb, args); }
 	// A node of a kind (the first by name), and how much it holds now.
@@ -318,6 +323,106 @@ int GBTest_transplant(int, char**)
 		Check(!who.empty() && g.Tribe_.Colony().Cancel(g.Tribe_, who).Ok && g.Body(who).Bag().Count("bush_cutting") == 0, "(c) cancelled, the cutting leaves the bag");
 		Check(glm::distance(PosOf(g.Entities, bush), from) < 0.05f && g.Logged("back in the ground"), "(c) and the bush stays where it was");
 		Check(g.Tribe_.Colony().Empty() && g.Tribe_.ToJson().find("\"mandates\"") == std::string::npos, "(c) no order left, nothing saved under orders");
+	}
+
+	// ---- (e) T333: the one who carries the cutting dies; (f) one leaves the clan with it
+	for (const bool dies : { true, false })
+	{
+		Garden g;
+		g.Tribe_.SetTechs(&tree);
+		g.Run(1.0f);
+		g.Tribe_.Knowledge().GrantClan("plant_care");
+		const std::string bush = g.NodeOf("berry_bush");
+		const glm::vec2 from = PosOf(g.Entities, bush);
+		const std::string who = dies ? "Ana" : "Biel";
+		const std::string tag = dies ? "(e)" : "(f)";
+		auto say = [&tag](const char* what) { return tag + " " + what; };
+		Check(g.Order(who, "transplant", { bush + " " + dest }).Ok, say("the order is taken").c_str());
+		for (int i = 0; i < static_cast<int>(60.0f / dt); ++i)
+		{
+			const ColonyOrders::Mandate* d = g.Tribe_.Colony().Of(who);
+			if (!d || !d->Carry.empty()) break;
+			g.Step();
+		}
+		const ColonyOrders::Mandate* d = g.Tribe_.Colony().Of(who);
+		Check(d && d->Carry == "berry_bush", say("the bush is dug up and carried").c_str());
+		PlantBody& body = g.Body(who);
+		Check(body.Bag().Count("bush_cutting") == 1, say("the cutting is in its bag").c_str());
+		if (dies) Check(g.Tribe_.Kill(who, "Wounds"), "(e) it dies");
+		else
+		{
+			MemberTransfer out;
+			Check(g.Tribe_.Detach(who, out), "(f) it leaves the clan");
+		}
+		const auto& notices = g.Tribe_.Colony().Notices();
+		std::fprintf(stderr, "  %s %s: notices %zu (%s), cutting in its bag %d, %s at %.1f %.1f\n", tag.c_str(), who.c_str(), notices.size(),
+			notices.empty() ? "" : notices.back().Reason.c_str(), body.Bag().Count("bush_cutting"), bush.c_str(), PosOf(g.Entities, bush).x, PosOf(g.Entities, bush).y);
+		Check(!g.Tribe_.Colony().Has(who) && g.Tribe_.Colony().Empty(), say("the order is gone").c_str());
+		Check(!notices.empty() && notices.back().Member == who && notices.back().Reason == (dies ? "died" : "left"), say("with a notice that says why").c_str());
+		Check(body.Bag().Count("bush_cutting") == 0, say("the cutting does not stay in its bag").c_str());
+		Check(glm::distance(PosOf(g.Entities, bush), from) < 0.05f && g.Amount(bush) == 0 && g.Logged("back in the ground where it was"), say("the bush stays where it was, empty (it grows again there)").c_str());
+		Check(g.Tribe_.ToJson().find("\"mandates\"") == std::string::npos, say("nothing of the order is saved").c_str());
+		const ColonyOrders::Reply again = g.Order("Cleo", "transplant", { bush + " " + dest });
+		std::fprintf(stderr, "  %s Cleo takes it on: %s\n", tag.c_str(), again.Text.c_str());
+		Check(again.Ok, say("nobody holds the bush: another member takes the order").c_str());
+		Until(g, "Cleo", 120.0f);
+		Check(glm::distance(PosOf(g.Entities, bush), to) < 0.05f && g.Body("Cleo").Bag().Count("bush_cutting") == 0, say("and plants it").c_str());
+	}
+
+	// ---- (g) T333: two clans on the same land
+	{
+		Garden g;
+		PlantBody& eva = g.Body("Eva");   // (the Garden's two bodies that are no member of its clan)
+		PlantBody& finn = g.Body("Finn");
+		eva.Teleport(g.Camp + glm::vec2(6.0f, 0.0f));
+		finn.Teleport(g.Camp + glm::vec2(6.0f, 1.0f));
+		Tribe other;   // (the Blues: Eva and Finn, their camp a little to the east)
+		other.SetClanName("Blues");
+		other.Bind(g.Entities, g.Gameplay, g.Items, g.Recipes, g.Defs);
+		other.SetBuildings(&g.Builds.Defs);
+		other.Config.Economy.Camp = g.Camp + glm::vec2(6.0f, 0.0f);
+		other.Config.Simulation.LogLines = 1000000;
+		other.Config.PlanSeconds = 1e9f;
+		other.AddMember("Eva", "forager", &eva);
+		other.AddMember("Finn", "forager", &finn);
+		g.Tribe_.SetClanName("Reds");
+		g.Tribe_.SetTechs(&tree);
+		other.SetTechs(&tree);
+		ClanWorld clans;
+		clans.Add("Reds", &g.Tribe_);
+		clans.Add("Blues", &other);
+		auto tick = [&]() { g.Step(); other.Update(dt); };
+		auto step = [&](float seconds) { for (int i = 0; i < static_cast<int>(seconds / dt); ++i) tick(); };
+		step(1.0f);
+		g.Tribe_.Knowledge().GrantClan("plant_care");
+		other.Knowledge().GrantClan("plant_care");
+		const std::string bush = g.NodeOf("berry_bush");
+		const glm::vec2 from = PosOf(g.Entities, bush);
+		step(10.0f);   // (the Blues look round their camp: the bush may be in their memories)
+		bool seen = other.ClanMemory().Find(bush) != nullptr;
+		for (const TribeMember& m : other.Members()) seen = seen || m.Mind.Memory.Find(bush);
+		std::fprintf(stderr, "  (g) the Blues know %s before: %d\n", bush.c_str(), seen ? 1 : 0);
+		Check(g.Order("Ana", "transplant", { bush + " " + dest }).Ok, "(g) the Reds move the bush");
+		const ColonyOrders::Reply no = other.Colony().Give(other, "Eva", "transplant", { bush + " to -14 -20" });
+		const ColonyOrders::Reply no2 = Transplant::Assign(other, bush + " to -14 -20");
+		std::fprintf(stderr, "  (g) the Blues: %s / %s\n", no.Text.c_str(), no2.Text.c_str());
+		Check(!no.Ok && no.Text.find("the Reds are moving " + bush) != std::string::npos && !other.Colony().Has("Eva"), "(g) the Blues may not move the bush the Reds are moving");
+		Check(!no2.Ok, "(g) nor send anyone with game transplant");
+		for (int i = 0; i < static_cast<int>(120.0f / dt) && g.Tribe_.Colony().Has("Ana"); ++i) tick();
+		Check(!g.Tribe_.Colony().Has("Ana") && glm::distance(PosOf(g.Entities, bush), to) < 0.05f, "(g) the Reds plant it");
+		auto stale = [&]()
+		{
+			bool old = false;
+			if (const MemoryEntry* e = other.ClanMemory().Find(bush)) old = old || glm::distance(e->Pos, from) < 0.05f;
+			for (const TribeMember& m : other.Members()) if (const MemoryEntry* e = m.Mind.Memory.Find(bush)) old = old || glm::distance(e->Pos, from) < 0.05f;
+			return old;
+		};
+		Check(!stale(), "(g) the Blues remember nothing of where it was");
+		step(5.0f);
+		Check(!stale(), "(g) and their senses do not put it there again (their cache of places)");
+		const ColonyOrders::Reply now = other.Colony().Give(other, "Eva", "transplant", { bush + " to -14 -20" });
+		std::fprintf(stderr, "  (g) once planted, the Blues: %s\n", now.Text.c_str());
+		Check(now.Ok, "(g) once it is planted nobody holds it: the Blues may move it now");
 	}
 
 	if (failures) std::fprintf(stderr, "%d check(s) failed\n", failures);

@@ -3,6 +3,7 @@
 // the orders from Execute, what a finished job leaves from Finish and the shelter from the needs. Without buildings (Tribe::SetBuildings) every one of
 // them does nothing, so a tribe without them behaves exactly as before. See docs/ASENTAMIENTOS.md.
 #include "GB/Game/Tribe.h"
+#include "GB/Game/TechModifiers.h"
 #include "GB/Game/TechTiers.h"
 #include "GB/Game/UseLearning.h"
 #include "GB/World/Regions.h"
@@ -1082,7 +1083,7 @@ namespace GB
 			// takes from the store what the phase lacks (and nobody is bringing yet), as much as one trip carries
 			Inventory& bag = m.Body->Bag();
 			std::string what;
-			int left = Config.HaulAt;
+			int left = TechModifiers::Carry(*this, Config.HaulAt);   // T331: a sledge, a wheel
 			std::vector<std::string> taken;   // (to give back if the trip cannot start)
 			const bool sheds = ClanStores::Active(*this);
 			StoreLayout::Place via;   // T255: the store building it fetches them from on the way (the first that holds them)
@@ -1194,7 +1195,8 @@ namespace GB
 				if (const int k = std::min(n - InFlight(p.Name, item), WithSubstitutes(m_Store, p.State, item)); k > 0) { bring += k; what += (what.empty() ? "" : ", ") + std::to_string(k) + " " + item; }
 			if (bring > 0)
 			{
-				const int slots = std::clamp((bring + Config.HaulAt - 1) / std::max(1, Config.HaulAt), 1, std::max(1, rules.MaxSlots));
+				const int trip = std::max(1, TechModifiers::Carry(*this, Config.HaulAt));   // T331: what one trip carries
+				const int slots = std::clamp((bring + trip - 1) / trip, 1, std::max(1, rules.MaxSlots));
 				m_Board.Post("deliver", p.Name, SkillFamilyOf("deliver"), static_cast<float>(bring), priority("deliver") * m_Designations.SiteFactor(*this, p.Name, "deliver", nullptr), slots, p.Name + " lacks " + what + " and the store has it", m_Time, rules);
 			}
 			if (p.State.Ready)

@@ -2,6 +2,7 @@
 #include "GB/Game/TechVerbs.h"
 #include "GB/Game/TribePriorities.h"
 #include "GB/Game/TechTiers.h"
+#include "GB/Game/TechModifiers.h"
 #include "GB/Game/UseLearning.h"
 #include "GB/Game/WildSeeds.h"
 #include "GB/Telemetry/TelemetrySink.h"
@@ -876,7 +877,7 @@ namespace GB
 			if (m_Members[i].Abstract) SetDetail(m_Members[i], true);
 			m_Claims.ReleaseBy(name);
 			m_Board.Release(name);
-			m_Orders.Drop(name);   // T268
+			m_Orders.Drop(*this, m_Members[i]);   // T268 (T333: a cutting carried goes back in the ground)
 			m_Members.erase(m_Members.begin() + static_cast<std::ptrdiff_t>(i));
 			m_Knowledge.Leave(name);
 			m_Society.Leave(name);
@@ -897,7 +898,8 @@ namespace GB
 	{
 		const auto role = roleName.empty() ? Config.Roles.end() : Config.Roles.find(roleName);
 		const TribeRole* r = role != Config.Roles.end() ? &role->second : nullptr;
-		return ScheduleFactor(Day(), Config.Agenda.Factors, r ? &r->Agenda : nullptr, r ? r->NightShift : 0.0f, kind, hour, season);
+		const float f = ScheduleFactor(Day(), Config.Agenda.Factors, r ? &r->Agenda : nullptr, r ? r->NightShift : 0.0f, kind, hour, season);
+		return f < 1.0f && PartOfDay(Day(), hour, season, r ? r->NightShift : 0.0f) == DayPart::Night ? TechModifiers::AtNight(*this, f) : f;   // T331: a lamp
 	}
 
 	// What the camp uses up: thatch and rope (fibre) and the berries that spoil. Without sinks the stores fill and everyone rests for good.
@@ -1143,7 +1145,7 @@ namespace GB
 		m.Cause = !cause.empty() ? cause : asc ? CauseOfDeath(*asc) : "Unknown";
 		m_Claims.ReleaseBy(m.Name);
 		m_Board.Release(m.Name);
-		m_Orders.Drop(m.Name);   // T268
+		m_Orders.Drop(*this, m);   // T268 (T333: a cutting carried goes back in the ground)
 		m.Job = "dead";
 		m.Detail.clear();
 		std::string error;

@@ -62,6 +62,9 @@ namespace GB
 		int Tier = -1;
 		// D77: the branch of the tree it is drawn in (one of TechBranches(); "" = none). Required when it has a tier.
 		std::string Branch;
+		// T331 (ARBOL_TECNICO.md §11.7.7): how knowing it changes a number of the simulation, key -> factor ("hunt": 1.25): the keys of
+		// TechModifierKeys(), read by GB/Game/TechModifiers.h. Empty: it changes none.
+		std::map<std::string, float> Modifiers;
 		TechDiscovery Discovery;
 		int TierOrZero() const { return Tier < 0 ? 0 : Tier; }
 		bool operator==(const TechDef&) const = default;
@@ -113,6 +116,8 @@ namespace GB
 	constexpr int kNoTierGate = 99;   // the open step when the rules have no steps: nothing is held back
 	// D77: the branches of the tree (TechDef::Branch).
 	const std::vector<std::string>& TechBranches();
+	// T331: the keys a technology's "modifiers" may name (GB/Game/TechModifiers.h says what each changes).
+	const std::vector<std::string>& TechModifierKeys();
 	// The goal types TierGoal knows.
 	const std::vector<std::string>& TierGoalTypes();
 
@@ -184,7 +189,7 @@ namespace GB
 	std::string VerbWord(const std::string& verb);
 
 	// Reads the "techs" and "knowledge" sections of a content file:
-	//   { "techs": [ { "id", "name", "known", "tier", "branch", "requires": [], "recipes": [], "nodes": [], "buildings": [], "verbs": [],
+	//   { "techs": [ { "id", "name", "known", "tier", "branch", "requires": [], "recipes": [], "nodes": [], "buildings": [], "verbs": [], "modifiers": { "<key>": f },
 	//                  "physical": { "materials": [], "stations": [] }, "complexity",
 	//                  "discovery": { "experiment", "observe", "teach", "seconds", "waste" } } ],
 	//     "knowledge": { "lessonSeconds", "observeRadius", "growth", "seed", "progression": [], "prereqBonus", "missingPrereqFactor",

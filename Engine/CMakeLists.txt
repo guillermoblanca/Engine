@@ -151,6 +151,7 @@ add_library(GB_Sim STATIC
     src/GB/Game/TechTiers.cpp
     src/GB/Game/ColonyOrders.cpp
     src/GB/Game/Transplant.cpp
+    src/GB/Game/TechModifiers.cpp
     src/GB/Game/WildSeeds.cpp
     src/GB/Game/BushKeeper.cpp
     src/GB/Game/MealLog.cpp
