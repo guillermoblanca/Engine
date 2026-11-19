@@ -224,6 +224,13 @@ namespace GB::Editor
 		TechStatus TechStatusOf(const Tribe& t) const;
 		std::string TechStateText(const TechStatus& s, const std::string& tech) const;
 		std::string TechWhyText(const TechStatus& s, const std::string& tech) const;
+		// T340 (TechTreeView.cpp): the goals that open `tier` in the player's words ("the longhouse or 14 buildings", with `numbers` "... 3/14"),
+		// who studies (each living person and its number for the job "research" in the work table: 0 = never), the strip of the queue under the
+		// tree (a1) and the card of the picked technology (a2)
+		std::string TierGoalsText(const Tribe& t, int tier, bool numbers) const;
+		std::vector<std::pair<std::string, int>> StudyPeople(const Tribe& t) const;
+		void DrawStudyStrip(const Tribe& t, const TechStatus& status, float width);
+		void DrawTechCard(const Tribe& t, const TechStatus& status, bool playing, bool ownQueue, std::string& pick);
 		bool* BookFlag(const std::string& sheet);   // the flag of a sheet of the clan book (BookSheets(), GameMode.h); null when there is no such sheet
 		void DrawKeysSheet();        // the clan book's Keys sheet
 		// the sheets that look at the clan and the world (GameSheets.cpp)

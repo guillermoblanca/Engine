@@ -673,12 +673,7 @@ namespace GB::Editor
 				m_Colony.BareTitle = true;   // (the sheet has its close: the queue's title without its own)
 				DrawResearchTab(t, room, height);
 				m_Colony.BareTitle = false;
-				ImGui::Spacing();
-				ImGui::SeparatorText(L.Text("Being discovered now").c_str());
-				DrawResearch(t.Knowledge());
-				ImGui::Spacing();
-				if (ImGui::Button((L.Text("Tree of knowledge") + "###tree").c_str())) m_UiCommands.push_back("observer tree");
-				if (ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("Every technology the clan knows or can study, and what each opens").c_str());
+				// (T340, a3: "being discovered now" and the tree's button are in the sheet: what they learn on their own, and its head)
 			}
 		}
 		ImGui::EndChild();
