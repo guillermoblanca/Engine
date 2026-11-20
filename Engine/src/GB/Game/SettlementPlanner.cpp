@@ -38,10 +38,11 @@ namespace GB
 			beds += p.Def->Shelter;   // a shelter being built already answers the need for beds
 			++count[p.Def->Id];
 		}
+		beds += f.BedsComing;   // (T367)
 		const int alive = f.Alive;
 		if (alive == 0 || open >= f.MaxOpenSites) return out;
 		// (TALLERES 10, prototype: a module that is not "standalone" only stands in a house's yard, by `game module`: never planned on its own)
-		const auto known = [&](const BuildingDef& d) { return (!d.Module.Any() || d.Module.Standalone) && (!f.Known || f.Known(d)); };
+		const auto known = [&](const BuildingDef& d) { return (!d.Module.Any() || d.Module.Standalone || (f.ModuleRoom && f.ModuleRoom(d))) && !(f.Absorbed && f.Absorbed(d)) && (!f.Known || f.Known(d)); };   // (T367i)
 		const auto payable = [&](const BuildingDef& d) { return !f.Payable || f.Payable(d); };
 
 		char why[160];

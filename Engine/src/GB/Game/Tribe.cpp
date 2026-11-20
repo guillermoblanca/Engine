@@ -2454,6 +2454,7 @@ namespace GB
 		if (!m_Zones.Empty()) j["farmzones"] = Json::parse(m_Zones.ToJson());   // T280 (only with a zone)
 		if (!m_Research.Empty()) j["research"] = Json::parse(m_Research.ToJson());   // T324 (only with a queue)
 		if (!m_Modules.Empty()) j["modules"] = Json::parse(m_Modules.ToJson());   // TALLERES 10, prototype (only with a module)
+		if (!m_Modules.NoHouses()) j["yards"] = Json::parse(m_Modules.HousesToJson());   // T367: sizes, closures, works on houses (only with one)
 		if (!m_RecipeChoices.Empty()) j["recipeChoices"] = Json::parse(m_RecipeChoices.ToJson());   // TL4, prototype (only with a choice)
 		if (!m_Players.Players.empty() || !m_Players.Proposals.empty() || !m_Players.Aim.empty()) j["player"] = Json::parse(m_Players.ToJson());   // H15: standing and proposals
 		return j.dump();
@@ -2508,6 +2509,7 @@ namespace GB
 		if (j.contains("research") && !research.FromJson(j["research"].dump())) return false;
 		HouseModules modules;   // TALLERES 10, prototype (a save with no module has none)
 		if (j.contains("modules") && !modules.FromJson(j["modules"].dump())) return false;
+		if (j.contains("yards") && !modules.HousesFromJson(j["yards"].dump())) return false;   // T367
 		RecipeChoices choices;   // TL4, prototype (a save with no choice: every recipe allowed)
 		if (j.contains("recipeChoices") && !choices.FromJson(j["recipeChoices"].dump())) return false;
 		std::vector<AgentMind> minds(m_Members.size());

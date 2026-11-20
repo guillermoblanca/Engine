@@ -534,6 +534,28 @@ namespace GB
 		}
 	}
 
+	void ConvertBuilding(EntityWorld& w, AbilitySystemComponent& a, const std::string& name, const BuildingDef& from, const BuildingDef& to)
+	{
+		a.Tags().RemoveAll(GameplayTag(kKindPrefix + from.Id));
+		a.Tags().Add(GameplayTag(kKindPrefix + to.Id));
+		StartPhase(a, to, static_cast<int>(to.Phases.size()));   // (done: its last phase's end)
+		const EntityId root = w.FindByName(name);
+		if (root == NullEntity) return;
+		for (const BuildingPhase& p : from.Phases)
+			if (const EntityId g = w.FindByName(name + " " + p.Name); g != NullEntity && w.Find(g) && w.Find(g)->Parent == root) w.Destroy(g);
+		for (const BuildingPhase& p : to.Phases)
+		{
+			const EntityId group = w.Create(name + " " + p.Name, root);
+			BuildPart(w, group, name + " " + p.Name, p.Part, to.Footprint, to.Color);
+		}
+		if (Entity* e = w.Find(root))
+		{
+			if (e->Interact && !e->Interact->Points.empty()) e->Interact->Points.front().Position = { 0.0f, 0.0f, 0.5f * to.Footprint.y + 0.8f };
+			e->Gameplay = a.ToComponent();
+		}
+		SyncSiteVisuals(w, name, to, ReadSite(a, to));
+	}
+
 	void BuildingObstacles(const EntityWorld& world, const GameplayWorld& gameplay, const std::map<std::string, BuildingDef>& defs, std::vector<CircleObstacle>& out)
 	{
 		for (const GameplayWorld::Tagged& t : gameplay.WithTag("Building"))

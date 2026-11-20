@@ -60,6 +60,11 @@ namespace GB
 		std::function<bool(const std::string& station)> StationThere;            // a finished building's or the camp's station
 		std::function<bool(const std::string& station)> StationIsImprovised;     // the camp has this station only as a makeshift one (EconomyRules::Production.CampStations)
 		std::function<std::string(const std::string& station)> RecipeNeeding;    // a recipe at this station that the clan wants made now ("" = none)
+		// T367i (TALLERES 10): a module that only stands in a yard ("standalone" false) is planned only when a house of the clan has a free slot for it
+		// (null: never, as before); a building a size of a house stands for (the longhouse: the hut's L) is never planned on its own (null: none)
+		std::function<bool(const BuildingDef&)> ModuleRoom;
+		std::function<bool(const BuildingDef&)> Absorbed;
+		int BedsComing = 0;   // T367: the beds the houses growing now will add (a growth answers the need for beds as a site does)
 	};
 
 	// The needs now, most urgent first (ties by building id). Empty when the clan has no buildings, nobody alive or as many sites open as allowed.

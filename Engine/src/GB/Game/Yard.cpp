@@ -35,6 +35,75 @@ namespace GB
 			out = { (*it)[0].get<float>(), (*it)[1].get<float>(), (*it)[2].get<float>() };
 			return true;
 		}
+
+		bool Items(const Json& o, const char* key, std::map<std::string, int>& out, std::string& error, const std::string& where)
+		{
+			const auto it = o.find(key);
+			if (it == o.end()) return true;
+			if (!it->is_object()) { error = where + "." + key + ": expected an object of item -> units"; return false; }
+			out.clear();
+			for (const auto& [item, n] : it->items())
+			{
+				if (!n.is_number_integer() || n.get<int>() < 1 || n.get<int>() > 1000) { error = where + "." + key + "." + item + ": a whole number from 1"; return false; }
+				out[item] = n.get<int>();
+			}
+			return true;
+		}
+
+		bool Swaps(const Json& o, std::map<std::string, std::vector<std::string>>& out, std::string& error, const std::string& where)
+		{
+			const auto it = o.find("substitutes");
+			if (it == o.end()) return true;
+			if (!it->is_object()) { error = where + ".substitutes: expected an object of item -> [ items ]"; return false; }
+			out.clear();
+			for (const auto& [item, list] : it->items())
+			{
+				if (!list.is_array()) { error = where + ".substitutes." + item + ": expected a list of items"; return false; }
+				for (const Json& k : list)
+				{
+					if (!k.is_string()) { error = where + ".substitutes." + item + ": expected a list of items"; return false; }
+					out[item].push_back(k.get<std::string>());
+				}
+			}
+			return true;
+		}
+
+		bool ReadLook(const Json& f, YardFenceLook& l, std::string& error, const std::string& where)
+		{
+			if (!f.is_object()) { error = where + ": expected an object"; return false; }
+			if (!Number(f, "postSpacing", l.PostSpacing, 0.3f, 10.0f, error, where) || !Number(f, "postHeight", l.PostHeight, 0.1f, 5.0f, error, where)
+				|| !Number(f, "postWidth", l.PostWidth, 0.01f, 1.0f, error, where) || !Number(f, "gatePostHeight", l.GatePostHeight, 0.1f, 5.0f, error, where)
+				|| !Number(f, "gatePostWidth", l.GatePostWidth, 0.01f, 1.0f, error, where) || !Number(f, "railWidth", l.RailWidth, 0.01f, 1.0f, error, where)
+				|| !Colour(f, "postColor", l.PostColor, error, where) || !Colour(f, "railColor", l.RailColor, error, where)) return false;
+			if (const auto solid = f.find("solid"); solid != f.end())
+			{
+				if (!solid->is_boolean()) { error = where + ".solid: true or false"; return false; }
+				l.Solid = solid->get<bool>();
+			}
+			if (const auto rails = f.find("rails"); rails != f.end())
+			{
+				if (!rails->is_array()) { error = where + ".rails: expected a list of heights"; return false; }
+				l.Rails.clear();
+				for (const Json& h : *rails)
+				{
+					if (!h.is_number() || h.get<float>() <= 0.0f || h.get<float>() > 5.0f) { error = where + ".rails: heights from 0 to 5 m"; return false; }
+					l.Rails.push_back(h.get<float>());
+				}
+			}
+			return true;
+		}
+	}
+
+	const YardClosure* YardRules::Closure(int level) const
+	{
+		for (const YardClosure& c : Closures) if (c.Level == level) return &c;
+		return nullptr;
+	}
+
+	const YardClosure* YardRules::ClosureById(const std::string& id) const
+	{
+		for (const YardClosure& c : Closures) if (c.Id == id) return &c;
+		return nullptr;
 	}
 
 	std::string LoadYardRules(const std::string& json, YardRules& live)
@@ -58,23 +127,85 @@ namespace GB
 			}
 		}
 		if (const auto f = section->find("fence"); f != section->end())
+			if (!ReadLook(*f, r.Fence, error, "yards.fence")) return error;
+		// T367f: the levels of the closure
+		if (const auto list = section->find("closures"); list != section->end())
 		{
-			if (!f->is_object()) return "yards.fence: expected an object";
-			YardFenceLook& l = r.Fence;
-			if (!Number(*f, "postSpacing", l.PostSpacing, 0.3f, 10.0f, error, "yards.fence") || !Number(*f, "postHeight", l.PostHeight, 0.1f, 5.0f, error, "yards.fence")
-				|| !Number(*f, "postWidth", l.PostWidth, 0.01f, 1.0f, error, "yards.fence") || !Number(*f, "gatePostHeight", l.GatePostHeight, 0.1f, 5.0f, error, "yards.fence")
-				|| !Number(*f, "gatePostWidth", l.GatePostWidth, 0.01f, 1.0f, error, "yards.fence") || !Number(*f, "railWidth", l.RailWidth, 0.01f, 1.0f, error, "yards.fence")
-				|| !Colour(*f, "postColor", l.PostColor, error, "yards.fence") || !Colour(*f, "railColor", l.RailColor, error, "yards.fence")) return error;
-			if (const auto rails = f->find("rails"); rails != f->end())
+			if (!list->is_array()) return "yards.closures: expected a list of levels";
+			r.Closures.clear();
+			for (const Json& c : *list)
 			{
-				if (!rails->is_array()) return "yards.fence.rails: expected a list of heights";
-				l.Rails.clear();
-				for (const Json& h : *rails)
+				YardClosure k;
+				k.Look = r.Fence;
+				const std::string where = "yards.closures[" + std::to_string(r.Closures.size()) + "]";
+				if (!c.is_object() || !c.contains("id") || !c["id"].is_string() || c["id"].get<std::string>().empty()) return where + ": an object with an id";
+				k.Id = c["id"].get<std::string>();
+				if (const auto l = c.find("level"); l != c.end())
 				{
-					if (!h.is_number() || h.get<float>() <= 0.0f || h.get<float>() > 5.0f) return "yards.fence.rails: heights from 0 to 5 m";
-					l.Rails.push_back(h.get<float>());
+					if (!l->is_number_integer() || l->get<int>() < 1 || l->get<int>() > 20) return where + ".level: a whole number from 1 to 20";
+					k.Level = l->get<int>();
 				}
+				if (const auto t = c.find("tech"); t != c.end())
+				{
+					if (!t->is_string()) return where + ".tech: a technology id";
+					k.Tech = t->get<std::string>();
+				}
+				if (!Number(c, "costPer", k.CostPer, 0.5f, 100.0f, error, where) || !Number(c, "work", k.Work, 0.0f, 1000.0f, error, where)
+					|| !Number(c, "defense", k.Defense, 0.0f, 5.0f, error, where) || !Items(c, "needs", k.Needs, error, where) || !Swaps(c, k.Substitutes, error, where)) return error;
+				if (const auto lk = c.find("look"); lk != c.end() && !ReadLook(*lk, k.Look, error, where + ".look")) return error;
+				for (const YardClosure& o : r.Closures)
+					if (o.Id == k.Id || o.Level == k.Level) return where + ": each closure has its own id and its own level";
+				r.Closures.push_back(std::move(k));
 			}
+			std::sort(r.Closures.begin(), r.Closures.end(), [](const YardClosure& a, const YardClosure& b) { return a.Level < b.Level; });
+		}
+		// T367c: the sizes of each line of houses, in their "order"
+		if (const auto all = section->find("sizes"); all != section->end())
+		{
+			if (!all->is_object()) return "yards.sizes: expected an object of host -> { size -> its values }";
+			for (const auto& [host, list] : all->items())
+			{
+				if (!list.is_object() || list.empty()) return "yards.sizes." + host + ": expected an object of size -> its values";
+				std::vector<std::pair<float, YardSize>> sizes;
+				for (const auto& [id, v] : list.items())
+				{
+					const std::string where = "yards.sizes." + host + "." + id;
+					if (!v.is_object()) return where + ": expected an object";
+					YardSize z;
+					z.Id = id;
+					float order = 0.0f;
+					if (!Number(v, "order", order, 0.0f, 100.0f, error, where)) return error;
+					if (const auto b = v.find("building"); b != v.end()) { if (!b->is_string()) return where + ".building: a building id"; z.Building = b->get<std::string>(); }
+					if (const auto t = v.find("tech"); t != v.end()) { if (!t->is_string()) return where + ".tech: a technology id"; z.Tech = t->get<std::string>(); }
+					if (const auto fp = v.find("footprint"); fp != v.end())
+					{
+						if (!fp->is_array() || fp->size() != 2 || !(*fp)[0].is_number() || !(*fp)[1].is_number() || (*fp)[0].get<float>() < 0.5f || (*fp)[1].get<float>() < 0.5f)
+							return where + ".footprint: [x, z] in metres, at least 0.5";
+						z.Footprint = { (*fp)[0].get<float>(), (*fp)[1].get<float>() };
+					}
+					if (!Number(v, "costScale", z.CostScale, 0.1f, 20.0f, error, where) || !Number(v, "workScale", z.WorkScale, 0.1f, 20.0f, error, where)
+						|| !Number(v, "rest", z.Rest, 0.0f, 10.0f, error, where) || !Number(v, "warmth", z.Warmth, 0.0f, 10.0f, error, where)) return error;
+					for (const auto& [key, field] : std::initializer_list<std::pair<const char*, int*>>{ { "shelter", &z.Shelter }, { "storeCap", &z.StoreCap }, { "foodCap", &z.FoodCap }, { "maxModules", &z.MaxModules } })
+						if (const auto n = v.find(key); n != v.end())
+						{
+							if (!n->is_number_integer() || n->get<int>() < 0 || n->get<int>() > 10000) return where + "." + key + ": a whole number from 0";
+							*field = n->get<int>();
+						}
+					sizes.emplace_back(order, z);
+				}
+				std::stable_sort(sizes.begin(), sizes.end(), [](const auto& a, const auto& b) { return a.first != b.first ? a.first < b.first : a.second.Id < b.second.Id; });
+				std::vector<YardSize>& line = r.Sizes[host];
+				line.clear();
+				for (const auto& [order, z] : sizes) line.push_back(z);
+			}
+		}
+		if (const auto rules = section->find("rules"); rules != section->end())
+		{
+			if (!rules->is_object()) return "yards.rules: expected an object";
+			float after = static_cast<float>(r.AiClosureAfterModules);
+			if (!Number(*rules, "defenseCap", r.DefenseCap, 0.0f, 10.0f, error, "yards.rules") || !Number(*rules, "growMinWork", r.GrowMinWork, 0.0f, 1.0f, error, "yards.rules")
+				|| !Number(*rules, "aiClosureAfterModules", after, 0.0f, 16.0f, error, "yards.rules")) return error;
+			r.AiClosureAfterModules = static_cast<int>(after);
 		}
 		live = std::move(r);
 		return {};
@@ -85,6 +216,8 @@ namespace GB
 		static const YardRules rules = ShippedSection<YardRules>([](const std::string& doc, YardRules& r) { return LoadYardRules(doc, r); });
 		return rules;
 	}
+
+	glm::vec2 YardTurned(const glm::vec2& local, float yawDegrees) { return Turned(local, yawDegrees); }
 
 	YardShape ComputeYard(const BuildingDef& host, const glm::vec2& pos, float yawDegrees, const YardRules& rules)
 	{

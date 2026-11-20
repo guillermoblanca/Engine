@@ -59,12 +59,6 @@ namespace GB
 		return n;
 	}
 
-	int HouseModules::Max(const Tribe& tribe, const std::string& host) const
-	{
-		for (const Tribe::Placed& p : tribe.Placements()) if (p.Name == host) return p.Def->Yard.MaxModules;
-		return 0;
-	}
-
 	const HouseModules::Entry* HouseModules::Of(const std::string& site) const
 	{
 		const auto it = m_Sites.find(site);
@@ -152,9 +146,12 @@ namespace GB
 			if (std::any_of(m_Sites.begin(), m_Sites.end(), [&](const auto& kv) { return kv.second.Host == host && kv.second.Slot == s.Id; })) continue;
 			std::string site;
 			const float yaw = std::fabs(s.Yaw) < 0.01f ? 360.0f : s.Yaw;   // (StartSite reads 0 as "not turned" and keeps the planner's gap round it)
-			if (const std::string error = tribe.StartSite(module, s.Pos, &site, yaw); !error.empty() || site.empty()) { why = s.Id + ": " + error; continue; }
+			m_Placing = host;   // (T367, Y-2: its own yard is not in the way of its module)
+			const std::string error = tribe.StartSite(module, s.Pos, &site, yaw);
+			m_Placing.clear();
+			if (!error.empty() || site.empty()) { why = s.Id + ": " + error; continue; }
 			m_Sites[site] = { host, s.Id };
-			if (!now) tribe.Designations().QueueSite(tribe, site);   // (the player's plans are worked in the order of its queue)
+			if (!now && !m_Planning) tribe.Designations().QueueSite(tribe, site);   // (the player's plans are worked in the order of its queue; T367: not the planner's)
 			std::string text = site + " in " + s.Id + " of " + host;
 			if (now)   // (as Tribe::RaiseBuilding: each phase its materials, then its work)
 			{
@@ -216,7 +213,7 @@ namespace GB
 		}
 		m_Sites.erase(site);
 		tribe.m_RecipeChoices.Forget(tribe, site);
-		if (Count(host) == 0) { TakeDownFence(tribe, host); m_Fenced.erase(host); }
+		m_Next = 0.0;   // (T367: the fence and the reserved ground at the next step)
 		return { true, "module " + site + " of " + host + " pulled down; back to the store: " + (text.empty() ? std::string("nothing") : text) };
 	}
 
@@ -226,7 +223,8 @@ namespace GB
 		if (!yard.Valid) return "no standing house of the clan with a yard called '" + host + "'";
 		char b[64];
 		std::snprintf(b, sizeof b, "%.1f", static_cast<double>(yard.Length));
-		std::string s = host + ": yard, fence " + b + " m" + (Count(host) > 0 ? std::string(" (standing)") : std::string(" (none until its first module)"));
+		const YardClosure* closure = DefaultYardRules().Closure(ClosureOf(host));
+		std::string s = host + ": yard, fence " + b + " m" + (closure ? " (" + closure->Id + ")" : std::string(" (no closure)"));
 		s += "; modules " + std::to_string(Count(host)) + "/" + std::to_string(Max(tribe, host));
 		std::string used, free;
 		int nfree = 0;
@@ -242,7 +240,7 @@ namespace GB
 
 	void HouseModules::Step(Tribe& tribe)
 	{
-		if (m_Sites.empty() && m_Fenced.empty()) return;
+		if (m_Sites.empty() && m_Fenced.empty() && m_Houses.empty()) return;
 		if (tribe.m_Time < m_Next) return;
 		m_Next = tribe.m_Time + 1.0;
 		if (!tribe.m_Entities || !tribe.m_Gameplay) return;
@@ -252,17 +250,37 @@ namespace GB
 			if (!tribe.m_Gameplay->Find(it->first) && tribe.m_Entities->FindByName(it->first) == NullEntity) { tribe.m_RecipeChoices.Forget(tribe, it->first); it = m_Sites.erase(it); }
 			else ++it;
 		}
-		// the fences: one round each house with a module, none round the others
+		// T367: the houses that are gone (pulled down, or turned into another building that is no house of a line) forget their size and work
+		for (auto it = m_Houses.begin(); it != m_Houses.end();)
+		{
+			if (!tribe.m_Gameplay->Find(it->first) && tribe.m_Entities->FindByName(it->first) == NullEntity) it = m_Houses.erase(it);
+			else ++it;
+		}
+		// T367 (Y-3): a house of a size of its own building (M) is drawn as its model scaled to the size's footprint, until A51 models it
+		for (const Tribe::Placed& p : tribe.Placements())
+			if (const auto h = m_Houses.find(p.Name); h != m_Houses.end() || p.Def->Yard.Any())
+				if (Entity* e = tribe.m_Entities->Find(tribe.m_Entities->FindByName(p.Name)))
+				{
+					const BuildingDef* base = tribe.m_Buildings ? &tribe.m_Buildings->at(p.Def->Id) : nullptr;
+					glm::vec3 scale(1.0f);
+					if (base && base != p.Def && base->Footprint.x > 0.0f && base->Footprint.y > 0.0f) scale = { p.Def->Footprint.x / base->Footprint.x, 1.0f, p.Def->Footprint.y / base->Footprint.y };
+					if (h != m_Houses.end() || scale != glm::vec3(1.0f))
+						if (glm::any(glm::greaterThan(glm::abs(e->Transform.Scale - scale), glm::vec3(1e-4f)))) e->Transform.Scale = scale;
+				}
+		// the fences (T367f): one round each house with a closure, of its closure's look; none round the others
 		std::map<std::string, int> hosts;
-		for (const auto& [site, e] : m_Sites) ++hosts[e.Host];
+		for (const auto& [house, h] : m_Houses) if (h.Closure > 0) hosts[house] = h.Closure;
+		for (const auto& [site, e] : m_Sites)   // (the prototype's free fence of a yard with modules, brought back by an older save: gone)
+			if (!hosts.count(e.Host) && !m_Fenced.count(e.Host)) TakeDownFence(tribe, e.Host);
 		for (auto it = m_Fenced.begin(); it != m_Fenced.end();)
 		{
 			if (!hosts.count(it->first)) { TakeDownFence(tribe, it->first); it = m_Fenced.erase(it); }
 			else ++it;
 		}
-		for (const auto& [host, n] : hosts)
+		for (const auto& [host, level] : hosts)
 		{
 			if (m_Fenced.count(host)) continue;
+			TakeDownFence(tribe, host);   // (a level changed, or the house grew: the fence is made again)
 			const YardShape yard = YardOf(tribe, host);
 			if (!yard.Valid) continue;   // (the house is gone or not standing: its modules stay where they are)
 			if (tribe.m_Entities->FindByName(FenceRoot(host)) == NullEntity) BuildFence(tribe, host);
@@ -275,7 +293,8 @@ namespace GB
 		EntityWorld& w = *tribe.m_Entities;
 		const YardShape yard = YardOf(tribe, host);
 		if (!yard.Valid || yard.Posts.size() < 2) return;
-		const YardFenceLook& look = DefaultYardRules().Fence;
+		const YardClosure* closure = DefaultYardRules().Closure(ClosureOf(host));
+		const YardFenceLook& look = closure ? closure->Look : DefaultYardRules().Fence;
 		auto ground = [&](const glm::vec2& p) { return tribe.m_Ground ? tribe.m_Ground(p.x, p.y) : tribe.Config.Economy.CampY; };
 		const EntityId root = w.Create(FenceRoot(host));
 		auto piece = [&](const std::string& name, const glm::vec3& pos, const glm::vec3& scale, float yaw, const glm::vec3& colour)
@@ -306,6 +325,12 @@ namespace GB
 			const float len = glm::length(d);
 			if (len < 0.05f) continue;
 			const float base = 0.5f * (ground(a) + ground(b));
+			if (look.Solid)   // (a wall: one block a bay, from the ground up)
+			{
+				piece(host + " Yard Wall " + std::to_string(i + 1), { mid.x, base + 0.5f * look.PostHeight - 0.08f, mid.y }, { len + 0.5f * look.PostWidth, look.PostHeight, look.PostWidth },
+					glm::degrees(std::atan2(-d.y, d.x)), look.RailColor);
+				continue;
+			}
 			for (size_t k = 0; k < look.Rails.size(); ++k)
 				piece(host + " Yard Rail " + std::to_string(i + 1) + "." + std::to_string(k + 1), { mid.x, base + look.Rails[k], mid.y }, { len + 0.04f, look.RailWidth, look.RailWidth },
 					glm::degrees(std::atan2(-d.y, d.x)), look.RailColor);

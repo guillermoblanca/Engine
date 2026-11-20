@@ -110,6 +110,7 @@ namespace GB
 		if (const auto* defs = tribe.Buildings())
 			for (const Tribe::SettlementSite& s : tribe.SettlementSites())   // (SettlementSite::Building is the def's name)
 				if (const BuildingDef* def = DefByName(*defs, s.Building)) out.push_back(BuildingGround(*def, s.Pos));
+		tribe.Modules().Ground(tribe, out);   // T367 (Y-2): the reserved yards, the sizes bigger than their building, the ground of a growth
 		if (!fields) return out;
 		for (const Field& f : tribe.Economy().Fields) FieldGrounds(f, out);   // T337: a shaped field plot by plot
 		if (tribe.Outside().Ground) tribe.Outside().Ground(tribe, out);

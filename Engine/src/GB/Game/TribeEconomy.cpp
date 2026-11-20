@@ -558,6 +558,7 @@ namespace GB
 			const Recipe* r = m_Recipes->Find(job.Target);
 			glm::vec2 at;
 			if (!r || !StationAt(r->Station, &at)) return 0.0f;
+			m_RecipeChoices.Spot(*this, *r, pos, at);   // T367d: the nearest of its stations (a module's work point), as the make goes there
 			if (m_Knowledge.Gated() && !m_Knowledge.CanMake(m.Name, r->Id)) return 0.0f;   // only who knows how (H11)
 			if (!m_Recipes->WhyNot(*m_Items, m_Store, r->Id, r->Station).empty()) return 0.0f;   // the inputs are not (or no longer) in the store
 			return job.Priority * liking("craft") * Falloff(glm::distance(pos, at), 100.0f) * vigor;
@@ -592,7 +593,7 @@ namespace GB
 		o.Kind = held->Kind;
 		o.Target = held->Target;
 		o.Where = Config.Economy.Camp;
-		if (held->Kind == "make") { if (const Recipe* r = m_Recipes->Find(held->Target)) StationAt(r->Station, &o.Where); }
+		if (held->Kind == "make") { if (const Recipe* r = m_Recipes->Find(held->Target)) { StationAt(r->Station, &o.Where); m_RecipeChoices.Spot(*this, *r, Where(m), o.Where); } }   // (T367d: the nearest)
 		else if (held->Kind == "farm") o.Where = m_Zones.WorkPlace(*this, held->Target);   // T280
 		else for (const Stockpile& p : m_Econ.Stockpiles) if (p.Name == held->Target) o.Where = p.Pos;
 		const float reach = Falloff(glm::distance(Where(m), o.Where), 100.0f);

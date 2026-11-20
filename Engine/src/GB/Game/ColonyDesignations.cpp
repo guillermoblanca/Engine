@@ -168,6 +168,7 @@ namespace GB
 	{
 		std::vector<std::string> open;
 		for (const Tribe::Placed& p : tribe.Placements()) if (!p.State.Done) open.push_back(p.Name);
+		tribe.Modules().OpenWorks(open);   // T367: a house being grown or closed is an open site too
 		std::vector<std::string> out;
 		for (const std::string& s : m_Sites) if (std::find(open.begin(), open.end(), s) != open.end()) out.push_back(s);
 		for (const std::string& s : open) if (std::find(out.begin(), out.end(), s) == out.end()) out.push_back(s);
@@ -179,6 +180,7 @@ namespace GB
 		if (std::find(m_Sites.begin(), m_Sites.end(), site) != m_Sites.end()) return false;
 		bool open = false;
 		for (const Tribe::Placed& p : tribe.Placements()) open = open || (p.Name == site && !p.State.Done);
+		open = open || tribe.Modules().WorkOn(site) != nullptr;   // T367
 		if (!open) return false;
 		// what was queued and is no open site any more goes (stood up, called off)
 		const std::vector<std::string> order = SiteOrder(tribe);
@@ -215,7 +217,7 @@ namespace GB
 		for (const Tribe::Placed& p : tribe.Placements())
 		{
 			if (p.Name != site) continue;
-			if (p.State.Done) return false;
+			if (p.State.Done) return tribe.Modules().WorkOpenFor(tribe, site, kind, asking);   // T367: a work on a standing house (none: false)
 			if (kind == "build")
 			{
 				if (!p.State.Ready) return false;
