@@ -8,6 +8,7 @@
 //   game yard <house> closure <fence|wicker|drystone> [now]   T367f: the work of that closure round its yard
 //   game yard <house> cancel                           T367: the work in course called off (what was brought back to the store)
 //   game grow <house> M|L [now]                        T367g: the work of growing it in its place
+//   game module menu <house> [module]                  the sheet's list of modules, open or closed; with a module, chosen (its ghost on the ground)
 //   game recipe <building>                             its recipes: auto, off or keep n
 //   game recipe <building> <recipe> on|off|keep <n>
 #include "EditorApp.h"
@@ -17,7 +18,7 @@
 
 namespace GB::Editor
 {
-	void ToggleYardMenu(const std::string& host);   // (ColonyYard.cpp: the UI's list of modules, open or closed)
+	void ToggleYardMenu(const std::string& host, const std::string& module);   // (ColonyYard.cpp: the UI's list of modules, open or closed; a module: chosen, its ghost)
 
 	namespace
 	{
@@ -59,7 +60,8 @@ namespace GB::Editor
 			const char* usage = "usage: game module <house> | add <house> <module> [now] | remove <house> <module|site|slot>";
 			if (a.empty()) return { false, usage };
 			if (a.size() == 1) { const std::string s = t.Modules().Status(t, Unscored(a[0])); return { s.rfind("no ", 0) != 0, s }; }
-			if (a[0] == "menu" && a.size() == 2) { ToggleYardMenu(Unscored(a[1])); return { true, "the list of modules of " + Unscored(a[1]) + " opens or closes" }; }   // (as its click: the captures)
+			if (a[0] == "menu" && a.size() == 2) { ToggleYardMenu(Unscored(a[1]), std::string()); return { true, "the list of modules of " + Unscored(a[1]) + " opens or closes" }; }   // (as its click: the captures)
+			if (a[0] == "menu" && a.size() == 3) { ToggleYardMenu(Unscored(a[1]), a[2]); return { true, "the list of modules of " + Unscored(a[1]) + " opens with " + a[2] + " chosen" }; }   // (its ghost on the ground: the captures)
 			if (a[0] == "add" && (a.size() == 3 || (a.size() == 4 && a[3] == "now")))
 			{
 				const HouseModules::Reply r = t.Modules().Add(t, Unscored(a[1]), a[2], a.size() == 4);

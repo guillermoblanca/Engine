@@ -1388,10 +1388,10 @@ namespace GB::Editor
 			out = ImVec2(ox + s.x, oy + s.y);
 			return true;
 		};
-		auto quad = [&](const glm::vec2& c, float half, ImU32 fill, ImU32 edge, float yawDegrees = 0.0f)
+		auto rect = [&](const glm::vec2& c, const glm::vec2& half, ImU32 fill, ImU32 edge, float yawDegrees = 0.0f)
 		{
 			ImVec2 q[4];
-			const glm::vec2 corner[4] = { { -half, -half }, { half, -half }, { half, half }, { -half, half } };
+			const glm::vec2 corner[4] = { { -half.x, -half.y }, { half.x, -half.y }, { half.x, half.y }, { -half.x, half.y } };
 			const float cy = std::cos(glm::radians(yawDegrees)), sy = std::sin(glm::radians(yawDegrees));
 			for (int i = 0; i < 4; ++i)
 			{
@@ -1401,6 +1401,7 @@ namespace GB::Editor
 			dl->AddConvexPolyFilled(q, 4, fill);
 			if (edge) dl->AddPolyline(q, 4, edge, ImDrawFlags_Closed, 1.0f);
 		};
+		auto quad = [&](const glm::vec2& c, float half, ImU32 fill, ImU32 edge, float yawDegrees = 0.0f) { rect(c, glm::vec2(half), fill, edge, yawDegrees); };
 		// a quiet label (T230): a little smaller, on the panels' hide, and never under the god's panels (they would show through)
 		auto underPanel = [&](const ImVec2& p)
 		{
@@ -1523,7 +1524,12 @@ namespace GB::Editor
 			if (glm::distance(m_Camera.Position, glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y), b.Pos.y)) > 120.0f) continue;
 			const bool done = b.State.Done;
 			const GB::Entity* be = m_SceneEditor.World().Find(m_SceneEditor.World().FindByName(b.Name));
-			quad(b.Pos, 1.4f, done ? IM_COL32(200, 160, 90, 70) : IM_COL32(120, 160, 230, 70), done ? IM_COL32(220, 180, 100, 220) : IM_COL32(130, 170, 240, 220), be ? be->Transform.Rotation.y : 0.0f);
+			{
+				// T368: the building's own footprint (a fixed 2.8 m square overlapped the small modules of a yard)
+				const auto bd = m_Buildings.Defs.find(b.Building);
+				const glm::vec2 half = bd != m_Buildings.Defs.end() ? 0.5f * bd->second.Footprint : glm::vec2(1.4f);
+				rect(b.Pos, half, done ? IM_COL32(200, 160, 90, 70) : IM_COL32(120, 160, 230, 70), done ? IM_COL32(220, 180, 100, 220) : IM_COL32(130, 170, 240, 220), be ? be->Transform.Rotation.y : 0.0f);
+			}
 			if (quiet && hovered != &b && !focused(b.Name)) continue;
 			if (!screen(glm::vec3(b.Pos.x, ground(b.Pos.x, b.Pos.y) + 2.6f, b.Pos.y), s)) continue;
 			std::string text = m_Lang.Entity(b.Name.empty() ? b.Building : b.Name);
