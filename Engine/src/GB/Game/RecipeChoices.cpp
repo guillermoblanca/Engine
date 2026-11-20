@@ -123,6 +123,7 @@ namespace GB
 		if ((m_Choices.empty() && tribe.m_Modules.Empty()) || r.Station.empty() || !tribe.m_Entities) return false;
 		bool found = false;
 		float best = 0.0f;
+		glm::vec2 nearest(0.0f);
 		for (const Tribe::Placed& p : tribe.Placements())
 		{
 			if (!p.State.Done || p.Def->Station != r.Station || State(p.Name, r.Id) == kOff) continue;
@@ -133,8 +134,12 @@ namespace GB
 				spot = SiteFrontTurned(p.Pos, *p.Def, e ? e->Transform.Rotation.y : 0.0f);
 			}
 			const float d = glm::distance(from, spot);
-			if (!found || d < best) { found = true; best = d; at = spot; }
+			if (!found || d < best) { found = true; best = d; nearest = spot; }
 		}
+		// T367d: the camp's own station (a workbench by the fire) when it is nearer: `at` stays where StationAt put it
+		const std::vector<std::string>& camp = tribe.Config.Econ.Production.CampStations;
+		if (found && std::find(camp.begin(), camp.end(), r.Station) != camp.end() && glm::distance(from, tribe.Config.Economy.Camp) < best) return false;
+		if (found) at = nearest;
 		return found;
 	}
 

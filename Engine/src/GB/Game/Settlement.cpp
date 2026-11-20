@@ -135,7 +135,7 @@ namespace GB
 		{
 			if (glm::distance(pos, Config.Economy.Camp) > Config.SettlementRadius) continue;   // left behind by a move of the camp (H12): not the clan's any more
 			const AbilitySystemComponent* a = m_Gameplay->Find(name);
-			const BuildingDef* def = a ? BuildingOf(*a, *m_Buildings) : nullptr;
+			const BuildingDef* def = m_Modules.Variant(name, a ? BuildingOf(*a, *m_Buildings) : nullptr);   // (T367: a house's size, HouseModules.h)
 			if (!def) continue;
 			out.push_back({ name, def, pos, ReadSite(*a, *def) });
 		}
@@ -368,7 +368,7 @@ namespace GB
 	{
 		float d = 0.0f;
 		for (const Placed& p : Placements()) if (p.State.Done) d += p.Def->Defense;
-		return d;
+		return d + m_Modules.ClosureDefense();   // T367f: the yards' closures (capped: yards.json rules.defenseCap)
 	}
 
 	float Tribe::HealingAt(const glm::vec2& at) const
@@ -447,6 +447,7 @@ namespace GB
 		const bool sheltersOnly = !HasFire() || !ToolsReady();
 		SettlementFacts facts;
 		facts.Buildings = m_Buildings;
+		m_Modules.Facts(*this, facts);   // T367i: modules with a free slot; the ids a house's size stands for
 		for (const Placed& p : Placements()) facts.Sites.push_back({ p.Def, p.Pos, p.State.Done });
 		int open = 0;
 		for (const PlannerSite& p : facts.Sites) if (!p.Done) ++open;
@@ -701,6 +702,7 @@ namespace GB
 				if (!p.State.Done)
 					for (const auto& [item, n] : p.State.Missing)
 						if (const int left = n - InFlight(p.Name, item); left > 0) now["site " + p.Name][item] = left;
+			m_Modules.WorkDemand(*this, now);   // T367: what the works on the houses lack
 			for (const auto& [source, items] : m_SiteDemandSet)
 				for (const auto& [item, n] : items)
 					if (!now.count(source) || !now[source].count(item)) SetDemand(source, item, 0);
@@ -734,7 +736,7 @@ namespace GB
 			for (const Placed& p : Placements())
 				if (p.State.Done && p.Def->Well && m_Entities->FindByName("Well of " + p.Name) == NullEntity) m_DigWell("Well of " + p.Name, p.Pos);
 		const std::vector<BuildingNeed> needs = BuildingNeeds();
-		if (needs.empty()) { UpgradeHouse(); return; }
+		if (needs.empty()) { if (!UpgradeHouse()) m_Modules.PlanClosure(*this); return; }   // (T367i: a yard closed, with nothing better to do)
 
 		// Where: rings round the camp, each building at its own angle, off the campfire, the other buildings and the resource nodes, on ground a member
 		// can stand on. The same scene gives the same place (SettlementPlanner.h).
@@ -753,6 +755,7 @@ namespace GB
 		// F6: the most urgent that has a place (a long house with no room left every other building waiting); "no place" is told once a building
 		for (const BuildingNeed& need : needs)
 		{
+			if (const int r = m_Modules.PlanNeed(*this, need); r != 0) { if (r > 0) return; continue; }   // T367i: a module in a yard, a house grown
 			const BuildingDef& def = m_Buildings->at(need.Building);
 			where.Def = &def;
 			where.Prefer = nullptr;
@@ -864,7 +867,7 @@ namespace GB
 				const BuildingDef* pick = nullptr;
 				for (const auto& [id, def] : *m_Buildings)
 				{
-					if (def.Shelter <= 0 || !ClanKnowsBuilding(def) || !payable(def)) continue;
+					if (def.Shelter <= 0 || !ClanKnowsBuilding(def) || !payable(def) || HouseModules::Absorbs(def.Id)) continue;   // (T367: a longhouse is a hut grown)
 					const bool fits = def.Shelter >= static_cast<int>(homeless->Members.size());
 					const bool pickFits = pick && pick->Shelter >= static_cast<int>(homeless->Members.size());
 					if (!pick || (fits && (!pickFits || def.Shelter < pick->Shelter)) || (!fits && !pickFits && def.Shelter > pick->Shelter)) pick = &def;
@@ -895,6 +898,7 @@ namespace GB
 				}
 			}
 		}
+		if (m_Modules.PlanGrow(*this)) return true;   // T367i (Y-1): the house of a household short of beds grows in its place first
 		const Household* who = nullptr;
 		const Placed* house = nullptr;
 		const BuildingDef* better = nullptr;
@@ -908,7 +912,7 @@ namespace GB
 			for (const auto& [id, def] : *m_Buildings)
 			{
 				if (def.Shelter <= home->Def->Shelter || std::find(def.Supersedes.begin(), def.Supersedes.end(), home->Def->Id) == def.Supersedes.end()) continue;
-				if (!ClanKnowsBuilding(def)) continue;
+				if (!ClanKnowsBuilding(def) || HouseModules::Absorbs(def.Id)) continue;   // (T367: grown into, not raised beside)
 				if (payable(def) && (!best || def.Shelter > best->Shelter)) best = &def;
 			}
 			if (best) { who = &h; house = home; better = best; }
@@ -1067,11 +1071,13 @@ namespace GB
 				opts.push_back(o);
 			}
 		}
+		m_Modules.WorkOptions(*this, m, opts);   // T367: the works on the standing houses (growing, closing their yards)
 	}
 
 	int Tribe::ExecuteSettlement(TribeMember& m, const UtilityOption& o)
 	{
 		if (o.Kind != "deliver" && o.Kind != "build") return -1;
+		if (const int r = m_Modules.ExecuteWork(*this, m, o); r >= 0) return r;   // T367: a work on a standing house
 		if (!m_Buildings) return 0;
 		const AbilitySystemComponent* site = m_Gameplay->Find(o.Target);
 		const BuildingDef* def = site ? BuildingOf(*site, *m_Buildings) : nullptr;
@@ -1136,6 +1142,7 @@ namespace GB
 	bool Tribe::FinishSettlement(TribeMember& m, const std::string& job)
 	{
 		if (job != "deliver" && job != "build") return false;
+		if (m_Modules.FinishWork(*this, m, job)) return true;   // T367: a work on a standing house
 		if (!m_Buildings) return true;
 		AbilitySystemComponent* site = m_Gameplay->Find(m.Detail);
 		const BuildingDef* def = site ? BuildingOf(*site, *m_Buildings) : nullptr;
@@ -1184,6 +1191,7 @@ namespace GB
 	void Tribe::PostSettlementJobs()
 	{
 		if (!m_Buildings) return;
+		m_Modules.PostJobs(*this);   // T367: the works on the standing houses, as sites
 		const JobRules& rules = Config.Work.Jobs;
 		auto priority = [&](const char* kind) { const auto p = rules.Priority.find(kind); return p != rules.Priority.end() ? p->second : 1.0f; };
 		for (const Placed& p : Placements())
@@ -1211,6 +1219,7 @@ namespace GB
 	float Tribe::SettlementJobScore(const TribeMember& m, const Job& job) const
 	{
 		if (!m_Buildings || !m.Body) return 0.0f;
+		if (const float s = m_Modules.JobScore(*this, m, job); s >= 0.0f) return s;   // T367: a work on a standing house
 		for (const Placed& p : Placements())
 		{
 			if (p.Name != job.Target || p.State.Done) continue;

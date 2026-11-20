@@ -157,6 +157,9 @@ namespace GB
 	// Shows a site as its state says: the parts of the phases done at full size, the current one growing with its progress, the later ones hidden.
 	// Only writes what changed.
 	void SyncSiteVisuals(EntityWorld& world, const std::string& name, const BuildingDef& def, const SiteState& state);
+	// T367g (TALLERES 10.4): a standing building turned into another in its place (a hut grown into a longhouse): its kind tag, its phases' parts
+	// and its phase (done) become the new one's; its name, place, turn and everything keyed by its name stay. The entity's copy of the system too.
+	void ConvertBuilding(EntityWorld& world, AbilitySystemComponent& system, const std::string& name, const BuildingDef& from, const BuildingDef& to);
 	// T6: the buildings as walls for the navigation and the bodies (as DoorObstacles is for the doors), appended to `out`, in name order. A house (beds,
 	// or a "walls" phase) is three walls with its front open (FootprintShape::Open: who sleeps inside walks in by the front, where its "work" point is),
 	// standing from the day its walls phase starts, or once done when it has none; anything else is solid once done (FootprintShape::Solid). A well

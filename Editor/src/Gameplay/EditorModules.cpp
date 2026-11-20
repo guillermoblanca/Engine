@@ -4,6 +4,10 @@
 //   game module <house>                                the yard: its modules and its free slots
 //   game module add <house> <module> [now]             the module's site in the first free slot of its kind ("now": standing at once)
 //   game module remove <house> <module|site|slot>      pulls it down (its materials back to the store)
+//   game yard <house>                                  T367: size, closure, modules and the work in course
+//   game yard <house> closure <fence|wicker|drystone> [now]   T367f: the work of that closure round its yard
+//   game yard <house> cancel                           T367: the work in course called off (what was brought back to the store)
+//   game grow <house> M|L [now]                        T367g: the work of growing it in its place
 //   game recipe <building>                             its recipes: auto, off or keep n
 //   game recipe <building> <recipe> on|off|keep <n>
 #include "EditorApp.h"
@@ -29,6 +33,27 @@ namespace GB::Editor
 		const Clan* c = m_Clans.Find(HandClan());
 		if (!c || !c->Folk) return { false, "no clan of yours" };
 		Tribe& t = *c->Folk;
+		if (sub == "yard")   // T367
+		{
+			const char* usage = "usage: game yard <house> [closure <fence|wicker|drystone> [now] | cancel]";
+			if (a.empty()) return { false, usage };
+			const std::string house = Unscored(a[0]);
+			if (a.size() == 1) { const std::string s = t.Modules().YardStatus(t, house); return { s.rfind("no ", 0) != 0, s }; }
+			if (a[1] == "closure" && (a.size() == 3 || (a.size() == 4 && a[3] == "now")))
+			{
+				const HouseModules::Reply r = t.Modules().SetClosure(t, house, a[2], a.size() == 4);
+				return { r.Ok, r.Text };
+			}
+			if (a[1] == "cancel" && a.size() == 2) { const HouseModules::Reply r = t.Modules().CancelWork(t, house); return { r.Ok, r.Text }; }
+			return { false, usage };
+		}
+		if (sub == "grow")   // T367
+		{
+			const char* usage = "usage: game grow <house> M|L [now]";
+			if (a.size() != 2 && !(a.size() == 3 && a[2] == "now")) return { false, usage };
+			const HouseModules::Reply r = t.Modules().Grow(t, Unscored(a[0]), a[1], a.size() == 3);
+			return { r.Ok, r.Text };
+		}
 		if (sub == "module")
 		{
 			const char* usage = "usage: game module <house> | add <house> <module> [now] | remove <house> <module|site|slot>";
