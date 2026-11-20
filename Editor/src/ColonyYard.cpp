@@ -71,26 +71,45 @@ namespace GB::Editor
 			return T::BoneDim;
 		}
 
-		// STUB (T368a/d): what the engine does not give yet about a house's size and its closure. TODO(T367c/f/g, prog-gameplay): replace the
-		// body with the engine's API (the house's size S/M/L and the next one with its cost and what it gains; the closure's level and the next
-		// with its cost by metres) when it is merged. Until then nothing is known and the sheet shows "?" for it; the buttons queue their
-		// commands all the same (`game yard <house> closure <level>`, `game grow <house> M|L`), which answer "unknown command" until then.
+		// What the engine says about a house's size and its closure (HouseModules::InfoOf, T367c/f/g).
 		struct YardUpgrades
 		{
 			bool SizeKnown = false;
 			std::string Size;                       // "S", "M", "L"
-			std::string NextSize = "M";             // what `game grow` asks for ("" = it cannot grow more)
-			std::map<std::string, int> GrowCost;    // empty = unknown
+			std::string NextSize;                   // what `game grow` asks for ("" = it cannot grow more)
+			std::map<std::string, int> GrowCost;
+			std::string GrowBlocked;                // why not now ("" = it can)
 			bool ClosureKnown = false;
 			std::string Closure;                    // "fence", "wicker", "drystone" ("" = none yet)
-			std::string NextClosure = "wicker";     // ("" = the best one already)
-			std::map<std::string, int> ClosureCost; // empty = unknown
+			std::string NextClosure;                // ("" = the best one already)
+			std::map<std::string, int> ClosureCost;
+			std::string ClosureBlocked;
+			int MaxModules = 0;
+			std::string WorkKind, WorkTo;           // the work in course ("" = none)
+			float Progress = 0.0f;
+			std::map<std::string, int> Missing;
 		};
 		YardUpgrades YardUpgradesOf(const Tribe& tribe, const std::string& host)
 		{
-			(void)tribe;
-			(void)host;
-			return YardUpgrades{};
+			YardUpgrades up;
+			const HouseModules::Info info = tribe.Modules().InfoOf(tribe, host);
+			if (!info.Valid) return up;
+			up.SizeKnown = !info.Line.empty();
+			up.Size = info.Size;
+			up.NextSize = info.NextSize;
+			up.GrowCost = info.NextSizeCost;
+			up.GrowBlocked = info.GrowBlocked;
+			up.ClosureKnown = true;
+			up.Closure = info.ClosureId;
+			up.NextClosure = info.NextClosure;
+			up.ClosureCost = info.NextClosureCost;
+			up.ClosureBlocked = info.ClosureBlocked;
+			up.MaxModules = info.MaxModules;
+			up.WorkKind = info.Current.Kind;
+			up.WorkTo = info.Current.To;
+			up.Progress = info.Progress;
+			if (info.Current.Any()) up.Missing = info.Current.Missing();
+			return up;
 		}
 
 		// The slot a module would take: as HouseModules::Add, the first free one of its kinds in the module's order (the engine may still skip
@@ -176,7 +195,7 @@ namespace GB::Editor
 			const std::vector<HouseModules::SlotView> slots = mods.Slots(*own, name);
 			const YardShape yard = HouseModules::YardOf(*own, name);
 			const YardUpgrades up = YardUpgradesOf(*own, name);
-			const int count = mods.Count(name), max = def.Yard.MaxModules;
+			const int count = mods.Count(name), max = up.MaxModules > 0 ? up.MaxModules : def.Yard.MaxModules;
 			title(L.Text("Yard"));
 			// a small button on the right of its line, with its tooltip (the closure's and the size's improvements)
 			auto rightButton = [&](const char* id, const std::string& label, const std::string& tip, const std::string& command)
@@ -202,15 +221,32 @@ namespace GB::Editor
 			ImGui::TextUnformatted(up.SizeKnown ? up.Size.c_str() : "?");
 			if (!up.SizeKnown && ImGui::IsItemHovered()) ImGui::SetTooltip("%s", L.Text("The size of the house is not known yet").c_str());
 			if (!up.NextSize.empty())
-				rightButton("grow", L.Text("Grow to {0}", up.NextSize), L.Text("The house grows where it stands: more beds and more slots in its yard") + "\n" + costText(up.GrowCost),
+				rightButton("grow", L.Text("Grow to {0}", up.NextSize), L.Text("The house grows where it stands: more beds and more slots in its yard") + "\n" + costText(up.GrowCost) +
+					(up.GrowBlocked.empty() ? std::string() : "\n" + up.GrowBlocked),
 					"game grow " + under + " " + up.NextSize);
 			// ---- the closure: its level, its metres and its improvement
 			lineIcon("stake");
-			if (count == 0 && (!up.ClosureKnown || up.Closure.empty())) ImGui::TextDisabled("%s", L.Text("No fence yet: it goes up with the first module").c_str());
+			if (up.Closure.empty()) ImGui::TextDisabled("%s", L.Text("No fence yet").c_str());
 			else ImGui::TextUnformatted((closureName(up.ClosureKnown ? up.Closure : std::string("fence")) + " \xC2\xB7 " + L.Num(yard.Length, 0) + " m").c_str());
 			if (!up.NextClosure.empty())
 				rightButton("closure", L.Text("Improve"), L.Text("The fence becomes: {0}", closureName(up.NextClosure)) + "\n" + costText(up.ClosureCost) + "\n" +
-					L.Text("The house stays in use while the work goes on"), "game yard " + under + " closure " + up.NextClosure);
+					L.Text("The house stays in use while the work goes on") + (up.ClosureBlocked.empty() ? std::string() : "\n" + up.ClosureBlocked),
+					"game yard " + under + " closure " + up.NextClosure);
+			// ---- the work in course on the house (growing it or its closure), with its bar and what it still lacks
+			if (!up.WorkKind.empty())
+			{
+				lineIcon("build");
+				const std::string what = up.WorkKind == "grow" ? L.Text("Grow to {0}", up.WorkTo) : closureName(up.WorkTo);
+				ImGui::TextUnformatted((L.Text("Work in course") + ": " + what).c_str());
+				rightButton("cancel", L.Text("Call off"), L.Text("What was brought goes back to the store"), "game yard " + under + " cancel");
+				ImGui::ProgressBar(up.Progress, ImVec2(std::max(40.0f, width), 0.0f));
+				if (!up.Missing.empty() && ImGui::IsItemHovered())
+				{
+					std::string lack;
+					for (const auto& [item, n] : up.Missing) lack += (lack.empty() ? "" : ", ") + std::to_string(n) + " " + itemName(item);
+					ImGui::SetTooltip("%s", (L.Text("It lacks {0}", lack)).c_str());
+				}
+			}
 			// ---- the modules it has and takes
 			int freeCount = 0;
 			for (const HouseModules::SlotView& v : slots) if (v.Site.empty()) ++freeCount;
@@ -571,7 +607,7 @@ namespace GB::Editor
 			return it != m_Buildings.Defs.end() ? &it->second : nullptr;
 		};
 		// the yard's line (dashed ochre while it has no fence)
-		const bool fenced = own->Modules().Count(name) > 0;
+		const bool fenced = own->Modules().ClosureOf(name) > 0;
 		for (size_t i = 0; i + 1 < yard.Outline.size(); ++i)
 		{
 			if (fenced) break;
